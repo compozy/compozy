@@ -12,6 +12,13 @@ import { describe, expect, it, vi } from "vitest";
 
 import { paletteClientOp, type PaletteShellHandlers } from "../cmd-palette-client-ops";
 import {
+  ALREADY_RUNNING_CODE,
+  canRetry,
+  invokeCompletedFeedback,
+  invokeFailedFeedback,
+  workspaceSwitchFeedback,
+} from "../cmd-palette-feedback";
+import {
   dispatchPaletteCommand,
   STALE_TARGET_REASON,
   UNSUPPORTED_CLIENT_OP_REASON,
@@ -55,6 +62,7 @@ function shellFixture(): PaletteShellHandlers {
     focusAttention: vi.fn(),
     openNewTab: vi.fn(),
     activateWindow: vi.fn(),
+    openPaletteExecution: vi.fn(),
   };
 }
 
@@ -127,6 +135,11 @@ function portsFixture(overrides: Partial<PaletteDispatchPorts> = {}) {
     reportUsage: vi.fn(),
     refresh: vi.fn(),
     onFailure: vi.fn(),
+    requestArgs: vi.fn(),
+    requestConfirmation: vi.fn(),
+    onPendingStart: vi.fn(),
+    onPendingSettle: vi.fn(),
+    onCompleted: vi.fn(),
     ...overrides,
   };
   return { ports, context };
@@ -236,7 +249,9 @@ describe("cmd-palette dispatch refusals (UT-106)", () => {
     });
     const outcome = await dispatchPaletteCommand({ command: stale, ports });
     expect(outcome).toEqual({ status: "refused", reason: "Session no longer exists" });
-    expect(ports.onFailure).toHaveBeenCalledWith(stale, "Session no longer exists");
+    // A plain transport failure carries no daemon code, so retry gating has
+    // nothing to key on and the reason travels alone.
+    expect(ports.onFailure).toHaveBeenCalledWith(stale, "Session no longer exists", undefined);
     expect(ports.refresh).toHaveBeenCalledOnce();
   });
 
@@ -256,6 +271,214 @@ describe("cmd-palette dispatch refusals (UT-106)", () => {
       ports,
     });
     expect(outcome).toEqual({ status: "refused", reason: STALE_TARGET_REASON });
+  });
+});
+
+describe("cmd-palette pre-execution gates (UT-120, UT-123)", () => {
+  const withArguments = command({
+    id: "ext.notes.capture",
+    title: "Capture note",
+    action: { kind: "tool", tool: "ext__notes__capture" },
+    arguments: [{ name: "title", type: "text", required: true, placeholder: "Note title" }],
+  });
+  const withConfirmation = command({
+    id: "ext.notes.purge",
+    title: "Purge archived notes",
+    action: { kind: "tool", tool: "ext__notes__purge" },
+    destructive: true,
+    confirmation: {
+      title: "Purge archived notes?",
+      body: "Permanently deletes every archived note in this workspace.",
+      confirm: "Purge",
+    },
+  });
+
+  it("Should raise the argument step instead of running a command that declares arguments", async () => {
+    const { ports } = portsFixture();
+    const outcome = await dispatchPaletteCommand({ command: withArguments, ports });
+    expect(outcome).toEqual({ status: "needs_args" });
+    expect(ports.requestArgs).toHaveBeenCalledWith(withArguments);
+    expect(ports.invoke).not.toHaveBeenCalled();
+  });
+
+  it("Should run once the arguments arrive", async () => {
+    const { ports } = portsFixture();
+    const outcome = await dispatchPaletteCommand({
+      command: withArguments,
+      args: { title: "Standup follow-ups" },
+      ports,
+    });
+    expect(outcome).toEqual({ status: "invoked", result: { status: "ok" } });
+    expect(ports.requestArgs).not.toHaveBeenCalled();
+  });
+
+  it("Should raise the confirmation step carrying the arguments already collected", async () => {
+    const { ports } = portsFixture();
+    const outcome = await dispatchPaletteCommand({
+      command: withConfirmation,
+      args: { scope: "workspace" },
+      ports,
+    });
+    expect(outcome).toEqual({ status: "needs_confirmation" });
+    expect(ports.requestConfirmation).toHaveBeenCalledWith(withConfirmation, {
+      scope: "workspace",
+    });
+    expect(ports.invoke).not.toHaveBeenCalled();
+  });
+
+  it("Should run a confirmed destructive command exactly once", async () => {
+    const { ports } = portsFixture();
+    const outcome = await dispatchPaletteCommand({
+      command: withConfirmation,
+      args: { scope: "workspace" },
+      confirmed: true,
+      ports,
+    });
+    expect(outcome).toEqual({ status: "invoked", result: { status: "ok" } });
+    expect(ports.invoke).toHaveBeenCalledOnce();
+    expect(ports.requestConfirmation).not.toHaveBeenCalled();
+  });
+
+  it("Should refuse an unavailable command before asking for anything", async () => {
+    const { ports } = portsFixture();
+    await dispatchPaletteCommand({
+      command: command({
+        ...withArguments,
+        available: false,
+        reason: "extension notes is unhealthy (crash loop)",
+      }),
+      ports,
+    });
+    expect(ports.requestArgs).not.toHaveBeenCalled();
+  });
+});
+
+describe("cmd-palette feedback lifecycle (UT-159, UT-160)", () => {
+  const asyncCommand = command({
+    id: "ext.notes.capture",
+    title: "Capture note",
+    action: { kind: "tool", tool: "ext__notes__capture" },
+  });
+
+  it("Should hold the command pending across the invoke and report its completion", async () => {
+    const order: string[] = [];
+    const { ports } = portsFixture({
+      invoke: vi.fn(async () => {
+        order.push("invoke");
+        return { status: "ok" };
+      }),
+      onPendingStart: vi.fn(() => order.push("start")),
+      onPendingSettle: vi.fn(() => order.push("settle")),
+      onCompleted: vi.fn(() => order.push("completed")),
+    });
+    await dispatchPaletteCommand({ command: asyncCommand, ports });
+    expect(order).toEqual(["start", "invoke", "completed", "settle"]);
+  });
+
+  it("Should release the pending state when the invoke fails mid-flight", async () => {
+    const { ports } = portsFixture({
+      invoke: vi.fn(async () => {
+        throw new Error("runtime unavailable");
+      }),
+    });
+    const outcome = await dispatchPaletteCommand({ command: asyncCommand, ports });
+    expect(outcome).toEqual({ status: "refused", reason: "runtime unavailable" });
+    expect(ports.onPendingSettle).toHaveBeenCalledWith(asyncCommand);
+    expect(ports.onCompleted).not.toHaveBeenCalled();
+  });
+
+  it("Should carry the daemon's error code so retry can be gated on it", async () => {
+    const rejection = Object.assign(new Error("ext.notes.purge is already in flight"), {
+      code: "already_running",
+    });
+    const { ports } = portsFixture({
+      invoke: vi.fn(async () => {
+        throw rejection;
+      }),
+    });
+    const outcome = await dispatchPaletteCommand({ command: asyncCommand, ports });
+    expect(outcome).toEqual({
+      status: "refused",
+      reason: "ext.notes.purge is already in flight",
+      code: "already_running",
+    });
+    expect(ports.onFailure).toHaveBeenCalledWith(
+      asyncCommand,
+      "ext.notes.purge is already in flight",
+      "already_running"
+    );
+  });
+
+  it("Should never report a synchronous client operation as pending", async () => {
+    const { ports } = portsFixture();
+    await dispatchPaletteCommand({ command: command(), ports });
+    expect(ports.onPendingStart).not.toHaveBeenCalled();
+    expect(ports.onCompleted).not.toHaveBeenCalled();
+  });
+});
+
+describe("cmd-palette feedback copy and retry gating (UT-159, UT-160)", () => {
+  const retrySafe = command({ id: "app.open.tasks", title: "Open Tasks" });
+  const oneShot = command({
+    id: "ext.notes.purge",
+    title: "Purge archived notes",
+    execution: { retry_safe: false, single_flight: true },
+  });
+
+  it("Should name the command on success", () => {
+    expect(invokeCompletedFeedback(retrySafe, { status: "ok" })).toEqual({
+      message: "Open Tasks finished",
+      tone: "success",
+      retryable: false,
+    });
+  });
+
+  it("Should say an approval is pending rather than claiming the command ran", () => {
+    const feedback = invokeCompletedFeedback(oneShot, {
+      status: "approval_pending",
+      approval_id: "apr_55e0c9",
+    });
+    expect(feedback).toEqual({
+      message: "Purge archived notes needs approval before it runs",
+      tone: "info",
+      retryable: false,
+    });
+  });
+
+  it("Should name the command and repeat the runtime reason verbatim on failure", () => {
+    expect(invokeFailedFeedback(oneShot, "runtime unavailable")).toEqual({
+      message: "Purge archived notes — runtime unavailable",
+      tone: "error",
+      retryable: false,
+    });
+  });
+
+  it("Should offer retry only where re-running is declared safe", () => {
+    const safe = command({
+      ...retrySafe,
+      execution: { retry_safe: true, single_flight: false },
+    });
+    expect(invokeFailedFeedback(safe, "runtime unavailable").retryable).toBe(true);
+    expect(invokeFailedFeedback(oneShot, "runtime unavailable").retryable).toBe(false);
+  });
+
+  it("Should never offer retry for a single-flight rejection", () => {
+    const safe = command({
+      ...retrySafe,
+      execution: { retry_safe: true, single_flight: true },
+    });
+    expect(canRetry(safe, ALREADY_RUNNING_CODE)).toBe(false);
+    expect(
+      invokeFailedFeedback(safe, "Open Tasks is already in flight", ALREADY_RUNNING_CODE).retryable
+    ).toBe(false);
+  });
+
+  it("Should name the workspace a landing switched to", () => {
+    expect(workspaceSwitchFeedback("payments", "Fix payment retries")).toEqual({
+      message: "Switched to payments to open Fix payment retries",
+      tone: "info",
+      retryable: false,
+    });
   });
 });
 

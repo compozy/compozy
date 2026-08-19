@@ -47,6 +47,7 @@ export function OsPaletteDomainSections({ sections, onOpen }: OsPaletteDomainSec
           return (
             <CommandItem
               className={ROW_CLASS}
+              data-palette-row={row.key}
               data-testid={`os-palette-domain-row-${row.key}`}
               forceMount
               key={row.key}

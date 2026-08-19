@@ -38,6 +38,8 @@ import {
 } from "../use-window-live-data-enabled";
 import { useOsWinLayer } from "../use-os-win-layer";
 import { useOsShortcuts } from "../use-os-shortcuts";
+import { useOsPaletteExecution } from "../use-os-palette-execution";
+import type { PaletteRowSubject } from "../../lib/cmd-palette-row-actions";
 import type { PaletteRegistry, ResolvedPaletteCommand } from "../../lib/cmd-palette-types";
 import { adjacentShortcutItem, shortcutAttentionTarget } from "../use-desktop-shell-body";
 import { useWorkspacesStripScroll } from "../use-workspaces-strip-scroll";
@@ -1320,6 +1322,118 @@ describe("useOsShortcuts", () => {
 
     expect(run).not.toHaveBeenCalled();
     expect(onEscape).not.toHaveBeenCalled();
+  });
+});
+
+describe("useOsPaletteExecution keyboard dispatch [UT-129]", () => {
+  const contentRef = { current: null } as RefObject<HTMLElement | null>;
+
+  function renderExecution(
+    options: {
+      registry?: PaletteRegistry;
+      selected?: PaletteRowSubject | null;
+      open?: boolean;
+    } = {}
+  ) {
+    const runAction = vi.fn();
+    const runCommand = vi.fn();
+    const registry = options.registry ?? shortcutRegistry();
+    const selected =
+      options.selected === undefined
+        ? ({
+            kind: "command",
+            command: registry.byId.get("window.tab.new") as ResolvedPaletteCommand,
+          } as PaletteRowSubject)
+        : options.selected;
+    const view = renderHook(() =>
+      useOsPaletteExecution({
+        open: options.open ?? true,
+        registry,
+        pins: [],
+        selected,
+        contentRef,
+        runAction,
+        runCommand,
+      })
+    );
+    return { ...view, runAction, runCommand };
+  }
+
+  function press(init: KeyboardEventInit): KeyboardEvent {
+    const event = new KeyboardEvent("keydown", { bubbles: true, cancelable: true, ...init });
+    // The listener drives React state, so the dispatch has to be flushed before
+    // the assertion reads the hook back.
+    act(() => {
+      document.dispatchEvent(event);
+    });
+    return event;
+  }
+
+  it("Should toggle the action panel on the palette chord instead of letting it close the palette", () => {
+    const { result } = renderExecution();
+
+    const opened = press({ key: "k", code: "KeyK", metaKey: true });
+    expect(result.current.panel.open).toBe(true);
+    expect(opened.defaultPrevented).toBe(true);
+
+    press({ key: "k", code: "KeyK", metaKey: true });
+    expect(result.current.panel.open).toBe(false);
+  });
+
+  it("Should fire the selected row's action chord wherever focus drifted in the palette", () => {
+    // The selected row is `window.tab.new`, whose primary action carries that
+    // command's own chord — pressing it acts on the row, not on the shell.
+    const { result, runAction } = renderExecution();
+    const fired = press({ key: "t", code: "KeyT", metaKey: true });
+
+    expect(runAction).toHaveBeenCalledOnce();
+    expect(runAction.mock.calls[0]?.[0]).toMatchObject({
+      primary: true,
+      intent: { kind: "run-command", commandId: "window.tab.new" },
+    });
+    expect(fired.defaultPrevented).toBe(true);
+    expect(result.current.panel.open).toBe(false);
+  });
+
+  it("Should ignore a held chord so one press cannot fire an action twice", () => {
+    const { runAction } = renderExecution();
+
+    press({ key: "t", code: "KeyT", metaKey: true, repeat: true });
+    expect(runAction).not.toHaveBeenCalled();
+
+    press({ key: "k", code: "KeyK", metaKey: true, repeat: true });
+    expect(runAction).not.toHaveBeenCalled();
+  });
+
+  it("Should leave a chord that belongs to no action on the selected row alone", () => {
+    // `window.nav.back` is bound in the keymap but is not one of this row's
+    // actions, so the shell's own listener must still get the keystroke.
+    const { runAction } = renderExecution();
+    const untouched = press({ key: "[", code: "BracketLeft", metaKey: true });
+
+    expect(runAction).not.toHaveBeenCalled();
+    expect(untouched.defaultPrevented).toBe(false);
+  });
+
+  it("Should listen only while the palette is open", () => {
+    const { result, runAction } = renderExecution({ open: false });
+
+    press({ key: "k", code: "KeyK", metaKey: true });
+    press({ key: "t", code: "KeyT", metaKey: true });
+
+    expect(result.current.panel.open).toBe(false);
+    expect(runAction).not.toHaveBeenCalled();
+  });
+
+  it("Should have nothing to act on when no row is selected", () => {
+    const { result, runAction } = renderExecution({ selected: null });
+
+    press({ key: "k", code: "KeyK", metaKey: true });
+    press({ key: "t", code: "KeyT", metaKey: true });
+
+    expect(result.current.panel.open).toBe(false);
+    expect(result.current.panel.model).toBeNull();
+    expect(runAction).not.toHaveBeenCalled();
   });
 });
 

@@ -173,6 +173,55 @@ export const cmdPaletteCatalogFixture: CmdPaletteCatalogResponse = {
   ],
 };
 
+/**
+ * The execution surfaces need what the base catalog deliberately lacks: a
+ * healthy extension command that declares arguments, and a destructive one that
+ * declares its confirmation copy. They are added rather than substituted so the
+ * base catalog keeps serving the unhealthy-source and disabled-row contracts
+ * (`ext.notes.capture` stays unavailable there on purpose).
+ */
+export const cmdPaletteArgumentsCommand: CmdPaletteCommand = {
+  ...coreCommand({ id: "ext.notes.capture_note", title: "Capture note" }),
+  section: "Notes",
+  icon: "notebook-pen",
+  source: "ext.notes",
+  bindings: ["alt+shift+KeyN"],
+  alias: "cap",
+  action: { kind: "tool", tool: "ext__notes__capture" },
+  execution: { retry_safe: false, single_flight: true },
+  arguments: [
+    { name: "title", type: "text", required: true, placeholder: "Note title" },
+    { name: "tag", type: "dropdown", required: false, options: ["inbox", "idea"] },
+  ],
+};
+
+export const cmdPaletteDestructiveCommand: CmdPaletteCommand = {
+  ...coreCommand({ id: "ext.notes.purge", title: "Purge archived notes" }),
+  section: "Notes",
+  icon: "trash-2",
+  source: "ext.notes",
+  destructive: true,
+  action: { kind: "tool", tool: "ext__notes__purge" },
+  execution: { retry_safe: false, single_flight: true },
+  confirmation: {
+    title: "Purge archived notes?",
+    body: "Permanently deletes every archived note in this workspace.",
+    confirm: "Purge",
+  },
+};
+
+export function cmdPaletteExecutionCatalog(): CmdPaletteCatalogResponse {
+  return {
+    ...cmdPaletteCatalogFixture,
+    catalog_revision: "sha256:story-catalog-execution",
+    commands: [
+      ...cmdPaletteStoryCommands,
+      cmdPaletteArgumentsCommand,
+      cmdPaletteDestructiveCommand,
+    ],
+  };
+}
+
 /** 60+ rows for the capped-group / overflow-note contract (US-001.EC-2). */
 export function cmdPaletteAtScaleCatalog(): CmdPaletteCatalogResponse {
   const generated = Array.from({ length: 64 }, (_, index) =>

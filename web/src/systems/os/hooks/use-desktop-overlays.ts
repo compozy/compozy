@@ -1,5 +1,6 @@
 import { useState } from "react";
 
+import { resetPaletteExecutionEntry } from "../stores/cmd-palette-execution-store";
 import { windowManagerStore } from "../stores/window-manager-store";
 import { resetPaletteViewStack } from "./use-os-palette-view-stack";
 import { useWindowManagerOverlay, useWindowPaletteIntent } from "./use-window-manager-store";
@@ -52,7 +53,12 @@ export function useDesktopOverlays() {
     // starts at root" holds for Esc, a click outside, an action that closes the
     // palette, and another overlay stealing it — without each of those paths
     // having to know the stack exists (Business Rule 32).
-    if (overlay === "palette" || open) resetPaletteViewStack();
+    // The argument and confirmation steps reset alongside the view stack: one
+    // place decides that a fresh palette starts clean, whatever dismissed it.
+    if (overlay === "palette" || open) {
+      resetPaletteViewStack();
+      resetPaletteExecutionEntry();
+    }
     if (overlay === "desktops") {
       setLocalOverlay(null);
       if (open) {

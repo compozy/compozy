@@ -6,6 +6,8 @@ import { OsPaletteCommandRow } from "./os-palette-command-row";
 
 export interface OsPaletteResultsProps {
   sections: readonly PaletteSection[];
+  /** Command ids the daemon is currently running for this client. */
+  pending: ReadonlySet<string>;
   onSelect: (command: ResolvedPaletteCommand) => void;
 }
 
@@ -18,7 +20,7 @@ export interface OsPaletteResultsProps {
  * Groups after the first open with a full-bleed rule; a capped group states its
  * exact overflow rather than truncating in silence (BR-18).
  */
-export function OsPaletteResults({ sections, onSelect }: OsPaletteResultsProps) {
+export function OsPaletteResults({ sections, pending, onSelect }: OsPaletteResultsProps) {
   return (
     <>
       {sections.map((section, index) => {
@@ -35,7 +37,12 @@ export function OsPaletteResults({ sections, onSelect }: OsPaletteResultsProps) 
             key={section.title}
           >
             {section.commands.map(command => (
-              <OsPaletteCommandRow command={command} key={command.id} onSelect={onSelect} />
+              <OsPaletteCommandRow
+                command={command}
+                key={command.id}
+                pending={pending.has(command.id)}
+                onSelect={onSelect}
+              />
             ))}
             {note === null ? null : (
               <p

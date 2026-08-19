@@ -234,6 +234,9 @@ export function useDesktopShellBody(model: DesktopShellModel, options: DesktopSh
         });
     },
     activateWindow: windowId => void coordinator.userFocus(windowId),
+    // The seam already recorded which step it needs; raising the overlay is all
+    // that is left, and it must not toggle a palette that is already open.
+    openPaletteExecution: () => overlays.setOverlayOpen("palette", true),
   };
   const paletteDispatch = useCmdPaletteDispatch({
     registry: paletteRegistry,

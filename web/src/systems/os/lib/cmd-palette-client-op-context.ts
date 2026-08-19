@@ -25,6 +25,12 @@ export interface PaletteShellHandlers {
   openNewTab(stackTargetWindowId: string | null): void;
   /** Tab and window activation owns exactly one URL write (US-020). */
   activateWindow(windowId: string): void;
+  /**
+   * Raises the palette on a command's argument or confirmation step. A chord or
+   * a menu item can reach a command that declares either, so the surface that
+   * asks has to be reachable from outside the palette tree.
+   */
+  openPaletteExecution(): void;
 }
 
 export interface PaletteClientOpContext {

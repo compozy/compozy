@@ -1,4 +1,4 @@
-import { CommandItem, CommandShortcut, KindIcon, Pill, cn } from "@compozy/ui";
+import { CommandItem, CommandShortcut, KindIcon, Pill, StatusDot, cn } from "@compozy/ui";
 
 import {
   CMD_PALETTE_ICON_FALLBACK,
@@ -9,6 +9,8 @@ import type { ResolvedPaletteCommand } from "../lib/cmd-palette-types";
 
 export interface OsPaletteCommandRowProps {
   command: ResolvedPaletteCommand;
+  /** True while the daemon is running this command for this client (US-017.AC-2). */
+  pending?: boolean;
   onSelect: (command: ResolvedPaletteCommand) => void;
 }
 
@@ -24,20 +26,23 @@ function extensionName(source: string): string | null {
  * US-037.AC-1). The standard 50% disabled dimming is overridden here because it
  * drags that reason below the AA floor; the row reads as disabled through
  * colour instead (authorized delta, `DESIGN-NOTES.md`).
+ *
+ * It stays *selectable*, and only `aria-disabled` says otherwise. cmdk skips a
+ * `disabled` item during keyboard navigation, which would put the row's reason
+ * and its meta-actions out of reach of the keyboard entirely (US-014.EC-2). The
+ * seam is what refuses the run, reporting the same reason the row shows.
  */
-export function OsPaletteCommandRow({ command, onSelect }: OsPaletteCommandRowProps) {
+export function OsPaletteCommandRow({ command, pending, onSelect }: OsPaletteCommandRowProps) {
   const extension = extensionName(command.source);
   const emoji = isEmojiIcon(command.icon);
   return (
     <CommandItem
       forceMount
-      className={cn(
-        "h-10 gap-3 px-3",
-        "data-[disabled=true]:pointer-events-auto data-[disabled=true]:opacity-100",
-        !command.available && "text-muted"
-      )}
+      aria-busy={pending === true ? true : undefined}
+      aria-disabled={command.available ? undefined : true}
+      className={cn("h-10 gap-3 px-3", !command.available && "text-muted")}
+      data-palette-row={command.id}
       data-testid={`os-palette-command-${command.id}`}
-      disabled={!command.available}
       key={command.id}
       value={command.id}
       onSelect={() => onSelect(command)}
@@ -77,7 +82,17 @@ export function OsPaletteCommandRow({ command, onSelect }: OsPaletteCommandRowPr
           {command.reason}
         </span>
       )}
-      {command.chords.length > 0 ? (
+      {pending === true ? (
+        // Indeterminate by construction: the runtime reports that it is running,
+        // not how far along it is, so neither does this (SD-007).
+        <span
+          className="ms-auto flex shrink-0 items-center gap-1.5 text-small-body text-subtle"
+          data-testid={`os-palette-pending-${command.id}`}
+        >
+          <StatusDot className="motion-safe:animate-pulse" label="Running" tone="accent" />
+          pending
+        </span>
+      ) : command.chords.length > 0 ? (
         <CommandShortcut>{command.chords.join(" / ")}</CommandShortcut>
       ) : null}
     </CommandItem>

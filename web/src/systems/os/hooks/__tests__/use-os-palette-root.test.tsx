@@ -20,7 +20,14 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { LayoutDesktop } from "../../lib/window-manager-types";
 import type { OsDesktopRuntimeStore, OsWindow } from "../../lib/os-types";
 import { OsCommandPalette } from "../../components/os-command-palette";
+import type { CmdPaletteRunOptions } from "../use-cmd-palette-dispatch";
 import { useOsPaletteRoot } from "../use-os-palette-root";
+import {
+  cmdPaletteExecutionStore,
+  requestPaletteArgs,
+  requestPaletteConfirmation,
+  resetPaletteExecutionEntry,
+} from "../../stores/cmd-palette-execution-store";
 import { CmdPaletteRegistryProvider } from "../../contexts/cmd-palette-registry-context";
 import type {
   CmdPaletteRankSignals,
@@ -75,6 +82,7 @@ const paletteMocks = vi.hoisted(() => {
     desktop: null as OsDesktopRuntimeStore | null,
     isWaiting: vi.fn<(sessionId: string) => boolean>(() => false),
     jumpToSession: vi.fn(),
+    notifyUser: vi.fn<(feedback: { message: string; tone: string }) => void>(),
     openForAgent: vi.fn(),
     pending: false,
     paletteIntent: null as { kind: "destination"; windowId: string } | null,
@@ -164,6 +172,10 @@ vi.mock("@/systems/session/hooks/use-workspace-session-groups", () => ({
 }));
 vi.mock("../use-attention-jump", () => ({
   useAttentionJump: () => paletteMocks.jumpToSession,
+}));
+
+vi.mock("@/lib/user-feedback", () => ({
+  notifyUser: (feedback: { message: string; tone: string }) => paletteMocks.notifyUser(feedback),
 }));
 
 vi.mock("../use-cmd-palette-rank-signals", () => ({
@@ -385,28 +397,147 @@ function PaletteHarness({ children }: { children: ReactNode }) {
   );
 }
 
+/**
+ * The execution surfaces need commands the root fixture deliberately lacks: a
+ * bound toggle chord, a settings destination for the meta deep-links, an
+ * argument-bearing command, a destructive one, and an unhealthy one. They live
+ * in their own registry so the root cases above keep their exact result set.
+ */
+function executionCommand(
+  overrides: Partial<ResolvedPaletteCommand> & Pick<ResolvedPaletteCommand, "id" | "title">
+): ResolvedPaletteCommand {
+  return {
+    section: "Notes",
+    icon: "command",
+    source: "core",
+    bindings: [],
+    alias: null,
+    destructive: false,
+    availability_exempt: false,
+    arguments: [],
+    action: { kind: "client_op", op: overrides.id },
+    execution: { retry_safe: true, single_flight: false },
+    visible: true,
+    available: true,
+    reason: "",
+    chords: [],
+    ...overrides,
+  } as unknown as ResolvedPaletteCommand;
+}
+
+const CAPTURE_COMMAND = executionCommand({
+  id: "ext.notes.capture",
+  title: "Capture note",
+  source: "ext.notes",
+  action: { kind: "tool", tool: "ext__notes__capture" },
+  execution: { retry_safe: false, single_flight: true },
+  arguments: [
+    { name: "title", type: "text", required: true, placeholder: "Note title" },
+    { name: "tag", type: "dropdown", required: false, options: ["inbox", "idea"] },
+  ],
+});
+
+const PURGE_COMMAND = executionCommand({
+  id: "ext.notes.purge",
+  title: "Purge archived notes",
+  source: "ext.notes",
+  destructive: true,
+  action: { kind: "tool", tool: "ext__notes__purge" },
+  execution: { retry_safe: false, single_flight: true },
+  confirmation: {
+    title: "Purge archived notes?",
+    body: "Permanently deletes every archived note in this workspace.",
+    confirm: "Purge",
+  },
+});
+
+const UNHEALTHY_COMMAND = executionCommand({
+  id: "ext.notes.recent",
+  title: "Recent notes",
+  source: "ext.notes",
+  available: false,
+  reason: "extension notes is unhealthy (crash loop)",
+  action: { kind: "view", view: "ext.notes.recent" },
+});
+
+const EXECUTION_REGISTRY: PaletteRegistry = (() => {
+  const commands = [
+    executionCommand({
+      id: "palette.open",
+      title: "Command palette",
+      section: "Shell",
+      bindings: ["meta+KeyK"],
+      chords: ["⌘K"],
+      availability_exempt: true,
+    }),
+    executionCommand({
+      id: "settings.layouts",
+      title: "Settings → Layouts",
+      section: "Settings",
+      action: { kind: "navigate", app: "settings", args: { pathname: "/settings/layouts" } },
+    }),
+    CAPTURE_COMMAND,
+    PURGE_COMMAND,
+    UNHEALTHY_COMMAND,
+  ];
+  return {
+    commands,
+    byId: new Map(commands.map(command => [command.id, command])),
+    sources: [
+      { source: "core", status: "healthy" },
+      {
+        source: "ext.notes",
+        status: "unhealthy",
+        reason: "extension notes is unhealthy (crash loop)",
+      },
+    ],
+    catalogRevision: "sha256:execution",
+    stale: false,
+    daemonReachable: true,
+  };
+})();
+
+function ExecutionHarness({ children }: { children: ReactNode }) {
+  return (
+    <CmdPaletteRegistryProvider registry={EXECUTION_REGISTRY}>
+      {children}
+    </CmdPaletteRegistryProvider>
+  );
+}
+
 const paletteDispatch = {
   // Stands in for the seam: a `view` action pushes the stack, exactly as
-  // `dispatchPaletteCommand` routes it through the shell's `pushView` port.
-  run: vi.fn(
-    async (
-      command: ResolvedPaletteCommand,
-      _args?: Readonly<Record<string, unknown>>,
-      _query?: string
-    ) => {
-      const view = command.action.kind === "view" ? command.action.view : undefined;
-      if (view) paletteMocks.writeViewStack([{ viewId: view as "sessions" }]);
-      return { status: "ran" } as const;
+  // `dispatchPaletteCommand` routes it through the shell's `pushView` port, and
+  // an argument-bearing or destructive command reports the step it needs rather
+  // than running.
+  run: vi.fn(async (command: ResolvedPaletteCommand, options?: CmdPaletteRunOptions) => {
+    // Availability is the seam's first gate, so the double refuses before it
+    // routes anything — otherwise an unavailable row would appear to work here
+    // and nowhere else.
+    if (!command.available) {
+      return { status: "refused", reason: command.reason } as const;
     }
-  ),
+    const view = command.action.kind === "view" ? command.action.view : undefined;
+    if (view) paletteMocks.writeViewStack([{ viewId: view as "sessions" }]);
+    if (command.arguments.length > 0 && options?.args === undefined) {
+      requestPaletteArgs(command);
+      return { status: "needs_args" } as const;
+    }
+    if (command.confirmation != null && options?.confirmed !== true) {
+      requestPaletteConfirmation(command, options?.args ?? {});
+      return { status: "needs_confirmation" } as const;
+    }
+    return { status: "ran" } as const;
+  }),
   runById: vi.fn(async (_commandId: string) => ({ status: "ran" }) as const),
   executeClientOp: vi.fn(async (_op: string, _payload: unknown) => undefined),
+  setPinned: vi.fn(async (_command: ResolvedPaletteCommand, _pinned: boolean) => undefined),
 };
 
-function renderPalette() {
+function renderPalette(onOpenChange = vi.fn()) {
   return render(
     <PaletteHarness>
-      <OsCommandPalette open dispatch={paletteDispatch} onOpenChange={vi.fn()} />
+      <OsCommandPalette open dispatch={paletteDispatch} onOpenChange={onOpenChange} />
     </PaletteHarness>
   );
 }
@@ -417,7 +548,9 @@ function renderRoot(open = true, onOpenChange = vi.fn()) {
       useOsPaletteRoot({
         open: props.open,
         onOpenChange,
-        dispatch: (command, query) => void paletteDispatch.run(command, undefined, query),
+        dispatch: (command, query) => paletteDispatch.run(command, { query }),
+        setPinned: (command, pinned) => void paletteDispatch.setPinned(command, pinned),
+        runById: commandId => void paletteDispatch.runById(commandId),
       }),
     { initialProps: { open }, wrapper: PaletteHarness }
   );
@@ -425,6 +558,12 @@ function renderRoot(open = true, onOpenChange = vi.fn()) {
 
 describe("useOsPaletteRoot", () => {
   beforeEach(() => {
+    // The execution store is module-scoped, exactly as it is in the shell, so a
+    // leftover argument or confirmation step would leak into the next case.
+    resetPaletteExecutionEntry();
+    paletteDispatch.run.mockClear();
+    paletteDispatch.runById.mockClear();
+    paletteDispatch.setPinned.mockClear();
     paletteMocks.activeWorkspaceId = "workspace:alpha";
     paletteMocks.closeWindow.mockClear();
     paletteMocks.coordinator.userActivateWindow.mockClear();
@@ -1123,5 +1262,375 @@ describe("palette nested views", () => {
     input.setSelectionRange(1, 1);
     await user.keyboard("{ArrowRight}");
     expect(input).toHaveValue("Ne");
+  });
+});
+
+describe("palette execution surfaces", () => {
+  function renderExecutionPalette(onOpenChange = vi.fn()) {
+    // A fresh element per pass: re-rendering the identical element lets React
+    // bail out, and these cases are about the palette reacting to a catalog that
+    // moved underneath it.
+    const tree = () => (
+      <ExecutionHarness>
+        <OsCommandPalette open dispatch={paletteDispatch} onOpenChange={onOpenChange} />
+      </ExecutionHarness>
+    );
+    const result = render(tree());
+    return { ...result, onOpenChange, refresh: () => result.rerender(tree()) };
+  }
+
+  beforeEach(() => {
+    resetPaletteExecutionEntry();
+    paletteDispatch.run.mockClear();
+    paletteDispatch.runById.mockClear();
+    paletteDispatch.setPinned.mockClear();
+    paletteMocks.desktop = desktopFixture({}, null);
+    paletteMocks.jumpToSession.mockClear();
+    paletteMocks.notifyUser.mockClear();
+    paletteMocks.paletteIntent = null;
+    paletteMocks.rankSignals = null;
+    paletteMocks.domainSections = [];
+    paletteMocks.sessions = [];
+    paletteMocks.workspaceGroups = [];
+    paletteMocks.writeViewStack([]);
+  });
+
+  afterEach(() => {
+    resetPaletteExecutionEntry();
+    cmdPaletteExecutionStore.trigger.pendingSettled({ commandId: CAPTURE_COMMAND.id });
+  });
+
+  it("Should toggle the action panel on the selected row, filter it, and close it [UT-125]", async () => {
+    const user = userEvent.setup();
+    renderExecutionPalette();
+
+    await user.keyboard("{Meta>}k{/Meta}");
+    const panel = await screen.findByTestId("os-palette-action-panel");
+    expect(within(panel).getByTestId("os-palette-action-primary.run")).toHaveTextContent(
+      "Command palette"
+    );
+    expect(within(panel).getByTestId("os-palette-action-meta.pin")).toHaveTextContent("Pin");
+
+    await user.type(screen.getByPlaceholderText("Filter actions…"), "pin");
+    expect(within(panel).getByTestId("os-palette-action-meta.pin")).toBeInTheDocument();
+    expect(within(panel).queryByTestId("os-palette-action-primary.run")).not.toBeInTheDocument();
+
+    await user.keyboard("{Meta>}k{/Meta}");
+    await waitFor(() =>
+      expect(screen.queryByTestId("os-palette-action-panel")).not.toBeInTheDocument()
+    );
+  });
+
+  it("Should keep a filter that matches nothing open and honest [UT-125]", async () => {
+    const user = userEvent.setup();
+    renderExecutionPalette();
+    await user.keyboard("{Meta>}k{/Meta}");
+    await screen.findByTestId("os-palette-action-panel");
+
+    await user.type(screen.getByPlaceholderText("Filter actions…"), "xyz");
+    expect(screen.getByTestId("os-palette-action-empty")).toHaveTextContent("No actions match");
+    expect(screen.getByTestId("os-palette-action-panel")).toBeInTheDocument();
+  });
+
+  it("Should pin through the seam and deep-link alias and shortcut to the settings table [UT-126]", async () => {
+    const user = userEvent.setup();
+    renderExecutionPalette();
+    await user.keyboard("{Meta>}k{/Meta}");
+    await screen.findByTestId("os-palette-action-panel");
+    await user.click(screen.getByTestId("os-palette-action-meta.pin"));
+    expect(paletteDispatch.setPinned).toHaveBeenCalledWith(
+      expect.objectContaining({ id: "palette.open" }),
+      true
+    );
+
+    await user.keyboard("{Meta>}k{/Meta}");
+    await screen.findByTestId("os-palette-action-panel");
+    await user.click(screen.getByTestId("os-palette-action-meta.alias"));
+    expect(paletteDispatch.runById).toHaveBeenCalledWith("settings.layouts");
+  });
+
+  it("Should list only meta-actions plus the verbatim reason on an unavailable row [UT-128]", async () => {
+    const user = userEvent.setup();
+    renderExecutionPalette();
+    // Hovering selects without activating — a disabled row is reachable, and
+    // reaching it is not the same as running it.
+    await user.hover(screen.getByTestId("os-palette-command-ext.notes.recent"));
+    await user.keyboard("{Meta>}k{/Meta}");
+    const panel = await screen.findByTestId("os-palette-action-panel");
+
+    expect(within(panel).queryByTestId("os-palette-action-primary.run")).not.toBeInTheDocument();
+    expect(within(panel).getByTestId("os-palette-action-meta.pin")).toBeInTheDocument();
+    expect(within(panel).getByTestId("os-palette-action-reason")).toHaveTextContent(
+      "extension notes is unhealthy (crash loop)"
+    );
+  });
+
+  it("Should close the panel and fire nothing when its row leaves the list [UT-127]", async () => {
+    const user = userEvent.setup();
+    paletteMocks.sessions = [
+      paletteSession({ id: "session:one", name: "Refactor session store" }),
+      paletteSession({ id: "session:two", name: "Fix payment retries" }),
+    ];
+    const { refresh } = renderExecutionPalette();
+
+    await user.hover(screen.getByTestId("os-palette-session-session:one"));
+    await user.keyboard("{Meta>}k{/Meta}");
+    expect(await screen.findByTestId("os-palette-action-session.land")).toBeInTheDocument();
+
+    paletteMocks.sessions = [paletteSession({ id: "session:two", name: "Fix payment retries" })];
+    refresh();
+
+    await waitFor(() =>
+      expect(screen.queryByTestId("os-palette-action-panel")).not.toBeInTheDocument()
+    );
+    expect(paletteMocks.jumpToSession).not.toHaveBeenCalled();
+    expect(screen.getByTestId("os-palette-session-session:two")).toHaveAttribute(
+      "data-selected",
+      "true"
+    );
+  });
+
+  it("Should open in argument mode when the seam asks for arguments [UT-122]", async () => {
+    requestPaletteArgs(CAPTURE_COMMAND);
+    renderExecutionPalette();
+
+    expect(screen.getByTestId("os-palette-args")).toHaveTextContent("Capture note");
+    expect(screen.getByTestId("os-palette-arg-title")).toHaveValue("");
+    expect(screen.getByTestId("os-palette-arg-title")).toHaveAttribute("placeholder", "Note title");
+    expect(screen.queryByPlaceholderText("Search apps, sessions, and actions…")).toBeNull();
+  });
+
+  it("Should traverse fields and run once every required argument is filled [UT-120]", async () => {
+    const user = userEvent.setup();
+    requestPaletteArgs(CAPTURE_COMMAND);
+    renderExecutionPalette();
+
+    await user.type(screen.getByTestId("os-palette-arg-title"), "Standup follow-ups");
+    await user.tab();
+    expect(screen.getByTestId("os-palette-arg-tag")).toHaveFocus();
+    await user.keyboard("inbox");
+    // ⏎ with the option list open picks the highlighted option; the next one
+    // submits the bar.
+    await user.keyboard("{Enter}");
+    await user.keyboard("{Enter}");
+
+    expect(paletteDispatch.run).toHaveBeenCalledWith(
+      expect.objectContaining({ id: "ext.notes.capture" }),
+      { args: { title: "Standup follow-ups", tag: "inbox" } }
+    );
+  });
+
+  it("Should block on the empty required field and restore search on Escape [UT-121]", async () => {
+    const user = userEvent.setup();
+    requestPaletteArgs(CAPTURE_COMMAND);
+    renderExecutionPalette();
+
+    await user.click(screen.getByTestId("os-palette-arg-title"));
+    await user.keyboard("{Enter}");
+    expect(screen.getByTestId("os-palette-arg-error-title")).toHaveTextContent("required");
+    expect(screen.getByTestId("os-palette-arg-title")).toHaveFocus();
+    expect(paletteDispatch.run).not.toHaveBeenCalled();
+
+    await user.type(screen.getByTestId("os-palette-arg-title"), "Standup");
+    await user.keyboard("{Escape}");
+    expect(screen.queryByTestId("os-palette-args")).toBeNull();
+    expect(screen.getByPlaceholderText("Search apps, sessions, and actions…")).toBeInTheDocument();
+
+    // Re-entering starts clean: the discarded value never comes back.
+    requestPaletteArgs(CAPTURE_COMMAND);
+    await waitFor(() => expect(screen.getByTestId("os-palette-arg-title")).toHaveValue(""));
+  });
+
+  it("Should type-to-filter a dropdown argument [UT-120]", async () => {
+    const user = userEvent.setup();
+    requestPaletteArgs(CAPTURE_COMMAND);
+    renderExecutionPalette();
+
+    await user.click(screen.getByTestId("os-palette-arg-tag"));
+    const options = screen.getByTestId("os-palette-arg-options-tag");
+    expect(
+      within(options)
+        .getAllByRole("option")
+        .map(node => node.textContent)
+    ).toEqual(["inbox", "idea"]);
+    await user.keyboard("in");
+    expect(
+      within(screen.getByTestId("os-palette-arg-options-tag"))
+        .getAllByRole("option")
+        .map(node => node.textContent)
+    ).toEqual(["inbox"]);
+  });
+
+  it("Should keep dropdown options out of the Tab order while the field owns focus [UT-120]", async () => {
+    const user = userEvent.setup();
+    requestPaletteArgs(CAPTURE_COMMAND);
+    renderExecutionPalette();
+
+    const field = screen.getByTestId("os-palette-arg-tag");
+    await user.click(field);
+    for (const option of within(screen.getByTestId("os-palette-arg-options-tag")).getAllByRole(
+      "option"
+    )) {
+      expect(option).toHaveAttribute("tabindex", "-1");
+    }
+    // ⇥ leaves the field entirely rather than stepping into its own option list;
+    // options are reached with the arrows through aria-activedescendant.
+    await user.tab();
+    expect(field).not.toHaveFocus();
+    expect(document.activeElement).not.toHaveAttribute("role", "option");
+  });
+
+  it("Should let Escape reach the argument step even with a dropdown open [UT-121]", async () => {
+    const user = userEvent.setup();
+    requestPaletteArgs(CAPTURE_COMMAND);
+    const { onOpenChange } = renderExecutionPalette();
+
+    await user.type(screen.getByTestId("os-palette-arg-title"), "Standup follow-ups");
+    await user.click(screen.getByTestId("os-palette-arg-tag"));
+    expect(screen.getByTestId("os-palette-arg-options-tag")).toBeInTheDocument();
+
+    // The open list is not a rung of the ladder: one Escape leaves argument mode
+    // outright and discards what was typed, rather than only dismissing options.
+    await user.keyboard("{Escape}");
+    expect(screen.queryByTestId("os-palette-args")).toBeNull();
+    expect(screen.getByPlaceholderText("Search apps, sessions, and actions…")).toBeInTheDocument();
+    expect(onOpenChange).not.toHaveBeenCalledWith(false);
+    expect(paletteDispatch.run).not.toHaveBeenCalled();
+  });
+
+  it("Should render the declared confirmation with Cancel focused and Esc backing out [UT-123]", async () => {
+    const user = userEvent.setup();
+    requestPaletteConfirmation(PURGE_COMMAND, {});
+    renderExecutionPalette();
+
+    expect(screen.getByTestId("os-palette-confirmation")).toHaveTextContent(
+      "Purge archived notes?"
+    );
+    expect(screen.getByTestId("os-palette-confirmation")).toHaveTextContent(
+      "Permanently deletes every archived note in this workspace."
+    );
+    await waitFor(() => expect(screen.getByTestId("os-palette-confirm-cancel")).toHaveFocus());
+    expect(screen.getByTestId("os-palette-confirm-accept")).toHaveTextContent("Purge");
+
+    await user.keyboard("{Escape}");
+    expect(screen.queryByTestId("os-palette-confirmation")).toBeNull();
+    expect(paletteDispatch.run).not.toHaveBeenCalled();
+  });
+
+  it("Should absorb the triggering keystroke instead of confirming with it [UT-124]", async () => {
+    const user = userEvent.setup();
+    requestPaletteConfirmation(PURGE_COMMAND, {});
+    renderExecutionPalette();
+    await waitFor(() => expect(screen.getByTestId("os-palette-confirm-cancel")).toHaveFocus());
+
+    await user.keyboard("{Enter}");
+    expect(paletteDispatch.run).not.toHaveBeenCalled();
+    expect(screen.queryByTestId("os-palette-confirmation")).toBeNull();
+  });
+
+  it("Should confirm only through a deliberate activation of the confirm control [UT-124]", async () => {
+    const user = userEvent.setup();
+    requestPaletteConfirmation(PURGE_COMMAND, { scope: "workspace" });
+    renderExecutionPalette();
+
+    await user.click(screen.getByTestId("os-palette-confirm-accept"));
+    expect(paletteDispatch.run).toHaveBeenCalledWith(
+      expect.objectContaining({ id: "ext.notes.purge" }),
+      { args: { scope: "workspace" }, confirmed: true }
+    );
+  });
+
+  it("Should show the honest message instead of executing when the target changed [UT-124]", async () => {
+    const user = userEvent.setup();
+    // The command the operator triggered is no longer the command the catalog
+    // carries — the confirmation must not run against the difference.
+    requestPaletteConfirmation(
+      { ...UNHEALTHY_COMMAND, confirmation: PURGE_COMMAND.confirmation } as ResolvedPaletteCommand,
+      {}
+    );
+    renderExecutionPalette();
+
+    expect(screen.getByTestId("os-palette-confirm-invalid")).toHaveTextContent(
+      "extension notes is unhealthy (crash loop)"
+    );
+    expect(screen.queryByTestId("os-palette-confirm-accept")).toBeNull();
+    await user.click(screen.getByTestId("os-palette-confirm-cancel"));
+    expect(paletteDispatch.run).not.toHaveBeenCalled();
+  });
+
+  it("Should close on a synchronous command and stay open while one is pending [UT-159]", async () => {
+    const user = userEvent.setup();
+    const { onOpenChange, refresh } = renderExecutionPalette();
+
+    await user.click(screen.getByTestId("os-palette-command-settings.layouts"));
+    await waitFor(() => expect(onOpenChange).toHaveBeenCalledWith(false));
+
+    cmdPaletteExecutionStore.trigger.pendingStarted({
+      pending: { commandId: CAPTURE_COMMAND.id, title: CAPTURE_COMMAND.title },
+    });
+    refresh();
+    const row = screen.getByTestId("os-palette-command-ext.notes.capture");
+    expect(row).toHaveAttribute("aria-busy", "true");
+    expect(within(row).getByTestId("os-palette-pending-ext.notes.capture")).toHaveTextContent(
+      "pending"
+    );
+  });
+
+  it("Should name the workspace a session landing switched to [UT-159]", async () => {
+    const user = userEvent.setup();
+    paletteMocks.sessions = [
+      paletteSession({
+        id: "session:foreign",
+        name: "Fix payment retries",
+        workspace_id: "workspace:beta",
+      }),
+    ];
+    renderExecutionPalette();
+
+    await user.click(screen.getByTestId("os-palette-session-session:foreign"));
+    expect(paletteMocks.notifyUser).toHaveBeenCalledWith({
+      message: "Switched to Beta to open Fix payment retries",
+      tone: "info",
+      retryable: false,
+    });
+    expect(paletteMocks.jumpToSession).toHaveBeenCalledWith({
+      sessionId: "session:foreign",
+      agentName: "claude",
+      workspaceId: "workspace:beta",
+    });
+  });
+
+  it("Should not announce a switch for a landing inside the current workspace [UT-159]", async () => {
+    const user = userEvent.setup();
+    paletteMocks.sessions = [
+      paletteSession({ id: "session:local", name: "Refactor session store" }),
+    ];
+    renderExecutionPalette();
+
+    await user.click(screen.getByTestId("os-palette-session-session:local"));
+    expect(paletteMocks.notifyUser).not.toHaveBeenCalled();
+    expect(paletteMocks.jumpToSession).toHaveBeenCalledOnce();
+  });
+
+  it("Should climb the Escape ladder panel first, then the step, then the palette [ladder]", async () => {
+    const user = userEvent.setup();
+    const { onOpenChange } = renderExecutionPalette();
+
+    await user.keyboard("{Meta>}k{/Meta}");
+    await screen.findByTestId("os-palette-action-panel");
+    await user.keyboard("{Escape}");
+    await waitFor(() =>
+      expect(screen.queryByTestId("os-palette-action-panel")).not.toBeInTheDocument()
+    );
+    expect(onOpenChange).not.toHaveBeenCalledWith(false);
+
+    requestPaletteArgs(CAPTURE_COMMAND);
+    await waitFor(() => expect(screen.getByTestId("os-palette-args")).toBeInTheDocument());
+    await user.keyboard("{Escape}");
+    expect(screen.queryByTestId("os-palette-args")).toBeNull();
+    expect(onOpenChange).not.toHaveBeenCalledWith(false);
+
+    await user.keyboard("{Escape}");
+    expect(onOpenChange).toHaveBeenCalledWith(false);
   });
 });

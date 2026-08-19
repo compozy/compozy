@@ -45,6 +45,7 @@ export function OsPaletteEntitySections({
           {entities.sessions.map(session => (
             <CommandItem
               className={ROW_CLASS}
+              data-palette-row={`session:${session.sessionId}`}
               data-testid={`os-palette-session-${session.sessionId}`}
               forceMount
               key={session.sessionId}
@@ -71,6 +72,7 @@ export function OsPaletteEntitySections({
           {entities.tabs.map(tab => (
             <CommandItem
               className={ROW_CLASS}
+              data-palette-row={`tab:${tab.windowId}`}
               data-testid={`os-palette-tab-${tab.windowId}`}
               forceMount
               key={tab.windowId}
@@ -105,6 +107,7 @@ export function OsPaletteEntitySections({
           {entities.worktrees.map(entry => (
             <CommandItem
               className={ROW_CLASS}
+              data-palette-row={`worktree:${entry.key}`}
               data-testid={`os-palette-worktree-${entry.key}`}
               forceMount
               key={entry.key}
