@@ -120,6 +120,39 @@ func TestResolveItemRuntimeShouldMergeFieldsByPrecedence(t *testing.T) {
 		)
 	})
 
+	t.Run("Should place typed input between config and frontmatter per field", func(t *testing.T) {
+		t.Parallel()
+
+		got := resolveRuntimeForTest(t, loop.RuntimeLayers{
+			Defaults: loop.RuntimeSpec{
+				Provider: "default", Model: "default", Reasoning: "none",
+			},
+			ConfigRules: []loop.RuntimeRule{{
+				Match: loop.RuntimeMatch{Type: "frontend"},
+				Runtime: loop.RuntimeSpec{
+					Provider: "config", Model: "config", Reasoning: "medium",
+				},
+			}},
+			RunRules: []loop.RuntimeRule{{
+				Match:   loop.RuntimeMatch{ID: "task_01"},
+				Runtime: loop.RuntimeSpec{Reasoning: "max"},
+			}},
+		}, loop.ItemRuntime{
+			TaskID: "task_01", TaskType: "frontend",
+			Node:        loop.RuntimeSpec{Provider: "node", Model: "node", Reasoning: "low"},
+			Input:       loop.RuntimeSpec{Provider: "input", Model: "input", Reasoning: "high"},
+			Frontmatter: loop.RuntimeSpec{Model: "frontmatter"},
+		})
+		assertResolvedRuntime(t, got,
+			loop.RuntimeSpec{Provider: "input", Model: "frontmatter", Reasoning: "max"},
+			loop.RuntimeProvenance{
+				Provider:  loop.RuntimeSourceInput,
+				Model:     loop.RuntimeSourceFrontmatter,
+				Reasoning: loop.RuntimeSourceRun,
+			},
+		)
+	})
+
 	t.Run("Should apply defaults only to non task items", func(t *testing.T) {
 		t.Parallel()
 

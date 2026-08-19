@@ -60,7 +60,7 @@ inputs:
 | `file`    | text                                | The value is not browsed or checked for existence.                |
 | `agent`   | an exact agent name                 | The daemon checks the workspace agent catalog.                    |
 | `ref`     | an exact resource name              | `ref.kind` selects the catalog used for validation.               |
-| `runtime` | `{ provider?, model?, reasoning? }` | A partial object; exact custom model IDs are valid when accepted. |
+| `runtime` | `{ provider?, model?, reasoning? }` | A partial object that can be bound directly to an action runtime. |
 
 Per-input fields: `type` (required), `required` (default `false`), `description`, `default`, and
 `ref` (for `type: ref`). String-like inputs may also declare `enum`; those choices take precedence
@@ -168,9 +168,19 @@ Cross-generation references keep the same authored shape on every pass. On gener
 node outputs use zero values from their declared schemas and verdict lists are empty, so a valid
 history path can be rendered during initial and sparse repair generations. Use the generation
 number when history-dependent prose should be omitted.
-`params.runtime` is a per-node `{ provider, model, reasoning }` layer. For an imported task item,
-fields resolve independently in this order: per-run rule, task frontmatter, configured rule,
-`params.runtime`, `runtime_defaults.worker`, then the agent definition. Rule specificity is
+`params.runtime` accepts either a literal `{ provider, model, reasoning }` object or one exact
+reference to a declared runtime input:
+
+```yaml
+params:
+  runtime: "{{ .inputs.worker_runtime }}"
+```
+
+Field interpolation inside a runtime object is invalid. Worker fields resolve independently in this
+order, from highest to lowest precedence: per-run rule, imported task frontmatter, referenced
+runtime input, configured rule, literal `params.runtime`, `runtime_defaults.worker`, then empty
+fields from the agent definition. `resolved_runtime.source` reports a referenced value as `input`.
+Rule specificity is
 `id > type > complexity`; a later rule wins at equal specificity. A child `run-loop` resolves its
 own rules and never inherits the parent's per-run rules.
 `run-agent` sessions use the target agent definition plus workspace defaults for sandbox and

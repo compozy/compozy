@@ -6,7 +6,7 @@ persona: Lea
 journey: J-01
 expected: Shared Web controls, CLI prompts, and structured start surfaces preserve exact entity and runtime values, reject stale references with input_validation, and create no run on failure
 entry_points: web /loops/:name run form; CLI compozy loop run --input; HTTP/UDS Loop run route; compozy__loop_run
-qa_status: pass
+qa_status: untested
 bug_ids: BUG-20260729-tool-invoke-structural-redaction; BUG-20260818-runtime-input-split-controls
 fix_status: fixed
 retest_status: pass
@@ -19,3 +19,7 @@ overlaps: LP-002; LP-loop-input-defaults; LP-runtime-validation-preflight
 Exercise `agent`, every closed `ref.kind`, authored `enum`, partial `runtime`, and the plain-text
 `file` control. Confirm redacted Vault metadata, exact custom model IDs, manual stale-value fallback,
 TTY-only prompting, and `--no-prompt` behavior.
+
+QA impact 2026-08-19: a runtime selected through Web, CLI, HTTP/UDS, or the native tool now drives
+nodes that directly reference that input. Reset to verify the selected value reaches the bound
+runtime and its status provenance is `input`.

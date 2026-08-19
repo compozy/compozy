@@ -175,6 +175,18 @@ func runtimeInputSpec(value any) (dsl.RuntimeSpec, error) {
 		return runtimeInputSpec(*typed)
 	case map[string]any:
 		return runtimeInputSpecFromMap(typed)
+	case dsl.NodeParams:
+		return runtimeInputSpecFromMap(map[string]any(typed))
+	case map[any]any:
+		values := make(map[string]any, len(typed))
+		for key, field := range typed {
+			name, ok := key.(string)
+			if !ok {
+				return dsl.RuntimeSpec{}, fmt.Errorf("field name must be a string")
+			}
+			values[name] = field
+		}
+		return runtimeInputSpecFromMap(values)
 	case map[string]string:
 		values := make(map[string]any, len(typed))
 		for key, field := range typed {

@@ -10,8 +10,8 @@ import (
 )
 
 func (c *lintContext) lintGoalNode(node dsl.Node) {
-	var params dsl.GoalParams
-	if err := node.Params.Decode(&params); err != nil {
+	params, err := decodeGoalNodeParams(node.Params)
+	if err != nil {
 		c.add(node.ID, refs.CodeUnresolvablePath, "goal params are invalid: %v", err)
 		return
 	}

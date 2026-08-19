@@ -36,8 +36,8 @@ func coordinatorNodeMetadataWithFanOutItem(
 	actionKind := dsl.ActionKind(node.Kind)
 	switch actionKind {
 	case dsl.ActionRunAgent:
-		var params dsl.RunAgentParams
-		if err := node.Params.Decode(&params); err != nil {
+		params, err := decodeRunAgentNodeParams(node.Params)
+		if err != nil {
 			return nil, fmt.Errorf("loop: decode run-agent metadata for %s: %w", node.ID, err)
 		}
 		if len(params.OutputSchema) > 0 {

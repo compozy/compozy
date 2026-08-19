@@ -3,11 +3,21 @@ package loop
 import (
 	"fmt"
 	"strings"
+
+	"github.com/compozy/compozy/internal/loop/dsl"
 )
 
-// ItemRuntimeFromNamespace extracts runtime-selection metadata from an imported task item.
-func ItemRuntimeFromNamespace(namespace map[string]any, node RuntimeSpec) (ItemRuntime, error) {
-	item := ItemRuntime{Node: node}
+// ItemRuntimeFromNamespace extracts runtime-selection metadata and the authored node/input layer.
+func ItemRuntimeFromNamespace(
+	namespace map[string]any,
+	params dsl.NodeParams,
+	materialized RuntimeSpec,
+) (ItemRuntime, error) {
+	node, input, err := materializedNodeRuntime(params, materialized)
+	if err != nil {
+		return ItemRuntime{}, fmt.Errorf("%w: params.runtime: %w", ErrValidation, err)
+	}
+	item := ItemRuntime{Node: node, Input: input}
 	raw, ok := namespace["item"]
 	if !ok {
 		return item, nil

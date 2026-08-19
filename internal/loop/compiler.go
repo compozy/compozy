@@ -182,8 +182,8 @@ func foldGraphNodeDefaults(nodes []dsl.Node) {
 			if node.Session == nil {
 				node.Session = &dsl.SessionSpec{Mode: dsl.SessionModeContinuous}
 			}
-			var params dsl.GoalParams
-			if err := node.Params.Decode(&params); err == nil && params.OnExhausted == "" {
+			params, err := decodeGoalNodeParams(node.Params)
+			if err == nil && params.OnExhausted == "" {
 				if node.Params == nil {
 					node.Params = dsl.NodeParams{}
 				}

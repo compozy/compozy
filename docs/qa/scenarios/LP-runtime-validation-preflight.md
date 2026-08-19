@@ -6,7 +6,7 @@ persona: Dora
 journey: J-02
 expected: Static and runtime-routing errors remain deterministic `runtime_validation` items, while invalid declared runtime inputs return field-addressed `input_validation`; unknown providers fail before ACP spawn, exact model IDs pass unchanged for known providers, and every preflight-rejected path materializes no run or session.
 entry_points: compozy loop validate; compozy loop run --dry-run; POST /api/workspaces/:workspace_id/loops/:name/validate and /run over HTTP and UDS
-qa_status: pass
+qa_status: untested
 bug_ids: BUG-20260819-empty-runtime-default-rejected
 fix_status: fixed
 retest_status: pass
@@ -36,3 +36,6 @@ QA 2026-08-05 (review remediation): CLI, HTTP, and UDS dry-runs preserved
 
 QA 2026-08-18: CLI, HTTP/UDS, native dry-run, and Web preserved an exact custom model and partial
 runtime. Invalid provider/entity values returned field-addressed `input_validation` before a run.
+
+QA impact 2026-08-19: runtime inputs can now bind directly to run-agent and Goal nodes. Reset to
+verify exact-reference validation, input provenance, and rejection before ACP spawn.

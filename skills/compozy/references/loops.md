@@ -446,15 +446,18 @@ A rejected metric candidate routed through `revise` restores from an existing be
 repairs from the last generation. A distinct `next_generation` route starts a fresh full body.
 
 Runtime routing belongs to the Loop runtime. Worker fields resolve independently in this order:
-per-run rules, imported task frontmatter, configured runtime rules, `params.runtime`,
-`runtime_defaults.worker`, then the agent definition. A higher layer replaces only the fields it
-sets. Each rule matches exactly one of `id`, `type`, or `complexity`; specificity is
+per-run rules, imported task frontmatter, a referenced runtime input, configured runtime rules,
+literal `params.runtime`, `runtime_defaults.worker`, then the agent definition. A higher layer
+replaces only the fields it sets. `resolved_runtime.source` uses `input` for the referenced layer.
+Each rule matches exactly one of `id`, `type`, or `complexity`; specificity is
 `id > type > complexity`, and the later rule wins when specificity is equal. Child `run-loop`
 definitions resolve their own rules and never inherit the parent's per-run rules.
 
 Use `contract.runtime_defaults` and `contract.runtime_rules` in a Loop definition, or
-`[loops.defaults.delivery|watch]` plus stored Loop config for operator defaults. `run-agent` nodes
-use `params.runtime`. Imported task frontmatter may set `runtime: {provider, model, reasoning}`.
+`[loops.defaults.delivery|watch]` plus stored Loop config for operator defaults. `run-agent` and
+`goal` nodes use either literal `params.runtime` or an exact direct reference such as
+`runtime: "{{ .inputs.worker_runtime }}"` to a declared `type: runtime` input. Field interpolation
+inside the object is invalid. Imported task frontmatter may set `runtime: {provider, model, reasoning}`.
 Judges use only `runtime_defaults.judge` plus the criterion's `runtime`; task rules never select a
 judge. The retired `model_defaults`, scalar `params.model`, and scalar criterion `model` keys fail
 with migration guidance.

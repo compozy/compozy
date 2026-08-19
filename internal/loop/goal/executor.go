@@ -54,7 +54,7 @@ func (e *Executor) initializeSegment(
 	if err := validateGoalParams(params); err != nil {
 		return nil, err
 	}
-	item, err := loop.ItemRuntimeFromNamespace(in.Namespace, params.Runtime)
+	item, err := loop.ItemRuntimeFromNamespace(in.Namespace, node.Params, params.Runtime)
 	if err != nil {
 		return nil, err
 	}

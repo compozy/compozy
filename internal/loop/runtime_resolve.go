@@ -20,6 +20,7 @@ func ResolveItemRuntime(layers RuntimeLayers, item ItemRuntime) (ResolvedRuntime
 	applyRuntime(&resolved, layers.Defaults, RuntimeSourceDefault)
 	applyRuntime(&resolved, item.Node, RuntimeSourceNode)
 	applyRuntime(&resolved, resolveMatchingRuntime(layers.ConfigRules, item), RuntimeSourceConfig)
+	applyRuntime(&resolved, item.Input, RuntimeSourceInput)
 	applyRuntime(&resolved, item.Frontmatter, RuntimeSourceFrontmatter)
 	applyRuntime(&resolved, resolveMatchingRuntime(layers.RunRules, item), RuntimeSourceRun)
 	return normalizeResolvedRuntime(resolved), nil

@@ -35,6 +35,8 @@ const (
 	RuntimeSourceFrontmatter RuntimeSource = "frontmatter"
 	// RuntimeSourceConfig identifies a configured runtime rule.
 	RuntimeSourceConfig RuntimeSource = "config"
+	// RuntimeSourceInput identifies a typed runtime input referenced by a node.
+	RuntimeSourceInput RuntimeSource = "input"
 	// RuntimeSourceNode identifies rendered node params.runtime.
 	RuntimeSourceNode RuntimeSource = "node"
 	// RuntimeSourceDefault identifies effective runtime_defaults.
@@ -72,6 +74,7 @@ type ItemRuntime struct {
 	Complexity  string
 	Frontmatter RuntimeSpec
 	Node        RuntimeSpec
+	Input       RuntimeSpec
 }
 
 // RuntimeValidationItem is one deterministic runtime validation diagnostic.

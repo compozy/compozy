@@ -199,6 +199,25 @@ func TestCompilerShouldCompileFanOutFilterWithOwnIterationScope(t *testing.T) {
 	})
 }
 
+func TestCompilerShouldCompileDirectRuntimeInputReference(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should retain the direct reference for bind-time materialization", func(t *testing.T) {
+		t.Parallel()
+
+		definition := validDefinition()
+		definition.Inputs["worker_runtime"] = dsl.Input{Type: dsl.InputTypeRuntime, Required: true}
+		requireNode(t, &definition, "agent").Params["runtime"] = "{{ .inputs.worker_runtime }}"
+		resolved, err := loop.NewCompiler().Compile(definition)
+		if err != nil {
+			t.Fatalf("Compile() error = %v", err)
+		}
+		if resolved.Templates["nodes.agent.params.runtime"] == nil {
+			t.Fatal("resolved direct runtime input template is nil")
+		}
+	})
+}
+
 func TestCompilerShouldFoldGoalDefaultsWithoutMutatingInput(t *testing.T) {
 	t.Parallel()
 

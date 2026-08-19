@@ -108,7 +108,7 @@ func (e *RunAgentActionExecutor) bindRunAgentSession(
 	contractBlock string,
 ) (ActionSessionBinding, ResolvedRuntime, error) {
 	runtimeSelection := in.RuntimeSelectionOrZero()
-	item, err := ItemRuntimeFromNamespace(in.Namespace, spec.Runtime)
+	item, err := ItemRuntimeFromNamespace(in.Namespace, node.Params, spec.Runtime)
 	if err != nil {
 		return ActionSessionBinding{}, ResolvedRuntime{}, err
 	}

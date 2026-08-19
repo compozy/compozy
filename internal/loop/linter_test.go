@@ -830,6 +830,13 @@ func TestLinterShouldRejectStructuralAndReferenceInvalidShapes(t *testing.T) {
 			name: "Should accept valid finite graph",
 		},
 		{
+			name: "Should accept a direct reference to a declared runtime input",
+			mutate: func(def *dsl.Definition) {
+				def.Inputs["worker_runtime"] = dsl.Input{Type: dsl.InputTypeRuntime, Required: true}
+				requireNode(t, def, "agent").Params["runtime"] = "{{ .inputs.worker_runtime }}"
+			},
+		},
+		{
 			name: "Should reject graph cycles",
 			mutate: func(def *dsl.Definition) {
 				def.Graph.Edges = append(def.Graph.Edges, dsl.Edge{From: "agent", To: "load"})

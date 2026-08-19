@@ -12,8 +12,8 @@ func completedRunAgentOutputFailure(node dsl.Node, payload json.RawMessage) *Act
 	if node.Class != dsl.NodeClassAction || dsl.ActionKind(node.Kind) != dsl.ActionRunAgent {
 		return nil
 	}
-	var params dsl.RunAgentParams
-	if err := node.Params.Decode(&params); err != nil {
+	params, err := decodeRunAgentNodeParams(node.Params)
+	if err != nil {
 		failure := NewActionFailure(
 			string(ReasonCodeInvalidOutput),
 			fmt.Sprintf("the pinned run-agent output schema is invalid: %s", err),
@@ -24,7 +24,7 @@ func completedRunAgentOutputFailure(node dsl.Node, payload json.RawMessage) *Act
 	if len(params.OutputSchema) == 0 {
 		return nil
 	}
-	_, err := ValidateActionStructured(params.OutputSchema, ActionPromptResult{Structured: payload})
+	_, err = ValidateActionStructured(params.OutputSchema, ActionPromptResult{Structured: payload})
 	if err == nil {
 		return nil
 	}
