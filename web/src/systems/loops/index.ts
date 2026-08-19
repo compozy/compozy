@@ -339,7 +339,6 @@ export { LoopRunPageBody } from "./components/run-page/loop-run-page-body";
 export type { LoopRunPageBodyProps } from "./components/run-page/loop-run-page-body";
 export { LoopRunProgressPanel } from "./components/run-page/loop-run-progress-panel";
 export { LoopRunStoryTimeline } from "./components/run-page/loop-run-story-timeline";
-export { LoopRunSubhead } from "./components/run-page/loop-run-subhead";
 export { LoopRunTurnsDisclosure } from "./components/run-page/loop-run-turns-disclosure";
 export { LoopRunUsageRail } from "./components/run-page/loop-run-usage-rail";
 

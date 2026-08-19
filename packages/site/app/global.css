@@ -76,7 +76,7 @@
   --text-site-empty-title: clamp(1.55rem, 3vw, 2rem);
   --text-site-quote: clamp(1.5rem, 2.4vw, 1.95rem);
   --text-site-card-title: clamp(1.45rem, 3vw, 1.9rem);
-  --text-site-subheading: clamp(1.3rem, 2.2vw, 1.7rem);
+  --text-site-subheading: clamp(1.25rem, 1.7vw, 1.45rem);
   --text-site-bento-2xl: 2.5rem;
   --text-site-bento-xl: 2.35rem;
   --text-site-bento-lg: 2rem;

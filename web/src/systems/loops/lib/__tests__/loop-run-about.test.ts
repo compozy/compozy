@@ -2,12 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import { loopRunDetailByRunId } from "../../mocks/fixtures";
 import type { LoopDefinition, LoopRunRecord } from "../../types";
-import {
-  buildInputRows,
-  humanizeInputKey,
-  humanizeStartOrigin,
-  watchedSubject,
-} from "../loop-run-about";
+import { buildInputRows, humanizeInputKey, humanizeStartOrigin } from "../loop-run-about";
 
 function run(overrides: Partial<LoopRunRecord> = {}): LoopRunRecord {
   return { ...loopRunDetailByRunId.get("looprun_review_running")!.run, ...overrides };
@@ -22,28 +17,6 @@ function definitionInputs(
     ),
   } as Pick<LoopDefinition, "inputs">;
 }
-
-describe("watchedSubject", () => {
-  it("Should prefer the required declared scalar and render `key value`", () => {
-    const subject = watchedSubject(
-      run({ inputs: { branch: "main", pr: "128" } }),
-      definitionInputs({ pr: { required: true }, branch: {} })
-    );
-    expect(subject).toBe("PR 128");
-  });
-
-  it("Should fall back to the first scalar input and skip non-scalars", () => {
-    const subject = watchedSubject(
-      run({ inputs: { payload: { nested: true }, slug: "loops-catalog-api" } }),
-      undefined
-    );
-    expect(subject).toBe("Slug loops-catalog-api");
-  });
-
-  it("Should return null when the run has no scalar inputs", () => {
-    expect(watchedSubject(run({ inputs: {} }), undefined)).toBeNull();
-  });
-});
 
 describe("buildInputRows", () => {
   it("Should flag agent-bound inputs from the closed input type", () => {

@@ -79,11 +79,6 @@
   stroke: var(--color-line) !important;
 }
 
-.site-home h1,
-.site-home h2 {
-  font-family: var(--font-display), var(--font-sans);
-}
-
 .site-bento-overlay-runtime {
   background: var(--site-bento-overlay-runtime);
 }

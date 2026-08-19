@@ -1,4 +1,4 @@
-import { cn } from "@compozy/ui";
+import { CodeBlock } from "@compozy/ui";
 
 import type { DslLine } from "../../lib/loop-dsl";
 
@@ -6,7 +6,19 @@ interface LoopEditorDslViewProps {
   lines: DslLine[];
 }
 
+function dslHighlightLines(lines: DslLine[]): number[] {
+  const highlightLines: number[] = [];
+  for (const [index, line] of lines.entries()) {
+    if (line.highlight || line.offending) {
+      highlightLines.push(index + 1);
+    }
+  }
+  return highlightLines;
+}
+
 export function LoopEditorDslView({ lines }: LoopEditorDslViewProps) {
+  const code = lines.map(line => line.text).join("\n");
+
   return (
     <div className="min-h-0 overflow-auto p-6" data-testid="loop-editor-dsl">
       <p className="mb-3 max-w-[74ch] text-form-label leading-relaxed text-subtle">
@@ -15,21 +27,13 @@ export function LoopEditorDslView({ lines }: LoopEditorDslViewProps) {
         values interpolate with Go templates <span className="font-mono">{"{{ }}"}</span>;
         conditions are CEL; node ids are snake_case.
       </p>
-      <pre className="overflow-x-auto rounded-md border border-line-soft bg-rail p-4 font-mono text-small-body leading-relaxed text-fg">
-        {lines.map((line, index) => (
-          <div
-            key={index}
-            className={cn(
-              "whitespace-pre px-1",
-              line.offending && "rounded-xs bg-danger-tint text-danger",
-              !line.offending && line.highlight && "bg-warning-tint"
-            )}
-            data-offending={line.offending ? "true" : undefined}
-          >
-            {line.text || " "}
-          </div>
-        ))}
-      </pre>
+      <CodeBlock
+        code={code}
+        copyable
+        highlightLines={dslHighlightLines(lines)}
+        language="yaml"
+        showPrompt={false}
+      />
     </div>
   );
 }

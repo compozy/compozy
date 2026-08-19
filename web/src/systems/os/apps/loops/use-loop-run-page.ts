@@ -284,8 +284,6 @@ export function useLoopRunPage(
     usageNote: view?.usageNote ?? null,
     approvalFallbackFacts: view?.approvalFallbackFacts ?? [],
     latestVerdict: view?.latestVerdict ?? null,
-    subject: view?.subject ?? null,
-    hasWatchSource: view?.hasWatchSource ?? false,
     watchCadence: view?.watchCadence ?? null,
     inputRows: view?.inputRows ?? [],
     startedBy: view?.startedBy ?? "",

@@ -10,7 +10,7 @@ export function FinalCta() {
       <div className="grid gap-8 rounded-diagram border border-line bg-canvas px-6 py-10 lg:grid-cols-[minmax(0,1fr)_340px] lg:items-center lg:px-10">
         <div>
           <Eyebrow className="text-accent">CompozyOS beta</Eyebrow>
-          <h2 className="mt-4 max-w-[18ch] text-site-cta-title leading-none font-normal tracking-tight text-fg">
+          <h2 className="mt-4 max-w-[18ch] font-display text-site-cta-title leading-none font-normal tracking-tight text-fg">
             Install CompozyOS. Put agents to work continuously.
           </h2>
           <p className="mt-5 max-w-[52ch] text-sm leading-7 text-muted">

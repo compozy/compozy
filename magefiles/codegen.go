@@ -39,6 +39,9 @@ func Codegen() error {
 	if err := CLIDocs(); err != nil {
 		return err
 	}
+	if err := SyncFontSizeClasses(); err != nil {
+		return err
+	}
 	return SyncDesignMD()
 }
 
@@ -88,6 +91,9 @@ func CodegenCheck() error {
 	if err := MigrationGuideCheck(); err != nil {
 		return err
 	}
+	if err := SyncFontSizeClassesCheck(); err != nil {
+		return err
+	}
 	return SyncDesignMDCheck()
 }
 
@@ -102,6 +108,16 @@ func MigrationGuideCheck() error {
 		return fmt.Errorf("check migration guide parity: %w", err)
 	}
 	return nil
+}
+
+// SyncFontSizeClasses refreshes the generated tailwind-merge font-size class group.
+func SyncFontSizeClasses() error {
+	return runCommandInDir(context.Background(), ".", "bun", "run", fontSizeSyncScriptPath, "--write")
+}
+
+// SyncFontSizeClassesCheck verifies the generated tailwind-merge font-size class group.
+func SyncFontSizeClassesCheck() error {
+	return runCommandInDir(context.Background(), ".", "bun", "run", fontSizeSyncScriptPath, "--check")
 }
 
 // SyncDesignMD refreshes generated DESIGN.md token frontmatter and tables.

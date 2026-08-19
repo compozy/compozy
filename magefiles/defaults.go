@@ -34,6 +34,7 @@ const (
 	daemonBinaryEnvVar        = "COMPOZY_TEST_DAEMON_BIN"
 	driverBinaryEnvVar        = "COMPOZY_TEST_ACPMOCK_DRIVER_BIN"
 	designSyncScriptPath      = "scripts/sync-design-md.mjs"
+	fontSizeSyncScriptPath    = "scripts/sync-font-size-classes.mjs"
 	daytonaSidecarPackage     = "./internal/sandbox/daytona/cmd/compozy-daytona-sidecar"
 	daytonaSidecarToolchain   = "1.26.4"
 	daytonaSidecarRegenHint   = "go run github.com/magefile/mage@v1.17.2 " +

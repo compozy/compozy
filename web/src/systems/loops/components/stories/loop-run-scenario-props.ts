@@ -28,7 +28,11 @@ export type ScenarioBodyProps = Omit<LoopRunPageBodyProps, "inspect">;
 export function buildScenarioProps(scenario: LoopRunStoryScenario): ScenarioBodyProps {
   const { run, definition, generations, watchEvents } = scenario;
   const live = reduceLiveState(scenario.frames);
-  const { effectiveRun, ...view } = projectLoopRunPageView({
+  const {
+    effectiveRun,
+    elapsedLabel: _elapsedLabel,
+    ...view
+  } = projectLoopRunPageView({
     run,
     generations,
     live,

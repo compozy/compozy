@@ -13,6 +13,8 @@ concurrency:
 jobs:
   dispatch:
     name: Dispatch signed PR event
+    # Temporarily disabled: keep the workflow file, but do not dispatch PR events.
+    if: false
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:

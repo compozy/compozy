@@ -25,24 +25,6 @@ function scalarEntries(run: LoopRunRecord): [string, string | number | boolean][
     .sort(([a], [b]) => a.localeCompare(b));
 }
 
-/**
- * The loop-declared primary input rendered `key value` (`PR 128`) — required
- * declared scalars win, then any declared scalar, then the lexicographically
- * first scalar input (entries are key-sorted for stable About rows).
- */
-export function watchedSubject(
-  run: LoopRunRecord,
-  definition: Pick<LoopDefinition, "inputs"> | undefined
-): string | null {
-  const entries = scalarEntries(run);
-  if (entries.length === 0) return null;
-  const declared = definition?.inputs;
-  const required = entries.find(([key]) => declared?.[key]?.required === true);
-  const declaredEntry = entries.find(([key]) => declared?.[key] !== undefined);
-  const [key, value] = required ?? declaredEntry ?? entries[0];
-  return `${humanizeInputKey(key)} ${String(value)}`;
-}
-
 /** One About row per scalar run input, agent-bound inputs flagged for an avatar. */
 export function buildInputRows(
   run: LoopRunRecord,
@@ -67,7 +49,7 @@ const START_ORIGIN_LABELS: Record<string, string> = {
   event: "An event",
 };
 
-/** Unprefixed origin/actor (`hand`, `A schedule · nightly`); the subhead prepends `Started by `. */
+/** Unprefixed origin/actor (`hand`, `A schedule · nightly`) for the About rail. */
 export function humanizeStartOrigin(run: LoopRunRecord): string {
   const kind = run.started_origin_kind?.trim() ?? "";
   const ref = run.started_origin_ref?.trim() ?? "";

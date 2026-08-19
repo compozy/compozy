@@ -23,12 +23,7 @@ import type {
 } from "./loop-events";
 import { isTerminalLoopStatus } from "./loop-formatters";
 import { type LoopGraph, findWatchNode, goalNodeIds, readLoopGraph } from "./loop-graph";
-import {
-  type LoopRunInputRow,
-  buildInputRows,
-  humanizeStartOrigin,
-  watchedSubject,
-} from "./loop-run-about";
+import { type LoopRunInputRow, buildInputRows, humanizeStartOrigin } from "./loop-run-about";
 import { buildNextNote } from "./loop-run-next-note";
 import {
   type LoopRunProgressModel,
@@ -127,8 +122,6 @@ export interface LoopRunPageView {
   graph: LoopGraph | null;
   story: LoopRunStory;
   isLive: boolean;
-  subject: string | null;
-  hasWatchSource: boolean;
   elapsedLabel: string;
   stepElapsedLabel: string | null;
   progress: LoopRunProgressModel;
@@ -141,7 +134,7 @@ export interface LoopRunPageView {
   latestVerdict: LoopGateVerdict | null;
   watchCadence: string | null;
   inputRows: LoopRunInputRow[];
-  /** Unprefixed origin/actor from `humanizeStartOrigin`; the subhead prepends `Started by `. */
+  /** Unprefixed origin/actor from `humanizeStartOrigin` for the About rail. */
   startedBy: string;
   nextNote: string | null;
   showNowCard: boolean;
@@ -211,8 +204,6 @@ export function projectLoopRunPageView(input: LoopRunPageViewInput): LoopRunPage
     graph,
     story,
     isLive: !isTerminalLoopStatus(run.status),
-    subject: watchedSubject(run, definition),
-    hasWatchSource: watchNode !== null,
     elapsedLabel: formatClockDuration(elapsedSeconds),
     stepElapsedLabel,
     progress: buildRunProgress(effectiveRun, generations, openPoints, nodeLifecycles),

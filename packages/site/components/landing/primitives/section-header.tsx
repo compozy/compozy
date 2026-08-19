@@ -23,8 +23,8 @@ export function SectionHeader({
   const maxWidth = align === "center" ? "max-w-188" : "max-w-175";
   const titleClass =
     size === "lg"
-      ? "text-site-hero-section leading-none font-normal tracking-tight"
-      : "text-site-section-title leading-none font-normal tracking-tight";
+      ? "font-display text-site-hero-section leading-none font-normal tracking-tight"
+      : "font-display text-site-section-title leading-none font-normal tracking-tight";
 
   return (
     <div className={cn(maxWidth, alignClass, className)}>

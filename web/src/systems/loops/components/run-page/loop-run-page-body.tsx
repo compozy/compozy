@@ -42,7 +42,6 @@ import { LoopRunOutcomeCard } from "./loop-run-outcome-card";
 import { LoopRunProgressPanel } from "./loop-run-progress-panel";
 import { LoopStrategyProgress } from "./loop-strategy-progress";
 import { LoopRunStoryTimeline } from "./loop-run-story-timeline";
-import { LoopRunSubhead } from "./loop-run-subhead";
 import { LoopRunTurnsDisclosure } from "./loop-run-turns-disclosure";
 import { LoopRunUsageRail } from "./loop-run-usage-rail";
 
@@ -80,9 +79,6 @@ export interface LoopRunPageBodyProps extends Omit<ComponentProps<"div">, "child
   materializedContract: LoopContract;
   graph: LoopGraph | null;
   isLive: boolean;
-  subject: string | null;
-  hasWatchSource: boolean;
-  elapsedLabel: string;
   stepElapsedLabel: string | null;
   progress: LoopRunProgressModel;
   story: LoopRunStory;
@@ -157,9 +153,6 @@ export function LoopRunPageBody({
   materializedContract,
   graph,
   isLive,
-  subject,
-  hasWatchSource,
-  elapsedLabel,
   stepElapsedLabel,
   progress,
   story,
@@ -260,14 +253,7 @@ export function LoopRunPageBody({
       {...divProps}
     >
       <div className="mx-auto w-full max-w-[1240px] px-9 pt-6 pb-18 max-[1080px]:px-5">
-        <LoopRunSubhead
-          run={run}
-          subject={subject}
-          hasWatchSource={hasWatchSource}
-          elapsedLabel={elapsedLabel}
-          startedBy={startedBy}
-        />
-        <div className="mt-5.5 grid grid-cols-1 items-start gap-8 min-[1080px]:grid-cols-[minmax(0,1fr)_320px]">
+        <div className="grid grid-cols-1 items-start gap-8 min-[1080px]:grid-cols-[minmax(0,1fr)_320px]">
           <main className="flex min-w-0 flex-col gap-6.5">
             {status === "needs-approval" || quarantinedNodes.length > 0 || requests.length > 0 ? (
               <LoopRunNeedsYouCard

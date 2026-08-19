@@ -45,7 +45,7 @@ export function MemoryDreamSection() {
         <div className="flex min-w-0 flex-col lg:sticky lg:top-24">
           <div>
             <Eyebrow className="text-accent">Memory</Eyebrow>
-            <h2 className="mt-3 text-site-subsection-title leading-tight font-normal tracking-tight text-fg">
+            <h2 className="mt-3 font-display text-site-subsection-title leading-tight font-normal tracking-tight text-fg">
               Memory that compounds
               <br />
               <span className="italic text-subtle">while you sleep.</span>

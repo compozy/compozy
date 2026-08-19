@@ -96,7 +96,6 @@ export function LoopEditorToolbar({
 
       <PillGroup
         aria-label="Editor view"
-        className="[&_[data-slot=pill-group-item]]:min-h-11"
         items={VIEW_ITEMS}
         onChange={onViewChange}
         size="sm"

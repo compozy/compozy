@@ -190,9 +190,6 @@ function LoopRunDetail({
         materializedContract={page.materializedContract}
         graph={page.graph}
         isLive={page.isLive}
-        subject={page.subject}
-        hasWatchSource={page.hasWatchSource}
-        elapsedLabel={page.elapsedLabel}
         stepElapsedLabel={page.stepElapsedLabel}
         progress={page.progress}
         story={page.story}

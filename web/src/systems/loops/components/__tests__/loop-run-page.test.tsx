@@ -52,7 +52,6 @@ type LoopNodeLifecycle = import("../../lib/loop-node-lifecycle").LoopNodeLifecyc
 const { LoopRunUsageRail } = await import("../run-page/loop-run-usage-rail");
 const { LoopRunAboutRail } = await import("../run-page/loop-run-about-rail");
 const { LoopRunResolvedRuntimes } = await import("../run-page/loop-run-resolved-runtimes");
-const { LoopRunSubhead } = await import("../run-page/loop-run-subhead");
 const { buildRunProgress } = await import("../../lib/loop-run-progress");
 const { buildRunUsage } = await import("../../lib/loop-run-usage");
 const { loopRunDetailByRunId } = await import("../../mocks/fixtures");
@@ -1708,59 +1707,5 @@ describe("LoopRunResolvedRuntimes", () => {
     expect(runtime).toHaveTextContent("high");
     expect(runtime).toHaveTextContent("config rule");
     expect(screen.queryByRole("button")).not.toBeInTheDocument();
-  });
-});
-
-describe("LoopRunSubhead", () => {
-  it("Should speak Started while live and Ended with the frozen span on terminal runs", () => {
-    const { rerender } = render(
-      <LoopRunSubhead
-        run={run({ status: "running" })}
-        subject="PR 128"
-        hasWatchSource
-        elapsedLabel="22m 14s"
-      />
-    );
-    expect(screen.getByTestId("loop-run-subhead")).toHaveTextContent("Started");
-    expect(screen.getByTestId("loop-run-subject")).toHaveTextContent("Watching PR 128");
-    rerender(
-      <LoopRunSubhead
-        run={run({ status: "failed" })}
-        subject="PR 128"
-        hasWatchSource
-        elapsedLabel="26m 41s"
-      />
-    );
-    expect(screen.getByTestId("loop-run-subhead")).toHaveTextContent("Ended");
-    expect(screen.getByTestId("loop-run-elapsed")).toHaveTextContent("26m 41s");
-  });
-
-  it("Should add Started by and Round N of M as dot-separated segments", () => {
-    render(
-      <LoopRunSubhead
-        run={run({ status: "running", generation: 2, iteration_cap: 5 })}
-        subject={null}
-        hasWatchSource={false}
-        elapsedLabel="22m 14s"
-        startedBy="The CLI"
-      />
-    );
-    expect(screen.getByTestId("loop-run-started-by")).toHaveTextContent("Started by The CLI");
-    expect(screen.getByTestId("loop-run-round")).toHaveTextContent("Round 2 of 5");
-  });
-
-  it("Should omit of M when the iteration cap is off", () => {
-    render(
-      <LoopRunSubhead
-        run={run({ status: "running", generation: 2, iteration_cap: 0 })}
-        subject={null}
-        hasWatchSource={false}
-        elapsedLabel="22m 14s"
-        startedBy="hand"
-      />
-    );
-    expect(screen.getByTestId("loop-run-started-by")).toHaveTextContent("Started by hand");
-    expect(screen.getByTestId("loop-run-round")).toHaveTextContent("Round 2");
-    expect(screen.getByTestId("loop-run-round")).not.toHaveTextContent("of");
   });
 });

@@ -418,8 +418,8 @@ describe("LoopEditor", () => {
     expect(screen.getByTestId("loop-editor-view-dsl")).toHaveAttribute("aria-pressed", "true");
     const dsl = await screen.findByTestId("loop-editor-dsl");
     expect(dsl).toHaveTextContent("compozy.loop/v1");
-    const offending = dsl.querySelector('[data-offending="true"]');
-    expect(offending?.textContent).toMatch(/max_fan_out/);
+    const highlighted = [...dsl.querySelectorAll('[data-highlighted="true"]')];
+    expect(highlighted.some(line => /max_fan_out/.test(line.textContent ?? ""))).toBe(true);
   });
 
   it("E2E-web-14: renders the read-only Start summary chips from the definition start[]", async () => {
