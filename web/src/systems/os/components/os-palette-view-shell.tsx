@@ -21,6 +21,9 @@ import type { PaletteViewContent, PaletteViewDefinition } from "../lib/palette-v
 import type { PaletteBreadcrumb } from "../lib/palette-view-stack";
 import { OsPaletteBreadcrumb } from "./os-palette-breadcrumb";
 import { OsPaletteFooter } from "./os-palette-footer";
+import { OsPaletteVirtualRows } from "./os-palette-virtual-rows";
+
+const PALETTE_VIEW_VIRTUAL_THRESHOLD = 150;
 
 export interface OsPaletteViewShellProps {
   definition: PaletteViewDefinition;
@@ -78,25 +81,18 @@ export function OsPaletteViewShell({
     if (content.onEmptyQueryBackspace()) return;
     onPop();
   };
-
-  return (
-    <Command
-      data-testid="os-command-palette"
-      data-palette-view={definition.id}
-      shouldFilter={false}
-      value={selected}
-      onValueChange={setSelected}
-      className={cn(paletteViewFrameClass, paletteViewFieldClass)}
-    >
-      <OsPaletteBreadcrumb breadcrumb={breadcrumb} />
-      <CommandInput
-        autoFocus
-        value={query}
-        onValueChange={onQueryChange}
-        onKeyDown={onInputKeyDown}
-        placeholder={definition.placeholder}
+  const onSelectionChange = (value: string) => {
+    setSelected(value);
+    content.onSelectionChange?.(value);
+  };
+  const list =
+    content.rows.length > PALETTE_VIEW_VIRTUAL_THRESHOLD ? (
+      <OsPaletteVirtualRows
+        className={paletteViewListClass}
+        note={content.note}
+        rows={content.rows}
       />
-      {content.header}
+    ) : (
       <CommandList className={paletteViewListClass}>
         {content.rows.length === 0
           ? content.empty
@@ -104,11 +100,6 @@ export function OsPaletteViewShell({
               <CommandItem
                 key={row.value}
                 value={row.value}
-                // The view already decided which rows exist, so cmdk's own
-                // match registry has nothing left to do — and skipping it also
-                // skips its recovery, which re-selects the first row whenever
-                // the selected one unmounts. A live catalog unmounts rows all
-                // the time; the operator's selection must survive that.
                 forceMount
                 data-testid={row.testId}
                 disabled={row.disabled}
@@ -120,6 +111,37 @@ export function OsPaletteViewShell({
             ))}
         {content.note}
       </CommandList>
+    );
+
+  return (
+    <Command
+      data-testid="os-command-palette"
+      data-palette-view={definition.id}
+      data-palette-kind={content.kind ?? "list"}
+      shouldFilter={false}
+      value={selected}
+      onValueChange={onSelectionChange}
+      className={cn(paletteViewFrameClass, paletteViewFieldClass)}
+    >
+      <OsPaletteBreadcrumb breadcrumb={breadcrumb} />
+      <CommandInput
+        autoFocus
+        value={query}
+        onValueChange={onQueryChange}
+        onKeyDown={onInputKeyDown}
+        placeholder={definition.placeholder}
+      />
+      {content.header}
+      {content.body === undefined ? (
+        <div className={cn("flex min-h-0", content.aside && "divide-x divide-line")}>
+          <div className="min-w-0 flex-1">{list}</div>
+          {content.aside}
+        </div>
+      ) : (
+        <div className={cn(paletteViewListClass, "overflow-auto")} data-palette-view-body>
+          {content.body}
+        </div>
+      )}
       <OsPaletteFooter
         enterHint={definition.enterHint}
         backHint={content.backHint}

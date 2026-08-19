@@ -709,6 +709,32 @@ test("Herdr E2E-019: palette views push, pop, and always reopen at the root", as
   await expect(palette.getByTestId("os-palette-view-sessions")).toBeVisible();
 });
 
+test("Command palette E2E-009: Tasks reports truthful zero counts and clears one filter", async ({
+  appPage,
+  runtime,
+}) => {
+  await prepareShell(appPage, runtime);
+  const task = await createTask(runtime, "Palette filter target");
+
+  const palette = await openCommandPalette(appPage);
+  await palette.getByTestId("os-palette-view-tasks").click();
+  await expect(palette).toHaveAttribute("data-palette-view", "tasks");
+  await expect(palette.getByTestId(`os-palette-domain-task-${task.id}`)).toBeVisible();
+
+  const failed = palette.getByTestId("os-palette-domain-filter-failed");
+  await expect(failed).toHaveAccessibleName("Failed, 0");
+  await failed.click();
+  await expect(palette.getByText("No tasks are failed.")).toBeVisible();
+
+  const search = palette.getByPlaceholder("Search tasks…");
+  await search.press("Backspace");
+  await expect(palette.getByTestId(`os-palette-domain-task-${task.id}`)).toBeVisible();
+  await expect(palette.getByTestId("os-palette-domain-filter-all")).toHaveAttribute(
+    "aria-pressed",
+    "true"
+  );
+});
+
 test("E2E-010 and E2E-018: peers converge topology while presentation stays client-local", async ({
   appPage,
   browser,

@@ -20,8 +20,8 @@ type shellCommandDefinition struct {
 
 var fixedShellCommands = []shellCommandDefinition{
 	{id: "palette.open", title: "Command palette", section: coreSectionShell, icon: "command", exempt: true},
-	{id: "session.new", title: "New session", section: coreSectionShell, icon: "square-terminal", exempt: true},
-	{id: "scope.global.toggle", title: "Global scope", section: coreSectionShell, icon: "globe", exempt: true},
+	{id: "session.new", title: "New session", section: coreSectionShell, icon: coreIconTerminal, exempt: true},
+	{id: "scope.global.toggle", title: "Global scope", section: coreSectionShell, icon: coreIconGlobe, exempt: true},
 	{
 		id:         "window.nav.back",
 		title:      "Back",

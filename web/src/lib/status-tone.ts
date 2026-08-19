@@ -80,3 +80,40 @@ export const TASK_LANE_TONE = {
   updates: "neutral",
   approvals: "info",
 } as const satisfies Record<TaskLane, PillTone>;
+
+const SHARED_STATUS_TONE: Readonly<Record<string, PillTone>> = {
+  ...TASK_STATUS_TONE,
+  ...RUN_STATUS_TONE,
+  queued: "neutral",
+  running: "info",
+  done: "success",
+  ready: "success",
+  missing: "warning",
+  unhealthy: "danger",
+  healthy: "success",
+  disabled: "neutral",
+};
+
+/** One fallback dictionary for dense status rows across every domain view. */
+export function statusTone(status: string): PillTone {
+  return SHARED_STATUS_TONE[status.trim().toLowerCase()] ?? "neutral";
+}
+
+const ATTENTION_TONE_ORDER: Readonly<Record<PillTone, number>> = {
+  danger: 0,
+  warning: 1,
+  accent: 2,
+  info: 3,
+  neutral: 4,
+  success: 5,
+};
+
+/** Shared attention ordering for every non-session domain view. */
+export function compareStatusAttentionFirst(left?: string, right?: string): number {
+  return statusAttentionRank(left) - statusAttentionRank(right);
+}
+
+function statusAttentionRank(status?: string): number {
+  if (!status) return ATTENTION_TONE_ORDER.neutral;
+  return ATTENTION_TONE_ORDER[statusTone(status)];
+}

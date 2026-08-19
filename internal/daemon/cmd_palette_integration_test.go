@@ -90,7 +90,7 @@ func TestCmdPaletteDaemonIntegration(t *testing.T) {
 		}
 	})
 
-	t.Run("Should invoke inline tool arguments through the real HTTP registry [IT-007][IT-009]", func(t *testing.T) {
+	t.Run("Should invoke form-mapped and inline tool arguments through the real HTTP registry [IT-005][IT-007][IT-009]", func(t *testing.T) {
 		t.Parallel()
 		toolRegistry := &recordingCmdPaletteToolRegistry{result: toolspkg.ToolResult{
 			Structured: json.RawMessage(`{"title":"Standup follow-ups"}`),

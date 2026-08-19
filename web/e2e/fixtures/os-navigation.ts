@@ -151,6 +151,26 @@ export function paletteEmptyState(palette: Locator): Locator {
   return palette.getByTestId("os-palette-empty");
 }
 
+/** The active pushed palette view, regardless of its List/Detail/Form/Grid body. */
+export function paletteView(page: Page, viewId: string): Locator {
+  return page.locator(`[data-testid="os-command-palette"][data-palette-view="${viewId}"]`);
+}
+
+/** One built-in domain row addressed by the normalized domain key. */
+export function paletteDomainRow(palette: Locator, key: string): Locator {
+  return palette.getByTestId(`os-palette-domain-${key.replaceAll(":", "-")}`);
+}
+
+/** One truthful domain filter, including filters whose current count is zero. */
+export function paletteDomainFilter(palette: Locator, filter: string): Locator {
+  return palette.getByTestId(`os-palette-domain-filter-${filter}`);
+}
+
+/** One tile in a Grid view. */
+export function paletteGridTile(palette: Locator, tileId: string): Locator {
+  return palette.getByTestId(`palette-grid-tile-${tileId}`);
+}
+
 /** A menubar item projected from the registry, addressed by command id. */
 export function menubarCommandItem(page: Page, commandId: string): Locator {
   return page.getByTestId(`os-menubar-command-${commandId}`);

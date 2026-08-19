@@ -8,6 +8,9 @@ import { useMarketplaceSearch } from "@/systems/marketplace";
 import { useNetworkChannels } from "@/systems/network";
 import { useTasks } from "@/systems/tasks";
 import { useVaultSecrets, type VaultSecret } from "@/systems/vault";
+import { useWorktrees } from "@/systems/workspace";
+
+import { compareStatusAttentionFirst } from "@/lib/status-tone";
 
 import type { CmdPaletteRankSignals } from "../lib/cmd-palette-types";
 import type { OsAppId, OsWindowRoute } from "../lib/os-types";
@@ -21,6 +24,7 @@ export interface OsPaletteDomainRow {
   readonly workspaceLabel?: string;
   readonly app: OsAppId;
   readonly route: OsWindowRoute;
+  readonly status?: string;
 }
 
 /** Names and non-secret metadata are the entire Vault palette contract. */
@@ -54,6 +58,8 @@ export interface UseOsPaletteDomainSearchOptions {
   readonly scope: "workspace" | "global";
   readonly workspaceNames: ReadonlyMap<string, string>;
   readonly signals: CmdPaletteRankSignals | null;
+  /** A pushed view reads one full domain; root search reads every gated domain. */
+  readonly targetDomain?: string;
 }
 
 export function isPaletteDomainSearchEnabled(
@@ -111,15 +117,20 @@ function section(
   state: QueryState,
   enabled: boolean,
   query: string,
-  signals: CmdPaletteRankSignals
+  signals: CmdPaletteRankSignals,
+  limit = signals.weights.entity_section_visible_cap
 ): OsPaletteDomainSection {
-  const ranked = rankCandidates(query, seeds, signals);
+  const attentionOrdered = [...seeds].sort((left, right) =>
+    compareStatusAttentionFirst(left.row.status, right.row.status)
+  );
+  const matched =
+    query.trim() === ""
+      ? attentionOrdered
+      : rankCandidates(query, attentionOrdered, signals).map(candidate => candidate.candidate);
   return {
     title,
-    rows: ranked
-      .slice(0, signals.weights.entity_section_visible_cap)
-      .map(candidate => candidate.candidate.row),
-    total: ranked.length,
+    rows: matched.slice(0, limit).map(candidate => candidate.row),
+    total: matched.length,
     loading: enabled && state.isLoading,
     error: enabled && state.isError ? errorMessage(title, state.error) : null,
   };
@@ -157,29 +168,60 @@ export function useOsPaletteDomainSearch({
   scope,
   workspaceNames,
   signals,
+  targetDomain,
 }: UseOsPaletteDomainSearchOptions): readonly OsPaletteDomainSection[] {
-  const enabled = isPaletteDomainSearchEnabled(open, query, signals?.weights ?? null);
+  const rootEnabled = isPaletteDomainSearchEnabled(open, query, signals?.weights ?? null);
+  const domainEnabled = (title: string) =>
+    targetDomain === undefined ? rootEnabled : open && targetDomain === title;
+  const domainLimit = targetDomain === undefined ? undefined : Number.MAX_SAFE_INTEGER;
   const workspace = workspaceId ?? "";
 
-  const agents = useAgents(workspaceId, { enabled });
-  const tasks = useTasks({}, { enabled });
-  const loops = useLoops(workspace, {}, enabled && workspace !== "");
-  const jobs = useAutomationJobs({}, { enabled });
-  const triggers = useAutomationTriggers({}, { enabled });
-  const bridges = useBridges({}, { enabled });
-  const globalMemories = useMemories({ scope: "global" }, { enabled });
+  // Root search already owns worktree entity rows. The pushed domain view is the
+  // only consumer here, which prevents duplicate Worktrees sections at root.
+  const worktrees = useWorktrees(workspaceId, {
+    enabled: open && targetDomain === "Worktrees",
+  });
+  const agents = useAgents(workspaceId, { enabled: domainEnabled("Agents") });
+  const tasks = useTasks({}, { enabled: domainEnabled("Tasks") });
+  const loops = useLoops(workspace, {}, domainEnabled("Loops") && workspace !== "");
+  const jobs = useAutomationJobs({}, { enabled: domainEnabled("Jobs") });
+  const triggers = useAutomationTriggers({}, { enabled: domainEnabled("Triggers") });
+  const bridges = useBridges({}, { enabled: domainEnabled("Bridges") });
+  const globalMemories = useMemories({ scope: "global" }, { enabled: domainEnabled("Knowledge") });
   const workspaceMemories = useMemories(
     { scope: "workspace", workspaceId: workspace },
-    { enabled: enabled && workspace !== "" }
+    { enabled: domainEnabled("Knowledge") && workspace !== "" }
   );
-  const vault = useVaultSecrets({}, { enabled });
-  const channels = useNetworkChannels({ enabled, workspaceId });
-  const marketplace = useMarketplaceSearch({ q: query, workspaceId }, enabled);
-  const extensions = useExtensionInventory(enabled);
+  const vault = useVaultSecrets({}, { enabled: domainEnabled("Vault") });
+  const channels = useNetworkChannels({
+    enabled: domainEnabled("Network channels"),
+    workspaceId,
+  });
+  const marketplace = useMarketplaceSearch({ q: query, workspaceId }, domainEnabled("Marketplace"));
+  const extensions = useExtensionInventory(domainEnabled("Extensions"));
 
   if (signals === null) return [];
   const wsLabel = (id?: string | null) => workspaceLabel(scope, id, workspaceNames);
   const domainSections = [
+    section(
+      "Worktrees",
+      (worktrees.data?.worktrees ?? []).map(worktree =>
+        rowSeed("Worktrees", {
+          key: `worktree:${worktree.id}`,
+          label: worktree.name,
+          detail: worktree.branch,
+          workspaceLabel: wsLabel(worktree.workspace_id),
+          status: worktree.state,
+          app: "dashboard",
+          route: route("/", worktree.name),
+        })
+      ),
+      worktrees,
+      domainEnabled("Worktrees"),
+      query,
+      signals,
+      domainLimit
+    ),
     section(
       "Agents",
       (agents.data ?? []).map(agent =>
@@ -193,9 +235,10 @@ export function useOsPaletteDomainSearch({
         })
       ),
       agents,
-      enabled,
+      domainEnabled("Agents"),
       query,
-      signals
+      signals,
+      domainLimit
     ),
     section(
       "Tasks",
@@ -206,6 +249,7 @@ export function useOsPaletteDomainSearch({
             key: `task:${task.id}`,
             label: task.title,
             detail: task.identifier,
+            status: task.status,
             workspaceLabel: wsLabel(task.workspace_id),
             app: "tasks",
             route: route("/tasks", task.title),
@@ -214,9 +258,10 @@ export function useOsPaletteDomainSearch({
         )
       ),
       tasks,
-      enabled,
+      domainEnabled("Tasks"),
       query,
-      signals
+      signals,
+      domainLimit
     ),
     section(
       "Loops",
@@ -231,9 +276,10 @@ export function useOsPaletteDomainSearch({
         })
       ),
       loops,
-      enabled,
+      domainEnabled("Loops"),
       query,
-      signals
+      signals,
+      domainLimit
     ),
     section(
       "Jobs",
@@ -248,9 +294,10 @@ export function useOsPaletteDomainSearch({
         })
       ),
       jobs,
-      enabled,
+      domainEnabled("Jobs"),
       query,
-      signals
+      signals,
+      domainLimit
     ),
     section(
       "Triggers",
@@ -265,9 +312,10 @@ export function useOsPaletteDomainSearch({
         })
       ),
       triggers,
-      enabled,
+      domainEnabled("Triggers"),
       query,
-      signals
+      signals,
+      domainLimit
     ),
     section(
       "Bridges",
@@ -282,9 +330,10 @@ export function useOsPaletteDomainSearch({
         })
       ),
       bridges,
-      enabled,
+      domainEnabled("Bridges"),
       query,
-      signals
+      signals,
+      domainLimit
     ),
   ];
 
@@ -307,9 +356,10 @@ export function useOsPaletteDomainSearch({
         isError: globalMemories.isError || workspaceMemories.isError,
         error: globalMemories.error ?? workspaceMemories.error,
       },
-      enabled,
+      domainEnabled("Knowledge"),
       query,
-      signals
+      signals,
+      domainLimit
     )
   );
   const vaultRows = projectVaultRows(vault.data ?? [], scope, workspaceNames);
@@ -318,9 +368,10 @@ export function useOsPaletteDomainSearch({
       "Vault",
       vaultRows.map(row => rowSeed("Vault", row, [row.namespace, row.kind])),
       vault,
-      enabled,
+      domainEnabled("Vault"),
       query,
-      signals
+      signals,
+      domainLimit
     ),
     section(
       "Network channels",
@@ -335,9 +386,10 @@ export function useOsPaletteDomainSearch({
         })
       ),
       channels,
-      enabled,
+      domainEnabled("Network channels"),
       query,
-      signals
+      signals,
+      domainLimit
     ),
     section(
       "Marketplace",
@@ -354,9 +406,10 @@ export function useOsPaletteDomainSearch({
         )
       ),
       marketplace,
-      enabled,
+      domainEnabled("Marketplace"),
       query,
-      signals
+      signals,
+      domainLimit
     ),
     section(
       "Extensions",
@@ -371,9 +424,10 @@ export function useOsPaletteDomainSearch({
         })
       ),
       extensions,
-      enabled,
+      domainEnabled("Extensions"),
       query,
-      signals
+      signals,
+      domainLimit
     )
   );
 

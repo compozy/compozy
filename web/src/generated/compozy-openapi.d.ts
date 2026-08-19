@@ -1146,6 +1146,40 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
+  "/api/cmd-palette/views/{id}": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** Get one declarative command palette view */
+    get: operations["getCmdPaletteView"];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/cmd-palette/views/{id}/stream": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** Stream declarative command palette view patches */
+    get: operations["streamCmdPaletteView"];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
   "/api/doctor": {
     parameters: {
       query?: never;
@@ -31814,6 +31848,753 @@ export interface operations {
         };
       };
       /** @description Command not found */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            clients?: string[];
+            error: string;
+            fields?: {
+              [key: string]: string;
+            };
+            message?: string;
+            reason?: string;
+          };
+        };
+      };
+      /** @description Command palette unavailable */
+      503: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            clients?: string[];
+            error: string;
+            fields?: {
+              [key: string]: string;
+            };
+            message?: string;
+            reason?: string;
+          };
+        };
+      };
+    };
+  };
+  getCmdPaletteView: {
+    parameters: {
+      query: {
+        /** @description Workspace id, name, or path */
+        workspace: string;
+      };
+      header?: never;
+      path: {
+        /** @description Canonical view id */
+        id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description OK */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            kind: string;
+            payload: {
+              chips?: {
+                count?: number | null;
+                fallback?: string;
+                id: string;
+                label: string;
+                requires?: {
+                  [key: string]: string;
+                };
+              }[];
+              chrome?: {
+                active_chip?: string;
+                columns?: number;
+                complete?: boolean;
+                /** Format: int64 */
+                event_count?: number;
+                filtering?: boolean | null;
+                is_loading?: boolean;
+                on_chip?: string;
+                on_load_more?: string;
+                on_search?: string;
+                on_selection?: string;
+                pagination?: {
+                  has_more: boolean;
+                  page_size?: number;
+                } | null;
+                search_placeholder?: string;
+                search_text?: string;
+                throttle_ms?: number;
+              } | null;
+              detail?: {
+                actions?: {
+                  action?: {
+                    app?: string;
+                    args?: {
+                      [key: string]: unknown;
+                    };
+                    kind: string;
+                    op?: string;
+                    tool?: string;
+                    url?: string;
+                    view?: string;
+                  } | null;
+                  confirmation?: {
+                    body?: string;
+                    confirm: string;
+                    title: string;
+                  } | null;
+                  destructive?: boolean;
+                  fallback?: string;
+                  handler?: string;
+                  icon?: string;
+                  primary?: boolean;
+                  requires?: {
+                    [key: string]: string;
+                  };
+                  section?: string;
+                  shortcut?: string;
+                  submit_form?: boolean;
+                  title: string;
+                }[];
+                is_loading?: boolean;
+                markdown?: string;
+                metadata?: {
+                  fallback?: string;
+                  label: string;
+                  requires?: {
+                    [key: string]: string;
+                  };
+                  value: string;
+                }[];
+              } | null;
+              empty?: {
+                hint?: string;
+                icon?: string;
+                title: string;
+              } | null;
+              form?: {
+                fields: {
+                  default?: unknown;
+                  directories?: boolean;
+                  empty_hint?: string;
+                  error?: string;
+                  /** Format: int64 */
+                  event_count?: number;
+                  fallback?: string;
+                  id: string;
+                  label: string;
+                  on_blur?: string;
+                  on_change?: string;
+                  options?: string[];
+                  placeholder?: string;
+                  required?: boolean;
+                  requires?: {
+                    [key: string]: string;
+                  };
+                  type: string;
+                }[];
+                on_submit?: string;
+                submit?: {
+                  action?: {
+                    app?: string;
+                    args?: {
+                      [key: string]: unknown;
+                    };
+                    kind: string;
+                    op?: string;
+                    tool?: string;
+                    url?: string;
+                    view?: string;
+                  } | null;
+                  confirmation?: {
+                    body?: string;
+                    confirm: string;
+                    title: string;
+                  } | null;
+                  destructive?: boolean;
+                  fallback?: string;
+                  handler?: string;
+                  icon?: string;
+                  primary?: boolean;
+                  requires?: {
+                    [key: string]: string;
+                  };
+                  section?: string;
+                  shortcut?: string;
+                  submit_form?: boolean;
+                  title: string;
+                } | null;
+              } | null;
+              grid?: {
+                sections: {
+                  tiles: {
+                    actions?: {
+                      action?: {
+                        app?: string;
+                        args?: {
+                          [key: string]: unknown;
+                        };
+                        kind: string;
+                        op?: string;
+                        tool?: string;
+                        url?: string;
+                        view?: string;
+                      } | null;
+                      confirmation?: {
+                        body?: string;
+                        confirm: string;
+                        title: string;
+                      } | null;
+                      destructive?: boolean;
+                      fallback?: string;
+                      handler?: string;
+                      icon?: string;
+                      primary?: boolean;
+                      requires?: {
+                        [key: string]: string;
+                      };
+                      section?: string;
+                      shortcut?: string;
+                      submit_form?: boolean;
+                      title: string;
+                    }[];
+                    badge?: {
+                      label: string;
+                      tone: string;
+                    } | null;
+                    fallback?: string;
+                    id: string;
+                    image: {
+                      emoji?: string;
+                      token?: string;
+                      url?: string;
+                    };
+                    requires?: {
+                      [key: string]: string;
+                    };
+                    title: string;
+                  }[];
+                  title?: string;
+                }[];
+              } | null;
+              sections?: {
+                rows: {
+                  accessories?: string[];
+                  actions?: {
+                    action?: {
+                      app?: string;
+                      args?: {
+                        [key: string]: unknown;
+                      };
+                      kind: string;
+                      op?: string;
+                      tool?: string;
+                      url?: string;
+                      view?: string;
+                    } | null;
+                    confirmation?: {
+                      body?: string;
+                      confirm: string;
+                      title: string;
+                    } | null;
+                    destructive?: boolean;
+                    fallback?: string;
+                    handler?: string;
+                    icon?: string;
+                    primary?: boolean;
+                    requires?: {
+                      [key: string]: string;
+                    };
+                    section?: string;
+                    shortcut?: string;
+                    submit_form?: boolean;
+                    title: string;
+                  }[];
+                  badge?: {
+                    label: string;
+                    tone: string;
+                  } | null;
+                  detail?: {
+                    actions?: {
+                      action?: {
+                        app?: string;
+                        args?: {
+                          [key: string]: unknown;
+                        };
+                        kind: string;
+                        op?: string;
+                        tool?: string;
+                        url?: string;
+                        view?: string;
+                      } | null;
+                      confirmation?: {
+                        body?: string;
+                        confirm: string;
+                        title: string;
+                      } | null;
+                      destructive?: boolean;
+                      fallback?: string;
+                      handler?: string;
+                      icon?: string;
+                      primary?: boolean;
+                      requires?: {
+                        [key: string]: string;
+                      };
+                      section?: string;
+                      shortcut?: string;
+                      submit_form?: boolean;
+                      title: string;
+                    }[];
+                    is_loading?: boolean;
+                    markdown?: string;
+                    metadata?: {
+                      fallback?: string;
+                      label: string;
+                      requires?: {
+                        [key: string]: string;
+                      };
+                      value: string;
+                    }[];
+                  } | null;
+                  fallback?: string;
+                  icon?: string;
+                  id: string;
+                  keywords?: string[];
+                  requires?: {
+                    [key: string]: string;
+                  };
+                  subtitle?: string;
+                  title: string;
+                }[];
+                title?: string;
+              }[];
+              view: string;
+            };
+            revision: string;
+            stream_epoch: string;
+            title: string;
+            view_id: string;
+          };
+        };
+      };
+      /** @description Invalid workspace */
+      400: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            clients?: string[];
+            error: string;
+            fields?: {
+              [key: string]: string;
+            };
+            message?: string;
+            reason?: string;
+          };
+        };
+      };
+      /** @description View not found */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            clients?: string[];
+            error: string;
+            fields?: {
+              [key: string]: string;
+            };
+            message?: string;
+            reason?: string;
+          };
+        };
+      };
+      /** @description Invalid view payload */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            clients?: string[];
+            error: string;
+            fields?: {
+              [key: string]: string;
+            };
+            message?: string;
+            reason?: string;
+          };
+        };
+      };
+      /** @description Command palette unavailable */
+      503: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            clients?: string[];
+            error: string;
+            fields?: {
+              [key: string]: string;
+            };
+            message?: string;
+            reason?: string;
+          };
+        };
+      };
+    };
+  };
+  streamCmdPaletteView: {
+    parameters: {
+      query: {
+        /** @description Workspace id, name, or path */
+        workspace: string;
+        /** @description Last applied patch sequence */
+        after?: string;
+        /** @description Stream epoch required when after is greater than zero */
+        stream_epoch?: string;
+      };
+      header?: never;
+      path: {
+        /** @description Canonical view id */
+        id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Revision-fenced view patch stream */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "text/event-stream": {
+            patch?: {
+              from: string;
+              ops: {
+                op: string;
+                path: string;
+                value?: unknown;
+              }[];
+              to: string;
+              view_id: string;
+            } | null;
+            payload?: {
+              chips?: {
+                count?: number | null;
+                fallback?: string;
+                id: string;
+                label: string;
+                requires?: {
+                  [key: string]: string;
+                };
+              }[];
+              chrome?: {
+                active_chip?: string;
+                columns?: number;
+                complete?: boolean;
+                /** Format: int64 */
+                event_count?: number;
+                filtering?: boolean | null;
+                is_loading?: boolean;
+                on_chip?: string;
+                on_load_more?: string;
+                on_search?: string;
+                on_selection?: string;
+                pagination?: {
+                  has_more: boolean;
+                  page_size?: number;
+                } | null;
+                search_placeholder?: string;
+                search_text?: string;
+                throttle_ms?: number;
+              } | null;
+              detail?: {
+                actions?: {
+                  action?: {
+                    app?: string;
+                    args?: {
+                      [key: string]: unknown;
+                    };
+                    kind: string;
+                    op?: string;
+                    tool?: string;
+                    url?: string;
+                    view?: string;
+                  } | null;
+                  confirmation?: {
+                    body?: string;
+                    confirm: string;
+                    title: string;
+                  } | null;
+                  destructive?: boolean;
+                  fallback?: string;
+                  handler?: string;
+                  icon?: string;
+                  primary?: boolean;
+                  requires?: {
+                    [key: string]: string;
+                  };
+                  section?: string;
+                  shortcut?: string;
+                  submit_form?: boolean;
+                  title: string;
+                }[];
+                is_loading?: boolean;
+                markdown?: string;
+                metadata?: {
+                  fallback?: string;
+                  label: string;
+                  requires?: {
+                    [key: string]: string;
+                  };
+                  value: string;
+                }[];
+              } | null;
+              empty?: {
+                hint?: string;
+                icon?: string;
+                title: string;
+              } | null;
+              form?: {
+                fields: {
+                  default?: unknown;
+                  directories?: boolean;
+                  empty_hint?: string;
+                  error?: string;
+                  /** Format: int64 */
+                  event_count?: number;
+                  fallback?: string;
+                  id: string;
+                  label: string;
+                  on_blur?: string;
+                  on_change?: string;
+                  options?: string[];
+                  placeholder?: string;
+                  required?: boolean;
+                  requires?: {
+                    [key: string]: string;
+                  };
+                  type: string;
+                }[];
+                on_submit?: string;
+                submit?: {
+                  action?: {
+                    app?: string;
+                    args?: {
+                      [key: string]: unknown;
+                    };
+                    kind: string;
+                    op?: string;
+                    tool?: string;
+                    url?: string;
+                    view?: string;
+                  } | null;
+                  confirmation?: {
+                    body?: string;
+                    confirm: string;
+                    title: string;
+                  } | null;
+                  destructive?: boolean;
+                  fallback?: string;
+                  handler?: string;
+                  icon?: string;
+                  primary?: boolean;
+                  requires?: {
+                    [key: string]: string;
+                  };
+                  section?: string;
+                  shortcut?: string;
+                  submit_form?: boolean;
+                  title: string;
+                } | null;
+              } | null;
+              grid?: {
+                sections: {
+                  tiles: {
+                    actions?: {
+                      action?: {
+                        app?: string;
+                        args?: {
+                          [key: string]: unknown;
+                        };
+                        kind: string;
+                        op?: string;
+                        tool?: string;
+                        url?: string;
+                        view?: string;
+                      } | null;
+                      confirmation?: {
+                        body?: string;
+                        confirm: string;
+                        title: string;
+                      } | null;
+                      destructive?: boolean;
+                      fallback?: string;
+                      handler?: string;
+                      icon?: string;
+                      primary?: boolean;
+                      requires?: {
+                        [key: string]: string;
+                      };
+                      section?: string;
+                      shortcut?: string;
+                      submit_form?: boolean;
+                      title: string;
+                    }[];
+                    badge?: {
+                      label: string;
+                      tone: string;
+                    } | null;
+                    fallback?: string;
+                    id: string;
+                    image: {
+                      emoji?: string;
+                      token?: string;
+                      url?: string;
+                    };
+                    requires?: {
+                      [key: string]: string;
+                    };
+                    title: string;
+                  }[];
+                  title?: string;
+                }[];
+              } | null;
+              sections?: {
+                rows: {
+                  accessories?: string[];
+                  actions?: {
+                    action?: {
+                      app?: string;
+                      args?: {
+                        [key: string]: unknown;
+                      };
+                      kind: string;
+                      op?: string;
+                      tool?: string;
+                      url?: string;
+                      view?: string;
+                    } | null;
+                    confirmation?: {
+                      body?: string;
+                      confirm: string;
+                      title: string;
+                    } | null;
+                    destructive?: boolean;
+                    fallback?: string;
+                    handler?: string;
+                    icon?: string;
+                    primary?: boolean;
+                    requires?: {
+                      [key: string]: string;
+                    };
+                    section?: string;
+                    shortcut?: string;
+                    submit_form?: boolean;
+                    title: string;
+                  }[];
+                  badge?: {
+                    label: string;
+                    tone: string;
+                  } | null;
+                  detail?: {
+                    actions?: {
+                      action?: {
+                        app?: string;
+                        args?: {
+                          [key: string]: unknown;
+                        };
+                        kind: string;
+                        op?: string;
+                        tool?: string;
+                        url?: string;
+                        view?: string;
+                      } | null;
+                      confirmation?: {
+                        body?: string;
+                        confirm: string;
+                        title: string;
+                      } | null;
+                      destructive?: boolean;
+                      fallback?: string;
+                      handler?: string;
+                      icon?: string;
+                      primary?: boolean;
+                      requires?: {
+                        [key: string]: string;
+                      };
+                      section?: string;
+                      shortcut?: string;
+                      submit_form?: boolean;
+                      title: string;
+                    }[];
+                    is_loading?: boolean;
+                    markdown?: string;
+                    metadata?: {
+                      fallback?: string;
+                      label: string;
+                      requires?: {
+                        [key: string]: string;
+                      };
+                      value: string;
+                    }[];
+                  } | null;
+                  fallback?: string;
+                  icon?: string;
+                  id: string;
+                  keywords?: string[];
+                  requires?: {
+                    [key: string]: string;
+                  };
+                  subtitle?: string;
+                  title: string;
+                }[];
+                title?: string;
+              }[];
+              view: string;
+            } | null;
+            reset?: boolean;
+            revision: string;
+            /** Format: int64 */
+            sequence: number;
+            stream_epoch: string;
+          };
+        };
+      };
+      /** @description Invalid stream cursor */
+      400: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            clients?: string[];
+            error: string;
+            fields?: {
+              [key: string]: string;
+            };
+            message?: string;
+            reason?: string;
+          };
+        };
+      };
+      /** @description View not found */
       404: {
         headers: {
           [name: string]: unknown;

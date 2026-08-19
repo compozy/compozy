@@ -97,6 +97,24 @@ type CmdPaletteError struct {
 	Clients []cmdpalette.ClientID `json:"clients,omitempty"`
 }
 
+type CmdPaletteViewEnvelope struct {
+	ViewID      string                 `json:"view_id"`
+	Title       string                 `json:"title"`
+	Kind        cmdpalette.ViewKind    `json:"kind"`
+	Revision    string                 `json:"revision"`
+	StreamEpoch string                 `json:"stream_epoch"`
+	Payload     cmdpalette.ViewPayload `json:"payload"`
+}
+
+type CmdPaletteViewPatch struct {
+	Sequence    int64                   `json:"sequence"`
+	StreamEpoch string                  `json:"stream_epoch"`
+	Patch       *cmdpalette.ViewPatch   `json:"patch,omitempty"`
+	Payload     *cmdpalette.ViewPayload `json:"payload,omitempty"`
+	Revision    string                  `json:"revision"`
+	Reset       bool                    `json:"reset,omitempty"`
+}
+
 type ToolApprovalStatusResponse struct {
 	ApprovalStatus  toolspkg.ApprovalOutcome         `json:"approval_status"`
 	ExecutionStatus toolspkg.ApprovalExecutionStatus `json:"execution_status,omitempty"`
@@ -154,6 +172,14 @@ func CmdPalettePersonalizationFromDomain(
 		Workspace: summary.Workspace, Pins: append([]cmdpalette.CommandID(nil), summary.Pins...),
 		Recents: summary.Recents, FrecencyEntries: summary.FrecencyEntries,
 		QueryAssociations: summary.QueryAssociations,
+	}
+}
+
+func CmdPaletteViewFromDomain(snapshot cmdpalette.ViewSnapshot) CmdPaletteViewEnvelope {
+	return CmdPaletteViewEnvelope{
+		ViewID: snapshot.Descriptor.ID, Title: snapshot.Descriptor.Title,
+		Kind: snapshot.Descriptor.Kind, Revision: snapshot.Revision,
+		StreamEpoch: snapshot.StreamEpoch, Payload: snapshot.Payload,
 	}
 }
 

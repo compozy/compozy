@@ -19,6 +19,10 @@ type RankSignalsResponse =
   operations["getCmdPaletteRankSignals"]["responses"][200]["content"]["application/json"];
 type PersonalizationResponse =
   operations["getCmdPalettePersonalization"]["responses"][200]["content"]["application/json"];
+type ViewResponse =
+  operations["getCmdPaletteView"]["responses"][200]["content"]["application/json"];
+type ViewPatchResponse =
+  operations["streamCmdPaletteView"]["responses"][200]["content"]["text/event-stream"];
 
 /** One command exactly as the daemon serves it. */
 export type CmdPaletteCommand = CommandsResponse["commands"][number];
@@ -32,6 +36,16 @@ export type CmdPaletteAttachedClient = ClientsResponse[number];
 export type CmdPaletteInvokeResult = InvokeResponse;
 export type CmdPaletteRankSignals = RankSignalsResponse;
 export type CmdPalettePersonalization = PersonalizationResponse;
+export type CmdPaletteViewEnvelope = ViewResponse;
+export type CmdPaletteViewPayload = ViewResponse["payload"];
+export type CmdPaletteViewRow = NonNullable<
+  CmdPaletteViewPayload["sections"]
+>[number]["rows"][number];
+export type CmdPaletteViewAction = NonNullable<CmdPaletteViewRow["actions"]>[number];
+export type CmdPaletteViewDetail = NonNullable<CmdPaletteViewPayload["detail"]>;
+export type CmdPaletteViewForm = NonNullable<CmdPaletteViewPayload["form"]>;
+export type CmdPaletteViewGrid = NonNullable<CmdPaletteViewPayload["grid"]>;
+export type CmdPaletteViewPatchEnvelope = ViewPatchResponse;
 
 /** The action kinds the dispatch seam routes (BR-2: closed union). */
 export type CmdPaletteActionKind = "client_op" | "tool" | "view" | "navigate" | "url";

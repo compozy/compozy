@@ -2,6 +2,7 @@ import { queryOptions } from "@tanstack/react-query";
 
 import {
   getCmdPaletteRankSignals,
+  getCmdPaletteView,
   listCmdPaletteClients,
   listCmdPaletteCommands,
 } from "../adapters/cmd-palette-api";
@@ -26,6 +27,20 @@ export const cmdPaletteCatalogOptions = (
     queryFn: ({ signal }) => listCmdPaletteCommands(workspace, clientId, signal),
     enabled: enabled && workspace !== "",
     staleTime: CATALOG_STALE_TIME,
+  });
+};
+
+export const cmdPaletteViewOptions = (
+  workspaceId: string | null,
+  viewId: string,
+  enabled = true
+) => {
+  const workspace = workspaceId?.trim() ?? "";
+  return queryOptions({
+    queryKey: cmdPaletteKeys.view(workspace, viewId),
+    queryFn: ({ signal }) => getCmdPaletteView(workspace, viewId, signal),
+    enabled: enabled && workspace !== "" && viewId.trim() !== "",
+    staleTime: 30_000,
   });
 };
 

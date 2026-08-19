@@ -221,6 +221,56 @@ func TestUDSTransportSessionCommandsProjectionMatchesHTTP(t *testing.T) {
 	})
 }
 
+func TestUDSTransportCmdPaletteViewRoutesMatchHTTP(t *testing.T) {
+	acpmock.RequireDriver(t)
+	t.Parallel()
+
+	runtimeHarness := e2etest.StartRuntimeHarness(t, &e2etest.RuntimeHarnessOptions{})
+	clients, err := runtimeHarness.TransportClients()
+	if err != nil {
+		t.Fatalf("TransportClients() error = %v", err)
+	}
+	workspace := url.QueryEscape(runtimeHarness.WorkspaceID)
+	testCases := []struct {
+		name       string
+		path       string
+		wantStatus int
+	}{
+		{
+			name:       "missing declarative view",
+			path:       "/api/cmd-palette/views/ext.missing.recent?workspace=" + workspace,
+			wantStatus: http.StatusNotFound,
+		},
+		{
+			name:       "stream cursor without epoch",
+			path:       "/api/cmd-palette/views/ext.missing.recent/stream?workspace=" + workspace + "&after=1",
+			wantStatus: http.StatusBadRequest,
+		},
+	}
+	for _, testCase := range testCases {
+		t.Run(testCase.name, func(t *testing.T) {
+			t.Parallel()
+			httpResponse := mustUnixRequest(
+				t, clients.HTTPClient, http.MethodGet, runtimeHarness.HTTPURL(testCase.path), nil, nil,
+			)
+			udsResponse := mustUnixRequest(
+				t, clients.UDSClient, http.MethodGet, runtimeHarness.UDSURL(testCase.path), nil, nil,
+			)
+			httpBody := readAndCloseHTTPBody(t, httpResponse)
+			udsBody := readAndCloseHTTPBody(t, udsResponse)
+			if httpResponse.StatusCode != testCase.wantStatus || udsResponse.StatusCode != testCase.wantStatus {
+				t.Fatalf(
+					"status parity = HTTP %d / UDS %d, want %d; bodies=%s / %s",
+					httpResponse.StatusCode, udsResponse.StatusCode, testCase.wantStatus, httpBody, udsBody,
+				)
+			}
+			if !jsonEqual(httpBody, udsBody) {
+				t.Fatalf("payload parity differs: HTTP=%s UDS=%s", httpBody, udsBody)
+			}
+		})
+	}
+}
+
 func TestUDSTransportDaemonDrainMatchesHTTPAndCLI(t *testing.T) {
 	t.Run("Should expose identical safe-to-stop readouts", func(t *testing.T) {
 		t.Parallel()

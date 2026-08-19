@@ -22,7 +22,7 @@ func TestProviderAbsorption(t *testing.T) {
 		if err != nil {
 			t.Fatalf("New() error = %v", err)
 		}
-		commands, err := provider.ProvideCommands(context.Background(), "ws-test")
+		commands, err := provider.ProvideCommands(t.Context(), "ws-test")
 		if err != nil {
 			t.Fatalf("ProvideCommands() error = %v", err)
 		}
@@ -121,6 +121,40 @@ func TestProviderAbsorption(t *testing.T) {
 		sort.Strings(actual)
 		if !slices.Equal(actual, expected) {
 			t.Fatalf("settings destinations = %#v, want %#v", actual, expected)
+		}
+	})
+
+	t.Run("Should expose every built-in palette view exactly once", func(t *testing.T) {
+		t.Parallel()
+		provider, err := New()
+		if err != nil {
+			t.Fatalf("New() error = %v", err)
+		}
+		commands, err := provider.ProvideCommands(context.Background(), "ws-test")
+		if err != nil {
+			t.Fatalf("ProvideCommands() error = %v", err)
+		}
+		want := []string{
+			"agents", "bridges", "extensions", "jobs", "knowledge", "loops", "marketplace",
+			"network-channels", "sessions", "tasks", "triggers", "vault", "worktrees",
+		}
+		actual := make([]string, 0, len(want))
+		seen := make(map[string]int, len(want))
+		for _, command := range commands {
+			if command.Action.Kind != cmdpalette.ActionKindView {
+				continue
+			}
+			actual = append(actual, command.Action.View)
+			seen[command.Action.View]++
+		}
+		sort.Strings(actual)
+		if !slices.Equal(actual, want) {
+			t.Fatalf("view ids = %#v, want %#v", actual, want)
+		}
+		for _, viewID := range want {
+			if seen[viewID] != 1 {
+				t.Errorf("view %q count = %d, want 1", viewID, seen[viewID])
+			}
 		}
 	})
 }

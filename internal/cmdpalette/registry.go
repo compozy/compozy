@@ -22,6 +22,8 @@ type Service struct {
 	policy          PersonalizationPolicy
 	logger          *slog.Logger
 	degradedOnce    sync.Once
+	viewProviders   []ViewProviderRegistration
+	viewStreamEpoch string
 
 	eventRecorder    EventRecorder
 	eventMu          sync.Mutex
@@ -115,6 +117,7 @@ func NewRegistry(
 		newID:            func() string { return "inv_" + uuid.NewString() },
 		now:              time.Now,
 		logger:           slog.Default(),
+		viewStreamEpoch:  "vse_" + uuid.NewString(),
 		flights:          make(map[string]struct{}),
 		eventSubscribers: make(map[uint64]eventSubscription),
 	}

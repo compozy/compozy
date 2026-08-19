@@ -21,4 +21,7 @@ export const cmdPaletteKeys = {
   clients: (workspaceId: string) => [...cmdPaletteKeys.all, "clients", workspaceId.trim()] as const,
   rankSignals: (workspaceId: string) =>
     [...cmdPaletteKeys.all, "rank-signals", workspaceId.trim()] as const,
+  views: () => [...cmdPaletteKeys.all, "views"] as const,
+  view: (workspaceId: string, viewId: string) =>
+    [...cmdPaletteKeys.views(), workspaceId.trim(), viewId.trim()] as const,
 };

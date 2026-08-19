@@ -9,6 +9,8 @@ func registerCmdPaletteRoutes(api gin.IRouter, handlers *Handlers) {
 	palette.GET("/rank-signals", handlers.GetCmdPaletteRankSignals)
 	palette.GET("/personalization", handlers.GetCmdPalettePersonalization)
 	palette.GET("/stream", handlers.StreamCmdPalette)
+	palette.GET("/views/:id", handlers.GetCmdPaletteView)
+	palette.GET("/views/:id/stream", handlers.StreamCmdPaletteView)
 	palette.POST("/usage", handlers.privilegedMutationGuard(), handlers.RecordCmdPaletteUsage)
 	palette.PUT("/pins/:id", handlers.privilegedMutationGuard(), handlers.PinCmdPaletteCommand)
 	palette.DELETE("/pins/:id", handlers.privilegedMutationGuard(), handlers.UnpinCmdPaletteCommand)

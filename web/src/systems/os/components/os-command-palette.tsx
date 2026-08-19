@@ -81,6 +81,7 @@ export function OsCommandPalette({ open, onOpenChange, dispatch }: OsCommandPale
           // level's search and selection clean instead of inheriting them.
           key={`${viewStack.stack.length}:${viewStack.activeViewId}`}
           breadcrumb={viewStack.breadcrumb}
+          dispatch={dispatch}
           viewId={viewStack.activeViewId}
           onDismiss={() => onOpenChange(false)}
           onPop={viewStack.pop}

@@ -7,6 +7,7 @@ import (
 	"errors"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 	"time"
 
@@ -315,6 +316,84 @@ func TestBaseHandlersCmdPalette(t *testing.T) {
 			t.Fatalf("reset workspace = %q, want workspace-canonical", registry.resetWorkspace)
 		}
 	})
+
+	t.Run("Should serve a validated workspace-scoped declarative view", func(t *testing.T) {
+		t.Parallel()
+		registry := &cmdPaletteRegistryStub{viewSnapshot: cmdpalette.ViewSnapshot{
+			Descriptor: cmdpalette.ViewDescriptor{
+				ID: "ext.notes.recent", Title: "Recent notes", Kind: cmdpalette.ViewKindList,
+			},
+			Payload: cmdpalette.ViewPayload{
+				View: cmdpalette.ViewContractVersion,
+				Sections: []cmdpalette.Section{{Rows: []cmdpalette.Row{{
+					ID: "note-1", Title: "Standup follow-ups",
+				}}}},
+			},
+			Revision: "vr_1", StreamEpoch: "vse_1",
+		}}
+		handlers := newCmdPaletteHandlers(registry, nil)
+		engine := gin.New()
+		engine.GET("/api/cmd-palette/views/:id", handlers.GetCmdPaletteView)
+		recorder := httptest.NewRecorder()
+		engine.ServeHTTP(recorder, httptest.NewRequestWithContext(
+			t.Context(), http.MethodGet,
+			"/api/cmd-palette/views/ext.notes.recent?workspace=alpha", http.NoBody,
+		))
+		if recorder.Code != http.StatusOK {
+			t.Fatalf("status = %d, want 200; body=%s", recorder.Code, recorder.Body.String())
+		}
+		var response contract.CmdPaletteViewEnvelope
+		if err := json.Unmarshal(recorder.Body.Bytes(), &response); err != nil {
+			t.Fatalf("json.Unmarshal(response) error = %v", err)
+		}
+		if response.ViewID != "ext.notes.recent" || response.Revision != "vr_1" ||
+			len(response.Payload.Sections) != 1 {
+			t.Fatalf("response = %#v, want validated view envelope", response)
+		}
+		if registry.viewWorkspace != "workspace-canonical" || registry.viewID != "ext.notes.recent" {
+			t.Fatalf(
+				"OpenSource() scope = %q/%q, want canonical workspace and view",
+				registry.viewWorkspace,
+				registry.viewID,
+			)
+		}
+	})
+
+	t.Run("Should guard view stream cursors and reset an epoch mismatch", func(t *testing.T) {
+		t.Parallel()
+		registry := &cmdPaletteRegistryStub{viewSnapshot: cmdpalette.ViewSnapshot{
+			Descriptor:  cmdpalette.ViewDescriptor{ID: "ext.notes.recent", Kind: cmdpalette.ViewKindList},
+			Payload:     cmdpalette.ViewPayload{View: cmdpalette.ViewContractVersion},
+			Revision:    "vr_current",
+			StreamEpoch: "vse_current",
+		}}
+		handlers := newCmdPaletteHandlers(registry, nil)
+		engine := gin.New()
+		engine.GET("/api/cmd-palette/views/:id/stream", handlers.StreamCmdPaletteView)
+
+		guarded := httptest.NewRecorder()
+		engine.ServeHTTP(guarded, httptest.NewRequestWithContext(
+			t.Context(), http.MethodGet,
+			"/api/cmd-palette/views/ext.notes.recent/stream?workspace=alpha&after=4", http.NoBody,
+		))
+		if guarded.Code != http.StatusBadRequest {
+			t.Fatalf("guard status = %d, want 400; body=%s", guarded.Code, guarded.Body.String())
+		}
+
+		reset := httptest.NewRecorder()
+		engine.ServeHTTP(reset, httptest.NewRequestWithContext(
+			t.Context(), http.MethodGet,
+			"/api/cmd-palette/views/ext.notes.recent/stream?workspace=alpha&after=4&stream_epoch=vse_stale",
+			http.NoBody,
+		))
+		if reset.Code != http.StatusOK || !strings.Contains(reset.Body.String(), "event: cmd_palette.view.reset") {
+			t.Fatalf("reset stream = status %d body %q, want full reset event", reset.Code, reset.Body.String())
+		}
+		if !strings.Contains(reset.Body.String(), `"stream_epoch":"vse_current"`) ||
+			!strings.Contains(reset.Body.String(), `"revision":"vr_current"`) {
+			t.Fatalf("reset stream body = %q, want current fence", reset.Body.String())
+		}
+	})
 }
 
 func newCmdPaletteHandlers(
@@ -352,6 +431,10 @@ type cmdPaletteRegistryStub struct {
 	pinCommand       cmdpalette.CommandID
 	pinned           bool
 	resetWorkspace   cmdpalette.WorkspaceID
+	viewSnapshot     cmdpalette.ViewSnapshot
+	viewWorkspace    cmdpalette.WorkspaceID
+	viewID           string
+	viewEvents       <-chan cmdpalette.ViewPatchEvent
 }
 
 func (s *cmdPaletteRegistryStub) Catalog(
@@ -438,6 +521,45 @@ func (s *cmdPaletteRegistryStub) SubscribeCmdPaletteEvents(
 	updates := make(chan cmdpalette.Event)
 	close(updates)
 	return updates, func() {}, nil
+}
+
+func (s *cmdPaletteRegistryStub) ResolveView(
+	_ context.Context,
+	workspaceID cmdpalette.WorkspaceID,
+	viewID string,
+) (cmdpalette.ViewDescriptor, error) {
+	s.viewWorkspace = workspaceID
+	s.viewID = viewID
+	if s.viewSnapshot.Descriptor.ID == "" {
+		return cmdpalette.ViewDescriptor{}, &cmdpalette.ViewNotFoundError{ViewID: viewID}
+	}
+	return s.viewSnapshot.Descriptor, nil
+}
+
+func (s *cmdPaletteRegistryStub) OpenSource(
+	_ context.Context,
+	workspaceID cmdpalette.WorkspaceID,
+	viewID string,
+) (cmdpalette.ViewSnapshot, error) {
+	s.viewWorkspace = workspaceID
+	s.viewID = viewID
+	if s.viewSnapshot.Descriptor.ID == "" {
+		return cmdpalette.ViewSnapshot{}, &cmdpalette.ViewNotFoundError{ViewID: viewID}
+	}
+	return s.viewSnapshot, nil
+}
+
+func (s *cmdPaletteRegistryStub) SubscribeViewPatches(
+	context.Context,
+	cmdpalette.WorkspaceID,
+	string,
+) (<-chan cmdpalette.ViewPatchEvent, func(), error) {
+	if s.viewEvents != nil {
+		return s.viewEvents, func() {}, nil
+	}
+	events := make(chan cmdpalette.ViewPatchEvent)
+	close(events)
+	return events, func() {}, nil
 }
 
 type approvalCoordinatorStub struct {

@@ -6,6 +6,7 @@ import type {
   CmdPaletteInvokeResult,
   CmdPalettePersonalization,
   CmdPaletteRankSignals,
+  CmdPaletteViewEnvelope,
 } from "../lib/cmd-palette-types";
 
 export type CmdPaletteApiErrorKind = "daemon" | "malformed_response" | "transport";
@@ -167,6 +168,33 @@ export async function listCmdPaletteClients(
   if (apiRequestFailed(response, error)) throw responseError(fallback, response, error);
   const envelope = responseData(data, response, fallback);
   return requireArray(envelope, response, fallback, "clients");
+}
+
+export async function getCmdPaletteView(
+  workspaceId: string,
+  viewId: string,
+  signal?: AbortSignal
+): Promise<CmdPaletteViewEnvelope> {
+  const { data, error, response } = await apiClient.GET("/api/cmd-palette/views/{id}", {
+    params: { path: { id: viewId }, query: { workspace: workspaceId } },
+    signal,
+  });
+  const fallback = `Failed to load ${viewId}`;
+  if (apiRequestFailed(response, error)) throw responseError(fallback, response, error);
+  const envelope = responseData(data, response, fallback);
+  if (
+    typeof envelope.revision !== "string" ||
+    envelope.revision.trim() === "" ||
+    typeof envelope.stream_epoch !== "string" ||
+    envelope.stream_epoch.trim() === ""
+  ) {
+    throw new CmdPaletteApiError(
+      `${fallback}: missing revision fence (${response.status})`,
+      response.status,
+      "malformed_response"
+    );
+  }
+  return envelope;
 }
 
 export interface CmdPaletteInvokeInput {

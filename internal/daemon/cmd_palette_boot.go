@@ -35,7 +35,7 @@ func (d *Daemon) bootCmdPalette(
 		windowManager: state.windowManager, approvalTTL: state.cfg.Tools.Policy.ApprovalTimeout(),
 		now: d.now,
 	}
-	eventRecorder := &cmdPaletteEventRecorder{writer: state.registry, logger: d.logger}
+	eventRecorder := &cmdPaletteEventRecorder{writer: state.registry, logger: state.logger}
 	coordinator, err := toolspkg.NewApprovalCoordinator(approvalStore, executor)
 	if err != nil {
 		return fmt.Errorf("daemon: create tool approval coordinator: %w", err)
@@ -51,7 +51,7 @@ func (d *Daemon) bootCmdPalette(
 		workspaces: state.workspaceResolver,
 		loadGlobal: d.loadConfig,
 		catalog:    func() cmdpalette.BindableCatalog { return registry },
-		logger:     d.logger,
+		logger:     state.logger,
 	}
 	registry, err = cmdpalette.NewRegistry(
 		[]cmdpalette.ProviderRegistration{{
@@ -60,12 +60,14 @@ func (d *Daemon) bootCmdPalette(
 		&cmdPaletteClientDirectory{windowManager: state.windowManager}, bindings, executor,
 		cmdpalette.WithEventRecorder(eventRecorder), cmdpalette.WithClock(d.now),
 		cmdpalette.WithPersonalizationStore(personalizationStore),
-		cmdpalette.WithPersonalizationPolicy(bindings), cmdpalette.WithLogger(d.logger),
+		cmdpalette.WithPersonalizationPolicy(bindings), cmdpalette.WithLogger(state.logger),
 	)
 	if err != nil {
 		return fmt.Errorf("daemon: create command palette registry: %w", err)
 	}
 	state.cmdPalette = registry
 	state.approvalCoordinator = coordinator
+	state.deps.CmdPalette = registry
+	state.deps.ApprovalCoordinator = coordinator
 	return nil
 }

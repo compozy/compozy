@@ -71114,6 +71114,2248 @@
         ]
       }
     },
+    "/api/cmd-palette/views/{id}": {
+      "get": {
+        "operationId": "getCmdPaletteView",
+        "parameters": [
+          {
+            "description": "Canonical view id",
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Workspace id, name, or path",
+            "in": "query",
+            "name": "workspace",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "kind": {
+                      "type": "string"
+                    },
+                    "payload": {
+                      "properties": {
+                        "chips": {
+                          "items": {
+                            "properties": {
+                              "count": {
+                                "nullable": true,
+                                "type": "integer"
+                              },
+                              "fallback": {
+                                "type": "string"
+                              },
+                              "id": {
+                                "type": "string"
+                              },
+                              "label": {
+                                "type": "string"
+                              },
+                              "requires": {
+                                "additionalProperties": {
+                                  "type": "string"
+                                },
+                                "type": "object"
+                              }
+                            },
+                            "required": [
+                              "id",
+                              "label"
+                            ],
+                            "type": "object"
+                          },
+                          "type": "array"
+                        },
+                        "chrome": {
+                          "nullable": true,
+                          "properties": {
+                            "active_chip": {
+                              "type": "string"
+                            },
+                            "columns": {
+                              "type": "integer"
+                            },
+                            "complete": {
+                              "type": "boolean"
+                            },
+                            "event_count": {
+                              "format": "int64",
+                              "type": "integer"
+                            },
+                            "filtering": {
+                              "nullable": true,
+                              "type": "boolean"
+                            },
+                            "is_loading": {
+                              "type": "boolean"
+                            },
+                            "on_chip": {
+                              "type": "string"
+                            },
+                            "on_load_more": {
+                              "type": "string"
+                            },
+                            "on_search": {
+                              "type": "string"
+                            },
+                            "on_selection": {
+                              "type": "string"
+                            },
+                            "pagination": {
+                              "nullable": true,
+                              "properties": {
+                                "has_more": {
+                                  "type": "boolean"
+                                },
+                                "page_size": {
+                                  "type": "integer"
+                                }
+                              },
+                              "required": [
+                                "has_more"
+                              ],
+                              "type": "object"
+                            },
+                            "search_placeholder": {
+                              "type": "string"
+                            },
+                            "search_text": {
+                              "type": "string"
+                            },
+                            "throttle_ms": {
+                              "type": "integer"
+                            }
+                          },
+                          "type": "object"
+                        },
+                        "detail": {
+                          "nullable": true,
+                          "properties": {
+                            "actions": {
+                              "items": {
+                                "properties": {
+                                  "action": {
+                                    "nullable": true,
+                                    "properties": {
+                                      "app": {
+                                        "type": "string"
+                                      },
+                                      "args": {
+                                        "additionalProperties": {},
+                                        "type": "object"
+                                      },
+                                      "kind": {
+                                        "type": "string"
+                                      },
+                                      "op": {
+                                        "type": "string"
+                                      },
+                                      "tool": {
+                                        "type": "string"
+                                      },
+                                      "url": {
+                                        "type": "string"
+                                      },
+                                      "view": {
+                                        "type": "string"
+                                      }
+                                    },
+                                    "required": [
+                                      "kind"
+                                    ],
+                                    "type": "object"
+                                  },
+                                  "confirmation": {
+                                    "nullable": true,
+                                    "properties": {
+                                      "body": {
+                                        "type": "string"
+                                      },
+                                      "confirm": {
+                                        "type": "string"
+                                      },
+                                      "title": {
+                                        "type": "string"
+                                      }
+                                    },
+                                    "required": [
+                                      "confirm",
+                                      "title"
+                                    ],
+                                    "type": "object"
+                                  },
+                                  "destructive": {
+                                    "type": "boolean"
+                                  },
+                                  "fallback": {
+                                    "type": "string"
+                                  },
+                                  "handler": {
+                                    "type": "string"
+                                  },
+                                  "icon": {
+                                    "type": "string"
+                                  },
+                                  "primary": {
+                                    "type": "boolean"
+                                  },
+                                  "requires": {
+                                    "additionalProperties": {
+                                      "type": "string"
+                                    },
+                                    "type": "object"
+                                  },
+                                  "section": {
+                                    "type": "string"
+                                  },
+                                  "shortcut": {
+                                    "type": "string"
+                                  },
+                                  "submit_form": {
+                                    "type": "boolean"
+                                  },
+                                  "title": {
+                                    "type": "string"
+                                  }
+                                },
+                                "required": [
+                                  "title"
+                                ],
+                                "type": "object"
+                              },
+                              "type": "array"
+                            },
+                            "is_loading": {
+                              "type": "boolean"
+                            },
+                            "markdown": {
+                              "type": "string"
+                            },
+                            "metadata": {
+                              "items": {
+                                "properties": {
+                                  "fallback": {
+                                    "type": "string"
+                                  },
+                                  "label": {
+                                    "type": "string"
+                                  },
+                                  "requires": {
+                                    "additionalProperties": {
+                                      "type": "string"
+                                    },
+                                    "type": "object"
+                                  },
+                                  "value": {
+                                    "type": "string"
+                                  }
+                                },
+                                "required": [
+                                  "label",
+                                  "value"
+                                ],
+                                "type": "object"
+                              },
+                              "type": "array"
+                            }
+                          },
+                          "type": "object"
+                        },
+                        "empty": {
+                          "nullable": true,
+                          "properties": {
+                            "hint": {
+                              "type": "string"
+                            },
+                            "icon": {
+                              "type": "string"
+                            },
+                            "title": {
+                              "type": "string"
+                            }
+                          },
+                          "required": [
+                            "title"
+                          ],
+                          "type": "object"
+                        },
+                        "form": {
+                          "nullable": true,
+                          "properties": {
+                            "fields": {
+                              "items": {
+                                "properties": {
+                                  "default": {},
+                                  "directories": {
+                                    "type": "boolean"
+                                  },
+                                  "empty_hint": {
+                                    "type": "string"
+                                  },
+                                  "error": {
+                                    "type": "string"
+                                  },
+                                  "event_count": {
+                                    "format": "int64",
+                                    "type": "integer"
+                                  },
+                                  "fallback": {
+                                    "type": "string"
+                                  },
+                                  "id": {
+                                    "type": "string"
+                                  },
+                                  "label": {
+                                    "type": "string"
+                                  },
+                                  "on_blur": {
+                                    "type": "string"
+                                  },
+                                  "on_change": {
+                                    "type": "string"
+                                  },
+                                  "options": {
+                                    "items": {
+                                      "type": "string"
+                                    },
+                                    "type": "array"
+                                  },
+                                  "placeholder": {
+                                    "type": "string"
+                                  },
+                                  "required": {
+                                    "type": "boolean"
+                                  },
+                                  "requires": {
+                                    "additionalProperties": {
+                                      "type": "string"
+                                    },
+                                    "type": "object"
+                                  },
+                                  "type": {
+                                    "type": "string"
+                                  }
+                                },
+                                "required": [
+                                  "id",
+                                  "label",
+                                  "type"
+                                ],
+                                "type": "object"
+                              },
+                              "type": "array"
+                            },
+                            "on_submit": {
+                              "type": "string"
+                            },
+                            "submit": {
+                              "nullable": true,
+                              "properties": {
+                                "action": {
+                                  "nullable": true,
+                                  "properties": {
+                                    "app": {
+                                      "type": "string"
+                                    },
+                                    "args": {
+                                      "additionalProperties": {},
+                                      "type": "object"
+                                    },
+                                    "kind": {
+                                      "type": "string"
+                                    },
+                                    "op": {
+                                      "type": "string"
+                                    },
+                                    "tool": {
+                                      "type": "string"
+                                    },
+                                    "url": {
+                                      "type": "string"
+                                    },
+                                    "view": {
+                                      "type": "string"
+                                    }
+                                  },
+                                  "required": [
+                                    "kind"
+                                  ],
+                                  "type": "object"
+                                },
+                                "confirmation": {
+                                  "nullable": true,
+                                  "properties": {
+                                    "body": {
+                                      "type": "string"
+                                    },
+                                    "confirm": {
+                                      "type": "string"
+                                    },
+                                    "title": {
+                                      "type": "string"
+                                    }
+                                  },
+                                  "required": [
+                                    "confirm",
+                                    "title"
+                                  ],
+                                  "type": "object"
+                                },
+                                "destructive": {
+                                  "type": "boolean"
+                                },
+                                "fallback": {
+                                  "type": "string"
+                                },
+                                "handler": {
+                                  "type": "string"
+                                },
+                                "icon": {
+                                  "type": "string"
+                                },
+                                "primary": {
+                                  "type": "boolean"
+                                },
+                                "requires": {
+                                  "additionalProperties": {
+                                    "type": "string"
+                                  },
+                                  "type": "object"
+                                },
+                                "section": {
+                                  "type": "string"
+                                },
+                                "shortcut": {
+                                  "type": "string"
+                                },
+                                "submit_form": {
+                                  "type": "boolean"
+                                },
+                                "title": {
+                                  "type": "string"
+                                }
+                              },
+                              "required": [
+                                "title"
+                              ],
+                              "type": "object"
+                            }
+                          },
+                          "required": [
+                            "fields"
+                          ],
+                          "type": "object"
+                        },
+                        "grid": {
+                          "nullable": true,
+                          "properties": {
+                            "sections": {
+                              "items": {
+                                "properties": {
+                                  "tiles": {
+                                    "items": {
+                                      "properties": {
+                                        "actions": {
+                                          "items": {
+                                            "properties": {
+                                              "action": {
+                                                "nullable": true,
+                                                "properties": {
+                                                  "app": {
+                                                    "type": "string"
+                                                  },
+                                                  "args": {
+                                                    "additionalProperties": {},
+                                                    "type": "object"
+                                                  },
+                                                  "kind": {
+                                                    "type": "string"
+                                                  },
+                                                  "op": {
+                                                    "type": "string"
+                                                  },
+                                                  "tool": {
+                                                    "type": "string"
+                                                  },
+                                                  "url": {
+                                                    "type": "string"
+                                                  },
+                                                  "view": {
+                                                    "type": "string"
+                                                  }
+                                                },
+                                                "required": [
+                                                  "kind"
+                                                ],
+                                                "type": "object"
+                                              },
+                                              "confirmation": {
+                                                "nullable": true,
+                                                "properties": {
+                                                  "body": {
+                                                    "type": "string"
+                                                  },
+                                                  "confirm": {
+                                                    "type": "string"
+                                                  },
+                                                  "title": {
+                                                    "type": "string"
+                                                  }
+                                                },
+                                                "required": [
+                                                  "confirm",
+                                                  "title"
+                                                ],
+                                                "type": "object"
+                                              },
+                                              "destructive": {
+                                                "type": "boolean"
+                                              },
+                                              "fallback": {
+                                                "type": "string"
+                                              },
+                                              "handler": {
+                                                "type": "string"
+                                              },
+                                              "icon": {
+                                                "type": "string"
+                                              },
+                                              "primary": {
+                                                "type": "boolean"
+                                              },
+                                              "requires": {
+                                                "additionalProperties": {
+                                                  "type": "string"
+                                                },
+                                                "type": "object"
+                                              },
+                                              "section": {
+                                                "type": "string"
+                                              },
+                                              "shortcut": {
+                                                "type": "string"
+                                              },
+                                              "submit_form": {
+                                                "type": "boolean"
+                                              },
+                                              "title": {
+                                                "type": "string"
+                                              }
+                                            },
+                                            "required": [
+                                              "title"
+                                            ],
+                                            "type": "object"
+                                          },
+                                          "type": "array"
+                                        },
+                                        "badge": {
+                                          "nullable": true,
+                                          "properties": {
+                                            "label": {
+                                              "type": "string"
+                                            },
+                                            "tone": {
+                                              "type": "string"
+                                            }
+                                          },
+                                          "required": [
+                                            "label",
+                                            "tone"
+                                          ],
+                                          "type": "object"
+                                        },
+                                        "fallback": {
+                                          "type": "string"
+                                        },
+                                        "id": {
+                                          "type": "string"
+                                        },
+                                        "image": {
+                                          "properties": {
+                                            "emoji": {
+                                              "type": "string"
+                                            },
+                                            "token": {
+                                              "type": "string"
+                                            },
+                                            "url": {
+                                              "type": "string"
+                                            }
+                                          },
+                                          "type": "object"
+                                        },
+                                        "requires": {
+                                          "additionalProperties": {
+                                            "type": "string"
+                                          },
+                                          "type": "object"
+                                        },
+                                        "title": {
+                                          "type": "string"
+                                        }
+                                      },
+                                      "required": [
+                                        "id",
+                                        "image",
+                                        "title"
+                                      ],
+                                      "type": "object"
+                                    },
+                                    "type": "array"
+                                  },
+                                  "title": {
+                                    "type": "string"
+                                  }
+                                },
+                                "required": [
+                                  "tiles"
+                                ],
+                                "type": "object"
+                              },
+                              "type": "array"
+                            }
+                          },
+                          "required": [
+                            "sections"
+                          ],
+                          "type": "object"
+                        },
+                        "sections": {
+                          "items": {
+                            "properties": {
+                              "rows": {
+                                "items": {
+                                  "properties": {
+                                    "accessories": {
+                                      "items": {
+                                        "type": "string"
+                                      },
+                                      "type": "array"
+                                    },
+                                    "actions": {
+                                      "items": {
+                                        "properties": {
+                                          "action": {
+                                            "nullable": true,
+                                            "properties": {
+                                              "app": {
+                                                "type": "string"
+                                              },
+                                              "args": {
+                                                "additionalProperties": {},
+                                                "type": "object"
+                                              },
+                                              "kind": {
+                                                "type": "string"
+                                              },
+                                              "op": {
+                                                "type": "string"
+                                              },
+                                              "tool": {
+                                                "type": "string"
+                                              },
+                                              "url": {
+                                                "type": "string"
+                                              },
+                                              "view": {
+                                                "type": "string"
+                                              }
+                                            },
+                                            "required": [
+                                              "kind"
+                                            ],
+                                            "type": "object"
+                                          },
+                                          "confirmation": {
+                                            "nullable": true,
+                                            "properties": {
+                                              "body": {
+                                                "type": "string"
+                                              },
+                                              "confirm": {
+                                                "type": "string"
+                                              },
+                                              "title": {
+                                                "type": "string"
+                                              }
+                                            },
+                                            "required": [
+                                              "confirm",
+                                              "title"
+                                            ],
+                                            "type": "object"
+                                          },
+                                          "destructive": {
+                                            "type": "boolean"
+                                          },
+                                          "fallback": {
+                                            "type": "string"
+                                          },
+                                          "handler": {
+                                            "type": "string"
+                                          },
+                                          "icon": {
+                                            "type": "string"
+                                          },
+                                          "primary": {
+                                            "type": "boolean"
+                                          },
+                                          "requires": {
+                                            "additionalProperties": {
+                                              "type": "string"
+                                            },
+                                            "type": "object"
+                                          },
+                                          "section": {
+                                            "type": "string"
+                                          },
+                                          "shortcut": {
+                                            "type": "string"
+                                          },
+                                          "submit_form": {
+                                            "type": "boolean"
+                                          },
+                                          "title": {
+                                            "type": "string"
+                                          }
+                                        },
+                                        "required": [
+                                          "title"
+                                        ],
+                                        "type": "object"
+                                      },
+                                      "type": "array"
+                                    },
+                                    "badge": {
+                                      "nullable": true,
+                                      "properties": {
+                                        "label": {
+                                          "type": "string"
+                                        },
+                                        "tone": {
+                                          "type": "string"
+                                        }
+                                      },
+                                      "required": [
+                                        "label",
+                                        "tone"
+                                      ],
+                                      "type": "object"
+                                    },
+                                    "detail": {
+                                      "nullable": true,
+                                      "properties": {
+                                        "actions": {
+                                          "items": {
+                                            "properties": {
+                                              "action": {
+                                                "nullable": true,
+                                                "properties": {
+                                                  "app": {
+                                                    "type": "string"
+                                                  },
+                                                  "args": {
+                                                    "additionalProperties": {},
+                                                    "type": "object"
+                                                  },
+                                                  "kind": {
+                                                    "type": "string"
+                                                  },
+                                                  "op": {
+                                                    "type": "string"
+                                                  },
+                                                  "tool": {
+                                                    "type": "string"
+                                                  },
+                                                  "url": {
+                                                    "type": "string"
+                                                  },
+                                                  "view": {
+                                                    "type": "string"
+                                                  }
+                                                },
+                                                "required": [
+                                                  "kind"
+                                                ],
+                                                "type": "object"
+                                              },
+                                              "confirmation": {
+                                                "nullable": true,
+                                                "properties": {
+                                                  "body": {
+                                                    "type": "string"
+                                                  },
+                                                  "confirm": {
+                                                    "type": "string"
+                                                  },
+                                                  "title": {
+                                                    "type": "string"
+                                                  }
+                                                },
+                                                "required": [
+                                                  "confirm",
+                                                  "title"
+                                                ],
+                                                "type": "object"
+                                              },
+                                              "destructive": {
+                                                "type": "boolean"
+                                              },
+                                              "fallback": {
+                                                "type": "string"
+                                              },
+                                              "handler": {
+                                                "type": "string"
+                                              },
+                                              "icon": {
+                                                "type": "string"
+                                              },
+                                              "primary": {
+                                                "type": "boolean"
+                                              },
+                                              "requires": {
+                                                "additionalProperties": {
+                                                  "type": "string"
+                                                },
+                                                "type": "object"
+                                              },
+                                              "section": {
+                                                "type": "string"
+                                              },
+                                              "shortcut": {
+                                                "type": "string"
+                                              },
+                                              "submit_form": {
+                                                "type": "boolean"
+                                              },
+                                              "title": {
+                                                "type": "string"
+                                              }
+                                            },
+                                            "required": [
+                                              "title"
+                                            ],
+                                            "type": "object"
+                                          },
+                                          "type": "array"
+                                        },
+                                        "is_loading": {
+                                          "type": "boolean"
+                                        },
+                                        "markdown": {
+                                          "type": "string"
+                                        },
+                                        "metadata": {
+                                          "items": {
+                                            "properties": {
+                                              "fallback": {
+                                                "type": "string"
+                                              },
+                                              "label": {
+                                                "type": "string"
+                                              },
+                                              "requires": {
+                                                "additionalProperties": {
+                                                  "type": "string"
+                                                },
+                                                "type": "object"
+                                              },
+                                              "value": {
+                                                "type": "string"
+                                              }
+                                            },
+                                            "required": [
+                                              "label",
+                                              "value"
+                                            ],
+                                            "type": "object"
+                                          },
+                                          "type": "array"
+                                        }
+                                      },
+                                      "type": "object"
+                                    },
+                                    "fallback": {
+                                      "type": "string"
+                                    },
+                                    "icon": {
+                                      "type": "string"
+                                    },
+                                    "id": {
+                                      "type": "string"
+                                    },
+                                    "keywords": {
+                                      "items": {
+                                        "type": "string"
+                                      },
+                                      "type": "array"
+                                    },
+                                    "requires": {
+                                      "additionalProperties": {
+                                        "type": "string"
+                                      },
+                                      "type": "object"
+                                    },
+                                    "subtitle": {
+                                      "type": "string"
+                                    },
+                                    "title": {
+                                      "type": "string"
+                                    }
+                                  },
+                                  "required": [
+                                    "id",
+                                    "title"
+                                  ],
+                                  "type": "object"
+                                },
+                                "type": "array"
+                              },
+                              "title": {
+                                "type": "string"
+                              }
+                            },
+                            "required": [
+                              "rows"
+                            ],
+                            "type": "object"
+                          },
+                          "type": "array"
+                        },
+                        "view": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "view"
+                      ],
+                      "type": "object"
+                    },
+                    "revision": {
+                      "type": "string"
+                    },
+                    "stream_epoch": {
+                      "type": "string"
+                    },
+                    "title": {
+                      "type": "string"
+                    },
+                    "view_id": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "kind",
+                    "payload",
+                    "revision",
+                    "stream_epoch",
+                    "title",
+                    "view_id"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "clients": {
+                      "items": {
+                        "type": "string"
+                      },
+                      "type": "array"
+                    },
+                    "error": {
+                      "type": "string"
+                    },
+                    "fields": {
+                      "additionalProperties": {
+                        "type": "string"
+                      },
+                      "type": "object"
+                    },
+                    "message": {
+                      "type": "string"
+                    },
+                    "reason": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "error"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Invalid workspace"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "clients": {
+                      "items": {
+                        "type": "string"
+                      },
+                      "type": "array"
+                    },
+                    "error": {
+                      "type": "string"
+                    },
+                    "fields": {
+                      "additionalProperties": {
+                        "type": "string"
+                      },
+                      "type": "object"
+                    },
+                    "message": {
+                      "type": "string"
+                    },
+                    "reason": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "error"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "View not found"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "clients": {
+                      "items": {
+                        "type": "string"
+                      },
+                      "type": "array"
+                    },
+                    "error": {
+                      "type": "string"
+                    },
+                    "fields": {
+                      "additionalProperties": {
+                        "type": "string"
+                      },
+                      "type": "object"
+                    },
+                    "message": {
+                      "type": "string"
+                    },
+                    "reason": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "error"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Invalid view payload"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "clients": {
+                      "items": {
+                        "type": "string"
+                      },
+                      "type": "array"
+                    },
+                    "error": {
+                      "type": "string"
+                    },
+                    "fields": {
+                      "additionalProperties": {
+                        "type": "string"
+                      },
+                      "type": "object"
+                    },
+                    "message": {
+                      "type": "string"
+                    },
+                    "reason": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "error"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Command palette unavailable"
+          }
+        },
+        "summary": "Get one declarative command palette view",
+        "tags": [
+          "cmd-palette"
+        ],
+        "x-compozy-transports": [
+          "http",
+          "uds"
+        ]
+      }
+    },
+    "/api/cmd-palette/views/{id}/stream": {
+      "get": {
+        "operationId": "streamCmdPaletteView",
+        "parameters": [
+          {
+            "description": "Canonical view id",
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Workspace id, name, or path",
+            "in": "query",
+            "name": "workspace",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Last applied patch sequence",
+            "in": "query",
+            "name": "after",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Stream epoch required when after is greater than zero",
+            "in": "query",
+            "name": "stream_epoch",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "text/event-stream": {
+                "schema": {
+                  "properties": {
+                    "patch": {
+                      "nullable": true,
+                      "properties": {
+                        "from": {
+                          "type": "string"
+                        },
+                        "ops": {
+                          "items": {
+                            "properties": {
+                              "op": {
+                                "type": "string"
+                              },
+                              "path": {
+                                "type": "string"
+                              },
+                              "value": {}
+                            },
+                            "required": [
+                              "op",
+                              "path"
+                            ],
+                            "type": "object"
+                          },
+                          "type": "array"
+                        },
+                        "to": {
+                          "type": "string"
+                        },
+                        "view_id": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "from",
+                        "ops",
+                        "to",
+                        "view_id"
+                      ],
+                      "type": "object"
+                    },
+                    "payload": {
+                      "nullable": true,
+                      "properties": {
+                        "chips": {
+                          "items": {
+                            "properties": {
+                              "count": {
+                                "nullable": true,
+                                "type": "integer"
+                              },
+                              "fallback": {
+                                "type": "string"
+                              },
+                              "id": {
+                                "type": "string"
+                              },
+                              "label": {
+                                "type": "string"
+                              },
+                              "requires": {
+                                "additionalProperties": {
+                                  "type": "string"
+                                },
+                                "type": "object"
+                              }
+                            },
+                            "required": [
+                              "id",
+                              "label"
+                            ],
+                            "type": "object"
+                          },
+                          "type": "array"
+                        },
+                        "chrome": {
+                          "nullable": true,
+                          "properties": {
+                            "active_chip": {
+                              "type": "string"
+                            },
+                            "columns": {
+                              "type": "integer"
+                            },
+                            "complete": {
+                              "type": "boolean"
+                            },
+                            "event_count": {
+                              "format": "int64",
+                              "type": "integer"
+                            },
+                            "filtering": {
+                              "nullable": true,
+                              "type": "boolean"
+                            },
+                            "is_loading": {
+                              "type": "boolean"
+                            },
+                            "on_chip": {
+                              "type": "string"
+                            },
+                            "on_load_more": {
+                              "type": "string"
+                            },
+                            "on_search": {
+                              "type": "string"
+                            },
+                            "on_selection": {
+                              "type": "string"
+                            },
+                            "pagination": {
+                              "nullable": true,
+                              "properties": {
+                                "has_more": {
+                                  "type": "boolean"
+                                },
+                                "page_size": {
+                                  "type": "integer"
+                                }
+                              },
+                              "required": [
+                                "has_more"
+                              ],
+                              "type": "object"
+                            },
+                            "search_placeholder": {
+                              "type": "string"
+                            },
+                            "search_text": {
+                              "type": "string"
+                            },
+                            "throttle_ms": {
+                              "type": "integer"
+                            }
+                          },
+                          "type": "object"
+                        },
+                        "detail": {
+                          "nullable": true,
+                          "properties": {
+                            "actions": {
+                              "items": {
+                                "properties": {
+                                  "action": {
+                                    "nullable": true,
+                                    "properties": {
+                                      "app": {
+                                        "type": "string"
+                                      },
+                                      "args": {
+                                        "additionalProperties": {},
+                                        "type": "object"
+                                      },
+                                      "kind": {
+                                        "type": "string"
+                                      },
+                                      "op": {
+                                        "type": "string"
+                                      },
+                                      "tool": {
+                                        "type": "string"
+                                      },
+                                      "url": {
+                                        "type": "string"
+                                      },
+                                      "view": {
+                                        "type": "string"
+                                      }
+                                    },
+                                    "required": [
+                                      "kind"
+                                    ],
+                                    "type": "object"
+                                  },
+                                  "confirmation": {
+                                    "nullable": true,
+                                    "properties": {
+                                      "body": {
+                                        "type": "string"
+                                      },
+                                      "confirm": {
+                                        "type": "string"
+                                      },
+                                      "title": {
+                                        "type": "string"
+                                      }
+                                    },
+                                    "required": [
+                                      "confirm",
+                                      "title"
+                                    ],
+                                    "type": "object"
+                                  },
+                                  "destructive": {
+                                    "type": "boolean"
+                                  },
+                                  "fallback": {
+                                    "type": "string"
+                                  },
+                                  "handler": {
+                                    "type": "string"
+                                  },
+                                  "icon": {
+                                    "type": "string"
+                                  },
+                                  "primary": {
+                                    "type": "boolean"
+                                  },
+                                  "requires": {
+                                    "additionalProperties": {
+                                      "type": "string"
+                                    },
+                                    "type": "object"
+                                  },
+                                  "section": {
+                                    "type": "string"
+                                  },
+                                  "shortcut": {
+                                    "type": "string"
+                                  },
+                                  "submit_form": {
+                                    "type": "boolean"
+                                  },
+                                  "title": {
+                                    "type": "string"
+                                  }
+                                },
+                                "required": [
+                                  "title"
+                                ],
+                                "type": "object"
+                              },
+                              "type": "array"
+                            },
+                            "is_loading": {
+                              "type": "boolean"
+                            },
+                            "markdown": {
+                              "type": "string"
+                            },
+                            "metadata": {
+                              "items": {
+                                "properties": {
+                                  "fallback": {
+                                    "type": "string"
+                                  },
+                                  "label": {
+                                    "type": "string"
+                                  },
+                                  "requires": {
+                                    "additionalProperties": {
+                                      "type": "string"
+                                    },
+                                    "type": "object"
+                                  },
+                                  "value": {
+                                    "type": "string"
+                                  }
+                                },
+                                "required": [
+                                  "label",
+                                  "value"
+                                ],
+                                "type": "object"
+                              },
+                              "type": "array"
+                            }
+                          },
+                          "type": "object"
+                        },
+                        "empty": {
+                          "nullable": true,
+                          "properties": {
+                            "hint": {
+                              "type": "string"
+                            },
+                            "icon": {
+                              "type": "string"
+                            },
+                            "title": {
+                              "type": "string"
+                            }
+                          },
+                          "required": [
+                            "title"
+                          ],
+                          "type": "object"
+                        },
+                        "form": {
+                          "nullable": true,
+                          "properties": {
+                            "fields": {
+                              "items": {
+                                "properties": {
+                                  "default": {},
+                                  "directories": {
+                                    "type": "boolean"
+                                  },
+                                  "empty_hint": {
+                                    "type": "string"
+                                  },
+                                  "error": {
+                                    "type": "string"
+                                  },
+                                  "event_count": {
+                                    "format": "int64",
+                                    "type": "integer"
+                                  },
+                                  "fallback": {
+                                    "type": "string"
+                                  },
+                                  "id": {
+                                    "type": "string"
+                                  },
+                                  "label": {
+                                    "type": "string"
+                                  },
+                                  "on_blur": {
+                                    "type": "string"
+                                  },
+                                  "on_change": {
+                                    "type": "string"
+                                  },
+                                  "options": {
+                                    "items": {
+                                      "type": "string"
+                                    },
+                                    "type": "array"
+                                  },
+                                  "placeholder": {
+                                    "type": "string"
+                                  },
+                                  "required": {
+                                    "type": "boolean"
+                                  },
+                                  "requires": {
+                                    "additionalProperties": {
+                                      "type": "string"
+                                    },
+                                    "type": "object"
+                                  },
+                                  "type": {
+                                    "type": "string"
+                                  }
+                                },
+                                "required": [
+                                  "id",
+                                  "label",
+                                  "type"
+                                ],
+                                "type": "object"
+                              },
+                              "type": "array"
+                            },
+                            "on_submit": {
+                              "type": "string"
+                            },
+                            "submit": {
+                              "nullable": true,
+                              "properties": {
+                                "action": {
+                                  "nullable": true,
+                                  "properties": {
+                                    "app": {
+                                      "type": "string"
+                                    },
+                                    "args": {
+                                      "additionalProperties": {},
+                                      "type": "object"
+                                    },
+                                    "kind": {
+                                      "type": "string"
+                                    },
+                                    "op": {
+                                      "type": "string"
+                                    },
+                                    "tool": {
+                                      "type": "string"
+                                    },
+                                    "url": {
+                                      "type": "string"
+                                    },
+                                    "view": {
+                                      "type": "string"
+                                    }
+                                  },
+                                  "required": [
+                                    "kind"
+                                  ],
+                                  "type": "object"
+                                },
+                                "confirmation": {
+                                  "nullable": true,
+                                  "properties": {
+                                    "body": {
+                                      "type": "string"
+                                    },
+                                    "confirm": {
+                                      "type": "string"
+                                    },
+                                    "title": {
+                                      "type": "string"
+                                    }
+                                  },
+                                  "required": [
+                                    "confirm",
+                                    "title"
+                                  ],
+                                  "type": "object"
+                                },
+                                "destructive": {
+                                  "type": "boolean"
+                                },
+                                "fallback": {
+                                  "type": "string"
+                                },
+                                "handler": {
+                                  "type": "string"
+                                },
+                                "icon": {
+                                  "type": "string"
+                                },
+                                "primary": {
+                                  "type": "boolean"
+                                },
+                                "requires": {
+                                  "additionalProperties": {
+                                    "type": "string"
+                                  },
+                                  "type": "object"
+                                },
+                                "section": {
+                                  "type": "string"
+                                },
+                                "shortcut": {
+                                  "type": "string"
+                                },
+                                "submit_form": {
+                                  "type": "boolean"
+                                },
+                                "title": {
+                                  "type": "string"
+                                }
+                              },
+                              "required": [
+                                "title"
+                              ],
+                              "type": "object"
+                            }
+                          },
+                          "required": [
+                            "fields"
+                          ],
+                          "type": "object"
+                        },
+                        "grid": {
+                          "nullable": true,
+                          "properties": {
+                            "sections": {
+                              "items": {
+                                "properties": {
+                                  "tiles": {
+                                    "items": {
+                                      "properties": {
+                                        "actions": {
+                                          "items": {
+                                            "properties": {
+                                              "action": {
+                                                "nullable": true,
+                                                "properties": {
+                                                  "app": {
+                                                    "type": "string"
+                                                  },
+                                                  "args": {
+                                                    "additionalProperties": {},
+                                                    "type": "object"
+                                                  },
+                                                  "kind": {
+                                                    "type": "string"
+                                                  },
+                                                  "op": {
+                                                    "type": "string"
+                                                  },
+                                                  "tool": {
+                                                    "type": "string"
+                                                  },
+                                                  "url": {
+                                                    "type": "string"
+                                                  },
+                                                  "view": {
+                                                    "type": "string"
+                                                  }
+                                                },
+                                                "required": [
+                                                  "kind"
+                                                ],
+                                                "type": "object"
+                                              },
+                                              "confirmation": {
+                                                "nullable": true,
+                                                "properties": {
+                                                  "body": {
+                                                    "type": "string"
+                                                  },
+                                                  "confirm": {
+                                                    "type": "string"
+                                                  },
+                                                  "title": {
+                                                    "type": "string"
+                                                  }
+                                                },
+                                                "required": [
+                                                  "confirm",
+                                                  "title"
+                                                ],
+                                                "type": "object"
+                                              },
+                                              "destructive": {
+                                                "type": "boolean"
+                                              },
+                                              "fallback": {
+                                                "type": "string"
+                                              },
+                                              "handler": {
+                                                "type": "string"
+                                              },
+                                              "icon": {
+                                                "type": "string"
+                                              },
+                                              "primary": {
+                                                "type": "boolean"
+                                              },
+                                              "requires": {
+                                                "additionalProperties": {
+                                                  "type": "string"
+                                                },
+                                                "type": "object"
+                                              },
+                                              "section": {
+                                                "type": "string"
+                                              },
+                                              "shortcut": {
+                                                "type": "string"
+                                              },
+                                              "submit_form": {
+                                                "type": "boolean"
+                                              },
+                                              "title": {
+                                                "type": "string"
+                                              }
+                                            },
+                                            "required": [
+                                              "title"
+                                            ],
+                                            "type": "object"
+                                          },
+                                          "type": "array"
+                                        },
+                                        "badge": {
+                                          "nullable": true,
+                                          "properties": {
+                                            "label": {
+                                              "type": "string"
+                                            },
+                                            "tone": {
+                                              "type": "string"
+                                            }
+                                          },
+                                          "required": [
+                                            "label",
+                                            "tone"
+                                          ],
+                                          "type": "object"
+                                        },
+                                        "fallback": {
+                                          "type": "string"
+                                        },
+                                        "id": {
+                                          "type": "string"
+                                        },
+                                        "image": {
+                                          "properties": {
+                                            "emoji": {
+                                              "type": "string"
+                                            },
+                                            "token": {
+                                              "type": "string"
+                                            },
+                                            "url": {
+                                              "type": "string"
+                                            }
+                                          },
+                                          "type": "object"
+                                        },
+                                        "requires": {
+                                          "additionalProperties": {
+                                            "type": "string"
+                                          },
+                                          "type": "object"
+                                        },
+                                        "title": {
+                                          "type": "string"
+                                        }
+                                      },
+                                      "required": [
+                                        "id",
+                                        "image",
+                                        "title"
+                                      ],
+                                      "type": "object"
+                                    },
+                                    "type": "array"
+                                  },
+                                  "title": {
+                                    "type": "string"
+                                  }
+                                },
+                                "required": [
+                                  "tiles"
+                                ],
+                                "type": "object"
+                              },
+                              "type": "array"
+                            }
+                          },
+                          "required": [
+                            "sections"
+                          ],
+                          "type": "object"
+                        },
+                        "sections": {
+                          "items": {
+                            "properties": {
+                              "rows": {
+                                "items": {
+                                  "properties": {
+                                    "accessories": {
+                                      "items": {
+                                        "type": "string"
+                                      },
+                                      "type": "array"
+                                    },
+                                    "actions": {
+                                      "items": {
+                                        "properties": {
+                                          "action": {
+                                            "nullable": true,
+                                            "properties": {
+                                              "app": {
+                                                "type": "string"
+                                              },
+                                              "args": {
+                                                "additionalProperties": {},
+                                                "type": "object"
+                                              },
+                                              "kind": {
+                                                "type": "string"
+                                              },
+                                              "op": {
+                                                "type": "string"
+                                              },
+                                              "tool": {
+                                                "type": "string"
+                                              },
+                                              "url": {
+                                                "type": "string"
+                                              },
+                                              "view": {
+                                                "type": "string"
+                                              }
+                                            },
+                                            "required": [
+                                              "kind"
+                                            ],
+                                            "type": "object"
+                                          },
+                                          "confirmation": {
+                                            "nullable": true,
+                                            "properties": {
+                                              "body": {
+                                                "type": "string"
+                                              },
+                                              "confirm": {
+                                                "type": "string"
+                                              },
+                                              "title": {
+                                                "type": "string"
+                                              }
+                                            },
+                                            "required": [
+                                              "confirm",
+                                              "title"
+                                            ],
+                                            "type": "object"
+                                          },
+                                          "destructive": {
+                                            "type": "boolean"
+                                          },
+                                          "fallback": {
+                                            "type": "string"
+                                          },
+                                          "handler": {
+                                            "type": "string"
+                                          },
+                                          "icon": {
+                                            "type": "string"
+                                          },
+                                          "primary": {
+                                            "type": "boolean"
+                                          },
+                                          "requires": {
+                                            "additionalProperties": {
+                                              "type": "string"
+                                            },
+                                            "type": "object"
+                                          },
+                                          "section": {
+                                            "type": "string"
+                                          },
+                                          "shortcut": {
+                                            "type": "string"
+                                          },
+                                          "submit_form": {
+                                            "type": "boolean"
+                                          },
+                                          "title": {
+                                            "type": "string"
+                                          }
+                                        },
+                                        "required": [
+                                          "title"
+                                        ],
+                                        "type": "object"
+                                      },
+                                      "type": "array"
+                                    },
+                                    "badge": {
+                                      "nullable": true,
+                                      "properties": {
+                                        "label": {
+                                          "type": "string"
+                                        },
+                                        "tone": {
+                                          "type": "string"
+                                        }
+                                      },
+                                      "required": [
+                                        "label",
+                                        "tone"
+                                      ],
+                                      "type": "object"
+                                    },
+                                    "detail": {
+                                      "nullable": true,
+                                      "properties": {
+                                        "actions": {
+                                          "items": {
+                                            "properties": {
+                                              "action": {
+                                                "nullable": true,
+                                                "properties": {
+                                                  "app": {
+                                                    "type": "string"
+                                                  },
+                                                  "args": {
+                                                    "additionalProperties": {},
+                                                    "type": "object"
+                                                  },
+                                                  "kind": {
+                                                    "type": "string"
+                                                  },
+                                                  "op": {
+                                                    "type": "string"
+                                                  },
+                                                  "tool": {
+                                                    "type": "string"
+                                                  },
+                                                  "url": {
+                                                    "type": "string"
+                                                  },
+                                                  "view": {
+                                                    "type": "string"
+                                                  }
+                                                },
+                                                "required": [
+                                                  "kind"
+                                                ],
+                                                "type": "object"
+                                              },
+                                              "confirmation": {
+                                                "nullable": true,
+                                                "properties": {
+                                                  "body": {
+                                                    "type": "string"
+                                                  },
+                                                  "confirm": {
+                                                    "type": "string"
+                                                  },
+                                                  "title": {
+                                                    "type": "string"
+                                                  }
+                                                },
+                                                "required": [
+                                                  "confirm",
+                                                  "title"
+                                                ],
+                                                "type": "object"
+                                              },
+                                              "destructive": {
+                                                "type": "boolean"
+                                              },
+                                              "fallback": {
+                                                "type": "string"
+                                              },
+                                              "handler": {
+                                                "type": "string"
+                                              },
+                                              "icon": {
+                                                "type": "string"
+                                              },
+                                              "primary": {
+                                                "type": "boolean"
+                                              },
+                                              "requires": {
+                                                "additionalProperties": {
+                                                  "type": "string"
+                                                },
+                                                "type": "object"
+                                              },
+                                              "section": {
+                                                "type": "string"
+                                              },
+                                              "shortcut": {
+                                                "type": "string"
+                                              },
+                                              "submit_form": {
+                                                "type": "boolean"
+                                              },
+                                              "title": {
+                                                "type": "string"
+                                              }
+                                            },
+                                            "required": [
+                                              "title"
+                                            ],
+                                            "type": "object"
+                                          },
+                                          "type": "array"
+                                        },
+                                        "is_loading": {
+                                          "type": "boolean"
+                                        },
+                                        "markdown": {
+                                          "type": "string"
+                                        },
+                                        "metadata": {
+                                          "items": {
+                                            "properties": {
+                                              "fallback": {
+                                                "type": "string"
+                                              },
+                                              "label": {
+                                                "type": "string"
+                                              },
+                                              "requires": {
+                                                "additionalProperties": {
+                                                  "type": "string"
+                                                },
+                                                "type": "object"
+                                              },
+                                              "value": {
+                                                "type": "string"
+                                              }
+                                            },
+                                            "required": [
+                                              "label",
+                                              "value"
+                                            ],
+                                            "type": "object"
+                                          },
+                                          "type": "array"
+                                        }
+                                      },
+                                      "type": "object"
+                                    },
+                                    "fallback": {
+                                      "type": "string"
+                                    },
+                                    "icon": {
+                                      "type": "string"
+                                    },
+                                    "id": {
+                                      "type": "string"
+                                    },
+                                    "keywords": {
+                                      "items": {
+                                        "type": "string"
+                                      },
+                                      "type": "array"
+                                    },
+                                    "requires": {
+                                      "additionalProperties": {
+                                        "type": "string"
+                                      },
+                                      "type": "object"
+                                    },
+                                    "subtitle": {
+                                      "type": "string"
+                                    },
+                                    "title": {
+                                      "type": "string"
+                                    }
+                                  },
+                                  "required": [
+                                    "id",
+                                    "title"
+                                  ],
+                                  "type": "object"
+                                },
+                                "type": "array"
+                              },
+                              "title": {
+                                "type": "string"
+                              }
+                            },
+                            "required": [
+                              "rows"
+                            ],
+                            "type": "object"
+                          },
+                          "type": "array"
+                        },
+                        "view": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "view"
+                      ],
+                      "type": "object"
+                    },
+                    "reset": {
+                      "type": "boolean"
+                    },
+                    "revision": {
+                      "type": "string"
+                    },
+                    "sequence": {
+                      "format": "int64",
+                      "type": "integer"
+                    },
+                    "stream_epoch": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "revision",
+                    "sequence",
+                    "stream_epoch"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Revision-fenced view patch stream"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "clients": {
+                      "items": {
+                        "type": "string"
+                      },
+                      "type": "array"
+                    },
+                    "error": {
+                      "type": "string"
+                    },
+                    "fields": {
+                      "additionalProperties": {
+                        "type": "string"
+                      },
+                      "type": "object"
+                    },
+                    "message": {
+                      "type": "string"
+                    },
+                    "reason": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "error"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Invalid stream cursor"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "clients": {
+                      "items": {
+                        "type": "string"
+                      },
+                      "type": "array"
+                    },
+                    "error": {
+                      "type": "string"
+                    },
+                    "fields": {
+                      "additionalProperties": {
+                        "type": "string"
+                      },
+                      "type": "object"
+                    },
+                    "message": {
+                      "type": "string"
+                    },
+                    "reason": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "error"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "View not found"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "clients": {
+                      "items": {
+                        "type": "string"
+                      },
+                      "type": "array"
+                    },
+                    "error": {
+                      "type": "string"
+                    },
+                    "fields": {
+                      "additionalProperties": {
+                        "type": "string"
+                      },
+                      "type": "object"
+                    },
+                    "message": {
+                      "type": "string"
+                    },
+                    "reason": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "error"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Command palette unavailable"
+          }
+        },
+        "summary": "Stream declarative command palette view patches",
+        "tags": [
+          "cmd-palette"
+        ],
+        "x-compozy-transports": [
+          "http",
+          "uds"
+        ]
+      }
+    },
     "/api/doctor": {
       "get": {
         "operationId": "getDoctor",

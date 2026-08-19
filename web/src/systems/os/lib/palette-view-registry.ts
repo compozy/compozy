@@ -13,6 +13,8 @@
  */
 import type { ReactNode } from "react";
 
+import { Blocks, GitBranch } from "lucide-react";
+
 import { OS_APP_DESCRIPTORS, type OsAppDescriptor } from "./app-catalog";
 
 /** Open id space: the daemon (and, from P6, extensions) name the views. */
@@ -29,6 +31,8 @@ export interface PaletteViewDefinition {
   readonly enterHint: string;
   /** Dialog description for assistive technology. */
   readonly description: string;
+  /** Query adapter title for built-in list views; sessions owns a dedicated controller. */
+  readonly domainTitle?: string;
 }
 
 export const PALETTE_VIEWS: Readonly<Record<string, PaletteViewDefinition>> = {
@@ -40,7 +44,46 @@ export const PALETTE_VIEWS: Readonly<Record<string, PaletteViewDefinition>> = {
     enterHint: "open session",
     description: "Filter sessions by state and open one",
   },
+  worktrees: domainView("worktrees", "Worktrees", GitBranch, "Worktrees"),
+  tasks: domainView("tasks", "Tasks", OS_APP_DESCRIPTORS.tasks.icon, "Tasks"),
+  loops: domainView("loops", "Loops", OS_APP_DESCRIPTORS.loops.icon, "Loops"),
+  jobs: domainView("jobs", "Jobs", OS_APP_DESCRIPTORS.jobs.icon, "Jobs"),
+  triggers: domainView("triggers", "Triggers", OS_APP_DESCRIPTORS.triggers.icon, "Triggers"),
+  agents: domainView("agents", "Agents", OS_APP_DESCRIPTORS.agents.icon, "Agents"),
+  bridges: domainView("bridges", "Bridges", OS_APP_DESCRIPTORS.bridges.icon, "Bridges"),
+  knowledge: domainView("knowledge", "Knowledge", OS_APP_DESCRIPTORS.knowledge.icon, "Knowledge"),
+  vault: domainView("vault", "Vault", OS_APP_DESCRIPTORS.vault.icon, "Vault"),
+  "network-channels": domainView(
+    "network-channels",
+    "Network channels",
+    OS_APP_DESCRIPTORS.network.icon,
+    "Network channels"
+  ),
+  marketplace: domainView(
+    "marketplace",
+    "Marketplace",
+    OS_APP_DESCRIPTORS.marketplace.icon,
+    "Marketplace"
+  ),
+  extensions: domainView("extensions", "Extensions", Blocks, "Extensions"),
 };
+
+function domainView(
+  id: string,
+  title: string,
+  icon: OsAppDescriptor["icon"],
+  domainTitle: string
+): PaletteViewDefinition {
+  return {
+    id,
+    title,
+    icon,
+    placeholder: `Search ${title.toLocaleLowerCase()}…`,
+    enterHint: "open",
+    description: `Search and open ${title.toLocaleLowerCase()}`,
+    domainTitle,
+  };
+}
 
 /** Null for a view id this client has no renderer for — the caller degrades. */
 export function paletteViewDefinition(id: PaletteViewId): PaletteViewDefinition | null {
@@ -57,7 +100,13 @@ export interface PaletteViewRow {
 }
 
 export interface PaletteViewContent {
+  readonly kind?: "list" | "detail" | "form" | "grid";
   readonly rows: readonly PaletteViewRow[];
+  /** Kind-specific body rendered in place of list rows. */
+  readonly body?: ReactNode;
+  /** Selection-driven detail that stays beside the list without owning focus. */
+  readonly aside?: ReactNode;
+  onSelectionChange?(value: string): void;
   /** Filter chrome rendered between the input and the results. */
   readonly header: ReactNode | null;
   /** Shown in place of the results when `rows` is empty — names why. */

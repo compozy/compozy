@@ -127,6 +127,42 @@ var (
 			},
 		},
 		{
+			Method: httpMethodGet, Path: "/api/cmd-palette/views/{id}",
+			OperationID: "getCmdPaletteView", Summary: "Get one declarative command palette view",
+			Tags: []string{specCmdPaletteKey}, Transports: cmdPaletteTransports,
+			Parameters: []ParameterSpec{
+				pathParam("id", "Canonical view id"),
+				queryParam("workspace", "Workspace id, name, or path", true),
+			},
+			Responses: []ResponseSpec{
+				{Status: 200, Description: "OK", Body: contract.CmdPaletteViewEnvelope{}},
+				{Status: 400, Description: cmdPaletteInvalidWorkspaceDescription, Body: contract.CmdPaletteError{}},
+				{Status: 404, Description: "View not found", Body: contract.CmdPaletteError{}},
+				{Status: 422, Description: "Invalid view payload", Body: contract.CmdPaletteError{}},
+				{Status: 503, Description: cmdPaletteUnavailableDescription, Body: contract.CmdPaletteError{}},
+			},
+		},
+		{
+			Method: httpMethodGet, Path: "/api/cmd-palette/views/{id}/stream",
+			OperationID: "streamCmdPaletteView", Summary: "Stream declarative command palette view patches",
+			Tags: []string{specCmdPaletteKey}, Transports: cmdPaletteTransports,
+			Parameters: []ParameterSpec{
+				pathParam("id", "Canonical view id"),
+				queryParam("workspace", "Workspace id, name, or path", true),
+				queryParam("after", "Last applied patch sequence", false),
+				queryParam("stream_epoch", "Stream epoch required when after is greater than zero", false),
+			},
+			Responses: []ResponseSpec{
+				{
+					Status: 200, Description: "Revision-fenced view patch stream",
+					Body: contract.CmdPaletteViewPatch{}, ContentType: specContentTypeEventStream,
+				},
+				{Status: 400, Description: "Invalid stream cursor", Body: contract.CmdPaletteError{}},
+				{Status: 404, Description: "View not found", Body: contract.CmdPaletteError{}},
+				{Status: 503, Description: cmdPaletteUnavailableDescription, Body: contract.CmdPaletteError{}},
+			},
+		},
+		{
 			Method: httpMethodGet, Path: "/api/cmd-palette/stream",
 			OperationID: "streamCmdPalette", Summary: "Stream command palette catalog invalidations",
 			Tags: []string{specCmdPaletteKey}, Transports: cmdPaletteTransports,

@@ -26,8 +26,13 @@ var settingsDestinations = []SettingsDestination{
 	{Slug: "providers", Title: "Providers", Icon: "cpu", Keywords: []string{"models", "auth", "codex", "claude"}},
 	{Slug: "memory", Title: "Memory", Icon: "brain", Keywords: []string{"recall", "ledger", "dream"}},
 	{Slug: "roles", Title: "Roles", Icon: "route", Keywords: []string{"coordinator", "routing", "model"}},
-	{Slug: "skills", Title: "Skills", Icon: "wrench", Keywords: []string{"registry", "marketplace", "install"}},
-	{Slug: "automation", Title: "Automation", Icon: "zap", Keywords: []string{"jobs", "triggers", "scheduler", "cron"}},
+	{Slug: "skills", Title: "Skills", Icon: "wrench", Keywords: []string{"registry", coreAppMarketplace, "install"}},
+	{
+		Slug:     "automation",
+		Title:    "Automation",
+		Icon:     coreIconZap,
+		Keywords: []string{coreAppJobs, coreAppTriggers, "scheduler", "cron"},
+	},
 	{Slug: coreNetworkKey, Title: "Network", Icon: coreNetworkKey, Keywords: []string{"peers", "channels", "delivery"}},
 	{Slug: "gateway", Title: "Gateway", Icon: "radio", Keywords: []string{"remote", "pairing", "devices"}},
 	{Slug: "attention", Title: "Attention", Icon: "bell", Keywords: []string{"notifications", "sound", "mute"}},
@@ -38,7 +43,7 @@ var settingsDestinations = []SettingsDestination{
 		Keywords: []string{"logs", "capture", "support bundle"},
 	},
 	{Slug: "hooks", Title: "Hooks", Icon: "webhook", Keywords: []string{"lifecycle", "events", "presets"}},
-	{Slug: "extensions", Title: "Extensions", Icon: "puzzle", Keywords: []string{"policy", "registry", "trust"}},
+	{Slug: coreAppExtensions, Title: "Extensions", Icon: "puzzle", Keywords: []string{"policy", "registry", "trust"}},
 }
 
 func SettingsDestinations() []SettingsDestination {

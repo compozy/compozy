@@ -120,6 +120,8 @@ func assertRegisteredRouteContract(t *testing.T) {
 		"GET /api/cmd-palette/personalization",
 		"GET /api/cmd-palette/rank-signals",
 		"GET /api/cmd-palette/stream",
+		"GET /api/cmd-palette/views/:id",
+		"GET /api/cmd-palette/views/:id/stream",
 		"GET /api/automation/runs",
 		"GET /api/automation/runs/:id",
 		"GET /api/automation/triggers",

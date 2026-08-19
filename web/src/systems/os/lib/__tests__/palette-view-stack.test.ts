@@ -40,7 +40,7 @@ describe("palette view stack (UT-059)", () => {
     expect(activePaletteViewId(popPaletteViewFrame(ROOT))).toBeNull();
   });
 
-  it("Should keep the leaf and its parent and collapse earlier levels into one slot", () => {
+  it("Should keep at most three breadcrumb slots at depth five [UT-132]", () => {
     expect(paletteBreadcrumb([])).toEqual({ truncated: false, visible: [] });
     expect(paletteBreadcrumb(["Sessions"])).toEqual({ truncated: false, visible: ["Sessions"] });
     expect(paletteBreadcrumb(["Sessions", "claude"])).toEqual({
