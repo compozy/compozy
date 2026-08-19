@@ -71,12 +71,13 @@ export function useLoopInputCatalogValue(
     { limit: 100, sort: "name" },
     needs.entities.has("loop")
   );
+  const { fetchNextPage, hasNextPage, isFetchingNextPage } = loopsQuery;
 
   useEffect(() => {
-    if (loopsQuery.hasNextPage && !loopsQuery.isFetchingNextPage) {
-      void loopsQuery.fetchNextPage();
+    if (hasNextPage && !isFetchingNextPage) {
+      void fetchNextPage();
     }
-  }, [loopsQuery.hasNextPage, loopsQuery.isFetchingNextPage, loopsQuery.fetchNextPage]);
+  }, [fetchNextPage, hasNextPage, isFetchingNextPage]);
   const worktreesQuery = useWorktrees(workspaceId, {
     enabled: needs.entities.has("worktree"),
   });

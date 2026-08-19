@@ -1,4 +1,4 @@
-import { useId, useRef, useState } from "react";
+import { useState } from "react";
 import { Plus, X } from "lucide-react";
 
 import {
@@ -23,6 +23,7 @@ import {
   type RuntimeSelectorValue,
 } from "@/systems/runtime";
 import { WorktreeRefSelect } from "@/systems/workspace";
+import { useLocalRowKeys } from "@/hooks/use-local-row-keys";
 
 import type { LoopInputSchemaField } from "../../types";
 import type { LoopEntityKind } from "../../lib/loop-input-kinds";
@@ -232,21 +233,14 @@ export function LoopEntityListValueControl({
 }: EntityValueControlProps) {
   const entries = entityListValues(value);
   const shownEntries = entries.length > 0 ? entries : [""];
-  const rowKeyPrefix = useId();
-  const rowKeys = useRef<string[]>([]);
-  const nextRowKey = useRef(0);
-  while (rowKeys.current.length < shownEntries.length) {
-    rowKeys.current.push(`${rowKeyPrefix}-${nextRowKey.current}`);
-    nextRowKey.current += 1;
-  }
-  rowKeys.current.length = shownEntries.length;
+  const rowKeys = useLocalRowKeys(shownEntries, kind);
   const emit = (next: string[]) => onChange(JSON.stringify(next));
 
   return (
     <div className="flex flex-col gap-2" data-testid={testId}>
       {shownEntries.map((entry, index) => {
         const entryId = index === 0 ? controlId : `${controlId}-${index}`;
-        const rowKey = rowKeys.current[index];
+        const rowKey = rowKeys.keys[index];
         return (
           <div className="flex items-center gap-2" key={rowKey}>
             <div className="min-w-0 flex-1">
@@ -269,7 +263,7 @@ export function LoopEntityListValueControl({
               aria-label={`Remove ${kind} ${index + 1}`}
               disabled={disabled || shownEntries.length === 1}
               onClick={() => {
-                rowKeys.current.splice(index, 1);
+                rowKeys.remove(index);
                 emit(shownEntries.filter((_, position) => position !== index));
               }}
               size="icon-sm"
@@ -285,8 +279,7 @@ export function LoopEntityListValueControl({
         className="self-start"
         disabled={disabled}
         onClick={() => {
-          rowKeys.current.push(`${rowKeyPrefix}-${nextRowKey.current}`);
-          nextRowKey.current += 1;
+          rowKeys.append();
           emit([...shownEntries, ""]);
         }}
         size="sm"
