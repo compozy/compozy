@@ -45,22 +45,25 @@ inputs:
   implementer: { type: agent, default: code_implementer }
   reviewer: { type: agent, default: code_reviewer }
   worker_runtime:
-    { type: runtime, default: { provider: codex, model: gpt-5.5-codex, reasoning: high } }
+    {
+      type: runtime,
+      default: { provider: codex, model: gpt-5.5-codex, reasoning: high, speed: fast },
+    }
   verify_command: { type: string, default: "" }
   auto_commit: { type: boolean, default: false }
   spec: { type: ref, ref: { kind: skill } }
   release_token: { type: ref, ref: { kind: secret } }
 ```
 
-| Type      | Accepts                             | Notes                                                             |
-| --------- | ----------------------------------- | ----------------------------------------------------------------- |
-| `string`  | text                                |                                                                   |
-| `number`  | int or float                        |                                                                   |
-| `boolean` | bool                                |                                                                   |
-| `file`    | text                                | The value is not browsed or checked for existence.                |
-| `agent`   | an exact agent name                 | The daemon checks the workspace agent catalog.                    |
-| `ref`     | an exact resource name              | `ref.kind` selects the catalog used for validation.               |
-| `runtime` | `{ provider?, model?, reasoning? }` | A partial object that can be bound directly to an action runtime. |
+| Type      | Accepts                                     | Notes                                                             |
+| --------- | ------------------------------------------- | ----------------------------------------------------------------- |
+| `string`  | text                                        |                                                                   |
+| `number`  | int or float                                |                                                                   |
+| `boolean` | bool                                        |                                                                   |
+| `file`    | text                                        | The value is not browsed or checked for existence.                |
+| `agent`   | an exact agent name                         | The daemon checks the workspace agent catalog.                    |
+| `ref`     | an exact resource name                      | `ref.kind` selects the catalog used for validation.               |
+| `runtime` | `{ provider?, model?, reasoning?, speed? }` | A partial object that can be bound directly to an action runtime. |
 
 Per-input fields: `type` (required), `required` (default `false`), `description`, `default`, and
 `ref` (for `type: ref`). String-like inputs may also declare `enum`; those choices take precedence
@@ -96,11 +99,11 @@ contract:
   no_progress: { window: 3 }
   budget: { tokens: 0, wall_clock_sec: 0, on_exceeded: halt } # 0 = off
   runtime_defaults:
-    worker: { provider: codex, model: gpt-5.4, reasoning: high }
-    judge: { provider: claude, model: opus }
+    worker: { provider: codex, model: gpt-5.4, reasoning: high, speed: fast }
+    judge: { provider: claude, model: opus, speed: normal }
   runtime_rules:
     - match: { type: frontend }
-      runtime: { model: gpt-5.5-codex }
+      runtime: { model: gpt-5.5-codex, speed: normal }
 ```
 
 `verification` uses the same [gate criteria](#the-gate-contract) shape as a `gate` node. `stop_when`
@@ -168,7 +171,7 @@ Cross-generation references keep the same authored shape on every pass. On gener
 node outputs use zero values from their declared schemas and verdict lists are empty, so a valid
 history path can be rendered during initial and sparse repair generations. Use the generation
 number when history-dependent prose should be omitted.
-`params.runtime` accepts either a literal `{ provider, model, reasoning }` object or one exact
+`params.runtime` accepts either a literal `{ provider, model, reasoning, speed }` object or one exact
 reference to a declared runtime input:
 
 ```yaml
@@ -458,9 +461,11 @@ workspace, stored, and per-run layers resolve; the daemon repeats the check imme
 binding. A failure returns structured `runtime_validation` items and starts no ACP process.
 
 Use repeatable `--runtime` flags for per-run defaults and rules. The expression is
-`provider/model@reasoning`; `-` leaves one field unset, and model IDs may contain additional
-slashes. Run detail exposes the final binder-applied `resolved_runtime` and each field's source
-through CLI, HTTP/UDS, native tools, SSE, and the read-only web run inspector.
+`provider/model@reasoning:speed=normal|fast`; `-` leaves provider or model unset, speed-only intent
+uses `-/-:speed=fast`, and model IDs may contain additional slashes. `speed` is a provider-neutral
+field; do not encode fast mode inside a model ID. Run detail exposes the final binder-applied
+`resolved_runtime`, each field's source, and the speed outcome (`applied`, `unsupported`, or
+`rejected`) through CLI, HTTP/UDS, native tools, SSE, and the read-only web run inspector.
 
 ## Start bindings
 

@@ -1688,7 +1688,18 @@ describe("LoopRunResolvedRuntimes", () => {
                   provider: "openai",
                   model: "gpt-5.4",
                   reasoning: "high",
-                  source: { provider: "run", model: "frontmatter", reasoning: "config" },
+                  speed: "fast",
+                  speed_resolution: {
+                    requested: "fast",
+                    status: "unsupported",
+                    reason: "capability_absent",
+                  },
+                  source: {
+                    provider: "run",
+                    model: "frontmatter",
+                    reasoning: "config",
+                    speed: "input",
+                  },
                 },
               },
             ],
@@ -1706,6 +1717,9 @@ describe("LoopRunResolvedRuntimes", () => {
     expect(runtime).toHaveTextContent("task frontmatter");
     expect(runtime).toHaveTextContent("high");
     expect(runtime).toHaveTextContent("config rule");
+    expect(runtime).toHaveTextContent("fast");
+    expect(runtime).toHaveTextContent("runtime input");
+    expect(runtime).toHaveTextContent("unsupported · capability absent");
     expect(screen.queryByRole("button")).not.toBeInTheDocument();
   });
 });

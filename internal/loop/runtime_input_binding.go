@@ -75,6 +75,7 @@ func runtimeSpecContainsTemplate(runtime RuntimeSpec) bool {
 		runtime.Provider,
 		runtime.Model,
 		runtime.Reasoning,
+		string(runtime.Speed),
 	} {
 		if strings.Contains(value, "{{") || strings.Contains(value, "}}") {
 			return true

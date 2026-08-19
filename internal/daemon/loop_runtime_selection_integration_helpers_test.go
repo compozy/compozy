@@ -21,6 +21,7 @@ import (
 	"github.com/compozy/compozy/internal/api/contract"
 	"github.com/compozy/compozy/internal/config"
 	"github.com/compozy/compozy/internal/loop/dsl"
+	speedpkg "github.com/compozy/compozy/internal/speed"
 	"github.com/compozy/compozy/internal/testutil/acpmock"
 	e2etest "github.com/compozy/compozy/internal/testutil/e2e"
 )
@@ -135,11 +136,12 @@ func loopRuntimeMixedDefinition() contract.LoopDefinitionDocument {
 					Provider:  acpmock.ProviderName,
 					Model:     "base-model",
 					Reasoning: "low",
+					Speed:     speedpkg.SpeedFast,
 				},
 			},
 			RuntimeRules: []dsl.RuntimeRule{{
 				Match:   dsl.RuntimeMatch{Type: "docs"},
-				Runtime: dsl.RuntimeSpec{Reasoning: "high"},
+				Runtime: dsl.RuntimeSpec{Reasoning: "high", Speed: speedpkg.SpeedFast},
 			}},
 			ContractLifecycleState: &dsl.ContractLifecycleState{TerminalStates: []dsl.TerminalState{
 				dsl.TerminalDone, dsl.TerminalFailed, dsl.TerminalBlocked, dsl.TerminalExhausted, dsl.TerminalStalled,
@@ -176,7 +178,7 @@ func loopRuntimeMixedDefinition() contract.LoopDefinitionDocument {
 					ID: "execute_task", Class: dsl.NodeClassAction, Kind: "run-agent",
 					Params: map[string]any{
 						"agent": loopRuntimeWorkerAgent, "prompt": "loop event probe",
-						"runtime": map[string]any{"model": "node-model"},
+						"runtime": map[string]any{"model": "node-model", "speed": "normal"},
 						"output_schema": map[string]any{
 							"type": "object", "required": []any{"summary", "message"},
 							"properties": map[string]any{
@@ -208,6 +210,7 @@ func loopRuntimeSingleAgentDefinition(name string, provider string) contract.Loo
 		Provider:  provider,
 		Model:     "base-model",
 		Reasoning: "low",
+		Speed:     speedpkg.SpeedFast,
 	}}
 	definition.Graph.Nodes[0].Params["agent"] = loopRuntimeWorkerAgent
 	return definition
@@ -242,6 +245,7 @@ func loopRuntimeJudgeDefinition() contract.LoopDefinitionDocument {
 		Provider:  acpmock.ProviderName,
 		Model:     "default-judge",
 		Reasoning: "low",
+		Speed:     speedpkg.SpeedFast,
 	}
 	definition.Contract.Verification = []dsl.GateCriterion{{
 		ID:      "quality",
@@ -260,6 +264,7 @@ func loopRuntimeRunOverrides() *contract.LoopConfig {
 			Provider:  "codex",
 			Model:     "frontend-model",
 			Reasoning: "high",
+			Speed:     contract.SpeedNormal,
 		},
 	}}}
 }

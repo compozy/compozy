@@ -8,6 +8,7 @@ import (
 
 	"github.com/compozy/compozy/internal/loop/dsl"
 	"github.com/compozy/compozy/internal/modelcatalog"
+	speedpkg "github.com/compozy/compozy/internal/speed"
 )
 
 // ValidateDefinitionRuntime validates only runtime values authored in one definition.
@@ -219,6 +220,13 @@ func validateRuntimeSpec(
 			Value:  reasoning,
 			Reason: "unsupported_reasoning",
 		})
+	}
+	if requested := strings.TrimSpace(string(runtime.Speed)); requested != "" {
+		if _, err := speedpkg.Parse(requested); err != nil {
+			return NewRuntimeValidationError(RuntimeValidationItem{
+				Field: runtimeFieldSpeed, Value: requested, Reason: "unsupported_speed",
+			})
+		}
 	}
 	if catalog == nil || !runtimeSpecHasValue(runtime) {
 		return nil

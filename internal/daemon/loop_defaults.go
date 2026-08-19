@@ -159,7 +159,7 @@ func loopRuntimeDefaultsFromConfig(cfg loopdsl.RuntimeDefaults) *looppkg.Runtime
 }
 
 func runtimeSpecEmpty(runtime looppkg.RuntimeSpec) bool {
-	return runtime.Provider == "" && runtime.Model == "" && runtime.Reasoning == ""
+	return runtime.Provider == "" && runtime.Model == "" && runtime.Reasoning == "" && runtime.Speed == ""
 }
 
 func runtimeSpecFromConfig(cfg loopdsl.RuntimeSpec) looppkg.RuntimeSpec {
@@ -167,6 +167,7 @@ func runtimeSpecFromConfig(cfg loopdsl.RuntimeSpec) looppkg.RuntimeSpec {
 		Provider:  strings.TrimSpace(cfg.Provider),
 		Model:     strings.TrimSpace(cfg.Model),
 		Reasoning: strings.TrimSpace(cfg.Reasoning),
+		Speed:     cfg.Speed,
 	}
 }
 

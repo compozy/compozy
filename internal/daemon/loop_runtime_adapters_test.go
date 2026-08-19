@@ -126,7 +126,7 @@ func TestLoopActionSessionBinderShouldApplyPolicyGate(t *testing.T) {
 			Agent:        "task-worker",
 			Handle:       "execute_task",
 			AllowedTools: []string{allowedTools[1], allowedTools[0], allowedTools[0]},
-			Runtime: looppkg.RuntimeSpec{
+			Runtime: &looppkg.RuntimeSpec{
 				Provider: "codex", Model: "gpt-5.6-terra", Reasoning: "high",
 			},
 			ContractBlock:             "Follow the loop contract.",

@@ -14,11 +14,12 @@ type LoopRuntimeValidationItemPayload struct {
 	Reason string `json:"reason"`
 }
 
-// LoopRuntimeSpec is one provider/model/reasoning selection layer.
+// LoopRuntimeSpec is one provider/model/reasoning/speed selection layer.
 type LoopRuntimeSpec struct {
 	Provider  string `json:"provider,omitempty"`
 	Model     string `json:"model,omitempty"`
 	Reasoning string `json:"reasoning,omitempty"`
+	Speed     Speed  `json:"speed,omitempty"`
 }
 
 // UnmarshalJSON keeps runtime objects closed while the surrounding Loop DSL remains extensible.
@@ -63,12 +64,15 @@ type LoopRuntimeProvenance struct {
 	Provider  string `json:"provider,omitempty"`
 	Model     string `json:"model,omitempty"`
 	Reasoning string `json:"reasoning,omitempty"`
+	Speed     string `json:"speed,omitempty"`
 }
 
 // LoopResolvedRuntime is the runtime applied by the daemon plus field provenance.
 type LoopResolvedRuntime struct {
-	Provider  string                `json:"provider,omitempty"`
-	Model     string                `json:"model,omitempty"`
-	Reasoning string                `json:"reasoning,omitempty"`
-	Source    LoopRuntimeProvenance `json:"source"`
+	Provider        string                `json:"provider,omitempty"`
+	Model           string                `json:"model,omitempty"`
+	Reasoning       string                `json:"reasoning,omitempty"`
+	Speed           Speed                 `json:"speed,omitempty"`
+	SpeedResolution *SpeedResolution      `json:"speed_resolution,omitempty"`
+	Source          LoopRuntimeProvenance `json:"source"`
 }

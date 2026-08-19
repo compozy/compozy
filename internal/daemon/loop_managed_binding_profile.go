@@ -28,7 +28,7 @@ func (b *loopActionSessionBinder) resolveEffectiveCreationProfile(
 		if err != nil {
 			return store.SessionCreationProfile{}, session.CreateOpts{}, nil, err
 		}
-		if err := validatePinnedRuntime(req.Runtime, profile); err != nil {
+		if err := validatePinnedRuntime(req.RuntimeValue(), profile); err != nil {
 			return store.SessionCreationProfile{}, session.CreateOpts{}, nil, err
 		}
 		agent = profile.AgentName
@@ -103,11 +103,13 @@ func (b *loopActionSessionBinder) baseCreateOptions(
 	agent string,
 	kind string,
 ) session.CreateOpts {
+	runtime := req.RuntimeValue()
 	opts := session.CreateOpts{
 		AgentName:                    strings.TrimSpace(agent),
-		Provider:                     strings.TrimSpace(req.Runtime.Provider),
-		Model:                        strings.TrimSpace(req.Runtime.Model),
-		ReasoningEffort:              strings.TrimSpace(req.Runtime.Reasoning),
+		Provider:                     strings.TrimSpace(runtime.Provider),
+		Model:                        strings.TrimSpace(runtime.Model),
+		ReasoningEffort:              strings.TrimSpace(runtime.Reasoning),
+		Speed:                        runtime.Speed,
 		Name:                         loopRuntimeSessionName(kind, agent, req.Handle),
 		ResolvedNetworkParticipation: req.NetworkParticipation,
 		NetworkOwnerKey: participation.OwnerKey(participation.OwnerRef{
@@ -140,6 +142,9 @@ func validatePinnedRuntime(runtime looppkg.RuntimeSpec, profile store.SessionCre
 		reasoning != strings.TrimSpace(profile.ReasoningEffort) {
 		return bindingMismatch("requested runtime reasoning differs from pinned creation profile")
 	}
+	if requested := runtime.Speed; requested != "" && requested != profile.Speed {
+		return bindingMismatch("requested runtime speed differs from pinned creation profile")
+	}
 	return nil
 }
 
@@ -148,6 +153,7 @@ func appliedRuntimeFromCreateOptions(opts session.CreateOpts) looppkg.RuntimeSpe
 		Provider:  strings.TrimSpace(opts.Provider),
 		Model:     strings.TrimSpace(opts.Model),
 		Reasoning: strings.TrimSpace(opts.ReasoningEffort),
+		Speed:     opts.Speed,
 	}
 }
 
@@ -160,6 +166,7 @@ func createOptionsFromProfile(
 		Provider:                     profile.Provider,
 		Model:                        profile.Model,
 		ReasoningEffort:              profile.ReasoningEffort,
+		Speed:                        profile.Speed,
 		CWD:                          profile.CWD,
 		Worktree:                     profile.WorktreeRef,
 		SandboxRef:                   profile.SandboxRef,
@@ -200,6 +207,7 @@ func profileFromPolicyResolution(
 		Provider:        resolution.agent.Provider,
 		Model:           resolution.agent.Model,
 		ReasoningEffort: opts.ReasoningEffort,
+		Speed:           opts.Speed,
 		WorkspaceID:     resolution.workspace.ID,
 		CWD:             opts.CWD,
 		WorktreeRef:     opts.Worktree,

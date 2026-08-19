@@ -91,8 +91,9 @@ Catalog discovery uses exact stored identifiers:
 
 Agent, skill, Loop, worktree, and session reads resolve the exact workspace. Workspace reads follow
 the caller's workspace-access policy. Vault reads are global and return reference metadata only.
-Runtime accepts a partial `{provider, model, reasoning}` object; exact custom model IDs remain valid.
-For CLI input, `provider/model@reasoning` is the compact form and `-` leaves provider or model unset.
+Runtime accepts a partial `{provider, model, reasoning, speed}` object; `speed` is `normal|fast`, and
+exact custom model IDs remain valid. For CLI input, `provider/model@reasoning:speed=normal|fast` is
+the compact form, `-` leaves provider or model unset, and `-/-:speed=fast` is speed-only intent.
 
 Values resolve per field as run > workspace config > global config > definition default. Validation
 runs after resolution for normal starts, dry runs, automation starts, fork/amend reuse, and annotated
@@ -390,6 +391,11 @@ run list/status payloads expose `completion_state` as `complete` or `partial`. P
 `total`, `succeeded`, `failed`, `canceled`, `running`, `pending`, `settled`, `success_rate`, and
 `failure_rate`.
 
+A fan-out `filter` evaluates once per source element before batching and before the `max_fan_out`
+check. Its scope contains `item`, the source `index`, and that fan-out's `bind_as`/`index_as`
+aliases. Only matching elements produce lanes. Evaluation errors fail closed by default;
+`on_eval_error: exit` ends the Loop instead.
+
 Node classes: `action` (open), `control` (closed), `source` (closed). Reserved **action** kinds are
 `goal`, `run-agent`, `run-loop`, `transform`; every other action kind is a literal tool ID
 (`compozy__*`/`ext__*`/`mcp__*`). Control kinds: `fan-out`, `collect`, `branch`, `route`, `gate`,
@@ -399,10 +405,6 @@ declares exactly one of `for`, `until`, or `event`, with optional `expect`, `ahe
 `expires`. Source kinds: `input`, `file-import`, `watch-source`, `watch-events`.
 A fan-out requires positive `max_fan_out`; logical lanes may exceed 64, while only its
 `max_parallel` window materializes at once.
-A fan-out `filter` evaluates once per source element before batching and before the `max_fan_out`
-check. Its scope contains `item`, the source `index`, and that fan-out's `bind_as`/`index_as`
-aliases. Only matching elements produce lanes. Evaluation errors fail closed by default;
-`on_eval_error: exit` ends the Loop instead.
 A `run-agent` result is validated against its pinned `output_schema` before the owning daemon
 settles the task and again before node success is published. A mismatch fails with
 `invalid_output`; content-addressed storage preserves the exact structured value. The bound agent
@@ -457,7 +459,8 @@ Use `contract.runtime_defaults` and `contract.runtime_rules` in a Loop definitio
 `[loops.defaults.delivery|watch]` plus stored Loop config for operator defaults. `run-agent` and
 `goal` nodes use either literal `params.runtime` or an exact direct reference such as
 `runtime: "{{ .inputs.worker_runtime }}"` to a declared `type: runtime` input. Field interpolation
-inside the object is invalid. Imported task frontmatter may set `runtime: {provider, model, reasoning}`.
+inside the object is invalid. Imported task frontmatter may set
+`runtime: {provider, model, reasoning, speed}`.
 Judges use only `runtime_defaults.judge` plus the criterion's `runtime`; task rules never select a
 judge. The retired `model_defaults`, scalar `params.model`, and scalar criterion `model` keys fail
 with migration guidance.
@@ -468,17 +471,18 @@ with migration guidance.
 compozy loop run \
   --workspace . \
   --name implement-tasks \
-  --runtime worker=codex/gpt-5.4@high \
-  --runtime type=frontend:claude/opus \
-  --runtime id=task_03:-/gpt-5.5-codex@xhigh \
+  --runtime worker=codex/gpt-5.4@high:speed=fast \
+  --runtime type=frontend:claude/opus:speed=normal \
+  --runtime id=task_03:-/gpt-5.5-codex@xhigh:speed=fast \
   --dry-run \
   -o json
 ```
 
-The runtime expression is `provider/model@reasoning`. Use `-` to leave provider or model unset;
-bare `worker=opus` is model-only shorthand, and gateway model IDs retain slashes after the first
-provider separator. Dry-run resolves workspace, stored, definition, and per-run layers without
-creating a run.
+The runtime expression is `provider/model@reasoning:speed=normal|fast`. Use `-` to leave provider or
+model unset, `-/-:speed=fast` for speed-only intent, and bare `worker=opus` for model-only shorthand.
+Gateway model IDs retain slashes after the first provider separator. Speed is provider-neutral; do
+not hide fast mode inside a model ID. Dry-run resolves workspace, stored, definition, and per-run
+layers without creating a run.
 
 Declared Loop inputs may have global or workspace defaults under
 `[loops.inputs.<loop-name>]`. Resolution is per key: run, workspace, global, then definition.
@@ -493,9 +497,10 @@ again immediately before binding. Failures return structured `runtime_validation
 no ACP process. Provider IDs must resolve; exact model IDs pass through unchanged and the ACP/provider
 boundary reports a model rejection when it cannot bind that ID.
 
-Successful generation outputs expose the binder-applied `resolved_runtime` triple plus per-field
-provenance through `compozy loop status`, HTTP/UDS run detail, `compozy__loop_status`, and
-`runtime_applied` SSE frames. The web run inspector displays the same durable values read-only.
+Successful generation outputs expose the binder-applied `resolved_runtime` fields, per-field
+provenance, and the speed outcome (`applied`, `unsupported`, or `rejected`) through `compozy loop
+status`, HTTP/UDS run detail, `compozy__loop_status`, and `runtime_applied` SSE frames. The web run
+inspector displays the same durable values read-only.
 Successful persisted `loop run` responses also expose `web_url`; human output prints it as the final
 line. Dry-run has no run ID and never emits a URL.
 

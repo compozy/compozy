@@ -23,3 +23,6 @@ TTY-only prompting, and `--no-prompt` behavior.
 QA impact 2026-08-19: a runtime selected through Web, CLI, HTTP/UDS, or the native tool now drives
 nodes that directly reference that input. Reset to verify the selected value reaches the bound
 runtime and its status provenance is `input`.
+
+QA impact 2026-08-19: the shared runtime selector now preserves `normal|fast` speed, and compact CLI
+input accepts the documented `:speed=` suffix including speed-only intent.

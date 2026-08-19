@@ -85,16 +85,24 @@ describe("LoopRunInputField", () => {
     expect(screen.getByTestId("loop-run-field-environment")).toHaveTextContent("staging");
     enumRender.unmount();
 
+    const onRuntimeChange = vi.fn();
     render(
       <LoopRunInputField
         name="runtime"
         field={field({ type: "runtime" })}
-        value={{ provider: "codex", model: "gpt-5.6" }}
-        onChange={vi.fn()}
+        value={{ provider: "codex", model: "gpt-5.6", speed: "normal" }}
+        onChange={onRuntimeChange}
       />
     );
     expect(screen.getByTestId("loop-run-field-input-runtime").tagName).toBe("BUTTON");
     expect(screen.getByTestId("loop-run-field-runtime")).toHaveTextContent("runtime");
+    fireEvent.click(screen.getByTestId("loop-run-field-input-runtime"));
+    fireEvent.click(screen.getByTestId("runtime-selector-speed"));
+    expect(onRuntimeChange).toHaveBeenCalledWith({
+      provider: "codex",
+      model: "gpt-5.6",
+      speed: "fast",
+    });
   });
 
   it("Should render the declared type verbatim in the badge (boolean, not bool)", () => {

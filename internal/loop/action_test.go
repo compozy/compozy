@@ -12,6 +12,7 @@ import (
 
 	"github.com/compozy/compozy/internal/loop"
 	"github.com/compozy/compozy/internal/loop/dsl"
+	speedpkg "github.com/compozy/compozy/internal/speed"
 	"github.com/compozy/compozy/internal/task"
 	"github.com/compozy/compozy/internal/tools"
 )
@@ -608,11 +609,15 @@ func TestReservedActionExecutorsShouldRunAgentLoopAndTransform(t *testing.T) {
 		t.Parallel()
 
 		inputRuntime := loop.RuntimeSpec{
-			Provider: "cursor", Model: "grok-4.6", Reasoning: "high",
+			Provider: "cursor", Model: "grok-4.6", Reasoning: "high", Speed: speedpkg.SpeedFast,
 		}
 		binder := &fakeActionSessionBinder{
 			binding: loop.ActionSessionBinding{
 				SessionID: "sess-input-runtime", Handle: "main", AppliedRuntime: inputRuntime,
+				SpeedResolution: &speedpkg.Resolution{
+					Requested: speedpkg.SpeedFast, Status: speedpkg.ResolutionUnsupported,
+					Reason: speedpkg.ReasonCapabilityAbsent,
+				},
 			},
 			promptResults: []loop.ActionPromptResult{{Text: "done"}},
 		}
@@ -632,8 +637,10 @@ func TestReservedActionExecutorsShouldRunAgentLoopAndTransform(t *testing.T) {
 			WorkspaceID: "ws-1",
 			Namespace: map[string]any{"inputs": map[string]any{
 				"worker_runtime": map[string]any{
-					"provider": inputRuntime.Provider, "model": inputRuntime.Model,
+					"provider":  inputRuntime.Provider,
+					"model":     inputRuntime.Model,
 					"reasoning": inputRuntime.Reasoning,
+					"speed":     string(inputRuntime.Speed),
 				},
 			}},
 			RuntimeSelection: &loop.ActionRuntimeSelection{
@@ -645,13 +652,19 @@ func TestReservedActionExecutorsShouldRunAgentLoopAndTransform(t *testing.T) {
 			t.Fatalf("Execute() error = %v", err)
 		}
 		if got := binder.mustSingleBind(t).Runtime; got.Provider != inputRuntime.Provider ||
-			got.Model != inputRuntime.Model || got.Reasoning != inputRuntime.Reasoning {
+			got.Model != inputRuntime.Model || got.Reasoning != inputRuntime.Reasoning ||
+			got.Speed != inputRuntime.Speed {
 			t.Fatalf("bound runtime = %#v, want %#v", got, inputRuntime)
 		}
 		if raw.ResolvedRuntime.Source.Provider != loop.RuntimeSourceInput ||
 			raw.ResolvedRuntime.Source.Model != loop.RuntimeSourceInput ||
-			raw.ResolvedRuntime.Source.Reasoning != loop.RuntimeSourceInput {
+			raw.ResolvedRuntime.Source.Reasoning != loop.RuntimeSourceInput ||
+			raw.ResolvedRuntime.Source.Speed != loop.RuntimeSourceInput {
 			t.Fatalf("resolved runtime = %#v, want input provenance", raw.ResolvedRuntime)
+		}
+		if raw.ResolvedRuntime.SpeedResolution == nil ||
+			raw.ResolvedRuntime.SpeedResolution.Status != speedpkg.ResolutionUnsupported {
+			t.Fatalf("resolved runtime = %#v, want unsupported speed outcome", raw.ResolvedRuntime)
 		}
 	})
 

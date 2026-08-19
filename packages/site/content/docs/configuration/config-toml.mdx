@@ -695,16 +695,19 @@ max_revisions = 10
 provider = "codex"
 model = "gpt-5.4"
 reasoning = "high"
+speed = "fast"
 
 [loops.defaults.delivery.runtime_defaults.judge]
 provider = "claude"
 model = "opus"
+speed = "normal"
 
 [[loops.defaults.delivery.runtime_rules]]
 [loops.defaults.delivery.runtime_rules.match]
 type = "frontend"
 [loops.defaults.delivery.runtime_rules.runtime]
 model = "gpt-5.5-codex"
+speed = "normal"
 
 [loops.defaults.delivery.budget]
 # 0 means unlimited. When set, budgets are enforced with halt or escalate.

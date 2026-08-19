@@ -19,6 +19,8 @@ const (
 	loopRuntimeProviderPayloadKey  = "provider"
 	loopRuntimeModelPayloadKey     = "model"
 	loopRuntimeReasoningPayloadKey = "reasoning"
+	loopRuntimeSpeedPayloadKey     = "speed"
+	loopRuntimeSpeedOutcomeKey     = "speed_resolution"
 	loopRuntimeSourcePayloadKey    = "source"
 )
 
@@ -104,28 +106,13 @@ func (g *LoopRepo) RecordAppliedRuntime(
 	if rows != 1 {
 		return fmt.Errorf("%w: generation output not found in workspace", looppkg.ErrValidation)
 	}
-	eventPayload := map[string]any{
-		loopRunEventPayloadKeyGeneration: generation,
-		loopRunEventPayloadKeyNodeID:     strings.TrimSpace(string(nodeID)),
-		loopRunEventPayloadKeyItemIndex:  itemIndex,
-		loopRuntimeResolvedPayloadKey: map[string]any{
-			loopRuntimeProviderPayloadKey:  resolved.Runtime.Provider,
-			loopRuntimeModelPayloadKey:     resolved.Runtime.Model,
-			loopRuntimeReasoningPayloadKey: resolved.Runtime.Reasoning,
-			loopRuntimeSourcePayloadKey: map[string]any{
-				loopRuntimeProviderPayloadKey:  resolved.Source.Provider,
-				loopRuntimeModelPayloadKey:     resolved.Source.Model,
-				loopRuntimeReasoningPayloadKey: resolved.Source.Reasoning,
-			},
-		},
-	}
 	if err := appendLoopRunEventWithExecutor(
 		ctx,
 		tx,
 		loopRunID,
 		workspaceID,
 		loopRunEventRuntimeApplied,
-		eventPayload,
+		appliedRuntimeEventPayload(generation, nodeID, itemIndex, resolved),
 		time.Now().UTC(),
 	); err != nil {
 		return fmt.Errorf("store: append applied runtime event: %w", err)
@@ -134,6 +121,35 @@ func (g *LoopRepo) RecordAppliedRuntime(
 		return fmt.Errorf("store: commit applied runtime transaction: %w", err)
 	}
 	return nil
+}
+
+func appliedRuntimeEventPayload(
+	generation int,
+	nodeID looppkg.NodeID,
+	itemIndex int,
+	resolved looppkg.ResolvedRuntime,
+) map[string]any {
+	resolvedPayload := map[string]any{
+		loopRuntimeProviderPayloadKey:  resolved.Runtime.Provider,
+		loopRuntimeModelPayloadKey:     resolved.Runtime.Model,
+		loopRuntimeReasoningPayloadKey: resolved.Runtime.Reasoning,
+		loopRuntimeSpeedPayloadKey:     resolved.Runtime.Speed,
+		loopRuntimeSourcePayloadKey: map[string]any{
+			loopRuntimeProviderPayloadKey:  resolved.Source.Provider,
+			loopRuntimeModelPayloadKey:     resolved.Source.Model,
+			loopRuntimeReasoningPayloadKey: resolved.Source.Reasoning,
+			loopRuntimeSpeedPayloadKey:     resolved.Source.Speed,
+		},
+	}
+	if resolved.SpeedResolution != nil {
+		resolvedPayload[loopRuntimeSpeedOutcomeKey] = resolved.SpeedResolution
+	}
+	return map[string]any{
+		loopRunEventPayloadKeyGeneration: generation,
+		loopRunEventPayloadKeyNodeID:     strings.TrimSpace(string(nodeID)),
+		loopRunEventPayloadKeyItemIndex:  itemIndex,
+		loopRuntimeResolvedPayloadKey:    resolvedPayload,
+	}
 }
 
 // LookupLoopGenerationOutputStatus returns the output correlated with one worker task run.

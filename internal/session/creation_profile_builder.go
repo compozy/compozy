@@ -1,6 +1,9 @@
 package session
 
-import "github.com/compozy/compozy/internal/store"
+import (
+	speedpkg "github.com/compozy/compozy/internal/speed"
+	"github.com/compozy/compozy/internal/store"
+)
 
 // CreationProfileInput is the resolved, secret-free creation policy material.
 type CreationProfileInput struct {
@@ -8,6 +11,7 @@ type CreationProfileInput struct {
 	Provider        string
 	Model           string
 	ReasoningEffort string
+	Speed           speedpkg.Speed
 	WorkspaceID     string
 	CWD             string
 	WorktreeRef     string
@@ -23,7 +27,7 @@ type CreationProfileInput struct {
 	ContractOverlay string
 }
 
-// BuildCreationProfile constructs the canonical v1 profile used by daemon and Manager.
+// BuildCreationProfile constructs the current canonical profile used by daemon and Manager.
 func BuildCreationProfile(input CreationProfileInput) store.SessionCreationProfile {
 	return store.NormalizeSessionCreationProfile(store.SessionCreationProfile{
 		Version:         store.SessionCreationProfileVersion,
@@ -31,6 +35,7 @@ func BuildCreationProfile(input CreationProfileInput) store.SessionCreationProfi
 		Provider:        input.Provider,
 		Model:           input.Model,
 		ReasoningEffort: input.ReasoningEffort,
+		Speed:           input.Speed,
 		WorkspaceID:     input.WorkspaceID,
 		CWD:             input.CWD,
 		WorktreeRef:     input.WorktreeRef,

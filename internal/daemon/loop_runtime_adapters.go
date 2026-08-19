@@ -91,28 +91,9 @@ func (r *loopGateJudgeRunner) Judge(
 	if agent == "" {
 		return gate.JudgeResponse{}, fmt.Errorf("%w: judge agent is required", looppkg.ErrValidation)
 	}
-	contractOverlay := looppkg.RenderContractBlock(req.Contract)
-	opts := session.CreateOpts{
-		AgentName:                    agent,
-		Provider:                     strings.TrimSpace(req.Runtime.Provider),
-		Model:                        strings.TrimSpace(req.Runtime.Model),
-		ReasoningEffort:              strings.TrimSpace(req.Runtime.Reasoning),
-		Name:                         loopRuntimeSessionName("gate", agent, req.CriterionID),
-		ResolvedNetworkParticipation: req.NetworkParticipation,
-		PromptOverlay:                contractOverlay,
-		ContractOverlay:              contractOverlay,
-		Type:                         session.SessionTypeSystem,
-	}
-	opts.NetworkOwnerKey = participation.OwnerKey(participation.OwnerRef{
-		Kind: participation.OwnerKindLoopRun,
-		ID:   req.LoopRunID,
-	})
-	if workspaceID := strings.TrimSpace(req.WorkspaceID); workspaceID != "" {
-		opts.Workspace = workspaceID
-	} else if strings.TrimSpace(r.globalWorkspacePath) != "" {
-		opts.WorkspacePath = strings.TrimSpace(r.globalWorkspacePath)
-	} else {
-		return gate.JudgeResponse{}, errors.New("daemon: loop judge workspace is required")
+	opts, err := r.judgeCreateOptions(req, agent)
+	if err != nil {
+		return gate.JudgeResponse{}, err
 	}
 	if err := r.policyGate.apply(ctx, &opts, agent, nil); err != nil {
 		return gate.JudgeResponse{}, err
@@ -151,6 +132,38 @@ func (r *loopGateJudgeRunner) Judge(
 	return gate.JudgeResponse{
 		Raw: result.Text, TokensUsed: result.TokensUsed, TokensReported: result.TokensReported,
 	}, nil
+}
+
+func (r *loopGateJudgeRunner) judgeCreateOptions(
+	req gate.JudgeRequest,
+	agent string,
+) (session.CreateOpts, error) {
+	contractOverlay := looppkg.RenderContractBlock(req.Contract)
+	opts := session.CreateOpts{
+		AgentName:                    agent,
+		Provider:                     strings.TrimSpace(req.Runtime.Provider),
+		Model:                        strings.TrimSpace(req.Runtime.Model),
+		ReasoningEffort:              strings.TrimSpace(req.Runtime.Reasoning),
+		Speed:                        req.Runtime.Speed,
+		Name:                         loopRuntimeSessionName("gate", agent, req.CriterionID),
+		ResolvedNetworkParticipation: req.NetworkParticipation,
+		NetworkOwnerKey: participation.OwnerKey(participation.OwnerRef{
+			Kind: participation.OwnerKindLoopRun,
+			ID:   req.LoopRunID,
+		}),
+		PromptOverlay:   contractOverlay,
+		ContractOverlay: contractOverlay,
+		Type:            session.SessionTypeSystem,
+	}
+	if workspaceID := strings.TrimSpace(req.WorkspaceID); workspaceID != "" {
+		opts.Workspace = workspaceID
+		return opts, nil
+	}
+	if workspacePath := strings.TrimSpace(r.globalWorkspacePath); workspacePath != "" {
+		opts.WorkspacePath = workspacePath
+		return opts, nil
+	}
+	return session.CreateOpts{}, errors.New("daemon: loop judge workspace is required")
 }
 
 func (r *loopGateJudgeRunner) stopJudgeSession(ctx context.Context, sessionID string, terminalErr error) error {

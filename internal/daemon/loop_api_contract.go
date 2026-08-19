@@ -9,6 +9,7 @@ import (
 	"github.com/compozy/compozy/internal/api/contract"
 	looppkg "github.com/compozy/compozy/internal/loop"
 	"github.com/compozy/compozy/internal/loop/dsl"
+	speedpkg "github.com/compozy/compozy/internal/speed"
 )
 
 func loopDefinitionDocument(def dsl.Definition) (contract.LoopDefinitionDocument, error) {
@@ -147,13 +148,16 @@ func loopResolvedRuntimePayload(runtime *looppkg.ResolvedRuntime) *contract.Loop
 		return nil
 	}
 	return &contract.LoopResolvedRuntime{
-		Provider:  runtime.Runtime.Provider,
-		Model:     runtime.Runtime.Model,
-		Reasoning: runtime.Runtime.Reasoning,
+		Provider:        runtime.Runtime.Provider,
+		Model:           runtime.Runtime.Model,
+		Reasoning:       runtime.Runtime.Reasoning,
+		Speed:           runtime.Runtime.Speed,
+		SpeedResolution: speedpkg.CloneResolution(runtime.SpeedResolution),
 		Source: contract.LoopRuntimeProvenance{
 			Provider:  string(runtime.Source.Provider),
 			Model:     string(runtime.Source.Model),
 			Reasoning: string(runtime.Source.Reasoning),
+			Speed:     string(runtime.Source.Speed),
 		},
 	}
 }

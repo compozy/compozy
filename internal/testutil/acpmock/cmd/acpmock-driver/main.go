@@ -270,6 +270,11 @@ func sessionConfigOptionsFromFixture(
 	}
 	result := make([]acpsdk.SessionConfigOption, 0, len(options))
 	for _, option := range options {
+		var category *acpsdk.SessionConfigOptionCategory
+		if value := strings.TrimSpace(option.Category); value != "" {
+			parsed := acpsdk.SessionConfigOptionCategory(value)
+			category = &parsed
+		}
 		values := make(acpsdk.SessionConfigSelectOptionsUngrouped, 0, len(option.Values))
 		for _, value := range option.Values {
 			label := strings.TrimSpace(value.Label)
@@ -285,6 +290,7 @@ func sessionConfigOptionsFromFixture(
 			Select: &acpsdk.SessionConfigOptionSelect{
 				Id:           acpsdk.SessionConfigId(strings.TrimSpace(option.ID)),
 				Name:         strings.TrimSpace(option.Name),
+				Category:     category,
 				CurrentValue: acpsdk.SessionConfigValueId(strings.TrimSpace(option.Current)),
 				Options: acpsdk.SessionConfigSelectOptions{
 					Ungrouped: &values,

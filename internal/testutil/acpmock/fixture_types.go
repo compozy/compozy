@@ -43,10 +43,11 @@ func (a AgentFixture) SupportsLoadSession() bool {
 
 // SessionConfigOptionFixture describes one deterministic ACP session config select option.
 type SessionConfigOptionFixture struct {
-	ID      string                            `json:"id"`
-	Name    string                            `json:"name"`
-	Current string                            `json:"current"`
-	Values  []SessionConfigOptionValueFixture `json:"values"`
+	ID       string                            `json:"id"`
+	Name     string                            `json:"name"`
+	Category string                            `json:"category,omitempty"`
+	Current  string                            `json:"current"`
+	Values   []SessionConfigOptionValueFixture `json:"values"`
 }
 
 // SessionConfigOptionValueFixture describes one selectable ACP config option value.

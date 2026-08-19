@@ -39,3 +39,6 @@ runtime. Invalid provider/entity values returned field-addressed `input_validati
 
 QA impact 2026-08-19: runtime inputs can now bind directly to run-agent and Goal nodes. Reset to
 verify exact-reference validation, input provenance, and rejection before ACP spawn.
+
+QA impact 2026-08-19: runtime speed is closed to `normal|fast` in definitions, task frontmatter,
+config, runtime inputs, and per-run flags. Verify invalid speed fails before ACP spawn.

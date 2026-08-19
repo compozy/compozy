@@ -17,6 +17,7 @@ import (
 	"github.com/compozy/compozy/internal/loop"
 	"github.com/compozy/compozy/internal/loop/dsl"
 	"github.com/compozy/compozy/internal/loop/gate"
+	speedpkg "github.com/compozy/compozy/internal/speed"
 	"github.com/compozy/compozy/internal/task"
 )
 
@@ -231,7 +232,7 @@ func TestExecutorShouldMaterializeGoalParamsOnceBeforeEffects(t *testing.T) {
 		input := testGoalInput(t)
 		input.Namespace = map[string]any{"inputs": map[string]any{
 			"worker_runtime": map[string]any{
-				"provider": "cursor", "model": "grok-4.6", "reasoning": "high",
+				"provider": "cursor", "model": "grok-4.6", "reasoning": "high", "speed": "fast",
 			},
 		}}
 
@@ -243,12 +244,14 @@ func TestExecutorShouldMaterializeGoalParamsOnceBeforeEffects(t *testing.T) {
 			t.Fatalf("Goal binds = %d, want 1", len(binder.binds))
 		}
 		bound := binder.binds[0].Runtime
-		if bound.Provider != "cursor" || bound.Model != "grok-4.6" || bound.Reasoning != "high" {
+		if bound.Provider != "cursor" || bound.Model != "grok-4.6" || bound.Reasoning != "high" ||
+			bound.Speed != speedpkg.SpeedFast {
 			t.Fatalf("Goal bind runtime = %#v, want typed input runtime", bound)
 		}
 		if raw.ResolvedRuntime == nil || raw.ResolvedRuntime.Source.Provider != loop.RuntimeSourceInput ||
 			raw.ResolvedRuntime.Source.Model != loop.RuntimeSourceInput ||
-			raw.ResolvedRuntime.Source.Reasoning != loop.RuntimeSourceInput {
+			raw.ResolvedRuntime.Source.Reasoning != loop.RuntimeSourceInput ||
+			raw.ResolvedRuntime.Source.Speed != loop.RuntimeSourceInput {
 			t.Fatalf("Goal resolved runtime = %#v, want input provenance", raw.ResolvedRuntime)
 		}
 	})

@@ -9,6 +9,7 @@ import (
 	"strings"
 
 	"github.com/compozy/compozy/internal/loop/dsl"
+	speedpkg "github.com/compozy/compozy/internal/speed"
 )
 
 // InputValidationReason is the closed machine-readable input failure vocabulary.
@@ -120,6 +121,9 @@ func safeInputValue(input dsl.Input, value any) string {
 	if runtime.Reasoning != "" {
 		display += "@" + runtime.Reasoning
 	}
+	if runtime.Speed != "" {
+		display += ":speed=" + string(runtime.Speed)
+	}
 	return display
 }
 
@@ -218,6 +222,12 @@ func runtimeInputSpecFromMap(value map[string]any) (dsl.RuntimeSpec, error) {
 			runtime.Model = strings.TrimSpace(text)
 		case runtimeFieldReasoning:
 			runtime.Reasoning = strings.TrimSpace(text)
+		case runtimeFieldSpeed:
+			parsed, err := speedpkg.Parse(text)
+			if err != nil {
+				return dsl.RuntimeSpec{}, err
+			}
+			runtime.Speed = parsed
 		default:
 			return dsl.RuntimeSpec{}, fmt.Errorf("%s is unknown", key)
 		}
@@ -226,7 +236,7 @@ func runtimeInputSpecFromMap(value map[string]any) (dsl.RuntimeSpec, error) {
 }
 
 func runtimeInputValue(runtime dsl.RuntimeSpec) map[string]any {
-	value := make(map[string]any, 3)
+	value := make(map[string]any, 4)
 	if runtime.Provider != "" {
 		value[runtimeFieldProvider] = runtime.Provider
 	}
@@ -235,6 +245,9 @@ func runtimeInputValue(runtime dsl.RuntimeSpec) map[string]any {
 	}
 	if runtime.Reasoning != "" {
 		value[runtimeFieldReasoning] = runtime.Reasoning
+	}
+	if runtime.Speed != "" {
+		value[runtimeFieldSpeed] = string(runtime.Speed)
 	}
 	return value
 }

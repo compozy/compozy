@@ -8,6 +8,7 @@ import (
 
 	"github.com/compozy/compozy/internal/loop/dsl"
 	"github.com/compozy/compozy/internal/network/participation"
+	speedpkg "github.com/compozy/compozy/internal/speed"
 	"github.com/compozy/compozy/internal/task"
 	"github.com/compozy/compozy/internal/tools"
 )
@@ -273,11 +274,19 @@ type ActionSessionBindRequest struct {
 	PinnedCreationDigest           string
 	StaticPolicySpecDigest         string
 	Isolated                       bool
-	Runtime                        RuntimeSpec
+	Runtime                        *RuntimeSpec
 	AllowedTools                   []string
 	MaxTurns                       int
 	ContractBlock                  string
 	NetworkParticipation           *participation.Spec
+}
+
+// RuntimeValue returns the requested runtime or the zero-value intent when none was supplied.
+func (r ActionSessionBindRequest) RuntimeValue() RuntimeSpec {
+	if r.Runtime == nil {
+		return RuntimeSpec{}
+	}
+	return *r.Runtime
 }
 
 // ActionSessionCellFence identifies the live ordinary-action cell allowed to activate a session binding.
@@ -335,6 +344,7 @@ type ActionSessionBinding struct {
 	Ownership          string
 	Isolated           bool
 	AppliedRuntime     RuntimeSpec
+	SpeedResolution    *speedpkg.Resolution
 }
 
 // ActionPromptRequest is one work-order turn inside a bound run-agent session.

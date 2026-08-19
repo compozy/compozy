@@ -127,7 +127,7 @@ func TestLinterShouldValidateInputDeclarations(t *testing.T) {
 			code: loop.CodeInputDefaultInvalid,
 			mutate: func(definition *dsl.Definition) {
 				input := definition.Inputs["runtime"]
-				input.Default = map[string]any{"speed": "fast"}
+				input.Default = map[string]any{"turbo_mode": "fast"}
 				definition.Inputs["runtime"] = input
 			},
 		},

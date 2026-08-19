@@ -3,7 +3,7 @@ import { Eyebrow, MetadataList } from "@compozy/ui";
 import type { LoopRunGeneration, LoopRunGenerationOutput } from "../../types";
 
 type ResolvedRuntime = NonNullable<LoopRunGenerationOutput["resolved_runtime"]>;
-type RuntimeField = "provider" | "model" | "reasoning";
+type RuntimeField = "provider" | "model" | "reasoning" | "speed";
 
 interface RuntimeOutput {
   generation: number;
@@ -15,6 +15,7 @@ const SOURCE_LABELS: Record<string, string> = {
   run: "per-run rule",
   frontmatter: "task frontmatter",
   config: "config rule",
+  input: "runtime input",
   node: "node runtime",
   default: "runtime default",
   criterion: "criterion runtime",
@@ -24,6 +25,13 @@ const SOURCE_LABELS: Record<string, string> = {
 function sourceLabel(source: string | undefined): string | null {
   if (!source) return null;
   return SOURCE_LABELS[source] ?? source;
+}
+
+function speedOutcome(runtime: ResolvedRuntime): string | null {
+  const resolution = runtime.speed_resolution;
+  if (!resolution) return null;
+  const reason = resolution.reason?.replaceAll("_", " ");
+  return reason ? `${resolution.status} · ${reason}` : resolution.status;
 }
 
 function outputLabel({ generation, output }: RuntimeOutput): string {
@@ -95,6 +103,14 @@ export function LoopRunResolvedRuntimes({
                 </MetadataList.Row>
                 <MetadataList.Row label="Reasoning">
                   <RuntimeFieldValue runtime={entry.runtime} field="reasoning" />
+                </MetadataList.Row>
+                <MetadataList.Row label="Speed">
+                  <RuntimeFieldValue runtime={entry.runtime} field="speed" />
+                </MetadataList.Row>
+                <MetadataList.Row label="Speed outcome">
+                  <span className="font-mono text-mono-id text-fg">
+                    {speedOutcome(entry.runtime)}
+                  </span>
                 </MetadataList.Row>
               </MetadataList>
             </section>

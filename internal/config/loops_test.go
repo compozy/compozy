@@ -8,6 +8,7 @@ import (
 	"testing"
 
 	"github.com/compozy/compozy/internal/loop/dsl"
+	speedpkg "github.com/compozy/compozy/internal/speed"
 )
 
 func TestLoopsConfigShouldLoadDefaultsAndOverlays(t *testing.T) {
@@ -70,6 +71,7 @@ max_revisions = 9
 
 [loops.defaults.delivery.runtime_defaults.worker]
 model = "global-worker"
+speed = "fast"
 
 [loops.defaults.delivery.runtime_defaults.judge]
 model = "global-judge"
@@ -123,6 +125,7 @@ on_exceeded = "halt"
 
 [loops.defaults.delivery.runtime_defaults.worker]
 model = "workspace-worker"
+speed = "normal"
 
 [[loops.defaults.delivery.autopause]]
 match = "attempt >= 2"
@@ -168,6 +171,7 @@ fixer = ""
 			budgetOnExceeded:   string(dsl.BudgetExceededHalt),
 			fanOutWidth:        2,
 			workerModel:        "workspace-worker",
+			workerSpeed:        speedpkg.SpeedNormal,
 			judgeModel:         "global-judge",
 			requestExpireAfter: "72h",
 		})
@@ -245,6 +249,12 @@ func TestLoopsConfigShouldRejectWriteTimeInvalidDefaults(t *testing.T) {
 		value     any
 		wantError string
 	}{
+		{
+			name:      "Should reject an unsupported runtime speed",
+			path:      []string{"loops", "defaults", "delivery", "runtime_defaults", "worker", "speed"},
+			value:     "turbo",
+			wantError: "loops.defaults.delivery.runtime_defaults.worker.speed",
+		},
 		{
 			name:      "Should reject a negative delivery fan out window",
 			path:      []string{"loops", "defaults", "delivery", "fan_out_width"},
@@ -446,6 +456,26 @@ func TestLoopsConfigShouldExposeAgentMutableToolPaths(t *testing.T) {
 			kind: ConfigValueString,
 		},
 		{
+			name: "Should allow delivery worker speed defaults",
+			path: []string{"loops", "defaults", "delivery", "runtime_defaults", "worker", "speed"},
+			kind: ConfigValueString,
+		},
+		{
+			name: "Should allow delivery judge speed defaults",
+			path: []string{"loops", "defaults", "delivery", "runtime_defaults", "judge", "speed"},
+			kind: ConfigValueString,
+		},
+		{
+			name: "Should allow watch worker speed defaults",
+			path: []string{"loops", "defaults", "watch", "runtime_defaults", "worker", "speed"},
+			kind: ConfigValueString,
+		},
+		{
+			name: "Should allow watch judge speed defaults",
+			path: []string{"loops", "defaults", "watch", "runtime_defaults", "judge", "speed"},
+			kind: ConfigValueString,
+		},
+		{
 			name: "Should allow request expiry defaults",
 			path: []string{"loops", "defaults", "delivery", "requests", "expire_after"},
 			kind: ConfigValueString,
@@ -484,6 +514,7 @@ type loopDefaultWant struct {
 	budgetOnExceeded   string
 	fanOutWidth        int
 	workerModel        string
+	workerSpeed        speedpkg.Speed
 	judgeModel         string
 	requestExpireAfter string
 }
@@ -518,6 +549,14 @@ func assertLoopDefaultConfig(t *testing.T, label string, got LoopDefaultConfig, 
 			label,
 			got.RuntimeDefaults.Worker.Model,
 			want.workerModel,
+		)
+	}
+	if got.RuntimeDefaults.Worker.Speed != want.workerSpeed {
+		t.Fatalf(
+			"%s RuntimeDefaults.Worker.Speed = %q, want %q",
+			label,
+			got.RuntimeDefaults.Worker.Speed,
+			want.workerSpeed,
 		)
 	}
 	if got.Requests.ExpireAfter != want.requestExpireAfter {

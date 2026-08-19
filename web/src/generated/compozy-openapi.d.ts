@@ -93240,7 +93240,22 @@ export interface operations {
                     model?: string;
                     provider?: string;
                     reasoning?: string;
+                    speed?: string;
                   };
+                  /** @enum {string} */
+                  speed?: "normal" | "fast";
+                  speed_resolution?: {
+                    /** @enum {string} */
+                    reason?:
+                      | "capability_absent"
+                      | "capability_ambiguous"
+                      | "value_ambiguous"
+                      | "provider_rejected";
+                    /** @enum {string} */
+                    requested: "normal" | "fast";
+                    /** @enum {string} */
+                    status: "applied" | "unsupported" | "rejected";
+                  } | null;
                 } | null;
                 session_id?: string;
                 status: string;
@@ -93947,11 +93962,15 @@ export interface operations {
                     model?: string;
                     provider?: string;
                     reasoning?: string;
+                    /** @enum {string} */
+                    speed?: "normal" | "fast";
                   };
                   worker?: {
                     model?: string;
                     provider?: string;
                     reasoning?: string;
+                    /** @enum {string} */
+                    speed?: "normal" | "fast";
                   };
                 } | null;
                 runtime_rules?: {
@@ -93964,6 +93983,8 @@ export interface operations {
                     model?: string;
                     provider?: string;
                     reasoning?: string;
+                    /** @enum {string} */
+                    speed?: "normal" | "fast";
                   };
                 }[];
                 stop_when?:
@@ -93995,6 +94016,8 @@ export interface operations {
                     model?: string;
                     provider?: string;
                     reasoning?: string;
+                    /** @enum {string} */
+                    speed?: "normal" | "fast";
                   };
                   tool?: string;
                   type: string;
@@ -94449,7 +94472,22 @@ export interface operations {
                     model?: string;
                     provider?: string;
                     reasoning?: string;
+                    speed?: string;
                   };
+                  /** @enum {string} */
+                  speed?: "normal" | "fast";
+                  speed_resolution?: {
+                    /** @enum {string} */
+                    reason?:
+                      | "capability_absent"
+                      | "capability_ambiguous"
+                      | "value_ambiguous"
+                      | "provider_rejected";
+                    /** @enum {string} */
+                    requested: "normal" | "fast";
+                    /** @enum {string} */
+                    status: "applied" | "unsupported" | "rejected";
+                  } | null;
                 } | null;
                 session_id?: string;
                 status: string;
@@ -94650,11 +94688,15 @@ export interface operations {
                   model?: string;
                   provider?: string;
                   reasoning?: string;
+                  /** @enum {string} */
+                  speed?: "normal" | "fast";
                 };
                 worker?: {
                   model?: string;
                   provider?: string;
                   reasoning?: string;
+                  /** @enum {string} */
+                  speed?: "normal" | "fast";
                 };
               } | null;
               runtime_rules?: {
@@ -94667,6 +94709,8 @@ export interface operations {
                   model?: string;
                   provider?: string;
                   reasoning?: string;
+                  /** @enum {string} */
+                  speed?: "normal" | "fast";
                 };
               }[];
               stop_when?:
@@ -94698,6 +94742,8 @@ export interface operations {
                   model?: string;
                   provider?: string;
                   reasoning?: string;
+                  /** @enum {string} */
+                  speed?: "normal" | "fast";
                 };
                 tool?: string;
                 type: string;
@@ -99971,11 +100017,15 @@ export interface operations {
                     model?: string;
                     provider?: string;
                     reasoning?: string;
+                    /** @enum {string} */
+                    speed?: "normal" | "fast";
                   };
                   worker?: {
                     model?: string;
                     provider?: string;
                     reasoning?: string;
+                    /** @enum {string} */
+                    speed?: "normal" | "fast";
                   };
                 } | null;
                 runtime_rules?: {
@@ -99988,6 +100038,8 @@ export interface operations {
                     model?: string;
                     provider?: string;
                     reasoning?: string;
+                    /** @enum {string} */
+                    speed?: "normal" | "fast";
                   };
                 }[];
                 stop_when?:
@@ -100019,6 +100071,8 @@ export interface operations {
                     model?: string;
                     provider?: string;
                     reasoning?: string;
+                    /** @enum {string} */
+                    speed?: "normal" | "fast";
                   };
                   tool?: string;
                   type: string;
@@ -100385,11 +100439,15 @@ export interface operations {
                   model?: string;
                   provider?: string;
                   reasoning?: string;
+                  /** @enum {string} */
+                  speed?: "normal" | "fast";
                 };
                 worker?: {
                   model?: string;
                   provider?: string;
                   reasoning?: string;
+                  /** @enum {string} */
+                  speed?: "normal" | "fast";
                 };
               } | null;
               runtime_rules?: {
@@ -100402,6 +100460,8 @@ export interface operations {
                   model?: string;
                   provider?: string;
                   reasoning?: string;
+                  /** @enum {string} */
+                  speed?: "normal" | "fast";
                 };
               }[];
               stop_when?:
@@ -100433,6 +100493,8 @@ export interface operations {
                   model?: string;
                   provider?: string;
                   reasoning?: string;
+                  /** @enum {string} */
+                  speed?: "normal" | "fast";
                 };
                 tool?: string;
                 type: string;
@@ -101007,11 +101069,15 @@ export interface operations {
                       model?: string;
                       provider?: string;
                       reasoning?: string;
+                      /** @enum {string} */
+                      speed?: "normal" | "fast";
                     };
                     worker?: {
                       model?: string;
                       provider?: string;
                       reasoning?: string;
+                      /** @enum {string} */
+                      speed?: "normal" | "fast";
                     };
                   } | null;
                   runtime_rules?: {
@@ -101024,6 +101090,8 @@ export interface operations {
                       model?: string;
                       provider?: string;
                       reasoning?: string;
+                      /** @enum {string} */
+                      speed?: "normal" | "fast";
                     };
                   }[];
                   stop_when?:
@@ -101055,6 +101123,8 @@ export interface operations {
                       model?: string;
                       provider?: string;
                       reasoning?: string;
+                      /** @enum {string} */
+                      speed?: "normal" | "fast";
                     };
                     tool?: string;
                     type: string;
@@ -101842,11 +101912,15 @@ export interface operations {
                       model?: string;
                       provider?: string;
                       reasoning?: string;
+                      /** @enum {string} */
+                      speed?: "normal" | "fast";
                     };
                     worker?: {
                       model?: string;
                       provider?: string;
                       reasoning?: string;
+                      /** @enum {string} */
+                      speed?: "normal" | "fast";
                     };
                   } | null;
                   runtime_rules?: {
@@ -101859,6 +101933,8 @@ export interface operations {
                       model?: string;
                       provider?: string;
                       reasoning?: string;
+                      /** @enum {string} */
+                      speed?: "normal" | "fast";
                     };
                   }[];
                   stop_when?:
@@ -101890,6 +101966,8 @@ export interface operations {
                       model?: string;
                       provider?: string;
                       reasoning?: string;
+                      /** @enum {string} */
+                      speed?: "normal" | "fast";
                     };
                     tool?: string;
                     type: string;
@@ -102772,11 +102850,15 @@ export interface operations {
                   model?: string;
                   provider?: string;
                   reasoning?: string;
+                  /** @enum {string} */
+                  speed?: "normal" | "fast";
                 };
                 worker?: {
                   model?: string;
                   provider?: string;
                   reasoning?: string;
+                  /** @enum {string} */
+                  speed?: "normal" | "fast";
                 };
               } | null;
               runtime_rules?: {
@@ -102789,6 +102871,8 @@ export interface operations {
                   model?: string;
                   provider?: string;
                   reasoning?: string;
+                  /** @enum {string} */
+                  speed?: "normal" | "fast";
                 };
               }[];
               stop_when?:
@@ -102820,6 +102904,8 @@ export interface operations {
                   model?: string;
                   provider?: string;
                   reasoning?: string;
+                  /** @enum {string} */
+                  speed?: "normal" | "fast";
                 };
                 tool?: string;
                 type: string;
@@ -103394,11 +103480,15 @@ export interface operations {
                       model?: string;
                       provider?: string;
                       reasoning?: string;
+                      /** @enum {string} */
+                      speed?: "normal" | "fast";
                     };
                     worker?: {
                       model?: string;
                       provider?: string;
                       reasoning?: string;
+                      /** @enum {string} */
+                      speed?: "normal" | "fast";
                     };
                   } | null;
                   runtime_rules?: {
@@ -103411,6 +103501,8 @@ export interface operations {
                       model?: string;
                       provider?: string;
                       reasoning?: string;
+                      /** @enum {string} */
+                      speed?: "normal" | "fast";
                     };
                   }[];
                   stop_when?:
@@ -103442,6 +103534,8 @@ export interface operations {
                       model?: string;
                       provider?: string;
                       reasoning?: string;
+                      /** @enum {string} */
+                      speed?: "normal" | "fast";
                     };
                     tool?: string;
                     type: string;
@@ -104433,11 +104527,15 @@ export interface operations {
                   model?: string;
                   provider?: string;
                   reasoning?: string;
+                  /** @enum {string} */
+                  speed?: "normal" | "fast";
                 };
                 worker?: {
                   model?: string;
                   provider?: string;
                   reasoning?: string;
+                  /** @enum {string} */
+                  speed?: "normal" | "fast";
                 };
               } | null;
               runtime_rules?: {
@@ -104450,6 +104548,8 @@ export interface operations {
                   model?: string;
                   provider?: string;
                   reasoning?: string;
+                  /** @enum {string} */
+                  speed?: "normal" | "fast";
                 };
               }[];
             } | null;
@@ -104482,6 +104582,8 @@ export interface operations {
                   model?: string;
                   provider?: string;
                   reasoning?: string;
+                  /** @enum {string} */
+                  speed?: "normal" | "fast";
                 };
               }[];
               runtime_defaults: {
@@ -104489,11 +104591,15 @@ export interface operations {
                   model?: string;
                   provider?: string;
                   reasoning?: string;
+                  /** @enum {string} */
+                  speed?: "normal" | "fast";
                 };
                 worker?: {
                   model?: string;
                   provider?: string;
                   reasoning?: string;
+                  /** @enum {string} */
+                  speed?: "normal" | "fast";
                 };
               };
               runtime_rules: {
@@ -104506,6 +104612,8 @@ export interface operations {
                   model?: string;
                   provider?: string;
                   reasoning?: string;
+                  /** @enum {string} */
+                  speed?: "normal" | "fast";
                 };
               }[];
             };
@@ -104670,11 +104778,15 @@ export interface operations {
                 model?: string;
                 provider?: string;
                 reasoning?: string;
+                /** @enum {string} */
+                speed?: "normal" | "fast";
               };
               worker?: {
                 model?: string;
                 provider?: string;
                 reasoning?: string;
+                /** @enum {string} */
+                speed?: "normal" | "fast";
               };
             } | null;
             runtime_rules?: {
@@ -104687,6 +104799,8 @@ export interface operations {
                 model?: string;
                 provider?: string;
                 reasoning?: string;
+                /** @enum {string} */
+                speed?: "normal" | "fast";
               };
             }[];
           };
@@ -104725,11 +104839,15 @@ export interface operations {
                   model?: string;
                   provider?: string;
                   reasoning?: string;
+                  /** @enum {string} */
+                  speed?: "normal" | "fast";
                 };
                 worker?: {
                   model?: string;
                   provider?: string;
                   reasoning?: string;
+                  /** @enum {string} */
+                  speed?: "normal" | "fast";
                 };
               } | null;
               runtime_rules?: {
@@ -104742,6 +104860,8 @@ export interface operations {
                   model?: string;
                   provider?: string;
                   reasoning?: string;
+                  /** @enum {string} */
+                  speed?: "normal" | "fast";
                 };
               }[];
             } | null;
@@ -104774,6 +104894,8 @@ export interface operations {
                   model?: string;
                   provider?: string;
                   reasoning?: string;
+                  /** @enum {string} */
+                  speed?: "normal" | "fast";
                 };
               }[];
               runtime_defaults: {
@@ -104781,11 +104903,15 @@ export interface operations {
                   model?: string;
                   provider?: string;
                   reasoning?: string;
+                  /** @enum {string} */
+                  speed?: "normal" | "fast";
                 };
                 worker?: {
                   model?: string;
                   provider?: string;
                   reasoning?: string;
+                  /** @enum {string} */
+                  speed?: "normal" | "fast";
                 };
               };
               runtime_rules: {
@@ -104798,6 +104924,8 @@ export interface operations {
                   model?: string;
                   provider?: string;
                   reasoning?: string;
+                  /** @enum {string} */
+                  speed?: "normal" | "fast";
                 };
               }[];
             };
@@ -105925,11 +106053,15 @@ export interface operations {
                 model?: string;
                 provider?: string;
                 reasoning?: string;
+                /** @enum {string} */
+                speed?: "normal" | "fast";
               };
               worker?: {
                 model?: string;
                 provider?: string;
                 reasoning?: string;
+                /** @enum {string} */
+                speed?: "normal" | "fast";
               };
             } | null;
             runtime_rules?: {
@@ -105942,6 +106074,8 @@ export interface operations {
                 model?: string;
                 provider?: string;
                 reasoning?: string;
+                /** @enum {string} */
+                speed?: "normal" | "fast";
               };
             }[];
           } | null;
@@ -106153,11 +106287,15 @@ export interface operations {
                     model?: string;
                     provider?: string;
                     reasoning?: string;
+                    /** @enum {string} */
+                    speed?: "normal" | "fast";
                   };
                   worker?: {
                     model?: string;
                     provider?: string;
                     reasoning?: string;
+                    /** @enum {string} */
+                    speed?: "normal" | "fast";
                   };
                 } | null;
                 runtime_rules?: {
@@ -106170,6 +106308,8 @@ export interface operations {
                     model?: string;
                     provider?: string;
                     reasoning?: string;
+                    /** @enum {string} */
+                    speed?: "normal" | "fast";
                   };
                 }[];
                 stop_when?:
@@ -106201,6 +106341,8 @@ export interface operations {
                     model?: string;
                     provider?: string;
                     reasoning?: string;
+                    /** @enum {string} */
+                    speed?: "normal" | "fast";
                   };
                   tool?: string;
                   type: string;
@@ -106235,6 +106377,8 @@ export interface operations {
                     model?: string;
                     provider?: string;
                     reasoning?: string;
+                    /** @enum {string} */
+                    speed?: "normal" | "fast";
                   };
                 }[];
                 runtime_defaults: {
@@ -106242,11 +106386,15 @@ export interface operations {
                     model?: string;
                     provider?: string;
                     reasoning?: string;
+                    /** @enum {string} */
+                    speed?: "normal" | "fast";
                   };
                   worker?: {
                     model?: string;
                     provider?: string;
                     reasoning?: string;
+                    /** @enum {string} */
+                    speed?: "normal" | "fast";
                   };
                 };
                 runtime_rules: {
@@ -106259,6 +106407,8 @@ export interface operations {
                     model?: string;
                     provider?: string;
                     reasoning?: string;
+                    /** @enum {string} */
+                    speed?: "normal" | "fast";
                   };
                 }[];
               };
@@ -106399,11 +106549,15 @@ export interface operations {
                     model?: string;
                     provider?: string;
                     reasoning?: string;
+                    /** @enum {string} */
+                    speed?: "normal" | "fast";
                   };
                   worker?: {
                     model?: string;
                     provider?: string;
                     reasoning?: string;
+                    /** @enum {string} */
+                    speed?: "normal" | "fast";
                   };
                 } | null;
                 runtime_rules?: {
@@ -106416,6 +106570,8 @@ export interface operations {
                     model?: string;
                     provider?: string;
                     reasoning?: string;
+                    /** @enum {string} */
+                    speed?: "normal" | "fast";
                   };
                 }[];
                 stop_when?:
@@ -106447,6 +106603,8 @@ export interface operations {
                     model?: string;
                     provider?: string;
                     reasoning?: string;
+                    /** @enum {string} */
+                    speed?: "normal" | "fast";
                   };
                   tool?: string;
                   type: string;
@@ -106769,11 +106927,15 @@ export interface operations {
                     model?: string;
                     provider?: string;
                     reasoning?: string;
+                    /** @enum {string} */
+                    speed?: "normal" | "fast";
                   };
                   worker?: {
                     model?: string;
                     provider?: string;
                     reasoning?: string;
+                    /** @enum {string} */
+                    speed?: "normal" | "fast";
                   };
                 } | null;
                 runtime_rules?: {
@@ -106786,6 +106948,8 @@ export interface operations {
                     model?: string;
                     provider?: string;
                     reasoning?: string;
+                    /** @enum {string} */
+                    speed?: "normal" | "fast";
                   };
                 }[];
                 stop_when?:
@@ -106817,6 +106981,8 @@ export interface operations {
                     model?: string;
                     provider?: string;
                     reasoning?: string;
+                    /** @enum {string} */
+                    speed?: "normal" | "fast";
                   };
                   tool?: string;
                   type: string;
@@ -106851,6 +107017,8 @@ export interface operations {
                     model?: string;
                     provider?: string;
                     reasoning?: string;
+                    /** @enum {string} */
+                    speed?: "normal" | "fast";
                   };
                 }[];
                 runtime_defaults: {
@@ -106858,11 +107026,15 @@ export interface operations {
                     model?: string;
                     provider?: string;
                     reasoning?: string;
+                    /** @enum {string} */
+                    speed?: "normal" | "fast";
                   };
                   worker?: {
                     model?: string;
                     provider?: string;
                     reasoning?: string;
+                    /** @enum {string} */
+                    speed?: "normal" | "fast";
                   };
                 };
                 runtime_rules: {
@@ -106875,6 +107047,8 @@ export interface operations {
                     model?: string;
                     provider?: string;
                     reasoning?: string;
+                    /** @enum {string} */
+                    speed?: "normal" | "fast";
                   };
                 }[];
               };
@@ -107015,11 +107189,15 @@ export interface operations {
                     model?: string;
                     provider?: string;
                     reasoning?: string;
+                    /** @enum {string} */
+                    speed?: "normal" | "fast";
                   };
                   worker?: {
                     model?: string;
                     provider?: string;
                     reasoning?: string;
+                    /** @enum {string} */
+                    speed?: "normal" | "fast";
                   };
                 } | null;
                 runtime_rules?: {
@@ -107032,6 +107210,8 @@ export interface operations {
                     model?: string;
                     provider?: string;
                     reasoning?: string;
+                    /** @enum {string} */
+                    speed?: "normal" | "fast";
                   };
                 }[];
                 stop_when?:
@@ -107063,6 +107243,8 @@ export interface operations {
                     model?: string;
                     provider?: string;
                     reasoning?: string;
+                    /** @enum {string} */
+                    speed?: "normal" | "fast";
                   };
                   tool?: string;
                   type: string;
@@ -107598,11 +107780,15 @@ export interface operations {
                   model?: string;
                   provider?: string;
                   reasoning?: string;
+                  /** @enum {string} */
+                  speed?: "normal" | "fast";
                 };
                 worker?: {
                   model?: string;
                   provider?: string;
                   reasoning?: string;
+                  /** @enum {string} */
+                  speed?: "normal" | "fast";
                 };
               } | null;
               runtime_rules?: {
@@ -107615,6 +107801,8 @@ export interface operations {
                   model?: string;
                   provider?: string;
                   reasoning?: string;
+                  /** @enum {string} */
+                  speed?: "normal" | "fast";
                 };
               }[];
               stop_when?:
@@ -107646,6 +107834,8 @@ export interface operations {
                   model?: string;
                   provider?: string;
                   reasoning?: string;
+                  /** @enum {string} */
+                  speed?: "normal" | "fast";
                 };
                 tool?: string;
                 type: string;

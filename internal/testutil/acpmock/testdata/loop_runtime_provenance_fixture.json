@@ -28,6 +28,16 @@
                         { "value": "low", "label": "Low" },
                         { "value": "high", "label": "High" }
                     ]
+                },
+                {
+                    "id": "speed",
+                    "name": "Speed",
+                    "category": "model_config",
+                    "current": "normal",
+                    "values": [
+                        { "value": "normal", "label": "Normal" },
+                        { "value": "fast", "label": "Fast" }
+                    ]
                 }
             ],
             "turns": [
@@ -69,6 +79,16 @@
                     "values": [
                         { "value": "low", "label": "Low" },
                         { "value": "high", "label": "High" }
+                    ]
+                },
+                {
+                    "id": "speed",
+                    "name": "Speed",
+                    "category": "model_config",
+                    "current": "normal",
+                    "values": [
+                        { "value": "normal", "label": "Normal" },
+                        { "value": "fast", "label": "Fast" }
                     ]
                 }
             ],

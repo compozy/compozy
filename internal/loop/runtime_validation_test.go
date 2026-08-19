@@ -7,6 +7,7 @@ import (
 
 	loop "github.com/compozy/compozy/internal/loop"
 	"github.com/compozy/compozy/internal/loop/dsl"
+	speedpkg "github.com/compozy/compozy/internal/speed"
 )
 
 func TestValidateResolvedRuntimeShouldHonorCatalogValidation(t *testing.T) {
@@ -110,6 +111,31 @@ func TestValidateDefinitionRuntimeShouldEnforceStaticRuntimeContract(t *testing.
 		err := loop.ValidateDefinitionRuntime(context.Background(), nil, definition)
 		assertRuntimeValidationItem(t, err, loop.RuntimeValidationItem{
 			Field: "reasoning", Value: "ultra", Reason: "unsupported_reasoning",
+		})
+	})
+
+	t.Run("Should accept the complete speed vocabulary", func(t *testing.T) {
+		t.Parallel()
+
+		for _, value := range []speedpkg.Speed{speedpkg.SpeedNormal, speedpkg.SpeedFast} {
+			definition := dsl.Definition{Contract: dsl.Contract{RuntimeDefaults: &dsl.RuntimeDefaults{
+				Worker: dsl.RuntimeSpec{Speed: value},
+			}}}
+			if err := loop.ValidateDefinitionRuntime(context.Background(), nil, definition); err != nil {
+				t.Fatalf("ValidateDefinitionRuntime(%q) error = %v", value, err)
+			}
+		}
+	})
+
+	t.Run("Should reject unsupported speed before binding", func(t *testing.T) {
+		t.Parallel()
+
+		definition := dsl.Definition{Contract: dsl.Contract{RuntimeDefaults: &dsl.RuntimeDefaults{
+			Worker: dsl.RuntimeSpec{Speed: speedpkg.Speed("turbo")},
+		}}}
+		err := loop.ValidateDefinitionRuntime(context.Background(), nil, definition)
+		assertRuntimeValidationItem(t, err, loop.RuntimeValidationItem{
+			Field: "speed", Value: "turbo", Reason: "unsupported_speed",
 		})
 	})
 

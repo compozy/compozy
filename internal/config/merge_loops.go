@@ -1,6 +1,9 @@
 package config
 
-import "github.com/compozy/compozy/internal/loop/dsl"
+import (
+	"github.com/compozy/compozy/internal/loop/dsl"
+	speedpkg "github.com/compozy/compozy/internal/speed"
+)
 
 type loopsOverlay struct {
 	Defaults loopsDefaultsOverlay `toml:"defaults"`
@@ -90,9 +93,10 @@ type loopRuntimeSpecOverlay struct {
 	Provider  *string `toml:"provider"`
 	Model     *string `toml:"model"`
 	Reasoning *string `toml:"reasoning"`
+	Speed     *string `toml:"speed"`
 }
 
-func (o loopsOverlay) Apply(dst *LoopsConfig) {
+func (o *loopsOverlay) Apply(dst *LoopsConfig) {
 	o.Defaults.Apply(&dst.Defaults)
 	o.Breaker.Apply(&dst.Breaker)
 	if dst.Inputs == nil {
@@ -108,7 +112,7 @@ func (o loopsOverlay) Apply(dst *LoopsConfig) {
 	}
 }
 
-func (o loopsOverlay) recordInputSources(dst *LoopsConfig, source string) {
+func (o *loopsOverlay) recordInputSources(dst *LoopsConfig, source string) {
 	if dst.inputSources == nil {
 		dst.inputSources = LoopInputDefaultSources{}
 	}
@@ -251,5 +255,8 @@ func (o loopRuntimeSpecOverlay) Apply(dst *dsl.RuntimeSpec) {
 	}
 	if o.Reasoning != nil {
 		dst.Reasoning = *o.Reasoning
+	}
+	if o.Speed != nil {
+		dst.Speed = speedpkg.Speed(*o.Speed)
 	}
 }

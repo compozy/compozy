@@ -6,6 +6,7 @@ import (
 
 	looppkg "github.com/compozy/compozy/internal/loop"
 	"github.com/compozy/compozy/internal/modelcatalog"
+	speedpkg "github.com/compozy/compozy/internal/speed"
 )
 
 const (
@@ -44,7 +45,11 @@ func parseLoopRuntimeFlags(values []string) (looppkg.LoopConfig, error) {
 			if !found {
 				return looppkg.LoopConfig{}, runtimeFlagError("rule requires match:runtime", raw)
 			}
-			if strings.Contains(runtimeValue, ":") {
+			runtimeIdentity := runtimeValue
+			if beforeSpeed, _, hasSpeed := strings.Cut(runtimeIdentity, ":speed="); hasSpeed {
+				runtimeIdentity = beforeSpeed
+			}
+			if strings.Contains(runtimeIdentity, ":") {
 				return looppkg.LoopConfig{}, runtimeFlagError(
 					"rule match must contain one selector value without ':'",
 					raw,
@@ -90,6 +95,19 @@ func parseLoopRuntimeExpression(raw string) (looppkg.RuntimeSpec, error) {
 	if expression == "" {
 		return looppkg.RuntimeSpec{}, runtimeFlagError("runtime expression is empty", raw)
 	}
+	speed := speedpkg.Speed("")
+	if before, after, found := strings.Cut(expression, ":speed="); found {
+		if strings.Contains(before, ":speed=") || strings.Contains(after, ":speed=") ||
+			strings.TrimSpace(before) == "" {
+			return looppkg.RuntimeSpec{}, runtimeFlagError("invalid speed suffix", raw)
+		}
+		parsed, err := speedpkg.Parse(after)
+		if err != nil {
+			return looppkg.RuntimeSpec{}, runtimeFlagError("invalid speed suffix", raw)
+		}
+		expression = strings.TrimSpace(before)
+		speed = parsed
+	}
 	reasoning := ""
 	if before, after, found := strings.Cut(expression, "@"); found {
 		if strings.Contains(after, "@") || strings.TrimSpace(after) == "" ||
@@ -116,10 +134,12 @@ func parseLoopRuntimeExpression(raw string) (looppkg.RuntimeSpec, error) {
 	if model == "-" {
 		model = ""
 	}
-	if provider == "" && model == "" && reasoning == "" {
+	if provider == "" && model == "" && reasoning == "" && speed == "" {
 		return looppkg.RuntimeSpec{}, runtimeFlagError("runtime expression selects no fields", raw)
 	}
-	return looppkg.RuntimeSpec{Provider: provider, Model: model, Reasoning: reasoning}, nil
+	return looppkg.RuntimeSpec{
+		Provider: provider, Model: model, Reasoning: reasoning, Speed: speed,
+	}, nil
 }
 
 func mergeRuntimeFlagSpec(target *looppkg.RuntimeSpec, value looppkg.RuntimeSpec) {
@@ -131,6 +151,9 @@ func mergeRuntimeFlagSpec(target *looppkg.RuntimeSpec, value looppkg.RuntimeSpec
 	}
 	if value.Reasoning != "" {
 		target.Reasoning = value.Reasoning
+	}
+	if value.Speed != "" {
+		target.Speed = value.Speed
 	}
 }
 
