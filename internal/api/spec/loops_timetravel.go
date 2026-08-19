@@ -56,8 +56,11 @@ func loopRequestOperations() []OperationSpec {
 			"Amend one parked Loop node output",
 			contract.LoopNodeAmendRequest{},
 			[]ParameterSpec{workspaceIDParam(), loopRunIDParam(), pathParam("node_id", "Loop node id")},
-			[]ResponseSpec{ok(contract.LoopNodeAmendResponse{}), badRequest(), forbidden(),
-				notFound(specLoopRunNotFound), conflict(), loopInputUnprocessable(), loopUnavailable(), internalError()},
+			[]ResponseSpec{
+				ok(contract.LoopNodeAmendResponse{}), badRequest(), forbidden(),
+				notFound(specLoopRunNotFound), conflict(), loopInputUnprocessable(),
+				loopUnavailable(), internalError(),
+			},
 		),
 	}
 }

@@ -381,7 +381,6 @@ func TestConfigCommandsManageDynamicLoopInputDefaults(t *testing.T) {
 		if setRecord.Path != testCase.path || !reflect.DeepEqual(setRecord.Value, testCase.wantValue) {
 			t.Fatalf("config set %s record = %#v, want %#v", testCase.path, setRecord, testCase.wantValue)
 		}
-
 	}
 	if len(calls) != 4 {
 		t.Fatalf("PutLoopInputDefault() calls = %d, want 4", len(calls))

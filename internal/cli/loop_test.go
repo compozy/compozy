@@ -1129,7 +1129,8 @@ func TestLoopRunInputsShouldNormalizeRuntimeAndRespectPromptMode(t *testing.T) {
 	t.Run("Should preserve prompted strings and sanitize authored terminal choices", func(t *testing.T) {
 		t.Parallel()
 
-		if got, err := parsePromptedLoopInput(dsl.Input{Type: dsl.InputTypeString}, "null"); err != nil || got != "null" {
+		got, err := parsePromptedLoopInput(dsl.Input{Type: dsl.InputTypeString}, "null")
+		if err != nil || got != "null" {
 			t.Fatalf("parsePromptedLoopInput(string) = %#v, %v, want literal null", got, err)
 		}
 		var output bytes.Buffer

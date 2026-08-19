@@ -35,7 +35,7 @@ func (c *lintContext) walkEntityKindSchema(nodeID dsl.NodeID, path string, schem
 		}
 	}
 	c.walkEntitySchemaMap(nodeID, path, schema[jsonSchemaPropertiesKey])
-	for _, keyword := range []string{"patternProperties", "dependentSchemas"} {
+	for _, keyword := range []string{"patternProperties", jsonSchemaDependentSchemasKey} {
 		c.walkEntitySchemaMap(nodeID, appendSchemaPath(path, keyword), schema[keyword])
 	}
 	c.walkEntitySchemaValue(nodeID, appendSchemaPath(path, jsonSchemaItemsKey), schema[jsonSchemaItemsKey])
@@ -57,7 +57,7 @@ func (c *lintContext) walkEntityKindSchema(nodeID dsl.NodeID, path string, schem
 			)
 		}
 	}
-	for _, keyword := range []string{"not", "if", "then", "else", "contains"} {
+	for _, keyword := range []string{"not", "if", jsonSchemaThenKey, "else", "contains"} {
 		c.walkEntitySchemaValue(nodeID, appendSchemaPath(path, keyword), schema[keyword])
 	}
 }

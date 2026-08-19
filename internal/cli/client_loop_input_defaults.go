@@ -15,7 +15,7 @@ func (c *daemonClient) GetLoopInputDefaults(
 	scope contract.LoopInputDefaultsScope,
 ) (contract.LoopInputDefaultsResponse, error) {
 	var response contract.LoopInputDefaultsResponse
-	query := url.Values{"scope": []string{string(scope)}}
+	query := url.Values{automationScopeKey: []string{string(scope)}}
 	path := loopDefinitionPath(workspaceID, name) + "/input-defaults"
 	if err := c.doJSON(ctx, http.MethodGet, path, query, nil, &response); err != nil {
 		return contract.LoopInputDefaultsResponse{}, err

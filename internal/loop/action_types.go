@@ -31,6 +31,8 @@ const (
 	jsonSchemaAllOfKey                = "allOf"
 	jsonSchemaAnyOfKey                = "anyOf"
 	jsonSchemaOneOfKey                = "oneOf"
+	jsonSchemaDependentSchemasKey     = "dependentSchemas"
+	jsonSchemaThenKey                 = "then"
 	jsonSchemaStringType              = "string"
 	jsonSchemaArrayType               = "array"
 	jsonSchemaBooleanType             = "boolean"

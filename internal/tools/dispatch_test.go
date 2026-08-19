@@ -1063,7 +1063,10 @@ func TestRuntimeRegistryDispatchResultLimitingAndRedaction(t *testing.T) {
 			!strings.Contains(string(data), `"max_output_tokens":128000`) {
 			t.Fatalf("result = %s, want public model token limits preserved", data)
 		}
-		if !strings.Contains(string(data), `"token":{"default":"staging","description":"Public deployment token name","enum":["staging","production"],"required":true,"type":"string"}`) {
+		wantTokenDeclaration :=
+			`"token":{"default":"staging","description":"Public deployment token name",` +
+				`"enum":["staging","production"],"required":true,"type":"string"}`
+		if !strings.Contains(string(data), wantTokenDeclaration) {
 			t.Fatalf("result = %s, want token-named input declaration preserved", data)
 		}
 		if !strings.Contains(string(data), `"secret":{"ref":{"kind":"secret"},"type":"ref"}`) {

@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"maps"
 	"sort"
 	"strconv"
 	"strings"
@@ -76,12 +77,8 @@ func promptForMissingLoopInputs(
 		return nil, fmt.Errorf("cli: resolve configured Loop input defaults: %w", err)
 	}
 	satisfied := make(map[string]any, len(configured)+len(values))
-	for field, value := range configured {
-		satisfied[field] = value
-	}
-	for field, value := range values {
-		satisfied[field] = value
-	}
+	maps.Copy(satisfied, configured)
+	maps.Copy(satisfied, values)
 	missing := missingRequiredLoopInputs(definition, satisfied)
 	if len(missing) == 0 {
 		return values, nil
@@ -327,12 +324,8 @@ func effectiveConfiguredLoopInputs(
 		return nil, err
 	}
 	values := make(map[string]any, len(global.Values)+len(workspace.Values))
-	for field, value := range global.Values {
-		values[field] = value
-	}
-	for field, value := range workspace.Values {
-		values[field] = value
-	}
+	maps.Copy(values, global.Values)
+	maps.Copy(values, workspace.Values)
 	return values, nil
 }
 

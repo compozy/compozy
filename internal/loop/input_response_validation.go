@@ -59,57 +59,122 @@ func (s *service) walkResponseEntities(
 	schema map[string]any,
 	value any,
 ) error {
-	if _, hasEnum := schema[jsonSchemaEnumKey]; !hasEnum {
-		if rawKind, exists := schema[jsonSchemaEntityKindKey]; exists {
-			kind, ok := rawKind.(string)
-			entityKind := dsl.EntityKind(strings.TrimSpace(kind))
-			if !ok || !entityKind.Valid() {
-				return &InputValidationError{
-					Loop: loopName, Field: path, Origin: InputOriginResponse,
-					Reason: InputValidationReasonInvalidKindPayload,
-					Err:    fmt.Errorf("response entity kind is invalid"),
-				}
-			}
-			input := entityKindInput(entityKind)
-			return validateEntityInput(
-				ctx, workspaceID, entityKind, path, input, value,
-				InputOriginResponse, loopName, s.inputEntities,
-			)
+	if err := s.validateResponseEntityAnnotation(
+		ctx, workspaceID, loopName, path, schema, value,
+	); err != nil {
+		return err
+	}
+	if err := s.walkResponseObjectEntities(ctx, workspaceID, loopName, path, schema, value); err != nil {
+		return err
+	}
+	if err := s.walkResponseArrayEntities(ctx, workspaceID, loopName, path, schema, value); err != nil {
+		return err
+	}
+	if err := s.walkResponseCompositionEntities(ctx, workspaceID, loopName, path, schema, value); err != nil {
+		return err
+	}
+	if err := s.walkResponseConditionalEntities(ctx, workspaceID, loopName, path, schema, value); err != nil {
+		return err
+	}
+	if err := s.walkResponseContainsEntities(ctx, workspaceID, loopName, path, schema, value); err != nil {
+		return err
+	}
+	if err := s.walkResponsePropertyNameEntities(ctx, workspaceID, loopName, path, schema, value); err != nil {
+		return err
+	}
+	return s.walkResponsePrefixItemEntities(ctx, workspaceID, loopName, path, schema, value)
+}
+
+func (s *service) validateResponseEntityAnnotation(
+	ctx context.Context,
+	workspaceID WorkspaceID,
+	loopName string,
+	path string,
+	schema map[string]any,
+	value any,
+) error {
+	if _, hasEnum := schema[jsonSchemaEnumKey]; hasEnum {
+		return nil
+	}
+	rawKind, exists := schema[jsonSchemaEntityKindKey]
+	if !exists {
+		return nil
+	}
+	kind, ok := rawKind.(string)
+	entityKind := dsl.EntityKind(strings.TrimSpace(kind))
+	if !ok || !entityKind.Valid() {
+		return &InputValidationError{
+			Loop: loopName, Field: path, Origin: InputOriginResponse,
+			Reason: InputValidationReasonInvalidKindPayload,
+			Err:    fmt.Errorf("response entity kind is invalid"),
 		}
 	}
+	return validateEntityInput(
+		ctx, workspaceID, entityKind, path, entityKindInput(entityKind), value,
+		InputOriginResponse, loopName, s.inputEntities,
+	)
+}
+
+func (s *service) walkResponseObjectEntities(
+	ctx context.Context,
+	workspaceID WorkspaceID,
+	loopName string,
+	path string,
+	schema map[string]any,
+	value any,
+) error {
 	properties, propertiesOK := entitySchemaObject(schema[jsonSchemaPropertiesKey])
 	object, objectOK := value.(map[string]any)
-	if propertiesOK && objectOK {
-		for name, child := range properties {
-			childSchema, ok := entitySchemaObject(child)
-			childValue, present := object[name]
-			if !ok || !present {
-				continue
-			}
-			if err := s.walkResponseEntities(
-				ctx, workspaceID, loopName, appendResponsePath(path, name), childSchema, childValue,
-			); err != nil {
-				return err
-			}
+	if !propertiesOK || !objectOK {
+		return nil
+	}
+	for name, child := range properties {
+		childSchema, ok := entitySchemaObject(child)
+		childValue, present := object[name]
+		if !ok || !present {
+			continue
 		}
-		if err := s.walkResponseEntitySchemaMaps(
-			ctx, workspaceID, loopName, path, schema, object,
+		if err := s.walkResponseEntities(
+			ctx, workspaceID, loopName, appendResponsePath(path, name), childSchema, childValue,
 		); err != nil {
 			return err
 		}
 	}
+	return s.walkResponseEntitySchemaMaps(ctx, workspaceID, loopName, path, schema, object)
+}
+
+func (s *service) walkResponseArrayEntities(
+	ctx context.Context,
+	workspaceID WorkspaceID,
+	loopName string,
+	path string,
+	schema map[string]any,
+	value any,
+) error {
 	itemSchema, itemsOK := entitySchemaObject(schema[jsonSchemaItemsKey])
-	items, valueIsList := value.([]any)
-	if itemsOK && valueIsList {
-		for index, item := range items {
-			if err := s.walkResponseEntities(
-				ctx, workspaceID, loopName,
-				appendResponsePath(path, strconv.Itoa(index)), itemSchema, item,
-			); err != nil {
-				return err
-			}
+	items, ok := value.([]any)
+	if !itemsOK || !ok {
+		return nil
+	}
+	for index, item := range items {
+		if err := s.walkResponseEntities(
+			ctx, workspaceID, loopName,
+			appendResponsePath(path, strconv.Itoa(index)), itemSchema, item,
+		); err != nil {
+			return err
 		}
 	}
+	return nil
+}
+
+func (s *service) walkResponseCompositionEntities(
+	ctx context.Context,
+	workspaceID WorkspaceID,
+	loopName string,
+	path string,
+	schema map[string]any,
+	value any,
+) error {
 	for _, keyword := range []string{jsonSchemaAllOfKey, jsonSchemaAnyOfKey, jsonSchemaOneOfKey} {
 		branches, ok := entitySchemaList(schema[keyword])
 		if !ok {
@@ -127,10 +192,21 @@ func (s *service) walkResponseEntities(
 			}
 		}
 	}
+	return nil
+}
+
+func (s *service) walkResponseConditionalEntities(
+	ctx context.Context,
+	workspaceID WorkspaceID,
+	loopName string,
+	path string,
+	schema map[string]any,
+	value any,
+) error {
 	if condition, ok := entitySchemaObject(schema["if"]); ok {
 		keyword := "else"
 		if responseSchemaApplies(condition, value) {
-			keyword = "then"
+			keyword = jsonSchemaThenKey
 		}
 		if branch, branchOK := entitySchemaObject(schema[keyword]); branchOK {
 			if err := s.walkResponseEntities(ctx, workspaceID, loopName, path, branch, value); err != nil {
@@ -138,6 +214,18 @@ func (s *service) walkResponseEntities(
 			}
 		}
 	}
+	return nil
+}
+
+func (s *service) walkResponseContainsEntities(
+	ctx context.Context,
+	workspaceID WorkspaceID,
+	loopName string,
+	path string,
+	schema map[string]any,
+	value any,
+) error {
+	items, valueIsList := value.([]any)
 	if contains, ok := entitySchemaObject(schema["contains"]); ok && valueIsList {
 		for index, item := range items {
 			if !responseSchemaApplies(contains, item) {
@@ -150,6 +238,18 @@ func (s *service) walkResponseEntities(
 			}
 		}
 	}
+	return nil
+}
+
+func (s *service) walkResponsePropertyNameEntities(
+	ctx context.Context,
+	workspaceID WorkspaceID,
+	loopName string,
+	path string,
+	schema map[string]any,
+	value any,
+) error {
+	object, objectOK := value.(map[string]any)
 	if names, ok := entitySchemaObject(schema["propertyNames"]); ok && objectOK {
 		for name := range object {
 			if err := s.walkResponseEntities(
@@ -159,6 +259,18 @@ func (s *service) walkResponseEntities(
 			}
 		}
 	}
+	return nil
+}
+
+func (s *service) walkResponsePrefixItemEntities(
+	ctx context.Context,
+	workspaceID WorkspaceID,
+	loopName string,
+	path string,
+	schema map[string]any,
+	value any,
+) error {
+	items, valueIsList := value.([]any)
 	if prefixSchemas, ok := entitySchemaList(schema["prefixItems"]); ok && valueIsList {
 		for index, child := range prefixSchemas {
 			if index >= len(items) {
@@ -186,7 +298,7 @@ func (s *service) walkResponseEntitySchemaMaps(
 	schema map[string]any,
 	value map[string]any,
 ) error {
-	for _, keyword := range []string{"dependentSchemas"} {
+	for _, keyword := range []string{jsonSchemaDependentSchemasKey} {
 		children, ok := entitySchemaObject(schema[keyword])
 		if !ok {
 			continue

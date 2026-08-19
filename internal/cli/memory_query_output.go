@@ -177,7 +177,7 @@ func memoryHealthBundle(view MemoryHealthRecord) outputBundle {
 				[]string{
 					memoryStatusKey,
 					memoryEnabledKey,
-					"configured",
+					cliConfiguredKey,
 					"global_files",
 					"workspace_files",
 					"operation_count",

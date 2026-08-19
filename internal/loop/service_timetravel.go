@@ -6,7 +6,6 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
-	"maps"
 	"strings"
 	"time"
 
@@ -149,78 +148,31 @@ func (s *service) ForkRun(ctx context.Context, input ForkInput) (StartResult, er
 	if !ok {
 		return StartResult{}, fmt.Errorf("%w: time-travel store is unavailable", ErrActionDependencyMissing)
 	}
-	source, err := s.store.GetLoopRun(ctx, input.WorkspaceID, input.RunID)
+	prepared, err := s.prepareForkRun(ctx, input)
 	if err != nil {
 		return StartResult{}, err
 	}
-	if err := s.rejectExecutingTimeTravelSelfOperation(ctx, source, input.Actor); err != nil {
-		return StartResult{}, err
-	}
-	outputs, err := requireTimeTravelOutputs(
-		ctx, s.store, source, int(input.Generation), ReasonCodeForkGenerationUnknown, ErrForkGenerationUnknown,
+	child, err := s.forkChildRun(
+		ctx, prepared.source, prepared.snapshot, prepared.values, input,
 	)
 	if err != nil {
 		return StartResult{}, err
 	}
-	for _, output := range outputs {
-		if !generationOutputSettled(output.Status) {
-			return StartResult{}, reasonError(
-				ReasonCodeForkGenerationUnknown,
-				ErrForkGenerationUnknown,
-				map[string]string{
-					metadataGenerationKey: fmt.Sprintf("%d", input.Generation),
-					metadataNodeIDKey:     output.NodeID,
-					namespaceStatusKey:    output.Status,
-				},
-			)
-		}
-	}
-	snapshot, err := s.store.GetLoopDefinitionSnapshot(ctx, source.WorkspaceID, source.DefinitionDigest)
+	seed := forkSeedOutputs(prepared.outputs)
+	digest, err := forkRequestDigest(prepared.source, input)
 	if err != nil {
 		return StartResult{}, err
 	}
-	resolved, err := LoadExecutedDefinitionSnapshot(snapshot.Definition, source.DefinitionDigest)
-	if err != nil {
-		return StartResult{}, err
-	}
-	values := make(map[string]any, len(source.Inputs)+len(input.Inputs))
-	maps.Copy(values, source.Inputs)
-	maps.Copy(values, input.Inputs)
-	values, err = ResolveInputs(resolved.Definition, Inputs{Values: values})
-	if err != nil {
-		return StartResult{}, err
-	}
-	origins := make(map[string]InputOrigin, len(values))
-	for field := range values {
-		origins[field] = InputOriginRun
-	}
-	if err := s.validateResolvedInputEntities(
-		ctx,
-		input.WorkspaceID,
-		resolved.Definition.Meta.Name,
-		resolved.Definition,
-		ResolvedInputs{Values: values, Origins: origins},
-	); err != nil {
-		return StartResult{}, err
-	}
-	child, err := s.forkChildRun(ctx, source, snapshot.Definition, values, input)
-	if err != nil {
-		return StartResult{}, err
-	}
-	seed := forkSeedOutputs(outputs)
-	digest, err := forkRequestDigest(source, input)
-	if err != nil {
-		return StartResult{}, err
-	}
-	op, err := newTimeTravelOp("fork", input.RequestID, digest, source, input.Actor, input.Reason, "", nil,
+	op, err := newTimeTravelOp("fork", input.RequestID, digest, prepared.source, input.Actor, input.Reason, "", nil,
 		child.ID, nil, s.now())
 	if err != nil {
 		return StartResult{}, err
 	}
 	op.SourceGeneration = new(input.Generation)
 	created, replayed, err := store.CreateFork(ctx, ForkStoreRequest{
-		Source: &source, Child: &child, SeedOutputs: seed, Concurrency: resolved.Defaults.Concurrency,
-		Operation: op, RequestDigest: digest, IdempotencyKey: strings.TrimSpace(input.RequestID), At: s.now(),
+		Source: &prepared.source, Child: &child, SeedOutputs: seed,
+		Concurrency: prepared.resolved.Defaults.Concurrency,
+		Operation:   op, RequestDigest: digest, IdempotencyKey: strings.TrimSpace(input.RequestID), At: s.now(),
 	})
 	if err != nil {
 		return StartResult{}, err
