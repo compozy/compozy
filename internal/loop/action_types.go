@@ -13,22 +13,34 @@ import (
 )
 
 const (
-	defaultActionSessionHandle = "main"
-	actionCancelMaxWait        = 5 * time.Second
-	actionCancelWaitGrace      = 100 * time.Millisecond
-	harvestKindSync            = "sync"
-	harvestKindEventRange      = "event_range"
-	harvestKindAsync           = "async"
-	harvestKindChannelResult   = "channel_result"
-	actionDependencyMetaKey    = "dependency"
-	actionKindMetaKey          = "kind"
-	outputSchemaParamKey       = "output_schema"
-	jsonSchemaTypeKey          = "type"
-	jsonSchemaObjectType       = "object"
-	jsonSchemaPropertiesKey    = "properties"
-	jsonSchemaRequiredKey      = "required"
-	jsonSchemaStringType       = "string"
-	jsonSchemaTitleKey         = "title"
+	defaultActionSessionHandle        = "main"
+	actionCancelMaxWait               = 5 * time.Second
+	actionCancelWaitGrace             = 100 * time.Millisecond
+	harvestKindSync                   = "sync"
+	harvestKindEventRange             = "event_range"
+	harvestKindAsync                  = "async"
+	harvestKindChannelResult          = "channel_result"
+	actionDependencyMetaKey           = "dependency"
+	actionKindMetaKey                 = "kind"
+	outputSchemaParamKey              = "output_schema"
+	jsonSchemaTypeKey                 = "type"
+	jsonSchemaObjectType              = "object"
+	jsonSchemaPropertiesKey           = "properties"
+	jsonSchemaRequiredKey             = "required"
+	jsonSchemaAdditionalPropertiesKey = "additionalProperties"
+	jsonSchemaAllOfKey                = "allOf"
+	jsonSchemaAnyOfKey                = "anyOf"
+	jsonSchemaOneOfKey                = "oneOf"
+	jsonSchemaDependentSchemasKey     = "dependentSchemas"
+	jsonSchemaThenKey                 = "then"
+	jsonSchemaStringType              = "string"
+	jsonSchemaArrayType               = "array"
+	jsonSchemaBooleanType             = "boolean"
+	jsonSchemaNumberType              = "number"
+	jsonSchemaIntegerType             = "integer"
+	jsonSchemaNullType                = "null"
+	jsonSchemaTitleKey                = "title"
+	jsonSchemaEntityKindKey           = "x-compozy-kind"
 )
 
 var (
@@ -84,7 +96,6 @@ type ActionExecutionInput struct {
 	CorrelationID             string
 	RuntimeSelection          *ActionRuntimeSelection
 	Environment               *dsl.EnvironmentSpec
-	AllowedTools              []string
 	OriginSessionID           string
 	ProvenanceParentSessionID string
 	OriginCreationProfileRef  string
@@ -95,6 +106,7 @@ type ActionExecutionInput struct {
 	PersistedTaskTokensUsed   int64
 	GoalSegmentEpoch          int64
 	NetworkParticipation      *participation.Spec
+	AdmittedParams            dsl.NodeParams
 }
 
 // ActionRuntimeSelection carries the runtime inputs shared by runtime-aware action executors.

@@ -81,24 +81,9 @@ func (r *CoordinatorRunner) ExecuteActionRun(
 	if err != nil {
 		return task.RunResult{}, err
 	}
-	input.RetryFailure, err = r.actionRetryFailure(ctx, actionCtx.loopRun, actionCtx.meta)
-	if err != nil {
+	if err := r.configureActionExecutionInput(ctx, taskRun, &actionCtx, &input); err != nil {
 		return task.RunResult{}, err
 	}
-	input.UsageReporter = actionUsageReporterFromContext(ctx)
-	if input.RuntimeSelection == nil {
-		input.RuntimeSelection = &ActionRuntimeSelection{}
-	}
-	if r.runtimeCatalog != nil {
-		input.RuntimeSelection.Catalog, err = r.runtimeCatalog.ForWorkspace(ctx, actionCtx.loopRun.WorkspaceID)
-		if err != nil {
-			return task.RunResult{}, err
-		}
-	}
-	if recorder, ok := r.outputs.(ActionAppliedRuntimeRecorder); ok {
-		input.RuntimeSelection.Recorder = recorder
-	}
-	input.PersistedTaskTokensUsed = taskRun.TokensUsed
 	executor, err := r.resolvePinnedActionExecutor(ctx, input.ToolScope, &actionCtx)
 	if err != nil {
 		return task.RunResult{}, err

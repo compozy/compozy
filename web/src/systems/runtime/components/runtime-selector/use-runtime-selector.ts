@@ -24,6 +24,7 @@ export interface UseRuntimeSelectorArgs {
   onChange: (next: RuntimeSelectorValue) => void;
   providers: RuntimeProviderOption[];
   models: RuntimeModelOption[];
+  allowCustomProvider?: boolean;
 }
 
 function resolveActiveCustomProvider(
@@ -37,7 +38,13 @@ function resolveActiveCustomProvider(
   return providerById.has(selectedProvider) ? selectedProvider : "";
 }
 
-export function useRuntimeSelector({ value, onChange, providers, models }: UseRuntimeSelectorArgs) {
+export function useRuntimeSelector({
+  value,
+  onChange,
+  providers,
+  models,
+  allowCustomProvider = false,
+}: UseRuntimeSelectorArgs) {
   const popupStore = useStore(runtimeSelectorPopupLogic);
   const popupState = useSelector(popupStore, snapshot => snapshot.context);
   const open = popupState.phase === "open";
@@ -72,11 +79,13 @@ export function useRuntimeSelector({ value, onChange, providers, models }: UseRu
   // when it is itself a real provider. There is no default substitution: when
   // neither is a known provider this is "", which disables the custom commit
   // entirely (a custom ID with no provider target must never be emitted).
-  const activeCustomProvider = resolveActiveCustomProvider(
+  const catalogCustomProvider = resolveActiveCustomProvider(
     railFilter,
     providerById,
     value.provider
   );
+  const activeCustomProvider =
+    catalogCustomProvider || (allowCustomProvider ? value.provider.trim() : "");
 
   const listModel = buildRuntimeListModel({
     exactEntry: entryMode === "exact",
@@ -87,6 +96,7 @@ export function useRuntimeSelector({ value, onChange, providers, models }: UseRu
     providerById,
     value,
     activeCustomProvider,
+    allowCustomProvider,
     recentKeys: favorites.recents,
     isFavoriteModel,
   });
@@ -145,12 +155,19 @@ export function useRuntimeSelector({ value, onChange, providers, models }: UseRu
   };
 
   const pickCustom = (modelId: string) => {
-    const id = modelId.trim();
+    let id = modelId.trim();
     if (id.length === 0) return false;
-    const provider = activeCustomProvider;
+    let provider = activeCustomProvider;
+    if (provider.length === 0 && allowCustomProvider) {
+      const separator = id.indexOf("/");
+      if (separator <= 0 || separator === id.length - 1) return false;
+      provider = id.slice(0, separator).trim();
+      id = id.slice(separator + 1).trim();
+    }
     // Fail closed on a missing/unknown provider — a custom ID must never be
     // emitted with an empty or guessed provider (no default substitution).
-    if (provider.length === 0 || !providerById.has(provider)) return false;
+    if (provider.length === 0 || (!allowCustomProvider && !providerById.has(provider)))
+      return false;
     // A custom ID may coincide with a known row for the active provider; reuse
     // its reasoning profile, otherwise commit it as a provisional exact ID.
     emitSelection(provider, id, modelByKey.get(runtimeModelKey(provider, id)));

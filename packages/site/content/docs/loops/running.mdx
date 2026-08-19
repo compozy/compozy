@@ -3,8 +3,6 @@ title: Running and observing
 description: Fill the run form, dry-run a plan, watch generations stream live, handle approval gates, and track every run across the workspace.
 ---
 
-{/* Design reference: docs/design/opendesign/loop-run-form.html (§4.3), run-detail.html (§4.4), runs.html (§4.5) — LOOPS-DESIGN-SPEC. Daemon truth wins on divergence (ADR-017 §9). */}
-
 Running a Loop is the arrive-and-use moment: supply its declared inputs, optionally dry-run the
 plan, then watch the run stream live until it reaches one named outcome.
 
@@ -12,7 +10,12 @@ plan, then watch the run stream live until it reaches one named outcome.
 
 The run form is generated from the Loop's [declared inputs](/docs/loops/dsl-reference#declared-inputs)
 — a typed field per input, each with a type badge, a required marker, and inline validation. An
-`agent` input renders a picker; a `boolean` renders a switch. A sticky preview beside the form shows
+`agent` or `ref` input renders the matching workspace catalog, a `secret` ref lists redacted Vault
+metadata, a `runtime` input offers provider models while accepting exact custom model IDs, and a
+`boolean` renders a switch. An authored `enum` always replaces catalog choices. If a saved reference
+is no longer listed, the field keeps the exact value visible so the daemon can return the field-level
+error instead of silently replacing it. `file` remains a text field; the form does not browse or
+check the path. A sticky preview beside the form shows
 "what will run" — the contract, the verification rows, the seven terminal chips, and a lifecycle line
 — and recomputes on every change. After a successful dry-run, the preview switches to the returned
 `materialized_contract`, so input-backed goal text is exactly what the runtime will use.
@@ -25,10 +28,24 @@ Two actions submit the form:
 
 **Close** lives in the top bar and leaves the form without submitting it. A folded **Limits · this
 run only** section exposes six per-run limit overrides — iteration cap, token budget, wall-clock
-budget, no-progress window, fan-out ceiling, and gate max revisions — plus the budget-exceeded
-policy. Each numeric field shows the per-Loop default and the hard daemon ceiling, and clamps at the
-ceiling. The summary changes from "loop defaults" to "overrides set" only when a value actually
-differs.
+budget, no-progress window, fan-out window, and gate max revisions — plus the budget-exceeded
+policy. Each numeric field shows the per-Loop default and its runtime bound. The fan-out window has
+no fixed daemon cap; logical width remains bounded by each node's positive `max_fan_out`. The
+summary changes from "loop defaults" to "overrides set" only when a value actually differs.
+
+The same typed controls appear wherever Loop inputs are edited: scheduled automation, event-trigger
+mappings, fork and amend flows, and human-request answers annotated with `x-compozy-kind`. Every
+surface submits the exact stored identifier; display labels are never treated as references.
+
+From the CLI, repeat `--input key=value`. Number, boolean, and JSON values are decoded normally;
+runtime inputs also accept `provider/model@reasoning`, with `-` leaving provider or model unset. In
+an interactive terminal, `compozy loop run` prompts only for supported required inputs that remain
+missing after defaults. Use `--no-prompt` to fail instead. Structured output and non-interactive
+input never prompt, so scripts keep deterministic behavior.
+
+If validation fails, HTTP/UDS, CLI, native tools, and the web form receive the stable
+`input_validation` payload: `{ loop, field, kind?, value?, origin, reason }`. The web form attaches
+the reason to that field. No run row, task, or external action is created.
 
 <OperatorNote label="What the run form does not offer">
   There is no cost cap — cost is [display-only](/docs/loops/guardrails#cost-is-a-meter-not-a-cap).
@@ -66,6 +83,46 @@ show `score`, and the accepted baseline carries the Best marker. The run header 
 `best_generation` and `best_score` separate from the current generation, so a later regression or
 an exhausted run does not make the last attempt look like the winner.
 
+Structured status output also carries `generations[].route_causes`. Each entry identifies the route
+node or gate, selected forward node, lane index, decision cause, and time. A route condition includes
+`matched_when`; a default selection sets `default: true`. These facts are workspace-scoped and come
+from the durable `route_taken` event, so HTTP, CLI, native-tool status, and SSE replay agree.
+
+### Human requests
+
+An `ask` node parks the run until someone answers; a `review` block parks an action node until
+someone decides on the arguments it is about to run with. Both surface in the run page's **Needs
+you** region, and both are answerable from the CLI and the API too.
+
+Pending requests present one question at a time. The question is the daemon's persisted prompt,
+with its lane and deadline beside it; when several requests wait, a "Question 1 of N" header with
+previous and next controls steps through them instead of stacking forms. The rest of what the
+daemon persisted — the bounded redacted context preview, a fetch for the full redacted context,
+and the node and generation that asked — sits behind a closed **Details** disclosure under the
+answer.
+
+The answer form renders only what the daemon authorized. An ask generates its fields from the
+`expect` schema — enum values become selectable choices, booleans answer Yes or No — and a review
+shows the proposed arguments with the node's own decision allowlist; a decision the node did not
+authorize is **absent**, never a disabled button. On `edit`, the fields come pre-filled with the
+proposed arguments. Submitting disables the form and waits for the daemon: an answer that fails
+the shape comes back with the failure on the field that caused it and the request stays open, and
+a request that someone else already answered — or whose run has since ended — shows the recorded
+outcome instead of a form.
+
+Fan-out lanes each carry their own request, named by lane and answerable independently. The waits
+rail counts pending requests alongside timers and events.
+
+### Fan-out strategy and partial completion
+
+When a fan-out declares a completion strategy, the progress panel names it and its threshold, and
+separates four things a single "failed" count would blur: lanes that succeeded, lanes that failed,
+lanes the **strategy canceled**, and lanes that **never materialized** because the window did not
+open them. A `best_effort` join that met its threshold with a gap reports `partial` with its
+coverage numbers, and because partiality is a run-level fact (`completion_state`), it reads
+`partial` everywhere the outcome appears — the outcome card, the run lists, and the diff. A wide
+fan-out reports aggregate counts rather than one row per lane.
+
 ### Approval gates
 
 A `human` gate parks the run in `needs-approval` — a **live pause**, never a terminal outcome. The
@@ -96,9 +153,20 @@ the committed winner instead of starting a second cancellation path.
 ### Node controls and inventories
 
 The run page offers only the verbs valid for a node's current state: **Pause**, **Resume**,
-**Cancel**, **Kill**, and **Requeue**. Pause supports `drain` (the default) or `cancel`; Resume
-supports `plain`, `reset_attempts`, or `immediate`, and can carry a JSON payload for a manual wait.
-Requeue is available only for quarantined work and creates a bounded successor generation.
+**Cancel**, **Kill**, **Requeue**, **Amend output**, and **Rerun from here**. Pause supports `drain`
+(the default) or `cancel`; Resume supports `plain`, `reset_attempts`, or `immediate`, and can carry
+a JSON payload for a manual wait. Requeue is available only for quarantined work and creates a
+bounded successor generation.
+
+**Amend output** corrects a settled output on a parked or paused node. It appears only when the node
+declares an output shape to validate against, shows the recorded original read-only beside the
+corrected value, and takes a reason. Amendments are append-only: the recorded output is never
+rewritten, the corrected value becomes what resume and downstream reads see, and both stay visible
+in history and in a diff. Amending does not re-run consumers — pair it with **Rerun from here**.
+
+**Rerun from here** opens a new generation from a settled node. Its dialog previews the rerun set —
+the node plus everything that depends on it — and the count carried forward untouched. The verb is
+absent while the node is still parked and while a generation is in flight.
 
 Use the workspace inventories to find durable work before acting:
 
@@ -116,11 +184,13 @@ generation, node, and item identity needed by the node verbs. See
 
 ## Runs across the workspace
 
-The **Runs** view is a first-class, workspace-wide list of every execution across every Loop. A KPI
-strip surfaces "Active now," "Awaiting you" (the `needs-approval` queue), "Done today," and "Needs a
-look." An outcome filter spans the full status spectrum, rendering a segment for each status present
-in the window, plus Loop and date filters. Active and Past runs list in tables with an outcome pill,
-the Loop and run id, the goal, the generation count, timing, and a budget mini-bar.
+The **Runs** view is a first-class, workspace-wide list of every execution across every Loop. The
+window trail is Loops › Runs, so the catalog stays one click away. A KPI strip surfaces "Active now,"
+"Awaiting you" (the `needs-approval` queue), "Done today," and "Needs a look." Toolbar filter chips narrow the list by outcome — the full status vocabulary stays
+selectable, so filtering for an absent status reaches an honest empty state — by origin (catalog or
+session), or by an exact origin session id, and a Runs/Nodes switch flips the same view to the node
+inventory. Active and Past runs list in tables with an outcome pill, the Loop and run id, the goal,
+the generation count, timing, and a budget mini-bar.
 
 ## Status detail versus run summaries
 
@@ -155,7 +225,7 @@ response can therefore look like this:
 ```
 
 Origins use the closed runtime vocabulary: `initial`, `stop_when`, `reattempt`, `gate_revise`,
-`gate_next_generation`, `dod_retry`, `ratchet_restore`, and `requeue`. See
+`gate_next_generation`, `dod_retry`, `ratchet_restore`, `requeue`, `operator_rerun`, and `fork_seed`. See
 [Ratchets](/docs/loops/ratchet) for how a scored best changes succession.
 
 ## Every surface, not just the UI
@@ -173,7 +243,24 @@ Origins use the closed runtime vocabulary: `initial`, `stop_when`, `reattempt`, 
 | Resume node     | `compozy loop node resume`                      | `POST /loop-runs/:id/nodes/:node/resume`  | `compozy__loop_node_resume`                    |
 | Cancel node     | `compozy loop node cancel`                      | `POST /loop-runs/:id/nodes/:node/cancel`  | `compozy__loop_node_cancel`                    |
 | Kill node       | `compozy loop node kill`                        | `POST /loop-runs/:id/nodes/:node/kill`    | `compozy__loop_node_kill`                      |
+| Amend node      | `compozy loop node amend`                       | `POST /loop-runs/:id/nodes/:node/amend`   | `compozy__loop_node_amend`                     |
 | Requeue node    | `compozy loop node requeue`                     | `POST /loop-runs/:id/nodes/:node/requeue` | `compozy__loop_node_requeue`                   |
+| List requests   | `compozy loop requests`                         | `GET /loop-requests`                      | `compozy__loop_requests`                       |
+| Request detail  | `compozy loop request`                          | `GET /loop-runs/:id/nodes/:node/request`  | `compozy__loop_request`                        |
+| Answer request  | `compozy loop respond`                          | `POST /loop-runs/:id/nodes/:node/respond` | `compozy__loop_respond`                        |
+| Diff history    | `compozy loop diff`                             | `GET /loop-runs/:id/diff`                 | `compozy__loop_diff`                           |
+| Rerun from node | `compozy loop rerun`                            | `POST /loop-runs/:id/rerun`               | `compozy__loop_rerun`                          |
+| Fork run        | `compozy loop fork`                             | `POST /loop-runs/:id/fork`                | `compozy__loop_fork`                           |
+
+Pass `--item` or `item_index` to pause, resume, cancel, or kill one fan-out cell without changing
+its siblings. Amendments apply only to a settled output while its run, node, or cell is parked.
+They append provenance and an effective-output overlay; the recorded generation output stays
+unchanged. Resume or downstream execution reads the newest amendment. Run detail returns
+`amendments[]` with bounded, redacted values or a byte-size and content-hash summary for large data.
+There is no API that reads an amendment's private output reference directly.
+
+Run history also exposes two-way fork lineage: a child carries `forked_from`, and the source lists
+`forks`. See [Time travel](/docs/loops/time-travel) for diff, rerun, fork, and idempotency rules.
 
 Live events stream from `GET /loop-runs/:id/events` (SSE). HTTP routes are workspace-scoped under
 `/api/workspaces/{workspace_id}/…`; the [Loops API](/docs/api/loops) reference lists

@@ -2,16 +2,21 @@ package loop
 
 import (
 	"fmt"
+	"maps"
 	"sort"
 	"strings"
+	"time"
 
 	"github.com/compozy/compozy/internal/loop/gate"
 )
 
 type gateEvaluation struct {
-	runtime   gate.Gate
-	itemIndex int
-	verdict   gate.Verdict
+	runtime        *gate.Gate
+	itemIndex      int
+	verdict        gate.Verdict
+	control        NodeControl
+	evaluatedAt    time.Time
+	tracksRevision bool
 }
 
 type gateEvaluationKey struct {
@@ -20,18 +25,54 @@ type gateEvaluationKey struct {
 }
 
 type gateEvaluationCollector struct {
-	values map[gateEvaluationKey]gateEvaluation
+	values               map[gateEvaluationKey]gateEvaluation
+	predicateDiagnostics []PredicateDiagnostic
+	routeDecisions       []routeDecision
 }
 
 func (c *gateEvaluationCollector) record(runtime gate.Gate, itemIndex int, verdict gate.Verdict) {
+	c.recordEvaluation(gateEvaluation{runtime: new(runtime), itemIndex: itemIndex, verdict: verdict})
+}
+
+func (c *gateEvaluationCollector) recordWithControl(
+	runtime gate.Gate,
+	itemIndex int,
+	verdict gate.Verdict,
+	control NodeControl,
+	evaluatedAt time.Time,
+) {
+	c.recordEvaluation(gateEvaluation{
+		runtime: new(runtime), itemIndex: itemIndex, verdict: verdict, control: control,
+		evaluatedAt: evaluatedAt.UTC(), tracksRevision: true,
+	})
+}
+
+func (c *gateEvaluationCollector) recordEvaluation(evaluation gateEvaluation) {
 	if c == nil {
 		return
 	}
 	if c.values == nil {
 		c.values = make(map[gateEvaluationKey]gateEvaluation)
 	}
-	key := gateEvaluationKey{gateID: strings.TrimSpace(runtime.ID), itemIndex: itemIndex}
-	c.values[key] = gateEvaluation{runtime: runtime, itemIndex: itemIndex, verdict: verdict}
+	key := gateEvaluationKey{
+		gateID:    strings.TrimSpace(evaluation.runtime.ID),
+		itemIndex: evaluation.itemIndex,
+	}
+	c.values[key] = evaluation
+}
+
+func (c *gateEvaluationCollector) recordPredicate(diagnostics ...PredicateDiagnostic) {
+	if c == nil || len(diagnostics) == 0 {
+		return
+	}
+	c.predicateDiagnostics = append(c.predicateDiagnostics, diagnostics...)
+}
+
+func (c *gateEvaluationCollector) recordRoute(decision routeDecision) {
+	if c == nil {
+		return
+	}
+	c.routeDecisions = append(c.routeDecisions, decision.normalized())
 }
 
 func (c *gateEvaluationCollector) ordered() []gateEvaluation {
@@ -59,16 +100,61 @@ func (c *gateEvaluationCollector) routeCauses() []gateEvaluation {
 	ordered := c.ordered()
 	causes := make([]gateEvaluation, 0, len(ordered))
 	for _, evaluation := range ordered {
-		if routeCausesGeneration(evaluation.verdict.Route.Action) {
+		if evaluation.verdict.Route.Target != "" || routeCausesGeneration(evaluation.verdict.Route.Action) {
 			causes = append(causes, evaluation)
 		}
 	}
 	return causes
 }
 
+func (c *gateEvaluationCollector) gateRevisionMutations() []NodeControlMutation {
+	type revisionState struct {
+		control  NodeControl
+		counters map[int]int
+		at       time.Time
+	}
+	states := make(map[string]*revisionState)
+	for _, evaluation := range c.ordered() {
+		if !evaluation.tracksRevision || !gateRouteAdvancesRevision(evaluation.verdict.Route.Action) {
+			continue
+		}
+		gateID := strings.TrimSpace(evaluation.runtime.ID)
+		state := states[gateID]
+		if state == nil {
+			counters := maps.Clone(evaluation.control.GateRevisions)
+			if counters == nil {
+				counters = make(map[int]int, 1)
+			}
+			state = &revisionState{control: evaluation.control, counters: counters, at: evaluation.evaluatedAt}
+			states[gateID] = state
+		}
+		state.counters[evaluation.itemIndex]++
+		if evaluation.evaluatedAt.After(state.at) {
+			state.at = evaluation.evaluatedAt
+		}
+	}
+	gateIDs := make([]string, 0, len(states))
+	for gateID := range states {
+		gateIDs = append(gateIDs, gateID)
+	}
+	sort.Strings(gateIDs)
+	mutations := make([]NodeControlMutation, 0, len(gateIDs))
+	for _, gateID := range gateIDs {
+		state := states[gateID]
+		mutations = append(mutations, NodeControlMutation{
+			Kind: NodeControlMutationGateRevision, NodeID: NodeID(gateID),
+			ExpectedRevision: state.control.Revision, ExpectExisting: state.control.NodeID != "",
+			GateRevisions: state.counters, At: state.at,
+		})
+	}
+	return mutations
+}
+
+func gateRouteAdvancesRevision(action gate.RouteAction) bool {
+	return action == gate.RouteRevise || action == gate.RouteNextGeneration
+}
+
 func routeCausesGeneration(action gate.RouteAction) bool {
-	// Escalation and halt verdicts remain durable route causes for history; only
-	// routeActionForCauses selects the subset that can produce a succession plan.
 	switch action {
 	case gate.RouteRevise, gate.RouteNextGeneration, gate.RouteEscalate, gate.RouteHalt:
 		return true
@@ -108,7 +194,7 @@ func (c *gateEvaluationCollector) intents(
 		}
 		intents = append(intents, intent)
 		candidate, err := gate.BestUpdateForVerdict(
-			evaluation.runtime,
+			*evaluation.runtime,
 			evaluation.verdict,
 			int64(generation),
 			currentBest,

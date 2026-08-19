@@ -1,6 +1,8 @@
 import { infiniteQueryOptions, queryOptions } from "@tanstack/react-query";
 
 import { listLoopNodes } from "../adapters/loop-nodes-api";
+import { getLoopRequest, listLoopRequests } from "../adapters/loop-requests-api";
+import { diffLoopRun } from "../adapters/loop-timetravel-api";
 import {
   getLoop,
   getLoopAnnotations,
@@ -13,7 +15,13 @@ import {
 import { isTerminalLoopStatus } from "./loop-formatters";
 import { type LoopNodeInventoryStableFilter, loopsKeys } from "./query-keys";
 import { loopCatalogRequest, normalizeLoopCatalogFilter } from "./loops-list-query";
-import type { GoalTurnFilter, LoopCatalogStableFilter, LoopRunsFilter } from "../types";
+import type {
+  GoalTurnFilter,
+  LoopCatalogStableFilter,
+  LoopDiffQuery,
+  LoopRequestStableFilter,
+  LoopRunsFilter,
+} from "../types";
 
 const DEFAULT_STALE_TIME = 15_000;
 const DEFAULT_REFETCH_INTERVAL = 30_000;
@@ -137,6 +145,105 @@ export function loopRunDetailOptions(workspaceId: string, runId: string, enabled
     // risk, task-18 review) instead of polling a finished run forever.
     refetchInterval: query =>
       isTerminalLoopStatus(query.state.data?.run.status) ? false : LIVE_REFETCH_INTERVAL,
+    enabled: Boolean(workspaceId) && Boolean(runId) && enabled,
+  });
+}
+
+export function loopRequestsOptions(
+  workspaceId: string,
+  filters: LoopRequestStableFilter = {},
+  enabled = true
+) {
+  const normalizedFilters = {
+    ...filters,
+    state: filters.state ?? "pending",
+    limit: filters.limit ?? 50,
+  };
+  return infiniteQueryOptions({
+    queryKey: loopsKeys.requests(workspaceId, normalizedFilters),
+    queryFn: ({ pageParam, signal }) =>
+      listLoopRequests(workspaceId, { ...normalizedFilters, cursor: pageParam }, signal),
+    initialPageParam: undefined as string | undefined,
+    getNextPageParam: page => page.next_cursor || undefined,
+    staleTime: LIVE_STALE_TIME,
+    refetchInterval: LIVE_REFETCH_INTERVAL,
+    enabled: Boolean(workspaceId) && enabled,
+  });
+}
+
+export function loopRequestAttentionOptions(
+  workspaceId: string,
+  enabled = true,
+  refetchInterval: number | false = LIVE_REFETCH_INTERVAL
+) {
+  return queryOptions({
+    queryKey: loopsKeys.requestAttention(workspaceId),
+    queryFn: ({ signal }) => listLoopRequests(workspaceId, { state: "pending", limit: 50 }, signal),
+    staleTime: LIVE_STALE_TIME,
+    refetchInterval,
+    enabled: Boolean(workspaceId) && enabled,
+  });
+}
+
+export function loopRunRequestCountsOptions(workspaceId: string, enabled = true) {
+  return queryOptions({
+    queryKey: loopsKeys.runRequestCounts(workspaceId),
+    queryFn: async ({ signal }) => {
+      const counts: Record<string, number> = {};
+      let cursor: string | undefined;
+      do {
+        const page = await listLoopRequests(
+          workspaceId,
+          { state: "pending", limit: 200, cursor },
+          signal
+        );
+        for (const request of page.items) {
+          counts[request.loop_run_id] = (counts[request.loop_run_id] ?? 0) + 1;
+        }
+        cursor = page.next_cursor || undefined;
+      } while (cursor);
+      return counts;
+    },
+    staleTime: LIVE_STALE_TIME,
+    refetchInterval: LIVE_REFETCH_INTERVAL,
+    enabled: Boolean(workspaceId) && enabled,
+  });
+}
+
+export function loopRequestDetailOptions(
+  workspaceId: string,
+  runId: string,
+  generation: number,
+  nodeId: string,
+  itemIndex?: number,
+  enabled = true
+) {
+  return queryOptions({
+    queryKey: loopsKeys.requestDetail(workspaceId, runId, generation, nodeId, itemIndex),
+    queryFn: ({ signal }) =>
+      getLoopRequest({ workspaceId, runId, generation, nodeId, itemIndex }, signal),
+    staleTime: LIVE_STALE_TIME,
+    enabled: Boolean(workspaceId) && Boolean(runId) && generation > 0 && Boolean(nodeId) && enabled,
+  });
+}
+
+export function loopRunDiffOptions(
+  workspaceId: string,
+  runId: string,
+  query: LoopDiffQuery = {},
+  enabled = true
+) {
+  return queryOptions({
+    queryKey: loopsKeys.runDiff(workspaceId, runId, query),
+    queryFn: ({ signal }) => diffLoopRun({ workspaceId, runId }, query, signal),
+    staleTime: LIVE_STALE_TIME,
+    refetchInterval: settled => {
+      const data = settled.state.data;
+      if (!data) return LIVE_REFETCH_INTERVAL;
+      const bothTerminal =
+        isTerminalLoopStatus(data.base.status) && isTerminalLoopStatus(data.against.status);
+      return bothTerminal ? false : LIVE_REFETCH_INTERVAL;
+    },
     enabled: Boolean(workspaceId) && Boolean(runId) && enabled,
   });
 }

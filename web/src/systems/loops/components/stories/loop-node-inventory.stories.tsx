@@ -250,11 +250,7 @@ export const RunsRosterCanceled: Story = {
   args: {},
   render: () => (
     <div className="min-h-dvh bg-canvas p-6">
-      <LoopRunsView
-        onOutcomeChange={() => {}}
-        outcome="canceled"
-        runs={[...loopRunFixtures, ...CANCELED_RUNS]}
-      />
+      <LoopRunsView outcome="canceled" runs={[...loopRunFixtures, ...CANCELED_RUNS]} />
     </div>
   ),
 };

@@ -18,6 +18,7 @@ const (
 
 const (
 	bootstrapDefaultKey     = "default"
+	bootstrapModeKey        = "mode"
 	bootstrapPermissionsKey = "permissions"
 	bootstrapProviderKey    = "provider"
 )
@@ -83,7 +84,7 @@ func SaveBootstrapConfig(homePaths HomePaths, provider string, model string) (Co
 			return err
 		}
 		if err := editor.SetValue(
-			[]string{bootstrapPermissionsKey, "mode"},
+			[]string{bootstrapPermissionsKey, bootstrapModeKey},
 			string(PermissionModeApproveAll),
 		); err != nil {
 			return err

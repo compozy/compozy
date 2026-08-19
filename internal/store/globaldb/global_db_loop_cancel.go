@@ -10,8 +10,12 @@ import (
 
 var _ looppkg.CancellationStore = (*LoopRepo)(nil)
 
-const liveCancelOutputStatuses = "'pending','enqueued','running','retrying'," +
-	"'waiting','paused','awaiting_child','control_pending','awaiting_goal'"
+const (
+	liveCancelOutputStatuses = "'pending','enqueued','running','retrying'," +
+		"'waiting','paused','awaiting_child','control_pending','awaiting_goal'"
+	loopCancelNodeFilterSQL = " AND node_id = ?"
+	loopCancelItemFilterSQL = " AND item_index = ?"
+)
 
 // RequestRunCancellation records first-writer Run intent and fences every live node cell.
 func (g *LoopRepo) RequestRunCancellation(
@@ -46,6 +50,9 @@ func (g *LoopRepo) RequestRunCancellation(
 			return err
 		}
 		if err := projectRunCancellation(ctx, exec, mutation); err != nil {
+			return err
+		}
+		if err := claimCancellationWaits(ctx, exec, mutation, run); err != nil {
 			return err
 		}
 		result.SessionIDs, err = listRunCancellationSessions(ctx, exec, mutation)
@@ -156,6 +163,9 @@ func (g *LoopRepo) RequestNodeCancellation(
 			result.Terminal = run.Status.Terminal()
 			return nil
 		}
+		if mutation.ItemIndex != nil {
+			return g.requestNodeLaneCancellation(ctx, exec, mutation, run, &result)
+		}
 		live, err := nodeHasLiveCancellationOutputs(ctx, exec, mutation.RunID, mutation.NodeID)
 		if err != nil {
 			return err
@@ -172,6 +182,9 @@ func (g *LoopRepo) RequestNodeCancellation(
 		}
 		if result.Applied {
 			if err := fenceNodeCancellation(ctx, exec, mutation); err != nil {
+				return err
+			}
+			if err := claimCancellationWaits(ctx, exec, mutation, run); err != nil {
 				return err
 			}
 		}
@@ -442,7 +455,7 @@ func terminalizeRunCancellation(
 	mutation looppkg.CancellationMutation,
 	run looppkg.Run,
 ) error {
-	if err := claimCancellationWaits(ctx, exec, mutation); err != nil {
+	if err := claimCancellationWaits(ctx, exec, mutation, run); err != nil {
 		return err
 	}
 	if _, err := exec.ExecContext(ctx, `UPDATE loop_generation_outputs SET status = 'canceled',

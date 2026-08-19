@@ -859,6 +859,28 @@ describe("RuntimeSelector custom model id", () => {
     expect(onChange).not.toHaveBeenCalled();
   });
 
+  it("Should accept an exact provider and model when the host allows custom providers", async () => {
+    const user = userEvent.setup();
+    const { onChange } = renderSelector({
+      value: { provider: "", model: "", reasoning_effort: "" },
+      providers: [],
+      models: [],
+      props: { allowCustomProvider: true, catalogStatus: "catalog unavailable" },
+    });
+
+    await openSelector(user);
+    await user.click(screen.getByTestId("runtime-selector-custom"));
+    const exactInput = screen.getByRole("textbox", { name: "Exact runtime ID" });
+    await user.type(exactInput, "custom-acp/model-v2");
+    fireEvent.keyDown(exactInput, { key: "Enter" });
+
+    expect(onChange).toHaveBeenLastCalledWith({
+      provider: "custom-acp",
+      model: "model-v2",
+      reasoning_effort: "",
+    });
+  });
+
   it("Should offer a custom commit for the active provider even when the id is known under another provider", async () => {
     const user = userEvent.setup();
     const { onChange } = renderSelector({

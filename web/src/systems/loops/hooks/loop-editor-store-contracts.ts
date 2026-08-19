@@ -74,8 +74,19 @@ export type LoopEditorEvents = {
   };
   layoutApplied: { nodes: EditorNode[] };
   lifecycleDisposed: Record<never, never>;
-  nodeAdded: { item: PaletteItem };
-  nodeFieldChanged: { nodes: EditorNode[] };
+
+  nodeAdded: { item: PaletteItem; position?: { x: number; y: number } };
+
+  nodeAddedWithEdge: {
+    item: PaletteItem;
+    position: { x: number; y: number };
+    source: string;
+  };
+  nodeFieldChanged: { edges?: EditorEdge[]; nodes: EditorNode[] };
+
+  nodesDeleted: { nodeIds: string[] };
+
+  nodesPasted: { edges: EditorEdge[]; nodes: EditorNode[]; selectedNodeId: string };
   nodeRenamed: { edges: EditorEdge[]; nodes: EditorNode[]; selectedNodeId: string };
   nodeSelectionChanged: { id: string | null; reveal: boolean };
   positionsSaveFailed: { generation: number; scopeGeneration: number };

@@ -40,8 +40,10 @@ type service struct {
 	coordinatorActivator  CoordinatorRunActivator
 	goalLeaseRevoker      GoalPromptLeaseRevoker
 	cancellationSessions  CancellationSessionController
+	responderPolicy       ResponderPolicy
 	participationResolver participation.Resolver
 	runtimeCatalog        WorkspaceRuntimeCatalog
+	inputEntities         InputEntityCatalog
 	logger                *slog.Logger
 	now                   func() time.Time
 	newRunID              func() (RunID, error)
@@ -99,6 +101,11 @@ func (s *service) DryRun(
 	}
 	resolvedInputs, err := s.resolveEffectiveInputs(ctx, ws, loopName, resolved.Definition, inputs.Values)
 	if err != nil {
+		return nil, err
+	}
+	if err := s.validateResolvedInputEntities(
+		ctx, ws, loopName, resolved.Definition, resolvedInputs,
+	); err != nil {
 		return nil, err
 	}
 	effective, err := s.effectiveConfig(
@@ -229,6 +236,13 @@ func (s *service) Get(ctx context.Context, ws WorkspaceID, runID RunID) (*Run, e
 	run, err := s.store.GetLoopRun(ctx, ws, runID)
 	if err != nil {
 		return nil, err
+	}
+	if lineage, ok := s.store.(TimeTravelStore); ok {
+		forks, err := lineage.ListForks(ctx, ws, runID)
+		if err != nil {
+			return nil, err
+		}
+		run.SetForks(forks)
 	}
 	return &run, nil
 }

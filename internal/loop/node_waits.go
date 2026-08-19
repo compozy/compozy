@@ -17,6 +17,8 @@ const (
 	NodeWaitKindEvent = "event"
 	// NodeWaitKindApprovalEscalation parks a gate while its escalation ladder remains active.
 	NodeWaitKindApprovalEscalation = "approval_escalation"
+	// NodeWaitKindRequest parks a human request until answer, expiry, or cancellation.
+	NodeWaitKindRequest = "request"
 )
 
 // NodeWaitIntent persists one wait in the same transaction as its waiting cell.
@@ -131,7 +133,7 @@ func (i NodeWaitIntent) validate() error {
 	if i.NodeID == "" || i.ItemIndex < 0 || i.IssuedEpoch < 1 || i.CreatedAt.IsZero() {
 		return fmt.Errorf("%w: node wait intent identity is incomplete", ErrValidation)
 	}
-	if i.Kind != NodeWaitKindTimer && i.Kind != NodeWaitKindEvent && i.Kind != NodeWaitKindApprovalEscalation {
+	if !validNodeWaitKind(i.Kind) {
 		return fmt.Errorf("%w: node wait kind is invalid: %q", ErrValidation, i.Kind)
 	}
 	if i.Kind == NodeWaitKindTimer && i.ResumeAt == nil {
@@ -143,11 +145,20 @@ func (i NodeWaitIntent) validate() error {
 	if i.ClaimState != WaitClaimWaiting && i.ClaimState != WaitClaimResumed {
 		return fmt.Errorf("%w: node wait intent claim state is invalid", ErrValidation)
 	}
-	if i.ClaimState == WaitClaimResumed && (i.ClaimedByKind == "" || i.ClaimedByID == "" ||
-		i.ClaimedAt == nil || len(i.AheadPayload) == 0 || !json.Valid(i.AheadPayload)) {
+	if i.ClaimState == WaitClaimResumed && !i.hasResumeProvenance() {
 		return fmt.Errorf("%w: resumed node wait intent provenance is incomplete", ErrValidation)
 	}
 	return nil
+}
+
+func validNodeWaitKind(kind string) bool {
+	return kind == NodeWaitKindTimer || kind == NodeWaitKindEvent ||
+		kind == NodeWaitKindApprovalEscalation || kind == NodeWaitKindRequest
+}
+
+func (i NodeWaitIntent) hasResumeProvenance() bool {
+	return i.ClaimedByKind != "" && i.ClaimedByID != "" && i.ClaimedAt != nil &&
+		len(i.AheadPayload) > 0 && json.Valid(i.AheadPayload)
 }
 
 // Validate rejects wait admissions that cannot preserve identity and provenance.

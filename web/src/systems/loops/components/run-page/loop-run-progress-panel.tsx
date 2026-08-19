@@ -25,10 +25,6 @@ const SEGMENT_CLASS: Record<LoopProgressSegmentState, string> = {
   idle: "bg-badge-fill",
 };
 
-/**
- * The Progress panel (§2/§5.2): the goal as the page's title voice, the
- * done-when line, and the equal-width group bar with its plain meta line.
- */
 export function LoopRunProgressPanel({ title, doneWhen, progress }: LoopRunProgressPanelProps) {
   return (
     <LoopSection

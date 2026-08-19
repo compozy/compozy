@@ -19,7 +19,7 @@ const (
 	httpArchiveDrainLimit     = int64(64 << 10)
 )
 
-// HTTPArchiveDownloader acquires one catalog-pinned archive over HTTPS.
+// HTTPArchiveDownloader acquires one catalog-pinned archive over HTTP(S).
 type HTTPArchiveDownloader struct {
 	artifactURL string
 	version     string
@@ -34,7 +34,7 @@ func NewHTTPArchiveDownloader(
 	version string,
 	client *http.Client,
 ) (*HTTPArchiveDownloader, error) {
-	parsed, err := validateHTTPSArchiveURL(artifactURL)
+	parsed, err := validateHTTPArchiveURL(artifactURL)
 	if err != nil {
 		return nil, err
 	}
@@ -42,7 +42,7 @@ func NewHTTPArchiveDownloader(
 	if trimmedVersion == "" {
 		return nil, errors.New("registry: HTTP archive version is required")
 	}
-	policy := outboundpolicy.New(false)
+	policy := outboundpolicy.New(outboundpolicy.IsExplicitLoopbackHost(parsed.Hostname()))
 	if err := policy.ValidateURL(parsed); err != nil {
 		return nil, fmt.Errorf("registry: HTTP archive destination: %w", err)
 	}
@@ -120,10 +120,17 @@ func (d *HTTPArchiveDownloader) Download(
 	}, nil
 }
 
-func validateHTTPSArchiveURL(raw string) (*url.URL, error) {
+func validateHTTPArchiveURL(raw string) (*url.URL, error) {
 	parsed, err := url.Parse(strings.TrimSpace(raw))
-	if err != nil || parsed == nil || parsed.Scheme != "https" || parsed.Host == "" || parsed.User != nil {
+	if err != nil || parsed == nil || parsed.Host == "" || parsed.User != nil {
 		return nil, errors.New("registry: HTTP archive URL must be an absolute HTTPS URL without credentials")
+	}
+	if parsed.Scheme != "https" &&
+		(parsed.Scheme != "http" || !outboundpolicy.IsExplicitLoopbackHost(parsed.Hostname())) {
+		return nil, errors.New(
+			"registry: HTTP archive URL must be an absolute HTTPS URL without credentials; " +
+				"HTTP is allowed only for loopback hosts",
+		)
 	}
 	if parsed.Fragment != "" {
 		return nil, errors.New("registry: HTTP archive URL must not contain a fragment")

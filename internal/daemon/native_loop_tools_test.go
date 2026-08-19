@@ -514,6 +514,46 @@ func TestDaemonNativeLoopTools(t *testing.T) {
 		}
 	})
 
+	t.Run("Should amend one addressed node cell through the native tool", func(t *testing.T) {
+		t.Parallel()
+
+		loopSvc := &nativeLoopServiceStub{amendLoopNodeFn: func(
+			_ context.Context, workspaceID, runID, nodeID string,
+			req contract.LoopNodeAmendRequest, actor taskpkg.ActorContext,
+		) (contract.LoopNodeAmendResponse, error) {
+			if workspaceID != "ws-alpha" || runID != "run-1" || nodeID != "repair" ||
+				req.ItemIndex != 3 || string(req.Payload) != `{"value":"fixed"}` ||
+				actor.Actor.Kind.Normalize() != taskpkg.ActorKindAgentSession {
+				t.Fatalf("AmendLoopNode request = %s/%s/%s %#v actor=%#v", workspaceID, runID, nodeID, req, actor)
+			}
+			return contract.LoopNodeAmendResponse{OK: true, Amendment: contract.LoopNodeAmendmentPayload{
+				LoopRunID: runID, Generation: 2, NodeID: nodeID, ItemIndex: req.ItemIndex,
+				Sequence: 1, Amended: req.Payload,
+			}}, nil
+		}}
+		registry := newDaemonNativeRegistry(t, &daemonNativeToolsDeps{
+			Sessions: nativeNetworkTestSessionManager("ws-alpha"),
+			Loops:    func() core.LoopService { return loopSvc },
+		}, nativeApproveAllPolicyInputs())
+		result, err := registry.Call(t.Context(),
+			toolspkg.Scope{SessionID: "sess-alpha", WorkspaceID: "ws-alpha"},
+			toolspkg.CallRequest{
+				ToolID: toolspkg.ToolIDLoopNodeAmend,
+				Input: json.RawMessage(
+					`{"run_id":"run-1","node_id":"repair","item_index":3,"payload":{"value":"fixed"}}`,
+				),
+			},
+		)
+		if err != nil {
+			t.Fatalf("Registry.Call(loop_node_amend) error = %v", err)
+		}
+		var response contract.LoopNodeAmendResponse
+		if err := json.Unmarshal(result.Structured, &response); err != nil || !response.OK ||
+			response.Amendment.ItemIndex != 3 || response.Amendment.Sequence != 1 {
+			t.Fatalf("loop_node_amend structured result = %s, error = %v", result.Structured, err)
+		}
+	})
+
 	t.Run("Should route dry run through loop service with native tool actor", func(t *testing.T) {
 		t.Parallel()
 
@@ -645,7 +685,7 @@ func TestDaemonNativeLoopTools(t *testing.T) {
 		)
 	})
 
-	t.Run("Should return typed input-default diagnostics for native submissions", func(t *testing.T) {
+	t.Run("Should return typed input validation diagnostics for native submissions", func(t *testing.T) {
 		t.Parallel()
 
 		registry := newDaemonNativeRegistry(t, &daemonNativeToolsDeps{
@@ -661,10 +701,9 @@ func TestDaemonNativeLoopTools(t *testing.T) {
 						taskpkg.ActorContext,
 						bool,
 					) (contract.RunLoopResponse, error) {
-						return contract.RunLoopResponse{}, &looppkg.InputDefaultError{
-							Loop:   "review-and-fix",
-							Key:    "unknown",
-							Reason: looppkg.InputDefaultReasonUnknownInput,
+						return contract.RunLoopResponse{}, &looppkg.InputValidationError{
+							Loop: "review-and-fix", Field: "unknown", Origin: looppkg.InputOriginRun,
+							Reason: looppkg.InputValidationReasonUnknownInput,
 							Err:    errors.New("input is not declared"),
 						}
 					},
@@ -682,20 +721,21 @@ func TestDaemonNativeLoopTools(t *testing.T) {
 		)
 		toolErr, toolErrMatched := errors.AsType[*toolspkg.ToolError](err)
 		if !toolErrMatched || toolErr.Code != toolspkg.ErrorCodeInvalidInput {
-			t.Fatalf("Registry.Call(loop_run input default) error = %#v, want invalid-input ToolError", err)
+			t.Fatalf("Registry.Call(loop_run input validation) error = %#v, want invalid-input ToolError", err)
 		}
 		if toolErr.PartialResult == nil {
-			t.Fatalf("loop_run input-default ToolError = %#v, want structured partial result", toolErr)
+			t.Fatalf("loop_run input validation ToolError = %#v, want structured partial result", toolErr)
 		}
 		structured := string(toolErr.PartialResult.Structured)
 		for _, want := range []string{
-			`"input_default"`,
+			`"input_validation"`,
 			`"loop":"review-and-fix"`,
-			`"key":"unknown"`,
+			`"field":"unknown"`,
+			`"origin":"run"`,
 			`"reason":"unknown_input"`,
 		} {
 			if !strings.Contains(structured, want) {
-				t.Fatalf("loop_run input-default structured payload = %s, want %s", structured, want)
+				t.Fatalf("loop_run input validation structured payload = %s, want %s", structured, want)
 			}
 		}
 	})
@@ -1318,6 +1358,7 @@ type nativeLoopServiceStub struct {
 	cancelLoopNodeFn               func(context.Context, string, string, string, contract.LoopNodeMutationRequest, taskpkg.ActorContext) (contract.LoopMutationResponse, error)
 	killLoopNodeFn                 func(context.Context, string, string, string, contract.LoopNodeMutationRequest, taskpkg.ActorContext) (contract.LoopMutationResponse, error)
 	requeueLoopNodeFn              func(context.Context, string, string, string, contract.LoopNodeMutationRequest, taskpkg.ActorContext) (contract.LoopMutationResponse, error)
+	amendLoopNodeFn                func(context.Context, string, string, string, contract.LoopNodeAmendRequest, taskpkg.ActorContext) (contract.LoopNodeAmendResponse, error)
 }
 
 var _ core.LoopService = (*nativeLoopServiceStub)(nil)
@@ -1580,6 +1621,24 @@ func (s *nativeLoopServiceStub) GetLoopRun(
 	return contract.LoopRunResponse{}, errors.New("unexpected GetLoopRun call")
 }
 
+func (s *nativeLoopServiceStub) DiffLoopRun(
+	context.Context, string, string, looppkg.DiffQuery,
+) (contract.LoopDiffResponse, error) {
+	return contract.LoopDiffResponse{}, errors.New("unexpected DiffLoopRun call")
+}
+
+func (s *nativeLoopServiceStub) RerunLoopRun(
+	context.Context, string, string, contract.RerunLoopRequest, taskpkg.ActorContext,
+) (contract.RerunLoopResponse, error) {
+	return contract.RerunLoopResponse{}, errors.New("unexpected RerunLoopRun call")
+}
+
+func (s *nativeLoopServiceStub) ForkLoopRun(
+	context.Context, string, string, contract.ForkLoopRequest, taskpkg.ActorContext,
+) (contract.ForkLoopResponse, error) {
+	return contract.ForkLoopResponse{}, errors.New("unexpected ForkLoopRun call")
+}
+
 func (s *nativeLoopServiceStub) CancelLoopRun(
 	ctx context.Context,
 	workspaceID string,
@@ -1720,6 +1779,50 @@ func (s *nativeLoopServiceStub) ApproveLoopRun(
 		return s.approveLoopRunFn(ctx, workspaceID, runID, req, actor)
 	}
 	return errors.New("unexpected ApproveLoopRun call")
+}
+
+func (s *nativeLoopServiceStub) ListLoopRequests(
+	context.Context,
+	string,
+	core.LoopRequestListQuery,
+) (contract.LoopRequestsResponse, error) {
+	return contract.LoopRequestsResponse{}, errors.New("unexpected ListLoopRequests call")
+}
+
+func (s *nativeLoopServiceStub) GetLoopRequest(
+	context.Context,
+	string,
+	string,
+	int,
+	string,
+	int,
+) (contract.LoopRequestPayload, error) {
+	return contract.LoopRequestPayload{}, errors.New("unexpected GetLoopRequest call")
+}
+
+func (s *nativeLoopServiceStub) RespondLoopRequest(
+	context.Context,
+	string,
+	string,
+	string,
+	contract.RespondLoopRequest,
+	taskpkg.ActorContext,
+) (contract.RespondLoopRequestResponse, error) {
+	return contract.RespondLoopRequestResponse{}, errors.New("unexpected RespondLoopRequest call")
+}
+
+func (s *nativeLoopServiceStub) AmendLoopNode(
+	ctx context.Context,
+	workspaceID string,
+	runID string,
+	nodeID string,
+	req contract.LoopNodeAmendRequest,
+	actor taskpkg.ActorContext,
+) (contract.LoopNodeAmendResponse, error) {
+	if s.amendLoopNodeFn != nil {
+		return s.amendLoopNodeFn(ctx, workspaceID, runID, nodeID, req, actor)
+	}
+	return contract.LoopNodeAmendResponse{}, errors.New("unexpected AmendLoopNode call")
 }
 
 func (s *nativeLoopServiceStub) ListLoopRunEvents(

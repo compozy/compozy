@@ -3,7 +3,7 @@ id: LP-run-detail-story-redesign
 area: LP
 title: Read a live run as a plain-language story on the redesigned run detail
 persona: Lea
-journey: J-04
+journey: J-complete-partial-loop
 expected: The run detail uses the materialized contract for its plain-language Progress story, shows bounded Goal criterion diagnostics and warnings in the turn timeline, and keeps the raw executed definition plus every operator fact reachable through Inspect.
 entry_points: web /loop-runs/:id; GET /loop-runs/:id; SSE /loop-runs/:id/events; topbar ⋯ Inspect
 qa_status: pass
@@ -12,7 +12,7 @@ fix_status:
 retest_status:
 fix_commits:
 evidence: docs/qa/evidence/2026-08-10-loop-convergence/run-detail-goal-diagnostics.png; docs/qa/evidence/2026-08-10-loop-convergence/run-detail-inspect.png; docs/qa/evidence/2026-08-10-loop-convergence/raw-loop-definition.png; /Users/pedronauck/dev/qa-labs/compozy-loop-convergence-20260810-034845-371840-lab/qa-artifacts/qa/qa-audit-report.md
-last_report: docs/qa/reports/2026-08-10-loop-convergence.md
+last_report: docs/qa/reports/2026-08-18-graph-eng.md
 overlaps: LP-009;LP-014;LP-016;LP-044;LP-action-failure-detail
 ---
 
@@ -34,3 +34,5 @@ QA result 2026-08-10: Lea opened the completed Run in the Web app. Progress show
 Goal and definition of done, the expanded timeline showed both command verdicts and their durable
 diagnostics, and Inspect exposed the raw authored definition and runtime facts. The browser console
 reported no errors.
+
+reset: the story timeline gains the graph-completion row families — request lifecycle, route taken, branch pruned, node amended, run forked (.compozy/tasks/graph-eng/task_08.md). The recorded pass predates them.

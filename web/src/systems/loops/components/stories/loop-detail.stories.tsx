@@ -3,6 +3,7 @@ import type { Meta, StoryObj } from "@storybook/react-vite";
 import { LoopDetailView } from "../detail/loop-detail";
 import type { LoopBindingRow } from "../../lib/loop-bindings";
 import { readLoopGraph } from "../../lib/loop-graph";
+import { releaseTrainDetail } from "../../mocks";
 import {
   loopCatalogFixtures,
   loopDetailByName,
@@ -118,5 +119,30 @@ export const NoBindings: Story = {
         onAddSchedule={noop}
       />
     </>
+  ),
+};
+
+export const GraphCompletionGlyphs: Story = {
+  args: {},
+  render: () => (
+    <LoopDetailView
+      aggregate={catalogEntry.aggregate_30d}
+      bindings={[]}
+      bindingsLoading={false}
+      deleteError={null}
+      deletePending={false}
+      effectiveConfig={{ ...loopEffectiveConfigFixture, ...config }}
+      graph={readLoopGraph(releaseTrainDetail.definition)}
+      loop={releaseTrainDetail}
+      onAddSchedule={noop}
+      onAddTrigger={noop}
+      onConfigure={noop}
+      onDelete={async () => undefined}
+      onDeleteReset={noop}
+      onOpenEditor={noop}
+      onRun={noop}
+      recentRuns={[]}
+      successRate={catalogEntry.success_rate_30d}
+    />
   ),
 };

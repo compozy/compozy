@@ -37,6 +37,12 @@ vi.mock("@/systems/workspace/hooks/use-active-worktree", () => ({
 vi.mock("../use-worktree-scope", () => ({ useFocusedWorktreeScopeId: vi.fn(() => "window:one") }));
 vi.mock("@/systems/loops", () => ({
   useLoopNodeExists: vi.fn(() => false),
+  useLoopRequestAttention: vi.fn(() => ({
+    pendingCount: 0,
+    items: [],
+    disconnected: false,
+    loading: false,
+  })),
 }));
 // The summary and policy hooks own their own suites; this one is about how the
 // shell composes them against the scoped modal queries.
@@ -50,7 +56,8 @@ vi.mock("../use-attention-policy", () => ({
   })),
 }));
 
-import { useLoopNodeExists } from "@/systems/loops";
+import { useLoopNodeExists, useLoopRequestAttention } from "@/systems/loops";
+import { pendingAskRequest } from "@/systems/loops/mocks/fixture-graph-eng-requests";
 import { useAttentionSummary } from "../use-attention-summary";
 import { useOsAttention } from "../use-os-attention";
 import { useSessions, type SessionPayload } from "@/systems/session";
@@ -139,6 +146,12 @@ describe("useOsAttention", () => {
     vi.mocked(useAttentionSummary).mockReturnValue({
       summary: { needsYou: 0, finished: 0 },
       stale: false,
+      loading: false,
+    });
+    vi.mocked(useLoopRequestAttention).mockReturnValue({
+      pendingCount: 0,
+      items: [],
+      disconnected: false,
       loading: false,
     });
   });
@@ -256,5 +269,34 @@ describe("useOsAttention", () => {
       },
     ]);
     expect(result.current.notificationCount).toBe(0);
+  });
+
+  it("Should compose exact healthy loop totals and rows without changing session counts", () => {
+    vi.mocked(useAttentionSummary).mockReturnValue({
+      summary: { needsYou: 2, finished: 0 },
+      stale: false,
+      loading: false,
+    });
+    vi.mocked(useLoopRequestAttention).mockReturnValue({
+      pendingCount: 4,
+      items: [
+        {
+          request: pendingAskRequest,
+          workspaceId: "ws_alpha",
+          workspaceLabel: "alpha",
+          stale: false,
+        },
+      ],
+      disconnected: true,
+      loading: false,
+    });
+    vi.mocked(useSessions).mockReturnValue(sessionsQuery({ data: [] }));
+
+    const { result } = renderHook(() => useOsAttention(workspace, "live", false));
+
+    expect(result.current.badges).toMatchObject({ sessions: 2, loops: 4 });
+    expect(result.current.notificationCount).toBe(6);
+    expect(result.current.loopRequestsDisconnected).toBe(true);
+    expect(result.current.sections.needsYou[0]).toMatchObject({ kind: "loop-request" });
   });
 });

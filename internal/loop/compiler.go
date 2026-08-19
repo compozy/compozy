@@ -82,16 +82,16 @@ type ResolvedDefaults struct {
 // Compile lints, parses templates/CEL, snapshots tool schemas, and folds defaults.
 func (c *Compiler) Compile(def dsl.Definition) (*ResolvedDefinition, error) {
 	def.Normalize()
-	if err := ValidateDefinitionInputDefaults(def); err != nil {
-		return nil, err
-	}
-	if err := ValidateDefinitionRuntime(context.Background(), nil, def); err != nil {
-		return nil, err
-	}
 	lintErrors := c.linter.Lint(def)
 	blockingErrors := blockingLintErrors(lintErrors)
 	if len(blockingErrors) > 0 {
 		return nil, &LintFailedError{Errors: blockingErrors}
+	}
+	if err := ValidateDefinitionInputs(def); err != nil {
+		return nil, err
+	}
+	if err := ValidateDefinitionRuntime(context.Background(), nil, def); err != nil {
+		return nil, err
 	}
 	if err := normalizeDefinitionParticipation(&def); err != nil {
 		return nil, fmt.Errorf("normalize Loop definition participation: %w", err)
@@ -126,7 +126,7 @@ func (c *Compiler) Compile(def dsl.Definition) (*ResolvedDefinition, error) {
 		return nil, err
 	}
 	for _, node := range definition.Graph.Nodes {
-		namespace := ctx.namespace(ctx.inFanoutScope(node.ID), ctx.hasTriggerStart())
+		namespace := ctx.namespaceForNode(node.ID, ctx.hasTriggerStart())
 		if err := compileNode(resolved, node, namespace, ctx); err != nil {
 			return nil, err
 		}
@@ -265,10 +265,10 @@ func compileContract(
 		}
 		resolved.Templates[item.name] = template
 	}
-	if strings.TrimSpace(def.Contract.StopWhen) == "" {
+	if strings.TrimSpace(def.Contract.StopWhen.Expr) == "" {
 		return compileContractVerification(resolved, def, namespace)
 	}
-	condition, err := ctx.compileCondition(def.Contract.StopWhen, namespace)
+	condition, err := ctx.compileCondition(def.Contract.StopWhen.Expr, namespace)
 	if err != nil {
 		return fmt.Errorf("compile contract.stop_when: %w", err)
 	}

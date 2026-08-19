@@ -100,7 +100,6 @@ export const lifecycleAuthoredDetail: LoopDetail = withNode(
   LIFECYCLE_EXECUTE_TASK
 );
 
-/** The authored contract terminal reactions (ADR-010 §1). */
 export const contractTerminalsDetail: LoopDetail = {
   ...qualityGate,
   definition: {
@@ -163,19 +162,19 @@ export const fullLifecycleDetail: LoopDetail = (() => {
 })();
 
 /**
- * A definition that trips one blocking error (fan-out over the ceiling) AND one warning
+ * A definition that trips one blocking error (fan-out lacks a positive bound) AND one warning
  * (`wait_expiry_without_path`) at the same time — the dock's severity-split state.
  */
 export const lintErrorAndWarningDetail: LoopDetail = withNode(waitWarningDetail, "implement", {
-  max_fan_out: 80,
+  max_fan_out: 0,
 });
 
 /** The issue list a publish 422 returns in the rejected-chrome fixtures. */
 export const PUBLISH_REJECTED_ISSUES = [
   {
     node_id: "implement",
-    code: "fan_out_ceiling_exceeded",
-    message: "max_fan_out (80) exceeds the daemon ceiling of 64.",
+    code: "fan_out_unbounded",
+    message: "fan-out must declare collection and a positive max_fan_out.",
     severity: "error" as const,
   },
   {

@@ -103,9 +103,6 @@ func locateInstallManifestRoot(
 			}, nil
 		}
 
-		if descended {
-			return nil, "", nil, fmt.Errorf("%w: %q", errInstallMissingManifest, currentName)
-		}
 		nextName, descend, descendErr := singleExtractionDirectory(current)
 		if descendErr != nil {
 			return nil, "", nil, descendErr
@@ -114,11 +111,10 @@ func locateInstallManifestRoot(
 			return nil, "", nil, fmt.Errorf("%w: %q", errInstallMissingManifest, currentName)
 		}
 		if isClientSpecificInstallDirectory(nextName) {
-			return nil, "", nil, fmt.Errorf(
-				"%w: archive contains client-specific layout %q; Agent Plugins require plugin.json at the package root",
-				errInstallMissingManifest,
-				nextName+"/plugin.json",
-			)
+			return nil, "", nil, &ClientSpecificPluginLayoutError{Layout: nextName}
+		}
+		if descended {
+			return nil, "", nil, fmt.Errorf("%w: %q", errInstallMissingManifest, currentName)
 		}
 
 		next, openErr := current.OpenDirectory(nextName)
@@ -173,7 +169,7 @@ func closeInstallManifestSearchOnError(
 
 func isClientSpecificInstallDirectory(name string) bool {
 	switch strings.TrimSpace(name) {
-	case ".claude-plugin", ".codex-plugin", ".cursor-plugin":
+	case installerClaudePluginDirectory, ".codex-plugin", ".cursor-plugin":
 		return true
 	default:
 		return false
@@ -233,6 +229,7 @@ func singleExtractionDirectory(root *fileutil.Directory) (string, bool, error) {
 		return "", false, fmt.Errorf("registry: read extracted root: %w", err)
 	}
 	directoryName := ""
+	clientSpecificDirectoryName := ""
 	fileCount := 0
 	for _, name := range names {
 		directory, openErr := root.OpenDirectory(name)
@@ -241,6 +238,9 @@ func singleExtractionDirectory(root *fileutil.Directory) (string, bool, error) {
 				return "", false, fmt.Errorf("registry: close extracted directory %q: %w", name, closeErr)
 			}
 			directoryName = name
+			if isClientSpecificInstallDirectory(name) {
+				clientSpecificDirectoryName = name
+			}
 			continue
 		}
 		if !errors.Is(openErr, fileutil.ErrNotDirectory) {
@@ -262,6 +262,9 @@ func singleExtractionDirectory(root *fileutil.Directory) (string, bool, error) {
 			return "", false, fmt.Errorf("registry: close extracted file %q: %w", name, closeErr)
 		}
 		fileCount++
+	}
+	if clientSpecificDirectoryName != "" {
+		return clientSpecificDirectoryName, true, nil
 	}
 	return directoryName, directoryName != "" && fileCount == 0 && len(names) == 1, nil
 }

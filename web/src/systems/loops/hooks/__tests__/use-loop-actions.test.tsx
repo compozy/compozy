@@ -8,15 +8,23 @@ import { compozyApiMock } from "@/storybook/openapi-msw";
 import { createMswFetch } from "@/test/msw-fetch";
 import { handlers } from "@/systems/loops/mocks";
 import {
+  useAmendLoopNode,
   useApproveLoopRun,
   useCreateLoop,
   useDeleteLoop,
+  useForkLoopRun,
   usePatchLoop,
   usePauseLoopRun,
   usePutLoopConfig,
+  useRerunLoopRun,
+  useRespondLoopRequest,
   useRunLoop,
   useValidateLoop,
 } from "@/systems/loops";
+import {
+  GRAPH_ENG_FORK_RUN_ID,
+  GRAPH_ENG_RUN_ID,
+} from "@/systems/loops/mocks/fixture-graph-eng-requests";
 
 const WS = "ws_1";
 
@@ -239,5 +247,126 @@ describe("loop mutation hooks", () => {
       });
     });
     expect(invalidate).not.toHaveBeenCalledWith({ queryKey: ["loops", "runs", WS] });
+  });
+});
+
+describe("graph-completion mutation hooks", () => {
+  beforeEach(() => {
+    vi.stubGlobal(
+      "fetch",
+      createMswFetch(() => handlers)
+    );
+  });
+
+  afterEach(() => {
+    vi.restoreAllMocks();
+    vi.unstubAllGlobals();
+  });
+
+  const REQUEST_KEYS = [
+    ["loops", "run-detail", WS, GRAPH_ENG_RUN_ID],
+    ["loops", "runs", WS],
+    ["loops", "node-inventory", WS],
+    ["loops", "requests", WS],
+  ];
+
+  it("Should reconcile an answered request through every owner key without an optimistic paint", async () => {
+    const { queryClient, invalidate, wrapper } = setup();
+    const setData = vi.spyOn(queryClient, "setQueryData");
+    const { result } = renderHook(() => useRespondLoopRequest(), { wrapper });
+
+    await result.current.mutateAsync({
+      workspaceId: WS,
+      runId: GRAPH_ENG_RUN_ID,
+      nodeId: "confirm-rollout",
+      data: { generation: 3, payload: { regions: ["eu"], canary: true } },
+    });
+
+    await waitFor(() => {
+      expect(invalidate).toHaveBeenCalledWith({ queryKey: REQUEST_KEYS[0] });
+    });
+    for (const queryKey of REQUEST_KEYS) {
+      expect(invalidate).toHaveBeenCalledWith({ queryKey });
+    }
+
+    expect(setData).not.toHaveBeenCalled();
+  });
+
+  it("Should still reconcile after the daemon refuses the answer", async () => {
+    const { invalidate, wrapper } = setup();
+    const { result } = renderHook(() => useRespondLoopRequest(), { wrapper });
+
+    await expect(
+      result.current.mutateAsync({
+        workspaceId: WS,
+        runId: GRAPH_ENG_RUN_ID,
+        nodeId: "confirm-rollout",
+        data: { generation: 3, payload: { regions: [] } },
+      })
+    ).rejects.toMatchObject({ code: "request_validation_failed" });
+
+    await waitFor(() => {
+      expect(invalidate).toHaveBeenCalledWith({ queryKey: ["loops", "requests", WS] });
+    });
+  });
+
+  it("Should reconcile an amendment through the request lifecycle key set", async () => {
+    const { invalidate, wrapper } = setup();
+    const { result } = renderHook(() => useAmendLoopNode(), { wrapper });
+
+    await result.current.mutateAsync({
+      workspaceId: WS,
+      runId: GRAPH_ENG_RUN_ID,
+      nodeId: "render-notes",
+      data: { payload: { risk: "medium" }, reason: "over-rated" },
+    });
+
+    await waitFor(() => {
+      expect(invalidate).toHaveBeenCalledWith({ queryKey: REQUEST_KEYS[0] });
+    });
+    for (const queryKey of REQUEST_KEYS) {
+      expect(invalidate).toHaveBeenCalledWith({ queryKey });
+    }
+  });
+
+  it("Should invalidate the run and every cached comparison after a rerun", async () => {
+    const { invalidate, wrapper } = setup();
+    const { result } = renderHook(() => useRerunLoopRun(), { wrapper });
+
+    await result.current.mutateAsync({
+      workspaceId: WS,
+      runId: GRAPH_ENG_RUN_ID,
+      data: { from_node: "render-notes" },
+    });
+
+    await waitFor(() => {
+      expect(invalidate).toHaveBeenCalledWith({
+        queryKey: ["loops", "run-detail", WS, GRAPH_ENG_RUN_ID],
+      });
+    });
+    expect(invalidate).toHaveBeenCalledWith({ queryKey: ["loops", "run-diff"] });
+    expect(invalidate).toHaveBeenCalledWith({ queryKey: ["loops", "runs", WS] });
+    expect(invalidate).toHaveBeenCalledWith({ queryKey: ["loops", "catalog", WS] });
+  });
+
+  it("Should invalidate both sides of the lineage after a fork", async () => {
+    const { invalidate, wrapper } = setup();
+    const { result } = renderHook(() => useForkLoopRun(), { wrapper });
+
+    const created = await result.current.mutateAsync({
+      workspaceId: WS,
+      runId: GRAPH_ENG_RUN_ID,
+      data: { generation: 2, inputs: { severity: "p0" } },
+    });
+    expect(created.run.id).toBe(GRAPH_ENG_FORK_RUN_ID);
+
+    await waitFor(() => {
+      expect(invalidate).toHaveBeenCalledWith({
+        queryKey: ["loops", "run-detail", WS, GRAPH_ENG_RUN_ID],
+      });
+    });
+    expect(invalidate).toHaveBeenCalledWith({
+      queryKey: ["loops", "run-detail", WS, GRAPH_ENG_FORK_RUN_ID],
+    });
   });
 });

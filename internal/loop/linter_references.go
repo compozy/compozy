@@ -2,6 +2,7 @@ package loop
 
 import (
 	"fmt"
+	"slices"
 	"strings"
 
 	"github.com/compozy/compozy/internal/loop/dsl"
@@ -20,8 +21,8 @@ func (c *lintContext) lintContractReferences(namespace refs.Namespace) {
 			c.warnUnknownOutputReferences("", template.References, narrativeNamespace)
 		}
 	}
-	if strings.TrimSpace(c.def.Contract.StopWhen) != "" {
-		condition, err := c.compileCondition(c.def.Contract.StopWhen, namespace)
+	if strings.TrimSpace(c.def.Contract.StopWhen.Expr) != "" {
+		condition, err := c.compileCondition(c.def.Contract.StopWhen.Expr, namespace)
 		if err != nil {
 			c.addRefsError("", err)
 		} else if condition != nil {
@@ -145,6 +146,9 @@ func nodeStringFields(node dsl.Node) []namedString {
 		{name: "collection", value: node.Collection},
 		{name: "pattern", value: node.Pattern},
 	}
+	if node.Review != nil {
+		fields = append(fields, namedString{name: "review.prompt", value: node.Review.Prompt})
+	}
 	fields = append(fields, nodeParamStringFields(node)...)
 	for idx, criterion := range node.Criteria {
 		fields = append(
@@ -243,40 +247,80 @@ func paramsStringFieldsWithSkip(
 			continue
 		}
 		name := prefix + "." + key
-		switch typed := value.(type) {
-		case string:
-			fields = append(fields, namedString{name: name, value: typed})
-		case dsl.NodeParams:
-			fields = append(fields, paramsStringFieldsWithSkip(name, map[string]any(typed), skip)...)
-		case dsl.Schema:
-			fields = append(fields, paramsStringFieldsWithSkip(name, map[string]any(typed), skip)...)
-		case map[string]any:
-			fields = append(fields, paramsStringFieldsWithSkip(name, typed, skip)...)
-		case map[any]any:
-			converted := map[string]any{}
-			for rawKey, rawValue := range typed {
-				converted[fmt.Sprint(rawKey)] = rawValue
-			}
-			fields = append(fields, paramsStringFieldsWithSkip(name, converted, skip)...)
-		case []any:
-			for idx, item := range typed {
-				if nested, ok := item.(map[string]any); ok {
-					fields = append(
-						fields,
-						paramsStringFieldsWithSkip(fmt.Sprintf("%s[%d]", name, idx), nested, skip)...,
-					)
-				}
-			}
+		fields = append(fields, paramValueStringFields(name, value, skip)...)
+	}
+	return fields
+}
+
+func paramValueStringFields(
+	name string,
+	value any,
+	skip func(prefix string, key string) bool,
+) []namedString {
+	switch typed := value.(type) {
+	case string:
+		return []namedString{{name: name, value: typed}}
+	case dsl.NodeParams:
+		return paramsStringFieldsWithSkip(name, map[string]any(typed), skip)
+	case dsl.Schema:
+		return paramsStringFieldsWithSkip(name, map[string]any(typed), skip)
+	case map[string]any:
+		return paramsStringFieldsWithSkip(name, typed, skip)
+	case map[any]any:
+		converted := make(map[string]any, len(typed))
+		for rawKey, rawValue := range typed {
+			converted[fmt.Sprint(rawKey)] = rawValue
 		}
+		return paramsStringFieldsWithSkip(name, converted, skip)
+	case []any:
+		return paramListStringFields(name, typed, skip)
+	case []dsl.Schema:
+		values := make([]any, len(typed))
+		for idx := range typed {
+			values[idx] = typed[idx]
+		}
+		return paramListStringFields(name, values, skip)
+	case []refs.Schema:
+		values := make([]any, len(typed))
+		for idx := range typed {
+			values[idx] = typed[idx]
+		}
+		return paramListStringFields(name, values, skip)
+	default:
+		return nil
+	}
+}
+
+func paramListStringFields(
+	name string,
+	values []any,
+	skip func(prefix string, key string) bool,
+) []namedString {
+	fields := []namedString{}
+	for idx, value := range values {
+		fields = append(
+			fields,
+			paramValueStringFields(fmt.Sprintf("%s[%d]", name, idx), value, skip)...,
+		)
 	}
 	return fields
 }
 
 func nodeConditionFields(node dsl.Node) []namedString {
-	return []namedString{
+	fields := []namedString{
 		{name: "condition", value: node.Condition},
 		{name: "filter", value: node.Filter},
 	}
+	if node.Review != nil {
+		fields = append(fields, namedString{name: "review.when", value: node.Review.When})
+	}
+	for index, route := range node.Routes {
+		fields = append(fields, namedString{
+			name:  fmt.Sprintf("routes.%d.when", index),
+			value: route.When,
+		})
+	}
+	return fields
 }
 
 func (c *lintContext) compileTemplate(
@@ -313,10 +357,20 @@ func (c *lintContext) compileCondition(
 }
 
 func (c *lintContext) conditionCompiler(namespace refs.Namespace) (*refs.ConditionCompiler, error) {
+	itemNames := make([]string, 0, len(namespace.FanoutItems)+len(namespace.FanoutIndexes))
+	for name := range namespace.FanoutItems {
+		itemNames = append(itemNames, "item:"+name)
+	}
+	for name := range namespace.FanoutIndexes {
+		itemNames = append(itemNames, "index:"+name)
+	}
+	slices.Sort(itemNames)
 	key := conditionCompilerKey{
-		allowFanout:  namespace.AllowFanout,
-		allowTrigger: namespace.AllowTrigger,
-		allowEvent:   namespace.AllowEvent,
+		allowFanout:    namespace.AllowFanout,
+		allowTrigger:   namespace.AllowTrigger,
+		allowEvent:     namespace.AllowEvent,
+		allowProgress:  namespace.AllowProgress,
+		iterationNames: strings.Join(itemNames, ","),
 	}
 	if compiler, ok := c.conditionCompilers[key]; ok {
 		return compiler, nil
@@ -337,7 +391,10 @@ func (c *lintContext) namespace(allowFanout bool, allowTrigger bool) refs.Namesp
 	nodes := map[string]refs.NodeSchema{}
 	for _, node := range c.def.Graph.Nodes {
 		schema, ok := c.outputSchema(node)
-		nodes[string(node.ID)] = refs.NodeSchema{Output: schema, HasOutput: ok}
+		nodes[string(node.ID)] = refs.NodeSchema{
+			Output: schema, HasOutput: ok,
+			HasProgress: isControlKind(node, dsl.ControlFanOut),
+		}
 	}
 	return refs.Namespace{
 		Inputs:       inputs,
@@ -347,35 +404,26 @@ func (c *lintContext) namespace(allowFanout bool, allowTrigger bool) refs.Namesp
 	}
 }
 
-func namespaceWithEvent(namespace refs.Namespace) refs.Namespace {
-	namespace.AllowEvent = true
+func (c *lintContext) namespaceForNode(nodeID dsl.NodeID, allowTrigger bool) refs.Namespace {
+	ancestors := c.fanOutAncestors(nodeID)
+	namespace := c.namespace(len(ancestors) > 0, allowTrigger)
+	namespace.AllowProgress = len(ancestors) > 0
+	namespace.FanoutItems = map[string]struct{}{}
+	namespace.FanoutIndexes = map[string]struct{}{}
+	for _, fanOut := range ancestors {
+		if name := strings.TrimSpace(fanOut.BindAs); name != "" {
+			namespace.FanoutItems[name] = struct{}{}
+		}
+		if name := strings.TrimSpace(fanOut.IndexAs); name != "" {
+			namespace.FanoutIndexes[name] = struct{}{}
+		}
+	}
 	return namespace
 }
 
-func (c *lintContext) inFanoutScope(id dsl.NodeID) bool {
-	seen := map[dsl.NodeID]struct{}{}
-	var visit func(dsl.NodeID) bool
-	visit = func(current dsl.NodeID) bool {
-		if _, ok := seen[current]; ok {
-			return false
-		}
-		seen[current] = struct{}{}
-		if node, ok := c.nodeByID[current]; ok && isCollectNode(node) {
-			return false
-		}
-		for _, previous := range c.reverse[current] {
-			node, ok := c.nodeByID[previous]
-			if ok && node.Class == dsl.NodeClassControl &&
-				dsl.ControlKind(node.Kind) == dsl.ControlFanOut {
-				return true
-			}
-			if visit(previous) {
-				return true
-			}
-		}
-		return false
-	}
-	return visit(id)
+func namespaceWithEvent(namespace refs.Namespace) refs.Namespace {
+	namespace.AllowEvent = true
+	return namespace
 }
 
 func isCollectNode(node dsl.Node) bool {

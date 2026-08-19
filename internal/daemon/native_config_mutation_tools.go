@@ -48,6 +48,9 @@ func (n *daemonNativeTools) configSet(
 		return toolspkg.ToolResult{}, nativeConfigScopeError(req.ToolID, err)
 	}
 	path := strings.Join(policy.Segments, ".")
+	if policy.Kind == compozyconfig.ConfigValueLoopInput {
+		return n.setNativeLoopInputDefault(ctx, scope, req.ToolID, target, workspaceRoot, policy.Segments, value)
+	}
 	applyService, err := n.nativeConfigApplyService(req.ToolID, target, path)
 	if err != nil {
 		return toolspkg.ToolResult{}, err
@@ -57,12 +60,15 @@ func (n *daemonNativeTools) configSet(
 		workspaceRoot,
 		target,
 		func(editor *compozyconfig.OverlayEditor) error {
-			if policy.Kind == compozyconfig.ConfigValueTable {
+			if policy.Kind == compozyconfig.ConfigValueTable ||
+				policy.Kind == compozyconfig.ConfigValueLoopInput {
 				table, ok := value.(map[string]any)
-				if !ok {
+				if ok {
+					return editor.SetTable(policy.Segments, table)
+				}
+				if policy.Kind == compozyconfig.ConfigValueTable {
 					return fmt.Errorf("daemon: config path %q requires an object", path)
 				}
-				return editor.SetTable(policy.Segments, table)
 			}
 			return editor.SetValue(policy.Segments, value)
 		},
@@ -84,6 +90,54 @@ func (n *daemonNativeTools) configSet(
 		return toolspkg.ToolResult{}, err
 	}
 	return structuredResult(payload, path)
+}
+
+func (n *daemonNativeTools) setNativeLoopInputDefault(
+	ctx context.Context,
+	scope toolspkg.Scope,
+	id toolspkg.ToolID,
+	target compozyconfig.WriteTarget,
+	workspaceRoot string,
+	path []string,
+	value any,
+) (toolspkg.ToolResult, error) {
+	workspaceID, err := n.nativeLoopWorkspaceID(ctx, id, workspaceRoot, scope)
+	if err != nil {
+		return toolspkg.ToolResult{}, err
+	}
+	inputScope := contract.LoopInputDefaultsScope(target.Scope())
+	service := n.loopService()
+	if service == nil {
+		return toolspkg.ToolResult{}, toolspkg.NewToolError(
+			toolspkg.ErrorCodeUnavailable,
+			id,
+			"Loop input-default service is unavailable",
+			toolspkg.ErrToolUnavailable,
+			toolspkg.ReasonDependencyMissing,
+		)
+	}
+	response, err := service.PutLoopInputDefault(
+		ctx,
+		workspaceID,
+		path[2],
+		path[3],
+		contract.PutLoopInputDefaultRequest{Scope: inputScope, Value: value},
+	)
+	if err != nil {
+		return toolspkg.ToolResult{}, nativeLoopToolError(id, err)
+	}
+	payload := map[string]any{
+		nativeConfigHookToolsPathKey:     strings.Join(path, "."),
+		nativeConfigHookToolsValueKey:    response.Value,
+		nativeConfigHookToolsScopeKey:    string(target.Scope()),
+		nativeConfigHookToolsTargetKey:   target.Path(),
+		nativeConfigHookToolsRedactedKey: false,
+		nativeAppliedValue:               true,
+	}
+	if err := addNativeConfigLifecycleFields(payload, strings.Join(path, ".")); err != nil {
+		return toolspkg.ToolResult{}, nativeConfigValidationError(id, err)
+	}
+	return structuredResult(payload, strings.Join(path, "."))
 }
 
 func (n *daemonNativeTools) configUnset(

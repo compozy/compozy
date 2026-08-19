@@ -112,7 +112,7 @@ func mcpInstallBundle(response *InstallSettingsMCPServerRecord) outputBundle {
 
 func configuredLabel(configured bool) string {
 	if configured {
-		return "configured"
+		return cliConfiguredKey
 	}
 	return "not configured"
 }

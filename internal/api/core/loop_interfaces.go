@@ -90,6 +90,26 @@ type LoopService interface {
 	) (contract.LoopAnnotationsResponse, error)
 	ListLoopRuns(ctx context.Context, workspaceID string, query LoopRunListQuery) (contract.LoopRunsResponse, error)
 	GetLoopRun(ctx context.Context, workspaceID string, runID string) (contract.LoopRunResponse, error)
+	DiffLoopRun(
+		ctx context.Context,
+		workspaceID string,
+		runID string,
+		query looppkg.DiffQuery,
+	) (contract.LoopDiffResponse, error)
+	RerunLoopRun(
+		context.Context,
+		string,
+		string,
+		contract.RerunLoopRequest,
+		taskpkg.ActorContext,
+	) (contract.RerunLoopResponse, error)
+	ForkLoopRun(
+		context.Context,
+		string,
+		string,
+		contract.ForkLoopRequest,
+		taskpkg.ActorContext,
+	) (contract.ForkLoopResponse, error)
 	GetSessionGoal(ctx context.Context, workspaceID string, sessionID string) (*session.GoalSnapshot, error)
 	ListGoalTurns(
 		ctx context.Context,
@@ -163,6 +183,24 @@ type LoopService interface {
 		req contract.ApproveLoopRunRequest,
 		actor taskpkg.ActorContext,
 	) error
+	ListLoopRequests(context.Context, string, LoopRequestListQuery) (contract.LoopRequestsResponse, error)
+	GetLoopRequest(context.Context, string, string, int, string, int) (contract.LoopRequestPayload, error)
+	RespondLoopRequest(
+		context.Context,
+		string,
+		string,
+		string,
+		contract.RespondLoopRequest,
+		taskpkg.ActorContext,
+	) (contract.RespondLoopRequestResponse, error)
+	AmendLoopNode(
+		context.Context,
+		string,
+		string,
+		string,
+		contract.LoopNodeAmendRequest,
+		taskpkg.ActorContext,
+	) (contract.LoopNodeAmendResponse, error)
 	ListLoopRunEvents(
 		ctx context.Context,
 		workspaceID string,
@@ -179,6 +217,14 @@ type LoopRunListQuery struct {
 	OriginSession string
 	Live          *bool
 	Limit         int
+}
+
+// LoopRequestListQuery contains request inventory filters shared by HTTP and UDS.
+type LoopRequestListQuery struct {
+	RunID  string
+	State  string
+	Cursor string
+	Limit  int
 }
 
 // LoopNodeListQuery contains workspace node-inventory filters.

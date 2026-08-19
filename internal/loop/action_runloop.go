@@ -31,7 +31,7 @@ func (e *RunLoopActionExecutor) Execute(
 		return ActionRawResult{}, err
 	}
 	defer cancel()
-	params, err := renderNodeParams(node, in.Namespace)
+	params, err := actionParams(node, in)
 	if err != nil {
 		return ActionRawResult{}, err
 	}

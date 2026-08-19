@@ -345,7 +345,7 @@ func installMarketplaceUpdateArchive(
 		ExpectedSHA256: expectedDigest,
 	}, stagingDir)
 	if err != nil {
-		err = wrapCuratedDigestMismatch(err, trust)
+		err = mapMarketplaceRegistryError(slug, wrapCuratedDigestMismatch(err, trust))
 	}
 	if observeDigestVerification != nil {
 		observeDigestVerification(trust, err)

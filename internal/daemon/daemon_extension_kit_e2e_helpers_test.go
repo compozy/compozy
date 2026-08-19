@@ -56,7 +56,7 @@ contract:
   verification: []
   terminal_states: [done, failed]
   iteration_cap: 1
-  no_progress: { window: 1, hash_fields: [] }
+  no_progress: { window: 1 }
   budget: { tokens: 0, wall_clock_sec: 0, on_exceeded: halt }
 graph:
   nodes:

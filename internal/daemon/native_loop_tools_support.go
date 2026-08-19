@@ -195,13 +195,11 @@ func nativeLoopToolError(id toolspkg.ToolID, err error) error {
 		reason = toolspkg.ReasonDependencyMissing
 	}
 	toolErr := toolspkg.NewToolError(code, id, err.Error(), fmt.Errorf("%w: %w", cause, err), reason)
-	if inputDefault, ok := errors.AsType[*looppkg.InputDefaultError](err); ok {
+	if inputValidation, ok := errors.AsType[*looppkg.InputValidationError](err); ok {
 		structured, marshalErr := json.Marshal(map[string]any{
 			nativeLoopValidationKey: contract.LoopValidationResponse{
-				Valid: false,
-				InputDefault: &contract.LoopInputDefaultErrorPayload{
-					Loop: inputDefault.Loop, Key: inputDefault.Key, Reason: string(inputDefault.Reason),
-				},
+				Valid:           false,
+				InputValidation: loopInputValidationPayload(inputValidation),
 			},
 		})
 		if marshalErr != nil {
@@ -215,10 +213,23 @@ func nativeLoopToolError(id toolspkg.ToolID, err error) error {
 		}
 		return toolErr.WithPartialResult(toolspkg.ToolResult{
 			Structured: structured,
-			Preview:    "loop input default validation failed",
+			Preview:    "loop input validation failed",
 		})
 	}
 	return toolErr
+}
+
+func loopInputValidationPayload(
+	validation *looppkg.InputValidationError,
+) *contract.LoopInputValidationErrorPayload {
+	if validation == nil {
+		return nil
+	}
+	return &contract.LoopInputValidationErrorPayload{
+		Loop: validation.Loop, Field: validation.Field,
+		Kind: validation.Kind, Value: validation.Value,
+		Origin: string(validation.Origin), Reason: string(validation.Reason),
+	}
 }
 
 func nativeLoopReasonToolError(id toolspkg.ToolID, err error) error {
@@ -354,4 +365,66 @@ type nativeLoopApproveInput struct {
 	GateID            string `json:"gate_id"`
 	Decision          string `json:"decision"`
 	ApprovalTokenHash string `json:"approval_token_hash,omitempty"`
+}
+
+type nativeLoopRequestsInput struct {
+	WorkspaceID string `json:"workspace,omitempty"`
+	RunID       string `json:"run_id,omitempty"`
+	State       string `json:"state,omitempty"`
+	Cursor      string `json:"cursor,omitempty"`
+	Limit       int    `json:"limit,omitempty"`
+}
+
+type nativeLoopRequestInput struct {
+	WorkspaceID string `json:"workspace,omitempty"`
+	RunID       string `json:"run_id"`
+	Generation  int    `json:"generation"`
+	NodeID      string `json:"node_id"`
+	ItemIndex   int    `json:"item_index,omitempty"`
+}
+
+type nativeLoopRespondInput struct {
+	WorkspaceID string          `json:"workspace,omitempty"`
+	RunID       string          `json:"run_id"`
+	Generation  int             `json:"generation"`
+	NodeID      string          `json:"node_id"`
+	ItemIndex   int             `json:"item_index,omitempty"`
+	Decision    string          `json:"decision,omitempty"`
+	Payload     json.RawMessage `json:"payload"`
+	Note        string          `json:"note,omitempty"`
+}
+
+type nativeLoopNodeAmendInput struct {
+	WorkspaceID string          `json:"workspace,omitempty"`
+	RunID       string          `json:"run_id"`
+	NodeID      string          `json:"node_id"`
+	ItemIndex   int             `json:"item_index,omitempty"`
+	Payload     json.RawMessage `json:"payload"`
+	Reason      string          `json:"reason,omitempty"`
+}
+
+type nativeLoopDiffInput struct {
+	WorkspaceID       string `json:"workspace,omitempty"`
+	RunID             string `json:"run_id"`
+	Generation        int64  `json:"generation,omitempty"`
+	AgainstGeneration int64  `json:"against_generation,omitempty"`
+	AgainstRunID      string `json:"against_run,omitempty"`
+}
+
+type nativeLoopRerunInput struct {
+	WorkspaceID string `json:"workspace,omitempty"`
+	RunID       string `json:"run_id"`
+	FromNode    string `json:"from_node"`
+	ItemIndex   *int   `json:"item_index,omitempty"`
+	Reason      string `json:"reason,omitempty"`
+	RequestID   string `json:"request_id,omitempty"`
+}
+
+type nativeLoopForkInput struct {
+	WorkspaceID string         `json:"workspace,omitempty"`
+	RunID       string         `json:"run_id"`
+	Generation  int64          `json:"generation"`
+	Inputs      map[string]any `json:"inputs,omitempty"`
+	Reason      string         `json:"reason,omitempty"`
+	RequestID   string         `json:"request_id,omitempty"`
 }

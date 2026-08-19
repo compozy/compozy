@@ -207,6 +207,7 @@ describe("buildRunStory", () => {
             generation: 3,
             parent_generation: 1,
             origin: "ratchet_restore",
+            route_causes: [],
             verdicts: [
               {
                 gate_id: "quality",
@@ -246,6 +247,7 @@ describe("buildRunStory", () => {
           generation: 1,
           parent_generation: 0,
           origin: "initial",
+          route_causes: [],
           verdicts: [
             {
               gate_id: "quality",
@@ -262,6 +264,7 @@ describe("buildRunStory", () => {
           generation: 2,
           parent_generation: 1,
           origin: "ratchet_restore",
+          route_causes: [],
           verdicts: [
             {
               gate_id: "quality",
@@ -320,6 +323,7 @@ describe("buildRunStory", () => {
             generation: 1,
             parent_generation: 0,
             origin: "initial",
+            route_causes: [],
             verdicts: [
               {
                 gate_id: "quality",
@@ -402,6 +406,7 @@ describe("buildRunStory", () => {
           generation: 2,
           parent_generation: 1,
           origin: "gate_revise",
+          route_causes: [],
           verdicts: [],
           outputs: [
             {
@@ -488,6 +493,7 @@ describe("buildNextNote", () => {
         generation: 2,
         parent_generation: 1,
         origin: "gate_revise",
+        route_causes: [],
         verdicts: [],
         outputs: [
           { node_id: "inspect_events", status: "succeeded" },
@@ -519,6 +525,7 @@ describe("buildNextNote", () => {
         generation: 1,
         parent_generation: 0,
         origin: "initial",
+        route_causes: [],
         verdicts: [],
         outputs: [{ node_id: "implement", status: "succeeded" }],
       },
@@ -701,5 +708,184 @@ describe("lifecycle story rows", () => {
     const row = rowFor("node_retry_scheduled", { node_id: "fix_batches" });
     expect(row.sub).toBeUndefined();
     expect(row.micro).toBe("node_retry_scheduled · fix_batches");
+  });
+});
+
+describe("graph completion story rows", () => {
+  function graphStoryFor(frames: Parameters<typeof buildRunStory>[0]) {
+    return buildRunStory(frames, { status: "running", graph: null });
+  }
+
+  function graphRowFor(kind: Parameters<typeof frame>[0], payload: unknown) {
+    const story = graphStoryFor([frame(kind, payload, 1)]);
+    expect(story.rows).toHaveLength(1);
+    return story.rows[0];
+  }
+
+  it("Should open a request as a parked-on-you beat naming the kind and the node", () => {
+    const ask = graphRowFor("request_opened", {
+      generation: 3,
+      node_id: "confirm-rollout",
+      item_index: 0,
+      kind: "ask",
+      prompt: "Which regions ship first?",
+    });
+    expect(ask.title).toBe("Answer requested on confirm rollout");
+    expect(ask.sub).toBe("Which regions ship first?");
+    expect(ask.tone).toBe("warning");
+    expect(ask.icon).toBe("request-opened");
+    expect(ask.micro).toBe("request_opened · confirm-rollout");
+
+    const review = graphRowFor("request_opened", {
+      generation: 3,
+      node_id: "apply-migration",
+      item_index: 2,
+      kind: "review",
+    });
+    expect(review.title).toBe("Decision requested on apply migration");
+
+    expect(review.micro).toBe("request_opened · apply-migration · lane 2");
+    expect(review.sub).toBeUndefined();
+
+    expect(
+      graphRowFor("request_opened", { node_id: "confirm-rollout", kind: "interrogate" }).title
+    ).toBe("Answer requested on confirm rollout");
+  });
+
+  it("Should attribute an answered request to its actor and carry the decision in the trail", () => {
+    const row = graphRowFor("request_answered", {
+      generation: 3,
+      node_id: "apply-migration",
+      item_index: 1,
+      decision: "approve",
+      actor_kind: "operator",
+      actor_id: "pedro",
+    });
+    expect(row.title).toBe("Answered apply migration");
+    expect(row.sub).toBe("by pedro");
+    expect(row.tone).toBe("info");
+    expect(row.icon).toBe("request-answered");
+    expect(row.micro).toBe("request_answered · apply-migration · lane 1 · approve");
+  });
+
+  it("Should read an expired request as a failure and a canceled one as a calm absence", () => {
+    const expired = graphRowFor("request_expired", {
+      generation: 3,
+      node_id: "confirm-rollout",
+    });
+    expect(expired.title).toBe("Request on confirm rollout expired");
+    expect(expired.tone).toBe("danger");
+    expect(expired.icon).toBe("request-expired");
+    expect(expired.micro).toBe("request_expired · confirm-rollout");
+
+    const canceled = graphRowFor("request_canceled", {
+      generation: 3,
+      node_id: "apply-migration",
+      actor_kind: "operator",
+      actor_id: "pedro",
+    });
+    expect(canceled.title).toBe("Request on apply migration canceled");
+
+    expect(canceled.tone).toBe("neutral");
+    expect(canceled.icon).toBe("pruned");
+    expect(canceled.sub).toBe("by pedro");
+    expect(canceled.micro).toBe("request_canceled · apply-migration");
+  });
+
+  it("Should say a default route matched no condition instead of leaving it inferred", () => {
+    const matched = graphRowFor("route_taken", {
+      generation: 3,
+      node_id: "triage",
+      route: "standard",
+      matched_when: 'inputs.severity == "p1"',
+      cause: "condition_matched",
+    });
+    expect(matched.title).toBe("triage routed to standard");
+    expect(matched.sub).toBe('matched inputs.severity == "p1"');
+    expect(matched.icon).toBe("route-taken");
+    expect(matched.tone).toBe("neutral");
+    expect(matched.micro).toBe("route_taken · triage → standard");
+
+    const fallback = graphRowFor("route_taken", {
+      generation: 1,
+      node_id: "triage",
+      route: "backlog",
+      default: true,
+      cause: "default_route",
+    });
+    expect(fallback.sub).toBe("default — no condition matched");
+    expect(fallback.icon).toBe("route-default");
+    expect(fallback.micro).toBe("route_taken · triage → backlog");
+  });
+
+  it("Should report a wide prune as one aggregate row, never one row per lane", () => {
+    const itemIndexes = Array.from({ length: 412 }, (_, index) => index + 1);
+    const row = graphRowFor("branch_pruned", {
+      generation: 3,
+      node_id: "apply-migration",
+      item_indexes: itemIndexes,
+      reason: "best_effort threshold reached",
+    });
+    expect(row.title).toBe("412 lanes of apply migration canceled by strategy");
+    expect(row.sub).toBe("best_effort threshold reached");
+    expect(row.tone).toBe("neutral");
+    expect(row.icon).toBe("pruned");
+    expect(row.micro).toBe("branch_pruned · apply-migration · 412");
+
+    expect(
+      graphRowFor("branch_pruned", { node_id: "apply-migration", item_indexes: [2] }).title
+    ).toBe("1 lane of apply migration canceled by strategy");
+
+    expect(graphRowFor("branch_pruned", { node_id: "apply-migration" }).title).toBe(
+      "apply migration canceled by strategy"
+    );
+  });
+
+  it("Should record an amendment and a fork as provenance, keeping the original in history", () => {
+    const amended = graphRowFor("node_amended", {
+      generation: 3,
+      node_id: "render-notes",
+      item_index: 0,
+      amendment_seq: 1,
+      actor_kind: "operator",
+      actor_id: "pedro",
+    });
+    expect(amended.title).toBe("Amended render notes output");
+    expect(amended.sub).toBe("by pedro · the original stays in history");
+    expect(amended.tone).toBe("info");
+    expect(amended.icon).toBe("amended");
+    expect(amended.micro).toBe("node_amended · render-notes · #1");
+
+    const forked = graphRowFor("run_forked", {
+      source_run_id: "looprun_release_train",
+      source_generation: 2,
+      fork_run_id: "looprun_release_train_fork",
+    });
+    expect(forked.title).toBe("Forked from generation 2");
+    expect(forked.sub).toBe("New run looprun_release_train_fork");
+    expect(forked.tone).toBe("info");
+    expect(forked.icon).toBe("forked");
+    expect(forked.micro).toBe("run_forked · looprun_release_train_fork");
+  });
+
+  it("Should drop a malformed graph beat without breaking the rest of the story", () => {
+    for (const kind of [
+      "request_opened",
+      "request_answered",
+      "request_expired",
+      "request_canceled",
+      "route_taken",
+      "branch_pruned",
+      "node_amended",
+    ] as const) {
+      expect(graphStoryFor([frame(kind, { generation: 3 }, 1)]).rows).toEqual([]);
+    }
+    expect(graphStoryFor([frame("run_forked", { source_generation: 2 }, 1)]).rows).toEqual([]);
+
+    const story = graphStoryFor([
+      frame("route_taken", { generation: 3 }, 1),
+      frame("route_taken", { generation: 3, node_id: "triage", route: "standard" }, 2),
+    ]);
+    expect(story.rows.map(row => row.title)).toEqual(["triage routed to standard"]);
   });
 });

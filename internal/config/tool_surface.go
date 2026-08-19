@@ -276,7 +276,7 @@ func ClassifyToolConfigPath(path []string) (PathPolicy, error) {
 		return policy, nil
 	}
 	if len(clean) == 4 && clean[0] == LoopsConfigKey && clean[1] == LoopInputsConfigKey {
-		policy.Kind = ConfigValueScalar
+		policy.Kind = ConfigValueLoopInput
 		return policy, nil
 	}
 	if configPathIsSecret(clean) {
@@ -356,24 +356,36 @@ func NormalizeToolConfigValue(kind ValueKind, value any) (any, error) {
 			return nil, fmt.Errorf("config: expected object value, got %T", value)
 		}
 		return normalizeTreeValue(table)
-	case ConfigValueScalar:
-		switch value.(type) {
-		case string, bool:
-			return value, nil
-		}
-		if normalized, ok := normalizeIntegerValue(value); ok {
-			return normalized, nil
-		}
-		if normalized, ok := normalizeUnsignedValue(value); ok {
-			return normalized, nil
-		}
-		if normalized, ok := normalizeFloatValue(value); ok {
-			return normalized, nil
-		}
-		return nil, fmt.Errorf("config: expected string, boolean, or number value, got %T", value)
+	case ConfigValueScalar, ConfigValueLoopInput:
+		return normalizeScalarConfigValue(kind, value)
 	default:
 		return nil, fmt.Errorf("config: unsupported config value kind %d", kind)
 	}
+}
+
+func normalizeScalarConfigValue(kind ValueKind, value any) (any, error) {
+	if kind == ConfigValueLoopInput {
+		if table, ok := value.(map[string]any); ok {
+			return normalizeTreeValue(table)
+		}
+	}
+	switch value.(type) {
+	case string, bool:
+		return value, nil
+	}
+	if normalized, ok := normalizeIntegerValue(value); ok {
+		return normalized, nil
+	}
+	if normalized, ok := normalizeUnsignedValue(value); ok {
+		return normalized, nil
+	}
+	if normalized, ok := normalizeFloatValue(value); ok {
+		return normalized, nil
+	}
+	if kind == ConfigValueLoopInput {
+		return nil, fmt.Errorf("config: expected string, boolean, number, or object value, got %T", value)
+	}
+	return nil, fmt.Errorf("config: expected string, boolean, or number value, got %T", value)
 }
 
 // OverlayHookDeclarations returns config-backed hook declarations from one overlay target.

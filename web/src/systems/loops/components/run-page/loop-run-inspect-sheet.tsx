@@ -27,9 +27,11 @@ import {
   LoopRunInspectTerminalStates,
   LoopRunInspectTiles,
   LoopRunInspectVerification,
+  LoopRunInspectGenerations,
   LoopRunInspectWatch,
   type LoopRunInspectTile,
 } from "./loop-run-inspect-sections";
+import { LoopRunLineageSection } from "./loop-run-lineage-section";
 import { LoopRunResolvedRuntimes } from "./loop-run-resolved-runtimes";
 
 interface LoopRunInspectSheetProps {
@@ -42,6 +44,12 @@ interface LoopRunInspectSheetProps {
   watchEvents?: LoopWatchEventsState;
   generations: readonly LoopRunGeneration[];
   frames: readonly LoopRunEventFrame[];
+
+  onOpenRun?: (runId: string) => void;
+
+  onCompareGeneration?: (generation: number) => void;
+
+  onForkGeneration?: (generation: number) => void;
 }
 
 function str(value: unknown): string {
@@ -65,6 +73,12 @@ function fanOutTileValue(graph: LoopGraph | null): string {
   const node = graph?.nodes.find(candidate => candidate.kind === "fan-out");
   if (!node) return "—";
   return fanOutSummary(node) ?? node.id;
+}
+
+function stopWhenTileValue(stopWhen: LoopDefinition["contract"]["stop_when"]): string {
+  if (!stopWhen) return "—";
+  if (typeof stopWhen === "string") return stopWhen;
+  return `${stopWhen.expr} · on error ${stopWhen.on_eval_error ?? "exit"}`;
 }
 
 /**
@@ -91,7 +105,7 @@ function buildTiles(
         ? `${verification[0].id} · ${verification[0].type}`
         : `${verification[0].id} · ${verification[0].type} +${verification.length - 1}`;
   return [
-    { label: "Stop when", value: contract?.stop_when || "—" },
+    { label: "Stop when", value: stopWhenTileValue(contract?.stop_when) },
     { label: "Verification", value: verificationValue },
     { label: "Re-attempt", value: run.reattempt_strategy },
     { label: "Concurrency", value: definition?.concurrency || "—" },
@@ -108,11 +122,6 @@ function buildTiles(
   ];
 }
 
-/**
- * The Inspect drawer (§2/§4): the operator sheet holding everything the story
- * surface dropped — stop_when, verification, policies, watch spec, fan-out
- * params, the last check's criteria, watch cursors, and the raw event frames.
- */
 export function LoopRunInspectSheet({
   open,
   onOpenChange,
@@ -123,6 +132,9 @@ export function LoopRunInspectSheet({
   watchEvents,
   generations,
   frames,
+  onOpenRun,
+  onCompareGeneration,
+  onForkGeneration,
 }: LoopRunInspectSheetProps) {
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
@@ -178,7 +190,19 @@ export function LoopRunInspectSheet({
           </div>
           <LoopRunInspectTiles tiles={buildTiles(run, definition, graph)} />
           <LoopRunInspectVerification verification={definition?.contract?.verification ?? []} />
+          <LoopRunInspectGenerations
+            generations={generations}
+            onCompareGeneration={onCompareGeneration}
+            onForkGeneration={onForkGeneration}
+          />
           <LoopRunResolvedRuntimes generations={generations} />
+          {onOpenRun ? (
+            <LoopRunLineageSection
+              forkedFrom={run.forked_from ?? null}
+              forks={run.forks}
+              onOpenRun={onOpenRun}
+            />
+          ) : null}
           <LoopRunInspectTerminalStates states={definition?.contract?.terminal_states ?? []} />
           <LoopRunInspectCriteria verdict={latestVerdict} />
           <LoopRunInspectWatch state={watchEvents} />

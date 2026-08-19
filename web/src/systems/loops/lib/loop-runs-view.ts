@@ -1,17 +1,8 @@
-import { LOOP_RUN_TERMINAL_STATUSES } from "@/generated/loop-enums";
-
 import type { LoopRun, LoopRunStatus } from "../types";
 import { isLoopRunStatus, isTerminalLoopStatus, loopStatusLabel } from "./loop-formatters";
 
-/** Canonical status order (live first, then terminal) for the outcome filter. */
-const STATUS_ORDER: readonly LoopRunStatus[] = [
-  "running",
-  "watching",
-  "needs-approval",
-  "paused",
-  "queued",
-  ...LOOP_RUN_TERMINAL_STATUSES,
-];
+/** The runs roster's client-side outcome filter: `all` or one daemon run status. */
+export type LoopOutcomeValue = "all" | LoopRunStatus;
 
 /** Terminal problem states that surface in the "Needs a look" KPI. */
 const NEEDS_A_LOOK: readonly LoopRunStatus[] = ["failed", "exhausted", "stalled", "blocked"];
@@ -70,12 +61,6 @@ export interface LoopRunKpis {
   needsALook: LoopKpi;
 }
 
-/**
- * Derives the four workspace-wide Runs KPIs from the run set (a derived read
- * model, §9.11 — truthful UI, no invented metric). "Done today" uses
- * `last_progress_at` as the terminal timestamp because the run projection exposes
- * no dedicated `ended_at`.
- */
 export function buildRunKpis(runs: readonly LoopRun[], now: Date = new Date()): LoopRunKpis {
   const counts = countByStatus(runs);
   const liveCount = LIVE_STATUSES.reduce((total, status) => total + (counts.get(status) ?? 0), 0);
@@ -105,27 +90,6 @@ export function buildRunKpis(runs: readonly LoopRun[], now: Date = new Date()): 
   };
 }
 
-export interface LoopOutcomeSegment {
-  value: "all" | LoopRunStatus;
-  label: string;
-  count: number;
-}
-
-/**
- * Builds the data-driven outcome filter: `All` plus one segment per status
- * actually present in the window, in canonical order. Paused/Queued only appear
- * once such runs exist (design §4.5).
- */
-export function buildOutcomeSegments(runs: readonly LoopRun[]): LoopOutcomeSegment[] {
-  const counts = countByStatus(runs);
-  const segments: LoopOutcomeSegment[] = [{ value: "all", label: "All", count: runs.length }];
-  for (const status of STATUS_ORDER) {
-    const count = counts.get(status) ?? 0;
-    if (count > 0) segments.push({ value: status, label: loopStatusLabel(status), count });
-  }
-  return segments;
-}
-
 export interface LoopRunPartition {
   active: LoopRun[];
   past: LoopRun[];
@@ -134,7 +98,7 @@ export interface LoopRunPartition {
 /** Splits runs into the Active (live) and Past (terminal) tables, applying the outcome filter. */
 export function partitionRuns(
   runs: readonly LoopRun[],
-  outcome: "all" | LoopRunStatus = "all"
+  outcome: LoopOutcomeValue = "all"
 ): LoopRunPartition {
   const active: LoopRun[] = [];
   const past: LoopRun[] = [];

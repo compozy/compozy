@@ -9,13 +9,6 @@ export interface LoopStatusSignal {
   pulse: boolean;
 }
 
-/**
- * The canonical `loop_run.status` -> `.pill--*` tone mapping from the design spec
- * (`LOOPS-DESIGN-SPEC.md` §3.3). Color carries STATE, never category: only live
- * `running`/`watching` pulse; terminal + quiet-live states are flat tint. Keyed by
- * every one of the 12 statuses so `make bun-typecheck` fails the day a status is
- * added without a tone (truthful UI — no coerced/guessed pills).
- */
 const LOOP_STATUS_TONE = {
   queued: "neutral",
   running: "accent",
@@ -52,7 +45,6 @@ const LOOP_STATUS_LABELS = {
   canceled: "Canceled",
 } as const satisfies Record<LoopRunStatus, string>;
 
-/** The 7 terminal statuses (ADR-013): finished, no resume. */
 const LOOP_STATUS_SET = new Set<string>(LOOP_RUN_STATUSES);
 const LOOP_TERMINAL_STATUS_SET = new Set<LoopRunStatus>(
   LOOP_RUN_TERMINAL_STATUSES satisfies readonly LoopRunStatus[]

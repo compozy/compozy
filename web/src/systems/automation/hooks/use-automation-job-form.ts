@@ -320,6 +320,7 @@ export function useAutomationJobForm({
     output,
     targetMode: jobTargetMode(draft),
     loopCatalog,
+    loopWorkspaceId,
     loopTarget,
     retry,
     cronModel,

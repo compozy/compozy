@@ -120,6 +120,8 @@ const (
 	ToolIDAgentHeartbeatWake ToolID = "compozy__agent_heartbeat_wake"
 	// ToolIDWorkspaceList lists registered workspaces.
 	ToolIDWorkspaceList ToolID = "compozy__workspace_list"
+	// ToolIDAgentList lists agent definitions visible in one workspace scope.
+	ToolIDAgentList ToolID = "compozy__agent_list"
 	// ToolIDWorkspaceInfo reads one registered workspace record.
 	ToolIDWorkspaceInfo ToolID = "compozy__workspace_info"
 	// ToolIDWorkspaceDescribe reads one resolved workspace detail projection.
@@ -142,6 +144,8 @@ const (
 	ToolIDProviderModelsStatus ToolID = "compozy__provider_models_status"
 	// ToolIDProviderModelsCurate mutates one provider model's global curation metadata.
 	ToolIDProviderModelsCurate ToolID = "compozy__provider_models_curate"
+	// ToolIDVaultList lists global redacted Vault secret metadata.
+	ToolIDVaultList ToolID = "compozy__vault_list"
 	// ToolIDMemoryList lists memory headers visible for a scope.
 	ToolIDMemoryList ToolID = "compozy__memory_list"
 	// ToolIDMemoryShow reads one memory document through the current memory store.
@@ -322,48 +326,6 @@ const (
 	ToolIDGoalGet ToolID = "compozy__goal_get"
 	// ToolIDGoalReport records one prompt-bound Goal completion or blocker intent.
 	ToolIDGoalReport ToolID = "compozy__goal_report"
-	// ToolIDLoopList lists Loop definitions available in a workspace.
-	ToolIDLoopList ToolID = "compozy__loop_list"
-	// ToolIDLoopInspect reads one Loop definition and authoring contract.
-	ToolIDLoopInspect ToolID = "compozy__loop_inspect"
-	// ToolIDLoopValidate lints and compiles one Loop definition without saving it.
-	ToolIDLoopValidate ToolID = "compozy__loop_validate"
-	// ToolIDLoopCreate creates or forks one Loop definition.
-	ToolIDLoopCreate ToolID = "compozy__loop_create"
-	// ToolIDLoopRun starts or dry-runs one Loop.
-	ToolIDLoopRun ToolID = "compozy__loop_run"
-	// ToolIDLoopStatus reads one Loop run status.
-	ToolIDLoopStatus ToolID = "compozy__loop_status"
-	// ToolIDLoopRuns lists workspace-scoped Loop runs.
-	ToolIDLoopRuns ToolID = "compozy__loop_runs"
-	// ToolIDLoopTurns lists one Loop run's total-order Goal turn audit.
-	ToolIDLoopTurns ToolID = "compozy__loop_turns"
-	// ToolIDLoopCancel requests cooperative cancellation for one Loop run.
-	ToolIDLoopCancel ToolID = "compozy__loop_cancel"
-	// ToolIDLoopKill immediately terminalizes one Loop run.
-	ToolIDLoopKill ToolID = "compozy__loop_kill"
-	// ToolIDLoopNodes lists workspace-scoped Loop node state.
-	ToolIDLoopNodes ToolID = "compozy__loop_nodes"
-	// ToolIDLoopNodePause parks one authored Loop node.
-	ToolIDLoopNodePause ToolID = "compozy__loop_node_pause"
-	// ToolIDLoopNodeResume releases one authored Loop node or manual wait.
-	ToolIDLoopNodeResume ToolID = "compozy__loop_node_resume"
-	// ToolIDLoopNodeCancel requests cooperative node cancellation.
-	ToolIDLoopNodeCancel ToolID = "compozy__loop_node_cancel"
-	// ToolIDLoopNodeKill immediately fences one Loop node.
-	ToolIDLoopNodeKill ToolID = "compozy__loop_node_kill"
-	// ToolIDLoopNodeRequeue clears one Loop node quarantine.
-	ToolIDLoopNodeRequeue ToolID = "compozy__loop_node_requeue"
-	// ToolIDLoopPause pauses one running Loop at a generation boundary.
-	ToolIDLoopPause ToolID = "compozy__loop_pause"
-	// ToolIDLoopResume resumes one paused Loop run.
-	ToolIDLoopResume ToolID = "compozy__loop_resume"
-	// ToolIDLoopConfigure writes per-loop runtime config overrides.
-	ToolIDLoopConfigure ToolID = "compozy__loop_configure"
-	// ToolIDLoopApprove applies one human-gate decision.
-	ToolIDLoopApprove ToolID = "compozy__loop_approve"
-	// ToolIDLoopDelete deletes one user-authored Loop definition.
-	ToolIDLoopDelete ToolID = "compozy__loop_delete"
 	// ToolIDAutomationJobsList lists automation jobs through the automation manager.
 	ToolIDAutomationJobsList ToolID = "compozy__automation_jobs_list"
 	// ToolIDAutomationJobsGet reads one automation job through the automation manager.
@@ -463,8 +425,6 @@ const (
 	ToolsetIDConfig ToolsetID = "compozy__config"
 	// ToolsetIDHooks groups hook introspection and mutable config-backed hook tools.
 	ToolsetIDHooks ToolsetID = "compozy__hooks"
-	// ToolsetIDLoops groups Loop authoring, execution, and run-management tools.
-	ToolsetIDLoops ToolsetID = "compozy__loops"
 	// ToolsetIDAutomation groups automation lifecycle and run inspection tools.
 	ToolsetIDAutomation ToolsetID = "compozy__automation"
 	// ToolsetIDExtensions groups extension discovery and lifecycle tools.

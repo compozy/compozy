@@ -61,6 +61,18 @@ func loopNodeControlFromGenerated(row sqlcgen.LoopNodeControl) (looppkg.NodeCont
 		UpdatedAt:               row.UpdatedAt.UTC(),
 		QuarantinedAt:           loopTimePointer(row.QuarantinedAt),
 	}
+	if err := json.Unmarshal([]byte(row.GateRevisionsJson), &control.GateRevisions); err != nil {
+		return looppkg.NodeControl{}, fmt.Errorf("store: decode gate revision counters: %w", err)
+	}
+	for itemIndex, revision := range control.GateRevisions {
+		if itemIndex < 0 || revision < 1 {
+			return looppkg.NodeControl{}, fmt.Errorf(
+				"store: invalid gate revision counter for item %d: %w",
+				itemIndex,
+				looppkg.ErrValidation,
+			)
+		}
+	}
 	if row.QuarantineEntryJson.Valid {
 		control.QuarantineEntry = json.RawMessage(row.QuarantineEntryJson.String)
 	}

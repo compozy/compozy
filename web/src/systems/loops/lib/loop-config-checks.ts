@@ -1,10 +1,5 @@
 import type { LoopContract, LoopContractVerification } from "../types";
 
-/**
- * The verification criterion type that the configure sheet may toggle without a fork.
- * Every other declared type (`agent-judge` | `human` | `extension`) is structural — it
- * is LOCKED on in the sheet, removing it needs a fork (ADR-009 / design §4.7).
- */
 const COMMAND_CHECK_TYPE = "command";
 
 /** The per-check state the configure sheet edits: the enable flag + the command override. */
@@ -133,9 +128,6 @@ export function serializeEnabledChecks(
     const state = states[descriptor.id];
     if (!state) continue;
     const command = state.command.trim();
-    // An emptied command field means "inherit the declared command" (the field placeholder
-    // shows it), never a pinned empty override — only a non-empty command that differs from
-    // the declared one is a real divergence (R-401).
     const commandDiverges = command !== "" && command !== descriptor.declaredCommand;
     if (state.enabled && !commandDiverges) continue;
     map[descriptor.id] = commandDiverges

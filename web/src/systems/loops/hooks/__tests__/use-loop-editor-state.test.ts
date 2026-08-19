@@ -1,6 +1,8 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { LoopValidationError } from "../../adapters/loops-api";
+import type { EditorEdge, EditorNode } from "../../lib/codec";
+import { loopPaletteItems, type PaletteItem } from "../../lib/loop-palette";
 import { loopDetailByName } from "../../mocks/fixtures";
 import { loopEditorLogic } from "../loop-editor-store";
 import type { ValidateLoopResult } from "../../types";
@@ -15,6 +17,41 @@ function deferred<T>() {
   return { promise, reject, resolve };
 }
 
+function editorNode(id: string, x: number): EditorNode {
+  return {
+    id,
+    type: "loopNode",
+    position: { x, y: 40 },
+    data: {
+      raw: { id, class: "action", kind: "transform" },
+      nodeClass: "action",
+      kind: "transform",
+      hasError: false,
+    },
+  };
+}
+
+function editorEdge(source: string, target: string, index: number): EditorEdge {
+  return {
+    id: `edge-${index}`,
+    source,
+    target,
+    data: { raw: { from: source, to: target } },
+  };
+}
+
+function paletteItem(kind: string): PaletteItem {
+  const item = loopPaletteItems().find(candidate => candidate.kindLabel === kind);
+  if (!item) throw new Error(`Palette item ${kind} not found`);
+  return item;
+}
+
+function loopDefinitionFixture() {
+  const detail = loopDetailByName.get("implement-tasks");
+  if (!detail) throw new Error("implement-tasks fixture not found");
+  return detail.definition;
+}
+
 afterEach(() => {
   vi.useRealTimers();
 });
@@ -25,7 +62,7 @@ describe("loopEditorLogic", () => {
   // layer: the loop editor store logic. Canonical suite: this file.
   it("accepts only the latest validation settlement", async () => {
     const store = loopEditorLogic.createStore(undefined);
-    const definition = loopDetailByName.get("implement-tasks")!.definition;
+    const definition = loopDefinitionFixture();
     const first = deferred<ValidateLoopResult>();
     const second = deferred<ValidateLoopResult>();
     const valid: ValidateLoopResult = { valid: true, errors: [] };
@@ -58,7 +95,7 @@ describe("loopEditorLogic", () => {
 
   it("Should preserve an edited draft when the same source is observed again", () => {
     const store = loopEditorLogic.createStore(undefined);
-    const definition = loopDetailByName.get("implement-tasks")!.definition;
+    const definition = loopDefinitionFixture();
     store.trigger.draftInitialized({
       definition,
       edges: [],
@@ -81,7 +118,7 @@ describe("loopEditorLogic", () => {
   it("Should debounce automatic validation to the latest store event", () => {
     vi.useFakeTimers();
     const store = loopEditorLogic.createStore(undefined);
-    const definition = loopDetailByName.get("implement-tasks")!.definition;
+    const definition = loopDefinitionFixture();
     const first = vi.fn();
     const latest = vi.fn();
     store.trigger.draftInitialized({ definition, edges: [], nodes: [] });
@@ -245,7 +282,7 @@ describe("loopEditorLogic", () => {
         errors: [
           {
             node_id: "implement",
-            code: "fan_out_ceiling_exceeded",
+            code: "fan_out_unbounded",
             message: "too wide",
             severity: "error",
           },
@@ -260,5 +297,75 @@ describe("loopEditorLogic", () => {
       expect(store.getSnapshot().context.publishRejectedIssues).toHaveLength(1);
       expect(store.getSnapshot().context.lint.validated).toBe(false);
     });
+  });
+
+  it("Should mark an explicitly positioned add dirty for both definition and annotations", () => {
+    const store = loopEditorLogic.createStore(undefined);
+    const definition = loopDefinitionFixture();
+    store.trigger.draftInitialized({
+      definition,
+      edges: [],
+      nodes: [editorNode("prepare", 40)],
+    });
+    const before = store.getSnapshot().context;
+
+    store.trigger.nodeAdded({ item: paletteItem("transform"), position: { x: 320, y: 180 } });
+
+    const after = store.getSnapshot().context;
+    expect(after.nodes.at(-1)).toMatchObject({
+      id: "transform",
+      position: { x: 320, y: 180 },
+    });
+    expect(after.isDirty).toBe(true);
+    expect(after.positionsDirty).toBe(true);
+    expect(after.positionsGeneration).toBe(before.positionsGeneration + 1);
+    expect(after.structuralRevision).toBe(before.structuralRevision + 1);
+  });
+
+  it("Should add a node and its connection in one structural transition", () => {
+    const store = loopEditorLogic.createStore(undefined);
+    const definition = loopDefinitionFixture();
+    store.trigger.draftInitialized({
+      definition,
+      edges: [],
+      nodes: [editorNode("prepare", 40)],
+    });
+    const before = store.getSnapshot().context;
+
+    store.trigger.nodeAddedWithEdge({
+      item: paletteItem("transform"),
+      position: { x: 320, y: 180 },
+      source: "prepare",
+    });
+
+    const after = store.getSnapshot().context;
+    expect(after.nodes).toHaveLength(2);
+    expect(after.edges).toHaveLength(1);
+    expect(after.edges[0]).toMatchObject({
+      source: "prepare",
+      target: "transform",
+      data: { raw: { from: "prepare", to: "transform" } },
+    });
+    expect(after.structuralRevision).toBe(before.structuralRevision + 1);
+    expect(after.validationGeneration).toBe(before.validationGeneration + 1);
+  });
+
+  it("Should prune every incident edge when nodes are deleted", () => {
+    const store = loopEditorLogic.createStore(undefined);
+    const definition = loopDefinitionFixture();
+    store.trigger.draftInitialized({
+      definition,
+      nodes: [editorNode("prepare", 40), editorNode("apply", 240), editorNode("finish", 440)],
+      edges: [editorEdge("prepare", "apply", 0), editorEdge("apply", "finish", 1)],
+    });
+    const before = store.getSnapshot().context;
+
+    store.trigger.nodesDeleted({ nodeIds: ["apply"] });
+
+    const after = store.getSnapshot().context;
+    expect(after.nodes.map(node => node.id)).toEqual(["prepare", "finish"]);
+    expect(after.edges).toEqual([]);
+    expect(after.structuralRevision).toBe(before.structuralRevision + 1);
+    expect(after.validationGeneration).toBe(before.validationGeneration + 1);
   });
 });

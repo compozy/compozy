@@ -102,6 +102,7 @@ func TestEnumsShouldClassifyLoopKinds(t *testing.T) {
 			dsl.ControlFanOut,
 			dsl.ControlCollect,
 			dsl.ControlBranch,
+			dsl.ControlRoute,
 			dsl.ControlGate,
 			dsl.ControlSubLoop,
 		} {

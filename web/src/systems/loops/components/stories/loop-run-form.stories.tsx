@@ -5,7 +5,10 @@ import { X } from "lucide-react";
 import { Button } from "@compozy/ui";
 import { expect, fireEvent, userEvent, within } from "storybook/test";
 
+import { primaryWorkspaceFixture } from "@/systems/workspace/mocks";
+
 import { LoopRunForm } from "../run-form/loop-run-form";
+import type { LoopDetail } from "../../types";
 import {
   loopDetailByName,
   loopEffectiveConfigFixture,
@@ -16,13 +19,40 @@ import { LoopsStoryShell } from "./loops-story-shell";
 const meta: Meta<typeof LoopRunForm> = {
   title: "systems/loops/components/LoopRunForm",
   component: LoopRunForm,
-  parameters: { layout: "fullscreen" },
+  parameters: {
+    layout: "fullscreen",
+    docs: {
+      description: {
+        component: "Runs a Loop from its declared typed input contract.",
+      },
+    },
+  },
 };
 
 export default meta;
 type Story = StoryObj<typeof meta>;
 
 const implementTasksLoop = loopDetailByName.get("implement-tasks")!;
+const typedInputsLoop: LoopDetail = {
+  ...implementTasksLoop,
+  definition: {
+    ...implementTasksLoop.definition,
+    inputs: {
+      slug: { type: "string", required: true },
+      reviewer: { type: "agent", default: "coder" },
+      runtime: {
+        type: "runtime",
+        default: { provider: "codex", model: "gpt-5.6", reasoning: "high" },
+      },
+      strategy: { type: "string", enum: ["focused", "broad"], default: "focused" },
+      credential: {
+        type: "ref",
+        ref: { kind: "secret" },
+        default: "vault:providers/openai/api_key",
+      },
+    },
+  },
+};
 const watchLoop = loopDetailByName.get("review-and-fix")!;
 const liveRun = loopRunFixtures.find(
   run => run.loop_name === "implement-tasks" && run.status === "running"
@@ -61,11 +91,12 @@ function RunFormShell({ children }: { children: ReactNode }) {
 
 /** The hero run form: auto-generated typed inputs and per-run Limits overrides. */
 export const ImplementTasks: Story = {
+  args: {},
   render: () => (
     <RunFormShell>
       <LoopRunForm
-        workspaceId="ws_default"
-        loop={implementTasksLoop}
+        workspaceId={primaryWorkspaceFixture.id}
+        loop={typedInputsLoop}
         effectiveConfig={{ ...loopEffectiveConfigFixture, ...implementTasksConfig }}
       />
     </RunFormShell>
@@ -75,6 +106,7 @@ export const ImplementTasks: Story = {
 /** An explicit per-run cap marks overrides without changing the saved baseline. */
 export const ImplementTasksWithRunOverride: Story = {
   ...ImplementTasks,
+  args: {},
   tags: ["play-fn"],
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
@@ -92,12 +124,13 @@ export const ImplementTasksWithRunOverride: Story = {
  * stated with a link to its page, and no control is duplicated here (US-029 EC-6).
  */
 export const AlreadyRunning: Story = {
+  args: {},
   render: () => (
     <RunFormShell>
       <LoopRunForm
         activeRun={liveRun}
-        workspaceId="ws_default"
-        loop={implementTasksLoop}
+        workspaceId={primaryWorkspaceFixture.id}
+        loop={typedInputsLoop}
         effectiveConfig={{ ...loopEffectiveConfigFixture, ...implementTasksConfig }}
       />
     </RunFormShell>
@@ -107,6 +140,7 @@ export const AlreadyRunning: Story = {
 /** Dry run stays clickable while invalid so the required-input error can paint. */
 export const RequiredInputError: Story = {
   ...ImplementTasks,
+  args: {},
   tags: ["play-fn"],
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
@@ -118,12 +152,37 @@ export const RequiredInputError: Story = {
   },
 };
 
-/** A watch loop with no declared inputs — run it directly. */
-export const NoInputs: Story = {
+/** Catalog failures stay inside the canonical runtime selector. */
+export const RuntimeCatalogUnavailable: Story = {
+  args: {},
   render: () => (
     <RunFormShell>
       <LoopRunForm
-        workspaceId="ws_default"
+        workspaceId="ws_missing"
+        loop={typedInputsLoop}
+        effectiveConfig={{ ...loopEffectiveConfigFixture, ...implementTasksConfig }}
+      />
+    </RunFormShell>
+  ),
+  tags: ["play-fn"],
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    const selector = await canvas.findByTestId("loop-run-field-input-runtime");
+    await expect(selector.tagName).toBe("BUTTON");
+    await userEvent.click(selector);
+    await expect(
+      await within(document.body).findByTestId("runtime-selector-status")
+    ).toHaveTextContent("Workspace not found: ws_missing");
+  },
+};
+
+/** A watch loop with no declared inputs — run it directly. */
+export const NoInputs: Story = {
+  args: {},
+  render: () => (
+    <RunFormShell>
+      <LoopRunForm
+        workspaceId={primaryWorkspaceFixture.id}
         loop={watchLoop}
         effectiveConfig={{
           ...loopEffectiveConfigFixture,

@@ -3,15 +3,6 @@ import { LOOP_CEILINGS } from "./loop-limits";
 import { environmentFields } from "./loop-node-environment-fields";
 import type { FieldSpec, TextFieldSpec } from "./loop-node-schema-types";
 
-/**
- * The per class/kind inspector field builders. Each returns the `FieldSpec[]` the
- * inspector renders for one node kind, derived from the canonical `compozy.loop/v1` DSL types
- * + the ADR-021 reserved kinds. Where the design mockup diverged (`action_ref`, a closed
- * 3-item kind select), the DSL wins — those fields do not exist here. Editable fields carry
- * a `path` into the raw node JSON so a single immutable setter (loop-editor-draft) applies
- * every edit and the bijective codec round-trips the rest.
- */
-
 export function str(value: unknown): string {
   if (typeof value === "string") return value;
   if (typeof value === "number" || typeof value === "boolean") return String(value);
@@ -24,9 +15,6 @@ export function idField(): TextFieldSpec {
 
 export function inputFields(raw: RawLoopNode, inputNames: string[]): FieldSpec[] {
   const current = str(raw.input_ref);
-  // Editable select over the declared inputs (ADR-023: input_ref must name a declared
-  // input). Keep the current value selectable even if it is not (yet) a declared input, and
-  // fall back to a free-text field when the Loop declares none.
   const options = current && !inputNames.includes(current) ? [current, ...inputNames] : inputNames;
   const refField: FieldSpec =
     options.length > 0
@@ -108,7 +96,7 @@ export function watchSourceFields(raw: RawLoopNode): FieldSpec[] {
       path: ["watch"],
       mono: true,
       json: true,
-      hint: "The poll → ready → settle → confirm watch specification (ADR-016). Bridge-backed source.",
+      hint: "The poll → ready → settle → confirm watch specification. Bridge-backed source.",
     },
     {
       type: "static",
@@ -159,13 +147,14 @@ export function fanOutFields(_raw: RawLoopNode): FieldSpec[] {
     },
     { type: "number", key: "batch_size", label: "Batch size", path: ["batch_size"] },
     { type: "number", key: "max_parallel", label: "Max parallel", path: ["max_parallel"] },
+    { type: "text", key: "bind_as", label: "Item name", path: ["bind_as"] },
+    { type: "text", key: "index_as", label: "Index name", path: ["index_as"] },
     {
       type: "number",
       key: "max_fan_out",
       label: "Max fan-out",
       path: ["max_fan_out"],
-      ceiling: LOOP_CEILINGS.fanOutBreadth,
-      hint: "Structural cap on materialized branches. Capped by the daemon ceiling.",
+      hint: "Required positive author bound on the total logical branches.",
     },
     {
       type: "hint",
@@ -205,7 +194,9 @@ export function gateFields(_raw: RawLoopNode): FieldSpec[] {
       label: "On pass → target",
       path: ["on_result", "pass"],
       mono: true,
-      hint: "A node id or terminal state (done/failed/…) the run routes to on a passing verdict.",
+      json: true,
+      placeholder: '"continue" or {"route":"node_id"}',
+      hint: 'Use continue, revise, next_generation, escalate, halt, or {"route":"node_id"}. The object target must be a declared forward edge.',
     },
     {
       type: "text",
@@ -213,6 +204,9 @@ export function gateFields(_raw: RawLoopNode): FieldSpec[] {
       label: "On fail → target",
       path: ["on_result", "fail"],
       mono: true,
+      json: true,
+      placeholder: '"revise" or {"route":"node_id"}',
+      hint: 'Use continue, revise, next_generation, escalate, halt, or {"route":"node_id"}. The removed branch action is rejected.',
     },
     {
       type: "number",
@@ -240,7 +234,7 @@ export function branchFields(_raw: RawLoopNode): FieldSpec[] {
       mono: true,
       reference: true,
       cel: true,
-      hint: "A CEL boolean over the loop namespace, autocompleted from the compiled reference schema (ADR-020). The visual builder is deferred.",
+      hint: "A CEL boolean over the loop namespace, autocompleted from the compiled reference schema. The visual builder is deferred.",
     },
   ];
 }
@@ -258,7 +252,7 @@ export function subLoopFields(_raw: RawLoopNode): FieldSpec[] {
     {
       type: "hint",
       key: "hint",
-      hint: "An in-graph nested body (ADR-004). Cross-definition composition uses the run-loop action instead.",
+      hint: "An in-graph nested body. Cross-definition composition uses the run-loop action instead.",
     },
   ];
 }
@@ -336,7 +330,7 @@ export function runAgentFields(raw: RawLoopNode): FieldSpec[] {
       label: "Timeout",
       path: ["timeout"],
       mono: true,
-      hint: "Per attempt. Must not exceed the deadline in Reliability (timeout_exceeds_deadline). The retry budget lives there too, plus one FREE schema-validation retry outside it (ADR-021).",
+      hint: "Per attempt. Must not exceed the deadline in Reliability (timeout_exceeds_deadline). The retry budget lives there too, plus one free schema-validation retry outside it.",
     },
     {
       type: "static",

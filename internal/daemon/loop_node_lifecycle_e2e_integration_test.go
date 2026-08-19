@@ -211,7 +211,7 @@ contract:
   verification: []
   terminal_states: [done, failed, blocked, exhausted, stalled]
   iteration_cap: 1
-  no_progress: { window: 2, hash_fields: ["nodes.prepare.output"] }
+  no_progress: { window: 2 }
   budget: { tokens: 0, wall_clock_sec: 0, on_exceeded: halt }
   on_done:
     - tool: compozy__workspace_info
@@ -241,7 +241,7 @@ contract:
   verification: []
   terminal_states: [done, failed, blocked, exhausted, stalled]
   iteration_cap: 1
-  no_progress: { window: 2, hash_fields: ["nodes.primary.output"] }
+  no_progress: { window: 2 }
   budget: { tokens: 0, wall_clock_sec: 0, on_exceeded: halt }
 graph:
   nodes:
@@ -276,7 +276,7 @@ contract:
   verification: []
   terminal_states: [done, failed, blocked, exhausted, stalled]
   iteration_cap: 1
-  no_progress: { window: 2, hash_fields: ["nodes.fallback.output"] }
+  no_progress: { window: 2 }
   budget: { tokens: 0, wall_clock_sec: 0, on_exceeded: halt }
 graph:
   nodes:
@@ -393,7 +393,7 @@ contract:
   verification: []
   terminal_states: [done, failed, blocked, exhausted, stalled]
   iteration_cap: 2
-  no_progress: { window: 2, hash_fields: ["nodes.primary.output"] }
+  no_progress: { window: 2 }
   budget: { tokens: 0, wall_clock_sec: 0, on_exceeded: halt }
 graph:
   nodes:

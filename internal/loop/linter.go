@@ -44,6 +44,7 @@ func (l *DefinitionLinter) Lint(def dsl.Definition) []LintError {
 	def.Normalize()
 	ctx := newLintContext(def, l)
 	ctx.indexGraph()
+	ctx.lintInputs()
 	ctx.lintContractShape()
 	ctx.lintNetworkParticipation()
 	ctx.lintNodeIDs()
@@ -54,9 +55,11 @@ func (l *DefinitionLinter) Lint(def dsl.Definition) []LintError {
 }
 
 type conditionCompilerKey struct {
-	allowFanout  bool
-	allowTrigger bool
-	allowEvent   bool
+	allowFanout    bool
+	allowTrigger   bool
+	allowEvent     bool
+	allowProgress  bool
+	iterationNames string
 }
 
 type lintContext struct {
@@ -142,7 +145,9 @@ func (c *lintContext) lintNodeIDs() {
 
 func (c *lintContext) lintKindsAndSchemas() {
 	for _, node := range c.def.Graph.Nodes {
+		c.lintEvalErrorPolicy(node)
 		c.lintWatchEventsEnvelopeShape(node)
+		c.lintReview(node)
 		switch node.Class {
 		case dsl.NodeClassAction:
 			c.lintActionNode(node)
@@ -155,6 +160,29 @@ func (c *lintContext) lintKindsAndSchemas() {
 		}
 	}
 	c.lintContinuousGoalHandles()
+}
+
+func (c *lintContext) lintEvalErrorPolicy(node dsl.Node) {
+	if node.OnEvalError == "" {
+		return
+	}
+	if !node.OnEvalError.Valid() {
+		c.add(node.ID, CodeEvalErrorPolicyInvalid, "on_eval_error must be fail or exit")
+		return
+	}
+	if strings.TrimSpace(node.Condition) != "" {
+		return
+	}
+	if node.Class == dsl.NodeClassControl && dsl.ControlKind(node.Kind) == dsl.ControlRoute &&
+		len(node.Routes) > 0 {
+		return
+	}
+	for _, subscription := range node.Events {
+		if strings.TrimSpace(subscription.Filter) != "" {
+			return
+		}
+	}
+	c.add(node.ID, CodeEvalErrorPolicyInvalid, "on_eval_error requires a condition or filter")
 }
 
 func (c *lintContext) lintActionNode(node dsl.Node) {
@@ -201,6 +229,8 @@ func (c *lintContext) lintControlNode(node dsl.Node) {
 		if strings.TrimSpace(node.Condition) == "" {
 			c.add(node.ID, refs.CodeConditionNotBool, "branch condition is required")
 		}
+	case dsl.ControlRoute:
+		c.lintRoute(node)
 	case dsl.ControlGate:
 		c.lintGate(node)
 	case dsl.ControlSubLoop:
@@ -209,35 +239,14 @@ func (c *lintContext) lintControlNode(node dsl.Node) {
 			return
 		}
 		c.lintSubLoopBody(node)
-	}
-}
-
-func (c *lintContext) lintFanOut(node dsl.Node) {
-	if strings.TrimSpace(node.Collection) == "" || node.MaxFanOut <= 0 {
-		c.add(node.ID, CodeFanOutUnbounded, "fan-out must declare collection and max_fan_out")
-	}
-	if node.MaxFanOut > LoopMaxFanoutWidth {
-		c.add(
-			node.ID,
-			CodeFanOutCeilingExceeded,
-			"fan-out max_fan_out %d exceeds ceiling %d",
-			node.MaxFanOut,
-			LoopMaxFanoutWidth,
-		)
-	}
-	if node.MaxParallel > LoopMaxFanoutWidth {
-		c.add(
-			node.ID,
-			CodeFanOutCeilingExceeded,
-			"fan-out max_parallel %d exceeds ceiling %d",
-			node.MaxParallel,
-			LoopMaxFanoutWidth,
-		)
+	case dsl.ControlAsk:
+		c.lintAsk(node)
 	}
 }
 
 func (c *lintContext) lintGate(node dsl.Node) {
 	c.lintGateExpiry(node)
+	c.lintGateRoutes(node)
 	if node.MaxRevisions > LoopMaxGateRevisions {
 		c.add(
 			node.ID,
@@ -415,7 +424,7 @@ func (c *lintContext) lintReferences() {
 	c.lintContractReferences(base)
 	c.lintStartReferences()
 	for _, node := range c.def.Graph.Nodes {
-		namespace := c.namespace(c.inFanoutScope(node.ID), c.hasTriggerStart())
+		namespace := c.namespaceForNode(node.ID, c.hasTriggerStart())
 		c.lintNodeReferences(node, namespace)
 	}
 }

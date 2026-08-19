@@ -13,11 +13,6 @@ interface LoopRunTurnsDisclosureProps {
   onLoadMore?: () => void;
 }
 
-/**
- * The Turns disclosure (§3): goal-node story rows fold their `/turns` audit
- * behind a quiet toggle instead of embedding it inline. Renders nothing when
- * the node has no turns yet — never an empty shell.
- */
 export function LoopRunTurnsDisclosure({
   turns,
   isLive,

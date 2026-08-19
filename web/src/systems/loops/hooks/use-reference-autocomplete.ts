@@ -51,12 +51,6 @@ export interface ReferenceAutocomplete {
   select: (path: string) => void;
 }
 
-/**
- * The ADR-020 `{{ }}` reference picker state machine, extracted so the input component
- * stays presentational: it tracks the active `{{ .partial` fragment under the caret,
- * filters the loop namespace, inserts a chosen path, and restores the caret. Authoring
- * UX only — it never blocks a keystroke; the linter owns reference resolution.
- */
 export function useReferenceAutocomplete(
   fieldRef: RefObject<FieldElement | null>,
   onValueChange: (value: string) => void,

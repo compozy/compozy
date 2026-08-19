@@ -8,7 +8,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"slices"
-	"sort"
 	"strconv"
 	"strings"
 	"unicode/utf8"
@@ -224,6 +223,17 @@ func redactJSONValue(value any, path string, fields []string, redactions []Redac
 		for _, key := range sortedAnyKeys(typed) {
 			childPath := path + "." + key
 			if sensitiveFieldName(key, fields) {
+				if declaration, ok := publicInputDeclaration(typed[key]); ok {
+					childChanged, childValue, next := redactJSONValue(
+						declaration, childPath, fields, redactions,
+					)
+					redactions = next
+					if childChanged {
+						typed[key] = childValue
+						changed = true
+					}
+					continue
+				}
 				redactions = append(redactions, Redaction{
 					Path:   childPath,
 					Reason: ReasonSecretMetadata,
@@ -260,15 +270,6 @@ func redactJSONValue(value any, path string, fields []string, redactions []Redac
 	default:
 		return false, value, redactions
 	}
-}
-
-func sortedAnyKeys(values map[string]any) []string {
-	keys := make([]string, 0, len(values))
-	for key := range values {
-		keys = append(keys, key)
-	}
-	sort.Strings(keys)
-	return keys
 }
 
 func resultEnvelopeBytes(result ToolResult) (int64, error) {

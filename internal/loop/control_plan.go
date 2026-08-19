@@ -3,6 +3,7 @@ package loop
 import (
 	"context"
 	"encoding/json"
+	"strings"
 	"time"
 
 	"github.com/compozy/compozy/internal/loop/dsl"
@@ -20,6 +21,7 @@ func buildInitialControlAwareCoordinatorPlan(
 	effective EffectiveConfig,
 	gateEvaluator gate.GateEvaluator,
 	gateDecisions GateDecisionReader,
+	nodeControls NodeControlReader,
 	runtimeCatalog WorkspaceRuntimeCatalog,
 	fanOutWidth int,
 	watchRuntime coordinatorWatchRuntime,
@@ -44,23 +46,11 @@ func buildInitialControlAwareCoordinatorPlan(
 	outputBlobs := []GenerationOutputBlob{}
 	gateEvaluations := &gateEvaluationCollector{}
 	terminal, err := advanceControlNodes(
-		&controlEvalContext{
-			ctx:                ctx,
-			run:                run,
-			generation:         generation,
-			resolved:           resolved,
-			topology:           topology,
-			effective:          effective,
-			gateEvaluator:      gateEvaluator,
-			gateDecisions:      gateDecisions,
-			runtimeCatalog:     runtimeCatalog,
-			fanOutWidth:        fanOutWidth,
-			watchRuntime:       watchRuntime,
-			watchEventsRuntime: watchEventsRuntime,
-			gateEvaluations:    gateEvaluations,
-			history:            history,
-			now:                scheduledAt.UTC(),
-		},
+		newInitialControlEvalContext(
+			ctx, run, generation, resolved, topology, effective, gateEvaluator, gateDecisions,
+			nodeControls, runtimeCatalog, fanOutWidth, watchRuntime, watchEventsRuntime,
+			gateEvaluations, history, scheduledAt,
+		),
 		&plan,
 		&outputs,
 		&outputBlobs,
@@ -95,6 +85,33 @@ func buildInitialControlAwareCoordinatorPlan(
 	)
 }
 
+func newInitialControlEvalContext(
+	ctx context.Context,
+	run Run,
+	generation int,
+	resolved *ResolvedDefinition,
+	topology controlTopology,
+	effective EffectiveConfig,
+	gateEvaluator gate.GateEvaluator,
+	gateDecisions GateDecisionReader,
+	nodeControls NodeControlReader,
+	runtimeCatalog WorkspaceRuntimeCatalog,
+	fanOutWidth int,
+	watchRuntime coordinatorWatchRuntime,
+	watchEventsRuntime coordinatorWatchEventsRuntime,
+	gateEvaluations *gateEvaluationCollector,
+	history GenerationHistory,
+	scheduledAt time.Time,
+) *controlEvalContext {
+	return &controlEvalContext{
+		ctx: ctx, run: run, generation: generation, resolved: resolved, topology: topology,
+		effective: effective, gateEvaluator: gateEvaluator, gateDecisions: gateDecisions,
+		nodeControls: nodeControls, runtimeCatalog: runtimeCatalog, fanOutWidth: fanOutWidth,
+		watchRuntime: watchRuntime, watchEventsRuntime: watchEventsRuntime,
+		gateEvaluations: gateEvaluations, history: history, now: scheduledAt.UTC(),
+	}
+}
+
 func initialGenerationOutputs(
 	graph dsl.Graph,
 	topology controlTopology,
@@ -123,27 +140,39 @@ func advanceControlNodes(
 	outputBlobs *[]GenerationOutputBlob,
 ) (*task.CoordinatorTerminal, error) {
 	for {
-		changed := false
+		changed, err := advanceFanOutWindows(
+			eval.resolved.Definition.Graph, eval.topology, eval.generation, outputs,
+		)
+		if err != nil {
+			return nil, err
+		}
 		indexes := generationOutputIndexMap(*outputs)
 		for _, output := range sortedGenerationOutputs(*outputs) {
 			if output.Status != generationOutputPending {
 				continue
 			}
 			node, ok := graphNode(eval.resolved.Definition.Graph, dsl.NodeID(output.NodeID))
-			if !ok || !isCoordinatorOwnedNodeWithGates(node, eval.gateEvaluator != nil) {
+			if !ok {
+				continue
+			}
+			isReview := node.Class == dsl.NodeClassAction && node.Review != nil &&
+				strings.TrimSpace(output.OutputRef) == ""
+			if !isReview && !isCoordinatorOwnedNodeWithGates(node, eval.gateEvaluator != nil) {
 				continue
 			}
 			if !dependenciesSucceededForOutput(eval.resolved.Definition.Graph, eval.topology, *outputs, output) {
 				continue
 			}
-			updated, terminal, err := evaluateControlNode(
-				eval,
-				plan,
-				output,
-				node,
-				outputs,
-				outputBlobs,
-			)
+			var updated GenerationOutput
+			var terminal *task.CoordinatorTerminal
+			var err error
+			if isReview {
+				updated, err = evaluateActionReview(eval, plan, output, node, *outputs)
+			} else {
+				updated, terminal, err = evaluateControlNode(
+					eval, plan, output, node, outputs, outputBlobs,
+				)
+			}
 			if err != nil {
 				return nil, err
 			}
@@ -182,6 +211,7 @@ func evaluateControlNode(
 		eval.topology,
 		eval.watchRuntime,
 		eval.watchEventsRuntime,
+		eval.gateEvaluations,
 		eval.history,
 		output,
 		node,
@@ -203,10 +233,9 @@ func evaluateControlNodeKind(
 ) (GenerationOutput, *task.CoordinatorTerminal, error) {
 	switch dsl.ControlKind(node.Kind) {
 	case dsl.ControlFanOut:
-		return evaluateFanOutNode(eval, plan, output, node, outputs, outputBlobs)
+		return evaluateFanOutNode(eval, output, node, outputs, outputBlobs)
 	case dsl.ControlCollect:
-		output.Status = generationOutputSucceeded
-		return output, nil, nil
+		return evaluateCollectNode(eval, plan, output, node, outputs, outputBlobs)
 	case dsl.ControlBranch:
 		return evaluateBranchNode(
 			eval.run,
@@ -217,6 +246,19 @@ func evaluateControlNodeKind(
 			output,
 			node,
 			outputs,
+			eval.gateEvaluations,
+		)
+	case dsl.ControlRoute:
+		return evaluateRouteNode(
+			eval.run,
+			eval.generation,
+			eval.resolved,
+			eval.topology,
+			eval.history,
+			output,
+			node,
+			outputs,
+			eval.gateEvaluations,
 		)
 	case dsl.ControlGate:
 		gateOutput, terminal, err := evaluateGateNode(
@@ -228,12 +270,14 @@ func evaluateControlNodeKind(
 			eval.effective,
 			eval.gateEvaluator,
 			eval.gateDecisions,
+			eval.nodeControls,
 			eval.runtimeCatalog,
 			eval.history,
 			output,
 			node,
-			*outputs,
+			outputs,
 			eval.gateEvaluations,
+			eval.now,
 		)
 		if err != nil || terminal == nil || terminal.Status != string(StatusNeedsApproval) {
 			return gateOutput, terminal, err
@@ -242,6 +286,8 @@ func evaluateControlNodeKind(
 		return parked, terminal, err
 	case dsl.ControlWait:
 		return evaluateWaitNode(eval, plan, output, node, *outputs, outputBlobs)
+	case dsl.ControlAsk:
+		return evaluateAskNode(eval, plan, output, node, *outputs)
 	case dsl.ControlSubLoop:
 		output.Status = generationOutputSucceeded
 		setGenerationOutputRef(&output, subLoopEnteredOutputRef)
@@ -253,7 +299,6 @@ func evaluateControlNodeKind(
 
 func evaluateFanOutNode(
 	eval *controlEvalContext,
-	plan *task.CoordinatorCompletionPlan,
 	output GenerationOutput,
 	node dsl.Node,
 	outputs *[]GenerationOutput,
@@ -295,71 +340,21 @@ func evaluateFanOutNode(
 	output.Status = generationOutputSucceeded
 	setGenerationOutputRef(&output, storedRef)
 	output.runtimePayload = runtimePayload
-	if err := materializeFanOutBody(
-		plan,
-		eval.run,
-		eval.generation,
+	materializeFanOutWindow(
 		eval.resolved.Definition.Graph,
 		eval.topology,
-		eval.gateEvaluator != nil,
+		eval.generation,
 		node.ID,
 		materialization,
 		outputs,
-	); err != nil {
-		return GenerationOutput{}, nil, err
-	}
+	)
 	return output, nil, nil
 }
 
-func materializeFanOutBody(
-	plan *task.CoordinatorCompletionPlan,
-	run Run,
-	generation int,
-	graph dsl.Graph,
-	topology controlTopology,
-	gatesEnabled bool,
-	fanOutID dsl.NodeID,
-	materialization fanOutMaterialization,
-	outputs *[]GenerationOutput,
-) error {
-	scope := topology.fanOutScopes[fanOutID]
-	indexes := generationOutputIndexMap(*outputs)
-	for itemIndex := range materialization.Branches {
-		for _, node := range graph.Nodes {
-			if _, ok := scope.body[node.ID]; !ok {
-				continue
-			}
-			key := generationOutputKey{nodeID: string(node.ID), itemIndex: itemIndex}
-			if _, exists := indexes[key]; exists {
-				continue
-			}
-			*outputs = append(*outputs, GenerationOutput{
-				Generation: generation,
-				NodeID:     string(node.ID),
-				ItemIndex:  itemIndex,
-				Status:     generationOutputPending,
-				Attempt:    1,
-			})
-		}
-	}
-	if err := appendCoordinatorTasksForOutputs(
-		plan,
-		run,
-		generation,
-		graph,
-		topology,
-		gatesEnabled,
-		*outputs,
-	); err != nil {
-		return err
-	}
-	return appendCoordinatorDependenciesForOutputs(plan, run, generation, graph, topology, gatesEnabled, *outputs)
-}
-
-func fanOutCeilingTerminal() *task.CoordinatorTerminal {
+func fanOutBoundTerminal() *task.CoordinatorTerminal {
 	return &task.CoordinatorTerminal{
 		Status:     string(StatusExhausted),
 		Cause:      string(TransitionCauseContract),
-		ReasonCode: "fan_out_width_exceeded",
+		ReasonCode: "fan_out_bound_exceeded",
 	}
 }

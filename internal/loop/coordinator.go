@@ -24,6 +24,7 @@ const (
 	generationOutputControlPending = GenerationOutputStatusControlPending
 	generationOutputAwaitingGoal   = GenerationOutputStatusAwaitingGoal
 	generationOutputSucceeded      = "succeeded"
+	generationOutputPartial        = "partial"
 	generationOutputFailed         = "failed"
 	generationOutputCanceled       = "canceled"
 	generationOutputQuarantined    = "quarantined"
@@ -279,6 +280,7 @@ func (r *CoordinatorRunner) buildCoordinatorPlan(
 		effective,
 		r.gateEvaluator,
 		r.store,
+		r.controls,
 		r.runtimeCatalog,
 		fanOutWidth,
 		r.watchRuntime(),

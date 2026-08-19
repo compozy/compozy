@@ -35,7 +35,7 @@ func hydrateExecutedDefinitionSnapshot(
 		return nil, fmt.Errorf("loop: hydrate executed starts: %w", err)
 	}
 	for _, node := range definition.Graph.Nodes {
-		namespace := context.namespace(context.inFanoutScope(node.ID), context.hasTriggerStart())
+		namespace := context.namespaceForNode(node.ID, context.hasTriggerStart())
 		if err := compileNode(resolved, node, namespace, context); err != nil {
 			return nil, fmt.Errorf("loop: hydrate executed node %s: %w", node.ID, err)
 		}

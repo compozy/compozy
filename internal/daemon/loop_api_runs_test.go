@@ -2,6 +2,7 @@ package daemon
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"strings"
 	"testing"
@@ -12,9 +13,170 @@ import (
 	looppkg "github.com/compozy/compozy/internal/loop"
 	"github.com/compozy/compozy/internal/loop/dsl"
 	"github.com/compozy/compozy/internal/loop/gate"
+	"github.com/compozy/compozy/internal/session"
+	storepkg "github.com/compozy/compozy/internal/store"
 	"github.com/compozy/compozy/internal/task"
 	workspacepkg "github.com/compozy/compozy/internal/workspace"
 )
+
+// Invariant: request transports expose preview/provenance fields and never private blob refs.
+// The daemon Loop API suite owns the public request payload builder.
+func TestLoopRequestPayloadShouldExposeOnlyPublicRequestState(t *testing.T) {
+	t.Parallel()
+
+	answeredAt := time.Date(2026, time.August, 16, 14, 11, 3, 0, time.UTC)
+	payload := loopRequestPayload(looppkg.Request{
+		LoopRunID: "run-1", LoopName: "rollout", Generation: 2, NodeID: "select", ItemIndex: 3,
+		Kind: looppkg.RequestKindAsk, State: looppkg.RequestStateAnswered,
+		Prompt: "Choose an environment", Context: json.RawMessage(`{"truncated":true,"byte_size":20000}`),
+		Expect: json.RawMessage(`{"environment":"string"}`), Decisions: []string{"respond"},
+		Agents: dsl.ResponderAgentsAllow, AnsweredDecision: "respond",
+		ActorKind: "human", ActorID: "operator:pedro", OpenedAt: answeredAt.Add(-time.Minute),
+		ResolvedAt: &answeredAt,
+	})
+	response := contract.LoopRequestsResponse{
+		Items:      []contract.LoopRequestPayload{payload},
+		Aggregates: contract.LoopRequestAggregates{Pending: 4},
+	}
+	raw, err := json.Marshal(response)
+	if err != nil {
+		t.Fatalf("json.Marshal() error = %v", err)
+	}
+	encoded := string(raw)
+	for _, fragment := range []string{`"pending":4`, `"answered_at":"2026-08-16T14:11:03Z"`, `"agents":"allow"`} {
+		if !strings.Contains(encoded, fragment) {
+			t.Fatalf("request payload = %s, want %s", encoded, fragment)
+		}
+	}
+	for _, privateField := range []string{"context_ref", "proposed_ref", "answered_payload_ref"} {
+		if strings.Contains(encoded, privateField) {
+			t.Fatalf("request payload leaked private field %q: %s", privateField, encoded)
+		}
+	}
+}
+
+// Invariant: amendment projections redact secrets, inline only bounded values, and never expose blob refs.
+// The daemon Loop API suite owns the shared HTTP, UDS, CLI, and native-tool amendment projection.
+func TestLoopNodeAmendmentPayloadShouldBeBoundedAndRedacted(t *testing.T) {
+	t.Parallel()
+
+	createdAt := time.Date(2026, time.August, 16, 15, 30, 0, 0, time.UTC)
+	payload, err := loopNodeAmendmentPayload(looppkg.NodeAmendment{
+		LoopRunID: "run-1", Generation: 2, NodeID: "repair", ItemIndex: 3, Sequence: 1,
+		OriginalRef: "private-original-ref", AmendedRef: "private-amended-ref",
+		Original: json.RawMessage(`{"api_token":"secret-value","value":"before"}`),
+		Amended:  json.RawMessage(`{"value":"after"}`), ActorKind: "human", ActorID: "operator:one",
+		CreatedAt: createdAt,
+	})
+	if err != nil {
+		t.Fatalf("loopNodeAmendmentPayload() error = %v", err)
+	}
+	encoded, err := json.Marshal(payload)
+	if err != nil {
+		t.Fatalf("json.Marshal(amendment) error = %v", err)
+	}
+	if strings.Contains(string(encoded), "secret-value") || strings.Contains(string(encoded), "private-") ||
+		!strings.Contains(string(encoded), `"api_token":"[REDACTED]"`) {
+		t.Fatalf("amendment projection = %s, want redacted values without refs", encoded)
+	}
+
+	large := json.RawMessage(`{"value":"` + strings.Repeat("x", amendmentInlineLimitBytes) + `"}`)
+	bounded, err := loopNodeAmendmentPayload(looppkg.NodeAmendment{
+		LoopRunID: "run-1", Generation: 2, NodeID: "repair", Sequence: 2,
+		Original: large, Amended: large, CreatedAt: createdAt,
+	})
+	if err != nil {
+		t.Fatalf("loopNodeAmendmentPayload(large) error = %v", err)
+	}
+	if bounded.Original != nil || bounded.Amended != nil || bounded.OriginalSummary == nil ||
+		bounded.AmendedSummary == nil || bounded.OriginalSummary.ByteSize <= amendmentInlineLimitBytes ||
+		bounded.OriginalSummary.ContentHash == "" {
+		t.Fatalf("bounded amendment projection = %#v", bounded)
+	}
+}
+
+// Invariant: agents in a run starter's durable spawn chain cannot act as that run's responder.
+// The daemon Loop API suite owns the shared responder trust boundary used by approve and respond.
+func TestDaemonLoopResponderPolicyShouldEvaluateDurableSpawnChains(t *testing.T) {
+	t.Parallel()
+
+	policy := daemonLoopResponderPolicy{
+		runs: &responderRunReaderStub{run: looppkg.Run{
+			ID: "run-1", WorkspaceID: "ws-1",
+			StartedBy: task.ActorIdentity{Kind: task.ActorKindAgentSession, Ref: "starter"},
+		}},
+		sessions: responderSessionReaderStub{sessions: map[string]*session.Info{
+			"starter":    responderSessionInfo("starter", "ws-1", ""),
+			"child":      responderSessionInfo("child", "ws-1", "starter"),
+			"grandchild": responderSessionInfo("grandchild", "ws-1", "child"),
+			"unrelated":  responderSessionInfo("unrelated", "ws-1", ""),
+			"stale":      responderSessionInfo("different", "ws-1", ""),
+		}},
+	}
+	for _, tt := range []struct {
+		name     string
+		actor    task.ActorContext
+		wantDeny bool
+	}{
+		{name: "Should deny the direct starter", actor: responderActorForTest(task.ActorKindAgentSession, "starter", "ws-1"), wantDeny: true},
+		{name: "Should deny a transitively spawned child", actor: responderActorForTest(task.ActorKindAgentSession, "grandchild", "ws-1"), wantDeny: true},
+		{name: "Should allow an unrelated agent", actor: responderActorForTest(task.ActorKindAgentSession, "unrelated", "ws-1")},
+		{name: "Should allow a human operator", actor: responderActorForTest(task.ActorKindHuman, "operator:pedro", "ws-1")},
+		{name: "Should deny a cross-workspace actor", actor: responderActorForTest(task.ActorKindAgentSession, "unrelated", "ws-other"), wantDeny: true},
+		{name: "Should fail closed on missing lineage", actor: responderActorForTest(task.ActorKindAgentSession, "missing", "ws-1"), wantDeny: true},
+		{name: "Should fail closed on stale lineage", actor: responderActorForTest(task.ActorKindAgentSession, "stale", "ws-1"), wantDeny: true},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			denied, err := policy.DeniesSelfOperation(t.Context(), "ws-1", "run-1", tt.actor)
+			if err != nil {
+				t.Fatalf("DeniesSelfOperation() error = %v", err)
+			}
+			if denied != tt.wantDeny {
+				t.Fatalf("DeniesSelfOperation() = %v, want %v", denied, tt.wantDeny)
+			}
+		})
+	}
+}
+
+type responderRunReaderStub struct {
+	run looppkg.Run
+	err error
+}
+
+func (s *responderRunReaderStub) GetLoopRun(
+	context.Context,
+	looppkg.WorkspaceID,
+	looppkg.RunID,
+) (looppkg.Run, error) {
+	return s.run, s.err
+}
+
+type responderSessionReaderStub struct {
+	sessions map[string]*session.Info
+}
+
+func (s responderSessionReaderStub) Status(_ context.Context, sessionID string) (*session.Info, error) {
+	info, ok := s.sessions[sessionID]
+	if !ok {
+		return nil, errors.New("session not found")
+	}
+	return info, nil
+}
+
+func responderSessionInfo(id, workspaceID, parentID string) *session.Info {
+	return &session.Info{
+		ID: id, WorkspaceID: workspaceID,
+		Lineage: &storepkg.SessionLineage{ParentSessionID: parentID},
+	}
+}
+
+func responderActorForTest(kind task.ActorKind, id, workspaceID string) task.ActorContext {
+	return task.ActorContext{
+		Actor: task.ActorIdentity{Kind: kind, Ref: id},
+		Scope: task.CallerScope{WorkspaceID: workspaceID},
+	}
+}
 
 func TestDaemonLoopAPIServiceShouldBuildRunWebURLFromEffectiveConfig(t *testing.T) {
 	t.Parallel()
@@ -95,6 +257,7 @@ func TestDaemonLoopAPIServiceShouldAssembleGenerationDetailFromLineage(t *testin
 
 	score := 0.72
 	rank := 0
+	routeAt := time.Date(2026, 8, 16, 12, 0, 0, 0, time.UTC)
 	storedOutputRef := looppkg.OutputRefForPayload([]byte(`{"value":"best"}`))
 	persistence := &loopRunHistoryPersistenceStub{
 		lineage: []looppkg.LoopGeneration{
@@ -130,6 +293,12 @@ func TestDaemonLoopAPIServiceShouldAssembleGenerationDetailFromLineage(t *testin
 				},
 			},
 		},
+		routeCauses: map[int64][]looppkg.RouteCause{
+			3: {{
+				Generation: 3, NodeID: "router", ItemIndex: 2, Route: "revise",
+				Cause: "matched_when", MatchedWhen: "outputs.score < 0.8", At: routeAt,
+			}},
+		},
 	}
 	service := &daemonLoopAPIService{persistence: persistence}
 	run := looppkg.Run{ID: "run-lineage", WorkspaceID: "ws-lineage", Generation: 3}
@@ -162,6 +331,13 @@ func TestDaemonLoopAPIServiceShouldAssembleGenerationDetailFromLineage(t *testin
 	}
 	if generations[1].Verdicts[1].GateID != "quality" || generations[1].Verdicts[1].ItemIndex != 3 {
 		t.Fatalf("generation 3 fan-out verdicts = %#v, want separate item indexes 2 and 3", generations[1].Verdicts)
+	}
+	if len(generations[1].RouteCauses) != 1 || generations[1].RouteCauses[0].NodeID != "router" ||
+		generations[1].RouteCauses[0].ItemIndex != 2 || generations[1].RouteCauses[0].Route != "revise" ||
+		generations[1].RouteCauses[0].Cause != "matched_when" ||
+		generations[1].RouteCauses[0].MatchedWhen != "outputs.score < 0.8" ||
+		!generations[1].RouteCauses[0].At.Equal(routeAt) {
+		t.Fatalf("generation 3 route causes = %#v, want exact durable route decision", generations[1].RouteCauses)
 	}
 	if len(persistence.outputCalls) != 2 || persistence.outputCalls[0] != 1 || persistence.outputCalls[1] != 3 {
 		t.Fatalf("ListGenerationOutputs calls = %#v, want lineage generations only", persistence.outputCalls)
@@ -201,6 +377,13 @@ func TestDaemonLoopAPIServiceShouldWrapGenerationHistoryErrors(t *testing.T) {
 				lineage: []looppkg.LoopGeneration{{Generation: 4}}, verdictErr: errPersistence,
 			},
 			wantContext: "list gate verdicts for loop run run-errors generation 4",
+		},
+		{
+			name: "Should identify the run and generation when route cause loading fails",
+			persistence: &loopRunHistoryPersistenceStub{
+				lineage: []looppkg.LoopGeneration{{Generation: 4}}, routeCauseErr: errPersistence,
+			},
+			wantContext: "list route causes for loop run run-errors generation 4",
 		},
 	}
 	for _, tt := range tests {
@@ -279,7 +462,24 @@ func TestDaemonLoopAPIServiceShouldManageScopedInputDefaultsWithoutCollapsingPre
 		workspaceRoot,
 		time.Date(2026, 7, 27, 12, 0, 0, 0, time.UTC),
 	)
-	service := &daemonLoopAPIService{homePaths: homePaths, workspaceResolver: resolver}
+	service := &daemonLoopAPIService{
+		homePaths: homePaths, workspaceResolver: resolver,
+		resolver: looppkg.DefinitionResolverFunc(func(
+			context.Context,
+			looppkg.WorkspaceID,
+			string,
+		) (*looppkg.ResolvedDefinition, error) {
+			return &looppkg.ResolvedDefinition{Definition: dsl.Definition{
+				Meta: dsl.Meta{Name: "review-and-fix"},
+				Inputs: map[string]dsl.Input{
+					"auto_commit": {Type: dsl.InputTypeBoolean},
+					"retries":     {Type: dsl.InputTypeNumber},
+					"reviewer":    {Type: dsl.InputTypeString},
+					"runtime":     {Type: dsl.InputTypeRuntime},
+				},
+			}}, nil
+		}),
+	}
 
 	global, err := service.PutLoopInputDefault(
 		t.Context(),
@@ -294,6 +494,22 @@ func TestDaemonLoopAPIServiceShouldManageScopedInputDefaultsWithoutCollapsingPre
 	if !global.Present || global.Value != false {
 		t.Fatalf("global input default = %#v, want present explicit false", global)
 	}
+	emptyRuntime, err := service.PutLoopInputDefault(
+		t.Context(),
+		"ws-input-defaults",
+		"review-and-fix",
+		"runtime",
+		contract.PutLoopInputDefaultRequest{
+			Scope: contract.LoopInputDefaultsScopeWorkspace,
+			Value: map[string]any{},
+		},
+	)
+	if err != nil {
+		t.Fatalf("PutLoopInputDefault(empty runtime) error = %v", err)
+	}
+	if runtime, ok := emptyRuntime.Value.(map[string]any); !emptyRuntime.Present || !ok || len(runtime) != 0 {
+		t.Fatalf("empty runtime default = %#v, want present empty object", emptyRuntime)
+	}
 
 	workspace, err := service.PutLoopInputDefaults(
 		t.Context(),
@@ -305,6 +521,7 @@ func TestDaemonLoopAPIServiceShouldManageScopedInputDefaultsWithoutCollapsingPre
 				"auto_commit": true,
 				"retries":     float64(0),
 				"reviewer":    "",
+				"runtime":     map[string]any{"model": "gpt-5", "reasoning": "high"},
 			},
 		},
 	)
@@ -328,6 +545,10 @@ func TestDaemonLoopAPIServiceShouldManageScopedInputDefaultsWithoutCollapsingPre
 	}
 	if reviewer, present := workspace.Values["reviewer"]; !present || reviewer != "" {
 		t.Fatalf("workspace reviewer = %#v/%v, want present empty string", reviewer, present)
+	}
+	runtime, ok := workspace.Values["runtime"].(map[string]any)
+	if !ok || runtime["model"] != "gpt-5" || runtime["reasoning"] != "high" {
+		t.Fatalf("workspace runtime = %#v, want typed runtime object", workspace.Values["runtime"])
 	}
 
 	globalLayer, err := service.GetLoopInputDefaults(
@@ -482,11 +703,13 @@ type loopRunHistoryPersistenceStub struct {
 	lineage        []looppkg.LoopGeneration
 	outputs        map[int][]looppkg.GenerationOutput
 	verdicts       map[int64][]gate.VerdictRecord
+	routeCauses    map[int64][]looppkg.RouteCause
 	outputCalls    []int
 	workspaceCalls []string
 	lineageErr     error
 	outputErr      error
 	verdictErr     error
+	routeCauseErr  error
 }
 
 func (s *loopRunHistoryPersistenceStub) ListGenerations(
@@ -526,6 +749,19 @@ func (s *loopRunHistoryPersistenceStub) ListGateVerdicts(
 		return nil, s.verdictErr
 	}
 	return append([]gate.VerdictRecord(nil), s.verdicts[generation]...), nil
+}
+
+func (s *loopRunHistoryPersistenceStub) ListRouteCauses(
+	_ context.Context,
+	workspaceID looppkg.WorkspaceID,
+	_ looppkg.RunID,
+	generation int64,
+) ([]looppkg.RouteCause, error) {
+	s.workspaceCalls = append(s.workspaceCalls, string(workspaceID))
+	if s.routeCauseErr != nil {
+		return nil, s.routeCauseErr
+	}
+	return append([]looppkg.RouteCause(nil), s.routeCauses[generation]...), nil
 }
 
 type loopApprovalAggregateStub struct {
@@ -643,13 +879,13 @@ func (s *loopApprovalAggregateStub) KillRun(
 }
 
 func (s *loopApprovalAggregateStub) CancelNode(
-	context.Context, looppkg.WorkspaceID, looppkg.RunID, looppkg.NodeID, string, task.ActorContext,
+	context.Context, looppkg.WorkspaceID, looppkg.RunID, looppkg.NodeID, *int, string, task.ActorContext,
 ) error {
 	return errors.New("unexpected CancelNode call")
 }
 
 func (s *loopApprovalAggregateStub) KillNode(
-	context.Context, looppkg.WorkspaceID, looppkg.RunID, looppkg.NodeID, string, task.ActorContext,
+	context.Context, looppkg.WorkspaceID, looppkg.RunID, looppkg.NodeID, *int, string, task.ActorContext,
 ) error {
 	return errors.New("unexpected KillNode call")
 }
@@ -684,6 +920,36 @@ func (s *loopApprovalAggregateStub) Approve(
 		return errors.New("unexpected Approve call")
 	}
 	return s.approveFn(ctx, ws, runID, gateID, decision, actor)
+}
+
+func (s *loopApprovalAggregateStub) ListRequests(
+	context.Context,
+	looppkg.WorkspaceID,
+	looppkg.RequestQuery,
+) (looppkg.RequestPage, error) {
+	return looppkg.RequestPage{}, errors.New("unexpected ListRequests call")
+}
+
+func (s *loopApprovalAggregateStub) GetRequest(
+	context.Context,
+	looppkg.WorkspaceID,
+	looppkg.RequestRef,
+) (looppkg.RequestDetail, error) {
+	return looppkg.RequestDetail{}, errors.New("unexpected GetRequest call")
+}
+
+func (s *loopApprovalAggregateStub) Respond(
+	context.Context,
+	looppkg.RespondInput,
+) (looppkg.RespondResult, error) {
+	return looppkg.RespondResult{}, errors.New("unexpected Respond call")
+}
+
+func (s *loopApprovalAggregateStub) AmendNodeOutput(
+	context.Context,
+	looppkg.AmendInput,
+) (looppkg.NodeAmendment, error) {
+	return looppkg.NodeAmendment{}, errors.New("unexpected AmendNodeOutput call")
 }
 
 func (s *loopApprovalAggregateStub) Configure(

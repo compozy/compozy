@@ -553,9 +553,11 @@ func TestEmbeddedLoopsShouldKeepSpecCycleRuntimeContracts(t *testing.T) {
 		t.Parallel()
 
 		def := parseEmbeddedLoopForTest(t, "loops/review-and-fix/loop.yaml")
-		if got, want := def.Contract.StopWhen,
-			"nodes.review.status == 'succeeded' && size(nodes.review.output.issues) == 0"; got != want {
-			t.Fatalf("review-and-fix stop_when = %q, want %q", got, want)
+		wantStopWhen := dsl.StopWhenSpec{
+			Expr: "nodes.review.status == 'succeeded' && size(nodes.review.output.issues) == 0",
+		}
+		if got := def.Contract.StopWhen; got != wantStopWhen {
+			t.Fatalf("review-and-fix stop_when = %#v, want %#v", got, wantStopWhen)
 		}
 		if got, want := def.Contract.IterationCap, 3; got != want {
 			t.Fatalf("review-and-fix iteration_cap = %d, want %d", got, want)

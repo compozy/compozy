@@ -1,7 +1,7 @@
 import { ArrowRight } from "lucide-react";
 import { createElement } from "react";
 
-import { fanOutSummary, nodeClassLabel } from "../../lib/loop-graph";
+import { fanOutSummary, nodeClassLabel, routeSummary } from "../../lib/loop-graph";
 import type { LoopGraph, LoopGraphNode } from "../../lib/loop-graph";
 import { loopNodeClassIcon } from "../../lib/loop-node-kind-icons";
 
@@ -46,13 +46,18 @@ export function LoopBodyDag({ graph }: LoopBodyDagProps) {
 }
 
 function DagNode({ node }: { node: LoopGraphNode }) {
-  const summary = fanOutSummary(node);
+  const isRoute = node.kind === "route";
+  const isAsk = node.kind === "ask";
+
+  const summary = isRoute ? routeSummary(node) : fanOutSummary(node);
   const kindLabel = summary ?? node.kind;
   const classIcon = node.nodeClass
     ? loopNodeClassIcon({
         nodeClass: node.nodeClass,
-        isFanOut: node.kind === "fan-out" || summary !== null,
+        isFanOut: node.kind === "fan-out",
         isGate: node.isGate,
+        isRoute,
+        isAsk,
       })
     : undefined;
   return (

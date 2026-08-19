@@ -30,13 +30,22 @@ func (r *CoordinatorRunner) finishSucceededGenerationPlan(
 	if err != nil {
 		return task.CoordinatorCompletionPlan{}, err
 	}
-	stopWhen, hasStopWhen, err := evaluateContractStopWhen(
+	stopWhen, err := evaluateContractStopWhen(
 		ctx, conditionRun, generation, resolved, topology, advancedOutputs, conditionHistory,
 	)
 	if err != nil {
 		return task.CoordinatorCompletionPlan{}, err
 	}
-	if hasStopWhen && !stopWhen {
+	predicateEvaluations := &gateEvaluationCollector{}
+	predicateEvaluations.recordPredicate(stopWhen.diagnostics...)
+	if err := applyGateEvaluationIntents(&plan, run, generation, predicateEvaluations); err != nil {
+		return task.CoordinatorCompletionPlan{}, err
+	}
+	if stopWhen.terminal != nil {
+		plan.Terminal = stopWhen.terminal
+		return plan, nil
+	}
+	if stopWhen.present && !stopWhen.stop {
 		return r.buildStopWhenNextGenerationPlan(
 			ctx, taskRun, run, generation, resolved.Definition.Graph,
 			gateEvaluator != nil, plan, advancedOutputs,
@@ -44,14 +53,20 @@ func (r *CoordinatorRunner) finishSucceededGenerationPlan(
 	}
 	doneEvaluation, err := evaluateDefinitionOfDone(
 		ctx, conditionRun, generation, resolved, effective, topology, gateEvaluator,
-		r.store, r.runtimeCatalog, advancedOutputs, conditionHistory,
+		r.store, r.controls, r.runtimeCatalog, advancedOutputs, conditionHistory, r.now().UTC(),
 	)
 	if err != nil {
 		return task.CoordinatorCompletionPlan{}, err
 	}
 	if doneEvaluation.gate != nil {
 		evaluations := &gateEvaluationCollector{}
-		evaluations.record(doneEvaluation.gate.runtime, 0, doneEvaluation.gate.verdict)
+		evaluations.recordWithControl(
+			doneEvaluation.gate.runtime,
+			0,
+			doneEvaluation.gate.verdict,
+			doneEvaluation.gate.control,
+			doneEvaluation.gate.at,
+		)
 		if err := applyGateEvaluationIntents(&plan, run, generation, evaluations); err != nil {
 			return task.CoordinatorCompletionPlan{}, err
 		}

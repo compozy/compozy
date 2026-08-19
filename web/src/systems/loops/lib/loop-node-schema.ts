@@ -19,6 +19,10 @@ import {
 } from "./loop-node-fields";
 import { goalFields } from "./loop-node-goal-fields";
 import { reliabilityFold, triggersFold } from "./loop-node-lifecycle-fields";
+import { askFields } from "./loop-node-ask-fields";
+import { readReview } from "./loop-node-review-fields";
+import { routeFields } from "./loop-node-route-fields";
+import { readStrategy } from "./loop-node-strategy-fields";
 import { gateExpiryFold, waitFields } from "./loop-node-wait-fields";
 
 export type {
@@ -28,10 +32,15 @@ export type {
   FieldSpec,
   FoldFieldSpec,
   HintFieldSpec,
+  LoopReviewDecision,
+  LoopStrategyKind,
   LoopWaitMode,
   NumberFieldSpec,
+  ReviewFieldSpec,
+  RoutesFieldSpec,
   SelectFieldSpec,
   StaticFieldSpec,
+  StrategyFieldSpec,
   SwitchFieldSpec,
   TextFieldSpec,
   WaitModeFieldSpec,
@@ -39,12 +48,34 @@ export type {
 
 import type { FieldSpec } from "./loop-node-schema-types";
 
+export interface LoopNodeFieldContext {
+  forwardNodeIds?: string[];
+}
+
+function evalErrorField(): FieldSpec {
+  return {
+    type: "select",
+    key: "on_eval_error",
+    label: "on_eval_error",
+    path: ["on_eval_error"],
+    options: ["fail", "exit"],
+    clearOption: { value: "", label: "Inherit the loop policy" },
+    hint: "What happens when this node's condition cannot be evaluated. Inherit unless this node needs its own answer.",
+  };
+}
+
 /** The kind-specific form for one control node, before the shared lifecycle envelope. */
-function controlKindFields(raw: RawLoopNode, kind: string): FieldSpec[] | null {
-  if (kind === "fan-out") return fanOutFields(raw);
+function controlKindFields(
+  raw: RawLoopNode,
+  kind: string,
+  context: LoopNodeFieldContext
+): FieldSpec[] | null {
+  if (kind === "fan-out") return [...fanOutFields(raw), readStrategy(raw)];
   if (kind === "collect") return collectFields(raw);
-  if (kind === "gate") return [...gateFields(raw), gateExpiryFold(raw)];
-  if (kind === "branch") return branchFields(raw);
+  if (kind === "gate") return [...gateFields(raw), gateExpiryFold(raw), evalErrorField()];
+  if (kind === "branch") return [...branchFields(raw), evalErrorField()];
+  if (kind === "route") return routeFields(raw, context.forwardNodeIds ?? []);
+  if (kind === "ask") return askFields(raw);
   if (kind === "sub-loop") return subLoopFields(raw);
   if (kind === "wait") return waitFields(raw);
   return null;
@@ -59,23 +90,10 @@ function actionKindFields(raw: RawLoopNode, kind: string): FieldSpec[] {
   return toolActionFields(raw);
 }
 
-/**
- * Resolves the inspector field set for a node from its class + kind. Reserved kinds
- * (run-agent / run-loop / transform) get first-party forms; every other action kind is a
- * ToolID rendered by the generic params form; control/source kinds map to their DSL shapes.
- * An unrecognized kind degrades to id + kind. The per-kind builders live in
- * `loop-node-fields.ts`; this is the thin dispatcher (one responsibility per file).
- *
- * Lifecycle fields follow the runtime's class rules (ADR-010):
- * - action: reliability (deadline · retry · result_contract · on_error) + the six triggers,
- *   goal drops deadline/backoff/non_retryable (`retry_on_goal_node`);
- * - control: on_error + the six triggers only — a control produces no task run, so a retry or
- *   deadline would be inert and result_contract lacks a declared output schema;
- * - source: nothing — no source kind produces an attempt (`error_route_dead`).
- */
 export function buildNodeFields(
   raw: RawLoopNode,
-  definition?: Pick<LoopDefinition, "inputs" | "start">
+  definition?: Pick<LoopDefinition, "inputs" | "start">,
+  context: LoopNodeFieldContext = {}
 ): FieldSpec[] {
   const nodeClass = str(raw.class);
   const kind = str(raw.kind);
@@ -86,14 +104,20 @@ export function buildNodeFields(
     if (kind === "watch-events") return watchEventsFields(raw);
   }
   if (nodeClass === "control") {
-    const kindFields = controlKindFields(raw, kind);
+    const kindFields = controlKindFields(raw, kind, context);
     if (kindFields) {
       return [...kindFields, reliabilityFold(raw, "control"), triggersFold(raw)];
     }
   }
   if (nodeClass === "action") {
     const variant = kind === "goal" ? "goal" : "action";
-    return [...actionKindFields(raw, kind), reliabilityFold(raw, variant), triggersFold(raw)];
+
+    return [
+      ...actionKindFields(raw, kind),
+      readReview(raw, context.forwardNodeIds ?? []),
+      reliabilityFold(raw, variant),
+      triggersFold(raw),
+    ];
   }
   return fallbackFields(raw);
 }

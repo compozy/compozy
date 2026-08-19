@@ -216,6 +216,9 @@ func TestGenerationIntentValidate(t *testing.T) {
 			OriginGateNextGeneration,
 			OriginDoDRetry,
 			OriginRatchetRestore,
+			OriginRequeue,
+			OriginOperatorRerun,
+			OriginForkSeed,
 		}
 		for _, origin := range origins {
 			t.Run("Should accept "+string(origin), func(t *testing.T) {

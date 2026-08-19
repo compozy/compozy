@@ -283,7 +283,6 @@ test.describe("Marketplace acquisition", () => {
     await expect(marketplace.mcpInstallDialog).toBeHidden();
     await expect(marketplace.card(mcpEntryID)).toContainText("installed", { timeout: 20_000 });
 
-    // E2E-004: the marketplace now carries exactly three kinds and every shared shell still works.
     for (const [routeKind, apiKind] of [
       ["skills", "skill"],
       ["mcps", "mcp"],
@@ -296,12 +295,12 @@ test.describe("Marketplace acquisition", () => {
     }
     await expect(marketplaceWin.getByRole("link", { name: /Bundles/i })).toHaveCount(0);
 
-    // Setup only: the binding is created through the shipped privileged route, because the web
-    // surface deliberately exposes no secret-write control.
     const binding = await runtime.requestJSON<{ bound_env_keys: string[]; declared_env: string[] }>(
       `/api/extensions/${kitExtensionName}/secrets`,
       {
-        body: JSON.stringify({ secrets: { [kitEnvName]: { value: kitSecretValue } } }),
+        body: JSON.stringify({
+          bindings: [{ env_name: kitEnvName, value: kitSecretValue }],
+        }),
         method: "PUT",
       }
     );
@@ -313,7 +312,6 @@ test.describe("Marketplace acquisition", () => {
     });
     await expect(marketplace.detail).toBeVisible({ timeout: 20_000 });
 
-    // Shipped-but-not-live is the pre-enable truth of a static kit.
     await expect(marketplace.extensionKitInventory).toBeVisible();
     await expect(marketplace.extensionKitInventory).toContainText(kitAgentName);
     await expect(marketplace.extensionKitInventory).toContainText(kitAutomationName);
@@ -322,7 +320,6 @@ test.describe("Marketplace acquisition", () => {
     await expect(marketplace.extensionEnvironmentState).toContainText("bound");
     await expect(marketplace.extensionNetworkConsent).toContainText("confirmation required");
 
-    // E2E-004: enabling a Live-declaring extension walks the shared confirm affordance.
     const refusedEnable = waitForAPIResponse(
       appPage,
       "POST",
@@ -345,7 +342,6 @@ test.describe("Marketplace acquisition", () => {
     expect(JSON.parse(kitEnableResponse.request().postData() ?? "{}")).toMatchObject({
       confirm_network_digest: digest,
     });
-    // The daemon enumerates started automation by its owner-qualified definition name.
     expect(
       (
         (await kitEnableResponse.json()) as {
@@ -371,7 +367,6 @@ test.describe("Marketplace acquisition", () => {
       timeout: 20_000,
     });
 
-    // A bound secret is a presence projection: the name is visible, the value never is.
     await expect(appPage.locator("body")).not.toContainText(kitSecretValue);
 
     await appPage.goto(runtime.url("/marketplace/extensions?tab=market"), {
@@ -417,7 +412,6 @@ test.describe("Marketplace acquisition", () => {
     const enabledSwitch = toggleCard.getByRole("switch", {
       name: `Enable ${toggleExtensionName}`,
     });
-    // Install left it inert, so the card's switch starts off and enable is the operator's act.
     await expect(enabledSwitch).not.toBeChecked();
     const enableResponsePromise = waitForAPIResponse(
       appPage,
@@ -549,10 +543,6 @@ test.describe("Marketplace acquisition", () => {
     return rootDir;
   }
 
-  /**
-   * A post-cut static kit: agents live in a dir-per-agent tree, automation ships as TOML, and the
-   * manifest declares Live network participation so enable must be ratified before it commits.
-   */
   async function createMarketplaceKitExtension(): Promise<{ rootDir: string }> {
     const rootDir = await mkdtemp(path.join(os.tmpdir(), "compozy-marketplace-kit-"));
     const agentDir = path.join(rootDir, "agents", kitAgentName);
@@ -1679,14 +1669,12 @@ test.describe("Extension marketplace runtime", () => {
       "--yes",
       extensionDir,
     ]);
-    // Install is inert: it registers the package without publishing or starting anything.
     expect(projectExtension(installed)).toMatchObject({
       name: extensionName,
       enabled: false,
       state: "disabled",
     });
 
-    // Enable is the only switch that makes an extension runnable.
     await runBrowserRuntimeCLIJSON<{ automation_started: string[] }>(runtime, [
       "extension",
       "enable",
@@ -1858,8 +1846,6 @@ test.describe("Extension marketplace runtime", () => {
       )
       .toContain("recovered-after-crash");
 
-    // The source union carries no operator checksum: an unverified local path installs only after
-    // an explicit consent decision, and the daemon refuses it otherwise.
     const failureHTTP = await appPage.request.post(runtime.url("/api/extensions"), {
       data: { ref: checksumFailureDir, source: "local_path" },
     });
@@ -2521,8 +2507,6 @@ test.describe("Extension marketplace runtime", () => {
   }
 });
 
-// E2E-005: the browser projection exposes daemon update availability on the landing and detail
-// surfaces, and applying the update re-renders the installed version.
 test.describe("Extension update affordance", () => {
   const extensionName = "browser-update-extension";
   const repository = "acme/browser-update-extension";
@@ -2593,7 +2577,6 @@ test.describe("Extension update affordance", () => {
     const marketplace = marketplaceOperatorSelectors(marketplaceWin);
     await expect(marketplace.kind("extension")).toBeVisible({ timeout: 20_000 });
 
-    // The landing scope is the market projection: the count must not be structurally zero there.
     await expect(marketplace.kindUpdates("extension")).toHaveText("1");
     const catalogCard = marketplace.card(catalogEntryID);
     await expect(catalogCard).toContainText("v0.2.0 available");
@@ -2611,7 +2594,6 @@ test.describe("Extension update affordance", () => {
         new URL(response.url()).pathname === `/api/extensions/${extensionName}`
     );
     await updateAction.click();
-    // The installed archive is not registry-verified, so the update needs explicit consent.
     const trustDialog = appPage.getByTestId("extension-trust-dialog");
     await expect(
       trustDialog.getByRole("heading", { name: `Update ${extensionName}?` })
@@ -2643,11 +2625,6 @@ test.describe("Extension update affordance", () => {
   });
 });
 
-/**
- * E2E-004 / E2E-005: the portable format is only real to an operator if the marker survives the
- * whole acquisition path — card, dialogs, installed surfaces, inventory — and if a drifted upstream
- * fails where the operator is looking, not in a toast that has already gone.
- */
 test.describe("Agent Plugins marketplace journeys", () => {
   const extensionName = "acme.tools";
   const repository = "acme/acme-tools";
@@ -2689,7 +2666,6 @@ test.describe("Agent Plugins marketplace journeys", () => {
       },
     });
 
-    // E2E-004
     test("operator installs a badged catalog entry and reads its ingested and skipped components", async ({
       appPage,
       runtime,
@@ -2706,7 +2682,6 @@ test.describe("Agent Plugins marketplace journeys", () => {
       const marketplace = marketplaceOperatorSelectors(marketplaceWin);
       await expect(marketplace.kind("extension")).toBeVisible({ timeout: 20_000 });
 
-      // The curated marker is the only format signal available before anything is installed.
       const catalogCard = marketplace.card(catalogEntryID);
       await expect(catalogCard).toBeVisible({ timeout: 20_000 });
       await expect(catalogCard.getByTestId("extension-format-badge")).toHaveText("agent plugin");
@@ -2718,14 +2693,13 @@ test.describe("Agent Plugins marketplace journeys", () => {
       );
       await marketplace.action(catalogEntryID).click();
 
-      // The entry is unverified, so the unchanged trust dialog gates the install.
       const trustDialog = marketplace.extensionTrustDialog;
       await expect(trustDialog).toBeVisible({ timeout: 20_000 });
       await expect(trustDialog).not.toContainText(/permission/i);
       await marketplace.extensionTrustConfirm.click();
-      expect((await installResponse).status()).toBe(201);
+      const install = await installResponse;
+      expect(install.status()).toBe(201);
 
-      // Payload truth from here on: detection, not the feed, decided what was ingested.
       await expect
         .poll(
           async () => {
@@ -2753,14 +2727,12 @@ test.describe("Agent Plugins marketplace journeys", () => {
       await expect(detail.detail).toBeVisible({ timeout: 20_000 });
       await expect(detail.extensionFormatBadge.first()).toHaveText("agent plugin");
 
-      // The kit lists what came in; the Skipped section names what did not, with the daemon's reason.
       await expect(detail.extensionKitInventory).toBeVisible({ timeout: 20_000 });
       await expect(detail.extensionKitInventoryItem.first()).toBeVisible();
       await expect(detail.extensionSkippedComponents).toBeVisible();
       const skippedRow = detail.extensionSkippedRow.first();
       await expect(skippedRow).toContainText("mcp: legacy-events");
       await expect(skippedRow).toContainText("sse transport is not supported");
-      // Something was ingested, so the degraded zero-count line must stay absent.
       await expect(detail.extensionSkippedZeroResources).toHaveCount(0);
     });
   });
@@ -2798,7 +2770,6 @@ test.describe("Agent Plugins marketplace journeys", () => {
       },
     });
 
-    // E2E-005
     test("operator reads the layout diagnostic in the dialog when a curated entry has drifted", async ({
       appPage,
       runtime,
@@ -2819,17 +2790,21 @@ test.describe("Agent Plugins marketplace journeys", () => {
       await marketplace.action(driftedEntryID).click();
       const trustDialog = marketplace.extensionTrustDialog;
       await expect(trustDialog).toBeVisible({ timeout: 20_000 });
+      const installResponse = appPage.waitForResponse(
+        response =>
+          response.request().method() === "POST" &&
+          new URL(response.url()).pathname === "/api/extensions"
+      );
       await marketplace.extensionTrustConfirm.click();
+      const install = await installResponse;
+      expect(install.status()).toBe(422);
 
-      // The failure has to be legible where the operator is looking — the dialog stays open and
-      // renders the deterministic layout diagnostic, never a toast the operator can miss.
       const failure = trustDialog.getByRole("alert");
       await expect(failure).toBeVisible({ timeout: 20_000 });
       await expect(failure).toContainText(".claude-plugin/plugin.json");
       await expect(failure).toContainText("Agent Plugins");
       await expect(trustDialog).toBeVisible();
 
-      // Nothing was installed: the failed entry leaves no instance behind.
       const installed = await runtime.requestJSON<{ extensions: Array<{ name: string }> }>(
         "/api/extensions"
       );

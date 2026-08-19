@@ -6,6 +6,7 @@ import (
 	"errors"
 	"io"
 	"log/slog"
+	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -272,7 +273,7 @@ func TestCoordinatorRunnerWatchEvents(t *testing.T) {
 		if len(plan.NodeRuns) != 0 {
 			t.Fatalf("NodeRuns = %#v, want none while watching", plan.NodeRuns)
 		}
-		if got, want := ledger.cursorQueries[0].Limit, LoopMaxFanoutWidth; got != want {
+		if got, want := ledger.cursorQueries[0].Limit, LoopWatchEventPageLimit; got != want {
 			t.Fatalf("cursor query Limit = %d, want %d", got, want)
 		}
 	})
@@ -323,7 +324,7 @@ func TestCoordinatorRunnerWatchEvents(t *testing.T) {
 		coordinatorRun := watchCoordinatorRun(loopRun)
 		filter := `event.task_id == "task-target"`
 		pendingRef := watchEventsPendingRefForTest(t, int64(1), filter)
-		ledger := &watchEventsLedgerForTest{rows: watchLargeTaskStatusEventsForTest(2, LoopMaxFanoutWidth)}
+		ledger := &watchEventsLedgerForTest{rows: watchLargeTaskStatusEventsForTest(2, LoopWatchEventPageLimit)}
 		runner := newWatchEventsCoordinatorRunnerForTest(
 			t,
 			loopRun,
@@ -346,7 +347,7 @@ func TestCoordinatorRunnerWatchEvents(t *testing.T) {
 		}
 		outputs := outputsByNodeForTest(coordinatorSnapshotPayloadForTest(t, plan).Outputs)
 		pending := decodeWatchEventsOutputRefForTest(t, outputs["watch_tasks"].OutputRef)
-		wantCursor := int64(1 + LoopMaxFanoutWidth)
+		wantCursor := int64(1 + LoopWatchEventPageLimit)
 		if got := pending.Cursors[WatchEventsTaskStream]; got != wantCursor {
 			t.Fatalf("pending cursor = %d, want %d", got, wantCursor)
 		}
@@ -463,7 +464,7 @@ func TestCoordinatorRunnerWatchEvents(t *testing.T) {
 		loopRun := watchLoopRun(StatusWatching, 1, now.Add(-time.Minute))
 		coordinatorRun := watchCoordinatorRun(loopRun)
 		pendingRef := watchEventsPendingRefForTest(t, int64(1), "")
-		ledger := &watchEventsLedgerForTest{rows: watchLargeTaskStatusEventsForTest(2, LoopMaxFanoutWidth)}
+		ledger := &watchEventsLedgerForTest{rows: watchLargeTaskStatusEventsForTest(2, LoopWatchEventPageLimit)}
 		runner := newWatchEventsCoordinatorRunnerForTest(
 			t,
 			loopRun,
@@ -497,7 +498,7 @@ func TestCoordinatorRunnerWatchEvents(t *testing.T) {
 		if err := json.Unmarshal(confirmed.Events, &events); err != nil {
 			t.Fatalf("Unmarshal blob events error = %v", err)
 		}
-		if got, want := len(events), LoopMaxFanoutWidth; got != want {
+		if got, want := len(events), LoopWatchEventPageLimit; got != want {
 			t.Fatalf("blob events len = %d, want %d", got, want)
 		}
 		if got, want := len(plan.PostCommitWakes), 1; got != want {
@@ -508,6 +509,71 @@ func TestCoordinatorRunnerWatchEvents(t *testing.T) {
 			t.Fatalf("wake key = %q, want %q", got, want)
 		}
 	})
+
+	for _, tt := range []struct {
+		name       string
+		policy     dsl.EvalErrorPolicy
+		wantStatus string
+		wantDone   bool
+	}{
+		{
+			name:       "Should fail a broken event filter closed",
+			wantStatus: generationOutputFailed,
+		},
+		{
+			name:       "Should exit when a broken event filter requests it",
+			policy:     dsl.EvalErrorExit,
+			wantStatus: generationOutputSucceeded,
+			wantDone:   true,
+		},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			now := time.Date(2026, 7, 8, 12, 0, 0, 0, time.UTC)
+			loopRun := watchLoopRun(StatusWatching, 1, now.Add(-time.Minute))
+			coordinatorRun := watchCoordinatorRun(loopRun)
+			filter := `size(event.task_id) / 0 > 1`
+			definition := watchEventsDefinitionForTest(filter)
+			definition.Graph.Nodes[0].OnEvalError = tt.policy
+			runner := newWatchEventsCoordinatorRunnerForTest(
+				t,
+				loopRun,
+				coordinatorRun,
+				coordinatorRunnerOutputs{outputs: map[int][]GenerationOutput{1: {
+					{
+						Generation: 1, NodeID: "watch_tasks", Status: generationOutputPending,
+						OutputRef: watchEventsPendingRefForTest(t, 1, filter),
+					},
+					{Generation: 1, NodeID: "summarize", Status: generationOutputPending},
+				}}},
+				compileCoordinatorControlDefinition(t, definition),
+				&watchEventsLedgerForTest{rows: []WatchEvent{
+					watchTaskStatusEventForTest(2, "task-1", "blocked"),
+				}},
+			)
+			runner.now = func() time.Time { return now }
+
+			plan, err := runner.Run(context.Background(), task.RunID(coordinatorRun.ID))
+			if err != nil {
+				t.Fatalf("Run() error = %v", err)
+			}
+			outputs := outputsByNodeForTest(coordinatorSnapshotPayloadForTest(t, plan).Outputs)
+			if outputs["watch_tasks"].Status != tt.wantStatus {
+				t.Fatalf("watch filter output status = %q, want %q", outputs["watch_tasks"].Status, tt.wantStatus)
+			}
+			if gotDone := plan.Terminal != nil && plan.Terminal.Status == string(StatusDone); gotDone != tt.wantDone {
+				t.Fatalf("watch filter terminal = %#v, want done=%v", plan.Terminal, tt.wantDone)
+			}
+			payload := coordinatorSnapshotPayloadForTest(t, plan)
+			if !slices.ContainsFunc(payload.Events, func(event GenerationLifecycleEventIntent) bool {
+				return event.Kind == GenerationLifecycleEventPredicateDiagnostic &&
+					event.DiagnosticCode == "predicate_evaluation_failed"
+			}) {
+				t.Fatalf("watch filter events = %#v, want predicate diagnostic", payload.Events)
+			}
+		})
+	}
 }
 
 // Invariant: event waits consume a matching durable event on entry by default, while reject
@@ -976,13 +1042,13 @@ func BenchmarkFilterWatchEventsRows(b *testing.B) {
 			}},
 			Cursors: map[string]int64{WatchEventsTaskStream: 1},
 		}
-		rows := watchLargeTaskStatusEventsForTest(2, LoopMaxFanoutWidth)
+		rows := watchLargeTaskStatusEventsForTest(2, LoopWatchEventPageLimit)
 		topology := newControlTopology(definition.Graph)
 
 		b.ReportAllocs()
 		b.ResetTimer()
 		for b.Loop() {
-			if _, _, _, err := filterWatchEventsRows(
+			if _, _, _, _, err := filterWatchEventsRows(
 				&watchEventsEvaluationContext{
 					control: controlEvalContext{
 						run: run, generation: 1, resolved: resolved, topology: topology,

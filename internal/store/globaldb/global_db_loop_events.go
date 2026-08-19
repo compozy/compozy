@@ -13,42 +13,54 @@ import (
 )
 
 const (
-	loopRunEventNodeRunning             = "node_running"
-	loopRunEventNodeSucceeded           = "node_succeeded"
-	loopRunEventNodeFailed              = "node_failed"
-	loopRunEventNodeQuarantined         = "node_quarantined"
-	loopRunEventNodeRequeued            = "node_requeued"
-	loopRunEventNodePaused              = "node_paused"
-	loopRunEventNodeResumed             = "node_resumed"
-	loopRunEventNodeWaitStarted         = "node_wait_started"
-	loopRunEventNodeWaitResumed         = "node_wait_resumed"
-	loopRunEventDuplicateSuppressed     = "duplicate_suppressed"
-	loopRunEventNodeCanceled            = "node_canceled"
-	loopRunEventNodeKilled              = "node_killed"
-	loopRunEventNodeAttentionFlagged    = "node_attention_flagged"
-	loopRunEventNodeAttentionCleared    = "node_attention_cleared"
-	loopRunEventTargetBreakerTransition = "target_breaker_transition"
-	loopRunEventGateVerdict             = "gate_verdict"
-	loopRunEventGenerationStarted       = "generation_started"
-	loopRunEventChannelMsg              = "channel_msg"
-	loopRunEventTokenTick               = "token_tick"
-	loopRunEventNeedsApproval           = "needs_approval"
-	loopRunEventStatusChanged           = "status_changed"
-	loopRunEventGoalTurnStarted         = "goal_turn_started"
-	loopRunEventGoalTurnCompleted       = "goal_turn_completed"
-	loopRunEventGoalStatusChanged       = "goal_status_changed"
-	loopRunEventRuntimeApplied          = "runtime_applied"
-	loopRunEventNodeRetryScheduled      = "node_retry_scheduled"
-	loopRunEventStaleScheduleDropped    = "stale_schedule_dropped"
-	loopRunEventLateArrival             = "late_arrival"
-	loopRunEventEffectResults           = "effect_results"
-	loopRunEventCustomEvent             = "custom_event"
+	loopRunEventNodeRunning             = string(looppkg.RunEventNodeRunning)
+	loopRunEventNodeSucceeded           = string(looppkg.RunEventNodeSucceeded)
+	loopRunEventNodeFailed              = string(looppkg.RunEventNodeFailed)
+	loopRunEventNodeQuarantined         = string(looppkg.RunEventNodeQuarantined)
+	loopRunEventNodeRequeued            = string(looppkg.RunEventNodeRequeued)
+	loopRunEventNodePaused              = string(looppkg.RunEventNodePaused)
+	loopRunEventNodeResumed             = string(looppkg.RunEventNodeResumed)
+	loopRunEventNodeWaitStarted         = string(looppkg.RunEventNodeWaitStarted)
+	loopRunEventNodeWaitResumed         = string(looppkg.RunEventNodeWaitResumed)
+	loopRunEventDuplicateSuppressed     = string(looppkg.RunEventDuplicateSuppressed)
+	loopRunEventNodeCanceled            = string(looppkg.RunEventNodeCanceled)
+	loopRunEventNodeKilled              = string(looppkg.RunEventNodeKilled)
+	loopRunEventNodeAttentionFlagged    = string(looppkg.RunEventNodeAttentionFlagged)
+	loopRunEventNodeAttentionCleared    = string(looppkg.RunEventNodeAttentionCleared)
+	loopRunEventTargetBreakerTransition = string(looppkg.RunEventTargetBreaker)
+	loopRunEventGateVerdict             = string(looppkg.RunEventGateVerdict)
+	loopRunEventGenerationStarted       = string(looppkg.RunEventGenerationStarted)
+	loopRunEventChannelMsg              = string(looppkg.RunEventChannelMsg)
+	loopRunEventTokenTick               = string(looppkg.RunEventTokenTick)
+	loopRunEventNeedsApproval           = string(looppkg.RunEventNeedsApproval)
+	loopRunEventStatusChanged           = string(looppkg.RunEventStatusChanged)
+	loopRunEventGoalTurnStarted         = string(looppkg.RunEventGoalTurnStarted)
+	loopRunEventGoalTurnCompleted       = string(looppkg.RunEventGoalTurnCompleted)
+	loopRunEventGoalStatusChanged       = string(looppkg.RunEventGoalStatusChanged)
+	loopRunEventRuntimeApplied          = string(looppkg.RunEventRuntimeApplied)
+	loopRunEventPredicateDiagnostic     = string(looppkg.RunEventPredicateDiagnostic)
+	loopRunEventRouteTaken              = string(looppkg.RunEventRouteTaken)
+	loopRunEventNodeRetryScheduled      = string(looppkg.RunEventNodeRetryScheduled)
+	loopRunEventStaleScheduleDropped    = string(looppkg.RunEventStaleScheduleDropped)
+	loopRunEventLateArrival             = string(looppkg.RunEventLateArrival)
+	loopRunEventEffectResults           = string(looppkg.RunEventEffectResults)
+	loopRunEventCustomEvent             = string(looppkg.RunEventCustomEvent)
+	loopRunEventRequestOpened           = string(looppkg.RunEventRequestOpened)
+	loopRunEventRequestAnswered         = string(looppkg.RunEventRequestAnswered)
+	loopRunEventRequestExpired          = string(looppkg.RunEventRequestExpired)
+	loopRunEventRequestCanceled         = string(looppkg.RunEventRequestCanceled)
+	loopRunEventNodeAmended             = string(looppkg.RunEventNodeAmended)
+	loopRunEventBranchPruned            = string(looppkg.RunEventBranchPruned)
+	loopRunEventRunForked               = string(looppkg.RunEventRunForked)
 
 	maxLoopRunEventPayloadBytes = 16 * 1024
 	loopTokenTickMinDelta       = 2000
 	loopTokenTickMinInterval    = 5 * time.Second
 
 	loopRunEventPayloadKeyGeneration    = "generation"
+	loopRunEventPayloadKeyKind          = "kind"
+	loopRunEventPayloadKeyPrompt        = "prompt"
+	loopRunEventPayloadKeyExpiresAt     = "expires_at"
 	loopRunEventPayloadKeyAttentionFlag = "attention_flag"
 	loopRunEventPayloadKeyFrom          = "from"
 	loopRunEventPayloadKeyFailure       = "failure"
@@ -80,6 +92,8 @@ const (
 	loopRunEventPayloadKeyWaitKind      = "wait_kind"
 	loopRunEventPayloadKeyExpired       = "expired"
 	loopRunEventPayloadKeyRoute         = "route"
+	loopRunEventPayloadKeyDefault       = "default"
+	loopRunEventPayloadKeyMatchedWhen   = "matched_when"
 	loopRunEventVerdictRevise           = "revise"
 	loopRunApprovalFactLabelKey         = "label"
 	loopRunNodeOutputRunning            = "running"
@@ -141,6 +155,14 @@ func appendLoopRunStatusEventWithFailureAndEffects(
 		loopRunEventPayloadKeyTo:     string(to),
 		loopRunEventPayloadKeyStatus: string(to),
 		loopRunEventPayloadKeyCause:  string(cause),
+	}
+	if to.Terminal() {
+		var completionState string
+		if err := exec.QueryRowContext(ctx, `SELECT completion_state FROM loop_runs WHERE id = ?`,
+			runID).Scan(&completionState); err != nil {
+			return fmt.Errorf("store: load Loop completion state for status event: %w", err)
+		}
+		payload["completion_state"] = completionState
 	}
 	if failure != nil {
 		payload[loopRunEventPayloadKeyFailure] = failure
@@ -269,11 +291,20 @@ func loopRunEventKindValid(kind string) bool {
 		loopRunEventGoalTurnCompleted,
 		loopRunEventGoalStatusChanged,
 		loopRunEventRuntimeApplied,
+		loopRunEventPredicateDiagnostic,
+		loopRunEventRouteTaken,
 		loopRunEventNodeRetryScheduled,
 		loopRunEventStaleScheduleDropped,
 		loopRunEventLateArrival,
 		loopRunEventEffectResults,
-		loopRunEventCustomEvent:
+		loopRunEventCustomEvent,
+		loopRunEventRequestOpened,
+		loopRunEventRequestAnswered,
+		loopRunEventRequestExpired,
+		loopRunEventRequestCanceled,
+		loopRunEventNodeAmended,
+		loopRunEventBranchPruned,
+		loopRunEventRunForked:
 		return true
 	default:
 		return false

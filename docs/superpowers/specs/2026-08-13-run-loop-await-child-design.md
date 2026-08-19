@@ -24,7 +24,7 @@ contract:
   verification: []
   terminal_states: [done, failed, blocked, exhausted, stalled]
   iteration_cap: 1
-  no_progress: { window: 2, hash_fields: ["nodes.hold.status"] }
+  no_progress: { window: 2 }
   budget: { tokens: 0, wall_clock_sec: 0, on_exceeded: halt }
 graph:
   nodes:
@@ -52,7 +52,7 @@ contract:
   verification: []
   terminal_states: [done, failed, blocked, exhausted, stalled]
   iteration_cap: 1
-  no_progress: { window: 2, hash_fields: ["nodes.first_child.status", "nodes.second_child.status"] }
+  no_progress: { window: 2 }
   budget: { tokens: 0, wall_clock_sec: 0, on_exceeded: halt }
 graph:
   nodes:

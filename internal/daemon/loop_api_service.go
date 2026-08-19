@@ -31,6 +31,7 @@ type loopAPIPersistence interface {
 	looppkg.AnnotationStore
 	looppkg.DefinitionStateStore
 	looppkg.GenerationLineageReader
+	looppkg.RouteCauseReader
 	gate.VerdictReader
 }
 
@@ -53,7 +54,7 @@ type daemonLoopAPIService struct {
 	persistence       loopAPIPersistence
 	catalogRuns       looppkg.CatalogRunReader
 	goalPersistence   loopGoalAPIPersistence
-	resolver          *daemonLoopDefinitionResolver
+	resolver          looppkg.DefinitionResolver
 	catalog           *resourceCatalog[looppkg.ResourceSpec]
 	publisher         loopResourcePublisher
 	toolRegistry      toolspkg.Registry
@@ -64,6 +65,7 @@ type daemonLoopAPIService struct {
 	sessionStatus     loopSessionStatusReader
 	creationStore     store.SessionCreationStore
 	runtimeCatalog    looppkg.WorkspaceRuntimeCatalog
+	responderPolicy   looppkg.ResponderPolicy
 	logger            *slog.Logger
 	publishMu         sync.Mutex
 }
@@ -118,11 +120,12 @@ func newDaemonLoopAPIService(
 	runtimeCatalog := loopRuntimeCatalogFactory{
 		homePaths: homePaths, workspaceResolver: state.workspaceResolver,
 	}
+	responderPolicy := daemonLoopResponderPolicy{runs: persistence, sessions: state.sessions}
 	aggregate, err := looppkg.NewService(
 		persistence,
 		resolver,
 		newGoalRunPolicyResolver(homePaths, state.workspaceResolver),
-		loopAPIServiceOptions(state, homePaths, now, logger, runtimeCatalog)...,
+		loopAPIServiceOptions(state, homePaths, now, logger, runtimeCatalog, responderPolicy)...,
 	)
 	if err != nil {
 		return nil, fmt.Errorf("daemon: create loop aggregate api service: %w", err)
@@ -143,6 +146,7 @@ func newDaemonLoopAPIService(
 		sessionStatus:     state.sessions,
 		creationStore:     sessionCreationStoreFromRegistry(state.registry),
 		runtimeCatalog:    runtimeCatalog,
+		responderPolicy:   responderPolicy,
 		logger:            logger,
 	}, nil
 }
@@ -153,6 +157,7 @@ func loopAPIServiceOptions(
 	now func() time.Time,
 	logger *slog.Logger,
 	runtimeCatalog looppkg.WorkspaceRuntimeCatalog,
+	responderPolicy looppkg.ResponderPolicy,
 ) []looppkg.Option {
 	options := []looppkg.Option{
 		looppkg.WithClock(now),
@@ -162,7 +167,9 @@ func loopAPIServiceOptions(
 		looppkg.WithGoalRunActivator(loopGoalRunActivator{state: state}),
 		looppkg.WithCoordinatorRunActivator(loopCoordinatorRunActivator{state: state}),
 		looppkg.WithRuntimeCatalog(runtimeCatalog),
+		looppkg.WithInputEntityCatalog(daemonLoopInputEntityCatalog{state: state}),
 		looppkg.WithCancellationSessionController(loopCancellationSessionController{sessions: state.sessions}),
+		looppkg.WithResponderPolicy(responderPolicy),
 	}
 	if state.participationResolver != nil {
 		options = append(options, looppkg.WithParticipationResolver(state.participationResolver))

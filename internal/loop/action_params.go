@@ -14,6 +14,28 @@ func renderNodeParams(node dsl.Node, namespace map[string]any) (map[string]any, 
 	return renderNodeParamsExcept(node, namespace, nil)
 }
 
+func actionParams(node dsl.Node, in ActionExecutionInput) (map[string]any, error) {
+	return actionParamsExcept(node, in, nil)
+}
+
+func actionLiteralParams(node dsl.Node, in ActionExecutionInput) (map[string]any, error) {
+	if in.AdmittedParams != nil {
+		return normalizeNodeParams(in.AdmittedParams)
+	}
+	return normalizeNodeParams(node.Params)
+}
+
+func actionParamsExcept(
+	node dsl.Node,
+	in ActionExecutionInput,
+	rawKeys map[string]struct{},
+) (map[string]any, error) {
+	if in.AdmittedParams != nil {
+		return normalizeNodeParams(in.AdmittedParams)
+	}
+	return renderNodeParamsExcept(node, in.Namespace, rawKeys)
+}
+
 func renderHarvestSpec(node dsl.Node, namespace map[string]any) (*dsl.HarvestSpec, error) {
 	if node.Harvest == nil {
 		return nil, nil

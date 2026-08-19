@@ -140,6 +140,191 @@ func TestCoordinatorRunnerShouldParkWaitControls(t *testing.T) {
 	}
 }
 
+// Invariant: an ask freezes one redacted request and parks the exact cell without worker work.
+// The canonical coordinator-control suite owns ask planning and default-vs-authored expiry precedence.
+func TestCoordinatorRunnerShouldParkAskRequests(t *testing.T) {
+	t.Parallel()
+
+	now := time.Date(2026, time.August, 16, 12, 0, 0, 0, time.UTC)
+	for _, tt := range []struct {
+		name          string
+		authoredAfter string
+		wantAfter     time.Duration
+		omitContext   bool
+	}{
+		{name: "Should seed expiry when the ask omits it", wantAfter: 72 * time.Hour},
+		{name: "Should preserve authored expiry over the seed", authoredAfter: "1h", wantAfter: time.Hour},
+		{name: "Should accept an ask without optional context", wantAfter: 72 * time.Hour, omitContext: true},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			params := dsl.NodeParams{
+				"prompt":     "Choose release target for {{ .inputs.release }}",
+				"expect":     map[string]any{"environment": "string"},
+				"responders": map[string]any{"agents": "allow"},
+			}
+			if !tt.omitContext {
+				params["context"] = map[string]any{
+					"release":   "{{ .inputs.release }}",
+					"api_token": "super-secret-token",
+					"evidence":  strings.Repeat("x", requestPreviewLimitBytes+256),
+				}
+			}
+			if tt.authoredAfter != "" {
+				params["expires"] = map[string]any{"after": tt.authoredAfter}
+			}
+			definition := dsl.Definition{
+				APIVersion: dsl.APIVersion,
+				Kind:       dsl.KindLoop,
+				Meta:       dsl.Meta{Name: "ask-control"},
+				Inputs:     map[string]dsl.Input{"release": {Type: dsl.InputTypeString, Required: true}},
+				Contract: dsl.Contract{
+					Goal: "Choose a target", DefinitionOfDone: "Target chosen", IterationCap: 2,
+				},
+				Graph: dsl.Graph{Nodes: []dsl.Node{
+					{ID: "select", Class: dsl.NodeClassControl, Kind: string(dsl.ControlAsk), Params: params},
+					{ID: "publish", Class: dsl.NodeClassAction, Kind: string(dsl.ActionTransform),
+						Params: dsl.NodeParams{"map": map[string]any{"ok": map[string]any{"value": true}}}},
+				}, Edges: []dsl.Edge{{From: "select", To: "publish"}}},
+			}
+			resolved := compileCoordinatorControlDefinition(t, definition)
+			loopRun := controlLoopRun("looprun-ask-"+strings.ReplaceAll(tt.name, " ", "-"), map[string]any{
+				"release": "v2.4.1",
+			})
+			coordinatorRun := controlCoordinatorRun(loopRun, 1)
+			defaults := DefaultLoopDefaults()
+			seed := "72h"
+			defaults.Delivery.RequestExpireAfter = &seed
+			runner := newCoordinatorRunnerForControlTestWithDefaults(
+				t, loopRun, coordinatorRun, nil,
+				coordinatorRunnerOutputs{outputs: map[int][]GenerationOutput{1: {
+					{Generation: 1, NodeID: "select", Status: generationOutputPending, Attempt: 1},
+					{Generation: 1, NodeID: "publish", Status: generationOutputPending, Attempt: 1},
+				}}},
+				resolved,
+				defaults,
+			)
+			runner.now = func() time.Time { return now }
+
+			plan, err := runner.Run(context.Background(), task.RunID(coordinatorRun.ID))
+			if err != nil {
+				t.Fatalf("Run() error = %v", err)
+			}
+			payload := coordinatorSnapshotPayloadForTest(t, plan)
+			outputs := outputsByNodeAndItemForTest(payload.Outputs)
+			if plan.Terminal != nil || len(plan.NodeRuns) != 0 || !plan.Yield ||
+				outputs["select/0"].Status != generationOutputWaiting {
+				t.Fatalf("ask plan = %#v outputs = %#v, want parked without worker", plan, outputs)
+			}
+			if len(payload.Waits) != 1 || payload.Waits[0].Kind != NodeWaitKindRequest ||
+				payload.Waits[0].NextEscalationAt == nil ||
+				!payload.Waits[0].NextEscalationAt.Equal(now.Add(tt.wantAfter)) {
+				t.Fatalf("ask waits = %#v, want request expiry after %s", payload.Waits, tt.wantAfter)
+			}
+			if len(payload.Requests) != 1 {
+				t.Fatalf("ask requests = %#v, want one", payload.Requests)
+			}
+			request := payload.Requests[0]
+			if request.Prompt != "Choose release target for v2.4.1" ||
+				request.Agents != dsl.ResponderAgentsAllow {
+				t.Fatalf("frozen request = %#v", request)
+			}
+			if tt.omitContext {
+				if string(request.Context) != `{}` || string(request.ContextPreview) != `{}` {
+					t.Fatalf("context-free request = %#v, want empty objects", request)
+				}
+			} else if !strings.Contains(string(request.Context), `"api_token":"[REDACTED]"`) ||
+				strings.Contains(string(request.Context), "super-secret-token") ||
+				!strings.Contains(string(request.ContextPreview), `"truncated":true`) {
+				t.Fatalf("frozen request = %#v", request)
+			}
+		})
+	}
+}
+
+// Invariant: review freezes resolved action params before task creation, and bypass starts the action clock normally.
+// The canonical coordinator-control suite owns pre-enqueue review planning.
+func TestCoordinatorRunnerShouldGateReviewedActionsBeforeEnqueue(t *testing.T) {
+	t.Parallel()
+
+	now := time.Date(2026, time.August, 16, 14, 0, 0, 0, time.UTC)
+	for _, tt := range []struct {
+		name       string
+		when       string
+		wantParked bool
+	}{
+		{name: "Should freeze the proposal and park before enqueue", when: "true", wantParked: true},
+		{name: "Should bypass review when its condition is false", when: "false"},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			definition := dsl.Definition{
+				APIVersion: dsl.APIVersion,
+				Kind:       dsl.KindLoop,
+				Meta:       dsl.Meta{Name: "review-control"},
+				Inputs:     map[string]dsl.Input{"release": {Type: dsl.InputTypeString, Required: true}},
+				Contract: dsl.Contract{
+					Goal: "Publish", DefinitionOfDone: "Published", IterationCap: 2,
+				},
+				Graph: dsl.Graph{Nodes: []dsl.Node{{
+					ID: "publish", Class: dsl.NodeClassAction, Kind: string(dsl.ActionTransform),
+					Params: dsl.NodeParams{"map": map[string]any{
+						"tag": map[string]any{"template": "{{ .inputs.release }}"},
+					}},
+					Review: &dsl.ReviewSpec{
+						When: tt.when, Prompt: "Review {{ .inputs.release }}",
+						Decisions: []dsl.ReviewDecision{
+							dsl.ReviewDecisionApprove, dsl.ReviewDecisionEdit,
+							dsl.ReviewDecisionReject, dsl.ReviewDecisionRespond,
+						},
+					},
+				}}},
+			}
+			resolved := compileCoordinatorControlDefinition(t, definition)
+			loopRun := controlLoopRun("looprun-review-"+strings.ReplaceAll(tt.name, " ", "-"), map[string]any{
+				"release": "v2.4.1",
+			})
+			coordinatorRun := controlCoordinatorRun(loopRun, 1)
+			runner := newCoordinatorRunnerForControlTest(
+				t, loopRun, coordinatorRun, nil,
+				coordinatorRunnerOutputs{outputs: map[int][]GenerationOutput{1: {{
+					Generation: 1, NodeID: "publish", Status: generationOutputPending, Attempt: 1,
+				}}}}, resolved,
+			)
+			runner.now = func() time.Time { return now }
+
+			plan, err := runner.Run(context.Background(), task.RunID(coordinatorRun.ID))
+			if err != nil {
+				t.Fatalf("Run() error = %v", err)
+			}
+			if tt.wantParked {
+				payload := coordinatorSnapshotPayloadForTest(t, plan)
+				if len(plan.NodeRuns) != 0 || !plan.Yield || len(payload.Requests) != 1 ||
+					payload.Outputs[0].Status != generationOutputWaiting || payload.Outputs[0].FirstScheduledAt != nil {
+					t.Fatalf("review plan = %#v payload = %#v, want parked pre-enqueue", plan, payload)
+				}
+				request := payload.Requests[0]
+				if request.Kind != RequestKindReview || request.Prompt != "Review v2.4.1" ||
+					!strings.Contains(string(request.Proposed), `"template":"v2.4.1"`) ||
+					len(request.EditSchema) == 0 || len(request.RespondSchema) == 0 {
+					t.Fatalf("review request = %#v, want frozen proposal and decision schemas", request)
+				}
+				return
+			}
+			if len(plan.NodeRuns) != 1 || plan.PostReserveSnapshot == nil {
+				t.Fatalf("bypass plan = %#v, want one action run", plan)
+			}
+			post := coordinatorPostReservePayloadForTest(t, plan)
+			if len(post.Outputs) != 1 || post.Outputs[0].OutputRef != reviewBypassedOutputRef ||
+				post.Outputs[0].FirstScheduledAt == nil || !post.Outputs[0].FirstScheduledAt.Equal(now) {
+				t.Fatalf("bypass output = %#v, want normal scheduling clock", post.Outputs)
+			}
+		})
+	}
+}
+
 func TestCoordinatorRunnerShouldParkGateApprovalWait(t *testing.T) {
 	t.Parallel()
 
@@ -242,6 +427,28 @@ func TestCoordinatorWaitExpiryRouteShouldSkipNormalPath(t *testing.T) {
 		mapped["timeout/0"].Status != generationOutputPending {
 		t.Fatalf("expiry route outputs = %#v, want normal skipped and timeout pending", mapped)
 	}
+
+	reviewGraph := dsl.Graph{
+		Nodes: []dsl.Node{
+			{ID: "draft", Class: dsl.NodeClassAction, Kind: string(dsl.ActionTransform), Review: &dsl.ReviewSpec{}},
+			{ID: "publish", Class: dsl.NodeClassAction, Kind: string(dsl.ActionTransform)},
+			{ID: "timed_out", Class: dsl.NodeClassAction, Kind: string(dsl.ActionTransform)},
+		},
+		Edges: []dsl.Edge{{From: "draft", To: "publish"}, {From: "draft", To: "timed_out"}},
+	}
+	reviewOutputs := []GenerationOutput{
+		{Generation: 1, NodeID: "draft", Status: generationOutputSucceeded,
+			OutputRef: WaitExpiryRouteOutputRef("timed_out"), Epoch: 2},
+		{Generation: 1, NodeID: "publish", Status: generationOutputPending},
+		{Generation: 1, NodeID: "timed_out", Status: generationOutputPending},
+	}
+	applyWaitExpiryRoutes(reviewGraph, newControlTopology(reviewGraph), &reviewOutputs)
+	reviewMapped := outputsByNodeAndItemForTest(reviewOutputs)
+	if reviewMapped["publish/0"].Status != generationOutputSucceeded ||
+		reviewMapped["publish/0"].OutputRef != branchSkippedOutputRef ||
+		reviewMapped["timed_out/0"].Status != generationOutputPending {
+		t.Fatalf("review expiry route outputs = %#v, want publish skipped and timed_out pending", reviewMapped)
+	}
 }
 
 func TestCoordinatorRunnerShouldDriveFanOutAndCollectControls(t *testing.T) {
@@ -286,6 +493,11 @@ func TestCoordinatorRunnerShouldDriveFanOutAndCollectControls(t *testing.T) {
 		if got, want := plan.NodeRuns[0].TaskID, coordinatorNodeTaskID(loopRun.ID, 1, "work", 0); got != want {
 			t.Fatalf("queued task = %q, want %q", got, want)
 		}
+		assertCoordinatorPlanContainsTaskForControlTest(
+			t,
+			plan,
+			coordinatorNodeTaskID(loopRun.ID, 1, "work", 0),
+		)
 		if got := plan.NodeRuns[0].ResolvedNetworkParticipation; got == nil || *got != liveSpec {
 			t.Fatalf("queued participation = %#v, want %#v", got, liveSpec)
 		}
@@ -307,8 +519,8 @@ func TestCoordinatorRunnerShouldDriveFanOutAndCollectControls(t *testing.T) {
 		if got, want := post["work/0"].Status, generationOutputEnqueued; got != want {
 			t.Fatalf("work[0] status = %q, want %q", got, want)
 		}
-		if got, want := post["work/1"].Status, generationOutputPending; got != want {
-			t.Fatalf("work[1] status = %q, want %q", got, want)
+		if _, materialized := post["work/1"]; materialized {
+			t.Fatal("work[1] materialized before the max_parallel slot opened")
 		}
 		if got, want := post["collect/0"].Status, generationOutputPending; got != want {
 			t.Fatalf("collect status = %q, want %q", got, want)
@@ -341,6 +553,62 @@ func TestCoordinatorRunnerShouldDriveFanOutAndCollectControls(t *testing.T) {
 		}
 		if got, want := secondPlan.NodeRuns[0].TaskID, coordinatorNodeTaskID(loopRun.ID, 1, "work", 1); got != want {
 			t.Fatalf("second queued task = %q, want %q", got, want)
+		}
+		assertCoordinatorPlanContainsTaskForControlTest(
+			t,
+			secondPlan,
+			coordinatorNodeTaskID(loopRun.ID, 1, "work", 1),
+		)
+	})
+
+	t.Run("Should materialize eight lanes for a five-hundred-lane collection", func(t *testing.T) {
+		t.Parallel()
+
+		items := make([]map[string]any, 500)
+		for index := range items {
+			items[index] = map[string]any{"id": index}
+		}
+		producerPayload, err := json.Marshal(map[string]any{"items": items})
+		if err != nil {
+			t.Fatalf("json.Marshal() error = %v", err)
+		}
+		resolved := compileCoordinatorControlDefinition(t, fanOutControlDefinition(1, 8, 500))
+		loopRun := controlLoopRun("looprun-wide-window", map[string]any{})
+		coordinatorRun := controlCoordinatorRun(loopRun, 1)
+		loadRun := controlWorkerRun(loopRun, "load", 0, task.TaskRunStatusCompleted)
+		runner := newCoordinatorRunnerForControlTest(
+			t, loopRun, coordinatorRun,
+			map[string]task.Run{coordinatorRun.ID: coordinatorRun, loadRun.ID: loadRun},
+			coordinatorRunnerOutputs{outputs: map[int][]GenerationOutput{1: {
+				{Generation: 1, NodeID: "load", Status: generationOutputEnqueued,
+					OutputRef: string(producerPayload), TaskRunID: loadRun.ID},
+				{Generation: 1, NodeID: "fan", Status: generationOutputPending},
+				{Generation: 1, NodeID: "collect", Status: generationOutputPending},
+			}}},
+			resolved,
+		)
+
+		plan, err := runner.Run(context.Background(), task.RunID(coordinatorRun.ID))
+		if err != nil {
+			t.Fatalf("Run() error = %v", err)
+		}
+		if got, want := len(plan.NodeRuns), 8; got != want {
+			t.Fatalf("node runs = %d, want max_parallel %d", got, want)
+		}
+		payload := coordinatorPostReservePayloadForTest(t, plan)
+		materialized := 0
+		for _, output := range payload.Outputs {
+			if output.NodeID == "work" {
+				materialized++
+			}
+		}
+		if materialized != 8 {
+			t.Fatalf("materialized lanes = %d, want 8", materialized)
+		}
+		progress := fanOutProgressValue(newControlTopology(resolved.Definition.Graph), payload.Outputs, "fan")
+		if progress["total"] != int64(500) || progress["running"] != int64(8) ||
+			progress["pending"] != int64(492) {
+			t.Fatalf("wide progress = %#v", progress)
 		}
 	})
 
@@ -542,7 +810,7 @@ func TestCoordinatorRunnerShouldExhaustFanOutOverflow(t *testing.T) {
 		if got, want := plan.Terminal.Status, string(StatusExhausted); got != want {
 			t.Fatalf("terminal status = %q, want %q", got, want)
 		}
-		if got, want := plan.Terminal.ReasonCode, "fan_out_width_exceeded"; got != want {
+		if got, want := plan.Terminal.ReasonCode, "fan_out_bound_exceeded"; got != want {
 			t.Fatalf("reason = %q, want %q", got, want)
 		}
 		if got, want := len(plan.NodeRuns), 0; got != want {
@@ -961,8 +1229,8 @@ func TestCoordinatorRunnerShouldExecuteSubLoopBody(t *testing.T) {
 		if got, want := post["nested__work/0"].Status, generationOutputEnqueued; got != want {
 			t.Fatalf("nested work status = %q, want %q", got, want)
 		}
-		if got, want := post["nested__work/1"].Status, generationOutputPending; got != want {
-			t.Fatalf("nested work[1] status = %q, want %q", got, want)
+		if _, materialized := post["nested__work/1"]; materialized {
+			t.Fatal("nested work[1] materialized before the max_parallel slot opened")
 		}
 	})
 }
@@ -1487,12 +1755,27 @@ func newCoordinatorRunnerForControlTest(
 	resolved *ResolvedDefinition,
 ) *CoordinatorRunner {
 	t.Helper()
-	if runs == nil {
-		runs = map[string]task.Run{coordinatorRun.ID: coordinatorRun}
-	}
 	defaults := LoopDefaults{
 		Delivery: definitionConfigLayer(resolved.Definition),
 		Watch:    definitionConfigLayer(resolved.Definition),
+	}
+	return newCoordinatorRunnerForControlTestWithDefaults(
+		t, loopRun, coordinatorRun, runs, outputs, resolved, defaults,
+	)
+}
+
+func newCoordinatorRunnerForControlTestWithDefaults(
+	t *testing.T,
+	loopRun Run,
+	coordinatorRun task.Run,
+	runs map[string]task.Run,
+	outputs GenerationOutputReader,
+	resolved *ResolvedDefinition,
+	defaults LoopDefaults,
+) *CoordinatorRunner {
+	t.Helper()
+	if runs == nil {
+		runs = map[string]task.Run{coordinatorRun.ID: coordinatorRun}
 	}
 	effective, err := ResolveEffectiveConfig(resolved, defaults, nil, LoopConfig{})
 	if err != nil {
@@ -1566,6 +1849,20 @@ func outputsByNodeAndItemForTest(outputs []GenerationOutput) map[string]Generati
 		mapped[output.NodeID+"/"+strconv.Itoa(output.ItemIndex)] = output
 	}
 	return mapped
+}
+
+func assertCoordinatorPlanContainsTaskForControlTest(
+	t *testing.T,
+	plan task.CoordinatorCompletionPlan,
+	taskID string,
+) {
+	t.Helper()
+	for _, spec := range plan.NodeTasks {
+		if spec.TaskID == taskID {
+			return
+		}
+	}
+	t.Fatalf("NodeTasks = %#v, want task %q", plan.NodeTasks, taskID)
 }
 
 func TestCoordinatorControlHelpersShouldFormatMultiDigitIndexes(t *testing.T) {

@@ -3,6 +3,7 @@ import { loopGenerationScore } from "./loop-generation-presentation";
 import { isTerminalLoopStatus } from "./loop-formatters";
 import { goalNodeIds } from "./loop-graph";
 import { LIFECYCLE_KINDS_ENDING_ATTEMPT, lifecycleStoryRow } from "./loop-run-story-lifecycle-rows";
+import { graphStoryRow } from "./loop-run-story-request-rows";
 import {
   asRecord,
   branchKey,
@@ -21,14 +22,6 @@ import {
   taskLink,
 } from "./loop-run-story-rows";
 import type { LoopRunStory, LoopRunStoryContext, LoopStoryNow } from "./loop-run-story-types";
-
-/**
- * The event → story orchestrator (redesign spec §5.3): folds the replayed SSE
- * frames into the newest-first story rows and the "Happening now" projection.
- * Per-kind row shapes live in `loop-run-story-rows`; the "What happens next"
- * note in `loop-run-next-note`. This module re-exports the public story API so
- * `lib/loop-run-story` stays the stable import surface for consumers.
- */
 
 interface RunningEntry {
   nodeId: string;
@@ -222,6 +215,11 @@ export function buildRunStory(
         break;
       }
       default: {
+        const graphRow = graphStoryRow(kind, frame);
+        if (graphRow) {
+          rows.push(graphRow);
+          break;
+        }
         // Node lifecycle kinds (Spec 1). A beat that ends the current attempt
         // also clears the node from "Happening now", so a paused, canceled, or
         // quarantined node never keeps reading as if it were still working.
@@ -265,8 +263,6 @@ export function buildRunStory(
     if (generationRow?.isBest) row.isBest = false;
   }
 
-  // The latest round marker is the live one — accent while the run works,
-  // neutral once superseded or parked (§5.3, prototype states file).
   if (context.status === "running") {
     const latestRound = [...rows].reverse().find(row => row.kind === "generation_started");
     if (latestRound) latestRound.tone = "accent";

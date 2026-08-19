@@ -35,10 +35,6 @@ function verificationMethod(criterion: LoopContractVerification): string {
   return parts.join(" · ");
 }
 
-/**
- * The Loop contract: goal, definition of done, typed verification criteria, the
- * terminal outcomes (color = state), and the concurrency policy (design §4.2).
- */
 export function LoopContractPanel({ contract, concurrency }: LoopContractPanelProps) {
   return (
     <LoopSection

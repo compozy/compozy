@@ -315,7 +315,7 @@ contract:
   goal: "Return a rollout decision for {{ .inputs.market }} from current launch evidence."
   definition_of_done: "The market has an explicit decision, rollout size, and rollback threshold."
   iteration_cap: 1
-  no_progress: { window: 1, hash_fields: [decision] }
+  no_progress: { window: 1 }
   budget: { tokens: 4000, wall_clock_sec: 300, on_exceeded: halt }
   terminal_states: [done, blocked, failed]
 graph:

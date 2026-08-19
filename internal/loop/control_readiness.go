@@ -16,16 +16,20 @@ func dependenciesSucceededForOutput(
 ) bool {
 	nodeID := dsl.NodeID(output.NodeID)
 	if fanOutID, ok := topology.isCollectForFanOut(nodeID); ok {
-		return collectDependenciesSucceeded(graph, topology, outputs, fanOutID, output)
+		return collectDependenciesReady(graph, topology, outputs, fanOutID, output)
 	}
 	outputMap := generationOutputMap(outputs)
 	for _, dependency := range topology.dependencies[nodeID] {
 		dependencyOutput, ok := dependencyOutputForNode(topology, outputMap, nodeID, dependency, output.ItemIndex)
-		if !ok || dependencyOutput.Status != generationOutputSucceeded {
+		if !ok || !generationOutputSatisfiesDependency(dependencyOutput.Status) {
 			return false
 		}
 	}
 	return true
+}
+
+func generationOutputSatisfiesDependency(status string) bool {
+	return status == generationOutputSucceeded || status == generationOutputPartial
 }
 
 func dependencyOutputForNode(
@@ -41,49 +45,6 @@ func dependencyOutputForNode(
 	}
 	output, ok := outputs[generationOutputKey{nodeID: string(dependency), itemIndex: 0}]
 	return output, ok
-}
-
-func collectDependenciesSucceeded(
-	graph dsl.Graph,
-	topology controlTopology,
-	outputs []GenerationOutput,
-	fanOutID dsl.NodeID,
-	collect GenerationOutput,
-) bool {
-	outputMap := generationOutputMap(outputs)
-	for _, dependency := range topology.dependencies[dsl.NodeID(collect.NodeID)] {
-		if _, inScope := topology.fanOutScopes[fanOutID].body[dependency]; !inScope {
-			output, ok := outputMap[generationOutputKey{nodeID: string(dependency), itemIndex: 0}]
-			if !ok || output.Status != generationOutputSucceeded {
-				return false
-			}
-			continue
-		}
-		if !fanOutBodyNodeSucceededForAllBranches(graph, outputs, fanOutID, dependency) {
-			return false
-		}
-	}
-	return true
-}
-
-func fanOutBodyNodeSucceededForAllBranches(
-	graph dsl.Graph,
-	outputs []GenerationOutput,
-	fanOutID dsl.NodeID,
-	nodeID dsl.NodeID,
-) bool {
-	branchCount, ok := fanOutBranchCount(outputs, fanOutID)
-	if !ok {
-		return false
-	}
-	outputMap := generationOutputMap(outputs)
-	for itemIndex := range branchCount {
-		output, ok := outputMap[generationOutputKey{nodeID: string(nodeID), itemIndex: itemIndex}]
-		if !ok || output.Status != generationOutputSucceeded {
-			return false
-		}
-	}
-	return graphNodeExists(graph, nodeID)
 }
 
 func fanOutBranchCount(outputs []GenerationOutput, fanOutID dsl.NodeID) (int, bool) {
@@ -166,7 +127,7 @@ func branchComplete(
 			continue
 		}
 		output, ok := outputMap[generationOutputKey{nodeID: string(nodeID), itemIndex: itemIndex}]
-		if !ok || output.Status != generationOutputSucceeded && output.Status != generationOutputFailed {
+		if !ok || !generationOutputTerminal(output.Status) {
 			return false
 		}
 	}
@@ -270,7 +231,10 @@ func allGenerationOutputsSucceededControlAware(
 				nodeID:    string(fanOutID),
 				itemIndex: 0,
 			}]
-			if fanOutOutputExists && fanOutOutput.OutputRef == branchSkippedOutputRef {
+			if fanOutOutputExists && outputRefMarksSkippedRoute(fanOutOutput.OutputRef) {
+				continue
+			}
+			if fanOutCollectSettled(topology, outputMap, fanOutID) {
 				continue
 			}
 			branchCount, ok := fanOutBranchCount(outputs, fanOutID)
@@ -286,7 +250,7 @@ func allGenerationOutputsSucceededControlAware(
 			continue
 		}
 		output, ok := outputMap[generationOutputKey{nodeID: string(node.ID), itemIndex: 0}]
-		if !ok || output.Status != generationOutputSucceeded {
+		if !ok || output.Status != generationOutputSucceeded && output.Status != generationOutputPartial {
 			return false
 		}
 	}

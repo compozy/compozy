@@ -29,7 +29,6 @@ export interface OsMenuBarProps extends React.ComponentProps<"header"> {
   scopeNotice?: React.ReactNode;
   /** Composed `<MenubarMenu>` children rendered after the workspace chip. */
   menus?: React.ReactNode;
-  /** Approvals count from the bell aggregator; 0/undefined renders no badge. */
   notifications?: number;
   /** Non-interactive system status rendered in the trailing cluster, before the bell. */
   status?: React.ReactNode;
@@ -244,9 +243,7 @@ export function OsMenuBar({
           {updateIndicator}
           <Control
             data-slot="os-menubar-bell"
-            // The badge count reaches assistive tech through the label — the
-            // visible badge alone would be stripped by a bare "Approvals" name.
-            aria-label={notifications ? `Approvals, ${notifications} waiting` : "Approvals"}
+            aria-label={notifications ? `Attention, ${notifications} waiting` : "Attention"}
             aria-haspopup={wrapBellTrigger ? "true" : undefined}
             className="relative grid size-7 place-items-center rounded-md text-muted"
             wrap={wrapBellTrigger}

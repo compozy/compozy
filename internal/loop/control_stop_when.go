@@ -2,12 +2,19 @@ package loop
 
 import (
 	"context"
-	"fmt"
 
 	"github.com/compozy/compozy/internal/loop/dsl"
+	"github.com/compozy/compozy/internal/task"
 )
 
 const contractStopWhenConditionKey = "contract.stop_when"
+
+type contractStopWhenEvaluation struct {
+	stop        bool
+	present     bool
+	terminal    *task.CoordinatorTerminal
+	diagnostics []PredicateDiagnostic
+}
 
 func evaluateContractStopWhen(
 	_ context.Context,
@@ -17,13 +24,13 @@ func evaluateContractStopWhen(
 	topology controlTopology,
 	outputs []GenerationOutput,
 	history GenerationHistory,
-) (bool, bool, error) {
+) (contractStopWhenEvaluation, error) {
 	if resolved == nil {
-		return false, false, nil
+		return contractStopWhenEvaluation{}, nil
 	}
 	condition := resolved.Conditions[contractStopWhenConditionKey]
 	if condition == nil {
-		return false, false, nil
+		return contractStopWhenEvaluation{}, nil
 	}
 	namespace, err := runtimeNamespaceWithHistory(
 		run,
@@ -36,19 +43,28 @@ func evaluateContractStopWhen(
 		0,
 	)
 	if err != nil {
-		return false, true, err
+		return contractStopWhenEvaluation{present: true}, err
 	}
-	value, _, err := condition.Program.Eval(namespace)
+	evaluated, err := evaluatePredicate(
+		contractStopWhenConditionKey,
+		condition,
+		namespace,
+		PredicateContinuation,
+		resolved.Definition.Contract.StopWhen.OnEvalError,
+	)
 	if err != nil {
-		return false, true, fmt.Errorf("loop: evaluate contract.stop_when: %w", err)
+		return contractStopWhenEvaluation{present: true}, err
 	}
-	result, ok := value.Value().(bool)
-	if !ok {
-		return false, true, fmt.Errorf(
-			"%w: contract.stop_when returned %T",
-			ErrValidation,
-			value.Value(),
-		)
+	result := contractStopWhenEvaluation{
+		stop: evaluated.Value, present: true, diagnostics: evaluated.Diagnostics,
 	}
-	return result, true, nil
+	if evaluated.Disposition == nil {
+		return result, nil
+	}
+	if evaluated.Disposition.Policy == PredicateErrorExit {
+		result.stop = true
+		return result, nil
+	}
+	result.terminal = predicateFailureTerminal(evaluated.Disposition.Diagnostic)
+	return result, nil
 }

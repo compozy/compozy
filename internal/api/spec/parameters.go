@@ -53,6 +53,12 @@ func intQueryParam(name string, description string) ParameterSpec {
 	}
 }
 
+func requiredIntQueryParam(name string, description string) ParameterSpec {
+	parameter := intQueryParam(name, description)
+	parameter.Required = true
+	return parameter
+}
+
 func memorySelectorQueryParams() []ParameterSpec {
 	return []ParameterSpec{
 		enumQueryParam(specScopeKey, "Memory scope", memoryScopeValues()),

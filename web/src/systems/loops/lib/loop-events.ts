@@ -1,16 +1,5 @@
 import type { GoalTurn, LoopRunEventFrame, LoopRunEventKind } from "../types";
 
-/**
- * The SSE contract the run page consumes (techspec §observability). The stream
- * replays every retained event from `after_sequence` (default 0), so the reducer
- * below rebuilds the full run history on connect: raw structural frames feed the
- * story timeline + the Inspect drawer's Events section, while the structured
- * kinds (`gate_verdict`, `needs_approval`, `token_tick`, `goal_turn_*`) also
- * update their dedicated surface. Payloads are read through runtime guards so an
- * unknown or malformed frame degrades to a bare retained frame instead of
- * throwing.
- */
-
 export interface LoopGateVerdict {
   nodeId: string;
   gateId: string;
@@ -42,7 +31,6 @@ export interface LoopApprovalRequest {
   facts: LoopApprovalFact[];
 }
 
-/** The closed HITL verdict vocabulary (ADR-017 §9.8): resume / revise / halt. */
 export type LoopGateDecision = "approve" | "request_changes" | "reject";
 
 export interface LoopGoalTurnLive {

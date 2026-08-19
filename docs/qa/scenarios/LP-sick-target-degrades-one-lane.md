@@ -12,7 +12,7 @@ fix_status:
 retest_status:
 fix_commits:
 evidence: internal/daemon/loop_node_lifecycle_e2e_integration_test.go; public QA has no breaker-state or half-open probe injector
-last_report: docs/qa/reports/2026-08-03-loop-node-lifecycle.md
+last_report: docs/qa/reports/2026-08-18-graph-eng.md
 overlaps: TA-loop-failure-breaker; LP-quarantine-diagnose-requeue
 ---
 

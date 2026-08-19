@@ -55,6 +55,7 @@ type NodeControl struct {
 	CancelProvenance        *ControlProvenance
 	LastEvidenceAt          *time.Time
 	DeathResumeStreak       int
+	GateRevisions           map[int]int
 	Revision                int64
 	UpdatedAt               time.Time
 }

@@ -1194,6 +1194,7 @@ func TestToolRenderingAndValidationHelpers(t *testing.T) {
 				Preview: "authorization=Bearer abc",
 				Structured: json.RawMessage(
 					`{"password":"super-secret","visible":"ok","entry_id":"` + publicEntryID +
+						`","ref":"vault:mcp/shared/loop-token` +
 						`","description":"opaque ` + freeTextSecret +
 						`","completion_tokens":9,"totalTokens":7,"accessToken":"super-secret","apiKey":"super-secret"}`,
 				),
@@ -1226,6 +1227,7 @@ func TestToolRenderingAndValidationHelpers(t *testing.T) {
 		}
 		var structured struct {
 			EntryID     string `json:"entry_id"`
+			Ref         string `json:"ref"`
 			Description string `json:"description"`
 		}
 		if err := json.Unmarshal(sanitized.Result.Structured, &structured); err != nil {
@@ -1233,6 +1235,9 @@ func TestToolRenderingAndValidationHelpers(t *testing.T) {
 		}
 		if structured.EntryID != publicEntryID {
 			t.Fatalf("sanitized entry_id = %q, want public structural id %q", structured.EntryID, publicEntryID)
+		}
+		if structured.Ref != "vault:mcp/shared/loop-token" {
+			t.Fatalf("sanitized ref = %q, want public Vault reference", structured.Ref)
 		}
 		if strings.Contains(structured.Description, freeTextSecret) {
 			t.Fatalf("sanitized description leaked heuristic secret: %q", structured.Description)

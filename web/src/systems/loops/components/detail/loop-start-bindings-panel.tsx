@@ -30,12 +30,6 @@ export interface LoopBindingPagination {
 const SCHEDULE_KIND = "schedule";
 const TRIGGER_KINDS = new Set(["trigger", "webhook"]);
 
-/**
- * The Loop-detail Start-bindings panel (§9.14 / ADR-007): the declared `start[]`
- * kinds as one read-only mono line, one row per attached loop-target automation
- * with an enabled dot (the only stateful color here), and Add CTAs gated to the
- * kinds the Loop's allowlist actually permits — so no CTA leads to a create-time 422.
- */
 export function LoopStartBindingsPanel({
   declaredKinds,
   bindings,

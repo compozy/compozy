@@ -3,41 +3,115 @@ import { useState } from "react";
 import { toast } from "@compozy/ui";
 
 import {
+  buildRerunSet,
   loopControlAnswer,
   LoopLifecycleConflictError,
+  type LoopAmendment,
   type LoopControlAnswer,
+  type LoopDefinition,
+  type LoopGraph,
+  LoopInputValidationError,
   type LoopNodeLifecycle,
+  type LoopNodeTimetravelCapability,
   type LoopNodeVerb,
   type LoopNodeVerbCommit,
   type LoopNodeVerbRequest,
+  loopNodeVerbs,
   loopNodeWaitResumeItemIndex,
+  LoopRequestError,
+  LoopTimetravelError,
+  useAmendLoopNode,
   useCancelLoopNode,
   useKillLoopNode,
   usePauseLoopNode,
   useRequeueLoopNode,
+  useRerunLoopRun,
   useResumeLoopNode,
 } from "@/systems/loops";
 
-/**
- * Node verb orchestration for the run page (VC-R3). It owns the confirm/commit
- * cycle for every node lifecycle verb plus the quarantine sheet's open state.
- *
- * The daemon's deterministic answers (409/422) never surface as failures: they
- * arrive as `LoopLifecycleConflictError` carrying the state that won, and this
- * hook renders them as an informational toast and keeps the dialog open with the
- * daemon's own text, so the operator sees why nothing changed.
- */
-export function useLoopNodeControls(workspaceId: string, runId: string) {
+export interface LoopNodeControlsContext {
+  definition?: LoopDefinition;
+
+  graph: LoopGraph | null;
+  runStatus?: string;
+
+  isGenerationBusy: boolean;
+
+  amendments?: readonly LoopAmendment[];
+}
+
+type LoopNodeTimetravelVerb = "amend" | "rerun";
+
+interface LoopNodeTimetravelRequest {
+  verb: LoopNodeTimetravelVerb;
+  node: LoopNodeLifecycle;
+}
+
+function asRecord(value: unknown): Record<string, unknown> | null {
+  return typeof value === "object" && value !== null ? (value as Record<string, unknown>) : null;
+}
+
+function nodeOutputSchema(definition: LoopDefinition | undefined, nodeId: string): unknown {
+  const node = definition?.graph.nodes.find(entry => entry.id === nodeId);
+  if (!node) return undefined;
+  return asRecord(node.params)?.output_schema ?? node.output_schema;
+}
+
+function amendedOutput(
+  amendments: readonly LoopAmendment[] | undefined,
+  node: LoopNodeLifecycle
+): unknown {
+  let newest: LoopAmendment | undefined;
+  for (const amendment of amendments ?? []) {
+    if (amendment.node_id !== node.nodeId || amendment.generation !== node.generation) continue;
+    if (node.itemIndex !== null && amendment.item_index !== node.itemIndex) continue;
+    if (!newest || amendment.amendment_seq > newest.amendment_seq) newest = amendment;
+  }
+  if (!newest) return undefined;
+  return newest.amended ?? newest.original;
+}
+
+function timetravelAnswer(failure: unknown, subject: string): LoopControlAnswer | null {
+  if (!(failure instanceof LoopTimetravelError) && !(failure instanceof LoopRequestError)) {
+    return null;
+  }
+  const details = failure.details;
+  return loopControlAnswer({
+    code: failure.code,
+    message: failure.message,
+    actualState: details.actual_state ?? "",
+    allowedTransitions: (details.allowed_transitions ?? "")
+      .split(",")
+      .map(verb => verb.trim())
+      .filter(verb => verb !== ""),
+    winnerActorKind: details.winner_actor_kind ?? "",
+    winnerActorId: details.winner_actor_id ?? "",
+    winnerReason: details.winner_reason ?? "",
+    winnerRequestedAt: details.winner_requested_at ?? "",
+    subject,
+  });
+}
+
+export function useLoopNodeControls(
+  workspaceId: string,
+  runId: string,
+  context: LoopNodeControlsContext
+) {
   const [request, setRequest] = useState<LoopNodeVerbRequest | null>(null);
   const [answer, setAnswer] = useState<LoopControlAnswer | undefined>(undefined);
   const [error, setError] = useState<string | undefined>(undefined);
   const [quarantineNodeId, setQuarantineNodeId] = useState<string | null>(null);
+  const [timetravel, setTimetravel] = useState<LoopNodeTimetravelRequest | null>(null);
+  const [timetravelRefusal, setTimetravelRefusal] = useState<LoopControlAnswer | null>(null);
+  const [amendFieldErrors, setAmendFieldErrors] = useState<Readonly<Record<string, string>>>();
 
   const pauseNode = usePauseLoopNode();
   const resumeNode = useResumeLoopNode();
   const cancelNode = useCancelLoopNode();
   const killNode = useKillLoopNode();
   const requeueNode = useRequeueLoopNode();
+  const amendMutation = useAmendLoopNode();
+  const rerunMutation = useRerunLoopRun();
 
   const isPending =
     pauseNode.isPending ||
@@ -46,11 +120,27 @@ export function useLoopNodeControls(workspaceId: string, runId: string) {
     killNode.isPending ||
     requeueNode.isPending;
 
+  const isTimetravelPending = amendMutation.isPending || rerunMutation.isPending;
+
   const closeDialog = () => {
     setRequest(null);
     setAnswer(undefined);
     setError(undefined);
   };
+
+  const closeTimetravel = () => {
+    setTimetravel(null);
+    setTimetravelRefusal(null);
+    setAmendFieldErrors(undefined);
+  };
+
+  const timetravelFor = (node: LoopNodeLifecycle): LoopNodeTimetravelCapability => ({
+    hasOutputShape: nodeOutputSchema(context.definition, node.nodeId) !== undefined,
+    isGenerationBusy: context.isGenerationBusy,
+  });
+
+  const nodeVerbs = (node: LoopNodeLifecycle): LoopNodeVerb[] =>
+    loopNodeVerbs(node, context.runStatus, timetravelFor(node));
 
   const handleError = (failure: unknown, node: LoopNodeLifecycle) => {
     if (failure instanceof LoopLifecycleConflictError) {
@@ -85,7 +175,87 @@ export function useLoopNodeControls(workspaceId: string, runId: string) {
       setQuarantineNodeId(node.nodeId);
       return;
     }
+    if (verb === "amend" || verb === "rerun") {
+      if (!nodeVerbs(node).includes(verb)) return;
+      closeTimetravel();
+      setTimetravel({ verb, node });
+      return;
+    }
     setRequest({ verb, node });
+  };
+
+  const handleTimetravelFailure = (failure: unknown, node: LoopNodeLifecycle) => {
+    const resolved = timetravelAnswer(failure, node.nodeId);
+    if (resolved) {
+      toast.info(resolved.title, { description: resolved.detail });
+      setTimetravelRefusal(resolved);
+      return;
+    }
+    const message = failure instanceof Error ? failure.message : "The request did not go through";
+    toast.error(message);
+    setTimetravelRefusal(null);
+  };
+
+  const commitAmend = async ({
+    payload,
+    reason,
+  }: {
+    payload: Record<string, unknown>;
+    reason: string;
+  }) => {
+    const node = timetravel?.node;
+    if (!node) return;
+    const trimmedReason = reason.trim();
+    setTimetravelRefusal(null);
+    setAmendFieldErrors(undefined);
+    try {
+      await amendMutation.mutateAsync({
+        workspaceId,
+        runId,
+        nodeId: node.nodeId,
+        data: {
+          generation: node.generation,
+          item_index: node.itemIndex ?? undefined,
+          payload,
+          reason: trimmedReason === "" ? undefined : trimmedReason,
+        },
+      });
+      toast.success(`${node.nodeId} output amended`);
+      closeTimetravel();
+    } catch (failure) {
+      if (failure instanceof LoopInputValidationError) {
+        setAmendFieldErrors(failure.fieldErrors);
+        setTimetravelRefusal(null);
+        return;
+      }
+      if (failure instanceof LoopRequestError && Object.keys(failure.fieldErrors).length > 0) {
+        setAmendFieldErrors(failure.fieldErrors);
+        setTimetravelRefusal(null);
+        return;
+      }
+      handleTimetravelFailure(failure, node);
+    }
+  };
+
+  const commitRerun = async ({ reason }: { reason: string }) => {
+    const node = timetravel?.node;
+    if (!node) return;
+    const trimmedReason = reason.trim();
+    setTimetravelRefusal(null);
+    try {
+      const result = await rerunMutation.mutateAsync({
+        workspaceId,
+        runId,
+        data: {
+          from_node: node.nodeId,
+          reason: trimmedReason === "" ? undefined : trimmedReason,
+        },
+      });
+      toast.success(`Generation ${result.generation} opened from ${node.nodeId}`);
+      closeTimetravel();
+    } catch (failure) {
+      handleTimetravelFailure(failure, node);
+    }
   };
 
   const commit = ({ verb, node, mode, payload, reason }: LoopNodeVerbCommit) => {
@@ -172,16 +342,35 @@ export function useLoopNodeControls(workspaceId: string, runId: string) {
     }
   };
 
+  const amendNode = timetravel?.verb === "amend" ? timetravel.node : null;
+  const rerunNode = timetravel?.verb === "rerun" ? timetravel.node : null;
   return {
     request,
     answer,
     error,
     isPending,
+
+    isBusy: isPending || isTimetravelPending,
     quarantineNodeId,
     onVerb,
     commit,
     closeDialog,
     openQuarantine: (nodeId: string) => setQuarantineNodeId(nodeId),
     closeQuarantine: () => setQuarantineNodeId(null),
+
+    timetravelFor,
+    amendNode,
+    amendOriginalOutput: amendNode ? amendedOutput(context.amendments, amendNode) : undefined,
+    amendOutputSchema: amendNode
+      ? nodeOutputSchema(context.definition, amendNode.nodeId)
+      : undefined,
+    amendFieldErrors,
+    rerunNode,
+    rerunSet: buildRerunSet(context.graph, rerunNode?.nodeId ?? ""),
+    timetravelAnswer: timetravelRefusal,
+    isTimetravelPending,
+    commitAmend,
+    commitRerun,
+    closeTimetravel,
   };
 }

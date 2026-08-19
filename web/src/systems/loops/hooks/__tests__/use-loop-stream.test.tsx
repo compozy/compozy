@@ -6,8 +6,6 @@ import { describe, expect, it, vi } from "vitest";
 import { useLoopStream } from "@/systems/loops";
 import type { LoopRunEventFrame, LoopStreamEventSource } from "@/systems/loops";
 
-// The twelve enumerated Loop-run SSE kinds the run page binds (techspec §observability,
-// L-017). Kept local to the test so a drift in the hook's subscription list is caught.
 const LOOP_EVENT_KINDS = [
   "node_running",
   "node_succeeded",
@@ -294,6 +292,54 @@ describe("useLoopStream", () => {
       queryKey: ["loops", "run-detail", "ws_1", "looprun_1"],
     });
     expect(invalidateQueries).toHaveBeenCalledWith({ queryKey: ["loops", "runs", "ws_1"] });
+  });
+
+  it("Should refresh the request inventory on the request lifecycle kinds the daemon set omits", async () => {
+    const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    const invalidateQueries = vi.spyOn(queryClient, "invalidateQueries");
+    const eventSource = new FakeLoopStreamEventSource();
+    const factory = vi.fn(() => eventSource);
+    const onEvent = vi.fn();
+
+    renderHook(() => useLoopStream("ws_1", "looprun_1", { eventSourceFactory: factory, onEvent }), {
+      wrapper: createWrapper(queryClient),
+    });
+
+    const requestKinds = [
+      "request_opened",
+      "request_answered",
+      "request_expired",
+      "request_canceled",
+      "node_amended",
+    ] as const;
+    for (const kind of requestKinds) {
+      invalidateQueries.mockClear();
+      onEvent.mockClear();
+      act(() => {
+        eventSource.emitNamed(kind, buildFrame({ kind }));
+      });
+      await waitFor(() => expect(onEvent).toHaveBeenCalledTimes(1));
+      expect(invalidateQueries).toHaveBeenCalledWith({
+        queryKey: ["loops", "run-detail", "ws_1", "looprun_1"],
+      });
+      expect(invalidateQueries).toHaveBeenCalledWith({ queryKey: ["loops", "requests", "ws_1"] });
+      expect(invalidateQueries).toHaveBeenCalledWith({
+        queryKey: ["loops", "node-inventory", "ws_1"],
+      });
+
+      expect(invalidateQueries).not.toHaveBeenCalledWith({
+        queryKey: ["loops", "catalog", "ws_1"],
+      });
+    }
+
+    invalidateQueries.mockClear();
+    onEvent.mockClear();
+    act(() => {
+      eventSource.emitNamed("branch_pruned", buildFrame({ kind: "branch_pruned" }));
+    });
+    await waitFor(() => expect(onEvent).toHaveBeenCalledTimes(1));
+    expect(invalidateQueries).toHaveBeenCalledWith({ queryKey: ["loops", "runs", "ws_1"] });
+    expect(invalidateQueries).not.toHaveBeenCalledWith({ queryKey: ["loops", "requests", "ws_1"] });
   });
 
   it("Should keep the source open for effect results after terminal status until cleanup", async () => {

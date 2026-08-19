@@ -15,16 +15,18 @@ import (
 
 // GenerationSnapshotPayload is the loop-owned payload carried by task.GenerationSnapshot.
 type GenerationSnapshotPayload struct {
-	Outputs              []GenerationOutput                `json:"outputs,omitempty"`
-	Attempts             []NodeAttempt                     `json:"attempts,omitempty"`
-	Controls             []NodeControlMutation             `json:"controls,omitempty"`
-	Waits                []NodeWaitIntent                  `json:"waits,omitempty"`
-	OutputBlobs          []GenerationOutputBlob            `json:"output_blobs,omitempty"`
-	Verdicts             []gate.VerdictIntent              `json:"verdicts,omitempty"`
-	BestUpdate           *gate.BestUpdateIntent            `json:"best_update,omitempty"`
-	GenerationProvenance *GenerationIntent                 `json:"generation_provenance,omitempty"`
-	Events               []GenerationLifecycleEventIntent  `json:"events,omitempty"`
-	BoundaryEffects      map[Status][]RenderedEffectIntent `json:"boundary_effects,omitempty"`
+	Outputs               []GenerationOutput                `json:"outputs,omitempty"`
+	Attempts              []NodeAttempt                     `json:"attempts,omitempty"`
+	Controls              []NodeControlMutation             `json:"controls,omitempty"`
+	Waits                 []NodeWaitIntent                  `json:"waits,omitempty"`
+	Requests              []RequestIntent                   `json:"requests,omitempty"`
+	StrategyCancellations []StrategyCancellationIntent      `json:"strategy_cancellations,omitempty"`
+	OutputBlobs           []GenerationOutputBlob            `json:"output_blobs,omitempty"`
+	Verdicts              []gate.VerdictIntent              `json:"verdicts,omitempty"`
+	BestUpdate            *gate.BestUpdateIntent            `json:"best_update,omitempty"`
+	GenerationProvenance  *GenerationIntent                 `json:"generation_provenance,omitempty"`
+	Events                []GenerationLifecycleEventIntent  `json:"events,omitempty"`
+	BoundaryEffects       map[Status][]RenderedEffectIntent `json:"boundary_effects,omitempty"`
 }
 
 // GenerationOutput is one loop_generation_outputs row mutation.
@@ -89,6 +91,22 @@ func (f *StoreFinalizer) WriteGenerationSnapshot(
 	if err != nil {
 		return err
 	}
+	if err := writeSnapshotOutputs(ctx, tx, loopRunID, snap.Generation, payload); err != nil {
+		return err
+	}
+	if err := writeSnapshotControls(ctx, tx, loopRunID, snap.Generation, payload); err != nil {
+		return err
+	}
+	return writeSnapshotWaitsAndRequests(ctx, tx, loopRunID, snap.Generation, payload)
+}
+
+func writeSnapshotOutputs(
+	ctx context.Context,
+	tx task.Tx,
+	loopRunID string,
+	generation int,
+	payload GenerationSnapshotPayload,
+) error {
 	for _, blob := range payload.OutputBlobs {
 		blob = blob.normalized()
 		if err := blob.validate(); err != nil {
@@ -107,29 +125,93 @@ func (f *StoreFinalizer) WriteGenerationSnapshot(
 		if err != nil {
 			return err
 		}
-		if err := writeGenerationOutput(ctx, tx, loopRunID, snap.Generation, output, resolvedRuntime); err != nil {
+		if err := writeGenerationOutput(ctx, tx, loopRunID, generation, output, resolvedRuntime); err != nil {
 			return err
 		}
 	}
 	for _, attempt := range payload.Attempts {
-		if err := writeGenerationAttempt(ctx, tx, loopRunID, snap.Generation, attempt); err != nil {
+		if err := writeGenerationAttempt(ctx, tx, loopRunID, generation, attempt); err != nil {
 			return err
 		}
 	}
+	return nil
+}
+
+func writeSnapshotControls(
+	ctx context.Context,
+	tx task.Tx,
+	loopRunID string,
+	generation int,
+	payload GenerationSnapshotPayload,
+) error {
 	for _, control := range payload.Controls {
 		if err := writeNodeControlMutation(ctx, tx, loopRunID, control); err != nil {
 			return err
 		}
 		if control.Kind == NodeControlMutationQuarantine {
-			if err := markQuarantinedNodeTasks(ctx, tx, loopRunID, snap.Generation, payload, control); err != nil {
+			if err := markQuarantinedNodeTasks(ctx, tx, loopRunID, generation, payload, control); err != nil {
 				return err
 			}
 		}
 	}
+	return nil
+}
+
+func writeSnapshotWaitsAndRequests(
+	ctx context.Context,
+	tx task.Tx,
+	loopRunID string,
+	generation int,
+	payload GenerationSnapshotPayload,
+) error {
 	for _, wait := range payload.Waits {
-		if err := writeNodeWaitIntent(ctx, tx, loopRunID, snap.Generation, wait); err != nil {
+		if err := writeNodeWaitIntent(ctx, tx, loopRunID, generation, wait); err != nil {
 			return err
 		}
+	}
+	for _, request := range payload.Requests {
+		if err := writeRequestIntent(ctx, tx, loopRunID, generation, request); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func writeRequestIntent(
+	ctx context.Context,
+	tx task.Tx,
+	loopRunID string,
+	generation int,
+	intent RequestIntent,
+) error {
+	intent = intent.normalized()
+	if err := intent.validate(); err != nil {
+		return err
+	}
+	contextRef := OutputRefForPayload(intent.Context)
+	if err := store.UpsertLoopOutputBlob(ctx, tx, contextRef, intent.Context, intent.OpenedAt); err != nil {
+		return fmt.Errorf("loop: persist request context: %w", err)
+	}
+	var proposedRef any
+	if len(intent.Proposed) > 0 {
+		ref := OutputRefForPayload(intent.Proposed)
+		if err := store.UpsertLoopOutputBlob(ctx, tx, ref, intent.Proposed, intent.OpenedAt); err != nil {
+			return fmt.Errorf("loop: persist request proposal: %w", err)
+		}
+		proposedRef = ref
+	}
+	_, err := tx.ExecContext(ctx, `INSERT INTO loop_requests (
+		workspace_id, loop_run_id, generation, node_id, item_index, kind, state,
+		prompt, context_preview_json, context_ref, answer_schema_json, edit_schema_json,
+		respond_schema_json, decisions_json, proposed_ref, proposed_preview_json, opened_at, expires_at
+	) VALUES (?, ?, ?, ?, ?, ?, 'pending', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+	ON CONFLICT(loop_run_id, generation, node_id, item_index) DO NOTHING`,
+		intent.WorkspaceID, loopRunID, generation, intent.NodeID, intent.ItemIndex, intent.Kind,
+		intent.Prompt, string(intent.ContextPreview), contextRef, sqlNullRawJSON(intent.AnswerSchema),
+		sqlNullRawJSON(intent.EditSchema), sqlNullRawJSON(intent.RespondSchema), string(intent.Decisions),
+		proposedRef, sqlNullRawJSON(intent.ProposedPreview), intent.OpenedAt, intent.ExpiresAt)
+	if err != nil {
+		return fmt.Errorf("loop: write request %s/%d: %w", intent.NodeID, intent.ItemIndex, err)
 	}
 	return nil
 }
@@ -366,6 +448,7 @@ func (o GenerationOutput) validate() error {
 		generationOutputControlPending,
 		generationOutputAwaitingGoal,
 		generationOutputSucceeded,
+		generationOutputPartial,
 		generationOutputFailed,
 		generationOutputCanceled,
 		generationOutputQuarantined:

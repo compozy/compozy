@@ -21,7 +21,7 @@ func classifyConfigMutationPath(path []string) (configSetValueKind, bool, error)
 		return kind, false, nil
 	}
 	if len(path) == 4 && path[0] == compozyconfig.LoopsConfigKey && path[1] == compozyconfig.LoopInputsConfigKey {
-		return configSetScalar, false, nil
+		return configSetLoopInput, false, nil
 	}
 	if len(path) == 3 && path[0] == configProvidersKey && path[2] == configSessionMCPKey {
 		return configSetBool, false, nil
@@ -80,6 +80,8 @@ func classifyAgentMutableConfigPath(path []string) (configSetValueKind, bool, bo
 		kind = configSetTable
 	case compozyconfig.ConfigValueScalar:
 		kind = configSetScalar
+	case compozyconfig.ConfigValueLoopInput:
+		kind = configSetLoopInput
 	default:
 		return configSetString, false, false
 	}

@@ -1,28 +1,9 @@
-/**
- * Mock subset of the shared Go linter used at the editor's test I/O boundary. Each rule mirrors
- * a named daemon rule and returns its public issue shape:
- *
- * | rule                        | Go source                              |
- * | --------------------------- | -------------------------------------- |
- * | `fan_out_ceiling_exceeded`  | `linter.go` fan-out bounds             |
- * | `cycle_detected`            | acyclicity invariant                   |
- * | `error_route_conflict`      | `linter_lifecycle.go` lintErrorPolicy  |
- * | `timeout_exceeds_deadline`  | `linter_lifecycle.go` lintLifecycleNode|
- * | `result_contract_invalid`   | `linter_lifecycle.go` lintResultContract|
- * | `effect_shape_invalid`      | `linter_effects.go` lintEffect         |
- * | `wait_shape_invalid`        | `linter_wait.go` lintWait              |
- * | `wait_expiry_without_path`  | `linter_wait.go` lintWaitExpiry (warn) |
- * | `parent_close_invalid`      | `linter_lifecycle.go` lintParentClose  |
- */
-
 export interface MockLintIssue {
   node_id?: string;
   code: string;
   message: string;
   severity: "error" | "warning";
 }
-
-export const FAN_OUT_CEILING = 64;
 
 const PARENT_CLOSE_POLICIES = new Set(["terminate", "cancel", "abandon"]);
 const WAIT_DISCRIMINATORS = ["for", "until", "event"] as const;
@@ -256,11 +237,22 @@ export function lintDefinition(definition?: {
   const nodes = Array.isArray(graph?.nodes) ? (graph.nodes as RawRecord[]) : [];
   for (const node of nodes) {
     const fanOut = node.max_fan_out;
-    if (typeof fanOut === "number" && fanOut > FAN_OUT_CEILING) {
+    if (
+      node.kind === "fan-out" &&
+      (text(node.collection) === "" || typeof fanOut !== "number" || fanOut <= 0)
+    ) {
       issues.push({
         node_id: String(node.id),
-        code: "fan_out_ceiling_exceeded",
-        message: `max_fan_out (${fanOut}) exceeds the daemon ceiling of ${FAN_OUT_CEILING}.`,
+        code: "fan_out_unbounded",
+        message: "fan-out must declare collection and a positive max_fan_out.",
+        severity: "error",
+      });
+    }
+    if (node.kind === "route" && text(node.default) === "") {
+      issues.push({
+        node_id: String(node.id),
+        code: "route_default_missing",
+        message: "route node must declare a default target",
         severity: "error",
       });
     }

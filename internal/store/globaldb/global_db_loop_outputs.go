@@ -197,7 +197,7 @@ func (g *LoopRepo) GetGenerationOutputPayload(
 			Generation:  int64(key.Generation),
 			NodeID:      nodeID,
 			ItemIndex:   int64(key.ItemIndex),
-			OutputRef:   nullString(outputRef),
+			OutputRef:   outputRef,
 			WorkspaceID: workspaceID,
 		},
 	)

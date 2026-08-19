@@ -86,7 +86,7 @@ func NewConditionCompiler(
 		opt(compiler)
 	}
 
-	env, err := cel.NewEnv(
+	options := []cel.EnvOption{
 		cel.Variable("inputs", cel.MapType(cel.StringType, cel.DynType)),
 		cel.Variable("nodes", cel.MapType(cel.StringType, cel.DynType)),
 		cel.Variable("item", cel.DynType),
@@ -96,7 +96,15 @@ func NewConditionCompiler(
 		cel.Variable("event", cel.MapType(cel.StringType, cel.DynType)),
 		cel.Variable("previous", cel.MapType(cel.StringType, cel.DynType)),
 		cel.Variable("best", cel.MapType(cel.StringType, cel.DynType)),
-	)
+		cel.Variable("progress", cel.MapType(cel.StringType, cel.DynType)),
+	}
+	for name := range namespace.FanoutItems {
+		options = append(options, cel.Variable(name, cel.DynType))
+	}
+	for name := range namespace.FanoutIndexes {
+		options = append(options, cel.Variable(name, cel.IntType))
+	}
+	env, err := cel.NewEnv(options...)
 	if err != nil {
 		return nil, fmt.Errorf("create loop CEL environment: %w", err)
 	}
@@ -367,7 +375,7 @@ func isEmptyExpr(expression celast.Expr) bool {
 func isDottedNamespaceRoot(name string) bool {
 	switch name {
 	case namespaceInputs, namespaceNodes, namespaceTrigger, namespaceItem, namespaceIndex,
-		namespaceGeneration, namespaceEvent, namespacePrevious, namespaceBest:
+		namespaceGeneration, namespaceEvent, namespacePrevious, namespaceBest, namespaceProgress:
 		return true
 	default:
 		return false
@@ -376,7 +384,7 @@ func isDottedNamespaceRoot(name string) bool {
 
 func isScalarNamespaceIdent(name string) bool {
 	switch name {
-	case namespaceItem, namespaceIndex, namespaceGeneration:
+	case namespaceItem, namespaceIndex, namespaceGeneration, namespaceProgress:
 		return true
 	default:
 		return false

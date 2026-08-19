@@ -44,7 +44,7 @@ const qualityGateContract: LoopContract = {
   definition_of_done: "Every configured gate passes.",
   iteration_cap: 50,
   budget: { tokens: 500_000, wall_clock_sec: 3_600, on_exceeded: "halt" },
-  no_progress: { window: 3, hash_fields: ["delivery_artifact", "gate_verdict"] },
+  no_progress: { window: 3 },
   boundaries: ["Do not touch unrelated packages."],
   constraints: ["No destructive git."],
   terminal_states: ["done", "no-op", "blocked", "failed", "exhausted", "stalled"],
@@ -71,7 +71,7 @@ const reviewContract: LoopContract = {
   stop_when: "nodes.review.status == 'succeeded' && size(nodes.review.output.issues) == 0",
   iteration_cap: 3,
   budget: { tokens: 0, wall_clock_sec: 0, on_exceeded: "escalate" },
-  no_progress: { window: 2, hash_fields: ["nodes.review.output.issues"] },
+  no_progress: { window: 2 },
 };
 
 function buildRun(
@@ -80,6 +80,7 @@ function buildRun(
   const definitionVersion = overrides.loop_name === "quality-gate-demo" ? 4 : 0;
   return {
     workspace_id: MOCK_WORKSPACE_ID,
+    completion_state: "complete",
     generation: 3,
     iteration_cap: 50,
     tokens_used: 128_400,
@@ -96,6 +97,7 @@ function buildRun(
     definition_digest: "sha256:mock-loop-definition",
     start_metadata: {},
     ...overrides,
+    forks: overrides.forks ?? [],
   };
 }
 
@@ -302,7 +304,6 @@ export const loopCatalogFixtures: LoopCatalogEntry[] = [
       implementer: { type: "agent", required: false, default: "code_implementer" },
       auto_commit: { type: "boolean", required: false, default: false },
     },
-    // The 6 declared start kinds from the design (§4.2); a watch-source stays a body node.
     start: [
       { kind: "manual" },
       { kind: "cli" },

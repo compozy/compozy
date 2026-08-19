@@ -48,6 +48,7 @@ function AttentionBellContract({ state }: { state: BellState }) {
         sections={sections}
         sessionsDisconnected={state === "disconnected"}
         tasksDisconnected={false}
+        loopRequestsDisconnected={false}
         loading={false}
         onSelect={fn()}
       />

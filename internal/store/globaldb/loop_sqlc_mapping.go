@@ -79,6 +79,7 @@ func loopRunFromGenerated(row *sqlcgen.LoopRun) (looppkg.Run, error) {
 			IterationCap: int(row.IterationCap), GoalContextNudgeRatio: row.GoalContextNudgeRatio,
 		},
 		runID: row.ID, workspaceID: row.WorkspaceID, status: row.Status, reattempt: row.ReattemptStrategy,
+		completionState:  row.CompletionState,
 		budgetOnExceeded: row.BudgetOnExceeded, createdAtRaw: row.CreatedAt,
 		startedAtRaw: row.StartedAt, lastProgressAtRaw: store.FormatTimestamp(row.LastProgressAt),
 		activeHumanRaw: row.ActiveHumanCriteriaJson, startMetadataRaw: row.StartMetadataJson,
@@ -93,6 +94,7 @@ func loopRunFromGenerated(row *sqlcgen.LoopRun) (looppkg.Run, error) {
 		originCreation:  row.OriginCreationDigest,
 		networkSpecJSON: row.NetworkSpecJson, networkMode: row.NetworkMode,
 		networkChannel: row.NetworkChannel, networkSource: row.NetworkSource,
+		forkedFromRunID: row.ForkedFromRunID, forkedFromGen: row.ForkedFromGeneration,
 	}
 	run, err := values.toRun()
 	if err != nil {

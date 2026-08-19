@@ -3,8 +3,6 @@ title: compozy.loop/v1 DSL
 description: The Loop definition schema — declared inputs, the contract, node classes and kinds, the gate contract, and start bindings.
 ---
 
-{/* Design reference: docs/design/opendesign/loop-detail.html — LOOPS-DESIGN-SPEC §4.2 (the detail screen renders this definition). Daemon truth wins on divergence (ADR-017 §9). */}
-
 A Loop definition is a **data-first, serializable** document — `compozy.loop/v1` YAML on disk, never a
 program of inline functions. The daemon compiles it to a resolved form that the coordinator and
 executors consume; authors and agents read and write the YAML. This page is the schema reference.
@@ -45,22 +43,35 @@ Each input names a type; a caller supplies values at run time.
 inputs:
   slug: { type: string, required: true }
   implementer: { type: agent, default: code_implementer }
+  reviewer: { type: agent, default: code_reviewer }
+  worker_runtime:
+    { type: runtime, default: { provider: codex, model: gpt-5.5-codex, reasoning: high } }
   verify_command: { type: string, default: "" }
   auto_commit: { type: boolean, default: false }
   spec: { type: ref, ref: { kind: skill } }
+  release_token: { type: ref, ref: { kind: secret } }
 ```
 
-| Type      | Accepts                  | Notes                                                             |
-| --------- | ------------------------ | ----------------------------------------------------------------- |
-| `string`  | text                     |                                                                   |
-| `number`  | int or float             |                                                                   |
-| `boolean` | bool                     |                                                                   |
-| `file`    | a file path (string)     |                                                                   |
-| `agent`   | an agent name (string)   | Web picker uses the agent list.                                   |
-| `ref`     | a resource name (string) | `ref.kind` names the resource kind; picker uses that kind's list. |
+| Type      | Accepts                             | Notes                                                             |
+| --------- | ----------------------------------- | ----------------------------------------------------------------- |
+| `string`  | text                                |                                                                   |
+| `number`  | int or float                        |                                                                   |
+| `boolean` | bool                                |                                                                   |
+| `file`    | text                                | The value is not browsed or checked for existence.                |
+| `agent`   | an exact agent name                 | The daemon checks the workspace agent catalog.                    |
+| `ref`     | an exact resource name              | `ref.kind` selects the catalog used for validation.               |
+| `runtime` | `{ provider?, model?, reasoning? }` | A partial object; exact custom model IDs are valid when accepted. |
 
 Per-input fields: `type` (required), `required` (default `false`), `description`, `default`, and
-`ref` (for `type: ref`). Values are type-checked at run start.
+`ref` (for `type: ref`). String-like inputs may also declare `enum`; those choices take precedence
+over a catalog picker. `ref.kind` is closed to `skill`, `loop`, `worktree`, `session`, `workspace`,
+or `secret`.
+
+Effective values resolve one field at a time in this order: run input, workspace config, global
+config, then the definition default. The daemon validates the winning value immediately before a
+dry run or run starts, including entity existence and runtime support. A failure starts no run and
+returns `input_validation` with `{ loop, field, kind?, value?, origin, reason }`. Secret inputs expose
+Vault reference names and metadata only; secret values never enter the catalog or error payload.
 
 ## The contract
 
@@ -70,7 +81,9 @@ contract:
   definition_of_done: "All tasks pass their gates and the project's checks are green."
   constraints: [] # optional guardrail statements
   boundaries: [] # optional scope statements
-  stop_when: "" # optional CEL terminal condition
+  stop_when: # optional CEL terminal condition; a scalar expression is also valid
+    expr: "generation >= 4"
+    on_eval_error: exit # fail | exit
   verification: # gate criteria that decide "done"
     - {
         id: checks,
@@ -80,7 +93,7 @@ contract:
       }
   terminal_states: [done, no-op, blocked, failed, exhausted, stalled, canceled]
   iteration_cap: 50 # 0 = unbounded (watch Loops)
-  no_progress: { window: 3, hash_fields: [delivery_artifact, gate_verdict] }
+  no_progress: { window: 3 }
   budget: { tokens: 0, wall_clock_sec: 0, on_exceeded: halt } # 0 = off
   runtime_defaults:
     worker: { provider: codex, model: gpt-5.4, reasoning: high }
@@ -90,9 +103,11 @@ contract:
       runtime: { model: gpt-5.5-codex }
 ```
 
-`verification` uses the same [gate criteria](#the-gate-contract) shape as a `gate` node. The stop
-model — `iteration_cap`, `no_progress`, and `budget` — is documented in full on the
-[guardrails](/docs/loops/guardrails) page. `terminal_states` lists the fixed seven outcomes.
+`verification` uses the same [gate criteria](#the-gate-contract) shape as a `gate` node. `stop_when`
+accepts either a CEL string or the strict `{ expr, on_eval_error }` object. A broken continuation
+predicate exits by default so it cannot keep a run alive; set `on_eval_error: fail` to end the run
+`failed` instead. The stop model — `iteration_cap`, `no_progress`, and `budget` — is documented in
+full on the [guardrails](/docs/loops/guardrails) page. `terminal_states` lists the fixed seven outcomes.
 `runtime_defaults.worker` seeds worker runtime fields; `runtime_defaults.judge` seeds judge fields.
 Each `runtime_rules` entry matches exactly one task `id`, `type`, or `complexity` and replaces only
 the runtime fields it sets.
@@ -122,11 +137,11 @@ references validate).
 
 ### Node classes
 
-| Class     | Openness | Kinds                                                        |
-| --------- | -------- | ------------------------------------------------------------ |
-| `action`  | **open** | `run-agent`, `run-loop`, `transform`, `goal`, or any tool ID |
-| `control` | closed   | `fan-out`, `collect`, `branch`, `gate`, `wait`, `sub-loop`   |
-| `source`  | closed   | `input`, `file-import`, `watch-source`, `watch-events`       |
+| Class     | Openness | Kinds                                                                      |
+| --------- | -------- | -------------------------------------------------------------------------- |
+| `action`  | **open** | `run-agent`, `run-loop`, `transform`, `goal`, or any tool ID               |
+| `control` | closed   | `fan-out`, `collect`, `branch`, `route`, `gate`, `wait`, `ask`, `sub-loop` |
+| `source`  | closed   | `input`, `file-import`, `watch-source`, `watch-events`                     |
 
 ### Action nodes
 
@@ -158,15 +173,61 @@ rejects the node run deterministically before an ungated session can start.
 
 | Kind       | Purpose                                   | Key fields                                                                                      |
 | ---------- | ----------------------------------------- | ----------------------------------------------------------------------------------------------- |
-| `fan-out`  | Run a batch of branches over a collection | `collection`, `filter?`, `batch_size` (default 1), `max_parallel`, `max_fan_out` (ceiling 64)   |
+| `fan-out`  | Run a batch of branches over a collection | `collection`, `filter?`, `batch_size` (default 1), `max_parallel`, positive `max_fan_out`       |
 | `collect`  | Join barrier — waits for fanned branches  | —                                                                                               |
-| `branch`   | Route on a CEL condition                  | `condition` (true/false edges)                                                                  |
+| `branch`   | Route on a CEL condition                  | `condition` (true/false edges), optional `on_eval_error: fail \| exit`                          |
+| `route`    | Select exactly one forward path           | ordered `routes: [{when, to}]`, mandatory `default`                                             |
 | `gate`     | Verify against criteria and route         | `criteria`, `verdict_policy`, `on_result`, `max_revisions`                                      |
 | `sub-loop` | An inline nested Loop                     | `body` (graph) + `contract`                                                                     |
 | `wait`     | Park on time or one durable event         | `params`: exactly one of `for`, `until`, `event`; optional `expect`, `ahead_arrival`, `expires` |
 
 `fan-out` exposes `item` and `index` to its branch scope — a single element at `batch_size: 1`, an
-array slice above it.
+array slice above it. Use `bind_as` and `index_as` to give nested fan-outs distinct names.
+
+The default strategy is `wait_all`. `fail_fast` ends on the first definitive failure, and `race`
+accepts the lowest-index successful lane. `best_effort` requires both a threshold and an explicit
+declaration that missing results are acceptable:
+
+```yaml
+- id: inspect_files
+  class: control
+  kind: fan-out
+  collection: "{{ .nodes.changed.output.files }}"
+  bind_as: file
+  index_as: file_index
+  strategy:
+    kind: best_effort
+    threshold: 66%
+    missing: acceptable
+```
+
+Thresholds use a percentage such as `66%` or a count such as `{ count: 2 }`. A collect result is
+`succeeded`, `partial`, or `failed`. Its output contains `total`, `succeeded`, `failed`, `canceled`,
+`coverage_rate`, and `partial`. Read live counts through `nodes.<fan-out-id>.progress.*`; inside that
+fan-out body, `progress.*` is the short form. Available fields are `total`, `succeeded`, `failed`,
+`canceled`, `running`, `pending`, `settled`, `success_rate`, and `failure_rate`. Rates are `0` for an
+empty collection.
+
+Routing predicates fail the node by default when CEL evaluation fails. A `branch` or filtered
+`watch-events` node may set `on_eval_error: exit` to end the Loop successfully instead. Predicate
+costs at or above 80% of the configured CEL limit emit a durable warning; exceeding the limit is an
+authoring failure handled by the same policy.
+
+A `route` checks its CEL conditions in declaration order and takes the first match. If none match,
+it takes the mandatory `default`. Every destination must be a unique direct forward edge. A broken
+condition fails closed with `predicate_evaluation_failed`; it never falls through to the default.
+
+```yaml
+- id: classify
+  class: control
+  kind: route
+  routes:
+    - when: nodes.score.output.value >= 0.8
+      to: publish
+    - when: nodes.score.output.value >= 0.5
+      to: revise
+  default: reject
+```
 
 ### Node reliability fields
 
@@ -312,8 +373,10 @@ An `agent-judge` verdict emits **blocking issues** — `{ id, note }` objects. T
 load-bearing: the [stall signature](/docs/loops/guardrails#the-two-no-progress-axes)
 compares the repeated set across the no-progress window. A malformed judge response degrades to a
 revision, never a silent pass. `on_result` maps a verdict (`pass`, `fail`, `blocked`, `approval`,
-`error`, `timeout`, `invalid_output`) to a route; `max_revisions` caps the loop before the gate
-fails.
+`error`, `timeout`, `invalid_output`) to `continue`, `revise`, `next_generation`, `escalate`,
+`halt`, or an in-body direct forward target written as `{ route: node_id }`. The removed `branch`
+action is rejected. `approval` accepts only `escalate` or `halt` and cannot use an object route to
+bypass a pending approval. `max_revisions` caps the loop before the gate fails.
 An `agent-judge.runtime` value overrides `runtime_defaults.judge` field by field for that criterion
 only. Task runtime rules never apply to judges.
 
@@ -413,7 +476,8 @@ These defaults are a `RestartRequired` config plane, separate from the per-Loop
 | `budget.on_exceeded`    | `halt`     | `halt`  |
 | `fan_out_width`         | 4          | 2       |
 
-Write-time validation rejects negatives and clamps each value to its daemon ceiling. The effective
-config a run uses is a four-layer merge — definition defaults ⊕ `[loops.defaults.*]` ⊕ the per-Loop
-config store ⊕ per-run overrides — with every layer clamped to ceilings. See
+Write-time validation rejects negative `fan_out_width` values; positive values have no daemon-wide
+ceiling. The effective config a run uses is a four-layer merge — definition defaults ⊕
+`[loops.defaults.*]` ⊕ the per-Loop config store ⊕ per-run overrides. Other bounded fields remain
+clamped to their documented ceilings. See
 [configure](/docs/loops/configure).

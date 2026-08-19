@@ -2,6 +2,7 @@ import type {
   LoopDefinition,
   LoopNodeControl,
   LoopNodeWait,
+  LoopRequest,
   LoopRunEventFrame,
   LoopRunGeneration,
   LoopRunRecord,
@@ -34,7 +35,9 @@ import {
   buildRunProgress,
   latestGateVerdict,
 } from "./loop-run-progress";
+import { projectLoopRequest, type LoopRequestView } from "./loop-request-model";
 import { buildRunStory } from "./loop-run-story";
+import { buildStrategyProgress, type LoopStrategyProgressModel } from "./loop-run-strategy";
 import type { LoopRunStory } from "./loop-run-story-types";
 import {
   type LoopRunUsageRow,
@@ -45,15 +48,6 @@ import {
   usageSnapshotFacts,
 } from "./loop-run-usage";
 
-/**
- * The single run-page derivation path (redesign spec §2-§7). Both the live hook
- * (`useLoopRunPage`) and the Storybook fixtures read this projection, so the two
- * can never drift on story/progress/usage/about or the now-card gating. It is a
- * pure function of the run projection, the pinned definition, the reduced SSE
- * live state, and the current clock — no React, no query access.
- */
-
-/** Statuses whose main column leads with the "Happening now" card (§7). */
 export const NOW_CARD_STATUSES = new Set(["running", "watching", "paused"]);
 
 /** The newest `status_changed` frame that landed the run on `toStatus`. */
@@ -121,6 +115,10 @@ export interface LoopRunPageViewInput {
   nodeControls?: readonly LoopNodeControl[];
   /** Durable wait cells from the run detail. */
   waits?: readonly LoopNodeWait[];
+
+  requests?: readonly LoopRequest[];
+
+  frames?: readonly LoopRunEventFrame[];
 }
 
 export interface LoopRunPageView {
@@ -160,6 +158,10 @@ export interface LoopRunPageView {
   attentionNodes: LoopNodeLifecycle[];
   /** ACP session per node from the latest generation — one click into the agent. */
   nodeSessions: ReadonlyMap<string, string>;
+
+  requests: LoopRequestView[];
+
+  strategyProgress: LoopStrategyProgressModel[];
 }
 
 export function projectLoopRunPageView(input: LoopRunPageViewInput): LoopRunPageView {
@@ -235,5 +237,15 @@ export function projectLoopRunPageView(input: LoopRunPageViewInput): LoopRunPage
     waitingNodes: waitingNodes(nodeLifecycles),
     attentionNodes: attentionNodes(nodeLifecycles),
     nodeSessions: sessionsByNode(generations),
+
+    requests: (input.requests ?? []).map(request =>
+      projectLoopRequest(request, { nowMs, runStatus: run.status })
+    ),
+    strategyProgress: buildStrategyProgress({
+      frames: input.frames ?? live.frames,
+      generations: generations ?? [],
+      graph,
+      run: effectiveRun,
+    }),
   };
 }

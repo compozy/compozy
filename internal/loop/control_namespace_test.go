@@ -3,6 +3,7 @@ package loop
 import (
 	"encoding/json"
 	"errors"
+	"reflect"
 	"testing"
 
 	"github.com/compozy/compozy/internal/loop/dsl"
@@ -185,6 +186,64 @@ func TestRuntimeNamespaceShouldScopeFanOutItemsByBatchSize(t *testing.T) {
 	})
 }
 
+func TestRuntimeNamespaceShouldProjectFanOutProgressAndIterationNames(t *testing.T) {
+	t.Parallel()
+
+	graph := dsl.Graph{
+		Nodes: []dsl.Node{
+			{
+				ID:      "fan",
+				Class:   dsl.NodeClassControl,
+				Kind:    string(dsl.ControlFanOut),
+				BindAs:  "file",
+				IndexAs: "file_index",
+			},
+			{ID: "body", Class: dsl.NodeClassAction, Kind: "run-agent"},
+			{ID: "collect", Class: dsl.NodeClassControl, Kind: string(dsl.ControlCollect)},
+		},
+		Edges: []dsl.Edge{{From: "fan", To: "body"}, {From: "body", To: "collect"}},
+	}
+	materialization, terminal := buildFanOutMaterialization(graph.Nodes[0], []any{"a.go", "b.go", "c.go"}, 3)
+	if terminal != nil {
+		t.Fatalf("buildFanOutMaterialization() terminal = %#v, want nil", terminal)
+	}
+	ref, err := fanOutMaterializationRef(materialization)
+	if err != nil {
+		t.Fatalf("fanOutMaterializationRef() error = %v", err)
+	}
+	outputs := []GenerationOutput{
+		{NodeID: "fan", Status: generationOutputSucceeded, OutputRef: ref},
+		{NodeID: "body", ItemIndex: 0, Status: generationOutputSucceeded},
+		{NodeID: "body", ItemIndex: 1, Status: generationOutputFailed},
+		{NodeID: "body", ItemIndex: 2, Status: generationOutputRunning},
+	}
+	namespace, err := runtimeNamespace(Run{}, 1, graph, newControlTopology(graph), outputs, "body", 1)
+	if err != nil {
+		t.Fatalf("runtimeNamespace() error = %v", err)
+	}
+	if got, want := namespace["file"], "b.go"; got != want {
+		t.Fatalf("file alias = %v, want %q", got, want)
+	}
+	if got, want := namespace["file_index"], int64(1); got != want {
+		t.Fatalf("file_index alias = %v, want %d", got, want)
+	}
+	progress := namespace["progress"].(map[string]any)
+	for key, want := range map[string]any{
+		"total": int64(3), "succeeded": int64(1), "failed": int64(1),
+		"running": int64(1), "pending": int64(0), "settled": int64(2),
+		"success_rate": 0.33, "failure_rate": 0.33,
+	} {
+		if got := progress[key]; got != want {
+			t.Fatalf("progress[%q] = %v, want %v", key, got, want)
+		}
+	}
+	nodes := namespace["nodes"].(map[string]any)
+	qualified := nodes["fan"].(map[string]any)["progress"]
+	if !reflect.DeepEqual(qualified, progress) {
+		t.Fatalf("qualified progress = %#v, want %#v", qualified, progress)
+	}
+}
+
 func TestOutputValueShouldProjectNamespaceValues(t *testing.T) {
 	t.Parallel()
 
@@ -210,6 +269,14 @@ func TestOutputValueShouldProjectNamespaceValues(t *testing.T) {
 
 		if value := outputValue(branchSkippedOutputRef); value != nil {
 			t.Fatalf("outputValue(branch skipped) = %#v, want nil", value)
+		}
+	})
+
+	t.Run("Should project a review rejection route marker as absent", func(t *testing.T) {
+		t.Parallel()
+
+		if value := outputValue(reviewRejectedRouteOutputRefPrefix + "fallback"); value != nil {
+			t.Fatalf("outputValue(review rejected route) = %#v, want nil", value)
 		}
 	})
 }

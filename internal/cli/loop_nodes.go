@@ -50,7 +50,7 @@ func loopNodesOutputBundle(response contract.LoopNodeInventoryResponse) outputBu
 		"Loop nodes",
 		[]string{"STATE", "RUN", "LOOP", "GEN", "NODE", "ITEM", "STATE AT"},
 		"loop_nodes",
-		[]string{stateKey, "loop_run_id", "loop_name", "generation", "node_id", "item_index", "state_at"},
+		[]string{stateKey, "loop_run_id", "loop_name", loopGenerationKey, "node_id", "item_index", "state_at"},
 		loopNodeInventoryRow,
 		loopNodeInventoryRow,
 	)

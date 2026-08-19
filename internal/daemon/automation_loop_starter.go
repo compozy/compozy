@@ -18,8 +18,10 @@ import (
 )
 
 type automationLoopStarter struct {
-	service  automationLoopService
-	resolver looppkg.DefinitionResolver
+	service        automationLoopService
+	resolver       looppkg.DefinitionResolver
+	inputEntities  looppkg.InputEntityCatalog
+	runtimeCatalog looppkg.WorkspaceRuntimeCatalog
 }
 
 type automationLoopService interface {
@@ -42,6 +44,8 @@ func newAutomationLoopStarter(
 	homePaths compozyconfig.HomePaths,
 	workspaceResolver workspacepkg.RuntimeResolver,
 	participationResolver participation.Resolver,
+	inputEntities looppkg.InputEntityCatalog,
+	runtimeCatalog looppkg.WorkspaceRuntimeCatalog,
 ) (automationpkg.LoopStarter, error) {
 	if catalog == nil {
 		return nil, nil
@@ -58,6 +62,12 @@ func newAutomationLoopStarter(
 		looppkg.WithDefaultsResolver(newLoopDefaultsResolver(homePaths, workspaceResolver)),
 		looppkg.WithInputDefaultsResolver(newLoopInputDefaultsResolver(homePaths, workspaceResolver)),
 	}
+	if inputEntities != nil {
+		options = append(options, looppkg.WithInputEntityCatalog(inputEntities))
+	}
+	if runtimeCatalog != nil {
+		options = append(options, looppkg.WithRuntimeCatalog(runtimeCatalog))
+	}
 	if participationResolver != nil {
 		options = append(options, looppkg.WithParticipationResolver(participationResolver))
 	}
@@ -71,8 +81,10 @@ func newAutomationLoopStarter(
 		return nil, fmt.Errorf("daemon: create automation loop starter: %w", err)
 	}
 	return &automationLoopStarter{
-		service:  service,
-		resolver: resolver,
+		service:        service,
+		resolver:       resolver,
+		inputEntities:  inputEntities,
+		runtimeCatalog: runtimeCatalog,
 	}, nil
 }
 
@@ -84,13 +96,35 @@ func (s *automationLoopStarter) ValidateLoopTarget(
 	if err != nil {
 		return err
 	}
-	return looppkg.ValidateStartTarget(ctx, s.resolver, looppkg.StartTargetValidation{
+	validation := looppkg.StartTargetValidation{
 		WorkspaceID:  looppkg.WorkspaceID(strings.TrimSpace(req.WorkspaceID)),
 		LoopName:     strings.TrimSpace(req.LoopName),
 		Kind:         kind,
 		Inputs:       req.Inputs,
 		InputMapping: req.InputMapping,
-	})
+	}
+	if err := looppkg.ValidateStartTarget(ctx, s.resolver, validation); err != nil {
+		return err
+	}
+	resolved, err := s.resolver.ResolveLoop(ctx, validation.WorkspaceID, validation.LoopName)
+	if err != nil {
+		return err
+	}
+	values := make(map[string]any, len(validation.Inputs))
+	origins := make(map[string]looppkg.InputOrigin, len(validation.Inputs))
+	for key, value := range validation.Inputs {
+		values[key] = value
+		origins[key] = looppkg.InputOriginAutomation
+	}
+	return looppkg.ValidateInputEntities(
+		ctx,
+		validation.WorkspaceID,
+		validation.LoopName,
+		resolved.Definition,
+		looppkg.ResolvedInputs{Values: values, Origins: origins},
+		s.inputEntities,
+		s.runtimeCatalog,
+	)
 }
 
 func (s *automationLoopStarter) DefaultLoopCatchUpPolicy(

@@ -19,6 +19,41 @@ import (
 
 var fixedTestNow = time.Date(2026, 4, 3, 12, 0, 0, 0, time.UTC)
 
+// Invariant: ask/edit/respond carry valid JSON while approve/reject may omit a payload.
+// The canonical CLI helper suite owns decision-aware Loop response argument admission.
+func TestLoopRespondPayloadShouldMatchDecisionContract(t *testing.T) {
+	t.Parallel()
+
+	for _, testCase := range []struct {
+		name      string
+		decision  string
+		payload   string
+		want      string
+		wantError bool
+	}{
+		{name: "Should require an ask payload", wantError: true},
+		{name: "Should require an edit payload", decision: "edit", wantError: true},
+		{name: "Should accept an approve without payload", decision: "approve", want: "null"},
+		{name: "Should accept a reject without payload", decision: "reject", want: "null"},
+		{name: "Should accept a response payload", decision: "respond", payload: `{"ok":true}`, want: `{"ok":true}`},
+		{name: "Should reject malformed optional payload", decision: "approve", payload: `{`, wantError: true},
+	} {
+		t.Run(testCase.name, func(t *testing.T) {
+			t.Parallel()
+			got, err := loopRespondPayload(testCase.decision, testCase.payload)
+			if testCase.wantError {
+				if err == nil {
+					t.Fatalf("loopRespondPayload() error = nil, want error")
+				}
+				return
+			}
+			if err != nil || string(got) != testCase.want {
+				t.Fatalf("loopRespondPayload() = %s, %v, want %s", got, err, testCase.want)
+			}
+		})
+	}
+}
+
 type stubClient struct {
 	statusFn                           func(context.Context) (StatusRecord, error)
 	observeOverviewFn                  func(context.Context, ObserveOverviewQuery) (contract.ObserveOverviewResponse, error)
@@ -229,6 +264,12 @@ type stubClient struct {
 		contract.PutLoopConfigRequest,
 		agentidentity.Credentials,
 	) (contract.LoopConfigResponse, error)
+	getLoopInputDefaultsFn func(
+		context.Context, string, string, contract.LoopInputDefaultsScope,
+	) (contract.LoopInputDefaultsResponse, error)
+	putLoopInputDefaultFn func(
+		context.Context, string, string, string, contract.PutLoopInputDefaultRequest,
+	) (contract.LoopInputDefaultResponse, error)
 	listLoopRunsFn    func(context.Context, string, LoopRunListQuery) (contract.LoopRunsResponse, error)
 	listGoalTurnsFn   func(context.Context, string, string, GoalTurnListQuery) (contract.GoalTurnPage, error)
 	getLoopRunFn      func(context.Context, string, string) (contract.LoopRunResponse, error)
@@ -2201,6 +2242,33 @@ func (s *stubClient) PutLoopConfig(
 	return contract.LoopConfigResponse{}, errors.New("unexpected PutLoopConfig call")
 }
 
+func (s *stubClient) GetLoopInputDefaults(
+	ctx context.Context,
+	workspaceID string,
+	name string,
+	scope contract.LoopInputDefaultsScope,
+) (contract.LoopInputDefaultsResponse, error) {
+	if s.getLoopInputDefaultsFn != nil {
+		return s.getLoopInputDefaultsFn(ctx, workspaceID, name, scope)
+	}
+	return contract.LoopInputDefaultsResponse{
+		LoopName: name, Scope: scope, Values: map[string]any{},
+	}, nil
+}
+
+func (s *stubClient) PutLoopInputDefault(
+	ctx context.Context,
+	workspaceID string,
+	name string,
+	key string,
+	request contract.PutLoopInputDefaultRequest,
+) (contract.LoopInputDefaultResponse, error) {
+	if s.putLoopInputDefaultFn != nil {
+		return s.putLoopInputDefaultFn(ctx, workspaceID, name, key, request)
+	}
+	return contract.LoopInputDefaultResponse{}, errors.New("unexpected PutLoopInputDefault call")
+}
+
 func (s *stubClient) ListLoopRuns(
 	ctx context.Context,
 	workspaceID string,
@@ -2210,6 +2278,47 @@ func (s *stubClient) ListLoopRuns(
 		return s.listLoopRunsFn(ctx, workspaceID, query)
 	}
 	return contract.LoopRunsResponse{}, errors.New("unexpected ListLoopRuns call")
+}
+
+func (s *stubClient) ListLoopRequests(
+	context.Context,
+	string,
+	LoopRequestListQuery,
+) (contract.LoopRequestsResponse, error) {
+	return contract.LoopRequestsResponse{}, errors.New("unexpected ListLoopRequests call")
+}
+
+func (s *stubClient) GetLoopRequest(
+	context.Context,
+	string,
+	string,
+	int,
+	string,
+	int,
+) (contract.LoopRequestPayload, error) {
+	return contract.LoopRequestPayload{}, errors.New("unexpected GetLoopRequest call")
+}
+
+func (s *stubClient) RespondLoopRequest(
+	context.Context,
+	string,
+	string,
+	string,
+	contract.RespondLoopRequest,
+	agentidentity.Credentials,
+) (contract.RespondLoopRequestResponse, error) {
+	return contract.RespondLoopRequestResponse{}, errors.New("unexpected RespondLoopRequest call")
+}
+
+func (s *stubClient) AmendLoopNode(
+	context.Context,
+	string,
+	string,
+	string,
+	contract.LoopNodeAmendRequest,
+	agentidentity.Credentials,
+) (contract.LoopNodeAmendResponse, error) {
+	return contract.LoopNodeAmendResponse{}, errors.New("unexpected AmendLoopNode call")
 }
 
 func (s *stubClient) ListGoalTurns(
@@ -2233,6 +2342,24 @@ func (s *stubClient) GetLoopRun(
 		return s.getLoopRunFn(ctx, workspaceID, runID)
 	}
 	return contract.LoopRunResponse{}, errors.New("unexpected GetLoopRun call")
+}
+
+func (s *stubClient) DiffLoopRun(
+	context.Context, string, string, int64, int64, string,
+) (contract.LoopDiffResponse, error) {
+	return contract.LoopDiffResponse{}, errors.New("unexpected DiffLoopRun call")
+}
+
+func (s *stubClient) RerunLoopRun(
+	context.Context, string, string, contract.RerunLoopRequest, agentidentity.Credentials,
+) (contract.RerunLoopResponse, error) {
+	return contract.RerunLoopResponse{}, errors.New("unexpected RerunLoopRun call")
+}
+
+func (s *stubClient) ForkLoopRun(
+	context.Context, string, string, contract.ForkLoopRequest, agentidentity.Credentials,
+) (contract.ForkLoopResponse, error) {
+	return contract.ForkLoopResponse{}, errors.New("unexpected ForkLoopRun call")
 }
 
 func (s *stubClient) CancelLoopRun(

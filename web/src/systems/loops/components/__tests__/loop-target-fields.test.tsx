@@ -77,14 +77,19 @@ describe("LoopTargetFields", () => {
     };
   });
 
+  function selectLoop(name: string) {
+    fireEvent.click(screen.getByTestId("loop-target-select"));
+    fireEvent.click(screen.getByText(name, { selector: "[cmdk-item] *" }));
+  }
+
   it("Should list selectable loops and auto-generate a typed input form for the chosen loop", () => {
     render(<Harness />);
     const select = screen.getByTestId("loop-target-select");
-    expect(select).toHaveTextContent("implement-tasks");
+    expect(select.tagName).toBe("BUTTON");
     // No inputs render until a loop is picked.
     expect(screen.queryByTestId("loop-target-inputs")).not.toBeInTheDocument();
 
-    fireEvent.change(select, { target: { value: "implement-tasks" } });
+    selectLoop("implement-tasks");
     const controls = screen.getAllByTestId("loop-input-control").map(node => node.dataset.input);
     expect(controls).toEqual(["slug", "implementer", "auto_commit"]);
     expect(screen.getByTestId("loop-input-field-slug")).toBeInTheDocument();
@@ -94,9 +99,7 @@ describe("LoopTargetFields", () => {
 
   it("Should write static input values onto the loop target", () => {
     render(<Harness />);
-    fireEvent.change(screen.getByTestId("loop-target-select"), {
-      target: { value: "implement-tasks" },
-    });
+    selectLoop("implement-tasks");
     fireEvent.change(screen.getByTestId("loop-input-field-slug"), {
       target: { value: "billing-webhooks" },
     });
@@ -145,20 +148,15 @@ describe("LoopTargetFields", () => {
 
   it("Should render the event-payload mapping table only when enabled", () => {
     const { rerender } = render(<Harness />);
-    fireEvent.change(screen.getByTestId("loop-target-select"), {
-      target: { value: "implement-tasks" },
-    });
+    selectLoop("implement-tasks");
     expect(screen.queryByTestId("loop-input-mapping")).not.toBeInTheDocument();
 
     rerender(<Harness showMapping />);
-    fireEvent.change(screen.getByTestId("loop-target-select"), {
-      target: { value: "implement-tasks" },
-    });
     expect(screen.getByTestId("loop-input-mapping")).toBeInTheDocument();
     expect(screen.getByTestId("loop-mapping-field-slug")).toBeInTheDocument();
   });
 
-  it("Should render a load error instead of the empty workspace copy", () => {
+  it("Should preserve exact Loop entry when the catalog is unavailable", () => {
     loopsState.current = {
       loops: [],
       error: new Error("catalog unavailable"),
@@ -169,8 +167,11 @@ describe("LoopTargetFields", () => {
       isLoading: false,
     };
     render(<Harness />);
-    expect(screen.getByRole("alert")).toHaveTextContent("Could not load Loops");
-    expect(screen.queryByText("No Loops are available in this workspace.")).not.toBeInTheDocument();
+    const exact = screen.getByTestId("loop-target-select");
+    expect(exact.tagName).toBe("INPUT");
+    fireEvent.change(exact, { target: { value: "release-loop" } });
+    expect(screen.getByTestId("loop-target-value")).toHaveTextContent('"loop_name":"release-loop"');
+    expect(screen.getByText(/catalog unavailable.*Enter the exact value/)).toBeInTheDocument();
   });
 
   it("Should filter by the authoritative start contract and preserve an incompatible edit target", () => {
@@ -181,12 +182,31 @@ describe("LoopTargetFields", () => {
       />
     );
 
-    const select = screen.getByRole("combobox", { name: "Loop" });
-    expect(select).toHaveValue("review-and-fix");
-    expect(select).toHaveTextContent("implement-tasks");
-    expect(select).toHaveTextContent("review-and-fix (unavailable for schedule)");
+    const select = screen.getByTestId("loop-target-select");
+    expect(select).toHaveTextContent("review-and-fix");
+    expect(select).toHaveTextContent("Not available");
+    fireEvent.click(select);
+    expect(screen.getByText("implement-tasks", { selector: "[cmdk-item] *" })).toBeInTheDocument();
     expect(screen.getByRole("alert")).toHaveTextContent(
       "review-and-fix does not declare the schedule start kind"
     );
+  });
+
+  it("Should assign unique availability status IDs to concurrent target forms", () => {
+    render(
+      <>
+        <Harness
+          initialValue={{ loop_name: "review-and-fix", inputs: {}, input_mapping: {} }}
+          requiredStartKind="schedule"
+        />
+        <Harness
+          initialValue={{ loop_name: "review-and-fix", inputs: {}, input_mapping: {} }}
+          requiredStartKind="schedule"
+        />
+      </>
+    );
+
+    const ids = screen.getAllByRole("alert").map(alert => alert.id);
+    expect(new Set(ids).size).toBe(ids.length);
   });
 });

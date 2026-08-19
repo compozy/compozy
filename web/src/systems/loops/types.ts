@@ -90,7 +90,6 @@ export type LoopRunMutationResult = OperationResponse<"cancelLoopRun", 200>;
 
 // Node lifecycle ------------------------------------------------------------
 
-/** The shared structured answer every node lifecycle verb returns (contract §API). */
 export type LoopNodeMutationResult = OperationResponse<"pauseLoopNode", 200>;
 /** Durable per-node control truth: pause/quarantine/attention/cancel + revision. */
 export type LoopNodeControl = NonNullable<LoopRunDetail["node_controls"]>[number];
@@ -108,6 +107,43 @@ export type LoopNodeInventoryState = LoopNodeInventoryItem["state"];
 export type LoopNodePauseRequest = OperationRequestBody<"pauseLoopNode">;
 export type LoopNodeResumeRequest = OperationRequestBody<"resumeLoopNode">;
 export type LoopNodeMutationRequest = OperationRequestBody<"cancelLoopNode">;
+
+export type LoopRequestListResult = OperationResponse<"listLoopRequests", 200>;
+export type LoopRequestFilter = OperationQuery<"listLoopRequests">;
+
+export type LoopRequestStableFilter = Omit<LoopRequestFilter, "cursor">;
+
+export type LoopRequest = LoopRequestListResult["items"][number];
+export type LoopRequestAggregates = LoopRequestListResult["aggregates"];
+export type LoopRequestDetail = OperationResponse<"getLoopRequest", 200>;
+export type LoopRespondRequest = OperationRequestBody<"respondLoopRequest">;
+export type LoopRespondResult = OperationResponse<"respondLoopRequest", 200>;
+export type LoopRespondProvenance = LoopRespondResult["provenance"];
+
+export type LoopAmendRequest = OperationRequestBody<"amendLoopNode">;
+export type LoopAmendResult = OperationResponse<"amendLoopNode", 200>;
+
+export type LoopAmendment = NonNullable<LoopRunDetail["amendments"]>[number];
+
+export type LoopValueSummary = NonNullable<LoopAmendment["original_summary"]>;
+
+export type LoopDiffQuery = OperationQuery<"diffLoopRun">;
+export type LoopDiff = OperationResponse<"diffLoopRun", 200>;
+export type LoopDiffSide = LoopDiff["base"];
+export type LoopDiffNode = LoopDiff["nodes"][number];
+export type LoopDiffInput = LoopDiff["inputs"][number];
+
+export type LoopDiffValue = NonNullable<LoopDiffNode["base"]>;
+
+export type LoopRerunRequest = OperationRequestBody<"rerunLoopRun">;
+export type LoopRerunResult = OperationResponse<"rerunLoopRun", 200>;
+
+export type LoopForkRequest = OperationRequestBody<"forkLoopRun">;
+export type LoopForkResult = OperationResponse<"forkLoopRun", 201>;
+
+export type LoopForkLink = NonNullable<LoopRunRecord["forked_from"]>;
+
+export type LoopRouteCause = LoopRunGeneration["route_causes"][number];
 
 // Status vocabulary ---------------------------------------------------------
 

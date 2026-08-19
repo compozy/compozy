@@ -166,6 +166,7 @@ const (
 	configSetFloatSlice
 	configSetTable
 	configSetScalar
+	configSetLoopInput
 	configSetStringOrStringSlice
 )
 

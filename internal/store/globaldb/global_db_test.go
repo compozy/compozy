@@ -543,11 +543,11 @@ func TestOpenGlobalDBReopenPreservesRowsAndStatus(t *testing.T) {
 	t.Run("Should apply destructive cuts once and remove pre-lineage loop history", func(t *testing.T) {
 		t.Parallel()
 
-		ctx := t.Context()
+		ctx := globalMigrationTestContext(t)
 		path := filepath.Join(t.TempDir(), GlobalDatabaseName)
 		createHistoricalGlobalSchemaFixture(ctx, t, path)
 
-		first, err := OpenGlobalDB(ctx, path)
+		first, err := openGlobalMigrationUpgrade(t, path)
 		if err != nil {
 			t.Fatalf("OpenGlobalDB(first post-cut) error = %v", err)
 		}

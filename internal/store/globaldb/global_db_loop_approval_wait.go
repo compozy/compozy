@@ -52,7 +52,7 @@ func claimActiveApprovalWait(
 	}
 	wait.ItemIndex = int(itemIndex)
 	payload, err := json.Marshal(map[string]any{
-		"decision": decision.Decision, "criterion_id": decision.CriterionID,
+		watchEventsPayloadDecisionKey: decision.Decision, "criterion_id": decision.CriterionID,
 	})
 	if err != nil {
 		return fmt.Errorf("store: marshal approval wait decision: %w", err)

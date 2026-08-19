@@ -90,15 +90,16 @@ func (m *Service) startCoordinatorRun(
 func (m *Service) applyCoordinatorPostCommit(
 	ctx context.Context,
 	parentCloses []CoordinatorParentCloseSpec,
+	laneCancels []CoordinatorLaneCancelSpec,
 	actor ActorContext,
 ) error {
-	if len(parentCloses) == 0 {
+	if len(parentCloses) == 0 && len(laneCancels) == 0 {
 		return nil
 	}
 	if m.coordinatorPostCommit == nil {
 		return fmt.Errorf("%w: coordinator parent-close handler is required", ErrValidation)
 	}
-	return m.coordinatorPostCommit.ApplyCoordinatorPostCommit(ctx, parentCloses, actor)
+	return m.coordinatorPostCommit.ApplyCoordinatorPostCommit(ctx, parentCloses, laneCancels, actor)
 }
 
 func (m *Service) armCoordinatorTimers(

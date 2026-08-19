@@ -35,6 +35,18 @@ export const LOOP_RUN_TERMINAL_STATUSES = [
   "canceled",
 ] as const;
 
+export const LOOP_ENTITY_KINDS = [
+  "agent",
+  "skill",
+  "loop",
+  "worktree",
+  "session",
+  "workspace",
+  "secret",
+] as const;
+
+export type LoopEntityKindValue = (typeof LOOP_ENTITY_KINDS)[number];
+
 export const LOOP_RUN_EVENT_KINDS = [
   "node_running",
   "node_succeeded",
@@ -49,6 +61,8 @@ export const LOOP_RUN_EVENT_KINDS = [
   "goal_turn_completed",
   "goal_status_changed",
   "runtime_applied",
+  "predicate_diagnostic",
+  "route_taken",
   "node_retry_scheduled",
   "node_paused",
   "node_resumed",
@@ -66,6 +80,13 @@ export const LOOP_RUN_EVENT_KINDS = [
   "target_breaker_transition",
   "stale_schedule_dropped",
   "late_arrival",
+  "request_opened",
+  "request_answered",
+  "request_expired",
+  "request_canceled",
+  "node_amended",
+  "branch_pruned",
+  "run_forked",
 ] as const;
 
 export type LoopRunEventKindValue = (typeof LOOP_RUN_EVENT_KINDS)[number];
@@ -79,6 +100,8 @@ const LOOP_GENERATION_ORIGINS = [
   "dod_retry",
   "ratchet_restore",
   "requeue",
+  "operator_rerun",
+  "fork_seed",
 ] as const;
 
 export type LoopGenerationOriginValue = (typeof LOOP_GENERATION_ORIGINS)[number];
@@ -124,6 +147,8 @@ export const LOOP_RUN_LIFECYCLE_EVENT_KINDS = [
   "custom_event",
   "duplicate_suppressed",
   "target_breaker_transition",
+  "branch_pruned",
+  "run_forked",
 ] as const;
 
 export const LOOP_WATCH_EVENT_KINDS = [

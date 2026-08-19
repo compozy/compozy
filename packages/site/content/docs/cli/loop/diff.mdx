@@ -1,0 +1,47 @@
+---
+title: "compozy loop diff"
+description: "Compare Loop generations or runs"
+---
+
+## compozy loop diff
+
+Compare Loop generations or runs
+
+```
+compozy loop diff [flags]
+```
+
+### Options
+
+```
+      --against-generation int   Generation to compare
+      --against-run string       Run to compare
+      --generation int           Base generation
+  -h, --help                     help for diff
+      --run-id string            Loop run ID
+      --workspace string         Override workspace (ID, name, or path)
+```
+
+### Options inherited from parent commands
+
+```
+      --json            Emit JSON output
+  -o, --output string   Output format: human, json, jsonl, or toon (default "human")
+```
+
+## Output Formats
+
+The root `-o, --output` flag accepts these values. A renderer is supported only when this command writes that result; `jsonl` is for commands that emit one JSON record per line.
+
+| Format  | Command result                          |
+| ------- | --------------------------------------- |
+| `human` | Interactive terminal rendering          |
+| `json`  | Machine-readable JSON rendering         |
+| `jsonl` | One JSON record per line when supported |
+| `toon`  | Compact agent-readable rendering        |
+
+Example:
+
+```bash
+compozy loop diff -o json
+```

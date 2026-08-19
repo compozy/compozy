@@ -76,7 +76,7 @@ func (g *LoopRepo) listDueLoopWaitEscalations(
 		 AND control.node_id = wait.node_id
 		WHERE wait.claim_state = 'waiting' AND wait.next_escalation_at IS NOT NULL
 		 AND wait.next_escalation_at <= ?
-		 AND ((wait.kind IN ('timer','event') AND output.status = 'waiting')
+		 AND ((wait.kind IN ('timer','event','request') AND output.status = 'waiting')
 		   OR (wait.kind = 'approval_escalation' AND output.status = 'succeeded'
 		     AND run.status = 'needs-approval' AND run.active_gate_id = wait.node_id))
 		 AND output.epoch = wait.issued_epoch

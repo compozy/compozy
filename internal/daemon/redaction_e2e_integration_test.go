@@ -19,6 +19,7 @@ import (
 	"time"
 
 	compozycontract "github.com/compozy/compozy/internal/api/contract"
+	"github.com/compozy/compozy/internal/loop/dsl"
 	"github.com/compozy/compozy/internal/redact"
 	"github.com/compozy/compozy/internal/store"
 	"github.com/compozy/compozy/internal/testutil/acpmock"
@@ -142,8 +143,8 @@ func testLoopVerdictRedactionBoundary(t *testing.T) {
 func loopVerdictRedactionDefinition() compozycontract.LoopDefinitionDocument {
 	definition := feedbackBaseDefinition("loop-verdict-redaction", "redaction draft", 2)
 	definition.Graph.Nodes[0].Params["agent"] = loopRedactionWorker
-	shouldRepair := compozycontract.LoopGraphNode{
-		ID: "should_repair", Class: compozycontract.LoopNodeClassControl, Kind: "branch",
+	shouldRepair := dsl.Node{
+		ID: "should_repair", Class: dsl.NodeClassControl, Kind: "branch",
 		Condition: "generation > 1",
 	}
 	repair := definition.Graph.Nodes[0]
@@ -160,9 +161,9 @@ func loopVerdictRedactionDefinition() compozycontract.LoopDefinitionDocument {
 		},
 	}
 	definition.Graph.Nodes = append(definition.Graph.Nodes, shouldRepair, repair)
-	definition.Graph.Edges = []compozycontract.LoopGraphEdge{{From: "should_repair", To: "repair"}}
+	definition.Graph.Edges = []dsl.Edge{{From: "should_repair", To: "repair"}}
 	// This gate intentionally always rejects so every public surface carries redacted diagnostics.
-	definition.Contract.Verification = []compozycontract.LoopGateCriterion{{
+	definition.Contract.Verification = []dsl.GateCriterion{{
 		ID:       "claim_guard",
 		Type:     "command",
 		Check:    `printf '%s' "$` + loopRedactionEnv + `"`,

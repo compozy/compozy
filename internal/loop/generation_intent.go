@@ -18,6 +18,8 @@ const (
 	OriginDoDRetry           GenerationOrigin = "dod_retry"
 	OriginRatchetRestore     GenerationOrigin = "ratchet_restore"
 	OriginRequeue            GenerationOrigin = "requeue"
+	OriginOperatorRerun      GenerationOrigin = "operator_rerun"
+	OriginForkSeed           GenerationOrigin = "fork_seed"
 )
 
 // GenerationIntent records immutable provenance for a newly created generation.
@@ -62,7 +64,9 @@ func (i GenerationIntent) Validate() error {
 		OriginGateNextGeneration,
 		OriginDoDRetry,
 		OriginRatchetRestore,
-		OriginRequeue:
+		OriginRequeue,
+		OriginOperatorRerun,
+		OriginForkSeed:
 		return nil
 	default:
 		return fmt.Errorf("%w: generation intent origin is invalid: %q", ErrValidation, i.Origin)

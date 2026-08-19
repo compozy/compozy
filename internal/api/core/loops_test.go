@@ -399,6 +399,219 @@ func TestLoopHandlersExposeCatalogRunConfigAnnotationsAndEvents(t *testing.T) {
 	})
 }
 
+// Invariant: request list/detail/respond use the same payloads and structured failures on HTTP and UDS.
+// The canonical Loop handler suite owns transport parity for public request operations.
+func TestLoopRequestHandlersShouldPreserveTransportParity(t *testing.T) {
+	t.Parallel()
+
+	for _, transport := range []string{"httpapi", "udsapi"} {
+		t.Run("Should serve request operations over "+transport, func(t *testing.T) {
+			t.Parallel()
+
+			service := happyLoopService(t)
+			request := contract.LoopRequestPayload{
+				LoopRunID: "run-1", LoopName: "rollout", Generation: 1, NodeID: "select",
+				Kind: "ask", State: "pending", Prompt: "Choose an environment",
+				Context: json.RawMessage(`{"release":"v2.4.1"}`),
+				Expect:  json.RawMessage(`{"environment":"string"}`), Decisions: []string{"respond"},
+				Agents: "deny", OpenedAt: time.Date(2026, time.August, 16, 12, 0, 0, 0, time.UTC),
+			}
+			service.listLoopRequestsFn = func(
+				_ context.Context, workspaceID string, query core.LoopRequestListQuery,
+			) (contract.LoopRequestsResponse, error) {
+				if workspaceID != "ws-1" || query.State != "pending" || query.Limit != 20 {
+					return contract.LoopRequestsResponse{}, errors.New("unexpected request list query")
+				}
+				return contract.LoopRequestsResponse{
+					Items:      []contract.LoopRequestPayload{request},
+					Aggregates: contract.LoopRequestAggregates{Pending: 1},
+				}, nil
+			}
+			service.getLoopRequestFn = func(
+				_ context.Context, workspaceID, runID string, generation int, nodeID string, itemIndex int,
+			) (contract.LoopRequestPayload, error) {
+				if workspaceID != "ws-1" || runID != "run-1" || generation != 1 ||
+					nodeID != "select" || itemIndex != 2 {
+					return contract.LoopRequestPayload{}, errors.New("unexpected request identity")
+				}
+				request.ItemIndex = itemIndex
+				return request, nil
+			}
+			service.respondLoopRequestFn = func(
+				_ context.Context, workspaceID, runID, nodeID string,
+				req contract.RespondLoopRequest, _ taskpkg.ActorContext,
+			) (contract.RespondLoopRequestResponse, error) {
+				if workspaceID != "ws-1" || runID != "run-1" || nodeID != "select" ||
+					req.ItemIndex != 2 || string(req.Payload) != `{"environment":"production"}` {
+					return contract.RespondLoopRequestResponse{}, errors.New("unexpected response input")
+				}
+				return contract.RespondLoopRequestResponse{
+					OK: true, RunID: "run-1", NodeID: "select", Decision: "respond", State: "answered",
+					Provenance: contract.LoopRequestProvenance{
+						ActorKind: "operator", ActorID: "operator:one",
+						AnsweredAt: time.Date(2026, time.August, 16, 12, 1, 0, 0, time.UTC),
+					},
+				}, nil
+			}
+			service.amendLoopNodeFn = func(
+				_ context.Context, workspaceID, runID, nodeID string,
+				req contract.LoopNodeAmendRequest, _ taskpkg.ActorContext,
+			) (contract.LoopNodeAmendResponse, error) {
+				if workspaceID != "ws-1" || runID != "run-1" || nodeID != "select" ||
+					req.Generation != 2 || req.ItemIndex != 2 || string(req.Payload) != `{"environment":"staging"}` {
+					return contract.LoopNodeAmendResponse{}, errors.New("unexpected amendment input")
+				}
+				return contract.LoopNodeAmendResponse{OK: true, Amendment: contract.LoopNodeAmendmentPayload{
+					LoopRunID: runID, Generation: req.Generation, NodeID: nodeID, ItemIndex: req.ItemIndex,
+					Sequence: 1, Amended: req.Payload,
+				}}, nil
+			}
+			_, engine := newLoopHandlerFixture(t, transport, service)
+
+			list := performRequest(t, engine, http.MethodGet,
+				"/workspaces/ws-1/loop-requests?state=pending&limit=20", nil)
+			assertLoopStatus(t, list.Code, http.StatusOK, list.Body.String())
+			var listed contract.LoopRequestsResponse
+			testutil.DecodeJSONResponse(t, list, &listed)
+			if len(listed.Items) != 1 || listed.Aggregates.Pending != 1 {
+				t.Fatalf("%s request list = %#v", transport, listed)
+			}
+
+			detail := performRequest(t, engine, http.MethodGet,
+				"/workspaces/ws-1/loop-runs/run-1/nodes/select/request?generation=1&item_index=2", nil)
+			assertLoopStatus(t, detail.Code, http.StatusOK, detail.Body.String())
+			respond := performRequest(t, engine, http.MethodPost,
+				"/workspaces/ws-1/loop-runs/run-1/nodes/select/respond",
+				[]byte(`{"generation":1,"item_index":2,"payload":{"environment":"production"}}`))
+			assertLoopStatus(t, respond.Code, http.StatusOK, respond.Body.String())
+			var responded contract.RespondLoopRequestResponse
+			testutil.DecodeJSONResponse(t, respond, &responded)
+			if !responded.OK || responded.RunID != "run-1" || responded.NodeID != "select" ||
+				responded.Decision != "respond" || responded.State != "answered" ||
+				responded.Provenance.ActorKind != "operator" || responded.Provenance.ActorID != "operator:one" {
+				t.Fatalf("%s request response = %#v", transport, responded)
+			}
+			amend := performRequest(t, engine, http.MethodPost,
+				"/workspaces/ws-1/loop-runs/run-1/nodes/select/amend",
+				[]byte(`{"generation":2,"item_index":2,"payload":{"environment":"staging"}}`))
+			assertLoopStatus(t, amend.Code, http.StatusOK, amend.Body.String())
+			var amended contract.LoopNodeAmendResponse
+			testutil.DecodeJSONResponse(t, amend, &amended)
+			if !amended.OK || amended.Amendment.LoopRunID != "run-1" ||
+				amended.Amendment.ItemIndex != 2 || amended.Amendment.Sequence != 1 {
+				t.Fatalf("%s amendment response = %#v", transport, amended)
+			}
+
+			service.respondLoopRequestFn = func(
+				context.Context, string, string, string, contract.RespondLoopRequest, taskpkg.ActorContext,
+			) (contract.RespondLoopRequestResponse, error) {
+				return contract.RespondLoopRequestResponse{}, looppkg.NewRequestReasonError(
+					looppkg.ReasonCodeRequestValidationFailed,
+					looppkg.ErrRequestValidationFailed,
+					map[string]string{"environment": "minItems: got 0, want 1"},
+				)
+			}
+			invalid := performRequest(t, engine, http.MethodPost,
+				"/workspaces/ws-1/loop-runs/run-1/nodes/select/respond",
+				[]byte(`{"item_index":2,"payload":{"environment":[]}}`))
+			assertLoopStatus(t, invalid.Code, http.StatusUnprocessableEntity, invalid.Body.String())
+			var failure contract.ErrorPayload
+			testutil.DecodeJSONResponse(t, invalid, &failure)
+			if failure.Code != string(looppkg.ReasonCodeRequestValidationFailed) ||
+				failure.Details["environment"] == "" {
+				t.Fatalf("%s request error = %#v", transport, failure)
+			}
+		})
+	}
+}
+
+// Invariant: time-travel routes preserve typed query/body input and response status across HTTP and UDS.
+// The canonical Loop handler suite owns transport parity for diff, rerun, and fork operations.
+func TestLoopTimeTravelHandlersShouldPreserveTransportParity(t *testing.T) {
+	t.Parallel()
+
+	for _, transport := range []string{"httpapi", "udsapi"} {
+		t.Run("Should serve time-travel operations over "+transport, func(t *testing.T) {
+			t.Parallel()
+
+			service := happyLoopService(t)
+			service.diffLoopRunFn = func(
+				_ context.Context,
+				workspaceID string,
+				runID string,
+				query looppkg.DiffQuery,
+			) (contract.LoopDiffResponse, error) {
+				if workspaceID != "ws-1" || runID != "run-1" || query.Generation != 3 ||
+					query.AgainstGeneration != 2 || query.AgainstRunID != "run-2" {
+					return contract.LoopDiffResponse{}, errors.New("unexpected diff input")
+				}
+				return contract.LoopDiffResponse{Kind: "generation", Inputs: []contract.LoopDiffInputRow{},
+					Nodes: []contract.LoopDiffNodeRow{}}, nil
+			}
+			service.rerunLoopRunFn = func(
+				_ context.Context,
+				workspaceID string,
+				runID string,
+				request contract.RerunLoopRequest,
+				_ taskpkg.ActorContext,
+			) (contract.RerunLoopResponse, error) {
+				if workspaceID != "ws-1" || runID != "run-1" || request.FromNode != "review" ||
+					request.ItemIndex == nil || *request.ItemIndex != 2 {
+					return contract.RerunLoopResponse{}, errors.New("unexpected rerun input")
+				}
+				return contract.RerunLoopResponse{RunID: runID, Generation: 4, ParentGeneration: 3,
+					RerunNodes: []string{"review"}}, nil
+			}
+			service.forkLoopRunFn = func(
+				_ context.Context,
+				workspaceID string,
+				runID string,
+				request contract.ForkLoopRequest,
+				_ taskpkg.ActorContext,
+			) (contract.ForkLoopResponse, error) {
+				if workspaceID != "ws-1" || runID != "run-1" || request.Generation != 3 ||
+					request.Inputs["environment"] != "staging" {
+					return contract.ForkLoopResponse{}, errors.New("unexpected fork input")
+				}
+				return contract.ForkLoopResponse{Run: contract.LoopRunPayload{ID: "fork-1"}}, nil
+			}
+			_, engine := newLoopHandlerFixture(t, transport, service)
+
+			diff := performRequest(t, engine, http.MethodGet,
+				"/workspaces/ws-1/loop-runs/run-1/diff?generation=3&against_generation=2&against_run=run-2", nil)
+			assertLoopStatus(t, diff.Code, http.StatusOK, diff.Body.String())
+			var diffResponse contract.LoopDiffResponse
+			testutil.DecodeJSONResponse(t, diff, &diffResponse)
+			if diffResponse.Kind != "generation" {
+				t.Fatalf("%s diff response = %#v", transport, diffResponse)
+			}
+
+			rerun := performRequest(t, engine, http.MethodPost,
+				"/workspaces/ws-1/loop-runs/run-1/rerun", []byte(`{"from_node":"review","item_index":2}`))
+			assertLoopStatus(t, rerun.Code, http.StatusOK, rerun.Body.String())
+			var rerunResponse contract.RerunLoopResponse
+			testutil.DecodeJSONResponse(t, rerun, &rerunResponse)
+			if rerunResponse.Generation != 4 || len(rerunResponse.RerunNodes) != 1 {
+				t.Fatalf("%s rerun response = %#v", transport, rerunResponse)
+			}
+
+			fork := performRequest(t, engine, http.MethodPost,
+				"/workspaces/ws-1/loop-runs/run-1/fork",
+				[]byte(`{"generation":3,"inputs":{"environment":"staging"}}`))
+			assertLoopStatus(t, fork.Code, http.StatusCreated, fork.Body.String())
+			var forkResponse contract.ForkLoopResponse
+			testutil.DecodeJSONResponse(t, fork, &forkResponse)
+			if forkResponse.Run.ID != "fork-1" {
+				t.Fatalf("%s fork response = %#v", transport, forkResponse)
+			}
+
+			invalid := performRequest(t, engine, http.MethodGet,
+				"/workspaces/ws-1/loop-runs/run-1/diff?generation=zero", nil)
+			assertLoopStatus(t, invalid.Code, http.StatusBadRequest, invalid.Body.String())
+		})
+	}
+}
+
 func TestLoopInputDefaultsHandlersExposeScopedLifecycleOverHTTPAndUDS(t *testing.T) {
 	t.Parallel()
 
@@ -1289,11 +1502,11 @@ func TestLoopHandlersExposeValidationAndConflictBodies(t *testing.T) {
 		}
 	})
 
-	t.Run("Should return structured input-default validation over HTTP and UDS", func(t *testing.T) {
+	t.Run("Should return structured input validation over HTTP and UDS", func(t *testing.T) {
 		t.Parallel()
 
 		for _, transport := range []string{"httpapi", "udsapi"} {
-			t.Run("Should preserve input-default validation through "+transport, func(t *testing.T) {
+			t.Run("Should preserve input validation through "+transport, func(t *testing.T) {
 				t.Parallel()
 
 				service := happyLoopService(t)
@@ -1306,11 +1519,10 @@ func TestLoopHandlersExposeValidationAndConflictBodies(t *testing.T) {
 					taskpkg.ActorContext,
 					bool,
 				) (contract.RunLoopResponse, error) {
-					return contract.RunLoopResponse{}, &looppkg.InputDefaultError{
-						Loop:   "review-and-fix",
-						Key:    "unknown",
-						Reason: looppkg.InputDefaultReasonUnknownInput,
-						Err:    errors.New("input is not declared"),
+					return contract.RunLoopResponse{}, &looppkg.InputValidationError{
+						Loop: "review-and-fix", Field: "reviewer", Kind: "agent", Value: "missing-agent",
+						Origin: looppkg.InputOriginRun, Reason: looppkg.InputValidationReasonUnknownReference,
+						Err: errors.New("agent does not exist"),
 					}
 				}
 				_, engine := newLoopHandlerFixture(t, transport, service)
@@ -1324,12 +1536,14 @@ func TestLoopHandlersExposeValidationAndConflictBodies(t *testing.T) {
 				assertLoopStatus(t, resp.Code, http.StatusUnprocessableEntity, resp.Body.String())
 				var payload contract.LoopValidationResponse
 				testutil.DecodeJSONResponse(t, resp, &payload)
-				if payload.Valid || payload.InputDefault == nil {
-					t.Fatalf("input-default validation payload = %#v, want one typed item", payload)
+				if payload.Valid || payload.InputValidation == nil {
+					t.Fatalf("input validation payload = %#v, want one typed item", payload)
 				}
-				if got := payload.InputDefault; got.Loop != "review-and-fix" || got.Key != "unknown" ||
-					got.Reason != string(looppkg.InputDefaultReasonUnknownInput) {
-					t.Fatalf("input-default validation item = %#v, want stable structured fields", got)
+				if got := payload.InputValidation; got.Loop != "review-and-fix" || got.Field != "reviewer" ||
+					got.Kind != "agent" || got.Value != "missing-agent" ||
+					got.Origin != string(looppkg.InputOriginRun) ||
+					got.Reason != string(looppkg.InputValidationReasonUnknownReference) {
+					t.Fatalf("input validation item = %#v, want stable structured fields", got)
 				}
 			})
 		}
@@ -1515,6 +1729,13 @@ func registerLoopTestRoutes(engine *gin.Engine, handlers *core.BaseHandlers) {
 	workspace.POST("/loop-runs/:run_id/nodes/:node_id/cancel", handlers.CancelLoopNode)
 	workspace.POST("/loop-runs/:run_id/nodes/:node_id/kill", handlers.KillLoopNode)
 	workspace.POST("/loop-runs/:run_id/nodes/:node_id/requeue", handlers.RequeueLoopNode)
+	workspace.GET("/loop-requests", handlers.ListLoopRequests)
+	workspace.GET("/loop-runs/:run_id/nodes/:node_id/request", handlers.GetLoopRequest)
+	workspace.POST("/loop-runs/:run_id/nodes/:node_id/respond", handlers.RespondLoopRequest)
+	workspace.POST("/loop-runs/:run_id/nodes/:node_id/amend", handlers.AmendLoopNode)
+	workspace.GET("/loop-runs/:run_id/diff", handlers.DiffLoopRun)
+	workspace.POST("/loop-runs/:run_id/rerun", handlers.RerunLoopRun)
+	workspace.POST("/loop-runs/:run_id/fork", handlers.ForkLoopRun)
 	workspace.GET("/loop-nodes", handlers.ListLoopNodes)
 	workspace.GET("/loop-runs/:run_id/events", handlers.StreamLoopRunEvents)
 	workspace.GET("/sessions/:session_id/goal", handlers.GetSessionGoal)
@@ -1541,9 +1762,42 @@ type stubLoopService struct {
 		string,
 		contract.LoopInputDefaultsScope,
 	) (contract.DeleteLoopInputDefaultResponse, error)
-	getAnnotationsFn    func(context.Context, string, string) (contract.LoopAnnotationsResponse, error)
-	putAnnotationsFn    func(context.Context, string, string, contract.PutLoopAnnotationsRequest) (contract.LoopAnnotationsResponse, error)
-	listLoopRunsFn      func(context.Context, string, core.LoopRunListQuery) (contract.LoopRunsResponse, error)
+	getAnnotationsFn     func(context.Context, string, string) (contract.LoopAnnotationsResponse, error)
+	putAnnotationsFn     func(context.Context, string, string, contract.PutLoopAnnotationsRequest) (contract.LoopAnnotationsResponse, error)
+	listLoopRunsFn       func(context.Context, string, core.LoopRunListQuery) (contract.LoopRunsResponse, error)
+	listLoopRequestsFn   func(context.Context, string, core.LoopRequestListQuery) (contract.LoopRequestsResponse, error)
+	getLoopRequestFn     func(context.Context, string, string, int, string, int) (contract.LoopRequestPayload, error)
+	respondLoopRequestFn func(
+		context.Context,
+		string,
+		string,
+		string,
+		contract.RespondLoopRequest,
+		taskpkg.ActorContext,
+	) (contract.RespondLoopRequestResponse, error)
+	amendLoopNodeFn func(
+		context.Context,
+		string,
+		string,
+		string,
+		contract.LoopNodeAmendRequest,
+		taskpkg.ActorContext,
+	) (contract.LoopNodeAmendResponse, error)
+	diffLoopRunFn  func(context.Context, string, string, looppkg.DiffQuery) (contract.LoopDiffResponse, error)
+	rerunLoopRunFn func(
+		context.Context,
+		string,
+		string,
+		contract.RerunLoopRequest,
+		taskpkg.ActorContext,
+	) (contract.RerunLoopResponse, error)
+	forkLoopRunFn func(
+		context.Context,
+		string,
+		string,
+		contract.ForkLoopRequest,
+		taskpkg.ActorContext,
+	) (contract.ForkLoopResponse, error)
 	getLoopRunFn        func(context.Context, string, string) (contract.LoopRunResponse, error)
 	getSessionGoalFn    func(context.Context, string, string) (*session.GoalSnapshot, error)
 	listGoalTurnsFn     func(context.Context, string, string, core.GoalTurnListQuery) (session.GoalTurnPage, error)
@@ -1586,10 +1840,15 @@ func happyLoopService(t testing.TB) *stubLoopService {
 					CreatedAt: time.Date(2026, 7, 10, 11, 0, 0, 0, time.UTC),
 				},
 				Inputs: map[string]contract.LoopInput{
-					"ticket": {Type: string(dsl.InputTypeString), Required: true},
+					"ticket": {Type: dsl.InputTypeString, Required: true},
 				},
-				Start:         []contract.LoopStartBinding{{Kind: string(dsl.StartHTTP)}},
-				Contract:      loopDefinitionDocument(t).Contract,
+				Start: []contract.LoopStartBinding{{Kind: string(dsl.StartHTTP)}},
+				Contract: contract.LoopContract{
+					Goal:             "Handle the ticket",
+					DefinitionOfDone: "Ticket is resolved",
+					IterationCap:     3,
+					TerminalStates:   []string{"done", "failed"},
+				},
 				Aggregate30d:  contract.LoopCatalogAggregatePayload{Runs: 2, Succeeded: 1, Failed: 1},
 				SuccessRate30: 0.5,
 			}}}, nil
@@ -1885,6 +2144,33 @@ func (s *stubLoopService) GetLoopRun(
 	return s.getLoopRunFn(ctx, workspaceID, runID)
 }
 
+func (s *stubLoopService) DiffLoopRun(
+	ctx context.Context, workspaceID, runID string, query looppkg.DiffQuery,
+) (contract.LoopDiffResponse, error) {
+	if s.diffLoopRunFn == nil {
+		return contract.LoopDiffResponse{}, errors.New("unexpected DiffLoopRun call")
+	}
+	return s.diffLoopRunFn(ctx, workspaceID, runID, query)
+}
+
+func (s *stubLoopService) RerunLoopRun(
+	ctx context.Context, workspaceID, runID string, request contract.RerunLoopRequest, actor taskpkg.ActorContext,
+) (contract.RerunLoopResponse, error) {
+	if s.rerunLoopRunFn == nil {
+		return contract.RerunLoopResponse{}, errors.New("unexpected RerunLoopRun call")
+	}
+	return s.rerunLoopRunFn(ctx, workspaceID, runID, request, actor)
+}
+
+func (s *stubLoopService) ForkLoopRun(
+	ctx context.Context, workspaceID, runID string, request contract.ForkLoopRequest, actor taskpkg.ActorContext,
+) (contract.ForkLoopResponse, error) {
+	if s.forkLoopRunFn == nil {
+		return contract.ForkLoopResponse{}, errors.New("unexpected ForkLoopRun call")
+	}
+	return s.forkLoopRunFn(ctx, workspaceID, runID, request, actor)
+}
+
 func (s *stubLoopService) GetSessionGoal(
 	ctx context.Context,
 	workspaceID string,
@@ -2009,6 +2295,50 @@ func (s *stubLoopService) ApproveLoopRun(
 	actor taskpkg.ActorContext,
 ) error {
 	return s.approveLoopRunFn(ctx, workspaceID, runID, req, actor)
+}
+
+func (s *stubLoopService) ListLoopRequests(
+	ctx context.Context,
+	workspaceID string,
+	query core.LoopRequestListQuery,
+) (contract.LoopRequestsResponse, error) {
+	return s.listLoopRequestsFn(ctx, workspaceID, query)
+}
+
+func (s *stubLoopService) GetLoopRequest(
+	ctx context.Context,
+	workspaceID string,
+	runID string,
+	generation int,
+	nodeID string,
+	itemIndex int,
+) (contract.LoopRequestPayload, error) {
+	return s.getLoopRequestFn(ctx, workspaceID, runID, generation, nodeID, itemIndex)
+}
+
+func (s *stubLoopService) RespondLoopRequest(
+	ctx context.Context,
+	workspaceID string,
+	runID string,
+	nodeID string,
+	req contract.RespondLoopRequest,
+	actor taskpkg.ActorContext,
+) (contract.RespondLoopRequestResponse, error) {
+	return s.respondLoopRequestFn(ctx, workspaceID, runID, nodeID, req, actor)
+}
+
+func (s *stubLoopService) AmendLoopNode(
+	ctx context.Context,
+	workspaceID string,
+	runID string,
+	nodeID string,
+	req contract.LoopNodeAmendRequest,
+	actor taskpkg.ActorContext,
+) (contract.LoopNodeAmendResponse, error) {
+	if s.amendLoopNodeFn == nil {
+		return contract.LoopNodeAmendResponse{}, errors.New("unexpected AmendLoopNode call")
+	}
+	return s.amendLoopNodeFn(ctx, workspaceID, runID, nodeID, req, actor)
 }
 
 func (s *stubLoopService) ListLoopRunEvents(

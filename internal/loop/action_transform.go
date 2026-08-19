@@ -17,7 +17,7 @@ func (TransformActionExecutor) Execute(
 	node dsl.Node,
 	in ActionExecutionInput,
 ) (ActionRawResult, error) {
-	params, err := normalizeNodeParams(node.Params)
+	params, err := actionLiteralParams(node, in)
 	if err != nil {
 		return ActionRawResult{}, err
 	}

@@ -20,7 +20,7 @@ func loopInputDefaultsOperations() []OperationSpec {
 			"Replace one scoped Loop input-default table",
 			contract.PutLoopInputDefaultsRequest{},
 			[]ParameterSpec{workspaceIDParam(), loopNameParam()},
-			loopInputDefaultsResponses(contract.LoopInputDefaultsResponse{}),
+			loopInputDefaultsWriteResponses(contract.LoopInputDefaultsResponse{}),
 		),
 		loopOperation(
 			httpMethodGet,
@@ -38,7 +38,7 @@ func loopInputDefaultsOperations() []OperationSpec {
 			"Set one scoped Loop input default",
 			contract.PutLoopInputDefaultRequest{},
 			[]ParameterSpec{workspaceIDParam(), loopNameParam(), loopInputDefaultKeyParam()},
-			loopInputDefaultsResponses(contract.LoopInputDefaultResponse{}),
+			loopInputDefaultsWriteResponses(contract.LoopInputDefaultResponse{}),
 		),
 		loopOperation(
 			httpMethodDelete,
@@ -81,4 +81,9 @@ func loopInputDefaultsResponses(body any) []ResponseSpec {
 		loopUnavailable(),
 		internalError(),
 	}
+}
+
+func loopInputDefaultsWriteResponses(body any) []ResponseSpec {
+	responses := loopInputDefaultsResponses(body)
+	return append(responses[:2], append([]ResponseSpec{loopInputUnprocessable()}, responses[2:]...)...)
 }

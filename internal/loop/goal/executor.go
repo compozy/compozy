@@ -47,7 +47,7 @@ func (e *Executor) initializeSegment(
 	if err := validateGoalExecutionInput(e, node, in); err != nil {
 		return nil, err
 	}
-	params, err := loop.MaterializeGoalParams(node, in.Namespace)
+	params, err := loop.MaterializeGoalParams(node, in.Namespace, in.AdmittedParams)
 	if err != nil {
 		return nil, err
 	}
@@ -307,7 +307,6 @@ func (e *Executor) actionSessionBindRequest(
 		StaticPolicySpecDigest:         strings.TrimSpace(segment.input.OriginPolicySpecDigest),
 		Isolated:                       segment.node.Session != nil && segment.node.Session.Isolated,
 		Runtime:                        segment.resolvedRuntime.Runtime,
-		AllowedTools:                   append([]string(nil), segment.input.AllowedTools...),
 		MaxTurns:                       segment.params.MaxTurns,
 		ContractBlock:                  loop.RenderContractBlock(contract),
 		NetworkParticipation:           segment.input.NetworkParticipation,

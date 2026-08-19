@@ -5,10 +5,12 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"log/slog"
 	"maps"
 	"math"
 	"reflect"
+	"slices"
 	"strconv"
 	"strings"
 	"sync"
@@ -534,12 +536,8 @@ func TestEffectiveConfigShouldMergeLayersAndClampCeilings(t *testing.T) {
 		if effective.NoProgressWindow != 8 {
 			t.Fatalf("NoProgressWindow = %d, want stored override 8", effective.NoProgressWindow)
 		}
-		if effective.FanOutWidth != loop.LoopMaxFanoutWidth {
-			t.Fatalf(
-				"FanOutWidth = %d, want clamped ceiling %d",
-				effective.FanOutWidth,
-				loop.LoopMaxFanoutWidth,
-			)
+		if effective.FanOutWidth != 99 {
+			t.Fatalf("FanOutWidth = %d, want per-run override 99", effective.FanOutWidth)
 		}
 		if effective.GateMaxRevisions != loop.LoopMaxGateRevisions {
 			t.Fatalf(
@@ -613,13 +611,13 @@ func TestEffectiveConfigShouldMergeLayersAndClampCeilings(t *testing.T) {
 		}
 	})
 
-	t.Run("Should clamp an override above a ceiling instead of honoring it", func(t *testing.T) {
+	t.Run("Should clamp bounded fields while preserving a large fan-out window", func(t *testing.T) {
 		t.Parallel()
 
 		resolved := compileDefinition(t, validDefinition())
 		perRun := loop.LoopConfig{
 			NoProgressWindow: new(loop.LoopMaxNoProgressWindow + 10),
-			FanOutWidth:      new(loop.LoopMaxFanoutWidth + 10),
+			FanOutWidth:      new(500),
 			GateMaxRevisions: new(loop.LoopMaxGateRevisions + 10),
 		}
 
@@ -639,8 +637,8 @@ func TestEffectiveConfigShouldMergeLayersAndClampCeilings(t *testing.T) {
 				loop.LoopMaxNoProgressWindow,
 			)
 		}
-		if effective.FanOutWidth != loop.LoopMaxFanoutWidth {
-			t.Fatalf("FanOutWidth = %d, want %d", effective.FanOutWidth, loop.LoopMaxFanoutWidth)
+		if effective.FanOutWidth != 500 {
+			t.Fatalf("FanOutWidth = %d, want 500", effective.FanOutWidth)
 		}
 		if effective.GateMaxRevisions != loop.LoopMaxGateRevisions {
 			t.Fatalf("GateMaxRevisions = %d, want %d", effective.GateMaxRevisions, loop.LoopMaxGateRevisions)
@@ -804,8 +802,10 @@ func TestServiceStartShouldUseDefaultsResolver(t *testing.T) {
 			loop.Inputs{Values: map[string]any{"tasks": "task-ref"}},
 			humanActor(t),
 		)
-		validation, ok := loop.AsInputDefaultError(err)
-		if !ok || validation.Key != "auto_commit" || validation.Reason != loop.InputDefaultReasonTypeMismatch {
+		validation, ok := loop.AsInputValidationError(err)
+		if !ok || validation.Field != "auto_commit" ||
+			validation.Origin != loop.InputOriginWorkspace ||
+			validation.Reason != loop.InputValidationReasonTypeMismatch {
 			t.Fatalf("Start() error = %#v, want typed auto_commit type mismatch", err)
 		}
 		if store.createCount() != 0 {
@@ -1615,7 +1615,7 @@ func TestServiceConfigMethodsShouldReadWriteRawOverrides(t *testing.T) {
 
 		if err := svc.Configure(context.Background(), "ws-1", "valid-loop", loop.LoopConfig{
 			EnabledChecks: []byte(`{"human":true}`),
-			FanOutWidth:   new(loop.LoopMaxFanoutWidth + 1),
+			FanOutWidth:   new(500),
 		}); err != nil {
 			t.Fatalf("Configure() error = %v", err)
 		}
@@ -1623,8 +1623,8 @@ func TestServiceConfigMethodsShouldReadWriteRawOverrides(t *testing.T) {
 		if err != nil {
 			t.Fatalf("GetConfig() error = %v", err)
 		}
-		if cfg.FanOutWidth == nil || *cfg.FanOutWidth != loop.LoopMaxFanoutWidth {
-			t.Fatalf("FanOutWidth = %#v, want clamped %d", cfg.FanOutWidth, loop.LoopMaxFanoutWidth)
+		if cfg.FanOutWidth == nil || *cfg.FanOutWidth != 500 {
+			t.Fatalf("FanOutWidth = %#v, want 500", cfg.FanOutWidth)
 		}
 		if string(cfg.EnabledChecks) != `{"human":true}` {
 			t.Fatalf("EnabledChecks = %s, want persisted JSON", cfg.EnabledChecks)
@@ -1634,10 +1634,10 @@ func TestServiceConfigMethodsShouldReadWriteRawOverrides(t *testing.T) {
 			t.Fatalf("GetConfigSnapshot() error = %v", err)
 		}
 		if snapshot.Stored == nil || snapshot.Stored.FanOutWidth == nil ||
-			*snapshot.Stored.FanOutWidth != loop.LoopMaxFanoutWidth {
-			t.Fatalf("stored config = %#v, want clamped override", snapshot.Stored)
+			*snapshot.Stored.FanOutWidth != 500 {
+			t.Fatalf("stored config = %#v, want preserved override", snapshot.Stored)
 		}
-		if snapshot.Effective.FanOutWidth != loop.LoopMaxFanoutWidth ||
+		if snapshot.Effective.FanOutWidth != 500 ||
 			snapshot.Effective.GateMaxRevisions != 10 {
 			t.Fatalf("effective config = %#v, want stored fan-out and delivery gate default", snapshot.Effective)
 		}
@@ -1807,6 +1807,62 @@ func TestResolveInputsShouldApplyDefaultsAndValidateTypes(t *testing.T) {
 		}
 	})
 
+	t.Run("Should normalize runtime objects and accept enum members", func(t *testing.T) {
+		t.Parallel()
+
+		def := validDefinition()
+		def.Inputs = map[string]dsl.Input{
+			"environment": {
+				Type: dsl.InputTypeString, Enum: []string{"dev", "prod"}, Required: true,
+			},
+			"runtime": {Type: dsl.InputTypeRuntime, Required: true},
+		}
+		resolved, err := loop.ResolveInputs(def, loop.Inputs{Values: map[string]any{
+			"environment": "prod",
+			"runtime":     map[string]any{"model": " gpt-5 ", "reasoning": "high"},
+		}})
+		if err != nil {
+			t.Fatalf("ResolveInputs() error = %v", err)
+		}
+		wantRuntime := map[string]any{"model": "gpt-5", "reasoning": "high"}
+		if !reflect.DeepEqual(resolved["runtime"], wantRuntime) {
+			t.Fatalf("resolved runtime = %#v, want %#v", resolved["runtime"], wantRuntime)
+		}
+	})
+
+	t.Run("Should preserve an empty partial runtime object", func(t *testing.T) {
+		t.Parallel()
+
+		def := validDefinition()
+		def.Inputs = map[string]dsl.Input{
+			"runtime": {Type: dsl.InputTypeRuntime, Required: true},
+		}
+		resolved, err := loop.ResolveInputs(def, loop.Inputs{Values: map[string]any{
+			"runtime": map[string]any{},
+		}})
+		if err != nil {
+			t.Fatalf("ResolveInputs() error = %v", err)
+		}
+		if runtime, ok := resolved["runtime"].(map[string]any); !ok || len(runtime) != 0 {
+			t.Fatalf("resolved runtime = %#v, want empty object", resolved["runtime"])
+		}
+	})
+
+	t.Run("Should reject values outside a declared enum", func(t *testing.T) {
+		t.Parallel()
+
+		def := validDefinition()
+		def.Inputs = map[string]dsl.Input{
+			"environment": {Type: dsl.InputTypeString, Enum: []string{"dev", "prod"}},
+		}
+		_, err := loop.ResolveInputs(def, loop.Inputs{Values: map[string]any{"environment": "staging"}})
+		validation, ok := loop.AsInputValidationError(err)
+		if !ok || validation.Field != "environment" ||
+			validation.Reason != loop.InputValidationReasonEnumMismatch {
+			t.Fatalf("ResolveInputs() error = %#v, want environment enum mismatch", err)
+		}
+	})
+
 	t.Run("Should resolve run workspace global and definition values by presence", func(t *testing.T) {
 		t.Parallel()
 
@@ -1862,7 +1918,8 @@ func TestResolveInputsShouldApplyDefaultsAndValidateTypes(t *testing.T) {
 			run    map[string]any
 			layers loop.InputDefaultLayers
 			key    string
-			reason loop.InputDefaultReason
+			reason loop.InputValidationReason
+			origin loop.InputOrigin
 		}{
 			{
 				name: "Should reject an unknown configured key",
@@ -1870,12 +1927,14 @@ func TestResolveInputsShouldApplyDefaultsAndValidateTypes(t *testing.T) {
 				layers: loop.InputDefaultLayers{
 					Workspace: map[string]any{"legacy_provider": "coderabbit"},
 				},
-				key: "legacy_provider", reason: loop.InputDefaultReasonUnknownInput,
+				key: "legacy_provider", reason: loop.InputValidationReasonUnknownInput,
+				origin: loop.InputOriginWorkspace,
 			},
 			{
 				name: "Should reject an unknown run key",
 				run:  map[string]any{"task_name": "task-09", "legacy_provider": "coderabbit"},
-				key:  "legacy_provider", reason: loop.InputDefaultReasonUnknownInput,
+				key:  "legacy_provider", reason: loop.InputValidationReasonUnknownInput,
+				origin: loop.InputOriginRun,
 			},
 			{
 				name: "Should reject a configured type mismatch",
@@ -1883,16 +1942,17 @@ func TestResolveInputsShouldApplyDefaultsAndValidateTypes(t *testing.T) {
 				layers: loop.InputDefaultLayers{
 					Global: map[string]any{"auto_commit": "true"},
 				},
-				key: "auto_commit", reason: loop.InputDefaultReasonTypeMismatch,
+				key: "auto_commit", reason: loop.InputValidationReasonTypeMismatch,
+				origin: loop.InputOriginGlobal,
 			},
 		}
 		for _, tt := range cases {
 			t.Run(tt.name, func(t *testing.T) {
 				t.Parallel()
 				_, err := loop.ResolveInputDefaults(def, "valid-loop", tt.run, tt.layers)
-				validation, ok := loop.AsInputDefaultError(err)
-				if !ok || validation.Loop != "valid-loop" || validation.Key != tt.key ||
-					validation.Reason != tt.reason {
+				validation, ok := loop.AsInputValidationError(err)
+				if !ok || validation.Loop != "valid-loop" || validation.Field != tt.key ||
+					validation.Reason != tt.reason || validation.Origin != tt.origin {
 					t.Fatalf("ResolveInputDefaults() error = %#v, want valid-loop/%s/%s", err, tt.key, tt.reason)
 				}
 			})
@@ -1907,9 +1967,11 @@ func TestResolveInputsShouldApplyDefaultsAndValidateTypes(t *testing.T) {
 			"auto_commit": {Type: dsl.InputTypeBoolean, Default: "true"},
 		}
 		_, err := loop.NewCompiler().Compile(def)
-		validation, ok := loop.AsInputDefaultError(err)
-		if !ok || validation.Key != "auto_commit" || validation.Reason != loop.InputDefaultReasonTypeMismatch {
-			t.Fatalf("Compile() error = %#v, want typed input_default type mismatch", err)
+		lintFailure, ok := errors.AsType[*loop.LintFailedError](err)
+		if !ok || !slices.ContainsFunc(lintFailure.Errors, func(item loop.LintError) bool {
+			return item.Path == "inputs.auto_commit.default" && item.Code == loop.CodeInputDefaultInvalid
+		}) {
+			t.Fatalf("Compile() error = %#v, want input default lint finding", err)
 		}
 	})
 }
@@ -1994,6 +2056,88 @@ func TestServiceDryRunShouldReturnPlanPreviewWithoutState(t *testing.T) {
 		}
 		if store.createCount() != 0 {
 			t.Fatalf("CreateLoopRun calls = %d, want 0 after runtime validation", store.createCount())
+		}
+	})
+
+	t.Run("Should reject stale entity defaults with their winning origin", func(t *testing.T) {
+		t.Parallel()
+
+		definition := validDefinition()
+		definition.Inputs["reviewer"] = dsl.Input{
+			Type: dsl.InputTypeAgent, Required: true,
+		}
+		store := newFakeLoopStore()
+		svc := newTestServiceWithOptions(
+			t,
+			store,
+			definition,
+			loop.WithInputDefaultsResolver(func(
+				context.Context,
+				loop.WorkspaceID,
+				string,
+			) (loop.InputDefaultLayers, error) {
+				return loop.InputDefaultLayers{
+					Workspace: map[string]any{"reviewer": "deleted-agent"},
+				}, nil
+			}),
+			loop.WithInputEntityCatalog(inputEntityCatalogStub{
+				missingKind: dsl.EntityKindAgent, missingValue: "deleted-agent",
+			}),
+		)
+
+		_, err := svc.DryRun(context.Background(), "ws-1", "valid-loop", loop.Inputs{
+			Values: map[string]any{"tasks": "task-ref"},
+		})
+		validation, ok := loop.AsInputValidationError(err)
+		if !ok || validation.Field != "reviewer" || validation.Kind != "agent" ||
+			validation.Value != "deleted-agent" || validation.Origin != loop.InputOriginWorkspace ||
+			validation.Reason != loop.InputValidationReasonUnknownReference {
+			t.Fatalf("DryRun() error = %#v, want stale workspace agent diagnostic", err)
+		}
+		if store.createCount() != 0 {
+			t.Fatalf("CreateLoopRun calls = %d, want 0 after entity validation", store.createCount())
+		}
+	})
+
+	t.Run("Should reject an invalid runtime input before start and dry-run", func(t *testing.T) {
+		t.Parallel()
+
+		definition := validDefinition()
+		definition.Inputs["runtime"] = dsl.Input{Type: dsl.InputTypeRuntime, Required: true}
+		store := newFakeLoopStore()
+		svc := newTestServiceWithOptions(
+			t,
+			store,
+			definition,
+			loop.WithRuntimeCatalog(rejectingServiceRuntimeCatalogFactory{}),
+		)
+		inputs := loop.Inputs{Values: map[string]any{
+			"tasks": "task-ref", "runtime": map[string]any{"provider": "flarp"},
+		}}
+		for _, invoke := range []struct {
+			name string
+			call func() error
+		}{
+			{name: "Should reject dry-run", call: func() error {
+				_, err := svc.DryRun(context.Background(), "ws-1", "valid-loop", inputs)
+				return err
+			}},
+			{name: "Should reject start", call: func() error {
+				_, err := svc.Start(context.Background(), "ws-1", "valid-loop", inputs, humanActor(t))
+				return err
+			}},
+		} {
+			t.Run(invoke.name, func(t *testing.T) {
+				err := invoke.call()
+				validation, ok := loop.AsInputValidationError(err)
+				if !ok || validation.Field != "runtime" ||
+					validation.Reason != loop.InputValidationReasonInvalidRuntime {
+					t.Fatalf("service error = %#v, want runtime input diagnostic", err)
+				}
+			})
+		}
+		if store.createCount() != 0 {
+			t.Fatalf("CreateLoopRun calls = %d, want 0 after runtime input validation", store.createCount())
 		}
 	})
 
@@ -2156,6 +2300,299 @@ func TestServiceConstructorAndReasonErrorsShouldBeStable(t *testing.T) {
 			t.Fatalf("ReasonError does not unwrap ErrConcurrencyConflict")
 		}
 	})
+
+	t.Run("Should reject amendments without a declared output shape before store mutation", func(t *testing.T) {
+		t.Parallel()
+
+		definition := validDefinition()
+		delete(definition.Graph.Nodes[2].Params, "output_schema")
+		store := &amendmentFakeStore{fakeLoopStore: newFakeLoopStore()}
+		svc := newTestServiceWithOptions(t, store, definition)
+		run, err := svc.Start(context.Background(), "ws-1", "valid-loop", loop.Inputs{
+			Values: map[string]any{"tasks": "task-ref"},
+		}, humanActor(t))
+		if err != nil {
+			t.Fatalf("Start() error = %v", err)
+		}
+		_, err = svc.AmendNodeOutput(context.Background(), loop.AmendInput{
+			WorkspaceID: run.WorkspaceID, RunID: run.ID, Generation: 1, NodeID: "agent",
+			Payload: json.RawMessage(`{"summary":"repair"}`), Actor: humanActor(t),
+		})
+		if !errors.Is(err, loop.ErrAmendSchemaMissing) || store.amendCalled {
+			t.Fatalf("AmendNodeOutput(no schema) error = %v called=%v", err, store.amendCalled)
+		}
+	})
+}
+
+func TestServiceTimeTravelShouldPreserveHistoryContracts(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should produce complete generation and run diffs UT-083 through UT-089", func(t *testing.T) {
+		t.Parallel()
+
+		store := newTimeTravelFakeStore()
+		base := loop.Run{ID: "run-base", WorkspaceID: "ws-1", LoopName: "delivery", Status: loop.StatusDone,
+			Generation: 2, DefinitionDigest: "definition-a", Inputs: map[string]any{"service": "billing"}}
+		against := loop.Run{ID: "run-against", WorkspaceID: "ws-1", LoopName: "delivery", Status: loop.StatusRunning,
+			Generation: 2, DefinitionDigest: "definition-a", Inputs: map[string]any{"service": "payments"}}
+		store.seed(base)
+		store.seed(against)
+		large := json.RawMessage(`{"payload":"` + strings.Repeat("x", 17*1024) + `"}`)
+		store.payloads["base-change"] = json.RawMessage(`{"risk":"high"}`)
+		store.payloads["against-change"] = json.RawMessage(`{"risk":"medium"}`)
+		store.payloads["large-output"] = large
+		store.generationOutputs[base.ID] = []loop.GenerationOutput{
+			{Generation: 1, NodeID: "classify", Status: "succeeded", OutputRef: "base-change"},
+			{Generation: 1, NodeID: "carry", Status: "succeeded", OutputRef: "stable"},
+			{Generation: 1, NodeID: "large", Status: "succeeded", OutputRef: "large-output"},
+			{Generation: 2, NodeID: "in-flight", Status: "running"},
+		}
+		store.generationOutputs[against.ID] = []loop.GenerationOutput{
+			{Generation: 1, NodeID: "classify", Status: "succeeded", OutputRef: "against-change"},
+			{Generation: 1, NodeID: "carry", Status: "succeeded", OutputRef: "stable"},
+			{Generation: 1, NodeID: "new-node", Status: "succeeded"},
+			{Generation: 2, NodeID: "in-flight", Status: "running"},
+		}
+		store.verdicts[timeTravelHistoryKey(base.ID, 1)] = []gate.VerdictRecord{{
+			GateID: "quality", Outcome: gate.VerdictOutcomeRejected,
+			BlockingIssues: json.RawMessage(`[{"code":"risk"}]`), Criteria: json.RawMessage(`[]`),
+		}}
+		store.verdicts[timeTravelHistoryKey(against.ID, 1)] = []gate.VerdictRecord{{
+			GateID: "quality", Outcome: gate.VerdictOutcomeApproved,
+			BlockingIssues: json.RawMessage(`[]`), Criteria: json.RawMessage(`[]`),
+		}}
+		store.routes[timeTravelHistoryKey(base.ID, 1)] = []loop.RouteCause{{
+			NodeID: "triage", Route: "deep", Cause: "route_matched", MatchedWhen: `risk == "high"`,
+		}}
+		store.routes[timeTravelHistoryKey(against.ID, 1)] = []loop.RouteCause{{
+			NodeID: "triage", Route: "standard", Cause: "route_matched", MatchedWhen: `risk == "medium"`,
+		}}
+		svc := newTestServiceWithOptions(t, store, validDefinition()).(loop.TimeTravelService)
+
+		result, err := svc.DiffRun(context.Background(), "ws-1", loop.DiffQuery{
+			RunID: base.ID, AgainstRunID: against.ID,
+		})
+		if err != nil {
+			t.Fatalf("DiffRun() error = %v", err)
+		}
+		if result.Base.Generation != 1 || result.Against.Generation != 1 || !result.Against.AsOf {
+			t.Fatalf(
+				"diff endpoints = %#v/%#v, want latest settled generation and live as-of",
+				result.Base,
+				result.Against,
+			)
+		}
+		if result.Terminal == nil || result.Terminal.Base != loop.StatusDone ||
+			result.Terminal.Against != loop.StatusRunning {
+			t.Fatalf("terminal diff = %#v", result.Terminal)
+		}
+		if len(result.Inputs) != 1 || result.Inputs[0].Key != "service" {
+			t.Fatalf("input diff = %#v, want service row", result.Inputs)
+		}
+		changes := make(map[string]loop.DiffNodeRow, len(result.Nodes))
+		for _, row := range result.Nodes {
+			changes[row.NodeID+"/"+row.Change] = row
+		}
+		for _, key := range []string{"classify/changed", "carry/carried", "large/skipped", "new-node/rerun", "quality/verdict", "triage/changed"} {
+			if _, ok := changes[key]; !ok {
+				t.Fatalf("diff nodes = %#v, missing %s", result.Nodes, key)
+			}
+		}
+		if row := changes["large/skipped"]; row.Base.Size != len(large) ||
+			!strings.HasPrefix(row.Base.Hash, "sha256:") ||
+			row.Base.Inline != nil {
+			t.Fatalf("large diff row = %#v, want bounded size/hash summary", row)
+		}
+
+		same, err := svc.DiffRun(context.Background(), "ws-1", loop.DiffQuery{
+			RunID: base.ID, Generation: 1, AgainstGeneration: 1,
+		})
+		if err != nil || len(same.Nodes) != 0 {
+			t.Fatalf("self diff = %#v error=%v, want empty", same, err)
+		}
+
+		against.DefinitionDigest = "definition-b"
+		store.seed(against)
+		diverged, err := svc.DiffRun(context.Background(), "ws-1", loop.DiffQuery{
+			RunID: base.ID, Generation: 1, AgainstRunID: against.ID, AgainstGeneration: 1,
+		})
+		if err != nil || !diverged.DefinitionDivergence {
+			t.Fatalf("definition divergence = %#v error=%v", diverged, err)
+		}
+		for _, row := range diverged.Nodes {
+			if row.NodeID == "large" || row.NodeID == "new-node" {
+				t.Fatalf("divergent diff compared non-shared node: %#v", row)
+			}
+		}
+
+		foreign := against
+		foreign.ID, foreign.LoopName = "run-foreign", "other-loop"
+		store.seed(foreign)
+		_, err = svc.DiffRun(context.Background(), "ws-1", loop.DiffQuery{RunID: base.ID, AgainstRunID: foreign.ID})
+		if !errors.Is(err, loop.ErrDiffCrossLoop) {
+			t.Fatalf("cross-loop DiffRun() error = %v, want ErrDiffCrossLoop", err)
+		}
+	})
+
+	t.Run("Should record rerun intent provenance and guard live runs UT-070 through UT-077", func(t *testing.T) {
+		t.Parallel()
+
+		store := newTimeTravelFakeStore()
+		service := newTestServiceWithOptions(t, store, validDefinition())
+		svc := service.(loop.TimeTravelService)
+		run, err := service.Start(context.Background(), "ws-1", "valid-loop", loop.Inputs{
+			Values: map[string]any{"tasks": "task-ref"},
+		}, humanActor(t))
+		if err != nil {
+			t.Fatalf("Start() error = %v", err)
+		}
+		store.mu.Lock()
+		terminal := store.runs[run.ID]
+		terminal.Status, terminal.Generation = loop.StatusDone, 1
+		store.runs[run.ID] = terminal
+		store.generationOutputs[run.ID] = []loop.GenerationOutput{
+			{Generation: 1, NodeID: "load", Status: "succeeded", OutputRef: "load"},
+			{Generation: 1, NodeID: "fan", Status: "succeeded", OutputRef: "fan"},
+			{Generation: 1, NodeID: "agent", Status: "failed", OutputRef: "agent"},
+		}
+		store.mu.Unlock()
+		actor := humanActor(t)
+		result, err := svc.RerunFromNode(context.Background(), loop.RerunInput{
+			WorkspaceID: run.WorkspaceID, RunID: run.ID, FromNode: "agent", Reason: "retry flaky provider",
+			RequestID: "rerun-1", Actor: actor,
+		})
+		if err != nil {
+			t.Fatalf("RerunFromNode() error = %v", err)
+		}
+		if result.Generation != 2 || result.ParentGeneration != 1 || len(result.RerunNodes) != 1 {
+			t.Fatalf("rerun result = %#v", result)
+		}
+		if store.rerunRequest == nil || store.rerunRequest.Intent.Origin != loop.OriginOperatorRerun ||
+			store.rerunRequest.Operation.Actor.Actor != actor.Actor || store.rerunRequest.Operation.Reason != "retry flaky provider" {
+			t.Fatalf("rerun request = %#v, want operator_rerun provenance", store.rerunRequest)
+		}
+		storedReplay := result
+		store.rerunReplay = &storedReplay
+		store.replayDigest = store.rerunRequest.RequestDigest
+		terminal.Status = loop.StatusRunning
+		store.seed(terminal)
+		replay, err := svc.RerunFromNode(context.Background(), loop.RerunInput{
+			WorkspaceID: run.WorkspaceID, RunID: run.ID, FromNode: "agent", Reason: "retry flaky provider",
+			RequestID: "rerun-1", Actor: actor,
+		})
+		if err != nil || !replay.Replayed || replay.Generation != result.Generation ||
+			!reflect.DeepEqual(replay.RerunNodes, result.RerunNodes) {
+			t.Fatalf("RerunFromNode(replay) = %#v error=%v, want prior result", replay, err)
+		}
+		_, err = svc.RerunFromNode(context.Background(), loop.RerunInput{
+			WorkspaceID: run.WorkspaceID, RunID: run.ID, FromNode: "agent", Actor: actor,
+		})
+		if !errors.Is(err, loop.ErrRerunBusy) {
+			t.Fatalf("live RerunFromNode() error = %v, want ErrRerunBusy", err)
+		}
+	})
+
+	t.Run("Should create an immutable seeded linked fork UT-078 through UT-082b", func(t *testing.T) {
+		t.Parallel()
+
+		store := newTimeTravelFakeStore()
+		resolver := loopTestParticipationResolver(t, true)
+		definition := validDefinition()
+		definition.Inputs["tasks"] = dsl.Input{Type: dsl.InputTypeAgent, Required: true}
+		entityCatalog := inputEntityCatalogStub{
+			missingKind: dsl.EntityKindAgent, missingValue: "removed-reviewer",
+		}
+		svc := newTestServiceWithOptions(
+			t,
+			store,
+			definition,
+			loop.WithRunIDFactory(func() (loop.RunID, error) { return "fork-child", nil }),
+			loop.WithParticipationResolver(resolver),
+			loop.WithInputEntityCatalog(entityCatalog),
+		).(loop.TimeTravelService)
+		starter := newTestServiceWithOptions(
+			t,
+			store,
+			definition,
+			loop.WithRunIDFactory(func() (loop.RunID, error) {
+				return "fork-source", nil
+			}),
+			loop.WithParticipationResolver(resolver),
+			loop.WithInputEntityCatalog(entityCatalog),
+		)
+		mode, strategy := participation.ModeLive, participation.StrategyLoopRun
+		source, err := starter.Start(context.Background(), "ws-1", "valid-loop", loop.Inputs{
+			Values: map[string]any{"tasks": "source-ref"},
+			NetworkParticipation: &participation.Request{
+				Mode: &mode, ChannelStrategy: &strategy,
+			},
+		}, humanActor(t))
+		if err != nil {
+			t.Fatalf("Start() error = %v", err)
+		}
+		store.mu.Lock()
+		source.Generation = 1
+		source.Status = loop.StatusDone
+		score := 0.91
+		source.BestGeneration, source.BestScore = new(int64), &score
+		*source.BestGeneration = 1
+		store.runs[source.ID] = *source
+		store.generationOutputs[source.ID] = []loop.GenerationOutput{{
+			Generation: 1, NodeID: "agent", Status: "running", OutputRef: "source-output",
+		}}
+		store.mu.Unlock()
+		_, err = svc.ForkRun(context.Background(), loop.ForkInput{
+			WorkspaceID: source.WorkspaceID, RunID: source.ID, Generation: 1, Actor: humanActor(t),
+		})
+		if !errors.Is(err, loop.ErrForkGenerationUnknown) {
+			t.Fatalf("ForkRun(unsettled generation) error = %v, want ErrForkGenerationUnknown", err)
+		}
+		store.mu.Lock()
+		store.generationOutputs[source.ID][0].Status = "succeeded"
+		store.mu.Unlock()
+		before := store.mustRun(t, source.ID)
+		_, err = svc.ForkRun(context.Background(), loop.ForkInput{
+			WorkspaceID: source.WorkspaceID, RunID: source.ID, Generation: 1,
+			Inputs: map[string]any{"tasks": "removed-reviewer"}, Actor: humanActor(t),
+		})
+		validation, ok := loop.AsInputValidationError(err)
+		if !ok || validation.Field != "tasks" || validation.Value != "removed-reviewer" ||
+			validation.Origin != loop.InputOriginRun {
+			t.Fatalf("ForkRun(stale input) error = %#v, want typed input validation", err)
+		}
+		result, err := svc.ForkRun(context.Background(), loop.ForkInput{
+			WorkspaceID: source.WorkspaceID, RunID: source.ID, Generation: 1,
+			Inputs: map[string]any{"tasks": "reviewer"}, Reason: "try a safer path",
+			RequestID: "fork-1", Actor: humanActor(t),
+		})
+		if err != nil {
+			t.Fatalf("ForkRun() error = %v", err)
+		}
+		forkedFrom := result.Run.ForkedFromSnapshot()
+		if result.Run.ID != "fork-child" || result.Run.Generation != 1 || forkedFrom == nil ||
+			forkedFrom.RunID != source.ID || forkedFrom.Generation != 1 {
+			t.Fatalf("fork result = %#v", result)
+		}
+		if result.Run.DefinitionDigest != source.DefinitionDigest || result.Run.Inputs["tasks"] != "reviewer" {
+			t.Fatalf("fork snapshot/inputs = digest %q inputs %#v", result.Run.DefinitionDigest, result.Run.Inputs)
+		}
+		sourceNetwork, childNetwork := source.NetworkSpecSnapshot(), result.Run.NetworkSpecSnapshot()
+		if childNetwork.Mode != participation.ModeLive ||
+			childNetwork.ChannelStrategy != participation.StrategyLoopRun ||
+			childNetwork.ChannelID == sourceNetwork.ChannelID ||
+			childNetwork.Source != sourceNetwork.Source ||
+			childNetwork.Bounds != sourceNetwork.Bounds {
+			t.Fatalf("fork participation = %#v, source %#v", childNetwork, sourceNetwork)
+		}
+		if store.forkRequest == nil || store.forkRequest.Operation.SourceGeneration == nil ||
+			*store.forkRequest.Operation.SourceGeneration != 1 || len(store.forkRequest.SeedOutputs) != 1 ||
+			store.forkRequest.SeedOutputs[0].Generation != 1 {
+			t.Fatalf("fork request = %#v, want generation-1 seed and ledger operation", store.forkRequest)
+		}
+		if after := store.mustRun(t, source.ID); !reflect.DeepEqual(before, after) {
+			t.Fatalf("source mutated by fork:\nbefore=%#v\nafter=%#v", before, after)
+		}
+	})
 }
 
 func TestServiceCancellationShouldRecordCanceledTerminalTruth(t *testing.T) {
@@ -2195,7 +2632,7 @@ func TestServiceCancellationShouldRecordCanceledTerminalTruth(t *testing.T) {
 			t.Fatalf("Start() error = %v", err)
 		}
 		if err := svc.CancelNode(
-			context.Background(), run.WorkspaceID, run.ID, "agent", "operator request", humanActor(t),
+			context.Background(), run.WorkspaceID, run.ID, "agent", nil, "operator request", humanActor(t),
 		); err != nil {
 			t.Fatalf("CancelNode() error = %v", err)
 		}
@@ -2214,6 +2651,46 @@ func TestServiceCancellationShouldRecordCanceledTerminalTruth(t *testing.T) {
 		}
 		if got := store.mustRun(t, run.ID).Status; got != loop.StatusRunning {
 			t.Fatalf("node cancellation changed Run status to %q", got)
+		}
+	})
+
+	t.Run("Should deliver one addressed cell cancellation immediately after commit", func(t *testing.T) {
+		t.Parallel()
+
+		store := newFakeLoopStore()
+		store.cancellationSessionIDs = []string{"session-cell-3"}
+		definition := validDefinition()
+		definition.Graph.Nodes[2].Normalize()
+		definition.Graph.Nodes[2].OnCancel = []dsl.EffectSpec{{
+			Emit: &dsl.EmitSpec{Kind: "cell_canceled"},
+		}}
+		var canceled []string
+		svc := newTestServiceWithOptions(t, store, definition,
+			loop.WithCancellationSessionController(loop.CancellationSessionControllerFuncs{
+				Cancel: func(_ context.Context, sessionID, _ string) error {
+					canceled = append(canceled, sessionID)
+					return nil
+				},
+			}),
+		)
+		run, err := svc.Start(context.Background(), "ws-1", "valid-loop", loop.Inputs{
+			Values: map[string]any{"tasks": "task-ref"},
+		}, humanActor(t))
+		if err != nil {
+			t.Fatalf("Start() error = %v", err)
+		}
+		itemIndex := 3
+		if err := svc.CancelNode(context.Background(), run.WorkspaceID, run.ID, "agent", &itemIndex,
+			"operator request", humanActor(t)); err != nil {
+			t.Fatalf("CancelNode(cell) error = %v", err)
+		}
+		request := store.lastCancellationRequest(t)
+		if request.ItemIndex == nil || *request.ItemIndex != itemIndex || len(request.Effects) != 1 ||
+			request.Effects[0].ItemIndex != itemIndex {
+			t.Fatalf("cell cancellation request = %#v, want item %d", request, itemIndex)
+		}
+		if !reflect.DeepEqual(canceled, []string{"session-cell-3"}) || len(store.cancellationStates) != 0 {
+			t.Fatalf("cell cancellation delivery = %#v states = %#v", canceled, store.cancellationStates)
 		}
 	})
 
@@ -2253,7 +2730,7 @@ func TestServiceCancellationShouldRecordCanceledTerminalTruth(t *testing.T) {
 			t.Fatalf("Start() error = %v", err)
 		}
 		if err := svc.KillNode(
-			context.Background(), run.WorkspaceID, run.ID, "agent", "unsafe tool", humanActor(t),
+			context.Background(), run.WorkspaceID, run.ID, "agent", nil, "unsafe tool", humanActor(t),
 		); err != nil {
 			t.Fatalf("KillNode() error = %v", err)
 		}
@@ -2291,7 +2768,6 @@ func TestServiceCancellationShouldRecordCanceledTerminalTruth(t *testing.T) {
 			dsl.Edge{From: "fan", To: "cancel_child"},
 			dsl.Edge{From: "fan", To: "abandon_child"},
 		)
-		definition.Contract.NoProgress.HashFields = []string{"nodes.agent.output.loop_run_id"}
 		store := newFakeLoopStore()
 		svc := newTestService(t, store, definition)
 		parent, err := svc.Start(context.Background(), "ws-1", "valid-loop", loop.Inputs{
@@ -2340,6 +2816,56 @@ func TestServiceCancellationShouldRecordCanceledTerminalTruth(t *testing.T) {
 		}
 	})
 
+	t.Run("Should propagate parent close only from the addressed fan-out cell", func(t *testing.T) {
+		t.Parallel()
+
+		definition := validDefinition()
+		definition.Graph.Nodes[2] = dsl.Node{
+			ID: "agent", Class: dsl.NodeClassAction, Kind: string(dsl.ActionRunLoop),
+			Params: dsl.NodeParams{"loop": "child-loop", "mode": string(dsl.RunLoopAwait)},
+		}
+		store := newFakeLoopStore()
+		svc := newTestService(t, store, definition)
+		parent, err := svc.Start(context.Background(), "ws-1", "valid-loop", loop.Inputs{
+			Values: map[string]any{"tasks": "task-ref"},
+		}, humanActor(t))
+		if err != nil {
+			t.Fatalf("Start(parent) error = %v", err)
+		}
+		children := []loop.Run{
+			{ID: "child-cell-0", WorkspaceID: parent.WorkspaceID, LoopName: "child-loop",
+				Status: loop.StatusRunning, ParentLoopRunID: parent.ID},
+			{ID: "child-cell-1", WorkspaceID: parent.WorkspaceID, LoopName: "child-loop",
+				Status: loop.StatusRunning, ParentLoopRunID: parent.ID},
+		}
+		store.mu.Lock()
+		storedParent := store.runs[parent.ID]
+		storedParent.Generation = 1
+		store.runs[parent.ID] = storedParent
+		for _, child := range children {
+			store.runs[child.ID] = child
+		}
+		store.generationOutputs[parent.ID] = []loop.GenerationOutput{
+			{Generation: 1, NodeID: "agent", ItemIndex: 0, Status: "awaiting_child",
+				ChildLoopRunID: "child-cell-0"},
+			{Generation: 1, NodeID: "agent", ItemIndex: 1, Status: "awaiting_child",
+				ChildLoopRunID: "child-cell-1"},
+		}
+		store.mu.Unlock()
+		itemIndex := 1
+		if err := svc.CancelNode(context.Background(), parent.WorkspaceID, parent.ID, "agent", &itemIndex,
+			"cancel one cell", humanActor(t)); err != nil {
+			t.Fatalf("CancelNode(parent cell) error = %v", err)
+		}
+		if got := store.mustRun(t, "child-cell-0"); got.Status != loop.StatusRunning || got.CancelRequested {
+			t.Fatalf("unaddressed child = %#v, want untouched", got)
+		}
+		if got := store.mustRun(t, "child-cell-1"); got.Status != loop.StatusCanceled ||
+			got.CancelKind != loop.RunCancelKill {
+			t.Fatalf("addressed child = %#v, want terminated", got)
+		}
+	})
+
 	t.Run("Should keep the parent cancellation draining when child propagation fails", func(t *testing.T) {
 		t.Parallel()
 
@@ -2348,7 +2874,6 @@ func TestServiceCancellationShouldRecordCanceledTerminalTruth(t *testing.T) {
 			ID: "agent", Class: dsl.NodeClassAction, Kind: string(dsl.ActionRunLoop),
 			Params: dsl.NodeParams{"loop": "child-loop", "mode": string(dsl.RunLoopAwait)},
 		}
-		definition.Contract.NoProgress.HashFields = []string{"nodes.agent.output.loop_run_id"}
 		store := newFakeLoopStore()
 		var activated task.Run
 		svc := newTestServiceWithOptions(
@@ -2702,12 +3227,12 @@ func TestServiceNodePauseShouldRetryCancellationDelivery(t *testing.T) {
 	nodes := svc.(loop.NodeLifecycleService)
 	actor := humanActor(t)
 	if _, err := nodes.PauseNode(
-		context.Background(), "ws-1", "run-1", "worker", loop.NodePauseCancel, "repair", actor,
+		context.Background(), "ws-1", "run-1", "worker", nil, loop.NodePauseCancel, "repair", actor,
 	); err == nil {
 		t.Fatal("PauseNode(first) error = nil, want delivery failure")
 	}
 	result, err := nodes.PauseNode(
-		context.Background(), "ws-1", "run-1", "worker", loop.NodePauseCancel, "repair", actor,
+		context.Background(), "ws-1", "run-1", "worker", nil, loop.NodePauseCancel, "repair", actor,
 	)
 	if err != nil {
 		t.Fatalf("PauseNode(retry) error = %v", err)
@@ -2721,6 +3246,20 @@ func newTestService(t *testing.T, store *fakeLoopStore, def dsl.Definition) loop
 	t.Helper()
 
 	return newTestServiceWithOptions(t, store, def)
+}
+
+type inputEntityCatalogStub struct {
+	missingKind  dsl.EntityKind
+	missingValue string
+}
+
+func (s inputEntityCatalogStub) HasInputEntity(
+	_ context.Context,
+	_ loop.WorkspaceID,
+	kind dsl.EntityKind,
+	value string,
+) (bool, error) {
+	return kind != s.missingKind || value != s.missingValue, nil
 }
 
 type nodePauseRetryStore struct {
@@ -2745,6 +3284,99 @@ func (s *nodePauseRetryStore) ResumeNode(
 	loop.NodeResumeMutation,
 ) (loop.NodeResumeResult, error) {
 	return loop.NodeResumeResult{}, errors.New("unexpected ResumeNode call")
+}
+
+func TestServiceRespondShouldValidateAnnotatedEntityReferences(t *testing.T) {
+	t.Parallel()
+	t.Run("Should reject a stale nested response entity before admitting the request", func(t *testing.T) {
+		t.Parallel()
+
+		definition := validDefinition()
+		definition.Graph = dsl.Graph{Nodes: []dsl.Node{{
+			ID: "assign", Class: dsl.NodeClassControl, Kind: string(dsl.ControlAsk),
+			Params: dsl.NodeParams{
+				"prompt": "Choose a reviewer",
+				"expect": map[string]any{
+					"allOf": []any{
+						map[string]any{
+							"type": "object",
+							"properties": map[string]any{
+								"assignment": map[string]any{
+									"type": "object",
+									"properties": map[string]any{
+										"reviewers": map[string]any{
+											"type": "array",
+											"items": map[string]any{
+												"oneOf": []any{map[string]any{
+													"type": "string", "x-compozy-kind": "agent",
+												}},
+											},
+										},
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+		}}}
+		expect := json.RawMessage(
+			`{"allOf":[{"type":"object","properties":{"assignment":{"type":"object","properties":{"reviewers":{"type":"array","items":{"oneOf":[{"type":"string","x-compozy-kind":"agent"}]}}}}}}]}`,
+		)
+		store := &requestValidationStore{
+			fakeLoopStore: newFakeLoopStore(),
+			request: loop.Request{
+				Kind:   loop.RequestKindAsk,
+				Expect: expect,
+			},
+		}
+		svc := newTestServiceWithOptions(
+			t,
+			store,
+			definition,
+			loop.WithInputEntityCatalog(inputEntityCatalogStub{
+				missingKind: dsl.EntityKindAgent, missingValue: "removed-reviewer",
+			}),
+		)
+		run, err := svc.Start(context.Background(), "ws-response", definition.Meta.Name, loop.Inputs{
+			Values: map[string]any{"tasks": "task-ref"},
+		}, humanActor(t))
+		if err != nil {
+			t.Fatalf("Start() error = %v", err)
+		}
+		respond := func(reviewer string) error {
+			_, respondErr := svc.Respond(context.Background(), loop.RespondInput{
+				WorkspaceID: run.WorkspaceID,
+				RunID:       run.ID,
+				Generation:  run.Generation,
+				NodeID:      "assign",
+				Decision:    loop.RequestDecisionRespond,
+				Payload: json.RawMessage(
+					fmt.Sprintf(`{"assignment":{"reviewers":[%q]}}`, reviewer),
+				),
+				Actor: humanActor(t),
+			})
+			return respondErr
+		}
+
+		err = respond("removed-reviewer")
+		validation, ok := loop.AsInputValidationError(err)
+		if !ok || validation.Field != "assignment.reviewers.0" || validation.Kind != "agent" ||
+			validation.Value != "removed-reviewer" || validation.Origin != loop.InputOriginResponse ||
+			validation.Reason != loop.InputValidationReasonUnknownReference {
+			t.Fatalf("Respond() error = %#v, want recursive stale agent diagnostic", err)
+		}
+		if store.respondCalls != 0 {
+			t.Fatalf("RespondRequest calls = %d, want 0 after entity rejection", store.respondCalls)
+		}
+
+		if err := respond("reviewer"); err != nil {
+			t.Fatalf("Respond(valid reviewer) error = %v", err)
+		}
+		if store.respondCalls != 1 {
+			t.Fatalf("RespondRequest calls = %d, want 1 after valid response", store.respondCalls)
+		}
+	})
 }
 
 func newTestServiceWithOptions(
@@ -2988,6 +3620,165 @@ type fakeLoopStore struct {
 	waitResumeMutation               *loop.WaitResumeMutation
 	creates                          int
 	getRunByID                       func(loop.RunID) (loop.Run, error)
+}
+
+type requestValidationStore struct {
+	*fakeLoopStore
+	request      loop.Request
+	respondCalls int
+}
+
+func (s *requestValidationStore) ListRequests(
+	context.Context,
+	loop.WorkspaceID,
+	loop.RequestQuery,
+) (loop.RequestPage, error) {
+	return loop.RequestPage{Items: []loop.Request{}}, nil
+}
+
+func (s *requestValidationStore) GetRequest(
+	context.Context,
+	loop.WorkspaceID,
+	loop.RequestRef,
+	bool,
+) (loop.Request, error) {
+	return s.request, nil
+}
+
+func (s *requestValidationStore) RespondRequest(
+	_ context.Context,
+	_ loop.RespondInput,
+) (loop.RespondResult, error) {
+	s.respondCalls++
+	return loop.RespondResult{Request: s.request, Won: true}, nil
+}
+
+type amendmentFakeStore struct {
+	*fakeLoopStore
+	amendCalled bool
+}
+
+type timeTravelFakeStore struct {
+	*fakeLoopStore
+	payloads     map[string]json.RawMessage
+	verdicts     map[string][]gate.VerdictRecord
+	routes       map[string][]loop.RouteCause
+	rerunRequest *loop.RerunStoreRequest
+	forkRequest  *loop.ForkStoreRequest
+	rerunReplay  *loop.RerunResult
+	replayDigest string
+}
+
+func newTimeTravelFakeStore() *timeTravelFakeStore {
+	return &timeTravelFakeStore{
+		fakeLoopStore: newFakeLoopStore(),
+		payloads:      map[string]json.RawMessage{},
+		verdicts:      map[string][]gate.VerdictRecord{},
+		routes:        map[string][]loop.RouteCause{},
+	}
+}
+
+func (s *timeTravelFakeStore) GetGenerationOutputPayload(
+	_ context.Context,
+	key loop.GenerationOutputPayloadKey,
+) (json.RawMessage, error) {
+	payload, ok := s.payloads[key.OutputRef]
+	if !ok {
+		return nil, loop.ErrOutputRefNotFound
+	}
+	return append(json.RawMessage(nil), payload...), nil
+}
+
+func (s *timeTravelFakeStore) ListGateVerdicts(
+	_ context.Context,
+	_ string,
+	runID string,
+	generation int64,
+) ([]gate.VerdictRecord, error) {
+	return append([]gate.VerdictRecord(nil), s.verdicts[timeTravelHistoryKey(loop.RunID(runID), generation)]...), nil
+}
+
+func (s *timeTravelFakeStore) ListRouteCausingVerdicts(
+	context.Context,
+	string,
+	string,
+	int64,
+) ([]gate.VerdictRecord, error) {
+	return nil, nil
+}
+
+func (s *timeTravelFakeStore) ListRouteCauses(
+	_ context.Context,
+	_ loop.WorkspaceID,
+	runID loop.RunID,
+	generation int64,
+) ([]loop.RouteCause, error) {
+	return append([]loop.RouteCause(nil), s.routes[timeTravelHistoryKey(runID, generation)]...), nil
+}
+
+func (s *timeTravelFakeStore) CreateRerun(
+	_ context.Context,
+	request loop.RerunStoreRequest,
+) (loop.RerunResult, bool, error) {
+	cloned := request
+	s.rerunRequest = &cloned
+	return loop.RerunResult{
+		RunID: request.Source.ID, Generation: request.Intent.Generation,
+		ParentGeneration: request.Intent.ParentGeneration,
+	}, false, nil
+}
+
+func (s *timeTravelFakeStore) LookupRerunReplay(
+	_ context.Context,
+	_ loop.WorkspaceID,
+	key string,
+	digest string,
+) (loop.RerunResult, bool, error) {
+	if strings.TrimSpace(key) == "" || s.rerunReplay == nil {
+		return loop.RerunResult{}, false, nil
+	}
+	if digest != s.replayDigest {
+		return loop.RerunResult{}, false, loop.ErrTimeTravelKeyReuse
+	}
+	return *s.rerunReplay, true, nil
+}
+
+func (s *timeTravelFakeStore) CreateFork(
+	_ context.Context,
+	request loop.ForkStoreRequest,
+) (loop.Run, bool, error) {
+	cloned := request
+	s.forkRequest = &cloned
+	s.seed(*request.Child)
+	return *request.Child, false, nil
+}
+
+func (s *timeTravelFakeStore) ListForks(
+	context.Context,
+	loop.WorkspaceID,
+	loop.RunID,
+) ([]loop.ForkRef, error) {
+	return nil, nil
+}
+
+func timeTravelHistoryKey(runID loop.RunID, generation int64) string {
+	return string(runID) + "/" + strconv.FormatInt(generation, 10)
+}
+
+func (s *amendmentFakeStore) AmendNodeOutput(
+	context.Context,
+	loop.AmendInput,
+) (loop.NodeAmendment, error) {
+	s.amendCalled = true
+	return loop.NodeAmendment{}, nil
+}
+
+func (s *amendmentFakeStore) ListNodeAmendments(
+	context.Context,
+	loop.WorkspaceID,
+	loop.RunID,
+) ([]loop.NodeAmendment, error) {
+	return nil, nil
 }
 
 func (s *fakeLoopStore) ListPendingCancellations(

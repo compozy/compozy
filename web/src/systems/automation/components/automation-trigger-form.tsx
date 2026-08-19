@@ -173,6 +173,7 @@ export function AutomationTriggerForm({
             >
               <TriggerTargetStep
                 catalog={form.loopCatalog}
+                workspaceId={form.loopWorkspaceId}
                 editorMode={mode}
                 mode={form.targetMode}
                 onModeChange={form.onTargetModeChange}

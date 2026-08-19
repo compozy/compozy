@@ -2161,6 +2161,15 @@ func TestExtensionsConfigValidateSourcesAndDevelopment(t *testing.T) {
 		if !strings.Contains(logs.String(), "insecure http scheme") {
 			t.Fatalf("ExtensionsConfig.Validate(http) logs = %q, want insecure http scheme warning", logs.String())
 		}
+
+		logs.Reset()
+		cfg.Sources.GitHub.BaseURL = "http://127.0.0.1:2123"
+		if err := cfg.Validate(); err != nil {
+			t.Fatalf("ExtensionsConfig.Validate(loopback HTTP) error = %v", err)
+		}
+		if logs.Len() != 0 {
+			t.Fatalf("ExtensionsConfig.Validate(loopback HTTP) logs = %q, want none", logs.String())
+		}
 	})
 }
 

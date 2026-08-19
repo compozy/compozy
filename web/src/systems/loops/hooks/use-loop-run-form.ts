@@ -24,13 +24,6 @@ interface UseLoopRunFormOptions {
   onRunStarted?: (runId: string) => void;
 }
 
-/**
- * View-model for the run form (§4.3): owns the input + override draft (local UI
- * state), derives required-input validity, and drives the Dry run / Run calls through
- * the sanctioned mutation hook. A Dry run stores the returned gen-1 plan; a Run hands
- * the started run's id back for navigation. Any input/override edit clears the last
- * plan (it no longer matches).
- */
 export function useLoopRunForm({
   workspaceId,
   loop,
@@ -50,6 +43,7 @@ export function useLoopRunForm({
   });
   const {
     inputs,
+    fieldErrors,
     networkParticipation,
     networkParticipationOverridden,
     overrides,
@@ -129,6 +123,7 @@ export function useLoopRunForm({
     contract,
     schema,
     inputs,
+    fieldErrors,
     overrides,
     networkParticipation,
     configOverrides,

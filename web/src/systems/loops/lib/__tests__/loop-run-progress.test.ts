@@ -15,6 +15,7 @@ function fanOutGeneration(statuses: string[], generation = 2): LoopRunGeneration
     generation,
     parent_generation: generation > 1 ? generation - 1 : 0,
     origin: generation > 1 ? "gate_revise" : "initial",
+    route_causes: [],
     verdicts: [],
     outputs: statuses.map((status, index) => ({
       node_id: "fix_batches",
@@ -63,6 +64,7 @@ describe("buildRunProgress", () => {
           generation: 3,
           parent_generation: 2,
           origin: "reattempt",
+          route_causes: [],
           verdicts: [],
           outputs: [{ node_id: "remediate", status: "succeeded", generation: 3 }],
         },
@@ -116,6 +118,7 @@ describe("buildRunProgress parked accounting", () => {
           generation: 2,
           parent_generation: 1,
           origin: "gate_revise",
+          route_causes: [],
           verdicts: [],
           outputs: [
             { node_id: "fix_batches", status: "succeeded", generation: 2, item_index: 1 },

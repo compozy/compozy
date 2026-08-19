@@ -2,7 +2,9 @@ import { normalizeLoopCatalogFilter } from "./loops-list-query";
 import type {
   GoalTurnFilter,
   LoopCatalogStableFilter,
+  LoopDiffQuery,
   LoopNodeInventoryFilter,
+  LoopRequestStableFilter,
   LoopRunsFilter,
   LoopStreamFilter,
 } from "../types";
@@ -98,6 +100,49 @@ export const loopsKeys = {
   // query never shares a cache entry with the attention-bell presence check.
   nodeExists: (workspaceId: string, state: "waiting" | "attention") =>
     [...loopsKeys.all, "node-exists", workspaceId, state] as const,
+
+  requestsRoot: () => [...loopsKeys.all, "requests"] as const,
+
+  requestsByWorkspace: (workspaceId: string) => [...loopsKeys.requestsRoot(), workspaceId] as const,
+  requestAttention: (workspaceId: string) =>
+    [...loopsKeys.requestsByWorkspace(workspaceId), "attention"] as const,
+  runRequestCounts: (workspaceId: string) =>
+    [...loopsKeys.requestsByWorkspace(workspaceId), "run-counts"] as const,
+  requests: (workspaceId: string, filters: LoopRequestStableFilter = {}) =>
+    [
+      ...loopsKeys.requestsByWorkspace(workspaceId),
+      normalizeText(filters.state),
+      normalizeText(filters.run_id),
+      normalizeNumber(filters.limit),
+    ] as const,
+
+  requestDetail: (
+    workspaceId: string,
+    runId: string,
+    generation: number,
+    nodeId: string,
+    itemIndex?: number
+  ) =>
+    [
+      ...loopsKeys.requestsRoot(),
+      "detail",
+      workspaceId,
+      runId,
+      generation,
+      nodeId,
+      normalizeNumber(itemIndex),
+    ] as const,
+
+  runDiffRoot: () => [...loopsKeys.all, "run-diff"] as const,
+  runDiff: (workspaceId: string, runId: string, query: LoopDiffQuery = {}) =>
+    [
+      ...loopsKeys.runDiffRoot(),
+      workspaceId,
+      runId,
+      normalizeNumber(query.generation),
+      normalizeNumber(query.against_generation),
+      normalizeText(query.against_run),
+    ] as const,
 
   goalTurnsRoot: () => [...loopsKeys.all, "goal-turns"] as const,
   goalTurns: (

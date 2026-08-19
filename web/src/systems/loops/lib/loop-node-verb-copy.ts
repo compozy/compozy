@@ -112,7 +112,7 @@ export function loopRunStateStrip(input: LoopRunStateStripInput): string {
 }
 
 const NODE_VERB_COPY: Record<
-  Exclude<LoopNodeVerb, "open-quarantine">,
+  Exclude<LoopNodeVerb, "amend" | "open-quarantine" | "rerun">,
   (node: LoopNodeLifecycle, pauseMode: LoopNodePauseMode) => LoopVerbConfirmCopy
 > = {
   pause: (node, pauseMode) => ({
@@ -201,7 +201,7 @@ export function loopNodeVerbConfirmCopy(
   node: LoopNodeLifecycle,
   options?: { pauseMode?: LoopNodePauseMode }
 ): LoopVerbConfirmCopy | null {
-  if (verb === "open-quarantine") return null;
+  if (verb === "open-quarantine" || verb === "amend" || verb === "rerun") return null;
   return NODE_VERB_COPY[verb](node, options?.pauseMode ?? "drain");
 }
 

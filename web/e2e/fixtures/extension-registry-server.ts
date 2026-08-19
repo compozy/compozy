@@ -9,18 +9,10 @@ import { promisify } from "node:util";
 const execFileAsync = promisify(execFile);
 const DEFAULT_HOST = "127.0.0.1";
 
-/**
- * Package layout an archived release carries. `native` is the CompozyOS manifest; `agent-plugin` is
- * the portable standard layout; `client-layout` is the drifted Claude Code shape the installer
- * refuses by design.
- */
 export type BrowserExtensionLayout = "native" | "agent-plugin" | "client-layout";
 
-/** One published extension release the daemon's GitHub source can resolve and download. */
 export interface BrowserExtensionReleaseSeed {
-  /** Release tag, e.g. `v0.1.0`. */
   tag: string;
-  /** Manifest version installed from this release, e.g. `0.1.0`. */
   version: string;
 }
 
@@ -28,14 +20,12 @@ export interface BrowserExtensionRegistrySeed {
   repository: string;
   extensionName: string;
   description?: string;
-  /** Defaults to the native CompozyOS manifest layout. */
   layout?: BrowserExtensionLayout;
   releases: BrowserExtensionReleaseSeed[];
 }
 
 const PLUGIN_SCHEMA_ID = "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json";
 const MCP_SCHEMA_ID = "https://agent-plugins.org/schemas/1.0.0/mcp.schema.json";
-/** The one server the conformance ladder records as skipped: `sse` is out of scope by decision. */
 export const SKIPPED_PLUGIN_SERVER_NAME = "legacy-events";
 export const INGESTED_PLUGIN_SKILL_NAME = "deploy-check";
 
@@ -55,14 +45,10 @@ interface RegistryRelease {
 export interface ExtensionRegistryTestServer {
   baseURL: string;
   server: Server;
+  artifactURLFor(tag: string): string;
   digestFor(tag: string): string;
 }
 
-/**
- * Read-only mirror of the GitHub release endpoints the daemon's extension source uses:
- * latest / by-tag / list plus asset and digest-sidecar downloads. Publishing is out of scope —
- * releases are seeded in-process so the browser lane never reaches the network.
- */
 export async function startExtensionRegistryServer(
   seed: BrowserExtensionRegistrySeed | undefined
 ): Promise<ExtensionRegistryTestServer | undefined> {
@@ -130,8 +116,15 @@ export async function startExtensionRegistryServer(
     throw new Error("failed to resolve browser extension registry server address");
   }
   const port = address.port;
+  const baseURL = `http://${DEFAULT_HOST}:${port}`;
   return {
-    baseURL: `http://${DEFAULT_HOST}:${port}`,
+    artifactURLFor: tag => {
+      const release = releases.find(candidate => candidate.tag === tag);
+      const asset = release?.assets[0];
+      if (!asset) throw new Error(`unknown extension release tag ${tag}`);
+      return `${baseURL}/assets/${asset.id}`;
+    },
+    baseURL,
     digestFor: tag => {
       const release = releases.find(candidate => candidate.tag === tag);
       if (!release?.assets[0]) throw new Error(`unknown extension release tag ${tag}`);
@@ -243,7 +236,6 @@ async function buildExtensionArchive(
   return await readFile(archivePath);
 }
 
-/** Writes the seeded layout and returns the archive members, so each layout stays self-describing. */
 async function writePackageLayout(
   seed: BrowserExtensionRegistrySeed,
   release: BrowserExtensionReleaseSeed,
@@ -272,11 +264,6 @@ async function writePackageLayout(
   }
 }
 
-/**
- * Standard layout: root `plugin.json`, one discoverable skill, and an `mcp.json` declaring one
- * synthesizable stdio server plus one `sse` server the ladder records as a skip. The skip is the
- * point — it is what the inventory panel's Skipped section has to render.
- */
 async function writeAgentPluginLayout(
   seed: BrowserExtensionRegistrySeed,
   release: BrowserExtensionReleaseSeed,
@@ -332,7 +319,6 @@ async function writeAgentPluginLayout(
   return ["plugin.json", "mcp.json", "skills"];
 }
 
-/** Claude Code's client-specific shape: a `.claude-plugin/plugin.json` with no conformant root. */
 async function writeClientPluginLayout(
   seed: BrowserExtensionRegistrySeed,
   release: BrowserExtensionReleaseSeed,

@@ -12,6 +12,20 @@ const (
 
 var workspaceTools = []toolspkg.Descriptor{
 	nativeDescriptor(
+		toolspkg.ToolIDAgentList,
+		"agent_list",
+		"Agent List",
+		"List agent definitions visible in a workspace through the existing agent catalog.",
+		agentListInputSchema,
+		toolspkg.RiskRead,
+		true,
+		false,
+		false,
+		[]toolspkg.ToolsetID{toolspkg.ToolsetIDCatalog, toolspkg.ToolsetIDWorkspace},
+		[]string{workspaceWorkspaceKey, descriptorKeywordAgent, descriptorKeywordCatalog},
+		[]string{"available agents", "agent catalog", "list agents"},
+	),
+	nativeDescriptor(
 		toolspkg.ToolIDWorkspaceList,
 		"workspace_list",
 		"Workspace List",
@@ -78,6 +92,12 @@ const workspaceRefInputSchema = `{
 	"properties":{
 		"workspace":{"type":"string"}
 	},
+	"additionalProperties":false
+}`
+
+const agentListInputSchema = `{
+	"type":"object",
+	"properties":{"workspace":{"type":"string"}},
 	"additionalProperties":false
 }`
 

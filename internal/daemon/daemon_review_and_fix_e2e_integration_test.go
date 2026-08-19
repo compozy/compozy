@@ -391,7 +391,7 @@ func assertReviewAndFixRunContract(t testing.TB, detail contract.LoopRunResponse
 		)
 	}
 	for index, wantNode := range wantNodes {
-		if got := detail.ExecutedDefinition.Graph.Nodes[index].ID; got != wantNode {
+		if got := detail.ExecutedDefinition.Graph.Nodes[index].ID; string(got) != wantNode {
 			t.Fatalf("review-and-fix executed node[%d] = %q, want %q", index, got, wantNode)
 		}
 	}

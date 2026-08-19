@@ -671,6 +671,10 @@ cost_limit = 10000
 admission_attempts = 3
 admission_retry_interval = "60s"
 
+[loops.defaults.delivery.requests]
+# Seeds asks that omit expires. Empty leaves expiry author-owned.
+expire_after = "72h"
+
 [loops.defaults.delivery.admission]
 tombstone_horizon = "168h"
 
@@ -730,6 +734,9 @@ cost_limit = 10000
 [loops.defaults.watch.waits]
 admission_attempts = 3
 admission_retry_interval = "60s"
+
+[loops.defaults.watch.requests]
+expire_after = "72h"
 
 [loops.defaults.watch.admission]
 tombstone_horizon = "168h"
@@ -2078,8 +2085,9 @@ new loop runs. They are a config plane, not the per-loop `loop_config` store: ef
 resolved as definition defaults, then `[loops.defaults.*]`, then `loop_config`, then per-run overrides.
 Existing loop runs keep the config values materialized at start.
 
-Compile-time ceilings stay in code. Operator config can tighten fan-out, no-progress, and gate
-revision defaults, but it cannot loosen them past the hard runtime ceilings.
+Compile-time ceilings stay in code for no-progress and gate revisions. `fan_out_width` has no fixed
+daemon cap; it controls the active lane window while each node's positive `max_fan_out` bounds
+logical width.
 
 | Field                                                        | Delivery | Watch   | Valid values                             | Description                                                                              |
 | ------------------------------------------------------------ | -------- | ------- | ---------------------------------------- | ---------------------------------------------------------------------------------------- |
@@ -2089,7 +2097,7 @@ revision defaults, but it cannot loosen them past the hard runtime ceilings.
 | `budget.tokens`                                              | `0`      | `0`     | Zero or positive integer.                | Token budget; `0` means unlimited.                                                       |
 | `budget.wall_clock_sec`                                      | `0`      | `0`     | Zero or positive integer.                | Active-work wall-clock budget; parked time is suspended.                                 |
 | `budget.on_exceeded`                                         | `halt`   | `halt`  | `halt` or `escalate`.                    | End `exhausted` or park for approval when a set budget is exceeded.                      |
-| `fan_out_width`                                              | `4`      | `2`     | `0` through `64`.                        | Fan-out width seed.                                                                      |
+| `fan_out_width`                                              | `4`      | `2`     | Zero or positive integer.                | Active fan-out window seed; logical width is bounded by each node's `max_fan_out`.       |
 | `retry.max_attempts`                                         | `3`      | `3`     | `0` through `10`.                        | Total attempts for mechanical families; `0` disables automatic retry.                    |
 | `retry.backoff_base`                                         | `1s`     | `1s`    | Positive Go duration.                    | Initial retry delay; must not exceed `backoff_max`.                                      |
 | `retry.backoff_max`                                          | `30s`    | `30s`   | Positive Go duration.                    | Maximum retry delay.                                                                     |
@@ -2098,6 +2106,7 @@ revision defaults, but it cannot loosen them past the hard runtime ceilings.
 | `predicates.cost_limit`                                      | `10000`  | `10000` | Positive integer.                        | CEL runtime cost limit; evaluation warns at 80%.                                         |
 | `waits.admission_attempts`                                   | `3`      | `3`     | Positive integer.                        | Bounded attempts to admit a wait resume.                                                 |
 | `waits.admission_retry_interval`                             | `60s`    | `60s`   | Positive Go duration.                    | Delay between admission attempts.                                                        |
+| `requests.expire_after`                                      | empty    | empty   | Empty or positive Go duration.           | Seeds an expiry only when an authored request omits `expires`; authored expiry wins.     |
 | `admission.tombstone_horizon`                                | `168h`   | `168h`  | Positive Go duration.                    | Minimum watch-admission deduplication retention.                                         |
 | `runtime_defaults.{worker,judge}.{provider,model,reasoning}` | empty    | empty   | Valid provider/model/reasoning fields.   | Worker and judge runtime defaults.                                                       |
 | `runtime_rules[]`                                            | none     | none    | One `id`, `type`, or `complexity` match. | Field-merged worker override; `id > type > complexity`, later wins on equal specificity. |

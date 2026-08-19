@@ -16,7 +16,7 @@ structured output. Never guess a schema — resolve `compozy__tool_info` for the
 
 ## The Tool Set And CLI Verbs
 
-Toolset `compozy__loops` — 23 native tools. All 21 Loop tools have matching `compozy loop` verbs;
+Toolset `compozy__loops` — 30 native tools. All 28 Loop tools have matching `compozy loop` verbs;
 the two session-bound Goal tools use the session command/native report surfaces. The CLI adds one verb
 (`edit`) that has no native tool.
 
@@ -27,6 +27,13 @@ the two session-bound Goal tools use the session command/native report surfaces.
 | `compozy__loop_validate`     | read                            | `compozy loop validate`     | Lint + compile a definition without saving.                                  |
 | `compozy__loop_status`       | read                            | `compozy loop status`       | Read one run's status with generation detail.                                |
 | `compozy__loop_runs`         | read                            | `compozy loop runs`         | List runs in the workspace.                                                  |
+| `compozy__loop_requests`     | read                            | `compozy loop requests`     | List pending or resolved human requests.                                     |
+| `compozy__loop_request`      | read                            | `compozy loop request`      | Read one request with its full redacted context.                             |
+| `compozy__loop_respond`      | mutating · **capability-gated** | `compozy loop respond`      | Admit one schema-valid request answer or review decision.                    |
+| `compozy__loop_node_amend`   | mutating · **capability-gated** | `compozy loop node amend`   | Append an overlay to one parked, settled node output.                        |
+| `compozy__loop_diff`         | read                            | `compozy loop diff`         | Compare generations or same-Loop runs.                                       |
+| `compozy__loop_rerun`        | mutating · **capability-gated** | `compozy loop rerun`        | Rerun one settled node and its dependents.                                   |
+| `compozy__loop_fork`         | mutating · **capability-gated** | `compozy loop fork`         | Create a linked run from a historical generation.                            |
 | `compozy__loop_create`       | mutating                        | `compozy loop create`       | Create/fork, or CAS-publish when `expected_version` is set.                  |
 | `compozy__loop_run`          | mutating                        | `compozy loop run`          | Start a run, or dry-run with `dry: true` / `--dry-run`.                      |
 | `compozy__loop_configure`    | mutating                        | `compozy loop configure`    | Write per-Loop runtime config overrides.                                     |
@@ -36,10 +43,10 @@ the two session-bound Goal tools use the session command/native report surfaces.
 | `compozy__loop_cancel`       | mutating                        | `compozy loop cancel`       | Request cooperative cancellation of one active run.                          |
 | `compozy__loop_kill`         | destructive                     | `compozy loop kill`         | Immediately fence and cancel one active run.                                 |
 | `compozy__loop_nodes`        | read                            | `compozy loop nodes`        | List waiting, quarantined, attention, or retrying nodes.                     |
-| `compozy__loop_node_pause`   | mutating                        | `compozy loop node pause`   | Pause one authored node.                                                     |
-| `compozy__loop_node_resume`  | mutating                        | `compozy loop node resume`  | Resume one paused node or manual wait.                                       |
-| `compozy__loop_node_cancel`  | mutating                        | `compozy loop node cancel`  | Request cooperative node cancellation.                                       |
-| `compozy__loop_node_kill`    | destructive                     | `compozy loop node kill`    | Immediately fence one authored node.                                         |
+| `compozy__loop_node_pause`   | mutating                        | `compozy loop node pause`   | Pause one authored node or addressed fan-out cell.                           |
+| `compozy__loop_node_resume`  | mutating                        | `compozy loop node resume`  | Resume one paused node, cell, or manual wait.                                |
+| `compozy__loop_node_cancel`  | mutating                        | `compozy loop node cancel`  | Request cooperative node or cell cancellation.                               |
+| `compozy__loop_node_kill`    | destructive                     | `compozy loop node kill`    | Immediately fence one authored node or cell.                                 |
 | `compozy__loop_node_requeue` | mutating                        | `compozy loop node requeue` | Requeue one quarantined node into a successor generation.                    |
 | `compozy__loop_delete`       | destructive                     | `compozy loop delete`       | Delete a writable definition plus its config and editor annotations.         |
 | `compozy__goal_get`          | read · session-scoped           | `/goal status`              | Read the caller session's visible Goal, including terminal-until-clear.      |
@@ -62,12 +69,67 @@ Opaque cursors bind workspace, search, kind, category, status, and sort; limit m
 `compozy loop runs` / `compozy__loop_runs` is a different, non-cursor contract: it returns `runs` plus aggregates, defaults to 100 rows, caps at 500, and does not expose `has_more` or `next_cursor`.
 Each run summary exposes `best_generation`/`best_score` but never embeds generation history.
 
+## Typed Inputs
+
+The input grammar is closed to `string`, `number`, `boolean`, `file`, `agent`, `runtime`, and `ref`.
+`ref.kind` is closed to `skill`, `loop`, `worktree`, `session`, `workspace`, or `secret`. An `enum`
+on a string-like field takes precedence over catalog discovery. `file` is plain text: CompozyOS does
+not browse or check the path.
+
+Catalog discovery uses exact stored identifiers:
+
+| Kind        | Native read                     |
+| ----------- | ------------------------------- |
+| `agent`     | `compozy__agent_list`           |
+| `skill`     | `compozy__skill_list`           |
+| `loop`      | `compozy__loop_list`            |
+| `worktree`  | `compozy__worktree_list`        |
+| `session`   | `compozy__session_list`         |
+| `workspace` | `compozy__workspace_list`       |
+| `secret`    | `compozy__vault_list`           |
+| `runtime`   | `compozy__provider_models_list` |
+
+Agent, skill, Loop, worktree, and session reads resolve the exact workspace. Workspace reads follow
+the caller's workspace-access policy. Vault reads are global and return reference metadata only.
+Runtime accepts a partial `{provider, model, reasoning}` object; exact custom model IDs remain valid.
+For CLI input, `provider/model@reasoning` is the compact form and `-` leaves provider or model unset.
+
+Values resolve per field as run > workspace config > global config > definition default. Validation
+runs after resolution for normal starts, dry runs, automation starts, fork/amend reuse, and annotated
+human responses. Failures return `input_validation` with
+`{loop, field, kind?, value?, origin, reason}` and create no run or side effect. In a human TTY,
+`compozy loop run` prompts only for supported required values still missing after defaults;
+`--no-prompt`, structured output, and non-interactive input fail without prompting.
+
+## Human Requests
+
+An `ask` control parks one node cell until a valid answer arrives. Use `compozy__loop_requests` to
+find work, `compozy__loop_request` to read the full redacted context and expected shape, then
+`compozy__loop_respond` with `payload` and the exact `run_id`, `generation`, `node_id`, and
+`item_index`. `compozy__loop_request` requires the same identity. Agent
+answers require `responders.agents: allow` on that node plus `loops.respond`; humans remain allowed
+by default. A run starter and every agent in its durable spawn chain are always denied from
+answering their own run. Treat `request_already_answered` as durable winner truth; expired and
+canceled requests return `request_expired` or `request_canceled` and cannot be reopened.
+
+Action nodes may declare `review` with an allowlist of `approve`, `edit`, `reject`, and `respond`.
+The coordinator opens the request before it creates a task run. `approve` admits the exact frozen
+parameters, `edit` admits a schema-valid replacement, `reject` follows the declared forward route
+or fails with `quality_rejection`, and `respond` supplies a schema-valid result without execution.
+Use `decision` with `compozy__loop_respond`; `edit` and `respond` require `payload`.
+
+Node pause, resume, cancel, and kill accept `item_index` to address one fan-out cell. Use
+`compozy__loop_node_amend` only for a settled output while its run, node, or cell is parked. It
+appends provenance without changing the recorded output. Effective reads use the newest amendment,
+and run status exposes bounded, redacted `amendments`; private output refs have no read tool.
+
 ## Run History And Best State
 
 Use `compozy loop status` / `compozy__loop_status` for detail. The run carries its current
 `generation` plus optional `best_generation`/`best_score`; `generations[]` carries durable
 `parent_generation`, `origin`, `verdicts[]`, and outputs. Origins are `initial`, `stop_when`,
-`reattempt`, `gate_revise`, `gate_next_generation`, `dod_retry`, `ratchet_restore`, and `requeue`. Each verdict
+`reattempt`, `gate_revise`, `gate_next_generation`, `dod_retry`, `ratchet_restore`, `requeue`,
+`operator_rerun`, and `fork_seed`. Each verdict
 has `gate_id`, machine `outcome`, optional `score`, and optional `route_cause_rank`. The list surfaces
 remain summaries; use status when an agent needs the lineage or gate decisions.
 
@@ -75,6 +137,13 @@ Best fields are absent until an approved finite metric score establishes a basel
 `ratchet_restore` generation may point `parent_generation` at an older best while `previous.*`
 still describes generation `N-1`. On `exhausted` or `stalled`, inspect `best_generation` rather than
 assuming the last generation is the best candidate.
+
+Use `compozy__loop_diff` for an ungated workspace read. `compozy__loop_rerun` opens a same-run
+`operator_rerun` generation from a settled node and its dependents. `compozy__loop_fork` creates a linked
+run whose settled generation 1 is `fork_seed` and whose full body first executes in generation 2. Rerun
+and fork require `loops.timetravel`; an agent cannot apply either operation to its own executing run.
+Pass `request_id` for replay-safe transport retries. The same key with different arguments returns
+`timetravel_key_reuse`; omitting it creates a fresh operation.
 
 ## The Authoring Loop
 
@@ -85,7 +154,7 @@ Follow **inspect → validate → dry-run → publish (with `expected_version`) 
    version before you change anything.
 2. **validate** — `compozy__loop_validate` lints and compiles a candidate without saving; it returns
    per-node codes (`unknown_reference`, `node_id_invalid`, `verdict_policy_requires_judge`,
-   `fan_out_ceiling_exceeded`).
+   `fan_out_unbounded`).
 3. **dry-run** — `compozy__loop_run` with `dry: true` resolves inputs and returns the first generation's
    plan without creating a run or spending budget. It returns the authored `contract` beside the
    input-resolved `materialized_contract` that Goal agents and judges receive. It also builds and
@@ -182,7 +251,7 @@ exhausted budget up to success.
   human-gate `reject`, or a `loop.gate.pre` denial).
 - `failed` — an unrecoverable node/gate error or a `loop.generation.pre` denial.
 - `canceled` — an operator cancel or kill, with cause `operator_cancel` or `operator_kill`.
-- `exhausted` — the iteration cap or fan-out ceiling tripped before the goal.
+- `exhausted` — the iteration cap or an authored `max_fan_out` bound tripped before the goal.
 - `stalled` — no progress: the no-progress window elapsed, the failure circuit breaker tripped, the
   blocker-ID signature repeated, or a watched source went silent.
 
@@ -273,7 +342,15 @@ synthetic budget gate.
 Definitions reference data over one namespace with two surfaces, chosen by the field:
 
 - **Values** — Go `{{ }}` templates in string fields (`params.*`, rubrics, `transform.map.*`).
-- **Conditions** — CEL returning `bool` (`branch.condition`, `fan-out.filter`, `contract.stop_when`).
+- **Conditions** — CEL returning `bool` (`branch.condition`, `route.routes[].when`,
+  `fan-out.filter`, `contract.stop_when`).
+
+`contract.stop_when` accepts either a CEL string or `{ expr, on_eval_error }`, where the policy is
+`fail` or `exit`. A broken continuation exits by default so it cannot keep a run alive. Route
+conditions fail the node and never fall through to the default. Other routing predicates on
+`branch` and filtered `watch-events` nodes also fail by default; their `on_eval_error` may override
+that behavior. Predicate costs at or above 80% of the configured CEL limit produce a warning;
+exceeding the limit follows the same failure policy.
 
 Contract narrative fields (`goal`, `definition_of_done`, `constraints[]`, `boundaries[]`) accept only
 declared `inputs` references and materialize once before Goal work. Goal params and nested gate inputs
@@ -288,8 +365,9 @@ escapes, comments, and `<<` constructs; compilation rejects unsafe substitutions
 authored pipes, redirects, and chaining while preventing inputs, trigger payloads, or node outputs
 from introducing shell syntax.
 
-Namespace roots: `inputs.<name>`, `nodes.<id>.output.<path>`, `nodes.<id>.status`, `item`/`index`
-(fan-out scope only), `trigger.<path>` (trigger/webhook starts only), `event.<path>` (`watch-events`
+Namespace roots: `inputs.<name>`, `nodes.<id>.output.<path>`, `nodes.<id>.status`,
+`nodes.<fan-out-id>.progress.<field>`, `item`/`index` and `progress.<field>` (fan-out body only),
+custom `bind_as`/`index_as` names (their fan-out body only), `trigger.<path>` (trigger/webhook starts only), `event.<path>` (`watch-events`
 `events[].filter` scope only), `generation`, plus these read-only history roots:
 
 - `previous.generation`, `previous.nodes.<id>.{status,output}`,
@@ -302,15 +380,31 @@ Namespace roots: `inputs.<name>`, `nodes.<id>.output.<path>`, `nodes.<id>.status
 Guard history-dependent templates with `{{ with .previous }}` or `{{ with .best }}`. Node IDs match
 `^[a-z][a-z0-9_]*$` (lowercase snake_case) so the same ID is valid in templates and CEL.
 
+Fan-out `strategy` is `wait_all` by default. `fail_fast` and `race` accept string shorthand.
+`best_effort` uses object form with `threshold: "66%"` or `threshold: {count: 2}` and requires
+`missing: acceptable`. Collect output is `{total,succeeded,failed,canceled,coverage_rate,partial}`;
+run list/status payloads expose `completion_state` as `complete` or `partial`. Progress fields are
+`total`, `succeeded`, `failed`, `canceled`, `running`, `pending`, `settled`, `success_rate`, and
+`failure_rate`.
+
 Node classes: `action` (open), `control` (closed), `source` (closed). Reserved **action** kinds are
 `goal`, `run-agent`, `run-loop`, `transform`; every other action kind is a literal tool ID
-(`compozy__*`/`ext__*`/`mcp__*`). Control kinds: `fan-out`, `collect`, `branch`, `gate`, `wait`,
-`sub-loop`. A `wait` declares exactly one of `for`, `until`, or `event`, with optional `expect`,
-`ahead_arrival`, and `expires`. Source kinds: `input`, `file-import`, `watch-source`, `watch-events`.
+(`compozy__*`/`ext__*`/`mcp__*`). Control kinds: `fan-out`, `collect`, `branch`, `route`, `gate`,
+`wait`, `sub-loop`. A `route` evaluates ordered `{when, to}` entries, takes the first match, and
+otherwise takes its mandatory `default`; every target is a unique direct forward edge. A `wait`
+declares exactly one of `for`, `until`, or `event`, with optional `expect`, `ahead_arrival`, and
+`expires`. Source kinds: `input`, `file-import`, `watch-source`, `watch-events`.
+A fan-out requires positive `max_fan_out`; logical lanes may exceed 64, while only its
+`max_parallel` window materializes at once.
 A gate's
 `verdict_policy: revise_until_clean` requires an `agent-judge` or `human` criterion. For a command
 criterion with `expect: stdout_contains`, set the typed `contains` field to the required stdout
 substring.
+
+Gate `on_result` keys are `pass`, `approval`, `fail`, `blocked`, `error`, `timeout`, and
+`invalid_output`. Values are `continue`, `revise`, `next_generation`, `escalate`, `halt`, or an
+in-body direct target written as `{route: node_id}`. The old `branch` action is invalid. An
+`approval` outcome may only `escalate` or `halt`; an object route cannot bypass approval.
 
 `run-agent` and `goal` accept one `params.environment` with mode `root`, `worktree`, `per_run`, or
 `directory`. The node value wins over the Loop default; otherwise execution uses the workspace root.
@@ -419,13 +513,15 @@ bounded before storage; reads are scoped to the run's workspace. The closed even
   `node_killed`, `node_quarantined`, `node_requeued`, `node_wait_started`, `node_wait_resumed`,
   `node_attention_flagged`, `node_attention_cleared`;
 - observation and safety: `effect_results`, `custom_event`, `duplicate_suppressed`,
-  `target_breaker_transition`, `stale_schedule_dropped`, `late_arrival`.
+  `target_breaker_transition`, `stale_schedule_dropped`, `late_arrival`, `predicate_diagnostic`.
 
 `generation_started` carries `generation`, `parent_generation`, `origin`, `reattempt_strategy`, and
 `loop_name`. `gate_verdict` carries the sanitized `node_id`, `generation`, `gate_id`, `item_index`,
 `verdict`, `reason`, `route`, `blocking_issues`, `criteria`, optional `score`, and optional
-`best_generation`. `goal_turn_completed` carries the settled Goal result plus bounded `criteria` and
-`warnings`, matching persisted turn reads. The retired `confidence` field is not part of either payload.
+`best_generation`. `predicate_diagnostic` identifies the predicate and includes the diagnostic code,
+reason, measured cost, configured cost limit, and warning flag. `goal_turn_completed` carries the
+settled Goal result plus bounded `criteria` and `warnings`, matching persisted turn reads. The retired
+`confidence` field is not part of either payload.
 
 ## Watch-Source Behavior
 

@@ -34,6 +34,7 @@ type Node struct {
 	Session             *SessionSpec `json:"session,omitempty"        yaml:"session,omitempty"`
 	Timeout             string       `json:"timeout,omitempty"        yaml:"timeout,omitempty"`
 	Retry               *RetrySpec   `json:"retry,omitempty"          yaml:"retry,omitempty"`
+	Review              *ReviewSpec  `json:"review,omitempty"         yaml:"review,omitempty"`
 	*NodeLifecycleState `                                                    yaml:",inline"`
 	Harvest             *HarvestSpec        `json:"harvest,omitempty"        yaml:"harvest,omitempty"`
 	Produces            Schema              `json:"produces,omitempty"       yaml:"produces,omitempty"`
@@ -43,7 +44,13 @@ type Node struct {
 	BatchSize           int                 `json:"batch_size,omitempty"     yaml:"batch_size,omitempty"`
 	MaxParallel         int                 `json:"max_parallel,omitempty"   yaml:"max_parallel,omitempty"`
 	MaxFanOut           int                 `json:"max_fan_out,omitempty"    yaml:"max_fan_out,omitempty"`
+	Strategy            *StrategySpec       `json:"strategy,omitempty"       yaml:"strategy,omitempty"`
+	BindAs              string              `json:"bind_as,omitempty"        yaml:"bind_as,omitempty"`
+	IndexAs             string              `json:"index_as,omitempty"       yaml:"index_as,omitempty"`
 	Condition           string              `json:"condition,omitempty"      yaml:"condition,omitempty"`
+	OnEvalError         EvalErrorPolicy     `json:"on_eval_error,omitempty"  yaml:"on_eval_error,omitempty"`
+	Routes              []RouteSpec         `json:"routes,omitempty"         yaml:"routes,omitempty"`
+	Default             NodeID              `json:"default,omitempty"        yaml:"default,omitempty"`
 	Criteria            []GateCriterion     `json:"criteria,omitempty"       yaml:"criteria,omitempty"`
 	VerdictPolicy       VerdictPolicy       `json:"verdict_policy,omitempty" yaml:"verdict_policy,omitempty"`
 	OnResult            map[string]any      `json:"on_result,omitempty"      yaml:"on_result,omitempty"`

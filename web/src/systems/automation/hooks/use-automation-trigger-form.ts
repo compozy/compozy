@@ -229,6 +229,7 @@ export function useAutomationTriggerForm({
     onPromptChange: (prompt: string) => patch({ prompt }),
     targetMode,
     loopCatalog,
+    loopWorkspaceId,
     loopTarget,
     onTargetModeChange: (mode: AutomationTargetMode) =>
       onChange(setTriggerTargetMode(draft, mode, loopWorkspaceId)),

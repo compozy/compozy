@@ -23,6 +23,7 @@ import (
 	compozycontract "github.com/compozy/compozy/internal/api/contract"
 	compozyconfig "github.com/compozy/compozy/internal/config"
 	looppkg "github.com/compozy/compozy/internal/loop"
+	"github.com/compozy/compozy/internal/loop/dsl"
 	"github.com/compozy/compozy/internal/store/globaldb"
 	taskpkg "github.com/compozy/compozy/internal/task"
 	"github.com/compozy/compozy/internal/testutil/acpmock"
@@ -95,6 +96,55 @@ func TestDaemonE2ELoopRunEventsShouldStreamRichFramesAndResume(t *testing.T) {
 		}
 	})
 
+	t.Run("Should exit a broken stop-when with a durable diagnostic", func(t *testing.T) {
+		t.Parallel()
+		acpmock.RequireDriver(t)
+
+		harness := e2etest.StartRuntimeHarness(t, &e2etest.RuntimeHarnessOptions{
+			MockAgents: []e2etest.MockAgentSpec{{
+				FixturePath:  mockFixturePath(t, "loop_events_fixture.json"),
+				FixtureAgent: "loop_events",
+				AgentName:    "loop-events-agent",
+			}},
+		})
+		ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+		defer cancel()
+
+		definition := loopEventsDefinition()
+		definition.Meta.Name = "loop-broken-stop-when"
+		definition.Contract.StopWhen = dsl.StopWhenSpec{
+			Expr: "size(nodes.probe.output.summary) / 0 > 1",
+		}
+		definition.Contract.IterationCap = 3
+		createLoopViaHTTP(t, ctx, harness, definition)
+		run := runLoopViaHTTP(t, ctx, harness, definition.Meta.Name)
+		waitForLoopRunStatus(t, ctx, harness, run.ID, compozycontract.LoopRunStatusDone)
+
+		events := readLoopRunSSEUntil(
+			t,
+			ctx,
+			harness,
+			loopRunEventsPath(harness.WorkspaceID, run.ID, 0),
+			func(events []loopRunSSEEvent) bool {
+				return loopSSEKinds(events).Contains(
+					string(compozycontract.LoopRunEventPredicateDiagnostic),
+				)
+			},
+		)
+		assertLoopSSEPayloadContains(
+			t,
+			events,
+			compozycontract.LoopRunEventPredicateDiagnostic,
+			"predicate_evaluation_failed",
+		)
+		assertLoopSSEPayloadContains(
+			t,
+			events,
+			compozycontract.LoopRunEventPredicateDiagnostic,
+			"contract.stop_when",
+		)
+	})
+
 	t.Run("Should resume a paused Loop into its next generation after restart", func(t *testing.T) {
 		t.Parallel()
 		acpmock.RequireDriver(t)
@@ -117,7 +167,7 @@ func TestDaemonE2ELoopRunEventsShouldStreamRichFramesAndResume(t *testing.T) {
 		definition := loopEventsDefinition()
 		definition.Meta.Name = "loop-control-restart"
 		definition.Meta.Description = "Runtime E2E probe for durable Loop resume."
-		definition.Contract.StopWhen = "generation > 1"
+		definition.Contract.StopWhen = dsl.StopWhenSpec{Expr: "generation > 1"}
 		definition.Contract.IterationCap = 3
 		definition.Graph.Nodes[0].Params["agent"] = "loop-control-restart-agent"
 		definition.Graph.Nodes[0].Params["prompt"] = "loop control restart probe"
@@ -358,35 +408,34 @@ func loopEventsDefinition() compozycontract.LoopDefinitionDocument {
 		APIVersion:  "compozy.loop/v1",
 		Kind:        "Loop",
 		Concurrency: "allow",
-		Meta: compozycontract.LoopDefinitionMeta{
+		Meta: dsl.Meta{
 			Name:        "loop-events-probe",
 			Description: "Runtime E2E probe for rich Loop run SSE events.",
-			Catalog: compozycontract.LoopCatalogMeta{
+			Catalog: dsl.CatalogMeta{
 				UseWhen:  "Testing Loop run event streaming.",
 				Keywords: []string{"test", "events"},
 				Category: "Testing",
 			},
 		},
-		Contract: compozycontract.LoopContract{
+		Contract: dsl.Contract{
 			Goal:             "Emit rich Loop run events.",
 			DefinitionOfDone: "The probe action completes.",
-			StopWhen:         "nodes.probe.status == 'succeeded'",
+			StopWhen:         dsl.StopWhenSpec{Expr: "nodes.probe.status == 'succeeded'"},
 			IterationCap:     1,
-			NoProgress: compozycontract.LoopNoProgress{
-				Window:     2,
-				HashFields: []string{"delivery_artifact"},
-			},
-			Budget: compozycontract.LoopBudget{
+			NoProgress:       dsl.NoProgress{Window: 2},
+			Budget: dsl.Budget{
 				Tokens:       0,
 				WallClockSec: 0,
-				OnExceeded:   compozycontract.LoopBudgetExceededHalt,
+				OnExceeded:   dsl.BudgetExceededHalt,
 			},
-			TerminalStates: []string{"done", "failed", "blocked", "exhausted", "stalled"},
+			ContractLifecycleState: &dsl.ContractLifecycleState{TerminalStates: []dsl.TerminalState{
+				dsl.TerminalDone, dsl.TerminalFailed, dsl.TerminalBlocked, dsl.TerminalExhausted, dsl.TerminalStalled,
+			}},
 		},
-		Graph: compozycontract.LoopGraph{
-			Nodes: []compozycontract.LoopGraphNode{{
+		Graph: dsl.Graph{
+			Nodes: []dsl.Node{{
 				ID:    "probe",
-				Class: compozycontract.LoopNodeClassAction,
+				Class: dsl.NodeClassAction,
 				Kind:  "run-agent",
 				Params: map[string]any{
 					"agent":  "loop-events-agent",
@@ -402,10 +451,12 @@ func loopEventsDefinition() compozycontract.LoopDefinitionDocument {
 				},
 			}},
 		},
-		Start: []compozycontract.LoopStartBinding{
-			{Kind: "manual"},
-			{Kind: "http"},
-			{Kind: "uds"},
+		DefinitionExtensionState: &dsl.DefinitionExtensionState{
+			Start: []dsl.StartBinding{
+				{Kind: "manual"},
+				{Kind: "http"},
+				{Kind: "uds"},
+			},
 		},
 	}
 }
@@ -415,33 +466,34 @@ func awaitedChildHoldDefinition() compozycontract.LoopDefinitionDocument {
 		APIVersion:  "compozy.loop/v1",
 		Kind:        "Loop",
 		Concurrency: "allow",
-		Meta: compozycontract.LoopDefinitionMeta{
+		Meta: dsl.Meta{
 			Name:        "await-child-hold",
 			Description: "Generic child Loop held by a durable wait.",
 		},
-		Contract: compozycontract.LoopContract{
+		Contract: dsl.Contract{
 			Goal:             "Hold a child run in a live state.",
 			DefinitionOfDone: "The durable wait is released.",
-			StopWhen:         "nodes.hold.status == 'succeeded'",
+			StopWhen:         dsl.StopWhenSpec{Expr: "nodes.hold.status == 'succeeded'"},
 			IterationCap:     1,
-			NoProgress: compozycontract.LoopNoProgress{
-				Window:     2,
-				HashFields: []string{"nodes.hold.status"},
+			NoProgress:       dsl.NoProgress{Window: 2},
+			Budget: dsl.Budget{
+				OnExceeded: dsl.BudgetExceededHalt,
 			},
-			Budget: compozycontract.LoopBudget{
-				OnExceeded: compozycontract.LoopBudgetExceededHalt,
-			},
-			TerminalStates: []string{"done", "failed", "blocked", "exhausted", "stalled"},
+			ContractLifecycleState: &dsl.ContractLifecycleState{TerminalStates: []dsl.TerminalState{
+				dsl.TerminalDone, dsl.TerminalFailed, dsl.TerminalBlocked, dsl.TerminalExhausted, dsl.TerminalStalled,
+			}},
 		},
-		Graph: compozycontract.LoopGraph{
-			Nodes: []compozycontract.LoopGraphNode{{
+		Graph: dsl.Graph{
+			Nodes: []dsl.Node{{
 				ID:     "hold",
-				Class:  compozycontract.LoopNodeClassControl,
+				Class:  dsl.NodeClassControl,
 				Kind:   "wait",
 				Params: map[string]any{"for": "10m"},
 			}},
 		},
-		Start: []compozycontract.LoopStartBinding{{Kind: "manual"}, {Kind: "http"}},
+		DefinitionExtensionState: &dsl.DefinitionExtensionState{
+			Start: []dsl.StartBinding{{Kind: "manual"}, {Kind: "http"}},
+		},
 	}
 }
 
@@ -450,29 +502,28 @@ func awaitedParentProbeDefinition() compozycontract.LoopDefinitionDocument {
 		APIVersion:  "compozy.loop/v1",
 		Kind:        "Loop",
 		Concurrency: "allow",
-		Meta: compozycontract.LoopDefinitionMeta{
+		Meta: dsl.Meta{
 			Name:        "await-parent-probe",
 			Description: "Generic parent with two sequential awaited child Loops.",
 		},
-		Contract: compozycontract.LoopContract{
+		Contract: dsl.Contract{
 			Goal:             "Run two child Loops in strict sequence.",
 			DefinitionOfDone: "Both awaited child Loops finish in authored order.",
-			StopWhen:         "nodes.second_child.status == 'succeeded'",
+			StopWhen:         dsl.StopWhenSpec{Expr: "nodes.second_child.status == 'succeeded'"},
 			IterationCap:     1,
-			NoProgress: compozycontract.LoopNoProgress{
-				Window:     2,
-				HashFields: []string{"nodes.first_child.status", "nodes.second_child.status"},
+			NoProgress:       dsl.NoProgress{Window: 2},
+			Budget: dsl.Budget{
+				OnExceeded: dsl.BudgetExceededHalt,
 			},
-			Budget: compozycontract.LoopBudget{
-				OnExceeded: compozycontract.LoopBudgetExceededHalt,
-			},
-			TerminalStates: []string{"done", "failed", "blocked", "exhausted", "stalled"},
+			ContractLifecycleState: &dsl.ContractLifecycleState{TerminalStates: []dsl.TerminalState{
+				dsl.TerminalDone, dsl.TerminalFailed, dsl.TerminalBlocked, dsl.TerminalExhausted, dsl.TerminalStalled,
+			}},
 		},
-		Graph: compozycontract.LoopGraph{
-			Nodes: []compozycontract.LoopGraphNode{
+		Graph: dsl.Graph{
+			Nodes: []dsl.Node{
 				{
 					ID:    "first_child",
-					Class: compozycontract.LoopNodeClassAction,
+					Class: dsl.NodeClassAction,
 					Kind:  "run-loop",
 					Params: map[string]any{
 						"loop": "await-child-hold",
@@ -481,7 +532,7 @@ func awaitedParentProbeDefinition() compozycontract.LoopDefinitionDocument {
 				},
 				{
 					ID:    "second_child",
-					Class: compozycontract.LoopNodeClassAction,
+					Class: dsl.NodeClassAction,
 					Kind:  "run-loop",
 					Params: map[string]any{
 						"loop": "await-child-hold",
@@ -489,9 +540,11 @@ func awaitedParentProbeDefinition() compozycontract.LoopDefinitionDocument {
 					},
 				},
 			},
-			Edges: []compozycontract.LoopGraphEdge{{From: "first_child", To: "second_child"}},
+			Edges: []dsl.Edge{{From: "first_child", To: "second_child"}},
 		},
-		Start: []compozycontract.LoopStartBinding{{Kind: "manual"}, {Kind: "http"}},
+		DefinitionExtensionState: &dsl.DefinitionExtensionState{
+			Start: []dsl.StartBinding{{Kind: "manual"}, {Kind: "http"}},
+		},
 	}
 }
 
@@ -674,7 +727,7 @@ contract:
   verification: []
   terminal_states: [done, failed, blocked, exhausted, stalled]
   iteration_cap: 2
-  no_progress: { window: 2, hash_fields: ["nodes.task_activity.output.events"] }
+  no_progress: { window: 2 }
   budget: { tokens: 0, wall_clock_sec: 0, on_exceeded: halt }
 graph:
   nodes:

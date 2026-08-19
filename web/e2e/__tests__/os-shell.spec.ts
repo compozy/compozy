@@ -856,7 +856,7 @@ test("E2E-015: bell approval stays live and a CLI-resolved item reports truthful
   await prepareShell(appPage, runtime);
   const tasksUI = tasksOperatorSelectors(appPage);
   const first = await createApprovalTask(runtime, "Primary approval");
-  const bell = appPage.getByRole("button", { name: "Approvals" });
+  const bell = appPage.getByRole("button", { name: "Attention" });
 
   await expect(bell).toHaveText("1");
   await bell.click();
@@ -1022,7 +1022,7 @@ test("E2E-017: palette unwinds above the bell one overlay at a time", async ({
   runtime,
 }) => {
   await prepareShell(appPage, runtime);
-  await appPage.getByRole("button", { name: "Approvals" }).click();
+  await appPage.getByRole("button", { name: "Attention" }).click();
   await expect(appPage.getByTestId("os-bell-popover")).toBeVisible();
 
   await appPage.keyboard.press("ControlOrMeta+K");
@@ -1768,9 +1768,9 @@ test("E2E-016 / cross-workspace E2E-008, E2E-009, E2E-011: a foreign session dee
   await expect(sessionWindow(appPage, session.id)).toHaveCount(0);
   await expect(appPage.getByText("cross-workspace-session", { exact: true })).toHaveCount(0);
 
-  // Only the owner projection resolves the session miss. The shell may refresh B's
-  // workspace-scoped worktree listing for the authorized global workspace switcher,
-  // but no foreign session or other workspace payload is read before confirmation.
+  // Only the owner projection resolves the session miss. The shell may read B's
+  // workspace-scoped loop-request projection for the authorized cross-workspace
+  // attention feed, but no foreign session payload is read before confirmation.
   expect(new Set(apiRequests.filter(pathname => pathname.includes(session.id)))).toEqual(
     new Set([
       `/api/workspaces/${workspace.id}/sessions/${session.id}`,
@@ -1781,7 +1781,7 @@ test("E2E-016 / cross-workspace E2E-008, E2E-009, E2E-011: a foreign session dee
     new Set(
       apiRequests.filter(pathname => pathname.startsWith(`/api/workspaces/${secondWorkspace.id}/`))
     )
-  ).toEqual(new Set([`/api/workspaces/${secondWorkspace.id}/worktrees`]));
+  ).toEqual(new Set([`/api/workspaces/${secondWorkspace.id}/loop-requests`]));
 
   // Cancel keeps A active with its arrangement intact and falls back to today's not-found.
   await confirmSwitch.cancel.click();

@@ -177,9 +177,9 @@
                 {
                     "name": "score-1",
                     "match": {
+                        "user_text_contains": "Score generation 1 deterministically.",
                         "judge": {
                             "role": "agent-judge",
-                            "attempt": 1,
                             "criterion_id": "climb_score"
                         }
                     },
@@ -193,9 +193,9 @@
                 {
                     "name": "score-2",
                     "match": {
+                        "user_text_contains": "Score generation 2 deterministically.",
                         "judge": {
                             "role": "agent-judge",
-                            "attempt": 2,
                             "criterion_id": "climb_score"
                         }
                     },
@@ -209,9 +209,9 @@
                 {
                     "name": "score-3",
                     "match": {
+                        "user_text_contains": "Score generation 3 deterministically.",
                         "judge": {
                             "role": "agent-judge",
-                            "attempt": 3,
                             "criterion_id": "climb_score"
                         }
                     },
@@ -232,9 +232,9 @@
                 {
                     "name": "score-1",
                     "match": {
+                        "user_text_contains": "Score generation 1 deterministically.",
                         "judge": {
                             "role": "agent-judge",
-                            "attempt": 1,
                             "criterion_id": "restore_score"
                         }
                     },
@@ -248,9 +248,9 @@
                 {
                     "name": "score-2",
                     "match": {
+                        "user_text_contains": "Score generation 2 deterministically.",
                         "judge": {
                             "role": "agent-judge",
-                            "attempt": 2,
                             "criterion_id": "restore_score"
                         }
                     },
@@ -264,9 +264,9 @@
                 {
                     "name": "score-3",
                     "match": {
+                        "user_text_contains": "Score generation 3 deterministically.",
                         "judge": {
                             "role": "agent-judge",
-                            "attempt": 3,
                             "criterion_id": "restore_score"
                         }
                     },
@@ -400,9 +400,9 @@
                 {
                     "name": "score-1",
                     "match": {
+                        "user_text_contains": "Score generation 1 deterministically.",
                         "judge": {
                             "role": "agent-judge",
-                            "attempt": 1,
                             "criterion_id": "exhaust_score"
                         }
                     },
@@ -416,9 +416,9 @@
                 {
                     "name": "score-2",
                     "match": {
+                        "user_text_contains": "Score generation 2 deterministically.",
                         "judge": {
                             "role": "agent-judge",
-                            "attempt": 2,
                             "criterion_id": "exhaust_score"
                         }
                     },
@@ -432,9 +432,9 @@
                 {
                     "name": "score-3",
                     "match": {
+                        "user_text_contains": "Score generation 3 deterministically.",
                         "judge": {
                             "role": "agent-judge",
-                            "attempt": 3,
                             "criterion_id": "exhaust_score"
                         }
                     },

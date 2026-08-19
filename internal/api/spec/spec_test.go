@@ -18,6 +18,7 @@ import (
 	compozyconfig "github.com/compozy/compozy/internal/config"
 	extensionprotocol "github.com/compozy/compozy/internal/extensionprotocol"
 	"github.com/compozy/compozy/internal/hooks"
+	"github.com/compozy/compozy/internal/loop/dsl"
 	"github.com/compozy/compozy/internal/network/participation"
 	"github.com/compozy/compozy/internal/notifications"
 	taskpkg "github.com/compozy/compozy/internal/task"
@@ -2897,6 +2898,31 @@ func TestSchemaCustomizerCoversAdditionalEnums(t *testing.T) {
 			t.Fatalf("notification scope enum = %v, want %v", got, want)
 		}
 	})
+}
+
+func TestStopWhenSpecSchemaShouldMatchTheDualWireFormat(t *testing.T) {
+	t.Parallel()
+
+	schema := openapi3.NewSchema()
+	if err := schemaCustomizer("", reflect.TypeFor[dsl.StopWhenSpec](), "", schema); err != nil {
+		t.Fatalf("schemaCustomizer() error = %v", err)
+	}
+	if got, want := len(schema.OneOf), 2; got != want {
+		t.Fatalf("stop_when oneOf variants = %d, want %d", got, want)
+	}
+	if scalar := schema.OneOf[0].Value; scalar == nil || scalar.Type == nil || !scalar.Type.Is("string") {
+		t.Fatalf("stop_when scalar schema = %#v, want string", scalar)
+	}
+	object := schema.OneOf[1].Value
+	if object == nil || object.Type == nil || !object.Type.Is("object") ||
+		object.AdditionalProperties.Has == nil || *object.AdditionalProperties.Has ||
+		!slices.Equal(object.Required, []string{"expr"}) {
+		t.Fatalf("stop_when object schema = %#v, want closed object requiring expr", object)
+	}
+	policy := object.Properties["on_eval_error"].Value
+	if policy == nil || !reflect.DeepEqual(policy.Enum, []any{"fail", "exit"}) {
+		t.Fatalf("stop_when on_eval_error enum = %#v, want fail and exit", policy)
+	}
 }
 
 func TestExtensionAuthoringComponentSchemas(t *testing.T) {

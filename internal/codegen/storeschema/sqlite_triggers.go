@@ -55,16 +55,54 @@ func appendSQLiteTriggerRecreations(plan *migrate.Plan, triggers []sqliteTrigger
 	if len(rebuilt) == 0 {
 		return
 	}
+	recreated := make([]sqliteTrigger, 0)
 	for _, trigger := range triggers {
-		if !slices.Contains(rebuilt, trigger.tableName) {
+		if !triggerTouchesRebuiltTable(trigger, rebuilt) {
 			continue
 		}
+		recreated = append(recreated, trigger)
+	}
+	if len(recreated) == 0 {
+		return
+	}
+	drops := make([]*migrate.Change, 0, len(recreated))
+	for _, trigger := range recreated {
+		drops = append(drops, &migrate.Change{
+			Cmd:     "DROP TRIGGER IF EXISTS " + quoteSQLiteIdentifier(trigger.name),
+			Comment: fmt.Sprintf("drop trigger %q before rebuilding a referenced table", trigger.name),
+		})
+	}
+	plan.Changes = slices.Insert(plan.Changes, firstSQLiteTableDrop(plan), drops...)
+	for _, trigger := range recreated {
 		plan.Changes = append(plan.Changes, &migrate.Change{
 			Cmd:     strings.TrimSuffix(strings.TrimSpace(trigger.createSQL), ";"),
 			Reverse: "DROP TRIGGER " + quoteSQLiteIdentifier(trigger.name),
 			Comment: fmt.Sprintf("recreate trigger %q after rebuilding table %q", trigger.name, trigger.tableName),
 		})
 	}
+}
+
+func triggerTouchesRebuiltTable(trigger sqliteTrigger, rebuilt []string) bool {
+	if slices.Contains(rebuilt, trigger.tableName) {
+		return true
+	}
+	for _, tableName := range rebuilt {
+		identifier := regexp.QuoteMeta(tableName)
+		pattern := `(?i)(^|[^[:alnum:]_])(?:["` + "`" + `\[])?` + identifier + `(?:["` + "`" + `\]])?([^[:alnum:]_]|$)`
+		if regexp.MustCompile(pattern).MatchString(trigger.createSQL) {
+			return true
+		}
+	}
+	return false
+}
+
+func firstSQLiteTableDrop(plan *migrate.Plan) int {
+	for index, change := range plan.Changes {
+		if sqliteDropTable.MatchString(strings.TrimSpace(change.Cmd)) {
+			return index
+		}
+	}
+	return len(plan.Changes)
 }
 
 func rebuiltSQLiteTables(plan *migrate.Plan) []string {

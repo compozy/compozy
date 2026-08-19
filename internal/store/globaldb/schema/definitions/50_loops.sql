@@ -67,7 +67,7 @@ CREATE TABLE loop_generations (
 				CHECK (parent_generation >= 0 AND parent_generation < generation),
 			origin            TEXT NOT NULL CHECK (origin IN (
 				'initial','stop_when','reattempt','gate_revise','gate_next_generation',
-				'dod_retry','ratchet_restore','requeue'
+				'dod_retry','ratchet_restore','requeue','operator_rerun','fork_seed'
 			)),
 			created_at        TIMESTAMP NOT NULL,
 			PRIMARY KEY (loop_run_id, generation)
@@ -80,7 +80,7 @@ CREATE TABLE loop_generation_outputs (
 			item_index        INTEGER NOT NULL DEFAULT 0,
 			status            TEXT NOT NULL CHECK (status IN (
 				'pending','enqueued','running','retrying','waiting','paused','awaiting_child',
-				'control_pending','awaiting_goal','succeeded','failed','canceled','quarantined'
+				'control_pending','awaiting_goal','succeeded','partial','failed','canceled','quarantined'
 			)),
 			output_ref        TEXT,
 			task_run_id       TEXT,
@@ -124,6 +124,9 @@ CREATE TABLE loop_node_controls (
 	cancel_requested_at   TIMESTAMP,
 	last_evidence_at      TIMESTAMP,
 	death_resume_streak   INTEGER NOT NULL DEFAULT 0 CHECK (death_resume_streak >= 0),
+	gate_revisions_json   TEXT NOT NULL DEFAULT '{}' CHECK (
+		json_valid(gate_revisions_json) AND json_type(gate_revisions_json) = 'object'
+	),
 	revision              INTEGER NOT NULL DEFAULT 0,
 	updated_at            TIMESTAMP NOT NULL,
 	PRIMARY KEY (loop_run_id, node_id)
@@ -157,7 +160,7 @@ CREATE TABLE loop_node_waits (
 	generation         INTEGER NOT NULL CHECK (generation >= 1),
 	node_id            TEXT NOT NULL,
 	item_index         INTEGER NOT NULL DEFAULT 0,
-	kind               TEXT NOT NULL CHECK (kind IN ('timer','event','approval_escalation')),
+	kind               TEXT NOT NULL CHECK (kind IN ('timer','event','approval_escalation','request')),
 	resume_at          TIMESTAMP,
 	next_escalation_at TIMESTAMP,
 	escalation_cursor  INTEGER NOT NULL DEFAULT 0,
@@ -172,6 +175,90 @@ CREATE TABLE loop_node_waits (
 	ahead_payload_json TEXT CHECK (ahead_payload_json IS NULL OR json_valid(ahead_payload_json)),
 	issued_epoch       INTEGER NOT NULL DEFAULT 0,
 	created_at         TIMESTAMP NOT NULL,
+	PRIMARY KEY (loop_run_id, generation, node_id, item_index)
+);
+
+CREATE TABLE loop_requests (
+	workspace_id          TEXT NOT NULL,
+	loop_run_id           TEXT NOT NULL REFERENCES loop_runs(id) ON DELETE CASCADE,
+	generation            INTEGER NOT NULL CHECK (generation >= 1),
+	node_id               TEXT NOT NULL,
+	item_index            INTEGER NOT NULL DEFAULT 0 CHECK (item_index >= 0),
+	kind                  TEXT NOT NULL CHECK (kind IN ('ask','review')),
+	state                 TEXT NOT NULL CHECK (state IN ('pending','answered','expired','canceled')),
+	prompt                TEXT NOT NULL,
+	context_preview_json  TEXT NOT NULL DEFAULT '{}' CHECK (json_valid(context_preview_json)),
+	context_ref           TEXT,
+	answer_schema_json    TEXT CHECK (answer_schema_json IS NULL OR json_valid(answer_schema_json)),
+	edit_schema_json      TEXT CHECK (edit_schema_json IS NULL OR json_valid(edit_schema_json)),
+	respond_schema_json   TEXT CHECK (respond_schema_json IS NULL OR json_valid(respond_schema_json)),
+	decisions_json        TEXT NOT NULL CHECK (json_valid(decisions_json)),
+	proposed_ref          TEXT,
+	proposed_preview_json TEXT CHECK (proposed_preview_json IS NULL OR json_valid(proposed_preview_json)),
+	answered_decision     TEXT,
+	answered_payload_ref  TEXT,
+	answered_note         TEXT,
+	actor_kind            TEXT,
+	actor_id              TEXT,
+	opened_at             TIMESTAMP NOT NULL,
+	resolved_at           TIMESTAMP,
+	expires_at            TIMESTAMP,
+	PRIMARY KEY (loop_run_id, generation, node_id, item_index)
+);
+
+CREATE TABLE loop_timetravel_ops (
+	workspace_id      TEXT NOT NULL,
+	op_id             TEXT NOT NULL,
+	kind              TEXT NOT NULL CHECK (kind IN ('rerun','fork')),
+	idempotency_key   TEXT NOT NULL DEFAULT '',
+	request_digest    TEXT NOT NULL CHECK (length(request_digest) = 64),
+	source_run_id     TEXT NOT NULL REFERENCES loop_runs(id) ON DELETE CASCADE,
+	source_generation INTEGER CHECK (source_generation IS NULL OR source_generation >= 1),
+	from_node         TEXT,
+	item_index        INTEGER CHECK (item_index IS NULL OR item_index >= 0),
+	actor_kind        TEXT NOT NULL,
+	actor_id          TEXT NOT NULL,
+	reason            TEXT,
+	result_run_id     TEXT NOT NULL,
+	result_generation INTEGER CHECK (result_generation IS NULL OR result_generation >= 1),
+	created_at        TIMESTAMP NOT NULL,
+	PRIMARY KEY (workspace_id, op_id),
+	CHECK (
+		(kind = 'rerun' AND source_generation IS NOT NULL AND from_node IS NOT NULL
+		 AND result_generation IS NOT NULL AND result_run_id = source_run_id)
+		OR
+		(kind = 'fork' AND source_generation IS NOT NULL AND from_node IS NULL
+		 AND item_index IS NULL AND result_generation IS NULL)
+	)
+);
+
+CREATE TABLE loop_node_amendments (
+	workspace_id  TEXT NOT NULL,
+	loop_run_id   TEXT NOT NULL REFERENCES loop_runs(id) ON DELETE CASCADE,
+	generation    INTEGER NOT NULL CHECK (generation >= 1),
+	node_id       TEXT NOT NULL,
+	item_index    INTEGER NOT NULL DEFAULT 0 CHECK (item_index >= 0),
+	amendment_seq INTEGER NOT NULL CHECK (amendment_seq >= 1),
+	original_ref  TEXT NOT NULL,
+	amended_ref   TEXT NOT NULL,
+	actor_kind    TEXT NOT NULL,
+	actor_id      TEXT NOT NULL,
+	reason        TEXT,
+	created_at    TIMESTAMP NOT NULL,
+	PRIMARY KEY (loop_run_id, generation, node_id, item_index, amendment_seq)
+);
+
+CREATE TABLE loop_node_lane_pauses (
+	workspace_id TEXT NOT NULL,
+	loop_run_id  TEXT NOT NULL REFERENCES loop_runs(id) ON DELETE CASCADE,
+	generation   INTEGER NOT NULL CHECK (generation >= 1),
+	node_id      TEXT NOT NULL,
+	item_index   INTEGER NOT NULL CHECK (item_index >= 0),
+	actor_kind   TEXT NOT NULL,
+	actor_id     TEXT NOT NULL,
+	reason       TEXT,
+	mode         TEXT NOT NULL CHECK (mode IN ('drain','cancel')),
+	requested_at TIMESTAMP NOT NULL,
 	PRIMARY KEY (loop_run_id, generation, node_id, item_index)
 );
 
@@ -433,8 +520,18 @@ CREATE TABLE loop_run_events (
 			loop_run_id  TEXT NOT NULL,
 			workspace_id TEXT NOT NULL,
 			seq          INTEGER NOT NULL,
-			kind         TEXT NOT NULL,
-			payload_json TEXT NOT NULL,
+			kind         TEXT NOT NULL CHECK (kind IN (
+				'node_running','node_succeeded','node_failed','node_quarantined','node_requeued',
+				'node_paused','node_resumed','node_wait_started','node_wait_resumed',
+				'duplicate_suppressed','node_canceled','node_killed','node_attention_flagged',
+				'node_attention_cleared','target_breaker_transition','gate_verdict',
+				'generation_started','channel_msg','token_tick','needs_approval','status_changed',
+				'goal_turn_started','goal_turn_completed','goal_status_changed','runtime_applied',
+				'predicate_diagnostic','route_taken','node_retry_scheduled','stale_schedule_dropped',
+				'late_arrival','effect_results','custom_event','request_opened','request_answered',
+				'request_expired','request_canceled','node_amended','branch_pruned','run_forked'
+			)),
+			payload_json TEXT NOT NULL CHECK (json_valid(payload_json)),
 			at           TIMESTAMP NOT NULL,
 			delivery_key TEXT
 		);
@@ -444,6 +541,10 @@ CREATE TABLE loop_runs (
 			workspace_id         TEXT NOT NULL,
 			loop_name            TEXT NOT NULL,
 			status               TEXT NOT NULL,
+			completion_state     TEXT NOT NULL DEFAULT 'complete'
+				CHECK (completion_state IN ('complete','partial')),
+			forked_from_run_id   TEXT,
+			forked_from_generation INTEGER,
 			generation           INTEGER NOT NULL DEFAULT 0,
 			reattempt_strategy   TEXT NOT NULL DEFAULT 'failed_only',
 			last_progress_at     TIMESTAMP NOT NULL,
@@ -471,6 +572,15 @@ CREATE TABLE loop_runs (
 						(best_generation IS NULL AND best_score IS NULL)
 						OR (best_generation IS NOT NULL AND best_score IS NOT NULL
 							AND best_generation >= 1 AND best_generation <= generation)
+					),
+					CHECK (
+						(forked_from_run_id IS NULL AND forked_from_generation IS NULL)
+						OR (
+							forked_from_run_id IS NOT NULL
+							AND forked_from_generation IS NOT NULL
+							AND length(trim(forked_from_run_id)) > 0
+							AND forked_from_generation >= 1
+						)
 					));
 
 CREATE TABLE loop_session_bindings (
@@ -540,6 +650,13 @@ CREATE INDEX idx_loop_node_waits_ladder
 	WHERE claim_state = 'waiting' AND next_escalation_at IS NOT NULL;
 
 CREATE INDEX idx_loop_node_waits_state ON loop_node_waits(claim_state);
+
+CREATE INDEX idx_loop_requests_pending
+ON loop_requests(workspace_id, state, expires_at, opened_at);
+
+CREATE UNIQUE INDEX uq_loop_timetravel_ops_idempotency
+	ON loop_timetravel_ops(workspace_id, idempotency_key)
+	WHERE idempotency_key != '';
 
 CREATE INDEX idx_loop_effect_outbox_pending
 	ON loop_effect_outbox(state) WHERE state = 'pending';

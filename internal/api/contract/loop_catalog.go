@@ -1,6 +1,8 @@
 package contract
 
-import "time"
+import (
+	"time"
+)
 
 // LoopCatalogEntryPayload is one fully hydrated row from a bounded catalog page.
 type LoopCatalogEntryPayload struct {

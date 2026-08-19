@@ -15,6 +15,8 @@ import { LoopRunPlan } from "./loop-run-plan";
 import { NetworkParticipationFields } from "@/systems/network";
 import { useWorktrees } from "@/systems/workspace";
 import { LoopRunEnvironment } from "./loop-run-environment";
+import { loopInputCatalogNeeds } from "../../lib/loop-input-catalogs";
+import { LoopInputCatalogBoundary } from "../input/loop-input-catalogs";
 
 const DRY_RUN_SENTENCE =
   "Dry run validates inputs and renders the first-generation plan without starting a run.";
@@ -111,14 +113,6 @@ function LoopRunFormActions({
   );
 }
 
-/**
- * The hero run form (§4.3): an auto-generated typed input form from the Loop's declared
- * inputs, a folded per-run limits list (clamped, no cost cap), and the Dry run / Start run
- * actions. After a successful Dry run, the resolved gen-1 plan renders inline. Leaving the
- * form without starting is a route action (`Close` in the window chrome), not a third button
- * beside the two that submit. State + the run/dry calls live in `useLoopRunForm`; this
- * component is the presentation.
- */
 export function LoopRunForm({
   workspaceId,
   loop,
@@ -137,6 +131,7 @@ export function LoopRunForm({
   });
   const inputNames = form.schema ? Object.keys(form.schema) : [];
   const note = actionBarNote(form);
+  const inputCatalogNeeds = loopInputCatalogNeeds(form.schema);
 
   return (
     <div
@@ -177,29 +172,32 @@ export function LoopRunForm({
           icon={<TextCursorInput aria-hidden="true" className="size-3.5" />}
           title="Inputs"
         >
-          {inputNames.length === 0 ? (
-            <p className="px-3.5 py-3 text-sm text-subtle">
-              This Loop declares no inputs — run it directly.
-            </p>
-          ) : (
-            <div className="flex flex-col gap-4 px-3.5 py-3">
-              {inputNames.map(name => (
-                <LoopRunInputField
-                  key={name}
-                  name={name}
-                  field={form.schema![name]}
-                  value={form.inputs[name]}
-                  disabled={form.busy}
-                  error={
-                    form.submitAttempted && form.missing.has(name)
-                      ? `${name} is required to run this loop.`
-                      : undefined
-                  }
-                  onChange={value => form.setInput(name, value)}
-                />
-              ))}
-            </div>
-          )}
+          <LoopInputCatalogBoundary workspaceId={workspaceId} needs={inputCatalogNeeds}>
+            {inputNames.length === 0 ? (
+              <p className="px-3.5 py-3 text-sm text-subtle">
+                This Loop declares no inputs — run it directly.
+              </p>
+            ) : (
+              <div className="flex flex-col gap-4 px-3.5 py-3">
+                {inputNames.map(name => (
+                  <LoopRunInputField
+                    key={name}
+                    name={name}
+                    field={form.schema![name]}
+                    value={form.inputs[name]}
+                    disabled={form.busy}
+                    error={
+                      form.fieldErrors[name] ??
+                      (form.submitAttempted && form.missing.has(name)
+                        ? `${name} is required to run this loop.`
+                        : undefined)
+                    }
+                    onChange={value => form.setInput(name, value)}
+                  />
+                ))}
+              </div>
+            )}
+          </LoopInputCatalogBoundary>
         </LoopRailSection>
 
         <LoopRailSection

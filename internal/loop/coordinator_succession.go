@@ -103,6 +103,31 @@ func firstFailedGenerationOutput(outputs []GenerationOutput) (GenerationOutput, 
 	return GenerationOutput{}, false
 }
 
+func selectFailedOutputControlAware(
+	graph dsl.Graph,
+	topology controlTopology,
+	outputs []GenerationOutput,
+) *GenerationOutput {
+	filtered := make([]GenerationOutput, 0, len(outputs))
+	for _, output := range outputs {
+		fanOutID, inFanOutBody := topology.inFanOutBody(dsl.NodeID(output.NodeID))
+		if output.Status == generationOutputFailed && inFanOutBody &&
+			strategyOwnsFanOutFailures(graph, fanOutID) {
+			continue
+		}
+		filtered = append(filtered, output)
+	}
+	return selectFailedOutput(filtered)
+}
+
+func strategyOwnsFanOutFailures(graph dsl.Graph, fanOutID dsl.NodeID) bool {
+	fanOut, ok := graphNode(graph, fanOutID)
+	if !ok || fanOut.Strategy == nil {
+		return false
+	}
+	return fanOut.Strategy.Kind != "" && fanOut.Strategy.Kind != dsl.StrategyWaitAll
+}
+
 func (r *CoordinatorRunner) loadPersistedRouteCauses(
 	ctx context.Context,
 	run Run,
@@ -319,6 +344,14 @@ func (r *CoordinatorRunner) buildReviseGenerationPlan(
 		)
 		if err != nil {
 			return task.CoordinatorCompletionPlan{}, fmt.Errorf("load ratchet baseline outputs: %w", err)
+		}
+		seed, err = generationOutputRuntimeView(ctx, r.outputs, generationOutputRuntimeScope{
+			workspaceID: run.WorkspaceID,
+			runID:       run.ID,
+			generation:  int(intent.ParentGeneration),
+		}, seed)
+		if err != nil {
+			return task.CoordinatorCompletionPlan{}, fmt.Errorf("load ratchet baseline output payloads: %w", err)
 		}
 	}
 	nextOutputs := successionGenerationOutputs(graph, seed, currentOutputs, rerun, nextGeneration)

@@ -40,6 +40,12 @@ const (
 	GenerationLifecycleEventNodeWaitResumed GenerationLifecycleEventKind = "node_wait_resumed"
 	// GenerationLifecycleEventTargetBreakerTransition records a loop-target breaker state change.
 	GenerationLifecycleEventTargetBreakerTransition GenerationLifecycleEventKind = "target_breaker_transition"
+	// GenerationLifecycleEventPredicateDiagnostic records predicate cost or evaluation diagnostics.
+	GenerationLifecycleEventPredicateDiagnostic GenerationLifecycleEventKind = "predicate_diagnostic"
+	// GenerationLifecycleEventRouteTaken records one exclusive routing decision.
+	GenerationLifecycleEventRouteTaken GenerationLifecycleEventKind = "route_taken"
+	// GenerationLifecycleEventBranchPruned records one bounded strategy-cancel aggregate.
+	GenerationLifecycleEventBranchPruned GenerationLifecycleEventKind = "branch_pruned"
 )
 
 // GenerationLifecycleEventIntent requests one durable generation lifecycle event.
@@ -71,6 +77,15 @@ type GenerationLifecycleEventIntent struct {
 	AheadArrival            string                 `json:"ahead_arrival,omitempty"`
 	AheadCursors            map[string]int64       `json:"ahead_cursors,omitempty"`
 	Effects                 []RenderedEffectIntent `json:"effects,omitempty"`
+	Predicate               string                 `json:"predicate,omitempty"`
+	DiagnosticCode          string                 `json:"diagnostic_code,omitempty"`
+	Cost                    uint64                 `json:"cost,omitempty"`
+	CostLimit               uint64                 `json:"cost_limit,omitempty"`
+	Warning                 bool                   `json:"warning,omitempty"`
+	SelectedRoute           string                 `json:"selected_route,omitempty"`
+	MatchedWhen             string                 `json:"matched_when,omitempty"`
+	DefaultRoute            bool                   `json:"default_route,omitempty"`
+	ItemIndexes             []int                  `json:"item_indexes,omitempty"`
 }
 
 func (i GenerationLifecycleEventIntent) normalized() GenerationLifecycleEventIntent {
@@ -89,6 +104,11 @@ func (i GenerationLifecycleEventIntent) normalized() GenerationLifecycleEventInt
 	i.RuleID = strings.TrimSpace(i.RuleID)
 	i.WaitKind = strings.TrimSpace(i.WaitKind)
 	i.AheadArrival = strings.TrimSpace(i.AheadArrival)
+	i.Predicate = strings.TrimSpace(i.Predicate)
+	i.DiagnosticCode = strings.TrimSpace(i.DiagnosticCode)
+	i.SelectedRoute = strings.TrimSpace(i.SelectedRoute)
+	i.MatchedWhen = strings.TrimSpace(i.MatchedWhen)
+	i.ItemIndexes = append([]int(nil), i.ItemIndexes...)
 	i.AheadCursors = cloneInt64Map(i.AheadCursors)
 	if len(i.QuarantineEntry) > 0 {
 		i.QuarantineEntry = append(json.RawMessage(nil), i.QuarantineEntry...)
@@ -138,6 +158,12 @@ func (i GenerationLifecycleEventIntent) validate() error {
 		err = i.validateNodeWaitResumed()
 	case GenerationLifecycleEventTargetBreakerTransition:
 		err = i.validateTargetBreakerTransition()
+	case GenerationLifecycleEventPredicateDiagnostic:
+		err = i.validatePredicateDiagnostic()
+	case GenerationLifecycleEventRouteTaken:
+		err = i.validateRouteTaken()
+	case GenerationLifecycleEventBranchPruned:
+		err = i.validateBranchPruned()
 	default:
 		return fmt.Errorf("%w: generation lifecycle event kind is invalid: %q", ErrValidation, i.Kind)
 	}
@@ -148,6 +174,38 @@ func (i GenerationLifecycleEventIntent) validate() error {
 		if err := effect.Validate(); err != nil {
 			return err
 		}
+	}
+	return nil
+}
+
+func (i GenerationLifecycleEventIntent) validateBranchPruned() error {
+	if i.NodeID == "" || i.Reason == "" || len(i.ItemIndexes) == 0 {
+		return fmt.Errorf("%w: branch_pruned event has incomplete strategy identity", ErrValidation)
+	}
+	for _, itemIndex := range i.ItemIndexes {
+		if itemIndex < 0 {
+			return fmt.Errorf("%w: branch_pruned item index is invalid", ErrValidation)
+		}
+	}
+	return nil
+}
+
+func (i GenerationLifecycleEventIntent) validateRouteTaken() error {
+	if i.NodeID == "" || i.ItemIndex < 0 || i.SelectedRoute == "" || i.Reason == "" {
+		return fmt.Errorf("%w: route_taken event has incomplete routing identity", ErrValidation)
+	}
+	if i.DefaultRoute && i.MatchedWhen != "" {
+		return fmt.Errorf("%w: route_taken default cannot carry matched_when", ErrValidation)
+	}
+	return nil
+}
+
+func (i GenerationLifecycleEventIntent) validatePredicateDiagnostic() error {
+	if i.Predicate == "" || i.DiagnosticCode == "" {
+		return fmt.Errorf("%w: predicate diagnostic identity is incomplete", ErrValidation)
+	}
+	if i.CostLimit > 0 && i.Cost > i.CostLimit && i.Warning {
+		return fmt.Errorf("%w: predicate warning cost exceeds the configured limit", ErrValidation)
 	}
 	return nil
 }
@@ -174,7 +232,7 @@ func (i GenerationLifecycleEventIntent) validateNodeWaitStarted() error {
 	}
 	if i.NodeID != "" && i.ItemIndex >= 0 && i.Attempt >= 1 && i.IssuedEpoch >= 1 &&
 		(i.WaitKind == NodeWaitKindTimer || i.WaitKind == NodeWaitKindEvent ||
-			i.WaitKind == NodeWaitKindApprovalEscalation) {
+			i.WaitKind == NodeWaitKindApprovalEscalation || i.WaitKind == NodeWaitKindRequest) {
 		return nil
 	}
 	return fmt.Errorf("%w: node_wait_started event has incomplete wait identity", ErrValidation)
@@ -275,7 +333,6 @@ func generationLifecycleRouteValid(route gate.RouteAction) bool {
 	switch route {
 	case gate.RouteContinue,
 		gate.RouteRevise,
-		gate.RouteBranch,
 		gate.RouteHalt,
 		gate.RouteEscalate,
 		gate.RouteDone,
@@ -292,6 +349,19 @@ func normalizeGenerationSnapshotIntents(payload GenerationSnapshotPayload) (Gene
 		return GenerationSnapshotPayload{}, err
 	}
 	payload.Waits = waits
+	requests := make([]RequestIntent, len(payload.Requests))
+	for index, request := range payload.Requests {
+		normalized := request.normalized()
+		if err := normalized.validate(); err != nil {
+			return GenerationSnapshotPayload{}, err
+		}
+		requests[index] = normalized
+	}
+	payload.Requests = requests
+	payload.StrategyCancellations, err = normalizeStrategyCancellationIntents(payload.StrategyCancellations)
+	if err != nil {
+		return GenerationSnapshotPayload{}, err
+	}
 	controls, err := normalizeNodeControlMutations(payload.Controls)
 	if err != nil {
 		return GenerationSnapshotPayload{}, err

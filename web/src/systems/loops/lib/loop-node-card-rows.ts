@@ -151,6 +151,20 @@ function kindRows(raw: RawLoopNode): LoopNodeCardRow[] {
       pushRow(rows, "expect", "expect", expectSummary(params));
       pushRow(rows, "expires", "expires", expiresSummary(params?.expires));
       break;
+    case "ask":
+      pushRow(rows, "kind", "kind", kind);
+      pushRow(rows, "prompt", "prompt", asString(params?.prompt));
+      pushRow(rows, "expect", "expect", expectSummary(params));
+      pushRow(rows, "expires", "expires", expiresSummary(params?.expires));
+      break;
+    case "route": {
+      const routes = Array.isArray(raw.routes) ? raw.routes.length : 0;
+      pushRow(rows, "kind", "kind", kind);
+      pushRow(rows, "routes", "routes", routes === 0 ? "" : String(routes));
+
+      pushRow(rows, "default", "default", asString(raw.default));
+      break;
+    }
     case "run-agent":
       pushRow(rows, "agent", "agent", asString(params?.agent));
       pushRow(rows, "retry", "retry", retrySummary(raw));

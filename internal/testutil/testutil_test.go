@@ -89,6 +89,26 @@ func TestEqualStringSlices(t *testing.T) {
 func TestFreeTCPPort(t *testing.T) {
 	t.Parallel()
 
+	t.Run("Should detect a port already reachable through localhost", func(t *testing.T) {
+		t.Parallel()
+
+		listener, err := (&net.ListenConfig{}).Listen(Context(t), "tcp", "127.0.0.1:0")
+		if err != nil {
+			t.Fatalf("Listen(localhost) error = %v", err)
+		}
+		port := listener.Addr().(*net.TCPAddr).Port
+		reachable, err := tcpPortReachable(Context(t), port)
+		if err != nil {
+			t.Fatalf("tcpPortReachable(%d) error = %v", port, err)
+		}
+		if !reachable {
+			t.Fatalf("tcpPortReachable(%d) = false, want true", port)
+		}
+		if err := listener.Close(); err != nil {
+			t.Fatalf("listener.Close() error = %v", err)
+		}
+	})
+
 	t.Run("Should return a bindable positive port", func(t *testing.T) {
 		t.Parallel()
 

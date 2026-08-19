@@ -1,13 +1,74 @@
 package dsl_test
 
 import (
+	"encoding/json"
 	"reflect"
 	"strings"
 	"testing"
 
 	"github.com/compozy/compozy/internal/loop/dsl"
 	"github.com/compozy/compozy/internal/network/participation"
+	"gopkg.in/yaml.v3"
 )
+
+// Invariant: strategy thresholds preserve their two authored forms exactly and reject every third form.
+// The canonical DSL codec suite owns YAML/JSON round-trip behavior.
+func TestCodecShouldRoundTripStrategyThresholds(t *testing.T) {
+	t.Parallel()
+
+	for _, tt := range []struct {
+		name     string
+		authored string
+		want     dsl.StrategyThreshold
+	}{
+		{name: "Should preserve a percent threshold", authored: "66%", want: dsl.StrategyThreshold{Kind: dsl.ThresholdPercent, Percent: 66}},
+		{name: "Should preserve a count threshold", authored: "{count: 2}", want: dsl.StrategyThreshold{Kind: dsl.ThresholdCount, Count: 2}},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			var threshold dsl.StrategyThreshold
+			if err := yaml.Unmarshal([]byte(tt.authored), &threshold); err != nil {
+				t.Fatalf("yaml.Unmarshal() error = %v", err)
+			}
+			if !reflect.DeepEqual(threshold, tt.want) {
+				t.Fatalf("threshold = %#v, want %#v", threshold, tt.want)
+			}
+			encodedYAML, err := yaml.Marshal(threshold)
+			if err != nil {
+				t.Fatalf("yaml.Marshal() error = %v", err)
+			}
+			var yamlRoundTrip dsl.StrategyThreshold
+			if err := yaml.Unmarshal(encodedYAML, &yamlRoundTrip); err != nil {
+				t.Fatalf("yaml.Unmarshal(round trip) error = %v", err)
+			}
+			if !reflect.DeepEqual(yamlRoundTrip, tt.want) {
+				t.Fatalf("YAML round trip = %#v, want %#v", yamlRoundTrip, tt.want)
+			}
+			encodedJSON, err := json.Marshal(threshold)
+			if err != nil {
+				t.Fatalf("json.Marshal() error = %v", err)
+			}
+			var jsonRoundTrip dsl.StrategyThreshold
+			if err := json.Unmarshal(encodedJSON, &jsonRoundTrip); err != nil {
+				t.Fatalf("json.Unmarshal(round trip) error = %v", err)
+			}
+			if !reflect.DeepEqual(jsonRoundTrip, tt.want) {
+				t.Fatalf("JSON round trip = %#v, want %#v", jsonRoundTrip, tt.want)
+			}
+		})
+	}
+
+	for _, authored := range []string{"0%", "101%", "{count: 0}", "{count: -1}", "{count: 2, percent: 50}", "{other: 2}", "sixty%"} {
+		t.Run("Should reject "+authored, func(t *testing.T) {
+			t.Parallel()
+			var threshold dsl.StrategyThreshold
+			if err := yaml.Unmarshal([]byte(authored), &threshold); err == nil {
+				t.Fatalf("yaml.Unmarshal(%q) error = nil, want rejection", authored)
+			}
+		})
+	}
+}
 
 func TestCodecShouldRoundTripNetworkParticipation(t *testing.T) {
 	t.Parallel()
@@ -30,7 +91,7 @@ contract:
   verification: []
   terminal_states: [done, failed]
   iteration_cap: 3
-  no_progress: { window: 2, hash_fields: [] }
+  no_progress: { window: 2 }
   budget: { tokens: 0, wall_clock_sec: 0, on_exceeded: halt }
 `)
 
@@ -74,6 +135,172 @@ contract:
 	}
 	if !reflect.DeepEqual(reparsed.NetworkParticipation, want) {
 		t.Fatalf("round-trip NetworkParticipation = %#v, want %#v", reparsed.NetworkParticipation, want)
+	}
+}
+
+func TestCodecShouldRoundTripStrictPredicatePolicies(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should preserve scalar and object stop-when forms", func(t *testing.T) {
+		t.Parallel()
+
+		tests := []struct {
+			name       string
+			authored   string
+			wantPolicy dsl.EvalErrorPolicy
+		}{
+			{name: "Should preserve the scalar default", authored: `"inputs.done == true"`},
+			{
+				name:       "Should preserve the object override",
+				authored:   `{ expr: "inputs.done == true", on_eval_error: fail }`,
+				wantPolicy: dsl.EvalErrorFail,
+			},
+		}
+		for _, tt := range tests {
+			t.Run(tt.name, func(t *testing.T) {
+				t.Parallel()
+
+				definition, err := dsl.Parse([]byte(minimalDefinition(`
+contract:
+  goal: Ship safely
+  definition_of_done: Tests pass
+  stop_when: ` + tt.authored + `
+  verification: []
+  terminal_states: [done, failed]
+  iteration_cap: 3
+  no_progress: { window: 2 }
+  budget: { tokens: 0, wall_clock_sec: 0, on_exceeded: halt }
+`)))
+				if err != nil {
+					t.Fatalf("Parse() error = %v", err)
+				}
+				if definition.Contract.StopWhen.Expr != "inputs.done == true" ||
+					definition.Contract.StopWhen.OnEvalError != tt.wantPolicy {
+					t.Fatalf(
+						"StopWhen = %#v, want expression and policy %q",
+						definition.Contract.StopWhen,
+						tt.wantPolicy,
+					)
+				}
+				serialized, err := dsl.Serialize(definition)
+				if err != nil {
+					t.Fatalf("Serialize() error = %v", err)
+				}
+				reparsed, err := dsl.Parse(serialized)
+				if err != nil {
+					t.Fatalf("Parse(serialized) error = %v", err)
+				}
+				if !reflect.DeepEqual(reparsed.Contract.StopWhen, definition.Contract.StopWhen) {
+					t.Fatalf(
+						"round-trip StopWhen = %#v, want %#v",
+						reparsed.Contract.StopWhen,
+						definition.Contract.StopWhen,
+					)
+				}
+			})
+		}
+	})
+
+	t.Run("Should reject malformed stop-when shapes", func(t *testing.T) {
+		t.Parallel()
+
+		for _, authored := range []string{
+			`{ expr: "true", unknown: value }`,
+			`{ expr: "true", on_eval_error: continue }`,
+			`{ on_eval_error: fail }`,
+			`true`,
+		} {
+			body := minimalDefinition(`
+contract:
+  stop_when: ` + authored)
+			if _, err := dsl.Parse([]byte(body)); err == nil {
+				t.Fatalf("Parse(stop_when: %s) error = nil", authored)
+			}
+		}
+	})
+
+	t.Run("Should keep JSON and node policy codecs closed", func(t *testing.T) {
+		t.Parallel()
+
+		var stop dsl.StopWhenSpec
+		if err := json.Unmarshal([]byte(`{"expr":"true","on_eval_error":"exit"}`), &stop); err != nil {
+			t.Fatalf("json.Unmarshal(stop_when) error = %v", err)
+		}
+		if stop.OnEvalError != dsl.EvalErrorExit {
+			t.Fatalf("StopWhen.OnEvalError = %q, want exit", stop.OnEvalError)
+		}
+		for _, raw := range []string{
+			`{"expr":"true","unknown":1}`,
+			`null`,
+			`{"expr":"true"} {"expr":"false"}`,
+		} {
+			if err := json.Unmarshal([]byte(raw), &stop); err == nil {
+				t.Fatalf("json.Unmarshal(%s) error = nil", raw)
+			}
+		}
+		node := dsl.Node{OnEvalError: dsl.EvalErrorExit}
+		encoded, err := json.Marshal(node)
+		if err != nil {
+			t.Fatalf("json.Marshal(node) error = %v", err)
+		}
+		var decoded dsl.Node
+		if err := json.Unmarshal(encoded, &decoded); err != nil {
+			t.Fatalf("json.Unmarshal(node) error = %v", err)
+		}
+		if decoded.OnEvalError != dsl.EvalErrorExit {
+			t.Fatalf("Node.OnEvalError = %q, want exit", decoded.OnEvalError)
+		}
+	})
+}
+
+func TestCodecShouldRoundTripRouteGrammar(t *testing.T) {
+	t.Parallel()
+
+	definition, err := dsl.Parse([]byte(`apiVersion: compozy.loop/v1
+kind: Loop
+meta: { name: route-loop }
+graph:
+  nodes:
+    - id: router
+      class: control
+      kind: route
+      routes:
+        - { when: "inputs.risk == 'low'", to: quick }
+        - { when: "inputs.risk == 'high'", to: review }
+      default: fallback
+      on_eval_error: fail
+    - id: gate
+      class: control
+      kind: gate
+      on_result:
+        fail: { route: review }
+  edges:
+    - { from: router, to: quick }
+    - { from: router, to: review }
+    - { from: router, to: fallback }
+`))
+	if err != nil {
+		t.Fatalf("Parse() error = %v", err)
+	}
+	serialized, err := dsl.Serialize(definition)
+	if err != nil {
+		t.Fatalf("Serialize() error = %v", err)
+	}
+	reparsed, err := dsl.Parse(serialized)
+	if err != nil {
+		t.Fatalf("Parse(serialized) error = %v", err)
+	}
+	if !reflect.DeepEqual(reparsed.Graph, definition.Graph) {
+		t.Fatalf("round-trip graph = %#v, want %#v", reparsed.Graph, definition.Graph)
+	}
+	router := reparsed.Graph.Nodes[0]
+	if router.Default != "fallback" || len(router.Routes) != 2 || router.Routes[1].To != "review" ||
+		router.OnEvalError != dsl.EvalErrorFail {
+		t.Fatalf("round-trip router = %#v", router)
+	}
+	gateRoute, ok := reparsed.Graph.Nodes[1].OnResult["fail"].(map[string]any)
+	if !ok || gateRoute["route"] != "review" {
+		t.Fatalf("round-trip gate route = %#v", reparsed.Graph.Nodes[1].OnResult["fail"])
 	}
 }
 
@@ -124,7 +351,7 @@ contract:
   verification: []
   terminal_states: [done, failed]
   iteration_cap: 3
-  no_progress: { window: 2, hash_fields: [] }
+  no_progress: { window: 2 }
   budget: { tokens: 0, wall_clock_sec: 0, on_exceeded: halt }
 `),
 			wantConstraints: []string{},
@@ -142,7 +369,7 @@ contract:
   verification: []
   terminal_states: [done, failed]
   iteration_cap: 3
-  no_progress: { window: 2, hash_fields: [] }
+  no_progress: { window: 2 }
   budget: { tokens: 0, wall_clock_sec: 0, on_exceeded: halt }
 `),
 			wantConstraints:  []string{"keep scope"},
@@ -170,8 +397,8 @@ contract:
 			if !reflect.DeepEqual(def.Contract.Boundaries, tt.wantBoundaries) {
 				t.Fatalf("Boundaries = %#v, want %#v", def.Contract.Boundaries, tt.wantBoundaries)
 			}
-			if def.Contract.StopWhen != tt.wantStopWhen {
-				t.Fatalf("StopWhen = %q, want %q", def.Contract.StopWhen, tt.wantStopWhen)
+			if def.Contract.StopWhen.Expr != tt.wantStopWhen {
+				t.Fatalf("StopWhen.Expr = %q, want %q", def.Contract.StopWhen.Expr, tt.wantStopWhen)
 			}
 
 			serialized, err := dsl.Serialize(def)
@@ -220,7 +447,7 @@ contract:
   verification: []
   terminal_states: [done, failed]
   iteration_cap: 3
-  no_progress: { window: 2, hash_fields: [] }
+  no_progress: { window: 2 }
   budget: { tokens: 0, wall_clock_sec: 0, on_exceeded: halt }
 graph:
   nodes:
@@ -286,7 +513,7 @@ contract:
   verification: []
   terminal_states: [done, failed]
   iteration_cap: 0
-  no_progress: { window: 1, hash_fields: [] }
+  no_progress: { window: 1 }
   budget: { tokens: 0, wall_clock_sec: 0, on_exceeded: halt }
 graph:
   nodes:
@@ -355,7 +582,7 @@ contract:
   verification: []
   terminal_states: [done, blocked, failed]
   iteration_cap: 3
-  no_progress: { window: 2, hash_fields: [] }
+  no_progress: { window: 2 }
   budget: { tokens: 0, wall_clock_sec: 0, on_exceeded: halt }
 graph:
   nodes:

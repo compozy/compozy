@@ -3,6 +3,7 @@ package loop_test
 import (
 	"bytes"
 	"encoding/json"
+	"maps"
 	"math"
 	"slices"
 	"strings"
@@ -13,6 +14,479 @@ import (
 	"github.com/compozy/compozy/internal/loop/dsl/refs"
 	"github.com/compozy/compozy/internal/network/participation"
 )
+
+func TestLinterShouldRejectDeletedNoProgressParameters(t *testing.T) {
+	t.Parallel()
+
+	definition, err := dsl.Parse([]byte(`
+apiVersion: compozy.loop/v1
+kind: Loop
+contract:
+  no_progress:
+    window: 2
+    hash_fields: [artifact]
+graph:
+  nodes: []
+  edges: []
+`))
+	if err != nil {
+		t.Fatalf("Parse() error = %v", err)
+	}
+	errList := loop.NewLinter().Lint(definition)
+	requireLintCodes(t, errList, loop.CodeUnknownParameter, loop.CodeNonTerminatingStructure)
+	requireLintMessageContains(t, errList, loop.CodeUnknownParameter, "contract.no_progress.hash_fields")
+}
+
+// Invariant: every declared input has a closed shape and a valid author-owned default.
+// The canonical linter suite owns Loop input declaration diagnostics.
+func TestLinterShouldValidateInputDeclarations(t *testing.T) {
+	t.Parallel()
+
+	valid := validDefinition()
+	valid.Inputs = map[string]dsl.Input{
+		"environment": {
+			Type: dsl.InputTypeString, Enum: []string{"dev", "prod"}, Default: "dev",
+		},
+		"reviewer": {Type: dsl.InputTypeAgent, Default: "reviewer"},
+		"runtime": {
+			Type: dsl.InputTypeRuntime, Default: map[string]any{"model": "gpt-5"},
+		},
+		"skill": {
+			Type: dsl.InputTypeRef, Ref: &dsl.InputRef{Kind: dsl.InputRefKindSkill},
+		},
+		"tasks": {
+			Type: dsl.InputTypeRef, Ref: &dsl.InputRef{Kind: dsl.InputRefKindSkill}, Required: true,
+		},
+	}
+	if _, err := loop.NewCompiler().Compile(valid); err != nil {
+		t.Fatalf("Compile(valid inputs) error = %v", err)
+	}
+
+	for _, testCase := range []struct {
+		name   string
+		path   string
+		code   string
+		mutate func(*dsl.Definition)
+	}{
+		{
+			name: "Should require an input type", path: "inputs.environment.type",
+			code: loop.CodeInputTypeRequired,
+			mutate: func(definition *dsl.Definition) {
+				input := definition.Inputs["environment"]
+				input.Type = ""
+				definition.Inputs["environment"] = input
+			},
+		},
+		{
+			name: "Should reject an unknown input field", path: "inputs.environment.kind",
+			code: loop.CodeInputFieldUnknown,
+			mutate: func(definition *dsl.Definition) {
+				input := definition.Inputs["environment"]
+				input.Extra = map[string]any{"kind": "string"}
+				definition.Inputs["environment"] = input
+			},
+		},
+		{
+			name: "Should require ref kind", path: "inputs.skill.ref",
+			code: loop.CodeInputRefRequired,
+			mutate: func(definition *dsl.Definition) {
+				input := definition.Inputs["skill"]
+				input.Ref = nil
+				definition.Inputs["skill"] = input
+			},
+		},
+		{
+			name: "Should reject an unknown ref kind", path: "inputs.skill.ref.kind",
+			code: loop.CodeInputRefKindInvalid,
+			mutate: func(definition *dsl.Definition) {
+				input := definition.Inputs["skill"]
+				input.Ref = &dsl.InputRef{Kind: "recipe"}
+				definition.Inputs["skill"] = input
+			},
+		},
+		{
+			name: "Should reject enum outside string inputs", path: "inputs.environment.enum",
+			code: loop.CodeInputEnumInvalid,
+			mutate: func(definition *dsl.Definition) {
+				input := definition.Inputs["environment"]
+				input.Type = dsl.InputTypeAgent
+				definition.Inputs["environment"] = input
+			},
+		},
+		{
+			name: "Should reject a default outside the enum", path: "inputs.environment.default",
+			code: loop.CodeInputDefaultInvalid,
+			mutate: func(definition *dsl.Definition) {
+				input := definition.Inputs["environment"]
+				input.Default = "staging"
+				definition.Inputs["environment"] = input
+			},
+		},
+		{
+			name: "Should reject an unknown runtime field", path: "inputs.runtime.default",
+			code: loop.CodeInputDefaultInvalid,
+			mutate: func(definition *dsl.Definition) {
+				input := definition.Inputs["runtime"]
+				input.Default = map[string]any{"speed": "fast"}
+				definition.Inputs["runtime"] = input
+			},
+		},
+	} {
+		t.Run(testCase.name, func(t *testing.T) {
+			t.Parallel()
+			definition := valid
+			definition.Inputs = maps.Clone(valid.Inputs)
+			testCase.mutate(&definition)
+			requireLintPathDiagnostic(
+				t,
+				loop.NewLinter().Lint(definition),
+				testCase.path,
+				testCase.code,
+			)
+		})
+	}
+}
+
+// Invariant: ask controls declare a valid answer shape and only route expiry forward.
+// The canonical linter suite owns authoring diagnostics and output-schema derivation.
+func TestLinterShouldValidateAskControls(t *testing.T) {
+	t.Parallel()
+
+	valid := dsl.Definition{
+		APIVersion: dsl.APIVersion,
+		Kind:       dsl.KindLoop,
+		Meta:       dsl.Meta{Name: "ask-lint"},
+		Contract: dsl.Contract{
+			Goal: "Select an environment", DefinitionOfDone: "Selection recorded", IterationCap: 2,
+		},
+		Graph: dsl.Graph{
+			Nodes: []dsl.Node{
+				{
+					ID: "select", Class: dsl.NodeClassControl, Kind: string(dsl.ControlAsk),
+					Params: dsl.NodeParams{
+						"prompt": "Which environment?",
+						"expect": map[string]any{
+							"type": "object",
+							"properties": map[string]any{
+								"environment": map[string]any{
+									"type": "string", "x-compozy-kind": "workspace",
+								},
+							},
+						},
+						"responders": map[string]any{"agents": "allow"},
+						"expires":    map[string]any{"after": "1h", "route": "expired"},
+					},
+				},
+				{ID: "publish", Class: dsl.NodeClassAction, Kind: string(dsl.ActionTransform),
+					Params: dsl.NodeParams{"map": map[string]any{
+						"environment": map[string]any{"template": "{{ .nodes.select.output.environment }}"},
+					}}},
+				{ID: "expired", Class: dsl.NodeClassAction, Kind: string(dsl.ActionTransform),
+					Params: dsl.NodeParams{"map": map[string]any{"expired": map[string]any{"value": true}}}},
+			},
+			Edges: []dsl.Edge{{From: "select", To: "publish"}, {From: "select", To: "expired"}},
+		},
+	}
+	if _, err := loop.NewCompiler().Compile(valid); err != nil {
+		t.Fatalf("Compile(valid ask) error = %v", err)
+	}
+
+	for _, tt := range []struct {
+		name string
+		edit func(*dsl.Definition)
+		code string
+	}{
+		{
+			name: "Should require an answer shape",
+			edit: func(definition *dsl.Definition) { delete(definition.Graph.Nodes[0].Params, "expect") },
+			code: loop.CodeAskExpectRequired,
+		},
+		{
+			name: "Should reject a zero expiry duration",
+			edit: func(definition *dsl.Definition) {
+				definition.Graph.Nodes[0].Params["expires"] = map[string]any{"after": "0s", "route": "expired"}
+			},
+			code: loop.CodeDurationInvalid,
+		},
+		{
+			name: "Should reject a non-forward expiry route",
+			edit: func(definition *dsl.Definition) {
+				definition.Graph.Nodes[0].Params["expires"] = map[string]any{"after": "1h", "route": "missing"}
+			},
+			code: loop.CodeErrorRouteBackward,
+		},
+		{
+			name: "Should reject an unknown responder policy",
+			edit: func(definition *dsl.Definition) {
+				definition.Graph.Nodes[0].Params["responders"] = map[string]any{"agents": "sometimes"}
+			},
+			code: loop.CodeResponderPolicyInvalid,
+		},
+		{
+			name: "Should reject an unknown entity annotation",
+			edit: func(definition *dsl.Definition) {
+				definition.Graph.Nodes[0].Params["expect"] = map[string]any{
+					"type": "object",
+					"properties": map[string]any{
+						"environment": map[string]any{
+							"type": "string", "x-compozy-kind": "recipe",
+						},
+					},
+				}
+			},
+			code: loop.CodeRequestEntityKindInvalid,
+		},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			definition := valid
+			definition.Graph.Nodes = append([]dsl.Node(nil), valid.Graph.Nodes...)
+			definition.Graph.Nodes[0].Params = maps.Clone(valid.Graph.Nodes[0].Params)
+			tt.edit(&definition)
+			requireLintDiagnostic(t, loop.NewLinter().Lint(definition), tt.code, loop.SeverityError)
+		})
+	}
+}
+
+// Invariant: action reviews declare a closed decision set, forward reject route, and an output shape for respond.
+// The canonical linter suite owns review grammar and its compiled CEL condition.
+func TestLinterShouldValidateActionReviews(t *testing.T) {
+	t.Parallel()
+
+	definition := validDefinition()
+	agent := requireNode(t, &definition, "agent")
+	agent.Review = &dsl.ReviewSpec{
+		Decisions: []dsl.ReviewDecision{
+			dsl.ReviewDecisionApprove, dsl.ReviewDecisionEdit,
+			dsl.ReviewDecisionReject, dsl.ReviewDecisionRespond,
+		},
+		When:   `inputs.tasks != null`,
+		Prompt: "Review {{ .inputs.tasks }}",
+	}
+	if _, err := loop.NewCompiler().Compile(definition); err != nil {
+		t.Fatalf("Compile(valid review) error = %v", err)
+	}
+
+	t.Run("Should require a declared output shape for respond", func(t *testing.T) {
+		t.Parallel()
+
+		invalid := validDefinition()
+		node := requireNode(t, &invalid, "agent")
+		delete(node.Params, "output_schema")
+		node.Review = &dsl.ReviewSpec{Decisions: []dsl.ReviewDecision{dsl.ReviewDecisionRespond}}
+		requireLintDiagnostic(
+			t,
+			loop.NewLinter().Lint(invalid),
+			loop.CodeReviewRespondSchemaRequired,
+			loop.SeverityError,
+		)
+	})
+
+	t.Run("Should reject a non-forward rejection route", func(t *testing.T) {
+		t.Parallel()
+
+		invalid := validDefinition()
+		node := requireNode(t, &invalid, "agent")
+		node.Review = &dsl.ReviewSpec{OnReject: &dsl.RejectPolicy{Route: "missing"}}
+		requireLintDiagnostic(t, loop.NewLinter().Lint(invalid), loop.CodeErrorRouteBackward, loop.SeverityError)
+	})
+
+	t.Run("Should reject an unknown entity kind in an external tool edit schema", func(t *testing.T) {
+		t.Parallel()
+
+		invalid := validDefinition()
+		node := requireNode(t, &invalid, "agent")
+		node.Kind = "compozy__custom_publish"
+		node.Review = &dsl.ReviewSpec{Decisions: []dsl.ReviewDecision{dsl.ReviewDecisionEdit}}
+		linter := loop.NewLinter(loop.WithToolSchemaSource(fakeToolSchemas{
+			node.Kind: {
+				ToolID: node.Kind,
+				InputSchema: mustJSON(t, map[string]any{
+					"type": "object",
+					"properties": map[string]any{
+						"reviewer": map[string]any{
+							"type": "string", "x-compozy-kind": "recipe",
+						},
+					},
+				}),
+			},
+		}))
+		requireLintDiagnostic(
+			t,
+			linter.Lint(invalid),
+			loop.CodeRequestEntityKindInvalid,
+			loop.SeverityError,
+		)
+	})
+}
+
+func TestLinterShouldValidatePredicateErrorPolicies(t *testing.T) {
+	t.Parallel()
+
+	for _, tt := range []struct {
+		name   string
+		mutate func(*dsl.Definition)
+	}{
+		{
+			name: "Should reject an unknown predicate error policy",
+			mutate: func(definition *dsl.Definition) {
+				node := requireNode(t, definition, "agent")
+				node.Condition = "true"
+				node.OnEvalError = "retry"
+			},
+		},
+		{
+			name: "Should reject a policy without a condition or filter",
+			mutate: func(definition *dsl.Definition) {
+				requireNode(t, definition, "agent").OnEvalError = dsl.EvalErrorExit
+			},
+		},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			definition := validDefinition()
+			tt.mutate(&definition)
+			requireLintCodes(t, loop.NewLinter().Lint(definition), loop.CodeEvalErrorPolicyInvalid)
+		})
+	}
+}
+
+func TestLinterShouldValidateExclusiveRoutes(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should compile ordered routes and record every condition", func(t *testing.T) {
+		t.Parallel()
+
+		definition := routeDefinitionForTest()
+		resolved, err := loop.NewCompiler().Compile(definition)
+		if err != nil {
+			t.Fatalf("Compile() error = %v", err)
+		}
+		for _, key := range []string{"nodes.router.routes.0.when", "nodes.router.routes.1.when"} {
+			if resolved.Conditions[key] == nil {
+				t.Fatalf("resolved condition %q = nil", key)
+			}
+		}
+	})
+
+	t.Run("Should accept one conditional route plus default", func(t *testing.T) {
+		t.Parallel()
+
+		definition := routeDefinitionForTest()
+		router := requireNode(t, &definition, "router")
+		router.Routes = router.Routes[:1]
+		router.Default = "review"
+		definition.Graph.Edges = definition.Graph.Edges[:2]
+		definition.Graph.Nodes = definition.Graph.Nodes[:3]
+		requireLintCodes(t, loop.NewLinter().Lint(definition))
+	})
+
+	for _, tt := range []struct {
+		name     string
+		mutate   func(*dsl.Definition)
+		wantCode string
+		message  string
+	}{
+		{
+			name: "Should require a default destination",
+			mutate: func(definition *dsl.Definition) {
+				router := requireNode(t, definition, "router")
+				router.Default = ""
+				router.Routes = append(router.Routes, dsl.RouteSpec{When: "false", To: "fallback"})
+			},
+			wantCode: loop.CodeRouteDefaultMissing,
+			message:  "router",
+		},
+		{
+			name: "Should reject a backward or unknown destination",
+			mutate: func(definition *dsl.Definition) {
+				requireNode(t, definition, "router").Routes[0].To = "missing"
+			},
+			wantCode: loop.CodeRouteTargetInvalid,
+			message:  "missing",
+		},
+		{
+			name: "Should reject duplicate destinations",
+			mutate: func(definition *dsl.Definition) {
+				requireNode(t, definition, "router").Default = "quick"
+			},
+			wantCode: loop.CodeRouteTargetInvalid,
+			message:  "duplicates",
+		},
+		{
+			name: "Should reject an unknown condition reference",
+			mutate: func(definition *dsl.Definition) {
+				requireNode(t, definition, "router").Routes[0].When = "nodes.missing.output.x == 1"
+			},
+			wantCode: refs.CodeUnknownReference,
+			message:  "available",
+		},
+		{
+			name: "Should reject an exit policy because route conditions fail closed",
+			mutate: func(definition *dsl.Definition) {
+				requireNode(t, definition, "router").OnEvalError = dsl.EvalErrorExit
+			},
+			wantCode: loop.CodeEvalErrorPolicyInvalid,
+			message:  "fail-closed",
+		},
+		{
+			name: "Should reject conflicting gate route objects",
+			mutate: func(definition *dsl.Definition) {
+				router := requireNode(t, definition, "router")
+				router.Kind = string(dsl.ControlGate)
+				router.Routes = nil
+				router.Default = ""
+				router.Criteria = []dsl.GateCriterion{{ID: "verify", Type: dsl.CriterionCommand, Check: "true"}}
+				router.OnResult = map[string]any{
+					"fail": map[string]any{"route": "quick", "action": "revise"},
+				}
+			},
+			wantCode: loop.CodeRouteMappingInvalid,
+			message:  "exactly one",
+		},
+		{
+			name: "Should reject the removed branch action",
+			mutate: func(definition *dsl.Definition) {
+				router := requireNode(t, definition, "router")
+				router.Kind = string(dsl.ControlGate)
+				router.Routes = nil
+				router.Default = ""
+				router.Criteria = []dsl.GateCriterion{{ID: "verify", Type: dsl.CriterionCommand, Check: "true"}}
+				router.OnResult = map[string]any{"fail": "branch"}
+			},
+			wantCode: loop.CodeRouteActionRemoved,
+			message:  "{route: node_id}",
+		},
+		{
+			name: "Should reject an approval object route that bypasses the pending decision",
+			mutate: func(definition *dsl.Definition) {
+				router := requireNode(t, definition, "router")
+				router.Kind = string(dsl.ControlGate)
+				router.Routes = nil
+				router.Default = ""
+				router.Criteria = []dsl.GateCriterion{{
+					ID: "operator", Type: dsl.CriterionHuman, Prompt: "Approve release?",
+				}}
+				router.OnResult = map[string]any{
+					"approval": map[string]any{"route": "quick"},
+				}
+			},
+			wantCode: loop.CodeRouteMappingInvalid,
+			message:  "cannot bypass a pending approval",
+		},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			definition := routeDefinitionForTest()
+			tt.mutate(&definition)
+			errors := loop.NewLinter().Lint(definition)
+			requireLintCodes(t, errors, tt.wantCode)
+			requireLintMessageContains(t, errors, tt.wantCode, tt.message)
+		})
+	}
+}
 
 func TestLinterShouldValidateDefinitionNetworkParticipation(t *testing.T) {
 	t.Parallel()
@@ -269,7 +743,7 @@ func TestLinterShouldValidateGenerationHistoryReferences(t *testing.T) {
 		t.Parallel()
 
 		definition := validDefinition()
-		definition.Contract.StopWhen = "previous.generation >= 1 && best.score >= 0"
+		definition.Contract.StopWhen = dsl.StopWhenSpec{Expr: "previous.generation >= 1 && best.score >= 0"}
 		requireNode(t, &definition, "agent").Params["prompt"] =
 			"Repair {{ .previous.verdicts.quality.blocking_issues }} from {{ .best.nodes.agent.output.summary }}"
 		requireLintCodes(t, loop.NewLinter().Lint(definition))
@@ -303,7 +777,7 @@ func TestLinterShouldValidateGenerationHistoryReferences(t *testing.T) {
 
 			definition := validDefinition()
 			if reference.asCondition {
-				definition.Contract.StopWhen = reference.path + " != null"
+				definition.Contract.StopWhen = dsl.StopWhenSpec{Expr: reference.path + " != null"}
 			} else {
 				requireNode(t, &definition, "agent").Params["prompt"] = "{{ ." + reference.path + " }}"
 			}
@@ -393,20 +867,85 @@ func TestLinterShouldRejectStructuralAndReferenceInvalidShapes(t *testing.T) {
 			wantCodes: []string{loop.CodeFanOutUnbounded},
 		},
 		{
-			name: "Should reject fan out over ceiling",
-			mutate: func(def *dsl.Definition) {
-				node := requireNode(t, def, "fan")
-				node.MaxFanOut = loop.LoopMaxFanoutWidth + 1
-			},
-			wantCodes: []string{loop.CodeFanOutCeilingExceeded},
-		},
-		{
 			name: "Should reject fan out collection literals without references",
 			mutate: func(def *dsl.Definition) {
 				node := requireNode(t, def, "fan")
 				node.Collection = "nodes.load.output.items"
 			},
 			wantCodes: []string{loop.CodeFanOutUnbounded},
+		},
+		{
+			name: "Should require explicit acceptable missing coverage for best effort",
+			mutate: func(def *dsl.Definition) {
+				node := requireNode(t, def, "fan")
+				node.Strategy = &dsl.StrategySpec{
+					Kind: dsl.StrategyBestEffort,
+					Threshold: &dsl.StrategyThreshold{
+						Kind: dsl.ThresholdPercent, Percent: 66,
+					},
+				}
+			},
+			wantCodes: []string{loop.CodeStrategyCoverageUndeclared},
+		},
+		{
+			name: "Should reject invalid strategy thresholds",
+			mutate: func(def *dsl.Definition) {
+				node := requireNode(t, def, "fan")
+				node.Strategy = &dsl.StrategySpec{
+					Kind: dsl.StrategyBestEffort,
+					Threshold: &dsl.StrategyThreshold{
+						Kind: dsl.ThresholdCount, Count: 0,
+					},
+					Missing: dsl.MissingAcceptable,
+				}
+			},
+			wantCodes: []string{loop.CodeStrategyThresholdInvalid},
+		},
+		{
+			name: "Should reject reserved iteration names",
+			mutate: func(def *dsl.Definition) {
+				requireNode(t, def, "fan").BindAs = "previous"
+			},
+			wantCodes: []string{loop.CodeIterationNameConflict},
+		},
+		{
+			name: "Should reject duplicate iteration names",
+			mutate: func(def *dsl.Definition) {
+				node := requireNode(t, def, "fan")
+				node.BindAs = "entry"
+				node.IndexAs = "entry"
+			},
+			wantCodes: []string{loop.CodeIterationNameConflict},
+		},
+		{
+			name: "Should reject iteration names shadowed by nested fan outs",
+			mutate: func(def *dsl.Definition) {
+				requireNode(t, def, "fan").BindAs = "entry"
+				def.Graph.Nodes = append(def.Graph.Nodes, dsl.Node{
+					ID: "inner", Class: dsl.NodeClassControl, Kind: string(dsl.ControlFanOut),
+					Collection: "{{ json .item.children }}", MaxFanOut: 4, BindAs: "entry",
+				})
+				def.Graph.Edges = []dsl.Edge{
+					{From: "load", To: "fan"}, {From: "fan", To: "inner"}, {From: "inner", To: "agent"},
+				}
+			},
+			wantCodes: []string{loop.CodeIterationNameConflict},
+		},
+		{
+			name: "Should reject iteration aliases outside their fan out body",
+			mutate: func(def *dsl.Definition) {
+				requireNode(t, def, "fan").BindAs = "file"
+				def.Graph.Nodes = append(def.Graph.Nodes,
+					dsl.Node{ID: "collect", Class: dsl.NodeClassControl, Kind: string(dsl.ControlCollect)},
+					dsl.Node{ID: "after", Class: dsl.NodeClassAction, Kind: string(dsl.ActionRunAgent),
+						Params: dsl.NodeParams{"agent": "codex", "prompt": "Use {{ .file }}"}},
+				)
+				def.Graph.Edges = []dsl.Edge{
+					{From: "load", To: "fan"}, {From: "fan", To: "agent"},
+					{From: "agent", To: "collect"}, {From: "collect", To: "after"},
+				}
+			},
+			wantCodes: []string{refs.CodeUnknownReference},
 		},
 		{
 			name: "Should reject gate max revisions over ceiling",
@@ -671,7 +1210,7 @@ func TestLinterShouldRejectStructuralAndReferenceInvalidShapes(t *testing.T) {
 		{
 			name: "Should accept CEL member functions over node outputs",
 			mutate: func(def *dsl.Definition) {
-				def.Contract.StopWhen = `nodes.agent.output.summary.contains("done")`
+				def.Contract.StopWhen = dsl.StopWhenSpec{Expr: `nodes.agent.output.summary.contains("done")`}
 			},
 		},
 		{
@@ -689,7 +1228,7 @@ func TestLinterShouldRejectStructuralAndReferenceInvalidShapes(t *testing.T) {
 						},
 					},
 				}
-				def.Contract.StopWhen = `nodes.agent.output.issues[0].id == "issue-1"`
+				def.Contract.StopWhen = dsl.StopWhenSpec{Expr: `nodes.agent.output.issues[0].id == "issue-1"`}
 			},
 		},
 		{
@@ -707,7 +1246,7 @@ func TestLinterShouldRejectStructuralAndReferenceInvalidShapes(t *testing.T) {
 						},
 					},
 				}
-				def.Contract.StopWhen = `nodes.agent.output.issues[0].missing == "issue-1"`
+				def.Contract.StopWhen = dsl.StopWhenSpec{Expr: `nodes.agent.output.issues[0].missing == "issue-1"`}
 			},
 			wantCodes: []string{refs.CodeUnresolvablePath},
 		},
@@ -785,15 +1324,15 @@ func TestLinterShouldRejectStructuralAndReferenceInvalidShapes(t *testing.T) {
 	}
 }
 
-func TestLinterShouldAcceptCompileTimeCeilingsAtBoundary(t *testing.T) {
+func TestLinterShouldAcceptLargeAuthorFanOutBounds(t *testing.T) {
 	t.Parallel()
 
-	t.Run("Should accept configured ceilings exactly at the boundary", func(t *testing.T) {
+	t.Run("Should accept a large positive max fan-out and parallel window", func(t *testing.T) {
 		t.Parallel()
 
 		def := validDefinition()
-		requireNode(t, &def, "fan").MaxFanOut = loop.LoopMaxFanoutWidth
-		requireNode(t, &def, "fan").MaxParallel = loop.LoopMaxFanoutWidth
+		requireNode(t, &def, "fan").MaxFanOut = 500
+		requireNode(t, &def, "fan").MaxParallel = 128
 		appendGate(&def, dsl.Node{
 			ID:            "review_gate",
 			Class:         dsl.NodeClassControl,
@@ -978,18 +1517,6 @@ func TestLinterShouldRejectClosedEnumAndReservedSchemaViolations(t *testing.T) {
 				},
 			}),
 			wantCodes: []string{loop.CodeEnvironmentUnsupported},
-		},
-		{
-			name: "Should reject fan out max parallel over ceiling",
-			def: singleNodeDefinition(dsl.Node{
-				ID:          "fan",
-				Class:       dsl.NodeClassControl,
-				Kind:        string(dsl.ControlFanOut),
-				Collection:  "{{ .inputs.items }}",
-				MaxFanOut:   1,
-				MaxParallel: loop.LoopMaxFanoutWidth + 1,
-			}),
-			wantCodes: []string{loop.CodeFanOutCeilingExceeded},
 		},
 		{
 			name: "Should reject empty sub loops",
@@ -1816,6 +2343,16 @@ func requireLintDiagnostic(t *testing.T, diagnostics []loop.LintError, code stri
 	t.Fatalf("Lint() diagnostics = %#v, want %s %q", diagnostics, severity, code)
 }
 
+func requireLintPathDiagnostic(t *testing.T, diagnostics []loop.LintError, path string, code string) {
+	t.Helper()
+	for _, diagnostic := range diagnostics {
+		if diagnostic.Path == path && diagnostic.Code == code && diagnostic.Severity == loop.SeverityError {
+			return
+		}
+	}
+	t.Fatalf("Lint() diagnostics = %#v, want error %q at %q", diagnostics, code, path)
+}
+
 type identityToolSchemas struct{}
 
 func (identityToolSchemas) Snapshot(string) (loop.ToolSchemaSnapshot, bool) {
@@ -1836,7 +2373,10 @@ func validDefinition() dsl.Definition {
 			Version: 1,
 		},
 		Inputs: map[string]dsl.Input{
-			"tasks": {Type: dsl.InputTypeRef, Required: true},
+			"tasks": {
+				Type: dsl.InputTypeRef, Required: true,
+				Ref: &dsl.InputRef{Kind: dsl.InputRefKindSkill},
+			},
 		},
 		Contract: dsl.Contract{
 			Goal:             "Complete task list",
@@ -1846,10 +2386,7 @@ func validDefinition() dsl.Definition {
 				TerminalStates: []dsl.TerminalState{dsl.TerminalDone, dsl.TerminalFailed},
 			},
 			IterationCap: 3,
-			NoProgress: dsl.NoProgress{
-				Window:     2,
-				HashFields: []string{"nodes.agent.output.summary"},
-			},
+			NoProgress:   dsl.NoProgress{Window: 2},
 			Budget: dsl.Budget{
 				Tokens:       1000,
 				WallClockSec: 60,
@@ -1899,6 +2436,24 @@ func validDefinition() dsl.Definition {
 	}
 }
 
+func routeDefinitionForTest() dsl.Definition {
+	definition := singleNodeDefinition(dsl.Node{
+		ID:      "router",
+		Class:   dsl.NodeClassControl,
+		Kind:    string(dsl.ControlRoute),
+		Routes:  []dsl.RouteSpec{{When: "true", To: "quick"}, {When: "false", To: "review"}},
+		Default: "fallback",
+	})
+	for _, id := range []dsl.NodeID{"quick", "review", "fallback"} {
+		definition.Graph.Nodes = append(definition.Graph.Nodes, dsl.Node{
+			ID: id, Class: dsl.NodeClassAction, Kind: string(dsl.ActionRunAgent),
+			Params: dsl.NodeParams{"agent": "codex", "prompt": "Run " + string(id)},
+		})
+		definition.Graph.Edges = append(definition.Graph.Edges, dsl.Edge{From: "router", To: id})
+	}
+	return definition
+}
+
 func validGoalDefinition() dsl.Definition {
 	return singleNodeDefinition(validGoalNode("converge", ""))
 }
@@ -1933,7 +2488,6 @@ func validFanoutGoalDefinition() dsl.Definition {
 	def := validDefinition()
 	goal := validGoalNode("agent", "")
 	def.Graph.Nodes[2] = goal
-	def.Contract.NoProgress.HashFields = []string{"nodes.agent.output.status"}
 	return def
 }
 
@@ -1961,7 +2515,7 @@ func singleNodeDefinition(node dsl.Node) dsl.Definition {
 		Kind:       dsl.KindLoop,
 		Meta:       dsl.Meta{Name: "single-node"},
 		Inputs: map[string]dsl.Input{
-			"items": {Type: dsl.InputTypeRef},
+			"items": {Type: dsl.InputTypeRef, Ref: &dsl.InputRef{Kind: dsl.InputRefKindSkill}},
 		},
 		Contract: dsl.Contract{
 			Goal:             "Validate",

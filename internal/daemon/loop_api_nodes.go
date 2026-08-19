@@ -53,6 +53,7 @@ func (s *daemonLoopAPIService) PauseLoopNode(
 		ws,
 		normalizedRunID,
 		normalizedNodeID,
+		req.ItemIndex,
 		looppkg.NodePauseMode(strings.TrimSpace(req.Mode)),
 		req.Reason,
 		actor,
@@ -61,7 +62,7 @@ func (s *daemonLoopAPIService) PauseLoopNode(
 		return contract.LoopMutationResponse{}, err
 	}
 	control := loopNodeControlPayload(result.Control)
-	return loopNodeMutationResponse(normalizedRunID, normalizedNodeID, &control), nil
+	return loopNodeMutationResponse(normalizedRunID, normalizedNodeID, req.ItemIndex, &control), nil
 }
 
 func (s *daemonLoopAPIService) ResumeLoopNode(
@@ -90,13 +91,14 @@ func (s *daemonLoopAPIService) ResumeLoopNode(
 		); err != nil {
 			return contract.LoopMutationResponse{}, err
 		}
-		return loopNodeMutationResponse(normalizedRunID, normalizedNodeID, nil), nil
+		return loopNodeMutationResponse(normalizedRunID, normalizedNodeID, req.ItemIndex, nil), nil
 	}
 	result, err := lifecycle.ResumeNode(
 		ctx,
 		ws,
 		normalizedRunID,
 		normalizedNodeID,
+		req.ItemIndex,
 		looppkg.NodeResumeMode(strings.TrimSpace(req.Mode)),
 		actor,
 	)
@@ -104,7 +106,7 @@ func (s *daemonLoopAPIService) ResumeLoopNode(
 		return contract.LoopMutationResponse{}, err
 	}
 	control := loopNodeControlPayload(result.Control)
-	return loopNodeMutationResponse(normalizedRunID, normalizedNodeID, &control), nil
+	return loopNodeMutationResponse(normalizedRunID, normalizedNodeID, req.ItemIndex, &control), nil
 }
 
 func (s *daemonLoopAPIService) CancelLoopNode(
@@ -115,7 +117,7 @@ func (s *daemonLoopAPIService) CancelLoopNode(
 	req contract.LoopNodeMutationRequest,
 	actor taskpkg.ActorContext,
 ) (contract.LoopMutationResponse, error) {
-	return s.mutateLoopNodeCancellation(ctx, workspaceID, runID, nodeID, req.Reason, false, actor)
+	return s.mutateLoopNodeCancellation(ctx, workspaceID, runID, nodeID, req.ItemIndex, req.Reason, false, actor)
 }
 
 func (s *daemonLoopAPIService) KillLoopNode(
@@ -126,7 +128,7 @@ func (s *daemonLoopAPIService) KillLoopNode(
 	req contract.LoopNodeMutationRequest,
 	actor taskpkg.ActorContext,
 ) (contract.LoopMutationResponse, error) {
-	return s.mutateLoopNodeCancellation(ctx, workspaceID, runID, nodeID, req.Reason, true, actor)
+	return s.mutateLoopNodeCancellation(ctx, workspaceID, runID, nodeID, req.ItemIndex, req.Reason, true, actor)
 }
 
 func (s *daemonLoopAPIService) RequeueLoopNode(
@@ -150,7 +152,7 @@ func (s *daemonLoopAPIService) RequeueLoopNode(
 		return contract.LoopMutationResponse{}, err
 	}
 	control := loopNodeControlPayload(result.Control)
-	return loopNodeMutationResponse(normalizedRunID, normalizedNodeID, &control), nil
+	return loopNodeMutationResponse(normalizedRunID, normalizedNodeID, nil, &control), nil
 }
 
 func (s *daemonLoopAPIService) ListLoopNodes(
@@ -259,6 +261,7 @@ func (s *daemonLoopAPIService) mutateLoopNodeCancellation(
 	workspaceID string,
 	runID string,
 	nodeID string,
+	itemIndex *int,
 	reason string,
 	kill bool,
 	actor taskpkg.ActorContext,
@@ -268,9 +271,9 @@ func (s *daemonLoopAPIService) mutateLoopNodeCancellation(
 		return contract.LoopMutationResponse{}, err
 	}
 	if kill {
-		err = s.aggregate.KillNode(ctx, ws, normalizedRunID, normalizedNodeID, reason, actor)
+		err = s.aggregate.KillNode(ctx, ws, normalizedRunID, normalizedNodeID, itemIndex, reason, actor)
 	} else {
-		err = s.aggregate.CancelNode(ctx, ws, normalizedRunID, normalizedNodeID, reason, actor)
+		err = s.aggregate.CancelNode(ctx, ws, normalizedRunID, normalizedNodeID, itemIndex, reason, actor)
 	}
 	if err != nil {
 		return contract.LoopMutationResponse{}, err
@@ -279,7 +282,7 @@ func (s *daemonLoopAPIService) mutateLoopNodeCancellation(
 	if err != nil {
 		return contract.LoopMutationResponse{}, err
 	}
-	return loopNodeMutationResponse(normalizedRunID, normalizedNodeID, control), nil
+	return loopNodeMutationResponse(normalizedRunID, normalizedNodeID, itemIndex, control), nil
 }
 
 func (s *daemonLoopAPIService) loopNodeControlForMutation(
@@ -334,10 +337,11 @@ func normalizeLoopNodeIdentity(
 func loopNodeMutationResponse(
 	runID looppkg.RunID,
 	nodeID looppkg.NodeID,
+	itemIndex *int,
 	control *contract.LoopNodeControlPayload,
 ) contract.LoopMutationResponse {
 	return contract.LoopMutationResponse{
-		OK: true, RunID: string(runID), NodeID: string(nodeID), Control: control,
+		OK: true, RunID: string(runID), NodeID: string(nodeID), ItemIndex: cloneIntPtr(itemIndex), Control: control,
 	}
 }
 

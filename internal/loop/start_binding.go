@@ -243,14 +243,21 @@ func validateStartInputKeys(def dsl.Definition, inputs map[string]any, label str
 	for name, value := range inputs {
 		declared, ok := def.Inputs[name]
 		if !ok {
-			return reasonError(
-				ReasonCodeStartInputInvalid,
-				fmt.Errorf("%w: %s key %q does not name a declared input", ErrValidation, label, name),
-				map[string]string{startInputMetaKey: name},
-			)
+			return &InputValidationError{
+				Loop: def.Meta.Name, Field: name, Origin: InputOriginAutomation,
+				Reason: InputValidationReasonUnknownInput,
+				Err: fmt.Errorf(
+					"%w: %s key %q does not name a declared input",
+					ErrValidation,
+					label,
+					name,
+				),
+			}
 		}
-		if err := validateInputType(name, declared.Type, value); err != nil {
-			return reasonError(ReasonCodeStartInputInvalid, err, map[string]string{startInputMetaKey: name})
+		if _, reason, err := validateInputValue(name, declared, value); err != nil {
+			return newInputValidationError(
+				def.Meta.Name, name, declared, value, InputOriginAutomation, reason, err,
+			)
 		}
 	}
 	return nil

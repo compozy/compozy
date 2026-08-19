@@ -6,6 +6,7 @@ import { LOOP_RUN_EVENT_KINDS, LOOP_RUN_LIFECYCLE_EVENT_KINDS } from "@/generate
 import { createStreamEventSource } from "@/lib/ticketed-event-source";
 
 import { buildLoopStreamUrl } from "../adapters/loops-api";
+import { isLoopRequestEventKind } from "../lib/loop-graph-events";
 import { loopsKeys } from "../lib/query-keys";
 import type { LoopRunEventFrame, LoopRunEventKind } from "../types";
 import {
@@ -31,26 +32,18 @@ interface UseLoopStreamOptions {
   onError?: (error: unknown) => void;
 }
 
-// CompozyOS Loop SSE emits named events via `event: <kind>` from the run-events writer
-// (internal/daemon). EventSource routes named SSE frames to listeners registered
-// with addEventListener("<kind>", ...); they never reach onmessage, which only
-// handles unnamed `message` frames. Keep this list aligned with the enumerated
-// LoopRunEventKind contract (techspec §observability, L-017 named-listener rule):
-// an unenumerated kind silently never renders.
 const LOOP_STREAM_EVENT_TYPES = LOOP_RUN_EVENT_KINDS satisfies readonly LoopRunEventKind[];
 
-// Lifecycle kinds mutate durable run state, so each one invalidates the run detail +
-// runs list (daemon truth wins). A status transition also invalidates the catalog's
-// `last_run`/aggregate projection. The high-frequency display frames `token_tick` and
-// `channel_msg` are applied locally via `onEvent` (the run-page meter/timeline store,
-// task 20) and never invalidate — otherwise every tick would refetch the workspace
-// runs list.
 const LOOP_LIFECYCLE_EVENT_KINDS = new Set<LoopRunEventKind>(
   LOOP_RUN_LIFECYCLE_EVENT_KINDS satisfies readonly LoopRunEventKind[]
 );
 
 function isLifecycleKind(kind: string): boolean {
   return LOOP_LIFECYCLE_EVENT_KINDS.has(kind as LoopRunEventKind);
+}
+
+function isRequestKind(kind: string): boolean {
+  return isLoopRequestEventKind(kind);
 }
 
 function defaultEventSourceFactory(url: string): LoopStreamEventSource {
@@ -93,6 +86,16 @@ function invalidateLoopRunQueries(
   if (refreshCatalog) {
     void queryClient.invalidateQueries({ queryKey: loopsKeys.catalogByWorkspace(workspaceId) });
   }
+}
+
+function invalidateLoopRequestQueries(
+  queryClient: QueryClient,
+  workspaceId: string,
+  runId: string
+) {
+  void queryClient.invalidateQueries({ queryKey: loopsKeys.runDetail(workspaceId, runId) });
+  void queryClient.invalidateQueries({ queryKey: loopsKeys.nodeInventoryByWorkspace(workspaceId) });
+  void queryClient.invalidateQueries({ queryKey: loopsKeys.requestsByWorkspace(workspaceId) });
 }
 
 /**
@@ -182,6 +185,8 @@ export function useLoopStream(
           trimmedRun,
           kind === "status_changed"
         );
+      } else if (isRequestKind(kind)) {
+        invalidateLoopRequestQueries(queryClient, trimmedWorkspace, trimmedRun);
       }
       notifyEvent(payload, subscription);
     };

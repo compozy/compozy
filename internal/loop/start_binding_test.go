@@ -245,7 +245,10 @@ func TestStartBindingShouldStartThroughServiceForEveryDeclaredSurface(t *testing
 func startBindingDefinition() dsl.Definition {
 	def := validDefinition()
 	def.Inputs = map[string]dsl.Input{
-		"tasks": {Type: dsl.InputTypeRef, Required: true},
+		"tasks": {
+			Type: dsl.InputTypeRef, Required: true,
+			Ref: &dsl.InputRef{Kind: dsl.InputRefKindSkill},
+		},
 		"title": {Type: dsl.InputTypeString, Required: true},
 		"count": {Type: dsl.InputTypeNumber, Required: true},
 	}

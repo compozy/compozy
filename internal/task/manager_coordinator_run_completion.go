@@ -33,7 +33,7 @@ func (m *Service) completeCoordinatorRun(
 	var postCommitErr error
 	var timerErr error
 	if !result.PlanSuperseded {
-		postCommitErr = m.applyCoordinatorPostCommit(ctx, plan.ParentCloses, actor)
+		postCommitErr = m.applyCoordinatorPostCommit(ctx, plan.ParentCloses, plan.LaneCancels, actor)
 		timerErr = m.armCoordinatorTimers(ctx, plan.PostCommitTimers, actor)
 	}
 	eventErr := m.recordCoordinatorCompletionEvents(ctx, &result, publicationEventIDs, actor)

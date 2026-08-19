@@ -72,7 +72,7 @@ func (n *daemonNativeTools) loopNodeSimpleMutation(
 		workspaceID,
 		runID,
 		nodeID,
-		contract.LoopNodeMutationRequest{Reason: input.Reason},
+		contract.LoopNodeMutationRequest{Reason: input.Reason, ItemIndex: input.ItemIndex},
 		actor,
 	)
 	return nativeLoopMutationResult(

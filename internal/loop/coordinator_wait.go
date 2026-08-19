@@ -177,17 +177,20 @@ func consumeAheadWaitEvent(
 		return false, output, err
 	}
 	rows, err := runtime.ledger.ReadMatches(eval.ctx, WatchEventsQuery{
-		WorkspaceID: string(eval.run.WorkspaceID), Streams: streams, Kinds: kinds, Limit: LoopMaxFanoutWidth,
+		WorkspaceID: string(eval.run.WorkspaceID), Streams: streams, Kinds: kinds, Limit: LoopWatchEventPageLimit,
 	})
 	if err != nil {
 		return false, output, fmt.Errorf("loop: read ahead wait events for node %q: %w", node.ID, err)
 	}
 	state := watch.EventsPendingState{Subscriptions: subscriptions, Cursors: streams}
-	matches, _, _, err := filterWatchEventsRows(&watchEventsEvaluationContext{
+	matches, _, _, terminal, err := filterWatchEventsRows(&watchEventsEvaluationContext{
 		control: *eval, plan: plan, outputs: outputs,
 	}, output, node, state, rows)
 	if err != nil {
 		return false, output, err
+	}
+	if terminal != nil {
+		return false, output, fmt.Errorf("%w: wait event filter cannot exit the loop", ErrValidation)
 	}
 	if len(matches) == 0 {
 		return false, output, nil

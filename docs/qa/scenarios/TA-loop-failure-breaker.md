@@ -12,7 +12,7 @@ fix_status:
 retest_status:
 fix_commits:
 evidence: /Users/pedronauck/dev/qa-labs/compozy-qa-ta-replay-20260730-062156-531636-lab/qa-artifacts/qa; /Users/pedronauck/dev/qa-labs/compozy-northstar-pay-20260801-135009-390014-lab/qa-artifacts/qa/loop/adjacent-safety-tests.json
-last_report: docs/qa/reports/2026-08-01-loops-paper-adoption.md
+last_report: docs/qa/reports/2026-08-18-graph-eng.md
 overlaps: LP-sick-target-degrades-one-lane; LP-quarantine-diagnose-requeue; LP-029; LP-031; LP-038; TA-action-run-liveness
 ---
 

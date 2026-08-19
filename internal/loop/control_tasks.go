@@ -8,6 +8,38 @@ import (
 	"github.com/compozy/compozy/internal/task"
 )
 
+func appendCoordinatorArtifactsForOutputs(
+	plan *task.CoordinatorCompletionPlan,
+	run Run,
+	generation int,
+	graph dsl.Graph,
+	topology controlTopology,
+	gatesEnabled bool,
+	outputs []GenerationOutput,
+) error {
+	if err := appendCoordinatorTasksForOutputs(
+		plan,
+		run,
+		generation,
+		graph,
+		topology,
+		gatesEnabled,
+		outputs,
+	); err != nil {
+		return err
+	}
+	appendCoordinatorDependenciesForOutputs(
+		plan,
+		run,
+		generation,
+		graph,
+		topology,
+		gatesEnabled,
+		outputs,
+	)
+	return nil
+}
+
 func appendCoordinatorTasksForOutputs(
 	plan *task.CoordinatorCompletionPlan,
 	run Run,
@@ -67,7 +99,7 @@ func appendCoordinatorDependenciesForOutputs(
 	topology controlTopology,
 	gatesEnabled bool,
 	outputs []GenerationOutput,
-) error {
+) {
 	existing := make(map[string]struct{}, len(plan.Dependencies))
 	for _, dependency := range plan.Dependencies {
 		existing[dependencyKey(dependency.TaskID, dependency.DependsOnTaskID)] = struct{}{}
@@ -125,7 +157,6 @@ func appendCoordinatorDependenciesForOutputs(
 			}
 		}
 	}
-	return nil
 }
 
 func isAuthoredErrorRouteDependency(source dsl.Node, target dsl.NodeID) bool {
@@ -203,7 +234,7 @@ func coordinatorNodeMetadataForOutput(
 	if err != nil {
 		return nil, err
 	}
-	return coordinatorNodeMetadataWithFanOutItem(
+	metadata, err := coordinatorNodeMetadataWithFanOutItem(
 		run,
 		generation,
 		node,
@@ -213,6 +244,22 @@ func coordinatorNodeMetadataForOutput(
 		item,
 		hasItem,
 	)
+	if err != nil {
+		return nil, err
+	}
+	if node.Review == nil || !OutputRefLooksContentAddressed(output.OutputRef) {
+		return metadata, nil
+	}
+	var payload map[string]any
+	if err := json.Unmarshal(metadata, &payload); err != nil {
+		return nil, fmt.Errorf("loop: decode reviewed node metadata for %s: %w", node.ID, err)
+	}
+	payload["reviewed_params_ref"] = output.OutputRef
+	metadata, err = json.Marshal(payload)
+	if err != nil {
+		return nil, fmt.Errorf("loop: marshal reviewed node metadata for %s: %w", node.ID, err)
+	}
+	return metadata, nil
 }
 
 func fanOutItemForOutput(

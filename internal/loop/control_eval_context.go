@@ -16,6 +16,7 @@ type controlEvalContext struct {
 	effective          EffectiveConfig
 	gateEvaluator      gate.GateEvaluator
 	gateDecisions      GateDecisionReader
+	nodeControls       NodeControlReader
 	runtimeCatalog     WorkspaceRuntimeCatalog
 	fanOutWidth        int
 	watchRuntime       coordinatorWatchRuntime

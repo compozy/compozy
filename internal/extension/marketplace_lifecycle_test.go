@@ -415,7 +415,7 @@ func TestMarketplaceLifecycleInstallsUpdatesAndRemovesManagedExtensions(t *testi
 			}
 
 			source.latestVersion = "3.0.0"
-			if _, err := UpdateMarketplaceManaged(
+			_, updateErr := UpdateMarketplaceManaged(
 				t.Context(),
 				homePaths,
 				env.registry,
@@ -424,8 +424,15 @@ func TestMarketplaceLifecycleInstallsUpdatesAndRemovesManagedExtensions(t *testi
 					Names: []string{installed.Name}, PolicyAllowsUnverified: true, AllowUnverified: true,
 				},
 				nil,
-			); err == nil {
-				t.Fatal("UpdateMarketplaceManaged(client-layout drift) error = nil, want failure")
+			)
+			if !errors.Is(updateErr, ErrAgentPluginClientLayout) {
+				t.Fatalf(
+					"UpdateMarketplaceManaged(client-layout drift) error = %v, want ErrAgentPluginClientLayout",
+					updateErr,
+				)
+			}
+			if !strings.Contains(updateErr.Error(), ".claude-plugin/plugin.json") {
+				t.Fatalf("client-layout drift error = %q, want layout path", updateErr)
 			}
 			retained, err := env.registry.Get(installed.Name)
 			if err != nil {

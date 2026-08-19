@@ -31,6 +31,15 @@ func (c *lintContext) lintLifecycleNode(node dsl.Node) {
 	if node.Class == dsl.NodeClassControl && dsl.ControlKind(node.Kind) == dsl.ControlWait {
 		c.lintWait(node)
 	}
+	if node.Class == dsl.NodeClassControl && dsl.ControlKind(node.Kind) == dsl.ControlAsk {
+		var params dsl.AskParams
+		if err := node.Params.Decode(&params); err == nil && params.Expires != nil {
+			c.lintWaitExpiry(node, params.Expires, "ask")
+		}
+	}
+	if node.Review != nil && node.Review.Expires != nil {
+		c.lintWaitExpiry(node, node.Review.Expires, "review")
+	}
 }
 
 func (c *lintContext) lintRetryLifecycle(node dsl.Node) {
@@ -115,7 +124,7 @@ func (c *lintContext) lintResultContract(node dsl.Node) {
 		if field == "" {
 			continue
 		}
-		path := append([]string{namespaceNodesKey, string(node.ID), "output"}, strings.Split(field, ".")...)
+		path := append([]string{namespaceNodesKey, string(node.ID), namespaceOutputKey}, strings.Split(field, ".")...)
 		if err := namespace.ValidatePath(path); err != nil {
 			c.add(node.ID, CodeResultContractInvalid, "result_contract field %q is invalid: %v", field, err)
 		}

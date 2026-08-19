@@ -8,6 +8,7 @@ export {
   type RuntimeConnectionTone,
 } from "./components/connection-indicator.logic";
 export {
+  REASONING_EFFORT_ORDER,
   reasoningEffortLabel,
   runtimeModelKey,
   RuntimeSelector,

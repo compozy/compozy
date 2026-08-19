@@ -1,11 +1,3 @@
-/**
- * The inspector field-descriptor contract (types only). The per-kind builders in
- * `loop-node-fields.ts` produce these, and `loop-node-schema.ts` dispatches over them —
- * one responsibility per file. This is the "schema generates the inspector" model,
- * derived from the canonical `compozy.loop/v1` DSL types + the ADR-021 reserved kinds;
- * the inspector renders FROM these descriptors, it is not a second schema authority.
- */
-
 import type { LoopEnvironmentMode } from "../types";
 
 export type FieldPath = (string | number)[];
@@ -23,7 +15,7 @@ export interface TextFieldSpec extends FieldCommon {
   required?: boolean;
   optionalLabel?: string;
   placeholder?: string;
-  /** Enables `{{ }}` reference autocomplete over the compiled namespace (ADR-020). */
+
   reference?: boolean;
   /**
    * The field holds an object/array in the definition (rendered as JSON, parsed back
@@ -31,10 +23,7 @@ export interface TextFieldSpec extends FieldCommon {
    * scalar text edit never coerces a structured field to a string (round-trip safety).
    */
   json?: boolean;
-  /**
-   * The field is a CEL condition (not a `{{ }}` template) — autocomplete triggers on a
-   * bare namespace identifier (`nodes.`, `inputs.`, `item`, …) instead of `{{` (ADR-020).
-   */
+
   cel?: boolean;
 }
 
@@ -151,6 +140,57 @@ export interface EnvironmentFieldSpec extends FieldCommon {
   inheritLabel: string;
 }
 
+export const LOOP_STRATEGY_KINDS = ["wait_all", "fail_fast", "best_effort", "race"] as const;
+export type LoopStrategyKind = (typeof LOOP_STRATEGY_KINDS)[number];
+
+export interface StrategyFieldSpec extends FieldCommon {
+  type: "strategy";
+
+  basePath: FieldPath;
+
+  kind: LoopStrategyKind | null;
+
+  threshold: string;
+
+  missingAcceptable: boolean;
+}
+
+export interface LoopRouteEntry {
+  when: string;
+  to: string;
+}
+
+export interface RoutesFieldSpec extends FieldCommon {
+  type: "routes";
+
+  path: FieldPath;
+
+  defaultPath: FieldPath;
+  routes: LoopRouteEntry[];
+  defaultRoute: string;
+
+  targets: string[];
+}
+
+export const LOOP_REVIEW_DECISIONS = ["approve", "edit", "reject", "respond"] as const;
+export type LoopReviewDecision = (typeof LOOP_REVIEW_DECISIONS)[number];
+
+export interface ReviewFieldSpec extends FieldCommon {
+  type: "review";
+
+  basePath: FieldPath;
+  enabled: boolean;
+
+  decisions: LoopReviewDecision[];
+  when: string;
+  prompt: string;
+  agentsAllowed: boolean;
+  onRejectRoute: string;
+  expiresAfter: string;
+
+  targets: string[];
+}
+
 export interface FoldFieldSpec extends FieldCommon {
   type: "fold";
   subLabel?: string;
@@ -170,4 +210,7 @@ export type FieldSpec =
   | EffectsFieldSpec
   | WaitModeFieldSpec
   | EnvironmentFieldSpec
+  | StrategyFieldSpec
+  | RoutesFieldSpec
+  | ReviewFieldSpec
   | FoldFieldSpec;

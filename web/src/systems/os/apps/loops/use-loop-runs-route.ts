@@ -28,25 +28,17 @@ export function useLoopRunsRoute(search: LoopRunsRouteSearch) {
     enabled
   );
 
-  const setOrigin = (origin: LoopRunsRouteSearch["origin"]) => {
+  const setOriginFilter = ({
+    origin,
+    originSession,
+  }: {
+    origin?: LoopRunsRouteSearch["origin"];
+    originSession?: string;
+  }) => {
+    if (search.origin === origin && search.origin_session === originSession) return;
     void navigate({
       to: "/loop-runs",
-      search: current => ({
-        ...current,
-        origin,
-        origin_session: origin === "session" ? current.origin_session : undefined,
-      }),
-    });
-  };
-
-  const setOriginSession = (originSession: string) => {
-    void navigate({
-      to: "/loop-runs",
-      search: current => ({
-        ...current,
-        origin: "session",
-        origin_session: originSession || undefined,
-      }),
+      search: current => ({ ...current, origin, origin_session: originSession }),
     });
   };
 
@@ -113,8 +105,7 @@ export function useLoopRunsRoute(search: LoopRunsRouteSearch) {
   return {
     outcome,
     runsQuery,
-    setOrigin,
-    setOriginSession,
+    setOriginFilter,
     setOutcome,
     workspaceId,
     workspaceLabel,

@@ -180,10 +180,6 @@ func (e *OverlayEditor) SetTable(path []string, values map[string]any) error {
 	if err != nil {
 		return err
 	}
-	if len(values) == 0 {
-		return unsupportedTOMLMutation(cleanPath, "table replacement requires at least one key")
-	}
-
 	updated, err := setTableInOverlayDocument(e.content, cleanPath, values)
 	if err != nil {
 		return fmt.Errorf("config: set TOML table %q: %w", strings.Join(cleanPath, "."), err)

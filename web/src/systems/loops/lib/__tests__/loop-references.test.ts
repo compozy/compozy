@@ -97,7 +97,7 @@ describe("loop references", () => {
     expect(activeReferenceQuery("{{ .nodes.load", 14)).toBe("nodes.load");
   });
 
-  it("Should extract a bare namespace identifier in CEL mode (no braces, ADR-020)", () => {
+  it("Should extract a bare namespace identifier in CEL mode without braces", () => {
     // A CEL condition has no `{{ }}`; the picker triggers on a namespace-rooted identifier.
     expect(activeReferenceQuery("nodes.load", 10, "cel")).toBe("nodes.load");
     expect(activeReferenceQuery("nod", 3, "cel")).toBe("nod");

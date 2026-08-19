@@ -70,6 +70,7 @@ type daemonNativeToolsDeps struct {
 	Observer                   core.Observer
 	HookBindings               hookBindingPublisher
 	AgentCatalog               core.AgentCatalog
+	Vault                      core.VaultService
 	AgentResolver              sessionpkg.AgentResolver
 	HeartbeatStatus            core.HeartbeatStatusService
 	HeartbeatWake              core.HeartbeatWakeService

@@ -14,10 +14,14 @@ flowchart TD
     C -->|click row| D[Loop detail: contract + read-only DAG + recent runs]
     C -->|inline Run| E[Run form: auto-generated typed inputs]
     D -->|Run loop CTA| E
-    E --> R[Resolve input defaults and optional per-task runtime overrides]
+    E --> E2[Choose exact entities and runtime from catalogs or keep an exact manual value]
+    E2 --> R
+    R[Resolve input defaults and optional per-task runtime overrides]
     R --> F{Required inputs set? slug*}
     F -->|no| F2[Run disabled + inline required error, input preserved]
     F2 --> E
+    F -->|stale or unknown entity| F3[Field-addressed input_validation; no run created]
+    F3 --> E
     F -->|Advanced overrides| G[6 limit fields show default/ceiling, clamp at ceiling; NO cost-cap input]
     F -->|yes, Run loop| H[Side effect: loop_run created 201, run page opens]
     H --> H2[CLI returns the persisted run id and effective-port Web deep link]
@@ -49,7 +53,7 @@ journey:
       expected_observable: "The Built-in group shows implement-tasks with its goal, last-outcome pill, 30d success-rate, and inline Run"
     - step: 2
       verb: "Open the run form and fill the declared inputs"
-      expected_observable: "Form auto-generated from the declared input schema (type badges, required *); Run disabled until slug set"
+      expected_observable: "The shared controls show exact entity catalogs, enum choices, partial runtime selection, and manual values from the declared schema; Run stays disabled until required values exist"
     - step: 3
       verb: "(optional) Open Advanced overrides"
       expected_observable: "6 numeric fields each show per-loop default / daemon ceiling and clamp at ceiling; NO Cost cap (USD) input; canonical defaults render (iteration cap 50, unbounded as ∞)"

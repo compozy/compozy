@@ -514,6 +514,50 @@ func TestWriteScopeValidationAndTargetScope(t *testing.T) {
 func TestOverlayEditorSetTableMutations(t *testing.T) {
 	t.Parallel()
 
+	t.Run("Should preserve an explicitly empty table", func(t *testing.T) {
+		t.Parallel()
+
+		editor, err := newOverlayEditor(ConfigName, []byte{})
+		if err != nil {
+			t.Fatalf("newOverlayEditor() error = %v", err)
+		}
+		if err := editor.SetTable(
+			[]string{"loops", "inputs", "release", "runtime"},
+			map[string]any{},
+		); err != nil {
+			t.Fatalf("editor.SetTable(empty) error = %v", err)
+		}
+		rendered, err := editor.Bytes()
+		if err != nil {
+			t.Fatalf("editor.Bytes() error = %v", err)
+		}
+		if !strings.Contains(string(rendered), "[loops.inputs.release.runtime]") {
+			t.Fatalf("rendered config = %q, want explicit empty runtime table", rendered)
+		}
+	})
+
+	t.Run("Should replace an implicit parent represented only by a nested empty table", func(t *testing.T) {
+		t.Parallel()
+
+		editor, err := newOverlayEditor(ConfigName, []byte("[loops.inputs.release.runtime]\n"))
+		if err != nil {
+			t.Fatalf("newOverlayEditor() error = %v", err)
+		}
+		if err := editor.SetTable([]string{"loops", "inputs", "release"}, map[string]any{
+			"runtime": map[string]any{"model": "gpt-5.6"},
+		}); err != nil {
+			t.Fatalf("editor.SetTable(implicit parent) error = %v", err)
+		}
+		rendered, err := editor.Bytes()
+		if err != nil {
+			t.Fatalf("editor.Bytes() error = %v", err)
+		}
+		if strings.Count(string(rendered), "[loops.inputs.release.runtime]") != 1 ||
+			!strings.Contains(string(rendered), `model = "gpt-5.6"`) {
+			t.Fatalf("rendered config = %q, want one populated runtime table", rendered)
+		}
+	})
+
 	t.Run("Should replace existing table", func(t *testing.T) {
 		t.Parallel()
 

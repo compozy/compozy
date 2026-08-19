@@ -2,7 +2,11 @@ import { Play, Redo2 } from "lucide-react";
 
 import { Button } from "@compozy/ui";
 
-import { type LoopNodeVerb, loopNodeVerbs } from "../../lib/loop-node-controls";
+import {
+  type LoopNodeTimetravelCapability,
+  type LoopNodeVerb,
+  loopNodeVerbs,
+} from "../../lib/loop-node-controls";
 import { isOpenWait, type LoopNodeLifecycle } from "../../lib/loop-node-lifecycle";
 import { LoopNodeControlMenu } from "./loop-node-control-menu";
 
@@ -10,6 +14,8 @@ interface LoopNodeRowActionsProps {
   node: LoopNodeLifecycle;
   runStatus?: string | null;
   isPending?: boolean;
+
+  timetravel?: LoopNodeTimetravelCapability;
   onVerb: (verb: LoopNodeVerb, node: LoopNodeLifecycle) => void;
 }
 
@@ -26,9 +32,10 @@ export function LoopNodeRowActions({
   node,
   runStatus,
   isPending,
+  timetravel,
   onVerb,
 }: LoopNodeRowActionsProps) {
-  const verbs = loopNodeVerbs(node, runStatus);
+  const verbs = loopNodeVerbs(node, runStatus, timetravel);
   const openWait = node.waits.find(isOpenWait);
   const primary: LoopNodeVerb | null = verbs.includes("resume")
     ? "resume"
@@ -66,6 +73,7 @@ export function LoopNodeRowActions({
         node={node}
         onVerb={onVerb}
         runStatus={runStatus}
+        timetravel={timetravel}
       />
     </span>
   );

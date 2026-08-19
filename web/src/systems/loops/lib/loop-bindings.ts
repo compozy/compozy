@@ -1,10 +1,3 @@
-/**
- * The three automation-carried start-binding kinds (ADR-007 / TechSpec §9.14):
- * scheduled jobs surface as `schedule`, webhook triggers as `webhook`, and every
- * other event trigger (hook / session / observer / extension-event) as `trigger`.
- * The remaining `start[]` kinds (`manual|cli|http|uds|native_tool|extension|network`)
- * are direct start surfaces and never attach an automation.
- */
 export type LoopBindingKind = "schedule" | "webhook" | "trigger";
 
 const BINDING_KIND_LABEL: Record<LoopBindingKind, string> = {

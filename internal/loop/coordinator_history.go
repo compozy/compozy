@@ -41,6 +41,20 @@ func (r coordinatorGenerationHistoryReader) GetGenerationOutputPayload(
 	return r.outputs.GetGenerationOutputPayload(ctx, key)
 }
 
+func (r coordinatorGenerationHistoryReader) ApplyGenerationOutputOverlays(
+	ctx context.Context,
+	workspaceID WorkspaceID,
+	runID RunID,
+	generation int,
+	outputs []GenerationOutput,
+) ([]GenerationOutput, error) {
+	overlays, ok := r.outputs.(GenerationOutputOverlayReader)
+	if !ok {
+		return cloneGenerationOutputs(outputs), nil
+	}
+	return overlays.ApplyGenerationOutputOverlays(ctx, workspaceID, runID, generation, outputs)
+}
+
 func (r coordinatorGenerationHistoryReader) ListGateVerdicts(
 	ctx context.Context,
 	workspaceID string,

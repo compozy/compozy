@@ -1,6 +1,7 @@
 import { readFile } from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
+import type { Page } from "@playwright/test";
 
 import type {
   LoopDefinition,
@@ -9,6 +10,7 @@ import type {
   RunLoopResult,
 } from "@/systems/loops";
 import { openAppWindow, switchWorkspace } from "../fixtures/os-navigation";
+import type { BrowserRuntime } from "../fixtures/runtime";
 import { expect, test } from "../fixtures/test";
 import { createWorktreeRepo, type WorktreeRepoFixture } from "../fixtures/worktree-repo";
 import { completeOnboardingIfPrompted } from "../fixtures/workspace";
@@ -59,6 +61,7 @@ test.afterEach(async () => {
 const loopLifecycleAgent = "loop-lifecycle-agent";
 const loopLifecycleName = "node-lifecycle-e2e";
 const loopAuthoringName = "editor-authoring-e2e";
+const loopEditorInteractionName = "editor-interactions-e2e";
 const loopRuntimeAgent = "loop-runtime-agent";
 const loopRuntimeName = "runtime-provenance-e2e";
 const loopFeedbackWorker = "loop-feedback-worker";
@@ -66,6 +69,56 @@ const loopFeedbackJudge = "loop-feedback-exhaust-judge";
 const loopFeedbackName = "feedback-best-on-exhaustion-web";
 const loopWatchEventsName = "watch-events-read-model-web";
 const loopWatchCursorSeedName = "watch-events-cursor-seed-web";
+const loopEnumAskName = "enum-ask-without-type-web";
+const loopEditorChromeStorageKey = "compozy:loops:editor-chrome:v1";
+
+const loopEnumAskDefinition: LoopDefinition = {
+  apiVersion: "compozy.loop/v1",
+  kind: "Loop",
+  meta: {
+    name: loopEnumAskName,
+    description: "Exercise an enum answer schema without a redundant type keyword.",
+    catalog: { category: "Testing" },
+  },
+  concurrency: "allow",
+  contract: {
+    goal: "Record one operator decision.",
+    definition_of_done: "The selected decision reaches the downstream transform.",
+    stop_when: "nodes.finish.status == 'succeeded'",
+    iteration_cap: 1,
+    no_progress: { window: 2 },
+    budget: { tokens: 0, wall_clock_sec: 0, on_exceeded: "halt" },
+    terminal_states: ["done", "failed", "blocked", "exhausted", "stalled"],
+  },
+  graph: {
+    nodes: [
+      {
+        id: "choose",
+        class: "control",
+        kind: "ask",
+        params: {
+          prompt: "Approve this rollout?",
+          expect: {
+            type: "object",
+            required: ["decision"],
+            properties: { decision: { enum: ["approve", "discard"] } },
+          },
+          responders: { agents: "allow" },
+        },
+      },
+      {
+        id: "finish",
+        class: "action",
+        kind: "transform",
+        params: {
+          map: { decision: { template: "{{ .nodes.choose.output.decision }}" } },
+        },
+      },
+    ],
+    edges: [{ from: "choose", to: "finish" }],
+  } as LoopDefinition["graph"],
+  start: [{ kind: "http" }],
+};
 
 const loopWatchCursorSeedDefinition: LoopDefinition = {
   apiVersion: "compozy.loop/v1",
@@ -81,7 +134,7 @@ const loopWatchCursorSeedDefinition: LoopDefinition = {
     definition_of_done: "The transform completes.",
     stop_when: "nodes.finish.status == 'succeeded'",
     iteration_cap: 1,
-    no_progress: { window: 2, hash_fields: ["nodes.finish.output.done"] },
+    no_progress: { window: 2 },
     budget: { tokens: 0, wall_clock_sec: 0, on_exceeded: "halt" },
     terminal_states: ["done", "failed", "blocked", "exhausted", "stalled"],
   },
@@ -113,7 +166,7 @@ const loopWatchEventsDefinition: LoopDefinition = {
     definition_of_done: "The blocked task event was observed.",
     stop_when: "nodes.record_wake.status == 'succeeded'",
     iteration_cap: 1,
-    no_progress: { window: 2, hash_fields: ["nodes.task_activity.output.events"] },
+    no_progress: { window: 2 },
     budget: { tokens: 0, wall_clock_sec: 0, on_exceeded: "halt" },
     terminal_states: ["done", "failed", "blocked", "exhausted", "stalled"],
   },
@@ -157,7 +210,7 @@ const loopRuntimeDefinition: LoopDefinition = {
     definition_of_done: "Both fixture tasks complete.",
     stop_when: "nodes.collect.status == 'succeeded'",
     iteration_cap: 1,
-    no_progress: { window: 2, hash_fields: ["delivery_artifact"] },
+    no_progress: { window: 2 },
     budget: { tokens: 0, wall_clock_sec: 0, on_exceeded: "halt" },
     runtime_defaults: {
       worker: { provider: "acpmock", model: "base-model", reasoning: "low" },
@@ -248,7 +301,7 @@ const loopFeedbackDefinition: LoopDefinition = {
     definition_of_done: "The deterministic feedback gate approves.",
     stop_when: "best.score >= 0.95",
     iteration_cap: 3,
-    no_progress: { window: 5, hash_fields: ["delivery_artifact"] },
+    no_progress: { window: 5 },
     budget: { tokens: 0, wall_clock_sec: 0, on_exceeded: "halt" },
     terminal_states: ["done", "failed", "blocked", "exhausted", "stalled"],
   },
@@ -280,7 +333,7 @@ const loopFeedbackDefinition: LoopDefinition = {
             id: "exhaust_score",
             type: "agent-judge",
             agent: loopFeedbackJudge,
-            rubric: "Score the completed candidate deterministically.",
+            rubric: "Score generation {{ .generation }} deterministically.",
             metric: { direction: "maximize" },
           },
         ],
@@ -314,7 +367,7 @@ const loopLifecycleDefinition: LoopDefinition = {
     definition_of_done: "The lane completes after its retry.",
     stop_when: "nodes.execute.status == 'succeeded'",
     iteration_cap: 2,
-    no_progress: { window: 5, hash_fields: ["delivery_artifact"] },
+    no_progress: { window: 5 },
     budget: { tokens: 0, wall_clock_sec: 0, on_exceeded: "halt" },
     terminal_states: ["done", "failed", "blocked", "exhausted", "stalled", "canceled"],
   },
@@ -366,7 +419,7 @@ const loopAuthoringDefinition: LoopDefinition = {
     definition_of_done: "The lane completes after the authored retry.",
     stop_when: "nodes.execute.status == 'succeeded'",
     iteration_cap: 2,
-    no_progress: { window: 5, hash_fields: ["delivery_artifact"] },
+    no_progress: { window: 5 },
     budget: { tokens: 0, wall_clock_sec: 0, on_exceeded: "halt" },
     terminal_states: ["done", "failed", "blocked", "exhausted", "stalled", "canceled"],
   },
@@ -390,6 +443,53 @@ const loopAuthoringDefinition: LoopDefinition = {
       },
     ],
     edges: [],
+  } as LoopDefinition["graph"],
+  start: [{ kind: "http" }],
+};
+
+const loopEditorInteractionDefinition: LoopDefinition = {
+  apiVersion: "compozy.loop/v1",
+  kind: "Loop",
+  meta: {
+    name: loopEditorInteractionName,
+    description: "Exercise structural editor interactions against the daemon.",
+    catalog: { category: "Testing" },
+  },
+  concurrency: "allow",
+  contract: {
+    goal: "Edit a small connected graph.",
+    definition_of_done: "The final transform completes.",
+    stop_when: "nodes.finish.status == 'succeeded'",
+    iteration_cap: 1,
+    no_progress: { window: 2 },
+    budget: { tokens: 0, wall_clock_sec: 0, on_exceeded: "halt" },
+    terminal_states: ["done", "failed", "blocked", "exhausted", "stalled"],
+  },
+  graph: {
+    nodes: [
+      {
+        id: "prepare",
+        class: "action",
+        kind: "transform",
+        params: { map: { ready: { value: true } } },
+      },
+      {
+        id: "apply",
+        class: "action",
+        kind: "transform",
+        params: { map: { applied: { value: true } } },
+      },
+      {
+        id: "finish",
+        class: "action",
+        kind: "transform",
+        params: { map: { done: { value: true } } },
+      },
+    ],
+    edges: [
+      { from: "prepare", to: "apply" },
+      { from: "apply", to: "finish" },
+    ],
   } as LoopDefinition["graph"],
   start: [{ kind: "http" }],
 };
@@ -445,6 +545,28 @@ const runtimeSourceLabels: Record<string, string> = {
   criterion: "criterion runtime",
   agent: "agent definition",
 };
+
+async function openInteractionEditor(appPage: Page, runtime: BrowserRuntime): Promise<void> {
+  if (!runtime.paths) {
+    throw new Error("Loop editor interaction test requires launch-mode runtime paths");
+  }
+  const workspace = await runtime.resolveWorkspace(runtime.paths.homeDir);
+  await completeOnboardingIfPrompted(appPage);
+  const workspacePath = `/api/workspaces/${encodeURIComponent(workspace.id)}`;
+  await runtime.requestJSON(`${workspacePath}/loops`, {
+    method: "POST",
+    body: JSON.stringify({ definition: loopEditorInteractionDefinition }),
+  });
+  await appPage.goto(
+    runtime.url(`/loops/${encodeURIComponent(loopEditorInteractionName)}/editor`),
+    { waitUntil: "domcontentloaded" }
+  );
+  await expect(appPage.getByTestId("loop-editor")).toBeVisible();
+}
+
+function editorNode(appPage: Page, nodeId: string) {
+  return appPage.locator(`[data-testid="loop-editor-node"][data-node-id="${nodeId}"]`);
+}
 
 test("CompozyOS migration E2E-015: run page lifecycle controls and node inventories", async ({
   appPage,
@@ -569,6 +691,65 @@ test("CompozyOS migration E2E-015: run page lifecycle controls and node inventor
   await browserArtifacts.captureScreenshot("loop-node-inventory-quarantined-empty", appPage);
 });
 
+test("an enum ask without type crosses the real browser and daemon seam", async ({
+  appPage,
+  runtime,
+}) => {
+  if (!runtime.paths) {
+    throw new Error("Loop enum ask browser test requires launch-mode runtime paths");
+  }
+  const workspace = await runtime.resolveWorkspace(runtime.paths.homeDir);
+  await completeOnboardingIfPrompted(appPage);
+  const workspacePath = `/api/workspaces/${encodeURIComponent(workspace.id)}`;
+  await runtime.requestJSON(`${workspacePath}/loops`, {
+    method: "POST",
+    body: JSON.stringify({ definition: loopEnumAskDefinition }),
+  });
+
+  const started = await runtime.requestJSON<RunLoopResult>(
+    `${workspacePath}/loops/${encodeURIComponent(loopEnumAskName)}/run`,
+    { method: "POST", body: JSON.stringify({}) }
+  );
+  if (!started.run) throw new Error("Loop enum ask browser seed did not create a run");
+  const runId = started.run.id;
+  const runPath = `${workspacePath}/loop-runs/${encodeURIComponent(runId)}`;
+  await appPage.goto(runtime.url(`/loop-runs/${encodeURIComponent(runId)}`), {
+    waitUntil: "domcontentloaded",
+  });
+
+  const card = appPage.getByTestId("loop-request-card");
+  await expect(card).toBeVisible();
+  await expect(card.getByTestId("loop-request-field-decision")).toBeVisible();
+  await card.getByRole("radio", { name: "approve" }).click();
+  const responsePromise = appPage.waitForResponse(
+    response => response.request().method() === "POST" && response.url().endsWith("/respond")
+  );
+  await card.getByTestId("loop-request-submit").click();
+  const response = await responsePromise;
+  expect(response.status()).toBe(200);
+  expect(JSON.parse(response.request().postData() ?? "{}")).toMatchObject({
+    payload: { decision: "approve" },
+  });
+
+  await expect
+    .poll(
+      async () => {
+        const detail = await runtime.requestJSON<LoopRunDetail>(runPath);
+        const request = (detail.requests ?? []).find(candidate => candidate.node_id === "choose");
+        const downstream = (detail.generations ?? [])
+          .flatMap(generation => generation.outputs)
+          .find(output => output.node_id === "finish");
+        return {
+          requestState: request?.state,
+          runStatus: detail.run.status,
+          downstreamStatus: downstream?.status,
+        };
+      },
+      { timeout: 30_000 }
+    )
+    .toEqual({ requestState: "answered", runStatus: "done", downstreamStatus: "succeeded" });
+});
+
 test("CompozyOS migration E2E-016: author retry + on_error in the editor, publish, and run it", async ({
   appPage,
   browserArtifacts,
@@ -654,6 +835,195 @@ test("CompozyOS migration E2E-016: author retry + on_error in the editor, publis
   await expect(appPage.getByTestId("loop-run-now-node-execute")).toContainText("retrying");
   await expect(appPage.getByTestId("loop-run-now-chip-execute")).toContainText("attempt");
   await browserArtifacts.captureScreenshot("loop-editor-authored-run-retrying", appPage);
+});
+
+test("E2E-031: editor rails collapse, filter, and persist", async ({ appPage, runtime }) => {
+  await openInteractionEditor(appPage, runtime);
+  await appPage.evaluate(key => window.localStorage.removeItem(key), loopEditorChromeStorageKey);
+  await appPage.reload({ waitUntil: "domcontentloaded" });
+
+  const paletteToggle = appPage.getByTestId("loop-editor-palette-toggle");
+  const inspectorToggle = appPage.getByTestId("loop-editor-inspector-toggle");
+  await expect(paletteToggle).toHaveAttribute("aria-pressed", "false");
+  await expect(inspectorToggle).toHaveAttribute("aria-pressed", "false");
+  await expect(appPage.getByTestId("loop-editor-palette")).toHaveCount(0);
+  await expect(appPage.getByTestId("loop-editor-sidebar")).toHaveCount(0);
+
+  await paletteToggle.click();
+  await expect(appPage.getByTestId("loop-editor-palette")).toBeVisible();
+  await paletteToggle.click();
+  await editorNode(appPage, "prepare").dispatchEvent("keydown", {
+    bubbles: true,
+    code: "BracketLeft",
+    key: "[",
+  });
+  const palette = appPage.getByTestId("loop-editor-palette");
+  await expect(palette).toBeVisible();
+  await palette.getByTestId("loop-palette-search").fill("route");
+  await expect(palette.getByTestId("loop-palette-item-route")).toBeVisible();
+  await expect(palette.getByTestId("loop-palette-item-ask")).toHaveCount(0);
+
+  await editorNode(appPage, "prepare").click();
+  await expect(inspectorToggle).toHaveAttribute("aria-pressed", "true");
+  await expect(appPage.getByTestId("loop-editor-tab-node")).toHaveAttribute(
+    "aria-selected",
+    "true"
+  );
+  await editorNode(appPage, "prepare").dispatchEvent("keydown", {
+    bubbles: true,
+    code: "BracketRight",
+    key: "]",
+  });
+  await expect(inspectorToggle).toHaveAttribute("aria-pressed", "false");
+
+  await appPage.reload({ waitUntil: "domcontentloaded" });
+  await expect(appPage.getByTestId("loop-editor-palette")).toBeVisible();
+  await expect(appPage.getByTestId("loop-editor-sidebar")).toHaveCount(0);
+});
+
+test("E2E-032: quick-add places, guards, and reveals nodes", async ({ appPage, runtime }) => {
+  await openInteractionEditor(appPage, runtime);
+  const canvas = appPage.getByTestId("loop-editor-canvas");
+  const prepare = editorNode(appPage, "prepare");
+  await prepare.click();
+  const expected = await canvas.evaluate(element => {
+    const rect = element.getBoundingClientRect();
+    const viewport = element.querySelector<HTMLElement>(".react-flow__viewport");
+    if (!viewport) throw new Error("React Flow viewport not found");
+    const matrix = new DOMMatrix(getComputedStyle(viewport).transform);
+    return {
+      x: (rect.width / 2 - matrix.e) / matrix.a - 188 / 2,
+      y: (rect.height / 2 - matrix.f) / matrix.d - 96 / 2,
+    };
+  });
+  await prepare.press("a");
+  await expect(appPage.getByTestId("loop-editor-quick-add")).toBeVisible();
+  await appPage.getByTestId("loop-quick-add-item-transform").click();
+
+  const added = appPage.locator('.react-flow__node[data-id="transform"]');
+  await expect(added).toBeVisible();
+  const actual = await added.evaluate(element => {
+    const matrix = new DOMMatrix(getComputedStyle(element).transform);
+    return { x: matrix.e, y: matrix.f };
+  });
+  expect(actual.x).toBeCloseTo(expected.x, 0);
+  expect(actual.y).toBeCloseTo(expected.y, 0);
+  await expect(appPage.getByTestId("loop-editor-save")).toBeEnabled();
+
+  const idInput = appPage.getByTestId("loop-field-id");
+  await idInput.focus();
+  await idInput.dispatchEvent("keydown", { key: "a", bubbles: true });
+  await expect(appPage.getByTestId("loop-editor-quick-add")).toHaveCount(0);
+
+  const nodeCount = await appPage.getByTestId("loop-editor-node").count();
+  await appPage.locator(".react-flow__pane").dblclick({ position: { x: 24, y: 24 } });
+  await expect(appPage.getByTestId("loop-editor-quick-add")).toBeVisible();
+  await appPage.getByTestId("loop-quick-add-input").press("Escape");
+  await expect(appPage.getByTestId("loop-editor-node")).toHaveCount(nodeCount);
+
+  await prepare.click();
+  await prepare.press("a");
+  await appPage.getByTestId("loop-quick-add-input").fill("finish");
+  await appPage.getByTestId("loop-quick-add-node-finish").click();
+  await expect(editorNode(appPage, "finish")).toHaveAttribute("data-node-focused", "true");
+});
+
+test("E2E-033: connection drop adds one wired node or no mutation", async ({
+  appPage,
+  runtime,
+}) => {
+  await openInteractionEditor(appPage, runtime);
+  const nodes = appPage.getByTestId("loop-editor-node");
+  const edges = appPage.locator(".react-flow__edge");
+  const initialNodes = await nodes.count();
+  const initialEdges = await edges.count();
+  const finish = editorNode(appPage, "finish");
+  const handle = finish.locator(".react-flow__handle.source");
+  const canvasBox = await appPage.getByTestId("loop-editor-canvas").boundingBox();
+  if (!canvasBox) throw new Error("Connection-drop geometry is unavailable");
+  const drop = {
+    x: canvasBox.x + canvasBox.width * 0.78,
+    y: canvasBox.y + canvasBox.height * 0.82,
+  };
+
+  const dragToCanvas = async () => {
+    await handle.hover();
+    await appPage.mouse.down();
+    const handleBox = await handle.boundingBox();
+    if (!handleBox) throw new Error("Connection handle geometry is unavailable");
+    await appPage.mouse.move(handleBox.x + handleBox.width + 8, handleBox.y + handleBox.height / 2);
+    await expect(appPage.locator(".react-flow__connection")).toBeVisible();
+    await appPage.mouse.move(drop.x, drop.y, { steps: 12 });
+    await appPage.mouse.up();
+    await expect(appPage.getByTestId("loop-editor-connection-picker")).toBeVisible();
+  };
+
+  await dragToCanvas();
+  await appPage.getByTestId("loop-editor-connection-picker").press("Escape");
+  await expect(nodes).toHaveCount(initialNodes);
+  await expect(edges).toHaveCount(initialEdges);
+
+  await dragToCanvas();
+  await appPage.getByTestId("loop-connection-picker-item-transform").click();
+  await expect(nodes).toHaveCount(initialNodes + 1);
+  await expect(edges).toHaveCount(initialEdges + 1);
+  await expect(editorNode(appPage, "transform")).toBeVisible();
+  await expect(appPage.getByTestId("loop-editor-publish")).toBeEnabled();
+});
+
+test("E2E-034: node menus and graph deletion preserve structural integrity", async ({
+  appPage,
+  runtime,
+}) => {
+  await openInteractionEditor(appPage, runtime);
+  const apply = editorNode(appPage, "apply");
+  await apply.click({ button: "right" });
+  for (const verb of ["duplicate", "copy", "delete"]) {
+    await expect(appPage.getByTestId(`loop-node-menu-${verb}`)).toBeEnabled();
+  }
+  await appPage.getByTestId("loop-node-menu-copy").click();
+  await apply.click({ button: "right" });
+  await expect(appPage.getByTestId("loop-node-menu-paste")).toBeEnabled();
+  await appPage.keyboard.press("Escape");
+
+  const edges = appPage.locator(".react-flow__edge");
+  await expect(edges).toHaveCount(2);
+  await edges.first().click({ force: true });
+  await appPage.getByTestId("loop-editor-edge-delete").click();
+  await expect(edges).toHaveCount(1);
+
+  const prepareBox = await editorNode(appPage, "prepare").boundingBox();
+  const applyBox = await apply.boundingBox();
+  if (!prepareBox || !applyBox) throw new Error("Marquee geometry is unavailable");
+  await appPage.keyboard.down("Shift");
+  await appPage.mouse.move(prepareBox.x - 12, Math.min(prepareBox.y, applyBox.y) - 12);
+  await appPage.mouse.down();
+  await appPage.mouse.move(
+    applyBox.x + applyBox.width + 12,
+    Math.max(prepareBox.y + prepareBox.height, applyBox.y + applyBox.height) + 12,
+    { steps: 12 }
+  );
+  await appPage.mouse.up();
+  await appPage.keyboard.up("Shift");
+  await expect(editorNode(appPage, "prepare")).toHaveAttribute("data-node-selected", "true");
+  await expect(apply).toHaveAttribute("data-node-selected", "true");
+  await appPage.keyboard.press("Delete");
+  await expect(editorNode(appPage, "prepare")).toHaveCount(0);
+  await expect(editorNode(appPage, "apply")).toHaveCount(0);
+  await expect(edges).toHaveCount(0);
+
+  await appPage.goto(runtime.url("/loops/review-and-fix/editor"), {
+    waitUntil: "domcontentloaded",
+  });
+  await expect(appPage.getByTestId("loop-editor-readonly-strip")).toBeVisible();
+  await appPage.getByTestId("loop-editor-node").first().dispatchEvent("contextmenu", {
+    bubbles: true,
+    button: 2,
+  });
+  await expect(appPage.getByText("Read-only definition")).toBeVisible();
+  for (const verb of ["duplicate", "copy", "paste", "rename", "delete"]) {
+    await expect(appPage.getByTestId(`loop-node-menu-${verb}`)).toHaveCount(0);
+  }
 });
 
 test("CompozyOS migration E2E-004: loop run renders API runtime provenance without controls", async ({

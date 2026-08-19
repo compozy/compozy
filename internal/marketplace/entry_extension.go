@@ -2,6 +2,7 @@ package marketplace
 
 import (
 	"fmt"
+	"net"
 	"net/url"
 	"regexp"
 	"strings"
@@ -111,9 +112,10 @@ func validateExtensionArtifactURL(entryID string, raw string) error {
 		return fmt.Errorf("marketplace catalog extension entry %q artifact_url is required", entryID)
 	}
 	parsed, err := url.Parse(trimmed)
-	if err != nil || parsed.Scheme != protocolHTTPS || parsed.Host == "" || parsed.User != nil {
+	if err != nil || parsed.Host == "" || parsed.User != nil || !isAllowedExtensionArtifactURL(parsed) {
 		return fmt.Errorf(
-			"marketplace catalog extension entry %q artifact_url must be an absolute HTTPS URL without credentials",
+			"marketplace catalog extension entry %q artifact_url must be an absolute HTTPS URL "+
+				"without credentials; HTTP is allowed only for loopback hosts",
 			entryID,
 		)
 	}
@@ -121,4 +123,15 @@ func validateExtensionArtifactURL(entryID string, raw string) error {
 		return fmt.Errorf("marketplace catalog extension entry %q artifact_url must not contain a fragment", entryID)
 	}
 	return nil
+}
+
+func isAllowedExtensionArtifactURL(parsed *url.URL) bool {
+	if parsed.Scheme == protocolHTTPS {
+		return true
+	}
+	if parsed.Scheme != "http" {
+		return false
+	}
+	host := strings.TrimSpace(parsed.Hostname())
+	return strings.EqualFold(host, "localhost") || net.ParseIP(host).IsLoopback()
 }

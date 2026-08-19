@@ -21,7 +21,8 @@ function richDefinition(): LoopDefinition {
       definition_of_done: "green",
       iteration_cap: 50,
       budget: { tokens: 0, wall_clock_sec: 0, on_exceeded: "halt" },
-      no_progress: { window: 3, hash_fields: ["artifact"] },
+      no_progress: { window: 3 },
+      stop_when: { expr: "generation >= 4", on_eval_error: "fail" },
     },
     inputs: { slug: { type: "string", required: true } },
     start: [{ kind: "manual" }, { kind: "cli" }],
@@ -35,6 +36,15 @@ function richDefinition(): LoopDefinition {
           pattern: "x/*.md",
           parse: "json",
           provenance: "file",
+        },
+        {
+          id: "fan",
+          class: "control",
+          kind: "fan-out",
+          collection: "{{ .nodes.load.output.items }}",
+          strategy: { kind: "best_effort", threshold: "66%", missing: "acceptable" },
+          bind_as: "file",
+          index_as: "file_index",
         },
         {
           id: "execute",
@@ -55,10 +65,22 @@ function richDefinition(): LoopDefinition {
           kind: "gate",
           verdict_policy: "revise_until_clean",
           max_revisions: 3,
+          on_result: { fail: { route: "remediate" }, pass: "continue" },
+        },
+        {
+          id: "router",
+          class: "control",
+          kind: "route",
+          routes: [
+            { when: "nodes.execute.output.score >= 0.8", to: "review" },
+            { when: "nodes.execute.output.needs_repair", to: "remediate" },
+          ],
+          default: "publish",
         },
       ],
       edges: [
-        { from: "load", to: "execute" },
+        { from: "load", to: "fan" },
+        { from: "fan", to: "execute" },
         { from: "execute", to: "review" },
       ],
     } as unknown as LoopDefinition["graph"],
@@ -71,6 +93,36 @@ describe("loop codec", () => {
     const { nodes, edges } = definitionToGraph(def);
     const rebuilt = graphToDefinition(def, nodes, edges);
     expect(rebuilt).toEqual(def);
+  });
+
+  it("Should preserve route grammar and gate object routes as structured values", () => {
+    const def = richDefinition();
+    const { nodes, edges } = definitionToGraph(def);
+    const rebuilt = graphToDefinition(def, nodes, edges);
+    const rawNodes = (rebuilt.graph as unknown as { nodes: Record<string, unknown>[] }).nodes;
+    expect(rawNodes.find(node => node.id === "router")).toMatchObject({
+      routes: [
+        { when: "nodes.execute.output.score >= 0.8", to: "review" },
+        { when: "nodes.execute.output.needs_repair", to: "remediate" },
+      ],
+      default: "publish",
+    });
+    expect(rawNodes.find(node => node.id === "review")?.on_result).toEqual({
+      fail: { route: "remediate" },
+      pass: "continue",
+    });
+  });
+
+  it("Should preserve strategy thresholds and iteration names", () => {
+    const def = richDefinition();
+    const { nodes, edges } = definitionToGraph(def);
+    const rebuilt = graphToDefinition(def, nodes, edges);
+    const rawNodes = (rebuilt.graph as unknown as { nodes: Record<string, unknown>[] }).nodes;
+    expect(rawNodes.find(node => node.id === "fan")).toMatchObject({
+      strategy: { kind: "best_effort", threshold: "66%", missing: "acceptable" },
+      bind_as: "file",
+      index_as: "file_index",
+    });
   });
 
   it("Should round-trip the real implement-tasks definition", () => {
@@ -89,8 +141,8 @@ describe("loop codec", () => {
     expect((execute.data.raw.params as Record<string, unknown>).prompt).toBe(
       "do {{ .item.title }}"
     );
-    expect(edges[0].id).toBe(editorEdgeId("load", "execute", 0));
-    expect(edges[0].source).toBe("load");
+    expect(edges[1].id).toBe(editorEdgeId("fan", "execute", 1));
+    expect(edges[1].source).toBe("fan");
   });
 
   it("Should preserve sibling nodes' unknown fields when one node is edited then published", () => {
@@ -127,6 +179,7 @@ describe("loop codec", () => {
             id: "on_events",
             class: "source",
             kind: "watch-events",
+            on_eval_error: "exit",
             events: [
               { kind: "task.status_changed", filter: "event.payload.to_status == 'completed'" },
               { kind: "loop.terminal" },
@@ -150,6 +203,17 @@ describe("loop codec", () => {
       filter: "event.payload.to_status == 'completed'",
     });
     expect(graphToDefinition(def, nodes, edges)).toEqual(def);
+  });
+
+  it("Should round-trip strict predicate policies", () => {
+    const def = richDefinition();
+    const { nodes, edges } = definitionToGraph(def);
+    const rebuilt = graphToDefinition(def, nodes, edges);
+
+    expect(rebuilt.contract.stop_when).toEqual({
+      expr: "generation >= 4",
+      on_eval_error: "fail",
+    });
   });
 
   it("Should synthesize a raw edge for a connection drawn with no original JSON", () => {

@@ -18,7 +18,7 @@ import {
   LOOP_NODE_KIND_ICONS,
   loopNodeClassIcon,
 } from "../../lib/loop-node-kind-icons";
-import { LOOP_PALETTE, type PaletteItem } from "../../lib/loop-palette";
+import { LOOP_PALETTE, paletteKindKey, type PaletteItem } from "../../lib/loop-palette";
 
 interface LoopEditorPaletteMenuProps {
   onAddNode: (item: PaletteItem) => void;
@@ -30,17 +30,9 @@ const LOOP_EDITOR_KIND_ICON_REGISTRY = {
   "": LOOP_CALL_TOOL_ICON,
 } satisfies KindIconRegistry;
 
-function paletteKindKey(kindLabel: string): string {
-  return kindLabel === "tool…" ? "" : kindLabel;
-}
-
-/**
- * Compact Add-node menu for viewports below `lg`, where the side palette is
- * `hidden`. Groups and items mirror `LOOP_PALETTE` and call the same `onAddNode`.
- */
 export function LoopEditorPaletteMenu({ onAddNode, disabled = false }: LoopEditorPaletteMenuProps) {
   return (
-    <div className="lg:hidden" data-testid="loop-editor-palette-menu">
+    <div data-testid="loop-editor-palette-menu">
       <DropdownMenu>
         <DropdownMenuTrigger
           render={

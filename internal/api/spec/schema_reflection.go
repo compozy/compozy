@@ -266,7 +266,7 @@ func parseJSONField(field reflect.StructField) (name string, omitEmpty bool, ski
 	} else {
 		name = field.Name
 	}
-	if slices.Contains(parts[1:], "omitempty") {
+	if slices.Contains(parts[1:], "omitempty") || slices.Contains(parts[1:], "omitzero") {
 		omitEmpty = true
 	}
 	return name, omitEmpty, false

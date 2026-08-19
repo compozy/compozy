@@ -95,7 +95,7 @@ func TestCoordinatorRunnerShouldPreserveMixedGenerationAtGoalControlBoundary(t *
 		liveRun := controlWorkerRun(loopRun, "summarize", 0, task.TaskRunStatusRunning)
 		watchRef := watchEventsPendingRefForTest(t, 7, "")
 		ledger := &watchEventsLedgerForTest{
-			rows: watchLargeTaskStatusEventsForTest(8, LoopMaxFanoutWidth),
+			rows: watchLargeTaskStatusEventsForTest(8, LoopWatchEventPageLimit),
 		}
 		runner := newCoordinatorRunnerForControlTest(
 			t,
@@ -171,7 +171,7 @@ func TestCoordinatorRunnerShouldPreserveMixedGenerationAtGoalControlBoundary(t *
 			t.Fatalf("watch blob ref = %q, want %q", payload.OutputBlobs[0].OutputRef, outputs["watch_tasks"].OutputRef)
 		}
 		confirmed := decodeWatchEventsOutputRefForTest(t, string(payload.OutputBlobs[0].Payload))
-		wantCursor := int64(7 + LoopMaxFanoutWidth)
+		wantCursor := int64(7 + LoopWatchEventPageLimit)
 		if got := confirmed.Cursors[WatchEventsTaskStream]; got != wantCursor {
 			t.Fatalf("confirmed watch cursor = %d, want %d", got, wantCursor)
 		}
@@ -528,7 +528,7 @@ func goalCoordinatorDefinition() dsl.Definition {
 		Kind:       dsl.KindLoop,
 		Meta:       dsl.Meta{Name: "goal-coordinator", Version: 1},
 		Inputs: map[string]dsl.Input{
-			"items": {Type: dsl.InputTypeRef},
+			"items": {Type: dsl.InputTypeRef, Ref: &dsl.InputRef{Kind: dsl.InputRefKindSkill}},
 		},
 		Contract: dsl.Contract{
 			Goal:             "Converge",

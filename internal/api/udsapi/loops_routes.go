@@ -60,6 +60,9 @@ func registerLoopRoutes(api gin.IRouter, handlers *Handlers) {
 	{
 		runs.GET("", handlers.ListLoopRuns)
 		runs.GET("/:run_id", handlers.GetLoopRun)
+		runs.GET("/:run_id/diff", handlers.DiffLoopRun)
+		runs.POST("/:run_id/rerun", handlers.RerunLoopRun)
+		runs.POST("/:run_id/fork", handlers.ForkLoopRun)
 		runs.GET("/:run_id/turns", handlers.ListGoalTurns)
 		runs.POST("/:run_id/cancel", handlers.CancelLoopRun)
 		runs.POST("/:run_id/kill", handlers.KillLoopRun)
@@ -71,7 +74,15 @@ func registerLoopRoutes(api gin.IRouter, handlers *Handlers) {
 		runs.POST("/:run_id/nodes/:node_id/cancel", handlers.CancelLoopNode)
 		runs.POST("/:run_id/nodes/:node_id/kill", handlers.KillLoopNode)
 		runs.POST("/:run_id/nodes/:node_id/requeue", handlers.RequeueLoopNode)
+		runs.GET("/:run_id/nodes/:node_id/request", handlers.GetLoopRequest)
+		runs.POST("/:run_id/nodes/:node_id/respond", handlers.RespondLoopRequest)
+		runs.POST("/:run_id/nodes/:node_id/amend", handlers.AmendLoopNode)
 		runs.GET("/:run_id/events", handlers.StreamLoopRunEvents)
+	}
+
+	requests := api.Group("/workspaces/:workspace_id/loop-requests")
+	{
+		requests.GET("", handlers.ListLoopRequests)
 	}
 
 	api.GET("/workspaces/:workspace_id/loop-nodes", handlers.ListLoopNodes)

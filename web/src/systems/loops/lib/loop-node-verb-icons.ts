@@ -1,4 +1,15 @@
-import { Ban, Pause, Play, Redo2, ShieldAlert, SkipForward, TimerReset, Zap } from "lucide-react";
+import {
+  Ban,
+  Pause,
+  Pencil,
+  Play,
+  Redo2,
+  RotateCcw,
+  ShieldAlert,
+  SkipForward,
+  TimerReset,
+  Zap,
+} from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 
 import type { ConfirmDialogIconTone } from "@compozy/ui";
@@ -16,6 +27,8 @@ export const LOOP_NODE_VERB_ICONS: Record<LoopNodeVerb, LucideIcon> = {
   kill: Zap,
   requeue: Redo2,
   "open-quarantine": ShieldAlert,
+  amend: Pencil,
+  rerun: RotateCcw,
 };
 
 export const LOOP_RUN_VERB_ICONS: Record<Extract<LoopRunVerb, "cancel" | "kill">, LucideIcon> = {
@@ -34,6 +47,8 @@ export const LOOP_NODE_VERB_ICON_TONE: Record<LoopNodeVerb, ConfirmDialogIconTon
   kill: "danger",
   requeue: "accent",
   "open-quarantine": "danger",
+  amend: "accent",
+  rerun: "accent",
 };
 
 export const LOOP_RUN_VERB_ICON_TONE: Record<

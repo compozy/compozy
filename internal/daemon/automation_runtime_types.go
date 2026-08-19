@@ -49,4 +49,6 @@ type automationManagerDeps struct {
 	LoopCatalog           *resourceCatalog[looppkg.ResourceSpec]
 	ToolRegistry          toolspkg.Registry
 	ParticipationResolver participation.Resolver
+	LoopInputEntities     looppkg.InputEntityCatalog
+	LoopRuntimeCatalog    looppkg.WorkspaceRuntimeCatalog
 }

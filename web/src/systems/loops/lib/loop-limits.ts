@@ -2,17 +2,11 @@ import type { LoopEffectiveConfig, LoopRunRecord } from "../types";
 import { UNBOUNDED_CAP } from "./loop-catalog";
 import { resolveLoopEffectiveConfig } from "./loop-effective-config";
 
-/**
- * Hard daemon ceilings (LOOPS-DESIGN-SPEC §5.4 / ADR-012/017/022). These are
- * compile-time backstops, never editable in the UI; the right-hand value of every
- * limit row. The left value is the per-loop default read from the definition.
- */
 export const LOOP_CEILINGS = {
   iterationCap: 100,
   tokens: "20M",
   wallClock: "7d",
   noProgressWindow: 10,
-  fanOutBreadth: 64,
   gateMaxRevisions: 10,
   /** Numeric forms of the token/wall-clock ceilings the run-form override grid clamps to. */
   tokensMax: 20_000_000,
@@ -56,7 +50,7 @@ export interface LoopLimitRow {
 
 /**
  * Limit rows on the Loop-detail right rail, pairing each per-loop default with
- * its daemon ceiling. Fan-out breadth is bounded by the loaded task count.
+ * its daemon ceiling or runtime qualifier.
  */
 /**
  * The single policy→outcome vocabulary for `budget_on_exceeded`, shared by the
@@ -102,9 +96,9 @@ export function buildLoopLimits(effectiveConfig: LoopEffectiveConfig): LoopLimit
       ceiling: `/ ${LOOP_CEILINGS.noProgressWindow}`,
     },
     {
-      label: "Fan-out breadth",
+      label: "Fan-out window",
       value: effective.fan_out_width > 0 ? String(effective.fan_out_width) : "≤ tasks",
-      ceiling: `/ ${LOOP_CEILINGS.fanOutBreadth}`,
+      ceiling: "no fixed cap",
     },
     {
       label: "Gate max revisions",

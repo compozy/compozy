@@ -70,12 +70,21 @@ func updateLoopBoundaryStatusWithEffects(
 	if strings.TrimSpace(string(cause)) == "" {
 		return fmt.Errorf("%w: transition cause is required", loop.ErrValidation)
 	}
+	completionPartial := int64(0)
+	if to.Terminal() {
+		if err := exec.QueryRowContext(ctx, `SELECT EXISTS(SELECT 1 FROM loop_generation_outputs
+			WHERE loop_run_id = ? AND generation = ? AND status = 'partial')`,
+			current.ID, generation).Scan(&completionPartial); err != nil {
+			return fmt.Errorf("store: inspect partial Loop completion: %w", err)
+		}
+	}
 	affected, err := sqlcgen.New(exec).TransitionLoopCoordinatorBoundary(
 		ctx,
 		sqlcgen.TransitionLoopCoordinatorBoundaryParams{
 			ToStatus: string(to), Generation: int64(generation),
 			NeedsApprovalStatus: string(loop.StatusNeedsApproval), ID: string(current.ID),
-			FromStatus: string(current.Status),
+			FromStatus:        string(current.Status),
+			CompletionPartial: completionPartial,
 		},
 	)
 	if err != nil {

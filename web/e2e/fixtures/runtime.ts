@@ -251,6 +251,7 @@ function resolveMarketplaceCatalogSeed(
       }
       return {
         ...catalogEntry,
+        artifact_url: extensionRegistry.artifactURLFor(digestReleaseTag),
         digest_sha256: extensionRegistry.digestFor(digestReleaseTag),
       };
     }),

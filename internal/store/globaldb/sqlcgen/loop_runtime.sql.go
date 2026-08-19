@@ -170,31 +170,41 @@ const getLoopGenerationOutputPayload = `-- name: GetLoopGenerationOutputPayload 
 SELECT blob.payload_json
 FROM loop_generation_outputs AS output
 JOIN loop_runs AS run ON run.id = output.loop_run_id
-JOIN loop_output_blobs AS blob ON blob.output_ref = output.output_ref
-WHERE output.loop_run_id = ?1
-  AND output.generation = ?2
-  AND output.node_id = ?3
-  AND output.item_index = ?4
-  AND output.output_ref = ?5
+JOIN loop_output_blobs AS blob ON blob.output_ref = ?1
+WHERE output.loop_run_id = ?2
+  AND output.generation = ?3
+  AND output.node_id = ?4
+  AND output.item_index = ?5
+  AND (
+    output.output_ref = ?1
+    OR EXISTS (
+      SELECT 1 FROM loop_node_amendments AS amendment
+      WHERE amendment.loop_run_id = output.loop_run_id
+        AND amendment.generation = output.generation
+        AND amendment.node_id = output.node_id
+        AND amendment.item_index = output.item_index
+        AND amendment.amended_ref = ?1
+    )
+  )
   AND run.workspace_id = ?6
 `
 
 type GetLoopGenerationOutputPayloadParams struct {
-	LoopRunID   string         `json:"loop_run_id"`
-	Generation  int64          `json:"generation"`
-	NodeID      string         `json:"node_id"`
-	ItemIndex   int64          `json:"item_index"`
-	OutputRef   sql.NullString `json:"output_ref"`
-	WorkspaceID string         `json:"workspace_id"`
+	OutputRef   string `json:"output_ref"`
+	LoopRunID   string `json:"loop_run_id"`
+	Generation  int64  `json:"generation"`
+	NodeID      string `json:"node_id"`
+	ItemIndex   int64  `json:"item_index"`
+	WorkspaceID string `json:"workspace_id"`
 }
 
 func (q *Queries) GetLoopGenerationOutputPayload(ctx context.Context, arg GetLoopGenerationOutputPayloadParams) (string, error) {
 	row := q.db.QueryRowContext(ctx, getLoopGenerationOutputPayload,
+		arg.OutputRef,
 		arg.LoopRunID,
 		arg.Generation,
 		arg.NodeID,
 		arg.ItemIndex,
-		arg.OutputRef,
 		arg.WorkspaceID,
 	)
 	var payload_json string
@@ -1010,6 +1020,17 @@ AND NOT EXISTS (
 AND NOT EXISTS (
   SELECT 1 FROM loop_goal_checkpoints
   WHERE loop_goal_checkpoints.report_evidence_ref = loop_output_blobs.output_ref
+)
+AND NOT EXISTS (
+  SELECT 1 FROM loop_requests
+  WHERE loop_requests.context_ref = loop_output_blobs.output_ref
+     OR loop_requests.proposed_ref = loop_output_blobs.output_ref
+     OR loop_requests.answered_payload_ref = loop_output_blobs.output_ref
+)
+AND NOT EXISTS (
+  SELECT 1 FROM loop_node_amendments
+  WHERE loop_node_amendments.original_ref = loop_output_blobs.output_ref
+     OR loop_node_amendments.amended_ref = loop_output_blobs.output_ref
 )
 `
 

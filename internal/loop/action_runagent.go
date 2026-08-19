@@ -29,7 +29,7 @@ func (e *RunAgentActionExecutor) Execute(
 			map[string]string{actionDependencyMetaKey: "session_binder"},
 		)
 	}
-	params, err := renderNodeParamsExcept(node, in.Namespace, map[string]struct{}{
+	params, err := actionParamsExcept(node, in, map[string]struct{}{
 		outputSchemaParamKey: {},
 	})
 	if err != nil {

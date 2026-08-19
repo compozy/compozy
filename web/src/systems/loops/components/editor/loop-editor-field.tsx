@@ -34,6 +34,9 @@ import { LoopEditorEnvironmentField } from "./loop-editor-environment-field";
 import { LoopEditorJsonField } from "./loop-editor-json-field";
 import { LoopEditorWaitMode } from "./loop-editor-wait-mode";
 import { LoopEditorFold } from "./loop-editor-fold";
+import { LoopEditorReviewField } from "./loop-editor-review-field";
+import { LoopEditorRoute } from "./loop-editor-route";
+import { LoopEditorStrategyField } from "./loop-editor-strategy-field";
 import { LoopEditorWatchEvents } from "./loop-editor-watch-events";
 import { LoopReferenceInput } from "./loop-reference-input";
 
@@ -322,6 +325,36 @@ export function LoopEditorField(props: LoopEditorFieldProps) {
         raw={raw as RawLoopNode}
         suggestions={props.suggestions}
         worktrees={props.worktrees}
+      />
+    );
+  }
+
+  if (field.type === "routes") {
+    return (
+      <LoopEditorRoute
+        disabled={disabled}
+        onChangeFields={props.onChangeFields}
+        spec={field}
+        suggestions={props.suggestions}
+      />
+    );
+  }
+  if (field.type === "strategy") {
+    return (
+      <LoopEditorStrategyField
+        disabled={disabled}
+        onChangeFields={props.onChangeFields}
+        spec={field}
+      />
+    );
+  }
+  if (field.type === "review") {
+    return (
+      <LoopEditorReviewField
+        disabled={disabled}
+        onChangeFields={props.onChangeFields}
+        spec={field}
+        suggestions={props.suggestions}
       />
     );
   }

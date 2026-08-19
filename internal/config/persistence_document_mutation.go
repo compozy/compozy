@@ -2,9 +2,7 @@ package config
 
 import (
 	"bytes"
-
 	"slices"
-
 	"strings"
 
 	tomlast "github.com/pelletier/go-toml/v2/unstable"
@@ -106,10 +104,18 @@ func setTableInOverlayDocument(source []byte, path []string, values map[string]a
 	}
 
 	block, ok := document.tableBlockIncludingNested(path)
-	if !ok {
+	if ok {
+		return replaceOffsets(source, block.start, block.end, []byte(fragment)), nil
+	}
+	descendants := document.descendantTableBlocks(path)
+	if len(descendants) == 0 {
 		return appendFragment(source, fragment), nil
 	}
-	return replaceOffsets(source, block.start, block.end, []byte(fragment)), nil
+	rendered := append([]byte(nil), source...)
+	for _, descendant := range slices.Backward(descendants) {
+		rendered = replaceOffsets(rendered, descendant.start, descendant.end, nil)
+	}
+	return appendFragment(rendered, fragment), nil
 }
 
 func upsertArrayTableItemInOverlayDocument(

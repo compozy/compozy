@@ -37,6 +37,7 @@ export interface AttentionBellProps {
   sections: OsAttentionSections;
   sessionsDisconnected: boolean;
   tasksDisconnected: boolean;
+  loopRequestsDisconnected?: boolean;
   loading: boolean;
   onSelect: (row: OsAttentionRow) => void;
 }
@@ -55,10 +56,17 @@ export function AttentionBell({
   sections,
   sessionsDisconnected,
   tasksDisconnected,
+  loopRequestsDisconnected = false,
   loading,
   onSelect,
 }: AttentionBellProps) {
-  const disconnected = sessionsDisconnected || tasksDisconnected;
+  const disconnected = sessionsDisconnected || tasksDisconnected || loopRequestsDisconnected;
+  const unavailable = [
+    sessionsDisconnected ? "session" : null,
+    tasksDisconnected ? "task" : null,
+    loopRequestsDisconnected ? "loop request" : null,
+  ].filter((source): source is string => source !== null);
+  const unavailableLabel = unavailable.join(" and ");
   const empty = sections.needsYou.length === 0 && sections.finished.length === 0;
 
   return (
@@ -70,13 +78,7 @@ export function AttentionBell({
           data-testid="os-bell-disconnected"
         >
           <Icon as={CircleAlert} size="sm" className="mt-0.5 shrink-0" />
-          <span>
-            {sessionsDisconnected && tasksDisconnected
-              ? "Session and task attention are unavailable. Listed rows are frozen and do not count."
-              : sessionsDisconnected
-                ? "Session attention is unavailable. Listed rows are frozen and do not count."
-                : "Task attention is unavailable."}
-          </span>
+          <span>{`${unavailableLabel.charAt(0).toUpperCase()}${unavailableLabel.slice(1)} attention ${unavailable.length === 1 ? "is" : "are"} unavailable. Frozen rows do not count.`}</span>
         </div>
       ) : null}
       <div className="-mx-1 flex max-h-96 min-h-0 flex-col overflow-y-auto">

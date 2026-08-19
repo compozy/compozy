@@ -34,6 +34,8 @@ export interface RuntimeSelectorProps {
   refreshing?: boolean;
   /** Rendered under the search header (stale/error/count status). */
   catalogStatus?: ReactNode;
+  /** Allows an exact `provider/model` value when the provider catalog has no matching row. */
+  allowCustomProvider?: boolean;
   onOpenProviderSettings?: () => void;
   /**
    * Session-level ACP speed request (PR #267). Both props together render the
@@ -63,6 +65,7 @@ export function RuntimeSelector({
   onRefreshCatalog,
   refreshing = false,
   catalogStatus,
+  allowCustomProvider = false,
   onOpenProviderSettings,
   speed,
   onSpeedChange,
@@ -71,7 +74,13 @@ export function RuntimeSelector({
   ariaLabelledby,
   className,
 }: RuntimeSelectorProps) {
-  const controller = useRuntimeSelector({ value, onChange, providers, models });
+  const controller = useRuntimeSelector({
+    value,
+    onChange,
+    providers,
+    models,
+    allowCustomProvider,
+  });
   const triggerRef = useRef<HTMLButtonElement>(null);
   const searchRef = useRef<HTMLInputElement>(null);
   const inert = disabled || readOnly;
@@ -149,7 +158,7 @@ export function RuntimeSelector({
               <>
                 <Plus aria-hidden="true" className="size-3.5 shrink-0 text-subtle" />
                 <label htmlFor={exactInputId} className="shrink-0 text-badge font-medium text-fg">
-                  Exact model ID
+                  {allowCustomProvider ? "Exact runtime ID" : "Exact model ID"}
                 </label>
               </>
             ) : (
@@ -169,7 +178,13 @@ export function RuntimeSelector({
               value={controller.query}
               onChange={event => controller.changeQuery(event.target.value)}
               onKeyDown={popup.handleSearchKeyDown}
-              placeholder={exactEntry ? "composer-2.5" : "Search models, providers…"}
+              placeholder={
+                exactEntry && allowCustomProvider
+                  ? "provider/model"
+                  : exactEntry
+                    ? "composer-2.5"
+                    : "Search models, providers…"
+              }
               autoComplete="off"
               spellCheck={false}
               data-testid="runtime-selector-search"

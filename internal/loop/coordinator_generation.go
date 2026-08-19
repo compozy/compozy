@@ -3,7 +3,6 @@ package loop
 import (
 	"context"
 	"fmt"
-	"time"
 
 	"github.com/compozy/compozy/internal/loop/gate"
 	"github.com/compozy/compozy/internal/task"
@@ -35,7 +34,7 @@ func (r *CoordinatorRunner) buildGenerationFinisherPlan(
 	if err != nil {
 		return task.CoordinatorCompletionPlan{}, err
 	}
-	failed := selectFailedOutput(state.outputs)
+	failed := selectFailedOutputControlAware(def.Graph, state.topology, state.outputs)
 	plan := coordinatorFinisherPlan(run, generation, state.outputs, state.loopStops)
 	if err := appendAttemptsToGenerationSnapshot(&plan.Snapshot, state.attempts); err != nil {
 		return task.CoordinatorCompletionPlan{}, err
@@ -207,6 +206,11 @@ func (r *CoordinatorRunner) buildGoalControlFinisherPlan(
 	live bool,
 	controlTerminal *task.CoordinatorTerminal,
 ) (task.CoordinatorCompletionPlan, error) {
+	if !live {
+		plan.Terminal = controlTerminal
+		plan.GenerationInFlight = false
+		return plan, nil
+	}
 	goalPlan, err := r.buildLiveGenerationPlan(
 		ctx,
 		taskRun,
@@ -254,6 +258,7 @@ func (r *CoordinatorRunner) buildLiveGenerationPlan(
 	}
 	advancedOutputs := cloneGenerationOutputs(normalized)
 	applyWaitExpiryRoutes(resolved.Definition.Graph, topology, &advancedOutputs)
+	applyReviewRejectRoutes(resolved.Definition.Graph, topology, &advancedOutputs)
 	outputBlobs := []GenerationOutputBlob{}
 	gateEvaluations := &gateEvaluationCollector{}
 	terminal, err := advanceControlNodes(
@@ -319,11 +324,22 @@ func (r *CoordinatorRunner) liveControlEvalContext(
 	history GenerationHistory,
 ) *controlEvalContext {
 	return &controlEvalContext{
-		ctx: ctx, run: run, generation: generation, resolved: resolved, topology: topology,
-		effective: effective, gateEvaluator: gateEvaluator, gateDecisions: r.store,
-		runtimeCatalog: r.runtimeCatalog, fanOutWidth: fanOutWidth, watchRuntime: watchRuntime,
-		watchEventsRuntime: watchEventsRuntime, gateEvaluations: gateEvaluations, history: history,
-		now: r.now().UTC(),
+		ctx:                ctx,
+		run:                run,
+		generation:         generation,
+		resolved:           resolved,
+		topology:           topology,
+		effective:          effective,
+		gateEvaluator:      gateEvaluator,
+		gateDecisions:      r.store,
+		nodeControls:       r.controls,
+		runtimeCatalog:     r.runtimeCatalog,
+		fanOutWidth:        fanOutWidth,
+		watchRuntime:       watchRuntime,
+		watchEventsRuntime: watchEventsRuntime,
+		gateEvaluations:    gateEvaluations,
+		history:            history,
+		now:                r.now().UTC(),
 	}
 }
 
@@ -368,43 +384,6 @@ func (r *CoordinatorRunner) finishLiveGenerationPlan(
 		ctx, taskRun, run, generation, resolved, effective, topology, gateEvaluator,
 		plan, advancedOutputs, gateEvaluations, history,
 	)
-}
-
-func appendReadyNodeRunsToPlan(
-	plan *task.CoordinatorCompletionPlan,
-	run Run,
-	generation int,
-	resolved *ResolvedDefinition,
-	topology controlTopology,
-	gateEvaluator gate.GateEvaluator,
-	advancedOutputs []GenerationOutput,
-	outputBlobs []GenerationOutputBlob,
-	scheduledAt time.Time,
-) (bool, error) {
-	postReserveOutputs := cloneGenerationOutputs(sortedGenerationOutputs(advancedOutputs))
-	if err := appendReadyNodeRunsControlAware(
-		plan,
-		run,
-		generation,
-		resolved,
-		topology,
-		gateEvaluator != nil,
-		postReserveOutputs,
-		scheduledAt,
-	); err != nil {
-		return false, err
-	}
-	if len(plan.NodeRuns) == 0 {
-		return false, nil
-	}
-	postReserveOutputs = generationOutputsExpectCurrentEpoch(postReserveOutputs)
-	plan.PostReserveSnapshot = generationSnapshotWithOutputs(
-		run.ID,
-		generation,
-		postReserveOutputs,
-		outputBlobs,
-	)
-	return true, nil
 }
 
 func appendAttemptsToGenerationSnapshot(

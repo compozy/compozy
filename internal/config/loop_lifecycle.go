@@ -39,6 +39,11 @@ type LoopWaitDefaultConfig struct {
 	AdmissionRetryInterval string `toml:"admission_retry_interval"`
 }
 
+// LoopRequestsDefaultConfig controls the default lifetime of human requests.
+type LoopRequestsDefaultConfig struct {
+	ExpireAfter string `toml:"expire_after"`
+}
+
 // LoopAdmissionDefaultConfig controls watch admission tombstone retention.
 type LoopAdmissionDefaultConfig struct {
 	TombstoneHorizon string `toml:"tombstone_horizon"`
@@ -101,6 +106,14 @@ func (c LoopWaitDefaultConfig) validate(path string) error {
 		return ValidationError{Path: path + ".admission_attempts", Message: loopPositiveValueMessage}
 	}
 	_, err := parsePositiveLoopDuration(path+".admission_retry_interval", c.AdmissionRetryInterval, false)
+	return err
+}
+
+func (c LoopRequestsDefaultConfig) validate(path string) error {
+	if strings.TrimSpace(c.ExpireAfter) == "" {
+		return nil
+	}
+	_, err := parsePositiveLoopDuration(path+".expire_after", c.ExpireAfter, false)
 	return err
 }
 

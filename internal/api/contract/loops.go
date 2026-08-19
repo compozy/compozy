@@ -2,8 +2,8 @@ package contract
 
 import (
 	"encoding/json"
-	"fmt"
 
+	"github.com/compozy/compozy/internal/loop/dsl"
 	"github.com/compozy/compozy/internal/network/participation"
 )
 
@@ -15,6 +15,14 @@ const (
 	LoopSourceUser        LoopSource = "user"
 	LoopSourceAdditional  LoopSource = "additional"
 	LoopSourceWorkspace   LoopSource = "workspace"
+)
+
+// LoopCompletionState distinguishes full success from accepted partial completion.
+type LoopCompletionState string
+
+const (
+	LoopCompletionStateComplete LoopCompletionState = "complete"
+	LoopCompletionStatePartial  LoopCompletionState = "partial"
 )
 
 // LoopRunStatus is the public loop run state vocabulary.
@@ -57,6 +65,7 @@ const (
 	LoopRunTransitionCauseWatchPoll          LoopRunTransitionCause = "watch_poll"
 	LoopRunTransitionCauseWatchEvents        LoopRunTransitionCause = "watch_events"
 	LoopRunTransitionCauseCoordinatorFailure LoopRunTransitionCause = "coordinator_failure"
+	LoopRunTransitionCauseOperatorRerun      LoopRunTransitionCause = "operator_rerun"
 )
 
 // LoopNodeClass is the public loop graph node class vocabulary.
@@ -162,19 +171,32 @@ type LoopValidationResponse struct {
 	Valid             bool                               `json:"valid"`
 	Errors            []LoopLintErrorPayload             `json:"errors,omitempty"`
 	RuntimeValidation []LoopRuntimeValidationItemPayload `json:"runtime_validation,omitempty"`
-	InputDefault      *LoopInputDefaultErrorPayload      `json:"input_default,omitempty"`
+	InputValidation   *LoopInputValidationErrorPayload   `json:"input_validation,omitempty"`
 }
 
-// LoopInputDefaultErrorPayload reports one input resolution failure.
-type LoopInputDefaultErrorPayload struct {
+// LoopInputValidationErrorPayload reports one field-addressed input failure.
+type LoopInputValidationErrorPayload struct {
 	Loop   string `json:"loop"`
-	Key    string `json:"key"`
+	Field  string `json:"field"`
+	Kind   string `json:"kind,omitempty"`
+	Value  string `json:"value,omitempty"`
+	Origin string `json:"origin"`
 	Reason string `json:"reason"`
+}
+
+// LoopUnprocessableResponse preserves either a reason envelope or a field-addressed input failure.
+type LoopUnprocessableResponse struct {
+	Error           string                           `json:"error,omitempty"`
+	Code            string                           `json:"code,omitempty"`
+	Details         map[string]string                `json:"details,omitempty"`
+	Valid           bool                             `json:"valid,omitempty"`
+	InputValidation *LoopInputValidationErrorPayload `json:"input_validation,omitempty"`
 }
 
 // LoopLintErrorPayload is the per-node 422 payload surfaced to authoring clients.
 type LoopLintErrorPayload struct {
 	NodeID   string           `json:"node_id,omitempty"`
+	Path     string           `json:"path,omitempty"`
 	Code     string           `json:"code"`
 	Message  string           `json:"message"`
 	Severity LoopLintSeverity `json:"severity"`
@@ -315,56 +337,18 @@ type PutLoopAnnotationsRequest struct {
 	Annotations []LoopAnnotationPayload `json:"annotations"`
 }
 
-// LoopDefinitionDocument is the public compozy.loop/v1 authoring document.
-type LoopDefinitionDocument struct {
-	APIVersion           string                 `json:"apiVersion"`
-	Kind                 string                 `json:"kind"`
-	Meta                 LoopDefinitionMeta     `json:"meta"`
-	Concurrency          string                 `json:"concurrency,omitempty"`
-	Inputs               map[string]LoopInput   `json:"inputs,omitempty"`
-	Contract             LoopContract           `json:"contract"`
-	Graph                LoopGraph              `json:"graph"`
-	Start                []LoopStartBinding     `json:"start,omitempty"`
-	NetworkParticipation *participation.Request `json:"network_participation,omitempty"`
-}
-
-// NewLoopDefinitionDocument converts any JSON-compatible loop document into the public DTO.
-func NewLoopDefinitionDocument(value any) (LoopDefinitionDocument, error) {
-	var out LoopDefinitionDocument
-	if err := transcodeLoopDTO(value, &out); err != nil {
-		return LoopDefinitionDocument{}, err
-	}
-	return out, nil
-}
-
-// Decode converts the public loop document into a caller-owned engine or SDK type.
-func (d LoopDefinitionDocument) Decode(target any) error {
-	return transcodeLoopDTO(d, target)
-}
-
-type LoopDefinitionMeta struct {
-	Name        string          `json:"name"`
-	Version     int             `json:"version,omitempty"`
-	Description string          `json:"description,omitempty"`
-	Catalog     LoopCatalogMeta `json:"catalog"`
-}
-
-type LoopCatalogMeta struct {
-	UseWhen  string   `json:"use_when,omitempty"`
-	Keywords []string `json:"keywords,omitempty"`
-	Category string   `json:"category,omitempty"`
-}
-
+// LoopInput is the bounded input projection returned by the Loop catalog.
 type LoopInput struct {
-	Type        string        `json:"type"`
+	Type        dsl.InputType `json:"type"`
 	Required    bool          `json:"required,omitempty"`
 	Description string        `json:"description,omitempty"`
 	Ref         *LoopInputRef `json:"ref,omitempty"`
+	Enum        []string      `json:"enum,omitempty"`
 	Default     any           `json:"default,omitempty"`
 }
 
 type LoopInputRef struct {
-	Kind string `json:"kind"`
+	Kind dsl.InputRefKind `json:"kind"`
 }
 
 type LoopContract struct {
@@ -372,7 +356,7 @@ type LoopContract struct {
 	DefinitionOfDone string               `json:"definition_of_done"`
 	Constraints      []string             `json:"constraints,omitempty"`
 	Boundaries       []string             `json:"boundaries,omitempty"`
-	StopWhen         string               `json:"stop_when,omitempty"`
+	StopWhen         dsl.StopWhenSpec     `json:"stop_when,omitzero"`
 	Verification     []LoopGateCriterion  `json:"verification,omitempty"`
 	TerminalStates   []string             `json:"terminal_states,omitempty"`
 	IterationCap     int                  `json:"iteration_cap"`
@@ -384,49 +368,13 @@ type LoopContract struct {
 }
 
 type LoopNoProgress struct {
-	Window     int      `json:"window"`
-	HashFields []string `json:"hash_fields,omitempty"`
+	Window int `json:"window"`
 }
 
 type LoopBudget struct {
 	Tokens       int                `json:"tokens"`
 	WallClockSec int                `json:"wall_clock_sec"`
 	OnExceeded   LoopBudgetExceeded `json:"on_exceeded,omitempty"`
-}
-
-type LoopGraph struct {
-	Nodes []LoopGraphNode `json:"nodes"`
-	Edges []LoopGraphEdge `json:"edges"`
-}
-
-type LoopGraphNode struct {
-	ID            string                       `json:"id"`
-	Class         LoopNodeClass                `json:"class"`
-	Kind          string                       `json:"kind"`
-	Session       map[string]any               `json:"session,omitempty"`
-	Timeout       string                       `json:"timeout,omitempty"`
-	Retry         *LoopRetrySpec               `json:"retry,omitempty"`
-	Harvest       map[string]any               `json:"harvest,omitempty"`
-	Produces      map[string]any               `json:"produces,omitempty"`
-	Params        map[string]any               `json:"params,omitempty"`
-	Collection    string                       `json:"collection,omitempty"`
-	Filter        string                       `json:"filter,omitempty"`
-	BatchSize     int                          `json:"batch_size,omitempty"`
-	MaxParallel   int                          `json:"max_parallel,omitempty"`
-	MaxFanOut     int                          `json:"max_fan_out,omitempty"`
-	Condition     string                       `json:"condition,omitempty"`
-	Criteria      []LoopGateCriterion          `json:"criteria,omitempty"`
-	VerdictPolicy string                       `json:"verdict_policy,omitempty"`
-	OnResult      map[string]any               `json:"on_result,omitempty"`
-	MaxRevisions  int                          `json:"max_revisions,omitempty"`
-	Body          *LoopGraph                   `json:"body,omitempty"`
-	Contract      *LoopContract                `json:"contract,omitempty"`
-	InputRef      string                       `json:"input_ref,omitempty"`
-	Pattern       string                       `json:"pattern,omitempty"`
-	Parse         string                       `json:"parse,omitempty"`
-	WatchSpec     map[string]any               `json:"watch,omitempty"`
-	Events        []LoopWatchEventSubscription `json:"events,omitempty"`
-	*LoopNodeLifecycleState
 }
 
 type LoopGateCriterion struct {
@@ -451,27 +399,9 @@ type LoopMetricSpec struct {
 	MinDelta  *float64            `json:"min_delta,omitempty"`
 }
 
-type LoopGraphEdge struct {
-	From string `json:"from"`
-	To   string `json:"to"`
-}
-
+// LoopStartBinding is the bounded start projection returned by the Loop catalog.
 type LoopStartBinding struct {
 	Kind         string            `json:"kind"`
 	Inputs       map[string]any    `json:"inputs,omitempty"`
 	InputMapping map[string]string `json:"input_mapping,omitempty"`
-}
-
-func transcodeLoopDTO(value any, target any) error {
-	if target == nil {
-		return fmt.Errorf("contract: loop DTO target is required")
-	}
-	data, err := json.Marshal(value)
-	if err != nil {
-		return fmt.Errorf("contract: encode loop DTO: %w", err)
-	}
-	if err := json.Unmarshal(data, target); err != nil {
-		return fmt.Errorf("contract: decode loop DTO: %w", err)
-	}
-	return nil
 }

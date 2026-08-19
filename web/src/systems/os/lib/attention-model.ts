@@ -25,12 +25,14 @@ import {
   type SessionPayload,
 } from "@/systems/session";
 import type { TaskDashboardView, TaskListItem } from "@/systems/tasks";
+import type { LoopRequestAttentionItem } from "@/systems/loops";
 
 import { compareAttentionRecency } from "./attention-order";
 
 export interface OsAttentionBadges {
   sessions?: number;
   tasks?: number;
+  loops?: number;
 }
 
 export interface OsSessionAttentionRow {
@@ -65,7 +67,27 @@ export interface OsLoopNodeAttentionRow {
   state: "waiting" | "attention";
 }
 
-export type OsAttentionRow = OsSessionAttentionRow | OsTaskAttentionRow | OsLoopNodeAttentionRow;
+export interface OsLoopRequestAttentionRow {
+  kind: "loop-request";
+  id: string;
+  title: string;
+  workspaceId: string;
+  workspaceLabel: string;
+  runId: string;
+  loopName: string;
+  nodeId: string;
+  itemIndex: number;
+  requestKind: "ask" | "review";
+  openedAt: string;
+  expiresAt?: string;
+  stale: boolean;
+}
+
+export type OsAttentionRow =
+  | OsSessionAttentionRow
+  | OsTaskAttentionRow
+  | OsLoopNodeAttentionRow
+  | OsLoopRequestAttentionRow;
 
 export interface OsAttentionSections {
   /** Questions, permissions, failures, task approvals, loop nodes. */
@@ -114,12 +136,15 @@ export interface DeriveAttentionBadgesInput {
   summaryStale: boolean;
   dashboard: TaskDashboardView | null;
   tasksStale: boolean;
+  loopsPending?: number;
 }
 
 export function deriveAttentionBadges(input: DeriveAttentionBadgesInput): OsAttentionBadges {
+  const loops = visibleCount(input.loopsPending ?? 0, false);
   return {
     sessions: visibleCount(input.summary?.needsYou ?? 0, input.summaryStale),
     tasks: visibleCount(input.dashboard?.totals.awaiting_approval_tasks ?? 0, input.tasksStale),
+    ...(loops === undefined ? {} : { loops }),
   };
 }
 
@@ -135,6 +160,7 @@ export interface DeriveAttentionSectionsInput {
   /** Daemon presence probes — the row renders only when that state has an item. */
   loopWaitingPresent: boolean;
   loopAttentionPresent: boolean;
+  loopRequests?: readonly LoopRequestAttentionItem[];
 }
 
 /**
@@ -195,10 +221,29 @@ export function deriveAttentionSections(input: DeriveAttentionSectionsInput): Os
   if (input.loopWaitingPresent) loopRows.push(LOOP_NODE_ATTENTION_ROWS[0]);
   if (input.loopAttentionPresent) loopRows.push(LOOP_NODE_ATTENTION_ROWS[1]);
 
+  const requestRows: OsLoopRequestAttentionRow[] = (input.loopRequests ?? []).map(
+    ({ request, workspaceId, workspaceLabel, stale }) => ({
+      kind: "loop-request",
+      id: `${workspaceId}:${request.loop_run_id}:${request.node_id}:${request.item_index}`,
+      title: request.node_id,
+      workspaceId,
+      workspaceLabel,
+      runId: request.loop_run_id,
+      loopName: request.loop_name?.trim() || request.loop_run_id,
+      nodeId: request.node_id,
+      itemIndex: request.item_index,
+      requestKind: request.kind === "review" ? "review" : "ask",
+      openedAt: request.opened_at,
+      ...(request.expires_at ? { expiresAt: request.expires_at } : {}),
+      stale,
+    })
+  );
+
   return {
     needsYou: [
       ...needsYouSessions.map(session => toSessionRow(session, input)),
       ...taskRows,
+      ...requestRows,
       ...loopRows,
     ],
     finished: finishedSessions.map(session => toSessionRow(session, input)),
@@ -206,5 +251,5 @@ export function deriveAttentionSections(input: DeriveAttentionSectionsInput): Os
 }
 
 export function attentionCount(badges: OsAttentionBadges): number {
-  return (badges.sessions ?? 0) + (badges.tasks ?? 0);
+  return (badges.sessions ?? 0) + (badges.tasks ?? 0) + (badges.loops ?? 0);
 }

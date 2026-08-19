@@ -50,7 +50,7 @@ export const reviewAndFixDefinition: LoopDefinition = {
     stop_when: "nodes.review.status == 'succeeded' && size(nodes.review.output.issues) == 0",
     iteration_cap: 3,
     budget: { tokens: 0, wall_clock_sec: 0, on_exceeded: "escalate" },
-    no_progress: { window: 2, hash_fields: ["nodes.review.output.issues"] },
+    no_progress: { window: 2 },
     terminal_states: ["done", "no-op", "blocked", "failed", "exhausted", "stalled"],
   },
   graph: {
@@ -121,7 +121,7 @@ export const genericWatchDefinition: LoopDefinition = {
     definition_of_done: "Each ready event is processed before the next poll.",
     iteration_cap: 0,
     budget: { tokens: 0, wall_clock_sec: 0, on_exceeded: "halt" },
-    no_progress: { window: 3, hash_fields: ["nodes.handle_event.output"] },
+    no_progress: { window: 3 },
     terminal_states: ["done", "no-op", "blocked", "failed", "exhausted", "stalled"],
   },
   graph: {
@@ -152,7 +152,7 @@ export const metricRatchetDefinition: LoopDefinition = {
     stop_when: "best.score >= 0.95",
     iteration_cap: 3,
     budget: { tokens: 0, wall_clock_sec: 0, on_exceeded: "halt" },
-    no_progress: { window: 5, hash_fields: ["delivery_artifact"] },
+    no_progress: { window: 5 },
     terminal_states: ["done", "blocked", "failed", "exhausted", "stalled"],
   },
   graph: {
@@ -187,6 +187,7 @@ export function reviewAndFixRun(overrides: Partial<LoopRunRecord> = {}): LoopRun
     workspace_id: "ws_default",
     loop_name: "review-and-fix",
     status: "running",
+    completion_state: "complete",
     generation: 2,
     reattempt_strategy: "failed_only",
     created_at: minutesAgo(22),
@@ -212,6 +213,7 @@ export function reviewAndFixRun(overrides: Partial<LoopRunRecord> = {}): LoopRun
     },
     resolved_network_participation: buildLocalNetworkParticipationFixture(),
     ...overrides,
+    forks: overrides.forks ?? [],
   };
 }
 
@@ -333,6 +335,7 @@ export function generationsFor(
       generation: 2,
       parent_generation: 1,
       origin: "gate_revise",
+      route_causes: [],
       verdicts: [],
       outputs: [
         { node_id: "review", status: "reused", generation: 2 },

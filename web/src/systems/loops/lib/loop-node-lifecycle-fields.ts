@@ -1,19 +1,6 @@
 import type { RawLoopNode } from "./codec";
 import type { EffectsFieldSpec, FieldPath, FieldSpec } from "./loop-node-schema-types";
 
-/**
- * Reliability and reaction field descriptors (ADR-010). `loop-node-schema.ts` owns class
- * applicability:
- * - `retry` / `deadline` bind the action attempt path (`lifecycle_config.go`,
- *   `coordinator_action.go`), so they never render on a control node — a control produces no
- *   task run and the control would be inert.
- * - `result_contract` needs a declared output schema, which the linter resolves only for
- *   source/action classes (`linter_reference_schemas.go`), so it is action-only.
- * - `on_error` and the six triggers apply to action and control nodes.
- * - A goal node rejects `deadline`, `retry.backoff` and `retry.non_retryable`
- *   (`retry_on_goal_node`); its own attempt budget stays in `loop-node-goal-fields.ts`.
- */
-
 /** Which reliability keys a node class may author. */
 export type LoopLifecycleVariant = "action" | "goal" | "control";
 

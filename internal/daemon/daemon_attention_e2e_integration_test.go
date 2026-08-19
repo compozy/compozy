@@ -472,7 +472,8 @@ func TestDaemonE2EAttentionTruthJourneys(t *testing.T) {
 			State   string `json:"state"`
 		}
 		decodeAttentionStructuredResult(t, toolspkg.ToolIDSessionWait.String(), result, &wait)
-		if wait.Outcome != string(session.WaitResultStateReached) || wait.State != string(session.BadgeWaitingForInput) {
+		if wait.Outcome != string(session.WaitResultStateReached) ||
+			wait.State != string(session.BadgeWaitingForInput) {
 			t.Fatalf("native session_wait result = %#v", wait)
 		}
 		status := waitForAttentionStatus(t, ctx, harness, caller.ID, session.BadgeRunning)
@@ -932,7 +933,12 @@ func waitForAttentionStatusOutsideNeedsYou(
 		}
 		select {
 		case <-ctx.Done():
-			t.Fatalf("session %q stayed in needs-you badge %q: %v", sessionID, last.Badge, errors.Join(lastErr, ctx.Err()))
+			t.Fatalf(
+				"session %q stayed in needs-you badge %q: %v",
+				sessionID,
+				last.Badge,
+				errors.Join(lastErr, ctx.Err()),
+			)
 		case <-time.After(25 * time.Millisecond):
 		}
 	}

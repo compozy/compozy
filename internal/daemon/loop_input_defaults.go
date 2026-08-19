@@ -67,6 +67,9 @@ func (s *daemonLoopAPIService) PutLoopInputDefaults(
 	if err != nil {
 		return contract.LoopInputDefaultsResponse{}, err
 	}
+	if err := s.validateLoopInputDefaultLayer(ctx, ws, loopName, req.Scope, values); err != nil {
+		return contract.LoopInputDefaultsResponse{}, err
+	}
 	root, target, err := s.loopInputDefaultsWriteTarget(ctx, ws, req.Scope)
 	if err != nil {
 		return contract.LoopInputDefaultsResponse{}, err
@@ -103,14 +106,19 @@ func (s *daemonLoopAPIService) PutLoopInputDefault(
 	if err != nil {
 		return contract.LoopInputDefaultResponse{}, err
 	}
-	value, err := compozyconfig.NormalizeToolConfigValue(compozyconfig.ConfigValueScalar, req.Value)
+	value, err := normalizeLoopInputDefaultValue(req.Value)
 	if err != nil {
 		return contract.LoopInputDefaultResponse{}, fmt.Errorf(
-			"%w: input default %q must be a string, boolean, or number: %v",
+			"%w: input default %q: %v",
 			looppkg.ErrValidation,
 			inputKey,
 			err,
 		)
+	}
+	if err := s.validateLoopInputDefaultLayer(
+		ctx, ws, loopName, req.Scope, map[string]any{inputKey: value},
+	); err != nil {
+		return contract.LoopInputDefaultResponse{}, err
 	}
 	root, target, err := s.loopInputDefaultsWriteTarget(ctx, ws, req.Scope)
 	if err != nil {
@@ -122,6 +130,9 @@ func (s *daemonLoopAPIService) PutLoopInputDefault(
 		root,
 		target,
 		func(editor *compozyconfig.OverlayEditor) error {
+			if table, ok := value.(map[string]any); ok {
+				return editor.SetTable(path, table)
+			}
 			return editor.SetValue(path, value)
 		},
 	); err != nil {
@@ -284,16 +295,42 @@ func normalizeLoopInputDefaultValues(values map[string]any) (map[string]any, err
 		if err != nil {
 			return nil, err
 		}
-		value, err := compozyconfig.NormalizeToolConfigValue(compozyconfig.ConfigValueScalar, values[rawKey])
+		value, err := normalizeLoopInputDefaultValue(values[rawKey])
 		if err != nil {
-			return nil, fmt.Errorf(
-				"%w: input default %q must be a string, boolean, or number: %v",
-				looppkg.ErrValidation,
-				key,
-				err,
-			)
+			return nil, fmt.Errorf("%w: input default %q: %v", looppkg.ErrValidation, key, err)
 		}
 		result[key] = value
 	}
 	return result, nil
+}
+
+func normalizeLoopInputDefaultValue(value any) (any, error) {
+	if _, ok := value.(map[string]any); ok {
+		return compozyconfig.NormalizeToolConfigValue(compozyconfig.ConfigValueTable, value)
+	}
+	return compozyconfig.NormalizeToolConfigValue(compozyconfig.ConfigValueScalar, value)
+}
+
+func (s *daemonLoopAPIService) validateLoopInputDefaultLayer(
+	ctx context.Context,
+	workspaceID looppkg.WorkspaceID,
+	loopName string,
+	scope contract.LoopInputDefaultsScope,
+	values map[string]any,
+) error {
+	if s.resolver == nil {
+		return fmt.Errorf("%w: Loop definition resolver is required", looppkg.ErrValidation)
+	}
+	resolved, err := s.resolver.ResolveLoop(ctx, workspaceID, loopName)
+	if err != nil {
+		return err
+	}
+	if resolved == nil {
+		return fmt.Errorf("%w: Loop definition %q resolved empty", looppkg.ErrValidation, loopName)
+	}
+	origin := looppkg.InputOriginGlobal
+	if scope == contract.LoopInputDefaultsScopeWorkspace {
+		origin = looppkg.InputOriginWorkspace
+	}
+	return looppkg.ValidateInputLayer(resolved.Definition, loopName, values, origin)
 }

@@ -22,7 +22,9 @@ export type LoopNodeVerb =
   | "cancel"
   | "kill"
   | "requeue"
-  | "open-quarantine";
+  | "open-quarantine"
+  | "amend"
+  | "rerun";
 
 export type LoopRunVerb = "pause" | "resume" | "cancel" | "kill";
 
@@ -63,19 +65,58 @@ export function loopNodeWaitResumeItemIndex(node: LoopNodeLifecycle): number | u
  */
 export function loopNodeVerbs(
   node: LoopNodeLifecycle,
-  runStatus: string | null | undefined
+  runStatus: string | null | undefined,
+  timetravel?: LoopNodeTimetravelCapability
 ): LoopNodeVerb[] {
   // A terminal run has no live work to act on; the daemon answers every verb with
-  // an invalid-state conflict, so offering one would be a lie.
-  if (isTerminalLoopStatus(runStatus)) return [];
+
+  const timeTravelVerbs = loopNodeTimetravelVerbs(node, runStatus, timetravel);
+  if (isTerminalLoopStatus(runStatus)) return timeTravelVerbs;
   if (node.quarantined) return ["open-quarantine", "requeue", "cancel", "kill"];
   if (node.cancelState === "canceled") return [];
   if (node.cancelState !== "") return ["kill"];
   if (node.paused) {
-    return ["resume", "resume-reset-attempts", "resume-immediate", "cancel", "kill"];
+    return [
+      "resume",
+      "resume-reset-attempts",
+      "resume-immediate",
+      ...timeTravelVerbs,
+      "cancel",
+      "kill",
+    ];
   }
-  if (loopNodeWaitResumeItemIndex(node) !== undefined) return ["resume-wait", "cancel", "kill"];
-  return ["pause", "cancel", "kill"];
+  if (loopNodeWaitResumeItemIndex(node) !== undefined) {
+    return ["resume-wait", ...timeTravelVerbs, "cancel", "kill"];
+  }
+  return ["pause", ...timeTravelVerbs, "cancel", "kill"];
+}
+
+export interface LoopNodeTimetravelCapability {
+  hasOutputShape: boolean;
+  isGenerationBusy: boolean;
+}
+
+const SETTLED_OUTPUT_STATUSES = new Set(["succeeded", "failed", "partial", "canceled"]);
+
+function loopNodeTimetravelVerbs(
+  node: LoopNodeLifecycle,
+  runStatus: string | null | undefined,
+  timetravel: LoopNodeTimetravelCapability | undefined
+): LoopNodeVerb[] {
+  if (!timetravel) return [];
+  const verbs: LoopNodeVerb[] = [];
+  const settled = SETTLED_OUTPUT_STATUSES.has(node.outputStatus);
+
+  if (settled && (node.paused || node.parked) && timetravel.hasOutputShape) {
+    verbs.push("amend");
+  }
+
+  if (settled && !node.parked && !node.paused && !timetravel.isGenerationBusy) {
+    verbs.push("rerun");
+  }
+
+  if (isTerminalLoopStatus(runStatus)) return verbs.filter(verb => verb === "rerun");
+  return verbs;
 }
 
 /**
@@ -120,6 +161,8 @@ export const LOOP_NODE_VERB_PRESENTATION: Record<LoopNodeVerb, LoopNodeVerbPrese
   kill: { label: "Kill…", destructive: true },
   requeue: { label: "Requeue…", destructive: false },
   "open-quarantine": { label: "Open quarantine entry", destructive: false },
+  amend: { label: "Amend output…", destructive: false },
+  rerun: { label: "Rerun from here…", destructive: false },
 };
 
 /**

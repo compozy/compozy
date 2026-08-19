@@ -1,7 +1,7 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { http, HttpResponse, type HttpHandler } from "msw";
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import type { TopbarSlotValue } from "@compozy/ui";
 
@@ -10,6 +10,10 @@ import { worktreeBehindFixture } from "@/systems/workspace/mocks";
 import { worktreeHandlers } from "@/systems/workspace/mocks/worktree-handlers";
 import { createMswFetch } from "@/test/msw-fetch";
 import { renderWithTopbar } from "@/test/render-with-topbar";
+import {
+  LOOP_EDITOR_CHROME_STORAGE_KEY,
+  loopEditorChromeStore,
+} from "../../hooks/use-loop-editor-chrome-state";
 import { LoopEditor } from "../editor/loop-editor";
 import { LoopEditorPublishRejectedStrip } from "../editor/loop-editor-publish-rejected-strip";
 import type { LoopDetail } from "../../types";
@@ -130,7 +134,29 @@ function expandLinterDock() {
   }
 }
 
+function openPaletteRail() {
+  const toggle = screen.getByTestId("loop-editor-palette-toggle");
+  if (toggle.getAttribute("aria-pressed") === "false") {
+    fireEvent.click(toggle);
+  }
+}
+
+function openInspectorRail() {
+  const toggle = screen.getByTestId("loop-editor-inspector-toggle");
+  if (toggle.getAttribute("aria-pressed") === "false") {
+    fireEvent.click(toggle);
+  }
+}
+
 describe("LoopEditor", () => {
+  beforeEach(() => {
+    window.localStorage.removeItem(LOOP_EDITOR_CHROME_STORAGE_KEY);
+    loopEditorChromeStore.trigger.chromeVisibilityChanged({
+      palette: false,
+      inspector: false,
+      dockCollapsed: true,
+    });
+  });
   afterEach(() => vi.unstubAllGlobals());
 
   it("Should preserve route identity and editor actions in one topbar publication", async () => {
@@ -161,6 +187,7 @@ describe("LoopEditor", () => {
     renderEditor();
     await screen.findByTestId("loop-editor");
     await waitFor(() => expect(screen.getAllByTestId("loop-editor-node")).toHaveLength(8));
+    openInspectorRail();
 
     expect(screen.getByTestId("loop-editor-tab-contract")).toHaveAttribute("aria-selected", "true");
     expect(screen.getByTestId("loop-editor-contract")).toBeInTheDocument();
@@ -200,6 +227,7 @@ describe("LoopEditor", () => {
     // No unsaved-changes chip until the definition is edited.
     expect(screen.queryByTestId("loop-editor-dirty-chip")).not.toBeInTheDocument();
     // Adding a node from the palette extends the body, selects it, opens Node lane, and marks dirty.
+    openPaletteRail();
     fireEvent.click(screen.getByTestId("loop-palette-item-run-agent"));
     await waitFor(() => expect(screen.getAllByTestId("loop-editor-node")).toHaveLength(9));
     expect(screen.getByTestId("loop-editor-dirty-chip")).toBeInTheDocument();
@@ -215,6 +243,7 @@ describe("LoopEditor", () => {
     await screen.findByTestId("loop-editor");
     await waitFor(() => expect(screen.getAllByTestId("loop-editor-node")).toHaveLength(8));
 
+    openPaletteRail();
     fireEvent.click(screen.getByTestId("loop-palette-item-run-agent"));
     fireEvent.click(screen.getByTestId("loop-palette-item-run-agent"));
 
@@ -242,7 +271,7 @@ describe("LoopEditor", () => {
     expect(screen.getByTestId("loop-editor-criteria")).toBeInTheDocument();
   });
 
-  it("E2E-web-13: raising fan-out past the ceiling surfaces a 422 per-node error and disables Publish", async () => {
+  it("E2E-web-13: clearing the positive fan-out bound surfaces a 422 per-node error and disables Publish", async () => {
     renderEditor();
     await screen.findByTestId("loop-editor");
     await waitFor(() => expect(screen.getAllByTestId("loop-editor-node")).toHaveLength(8));
@@ -250,16 +279,16 @@ describe("LoopEditor", () => {
     await waitFor(() => expect(screen.getByTestId("loop-editor-publish")).not.toBeDisabled());
     fireEvent.click(nodeCard("implement"));
     const fanOut = await screen.findByTestId("loop-field-max_fan_out");
-    fireEvent.change(fanOut, { target: { value: "80" } });
-    // The daemon linter (mock) returns fan_out_ceiling_exceeded → issue + node badge + gate.
+    fireEvent.change(fanOut, { target: { value: "0" } });
+    // The daemon linter (mock) returns fan_out_unbounded → issue + node badge + gate.
     await waitFor(() =>
       expect(screen.getByTestId("loop-linter-error-count")).toHaveTextContent("1 error")
     );
     expandLinterDock();
-    expect(screen.getByTestId("loop-linter-issue")).toHaveTextContent(/ceiling of 64/i);
+    expect(screen.getByTestId("loop-linter-issue")).toHaveTextContent(/positive max_fan_out/i);
     expect(nodeCard("implement")).toHaveAttribute("data-node-error", "true");
     expect(screen.getByTestId("loop-editor-publish")).toBeDisabled();
-    // Lowering it back under the ceiling clears the issue and re-enables Publish. A clean
+    // Restoring a positive author bound clears the issue and re-enables Publish. A clean
     // verdict renders NO counter at all (US-028 AC-4) — not "0 issues".
     fireEvent.change(fanOut, { target: { value: "32" } });
     await waitFor(() =>
@@ -377,10 +406,10 @@ describe("LoopEditor", () => {
     renderEditor();
     await screen.findByTestId("loop-editor");
     await waitFor(() => expect(screen.getAllByTestId("loop-editor-node")).toHaveLength(8));
-    // Raise the fan-out to produce an offending field, then flip to the DSL view.
+    // Clear the positive author bound to produce an offending field, then flip to the DSL view.
     fireEvent.click(nodeCard("implement"));
     fireEvent.change(await screen.findByTestId("loop-field-max_fan_out"), {
-      target: { value: "80" },
+      target: { value: "0" },
     });
     await waitFor(() =>
       expect(screen.getByTestId("loop-linter-error-count")).toHaveTextContent("1 error")
@@ -419,6 +448,7 @@ describe("LoopEditor", () => {
     const { onPublished } = renderEditor("quality-gate-demo", [capture]);
     await screen.findByTestId("loop-editor");
     await waitFor(() => expect(screen.getByTestId("loop-editor-version")).toHaveTextContent("v4"));
+    openPaletteRail();
     fireEvent.click(screen.getByTestId("loop-palette-item-collect"));
     fireEvent.click(screen.getByTestId("loop-editor-publish"));
     await waitFor(() => expect(onPublished).toHaveBeenCalledTimes(1));
@@ -441,6 +471,7 @@ describe("LoopEditor", () => {
     renderEditor("quality-gate-demo", [capture]);
 
     await screen.findByTestId("loop-editor");
+    openInspectorRail();
     fireEvent.change(screen.getByRole("textbox", { name: "Goal" }), {
       target: { value: "" },
     });
@@ -617,9 +648,17 @@ describe("LoopEditor", () => {
       /read-only marketplace source/i
     );
     expect(screen.getByTestId("loop-editor-version")).toHaveTextContent("v1 · marketplace");
+    fireEvent.contextMenu(nodeCard("implement"));
+    expect(await screen.findByText("Read-only definition")).toBeInTheDocument();
+    for (const verb of ["duplicate", "copy", "paste", "rename", "delete"]) {
+      expect(screen.queryByTestId(`loop-node-menu-${verb}`)).not.toBeInTheDocument();
+    }
+    fireEvent.keyDown(document, { key: "Escape" });
 
     // Every mutation path is CLOSED, not merely decorated with a notice.
+    openPaletteRail();
     fireEvent.click(screen.getByTestId("loop-palette-item-run-agent"));
+    openInspectorRail();
     const goal = screen.getByRole("textbox", { name: "Goal" }) as HTMLTextAreaElement;
     const goalBefore = goal.value;
     fireEvent.change(goal, { target: { value: "rewritten" } });
@@ -664,7 +703,7 @@ describe("LoopEditor", () => {
     expandLinterDock();
     const dockIssues = screen.getAllByTestId("loop-linter-issue");
     expect(dockIssues).toHaveLength(2);
-    expect(dockIssues[0]).toHaveTextContent("fan_out_ceiling_exceeded");
+    expect(dockIssues[0]).toHaveTextContent("fan_out_unbounded");
     expect(dockIssues[1]).toHaveTextContent("error_route_conflict");
     // Nothing was saved: the compare-and-swap version pill is unchanged.
     expect(screen.getByTestId("loop-editor-version")).toHaveTextContent("v4");
@@ -743,6 +782,7 @@ describe("LoopEditor", () => {
 
     await screen.findByTestId("loop-editor");
     await waitFor(() => expect(screen.getByTestId("loop-editor-version")).toHaveTextContent("v0"));
+    openPaletteRail();
     fireEvent.click(screen.getByTestId("loop-palette-item-collect"));
     fireEvent.click(screen.getByTestId("loop-editor-publish"));
 

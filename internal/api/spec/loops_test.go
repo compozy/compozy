@@ -1,17 +1,67 @@
 package spec
 
 import (
+	"reflect"
 	"slices"
 	"sort"
 	"strconv"
+	"strings"
 	"testing"
 
 	"github.com/compozy/compozy/internal/api/contract"
+	"github.com/compozy/compozy/internal/loop/dsl"
 	"github.com/getkin/kin-openapi/openapi3"
 )
 
 func TestLoopOpenAPIContract(t *testing.T) {
 	t.Parallel()
+
+	t.Run("Should register the complete typed input vocabularies", func(t *testing.T) {
+		t.Parallel()
+
+		assertStringSetEqual(
+			t,
+			schemaEnumValues[reflect.TypeFor[dsl.InputType]()],
+			contract.LoopInputTypeValues(),
+		)
+		assertStringSetEqual(
+			t,
+			schemaEnumValues[reflect.TypeFor[dsl.InputRefKind]()],
+			contract.LoopInputRefKindValues(),
+		)
+		assertStringSetEqual(
+			t,
+			schemaEnumValues[reflect.TypeFor[dsl.EntityKind]()],
+			contract.LoopEntityKindValues(),
+		)
+	})
+
+	t.Run("Should keep zero-omitted Loop fields optional", func(t *testing.T) {
+		t.Parallel()
+
+		doc, err := Document()
+		if err != nil {
+			t.Fatalf("Document() error = %v", err)
+		}
+		loopOperation := operationFor(t, doc, "/api/workspaces/{workspace_id}/loops/{name}", "GET")
+		loopSchema := jsonResponseSchema(t, loopOperation, 200)
+		definition := propertySchema(t, propertySchema(t, loopSchema, "loop"), "definition")
+		loopContract := propertySchema(t, definition, "contract")
+		assertNotRequired(t, loopContract, "stop_when")
+
+		diffOperation := operationFor(
+			t,
+			doc,
+			"/api/workspaces/{workspace_id}/loop-runs/{run_id}/diff",
+			"GET",
+		)
+		diffSchema := jsonResponseSchema(t, diffOperation, 200)
+		nodes := propertySchema(t, diffSchema, "nodes")
+		if nodes.Items == nil || nodes.Items.Value == nil {
+			t.Fatal("Loop diff nodes have no item schema")
+		}
+		assertNotRequired(t, nodes.Items.Value, "base", "against")
+	})
 
 	t.Run("Should expose every Loop route with expected status bodies", func(t *testing.T) {
 		t.Parallel()
@@ -102,7 +152,7 @@ func TestLoopOpenAPIContract(t *testing.T) {
 				name:       "replace input defaults",
 				path:       "/api/workspaces/{workspace_id}/loops/{name}/input-defaults",
 				method:     "PUT",
-				statuses:   []int{200, 400, 404, 410, 503, 500},
+				statuses:   []int{200, 400, 404, 410, 422, 503, 500},
 				parameters: []string{"workspace_id", "name"},
 			},
 			{
@@ -116,7 +166,7 @@ func TestLoopOpenAPIContract(t *testing.T) {
 				name:       "set input default",
 				path:       "/api/workspaces/{workspace_id}/loops/{name}/input-defaults/{key}",
 				method:     "PUT",
-				statuses:   []int{200, 400, 404, 410, 503, 500},
+				statuses:   []int{200, 400, 404, 410, 422, 503, 500},
 				parameters: []string{"workspace_id", "name", "key"},
 			},
 			{
@@ -299,7 +349,11 @@ func TestLoopOpenAPIContract(t *testing.T) {
 		propertySchema(t, patchLintSchema, "errors")
 
 		runLoop := operationFor(t, doc, "/api/workspaces/{workspace_id}/loops/{name}/run", "POST")
-		assertRequired(t, jsonResponseSchema(t, runLoop, 422), "error")
+		runUnprocessable := jsonResponseSchema(t, runLoop, 422)
+		inputValidation := propertySchema(t, runUnprocessable, "input_validation")
+		assertRequired(t, inputValidation, "loop", "field", "origin", "reason")
+		propertySchema(t, inputValidation, "kind")
+		propertySchema(t, inputValidation, "value")
 		runConfig := propertySchema(t, jsonRequestSchema(t, runLoop), "config_overrides")
 		assertRequired(t, propertySchema(t, runConfig, "environment"), "mode")
 
@@ -568,6 +622,99 @@ func TestLoopOpenAPIContract(t *testing.T) {
 			"end_turn", "max_tokens", "max_turn_requests", "refusal",
 			string(contract.ACPStopReasonCancelled))
 	})
+
+	t.Run("Should expose every authored graph field through OpenAPI", func(t *testing.T) {
+		t.Parallel()
+
+		doc, err := Document()
+		if err != nil {
+			t.Fatalf("Document() error = %v", err)
+		}
+		validate := operationFor(
+			t,
+			doc,
+			"/api/workspaces/{workspace_id}/loops/{name}/validate",
+			"POST",
+		)
+		definition := propertySchema(t, jsonRequestSchema(t, validate), "definition")
+		graph := propertySchema(t, definition, "graph")
+		for _, field := range serializedStructFields(reflect.TypeFor[dsl.Graph]()) {
+			propertySchema(t, graph, field)
+		}
+		nodes := propertySchema(t, graph, "nodes")
+		if nodes.Items == nil || nodes.Items.Value == nil {
+			t.Fatal("Loop graph nodes have no item schema")
+		}
+		for _, field := range serializedStructFields(reflect.TypeFor[dsl.Node]()) {
+			propertySchema(t, nodes.Items.Value, field)
+		}
+		strategy := propertySchema(t, nodes.Items.Value, "strategy")
+		if len(strategy.OneOf) != 2 || strategy.OneOf[0].Value == nil || strategy.OneOf[1].Value == nil {
+			t.Fatalf("Loop strategy oneOf = %#v, want shorthand and object variants", strategy.OneOf)
+		}
+		assertEnumValues(t, strategy.OneOf[0].Value,
+			string(dsl.StrategyWaitAll),
+			string(dsl.StrategyFailFast),
+			string(dsl.StrategyRace),
+		)
+		strategyObject := strategy.OneOf[1].Value
+		assertEnumValues(t, propertySchema(t, strategyObject, "kind"),
+			string(dsl.StrategyWaitAll),
+			string(dsl.StrategyFailFast),
+			string(dsl.StrategyBestEffort),
+			string(dsl.StrategyRace),
+		)
+		threshold := propertySchema(t, strategyObject, "threshold")
+		if len(threshold.OneOf) != 2 || threshold.OneOf[0].Value == nil || threshold.OneOf[1].Value == nil {
+			t.Fatalf("Loop strategy threshold oneOf = %#v, want percentage and count variants", threshold.OneOf)
+		}
+		if got := threshold.OneOf[0].Value.Pattern; got != `^[0-9]+%$` {
+			t.Fatalf("Loop strategy percentage pattern = %q, want %q", got, `^[0-9]+%$`)
+		}
+		count := propertySchema(t, threshold.OneOf[1].Value, "count")
+		if count.Min == nil || *count.Min != 1 {
+			t.Fatalf("Loop strategy count minimum = %v, want 1", count.Min)
+		}
+		edges := propertySchema(t, graph, "edges")
+		if edges.Items == nil || edges.Items.Value == nil {
+			t.Fatal("Loop graph edges have no item schema")
+		}
+		for _, field := range serializedStructFields(reflect.TypeFor[dsl.Edge]()) {
+			propertySchema(t, edges.Items.Value, field)
+		}
+	})
+}
+
+func assertStringSetEqual(t *testing.T, got []string, want []string) {
+	t.Helper()
+	if !slices.Equal(got, want) {
+		t.Fatalf("enum values = %v, want %v", got, want)
+	}
+}
+
+func serializedStructFields(value reflect.Type) []string {
+	fields := make([]string, 0, value.NumField())
+	for field := range value.Fields() {
+		tag := field.Tag.Get("json")
+		name, _, _ := strings.Cut(tag, ",")
+		if name == "-" {
+			continue
+		}
+		if field.Anonymous && name == "" {
+			embedded := field.Type
+			if embedded.Kind() == reflect.Pointer {
+				embedded = embedded.Elem()
+			}
+			fields = append(fields, serializedStructFields(embedded)...)
+			continue
+		}
+		if name == "" {
+			name = field.Name
+		}
+		fields = append(fields, name)
+	}
+	slices.Sort(fields)
+	return fields
 }
 
 func loopEventVariantSchema(t *testing.T, response *openapi3.Schema, kind string) *openapi3.Schema {

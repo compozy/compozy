@@ -37,15 +37,9 @@ func buildFanOutMaterialization(
 	if maxParallel <= 0 {
 		maxParallel = 1
 	}
-	if node.MaxFanOut > LoopMaxFanoutWidth || maxParallel > LoopMaxFanoutWidth {
-		return fanOutMaterialization{}, fanOutCeilingTerminal()
-	}
 	chunks := chunkFanOutItems(items, batchSize)
 	if node.MaxFanOut > 0 && len(chunks) > node.MaxFanOut {
-		return fanOutMaterialization{}, fanOutCeilingTerminal()
-	}
-	if len(chunks) > LoopMaxFanoutWidth {
-		return fanOutMaterialization{}, fanOutCeilingTerminal()
+		return fanOutMaterialization{}, fanOutBoundTerminal()
 	}
 	return fanOutMaterialization{
 		Kind:        fanOutMaterializationKind,

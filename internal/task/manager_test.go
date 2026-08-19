@@ -339,6 +339,7 @@ type recordingCoordinatorPostCommitHandler struct {
 func (h *recordingCoordinatorPostCommitHandler) ApplyCoordinatorPostCommit(
 	_ context.Context,
 	specs []CoordinatorParentCloseSpec,
+	_ []CoordinatorLaneCancelSpec,
 	_ ActorContext,
 ) error {
 	h.calls = append(h.calls, append([]CoordinatorParentCloseSpec(nil), specs...))

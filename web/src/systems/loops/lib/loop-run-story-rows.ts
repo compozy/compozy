@@ -14,14 +14,6 @@ import type {
   LoopStoryTaskLink,
 } from "./loop-run-story-types";
 
-/**
- * The per-kind row builders (redesign spec §5.3): each folds one replayed SSE
- * frame into a plain-language story row plus its verbatim mono `micro` trail.
- * Status transitions phrase the lifecycle beats; `finalizeSuccessRow` collapses
- * grouped branch successes. Shared coercion + humanization helpers live here so
- * the orchestrator and the next-note builder read from one place.
- */
-
 export function asRecord(value: unknown): Record<string, unknown> | null {
   return typeof value === "object" && value !== null ? (value as Record<string, unknown>) : null;
 }
@@ -44,7 +36,6 @@ function sentenceCase(value: string): string {
 }
 
 export interface MutableStoryRow extends LoopStoryRow {
-  /** Consecutive same-node success grouping accumulator (§5.3). */
   group?: { nodeId: string; generation: number; count: number; indexes: number[] };
 }
 

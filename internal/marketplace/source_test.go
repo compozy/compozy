@@ -54,6 +54,20 @@ func TestDecodeDocumentValidation(t *testing.T) {
 		}
 	})
 
+	t.Run("Should accept a loopback HTTP extension artifact", func(t *testing.T) {
+		t.Parallel()
+
+		raw := strings.Replace(
+			validExtensionDocumentJSON(),
+			"https://downloads.example.test/bridge-github-v1.0.0.tar.gz",
+			"http://127.0.0.1:2123/bridge-github-v1.0.0.tar.gz",
+			1,
+		)
+		if _, err := DecodeDocument(KindExtension, []byte(raw)); err != nil {
+			t.Fatalf("DecodeDocument(loopback HTTP extension) error = %v", err)
+		}
+	})
+
 	// UT-051: the feed's `format` marker is a hard cut at the current manifest version — reader,
 	// in-repo feeds, and fixtures moved together, so no pre-cut compatibility behavior exists here.
 	t.Run("Should project the extension format marker at the current manifest version", func(t *testing.T) {

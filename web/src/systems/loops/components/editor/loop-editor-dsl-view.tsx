@@ -6,14 +6,6 @@ interface LoopEditorDslViewProps {
   lines: DslLine[];
 }
 
-/**
- * The DSL view of the Graph/DSL toggle (design §4.6): the same definition the canvas
- * edits, rendered as the `compozy.loop/v1` document (ADR-015, FS-as-truth). Lines belonging
- * to a linter-flagged node are highlighted and the specific offending field line is
- * marked, so the author sees exactly what publish rejects. This is a READ render in v1 —
- * the graph is the editing surface; structural edits (including `start[]`) come from file
- * or agent authoring. An editable DSL surface is a v1 deferral.
- */
 export function LoopEditorDslView({ lines }: LoopEditorDslViewProps) {
   return (
     <div className="min-h-0 overflow-auto p-6" data-testid="loop-editor-dsl">

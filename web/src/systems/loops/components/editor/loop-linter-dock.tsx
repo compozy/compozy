@@ -13,21 +13,23 @@ interface LoopLinterDockProps {
   /** True when the last (passive or manual) validate could not reach the daemon. */
   validateFailed: boolean;
   onReveal: (nodeId: string) => void;
+
+  collapsed?: boolean;
+  onToggleCollapsed?: () => void;
 }
 
 const CHIP_CLASS = "rounded-xs px-1.5 py-0.5 font-mono text-badge";
 
-/**
- * The linter dock (design §4.6): a collapsible panel pinned under the canvas showing the
- * shared linter's issues with their deterministic codes and a "Reveal node" jump. Blocking
- * errors render danger + "publish returns 422"; non-blocking warnings render warning-tinted
- * and never claim a 422 gate (daemon truth wins). Before the first verdict the dock shows a
- * neutral pending/failed state, never a claimed pass. The dock reports — it never computes.
- *
- * Counters are severity-split and zero counts are omitted.
- */
-export function LoopLinterDock({ lint, validateFailed, onReveal }: LoopLinterDockProps) {
-  const [collapsed, setCollapsed] = useState(true);
+export function LoopLinterDock({
+  lint,
+  validateFailed,
+  onReveal,
+  collapsed: collapsedProp,
+  onToggleCollapsed,
+}: LoopLinterDockProps) {
+  const [localCollapsed, setLocalCollapsed] = useState(true);
+  const collapsed = collapsedProp ?? localCollapsed;
+  const toggleCollapsed = onToggleCollapsed ?? (() => setLocalCollapsed(value => !value));
   const counters = lintDockCounters(lint, validateFailed);
   const failed = counters.state === "unavailable";
   const pending = counters.state === "pending";
@@ -40,7 +42,7 @@ export function LoopLinterDock({ lint, validateFailed, onReveal }: LoopLinterDoc
     >
       <button
         type="button"
-        onClick={() => setCollapsed(value => !value)}
+        onClick={toggleCollapsed}
         className="flex h-9 items-center gap-2.5 px-3.5"
         aria-expanded={!collapsed}
         data-testid="loop-linter-toggle"

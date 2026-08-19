@@ -20,6 +20,7 @@ func evaluateBranchNode(
 	output GenerationOutput,
 	node dsl.Node,
 	outputs *[]GenerationOutput,
+	diagnostics *gateEvaluationCollector,
 ) (GenerationOutput, *task.CoordinatorTerminal, error) {
 	key := fmt.Sprintf("nodes.%s.condition", node.ID)
 	condition := resolved.Conditions[key]
@@ -43,19 +44,27 @@ func evaluateBranchNode(
 	if err != nil {
 		return GenerationOutput{}, nil, err
 	}
-	value, _, err := condition.Program.Eval(namespace)
+	evaluated, err := evaluatePredicate(key, condition, namespace, PredicateRouting, node.OnEvalError)
 	if err != nil {
 		return GenerationOutput{}, nil, fmt.Errorf("loop: evaluate branch %s: %w", node.ID, err)
 	}
-	result, ok := value.Value().(bool)
-	if !ok {
-		return GenerationOutput{}, nil, fmt.Errorf(
-			"%w: branch %s condition returned %T",
-			ErrValidation,
-			node.ID,
-			value.Value(),
+	diagnostics.recordPredicate(evaluated.Diagnostics...)
+	if evaluated.Disposition != nil {
+		if evaluated.Disposition.Policy == PredicateErrorExit {
+			output.Status = generationOutputSucceeded
+			return output, predicateExitTerminal(evaluated.Disposition.Diagnostic), nil
+		}
+		failed, failureErr := applyPredicateFailureDisposition(
+			output,
+			node,
+			evaluated.Disposition.Failure,
+			resolved.Definition.Graph,
+			topology,
+			outputs,
 		)
+		return failed, nil, failureErr
 	}
+	result := evaluated.Value
 	output.Status = generationOutputSucceeded
 	if !result {
 		setGenerationOutputRef(&output, branchFalseOutputRef)

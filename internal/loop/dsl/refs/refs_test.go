@@ -592,6 +592,24 @@ func TestNamespaceShouldValidateRootsAndSchemaShapes(t *testing.T) {
 			namespace: namespace(false),
 			wantCode:  refs.CodeUnknownReference,
 		},
+		{
+			name: "Should accept qualified fan-out progress",
+			path: []string{"nodes", "fan", "progress", "success_rate"},
+			namespace: refs.Namespace{Nodes: map[string]refs.NodeSchema{
+				"fan": {HasProgress: true},
+			}},
+		},
+		{
+			name:      "Should accept bare progress in fan-out body",
+			path:      []string{"progress", "pending"},
+			namespace: refs.Namespace{AllowProgress: true},
+		},
+		{
+			name:      "Should reject bare progress outside fan-out body",
+			path:      []string{"progress", "pending"},
+			namespace: refs.Namespace{},
+			wantCode:  refs.CodeItemOutsideFanout,
+		},
 	}
 
 	for _, tt := range tests {

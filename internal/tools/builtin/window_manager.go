@@ -249,14 +249,14 @@ var windowManagerToolSpecs = []windowManagerDescriptorSpec{
 		description: "Undo the latest durable window-manager topology command.",
 		inputSchema: windowManagerLayoutHistoryInputSchema, outputSchema: windowManagerCommandOutputSchema,
 		risk: toolspkg.RiskMutating, capability: windowManagerWriteCapability,
-		tags: []string{windowManagerTag, windowManagerLayoutTag, "undo", "history"},
+		tags: []string{windowManagerTag, windowManagerLayoutTag, "undo", historyTag},
 	},
 	{
 		id: toolspkg.ToolIDLayoutRedo, nativeName: "layout_redo", title: "Layout Redo",
 		description: "Redo the latest reverted window-manager topology command.",
 		inputSchema: windowManagerLayoutHistoryInputSchema, outputSchema: windowManagerCommandOutputSchema,
 		risk: toolspkg.RiskMutating, capability: windowManagerWriteCapability,
-		tags: []string{windowManagerTag, windowManagerLayoutTag, "redo", "history"},
+		tags: []string{windowManagerTag, windowManagerLayoutTag, "redo", historyTag},
 	},
 	{
 		id: toolspkg.ToolIDLayoutExport, nativeName: "layout_export", title: "Layout Export",

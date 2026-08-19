@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"strings"
+	"time"
 
 	"github.com/compozy/compozy/internal/loop/dsl"
 	"github.com/compozy/compozy/internal/loop/dsl/refs"
@@ -22,12 +23,14 @@ func evaluateGateNode(
 	effective EffectiveConfig,
 	evaluator gate.GateEvaluator,
 	decisions GateDecisionReader,
+	controls NodeControlReader,
 	runtimeCatalog WorkspaceRuntimeCatalog,
 	history GenerationHistory,
 	output GenerationOutput,
 	node dsl.Node,
-	outputs []GenerationOutput,
+	outputs *[]GenerationOutput,
 	evaluations *gateEvaluationCollector,
+	evaluatedAt time.Time,
 ) (GenerationOutput, *task.CoordinatorTerminal, error) {
 	if err := requireGateEvaluator(evaluator, node.ID); err != nil {
 		return GenerationOutput{}, nil, err
@@ -37,7 +40,7 @@ func evaluateGateNode(
 		generation,
 		resolved.Definition.Graph,
 		topology,
-		outputs,
+		*outputs,
 		history,
 		node.ID,
 		output.ItemIndex,
@@ -69,9 +72,13 @@ func evaluateGateNode(
 	if err != nil {
 		return GenerationOutput{}, nil, err
 	}
+	control, err := loadGateRevisionControl(ctx, controls, run, dsl.NodeID(runtimeGate.ID))
+	if err != nil {
+		return GenerationOutput{}, nil, err
+	}
 	gateInput, err := runtimeGateInput(
 		run,
-		generation,
+		control.GateRevisions[output.ItemIndex],
 		resolved,
 		effective,
 		gate.PlacementInBody,
@@ -80,18 +87,59 @@ func evaluateGateNode(
 	if err != nil {
 		return GenerationOutput{}, nil, err
 	}
-	verdict, err := evaluator.Evaluate(ctx, runtimeGate, gateInput)
-	if err != nil {
-		return GenerationOutput{}, nil, err
-	}
-	verdict, err = gate.SanitizeVerdict(verdict)
+	verdict, err := evaluateGateVerdict(ctx, evaluator, runtimeGate, gateInput)
 	if err != nil {
 		return GenerationOutput{}, nil, err
 	}
 	if evaluations != nil {
-		evaluations.record(runtimeGate, output.ItemIndex, verdict)
+		evaluations.recordWithControl(runtimeGate, output.ItemIndex, verdict, control, evaluatedAt)
 	}
-	return gateOutputFromVerdict(output, node.ID, verdict)
+	return applyGateVerdictRoute(resolved, topology, output, node, outputs, evaluations, verdict)
+}
+
+func evaluateGateVerdict(
+	ctx context.Context,
+	evaluator gate.GateEvaluator,
+	runtimeGate gate.Gate,
+	input gate.GateInput,
+) (gate.Verdict, error) {
+	verdict, err := evaluator.Evaluate(ctx, runtimeGate, input)
+	if err != nil {
+		return gate.Verdict{}, err
+	}
+	return gate.SanitizeVerdict(verdict)
+}
+
+func applyGateVerdictRoute(
+	resolved *ResolvedDefinition,
+	topology controlTopology,
+	output GenerationOutput,
+	node dsl.Node,
+	outputs *[]GenerationOutput,
+	evaluations *gateEvaluationCollector,
+	verdict gate.Verdict,
+) (GenerationOutput, *task.CoordinatorTerminal, error) {
+	updated, terminal, err := gateOutputFromVerdict(output, node.ID, verdict)
+	if err != nil || verdict.Route.Target == "" {
+		return updated, terminal, err
+	}
+	selected := dsl.NodeID(verdict.Route.Target)
+	if !containsNodeID(topology.dependents[node.ID], selected) {
+		return GenerationOutput{}, nil, fmt.Errorf(
+			"%w: gate %q selected non-forward route %q",
+			ErrValidation,
+			node.ID,
+			selected,
+		)
+	}
+	skipUnselectedRoutePaths(resolved.Definition.Graph, topology, node.ID, selected, updated, outputs)
+	if evaluations != nil {
+		evaluations.recordRoute(routeDecision{
+			NodeID: node.ID, ItemIndex: output.ItemIndex, Target: selected,
+			Cause: "gate_verdict:" + string(verdict.Outcome),
+		})
+	}
+	return updated, terminal, nil
 }
 
 func requireGateEvaluator(evaluator gate.GateEvaluator, nodeID dsl.NodeID) error {
@@ -136,7 +184,7 @@ func validateJudgeGateRuntimes(
 
 func runtimeGateInput(
 	run Run,
-	generation int,
+	revision int,
 	resolved *ResolvedDefinition,
 	effective EffectiveConfig,
 	placement gate.Placement,
@@ -153,7 +201,7 @@ func runtimeGateInput(
 		LoopRunID:            string(run.ID),
 		Placement:            placement,
 		Contract:             &contract,
-		Revision:             max(0, generation-1),
+		Revision:             max(0, revision),
 		BestScore:            cloneFloat64(run.BestScore),
 		HumanDecisions:       humanDecisions,
 		JudgeRuntime:         effective.RuntimeDefaults.Judge,
@@ -163,6 +211,27 @@ func runtimeGateInput(
 			ActorKind:   startLoopMetaKey,
 		},
 	}, nil
+}
+
+func loadGateRevisionControl(
+	ctx context.Context,
+	reader NodeControlReader,
+	run Run,
+	gateID dsl.NodeID,
+) (NodeControl, error) {
+	if reader == nil {
+		return NodeControl{}, nil
+	}
+	controls, err := reader.ListNodeControls(ctx, run.WorkspaceID, run.ID)
+	if err != nil {
+		return NodeControl{}, fmt.Errorf("loop: list gate revision controls: %w", err)
+	}
+	for _, control := range controls {
+		if control.NodeID == gateID {
+			return control, nil
+		}
+	}
+	return NodeControl{}, nil
 }
 
 func loadGateDecisions(
@@ -199,7 +268,7 @@ func gateOutputFromVerdict(
 	}
 	setGenerationOutputRef(&output, ref)
 	switch verdict.Route.Action {
-	case gate.RouteContinue, gate.RouteDone, gate.RouteBranch:
+	case gate.RouteContinue, gate.RouteDone:
 		output.Status = generationOutputSucceeded
 		return output, nil, nil
 	case gate.RouteRevise, gate.RouteNextGeneration:

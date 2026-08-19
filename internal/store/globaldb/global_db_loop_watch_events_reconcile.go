@@ -264,7 +264,7 @@ func watchEventsGapQuery(
 		WorkspaceID: strings.TrimSpace(subscription.WorkspaceID),
 		Streams:     streams,
 		Kinds:       kinds,
-		Limit:       looppkg.LoopMaxFanoutWidth,
+		Limit:       looppkg.LoopWatchEventPageLimit,
 	}, nil
 }
 

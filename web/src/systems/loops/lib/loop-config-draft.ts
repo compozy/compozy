@@ -22,16 +22,9 @@ import {
   type LoopOverrideKey,
 } from "./loop-overrides";
 
-/** Re-attempt granularity (ADR-009). `failed_only` is the sensible runtime default. */
 export type LoopReattemptStrategy = NonNullable<LoopConfig["reattempt_strategy"]>;
 const DEFAULT_REATTEMPT: LoopReattemptStrategy = "failed_only";
 
-/**
- * The full no-fork configure draft (design §4.7): the editable verification checks, the
- * human-approval-gate flag, the re-attempt strategy, and the 6 per-loop limit overrides
- * (reused from the run-form Advanced grid). Structural fields are deliberately absent —
- * changing them requires a fork (ADR-009).
- */
 export interface LoopConfigDraft {
   checks: Record<string, LoopConfigCheckState>;
   humanGateEnabled: boolean;
@@ -94,7 +87,7 @@ function storedLimitValue(key: LoopOverrideKey, stored: LoopConfig): number | nu
   }
 }
 
-/** Seeds the limit-override draft from the stored config, clamping every value to its ceiling. */
+/** Seeds the limit-override draft from stored config and normalizes each numeric value. */
 function limitsFromStored(
   effectiveConfig: LoopEffectiveConfig,
   stored: LoopConfig | null
@@ -147,15 +140,6 @@ export function resetConfigDraft(
   };
 }
 
-/**
- * Projects the draft into the `PUT /config` body. Unlike the ephemeral run-form overrides,
- * the persistent config store pins every value the operator actually sets: a typed numeric is
- * stored explicitly (blank = `null` = inherit), so a pin is never dropped just because it
- * equals the definition default while a diverging `[loops.defaults.*]` operator layer — which
- * the web layer can't see — would otherwise win (R-004). Wall clock is stored in seconds. The
- * human gate, re-attempt strategy and budget policy are sent explicitly as the per-loop
- * defaults. There is NO cost field — cost is display-only (ADR-017 §9.5.2).
- */
 export function buildLoopConfigRequest(
   draft: LoopConfigDraft,
   descriptors: LoopConfigCheckDescriptor[]

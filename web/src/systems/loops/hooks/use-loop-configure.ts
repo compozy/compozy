@@ -40,12 +40,6 @@ export interface UseLoopConfigureResult {
   handleSave: () => void;
 }
 
-/**
- * View-model for the no-fork configure sheet (§4.7): owns the editable draft (seeded from
- * the stored `loop_config` overlaid on the contract defaults) and drives the `PUT /config`
- * write through the sanctioned mutation hook. Reset restores the inherited defaults locally
- * (no write); Save persists the whole draft and hands control back for closing.
- */
 export function useLoopConfigure({
   workspaceId,
   loop,

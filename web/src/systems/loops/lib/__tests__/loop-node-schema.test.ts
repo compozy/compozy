@@ -3,8 +3,11 @@ import { describe, expect, it } from "vitest";
 import type { EditorNode, RawLoopNode } from "../codec";
 import { setNodeFields } from "../loop-editor-draft";
 import { environmentHint, environmentModeEdits } from "../loop-node-environment-fields";
+import { readReview, reviewEdits } from "../loop-node-review-fields";
+import { readRoutes, routeDefaultEdit, routesEdit } from "../loop-node-route-fields";
 import { buildNodeFields, type FieldSpec } from "../loop-node-schema";
 import type { LoopWaitMode } from "../loop-node-schema-types";
+import { readStrategy, strategyEdits } from "../loop-node-strategy-fields";
 import { waitMode, waitModeEdits } from "../loop-node-wait-fields";
 
 function keys(fields: FieldSpec[]): string[] {
@@ -49,15 +52,21 @@ describe("loop node schema", () => {
     const prompt = fields.find(f => "key" in f && f.key === "prompt");
     expect(agent).toMatchObject({ required: true, reference: true });
     expect(prompt).toMatchObject({ type: "textarea", required: true, reference: true });
-    // No `action_ref` and no closed kind select (round-5 delete targets, ADR-021).
     expect(keys(fields)).not.toContain("action_ref");
     expect(keys(fields)).toContain("overrides");
   });
 
-  it("Should render fan-out max_fan_out with the daemon ceiling", () => {
+  it("Should render fan-out max_fan_out as an uncapped positive author bound", () => {
     const raw: RawLoopNode = { id: "implement", class: "control", kind: "fan-out" };
     const fanOut = buildNodeFields(raw).find(f => "key" in f && f.key === "max_fan_out");
-    expect(fanOut).toMatchObject({ type: "number", ceiling: 64 });
+    expect(fanOut).toMatchObject({ type: "number" });
+    expect(fanOut).not.toHaveProperty("ceiling");
+    const fields = buildNodeFields(raw);
+    const strategyFields = flatten(fields).filter(field => field.key === "strategy");
+    expect(strategyFields).toHaveLength(1);
+    expect(strategyFields[0]).toMatchObject({ type: "strategy" });
+    expect(fieldByKey(fields, "bind_as")).toMatchObject({ path: ["bind_as"] });
+    expect(fieldByKey(fields, "index_as")).toMatchObject({ path: ["index_as"] });
   });
 
   it("Should render a gate with a criteria editor, verdict policy, and editable routing", () => {
@@ -69,11 +78,20 @@ describe("loop node schema", () => {
       type: "select",
       options: ["revise_until_clean", "fixed_passes"],
     });
-    // Routing is editable in-inspector (not a read-only summary) — R-004 remediation.
     const onPass = fields.find(f => "key" in f && f.key === "on_pass");
     const onFail = fields.find(f => "key" in f && f.key === "on_fail");
-    expect(onPass).toMatchObject({ type: "text", path: ["on_result", "pass"] });
-    expect(onFail).toMatchObject({ type: "text", path: ["on_result", "fail"] });
+    expect(onPass).toMatchObject({
+      type: "text",
+      path: ["on_result", "pass"],
+      json: true,
+      hint: expect.stringContaining('{"route":"node_id"}'),
+    });
+    expect(onFail).toMatchObject({
+      type: "text",
+      path: ["on_result", "fail"],
+      json: true,
+      hint: expect.stringContaining("removed branch action"),
+    });
   });
 
   it("Should mark branch.condition as a CEL reference field and give run-loop editable inputs", () => {
@@ -205,8 +223,6 @@ describe("loop node schema", () => {
   it("Should render a file-import parse select over exactly json and text", () => {
     const raw: RawLoopNode = { id: "load", class: "source", kind: "file-import", pattern: "" };
     const parse = buildNodeFields(raw).find(f => "key" in f && f.key === "parse");
-    // The Markdown-task parse value left the core: file-import parses only the two
-    // structured formats now (ADR-002 — the extension owns CompozyOS task import).
     expect(parse).toMatchObject({ type: "select", path: ["parse"], options: ["json", "text"] });
   });
 
@@ -405,5 +421,275 @@ describe("loop node schema", () => {
     expect((eventRaw.params as Record<string, unknown>).event).toMatchObject({
       kind: expect.any(String),
     });
+  });
+});
+
+function fieldByType(fields: FieldSpec[], type: FieldSpec["type"]): FieldSpec | undefined {
+  return flatten(fields).find(field => field.type === type);
+}
+
+function applyEdits(raw: RawLoopNode, edits: Parameters<typeof setNodeFields>[2]): RawLoopNode {
+  return setNodeFields([editorNode(raw)], raw.id, edits)[0].data.raw;
+}
+
+describe("graph completion node schema", () => {
+  it("Should render a route node with forward-only targets and a fail-closed eval policy", () => {
+    const raw: RawLoopNode = {
+      id: "triage",
+      class: "control",
+      kind: "route",
+      routes: [{ when: 'inputs.severity == "p0"', to: "hotfix" }],
+      default: "backlog",
+    };
+    const fields = buildNodeFields(raw, undefined, {
+      forwardNodeIds: ["hotfix", "standard", "backlog"],
+    });
+    expect(fieldByKey(fields, "routes")).toMatchObject({
+      type: "routes",
+      path: ["routes"],
+      defaultPath: ["default"],
+      routes: [{ when: 'inputs.severity == "p0"', to: "hotfix" }],
+      defaultRoute: "backlog",
+      targets: ["hotfix", "standard", "backlog"],
+    });
+
+    expect(fieldByKey(fields, "on_eval_error")).toMatchObject({
+      type: "static",
+      value: "fail",
+      badge: "fail-closed",
+    });
+  });
+
+  it("Should render an ask node's prompt, context, answer shape, responders, and expiry", () => {
+    const fields = buildNodeFields({ id: "confirm", class: "control", kind: "ask", params: {} });
+    expect(fieldByKey(fields, "ask_prompt")).toMatchObject({
+      type: "textarea",
+      path: ["params", "prompt"],
+      required: true,
+    });
+    expect(fieldByKey(fields, "ask_context")).toMatchObject({
+      path: ["params", "context"],
+      json: true,
+    });
+
+    expect(fieldByKey(fields, "ask_expect")).toMatchObject({
+      path: ["params", "expect"],
+      json: true,
+      required: true,
+    });
+    expect(fieldByKey(fields, "ask_responders_agents")).toMatchObject({
+      type: "switch",
+      path: ["params", "responders", "agents"],
+    });
+    expect(fieldByKey(fields, "ask_expires_after")).toMatchObject({
+      path: ["params", "expires", "after"],
+    });
+  });
+
+  it("Should give a fan-out the strategy composite rather than a bare enum", () => {
+    const fields = buildNodeFields({
+      id: "rollout",
+      class: "control",
+      kind: "fan-out",
+      strategy: { kind: "best_effort", threshold: "66%", missing: "acceptable" },
+    });
+    expect(fieldByType(fields, "strategy")).toMatchObject({
+      key: "strategy",
+      basePath: ["strategy"],
+      kind: "best_effort",
+      threshold: "66%",
+      missingAcceptable: true,
+    });
+
+    expect(
+      fieldByType(buildNodeFields({ id: "j", class: "control", kind: "collect" }), "strategy")
+    ).toBeUndefined();
+  });
+
+  it("Should give every action node the review composite", () => {
+    for (const kind of ["run-agent", "goal", "run-loop", "transform", "compozy__network_send"]) {
+      const fields = buildNodeFields({ id: "x", class: "action", kind, params: {} });
+      expect(fieldByType(fields, "review")).toMatchObject({
+        key: "review",
+        basePath: ["review"],
+        enabled: false,
+      });
+    }
+
+    for (const node of [
+      { id: "g", class: "control", kind: "gate" },
+      { id: "s", class: "source", kind: "watch-source" },
+    ]) {
+      expect(fieldByType(buildNodeFields(node), "review")).toBeUndefined();
+    }
+  });
+
+  it("Should offer branch and gate the inheritable eval-error select", () => {
+    for (const kind of ["branch", "gate"]) {
+      expect(
+        fieldByKey(buildNodeFields({ id: "n", class: "control", kind }), "on_eval_error")
+      ).toMatchObject({
+        type: "select",
+        path: ["on_eval_error"],
+        options: ["fail", "exit"],
+        clearOption: { value: "", label: "Inherit the loop policy" },
+      });
+    }
+  });
+});
+
+describe("strategyEdits", () => {
+  it("Should collapse wait_all, fail_fast, and race to the shorthand the DSL emits", () => {
+    for (const kind of ["wait_all", "fail_fast", "race"] as const) {
+      expect(strategyEdits({ kind, threshold: "", missingAcceptable: false })).toEqual([
+        { path: ["strategy"], value: kind },
+      ]);
+    }
+  });
+
+  it("Should keep best_effort in its object form with the threshold the author wrote", () => {
+    expect(
+      strategyEdits({ kind: "best_effort", threshold: "66%", missingAcceptable: false })
+    ).toEqual([{ path: ["strategy"], value: { kind: "best_effort", threshold: "66%" } }]);
+
+    expect(strategyEdits({ kind: "best_effort", threshold: "3", missingAcceptable: true })).toEqual(
+      [
+        {
+          path: ["strategy"],
+          value: { kind: "best_effort", threshold: { count: 3 }, missing: "acceptable" },
+        },
+      ]
+    );
+  });
+
+  it("Should clear the key entirely when the author declares no strategy", () => {
+    expect(strategyEdits({ kind: null, threshold: "66%", missingAcceptable: true })).toEqual([
+      { path: ["strategy"], value: undefined },
+    ]);
+  });
+
+  it("Should round-trip a written strategy back through the descriptor", () => {
+    const raw: RawLoopNode = { id: "rollout", class: "control", kind: "fan-out" };
+    const declared = applyEdits(
+      raw,
+      strategyEdits({ kind: "best_effort", threshold: "3", missingAcceptable: true })
+    );
+    expect(readStrategy(declared)).toMatchObject({
+      kind: "best_effort",
+      threshold: "3",
+      missingAcceptable: true,
+    });
+
+    const cleared = applyEdits(
+      declared,
+      strategyEdits({ kind: null, threshold: "", missingAcceptable: false })
+    );
+    expect(cleared.strategy).toBeUndefined();
+    expect(readStrategy(cleared)).toMatchObject({ kind: null, threshold: "" });
+  });
+});
+
+describe("reviewEdits", () => {
+  it("Should write the whole review block in one transition", () => {
+    const raw: RawLoopNode = { id: "apply", class: "action", kind: "run-agent" };
+    const next = applyEdits(
+      raw,
+      reviewEdits({
+        enabled: true,
+        decisions: ["approve", "reject"],
+        when: 'inputs.severity == "p0"',
+        prompt: "apply proposes a migrate",
+        agentsAllowed: true,
+        onRejectRoute: "backlog",
+        expiresAfter: "24h",
+      })
+    );
+    expect(next.review).toEqual({
+      decisions: ["approve", "reject"],
+      when: 'inputs.severity == "p0"',
+      prompt: "apply proposes a migrate",
+      responders: { agents: "allow" },
+      on_reject: { route: "backlog" },
+      expires: { after: "24h" },
+    });
+    expect(readReview(next)).toMatchObject({ enabled: true, agentsAllowed: true });
+  });
+
+  it("Should omit every clause the author left blank instead of writing an empty one", () => {
+    const written = applyEdits(
+      { id: "apply", class: "action", kind: "run-agent" },
+      reviewEdits({
+        enabled: true,
+        decisions: [],
+        when: "  ",
+        prompt: "",
+        agentsAllowed: false,
+        onRejectRoute: "",
+        expiresAfter: "",
+      })
+    );
+
+    expect(written.review).toEqual({});
+  });
+
+  it("Should clear the key when the review is switched off, never leave a half shape", () => {
+    const enabled = applyEdits(
+      { id: "apply", class: "action", kind: "run-agent" },
+      reviewEdits({
+        enabled: true,
+        decisions: ["approve"],
+        when: "",
+        prompt: "",
+        agentsAllowed: false,
+        onRejectRoute: "",
+        expiresAfter: "",
+      })
+    );
+    const disabled = applyEdits(
+      enabled,
+      reviewEdits({
+        enabled: false,
+        decisions: ["approve"],
+        when: "",
+        prompt: "",
+        agentsAllowed: false,
+        onRejectRoute: "",
+        expiresAfter: "",
+      })
+    );
+    expect(disabled.review).toBeUndefined();
+    expect(readReview(disabled).enabled).toBe(false);
+  });
+});
+
+describe("routesEdit and routeDefaultEdit", () => {
+  it("Should replace the whole ordered list, keeping declaration order as the tiebreak", () => {
+    const raw: RawLoopNode = { id: "triage", class: "control", kind: "route", routes: [] };
+    const next = applyEdits(
+      raw,
+      routesEdit([
+        { when: 'inputs.severity == "p0"', to: "hotfix" },
+        { when: 'inputs.severity == "p1"', to: "standard" },
+      ])
+    );
+    expect(next.routes).toEqual([
+      { when: 'inputs.severity == "p0"', to: "hotfix" },
+      { when: 'inputs.severity == "p1"', to: "standard" },
+    ]);
+    expect(readRoutes(next).map(route => route.to)).toEqual(["hotfix", "standard"]);
+  });
+
+  it("Should write only the route keys the DSL declares", () => {
+    const next = applyEdits(
+      { id: "triage", class: "control", kind: "route" },
+      routesEdit([{ when: "a", to: "x", stale: true } as unknown as { when: string; to: string }])
+    );
+    expect(next.routes).toEqual([{ when: "a", to: "x" }]);
+  });
+
+  it("Should clear the default key when the author empties the picker", () => {
+    const raw: RawLoopNode = { id: "triage", class: "control", kind: "route", default: "backlog" };
+    expect(applyEdits(raw, routeDefaultEdit("hotfix")).default).toBe("hotfix");
+    expect(applyEdits(raw, routeDefaultEdit("")).default).toBeUndefined();
   });
 });

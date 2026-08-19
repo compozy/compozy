@@ -9,19 +9,12 @@ import type { LoopNodeInventoryState } from "../../types";
 interface LoopRunWaitsRailProps {
   /** Every node the daemon reports lifecycle state for, from the run detail. */
   nodes: readonly LoopNodeLifecycle[];
+
+  pendingRequests?: number;
   runId: string;
 }
 
-/**
- * The rail's "Waits & attention" panel (§2 rail anatomy). Three counts, each a
- * direct tally of this run's own `node_controls[]` / `waits[]` — never a
- * workspace-wide figure, and never an estimate.
- *
- * A zero renders as a plain `0` rather than disappearing: unlike a badge, this
- * panel answers "is anything parked?", and the answer "nothing" is information
- * the operator came here for (DESIGN-LESSONS L5 governs badges, not readouts).
- */
-export function LoopRunWaitsRail({ nodes, runId }: LoopRunWaitsRailProps) {
+export function LoopRunWaitsRail({ nodes, pendingRequests = 0, runId }: LoopRunWaitsRailProps) {
   let waiting = 0;
   let attention = 0;
   let quarantined = 0;
@@ -36,6 +29,12 @@ export function LoopRunWaitsRail({ nodes, runId }: LoopRunWaitsRailProps) {
     nodes: LoopNodeInventoryState;
     nodeId?: string;
   }[] = [
+    {
+      label: "Needs an answer",
+      value: pendingRequests,
+      nodes: "waiting",
+      nodeId: undefined,
+    },
     {
       label: "Open waits",
       value: waiting,

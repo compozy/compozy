@@ -102,6 +102,9 @@ window = 3
 [loops.defaults.delivery.gates]
 max_revisions = 10
 
+[loops.defaults.delivery.requests]
+expire_after = ""
+
 [loops.defaults.delivery.budget]
 tokens = 0
 wall_clock_sec = 0
@@ -113,6 +116,9 @@ fan_out_width = 2
 
 [loops.defaults.watch.no_progress]
 window = 2
+
+[loops.defaults.watch.requests]
+expire_after = ""
 
 [loops.defaults.watch.budget]
 tokens = 0

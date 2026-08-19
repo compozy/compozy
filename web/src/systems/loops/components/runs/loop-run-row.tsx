@@ -1,7 +1,7 @@
 import { Link } from "@tanstack/react-router";
-import { ChevronRight } from "lucide-react";
+import { ChevronRight, TriangleAlert } from "lucide-react";
 
-import { formatRelativeTime } from "@compozy/ui";
+import { formatRelativeTime, Pill } from "@compozy/ui";
 
 import { loopRunBestLabel } from "../../lib/loop-generation-presentation";
 import { formatRunInputs, loopBudgetBar, runGenerationLabel } from "../../lib/loop-runs-view";
@@ -11,6 +11,7 @@ import { LoopBudgetMiniBar } from "./loop-budget-mini-bar";
 
 interface LoopRunRowProps {
   run: LoopRun;
+  pendingRequestCount?: number;
 }
 
 export const LOOP_RUNS_ROW_GRID =
@@ -29,7 +30,7 @@ function triggerLabel(run: LoopRun): string {
  * inputs, generations vs cap, when it started, budget mini-bar, and a chevron to
  * the run detail.
  */
-export function LoopRunRow({ run }: LoopRunRowProps) {
+export function LoopRunRow({ run, pendingRequestCount = 0 }: LoopRunRowProps) {
   const inputs = formatRunInputs(run.inputs);
   const best = loopRunBestLabel(run);
   return (
@@ -42,7 +43,21 @@ export function LoopRunRow({ run }: LoopRunRowProps) {
     >
       <LoopStatusPill status={run.status} />
       <span className="flex min-w-0 flex-col gap-0.5">
-        <span className="truncate text-ws-name font-medium text-fg-strong">{run.loop_name}</span>
+        <span className="flex min-w-0 items-center gap-2">
+          <span className="truncate text-ws-name font-medium text-fg-strong">{run.loop_name}</span>
+          {pendingRequestCount > 0 ? (
+            <Pill
+              aria-label={`${pendingRequestCount} pending ${pendingRequestCount === 1 ? "request" : "requests"}`}
+              className="shrink-0"
+              data-testid="loop-run-pending-requests"
+              size="xs"
+              tone="warning"
+            >
+              <TriangleAlert aria-hidden="true" />
+              {pendingRequestCount}
+            </Pill>
+          ) : null}
+        </span>
         <span className="font-mono text-mono-id text-faint">
           {run.id} · {triggerLabel(run)}
         </span>

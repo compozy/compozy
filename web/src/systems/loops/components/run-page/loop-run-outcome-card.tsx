@@ -138,12 +138,6 @@ function outcomeView(
   }
 }
 
-/**
- * The terminal outcome card (§7): "What went wrong" for failed runs plus the
- * blocked / exhausted / stalled explainers and the quiet no-op note. `cause` and
- * `recovery` come from the terminal status frame — never invented; "Start a new
- * run" re-posts the same inputs as a fresh run.
- */
 export function LoopRunOutcomeCard(props: LoopRunOutcomeCardProps) {
   const [renderedAt] = useState(Date.now);
   const {

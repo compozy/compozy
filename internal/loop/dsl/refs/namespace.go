@@ -30,24 +30,34 @@ const (
 	namespacePrevious   = "previous"
 	namespaceBest       = "best"
 	namespaceOutput     = "output"
+	namespaceProgress   = "progress"
 )
+
+var progressFields = map[string]struct{}{
+	"total": {}, "succeeded": {}, "failed": {}, "canceled": {}, "running": {},
+	"pending": {}, "settled": {}, "success_rate": {}, "failure_rate": {},
+}
 
 // Schema is a permissive JSON-schema-compatible shape used for path validation.
 type Schema map[string]any
 
 // Namespace is the single reference namespace consumed by templates and CEL.
 type Namespace struct {
-	Inputs       map[string]Schema
-	Nodes        map[string]NodeSchema
-	AllowFanout  bool
-	AllowTrigger bool
-	AllowEvent   bool
+	Inputs        map[string]Schema
+	Nodes         map[string]NodeSchema
+	AllowFanout   bool
+	AllowProgress bool
+	AllowTrigger  bool
+	AllowEvent    bool
+	FanoutItems   map[string]struct{}
+	FanoutIndexes map[string]struct{}
 }
 
 // NodeSchema exposes the referenceable output/status shape for one node.
 type NodeSchema struct {
-	Output    Schema
-	HasOutput bool
+	Output      Schema
+	HasOutput   bool
+	HasProgress bool
 }
 
 // Reference records one resolved template or CEL path.
@@ -97,6 +107,11 @@ func (n Namespace) ValidatePath(path []string) *Error {
 			)
 		}
 		return nil
+	case namespaceProgress:
+		if !n.AllowProgress {
+			return newPathError(CodeItemOutsideFanout, path, "fan-out progress is not available here")
+		}
+		return validateProgressPath(path, 1)
 	case namespaceTrigger:
 		if !n.AllowTrigger {
 			return newPathError(CodeUnknownReference, path, "trigger payload is not available here")
@@ -117,6 +132,15 @@ func (n Namespace) ValidatePath(path []string) *Error {
 	case namespaceBest:
 		return n.validateBestPath(path)
 	default:
+		if _, ok := n.FanoutItems[path[0]]; ok {
+			return nil
+		}
+		if _, ok := n.FanoutIndexes[path[0]]; ok {
+			if len(path) > 1 {
+				return newPathError(CodeUnresolvablePath, path, "fan-out index is a scalar")
+			}
+			return nil
+		}
 		return newPathError(CodeUnknownReference, path, "unknown reference root %q", path[0])
 	}
 }
@@ -157,9 +181,24 @@ func (n Namespace) validateNodePath(path []string) *Error {
 			return nil
 		}
 		return validateSchemaPath(node.Output, path[3:], path)
+	case namespaceProgress:
+		if !node.HasProgress {
+			return newPathError(CodeUnknownReference, path, "node %q does not expose fan-out progress", path[1])
+		}
+		return validateProgressPath(path, 3)
 	default:
 		return newPathError(CodeUnknownReference, path, "unknown node field %q", path[2])
 	}
+}
+
+func validateProgressPath(path []string, fieldIndex int) *Error {
+	if len(path) != fieldIndex+1 {
+		return newPathError(CodeUnresolvablePath, path, "progress reference must name one field")
+	}
+	if _, ok := progressFields[path[fieldIndex]]; !ok {
+		return newPathError(CodeUnknownReference, path, "unknown progress field %q", path[fieldIndex])
+	}
+	return nil
 }
 
 func validateSchemaPath(schema Schema, path []string, original []string) *Error {

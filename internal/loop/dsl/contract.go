@@ -6,7 +6,7 @@ type Contract struct {
 	DefinitionOfDone        string           `json:"definition_of_done"         yaml:"definition_of_done"`
 	Constraints             []string         `json:"constraints,omitempty"      yaml:"constraints,omitempty"`
 	Boundaries              []string         `json:"boundaries,omitempty"       yaml:"boundaries,omitempty"`
-	StopWhen                string           `json:"stop_when,omitempty"        yaml:"stop_when,omitempty"`
+	StopWhen                StopWhenSpec     `json:"stop_when,omitzero"         yaml:"stop_when,omitempty"`
 	Verification            []GateCriterion  `json:"verification,omitempty"     yaml:"verification,omitempty"`
 	IterationCap            int              `json:"iteration_cap"              yaml:"iteration_cap"`
 	NoProgress              NoProgress       `json:"no_progress"                yaml:"no_progress"`
@@ -34,16 +34,12 @@ func (c *Contract) Normalize() {
 	if c.TerminalStates == nil {
 		c.TerminalStates = []TerminalState{}
 	}
-	if c.NoProgress.HashFields == nil {
-		c.NoProgress.HashFields = []string{}
-	}
 }
 
 // NoProgress defines the generation-level progress signature.
 type NoProgress struct {
-	Window     int            `json:"window"                yaml:"window"`
-	HashFields []string       `json:"hash_fields,omitempty" yaml:"hash_fields,omitempty"`
-	Extra      map[string]any `json:"-"                     yaml:",inline"`
+	Window int            `json:"window" yaml:"window"`
+	Extra  map[string]any `json:"-"      yaml:",inline"`
 }
 
 // Budget defines opt-in hard limits.

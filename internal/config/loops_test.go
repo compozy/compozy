@@ -90,6 +90,9 @@ max_attempts = 0
 backoff_base = "2s"
 backoff_max = "45s"
 
+[loops.defaults.delivery.requests]
+expire_after = "72h"
+
 [[loops.defaults.delivery.autopause]]
 match = "class == 'transport'"
 action = "pause"
@@ -140,6 +143,9 @@ window = 4
 [loops.defaults.watch.gates]
 max_revisions = 7
 
+[loops.defaults.watch.requests]
+expire_after = "24h"
+
 [loops.defaults.watch.runtime_defaults.judge]
 model = "workspace-watch-judge"
 
@@ -154,25 +160,27 @@ fixer = ""
 		}
 
 		assertLoopDefaultConfig(t, "delivery", cfg.Loops.Defaults.Delivery, loopDefaultWant{
-			iterationCap:     0,
-			noProgressWindow: 2,
-			gateMaxRevisions: 9,
-			budgetTokens:     0,
-			budgetWallSec:    60,
-			budgetOnExceeded: string(dsl.BudgetExceededHalt),
-			fanOutWidth:      2,
-			workerModel:      "workspace-worker",
-			judgeModel:       "global-judge",
+			iterationCap:       0,
+			noProgressWindow:   2,
+			gateMaxRevisions:   9,
+			budgetTokens:       0,
+			budgetWallSec:      60,
+			budgetOnExceeded:   string(dsl.BudgetExceededHalt),
+			fanOutWidth:        2,
+			workerModel:        "workspace-worker",
+			judgeModel:         "global-judge",
+			requestExpireAfter: "72h",
 		})
 		assertLoopDefaultConfig(t, "watch", cfg.Loops.Defaults.Watch, loopDefaultWant{
-			iterationCap:     1,
-			noProgressWindow: 4,
-			gateMaxRevisions: 7,
-			budgetTokens:     0,
-			budgetWallSec:    0,
-			budgetOnExceeded: string(dsl.BudgetExceededHalt),
-			fanOutWidth:      5,
-			judgeModel:       "workspace-watch-judge",
+			iterationCap:       1,
+			noProgressWindow:   4,
+			gateMaxRevisions:   7,
+			budgetTokens:       0,
+			budgetWallSec:      0,
+			budgetOnExceeded:   string(dsl.BudgetExceededHalt),
+			fanOutWidth:        5,
+			judgeModel:         "workspace-watch-judge",
+			requestExpireAfter: "24h",
 		})
 		rules := cfg.Loops.Defaults.Delivery.RuntimeRules
 		if len(rules) != 2 || rules[0].Match.Complexity != "high" ||
@@ -238,9 +246,9 @@ func TestLoopsConfigShouldRejectWriteTimeInvalidDefaults(t *testing.T) {
 		wantError string
 	}{
 		{
-			name:      "Should reject delivery fan out above compile-time ceiling",
+			name:      "Should reject a negative delivery fan out window",
 			path:      []string{"loops", "defaults", "delivery", "fan_out_width"},
-			value:     loopDefaultsMaxFanoutWidth + 1,
+			value:     -1,
 			wantError: "loops.defaults.delivery.fan_out_width",
 		},
 		{
@@ -280,6 +288,18 @@ func TestLoopsConfigShouldRejectWriteTimeInvalidDefaults(t *testing.T) {
 			wantError: "loops.defaults.delivery.waits.admission_retry_interval",
 		},
 		{
+			name:      "Should reject zero request expiry",
+			path:      []string{"loops", "defaults", "delivery", "requests", "expire_after"},
+			value:     "0s",
+			wantError: "loops.defaults.delivery.requests.expire_after",
+		},
+		{
+			name:      "Should reject malformed request expiry",
+			path:      []string{"loops", "defaults", "watch", "requests", "expire_after"},
+			value:     "eventually",
+			wantError: "loops.defaults.watch.requests.expire_after",
+		},
+		{
 			name:      "Should reject a non-positive global breaker threshold",
 			path:      []string{"loops", "breaker", "threshold"},
 			value:     0,
@@ -314,6 +334,32 @@ func TestLoopsConfigShouldRejectWriteTimeInvalidDefaults(t *testing.T) {
 				t.Fatalf("EditConfigOverlay() error = %#v, want ValidationError path %q", err, tt.wantError)
 			}
 		})
+	}
+}
+
+func TestLoopsConfigShouldAcceptLargeFanOutWidth(t *testing.T) {
+	t.Parallel()
+
+	homePaths, err := ResolveHomePathsFrom(filepath.Join(t.TempDir(), "home"))
+	if err != nil {
+		t.Fatalf("ResolveHomePathsFrom() error = %v", err)
+	}
+	target, err := ResolveConfigWriteTarget(homePaths, "", WriteScopeGlobal)
+	if err != nil {
+		t.Fatalf("ResolveConfigWriteTarget() error = %v", err)
+	}
+	_, err = EditConfigOverlay(homePaths, "", target, func(editor *OverlayEditor) error {
+		return editor.SetValue([]string{"loops", "defaults", "delivery", "fan_out_width"}, 500)
+	})
+	if err != nil {
+		t.Fatalf("EditConfigOverlay() error = %v", err)
+	}
+	loaded, err := LoadForHome(homePaths)
+	if err != nil {
+		t.Fatalf("LoadForHome() error = %v", err)
+	}
+	if got, want := loaded.Loops.Defaults.Delivery.FanOutWidth, 500; got != want {
+		t.Fatalf("FanOutWidth = %d, want %d", got, want)
 	}
 }
 
@@ -400,9 +446,14 @@ func TestLoopsConfigShouldExposeAgentMutableToolPaths(t *testing.T) {
 			kind: ConfigValueString,
 		},
 		{
+			name: "Should allow request expiry defaults",
+			path: []string{"loops", "defaults", "delivery", "requests", "expire_after"},
+			kind: ConfigValueString,
+		},
+		{
 			name: "Should allow dynamic per Loop input defaults",
 			path: []string{"loops", "inputs", "review-and-fix", "auto_commit"},
-			kind: ConfigValueScalar,
+			kind: ConfigValueLoopInput,
 		},
 	}
 
@@ -425,15 +476,16 @@ func TestLoopsConfigShouldExposeAgentMutableToolPaths(t *testing.T) {
 }
 
 type loopDefaultWant struct {
-	iterationCap     int
-	noProgressWindow int
-	gateMaxRevisions int
-	budgetTokens     int
-	budgetWallSec    int
-	budgetOnExceeded string
-	fanOutWidth      int
-	workerModel      string
-	judgeModel       string
+	iterationCap       int
+	noProgressWindow   int
+	gateMaxRevisions   int
+	budgetTokens       int
+	budgetWallSec      int
+	budgetOnExceeded   string
+	fanOutWidth        int
+	workerModel        string
+	judgeModel         string
+	requestExpireAfter string
 }
 
 func assertLoopDefaultConfig(t *testing.T, label string, got LoopDefaultConfig, want loopDefaultWant) {
@@ -466,6 +518,14 @@ func assertLoopDefaultConfig(t *testing.T, label string, got LoopDefaultConfig, 
 			label,
 			got.RuntimeDefaults.Worker.Model,
 			want.workerModel,
+		)
+	}
+	if got.Requests.ExpireAfter != want.requestExpireAfter {
+		t.Fatalf(
+			"%s Requests.ExpireAfter = %q, want %q",
+			label,
+			got.Requests.ExpireAfter,
+			want.requestExpireAfter,
 		)
 	}
 	if got.RuntimeDefaults.Judge.Model != want.judgeModel {

@@ -68,7 +68,7 @@ func BenchmarkReadNetworkMessagePersistedCursor(b *testing.B) {
 		workspaceID: workspaceID,
 		streams:     map[string]int64{looppkg.WatchEventsNetworkStream: 0},
 		kinds:       []string{string(hookspkg.HookNetworkMessagePersisted)},
-		limit:       looppkg.LoopMaxFanoutWidth,
+		limit:       looppkg.LoopWatchEventPageLimit,
 	}
 
 	b.Run("max_rowid", func(b *testing.B) {
@@ -123,7 +123,7 @@ func BenchmarkReadNetworkWorkProjectedCursor(b *testing.B) {
 		workspaceID: workspaceID,
 		streams:     map[string]int64{looppkg.WatchEventsNetworkStream: 0},
 		kinds:       []string{string(hookspkg.HookNetworkWorkTransitioned)},
-		limit:       looppkg.LoopMaxFanoutWidth,
+		limit:       looppkg.LoopWatchEventPageLimit,
 	}
 
 	b.Run("full_replay", func(b *testing.B) {

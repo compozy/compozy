@@ -20,9 +20,10 @@ var _ taskpkg.CoordinatorPostCommitHandler = loopParentClosePostCommit{}
 func (h loopParentClosePostCommit) ApplyCoordinatorPostCommit(
 	ctx context.Context,
 	specs []taskpkg.CoordinatorParentCloseSpec,
+	laneCancels []taskpkg.CoordinatorLaneCancelSpec,
 	actor taskpkg.ActorContext,
 ) error {
-	if len(specs) == 0 {
+	if len(specs) == 0 && len(laneCancels) == 0 {
 		return nil
 	}
 	if h.state == nil {
@@ -33,6 +34,16 @@ func (h loopParentClosePostCommit) ApplyCoordinatorPostCommit(
 		return errors.New("daemon: Loop parent-close service is unavailable")
 	}
 	var errs []error
+	controller := loopCancellationSessionController{sessions: h.state.sessions}
+	for _, raw := range laneCancels {
+		spec := raw.Normalize()
+		reason := "fan-out strategy canceled " + spec.NodeID + "/" + fmt.Sprint(spec.ItemIndex)
+		for _, sessionID := range spec.SessionIDs {
+			if err := controller.CancelLoopSession(ctx, sessionID, reason); err != nil {
+				errs = append(errs, fmt.Errorf("cancel strategy lane session %q: %w", sessionID, err))
+			}
+		}
+	}
 	for _, raw := range specs {
 		spec := raw.Normalize()
 		reason := "parent Loop run " + spec.ParentLoopRunID + " closed"

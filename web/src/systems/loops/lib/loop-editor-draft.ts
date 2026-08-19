@@ -1,15 +1,6 @@
 import type { EditorEdge, EditorNode, RawLoopEdge } from "./codec";
 import type { FieldPath } from "./loop-node-schema";
 
-/**
- * Immutable draft mutations over the editor graph. Every inspector edit flows through
- * `setNodeFields`, which applies one or more raw-JSON path writes to exactly one node in a
- * single transition, leaving every other field (and node) untouched so the bijective codec
- * still round-trips the rest. Node-id renames cascade through the edges and the React Flow
- * node id. Drafts are editor-session state only — there is no server-side draft store in v1
- * (§9.13).
- */
-
 /** Reads the value at a raw-JSON path (dotted/indexed), or `undefined` when absent. */
 export function getAtPath(source: unknown, path: FieldPath): unknown {
   let current: unknown = source;
@@ -173,6 +164,22 @@ function renameEdgeRaw(raw: RawLoopEdge, oldId: string, newId: string): RawLoopE
   return next;
 }
 
+function renameRouteRaw(raw: EditorNode["data"]["raw"], oldId: string, newId: string) {
+  if (raw.kind !== "route") return raw;
+  const routes = Array.isArray(raw.routes)
+    ? raw.routes.map(entry => {
+        if (typeof entry !== "object" || entry === null) return entry;
+        const route = entry as Record<string, unknown>;
+        return route.to === oldId ? { ...route, to: newId } : entry;
+      })
+    : raw.routes;
+  return {
+    ...raw,
+    routes,
+    default: raw.default === oldId ? newId : raw.default,
+  };
+}
+
 /**
  * Renames a node id everywhere it is referenced: the raw node, the React Flow node id,
  * and every edge's `source`/`target` + raw `from`/`to`. Reference strings inside other
@@ -186,8 +193,11 @@ export function renameNodeId(
   newId: string
 ): { nodes: EditorNode[]; edges: EditorEdge[] } {
   const nextNodes = nodes.map(node => {
-    if (node.id !== oldId) return node;
-    const raw = { ...node.data.raw, id: newId };
+    const routeRaw = renameRouteRaw(node.data.raw, oldId, newId);
+    if (node.id !== oldId) {
+      return routeRaw === node.data.raw ? node : { ...node, data: { ...node.data, raw: routeRaw } };
+    }
+    const raw = { ...routeRaw, id: newId };
     return { ...node, id: newId, data: { ...node.data, raw } };
   });
   const nextEdges = edges.map(edge => {

@@ -8,13 +8,13 @@ import (
 	"fmt"
 	"log/slog"
 	"path/filepath"
+	"reflect"
 	"slices"
 	"strings"
 	"sync"
 	"testing"
 	"time"
 
-	"github.com/compozy/compozy/internal/api/contract"
 	hookspkg "github.com/compozy/compozy/internal/hooks"
 	looppkg "github.com/compozy/compozy/internal/loop"
 	"github.com/compozy/compozy/internal/loop/dsl"
@@ -24,60 +24,1043 @@ import (
 	"github.com/compozy/compozy/internal/testutil"
 )
 
-func TestLoopRunEventKindValidShouldMatchPublicContract(t *testing.T) {
+// Invariant: a time-travel operation and its generation or child run commit atomically under one
+// workspace-scoped intent key. The canonical GlobalDB Loop suite owns replay, lineage, seed, and coordinator truth.
+func TestGlobalDBLoopTimeTravelShouldCommitOneAtomicOperation(t *testing.T) {
 	t.Parallel()
 
-	localKinds := map[string]struct{}{
-		loopRunEventNodeRunning:             {},
-		loopRunEventNodeSucceeded:           {},
-		loopRunEventNodeFailed:              {},
-		loopRunEventGateVerdict:             {},
-		loopRunEventGenerationStarted:       {},
-		loopRunEventChannelMsg:              {},
-		loopRunEventTokenTick:               {},
-		loopRunEventNeedsApproval:           {},
-		loopRunEventStatusChanged:           {},
-		loopRunEventGoalTurnStarted:         {},
-		loopRunEventGoalTurnCompleted:       {},
-		loopRunEventGoalStatusChanged:       {},
-		loopRunEventRuntimeApplied:          {},
-		loopRunEventNodeRetryScheduled:      {},
-		loopRunEventNodePaused:              {},
-		loopRunEventNodeResumed:             {},
-		loopRunEventNodeCanceled:            {},
-		loopRunEventNodeKilled:              {},
-		loopRunEventNodeQuarantined:         {},
-		loopRunEventNodeRequeued:            {},
-		loopRunEventNodeWaitStarted:         {},
-		loopRunEventNodeWaitResumed:         {},
-		loopRunEventNodeAttentionFlagged:    {},
-		loopRunEventNodeAttentionCleared:    {},
-		loopRunEventEffectResults:           {},
-		loopRunEventCustomEvent:             {},
-		loopRunEventDuplicateSuppressed:     {},
-		loopRunEventTargetBreakerTransition: {},
-		loopRunEventStaleScheduleDropped:    {},
-		loopRunEventLateArrival:             {},
-	}
-	for _, kind := range contract.LoopRunEventKindValues() {
-		t.Run("Should accept public kind "+kind, func(t *testing.T) {
+	t.Run(
+		"Should reactivate a terminal run once and replay an explicit rerun key UT-071 UT-074 UT-076 UT-077",
+		func(t *testing.T) {
 			t.Parallel()
-			if !loopRunEventKindValid(kind) {
-				t.Fatalf("loopRunEventKindValid(%q) = false, want true", kind)
+
+			globalDB := openLoopTestGlobalDB(t)
+			ctx := testutil.Context(t)
+			now := time.Date(2026, time.August, 16, 16, 0, 0, 0, time.UTC)
+			source, err := globalDB.CreateLoopRunForStart(
+				ctx, testLoopRun("looprun-rerun-atomic", now, looppkg.StatusRunning), dsl.ConcurrencyAllow,
+			)
+			if err != nil {
+				t.Fatalf("CreateLoopRunForStart() error = %v", err)
 			}
-			if _, ok := localKinds[kind]; !ok {
-				t.Fatalf("contract kind %q is missing from local loop event constants", kind)
+			if _, err := globalDB.db.ExecContext(ctx, `INSERT INTO loop_generation_outputs (
+			loop_run_id, generation, node_id, item_index, status, attempt, epoch
+		) VALUES (?, 1, 'finish', 0, 'failed', 1, 0)`, source.ID); err != nil {
+				t.Fatalf("insert source output error = %v", err)
 			}
+			if _, err := globalDB.db.ExecContext(
+				ctx,
+				`UPDATE loop_runs SET status = 'done' WHERE id = ?`,
+				source.ID,
+			); err != nil {
+				t.Fatalf("terminalize source error = %v", err)
+			}
+			if _, err := globalDB.db.ExecContext(ctx, `UPDATE task_runs SET status = 'completed', ended_at = ?
+			WHERE loop_run_id = ? AND run_kind = 'coordinator'`, now.Add(30*time.Second), source.ID); err != nil {
+				t.Fatalf("complete source coordinator error = %v", err)
+			}
+			source.Status = looppkg.StatusDone
+			actor := operatorActorContextForTest("operator:rerun")
+			generation := int64(2)
+			rerunDigest := strings.Repeat("a", 64)
+			request := looppkg.RerunStoreRequest{
+				WorkspaceID: source.WorkspaceID,
+				Source:      &source,
+				NextOutputs: []looppkg.GenerationOutput{{
+					Generation: 2, NodeID: "finish", Status: "pending", Attempt: 1,
+				}},
+				Intent: looppkg.GenerationIntent{
+					Generation: 2, ParentGeneration: 1, Origin: looppkg.OriginOperatorRerun,
+				},
+				Operation: looppkg.TimeTravelOp{
+					ID: "loopop-rerun-atomic", Kind: "rerun", IdempotencyKey: "rerun-key",
+					RequestDigest: rerunDigest, SourceRunID: source.ID, SourceGeneration: new(int64),
+					FromNode: "finish", Actor: actor, Reason: "retry failed finish", ResultRunID: source.ID,
+					ResultGeneration: &generation, CreatedAt: now.Add(time.Minute),
+				},
+				RequestDigest: rerunDigest, IdempotencyKey: "rerun-key", At: now.Add(time.Minute),
+			}
+			*request.Operation.SourceGeneration = 1
+			result, replayed, err := globalDB.CreateRerun(ctx, request)
+			if err != nil || replayed || result.Generation != 2 || result.ParentGeneration != 1 {
+				t.Fatalf("CreateRerun() = %#v replayed=%v error=%v", result, replayed, err)
+			}
+			persisted, err := globalDB.GetLoopRun(ctx, source.WorkspaceID, source.ID)
+			if err != nil {
+				t.Fatalf("GetLoopRun() error = %v", err)
+			}
+			if persisted.Status != looppkg.StatusRunning || persisted.Generation != 2 {
+				t.Fatalf("reactivated run = %#v, want running generation 2", persisted)
+			}
+			if got := countCoordinatorTaskRunsForLoop(ctx, t, globalDB, source.ID); got != 2 {
+				t.Fatalf("coordinator task runs = %d, want initial plus rerun", got)
+			}
+			replay, replayed, err := globalDB.CreateRerun(ctx, request)
+			if err != nil || !replayed || replay.RunID != source.ID || replay.Generation != 2 {
+				t.Fatalf("CreateRerun(replay) = %#v replayed=%v error=%v", replay, replayed, err)
+			}
+			var operations int
+			if err := globalDB.db.QueryRowContext(ctx, `SELECT COUNT(*) FROM loop_timetravel_ops
+			WHERE workspace_id = ? AND idempotency_key = 'rerun-key'`, source.WorkspaceID).Scan(&operations); err != nil {
+				t.Fatalf("count rerun operations error = %v", err)
+			}
+			if operations != 1 {
+				t.Fatalf("rerun operation count = %d, want 1", operations)
+			}
+			mismatch := request
+			mismatch.RequestDigest = strings.Repeat("b", 64)
+			_, _, err = globalDB.CreateRerun(ctx, mismatch)
+			if !errors.Is(err, looppkg.ErrTimeTravelKeyReuse) {
+				t.Fatalf("CreateRerun(key reuse) error = %v, want ErrTimeTravelKeyReuse", err)
+			}
+		},
+	)
+
+	t.Run("Should seed and link a fork or abort the whole transaction UT-078 through UT-082b", func(t *testing.T) {
+		t.Parallel()
+
+		globalDB := openLoopTestGlobalDB(t)
+		ctx := testutil.Context(t)
+		now := time.Date(2026, time.August, 16, 17, 0, 0, 0, time.UTC)
+		source, err := globalDB.CreateLoopRunForStart(
+			ctx, testLoopRun("looprun-fork-source", now, looppkg.StatusRunning), dsl.ConcurrencyAllow,
+		)
+		if err != nil {
+			t.Fatalf("CreateLoopRunForStart() error = %v", err)
+		}
+		payload := json.RawMessage(`{"result":"baseline"}`)
+		outputRef := looppkg.OutputRefForPayload(payload)
+		if _, err := globalDB.db.ExecContext(ctx, `INSERT INTO loop_output_blobs (
+			output_ref, payload_json, byte_size, created_at, last_used_at
+		) VALUES (?, ?, ?, ?, ?)`, outputRef, payload, len(payload), now, now); err != nil {
+			t.Fatalf("insert source blob error = %v", err)
+		}
+		if _, err := globalDB.db.ExecContext(ctx, `INSERT INTO loop_generation_outputs (
+			loop_run_id, generation, node_id, item_index, status, output_ref, attempt, epoch
+		) VALUES (?, 1, 'finish', 0, 'succeeded', ?, 1, 0)`, source.ID, outputRef); err != nil {
+			t.Fatalf("insert source output error = %v", err)
+		}
+		if _, err := globalDB.db.ExecContext(
+			ctx,
+			`UPDATE loop_runs SET status = 'done' WHERE id = ?`,
+			source.ID,
+		); err != nil {
+			t.Fatalf("terminalize source error = %v", err)
+		}
+		source.Status = looppkg.StatusDone
+		before, err := globalDB.GetLoopRun(ctx, source.WorkspaceID, source.ID)
+		if err != nil {
+			t.Fatalf("GetLoopRun(source before) error = %v", err)
+		}
+		child := testLoopRun("looprun-fork-child", now.Add(time.Minute), looppkg.StatusRunning)
+		child.Generation = 1
+		child.SetForkedFrom(&looppkg.ForkRef{RunID: source.ID, Generation: 1})
+		child.DefinitionDigest = source.DefinitionDigest
+		child.DefinitionSnapshot = append(json.RawMessage(nil), source.DefinitionSnapshot...)
+		child.Inputs = map[string]any{"tasks": "override-ref"}
+		sourceGeneration := int64(1)
+		forkDigest := strings.Repeat("c", 64)
+		request := looppkg.ForkStoreRequest{
+			Source: &source, Child: &child,
+			SeedOutputs: []looppkg.GenerationOutput{
+				{Generation: 1, NodeID: "finish", Status: "succeeded", OutputRef: outputRef, Attempt: 1},
+				{
+					Generation: 1, NodeID: "select", Status: "succeeded",
+					OutputRef: `{"environment":"staging"}`, Attempt: 1,
+				},
+			},
+			Concurrency: dsl.ConcurrencyAllow,
+			Operation: looppkg.TimeTravelOp{
+				ID: "loopop-fork-atomic", Kind: "fork", IdempotencyKey: "fork-key",
+				RequestDigest: forkDigest, SourceRunID: source.ID, SourceGeneration: &sourceGeneration,
+				Actor: operatorActorContextForTest("operator:fork"), Reason: "compare a safer input",
+				ResultRunID: child.ID, CreatedAt: now.Add(time.Minute),
+			},
+			RequestDigest: forkDigest, IdempotencyKey: "fork-key", At: now.Add(time.Minute),
+		}
+		created, replayed, err := globalDB.CreateFork(ctx, request)
+		if err != nil || replayed || created.ID != child.ID {
+			t.Fatalf("CreateFork() = %#v replayed=%v error=%v", created, replayed, err)
+		}
+		persisted, err := globalDB.GetLoopRun(ctx, child.WorkspaceID, child.ID)
+		if err != nil {
+			t.Fatalf("GetLoopRun(child) error = %v", err)
+		}
+		persistedSource := persisted.ForkedFromSnapshot()
+		childSource := child.ForkedFromSnapshot()
+		if persisted.Generation != 1 || persistedSource == nil || childSource == nil ||
+			*persistedSource != *childSource {
+			t.Fatalf("persisted fork = %#v", persisted)
+		}
+		generations, err := globalDB.ListGenerations(ctx, string(child.WorkspaceID), string(child.ID))
+		if err != nil {
+			t.Fatalf("ListGenerations(child) error = %v", err)
+		}
+		if len(generations) != 2 || generations[0].Origin != looppkg.OriginForkSeed ||
+			generations[1].Origin != looppkg.OriginInitial || generations[1].ParentGeneration != 1 {
+			t.Fatalf("fork generations = %#v", generations)
+		}
+		outputs, err := globalDB.ListGenerationOutputs(ctx, child.WorkspaceID, child.ID, 1)
+		if err != nil || len(outputs) != 2 || outputs[0].OutputRef != outputRef ||
+			outputs[1].OutputRef != `{"environment":"staging"}` {
+			t.Fatalf("fork seed outputs = %#v error=%v", outputs, err)
+		}
+		if got := countCoordinatorTaskRunsForLoop(ctx, t, globalDB, child.ID); got != 1 {
+			t.Fatalf("fork coordinator task runs = %d, want generation-2 reservation", got)
+		}
+		forks, err := globalDB.ListForks(ctx, source.WorkspaceID, source.ID)
+		if err != nil || len(forks) != 1 || forks[0].RunID != child.ID || forks[0].Generation != 1 {
+			t.Fatalf("ListForks() = %#v error=%v", forks, err)
+		}
+		after, err := globalDB.GetLoopRun(ctx, source.WorkspaceID, source.ID)
+		if err != nil || !reflect.DeepEqual(before, after) {
+			t.Fatalf("source after fork = %#v error=%v, want byte-identical projection %#v", after, err, before)
+		}
+		replay, replayed, err := globalDB.CreateFork(ctx, request)
+		if err != nil || !replayed || replay.ID != child.ID {
+			t.Fatalf("CreateFork(replay) = %#v replayed=%v error=%v", replay, replayed, err)
+		}
+
+		missing := request
+		missing.Child = new(child)
+		missing.Child.ID = "looprun-fork-missing-blob"
+		missing.Child.SetForkedFrom(&looppkg.ForkRef{RunID: source.ID, Generation: 1})
+		missing.SeedOutputs = []looppkg.GenerationOutput{{
+			Generation: 1, NodeID: "finish", Status: "succeeded",
+			OutputRef: "sha256:" + strings.Repeat("f", 64), Attempt: 1,
+		}}
+		missing.Operation.ID = "loopop-fork-missing-blob"
+		missing.Operation.IdempotencyKey = ""
+		missing.Operation.ResultRunID = missing.Child.ID
+		missing.IdempotencyKey = ""
+		_, _, err = globalDB.CreateFork(ctx, missing)
+		if !errors.Is(err, looppkg.ErrOutputRefNotFound) {
+			t.Fatalf("CreateFork(missing blob) error = %v, want ErrOutputRefNotFound", err)
+		}
+		if _, err := globalDB.GetLoopRun(
+			ctx,
+			missing.Child.WorkspaceID,
+			missing.Child.ID,
+		); !errors.Is(
+			err,
+			looppkg.ErrRunNotFound,
+		) {
+			t.Fatalf("GetLoopRun(partial missing-blob child) error = %v, want ErrRunNotFound", err)
+		}
+	})
+}
+
+// Invariant: one request row and its request wait form a single-winner, workspace-scoped lifecycle.
+// The canonical GlobalDB Loop suite owns ordering, admission, idempotency, expiry, and cancellation truth.
+func TestGlobalDBLoopRequestsShouldOwnOneAtomicLifecycle(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should paginate pending lanes and admit one schema-valid answer", func(t *testing.T) {
+		t.Parallel()
+
+		globalDB := openLoopTestGlobalDB(t)
+		ctx := testutil.Context(t)
+		now := time.Date(2026, time.August, 16, 13, 0, 0, 0, time.UTC)
+		globalDB.LoopRepo.now = func() time.Time { return now.Add(10 * time.Minute) }
+		run, err := globalDB.CreateLoopRunForStart(
+			ctx, testLoopRun("looprun-request-admission", now, looppkg.StatusRunning), dsl.ConcurrencyAllow,
+		)
+		if err != nil {
+			t.Fatalf("CreateLoopRunForStart() error = %v", err)
+		}
+		schema := json.RawMessage(
+			`{"type":"object","required":["environment"],"properties":{"environment":{"type":"string"}}}`,
+		)
+		for lane, expiry := range []time.Time{now.Add(2 * time.Hour), now.Add(time.Hour)} {
+			seedLoopWaitCellForTest(
+				t, globalDB, run, "select", lane, looppkg.NodeWaitKindRequest, int64(lane+1),
+				schema, nil, &expiry, now.Add(time.Duration(lane)*time.Minute),
+			)
+			seedLoopRequestForTest(
+				t,
+				globalDB,
+				run,
+				"select",
+				lane,
+				schema,
+				&expiry,
+				now.Add(time.Duration(lane)*time.Minute),
+			)
+		}
+
+		first, err := globalDB.ListRequests(ctx, run.WorkspaceID, looppkg.RequestQuery{Limit: 1})
+		if err != nil {
+			t.Fatalf("ListRequests(first) error = %v", err)
+		}
+		if len(first.Items) != 1 || first.Items[0].ItemIndex != 1 || first.Pending != 2 || first.NextCursor == "" {
+			t.Fatalf("ListRequests(first) = %#v, want earliest expiry and cursor", first)
+		}
+		second, err := globalDB.ListRequests(ctx, run.WorkspaceID, looppkg.RequestQuery{
+			Limit: 1, Cursor: first.NextCursor,
 		})
-	}
-	for kind := range localKinds {
-		t.Run("Should publish local kind "+kind, func(t *testing.T) {
-			t.Parallel()
-			if !slices.Contains(contract.LoopRunEventKindValues(), kind) {
-				t.Fatalf("local loop event kind %q is missing from public contract", kind)
-			}
+		if err != nil {
+			t.Fatalf("ListRequests(second) error = %v", err)
+		}
+		if len(second.Items) != 1 || second.Items[0].ItemIndex != 0 || second.NextCursor != "" {
+			t.Fatalf("ListRequests(second) = %#v, want final lane without cursor", second)
+		}
+		detail, err := globalDB.GetRequest(ctx, run.WorkspaceID, looppkg.RequestRef{
+			RunID: run.ID, NodeID: "select", ItemIndex: 1,
+		}, true)
+		if err != nil || !strings.Contains(string(detail.Context), `"full":"lane-1"`) {
+			t.Fatalf("GetRequest(full) = %#v, error = %v", detail, err)
+		}
+
+		actor := operatorActorContextForTest("operator:one")
+		_, err = globalDB.RespondRequest(ctx, looppkg.RespondInput{
+			WorkspaceID: run.WorkspaceID, RunID: run.ID, NodeID: "select", ItemIndex: 1,
+			Payload: json.RawMessage(`{}`), Actor: actor,
 		})
+		var validationReason *looppkg.ReasonError
+		if !errors.Is(err, looppkg.ErrRequestValidationFailed) ||
+			!errors.As(err, &validationReason) || validationReason.Code != looppkg.ReasonCodeRequestValidationFailed {
+			t.Fatalf("RespondRequest(invalid) error = %#v", err)
+		}
+		pending, err := globalDB.GetRequest(ctx, run.WorkspaceID, looppkg.RequestRef{
+			RunID: run.ID, NodeID: "select", ItemIndex: 1,
+		}, false)
+		if err != nil || pending.State != looppkg.RequestStatePending {
+			t.Fatalf("GetRequest(after invalid) = %#v, error = %v", pending, err)
+		}
+
+		answer := json.RawMessage(`{"environment":"production"}`)
+		result, err := globalDB.RespondRequest(ctx, looppkg.RespondInput{
+			WorkspaceID: run.WorkspaceID, RunID: run.ID, NodeID: "select", ItemIndex: 1,
+			Payload: answer, Actor: actor,
+		})
+		if err != nil || !result.Won || result.Request.State != looppkg.RequestStateAnswered ||
+			result.Coordinator == nil {
+			t.Fatalf("RespondRequest(valid) = %#v, error = %v", result, err)
+		}
+		var outputRef string
+		if err := globalDB.db.QueryRowContext(ctx, `SELECT output_ref FROM loop_generation_outputs
+			WHERE loop_run_id = ? AND generation = ? AND node_id = ? AND item_index = ?`,
+			run.ID, result.Request.Generation, "select", 1).Scan(&outputRef); err != nil {
+			t.Fatalf("load admitted request output ref error = %v", err)
+		}
+		payload, err := globalDB.GetGenerationOutputPayload(ctx, looppkg.GenerationOutputPayloadKey{
+			WorkspaceID: run.WorkspaceID,
+			RunID:       run.ID,
+			Generation:  result.Request.Generation,
+			NodeID:      "select",
+			ItemIndex:   1,
+			OutputRef:   outputRef,
+		})
+		if err != nil || string(payload) != string(answer) {
+			t.Fatalf("admitted request output = %s, error = %v, want %s", payload, err, answer)
+		}
+		replay, err := globalDB.RespondRequest(ctx, looppkg.RespondInput{
+			WorkspaceID: run.WorkspaceID, RunID: run.ID, NodeID: "select", ItemIndex: 1,
+			Payload: answer, Actor: actor,
+		})
+		if err != nil || replay.Won {
+			t.Fatalf("RespondRequest(replay) = %#v, error = %v, want idempotent echo", replay, err)
+		}
+		_, err = globalDB.RespondRequest(ctx, looppkg.RespondInput{
+			WorkspaceID: run.WorkspaceID, RunID: run.ID, NodeID: "select", ItemIndex: 1,
+			Payload: answer, Actor: operatorActorContextForTest("operator:two"),
+		})
+		var conflictReason *looppkg.ReasonError
+		if !errors.Is(err, looppkg.ErrRequestAlreadyAnswered) ||
+			!errors.As(err, &conflictReason) ||
+			conflictReason.Meta[looppkg.ReasonMetaRecordedDecision] != looppkg.RequestDecisionRespond {
+			t.Fatalf("RespondRequest(loser) error = %#v", err)
+		}
+	})
+
+	t.Run("Should admit each review decision without starting the action clock early", func(t *testing.T) {
+		t.Parallel()
+
+		globalDB := openLoopTestGlobalDB(t)
+		ctx := testutil.Context(t)
+		now := time.Date(2026, time.August, 16, 14, 30, 0, 0, time.UTC)
+		globalDB.LoopRepo.now = func() time.Time { return now.Add(time.Minute) }
+		editSchema := json.RawMessage(`{"type":"object","required":["tag"],"properties":{"tag":{"type":"string"}}}`)
+		respondSchema := json.RawMessage(
+			`{"type":"object","required":["release_url"],"properties":{"release_url":{"type":"string"}}}`,
+		)
+		proposed := json.RawMessage(`{"tag":"v1"}`)
+
+		seedReview := func(ctx context.Context, id string) looppkg.Run {
+			t.Helper()
+			run, err := globalDB.CreateLoopRunForStart(
+				ctx, testLoopRun(id, now, looppkg.StatusRunning), dsl.ConcurrencyAllow,
+			)
+			if err != nil {
+				t.Fatalf("CreateLoopRunForStart(%s) error = %v", id, err)
+			}
+			seedLoopWaitCellForTest(
+				t, globalDB, run, "publish", 0, looppkg.NodeWaitKindRequest, 1,
+				nil, nil, nil, now,
+			)
+			if _, err := globalDB.db.ExecContext(ctx, `UPDATE loop_generation_outputs
+				SET first_scheduled_at = NULL WHERE loop_run_id = ? AND generation = 1
+				AND node_id = 'publish' AND item_index = 0`, run.ID); err != nil {
+				t.Fatalf("clear review scheduling clock error = %v", err)
+			}
+			contextPayload := json.RawMessage(`{}`)
+			contextRef := looppkg.OutputRefForPayload(contextPayload)
+			proposedRef := looppkg.OutputRefForPayload(proposed)
+			for ref, payload := range map[string]json.RawMessage{
+				contextRef: contextPayload, proposedRef: proposed,
+			} {
+				if err := storepkg.UpsertLoopOutputBlob(ctx, globalDB.db, ref, payload, now); err != nil {
+					t.Fatalf("UpsertLoopOutputBlob(%s) error = %v", ref, err)
+				}
+			}
+			if _, err := globalDB.db.ExecContext(ctx, `INSERT INTO loop_requests (
+				workspace_id, loop_run_id, generation, node_id, item_index, kind, state,
+				prompt, context_preview_json, context_ref, edit_schema_json, respond_schema_json,
+				decisions_json, proposed_ref, proposed_preview_json, opened_at
+			) VALUES (?, ?, 1, 'publish', 0, 'review', 'pending', 'Review publish', '{}', ?, ?, ?,
+				'["approve","edit","reject","respond"]', ?, ?, ?)`, run.WorkspaceID, run.ID,
+				contextRef, string(editSchema), string(respondSchema), proposedRef, string(proposed), now); err != nil {
+				t.Fatalf("insert review request error = %v", err)
+			}
+			return run
+		}
+
+		invalidRun := seedReview(ctx, "looprun-review-invalid-edit")
+		_, err := globalDB.RespondRequest(ctx, looppkg.RespondInput{
+			WorkspaceID: invalidRun.WorkspaceID, RunID: invalidRun.ID, NodeID: "publish",
+			Decision: looppkg.RequestDecisionEdit, Payload: json.RawMessage(`{}`),
+			Actor: operatorActorContextForTest("operator:review"), RequestKind: looppkg.RequestKindReview,
+		})
+		if !errors.Is(err, looppkg.ErrRequestValidationFailed) {
+			t.Fatalf("RespondRequest(invalid edit) error = %v, want validation failure", err)
+		}
+		pending, err := globalDB.GetRequest(ctx, invalidRun.WorkspaceID, looppkg.RequestRef{
+			RunID: invalidRun.ID, NodeID: "publish",
+		}, false)
+		if err != nil || pending.State != looppkg.RequestStatePending {
+			t.Fatalf("review after invalid edit = %#v, error = %v", pending, err)
+		}
+
+		for _, tt := range []struct {
+			name          string
+			decision      string
+			payload       json.RawMessage
+			rejectRoute   looppkg.NodeID
+			wantStatus    string
+			wantPayload   json.RawMessage
+			wantRefPrefix string
+		}{
+			{name: "approve", decision: looppkg.RequestDecisionApprove, wantStatus: "pending", wantPayload: proposed},
+			{name: "edit", decision: looppkg.RequestDecisionEdit, payload: json.RawMessage(`{"tag":"v2"}`),
+				wantStatus: "pending", wantPayload: json.RawMessage(`{"tag":"v2"}`)},
+			{name: "respond", decision: looppkg.RequestDecisionRespond,
+				payload:    json.RawMessage(`{"release_url":"https://example.test/v2"}`),
+				wantStatus: "succeeded", wantPayload: json.RawMessage(`{"release_url":"https://example.test/v2"}`)},
+			{name: "reject route", decision: looppkg.RequestDecisionReject, rejectRoute: "halt",
+				wantStatus: "succeeded", wantRefPrefix: reviewRejectedRouteOutputRefPrefix + "halt"},
+			{name: "reject failure", decision: looppkg.RequestDecisionReject,
+				wantStatus: "failed", wantRefPrefix: `{"kind":"action_failure","code":"quality_rejection"`},
+		} {
+			t.Run("Should admit "+tt.name, func(t *testing.T) {
+				t.Parallel()
+
+				ctx := testutil.Context(t)
+				run := seedReview(ctx, "looprun-review-"+strings.ReplaceAll(tt.name, " ", "-"))
+				result, err := globalDB.RespondRequest(ctx, looppkg.RespondInput{
+					WorkspaceID: run.WorkspaceID, RunID: run.ID, NodeID: "publish",
+					Decision: tt.decision, Payload: tt.payload, RejectRoute: tt.rejectRoute,
+					Actor: operatorActorContextForTest("operator:review"), RequestKind: looppkg.RequestKindReview,
+				})
+				if err != nil || !result.Won || result.Coordinator == nil {
+					t.Fatalf("RespondRequest(%s) = %#v, error = %v", tt.name, result, err)
+				}
+				var status, outputRef string
+				var firstScheduled sql.NullTime
+				if err := globalDB.db.QueryRowContext(ctx, `SELECT status, output_ref, first_scheduled_at
+					FROM loop_generation_outputs WHERE loop_run_id = ? AND generation = 1
+					AND node_id = 'publish' AND item_index = 0`, run.ID).
+					Scan(&status, &outputRef, &firstScheduled); err != nil {
+					t.Fatalf("load review output error = %v", err)
+				}
+				if status != tt.wantStatus || firstScheduled.Valid {
+					t.Fatalf("review output status=%q first_scheduled=%v, want %q and unset clock",
+						status, firstScheduled, tt.wantStatus)
+				}
+				if tt.wantRefPrefix != "" && !strings.HasPrefix(outputRef, tt.wantRefPrefix) {
+					t.Fatalf("review output_ref = %q, want prefix %q", outputRef, tt.wantRefPrefix)
+				}
+				if len(tt.wantPayload) > 0 {
+					payload, err := globalDB.GetGenerationOutputPayload(ctx, looppkg.GenerationOutputPayloadKey{
+						WorkspaceID: run.WorkspaceID, RunID: run.ID, Generation: 1,
+						NodeID: "publish", OutputRef: outputRef,
+					})
+					if err != nil || string(payload) != string(tt.wantPayload) {
+						t.Fatalf("review admitted payload = %s, error = %v, want %s", payload, err, tt.wantPayload)
+					}
+				}
+			})
+		}
+	})
+
+	t.Run("Should serialize concurrent responders and cancellation", func(t *testing.T) {
+		t.Parallel()
+
+		globalDB := openLoopTestGlobalDB(t)
+		ctx := testutil.Context(t)
+		now := time.Date(2026, time.August, 16, 13, 30, 0, 0, time.UTC)
+		globalDB.LoopRepo.now = func() time.Time { return now.Add(time.Minute) }
+		schema := json.RawMessage(`{"type":"object","required":["value"],"properties":{"value":{"type":"string"}}}`)
+		seedRun := func(id string) looppkg.Run {
+			t.Helper()
+			run, err := globalDB.CreateLoopRunForStart(
+				ctx, testLoopRun(id, now, looppkg.StatusRunning), dsl.ConcurrencyAllow,
+			)
+			if err != nil {
+				t.Fatalf("CreateLoopRunForStart(%s) error = %v", id, err)
+			}
+			expires := now.Add(time.Hour)
+			seedLoopWaitCellForTest(
+				t,
+				globalDB,
+				run,
+				"select",
+				0,
+				looppkg.NodeWaitKindRequest,
+				1,
+				schema,
+				nil,
+				&expires,
+				now,
+			)
+			seedLoopRequestForTest(t, globalDB, run, "select", 0, schema, &expires, now)
+			return run
+		}
+
+		respondRun := seedRun("looprun-request-race-respond")
+		start := make(chan struct{})
+		respondErrors := make(chan error, 2)
+		var responders sync.WaitGroup
+		for index := range 2 {
+			responders.Add(1)
+			go func(index int) {
+				defer responders.Done()
+				<-start
+				_, err := globalDB.RespondRequest(ctx, looppkg.RespondInput{
+					WorkspaceID: respondRun.WorkspaceID, RunID: respondRun.ID, NodeID: "select",
+					Payload: json.RawMessage(fmt.Sprintf(`{"value":"answer-%d"}`, index)),
+					Actor:   operatorActorContextForTest(fmt.Sprintf("operator:%d", index)),
+				})
+				respondErrors <- err
+			}(index)
+		}
+		close(start)
+		responders.Wait()
+		close(respondErrors)
+		wins := 0
+		conflicts := 0
+		for err := range respondErrors {
+			switch {
+			case err == nil:
+				wins++
+			case errors.Is(err, looppkg.ErrRequestAlreadyAnswered):
+				conflicts++
+			default:
+				t.Fatalf("concurrent RespondRequest() error = %v", err)
+			}
+		}
+		if wins != 1 || conflicts != 1 {
+			t.Fatalf("respond race wins/conflicts = %d/%d, want 1/1", wins, conflicts)
+		}
+
+		cancelRun := seedRun("looprun-request-race-cancel")
+		start = make(chan struct{})
+		raceErrors := make(chan error, 2)
+		var race sync.WaitGroup
+		race.Add(2)
+		go func() {
+			defer race.Done()
+			<-start
+			_, err := globalDB.RespondRequest(ctx, looppkg.RespondInput{
+				WorkspaceID: cancelRun.WorkspaceID, RunID: cancelRun.ID, NodeID: "select",
+				Payload: json.RawMessage(`{"value":"answer"}`),
+				Actor:   operatorActorContextForTest("operator:respond"),
+			})
+			if err != nil && !errors.Is(err, looppkg.ErrRequestCanceled) {
+				raceErrors <- err
+				return
+			}
+			raceErrors <- nil
+		}()
+		go func() {
+			defer race.Done()
+			<-start
+			_, err := globalDB.RequestRunCancellation(ctx, looppkg.CancellationMutation{
+				WorkspaceID: cancelRun.WorkspaceID,
+				RunID:       cancelRun.ID,
+				Kind:        looppkg.RunCancelCancel,
+				Reason:      "race",
+				Actor:       operatorActorContextForTest("operator:cancel"),
+				RequestedAt: now.Add(2 * time.Minute),
+			})
+			raceErrors <- err
+		}()
+		close(start)
+		race.Wait()
+		close(raceErrors)
+		for err := range raceErrors {
+			if err != nil {
+				t.Fatalf("respond/cancel race error = %v", err)
+			}
+		}
+		request, err := globalDB.GetRequest(ctx, cancelRun.WorkspaceID, looppkg.RequestRef{
+			RunID: cancelRun.ID, NodeID: "select",
+		}, false)
+		if err != nil ||
+			(request.State != looppkg.RequestStateAnswered && request.State != looppkg.RequestStateCanceled) {
+			t.Fatalf("respond/cancel race request = %#v, error = %v", request, err)
+		}
+		var answeredEvents, canceledEvents int
+		if err := globalDB.db.QueryRowContext(ctx, `SELECT
+			SUM(CASE WHEN kind = 'request_answered' THEN 1 ELSE 0 END),
+			SUM(CASE WHEN kind = 'request_canceled' THEN 1 ELSE 0 END)
+			FROM loop_run_events WHERE loop_run_id = ?`, cancelRun.ID).Scan(&answeredEvents, &canceledEvents); err != nil {
+			t.Fatalf("count request race events error = %v", err)
+		}
+		if answeredEvents+canceledEvents != 1 {
+			t.Fatalf("respond/cancel race events answered/canceled = %d/%d, want one terminal request event",
+				answeredEvents, canceledEvents)
+		}
+	})
+
+	t.Run("Should cancel a pending request in the run cancellation transaction", func(t *testing.T) {
+		t.Parallel()
+
+		globalDB := openLoopTestGlobalDB(t)
+		ctx := testutil.Context(t)
+		now := time.Date(2026, time.August, 16, 14, 0, 0, 0, time.UTC)
+		run, err := globalDB.CreateLoopRunForStart(
+			ctx, testLoopRun("looprun-request-cancel", now, looppkg.StatusRunning), dsl.ConcurrencyAllow,
+		)
+		if err != nil {
+			t.Fatalf("CreateLoopRunForStart() error = %v", err)
+		}
+		schema := json.RawMessage(`{"type":"object"}`)
+		expires := now.Add(time.Hour)
+		seedLoopWaitCellForTest(
+			t,
+			globalDB,
+			run,
+			"select",
+			0,
+			looppkg.NodeWaitKindRequest,
+			1,
+			schema,
+			nil,
+			&expires,
+			now,
+		)
+		seedLoopRequestForTest(t, globalDB, run, "select", 0, schema, &expires, now)
+
+		_, err = globalDB.RequestRunCancellation(ctx, looppkg.CancellationMutation{
+			WorkspaceID: run.WorkspaceID,
+			RunID:       run.ID,
+			Kind:        looppkg.RunCancelCancel,
+			Reason:      "operator canceled",
+			Actor:       operatorActorContextForTest("operator:cancel"),
+			RequestedAt: now.Add(time.Minute),
+		})
+		if err != nil {
+			t.Fatalf("RequestRunCancellation() error = %v", err)
+		}
+		request, err := globalDB.GetRequest(ctx, run.WorkspaceID, looppkg.RequestRef{
+			RunID: run.ID, NodeID: "select",
+		}, false)
+		if err != nil || request.State != looppkg.RequestStateCanceled {
+			t.Fatalf("GetRequest(canceled) = %#v, error = %v", request, err)
+		}
+		var eventCount int
+		if err := globalDB.db.QueryRowContext(ctx, `SELECT count(*) FROM loop_run_events
+			WHERE loop_run_id = ? AND kind = ?`, run.ID, loopRunEventRequestCanceled).Scan(&eventCount); err != nil {
+			t.Fatalf("count request_canceled events error = %v", err)
+		}
+		if eventCount != 1 {
+			t.Fatalf("request_canceled events = %d, want 1", eventCount)
+		}
+		page, err := globalDB.ListRequests(ctx, run.WorkspaceID, looppkg.RequestQuery{Limit: 10})
+		if err != nil || page.Pending != 0 || len(page.Items) != 0 {
+			t.Fatalf("ListRequests(after cancel) = %#v, error = %v", page, err)
+		}
+		_, err = globalDB.RespondRequest(ctx, looppkg.RespondInput{
+			WorkspaceID: run.WorkspaceID, RunID: run.ID, NodeID: "select",
+			Payload: json.RawMessage(`{}`), Actor: operatorActorContextForTest("operator:late"),
+		})
+		var canceledReason *looppkg.ReasonError
+		if !errors.Is(err, looppkg.ErrRequestCanceled) || !errors.As(err, &canceledReason) ||
+			canceledReason.Code != looppkg.ReasonCodeRequestCanceled {
+			t.Fatalf("RespondRequest(canceled) error = %#v", err)
+		}
+	})
+
+	t.Run("Should expire one request exactly once", func(t *testing.T) {
+		t.Parallel()
+
+		globalDB := openLoopTestGlobalDB(t)
+		ctx := testutil.Context(t)
+		now := time.Date(2026, time.August, 16, 15, 0, 0, 0, time.UTC)
+		run, err := globalDB.CreateLoopRunForStart(
+			ctx, testLoopRun("looprun-request-expiry", now, looppkg.StatusRunning), dsl.ConcurrencyAllow,
+		)
+		if err != nil {
+			t.Fatalf("CreateLoopRunForStart() error = %v", err)
+		}
+		schema := json.RawMessage(`{"type":"object"}`)
+		expires := now.Add(time.Minute)
+		seedLoopWaitCellForTest(
+			t,
+			globalDB,
+			run,
+			"select",
+			0,
+			looppkg.NodeWaitKindRequest,
+			1,
+			schema,
+			nil,
+			&expires,
+			now,
+		)
+		seedLoopRequestForTest(t, globalDB, run, "select", 0, schema, &expires, now)
+		due := &dueWaitEscalation{run: run, wait: looppkg.NodeWait{
+			LoopRunID: run.ID, Generation: 1, NodeID: "select", ItemIndex: 0, IssuedEpoch: 1,
+		}}
+		if err := expireLoopRequestWithExecutor(ctx, globalDB.db, due, expires); err != nil {
+			t.Fatalf("expireLoopRequestWithExecutor() error = %v", err)
+		}
+		if err := expireLoopRequestWithExecutor(
+			ctx,
+			globalDB.db,
+			due,
+			expires,
+		); !errors.Is(
+			err,
+			looppkg.ErrTransitionConflict,
+		) {
+			t.Fatalf("expireLoopRequestWithExecutor(replay) error = %v, want conflict", err)
+		}
+		var eventCount int
+		if err := globalDB.db.QueryRowContext(ctx, `SELECT count(*) FROM loop_run_events
+			WHERE loop_run_id = ? AND kind = ?`, run.ID, loopRunEventRequestExpired).Scan(&eventCount); err != nil {
+			t.Fatalf("count request_expired events error = %v", err)
+		}
+		if eventCount != 1 {
+			t.Fatalf("request_expired events = %d, want 1", eventCount)
+		}
+		_, err = globalDB.RespondRequest(ctx, looppkg.RespondInput{
+			WorkspaceID: run.WorkspaceID, RunID: run.ID, NodeID: "select",
+			Payload: json.RawMessage(`{}`), Actor: operatorActorContextForTest("operator:late"),
+		})
+		if !errors.Is(err, looppkg.ErrRequestExpired) {
+			t.Fatalf("RespondRequest(expired) error = %v", err)
+		}
+	})
+}
+
+// Invariant: amendments are append-only overlays; recorded generation rows never change and every overlay blob remains rooted.
+// The canonical GlobalDB Loop suite owns amendment sequencing, guards, overlay reads, provenance, and blob durability.
+func TestGlobalDBLoopAmendmentsShouldPreserveRecordedOutputs(t *testing.T) {
+	t.Parallel()
+
+	globalDB := openLoopTestGlobalDB(t)
+	ctx := testutil.Context(t)
+	now := time.Date(2026, time.August, 16, 15, 0, 0, 0, time.UTC)
+	run, err := globalDB.CreateLoopRunForStart(
+		ctx, testLoopRun("looprun-amendments", now, looppkg.StatusRunning), dsl.ConcurrencyAllow,
+	)
+	if err != nil {
+		t.Fatalf("CreateLoopRunForStart() error = %v", err)
 	}
+	original := json.RawMessage(`{"value":"recorded"}`)
+	originalRef := looppkg.OutputRefForPayload(original)
+	if err := storepkg.UpsertLoopOutputBlob(ctx, globalDB.db, originalRef, original, now); err != nil {
+		t.Fatalf("UpsertLoopOutputBlob(original) error = %v", err)
+	}
+	if _, err := globalDB.db.ExecContext(ctx, `INSERT INTO loop_generation_outputs (
+		loop_run_id, generation, node_id, item_index, status, output_ref, attempt, epoch
+	) VALUES (?, 1, 'repair', 2, 'succeeded', ?, 1, 7)`, run.ID, originalRef); err != nil {
+		t.Fatalf("insert amendment output error = %v", err)
+	}
+	if _, err := globalDB.db.ExecContext(ctx, `INSERT INTO loop_node_lane_pauses (
+		workspace_id, loop_run_id, generation, node_id, item_index, actor_kind, actor_id, reason, mode, requested_at
+	) VALUES (?, ?, 1, 'repair', 2, 'human', 'operator:one', 'inspect', 'drain', ?)`,
+		run.WorkspaceID, run.ID, now); err != nil {
+		t.Fatalf("insert amendment lane pause error = %v", err)
+	}
+	rowSnapshot := func() string {
+		t.Helper()
+		var snapshot string
+		if err := globalDB.db.QueryRowContext(ctx, `SELECT json_object(
+			'loop_run_id', loop_run_id, 'generation', generation, 'node_id', node_id,
+			'item_index', item_index, 'status', status, 'output_ref', output_ref,
+			'task_run_id', task_run_id, 'attempt', attempt, 'next_attempt_at', next_attempt_at,
+			'first_scheduled_at', first_scheduled_at, 'epoch', epoch
+		) FROM loop_generation_outputs WHERE loop_run_id = ? AND generation = 1
+		AND node_id = 'repair' AND item_index = 2`, run.ID).Scan(&snapshot); err != nil {
+			t.Fatalf("snapshot recorded output error = %v", err)
+		}
+		return snapshot
+	}
+	before := rowSnapshot()
+	schema := json.RawMessage(`{"type":"object","required":["value"],"properties":{"value":{"type":"string"}}}`)
+	actor := operatorActorContextForTest("operator:one")
+	firstPayload := json.RawMessage(`{"value":"first repair"}`)
+	first, err := globalDB.AmendNodeOutput(ctx, looppkg.AmendInput{
+		WorkspaceID: run.WorkspaceID,
+		RunID:       run.ID,
+		Generation:  1,
+		NodeID:      "repair",
+		ItemIndex:   2,
+		Payload:     firstPayload,
+		Schema:      schema,
+		Reason:      "correct evidence",
+		Actor:       actor,
+		RequestedAt: now.Add(time.Minute),
+	})
+	if err != nil {
+		t.Fatalf("AmendNodeOutput(first) error = %v", err)
+	}
+	secondPayload := json.RawMessage(`{"value":"second repair"}`)
+	second, err := globalDB.AmendNodeOutput(ctx, looppkg.AmendInput{
+		WorkspaceID: run.WorkspaceID, RunID: run.ID, Generation: 1, NodeID: "repair", ItemIndex: 2,
+		Payload: secondPayload, Schema: schema, Reason: "final evidence", Actor: actor,
+		RequestedAt: now.Add(2 * time.Minute),
+	})
+	if err != nil {
+		t.Fatalf("AmendNodeOutput(second) error = %v", err)
+	}
+	if after := rowSnapshot(); after != before {
+		t.Fatalf("recorded generation output changed:\nbefore=%s\nafter=%s", before, after)
+	}
+	firstMatches := first.Sequence == 1 && first.OriginalRef == originalRef &&
+		first.AmendedRef == looppkg.OutputRefForPayload(firstPayload)
+	secondMatches := second.Sequence == 2 && second.OriginalRef == first.AmendedRef &&
+		second.AmendedRef == looppkg.OutputRefForPayload(secondPayload)
+	if !firstMatches || !secondMatches {
+		t.Fatalf("amendment chain first=%#v second=%#v", first, second)
+	}
+	view, err := globalDB.ApplyGenerationOutputOverlays(ctx, run.WorkspaceID, run.ID, 1, []looppkg.GenerationOutput{{
+		Generation: 1, NodeID: "repair", ItemIndex: 2, Status: "succeeded", OutputRef: originalRef,
+	}})
+	if err != nil || len(view) != 1 || view[0].OutputRef != second.AmendedRef {
+		t.Fatalf("ApplyGenerationOutputOverlays() = %#v, error = %v", view, err)
+	}
+	effective, err := globalDB.GetGenerationOutputPayload(ctx, looppkg.GenerationOutputPayloadKey{
+		WorkspaceID: run.WorkspaceID, RunID: run.ID, Generation: 1, NodeID: "repair",
+		ItemIndex: 2, OutputRef: view[0].OutputRef,
+	})
+	if err != nil || string(effective) != string(secondPayload) {
+		t.Fatalf("GetGenerationOutputPayload(amended) = %s, error = %v, want %s", effective, err, secondPayload)
+	}
+	amendments, err := globalDB.ListNodeAmendments(ctx, run.WorkspaceID, run.ID)
+	if err != nil || len(amendments) != 2 || string(amendments[0].Original) != string(original) ||
+		string(amendments[1].Amended) != string(secondPayload) {
+		t.Fatalf("ListNodeAmendments() = %#v, error = %v", amendments, err)
+	}
+
+	t.Run("Should serialize concurrent amendments without sequence collisions", func(t *testing.T) {
+		t.Parallel()
+
+		globalDB := openLoopTestGlobalDB(t)
+		ctx := testutil.Context(t)
+		now := time.Date(2026, time.August, 16, 15, 20, 0, 0, time.UTC)
+		run, err := globalDB.CreateLoopRunForStart(
+			ctx, testLoopRun("looprun-amendment-race", now, looppkg.StatusRunning), dsl.ConcurrencyAllow,
+		)
+		if err != nil {
+			t.Fatalf("CreateLoopRunForStart() error = %v", err)
+		}
+		original := json.RawMessage(`{"value":"recorded"}`)
+		originalRef := looppkg.OutputRefForPayload(original)
+		if err := storepkg.UpsertLoopOutputBlob(ctx, globalDB.db, originalRef, original, now); err != nil {
+			t.Fatalf("UpsertLoopOutputBlob(original) error = %v", err)
+		}
+		if _, err := globalDB.db.ExecContext(ctx, `INSERT INTO loop_generation_outputs (
+			loop_run_id, generation, node_id, item_index, status, output_ref, attempt, epoch
+		) VALUES (?, 1, 'repair', 0, 'succeeded', ?, 1, 1)`, run.ID, originalRef); err != nil {
+			t.Fatalf("insert amendment race output error = %v", err)
+		}
+		if _, err := globalDB.db.ExecContext(ctx, `INSERT INTO loop_node_lane_pauses (
+			workspace_id, loop_run_id, generation, node_id, item_index, actor_kind, actor_id, reason, mode, requested_at
+		) VALUES (?, ?, 1, 'repair', 0, 'human', 'operator:race', 'inspect', 'drain', ?)`,
+			run.WorkspaceID, run.ID, now); err != nil {
+			t.Fatalf("insert amendment race pause error = %v", err)
+		}
+		schema := json.RawMessage(`{"type":"object","required":["value"],"properties":{"value":{"type":"string"}}}`)
+		results := make([]looppkg.NodeAmendment, 2)
+		errorsByIndex := make([]error, 2)
+		start := make(chan struct{})
+		var group sync.WaitGroup
+		group.Add(2)
+		for index := range results {
+			go func(index int) {
+				defer group.Done()
+				<-start
+				results[index], errorsByIndex[index] = globalDB.AmendNodeOutput(
+					context.Background(),
+					looppkg.AmendInput{
+						WorkspaceID: run.WorkspaceID,
+						RunID:       run.ID,
+						Generation:  1,
+						NodeID:      "repair",
+						Payload:     json.RawMessage(fmt.Sprintf(`{"value":"repair-%d"}`, index)),
+						Schema:      schema,
+						Actor: operatorActorContextForTest(
+							"operator:race",
+						),
+						RequestedAt: now.Add(time.Duration(index+1) * time.Second),
+					},
+				)
+			}(index)
+		}
+		close(start)
+		group.Wait()
+		for index, err := range errorsByIndex {
+			if err != nil {
+				t.Fatalf("AmendNodeOutput(race %d) error = %v", index, err)
+			}
+		}
+		sequences := []int{results[0].Sequence, results[1].Sequence}
+		slices.Sort(sequences)
+		if !slices.Equal(sequences, []int{1, 2}) {
+			t.Fatalf("concurrent amendment sequences = %#v, want 1 and 2", sequences)
+		}
+	})
+
+	t.Run("Should reject a parked cell without a settled output", func(t *testing.T) {
+		t.Parallel()
+
+		globalDB := openLoopTestGlobalDB(t)
+		ctx := testutil.Context(t)
+		now := time.Date(2026, time.August, 16, 15, 25, 0, 0, time.UTC)
+		run, err := globalDB.CreateLoopRunForStart(
+			ctx, testLoopRun("looprun-amendment-no-output", now, looppkg.StatusRunning), dsl.ConcurrencyAllow,
+		)
+		if err != nil {
+			t.Fatalf("CreateLoopRunForStart() error = %v", err)
+		}
+		if _, err := globalDB.db.ExecContext(ctx, `INSERT INTO loop_generation_outputs (
+			loop_run_id, generation, node_id, item_index, status, attempt, epoch
+		) VALUES (?, 1, 'repair', 0, 'paused', 1, 1)`, run.ID); err != nil {
+			t.Fatalf("insert no-output amendment cell error = %v", err)
+		}
+		_, err = globalDB.AmendNodeOutput(ctx, looppkg.AmendInput{
+			WorkspaceID: run.WorkspaceID, RunID: run.ID, Generation: 1, NodeID: "repair",
+			Payload: json.RawMessage(`{"value":"repair"}`), Schema: json.RawMessage(`{"type":"object"}`),
+			Actor: operatorActorContextForTest("operator:no-output"), RequestedAt: now.Add(time.Minute),
+		})
+		if !errors.Is(err, looppkg.ErrAmendNoOutput) {
+			t.Fatalf("AmendNodeOutput(no output) error = %v, want ErrAmendNoOutput", err)
+		}
+	})
+
+	t.Run("Should not reuse a lane pause from another generation", func(t *testing.T) {
+		t.Parallel()
+
+		globalDB := openLoopTestGlobalDB(t)
+		ctx := testutil.Context(t)
+		now := time.Date(2026, time.August, 16, 15, 24, 0, 0, time.UTC)
+		run, err := globalDB.CreateLoopRunForStart(
+			ctx, testLoopRun("looprun-amendment-generation", now, looppkg.StatusRunning), dsl.ConcurrencyAllow,
+		)
+		if err != nil {
+			t.Fatalf("CreateLoopRunForStart() error = %v", err)
+		}
+		payload := json.RawMessage(`{"value":"recorded"}`)
+		outputRef := looppkg.OutputRefForPayload(payload)
+		if err := storepkg.UpsertLoopOutputBlob(ctx, globalDB.db, outputRef, payload, now); err != nil {
+			t.Fatalf("UpsertLoopOutputBlob() error = %v", err)
+		}
+		if _, err := globalDB.db.ExecContext(ctx, `INSERT INTO loop_generation_outputs (
+			loop_run_id, generation, node_id, item_index, status, output_ref, attempt, epoch
+		) VALUES (?, 2, 'repair', 0, 'succeeded', ?, 1, 1)`, run.ID, outputRef); err != nil {
+			t.Fatalf("insert generation output error = %v", err)
+		}
+		if _, err := globalDB.db.ExecContext(ctx, `INSERT INTO loop_node_lane_pauses (
+			workspace_id, loop_run_id, generation, node_id, item_index, actor_kind, actor_id, reason, mode, requested_at
+		) VALUES (?, ?, 1, 'repair', 0, 'human', 'operator:one', 'inspect', 'drain', ?)`,
+			run.WorkspaceID, run.ID, now); err != nil {
+			t.Fatalf("insert prior-generation lane pause error = %v", err)
+		}
+
+		_, err = globalDB.AmendNodeOutput(ctx, looppkg.AmendInput{
+			WorkspaceID: run.WorkspaceID, RunID: run.ID, Generation: 2, NodeID: "repair",
+			Payload: json.RawMessage(`{"value":"amended"}`), Schema: json.RawMessage(`{"type":"object"}`),
+			Actor: operatorActorContextForTest("operator:one"), RequestedAt: now.Add(time.Minute),
+		})
+		if !errors.Is(err, looppkg.ErrAmendNotParked) {
+			t.Fatalf("AmendNodeOutput(cross-generation pause) error = %v, want ErrAmendNotParked", err)
+		}
+	})
+
+	t.Run("Should reject invalid payloads and targets that are not parked", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t)
+
+		_, err := globalDB.AmendNodeOutput(ctx, looppkg.AmendInput{
+			WorkspaceID: run.WorkspaceID,
+			RunID:       run.ID,
+			Generation:  1,
+			NodeID:      "repair",
+			ItemIndex:   2,
+			Payload: json.RawMessage(
+				`{"value":1}`,
+			),
+			Schema:      schema,
+			Actor:       actor,
+			RequestedAt: now.Add(3 * time.Minute),
+		})
+		if !errors.Is(err, looppkg.ErrRequestValidationFailed) {
+			t.Fatalf("AmendNodeOutput(invalid payload) error = %v", err)
+		}
+		if _, err := globalDB.db.ExecContext(ctx, `DELETE FROM loop_node_lane_pauses
+			WHERE loop_run_id = ? AND generation = 1 AND node_id = 'repair' AND item_index = 2`, run.ID); err != nil {
+			t.Fatalf("delete lane pause error = %v", err)
+		}
+		_, err = globalDB.AmendNodeOutput(ctx, looppkg.AmendInput{
+			WorkspaceID: run.WorkspaceID, RunID: run.ID, Generation: 1, NodeID: "repair", ItemIndex: 2,
+			Payload: firstPayload, Schema: schema, Actor: actor, RequestedAt: now.Add(4 * time.Minute),
+		})
+		if !errors.Is(err, looppkg.ErrAmendNotParked) {
+			t.Fatalf("AmendNodeOutput(unparked) error = %v", err)
+		}
+	})
+
+	t.Run("Should keep amendment refs while reclaiming a true orphan", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t)
+
+		orphan := json.RawMessage(`{"value":"orphan"}`)
+		orphanRef := looppkg.OutputRefForPayload(orphan)
+		if err := storepkg.UpsertLoopOutputBlob(ctx, globalDB.db, orphanRef, orphan, now); err != nil {
+			t.Fatalf("UpsertLoopOutputBlob(orphan) error = %v", err)
+		}
+		if err := sweepOrphanedLoopOutputBlobsWithExecutor(ctx, globalDB.db); err != nil {
+			t.Fatalf("sweepOrphanedLoopOutputBlobsWithExecutor() error = %v", err)
+		}
+		for _, ref := range []string{originalRef, first.AmendedRef, second.AmendedRef} {
+			if _, err := getLoopOutputByRefWithExecutor(ctx, globalDB.db, ref); err != nil {
+				t.Fatalf("rooted amendment ref %s error = %v", ref, err)
+			}
+		}
+		if _, err := getLoopOutputByRefWithExecutor(
+			ctx,
+			globalDB.db,
+			orphanRef,
+		); !errors.Is(
+			err,
+			looppkg.ErrOutputRefNotFound,
+		) {
+			t.Fatalf("orphan lookup error = %v, want ErrOutputRefNotFound", err)
+		}
+	})
 }
 
 // Invariant: node inventories expose one workspace-scoped, stable keyset order with exactly
@@ -832,6 +1815,77 @@ func TestGlobalDBLoopNodeCancellationShouldCloseAttemptsAndEffectsAtomically(t *
 		}
 	})
 
+	t.Run("Should cancel only the addressed fan-out cell", func(t *testing.T) {
+		t.Parallel()
+
+		globalDB := openLoopTestGlobalDB(t)
+		ctx := testutil.Context(t)
+		now := time.Date(2026, time.August, 3, 1, 40, 0, 0, time.UTC)
+		run, err := globalDB.CreateLoopRunForStart(
+			ctx, testLoopRun("looprun-node-cancel-lane", now, looppkg.StatusRunning), dsl.ConcurrencyAllow,
+		)
+		if err != nil {
+			t.Fatalf("CreateLoopRunForStart() error = %v", err)
+		}
+		completeInitialCoordinatorForParkedFixture(t, globalDB, run, now)
+		if _, err := globalDB.db.ExecContext(ctx, `INSERT INTO loop_generation_outputs (
+			loop_run_id, generation, node_id, item_index, status, attempt, first_scheduled_at, epoch
+		) VALUES (?, 1, 'work', 0, 'pending', 1, ?, 3),
+			(?, 1, 'work', 1, 'pending', 1, ?, 7)`, run.ID, now, run.ID, now); err != nil {
+			t.Fatalf("insert lane cancellation fixture error = %v", err)
+		}
+		itemIndex := 1
+		mutation := nodeCancellationMutationForTest(run, looppkg.RunCancelCancel, now.Add(time.Minute))
+		mutation.ItemIndex = &itemIndex
+		mutation.Effects = []looppkg.RenderedEffectIntent{{
+			Trigger: looppkg.EffectTriggerOnCancel, Generation: 1, NodeID: "work", ItemIndex: itemIndex,
+			Entry: json.RawMessage(`{"kind":"emit","emit":{"kind":"lane_canceled"}}`),
+		}}
+		result, err := globalDB.RequestNodeCancellation(ctx, mutation)
+		if err != nil {
+			t.Fatalf("RequestNodeCancellation(lane) error = %v", err)
+		}
+		if !result.Applied || result.Coordinator == nil {
+			t.Fatalf("RequestNodeCancellation(lane) = %#v, want applied coordinator wake", result)
+		}
+		rows, err := globalDB.db.QueryContext(ctx, `SELECT item_index, status, epoch
+			FROM loop_generation_outputs WHERE loop_run_id = ? AND node_id = 'work' ORDER BY item_index`, run.ID)
+		if err != nil {
+			t.Fatalf("read lane cancellation outputs error = %v", err)
+		}
+		type laneState struct {
+			itemIndex int
+			status    string
+			epoch     int
+		}
+		states := make([]laneState, 0, 2)
+		for rows.Next() {
+			var state laneState
+			if err := rows.Scan(&state.itemIndex, &state.status, &state.epoch); err != nil {
+				t.Fatalf("scan lane cancellation output error = %v", err)
+			}
+			states = append(states, state)
+		}
+		if err := rows.Err(); err != nil {
+			t.Fatalf("iterate lane cancellation outputs error = %v", err)
+		}
+		if err := rows.Close(); err != nil {
+			t.Fatalf("close lane cancellation outputs error = %v", err)
+		}
+		wantStates := []laneState{{itemIndex: 0, status: "pending", epoch: 3},
+			{itemIndex: 1, status: "canceled", epoch: 8}}
+		if !reflect.DeepEqual(states, wantStates) {
+			t.Fatalf("lane cancellation outputs = %#v, want %#v", states, wantStates)
+		}
+		entries, err := globalDB.ListEffectOutbox(ctx, run.WorkspaceID, run.ID)
+		if err != nil {
+			t.Fatalf("ListEffectOutbox(lane) error = %v", err)
+		}
+		if len(entries) != 1 || entries[0].ItemIndex != itemIndex {
+			t.Fatalf("lane cancellation outbox = %#v, want item %d only", entries, itemIndex)
+		}
+	})
+
 	t.Run("Should invalidate backoff and suppress node effects on kill", func(t *testing.T) {
 		t.Parallel()
 
@@ -1555,6 +2609,61 @@ func TestGlobalDBLoopNodeRequeueShouldBeAtomic(t *testing.T) {
 		}
 		if len(controls) != 3 || !controls[0].Quarantined || controls[0].Revision != 4 {
 			t.Fatalf("cap controls = %#v, want unchanged quarantine", controls)
+		}
+	})
+}
+
+// Invariant: coordinator boundaries persist gate revision counters by gate node and item lane.
+// The GlobalDB Loop suite owns the durable node-control projection.
+func TestGlobalDBGateRevisionCountersShouldPersistPerItem(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should round-trip isolated item counters through a coordinator boundary", func(t *testing.T) {
+		t.Parallel()
+
+		globalDB := openLoopTestGlobalDB(t)
+		ctx := testutil.Context(t)
+		now := time.Date(2026, time.August, 16, 12, 0, 0, 0, time.UTC)
+		run, err := globalDB.CreateLoopRunForStart(
+			ctx,
+			testLoopRun("looprun-gate-revisions", now, looppkg.StatusRunning),
+			dsl.ConcurrencyAllow,
+		)
+		if err != nil {
+			t.Fatalf("CreateLoopRunForStart() error = %v", err)
+		}
+		claim := claimCoordinatorRunForTest(ctx, t, globalDB, run.ID, "gate-revisions", now)
+		_, err = globalDB.CompleteCoordinatorAndEnqueueNext(
+			ctx,
+			taskpkg.CoordinatorCompletion{
+				RunID: claim.Run.ID, ClaimToken: claim.ClaimToken,
+				Actor: coordinatorActorContextForTest(), Now: now.Add(time.Second),
+				Plan: taskpkg.CoordinatorCompletionPlan{
+					Yield: true,
+					Snapshot: taskpkg.GenerationSnapshot{
+						LoopRunID: string(run.ID), Generation: 1,
+						Payload: looppkg.GenerationSnapshotPayload{
+							Controls: []looppkg.NodeControlMutation{{
+								Kind: looppkg.NodeControlMutationGateRevision, NodeID: "quality_gate",
+								GateRevisions: map[int]int{0: 1, 2: 3}, At: now.Add(time.Second),
+							}},
+						},
+					},
+				},
+			},
+			looppkg.NewStoreFinalizer(),
+		)
+		if err != nil {
+			t.Fatalf("CompleteCoordinatorAndEnqueueNext() error = %v", err)
+		}
+		controls, err := globalDB.ListNodeControls(ctx, run.WorkspaceID, run.ID)
+		if err != nil {
+			t.Fatalf("ListNodeControls() error = %v", err)
+		}
+		if len(controls) != 1 || controls[0].NodeID != "quality_gate" ||
+			len(controls[0].GateRevisions) != 2 || controls[0].GateRevisions[0] != 1 ||
+			controls[0].GateRevisions[2] != 3 {
+			t.Fatalf("gate revision controls = %#v, want isolated lanes {0:1, 2:3}", controls)
 		}
 	})
 }
@@ -2340,6 +3449,56 @@ func TestGlobalDBLoopHistoryShouldPersistMachineFacts(t *testing.T) {
 		}
 		if humanDecisionCount != 0 {
 			t.Fatalf("human decisions = %d, want machine verdicts to leave them untouched", humanDecisionCount)
+		}
+	})
+
+	t.Run("Should persist route causes per generation and isolate workspaces", func(t *testing.T) {
+		t.Parallel()
+
+		globalDB := openLoopTestGlobalDB(t, "ws-1", "ws-2")
+		ctx := testutil.Context(t)
+		now := time.Date(2026, 8, 16, 14, 0, 0, 0, time.UTC)
+		created, err := globalDB.CreateLoopRunForStart(
+			ctx,
+			testLoopRun("looprun-route-causes", now, looppkg.StatusRunning),
+			dsl.ConcurrencyAllow,
+		)
+		if err != nil {
+			t.Fatalf("CreateLoopRunForStart() error = %v", err)
+		}
+		for generation, route := range map[int]string{1: "review", 2: "fallback"} {
+			event := looppkg.GenerationLifecycleEventIntent{
+				Kind: looppkg.GenerationLifecycleEventRouteTaken, NodeID: "router",
+				SelectedRoute: route, Reason: "default", DefaultRoute: true,
+			}
+			if err := appendGenerationLifecycleEventWithExecutor(
+				ctx,
+				globalDB.db,
+				created,
+				generation,
+				looppkg.GenerationIntent{},
+				nil,
+				event,
+				now.Add(time.Duration(generation)*time.Minute),
+			); err != nil {
+				t.Fatalf("appendGenerationLifecycleEventWithExecutor(%d) error = %v", generation, err)
+			}
+		}
+		causes, err := globalDB.ListRouteCauses(ctx, created.WorkspaceID, created.ID, 1)
+		if err != nil {
+			t.Fatalf("ListRouteCauses() error = %v", err)
+		}
+		if len(causes) != 1 || causes[0].Generation != 1 || causes[0].NodeID != "router" ||
+			causes[0].Route != "review" || !causes[0].Default {
+			t.Fatalf("generation 1 route causes = %#v", causes)
+		}
+		second, err := globalDB.ListRouteCauses(ctx, created.WorkspaceID, created.ID, 2)
+		if err != nil || len(second) != 1 || second[0].Route != "fallback" {
+			t.Fatalf("generation 2 route causes = %#v, %v", second, err)
+		}
+		foreign, err := globalDB.ListRouteCauses(ctx, "ws-2", created.ID, 1)
+		if err != nil || len(foreign) != 0 {
+			t.Fatalf("foreign route causes = %#v, %v; want empty", foreign, err)
 		}
 	})
 
@@ -3264,6 +4423,71 @@ func TestGlobalDBLoopNodePauseShouldFenceAndRestoreRetryState(t *testing.T) {
 			!slices.Equal(first.SessionIDs, []string{"session-work"}) ||
 			!slices.Equal(replay.SessionIDs, first.SessionIDs) {
 			t.Fatalf("cancel pause first/replay = %#v / %#v, want durable session redelivery", first, replay)
+		}
+	})
+
+	t.Run("Should pause and resume only the addressed fan-out cell", func(t *testing.T) {
+		t.Parallel()
+
+		globalDB := openLoopTestGlobalDB(t)
+		ctx := testutil.Context(t)
+		now := time.Date(2026, time.August, 4, 9, 49, 0, 0, time.UTC)
+		run, err := globalDB.CreateLoopRunForStart(
+			ctx, testLoopRun("looprun-node-pause-lane", now, looppkg.StatusRunning), dsl.ConcurrencyAllow,
+		)
+		if err != nil {
+			t.Fatalf("CreateLoopRunForStart() error = %v", err)
+		}
+		completeInitialCoordinatorForParkedFixture(t, globalDB, run, now)
+		nextAttemptAt := now.Add(10 * time.Minute)
+		if _, err := globalDB.db.ExecContext(ctx, `INSERT INTO loop_generation_outputs (
+			loop_run_id, generation, node_id, item_index, status, attempt, next_attempt_at,
+			first_scheduled_at, epoch
+		) VALUES (?, 1, 'finish', 0, 'retrying', 2, ?, ?, 4),
+			(?, 1, 'finish', 1, 'retrying', 3, ?, ?, 8)`, run.ID, nextAttemptAt, now,
+			run.ID, nextAttemptAt, now); err != nil {
+			t.Fatalf("insert lane pause fixture error = %v", err)
+		}
+		itemIndex := 1
+		actor := operatorActorContextForTest("operator:pause-lane")
+		paused, err := globalDB.PauseNode(ctx, looppkg.NodePauseMutation{
+			WorkspaceID: run.WorkspaceID, RunID: run.ID, NodeID: "finish", ItemIndex: &itemIndex,
+			Mode: looppkg.NodePauseDrain, Reason: "inspect one lane", Actor: actor, RequestedAt: now.Add(time.Minute),
+		})
+		if err != nil {
+			t.Fatalf("PauseNode(lane) error = %v", err)
+		}
+		if !paused.Applied {
+			t.Fatalf("PauseNode(lane) = %#v, want applied", paused)
+		}
+		resumed, err := globalDB.ResumeNode(ctx, looppkg.NodeResumeMutation{
+			WorkspaceID: run.WorkspaceID, RunID: run.ID, NodeID: "finish", ItemIndex: &itemIndex,
+			Mode: looppkg.NodeResumeImmediate, Actor: actor, RequestedAt: now.Add(2 * time.Minute),
+		})
+		if err != nil {
+			t.Fatalf("ResumeNode(lane) error = %v", err)
+		}
+		if !resumed.Applied || resumed.Coordinator == nil {
+			t.Fatalf("ResumeNode(lane) = %#v, want applied coordinator wake", resumed)
+		}
+		readLane := func(itemIndex int) (string, int, time.Time) {
+			t.Helper()
+			var status string
+			var epoch int
+			var first time.Time
+			if err := globalDB.db.QueryRowContext(ctx, `SELECT status, epoch, first_scheduled_at
+				FROM loop_generation_outputs WHERE loop_run_id = ? AND node_id = 'finish'
+				AND item_index = ?`, run.ID, itemIndex).Scan(&status, &epoch, &first); err != nil {
+				t.Fatalf("read lane %d pause output error = %v", itemIndex, err)
+			}
+			return status, epoch, first
+		}
+		siblingStatus, siblingEpoch, siblingFirst := readLane(0)
+		laneStatus, laneEpoch, laneFirst := readLane(1)
+		if siblingStatus != "retrying" || siblingEpoch != 4 || !siblingFirst.Equal(now) ||
+			laneStatus != "pending" || laneEpoch != 10 || !laneFirst.Equal(now.Add(time.Minute)) {
+			t.Fatalf("lane pause outputs = sibling %s/e%d/%v lane %s/e%d/%v", siblingStatus, siblingEpoch,
+				siblingFirst, laneStatus, laneEpoch, laneFirst)
 		}
 	})
 
@@ -4434,6 +5658,44 @@ func seedLoopWaitCellForTest(
 			"wait_kind":                       kind,
 		}, createdAt.UTC()); err != nil {
 		t.Fatalf("append wait started event %s/%d error = %v", nodeID, itemIndex, err)
+	}
+}
+
+func seedLoopRequestForTest(
+	t *testing.T,
+	globalDB *GlobalDB,
+	run looppkg.Run,
+	nodeID string,
+	itemIndex int,
+	schema json.RawMessage,
+	expiresAt *time.Time,
+	openedAt time.Time,
+) {
+	t.Helper()
+	ctx := testutil.Context(t)
+	contextPayload := json.RawMessage(fmt.Sprintf(`{"full":"lane-%d"}`, itemIndex))
+	contextRef := looppkg.OutputRefForPayload(contextPayload)
+	if err := storepkg.UpsertLoopOutputBlob(ctx, globalDB.db, contextRef, contextPayload, openedAt); err != nil {
+		t.Fatalf("UpsertLoopOutputBlob(request context) error = %v", err)
+	}
+	_, err := globalDB.db.ExecContext(ctx, `INSERT INTO loop_requests (
+		workspace_id, loop_run_id, generation, node_id, item_index, kind, state,
+		prompt, context_preview_json, context_ref, answer_schema_json, respond_schema_json,
+		decisions_json, opened_at, expires_at
+	) VALUES (?, ?, 1, ?, ?, 'ask', 'pending', ?, ?, ?, ?, ?, '["respond"]', ?, ?)`,
+		run.WorkspaceID, run.ID, nodeID, itemIndex, "Choose an environment",
+		fmt.Sprintf(`{"lane":%d}`, itemIndex), contextRef, string(schema), string(schema),
+		openedAt.UTC(), expiresAt)
+	if err != nil {
+		t.Fatalf("insert Loop request %s/%d error = %v", nodeID, itemIndex, err)
+	}
+	if err := appendLoopRunEventWithExecutor(ctx, globalDB.db, run.ID, run.WorkspaceID,
+		loopRunEventRequestOpened, map[string]any{
+			loopRunEventPayloadKeyGeneration: 1,
+			loopRunEventPayloadKeyNodeID:     nodeID,
+			loopRunEventPayloadKeyItemIndex:  itemIndex,
+		}, openedAt.UTC()); err != nil {
+		t.Fatalf("append request_opened event %s/%d error = %v", nodeID, itemIndex, err)
 	}
 }
 

@@ -6,10 +6,15 @@
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { useTopbarSlot } from "@compozy/ui";
 
 const { inventoryRefetch, useLoopRunsRouteMock } = vi.hoisted(() => ({
   inventoryRefetch: vi.fn(),
   useLoopRunsRouteMock: vi.fn(),
+}));
+
+vi.mock("@tanstack/react-router", () => ({
+  useNavigate: () => vi.fn(),
 }));
 
 vi.mock("@compozy/ui", async importOriginal => {
@@ -21,16 +26,21 @@ vi.mock("../use-loop-runs-route", () => ({
   useLoopRunsRoute: useLoopRunsRouteMock,
 }));
 
+vi.mock("@/systems/loops", async importOriginal => {
+  const actual = await importOriginal<typeof import("@/systems/loops")>();
+  return { ...actual, useLoopRunPendingRequestCounts: () => new Map() };
+});
+
 const { LoopRunsLocation } = await import("../loop-runs-location");
 
 describe("LoopRunsLocation", () => {
   beforeEach(() => {
     inventoryRefetch.mockReset();
+    vi.mocked(useTopbarSlot).mockClear();
     useLoopRunsRouteMock.mockReturnValue({
       outcome: "all",
       runsQuery: { data: { runs: [] }, isLoading: false, error: null },
-      setOrigin: vi.fn(),
-      setOriginSession: vi.fn(),
+      setOriginFilter: vi.fn(),
       setOutcome: vi.fn(),
       workspaceId: "workspace-1",
       inventoryState: "waiting",
@@ -64,6 +74,21 @@ describe("LoopRunsLocation", () => {
 
     await user.click(screen.getByRole("button", { name: "Retry inventory" }));
     expect(inventoryRefetch).toHaveBeenCalledTimes(1);
+  });
+
+  it("Should publish a Loops parent crumb and a Runs leaf in the window head", () => {
+    render(<LoopRunsLocation search={{ nodes: "waiting" }} />);
+
+    expect(useTopbarSlot).toHaveBeenCalledWith(
+      expect.objectContaining({
+        crumb: "Runs",
+        crumbs: [expect.objectContaining({ id: "loops", label: "Loops" })],
+        onBack: expect.any(Function),
+      })
+    );
+    const slot = vi.mocked(useTopbarSlot).mock.calls.at(-1)?.[0];
+    expect(slot).not.toHaveProperty("glyph");
+    expect(slot).not.toHaveProperty("count");
   });
 
   it("Should populate the inventory filter from catalog options rather than run history", async () => {

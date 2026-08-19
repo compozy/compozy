@@ -39,6 +39,20 @@
     "output_schema_digest": "a2c799262a3ce3c19ef5cdd983bf3d12b43ab3c426227091b909dcb7054738c0"
   },
   {
+    "tool_id": "compozy__agent_list",
+    "native_name": "agent_list",
+    "toolsets": [
+      "compozy__catalog",
+      "compozy__workspace"
+    ],
+    "risk": "read",
+    "read_only": true,
+    "destructive": false,
+    "open_world": false,
+    "input_schema_digest": "2eb2a2ce74f9818d512ed8d36f3ee2410ab27da83b5f325e28ff974ed070cbd6",
+    "output_schema_digest": "a2c799262a3ce3c19ef5cdd983bf3d12b43ab3c426227091b909dcb7054738c0"
+  },
+  {
     "tool_id": "compozy__automation_jobs_create",
     "native_name": "automation_jobs_create",
     "toolsets": [
@@ -1185,7 +1199,7 @@
     "destructive": false,
     "open_world": false,
     "input_schema_digest": "f6434e485d1becf0aec0201dcbb8853242be92d8fb69610f5461ace7ca9a2627",
-    "output_schema_digest": "1bee7cc48f8ad1651ba53982e57b91634aaa8fc38214454318ff275f2e648dfe"
+    "output_schema_digest": "b67f5b616a84a30080525439c52cccfe9d3705631eb09cd4f219e5faccb2ac61"
   },
   {
     "tool_id": "compozy__loop_configure",
@@ -1227,6 +1241,35 @@
     "output_schema_digest": "a2c799262a3ce3c19ef5cdd983bf3d12b43ab3c426227091b909dcb7054738c0"
   },
   {
+    "tool_id": "compozy__loop_diff",
+    "native_name": "loop_diff",
+    "toolsets": [
+      "compozy__loops"
+    ],
+    "risk": "read",
+    "read_only": true,
+    "destructive": false,
+    "open_world": false,
+    "input_schema_digest": "85144fc0e6b48d6434e7680a557b2a7b3e0f266b5402d2691bfdb80356cca6d3",
+    "output_schema_digest": "ebfee1c9002d845ee7e6e8b085bb3b4383109fa0ddfd37a3ca56b2801ef1f72e"
+  },
+  {
+    "tool_id": "compozy__loop_fork",
+    "native_name": "loop_fork",
+    "toolsets": [
+      "compozy__loops"
+    ],
+    "risk": "mutating",
+    "read_only": false,
+    "destructive": false,
+    "open_world": false,
+    "input_schema_digest": "e80994ee64076ba15a5bf117881ac6c7affa298c4178d0f9c865a91eee632ce5",
+    "output_schema_digest": "3595a0600548794ba08f311fa218059662179f1e13ad882282b7108453b9c729",
+    "required_capabilities": [
+      "loops.timetravel"
+    ]
+  },
+  {
     "tool_id": "compozy__loop_inspect",
     "native_name": "loop_inspect",
     "toolsets": [
@@ -1250,7 +1293,7 @@
     "destructive": true,
     "open_world": false,
     "input_schema_digest": "f6434e485d1becf0aec0201dcbb8853242be92d8fb69610f5461ace7ca9a2627",
-    "output_schema_digest": "1bee7cc48f8ad1651ba53982e57b91634aaa8fc38214454318ff275f2e648dfe"
+    "output_schema_digest": "b67f5b616a84a30080525439c52cccfe9d3705631eb09cd4f219e5faccb2ac61"
   },
   {
     "tool_id": "compozy__loop_list",
@@ -1266,6 +1309,22 @@
     "output_schema_digest": "a2c799262a3ce3c19ef5cdd983bf3d12b43ab3c426227091b909dcb7054738c0"
   },
   {
+    "tool_id": "compozy__loop_node_amend",
+    "native_name": "loop_node_amend",
+    "toolsets": [
+      "compozy__loops"
+    ],
+    "risk": "mutating",
+    "read_only": false,
+    "destructive": false,
+    "open_world": false,
+    "input_schema_digest": "633ab516f675b5a07c612a9f3a576f98729b6eb9e1d0036e51c9ae122f210db9",
+    "output_schema_digest": "d4b6d4842c3f6eaadce691ee5259c46d61c5d4df6bff98e379e054a77270b1a3",
+    "required_capabilities": [
+      "loops.respond"
+    ]
+  },
+  {
     "tool_id": "compozy__loop_node_cancel",
     "native_name": "loop_node_cancel",
     "toolsets": [
@@ -1275,8 +1334,8 @@
     "read_only": false,
     "destructive": false,
     "open_world": false,
-    "input_schema_digest": "9838bc3c426070735b4fc564d58d20dddf452ff9e518c7c94a2affe98442d3b9",
-    "output_schema_digest": "1bee7cc48f8ad1651ba53982e57b91634aaa8fc38214454318ff275f2e648dfe"
+    "input_schema_digest": "aed1cd17bfc09d816a4ee8c769ea8b1018cffa20aa115e3906e84c4dad0455dd",
+    "output_schema_digest": "b67f5b616a84a30080525439c52cccfe9d3705631eb09cd4f219e5faccb2ac61"
   },
   {
     "tool_id": "compozy__loop_node_kill",
@@ -1288,8 +1347,8 @@
     "read_only": false,
     "destructive": true,
     "open_world": false,
-    "input_schema_digest": "9838bc3c426070735b4fc564d58d20dddf452ff9e518c7c94a2affe98442d3b9",
-    "output_schema_digest": "1bee7cc48f8ad1651ba53982e57b91634aaa8fc38214454318ff275f2e648dfe"
+    "input_schema_digest": "aed1cd17bfc09d816a4ee8c769ea8b1018cffa20aa115e3906e84c4dad0455dd",
+    "output_schema_digest": "b67f5b616a84a30080525439c52cccfe9d3705631eb09cd4f219e5faccb2ac61"
   },
   {
     "tool_id": "compozy__loop_node_pause",
@@ -1301,8 +1360,8 @@
     "read_only": false,
     "destructive": false,
     "open_world": false,
-    "input_schema_digest": "2e3642beac35d9106af7792c8fe411fc56978faf1856102246680360315b394d",
-    "output_schema_digest": "1bee7cc48f8ad1651ba53982e57b91634aaa8fc38214454318ff275f2e648dfe"
+    "input_schema_digest": "8346c03344584dc943fb0c8466ae3676acb229664e7c47f32a537aa42761008b",
+    "output_schema_digest": "b67f5b616a84a30080525439c52cccfe9d3705631eb09cd4f219e5faccb2ac61"
   },
   {
     "tool_id": "compozy__loop_node_requeue",
@@ -1315,7 +1374,7 @@
     "destructive": false,
     "open_world": false,
     "input_schema_digest": "9838bc3c426070735b4fc564d58d20dddf452ff9e518c7c94a2affe98442d3b9",
-    "output_schema_digest": "1bee7cc48f8ad1651ba53982e57b91634aaa8fc38214454318ff275f2e648dfe"
+    "output_schema_digest": "b67f5b616a84a30080525439c52cccfe9d3705631eb09cd4f219e5faccb2ac61"
   },
   {
     "tool_id": "compozy__loop_node_resume",
@@ -1328,7 +1387,7 @@
     "destructive": false,
     "open_world": false,
     "input_schema_digest": "c842627e39ce141d49a9400c5908febcfe333652c230581ef6329d8a9d977a09",
-    "output_schema_digest": "1bee7cc48f8ad1651ba53982e57b91634aaa8fc38214454318ff275f2e648dfe"
+    "output_schema_digest": "b67f5b616a84a30080525439c52cccfe9d3705631eb09cd4f219e5faccb2ac61"
   },
   {
     "tool_id": "compozy__loop_nodes",
@@ -1355,6 +1414,64 @@
     "open_world": false,
     "input_schema_digest": "f6434e485d1becf0aec0201dcbb8853242be92d8fb69610f5461ace7ca9a2627",
     "output_schema_digest": "a2c799262a3ce3c19ef5cdd983bf3d12b43ab3c426227091b909dcb7054738c0"
+  },
+  {
+    "tool_id": "compozy__loop_request",
+    "native_name": "loop_request",
+    "toolsets": [
+      "compozy__loops"
+    ],
+    "risk": "read",
+    "read_only": true,
+    "destructive": false,
+    "open_world": false,
+    "input_schema_digest": "6ba777be0a15ceba7a9030c86e92f9725f858047e3646ec45a2dbbf2d256bed8",
+    "output_schema_digest": "6937b9c26ee30f39cedbb8b750c24c146e5583f19e03ecf1b2a09aaa0c927b06"
+  },
+  {
+    "tool_id": "compozy__loop_requests",
+    "native_name": "loop_requests",
+    "toolsets": [
+      "compozy__loops"
+    ],
+    "risk": "read",
+    "read_only": true,
+    "destructive": false,
+    "open_world": false,
+    "input_schema_digest": "e70bb28c3d11684ecc370ce0183c03ca16738bccf440372d2d147c352ee8fbf3",
+    "output_schema_digest": "57837814e377a35c0766453eaa917c26c7915f2de1683e89ce8d95db4b1df88b"
+  },
+  {
+    "tool_id": "compozy__loop_rerun",
+    "native_name": "loop_rerun",
+    "toolsets": [
+      "compozy__loops"
+    ],
+    "risk": "mutating",
+    "read_only": false,
+    "destructive": false,
+    "open_world": false,
+    "input_schema_digest": "df96905de7304853c7bf0805338c8ebe7393a92380da3dbe0ef4917266e05e36",
+    "output_schema_digest": "fa5b724f0037396bdf5f01ec40f5ee575a2328305bcd8d37cda482b6cba62b44",
+    "required_capabilities": [
+      "loops.timetravel"
+    ]
+  },
+  {
+    "tool_id": "compozy__loop_respond",
+    "native_name": "loop_respond",
+    "toolsets": [
+      "compozy__loops"
+    ],
+    "risk": "mutating",
+    "read_only": false,
+    "destructive": false,
+    "open_world": false,
+    "input_schema_digest": "fc3c1dc9e1e2749385c55f82293b8255f2cd9608e04523b92c62284cf38e6929",
+    "output_schema_digest": "176099b96cf619bde846edbe283422be2b918b73d715c9e4c5eec8e50c1c19a2",
+    "required_capabilities": [
+      "loops.respond"
+    ]
   },
   {
     "tool_id": "compozy__loop_resume",
@@ -1393,7 +1510,7 @@
     "destructive": false,
     "open_world": false,
     "input_schema_digest": "26b94ba69a874b6d5c0b8be8618e2212be83a13ca0c6e0926831195341b48eea",
-    "output_schema_digest": "0c1b57cb0d6b79f7e59d22a5f8d4d1098f276a575a7e1cc52dbc48985e1f8d88"
+    "output_schema_digest": "877c572beeea0d2c75db70dc7db884e4b9f9ec8e67e8cd5332520a0e70ef20c0"
   },
   {
     "tool_id": "compozy__loop_status",
@@ -1406,7 +1523,7 @@
     "destructive": false,
     "open_world": false,
     "input_schema_digest": "f6434e485d1becf0aec0201dcbb8853242be92d8fb69610f5461ace7ca9a2627",
-    "output_schema_digest": "094ed9ce850b475ec35ccb76d202e2f43c76c15253133bbc020672879ef279e5"
+    "output_schema_digest": "6f35ec5a1afbdaf0bb59cd0ad313b518f70425aa4df93b9cf984816388f93057"
   },
   {
     "tool_id": "compozy__loop_turns",
@@ -3140,6 +3257,19 @@
     "destructive": false,
     "open_world": false,
     "input_schema_digest": "235b68f12aa4b9763d295705e9fe8170b86623970f5decd3e16e4468e0f0598a",
+    "output_schema_digest": "a2c799262a3ce3c19ef5cdd983bf3d12b43ab3c426227091b909dcb7054738c0"
+  },
+  {
+    "tool_id": "compozy__vault_list",
+    "native_name": "vault_list",
+    "toolsets": [
+      "compozy__catalog"
+    ],
+    "risk": "read",
+    "read_only": true,
+    "destructive": false,
+    "open_world": false,
+    "input_schema_digest": "45f84e4c64e01b91646d84306b6eb76811bf93f2a3b53ea1ff7739a9158e8852",
     "output_schema_digest": "a2c799262a3ce3c19ef5cdd983bf3d12b43ab3c426227091b909dcb7054738c0"
   },
   {

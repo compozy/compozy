@@ -62,6 +62,13 @@ func WithRuntimeCatalog(catalog WorkspaceRuntimeCatalog) Option {
 	}
 }
 
+// WithInputEntityCatalog injects workspace-aware exact entity lookup authority.
+func WithInputEntityCatalog(catalog InputEntityCatalog) Option {
+	return func(s *service) {
+		s.inputEntities = catalog
+	}
+}
+
 // WithClock injects a deterministic clock.
 func WithClock(now func() time.Time) Option {
 	return func(s *service) {
@@ -108,6 +115,13 @@ func WithGoalPromptLeaseRevoker(revoker GoalPromptLeaseRevoker) Option {
 func WithCancellationSessionController(controller CancellationSessionController) Option {
 	return func(s *service) {
 		s.cancellationSessions = controller
+	}
+}
+
+// WithResponderPolicy injects the daemon-owned initiator-lineage policy.
+func WithResponderPolicy(policy ResponderPolicy) Option {
+	return func(s *service) {
+		s.responderPolicy = policy
 	}
 }
 

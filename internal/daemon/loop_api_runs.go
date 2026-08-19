@@ -125,6 +125,13 @@ func (s *daemonLoopAPIService) ListLoopRuns(
 	}
 	payloads := make([]contract.LoopRunPayload, 0, len(runs))
 	for _, run := range runs {
+		if lineage, ok := s.persistence.(looppkg.TimeTravelStore); ok {
+			forks, err := lineage.ListForks(ctx, ws, run.ID)
+			if err != nil {
+				return contract.LoopRunsResponse{}, err
+			}
+			run.SetForks(forks)
+		}
 		payload, err := loopRunPayload(run)
 		if err != nil {
 			return contract.LoopRunsResponse{}, err
@@ -154,43 +161,9 @@ func (s *daemonLoopAPIService) GetLoopRun(
 	if err != nil {
 		return contract.LoopRunResponse{}, err
 	}
-	snapshot, err := s.persistence.GetLoopDefinitionSnapshot(ctx, ws, run.DefinitionDigest)
-	if err != nil {
-		return contract.LoopRunResponse{}, fmt.Errorf(
-			"daemon: load executed definition snapshot %q for run %q: %w",
-			run.DefinitionDigest,
-			run.ID,
-			err,
-		)
-	}
-	resolved, err := looppkg.LoadExecutedDefinitionSnapshot(snapshot.Definition, run.DefinitionDigest)
-	if err != nil {
-		return contract.LoopRunResponse{}, fmt.Errorf(
-			"daemon: hydrate executed definition %q for run %q: %w",
-			run.DefinitionDigest,
-			run.ID,
-			err,
-		)
-	}
-	executedDefinitionJSON, err := json.Marshal(resolved.Definition)
-	if err != nil {
-		return contract.LoopRunResponse{}, fmt.Errorf("daemon: marshal executed Loop definition: %w", err)
-	}
-	executedDefinition, err := loopDefinitionDocumentFromJSON(executedDefinitionJSON)
+	executedDefinition, materializedContract, err := s.loadExecutedLoopDefinition(ctx, ws, run)
 	if err != nil {
 		return contract.LoopRunResponse{}, err
-	}
-	materialized, err := looppkg.MaterializeContract(resolved.Definition.Contract, run.Inputs)
-	if err != nil {
-		return contract.LoopRunResponse{}, fmt.Errorf(
-			"daemon: materialize executed Loop contract for run %q: %w",
-			run.ID,
-			err,
-		)
-	}
-	var materializedContract contract.LoopContract
-	if err := transcodeLoopAPI(materialized, &materializedContract); err != nil {
-		return contract.LoopRunResponse{}, fmt.Errorf("daemon: encode materialized Loop contract: %w", err)
 	}
 	payload, err := loopRunPayload(*run)
 	if err != nil {
@@ -204,6 +177,14 @@ func (s *daemonLoopAPIService) GetLoopRun(
 	if err != nil {
 		return contract.LoopRunResponse{}, err
 	}
+	requests, err := s.loopRunRequests(ctx, ws, run.ID)
+	if err != nil {
+		return contract.LoopRunResponse{}, err
+	}
+	amendments, err := s.loopRunAmendments(ctx, ws, run.ID)
+	if err != nil {
+		return contract.LoopRunResponse{}, err
+	}
 	return contract.LoopRunResponse{
 		Run:                  payload,
 		ExecutedDefinition:   &executedDefinition,
@@ -211,8 +192,115 @@ func (s *daemonLoopAPIService) GetLoopRun(
 		Generations:          generations,
 		NodeControls:         controls,
 		Waits:                waits,
+		Requests:             requests,
+		Amendments:           amendments,
 		WatchEvents:          watchEvents,
 	}, nil
+}
+
+func (s *daemonLoopAPIService) loadExecutedLoopDefinition(
+	ctx context.Context,
+	workspaceID looppkg.WorkspaceID,
+	run *looppkg.Run,
+) (contract.LoopDefinitionDocument, contract.LoopContract, error) {
+	snapshot, err := s.persistence.GetLoopDefinitionSnapshot(ctx, workspaceID, run.DefinitionDigest)
+	if err != nil {
+		return contract.LoopDefinitionDocument{}, contract.LoopContract{}, fmt.Errorf(
+			"daemon: load executed definition snapshot %q for run %q: %w",
+			run.DefinitionDigest,
+			run.ID,
+			err,
+		)
+	}
+	resolved, err := looppkg.LoadExecutedDefinitionSnapshot(snapshot.Definition, run.DefinitionDigest)
+	if err != nil {
+		return contract.LoopDefinitionDocument{}, contract.LoopContract{}, fmt.Errorf(
+			"daemon: hydrate executed definition %q for run %q: %w",
+			run.DefinitionDigest,
+			run.ID,
+			err,
+		)
+	}
+	executedDefinitionJSON, err := json.Marshal(resolved.Definition)
+	if err != nil {
+		return contract.LoopDefinitionDocument{}, contract.LoopContract{}, fmt.Errorf(
+			"daemon: marshal executed Loop definition: %w",
+			err,
+		)
+	}
+	executedDefinition, err := loopDefinitionDocumentFromJSON(executedDefinitionJSON)
+	if err != nil {
+		return contract.LoopDefinitionDocument{}, contract.LoopContract{}, err
+	}
+	materialized, err := looppkg.MaterializeContract(resolved.Definition.Contract, run.Inputs)
+	if err != nil {
+		return contract.LoopDefinitionDocument{}, contract.LoopContract{}, fmt.Errorf(
+			"daemon: materialize executed Loop contract for run %q: %w",
+			run.ID,
+			err,
+		)
+	}
+	var materializedContract contract.LoopContract
+	if err := transcodeLoopAPI(materialized, &materializedContract); err != nil {
+		return contract.LoopDefinitionDocument{}, contract.LoopContract{}, fmt.Errorf(
+			"daemon: encode materialized Loop contract: %w",
+			err,
+		)
+	}
+	return executedDefinition, materializedContract, nil
+}
+
+func (s *daemonLoopAPIService) loopRunAmendments(
+	ctx context.Context,
+	workspaceID looppkg.WorkspaceID,
+	runID looppkg.RunID,
+) ([]contract.LoopNodeAmendmentPayload, error) {
+	store, ok := s.persistence.(looppkg.AmendmentStore)
+	if !ok {
+		return []contract.LoopNodeAmendmentPayload{}, nil
+	}
+	amendments, err := store.ListNodeAmendments(ctx, workspaceID, runID)
+	if err != nil {
+		return nil, err
+	}
+	payloads := make([]contract.LoopNodeAmendmentPayload, 0, len(amendments))
+	for _, amendment := range amendments {
+		payload, err := loopNodeAmendmentPayload(amendment)
+		if err != nil {
+			return nil, err
+		}
+		payloads = append(payloads, payload)
+	}
+	return payloads, nil
+}
+
+const loopRequestStateResolved = "resolved"
+
+func (s *daemonLoopAPIService) loopRunRequests(
+	ctx context.Context,
+	workspaceID looppkg.WorkspaceID,
+	runID looppkg.RunID,
+) ([]contract.LoopRequestPayload, error) {
+	requests := make([]contract.LoopRequestPayload, 0)
+	for _, state := range []string{looppkg.RequestStatePending, loopRequestStateResolved} {
+		cursor := ""
+		for {
+			page, err := s.aggregate.ListRequests(ctx, workspaceID, looppkg.RequestQuery{
+				RunID: runID, State: state, Limit: 200, Cursor: cursor,
+			})
+			if err != nil {
+				return nil, err
+			}
+			for _, request := range page.Items {
+				requests = append(requests, loopRequestPayload(request))
+			}
+			if page.NextCursor == "" {
+				break
+			}
+			cursor = page.NextCursor
+		}
+	}
+	return requests, nil
 }
 
 func (s *daemonLoopAPIService) PauseLoopRun(
@@ -253,11 +341,23 @@ func (s *daemonLoopAPIService) ApproveLoopRun(
 		return err
 	}
 	normalizedRunID := looppkg.RunID(strings.TrimSpace(runID))
-	run, err := s.aggregate.Get(ctx, ws, normalizedRunID)
-	if err != nil {
-		return err
-	}
-	if loopApprovalSelfDenied(*run, actor) {
+	if s.responderPolicy != nil {
+		denied, policyErr := s.responderPolicy.DeniesSelfOperation(
+			ctx, string(ws), string(normalizedRunID), actor,
+		)
+		if policyErr != nil {
+			return policyErr
+		}
+		if denied {
+			return fmt.Errorf(
+				"%w: loop run %q cannot be approved by its initiator chain",
+				taskpkg.ErrPermissionDenied,
+				normalizedRunID,
+			)
+		}
+	} else if run, getErr := s.aggregate.Get(ctx, ws, normalizedRunID); getErr != nil {
+		return getErr
+	} else if loopApprovalSelfDenied(*run, actor) {
 		return fmt.Errorf(
 			"%w: loop run %q cannot be approved by its starter session",
 			taskpkg.ErrPermissionDenied,

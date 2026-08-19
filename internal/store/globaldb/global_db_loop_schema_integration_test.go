@@ -185,7 +185,7 @@ func TestOpenGlobalDBBootstrapsLoopSchemaIntegration(t *testing.T) {
 		if _, err := prefixDB.ExecContext(
 			ctx,
 			`INSERT INTO loop_run_events (id, loop_run_id, workspace_id, seq, kind, payload_json, at)
-			 VALUES ('event-v38', 'run-v38', ?, 1, 'legacy', '{}', ?)`,
+			 VALUES ('event-v38', 'run-v38', ?, 1, 'custom_event', '{}', ?)`,
 			workspaceID,
 			now,
 		); err != nil {
@@ -212,6 +212,8 @@ func TestOpenGlobalDBBootstrapsLoopSchemaIntegration(t *testing.T) {
 		assertTableHasColumn(t, upgraded.db, "loop_runs", "cancel_requested")
 		assertTableHasColumn(t, upgraded.db, "loop_runs", "cancel_kind")
 		assertTableHasColumn(t, upgraded.db, "loop_run_events", "delivery_key")
+		assertTableSQLContains(t, upgraded.db, "loop_run_events", "'route_taken'")
+		assertTableHasColumn(t, upgraded.db, "loop_node_controls", "gate_revisions_json")
 		assertMigratedLoopLifecycleRows(t, upgraded.db, workspaceID)
 		if _, err := upgraded.db.ExecContext(
 			verificationCtx,
@@ -466,7 +468,7 @@ func TestOpenGlobalDBBootstrapsLoopSchemaIntegration(t *testing.T) {
 				ctx,
 				`INSERT INTO loop_run_events (
 					id, loop_run_id, workspace_id, seq, kind, payload_json, at, delivery_key
-				) VALUES (?, ?, 'ws-1', ?, 'test', '{}', ?, ?)`,
+				) VALUES (?, ?, 'ws-1', ?, 'custom_event', '{}', ?, ?)`,
 				id,
 				runID,
 				seq,
@@ -489,6 +491,45 @@ func TestOpenGlobalDBBootstrapsLoopSchemaIntegration(t *testing.T) {
 		}
 		if err := insertEvent("event-key-b", "delivery-key-run-b", 1, "delivery-1"); err != nil {
 			t.Fatalf("insert same delivery key in another run error = %v", err)
+		}
+	})
+
+	t.Run("Should enforce the closed loop event kind and JSON payload contract", func(t *testing.T) {
+		t.Parallel()
+
+		globalDB := openLoopTestGlobalDB(t)
+		ctx := testutil.Context(t)
+		now := time.Date(2026, 8, 16, 15, 0, 0, 0, time.UTC)
+		created, err := globalDB.CreateLoopRunForStart(
+			ctx,
+			testLoopRun("route-event-schema", now, looppkg.StatusRunning),
+			dsl.ConcurrencyAllow,
+		)
+		if err != nil {
+			t.Fatalf("CreateLoopRunForStart() error = %v", err)
+		}
+		insert := func(id, kind, payload string) error {
+			_, insertErr := globalDB.db.ExecContext(
+				ctx,
+				`INSERT INTO loop_run_events (id, loop_run_id, workspace_id, seq, kind, payload_json, at)
+				 VALUES (?, ?, ?, 1, ?, ?, ?)`,
+				id,
+				created.ID,
+				created.WorkspaceID,
+				kind,
+				payload,
+				now,
+			)
+			return insertErr
+		}
+		if err := insert("route-event", "route_taken", `{"generation":1}`); err != nil {
+			t.Fatalf("insert route_taken error = %v", err)
+		}
+		if err := insert("unknown-event", "unknown", `{}`); err == nil {
+			t.Fatal("unknown loop event kind accepted")
+		}
+		if err := insert("invalid-payload", "route_taken", `{`); err == nil {
+			t.Fatal("invalid loop event payload accepted")
 		}
 	})
 
@@ -692,6 +733,9 @@ func assertLoopRunStateSchema(t *testing.T, globalDB *GlobalDB) {
 		"workspace_id",
 		"loop_name",
 		"status",
+		"completion_state",
+		"forked_from_run_id",
+		"forked_from_generation",
 		"generation",
 		"reattempt_strategy",
 		"last_progress_at",
@@ -794,6 +838,7 @@ func assertLoopRunStateSchema(t *testing.T, globalDB *GlobalDB) {
 		"cancel_requested_at",
 		"last_evidence_at",
 		"death_resume_streak",
+		"gate_revisions_json",
 		"revision",
 		"updated_at",
 	})
@@ -994,6 +1039,10 @@ func assertLoopRunStateSchema(t *testing.T, globalDB *GlobalDB) {
 	assertTableSQLContains(t, globalDB.db, "loop_generation_outputs", "REFERENCES loop_runs(id) ON DELETE CASCADE")
 	assertTableSQLContains(t, globalDB.db, "loop_generation_outputs", "'retrying'")
 	assertTableSQLContains(t, globalDB.db, "loop_generation_outputs", "'quarantined'")
+	assertTableSQLContains(t, globalDB.db, "loop_generation_outputs", "'partial'")
+	assertTableSQLContains(t, globalDB.db, "loop_runs", "completion_state")
+	assertTableSQLContains(t, globalDB.db, "loop_runs", "'complete','partial'")
+	assertTableSQLContains(t, globalDB.db, "loop_run_events", "'branch_pruned'")
 	assertTableSQLContains(t, globalDB.db, "loop_generation_outputs", "CHECK (attempt >= 1)")
 	assertTableSQLContains(
 		t,
@@ -1032,10 +1081,25 @@ func assertLoopRunStateSchema(t *testing.T, globalDB *GlobalDB) {
 	)
 	assertTableSQLContains(t, globalDB.db, "loop_runs", "best_generation IS NULL AND best_score IS NULL")
 	assertTableSQLContains(t, globalDB.db, "loop_runs", "cancel_kind IN ('', 'cancel', 'kill')")
+	assertTableSQLContains(t, globalDB.db, "loop_run_events", "'route_taken'")
 	assertTableSQLContains(t, globalDB.db, "dead_entities", "'loop_target'")
 	for _, table := range []string{"loop_node_controls", "loop_node_attempts", "loop_node_waits", "loop_effect_outbox"} {
 		assertTableSQLContains(t, globalDB.db, table, "REFERENCES loop_runs(id) ON DELETE CASCADE")
 	}
+	assertSchemaSQLContainsNormalized(
+		t,
+		globalDB.db,
+		"table",
+		"loop_node_controls",
+		"gate_revisions_json TEXT NOT NULL DEFAULT '{}'",
+	)
+	assertSchemaSQLContainsNormalized(
+		t,
+		globalDB.db,
+		"table",
+		"loop_node_controls",
+		"json_valid(gate_revisions_json) AND json_type(gate_revisions_json) = 'object'",
+	)
 	assertTableSQLContains(t, globalDB.db, "loop_ui_annotations", "PRIMARY KEY (workspace_id, loop_name, node_id)")
 	assertTableSQLContains(t, globalDB.db, "loop_config", "PRIMARY KEY (workspace_id, loop_name)")
 	assertGoalDurableStateSchema(t, globalDB)

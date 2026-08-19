@@ -44,7 +44,7 @@ func recoverWatchEventsState(
 		WorkspaceID: string(run.WorkspaceID),
 		Streams:     streams,
 		Kinds:       kinds,
-		Limit:       LoopMaxFanoutWidth,
+		Limit:       LoopWatchEventPageLimit,
 	})
 	if err != nil {
 		return watchpkg.EventsPendingState{}, nil, fmt.Errorf(
@@ -230,6 +230,6 @@ func watchEventsQuery(
 		WorkspaceID: string(run.WorkspaceID),
 		Streams:     cloneInt64Map(state.Cursors),
 		Kinds:       kinds,
-		Limit:       LoopMaxFanoutWidth,
+		Limit:       LoopWatchEventPageLimit,
 	}, nil
 }

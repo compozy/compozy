@@ -37,7 +37,7 @@ func (e *ToolCallActionExecutor) Execute(
 	}
 	defer cancel()
 
-	params, err := renderNodeParams(node, in.Namespace)
+	params, err := actionParams(node, in)
 	if err != nil {
 		return ActionRawResult{}, err
 	}

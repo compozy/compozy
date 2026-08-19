@@ -28,6 +28,7 @@ const (
 	cliInstalledValue = "Installed"
 	cliSchemaVersion  = "schema_version"
 	cliValidateVerb   = "validate"
+	cliConfiguredKey  = "configured"
 	agentOutputLabel  = automationAgentValue
 	roleOutputLabel   = "Role"
 )

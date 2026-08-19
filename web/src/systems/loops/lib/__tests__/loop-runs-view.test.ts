@@ -3,7 +3,6 @@ import { describe, expect, it } from "vitest";
 import { loopRunFixtures } from "../../mocks/fixtures";
 import type { LoopRun } from "../../types";
 import {
-  buildOutcomeSegments,
   buildRunKpis,
   formatRunInputs,
   formatTokenCount,
@@ -20,6 +19,7 @@ function run(overrides: Partial<LoopRun> & Pick<LoopRun, "id" | "status">): Loop
   return {
     workspace_id: "ws",
     loop_name: "implement-tasks",
+    completion_state: "complete",
     generation: 1,
     iteration_cap: 50,
     tokens_used: 0,
@@ -34,6 +34,7 @@ function run(overrides: Partial<LoopRun> & Pick<LoopRun, "id" | "status">): Loop
     last_progress_at: "2026-07-05T12:00:00Z",
     definition_version: 1,
     ...overrides,
+    forks: overrides.forks ?? [],
   };
 }
 
@@ -56,17 +57,6 @@ describe("loop-runs-view", () => {
       run({ id: "b", status: "done", last_progress_at: "2026-07-01T09:00:00Z" }),
     ];
     expect(buildRunKpis(runs, NOW).doneToday.count).toBe(1);
-  });
-
-  it("Should build a data-driven outcome filter in canonical order with counts", () => {
-    const segments = buildOutcomeSegments(loopRunFixtures);
-    expect(segments[0]).toEqual({ value: "all", label: "All", count: loopRunFixtures.length });
-    const values = segments.map(segment => segment.value);
-    // Live states precede terminal states; only present statuses appear.
-    expect(values).toContain("running");
-    expect(values.indexOf("running")).toBeLessThan(values.indexOf("done"));
-    const queued = segments.find(segment => segment.value === "queued");
-    expect(queued?.count).toBe(1);
   });
 
   it("Should split live runs into Active and terminal runs into Past, honoring the outcome filter", () => {

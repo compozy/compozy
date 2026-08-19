@@ -14,6 +14,7 @@ type CancellationMutation struct {
 	WorkspaceID WorkspaceID
 	RunID       RunID
 	NodeID      NodeID
+	ItemIndex   *int
 	Kind        RunCancelKind
 	Reason      string
 	Actor       task.ActorContext
@@ -25,6 +26,7 @@ type CancellationMutation struct {
 func (m CancellationMutation) Validate(nodeRequired bool) error {
 	if strings.TrimSpace(string(m.WorkspaceID)) == "" || strings.TrimSpace(string(m.RunID)) == "" ||
 		(nodeRequired && strings.TrimSpace(string(m.NodeID)) == "") ||
+		(m.ItemIndex != nil && *m.ItemIndex < 0) ||
 		(m.Kind != RunCancelCancel && m.Kind != RunCancelKill) || m.RequestedAt.IsZero() {
 		return fmt.Errorf("%w: cancellation mutation is incomplete", ErrValidation)
 	}

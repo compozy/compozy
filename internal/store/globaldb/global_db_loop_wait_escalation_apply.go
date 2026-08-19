@@ -89,7 +89,7 @@ func loadDueWaitEscalation(
 	if !found {
 		return dueWaitEscalation{}, fmt.Errorf("%w: wait node %q is absent", looppkg.ErrValidation, cell.nodeID)
 	}
-	expiry, err := waitEscalationExpiry(node, wait.Kind)
+	expiry, err := waitEscalationExpiry(node, wait.Kind, resolved.EffectiveConfig.RequestExpireAfter)
 	if err != nil {
 		return dueWaitEscalation{}, err
 	}
@@ -114,7 +114,7 @@ func loadDueWaitEscalation(
 	}, nil
 }
 
-func waitEscalationExpiry(node dsl.Node, kind string) (*dsl.WaitExpiry, error) {
+func waitEscalationExpiry(node dsl.Node, kind string, requestExpireAfter string) (*dsl.WaitExpiry, error) {
 	switch strings.TrimSpace(kind) {
 	case looppkg.NodeWaitKindApprovalEscalation:
 		if node.Class != dsl.NodeClassControl || dsl.ControlKind(node.Kind) != dsl.ControlGate {
@@ -125,6 +125,18 @@ func waitEscalationExpiry(node dsl.Node, kind string) (*dsl.WaitExpiry, error) {
 		var params dsl.WaitParams
 		if err := node.Params.Decode(&params); err != nil {
 			return nil, fmt.Errorf("%w: decode wait node %q expiry: %v", looppkg.ErrValidation, node.ID, err)
+		}
+		return params.Expires, nil
+	case looppkg.NodeWaitKindRequest:
+		if node.Class != dsl.NodeClassControl || dsl.ControlKind(node.Kind) != dsl.ControlAsk {
+			return nil, fmt.Errorf("%w: request wait node %q is not an ask", looppkg.ErrValidation, node.ID)
+		}
+		var params dsl.AskParams
+		if err := node.Params.Decode(&params); err != nil {
+			return nil, fmt.Errorf("%w: decode ask node %q expiry: %v", looppkg.ErrValidation, node.ID, err)
+		}
+		if params.Expires == nil && strings.TrimSpace(requestExpireAfter) != "" {
+			return &dsl.WaitExpiry{After: requestExpireAfter}, nil
 		}
 		return params.Expires, nil
 	default:
@@ -251,6 +263,11 @@ func expireWaitWithAttention(
 	due *dueWaitEscalation,
 	now time.Time,
 ) error {
+	if due.wait.Kind == looppkg.NodeWaitKindRequest {
+		if err := expireLoopRequestWithExecutor(ctx, exec, due, now); err != nil {
+			return err
+		}
+	}
 	result, err := exec.ExecContext(ctx, `UPDATE loop_node_waits SET claim_state = 'intervention_required',
 		next_escalation_at = NULL WHERE loop_run_id = ? AND generation = ? AND node_id = ?
 		AND item_index = ? AND claim_state = 'waiting' AND escalation_cursor = ? AND issued_epoch = ?`,

@@ -42,6 +42,8 @@ func (d *Daemon) applyAutomationManagerFactoryDefault() {
 			d.homePaths,
 			deps.WorkspaceResolver,
 			deps.ParticipationResolver,
+			deps.LoopInputEntities,
+			deps.LoopRuntimeCatalog,
 		)
 		if err != nil {
 			return nil, err

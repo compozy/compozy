@@ -21,11 +21,6 @@ interface LoopRunOverflowMenuProps {
   isKillPending?: boolean;
 }
 
-/**
- * The topbar ⋯ overflow (§3): View graph and View definition, plus Kill for a
- * live run. Inspect lives once, in the rail foot beside the digest.
- * Renders for every status, including terminal runs whose controls are gone.
- */
 export function LoopRunOverflowMenu({ loopName, onKill, isKillPending }: LoopRunOverflowMenuProps) {
   return (
     <DropdownMenu>

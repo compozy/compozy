@@ -65,15 +65,41 @@ func (s *daemonLoopAPIService) loopGenerations(
 				err,
 			)
 		}
+		routeCauses, err := s.persistence.ListRouteCauses(
+			ctx,
+			run.WorkspaceID,
+			run.ID,
+			generation.Generation,
+		)
+		if err != nil {
+			return nil, fmt.Errorf(
+				"daemon: list route causes for loop run %s generation %d: %w",
+				run.ID,
+				generation.Generation,
+				err,
+			)
+		}
 		generations = append(generations, contract.LoopGenerationPayload{
 			Generation:       generation.Generation,
 			ParentGeneration: generation.ParentGeneration,
 			Origin:           contract.LoopGenerationOrigin(generation.Origin),
+			RouteCauses:      loopRouteCausesPayload(routeCauses),
 			Verdicts:         verdictPayloads,
 			Outputs:          loopGenerationOutputsPayload(outputs, attempts),
 		})
 	}
 	return generations, nil
+}
+
+func loopRouteCausesPayload(causes []looppkg.RouteCause) []contract.LoopRouteCausePayload {
+	payloads := make([]contract.LoopRouteCausePayload, 0, len(causes))
+	for _, cause := range causes {
+		payloads = append(payloads, contract.LoopRouteCausePayload{
+			NodeID: string(cause.NodeID), ItemIndex: cause.ItemIndex, Route: string(cause.Route),
+			Cause: cause.Cause, MatchedWhen: cause.MatchedWhen, Default: cause.Default, At: cause.At,
+		})
+	}
+	return payloads
 }
 
 func loopGateVerdictsPayload(verdicts []gate.VerdictRecord) ([]contract.LoopGateVerdictPayload, error) {

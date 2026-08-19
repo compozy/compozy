@@ -3,6 +3,7 @@ package loop
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"log/slog"
 	"maps"
@@ -76,8 +77,14 @@ func evaluateWatchEventsNode(
 		control.resolved.WatchEventsContracts,
 		runtime,
 	)
-	if err != nil || terminal != nil {
-		return output, terminal, err
+	if err != nil {
+		return GenerationOutput{}, nil, err
+	}
+	if terminal != nil {
+		if terminal.Status == string(StatusDone) && terminal.ReasonCode == predicateEvaluationFailed {
+			output.Status = generationOutputSucceeded
+		}
+		return output, terminal, nil
 	}
 	query, err := watchEventsQuery(control.run, state, control.resolved.WatchEventsContracts)
 	if err != nil {
@@ -87,7 +94,7 @@ func evaluateWatchEventsNode(
 	if err != nil {
 		return GenerationOutput{}, nil, fmt.Errorf("loop: read watch-events matches for node %s: %w", node.ID, err)
 	}
-	matches, nextCursors, readCounts, err := filterWatchEventsRows(
+	matches, nextCursors, readCounts, terminal, err := filterWatchEventsRows(
 		evaluation,
 		output,
 		node,
@@ -95,8 +102,43 @@ func evaluateWatchEventsNode(
 		rows,
 	)
 	if err != nil {
-		return GenerationOutput{}, nil, err
+		var predicateFailure *predicateFailureError
+		if errors.As(err, &predicateFailure) {
+			failed, failureErr := applyPredicateFailureDisposition(
+				output,
+				node,
+				&predicateFailure.failure,
+				control.resolved.Definition.Graph,
+				control.topology,
+				&evaluation.outputs,
+			)
+			return failed, nil, failureErr
+		}
+		return output, nil, err
 	}
+	if terminal != nil {
+		if terminal.Status == string(StatusDone) &&
+			terminal.ReasonCode == predicateEvaluationFailed {
+			output.Status = generationOutputSucceeded
+		}
+		return output, terminal, nil
+	}
+	return finishWatchEventsEvaluation(evaluation, output, node, state, rows, matches, nextCursors, readCounts, query)
+}
+
+func finishWatchEventsEvaluation(
+	evaluation *watchEventsEvaluationContext,
+	output GenerationOutput,
+	node dsl.Node,
+	state watchpkg.EventsPendingState,
+	rows []WatchEvent,
+	matches []WatchEvent,
+	nextCursors map[string]int64,
+	readCounts map[string]int,
+	query WatchEventsQuery,
+) (GenerationOutput, *task.CoordinatorTerminal, error) {
+	control := evaluation.control
+	runtime := control.watchEventsRuntime
 	if watchEventsReadMayBeTruncated(readCounts, query.Limit) {
 		evaluation.plan.PostCommitWakes = append(evaluation.plan.PostCommitWakes, task.CoordinatorWakeSpec{
 			LoopRunID:      string(control.run.ID),
@@ -139,7 +181,7 @@ func filterWatchEventsRows(
 	node dsl.Node,
 	state watchpkg.EventsPendingState,
 	rows []WatchEvent,
-) ([]WatchEvent, map[string]int64, map[string]int, error) {
+) ([]WatchEvent, map[string]int64, map[string]int, *task.CoordinatorTerminal, error) {
 	control := evaluation.control
 	var namespace map[string]any
 	if watchEventsSubscriptionsHaveFilters(state.Subscriptions) && len(rows) > 0 {
@@ -155,7 +197,7 @@ func filterWatchEventsRows(
 			output.ItemIndex,
 		)
 		if err != nil {
-			return nil, nil, nil, err
+			return nil, nil, nil, nil, err
 		}
 	}
 	nextCursors := cloneInt64Map(state.Cursors)
@@ -167,21 +209,22 @@ func filterWatchEventsRows(
 		if row.Seq > nextCursors[stream] {
 			nextCursors[stream] = row.Seq
 		}
-		matched, event, err := rowMatchesWatchEventsSubscriptions(
+		matched, event, terminal, err := rowMatchesWatchEventsSubscriptions(
 			control.resolved,
 			node,
 			namespace,
 			state.Subscriptions,
 			row,
+			control.gateEvaluations,
 		)
-		if err != nil {
-			return nil, nil, nil, err
+		if err != nil || terminal != nil {
+			return nil, nil, nil, terminal, err
 		}
 		if matched {
 			matches = append(matches, event)
 		}
 	}
-	return matches, nextCursors, readCounts, nil
+	return matches, nextCursors, readCounts, nil, nil
 }
 
 func watchEventsSubscriptionsHaveFilters(subscriptions []watchpkg.EventSubscriptionRef) bool {
@@ -199,11 +242,12 @@ func rowMatchesWatchEventsSubscriptions(
 	namespace map[string]any,
 	subscriptions []watchpkg.EventSubscriptionRef,
 	row WatchEvent,
-) (bool, WatchEvent, error) {
+	diagnostics *gateEvaluationCollector,
+) (bool, WatchEvent, *task.CoordinatorTerminal, error) {
 	for idx, subscription := range subscriptions {
 		contract, ok := resolved.WatchEventsContracts[hooks.HookEvent(strings.TrimSpace(subscription.Kind))]
 		if !ok {
-			return false, WatchEvent{}, fmt.Errorf(
+			return false, WatchEvent{}, nil, fmt.Errorf(
 				"%w: watch-events kind is unsupported: %q",
 				ErrValidation,
 				subscription.Kind,
@@ -216,23 +260,24 @@ func rowMatchesWatchEventsSubscriptions(
 		event := cloneWatchEvent(row)
 		event.Kind = strings.TrimSpace(subscription.Kind)
 		if strings.TrimSpace(subscription.Filter) == "" {
-			return true, event, nil
+			return true, event, nil, nil
 		}
-		matched, err := evaluateWatchEventsFilter(
+		matched, terminal, err := evaluateWatchEventsFilter(
 			resolved,
 			node,
 			namespace,
 			idx,
 			event,
+			diagnostics,
 		)
-		if err != nil {
-			return false, WatchEvent{}, err
+		if err != nil || terminal != nil {
+			return false, WatchEvent{}, terminal, err
 		}
 		if matched {
-			return true, event, nil
+			return true, event, nil, nil
 		}
 	}
-	return false, WatchEvent{}, nil
+	return false, WatchEvent{}, nil, nil
 }
 
 func watchEventsContractStreamMatches(contractStream string, rowStream string) bool {
@@ -245,27 +290,26 @@ func evaluateWatchEventsFilter(
 	namespace map[string]any,
 	subscriptionIndex int,
 	event WatchEvent,
-) (bool, error) {
+	diagnostics *gateEvaluationCollector,
+) (bool, *task.CoordinatorTerminal, error) {
 	key := fmt.Sprintf("nodes.%s.events.%d.filter", node.ID, subscriptionIndex)
 	condition := resolved.Conditions[key]
 	if condition == nil {
-		return false, fmt.Errorf("%w: compiled watch-events filter %q is missing", ErrValidation, key)
+		return false, nil, fmt.Errorf("%w: compiled watch-events filter %q is missing", ErrValidation, key)
 	}
 	namespace["event"] = event.eventMap()
-	value, _, err := condition.Program.Eval(namespace)
+	evaluated, err := evaluatePredicate(key, condition, namespace, PredicateRouting, node.OnEvalError)
 	if err != nil {
-		return false, fmt.Errorf("loop: evaluate watch-events filter %s: %w", node.ID, err)
+		return false, nil, fmt.Errorf("loop: evaluate watch-events filter %s: %w", node.ID, err)
 	}
-	result, ok := value.Value().(bool)
-	if !ok {
-		return false, fmt.Errorf(
-			"%w: watch-events filter %s returned %T",
-			ErrValidation,
-			key,
-			value.Value(),
-		)
+	diagnostics.recordPredicate(evaluated.Diagnostics...)
+	if evaluated.Disposition != nil {
+		if evaluated.Disposition.Policy == PredicateErrorExit {
+			return false, predicateExitTerminal(evaluated.Disposition.Diagnostic), nil
+		}
+		return false, nil, &predicateFailureError{failure: *evaluated.Disposition.Failure}
 	}
-	return result, nil
+	return evaluated.Value, nil, nil
 }
 
 func confirmedWatchEventsOutputRef(

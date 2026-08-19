@@ -780,6 +780,21 @@ type LoopGoalTurn struct {
 	EndedAt         sql.NullTime   `json:"ended_at"`
 }
 
+type LoopNodeAmendment struct {
+	WorkspaceID  string         `json:"workspace_id"`
+	LoopRunID    string         `json:"loop_run_id"`
+	Generation   int64          `json:"generation"`
+	NodeID       string         `json:"node_id"`
+	ItemIndex    int64          `json:"item_index"`
+	AmendmentSeq int64          `json:"amendment_seq"`
+	OriginalRef  string         `json:"original_ref"`
+	AmendedRef   string         `json:"amended_ref"`
+	ActorKind    string         `json:"actor_kind"`
+	ActorID      string         `json:"actor_id"`
+	Reason       sql.NullString `json:"reason"`
+	CreatedAt    time.Time      `json:"created_at"`
+}
+
 type LoopNodeAttempt struct {
 	LoopRunID     string         `json:"loop_run_id"`
 	Generation    int64          `json:"generation"`
@@ -819,8 +834,22 @@ type LoopNodeControl struct {
 	CancelRequestedAt       sql.NullTime   `json:"cancel_requested_at"`
 	LastEvidenceAt          sql.NullTime   `json:"last_evidence_at"`
 	DeathResumeStreak       int64          `json:"death_resume_streak"`
+	GateRevisionsJson       string         `json:"gate_revisions_json"`
 	Revision                int64          `json:"revision"`
 	UpdatedAt               time.Time      `json:"updated_at"`
+}
+
+type LoopNodeLanePause struct {
+	WorkspaceID string         `json:"workspace_id"`
+	LoopRunID   string         `json:"loop_run_id"`
+	Generation  int64          `json:"generation"`
+	NodeID      string         `json:"node_id"`
+	ItemIndex   int64          `json:"item_index"`
+	ActorKind   string         `json:"actor_kind"`
+	ActorID     string         `json:"actor_id"`
+	Reason      sql.NullString `json:"reason"`
+	Mode        string         `json:"mode"`
+	RequestedAt time.Time      `json:"requested_at"`
 }
 
 type LoopNodeWait struct {
@@ -851,11 +880,41 @@ type LoopOutputBlob struct {
 	LastUsedAt  string `json:"last_used_at"`
 }
 
+type LoopRequest struct {
+	WorkspaceID         string         `json:"workspace_id"`
+	LoopRunID           string         `json:"loop_run_id"`
+	Generation          int64          `json:"generation"`
+	NodeID              string         `json:"node_id"`
+	ItemIndex           int64          `json:"item_index"`
+	Kind                string         `json:"kind"`
+	State               string         `json:"state"`
+	Prompt              string         `json:"prompt"`
+	ContextPreviewJson  string         `json:"context_preview_json"`
+	ContextRef          sql.NullString `json:"context_ref"`
+	AnswerSchemaJson    sql.NullString `json:"answer_schema_json"`
+	EditSchemaJson      sql.NullString `json:"edit_schema_json"`
+	RespondSchemaJson   sql.NullString `json:"respond_schema_json"`
+	DecisionsJson       string         `json:"decisions_json"`
+	ProposedRef         sql.NullString `json:"proposed_ref"`
+	ProposedPreviewJson sql.NullString `json:"proposed_preview_json"`
+	AnsweredDecision    sql.NullString `json:"answered_decision"`
+	AnsweredPayloadRef  sql.NullString `json:"answered_payload_ref"`
+	AnsweredNote        sql.NullString `json:"answered_note"`
+	ActorKind           sql.NullString `json:"actor_kind"`
+	ActorID             sql.NullString `json:"actor_id"`
+	OpenedAt            time.Time      `json:"opened_at"`
+	ResolvedAt          sql.NullTime   `json:"resolved_at"`
+	ExpiresAt           sql.NullTime   `json:"expires_at"`
+}
+
 type LoopRun struct {
 	ID                       string          `json:"id"`
 	WorkspaceID              string          `json:"workspace_id"`
 	LoopName                 string          `json:"loop_name"`
 	Status                   string          `json:"status"`
+	CompletionState          string          `json:"completion_state"`
+	ForkedFromRunID          sql.NullString  `json:"forked_from_run_id"`
+	ForkedFromGeneration     sql.NullInt64   `json:"forked_from_generation"`
 	Generation               int64           `json:"generation"`
 	ReattemptStrategy        string          `json:"reattempt_strategy"`
 	LastProgressAt           time.Time       `json:"last_progress_at"`
@@ -931,6 +990,24 @@ type LoopSessionBinding struct {
 	ClosedAt           sql.NullTime   `json:"closed_at"`
 	AdoptedGeneration  int64          `json:"adopted_generation"`
 	AdoptionAttemptID  sql.NullString `json:"adoption_attempt_id"`
+}
+
+type LoopTimetravelOp struct {
+	WorkspaceID      string         `json:"workspace_id"`
+	OpID             string         `json:"op_id"`
+	Kind             string         `json:"kind"`
+	IdempotencyKey   string         `json:"idempotency_key"`
+	RequestDigest    string         `json:"request_digest"`
+	SourceRunID      string         `json:"source_run_id"`
+	SourceGeneration sql.NullInt64  `json:"source_generation"`
+	FromNode         sql.NullString `json:"from_node"`
+	ItemIndex        sql.NullInt64  `json:"item_index"`
+	ActorKind        string         `json:"actor_kind"`
+	ActorID          string         `json:"actor_id"`
+	Reason           sql.NullString `json:"reason"`
+	ResultRunID      string         `json:"result_run_id"`
+	ResultGeneration sql.NullInt64  `json:"result_generation"`
+	CreatedAt        time.Time      `json:"created_at"`
 }
 
 type LoopUiAnnotation struct {

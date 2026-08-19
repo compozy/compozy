@@ -52,13 +52,6 @@ function criterionForType(id: string, type: CriterionType): Criterion {
   }
 }
 
-/**
- * The gate criteria list editor (design §4.6): one row per verdict criterion with the
- * per-type fields the DSL carries — command (check + expect), agent-judge (agent +
- * rubric), human (prompt), extension (tool). Editing writes the whole criteria array
- * back through the codec verbatim; the shared linter enforces that
- * `revise_until_clean` has a judge/human criterion (`verdict_policy_requires_judge`).
- */
 export function LoopEditorCriteria({
   value,
   onChange,

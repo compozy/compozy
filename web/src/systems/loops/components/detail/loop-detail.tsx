@@ -68,12 +68,6 @@ interface LoopDetailProps {
   onAddSchedule: () => void;
 }
 
-/**
- * The Loop definition page (design §4.2): detail header + Run/Configure/Fork
- * actions over a two-column layout — contract, read-only body graph, and recent
- * runs on the left; declared inputs, start bindings, limits, versions, and 30d
- * stats on the right rail.
- */
 export function LoopDetailView({
   loop,
   effectiveConfig,

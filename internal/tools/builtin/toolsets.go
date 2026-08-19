@@ -22,8 +22,12 @@ var builtinToolsets = []toolspkg.Toolset{
 		Tools: []string{toolspkg.ToolIDToolArtifactRead.String()},
 	},
 	{
-		ID:       toolspkg.ToolsetIDCatalog,
-		Tools:    []string{"compozy__skill_*"},
+		ID: toolspkg.ToolsetIDCatalog,
+		Tools: []string{
+			"compozy__skill_*",
+			toolspkg.ToolIDAgentList.String(),
+			toolspkg.ToolIDVaultList.String(),
+		},
 		Toolsets: []toolspkg.ToolsetID{toolspkg.ToolsetIDBootstrap},
 	},
 	{
@@ -102,6 +106,7 @@ var builtinToolsets = []toolspkg.Toolset{
 	{
 		ID: toolspkg.ToolsetIDWorkspace,
 		Tools: []string{
+			toolspkg.ToolIDAgentList.String(),
 			toolspkg.ToolIDWorkspaceList.String(),
 			toolspkg.ToolIDWorkspaceInfo.String(),
 			toolspkg.ToolIDWorkspaceDescribe.String(),

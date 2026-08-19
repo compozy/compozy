@@ -25,11 +25,6 @@ function avatarSeed(value: string): string {
   return seed.toUpperCase();
 }
 
-/**
- * The About rail section (§2/§3): loop link, pinned version, the watched
- * subject's input rows, the humanized start origin, workspace, and run id —
- * durable descriptors only, all from the run projection.
- */
 export function LoopRunAboutRail({
   run,
   versionLabel,

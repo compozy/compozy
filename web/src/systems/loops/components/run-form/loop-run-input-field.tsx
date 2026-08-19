@@ -1,8 +1,9 @@
 import { AlertCircle } from "lucide-react";
 
-import { Input, RequiredMark, Switch } from "@compozy/ui";
+import { RequiredMark } from "@compozy/ui";
 
 import type { LoopInputSchemaField } from "../../types";
+import { LoopTypedInputControl } from "../input/loop-typed-input-control";
 import { MonoTag } from "../mono-tag";
 
 interface LoopRunInputFieldProps {
@@ -15,30 +16,6 @@ interface LoopRunInputFieldProps {
   onChange: (value: unknown) => void;
 }
 
-function placeholderFor(field: LoopInputSchemaField): string | undefined {
-  if (field.type === "agent") return "agent profile";
-  if (field.type === "file") return "path or glob";
-  if (field.type === "ref") return field.ref?.kind ? `${field.ref.kind} ref` : "resource ref";
-  if (field.default === undefined || field.default === null) return undefined;
-  if (typeof field.default === "string") return field.default === "" ? undefined : field.default;
-  return String(field.default);
-}
-
-/** Two-character avatar seed for an `agent` input (matches the design's picker prefix). */
-function agentAvatar(value: unknown, field: LoopInputSchemaField): string {
-  const raw =
-    typeof value === "string" && value.trim() !== "" ? value : String(field.default ?? "");
-  return raw.slice(0, 2).toLowerCase() || "ag";
-}
-
-/**
- * One auto-generated run-form field, rendered entirely from a declared input's type
- * (§4.3): boolean -> switch, number -> numeric input, agent -> avatar-prefixed picker,
- * file/ref/string -> mono text. Every field carries a type marker, a required marker,
- * an optional hint, and an inline required error. `data-input-type` makes the chosen
- * control type assertable (web-unit-3). The daemon's declared type string is rendered
- * verbatim in the badge (truthful UI — `boolean`, not `bool`).
- */
 export function LoopRunInputField({
   name,
   field,
@@ -49,8 +26,7 @@ export function LoopRunInputField({
 }: LoopRunInputFieldProps) {
   const controlId = `loop-run-input-${name}`;
   const isBoolean = field.type === "boolean";
-  const isNumber = field.type === "number";
-  const isAgent = field.type === "agent";
+  const errorId = `loop-run-field-error-${name}`;
   return (
     <div
       className="flex flex-col gap-1.5"
@@ -59,12 +35,15 @@ export function LoopRunInputField({
     >
       {isBoolean ? (
         <div className="flex items-center gap-3 rounded-md border border-line-soft bg-canvas-tint px-3 py-2.5">
-          <Switch
-            id={controlId}
-            data-testid={`loop-run-switch-${name}`}
-            checked={typeof value === "boolean" ? value : Boolean(field.default)}
+          <LoopTypedInputControl
+            controlId={controlId}
+            describedBy={error ? errorId : undefined}
             disabled={disabled}
-            onCheckedChange={checked => onChange(checked)}
+            field={field}
+            invalid={Boolean(error)}
+            onChange={onChange}
+            testId={`loop-run-switch-${name}`}
+            value={value}
           />
           <div className="min-w-0 flex-1">
             <label
@@ -87,47 +66,16 @@ export function LoopRunInputField({
             {field.required ? <RequiredMark /> : null}
             <MonoTag className="ml-auto text-faint">{field.type}</MonoTag>
           </label>
-          <div className="relative">
-            {isAgent ? (
-              <span
-                aria-hidden="true"
-                className="absolute top-1/2 left-2 grid size-5 -translate-y-1/2 place-items-center rounded-xs bg-accent-strong font-mono text-pill-group-badge font-semibold text-accent-ink"
-              >
-                {agentAvatar(value, field)}
-              </span>
-            ) : null}
-            <Input
-              id={controlId}
-              data-testid={`loop-run-field-input-${name}`}
-              type={isNumber ? "number" : "text"}
-              className={`font-mono ${isAgent ? "pl-9" : ""} ${error ? "border-danger" : ""}`}
-              disabled={disabled}
-              placeholder={placeholderFor(field)}
-              value={
-                isNumber
-                  ? typeof value === "number"
-                    ? String(value)
-                    : ""
-                  : typeof value === "string"
-                    ? value
-                    : ""
-              }
-              onChange={event => {
-                if (!isNumber) {
-                  onChange(event.target.value);
-                  return;
-                }
-                const next = event.target.value;
-                if (next === "") {
-                  onChange(undefined);
-                  return;
-                }
-                // Ignore partial/invalid entry (e.g. "1e") so `NaN` never reaches the run.
-                const parsed = Number(next);
-                if (!Number.isNaN(parsed)) onChange(parsed);
-              }}
-            />
-          </div>
+          <LoopTypedInputControl
+            controlId={controlId}
+            describedBy={error ? errorId : undefined}
+            disabled={disabled}
+            field={field}
+            invalid={Boolean(error)}
+            onChange={onChange}
+            testId={`loop-run-field-input-${name}`}
+            value={value}
+          />
         </>
       )}
       {!isBoolean && field.description ? (
@@ -137,6 +85,7 @@ export function LoopRunInputField({
         <p
           className="flex items-center gap-1.5 text-form-hint text-danger"
           data-testid={`loop-run-field-error-${name}`}
+          id={errorId}
         >
           <AlertCircle className="size-3" aria-hidden="true" />
           {error}

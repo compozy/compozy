@@ -27,8 +27,9 @@ var atlasDatabaseSequence atomic.Uint64
 const atlasSchemaName = "schema"
 
 type atlasPlan struct {
-	migration *migrate.Plan
-	changes   schema.Changes
+	migration      *migrate.Plan
+	changes        schema.Changes
+	lintStatements []string
 }
 
 // GenerateAtlas writes a sequential migration for each changed declarative schema and refreshes checksums.
@@ -198,8 +199,12 @@ func planAtlasStream(
 		)
 	}
 	restoreSQLiteExpressionIndexStatements(plan, desired)
+	lintStatements := make([]string, 0, len(plan.Changes))
+	for _, change := range plan.Changes {
+		lintStatements = append(lintStatements, change.Cmd)
+	}
 	appendSQLiteTriggerRecreations(plan, desiredSchema.triggers)
-	return &atlasPlan{migration: plan, changes: changes}, dev, closeDev, nil
+	return &atlasPlan{migration: plan, changes: changes, lintStatements: lintStatements}, dev, closeDev, nil
 }
 
 func closeAtlasDatabase(closeDev func() error, streamName string) error {
@@ -385,8 +390,8 @@ func lintAtlasPlan(ctx context.Context, streamName string, plan *atlasPlan, dev 
 	}
 	for index, change := range plan.changes {
 		statement := strings.Join(statements, "\n")
-		if index < len(plan.migration.Changes) {
-			statement = plan.migration.Changes[index].Cmd
+		if index < len(plan.lintStatements) {
+			statement = plan.lintStatements[index]
 		}
 		changes = append(changes, &sqlcheck.Change{
 			Changes: schema.Changes{change},

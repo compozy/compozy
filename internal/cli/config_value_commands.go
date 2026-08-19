@@ -5,6 +5,7 @@ import (
 
 	"strings"
 
+	"github.com/compozy/compozy/internal/api/contract"
 	compozyconfig "github.com/compozy/compozy/internal/config"
 
 	"github.com/spf13/cobra"
@@ -180,10 +181,16 @@ func newConfigGetCommand(deps commandDeps) *cobra.Command {
 					Path: path, Value: discovery, Redacted: false,
 				}))
 			}
-			for _, entry := range flattenConfigEntries(redactedConfigMap(&cfg)) {
+			configMap := redactedConfigMap(&cfg)
+			for _, entry := range flattenConfigEntries(configMap) {
 				if entry.Path == path {
 					return writeCommandOutput(cmd, configValueBundle(configValueRecord(entry)))
 				}
+			}
+			if value, found := configValueAtPath(configMap, path); found {
+				return writeCommandOutput(cmd, configValueBundle(configValueRecord{
+					Path: path, Value: value, Redacted: configValueContainsRedaction(value),
+				}))
 			}
 			return fmt.Errorf("cli: config path %q not found", path)
 		},
@@ -239,6 +246,9 @@ func runConfigSetCommand(
 	if err != nil {
 		return err
 	}
+	if kind == configSetLoopInput {
+		return runLoopInputConfigSet(cmd, deps, target, workspaceRoot, path, value)
+	}
 	liveRecord, err := maybeApplyConfigSetViaDaemon(cmd.Context(), deps, target, path, value, redacted)
 	if err != nil {
 		return err
@@ -251,12 +261,14 @@ func runConfigSetCommand(
 		workspace,
 		target,
 		func(editor *compozyconfig.OverlayEditor) error {
-			if kind == configSetTable {
+			if kind == configSetTable || kind == configSetLoopInput {
 				table, ok := value.(map[string]any)
-				if !ok {
+				if ok {
+					return editor.SetTable(path, table)
+				}
+				if kind == configSetTable {
 					return fmt.Errorf("cli: config path %q requires an object", strings.Join(path, "."))
 				}
-				return editor.SetTable(path, table)
 			}
 			return editor.SetValue(path, value)
 		},
@@ -271,6 +283,38 @@ func runConfigSetCommand(
 	if reloadRecord != nil {
 		record = *reloadRecord
 	}
+	return writeCommandOutput(cmd, configSetBundle(record))
+}
+
+func runLoopInputConfigSet(
+	cmd *cobra.Command,
+	deps commandDeps,
+	target compozyconfig.WriteTarget,
+	workspaceRef string,
+	path []string,
+	value any,
+) error {
+	client, err := loopClientFromDeps(deps)
+	if err != nil {
+		return err
+	}
+	resolution, err := resolveCommandWorkspace(
+		cmd.Context(), cmd, deps, client, workspaceResolutionRequest{FlagRef: workspaceRef},
+	)
+	if err != nil {
+		return err
+	}
+	scope := contract.LoopInputDefaultsScope(target.Scope())
+	response, err := client.PutLoopInputDefault(
+		cmd.Context(), resolution.ID, path[2], path[3],
+		contract.PutLoopInputDefaultRequest{Scope: scope, Value: value},
+	)
+	if err != nil {
+		return fmt.Errorf("cli: set Loop input default: %w", err)
+	}
+	lifecycle := classifyConfigSetLifecycle(path)
+	record := configSetRecordForLocalWrite(path, response.Value, target, false, lifecycle)
+	record.Applied = true
 	return writeCommandOutput(cmd, configSetBundle(record))
 }
 

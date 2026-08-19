@@ -88,7 +88,7 @@ func buildNextGenerationCoordinatorPlan(
 	); err != nil {
 		return task.CoordinatorCompletionPlan{}, err
 	}
-	if err := appendCoordinatorDependenciesForOutputs(
+	appendCoordinatorDependenciesForOutputs(
 		&plan,
 		run,
 		nextGeneration,
@@ -96,9 +96,7 @@ func buildNextGenerationCoordinatorPlan(
 		topology,
 		gatesEnabled,
 		nextOutputs,
-	); err != nil {
-		return task.CoordinatorCompletionPlan{}, err
-	}
+	)
 	plan.PostReserveSnapshot = &task.GenerationSnapshot{
 		LoopRunID:  string(run.ID),
 		Generation: nextGeneration,

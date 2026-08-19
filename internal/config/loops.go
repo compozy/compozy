@@ -13,7 +13,6 @@ const (
 	// LoopInputsConfigKey is the dynamic per-Loop input-default section.
 	LoopInputsConfigKey = "inputs"
 
-	loopDefaultsMaxFanoutWidth      = 64
 	loopDefaultsMaxNoProgressWindow = 30
 	loopDefaultRetryBackoffBase     = "1s"
 	loopDefaultRetryBackoffMax      = "30s"
@@ -55,14 +54,7 @@ func (c *LoopsConfig) InputDefaultLayers(loopName string) (global map[string]any
 }
 
 func cloneLoopInputDefaultValue(value any) any {
-	switch typed := value.(type) {
-	case []string:
-		return append([]string(nil), typed...)
-	case []any:
-		return append([]any(nil), typed...)
-	default:
-		return typed
-	}
+	return cloneConfigAnyValue(value)
 }
 
 // LoopsDefaultsConfig separates delivery and watch loop seed defaults.
@@ -85,6 +77,7 @@ type LoopDefaultConfig struct {
 	Resume          LoopResumeDefaultConfig     `toml:"resume"`
 	Predicates      LoopPredicateDefaultConfig  `toml:"predicates"`
 	Waits           LoopWaitDefaultConfig       `toml:"waits"`
+	Requests        LoopRequestsDefaultConfig   `toml:"requests"`
 	Admission       LoopAdmissionDefaultConfig  `toml:"admission"`
 	Autopause       []LoopAutopauseRule         `toml:"autopause"`
 }
@@ -205,7 +198,7 @@ func (c LoopDefaultConfig) Validate(path string) error {
 	if err := c.Budget.Validate(path + ".budget"); err != nil {
 		return err
 	}
-	if err := validateLoopDefaultMax(path+".fan_out_width", c.FanOutWidth, loopDefaultsMaxFanoutWidth); err != nil {
+	if err := validateLoopDefaultNonNegative(path+".fan_out_width", c.FanOutWidth); err != nil {
 		return err
 	}
 	if err := c.Retry.validate(path + ".retry"); err != nil {
@@ -221,6 +214,9 @@ func (c LoopDefaultConfig) Validate(path string) error {
 		return err
 	}
 	if err := c.Waits.validate(path + ".waits"); err != nil {
+		return err
+	}
+	if err := c.Requests.validate(path + ".requests"); err != nil {
 		return err
 	}
 	if err := c.Admission.validate(path + ".admission"); err != nil {

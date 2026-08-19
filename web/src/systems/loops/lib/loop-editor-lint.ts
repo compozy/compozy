@@ -1,45 +1,27 @@
 import type { EditorNode } from "./codec";
 import type { LoopValidationIssue, ValidateLoopResult } from "../types";
 
-/**
- * Maps the shared Go linter's verdict (`POST /loops/:name/validate` and the publish
- * 422, ADR-023) onto the editor: the four canonical invariant chips (ADR-015) plus a
- * reference chip (ADR-020), the per-node error map the canvas badges and inspector
- * highlight consume, and the blocking-error flag that gates Publish. The GUI never
- * recomputes invariants — it only surfaces what the daemon returned.
- */
-
 export type LoopInvariantKey =
   | "acyclicity"
   | "reachability"
   | "termination"
   | "fan_out"
-  | "references";
+  | "references"
+  | "routing"
+  | "human_request";
 
 export type LoopInvariantStatus = "pass" | "fail";
 
-/**
- * The four canonical structural invariants (ADR-015: acyclicity, reachability,
- * termination, fan-out bounds) PLUS a fifth References chip. Reference validation is a
- * real, first-class linter output (ADR-020) that fails Publish, so it earns a chip even
- * though the spec text says "the 4 invariant chips" — the four canonical keys are the
- * ones tests assert; References is the honest fifth surface, not decoration.
- */
 export const LOOP_INVARIANTS: { key: LoopInvariantKey; label: string }[] = [
   { key: "acyclicity", label: "Acyclicity" },
   { key: "reachability", label: "Reachability" },
   { key: "termination", label: "Termination" },
   { key: "references", label: "References" },
   { key: "fan_out", label: "Fan-out bounds" },
+  { key: "routing", label: "Routing" },
+  { key: "human_request", label: "Human requests" },
 ];
 
-// Deterministic-code → invariant classification. Codes are matched by substring so a
-// daemon that appends new codes in a known family still lights the right chip; an
-// unrecognized error code stays in the issue list and blocks Publish without flipping
-// a named chip (truthful UI: we never claim an invariant we can't attribute).
-// `references` is matched before `fan_out` on purpose: `item_outside_fanout` is a
-// reference-scope error (ADR-020, `item`/`index` used outside a fan-out branch body), but
-// its substring `fanout` would otherwise misattribute it to the Fan-out bounds chip.
 const CODE_KEYWORDS: { key: LoopInvariantKey; keywords: string[] }[] = [
   { key: "acyclicity", keywords: ["cycle", "acyclic"] },
   { key: "reachability", keywords: ["unreachable", "reachab"] },
@@ -48,7 +30,14 @@ const CODE_KEYWORDS: { key: LoopInvariantKey; keywords: string[] }[] = [
     key: "references",
     keywords: ["reference", "unresolvable", "condition_not_bool", "item_outside_fanout", "node_id"],
   },
-  { key: "fan_out", keywords: ["fan_out", "fanout"] },
+
+  { key: "human_request", keywords: ["ask_", "review_", "responder_"] },
+  {
+    key: "routing",
+    keywords: ["route_", "eval_error_policy", "error_route"],
+  },
+
+  { key: "fan_out", keywords: ["fan_out", "fanout", "strategy_", "iteration_name"] },
 ];
 
 /** Classifies a lint code to its invariant chip, or `null` when unattributable. */
@@ -102,6 +91,8 @@ export function emptyLintState(): LoopLintState {
       termination: "pass",
       fan_out: "pass",
       references: "pass",
+      routing: "pass",
+      human_request: "pass",
     },
     hasBlockingErrors: false,
     errorCount: 0,

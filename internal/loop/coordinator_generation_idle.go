@@ -46,6 +46,12 @@ func (r *CoordinatorRunner) finishIdleGenerationPlan(
 			gateEvaluations,
 		)
 	}
+	if failed := selectFailedOutputControlAware(graph, topology, advancedOutputs); failed != nil {
+		return r.buildFailedGenerationPlan(
+			ctx, taskRun, run, generation, resolved.Definition, effective, plan,
+			advancedOutputs, *failed, false, plan.RunStops, gateEvaluations,
+		)
+	}
 	if allGenerationOutputsSucceededControlAware(graph, topology, advancedOutputs) {
 		return r.finishSucceededGenerationPlan(
 			ctx,

@@ -7,10 +7,6 @@ interface LoopRunNextNoteProps {
   note: string | null;
 }
 
-/**
- * The "What happens next" quiet note (§2/§5.3): one graph-derived sentence,
- * rendered only while the run is live and the pinned graph names what's ahead.
- */
 export function LoopRunNextNote({ note }: LoopRunNextNoteProps) {
   if (!note) return null;
   return (

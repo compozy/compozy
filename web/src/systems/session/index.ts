@@ -79,6 +79,7 @@ export type {
   UIMessage,
 } from "./types";
 export type { SessionPromptRuntimeSnapshot } from "./contexts/session-prompt-runtime-context-value";
+export { isEditableTarget } from "./lib/editable-target";
 
 // Adapters
 export {

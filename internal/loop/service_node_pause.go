@@ -14,6 +14,7 @@ func (s *service) PauseNode(
 	ws WorkspaceID,
 	runID RunID,
 	nodeID NodeID,
+	itemIndex *int,
 	mode NodePauseMode,
 	reason string,
 	actor task.ActorContext,
@@ -26,6 +27,7 @@ func (s *service) PauseNode(
 		WorkspaceID: ws,
 		RunID:       runID,
 		NodeID:      nodeID,
+		ItemIndex:   cloneIntPointer(itemIndex),
 		Mode:        mode,
 		Reason:      strings.TrimSpace(reason),
 		Actor:       actor,
@@ -47,6 +49,7 @@ func (s *service) ResumeNode(
 	ws WorkspaceID,
 	runID RunID,
 	nodeID NodeID,
+	itemIndex *int,
 	mode NodeResumeMode,
 	actor task.ActorContext,
 ) (NodeResumeResult, error) {
@@ -58,6 +61,7 @@ func (s *service) ResumeNode(
 		WorkspaceID: ws,
 		RunID:       runID,
 		NodeID:      nodeID,
+		ItemIndex:   cloneIntPointer(itemIndex),
 		Mode:        mode,
 		Actor:       actor,
 		RequestedAt: s.now().UTC(),
@@ -69,4 +73,12 @@ func (s *service) ResumeNode(
 		s.coordinatorActivator.ActivateCoordinatorRun(context.WithoutCancel(ctx), *result.Coordinator)
 	}
 	return result, nil
+}
+
+func cloneIntPointer(value *int) *int {
+	if value == nil {
+		return nil
+	}
+	cloned := *value
+	return &cloned
 }

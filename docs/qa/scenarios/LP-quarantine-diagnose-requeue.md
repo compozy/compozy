@@ -12,7 +12,7 @@ fix_status:
 retest_status: pass
 fix_commits:
 evidence: looprun-9552c0109f7a382c; /Users/pedronauck/dev/qa-labs/compozy-loop-node-lifecycle-20260803-191237-281307-lab/qa-artifacts/qa/evidence/task13/16-quarantine-requeue-done.png
-last_report: docs/qa/reports/2026-08-03-loop-node-lifecycle.md
+last_report: docs/qa/reports/2026-08-18-graph-eng.md
 overlaps: LP-sick-target-degrades-one-lane; TA-loop-failure-breaker
 ---
 

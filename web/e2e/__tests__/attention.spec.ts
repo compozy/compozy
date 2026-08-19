@@ -151,7 +151,7 @@ test.describe("E2E-009 attention bell", () => {
     await completeOnboardingIfPrompted(page);
 
     await page.locator(bell.trigger).click();
-    await expect(page.getByTestId(bell.disconnected)).toContainText("frozen");
+    await expect(page.getByTestId(bell.disconnected)).toContainText("Frozen rows do not count.");
   });
 });
 

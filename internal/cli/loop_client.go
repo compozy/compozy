@@ -48,7 +48,38 @@ type loopCommandClient interface {
 		request contract.PutLoopConfigRequest,
 		credentials agentidentity.Credentials,
 	) (contract.LoopConfigResponse, error)
+	GetLoopInputDefaults(
+		ctx context.Context,
+		workspaceID string,
+		name string,
+		scope contract.LoopInputDefaultsScope,
+	) (contract.LoopInputDefaultsResponse, error)
+	PutLoopInputDefault(
+		ctx context.Context,
+		workspaceID string,
+		name string,
+		key string,
+		request contract.PutLoopInputDefaultRequest,
+	) (contract.LoopInputDefaultResponse, error)
 	ListLoopRuns(ctx context.Context, workspaceID string, query LoopRunListQuery) (contract.LoopRunsResponse, error)
+	ListLoopRequests(context.Context, string, LoopRequestListQuery) (contract.LoopRequestsResponse, error)
+	GetLoopRequest(context.Context, string, string, int, string, int) (contract.LoopRequestPayload, error)
+	RespondLoopRequest(
+		context.Context,
+		string,
+		string,
+		string,
+		contract.RespondLoopRequest,
+		agentidentity.Credentials,
+	) (contract.RespondLoopRequestResponse, error)
+	AmendLoopNode(
+		context.Context,
+		string,
+		string,
+		string,
+		contract.LoopNodeAmendRequest,
+		agentidentity.Credentials,
+	) (contract.LoopNodeAmendResponse, error)
 	ListGoalTurns(
 		ctx context.Context,
 		workspaceID string,
@@ -56,6 +87,13 @@ type loopCommandClient interface {
 		query GoalTurnListQuery,
 	) (contract.GoalTurnPage, error)
 	GetLoopRun(ctx context.Context, workspaceID string, runID string) (contract.LoopRunResponse, error)
+	DiffLoopRun(context.Context, string, string, int64, int64, string) (contract.LoopDiffResponse, error)
+	RerunLoopRun(
+		context.Context, string, string, contract.RerunLoopRequest, agentidentity.Credentials,
+	) (contract.RerunLoopResponse, error)
+	ForkLoopRun(
+		context.Context, string, string, contract.ForkLoopRequest, agentidentity.Credentials,
+	) (contract.ForkLoopResponse, error)
 	CancelLoopRun(
 		ctx context.Context,
 		workspaceID string,

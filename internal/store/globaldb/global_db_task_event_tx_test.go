@@ -102,6 +102,69 @@ func TestGlobalDBCoordinatorCompletionShouldCommitCanonicalEventAtomically(t *te
 			t.Fatalf("loop after event rollback = %#v, want original %#v", afterLoop, loopRun)
 		}
 	})
+
+	t.Run("Should commit partial completion state with its terminal status event", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t)
+		globalDB := openLoopTestGlobalDB(t)
+		now := time.Date(2026, 8, 2, 19, 0, 0, 0, time.UTC)
+		loopRun, err := globalDB.CreateLoopRunForStart(
+			ctx,
+			testLoopRun("looprun-partial-terminal", now, looppkg.StatusRunning),
+			dsl.ConcurrencyAllow,
+		)
+		if err != nil {
+			t.Fatalf("CreateLoopRunForStart() error = %v", err)
+		}
+		claim := claimCoordinatorRunForTest(ctx, t, globalDB, loopRun.ID, "partial-terminal", now)
+		_, err = globalDB.CompleteCoordinatorAndEnqueueNext(ctx, taskpkg.CoordinatorCompletion{
+			RunID: claim.Run.ID, ClaimToken: claim.ClaimToken,
+			Actor: coordinatorActorContextForTest(), Now: now.Add(time.Second),
+			Plan: taskpkg.CoordinatorCompletionPlan{
+				Snapshot: taskpkg.GenerationSnapshot{
+					LoopRunID: string(loopRun.ID), Generation: 1,
+					Payload: looppkg.GenerationSnapshotPayload{Outputs: []looppkg.GenerationOutput{
+						{
+							NodeID:    "collect",
+							Status:    "partial",
+							OutputRef: `{"total":3,"succeeded":2,"failed":0,"canceled":1,"coverage_rate":0.67,"partial":true}`,
+						},
+					}},
+				},
+				Terminal: &taskpkg.CoordinatorTerminal{
+					Status: string(looppkg.StatusDone), Cause: string(looppkg.TransitionCauseContract),
+				},
+			},
+		}, looppkg.NewStoreFinalizer())
+		if err != nil {
+			t.Fatalf("CompleteCoordinatorAndEnqueueNext() error = %v", err)
+		}
+		stored, err := globalDB.GetLoopRunByID(ctx, loopRun.ID)
+		if err != nil {
+			t.Fatalf("GetLoopRunByID() error = %v", err)
+		}
+		if stored.CompletionStateSnapshot() != looppkg.CompletionPartial {
+			t.Fatalf("completion state = %q, want %q", stored.CompletionStateSnapshot(), looppkg.CompletionPartial)
+		}
+		events, err := globalDB.ListLoopRunEvents(ctx, looppkg.RunEventQuery{
+			WorkspaceID: loopRun.WorkspaceID, RunID: loopRun.ID,
+		})
+		if err != nil {
+			t.Fatalf("ListLoopRunEvents() error = %v", err)
+		}
+		var terminalPayload map[string]any
+		for _, event := range events {
+			if event.Kind == loopRunEventStatusChanged {
+				if err := json.Unmarshal(event.Payload, &terminalPayload); err != nil {
+					t.Fatalf("unmarshal status event: %v", err)
+				}
+			}
+		}
+		if got, want := terminalPayload["completion_state"], string(looppkg.CompletionPartial); got != want {
+			t.Fatalf("terminal event completion_state = %v, want %q", got, want)
+		}
+	})
 }
 
 func (o *recordingTaskEventCommitObserver) OnTaskEvent(ctx context.Context, record taskpkg.EventRecord) {

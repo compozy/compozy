@@ -22,7 +22,6 @@ import (
 	"github.com/compozy/compozy/internal/support"
 	taskpkg "github.com/compozy/compozy/internal/task"
 	toolspkg "github.com/compozy/compozy/internal/tools"
-	compozyupdate "github.com/compozy/compozy/internal/update"
 	"github.com/compozy/compozy/internal/vault"
 	workspacepkg "github.com/compozy/compozy/internal/workspace"
 )
@@ -278,28 +277,6 @@ type SettingsRestartOperation struct {
 type SettingsRestartController interface {
 	RequestRestart(ctx context.Context) (SettingsRestartOperation, error)
 	GetRestartOperation(ctx context.Context, operationID string) (SettingsRestartOperation, error)
-}
-
-type SettingsUpdateApply struct {
-	Target      compozyupdate.Target
-	Status      compozyupdate.ApplyStatus
-	OperationID string
-	Message     string
-	Holder      *compozyupdate.Holder
-}
-
-type SettingsUpdateCancel struct {
-	Status      compozyupdate.Status
-	OperationID string
-	Message     string
-	Holder      *compozyupdate.Holder
-}
-
-// SettingsUpdateController exposes the daemon-owned update status surface to settings transports.
-type SettingsUpdateController interface {
-	GetUpdate(ctx context.Context) (compozyupdate.MultiState, error)
-	ApplyUpdate(ctx context.Context, target compozyupdate.Target) (SettingsUpdateApply, error)
-	CancelUpdate(ctx context.Context) (SettingsUpdateCancel, error)
 }
 
 // ResourceService exposes the operator-facing desired-state CRUD surface to API transports.

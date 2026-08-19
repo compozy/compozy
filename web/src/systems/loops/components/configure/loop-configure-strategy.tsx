@@ -17,7 +17,6 @@ interface StrategyCard {
   description: string;
 }
 
-/** The two runtime re-attempt strategies (ADR-009); `failed_only` is the runtime default. */
 const STRATEGY_CARDS: StrategyCard[] = [
   {
     value: "failed_only",
@@ -37,11 +36,6 @@ const STRATEGY_CARDS: StrategyCard[] = [
   },
 ];
 
-/**
- * The re-attempt strategy cards (§4.7.3): two selectable cards writing the `reattempt_strategy`
- * config key, built on the shared `RadioCard` affordance. Configure-time only — the common
- * run flow never sees it (ADR-009).
- */
 export function LoopConfigureStrategy({ value, disabled, onChange }: LoopConfigureStrategyProps) {
   return (
     <div

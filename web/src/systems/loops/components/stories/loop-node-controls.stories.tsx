@@ -3,13 +3,16 @@ import { userEvent, within } from "storybook/test";
 
 import { Eyebrow } from "@compozy/ui";
 
+import { LoopNodeAmendDialog } from "../run-page/loop-node-amend-dialog";
 import { LoopNodeControlDialog } from "../run-page/loop-node-control-dialog";
 import { LoopNodeControlMenu } from "../run-page/loop-node-control-menu";
+import { LoopNodeRerunDialog } from "../run-page/loop-node-rerun-dialog";
 import { LoopRunControlDialog } from "../run-page/loop-run-control-dialog";
 import { LoopRunControls } from "../run-page/loop-run-controls";
 import { LoopRunOverflowMenu } from "../run-page/loop-run-overflow-menu";
 import type { LoopNodeVerb } from "../../lib/loop-node-controls";
 import type { LoopNodeLifecycle } from "../../lib/loop-node-lifecycle";
+import type { LoopRerunSet } from "../../lib/loop-rerun-set";
 
 /**
  * Visual Contract capture target for node + run controls (VC-R3).
@@ -330,6 +333,78 @@ export const RunKillConfirm: Story = {
         runId="r-7c4e19"
         status="running"
         verb="kill"
+      />
+    </div>
+  ),
+};
+
+const AMENDABLE = node({
+  nodeId: "render-notes",
+  paused: true,
+  state: "paused",
+  outputStatus: "succeeded",
+  itemIndex: 0,
+});
+const RERUNNABLE = node({ nodeId: "apply-migration", outputStatus: "succeeded", itemIndex: 0 });
+
+const NOTES_OUTPUT_SCHEMA = {
+  type: "object",
+  required: ["risk"],
+  properties: {
+    risk: { type: "string", enum: ["low", "medium", "high"] },
+    summary: { type: "string" },
+  },
+};
+
+const ROLLOUT_RERUN_SET: LoopRerunSet = {
+  fromNode: "apply-migration",
+  rerunNodes: ["apply-migration", "collect-rollout", "render-notes"],
+  carriedNodes: ["services", "triage", "standard", "rollout"],
+};
+
+export const AmendDialog: Story = {
+  args: {},
+  render: () => (
+    <div className="min-h-dvh bg-canvas">
+      <LoopNodeAmendDialog
+        node={AMENDABLE}
+        onConfirm={() => {}}
+        onOpenChange={() => {}}
+        open
+        originalOutput={{ risk: "high", summary: "Rollout for billing" }}
+        outputSchema={NOTES_OUTPUT_SCHEMA}
+      />
+    </div>
+  ),
+};
+
+export const AmendDialogValidationFailure: Story = {
+  args: {},
+  render: () => (
+    <div className="min-h-dvh bg-canvas">
+      <LoopNodeAmendDialog
+        fieldErrors={{ risk: "risk must be one of low, medium, high." }}
+        node={AMENDABLE}
+        onConfirm={() => {}}
+        onOpenChange={() => {}}
+        open
+        originalOutput={{ risk: "high", summary: "Rollout for billing" }}
+        outputSchema={NOTES_OUTPUT_SCHEMA}
+      />
+    </div>
+  ),
+};
+
+export const RerunDialog: Story = {
+  args: {},
+  render: () => (
+    <div className="min-h-dvh bg-canvas">
+      <LoopNodeRerunDialog
+        node={RERUNNABLE}
+        onConfirm={() => {}}
+        onOpenChange={() => {}}
+        open
+        rerunSet={ROLLOUT_RERUN_SET}
       />
     </div>
   ),

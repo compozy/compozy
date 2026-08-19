@@ -51,6 +51,7 @@ interface BuildRuntimeListModelArgs {
   providerById: Map<string, RuntimeProviderOption>;
   value: RuntimeSelectorValue;
   activeCustomProvider: string;
+  allowCustomProvider: boolean;
   recentKeys: readonly string[];
   isFavoriteModel: (model: RuntimeModelOption) => boolean;
 }
@@ -112,6 +113,7 @@ export function buildRuntimeListModel({
   providerById,
   value,
   activeCustomProvider,
+  allowCustomProvider,
   recentKeys,
   isFavoriteModel,
 }: BuildRuntimeListModelArgs): RuntimeListModel {
@@ -200,14 +202,17 @@ export function buildRuntimeListModel({
     activeCustomProvider.length > 0 &&
     modelByKey.has(runtimeModelKey(activeCustomProvider, customId));
   const canCommitCustom =
-    hasQuery && activeCustomProvider.length > 0 && (exactEntry || !knownForActiveProvider);
+    hasQuery &&
+    (activeCustomProvider.length > 0 || allowCustomProvider) &&
+    (exactEntry || !knownForActiveProvider);
   const customCommit = canCommitCustom ? customId : "";
   const customLabel = customCommit
     ? `Use "${customCommit}"`
     : exactEntry
       ? "Use model ID"
       : "Use an exact custom model ID…";
-  const showCustom = effectiveRail !== "fav" && activeCustomProvider.length > 0;
+  const showCustom =
+    effectiveRail !== "fav" && (activeCustomProvider.length > 0 || allowCustomProvider);
 
   return {
     exactEntry,

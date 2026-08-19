@@ -7,7 +7,17 @@ export {
   requeueLoopNode,
   resumeLoopNode,
 } from "./loop-nodes-api";
-export { LoopLifecycleConflictError, LoopsApiError, LoopValidationError } from "./loops-api-errors";
+export { getLoopRequest, listLoopRequests, respondLoopRequest } from "./loop-requests-api";
+export { amendLoopNode, diffLoopRun, forkLoopRun, rerunLoopRun } from "./loop-timetravel-api";
+export {
+  LoopInputValidationError,
+  LoopLifecycleConflictError,
+  LoopRequestError,
+  LoopsApiError,
+  LoopTimetravelError,
+  LoopValidationError,
+  type LoopInputValidationPayload,
+} from "./loops-api-errors";
 export {
   createLoop,
   deleteLoop,

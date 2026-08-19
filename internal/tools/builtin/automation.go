@@ -8,7 +8,7 @@ const (
 
 const (
 	automationAutomationKey  = "automation"
-	automationHistoryKey     = "history"
+	historyTag               = "history"
 	automationMutationKey    = "mutation"
 	automationRunsKey        = "runs"
 	automationSuggestionsKey = "suggestions"
@@ -121,7 +121,7 @@ var automationTools = []toolspkg.Descriptor{
 		toolspkg.RiskRead,
 		true,
 		false,
-		[]string{automationAutomationKey, automationJobsKey, automationRunsKey, automationHistoryKey},
+		[]string{automationAutomationKey, automationJobsKey, automationRunsKey, historyTag},
 		[]string{"automation job history", "job runs"},
 	),
 	nativeAutomationDescriptor(
@@ -217,7 +217,7 @@ var automationTools = []toolspkg.Descriptor{
 		toolspkg.RiskRead,
 		true,
 		false,
-		[]string{automationAutomationKey, automationTriggersKey, automationRunsKey, automationHistoryKey},
+		[]string{automationAutomationKey, automationTriggersKey, automationRunsKey, historyTag},
 		[]string{"automation trigger history", "trigger runs"},
 	),
 	nativeAutomationDescriptor(
@@ -229,7 +229,7 @@ var automationTools = []toolspkg.Descriptor{
 		toolspkg.RiskRead,
 		true,
 		false,
-		[]string{automationAutomationKey, automationRunsKey, automationHistoryKey},
+		[]string{automationAutomationKey, automationRunsKey, historyTag},
 		[]string{"automation runs", "run history"},
 	),
 	nativeAutomationDescriptor(

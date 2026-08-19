@@ -3,6 +3,7 @@ package loop
 import (
 	"context"
 	"fmt"
+	"time"
 
 	"github.com/compozy/compozy/internal/loop/dsl"
 	"github.com/compozy/compozy/internal/loop/gate"
@@ -20,6 +21,8 @@ type definitionOfDoneEvaluation struct {
 type definitionOfDoneGateEvaluation struct {
 	runtime gate.Gate
 	verdict gate.Verdict
+	control NodeControl
+	at      time.Time
 }
 
 func evaluateDefinitionOfDone(
@@ -31,9 +34,11 @@ func evaluateDefinitionOfDone(
 	topology controlTopology,
 	evaluator gate.GateEvaluator,
 	decisions GateDecisionReader,
+	controls NodeControlReader,
 	runtimeCatalog WorkspaceRuntimeCatalog,
 	outputs []GenerationOutput,
 	history GenerationHistory,
+	evaluatedAt time.Time,
 ) (definitionOfDoneEvaluation, error) {
 	terminal := &task.CoordinatorTerminal{
 		Status: string(StatusDone),
@@ -67,9 +72,13 @@ func evaluateDefinitionOfDone(
 	if err != nil {
 		return definitionOfDoneEvaluation{}, err
 	}
+	control, err := loadGateRevisionControl(ctx, controls, run, dsl.NodeID(runtimeGate.ID))
+	if err != nil {
+		return definitionOfDoneEvaluation{}, err
+	}
 	gateInput, err := runtimeGateInput(
 		run,
-		generation,
+		control.GateRevisions[0],
 		resolved,
 		effective,
 		gate.PlacementDefinitionOfDone,
@@ -92,7 +101,9 @@ func evaluateDefinitionOfDone(
 	}
 	return definitionOfDoneEvaluation{
 		terminal: result,
-		gate:     &definitionOfDoneGateEvaluation{runtime: runtimeGate, verdict: verdict},
+		gate: &definitionOfDoneGateEvaluation{
+			runtime: runtimeGate, verdict: verdict, control: control, at: evaluatedAt.UTC(),
+		},
 	}, nil
 }
 

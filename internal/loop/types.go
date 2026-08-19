@@ -8,8 +8,6 @@ import (
 )
 
 const (
-	// LoopMaxFanoutWidth is the absolute structural fan-out width ceiling.
-	LoopMaxFanoutWidth = 64
 	// LoopMaxGateRevisions is the absolute structural gate revision ceiling.
 	LoopMaxGateRevisions = dsl.GateMaxRevisionsCeiling
 	// LoopMaxNoProgressWindow is the compile-time generation no-progress ceiling.
@@ -38,6 +36,7 @@ const (
 // LintError is the per-node shape surfaced to authoring clients.
 type LintError struct {
 	NodeID   dsl.NodeID   `json:"node_id,omitempty"`
+	Path     string       `json:"path,omitempty"`
 	Code     string       `json:"code"`
 	Message  string       `json:"message"`
 	Severity LintSeverity `json:"severity"`
@@ -52,8 +51,14 @@ const (
 	CodeNonTerminatingStructure = "non_terminating_structure"
 	// CodeFanOutUnbounded reports a fan-out without finite materialization bounds.
 	CodeFanOutUnbounded = "fan_out_unbounded"
-	// CodeFanOutCeilingExceeded reports fan-out width beyond LoopMaxFanoutWidth.
-	CodeFanOutCeilingExceeded = "fan_out_ceiling_exceeded"
+	// CodeStrategyCoverageUndeclared reports partial coverage without explicit author consent.
+	CodeStrategyCoverageUndeclared = "strategy_coverage_undeclared"
+	// CodeStrategyThresholdInvalid reports a malformed or misplaced strategy threshold.
+	CodeStrategyThresholdInvalid = "strategy_threshold_invalid"
+	// CodeStrategyWaitAllEquivalent hints that a 100-percent quorum is wait_all.
+	CodeStrategyWaitAllEquivalent = "strategy_wait_all_equivalent"
+	// CodeIterationNameConflict reports colliding or reserved fan-out iteration names.
+	CodeIterationNameConflict = "iteration_name_conflict"
 	// CodeGateMaxRevisionsCeilingExceeded reports gate max_revisions beyond its ceiling.
 	CodeGateMaxRevisionsCeilingExceeded = "gate_max_revisions_ceiling_exceeded"
 	// CodeNodeIDInvalid reports a non-snake_case node id.
@@ -98,6 +103,18 @@ const (
 	CodeDuplicateNodeID = "duplicate_node_id"
 	// CodeUnknownTerminalState reports contract terminal states outside the closed enum.
 	CodeUnknownTerminalState = "unknown_terminal_state"
+	// CodeUnknownParameter reports a removed or unsupported authoring field.
+	CodeUnknownParameter = "unknown_parameter"
+	// CodeEvalErrorPolicyInvalid reports an on_eval_error value or placement outside its closed grammar.
+	CodeEvalErrorPolicyInvalid = "eval_error_policy_invalid"
+	// CodeRouteDefaultMissing reports a route node without its required default destination.
+	CodeRouteDefaultMissing = "route_default_missing"
+	// CodeRouteTargetInvalid reports an unknown, backward, duplicate, or undeclared route destination.
+	CodeRouteTargetInvalid = "route_target_invalid"
+	// CodeRouteMappingInvalid reports a gate outcome mapping outside the closed route grammar.
+	CodeRouteMappingInvalid = "route_mapping_invalid"
+	// CodeRouteActionRemoved reports the deleted branch action and points authors to object-form routing.
+	CodeRouteActionRemoved = "route_action_removed"
 	// CodeGoalJudgeRequired reports a Goal without at least one valid supported judge.
 	CodeGoalJudgeRequired = "goal_judge_required"
 	// CodeGoalObjectiveRequired reports a Goal without a non-empty objective.
@@ -152,6 +169,14 @@ const (
 	CodeWaitShapeInvalid = "wait_shape_invalid"
 	// CodeWaitExpiryWithoutPath warns that expiry can only surface needs-attention.
 	CodeWaitExpiryWithoutPath = "wait_expiry_without_path"
+	// CodeAskExpectRequired reports an ask without an answer schema.
+	CodeAskExpectRequired = "ask_expect_required"
+	// CodeResponderPolicyInvalid reports an unsupported responders.agents value.
+	CodeResponderPolicyInvalid = "responder_policy_invalid"
+	// CodeReviewShapeInvalid reports an invalid action review grammar.
+	CodeReviewShapeInvalid = "review_shape_invalid"
+	// CodeReviewRespondSchemaRequired reports respond without a declared action output.
+	CodeReviewRespondSchemaRequired = "review_respond_schema_required"
 	// CodeWatchIdentityRequired reports a watch source without stable event identity support.
 	CodeWatchIdentityRequired = "watch_identity_required"
 	// CodeParentCloseInvalid reports parent-close policy outside run-loop or its closed enum.

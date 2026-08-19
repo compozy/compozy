@@ -43,6 +43,18 @@ func loopCatalogEntryPayload(
 	if err != nil {
 		return contract.LoopCatalogEntryPayload{}, err
 	}
+	var inputs map[string]contract.LoopInput
+	if err := transcodeLoopAPI(document.Inputs, &inputs); err != nil {
+		return contract.LoopCatalogEntryPayload{}, fmt.Errorf("daemon: encode Loop catalog inputs: %w", err)
+	}
+	var start []contract.LoopStartBinding
+	if err := transcodeLoopAPI(document.Start, &start); err != nil {
+		return contract.LoopCatalogEntryPayload{}, fmt.Errorf("daemon: encode Loop catalog starts: %w", err)
+	}
+	var loopContract contract.LoopContract
+	if err := transcodeLoopAPI(document.Contract, &loopContract); err != nil {
+		return contract.LoopCatalogEntryPayload{}, fmt.Errorf("daemon: encode Loop catalog contract: %w", err)
+	}
 	var lastRun *contract.LoopCatalogLastRunPayload
 	if summary.LastRun != nil {
 		lastRun = &contract.LoopCatalogLastRunPayload{
@@ -59,9 +71,9 @@ func loopCatalogEntryPayload(
 		Description:   spec.Description,
 		Source:        contract.LoopSource(spec.Source.Normalize()),
 		Catalog:       loopCatalogResourcePayload(spec.Catalog),
-		Inputs:        document.Inputs,
-		Start:         document.Start,
-		Contract:      document.Contract,
+		Inputs:        inputs,
+		Start:         start,
+		Contract:      loopContract,
 		LastRun:       lastRun,
 		Aggregate30d:  aggregate,
 		SuccessRate30: loopSuccessRate(aggregate),
@@ -97,6 +109,7 @@ func loopRunPayload(run looppkg.Run) (contract.LoopRunPayload, error) {
 		WorkspaceID:                  string(run.WorkspaceID),
 		LoopName:                     run.LoopName,
 		Status:                       contract.LoopRunStatus(run.Status),
+		CompletionState:              contract.LoopCompletionState(run.CompletionStateSnapshot()),
 		Generation:                   int64(run.Generation),
 		ReattemptStrategy:            contract.LoopReattemptStrategy(run.ReattemptStrategy),
 		CreatedAt:                    run.CreatedAt,
@@ -123,6 +136,18 @@ func loopRunPayload(run looppkg.Run) (contract.LoopRunPayload, error) {
 	}
 	payload.BestGeneration = cloneOptional(run.BestGeneration)
 	payload.BestScore = cloneOptional(run.BestScore)
+	forks := run.ForksSnapshot()
+	payload.Forks = make([]contract.LoopForkRef, 0, len(forks))
+	for _, fork := range forks {
+		payload.Forks = append(payload.Forks, contract.LoopForkRef{
+			RunID: string(fork.RunID), Generation: fork.Generation,
+		})
+	}
+	if forkedFrom := run.ForkedFromSnapshot(); forkedFrom != nil {
+		payload.ForkedFrom = &contract.LoopForkRef{
+			RunID: string(forkedFrom.RunID), Generation: forkedFrom.Generation,
+		}
+	}
 	return payload, nil
 }
 
@@ -171,6 +196,7 @@ func loopLintErrorsPayload(errors []looppkg.LintError) []contract.LoopLintErrorP
 	for _, item := range errors {
 		payloads = append(payloads, contract.LoopLintErrorPayload{
 			NodeID:   string(item.NodeID),
+			Path:     item.Path,
 			Code:     item.Code,
 			Message:  item.Message,
 			Severity: contract.LoopLintSeverity(item.Severity),
@@ -179,6 +205,9 @@ func loopLintErrorsPayload(errors []looppkg.LintError) []contract.LoopLintErrorP
 	sort.SliceStable(payloads, func(left, right int) bool {
 		if payloads[left].NodeID != payloads[right].NodeID {
 			return payloads[left].NodeID < payloads[right].NodeID
+		}
+		if payloads[left].Path != payloads[right].Path {
+			return payloads[left].Path < payloads[right].Path
 		}
 		return payloads[left].Code < payloads[right].Code
 	})

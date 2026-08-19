@@ -467,7 +467,10 @@ func TestAgentSkillPublicationAndBootRebuild(t *testing.T) {
 			"skill:skipped-skill",
 			"name must match the directory",
 		) {
-			t.Fatalf("portable ingest diagnostics = %#v, want skipped-skill name mismatch", portableInfo.IngestDiagnostics)
+			t.Fatalf(
+				"portable ingest diagnostics = %#v, want skipped-skill name mismatch",
+				portableInfo.IngestDiagnostics,
+			)
 		}
 		mcpRecords, err := mcpStore.List(ctx, toolMCPSyncActor(), resources.ResourceFilter{Owner: owner})
 		if err != nil {
@@ -558,7 +561,10 @@ func TestAgentSkillPublicationAndBootRebuild(t *testing.T) {
 			"skill:skipped",
 			"name must match the directory",
 		) {
-			t.Fatalf("degraded ingest diagnostics = %#v, want fixture-specific MCP and skill skips", degradedSnapshot.Info.IngestDiagnostics)
+			t.Fatalf(
+				"degraded ingest diagnostics = %#v, want fixture-specific MCP and skill skips",
+				degradedSnapshot.Info.IngestDiagnostics,
+			)
 		}
 	})
 }

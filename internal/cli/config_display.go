@@ -3,6 +3,7 @@ package cli
 import (
 	"fmt"
 	"path/filepath"
+	"slices"
 	"sort"
 
 	"strings"
@@ -193,4 +194,39 @@ func flattenConfigEntries(configMap map[string]any) []configEntry {
 		return entries[i].Path < entries[j].Path
 	})
 	return entries
+}
+
+func configValueAtPath(configMap map[string]any, path string) (any, bool) {
+	parts := strings.Split(strings.TrimSpace(path), ".")
+	if len(parts) == 0 || parts[0] == "" {
+		return nil, false
+	}
+	var current any = configMap
+	for _, part := range parts {
+		object, ok := current.(map[string]any)
+		if !ok {
+			return nil, false
+		}
+		current, ok = object[part]
+		if !ok {
+			return nil, false
+		}
+	}
+	return current, true
+}
+
+func configValueContainsRedaction(value any) bool {
+	switch typed := value.(type) {
+	case string:
+		return typed == compozyconfig.RedactedValue()
+	case []any:
+		return slices.ContainsFunc(typed, configValueContainsRedaction)
+	case map[string]any:
+		for _, item := range typed {
+			if configValueContainsRedaction(item) {
+				return true
+			}
+		}
+	}
+	return false
 }

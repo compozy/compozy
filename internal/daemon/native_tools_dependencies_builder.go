@@ -53,6 +53,7 @@ func (d *Daemon) nativeToolsDeps(
 		Observer:              state.observer,
 		HookBindings:          state.hookBindings,
 		AgentCatalog:          agentCatalog,
+		Vault:                 state.providerVault,
 		AgentResolver:         agentCatalog,
 		HeartbeatStatus:       state.deps.HeartbeatStatus,
 		HeartbeatWake:         state.deps.HeartbeatWake,

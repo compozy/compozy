@@ -9,7 +9,22 @@ import (
 )
 
 func inputSchema(input dsl.Input) refs.Schema {
-	return refs.Schema{jsonSchemaTypeKey: string(input.Type)}
+	switch input.Type {
+	case dsl.InputTypeAgent, dsl.InputTypeRef, dsl.InputTypeFile:
+		return refs.Schema{jsonSchemaTypeKey: jsonSchemaStringType}
+	case dsl.InputTypeRuntime:
+		return refs.Schema{
+			jsonSchemaTypeKey: jsonSchemaObjectType,
+			jsonSchemaPropertiesKey: map[string]any{
+				runtimeFieldProvider:  map[string]any{jsonSchemaTypeKey: jsonSchemaStringType},
+				runtimeFieldModel:     map[string]any{jsonSchemaTypeKey: jsonSchemaStringType},
+				runtimeFieldReasoning: map[string]any{jsonSchemaTypeKey: jsonSchemaStringType},
+			},
+			jsonSchemaAdditionalPropertiesKey: false,
+		}
+	default:
+		return refs.Schema{jsonSchemaTypeKey: string(input.Type)}
+	}
 }
 
 func (c *lintContext) outputSchema(node dsl.Node) (refs.Schema, bool) {
@@ -21,6 +36,14 @@ func (c *lintContext) outputSchema(node dsl.Node) (refs.Schema, bool) {
 		return c.sourceOutputSchema(node)
 	case dsl.NodeClassAction:
 		return c.actionOutputSchema(node)
+	case dsl.NodeClassControl:
+		if dsl.ControlKind(node.Kind) == dsl.ControlAsk {
+			var params dsl.AskParams
+			if err := node.Params.Decode(&params); err == nil && len(params.Expect) > 0 {
+				return convertSchema(params.Expect), true
+			}
+		}
+		return nil, false
 	default:
 		return nil, false
 	}

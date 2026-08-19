@@ -19,7 +19,14 @@ const (
 	LoopGenerationOriginDoDRetry           LoopGenerationOrigin = "dod_retry"
 	LoopGenerationOriginRatchetRestore     LoopGenerationOrigin = "ratchet_restore"
 	LoopGenerationOriginRequeue            LoopGenerationOrigin = "requeue"
+	LoopGenerationOriginOperatorRerun      LoopGenerationOrigin = "operator_rerun"
+	LoopGenerationOriginForkSeed           LoopGenerationOrigin = "fork_seed"
 )
+
+type LoopForkRef struct {
+	RunID      string `json:"run_id"`
+	Generation int64  `json:"generation"`
+}
 
 // LoopGateVerdictOutcome is the machine gate verdict vocabulary.
 type LoopGateVerdictOutcome string
@@ -40,9 +47,12 @@ type LoopRunPayload struct {
 	WorkspaceID                  string                `json:"workspace_id"`
 	LoopName                     string                `json:"loop_name"`
 	Status                       LoopRunStatus         `json:"status"`
+	CompletionState              LoopCompletionState   `json:"completion_state"`
 	Generation                   int64                 `json:"generation"`
 	BestGeneration               *int64                `json:"best_generation,omitempty"`
 	BestScore                    *float64              `json:"best_score,omitempty"`
+	ForkedFrom                   *LoopForkRef          `json:"forked_from,omitempty"`
+	Forks                        []LoopForkRef         `json:"forks"`
 	ReattemptStrategy            LoopReattemptStrategy `json:"reattempt_strategy"`
 	CreatedAt                    time.Time             `json:"created_at"`
 	StartedAt                    time.Time             `json:"started_at"`
@@ -84,12 +94,14 @@ type LoopRunsAggregatePayload struct {
 
 // LoopRunResponse returns one run with generation detail.
 type LoopRunResponse struct {
-	Run                  LoopRunPayload           `json:"run"`
-	ExecutedDefinition   *LoopDefinitionDocument  `json:"executed_definition,omitempty"`
-	MaterializedContract LoopContract             `json:"materialized_contract"`
-	Generations          []LoopGenerationPayload  `json:"generations,omitempty"`
-	NodeControls         []LoopNodeControlPayload `json:"node_controls"`
-	Waits                []LoopNodeWaitPayload    `json:"waits"`
+	Run                  LoopRunPayload             `json:"run"`
+	ExecutedDefinition   *LoopDefinitionDocument    `json:"executed_definition,omitempty"`
+	MaterializedContract LoopContract               `json:"materialized_contract"`
+	Generations          []LoopGenerationPayload    `json:"generations,omitempty"`
+	NodeControls         []LoopNodeControlPayload   `json:"node_controls"`
+	Waits                []LoopNodeWaitPayload      `json:"waits"`
+	Requests             []LoopRequestPayload       `json:"requests"`
+	Amendments           []LoopNodeAmendmentPayload `json:"amendments"`
 	// WatchEvents is the parked watch-events read-model (present only while dormant).
 	WatchEvents *LoopWatchEventsState `json:"watch_events,omitempty"`
 }
@@ -99,8 +111,20 @@ type LoopGenerationPayload struct {
 	Generation       int64                    `json:"generation"`
 	ParentGeneration int64                    `json:"parent_generation"`
 	Origin           LoopGenerationOrigin     `json:"origin"`
+	RouteCauses      []LoopRouteCausePayload  `json:"route_causes"`
 	Verdicts         []LoopGateVerdictPayload `json:"verdicts"`
 	Outputs          []LoopGenerationOutput   `json:"outputs"`
+}
+
+// LoopRouteCausePayload is one durable route decision in a generation.
+type LoopRouteCausePayload struct {
+	NodeID      string    `json:"node_id"`
+	ItemIndex   int       `json:"item_index"`
+	Route       string    `json:"route"`
+	Cause       string    `json:"cause"`
+	MatchedWhen string    `json:"matched_when,omitempty"`
+	Default     bool      `json:"default,omitempty"`
+	At          time.Time `json:"at"`
 }
 
 // LoopGateVerdictPayload is one queryable machine verdict in generation detail.
@@ -187,6 +211,17 @@ type LoopGateVerdictRunEventPayload struct {
 	At          time.Time                   `json:"at"`
 }
 
+// LoopRouteTakenRunEventPayload is the typed route_taken event envelope.
+type LoopRouteTakenRunEventPayload struct {
+	ID          string                     `json:"id"`
+	LoopRunID   string                     `json:"loop_run_id"`
+	WorkspaceID string                     `json:"workspace_id"`
+	Seq         int64                      `json:"seq"`
+	Kind        LoopRunEventKind           `json:"kind"`
+	Payload     LoopRouteTakenEventPayload `json:"payload"`
+	At          time.Time                  `json:"at"`
+}
+
 // LoopGenerationStartedEventPayload is the exact generation_started SSE payload.
 type LoopGenerationStartedEventPayload struct {
 	Generation        int64                 `json:"generation"`
@@ -209,6 +244,17 @@ type LoopGateVerdictEventPayload struct {
 	Criteria       []LoopGateCriterionEventPayload `json:"criteria"`
 	Score          *float64                        `json:"score,omitempty"`
 	BestGeneration *int64                          `json:"best_generation,omitempty"`
+}
+
+// LoopRouteTakenEventPayload is the exact route_taken SSE payload.
+type LoopRouteTakenEventPayload struct {
+	Generation  int64  `json:"generation"`
+	NodeID      string `json:"node_id"`
+	ItemIndex   int    `json:"item_index"`
+	Route       string `json:"route"`
+	Cause       string `json:"cause"`
+	MatchedWhen string `json:"matched_when,omitempty"`
+	Default     bool   `json:"default,omitempty"`
 }
 
 // LoopGateBlockingIssuePayload is one sanitized gate_verdict blocker.
