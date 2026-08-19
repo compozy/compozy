@@ -5,3 +5,4 @@
 [tools]
 golangci-lint = "2.12.2"
 gotestsum = "1.13.0"
+go = "1.26.6"
