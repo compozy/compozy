@@ -247,31 +247,61 @@ func paramsStringFieldsWithSkip(
 			continue
 		}
 		name := prefix + "." + key
-		switch typed := value.(type) {
-		case string:
-			fields = append(fields, namedString{name: name, value: typed})
-		case dsl.NodeParams:
-			fields = append(fields, paramsStringFieldsWithSkip(name, map[string]any(typed), skip)...)
-		case dsl.Schema:
-			fields = append(fields, paramsStringFieldsWithSkip(name, map[string]any(typed), skip)...)
-		case map[string]any:
-			fields = append(fields, paramsStringFieldsWithSkip(name, typed, skip)...)
-		case map[any]any:
-			converted := map[string]any{}
-			for rawKey, rawValue := range typed {
-				converted[fmt.Sprint(rawKey)] = rawValue
-			}
-			fields = append(fields, paramsStringFieldsWithSkip(name, converted, skip)...)
-		case []any:
-			for idx, item := range typed {
-				if nested, ok := item.(map[string]any); ok {
-					fields = append(
-						fields,
-						paramsStringFieldsWithSkip(fmt.Sprintf("%s[%d]", name, idx), nested, skip)...,
-					)
-				}
-			}
+		fields = append(fields, paramValueStringFields(name, value, skip)...)
+	}
+	return fields
+}
+
+func paramValueStringFields(
+	name string,
+	value any,
+	skip func(prefix string, key string) bool,
+) []namedString {
+	switch typed := value.(type) {
+	case string:
+		return []namedString{{name: name, value: typed}}
+	case dsl.NodeParams:
+		return paramsStringFieldsWithSkip(name, map[string]any(typed), skip)
+	case dsl.Schema:
+		return paramsStringFieldsWithSkip(name, map[string]any(typed), skip)
+	case map[string]any:
+		return paramsStringFieldsWithSkip(name, typed, skip)
+	case map[any]any:
+		converted := make(map[string]any, len(typed))
+		for rawKey, rawValue := range typed {
+			converted[fmt.Sprint(rawKey)] = rawValue
 		}
+		return paramsStringFieldsWithSkip(name, converted, skip)
+	case []any:
+		return paramListStringFields(name, typed, skip)
+	case []dsl.Schema:
+		values := make([]any, len(typed))
+		for idx := range typed {
+			values[idx] = typed[idx]
+		}
+		return paramListStringFields(name, values, skip)
+	case []refs.Schema:
+		values := make([]any, len(typed))
+		for idx := range typed {
+			values[idx] = typed[idx]
+		}
+		return paramListStringFields(name, values, skip)
+	default:
+		return nil
+	}
+}
+
+func paramListStringFields(
+	name string,
+	values []any,
+	skip func(prefix string, key string) bool,
+) []namedString {
+	fields := []namedString{}
+	for idx, value := range values {
+		fields = append(
+			fields,
+			paramValueStringFields(fmt.Sprintf("%s[%d]", name, idx), value, skip)...,
+		)
 	}
 	return fields
 }

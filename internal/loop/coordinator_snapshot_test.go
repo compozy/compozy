@@ -314,6 +314,55 @@ start: [{ kind: manual }]
 			}
 		}
 	})
+
+	t.Run("Should round trip composed request schemas without manifest drift", func(t *testing.T) {
+		t.Parallel()
+
+		definition, err := dsl.Parse([]byte(`apiVersion: compozy.loop/v1
+kind: Loop
+meta: { name: composed-request, version: 1 }
+contract:
+  goal: Collect a typed reviewer selection
+  definition_of_done: A reviewer is selected
+  iteration_cap: 1
+  no_progress: { window: 1 }
+  budget: { on_exceeded: halt }
+graph:
+  nodes:
+    - id: choose_reviewers
+      class: control
+      kind: ask
+      params:
+        prompt: Choose reviewers
+        expect:
+          allOf:
+            - type: object
+              required: [reviewers]
+              properties:
+                reviewers:
+                  type: array
+                  items:
+                    oneOf:
+                      - type: string
+                        x-compozy-entity-kind: agent
+  edges: []
+start: [{ kind: manual }]
+`))
+		if err != nil {
+			t.Fatalf("Parse(composed request schema) error = %v", err)
+		}
+		resolved, err := NewCompiler().Compile(definition)
+		if err != nil {
+			t.Fatalf("Compile(composed request schema) error = %v", err)
+		}
+		raw, digest, err := BuildExecutedDefinitionSnapshot(resolved, snapshotEffectiveConfig())
+		if err != nil {
+			t.Fatalf("BuildExecutedDefinitionSnapshot() error = %v", err)
+		}
+		if _, err := LoadExecutedDefinitionSnapshot(raw, digest); err != nil {
+			t.Fatalf("LoadExecutedDefinitionSnapshot() error = %v", err)
+		}
+	})
 }
 
 func TestExecutedDefinitionSnapshotShouldCanonicalizeTypedNodeParams(t *testing.T) {

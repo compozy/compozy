@@ -43,10 +43,22 @@ Pending.
 - **Regression test:** `internal/config/persistence_test.go` and `internal/daemon/loop_api_runs_test.go`
 - **Retested:** pending a fresh J-02 session
 
+### BUG-20260819-composed-request-snapshot-rejected: Composed request schema cannot start
+
+- **Symptom:** A valid entity-annotated request under `allOf` / `items` / `oneOf` failed before the
+  request was created.
+- **Root cause:** The template-source walker treated YAML-typed schema arrays differently from the
+  same arrays after JSON hydration.
+- **Fix:** pending current fix commit
+- **Regression test:** `internal/loop/coordinator_snapshot_test.go`
+- **Retested:** pending a fresh J-supervise-loop-request session
+
 ## Paper Cuts
 
 - `table replacement requires at least one key` while saving an empty runtime default — filed as
   `BUG-20260819-empty-runtime-default-rejected`.
+- `manifest key ... added during hydration` while starting a composed request — filed as
+  `BUG-20260819-composed-request-snapshot-rejected`.
 
 ## Runtime Errors Observed
 
