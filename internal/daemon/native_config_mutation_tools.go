@@ -49,7 +49,7 @@ func (n *daemonNativeTools) configSet(
 	}
 	path := strings.Join(policy.Segments, ".")
 	if policy.Kind == compozyconfig.ConfigValueLoopInput {
-		return n.setNativeLoopInputDefault(ctx, scope, req.ToolID, target, policy.Segments, value)
+		return n.setNativeLoopInputDefault(ctx, scope, req.ToolID, target, workspaceRoot, policy.Segments, value)
 	}
 	applyService, err := n.nativeConfigApplyService(req.ToolID, target, path)
 	if err != nil {
@@ -97,15 +97,26 @@ func (n *daemonNativeTools) setNativeLoopInputDefault(
 	scope toolspkg.Scope,
 	id toolspkg.ToolID,
 	target compozyconfig.WriteTarget,
+	workspaceRoot string,
 	path []string,
 	value any,
 ) (toolspkg.ToolResult, error) {
-	workspaceID, err := n.nativeLoopWorkspaceID(ctx, id, "", scope)
+	workspaceID, err := n.nativeLoopWorkspaceID(ctx, id, workspaceRoot, scope)
 	if err != nil {
 		return toolspkg.ToolResult{}, err
 	}
 	inputScope := contract.LoopInputDefaultsScope(target.Scope())
-	response, err := n.loopService().PutLoopInputDefault(
+	service := n.loopService()
+	if service == nil {
+		return toolspkg.ToolResult{}, toolspkg.NewToolError(
+			toolspkg.ErrorCodeUnavailable,
+			id,
+			"Loop input-default service is unavailable",
+			toolspkg.ErrToolUnavailable,
+			toolspkg.ReasonDependencyMissing,
+		)
+	}
+	response, err := service.PutLoopInputDefault(
 		ctx,
 		workspaceID,
 		path[2],

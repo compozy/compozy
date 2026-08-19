@@ -31,6 +31,8 @@ import (
 	extensionpkg "github.com/compozy/compozy/internal/extension"
 	"github.com/compozy/compozy/internal/heartbeat"
 	hookspkg "github.com/compozy/compozy/internal/hooks"
+	looppkg "github.com/compozy/compozy/internal/loop"
+	"github.com/compozy/compozy/internal/loop/dsl"
 	mcppkg "github.com/compozy/compozy/internal/mcp"
 	memorypkg "github.com/compozy/compozy/internal/memory"
 	memcontract "github.com/compozy/compozy/internal/memory/contract"
@@ -3426,7 +3428,30 @@ func TestDaemonNativeTools(t *testing.T) {
 				},
 			},
 		}
-		var loopInputWorkspace string
+		loopInputWorkspace := t.TempDir()
+		loopWorkspaceResolver := loopCatalogWorkspaceResolverForTest(
+			t,
+			"ws-config",
+			loopInputWorkspace,
+			time.Date(2026, 8, 19, 0, 0, 0, 0, time.UTC),
+		)
+		loopDefaultsService := &daemonLoopAPIService{
+			homePaths:         homePaths,
+			workspaceResolver: loopWorkspaceResolver,
+			resolver: looppkg.DefinitionResolverFunc(func(
+				context.Context,
+				looppkg.WorkspaceID,
+				string,
+			) (*looppkg.ResolvedDefinition, error) {
+				return &looppkg.ResolvedDefinition{Definition: dsl.Definition{
+					Meta: dsl.Meta{Name: "review-and-fix"},
+					Inputs: map[string]dsl.Input{
+						"auto_commit": {Type: dsl.InputTypeBoolean},
+						"runtime":     {Type: dsl.InputTypeRuntime},
+					},
+				}}, nil
+			}),
+		}
 		var guardedWorkspaceRoot string
 		registry := newDaemonNativeRegistry(t, &daemonNativeToolsDeps{
 			HomePaths: homePaths,
@@ -3450,6 +3475,9 @@ func TestDaemonNativeTools(t *testing.T) {
 			},
 			Settings: func() core.SettingsService {
 				return settingsService
+			},
+			Loops: func() core.LoopService {
+				return loopDefaultsService
 			},
 		}, nativeApproveAllPolicyInputs())
 
@@ -3503,7 +3531,6 @@ func TestDaemonNativeTools(t *testing.T) {
 			t.Fatalf("Defaults.Agent = %q, want planner", cfg.Defaults.Agent)
 		}
 
-		loopInputWorkspace = t.TempDir()
 		loopInputPath := "loops.inputs.review-and-fix.auto_commit"
 		_, err = registry.Call(
 			t.Context(),
