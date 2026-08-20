@@ -31,14 +31,6 @@
   --font-mono:
     var(--font-jetbrains-mono), "JetBrains Mono Variable", "JetBrains Mono", "Courier New",
     monospace;
-  --text-eyebrow: 0.75rem;
-  --text-eyebrow--line-height: 1rem;
-  --text-display-2xl: 1.75rem;
-  --text-display-2xl--line-height: 1;
-  --text-site-lead: 1.1875rem;
-  --text-site-lead--line-height: 1.5;
-  --text-micro: 0.6875rem;
-  --text-micro--line-height: 0.75rem;
   --text-inline-code: 0.9em;
   --text-accent-glyph: 0.85em;
   --text-ui-title-lg: 1.35rem;

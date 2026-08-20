@@ -70,9 +70,11 @@ export function SettingsPageFrame({
               {description ? (
                 <span className="max-w-settings-page-description">{description}</span>
               ) : null}
-              {meta?.map(entry => (
+              {meta?.map((entry, index) => (
                 <span className="inline-flex items-center gap-2" key={entry.key}>
-                  <span aria-hidden="true" className="size-0.5 rounded-full bg-faint" />
+                  {description || index > 0 ? (
+                    <span aria-hidden="true" className="size-0.5 rounded-full bg-faint" />
+                  ) : null}
                   {entry.content}
                 </span>
               ))}

@@ -135,7 +135,7 @@ function Empty({
           </summary>
           <div
             data-slot="empty-cause-detail"
-            className="mt-2 overflow-auto rounded border border-line bg-canvas px-3 py-2 font-mono text-badge leading-relaxed text-subtle"
+            className="mt-2 max-h-48 overflow-auto rounded border border-line bg-canvas px-3 py-2 font-mono text-badge leading-relaxed whitespace-pre-wrap break-words text-subtle"
           >
             {cause}
           </div>

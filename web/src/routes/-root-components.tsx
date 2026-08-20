@@ -116,9 +116,8 @@ function RootBoundaryFrame({
   );
 }
 
-/** Raw runtime detail for the collapsed Details disclosure — never the primary line. */
+/** Safe detail for the collapsed disclosure; runtime messages may contain secrets. */
 function routeErrorCause(error: unknown): string | undefined {
   if (!(error instanceof Error)) return undefined;
-  const message = error.message.trim();
-  return message.length > 0 ? message : undefined;
+  return "The route stopped before CompozyOS could render this screen.";
 }

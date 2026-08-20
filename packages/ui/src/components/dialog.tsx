@@ -1,11 +1,12 @@
 "use client";
 
 import { Dialog as DialogPrimitive } from "@base-ui/react/dialog";
+import { useMergedRefs } from "@base-ui/utils/useMergedRefs";
 import { XIcon } from "lucide-react";
 import { AnimatePresence, m } from "motion/react";
 import * as React from "react";
+import { tabbable } from "tabbable";
 
-import { firstDialogTabbable } from "../lib/dialog-initial-focus";
 import { cn } from "../lib/utils";
 import { Button } from "./button";
 import {
@@ -112,6 +113,35 @@ const DIALOG_FOOTER_DEFAULT =
 const DIALOG_FOOTER_RULED =
   "flex min-w-0 flex-col-reverse gap-2 border-t border-line bg-canvas-soft px-5 py-3 sm:flex-row sm:justify-end";
 
+function isExcludedFromInitialFocus(node: HTMLElement, root: HTMLElement): boolean {
+  let current: HTMLElement | null = node;
+  while (current && root.contains(current)) {
+    const style = getComputedStyle(current);
+    if (
+      current.hidden ||
+      current.getAttribute("aria-hidden") === "true" ||
+      current.dataset.slot === "help-tip" ||
+      style.display === "none" ||
+      style.visibility === "hidden" ||
+      style.visibility === "collapse"
+    ) {
+      return true;
+    }
+    current = current.parentElement;
+  }
+  return false;
+}
+
+function firstDialogTabbable(root: HTMLElement): HTMLElement | null {
+  const candidates = tabbable(root, { displayCheck: "none" });
+  return (
+    candidates.find(
+      (candidate): candidate is HTMLElement =>
+        candidate instanceof HTMLElement && !isExcludedFromInitialFocus(candidate, root)
+    ) ?? null
+  );
+}
+
 interface DialogContentProps extends DialogPrimitive.Popup.Props {
   showCloseButton?: boolean;
   /**
@@ -129,6 +159,7 @@ function DialogContent({
   unframed = false,
   style,
   initialFocus,
+  ref,
   ...props
 }: DialogContentProps) {
   const { actionsRef, open } = useDialogMotion();
@@ -136,6 +167,7 @@ function DialogContent({
   const windowScoped = overlayContainer !== null;
   const transition = useDialogMotionTransition();
   const popupRef = React.useRef<HTMLDivElement | null>(null);
+  const mergedPopupRef = useMergedRefs(popupRef, ref);
   const resolvedInitialFocus =
     initialFocus ??
     ((openType: string) => {
@@ -163,7 +195,7 @@ function DialogContent({
         <DialogPortal key="dialog-portal" keepMounted>
           <DialogOverlay />
           <DialogPrimitive.Popup
-            ref={popupRef}
+            ref={mergedPopupRef}
             data-slot="dialog-content"
             data-frame={unframed ? "unframed" : "framed"}
             initialFocus={resolvedInitialFocus}

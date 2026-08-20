@@ -149,7 +149,7 @@ function RunCardStat({
 }) {
   return (
     <div data-slot={`run-card-${slot}`} className="flex min-w-0 flex-col gap-1">
-      <span data-slot={`run-card-${slot}-label`} className="text-form-label text-muted">
+      <span data-slot={`run-card-${slot}-label`} className="text-form-label font-medium text-muted">
         {label}
       </span>
       <span

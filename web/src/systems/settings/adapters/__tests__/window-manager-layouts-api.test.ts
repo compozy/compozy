@@ -70,4 +70,18 @@ describe("window-manager layouts API", () => {
     );
     expect(profiles.map(profile => profile.id)).toEqual([windowManagerLayoutResourceFixture.id]);
   });
+
+  it("Should replace malformed response details with the adapter's safe JSON error", async () => {
+    apiMocks.fetch.mockResolvedValueOnce(
+      new Response("{not-json", {
+        status: 502,
+        headers: { "content-type": "application/json" },
+      })
+    );
+
+    await expect(listWindowManagerLayoutProfiles("workspace-a")).rejects.toMatchObject({
+      message: "CompozyOS returned invalid JSON.",
+      status: 502,
+    });
+  });
 });

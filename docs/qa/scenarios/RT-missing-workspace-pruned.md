@@ -6,7 +6,7 @@ persona: Bruno
 journey: J-prune-missing-workspace
 expected: After a registered local folder is removed, the next reconciliation removes the workspace from Web, CLI, HTTP, and UDS catalogs, removes its stopped session artifacts through the session owner, and recovers old routes without leaving a ghost selection. If Global was on, the chip stays Global (`~`) and the workspace menu lists remaining folders with no deletion notice — it must not fall back to another project folder. If the pruned folder was the remembered project while Global was off, the shell falls back to Global rather than auto-selecting `workspaces[0]`. `$HOME` never appears as a picker row.
 entry_points: web workspace picker; CLI compozy workspace list; GET /api/workspaces
-qa_status: untested
+qa_status: blocked-verify
 bug_ids: BUG-20260713-missing-workspace-persists
 fix_status: fixed
 retest_status: pass
@@ -30,7 +30,7 @@ QA impact 2026-07-14: workspace unregister now requires the session owner's atom
 
 2026-08-03 targeted recovery retest: removing the active disposable workspace switched the live Web client to the healthy home workspace, survived refresh, removed the old ID from CLI and HTTP catalogs, and returned a terminal WebSocket error frame through Vite without proxy errors.
 
-2026-08-20 qa-impact: missing remembered id while Global is on stays Global with no deletion notice in the workspace menu; there is no `workspaces[0]` fallback and `$HOME` is not a UI row. Reset to untested.
+2026-08-20 qa-impact: missing remembered id while Global is on stays Global with no deletion notice in the workspace menu; there is no `workspaces[0]` fallback and `$HOME` is not a UI row. Walk this cycle: blocked-verify — active-workspace and workspace-menu unit suites assert Global stays on, no fallback, and the menu has no note/alert; an isolated QA lab with a live daemon was not started.
 
 2026-08-12 qa-impact: missing remembered id while Global is on stays Global with a deletion notice; there is no `workspaces[0]` fallback and `$HOME` is not a UI row. Reset to untested.
 

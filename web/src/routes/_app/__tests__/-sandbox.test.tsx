@@ -187,7 +187,7 @@ describe("SandboxPage", () => {
     );
   });
 
-  it("renders error state with the error message", () => {
+  it("renders a safe error state without exposing the raw query message", () => {
     pageState = makeState({
       envelope: null,
       sandboxes: [],
@@ -196,7 +196,10 @@ describe("SandboxPage", () => {
       error: new Error("nope"),
     });
     render(<SandboxPage />);
-    expect(screen.getByTestId("sandbox-page-error")).toHaveTextContent("nope");
+    expect(screen.getByTestId("sandbox-page-error")).toHaveTextContent(
+      "CompozyOS stopped responding before it returned the profile list."
+    );
+    expect(screen.getByTestId("sandbox-page-error")).not.toHaveTextContent("nope");
   });
 
   it("renders the profile list with workspace usage counts", () => {

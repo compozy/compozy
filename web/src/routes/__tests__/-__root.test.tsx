@@ -94,13 +94,18 @@ describe("RootComponent", () => {
 
     expect(mockReset).not.toHaveBeenCalled();
     expect(mockInvalidate).toHaveBeenCalledWith();
-    // The primary line is plain and constant; the raw runtime message stays one
-    // step deeper, collapsed behind Details.
+    // The primary line and collapsed detail stay constant so runtime errors
+    // cannot expose paths, credentials, or provider payloads.
     expect(screen.getByText("This screen didn't load. Reload to try again.")).toBeInTheDocument();
     const details = screen.getByText("Details").closest("details");
     expect(details).not.toBeNull();
     expect(details).not.toHaveAttribute("open");
-    expect(within(details as HTMLElement).getByText("route failed")).toBeInTheDocument();
+    expect(
+      within(details as HTMLElement).getByText(
+        "The route stopped before CompozyOS could render this screen."
+      )
+    ).toBeInTheDocument();
+    expect(screen.queryByText("route failed")).not.toBeInTheDocument();
   });
 
   it("Should keep revoked access ahead of root route fallbacks", async () => {

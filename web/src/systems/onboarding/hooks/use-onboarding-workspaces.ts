@@ -92,6 +92,16 @@ export function useOnboardingWorkspaces(): OnboardingWorkspacesApi {
     ) {
       return;
     }
+    const operatorHomeDraft = workspaces.find(workspace =>
+      isOperatorHomeWorkspace(
+        { id: workspace.workspaceId ?? "operator-home", root_dir: workspace.path },
+        userHomeDir
+      )
+    );
+    if (operatorHomeDraft) {
+      onboardingDraftStore.trigger.workspaceDraftRemoved({ path: operatorHomeDraft.path });
+      return;
+    }
     catalogSeeded.current = true;
     if (workspaces.length > 0) return;
     const { projectWorkspaces } = partitionProjectWorkspaces(
@@ -107,7 +117,7 @@ export function useOnboardingWorkspaces(): OnboardingWorkspacesApi {
         workspace: draftFromWorkspace(workspace, path),
       });
     }
-  }, [registeredWorkspaces.data, userHomeDir, workspaces.length]);
+  }, [registeredWorkspaces.data, userHomeDir, workspaces]);
 
   const navigateTo = (path: string) => {
     setCurrentPath(path);

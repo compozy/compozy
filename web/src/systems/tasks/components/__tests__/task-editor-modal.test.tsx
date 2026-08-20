@@ -349,6 +349,23 @@ describe("TaskEditorModal", () => {
     ).not.toBeNull();
   });
 
+  it("Should keep the workspace destination beside the edit-mode draft notice", () => {
+    renderModal({
+      mode: "edit",
+      draft: {
+        ...createTaskEditorDraft("blank", "ws_alpha"),
+        title: "Summarize review feedback",
+        saveAsDraft: true,
+      },
+    });
+
+    const hint = screen.getByTestId("task-editor-modal-hint");
+    expect(hint).toHaveTextContent("Saved as a draft");
+    expect(within(hint).getByTestId("workspace-scope-statement")).toHaveTextContent(
+      "Lives in launch-hq"
+    );
+  });
+
   it("Should hold the edit host on a loading state instead of a half-bound form", () => {
     renderModal({ mode: "edit", status: "loading" });
 

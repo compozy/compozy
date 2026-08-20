@@ -258,7 +258,7 @@ export function TaskEditorSurface({
             draft.saveAsDraft ? (
               <>
                 Saved as a <b className="font-medium text-muted">draft</b>; no run is queued until
-                you enqueue it.
+                you enqueue it. {scopeStatement}
               </>
             ) : (
               scopeStatement

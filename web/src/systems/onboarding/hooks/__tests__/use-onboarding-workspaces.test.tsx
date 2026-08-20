@@ -114,7 +114,7 @@ describe("useOnboardingWorkspaces", () => {
     expect(onboardingDraftStore.getSnapshot().context.workspaces).toEqual([]);
   });
 
-  it("removes a stale operator-home draft without deleting its daemon registration", async () => {
+  it("removes a persisted operator-home draft before seeding project workspaces", async () => {
     const homeDraft = {
       path: "/Users/operator",
       name: "operator",
@@ -123,16 +123,23 @@ describe("useOnboardingWorkspaces", () => {
     act(() => {
       onboardingDraftStore.trigger.workspaceDraftAdded({ workspace: homeDraft });
     });
-    mocks.registeredWorkspaces = [workspace()];
+    mocks.registeredWorkspaces = [
+      workspace(),
+      workspace({ id: "ws_project", root_dir: "/Users/operator/project", name: "project" }),
+    ];
 
     const { result } = renderHook(() => useOnboardingWorkspaces());
 
-    await act(async () => {
-      await result.current.removeWorkspace(homeDraft.path);
+    await waitFor(() => {
+      expect(result.current.workspaces).toEqual([
+        { path: "/Users/operator/project", name: "project", workspaceId: "ws_project" },
+      ]);
     });
 
     expect(mocks.deleteWorkspace).not.toHaveBeenCalled();
-    expect(onboardingDraftStore.getSnapshot().context.workspaces).toEqual([]);
+    expect(onboardingDraftStore.getSnapshot().context.workspaces).toEqual([
+      { path: "/Users/operator/project", name: "project", workspaceId: "ws_project" },
+    ]);
   });
 
   it("does not overwrite an existing onboarding draft with daemon workspaces", async () => {

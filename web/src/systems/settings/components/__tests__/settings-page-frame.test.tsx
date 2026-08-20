@@ -74,12 +74,20 @@ describe("SettingsPageFrame", () => {
 
   it("renders live meta without a restating page subtitle", () => {
     render(
-      <SettingsPageFrame meta={[{ key: "ready", content: <span>1 ready</span> }]} slug="providers">
+      <SettingsPageFrame
+        meta={[
+          { key: "ready", content: <span>1 ready</span> },
+          { key: "fresh", content: <span>updated now</span> },
+        ]}
+        slug="providers"
+      >
         <div>content</div>
       </SettingsPageFrame>
     );
 
     const subhead = screen.getByTestId("settings-page-providers-subhead");
     expect(subhead).toHaveTextContent("1 ready");
+    expect(subhead).toHaveTextContent("updated now");
+    expect(subhead.querySelectorAll('[aria-hidden="true"]')).toHaveLength(1);
   });
 });

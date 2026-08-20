@@ -413,6 +413,7 @@ describe("useSessionPageControls", () => {
   });
 
   it("Should report a durable queue mutation failure without removing server state", () => {
+    const consoleError = vi.spyOn(console, "error").mockImplementation(() => undefined);
     routeHookMocks.sessionInputsQuery.data = {
       inputs: [{ id: "inq-1", mode: "queue", status: "queued", text: "Keep me" }],
     };
@@ -425,6 +426,9 @@ describe("useSessionPageControls", () => {
       { id: "inq-1", mode: "queue", status: "queued", text: "Keep me" },
     ]);
     expect(routeHookMocks.toastError).toHaveBeenCalledWith("Couldn't remove queued prompt.");
+    expect(consoleError).toHaveBeenCalledWith("Failed to remove a queued prompt");
+    expect(consoleError.mock.calls.flat()).not.toContainEqual(expect.any(Error));
+    consoleError.mockRestore();
   });
 
   it("Should release the busy state after a failed acknowledgement", async () => {

@@ -15,7 +15,15 @@ const liveFreshness = () => ({ ...makeEmptyHomeOverview().freshness, has_live_wo
 const singleApproval = () => ({
   total: 1,
   by_kind: { approval: 1, failure: 0, needs_input: 0 },
-  items: [],
+  items: [
+    {
+      kind: "approval" as const,
+      title: "Deploy docs site",
+      task_id: "task-approval",
+      occurred_at: "2026-07-23T10:00:00Z",
+      actions: ["approve" as const, "reject" as const, "open" as const],
+    },
+  ],
 });
 const oneRunCompleted = () => ({ runs_completed: 1, runs_failed: 0, tasks_closed: 0 });
 const busyPulse = () => ({

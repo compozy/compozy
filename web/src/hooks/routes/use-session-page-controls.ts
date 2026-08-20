@@ -210,8 +210,8 @@ export function useSessionPageControls(
 
   const handleRemoveQueuedPrompt = (queueEntryId: string) => {
     cancelSessionInput.mutate(queueEntryId, {
-      onError: error => {
-        console.error("Failed to remove a queued prompt", error);
+      onError: () => {
+        console.error("Failed to remove a queued prompt");
         toast.error("Couldn't remove queued prompt.");
       },
     });

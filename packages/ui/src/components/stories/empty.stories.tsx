@@ -95,7 +95,7 @@ export const WithCause: Story = {
         icon={SearchIcon}
         title="The catalog is incomplete"
         description="Installed status is unavailable until the catalog can be checked."
-        cause="marketplace: continuation token expired (409)"
+        cause={`marketplace: continuation token expired (409)\nrequest_id: req_01K19X4Q6Q7K45V3C7M8J9P0R1\nupstream: the catalog response exceeded the accepted continuation window while reading the next page of installed extensions`}
       />
     </div>
   ),

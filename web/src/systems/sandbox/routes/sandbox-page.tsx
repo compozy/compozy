@@ -139,9 +139,7 @@ export function SandboxPage({ search = {} }: { search?: SandboxRouteSearch }) {
             </Button>
           }
           data-testid="sandbox-page-error"
-          description={
-            page.queryError ?? "CompozyOS stopped responding before it returned the profile list."
-          }
+          description="CompozyOS stopped responding before it returned the profile list."
           icon={AlertCircle}
           title="Failed to load sandboxes"
         />

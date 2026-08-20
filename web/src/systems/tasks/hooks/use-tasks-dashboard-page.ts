@@ -31,7 +31,7 @@ export function useTasksDashboardPage(filters: TaskDashboardFilter, enabled: boo
       toast.success("Scheduler paused.");
     } catch (error) {
       console.error("Failed to pause the scheduler", error);
-      toast.error("Couldn't pause the queue.");
+      toast.error("Couldn't drain the queue.");
       throw error;
     }
   };

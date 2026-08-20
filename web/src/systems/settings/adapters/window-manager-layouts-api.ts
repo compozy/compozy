@@ -45,11 +45,8 @@ function workspacePath(workspaceId: string): string {
 async function responseJson(response: Response): Promise<unknown> {
   try {
     return await response.json();
-  } catch (error) {
-    throw new WindowManagerLayoutsApiError(
-      error instanceof Error ? error.message : "CompozyOS returned invalid JSON.",
-      response.status
-    );
+  } catch {
+    throw new WindowManagerLayoutsApiError("CompozyOS returned invalid JSON.", response.status);
   }
 }
 

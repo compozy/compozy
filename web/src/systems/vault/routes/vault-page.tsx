@@ -111,7 +111,7 @@ export function VaultPage({ search = {} }: { search?: VaultRouteSearch }) {
         <Lock aria-hidden="true" className="size-3.5 shrink-0 text-faint" />
         <span>
           {page.counts.total} redacted metadata {page.counts.total === 1 ? "entry" : "entries"} —
-          values are write-only and never leave this machine.
+          write-only values are encrypted before storage, and only redacted metadata is returned.
         </span>
         <span aria-hidden="true" className="text-faint">
           ·

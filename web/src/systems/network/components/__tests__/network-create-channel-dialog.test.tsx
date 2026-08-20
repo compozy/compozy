@@ -68,11 +68,19 @@ describe("NetworkCreateChannelDialog", () => {
     expect(onSubmit).not.toHaveBeenCalled();
   });
 
-  it("Should surface the channel-name input wired to onChannelNameChange", () => {
+  it("Should surface the channel-name input and its on-demand guidance", async () => {
+    const user = userEvent.setup();
     const onChannelNameChange = vi.fn();
     renderDialog({ onChannelNameChange });
 
-    expect(screen.getByRole("button", { name: "About channel name" })).toBeInTheDocument();
+    const channelNameHelp = screen.getByRole("button", { name: "About channel name" });
+    expect(channelNameHelp).toBeInTheDocument();
+    await user.hover(channelNameHelp);
+    expect(
+      await screen.findByText(
+        "Use lowercase letters, numbers, underscores, or hyphens; e.g. coord_core."
+      )
+    ).toBeInTheDocument();
     expect(screen.getByTestId("network-channel-name-input")).toHaveAttribute(
       "placeholder",
       "e.g. website_copy"

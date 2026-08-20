@@ -383,8 +383,6 @@ tokens:
       space-chart-tooltip-x: "8px"
   site:
     typography-clamps:
-      lead: "1.1875rem"
-      lead--line-height: "1.5"
       hero: "clamp(2.6rem, 5vw, 4.5rem)"
       error-title: "clamp(2.6rem, 6vw, 4.8rem)"
       hero-section: "clamp(2.6rem, 5.5vw, 4.2rem)"
@@ -1149,23 +1147,22 @@ Geist.
 
 <!-- BEGIN:tokens:site-clamps -->
 
-| Token                                        | Value                            | Token                                | Value                           | Token                                     | Value                           |
-| -------------------------------------------- | -------------------------------- | ------------------------------------ | ------------------------------- | ----------------------------------------- | ------------------------------- |
-| `--text-site-lead`                           | `1.1875rem`                      | `--text-site-lead--line-height`      | `1.5`                           | `--text-site-hero`                        | `clamp(2.6rem, 5vw, 4.5rem)`    |
-| `--text-site-error-title`                    | `clamp(2.6rem, 6vw, 4.8rem)`     | `--text-site-hero-section`           | `clamp(2.6rem, 5.5vw, 4.2rem)`  | `--text-site-blog-title`                  | `clamp(2.6rem, 5.4vw, 4.6rem)`  |
-| `--text-site-doc-title`                      | `clamp(2.4rem, 4vw, 3.4rem)`     | `--text-site-doc-lead`               | `1.125rem`                      | `--text-site-doc-lead--line-height`       | `1.65`                          |
-| `--text-site-doc-prose`                      | `1rem`                           | `--text-site-doc-prose--line-height` | `var(--leading-doc-body)`       | `--text-site-doc-prose-compact`           | `0.95rem`                       |
-| `--text-site-doc-prose-compact--line-height` | `1.75`                           | `--text-site-doc-subheading`         | `1.25rem`                       | `--text-site-doc-subheading--line-height` | `1.25`                          |
-| `--text-site-api-body`                       | `0.9375rem`                      | `--text-site-api-body--line-height`  | `1.65`                          | `--text-site-api-heading`                 | `1.625rem`                      |
-| `--text-site-api-heading--line-height`       | `1.15`                           | `--text-site-api-subheading`         | `1.125rem`                      | `--text-site-api-code`                    | `0.8125rem`                     |
-| `--text-site-protocol-title`                 | `clamp(2.4rem, 5vw, 3.8rem)`     | `--text-site-page-title`             | `clamp(2.4rem, 4.4vw, 4rem)`    | `--text-site-article-title`               | `clamp(2.4rem, 4.4vw, 3.6rem)`  |
-| `--text-site-section-title`                  | `clamp(2.2rem, 4.6vw, 3.6rem)`   | `--text-site-category-title`         | `clamp(2.2rem, 4vw, 3.4rem)`    | `--text-site-cta-title`                   | `clamp(2rem, 4.5vw, 3.2rem)`    |
-| `--text-site-feature-title`                  | `clamp(2rem, 3.4vw, 2.8rem)`     | `--text-site-subsection-title`       | `clamp(1.9rem, 3.4vw, 2.6rem)`  | `--text-site-doc-heading`                 | `clamp(1.6rem, 2.6vw, 2.15rem)` |
-| `--text-group-label`                         | `0.625rem`                       | `--text-group-label--line-height`    | `0.75rem`                       | `--text-site-release-title`               | `clamp(1.6rem, 3vw, 2.1rem)`    |
-| `--text-site-empty-title`                    | `clamp(1.55rem, 3vw, 2rem)`      | `--text-site-quote`                  | `clamp(1.5rem, 2.4vw, 1.95rem)` | `--text-site-card-title`                  | `clamp(1.45rem, 3vw, 1.9rem)`   |
-| `--text-site-subheading`                     | `clamp(1.25rem, 1.7vw, 1.45rem)` | `--text-site-bento-2xl`              | `2.5rem`                        | `--text-site-bento-xl`                    | `2.35rem`                       |
-| `--text-site-bento-lg`                       | `2rem`                           | `--text-site-bento-md`               | `1.9rem`                        | `--text-site-bento-sm`                    | `1.8rem`                        |
-| `--text-site-bento-xs`                       | `1.65rem`                        | `--leading-doc-body`                 | `1.8`                           |                                           |                                 |
+| Token                                     | Value                           | Token                                        | Value                            | Token                                | Value                           |
+| ----------------------------------------- | ------------------------------- | -------------------------------------------- | -------------------------------- | ------------------------------------ | ------------------------------- |
+| `--text-site-hero`                        | `clamp(2.6rem, 5vw, 4.5rem)`    | `--text-site-error-title`                    | `clamp(2.6rem, 6vw, 4.8rem)`     | `--text-site-hero-section`           | `clamp(2.6rem, 5.5vw, 4.2rem)`  |
+| `--text-site-blog-title`                  | `clamp(2.6rem, 5.4vw, 4.6rem)`  | `--text-site-doc-title`                      | `clamp(2.4rem, 4vw, 3.4rem)`     | `--text-site-doc-lead`               | `1.125rem`                      |
+| `--text-site-doc-lead--line-height`       | `1.65`                          | `--text-site-doc-prose`                      | `1rem`                           | `--text-site-doc-prose--line-height` | `var(--leading-doc-body)`       |
+| `--text-site-doc-prose-compact`           | `0.95rem`                       | `--text-site-doc-prose-compact--line-height` | `1.75`                           | `--text-site-doc-subheading`         | `1.25rem`                       |
+| `--text-site-doc-subheading--line-height` | `1.25`                          | `--text-site-api-body`                       | `0.9375rem`                      | `--text-site-api-body--line-height`  | `1.65`                          |
+| `--text-site-api-heading`                 | `1.625rem`                      | `--text-site-api-heading--line-height`       | `1.15`                           | `--text-site-api-subheading`         | `1.125rem`                      |
+| `--text-site-api-code`                    | `0.8125rem`                     | `--text-site-protocol-title`                 | `clamp(2.4rem, 5vw, 3.8rem)`     | `--text-site-page-title`             | `clamp(2.4rem, 4.4vw, 4rem)`    |
+| `--text-site-article-title`               | `clamp(2.4rem, 4.4vw, 3.6rem)`  | `--text-site-section-title`                  | `clamp(2.2rem, 4.6vw, 3.6rem)`   | `--text-site-category-title`         | `clamp(2.2rem, 4vw, 3.4rem)`    |
+| `--text-site-cta-title`                   | `clamp(2rem, 4.5vw, 3.2rem)`    | `--text-site-feature-title`                  | `clamp(2rem, 3.4vw, 2.8rem)`     | `--text-site-subsection-title`       | `clamp(1.9rem, 3.4vw, 2.6rem)`  |
+| `--text-site-doc-heading`                 | `clamp(1.6rem, 2.6vw, 2.15rem)` | `--text-group-label`                         | `0.625rem`                       | `--text-group-label--line-height`    | `0.75rem`                       |
+| `--text-site-release-title`               | `clamp(1.6rem, 3vw, 2.1rem)`    | `--text-site-empty-title`                    | `clamp(1.55rem, 3vw, 2rem)`      | `--text-site-quote`                  | `clamp(1.5rem, 2.4vw, 1.95rem)` |
+| `--text-site-card-title`                  | `clamp(1.45rem, 3vw, 1.9rem)`   | `--text-site-subheading`                     | `clamp(1.25rem, 1.7vw, 1.45rem)` | `--text-site-bento-2xl`              | `2.5rem`                        |
+| `--text-site-bento-xl`                    | `2.35rem`                       | `--text-site-bento-lg`                       | `2rem`                           | `--text-site-bento-md`               | `1.9rem`                        |
+| `--text-site-bento-sm`                    | `1.8rem`                        | `--text-site-bento-xs`                       | `1.65rem`                        | `--leading-doc-body`                 | `1.8`                           |
 
 <!-- END:tokens:site-clamps -->
 

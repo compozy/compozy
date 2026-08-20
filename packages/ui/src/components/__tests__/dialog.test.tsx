@@ -99,6 +99,74 @@ describe("Dialog", () => {
     });
   });
 
+  it("Should choose the first eligible control in browser tab order", async () => {
+    render(
+      <Dialog defaultOpen>
+        <DialogContent showCloseButton={false}>
+          <DialogTitle>Focus order</DialogTitle>
+          <input aria-label="hidden-input" type="hidden" />
+          <div
+            ref={node => {
+              node?.setAttribute("aria-hidden", "true");
+            }}
+          >
+            <button type="button">Aria hidden</button>
+          </div>
+          <div hidden>
+            <button type="button">HTML hidden</button>
+          </div>
+          <fieldset disabled>
+            <button type="button">Disabled fieldset</button>
+          </fieldset>
+          <button tabIndex={-1} type="button">
+            Negative tab index
+          </button>
+          <input aria-label="default-order" />
+          <button tabIndex={2} type="button">
+            Second explicit
+          </button>
+          <button tabIndex={1} type="button">
+            First explicit
+          </button>
+        </DialogContent>
+      </Dialog>
+    );
+
+    await waitFor(() =>
+      expect(screen.getByRole("button", { name: "First explicit" })).toHaveFocus()
+    );
+  });
+
+  it("Should focus the popup when no child is eligible", async () => {
+    render(
+      <Dialog defaultOpen>
+        <DialogContent showCloseButton={false}>
+          <DialogTitle>No controls</DialogTitle>
+        </DialogContent>
+      </Dialog>
+    );
+
+    await waitFor(() => expect(screen.getByRole("dialog")).toHaveFocus());
+  });
+
+  it("Should preserve a caller ref while retaining internal focus behavior", async () => {
+    const contentRef = React.createRef<HTMLDivElement>();
+    render(
+      <Dialog defaultOpen>
+        <DialogContent ref={contentRef}>
+          <DialogTitle>Referenced dialog</DialogTitle>
+          <input aria-label="referenced-field" />
+        </DialogContent>
+      </Dialog>
+    );
+
+    const dialog = await screen.findByRole("dialog");
+    expect(contentRef.current).toBe(dialog);
+    await waitFor(() =>
+      expect(screen.getByRole("textbox", { name: "referenced-field" })).toHaveFocus()
+    );
+  });
+
   it("Should render a default close button that dismisses the dialog", async () => {
     const user = userEvent.setup();
     render(<DialogExample defaultOpen />);
