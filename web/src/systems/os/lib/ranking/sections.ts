@@ -1,6 +1,7 @@
 import { rankCandidates } from "./rank";
 import type {
   RankedCandidate,
+  RankingAssembly,
   RankingCandidate,
   RankingSection,
   RankingSnapshot,
@@ -104,17 +105,24 @@ function emptyQuerySections<T extends RankingCandidate>(
   return sections.filter((section): section is RankingSection<T> => section !== null);
 }
 
-export function assembleRankingSections<T extends RankingCandidate>(
+export function assembleRankingResults<T extends RankingCandidate>(
   query: string,
   candidates: readonly T[],
   snapshot: RankingSnapshot
-): readonly RankingSection<T>[] {
-  if (query.trim() === "") return emptyQuerySections(candidates, snapshot);
-  const ranked = rankCandidates(query, candidates, snapshot).filter(
+): RankingAssembly<T> {
+  if (query.trim() === "") {
+    return { sections: emptyQuerySections(candidates, snapshot), fallback: false };
+  }
+  const ranked = rankCandidates(query, candidates, snapshot);
+  const topScore = ranked[0]?.score;
+  if (topScore === undefined || topScore < snapshot.weights.fallback_weak_match_threshold) {
+    return { sections: [], fallback: true };
+  }
+  const promoted = ranked.filter(
     candidate => candidate.score >= floorFor(candidate.candidate.subtype, snapshot.weights)
   );
   const grouped = new Map<string, RankedCandidate<T>[]>();
-  for (const candidate of ranked) {
+  for (const candidate of promoted) {
     const group = candidate.candidate.group.trim() || "Commands";
     const existing = grouped.get(group);
     if (existing === undefined) grouped.set(group, [candidate]);
@@ -138,5 +146,8 @@ export function assembleRankingSections<T extends RankingCandidate>(
     );
     if (section !== null) sections.push(section);
   }
-  return sections;
+  return {
+    sections,
+    fallback: topScore === snapshot.weights.fallback_weak_match_threshold,
+  };
 }

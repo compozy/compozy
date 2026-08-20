@@ -26,6 +26,7 @@ type Service struct {
 	dynamicViews    []DynamicViewProvider
 	viewStreamEpoch string
 	viewPrograms    ViewProgramProvider
+	viewAckBudget   time.Duration
 	viewSessionMu   sync.Mutex
 	viewSessions    map[string]*viewSession
 
@@ -122,6 +123,7 @@ func NewRegistry(
 		now:              time.Now,
 		logger:           slog.Default(),
 		viewStreamEpoch:  "vse_" + uuid.NewString(),
+		viewAckBudget:    defaultViewHardAckBudget,
 		viewSessions:     make(map[string]*viewSession),
 		flights:          make(map[string]struct{}),
 		eventSubscribers: make(map[uint64]eventSubscription),

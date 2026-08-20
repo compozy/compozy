@@ -83,6 +83,9 @@ const paletteMocks = vi.hoisted(() => {
     isWaiting: vi.fn<(sessionId: string) => boolean>(() => false),
     jumpToSession: vi.fn(),
     notifyUser: vi.fn<(feedback: { message: string; tone: string }) => void>(),
+    fallbackAgentEnabled: false,
+    fallbackPending: false,
+    runFallback: vi.fn(async () => undefined),
     openForAgent: vi.fn(),
     pending: false,
     paletteIntent: null as { kind: "destination"; windowId: string } | null,
@@ -142,6 +145,14 @@ vi.mock("@/systems/session/hooks/use-session-create", () => ({
   useSessionCreateActions: () => ({ openForAgent: paletteMocks.openForAgent }),
 }));
 
+vi.mock("@/systems/session", async importOriginal => ({
+  ...(await importOriginal<typeof import("@/systems/session")>()),
+  useSessionPromptFallback: () => ({
+    pending: paletteMocks.fallbackPending,
+    run: paletteMocks.runFallback,
+  }),
+}));
+
 vi.mock("@/systems/workspace/hooks/use-worktrees", () => ({
   useWorktrees: () => ({ data: undefined }),
   useWorktreeListings: () => ({}),
@@ -186,6 +197,10 @@ vi.mock("../use-cmd-palette-rank-signals", () => ({
   }),
 }));
 
+vi.mock("../use-cmd-palette-fallback-settings", () => ({
+  useCmdPaletteFallbackSettings: () => paletteMocks.fallbackAgentEnabled,
+}));
+
 vi.mock("../use-os-palette-domain-search", async importOriginal => ({
   ...(await importOriginal<typeof import("../use-os-palette-domain-search")>()),
   useOsPaletteDomainSearch: () => paletteMocks.domainSections,
@@ -199,6 +214,7 @@ vi.mock("@/systems/workspace/hooks/use-active-workspace", () => ({
     workspaces: paletteMocks.workspaces,
     scope: "workspace" as const,
     pending: paletteMocks.pending,
+    hasHydrated: true,
     toggleLocked: paletteMocks.toggleLocked,
     canDisableGlobal: true,
     toggleGlobalScope: vi.fn(),
@@ -576,6 +592,9 @@ describe("useOsPaletteRoot", () => {
     paletteMocks.paletteIntentRequested.mockClear();
     paletteMocks.pending = false;
     paletteMocks.rankSignals = null;
+    paletteMocks.fallbackAgentEnabled = false;
+    paletteMocks.fallbackPending = false;
+    paletteMocks.runFallback.mockClear();
     paletteMocks.domainSections = [];
     paletteMocks.sessions = [];
     paletteMocks.sessionsLoading = false;
@@ -607,6 +626,28 @@ describe("useOsPaletteRoot", () => {
 
     expect(paletteDispatch.run).toHaveBeenCalledOnce();
     expect(paletteDispatch.run.mock.lastCall?.[0]).toMatchObject({ id: "app.open.tasks" });
+  });
+
+  it("Should remove the agent fallback row when its effective setting is disabled [UT-151]", async () => {
+    const user = userEvent.setup();
+    paletteMocks.fallbackAgentEnabled = true;
+    const rendered = renderPalette();
+
+    await user.type(
+      screen.getByPlaceholderText("Search apps, sessions, and actions…"),
+      "gibberish-with-no-match"
+    );
+    expect(screen.getByTestId("os-palette-agent-fallback")).toHaveTextContent(
+      "Ask agent: 'gibberish-with-no-match'"
+    );
+
+    paletteMocks.fallbackAgentEnabled = false;
+    rendered.rerender(
+      <PaletteHarness>
+        <OsCommandPalette open dispatch={paletteDispatch} onOpenChange={vi.fn()} />
+      </PaletteHarness>
+    );
+    expect(screen.queryByTestId("os-palette-agent-fallback")).not.toBeInTheDocument();
   });
 
   it("Should scope the picker to the destination tab and release it on close [UT-081, UT-082]", () => {

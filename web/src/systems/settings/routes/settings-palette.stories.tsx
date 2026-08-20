@@ -41,7 +41,29 @@ export const PersonalizationOff: Story = {
             section: "cmd-palette",
             scope: "global",
             available_scopes: ["global", "workspace"],
+            fallback_agent_enabled: true,
             personalization: false,
+          })
+        ),
+      ],
+    }),
+  },
+  render: () => <StorybookWorkspaceSetup />,
+};
+
+/** Off: zero-match palette queries no longer offer agent delegation. */
+export const AgentFallbackOff: Story = {
+  parameters: {
+    ...appRouteParameters("/settings/palette"),
+    ...storybookMswParameters({
+      settings: [
+        compozyApiMock.get("/api/settings/cmd-palette", () =>
+          HttpResponse.json({
+            section: "cmd-palette",
+            scope: "global",
+            available_scopes: ["global", "workspace"],
+            fallback_agent_enabled: false,
+            personalization: true,
           })
         ),
       ],

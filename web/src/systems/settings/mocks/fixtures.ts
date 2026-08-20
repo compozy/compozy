@@ -122,6 +122,7 @@ export const settingsCmdPaletteSectionFixture: SettingsCmdPaletteSection = {
   section: "cmd-palette",
   scope: "global",
   available_scopes: ["global", "workspace"],
+  fallback_agent_enabled: true,
   personalization: true,
 };
 

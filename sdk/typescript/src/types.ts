@@ -4,8 +4,6 @@ import type {
   HookExecutorKind,
   HookMatcher,
   HookMode,
-  HookPatchByEvent,
-  HookPayloadByEvent,
   HostAPIMethod,
   DescribeSubprocess,
   DescribeResources,
@@ -132,21 +130,3 @@ export interface HealthCheckResult {
   message?: string;
   details?: Record<string, JSONValue>;
 }
-
-export interface HookInvocation<TEvent extends HookEvent = HookEvent> {
-  name: string;
-  event: TEvent;
-  mode: HookMode;
-  required: boolean;
-  timeout_ms: number;
-  source: string;
-  metadata?: Record<string, string>;
-}
-
-export interface ExecuteHookParams<TEvent extends HookEvent = HookEvent> {
-  invocation_id: string;
-  hook: HookInvocation<TEvent>;
-  payload: HookPayloadByEvent[TEvent];
-}
-
-export type ExecuteHookResult<TEvent extends HookEvent = HookEvent> = HookPatchByEvent[TEvent];

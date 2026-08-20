@@ -18,3 +18,6 @@ overlaps: ET-window-tab-multi-instance; ET-web-window-routing-lifecycle
 
 Derived from J-organize-tabbed-work step 3. Covers keyboard-first usability, truthful attention,
 stale-result recovery, and compatibility with minimized and cross-desktop windows.
+
+2026-08-20 qa-impact: Root matching now inserts the agent fallback only when the served threshold
+allows it. Keep this scenario `untested`; task 12 owns the tab-result boundary re-walk.

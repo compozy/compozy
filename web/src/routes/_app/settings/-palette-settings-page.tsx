@@ -1,6 +1,7 @@
+import { useState } from "react";
 import { AlertCircle } from "lucide-react";
 
-import { Alert, AlertDescription, Button, Spinner, Switch } from "@compozy/ui";
+import { Alert, AlertDescription, Button, ConfirmDialog, Spinner, Switch } from "@compozy/ui";
 
 import {
   SettingsGroup,
@@ -12,6 +13,7 @@ import {
 
 export function PaletteSettingsPage() {
   const page = useSettingsPalettePage();
+  const [resetOpen, setResetOpen] = useState(false);
   useSettingsTopbar("palette");
 
   if (page.isLoading) {
@@ -48,28 +50,67 @@ export function PaletteSettingsPage() {
 
   return (
     <SettingsPageFrame restart={page.restart} slug="palette">
-      {page.saveError ? (
+      {page.saveError || page.resetError ? (
         <Alert data-testid="settings-palette-save-error" role="alert" variant="danger">
-          <AlertDescription>{page.saveError}</AlertDescription>
+          <AlertDescription>{page.saveError ?? page.resetError}</AlertDescription>
         </Alert>
       ) : null}
 
-      <SettingsGroup title="Personalization">
+      <SettingsGroup title="Palette">
         <SettingRow
           control={
             <Switch
-              aria-label="Personalization"
+              aria-label="Agent fallback"
+              checked={page.section.fallback_agent_enabled}
+              data-testid="settings-palette-fallback-agent"
+              disabled={page.isSaving}
+              onCheckedChange={checked => page.setFallbackAgentEnabled(checked)}
+            />
+          }
+          label="Agent fallback"
+        />
+        <SettingRow
+          control={
+            <Switch
+              aria-label="Palette personalization"
               checked={page.section.personalization}
               data-testid="settings-palette-personalization"
               disabled={page.isSaving}
-              onCheckedChange={page.setPersonalization}
+              onCheckedChange={checked => page.setPersonalization(checked)}
             />
           }
-          // The one thing the label cannot say: turning this off is not a delete.
-          description="Off stops recording; what was already learned is kept until you reset it."
-          label="Learn from my usage"
+          label="Palette personalization"
+        />
+        <SettingRow
+          control={
+            <Button
+              data-testid="settings-palette-reset"
+              disabled={page.isResetting}
+              size="sm"
+              type="button"
+              variant="outline"
+              onClick={() => setResetOpen(true)}
+            >
+              Reset
+            </Button>
+          }
+          description={page.scopeLabel}
+          label="Reset palette personalization"
         />
       </SettingsGroup>
+
+      <ConfirmDialog
+        cancelLabel="Cancel"
+        confirmLabel="Reset personalization"
+        description={`This removes learned ranking and recents for ${page.scopeLabel}. Pins stay in place.`}
+        error={page.resetError}
+        isPending={page.isResetting}
+        open={resetOpen}
+        title="Reset palette personalization?"
+        tone="warning"
+        onConfirm={page.resetPersonalization}
+        onOpenChange={setResetOpen}
+      />
     </SettingsPageFrame>
   );
 }

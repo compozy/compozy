@@ -32,12 +32,6 @@ func DefaultCmdPaletteConfig() CmdPaletteConfig {
 
 // Validate rejects unsupported fallback targets and malformed aliases.
 func (c CmdPaletteConfig) Validate() error {
-	if len(c.FallbackTargets) == 0 {
-		return ValidationError{
-			Path:    "cmd_palette.fallback_targets",
-			Message: "must contain at least one of agent",
-		}
-	}
 	for index, target := range c.FallbackTargets {
 		if strings.TrimSpace(target) != CmdPaletteFallbackAgent {
 			return ValidationError{

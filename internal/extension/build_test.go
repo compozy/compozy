@@ -908,7 +908,6 @@ func TestScaffoldExtension(t *testing.T) {
 	t.Parallel()
 
 	expectedTemplates := []ScaffoldTemplate{
-		ScaffoldTemplateHookTS,
 		ScaffoldTemplateConnectivityProviderGo,
 		ScaffoldTemplateConnectivityProviderTS,
 		ScaffoldTemplateLoopWatchSourceGo,

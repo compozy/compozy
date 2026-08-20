@@ -28,3 +28,6 @@ QA 2026-08-16 Herdr parity: The full Web E2E and inspected visual bundles covere
 2026-08-19 qa-impact: The shared stack now hosts List, Detail, Form, and Grid views under the same
 keyboard and breadcrumb contract. Re-walk every kind, the unavailable and timeout frames, pop
 order, Escape dismissal, and reopen-at-root behavior.
+
+2026-08-20 qa-impact: Programmable-view lifecycle events and effect-failure correlation now close
+the shared stack's observability contract. Keep this scenario `untested`; task 12 owns the re-walk.

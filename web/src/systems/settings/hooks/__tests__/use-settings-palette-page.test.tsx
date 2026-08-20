@@ -11,8 +11,14 @@ import { act, renderHook, waitFor } from "@testing-library/react";
 import type { ReactNode } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-const { getSettingsCmdPalette, updateSettingsCmdPalette, workspace } = vi.hoisted(() => ({
+const {
+  getSettingsCmdPalette,
+  resetCmdPalettePersonalization,
+  updateSettingsCmdPalette,
+  workspace,
+} = vi.hoisted(() => ({
   getSettingsCmdPalette: vi.fn(),
+  resetCmdPalettePersonalization: vi.fn(),
   updateSettingsCmdPalette: vi.fn(),
   workspace: {
     scope: "global" as "global" | "workspace",
@@ -21,6 +27,8 @@ const { getSettingsCmdPalette, updateSettingsCmdPalette, workspace } = vi.hoiste
     isLoading: false,
     /** The resolver's own signal: the catalog can be loaded while `$HOME` is not. */
     pending: false,
+    runtimeWorkspaceId: "workspace:home" as string | null,
+    activeWorkspace: undefined as { name: string } | undefined,
   },
 }));
 
@@ -29,7 +37,10 @@ vi.mock("../../adapters/settings-sections-api", () => ({
   updateSettingsCmdPalette,
 }));
 vi.mock("@/systems/workspace", () => ({ useActiveWorkspace: () => workspace }));
-vi.mock("@/systems/os", () => ({ cmdPaletteKeys: { all: ["cmd-palette"] } }));
+vi.mock("@/systems/os", () => ({
+  cmdPaletteKeys: { all: ["cmd-palette"] },
+  resetCmdPalettePersonalization,
+}));
 vi.mock("../use-settings-page", () => ({
   useSettingsPage: () => ({ restart: { isVisible: false } }),
 }));
@@ -42,6 +53,7 @@ function section(personalization: boolean, scope: "global" | "workspace" = "glob
     section: "cmd-palette",
     scope,
     available_scopes: ["global", "workspace"],
+    fallback_agent_enabled: true,
     personalization,
   };
 }
@@ -62,7 +74,10 @@ describe("useSettingsPalettePage", () => {
     workspace.hasHydrated = true;
     workspace.isLoading = false;
     workspace.pending = false;
+    workspace.runtimeWorkspaceId = "workspace:home";
+    workspace.activeWorkspace = undefined;
     getSettingsCmdPalette.mockResolvedValue(section(true));
+    resetCmdPalettePersonalization.mockResolvedValue(undefined);
     updateSettingsCmdPalette.mockResolvedValue(section(false));
   });
 
@@ -102,9 +117,35 @@ describe("useSettingsPalettePage", () => {
     );
   });
 
+  it("Should write the fallback toggle without replacing personalization [IT-015]", async () => {
+    const { result } = renderPage();
+
+    await waitFor(() => expect(result.current.section?.fallback_agent_enabled).toBe(true));
+    act(() => result.current.setFallbackAgentEnabled(false));
+
+    await waitFor(() => expect(updateSettingsCmdPalette).toHaveBeenCalledTimes(1));
+    expect(updateSettingsCmdPalette).toHaveBeenCalledWith(
+      { fallback_agent_enabled: false },
+      { scope: "global" }
+    );
+  });
+
+  it("Should reset personalization only after the explicit action [UT-151]", async () => {
+    const { result } = renderPage();
+
+    await waitFor(() => expect(result.current.section).not.toBeNull());
+    expect(resetCmdPalettePersonalization).not.toHaveBeenCalled();
+
+    await act(async () => result.current.resetPersonalization());
+
+    expect(resetCmdPalettePersonalization).toHaveBeenCalledWith("workspace:home");
+  });
+
   it("Should read and write the active workspace when that is the effective scope", async () => {
     workspace.scope = "workspace";
     workspace.activeWorkspaceId = "workspace:alpha";
+    workspace.runtimeWorkspaceId = "workspace:alpha";
+    workspace.activeWorkspace = { name: "Alpha" };
     const { result } = renderPage();
 
     await waitFor(() => expect(result.current.section?.personalization).toBe(true));

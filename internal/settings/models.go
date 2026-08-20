@@ -194,7 +194,7 @@ type SectionUpdateRequest struct {
 	WindowManagerGlobalShortcuts *map[string]string
 	WindowManagerAliases         *map[string]string
 	Overwrite                    bool
-	CmdPalette                   *CmdPaletteSection
+	CmdPalette                   *CmdPaletteUpdate
 	Attention                    *compozyconfig.AttentionConfig
 	Shell                        *compozyconfig.ShellConfig
 	Observability                *compozyconfig.ObservabilityConfig

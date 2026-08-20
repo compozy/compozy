@@ -1,12 +1,15 @@
 import { use, useState } from "react";
 
 import { notifyUser } from "@/lib/user-feedback";
+import { useSessionPromptFallback } from "@/systems/session";
 import { useActiveWorkspace } from "@/systems/workspace";
 
 import { usePaletteRegistry } from "./use-palette-registry";
 import { useCmdPaletteRankSignals } from "./use-cmd-palette-rank-signals";
+import { useCmdPaletteFallbackSettings } from "./use-cmd-palette-fallback-settings";
 import {
-  assemblePaletteSections,
+  assemblePaletteResults,
+  type PaletteAgentFallback,
   paletteGhostCompletion,
   type PaletteSection,
 } from "../lib/cmd-palette-sections";
@@ -35,6 +38,8 @@ import { useWindowPaletteIntent } from "./use-window-manager-store";
 export interface OsPaletteRootModel {
   readonly registry: PaletteRegistry;
   readonly sections: readonly PaletteSection[];
+  readonly fallback: PaletteAgentFallback | null;
+  readonly fallbackPending: boolean;
   readonly entities: OsPaletteEntities;
   readonly domainSections: readonly OsPaletteDomainSection[];
   readonly query: string;
@@ -50,6 +55,7 @@ export interface OsPaletteRootModel {
   /** True when destination mode has nothing eligible to offer (US-036.EC-2). */
   readonly destinationEmpty: boolean;
   runCommand(command: ResolvedPaletteCommand): void;
+  runFallback(query: string): void;
   /** Runs one action-panel intent against this client's coordinators. */
   runRowAction(action: PaletteRowAction): void;
   openSession(session: OsPaletteSessionResult): void;
@@ -89,7 +95,8 @@ export function useOsPaletteRoot({
   const registry = usePaletteRegistry();
   const jumpToSession = useAttentionJump();
   const worktreeDialogs = use(WorktreeDialogActionsContext);
-  const { activeWorkspaceId, runtimeWorkspaceId, scope, workspaces } = useActiveWorkspace();
+  const workspace = useActiveWorkspace();
+  const { activeWorkspaceId, runtimeWorkspaceId, scope, workspaces } = workspace;
   const [query, setQuery] = useState("");
   const paletteIntent = useWindowPaletteIntent();
   const destinationWindowId =
@@ -107,12 +114,20 @@ export function useOsPaletteRoot({
     signals: rankSignals.data,
     workspaces,
   });
-  const sections = assemblePaletteSections({
+  const fallbackAgentEnabled = useCmdPaletteFallbackSettings({
+    activeWorkspaceId,
+    open,
+    scope,
+    settled: workspace.hasHydrated && !workspace.pending,
+  });
+  const assembly = assemblePaletteResults({
     registry,
     query,
     destination,
     signals: rankSignals.data,
+    fallbackAgentEnabled,
   });
+  const sections = assembly.sections;
   const ghostTail = paletteGhostCompletion(registry, query, destination, rankSignals.data);
   const domainSections = useOsPaletteDomainSearch({
     open: open && !destination,
@@ -124,6 +139,26 @@ export function useOsPaletteRoot({
   });
 
   const close = () => onOpenChange(false);
+  const fallback =
+    assembly.fallback !== null &&
+    assembly.sections.length === 0 &&
+    (entities.sessions.length > 0 ||
+      entities.tabs.length > 0 ||
+      entities.worktrees.length > 0 ||
+      domainSections.some(section => section.rows.length > 0))
+      ? null
+      : assembly.fallback;
+  const fallbackSession = useSessionPromptFallback({
+    onCreated: session => {
+      close();
+      jumpToSession({
+        sessionId: session.id,
+        agentName: session.agent_name,
+        workspaceId: session.workspace_id,
+      });
+    },
+    onPickerOpened: close,
+  });
   const pickDestination = (target: {
     app: OsAppId;
     instanceKey?: string;
@@ -254,6 +289,8 @@ export function useOsPaletteRoot({
   return {
     registry,
     sections,
+    fallback,
+    fallbackPending: fallbackSession.pending,
     entities,
     domainSections,
     query,
@@ -272,6 +309,7 @@ export function useOsPaletteRoot({
     destinationEmpty:
       destination && sections.length === 0 && entities.sessions.length === 0 && query === "",
     runCommand,
+    runFallback: query => void fallbackSession.run(query),
     runRowAction,
     openSession,
     goToTab,

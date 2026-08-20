@@ -529,8 +529,13 @@ func TestSettingsRoutesAndSchemas(t *testing.T) {
 		updateCmdPalette := operationFor(t, doc, "/api/settings/cmd-palette", "PATCH")
 		cmdPaletteRequestSchema := jsonRequestSchema(t, updateCmdPalette)
 		assertSchemaHasAdditionalProperties(t, cmdPaletteRequestSchema, false)
-		assertRequired(t, cmdPaletteRequestSchema, "personalization")
-		for _, status := range []int{200, 400, 403, 500} {
+		assertNotRequired(
+			t,
+			cmdPaletteRequestSchema,
+			"fallback_agent_enabled",
+			"personalization",
+		)
+		for _, status := range []int{200, 400, 403, 422, 500} {
 			assertResponseStatus(t, updateCmdPalette, status)
 		}
 
@@ -543,6 +548,7 @@ func TestSettingsRoutesAndSchemas(t *testing.T) {
 			"section",
 			"scope",
 			"available_scopes",
+			"fallback_agent_enabled",
 			"personalization",
 		)
 		assertNotRequired(t, cmdPaletteResponseSchema, "workspace_id", "agent_name")

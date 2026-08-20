@@ -388,6 +388,7 @@ export {
   useSessionCreatePendingAgentName,
   useSessionCreateStore,
 } from "./hooks/use-session-create";
+export { useSessionPromptFallback } from "./hooks/use-session-prompt-fallback";
 export { createSessionCreateStore, type SessionCreateStore } from "./stores/session-create-store";
 
 // Components

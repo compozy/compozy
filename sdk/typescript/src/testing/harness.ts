@@ -50,7 +50,7 @@ const DEFAULT_RUNTIME: InitializeRuntime = {
   default_view_timeout_ms: 3_000,
 };
 
-const DAEMON_METHODS = new Set(["execute_hook", "health_check", "shutdown"]);
+const DAEMON_METHODS = new Set(["health_check", "shutdown"]);
 
 export class TestHarness {
   private readonly mockedHostHandlers = new Map<

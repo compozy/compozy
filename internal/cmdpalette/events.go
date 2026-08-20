@@ -13,7 +13,13 @@ const (
 	EventCatalogChanged                 EventName = "cmd_palette.catalog.changed"
 	EventCommandInvoked                 EventName = "cmd_palette.command.invoked"
 	EventPinChanged                     EventName = "cmd_palette.pin.changed"
+	EventBindingChanged                 EventName = "cmd_palette.binding.changed"
+	EventAliasChanged                   EventName = "cmd_palette.alias.changed"
 	EventPersonalizationReset           EventName = "cmd_palette.personalization.reset"
+	EventViewSessionOpened              EventName = "cmd_palette.view_session.opened"
+	EventViewSessionClosed              EventName = "cmd_palette.view_session.closed"
+	EventViewSessionDegraded            EventName = "cmd_palette.view_session.degraded"
+	EventViewSessionCircuitBroken       EventName = "cmd_palette.view_session.circuit_broken"
 	EventGlobalHotkeyRegistrationFailed EventName = "global_hotkey.registration_failed"
 	eventSubscriberLimit                          = 32
 )
@@ -21,7 +27,7 @@ const (
 type Event struct {
 	Name            EventName   `json:"-"`
 	WorkspaceID     WorkspaceID `json:"workspace"`
-	CatalogRevision string      `json:"catalog_revision,omitempty"`
+	CatalogRevision string      `json:"revision,omitempty"`
 	CommandID       CommandID   `json:"command_id,omitempty"`
 	Pinned          *bool       `json:"pinned,omitempty"`
 	Source          string      `json:"source,omitempty"`
@@ -31,9 +37,44 @@ type Event struct {
 	InvocationID    string      `json:"invocation_id,omitempty"`
 	ApprovalID      string      `json:"approval_id,omitempty"`
 	ClientID        ClientID    `json:"client_id,omitempty"`
+	ViewID          string      `json:"view,omitempty"`
+	Extension       string      `json:"extension,omitempty"`
+	ViewSessionID   string      `json:"view_session,omitempty"`
 	Chord           string      `json:"chord,omitempty"`
 	Reason          string      `json:"reason,omitempty"`
 	OccurredAt      time.Time   `json:"occurred_at"`
+}
+
+// NotifyBindingChanged records one effective shortcut mutation.
+func (s *Service) NotifyBindingChanged(
+	ctx context.Context,
+	workspaceID WorkspaceID,
+	commandID CommandID,
+) {
+	s.emit(ctx, Event{
+		Name: EventBindingChanged, WorkspaceID: workspaceID, CommandID: commandID,
+	})
+}
+
+// NotifyAliasChanged records one effective alias mutation.
+func (s *Service) NotifyAliasChanged(
+	ctx context.Context,
+	workspaceID WorkspaceID,
+	commandID CommandID,
+) {
+	s.emit(ctx, Event{
+		Name: EventAliasChanged, WorkspaceID: workspaceID, CommandID: commandID,
+	})
+}
+
+func (s *Service) emitViewSessionEvent(ctx context.Context, name EventName, session *viewSession) {
+	if session == nil {
+		return
+	}
+	s.emit(ctx, Event{
+		Name: name, WorkspaceID: session.workspace, ViewID: session.view,
+		Extension: session.extension, ClientID: session.client, ViewSessionID: session.id,
+	})
 }
 
 // NotifyGlobalHotkeyRegistrationFailed records one shell registration failure.

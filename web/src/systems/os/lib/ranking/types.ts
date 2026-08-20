@@ -50,3 +50,8 @@ export interface RankingSection<T extends RankingCandidate = RankingCandidate> {
   readonly candidates: readonly RankedCandidate<T>[];
   readonly total: number;
 }
+
+export interface RankingAssembly<T extends RankingCandidate = RankingCandidate> {
+  readonly sections: readonly RankingSection<T>[];
+  readonly fallback: boolean;
+}

@@ -90,7 +90,18 @@ func (s *service) updateWindowManagerSection(
 		desired,
 		desiredAliases,
 	)
-	return s.updateScopedConfigSection(
+	bindingChanges := changedBindingCommandIDs(loaded.config.WindowManager, desired)
+	aliasChanges := changedAliasCommandIDs(loaded.config.CmdPalette.Aliases, desiredAliases)
+	eventWorkspaces, err := s.cmdPaletteEventWorkspaces(
+		ctx,
+		loaded.scope,
+		loaded.workspaceID,
+		len(bindingChanges)+len(aliasChanges) > 0,
+	)
+	if err != nil {
+		return MutationResult{}, err
+	}
+	result, err := s.updateScopedConfigSection(
 		req.Section,
 		changed,
 		loaded.target,
@@ -101,4 +112,9 @@ func (s *service) updateWindowManagerSection(
 			return applyWindowManagerSettings(editor, desired, desiredAliases)
 		},
 	)
+	if err != nil {
+		return MutationResult{}, err
+	}
+	s.emitCmdPaletteSettingsEvents(ctx, eventWorkspaces, bindingChanges, aliasChanges)
+	return result, nil
 }

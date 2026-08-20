@@ -164,7 +164,7 @@ sort = "last_activity"
 scope = "recent"
 
 [cmd_palette]
-# Ordered fallback targets. The current runtime accepts "agent".
+# The current runtime accepts "agent". Use [] to disable the fallback row.
 fallback_targets = ["agent"]
 # Keep workspace ranking signals and recents enabled.
 personalization = true
@@ -980,13 +980,18 @@ workspace-scoped CLI or native-tool writes are rejected.
 ## `[cmd_palette]`
 
 Command-palette settings are global desired state with workspace overrides. Changes apply live as
-one validated candidate. The typed Settings surface exposes `personalization`; `fallback_targets`
-and `aliases` remain available through `compozy config` and `config.toml`.
+one validated candidate. The typed Settings surface exposes the agent fallback and
+`personalization`; aliases remain available through `compozy config` and `config.toml`.
 
-| Field              | Type         | Default     | Validation                              | Description                                       |
-| ------------------ | ------------ | ----------- | --------------------------------------- | ------------------------------------------------- |
-| `fallback_targets` | string array | `["agent"]` | Non-empty; every entry must be `agent`. | Declares the ordered command fallback targets.    |
-| `personalization`  | boolean      | `true`      | `true` or `false`                       | Controls workspace personalization desired state. |
+| Field              | Type         | Default     | Validation                                    | Description                                       |
+| ------------------ | ------------ | ----------- | --------------------------------------------- | ------------------------------------------------- |
+| `fallback_targets` | string array | `["agent"]` | Empty, or the single supported value `agent`. | Enables or disables the agent fallback row.       |
+| `personalization`  | boolean      | `true`      | `true` or `false`                             | Controls workspace personalization desired state. |
+
+With `fallback_targets = ["agent"]`, a non-empty query without a strong result can show
+`Ask agent: '<query>'`. Selecting it with Enter creates a new session with the workspace's default
+agent and uses the query as the opening prompt. The query is not sent before Enter. Set
+`fallback_targets = []`, or turn off **Agent fallback** in Settings → Palette, to remove the row.
 
 `[cmd_palette.aliases]` maps a command ID to one workspace alias. An alias contains 1–32 Unicode
 characters with no whitespace and must be unique in the workspace. Use

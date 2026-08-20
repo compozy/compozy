@@ -136800,6 +136800,9 @@
                       },
                       "type": "array"
                     },
+                    "fallback_agent_enabled": {
+                      "type": "boolean"
+                    },
                     "personalization": {
                       "type": "boolean"
                     },
@@ -136833,6 +136836,7 @@
                   },
                   "required": [
                     "available_scopes",
+                    "fallback_agent_enabled",
                     "personalization",
                     "scope",
                     "section"
@@ -137102,14 +137106,15 @@
               "schema": {
                 "additionalProperties": false,
                 "properties": {
+                  "fallback_agent_enabled": {
+                    "nullable": true,
+                    "type": "boolean"
+                  },
                   "personalization": {
                     "nullable": true,
                     "type": "boolean"
                   }
                 },
-                "required": [
-                  "personalization"
-                ],
                 "type": "object"
               }
             }
@@ -137133,6 +137138,9 @@
                         "type": "string"
                       },
                       "type": "array"
+                    },
+                    "fallback_agent_enabled": {
+                      "type": "boolean"
                     },
                     "personalization": {
                       "type": "boolean"
@@ -137167,6 +137175,7 @@
                   },
                   "required": [
                     "available_scopes",
+                    "fallback_agent_enabled",
                     "personalization",
                     "scope",
                     "section"
@@ -137395,6 +137404,79 @@
               }
             },
             "description": "Workspace not found"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "code": {
+                      "type": "string"
+                    },
+                    "details": {
+                      "additionalProperties": {
+                        "type": "string"
+                      },
+                      "type": "object"
+                    },
+                    "diagnostic": {
+                      "nullable": true,
+                      "properties": {
+                        "category": {
+                          "type": "string"
+                        },
+                        "code": {
+                          "type": "string"
+                        },
+                        "data_freshness": {
+                          "type": "string"
+                        },
+                        "doc_url": {
+                          "type": "string"
+                        },
+                        "evidence": {
+                          "additionalProperties": {},
+                          "type": "object"
+                        },
+                        "id": {
+                          "type": "string"
+                        },
+                        "message": {
+                          "type": "string"
+                        },
+                        "severity": {
+                          "type": "string"
+                        },
+                        "suggested_command": {
+                          "type": "string"
+                        },
+                        "title": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "category",
+                        "code",
+                        "data_freshness",
+                        "id",
+                        "message",
+                        "severity",
+                        "title"
+                      ],
+                      "type": "object"
+                    },
+                    "error": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "error"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Invalid settings payload"
           },
           "500": {
             "content": {

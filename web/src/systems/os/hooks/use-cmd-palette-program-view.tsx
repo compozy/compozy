@@ -26,6 +26,7 @@ import type {
   CmdPaletteViewEnvelope,
   CmdPaletteViewFrame,
 } from "../lib/cmd-palette-types";
+import { finalizeCmdPaletteViewEffects } from "../lib/cmd-palette-view-effects";
 import type { PaletteViewContent } from "../lib/palette-view-registry";
 import {
   cmdPaletteViewProgramLogic,
@@ -250,8 +251,8 @@ export function useCmdPaletteProgramView({
     );
     if (pending.length === 0) return;
     for (const effect of pending) executedEffectsRef.current.add(effect.id);
-    void Promise.allSettled(pending.map(executeEffect)).then(() => {
-      store.trigger.effectsAcknowledged({ ids: pending.map(effect => effect.id) });
+    void Promise.allSettled(pending.map(executeEffect)).then(results => {
+      store.trigger.effectsAcknowledged({ ids: finalizeCmdPaletteViewEffects(pending, results) });
     });
   }, [state.frame?.effects, store]);
 

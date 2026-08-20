@@ -105,7 +105,14 @@ type WindowManagerExtensionDefault struct {
 
 // CmdPaletteSection is the command-palette settings read model.
 type CmdPaletteSection struct {
-	Personalization bool
+	FallbackAgentEnabled bool
+	Personalization      bool
+}
+
+// CmdPaletteUpdate changes either live command-palette control while preserving omitted values.
+type CmdPaletteUpdate struct {
+	FallbackAgentEnabled *bool
+	Personalization      *bool
 }
 
 // AttentionSection is the operator attention section read model.

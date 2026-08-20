@@ -52,46 +52,6 @@ func TestRunHook(t *testing.T) {
 	})
 }
 
-func TestSecretGuardRuntimeHandleExecuteHook(t *testing.T) {
-	t.Parallel()
-
-	t.Run("Should deny when a context block contains a secret", func(t *testing.T) {
-		t.Parallel()
-
-		payload := hookspkg.InputPreSubmitPayload{
-			Message: "hello",
-			ContextBlocks: []hookspkg.ContextBlock{
-				{Text: "sk-abc123"},
-			},
-		}
-
-		params := executeHookParams{}
-		params.Hook.Event = string(hookspkg.HookInputPreSubmit)
-		params.Payload = mustRawJSON(payload)
-
-		paramsJSON, err := json.Marshal(params)
-		if err != nil {
-			t.Fatalf("Marshal() error = %v", err)
-		}
-
-		response, err := (&secretGuardRuntime{}).handleExecuteHook(paramsJSON)
-		if err != nil {
-			t.Fatalf("handleExecuteHook() error = %v", err)
-		}
-
-		patch, ok := response.(hookspkg.InputPreSubmitPatch)
-		if !ok {
-			t.Fatalf("handleExecuteHook() type = %T, want hookspkg.InputPreSubmitPatch", response)
-		}
-		if !patch.Deny {
-			t.Fatalf("patch = %#v, want deny=true", patch)
-		}
-		if patch.DenyReason != "Context block contains a potential secret (sk-)" {
-			t.Fatalf("patch deny reason = %q, want context block secret reason", patch.DenyReason)
-		}
-	})
-}
-
 func TestSecretGuardShutdownLifecycle(t *testing.T) {
 	t.Parallel()
 

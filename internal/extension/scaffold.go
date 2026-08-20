@@ -29,7 +29,6 @@ type ScaffoldTemplate string
 const (
 	ScaffoldTemplateToolProviderTS  ScaffoldTemplate = "tool-provider-ts"
 	ScaffoldTemplateToolProviderGo  ScaffoldTemplate = "tool-provider-go"
-	ScaffoldTemplateHookTS          ScaffoldTemplate = "hook-ts"
 	ScaffoldTemplateMemoryBackendTS ScaffoldTemplate = "memory-backend-ts"
 	ScaffoldTemplateViewProviderTS  ScaffoldTemplate = "view-provider-ts"
 	// #nosec G101 -- this public scaffold identifier is not a credential.
@@ -39,7 +38,6 @@ const (
 )
 
 var scaffoldTemplates = []ScaffoldTemplate{
-	ScaffoldTemplateHookTS,
 	ScaffoldTemplateConnectivityProviderGo,
 	ScaffoldTemplateConnectivityProviderTS,
 	ScaffoldTemplateLoopWatchSourceGo,

@@ -67,7 +67,7 @@ const { desktopState } = vi.hoisted(() => ({
       effectiveShortcuts: {
         "workspace.picker": ["meta+control+KeyO", "meta+shift+KeyO"],
         "shortcuts.cheatsheet": ["shift+Slash", "meta+Slash"],
-        "ext.notes.capture": ["alt+shift+KeyN"],
+        "ext.notes.capture": ["alt+shift+KeyN", "meta+alt+KeyN"],
       },
     },
   },
@@ -150,5 +150,7 @@ describe("OsShortcutsDialog", () => {
     expect(screen.getByTestId("os-shortcut-row-ext.notes.capture")).toHaveTextContent(
       "Capture note (cap)"
     );
+    expect(screen.getByTestId("os-shortcut-row-ext.notes.capture")).toHaveTextContent("⌥⇧N");
+    expect(screen.getByTestId("os-shortcut-row-ext.notes.capture")).toHaveTextContent("⌘⌥N");
   });
 });

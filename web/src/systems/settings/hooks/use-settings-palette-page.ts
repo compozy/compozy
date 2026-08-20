@@ -1,17 +1,22 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
-import { cmdPaletteKeys } from "@/systems/os";
+import { notifyUser } from "@/lib/user-feedback";
+import { cmdPaletteKeys, resetCmdPalettePersonalization } from "@/systems/os";
 import { useActiveWorkspace } from "@/systems/workspace";
 
 import { updateSettingsCmdPalette } from "../adapters/settings-sections-api";
 import { settingsKeys } from "../lib/query-keys";
 import { settingsCmdPaletteOptions } from "../lib/query-options";
-import type { SettingsCmdPaletteFilter, SettingsCmdPaletteSection } from "../types";
+import type {
+  SettingsCmdPaletteFilter,
+  SettingsCmdPaletteSection,
+  SettingsUpdateCmdPaletteRequest,
+} from "../types";
 import { useSettingsPage } from "./use-settings-page";
 
 /** A write carries the scope it was made in, so a late answer cannot move. */
-interface PalettePersonalizationWrite {
-  personalization: boolean;
+interface PaletteSettingsWrite {
+  update: SettingsUpdateCmdPaletteRequest;
   filter: SettingsCmdPaletteFilter;
 }
 
@@ -26,7 +31,12 @@ export interface SettingsPalettePageModel {
   error: Error | null;
   saveError: string | null;
   restart: ReturnType<typeof useSettingsPage>["restart"];
+  scopeLabel: string;
+  setFallbackAgentEnabled: (enabled: boolean) => void;
   setPersonalization: (enabled: boolean) => void;
+  resetPersonalization: () => Promise<void>;
+  isResetting: boolean;
+  resetError: string | null;
   handleRetry: () => void;
 }
 
@@ -59,8 +69,8 @@ export function useSettingsPalettePage(): SettingsPalettePageModel {
       : { scope: "global" };
   const query = useQuery({ ...settingsCmdPaletteOptions(filter), enabled: settled });
   const mutation = useMutation({
-    mutationFn: (variables: PalettePersonalizationWrite) =>
-      updateSettingsCmdPalette({ personalization: variables.personalization }, variables.filter),
+    mutationFn: (variables: PaletteSettingsWrite) =>
+      updateSettingsCmdPalette(variables.update, variables.filter),
     // The scope travels with the write, not with the render. A write issued in
     // one workspace can land after the operator moved to another, and the
     // callback would otherwise file that answer under wherever they are now.
@@ -75,10 +85,35 @@ export function useSettingsPalettePage(): SettingsPalettePageModel {
     mutation.isPending &&
     mutation.variables !== undefined &&
     isSameScope(mutation.variables.filter, filter);
+  const pendingUpdate = mutation.variables?.update;
   const section =
     pendingHere && query.data !== undefined
-      ? { ...query.data, personalization: mutation.variables?.personalization ?? false }
+      ? {
+          ...query.data,
+          ...(typeof pendingUpdate?.fallback_agent_enabled === "boolean"
+            ? { fallback_agent_enabled: pendingUpdate.fallback_agent_enabled }
+            : {}),
+          ...(typeof pendingUpdate?.personalization === "boolean"
+            ? { personalization: pendingUpdate.personalization }
+            : {}),
+        }
       : (query.data ?? null);
+  const resetMutation = useMutation({
+    mutationFn: async () => {
+      if (workspace.runtimeWorkspaceId === null) {
+        throw new Error("The active workspace is not ready.");
+      }
+      await resetCmdPalettePersonalization(workspace.runtimeWorkspaceId);
+    },
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({ queryKey: cmdPaletteKeys.all });
+      notifyUser({ message: "Palette personalization reset.", tone: "success" });
+    },
+  });
+  const scopeLabel =
+    workspace.scope === "workspace"
+      ? (workspace.activeWorkspace?.name ?? workspace.activeWorkspaceId ?? "workspace")
+      : "Global";
 
   return {
     section,
@@ -87,10 +122,21 @@ export function useSettingsPalettePage(): SettingsPalettePageModel {
     error: query.error,
     saveError: mutation.error instanceof Error ? mutation.error.message : null,
     restart: page.restart,
+    scopeLabel,
+    setFallbackAgentEnabled: enabled => {
+      if (mutation.isPending) return;
+      mutation.mutate({ update: { fallback_agent_enabled: enabled }, filter });
+    },
     setPersonalization: enabled => {
       if (mutation.isPending) return;
-      mutation.mutate({ personalization: enabled, filter });
+      mutation.mutate({ update: { personalization: enabled }, filter });
     },
+    resetPersonalization: async () => {
+      if (resetMutation.isPending) return;
+      await resetMutation.mutateAsync();
+    },
+    isResetting: resetMutation.isPending,
+    resetError: resetMutation.error instanceof Error ? resetMutation.error.message : null,
     handleRetry: () => void query.refetch(),
   };
 }

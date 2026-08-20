@@ -92,7 +92,6 @@ func runServe(stdin io.Reader, stdout io.Writer, stderr io.Writer) error {
 	}
 
 	peer.handle("initialize", runtime.handleInitialize)
-	peer.handle("execute_hook", runtime.handleExecuteHook)
 	peer.handle("health_check", runtime.handleHealthCheck)
 	peer.handle("shutdown", runtime.handleShutdown)
 
@@ -111,20 +110,6 @@ type secretGuardRuntime struct {
 type runtimeSession struct {
 	request  subprocess.InitializeRequest
 	response subprocess.InitializeResponse
-}
-
-type executeHookParams struct {
-	InvocationID string `json:"invocation_id"`
-	Hook         struct {
-		Name     string            `json:"name"`
-		Event    string            `json:"event"`
-		Mode     string            `json:"mode"`
-		Required bool              `json:"required"`
-		Timeout  int64             `json:"timeout_ms"`
-		Source   string            `json:"source"`
-		Metadata map[string]string `json:"metadata,omitempty"`
-	} `json:"hook"`
-	Payload json.RawMessage `json:"payload"`
 }
 
 type hostSessionSummary struct {
@@ -360,7 +345,7 @@ func (r *secretGuardRuntime) handleInitialize(params json.RawMessage) (any, erro
 				request.Capabilities.GrantedPermissions...,
 			),
 		},
-		ImplementedMethods:  []string{"execute_hook", "health_check", "shutdown"},
+		ImplementedMethods:  []string{"health_check", "shutdown"},
 		SupportedHookEvents: []string{string(hookspkg.HookInputPreSubmit)},
 		Supports: subprocess.InitializeSupports{
 			HealthCheck: true,
@@ -453,24 +438,6 @@ func (r *secretGuardRuntime) sessionsListWithRetry(ctx context.Context) ([]hostS
 		lastErr = errors.New("secret-guard: sessions/list failed")
 	}
 	return nil, lastErr
-}
-
-func (r *secretGuardRuntime) handleExecuteHook(params json.RawMessage) (any, error) {
-	var request executeHookParams
-	if err := json.Unmarshal(params, &request); err != nil {
-		return nil, fmt.Errorf("secret-guard: decode execute_hook params: %w", err)
-	}
-
-	switch hookspkg.HookEvent(strings.TrimSpace(request.Hook.Event)) {
-	case hookspkg.HookInputPreSubmit:
-		var payload hookspkg.InputPreSubmitPayload
-		if err := json.Unmarshal(request.Payload, &payload); err != nil {
-			return nil, fmt.Errorf("secret-guard: decode input.pre_submit payload: %w", err)
-		}
-		return evaluateSecretGuard(payload), nil
-	default:
-		return map[string]any{}, nil
-	}
 }
 
 func (r *secretGuardRuntime) handleHealthCheck(json.RawMessage) (any, error) {

@@ -360,6 +360,36 @@ func TestRegistryCatalog(t *testing.T) {
 			t.Fatalf("recorded events = %#v, want %#v", recorded, event)
 		}
 	})
+
+	t.Run("Should correlate a bridge-reported global hotkey failure [IT-033]", func(t *testing.T) {
+		t.Parallel()
+		recorder := &recordingEventRecorder{}
+		service := testRegistryWithOptions(
+			staticTestProvider{commands: []Descriptor{testDescriptor("core.test")}},
+			nil,
+			nil,
+			&testExecutor{},
+			WithEventRecorder(recorder),
+		)
+		service.NotifyGlobalHotkeyRegistrationFailed(
+			t.Context(),
+			"ws-1",
+			"client-shell",
+			"palette.summon.global",
+			"meta+shift+Space",
+			"failed_permission",
+		)
+		events := recorder.recorded()
+		if len(events) != 1 {
+			t.Fatalf("recorded events = %#v, want one global-hotkey failure", events)
+		}
+		event := events[0]
+		if event.Name != EventGlobalHotkeyRegistrationFailed || event.WorkspaceID != "ws-1" ||
+			event.ClientID != "client-shell" || event.CommandID != "palette.summon.global" ||
+			event.Chord != "meta+shift+Space" || event.Reason != "failed_permission" {
+			t.Fatalf("global-hotkey event = %#v", event)
+		}
+	})
 }
 
 type contributionTestProvider struct {

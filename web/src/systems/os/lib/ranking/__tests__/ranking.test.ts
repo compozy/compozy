@@ -9,7 +9,7 @@ import { describe, expect, it } from "vitest";
 
 import {
   acceptGhostCompletion,
-  assembleRankingSections,
+  assembleRankingResults,
   compareRankedCandidates,
   decayFrecency,
   ghostCompletion,
@@ -189,15 +189,37 @@ describe("command palette ranking", () => {
       pins: ["pinned"],
       usage: [{ command_id: "recent", weight: 1, last_used_at: 10 }],
     });
-    expect(assembleRankingSections("", rows, signals).map(section => section.title)).toEqual([
-      "Pinned",
-      "Recents",
-      "Curated",
-    ]);
-    expect(assembleRankingSections("target", rows, signals)).toEqual([]);
     expect(
-      assembleRankingSections("tab target", rows, signals).map(section => section.title)
+      assembleRankingResults("", rows, signals).sections.map(section => section.title)
+    ).toEqual(["Pinned", "Recents", "Curated"]);
+    expect(assembleRankingResults("target", rows, signals).sections).toEqual([]);
+    expect(
+      assembleRankingResults("tab target", rows, signals).sections.map(section => section.title)
     ).toEqual(["Tabs"]);
+  });
+
+  it("assembles the agent fallback at the served weak-match boundary [UT-140]", () => {
+    const row = candidate("ask", "Ask");
+    const boundaryWeights: RankingWeights = {
+      ...weights,
+      fallback_weak_match_threshold: 120,
+      match_exact: 120,
+      promotion_command_floor: 0,
+    };
+    const boundary = assembleRankingResults("Ask", [row], snapshot({ weights: boundaryWeights }));
+    expect(boundary.sections[0]?.candidates[0]?.candidate.id).toBe("ask");
+    expect(boundary.fallback).toBe(true);
+
+    const below = assembleRankingResults(
+      "Ask",
+      [row],
+      snapshot({ weights: { ...boundaryWeights, match_exact: 119 } })
+    );
+    expect(below.sections).toEqual([]);
+    expect(below.fallback).toBe(true);
+
+    expect(assembleRankingResults("missing", [row], snapshot()).fallback).toBe(true);
+    expect(assembleRankingResults("", [row], snapshot()).fallback).toBe(false);
   });
 
   it("returns and accepts an unambiguous casing-preserving ghost only at end of input [UT-118, UT-119]", () => {

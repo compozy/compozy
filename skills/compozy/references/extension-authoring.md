@@ -46,7 +46,6 @@ extension cannot claim compatibility its SDK does not have.
 | -------------------------- | ---------------------------------------------- |
 | `tool-provider-ts`         | Agent-callable tools in TypeScript (default).  |
 | `tool-provider-go`         | Agent-callable tools in Go.                    |
-| `hook-ts`                  | A runtime hook that returns a payload patch.   |
 | `view-provider-ts`         | A programmable palette view with React.        |
 | `memory-backend-ts`        | The `memory.backend` provide surface.          |
 | `loop-watch-source-go`     | The `loop.watch_source` provide surface.       |
@@ -69,9 +68,9 @@ compozysdk.Tool[searchInput](extension, "search", compozysdk.ToolOptions{
 extension.Run(context.Background())
 ```
 
-TypeScript uses `new Extension({...})`, `extension.tool<TInput>(name, options, handler)`,
-`extension.handle("execute_hook", …)` for hook events declared in `supported_hook_events`, and
-`extension.start()`.
+TypeScript uses `new Extension({...})`, `extension.tool<TInput>(name, options, handler)`, and
+`extension.start()`. Hook resources run through their declared one-shot subprocess executor; the
+persistent extension protocol has no hook-execution method.
 
 Registering a tool adds `tool.provider` to `capabilities.provides` automatically; do not declare it.
 The handler name plus the extension name produce the tool ID `ext__<extension>__<tool>`: each segment

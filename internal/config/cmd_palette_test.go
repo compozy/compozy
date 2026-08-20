@@ -73,6 +73,16 @@ func TestCmdPaletteConfig(t *testing.T) {
 		}
 	})
 
+	t.Run("Should allow an empty fallback target list to disable delegation", func(t *testing.T) {
+		t.Parallel()
+
+		cfg := DefaultCmdPaletteConfig()
+		cfg.FallbackTargets = nil
+		if err := cfg.Validate(); err != nil {
+			t.Fatalf("Validate(empty fallback targets) error = %v", err)
+		}
+	})
+
 	t.Run("Should report duplicate alias ownership deterministically", func(t *testing.T) {
 		t.Parallel()
 

@@ -128,6 +128,14 @@ func TestRegistryMetadata(t *testing.T) {
 				t.Fatalf("MCP auth metadata for %q = %#v", name, metadata)
 			}
 		}
+		hotkey, ok := Lookup(GlobalHotkeyRegistrationFailed)
+		if !ok {
+			t.Fatalf("Lookup(%q) = false", GlobalHotkeyRegistrationFailed)
+		}
+		if hotkey.Family != "global_hotkey" || hotkey.Component != ComponentCmdPalette ||
+			hotkey.Outcome != OutcomeInfo || !hotkey.GlobalScope || hotkey.NotificationEligible {
+			t.Fatalf("global-hotkey metadata = %#v", hotkey)
+		}
 	})
 
 	t.Run("Should expose the workspace command-palette event family", func(t *testing.T) {
@@ -136,7 +144,13 @@ func TestRegistryMetadata(t *testing.T) {
 			CmdPaletteCatalogChanged,
 			CmdPaletteCommandInvoked,
 			CmdPalettePinChanged,
+			CmdPaletteBindingChanged,
+			CmdPaletteAliasChanged,
 			CmdPalettePersonalizationReset,
+			CmdPaletteViewSessionOpened,
+			CmdPaletteViewSessionClosed,
+			CmdPaletteViewSessionDegraded,
+			CmdPaletteViewSessionCircuit,
 		} {
 			metadata, ok := Lookup(name)
 			if !ok {

@@ -74,7 +74,7 @@ func (m *Manager) resolveBridgeRuntime(
 }
 
 func daemonRequestMethods() []string {
-	return []string{"execute_hook", managerHealthCheckKey, managerShutdownKey}
+	return []string{managerHealthCheckKey, managerShutdownKey}
 }
 
 func capabilityMethods(provides []string) []string {

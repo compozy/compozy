@@ -121,7 +121,8 @@ func (s *service) classifyCmdPaletteRequest(
 	if err != nil {
 		return lifecycle.Live
 	}
-	changed := diffCmdPaletteSettings(loaded.config.CmdPalette, *req.CmdPalette)
+	desired := desiredCmdPaletteSection(loaded.config.CmdPalette, *req.CmdPalette)
+	changed := diffCmdPaletteSettings(loaded.config.CmdPalette, desired)
 	return lifecycleForChangedPaths(changed, lifecycle.Live)
 }
 

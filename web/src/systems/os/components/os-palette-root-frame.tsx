@@ -44,7 +44,9 @@ export function OsPaletteRootFrame({
   // The actions hint is only true while there is a row to act on, and its chord
   // comes from the keymap the daemon serves.
   const actionsChord =
-    empty || model.destination ? undefined : model.registry.byId.get("palette.open")?.chords[0];
+    empty || model.destination || selected === model.fallback?.value
+      ? undefined
+      : model.registry.byId.get("palette.open")?.chords[0];
   return (
     <Command
       data-destination={model.destination ? "" : undefined}
@@ -97,7 +99,14 @@ export function OsPaletteRootFrame({
                 : EMPTY_COPY}
           </CommandEmpty>
         ) : null}
-        <OsPaletteResults onSelect={model.runCommand} pending={pending} sections={model.sections} />
+        <OsPaletteResults
+          fallback={model.fallback}
+          fallbackPending={model.fallbackPending}
+          pending={pending}
+          sections={model.sections}
+          onSelect={model.runCommand}
+          onSelectFallback={model.runFallback}
+        />
         <OsPaletteEntitySections
           destination={model.destination}
           entities={model.entities}

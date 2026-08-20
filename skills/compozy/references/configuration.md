@@ -162,10 +162,13 @@ Other `[roles]` routing keys and the fallback-chain rules live in `references/ru
 
 ## Window Manager
 
-`[cmd_palette]` owns ordered `fallback_targets` (currently the single value `agent`), the live
-`personalization` flag, and the `[cmd_palette.aliases]` command-to-alias map. Aliases are
+`[cmd_palette]` owns `fallback_targets`, the live `personalization` flag, and the
+`[cmd_palette.aliases]` command-to-alias map. `fallback_targets = ["agent"]` enables the agent row for
+a non-empty query without a strong result; `[]` disables it. Enter creates a new default-agent
+session with the query as its opening prompt, and no query is sent before Enter. Aliases are
 workspace-scoped vocabulary: 1–32 characters, no whitespace, and unique per workspace. Read or
-write scalar settings with `compozy config get|set cmd_palette.<key>`. Use
+write scalar settings with `compozy config get|set cmd_palette.<key>`. Use the typed
+`GET|PATCH /api/settings/cmd-palette` surface for live fallback and personalization controls, and
 `compozy cmd-palette alias set|clear` for atomic alias changes through the daemon.
 
 `[window_manager]` controls global behavior defaults for new-window placement, small-viewport

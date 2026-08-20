@@ -40,3 +40,6 @@ QA 2026-08-16 Herdr parity: The full Web E2E, daemon settings contract suites, a
 2026-08-19 qa-impact: Shortcut settings now cover every registry command, add workspace-scoped aliases,
 and apply rebinds live through the daemon-owned keymap. Reset to `untested`; task 12 owns the isolated
 persona walk and visual-contract evidence.
+
+2026-08-20 qa-impact: Palette fallback and live Palette settings now share the same root assembly.
+Keep this scenario `untested`; task 12 owns the keyboard and cross-surface re-walk.

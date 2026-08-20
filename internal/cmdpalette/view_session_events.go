@@ -5,9 +5,14 @@ import (
 	"errors"
 	"fmt"
 	"strings"
+	"time"
 )
 
-const maxViewActionFlights = 4
+const (
+	maxViewActionFlights     = 4
+	defaultViewHardAckBudget = 3 * time.Second
+	viewSessionCircuitMisses = 3
+)
 
 // AdmitEvent applies effect acknowledgements, enforces admission caps, and
 // starts the extension handler without tying its lifetime to the HTTP request.
@@ -73,8 +78,49 @@ func (s *Service) AdmitEvent(ctx context.Context, token SessionToken, event View
 	extension := session.extension
 	s.viewSessionMu.Unlock()
 
+	go s.watchViewEventDeadline(flightCtx, session, event.Generation)
 	go s.runViewEvent(flightCtx, session, extension, event, coalescible)
 	return nil
+}
+
+func (s *Service) watchViewEventDeadline(
+	ctx context.Context,
+	session *viewSession,
+	generation uint64,
+) {
+	budget := s.viewAckBudget
+	if budget <= 0 {
+		budget = defaultViewHardAckBudget
+	}
+	timer := time.NewTimer(budget)
+	defer timer.Stop()
+	select {
+	case <-ctx.Done():
+		return
+	case <-timer.C:
+	}
+
+	s.viewSessionMu.Lock()
+	if s.viewSessions[session.id] != session || !viewGenerationActiveLocked(session, generation) ||
+		session.hardMisses >= viewSessionCircuitMisses {
+		s.viewSessionMu.Unlock()
+		return
+	}
+	session.hardMisses++
+	name := EventViewSessionDegraded
+	if session.hardMisses == viewSessionCircuitMisses {
+		name = EventViewSessionCircuitBroken
+	}
+	s.viewSessionMu.Unlock()
+	s.emitViewSessionEvent(session.ctx, name, session)
+}
+
+func viewGenerationActiveLocked(session *viewSession, generation uint64) bool {
+	if session.coalescible != nil && session.coalescible.generation == generation {
+		return true
+	}
+	_, exists := session.actions[generation]
+	return exists
 }
 
 // PublishFrame validates extension ownership, causal freshness, revision order,
@@ -207,6 +253,9 @@ func validateViewFrameCausalityLocked(session *viewSession, frame ViewFrame) err
 }
 
 func (s *Service) acceptViewFrameLocked(session *viewSession, frame ViewFrame) {
+	if frame.InReplyTo > 0 {
+		session.hardMisses = 0
+	}
 	session.frameNumber++
 	for _, handler := range frame.Handlers {
 		session.handlers[handler] = session.frameNumber

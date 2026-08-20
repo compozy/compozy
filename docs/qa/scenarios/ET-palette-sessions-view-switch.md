@@ -38,3 +38,6 @@ could not meet the qa-execution evidence standard.
 2026-08-19 qa-impact: Sessions was re-registered through the generalized domain-view registry, and
 the same grammar now serves every list-bearing domain. Re-walk Sessions selection survival,
 attention order, state filters, truthful counts, zero-match clearing, and scope persistence.
+
+2026-08-20 qa-impact: Root fallback assembly and default-agent session creation now share the
+session landing path. Keep this scenario `untested`; task 12 owns the isolated re-walk.

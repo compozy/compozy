@@ -867,21 +867,22 @@ func TestUpdateSectionWindowManager(t *testing.T) {
 		homePaths := testHomePaths(t)
 		writeFile(t, homePaths.ConfigFile, baseSettingsConfig())
 		workspaceRoot := t.TempDir()
+		paletteEvents := &recordingCmdPaletteCatalog{catalog: cmdpalette.Catalog{Commands: []cmdpalette.ResolvedCommand{
+			{Descriptor: cmdpalette.Descriptor{
+				ID: "session.new", Source: cmdpalette.Source{Kind: cmdpalette.SourceKindCore},
+			}},
+			{Descriptor: cmdpalette.Descriptor{
+				ID: "ext.notes.capture",
+				Source: cmdpalette.Source{
+					Kind: cmdpalette.SourceKindExtension, Extension: "notes",
+				},
+			}},
+		}}}
 		service := testService(t, homePaths, Dependencies{
 			WorkspaceResolver: fakeWorkspaceResolver{resolved: map[string]workspacepkg.ResolvedWorkspace{
 				"ws-1": {Workspace: workspacepkg.Workspace{ID: "ws-1", RootDir: workspaceRoot}},
 			}},
-			CmdPalette: fakeCmdPaletteCatalog{catalog: cmdpalette.Catalog{Commands: []cmdpalette.ResolvedCommand{
-				{Descriptor: cmdpalette.Descriptor{
-					ID: "session.new", Source: cmdpalette.Source{Kind: cmdpalette.SourceKindCore},
-				}},
-				{Descriptor: cmdpalette.Descriptor{
-					ID: "ext.notes.capture",
-					Source: cmdpalette.Source{
-						Kind: cmdpalette.SourceKindExtension, Extension: "notes",
-					},
-				}},
-			}}},
+			CmdPalette: paletteEvents,
 		})
 		shortcuts := map[string]windowmanager.ShortcutBinding{
 			"ext.notes.capture": {"alt+shift+KeyN"},
@@ -913,13 +914,58 @@ func TestUpdateSectionWindowManager(t *testing.T) {
 		if got, want := loaded.CmdPalette.Aliases["ext.notes.capture"], "cap"; got != want {
 			t.Fatalf("extension alias = %q, want %q", got, want)
 		}
+		events := paletteEvents.recorded()
+		if len(events) != 2 || events[0].Name != cmdpalette.EventBindingChanged ||
+			events[1].Name != cmdpalette.EventAliasChanged {
+			t.Fatalf("command palette settings events = %#v, want binding then alias", events)
+		}
+		for index, event := range events {
+			if event.WorkspaceID != "ws-1" || event.CommandID != "ext.notes.capture" {
+				t.Fatalf("settings event[%d] correlation = %#v", index, event)
+			}
+		}
+	})
+
+	t.Run("Should emit global binding changes once per registered workspace [IT-033]", func(t *testing.T) {
+		t.Parallel()
+
+		homePaths := testHomePaths(t)
+		writeFile(t, homePaths.ConfigFile, baseSettingsConfig())
+		paletteEvents := &recordingCmdPaletteCatalog{}
+		service := testService(t, homePaths, Dependencies{
+			WorkspaceResolver: fakeWorkspaceResolver{listed: []workspacepkg.Workspace{
+				{ID: "ws-b"}, {ID: "ws-a"}, {ID: "ws-b"},
+			}},
+			CmdPalette: paletteEvents,
+		})
+		shortcuts := map[string]windowmanager.ShortcutBinding{
+			"palette.open": {"meta+alt+KeyP"},
+		}
+		if _, err := service.UpdateSection(t.Context(), SectionUpdateRequest{
+			SectionRequest:         SectionRequest{Section: SectionWindowManager},
+			WindowManagerShortcuts: &shortcuts,
+		}); err != nil {
+			t.Fatalf("UpdateSection(global shortcut) error = %v", err)
+		}
+		events := paletteEvents.recorded()
+		if len(events) != 2 {
+			t.Fatalf("global binding events = %#v, want one per unique workspace", events)
+		}
+		if events[0].WorkspaceID != "ws-a" || events[1].WorkspaceID != "ws-b" {
+			t.Fatalf("global binding workspaces = %#v, want sorted ws-a / ws-b", events)
+		}
+		for index, event := range events {
+			if event.Name != cmdpalette.EventBindingChanged || event.CommandID != "palette.open" {
+				t.Fatalf("global binding event[%d] = %#v", index, event)
+			}
+		}
 	})
 }
 
 func TestUpdateSectionCmdPalette(t *testing.T) {
 	t.Parallel()
 
-	t.Run("Should persist personalization as a live scalar mutation", func(t *testing.T) {
+	t.Run("Should persist both command palette controls as live scalar mutations [IT-015]", func(t *testing.T) {
 		t.Parallel()
 
 		ctx := context.Background()
@@ -929,7 +975,10 @@ func TestUpdateSectionCmdPalette(t *testing.T) {
 
 		result, err := service.UpdateSection(ctx, SectionUpdateRequest{
 			SectionRequest: SectionRequest{Section: SectionCmdPalette},
-			CmdPalette:     &CmdPaletteSection{Personalization: false},
+			CmdPalette: &CmdPaletteUpdate{
+				FallbackAgentEnabled: new(false),
+				Personalization:      new(false),
+			},
 		})
 		if err != nil {
 			t.Fatalf("UpdateSection(cmd-palette) error = %v", err)
@@ -944,8 +993,35 @@ func TestUpdateSectionCmdPalette(t *testing.T) {
 		if loaded.CmdPalette.Personalization {
 			t.Fatal("CmdPalette personalization = true, want false")
 		}
-		if got, want := loaded.CmdPalette.FallbackTargets, []string{"agent"}; !slices.Equal(got, want) {
-			t.Fatalf("CmdPalette fallback targets = %q, want %q", got, want)
+		if len(loaded.CmdPalette.FallbackTargets) != 0 {
+			t.Fatalf("CmdPalette fallback targets = %q, want disabled", loaded.CmdPalette.FallbackTargets)
+		}
+	})
+
+	t.Run("Should preserve an omitted command palette control", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := context.Background()
+		homePaths := testHomePaths(t)
+		writeFile(t, homePaths.ConfigFile, baseSettingsConfig())
+		service := testService(t, homePaths, Dependencies{})
+
+		result, err := service.UpdateSection(ctx, SectionUpdateRequest{
+			SectionRequest: SectionRequest{Section: SectionCmdPalette},
+			CmdPalette:     &CmdPaletteUpdate{FallbackAgentEnabled: new(false)},
+		})
+		if err != nil {
+			t.Fatalf("UpdateSection(cmd-palette fallback) error = %v", err)
+		}
+		if result.Lifecycle != lifecycle.Live || !result.Applied || result.RestartRequired {
+			t.Fatalf("UpdateSection(cmd-palette fallback) = %#v, want live applied mutation", result)
+		}
+		loaded, err := compozyconfig.LoadForHome(homePaths)
+		if err != nil {
+			t.Fatalf("LoadForHome(cmd-palette fallback) error = %v", err)
+		}
+		if len(loaded.CmdPalette.FallbackTargets) != 0 || !loaded.CmdPalette.Personalization {
+			t.Fatalf("CmdPalette = %#v, want fallback off and personalization preserved", loaded.CmdPalette)
 		}
 	})
 }
@@ -5302,6 +5378,52 @@ type fakeTransportParityProvider struct {
 
 type fakeCmdPaletteCatalog struct {
 	catalog cmdpalette.Catalog
+}
+
+type recordingCmdPaletteCatalog struct {
+	mu      sync.Mutex
+	catalog cmdpalette.Catalog
+	events  []cmdpalette.Event
+}
+
+func (r *recordingCmdPaletteCatalog) Catalog(
+	context.Context,
+	cmdpalette.WorkspaceID,
+	cmdpalette.ClientID,
+) (cmdpalette.Catalog, error) {
+	return r.catalog, nil
+}
+
+func (r *recordingCmdPaletteCatalog) NotifyBindingChanged(
+	_ context.Context,
+	workspaceID cmdpalette.WorkspaceID,
+	commandID cmdpalette.CommandID,
+) {
+	r.record(cmdpalette.Event{
+		Name: cmdpalette.EventBindingChanged, WorkspaceID: workspaceID, CommandID: commandID,
+	})
+}
+
+func (r *recordingCmdPaletteCatalog) NotifyAliasChanged(
+	_ context.Context,
+	workspaceID cmdpalette.WorkspaceID,
+	commandID cmdpalette.CommandID,
+) {
+	r.record(cmdpalette.Event{
+		Name: cmdpalette.EventAliasChanged, WorkspaceID: workspaceID, CommandID: commandID,
+	})
+}
+
+func (r *recordingCmdPaletteCatalog) record(event cmdpalette.Event) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	r.events = append(r.events, event)
+}
+
+func (r *recordingCmdPaletteCatalog) recorded() []cmdpalette.Event {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	return append([]cmdpalette.Event(nil), r.events...)
 }
 
 func (f fakeCmdPaletteCatalog) Catalog(

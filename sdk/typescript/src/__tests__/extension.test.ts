@@ -87,12 +87,8 @@ function initializeFor(extension: Extension): InitializeRequest {
       granted_resource_scopes: [],
     },
     methods: {
-      daemon_requests: methods.filter(method =>
-        ["execute_hook", "health_check", "shutdown"].includes(method)
-      ),
-      extension_services: methods.filter(
-        method => !["execute_hook", "health_check", "shutdown"].includes(method)
-      ),
+      daemon_requests: methods.filter(method => ["health_check", "shutdown"].includes(method)),
+      extension_services: methods.filter(method => !["health_check", "shutdown"].includes(method)),
     },
     runtime: {
       health_check_interval_ms: 30_000,

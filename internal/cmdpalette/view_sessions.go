@@ -16,6 +16,7 @@ type viewSession struct {
 	streamToken        string
 	workspace          WorkspaceID
 	client             ClientID
+	view               string
 	extension          string
 	instanceGeneration uint64
 	kind               ViewKind
@@ -35,6 +36,7 @@ type viewSession struct {
 	rejectedGenerations map[uint64]struct{}
 	coalescible         *viewEventFlight
 	actions             map[uint64]viewEventFlight
+	hardMisses          int
 }
 
 type viewEventFlight struct {
@@ -123,6 +125,7 @@ func (s *Service) CloseClientSessions(
 
 	var closeErr error
 	for _, session := range closed {
+		s.emitViewSessionEvent(ctx, EventViewSessionClosed, session)
 		if err := s.closeViewProgram(ctx, session.workspace, session.extension, ViewCloseRequest{
 			ViewSession: session.id,
 			Reason:      "client_disconnected",
@@ -162,6 +165,7 @@ func (s *Service) InvalidateInstance(
 	}
 	s.viewSessionMu.Unlock()
 	for _, session := range invalidated {
+		s.emitViewSessionEvent(ctx, EventViewSessionClosed, session)
 		s.logger.Info(
 			"cmd palette view session invalidated",
 			"view_session", session.id,
@@ -224,6 +228,7 @@ func (s *Service) removeViewSession(
 	delete(s.viewSessions, id)
 	cancelViewSessionLocked(session)
 	s.viewSessionMu.Unlock()
+	s.emitViewSessionEvent(session.ctx, EventViewSessionClosed, session)
 	if !notifyProgram || s.viewPrograms == nil {
 		return nil
 	}

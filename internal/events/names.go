@@ -156,7 +156,13 @@ const (
 	CmdPaletteCatalogChanged       = "cmd_palette.catalog.changed"
 	CmdPaletteCommandInvoked       = "cmd_palette.command.invoked"
 	CmdPalettePinChanged           = "cmd_palette.pin.changed"
+	CmdPaletteBindingChanged       = "cmd_palette.binding.changed"
+	CmdPaletteAliasChanged         = "cmd_palette.alias.changed"
 	CmdPalettePersonalizationReset = "cmd_palette.personalization.reset"
+	CmdPaletteViewSessionOpened    = "cmd_palette.view_session.opened"
+	CmdPaletteViewSessionClosed    = "cmd_palette.view_session.closed"
+	CmdPaletteViewSessionDegraded  = "cmd_palette.view_session.degraded"
+	CmdPaletteViewSessionCircuit   = "cmd_palette.view_session.circuit_broken"
 	GlobalHotkeyRegistrationFailed = "global_hotkey.registration_failed"
 
 	ProviderAuthRequired          = "provider.auth_required"

@@ -9,6 +9,7 @@ import (
 	"strings"
 	"sync"
 	"testing"
+	"time"
 )
 
 func TestViewPayloadValidation(t *testing.T) {
@@ -293,6 +294,129 @@ func TestViewService(t *testing.T) {
 
 func TestViewProgramSessions(t *testing.T) {
 	t.Parallel()
+
+	t.Run("Should emit the correlated programmable-view lifecycle [IT-033]", func(t *testing.T) {
+		t.Parallel()
+		program := newViewProgramProviderStub()
+		recorder := &recordingEventRecorder{wake: make(chan struct{}, 16)}
+		service := testRegistryWithOptions(
+			staticTestProvider{commands: []Descriptor{testDescriptor("test.command")}},
+			&testClientDirectory{
+				clients: []Client{{ID: "client-a", WorkspaceID: "workspace-a"}},
+				tokens:  map[ClientID]string{"client-a": "token-a"},
+			},
+			nil,
+			&testExecutor{},
+			WithViewProviders([]ViewProviderRegistration{{
+				Descriptor: ViewDescriptor{
+					ID: "ext.notes.browser", Title: "Notes", Kind: ViewKindList,
+					Program: true, Extension: "notes",
+				},
+				Provider: &viewSourceProviderStub{},
+			}}),
+			WithViewProgramProvider(program),
+			WithEventRecorder(recorder),
+		)
+		service.viewAckBudget = 10 * time.Millisecond
+		opened, err := service.OpenSession(t.Context(), ViewSessionOpenRequest{
+			Workspace: "workspace-a", Client: "client-a", AttachmentToken: "token-a",
+			View: "ext.notes.browser",
+		})
+		if err != nil {
+			t.Fatalf("OpenSession() error = %v", err)
+		}
+		token := SessionToken{ViewSession: opened.Token.ViewSession, AttachmentToken: "token-a"}
+		for seq := int64(1); seq <= viewSessionCircuitMisses; seq++ {
+			if err := service.AdmitEvent(t.Context(), token, ViewEvent{
+				Handler: "h_search", Revision: "vr_1", Seq: seq,
+			}); err != nil {
+				t.Fatalf("AdmitEvent(seq=%d) error = %v", seq, err)
+			}
+		}
+		waitForRecordedEvents(t, recorder, 1+viewSessionCircuitMisses)
+		if err := service.CloseSession(t.Context(), token, "palette_dismissed"); err != nil {
+			t.Fatalf("CloseSession() error = %v", err)
+		}
+		waitForRecordedEvents(t, recorder, 2+viewSessionCircuitMisses)
+
+		events := recorder.recorded()
+		if len(events) != 5 {
+			t.Fatalf("recorded events = %#v, want 5 lifecycle events", events)
+		}
+		if events[0].Name != EventViewSessionOpened || events[len(events)-1].Name != EventViewSessionClosed {
+			t.Fatalf("lifecycle endpoints = %q / %q, want opened / closed", events[0].Name, events[len(events)-1].Name)
+		}
+		degraded, circuitBroken := 0, 0
+		for index, event := range events {
+			switch event.Name {
+			case EventViewSessionDegraded:
+				degraded++
+			case EventViewSessionCircuitBroken:
+				circuitBroken++
+			}
+			if event.WorkspaceID != "workspace-a" || event.ViewID != "ext.notes.browser" ||
+				event.Extension != "notes" || event.ClientID != "client-a" ||
+				event.ViewSessionID != opened.Token.ViewSession {
+				t.Fatalf("event[%d] correlation = %#v", index, event)
+			}
+		}
+		if degraded != 2 || circuitBroken != 1 {
+			t.Fatalf("lifecycle misses = degraded:%d circuit:%d, want 2 / 1", degraded, circuitBroken)
+		}
+	})
+
+	t.Run("Should keep frame pushes and admitted keystrokes out of the event matrix [IT-033]", func(t *testing.T) {
+		t.Parallel()
+		program := newViewProgramProviderStub()
+		recorder := &recordingEventRecorder{}
+		service := testRegistryWithOptions(
+			staticTestProvider{commands: []Descriptor{testDescriptor("test.command")}},
+			&testClientDirectory{
+				clients: []Client{{ID: "client-a", WorkspaceID: "workspace-a"}},
+				tokens:  map[ClientID]string{"client-a": "token-a"},
+			},
+			nil,
+			&testExecutor{},
+			WithViewProviders([]ViewProviderRegistration{{
+				Descriptor: ViewDescriptor{
+					ID: "ext.notes.browser", Title: "Notes", Kind: ViewKindList,
+					Program: true, Extension: "notes",
+				},
+				Provider: &viewSourceProviderStub{},
+			}}),
+			WithViewProgramProvider(program),
+			WithEventRecorder(recorder),
+		)
+		opened, err := service.OpenSession(t.Context(), ViewSessionOpenRequest{
+			Workspace: "workspace-a", Client: "client-a", AttachmentToken: "token-a",
+			View: "ext.notes.browser",
+		})
+		if err != nil {
+			t.Fatalf("OpenSession() error = %v", err)
+		}
+		extensionToken := SessionToken{ViewSession: opened.Token.ViewSession, Extension: "notes"}
+		if err := service.PublishFrame(
+			t.Context(),
+			extensionToken,
+			viewProgramFrame(opened.Token.ViewSession, "vr_push", 0, 0),
+		); err != nil {
+			t.Fatalf("PublishFrame() error = %v", err)
+		}
+		clientToken := SessionToken{
+			ViewSession: opened.Token.ViewSession, AttachmentToken: "token-a",
+		}
+		if err := service.AdmitEvent(t.Context(), clientToken, ViewEvent{
+			Handler: "h_search", Args: []any{"query", 1}, Revision: "vr_push", Seq: 1,
+		}); err != nil {
+			t.Fatalf("AdmitEvent() error = %v", err)
+		}
+		if events := recorder.recorded(); len(events) != 1 || events[0].Name != EventViewSessionOpened {
+			t.Fatalf("events after push and keystroke = %#v, want opened only", events)
+		}
+		if err := service.CloseSession(t.Context(), clientToken, "palette_dismissed"); err != nil {
+			t.Fatalf("CloseSession() error = %v", err)
+		}
+	})
 
 	t.Run("Should admit generation-zero pushes only before the first event", func(t *testing.T) {
 		t.Parallel()
@@ -630,6 +754,19 @@ func viewProgramFrame(sessionID, revision string, generation uint64, reply int64
 	return ViewFrame{
 		ViewSession: sessionID, Revision: revision, Generation: generation, InReplyTo: reply,
 		Payload: &payload, Handlers: []string{"h_search"},
+	}
+}
+
+func waitForRecordedEvents(t *testing.T, recorder *recordingEventRecorder, count int) {
+	t.Helper()
+	timer := time.NewTimer(time.Second)
+	defer timer.Stop()
+	for len(recorder.recorded()) < count {
+		select {
+		case <-recorder.wake:
+		case <-timer.C:
+			t.Fatalf("recorded events = %#v, want at least %d", recorder.recorded(), count)
+		}
 	}
 }
 

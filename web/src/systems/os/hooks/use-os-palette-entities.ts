@@ -24,6 +24,7 @@ import {
 import { useDesktop } from "./use-desktop";
 import { useFocusedWorktreeScopeId } from "./use-worktree-scope";
 import type { CmdPaletteRankSignals } from "../lib/cmd-palette-types";
+import { normalizeRankingText } from "../lib/ranking/normalize";
 import { rankCandidates } from "../lib/ranking/rank";
 
 export interface OsPaletteTabResult {
@@ -79,7 +80,16 @@ function rankEntityRows<T>(
   signals: CmdPaletteRankSignals | null,
   keepEmptyQuery: boolean
 ): readonly T[] {
-  if (signals === null) return rows;
+  if (signals === null) {
+    const needle = normalizeRankingText(query).text;
+    if (needle === "") return rows;
+    return rows.filter(row => {
+      const identity = identify(row);
+      return [identity.id, identity.label, ...(identity.keywords ?? [])].some(value =>
+        normalizeRankingText(value).text.includes(needle)
+      );
+    });
+  }
   const normalizedLength = query.trim().normalize("NFKD").length;
   if (normalizedLength < signals.weights.min_entity_query_length) return keepEmptyQuery ? rows : [];
   if (normalizedLength > signals.weights.max_query_length) return [];

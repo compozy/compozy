@@ -56722,6 +56722,7 @@ export interface operations {
         content: {
           "application/json": {
             available_scopes: ("global" | "workspace")[];
+            fallback_agent_enabled: boolean;
             personalization: boolean;
             /** @enum {string} */
             scope: "global" | "workspace";
@@ -56848,7 +56849,8 @@ export interface operations {
     requestBody: {
       content: {
         "application/json": {
-          personalization: boolean | null;
+          fallback_agent_enabled?: boolean | null;
+          personalization?: boolean | null;
         };
       };
     };
@@ -56861,6 +56863,7 @@ export interface operations {
         content: {
           "application/json": {
             available_scopes: ("global" | "workspace")[];
+            fallback_agent_enabled: boolean;
             personalization: boolean;
             /** @enum {string} */
             scope: "global" | "workspace";
@@ -56942,6 +56945,35 @@ export interface operations {
       };
       /** @description Workspace not found */
       404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+      /** @description Invalid settings payload */
+      422: {
         headers: {
           [name: string]: unknown;
         };

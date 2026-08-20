@@ -5,7 +5,7 @@ import type {
 } from "./cmd-palette-types";
 import { ghostCompletion } from "./ranking/ghost";
 import { rankCandidates } from "./ranking/rank";
-import { assembleRankingSections } from "./ranking/sections";
+import { assembleRankingResults } from "./ranking/sections";
 import type { RankingCandidate } from "./ranking/types";
 
 /**
@@ -20,6 +20,18 @@ export interface PaletteSection {
   readonly commands: readonly ResolvedPaletteCommand[];
   /** Total matches before the cap; equal to `commands.length` when nothing was withheld. */
   readonly total: number;
+}
+
+export const PALETTE_AGENT_FALLBACK_VALUE = "fallback:agent";
+
+export interface PaletteAgentFallback {
+  readonly value: typeof PALETTE_AGENT_FALLBACK_VALUE;
+  readonly query: string;
+}
+
+export interface PaletteResultAssembly {
+  readonly sections: readonly PaletteSection[];
+  readonly fallback: PaletteAgentFallback | null;
 }
 
 function normalize(value: string): string {
@@ -56,6 +68,7 @@ export interface PaletteSectionInput {
    */
   readonly destination: boolean;
   readonly signals: CmdPaletteRankSignals | null;
+  readonly fallbackAgentEnabled: boolean;
 }
 
 interface CommandRankingCandidate extends RankingCandidate {
@@ -100,22 +113,30 @@ export function paletteGhostCompletion(
   );
 }
 
-export function assemblePaletteSections({
+export function assemblePaletteResults({
   registry,
   query,
   destination,
   signals,
-}: PaletteSectionInput): readonly PaletteSection[] {
+  fallbackAgentEnabled,
+}: PaletteSectionInput): PaletteResultAssembly {
   const eligible = registry.commands.filter(
     command => !destination || command.action.kind === "navigate"
   );
   if (signals !== null) {
     const candidates = commandRankingCandidates(registry, destination);
-    return assembleRankingSections(query, candidates, signals).map(section => ({
-      title: section.title,
-      commands: section.candidates.map(candidate => candidate.candidate.command),
-      total: section.total,
-    }));
+    const assembled = assembleRankingResults(query, candidates, signals);
+    return {
+      sections: assembled.sections.map(section => ({
+        title: section.title,
+        commands: section.candidates.map(candidate => candidate.candidate.command),
+        total: section.total,
+      })),
+      fallback:
+        fallbackAgentEnabled && !destination && assembled.fallback
+          ? { value: PALETTE_AGENT_FALLBACK_VALUE, query }
+          : null,
+    };
   }
 
   const grouped = new Map<string, ResolvedPaletteCommand[]>();
@@ -131,7 +152,13 @@ export function assemblePaletteSections({
     const sorted = [...commands].sort(compareCommands);
     sections.push({ title, commands: sorted, total: sorted.length });
   }
-  return sections;
+  return {
+    sections,
+    fallback:
+      fallbackAgentEnabled && !destination && query.trim() !== "" && sections.length === 0
+        ? { value: PALETTE_AGENT_FALLBACK_VALUE, query }
+        : null,
+  };
 }
 
 /** The exact overflow note for a capped group — never a vague "and more". */

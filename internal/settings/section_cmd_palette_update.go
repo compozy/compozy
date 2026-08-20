@@ -27,7 +27,7 @@ func (s *service) updateCmdPaletteSection(
 			errors.New("settings: cmd-palette section payload is required"),
 		)
 	}
-	desired := *req.CmdPalette
+	desired := desiredCmdPaletteSection(loaded.config.CmdPalette, *req.CmdPalette)
 	changed := diffCmdPaletteSettings(loaded.config.CmdPalette, desired)
 	return s.updateScopedConfigSection(
 		req.Section,
@@ -37,7 +37,7 @@ func (s *service) updateCmdPaletteSection(
 		loaded.workspaceID,
 		loaded.workspaceRoot,
 		func(editor *compozyconfig.OverlayEditor) error {
-			return applyCmdPaletteSettings(editor, desired)
+			return applyCmdPaletteSettings(editor, *req.CmdPalette)
 		},
 	)
 }

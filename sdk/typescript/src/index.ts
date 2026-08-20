@@ -158,8 +158,6 @@ export type {
   EventPreRecordPayload,
   EventRecordPatch,
   EventRecordPayload,
-  ExecuteHookParams,
-  ExecuteHookResult,
   ExtensionDefinition,
   ExtensionManifest,
   ExtensionSourceTier,

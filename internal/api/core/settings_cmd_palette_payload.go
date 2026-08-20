@@ -13,6 +13,7 @@ func settingsCmdPaletteSectionResponse(envelope settingspkg.SectionEnvelope) (an
 	}
 	return contract.SettingsCmdPaletteResponse{
 		SettingsGlobalWorkspaceSectionResponseMetaPayload: settingsGlobalWorkspaceSectionMetaPayload(envelope),
-		Personalization: envelope.CmdPalette.Personalization,
+		FallbackAgentEnabled:                              envelope.CmdPalette.FallbackAgentEnabled,
+		Personalization:                                   envelope.CmdPalette.Personalization,
 	}, nil
 }

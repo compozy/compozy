@@ -1,14 +1,22 @@
 import { CommandGroup, cn } from "@compozy/ui";
 
-import { overflowNote, type PaletteSection } from "../lib/cmd-palette-sections";
+import {
+  overflowNote,
+  type PaletteAgentFallback,
+  type PaletteSection,
+} from "../lib/cmd-palette-sections";
 import type { ResolvedPaletteCommand } from "../lib/cmd-palette-types";
 import { OsPaletteCommandRow } from "./os-palette-command-row";
+import { OsPaletteFallbackRow } from "./os-palette-fallback-row";
 
 export interface OsPaletteResultsProps {
   sections: readonly PaletteSection[];
   /** Command ids the daemon is currently running for this client. */
   pending: ReadonlySet<string>;
   onSelect: (command: ResolvedPaletteCommand) => void;
+  fallback: PaletteAgentFallback | null;
+  fallbackPending: boolean;
+  onSelectFallback: (query: string) => void;
 }
 
 /**
@@ -20,7 +28,14 @@ export interface OsPaletteResultsProps {
  * Groups after the first open with a full-bleed rule; a capped group states its
  * exact overflow rather than truncating in silence (BR-18).
  */
-export function OsPaletteResults({ sections, pending, onSelect }: OsPaletteResultsProps) {
+export function OsPaletteResults({
+  sections,
+  pending,
+  onSelect,
+  fallback,
+  fallbackPending,
+  onSelectFallback,
+}: OsPaletteResultsProps) {
   return (
     <>
       {sections.map((section, index) => {
@@ -55,6 +70,13 @@ export function OsPaletteResults({ sections, pending, onSelect }: OsPaletteResul
           </CommandGroup>
         );
       })}
+      {fallback === null ? null : (
+        <OsPaletteFallbackRow
+          fallback={fallback}
+          pending={fallbackPending}
+          onSelect={onSelectFallback}
+        />
+      )}
     </>
   );
 }

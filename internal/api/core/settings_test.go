@@ -1495,7 +1495,10 @@ func TestSettingsSectionAndCollectionConversions(t *testing.T) {
 			Scope:           settingspkg.ScopeWorkspace,
 			WorkspaceID:     "ws-test",
 			AvailableScopes: []settingspkg.ScopeKind{settingspkg.ScopeGlobal, settingspkg.ScopeWorkspace},
-			CmdPalette:      &settingspkg.CmdPaletteSection{Personalization: true},
+			CmdPalette: &settingspkg.CmdPaletteSection{
+				FallbackAgentEnabled: true,
+				Personalization:      true,
+			},
 		},
 		{
 			Section:         settingspkg.SectionAttention,
@@ -1956,9 +1959,9 @@ func TestUpdateSettingsSectionHandlersRejectInvalidPayloads(t *testing.T) {
 			want: "window-manager config, shortcuts, or aliases are required",
 		},
 		{
-			name: "Should require command-palette personalization",
+			name: "Should require a command-palette control",
 			path: "/api/settings/cmd-palette",
-			want: "cmd-palette.personalization is required",
+			want: "cmd-palette fallback_agent_enabled or personalization is required",
 		},
 		{name: "observability", path: "/api/settings/observability", want: "observability.config is required"},
 		{name: "hooks extensions", path: "/api/settings/hooks-extensions", want: "hooks-extensions.config is required"},
@@ -2393,15 +2396,16 @@ func TestUpdateSettingsSectionHandlersDelegateValidPayloads(t *testing.T) {
 			},
 		},
 		{
-			name: "Should delegate command-palette personalization",
+			name: "Should delegate partial command-palette controls",
 			path: "/api/settings/cmd-palette",
 			body: contract.UpdateSettingsCmdPaletteRequest{
-				Personalization: new(false),
+				FallbackAgentEnabled: new(false),
 			},
 			assert: func(t *testing.T, req settingspkg.SectionUpdateRequest) {
 				t.Helper()
-				if req.CmdPalette == nil || req.CmdPalette.Personalization {
-					t.Fatalf("req.CmdPalette = %#v, want personalization false", req.CmdPalette)
+				if req.CmdPalette == nil || req.CmdPalette.FallbackAgentEnabled == nil ||
+					*req.CmdPalette.FallbackAgentEnabled || req.CmdPalette.Personalization != nil {
+					t.Fatalf("req.CmdPalette = %#v, want fallback false only", req.CmdPalette)
 				}
 			},
 		},
@@ -2503,7 +2507,10 @@ func TestUpdateSettingsSectionHandlersDelegateValidPayloads(t *testing.T) {
 								settingspkg.ScopeGlobal,
 								settingspkg.ScopeWorkspace,
 							},
-							CmdPalette: &settingspkg.CmdPaletteSection{Personalization: false},
+							CmdPalette: &settingspkg.CmdPaletteSection{
+								FallbackAgentEnabled: false,
+								Personalization:      false,
+							},
 						}, nil
 					default:
 						return settingspkg.SectionEnvelope{}, nil

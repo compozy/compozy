@@ -110,6 +110,7 @@ export { CmdPaletteRegistryProvider } from "./contexts/cmd-palette-registry-cont
 export { usePaletteCommand, usePaletteRegistry } from "./hooks/use-palette-registry";
 export { registryBindableIds, registryShortcutActions } from "./lib/cmd-palette-shortcut-actions";
 export { cmdPaletteKeys } from "./lib/cmd-palette-query-keys";
+export { resetCmdPalettePersonalization } from "./adapters/cmd-palette-api";
 export type {
   CmdPaletteCommand,
   PaletteRegistry,

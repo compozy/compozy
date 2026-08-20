@@ -315,9 +315,9 @@ func parseUpdateSettingsCmdPaletteRequest(c *gin.Context) (settingspkg.SectionUp
 			fmt.Errorf("decode cmd-palette settings request: %w", err),
 		)
 	}
-	if body.Personalization == nil {
+	if body.FallbackAgentEnabled == nil && body.Personalization == nil {
 		return settingspkg.SectionUpdateRequest{}, NewSettingsValidationError(
-			errors.New("cmd-palette.personalization is required"),
+			errors.New("cmd-palette fallback_agent_enabled or personalization is required"),
 		)
 	}
 	req, err := parseSettingsSectionRequest(c, settingspkg.SectionCmdPalette)
@@ -326,8 +326,9 @@ func parseUpdateSettingsCmdPaletteRequest(c *gin.Context) (settingspkg.SectionUp
 	}
 	return settingspkg.SectionUpdateRequest{
 		SectionRequest: req,
-		CmdPalette: &settingspkg.CmdPaletteSection{
-			Personalization: *body.Personalization,
+		CmdPalette: &settingspkg.CmdPaletteUpdate{
+			FallbackAgentEnabled: body.FallbackAgentEnabled,
+			Personalization:      body.Personalization,
 		},
 	}, nil
 }

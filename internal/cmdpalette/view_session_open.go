@@ -44,6 +44,7 @@ func (s *Service) OpenSession(
 	s.acceptViewFrameLocked(session, validated)
 	firstFrame := cloneViewFrame(session.lastFrame)
 	s.viewSessionMu.Unlock()
+	s.emitViewSessionEvent(ctx, EventViewSessionOpened, session)
 
 	return ViewSessionOpenResult{
 		Token: SessionToken{
@@ -81,7 +82,7 @@ func newViewSession(
 	sessionCtx, cancel := context.WithCancel(context.WithoutCancel(ctx))
 	return &viewSession{
 		id: "vs_" + uuid.NewString(), streamToken: "vst_" + uuid.NewString(),
-		workspace: request.Workspace, client: request.Client,
+		workspace: request.Workspace, client: request.Client, view: descriptor.ID,
 		extension: descriptor.Extension,
 		kind:      descriptor.Kind, ctx: sessionCtx, cancel: cancel,
 		handlers: make(map[string]uint64), ackedEffects: make(map[string]struct{}),

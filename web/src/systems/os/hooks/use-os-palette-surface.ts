@@ -55,6 +55,7 @@ export function useOsPaletteSurface({
   });
   const values = [
     ...root.sections.flatMap(section => section.commands.map(command => command.id)),
+    ...(root.fallback === null ? [] : [root.fallback.value]),
     ...root.entities.sessions.map(session => `session:${session.sessionId}`),
     ...(root.destination ? [] : root.entities.tabs.map(tab => `tab:${tab.windowId}`)),
     ...(root.destination ? [] : root.entities.worktrees.map(entry => `worktree:${entry.key}`)),
