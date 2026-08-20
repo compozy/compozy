@@ -5,7 +5,7 @@
 - **Severity:** Critical · **Priority:** P0
 - **Persona Affected:** Every Web operator
 - **Journey Step:** Open the CompozyOS desktop
-- **Scenarios:** RT-worktree-web-nested-navigation; MS-web-workspace-add-directory-browser
+- **Scenarios:** RT-worktree-web-nested-navigation; MS-web-workspace-add-directory-browser; ET-palette-registry-driven-root; ET-web-desktop-shell-lifecycle
 - **Found:** 2026-08-13 · **Report:** docs/qa/reports/2026-08-13-worktree-support.md
 - **Origin:** Task 10 release QA
 
@@ -38,3 +38,20 @@ window-manager projection through `useDesktop` before `DesktopShell` mounted its
   error boundary.
 - Evidence:
   `/Users/pedronauck/dev/qa-labs/compozy-worktree-support-20260813-083057-155448-lab/qa-artifacts/qa/`.
+
+## Re-found and fixed (2026-08-20)
+
+The command-palette registry introduced another shell-context consumer in `DesktopChrome`, above
+the provider owned by the same component. Opening the daemon-served desktop hit the root error
+boundary with the original `useOsShell` provider error before any palette journey could begin.
+
+- **Report:** `docs/qa/reports/2026-08-20-command-palette.md`
+- **Root cause:** `useCmdPaletteRegistry` reads Window Manager topology but was called before
+  `OsShellContext.Provider` mounted.
+- **Fix commit:** `531b9f5`
+- **Regression test:** documented daemon-served Playwright replay in
+  `web/e2e/__tests__/agent-categories.spec.ts`; the journey failed at desktop boot before the fix and
+  passed from a fresh worker afterward. The shared provider topology has no meaningful isolated
+  component contract beyond this real shell mount.
+- **Retest:** The focused daemon-served journey rendered `os-desktop`, opened Agents, navigated the
+  fleet, and completed in 6.9 seconds. Full charter verification remains in this run.

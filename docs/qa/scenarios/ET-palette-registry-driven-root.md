@@ -7,10 +7,10 @@ journey: J-command-os-from-palette
 expected: Command-K opens instantly against the last-known catalog and lists apps, shell, window, tab, layout and settings commands sourced from the daemon registry with their effective chords; a command unavailable in context stays visible and disabled carrying the runtime's own reason verbatim, a command irrelevant to this surface is absent rather than dead, a capped group states the exact overflow, and the same id, label and chord appear on the palette row, the menubar item, the cheatsheet line and the settings shortcut table.
 entry_points: Command-K; menubar palette affordance; menubar Go/Window/Session/Help menus; Help > Keyboard shortcuts; Settings > Layouts > Shortcuts; compozy cmd-palette list
 qa_status: untested
-bug_ids:
-fix_status:
-retest_status:
-fix_commits:
+bug_ids: BUG-0017; BUG-20260813-desktop-shell-context-order; BUG-20260729-session-window-cross-tab-focus
+fix_status: fixed
+retest_status: pending
+fix_commits: c3c50b6; 531b9f5; 538777e
 evidence:
 last_report:
 overlaps: ET-window-tab-palette-search; ET-web-command-palette-shortcuts; ET-palette-nested-views; ET-palette-personalization-lifecycle

@@ -5,7 +5,7 @@
 - **Severity:** High · **Priority:** P1
 - **Persona Affected:** Théo
 - **Journey Step:** J-13 Follow a live run, step 4
-- **Scenarios:** RT-013; RT-015
+- **Scenarios:** RT-013; RT-015; ET-palette-registry-driven-root; ET-web-desktop-shell-lifecycle
 - **Found:** 2026-07-29 · **Report:** docs/qa/reports/2026-07-28-untested-full.md
 
 ## Summary
@@ -101,3 +101,20 @@ Web schema.
   `/Users/pedronauck/dev/qa-labs/compozy-northstar-pay-20260816-141901-835450-lab/qa-artifacts/qa/screenshots/herdr-cross-workspace-needs-you-fixed.png`;
   `/Users/pedronauck/dev/qa-labs/compozy-northstar-pay-20260816-141901-835450-lab/qa-artifacts/qa/screenshots/herdr-attention-all-quiet-cleared.png`.
 - **Report:** `docs/qa/reports/2026-08-16-herdr-parity.md`.
+
+## Re-found and fixed (2026-08-20) — scoped settings cache
+
+Opening Agents returned HTTP 200 with an authoritative snapshot containing the focused Agents
+window, and the browser route changed to `/agents`, but no window rendered. The runtime looked up a
+global bare config value while the live settings query cached a workspace/client-scoped settings
+envelope, leaving desktop hydration pending despite valid topology.
+
+- **Report:** `docs/qa/reports/2026-08-20-command-palette.md`
+- **Root cause:** `WindowManagerRuntimeCore` used the wrong query key and the wrong cached value
+  shape. TanStack Query's `select` transforms observer output, not the cache entry.
+- **Fix commit:** `538777e`
+- **Regression test:** `web/src/systems/os/hooks/__tests__/window-manager-runtime.test.ts` now seeds
+  the canonical scoped `WindowManagerSettingsSection`; all 27 runtime cases pass. The same
+  daemon-served Agents journey failed before the fix and passed afterward.
+- **Retest:** Route and rendered window agreed from a fresh Playwright worker. The broader historical
+  cross-document transport finding remains open until its original RT-013/RT-015 contract closes.
