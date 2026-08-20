@@ -161,16 +161,16 @@ func CmdPaletteCommandsFromDomain(catalog cmdpalette.Catalog) CmdPaletteCommands
 			ID: command.ID, Title: command.Title, Source: command.Source.ID(), Section: command.Section,
 			Icon: command.Icon, Keywords: append([]string(nil), command.Keywords...),
 			Available: command.Available, Reason: command.UnavailableReason,
-			Bindings: append([]string(nil), command.Bindings...), Alias: cloneContractString(command.Alias),
+			Bindings: append([]string{}, command.Bindings...), Alias: cloneContractString(command.Alias),
 			Destructive: command.Destructive, Confirmation: cloneConfirmation(command.Confirmation),
-			Arguments: append([]cmdpalette.Argument(nil), command.Arguments...), Action: command.Action,
+			Arguments: append([]cmdpalette.Argument{}, command.Arguments...), Action: command.Action,
 			Execution: command.Policy, When: append([]cmdpalette.Predicate(nil), command.When...),
 			AvailabilityExempt: command.AvailabilityExempt,
 			GlobalShortcut:     cloneGlobalShortcut(command.GlobalShortcut),
 		})
 	}
 	return CmdPaletteCommandsResponse{
-		Commands: commands, Sources: append([]cmdpalette.SourceStatus(nil), catalog.Sources...),
+		Commands: commands, Sources: append([]cmdpalette.SourceStatus{}, catalog.Sources...),
 		CatalogRevision: catalog.Revision, ContextRevision: catalog.ContextRevision,
 	}
 }
@@ -198,9 +198,11 @@ func CmdPaletteRankSignalsFromDomain(snapshot cmdpalette.Snapshot) CmdPaletteRan
 	for _, pin := range snapshot.Pins {
 		pins = append(pins, pin.CommandID)
 	}
+	weights := snapshot.Weights
+	weights.GroupOrder = append([]string{}, snapshot.Weights.GroupOrder...)
 	return CmdPaletteRankSignalsResponse{
-		Weights: snapshot.Weights, Usage: append([]cmdpalette.UsageSignal(nil), snapshot.Usage...),
-		QueryHits: append([]cmdpalette.QueryHit(nil), snapshot.QueryHits...),
+		Weights: weights, Usage: append([]cmdpalette.UsageSignal{}, snapshot.Usage...),
+		QueryHits: append([]cmdpalette.QueryHit{}, snapshot.QueryHits...),
 		Pins:      pins, Revision: snapshot.Revision,
 	}
 }
@@ -209,7 +211,7 @@ func CmdPalettePersonalizationFromDomain(
 	summary cmdpalette.PersonalizationSummary,
 ) CmdPalettePersonalizationResponse {
 	return CmdPalettePersonalizationResponse{
-		Workspace: summary.Workspace, Pins: append([]cmdpalette.CommandID(nil), summary.Pins...),
+		Workspace: summary.Workspace, Pins: append([]cmdpalette.CommandID{}, summary.Pins...),
 		Recents: summary.Recents, FrecencyEntries: summary.FrecencyEntries,
 		QueryAssociations: summary.QueryAssociations,
 	}

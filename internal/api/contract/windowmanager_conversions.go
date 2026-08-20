@@ -75,7 +75,10 @@ func WindowManagerClientFromDomain(client windowmanager.ClientView) (WindowManag
 			WorkspaceTrusted:    client.PaletteContext.WorkspaceTrusted,
 			DestinationIntent:   cloneWindowManagerRoutePointer(client.PaletteContext.DestinationIntent),
 		},
-		GlobalShortcuts: windowmanager.CloneGlobalShortcutRegistrations(client.GlobalShortcuts),
+		GlobalShortcuts: append(
+			[]windowmanager.GlobalShortcutRegistration{},
+			client.GlobalShortcuts...,
+		),
 		ConnectedAt:     client.ConnectedAt,
 		AttachmentToken: client.AttachmentToken,
 	}, nil
