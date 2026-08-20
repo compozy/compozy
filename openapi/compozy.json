@@ -1270,6 +1270,37 @@
                 "nullable": true,
                 "type": "string"
               },
+              "global_shortcuts": {
+                "items": {
+                  "properties": {
+                    "active_chord": {
+                      "type": "string"
+                    },
+                    "command_id": {
+                      "type": "string"
+                    },
+                    "intended_chord": {
+                      "type": "string"
+                    },
+                    "reason": {
+                      "type": "string"
+                    },
+                    "settings_url": {
+                      "type": "string"
+                    },
+                    "status": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "command_id",
+                    "intended_chord",
+                    "status"
+                  ],
+                  "type": "object"
+                },
+                "type": "array"
+              },
               "kind": {
                 "type": "string"
               },
@@ -1349,6 +1380,7 @@
               "connected_at",
               "context_revision",
               "focus_order",
+              "global_shortcuts",
               "kind",
               "palette_context",
               "presentation_revision",
@@ -1411,6 +1443,37 @@
               "focused_session_state": {
                 "type": "string"
               },
+              "global_shortcuts": {
+                "items": {
+                  "properties": {
+                    "active_chord": {
+                      "type": "string"
+                    },
+                    "command_id": {
+                      "type": "string"
+                    },
+                    "intended_chord": {
+                      "type": "string"
+                    },
+                    "reason": {
+                      "type": "string"
+                    },
+                    "settings_url": {
+                      "type": "string"
+                    },
+                    "status": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "command_id",
+                    "intended_chord",
+                    "status"
+                  ],
+                  "type": "object"
+                },
+                "type": "array"
+              },
               "scope_global": {
                 "type": "boolean"
               },
@@ -1419,6 +1482,7 @@
               }
             },
             "required": [
+              "global_shortcuts",
               "scope_global",
               "workspace_trusted"
             ],
@@ -1467,6 +1531,37 @@
           "focused_window_id": {
             "nullable": true,
             "type": "string"
+          },
+          "global_shortcuts": {
+            "items": {
+              "properties": {
+                "active_chord": {
+                  "type": "string"
+                },
+                "command_id": {
+                  "type": "string"
+                },
+                "intended_chord": {
+                  "type": "string"
+                },
+                "reason": {
+                  "type": "string"
+                },
+                "settings_url": {
+                  "type": "string"
+                },
+                "status": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "command_id",
+                "intended_chord",
+                "status"
+              ],
+              "type": "object"
+            },
+            "type": "array"
           },
           "kind": {
             "type": "string"
@@ -1547,6 +1642,7 @@
           "connected_at",
           "context_revision",
           "focus_order",
+          "global_shortcuts",
           "kind",
           "palette_context",
           "presentation_revision",
@@ -1588,6 +1684,37 @@
                 "focused_window_id": {
                   "nullable": true,
                   "type": "string"
+                },
+                "global_shortcuts": {
+                  "items": {
+                    "properties": {
+                      "active_chord": {
+                        "type": "string"
+                      },
+                      "command_id": {
+                        "type": "string"
+                      },
+                      "intended_chord": {
+                        "type": "string"
+                      },
+                      "reason": {
+                        "type": "string"
+                      },
+                      "settings_url": {
+                        "type": "string"
+                      },
+                      "status": {
+                        "type": "string"
+                      }
+                    },
+                    "required": [
+                      "command_id",
+                      "intended_chord",
+                      "status"
+                    ],
+                    "type": "object"
+                  },
+                  "type": "array"
                 },
                 "kind": {
                   "type": "string"
@@ -1668,6 +1795,7 @@
                 "connected_at",
                 "context_revision",
                 "focus_order",
+                "global_shortcuts",
                 "kind",
                 "palette_context",
                 "presentation_revision",
@@ -6549,6 +6677,37 @@
                 "nullable": true,
                 "type": "string"
               },
+              "global_shortcuts": {
+                "items": {
+                  "properties": {
+                    "active_chord": {
+                      "type": "string"
+                    },
+                    "command_id": {
+                      "type": "string"
+                    },
+                    "intended_chord": {
+                      "type": "string"
+                    },
+                    "reason": {
+                      "type": "string"
+                    },
+                    "settings_url": {
+                      "type": "string"
+                    },
+                    "status": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "command_id",
+                    "intended_chord",
+                    "status"
+                  ],
+                  "type": "object"
+                },
+                "type": "array"
+              },
               "kind": {
                 "type": "string"
               },
@@ -6628,6 +6787,7 @@
               "connected_at",
               "context_revision",
               "focus_order",
+              "global_shortcuts",
               "kind",
               "palette_context",
               "presentation_revision",
@@ -8060,6 +8220,37 @@
                 "nullable": true,
                 "type": "string"
               },
+              "global_shortcuts": {
+                "items": {
+                  "properties": {
+                    "active_chord": {
+                      "type": "string"
+                    },
+                    "command_id": {
+                      "type": "string"
+                    },
+                    "intended_chord": {
+                      "type": "string"
+                    },
+                    "reason": {
+                      "type": "string"
+                    },
+                    "settings_url": {
+                      "type": "string"
+                    },
+                    "status": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "command_id",
+                    "intended_chord",
+                    "status"
+                  ],
+                  "type": "object"
+                },
+                "type": "array"
+              },
               "kind": {
                 "type": "string"
               },
@@ -8139,6 +8330,7 @@
               "connected_at",
               "context_revision",
               "focus_order",
+              "global_shortcuts",
               "kind",
               "palette_context",
               "presentation_revision",
@@ -9486,6 +9678,37 @@
                 "nullable": true,
                 "type": "string"
               },
+              "global_shortcuts": {
+                "items": {
+                  "properties": {
+                    "active_chord": {
+                      "type": "string"
+                    },
+                    "command_id": {
+                      "type": "string"
+                    },
+                    "intended_chord": {
+                      "type": "string"
+                    },
+                    "reason": {
+                      "type": "string"
+                    },
+                    "settings_url": {
+                      "type": "string"
+                    },
+                    "status": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "command_id",
+                    "intended_chord",
+                    "status"
+                  ],
+                  "type": "object"
+                },
+                "type": "array"
+              },
               "kind": {
                 "type": "string"
               },
@@ -9565,6 +9788,7 @@
               "connected_at",
               "context_revision",
               "focus_order",
+              "global_shortcuts",
               "kind",
               "palette_context",
               "presentation_revision",
@@ -69504,6 +69728,30 @@
                             "required": [
                               "retry_safe",
                               "single_flight"
+                            ],
+                            "type": "object"
+                          },
+                          "global_shortcut": {
+                            "nullable": true,
+                            "properties": {
+                              "active_chord": {
+                                "type": "string"
+                              },
+                              "intended_chord": {
+                                "type": "string"
+                              },
+                              "reason": {
+                                "type": "string"
+                              },
+                              "settings_url": {
+                                "type": "string"
+                              },
+                              "status": {
+                                "type": "string"
+                              }
+                            },
+                            "required": [
+                              "intended_chord"
                             ],
                             "type": "object"
                           },
@@ -159489,6 +159737,12 @@
                           ],
                           "type": "object"
                         },
+                        "global_shortcuts": {
+                          "additionalProperties": {
+                            "type": "string"
+                          },
+                          "type": "object"
+                        },
                         "group_move_modifier": {
                           "enum": [
                             "alt",
@@ -159582,6 +159836,7 @@
                         "focus_policy",
                         "focus_wrap",
                         "gaps",
+                        "global_shortcuts",
                         "group_move_modifier",
                         "history_limit",
                         "nav_stack_limit",
@@ -159669,6 +159924,36 @@
                       },
                       "type": "array"
                     },
+                    "global_shortcuts": {
+                      "items": {
+                        "properties": {
+                          "active_chord": {
+                            "type": "string"
+                          },
+                          "command_id": {
+                            "type": "string"
+                          },
+                          "intended_chord": {
+                            "type": "string"
+                          },
+                          "reason": {
+                            "type": "string"
+                          },
+                          "settings_url": {
+                            "type": "string"
+                          },
+                          "status": {
+                            "type": "string"
+                          }
+                        },
+                        "required": [
+                          "command_id",
+                          "intended_chord"
+                        ],
+                        "type": "object"
+                      },
+                      "type": "array"
+                    },
                     "scope": {
                       "enum": [
                         "global",
@@ -159705,6 +159990,7 @@
                     "defaults",
                     "effective_shortcuts",
                     "extension_defaults",
+                    "global_shortcuts",
                     "scope",
                     "section"
                   ],
@@ -160069,6 +160355,12 @@
                         ],
                         "type": "object"
                       },
+                      "global_shortcuts": {
+                        "additionalProperties": {
+                          "type": "string"
+                        },
+                        "type": "object"
+                      },
                       "group_move_modifier": {
                         "enum": [
                           "alt",
@@ -160162,6 +160454,7 @@
                       "focus_policy",
                       "focus_wrap",
                       "gaps",
+                      "global_shortcuts",
                       "group_move_modifier",
                       "history_limit",
                       "nav_stack_limit",
@@ -160172,6 +160465,13 @@
                       "snap",
                       "swap_modifier"
                     ],
+                    "type": "object"
+                  },
+                  "global_shortcuts": {
+                    "additionalProperties": {
+                      "type": "string"
+                    },
+                    "nullable": true,
                     "type": "object"
                   },
                   "overwrite": {
@@ -160336,6 +160636,12 @@
                           ],
                           "type": "object"
                         },
+                        "global_shortcuts": {
+                          "additionalProperties": {
+                            "type": "string"
+                          },
+                          "type": "object"
+                        },
                         "group_move_modifier": {
                           "enum": [
                             "alt",
@@ -160429,6 +160735,7 @@
                         "focus_policy",
                         "focus_wrap",
                         "gaps",
+                        "global_shortcuts",
                         "group_move_modifier",
                         "history_limit",
                         "nav_stack_limit",
@@ -160516,6 +160823,36 @@
                       },
                       "type": "array"
                     },
+                    "global_shortcuts": {
+                      "items": {
+                        "properties": {
+                          "active_chord": {
+                            "type": "string"
+                          },
+                          "command_id": {
+                            "type": "string"
+                          },
+                          "intended_chord": {
+                            "type": "string"
+                          },
+                          "reason": {
+                            "type": "string"
+                          },
+                          "settings_url": {
+                            "type": "string"
+                          },
+                          "status": {
+                            "type": "string"
+                          }
+                        },
+                        "required": [
+                          "command_id",
+                          "intended_chord"
+                        ],
+                        "type": "object"
+                      },
+                      "type": "array"
+                    },
                     "scope": {
                       "enum": [
                         "global",
@@ -160552,6 +160889,7 @@
                     "defaults",
                     "effective_shortcuts",
                     "extension_defaults",
+                    "global_shortcuts",
                     "scope",
                     "section"
                   ],
@@ -327286,6 +327624,37 @@
                             "nullable": true,
                             "type": "string"
                           },
+                          "global_shortcuts": {
+                            "items": {
+                              "properties": {
+                                "active_chord": {
+                                  "type": "string"
+                                },
+                                "command_id": {
+                                  "type": "string"
+                                },
+                                "intended_chord": {
+                                  "type": "string"
+                                },
+                                "reason": {
+                                  "type": "string"
+                                },
+                                "settings_url": {
+                                  "type": "string"
+                                },
+                                "status": {
+                                  "type": "string"
+                                }
+                              },
+                              "required": [
+                                "command_id",
+                                "intended_chord",
+                                "status"
+                              ],
+                              "type": "object"
+                            },
+                            "type": "array"
+                          },
                           "kind": {
                             "type": "string"
                           },
@@ -327365,6 +327734,7 @@
                           "connected_at",
                           "context_revision",
                           "focus_order",
+                          "global_shortcuts",
                           "kind",
                           "palette_context",
                           "presentation_revision",
@@ -327623,6 +327993,37 @@
                       "focused_session_state": {
                         "type": "string"
                       },
+                      "global_shortcuts": {
+                        "items": {
+                          "properties": {
+                            "active_chord": {
+                              "type": "string"
+                            },
+                            "command_id": {
+                              "type": "string"
+                            },
+                            "intended_chord": {
+                              "type": "string"
+                            },
+                            "reason": {
+                              "type": "string"
+                            },
+                            "settings_url": {
+                              "type": "string"
+                            },
+                            "status": {
+                              "type": "string"
+                            }
+                          },
+                          "required": [
+                            "command_id",
+                            "intended_chord",
+                            "status"
+                          ],
+                          "type": "object"
+                        },
+                        "type": "array"
+                      },
                       "scope_global": {
                         "type": "boolean"
                       },
@@ -327631,6 +328032,7 @@
                       }
                     },
                     "required": [
+                      "global_shortcuts",
                       "scope_global",
                       "workspace_trusted"
                     ],
@@ -327687,6 +328089,37 @@
                     "focused_window_id": {
                       "nullable": true,
                       "type": "string"
+                    },
+                    "global_shortcuts": {
+                      "items": {
+                        "properties": {
+                          "active_chord": {
+                            "type": "string"
+                          },
+                          "command_id": {
+                            "type": "string"
+                          },
+                          "intended_chord": {
+                            "type": "string"
+                          },
+                          "reason": {
+                            "type": "string"
+                          },
+                          "settings_url": {
+                            "type": "string"
+                          },
+                          "status": {
+                            "type": "string"
+                          }
+                        },
+                        "required": [
+                          "command_id",
+                          "intended_chord",
+                          "status"
+                        ],
+                        "type": "object"
+                      },
+                      "type": "array"
                     },
                     "kind": {
                       "type": "string"
@@ -327767,6 +328200,7 @@
                     "connected_at",
                     "context_revision",
                     "focus_order",
+                    "global_shortcuts",
                     "kind",
                     "palette_context",
                     "presentation_revision",
@@ -328746,6 +329180,37 @@
                           "nullable": true,
                           "type": "string"
                         },
+                        "global_shortcuts": {
+                          "items": {
+                            "properties": {
+                              "active_chord": {
+                                "type": "string"
+                              },
+                              "command_id": {
+                                "type": "string"
+                              },
+                              "intended_chord": {
+                                "type": "string"
+                              },
+                              "reason": {
+                                "type": "string"
+                              },
+                              "settings_url": {
+                                "type": "string"
+                              },
+                              "status": {
+                                "type": "string"
+                              }
+                            },
+                            "required": [
+                              "command_id",
+                              "intended_chord",
+                              "status"
+                            ],
+                            "type": "object"
+                          },
+                          "type": "array"
+                        },
                         "kind": {
                           "type": "string"
                         },
@@ -328825,6 +329290,7 @@
                         "connected_at",
                         "context_revision",
                         "focus_order",
+                        "global_shortcuts",
                         "kind",
                         "palette_context",
                         "presentation_revision",
@@ -331451,6 +331917,37 @@
                           "nullable": true,
                           "type": "string"
                         },
+                        "global_shortcuts": {
+                          "items": {
+                            "properties": {
+                              "active_chord": {
+                                "type": "string"
+                              },
+                              "command_id": {
+                                "type": "string"
+                              },
+                              "intended_chord": {
+                                "type": "string"
+                              },
+                              "reason": {
+                                "type": "string"
+                              },
+                              "settings_url": {
+                                "type": "string"
+                              },
+                              "status": {
+                                "type": "string"
+                              }
+                            },
+                            "required": [
+                              "command_id",
+                              "intended_chord",
+                              "status"
+                            ],
+                            "type": "object"
+                          },
+                          "type": "array"
+                        },
                         "kind": {
                           "type": "string"
                         },
@@ -331530,6 +332027,7 @@
                         "connected_at",
                         "context_revision",
                         "focus_order",
+                        "global_shortcuts",
                         "kind",
                         "palette_context",
                         "presentation_revision",
@@ -336267,6 +336765,37 @@
                           "nullable": true,
                           "type": "string"
                         },
+                        "global_shortcuts": {
+                          "items": {
+                            "properties": {
+                              "active_chord": {
+                                "type": "string"
+                              },
+                              "command_id": {
+                                "type": "string"
+                              },
+                              "intended_chord": {
+                                "type": "string"
+                              },
+                              "reason": {
+                                "type": "string"
+                              },
+                              "settings_url": {
+                                "type": "string"
+                              },
+                              "status": {
+                                "type": "string"
+                              }
+                            },
+                            "required": [
+                              "command_id",
+                              "intended_chord",
+                              "status"
+                            ],
+                            "type": "object"
+                          },
+                          "type": "array"
+                        },
                         "kind": {
                           "type": "string"
                         },
@@ -336346,6 +336875,7 @@
                         "connected_at",
                         "context_revision",
                         "focus_order",
+                        "global_shortcuts",
                         "kind",
                         "palette_context",
                         "presentation_revision",
@@ -337454,6 +337984,37 @@
                               "nullable": true,
                               "type": "string"
                             },
+                            "global_shortcuts": {
+                              "items": {
+                                "properties": {
+                                  "active_chord": {
+                                    "type": "string"
+                                  },
+                                  "command_id": {
+                                    "type": "string"
+                                  },
+                                  "intended_chord": {
+                                    "type": "string"
+                                  },
+                                  "reason": {
+                                    "type": "string"
+                                  },
+                                  "settings_url": {
+                                    "type": "string"
+                                  },
+                                  "status": {
+                                    "type": "string"
+                                  }
+                                },
+                                "required": [
+                                  "command_id",
+                                  "intended_chord",
+                                  "status"
+                                ],
+                                "type": "object"
+                              },
+                              "type": "array"
+                            },
                             "kind": {
                               "type": "string"
                             },
@@ -337533,6 +338094,7 @@
                             "connected_at",
                             "context_revision",
                             "focus_order",
+                            "global_shortcuts",
                             "kind",
                             "palette_context",
                             "presentation_revision",
@@ -338367,6 +338929,37 @@
                               "nullable": true,
                               "type": "string"
                             },
+                            "global_shortcuts": {
+                              "items": {
+                                "properties": {
+                                  "active_chord": {
+                                    "type": "string"
+                                  },
+                                  "command_id": {
+                                    "type": "string"
+                                  },
+                                  "intended_chord": {
+                                    "type": "string"
+                                  },
+                                  "reason": {
+                                    "type": "string"
+                                  },
+                                  "settings_url": {
+                                    "type": "string"
+                                  },
+                                  "status": {
+                                    "type": "string"
+                                  }
+                                },
+                                "required": [
+                                  "command_id",
+                                  "intended_chord",
+                                  "status"
+                                ],
+                                "type": "object"
+                              },
+                              "type": "array"
+                            },
                             "kind": {
                               "type": "string"
                             },
@@ -338446,6 +339039,7 @@
                             "connected_at",
                             "context_revision",
                             "focus_order",
+                            "global_shortcuts",
                             "kind",
                             "palette_context",
                             "presentation_revision",

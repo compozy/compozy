@@ -28,5 +28,6 @@ func cloneWindowManagerConfig(source WindowManagerConfig) WindowManagerConfig {
 	cloned := source
 	cloned.Snap.RepeatRatios = append([]float64(nil), source.Snap.RepeatRatios...)
 	cloned.Shortcuts = windowmanager.CloneShortcutMap(source.Shortcuts)
+	cloned.GlobalShortcuts = windowmanager.CloneGlobalShortcutMap(source.GlobalShortcuts)
 	return cloned
 }

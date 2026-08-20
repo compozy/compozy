@@ -338,6 +338,59 @@ func TestCmdPaletteCommands(t *testing.T) {
 		}
 	})
 
+	t.Run("Should bind and unbind a desktop-global hotkey through whole-map patches", func(t *testing.T) {
+		t.Parallel()
+		client := newClient()
+		client.bindings.Config.GlobalShortcuts = map[string]string{
+			windowmanager.DefaultGlobalSummonCommandID: windowmanager.DefaultGlobalSummonChord,
+		}
+		client.bindingsResult.Config.GlobalShortcuts = map[string]string{
+			windowmanager.DefaultGlobalSummonCommandID: windowmanager.DefaultGlobalSummonChord,
+			"session.new": "meta+shift+KeyN",
+		}
+
+		stdout, _, err := executeRootCommand(
+			t,
+			newTestDeps(t, client),
+			"cmd-palette", "bind", "session.new", "meta+shift+KeyN",
+			"--global", "--workspace", "workspace-1", "-o", "json",
+		)
+		if err != nil {
+			t.Fatalf("cmd-palette bind --global error = %v", err)
+		}
+		var result cmdPaletteBindingMutationResult
+		if err := json.Unmarshal([]byte(stdout), &result); err != nil {
+			t.Fatalf("json.Unmarshal(global bind output) error = %v", err)
+		}
+		if !reflect.DeepEqual(result.Bound, []string{"meta+shift+KeyN"}) ||
+			client.bindingsUpdate.GlobalShortcuts == nil ||
+			len(*client.bindingsUpdate.GlobalShortcuts) != 2 {
+			t.Fatalf("global bind output/request = %#v / %#v", result, client.bindingsUpdate)
+		}
+
+		client.bindings.Config.GlobalShortcuts = *client.bindingsUpdate.GlobalShortcuts
+		client.bindingsUpdate = contract.UpdateSettingsWindowManagerRequest{}
+		stdout, _, err = executeRootCommand(
+			t,
+			newTestDeps(t, client),
+			"cmd-palette", "unbind", "session.new", "--global",
+			"--workspace", "workspace-1", "-o", "json",
+		)
+		if err != nil {
+			t.Fatalf("cmd-palette unbind --global error = %v", err)
+		}
+		var unbound cmdPaletteStatusResult
+		if err := json.Unmarshal([]byte(stdout), &unbound); err != nil {
+			t.Fatalf("json.Unmarshal(global unbind output) error = %v", err)
+		}
+		if unbound.Status != "ok" || client.bindingsUpdate.GlobalShortcuts == nil {
+			t.Fatalf("global unbind output/request = %q / %#v", stdout, client.bindingsUpdate)
+		}
+		if _, exists := (*client.bindingsUpdate.GlobalShortcuts)["session.new"]; exists {
+			t.Fatal("global unbind request retained session.new")
+		}
+	})
+
 	t.Run("Should preserve the structured shortcut conflict and exit one", func(t *testing.T) {
 		t.Parallel()
 		client := newClient()

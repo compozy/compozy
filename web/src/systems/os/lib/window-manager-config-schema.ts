@@ -1,10 +1,10 @@
 import { z } from "zod";
 
 import { shortcutBindingProblem, type ShortcutBinding } from "./window-manager-shortcuts";
+import type { WindowManagerShortcutMap } from "./window-manager-shortcut-types";
 import type {
   WindowManagerBindingsConfig,
   WindowManagerConfig,
-  WindowManagerShortcutMap,
   WindowManagerSnapConfig,
   WindowManagerWorkspaceConfig,
 } from "./window-manager-types";
@@ -81,6 +81,7 @@ export const windowManagerWorkspaceConfigSchema = z
     snap: snapSchema.optional(),
     bindings: bindingsSchema.optional(),
     shortcuts: shortcutsSchema.optional(),
+    global_shortcuts: z.record(z.string(), z.string()).optional(),
   })
   .transform(
     (config): WindowManagerWorkspaceConfig => ({
@@ -101,6 +102,7 @@ export const windowManagerWorkspaceConfigSchema = z
       snap: config.snap,
       bindings: config.bindings,
       shortcuts: config.shortcuts,
+      globalShortcuts: config.global_shortcuts,
     })
   );
 
@@ -122,6 +124,7 @@ export const windowManagerWireConfigSchema = z.strictObject({
   snap: snapSchema,
   bindings: bindingsSchema,
   shortcuts: shortcutsSchema,
+  global_shortcuts: z.record(z.string(), z.string()),
 });
 
 export function toWindowManagerConfig(
@@ -149,5 +152,6 @@ export function toWindowManagerConfig(
     shortcuts: config.shortcuts,
     shortcutDefaults: defaults,
     effectiveShortcuts: effective,
+    globalShortcuts: config.global_shortcuts,
   };
 }

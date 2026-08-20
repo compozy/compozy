@@ -176,27 +176,29 @@ type SectionRequest struct {
 	Scope       ScopeKind
 	WorkspaceID string
 	AgentName   string
+	ClientID    string
 }
 
 // SectionUpdateRequest identifies one section mutation.
 type SectionUpdateRequest struct {
 	SectionRequest
-	General                *GeneralSettings
-	Memory                 *compozyconfig.MemoryConfig
-	Roles                  *compozyconfig.RolesConfig
-	Skills                 *compozyconfig.SkillsConfig
-	Automation             *AutomationSettings
-	Network                *compozyconfig.NetworkConfig
-	Gateway                *compozyconfig.GatewayConfig
-	WindowManager          *compozyconfig.WindowManagerConfig
-	WindowManagerShortcuts *map[string]windowmanager.ShortcutBinding
-	WindowManagerAliases   *map[string]string
-	Overwrite              bool
-	CmdPalette             *CmdPaletteSection
-	Attention              *compozyconfig.AttentionConfig
-	Shell                  *compozyconfig.ShellConfig
-	Observability          *compozyconfig.ObservabilityConfig
-	HooksExtensions        *compozyconfig.ExtensionsConfig
+	General                      *GeneralSettings
+	Memory                       *compozyconfig.MemoryConfig
+	Roles                        *compozyconfig.RolesConfig
+	Skills                       *compozyconfig.SkillsConfig
+	Automation                   *AutomationSettings
+	Network                      *compozyconfig.NetworkConfig
+	Gateway                      *compozyconfig.GatewayConfig
+	WindowManager                *compozyconfig.WindowManagerConfig
+	WindowManagerShortcuts       *map[string]windowmanager.ShortcutBinding
+	WindowManagerGlobalShortcuts *map[string]string
+	WindowManagerAliases         *map[string]string
+	Overwrite                    bool
+	CmdPalette                   *CmdPaletteSection
+	Attention                    *compozyconfig.AttentionConfig
+	Shell                        *compozyconfig.ShellConfig
+	Observability                *compozyconfig.ObservabilityConfig
+	HooksExtensions              *compozyconfig.ExtensionsConfig
 }
 
 // CollectionRequest identifies one collection read.
@@ -235,6 +237,7 @@ type SectionEnvelope struct {
 	Scope           ScopeKind
 	WorkspaceID     string
 	AgentName       string
+	ClientID        string
 	AvailableScopes []ScopeKind
 	General         *GeneralSection
 	Memory          *MemorySection

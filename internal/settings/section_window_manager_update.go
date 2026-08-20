@@ -23,7 +23,8 @@ func (s *service) updateWindowManagerSection(
 	if err != nil {
 		return MutationResult{}, err
 	}
-	if req.WindowManager == nil && req.WindowManagerShortcuts == nil && req.WindowManagerAliases == nil {
+	if req.WindowManager == nil && req.WindowManagerShortcuts == nil &&
+		req.WindowManagerGlobalShortcuts == nil && req.WindowManagerAliases == nil {
 		return MutationResult{}, validationError(
 			errors.New("settings: window-manager section payload is required"),
 		)
@@ -34,6 +35,11 @@ func (s *service) updateWindowManagerSection(
 	}
 	if req.WindowManagerShortcuts != nil {
 		desired.Shortcuts = windowmanager.CloneShortcutMap(*req.WindowManagerShortcuts)
+	}
+	if req.WindowManagerGlobalShortcuts != nil {
+		desired.GlobalShortcuts = windowmanager.CloneGlobalShortcutMap(
+			*req.WindowManagerGlobalShortcuts,
+		)
 	}
 	desiredAliases := cloneAliases(loaded.config.CmdPalette.Aliases)
 	if req.WindowManagerAliases != nil {
@@ -46,6 +52,15 @@ func (s *service) updateWindowManagerSection(
 	desired.Shortcuts, err = normalizeShortcutMutation(
 		loaded.config.WindowManager.Shortcuts,
 		desired.Shortcuts,
+		bindableIDs,
+		req.Overwrite,
+	)
+	if err != nil {
+		return MutationResult{}, err
+	}
+	desired.GlobalShortcuts, err = normalizeGlobalShortcutMutation(
+		loaded.config.WindowManager.GlobalShortcuts,
+		desired.GlobalShortcuts,
 		bindableIDs,
 		req.Overwrite,
 	)

@@ -12,6 +12,7 @@ import (
 func newCmdPaletteBindCommand(deps commandDeps) *cobra.Command {
 	var scope cmdPaletteScopeFlags
 	var overwrite bool
+	var globalBinding bool
 	cmd := &cobra.Command{
 		Use:   "bind <id> <chord>",
 		Short: "Bind a command to a keyboard chord",
@@ -32,6 +33,30 @@ func newCmdPaletteBindCommand(deps commandDeps) *cobra.Command {
 			current, err := client.GetCmdPaletteBindings(cmd.Context(), workspace)
 			if err != nil {
 				return err
+			}
+			if globalBinding {
+				owner := globalShortcutOwner(current.Config.GlobalShortcuts, chord, commandID)
+				shortcuts := windowmanager.CloneGlobalShortcutMap(current.Config.GlobalShortcuts)
+				shortcuts[commandID] = chord
+				updated, updateErr := client.UpdateCmdPaletteBindings(
+					cmd.Context(),
+					workspace,
+					contract.UpdateSettingsWindowManagerRequest{
+						GlobalShortcuts: &shortcuts,
+						Overwrite:       overwrite,
+					},
+				)
+				if updateErr != nil {
+					return updateErr
+				}
+				result := cmdPaletteBindingMutationResult{Status: "ok"}
+				if bound, exists := updated.Config.GlobalShortcuts[commandID]; exists {
+					result.Bound = []string{bound}
+				}
+				if overwrite {
+					result.UnboundOwner = owner
+				}
+				return writeCommandOutput(cmd, cmdPaletteMutationOutput(result))
 			}
 			owner := shortcutOwner(current.EffectiveShortcuts, chord, commandID)
 			shortcuts := windowmanager.CloneShortcutMap(current.Config.Shortcuts)
@@ -54,11 +79,13 @@ func newCmdPaletteBindCommand(deps commandDeps) *cobra.Command {
 	}
 	scope.add(cmd, false)
 	cmd.Flags().BoolVar(&overwrite, cmdPaletteOverwriteFlag, false, "Transfer a conflicting chord")
+	cmd.Flags().BoolVar(&globalBinding, "global", false, "Bind as a desktop global hotkey")
 	return cmd
 }
 
 func newCmdPaletteUnbindCommand(deps commandDeps) *cobra.Command {
 	var scope cmdPaletteScopeFlags
+	var globalBinding bool
 	cmd := &cobra.Command{
 		Use:   "unbind <id>",
 		Short: "Remove every binding from a command",
@@ -76,6 +103,20 @@ func newCmdPaletteUnbindCommand(deps commandDeps) *cobra.Command {
 			if err != nil {
 				return err
 			}
+			if globalBinding {
+				shortcuts := windowmanager.CloneGlobalShortcutMap(current.Config.GlobalShortcuts)
+				delete(shortcuts, commandID)
+				if _, updateErr := client.UpdateCmdPaletteBindings(
+					cmd.Context(), workspace,
+					contract.UpdateSettingsWindowManagerRequest{GlobalShortcuts: &shortcuts},
+				); updateErr != nil {
+					return updateErr
+				}
+				return writeCommandOutput(
+					cmd,
+					cmdPaletteMutationOutput(cmdPaletteStatusResult{Status: "ok"}),
+				)
+			}
 			shortcuts := windowmanager.CloneShortcutMap(current.Config.Shortcuts)
 			shortcuts[commandID] = windowmanager.ShortcutBinding{}
 			if _, err := client.UpdateCmdPaletteBindings(
@@ -87,6 +128,7 @@ func newCmdPaletteUnbindCommand(deps commandDeps) *cobra.Command {
 		},
 	}
 	scope.add(cmd, false)
+	cmd.Flags().BoolVar(&globalBinding, "global", false, "Remove a desktop global hotkey")
 	return cmd
 }
 
@@ -183,6 +225,19 @@ func shortcutOwner(
 			if strings.EqualFold(candidate, chord) {
 				return commandID
 			}
+		}
+	}
+	return ""
+}
+
+func globalShortcutOwner(
+	shortcuts map[string]string,
+	chord string,
+	exclude string,
+) string {
+	for commandID, candidate := range shortcuts {
+		if commandID != exclude && strings.EqualFold(candidate, chord) {
+			return commandID
 		}
 	}
 	return ""

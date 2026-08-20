@@ -74,6 +74,17 @@ type WindowManagerSection struct {
 	Aliases            map[string]string
 	ExtensionDefaults  []WindowManagerExtensionDefault
 	Diagnostics        []windowmanager.ShortcutDiagnostic
+	GlobalShortcuts    []WindowManagerGlobalShortcut
+}
+
+// WindowManagerGlobalShortcut projects intended and shell-confirmed global binding state.
+type WindowManagerGlobalShortcut struct {
+	CommandID     string
+	IntendedChord string
+	ActiveChord   string
+	Status        string
+	Reason        string
+	SettingsURL   string
 }
 
 // WindowManagerShortcutCommand identifies one bindable command in the current catalog.

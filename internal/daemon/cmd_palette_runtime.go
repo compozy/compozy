@@ -21,6 +21,7 @@ type cmdPaletteClientDirectory struct {
 }
 
 var _ cmdpalette.ClientDirectory = (*cmdPaletteClientDirectory)(nil)
+var _ cmdpalette.GlobalShortcutStatusDirectory = (*cmdPaletteClientDirectory)(nil)
 
 func (d *cmdPaletteClientDirectory) Clients(
 	ctx context.Context,
@@ -73,6 +74,37 @@ func (d *cmdPaletteClientDirectory) Authorize(
 	return d.windowManager.AuthorizeClient(
 		ctx, windowmanager.WorkspaceID(workspaceID), windowmanager.ClientID(clientID), token,
 	)
+}
+
+func (d *cmdPaletteClientDirectory) GlobalShortcutStatuses(
+	ctx context.Context,
+	workspaceID cmdpalette.WorkspaceID,
+	clientID cmdpalette.ClientID,
+) (map[cmdpalette.CommandID]cmdpalette.GlobalShortcut, error) {
+	if d == nil || d.windowManager == nil {
+		return map[cmdpalette.CommandID]cmdpalette.GlobalShortcut{}, nil
+	}
+	clients, err := d.windowManager.Clients(ctx, windowmanager.WorkspaceID(workspaceID))
+	if err != nil {
+		return nil, fmt.Errorf("cmd palette: resolve global shortcut status: %w", err)
+	}
+	for _, client := range clients {
+		if client.ClientID != windowmanager.ClientID(clientID) {
+			continue
+		}
+		result := make(map[cmdpalette.CommandID]cmdpalette.GlobalShortcut, len(client.GlobalShortcuts))
+		for _, status := range client.GlobalShortcuts {
+			result[cmdpalette.CommandID(status.CommandID)] = cmdpalette.GlobalShortcut{
+				IntendedChord: status.IntendedChord,
+				ActiveChord:   status.ActiveChord,
+				Status:        string(status.Status),
+				Reason:        status.Reason,
+				SettingsURL:   status.SettingsURL,
+			}
+		}
+		return result, nil
+	}
+	return nil, cmdpalette.ErrNoAttachedShell
 }
 
 func cmdPaletteContextSnapshot(client windowmanager.ClientView) cmdpalette.ContextSnapshot {

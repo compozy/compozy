@@ -16,6 +16,7 @@ import {
 } from "./window-manager-config-schema";
 import type { ShortcutBinding } from "./window-manager-shortcuts";
 import type { WindowManagerConfig } from "./window-manager-types";
+import type { WindowManagerGlobalShortcutRegistration } from "./window-manager-shortcut-types";
 
 export type WindowManagerSettingsScope = "global" | "workspace";
 
@@ -56,6 +57,7 @@ export interface WindowManagerSettingsSection {
   aliases: WindowManagerAliasMap;
   extensionDefaults: readonly WindowManagerExtensionDefault[];
   diagnostics: readonly WindowManagerShortcutDiagnostic[];
+  globalShortcuts: readonly WindowManagerGlobalShortcutRegistration[];
 }
 
 const scopeSchema = z.enum(["global", "workspace"]);
@@ -79,6 +81,25 @@ const diagnosticSchema = z.strictObject({
   message: z.string(),
 });
 
+const globalShortcutStatusSchema = z.enum([
+  "registered",
+  "failed_in_use",
+  "failed_permission",
+  "unsupported",
+]);
+
+const globalShortcutSchema = z.strictObject({
+  command_id: z.string(),
+  intended_chord: z.string(),
+  active_chord: z.string().optional(),
+  status: z
+    .string()
+    .transform(value => globalShortcutStatusSchema.parse(value))
+    .optional(),
+  reason: z.string().optional(),
+  settings_url: z.string().optional(),
+});
+
 const settingsWindowManagerSectionSchema = z.strictObject({
   // Typed as the daemon's open section enum so the generated payload stays
   // assignable here, then pinned at runtime: parsing another section's envelope
@@ -96,6 +117,7 @@ const settingsWindowManagerSectionSchema = z.strictObject({
   commands: z.array(commandSchema),
   extension_defaults: z.array(extensionDefaultSchema),
   diagnostics: z.array(diagnosticSchema).optional(),
+  global_shortcuts: z.array(globalShortcutSchema),
 });
 
 /**
@@ -129,6 +151,14 @@ export function parseSettingsWindowManagerSection(
     diagnostics: (response.diagnostics ?? []).map(entry => ({
       commandId: entry.command_id,
       message: entry.message,
+    })),
+    globalShortcuts: response.global_shortcuts.map(entry => ({
+      commandId: entry.command_id,
+      intendedChord: entry.intended_chord,
+      activeChord: entry.active_chord ?? null,
+      status: entry.status ?? "unsupported",
+      reason: entry.reason ?? null,
+      settingsUrl: entry.settings_url ?? null,
     })),
   };
 }

@@ -143,6 +143,7 @@ func cloneClientView(view ClientView) ClientView {
 	view.FocusedWindowID = clonePointer(view.FocusedWindowID)
 	view.FocusOrder = append([]WindowID(nil), view.FocusOrder...)
 	view.StackActive = cloneStackActive(view.StackActive)
+	view.GlobalShortcuts = CloneGlobalShortcutRegistrations(view.GlobalShortcuts)
 	if view.PaletteContext.DestinationIntent != nil {
 		destination := cloneRouteIntent(*view.PaletteContext.DestinationIntent)
 		view.PaletteContext.DestinationIntent = &destination

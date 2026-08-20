@@ -270,6 +270,11 @@ export {
   type ShortcutRecorderModel,
 } from "./hooks/use-window-manager-shortcut-recorder";
 export {
+  useGlobalShortcutRecorder,
+  type GlobalShortcutRecorderModel,
+} from "./hooks/use-global-shortcut-recorder";
+export { useWindowManagerKeyboardEditors } from "./hooks/use-window-manager-keyboard-editors";
+export {
   ALIAS_RULE_HINT,
   useWindowManagerAliasEditor,
   type AliasCellState,

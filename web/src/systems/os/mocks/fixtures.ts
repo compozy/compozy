@@ -150,6 +150,7 @@ export function windowManagerClientFixture(
     focused_window_id: focusedWindowId,
     focus_order: [focusedWindowId],
     stack_active: {},
+    global_shortcuts: [],
     palette_context: {
       window_focused: true,
       window_floating: false,

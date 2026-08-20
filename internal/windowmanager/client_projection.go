@@ -315,7 +315,8 @@ func clientViewsEqual(left, right ClientView) bool {
 		left.ActiveDesktopID != right.ActiveDesktopID ||
 		valueOrZero(left.FocusedWindowID) != valueOrZero(right.FocusedWindowID) ||
 		len(left.FocusOrder) != len(right.FocusOrder) ||
-		!paletteContextsEqual(left.PaletteContext, right.PaletteContext) {
+		!paletteContextsEqual(left.PaletteContext, right.PaletteContext) ||
+		!globalShortcutRegistrationsEqual(left.GlobalShortcuts, right.GlobalShortcuts) {
 		return false
 	}
 	if len(left.StackActive) != len(right.StackActive) {

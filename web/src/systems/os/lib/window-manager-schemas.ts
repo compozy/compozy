@@ -309,6 +309,16 @@ export const windowManagerClientViewSchema = z
     }),
     connected_at: timestampSchema,
     attachment_token: identifierSchema.optional(),
+    global_shortcuts: z.array(
+      z.strictObject({
+        command_id: identifierSchema,
+        intended_chord: identifierSchema,
+        active_chord: identifierSchema.optional(),
+        status: z.enum(["registered", "failed_in_use", "failed_permission", "unsupported"]),
+        reason: z.string().optional(),
+        settings_url: z.string().optional(),
+      })
+    ),
   })
   .transform(
     (client): WindowManagerAttachedClientView => ({
@@ -334,6 +344,14 @@ export const windowManagerClientViewSchema = z
       },
       connectedAt: client.connected_at,
       attachmentToken: client.attachment_token ?? null,
+      globalShortcuts: client.global_shortcuts.map(registration => ({
+        commandId: registration.command_id,
+        intendedChord: registration.intended_chord,
+        activeChord: registration.active_chord ?? null,
+        status: registration.status,
+        reason: registration.reason ?? null,
+        settingsUrl: registration.settings_url ?? null,
+      })),
     })
   );
 

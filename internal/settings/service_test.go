@@ -755,6 +755,56 @@ func TestUpdateSectionWindowManager(t *testing.T) {
 		}
 	})
 
+	t.Run("Should transfer a desktop-global chord only through an atomic overwrite", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := context.Background()
+		homePaths := testHomePaths(t)
+		writeFile(t, homePaths.ConfigFile, baseSettingsConfig())
+		service := testService(t, homePaths, Dependencies{})
+		desired := map[string]string{
+			windowmanager.DefaultGlobalSummonCommandID: windowmanager.DefaultGlobalSummonChord,
+			"session.new": windowmanager.DefaultGlobalSummonChord,
+		}
+		request := SectionUpdateRequest{
+			SectionRequest:               SectionRequest{Section: SectionWindowManager},
+			WindowManagerGlobalShortcuts: &desired,
+		}
+
+		_, err := service.UpdateSection(ctx, request)
+		var conflict *windowmanager.ShortcutConflictError
+		if !errors.As(err, &conflict) {
+			t.Fatalf("UpdateSection(global conflict) error = %T %v, want ShortcutConflictError", err, err)
+		}
+		if conflict.Owner != windowmanager.DefaultGlobalSummonCommandID ||
+			conflict.Chord != windowmanager.DefaultGlobalSummonChord {
+			t.Fatalf("global shortcut conflict = %#v", conflict)
+		}
+		beforeOverwrite, err := compozyconfig.LoadForHome(homePaths)
+		if err != nil {
+			t.Fatalf("LoadForHome(before overwrite) error = %v", err)
+		}
+		if beforeOverwrite.WindowManager.GlobalShortcuts[windowmanager.DefaultGlobalSummonCommandID] !=
+			windowmanager.DefaultGlobalSummonChord {
+			t.Fatalf("failed mutation changed global shortcuts = %#v", beforeOverwrite.WindowManager.GlobalShortcuts)
+		}
+
+		request.Overwrite = true
+		if _, err := service.UpdateSection(ctx, request); err != nil {
+			t.Fatalf("UpdateSection(global overwrite) error = %v", err)
+		}
+		loaded, err := compozyconfig.LoadForHome(homePaths)
+		if err != nil {
+			t.Fatalf("LoadForHome(global overwrite) error = %v", err)
+		}
+		if _, exists := loaded.WindowManager.GlobalShortcuts[windowmanager.DefaultGlobalSummonCommandID]; exists {
+			t.Fatal("global summon still owns chord after overwrite")
+		}
+		if loaded.WindowManager.GlobalShortcuts["session.new"] != windowmanager.DefaultGlobalSummonChord {
+			t.Fatalf("global shortcuts = %#v, want session.new owner", loaded.WindowManager.GlobalShortcuts)
+		}
+	})
+
 	t.Run("Should validate aliases and transfer ownership atomically", func(t *testing.T) {
 		t.Parallel()
 
@@ -5884,6 +5934,9 @@ func testWindowManagerConfig() compozyconfig.WindowManagerConfig {
 		Shortcuts: map[string]windowmanager.ShortcutBinding{
 			"desktop.switch.next": {"Meta+ArrowRight"},
 			"window.focus.left":   {"Alt+ArrowLeft"},
+		},
+		GlobalShortcuts: map[string]string{
+			windowmanager.DefaultGlobalSummonCommandID: windowmanager.DefaultGlobalSummonChord,
 		},
 	}
 }

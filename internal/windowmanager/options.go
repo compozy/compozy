@@ -12,13 +12,14 @@ import (
 const defaultSubscriptionBuffer = 256
 
 type managerOptions struct {
-	now                func() time.Time
-	generate           idGenerator
-	subscriptionBuffer int
-	eventObserver      EventObserver
-	clientObserver     ClientUnregisteredObserver
-	workspaceConfig    WorkspaceConfigResolver
-	lifecycleContext   context.Context
+	now                    func() time.Time
+	generate               idGenerator
+	subscriptionBuffer     int
+	eventObserver          EventObserver
+	clientObserver         ClientUnregisteredObserver
+	globalShortcutObserver GlobalShortcutFailureObserver
+	workspaceConfig        WorkspaceConfigResolver
+	lifecycleContext       context.Context
 }
 
 // Option customizes the manager without introducing operational globals.
@@ -29,6 +30,14 @@ type EventObserver func(context.Context, Event)
 
 // ClientUnregisteredObserver tears down transient state owned by a detached client.
 type ClientUnregisteredObserver func(context.Context, WorkspaceID, ClientID) error
+
+// GlobalShortcutFailureObserver receives one changed shell registration failure.
+type GlobalShortcutFailureObserver func(
+	context.Context,
+	WorkspaceID,
+	ClientID,
+	GlobalShortcutRegistration,
+)
 
 // WorkspaceConfigResolver overlays workspace-scoped behavior onto active defaults.
 type WorkspaceConfigResolver interface {
@@ -86,6 +95,17 @@ func WithClientUnregisteredObserver(observer ClientUnregisteredObserver) Option 
 			return errors.New("window manager client unregister observer is required")
 		}
 		options.clientObserver = observer
+		return nil
+	}
+}
+
+// WithGlobalShortcutFailureObserver observes shell registration failures.
+func WithGlobalShortcutFailureObserver(observer GlobalShortcutFailureObserver) Option {
+	return func(options *managerOptions) error {
+		if observer == nil {
+			return errors.New("window manager global shortcut failure observer is required")
+		}
+		options.globalShortcutObserver = observer
 		return nil
 	}
 }

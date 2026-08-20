@@ -65,7 +65,8 @@ func settingsWindowManagerPayloadFromConfig(
 			TopCenter:    contract.SettingsWindowBindingAction(cfg.Bindings.TopCenter),
 			BottomCenter: contract.SettingsWindowBindingAction(cfg.Bindings.BottomCenter),
 		},
-		Shortcuts: windowmanager.CloneShortcutMap(cfg.Shortcuts),
+		Shortcuts:       windowmanager.CloneShortcutMap(cfg.Shortcuts),
+		GlobalShortcuts: windowmanager.CloneGlobalShortcutMap(cfg.GlobalShortcuts),
 	}
 }
 

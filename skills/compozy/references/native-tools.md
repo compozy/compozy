@@ -54,6 +54,11 @@ Manage workspace command bindings with `compozy cmd-palette bind|unbind|bindings
 chord or alias atomically. Pin state uses `compozy cmd-palette pin|unpin`. HTTP/UDS clients read and
 patch bindings and aliases through `/api/settings/window-manager`.
 
+Add `--global` to `bind|unbind` for desktop-global hotkeys. Read the complete
+`window_manager.global_shortcuts` map before mutation because the Settings PATCH replaces it. Pass a
+shell `client_id` when reading `/api/settings/window-manager` to receive that shell's confirmed
+registration state; an intended chord without `active_chord` is not active.
+
 Palette personalization is workspace-scoped and management-only. Inspect or reset it with
 `compozy cmd-palette personalization show|reset --workspace <workspace>`. HTTP/UDS clients use
 `GET /api/cmd-palette/rank-signals`, `POST /api/cmd-palette/usage`, `PUT|DELETE

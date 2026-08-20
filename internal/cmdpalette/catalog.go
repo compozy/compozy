@@ -17,9 +17,10 @@ type structuralCatalog struct {
 }
 
 type structuralCommand struct {
-	Descriptor Descriptor `json:"descriptor"`
-	Bindings   []string   `json:"bindings"`
-	Alias      *string    `json:"alias"`
+	Descriptor  Descriptor `json:"descriptor"`
+	Bindings    []string   `json:"bindings"`
+	Alias       *string    `json:"alias"`
+	GlobalChord string     `json:"global_chord,omitempty"`
 }
 
 // BindableIDs returns the current workspace catalog ids in deterministic order.
@@ -61,6 +62,11 @@ func (s *Service) Catalog(
 	if err != nil {
 		return Catalog{}, err
 	}
+	globalBindings, err := s.resolveSnapshotGlobalBindings(ctx, workspaceID, descriptors)
+	if err != nil {
+		return Catalog{}, err
+	}
+	globalStatuses := map[CommandID]GlobalShortcut{}
 	var snapshot *ContextSnapshot
 	if clientID != "" {
 		if s.clients == nil {
@@ -71,6 +77,12 @@ func (s *Service) Catalog(
 			return Catalog{}, contextErr
 		}
 		snapshot = &resolved
+		if directory, ok := s.clients.(GlobalShortcutStatusDirectory); ok {
+			globalStatuses, err = directory.GlobalShortcutStatuses(ctx, workspaceID, clientID)
+			if err != nil {
+				return Catalog{}, err
+			}
+		}
 	}
 	commands := make([]ResolvedCommand, 0, len(descriptors))
 	for _, descriptor := range descriptors {
@@ -82,12 +94,24 @@ func (s *Service) Catalog(
 			cloned := value
 			alias = &cloned
 		}
+		var globalShortcut *GlobalShortcut
+		if chord, exists := globalBindings[descriptor.ID]; exists {
+			resolved := GlobalShortcut{IntendedChord: chord}
+			if status, reported := globalStatuses[descriptor.ID]; reported && status.IntendedChord == chord {
+				resolved.ActiveChord = status.ActiveChord
+				resolved.Status = status.Status
+				resolved.Reason = status.Reason
+				resolved.SettingsURL = status.SettingsURL
+			}
+			globalShortcut = &resolved
+		}
 		commands = append(commands, ResolvedCommand{
 			Descriptor:        cloneDescriptor(descriptor),
 			Available:         available,
 			UnavailableReason: reason,
 			Bindings:          resolvedBindings,
 			Alias:             alias,
+			GlobalShortcut:    globalShortcut,
 		})
 	}
 	sort.Slice(commands, func(left, right int) bool { return commands[left].ID < commands[right].ID })
@@ -100,6 +124,26 @@ func (s *Service) Catalog(
 		catalog.ContextRevision = snapshot.Revision
 	}
 	return catalog, nil
+}
+
+func (s *Service) resolveSnapshotGlobalBindings(
+	ctx context.Context,
+	workspaceID WorkspaceID,
+	descriptors []Descriptor,
+) (map[CommandID]string, error) {
+	resolver, ok := s.bindings.(SnapshotGlobalBindingsResolver)
+	if !ok {
+		return map[CommandID]string{}, nil
+	}
+	ids := make([]CommandID, 0, len(descriptors))
+	for _, descriptor := range descriptors {
+		ids = append(ids, descriptor.ID)
+	}
+	bindings, err := resolver.GlobalBindingsForCatalogSnapshot(ctx, workspaceID, ids)
+	if err != nil {
+		return nil, fmt.Errorf("cmd palette: resolve global bindings: %w", err)
+	}
+	return bindings, nil
 }
 
 func (s *Service) collectDescriptors(
@@ -226,9 +270,10 @@ func structuralRevision(commands []ResolvedCommand, sources []SourceStatus) (str
 	structural.Commands = make([]structuralCommand, 0, len(commands))
 	for _, command := range commands {
 		structural.Commands = append(structural.Commands, structuralCommand{
-			Descriptor: cloneDescriptor(command.Descriptor),
-			Bindings:   append([]string(nil), command.Bindings...),
-			Alias:      cloneString(command.Alias),
+			Descriptor:  cloneDescriptor(command.Descriptor),
+			Bindings:    append([]string(nil), command.Bindings...),
+			Alias:       cloneString(command.Alias),
+			GlobalChord: globalShortcutIntent(command.GlobalShortcut),
 		})
 	}
 	payload, err := json.Marshal(structural)
@@ -237,6 +282,13 @@ func structuralRevision(commands []ResolvedCommand, sources []SourceStatus) (str
 	}
 	digest := sha256.Sum256(payload)
 	return "cr_" + hex.EncodeToString(digest[:]), nil
+}
+
+func globalShortcutIntent(binding *GlobalShortcut) string {
+	if binding == nil {
+		return ""
+	}
+	return binding.IntendedChord
 }
 
 func cloneDescriptor(descriptor Descriptor) Descriptor {

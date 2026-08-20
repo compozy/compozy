@@ -47,8 +47,19 @@ func (m *Manager) UpdateClientContext(
 	view.PaletteContext.FocusedSessionState = strings.TrimSpace(update.Context.FocusedSessionState)
 	view.PaletteContext.WorkspaceTrusted = update.Context.WorkspaceTrusted
 	view.PaletteContext.DestinationIntent = cloneRouteIntentPointer(update.Context.DestinationIntent)
+	registrations, err := normalizeGlobalShortcutRegistrations(update.Context.GlobalShortcuts)
+	if err != nil {
+		m.mu.Unlock()
+		return ClientView{}, fmt.Errorf("client %q global shortcuts: %w", update.ClientID, err)
+	}
+	if view.Kind != ClientKindShell && len(registrations) > 0 {
+		m.mu.Unlock()
+		return ClientView{}, fmt.Errorf("browser client %q global shortcuts: %w", update.ClientID, ErrInvalidCommand)
+	}
+	view.GlobalShortcuts = registrations
 	view = repairClientView(view, snapshot)
-	if paletteContextsEqual(before.PaletteContext, view.PaletteContext) {
+	if paletteContextsEqual(before.PaletteContext, view.PaletteContext) &&
+		globalShortcutRegistrationsEqual(before.GlobalShortcuts, view.GlobalShortcuts) {
 		m.mu.Unlock()
 		return cloneClientView(view), nil
 	}
@@ -67,7 +78,33 @@ func (m *Manager) UpdateClientContext(
 	m.clients[update.WorkspaceID][update.ClientID] = cloneClientView(view)
 	m.mu.Unlock()
 	m.publishClient(view)
+	if m.globalShortcutObserver != nil {
+		for _, registration := range view.GlobalShortcuts {
+			if registration.Status == GlobalShortcutRegistered ||
+				!globalShortcutRegistrationChanged(before.GlobalShortcuts, registration) {
+				continue
+			}
+			m.globalShortcutObserver(
+				ctx,
+				update.WorkspaceID,
+				update.ClientID,
+				registration,
+			)
+		}
+	}
 	return cloneClientView(view), nil
+}
+
+func globalShortcutRegistrationChanged(
+	before []GlobalShortcutRegistration,
+	current GlobalShortcutRegistration,
+) bool {
+	for _, previous := range before {
+		if previous.CommandID == current.CommandID {
+			return !reflect.DeepEqual(previous, current)
+		}
+	}
+	return true
 }
 
 func derivePaletteContext(view ClientView, snapshot Snapshot) PaletteContext {
@@ -92,6 +129,10 @@ func derivePaletteContext(view ClientView, snapshot Snapshot) PaletteContext {
 }
 
 func paletteContextsEqual(left, right PaletteContext) bool {
+	return reflect.DeepEqual(left, right)
+}
+
+func globalShortcutRegistrationsEqual(left, right []GlobalShortcutRegistration) bool {
 	return reflect.DeepEqual(left, right)
 }
 

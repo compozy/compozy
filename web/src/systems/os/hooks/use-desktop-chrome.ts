@@ -11,6 +11,7 @@ import type {
 } from "../lib/window-manager-types";
 import {
   windowManagerConfigOptions,
+  windowManagerKeys,
   windowManagerSnapshotOptions,
 } from "../lib/window-manager-query";
 import { RoutingCoordinator, type OsRouterPort } from "../lib/routing-coordinator";
@@ -18,6 +19,7 @@ import { subscribeWorkspaceSwitchBarrier } from "../lib/workspace-switch-barrier
 import { WindowManagerRuntime } from "../runtime/window-manager-runtime";
 import { useWindowManagerClient } from "./use-window-manager-client";
 import { useWindowManagerStream } from "./use-window-manager-stream";
+import { useGlobalShortcutReconciliation } from "./use-global-shortcut-reconciliation";
 
 export interface DesktopChromeModel {
   shell: OsShellHandle;
@@ -50,10 +52,12 @@ export function useDesktopChrome(activeWorkspaceId: string | null): DesktopChrom
   const router = useRouter();
   const queryClient = useQueryClient();
   const query = useQuery(windowManagerSnapshotOptions(activeWorkspaceId ?? ""));
+  const client = useWindowManagerClient(activeWorkspaceId);
   // Scoped to the active workspace: a rebind stored in the workspace overlay has
   // to reach the shell's own keymap, or the chord would not dispatch until a
   // reload (US-022.AC-3).
-  const configQuery = useQuery(windowManagerConfigOptions(activeWorkspaceId));
+  const configQuery = useQuery(windowManagerConfigOptions(activeWorkspaceId, client.clientId));
+  const globalShortcuts = useGlobalShortcutReconciliation(configQuery.data?.globalShortcuts);
   const [manager] = useState(() => new WindowManagerRuntime(queryClient));
   // The seam is built deeper in the tree (it needs the shell's own handlers), so
   // the stream reaches it through a ref rather than the shell reaching upward.
@@ -74,8 +78,6 @@ export function useDesktopChrome(activeWorkspaceId: string | null): DesktopChrom
     manager.start();
     return () => manager.stop();
   }, [manager]);
-
-  const client = useWindowManagerClient(activeWorkspaceId);
 
   useEffect(() => {
     manager.setClient(client.client);
@@ -111,6 +113,7 @@ export function useDesktopChrome(activeWorkspaceId: string | null): DesktopChrom
       focusedSessionState: client.client?.paletteContext.focusedSessionState ?? null,
       workspaceTrusted: client.client?.paletteContext.workspaceTrusted ?? true,
       destinationIntent: client.client?.paletteContext.destinationIntent ?? null,
+      globalShortcuts: globalShortcuts.registrations,
     },
     enabled: client.status === "registered",
     afterRevision: query.data?.revision ?? 0,
@@ -122,6 +125,12 @@ export function useDesktopChrome(activeWorkspaceId: string | null): DesktopChrom
     onClient: view => {
       manager.setClient(view);
       shell.coordinator.reportAuthoritativeState();
+      if (view.globalShortcuts.length > 0) {
+        void queryClient.invalidateQueries({
+          queryKey: windowManagerKeys.config(activeWorkspaceId, client.clientId),
+          exact: true,
+        });
+      }
     },
     onClientCommand: command => {
       return clientCommandChannel.execute(command.op, command.payload);

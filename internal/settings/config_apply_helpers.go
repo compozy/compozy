@@ -56,7 +56,8 @@ func (s *service) classifyRuntimeSectionApplyRequest(
 		}
 		return s.classifyGatewayRequest(ctx, req)
 	case SectionWindowManager:
-		if req.WindowManager == nil && req.WindowManagerShortcuts == nil && req.WindowManagerAliases == nil {
+		if req.WindowManager == nil && req.WindowManagerShortcuts == nil &&
+			req.WindowManagerGlobalShortcuts == nil && req.WindowManagerAliases == nil {
 			return lifecycle.Live
 		}
 		return s.classifyWindowManagerRequest(ctx, req)

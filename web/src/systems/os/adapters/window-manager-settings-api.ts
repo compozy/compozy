@@ -12,16 +12,22 @@ import {
   parseSettingsWindowManagerSection,
   type WindowManagerSettingsSection,
 } from "../lib/window-manager-settings-section";
-import type { WindowManagerShortcutMap } from "../lib/window-manager-types";
+import type {
+  WindowManagerGlobalShortcutMap,
+  WindowManagerShortcutMap,
+} from "../lib/window-manager-shortcut-types";
 
 /** Reads and writes address one scope; mixing them would split binding truth. */
 export interface WindowManagerSettingsScopeInput {
   /** Empty or null reads global scope — the daemon then answers for core ids only. */
   workspaceId: string | null;
+  /** Shell attachment whose registration truth should be projected. */
+  clientId?: string;
 }
 
 export interface WindowManagerBindingUpdate extends WindowManagerSettingsScopeInput {
   shortcuts?: WindowManagerShortcutMap;
+  globalShortcuts?: WindowManagerGlobalShortcutMap;
   aliases?: Readonly<Record<string, string>>;
   /** Transfers a contested chord or alias away from its current owner. */
   overwrite?: boolean;
@@ -57,10 +63,20 @@ export class WindowManagerSettingsError extends Error {
   }
 }
 
-function scopeQuery({ workspaceId }: WindowManagerSettingsScopeInput) {
+function scopeQuery({ workspaceId, clientId }: WindowManagerSettingsScopeInput) {
   const normalized = workspaceId?.trim() ?? "";
-  if (normalized === "") return { scope: "global" } as const;
-  return { scope: "workspace", workspace_id: normalized } as const;
+  const normalizedClientId = clientId?.trim();
+  if (normalized === "") {
+    return {
+      scope: "global",
+      ...(normalizedClientId ? { client_id: normalizedClientId } : {}),
+    } as const;
+  }
+  return {
+    scope: "workspace",
+    workspace_id: normalized,
+    ...(normalizedClientId ? { client_id: normalizedClientId } : {}),
+  } as const;
 }
 
 function mutationCode(value: unknown): WindowManagerMutationCode | null {
@@ -114,6 +130,8 @@ export async function updateWindowManagerBindings(
   const { data, error, response } = await apiClient.PATCH("/api/settings/window-manager", {
     body: {
       shortcuts: shortcutsBody(update.shortcuts),
+      global_shortcuts:
+        update.globalShortcuts === undefined ? undefined : { ...update.globalShortcuts },
       aliases: update.aliases === undefined ? undefined : { ...update.aliases },
       ...(update.overwrite === true ? { overwrite: true } : {}),
     },

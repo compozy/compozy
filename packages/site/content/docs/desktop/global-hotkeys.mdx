@@ -1,0 +1,54 @@
+---
+title: Global hotkeys
+description: Summon CompozyOS or run a command from anywhere through the desktop shell.
+---
+
+The desktop app can register one system-wide chord for any command in the command palette. The
+default is `meta+shift+Space` for `palette.summon.global`, which restores and focuses CompozyOS with
+the palette open.
+
+## Configure a hotkey
+
+Use Settings → Layouts → Shortcuts, or update the daemon-owned map from the CLI:
+
+```bash
+compozy cmd-palette bind session.new meta+shift+KeyN --global --workspace acme
+compozy cmd-palette unbind session.new --global --workspace acme
+```
+
+Add `--overwrite` only after reviewing the command that currently owns a conflicting chord. The
+daemon transfers the chord as one atomic change.
+
+The equivalent configuration is:
+
+```toml
+[window_manager.global_shortcuts]
+"palette.summon.global" = "meta+shift+Space"
+"session.new" = "meta+shift+KeyN"
+```
+
+See [Keyboard shortcuts](/docs/configuration/shortcuts/) for the chord grammar and in-app bindings.
+
+## Registration states
+
+The daemon stores the intended map. Each running desktop shell reports what it registered on that
+machine:
+
+- **Active** — the shell confirmed the chord.
+- **Captured** — another application owns the intended chord. If the command had a previous working
+  chord, CompozyOS restores and shows it.
+- **Permission required** — macOS Accessibility permission blocked registration. Use **Open System
+  Settings** from the callout, grant access, and return to retry.
+- **Unsupported** — Electron cannot convert or register that chord.
+
+Quit releases every registered chord. Relaunch reads the intended map, registers it again, and
+reports fresh status.
+
+## Browser mode
+
+The daemon-served web app still supports in-app shortcuts such as `meta+KeyK`, but a browser tab
+cannot own system-wide hotkeys. Settings keeps the global section visible and disabled with the
+reason **requires desktop shell**.
+
+The recorder stores physical key codes. On non-QWERTY layouts, the printed legend may differ from
+the physical key that activates the chord.

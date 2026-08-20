@@ -10,6 +10,7 @@ import {
 
 export interface WindowManagerBindingCommit {
   shortcuts?: WindowManagerSettingsSection["config"]["shortcuts"];
+  globalShortcuts?: WindowManagerSettingsSection["config"]["globalShortcuts"];
   aliases?: Readonly<Record<string, string>>;
   overwrite?: boolean;
 }
@@ -30,14 +31,19 @@ export interface WindowManagerBindingMutations {
  * and the palette catalog is re-read for the labels it carries.
  */
 export function useWindowManagerBindingMutations(
-  workspaceId: string | null
+  workspaceId: string | null,
+  clientId?: string
 ): WindowManagerBindingMutations {
   const queryClient = useQueryClient();
   const mutation = useMutation({
     mutationFn: (update: WindowManagerBindingCommit) =>
-      updateWindowManagerBindings({ ...update, workspaceId } as WindowManagerBindingUpdate),
+      updateWindowManagerBindings({
+        ...update,
+        workspaceId,
+        clientId,
+      } as WindowManagerBindingUpdate),
     onSuccess: async section => {
-      queryClient.setQueryData(windowManagerKeys.config(workspaceId), section);
+      queryClient.setQueryData(windowManagerKeys.config(workspaceId, clientId), section);
       // Chord badges and "Title (alias)" rows read the catalog, not this
       // section, so they would otherwise keep the previous binding on screen.
       await queryClient.invalidateQueries({

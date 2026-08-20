@@ -4,6 +4,7 @@ import { join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
 import { extract } from "tar";
+import type { Page } from "@playwright/test";
 
 import {
   availableLoopbackPort,
@@ -26,6 +27,80 @@ async function jsonCommand(
   arguments_: readonly string[]
 ): Promise<Record<string, unknown>> {
   return JSON.parse((await desktop.cli(arguments_)).stdout) as Record<string, unknown>;
+}
+
+async function firstWorkspaceID(desktop: DesktopInstance): Promise<string> {
+  const payload = await jsonCommand(desktop, ["workspace", "list", "-o", "json"]);
+  const workspaces = payload.workspaces;
+  if (!Array.isArray(workspaces)) throw new Error("Workspace list did not return an array.");
+  const first = workspaces[0];
+  if (!first || typeof first !== "object") throw new Error("Workspace list is empty.");
+  const id = Reflect.get(first, "id");
+  if (typeof id !== "string" || id.trim() === "") {
+    throw new Error("The first workspace has no stable id.");
+  }
+  return id;
+}
+
+async function waitForGlobalShortcut(
+  product: Page,
+  commandID: string,
+  status: "registered" | "failed_in_use"
+): Promise<Record<string, unknown>> {
+  let observed: Record<string, unknown> | undefined;
+  await expect
+    .poll(async () => {
+      observed = await product.evaluate(async id => {
+        const bridge = Reflect.get(window, "compozyShell") as
+          | {
+              globalShortcuts: {
+                status(): Promise<
+                  Array<{
+                    command_id: string;
+                    intended_chord: string;
+                    active_chord?: string;
+                    status: string;
+                  }>
+                >;
+              };
+            }
+          | undefined;
+        if (!bridge) return undefined;
+        return (await bridge.globalShortcuts.status()).find(item => item.command_id === id);
+      }, commandID);
+      return observed?.status;
+    })
+    .toBe(status);
+  if (!observed) throw new Error(`Global shortcut ${commandID} did not report status ${status}.`);
+  return observed;
+}
+
+async function invokeGlobalShortcut(desktop: DesktopInstance, accelerator: string): Promise<void> {
+  const invoked = await desktop.app.evaluate((_electron, value) => {
+    const invoke = Reflect.get(globalThis, "__compozyGlobalShortcutInvoke");
+    if (typeof invoke !== "function") return false;
+    return invoke(value) === true;
+  }, accelerator);
+  if (!invoked) throw new Error(`Global shortcut ${accelerator} is not registered.`);
+}
+
+async function copyPaletteExtensionFixture(home: string): Promise<string> {
+  const source = join(home, "fixtures", "palette-fixture-go");
+  await cp(
+    join(repositoryRoot, "internal", "extension", "testdata", "palette-fixture-go"),
+    source,
+    {
+      recursive: true,
+    }
+  );
+  const modulePath = join(source, "go.mod");
+  const moduleFile = await readFile(modulePath, "utf8");
+  await writeFile(
+    modulePath,
+    `${moduleFile.trimEnd()}\n\nreplace github.com/compozy/compozy/sdk/go => ${join(repositoryRoot, "sdk", "go")}\n`,
+    { mode: 0o600 }
+  );
+  return source;
 }
 
 async function bootstrapEvents(home: string): Promise<readonly Record<string, unknown>[]> {
@@ -1025,4 +1100,209 @@ test("E2E-034: packaged product and boot windows enforce their security boundari
       return Reflect.get(globalThis, "__compozyInlineExecuted");
     })
   ).toBe(false);
+});
+
+test("E2E-027: a global summon restores and focuses the palette without crossing an open modal", async ({
+  launchDesktop,
+}) => {
+  const desktop = await launchDesktop({
+    environment: { COMPOZY_DESKTOP_E2E_FOREGROUND: "1" },
+  });
+  const product = await desktop.product();
+  await completeOnboarding(product);
+  await waitForGlobalShortcut(product, "palette.summon.global", "registered");
+
+  await desktop.app.evaluate(async ({ BrowserWindow }) => {
+    const productWindow = BrowserWindow.getAllWindows().find(window =>
+      /^https?:/u.test(window.webContents.getURL())
+    );
+    if (!productWindow) throw new Error("Product window missing before global summon.");
+    productWindow.minimize();
+    const other = new BrowserWindow({ width: 320, height: 240, show: true });
+    other.setTitle("Shortcut focus fixture");
+    await other.loadURL("about:blank");
+    other.focus();
+  });
+  expect(
+    await desktop.app.evaluate(({ BrowserWindow }) => {
+      const productWindow = BrowserWindow.getAllWindows().find(window =>
+        /^https?:/u.test(window.webContents.getURL())
+      );
+      return productWindow?.isMinimized() ?? false;
+    })
+  ).toBe(true);
+
+  await invokeGlobalShortcut(desktop, "CommandOrControl+Shift+Space");
+  await expect(product.getByRole("dialog", { name: "Command palette" })).toBeVisible();
+  await expect
+    .poll(
+      async () =>
+        await desktop.app.evaluate(({ BrowserWindow }) => {
+          const productWindow = BrowserWindow.getAllWindows().find(window =>
+            /^https?:/u.test(window.webContents.getURL())
+          );
+          return productWindow
+            ? { focused: productWindow.isFocused(), minimized: productWindow.isMinimized() }
+            : null;
+        })
+    )
+    .toEqual({ focused: true, minimized: false });
+  await product.keyboard.press("Escape");
+
+  await product.getByRole("button", { name: "New session" }).last().click();
+  const modal = product.getByRole("dialog").first();
+  await expect(modal).toBeVisible();
+  await invokeGlobalShortcut(desktop, "CommandOrControl+Shift+Space");
+  await expect(product.getByRole("dialog", { name: "Command palette" })).toHaveCount(0);
+  await expect
+    .poll(async () => await modal.evaluate(node => node.contains(document.activeElement)))
+    .toBe(true);
+
+  await desktop.app.evaluate(({ BrowserWindow }) => {
+    BrowserWindow.getAllWindows()
+      .filter(window => window.getTitle() === "Shortcut focus fixture")
+      .forEach(window => window.destroy());
+  });
+});
+
+test("E2E-028: an argument command global hotkey summons directly into argument mode", async ({
+  launchDesktop,
+}) => {
+  let extensionSource = "";
+  const desktop = await launchDesktop({
+    environment: { COMPOZY_DESKTOP_E2E_FOREGROUND: "1" },
+    prepare: async context => {
+      extensionSource = await copyPaletteExtensionFixture(context.home);
+    },
+  });
+  const product = await desktop.product();
+  await completeOnboarding(product);
+  const workspaceID = await firstWorkspaceID(desktop);
+  await desktop.cli([
+    "extension",
+    "dev",
+    extensionSource,
+    "--workspace",
+    workspaceID,
+    "-o",
+    "json",
+  ]);
+  await desktop.cli([
+    "cmd-palette",
+    "bind",
+    "ext.notes.capture",
+    "meta+alt+KeyN",
+    "--global",
+    "--workspace",
+    workspaceID,
+    "-o",
+    "json",
+  ]);
+  await waitForGlobalShortcut(product, "ext.notes.capture", "registered");
+
+  await product.keyboard.press(process.platform === "darwin" ? "Meta+K" : "Control+K");
+  await product.getByRole("combobox").fill("capture note");
+  await expect(product.getByTestId("os-palette-command-ext.notes.capture")).toBeVisible();
+  await product.keyboard.press("Escape");
+
+  await desktop.app.evaluate(async ({ BrowserWindow }) => {
+    const other = new BrowserWindow({ width: 320, height: 240, show: true });
+    other.setTitle("Argument shortcut focus fixture");
+    await other.loadURL("about:blank");
+    other.focus();
+  });
+  await invokeGlobalShortcut(desktop, "CommandOrControl+Alt+N");
+  await expect(product.getByTestId("os-palette-args")).toBeVisible();
+  await expect(product.getByTestId("os-palette-arg-title")).toBeFocused();
+  await desktop.app.evaluate(({ BrowserWindow }) => {
+    BrowserWindow.getAllWindows()
+      .filter(window => window.getTitle() === "Argument shortcut focus fixture")
+      .forEach(window => window.destroy());
+  });
+});
+
+test("E2E-029: a captured replacement restores the previous binding and relaunch reports fresh truth", async ({
+  launchDesktop,
+}) => {
+  const desktop = await launchDesktop({
+    environment: { COMPOZY_DESKTOP_E2E_FOREGROUND: "1" },
+  });
+  const product = await desktop.product();
+  await completeOnboarding(product);
+  const workspaceID = await firstWorkspaceID(desktop);
+  await waitForGlobalShortcut(product, "palette.summon.global", "registered");
+  expect(
+    await desktop.app.evaluate(({ globalShortcut }) =>
+      globalShortcut.register("CommandOrControl+Alt+Space", () => undefined)
+    )
+  ).toBe(true);
+
+  await desktop.cli([
+    "cmd-palette",
+    "bind",
+    "palette.summon.global",
+    "meta+alt+Space",
+    "--global",
+    "--workspace",
+    workspaceID,
+    "-o",
+    "json",
+  ]);
+  const failed = await waitForGlobalShortcut(product, "palette.summon.global", "failed_in_use");
+  expect(failed).toMatchObject({
+    active_chord: "meta+shift+Space",
+    intended_chord: "meta+alt+Space",
+  });
+  await product.goto(new URL("/settings/layouts", product.url()).toString());
+  const globalSection = product.getByTestId("window-manager-global-hotkeys");
+  await expect(globalSection).toContainText("unavailable — in use by another application");
+  await expect(globalSection).toContainText("captured");
+
+  await invokeGlobalShortcut(desktop, "CommandOrControl+Shift+Space");
+  await expect(product.getByRole("dialog", { name: "Command palette" })).toBeVisible();
+  await desktop.closeShell();
+
+  const relaunched = await launchDesktop({
+    home: desktop.home,
+    environment: { COMPOZY_DESKTOP_E2E_FOREGROUND: "1" },
+  });
+  const relaunchedProduct = await relaunched.product();
+  const registered = await waitForGlobalShortcut(
+    relaunchedProduct,
+    "palette.summon.global",
+    "registered"
+  );
+  expect(registered).toMatchObject({
+    active_chord: "meta+alt+Space",
+    intended_chord: "meta+alt+Space",
+  });
+  await relaunchedProduct.goto(new URL("/settings/layouts", relaunchedProduct.url()).toString());
+  await expect(relaunchedProduct.getByTestId("window-manager-global-hotkeys")).toContainText(
+    "active"
+  );
+});
+
+test("E2E-030: a plain browser explains global hotkeys while keeping the in-app palette chord", async ({
+  launchDesktop,
+  playwright,
+}) => {
+  const desktop = await launchDesktop();
+  const product = await desktop.product();
+  await completeOnboarding(product);
+  const browser = await playwright.chromium.launch();
+  try {
+    const page = await browser.newPage();
+    await page.goto(new URL("/settings/layouts", product.url()).toString());
+    const globalSection = page.getByTestId("window-manager-global-hotkeys");
+    await expect(globalSection).toContainText("desktop only");
+    await expect(globalSection).toContainText("requires desktop shell");
+    await expect(
+      globalSection.getByRole("button", { name: /Record global hotkey/u }).first()
+    ).toBeDisabled();
+
+    await page.keyboard.press(process.platform === "darwin" ? "Meta+K" : "Control+K");
+    await expect(page.getByRole("dialog", { name: "Command palette" })).toBeVisible();
+  } finally {
+    await browser.close();
+  }
 });

@@ -64,6 +64,7 @@ function settingsResponse(): WindowManagerSettingsWire {
       shortcuts: {
         "desktop.switch.next": "control+alt+BracketRight",
       },
+      global_shortcuts: { "palette.summon.global": "meta+shift+Space" },
     },
     defaults: {
       "desktop.switch.next": ["control+shift+ArrowRight"],
@@ -73,6 +74,14 @@ function settingsResponse(): WindowManagerSettingsWire {
       "desktop.switch.next": ["control+alt+BracketRight", "alt+KeyL"],
       "window.focus.left": "control+ArrowLeft",
     },
+    global_shortcuts: [
+      {
+        command_id: "palette.summon.global",
+        intended_chord: "meta+shift+Space",
+        active_chord: "meta+shift+Space",
+        status: "registered",
+      },
+    ],
   };
 }
 

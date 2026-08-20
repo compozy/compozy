@@ -6,6 +6,8 @@ import {
   windowManagerConfigOptions,
   windowManagerSettingsOptions,
 } from "@/systems/os";
+import { isDesktopShell } from "@/systems/os/lib/desktop-shell-bridge";
+import { stableWindowManagerClientId } from "@/systems/os/lib/window-manager-client-identity";
 import { useActiveWorkspace } from "@/systems/workspace";
 
 import {
@@ -22,6 +24,7 @@ export interface LayoutsSettingsData {
   error: Error | null;
   workspaceId: string;
   workspaceName: string | null;
+  clientId: string | undefined;
   /** Global window-manager defaults — the page's save-bar baseline. */
   config: WindowManagerConfig | null;
   /** Workspace-scoped keyboard truth: the registry, the keymap, the aliases. */
@@ -41,8 +44,11 @@ export interface LayoutsSettingsData {
 export function useLayoutsSettingsData(): LayoutsSettingsData {
   const workspace = useActiveWorkspace();
   const workspaceId = workspace.activeWorkspaceId ?? "";
-  const settings = useQuery(windowManagerConfigOptions());
-  const keyboard = useQuery(windowManagerSettingsOptions(workspaceId === "" ? null : workspaceId));
+  const clientId = isDesktopShell() ? stableWindowManagerClientId() : undefined;
+  const settings = useQuery(windowManagerConfigOptions(null, clientId));
+  const keyboard = useQuery(
+    windowManagerSettingsOptions(workspaceId === "" ? null : workspaceId, clientId)
+  );
   const profiles = useQuery(windowManagerLayoutProfilesOptions(workspaceId));
   const layout = useQuery(windowManagerLayoutOptions(workspaceId));
   const waitingForWorkspace = !workspace.hasHydrated || workspace.isLoading;
@@ -59,6 +65,7 @@ export function useLayoutsSettingsData(): LayoutsSettingsData {
     error: firstError ?? null,
     workspaceId,
     workspaceName: workspace.activeWorkspace?.name ?? null,
+    clientId,
     config: settings.data ?? null,
     keyboard: keyboard.data ?? null,
     layout: layout.data ?? null,

@@ -15,6 +15,8 @@ files:
   - dist/main.cjs.map
   - dist/boot-preload.cjs
   - dist/boot-preload.cjs.map
+  - dist/product-preload.cjs
+  - dist/product-preload.cjs.map
   - package.json
 extraResources:
   - from: dist/pages

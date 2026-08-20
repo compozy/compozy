@@ -13,12 +13,10 @@ import {
   useLayoutsSettingsData,
   useSettingsSaveBarState,
   useSettingsTopbar,
-  useWindowManagerAliasEditor,
-  useWindowManagerBindingMutations,
   useWindowManagerConfigEditor,
+  useWindowManagerKeyboardEditors,
   useWindowManagerLayoutEditor,
   useWindowManagerLayoutProfiles,
-  useWindowManagerShortcutRecorder,
   WindowManagerConfigEditor,
   type WindowManagerLayoutResourceRecord,
   type WindowManagerLayoutState,
@@ -157,6 +155,7 @@ function LayoutSections({
  * global config, and the layout document reviews inside its own card.
  */
 function LayoutsSettingsView({
+  clientId,
   config,
   focusCommandId,
   layout,
@@ -165,6 +164,7 @@ function LayoutsSettingsView({
   section,
   workspaceId,
 }: {
+  clientId: string | undefined;
   config: WindowManagerConfig;
   focusCommandId?: string;
   layout: WindowManagerLayoutState | null;
@@ -176,12 +176,10 @@ function LayoutsSettingsView({
   const configEditor = useWindowManagerConfigEditor(config);
   // Keyboard state is daemon-owned and applies live, so it writes through its
   // own path rather than joining the page's draft (US-022.AC-3).
-  const bindings = useWindowManagerBindingMutations(workspaceId === "" ? null : workspaceId);
-  const recorder = useWindowManagerShortcutRecorder(section, bindings);
-  const aliases = useWindowManagerAliasEditor(
+  const { aliases, globalRecorder, recorder } = useWindowManagerKeyboardEditors(
     section,
-    bindings,
-    commandId => section.commands.find(command => command.id === commandId)?.title ?? commandId
+    workspaceId,
+    clientId
   );
   const saveBarState = useSettingsSaveBarState({
     isDirty: configEditor.dirty,
@@ -224,6 +222,7 @@ function LayoutsSettingsView({
         aliases={aliases}
         editor={configEditor}
         focusCommandId={focusCommandId}
+        globalRecorder={globalRecorder}
         recorder={recorder}
         section={section}
       />
@@ -256,6 +255,7 @@ export function LayoutsSettingsPage() {
 
   return (
     <LayoutsSettingsView
+      clientId={data.clientId}
       config={data.config}
       focusCommandId={focusCommandId}
       layout={data.layout}

@@ -350,6 +350,9 @@ func (s *windowManagerSocket) resolveClientFrame(ctx context.Context, payload []
 				FocusedSessionState: frame.Context.FocusedSessionState,
 				WorkspaceTrusted:    frame.Context.WorkspaceTrusted,
 				DestinationIntent:   frame.Context.DestinationIntent,
+				GlobalShortcuts: windowmanager.CloneGlobalShortcutRegistrations(
+					frame.Context.GlobalShortcuts,
+				),
 			},
 		})
 		if err != nil {

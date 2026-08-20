@@ -98,6 +98,78 @@ func TestRegistryCatalog(t *testing.T) {
 		},
 	)
 
+	t.Run("Should project intended and client-confirmed global shortcut truth", func(t *testing.T) {
+		t.Parallel()
+		descriptor := testDescriptor("palette.summon.global")
+		bindings := &testBindings{
+			bindings: map[CommandID][]string{},
+			aliases:  map[CommandID]string{},
+			globalBindings: map[CommandID]string{
+				descriptor.ID: "meta+shift+Space",
+			},
+		}
+		directory := &testClientDirectory{
+			contexts: map[ClientID]ContextSnapshot{
+				"shell-a":     {Revision: "ctx-a", Values: map[ContextKey]any{}},
+				"shell-b":     {Revision: "ctx-b", Values: map[ContextKey]any{}},
+				"shell-stale": {Revision: "ctx-stale", Values: map[ContextKey]any{}},
+			},
+			globalStatuses: map[ClientID]map[CommandID]GlobalShortcut{
+				"shell-a": {
+					descriptor.ID: {
+						IntendedChord: "meta+shift+Space",
+						ActiveChord:   "meta+shift+Space",
+						Status:        "registered",
+					},
+				},
+				"shell-b": {
+					descriptor.ID: {
+						IntendedChord: "meta+shift+Space",
+						Status:        "failed_in_use",
+						Reason:        "unavailable — in use by another application",
+					},
+				},
+				"shell-stale": {
+					descriptor.ID: {
+						IntendedChord: "meta+alt+Space",
+						ActiveChord:   "meta+alt+Space",
+						Status:        "registered",
+					},
+				},
+			},
+		}
+		service := testRegistry(
+			staticTestProvider{commands: []Descriptor{descriptor}}, directory, bindings, &testExecutor{},
+		)
+		clientA, err := service.Catalog(t.Context(), "ws-1", "shell-a")
+		if err != nil {
+			t.Fatalf("Catalog(shell-a) error = %v", err)
+		}
+		clientB, err := service.Catalog(t.Context(), "ws-1", "shell-b")
+		if err != nil {
+			t.Fatalf("Catalog(shell-b) error = %v", err)
+		}
+		stale, err := service.Catalog(t.Context(), "ws-1", "shell-stale")
+		if err != nil {
+			t.Fatalf("Catalog(shell-stale) error = %v", err)
+		}
+		globalA := clientA.Commands[0].GlobalShortcut
+		globalB := clientB.Commands[0].GlobalShortcut
+		globalStale := stale.Commands[0].GlobalShortcut
+		if globalA == nil || globalA.IntendedChord != "meta+shift+Space" ||
+			globalA.ActiveChord != "meta+shift+Space" || globalA.Status != "registered" {
+			t.Fatalf("shell-a global shortcut = %#v", globalA)
+		}
+		if globalB == nil || globalB.IntendedChord != "meta+shift+Space" ||
+			globalB.ActiveChord != "" || globalB.Status != "failed_in_use" {
+			t.Fatalf("shell-b global shortcut = %#v", globalB)
+		}
+		if globalStale == nil || globalStale.IntendedChord != "meta+shift+Space" ||
+			globalStale.ActiveChord != "" || globalStale.Status != "" {
+			t.Fatalf("stale shell global shortcut = %#v", globalStale)
+		}
+	})
+
 	t.Run("Should reject duplicate IDs at boot and dynamic provider load [UT-004]", func(t *testing.T) {
 		t.Parallel()
 		descriptor := testDescriptor("duplicate.command")

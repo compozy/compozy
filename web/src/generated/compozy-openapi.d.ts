@@ -7391,6 +7391,14 @@ export interface components {
         context_revision: number;
         focus_order: string[];
         focused_window_id?: string | null;
+        global_shortcuts: {
+          active_chord?: string;
+          command_id: string;
+          intended_chord: string;
+          reason?: string;
+          settings_url?: string;
+          status: string;
+        }[];
         kind: string;
         palette_context: {
           desktop_window_count: number;
@@ -7430,6 +7438,14 @@ export interface components {
           };
         } | null;
         focused_session_state?: string;
+        global_shortcuts: {
+          active_chord?: string;
+          command_id: string;
+          intended_chord: string;
+          reason?: string;
+          settings_url?: string;
+          status: string;
+        }[];
         scope_global: boolean;
         workspace_trusted: boolean;
       };
@@ -7445,6 +7461,14 @@ export interface components {
       context_revision: number;
       focus_order: string[];
       focused_window_id?: string | null;
+      global_shortcuts: {
+        active_chord?: string;
+        command_id: string;
+        intended_chord: string;
+        reason?: string;
+        settings_url?: string;
+        status: string;
+      }[];
       kind: string;
       palette_context: {
         desktop_window_count: number;
@@ -7478,6 +7502,14 @@ export interface components {
         context_revision: number;
         focus_order: string[];
         focused_window_id?: string | null;
+        global_shortcuts: {
+          active_chord?: string;
+          command_id: string;
+          intended_chord: string;
+          reason?: string;
+          settings_url?: string;
+          status: string;
+        }[];
         kind: string;
         palette_context: {
           desktop_window_count: number;
@@ -8832,6 +8864,14 @@ export interface components {
         context_revision: number;
         focus_order: string[];
         focused_window_id?: string | null;
+        global_shortcuts: {
+          active_chord?: string;
+          command_id: string;
+          intended_chord: string;
+          reason?: string;
+          settings_url?: string;
+          status: string;
+        }[];
         kind: string;
         palette_context: {
           desktop_window_count: number;
@@ -9235,6 +9275,14 @@ export interface components {
         context_revision: number;
         focus_order: string[];
         focused_window_id?: string | null;
+        global_shortcuts: {
+          active_chord?: string;
+          command_id: string;
+          intended_chord: string;
+          reason?: string;
+          settings_url?: string;
+          status: string;
+        }[];
         kind: string;
         palette_context: {
           desktop_window_count: number;
@@ -9618,6 +9666,14 @@ export interface components {
         context_revision: number;
         focus_order: string[];
         focused_window_id?: string | null;
+        global_shortcuts: {
+          active_chord?: string;
+          command_id: string;
+          intended_chord: string;
+          reason?: string;
+          settings_url?: string;
+          status: string;
+        }[];
         kind: string;
         palette_context: {
           desktop_window_count: number;
@@ -31223,6 +31279,13 @@ export interface operations {
                 retry_safe: boolean;
                 single_flight: boolean;
               };
+              global_shortcut?: {
+                active_chord?: string;
+                intended_chord: string;
+                reason?: string;
+                settings_url?: string;
+                status?: string;
+              } | null;
               icon: string;
               id: string;
               keywords?: string[];
@@ -65638,6 +65701,9 @@ export interface operations {
                 right: number;
                 top: number;
               };
+              global_shortcuts: {
+                [key: string]: string;
+              };
               /** @enum {string} */
               group_move_modifier: "alt" | "control" | "meta" | "shift" | "none";
               history_limit: number;
@@ -65674,6 +65740,14 @@ export interface operations {
               command: string;
               conflict_with?: string;
               dormant: boolean;
+            }[];
+            global_shortcuts: {
+              active_chord?: string;
+              command_id: string;
+              intended_chord: string;
+              reason?: string;
+              settings_url?: string;
+              status?: string;
             }[];
             /** @enum {string} */
             scope: "global" | "workspace";
@@ -65826,6 +65900,9 @@ export interface operations {
               right: number;
               top: number;
             };
+            global_shortcuts: {
+              [key: string]: string;
+            };
             /** @enum {string} */
             group_move_modifier: "alt" | "control" | "meta" | "shift" | "none";
             history_limit: number;
@@ -65846,6 +65923,9 @@ export interface operations {
             };
             /** @enum {string} */
             swap_modifier: "alt" | "control" | "meta" | "shift" | "none";
+          } | null;
+          global_shortcuts?: {
+            [key: string]: string;
           } | null;
           overwrite?: boolean;
           shortcuts?: {
@@ -65895,6 +65975,9 @@ export interface operations {
                 right: number;
                 top: number;
               };
+              global_shortcuts: {
+                [key: string]: string;
+              };
               /** @enum {string} */
               group_move_modifier: "alt" | "control" | "meta" | "shift" | "none";
               history_limit: number;
@@ -65931,6 +66014,14 @@ export interface operations {
               command: string;
               conflict_with?: string;
               dormant: boolean;
+            }[];
+            global_shortcuts: {
+              active_chord?: string;
+              command_id: string;
+              intended_chord: string;
+              reason?: string;
+              settings_url?: string;
+              status?: string;
             }[];
             /** @enum {string} */
             scope: "global" | "workspace";
@@ -130476,6 +130567,14 @@ export interface operations {
               context_revision: number;
               focus_order: string[];
               focused_window_id?: string | null;
+              global_shortcuts: {
+                active_chord?: string;
+                command_id: string;
+                intended_chord: string;
+                reason?: string;
+                settings_url?: string;
+                status: string;
+              }[];
               kind: string;
               palette_context: {
                 desktop_window_count: number;
@@ -130609,6 +130708,14 @@ export interface operations {
               };
             } | null;
             focused_session_state?: string;
+            global_shortcuts: {
+              active_chord?: string;
+              command_id: string;
+              intended_chord: string;
+              reason?: string;
+              settings_url?: string;
+              status: string;
+            }[];
             scope_global: boolean;
             workspace_trusted: boolean;
           };
@@ -130633,6 +130740,14 @@ export interface operations {
             context_revision: number;
             focus_order: string[];
             focused_window_id?: string | null;
+            global_shortcuts: {
+              active_chord?: string;
+              command_id: string;
+              intended_chord: string;
+              reason?: string;
+              settings_url?: string;
+              status: string;
+            }[];
             kind: string;
             palette_context: {
               desktop_window_count: number;
@@ -131091,6 +131206,14 @@ export interface operations {
               context_revision: number;
               focus_order: string[];
               focused_window_id?: string | null;
+              global_shortcuts: {
+                active_chord?: string;
+                command_id: string;
+                intended_chord: string;
+                reason?: string;
+                settings_url?: string;
+                status: string;
+              }[];
               kind: string;
               palette_context: {
                 desktop_window_count: number;
@@ -131941,6 +132064,14 @@ export interface operations {
               context_revision: number;
               focus_order: string[];
               focused_window_id?: string | null;
+              global_shortcuts: {
+                active_chord?: string;
+                command_id: string;
+                intended_chord: string;
+                reason?: string;
+                settings_url?: string;
+                status: string;
+              }[];
               kind: string;
               palette_context: {
                 desktop_window_count: number;
@@ -133712,6 +133843,14 @@ export interface operations {
               context_revision: number;
               focus_order: string[];
               focused_window_id?: string | null;
+              global_shortcuts: {
+                active_chord?: string;
+                command_id: string;
+                intended_chord: string;
+                reason?: string;
+                settings_url?: string;
+                status: string;
+              }[];
               kind: string;
               palette_context: {
                 desktop_window_count: number;
@@ -134109,6 +134248,14 @@ export interface operations {
                   context_revision: number;
                   focus_order: string[];
                   focused_window_id?: string | null;
+                  global_shortcuts: {
+                    active_chord?: string;
+                    command_id: string;
+                    intended_chord: string;
+                    reason?: string;
+                    settings_url?: string;
+                    status: string;
+                  }[];
                   kind: string;
                   palette_context: {
                     desktop_window_count: number;
@@ -134371,6 +134518,14 @@ export interface operations {
                   context_revision: number;
                   focus_order: string[];
                   focused_window_id?: string | null;
+                  global_shortcuts: {
+                    active_chord?: string;
+                    command_id: string;
+                    intended_chord: string;
+                    reason?: string;
+                    settings_url?: string;
+                    status: string;
+                  }[];
                   kind: string;
                   palette_context: {
                     desktop_window_count: number;

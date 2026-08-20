@@ -317,7 +317,8 @@ trips, and use `compozy window zoom` or `compozy__window_zoom` instead of fabric
 
 ## Configuration And Hooks
 
-Global defaults live under `[window_manager]` with nested `gaps`, `snap`, `bindings`, and `shortcuts`.
+Global defaults live under `[window_manager]` with nested `gaps`, `snap`, `bindings`, `shortcuts`, and
+`global_shortcuts`.
 Validated config updates hot-apply atomically; an invalid update leaves the active defaults unchanged.
 Use `GET/PATCH /api/settings/window-manager` for the typed Settings surface. Edge-center bindings are
 `zoom`, `reserved`, or `none`; any/landscape/portrait profiles are `window_layout` resources.
@@ -329,6 +330,11 @@ keys accept ranges: `desktop.switch = "control+Digit1..9"` and
 overrides as one map. `GET /api/settings/window-manager` returns `defaults` and `effective`; use
 `compozy config get window_manager -o json` for the same discovery through the CLI. Writes through
 `config set` accept a scalar or JSON string array and reject the complete mutation on any collision.
+
+`global_shortcuts` maps one registry command ID to one chord; `palette.summon.global` defaults to
+`meta+shift+Space`. Electron shells report per-client registration truth through their window-manager
+client context. Pass `client_id` to the Settings read to distinguish intended, active, in-use,
+permission-blocked, and unsupported states. Browser clients cannot report registrations.
 
 `nav_stack_limit` (default 50, range 1..200) caps each window's `nav_stack`; `closed_entry_limit`
 (default 20, range 1..100) caps retained closed entries. Both are write-time caps resolved from the

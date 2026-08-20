@@ -167,7 +167,8 @@ func configMutationPath(raw string) ([]string, configSetValueKind, bool, error) 
 		return nil, configSetString, false, err
 	}
 	if len(segments) > 3 && segments[0] == configWindowManagerKey &&
-		segments[1] == configWindowManagerShortcutsKey {
+		(segments[1] == configWindowManagerShortcutsKey ||
+			segments[1] == configWindowManagerGlobalShortcutsKey) {
 		segments = []string{segments[0], segments[1], strings.Join(segments[2:], ".")}
 	}
 	kind, redacted, err := classifyConfigMutationPath(segments)

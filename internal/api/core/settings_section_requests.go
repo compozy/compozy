@@ -42,6 +42,7 @@ func parseSettingsSectionRequest(
 		Scope:       scope,
 		WorkspaceID: workspaceID,
 		AgentName:   agentName,
+		ClientID:    strings.TrimSpace(c.Query("client_id")),
 	}, nil
 }
 
@@ -280,7 +281,7 @@ func parseUpdateSettingsWindowManagerRequest(c *gin.Context) (settingspkg.Sectio
 			fmt.Errorf("decode window-manager settings request: %w", err),
 		)
 	}
-	if body.Config == nil && body.Shortcuts == nil && body.Aliases == nil {
+	if body.Config == nil && body.Shortcuts == nil && body.GlobalShortcuts == nil && body.Aliases == nil {
 		return settingspkg.SectionUpdateRequest{}, NewSettingsValidationError(
 			errors.New("window-manager config, shortcuts, or aliases are required"),
 		)
@@ -298,11 +299,12 @@ func parseUpdateSettingsWindowManagerRequest(c *gin.Context) (settingspkg.Sectio
 		config = &parsed
 	}
 	return settingspkg.SectionUpdateRequest{
-		SectionRequest:         req,
-		WindowManager:          config,
-		WindowManagerShortcuts: body.Shortcuts,
-		WindowManagerAliases:   body.Aliases,
-		Overwrite:              body.Overwrite,
+		SectionRequest:               req,
+		WindowManager:                config,
+		WindowManagerShortcuts:       body.Shortcuts,
+		WindowManagerGlobalShortcuts: body.GlobalShortcuts,
+		WindowManagerAliases:         body.Aliases,
+		Overwrite:                    body.Overwrite,
 	}, nil
 }
 

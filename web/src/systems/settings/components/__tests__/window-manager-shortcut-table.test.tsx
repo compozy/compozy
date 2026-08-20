@@ -8,7 +8,7 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import {
   parseSettingsWindowManagerSection,
@@ -18,9 +18,11 @@ import { WindowManagerSettingsError } from "@/systems/os/adapters/window-manager
 
 import { useWindowManagerAliasEditor } from "../../hooks/use-window-manager-alias-editor";
 import { useWindowManagerBindingMutations } from "../../hooks/use-window-manager-binding-mutations";
+import { useGlobalShortcutRecorder } from "../../hooks/use-global-shortcut-recorder";
 import { useWindowManagerShortcutRecorder } from "../../hooks/use-window-manager-shortcut-recorder";
 import { settingsWindowManagerSectionFixture } from "../../mocks/window-manager-fixtures";
 import { WindowManagerShortcutTable } from "../layouts/window-manager-shortcut-table";
+import { WindowManagerGlobalHotkeys } from "../layouts/window-manager-global-hotkeys";
 
 const { updateWindowManagerBindings } = vi.hoisted(() => ({
   updateWindowManagerBindings: vi.fn(),
@@ -50,12 +52,18 @@ function ShortcutSurface({
 }) {
   const mutations = useWindowManagerBindingMutations("workspace:alpha");
   const recorder = useWindowManagerShortcutRecorder(section, mutations);
+  const globalRecorder = useGlobalShortcutRecorder(section, mutations);
   const aliases = useWindowManagerAliasEditor(
     section,
     mutations,
     commandId => section.commands.find(command => command.id === commandId)?.title ?? commandId
   );
-  return <WindowManagerShortcutTable aliases={aliases} recorder={recorder} section={section} />;
+  return (
+    <>
+      <WindowManagerShortcutTable aliases={aliases} recorder={recorder} section={section} />
+      <WindowManagerGlobalHotkeys recorder={globalRecorder} section={section} />
+    </>
+  );
 }
 
 function renderTable(section?: ReturnType<typeof sectionFrom>) {
@@ -77,6 +85,85 @@ describe("WindowManagerShortcutTable", () => {
   beforeEach(() => {
     updateWindowManagerBindings.mockReset();
     updateWindowManagerBindings.mockResolvedValue(sectionFrom());
+  });
+
+  afterEach(() => {
+    delete window.compozyShell;
+  });
+
+  it("Should mark global hotkeys as desktop-only in the browser [UT-150]", () => {
+    renderTable();
+
+    const globalHotkeys = screen.getByTestId("window-manager-global-hotkeys");
+    expect(globalHotkeys).toHaveTextContent("Global hotkeys");
+    expect(globalHotkeys).toHaveTextContent("desktop only");
+    expect(globalHotkeys).toHaveTextContent("requires desktop shell");
+    expect(
+      within(globalHotkeys).getByRole("button", { name: /Record global hotkey/ })
+    ).toBeDisabled();
+  });
+
+  it("Should show shell registration truth and the Accessibility deep link [UT-150]", () => {
+    window.compozyShell = {
+      platform: "darwin",
+      on: vi.fn(() => () => {}),
+      globalShortcuts: {
+        sync: vi.fn(async () => []),
+        status: vi.fn(async () => []),
+      },
+    };
+    renderTable(
+      sectionFrom(wire => {
+        wire.global_shortcuts = [
+          {
+            command_id: "palette.summon.global",
+            intended_chord: "meta+shift+KeyK",
+            active_chord: "meta+shift+Space",
+            status: "failed_in_use",
+          },
+          {
+            command_id: "session.new",
+            intended_chord: "meta+shift+KeyN",
+            status: "failed_permission",
+          },
+        ];
+      })
+    );
+
+    const globalHotkeys = screen.getByTestId("window-manager-global-hotkeys");
+    expect(globalHotkeys).toHaveTextContent("captured");
+    expect(globalHotkeys).toHaveTextContent("unavailable — in use by another application");
+    expect(globalHotkeys).toHaveTextContent("Accessibility permission required");
+    expect(
+      within(globalHotkeys).getByRole("button", { name: /Open System Settings/ })
+    ).toHaveAttribute(
+      "href",
+      "x-apple.systempreferences:com.apple.preference.security?Privacy_Accessibility"
+    );
+  });
+
+  it("Should write the whole global map when a shell hotkey is recorded [UT-150]", async () => {
+    window.compozyShell = {
+      platform: "darwin",
+      on: vi.fn(() => () => {}),
+      globalShortcuts: {
+        sync: vi.fn(async () => []),
+        status: vi.fn(async () => []),
+      },
+    };
+    const user = userEvent.setup();
+    renderTable();
+
+    await user.click(
+      screen.getByRole("button", { name: /Record global hotkey for palette\.summon\.global/ })
+    );
+    await user.keyboard("{Meta>}{Shift>}k{/Shift}{/Meta}");
+
+    await waitFor(() => expect(updateWindowManagerBindings).toHaveBeenCalledTimes(1));
+    expect(updateWindowManagerBindings.mock.calls[0]?.[0]).toMatchObject({
+      globalShortcuts: { "palette.summon.global": "meta+shift+KeyK" },
+      workspaceId: "workspace:alpha",
+    });
   });
 
   it("Should list the whole registry and narrow it by source [UT-148]", async () => {

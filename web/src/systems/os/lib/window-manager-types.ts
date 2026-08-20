@@ -1,3 +1,5 @@
+import type * as ShortcutTypes from "./window-manager-shortcut-types";
+
 /** Stable identifiers from the daemon-authoritative window-manager snapshot. */
 export type LayoutRevision = number;
 export type DesktopId = string;
@@ -155,9 +157,6 @@ export interface WindowManagerBindingsConfig {
   bottomCenter: WindowManagerEdgeCenterBinding;
 }
 
-export type WindowManagerShortcutBinding = readonly string[];
-export type WindowManagerShortcutMap = Readonly<Record<string, WindowManagerShortcutBinding>>;
-
 export interface WindowManagerWorkspaceConfig {
   newWindowPolicy?: "floating" | "beside_focus";
   smallViewportPolicy?: WindowManagerSmallViewportPolicy;
@@ -175,7 +174,8 @@ export interface WindowManagerWorkspaceConfig {
   gaps?: WindowManagerGapsConfig;
   snap?: WindowManagerSnapConfig;
   bindings?: WindowManagerBindingsConfig;
-  shortcuts?: WindowManagerShortcutMap;
+  shortcuts?: ShortcutTypes.WindowManagerShortcutMap;
+  globalShortcuts?: ShortcutTypes.WindowManagerGlobalShortcutMap;
 }
 
 /** Effective global config before workspace-scoped overrides are applied. */
@@ -197,11 +197,13 @@ export interface WindowManagerConfig {
   snap: WindowManagerSnapConfig;
   bindings: WindowManagerBindingsConfig;
   /** Stored operator overrides. Empty bindings disable an action. */
-  shortcuts: WindowManagerShortcutMap;
+  shortcuts: ShortcutTypes.WindowManagerShortcutMap;
   /** Daemon-owned defaults, served with the settings contract. */
-  shortcutDefaults: WindowManagerShortcutMap;
+  shortcutDefaults: ShortcutTypes.WindowManagerShortcutMap;
   /** Full, validated defaults + overrides map used by the live shell. */
-  effectiveShortcuts: WindowManagerShortcutMap;
+  effectiveShortcuts: ShortcutTypes.WindowManagerShortcutMap;
+  /** Daemon-owned intended desktop-global bindings. */
+  globalShortcuts: ShortcutTypes.WindowManagerGlobalShortcutMap;
 }
 
 export interface WindowManagerActor {
@@ -260,6 +262,7 @@ export interface WindowManagerAttachedClientView extends WindowManagerClientView
   paletteContext: WindowManagerPaletteContext;
   /** Present only on the registration response; list and stream projections omit it. */
   attachmentToken: string | null;
+  globalShortcuts: readonly ShortcutTypes.WindowManagerGlobalShortcutRegistration[];
 }
 
 export interface WindowManagerPaletteContext {

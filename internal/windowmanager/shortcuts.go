@@ -105,7 +105,9 @@ func DefaultBindableIDs() BindableIDs {
 	for id := range defaultKeymap {
 		ids = append(ids, id)
 	}
-	return NewBindableIDs(ids)
+	result := NewBindableIDs(ids)
+	result[DefaultGlobalSummonCommandID] = struct{}{}
+	return result
 }
 
 // CanonicalShortcutsV2 validates overrides, expands range families, and rejects

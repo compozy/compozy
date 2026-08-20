@@ -157,6 +157,7 @@ const (
 	CmdPaletteCommandInvoked       = "cmd_palette.command.invoked"
 	CmdPalettePinChanged           = "cmd_palette.pin.changed"
 	CmdPalettePersonalizationReset = "cmd_palette.personalization.reset"
+	GlobalHotkeyRegistrationFailed = "global_hotkey.registration_failed"
 
 	ProviderAuthRequired          = "provider.auth_required"
 	ProviderAuthRecovered         = "provider.auth_recovered"

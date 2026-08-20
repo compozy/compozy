@@ -3,7 +3,7 @@ import { access, mkdir } from "node:fs/promises";
 import { performance } from "node:perf_hooks";
 import { join, resolve } from "node:path";
 
-import { app, ipcMain, session, shell } from "electron";
+import { app, globalShortcut, ipcMain, session, shell, systemPreferences } from "electron";
 
 import { BootstrapRunner } from "./bootstrap/bootstrap-runner";
 import { RuntimeHealthMonitor } from "./bootstrap/runtime-health-monitor";
@@ -26,6 +26,10 @@ import { resolveDesktopPaths, runtimeExecutableName } from "./home";
 import { DesktopLogger } from "./logging/desktop-logger";
 import { AppStatePublisher } from "./state/app-state";
 import { publicSafeText } from "./state/public-safe-text";
+import { ProductBridgeController } from "./product/product-bridge-controller";
+import { detectAccessibility } from "./shortcuts/accessibility";
+import { ElectronGlobalShortcut } from "./shortcuts/electron-global-shortcut";
+import { GlobalShortcutPolicy } from "./shortcuts/global-shortcut-policy";
 import { AppUpdateConsumer } from "./update/app-update-consumer";
 import { ElectronUpdateInstaller } from "./update/electron-installer";
 import { OperationWatcher } from "./update/operation-watcher";
@@ -45,7 +49,9 @@ const processStartedAt = new Date(performance.timeOrigin);
 const links = new DeepLinkQueue();
 const logger = new DesktopLogger(paths.desktopLog, bootId);
 const windowPresentation: WindowPresentation =
-  process.env.COMPOZY_DESKTOP_E2E === "1" ? "inactive" : "foreground";
+  process.env.COMPOZY_DESKTOP_E2E === "1" && process.env.COMPOZY_DESKTOP_E2E_FOREGROUND !== "1"
+    ? "inactive"
+    : "foreground";
 let product: ProductWindow | null = null;
 let boot: BootWindow | null = null;
 let controlServer: ControlServer | null = null;
@@ -53,6 +59,7 @@ let operationWatcher: OperationWatcher | null = null;
 let updateConsumer: AppUpdateConsumer | null = null;
 let runtimeMonitor: RuntimeHealthMonitor | null = null;
 let publisher: AppStatePublisher | null = null;
+let productBridge: ProductBridgeController | null = null;
 let cleanupPromise: Promise<void> | null = null;
 let cleanupComplete = false;
 
@@ -85,7 +92,13 @@ app.on("open-url", (event, url) => {
   product?.focus();
 });
 
-function resourcePaths(): { bundle: string; manifest: string; page: string; preload: string } {
+function resourcePaths(): {
+  bundle: string;
+  manifest: string;
+  page: string;
+  bootPreload: string;
+  productPreload: string;
+} {
   const packagedRoot = process.resourcesPath;
   const bundleRoot = process.env.COMPOZY_DESKTOP_BUNDLE_ROOT?.trim()
     ? resolve(process.env.COMPOZY_DESKTOP_BUNDLE_ROOT)
@@ -96,7 +109,8 @@ function resourcePaths(): { bundle: string; manifest: string; page: string; prel
     page: app.isPackaged
       ? join(packagedRoot, "pages", "boot.html")
       : join(__dirname, "pages", "boot.html"),
-    preload: join(__dirname, "boot-preload.cjs"),
+    bootPreload: join(__dirname, "boot-preload.cjs"),
+    productPreload: join(__dirname, "product-preload.cjs"),
   };
 }
 
@@ -113,6 +127,7 @@ async function cleanup(): Promise<void> {
     };
     try {
       await attempt(async () => await product?.flushState());
+      await attempt(() => productBridge?.unregister());
       await attempt(() => operationWatcher?.stop());
       await attempt(() => updateConsumer?.stop());
       await attempt(() => runtimeMonitor?.stop());
@@ -143,6 +158,27 @@ async function quitCleanly(): Promise<void> {
 async function start(): Promise<void> {
   await mkdir(paths.home, { recursive: true, mode: 0o700 });
   const resources = resourcePaths();
+  const shortcutRuntime = new ElectronGlobalShortcut(globalShortcut);
+  const shortcutPolicy = new GlobalShortcutPolicy({
+    globalShortcut: shortcutRuntime,
+    accessibility: __COMPOZY_DESKTOP_E2E_BUILD__
+      ? { allowed: true }
+      : detectAccessibility({
+          platform: process.platform,
+          isTrusted: () => systemPreferences.isTrustedAccessibilityClient(false),
+        }),
+    onInvoke: commandID => {
+      product?.focus();
+      product?.send("shell:summon", { command_id: commandID });
+    },
+  });
+  productBridge = new ProductBridgeController({ ipcMain, shortcuts: shortcutPolicy });
+  productBridge.register();
+  if (__COMPOZY_DESKTOP_E2E_BUILD__) {
+    Reflect.set(globalThis, "__compozyGlobalShortcutInvoke", (accelerator: string) =>
+      shortcutRuntime.invokeForE2E(accelerator)
+    );
+  }
   const statePublisher = await AppStatePublisher.create({
     path: paths.appRecord,
     appVersion: app.getVersion(),
@@ -155,7 +191,7 @@ async function start(): Promise<void> {
   publisher = statePublisher;
   boot = new BootWindow({
     pagePath: resources.page,
-    preloadPath: resources.preload,
+    preloadPath: resources.bootPreload,
     presentation: windowPresentation,
     onError: error => logger.error("load boot window", error),
   });
@@ -233,6 +269,7 @@ async function start(): Promise<void> {
       product = new ProductWindow({
         origin: runtime.origin,
         windowStatePath: paths.windowState,
+        preloadPath: resources.productPreload,
         presentation: windowPresentation,
         links,
         onReady: async () => {

@@ -168,18 +168,19 @@ type ReturnAnchor struct {
 
 // ClientView is transient presentation state for one connected client.
 type ClientView struct {
-	WorkspaceID          WorkspaceID         `json:"workspace_id"`
-	ClientID             ClientID            `json:"client_id"`
-	Kind                 ClientKind          `json:"kind"`
-	PresentationRevision uint64              `json:"presentation_revision"`
-	ContextRevision      uint64              `json:"context_revision"`
-	ActiveDesktopID      DesktopID           `json:"active_desktop_id"`
-	FocusedWindowID      *WindowID           `json:"focused_window_id,omitempty"`
-	FocusOrder           []WindowID          `json:"focus_order"`
-	StackActive          map[NodeID]WindowID `json:"stack_active"`
-	PaletteContext       PaletteContext      `json:"palette_context"`
-	ConnectedAt          time.Time           `json:"connected_at"`
-	AttachmentToken      string              `json:"attachment_token,omitempty"`
+	WorkspaceID          WorkspaceID                  `json:"workspace_id"`
+	ClientID             ClientID                     `json:"client_id"`
+	Kind                 ClientKind                   `json:"kind"`
+	PresentationRevision uint64                       `json:"presentation_revision"`
+	ContextRevision      uint64                       `json:"context_revision"`
+	ActiveDesktopID      DesktopID                    `json:"active_desktop_id"`
+	FocusedWindowID      *WindowID                    `json:"focused_window_id,omitempty"`
+	FocusOrder           []WindowID                   `json:"focus_order"`
+	StackActive          map[NodeID]WindowID          `json:"stack_active"`
+	PaletteContext       PaletteContext               `json:"palette_context"`
+	GlobalShortcuts      []GlobalShortcutRegistration `json:"global_shortcuts"`
+	ConnectedAt          time.Time                    `json:"connected_at"`
+	AttachmentToken      string                       `json:"attachment_token,omitempty"`
 }
 
 // PaletteContext is the volatile, client-targeted availability snapshot.
@@ -210,6 +211,7 @@ type ClientContextInput struct {
 	FocusedSessionState string
 	WorkspaceTrusted    bool
 	DestinationIntent   *RouteIntent
+	GlobalShortcuts     []GlobalShortcutRegistration
 }
 
 type ClientContextUpdate struct {

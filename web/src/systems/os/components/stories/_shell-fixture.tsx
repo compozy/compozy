@@ -46,6 +46,7 @@ const CONFIG: WindowManagerConfig = {
   snap: { edgeBand: 32, cornerReach: 150, exitSlack: 16, repeatRatios: [0.5, 0.666667, 0.333333] },
   bindings: { topCenter: "zoom", bottomCenter: "reserved" },
   shortcuts: {},
+  globalShortcuts: {},
   shortcutDefaults: {},
   effectiveShortcuts: {},
 };

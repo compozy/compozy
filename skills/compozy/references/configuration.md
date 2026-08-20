@@ -185,6 +185,12 @@ Use `compozy cmd-palette bindings` to read the workspace effective keymap, alias
 extension defaults, and conflicts. `bind|unbind` mutate workspace bindings; `--overwrite` transfers
 a conflicting chord from the owner named by the daemon.
 
+`[window_manager.global_shortcuts]` maps any registry command ID to one desktop-global chord. It
+defaults `palette.summon.global = "meta+shift+Space"`. Use `compozy cmd-palette bind <id> <chord>
+--global` or `unbind <id> --global`; `--overwrite` transfers a collision atomically. The daemon owns
+intended bindings, while each Electron shell reports its own `registered`, `failed_in_use`,
+`failed_permission`, or `unsupported` state. A plain browser cannot register these chords.
+
 ## Attention
 
 `[attention]` controls operator notification delivery. `toasts` and `sound` default to `true`,

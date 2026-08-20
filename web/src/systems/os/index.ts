@@ -67,10 +67,14 @@ export type {
   WindowManagerClientView,
   WindowManagerConfig,
   WindowManagerDragModifier,
-  WindowManagerShortcutBinding,
-  WindowManagerShortcutMap,
   WindowManagerSnapshot,
 } from "./lib/window-manager-types";
+export type {
+  WindowManagerGlobalShortcutMap,
+  WindowManagerGlobalShortcutRegistration,
+  WindowManagerShortcutBinding,
+  WindowManagerShortcutMap,
+} from "./lib/window-manager-shortcut-types";
 
 // Window geometry. The projector, the seam math and the floating clamp are the
 // runtime's own — Settings renders the same rects the shell renders instead of

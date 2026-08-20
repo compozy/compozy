@@ -10,6 +10,7 @@ import {
 import type {
   LayoutRevision,
   WindowManagerAttachedClientView,
+  WindowManagerClientKind,
   WindowManagerCommandInput,
   WindowManagerCommandResult,
   WindowManagerConfig,
@@ -85,6 +86,7 @@ export async function registerWindowManagerClient(
   workspaceId: string,
   clientId: string,
   activeDesktopId?: string,
+  kind: WindowManagerClientKind = "browser",
   signal?: AbortSignal
 ): Promise<WindowManagerAttachedClientView> {
   const response = await runtimeFetch(`${apiBaseUrl}${managerPath(workspaceId)}/clients`, {
@@ -92,7 +94,7 @@ export async function registerWindowManagerClient(
       {
         workspace_id: workspaceId,
         client_id: clientId,
-        kind: "browser",
+        kind,
         ...(activeDesktopId ? { active_desktop_id: activeDesktopId } : {}),
         context: { workspace_trusted: true },
       },

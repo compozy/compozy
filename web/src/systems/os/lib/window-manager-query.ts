@@ -18,8 +18,12 @@ export function windowManagerScopeKey(workspaceId: string | null): string {
 export const windowManagerKeys = {
   all: ["os", "window-manager"] as const,
   configs: () => ["settings", "section", "window-manager"] as const,
-  config: (workspaceId: string | null = null) =>
-    [...windowManagerKeys.configs(), windowManagerScopeKey(workspaceId)] as const,
+  config: (workspaceId: string | null = null, clientId?: string) =>
+    [
+      ...windowManagerKeys.configs(),
+      windowManagerScopeKey(workspaceId),
+      clientId?.trim() || "no-client",
+    ] as const,
   snapshots: () => [...windowManagerKeys.all, "snapshot"] as const,
   snapshot: (workspaceId: string) =>
     [...windowManagerKeys.snapshots(), workspaceId.trim()] as const,
@@ -41,10 +45,10 @@ export function windowManagerSnapshotOptions(workspaceId: string) {
  * the aliases in force. Only a workspace-scoped read carries `ext.*` ids and
  * real command titles — the daemon cannot resolve the catalog without one.
  */
-export function windowManagerSettingsOptions(workspaceId: string | null = null) {
+export function windowManagerSettingsOptions(workspaceId: string | null = null, clientId?: string) {
   return queryOptions({
-    queryKey: windowManagerKeys.config(workspaceId),
-    queryFn: ({ signal }) => fetchWindowManagerSettings({ workspaceId }, signal),
+    queryKey: windowManagerKeys.config(workspaceId, clientId),
+    queryFn: ({ signal }) => fetchWindowManagerSettings({ workspaceId, clientId }, signal),
     staleTime: 15_000,
     refetchInterval: 60_000,
     retry: 1,
@@ -52,9 +56,9 @@ export function windowManagerSettingsOptions(workspaceId: string | null = null) 
 }
 
 /** The keymap half of the same cache entry — never a second request. */
-export function windowManagerConfigOptions(workspaceId: string | null = null) {
+export function windowManagerConfigOptions(workspaceId: string | null = null, clientId?: string) {
   return queryOptions({
-    ...windowManagerSettingsOptions(workspaceId),
+    ...windowManagerSettingsOptions(workspaceId, clientId),
     select: section => section.config,
   });
 }

@@ -74,6 +74,7 @@ type SettingsWindowManagerConfigPayload struct {
 	Snap                SettingsWindowManagerSnapPayload         `json:"snap"`
 	Bindings            SettingsWindowManagerBindingPayload      `json:"bindings"`
 	Shortcuts           map[string]windowmanager.ShortcutBinding `json:"shortcuts"`
+	GlobalShortcuts     map[string]string                        `json:"global_shortcuts"`
 }
 
 type SettingsWindowManagerGapsPayload struct {
@@ -97,10 +98,11 @@ type SettingsWindowManagerBindingPayload struct {
 }
 
 type UpdateSettingsWindowManagerRequest struct {
-	Config    *SettingsWindowManagerConfigPayload       `json:"config,omitempty"`
-	Shortcuts *map[string]windowmanager.ShortcutBinding `json:"shortcuts,omitempty"`
-	Aliases   *map[string]string                        `json:"aliases,omitempty"`
-	Overwrite bool                                      `json:"overwrite,omitempty"`
+	Config          *SettingsWindowManagerConfigPayload       `json:"config,omitempty"`
+	Shortcuts       *map[string]windowmanager.ShortcutBinding `json:"shortcuts,omitempty"`
+	Aliases         *map[string]string                        `json:"aliases,omitempty"`
+	GlobalShortcuts *map[string]string                        `json:"global_shortcuts,omitempty"`
+	Overwrite       bool                                      `json:"overwrite,omitempty"`
 }
 
 type SettingsWindowManagerResponse struct {
@@ -112,7 +114,26 @@ type SettingsWindowManagerResponse struct {
 	Commands           []SettingsWindowManagerCommandPayload    `json:"commands"`
 	ExtensionDefaults  []SettingsWindowManagerDefaultPayload    `json:"extension_defaults"`
 	Diagnostics        []SettingsWindowManagerDiagnosticPayload `json:"diagnostics,omitempty"`
+	GlobalShortcuts    []SettingsGlobalShortcutPayload          `json:"global_shortcuts"`
 }
+
+type SettingsGlobalShortcutPayload struct {
+	CommandID     string                       `json:"command_id"`
+	IntendedChord string                       `json:"intended_chord"`
+	ActiveChord   string                       `json:"active_chord,omitempty"`
+	Status        SettingsGlobalShortcutStatus `json:"status,omitempty"`
+	Reason        string                       `json:"reason,omitempty"`
+	SettingsURL   string                       `json:"settings_url,omitempty"`
+}
+
+type SettingsGlobalShortcutStatus string
+
+const (
+	SettingsGlobalShortcutRegistered       SettingsGlobalShortcutStatus = "registered"
+	SettingsGlobalShortcutFailedInUse      SettingsGlobalShortcutStatus = "failed_in_use"
+	SettingsGlobalShortcutFailedPermission SettingsGlobalShortcutStatus = "failed_permission"
+	SettingsGlobalShortcutUnsupported      SettingsGlobalShortcutStatus = "unsupported"
+)
 
 type SettingsWindowManagerCommandPayload struct {
 	ID      string `json:"id"`

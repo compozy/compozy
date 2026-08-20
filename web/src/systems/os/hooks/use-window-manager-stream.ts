@@ -21,6 +21,7 @@ import type {
 } from "../lib/window-manager-types";
 import { windowManagerStreamLogic } from "./window-manager-stream-store";
 import { workspaceKeys } from "@/systems/workspace";
+import type { GlobalShortcutRegistrationWire } from "../lib/desktop-shell-bridge";
 
 export interface WindowManagerSocket {
   close: () => void;
@@ -41,6 +42,7 @@ export interface WindowManagerClientContextInput {
     pathname: string;
     search: Readonly<Record<string, unknown>>;
   } | null;
+  globalShortcuts: readonly GlobalShortcutRegistrationWire[];
 }
 
 function browserWindowManagerSocket(url: string): WindowManagerSocket {
@@ -120,6 +122,7 @@ export function useWindowManagerStream({
             ...(clientContext.destinationIntent === null
               ? {}
               : { destination_intent: clientContext.destinationIntent }),
+            global_shortcuts: clientContext.globalShortcuts,
           },
         });
   const scheduleContextRefresh = useEffectEvent(() => {

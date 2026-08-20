@@ -1484,6 +1484,9 @@ func TestSettingsSectionAndCollectionConversions(t *testing.T) {
 						TopCenter: "none", BottomCenter: "zoom",
 					},
 					Shortcuts: map[string]windowmanager.ShortcutBinding{"desktop.switch.next": {"Meta+ArrowRight"}},
+					GlobalShortcuts: map[string]string{
+						windowmanager.DefaultGlobalSummonCommandID: windowmanager.DefaultGlobalSummonChord,
+					},
 				},
 			},
 		},
@@ -1665,6 +1668,9 @@ func TestSettingsSectionAndCollectionConversions(t *testing.T) {
 					BottomCenter: contract.SettingsWindowBindingActionZoom,
 				},
 				Shortcuts: map[string]windowmanager.ShortcutBinding{"desktop.switch.next": {"Meta+ArrowRight"}},
+				GlobalShortcuts: map[string]string{
+					windowmanager.DefaultGlobalSummonCommandID: windowmanager.DefaultGlobalSummonChord,
+				},
 			}
 			if !reflect.DeepEqual(payload.Config, want) {
 				t.Fatalf("window-manager response config = %#v, want complete conversion", payload.Config)
@@ -2550,6 +2556,9 @@ func validSettingsWindowManagerConfigPayload() contract.SettingsWindowManagerCon
 		Shortcuts: map[string]windowmanager.ShortcutBinding{
 			"desktop.switch.next": {"Meta+ArrowRight"},
 			"window.focus.left":   {"Alt+ArrowLeft"},
+		},
+		GlobalShortcuts: map[string]string{
+			windowmanager.DefaultGlobalSummonCommandID: windowmanager.DefaultGlobalSummonChord,
 		},
 	}
 }

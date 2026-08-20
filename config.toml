@@ -42,6 +42,9 @@ repeat_ratios = [0.5, 0.666667, 0.333333]
 top_center = "zoom"
 bottom_center = "reserved"
 
+[window_manager.global_shortcuts]
+"palette.summon.global" = "meta+shift+Space"
+
 [defaults]
 agent = "general"
 provider = "claude"

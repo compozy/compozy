@@ -3,6 +3,7 @@ import { HelpTip, Slider } from "@compozy/ui";
 import type { WindowManagerSettingsSection } from "@/systems/os";
 
 import type { AliasEditorModel } from "../hooks/use-window-manager-alias-editor";
+import type { GlobalShortcutRecorderModel } from "../hooks/use-global-shortcut-recorder";
 import type { WindowManagerConfigEditorModel } from "../hooks/use-window-manager-config-editor";
 import type { ShortcutRecorderModel } from "../hooks/use-window-manager-shortcut-recorder";
 import { WINDOW_MANAGER_RANGES } from "../lib/window-manager-snap-geometry";
@@ -13,6 +14,7 @@ import { SettingsTile, SettingsTiles } from "./settings-tiles";
 import { SettingRow } from "./setting-row";
 import { WindowManagerBehaviorPicks } from "./layouts/window-manager-behavior-picks";
 import { WindowManagerGapEditor } from "./layouts/window-manager-gap-editor";
+import { WindowManagerGlobalHotkeys } from "./layouts/window-manager-global-hotkeys";
 import { WindowManagerRatioTrack } from "./layouts/window-manager-ratio-track";
 import { WindowManagerShortcutTable } from "./layouts/window-manager-shortcut-table";
 import { ShortcutPresetCard } from "./layouts/shortcut-preset-card";
@@ -23,6 +25,7 @@ interface WindowManagerConfigEditorProps {
   /** Daemon truth for the keyboard surface; not part of the draft. */
   section: WindowManagerSettingsSection;
   recorder: ShortcutRecorderModel;
+  globalRecorder: GlobalShortcutRecorderModel;
   aliases: AliasEditorModel;
   focusCommandId?: string;
 }
@@ -36,11 +39,12 @@ interface WindowManagerConfigEditorProps {
  * the keyboard surface writes straight through instead of collecting a draft.
  */
 export function WindowManagerConfigEditor({
-  editor,
-  section,
-  recorder,
   aliases,
+  editor,
   focusCommandId,
+  globalRecorder,
+  recorder,
+  section,
 }: WindowManagerConfigEditorProps) {
   return (
     <>
@@ -101,6 +105,7 @@ export function WindowManagerConfigEditor({
             recorder={recorder}
             section={section}
           />
+          <WindowManagerGlobalHotkeys recorder={globalRecorder} section={section} />
         </div>
       </SettingsGroup>
 

@@ -20,6 +20,10 @@ type shellCommandDefinition struct {
 
 var fixedShellCommands = []shellCommandDefinition{
 	{id: "palette.open", title: "Command palette", section: coreSectionShell, icon: "command", exempt: true},
+	{
+		id: "palette.summon.global", title: "Command palette · global",
+		section: coreSectionShell, icon: "command", exempt: true,
+	},
 	{id: "session.new", title: "New session", section: coreSectionShell, icon: coreIconTerminal, exempt: true},
 	{id: "scope.global.toggle", title: "Global scope", section: coreSectionShell, icon: coreIconGlobe, exempt: true},
 	{
@@ -157,6 +161,9 @@ func shellCommands() []cmdpalette.Descriptor {
 	commands := make([]cmdpalette.Descriptor, 0, len(definitions))
 	for _, definition := range definitions {
 		command := clientCommand(definition.id, definition.title, definition.section, definition.icon)
+		if definition.id == "palette.summon.global" {
+			command.Action.Op = "palette.open"
+		}
 		command.AvailabilityExempt = definition.exempt
 		switch {
 		case definition.when != nil:

@@ -94,11 +94,19 @@ export const settingsWindowManagerSectionFixture: SettingsWindowManagerSection =
     },
     bindings: { top_center: "zoom", bottom_center: "reserved" },
     shortcuts: { "window.tab.new": ["meta+Digit3"] },
+    global_shortcuts: { "palette.summon.global": "meta+shift+Space" },
   },
   defaults: Object.fromEntries(
     cmdPaletteStoryCommands.map(command => [command.id, [...command.bindings]])
   ),
   effective_shortcuts: storyEffectiveShortcuts,
+  global_shortcuts: [
+    {
+      command_id: "palette.summon.global",
+      intended_chord: "meta+shift+Space",
+      status: "unsupported",
+    },
+  ],
 };
 
 export const settingsWindowManagerDesktopIds = {

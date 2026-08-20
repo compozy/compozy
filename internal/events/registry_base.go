@@ -151,6 +151,7 @@ var baseRegistryEntries = []Metadata{
 	global(info(CmdPaletteCommandInvoked, "cmd_palette", ComponentCmdPalette)),
 	global(info(CmdPalettePinChanged, "cmd_palette", ComponentCmdPalette)),
 	global(info(CmdPalettePersonalizationReset, "cmd_palette", ComponentCmdPalette)),
+	global(info(GlobalHotkeyRegistrationFailed, "global_hotkey", ComponentCmdPalette)),
 
 	notify(global(warning(ProviderAuthRequired, "provider", ComponentProvider))),
 	global(success(ProviderAuthRecovered, "provider", ComponentProvider)),

@@ -605,6 +605,7 @@ describe("useWindowManagerStream", () => {
       focusedSessionState: null,
       workspaceTrusted: true,
       destinationIntent: null,
+      globalShortcuts: [],
     };
 
     const { rerender } = renderHook(

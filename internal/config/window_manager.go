@@ -70,6 +70,7 @@ type WindowManagerConfig struct {
 	Snap                WindowManagerSnapConfig                  `toml:"snap"`
 	Bindings            WindowManagerBindingConfig               `toml:"bindings"`
 	Shortcuts           map[string]windowmanager.ShortcutBinding `toml:"shortcuts,omitempty"`
+	GlobalShortcuts     map[string]string                        `toml:"global_shortcuts,omitempty"`
 }
 
 // WindowManagerGapsConfig controls the shared inner gap and work-area insets.
@@ -123,6 +124,9 @@ func DefaultWindowManagerConfig() WindowManagerConfig {
 			TopCenter: WindowBindingZoom, BottomCenter: WindowBindingReserved,
 		},
 		Shortcuts: map[string]windowmanager.ShortcutBinding{},
+		GlobalShortcuts: map[string]string{
+			windowmanager.DefaultGlobalSummonCommandID: windowmanager.DefaultGlobalSummonChord,
+		},
 	}
 }
 
@@ -203,7 +207,13 @@ func (c WindowManagerConfig) Validate() error {
 	if err := c.Bindings.Validate(); err != nil {
 		return err
 	}
-	return validateWindowManagerShortcuts(c.Shortcuts)
+	if err := validateWindowManagerShortcuts(c.Shortcuts); err != nil {
+		return err
+	}
+	if _, err := windowmanager.CanonicalStoredGlobalShortcuts(c.GlobalShortcuts); err != nil {
+		return ValidationError{Path: "window_manager.global_shortcuts", Message: err.Error()}
+	}
+	return nil
 }
 
 // Validate ensures projection gaps stay within a practical viewport-safe range.

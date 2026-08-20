@@ -43,6 +43,7 @@ function client(presentationRevision = 1): WindowManagerAttachedClientView {
     },
     connectedAt: "2026-07-22T00:00:00Z",
     attachmentToken: "attachment-token",
+    globalShortcuts: [],
   };
 }
 

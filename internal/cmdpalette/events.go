@@ -10,11 +10,12 @@ import (
 type EventName string
 
 const (
-	EventCatalogChanged       EventName = "cmd_palette.catalog.changed"
-	EventCommandInvoked       EventName = "cmd_palette.command.invoked"
-	EventPinChanged           EventName = "cmd_palette.pin.changed"
-	EventPersonalizationReset EventName = "cmd_palette.personalization.reset"
-	eventSubscriberLimit                = 32
+	EventCatalogChanged                 EventName = "cmd_palette.catalog.changed"
+	EventCommandInvoked                 EventName = "cmd_palette.command.invoked"
+	EventPinChanged                     EventName = "cmd_palette.pin.changed"
+	EventPersonalizationReset           EventName = "cmd_palette.personalization.reset"
+	EventGlobalHotkeyRegistrationFailed EventName = "global_hotkey.registration_failed"
+	eventSubscriberLimit                          = 32
 )
 
 type Event struct {
@@ -29,7 +30,29 @@ type Event struct {
 	DurationMS      int64       `json:"duration_ms"`
 	InvocationID    string      `json:"invocation_id,omitempty"`
 	ApprovalID      string      `json:"approval_id,omitempty"`
+	ClientID        ClientID    `json:"client_id,omitempty"`
+	Chord           string      `json:"chord,omitempty"`
+	Reason          string      `json:"reason,omitempty"`
 	OccurredAt      time.Time   `json:"occurred_at"`
+}
+
+// NotifyGlobalHotkeyRegistrationFailed records one shell registration failure.
+func (s *Service) NotifyGlobalHotkeyRegistrationFailed(
+	ctx context.Context,
+	workspaceID WorkspaceID,
+	clientID ClientID,
+	commandID CommandID,
+	chord string,
+	reason string,
+) {
+	s.emit(ctx, Event{
+		Name:        EventGlobalHotkeyRegistrationFailed,
+		WorkspaceID: workspaceID,
+		ClientID:    clientID,
+		CommandID:   commandID,
+		Chord:       chord,
+		Reason:      reason,
+	})
 }
 
 type EventRecorder interface {

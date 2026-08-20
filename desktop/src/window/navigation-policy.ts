@@ -1,5 +1,8 @@
 export type NavigationDecision = "allow" | "external" | "deny";
 
+const ACCESSIBILITY_SETTINGS_URL =
+  "x-apple.systempreferences:com.apple.preference.security?Privacy_Accessibility";
+
 function parsed(raw: string): URL | null {
   try {
     return new URL(raw);
@@ -14,7 +17,11 @@ export function safeExternalURL(raw: string): string | null {
 }
 
 function isExternalURL(target: URL): boolean {
-  return target.protocol === "http:" || target.protocol === "https:";
+  return (
+    target.protocol === "http:" ||
+    target.protocol === "https:" ||
+    target.toString() === ACCESSIBILITY_SETTINGS_URL
+  );
 }
 
 export function classifyNavigation(raw: string, daemonOrigin: string): NavigationDecision {

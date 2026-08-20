@@ -18,6 +18,7 @@ func (s *service) buildWindowManagerSection(
 	ctx context.Context,
 	cfg *compozyconfig.Config,
 	workspaceID string,
+	clientID string,
 ) (WindowManagerSection, error) {
 	section := WindowManagerSection{
 		Config:            cloneWindowManagerConfig(cfg.WindowManager),
@@ -25,7 +26,11 @@ func (s *service) buildWindowManagerSection(
 		ExtensionDefaults: []WindowManagerExtensionDefault{},
 	}
 	if s.cmdPalette != nil && workspaceID != "" {
-		catalog, err := s.cmdPalette.Catalog(ctx, cmdpalette.WorkspaceID(workspaceID), "")
+		catalog, err := s.cmdPalette.Catalog(
+			ctx,
+			cmdpalette.WorkspaceID(workspaceID),
+			cmdpalette.ClientID(clientID),
+		)
 		if err != nil {
 			return WindowManagerSection{}, fmt.Errorf("settings: load command catalog for shortcuts: %w", err)
 		}
@@ -47,6 +52,16 @@ func (s *service) buildWindowManagerSection(
 			)
 			if command.Alias != nil {
 				section.Aliases[commandID] = *command.Alias
+			}
+			if command.GlobalShortcut != nil {
+				section.GlobalShortcuts = append(section.GlobalShortcuts, WindowManagerGlobalShortcut{
+					CommandID:     commandID,
+					IntendedChord: command.GlobalShortcut.IntendedChord,
+					ActiveChord:   command.GlobalShortcut.ActiveChord,
+					Status:        command.GlobalShortcut.Status,
+					Reason:        command.GlobalShortcut.Reason,
+					SettingsURL:   command.GlobalShortcut.SettingsURL,
+				})
 			}
 		}
 		_, diagnostics, err := windowmanager.TolerantEffectiveKeymap(
@@ -89,6 +104,16 @@ func (s *service) buildWindowManagerSection(
 	for _, commandID := range ids {
 		section.Commands = append(section.Commands, WindowManagerShortcutCommand{
 			ID: commandID, Title: commandID, Source: string(cmdpalette.SourceKindCore),
+		})
+	}
+	globalIDs := make([]string, 0, len(cfg.WindowManager.GlobalShortcuts))
+	for commandID := range cfg.WindowManager.GlobalShortcuts {
+		globalIDs = append(globalIDs, commandID)
+	}
+	sort.Strings(globalIDs)
+	for _, commandID := range globalIDs {
+		section.GlobalShortcuts = append(section.GlobalShortcuts, WindowManagerGlobalShortcut{
+			CommandID: commandID, IntendedChord: cfg.WindowManager.GlobalShortcuts[commandID],
 		})
 	}
 	return section, nil
@@ -192,6 +217,10 @@ func diffWindowManagerSettings(
 		"window_manager.shortcuts",
 		!reflect.DeepEqual(current.Shortcuts, desired.Shortcuts),
 	)
+	appendChange(
+		"window_manager.global_shortcuts",
+		!reflect.DeepEqual(current.GlobalShortcuts, desired.GlobalShortcuts),
+	)
 	appendChange("cmd_palette.aliases", !reflect.DeepEqual(currentAliases, desiredAliases))
 	return changed
 }
@@ -252,6 +281,15 @@ func applyWindowManagerSettings(
 		}
 	}
 
+	globalShortcutsPath := root("global_shortcuts")
+	globalValues := make(map[string]any, len(settings.GlobalShortcuts))
+	for commandID, chord := range settings.GlobalShortcuts {
+		globalValues[commandID] = chord
+	}
+	if err := editor.SetTable(globalShortcutsPath, globalValues); err != nil {
+		return err
+	}
+
 	aliasesPath := []string{cmdPaletteConfigRoot, "aliases"}
 	if len(aliases) == 0 {
 		return editor.Delete(aliasesPath)
@@ -266,6 +304,7 @@ func applyWindowManagerSettings(
 func cloneWindowManagerConfig(cfg compozyconfig.WindowManagerConfig) compozyconfig.WindowManagerConfig {
 	cfg.Snap.RepeatRatios = append([]float64(nil), cfg.Snap.RepeatRatios...)
 	cfg.Shortcuts = windowmanager.CloneShortcutMap(cfg.Shortcuts)
+	cfg.GlobalShortcuts = windowmanager.CloneGlobalShortcutMap(cfg.GlobalShortcuts)
 	return cfg
 }
 

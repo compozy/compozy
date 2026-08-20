@@ -42,7 +42,25 @@ func settingsWindowManagerSectionResponse(
 		Commands:           settingsWindowManagerCommands(envelope.WindowManager.Commands),
 		ExtensionDefaults:  settingsWindowManagerDefaults(envelope.WindowManager.ExtensionDefaults),
 		Diagnostics:        settingsWindowManagerDiagnostics(diagnostics),
+		GlobalShortcuts:    settingsGlobalShortcuts(envelope.WindowManager.GlobalShortcuts),
 	}, nil
+}
+
+func settingsGlobalShortcuts(
+	items []settingspkg.WindowManagerGlobalShortcut,
+) []contract.SettingsGlobalShortcutPayload {
+	result := make([]contract.SettingsGlobalShortcutPayload, 0, len(items))
+	for _, item := range items {
+		result = append(result, contract.SettingsGlobalShortcutPayload{
+			CommandID:     item.CommandID,
+			IntendedChord: item.IntendedChord,
+			ActiveChord:   item.ActiveChord,
+			Status:        contract.SettingsGlobalShortcutStatus(item.Status),
+			Reason:        item.Reason,
+			SettingsURL:   item.SettingsURL,
+		})
+	}
+	return result
 }
 
 func settingsWindowManagerCommands(
@@ -124,7 +142,8 @@ func settingsWindowManagerConfigPayload(
 			TopCenter:    contract.SettingsWindowBindingAction(cfg.Bindings.TopCenter),
 			BottomCenter: contract.SettingsWindowBindingAction(cfg.Bindings.BottomCenter),
 		},
-		Shortcuts: requiredWindowManagerShortcutsPayload(cfg.Shortcuts),
+		Shortcuts:       requiredWindowManagerShortcutsPayload(cfg.Shortcuts),
+		GlobalShortcuts: windowmanager.CloneGlobalShortcutMap(cfg.GlobalShortcuts),
 	}
 }
 
@@ -174,7 +193,8 @@ func windowManagerConfigFromPayload(
 			TopCenter:    strings.TrimSpace(string(payload.Bindings.TopCenter)),
 			BottomCenter: strings.TrimSpace(string(payload.Bindings.BottomCenter)),
 		},
-		Shortcuts: windowmanager.CloneShortcutMap(payload.Shortcuts),
+		Shortcuts:       windowmanager.CloneShortcutMap(payload.Shortcuts),
+		GlobalShortcuts: windowmanager.CloneGlobalShortcutMap(payload.GlobalShortcuts),
 	}
 	if err := value.Validate(); err != nil {
 		return compozyconfig.WindowManagerConfig{}, NewSettingsValidationError(err)

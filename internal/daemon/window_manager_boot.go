@@ -70,6 +70,27 @@ func (d *Daemon) bootDefaultWorkspaceAndWindowManager(
 				)
 			},
 		),
+		windowmanager.WithGlobalShortcutFailureObserver(
+			func(
+				ctx context.Context,
+				workspaceID windowmanager.WorkspaceID,
+				clientID windowmanager.ClientID,
+				registration windowmanager.GlobalShortcutRegistration,
+			) {
+				palette, ok := state.cmdPalette.(*cmdpalette.Service)
+				if !ok || palette == nil {
+					return
+				}
+				palette.NotifyGlobalHotkeyRegistrationFailed(
+					ctx,
+					cmdpalette.WorkspaceID(workspaceID),
+					cmdpalette.ClientID(clientID),
+					cmdpalette.CommandID(registration.CommandID),
+					registration.IntendedChord,
+					registration.Reason,
+				)
+			},
+		),
 		windowmanager.WithWorkspaceConfigResolver(
 			windowManagerWorkspaceConfigResolver{resolver: state.workspaceResolver},
 		),

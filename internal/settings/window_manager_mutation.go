@@ -28,7 +28,9 @@ func (s *service) windowManagerBindableIDs(
 	for _, command := range catalog.Commands {
 		ids = append(ids, string(command.ID))
 	}
-	return windowmanager.NewBindableIDs(ids), nil
+	result := windowmanager.NewBindableIDs(ids)
+	result[windowmanager.DefaultGlobalSummonCommandID] = struct{}{}
+	return result, nil
 }
 
 func normalizeShortcutMutation(
@@ -64,6 +66,54 @@ func normalizeShortcutMutation(
 		removeShortcutChord(resolved, loser, conflict.Chord)
 	}
 	return nil, errors.New("settings: shortcut overwrite did not converge")
+}
+
+func normalizeGlobalShortcutMutation(
+	current map[string]string,
+	desired map[string]string,
+	bindableIDs windowmanager.BindableIDs,
+	overwrite bool,
+) (map[string]string, error) {
+	resolved := windowmanager.CloneGlobalShortcutMap(desired)
+	currentCanonical, err := windowmanager.CanonicalGlobalShortcuts(current, bindableIDs)
+	if err != nil {
+		return nil, unprocessableError(err)
+	}
+	for attempts := 0; attempts <= len(bindableIDs); attempts++ {
+		canonical, canonicalErr := windowmanager.CanonicalGlobalShortcuts(resolved, bindableIDs)
+		if canonicalErr == nil {
+			return canonical, nil
+		}
+		var conflict *windowmanager.ShortcutConflictError
+		if !errors.As(canonicalErr, &conflict) {
+			return nil, unprocessableError(canonicalErr)
+		}
+		loser, exists := globalShortcutOverwriteLoser(currentCanonical, conflict)
+		if exists {
+			conflict = semanticShortcutConflict(conflict, loser)
+		}
+		if !overwrite || !exists {
+			return nil, conflictError(conflict)
+		}
+		delete(resolved, loser)
+	}
+	return nil, errors.New("settings: global shortcut overwrite did not converge")
+}
+
+func globalShortcutOverwriteLoser(
+	current map[string]string,
+	conflict *windowmanager.ShortcutConflictError,
+) (string, bool) {
+	ownerHadChord := current[conflict.Owner] == conflict.Chord
+	commandHadChord := current[conflict.Command] == conflict.Chord
+	switch {
+	case ownerHadChord && !commandHadChord:
+		return conflict.Owner, true
+	case commandHadChord && !ownerHadChord:
+		return conflict.Command, true
+	default:
+		return "", false
+	}
 }
 
 func semanticShortcutConflict(

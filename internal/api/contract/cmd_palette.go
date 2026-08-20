@@ -26,6 +26,7 @@ type CmdPaletteCommand struct {
 	Execution          cmdpalette.ExecutionPolicy `json:"execution"`
 	When               []cmdpalette.Predicate     `json:"when,omitempty"`
 	AvailabilityExempt bool                       `json:"availability_exempt"`
+	GlobalShortcut     *cmdpalette.GlobalShortcut `json:"global_shortcut,omitempty"`
 }
 
 type CmdPaletteCommandsResponse struct {
@@ -165,12 +166,21 @@ func CmdPaletteCommandsFromDomain(catalog cmdpalette.Catalog) CmdPaletteCommands
 			Arguments: append([]cmdpalette.Argument(nil), command.Arguments...), Action: command.Action,
 			Execution: command.Policy, When: append([]cmdpalette.Predicate(nil), command.When...),
 			AvailabilityExempt: command.AvailabilityExempt,
+			GlobalShortcut:     cloneGlobalShortcut(command.GlobalShortcut),
 		})
 	}
 	return CmdPaletteCommandsResponse{
 		Commands: commands, Sources: append([]cmdpalette.SourceStatus(nil), catalog.Sources...),
 		CatalogRevision: catalog.Revision, ContextRevision: catalog.ContextRevision,
 	}
+}
+
+func cloneGlobalShortcut(value *cmdpalette.GlobalShortcut) *cmdpalette.GlobalShortcut {
+	if value == nil {
+		return nil
+	}
+	cloned := *value
+	return &cloned
 }
 
 func CmdPaletteClientsFromDomain(clients []cmdpalette.Client) []CmdPaletteClient {

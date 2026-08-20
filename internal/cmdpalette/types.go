@@ -143,10 +143,20 @@ type SourceStatus struct {
 
 type ResolvedCommand struct {
 	Descriptor
-	Available         bool     `json:"available"`
-	UnavailableReason string   `json:"reason,omitempty"`
-	Bindings          []string `json:"bindings"`
-	Alias             *string  `json:"alias"`
+	Available         bool            `json:"available"`
+	UnavailableReason string          `json:"reason,omitempty"`
+	Bindings          []string        `json:"bindings"`
+	Alias             *string         `json:"alias"`
+	GlobalShortcut    *GlobalShortcut `json:"global_shortcut,omitempty"`
+}
+
+// GlobalShortcut projects daemon-owned intent and one shell client's registration truth.
+type GlobalShortcut struct {
+	IntendedChord string `json:"intended_chord"`
+	ActiveChord   string `json:"active_chord,omitempty"`
+	Status        string `json:"status,omitempty"`
+	Reason        string `json:"reason,omitempty"`
+	SettingsURL   string `json:"settings_url,omitempty"`
 }
 
 type Catalog struct {
@@ -281,6 +291,24 @@ type SnapshotBindingsResolver interface {
 		[]CommandID,
 		[]ExtensionDefaultShortcut,
 	) (map[CommandID][]string, map[CommandID]string, error)
+}
+
+// SnapshotGlobalBindingsResolver resolves intended global bindings from the catalog snapshot.
+type SnapshotGlobalBindingsResolver interface {
+	GlobalBindingsForCatalogSnapshot(
+		context.Context,
+		WorkspaceID,
+		[]CommandID,
+	) (map[CommandID]string, error)
+}
+
+// GlobalShortcutStatusDirectory resolves ephemeral registration state for one shell client.
+type GlobalShortcutStatusDirectory interface {
+	GlobalShortcutStatuses(
+		context.Context,
+		WorkspaceID,
+		ClientID,
+	) (map[CommandID]GlobalShortcut, error)
 }
 
 type Registry interface {

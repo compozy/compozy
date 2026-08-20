@@ -12,17 +12,18 @@ const defaultDesktopName = "Desktop 1"
 
 // Manager coordinates semantic commands, transient clients, and subscriptions.
 type Manager struct {
-	repository         Repository
-	workspaces         WorkspaceResolver
-	layouts            LayoutResourceRegistry
-	defaults           Config
-	now                func() time.Time
-	generate           idGenerator
-	subscriptionBuffer int
-	eventObserver      EventObserver
-	clientObserver     ClientUnregisteredObserver
-	workspaceConfig    WorkspaceConfigResolver
-	defaultsMu         sync.RWMutex
+	repository             Repository
+	workspaces             WorkspaceResolver
+	layouts                LayoutResourceRegistry
+	defaults               Config
+	now                    func() time.Time
+	generate               idGenerator
+	subscriptionBuffer     int
+	eventObserver          EventObserver
+	clientObserver         ClientUnregisteredObserver
+	globalShortcutObserver GlobalShortcutFailureObserver
+	workspaceConfig        WorkspaceConfigResolver
+	defaultsMu             sync.RWMutex
 
 	mu               sync.Mutex
 	closed           bool
@@ -91,21 +92,22 @@ func NewService(
 		return nil, err
 	}
 	manager := &Manager{
-		repository:         repository,
-		workspaces:         workspaces,
-		layouts:            layouts,
-		defaults:           canonical,
-		now:                resolved.now,
-		generate:           resolved.generate,
-		subscriptionBuffer: resolved.subscriptionBuffer,
-		eventObserver:      resolved.eventObserver,
-		clientObserver:     resolved.clientObserver,
-		workspaceConfig:    resolved.workspaceConfig,
-		workspaceLocks:     make(map[WorkspaceID]*workspaceLock),
-		clients:            make(map[WorkspaceID]map[ClientID]ClientView),
-		clientTokens:       make(map[WorkspaceID]map[ClientID][32]byte),
-		commandEndpoints:   make(map[WorkspaceID]map[ClientID]*clientCommandEndpoint),
-		hubs:               make(map[WorkspaceID]*subscriptionHub),
+		repository:             repository,
+		workspaces:             workspaces,
+		layouts:                layouts,
+		defaults:               canonical,
+		now:                    resolved.now,
+		generate:               resolved.generate,
+		subscriptionBuffer:     resolved.subscriptionBuffer,
+		globalShortcutObserver: resolved.globalShortcutObserver,
+		eventObserver:          resolved.eventObserver,
+		clientObserver:         resolved.clientObserver,
+		workspaceConfig:        resolved.workspaceConfig,
+		workspaceLocks:         make(map[WorkspaceID]*workspaceLock),
+		clients:                make(map[WorkspaceID]map[ClientID]ClientView),
+		clientTokens:           make(map[WorkspaceID]map[ClientID][32]byte),
+		commandEndpoints:       make(map[WorkspaceID]map[ClientID]*clientCommandEndpoint),
+		hubs:                   make(map[WorkspaceID]*subscriptionHub),
 	}
 	manager.coalescer = newActiveCoalescer(resolved.lifecycleContext, manager)
 	return manager, nil

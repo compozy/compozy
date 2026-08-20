@@ -27,6 +27,7 @@ type cmdPaletteWorkspaceResolver interface {
 
 var _ cmdpalette.BindingsResolver = (*cmdPaletteBindingsResolver)(nil)
 var _ cmdpalette.SnapshotBindingsResolver = (*cmdPaletteBindingsResolver)(nil)
+var _ cmdpalette.SnapshotGlobalBindingsResolver = (*cmdPaletteBindingsResolver)(nil)
 var _ cmdpalette.PersonalizationPolicy = (*cmdPaletteBindingsResolver)(nil)
 
 func (r *cmdPaletteBindingsResolver) PersonalizationEnabled(
@@ -116,6 +117,48 @@ func (r *cmdPaletteBindingsResolver) BindingsForCatalogSnapshot(
 	return r.resolveBindingsFromSnapshot(
 		workspaceID, windowConfig, paletteConfig, commandIDs, shortcutDefaults,
 	)
+}
+
+func (r *cmdPaletteBindingsResolver) GlobalBindingsForCatalogSnapshot(
+	ctx context.Context,
+	workspaceID cmdpalette.WorkspaceID,
+	commandIDs []cmdpalette.CommandID,
+) (map[cmdpalette.CommandID]string, error) {
+	if r == nil || r.workspaces == nil {
+		return nil, errors.New("daemon: command palette binding resolver is unavailable")
+	}
+	resolved, err := r.resolveWorkspace(ctx, workspaceID)
+	if err != nil {
+		return nil, err
+	}
+	globalConfig, err := r.currentGlobalConfig()
+	if err != nil {
+		return nil, err
+	}
+	configPath := filepath.Join(resolved.RootDir, compozyconfig.DirName, compozyconfig.ConfigName)
+	windowConfig, err := compozyconfig.ApplyWindowManagerOverlayFile(
+		configPath,
+		globalConfig.WindowManager,
+	)
+	if err != nil {
+		return nil, fmt.Errorf("daemon: resolve global command palette shortcuts: %w", err)
+	}
+	ids := make([]string, 0, len(commandIDs))
+	for _, commandID := range commandIDs {
+		ids = append(ids, string(commandID))
+	}
+	canonical, err := windowmanager.CanonicalGlobalShortcuts(
+		windowConfig.GlobalShortcuts,
+		windowmanager.NewBindableIDs(ids),
+	)
+	if err != nil {
+		return nil, fmt.Errorf("daemon: validate global command palette shortcuts: %w", err)
+	}
+	result := make(map[cmdpalette.CommandID]string, len(canonical))
+	for commandID, chord := range canonical {
+		result[cmdpalette.CommandID(commandID)] = chord
+	}
+	return result, nil
 }
 
 func (r *cmdPaletteBindingsResolver) resolveBindingsFromSnapshot(

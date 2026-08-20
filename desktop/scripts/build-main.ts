@@ -71,6 +71,12 @@ await Promise.all([
     external: ["electron"],
   }),
   build({
+    ...sharedOptions,
+    entryPoints: [join(root, "src", "product", "product-preload.ts")],
+    outfile: join(output, "product-preload.cjs"),
+    external: ["electron"],
+  }),
+  build({
     entryPoints: [join(root, "src", "state", "public-safe-text.ts")],
     outfile: join(output, "pages", "public-safe-text.js"),
     bundle: true,

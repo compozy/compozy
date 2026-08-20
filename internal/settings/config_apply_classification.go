@@ -90,6 +90,9 @@ func (s *service) classifyWindowManagerRequest(
 	if req.WindowManagerShortcuts != nil {
 		desired.Shortcuts = *req.WindowManagerShortcuts
 	}
+	if req.WindowManagerGlobalShortcuts != nil {
+		desired.GlobalShortcuts = *req.WindowManagerGlobalShortcuts
+	}
 	desiredAliases := loaded.config.CmdPalette.Aliases
 	if req.WindowManagerAliases != nil {
 		desiredAliases = *req.WindowManagerAliases

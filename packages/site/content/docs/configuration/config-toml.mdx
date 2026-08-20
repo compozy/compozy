@@ -1050,6 +1050,14 @@ members expand before full-map validation, and any duplicate rejects the whole c
 Named any/landscape/portrait layout profiles are declarative `window_layout` resources, not a second
 config source.
 
+### `[window_manager.global_shortcuts]`
+
+This table maps any command-palette command ID to one desktop-global chord. It defaults
+`palette.summon.global = "meta+shift+Space"`. The daemon validates and persists the intended map;
+each Electron shell reports its own registration status. Use `compozy cmd-palette bind|unbind
+--global` for atomic changes and [Global hotkeys](/docs/desktop/global-hotkeys/) for failure and
+browser-mode behavior.
+
 ## `[defaults]`
 
 | Field      | Type   | Default   | Valid values                                                                  | Description                                                                                                        |

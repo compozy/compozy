@@ -69,6 +69,21 @@ compozy cmd-palette bindings --workspace acme -o json
 When a chord belongs to another command, the daemon names that owner and stores nothing. Add
 `--overwrite` to transfer the chord from the named owner.
 
+## Configure a global hotkey
+
+The desktop shell can register any command outside CompozyOS. The daemon owns the intended map under
+`[window_manager.global_shortcuts]`; each desktop shell reports whether its chord is active, captured
+by another application, blocked by permission, or unsupported.
+
+```bash
+compozy cmd-palette bind palette.summon.global meta+shift+Space --global
+compozy cmd-palette unbind palette.summon.global --global
+```
+
+A plain browser cannot register these chords and shows **requires desktop shell** without changing
+the in-app keymap. Read [Global hotkeys](/docs/desktop/global-hotkeys/) for registration states,
+Accessibility recovery, and platform behavior.
+
 ## Configure an alias
 
 Aliases are workspace vocabulary for command search. They contain 1–32 characters with no

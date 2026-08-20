@@ -1,7 +1,7 @@
 // Suite: OS interaction hooks
 // Invariant: OS hooks translate keyboard, pointer, and viewport changes into current shell actions and geometry.
 // Owning layer: the browser-to-OS-hook interaction boundary.
-import { act, fireEvent, render, renderHook, screen } from "@testing-library/react";
+import { act, fireEvent, render, renderHook, screen, waitFor } from "@testing-library/react";
 import {
   type PointerEvent as ReactPointerEvent,
   type ReactNode,
@@ -23,6 +23,7 @@ import type {
   WindowManagerCommandOutcome,
 } from "../../lib/os-types";
 import type { WindowManagerConfig, WindowManagerSnapshot } from "../../lib/window-manager-types";
+import type { WindowManagerGlobalShortcutMap } from "../../lib/window-manager-shortcut-types";
 import {
   OS_ZOOM_MENU_CLOSE_GRACE_MS,
   OS_ZOOM_MENU_OPEN_DELAY_MS,
@@ -45,6 +46,7 @@ import { adjacentShortcutItem, shortcutAttentionTarget } from "../use-desktop-sh
 import { useWorkspacesStripScroll } from "../use-workspaces-strip-scroll";
 import { windowManagerStore } from "../../stores/window-manager-store";
 import { createWindowManagerProjectionAtom } from "../../lib/window-manager-projection";
+import { useGlobalShortcutReconciliation } from "../use-global-shortcut-reconciliation";
 
 const TEST_KEYMAP = {
   "palette.open": ["meta+KeyK", "meta+shift+KeyP"],
@@ -93,6 +95,7 @@ const CONFIG: WindowManagerConfig = {
   },
   bindings: { topCenter: "zoom", bottomCenter: "reserved" },
   shortcuts: {},
+  globalShortcuts: {},
   shortcutDefaults: TEST_KEYMAP,
   effectiveShortcuts: TEST_KEYMAP,
 };
@@ -294,6 +297,59 @@ afterEach(() => {
   vi.useRealTimers();
   vi.restoreAllMocks();
   vi.unstubAllGlobals();
+  delete window.compozyShell;
+});
+
+describe("useGlobalShortcutReconciliation", () => {
+  it("Should replace stale confirmations with explicit unsupported results after a bridge failure", async () => {
+    const initial: WindowManagerGlobalShortcutMap = {
+      "palette.summon.global": "meta+shift+Space",
+    };
+    const changed: WindowManagerGlobalShortcutMap = {
+      "palette.summon.global": "meta+alt+Space",
+    };
+    const sync = vi
+      .fn()
+      .mockResolvedValueOnce([
+        {
+          command_id: "palette.summon.global",
+          intended_chord: "meta+shift+Space",
+          active_chord: "meta+shift+Space",
+          status: "registered",
+        },
+      ])
+      .mockRejectedValueOnce(new Error("IPC connection closed"));
+    window.compozyShell = {
+      platform: "darwin",
+      on: vi.fn(() => () => undefined),
+      globalShortcuts: { sync, status: vi.fn() },
+    };
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => undefined);
+
+    const { result, rerender } = renderHook(
+      ({ intended }: { intended: WindowManagerGlobalShortcutMap }) =>
+        useGlobalShortcutReconciliation(intended),
+      { initialProps: { intended: initial } }
+    );
+    await waitFor(() => expect(result.current.registrations[0]?.status).toBe("registered"));
+
+    rerender({ intended: changed });
+
+    await waitFor(() =>
+      expect(result.current.registrations).toEqual([
+        {
+          command_id: "palette.summon.global",
+          intended_chord: "meta+alt+Space",
+          status: "unsupported",
+          reason: "desktop shell synchronization failed",
+        },
+      ])
+    );
+    expect(warn).toHaveBeenCalledWith(
+      "Desktop shell global hotkey synchronization failed",
+      expect.any(Error)
+    );
+  });
 });
 
 function beginPrimarySnapGesture(moveMode: "window" | "group" = "window"): void {

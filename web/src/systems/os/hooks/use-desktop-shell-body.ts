@@ -12,6 +12,7 @@ import {
 import { useWorktreeListings } from "@/systems/workspace";
 
 import { frameSeamEdits } from "../lib/frame-seams";
+import { desktopShellBridge, type DesktopShellEventMap } from "../lib/desktop-shell-bridge";
 import type { OsAttentionSections, OsSessionAttentionRow } from "../lib/attention-model";
 import type { PaletteShellHandlers } from "../lib/cmd-palette-client-ops";
 import type { ClientCommandChannel } from "../lib/client-command-channel";
@@ -38,6 +39,14 @@ import { useOsShell } from "./use-os-shell";
 import { useOsShortcuts } from "./use-os-shortcuts";
 import { useOsWinLayer } from "./use-os-win-layer";
 import { usePaletteRegistry } from "./use-palette-registry";
+
+function subscribeDesktopSummon(
+  listener: (payload: DesktopShellEventMap["shell:summon"]) => void
+): (() => void) | undefined {
+  const bridge = desktopShellBridge();
+  return bridge?.on("shell:summon", listener);
+}
+
 export interface DesktopShellBodyOptions {
   /** First-run setup owns the shell; the chrome is inert and shortcuts are off. */
   firstRun?: boolean;
@@ -244,6 +253,19 @@ export function useDesktopShellBody(model: DesktopShellModel, options: DesktopSh
     shell: paletteShell,
     openApp: (app, route) => void coordinator.userOpen({ app, ...(route ? { route } : {}) }),
   });
+  useEffect(() => {
+    return subscribeDesktopSummon(payload => {
+      const dialog = document.querySelector<HTMLElement>('[data-slot="dialog-content"]');
+      if (dialog !== null) {
+        dialog.focus();
+        return;
+      }
+      overlays.setOverlayOpen("palette", true);
+      if (payload.command_id !== "palette.summon.global") {
+        void paletteDispatch.runById(payload.command_id);
+      }
+    });
+  }, [overlays, paletteDispatch]);
   // The daemon forwards agent-initiated client operations over the same
   // channel; they enter the same table as ⌘W and the palette row (SI-17).
   const executeClientOp = paletteDispatch.executeClientOp;

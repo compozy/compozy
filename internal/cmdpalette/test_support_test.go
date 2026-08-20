@@ -34,9 +34,18 @@ func (p dynamicTestProvider) ProvideCommands(context.Context, WorkspaceID) ([]De
 }
 
 type testBindings struct {
-	bindings map[CommandID][]string
-	aliases  map[CommandID]string
-	err      error
+	bindings       map[CommandID][]string
+	aliases        map[CommandID]string
+	globalBindings map[CommandID]string
+	err            error
+}
+
+func (b *testBindings) GlobalBindingsForCatalogSnapshot(
+	context.Context,
+	WorkspaceID,
+	[]CommandID,
+) (map[CommandID]string, error) {
+	return b.globalBindings, b.err
 }
 
 func (b *testBindings) Bindings(
@@ -47,10 +56,21 @@ func (b *testBindings) Bindings(
 }
 
 type testClientDirectory struct {
-	mu       sync.Mutex
-	clients  []Client
-	contexts map[ClientID]ContextSnapshot
-	tokens   map[ClientID]string
+	mu             sync.Mutex
+	clients        []Client
+	contexts       map[ClientID]ContextSnapshot
+	tokens         map[ClientID]string
+	globalStatuses map[ClientID]map[CommandID]GlobalShortcut
+}
+
+func (d *testClientDirectory) GlobalShortcutStatuses(
+	_ context.Context,
+	_ WorkspaceID,
+	clientID ClientID,
+) (map[CommandID]GlobalShortcut, error) {
+	d.mu.Lock()
+	defer d.mu.Unlock()
+	return d.globalStatuses[clientID], nil
 }
 
 func (d *testClientDirectory) Clients(context.Context, WorkspaceID) ([]Client, error) {
