@@ -111,9 +111,38 @@ jobs:
         run: |
           go run "${{ env.PR_RELEASE_MODULE }}" pr-release --force --enable-rollback --ci-output
 
+  # Resolve one prospective beta identity for every release-PR validation lane.
+  dry-run-identity:
+    name: Resolve Dry-Run Release Identity
+    if: |
+      github.event_name == 'pull_request' &&
+      (startsWith(github.event.pull_request.title, 'build: release ') ||
+       startsWith(github.base_ref, 'release/v'))
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    outputs:
+      release_version: ${{ steps.identity.outputs.release_version }}
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+          fetch-tags: true
+
+      - uses: ./.github/actions/setup-node
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+
+      - name: Resolve prospective beta version
+        id: identity
+        run: |
+          set -euo pipefail
+          release_version="$(scripts/resolve-auto-beta-version.sh)"
+          printf 'release_version=%s\n' "${release_version}" >>"${GITHUB_OUTPUT}"
+
   # Run the GoReleaser dry-run on every release PR.
   dry-run:
     name: Dry-Run Build Validation
+    needs: dry-run-identity
     if: |
       github.event_name == 'pull_request' &&
       (startsWith(github.event.pull_request.title, 'build: release ') ||
@@ -269,14 +298,14 @@ jobs:
 
       - name: Validate prospective beta release body
         env:
+          DRY_RUN_VERSION: ${{ needs.dry-run-identity.outputs.release_version }}
           PR_RELEASE_LOG_LEVEL: error
         run: |
           set -euo pipefail
-          release_version="$(scripts/resolve-auto-beta-version.sh)"
           plan_output="${RUNNER_TEMP}/prospective-release-plan"
           go run "${PR_RELEASE_MODULE}" plan \
             --ref HEAD \
-            --version "${release_version}" \
+            --version "${DRY_RUN_VERSION}" \
             --channel beta \
             --format github >"${plan_output}"
 
@@ -313,7 +342,7 @@ jobs:
 
       - name: Stage dry-run desktop compatibility catalog
         env:
-          DRY_RUN_VERSION: 0.0.0-beta.0
+          DRY_RUN_VERSION: ${{ needs.dry-run-identity.outputs.release_version }}
         run: |
           set -euo pipefail
           mkdir -p .artifacts/desktop
@@ -340,6 +369,7 @@ jobs:
   # Validate Electron bundles on every shipping architecture without publication.
   desktop-dry-run:
     name: Dry-Run Desktop ${{ matrix.name }}
+    needs: dry-run-identity
     if: |
       github.event_name == 'pull_request' &&
       (startsWith(github.event.pull_request.title, 'build: release ') ||
@@ -393,7 +423,7 @@ jobs:
       - name: Generate the unsigned dry-run builder configuration
         run: |
           bun run --cwd desktop release:config -- \
-            --version 0.0.0-beta.0 \
+            --version ${{ needs.dry-run-identity.outputs.release_version }} \
             --platform "${{ matrix.platform }}" \
             --arch "${{ matrix.arch }}" \
             --notarize false \
@@ -401,7 +431,7 @@ jobs:
 
       - name: Build desktop bundle without publishing
         env:
-          COMPOZY_RELEASE_VERSION: 0.0.0-beta.0
+          COMPOZY_RELEASE_VERSION: ${{ needs.dry-run-identity.outputs.release_version }}
           COMPOZY_RELEASE_CHANNEL: beta
         run: |
           bun run --cwd desktop build:runtime
@@ -427,7 +457,7 @@ jobs:
 
   desktop-dry-run-smoke:
     name: Dry-Run Smoke ${{ matrix.name }}
-    needs: desktop-dry-run
+    needs: [dry-run-identity, desktop-dry-run]
     strategy:
       fail-fast: false
       matrix:
@@ -436,17 +466,17 @@ jobs:
             id: macos-arm64
             runner: macos-15
             platform: macos
-            artifact: CompozyOS-0.0.0-beta.0-mac-arm64.dmg
+            artifact: CompozyOS-${{ needs.dry-run-identity.outputs.release_version }}-mac-arm64.dmg
           - name: macOS x64 DMG
             id: macos-x64
             runner: macos-15-intel
             platform: macos
-            artifact: CompozyOS-0.0.0-beta.0-mac-x64.dmg
+            artifact: CompozyOS-${{ needs.dry-run-identity.outputs.release_version }}-mac-x64.dmg
           - name: Linux AppImage
             id: linux
             runner: ubuntu-22.04
             platform: linux
-            artifact: CompozyOS-0.0.0-beta.0-linux-x64.AppImage
+            artifact: CompozyOS-${{ needs.dry-run-identity.outputs.release_version }}-linux-x64.AppImage
     runs-on: ${{ matrix.runner }}
     timeout-minutes: 20
     steps:
@@ -480,8 +510,8 @@ jobs:
           bash scripts/smoke-desktop-release-artifact.sh \
             "${{ matrix.platform }}" \
             ".artifacts/desktop/${{ matrix.artifact }}" \
-            0.0.0-beta.0 \
-            0.0.0-beta.0
+            "${{ needs.dry-run-identity.outputs.release_version }}" \
+            "${{ needs.dry-run-identity.outputs.release_version }}"
 
       - name: Upload smoke diagnostics on failure
         if: failure()

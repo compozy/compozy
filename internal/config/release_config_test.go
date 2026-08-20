@@ -884,6 +884,46 @@ printf 'CompozyOS %s\n' "${FAKE_COMPOZY_VERSION:?}"
 		}
 	})
 
+	t.Run("Should stamp dry-run desktop bundles with the prospective beta identity", func(t *testing.T) {
+		t.Parallel()
+
+		identityJob := workflowJobSection(t, workflow, "dry-run-identity", "dry-run")
+		for _, required := range []string{
+			"release_version: ${{ steps.identity.outputs.release_version }}",
+			"release_version=\"$(scripts/resolve-auto-beta-version.sh)\"",
+			`printf 'release_version=%s\n' "${release_version}" >>"${GITHUB_OUTPUT}"`,
+		} {
+			assertContainsText(t, "dry-run release identity", identityJob, required)
+		}
+
+		const sharedVersion = "${{ needs.dry-run-identity.outputs.release_version }}"
+		dryRunJob := workflowJobSection(t, workflow, "dry-run", "desktop-dry-run")
+		assertContainsText(t, "release dry-run dependency", dryRunJob, "needs: dry-run-identity")
+		assertContainsText(t, "release dry-run version", dryRunJob, "DRY_RUN_VERSION: "+sharedVersion)
+		assertContainsText(t, "release dry-run plan version", dryRunJob, `--version "${DRY_RUN_VERSION}"`)
+
+		desktopBuildJob := workflowJobSection(t, workflow, "desktop-dry-run", "desktop-dry-run-smoke")
+		assertContainsText(t, "desktop dry-run dependency", desktopBuildJob, "needs: dry-run-identity")
+		assertContainsText(t, "desktop dry-run builder version", desktopBuildJob, "--version "+sharedVersion)
+		assertContainsText(
+			t,
+			"desktop dry-run runtime version",
+			desktopBuildJob,
+			"COMPOZY_RELEASE_VERSION: "+sharedVersion,
+		)
+		assertNotContainsText(t, "desktop dry-run build", desktopBuildJob, "0.0.0-beta.0")
+
+		desktopSmokeJob := workflowJobSection(t, workflow, "desktop-dry-run-smoke", "e2e-nightly")
+		assertContainsText(
+			t,
+			"desktop dry-run smoke dependencies",
+			desktopSmokeJob,
+			"needs: [dry-run-identity, desktop-dry-run]",
+		)
+		assertContainsText(t, "desktop dry-run smoke artifact version", desktopSmokeJob, sharedVersion)
+		assertNotContainsText(t, "desktop dry-run smoke", desktopSmokeJob, "0.0.0-beta.0")
+	})
+
 	t.Run("Should fail closed on signing and prove macOS provenance", func(t *testing.T) {
 		t.Parallel()
 
@@ -1264,8 +1304,8 @@ func TestReleaseWorkflowKeepsRepositoryCleanBeforeTagPublication(t *testing.T) {
 	t.Run("Should run the same preflight before dry-run and tag publication", func(t *testing.T) {
 		t.Parallel()
 		releasePRTrigger := "startsWith(github.event.pull_request.title, 'build: release ')"
-		if got := strings.Count(workflow, releasePRTrigger); got != 4 {
-			t.Fatalf("semantic release PR trigger count = %d, want 4", got)
+		if got := strings.Count(workflow, releasePRTrigger); got != 5 {
+			t.Fatalf("semantic release PR trigger count = %d, want 5", got)
 		}
 		assertContainsText(
 			t,
