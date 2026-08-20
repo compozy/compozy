@@ -21,3 +21,17 @@ stale-result recovery, and compatibility with minimized and cross-desktop window
 
 2026-08-20 qa-impact: Root matching now inserts the agent fallback only when the served threshold
 allows it. Keep this scenario `untested`; task 12 owns the tab-result boundary re-walk.
+
+Walk (task_11 plan):
+
+1. Group several windows into tabs across two desktops, minimize one member.
+2. ⌘K and type a tab's title — the tab section lists live tabs with app, desktop, leaf-title,
+   attention, and minimized context; a weak tab match never drops below the fallback threshold
+   silently (result and Ask-agent row can coexist).
+3. Select a result — that exact window restores and activates without changing its route depth,
+   including the minimized and cross-desktop members.
+4. Close a listed tab from another surface — the stale row disappears on refresh; a closed-result
+   group vanishes without dead rows.
+
+Expected evidence: screenshots of the disambiguated tab results and the restored cross-desktop
+window; note the boundary query where tab results and the fallback row rendered together.

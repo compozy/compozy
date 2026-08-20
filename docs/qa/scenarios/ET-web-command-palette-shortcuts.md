@@ -5,7 +5,7 @@ title: Open desktop apps, sessions, and actions from the keyboard
 persona: Bruno
 journey: J-operate-desktop-shell
 expected: ⌘/Ctrl+K opens one global palette over any desktop or composer and filters real apps, sessions, workspaces, and actions; Enter performs the selected action; ⌘/Ctrl+J remains scoped to the session runtime picker; ⌘/Ctrl+N, ⇧⌘/Ctrl+S, ⌘/Ctrl+W, ⌘/Ctrl+M, ⇧⌘/Ctrl+G (Global scope), and Escape perform the documented shell actions with one-layer overlay unwinding. The palette lists "Turn on Global scope" / "Turn off Global scope" and "Switch to {name}" notes that switching a project turns Global off. Workspace rows never include `$HOME`.
-entry_points: web desktop keyboard; command palette; session composer; menubar Help; Keyboard shortcuts dialog
+entry_points: web desktop keyboard; command palette; session composer; menubar Help; Keyboard shortcuts dialog; Settings > Layouts > Shortcuts (whole-registry table, source filter, alias column); [window_manager.shortcuts] + [cmd_palette.aliases] in config.toml
 qa_status: untested
 bug_ids:
 fix_status:
@@ -43,3 +43,23 @@ persona walk and visual-contract evidence.
 
 2026-08-20 qa-impact: Palette fallback and live Palette settings now share the same root assembly.
 Keep this scenario `untested`; task 12 owns the keyboard and cross-surface re-walk.
+
+Walk (task_11 plan — flat root + whole-registry keyboard truth):
+
+1. ⌘K opens one global palette over any desktop or composer; ⌘J stays scoped to the runtime
+   picker; the documented shell chords (⌘N, ⇧⌘S, ⌘W, ⌘M, ⇧⌘G, Esc) perform their actions with
+   one-layer overlay unwinding.
+2. Settings > Shortcuts lists the entire registry — filter by source (Core areas / each
+   extension); record a chord that conflicts — the block names the culprit; overwrite explicitly —
+   the loser is unbound and flagged; reset-one and reset-all restore daemon defaults.
+3. Set an alias in the Alias column — invalid grammar (whitespace, > 32 chars) is rejected inline
+   with the rule; the saved alias renders as "Title (alias)" on palette rows and ranks first for
+   its exact text.
+4. Rebind a command — the new chord dispatches immediately and appears on palette rows, menubar
+   items, and the cheatsheet without reload; the cheatsheet groups extension bindings by source.
+5. Confirm workspace rows never include `$HOME` and Global-scope toggles keep their documented
+   palette wording.
+
+Expected evidence: screenshots of the source-filtered table, the named-conflict block and flagged
+loser, the alias on a palette row, and the cheatsheet grouping; note the chord used for the live
+rebind check.

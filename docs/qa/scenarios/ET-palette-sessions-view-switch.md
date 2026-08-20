@@ -41,3 +41,26 @@ attention order, state filters, truthful counts, zero-match clearing, and scope 
 
 2026-08-20 qa-impact: Root fallback assembly and default-agent session creation now share the
 session landing path. Keep this scenario `untested`; task 12 owns the isolated re-walk.
+
+Task_11 plan: this is the standing `blocked-verify` debt — the re-walk is explicitly scheduled in
+`CH-palette-sessions-landing-canary` (BR-20 adjacent canary). It must run in an isolated QA lab
+with a live daemon so the persona walk meets the qa-execution evidence standard.
+
+Walk (task_11 plan):
+
+1. ⌘E opens the palette already inside the Sessions view; the root Views entry pushes the same
+   view.
+2. Sessions list attention-first with exact state words; type to narrow by title or agent; the
+   needs-you / working / finished / idle chips narrow with truthful counts; a zero-match chip names
+   its filter and clears with one ⌫.
+3. Toggle the globe — the list widens through the persisted session-list breadth; the sessions
+   sidebar follows; `compozy config get shell.sessions.scope` reports the same value; the
+   preference survives reopening in another tab.
+4. ⏎ on a local session — the window focuses, restoring it if closed; ⏎ on a foreign session —
+   the workspace switches first, then the session lands; landing on a done session clears its
+   finished marker (BR-20 single-path landing).
+5. Confirm the "showing N of M" note appears only when matches exceed the bound.
+
+Expected evidence: screenshots of the attention-first list, chip states with counts, the globe
+round-trip beside the sidebar and CLI value, and the foreign-session landing (workspace switch
+named); the config-get transcript.

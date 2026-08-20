@@ -36,6 +36,8 @@ journey:
       origin: direct
     - url: compozy__extensions_build|compozy__extensions_validate|compozy__extensions_dev|compozy__extensions_reload|compozy__extensions_logs
       origin: direct
+    - url: compozy cmd-palette list|inspect --source ext.<name> (palette contribution projection)
+      origin: direct
     - url: /marketplace/extension/$entryId Logs panel
       origin: in-app-nav
   actions:
@@ -74,3 +76,6 @@ journey:
 
 - This journey owns Safety Invariants 1-3, 7-8, and 12-15.
 - Distribution integrity is J-extension-distribution; command policy is J-run-extension-commands.
+- Palette contributions (`resources.cmd_palette` commands/views/default shortcuts, dev hot reload,
+  membership-vs-health projection) ride this journey through `ET-extension-palette-contributions`;
+  the operator-side rendering contract lives in J-command-os-from-palette.
