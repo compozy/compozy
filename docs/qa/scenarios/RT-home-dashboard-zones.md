@@ -4,16 +4,16 @@ area: RT
 title: Home dashboard renders seven truthful zones
 persona: Cora
 journey: J-operate-home-dashboard
-expected: Home window (`/`) renders pagemeta → Needs you → KPI strip → Working now | Network → Pulse → Outcomes | Usage & cost → Agents | Activity → System, each backed by `GET /api/observe/overview` plus existing status/sessions/tasks/network/agents/logs reads; empty windows show honest empty states (no invented metrics); insights with no data are omitted; the head carries glyph + Live pill + one primary New session action and the body renders no H1. Zone queries follow the menubar Global switch: Global (`~`) uses the home-scope filter; a project workspace uses that workspace id. Toggling Global does not invent a home row in the workspace menu.
+expected: On a workspace that has recorded any work, Home window (`/`) renders pagemeta → Needs you → KPI strip → Working now | Network → Pulse → Outcomes | Usage & cost → Agents | Activity → System, each backed by `GET /api/observe/overview` plus existing status/sessions/tasks/network/agents/logs reads; empty windows show honest empty states (no invented metrics); insights with no data are omitted; a workspace with no recorded work at all renders the zero-inventory start instead of the seven zones (`RT-home-zero-inventory-first-run` owns that read); the head carries glyph + Live pill + one primary New session action and the body renders no H1. Zone queries follow the menubar Global switch: Global (`~`) uses the home-scope filter; a project workspace uses that workspace id. Toggling Global does not invent a home row in the workspace menu.
 entry_points: web `/` (dashboard OS window); `GET /api/observe/overview` (HTTP+UDS)
-qa_status: pass
+qa_status: skipped
 bug_ids: BUG-20260813-retry-leaves-blank-route
 fix_status: fixed
 retest_status: pass
 fix_commits: a97e07f
-evidence: /Users/pedronauck/dev/qa-labs/compozy-pr-368-coderabbit-20260813-051821-831054-lab/qa-artifacts/qa/screenshots/home-project-normal.png; /Users/pedronauck/dev/qa-labs/compozy-pr-368-coderabbit-20260813-051821-831054-lab/qa-artifacts/qa/screenshots/home-daemon-unavailable.png; /Users/pedronauck/dev/qa-labs/compozy-pr-368-coderabbit-20260813-051821-831054-lab/qa-artifacts/qa/screenshots/home-retry-recovered.png
-last_report: docs/qa/reports/2026-08-13-pr-368-coderabbit.md
-overlaps:
+evidence: /Users/pedronauck/dev/qa-labs/compozy-pr-368-coderabbit-20260813-051821-831054-lab/qa-artifacts/qa/screenshots/home-project-normal.png; /Users/pedronauck/dev/qa-labs/compozy-pr-368-coderabbit-20260813-051821-831054-lab/qa-artifacts/qa/screenshots/home-daemon-unavailable.png; /Users/pedronauck/dev/qa-labs/compozy-pr-368-coderabbit-20260813-051821-831054-lab/qa-artifacts/qa/screenshots/home-retry-recovered.png; docs/qa/reports/2026-08-20-ui-normies-retry.md
+last_report: docs/qa/reports/2026-08-20-ui-normies-retry.md
+overlaps: RT-home-zero-inventory-first-run
 ---
 
 story: As an end user I open Home and see what agents did, what needs me, and what it costs — all from persisted daemon data.
@@ -34,7 +34,17 @@ the dashboard body contained no H1. HTTP and UDS normalized to the same overview
 
 2026-08-13 fix re-walk: after `a97e07f`, the same daemon interruption retained a visible recovery boundary and Retry rendered the complete project-scoped Home dashboard after restart. The route no longer entered a blank pending shell.
 
+2026-08-20 retry: skipped by explicit user instruction. No current behavioral verdict is claimed.
+
 2026-08-13 Global runtime-binding re-walk: reset after the Agents zone was found to query an empty
 project id while Global was active. The canonical daemon-served Home E2E now proves the overview and
 all six agent rows read from the hidden operator-home runtime binding while the menubar remains
 Global. `web/e2e/__tests__/dashboard.spec.ts` passed against a production Web build.
+
+2026-08-20 qa-impact: reset by the normie-friendly UI foundation pass. The seven zones are now
+conditional — `home-dashboard.tsx` routes to `HomeFirstRun` when `hasNoRecordedWork(overview)` holds,
+so this file's contract gained a precondition and `RT-home-zero-inventory-first-run` took the zero
+read. The zone error copy also changed ("Unable to load the home overview" / "The daemon did not
+return the overview" → "Couldn't load the overview" / "Try again in a moment"), and the System zone's
+`Daemon` label is now `Runtime`. Re-walk the populated path on a workspace with real work; the
+`BUG-20260813-retry-leaves-blank-route` fix fields are retained history, not a fresh claim.
