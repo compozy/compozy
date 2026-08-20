@@ -97,7 +97,9 @@ function MarketplaceExtensionRuntimeCard({
             {extension.health_message}
           </p>
         ) : null}
-        <PropertyRow label="Daemon">{extension.daemon_running ? "running" : "stopped"}</PropertyRow>
+        <PropertyRow label="Runtime">
+          {extension.daemon_running ? "running" : "stopped"}
+        </PropertyRow>
         <PropertyRow label="PID" mono>
           {extension.pid ? String(extension.pid) : "—"}
         </PropertyRow>

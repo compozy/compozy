@@ -23,7 +23,7 @@ export function SandboxPage({ search = {} }: { search?: SandboxRouteSearch }) {
   useTopbarSlot({
     glyph: <Boxes />,
     count: page.isLoading ? undefined : page.counts.total,
-    crumb: "Sandbox",
+    crumb: "Permissions",
     actions: (
       <div className="flex items-center gap-2" data-testid="sandbox-topbar-actions">
         <Button
@@ -140,7 +140,7 @@ export function SandboxPage({ search = {} }: { search?: SandboxRouteSearch }) {
           }
           data-testid="sandbox-page-error"
           description={
-            page.queryError ?? "The daemon stopped responding before it returned the profile list."
+            page.queryError ?? "CompozyOS stopped responding before it returned the profile list."
           }
           icon={AlertCircle}
           title="Failed to load sandboxes"

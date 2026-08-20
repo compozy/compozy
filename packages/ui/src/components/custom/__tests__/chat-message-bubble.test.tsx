@@ -51,6 +51,8 @@ describe("ChatMessageBubble", () => {
     const dividers = root?.querySelectorAll('span[aria-hidden="true"]') ?? [];
     expect(dividers.length).toBe(2);
     expect(body?.textContent).toBe("Session resumed");
+    // KEEP: DESIGN.md §3 — system lines are language, not syslog.
+    expect(body?.className).not.toContain("font-mono");
   });
 
   it("Should place the meta slot above the body for role='user'", () => {

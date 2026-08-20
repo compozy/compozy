@@ -51,7 +51,7 @@ export function Panel({
           <div className="flex min-w-0 items-baseline gap-2">
             {hasSlot(title) ? (
               <h3
-                className="truncate text-section-head font-medium tracking-section-head text-fg-strong"
+                className="truncate text-form-label font-medium text-fg-strong"
                 data-slot="panel-title"
               >
                 {title}

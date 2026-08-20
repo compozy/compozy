@@ -11,7 +11,7 @@ function DockPre({ children, className, ...props }: React.ComponentProps<"pre">)
       data-slot="dock-pre"
       className={cn(
         "max-h-[130px] overflow-auto rounded-md border border-line bg-chat-fill-code",
-        "px-2.5 py-2 font-mono text-[11px] leading-relaxed text-fg",
+        "px-2.5 py-2 font-mono text-small-body leading-relaxed text-fg",
         "break-words whitespace-pre-wrap",
         className
       )}

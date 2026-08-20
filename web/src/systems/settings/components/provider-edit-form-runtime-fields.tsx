@@ -190,7 +190,7 @@ export function ProviderRuntimeFields({ draft, onChange }: ProviderRuntimeFields
           </NativeSelect>
         }
         data-testid="settings-providers-editor-env-policy"
-        description="Daemon environment inheritance for the provider subprocess."
+        description="Runtime environment inheritance for the provider subprocess."
         label={
           <>
             Env policy

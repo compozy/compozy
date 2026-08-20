@@ -223,7 +223,7 @@ export {
   type PageContentProps,
   type PageContentDensity,
 } from "./components/custom/page-content";
-export { Eyebrow, type EyebrowProps } from "./components/custom/eyebrow";
+export { Eyebrow, type EyebrowProps, type EyebrowVariant } from "./components/custom/eyebrow";
 export {
   Pill,
   PillDot,

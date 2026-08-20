@@ -189,7 +189,7 @@ export function GeneralSettingsPage() {
 
       <ToolApprovalGrantsSection />
 
-      <SettingsGroup description="Lifecycle for sessions this daemon hosts." title="Sessions">
+      <SettingsGroup description="Lifecycle for sessions CompozyOS hosts." title="Sessions">
         <SettingRow
           data-testid="settings-page-general-session-timeout"
           description="A session with no activity for this long is ended and kept in history. 0 keeps sessions open."
@@ -221,7 +221,7 @@ export function GeneralSettingsPage() {
 
       <SettingsGroup
         bare
-        description="Where this daemon is listening right now. Read-only."
+        description="Where CompozyOS is listening right now. Read-only."
         title="Runtime"
       >
         {runtime.available ? (
@@ -271,7 +271,7 @@ export function GeneralSettingsPage() {
       <SettingsAdvancedFold data-testid="settings-page-general-advanced">
         <SettingRow
           data-testid="settings-page-general-reload"
-          description="Re-read the config file without restarting the daemon."
+          description="Re-read the config file without restarting CompozyOS."
           label={
             <>
               Reload configuration <SettingsProvChip>config.toml</SettingsProvChip>

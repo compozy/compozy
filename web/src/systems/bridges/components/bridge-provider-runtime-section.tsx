@@ -133,7 +133,6 @@ export function BridgeProviderRuntimeSection({
                 code={providerConfig}
                 copyable={false}
                 data-testid="bridge-detail-provider-config"
-                showPrompt={false}
               />
             ) : (
               <p className="rounded-md border border-line bg-canvas-soft px-4 py-3 text-small-body leading-relaxed text-muted">

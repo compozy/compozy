@@ -124,9 +124,9 @@ export function HomeActivityFeed({
       <Panel bodyClassName="flex flex-1 flex-col p-0" className="flex-1 overflow-hidden">
         {status === "error" ? (
           <Empty
-            description={errorMessage ?? "The daemon did not return recent activity."}
+            description={errorMessage ?? "Try again in a moment."}
             icon={AlertTriangle}
-            title="Unable to load activity"
+            title="Couldn't load activity"
           />
         ) : loudVisible.length === 0 && quiet.length === 0 ? (
           <Empty description="Events land here as agents work." title="No recent activity" />

@@ -79,7 +79,7 @@ export function AutomationSettingsPage() {
 
   return (
     <SettingsPageFrame
-      description="Scheduled jobs and event triggers this daemon runs on its own."
+      description="Scheduled jobs and event triggers CompozyOS runs on its own."
       meta={[
         {
           key: "jobs",
@@ -149,7 +149,7 @@ function AutomationRuntimeUnavailable({ runtime }: { runtime: AutomationRuntime 
       <div className="min-w-0">
         <p className="font-medium">Automation runtime is unavailable</p>
         <p className="mt-1 text-xs text-muted">
-          Jobs and triggers cannot run until automation is enabled and the daemon is restarted.
+          Jobs and triggers cannot run until automation is enabled and CompozyOS is restarted.
         </p>
         <p className="mt-1 font-mono text-mono-id text-muted">{detail}</p>
       </div>
@@ -232,7 +232,7 @@ function EngineSection({ draft, setDraft }: DraftSectionProps) {
       <SettingsFieldRow
         data-testid="settings-page-automation-enabled"
         label="Run automation"
-        description="Runs jobs and triggers on the daemon"
+        description="Runs jobs and triggers on CompozyOS"
         control={
           <Switch
             data-testid="settings-page-automation-enabled-switch"

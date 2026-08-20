@@ -83,8 +83,7 @@ function ThreadEmpty({ agentName }: { agentName: string }) {
       <div className="max-w-md text-center">
         <Eyebrow className="text-subtle">{agentName}</Eyebrow>
         <p className="mt-2 text-small-body text-muted">
-          Start a conversation. The assistant thread replays persisted history and continues live
-          over the daemon stream.
+          Start the conversation. Everything you and the agent do here is saved.
         </p>
       </div>
     </div>
@@ -159,7 +158,7 @@ function ThreadError({ error, onRetry }: { error: Error | null; onRetry: () => v
   return (
     <div className={STATE_PANE_FRAME}>
       <div className="max-w-md text-center" role="alert" data-testid="thread-transcript-error">
-        <Eyebrow className="text-danger">Transcript unavailable</Eyebrow>
+        <Eyebrow className="text-danger">Couldn&apos;t load this conversation</Eyebrow>
         <p className="mt-2 text-small-body text-muted">
           {detail ? (
             <span data-testid="thread-transcript-error-detail">{detail}</span>

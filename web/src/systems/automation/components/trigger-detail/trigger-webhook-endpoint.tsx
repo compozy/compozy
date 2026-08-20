@@ -32,7 +32,6 @@ export function TriggerWebhookEndpoint({ path, className, ...props }: TriggerWeb
         code={triggerWebhookCurl(path)}
         copyable={false}
         density="compact"
-        showPrompt={false}
       />
     </div>
   );

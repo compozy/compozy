@@ -67,7 +67,7 @@ export function MCPEditorConnectionSection({
       >
         <RadioCard
           data-testid="settings-mcp-servers-editor-transport-stdio"
-          description="The daemon spawns a command and talks over stdio."
+          description="CompozyOS spawns a command and talks over stdio."
           icon={TerminalSquare}
           onSelect={() => onChange(current => withTransport(current, "stdio"))}
           selected={!isRemote}

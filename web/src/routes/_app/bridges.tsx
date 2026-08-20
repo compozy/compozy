@@ -7,7 +7,7 @@ import { createOsRouteSync } from "@/systems/os";
 
 export const Route = createFileRoute("/_app/bridges")({
   beforeLoad: (): { topbar: TopbarRouteContext } => ({
-    topbar: { crumb: { label: "Bridges", to: "/bridges" } },
+    topbar: { crumb: { label: "Connections", to: "/bridges" } },
   }),
   validateSearch: validateBridgesSearch,
   loaderDeps: ({ search }) => ({

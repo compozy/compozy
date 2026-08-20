@@ -79,7 +79,7 @@ export const WorkspacesCatalogError: Story = {
       wizard={onboardingWizardFixture({
         wizard: { step: 2, maxStep: 2 },
         workspaces: {
-          catalogError: "Workspace catalog is unavailable. Check the daemon connection.",
+          catalogError: "Workspace catalog is unavailable. Check that CompozyOS is running.",
         },
       })}
     />

@@ -14,10 +14,16 @@ export type ListingRowStatProps = React.ComponentProps<"div">;
 export type ListingRowSlugProps = React.ComponentProps<"span">;
 
 export interface ListingRowNameProps extends React.ComponentProps<"div"> {
+  /** Marks the row's title as an identifier — see `ListingRowTitleProps.mono`. */
   mono?: boolean;
 }
 
 export interface ListingRowTitleProps extends React.ComponentProps<"b"> {
+  /**
+   * The title is an identifier rather than a name: it keeps the sans title face
+   * and gains tabular figures so a column of ids stays aligned. Reach for
+   * `<MonoId>` when the reader has to match the string character by character.
+   */
   mono?: boolean;
 }
 
@@ -81,10 +87,8 @@ function ListingRowTitle({ mono, className, ...props }: ListingRowTitleProps) {
       data-slot="listing-row-title"
       data-mono={useMono ? "true" : undefined}
       className={cn(
-        "min-w-0 truncate font-medium text-fg-strong",
-        useMono
-          ? "font-mono text-xs tracking-normal"
-          : "font-sans text-card-title tracking-row-title",
+        "min-w-0 truncate font-sans text-card-title font-medium tracking-row-title text-fg-strong",
+        useMono && "tabular-nums",
         className
       )}
       {...props}
@@ -96,7 +100,7 @@ function ListingRowSlug({ className, ...props }: ListingRowSlugProps) {
   return (
     <span
       data-slot="listing-row-slug"
-      className={cn("shrink-0 whitespace-nowrap font-mono text-eyebrow text-faint", className)}
+      className={cn("shrink-0 whitespace-nowrap text-eyebrow text-muted", className)}
       {...props}
     />
   );
@@ -159,7 +163,7 @@ function ListingRowStatValue({ className, ...props }: React.ComponentProps<"span
   return (
     <span
       data-slot="listing-row-stat-value"
-      className={cn("font-mono text-xs font-semibold tabular-nums text-fg", className)}
+      className={cn("text-small-body font-semibold tabular-nums text-fg", className)}
       {...props}
     />
   );

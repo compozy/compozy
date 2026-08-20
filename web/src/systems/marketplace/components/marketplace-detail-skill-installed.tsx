@@ -291,7 +291,7 @@ function MarketplaceSkillContentSection({
     >
       {content ? (
         <div data-testid="content-body">
-          <CodeBlock code={content} copyable={false} showPrompt={false} truncateLines={16} />
+          <CodeBlock code={content} copyable={false} truncateLines={16} />
         </div>
       ) : isLoading ? (
         <div

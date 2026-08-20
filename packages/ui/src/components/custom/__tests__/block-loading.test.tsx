@@ -24,4 +24,14 @@ describe("BlockLoading", () => {
     expect(panel).toHaveAttribute("data-surface", "bare");
     expect(screen.getByLabelText("Loading rows")).toBeInTheDocument();
   });
+
+  it("Should keep the label spinner-only until showLabel is set", () => {
+    const { container, rerender } = render(<BlockLoading label="Working…" />);
+    expect(container.querySelector('[data-slot="block-loading-label"]')).toBeNull();
+
+    rerender(<BlockLoading label="Working…" showLabel />);
+    const visible = container.querySelector('[data-slot="block-loading-label"]');
+    expect(visible?.textContent).toBe("Working…");
+    expect(screen.getByLabelText("Working…")).toBeInTheDocument();
+  });
 });

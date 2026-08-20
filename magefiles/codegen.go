@@ -127,5 +127,13 @@ func SyncDesignMD() error {
 
 // SyncDesignMDCheck verifies generated DESIGN.md token frontmatter and tables.
 func SyncDesignMDCheck() error {
-	return runCommandInDir(context.Background(), ".", "bun", "run", designSyncScriptPath, "--check")
+	return runCommandInDir(
+		context.Background(),
+		".",
+		"bun",
+		"run",
+		designSyncScriptPath,
+		"--check",
+		"--audit-site",
+	)
 }

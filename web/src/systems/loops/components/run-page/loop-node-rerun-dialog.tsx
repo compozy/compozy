@@ -116,7 +116,7 @@ function LoopNodeRerunDialogForm({
               {carriedLabel(rerunSet.carriedNodes.length)}
             </p>
             <p className="text-form-hint text-subtle">
-              This preview comes from the pinned graph. The daemon returns the set it re-executes.
+              This preview comes from the pinned graph. CompozyOS returns the set it re-executes.
             </p>
           </section>
           <Field>

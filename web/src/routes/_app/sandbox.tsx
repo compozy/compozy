@@ -6,7 +6,7 @@ import { validateSandboxSearch } from "@/systems/sandbox";
 
 export const Route = createFileRoute("/_app/sandbox")({
   beforeLoad: (): { topbar: TopbarRouteContext } => ({
-    topbar: { crumb: { label: "Sandbox", to: "/sandbox" } },
+    topbar: { crumb: { label: "Permissions", to: "/sandbox" } },
   }),
   validateSearch: validateSandboxSearch,
   loader: async ({ context }) =>

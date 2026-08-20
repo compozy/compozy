@@ -152,7 +152,7 @@ export function BridgeDetailHeader({
 
   useTopbarSlot({
     onBack: backToBridges,
-    crumbs: [{ id: "bridges", label: "Bridges", onSelect: backToBridges }],
+    crumbs: [{ id: "bridges", label: "Connections", onSelect: backToBridges }],
     crumb: bridge.display_name,
     status: (
       <Pill mono tone={statusTone}>

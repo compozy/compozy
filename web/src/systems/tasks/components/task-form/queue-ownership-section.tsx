@@ -47,7 +47,7 @@ const OWNER_KIND_OPTIONS: OwnerKindOption[] = [
     value: "automation",
     label: "Automation",
     placeholder: "Automation id",
-    description: "Use this when a daemon automation owns the task.",
+    description: "Use this when an automation owns the task.",
   },
   {
     value: "extension",

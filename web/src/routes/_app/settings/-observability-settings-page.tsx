@@ -82,7 +82,7 @@ export function ObservabilitySettingsPage() {
 
   return (
     <SettingsPageFrame
-      description="What this daemon records about sessions, and how much disk it may use."
+      description="What CompozyOS records about sessions, and how much disk it may use."
       meta={
         runtime.available
           ? [

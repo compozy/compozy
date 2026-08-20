@@ -127,13 +127,6 @@ export {
   type OperationalLinksRowProps,
 } from "../components/custom/operational-links-row";
 export {
-  WireCard,
-  WireCardBody,
-  WireCardFoot,
-  WireCardHead,
-  type WireCardProps,
-} from "../components/custom/wire-card";
-export {
   StatusLine,
   type StatusLineItem,
   type StatusLineProps,

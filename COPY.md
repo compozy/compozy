@@ -140,11 +140,16 @@ Every major copy surface should draw from one or more proof pillars.
 | Contributors                                          | Work safely in the repo and preserve product semantics.                                                           | Glossary, AGENTS/CLAUDE instructions, tests, task specs.                                                                        | `Read the contributor path`, `Run the verification gate`.            |
 | Evaluators                                            | Decide whether CompozyOS is different from local CLIs, harnesses, MCP, A2A, and workflow engines.                 | Sharp positioning, named constraints, honest maturity, sourced comparison.                                                      | `Compare the runtime`, `See what ships today`.                       |
 
-Today's product experience is technical: terminal install, local daemon, CLI, `config.toml`. Present-tense claims target developers and technical operators; broader operators are vision and stay future-framed. Public prose still defaults to plain language: everyday words carry the claim, and the exact mechanism stays one step away (a linked reference, expandable detail, or secondary text), not in the first sentence.
+Today's product experience is technical: terminal install, local daemon, CLI, `config.toml`. Split the claim in two and keep the halves apart.
+
+- **Register is present tense.** Every end-user surface reads plainly today: everyday words carry the claim, and the exact mechanism stays one step away (a linked reference, expandable detail, or secondary text), not in the first sentence. This is an obligation on the surface, met now.
+- **Audience is future-framed.** Present-tense audience claims stay within developers and technical operators. People who don't write code are not served by the current workflow, because install, setup, and configuration still require a terminal. That path is served when it ships.
+
+A plainly written surface is never evidence that the workflow reaches a broader audience. Write plainly now; claim the audience later.
 
 ## 5. Voice & Editorial Rules
 
-CompozyOS copy is people-first, plain-spoken, and calm-confident. It writes plainly for the people who run agent work today: developers and technical operators. Plain language is a courtesy, not an audience claim. Everyday words carry the claim; the mechanism stays one step away as proof, never as an entry fee.
+CompozyOS copy is people-first, plain-spoken, and calm-confident. It writes plainly for the people who run agent work today: developers and technical operators. Plain language is an obligation on every end-user surface now, and it is still not an audience claim — writing plainly does not mean the current workflow serves people who don't write code. Everyday words carry the claim; the mechanism stays one step away as proof, never as an entry fee.
 
 ### Voice
 
@@ -161,9 +166,10 @@ CompozyOS copy is people-first, plain-spoken, and calm-confident. It writes plai
 - Prefer short sentences when making claims.
 - Lead with outcomes, then mechanism, then proof.
 - Prefer the everyday verb over the runtime noun on first contact: agents keep working after the tab closes; the session mechanism follows for readers who want it.
-- Define a runtime term at first use on end-user surfaces; reference docs may assume it.
+- **Define on first use.** On end-user surfaces a runtime term arrives in a fixed shape: plain label, one clause of gloss, canonical term one step deeper (tooltip, detail view, inspector, or linked reference). Reference docs may assume the term. This is a rule, not a preference — a runtime noun with no gloss and no deeper canonical term does not ship.
 - Use second person in docs and how-to copy when it helps the reader act.
-- Use `you` sparingly in marketing. It should sharpen the reader's job, not turn every line into sales copy.
+- **Second person is the default in UI microcopy, onboarding, empty states, and approvals.** These surfaces are talking to the person whose work is running; `you` is the plain choice there, not a sales device.
+- Use `you` sparingly in marketing. It should sharpen the reader's job, not turn every line into sales copy. The sparing rule is marketing-scoped and does not reach the UI surfaces above.
 - Do not use `we` or `our` in marketing body copy. Use the product as the subject: `CompozyOS does...`, `Compozy Network gives...`, `The runtime keeps...`.
 - No emoji, exclamation marks, or hype punctuation.
 - No fake urgency.
@@ -217,6 +223,7 @@ The full enumeration of supported drivers lives in `packages/site/components/lan
 ### Positioning Vocabulary
 
 - `the agent stack` / `the DIY agent stack`: the pile a user otherwise assembles and maintains around an agent CLI (loops, triggers, cron and webhooks, memory, permissions, approvals, observability, glue scripts). This is the canonical problem name in marketing copy; the enemy is the stack, never a named rival.
+- **The second enemy**, for people who never assemble a stack: work redone by hand, agents that forget what already happened, and results nobody can verify. Name it in plain outcomes — never as a persona, never as a named rival, and never as a claim that those people are served today.
 - `Batteries included.`: the label and headline form of the completeness claim. In prose use `comes built in`, `already built`, or `nothing to assemble`. Never `full-feature`.
 - `simple` / `easy`: only with a measured metric behind them; until then use `assembled`, `complete`, `built in`.
 - `wedge`: banned in all public copy; say `developers first` or `we start with`.
@@ -224,6 +231,7 @@ The full enumeration of supported drivers lives in `packages/site/components/lan
 
 ### Runtime Terms
 
+- `ACP`: Agent Client Protocol — the standard CompozyOS uses to talk to agent CLIs. Expand it on first use in end-user prose; reference and protocol docs may use the acronym directly.
 - `daemon`: the local background runtime process.
 - `control surface`: a human/agent-operable surface — CLI, HTTP/SSE, UDS, or web UI — over the same daemon state.
 - `session`: a durable managed agent run. Prefer `session` over `chat`.
@@ -235,6 +243,36 @@ The full enumeration of supported drivers lives in `packages/site/components/lan
 - `extension`: package that can provide resources, capabilities, and Host API actions.
 - `bridge`: external messaging/platform adapter. Do not use `channel` for Slack/Discord/etc. adapters.
 - `channel`: Compozy Network namespace or coordination channel, not a generic adapter.
+
+### Surface Aliases
+
+Some canonical nouns are precise in the runtime and opaque on an end-user surface. A surface alias lets the UI use the plain word without renaming anything. The mechanism is the same one Network Mode Naming already uses for Local and Live (see §3): **canonical values stay in code, payloads, CLI, API, and reference docs; the alias is a UI label only, never a rename.**
+
+Three rules bind every row:
+
+- The canonical noun stays reachable one step deeper — tooltip, detail view, or inspector.
+- An alias never appears in code, wire payloads, CLI verbs, config keys, or generated references.
+- An alias must clear the reservations in `docs/_memory/glossary.md` before it lands. This table is mirrored there under Surface Names; the two must be edited together.
+
+| Canonical                                     | UI surface alias                     | Notes                                                                                                                                                                                                                                                                     |
+| --------------------------------------------- | ------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `daemon`                                      | "CompozyOS" / "CompozyOS is running" | Never "daemon" in end-user UI. The word stays canonical in this file, the glossary, and runtime docs.                                                                                                                                                                     |
+| `workspace`                                   | "project"                            | Alias may NOT be "environment" — reserved for process-level variables and operating-system context.                                                                                                                                                                       |
+| `bridge`                                      | "connection"                         | Alias may NOT be "channel" — `channel` is the Compozy Network namespace, not an adapter.                                                                                                                                                                                  |
+| `event ledger`                                | "history"                            | Use only where the implementation actually exposes the event trail.                                                                                                                                                                                                       |
+| `tool registry` / `toolset`                   | "what agents are allowed to do"      | A descriptive gloss, not a label swap. The registry keeps its name in every other surface.                                                                                                                                                                                |
+| `sandbox` (profile editor surface)            | "Permissions"                        | Dock label only; canonical stays `sandbox`. Collides with two live meanings that keep their names in code, config, CLI, and docs: the extension `permissions.requires` list, and `[permissions] mode` in `config.toml`. Never use this alias where either could be meant. |
+| `control surface`                             | — drop from UI                       | Internal vocabulary. It stays the runtime term in specs and docs, and never reaches an end-user label.                                                                                                                                                                    |
+| `capability`                                  | keep + define on first use           | Wire identity `(peer_id, capability_id)` is unchanged. Forbidden synonyms (`recipe`, `procedure`, `playbook`) stay forbidden everywhere.                                                                                                                                  |
+| `session`                                     | keep + gloss on first use            | Already everyday English; it earns a gloss, not an alias.                                                                                                                                                                                                                 |
+| `Loop`                                        | — pending owner decision             | Do not alias. `workflow` is no longer a forbidden synonym for `capability`, but the historical "workflow" positioning is still warned off in the glossary. No alias until the owner decides.                                                                              |
+| `Jobs` / `Triggers` / `Network` (dock titles) | — pending owner decision             | Do not rename. Dock titles stay as they are until the owner decides.                                                                                                                                                                                                      |
+| settings group `Operator`                     | "Personal"                           | Group label only.                                                                                                                                                                                                                                                         |
+| settings section `Observability`              | "Diagnostics"                        | Section label only.                                                                                                                                                                                                                                                       |
+| settings section `Attention`                  | "Notifications"                      | Section label only.                                                                                                                                                                                                                                                       |
+| settings section `Gateway`                    | "Remote access"                      | Section label only.                                                                                                                                                                                                                                                       |
+
+`Roles`, `Hooks`, and `Extensions` keep their names — they are glossary terms that already read plainly.
 
 ### Agent Artifact Terms
 
@@ -447,7 +485,7 @@ Goal: tell the person what is true and what they can do next.
 Use:
 
 - current state, next action, and consequence.
-- labels that match backend nouns.
+- labels that map 1:1 to a backend noun, using the §6 surface alias where one is defined; the canonical noun stays reachable (tooltip, detail, inspector).
 - empty states that explain why no data appears and what to do next.
 
 Avoid:
@@ -591,9 +629,16 @@ Prefer:
 - `Build an extension`
 - `Inspect events`
 
+On plain-register surfaces (first-run, onboarding, empty states, approvals, notifications) prefer the CTA that names the outcome in everyday words:
+
+- `Open CompozyOS`
+- `See what's running`
+- `Approve this step`
+- `Stop this run`
+
 Avoid:
 
-- `Get Started` when a specific action exists
+- `Get Started` when a specific action exists. The ban is conditional: if a more specific true action exists, name it; if nothing more specific is true yet, `Get Started` is allowed.
 - `Learn More`
 - `Submit`
 - `Click Here`
@@ -654,7 +699,8 @@ Known drift to watch for:
 - `Compozy Network` or "runtime with a network built in" phrasing standing in for the integrated CompozyOS category.
 - `capability` vs old `recipe`, `workflow`, `procedure`, or `playbook` language.
 - runtime behavior that moved from planned to shipped or from spec to deleted.
-- present-tense copy drifting past the current audience: non-technical operators are vision, not a shipped claim.
+- register and audience collapsing into one claim: plain register is required on every end-user surface today, while serving people who don't write code is still vision. A plainly written surface is not evidence the workflow reaches them, and a technical workflow is not permission to write a surface obscurely.
+- a surface alias escaping the UI: an alias appearing in code, payloads, CLI verbs, config keys, or generated references is a rename, and renames do not happen through §6.
 - people-first language drifting back toward control-room personas: the runtime term is `control surface`.
 
 ## 11. Agent Prompt Guide
@@ -688,7 +734,7 @@ Use only merged work. Group into added/changed/fixed/breaking. State behavior, u
 ### Write UI Microcopy
 
 ```text
-Use backend nouns exactly. State what is true, what action is available, and what happens next. Do not imply a metric, control, or repair path exists unless the runtime exposes it.
+Map every label 1:1 to a backend noun, using the COPY.md §6 surface alias where one is defined; keep the canonical noun reachable one step deeper (tooltip, detail, inspector). State what is true, what action is available, and what happens next. Do not imply a metric, control, or repair path exists unless the runtime exposes it.
 ```
 
 ### Review Public Copy
@@ -710,7 +756,8 @@ Before shipping copy or product-facing text, verify:
 - The promise leads: the system around the agent, already built. Architecture ("one runtime, one state model", OS-purity tests) appears only as a why-it-holds mechanism, never in a headline slot.
 - No `wedge`, no `full-feature`, and no `simple`/`easy` claims without a metric behind them.
 - No centralization promise (`one workspace`, `all your agents in one place`).
-- Present-tense audience claims stay within developers and technical operators; broader operators are future-framed.
+- Register and audience are checked separately: every end-user surface reads plainly today, and present-tense audience claims stay within developers and technical operators — people who don't write code stay future-framed.
+- Surface aliases match the §6 table, clear the glossary reservations, and appear as UI labels only; the canonical noun is still reachable one step deeper.
 - Numbers and counts have a source and update trigger.
 - CTAs name a concrete action.
 - Marketing body avoids `we` and `our`.

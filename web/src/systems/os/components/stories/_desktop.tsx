@@ -18,10 +18,10 @@ const DOCK_DEFS = [
   { id: "triggers", name: "Triggers", icon: DockIcons.triggers },
   { id: "sep-1", sep: true as const },
   { id: "marketplace", name: "Marketplace", icon: DockIcons.marketplace },
-  { id: "bridges", name: "Bridges", icon: DockIcons.bridges },
+  { id: "bridges", name: "Connections", icon: DockIcons.bridges },
   { id: "knowledge", name: "Knowledge", icon: DockIcons.knowledge },
   { id: "sep-2", sep: true as const },
-  { id: "sandbox", name: "Sandbox", icon: DockIcons.sandbox },
+  { id: "sandbox", name: "Permissions", icon: DockIcons.sandbox },
   { id: "vault", name: "Vault", icon: DockIcons.vault },
 ] as const;
 

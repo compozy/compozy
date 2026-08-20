@@ -84,7 +84,7 @@ function fitNotes(
   }
   if (invalid > 0) {
     notes.push(
-      `${invalid} group${invalid === 1 ? "" : "s"} sit outside the desktop. The daemon refuses a layout that leaves the screen.`
+      `${invalid} group${invalid === 1 ? "" : "s"} sit outside the desktop. CompozyOS refuses a layout that leaves the screen.`
     );
   }
   return notes;

@@ -54,7 +54,7 @@ export function LoopConfigureLocation({ name }: { name: string }) {
   if (!configQuery.effectiveConfig) {
     return (
       <ConfigureState
-        description="The daemon did not return effective loop configuration."
+        description="Couldn't load the effective loop configuration."
         icon={AlertCircle}
         testId="loop-configure-effective-error"
         title="Unable to load loop configuration"

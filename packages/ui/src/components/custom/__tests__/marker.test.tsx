@@ -29,7 +29,8 @@ describe("Marker", () => {
     expect(marker?.textContent).toBe("Session resumed.");
   });
 
-  it("Should render MarkerMeta as faint mono for kind strings and cluster counts", () => {
+  // KEEP: DESIGN.md §3 — transcript meta reads as language; wrap in <MonoId> for true identifiers.
+  it("Should render MarkerMeta as faint sans with tabular figures for kind strings and cluster counts", () => {
     const { container } = render(
       <Marker>
         Runtime event <MarkerMeta>agent.retry ×3</MarkerMeta>
@@ -38,7 +39,8 @@ describe("Marker", () => {
     const metaNode = container.querySelector<HTMLElement>('[data-slot="marker-meta"]');
 
     expect(metaNode?.textContent).toBe("agent.retry ×3");
-    expect(metaNode?.className).toContain("font-mono");
+    expect(metaNode?.className).not.toContain("font-mono");
+    expect(metaNode?.className).toContain("tabular-nums");
     expect(metaNode?.className).toContain("text-faint");
   });
 });

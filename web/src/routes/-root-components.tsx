@@ -49,12 +49,10 @@ export function RootRouteErrorBoundary({ error }: ErrorComponentProps) {
       <RootBoundaryFrame testId="root-route-error">
         <Empty
           className="max-w-xl"
-          description={describeRouteError(
-            error,
-            "The application shell failed before the route could render."
-          )}
+          cause={routeErrorCause(error)}
+          description="This screen didn't load. Reload to try again."
           icon={AlertTriangle}
-          title="Unable to render this route"
+          title="Something went wrong"
           titleAs="h1"
           action={
             <>
@@ -80,9 +78,9 @@ export function RootRouteNotFoundBoundary({ routeId }: NotFoundRouteProps) {
       <RootBoundaryFrame routeId={routeId} testId="root-route-not-found">
         <Empty
           className="max-w-xl"
-          description="The requested route does not exist in this build."
+          description="This page doesn't exist."
           icon={Compass}
-          title="Route not found"
+          title="Page not found"
           titleAs="h1"
           action={
             <Link className={buttonVariants({ variant: "outline", size: "sm" })} to="/">
@@ -118,7 +116,9 @@ function RootBoundaryFrame({
   );
 }
 
-function describeRouteError(error: unknown, fallback: string) {
-  if (error instanceof Error && error.message.trim().length > 0) return error.message;
-  return fallback;
+/** Raw runtime detail for the collapsed Details disclosure — never the primary line. */
+function routeErrorCause(error: unknown): string | undefined {
+  if (!(error instanceof Error)) return undefined;
+  const message = error.message.trim();
+  return message.length > 0 ? message : undefined;
 }

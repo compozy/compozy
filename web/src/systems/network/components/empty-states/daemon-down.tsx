@@ -28,7 +28,7 @@ export function DaemonDown({ onRetry, className }: DaemonDownProps) {
       }
       className={className}
       data-testid="network-daemon-down"
-      description="Make sure the CompozyOS daemon is running."
+      description="Make sure CompozyOS is running."
       icon={ServerCrash}
       title={
         <span className="inline-flex flex-col items-center gap-2">

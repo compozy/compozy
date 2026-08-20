@@ -52,7 +52,7 @@ export const Editor: Story = {
       size="md"
       slug="providers"
       title="Edit provider"
-      warnings={["Changing the command requires a daemon restart."]}
+      warnings={["Changing the command requires restarting CompozyOS."]}
     >
       <FormSection
         help="Both fall back to the built-in provider configuration when left empty."

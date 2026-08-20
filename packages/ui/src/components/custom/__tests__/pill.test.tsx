@@ -51,6 +51,16 @@ describe("Pill", () => {
     expect(pill).toHaveAttribute("data-solid", "true");
   });
 
+  // KEEP: DESIGN.md §3 — Pill is a true pill shape with a sans label; mono is opt-in.
+  it("Should render a fully rounded sans pill by default", () => {
+    render(<Pill>Running</Pill>);
+    const pill = screen.getByText("Running");
+
+    expect(pill.className).toContain("rounded-pill");
+    expect(pill.className).toContain("font-sans");
+    expect(pill.className).not.toContain("font-mono");
+  });
+
   it("Should expose data-mono when mono is true", () => {
     render(<Pill mono>token</Pill>);
     const pill = screen.getByText("token");
@@ -112,7 +122,7 @@ describe("Pill", () => {
     expect(link).toHaveAttribute("href", "/tasks/task-1");
     expect(link).toHaveAttribute("data-slot", "pill");
     expect(link).toHaveAttribute("data-tone", "accent");
-    expect(link).toHaveAttribute("data-mono", "true");
+    expect(link).not.toHaveAttribute("data-mono");
     await user.click(link);
     expect(handle).toHaveBeenCalledTimes(1);
   });

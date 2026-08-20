@@ -70,7 +70,7 @@ export function LayoutInspectorWindow({
       />
       {node.windowIds.length < 2 ? (
         <p className="text-form-hint text-warning">
-          A stack needs at least two windows. The daemon refuses one that holds a single window.
+          A stack needs at least two windows. CompozyOS refuses one that holds a single window.
         </p>
       ) : null}
     </section>

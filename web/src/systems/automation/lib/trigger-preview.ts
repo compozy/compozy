@@ -278,7 +278,7 @@ export function webhookUrl(draft: Draft): string {
 function buildWebhookCurl(url: string): CurlLine[] {
   return [
     [{ text: "curl", tone: "keyword" }, { text: " -X POST \\" }],
-    [{ text: `  https://your-daemon${url} \\` }],
+    [{ text: `  https://your-host${url} \\` }],
     [
       { text: "  -H " },
       { text: '"X-Compozy-Webhook-Signature: sha256=…"', tone: "string" },

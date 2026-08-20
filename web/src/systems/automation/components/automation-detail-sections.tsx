@@ -28,7 +28,7 @@ export function AutomationTargetSection({ target }: { target: LoopTargetProjecti
 export function PromptSection({ prompt }: { prompt: string }) {
   return (
     <Section label="Prompt">
-      <CodeBlock code={prompt} copyable={false} showPrompt={false} />
+      <CodeBlock code={prompt} copyable={false} />
     </Section>
   );
 }

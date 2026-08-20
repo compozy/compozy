@@ -342,7 +342,7 @@ function KnowledgeDetailPanel({
 
         {content ? (
           <Section label="Content">
-            <CodeBlock code={content} copyable data-testid="content-preview" showPrompt={false} />
+            <CodeBlock code={content} copyable data-testid="content-preview" />
           </Section>
         ) : null}
 

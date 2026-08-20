@@ -123,7 +123,7 @@ export function TypographySection() {
             <CardTitle>Mono & wordmark</CardTitle>
           </CardHeader>
           <CardContent className="flex flex-col gap-3">
-            <Eyebrow className="text-muted">Eyebrow · Geist UC 11/600/-0.005em</Eyebrow>
+            <Eyebrow className="text-muted">Eyebrow · Geist 12/510/-0.005em</Eyebrow>
             <p className="font-mono text-sm leading-7 text-fg">
               compozy-network/v0 · run_id_01hq8…
             </p>

@@ -28,7 +28,7 @@ export function WorkspaceSetupLocationPane({ setup }: WorkspaceSetupLocationPane
     <div className="flex min-h-0 flex-col gap-4">
       <FormSection
         className="flex min-h-0 flex-col"
-        description="Browse the daemon's filesystem and pick the folder sessions run in."
+        description="Pick the folder agents work in."
         title="Location"
       >
         <div className="flex min-h-0 flex-col gap-4">

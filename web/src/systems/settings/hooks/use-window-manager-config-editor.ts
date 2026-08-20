@@ -222,7 +222,7 @@ function collectProblems(config: WindowManagerConfig): WindowManagerConfigProble
   if (blocking.length > 0) {
     problems.push({
       field: "shortcuts",
-      message: `${blocking.length} shortcut${blocking.length === 1 ? " is" : "s are"} assigned twice. The daemon refuses a duplicate chord.`,
+      message: `${blocking.length} shortcut${blocking.length === 1 ? " is" : "s are"} assigned twice. CompozyOS refuses a duplicate chord.`,
     });
   }
   return problems;

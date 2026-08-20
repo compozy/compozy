@@ -10,7 +10,7 @@ const meta: Meta<typeof RunCard> = {
     docs: {
       description: {
         component:
-          "Active-run summary — pill row (status pill + run-id mono + session info + attempt counter + optional warning) followed by a 4-col stat grid (CHANNEL / QUEUED / STARTED / ELAPSED). No `border-l-2 border-l-accent` rail.",
+          "Active-run summary — pill row (status pill + run-id mono + session info + attempt counter + optional warning) followed by a 4-col stat grid (Channel / Queued / Started / Elapsed). No `border-l-2 border-l-accent` rail.",
       },
     },
   },

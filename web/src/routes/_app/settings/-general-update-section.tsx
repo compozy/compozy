@@ -72,7 +72,7 @@ export function GeneralUpdateSection(props: GeneralUpdateSectionProps) {
       <SettingsGroup data-testid="settings-page-general-updates" title="Updates">
         <SettingRow
           data-testid="settings-page-general-update-status"
-          description="Checking the daemon's install method and latest stable release."
+          description="Checking the install method and latest stable release."
           label="CompozyOS version"
           control={
             <>

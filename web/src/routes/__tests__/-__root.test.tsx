@@ -83,7 +83,7 @@ describe("RootComponent", () => {
     renderRoot(<RootNotFoundBoundary isNotFound routeId="__root__" />);
 
     expect(screen.getByTestId("root-route-not-found")).toBeInTheDocument();
-    expect(screen.getByText("Route not found")).toBeInTheDocument();
+    expect(screen.getByText("Page not found")).toBeInTheDocument();
     expect(screen.getByRole("link", { name: "Go home" })).toHaveAttribute("href", "/");
   });
 
@@ -94,7 +94,13 @@ describe("RootComponent", () => {
 
     expect(mockReset).not.toHaveBeenCalled();
     expect(mockInvalidate).toHaveBeenCalledWith();
-    expect(screen.getByText("route failed")).toBeInTheDocument();
+    // The primary line is plain and constant; the raw runtime message stays one
+    // step deeper, collapsed behind Details.
+    expect(screen.getByText("This screen didn't load. Reload to try again.")).toBeInTheDocument();
+    const details = screen.getByText("Details").closest("details");
+    expect(details).not.toBeNull();
+    expect(details).not.toHaveAttribute("open");
+    expect(within(details as HTMLElement).getByText("route failed")).toBeInTheDocument();
   });
 
   it("Should keep revoked access ahead of root route fallbacks", async () => {

@@ -219,7 +219,7 @@ export function LoopRequestCard({
               {isPending ? (
                 <>
                   <Spinner />
-                  Waiting for the daemon to record it.
+                  Waiting for CompozyOS to record it.
                 </>
               ) : null}
             </span>

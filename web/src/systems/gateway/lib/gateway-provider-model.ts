@@ -126,7 +126,7 @@ function providerBlockers(extension: ExtensionEntry): readonly GatewayProviderBl
     blockers.push({
       id: "workspace-source",
       message:
-        "This provider belongs to one workspace. Remote reachability applies to the whole daemon, so install it globally in Settings → Extensions.",
+        "This provider belongs to one workspace. Remote reachability applies to this whole machine, so install it globally in Settings → Extensions.",
     });
     return blockers;
   }

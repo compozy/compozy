@@ -10,22 +10,22 @@ tokens:
   runtime:
     colors:
       rail: "#0c0b0b"
-      canvas: "#131211"
-      canvas-soft: "#1a1918"
-      canvas-tint: "#1c1b1a"
-      sidebar: "#1a1918"
-      elevated: "#232220"
+      canvas: "#171513"
+      canvas-soft: "#201d1a"
+      canvas-tint: "#232019"
+      sidebar: "#201d1a"
+      elevated: "#2b2723"
       hover: "var(--color-row-hover)"
       disabled: "#4a4847"
       line: "rgba(255, 255, 255, 0.055)"
       line-soft: "rgba(255, 255, 255, 0.03)"
       line-strong: "rgba(255, 255, 255, 0.09)"
       line-focus: "rgba(255, 255, 255, 0.14)"
-      fg: "#ececef"
-      fg-strong: "#f6f6f8"
-      muted: "#9a9a9f"
-      subtle: "oklch(0.663 0.009 286.106)"
-      faint: "oklch(0.638 0.006 286.136)"
+      fg: "#f0ece7"
+      fg-strong: "#f8f5f1"
+      muted: "#a8a29b"
+      subtle: "oklch(0.663 0.009 65)"
+      faint: "oklch(0.638 0.006 65)"
       accent: "#e8572a"
       accent-hover: "#d14e25"
       accent-strong: "#f6874f"
@@ -51,13 +51,13 @@ tokens:
       viz-other: "rgba(255, 255, 255, 0.26)"
       viz-grid: "rgba(255, 255, 255, 0.045)"
       viz-cell: "#ffffff"
-      row-hover: "rgba(255, 255, 255, 0.022)"
-      row-selected: "rgba(255, 255, 255, 0.03)"
-      surface-glaze: "rgba(255, 255, 255, 0.04)"
+      row-hover: "rgba(255, 255, 255, 0.045)"
+      row-selected: "rgba(255, 255, 255, 0.06)"
+      surface-glaze: "rgba(255, 255, 255, 0.06)"
       bar-fill: "rgba(255, 255, 255, 0.085)"
-      input-fill: "rgba(255, 255, 255, 0.025)"
-      btn-default-fill: "rgba(255, 255, 255, 0.04)"
-      btn-default-hover: "rgba(255, 255, 255, 0.07)"
+      input-fill: "rgba(255, 255, 255, 0.05)"
+      btn-default-fill: "rgba(255, 255, 255, 0.07)"
+      btn-default-hover: "rgba(255, 255, 255, 0.1)"
       badge-fill: "rgba(255, 255, 255, 0.05)"
       chat-fill-user: "rgba(255, 255, 255, 0.045)"
       chat-fill-code: "rgba(255, 255, 255, 0.03)"
@@ -127,13 +127,13 @@ tokens:
       weight-bold: "700"
       weight-display: "620"
     typography:
-      item-title: { size: "0.9375rem", line: "1.375rem" }
-      small-body: { size: "0.78125rem", line: "1.125rem" }
-      badge: { size: "0.65625rem", line: "0.75rem" }
-      eyebrow: { size: "0.6875rem", line: "1rem", tracking: "-0.005em" }
+      item-title: { size: "1rem", line: "1.375rem" }
+      small-body: { size: "0.84375rem", line: "1.25rem" }
+      badge: { size: "0.6875rem", line: "0.75rem" }
+      eyebrow: { size: "0.75rem", line: "1rem", tracking: "-0.005em" }
       display-2xl: { size: "1.75rem", line: "1" }
       site-lead: { size: "1.1875rem", line: "1.5" }
-      micro: { size: "0.65625rem", line: "0.75rem" }
+      micro: { size: "0.6875rem", line: "0.75rem" }
       inline-code: { size: "0.9em" }
       accent-glyph: { size: "0.85em" }
       ui-title-lg: { size: "1.35rem" }
@@ -143,8 +143,8 @@ tokens:
       modal-title: { size: "0.84375rem", tracking: "-0.012em" }
       section-head: { size: "0.7rem", tracking: "-0.008em" }
       form-input: { size: "0.78125rem" }
-      form-label: { size: "0.75rem" }
-      form-hint: { size: "0.71875rem" }
+      form-label: { size: "0.78125rem" }
+      form-hint: { size: "0.78125rem" }
       form-required: { size: "0.625rem" }
       metric-value: { size: "1.375rem" }
       kpi-value: { size: "1.5rem", line: "1.05" }
@@ -152,26 +152,26 @@ tokens:
       agent-metric: { size: "1rem" }
       rail-avatar: { size: "0.71875rem" }
       ws-name: { size: "0.8125rem" }
-      mono-id: { size: "0.65625rem", tracking: "0" }
+      mono-id: { size: "0.6875rem", tracking: "0" }
       pill-group-badge: { size: "0.5625rem" }
-      card-title: { size: "0.875rem", line: "1.4" }
+      card-title: { size: "0.9375rem", line: "1.4" }
       transcript-message: { size: "0.84375rem" }
       transcript-body: { size: "0.75rem" }
       transcript-meta: { size: "0.71875rem" }
       transcript-caption: { size: "0.6875rem" }
       workspace-avatar: { size: "9px" }
     rounded:
-      DEFAULT: "6px"
+      DEFAULT: "8px"
       xxs: "3px"
-      xs: "4px"
-      sm: "5px"
-      md: "8px"
-      lg: "10px"
-      xl: "14px"
+      xs: "6px"
+      sm: "7px"
+      md: "10px"
+      lg: "14px"
+      xl: "18px"
       pill: "9999px"
-      chip: "5px"
+      chip: "7px"
       mono-badge: "4px"
-      icon-well: "10px"
+      icon-well: "12px"
       window: "12px"
       dock: "22px"
       dock-item: "13px"
@@ -184,14 +184,14 @@ tokens:
         workspaces-menu-entry: "-3px"
         workspaces-caption-entry: "3px"
       duration:
-        fast: "100ms"
-        base: "140ms"
-        slow: "200ms"
+        fast: "120ms"
+        base: "180ms"
+        slow: "260ms"
         shell-fast: "120ms"
         shell-base: "240ms"
         shell-slow: "320ms"
       ease:
-        out: "cubic-bezier(0.2, 0, 0, 1)"
+        out: "cubic-bezier(0.22, 1, 0.36, 1)"
         in-out: "cubic-bezier(0.4, 0, 0.2, 1)"
         spring: "cubic-bezier(0.32, 0.72, 0.28, 1)"
       scale:
@@ -213,16 +213,16 @@ tokens:
       shell-plate: "inset 0 1px 0 rgba(255, 255, 255, 0.09), 0 4px 14px rgba(0, 0, 0, 0.18)"
       shell-current-halo: "0 0 0 2px var(--color-shell-glass-pop)"
     sizes:
-      height-button-xs: "22px"
-      height-button-sm: "22px"
-      height-button-default: "26px"
-      height-button-lg: "30px"
+      height-button-xs: "24px"
+      height-button-sm: "26px"
+      height-button-default: "30px"
+      height-button-lg: "34px"
       height-button-cta: "36px"
       height-button-cta-lg: "44px"
-      size-button-icon-xs: "22px"
-      size-button-icon-sm: "22px"
-      size-button-icon-default: "26px"
-      size-button-icon-lg: "30px"
+      size-button-icon-xs: "24px"
+      size-button-icon-sm: "26px"
+      size-button-icon-default: "30px"
+      size-button-icon-lg: "34px"
       height-transcript-row: "22px"
       height-transcript-line: "24px"
       size-transcript-icon-well: "18px"
@@ -234,23 +234,23 @@ tokens:
       spacing-transcript-meta-gap: "3px"
       height-input: "36px"
       height-control-compact: "32px"
-      height-search: "28px"
+      height-search: "32px"
       height-textarea-min: "84px"
       height-switch-default: "18px"
       width-switch-default: "32px"
       height-switch-sm: "14px"
       width-switch-sm: "24px"
-      height-pill-xs: "17px"
-      height-pill-sm: "19px"
-      height-pill-md: "22px"
-      height-sidebar-row: "28px"
+      height-pill-xs: "20px"
+      height-pill-sm: "22px"
+      height-pill-md: "26px"
+      height-sidebar-row: "32px"
       height-tabs-list: "40px"
       height-tab-underline: "1.5px"
       spacing-count-chip: "19px"
       spacing-count-chip-sm: "17px"
-      height-property-row: "26px"
+      height-property-row: "30px"
       spacing-property-row-y: "3px"
-      size-empty-icon: "38px"
+      size-empty-icon: "48px"
       width-menu-sub-min: "96px"
       width-worktree-submenu: "320px"
       height-worktree-submenu-max: "420px"
@@ -566,11 +566,11 @@ token or component at the source; do not locally override one callsite.
 | Token                 | Value                    |
 | --------------------- | ------------------------ |
 | `--color-rail`        | `#0c0b0b`                |
-| `--color-canvas`      | `#131211`                |
-| `--color-canvas-soft` | `#1a1918`                |
-| `--color-canvas-tint` | `#1c1b1a`                |
-| `--color-sidebar`     | `#1a1918`                |
-| `--color-elevated`    | `#232220`                |
+| `--color-canvas`      | `#171513`                |
+| `--color-canvas-soft` | `#201d1a`                |
+| `--color-canvas-tint` | `#232019`                |
+| `--color-sidebar`     | `#201d1a`                |
+| `--color-elevated`    | `#2b2723`                |
 | `--color-hover`       | `var(--color-row-hover)` |
 | `--color-disabled`    | `#4a4847`                |
 
@@ -593,13 +593,13 @@ token or component at the source; do not locally override one callsite.
 
 <!-- BEGIN:tokens:text-ladder -->
 
-| Token               | Value                        |
-| ------------------- | ---------------------------- |
-| `--color-fg`        | `#ececef`                    |
-| `--color-fg-strong` | `#f6f6f8`                    |
-| `--color-muted`     | `#9a9a9f`                    |
-| `--color-subtle`    | `oklch(0.663 0.009 286.106)` |
-| `--color-faint`     | `oklch(0.638 0.006 286.136)` |
+| Token               | Value                   |
+| ------------------- | ----------------------- |
+| `--color-fg`        | `#f0ece7`               |
+| `--color-fg-strong` | `#f8f5f1`               |
+| `--color-muted`     | `#a8a29b`               |
+| `--color-subtle`    | `oklch(0.663 0.009 65)` |
+| `--color-faint`     | `oklch(0.638 0.006 65)` |
 
 <!-- END:tokens:text-ladder -->
 
@@ -645,13 +645,13 @@ runtime variables that intentionally stay outside `@theme`.
 
 | Token                       | Value                        |
 | --------------------------- | ---------------------------- |
-| `--color-row-hover`         | `rgba(255, 255, 255, 0.022)` |
-| `--color-row-selected`      | `rgba(255, 255, 255, 0.03)`  |
-| `--color-surface-glaze`     | `rgba(255, 255, 255, 0.04)`  |
+| `--color-row-hover`         | `rgba(255, 255, 255, 0.045)` |
+| `--color-row-selected`      | `rgba(255, 255, 255, 0.06)`  |
+| `--color-surface-glaze`     | `rgba(255, 255, 255, 0.06)`  |
 | `--color-bar-fill`          | `rgba(255, 255, 255, 0.085)` |
-| `--color-input-fill`        | `rgba(255, 255, 255, 0.025)` |
-| `--color-btn-default-fill`  | `rgba(255, 255, 255, 0.04)`  |
-| `--color-btn-default-hover` | `rgba(255, 255, 255, 0.07)`  |
+| `--color-input-fill`        | `rgba(255, 255, 255, 0.05)`  |
+| `--color-btn-default-fill`  | `rgba(255, 255, 255, 0.07)`  |
+| `--color-btn-default-hover` | `rgba(255, 255, 255, 0.1)`   |
 | `--color-badge-fill`        | `rgba(255, 255, 255, 0.05)`  |
 
 <!-- END:tokens:glaze-ladder -->
@@ -723,18 +723,22 @@ display roles (`.site-doc-masthead__title`, `.site-doc-body h2`) only — never
 below ~26px. Runtime and shared UI code treat `--font-display` as a reserved
 alias, not a type-ramp utility.
 
-The body baseline is set once in `tokens.css`: compact Geist, readable line
-height, and a small negative tracking correction. Geist exposes a `wght` axis
-only, so there is no optical-size compensation and no character-variant or
-stylistic-set feature block. UI medium weight is `--font-weight-medium: 510` (maps to
+The body baseline is set once in `tokens-runtime.css`: Geist at a comfortable
+reading size, a relaxed line height, and a small negative tracking correction.
+Geist exposes a `wght` axis only, so there is no optical-size compensation and
+no character-variant or stylistic-set feature block. UI medium weight is
+`--font-weight-medium: 510` (maps to
 `font-medium`) — a soft half-step between Regular and classic Medium, matching
 the OpenDesign prototypes. Components should compose from text and tracking
 tokens rather than re-declaring pixel sizes.
 
 The eyebrow contract is intentionally narrow after L-022: one `<Eyebrow>`
-primitive, one `.eyebrow` utility, one Geist uppercase style — the canonical
-contract is Geist UC 11/600/-0.005em. Eyebrow is for
-structural labels such as table heads, metadata terms, section labels, and
+primitive, one `.eyebrow` utility, one canonical style — Geist sentence case
+12/510/-0.005em. Uppercase is no longer the default; it is opt-in through
+`<Eyebrow variant="caps">`, which adds only the case on the same size and
+tracking tokens, so the single-source rule is unchanged. Reach for `caps` only
+where a label is a true typographic kicker. Eyebrow is for structural labels
+such as table heads, metadata terms, section labels, and
 breadcrumbs. Metrics, KPI labels, ids, code, and pills are not eyebrows just
 because they are small. Docs-shell labels are the exception: they keep the
 `<Eyebrow>` wrapper but speak JetBrains Mono via `--text-badge` (section /
@@ -764,13 +768,13 @@ crumbs) or `--text-group-label` (in-folder groups) — not marketing
 
 | Token                       | Size         | Line       | Tracking   |
 | --------------------------- | ------------ | ---------- | ---------- |
-| `--text-item-title`         | `0.9375rem`  | `1.375rem` |            |
-| `--text-small-body`         | `0.78125rem` | `1.125rem` |            |
-| `--text-badge`              | `0.65625rem` | `0.75rem`  |            |
-| `--text-eyebrow`            | `0.6875rem`  | `1rem`     | `-0.005em` |
+| `--text-item-title`         | `1rem`       | `1.375rem` |            |
+| `--text-small-body`         | `0.84375rem` | `1.25rem`  |            |
+| `--text-badge`              | `0.6875rem`  | `0.75rem`  |            |
+| `--text-eyebrow`            | `0.75rem`    | `1rem`     | `-0.005em` |
 | `--text-display-2xl`        | `1.75rem`    | `1`        |            |
 | `--text-site-lead`          | `1.1875rem`  | `1.5`      |            |
-| `--text-micro`              | `0.65625rem` | `0.75rem`  |            |
+| `--text-micro`              | `0.6875rem`  | `0.75rem`  |            |
 | `--text-inline-code`        | `0.9em`      |            |            |
 | `--text-accent-glyph`       | `0.85em`     |            |            |
 | `--text-ui-title-lg`        | `1.35rem`    |            |            |
@@ -780,8 +784,8 @@ crumbs) or `--text-group-label` (in-folder groups) — not marketing
 | `--text-modal-title`        | `0.84375rem` |            | `-0.012em` |
 | `--text-section-head`       | `0.7rem`     |            | `-0.008em` |
 | `--text-form-input`         | `0.78125rem` |            |            |
-| `--text-form-label`         | `0.75rem`    |            |            |
-| `--text-form-hint`          | `0.71875rem` |            |            |
+| `--text-form-label`         | `0.78125rem` |            |            |
+| `--text-form-hint`          | `0.78125rem` |            |            |
 | `--text-form-required`      | `0.625rem`   |            |            |
 | `--text-metric-value`       | `1.375rem`   |            |            |
 | `--text-kpi-value`          | `1.5rem`     | `1.05`     |            |
@@ -789,9 +793,9 @@ crumbs) or `--text-group-label` (in-folder groups) — not marketing
 | `--text-agent-metric`       | `1rem`       |            |            |
 | `--text-rail-avatar`        | `0.71875rem` |            |            |
 | `--text-ws-name`            | `0.8125rem`  |            |            |
-| `--text-mono-id`            | `0.65625rem` |            | `0`        |
+| `--text-mono-id`            | `0.6875rem`  |            | `0`        |
 | `--text-pill-group-badge`   | `0.5625rem`  |            |            |
-| `--text-card-title`         | `0.875rem`   | `1.4`      |            |
+| `--text-card-title`         | `0.9375rem`  | `1.4`      |            |
 | `--text-transcript-message` | `0.84375rem` |            |            |
 | `--text-transcript-body`    | `0.75rem`    |            |            |
 | `--text-transcript-meta`    | `0.71875rem` |            |            |
@@ -806,7 +810,7 @@ crumbs) or `--text-group-label` (in-folder groups) — not marketing
 
 | Token                    | Value      | Token                     | Value      |
 | ------------------------ | ---------- | ------------------------- | ---------- |
-| `--tracking-mono`        | `0.06em`   | `--tracking-detail-h1`    | `-0.028em` |
+| `--tracking-mono`        | `0.02em`   | `--tracking-detail-h1`    | `-0.028em` |
 | `--tracking-compact-h1`  | `-0.022em` | `--tracking-empty-h1`     | `-0.022em` |
 | `--tracking-modal-title` | `-0.012em` | `--tracking-section-head` | `-0.008em` |
 | `--tracking-tight`       | `-0.014em` | `--tracking-eyebrow`      | `-0.005em` |
@@ -845,12 +849,12 @@ widths come from `--site-*` tokens.
 
 | Token                      | Value  | Token                 | Value    |
 | -------------------------- | ------ | --------------------- | -------- |
-| `--radius`                 | `6px`  | `--radius-xxs`        | `3px`    |
-| `--radius-xs`              | `4px`  | `--radius-sm`         | `5px`    |
-| `--radius-md`              | `8px`  | `--radius-lg`         | `10px`   |
-| `--radius-xl`              | `14px` | `--radius-pill`       | `9999px` |
-| `--radius-chip`            | `5px`  | `--radius-mono-badge` | `4px`    |
-| `--radius-icon-well`       | `10px` | `--radius-window`     | `12px`   |
+| `--radius`                 | `8px`  | `--radius-xxs`        | `3px`    |
+| `--radius-xs`              | `6px`  | `--radius-sm`         | `7px`    |
+| `--radius-md`              | `10px` | `--radius-lg`         | `14px`   |
+| `--radius-xl`              | `18px` | `--radius-pill`       | `9999px` |
+| `--radius-chip`            | `7px`  | `--radius-mono-badge` | `4px`    |
+| `--radius-icon-well`       | `12px` | `--radius-window`     | `12px`   |
 | `--radius-dock`            | `22px` | `--radius-dock-item`  | `13px`   |
 | `--radius-menubar-control` | `7px`  | `--radius-deck-tab`   | `8px`    |
 
@@ -862,19 +866,19 @@ widths come from `--site-*` tokens.
 
 | Token                                      | Value                            | Token                                 | Value                                                       | Token                                   | Value                                                                                                                             |
 | ------------------------------------------ | -------------------------------- | ------------------------------------- | ----------------------------------------------------------- | --------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------- |
-| `--height-button-xs`                       | `22px`                           | `--height-button-sm`                  | `22px`                                                      | `--height-button-default`               | `26px`                                                                                                                            |
-| `--height-button-lg`                       | `30px`                           | `--height-button-cta`                 | `36px`                                                      | `--height-button-cta-lg`                | `44px`                                                                                                                            |
-| `--size-button-icon-xs`                    | `22px`                           | `--size-button-icon-sm`               | `22px`                                                      | `--size-button-icon-default`            | `26px`                                                                                                                            |
-| `--size-button-icon-lg`                    | `30px`                           | `--height-transcript-row`             | `22px`                                                      | `--height-transcript-line`              | `24px`                                                                                                                            |
+| `--height-button-xs`                       | `24px`                           | `--height-button-sm`                  | `26px`                                                      | `--height-button-default`               | `30px`                                                                                                                            |
+| `--height-button-lg`                       | `34px`                           | `--height-button-cta`                 | `36px`                                                      | `--height-button-cta-lg`                | `44px`                                                                                                                            |
+| `--size-button-icon-xs`                    | `24px`                           | `--size-button-icon-sm`               | `26px`                                                      | `--size-button-icon-default`            | `30px`                                                                                                                            |
+| `--size-button-icon-lg`                    | `34px`                           | `--height-transcript-row`             | `22px`                                                      | `--height-transcript-line`              | `24px`                                                                                                                            |
 | `--size-transcript-icon-well`              | `18px`                           | `--spacing-transcript-inline-gap`     | `7px`                                                       | `--spacing-transcript-detail-indent`    | `25px`                                                                                                                            |
 | `--spacing-transcript-detail-gutter`       | `11px`                           | `--spacing-transcript-message-y`      | `7px`                                                       | `--spacing-transcript-turn-gap`         | `18px`                                                                                                                            |
 | `--spacing-transcript-meta-gap`            | `3px`                            | `--height-input`                      | `36px`                                                      | `--height-control-compact`              | `32px`                                                                                                                            |
-| `--height-search`                          | `28px`                           | `--height-textarea-min`               | `84px`                                                      | `--height-switch-default`               | `18px`                                                                                                                            |
+| `--height-search`                          | `32px`                           | `--height-textarea-min`               | `84px`                                                      | `--height-switch-default`               | `18px`                                                                                                                            |
 | `--width-switch-default`                   | `32px`                           | `--height-switch-sm`                  | `14px`                                                      | `--width-switch-sm`                     | `24px`                                                                                                                            |
-| `--height-pill-xs`                         | `17px`                           | `--height-pill-sm`                    | `19px`                                                      | `--height-pill-md`                      | `22px`                                                                                                                            |
-| `--height-sidebar-row`                     | `28px`                           | `--height-tabs-list`                  | `40px`                                                      | `--height-tab-underline`                | `1.5px`                                                                                                                           |
-| `--spacing-count-chip`                     | `19px`                           | `--spacing-count-chip-sm`             | `17px`                                                      | `--height-property-row`                 | `26px`                                                                                                                            |
-| `--spacing-property-row-y`                 | `3px`                            | `--size-empty-icon`                   | `38px`                                                      | `--width-menu-sub-min`                  | `96px`                                                                                                                            |
+| `--height-pill-xs`                         | `20px`                           | `--height-pill-sm`                    | `22px`                                                      | `--height-pill-md`                      | `26px`                                                                                                                            |
+| `--height-sidebar-row`                     | `32px`                           | `--height-tabs-list`                  | `40px`                                                      | `--height-tab-underline`                | `1.5px`                                                                                                                           |
+| `--spacing-count-chip`                     | `19px`                           | `--spacing-count-chip-sm`             | `17px`                                                      | `--height-property-row`                 | `30px`                                                                                                                            |
+| `--spacing-property-row-y`                 | `3px`                            | `--size-empty-icon`                   | `48px`                                                      | `--width-menu-sub-min`                  | `96px`                                                                                                                            |
 | `--width-worktree-submenu`                 | `320px`                          | `--height-worktree-submenu-max`       | `420px`                                                     | `--breakpoint-shell-wide`               | `60rem`                                                                                                                           |
 | `--width-workspaces-stage`                 | `min(1080px, calc(100% - 32px))` | `--width-workspaces-tile`             | `94px`                                                      | `--width-workspaces-tile-wide`          | `86px`                                                                                                                            |
 | `--width-workspaces-menu`                  | `340px`                          | `--width-workspaces-edge`             | `56px`                                                      | `--width-workspaces-edge-wide`          | `72px`                                                                                                                            |
@@ -984,16 +988,16 @@ a single spring ease. Window-body content keeps the base ladder.
 
 <!-- BEGIN:tokens:motion -->
 
-| Token                                 | Value                               | Token                              | Value                        |
-| ------------------------------------- | ----------------------------------- | ---------------------------------- | ---------------------------- |
-| `--duration-fast`                     | `100ms`                             | `--duration-base`                  | `140ms`                      |
-| `--duration-slow`                     | `200ms`                             | `--ease-out`                       | `cubic-bezier(0.2, 0, 0, 1)` |
-| `--ease-in-out`                       | `cubic-bezier(0.4, 0, 0.2, 1)`      | `--duration-shell-fast`            | `120ms`                      |
-| `--duration-shell-base`               | `240ms`                             | `--duration-shell-slow`            | `320ms`                      |
-| `--ease-spring`                       | `cubic-bezier(0.32, 0.72, 0.28, 1)` | `--distance-desk-slide`            | `4%`                         |
-| `--distance-workspaces-stage-entry`   | `8px`                               | `--scale-workspaces-stage-entry`   | `0.985`                      |
-| `--scale-workspaces-tile-press`       | `0.96`                              | `--distance-workspaces-menu-entry` | `-3px`                       |
-| `--distance-workspaces-caption-entry` | `3px`                               |                                    |                              |
+| Token                                 | Value                               | Token                              | Value                            |
+| ------------------------------------- | ----------------------------------- | ---------------------------------- | -------------------------------- |
+| `--duration-fast`                     | `120ms`                             | `--duration-base`                  | `180ms`                          |
+| `--duration-slow`                     | `260ms`                             | `--ease-out`                       | `cubic-bezier(0.22, 1, 0.36, 1)` |
+| `--ease-in-out`                       | `cubic-bezier(0.4, 0, 0.2, 1)`      | `--duration-shell-fast`            | `120ms`                          |
+| `--duration-shell-base`               | `240ms`                             | `--duration-shell-slow`            | `320ms`                          |
+| `--ease-spring`                       | `cubic-bezier(0.32, 0.72, 0.28, 1)` | `--distance-desk-slide`            | `4%`                             |
+| `--distance-workspaces-stage-entry`   | `8px`                               | `--scale-workspaces-stage-entry`   | `0.985`                          |
+| `--scale-workspaces-tile-press`       | `0.96`                              | `--distance-workspaces-menu-entry` | `-3px`                           |
+| `--distance-workspaces-caption-entry` | `3px`                               |                                    |                                  |
 
 <!-- END:tokens:motion -->
 

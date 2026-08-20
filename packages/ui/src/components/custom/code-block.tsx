@@ -44,15 +44,16 @@ const COPY_FEEDBACK_MS = 1500;
 const EMPTY_LINE = "\u00A0";
 
 /**
- * Terminal-style code block per DESIGN.md §4. Canvas-deep container, JetBrains
- * Mono body at 14px/1.6, optional accent `$ ` prompt, Vitesse syntax
- * highlighting, optional language eyebrow, and a ghost copy button.
+ * Code block per DESIGN.md §4. Canvas-deep container, JetBrains Mono body at
+ * 14px/1.6, Vitesse syntax highlighting, optional language eyebrow, and a ghost
+ * copy button. `showPrompt` opts into the accent `$ ` shell prompt — reach for
+ * it only when the block really is a terminal transcript.
  */
 function CodeBlock({
   caption,
   code,
   language,
-  showPrompt = true,
+  showPrompt = false,
   copyable = true,
   copyLabel = "Copy to clipboard",
   copiedLabel = "Copied",

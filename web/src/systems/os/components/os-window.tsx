@@ -166,7 +166,7 @@ export function OsWindow({ frame }: OsWindowProps) {
             data-slot="os-window-merge-target"
             className="pointer-events-none absolute inset-x-0 top-0 z-50 flex h-11 items-center justify-center border border-accent bg-accent-tint"
           >
-            <span className="rounded-sm bg-elevated px-2 py-1 text-form-hint font-medium text-fg shadow-elevated">
+            <span className="rounded-sm bg-elevated px-2 py-1 text-form-hint font-medium text-fg shadow-overlay">
               Group as tabs
             </span>
           </div>

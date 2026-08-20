@@ -8,10 +8,10 @@ import { settingsConnectionLabel } from "../settings-connection-label";
 
 describe("settingsConnectionLabel", () => {
   it.each([
-    ["connected", "Daemon running"],
-    ["connecting", "Daemon connecting"],
-    ["disconnected", "Daemon unreachable"],
-    ["error", "Daemon unreachable"],
+    ["connected", "CompozyOS running"],
+    ["connecting", "CompozyOS connecting"],
+    ["disconnected", "CompozyOS unreachable"],
+    ["error", "CompozyOS unreachable"],
   ] as const)("maps %s to truthful copy", (state, label) => {
     expect(settingsConnectionLabel(state)).toBe(label);
   });

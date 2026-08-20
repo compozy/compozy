@@ -86,8 +86,8 @@ export function ExtensionInstallDialog({
           <DialogHeader variant="ruled">
             <DialogTitle>Install an extension</DialogTitle>
             <DialogDescription>
-              Install from a local build, a GitHub release, or a git repository. The daemon
-              validates the source and records provenance.
+              Install from a local build, a GitHub release, or a git repository. CompozyOS validates
+              the source and records provenance.
             </DialogDescription>
           </DialogHeader>
 

@@ -5,7 +5,6 @@ import * as React from "react";
 import { toneText, toneTint } from "../../lib/tone";
 import { cn } from "../../lib/utils";
 import { Surface } from "../surface";
-import { Eyebrow } from "./eyebrow";
 import { MonoId } from "./mono-id";
 import { Pill, type PillTone } from "./pill";
 import { Time } from "./time";
@@ -30,7 +29,7 @@ const RUN_STATUS_TONE: Record<RunCardStatus, PillTone> = {
 const RUN_STATUS_LABEL: Record<RunCardStatus, string> = {
   pending: "Pending",
   in_progress: "Running",
-  needs_attention: "Needs Attention",
+  needs_attention: "Needs attention",
   completed: "Completed",
   failed: "Failed",
   canceled: "Canceled",
@@ -122,18 +121,18 @@ function RunCard({
         </div>
       ) : null}
       <div data-slot="run-card-grid" className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-        <RunCardStat label="CHANNEL" value={channel ?? PLACEHOLDER} slot="channel" />
+        <RunCardStat label="Channel" value={channel ?? PLACEHOLDER} slot="channel" />
         <RunCardStat
-          label="QUEUED"
+          label="Queued"
           value={queuedAt ? <Time iso={queuedAt} mode="relative" /> : PLACEHOLDER}
           slot="queued"
         />
         <RunCardStat
-          label="STARTED"
+          label="Started"
           value={startedAt ? <Time iso={startedAt} mode="relative" /> : PLACEHOLDER}
           slot="started"
         />
-        <RunCardStat label="ELAPSED" value={elapsed ?? PLACEHOLDER} slot="elapsed" />
+        <RunCardStat label="Elapsed" value={elapsed ?? PLACEHOLDER} slot="elapsed" />
       </div>
     </Surface>
   );
@@ -150,9 +149,9 @@ function RunCardStat({
 }) {
   return (
     <div data-slot={`run-card-${slot}`} className="flex min-w-0 flex-col gap-1">
-      <Eyebrow data-slot={`run-card-${slot}-label`} className="text-muted">
+      <span data-slot={`run-card-${slot}-label`} className="text-form-label text-muted">
         {label}
-      </Eyebrow>
+      </span>
       <span
         data-slot={`run-card-${slot}-value`}
         className="min-w-0 truncate text-form-input text-fg"

@@ -89,7 +89,7 @@ export const KpiVoice: Story = {
         labelCase="eyebrow"
         label="Success rate"
         value="94%"
-        trailing={<span className="font-mono text-eyebrow text-success">+2</span>}
+        trailing={<span className="text-form-label tabular-nums text-success">+2</span>}
       />
     </div>
   ),

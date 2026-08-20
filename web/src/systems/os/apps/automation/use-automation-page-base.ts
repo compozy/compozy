@@ -44,7 +44,7 @@ export function automationUnavailableMessage(
 ): string | null {
   if (runtime && !runtime.available) {
     const noun = kind === "jobs" ? "Jobs" : "Triggers";
-    return `${noun} are unavailable because the automation runtime is disabled. Enable automation and restart the daemon before using this surface.`;
+    return `${noun} are unavailable because the automation runtime is disabled. Enable automation and restart CompozyOS before using this surface.`;
   }
 
   if (error instanceof AutomationApiError && error.status === 503) {

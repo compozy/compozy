@@ -98,7 +98,7 @@ function ScopeEscalationReview({ authorize, scope, server }: MCPAuthorizeDialogP
 
       <DialogFooter variant="ruled" className="grid items-center">
         <span className="text-caption text-muted">
-          The daemon sends these scopes only after this confirmation.
+          CompozyOS sends these scopes only after this confirmation.
         </span>
         <div className="flex flex-wrap items-center justify-end gap-2">
           <Button
@@ -159,9 +159,7 @@ function AuthorizeContent({ authorize, scope, server }: MCPAuthorizeDialogProps)
           <Alert variant="warning" data-testid="settings-page-mcp-authorize-beginning">
             <Spinner className="size-3.5" />
             <AlertTitle>Starting authorization</AlertTitle>
-            <AlertDescription>
-              Requesting a live authorization URL from the daemon.
-            </AlertDescription>
+            <AlertDescription>Requesting a live authorization URL from CompozyOS.</AlertDescription>
           </Alert>
         ) : null}
 
@@ -175,7 +173,7 @@ function AuthorizeContent({ authorize, scope, server }: MCPAuthorizeDialogProps)
             <AlertTitle>Authorization confirmed</AlertTitle>
             <AlertDescription>
               The scoped status now reports authenticated with a present token. Runtime readiness
-              remains an independent daemon result.
+              remains an independent result.
             </AlertDescription>
           </Alert>
         ) : null}
@@ -232,7 +230,7 @@ function AuthorizeContent({ authorize, scope, server }: MCPAuthorizeDialogProps)
               data-testid="settings-page-mcp-authorize-manual-input"
             />
             <p className="mt-1.5 text-caption text-muted" id="mcp-authorize-manual-help">
-              Use this when the browser cannot reach the daemon host. Paste the complete redirected
+              Use this when the browser cannot reach this machine. Paste the complete redirected
               URL, including its query parameters. Authorization codes alone are not accepted.
             </p>
           </div>

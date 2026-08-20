@@ -132,7 +132,7 @@ function LayoutSections({
           </>
         }
         bare
-        description="The arrangement this workspace restores. Drag tiles, dividers and group edges — the daemon checks the result before anything is applied."
+        description="The arrangement this workspace restores. Drag tiles, dividers and group edges — CompozyOS checks the result before anything is applied."
         title="Workspace layout"
       >
         <LayoutStage config={config} editor={editor} />

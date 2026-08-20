@@ -133,7 +133,7 @@ export function SessionLedgerSection({
       <SettingsFieldRow
         data-testid={`${TEST_PREFIX}-session-ledger-root`}
         label="Ledger root"
-        description="Read-only daemon-managed ledger root"
+        description="Ledger root — read-only, managed by CompozyOS"
         control={
           <Input
             readOnly
@@ -339,7 +339,7 @@ export function DailyLogsSection({
       <SettingsFieldRow
         data-testid={`${TEST_PREFIX}-daily-rotate-format`}
         label="Rotate format"
-        description="Read-only daemon-managed daily-log rotation pattern"
+        description="Daily-log rotation pattern — read-only, managed by CompozyOS"
         control={
           <Input
             readOnly

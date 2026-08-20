@@ -24,7 +24,7 @@ const SCOPES: ReadonlyArray<{ value: WindowManagerLayoutScopeKind; label: string
     {
       value: "global",
       label: "Every workspace",
-      hint: "Available in every workspace on this daemon.",
+      hint: "Available in every workspace on this machine.",
     },
   ];
 

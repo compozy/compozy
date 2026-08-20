@@ -7,10 +7,10 @@ import {
   Home,
   KeyRound,
   ListChecks,
+  MessagesSquare,
   Plus,
   Repeat2,
   Settings,
-  SquareTerminal,
   Store,
   Waypoints,
   Zap,
@@ -53,7 +53,7 @@ export const OS_APP_DESCRIPTORS: Record<OsAppId, OsAppDescriptor> = {
   session: {
     id: "session",
     title: "Session",
-    icon: SquareTerminal,
+    icon: MessagesSquare,
     paths: [],
     dock: "sessions-toggle",
     badge: "sessions",
@@ -118,7 +118,7 @@ export const OS_APP_DESCRIPTORS: Record<OsAppId, OsAppDescriptor> = {
   },
   bridges: {
     id: "bridges",
-    title: "Bridges",
+    title: "Connections",
     icon: Waypoints,
     paths: ["/bridges"],
     dock: { group: 3 },
@@ -132,7 +132,7 @@ export const OS_APP_DESCRIPTORS: Record<OsAppId, OsAppDescriptor> = {
   },
   sandbox: {
     id: "sandbox",
-    title: "Sandbox",
+    title: "Permissions",
     icon: Boxes,
     paths: ["/sandbox"],
     dock: { group: 4 },

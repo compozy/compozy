@@ -54,7 +54,7 @@ function TabsTrigger({ className, children, count, liveLabel, ...props }: TabsTr
       {count !== undefined ? (
         <span
           data-slot="tabs-trigger-count"
-          className="inline-flex h-pill-xs min-w-count-chip-sm items-center justify-center rounded-mono-badge bg-canvas-soft px-1 font-mono text-badge font-medium tabular-nums text-muted"
+          className="inline-flex h-pill-xs min-w-count-chip-sm items-center justify-center rounded-mono-badge bg-canvas-soft px-1 text-badge font-medium tabular-nums text-muted"
         >
           {count}
         </span>

@@ -38,7 +38,7 @@ export function BridgeManifestHandoff({ state }: BridgeManifestHandoffProps) {
       />
 
       <FormSection
-        description="Import the daemon-generated JSON in Slack, then return to the bridge to bind credentials and verify it."
+        description="Import the generated JSON in Slack, then return to the bridge to bind credentials and verify it."
         icon={FileJson2}
         title="Slack app manifest"
       >
@@ -73,7 +73,6 @@ export function BridgeManifestHandoff({ state }: BridgeManifestHandoffProps) {
               copyLabel="Copy Slack app manifest"
               data-testid="bridge-manifest-json"
               language="json"
-              showPrompt={false}
             />
             <ol className="list-decimal space-y-1 pl-5 text-small-body leading-relaxed text-muted">
               <li>Open the Slack app dashboard and choose Create New App.</li>

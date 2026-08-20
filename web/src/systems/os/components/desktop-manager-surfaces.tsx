@@ -22,7 +22,7 @@ function overviewState(input: {
   if (input.hydration === "degraded" && input.desktops.length === 0) {
     return {
       status: "error",
-      message: input.diagnosticMessage ?? "The daemon window layout is unavailable.",
+      message: input.diagnosticMessage ?? "The saved window layout is unavailable.",
     };
   }
   return {
@@ -75,7 +75,7 @@ export function DesktopManagerSurfaces({
     activeDesktopId: model.activeDesktopId,
     desktops,
     conflictMessage: model.conflict
-      ? `Revision ${model.conflict.expectedRevision} is stale; the daemon is at revision ${model.conflict.currentRevision}.`
+      ? `Revision ${model.conflict.expectedRevision} is stale; CompozyOS is at revision ${model.conflict.currentRevision}.`
       : null,
     diagnosticMessage: model.diagnostic?.message ?? null,
   });

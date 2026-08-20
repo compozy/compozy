@@ -424,7 +424,7 @@ describe("useSessionPageControls", () => {
     expect(result.current.queuedPrompts).toEqual([
       { id: "inq-1", mode: "queue", status: "queued", text: "Keep me" },
     ]);
-    expect(routeHookMocks.toastError).toHaveBeenCalledWith("cancel failed");
+    expect(routeHookMocks.toastError).toHaveBeenCalledWith("Couldn't remove queued prompt.");
   });
 
   it("Should release the busy state after a failed acknowledgement", async () => {

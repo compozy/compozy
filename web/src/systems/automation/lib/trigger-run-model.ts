@@ -165,7 +165,7 @@ function drawerLines(
       const destination = isLoopTarget ? "loop run" : "session";
       return [
         {
-          text: `The ${noun} was accepted. No ${destination} yet — the open link appears once the daemon records one.`,
+          text: `The ${noun} was accepted. No ${destination} yet — the open link appears once one is recorded.`,
           id: "summary",
           tone: "default",
         },

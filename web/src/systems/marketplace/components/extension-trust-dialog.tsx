@@ -64,7 +64,7 @@ function ExtensionTrustDialog({
               </DialogTitle>
               <DialogDescription id="extension-trust-description">
                 {description ??
-                  `This extension is not verified. Review the daemon warnings before ${updating ? "updating" : "installing"} it.`}
+                  `This extension is not verified. Review the warnings before ${updating ? "updating" : "installing"} it.`}
               </DialogDescription>
             </div>
           </div>

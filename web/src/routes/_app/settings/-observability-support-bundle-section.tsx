@@ -67,7 +67,7 @@ function SupportBundleRow() {
         label="Support bundle"
         description={
           <span className="inline-flex flex-wrap items-center gap-1.5">
-            Redacted daemon archive for sharing with maintainers
+            Redacted runtime archive for sharing with maintainers
             <Eyebrow
               className="text-faint"
               data-testid="settings-page-observability-support-bundle-status"
@@ -160,7 +160,7 @@ function LogTailRow({ logTail }: { logTail: LogTailMeta }) {
   return (
     <SettingsFieldRow
       data-testid="settings-page-observability-log-tail"
-      label="Live daemon logs"
+      label="Live runtime logs"
       description={
         <span className="inline-flex flex-wrap items-center gap-1.5">
           <Pill size="xs" tone={logTail.available ? "success" : "neutral"}>

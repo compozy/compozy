@@ -11,7 +11,7 @@ const meta: Meta<typeof Marker> = {
     docs: {
       description: {
         component:
-          "One-line system event for the session transcript — replaces tinted Alert cards. A 12px tone glyph plus one muted sentence; tone lives in the glyph only, `<b>` carries the subject, `MarkerMeta` carries raw kind strings and ×N cluster counts in faint mono.",
+          "One-line system event for the session transcript — replaces tinted Alert cards. A 12px tone glyph plus one muted sentence; tone lives in the glyph only, `<b>` carries the subject, `MarkerMeta` carries raw kind strings and ×N cluster counts in faint sans — wrap the child in `<MonoId>` when the reader has to match an identifier exactly.",
       },
     },
   },
@@ -56,7 +56,7 @@ export const Clustered: Story = {
     docs: {
       description: {
         story:
-          "Consecutive same-kind events merge into one marker; the ×N count rides the sentence as faint mono meta.",
+          "Consecutive same-kind events merge into one marker; the ×N count rides the sentence as faint meta.",
       },
     },
   },
@@ -75,7 +75,7 @@ export const RawKindMeta: Story = {
   parameters: {
     docs: {
       description: {
-        story: "Unknown runtime events keep their raw kind string as mono meta — never a pill.",
+        story: "Unknown runtime events keep their raw kind string as faint meta — never a pill.",
       },
     },
   },

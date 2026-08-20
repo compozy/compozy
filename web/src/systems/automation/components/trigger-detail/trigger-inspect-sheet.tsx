@@ -110,7 +110,6 @@ export function TriggerInspectSheet({ trigger, open, onOpenChange }: TriggerInsp
               copyable
               copyLabel="Copy sample envelope"
               density="compact"
-              showPrompt={false}
             />
           </TabsContent>
         </LaneTabs>

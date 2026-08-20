@@ -1,7 +1,7 @@
 import { cva } from "class-variance-authority";
 
 const pillVariants = cva(
-  "inline-flex w-fit shrink-0 items-center justify-center gap-1.5 whitespace-nowrap rounded-xs transition-colors duration-base ease-out focus-visible:outline-none focus-visible:shadow-focus-ring disabled:cursor-not-allowed disabled:opacity-50 [&>svg]:pointer-events-none [&>svg]:size-3",
+  "inline-flex w-fit shrink-0 items-center justify-center gap-1.5 whitespace-nowrap rounded-pill transition-colors duration-base ease-out focus-visible:outline-none focus-visible:shadow-focus-ring disabled:cursor-not-allowed disabled:opacity-50 [&>svg]:pointer-events-none [&>svg]:size-3",
   {
     variants: {
       tone: {
@@ -28,9 +28,9 @@ const pillVariants = cva(
       { mono: true, size: "xs", className: "text-mono-id font-semibold tracking-mono-id" },
       { mono: true, size: "sm", className: "text-mono-id font-semibold tracking-mono-id" },
       { mono: true, size: "md", className: "text-mono-id font-semibold tracking-mono-id" },
-      { mono: false, size: "xs", className: "text-eyebrow font-medium tracking-eyebrow" },
-      { mono: false, size: "sm", className: "text-eyebrow font-medium tracking-eyebrow" },
-      { mono: false, size: "md", className: "text-eyebrow font-medium tracking-eyebrow" },
+      { mono: false, size: "xs", className: "text-form-label font-medium tracking-eyebrow" },
+      { mono: false, size: "sm", className: "text-form-label font-medium tracking-eyebrow" },
+      { mono: false, size: "md", className: "text-form-label font-medium tracking-eyebrow" },
       { solid: true, tone: "neutral", className: "bg-muted text-canvas" },
       { solid: true, tone: "accent", className: "bg-accent text-accent-ink" },
       { solid: true, tone: "success", className: "bg-success text-canvas" },

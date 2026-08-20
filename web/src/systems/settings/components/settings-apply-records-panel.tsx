@@ -34,7 +34,7 @@ const STATUS_TONE: Record<ConfigApplyRecord["status"], PillTone> = {
 
 const NEXT_ACTION_LABEL: Record<ConfigApplyRecord["next_action"], string> = {
   none: "none",
-  "restart-daemon": "restart daemon",
+  "restart-daemon": "restart CompozyOS",
   "new-session": "new session",
   retry: "retry",
 };
@@ -58,7 +58,7 @@ function reloadResultMessage(result: SettingsApplyResponse): string {
     return result.skipped_reason ?? "No config changes detected";
   }
   if (result.next_action === "restart-daemon") {
-    return `Apply blocked at generation ${result.active_generation}. Restart the daemon to make the desired config active.`;
+    return `Apply blocked at generation ${result.active_generation}. Restart CompozyOS to make the desired config active.`;
   }
   if (result.next_action === "new-session") {
     return `Active generation ${result.active_generation} is ready for new sessions.`;

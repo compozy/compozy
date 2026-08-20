@@ -52,7 +52,7 @@ function MarketplaceDetail(props: MarketplaceDetailProps) {
             data-testid="marketplace-detail-unknown-kind"
             role="alert"
           >
-            This daemon reported an entry kind this build can't render: {kind}.
+            CompozyOS reported an entry kind this build can&apos;t render: {kind}.
           </p>
         )}
       </div>

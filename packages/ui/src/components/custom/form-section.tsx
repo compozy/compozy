@@ -8,11 +8,11 @@ import { Eyebrow } from "./eyebrow";
 import { HelpTip } from "./help-tip";
 
 export interface FormSectionProps extends Omit<React.ComponentProps<"section">, "title"> {
-  /** Section title, rendered at 12.5/600/-0.012em via the small-body token. */
+  /** Section title, rendered at 13.5/600/-0.012em via the small-body token. */
   title: React.ReactNode;
   /** Optional leading icon, painted `--subtle` at 14 px with stroke 1.75. */
   icon?: LucideIcon;
-  /** Optional right-aligned eyebrow at 11 px (counts, status, hints). */
+  /** Optional right-aligned sentence-case eyebrow at 12 px (counts, status, hints). */
   rightLabel?: React.ReactNode;
   /**
    * Explanatory prose for the section, moved into a `HelpTip` beside the title.

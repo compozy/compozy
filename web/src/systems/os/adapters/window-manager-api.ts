@@ -54,7 +54,7 @@ async function responseJson(response: Response): Promise<unknown> {
     return await response.json();
   } catch (error) {
     throw new WindowManagerApiError(
-      error instanceof Error ? error.message : "The daemon returned invalid JSON.",
+      error instanceof Error ? error.message : "CompozyOS returned invalid JSON.",
       response.status,
       null
     );

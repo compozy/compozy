@@ -184,7 +184,7 @@ function MarketplaceInstalledCard({
         description={
           isMcp
             ? "Removes the server from MCP config. Sessions can no longer reach its tools."
-            : "Removes the installed files from this daemon. It stays available in the marketplace."
+            : "Removes the installed files from this machine. It stays available in the marketplace."
         }
         error={confirmation.error}
         isPending={confirmation.isPending}

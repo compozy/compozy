@@ -25,16 +25,16 @@ export interface KindChipProps extends Omit<React.ComponentProps<"span">, "child
 }
 
 /**
- * Protocol kind marker — transparent surface, neutral border, mono label,
- * leading colored dot keyed off the protocol kind. Composes `Pill` + `Pill.Dot`.
- * Unknown kinds (platform names, event ids) render without a dot unless a
- * `dotColor` is supplied by the caller.
+ * Protocol kind marker — neutral tinted pill, sans label, leading colored dot
+ * keyed off the protocol kind. Composes `Pill` + `Pill.Dot`. Unknown kinds
+ * (platform names, event ids) render without a dot unless a `dotColor` is
+ * supplied by the caller. Wrap the label in `<MonoId>` when the kind is a raw
+ * identifier the reader needs to match character by character.
  */
 export function KindChip({ kind, label, dotColor, className, ...props }: KindChipProps) {
   const color = dotColor ?? defaultKindColor(kind);
   return (
     <Pill
-      mono
       size="xs"
       tone="neutral"
       data-slot="kind-chip"

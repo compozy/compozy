@@ -27,13 +27,7 @@ export function LoopEditorDslView({ lines }: LoopEditorDslViewProps) {
         values interpolate with Go templates <span className="font-mono">{"{{ }}"}</span>;
         conditions are CEL; node ids are snake_case.
       </p>
-      <CodeBlock
-        code={code}
-        copyable
-        highlightLines={dslHighlightLines(lines)}
-        language="yaml"
-        showPrompt={false}
-      />
+      <CodeBlock code={code} copyable highlightLines={dslHighlightLines(lines)} language="yaml" />
     </div>
   );
 }

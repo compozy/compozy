@@ -19,7 +19,7 @@ export function GatewayAccessEnded() {
       <Logo variant="logo" />
       <Empty
         className="max-w-md"
-        description="This device was revoked, so its session and live streams were closed. Mint a new pairing code from the daemon machine or another paired device to get back in."
+        description="This device was revoked, so its session and live streams were closed. Mint a new pairing code from the machine running CompozyOS, or from another paired device, to get back in."
         framed
         icon={ShieldOff}
         title="Access ended"

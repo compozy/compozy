@@ -71,7 +71,7 @@ export function LoopRunFormLocation({ name }: { name: string }) {
   if (!configQuery.effectiveConfig) {
     return (
       <RunFormState
-        description="The daemon did not return effective loop configuration."
+        description="Couldn't load the effective loop configuration."
         icon={AlertCircle}
         testId="loop-run-form-effective-error"
         title="Unable to load loop configuration"

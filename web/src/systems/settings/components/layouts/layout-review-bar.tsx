@@ -28,7 +28,7 @@ export function LayoutReviewBar({ editor }: LayoutReviewBarProps) {
     <div className="border-t border-line bg-canvas-tint" data-testid="layout-review-bar">
       {diagnostics.length > 0 ? (
         <div className="flex flex-col gap-1 bg-danger-tint px-3.5 py-2.5" role="status">
-          <p className="text-form-label text-danger">The daemon refused this layout</p>
+          <p className="text-form-label text-danger">CompozyOS refused this layout</p>
           {diagnostics.map(diagnostic => (
             <p
               className="font-mono text-form-hint leading-normal text-muted"
@@ -101,7 +101,7 @@ function describe(
   state: { reviewing: boolean; applying: boolean; problems: number }
 ): { message: string; tone: ReviewTone } {
   if (state.applying) return { message: "Applying…", tone: "success" };
-  if (state.reviewing) return { message: "Checking with the daemon…", tone: "warning" };
+  if (state.reviewing) return { message: "Checking with CompozyOS…", tone: "warning" };
   if (!editor.dirty) {
     return { message: `Revision ${editor.revision} · no unsaved layout edits`, tone: "neutral" };
   }
@@ -122,7 +122,7 @@ function describe(
     return { message: `Checked · ${changeSummary(preview.changes)}`, tone: "success" };
   }
   return {
-    message: "Unreviewed edits · the daemon checks them before they apply",
+    message: "Unreviewed edits · CompozyOS checks them before they apply",
     tone: "warning",
   };
 }

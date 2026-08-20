@@ -42,7 +42,7 @@ export function HooksSection({
     <SettingsGroup
       data-testid="settings-page-hooks-section"
       title="Lifecycle hooks"
-      description="Restart the daemon to re-read hook declarations. Enablement changes persist immediately."
+      description="Restart CompozyOS to re-read hook declarations. Enablement changes persist immediately."
     >
       {hookError ? (
         <span className="text-xs text-danger" data-testid="settings-page-hooks-error-message">

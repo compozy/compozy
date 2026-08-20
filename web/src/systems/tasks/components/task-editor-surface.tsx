@@ -227,7 +227,7 @@ export function TaskEditorSurface({
                 />
               </FormSection>
               <FormSection
-                help="A stable identifier override. Leave it empty and the daemon assigns one."
+                help="A stable identifier override. Leave it empty and CompozyOS assigns one."
                 title="Identity"
               >
                 <IngressIdentitySection

@@ -27,7 +27,7 @@ describe("ListingRow", () => {
               Ships a release candidate.
             </ListingRow.Description>
             <ListingRow.Meta data-testid="listing-row-meta">
-              <span className="font-mono text-[10px] text-subtle">3 inputs</span>
+              <span className="text-badge text-subtle">3 inputs</span>
             </ListingRow.Meta>
           </ListingRow.Main>
         </ListingRow.Link>
@@ -80,7 +80,8 @@ describe("ListingRow", () => {
     expect(screen.getByTestId("listing-row")).toHaveAttribute("data-selected", "true");
   });
 
-  it("Should render mono title when Name mono is set", () => {
+  // KEEP: DESIGN.md §3 — identifier titles keep the sans title face; only the figures change.
+  it("Should mark an identifier title with tabular figures when Name mono is set", () => {
     render(
       <ListingRow>
         <ListingRow.Link href="/items/alpha" aria-label="Open alpha">
@@ -97,7 +98,10 @@ describe("ListingRow", () => {
       </ListingRow>
     );
 
-    expect(screen.getByTestId("listing-row-title")).toHaveAttribute("data-mono", "true");
+    const title = screen.getByTestId("listing-row-title");
+    expect(title).toHaveAttribute("data-mono", "true");
+    expect(title.className).not.toContain("font-mono");
+    expect(title.className).toContain("tabular-nums");
   });
 
   it("Should render a stat block in the trail", () => {

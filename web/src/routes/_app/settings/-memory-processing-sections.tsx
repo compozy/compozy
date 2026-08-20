@@ -235,7 +235,7 @@ export function ExtractorSection({
       <SettingsFieldRow
         data-testid={`${TEST_PREFIX}-extractor-inbox-path`}
         label="Inbox path"
-        description="Read-only daemon-managed location for extractor JSONL output"
+        description="Where extractor JSONL output lands — read-only, managed by CompozyOS"
         control={
           <Input
             readOnly
@@ -248,7 +248,7 @@ export function ExtractorSection({
       <SettingsFieldRow
         data-testid={`${TEST_PREFIX}-extractor-dlq-path`}
         label="DLQ path"
-        description="Read-only daemon-managed location for extractor failure records"
+        description="Where extractor failure records land — read-only, managed by CompozyOS"
         control={
           <Input
             readOnly

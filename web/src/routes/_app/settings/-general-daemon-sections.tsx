@@ -18,12 +18,12 @@ interface DraftSectionProps {
 export function DaemonSection({ draft, setDraft }: DraftSectionProps) {
   return (
     <SettingsGroup
-      description="Controls periodic daemon process-memory snapshots in logs and runtime diagnostics."
+      description="Controls periodic process-memory snapshots in logs and runtime diagnostics."
       title="Runtime memory reporting"
     >
       <SettingRow
         data-testid="settings-page-general-memory-report-interval"
-        description="Cadence for daemon process-memory snapshots in logs and the runtime.memory probe. Set 0s to disable memory reporting."
+        description="Cadence for process-memory snapshots in logs and the runtime.memory probe. Set 0s to disable memory reporting."
         label={
           <>
             Report interval <SettingsProvChip>restart required</SettingsProvChip>

@@ -94,24 +94,25 @@ export const SETTINGS_SECTIONS: readonly SettingsSectionDescriptor[] = [
   },
   {
     slug: "gateway",
-    label: "Gateway",
+    label: "Remote access",
     icon: Radio,
     group: "system",
-    keywords: "remote reachability exposure overlay public pairing devices revoke audit ingress",
+    keywords:
+      "gateway remote reachability exposure overlay public pairing devices revoke audit ingress",
   },
   {
     slug: "attention",
-    label: "Attention",
+    label: "Notifications",
     icon: Bell,
     group: "operator",
-    keywords: "notifications toasts sound system alerts mute workspace bell",
+    keywords: "attention toasts sound system alerts mute workspace bell",
   },
   {
     slug: "observability",
-    label: "Observability",
+    label: "Diagnostics",
     icon: Activity,
     group: "operator",
-    keywords: "capture transcripts storage support bundle logs retention",
+    keywords: "observability capture transcripts storage support bundle logs retention",
   },
   {
     slug: "hooks",
@@ -135,7 +136,7 @@ export const SETTINGS_SECTION_GROUPS: ReadonlyArray<{
 }> = [
   { id: "workspace", label: "Workspace" },
   { id: "runtime", label: "Runtime" },
-  { id: "operator", label: "Operator" },
+  { id: "operator", label: "Personal" },
   { id: "system", label: "System" },
 ];
 

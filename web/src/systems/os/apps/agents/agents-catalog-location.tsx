@@ -83,7 +83,7 @@ export function AgentsCatalogLocation({ search }: { search: AgentsFleetSearch })
                 Retry
               </Button>
             }
-            description="The agents request failed. Check the daemon connection and try again."
+            description="The agents request failed. Check that CompozyOS is running and try again."
             icon={AlertCircle}
             title="Couldn't load agents"
           />

@@ -62,11 +62,19 @@ function TurnFact({ label, children }: { label: string; children: React.ReactNod
   );
 }
 
+/** The stream keeps its canonical name in code; the label reads plainly. */
+const STREAM_LABEL: Record<"stdout" | "stderr", string> = {
+  stdout: "Output",
+  stderr: "Errors",
+};
+
 function CriterionOutput({ label, value }: { label: "stdout" | "stderr"; value?: string }) {
   if (!value) return null;
   return (
     <div className="mt-2 min-w-0">
-      <Eyebrow className={label === "stderr" ? "text-danger" : "text-faint"}>{label}</Eyebrow>
+      <Eyebrow className={label === "stderr" ? "text-danger" : "text-faint"}>
+        {STREAM_LABEL[label]}
+      </Eyebrow>
       <pre
         className={cn(
           "mt-1 max-h-40 overflow-auto rounded-xs px-2 py-1.5 font-mono text-mono-id whitespace-pre-wrap break-words",

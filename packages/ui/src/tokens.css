@@ -14,11 +14,11 @@
 @theme {
   /* Surface ramp — warm-dark, layered backgrounds (depth without shadows). */
   --color-rail: #0c0b0b;
-  --color-canvas: #131211;
-  --color-canvas-soft: #1a1918;
-  --color-canvas-tint: #1c1b1a;
-  --color-sidebar: #1a1918;
-  --color-elevated: #232220;
+  --color-canvas: #171513;
+  --color-canvas-soft: #201d1a;
+  --color-canvas-tint: #232019;
+  --color-sidebar: #201d1a;
+  --color-elevated: #2b2723;
   --color-hover: var(--color-row-hover);
   --color-disabled: #4a4847;
 
@@ -29,11 +29,11 @@
   --color-line-focus: rgba(255, 255, 255, 0.14);
 
   /* Text. */
-  --color-fg: #ececef;
-  --color-fg-strong: #f6f6f8;
-  --color-muted: #9a9a9f;
-  --color-subtle: oklch(0.663 0.009 286.106);
-  --color-faint: oklch(0.638 0.006 286.136);
+  --color-fg: #f0ece7;
+  --color-fg-strong: #f8f5f1;
+  --color-muted: #a8a29b;
+  --color-subtle: oklch(0.663 0.009 65);
+  --color-faint: oklch(0.638 0.006 65);
 
   /* Accent — warm operator orange (the only non-neutral hue). */
   --color-accent: #e8572a;
@@ -69,13 +69,13 @@
   --color-viz-cell: #ffffff;
 
   /* Surface glaze ladder — translucent white tints over the warm ramp. */
-  --color-row-hover: rgba(255, 255, 255, 0.022);
-  --color-row-selected: rgba(255, 255, 255, 0.03);
-  --color-surface-glaze: rgba(255, 255, 255, 0.04);
+  --color-row-hover: rgba(255, 255, 255, 0.045);
+  --color-row-selected: rgba(255, 255, 255, 0.06);
+  --color-surface-glaze: rgba(255, 255, 255, 0.06);
   --color-bar-fill: rgba(255, 255, 255, 0.085);
-  --color-input-fill: rgba(255, 255, 255, 0.025);
-  --color-btn-default-fill: rgba(255, 255, 255, 0.04);
-  --color-btn-default-hover: rgba(255, 255, 255, 0.07);
+  --color-input-fill: rgba(255, 255, 255, 0.05);
+  --color-btn-default-fill: rgba(255, 255, 255, 0.07);
+  --color-btn-default-hover: rgba(255, 255, 255, 0.1);
   --color-badge-fill: rgba(255, 255, 255, 0.05);
 
   /* Session transcript washes — the ONLY message surfaces in the chat column.
@@ -167,19 +167,19 @@
   --font-weight-bold: 700;
 
   /* Type scale shared with both web and site surfaces. */
-  --text-item-title: 0.9375rem; /* 15px */
+  --text-item-title: 1rem; /* 16px */
   --text-item-title--line-height: 1.375rem;
-  --text-small-body: 0.78125rem; /* 12.5px — OpenDesign UI body / menubar labels */
-  --text-small-body--line-height: 1.125rem;
-  --text-badge: 0.65625rem; /* 10.5px — matches --text-micro */
+  --text-small-body: 0.84375rem; /* 13.5px — OpenDesign UI body / menubar labels */
+  --text-small-body--line-height: 1.25rem;
+  --text-badge: 0.6875rem; /* 11px — matches --text-micro */
   --text-badge--line-height: 0.75rem;
-  --text-eyebrow: 0.6875rem; /* 11px */
+  --text-eyebrow: 0.75rem; /* 12px */
   --text-eyebrow--line-height: 1rem;
   --text-display-2xl: 1.75rem; /* 28px */
   --text-display-2xl--line-height: 1;
   --text-site-lead: 1.1875rem; /* 19px */
   --text-site-lead--line-height: 1.5;
-  --text-micro: 0.65625rem; /* 10.5px */
+  --text-micro: 0.6875rem; /* 11px */
   --text-micro--line-height: 0.75rem;
   --text-inline-code: 0.9em; /* 14.4px */
   --text-accent-glyph: 0.85em; /* 13.6px */
@@ -195,8 +195,8 @@
   --text-modal-title: 0.84375rem;
   --text-section-head: 0.7rem;
   --text-form-input: 0.78125rem;
-  --text-form-label: 0.75rem;
-  --text-form-hint: 0.71875rem;
+  --text-form-label: 0.78125rem;
+  --text-form-hint: 0.78125rem;
   --text-form-required: 0.625rem;
   --text-metric-value: 1.375rem;
   /* In-window KPI / metric value (DS Components §09) — 24px display number,
@@ -207,12 +207,12 @@
   --text-agent-metric: 1rem;
   --text-rail-avatar: 0.71875rem;
   --text-ws-name: 0.8125rem;
-  --text-mono-id: 0.65625rem;
+  --text-mono-id: 0.6875rem;
   --text-pill-group-badge: 0.5625rem;
-  /* 14 px tier for prose-adjacent / card-title surfaces (chat bubble body,
+  /* 15 px tier for prose-adjacent / card-title surfaces (chat bubble body,
      code-block content, tool-call title). One step above
-     `--text-small-body` (12.5 px), one step below `--text-item-title` (15 px). */
-  --text-card-title: 0.875rem;
+     `--text-small-body` (13.5 px), one step below `--text-item-title` (16 px). */
+  --text-card-title: 0.9375rem;
   --text-card-title--line-height: 1.4;
 
   /* Calm transcript ladder — shared by timeline rows, detail rails, working
@@ -231,7 +231,7 @@
   --leading-prose: 1.7;
 
   /* Tracking ladder. */
-  --tracking-mono: 0.06em;
+  --tracking-mono: 0.02em;
   --tracking-detail-h1: -0.028em;
   --tracking-compact-h1: -0.022em;
   --tracking-empty-h1: -0.022em;
@@ -247,25 +247,25 @@
   /* Listing-row title optical tightening (one step, matches --text-card-title). */
   --tracking-row-title: -0.01em;
 
-  /* Radii — base + ladder: 3 / 4 / 5 / 6 / 8 / 10 / 14 / pill. */
-  --radius: 6px;
+  /* Radii — base + ladder: 3 / 6 / 7 / 8 / 10 / 14 / 18 / pill. */
+  --radius: 8px;
   --radius-xxs: 3px;
-  --radius-xs: 4px;
-  --radius-sm: 5px;
-  --radius-md: 8px;
-  --radius-lg: 10px;
-  --radius-xl: 14px;
+  --radius-xs: 6px;
+  --radius-sm: 7px;
+  --radius-md: 10px;
+  --radius-lg: 14px;
+  --radius-xl: 18px;
   --radius-pill: 9999px;
-  --radius-chip: 5px;
+  --radius-chip: 7px;
   --radius-mono-badge: 4px;
-  --radius-icon-well: 10px;
+  --radius-icon-well: 12px;
 
   /* Motion — fast / base / slow tiers + shell tier (below); eases: out /
      in-out / spring (shell). */
-  --duration-fast: 100ms;
-  --duration-base: 140ms;
-  --duration-slow: 200ms;
-  --ease-out: cubic-bezier(0.2, 0, 0, 1);
+  --duration-fast: 120ms;
+  --duration-base: 180ms;
+  --duration-slow: 260ms;
+  --ease-out: cubic-bezier(0.22, 1, 0.36, 1);
   --ease-in-out: cubic-bezier(0.4, 0, 0.2, 1);
 
   /* Shadows — whitelist. Every other surface stays flat. */
@@ -302,20 +302,20 @@
      component-internal values (pill-group / modal widths used pre-L-024) live in
      `:root` with explicit lint allowlist entries. */
 
-  /* Button geometry — pair with text-button (12 px) / text-eyebrow (11 px).
-     xs ≡ sm at 22px by design: the distinction is padding in the variant, not
-     height (both tokens are consumed — button-variants + workspace). */
-  --height-button-xs: 22px;
-  --height-button-sm: 22px;
-  --height-button-default: 26px;
-  --height-button-lg: 30px;
+  /* Button geometry — pair with text-button (12 px) / text-eyebrow (12 px).
+     xs and sm are distinct tiers (24 / 26); the variant still carries its own
+     padding (both tokens are consumed — button-variants + workspace). */
+  --height-button-xs: 24px;
+  --height-button-sm: 26px;
+  --height-button-default: 30px;
+  --height-button-lg: 34px;
   /* CTA button heights — the larger accent primary action (dialogs, forms). */
   --height-button-cta: 36px;
   --height-button-cta-lg: 44px;
-  --size-button-icon-xs: 22px;
-  --size-button-icon-sm: 22px;
-  --size-button-icon-default: 26px;
-  --size-button-icon-lg: 30px;
+  --size-button-icon-xs: 24px;
+  --size-button-icon-sm: 26px;
+  --size-button-icon-default: 30px;
+  --size-button-icon-lg: 34px;
 
   /* Calm transcript geometry. */
   --height-transcript-row: 22px;
@@ -330,10 +330,10 @@
 
   /* Form control geometry — the field-control ladder. Input / Select /
      NativeSelect / CommandSelect trigger = 36; compact (Select sm, NativeSelect
-     sm, Command input) = 32; search field = 28; textarea min body = 84. */
+     sm, Command input) = 32; search field = 32; textarea min body = 84. */
   --height-input: 36px;
   --height-control-compact: 32px;
-  --height-search: 28px;
+  --height-search: 32px;
   --height-textarea-min: 84px;
 
   /* Switch geometry — default vs sm. */
@@ -343,12 +343,12 @@
   --width-switch-sm: 24px;
 
   /* Pill geometry — xs / sm / md heights. */
-  --height-pill-xs: 17px;
-  --height-pill-sm: 19px;
-  --height-pill-md: 22px;
+  --height-pill-xs: 20px;
+  --height-pill-sm: 22px;
+  --height-pill-md: 26px;
 
   /* Sidebar nav row — leaf links and folder headers share one height. */
-  --height-sidebar-row: 28px;
+  --height-sidebar-row: 32px;
 
   /* Tabs list + count chip + tab underline. */
   --height-tabs-list: 40px;
@@ -357,11 +357,11 @@
   --spacing-count-chip-sm: 17px;
 
   /* Detail-rail property rows. */
-  --height-property-row: 26px;
+  --height-property-row: 30px;
   --spacing-property-row-y: 3px;
 
   /* Empty / menu primitives. */
-  --size-empty-icon: 38px;
+  --size-empty-icon: 48px;
   --width-menu-sub-min: 96px;
   --width-worktree-submenu: 320px;
   --height-worktree-submenu-max: 420px;

@@ -72,7 +72,7 @@ export function OnboardingSetupFrame({ wizard }: OnboardingSetupFrameProps) {
             size="md"
             tone="neutral"
             className="flex-none gap-1.5 border border-line bg-transparent text-subtle"
-            title="The daemon runs on this machine — no account, no upload."
+            title="CompozyOS runs on this machine — no account, no upload."
           >
             <Icon as={Lock} size="sm" aria-hidden="true" />
             Runs locally

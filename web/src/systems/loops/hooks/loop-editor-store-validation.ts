@@ -76,7 +76,7 @@ export const loopEditorValidationTransitions = {
     if (event.notifyFailure) {
       enqueue.effect(() =>
         notifyUser({
-          message: "Validation could not reach the daemon. Try again.",
+          message: "Couldn't validate — CompozyOS isn't reachable. Try again.",
           tone: "error",
         })
       );

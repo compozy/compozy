@@ -80,3 +80,27 @@ export function makeHomeOverview(overrides: Partial<HomeOverview> = {}): HomeOve
     ...overrides,
   };
 }
+
+/** A fresh install: every counter the overview carries is zero and nothing is running. */
+export function makeEmptyHomeOverview(overrides: Partial<HomeOverview> = {}): HomeOverview {
+  const base = makeHomeOverview();
+  return {
+    ...base,
+    attention: { total: 0, by_kind: { approval: 0, failure: 0, needs_input: 0 }, items: [] },
+    today: { runs_completed: 0, runs_failed: 0, tasks_closed: 0 },
+    outcomes: { ...base.outcomes, days: [], completed: 0, failed: 0, canceled: 0, success_pct: 0 },
+    usage: {
+      ...base.usage,
+      truncated: false,
+      total_tokens: 0,
+      estimated_cost: 0,
+      days: [],
+      agent_share: [],
+    },
+    pulse: { window_days: base.pulse.window_days, buckets: [] },
+    network: { messages_today: 0 },
+    system: { hook_runs_today: 0, hook_failures_today: 0, retention_days: 7 },
+    freshness: { ...base.freshness, has_live_work: false },
+    ...overrides,
+  };
+}

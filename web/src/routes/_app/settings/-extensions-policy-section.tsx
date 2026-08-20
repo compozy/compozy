@@ -24,7 +24,7 @@ export function PolicySection({ draft, setDraft, canMutate }: PolicySectionProps
     <>
       <SettingsGroup
         data-testid="settings-page-extensions-source-section"
-        description="The install sources this daemon accepts for published extensions."
+        description="The install sources CompozyOS accepts for published extensions."
         title="Where extensions come from"
       >
         <SettingsFieldRow
@@ -134,7 +134,7 @@ export function PolicySection({ draft, setDraft, canMutate }: PolicySectionProps
       >
         <SettingLinkRow
           data-testid="settings-page-extensions-link-installed"
-          description="Everything installed on this daemon."
+          description="Everything installed on this machine."
           label="Installed extensions"
           render={<Link to="/marketplace/extensions" />}
         />

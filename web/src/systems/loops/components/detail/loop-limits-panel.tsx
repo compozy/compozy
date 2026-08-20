@@ -37,7 +37,7 @@ export function LoopLimitsPanel({ effectiveConfig }: LoopLimitsPanelProps) {
           ))}
         </div>
         <p className="border-t border-line-soft px-3.5 py-3 text-form-hint leading-relaxed text-faint">
-          Right values are daemon ceilings, hard backstops. A set budget is enforced.
+          Right values are runtime ceilings, hard backstops. A set budget is enforced.
         </p>
       </>
     </LoopRailSection>

@@ -83,7 +83,7 @@ export function FeedbackSection() {
           <InfoIcon />
           <AlertTitle>Connection lost</AlertTitle>
           <AlertDescription>
-            Reconnecting to the daemon. Check the footer indicator for status.
+            Reconnecting to CompozyOS. Check the footer indicator for status.
           </AlertDescription>
         </Alert>
       </div>

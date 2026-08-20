@@ -58,7 +58,7 @@ describe("Tabs", () => {
     expect(container.querySelector('[data-slot="tabs-trigger-live"]')).toHaveTextContent("Live");
   });
 
-  it("Should render bare count text from the count prop", () => {
+  it("Should render counts with sans tabular numerals", () => {
     const { container } = render(
       <Tabs defaultValue="lane-a">
         <TabsList>
@@ -75,5 +75,7 @@ describe("Tabs", () => {
     );
     const count = container.querySelector('[data-slot="tabs-trigger-count"]') as HTMLElement | null;
     expect(count?.textContent).toBe("4");
+    expect(count).toHaveClass("tabular-nums");
+    expect(count).not.toHaveClass("font-mono");
   });
 });

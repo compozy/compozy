@@ -31,7 +31,7 @@ function PresenceBadge({ presence }: PresenceBadgeProps) {
       className="inline-flex min-w-0 items-center gap-1 text-form-label text-muted"
       data-state={presence.state}
       data-testid="network-direct-presence"
-      title="This peer is joined to the local daemon."
+      title="This peer is connected to this machine."
     >
       <span
         aria-hidden="true"

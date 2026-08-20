@@ -125,7 +125,7 @@ export const UnlistedBackend: Story = {
 export const SaveError: Story = {
   args: {},
   render: () =>
-    harness({ error: "The daemon rejected the replace: sandbox profile is referenced." }),
+    harness({ error: "CompozyOS rejected the replace: sandbox profile is referenced." }),
 };
 
 /** An accepted save disables the complete form until the request settles. */

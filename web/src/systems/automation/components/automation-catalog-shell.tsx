@@ -117,7 +117,7 @@ export function AutomationCatalogShell({
         support={
           kind === "jobs"
             ? "A job runs an agent or a loop on a schedule."
-            : "A trigger reacts to a daemon event and runs its target."
+            : "A trigger reacts to a runtime event and runs its target."
         }
         title={`No ${noun} yet`}
       />

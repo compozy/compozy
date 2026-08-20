@@ -39,7 +39,7 @@ export function PanelSurface({ children, className }: StoryFrameProps) {
   return (
     <StorySurface
       className={cn(
-        "flex min-h-160 overflow-hidden rounded-2xl border border-line bg-canvas p-0",
+        "flex min-h-160 overflow-hidden rounded-xl border border-line bg-canvas p-0",
         className
       )}
     >

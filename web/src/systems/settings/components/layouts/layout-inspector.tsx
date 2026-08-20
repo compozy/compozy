@@ -86,7 +86,7 @@ export function LayoutInspector({
         </section>
         {overlaps ? (
           <p className="text-form-label text-danger" role="status">
-            This group overlaps another one. The daemon refuses a desktop whose groups cover each
+            This group overlaps another one. CompozyOS refuses a desktop whose groups cover each
             other.
           </p>
         ) : null}

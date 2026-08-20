@@ -38,7 +38,7 @@ export function HooksSettingsPage() {
     );
   return (
     <SettingsPageFrame
-      description="What the daemon does on lifecycle events — each hook applies the moment you flip it."
+      description="What CompozyOS does on lifecycle events — each hook applies the moment you flip it."
       meta={[
         {
           key: "hooks",
