@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"sort"
 	"strings"
 	"time"
 
@@ -66,6 +67,8 @@ type CatalogQuery struct {
 	ParentTaskID         string
 	WorktreeID           string
 	ParticipationChannel string
+	ExcludeCreatedBy     []ActorRef
+	LoopRunID            string
 	Search               string
 	Sort                 CatalogSort
 	Cursor               string
@@ -114,6 +117,8 @@ type catalogFingerprint struct {
 	ParentTaskID         string        `json:"parent_task_id"`
 	WorktreeID           string        `json:"worktree_id"`
 	ParticipationChannel string        `json:"participation_channel"`
+	ExcludeCreatedBy     []ActorRef    `json:"exclude_created_by"`
+	LoopRunID            string        `json:"loop_run_id"`
 	Search               string        `json:"q"`
 	Sort                 CatalogSort   `json:"sort"`
 }
@@ -143,6 +148,8 @@ func NormalizeCatalogQuery(query CatalogQuery) (CatalogQuery, error) {
 	query.ParentTaskID = strings.TrimSpace(query.ParentTaskID)
 	query.WorktreeID = strings.TrimSpace(query.WorktreeID)
 	query.ParticipationChannel = strings.TrimSpace(query.ParticipationChannel)
+	query.ExcludeCreatedBy = normalizeCatalogActorRefs(query.ExcludeCreatedBy)
+	query.LoopRunID = strings.TrimSpace(query.LoopRunID)
 	query.Search = strings.ToLower(strings.TrimSpace(query.Search))
 	query.Sort = query.Sort.Normalize()
 	query.Cursor = strings.TrimSpace(query.Cursor)
@@ -198,6 +205,13 @@ func validateCatalogQuery(query CatalogQuery) error {
 	}
 	if query.OwnerKind != "" {
 		if err := query.OwnerKind.Validate("task_catalog.owner_kind"); err != nil {
+			return err
+		}
+	}
+	for index := range query.ExcludeCreatedBy {
+		if err := query.ExcludeCreatedBy[index].Validate(
+			fmt.Sprintf("task_catalog.exclude_created_by[%d]", index),
+		); err != nil {
 			return err
 		}
 	}
@@ -282,6 +296,8 @@ func taskCatalogFingerprint(query CatalogQuery) (string, error) {
 		ParentTaskID:         query.ParentTaskID,
 		WorktreeID:           query.WorktreeID,
 		ParticipationChannel: query.ParticipationChannel,
+		ExcludeCreatedBy:     query.ExcludeCreatedBy,
+		LoopRunID:            query.LoopRunID,
 		Search:               query.Search,
 		Sort:                 query.Sort,
 	})
@@ -289,6 +305,29 @@ func taskCatalogFingerprint(query CatalogQuery) (string, error) {
 		return "", fmt.Errorf("task: fingerprint catalog query: %w", err)
 	}
 	return fingerprint, nil
+}
+
+func normalizeCatalogActorRefs(refs []ActorRef) []ActorRef {
+	normalized := make([]ActorRef, 0, len(refs))
+	seen := make(map[ActorRef]struct{}, len(refs))
+	for _, ref := range refs {
+		candidate := ActorRef{Kind: ref.Kind.Normalize(), Ref: strings.TrimSpace(ref.Ref)}
+		if candidate.IsZero() {
+			continue
+		}
+		if _, exists := seen[candidate]; exists {
+			continue
+		}
+		seen[candidate] = struct{}{}
+		normalized = append(normalized, candidate)
+	}
+	sort.Slice(normalized, func(left int, right int) bool {
+		if normalized[left].Kind != normalized[right].Kind {
+			return normalized[left].Kind < normalized[right].Kind
+		}
+		return normalized[left].Ref < normalized[right].Ref
+	})
+	return normalized
 }
 
 // PriorityRank returns the canonical highest-first task priority rank.

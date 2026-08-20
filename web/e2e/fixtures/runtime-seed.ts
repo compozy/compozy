@@ -51,6 +51,7 @@ import type {
   TaskRunDetailView,
 } from "@/systems/tasks";
 import type { BrowserExtensionRegistrySeed } from "./extension-registry-server";
+import type { TaskCatalogSemanticItem } from "./scenario-contracts";
 
 const execFileAsync = promisify(execFile);
 const MOCK_AGENT_PROVIDER_NAME = "acpmock";
@@ -366,6 +367,42 @@ export interface BrowserTasksOperatorFlowResult {
   runningTask: TaskRecord;
   session: SeededSessionPayload;
   workspace: WorkspacePayload;
+}
+
+export interface BrowserTaskCatalogQuery {
+  includeLoop?: boolean;
+  loopRunId?: string;
+  workspace?: string;
+}
+
+export interface BrowserTaskCatalogResponse {
+  tasks: TaskCatalogSemanticItem[];
+  page: {
+    has_more: boolean;
+    limit: number;
+    next_cursor?: string;
+    total: number;
+  };
+}
+
+export async function readBrowserTaskCatalog(
+  runtime: Pick<BrowserRuntimeSeedClient, "requestJSON">,
+  query: BrowserTaskCatalogQuery = {}
+): Promise<BrowserTaskCatalogResponse> {
+  const params = new URLSearchParams();
+  if (query.includeLoop) {
+    params.set("include_loop", "true");
+  }
+  const loopRunId = query.loopRunId?.trim();
+  if (loopRunId) {
+    params.set("loop_run_id", loopRunId);
+  }
+  const workspace = query.workspace?.trim();
+  if (workspace) {
+    params.set("workspace", workspace);
+  }
+  const suffix = params.size > 0 ? `?${params.toString()}` : "";
+  return await runtime.requestJSON<BrowserTaskCatalogResponse>(`/api/tasks${suffix}`);
 }
 
 export interface BrowserNetworkOperatorFlowSeed {

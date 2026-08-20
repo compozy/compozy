@@ -2861,6 +2861,7 @@ func TestSchemaCustomizerCoversAdditionalEnums(t *testing.T) {
 		{name: "LoopEnvironmentMode", typ: contract.LoopEnvironmentModePerRun},
 		{name: "AutomationSchedulerCatchUpPolicy", typ: automationpkg.SchedulerCatchUpPolicySkipMissed},
 		{name: "TaskInboxLane", typ: contract.TaskInboxLaneApprovals},
+		{name: "LoopProvenanceRole", typ: contract.LoopProvenanceRoleCoordinator},
 		{name: "IssueSeverity", typ: contract.IssueSeverityError},
 		{name: "HookSkillSource", typ: hooks.HookSkillSourceBundled},
 		{name: "HookExecutorKind", typ: hooks.HookExecutorNative},

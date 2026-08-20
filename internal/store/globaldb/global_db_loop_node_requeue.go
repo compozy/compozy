@@ -12,6 +12,7 @@ import (
 	looppkg "github.com/compozy/compozy/internal/loop"
 	"github.com/compozy/compozy/internal/store"
 	"github.com/compozy/compozy/internal/store/globaldb/sqlcgen"
+	taskpkg "github.com/compozy/compozy/internal/task"
 )
 
 var _ looppkg.NodeRequeueStore = (*LoopRepo)(nil)
@@ -198,17 +199,41 @@ func clearQuarantinedNodeTaskAttention(
 		return fmt.Errorf("store: iterate quarantined cells for requeue: %w", err)
 	}
 	clearedAt := store.FormatTimestamp(mutation.RequestedAt)
+	reason := diagnostics.RedactAndBound(mutation.Reason, 1024)
 	for _, taskID := range taskIDs {
-		if _, err := exec.ExecContext(
+		record, err := (&TaskRepo{}).getTaskWithExecutor(ctx, exec, taskID)
+		if err != nil {
+			return err
+		}
+		if record.Status != taskpkg.TaskStatusNeedsAttention || record.NeedsAttention == nil {
+			return fmt.Errorf(
+				"%w: quarantined Loop task %q has status %q",
+				taskpkg.ErrInvalidStatusTransition,
+				taskID,
+				record.Status,
+			)
+		}
+		changed, err := sqlcgen.New(exec).ClearTaskNeedsAttention(
 			ctx,
-			`UPDATE tasks SET
-				needs_attention_reason = NULL, needs_attention_at = NULL,
-				needs_attention_by_kind = NULL, needs_attention_by_ref = NULL, updated_at = ?
-			 WHERE id = ? AND needs_attention_at IS NOT NULL`,
-			clearedAt,
-			taskID,
-		); err != nil {
+			sqlcgen.ClearTaskNeedsAttentionParams{UpdatedAt: clearedAt, ID: taskID},
+		)
+		if err != nil {
 			return fmt.Errorf("store: clear requeued node task attention %q: %w", taskID, err)
+		}
+		if err := requireSingleTaskAttentionMutation(changed, taskID); err != nil {
+			return err
+		}
+		if err := setTaskStatusWithEventContext(
+			ctx,
+			exec,
+			taskID,
+			taskpkg.TaskStatusNeedsAttention,
+			taskpkg.TaskStatusReady,
+			mutation.Actor,
+			mutation.RequestedAt,
+			taskStatusEventContext{reason: reason, loopRunID: string(mutation.RunID)},
+		); err != nil {
+			return err
 		}
 	}
 	return nil

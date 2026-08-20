@@ -167,13 +167,14 @@ func taskInboxFilter(query taskpkg.InboxQuery) ([]string, []any) {
 
 func taskInboxBaseFilter(query taskpkg.InboxQuery) ([]string, []any) {
 	return taskCatalogBaseFilter(taskpkg.CatalogQuery{
-		Scope:         query.Scope,
-		WorkspaceID:   query.WorkspaceID,
-		Priority:      query.Priority,
-		IncludeDrafts: true,
-		OwnerKind:     query.OwnerKind,
-		OwnerRef:      query.OwnerRef,
-		Search:        strings.ToLower(query.Search),
+		Scope:            query.Scope,
+		WorkspaceID:      query.WorkspaceID,
+		Priority:         query.Priority,
+		IncludeDrafts:    true,
+		OwnerKind:        query.OwnerKind,
+		OwnerRef:         query.OwnerRef,
+		Search:           strings.ToLower(query.Search),
+		ExcludeCreatedBy: query.ExcludeCreatedBy,
 	})
 }
 

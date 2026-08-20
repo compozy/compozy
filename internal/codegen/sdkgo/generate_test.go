@@ -51,6 +51,8 @@ func TestGenerate(t *testing.T) {
 			[]byte("type DescribePayload struct"),
 			[]byte("IssueSeverityError"),
 			[]byte("IssueSeverityWarning"),
+			[]byte("LoopProvenanceRoleCoordinator"),
+			[]byte("LoopProvenanceRoleCell"),
 			[]byte("type ProvideConformanceFixture struct"),
 			[]byte("func PublicProvideConformanceFixtures()"),
 			[]byte("OriginKind identifies the actor or task source kind that started the loop."),

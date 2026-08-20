@@ -31,6 +31,14 @@ func (h *BaseHandlers) ListTasks(c *gin.Context) {
 
 	transportQuery, err := ParseTaskListQuery(c)
 	if err != nil {
+		var invalidField *invalidTaskQueryFieldError
+		if errors.As(err, &invalidField) {
+			c.JSON(http.StatusBadRequest, contract.TaskQueryErrorPayload{
+				ErrorPayload: contract.ErrorPayload{Error: "invalid_query_field"},
+				Field:        invalidField.field,
+			})
+			return
+		}
 		h.respondError(c, StatusForTaskError(err), err)
 		return
 	}

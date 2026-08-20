@@ -5056,9 +5056,11 @@ func TestReadAPIErrorAndHelpers(t *testing.T) {
 		OwnerRef:             "triage",
 		ParentTaskID:         "task-root",
 		Worktree:             "wt-alpha",
+		IncludeLoop:          true,
+		LoopRunID:            "looprun-alpha",
 		ParticipationChannel: "builders",
 		Limit:                3,
-	}); got.Get("scope") != "workspace" || got.Get("workspace") != "alpha" || got.Get("status") != "ready" || got.Get("owner_kind") != "pool" || got.Get("owner_ref") != "triage" || got.Get("parent_task_id") != "task-root" || got.Get("worktree") != "wt-alpha" || got.Get("participation_channel") != "builders" || got.Get("limit") != "3" {
+	}); got.Get("scope") != "workspace" || got.Get("workspace") != "alpha" || got.Get("status") != "ready" || got.Get("owner_kind") != "pool" || got.Get("owner_ref") != "triage" || got.Get("parent_task_id") != "task-root" || got.Get("worktree") != "wt-alpha" || got.Get("include_loop") != "true" || got.Get("loop_run_id") != "looprun-alpha" || got.Get("participation_channel") != "builders" || got.Get("limit") != "3" {
 		t.Fatalf("taskValues() = %v, want all task filters", got)
 	}
 

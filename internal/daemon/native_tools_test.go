@@ -10,6 +10,7 @@ import (
 	"math"
 	"os"
 	"path/filepath"
+	"reflect"
 	"slices"
 	"strconv"
 	"strings"
@@ -4537,12 +4538,6 @@ func TestDaemonNativeTools(t *testing.T) {
 		t.Parallel()
 
 		tasks := &nativeTaskManager{
-			listSummaries: []taskpkg.Summary{{
-				ID:     "task-listed",
-				Title:  "Listed task",
-				Status: taskpkg.TaskStatusPending,
-				Scope:  taskpkg.ScopeWorkspace,
-			}},
 			getView: func() *taskpkg.View {
 				rawClaimToken := "compozy_claim_READSECRET"
 				blockedReasons := []taskpkg.BlockedReason{{
@@ -4598,7 +4593,29 @@ func TestDaemonNativeTools(t *testing.T) {
 				tasks.lastCatalogQuery,
 			)
 		}
+		if got, want := tasks.lastCatalogQuery.ExcludeCreatedBy, []taskpkg.ActorRef{{
+			Kind: taskpkg.ActorKindDaemon, Ref: "loop-coordinator",
+		}}; !reflect.DeepEqual(got, want) {
+			t.Fatalf("default ExcludeCreatedBy = %#v, want %#v", got, want)
+		}
 
+		_, err = registry.Call(
+			t.Context(),
+			scope,
+			toolspkg.CallRequest{
+				ToolID: toolspkg.ToolIDTaskList,
+				Input: json.RawMessage(
+					`{"scope":"workspace","include_loop":true,"loop_run_id":"looprun-transport-parity"}`,
+				),
+			},
+		)
+		if err != nil {
+			t.Fatalf("Registry.Call(task_list include Loop) error = %v", err)
+		}
+		if tasks.listCalls != 2 || tasks.lastCatalogQuery.LoopRunID != apitest.TaskLoopParityRunID ||
+			len(tasks.lastCatalogQuery.ExcludeCreatedBy) != 0 {
+			t.Fatalf("included Loop query/calls = %#v/%d", tasks.lastCatalogQuery, tasks.listCalls)
+		}
 		readResult, err := registry.Call(
 			t.Context(),
 			scope,
@@ -4712,6 +4729,201 @@ func TestDaemonNativeTools(t *testing.T) {
 				tasks.lastRunListTaskID,
 				tasks.lastRunQuery,
 			)
+		}
+	})
+
+	t.Run("Should query the canonical Loop catalog without crossing the bound workspace", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t)
+		database := openDaemonTestGlobalDB(t)
+		now := time.Date(2026, 8, 20, 16, 0, 0, 0, time.UTC)
+		insertWorkspace := func(name string) workspacepkg.Workspace {
+			t.Helper()
+			root := filepath.Join(t.TempDir(), name)
+			if err := database.InsertWorkspace(ctx, workspacepkg.Workspace{
+				RootDir: root, Name: name, CreatedAt: now, UpdatedAt: now,
+			}); err != nil {
+				t.Fatalf("InsertWorkspace(%q) error = %v", name, err)
+			}
+			workspace, err := database.GetWorkspaceByPath(ctx, root)
+			if err != nil {
+				t.Fatalf("GetWorkspaceByPath(%q) error = %v", name, err)
+			}
+			return workspace
+		}
+		localWorkspace := insertWorkspace("native-local")
+		foreignWorkspace := insertWorkspace("native-foreign")
+		loopActor := taskpkg.ActorIdentity{Kind: taskpkg.ActorKindDaemon, Ref: "loop-coordinator"}
+		loopOrigin := taskpkg.Origin{Kind: taskpkg.OriginKindDaemon, Ref: "loop-coordinator"}
+		marshalMetadata := func(value map[string]any) json.RawMessage {
+			t.Helper()
+			encoded, err := json.Marshal(value)
+			if err != nil {
+				t.Fatalf("json.Marshal(native Loop metadata) error = %v", err)
+			}
+			return encoded
+		}
+		coordinatorMetadata := marshalMetadata(map[string]any{
+			"loop_run_id": apitest.TaskLoopParityRunID,
+			"loop_name":   apitest.TaskLoopParityName,
+		})
+		cellMetadata := marshalMetadata(map[string]any{
+			"loop_run_id": apitest.TaskLoopParityRunID,
+			"loop_name":   apitest.TaskLoopParityName,
+			"generation":  apitest.TaskLoopParityGeneration,
+			"node_id":     apitest.TaskLoopParityNodeID,
+			"item_index":  apitest.TaskLoopParityItemIndex,
+		})
+		createCompletedLoopTask := func(
+			id string,
+			parentID string,
+			title string,
+			metadata json.RawMessage,
+		) {
+			t.Helper()
+			taskRecord := taskpkg.Task{
+				ID: id, Identifier: id, Scope: taskpkg.ScopeWorkspace, WorkspaceID: localWorkspace.ID,
+				ParentTaskID: parentID, Title: title, Priority: taskpkg.DefaultPriority,
+				MaxAttempts: taskpkg.MaxTaskMaxAttempts, Status: taskpkg.TaskStatusCompleted,
+				ApprovalPolicy: taskpkg.ApprovalPolicyNone, ApprovalState: taskpkg.ApprovalStateNotRequired,
+				CreatedBy: loopActor, Origin: loopOrigin, CreatedAt: now, UpdatedAt: now, ClosedAt: now,
+				Metadata: metadata,
+			}
+			if err := database.CreateTask(ctx, taskRecord); err != nil {
+				t.Fatalf("CreateTask(%s) error = %v", id, err)
+			}
+		}
+		createCompletedLoopTask(
+			apitest.TaskLoopParityCoordinatorID,
+			"",
+			"Transport Loop coordinator",
+			coordinatorMetadata,
+		)
+		createCompletedLoopTask(
+			apitest.TaskLoopParityCellID,
+			apitest.TaskLoopParityCoordinatorID,
+			"Transport Loop cell",
+			cellMetadata,
+		)
+		actor, err := taskpkg.DeriveDaemonActorContext("native-boundary-test", "daemon.native.test")
+		if err != nil {
+			t.Fatalf("DeriveDaemonActorContext() error = %v", err)
+		}
+		importCompletedLoopRun := func(
+			runID string,
+			taskID string,
+			runKind taskpkg.RunKind,
+			attempt int32,
+			metadata json.RawMessage,
+		) {
+			t.Helper()
+			run := taskpkg.Run{
+				ID: runID, TaskID: taskID, WorkspaceID: localWorkspace.ID,
+				Attempt: attempt, RunKind: runKind, Status: taskpkg.TaskRunStatusCompleted,
+				LoopRunID: apitest.TaskLoopParityRunID, Origin: loopOrigin, Metadata: metadata,
+				RunNetworkState: &taskpkg.RunNetworkState{NetworkSpec: participation.LocalSpec()},
+				QueuedAt:        now, EndedAt: now,
+			}
+			command, commandErr := taskpkg.NewCompletedRunHistoryImport(run, actor)
+			if commandErr != nil {
+				t.Fatalf("NewCompletedRunHistoryImport(%s) error = %v", runID, commandErr)
+			}
+			if importErr := database.ImportCompletedRunHistory(ctx, &command); importErr != nil {
+				t.Fatalf("ImportCompletedRunHistory(%s) error = %v", runID, importErr)
+			}
+		}
+		importCompletedLoopRun(
+			"run-native-local-coordinator",
+			apitest.TaskLoopParityCoordinatorID,
+			taskpkg.RunKindCoordinator,
+			1,
+			coordinatorMetadata,
+		)
+		for attempt := int32(1); attempt <= 3; attempt++ {
+			importCompletedLoopRun(
+				fmt.Sprintf("run-native-local-cell-%d", attempt),
+				apitest.TaskLoopParityCellID,
+				taskpkg.RunKindWorker,
+				attempt,
+				cellMetadata,
+			)
+		}
+		foreignTask := taskpkg.Task{
+			ID: "task-native-foreign-loop", Identifier: "task-native-foreign-loop",
+			Scope: taskpkg.ScopeWorkspace, WorkspaceID: foreignWorkspace.ID,
+			Title: "Foreign Loop cell", Priority: taskpkg.DefaultPriority,
+			MaxAttempts: taskpkg.DefaultTaskMaxAttempts, Status: taskpkg.TaskStatusCompleted,
+			ApprovalPolicy: taskpkg.ApprovalPolicyNone, ApprovalState: taskpkg.ApprovalStateNotRequired,
+			CreatedBy: taskpkg.ActorIdentity{Kind: taskpkg.ActorKindDaemon, Ref: "loop-coordinator"},
+			Origin:    taskpkg.Origin{Kind: taskpkg.OriginKindDaemon, Ref: "loop-coordinator"},
+			CreatedAt: now, UpdatedAt: now, ClosedAt: now,
+		}
+		if err := database.CreateTask(ctx, foreignTask); err != nil {
+			t.Fatalf("CreateTask(foreign Loop) error = %v", err)
+		}
+		foreignRun := taskpkg.Run{
+			ID: "run-native-foreign-loop", TaskID: foreignTask.ID, WorkspaceID: foreignWorkspace.ID,
+			Attempt: 1, RunKind: taskpkg.RunKindWorker, Status: taskpkg.TaskRunStatusCompleted,
+			LoopRunID: "looprun-native-foreign", Origin: foreignTask.Origin,
+			RunNetworkState: &taskpkg.RunNetworkState{NetworkSpec: participation.LocalSpec()},
+			QueuedAt:        now, EndedAt: now,
+		}
+		importCommand, err := taskpkg.NewCompletedRunHistoryImport(foreignRun, actor)
+		if err != nil {
+			t.Fatalf("NewCompletedRunHistoryImport(foreign Loop) error = %v", err)
+		}
+		if err := database.ImportCompletedRunHistory(ctx, &importCommand); err != nil {
+			t.Fatalf("ImportCompletedRunHistory(foreign Loop) error = %v", err)
+		}
+		taskManager, err := taskpkg.NewManager(taskpkg.WithStore(database))
+		if err != nil {
+			t.Fatalf("task.NewManager(real store) error = %v", err)
+		}
+		registry := newDaemonNativeRegistry(t, &daemonNativeToolsDeps{
+			Sessions: nativeNetworkTestSessionManager(localWorkspace.ID),
+			Tasks:    taskManager,
+		}, nativeApproveAllPolicyInputs())
+		localResult, err := registry.Call(
+			ctx,
+			toolspkg.Scope{SessionID: "sess-native-local", WorkspaceID: localWorkspace.ID},
+			toolspkg.CallRequest{
+				ToolID: toolspkg.ToolIDTaskList,
+				Input: json.RawMessage(fmt.Sprintf(
+					`{"scope":"workspace","loop_run_id":%q}`,
+					apitest.TaskLoopParityRunID,
+				)),
+			},
+		)
+		if err != nil {
+			t.Fatalf("Registry.Call(task_list canonical Loop) error = %v", err)
+		}
+		var localPayload contract.TasksResponse
+		if err := json.Unmarshal(localResult.Structured, &localPayload); err != nil {
+			t.Fatalf("json.Unmarshal(task_list canonical Loop) error = %v", err)
+		}
+		apitest.AssertLoopRunTaskCatalog(t, localPayload)
+
+		result, err := registry.Call(
+			ctx,
+			toolspkg.Scope{SessionID: "sess-native-local", WorkspaceID: localWorkspace.ID},
+			toolspkg.CallRequest{
+				ToolID: toolspkg.ToolIDTaskList,
+				Input: json.RawMessage(
+					`{"scope":"workspace","loop_run_id":"looprun-native-foreign"}`,
+				),
+			},
+		)
+		if err != nil {
+			t.Fatalf("Registry.Call(task_list foreign Loop) error = %v, want successful scoped empty result", err)
+		}
+		var payload contract.TasksResponse
+		if err := json.Unmarshal(result.Structured, &payload); err != nil {
+			t.Fatalf("json.Unmarshal(task_list foreign Loop) error = %v", err)
+		}
+		if payload.Page.Total != 0 || payload.Page.HasMore || payload.Page.NextCursor != "" ||
+			len(payload.Tasks) != 0 || len(payload.Facets.Statuses) != 0 || len(payload.Facets.Owners) != 0 {
+			t.Fatalf("native foreign Loop result = %#v, want bound scoped-empty catalog", payload)
 		}
 	})
 
@@ -12340,6 +12552,7 @@ type nativeTaskManager struct {
 	lastQuery               taskpkg.Query
 	lastCatalogQuery        taskpkg.CatalogQuery
 	listSummaries           []taskpkg.Summary
+	catalogStatusFacets     []taskpkg.CatalogStatusFacet
 	getCalls                int
 	lastGetID               string
 	getView                 *taskpkg.View
@@ -12666,9 +12879,10 @@ func (m *nativeTaskManager) ListTaskCatalog(
 		Limit:       query.Limit,
 	}
 	return taskpkg.CatalogPage{
-		Tasks: append([]taskpkg.Summary(nil), m.listSummaries...),
-		Total: len(m.listSummaries),
-		Limit: query.Limit,
+		Tasks:        append([]taskpkg.Summary(nil), m.listSummaries...),
+		StatusFacets: append([]taskpkg.CatalogStatusFacet(nil), m.catalogStatusFacets...),
+		Total:        len(m.listSummaries),
+		Limit:        query.Limit,
 	}, nil
 }
 

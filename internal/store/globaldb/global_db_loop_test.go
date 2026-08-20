@@ -20,6 +20,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/compozy/compozy/internal/diagnostics"
 	hookspkg "github.com/compozy/compozy/internal/hooks"
 	looppkg "github.com/compozy/compozy/internal/loop"
 	"github.com/compozy/compozy/internal/loop/dsl"
@@ -106,7 +107,8 @@ func functionCallsIdentifier(function *ast.FuncDecl, name string) bool {
 func TestGlobalDBLoopTerminalReconciliationShouldConvergeExecutionRecords(t *testing.T) {
 	t.Parallel()
 
-	t.Run("Should repair a terminal orphan once and backfill coordinator provenance UT-030 UT-031 UT-033 IT-005 IT-006 IT-025", func(t *testing.T) {
+	const terminalOrphanCase = "Should repair a terminal orphan once and project backfilled coordinator provenance UT-030 UT-031 UT-033 IT-005 IT-006 IT-025"
+	t.Run(terminalOrphanCase, func(t *testing.T) {
 		t.Parallel()
 
 		globalDB := openLoopTestGlobalDB(t)
@@ -119,7 +121,11 @@ func TestGlobalDBLoopTerminalReconciliationShouldConvergeExecutionRecords(t *tes
 			t.Fatalf("CreateLoopRunForStart() error = %v", err)
 		}
 		coordinatorTaskID := loopCoordinatorTaskID(run.ID)
-		if _, err := globalDB.db.ExecContext(ctx, `UPDATE tasks SET metadata_json = '{}' WHERE id = ?`, coordinatorTaskID); err != nil {
+		if _, err := globalDB.db.ExecContext(
+			ctx,
+			`UPDATE tasks SET metadata_json = '{}' WHERE id = ?`,
+			coordinatorTaskID,
+		); err != nil {
 			t.Fatalf("clear coordinator metadata error = %v", err)
 		}
 		if _, err := globalDB.db.ExecContext(ctx, `UPDATE loop_runs SET status = 'failed' WHERE id = ?`, run.ID); err != nil {
@@ -182,6 +188,24 @@ func TestGlobalDBLoopTerminalReconciliationShouldConvergeExecutionRecords(t *tes
 		}
 		if repairedAgain, err := globalDB.BackfillLoopProvenance(ctx); err != nil || repairedAgain != 0 {
 			t.Fatalf("BackfillLoopProvenance(second) = %d, %v, want 0, nil", repairedAgain, err)
+		}
+		catalog, err := globalDB.ListTaskCatalog(ctx, taskpkg.CatalogQuery{
+			Scope: taskpkg.CatalogScopeWorkspace, WorkspaceID: string(run.WorkspaceID),
+			LoopRunID: string(run.ID), IncludeDrafts: true, Limit: 10,
+		})
+		if err != nil {
+			t.Fatalf("ListTaskCatalog(backfilled coordinator) error = %v", err)
+		}
+		if len(catalog.Tasks) != 1 || catalog.Tasks[0].ID != coordinatorTaskID {
+			t.Fatalf("backfilled coordinator catalog = %#v, want only %q", catalog.Tasks, coordinatorTaskID)
+		}
+		provenance := catalog.Tasks[0].RunProvenance
+		if provenance == nil || provenance.LoopRunID != string(run.ID) ||
+			provenance.RunKind != taskpkg.RunKindCoordinator {
+			t.Fatalf("backfilled coordinator provenance = %#v", provenance)
+		}
+		if catalog.Tasks[0].Status != taskpkg.TaskStatusFailed {
+			t.Fatalf("backfill changed coordinator status to %q", catalog.Tasks[0].Status)
 		}
 	})
 
@@ -293,7 +317,77 @@ func TestGlobalDBLoopTerminalReconciliationShouldConvergeExecutionRecords(t *tes
 		}
 	})
 
-	t.Run("Should settle a retention orphan with relational provenance only UT-032 IT-009", func(t *testing.T) {
+	t.Run("Should backfill active coordinator metadata without changing lifecycle IT-029", func(t *testing.T) {
+		t.Parallel()
+
+		globalDB := openLoopTestGlobalDB(t)
+		ctx := testutil.Context(t)
+		now := time.Date(2026, time.August, 20, 9, 30, 0, 0, time.UTC)
+		run, err := globalDB.CreateLoopRunForStart(
+			ctx, testLoopRun("looprun-active-backfill", now, looppkg.StatusRunning), dsl.ConcurrencyAllow,
+		)
+		if err != nil {
+			t.Fatalf("CreateLoopRunForStart() error = %v", err)
+		}
+		coordinatorTaskID := loopCoordinatorTaskID(run.ID)
+		beforeTask, err := globalDB.GetTask(ctx, coordinatorTaskID)
+		if err != nil {
+			t.Fatalf("GetTask(before backfill) error = %v", err)
+		}
+		var taskRunID string
+		var beforeRunStatus string
+		if err := globalDB.db.QueryRowContext(ctx, `SELECT id, status FROM task_runs
+			WHERE task_id = ? AND loop_run_id = ? AND run_kind = 'coordinator'`,
+			coordinatorTaskID, run.ID).Scan(&taskRunID, &beforeRunStatus); err != nil {
+			t.Fatalf("read coordinator run before backfill error = %v", err)
+		}
+		if _, err := globalDB.db.ExecContext(
+			ctx,
+			`UPDATE tasks SET metadata_json = '{}' WHERE id = ?`,
+			coordinatorTaskID,
+		); err != nil {
+			t.Fatalf("clear active coordinator metadata error = %v", err)
+		}
+
+		repaired, err := globalDB.BackfillLoopProvenance(ctx)
+		if err != nil {
+			t.Fatalf("BackfillLoopProvenance() error = %v", err)
+		}
+		if repaired != 1 {
+			t.Fatalf("BackfillLoopProvenance() = %d, want 1", repaired)
+		}
+		afterTask, err := globalDB.GetTask(ctx, coordinatorTaskID)
+		if err != nil {
+			t.Fatalf("GetTask(after backfill) error = %v", err)
+		}
+		var afterRunStatus string
+		if err := globalDB.db.QueryRowContext(ctx, `SELECT status FROM task_runs WHERE id = ?`, taskRunID).
+			Scan(&afterRunStatus); err != nil {
+			t.Fatalf("read coordinator run after backfill error = %v", err)
+		}
+		if afterTask.Status != beforeTask.Status || afterTask.CurrentRunID != beforeTask.CurrentRunID ||
+			afterRunStatus != beforeRunStatus {
+			t.Fatalf(
+				"backfill changed lifecycle: task %q/%q run %q, want %q/%q run %q",
+				afterTask.Status, afterTask.CurrentRunID, afterRunStatus,
+				beforeTask.Status, beforeTask.CurrentRunID, beforeRunStatus,
+			)
+		}
+		catalog, err := globalDB.ListTaskCatalog(ctx, taskpkg.CatalogQuery{
+			Scope: taskpkg.CatalogScopeWorkspace, WorkspaceID: string(run.WorkspaceID),
+			LoopRunID: string(run.ID), IncludeDrafts: true, Limit: 10,
+		})
+		if err != nil {
+			t.Fatalf("ListTaskCatalog(active backfill) error = %v", err)
+		}
+		if len(catalog.Tasks) != 1 || catalog.Tasks[0].RunProvenance == nil ||
+			catalog.Tasks[0].RunProvenance.RunKind != taskpkg.RunKindCoordinator {
+			t.Fatalf("active backfill catalog = %#v", catalog.Tasks)
+		}
+	})
+
+	const retentionOrphanCase = "Should settle and project a retention orphan with relational provenance only UT-032 IT-009 IT-029"
+	t.Run(retentionOrphanCase, func(t *testing.T) {
 		t.Parallel()
 
 		globalDB := openLoopTestGlobalDB(t)
@@ -348,6 +442,21 @@ func TestGlobalDBLoopTerminalReconciliationShouldConvergeExecutionRecords(t *tes
 		}
 		if _, exists := metadata["loop_name"]; exists {
 			t.Fatalf("missing-run metadata retained loop_name: %#v", metadata)
+		}
+		catalog, err := globalDB.ListTaskCatalog(ctx, taskpkg.CatalogQuery{
+			Scope: taskpkg.CatalogScopeWorkspace, WorkspaceID: string(run.WorkspaceID),
+			LoopRunID: missingRunID, IncludeDrafts: true, Limit: 10,
+		})
+		if err != nil {
+			t.Fatalf("ListTaskCatalog(retention orphan) error = %v", err)
+		}
+		if len(catalog.Tasks) != 1 || catalog.Tasks[0].ID != coordinatorTaskID {
+			t.Fatalf("retention-orphan catalog = %#v, want only %q", catalog.Tasks, coordinatorTaskID)
+		}
+		provenance := catalog.Tasks[0].RunProvenance
+		if provenance == nil || provenance.LoopRunID != missingRunID ||
+			provenance.RunKind != taskpkg.RunKindCoordinator {
+			t.Fatalf("retention-orphan provenance = %#v", provenance)
 		}
 	})
 
@@ -625,6 +734,27 @@ func countTaskStatusEventsForTest(t *testing.T, globalDB *GlobalDB, taskID strin
 		t.Fatalf("count task status events error = %v", err)
 	}
 	return count
+}
+
+func singleTaskStatusEventPayloadForTest(
+	t *testing.T,
+	globalDB *GlobalDB,
+	taskID string,
+) taskStatusChangedEventPayload {
+	t.Helper()
+	if got := countTaskStatusEventsForTest(t, globalDB, taskID); got != 1 {
+		t.Fatalf("task %q status events = %d, want 1", taskID, got)
+	}
+	var raw []byte
+	if err := globalDB.db.QueryRowContext(testutil.Context(t), `SELECT payload_json FROM task_events
+		WHERE task_id = ? AND event_type = 'task.status_changed'`, taskID).Scan(&raw); err != nil {
+		t.Fatalf("read task %q status event error = %v", taskID, err)
+	}
+	var payload taskStatusChangedEventPayload
+	if err := json.Unmarshal(raw, &payload); err != nil {
+		t.Fatalf("decode task %q status event error = %v", taskID, err)
+	}
+	return payload
 }
 
 // Invariant: a time-travel operation and its generation or child run commit atomically under one
@@ -2956,15 +3086,51 @@ func TestGlobalDBLoopNodeRequeueShouldBeAtomic(t *testing.T) {
 		now := time.Date(2026, time.August, 2, 23, 50, 0, 0, time.UTC)
 		run := seedQuarantinedLoopNodeForTest(t, globalDB, now, looppkg.StatusRunning)
 		expectedRevision := int64(4)
-		result, err := globalDB.RequeueNode(ctx, looppkg.NodeRequeueMutation{
+		requeueReason := strings.Repeat("target repaired ", 2_000) + "api_key=planted-secret"
+		mutation := looppkg.NodeRequeueMutation{
 			WorkspaceID:      looppkg.WorkspaceID(" " + string(run.WorkspaceID) + " "),
 			RunID:            looppkg.RunID(" " + string(run.ID) + " "),
 			NodeID:           " finish ",
-			Reason:           strings.Repeat("target repaired ", 2_000) + "api_key=planted-secret",
+			Reason:           requeueReason,
 			ExpectedRevision: &expectedRevision,
 			Actor:            operatorActorContextForTest("operator:alice"),
 			RequestedAt:      now.Add(time.Minute),
+		}
+		if _, err := globalDB.db.ExecContext(ctx, `CREATE TEMP TRIGGER fail_requeue_task_status_event
+			BEFORE INSERT ON task_events
+			WHEN NEW.event_type = 'task.status_changed'
+			BEGIN SELECT RAISE(ABORT, 'forced requeue task status event failure'); END`); err != nil {
+			t.Fatalf("create requeue task status event failure trigger error = %v", err)
+		}
+		if _, err := globalDB.RequeueNode(ctx, mutation); err == nil ||
+			!strings.Contains(err.Error(), "forced requeue task status event failure") {
+			t.Fatalf("RequeueNode(forced event failure) error = %v", err)
+		}
+		cellTaskID := looppkg.NodeCellTaskID(run.ID, 2, "finish", 0)
+		stillParked, err := globalDB.GetTask(ctx, cellTaskID)
+		if err != nil {
+			t.Fatalf("GetTask(after rolled back requeue) error = %v", err)
+		}
+		if stillParked.Status != taskpkg.TaskStatusNeedsAttention || stillParked.NeedsAttention == nil {
+			t.Fatalf("task after rolled back requeue = %#v, want unchanged park", stillParked)
+		}
+		rolledBackControls, err := globalDB.ListNodeControls(ctx, run.WorkspaceID, run.ID)
+		if err != nil {
+			t.Fatalf("ListNodeControls(after rolled back requeue) error = %v", err)
+		}
+		finishRolledBack := slices.ContainsFunc(rolledBackControls, func(control looppkg.NodeControl) bool {
+			return control.NodeID == "finish" && control.Quarantined && control.Revision == 4
 		})
+		if len(rolledBackControls) != 3 || !finishRolledBack {
+			t.Fatalf("controls after rolled back requeue = %#v, want finish quarantine revision 4", rolledBackControls)
+		}
+		if got := countTaskStatusEventsForTest(t, globalDB, cellTaskID); got != 0 {
+			t.Fatalf("requeue task status events after rollback = %d, want 0", got)
+		}
+		if _, err := globalDB.db.ExecContext(ctx, `DROP TRIGGER fail_requeue_task_status_event`); err != nil {
+			t.Fatalf("drop requeue task status event failure trigger error = %v", err)
+		}
+		result, err := globalDB.RequeueNode(ctx, mutation)
 		if err != nil {
 			t.Fatalf("RequeueNode() error = %v", err)
 		}
@@ -3001,15 +3167,43 @@ func TestGlobalDBLoopNodeRequeueShouldBeAtomic(t *testing.T) {
 			t.Fatalf("unrelated control = %#v, want preserved attention", unrelated)
 		}
 		var attentionAt sql.NullTime
+		var taskStatus string
 		if err := globalDB.db.QueryRowContext(
 			ctx,
-			`SELECT needs_attention_at FROM tasks WHERE id = ?`,
-			looppkg.NodeCellTaskID(run.ID, 2, "finish", 0),
-		).Scan(&attentionAt); err != nil {
+			`SELECT needs_attention_at, status FROM tasks WHERE id = ?`,
+			cellTaskID,
+		).Scan(&attentionAt, &taskStatus); err != nil {
 			t.Fatalf("read requeued cell task attention error = %v", err)
 		}
-		if attentionAt.Valid {
-			t.Fatalf("cell task needs_attention_at = %v, want cleared on requeue", attentionAt.Time)
+		if attentionAt.Valid || taskStatus != string(taskpkg.TaskStatusReady) {
+			t.Fatalf(
+				"cell task attention/status = %v/%q, want cleared and ready on requeue",
+				attentionAt,
+				taskStatus,
+			)
+		}
+		statusPayload := singleTaskStatusEventPayloadForTest(
+			t,
+			globalDB,
+			cellTaskID,
+		)
+		if statusPayload.FromStatus != string(taskpkg.TaskStatusNeedsAttention) ||
+			statusPayload.ToStatus != string(taskpkg.TaskStatusReady) ||
+			statusPayload.Reason != diagnostics.RedactAndBound(requeueReason, 1024) ||
+			statusPayload.LoopRunID != string(run.ID) ||
+			statusPayload.ActorKind != string(taskpkg.ActorKindHuman) ||
+			statusPayload.ActorID != "operator:alice" {
+			t.Fatalf("requeue task status event = %#v, want audited unpark", statusPayload)
+		}
+		if _, replayErr := globalDB.RequeueNode(ctx, mutation); replayErr == nil {
+			t.Fatal("RequeueNode(replay) error = nil, want quarantine conflict")
+		}
+		if got := countTaskStatusEventsForTest(
+			t,
+			globalDB,
+			cellTaskID,
+		); got != 1 {
+			t.Fatalf("requeue task status events after conflict = %d, want 1", got)
 		}
 		var epoch int64
 		var firstScheduledAt time.Time
@@ -3369,30 +3563,61 @@ func TestGlobalDBQuarantineSnapshotShouldParkCellTasks(t *testing.T) {
 			t.Fatalf("json.Marshal(quarantine entry) error = %v", err)
 		}
 		cellTaskID := looppkg.NodeCellTaskID(created.ID, 1, "execute", 0)
-		if _, err := globalDB.CompleteCoordinatorAndEnqueueNext(
-			ctx,
-			taskpkg.CoordinatorCompletion{
-				RunID: claim.Run.ID, ClaimToken: claim.ClaimToken,
-				Actor: coordinatorActorContextForTest(), Now: now.Add(time.Second),
-				Plan: taskpkg.CoordinatorCompletionPlan{
-					Yield: true,
-					NodeTasks: []taskpkg.CoordinatorTaskSpec{{
-						TaskID: cellTaskID, Title: "Loop quarantine-park node execute",
-					}},
-					Snapshot: taskpkg.GenerationSnapshot{
-						LoopRunID: string(created.ID), Generation: 1,
-						Payload: looppkg.GenerationSnapshotPayload{
-							Outputs: []looppkg.GenerationOutput{{
-								Generation: 1, NodeID: "execute", Status: "quarantined", Attempt: 1, Epoch: 1,
-							}},
-							Controls: []looppkg.NodeControlMutation{{
-								Kind: looppkg.NodeControlMutationQuarantine, NodeID: "execute",
-								QuarantineEntry: entry, At: now.Add(time.Second),
-							}},
-						},
+		completion := taskpkg.CoordinatorCompletion{
+			RunID: claim.Run.ID, ClaimToken: claim.ClaimToken,
+			Actor: coordinatorActorContextForTest(), Now: now.Add(time.Second),
+			Plan: taskpkg.CoordinatorCompletionPlan{
+				Yield: true,
+				NodeTasks: []taskpkg.CoordinatorTaskSpec{{
+					TaskID: cellTaskID, Title: "Loop quarantine-park node execute",
+				}},
+				Snapshot: taskpkg.GenerationSnapshot{
+					LoopRunID: string(created.ID), Generation: 1,
+					Payload: looppkg.GenerationSnapshotPayload{
+						Outputs: []looppkg.GenerationOutput{{
+							Generation: 1, NodeID: "execute", Status: "quarantined", Attempt: 1, Epoch: 1,
+						}},
+						Controls: []looppkg.NodeControlMutation{{
+							Kind: looppkg.NodeControlMutationQuarantine, NodeID: "execute",
+							QuarantineEntry: entry, At: now.Add(time.Second),
+						}},
 					},
 				},
 			},
+		}
+		if _, err := globalDB.db.ExecContext(ctx, `CREATE TEMP TRIGGER fail_quarantine_task_status_event
+			BEFORE INSERT ON task_events
+			WHEN NEW.event_type = 'task.status_changed'
+			BEGIN SELECT RAISE(ABORT, 'forced quarantine task status event failure'); END`); err != nil {
+			t.Fatalf("create task status event failure trigger error = %v", err)
+		}
+		if _, err := globalDB.CompleteCoordinatorAndEnqueueNext(
+			ctx,
+			completion,
+			looppkg.NewStoreFinalizer(),
+		); err == nil || !strings.Contains(err.Error(), "forced quarantine task status event failure") {
+			t.Fatalf("CompleteCoordinatorAndEnqueueNext(forced event failure) error = %v", err)
+		}
+		if _, err := globalDB.GetTask(ctx, cellTaskID); !errors.Is(err, taskpkg.ErrTaskNotFound) {
+			t.Fatalf("GetTask(after rolled back quarantine) error = %v, want ErrTaskNotFound", err)
+		}
+		if got := countTaskStatusEventsForTest(t, globalDB, cellTaskID); got != 0 {
+			t.Fatalf("quarantine task status events after rollback = %d, want 0", got)
+		}
+		var controlCount int
+		if err := globalDB.db.QueryRowContext(ctx, `SELECT COUNT(*) FROM loop_node_controls
+			WHERE loop_run_id = ? AND node_id = 'execute'`, created.ID).Scan(&controlCount); err != nil {
+			t.Fatalf("count node controls after rolled back quarantine error = %v", err)
+		}
+		if controlCount != 0 {
+			t.Fatalf("node controls after rolled back quarantine = %d, want 0", controlCount)
+		}
+		if _, err := globalDB.db.ExecContext(ctx, `DROP TRIGGER fail_quarantine_task_status_event`); err != nil {
+			t.Fatalf("drop task status event failure trigger error = %v", err)
+		}
+		if _, err := globalDB.CompleteCoordinatorAndEnqueueNext(
+			ctx,
+			completion,
 			looppkg.NewStoreFinalizer(),
 		); err != nil {
 			t.Fatalf("CompleteCoordinatorAndEnqueueNext(quarantine) error = %v", err)
@@ -3401,12 +3626,35 @@ func TestGlobalDBQuarantineSnapshotShouldParkCellTasks(t *testing.T) {
 		if err != nil {
 			t.Fatalf("GetTask(parked cell) error = %v", err)
 		}
-		if parked.NeedsAttention == nil || parked.NeedsAttention.At.IsZero() ||
+		if parked.Status != taskpkg.TaskStatusNeedsAttention || parked.NeedsAttention == nil ||
+			parked.NeedsAttention.At.IsZero() ||
 			!strings.Contains(parked.NeedsAttention.Reason, "quarantined") {
 			t.Fatalf(
-				"cell task needs_attention = %#v, want quarantine park with reason",
+				"cell task status/needs_attention = %q/%#v, want quarantine park with reason",
+				parked.Status,
 				parked.NeedsAttention,
 			)
+		}
+		statusPayload := singleTaskStatusEventPayloadForTest(t, globalDB, cellTaskID)
+		wantReason := "loop node execute is quarantined; requeue it from the run to resume"
+		if statusPayload.FromStatus != string(taskpkg.TaskStatusReady) ||
+			statusPayload.ToStatus != string(taskpkg.TaskStatusNeedsAttention) ||
+			statusPayload.Reason != wantReason || statusPayload.LoopRunID != string(created.ID) ||
+			statusPayload.ActorKind != string(taskpkg.ActorKindDaemon) || statusPayload.ActorID != "loop" {
+			t.Fatalf("quarantine task status event = %#v, want audited park", statusPayload)
+		}
+		if _, err := globalDB.CompleteCoordinatorAndEnqueueNext(
+			ctx,
+			completion,
+			looppkg.NewStoreFinalizer(),
+		); !errors.Is(err, taskpkg.ErrInvalidStatusTransition) {
+			t.Fatalf(
+				"CompleteCoordinatorAndEnqueueNext(quarantine replay) error = %v, want ErrInvalidStatusTransition",
+				err,
+			)
+		}
+		if got := countTaskStatusEventsForTest(t, globalDB, cellTaskID); got != 1 {
+			t.Fatalf("quarantine task status events after replay = %d, want 1", got)
 		}
 	})
 }
@@ -6501,7 +6749,8 @@ func seedQuarantinedLoopNodeForTest(
 	}
 	if _, err := globalDB.db.ExecContext(
 		ctx,
-		`UPDATE tasks SET needs_attention_reason = 'loop node finish is quarantined',
+		`UPDATE tasks SET status = 'needs_attention',
+			needs_attention_reason = 'loop node finish is quarantined',
 			needs_attention_at = ?, needs_attention_by_kind = 'daemon',
 			needs_attention_by_ref = 'loop-coordinator' WHERE id = ?`,
 		storepkg.FormatTimestamp(at),

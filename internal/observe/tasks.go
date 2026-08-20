@@ -37,6 +37,7 @@ type TaskSummaryQuery struct {
 	ParticipationChannel string             `json:"participation_channel,omitempty"`
 	OriginKind           taskpkg.OriginKind `json:"origin_kind,omitempty"`
 	Search               string             `json:"search,omitempty"`
+	ExcludeCreatedBy     []taskpkg.ActorRef `json:"exclude_created_by,omitempty"`
 }
 
 // Validate ensures the summary query uses supported filters.
@@ -56,6 +57,13 @@ func (q TaskSummaryQuery) Validate() error {
 	}
 	if q.OriginKind.Normalize() != "" {
 		if err := q.OriginKind.Validate("task_summary_query.origin_kind"); err != nil {
+			return err
+		}
+	}
+	for index := range q.ExcludeCreatedBy {
+		if err := q.ExcludeCreatedBy[index].Validate(
+			fmt.Sprintf("task_summary_query.exclude_created_by[%d]", index),
+		); err != nil {
 			return err
 		}
 	}
@@ -88,6 +96,7 @@ type TaskDashboardQuery struct {
 	OwnerRef             string             `json:"owner_ref,omitempty"`
 	ParticipationChannel string             `json:"participation_channel,omitempty"`
 	OriginKind           taskpkg.OriginKind `json:"origin_kind,omitempty"`
+	ExcludeCreatedBy     []taskpkg.ActorRef `json:"exclude_created_by,omitempty"`
 }
 
 // Validate ensures the dashboard query uses supported filters.
@@ -114,6 +123,7 @@ func (q TaskDashboardQuery) summaryQuery() TaskSummaryQuery {
 		OwnerRef:             q.OwnerRef,
 		ParticipationChannel: q.ParticipationChannel,
 		OriginKind:           q.OriginKind,
+		ExcludeCreatedBy:     q.ExcludeCreatedBy,
 	}
 }
 

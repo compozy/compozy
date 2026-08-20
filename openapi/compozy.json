@@ -177629,6 +177629,22 @@
             }
           },
           {
+            "description": "Include Loop execution records",
+            "in": "query",
+            "name": "include_loop",
+            "schema": {
+              "type": "boolean"
+            }
+          },
+          {
+            "description": "Filter by Loop run ID and include Loop records",
+            "in": "query",
+            "name": "loop_run_id",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
             "description": "Filter by task approval state",
             "in": "query",
             "name": "approval_state",
@@ -178176,6 +178192,40 @@
                             "format": "int64",
                             "type": "integer"
                           },
+                          "loop": {
+                            "nullable": true,
+                            "properties": {
+                              "generation": {
+                                "nullable": true,
+                                "type": "integer"
+                              },
+                              "item_index": {
+                                "nullable": true,
+                                "type": "integer"
+                              },
+                              "loop_name": {
+                                "type": "string"
+                              },
+                              "node_id": {
+                                "type": "string"
+                              },
+                              "role": {
+                                "enum": [
+                                  "coordinator",
+                                  "cell"
+                                ],
+                                "type": "string"
+                              },
+                              "run_id": {
+                                "type": "string"
+                              }
+                            },
+                            "required": [
+                              "role",
+                              "run_id"
+                            ],
+                            "type": "object"
+                          },
                           "max_attempts": {
                             "type": "integer"
                           },
@@ -178541,10 +178591,14 @@
                     },
                     "error": {
                       "type": "string"
+                    },
+                    "field": {
+                      "type": "string"
                     }
                   },
                   "required": [
-                    "error"
+                    "error",
+                    "field"
                   ],
                   "type": "object"
                 }
@@ -179273,6 +179327,40 @@
                         "latest_event_seq": {
                           "format": "int64",
                           "type": "integer"
+                        },
+                        "loop": {
+                          "nullable": true,
+                          "properties": {
+                            "generation": {
+                              "nullable": true,
+                              "type": "integer"
+                            },
+                            "item_index": {
+                              "nullable": true,
+                              "type": "integer"
+                            },
+                            "loop_name": {
+                              "type": "string"
+                            },
+                            "node_id": {
+                              "type": "string"
+                            },
+                            "role": {
+                              "enum": [
+                                "coordinator",
+                                "cell"
+                              ],
+                              "type": "string"
+                            },
+                            "run_id": {
+                              "type": "string"
+                            }
+                          },
+                          "required": [
+                            "role",
+                            "run_id"
+                          ],
+                          "type": "object"
                         },
                         "max_attempts": {
                           "type": "integer"
@@ -182901,6 +182989,40 @@
                               "format": "int64",
                               "type": "integer"
                             },
+                            "loop": {
+                              "nullable": true,
+                              "properties": {
+                                "generation": {
+                                  "nullable": true,
+                                  "type": "integer"
+                                },
+                                "item_index": {
+                                  "nullable": true,
+                                  "type": "integer"
+                                },
+                                "loop_name": {
+                                  "type": "string"
+                                },
+                                "node_id": {
+                                  "type": "string"
+                                },
+                                "role": {
+                                  "enum": [
+                                    "coordinator",
+                                    "cell"
+                                  ],
+                                  "type": "string"
+                                },
+                                "run_id": {
+                                  "type": "string"
+                                }
+                              },
+                              "required": [
+                                "role",
+                                "run_id"
+                              ],
+                              "type": "object"
+                            },
                             "max_attempts": {
                               "type": "integer"
                             },
@@ -183938,6 +184060,40 @@
                         "latest_event_seq": {
                           "format": "int64",
                           "type": "integer"
+                        },
+                        "loop": {
+                          "nullable": true,
+                          "properties": {
+                            "generation": {
+                              "nullable": true,
+                              "type": "integer"
+                            },
+                            "item_index": {
+                              "nullable": true,
+                              "type": "integer"
+                            },
+                            "loop_name": {
+                              "type": "string"
+                            },
+                            "node_id": {
+                              "type": "string"
+                            },
+                            "role": {
+                              "enum": [
+                                "coordinator",
+                                "cell"
+                              ],
+                              "type": "string"
+                            },
+                            "run_id": {
+                              "type": "string"
+                            }
+                          },
+                          "required": [
+                            "role",
+                            "run_id"
+                          ],
+                          "type": "object"
                         },
                         "max_attempts": {
                           "type": "integer"
@@ -185348,6 +185504,40 @@
                         "latest_event_seq": {
                           "format": "int64",
                           "type": "integer"
+                        },
+                        "loop": {
+                          "nullable": true,
+                          "properties": {
+                            "generation": {
+                              "nullable": true,
+                              "type": "integer"
+                            },
+                            "item_index": {
+                              "nullable": true,
+                              "type": "integer"
+                            },
+                            "loop_name": {
+                              "type": "string"
+                            },
+                            "node_id": {
+                              "type": "string"
+                            },
+                            "role": {
+                              "enum": [
+                                "coordinator",
+                                "cell"
+                              ],
+                              "type": "string"
+                            },
+                            "run_id": {
+                              "type": "string"
+                            }
+                          },
+                          "required": [
+                            "role",
+                            "run_id"
+                          ],
+                          "type": "object"
                         },
                         "max_attempts": {
                           "type": "integer"
@@ -187779,6 +187969,40 @@
                           "format": "int64",
                           "type": "integer"
                         },
+                        "loop": {
+                          "nullable": true,
+                          "properties": {
+                            "generation": {
+                              "nullable": true,
+                              "type": "integer"
+                            },
+                            "item_index": {
+                              "nullable": true,
+                              "type": "integer"
+                            },
+                            "loop_name": {
+                              "type": "string"
+                            },
+                            "node_id": {
+                              "type": "string"
+                            },
+                            "role": {
+                              "enum": [
+                                "coordinator",
+                                "cell"
+                              ],
+                              "type": "string"
+                            },
+                            "run_id": {
+                              "type": "string"
+                            }
+                          },
+                          "required": [
+                            "role",
+                            "run_id"
+                          ],
+                          "type": "object"
+                        },
                         "max_attempts": {
                           "type": "integer"
                         },
@@ -188903,6 +189127,40 @@
                         "latest_event_seq": {
                           "format": "int64",
                           "type": "integer"
+                        },
+                        "loop": {
+                          "nullable": true,
+                          "properties": {
+                            "generation": {
+                              "nullable": true,
+                              "type": "integer"
+                            },
+                            "item_index": {
+                              "nullable": true,
+                              "type": "integer"
+                            },
+                            "loop_name": {
+                              "type": "string"
+                            },
+                            "node_id": {
+                              "type": "string"
+                            },
+                            "role": {
+                              "enum": [
+                                "coordinator",
+                                "cell"
+                              ],
+                              "type": "string"
+                            },
+                            "run_id": {
+                              "type": "string"
+                            }
+                          },
+                          "required": [
+                            "role",
+                            "run_id"
+                          ],
+                          "type": "object"
                         },
                         "max_attempts": {
                           "type": "integer"
@@ -192237,6 +192495,40 @@
                               "format": "int64",
                               "type": "integer"
                             },
+                            "loop": {
+                              "nullable": true,
+                              "properties": {
+                                "generation": {
+                                  "nullable": true,
+                                  "type": "integer"
+                                },
+                                "item_index": {
+                                  "nullable": true,
+                                  "type": "integer"
+                                },
+                                "loop_name": {
+                                  "type": "string"
+                                },
+                                "node_id": {
+                                  "type": "string"
+                                },
+                                "role": {
+                                  "enum": [
+                                    "coordinator",
+                                    "cell"
+                                  ],
+                                  "type": "string"
+                                },
+                                "run_id": {
+                                  "type": "string"
+                                }
+                              },
+                              "required": [
+                                "role",
+                                "run_id"
+                              ],
+                              "type": "object"
+                            },
                             "max_attempts": {
                               "type": "integer"
                             },
@@ -195487,6 +195779,40 @@
                             "latest_event_seq": {
                               "format": "int64",
                               "type": "integer"
+                            },
+                            "loop": {
+                              "nullable": true,
+                              "properties": {
+                                "generation": {
+                                  "nullable": true,
+                                  "type": "integer"
+                                },
+                                "item_index": {
+                                  "nullable": true,
+                                  "type": "integer"
+                                },
+                                "loop_name": {
+                                  "type": "string"
+                                },
+                                "node_id": {
+                                  "type": "string"
+                                },
+                                "role": {
+                                  "enum": [
+                                    "coordinator",
+                                    "cell"
+                                  ],
+                                  "type": "string"
+                                },
+                                "run_id": {
+                                  "type": "string"
+                                }
+                              },
+                              "required": [
+                                "role",
+                                "run_id"
+                              ],
+                              "type": "object"
                             },
                             "max_attempts": {
                               "type": "integer"
@@ -202928,6 +203254,40 @@
                           "format": "int64",
                           "type": "integer"
                         },
+                        "loop": {
+                          "nullable": true,
+                          "properties": {
+                            "generation": {
+                              "nullable": true,
+                              "type": "integer"
+                            },
+                            "item_index": {
+                              "nullable": true,
+                              "type": "integer"
+                            },
+                            "loop_name": {
+                              "type": "string"
+                            },
+                            "node_id": {
+                              "type": "string"
+                            },
+                            "role": {
+                              "enum": [
+                                "coordinator",
+                                "cell"
+                              ],
+                              "type": "string"
+                            },
+                            "run_id": {
+                              "type": "string"
+                            }
+                          },
+                          "required": [
+                            "role",
+                            "run_id"
+                          ],
+                          "type": "object"
+                        },
                         "max_attempts": {
                           "type": "integer"
                         },
@@ -204485,6 +204845,40 @@
                           "format": "int64",
                           "type": "integer"
                         },
+                        "loop": {
+                          "nullable": true,
+                          "properties": {
+                            "generation": {
+                              "nullable": true,
+                              "type": "integer"
+                            },
+                            "item_index": {
+                              "nullable": true,
+                              "type": "integer"
+                            },
+                            "loop_name": {
+                              "type": "string"
+                            },
+                            "node_id": {
+                              "type": "string"
+                            },
+                            "role": {
+                              "enum": [
+                                "coordinator",
+                                "cell"
+                              ],
+                              "type": "string"
+                            },
+                            "run_id": {
+                              "type": "string"
+                            }
+                          },
+                          "required": [
+                            "role",
+                            "run_id"
+                          ],
+                          "type": "object"
+                        },
                         "max_attempts": {
                           "type": "integer"
                         },
@@ -205331,6 +205725,40 @@
                           "format": "int64",
                           "type": "integer"
                         },
+                        "loop": {
+                          "nullable": true,
+                          "properties": {
+                            "generation": {
+                              "nullable": true,
+                              "type": "integer"
+                            },
+                            "item_index": {
+                              "nullable": true,
+                              "type": "integer"
+                            },
+                            "loop_name": {
+                              "type": "string"
+                            },
+                            "node_id": {
+                              "type": "string"
+                            },
+                            "role": {
+                              "enum": [
+                                "coordinator",
+                                "cell"
+                              ],
+                              "type": "string"
+                            },
+                            "run_id": {
+                              "type": "string"
+                            }
+                          },
+                          "required": [
+                            "role",
+                            "run_id"
+                          ],
+                          "type": "object"
+                        },
                         "max_attempts": {
                           "type": "integer"
                         },
@@ -206159,6 +206587,40 @@
                         "latest_event_seq": {
                           "format": "int64",
                           "type": "integer"
+                        },
+                        "loop": {
+                          "nullable": true,
+                          "properties": {
+                            "generation": {
+                              "nullable": true,
+                              "type": "integer"
+                            },
+                            "item_index": {
+                              "nullable": true,
+                              "type": "integer"
+                            },
+                            "loop_name": {
+                              "type": "string"
+                            },
+                            "node_id": {
+                              "type": "string"
+                            },
+                            "role": {
+                              "enum": [
+                                "coordinator",
+                                "cell"
+                              ],
+                              "type": "string"
+                            },
+                            "run_id": {
+                              "type": "string"
+                            }
+                          },
+                          "required": [
+                            "role",
+                            "run_id"
+                          ],
+                          "type": "object"
                         },
                         "max_attempts": {
                           "type": "integer"
@@ -207001,6 +207463,40 @@
                         "latest_event_seq": {
                           "format": "int64",
                           "type": "integer"
+                        },
+                        "loop": {
+                          "nullable": true,
+                          "properties": {
+                            "generation": {
+                              "nullable": true,
+                              "type": "integer"
+                            },
+                            "item_index": {
+                              "nullable": true,
+                              "type": "integer"
+                            },
+                            "loop_name": {
+                              "type": "string"
+                            },
+                            "node_id": {
+                              "type": "string"
+                            },
+                            "role": {
+                              "enum": [
+                                "coordinator",
+                                "cell"
+                              ],
+                              "type": "string"
+                            },
+                            "run_id": {
+                              "type": "string"
+                            }
+                          },
+                          "required": [
+                            "role",
+                            "run_id"
+                          ],
+                          "type": "object"
                         },
                         "max_attempts": {
                           "type": "integer"
@@ -211826,6 +212322,40 @@
                         "latest_event_seq": {
                           "format": "int64",
                           "type": "integer"
+                        },
+                        "loop": {
+                          "nullable": true,
+                          "properties": {
+                            "generation": {
+                              "nullable": true,
+                              "type": "integer"
+                            },
+                            "item_index": {
+                              "nullable": true,
+                              "type": "integer"
+                            },
+                            "loop_name": {
+                              "type": "string"
+                            },
+                            "node_id": {
+                              "type": "string"
+                            },
+                            "role": {
+                              "enum": [
+                                "coordinator",
+                                "cell"
+                              ],
+                              "type": "string"
+                            },
+                            "run_id": {
+                              "type": "string"
+                            }
+                          },
+                          "required": [
+                            "role",
+                            "run_id"
+                          ],
+                          "type": "object"
                         },
                         "max_attempts": {
                           "type": "integer"
@@ -291174,6 +291704,40 @@
                         "latest_event_seq": {
                           "format": "int64",
                           "type": "integer"
+                        },
+                        "loop": {
+                          "nullable": true,
+                          "properties": {
+                            "generation": {
+                              "nullable": true,
+                              "type": "integer"
+                            },
+                            "item_index": {
+                              "nullable": true,
+                              "type": "integer"
+                            },
+                            "loop_name": {
+                              "type": "string"
+                            },
+                            "node_id": {
+                              "type": "string"
+                            },
+                            "role": {
+                              "enum": [
+                                "coordinator",
+                                "cell"
+                              ],
+                              "type": "string"
+                            },
+                            "run_id": {
+                              "type": "string"
+                            }
+                          },
+                          "required": [
+                            "role",
+                            "run_id"
+                          ],
+                          "type": "object"
                         },
                         "max_attempts": {
                           "type": "integer"

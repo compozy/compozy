@@ -4,6 +4,21 @@ package contracts
 
 import "time"
 
+type ValidationIssue struct {
+	Path     string        `json:"path"`
+	Scope    string        `json:"scope,omitempty"`
+	Line     int           `json:"line,omitempty"`
+	Column   int           `json:"column,omitempty"`
+	Field    string        `json:"field,omitempty"`
+	Message  string        `json:"message"`
+	Severity IssueSeverity `json:"severity"`
+}
+
+type ViewBadge struct {
+	Label string `json:"label"`
+	Tone  string `json:"tone"`
+}
+
 type ViewChrome struct {
 	IsLoading   bool        `json:"is_loading,omitempty"`
 	SearchText  *string     `json:"search_text,omitempty"`
@@ -204,10 +219,3 @@ type WorktreeContext struct {
 	Origin        string `json:"origin"`
 	RunID         string `json:"run_id,omitempty"`
 }
-
-type WorktreeControlPatch struct {
-	Deny       bool   `json:"deny,omitempty"`
-	DenyReason string `json:"deny_reason,omitempty"`
-}
-
-type WorktreeObservationPatch struct{}

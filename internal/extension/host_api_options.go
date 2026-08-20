@@ -35,6 +35,13 @@ func WithHostAPITaskManager(manager hostAPITaskManager) HostAPIOption {
 	}
 }
 
+// WithHostAPITaskCatalogFilterMapper injects the API-owned task catalog filter semantics.
+func WithHostAPITaskCatalogFilterMapper(mapper HostAPITaskCatalogFilterMapper) HostAPIOption {
+	return func(handler *HostAPIHandler) {
+		handler.taskFilters = mapper
+	}
+}
+
 // WithHostAPINetworkService injects the network runtime used by network Host API methods.
 func WithHostAPINetworkService(service hostAPINetworkService) HostAPIOption {
 	return func(handler *HostAPIHandler) {

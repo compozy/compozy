@@ -106,6 +106,7 @@ type TaskPayload struct {
 	UpdatedAt            time.Time               `json:"updated_at"`
 	ClosedAt             *time.Time              `json:"closed_at,omitempty"`
 	Metadata             json.RawMessage         `json:"metadata,omitempty"`
+	Loop                 *LoopProvenance         `json:"loop,omitempty"`
 }
 
 // TaskExecutionProfilePayload is the task-owned orchestration profile read model.

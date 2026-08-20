@@ -5,10 +5,13 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/compozy/compozy/internal/api/contract"
 	"github.com/compozy/compozy/internal/network"
 	taskpkg "github.com/compozy/compozy/internal/task"
 	"github.com/spf13/cobra"
 )
+
+const taskLoopColumn = "LOOP"
 
 func newTaskListCommand(deps commandDeps) *cobra.Command {
 	var (
@@ -21,6 +24,8 @@ func newTaskListCommand(deps commandDeps) *cobra.Command {
 		parentTaskID            string
 		worktreeID              string
 		participationChannelRaw string
+		includeLoop             bool
+		loopRunID               string
 		queryRaw                string
 		sortRaw                 string
 		cursor                  string
@@ -49,6 +54,8 @@ func newTaskListCommand(deps commandDeps) *cobra.Command {
 				ownerRef,
 				parentTaskID,
 				worktreeID,
+				includeLoop,
+				loopRunID,
 				participationChannelRaw,
 				queryRaw,
 				sortRaw,
@@ -75,6 +82,8 @@ func newTaskListCommand(deps commandDeps) *cobra.Command {
 	cmd.Flags().StringVar(&ownerRef, "owner-ref", "", "Filter by owner reference")
 	cmd.Flags().StringVar(&parentTaskID, "parent", "", "Filter by parent task ID")
 	cmd.Flags().StringVar(&worktreeID, "worktree", "", "Filter by active run worktree ID")
+	cmd.Flags().BoolVar(&includeLoop, "include-loop", false, "Include Loop execution records")
+	cmd.Flags().StringVar(&loopRunID, "loop-run", "", "Filter by Loop run ID")
 	cmd.Flags().StringVar(
 		&participationChannelRaw,
 		"participation-channel",
@@ -100,6 +109,8 @@ func parseTaskListFilters(
 	ownerRef string,
 	parentTaskID string,
 	worktreeID string,
+	includeLoop bool,
+	loopRunID string,
 	participationChannelRaw string,
 	queryRaw string,
 	sortRaw string,
@@ -157,6 +168,8 @@ func parseTaskListFilters(
 		OwnerRef:             trimmedOwnerRef,
 		ParentTaskID:         strings.TrimSpace(parentTaskID),
 		Worktree:             trimmedWorktreeID,
+		IncludeLoop:          includeLoop || strings.TrimSpace(loopRunID) != "",
+		LoopRunID:            strings.TrimSpace(loopRunID),
 		ParticipationChannel: strings.TrimSpace(participationChannelRaw),
 		Query:                strings.TrimSpace(queryRaw),
 		Sort:                 sortKey,
@@ -218,6 +231,7 @@ func taskSummaryListBundle(page TaskListRecord) outputBundle {
 			taskStatusValue,
 			taskOwnerValue,
 			taskParticipationChannelValue,
+			taskLoopColumn,
 			taskTitleValue,
 		},
 		"tasks",
@@ -230,6 +244,7 @@ func taskSummaryListBundle(page TaskListRecord) outputBundle {
 			taskStatusKey,
 			taskOwnerKey,
 			taskParticipationChannelKey,
+			loopLoopKey,
 			taskTitleKey,
 		},
 		func(item TaskCatalogItemRecord) []string {
@@ -242,6 +257,7 @@ func taskSummaryListBundle(page TaskListRecord) outputBundle {
 				stringOrDash(string(item.Status)),
 				stringOrDash(formatTaskOwnership(item.Owner)),
 				stringOrDash(resolvedParticipationChannel(item.ResolvedNetworkParticipation)),
+				stringOrDash(formatTaskLoopProvenance(item.Loop)),
 				stringOrDash(item.Title),
 			}
 		},
@@ -255,8 +271,27 @@ func taskSummaryListBundle(page TaskListRecord) outputBundle {
 				string(item.Status),
 				formatTaskOwnership(item.Owner),
 				resolvedParticipationChannelRaw(item.ResolvedNetworkParticipation),
+				formatTaskLoopProvenance(item.Loop),
 				item.Title,
 			}
 		},
 	)
+}
+
+func formatTaskLoopProvenance(provenance *contract.LoopProvenance) string {
+	if provenance == nil {
+		return ""
+	}
+	identity := strings.TrimSpace(provenance.LoopName)
+	if identity == "" {
+		identity = strings.TrimSpace(provenance.RunID)
+	}
+	suffix := loopRunKey
+	if provenance.Role == contract.LoopProvenanceRoleCell {
+		suffix = "cell"
+		if provenance.Generation != nil {
+			suffix = fmt.Sprintf("g%d", *provenance.Generation)
+		}
+	}
+	return identity + " · " + suffix
 }

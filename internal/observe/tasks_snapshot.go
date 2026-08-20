@@ -32,6 +32,7 @@ func (o *Observer) loadTaskSnapshot(ctx context.Context, query TaskSummaryQuery)
 		return taskSnapshot{}, fmt.Errorf("observe: list tasks for summary: %w", err)
 	}
 	tasks = filterTasksByOrigin(tasks, query.OriginKind)
+	tasks = filterTasksByCreatedBy(tasks, query.ExcludeCreatedBy)
 	runs, err := o.registry.ListTaskRuns(ctx, taskpkg.RunQuery{})
 	if err != nil {
 		return taskSnapshot{}, fmt.Errorf("observe: list task runs for summary: %w", err)

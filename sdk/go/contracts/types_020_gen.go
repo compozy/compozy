@@ -4,6 +4,19 @@ package contracts
 
 import "time"
 
+type SandboxProfilePayload struct {
+	Profile        string            `json:"profile,omitempty"`
+	Backend        string            `json:"backend,omitempty"`
+	SyncMode       string            `json:"sync_mode,omitempty"`
+	Persistence    string            `json:"persistence,omitempty"`
+	RuntimeRootDir string            `json:"runtime_root,omitempty"`
+	DestroyOnStop  bool              `json:"destroy_on_stop,omitempty"`
+	Env            map[string]string `json:"env,omitempty"`
+	SecretEnv      map[string]string `json:"secret_env,omitempty"`
+}
+
+type SandboxReadyPatch struct{}
+
 type SandboxReadyPayload struct {
 	Event                 HookEvent `json:"event"`
 	Timestamp             time.Time `json:"timestamp"`
@@ -248,27 +261,4 @@ type SessionEvent struct {
 	Type      string    `json:"type"`
 	Timestamp time.Time `json:"timestamp"`
 	Data      any       `json:"data,omitempty"`
-}
-
-type SessionEventsParams struct {
-	WorkspaceID string    `json:"workspace_id"`
-	SessionID   string    `json:"session_id"`
-	Type        string    `json:"type,omitempty"`
-	AgentName   string    `json:"agent_name,omitempty"`
-	TurnID      string    `json:"turn_id,omitempty"`
-	Limit       int       `json:"limit,omitempty"`
-	Offset      int64     `json:"offset,omitempty"`
-	Since       time.Time `json:"since,omitzero"`
-}
-
-type SessionFailureHealth struct {
-	SessionID       string      `json:"session_id"`
-	AgentName       string      `json:"agent_name,omitempty"`
-	Provider        string      `json:"provider,omitempty"`
-	WorkspaceID     string      `json:"workspace_id,omitempty"`
-	State           string      `json:"state,omitempty"`
-	FailureKind     FailureKind `json:"failure_kind"`
-	Summary         string      `json:"summary,omitempty"`
-	CrashBundlePath string      `json:"crash_bundle_path,omitempty"`
-	UpdatedAt       time.Time   `json:"updated_at"`
 }

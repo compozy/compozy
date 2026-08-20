@@ -352,7 +352,13 @@ func TestTaskCreateAndListCommandsParseTaskFields(t *testing.T) {
 				deps := newWorkspaceTestDeps(t, &stubClient{
 					listTasksFn: func(_ context.Context, query TaskListQuery) ([]TaskCatalogItemRecord, error) {
 						listQuery = query
-						return []TaskCatalogItemRecord{sampleTaskCatalogItemRecord()}, nil
+						generation := 2
+						record := sampleTaskCatalogItemRecord()
+						record.Loop = &contract.LoopProvenance{
+							RunID: "looprun-alpha", LoopName: "alpha", Role: contract.LoopProvenanceRoleCell,
+							Generation: &generation,
+						}
+						return []TaskCatalogItemRecord{record}, nil
 					},
 				})
 
@@ -367,6 +373,8 @@ func TestTaskCreateAndListCommandsParseTaskFields(t *testing.T) {
 					"--owner-ref", "triage",
 					"--parent", "task-root",
 					"--worktree", "wt-alpha",
+					"--include-loop",
+					"--loop-run", "looprun-alpha",
 					"--participation-channel", "builders",
 					"--limit", "3",
 					"-o", "json",
@@ -382,6 +390,8 @@ func TestTaskCreateAndListCommandsParseTaskFields(t *testing.T) {
 					listQuery.OwnerRef != "triage" ||
 					listQuery.ParentTaskID != "task-root" ||
 					listQuery.Worktree != "wt-alpha" ||
+					!listQuery.IncludeLoop ||
+					listQuery.LoopRunID != "looprun-alpha" ||
 					listQuery.ParticipationChannel != "builders" ||
 					listQuery.Limit != 3 {
 					t.Fatalf("listQuery = %#v, want parsed filters", listQuery)
@@ -391,7 +401,9 @@ func TestTaskCreateAndListCommandsParseTaskFields(t *testing.T) {
 				if err := json.Unmarshal([]byte(listJSON), &listed); err != nil {
 					t.Fatalf("json.Unmarshal(task list) error = %v", err)
 				}
-				if len(listed.Tasks) != 1 || listed.Tasks[0].ID != "task-1" {
+				if len(listed.Tasks) != 1 || listed.Tasks[0].ID != "task-1" ||
+					listed.Tasks[0].Loop == nil || listed.Tasks[0].Loop.RunID != "looprun-alpha" ||
+					listed.Tasks[0].Loop.Role != contract.LoopProvenanceRoleCell {
 					t.Fatalf("listed tasks = %#v, want one task summary", listed)
 				}
 			},
@@ -2954,9 +2966,32 @@ func TestTaskCommandsSupportDetailAndToonOutput(t *testing.T) {
 		}
 		if !strings.Contains(
 			toonOut,
-			"tasks[1]{id,identifier,scope,workspace_id,parent_task_id,status,owner,participation_channel,title}:",
+			"tasks[1]{id,identifier,scope,workspace_id,parent_task_id,status,owner,participation_channel,loop,title}:",
 		) || !strings.Contains(toonOut, "builders") {
 			t.Fatalf("task list toon output = %q, want tasks TOON array with builders", toonOut)
+		}
+	})
+
+	t.Run("Should render structured Loop provenance in the task table", func(t *testing.T) {
+		t.Parallel()
+
+		generation := 2
+		record := sampleTaskCatalogItemRecord()
+		record.Loop = &contract.LoopProvenance{
+			RunID: "looprun-alpha", LoopName: "alpha", Role: contract.LoopProvenanceRoleCell,
+			Generation: &generation,
+		}
+		deps := newWorkspaceTestDeps(t, &stubClient{
+			listTasksFn: func(context.Context, TaskListQuery) ([]TaskCatalogItemRecord, error) {
+				return []TaskCatalogItemRecord{record}, nil
+			},
+		})
+		humanOut, _, err := executeRootCommand(t, deps, "task", "list")
+		if err != nil {
+			t.Fatalf("task list error = %v", err)
+		}
+		if !strings.Contains(humanOut, "LOOP") || !strings.Contains(humanOut, "alpha · g2") {
+			t.Fatalf("task list output = %q, want structured Loop column", humanOut)
 		}
 	})
 }
@@ -3107,7 +3142,7 @@ func TestParseTaskListFiltersRejectsInvalidFilters(t *testing.T) {
 				nil,
 				commandDeps{},
 				nil,
-				"", "", "", "", tt.ownerKindRaw, tt.ownerRef, "", "", "", "", "", "", 0,
+				"", "", "", "", tt.ownerKindRaw, tt.ownerRef, "", "", false, "", "", "", "", "", 0,
 			)
 			if err == nil || !strings.Contains(err.Error(), "--owner-kind and --owner-ref must be provided together") {
 				t.Fatalf("parseTaskListFilters() error = %v, want paired owner filter validation", err)
@@ -3122,7 +3157,7 @@ func TestParseTaskListFiltersRejectsInvalidFilters(t *testing.T) {
 			nil,
 			commandDeps{},
 			nil,
-			"", "", "", "", "", "", "", "", "invalid channel!", "", "", "", 0,
+			"", "", "", "", "", "", "", "", false, "", "invalid channel!", "", "", "", 0,
 		)
 		if err == nil || !strings.Contains(err.Error(), "invalid --participation-channel value") ||
 			strings.Contains(err.Error(), "invalid --channel value") {
@@ -3137,7 +3172,7 @@ func TestParseTaskListFiltersRejectsInvalidFilters(t *testing.T) {
 			nil,
 			commandDeps{},
 			nil,
-			"all", "", "", "", "", "", "", "wt-alpha", "", "", "", "", 0,
+			"all", "", "", "", "", "", "", "wt-alpha", false, "", "", "", "", "", 0,
 		)
 		if err == nil || !strings.Contains(err.Error(), "--worktree requires a workspace") {
 			t.Fatalf("parseTaskListFilters() error = %v, want workspace boundary diagnostic", err)

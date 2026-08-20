@@ -11,7 +11,8 @@ import (
 const taskCatalogCTEBody = `,
 base_runs AS MATERIALIZED (
 	SELECT
-		tr.id, tr.task_id, tr.workspace_id, tr.status, tr.run_kind, tr.attempt, tr.recovery_count,
+		tr.id, tr.task_id, tr.workspace_id, tr.status, tr.run_kind, tr.loop_run_id,
+		tr.attempt, tr.recovery_count,
 		tr.previous_run_id, tr.failure_kind,
 		tr.claimed_by_kind, tr.claimed_by_ref, tr.session_id, tr.worktree_id,
 		tr.resolved_worktree_mode, tr.resolved_worktree_ref, tr.lease_until,
@@ -21,6 +22,18 @@ base_runs AS MATERIALIZED (
 	FROM base_tasks bt
 	CROSS JOIN task_runs AS tr INDEXED BY idx_task_runs_task
 	WHERE tr.task_id = bt.id
+),
+loop_provenance_candidates AS (
+	SELECT
+		task_id,
+		loop_run_id,
+		run_kind,
+		ROW_NUMBER() OVER (
+			PARTITION BY task_id
+			ORDER BY attempt DESC, queued_at DESC, id DESC
+		) AS row_number
+	FROM base_runs
+	WHERE NULLIF(TRIM(loop_run_id), '') IS NOT NULL
 ),
 base_events AS MATERIALIZED (
 	SELECT te.task_id, te.timestamp, te.event_seq
@@ -259,7 +272,9 @@ catalog_derived AS (
 		ar.claimed_at AS active_run_claimed_at,
 		ar.started_at AS active_run_started_at,
 		ar.ended_at AS active_run_ended_at,
-		ar.error AS active_run_error
+		ar.error AS active_run_error,
+		lp.loop_run_id AS provenance_loop_run_id,
+		lp.run_kind AS provenance_run_kind
 	FROM base_tasks t
 	LEFT JOIN run_activity ra ON ra.task_id = t.id
 	LEFT JOIN event_activity ea ON ea.task_id = t.id
@@ -269,6 +284,7 @@ catalog_derived AS (
 	LEFT JOIN run_policy rp ON rp.task_id = t.id
 	LEFT JOIN latest_terminal_candidates lt ON lt.task_id = t.id AND lt.row_number = 1
 	LEFT JOIN active_run_candidates ar ON ar.task_id = t.id AND ar.row_number = 1
+	LEFT JOIN loop_provenance_candidates lp ON lp.task_id = t.id AND lp.row_number = 1
 ),
 catalog AS (
 	SELECT
@@ -276,7 +292,7 @@ catalog AS (
 		priority, max_attempts, auto_enqueue_on_ready, canonical_status AS status,
 		approval_policy, approval_state, owner_kind, owner_ref, current_run_id,
 		latest_event_seq, created_by_kind, created_by_ref, origin_kind, origin_ref,
-		created_at, updated_at, closed_at, needs_attention_reason, needs_attention_at,
+		created_at, updated_at, closed_at, metadata_json, needs_attention_reason, needs_attention_at,
 		needs_attention_by_kind, needs_attention_by_ref, wake_creator, child_count,
 		dependency_count, last_activity_at, priority_rank, active_run_id, active_run_workspace_id,
 		active_run_status, active_run_attempt, active_run_recovery_count, active_run_previous_run_id,
@@ -286,7 +302,8 @@ catalog AS (
 		active_run_network_spec_json, active_run_network_mode,
 		active_run_network_channel, active_run_network_source,
 		active_run_queued_at, active_run_claimed_at,
-		active_run_started_at, active_run_ended_at, active_run_error
+		active_run_started_at, active_run_ended_at, active_run_error,
+		provenance_loop_run_id, provenance_run_kind
 	FROM catalog_derived
 )`
 
@@ -294,7 +311,7 @@ const taskCatalogSelectColumns = `id, identifier, scope, workspace_id, parent_ta
 	title, priority, max_attempts, auto_enqueue_on_ready, status,
 	approval_policy, approval_state, owner_kind, owner_ref, current_run_id,
 	latest_event_seq, created_by_kind, created_by_ref, origin_kind, origin_ref,
-	created_at, updated_at, closed_at, needs_attention_reason, needs_attention_at,
+	created_at, updated_at, closed_at, metadata_json, needs_attention_reason, needs_attention_at,
 	needs_attention_by_kind, needs_attention_by_ref, wake_creator, child_count,
 	dependency_count, last_activity_at, priority_rank, active_run_id, active_run_workspace_id, active_run_status,
 	active_run_attempt, active_run_recovery_count, active_run_previous_run_id, active_run_failure_kind,
@@ -303,13 +320,13 @@ const taskCatalogSelectColumns = `id, identifier, scope, workspace_id, parent_ta
 	active_run_lease_until, active_run_heartbeat_at, active_run_network_spec_json,
 	active_run_network_mode, active_run_network_channel, active_run_network_source,
 	active_run_queued_at, active_run_claimed_at, active_run_started_at,
-	active_run_ended_at, active_run_error`
+	active_run_ended_at, active_run_error, provenance_loop_run_id, provenance_run_kind`
 
 const taskCatalogBaseColumns = `id, identifier, scope, workspace_id, parent_task_id,
 	title, priority, max_attempts, auto_enqueue_on_ready, status,
 	approval_policy, approval_state, owner_kind, owner_ref, current_run_id,
 	created_by_kind, created_by_ref, origin_kind, origin_ref, created_at, updated_at,
-	closed_at, paused, needs_attention_reason, needs_attention_at,
+	closed_at, paused, metadata_json, needs_attention_reason, needs_attention_at,
 	needs_attention_by_kind, needs_attention_by_ref, wake_creator`
 
 func taskCatalogBaseFilter(query taskpkg.CatalogQuery) ([]string, []any) {
@@ -341,6 +358,26 @@ func taskCatalogBaseFilter(query taskpkg.CatalogQuery) ([]string, []any) {
 		needle := strings.ToLower(query.Search)
 		where = append(where, "(instr(LOWER(title), ?) > 0 OR instr(LOWER(COALESCE(identifier, '')), ?) > 0)")
 		args = append(args, needle, needle)
+	}
+	if query.ParentTaskID == "" {
+		for _, actor := range query.ExcludeCreatedBy {
+			where = append(where, `id NOT IN (
+				SELECT excluded_task.id
+				FROM tasks AS excluded_task INDEXED BY idx_tasks_created_by
+				WHERE excluded_task.created_by_kind = ?
+					AND excluded_task.created_by_ref = ?
+			)`)
+			args = append(args, string(actor.Kind), actor.Ref)
+		}
+	}
+	if query.LoopRunID != "" {
+		where = append(where, `EXISTS (
+			SELECT 1
+			FROM task_runs AS loop_run_scope INDEXED BY idx_task_runs_task
+			WHERE loop_run_scope.task_id = tasks.id
+				AND loop_run_scope.loop_run_id = ?
+		)`)
+		args = append(args, query.LoopRunID)
 	}
 	return where, args
 }

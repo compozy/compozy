@@ -26,6 +26,12 @@ func taskValues(query TaskListQuery) url.Values {
 	if query.IncludeDrafts {
 		values.Set("include_drafts", "true")
 	}
+	if query.IncludeLoop {
+		values.Set("include_loop", "true")
+	}
+	if trimmed := strings.TrimSpace(query.LoopRunID); trimmed != "" {
+		values.Set("loop_run_id", trimmed)
+	}
 	if trimmed := strings.TrimSpace(string(query.OwnerKind)); trimmed != "" {
 		values.Set("owner_kind", trimmed)
 	}

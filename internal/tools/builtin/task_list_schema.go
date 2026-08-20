@@ -8,6 +8,8 @@ const taskListInputSchema = `{
 		"status":{"type":"string"},
 		"priority":{"type":"string"},
 		"include_drafts":{"type":"boolean"},
+		"include_loop":{"type":"boolean"},
+		"loop_run_id":{"type":"string"},
 		"approval_state":{"type":"string"},
 		"owner_kind":{"type":"string"},
 		"owner_ref":{"type":"string"},

@@ -72466,6 +72466,10 @@ export interface operations {
         priority?: "low" | "medium" | "high" | "urgent";
         /** @description Include draft tasks in list results */
         include_drafts?: boolean;
+        /** @description Include Loop execution records */
+        include_loop?: boolean;
+        /** @description Filter by Loop run ID and include Loop records */
+        loop_run_id?: string;
         /** @description Filter by task approval state */
         approval_state?: "not_required" | "pending" | "approved" | "rejected";
         /** @description Filter by owner kind */
@@ -72668,6 +72672,15 @@ export interface operations {
               last_activity_at?: string | null;
               /** Format: int64 */
               latest_event_seq: number;
+              loop?: {
+                generation?: number | null;
+                item_index?: number | null;
+                loop_name?: string;
+                node_id?: string;
+                /** @enum {string} */
+                role: "coordinator" | "cell";
+                run_id: string;
+              } | null;
               max_attempts?: number;
               needs_attention?: boolean;
               /** Format: date-time */
@@ -72807,6 +72820,7 @@ export interface operations {
               title: string;
             } | null;
             error: string;
+            field: string;
           };
         };
       };
@@ -73070,6 +73084,15 @@ export interface operations {
               identifier?: string;
               /** Format: int64 */
               latest_event_seq: number;
+              loop?: {
+                generation?: number | null;
+                item_index?: number | null;
+                loop_name?: string;
+                node_id?: string;
+                /** @enum {string} */
+                role: "coordinator" | "cell";
+                run_id: string;
+              } | null;
               max_attempts?: number;
               metadata?: unknown;
               needs_attention?: boolean;
@@ -74304,6 +74327,15 @@ export interface operations {
                 identifier?: string;
                 /** Format: int64 */
                 latest_event_seq: number;
+                loop?: {
+                  generation?: number | null;
+                  item_index?: number | null;
+                  loop_name?: string;
+                  node_id?: string;
+                  /** @enum {string} */
+                  role: "coordinator" | "cell";
+                  run_id: string;
+                } | null;
                 max_attempts?: number;
                 metadata?: unknown;
                 needs_attention?: boolean;
@@ -74819,6 +74851,15 @@ export interface operations {
               identifier?: string;
               /** Format: int64 */
               latest_event_seq: number;
+              loop?: {
+                generation?: number | null;
+                item_index?: number | null;
+                loop_name?: string;
+                node_id?: string;
+                /** @enum {string} */
+                role: "coordinator" | "cell";
+                run_id: string;
+              } | null;
               max_attempts?: number;
               metadata?: unknown;
               needs_attention?: boolean;
@@ -75349,6 +75390,15 @@ export interface operations {
               identifier?: string;
               /** Format: int64 */
               latest_event_seq: number;
+              loop?: {
+                generation?: number | null;
+                item_index?: number | null;
+                loop_name?: string;
+                node_id?: string;
+                /** @enum {string} */
+                role: "coordinator" | "cell";
+                run_id: string;
+              } | null;
               max_attempts?: number;
               metadata?: unknown;
               needs_attention?: boolean;
@@ -76328,6 +76378,15 @@ export interface operations {
               identifier?: string;
               /** Format: int64 */
               latest_event_seq: number;
+              loop?: {
+                generation?: number | null;
+                item_index?: number | null;
+                loop_name?: string;
+                node_id?: string;
+                /** @enum {string} */
+                role: "coordinator" | "cell";
+                run_id: string;
+              } | null;
               max_attempts?: number;
               metadata?: unknown;
               needs_attention?: boolean;
@@ -76740,6 +76799,15 @@ export interface operations {
               identifier?: string;
               /** Format: int64 */
               latest_event_seq: number;
+              loop?: {
+                generation?: number | null;
+                item_index?: number | null;
+                loop_name?: string;
+                node_id?: string;
+                /** @enum {string} */
+                role: "coordinator" | "cell";
+                run_id: string;
+              } | null;
               max_attempts?: number;
               metadata?: unknown;
               needs_attention?: boolean;
@@ -77983,6 +78051,15 @@ export interface operations {
                 identifier?: string;
                 /** Format: int64 */
                 latest_event_seq: number;
+                loop?: {
+                  generation?: number | null;
+                  item_index?: number | null;
+                  loop_name?: string;
+                  node_id?: string;
+                  /** @enum {string} */
+                  role: "coordinator" | "cell";
+                  run_id: string;
+                } | null;
                 max_attempts?: number;
                 metadata?: unknown;
                 needs_attention?: boolean;
@@ -79191,6 +79268,15 @@ export interface operations {
                 identifier?: string;
                 /** Format: int64 */
                 latest_event_seq: number;
+                loop?: {
+                  generation?: number | null;
+                  item_index?: number | null;
+                  loop_name?: string;
+                  node_id?: string;
+                  /** @enum {string} */
+                  role: "coordinator" | "cell";
+                  run_id: string;
+                } | null;
                 max_attempts?: number;
                 metadata?: unknown;
                 needs_attention?: boolean;
@@ -81865,6 +81951,15 @@ export interface operations {
               identifier?: string;
               /** Format: int64 */
               latest_event_seq: number;
+              loop?: {
+                generation?: number | null;
+                item_index?: number | null;
+                loop_name?: string;
+                node_id?: string;
+                /** @enum {string} */
+                role: "coordinator" | "cell";
+                run_id: string;
+              } | null;
               max_attempts?: number;
               metadata?: unknown;
               needs_attention?: boolean;
@@ -82453,6 +82548,15 @@ export interface operations {
               identifier?: string;
               /** Format: int64 */
               latest_event_seq: number;
+              loop?: {
+                generation?: number | null;
+                item_index?: number | null;
+                loop_name?: string;
+                node_id?: string;
+                /** @enum {string} */
+                role: "coordinator" | "cell";
+                run_id: string;
+              } | null;
               max_attempts?: number;
               metadata?: unknown;
               needs_attention?: boolean;
@@ -82785,6 +82889,15 @@ export interface operations {
               identifier?: string;
               /** Format: int64 */
               latest_event_seq: number;
+              loop?: {
+                generation?: number | null;
+                item_index?: number | null;
+                loop_name?: string;
+                node_id?: string;
+                /** @enum {string} */
+                role: "coordinator" | "cell";
+                run_id: string;
+              } | null;
               max_attempts?: number;
               metadata?: unknown;
               needs_attention?: boolean;
@@ -83110,6 +83223,15 @@ export interface operations {
               identifier?: string;
               /** Format: int64 */
               latest_event_seq: number;
+              loop?: {
+                generation?: number | null;
+                item_index?: number | null;
+                loop_name?: string;
+                node_id?: string;
+                /** @enum {string} */
+                role: "coordinator" | "cell";
+                run_id: string;
+              } | null;
               max_attempts?: number;
               metadata?: unknown;
               needs_attention?: boolean;
@@ -83442,6 +83564,15 @@ export interface operations {
               identifier?: string;
               /** Format: int64 */
               latest_event_seq: number;
+              loop?: {
+                generation?: number | null;
+                item_index?: number | null;
+                loop_name?: string;
+                node_id?: string;
+                /** @enum {string} */
+                role: "coordinator" | "cell";
+                run_id: string;
+              } | null;
               max_attempts?: number;
               metadata?: unknown;
               needs_attention?: boolean;
@@ -85287,6 +85418,15 @@ export interface operations {
               identifier?: string;
               /** Format: int64 */
               latest_event_seq: number;
+              loop?: {
+                generation?: number | null;
+                item_index?: number | null;
+                loop_name?: string;
+                node_id?: string;
+                /** @enum {string} */
+                role: "coordinator" | "cell";
+                run_id: string;
+              } | null;
               max_attempts?: number;
               metadata?: unknown;
               needs_attention?: boolean;
@@ -116307,6 +116447,15 @@ export interface operations {
               identifier?: string;
               /** Format: int64 */
               latest_event_seq: number;
+              loop?: {
+                generation?: number | null;
+                item_index?: number | null;
+                loop_name?: string;
+                node_id?: string;
+                /** @enum {string} */
+                role: "coordinator" | "cell";
+                run_id: string;
+              } | null;
               max_attempts?: number;
               metadata?: unknown;
               needs_attention?: boolean;

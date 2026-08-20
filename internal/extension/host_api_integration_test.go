@@ -6,6 +6,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"reflect"
 	"testing"
 	"time"
 
@@ -15,6 +16,9 @@ import (
 	bridgepkg "github.com/compozy/compozy/internal/bridges"
 	bridgecontract "github.com/compozy/compozy/internal/bridges/contract"
 	hookspkg "github.com/compozy/compozy/internal/hooks"
+	looppkg "github.com/compozy/compozy/internal/loop"
+	"github.com/compozy/compozy/internal/loop/dsl"
+	observepkg "github.com/compozy/compozy/internal/observe"
 	"github.com/compozy/compozy/internal/resources"
 	"github.com/compozy/compozy/internal/session"
 	taskpkg "github.com/compozy/compozy/internal/task"
@@ -591,6 +595,8 @@ func TestHostAPIIntegrationTaskReadAndAggregateSurfaces(t *testing.T) {
 		t.Fatalf("tasks.StartRun() error = %v", err)
 	}
 
+	loopCoordinator, loopCell := seedHostAPIQuarantinedLoopCell(t, env, "ext-reader")
+
 	getResult, err := env.callFromWorkspace(t, "ext-reader", "tasks/get", map[string]any{"id": child.ID})
 	if err != nil {
 		t.Fatalf("Handle(tasks/get) error = %v", err)
@@ -656,6 +662,9 @@ func TestHostAPIIntegrationTaskReadAndAggregateSurfaces(t *testing.T) {
 	if dashboard.Totals.ActiveRuns < 1 {
 		t.Fatalf("tasks/dashboard active_runs = %d, want >= 1", dashboard.Totals.ActiveRuns)
 	}
+	if got, want := dashboard.Totals.TasksTotal, 3; got != want {
+		t.Fatalf("tasks/dashboard tasks_total = %d, want calm-default %d", got, want)
+	}
 
 	dashboardWorkspaceOnlyResult, err := env.callFromWorkspace(t, "ext-reader", "tasks/dashboard", map[string]any{
 		"workspace": env.workspaceID,
@@ -685,6 +694,21 @@ func TestHostAPIIntegrationTaskReadAndAggregateSurfaces(t *testing.T) {
 	}
 	if !taskInboxContainsTask(inbox.Groups, approvalTask.ID) {
 		t.Fatalf("tasks/inbox groups = %#v, want task %q", inbox.Groups, approvalTask.ID)
+	}
+	if taskInboxContainsTask(inbox.Groups, loopCell.ID) {
+		t.Fatalf("tasks/inbox groups = %#v, want Loop cell %q excluded", inbox.Groups, loopCell.ID)
+	}
+
+	overview, err := env.observer.QueryObserveOverview(testutil.Context(t), observepkg.OverviewQuery{
+		TaskScope:   taskpkg.CatalogScopeWorkspace,
+		WorkspaceID: env.workspaceID,
+		Actor:       taskpkg.ActorIdentity{Kind: taskpkg.ActorKindExtension, Ref: "ext-reader"},
+	})
+	if err != nil {
+		t.Fatalf("observer.QueryObserveOverview() error = %v", err)
+	}
+	if !overviewAttentionContainsTask(overview.Attention.Items, loopCell.ID) {
+		t.Fatalf("observe overview attention = %#v, want Loop cell %q", overview.Attention.Items, loopCell.ID)
 	}
 
 	inboxWorkspaceOnlyResult, err := env.callFromWorkspace(t, "ext-reader", "tasks/inbox", map[string]any{
@@ -735,6 +759,244 @@ func TestHostAPIIntegrationTaskReadAndAggregateSurfaces(t *testing.T) {
 	if listed[0].Draft {
 		t.Fatalf("tasks workspace-only[0] = %#v, want non-draft item", listed[0])
 	}
+
+	includeResult, err := env.callFromWorkspace(t, "ext-reader", "tasks", map[string]any{
+		"workspace":    env.workspaceID,
+		"include_loop": true,
+		"limit":        20,
+	})
+	if err != nil {
+		t.Fatalf("Handle(tasks include_loop) error = %v", err)
+	}
+	var included apicontract.TasksResponse
+	decodeResult(t, includeResult, &included)
+	assertHostAPILoopCatalogItems(t, included.Tasks, loopCoordinator.ID, loopCell.ID)
+	for _, taskID := range []string{loopCoordinator.ID, loopCell.ID} {
+		detailResult, detailErr := env.callFromWorkspace(
+			t, "ext-reader", "tasks/get", map[string]any{"id": taskID},
+		)
+		if detailErr != nil {
+			t.Fatalf("Handle(tasks/get %q) error = %v", taskID, detailErr)
+		}
+		var loopDetail apicontract.TaskDetailPayload
+		decodeResult(t, detailResult, &loopDetail)
+		catalogLoop := hostAPILoopProvenanceForTask(t, included.Tasks, taskID)
+		if !reflect.DeepEqual(loopDetail.Task.Loop, catalogLoop) {
+			t.Fatalf("tasks/get %q Loop = %#v, want catalog parity %#v", taskID, loopDetail.Task.Loop, catalogLoop)
+		}
+	}
+
+	runResult, err := env.callFromWorkspace(t, "ext-reader", "tasks", map[string]any{
+		"workspace":   env.workspaceID,
+		"loop_run_id": "looprun-host-read",
+		"limit":       20,
+	})
+	if err != nil {
+		t.Fatalf("Handle(tasks loop_run_id) error = %v", err)
+	}
+	var runScoped apicontract.TasksResponse
+	decodeResult(t, runResult, &runScoped)
+	assertHostAPILoopCatalogItems(t, runScoped.Tasks, loopCoordinator.ID, loopCell.ID)
+
+	parentResult, err := env.callFromWorkspace(t, "ext-reader", "tasks", map[string]any{
+		"workspace":      env.workspaceID,
+		"parent_task_id": loopCoordinator.ID,
+		"limit":          20,
+	})
+	if err != nil {
+		t.Fatalf("Handle(tasks parent_task_id) error = %v", err)
+	}
+	var parentScoped apicontract.TasksResponse
+	decodeResult(t, parentResult, &parentScoped)
+	if len(parentScoped.Tasks) != 1 || parentScoped.Tasks[0].ID != loopCell.ID {
+		t.Fatalf("tasks parent drill-down = %#v, want Loop cell %q", parentScoped.Tasks, loopCell.ID)
+	}
+}
+
+func seedHostAPIQuarantinedLoopCell(
+	t *testing.T,
+	env *hostAPITestEnv,
+	ownerRef string,
+) (taskpkg.Task, taskpkg.Task) {
+	t.Helper()
+	ctx := testutil.Context(t)
+	now := env.currentTime()
+	definition, err := dsl.Parse([]byte(
+		`{"apiVersion":"compozy.loop/v1","kind":"Loop","meta":{"name":"host-read","version":1},` +
+			`"contract":{"goal":"test","definition_of_done":"done","iteration_cap":3,` +
+			`"no_progress":{"window":1},"budget":{"tokens":10,"wall_clock_sec":60}},` +
+			`"graph":{"nodes":[{"id":"review","class":"action","kind":"transform",` +
+			`"params":{"map":{"ok":{"value":true}}}}],"edges":[]}}`,
+	))
+	if err != nil {
+		t.Fatalf("dsl.Parse(host quarantine Loop) error = %v", err)
+	}
+	resolved, err := looppkg.NewCompiler().Compile(definition)
+	if err != nil {
+		t.Fatalf("loop.Compile(host quarantine Loop) error = %v", err)
+	}
+	effective, err := looppkg.ResolveEffectiveConfig(
+		resolved,
+		looppkg.DefaultLoopDefaults(),
+		nil,
+		looppkg.LoopConfig{},
+	)
+	if err != nil {
+		t.Fatalf("ResolveEffectiveConfig(host quarantine Loop) error = %v", err)
+	}
+	snapshot, digest, err := looppkg.BuildExecutedDefinitionSnapshot(resolved, effective)
+	if err != nil {
+		t.Fatalf("BuildExecutedDefinitionSnapshot(host quarantine Loop) error = %v", err)
+	}
+	run, err := env.registry.CreateLoopRunForStart(ctx, looppkg.Run{
+		ID: "looprun-host-read", WorkspaceID: looppkg.WorkspaceID(env.workspaceID),
+		LoopName: "host read", Status: looppkg.StatusRunning,
+		ReattemptStrategy: looppkg.ReattemptFailedOnly,
+		CreatedAt:         now, StartedAt: now, LastProgressAt: now,
+		DefinitionVersion: resolved.DefinitionVersion, DefinitionDigest: digest,
+		DefinitionSnapshot: snapshot, ActiveHumanCriteria: json.RawMessage(`[]`),
+		StartMetadata: map[string]any{}, IterationCap: 3, BudgetTokens: 10,
+		BudgetWallSec: 60, BudgetOnExceeded: dsl.BudgetExceededHalt,
+		Origin: &looppkg.RunOrigin{Kind: looppkg.RunOriginCatalog},
+		Inputs: map[string]any{"task": "host-read"},
+	}, dsl.ConcurrencyAllow)
+	if err != nil {
+		t.Fatalf("CreateLoopRunForStart(host quarantine Loop) error = %v", err)
+	}
+	loopActor, err := taskpkg.DeriveDaemonActorContext("loop-coordinator", "loop-coordinator")
+	if err != nil {
+		t.Fatalf("DeriveDaemonActorContext(loop-coordinator) error = %v", err)
+	}
+	claim, err := env.tasks.ClaimNextRun(ctx, taskpkg.ClaimCriteria{
+		Scope: taskpkg.ScopeWorkspace, WorkspaceID: env.workspaceID,
+		RunKind: taskpkg.RunKindCoordinator, ClaimerSessionID: "host-loop-quarantine",
+		ClaimedBy: &loopActor.Actor, LeaseDuration: time.Minute, Now: now.Add(time.Millisecond),
+	}, loopActor)
+	if err != nil {
+		t.Fatalf("ClaimNextRun(host quarantine coordinator) error = %v", err)
+	}
+	cellID := looppkg.NodeCellTaskID(run.ID, 2, "review", 0)
+	cellMetadata := json.RawMessage(
+		`{"loop_run_id":"looprun-host-read","loop_name":"host read",` +
+			`"generation":2,"node_id":"review","item_index":0}`,
+	)
+	quarantineEntry, err := json.Marshal(looppkg.QuarantineEntry{
+		NodeID: "review", InputRef: "loop-run:looprun-host-read:node:review:input",
+		Episodes: []looppkg.QuarantineEpisode{{
+			Generation: 2, QuarantinedAt: now,
+			Attempts: []looppkg.NodeAttempt{{
+				LoopRunID: run.ID, Generation: 2, NodeID: "review", Attempt: 1,
+				Disposition: looppkg.AttemptQuarantined, StartedAt: now,
+			}},
+		}},
+	})
+	if err != nil {
+		t.Fatalf("json.Marshal(host quarantine entry) error = %v", err)
+	}
+	if _, err := env.registry.CompleteCoordinatorAndEnqueueNext(
+		ctx,
+		taskpkg.CoordinatorCompletion{
+			RunID: claim.Run.ID, ClaimToken: claim.ClaimToken, Actor: loopActor, Now: now.Add(time.Second),
+			Plan: taskpkg.CoordinatorCompletionPlan{
+				NodeTasks: []taskpkg.CoordinatorTaskSpec{{
+					TaskID: cellID, Title: "Loop cell", Metadata: cellMetadata,
+				}},
+				NodeRuns: []taskpkg.EnqueueSpec{{
+					TaskID: cellID, RunKind: taskpkg.RunKindWorker, LoopRunID: string(run.ID),
+					IdempotencyKey: "host-loop-cell", Metadata: cellMetadata,
+				}},
+				Snapshot: taskpkg.GenerationSnapshot{
+					LoopRunID: string(run.ID), Generation: 2,
+					Payload: looppkg.GenerationSnapshotPayload{
+						GenerationProvenance: &looppkg.GenerationIntent{
+							Generation: 2, ParentGeneration: 1, Origin: looppkg.OriginReattempt,
+						},
+						Outputs: []looppkg.GenerationOutput{{
+							Generation: 2, NodeID: "review", Status: "quarantined", Attempt: 1,
+						}},
+						Controls: []looppkg.NodeControlMutation{{
+							Kind: looppkg.NodeControlMutationQuarantine, NodeID: "review",
+							QuarantineEntry: quarantineEntry, At: now.Add(time.Second),
+						}},
+					},
+				},
+			},
+		},
+		looppkg.NewStoreFinalizer(),
+	); err != nil {
+		t.Fatalf("CompleteCoordinatorAndEnqueueNext(host quarantine) error = %v", err)
+	}
+	coordinator, err := env.registry.GetTask(ctx, fmt.Sprintf("loop.%s.coordinator", run.ID))
+	if err != nil {
+		t.Fatalf("GetTask(host Loop coordinator) error = %v", err)
+	}
+	cell, err := env.registry.GetTask(ctx, cellID)
+	if err != nil {
+		t.Fatalf("GetTask(host quarantined cell) error = %v", err)
+	}
+	if cell.Status != taskpkg.TaskStatusNeedsAttention || cell.NeedsAttention == nil {
+		t.Fatalf("host quarantined cell = %#v, want production needs-attention park", cell)
+	}
+	cell.Owner = &taskpkg.Ownership{Kind: taskpkg.OwnerKindExtension, Ref: ownerRef}
+	if err := env.registry.UpdateTask(ctx, cell, loopActor); err != nil {
+		t.Fatalf("UpdateTask(host quarantined cell owner) error = %v", err)
+	}
+	return coordinator, cell
+}
+
+func hostAPILoopProvenanceForTask(
+	t testing.TB,
+	items []apicontract.TaskCatalogItemPayload,
+	taskID string,
+) *apicontract.LoopProvenance {
+	t.Helper()
+
+	for _, item := range items {
+		if item.ID == taskID {
+			return item.Loop
+		}
+	}
+	t.Fatalf("tasks Loop items = %#v, missing %q", items, taskID)
+	return nil
+}
+
+func assertHostAPILoopCatalogItems(
+	t testing.TB,
+	items []apicontract.TaskCatalogItemPayload,
+	coordinatorID string,
+	cellID string,
+) {
+	t.Helper()
+
+	wantRoles := map[string]apicontract.LoopProvenanceRole{
+		coordinatorID: apicontract.LoopProvenanceRoleCoordinator,
+		cellID:        apicontract.LoopProvenanceRoleCell,
+	}
+	seen := make(map[string]bool, len(wantRoles))
+	for _, item := range items {
+		wantRole, ok := wantRoles[item.ID]
+		if !ok {
+			continue
+		}
+		if item.Loop == nil || item.Loop.RunID != "looprun-host-read" || item.Loop.Role != wantRole {
+			t.Fatalf("tasks Loop item %q provenance = %#v, want run and role %q", item.ID, item.Loop, wantRole)
+		}
+		seen[item.ID] = true
+	}
+	for id := range wantRoles {
+		if !seen[id] {
+			t.Fatalf("tasks Loop items = %#v, missing %q", items, id)
+		}
+	}
+}
+
+func overviewAttentionContainsTask(items []observepkg.OverviewAttentionItem, taskID string) bool {
+	for _, item := range items {
+		if item.TaskID == taskID {
+			return true
+		}
+	}
+	return false
 }
 
 func taskInboxContainsTask(groups []apicontract.TaskInboxLaneGroupPayload, taskID string) bool {

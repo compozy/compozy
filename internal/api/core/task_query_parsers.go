@@ -153,6 +153,7 @@ func (h *BaseHandlers) taskDashboardDomainQuery(
 		OwnerRef:             strings.TrimSpace(query.OwnerRef),
 		ParticipationChannel: strings.TrimSpace(query.ParticipationChannel),
 		OriginKind:           query.OriginKind.Normalize(),
+		ExcludeCreatedBy:     defaultTaskLoopExclusions(),
 	}
 
 	if workspaceRef := strings.TrimSpace(query.Workspace); workspaceRef != "" {

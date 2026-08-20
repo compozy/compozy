@@ -23,6 +23,16 @@ func (a ActorIdentity) IsZero() bool {
 	return a.Kind.Normalize() == "" && strings.TrimSpace(a.Ref) == ""
 }
 
+// Validate reports whether the read-side actor reference is canonical.
+func (a ActorRef) Validate(path string) error {
+	return ActorIdentity(a).Validate(path)
+}
+
+// IsZero reports whether the read-side actor reference is empty.
+func (a ActorRef) IsZero() bool {
+	return ActorIdentity(a).IsZero()
+}
+
 // Validate reports whether the ownership value contains a supported kind and non-empty reference.
 func (o Ownership) Validate(path string) error {
 	if err := o.Kind.Validate(nestedPath(path, "kind")); err != nil {

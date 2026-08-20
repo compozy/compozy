@@ -41,6 +41,8 @@ func listTasksOperationSpec() OperationSpec {
 			enumQueryParam("status", "Filter by task status", taskStatusValues()),
 			enumQueryParam("priority", "Filter by task priority", taskPriorityValues()),
 			boolQueryParam("include_drafts", "Include draft tasks in list results"),
+			boolQueryParam("include_loop", "Include Loop execution records"),
+			queryParam("loop_run_id", "Filter by Loop run ID and include Loop records", false),
 			enumQueryParam("approval_state", "Filter by task approval state", taskApprovalStateValues()),
 			enumQueryParam("owner_kind", "Filter by owner kind", taskOwnerKindValues()),
 			queryParam("owner_ref", "Filter by owner reference", false),
@@ -55,7 +57,7 @@ func listTasksOperationSpec() OperationSpec {
 		Responses: []ResponseSpec{
 			{Status: 200, Description: "OK", Body: contract.TasksResponse{}},
 			{Status: 404, Description: specWorkspaceNotFoundDescription, Body: contract.ErrorPayload{}},
-			{Status: 400, Description: "Invalid task filter or cursor", Body: contract.ErrorPayload{}},
+			{Status: 400, Description: "Invalid task filter or cursor", Body: contract.TaskQueryErrorPayload{}},
 			{Status: 410, Description: workspaceRootMissingDescription, Body: contract.ErrorPayload{}},
 			{Status: 503, Description: specTaskServiceIsNotConfiguredDescription, Body: contract.ErrorPayload{}},
 			{Status: 500, Description: specInternalServerErrorDescription, Body: contract.ErrorPayload{}},

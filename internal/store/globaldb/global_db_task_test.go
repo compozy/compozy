@@ -2529,6 +2529,324 @@ func TestGlobalDBTaskCatalogPaginationAndFacets(t *testing.T) {
 				taskpkg.ErrCatalogCursorInvalid,
 			)
 		}
+
+		foreignLoopTask := workspaceTaskRecordForTest("task-workspace-foreign-loop", workspaceB)
+		foreignLoopTask.CreatedBy = taskpkg.ActorIdentity{Kind: taskpkg.ActorKindDaemon, Ref: "loop-coordinator"}
+		if err := globalDB.CreateTask(ctx, foreignLoopTask); err != nil {
+			t.Fatalf("CreateTask(foreign Loop task) error = %v", err)
+		}
+		foreignRun := taskRunForTest("run-workspace-foreign-loop", foreignLoopTask.ID)
+		foreignRun.LoopRunID = "looprun-workspace-foreign"
+		foreignRun.RunKind = taskpkg.RunKindCoordinator
+		if err := globalDB.CreateTaskRun(ctx, foreignRun); err != nil {
+			t.Fatalf("CreateTaskRun(foreign Loop run) error = %v", err)
+		}
+		isolated, err := globalDB.ListTaskCatalog(ctx, taskpkg.CatalogQuery{
+			Scope: taskpkg.CatalogScopeWorkspace, WorkspaceID: workspaceA,
+			LoopRunID: foreignRun.LoopRunID, IncludeDrafts: true, Limit: 10,
+		})
+		if err != nil {
+			t.Fatalf("ListTaskCatalog(cross-workspace Loop run IT-016) error = %v", err)
+		}
+		if isolated.Total != 0 || len(isolated.Tasks) != 0 {
+			t.Fatalf("cross-workspace Loop catalog = %#v, want true empty IT-016", isolated)
+		}
+	})
+
+	const loopCatalogCase = "Should classify Loop records by provenance before counts and pagination UT-021 UT-022 UT-023 UT-024 UT-025 UT-026 IT-011 IT-012 IT-013 IT-014 IT-026"
+	t.Run(loopCatalogCase, func(t *testing.T) {
+		t.Parallel()
+
+		globalDB := openTestGlobalDB(t)
+		ctx := testutil.Context(t)
+		loopActor := taskpkg.ActorIdentity{Kind: taskpkg.ActorKindDaemon, Ref: "loop-coordinator"}
+		excluded := []taskpkg.ActorRef{{Kind: loopActor.Kind, Ref: loopActor.Ref}}
+		base := time.Date(2026, 8, 20, 12, 0, 0, 0, time.UTC)
+
+		operatorTask := taskRecordForTest("task-loop-title-decoy")
+		operatorTask.Title = "loop.deploy coordinator"
+		operatorTask.Owner = &taskpkg.Ownership{Kind: taskpkg.OwnerKindHuman, Ref: "user:alice"}
+		operatorTask.UpdatedAt = base
+		daemonTask := taskRecordForTest("task-daemon-maintenance")
+		daemonTask.CreatedBy = taskpkg.ActorIdentity{Kind: taskpkg.ActorKindDaemon, Ref: "maintenance"}
+		daemonTask.Owner = &taskpkg.Ownership{Kind: taskpkg.OwnerKindHuman, Ref: "user:alice"}
+		daemonTask.UpdatedAt = base.Add(time.Minute)
+		coordinator := taskRecordForTest("task-loop-coordinator")
+		coordinator.CreatedBy = loopActor
+		coordinator.Owner = &taskpkg.Ownership{Kind: taskpkg.OwnerKindHuman, Ref: "user:alice"}
+		coordinator.Metadata = json.RawMessage(
+			`{"loop_run_id":"looprun-alpha","loop_name":"alpha"}`,
+		)
+		coordinator.UpdatedAt = base.Add(2 * time.Minute)
+		cell := taskRecordForTest("task-loop-cell")
+		cell.ParentTaskID = coordinator.ID
+		cell.CreatedBy = loopActor
+		cell.Owner = &taskpkg.Ownership{Kind: taskpkg.OwnerKindHuman, Ref: "user:alice"}
+		cell.Metadata = json.RawMessage(
+			`{"loop_run_id":"looprun-alpha","loop_name":"alpha","generation":2,"node_id":"review","item_index":0}`,
+		)
+		cell.UpdatedAt = base.Add(3 * time.Minute)
+		otherCell := taskRecordForTest("task-loop-other-cell")
+		otherCell.CreatedBy = loopActor
+		otherCell.Owner = &taskpkg.Ownership{Kind: taskpkg.OwnerKindHuman, Ref: "user:alice"}
+		otherCell.Metadata = json.RawMessage(
+			`{"loop_run_id":"looprun-beta","loop_name":"beta","generation":1,"node_id":"build","item_index":1}`,
+		)
+		otherCell.UpdatedAt = base.Add(4 * time.Minute)
+
+		for _, record := range []taskpkg.Task{operatorTask, daemonTask, coordinator, cell, otherCell} {
+			if err := globalDB.CreateTask(ctx, record); err != nil {
+				t.Fatalf("CreateTask(%q) error = %v", record.ID, err)
+			}
+		}
+		createLoopRun := func(id string, taskID string, loopRunID string, kind taskpkg.RunKind, attempt int32) {
+			t.Helper()
+			run := taskRunForTest(id, taskID)
+			run.LoopRunID = loopRunID
+			run.RunKind = kind
+			run.Attempt = attempt
+			run.QueuedAt = base.Add(time.Duration(attempt) * time.Second)
+			if err := globalDB.CreateTaskRun(ctx, run); err != nil {
+				t.Fatalf("CreateTaskRun(%q) error = %v", id, err)
+			}
+		}
+		createLoopRun("run-loop-alpha-coordinator", coordinator.ID, "looprun-alpha", taskpkg.RunKindCoordinator, 1)
+		createLoopRun("run-loop-alpha-cell-1", cell.ID, "looprun-alpha", taskpkg.RunKindWorker, 1)
+		createLoopRun("run-loop-alpha-cell-2", cell.ID, "looprun-alpha", taskpkg.RunKindWorker, 2)
+		createLoopRun("run-loop-alpha-cell-3", cell.ID, "looprun-alpha", taskpkg.RunKindWorker, 3)
+		createLoopRun("run-loop-beta-cell-1", otherCell.ID, "looprun-beta", taskpkg.RunKindWorker, 1)
+		createLoopRun("run-loop-beta-cell-2", otherCell.ID, "looprun-beta", taskpkg.RunKindWorker, 2)
+		createLoopRun("run-loop-beta-cell-3", otherCell.ID, "looprun-beta", taskpkg.RunKindWorker, 3)
+
+		defaultPage, err := globalDB.ListTaskCatalog(ctx, taskpkg.CatalogQuery{
+			Scope:            taskpkg.CatalogScopeGlobal,
+			ExcludeCreatedBy: excluded,
+			IncludeDrafts:    true,
+			Limit:            10,
+		})
+		if err != nil {
+			t.Fatalf("ListTaskCatalog(default) error = %v", err)
+		}
+		if got, want := orderedTaskSummaryIDs(defaultPage.Tasks), []string{
+			daemonTask.ID,
+			operatorTask.ID,
+		}; !testutil.EqualStringSlices(got, want) {
+			t.Fatalf("default ids = %#v, want %#v", got, want)
+		}
+		facetTotal := 0
+		for _, facet := range defaultPage.StatusFacets {
+			facetTotal += facet.Count
+		}
+		if defaultPage.Total != 2 || facetTotal != 2 {
+			t.Fatalf("default total/facets = %d/%d, want 2/2", defaultPage.Total, facetTotal)
+		}
+		var pagedDefaultIDs []string
+		cursor := ""
+		for {
+			page, err := globalDB.ListTaskCatalog(ctx, taskpkg.CatalogQuery{
+				Scope: taskpkg.CatalogScopeGlobal, ExcludeCreatedBy: excluded,
+				IncludeDrafts: true, Cursor: cursor, Limit: 1,
+			})
+			if err != nil {
+				t.Fatalf("ListTaskCatalog(default page cursor=%q) error = %v", cursor, err)
+			}
+			if page.Total != 2 {
+				t.Fatalf("default page total = %d, want 2", page.Total)
+			}
+			pagedDefaultIDs = append(pagedDefaultIDs, orderedTaskSummaryIDs(page.Tasks)...)
+			if !page.HasMore {
+				break
+			}
+			if page.NextCursor == "" || page.NextCursor == cursor {
+				t.Fatalf("default page cursor = %q after %q, want progress", page.NextCursor, cursor)
+			}
+			cursor = page.NextCursor
+		}
+		got := pagedDefaultIDs
+		want := []string{daemonTask.ID, operatorTask.ID}
+		if !testutil.EqualStringSlices(got, want) {
+			t.Fatalf("default ids across pages = %#v, want %#v without recent Loop cells", got, want)
+		}
+		inbox, err := globalDB.ListTaskInbox(ctx, taskpkg.InboxQuery{
+			Scope: taskpkg.CatalogScopeGlobal, ExcludeCreatedBy: excluded, Limit: 10,
+		}, taskpkg.ActorIdentity{Kind: taskpkg.ActorKindHuman, Ref: "user:alice"})
+		if err != nil {
+			t.Fatalf("ListTaskInbox(default) error = %v", err)
+		}
+		if inbox.Total != 2 {
+			t.Fatalf("ListTaskInbox(default).Total = %d, want 2", inbox.Total)
+		}
+
+		included, err := globalDB.ListTaskCatalog(ctx, taskpkg.CatalogQuery{
+			Scope:         taskpkg.CatalogScopeGlobal,
+			IncludeDrafts: true,
+			Limit:         10,
+		})
+		if err != nil {
+			t.Fatalf("ListTaskCatalog(include) error = %v", err)
+		}
+		provenanceByID := make(map[string]*taskpkg.RunProvenance, len(included.Tasks))
+		for index := range included.Tasks {
+			provenanceByID[included.Tasks[index].ID] = included.Tasks[index].RunProvenance
+		}
+		if got := provenanceByID[coordinator.ID]; got == nil ||
+			got.LoopRunID != "looprun-alpha" || got.RunKind != taskpkg.RunKindCoordinator {
+			t.Fatalf("coordinator provenance = %#v", got)
+		}
+		if got := provenanceByID[cell.ID]; got == nil ||
+			got.LoopRunID != "looprun-alpha" || got.RunKind != taskpkg.RunKindWorker ||
+			!json.Valid(got.Metadata) {
+			t.Fatalf("cell provenance = %#v", got)
+		}
+
+		var runIDs []string
+		runCursor := ""
+		for {
+			runPage, err := globalDB.ListTaskCatalog(ctx, taskpkg.CatalogQuery{
+				Scope:         taskpkg.CatalogScopeGlobal,
+				LoopRunID:     "looprun-alpha",
+				IncludeDrafts: true,
+				Cursor:        runCursor,
+				Limit:         1,
+			})
+			if err != nil {
+				t.Fatalf("ListTaskCatalog(loop run cursor=%q) error = %v", runCursor, err)
+			}
+			facetTotal = 0
+			for _, facet := range runPage.StatusFacets {
+				facetTotal += facet.Count
+			}
+			if runPage.Total != 2 || facetTotal != 2 || len(runPage.Tasks) != 1 {
+				t.Fatalf("loop-run page = %#v, want one row with total/facets 2", runPage)
+			}
+			runIDs = append(runIDs, runPage.Tasks[0].ID)
+			if !runPage.HasMore {
+				if runPage.NextCursor != "" {
+					t.Fatalf("final loop-run cursor = %q, want empty", runPage.NextCursor)
+				}
+				break
+			}
+			if runPage.NextCursor == "" || runPage.NextCursor == runCursor {
+				t.Fatalf("loop-run cursor = %q after %q, want progress", runPage.NextCursor, runCursor)
+			}
+			runCursor = runPage.NextCursor
+		}
+		got = runIDs
+		want = []string{cell.ID, coordinator.ID}
+		if !testutil.EqualStringSlices(got, want) {
+			t.Fatalf("loop-run ids = %#v, want %#v without gaps or duplicates", got, want)
+		}
+
+		children, err := globalDB.ListTaskCatalog(ctx, taskpkg.CatalogQuery{
+			Scope:            taskpkg.CatalogScopeGlobal,
+			ParentTaskID:     coordinator.ID,
+			ExcludeCreatedBy: excluded,
+			IncludeDrafts:    true,
+			Limit:            10,
+		})
+		if err != nil {
+			t.Fatalf("ListTaskCatalog(parent) error = %v", err)
+		}
+		got = orderedTaskSummaryIDs(children.Tasks)
+		want = []string{cell.ID}
+		if !testutil.EqualStringSlices(got, want) {
+			t.Fatalf("parent ids = %#v, want %#v", got, want)
+		}
+
+		unknown, err := globalDB.ListTaskCatalog(ctx, taskpkg.CatalogQuery{
+			Scope: taskpkg.CatalogScopeGlobal, LoopRunID: "looprun-missing", Limit: 10,
+		})
+		if err != nil {
+			t.Fatalf("ListTaskCatalog(unknown loop run) error = %v", err)
+		}
+		if unknown.Total != 0 || len(unknown.Tasks) != 0 ||
+			len(unknown.StatusFacets) != 0 || len(unknown.OwnerFacets) != 0 {
+			t.Fatalf("unknown loop run page = %#v, want true empty", unknown)
+		}
+
+		first, err := globalDB.ListTaskCatalog(ctx, taskpkg.CatalogQuery{
+			Scope:            taskpkg.CatalogScopeGlobal,
+			ExcludeCreatedBy: excluded,
+			IncludeDrafts:    true,
+			Limit:            1,
+		})
+		if err != nil {
+			t.Fatalf("ListTaskCatalog(cursor source) error = %v", err)
+		}
+		if first.NextCursor == "" {
+			t.Fatal("ListTaskCatalog(cursor source) next cursor = empty")
+		}
+		_, err = globalDB.ListTaskCatalog(ctx, taskpkg.CatalogQuery{
+			Scope:         taskpkg.CatalogScopeGlobal,
+			IncludeDrafts: true,
+			Cursor:        first.NextCursor,
+			Limit:         1,
+		})
+		if !errors.Is(err, taskpkg.ErrCatalogCursorInvalid) {
+			t.Fatalf("ListTaskCatalog(cursor filter mismatch) error = %v", err)
+		}
+
+		normalized, err := taskpkg.NormalizeCatalogQuery(taskpkg.CatalogQuery{
+			Scope: taskpkg.CatalogScopeGlobal, ExcludeCreatedBy: excluded, Limit: 10,
+		})
+		if err != nil {
+			t.Fatalf("NormalizeCatalogQuery(plan) error = %v", err)
+		}
+		baseWhere, args := taskCatalogBaseFilter(normalized)
+		statement := taskCatalogStatement("SELECT COUNT(*) FROM catalog", baseWhere, nil)
+		rows, err := globalDB.db.QueryContext(ctx, "EXPLAIN QUERY PLAN "+statement, args...)
+		if err != nil {
+			t.Fatalf("EXPLAIN QUERY PLAN exclusion error = %v", err)
+		}
+		defer func() {
+			if closeErr := rows.Close(); closeErr != nil {
+				t.Fatalf("close exclusion query plan rows error = %v", closeErr)
+			}
+		}()
+		var plan strings.Builder
+		for rows.Next() {
+			var id int
+			var parent int
+			var unused int
+			var detail string
+			if scanErr := rows.Scan(&id, &parent, &unused, &detail); scanErr != nil {
+				t.Fatalf("scan exclusion query plan error = %v", scanErr)
+			}
+			plan.WriteString(detail)
+			plan.WriteByte('\n')
+		}
+		if err := rows.Err(); err != nil {
+			t.Fatalf("iterate exclusion query plan error = %v", err)
+		}
+		if !strings.Contains(plan.String(), "idx_tasks_created_by") {
+			t.Fatalf("exclusion query plan does not use idx_tasks_created_by:\n%s", plan.String())
+		}
+	})
+
+	t.Run("Should return a true empty page for a Loop-only workspace", func(t *testing.T) {
+		t.Parallel()
+
+		globalDB := openTestGlobalDB(t)
+		ctx := testutil.Context(t)
+		workspaceID := registerWorkspaceForGlobalTests(t, globalDB, "loop-only", t.TempDir())
+		record := workspaceTaskRecordForTest("task-loop-only", workspaceID)
+		record.CreatedBy = taskpkg.ActorIdentity{Kind: taskpkg.ActorKindDaemon, Ref: "loop-coordinator"}
+		if err := globalDB.CreateTask(ctx, record); err != nil {
+			t.Fatalf("CreateTask() error = %v", err)
+		}
+		page, err := globalDB.ListTaskCatalog(ctx, taskpkg.CatalogQuery{
+			Scope: taskpkg.CatalogScopeWorkspace, WorkspaceID: workspaceID,
+			ExcludeCreatedBy: []taskpkg.ActorRef{{
+				Kind: taskpkg.ActorKindDaemon, Ref: "loop-coordinator",
+			}},
+			Limit: 10,
+		})
+		if err != nil {
+			t.Fatalf("ListTaskCatalog() error = %v", err)
+		}
+		if page.Total != 0 || len(page.Tasks) != 0 || len(page.StatusFacets) != 0 || len(page.OwnerFacets) != 0 {
+			t.Fatalf("loop-only page = %#v, want true empty", page)
+		}
 	})
 }
 

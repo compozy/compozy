@@ -2,10 +2,16 @@
 
 package contracts
 
-import (
-	"encoding/json"
-	"time"
-)
+import "time"
+
+type ShutdownResponse struct {
+	Acknowledged bool `json:"acknowledged"`
+}
+
+type SkillActivationPayload struct {
+	Active  bool                           `json:"active"`
+	Reasons []SkillActivationReasonPayload `json:"reasons,omitempty"`
+}
 
 type SkillActivationReasonCode string
 
@@ -264,45 +270,4 @@ type StuckTaskRun struct {
 	ChannelID  string        `json:"channel_id,omitempty"`
 	SessionID  string        `json:"session_id,omitempty"`
 	AgeMillis  int64         `json:"age_ms"`
-}
-
-type TargetKind string
-
-type Task struct {
-	ID                           string          `json:"id"`
-	Identifier                   string          `json:"identifier,omitempty"`
-	Scope                        TaskScope       `json:"scope"`
-	WorkspaceID                  string          `json:"workspace_id,omitempty"`
-	ParentTaskID                 string          `json:"parent_task_id,omitempty"`
-	ResolvedNetworkParticipation *Spec           `json:"resolved_network_participation,omitempty"`
-	Title                        string          `json:"title"`
-	Description                  string          `json:"description,omitempty"`
-	Priority                     Priority        `json:"priority,omitempty"`
-	MaxAttempts                  int             `json:"max_attempts,omitempty"`
-	AutoEnqueueOnReady           bool            `json:"auto_enqueue_on_ready,omitempty"`
-	Status                       Status          `json:"status"`
-	ApprovalPolicy               ApprovalPolicy  `json:"approval_policy,omitempty"`
-	ApprovalState                ApprovalState   `json:"approval_state,omitempty"`
-	Draft                        bool            `json:"draft,omitempty"`
-	Owner                        *Ownership      `json:"owner,omitempty"`
-	CurrentRunID                 string          `json:"current_run_id,omitempty"`
-	LatestEventSeq               int64           `json:"latest_event_seq"`
-	Paused                       bool            `json:"paused,omitempty"`
-	PausedBy                     string          `json:"paused_by,omitempty"`
-	PausedAt                     *time.Time      `json:"paused_at,omitempty"`
-	PausedReason                 string          `json:"paused_reason,omitempty"`
-	EffectivePaused              bool            `json:"effective_paused,omitempty"`
-	PausedByTaskID               string          `json:"paused_by_task_id,omitempty"`
-	BlockedReasons               []BlockedReason `json:"blocked_reasons,omitempty"`
-	NeedsAttention               bool            `json:"needs_attention,omitempty"`
-	NeedsAttentionReason         string          `json:"needs_attention_reason,omitempty"`
-	NeedsAttentionAt             *time.Time      `json:"needs_attention_at,omitempty"`
-	NeedsAttentionBy             *ActorIdentity  `json:"needs_attention_by,omitempty"`
-	WakeCreator                  bool            `json:"wake_creator"`
-	CreatedBy                    ActorIdentity   `json:"created_by"`
-	Origin                       Origin          `json:"origin"`
-	CreatedAt                    time.Time       `json:"created_at"`
-	UpdatedAt                    time.Time       `json:"updated_at"`
-	ClosedAt                     *time.Time      `json:"closed_at,omitempty"`
-	Metadata                     json.RawMessage `json:"metadata,omitempty"`
 }

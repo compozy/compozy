@@ -94,7 +94,7 @@ func (f *StoreFinalizer) WriteGenerationSnapshot(
 	if err := writeSnapshotOutputs(ctx, tx, loopRunID, snap.Generation, payload); err != nil {
 		return err
 	}
-	if err := writeSnapshotControls(ctx, tx, loopRunID, snap.Generation, payload); err != nil {
+	if err := writeSnapshotControls(ctx, tx, loopRunID, payload); err != nil {
 		return err
 	}
 	return writeSnapshotWaitsAndRequests(ctx, tx, loopRunID, snap.Generation, payload)
@@ -141,17 +141,11 @@ func writeSnapshotControls(
 	ctx context.Context,
 	tx task.Tx,
 	loopRunID string,
-	generation int,
 	payload GenerationSnapshotPayload,
 ) error {
 	for _, control := range payload.Controls {
 		if err := writeNodeControlMutation(ctx, tx, loopRunID, control); err != nil {
 			return err
-		}
-		if control.Kind == NodeControlMutationQuarantine {
-			if err := markQuarantinedNodeTasks(ctx, tx, loopRunID, generation, payload, control); err != nil {
-				return err
-			}
 		}
 	}
 	return nil

@@ -726,6 +726,111 @@ func TestBootLoopReconciliationBarrier(t *testing.T) {
 			t.Fatal("provenance backfill ran before daemon readiness")
 		}
 	})
+
+	t.Run("Should backfill a pre-change coordinator through first boot IT-010", func(t *testing.T) {
+		homePaths := testHomePaths(t)
+		cfg := testConfig(t, homePaths)
+		cfg.Network.Enabled = false
+		cloneDaemonTestStoreSeed(t, homePaths.DatabaseFile)
+		database, err := globaldb.OpenGlobalDB(testutil.Context(t), homePaths.DatabaseFile)
+		if err != nil {
+			t.Fatalf("OpenGlobalDB() error = %v", err)
+		}
+		now := time.Date(2026, time.August, 20, 17, 0, 0, 0, time.UTC)
+		workspaceID := "ws-daemon-provenance-boot"
+		if err := database.InsertWorkspace(testutil.Context(t), workspacepkg.Workspace{
+			ID: workspaceID, Name: "Daemon provenance boot", RootDir: t.TempDir(),
+			CreatedAt: now, UpdatedAt: now,
+		}); err != nil {
+			t.Fatalf("InsertWorkspace() error = %v", err)
+		}
+		seed := looppkg.Run{
+			ID: "looprun-daemon-provenance-boot", WorkspaceID: looppkg.WorkspaceID(workspaceID),
+			LoopName: "daemon-provenance-boot", Status: looppkg.StatusRunning,
+			ReattemptStrategy: looppkg.ReattemptFailedOnly, IterationCap: 1,
+			BudgetOnExceeded: loopdsl.BudgetExceededHalt, CreatedAt: now, LastProgressAt: now,
+		}
+		applyLoopRunPinningForTest(t, &seed, now)
+		run, err := database.CreateLoopRunForStart(testutil.Context(t), seed, loopdsl.ConcurrencyAllow)
+		if err != nil {
+			t.Fatalf("CreateLoopRunForStart() error = %v", err)
+		}
+		coordinatorTaskID := fmt.Sprintf("loop.%s.coordinator", run.ID)
+		if _, err := database.DB().ExecContext(
+			testutil.Context(t), `UPDATE tasks SET metadata_json = '{}' WHERE id = ?`, coordinatorTaskID,
+		); err != nil {
+			t.Fatalf("seed pre-change coordinator metadata error = %v", err)
+		}
+
+		d := newTestDaemon(t, homePaths, &cfg)
+		d.openRegistry = func(context.Context, string) (Registry, error) { return database, nil }
+		d.newSessionManager = func(context.Context, SessionManagerDeps) (SessionManager, error) {
+			return &fakeSessionManager{}, nil
+		}
+		d.newObserver = func(context.Context, RuntimeDeps) (Observer, error) { return &fakeObserver{}, nil }
+		d.httpFactory = func(context.Context, RuntimeDeps) (Server, error) {
+			return &fakeServer{name: "http"}, nil
+		}
+		d.udsFactory = func(context.Context, RuntimeDeps) (Server, error) {
+			return &fakeServer{name: "uds"}, nil
+		}
+		booted := false
+		t.Cleanup(func() {
+			if booted {
+				if err := d.Shutdown(testutil.Context(t)); err != nil {
+					t.Fatalf("Shutdown() error = %v", err)
+				}
+				return
+			}
+			if err := database.Close(testutil.Context(t)); err != nil {
+				t.Fatalf("GlobalDB.Close() error = %v", err)
+			}
+		})
+		if err := d.boot(testutil.Context(t)); err != nil {
+			t.Fatalf("boot() error = %v", err)
+		}
+		booted = true
+
+		deadline := time.Now().Add(2 * time.Second)
+		for {
+			record, getErr := database.GetTask(testutil.Context(t), coordinatorTaskID)
+			if getErr != nil {
+				t.Fatalf("GetTask(coordinator) error = %v", getErr)
+			}
+			if strings.Contains(string(record.Metadata), `"loop_name":"daemon-provenance-boot"`) {
+				break
+			}
+			if time.Now().After(deadline) {
+				t.Fatalf("first boot did not backfill coordinator metadata: %s", record.Metadata)
+			}
+			time.Sleep(10 * time.Millisecond)
+		}
+		actor, err := taskpkg.DeriveDaemonActorContext("provenance-boot-test", "daemon.boot.test")
+		if err != nil {
+			t.Fatalf("DeriveDaemonActorContext() error = %v", err)
+		}
+		query := taskpkg.CatalogQuery{
+			Scope: taskpkg.CatalogScopeWorkspace, WorkspaceID: workspaceID,
+			IncludeDrafts: true, Limit: 10,
+		}
+		core.ApplyTaskLoopCatalogFilters(&query, false, string(run.ID))
+		catalog, err := d.tasks.manager.ListTaskCatalog(testutil.Context(t), query, actor)
+		if err != nil {
+			t.Fatalf("ListTaskCatalog(first boot provenance) error = %v", err)
+		}
+		coordinatorIndex := slices.IndexFunc(catalog.Tasks, func(summary taskpkg.Summary) bool {
+			return summary.ID == coordinatorTaskID
+		})
+		if coordinatorIndex < 0 {
+			t.Fatalf("first boot catalog = %#v, want coordinator %q", catalog.Tasks, coordinatorTaskID)
+		}
+		payload := contract.TaskCatalogItemPayloadFromSummary(&catalog.Tasks[coordinatorIndex])
+		if payload.Loop == nil || payload.Loop.RunID != string(run.ID) ||
+			payload.Loop.LoopName != seed.LoopName ||
+			payload.Loop.Role != contract.LoopProvenanceRoleCoordinator {
+			t.Fatalf("first boot coordinator Loop = %#v, want complete coordinator provenance", payload.Loop)
+		}
+	})
 }
 
 func TestBootSessionAttachmentRetentionPinsQueuedInputs(t *testing.T) {

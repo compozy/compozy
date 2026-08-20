@@ -149,17 +149,25 @@ func listLoopSettlementRecords(
 	exec taskSQLExecutor,
 	loopRunID string,
 ) (records []loopSettlementRecord, err error) {
-	rows, err := exec.QueryContext(ctx, `WITH coordinator(task_id) AS (
+	rows, err := exec.QueryContext(ctx, `WITH RECURSIVE coordinator(task_id) AS (
 		SELECT task_id FROM task_runs WHERE loop_run_id = ? AND run_kind = 'coordinator' LIMIT 1
-	), owned(task_id) AS (
-		SELECT DISTINCT task_id FROM task_runs WHERE loop_run_id = ? AND task_id IS NOT NULL
-		UNION SELECT id FROM tasks WHERE parent_task_id = (SELECT task_id FROM coordinator)
+	), descendants(task_id, depth) AS (
+		SELECT id, 1 FROM tasks WHERE parent_task_id = (SELECT task_id FROM coordinator)
+		UNION ALL
+		SELECT child.id, parent.depth + 1
+		FROM tasks child JOIN descendants parent ON child.parent_task_id = parent.task_id
+	), owned(task_id, depth) AS (
+		SELECT task_id, 0 FROM task_runs WHERE loop_run_id = ? AND task_id IS NOT NULL
+		UNION ALL SELECT task_id, depth FROM descendants
+	), settlement(task_id, depth) AS (
+		SELECT task_id, MAX(depth) FROM owned GROUP BY task_id
 	)
 	SELECT t.id, COALESCE((SELECT tr.id FROM task_runs tr
 		WHERE tr.task_id = t.id AND tr.loop_run_id = ? ORDER BY tr.queued_at DESC LIMIT 1), ''),
 		t.status, t.id = COALESCE((SELECT task_id FROM coordinator), '')
-	FROM tasks t JOIN owned o ON o.task_id = t.id
-	ORDER BY t.id = COALESCE((SELECT task_id FROM coordinator), ''), t.id`, loopRunID, loopRunID, loopRunID)
+	FROM tasks t JOIN settlement s ON s.task_id = t.id
+	ORDER BY t.id = COALESCE((SELECT task_id FROM coordinator), ''), s.depth DESC, t.id`,
+		loopRunID, loopRunID, loopRunID)
 	if err != nil {
 		return nil, fmt.Errorf("store: list Loop settlement records for %q: %w", loopRunID, err)
 	}

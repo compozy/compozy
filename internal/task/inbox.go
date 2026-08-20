@@ -51,18 +51,19 @@ func (l InboxLane) Validate(path string) error {
 
 // InboxQuery captures one bounded actor-scoped task inbox request.
 type InboxQuery struct {
-	Scope       CatalogScope
-	WorkspaceID string
-	WorktreeID  string
-	OwnerKind   OwnerKind
-	OwnerRef    string
-	Lane        InboxLane
-	Status      Status
-	Priority    Priority
-	Unread      *bool
-	Search      string
-	Cursor      string
-	Limit       int
+	Scope            CatalogScope
+	WorkspaceID      string
+	WorktreeID       string
+	OwnerKind        OwnerKind
+	OwnerRef         string
+	Lane             InboxLane
+	Status           Status
+	Priority         Priority
+	Unread           *bool
+	Search           string
+	Cursor           string
+	Limit            int
+	ExcludeCreatedBy []ActorRef
 }
 
 // InboxItem is one action-ready task inbox item.
@@ -119,18 +120,19 @@ type InboxCursor struct {
 }
 
 type inboxFingerprint struct {
-	ActorKind   ActorKind    `json:"actor_kind"`
-	ActorRef    string       `json:"actor_ref"`
-	Scope       CatalogScope `json:"scope"`
-	WorkspaceID string       `json:"workspace_id"`
-	WorktreeID  string       `json:"worktree_id"`
-	OwnerKind   OwnerKind    `json:"owner_kind"`
-	OwnerRef    string       `json:"owner_ref"`
-	Lane        InboxLane    `json:"lane"`
-	Status      Status       `json:"status"`
-	Priority    Priority     `json:"priority"`
-	Unread      *bool        `json:"unread"`
-	Search      string       `json:"q"`
+	ActorKind        ActorKind    `json:"actor_kind"`
+	ActorRef         string       `json:"actor_ref"`
+	Scope            CatalogScope `json:"scope"`
+	WorkspaceID      string       `json:"workspace_id"`
+	WorktreeID       string       `json:"worktree_id"`
+	OwnerKind        OwnerKind    `json:"owner_kind"`
+	OwnerRef         string       `json:"owner_ref"`
+	Lane             InboxLane    `json:"lane"`
+	Status           Status       `json:"status"`
+	Priority         Priority     `json:"priority"`
+	Unread           *bool        `json:"unread"`
+	Search           string       `json:"q"`
+	ExcludeCreatedBy []ActorRef   `json:"exclude_created_by"`
 }
 
 // InboxReader is the batched persistence capability consumed by Observer.
@@ -176,6 +178,7 @@ func normalizeInboxQueryFields(query InboxQuery) InboxQuery {
 	query.Priority = query.Priority.Normalize()
 	query.Search = strings.ToLower(strings.TrimSpace(query.Search))
 	query.Cursor = strings.TrimSpace(query.Cursor)
+	query.ExcludeCreatedBy = normalizeCatalogActorRefs(query.ExcludeCreatedBy)
 	if query.Limit == 0 {
 		query.Limit = DefaultCatalogLimit
 	}
@@ -184,15 +187,16 @@ func normalizeInboxQueryFields(query InboxQuery) InboxQuery {
 
 func validateInboxQuery(query InboxQuery) error {
 	catalogQuery := CatalogQuery{
-		Scope:       query.Scope,
-		WorkspaceID: query.WorkspaceID,
-		WorktreeID:  query.WorktreeID,
-		Status:      query.Status,
-		Priority:    query.Priority,
-		OwnerKind:   query.OwnerKind,
-		OwnerRef:    query.OwnerRef,
-		Limit:       query.Limit,
-		Sort:        CatalogSortRecent,
+		Scope:            query.Scope,
+		WorkspaceID:      query.WorkspaceID,
+		WorktreeID:       query.WorktreeID,
+		Status:           query.Status,
+		Priority:         query.Priority,
+		OwnerKind:        query.OwnerKind,
+		OwnerRef:         query.OwnerRef,
+		Limit:            query.Limit,
+		Sort:             CatalogSortRecent,
+		ExcludeCreatedBy: query.ExcludeCreatedBy,
 	}
 	if err := validateCatalogQuery(catalogQuery); err != nil {
 		return err
@@ -252,18 +256,19 @@ func DecodeInboxCursor(query InboxQuery, actor ActorIdentity) (InboxCursor, erro
 
 func taskInboxFingerprint(query InboxQuery, actor ActorIdentity) (string, error) {
 	fingerprint, err := listcursor.Fingerprint(inboxFingerprint{
-		ActorKind:   actor.Kind.Normalize(),
-		ActorRef:    strings.TrimSpace(actor.Ref),
-		Scope:       query.Scope,
-		WorkspaceID: query.WorkspaceID,
-		WorktreeID:  query.WorktreeID,
-		OwnerKind:   query.OwnerKind,
-		OwnerRef:    query.OwnerRef,
-		Lane:        query.Lane,
-		Status:      query.Status,
-		Priority:    query.Priority,
-		Unread:      query.Unread,
-		Search:      query.Search,
+		ActorKind:        actor.Kind.Normalize(),
+		ActorRef:         strings.TrimSpace(actor.Ref),
+		Scope:            query.Scope,
+		WorkspaceID:      query.WorkspaceID,
+		WorktreeID:       query.WorktreeID,
+		OwnerKind:        query.OwnerKind,
+		OwnerRef:         query.OwnerRef,
+		Lane:             query.Lane,
+		Status:           query.Status,
+		Priority:         query.Priority,
+		Unread:           query.Unread,
+		Search:           query.Search,
+		ExcludeCreatedBy: query.ExcludeCreatedBy,
 	})
 	if err != nil {
 		return "", fmt.Errorf("task: fingerprint inbox query: %w", err)

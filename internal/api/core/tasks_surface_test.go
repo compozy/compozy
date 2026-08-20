@@ -92,6 +92,13 @@ func TestExpandedTaskPayloadBuildersPreserveLiveAndAggregateFields(t *testing.T)
 			StartedAt: now.Add(-5 * time.Minute),
 		},
 		LastActivityAt: lastActivity,
+		RunProvenance: &taskpkg.RunProvenance{
+			LoopRunID: "looprun-alpha",
+			RunKind:   taskpkg.RunKindWorker,
+			Metadata: json.RawMessage(
+				`{"loop_run_id":"looprun-alpha","loop_name":"alpha","generation":2,"node_id":"review","item_index":0}`,
+			),
+		},
 	}
 
 	summaryPayload := core.TaskSummaryPayloadFromSummary(&summary)
@@ -119,6 +126,10 @@ func TestExpandedTaskPayloadBuildersPreserveLiveAndAggregateFields(t *testing.T)
 		catalogPayload.ActiveRun.RecoveryCount != summary.ActiveRun.RecoveryCount {
 		t.Fatalf("TaskCatalogItemPayloadFromSummary() active run = %#v", catalogPayload.ActiveRun)
 	}
+	catalogResponse := core.TaskCatalogResponseFromPage(taskpkg.CatalogPage{Tasks: []taskpkg.Summary{summary}})
+	if len(catalogResponse.Tasks) != 1 || catalogResponse.Tasks[0].Loop == nil {
+		t.Fatalf("TaskCatalogResponseFromPage() loop = %#v", catalogResponse.Tasks)
+	}
 
 	detailPayload := core.TaskDetailPayloadFromView(&taskpkg.View{
 		Summary: summary,
@@ -141,9 +152,15 @@ func TestExpandedTaskPayloadBuildersPreserveLiveAndAggregateFields(t *testing.T)
 			Origin:         taskpkg.Origin{Kind: taskpkg.OriginKindHTTP, Ref: "tasks.create"},
 			CreatedAt:      now.Add(-2 * time.Hour),
 			UpdatedAt:      now,
-			Metadata:       json.RawMessage(`{"priority":"high"}`),
+			Metadata: json.RawMessage(
+				`{"loop_run_id":"looprun-alpha","loop_name":"alpha","generation":2,"node_id":"review","item_index":0}`,
+			),
 		},
 		DependencyReferences: summary.Dependencies,
+		Runs: []taskpkg.Run{{
+			ID: "run-loop-cell", TaskID: "task-1", RunKind: taskpkg.RunKindWorker,
+			LoopRunID: "looprun-alpha", Attempt: 1, QueuedAt: now.Add(-time.Hour),
+		}},
 	})
 	if detailPayload.Summary.Priority != taskpkg.PriorityHigh ||
 		detailPayload.Task.MaxAttempts != 4 ||
@@ -153,6 +170,13 @@ func TestExpandedTaskPayloadBuildersPreserveLiveAndAggregateFields(t *testing.T)
 		detailPayload.Task.PausedByTaskID != "task-root" ||
 		len(detailPayload.DependencyReferences) != 1 {
 		t.Fatalf("TaskDetailPayloadFromView() = %#v", detailPayload)
+	}
+	if !reflect.DeepEqual(detailPayload.Task.Loop, catalogResponse.Tasks[0].Loop) {
+		t.Fatalf(
+			"detail/catalog Loop provenance = %#v/%#v, want identical",
+			detailPayload.Task.Loop,
+			catalogResponse.Tasks[0].Loop,
+		)
 	}
 
 	runDetailPayload := core.TaskRunDetailPayloadFromView(&taskpkg.RunDetailView{
@@ -392,6 +416,51 @@ func TestExpandedTaskPayloadBuildersPreserveLiveAndAggregateFields(t *testing.T)
 			t.Fatalf("TaskInboxPayloadFromView() JSON contains %s: %s", forbidden, encodedInbox)
 		}
 	}
+
+	t.Run("Should preserve relational Loop facts after retention", func(t *testing.T) {
+		t.Parallel()
+
+		for _, tt := range []struct {
+			name string
+			kind taskpkg.RunKind
+			role contract.LoopProvenanceRole
+		}{
+			{name: "Should preserve a coordinator role", kind: taskpkg.RunKindCoordinator, role: contract.LoopProvenanceRoleCoordinator},
+			{name: "Should preserve a cell role", kind: taskpkg.RunKindWorker, role: contract.LoopProvenanceRoleCell},
+		} {
+			t.Run(tt.name, func(t *testing.T) {
+				t.Parallel()
+
+				summary := taskpkg.Summary{
+					ID: "task-loop-degraded", Title: "Loop record", Status: taskpkg.TaskStatusCompleted,
+					RunProvenance: &taskpkg.RunProvenance{
+						LoopRunID: "looprun-retained-facts", RunKind: tt.kind,
+					},
+				}
+				catalogPayload := core.TaskCatalogResponseFromPage(taskpkg.CatalogPage{
+					Tasks: []taskpkg.Summary{summary},
+				}).Tasks[0]
+				detailPayload := core.TaskDetailPayloadFromView(&taskpkg.View{
+					Summary: summary,
+					Task:    taskpkg.Task{ID: summary.ID, Title: summary.Title, Status: summary.Status},
+					Runs: []taskpkg.Run{{
+						ID: "run-loop-degraded", TaskID: summary.ID, LoopRunID: "looprun-retained-facts",
+						RunKind: tt.kind, Attempt: 1,
+					}},
+				})
+				if catalogPayload.Loop == nil || detailPayload.Task.Loop == nil ||
+					catalogPayload.Loop.RunID != "looprun-retained-facts" ||
+					catalogPayload.Loop.Role != tt.role || catalogPayload.Loop.LoopName != "" ||
+					!reflect.DeepEqual(catalogPayload.Loop, detailPayload.Task.Loop) {
+					t.Fatalf(
+						"catalog/detail degraded provenance = %#v/%#v",
+						catalogPayload.Loop,
+						detailPayload.Task.Loop,
+					)
+				}
+			})
+		}
+	})
 }
 
 func TestTaskRunConversationStreamSurface(t *testing.T) {
@@ -1626,6 +1695,24 @@ func TestBaseHandlersExpandedTaskEndpointErrorPaths(t *testing.T) {
 		nil,
 		nil,
 	)
+
+	t.Run("Should reject invalid include_loop with the stable payload", func(t *testing.T) {
+		t.Parallel()
+
+		response := performRequest(
+			t,
+			fixture.Engine,
+			http.MethodGet,
+			"/tasks?include_loop=banana",
+			nil,
+		)
+		if response.Code != http.StatusBadRequest {
+			t.Fatalf("status = %d, want %d; body=%s", response.Code, http.StatusBadRequest, response.Body.String())
+		}
+		if got, want := response.Body.String(), `{"error":"invalid_query_field","field":"include_loop"}`; got != want {
+			t.Fatalf("body = %q, want %q", got, want)
+		}
+	})
 
 	if resp := performRequest(
 		t,

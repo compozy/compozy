@@ -7,6 +7,35 @@ import (
 	"time"
 )
 
+type TaskDashboardStatusBreakdownPayload struct {
+	Status       Status `json:"status"`
+	Count        int    `json:"count"`
+	SharePercent int    `json:"share_percent"`
+}
+
+type TaskDashboardTotalsPayload struct {
+	TasksTotal             int `json:"tasks_total"`
+	RunsTotal              int `json:"runs_total"`
+	DraftTasks             int `json:"draft_tasks"`
+	PendingTasks           int `json:"pending_tasks"`
+	ReadyTasks             int `json:"ready_tasks"`
+	InProgressTasks        int `json:"in_progress_tasks"`
+	BlockedTasks           int `json:"blocked_tasks"`
+	CompletedTasks         int `json:"completed_tasks"`
+	FailedTasks            int `json:"failed_tasks"`
+	CanceledTasks          int `json:"canceled_tasks"`
+	AwaitingApprovalTasks  int `json:"awaiting_approval_tasks"`
+	DependencyBlockedTasks int `json:"dependency_blocked_tasks"`
+	QueuedRuns             int `json:"queued_runs"`
+	ClaimedRuns            int `json:"claimed_runs"`
+	StartingRuns           int `json:"starting_runs"`
+	RunningRuns            int `json:"running_runs"`
+	CompletedRuns          int `json:"completed_runs"`
+	FailedRuns             int `json:"failed_runs"`
+	CanceledRuns           int `json:"canceled_runs"`
+	ActiveRuns             int `json:"active_runs"`
+}
+
 type TaskDependencyPayload struct {
 	TaskID          string         `json:"task_id"`
 	DependsOnTaskID string         `json:"depends_on_task_id"`
@@ -209,50 +238,4 @@ type TaskRecoveryTotals struct {
 	Requeued      int `json:"requeued"`
 	MarkedRunning int `json:"marked_running"`
 	Failed        int `json:"failed"`
-}
-
-type TaskReferencePayload struct {
-	ID              string     `json:"id"`
-	Identifier      string     `json:"identifier,omitempty"`
-	Title           string     `json:"title"`
-	Status          Status     `json:"status"`
-	Priority        Priority   `json:"priority,omitempty"`
-	Owner           *Ownership `json:"owner,omitempty"`
-	Scope           TaskScope  `json:"scope"`
-	WorkspaceID     string     `json:"workspace_id,omitempty"`
-	LatestEventSeq  int64      `json:"latest_event_seq"`
-	Paused          bool       `json:"paused,omitempty"`
-	EffectivePaused bool       `json:"effective_paused,omitempty"`
-	PausedByTaskID  string     `json:"paused_by_task_id,omitempty"`
-}
-
-type TaskRun struct {
-	ID                           string                      `json:"id"`
-	TaskID                       string                      `json:"task_id"`
-	Status                       TaskRunStatus               `json:"status"`
-	Attempt                      int                         `json:"attempt"`
-	RecoveryCount                int                         `json:"recovery_count"`
-	PreviousRunID                string                      `json:"previous_run_id,omitempty"`
-	FailureKind                  string                      `json:"failure_kind,omitempty"`
-	ClaimedBy                    *ActorIdentity              `json:"claimed_by,omitempty"`
-	SessionID                    string                      `json:"session_id,omitempty"`
-	WorktreeID                   string                      `json:"worktree_id,omitempty"`
-	ResolvedWorktreeMode         ResolvedWorktreeMode        `json:"resolved_worktree_mode"`
-	ResolvedWorktreeRef          string                      `json:"resolved_worktree_ref,omitempty"`
-	Origin                       Origin                      `json:"origin"`
-	IdempotencyKey               string                      `json:"idempotency_key,omitempty"`
-	ResolvedNetworkParticipation *Spec                       `json:"resolved_network_participation,omitempty"`
-	DesignationGroupID           string                      `json:"designation_group_id,omitempty"`
-	ClaimTokenHash               string                      `json:"claim_token_hash,omitempty"`
-	LeaseUntil                   *time.Time                  `json:"lease_until,omitempty"`
-	HeartbeatAt                  *time.Time                  `json:"heartbeat_at,omitempty"`
-	CoordinationChannel          *CoordinationChannelPayload `json:"coordination_channel,omitempty"`
-	Designation                  *RunDesignationSummary      `json:"designation,omitempty"`
-	QueuedAt                     time.Time                   `json:"queued_at"`
-	ClaimedAt                    *time.Time                  `json:"claimed_at,omitempty"`
-	StartedAt                    *time.Time                  `json:"started_at,omitempty"`
-	EndedAt                      *time.Time                  `json:"ended_at,omitempty"`
-	Error                        string                      `json:"error,omitempty"`
-	Metadata                     json.RawMessage             `json:"metadata,omitempty"`
-	Result                       json.RawMessage             `json:"result,omitempty"`
 }

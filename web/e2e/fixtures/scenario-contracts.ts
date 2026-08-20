@@ -130,6 +130,20 @@ export interface TransportSnapshot<THTTP, TUDS, TCLI> {
   cli: TCLI;
 }
 
+export interface TaskLoopProvenanceSnapshot {
+  run_id: string;
+  loop_name?: string;
+  role: "coordinator" | "cell";
+  generation?: number;
+  node_id?: string;
+  item_index?: number;
+}
+
+export interface TaskCatalogSemanticItem {
+  id: string;
+  loop?: TaskLoopProvenanceSnapshot;
+}
+
 export const standardViewportMatrix = [
   { name: "mobile", width: 375, height: 812 },
   { name: "tablet", width: 768, height: 1024 },
@@ -631,6 +645,44 @@ export function assertSameRuntimeFields(
       );
     }
   }
+}
+
+export function assertTaskCatalogSemanticParity(
+  label: string,
+  expected: TaskCatalogSemanticItem[],
+  actual: TaskCatalogSemanticItem[]
+): void {
+  const normalizedExpected = normalizeTaskCatalogSemanticItems(expected);
+  const normalizedActual = normalizeTaskCatalogSemanticItems(actual);
+  if (JSON.stringify(normalizedActual) !== JSON.stringify(normalizedExpected)) {
+    throw new Error(
+      `${label} task catalog mismatch: got ${JSON.stringify(normalizedActual)}, want ${JSON.stringify(normalizedExpected)}`
+    );
+  }
+}
+
+function normalizeTaskCatalogSemanticItems(
+  items: TaskCatalogSemanticItem[]
+): TaskCatalogSemanticItem[] {
+  return items
+    .map(item => ({
+      id: item.id,
+      ...(item.loop ? { loop: normalizeTaskLoopProvenance(item.loop) } : {}),
+    }))
+    .sort((left, right) => left.id.localeCompare(right.id));
+}
+
+function normalizeTaskLoopProvenance(
+  provenance: TaskLoopProvenanceSnapshot
+): TaskLoopProvenanceSnapshot {
+  return {
+    run_id: provenance.run_id,
+    ...(provenance.loop_name === undefined ? {} : { loop_name: provenance.loop_name }),
+    role: provenance.role,
+    ...(provenance.generation === undefined ? {} : { generation: provenance.generation }),
+    ...(provenance.node_id === undefined ? {} : { node_id: provenance.node_id }),
+    ...(provenance.item_index === undefined ? {} : { item_index: provenance.item_index }),
+  };
 }
 
 export function assertNoSensitiveArtifactPayload(

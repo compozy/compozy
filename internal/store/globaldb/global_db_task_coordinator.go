@@ -10,7 +10,7 @@ import (
 )
 
 const (
-	loopCoordinatorActorRef = "loop"
+	loopCoordinatorActorRef = "loop-coordinator"
 	taskRunResultKindKey    = "kind"
 )
 
@@ -202,7 +202,9 @@ func (g *TaskRepo) finalizeCoordinatorGenerationWithExecutor(
 		snapshot.LoopRunID = loopRunID
 	}
 	postReserve := normalizePostReserveSnapshot(completion.Plan.PostReserveSnapshot, snapshot, loopRunID)
-	if err := finalizer.WriteGenerationSnapshot(ctx, exec, snapshot); err != nil {
+	if err := writeCoordinatorGenerationSnapshotWithExecutor(
+		ctx, exec, snapshot, finalizer, completion.Actor,
+	); err != nil {
 		return coordinatorBoundaryState{}, err
 	}
 	loopSettlementTransitions, err := applyCoordinatorRunStopsWithExecutor(
@@ -438,7 +440,9 @@ func (g *TaskRepo) applyCoordinatorContinueBoundaryWithExecutor(
 		return err
 	}
 	if postReserveSnapshot != nil {
-		if err := finalizer.WriteGenerationSnapshot(ctx, exec, *postReserveSnapshot); err != nil {
+		if err := writeCoordinatorGenerationSnapshotWithExecutor(
+			ctx, exec, *postReserveSnapshot, finalizer, completion.Actor,
+		); err != nil {
 			return err
 		}
 		if err := g.applyCoordinatorGenerationSnapshotIntentsWithExecutor(
