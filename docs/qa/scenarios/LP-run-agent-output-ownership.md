@@ -6,13 +6,13 @@ persona: Bruno
 journey: J-complete-partial-loop
 expected: A run-agent task publishes only schema-valid exact structured output, preserves large results through content-addressed storage, permits agent heartbeats, and rejects agent attempts to complete or fail the daemon-owned task.
 entry_points: compozy loop run; compozy loop status; /docs/loops/dsl-reference; skills/compozy/references/loops.md
-qa_status: untested
+qa_status: pass
 bug_ids:
 fix_status:
 retest_status:
 fix_commits:
-evidence:
-last_report:
+evidence: /Users/pedronauck/dev/qa-labs/compozy-loop-runtime-graph-fixes-20260819-234724-890442-lab/qa-artifacts/qa/logs/bruno-filter-success-status.json; /Users/pedronauck/dev/qa-labs/compozy-loop-runtime-graph-fixes-20260819-234724-890442-lab/qa-artifacts/qa/logs/bruno-filter-terra-final.json; /Users/pedronauck/dev/qa-labs/compozy-loop-runtime-graph-fixes-20260819-234724-890442-lab/qa-artifacts/qa/logs/bruno-active-lease-heartbeat.json; /Users/pedronauck/dev/qa-labs/compozy-loop-runtime-graph-fixes-20260819-234724-890442-lab/qa-artifacts/qa/logs/bruno-active-lease-complete.json; /Users/pedronauck/dev/qa-labs/compozy-loop-runtime-graph-fixes-20260819-234724-890442-lab/qa-artifacts/qa/logs/bruno-active-lease-fail.json; /Users/pedronauck/dev/qa-labs/compozy-loop-runtime-graph-fixes-20260819-234724-890442-lab/qa-artifacts/qa/logs/bruno-terminal-drain-v2-proof.json
+last_report: docs/qa/reports/2026-08-19-loop-runtime-graph-fixes.md
 overlaps:
 ---
 

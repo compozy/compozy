@@ -393,7 +393,7 @@ func (m *Service) failRunLeaseSettlement(
 			commandResult.settlement = FailedRunLeaseSettlement{
 				Run:               mutation.Run,
 				Task:              taskRecord,
-				StatusTransitions: transitions,
+				StatusTransitions: append(mutation.StatusTransitions, transitions...),
 			}
 			commandResult.events = []Event{event}
 			return nil

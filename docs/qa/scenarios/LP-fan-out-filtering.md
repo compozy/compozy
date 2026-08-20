@@ -6,13 +6,13 @@ persona: Bruno
 journey: J-complete-partial-loop
 expected: A fan-out filter can read item, source index, and authored aliases; only matching elements are batched, and max_fan_out counts the resulting lanes.
 entry_points: compozy loop validate; compozy loop run; compozy loop status; /docs/loops/dsl-reference; skills/compozy/references/loops.md
-qa_status: untested
+qa_status: pass
 bug_ids:
 fix_status:
 retest_status:
 fix_commits:
-evidence:
-last_report:
+evidence: /Users/pedronauck/dev/qa-labs/compozy-loop-runtime-graph-fixes-20260819-234724-890442-lab/qa-artifacts/qa/logs/bruno-filter-success-status.json; /Users/pedronauck/dev/qa-labs/compozy-loop-runtime-graph-fixes-20260819-234724-890442-lab/qa-artifacts/qa/logs/bruno-zero-filter-status.json; /Users/pedronauck/dev/qa-labs/compozy-loop-runtime-graph-fixes-20260819-234724-890442-lab/qa-artifacts/qa/logs/bruno-filter-error-exit-status.json; /Users/pedronauck/dev/qa-labs/compozy-loop-runtime-graph-fixes-20260819-234724-890442-lab/qa-artifacts/qa/logs/bruno-terminal-drain-v2-proof.json
+last_report: docs/qa/reports/2026-08-19-loop-runtime-graph-fixes.md
 overlaps:
 ---
 

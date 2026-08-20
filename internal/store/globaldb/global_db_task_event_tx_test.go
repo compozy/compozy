@@ -469,7 +469,7 @@ func TestGlobalDBTaskRunLeaseSettlementShouldPublishCommittedSequence(t *testing
 		}
 	})
 
-	t.Run("Should append exactly one canonical event for a public coordinator lease failure", func(t *testing.T) {
+	t.Run("Should drain open children before a public coordinator lease failure", func(t *testing.T) {
 		t.Parallel()
 
 		ctx := testutil.Context(t)
@@ -491,6 +491,15 @@ func TestGlobalDBTaskRunLeaseSettlementShouldPublishCommittedSequence(t *testing
 			"public-failure-event",
 			now.Add(time.Second),
 		)
+		childTask := workspaceTaskRecordForTest(
+			"loop.looprun-public-failure-event.g2.node.ready.0",
+			string(loopRun.WorkspaceID),
+		)
+		childTask.ParentTaskID = claim.Run.TaskID
+		childTask.Status = taskpkg.TaskStatusReady
+		if err := globalDB.CreateTask(ctx, childTask); err != nil {
+			t.Fatalf("CreateTask(coordinator child) error = %v", err)
+		}
 		observer := &recordingTaskEventCommitObserver{db: globalDB}
 		globalDB.SetTaskEventCommitObserver(observer)
 		actor := coordinatorActorContextForTest()
@@ -514,11 +523,17 @@ func TestGlobalDBTaskRunLeaseSettlementShouldPublishCommittedSequence(t *testing
 		if observer.err != nil {
 			t.Fatalf("post-commit observer error = %v", observer.err)
 		}
-		if got, want := len(observer.records), 1; got != want {
+		if got, want := len(observer.records), 2; got != want {
 			t.Fatalf("observer records = %d, want %d: %#v", got, want, observer.records)
 		}
+		if got, want := observer.records[0].Event.EventType, string(hookspkg.HookTaskStatusChanged); got != want {
+			t.Fatalf("first event type = %q, want %q", got, want)
+		}
+		if got, want := observer.records[0].Event.TaskID, childTask.ID; got != want {
+			t.Fatalf("first event task = %q, want drained child %q", got, want)
+		}
 
-		event := observer.records[0].Event
+		event := observer.records[1].Event
 		if got, want := event.EventType, string(hookspkg.HookTaskRunFailed); got != want {
 			t.Fatalf("event type = %q, want %q", got, want)
 		}
@@ -548,6 +563,13 @@ func TestGlobalDBTaskRunLeaseSettlementShouldPublishCommittedSequence(t *testing
 				taskRecord.WorkspaceID,
 				failed.WorkspaceID,
 			)
+		}
+		storedChild, err := globalDB.GetTask(ctx, childTask.ID)
+		if err != nil {
+			t.Fatalf("GetTask(coordinator child) error = %v", err)
+		}
+		if storedChild.Status != taskpkg.TaskStatusCanceled {
+			t.Fatalf("coordinator child status = %q, want canceled", storedChild.Status)
 		}
 
 		events, err := globalDB.ListTaskEvents(ctx, taskpkg.EventQuery{

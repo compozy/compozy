@@ -6561,7 +6561,9 @@ func testGlobalDBCompleteCoordinatorAndEnqueueNextShouldCreateNodeTasksDependenc
 	)
 	rootTaskID := "loop.looprun-coordinator-materialize.g1.node.load.0"
 	childTaskID := "loop.looprun-coordinator-materialize.g1.node.agent.0"
+	attentionTaskID := "loop.looprun-coordinator-materialize.g1.node.attention.0"
 	rootRunID := "run.loop.looprun-coordinator-materialize.g1.node.load.0"
+	attentionRunID := "run.loop.looprun-coordinator-materialize.g1.node.attention.0"
 
 	result, err := globalDB.CompleteCoordinatorAndEnqueueNext(ctx, taskpkg.CoordinatorCompletion{
 		RunID:      claim.Run.ID,
@@ -6578,6 +6580,11 @@ func testGlobalDBCompleteCoordinatorAndEnqueueNextShouldCreateNodeTasksDependenc
 					TaskID:   childTaskID,
 					Title:    "Loop delivery node agent",
 					Metadata: json.RawMessage(`{"node_id":"agent"}`),
+				},
+				{
+					TaskID:   attentionTaskID,
+					Title:    "Loop delivery node attention",
+					Metadata: json.RawMessage(`{"node_id":"attention"}`),
 				},
 			},
 			Dependencies: []taskpkg.CoordinatorDependencySpec{
@@ -6662,6 +6669,13 @@ func testGlobalDBCompleteCoordinatorAndEnqueueNextShouldCreateNodeTasksDependenc
 	if status != "enqueued" {
 		t.Fatalf("generation output status = %q, want enqueued", status)
 	}
+	attentionRun := taskRunForTest(attentionRunID, attentionTaskID)
+	attentionRun.Status = taskpkg.TaskRunStatusNeedsAttention
+	attentionRun.LoopRunID = string(loopRun.ID)
+	attentionRun.Error = "provider process stopped"
+	if err := globalDB.CreateTaskRun(ctx, attentionRun); err != nil {
+		t.Fatalf("CreateTaskRun(attention) error = %v", err)
+	}
 
 	wake, added, err := globalDB.EnqueueLoopCoordinatorWake(
 		ctx,
@@ -6714,6 +6728,27 @@ func testGlobalDBCompleteCoordinatorAndEnqueueNextShouldCreateNodeTasksDependenc
 	}
 	if drainedTask.Status != taskpkg.TaskStatusCanceled {
 		t.Fatalf("drained root task status = %q, want canceled", drainedTask.Status)
+	}
+	drainedChild, err := globalDB.GetTask(ctx, childTaskID)
+	if err != nil {
+		t.Fatalf("GetTask(drained child) error = %v", err)
+	}
+	if drainedChild.Status != taskpkg.TaskStatusCanceled {
+		t.Fatalf("drained child task status = %q, want canceled", drainedChild.Status)
+	}
+	drainedAttentionTask, err := globalDB.GetTask(ctx, attentionTaskID)
+	if err != nil {
+		t.Fatalf("GetTask(drained attention) error = %v", err)
+	}
+	if drainedAttentionTask.Status != taskpkg.TaskStatusCanceled {
+		t.Fatalf("drained attention task status = %q, want canceled", drainedAttentionTask.Status)
+	}
+	drainedAttentionRun, err := globalDB.GetTaskRun(ctx, attentionRunID)
+	if err != nil {
+		t.Fatalf("GetTaskRun(drained attention) error = %v", err)
+	}
+	if drainedAttentionRun.Status != taskpkg.TaskRunStatusFailed {
+		t.Fatalf("drained attention run status = %q, want failed", drainedAttentionRun.Status)
 	}
 }
 

@@ -29,8 +29,9 @@ type ReleasedRunLeaseSettlement struct {
 
 // FailedRunLeaseMutation is the fenced run mutation with its canonical failure.
 type FailedRunLeaseMutation struct {
-	Run     Run
-	Failure RunFailure
+	Run               Run
+	Failure           RunFailure
+	StatusTransitions []StatusTransition
 }
 
 // FailedRunLeaseSettlement is the durable task projection produced with a lease failure.

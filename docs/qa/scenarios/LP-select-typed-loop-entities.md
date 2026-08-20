@@ -6,13 +6,13 @@ persona: Lea
 journey: J-01
 expected: Shared Web controls, CLI prompts, and structured start surfaces preserve exact entity and runtime values, reject stale references with input_validation, and create no run on failure
 entry_points: web /loops/:name run form; CLI compozy loop run --input; HTTP/UDS Loop run route; compozy__loop_run
-qa_status: untested
+qa_status: pass
 bug_ids: BUG-20260729-tool-invoke-structural-redaction; BUG-20260818-runtime-input-split-controls
 fix_status: fixed
 retest_status: pass
 fix_commits: f3b8837; 46dd8ae
-evidence: /Users/pedronauck/dev/qa-labs/compozy-typed-loop-inputs-remediation-20260819-062429-798135-lab/qa-artifacts/qa/runtime-selector.png; /Users/pedronauck/dev/qa-labs/compozy-typed-loop-inputs-remediation-20260819-062429-798135-lab/qa-artifacts/qa/journey-log.jsonl
-last_report: docs/qa/reports/2026-08-19-typed-loop-inputs-remediation.md
+evidence: /Users/pedronauck/dev/qa-labs/compozy-loop-runtime-graph-fixes-20260819-234724-890442-lab/qa-artifacts/qa/screenshots/lea-runtime-speed-fast.png; /Users/pedronauck/dev/qa-labs/compozy-loop-runtime-graph-fixes-20260819-234724-890442-lab/qa-artifacts/qa/screenshots/lea-runtime-dry-run-pass.png; /Users/pedronauck/dev/qa-labs/compozy-loop-runtime-graph-fixes-20260819-234724-890442-lab/qa-artifacts/qa/logs/lea-runtime-status-1.json
+last_report: docs/qa/reports/2026-08-19-loop-runtime-graph-fixes.md
 overlaps: LP-002; LP-loop-input-defaults; LP-runtime-validation-preflight
 ---
 

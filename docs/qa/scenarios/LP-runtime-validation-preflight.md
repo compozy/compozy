@@ -6,13 +6,13 @@ persona: Dora
 journey: J-02
 expected: Static and runtime-routing errors remain deterministic `runtime_validation` items, while invalid declared runtime inputs return field-addressed `input_validation`; unknown providers fail before ACP spawn, exact model IDs pass unchanged for known providers, and every preflight-rejected path materializes no run or session.
 entry_points: compozy loop validate; compozy loop run --dry-run; POST /api/workspaces/:workspace_id/loops/:name/validate and /run over HTTP and UDS
-qa_status: untested
+qa_status: pass
 bug_ids: BUG-20260819-empty-runtime-default-rejected
 fix_status: fixed
 retest_status: pass
 fix_commits: 46dd8ae
-evidence: /Users/pedronauck/dev/qa-labs/compozy-typed-loop-inputs-remediation-20260819-062429-798135-lab/qa-artifacts/qa/journey-log.jsonl
-last_report: docs/qa/reports/2026-08-19-typed-loop-inputs-remediation.md
+evidence: /Users/pedronauck/dev/qa-labs/compozy-loop-runtime-graph-fixes-20260819-234724-890442-lab/qa-artifacts/qa/logs/dora-runtime-dry-run-fast.json; /Users/pedronauck/dev/qa-labs/compozy-loop-runtime-graph-fixes-20260819-234724-890442-lab/qa-artifacts/qa/logs/dora-http-runtime-fast.json; /Users/pedronauck/dev/qa-labs/compozy-loop-runtime-graph-fixes-20260819-234724-890442-lab/qa-artifacts/qa/logs/dora-final-runs.json
+last_report: docs/qa/reports/2026-08-19-loop-runtime-graph-fixes.md
 overlaps: LP-022; LP-runtime-selection-overrides
 ---
 

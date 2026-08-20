@@ -28,6 +28,16 @@ func (g *TaskRepo) attachTerminalCoordinatorSettlementWithExecutor(
 		if err != nil {
 			return taskpkg.CoordinatorCompletionResult{}, err
 		}
+		descendants, err := g.cancelOpenLoopTaskDescendantsWithExecutor(
+			ctx,
+			exec,
+			updated.TaskID,
+			completion.Actor,
+			completion.Now,
+		)
+		if err != nil {
+			return taskpkg.CoordinatorCompletionResult{}, err
+		}
 		settlement, err := g.settleCompletedTaskHierarchyWithExecutor(
 			ctx,
 			exec,
@@ -38,7 +48,10 @@ func (g *TaskRepo) attachTerminalCoordinatorSettlementWithExecutor(
 		if err != nil {
 			return taskpkg.CoordinatorCompletionResult{}, err
 		}
-		settlement.StatusTransitions = append(canceled, settlement.StatusTransitions...)
+		terminalTransitions := make([]taskpkg.StatusTransition, 0, len(canceled)+len(descendants))
+		terminalTransitions = append(terminalTransitions, canceled...)
+		terminalTransitions = append(terminalTransitions, descendants...)
+		settlement.StatusTransitions = append(terminalTransitions, settlement.StatusTransitions...)
 		settlement.Run = updated
 		result.Settlement = &settlement
 		return *result, nil
@@ -74,15 +87,7 @@ func (g *TaskRepo) cancelLiveLoopTaskRunsWithExecutor(
 		if err != nil {
 			return nil, err
 		}
-		next := current
-		next.Status = taskpkg.TaskRunStatusCanceled
-		next.EndedAt = terminalAt.UTC()
-		next.Error = "Loop run reached a terminal state"
-		if _, err := g.transitionTerminalRunWithExecutor(
-			ctx,
-			exec,
-			taskpkg.NewTerminalRunMutation(current, next),
-		); err != nil {
+		if err := g.terminalizeLoopTaskRunWithExecutor(ctx, exec, current, terminalAt); err != nil {
 			return nil, err
 		}
 		taskID := strings.TrimSpace(current.TaskID)
@@ -110,7 +115,8 @@ func liveLoopTaskRunIDs(ctx context.Context, exec taskSQLExecutor, loopRunID str
 	rows, err := exec.QueryContext(
 		ctx,
 		`SELECT id FROM task_runs
-		  WHERE loop_run_id = ? AND status IN ('queued', 'claimed', 'starting', 'running')
+		  WHERE loop_run_id = ?
+		    AND status IN ('queued', 'claimed', 'starting', 'running', 'needs_attention')
 		  ORDER BY id`,
 		strings.TrimSpace(loopRunID),
 	)
@@ -147,6 +153,39 @@ func liveLoopTaskRunIDs(ctx context.Context, exec taskSQLExecutor, loopRunID str
 	return ids, nil
 }
 
+func (g *TaskRepo) terminalizeLoopTaskRunWithExecutor(
+	ctx context.Context,
+	exec taskSQLExecutor,
+	current taskpkg.Run,
+	terminalAt time.Time,
+) error {
+	const terminalReason = "Loop run reached a terminal state"
+	if current.Status.Normalize() == taskpkg.TaskRunStatusNeedsAttention {
+		updated, err := failNeedsAttentionTaskRunForRecoveryWithExecutor(
+			ctx,
+			exec,
+			current,
+			taskpkg.NewRunMutationFence(current),
+			terminalReason,
+			terminalAt,
+		)
+		if err != nil {
+			return err
+		}
+		return updateTaskCurrentRunProjectionForRunUpdate(ctx, exec, current, updated)
+	}
+	next := current
+	next.Status = taskpkg.TaskRunStatusCanceled
+	next.EndedAt = terminalAt.UTC()
+	next.Error = terminalReason
+	_, err := g.transitionTerminalRunWithExecutor(
+		ctx,
+		exec,
+		taskpkg.NewTerminalRunMutation(current, next),
+	)
+	return err
+}
+
 func (g *TaskRepo) cancelLiveLoopTaskWithExecutor(
 	ctx context.Context,
 	exec taskSQLExecutor,
@@ -172,4 +211,83 @@ func (g *TaskRepo) cancelLiveLoopTaskWithExecutor(
 		return taskpkg.StatusTransition{}, false, err
 	}
 	return taskpkg.StatusTransition{Task: updated, PreviousStatus: current.Status}, true, nil
+}
+
+func (g *TaskRepo) cancelOpenLoopTaskDescendantsWithExecutor(
+	ctx context.Context,
+	exec taskSQLExecutor,
+	coordinatorTaskID string,
+	actor taskpkg.ActorContext,
+	terminalAt time.Time,
+) ([]taskpkg.StatusTransition, error) {
+	ids, err := openTaskDescendantIDs(ctx, exec, coordinatorTaskID)
+	if err != nil {
+		return nil, err
+	}
+	transitions := make([]taskpkg.StatusTransition, 0, len(ids))
+	for _, id := range ids {
+		transition, changed, err := g.cancelLiveLoopTaskWithExecutor(ctx, exec, id, actor, terminalAt)
+		if err != nil {
+			return nil, err
+		}
+		if changed {
+			transitions = append(transitions, transition)
+		}
+	}
+	return transitions, nil
+}
+
+func openTaskDescendantIDs(
+	ctx context.Context,
+	exec taskSQLExecutor,
+	rootTaskID string,
+) ([]string, error) {
+	// dynamic-sql: terminal cleanup walks the task hierarchy atomically so
+	// ready descendants without a task run cannot survive their Loop.
+	rows, err := exec.QueryContext(
+		ctx,
+		`WITH RECURSIVE descendants(id) AS (
+			SELECT id FROM tasks WHERE parent_task_id = ?
+			UNION ALL
+			SELECT task.id
+			  FROM tasks AS task
+			  JOIN descendants AS parent ON task.parent_task_id = parent.id
+		)
+		SELECT task.id
+		  FROM tasks AS task
+		  JOIN descendants ON descendants.id = task.id
+		 WHERE task.status NOT IN ('completed', 'failed', 'canceled')
+		 ORDER BY task.id`,
+		strings.TrimSpace(rootTaskID),
+	)
+	if err != nil {
+		return nil, fmt.Errorf("store: list open Loop task descendants: %w", err)
+	}
+	ids := []string{}
+	for rows.Next() {
+		var id string
+		if scanErr := rows.Scan(&id); scanErr != nil {
+			if closeErr := rows.Close(); closeErr != nil {
+				return nil, errors.Join(
+					fmt.Errorf("store: scan open Loop task descendant: %w", scanErr),
+					fmt.Errorf("store: close open Loop task descendants: %w", closeErr),
+				)
+			}
+			return nil, fmt.Errorf("store: scan open Loop task descendant: %w", scanErr)
+		}
+		ids = append(ids, id)
+	}
+	if err := rows.Err(); err != nil {
+		if closeErr := rows.Close(); closeErr != nil {
+			return nil, errors.Join(
+				fmt.Errorf("store: iterate open Loop task descendants: %w", err),
+				fmt.Errorf("store: close open Loop task descendants: %w", closeErr),
+			)
+		}
+		return nil, fmt.Errorf("store: iterate open Loop task descendants: %w", err)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, fmt.Errorf("store: close open Loop task descendants: %w", err)
+	}
+	return ids, nil
 }
