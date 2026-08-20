@@ -358,7 +358,7 @@ func evaluateFanOutNode(
 		)
 		return failed, nil, failureErr
 	}
-	materialization, terminal := buildFanOutMaterialization(node, filtered.Items, eval.fanOutWidth)
+	materialization, terminal := buildFanOutMaterialization(node, filtered.Candidates, eval.fanOutWidth)
 	if terminal != nil {
 		return output, terminal, nil
 	}

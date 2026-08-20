@@ -212,39 +212,43 @@ func TestLoopTimeTravelEnumValuesShouldRemainOrderedAndComplete(t *testing.T) {
 func TestLoopResolvedRuntimeShouldPreserveSpeedOutcomeAndProvenance(t *testing.T) {
 	t.Parallel()
 
-	payload := contract.LoopResolvedRuntime{
-		Provider:  "codex",
-		Model:     "gpt-5.5-codex",
-		Reasoning: "high",
-		Speed:     contract.SpeedFast,
-		SpeedResolution: &contract.SpeedResolution{
-			Requested: contract.SpeedFast,
-			Status:    contract.SpeedResolutionUnsupported,
-			Reason:    contract.SpeedResolutionReasonCapabilityAbsent,
-		},
-		Source: contract.LoopRuntimeProvenance{
-			Provider: "node", Model: "config", Reasoning: "default", Speed: "input",
-		},
-	}
+	t.Run("Should preserve speed outcome and provenance through JSON", func(t *testing.T) {
+		t.Parallel()
 
-	encoded, err := json.Marshal(payload)
-	if err != nil {
-		t.Fatalf("json.Marshal() error = %v", err)
-	}
-	want := `{"provider":"codex","model":"gpt-5.5-codex","reasoning":"high","speed":"fast","speed_resolution":{"requested":"fast","status":"unsupported","reason":"capability_absent"},"source":{"provider":"node","model":"config","reasoning":"default","speed":"input"}}`
-	if string(encoded) != want {
-		t.Fatalf("json.Marshal() = %s, want %s", encoded, want)
-	}
+		payload := contract.LoopResolvedRuntime{
+			Provider:  "codex",
+			Model:     "gpt-5.5-codex",
+			Reasoning: "high",
+			Speed:     contract.SpeedFast,
+			SpeedResolution: &contract.SpeedResolution{
+				Requested: contract.SpeedFast,
+				Status:    contract.SpeedResolutionUnsupported,
+				Reason:    contract.SpeedResolutionReasonCapabilityAbsent,
+			},
+			Source: contract.LoopRuntimeProvenance{
+				Provider: "node", Model: "config", Reasoning: "default", Speed: "input",
+			},
+		}
 
-	var decoded contract.LoopResolvedRuntime
-	if err := json.Unmarshal(encoded, &decoded); err != nil {
-		t.Fatalf("json.Unmarshal() error = %v", err)
-	}
-	if decoded.Speed != contract.SpeedFast || decoded.SpeedResolution == nil ||
-		decoded.SpeedResolution.Status != contract.SpeedResolutionUnsupported ||
-		decoded.Source.Speed != "input" {
-		t.Fatalf("json.Unmarshal() = %#v, want complete speed contract", decoded)
-	}
+		encoded, err := json.Marshal(payload)
+		if err != nil {
+			t.Fatalf("json.Marshal() error = %v", err)
+		}
+		want := `{"provider":"codex","model":"gpt-5.5-codex","reasoning":"high","speed":"fast","speed_resolution":{"requested":"fast","status":"unsupported","reason":"capability_absent"},"source":{"provider":"node","model":"config","reasoning":"default","speed":"input"}}`
+		if string(encoded) != want {
+			t.Fatalf("json.Marshal() = %s, want %s", encoded, want)
+		}
+
+		var decoded contract.LoopResolvedRuntime
+		if err := json.Unmarshal(encoded, &decoded); err != nil {
+			t.Fatalf("json.Unmarshal() error = %v", err)
+		}
+		if decoded.Speed != contract.SpeedFast || decoded.SpeedResolution == nil ||
+			decoded.SpeedResolution.Status != contract.SpeedResolutionUnsupported ||
+			decoded.Source.Speed != "input" {
+			t.Fatalf("json.Unmarshal() = %#v, want complete speed contract", decoded)
+		}
+	})
 }
 
 func TestWindowManagerV3WireContract(t *testing.T) {

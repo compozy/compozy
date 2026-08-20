@@ -38,7 +38,7 @@ func fanOutJoinSettlement(
 	fanOutID dsl.NodeID,
 	collectID dsl.NodeID,
 ) (joinSettlement, bool) {
-	branchCount, ok := fanOutBranchCount(outputs, fanOutID)
+	branchIndexes, ok := fanOutOutputBranchIndexes(outputs, fanOutID)
 	if !ok {
 		return joinSettlement{}, false
 	}
@@ -50,11 +50,11 @@ func fanOutJoinSettlement(
 	if fanOut.Strategy != nil {
 		strategy = *fanOut.Strategy
 	}
-	lanes := make([]joinLaneState, 0, branchCount)
-	for itemIndex := range branchCount {
+	lanes := make([]joinLaneState, 0, len(branchIndexes))
+	for _, itemIndex := range branchIndexes {
 		lanes = append(lanes, collectLaneState(topology, outputs, fanOutID, collectID, itemIndex))
 	}
-	return settleJoin(strategy, branchCount, lanes, nil), true
+	return settleJoin(strategy, len(branchIndexes), lanes, nil), true
 }
 
 func collectLaneState(

@@ -3,25 +3,28 @@ package loop
 import "github.com/compozy/compozy/internal/loop/dsl"
 
 type fanOutWindowState struct {
-	Total        int
+	Indexes      []int
 	MaxParallel  int
 	Materialized map[int]bool
 	Settled      map[int]bool
 }
 
 func nextFanOutWindowIndexes(state fanOutWindowState) []int {
-	if state.Total <= 0 || state.MaxParallel <= 0 {
+	if len(state.Indexes) == 0 || state.MaxParallel <= 0 {
 		return nil
 	}
 	active := 0
-	for itemIndex := range state.Total {
+	for _, itemIndex := range state.Indexes {
 		if state.Materialized[itemIndex] && !state.Settled[itemIndex] {
 			active++
 		}
 	}
-	available := min(max(state.MaxParallel-active, 0), state.Total)
+	available := min(max(state.MaxParallel-active, 0), len(state.Indexes))
 	indexes := make([]int, 0, available)
-	for itemIndex := 0; itemIndex < state.Total && len(indexes) < available; itemIndex++ {
+	for _, itemIndex := range state.Indexes {
+		if len(indexes) >= available {
+			break
+		}
 		if state.Materialized[itemIndex] {
 			continue
 		}
@@ -46,13 +49,14 @@ func materializeFanOutWindow(
 			materialized[output.ItemIndex] = true
 		}
 	}
-	for itemIndex := range materialization.Branches {
+	branchIndexes := fanOutBranchIndexes(materialization)
+	for _, itemIndex := range branchIndexes {
 		if materialized[itemIndex] && branchComplete(graph, topology, *outputs, fanOutID, itemIndex) {
 			settled[itemIndex] = true
 		}
 	}
 	indexes := nextFanOutWindowIndexes(fanOutWindowState{
-		Total: materialization.Branches, MaxParallel: materialization.MaxParallel,
+		Indexes: branchIndexes, MaxParallel: materialization.MaxParallel,
 		Materialized: materialized, Settled: settled,
 	})
 	if len(indexes) == 0 {

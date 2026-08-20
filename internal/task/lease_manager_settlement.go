@@ -1,6 +1,9 @@
 package task
 
-import "context"
+import (
+	"context"
+	"slices"
+)
 
 type leaseSettlementCommandResult[T any] struct {
 	settlement T
@@ -393,7 +396,7 @@ func (m *Service) failRunLeaseSettlement(
 			commandResult.settlement = FailedRunLeaseSettlement{
 				Run:               mutation.Run,
 				Task:              taskRecord,
-				StatusTransitions: append(mutation.StatusTransitions, transitions...),
+				StatusTransitions: slices.Concat(mutation.StatusTransitions, transitions),
 			}
 			commandResult.events = []Event{event}
 			return nil

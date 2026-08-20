@@ -115,7 +115,11 @@ func TestRuntimeNamespaceShouldScopeFanOutItemsByBatchSize(t *testing.T) {
 	topology := newControlTopology(graph)
 	fanOutOutputs := func(t *testing.T, batchSize int, items []any) []GenerationOutput {
 		t.Helper()
-		materialization, terminal := buildFanOutMaterialization(dsl.Node{ID: "fan", BatchSize: batchSize}, items, 1)
+		materialization, terminal := buildFanOutMaterialization(
+			dsl.Node{ID: "fan", BatchSize: batchSize},
+			indexedFanOutCandidates(items),
+			1,
+		)
 		if terminal != nil {
 			t.Fatalf("buildFanOutMaterialization() terminal = %#v, want nil", terminal)
 		}
@@ -161,7 +165,7 @@ func TestRuntimeNamespaceShouldScopeFanOutItemsByBatchSize(t *testing.T) {
 			map[string]any{"id": "B"},
 			map[string]any{"id": "C"},
 		})
-		namespace, err := runtimeNamespace(Run{}, 1, graph, topology, outputs, "body", 1)
+		namespace, err := runtimeNamespace(Run{}, 1, graph, topology, outputs, "body", 2)
 		if err != nil {
 			t.Fatalf("runtimeNamespace() error = %v", err)
 		}
@@ -171,6 +175,9 @@ func TestRuntimeNamespaceShouldScopeFanOutItemsByBatchSize(t *testing.T) {
 		}
 		if got, want := len(chunk), 1; got != want {
 			t.Fatalf("chunk len = %d, want %d", got, want)
+		}
+		if got, want := namespace["index"], int64(2); got != want {
+			t.Fatalf("namespace index = %#v, want original chunk start index %#v", got, want)
 		}
 		rendered, err := refs.RenderTemplateString(
 			"body.prompt",
@@ -203,7 +210,11 @@ func TestRuntimeNamespaceShouldProjectFanOutProgressAndIterationNames(t *testing
 		},
 		Edges: []dsl.Edge{{From: "fan", To: "body"}, {From: "body", To: "collect"}},
 	}
-	materialization, terminal := buildFanOutMaterialization(graph.Nodes[0], []any{"a.go", "b.go", "c.go"}, 3)
+	materialization, terminal := buildFanOutMaterialization(
+		graph.Nodes[0],
+		indexedFanOutCandidates([]any{"a.go", "b.go", "c.go"}),
+		3,
+	)
 	if terminal != nil {
 		t.Fatalf("buildFanOutMaterialization() terminal = %#v, want nil", terminal)
 	}

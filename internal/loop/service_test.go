@@ -22,6 +22,7 @@ import (
 	"github.com/compozy/compozy/internal/loop/dsl"
 	"github.com/compozy/compozy/internal/loop/gate"
 	"github.com/compozy/compozy/internal/network/participation"
+	speedpkg "github.com/compozy/compozy/internal/speed"
 	"github.com/compozy/compozy/internal/task"
 )
 
@@ -1845,6 +1846,23 @@ func TestResolveInputsShouldApplyDefaultsAndValidateTypes(t *testing.T) {
 		}
 		if runtime, ok := resolved["runtime"].(map[string]any); !ok || len(runtime) != 0 {
 			t.Fatalf("resolved runtime = %#v, want empty object", resolved["runtime"])
+		}
+	})
+
+	t.Run("Should reject unsupported speed in a direct runtime spec", func(t *testing.T) {
+		t.Parallel()
+
+		def := validDefinition()
+		def.Inputs = map[string]dsl.Input{
+			"runtime": {Type: dsl.InputTypeRuntime, Required: true},
+		}
+		_, err := loop.ResolveInputs(def, loop.Inputs{Values: map[string]any{
+			"runtime": dsl.RuntimeSpec{Speed: speedpkg.Speed("turbo")},
+		}})
+		validation, ok := loop.AsInputValidationError(err)
+		if !ok || validation.Field != "runtime" ||
+			validation.Reason != loop.InputValidationReasonInvalidKindPayload {
+			t.Fatalf("ResolveInputs() error = %#v, want runtime validation error", err)
 		}
 	})
 

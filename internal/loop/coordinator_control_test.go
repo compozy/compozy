@@ -519,8 +519,8 @@ func TestCoordinatorRunnerShouldDriveFanOutAndCollectControls(t *testing.T) {
 		if got, want := post["work/0"].Status, generationOutputEnqueued; got != want {
 			t.Fatalf("work[0] status = %q, want %q", got, want)
 		}
-		if _, materialized := post["work/1"]; materialized {
-			t.Fatal("work[1] materialized before the max_parallel slot opened")
+		if _, materialized := post["work/2"]; materialized {
+			t.Fatal("work[2] materialized before the max_parallel slot opened")
 		}
 		if got, want := post["collect/0"].Status, generationOutputPending; got != want {
 			t.Fatalf("collect status = %q, want %q", got, want)
@@ -551,13 +551,13 @@ func TestCoordinatorRunnerShouldDriveFanOutAndCollectControls(t *testing.T) {
 		if got, want := len(secondPlan.NodeRuns), 1; got != want {
 			t.Fatalf("second node runs = %d, want %d", got, want)
 		}
-		if got, want := secondPlan.NodeRuns[0].TaskID, coordinatorNodeTaskID(loopRun.ID, 1, "work", 1); got != want {
+		if got, want := secondPlan.NodeRuns[0].TaskID, coordinatorNodeTaskID(loopRun.ID, 1, "work", 2); got != want {
 			t.Fatalf("second queued task = %q, want %q", got, want)
 		}
 		assertCoordinatorPlanContainsTaskForControlTest(
 			t,
 			secondPlan,
-			coordinatorNodeTaskID(loopRun.ID, 1, "work", 1),
+			coordinatorNodeTaskID(loopRun.ID, 1, "work", 2),
 		)
 	})
 
@@ -568,7 +568,7 @@ func TestCoordinatorRunnerShouldDriveFanOutAndCollectControls(t *testing.T) {
 		fanOut := &definition.Graph.Nodes[1]
 		fanOut.BindAs = "candidate"
 		fanOut.IndexAs = "source_index"
-		fanOut.Filter = `item.enabled && candidate.id != "B" && source_index < 3`
+		fanOut.Filter = `candidate.enabled && source_index == 2`
 		resolved := compileCoordinatorControlDefinition(t, definition)
 		loopRun := controlLoopRun("looprun-filtered-fanout", map[string]any{})
 		coordinatorRun := controlCoordinatorRun(loopRun, 1)
@@ -611,13 +611,18 @@ func TestCoordinatorRunnerShouldDriveFanOutAndCollectControls(t *testing.T) {
 			t.Fatalf("json.Unmarshal(node metadata) error = %v", err)
 		}
 		items, ok := metadata["item"].([]any)
-		if !ok || len(items) != 2 {
-			t.Fatalf("metadata.item = %#v, want one two-item filtered batch", metadata["item"])
+		if !ok || len(items) != 1 {
+			t.Fatalf("metadata.item = %#v, want one filtered candidate", metadata["item"])
 		}
-		first, firstOK := items[0].(map[string]any)
-		second, secondOK := items[1].(map[string]any)
-		if !firstOK || !secondOK || first["id"] != "A" || second["id"] != "C" {
-			t.Fatalf("filtered batch = %#v, want items A and C", items)
+		candidate, candidateOK := items[0].(map[string]any)
+		if !candidateOK || candidate["id"] != "C" {
+			t.Fatalf("filtered batch = %#v, want only item C", items)
+		}
+		if got, want := metadata["index"], float64(2); got != want {
+			t.Fatalf("metadata.index = %#v, want original source index %#v", got, want)
+		}
+		if got, want := plan.NodeRuns[0].TaskID, coordinatorNodeTaskID(loopRun.ID, 1, "work", 2); got != want {
+			t.Fatalf("node run task = %q, want source-index task %q", got, want)
 		}
 	})
 
@@ -1966,7 +1971,10 @@ func failedItemOutputsForTest(t *testing.T) []GenerationOutput {
 		Branches:    2,
 		BatchSize:   1,
 		MaxParallel: 2,
-		Chunks:      [][]any{{map[string]any{"id": "A"}}, {map[string]any{"id": "B"}}},
+		Chunks: [][]fanOutCandidate{
+			{{Index: 0, Item: map[string]any{"id": "A"}}},
+			{{Index: 1, Item: map[string]any{"id": "B"}}},
+		},
 	})
 	if err != nil {
 		t.Fatalf("fanOutMaterializationRef() error = %v", err)

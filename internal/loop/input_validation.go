@@ -171,7 +171,7 @@ func runtimeInputSpec(value any) (dsl.RuntimeSpec, error) {
 		if len(typed.Extra) > 0 {
 			return dsl.RuntimeSpec{}, fmt.Errorf("contains unknown fields")
 		}
-		return typed, nil
+		return runtimeInputSpecFromMap(runtimeInputValue(typed))
 	case *dsl.RuntimeSpec:
 		if typed == nil {
 			return dsl.RuntimeSpec{}, fmt.Errorf("must be an object")

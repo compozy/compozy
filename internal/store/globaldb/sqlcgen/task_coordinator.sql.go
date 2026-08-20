@@ -53,6 +53,115 @@ func (q *Queries) ConsumeLoopBudgetApproval(ctx context.Context, id string) (int
 	return result.RowsAffected()
 }
 
+const listLiveLoopTaskRunIDs = `-- name: ListLiveLoopTaskRunIDs :many
+SELECT id
+FROM task_runs
+WHERE loop_run_id = ?1
+  AND status IN (
+    ?2,
+    ?3,
+    ?4,
+    ?5,
+    ?6
+  )
+ORDER BY id
+`
+
+type ListLiveLoopTaskRunIDsParams struct {
+	LoopRunID            sql.NullString `json:"loop_run_id"`
+	QueuedStatus         string         `json:"queued_status"`
+	ClaimedStatus        string         `json:"claimed_status"`
+	StartingStatus       string         `json:"starting_status"`
+	RunningStatus        string         `json:"running_status"`
+	NeedsAttentionStatus string         `json:"needs_attention_status"`
+}
+
+func (q *Queries) ListLiveLoopTaskRunIDs(ctx context.Context, arg ListLiveLoopTaskRunIDsParams) ([]string, error) {
+	rows, err := q.db.QueryContext(ctx, listLiveLoopTaskRunIDs,
+		arg.LoopRunID,
+		arg.QueuedStatus,
+		arg.ClaimedStatus,
+		arg.StartingStatus,
+		arg.RunningStatus,
+		arg.NeedsAttentionStatus,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []string{}
+	for rows.Next() {
+		var id string
+		if err := rows.Scan(&id); err != nil {
+			return nil, err
+		}
+		items = append(items, id)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listOpenTaskDescendantIDs = `-- name: ListOpenTaskDescendantIDs :many
+WITH RECURSIVE descendants(id) AS (
+  SELECT root.id
+  FROM tasks AS root
+  WHERE root.parent_task_id = ?4
+  UNION ALL
+  SELECT task.id
+  FROM tasks AS task
+  JOIN descendants AS parent ON task.parent_task_id = parent.id
+)
+SELECT task.id
+FROM tasks AS task
+JOIN descendants ON descendants.id = task.id
+WHERE task.status NOT IN (
+  ?1,
+  ?2,
+  ?3
+)
+ORDER BY task.id
+`
+
+type ListOpenTaskDescendantIDsParams struct {
+	CompletedStatus string         `json:"completed_status"`
+	FailedStatus    string         `json:"failed_status"`
+	CanceledStatus  string         `json:"canceled_status"`
+	RootTaskID      sql.NullString `json:"root_task_id"`
+}
+
+func (q *Queries) ListOpenTaskDescendantIDs(ctx context.Context, arg ListOpenTaskDescendantIDsParams) ([]string, error) {
+	rows, err := q.db.QueryContext(ctx, listOpenTaskDescendantIDs,
+		arg.CompletedStatus,
+		arg.FailedStatus,
+		arg.CanceledStatus,
+		arg.RootTaskID,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []string{}
+	for rows.Next() {
+		var id string
+		if err := rows.Scan(&id); err != nil {
+			return nil, err
+		}
+		items = append(items, id)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const sumLoopRunTaskTokens = `-- name: SumLoopRunTaskTokens :one
 SELECT CAST(COALESCE(SUM(tokens_used), 0) AS INTEGER)
 FROM task_runs

@@ -118,12 +118,16 @@ func TestValidateDefinitionRuntimeShouldEnforceStaticRuntimeContract(t *testing.
 		t.Parallel()
 
 		for _, value := range []speedpkg.Speed{speedpkg.SpeedNormal, speedpkg.SpeedFast} {
-			definition := dsl.Definition{Contract: dsl.Contract{RuntimeDefaults: &dsl.RuntimeDefaults{
-				Worker: dsl.RuntimeSpec{Speed: value},
-			}}}
-			if err := loop.ValidateDefinitionRuntime(context.Background(), nil, definition); err != nil {
-				t.Fatalf("ValidateDefinitionRuntime(%q) error = %v", value, err)
-			}
+			t.Run("Should accept "+string(value), func(t *testing.T) {
+				t.Parallel()
+
+				definition := dsl.Definition{Contract: dsl.Contract{RuntimeDefaults: &dsl.RuntimeDefaults{
+					Worker: dsl.RuntimeSpec{Speed: value},
+				}}}
+				if err := loop.ValidateDefinitionRuntime(context.Background(), nil, definition); err != nil {
+					t.Fatalf("ValidateDefinitionRuntime(%q) error = %v", value, err)
+				}
+			})
 		}
 	})
 

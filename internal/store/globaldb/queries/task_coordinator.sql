@@ -46,3 +46,36 @@ WHERE id = sqlc.arg(id);
 UPDATE loop_runs
 SET budget_approval_seq = budget_approval_seq - 1
 WHERE id = sqlc.arg(id) AND budget_approval_seq > 0;
+
+-- name: ListLiveLoopTaskRunIDs :many
+SELECT id
+FROM task_runs
+WHERE loop_run_id = sqlc.arg(loop_run_id)
+  AND status IN (
+    sqlc.arg(queued_status),
+    sqlc.arg(claimed_status),
+    sqlc.arg(starting_status),
+    sqlc.arg(running_status),
+    sqlc.arg(needs_attention_status)
+  )
+ORDER BY id;
+
+-- name: ListOpenTaskDescendantIDs :many
+WITH RECURSIVE descendants(id) AS (
+  SELECT root.id
+  FROM tasks AS root
+  WHERE root.parent_task_id = sqlc.arg(root_task_id)
+  UNION ALL
+  SELECT task.id
+  FROM tasks AS task
+  JOIN descendants AS parent ON task.parent_task_id = parent.id
+)
+SELECT task.id
+FROM tasks AS task
+JOIN descendants ON descendants.id = task.id
+WHERE task.status NOT IN (
+  sqlc.arg(completed_status),
+  sqlc.arg(failed_status),
+  sqlc.arg(canceled_status)
+)
+ORDER BY task.id;

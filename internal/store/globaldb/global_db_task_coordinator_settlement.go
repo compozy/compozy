@@ -2,11 +2,12 @@ package globaldb
 
 import (
 	"context"
-	"errors"
+	"database/sql"
 	"fmt"
 	"strings"
 	"time"
 
+	"github.com/compozy/compozy/internal/store/globaldb/sqlcgen"
 	taskpkg "github.com/compozy/compozy/internal/task"
 )
 
@@ -110,46 +111,17 @@ func (g *TaskRepo) cancelLiveLoopTaskRunsWithExecutor(
 }
 
 func liveLoopTaskRunIDs(ctx context.Context, exec taskSQLExecutor, loopRunID string) ([]string, error) {
-	// dynamic-sql: terminal cleanup is a transaction-local scan across every
-	// task owned by one Loop run; it is not a public list contract.
-	rows, err := exec.QueryContext(
-		ctx,
-		`SELECT id FROM task_runs
-		  WHERE loop_run_id = ?
-		    AND status IN ('queued', 'claimed', 'starting', 'running', 'needs_attention')
-		  ORDER BY id`,
-		strings.TrimSpace(loopRunID),
-	)
+	ids, err := sqlcgen.New(exec).ListLiveLoopTaskRunIDs(ctx, sqlcgen.ListLiveLoopTaskRunIDsParams{
+		LoopRunID:            sql.NullString{String: strings.TrimSpace(loopRunID), Valid: true},
+		QueuedStatus:         taskpkg.TaskRunStatusQueued.String(),
+		ClaimedStatus:        taskpkg.TaskRunStatusClaimed.String(),
+		StartingStatus:       taskpkg.TaskRunStatusStarting.String(),
+		RunningStatus:        taskpkg.TaskRunStatusRunning.String(),
+		NeedsAttentionStatus: taskpkg.TaskRunStatusNeedsAttention.String(),
+	})
 	if err != nil {
 		return nil, fmt.Errorf("store: list live Loop task runs: %w", err)
 	}
-	ids := []string{}
-	for rows.Next() {
-		var id string
-		if scanErr := rows.Scan(&id); scanErr != nil {
-			if closeErr := rows.Close(); closeErr != nil {
-				return nil, errors.Join(
-					fmt.Errorf("store: scan live Loop task run: %w", scanErr),
-					fmt.Errorf("store: close live Loop task runs: %w", closeErr),
-				)
-			}
-			return nil, fmt.Errorf("store: scan live Loop task run: %w", scanErr)
-		}
-		ids = append(ids, id)
-	}
-	if err := rows.Err(); err != nil {
-		if closeErr := rows.Close(); closeErr != nil {
-			return nil, errors.Join(
-				fmt.Errorf("store: iterate live Loop task runs: %w", err),
-				fmt.Errorf("store: close live Loop task runs: %w", closeErr),
-			)
-		}
-		return nil, fmt.Errorf("store: iterate live Loop task runs: %w", err)
-	}
-	if err := rows.Close(); err != nil {
-		return nil, fmt.Errorf("store: close live Loop task runs: %w", err)
-	}
-
 	return ids, nil
 }
 
@@ -242,52 +214,14 @@ func openTaskDescendantIDs(
 	exec taskSQLExecutor,
 	rootTaskID string,
 ) ([]string, error) {
-	// dynamic-sql: terminal cleanup walks the task hierarchy atomically so
-	// ready descendants without a task run cannot survive their Loop.
-	rows, err := exec.QueryContext(
-		ctx,
-		`WITH RECURSIVE descendants(id) AS (
-			SELECT id FROM tasks WHERE parent_task_id = ?
-			UNION ALL
-			SELECT task.id
-			  FROM tasks AS task
-			  JOIN descendants AS parent ON task.parent_task_id = parent.id
-		)
-		SELECT task.id
-		  FROM tasks AS task
-		  JOIN descendants ON descendants.id = task.id
-		 WHERE task.status NOT IN ('completed', 'failed', 'canceled')
-		 ORDER BY task.id`,
-		strings.TrimSpace(rootTaskID),
-	)
+	ids, err := sqlcgen.New(exec).ListOpenTaskDescendantIDs(ctx, sqlcgen.ListOpenTaskDescendantIDsParams{
+		RootTaskID:      sql.NullString{String: strings.TrimSpace(rootTaskID), Valid: true},
+		CompletedStatus: string(taskpkg.TaskStatusCompleted),
+		FailedStatus:    string(taskpkg.TaskStatusFailed),
+		CanceledStatus:  string(taskpkg.TaskStatusCanceled),
+	})
 	if err != nil {
 		return nil, fmt.Errorf("store: list open Loop task descendants: %w", err)
-	}
-	ids := []string{}
-	for rows.Next() {
-		var id string
-		if scanErr := rows.Scan(&id); scanErr != nil {
-			if closeErr := rows.Close(); closeErr != nil {
-				return nil, errors.Join(
-					fmt.Errorf("store: scan open Loop task descendant: %w", scanErr),
-					fmt.Errorf("store: close open Loop task descendants: %w", closeErr),
-				)
-			}
-			return nil, fmt.Errorf("store: scan open Loop task descendant: %w", scanErr)
-		}
-		ids = append(ids, id)
-	}
-	if err := rows.Err(); err != nil {
-		if closeErr := rows.Close(); closeErr != nil {
-			return nil, errors.Join(
-				fmt.Errorf("store: iterate open Loop task descendants: %w", err),
-				fmt.Errorf("store: close open Loop task descendants: %w", closeErr),
-			)
-		}
-		return nil, fmt.Errorf("store: iterate open Loop task descendants: %w", err)
-	}
-	if err := rows.Close(); err != nil {
-		return nil, fmt.Errorf("store: close open Loop task descendants: %w", err)
 	}
 	return ids, nil
 }
