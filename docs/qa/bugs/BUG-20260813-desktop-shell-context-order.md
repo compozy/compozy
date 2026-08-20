@@ -55,3 +55,13 @@ boundary with the original `useOsShell` provider error before any palette journe
   component contract beyond this real shell mount.
 - **Retest:** The focused daemon-served journey rendered `os-desktop`, opened Agents, navigated the
   fleet, and completed in 6.9 seconds. Full charter verification remains in this run.
+
+## Re-found and fixed (2026-08-20, command-palette delivery)
+
+`feat: complete command palette delivery` added live palette client-context reads
+(`useFocusedSessionId` / `useDesktop`) inside `useDesktopChrome`, which is the hook that *creates*
+the shell handle. Opening `/` under `make dev` hit the original provider error again.
+
+- **Root cause:** the chrome hook asked `OsShellContext` for the projection atom it already owns.
+- **Fix:** read `manager.projectionAtom` with `useAtom` and keep context consumers below the
+  provider. Regression: `web/src/systems/os/hooks/__tests__/use-desktop-chrome.test.tsx`.

@@ -30,6 +30,10 @@ qa-impact: 2026-08-20 command-palette QA repaired shell provider order, required
 and the scoped settings-cache projection after each defect blocked desktop boot or window rendering.
 Reset for the Task 12 shell-adjacent re-walk under `CH-untested-068-operate-desktop-shell-bruno`.
 
+qa-impact: 2026-08-20 the palette delivery reintroduced `useDesktop` inside `useDesktopChrome`,
+above the provider that hook feeds. Restored owner-atom reads. Flag only; this scenario was
+already `untested`.
+
 Walk (Task 12 re-walk):
 
 1. Boot the daemon-served desktop — the palette registry consumer mounts under the shell provider

@@ -1,5 +1,6 @@
 import { useQuery, useQueryClient, type UseQueryResult } from "@tanstack/react-query";
 import { useRouter } from "@tanstack/react-router";
+import { useAtom } from "@xstate/store-react";
 import { useEffect, useState } from "react";
 
 import { useSession } from "@/systems/session";
@@ -7,7 +8,10 @@ import { useWorkspaceScopeMode } from "@/systems/workspace";
 
 import type { OsShellHandle } from "../contexts/os-shell-context";
 import { ClientCommandChannel } from "../lib/client-command-channel";
-import { resolveLivePaletteClientContext } from "../lib/desktop-chrome-client-context";
+import {
+  resolveLivePaletteClientContext,
+  selectPaletteDestinationRoute,
+} from "../lib/desktop-chrome-client-context";
 import type {
   WindowManagerErrorPayload,
   WindowManagerRegisteredClientView,
@@ -21,8 +25,7 @@ import {
 import { RoutingCoordinator, type OsRouterPort } from "../lib/routing-coordinator";
 import { subscribeWorkspaceSwitchBarrier } from "../lib/workspace-switch-barrier";
 import { WindowManagerRuntime } from "../runtime/window-manager-runtime";
-import { useDesktop } from "./use-desktop";
-import { useFocusedSessionId } from "./use-focused-session-id";
+import { selectFocusedSessionId } from "./use-focused-session-id";
 import { useGlobalShortcutReconciliation } from "./use-global-shortcut-reconciliation";
 import { useWindowManagerClient } from "./use-window-manager-client";
 import { useWindowManagerStream } from "./use-window-manager-stream";
@@ -54,19 +57,16 @@ function streamError(error: Error | WindowManagerErrorPayload): Error {
 /**
  * Owns the workspace-scoped Query, stable client registration, fenced stream,
  * and the transient projection runtime. Query remains the only snapshot owner.
+ *
+ * This hook creates the OsShellHandle that DesktopShell provides. It must read
+ * that projection atom directly — useDesktop/useOsShell require the provider
+ * this hook feeds (BUG-20260813).
  */
 export function useDesktopChrome(activeWorkspaceId: string | null): DesktopChromeModel {
   const router = useRouter();
   const queryClient = useQueryClient();
   const scope = useWorkspaceScopeMode();
-  const focusedSessionId = useFocusedSessionId();
-  const focusedSession = useSession(focusedSessionId ?? "", activeWorkspaceId);
   const paletteIntent = useWindowPaletteIntent();
-  const destinationRoute = useDesktop(state => {
-    const windowId = paletteIntent?.windowId ?? state.focusedId;
-    if (windowId === null) return null;
-    return state.windows[windowId]?.route ?? null;
-  });
   const query = useQuery(windowManagerSnapshotOptions(activeWorkspaceId ?? ""));
   const client = useWindowManagerClient(activeWorkspaceId);
   // Scoped to the active workspace: a rebind stored in the workspace overlay has
@@ -89,6 +89,11 @@ export function useDesktopChrome(activeWorkspaceId: string | null): DesktopChrom
       coordinator: new RoutingCoordinator(manager, port),
     };
   });
+  const focusedSessionId = useAtom(manager.projectionAtom, selectFocusedSessionId);
+  const destinationRoute = useAtom(manager.projectionAtom, state =>
+    selectPaletteDestinationRoute(state, paletteIntent?.windowId)
+  );
+  const focusedSession = useSession(focusedSessionId ?? "", activeWorkspaceId);
 
   useEffect(() => {
     manager.start();
