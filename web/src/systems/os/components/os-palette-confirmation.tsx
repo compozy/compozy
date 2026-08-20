@@ -43,12 +43,11 @@ export function PaletteConfirmation({
 
   const invalidated = invalidatedReason.trim() !== "";
   return (
-    <div
+    <section
       aria-describedby="os-palette-confirm-body"
       aria-labelledby="os-palette-confirm-title"
       className="flex flex-col"
       data-testid="os-palette-confirmation"
-      role="dialog"
     >
       <div className="flex flex-col gap-2 px-5 pt-5 pb-4">
         <h3 className="text-item-title tracking-tight text-fg-strong" id="os-palette-confirm-title">
@@ -96,6 +95,6 @@ export function PaletteConfirmation({
           </Button>
         )}
       </div>
-    </div>
+    </section>
   );
 }

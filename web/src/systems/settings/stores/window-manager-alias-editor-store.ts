@@ -13,7 +13,6 @@ export interface AliasConflict {
 export interface AliasEditorContext {
   conflict: AliasConflict | null;
   drafts: Readonly<Record<string, string>>;
-  pending: string | null;
   problems: Readonly<Record<string, string>>;
 }
 
@@ -31,7 +30,6 @@ export const aliasEditorLogic = createStoreLogic({
   context: (): AliasEditorContext => ({
     conflict: null,
     drafts: {},
-    pending: null,
     problems: {},
   }),
   on: {
@@ -54,12 +52,6 @@ export const aliasEditorLogic = createStoreLogic({
         drafts: withoutKey(context.drafts, event.commandId),
         problems: withoutKey(context.problems, event.commandId),
       };
-    },
-    saveStarted(context, event: { commandId: string }): AliasEditorContext {
-      return { ...context, pending: event.commandId };
-    },
-    saveFinished(context): AliasEditorContext {
-      return { ...context, pending: null };
     },
     conflictSet(context, event: { conflict: AliasConflict }): AliasEditorContext {
       return { ...context, conflict: event.conflict };

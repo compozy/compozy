@@ -5,7 +5,6 @@ import {
   cmdPaletteKeys,
   updateWindowManagerBindings,
   windowManagerKeys,
-  type WindowManagerBindingUpdate,
   type WindowManagerSettingsSection,
 } from "@/systems/os";
 
@@ -35,16 +34,13 @@ export function useWindowManagerBindingMutations(
   clientId?: string
 ): WindowManagerBindingMutations {
   const queryClient = useQueryClient();
-  const queue = useRef(Promise.resolve());
-  const inflight = useRef(0);
-  const [saving, setSaving] = useState(false);
+  const queue = useRef<Promise<void> | null>(null);
+  const [pendingCount, setPendingCount] = useState(0);
   const mutation = useMutation({
-    mutationFn: (update: WindowManagerBindingCommit) =>
-      updateWindowManagerBindings({
-        ...update,
-        workspaceId,
-        clientId,
-      } as WindowManagerBindingUpdate),
+    mutationFn: (update: WindowManagerBindingCommit) => {
+      const scope = clientId === undefined ? { workspaceId } : { workspaceId, clientId };
+      return updateWindowManagerBindings({ ...update, ...scope });
+    },
     onSuccess: async section => {
       queryClient.setQueryData(windowManagerKeys.config(workspaceId, clientId), section);
       await queryClient.invalidateQueries({
@@ -55,19 +51,17 @@ export function useWindowManagerBindingMutations(
 
   return {
     commit: update => {
-      inflight.current += 1;
-      setSaving(true);
+      setPendingCount(count => count + 1);
       const run = () => mutation.mutateAsync(update);
-      const next = queue.current.then(run, run);
+      const next = (queue.current ?? Promise.resolve()).then(run, run);
       queue.current = next.then(
         () => undefined,
         () => undefined
       );
       return next.finally(() => {
-        inflight.current -= 1;
-        if (inflight.current === 0) setSaving(false);
+        setPendingCount(count => Math.max(0, count - 1));
       });
     },
-    saving,
+    saving: pendingCount > 0,
   };
 }

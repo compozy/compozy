@@ -12,12 +12,16 @@ export interface ShortcutRecorderConflict {
   desired: WindowManagerShortcutMap;
 }
 
+export interface ShortcutRecording {
+  commandId: string;
+  mode: ShortcutRecorderMode;
+}
+
 export interface ShortcutRecorderContext {
   announcement: string;
   conflict: ShortcutRecorderConflict | null;
   error: string | null;
-  recording: string | null;
-  recordingMode: ShortcutRecorderMode | null;
+  recording: ShortcutRecording | null;
 }
 
 export const shortcutRecorderLogic = createStoreLogic({
@@ -26,7 +30,6 @@ export const shortcutRecorderLogic = createStoreLogic({
     conflict: null,
     error: null,
     recording: null,
-    recordingMode: null,
   }),
   on: {
     started(
@@ -38,8 +41,7 @@ export const shortcutRecorderLogic = createStoreLogic({
         announcement: event.announcement,
         conflict: null,
         error: null,
-        recording: event.commandId,
-        recordingMode: event.mode,
+        recording: { commandId: event.commandId, mode: event.mode },
       };
     },
     cancelled(context, event: { announcement: string }): ShortcutRecorderContext {
@@ -47,11 +49,10 @@ export const shortcutRecorderLogic = createStoreLogic({
         ...context,
         announcement: event.announcement,
         recording: null,
-        recordingMode: null,
       };
     },
     recordingStopped(context): ShortcutRecorderContext {
-      return { ...context, recording: null, recordingMode: null };
+      return { ...context, recording: null };
     },
     announced(context, event: { announcement: string }): ShortcutRecorderContext {
       return { ...context, announcement: event.announcement };

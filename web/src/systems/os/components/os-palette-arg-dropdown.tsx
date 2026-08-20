@@ -40,7 +40,12 @@ export function PaletteArgDropdown({
 }: PaletteArgDropdownProps) {
   const [open, setOpen] = useState(false);
   const [activeIndex, setActiveIndex] = useState(0);
-  const options = filterArgOptions(field, field.value);
+  const optionOccurrences = new Map<string, number>();
+  const options = filterArgOptions(field, field.value).map(value => {
+    const occurrence = optionOccurrences.get(value) ?? 0;
+    optionOccurrences.set(value, occurrence + 1);
+    return { key: `${value}\u0000${occurrence}`, value };
+  });
   const clampedIndex = Math.min(activeIndex, Math.max(options.length - 1, 0));
   const active = options[clampedIndex];
   const listId = `os-palette-arg-options-${field.name}`;
@@ -65,7 +70,7 @@ export function PaletteArgDropdown({
     event.preventDefault();
     event.stopPropagation();
     if (open && active !== undefined) {
-      pick(active);
+      pick(active.value);
       return;
     }
     onSubmit();
@@ -113,7 +118,7 @@ export function PaletteArgDropdown({
                 index === clampedIndex && "bg-elevated text-fg-strong"
               )}
               id={`${listId}-option-${index}`}
-              key={option}
+              key={option.key}
               role="option"
               // The field keeps DOM focus so the combobox contract holds: options
               // are reached with the arrow keys through `aria-activedescendant`,
@@ -122,10 +127,10 @@ export function PaletteArgDropdown({
               type="button"
               onMouseDown={event => {
                 event.preventDefault();
-                pick(option);
+                pick(option.value);
               }}
             >
-              {option}
+              {option.value}
             </button>
           ))}
         </div>

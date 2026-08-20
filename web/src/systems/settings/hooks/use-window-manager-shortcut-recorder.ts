@@ -1,4 +1,4 @@
-import { useEffect } from "react";
+import { useEffect, useEffectEvent } from "react";
 import { useSelector, useStore } from "@xstate/store-react";
 
 import {
@@ -56,8 +56,7 @@ export function useWindowManagerShortcutRecorder(
   mutations: WindowManagerBindingMutations
 ): ShortcutRecorderModel {
   const store = useStore(shortcutRecorderLogic);
-  const recording = useSelector(store, snapshot => snapshot.context.recording);
-  const recordingMode = useSelector(store, snapshot => snapshot.context.recordingMode);
+  const activeRecording = useSelector(store, snapshot => snapshot.context.recording);
   const announcement = useSelector(store, snapshot => snapshot.context.announcement);
   const conflict = useSelector(store, snapshot => snapshot.context.conflict);
   const error = useSelector(store, snapshot => snapshot.context.error);
@@ -88,50 +87,51 @@ export function useWindowManagerShortcutRecorder(
     }
   };
 
-  useEffect(() => {
-    if (recording === null || recordingMode === null) return undefined;
-
-    const onKeyDown = (event: KeyboardEvent) => {
-      if (event.key === "Escape") {
-        event.preventDefault();
-        event.stopPropagation();
-        store.trigger.cancelled({ announcement: "Recording cancelled." });
-        return;
-      }
-      const chord = chordFromKeyboardEvent(event);
-      if (chord === null) {
-        if (!["Meta", "Control", "Alt", "Shift"].includes(event.key)) {
-          event.preventDefault();
-          store.trigger.announced({ announcement: "A shortcut needs at least one modifier key." });
-        }
-        return;
-      }
+  const onKeyDown = useEffectEvent((event: KeyboardEvent) => {
+    if (activeRecording === null) return;
+    if (event.key === "Escape") {
       event.preventDefault();
       event.stopPropagation();
-      const commandId = recording;
-      const current =
-        recordingMode === "alternate"
-          ? (section.config.effectiveShortcuts[commandId] ??
-            overrides[commandId] ??
-            defaults[commandId] ??
-            [])
-          : (overrides[commandId] ?? defaults[commandId] ?? []);
-      const binding = recordingMode === "alternate" ? [...current, chord] : [chord];
-      const deduplicated = [...new Set(binding)];
-      const next: Record<string, readonly string[]> = { ...overrides };
-      if (sameBinding(deduplicated, defaults[commandId] ?? [])) delete next[commandId];
-      else next[commandId] = deduplicated;
-      store.trigger.recordingStopped();
-      void apply(next, commandId, chord);
-    };
+      store.trigger.cancelled({ announcement: "Recording cancelled." });
+      return;
+    }
+    const chord = chordFromKeyboardEvent(event);
+    if (chord === null) {
+      if (!["Meta", "Control", "Alt", "Shift"].includes(event.key)) {
+        event.preventDefault();
+        store.trigger.announced({ announcement: "A shortcut needs at least one modifier key." });
+      }
+      return;
+    }
+    event.preventDefault();
+    event.stopPropagation();
+    const { commandId, mode } = activeRecording;
+    const current =
+      mode === "alternate"
+        ? (section.config.effectiveShortcuts[commandId] ??
+          overrides[commandId] ??
+          defaults[commandId] ??
+          [])
+        : (overrides[commandId] ?? defaults[commandId] ?? []);
+    const binding = mode === "alternate" ? [...current, chord] : [chord];
+    const deduplicated = [...new Set(binding)];
+    const next: Record<string, readonly string[]> = { ...overrides };
+    if (sameBinding(deduplicated, defaults[commandId] ?? [])) delete next[commandId];
+    else next[commandId] = deduplicated;
+    store.trigger.recordingStopped();
+    void apply(next, commandId, chord);
+  });
+
+  useEffect(() => {
+    if (activeRecording === null) return undefined;
 
     window.addEventListener("keydown", onKeyDown, true);
     return () => window.removeEventListener("keydown", onKeyDown, true);
-  });
+  }, [activeRecording]);
 
   return {
-    recording,
-    recordingMode,
+    recording: activeRecording?.commandId ?? null,
+    recordingMode: activeRecording?.mode ?? null,
     announcement,
     conflict,
     conflicts: findShortcutConflicts(overrides, defaults).filter(

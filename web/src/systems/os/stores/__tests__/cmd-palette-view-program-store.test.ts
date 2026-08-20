@@ -5,17 +5,19 @@
 // Boundary IN: the per-view XState store and frame patch reducer.
 // Boundary OUT: HTTP/SSE transport, React rendering, and extension subprocess timing.
 
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 
 import type { CmdPaletteViewFrame } from "../../lib/cmd-palette-types";
 import {
-  cmdPaletteViewProgramLogic,
+  createCmdPaletteViewProgramLogic,
   programHandlerIsLive,
+  VIEW_BUSY_BUDGET_MS,
+  VIEW_DEGRADED_BUDGET_MS,
 } from "../cmd-palette-view-program-store";
 
 describe("command palette programmable-view lifecycle", () => {
   it("Should count controlled events and apply a causally matching frame [UT-163]", () => {
-    const store = cmdPaletteViewProgramLogic.createStore();
+    const store = createCmdPaletteViewProgramLogic().createStore();
     store.trigger.openSucceeded({ frame: frame("vr_1", ["search"], "Initial") });
 
     store.trigger.eventSent({
@@ -74,7 +76,7 @@ describe("command palette programmable-view lifecycle", () => {
   });
 
   it("Should quarantine removed handlers for two accepted frames [UT-164]", () => {
-    const store = cmdPaletteViewProgramLogic.createStore();
+    const store = createCmdPaletteViewProgramLogic().createStore();
     store.trigger.openSucceeded({ frame: frame("vr_1", ["old", "current"], "One") });
     store.trigger.frameReceived({ frame: frame("vr_2", ["current"], "Two") });
     expect(programHandlerIsLive(store.getSnapshot().context, "old")).toBe(true);
@@ -87,7 +89,7 @@ describe("command palette programmable-view lifecycle", () => {
   });
 
   it("Should retain the last frame through busy and degraded bands, then break [UT-165, UT-168]", () => {
-    const store = cmdPaletteViewProgramLogic.createStore();
+    const store = createCmdPaletteViewProgramLogic().createStore();
     store.trigger.openSucceeded({ frame: frame("vr_1", ["search"], "Last good") });
 
     for (const seq of [1, 2, 3]) {
@@ -109,8 +111,50 @@ describe("command palette programmable-view lifecycle", () => {
     expect(store.getSnapshot().context).toMatchObject({ misses: 3, pendingSeq: 3 });
   });
 
+  it("Should own budget timing and cancel stale deadlines after a frame [RA0269]", () => {
+    vi.useFakeTimers();
+    try {
+      const store = createCmdPaletteViewProgramLogic().createStore();
+      store.trigger.openSucceeded({ frame: frame("vr_1", ["search"], "Initial") });
+      store.trigger.eventSent({ seq: 1, controlled: true, handler: "search", args: ["q"] });
+
+      vi.advanceTimersByTime(VIEW_BUSY_BUDGET_MS);
+      expect(store.getSnapshot().context.phase).toBe("busy");
+
+      store.trigger.frameReceived({ frame: frame("vr_2", ["search"], "Settled") });
+      vi.advanceTimersByTime(VIEW_DEGRADED_BUDGET_MS);
+      expect(store.getSnapshot().context).toMatchObject({ misses: 0, phase: "ready" });
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("Should emit only the latest throttled search and cancel an echoed query [RA0270]", () => {
+    vi.useFakeTimers();
+    const store = createCmdPaletteViewProgramLogic({ query: "" }).createStore();
+    const searches: string[] = [];
+    const subscription = store.on("searchRequested", event => searches.push(event.query));
+    try {
+      store.trigger.searchObserved({ handler: "search", query: "a", throttleMs: 100 });
+      store.trigger.searchObserved({ handler: "search", query: "ab", throttleMs: 100 });
+      vi.advanceTimersByTime(99);
+      expect(searches).toEqual([]);
+
+      vi.advanceTimersByTime(1);
+      expect(searches).toEqual(["ab"]);
+
+      store.trigger.searchObserved({ handler: "search", query: "abc", throttleMs: 100 });
+      store.trigger.searchEchoed({ query: "server" });
+      vi.advanceTimersByTime(100);
+      expect(searches).toEqual(["ab"]);
+    } finally {
+      subscription.unsubscribe();
+      vi.useRealTimers();
+    }
+  });
+
   it("Should apply the React kit root replacement without mutating the prior frame [UT-166]", () => {
-    const store = cmdPaletteViewProgramLogic.createStore();
+    const store = createCmdPaletteViewProgramLogic().createStore();
     const first = frame("vr_1", ["search"], "Before");
     store.trigger.openSucceeded({ frame: first });
     store.trigger.frameReceived({
@@ -139,7 +183,7 @@ describe("command palette programmable-view lifecycle", () => {
   });
 
   it("Should keep openEpoch and drop causal state when a session is reopened [RA0253]", () => {
-    const store = cmdPaletteViewProgramLogic.createStore();
+    const store = createCmdPaletteViewProgramLogic().createStore();
     store.trigger.openSucceeded({ frame: frame("vr_1", ["search"], "Live") });
     store.trigger.eventSent({ seq: 1, controlled: true, handler: "search", args: ["q"] });
     store.trigger.reloadRequested({});
@@ -155,7 +199,7 @@ describe("command palette programmable-view lifecycle", () => {
   });
 
   it("Should ignore a late foreign session and a stale patch.from [RA0254]", () => {
-    const store = cmdPaletteViewProgramLogic.createStore();
+    const store = createCmdPaletteViewProgramLogic().createStore();
     store.trigger.openSucceeded({ frame: frame("vr_1", ["search"], "Live") });
     store.trigger.frameReceived({
       frame: { ...frame("vr_2", ["search"], "Other"), view_session: "vs_other" },
@@ -180,7 +224,7 @@ describe("command palette programmable-view lifecycle", () => {
   });
 
   it("Should clear timeout state when a push frame has no in_reply_to [RA0255]", () => {
-    const store = cmdPaletteViewProgramLogic.createStore();
+    const store = createCmdPaletteViewProgramLogic().createStore();
     store.trigger.openSucceeded({ frame: frame("vr_1", ["search"], "Live") });
     store.trigger.eventSent({ seq: 1, controlled: true, handler: "search", args: ["q"] });
     store.trigger.frameReceived({ frame: frame("vr_2", ["search"], "Pushed") });

@@ -1,4 +1,4 @@
-import { useRef, type KeyboardEvent } from "react";
+import { type KeyboardEvent } from "react";
 
 import { Checkbox, Input, KindIcon, cn } from "@compozy/ui";
 
@@ -105,7 +105,7 @@ export interface PaletteArgsBarProps {
  */
 export function PaletteArgsBar({ state, onChange, onSubmit }: PaletteArgsBarProps) {
   const emoji = isEmojiIcon(state.icon);
-  const fieldNodes = useRef(new Map<string, HTMLElement>());
+  const fieldNodes = new Map<string, HTMLElement>();
   const firstField = state.fields[0]?.name ?? null;
   /*
    * A blocked submit moves focus to the field that stopped it, every time —
@@ -114,7 +114,7 @@ export function PaletteArgsBar({ state, onChange, onSubmit }: PaletteArgsBarProp
    */
   const submit = () => {
     const blocked = onSubmit();
-    if (blocked !== null) fieldNodes.current.get(blocked)?.focus();
+    if (blocked !== null) fieldNodes.get(blocked)?.focus();
   };
   return (
     <div className="flex flex-col gap-2.5 px-2 pt-3 pb-2.5" data-testid="os-palette-args">
@@ -147,8 +147,8 @@ export function PaletteArgsBar({ state, onChange, onSubmit }: PaletteArgsBarProp
             focused={field.name === firstField}
             key={field.name}
             registerNode={node => {
-              if (node === null) fieldNodes.current.delete(field.name);
-              else fieldNodes.current.set(field.name, node);
+              if (node === null) fieldNodes.delete(field.name);
+              else fieldNodes.set(field.name, node);
             }}
             onChange={onChange}
             onSubmit={submit}

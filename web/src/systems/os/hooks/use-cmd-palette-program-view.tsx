@@ -1,5 +1,4 @@
-import { useEffect, useEffectEvent, useRef, useState } from "react";
-import type { RefObject } from "react";
+import { useEffect, useEffectEvent, useState } from "react";
 import { useSelector, useStore } from "@xstate/store-react";
 
 import { createStreamEventSource } from "@/lib/ticketed-event-source";
@@ -15,24 +14,23 @@ import {
 import { PaletteConfirmation } from "../components/os-palette-confirmation";
 import { programViewContentForPhase } from "../lib/cmd-palette-program-content";
 import type { WindowManagerRegisteredClientView } from "../lib/window-manager-types";
-import type { CmdPaletteViewAction, CmdPaletteViewFrame } from "../lib/cmd-palette-types";
+import type {
+  CmdPaletteViewAction,
+  CmdPaletteViewFrame,
+  CmdPaletteViewSessionEvent,
+} from "../lib/cmd-palette-types";
 import type { CmdPaletteEventSourceFactory } from "../lib/cmd-palette-stream";
 import {
   acknowledgeViewEffects,
-  claimPendingEffectResult,
   executeCmdPaletteViewEffect,
   programViewEnvelope,
-  restorePendingEffectResult,
   runSerializedViewAction,
   viewErrorMessage,
-  type PendingEffectResult,
 } from "../lib/cmd-palette-program-view-runtime";
 import type { PaletteViewContent } from "../lib/palette-view-registry";
 import {
-  cmdPaletteViewProgramLogic,
+  createCmdPaletteViewProgramLogic,
   programHandlerIsLive,
-  VIEW_BUSY_BUDGET_MS,
-  VIEW_DEGRADED_BUDGET_MS,
 } from "../stores/cmd-palette-view-program-store";
 import {
   contentForEnvelope,
@@ -74,7 +72,10 @@ export function useCmdPaletteProgramView({
 }): CmdPaletteProgramViewModel {
   const { runtimeWorkspaceId } = useActiveWorkspace();
   const registry = usePaletteRegistry();
-  const store = useStore(cmdPaletteViewProgramLogic);
+  const [programLogic] = useState(() =>
+    createCmdPaletteViewProgramLogic({ query, catalogRevision: registry.catalogRevision })
+  );
+  const store = useStore(programLogic);
   const state = useSelector(store, snapshot => snapshot.context);
   const [session, setSession] = useState<ViewSessionIdentity | null>(null);
   const [declarativeKey, setDeclarativeKey] = useState<string | null>(null);
@@ -88,14 +89,6 @@ export function useCmdPaletteProgramView({
     action: CmdPaletteViewAction;
     values: Readonly<Record<string, unknown>>;
   } | null>(null);
-  const queryRef = useRef(query);
-  const catalogRevisionRef = useRef(registry.catalogRevision);
-  const timersRef = useRef<{
-    hard: ReturnType<typeof setTimeout>;
-    soft: ReturnType<typeof setTimeout>;
-  } | null>(null);
-  const executedEffectsRef = useRef(new Set<string>());
-  const effectResultsRef = useRef<PendingEffectResult[]>([]);
   const attachmentToken = client?.attachmentToken ?? "";
   const programChrome = state.payload?.chrome;
   const fallbackKey = `${runtimeWorkspaceId ?? ""}\u0000${viewId}\u0000${attachmentToken}`;
@@ -173,105 +166,102 @@ export function useCmdPaletteProgramView({
   }, [declarative, eventSourceFactory, session, state.openEpoch, store]);
 
   useEffect(() => {
-    if (catalogRevisionRef.current === registry.catalogRevision) return;
-    catalogRevisionRef.current = registry.catalogRevision;
-    if (!declarative) store.trigger.reloadRequested({});
+    if (!declarative) {
+      store.trigger.catalogRevisionObserved({ revision: registry.catalogRevision });
+    }
   }, [declarative, registry.catalogRevision, store]);
 
-  useEffect(() => {
-    if (state.pendingSeq !== null) return;
-    clearViewTimers(timersRef);
-  }, [state.pendingSeq]);
-
-  const sendEvent = useEffectEvent(
-    (handler: string, args: readonly unknown[], controlled: boolean): void => {
-      const current = store.getSnapshot().context;
-      if (
-        !session ||
-        session.epoch !== current.openEpoch ||
-        attachmentToken === "" ||
-        !current.frame ||
-        !programHandlerIsLive(current, handler)
-      ) {
+  const sendEvent = (handler: string, args: readonly unknown[], controlled: boolean): void => {
+    const current = store.getSnapshot().context;
+    if (
+      !session ||
+      session.epoch !== current.openEpoch ||
+      attachmentToken === "" ||
+      !current.frame ||
+      !programHandlerIsLive(current, handler)
+    ) {
+      return;
+    }
+    const seq = current.nextSeq + 1;
+    const eventCount = controlled ? current.eventCount + 1 : current.eventCount;
+    const resolvedArgs = controlled ? [...args, eventCount] : [...args];
+    const effectResult = current.pendingEffectResults[0];
+    store.trigger.eventSent({
+      seq,
+      controlled,
+      handler,
+      args,
+      effectResultConsumed: effectResult !== undefined,
+    });
+    void admitCmdPaletteViewSessionEvent(session.viewSession, attachmentToken, {
+      handler,
+      args: resolvedArgs,
+      revision: current.frame.revision,
+      seq,
+      ...(current.acknowledgedEffects.length > 0
+        ? { ack_effects: [...current.acknowledgedEffects] }
+        : {}),
+      ...(effectResult ? { effect_result: effectResult } : {}),
+    }).catch(error => {
+      if (effectResult) store.trigger.effectResultRestored({ result: effectResult });
+      if (error instanceof CmdPaletteApiError && (error.status === 403 || error.status === 410)) {
+        store.trigger.crashed({ error: error.message });
         return;
       }
-      const seq = current.nextSeq + 1;
-      const eventCount = controlled ? current.eventCount + 1 : current.eventCount;
-      const resolvedArgs = controlled ? [...args, eventCount] : [...args];
-      const effectResult = claimPendingEffectResult(effectResultsRef.current);
-      store.trigger.eventSent({ seq, controlled, handler, args });
-      clearViewTimers(timersRef);
-      timersRef.current = {
-        soft: setTimeout(() => store.trigger.softBudgetElapsed({ seq }), VIEW_BUSY_BUDGET_MS),
-        hard: setTimeout(() => store.trigger.hardBudgetElapsed({ seq }), VIEW_DEGRADED_BUDGET_MS),
-      };
-      void admitCmdPaletteViewSessionEvent(session.viewSession, attachmentToken, {
-        handler,
-        args: resolvedArgs,
-        revision: current.frame.revision,
-        seq,
-        ...(current.acknowledgedEffects.length > 0
-          ? { ack_effects: [...current.acknowledgedEffects] }
-          : {}),
-        ...(effectResult ? { effect_result: effectResult } : {}),
-      }).catch(error => {
-        restorePendingEffectResult(effectResultsRef.current, effectResult);
-        if (error instanceof CmdPaletteApiError && (error.status === 403 || error.status === 410)) {
-          store.trigger.crashed({ error: error.message });
-          return;
-        }
-        console.warn("Command palette view event was rejected", error);
-      });
-    }
-  );
+      console.warn("Command palette view event was rejected", error);
+    });
+  };
+
+  const sendSearchEvent = useEffectEvent(sendEvent);
 
   useEffect(() => {
     const handler = programChrome?.on_search;
-    if (!handler || queryRef.current === query) return;
-    queryRef.current = query;
-    const throttle = Math.max(0, programChrome?.throttle_ms ?? 0);
-    if (throttle === 0) {
-      sendEvent(handler, [query], true);
-      return;
-    }
-    const timer = window.setTimeout(() => sendEvent(handler, [query], true), throttle);
-    return () => window.clearTimeout(timer);
-  }, [programChrome, query]);
+    store.trigger.searchObserved({
+      handler: handler ?? null,
+      query,
+      throttleMs: Math.max(0, programChrome?.throttle_ms ?? 0),
+    });
+  }, [programChrome?.on_search, programChrome?.throttle_ms, query, store]);
+
+  useEffect(() => {
+    const subscription = store.on("searchRequested", event => {
+      sendSearchEvent(event.handler, [event.query], true);
+    });
+    return () => subscription.unsubscribe();
+  }, [store]);
 
   useEffect(() => {
     const searchText = programChrome?.search_text;
     if (
       searchText === undefined ||
       !controlledEchoIsCurrent(programChrome?.event_count, state.eventCount) ||
-      queryRef.current === (searchText ?? "")
+      state.searchQuery === (searchText ?? "")
     ) {
       return;
     }
     const nextQuery = searchText ?? "";
-    queryRef.current = nextQuery;
+    store.trigger.searchEchoed({ query: nextQuery });
     onQueryChange(nextQuery);
-  }, [onQueryChange, programChrome, state.eventCount]);
-
-  const executeEffect = useEffectEvent(
-    async (effect: Parameters<typeof executeCmdPaletteViewEffect>[0]): Promise<void> => {
-      await executeCmdPaletteViewEffect(effect, dispatch, viewId, effectResultsRef.current);
-    }
-  );
+  }, [onQueryChange, programChrome, state.eventCount, state.searchQuery, store]);
 
   useEffect(() => {
-    const pending = (state.frame?.effects ?? []).filter(
-      effect => !executedEffectsRef.current.has(effect.id)
-    );
+    const executedEffects = new Set(state.executedEffects);
+    const pending = (state.frame?.effects ?? []).filter(effect => !executedEffects.has(effect.id));
     if (pending.length === 0) return;
-    for (const effect of pending) executedEffectsRef.current.add(effect.id);
-    void Promise.allSettled(pending.map(executeEffect)).then(results => {
-      store.trigger.effectsAcknowledged({ ids: acknowledgeViewEffects(pending, results) });
+    store.trigger.effectsExecutionStarted({ ids: pending.map(effect => effect.id) });
+    const effectResults: NonNullable<CmdPaletteViewSessionEvent["effect_result"]>[] = [];
+    void Promise.allSettled(
+      pending.map(effect => executeCmdPaletteViewEffect(effect, dispatch, viewId, effectResults))
+    ).then(results => {
+      store.trigger.effectsAcknowledged({
+        ids: acknowledgeViewEffects(pending, results),
+        results: effectResults,
+      });
     });
-  }, [state.frame?.effects, store]);
+  }, [dispatch, state.executedEffects, state.frame?.effects, store, viewId]);
 
   useEffect(
     () => () => {
-      clearViewTimers(timersRef);
       store.trigger.closed({});
     },
     [store]
@@ -411,16 +401,4 @@ function withProgramConfirm(
       </>
     ),
   };
-}
-
-function clearViewTimers(
-  ref: RefObject<{
-    hard: ReturnType<typeof setTimeout>;
-    soft: ReturnType<typeof setTimeout>;
-  } | null>
-): void {
-  if (!ref.current) return;
-  clearTimeout(ref.current.soft);
-  clearTimeout(ref.current.hard);
-  ref.current = null;
 }

@@ -66,7 +66,7 @@ export function WindowManagerGlobalHotkeys({
           <AlertTriangle aria-hidden="true" />
           <AlertTitle>Accessibility permission required</AlertTitle>
           <AlertDescription>
-            Allow Compozy to register global hotkeys, then return here to retry.
+            Allow CompozyOS to register global hotkeys, then return here to retry.
           </AlertDescription>
           {settingsUrl ? (
             <AlertActions>

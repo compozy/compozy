@@ -55,11 +55,10 @@ export function useWindowManagerAliasEditor(
   useEffect(() => {
     aliasesRef.current = section.aliases;
   }, [section.aliases]);
-  const sendTail = useRef(Promise.resolve());
+  const sendTail = useRef<Promise<void> | null>(null);
   const { commit } = mutations;
 
   const send = async (commandId: string, desired: WindowManagerAliasMap, alias: string) => {
-    store.trigger.saveStarted({ commandId });
     try {
       const nextSection = await commit({ aliases: desired });
       aliasesRef.current = nextSection.aliases;
@@ -77,8 +76,6 @@ export function useWindowManagerAliasEditor(
         commandId,
         problem: cause instanceof Error ? cause.message : "Unable to save the alias.",
       });
-    } finally {
-      store.trigger.saveFinished();
     }
   };
 
@@ -111,7 +108,7 @@ export function useWindowManagerAliasEditor(
         else desired[commandId] = alias;
         await send(commandId, desired, alias);
       };
-      const next = sendTail.current.then(run, run);
+      const next = (sendTail.current ?? Promise.resolve()).then(run, run);
       sendTail.current = next.then(
         () => undefined,
         () => undefined
@@ -122,7 +119,6 @@ export function useWindowManagerAliasEditor(
     overwrite: () => {
       if (conflict === null) return;
       const { commandId, desired, alias } = conflict;
-      store.trigger.saveStarted({ commandId });
       void commit({ aliases: desired, overwrite: true })
         .then(nextSection => {
           aliasesRef.current = nextSection.aliases;
@@ -134,8 +130,7 @@ export function useWindowManagerAliasEditor(
             commandId,
             problem: cause instanceof Error ? cause.message : `Unable to move ${alias}.`,
           });
-        })
-        .finally(() => store.trigger.saveFinished());
+        });
     },
     dismissConflict: () => store.trigger.conflictDismissed(),
   };
