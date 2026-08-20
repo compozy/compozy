@@ -654,6 +654,38 @@ func (a *helperACPAgent) Prompt(ctx context.Context, params acpsdk.PromptRequest
 		}); sendErr != nil {
 			return acpsdk.PromptResponse{}, sendErr
 		}
+	case "tool_update_burst":
+		if sendErr := a.conn.SessionUpdate(ctx, acpsdk.SessionNotification{
+			SessionId: params.SessionId,
+			Update: acpsdk.StartToolCall(
+				"tool-burst",
+				"Read file",
+				acpsdk.WithStartKind(acpsdk.ToolKindRead),
+				acpsdk.WithStartStatus(acpsdk.ToolCallStatusInProgress),
+			),
+		}); sendErr != nil {
+			return acpsdk.PromptResponse{}, sendErr
+		}
+		for range 1_100 {
+			if sendErr := a.conn.SessionUpdate(ctx, acpsdk.SessionNotification{
+				SessionId: params.SessionId,
+				Update: acpsdk.UpdateToolCall(
+					"tool-burst",
+					acpsdk.WithUpdateStatus(acpsdk.ToolCallStatusInProgress),
+				),
+			}); sendErr != nil {
+				return acpsdk.PromptResponse{}, sendErr
+			}
+		}
+		if sendErr := a.conn.SessionUpdate(ctx, acpsdk.SessionNotification{
+			SessionId: params.SessionId,
+			Update: acpsdk.UpdateToolCall(
+				"tool-burst",
+				acpsdk.WithUpdateStatus(acpsdk.ToolCallStatusCompleted),
+			),
+		}); sendErr != nil {
+			return acpsdk.PromptResponse{}, sendErr
+		}
 	case "fs_read":
 		response, err := a.conn.ReadTextFile(ctx, acpsdk.ReadTextFileRequest{
 			SessionId: params.SessionId,

@@ -70,6 +70,43 @@ func TestTokenUsageParsing(t *testing.T) {
 	}
 }
 
+func TestPromptCoalescesRedundantToolUpdates(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should complete a tool update burst without overflowing the ACP notification queue", func(t *testing.T) {
+		t.Parallel()
+
+		driver := New(WithPromptBufferSize(2))
+		proc := startHelperProcess(t, driver, "tool_update_burst", "", StartOpts{})
+		defer stopProcess(t, driver, proc)
+
+		eventsCh, err := driver.Prompt(testutil.Context(t), proc, PromptRequest{
+			TurnID:  "turn-tool-update-burst",
+			Message: "run tool update burst",
+		})
+		if err != nil {
+			t.Fatalf("Prompt() error = %v", err)
+		}
+
+		events := collectEvents(t, eventsCh)
+		wantTypes := []string{EventTypeToolCall, EventTypeToolResult, EventTypeDone}
+		if len(events) != len(wantTypes) {
+			t.Fatalf("Prompt() event count = %d, want %d", len(events), len(wantTypes))
+		}
+		for index, want := range wantTypes {
+			if got := events[index].Type; got != want {
+				t.Fatalf("event %d type = %q, want %q", index, got, want)
+			}
+		}
+		if got, want := events[0].ToolCallID, "tool-burst"; got != want {
+			t.Fatalf("tool call id = %q, want %q", got, want)
+		}
+		if got, want := events[1].ToolCallID, "tool-burst"; got != want {
+			t.Fatalf("tool result id = %q, want %q", got, want)
+		}
+	})
+}
+
 func TestPromptPrependsSystemPromptOnce(t *testing.T) {
 	t.Parallel()
 

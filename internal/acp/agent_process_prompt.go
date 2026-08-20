@@ -2,6 +2,7 @@ package acp
 
 import (
 	"context"
+	"crypto/sha256"
 	"errors"
 	"strings"
 	"sync"
@@ -17,12 +18,21 @@ type activePromptState struct {
 	sendMu sync.Mutex
 	closed bool
 
-	seenToolCalls        map[string]struct{}
+	seenToolCalls        map[string]toolCallProjection
 	pendingToolResults   []AgentEvent
 	pendingToolResultIDs map[string]struct{}
 
 	usageMu sync.Mutex
 	usage   TokenUsage
+}
+
+type toolCallProjection struct {
+	title       string
+	name        string
+	kind        string
+	inputDigest [sha256.Size]byte
+	hasInput    bool
+	prechecked  bool
 }
 
 const maxPendingToolResults = 128
@@ -50,7 +60,7 @@ func (p *AgentProcess) beginPrompt(
 		activity:             make(chan struct{}, 1),
 		detached:             make(chan struct{}),
 		cancel:               cancel,
-		seenToolCalls:        make(map[string]struct{}),
+		seenToolCalls:        make(map[string]toolCallProjection),
 		pendingToolResultIDs: make(map[string]struct{}),
 	}
 	p.activePrompt = active
@@ -175,12 +185,14 @@ func (p *AgentProcess) emitPromptEvent(event AgentEvent) {
 	if active.deferToolResultLocked(event) {
 		return
 	}
+	if active.shouldSuppressToolCallLocked(event) {
+		return
+	}
 	if event.Type == EventTypeDone {
 		active.flushDeferredToolResultsLocked()
 	}
 	active.sendEventLocked(event)
 	if event.Type == EventTypeToolCall {
-		active.markToolCallSeenLocked(event.ToolCallID)
 		active.flushDeferredToolResultsForToolLocked(event.ToolCallID)
 	}
 }
@@ -207,15 +219,66 @@ func (a *activePromptState) deferToolResultLocked(event AgentEvent) bool {
 	return true
 }
 
-func (a *activePromptState) markToolCallSeenLocked(toolCallID string) {
-	if a == nil {
-		return
+func (a *activePromptState) shouldSuppressToolCallLocked(event AgentEvent) bool {
+	if a == nil || event.Type != EventTypeToolCall {
+		return false
 	}
-	trimmed := strings.TrimSpace(toolCallID)
-	if trimmed == "" {
-		return
+	toolCallID := strings.TrimSpace(event.ToolCallID)
+	if toolCallID == "" {
+		return false
 	}
-	a.seenToolCalls[trimmed] = struct{}{}
+
+	projection := newToolCallProjection(event)
+	current, ok := a.seenToolCalls[toolCallID]
+	if !ok {
+		a.seenToolCalls[toolCallID] = projection
+		return false
+	}
+
+	merged, changed := current.merge(projection)
+	a.seenToolCalls[toolCallID] = merged
+	return !changed
+}
+
+func newToolCallProjection(event AgentEvent) toolCallProjection {
+	projection := toolCallProjection{
+		title:      strings.TrimSpace(event.Title),
+		name:       strings.TrimSpace(event.ToolName()),
+		kind:       strings.TrimSpace(event.ToolKind()),
+		prechecked: event.ToolPrechecked(),
+	}
+	input := event.ToolInput()
+	if len(input) > 0 {
+		projection.inputDigest = sha256.Sum256(input)
+		projection.hasInput = true
+	}
+	return projection
+}
+
+func (p toolCallProjection) merge(next toolCallProjection) (toolCallProjection, bool) {
+	changed := false
+	if next.title != "" && next.title != p.title {
+		p.title = next.title
+		changed = true
+	}
+	if next.name != "" && next.name != p.name {
+		p.name = next.name
+		changed = true
+	}
+	if next.kind != "" && next.kind != p.kind {
+		p.kind = next.kind
+		changed = true
+	}
+	if next.hasInput && (!p.hasInput || next.inputDigest != p.inputDigest) {
+		p.inputDigest = next.inputDigest
+		p.hasInput = true
+		changed = true
+	}
+	if next.prechecked && !p.prechecked {
+		p.prechecked = true
+		changed = true
+	}
+	return p, changed
 }
 
 func (a *activePromptState) flushDeferredToolResultsForToolLocked(toolCallID string) {

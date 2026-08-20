@@ -1565,6 +1565,64 @@ func TestHandleSessionUpdateVariants(t *testing.T) {
 		}
 		assertConfigOption(t, proc.CapsSnapshot().ConfigOptions, "mode", "code", "agent", "plan", "ask")
 	})
+
+	t.Run("Should preserve meaningful tool call enrichments and terminal results", func(t *testing.T) {
+		t.Parallel()
+
+		proc := newDirectProcess(t, compozyconfig.PermissionModeApproveAll)
+		active, err := proc.beginPrompt("turn-tool-updates", 8)
+		if err != nil {
+			t.Fatalf("beginPrompt() error = %v", err)
+		}
+		defer proc.endPrompt(active)
+
+		updates := []acpsdk.SessionUpdate{
+			acpsdk.UpdateToolCall("tool-1"),
+			acpsdk.UpdateToolCall("tool-1", acpsdk.WithUpdateTitle("Read file")),
+			acpsdk.UpdateToolCall("tool-1", acpsdk.WithUpdateKind(acpsdk.ToolKindRead)),
+			acpsdk.UpdateToolCall("tool-1", acpsdk.WithUpdateRawInput(map[string]any{"path": "README.md"})),
+			acpsdk.UpdateToolCall("tool-1", acpsdk.WithUpdateStatus(acpsdk.ToolCallStatusCompleted)),
+			acpsdk.UpdateToolCall("tool-2"),
+			acpsdk.UpdateToolCall("tool-2", acpsdk.WithUpdateStatus(acpsdk.ToolCallStatusFailed)),
+		}
+		for _, update := range updates {
+			notification := mustMarshalJSON(acpsdk.SessionNotification{
+				SessionId: "sess-direct",
+				Update:    update,
+			})
+			if err := proc.handleSessionUpdate(notification); err != nil {
+				t.Fatalf("handleSessionUpdate(tool update) error = %v", err)
+			}
+		}
+
+		events := collectEventsUntilCount(t, active.events, len(updates))
+		wantTypes := []string{
+			EventTypeToolCall,
+			EventTypeToolCall,
+			EventTypeToolCall,
+			EventTypeToolCall,
+			EventTypeToolResult,
+			EventTypeToolCall,
+			EventTypeToolResult,
+		}
+		for index, want := range wantTypes {
+			if got := events[index].Type; got != want {
+				t.Fatalf("event %d type = %q, want %q", index, got, want)
+			}
+		}
+		if got, want := events[1].Title, "Read file"; got != want {
+			t.Fatalf("title enrichment = %q, want %q", got, want)
+		}
+		if got, want := events[2].ToolKind(), "read"; got != want {
+			t.Fatalf("kind enrichment = %q, want %q", got, want)
+		}
+		if got, want := string(events[3].ToolInput()), `{"path":"README.md"}`; got != want {
+			t.Fatalf("input enrichment = %s, want %s", got, want)
+		}
+		if !events[6].ToolError() {
+			t.Fatalf("failed tool result = %#v, want typed failure", events[6])
+		}
+	})
 }
 
 func TestHandleSessionUpdateAvailableCommands(t *testing.T) {
