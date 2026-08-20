@@ -106,18 +106,82 @@ func parseFanOutMaterialization(ref string) (fanOutMaterialization, bool, error)
 	if trimmed == "" {
 		return fanOutMaterialization{}, false, nil
 	}
-	var materialization fanOutMaterialization
-	if err := json.Unmarshal([]byte(trimmed), &materialization); err != nil {
+	var persisted struct {
+		Kind        string              `json:"kind"`
+		Branches    int                 `json:"branches"`
+		BatchSize   int                 `json:"batch_size"`
+		MaxParallel int                 `json:"max_parallel"`
+		Chunks      [][]json.RawMessage `json:"chunks"`
+	}
+	if err := json.Unmarshal([]byte(trimmed), &persisted); err != nil {
 		return fanOutMaterialization{}, false, fmt.Errorf(
 			"%w: decode fan-out materialization: %w",
 			ErrValidation,
 			err,
 		)
 	}
-	if materialization.Kind != fanOutMaterializationKind {
+	if persisted.Kind != fanOutMaterializationKind {
 		return fanOutMaterialization{}, false, nil
 	}
-	return materialization, true, nil
+	chunks, err := decodeFanOutCandidateChunks(persisted.Chunks)
+	if err != nil {
+		return fanOutMaterialization{}, false, fmt.Errorf(
+			"%w: decode fan-out materialization: %w",
+			ErrValidation,
+			err,
+		)
+	}
+	return fanOutMaterialization{
+		Kind:        persisted.Kind,
+		Branches:    persisted.Branches,
+		BatchSize:   persisted.BatchSize,
+		MaxParallel: persisted.MaxParallel,
+		Chunks:      chunks,
+	}, true, nil
+}
+
+func decodeFanOutCandidateChunks(rawChunks [][]json.RawMessage) ([][]fanOutCandidate, error) {
+	if rawChunks == nil {
+		return nil, nil
+	}
+	chunks := make([][]fanOutCandidate, len(rawChunks))
+	usesCandidateEnvelope := fanOutChunksUseCandidateEnvelope(rawChunks)
+	candidateIndex := 0
+	for chunkIndex, rawChunk := range rawChunks {
+		chunks[chunkIndex] = make([]fanOutCandidate, len(rawChunk))
+		for itemIndex, rawItem := range rawChunk {
+			candidate := fanOutCandidate{Index: candidateIndex}
+			var err error
+			if usesCandidateEnvelope {
+				err = json.Unmarshal(rawItem, &candidate)
+			} else {
+				err = json.Unmarshal(rawItem, &candidate.Item)
+			}
+			if err != nil {
+				return nil, fmt.Errorf("decode chunk %d item %d: %w", chunkIndex, itemIndex, err)
+			}
+			chunks[chunkIndex][itemIndex] = candidate
+			candidateIndex++
+		}
+	}
+	return chunks, nil
+}
+
+func fanOutChunksUseCandidateEnvelope(rawChunks [][]json.RawMessage) bool {
+	hasCandidate := false
+	for _, rawChunk := range rawChunks {
+		for _, rawItem := range rawChunk {
+			var fields map[string]json.RawMessage
+			if err := json.Unmarshal(rawItem, &fields); err != nil {
+				return false
+			}
+			if len(fields) != 2 || fields["index"] == nil || fields["item"] == nil {
+				return false
+			}
+			hasCandidate = true
+		}
+	}
+	return hasCandidate
 }
 
 func fanOutItem(
