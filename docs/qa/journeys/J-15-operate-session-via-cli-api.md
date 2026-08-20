@@ -10,6 +10,8 @@ flowchart TD
     E4[Entry: compozy__ native tools] --> C
     C --> REST[Read bounded transcript tail + older pages via before_sequence]
     C --> STRM[Subscribe SSE: frames=transcript + after_sequence + epoch + generation]
+    C -->|provider repeats one in-progress tool update| BURST[Keep the first call and meaningful enrichments; discard identical repeats]
+    BURST --> STRM
     C -->|ACP process disconnects mid-response| PFAIL[Persist delivered chunks + emit terminal error]
     C --> W[Wait on an exact badge set without polling]
     W -->|state reached| CTRL[Stop or cancel another session through governed native tools]
@@ -58,7 +60,7 @@ journey:
   actions:
     - step: 1
       verb: "Create a session and send a prompt over a surface"
-      expected_observable: "201 session; prompt streams Vercel-AI-UI SSE (`frames=transcript`) or byte-identical raw event rows (`frames=raw`) for CLI follow"
+      expected_observable: "201 session; prompt streams Vercel-AI-UI SSE (`frames=transcript`) or byte-identical raw event rows (`frames=raw`) for CLI follow; repeated in-progress updates for one tool keep the first call, each meaningful enrichment, the terminal result, and prompt completion without disconnecting"
     - step: 2
       verb: "Subscribe to the stream and read bounded history"
       expected_observable: "Transcript REST returns a bounded tail and older pages via `before_sequence`; transcript SSE reconnects with `after_sequence`, `epoch`, and `generation`, emits bounded deltas for matching fences, emits an explicit reset snapshot for `fence_missing`, `epoch_mismatch`, `generation_mismatch`, or `sequence_reset`, and may advance the cursor with an empty delta; idle streams emit keep-alive comments ≤ heartbeat"
@@ -76,8 +78,8 @@ journey:
       expected_observable: "Wait, stop, prompt cancel, spawn, approval, clarification answer, and notify return deterministic structured winners; self and foreign-workspace targets are denied"
   goal:
     observable: "The agent reads a complete, gap-free transcript and drives the session to a terminal outcome deterministically, with lifecycle state consistent across every surface"
-    side_effects: [session-created, prompt-streamed, partial-output-persisted, session-stopped]
-  true_end_state: "Older REST pages remain loaded; reconnect after killing the client resumes from `after_sequence` with matching `epoch`/`generation`, or replaces the bounded tail only on an explicit reset; empty deltas still advance the cursor; an ACP process disconnect retains delivered chunks and diagnostics, refuses a normal prompt before `session/load`, and continues only in an explicit child session with parent provenance; waits and governed native mutations settle once; list/detail/status agree after a daemon restart; HTTP and UDS return identical structured output."
+    side_effects: [session-created, prompt-streamed, tool-update-burst-coalesced, partial-output-persisted, session-stopped]
+  true_end_state: "Older REST pages remain loaded; reconnect after killing the client resumes from `after_sequence` with matching `epoch`/`generation`, or replaces the bounded tail only on an explicit reset; empty deltas still advance the cursor; repeated in-progress updates for one tool do not exhaust the prompt queue and still end with the tool result before prompt completion; an ACP process disconnect retains delivered chunks and diagnostics, refuses a normal prompt before `session/load`, and continues only in an explicit child session with parent provenance; waits and governed native mutations settle once; list/detail/status agree after a daemon restart; HTTP and UDS return identical structured output."
   exit:
     natural: "The agent has a terminal outcome + a complete transcript and hands off / records the result."
   abandonment:
@@ -109,6 +111,7 @@ e2e_backbone:
     - "E2E-runtime 1: long-session bounded REST pagination under lane latency (task 14)."
     - "E2E-runtime 3: reconnect with matching and stale transcript fences, including explicit reset reasons and empty-delta cursor advancement (task 17)."
     - "E2E-runtime 4: consistent state across list and detail through spawn → background → stop (task 22)."
+    - "ACP subprocess contract: more than 1,024 repeated in-progress updates for one tool yield one canonical tool call, one terminal result, and prompt completion through a two-event prompt buffer."
     - "E2E-runtime fault path: a real ACP subprocess disconnect after a partial response is projected through HTTP, UDS, CLI JSONL, `compozy__session_prompt`, persisted transcript, crash diagnostics, read-only rejection before `session/load`, and explicit child-session recovery."
   manual:
     - "Manual §9.6: raw-stream contiguity — `compozy session events --follow` against a busy session, disconnect during a large output burst, reconnect; the printed sequence is contiguous with no skipped `sequence` (tasks 42/43)."

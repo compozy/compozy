@@ -332,6 +332,132 @@ func TestEmitPromptEventFlushesDeferredToolResultsBeforeDone(t *testing.T) {
 	})
 }
 
+func TestEmitPromptEventCoalescesRedundantToolCalls(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should keep a repeated tool update burst within the event buffer", func(t *testing.T) {
+		t.Parallel()
+
+		proc := &AgentProcess{}
+		active, err := proc.beginPrompt("turn-1", 2)
+		if err != nil {
+			t.Fatalf("beginPrompt() error = %v", err)
+		}
+		defer proc.endPrompt(active)
+
+		emitted := make(chan struct{})
+		go func() {
+			defer close(emitted)
+			toolCall := AgentEvent{Type: EventTypeToolCall, TurnID: "turn-1", ToolCallID: "tool-1"}
+			proc.emitPromptEvent(toolCall)
+			for range 1_025 {
+				proc.emitPromptEvent(toolCall)
+			}
+			proc.emitPromptEvent(AgentEvent{Type: EventTypeToolResult, TurnID: "turn-1", ToolCallID: "tool-1"})
+		}()
+
+		timer := time.NewTimer(2 * time.Second)
+		defer timer.Stop()
+		select {
+		case <-emitted:
+		case <-timer.C:
+			for {
+				select {
+				case <-active.events:
+				case <-emitted:
+					t.Fatal("tool update burst blocked on the bounded prompt event channel")
+				}
+			}
+		}
+
+		first := <-active.events
+		if first.Type != EventTypeToolCall {
+			t.Fatalf("first event = %q, want %q", first.Type, EventTypeToolCall)
+		}
+		second := <-active.events
+		if second.Type != EventTypeToolResult {
+			t.Fatalf("second event = %q, want %q", second.Type, EventTypeToolResult)
+		}
+		select {
+		case event := <-active.events:
+			t.Fatalf("unexpected redundant tool event = %#v", event)
+		default:
+		}
+	})
+
+	t.Run("Should emit canonical tool call enrichments once", func(t *testing.T) {
+		t.Parallel()
+
+		proc := &AgentProcess{}
+		active, err := proc.beginPrompt("turn-1", 8)
+		if err != nil {
+			t.Fatalf("beginPrompt() error = %v", err)
+		}
+		defer proc.endPrompt(active)
+
+		sparse := AgentEvent{Type: EventTypeToolCall, TurnID: "turn-1", ToolCallID: "tool-1"}
+		proc.emitPromptEvent(sparse)
+		proc.emitPromptEvent(sparse)
+		proc.emitPromptEvent(AgentEvent{
+			Type: EventTypeToolCall, TurnID: "turn-1", ToolCallID: "tool-1", Title: "Read file",
+		})
+		proc.emitPromptEvent(AgentEvent{
+			Type: EventTypeToolCall, TurnID: "turn-1", ToolCallID: "tool-1", Title: "Read file",
+		})
+		proc.emitPromptEvent((AgentEvent{
+			Type: EventTypeToolCall, TurnID: "turn-1", ToolCallID: "tool-1",
+		}).WithToolKind("read"))
+		proc.emitPromptEvent((AgentEvent{
+			Type: EventTypeToolCall, TurnID: "turn-1", ToolCallID: "tool-1",
+		}).WithTool("read_file", json.RawMessage(`{"path":"README.md"}`), false))
+		proc.emitPromptEvent((AgentEvent{
+			Type: EventTypeToolCall, TurnID: "turn-1", ToolCallID: "tool-1",
+		}).WithToolPrechecked())
+		proc.emitPromptEvent(AgentEvent{Type: EventTypeToolResult, TurnID: "turn-1", ToolCallID: "tool-1"})
+
+		wantTypes := []string{
+			EventTypeToolCall,
+			EventTypeToolCall,
+			EventTypeToolCall,
+			EventTypeToolCall,
+			EventTypeToolCall,
+			EventTypeToolResult,
+		}
+		for index, want := range wantTypes {
+			event := <-active.events
+			if event.Type != want {
+				t.Fatalf("event %d type = %q, want %q", index, event.Type, want)
+			}
+		}
+		select {
+		case event := <-active.events:
+			t.Fatalf("unexpected duplicate enrichment event = %#v", event)
+		default:
+		}
+	})
+
+	t.Run("Should preserve tool calls without an identifier", func(t *testing.T) {
+		t.Parallel()
+
+		proc := &AgentProcess{}
+		active, err := proc.beginPrompt("turn-1", 2)
+		if err != nil {
+			t.Fatalf("beginPrompt() error = %v", err)
+		}
+		defer proc.endPrompt(active)
+
+		toolCall := AgentEvent{Type: EventTypeToolCall, TurnID: "turn-1"}
+		proc.emitPromptEvent(toolCall)
+		proc.emitPromptEvent(toolCall)
+
+		for range 2 {
+			if event := <-active.events; event.Type != EventTypeToolCall {
+				t.Fatalf("event type = %q, want %q", event.Type, EventTypeToolCall)
+			}
+		}
+	})
+}
+
 func TestEmitPromptEventDeferredToolResultsStayBounded(t *testing.T) {
 	t.Parallel()
 
