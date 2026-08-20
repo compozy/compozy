@@ -78,12 +78,6 @@ function DesktopChrome({
 }) {
   const model = useDesktopShellModel();
   const chrome = useDesktopChrome(model.runtimeWorkspaceId);
-  // The one registry projection for this shell. Everything that renders a
-  // command — palette, menubar, cheatsheet, settings table — reads this object.
-  const paletteRegistry = useCmdPaletteRegistry({
-    workspaceId: model.runtimeWorkspaceId,
-    client: chrome.client,
-  });
   const worktreeDialogs = useWorktreeDialogTargets();
   const workspaceSetupDefaults = useWorkspaceSetupDefaults();
 
@@ -93,32 +87,15 @@ function DesktopChrome({
   return (
     <WorktreeDialogActionsContext.Provider value={worktreeDialogs}>
       <OsShellContext.Provider value={chrome.shell}>
-        <CmdPaletteRegistryProvider registry={paletteRegistry}>
-          <SessionCreateProvider store={model.sessionCreate.store}>
-            <AgentCreateHostProvider
-              openDialog={model.agentCreate.openDialog}
-              openForDuplicate={model.agentCreate.openForDuplicate}
-            >
-              <DesktopShellBody
-                client={chrome.client}
-                firstRun={firstRun}
-                model={model}
-                clientCommandChannel={chrome.clientCommandChannel}
-                updateAvailable={updateAvailable}
-                worktreeDialogs={worktreeDialogs}
-                workspaceSetupDefaults={workspaceSetupDefaults}
-              />
-              <SessionCreateDialogHost
-                activeWorkspace={model.runtimeWorkspace}
-                agents={model.workspaceAgents}
-                homeWorkspaceId={model.homeWorkspace?.id}
-                projectWorkspaceId={model.activeWorkspaceId}
-                scope={model.scope}
-                store={model.sessionCreate.store}
-              />
-            </AgentCreateHostProvider>
-          </SessionCreateProvider>
-        </CmdPaletteRegistryProvider>
+        <DesktopChromeContent
+          client={chrome.client}
+          firstRun={firstRun}
+          model={model}
+          clientCommandChannel={chrome.clientCommandChannel}
+          updateAvailable={updateAvailable}
+          worktreeDialogs={worktreeDialogs}
+          workspaceSetupDefaults={workspaceSetupDefaults}
+        />
       </OsShellContext.Provider>
     </WorktreeDialogActionsContext.Provider>
   );
@@ -133,6 +110,36 @@ interface DesktopShellBodyProps {
   worktreeDialogs: ReturnType<typeof useWorktreeDialogTargets>;
   /** The daemon's client-command channel reads the current shell seam through this port. */
   clientCommandChannel: ReturnType<typeof useDesktopChrome>["clientCommandChannel"];
+}
+
+function DesktopChromeContent(props: DesktopShellBodyProps) {
+  // This projection reads the desktop topology, so it must mount below the
+  // shell context that owns the window-manager store.
+  const paletteRegistry = useCmdPaletteRegistry({
+    workspaceId: props.model.runtimeWorkspaceId,
+    client: props.client,
+  });
+
+  return (
+    <CmdPaletteRegistryProvider registry={paletteRegistry}>
+      <SessionCreateProvider store={props.model.sessionCreate.store}>
+        <AgentCreateHostProvider
+          openDialog={props.model.agentCreate.openDialog}
+          openForDuplicate={props.model.agentCreate.openForDuplicate}
+        >
+          <DesktopShellBody {...props} />
+          <SessionCreateDialogHost
+            activeWorkspace={props.model.runtimeWorkspace}
+            agents={props.model.workspaceAgents}
+            homeWorkspaceId={props.model.homeWorkspace?.id}
+            projectWorkspaceId={props.model.activeWorkspaceId}
+            scope={props.model.scope}
+            store={props.model.sessionCreate.store}
+          />
+        </AgentCreateHostProvider>
+      </SessionCreateProvider>
+    </CmdPaletteRegistryProvider>
+  );
 }
 
 type DesktopWorktreeScope = ReturnType<typeof useDesktopWorktreeScope>;
