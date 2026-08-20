@@ -80,7 +80,7 @@ func (e *RunAgentActionExecutor) Execute(
 		first.TokensUsed = tokensUsed
 		return rawFromPromptResult(binding, first, structured, resolvedRuntime), nil
 	}
-	if !errors.Is(err, ErrActionSchemaInvalid) {
+	if !errors.Is(err, ErrActionInvalidOutput) {
 		return ActionRawResult{}, err
 	}
 	retryPrompt, retryErr := schemaRetryPrompt(spec.Prompt, spec.OutputSchema, err)
@@ -108,7 +108,7 @@ func (e *RunAgentActionExecutor) bindRunAgentSession(
 	contractBlock string,
 ) (ActionSessionBinding, ResolvedRuntime, error) {
 	runtimeSelection := in.RuntimeSelectionOrZero()
-	item, err := ItemRuntimeFromNamespace(in.Namespace, spec.Runtime)
+	item, err := ItemRuntimeFromNamespace(in.Namespace, node.Params, spec.Runtime)
 	if err != nil {
 		return ActionSessionBinding{}, ResolvedRuntime{}, err
 	}
@@ -129,6 +129,7 @@ func (e *RunAgentActionExecutor) bindRunAgentSession(
 	if err != nil {
 		return ActionSessionBinding{}, ResolvedRuntime{}, err
 	}
+	runtimeRequest := resolvedRuntime.Runtime
 	binding, err := e.binder.BindActionSession(ctx, ActionSessionBindRequest{
 		WorkspaceID:        in.WorkspaceID,
 		LoopRunID:          in.LoopRunID,
@@ -145,7 +146,7 @@ func (e *RunAgentActionExecutor) bindRunAgentSession(
 			TaskRunID: strings.TrimSpace(in.CorrelationID),
 		},
 		Isolated:             node.Session != nil && node.Session.Isolated,
-		Runtime:              resolvedRuntime.Runtime,
+		Runtime:              &runtimeRequest,
 		AllowedTools:         append([]string(nil), spec.AllowedTools...),
 		MaxTurns:             spec.MaxTurns,
 		ContractBlock:        contractBlock,
@@ -154,7 +155,11 @@ func (e *RunAgentActionExecutor) bindRunAgentSession(
 	if err != nil {
 		return ActionSessionBinding{}, ResolvedRuntime{}, fmt.Errorf("bind run-agent session: %w", err)
 	}
-	resolvedRuntime = appliedResolvedRuntime(resolvedRuntime, binding.AppliedRuntime)
+	resolvedRuntime = appliedResolvedRuntime(
+		resolvedRuntime,
+		binding.AppliedRuntime,
+		binding.SpeedResolution,
+	)
 	if runtimeSelection.Recorder != nil {
 		if err := runtimeSelection.Recorder.RecordAppliedRuntime(
 			ctx,

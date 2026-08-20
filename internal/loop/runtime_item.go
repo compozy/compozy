@@ -3,11 +3,22 @@ package loop
 import (
 	"fmt"
 	"strings"
+
+	"github.com/compozy/compozy/internal/loop/dsl"
+	speedpkg "github.com/compozy/compozy/internal/speed"
 )
 
-// ItemRuntimeFromNamespace extracts runtime-selection metadata from an imported task item.
-func ItemRuntimeFromNamespace(namespace map[string]any, node RuntimeSpec) (ItemRuntime, error) {
-	item := ItemRuntime{Node: node}
+// ItemRuntimeFromNamespace extracts runtime-selection metadata and the authored node/input layer.
+func ItemRuntimeFromNamespace(
+	namespace map[string]any,
+	params dsl.NodeParams,
+	materialized RuntimeSpec,
+) (ItemRuntime, error) {
+	node, input, err := materializedNodeRuntime(params, materialized)
+	if err != nil {
+		return ItemRuntime{}, fmt.Errorf("%w: params.runtime: %w", ErrValidation, err)
+	}
+	item := ItemRuntime{Node: node, Input: input}
 	raw, ok := namespace["item"]
 	if !ok {
 		return item, nil
@@ -60,6 +71,12 @@ func runtimeSpecFromValue(value any) (RuntimeSpec, error) {
 			runtime.Model = strings.TrimSpace(text)
 		case runtimeFieldReasoning:
 			runtime.Reasoning = strings.TrimSpace(text)
+		case runtimeFieldSpeed:
+			parsed, err := speedpkg.Parse(text)
+			if err != nil {
+				return RuntimeSpec{}, err
+			}
+			runtime.Speed = parsed
 		default:
 			return RuntimeSpec{}, fmt.Errorf(
 				"unknown field %q; see MIGRATION_GUIDE.md#per-task-runtime-selection",
@@ -70,8 +87,14 @@ func runtimeSpecFromValue(value any) (RuntimeSpec, error) {
 	return runtime, nil
 }
 
-func appliedResolvedRuntime(intent ResolvedRuntime, applied RuntimeSpec) ResolvedRuntime {
-	resolved := normalizeResolvedRuntime(ResolvedRuntime{Runtime: applied, Source: intent.Source})
+func appliedResolvedRuntime(
+	intent ResolvedRuntime,
+	applied RuntimeSpec,
+	speedResolution *speedpkg.Resolution,
+) ResolvedRuntime {
+	resolved := normalizeResolvedRuntime(ResolvedRuntime{
+		Runtime: applied, Source: intent.Source, SpeedResolution: speedResolution,
+	})
 	if strings.TrimSpace(intent.Runtime.Provider) == "" && resolved.Runtime.Provider != "" {
 		resolved.Source.Provider = RuntimeSourceAgent
 	}
@@ -80,6 +103,9 @@ func appliedResolvedRuntime(intent ResolvedRuntime, applied RuntimeSpec) Resolve
 	}
 	if strings.TrimSpace(intent.Runtime.Reasoning) == "" && resolved.Runtime.Reasoning != "" {
 		resolved.Source.Reasoning = RuntimeSourceAgent
+	}
+	if strings.TrimSpace(string(intent.Runtime.Speed)) == "" && resolved.Runtime.Speed != "" {
+		resolved.Source.Speed = RuntimeSourceAgent
 	}
 	return resolved
 }

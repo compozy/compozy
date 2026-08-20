@@ -193,6 +193,9 @@ func (g *TaskRunRepo) failCurrentRunLeaseWithExecutor(
 	if err := requireCurrentRunLease(current, normalized.ClaimToken, normalized.Now); err != nil {
 		return taskpkg.FailedRunLeaseMutation{}, err
 	}
+	if err := taskpkg.RequireLeaseSettlementActor(current, normalized.Actor); err != nil {
+		return taskpkg.FailedRunLeaseMutation{}, err
+	}
 	if err := requireLeaseTerminalTransition(current, taskpkg.TaskRunStatusFailed); err != nil {
 		return taskpkg.FailedRunLeaseMutation{}, err
 	}
@@ -222,8 +225,15 @@ func (g *TaskRunRepo) failCurrentRunLeaseWithExecutor(
 			taskpkg.ErrTaskRunNotFound,
 		)
 	}
+	var coordinatorTransitions []taskpkg.StatusTransition
 	if current.IsTaskAnchored() {
-		if err := settleCoordinatorFailureLoopWithExecutor(ctx, exec, current, normalized); err != nil {
+		coordinatorTransitions, err = g.tasks.settleCoordinatorFailureLoopWithExecutor(
+			ctx,
+			exec,
+			current,
+			normalized,
+		)
+		if err != nil {
 			return taskpkg.FailedRunLeaseMutation{}, err
 		}
 		if err := recordLoopNodeTerminalWithExecutor(
@@ -247,7 +257,8 @@ func (g *TaskRunRepo) failCurrentRunLeaseWithExecutor(
 		return taskpkg.FailedRunLeaseMutation{}, err
 	}
 	return taskpkg.FailedRunLeaseMutation{
-		Run:     updated,
-		Failure: normalized.Failure,
+		Run:               updated,
+		Failure:           normalized.Failure,
+		StatusTransitions: coordinatorTransitions,
 	}, nil
 }

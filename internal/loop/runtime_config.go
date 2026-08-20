@@ -67,4 +67,7 @@ func mergeRuntimeSpec(target *RuntimeSpec, layer RuntimeSpec) {
 	if value := strings.TrimSpace(layer.Reasoning); value != "" {
 		target.Reasoning = value
 	}
+	if value := strings.TrimSpace(string(layer.Speed)); value != "" {
+		target.Speed = layer.Speed
+	}
 }

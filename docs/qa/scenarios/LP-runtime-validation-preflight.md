@@ -11,8 +11,8 @@ bug_ids: BUG-20260819-empty-runtime-default-rejected
 fix_status: fixed
 retest_status: pass
 fix_commits: 46dd8ae
-evidence: /Users/pedronauck/dev/qa-labs/compozy-typed-loop-inputs-remediation-20260819-062429-798135-lab/qa-artifacts/qa/journey-log.jsonl
-last_report: docs/qa/reports/2026-08-19-typed-loop-inputs-remediation.md
+evidence: /Users/pedronauck/dev/qa-labs/compozy-loop-runtime-graph-fixes-20260819-234724-890442-lab/qa-artifacts/qa/logs/dora-runtime-dry-run-fast.json; /Users/pedronauck/dev/qa-labs/compozy-loop-runtime-graph-fixes-20260819-234724-890442-lab/qa-artifacts/qa/logs/dora-http-runtime-fast.json; /Users/pedronauck/dev/qa-labs/compozy-loop-runtime-graph-fixes-20260819-234724-890442-lab/qa-artifacts/qa/logs/dora-final-runs.json
+last_report: docs/qa/reports/2026-08-19-loop-runtime-graph-fixes.md
 overlaps: LP-022; LP-runtime-selection-overrides
 ---
 
@@ -36,3 +36,9 @@ QA 2026-08-05 (review remediation): CLI, HTTP, and UDS dry-runs preserved
 
 QA 2026-08-18: CLI, HTTP/UDS, native dry-run, and Web preserved an exact custom model and partial
 runtime. Invalid provider/entity values returned field-addressed `input_validation` before a run.
+
+QA impact 2026-08-19: runtime inputs can now bind directly to run-agent and Goal nodes. Reset to
+verify exact-reference validation, input provenance, and rejection before ACP spawn.
+
+QA impact 2026-08-19: runtime speed is closed to `normal|fast` in definitions, task frontmatter,
+config, runtime inputs, and per-run flags. Verify invalid speed fails before ACP spawn.

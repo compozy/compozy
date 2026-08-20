@@ -182,8 +182,8 @@ func foldGraphNodeDefaults(nodes []dsl.Node) {
 			if node.Session == nil {
 				node.Session = &dsl.SessionSpec{Mode: dsl.SessionModeContinuous}
 			}
-			var params dsl.GoalParams
-			if err := node.Params.Decode(&params); err == nil && params.OnExhausted == "" {
+			params, err := decodeGoalNodeParams(node.Params)
+			if err == nil && params.OnExhausted == "" {
 				if node.Params == nil {
 					node.Params = dsl.NodeParams{}
 				}
@@ -335,7 +335,10 @@ func compileNode(
 			continue
 		}
 		key := fmt.Sprintf("nodes.%s.%s", node.ID, item.name)
-		condition, err := ctx.compileCondition(item.value, namespace)
+		condition, err := ctx.compileCondition(
+			item.value,
+			nodeConditionNamespace(node, item.name, namespace),
+		)
 		if err != nil {
 			return fmt.Errorf("compile %s: %w", key, err)
 		}

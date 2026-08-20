@@ -422,13 +422,13 @@ func TestLoopRuntimeSelectionIntegration(t *testing.T) {
 			status := loopRuntimeRawJSON(
 				t, ctx, client, target, http.MethodPost, failedRequest, &validation,
 			)
-			if status != http.StatusUnprocessableEntity || validation.InputDefault == nil {
+			if status != http.StatusUnprocessableEntity || validation.InputValidation == nil {
 				t.Fatalf("%s input-default failure = status:%d payload:%#v", name, status, validation)
 			}
-			if validation.InputDefault.Loop != loopInputDefaultsName ||
-				validation.InputDefault.Key != wantKey ||
-				validation.InputDefault.Reason != string(looppkg.InputDefaultReasonUnknownInput) {
-				t.Fatalf("%s input-default item = %#v", name, validation.InputDefault)
+			if validation.InputValidation.Loop != loopInputDefaultsName ||
+				validation.InputValidation.Field != wantKey ||
+				validation.InputValidation.Reason != string(looppkg.InputValidationReasonUnknownInput) {
+				t.Fatalf("%s input-default item = %#v", name, validation.InputValidation)
 			}
 		}
 		for _, transport := range []struct {
@@ -623,6 +623,7 @@ func TestLoopRuntimeSelectionIntegration(t *testing.T) {
 		waitForLoopRunStatus(t, ctx, harness, run.ID, contract.LoopRunStatusDone)
 		records := loopRuntimeDiagnostics(t, environment.judgeDiagnostics)
 		judgeSession := loopRuntimeSessionForOption(t, records, "model", "criterion-judge")
+		loopRuntimeRequireSessionOption(t, records, judgeSession, "speed", "fast")
 		if len(acpmock.PromptDiagnostics(acpmock.DiagnosticsForCompozySession(records, judgeSession))) != 1 {
 			t.Fatalf("judge session diagnostics = %#v, want one real prompt", records)
 		}
@@ -774,18 +775,31 @@ func assertMixedRuntimeOutputs(t testing.TB, detail contract.LoopRunResponse) {
 	}
 	want := []contract.LoopResolvedRuntime{
 		{
-			Provider: "codex", Model: "frontend-model", Reasoning: "high",
-			Source: contract.LoopRuntimeProvenance{Provider: "run", Model: "run", Reasoning: "run"},
-		},
-		{
-			Provider: acpmock.ProviderName, Model: "docs-model", Reasoning: "high",
+			Provider: "codex", Model: "frontend-model", Reasoning: "high", Speed: contract.SpeedNormal,
+			SpeedResolution: &contract.SpeedResolution{
+				Requested: contract.SpeedNormal, Status: contract.SpeedResolutionApplied,
+			},
 			Source: contract.LoopRuntimeProvenance{
-				Provider: "default", Model: "frontmatter", Reasoning: "config",
+				Provider: "run", Model: "run", Reasoning: "run", Speed: "run",
 			},
 		},
 		{
-			Provider: acpmock.ProviderName, Model: "node-model", Reasoning: "low",
-			Source: contract.LoopRuntimeProvenance{Provider: "default", Model: "node", Reasoning: "default"},
+			Provider: acpmock.ProviderName, Model: "docs-model", Reasoning: "high", Speed: contract.SpeedFast,
+			SpeedResolution: &contract.SpeedResolution{
+				Requested: contract.SpeedFast, Status: contract.SpeedResolutionApplied,
+			},
+			Source: contract.LoopRuntimeProvenance{
+				Provider: "default", Model: "frontmatter", Reasoning: "config", Speed: "config",
+			},
+		},
+		{
+			Provider: acpmock.ProviderName, Model: "node-model", Reasoning: "low", Speed: contract.SpeedNormal,
+			SpeedResolution: &contract.SpeedResolution{
+				Requested: contract.SpeedNormal, Status: contract.SpeedResolutionApplied,
+			},
+			Source: contract.LoopRuntimeProvenance{
+				Provider: "default", Model: "node", Reasoning: "default", Speed: "node",
+			},
 		},
 	}
 	for index := range want {
@@ -805,6 +819,7 @@ func assertMixedRuntimeDiagnostics(t testing.TB, environment loopRuntimeIntegrat
 	workerRecords := loopRuntimeDiagnostics(t, environment.workerDiagnostics)
 	docsSession := loopRuntimeSessionForOption(t, workerRecords, "model", "docs-model")
 	loopRuntimeRequireSessionOption(t, workerRecords, docsSession, "reasoning_effort", "high")
+	loopRuntimeRequireSessionOption(t, workerRecords, docsSession, "speed", "fast")
 	nodeSession := loopRuntimeSessionForOption(t, workerRecords, "model", "node-model")
 	if codexSession == docsSession || codexSession == nodeSession || docsSession == nodeSession {
 		t.Fatalf(

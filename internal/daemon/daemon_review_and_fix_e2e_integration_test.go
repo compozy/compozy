@@ -140,12 +140,12 @@ func TestDaemonE2EReviewAndFixShouldRemediateAgentAuthoredArtifacts(t *testing.T
 			t.Fatalf("schema-invalid review status = %q, want running", detail.Run.Status)
 		}
 		firstReview := requireReviewGenerationOutput(t, detail, 1, "review")
-		if firstReview.Status != "failed" || !strings.Contains(firstReview.OutputRef, "action_schema_invalid") {
+		if firstReview.Status != "failed" || !strings.Contains(firstReview.OutputRef, "invalid_output") {
 			t.Fatalf("schema-invalid first review = %#v, want structured schema failure", firstReview)
 		}
 		quarantinedReview, found := findLatestReviewGenerationOutput(detail, "review")
 		if !found || quarantinedReview.Status != "quarantined" ||
-			!strings.Contains(quarantinedReview.OutputRef, "action_schema_invalid") {
+			!strings.Contains(quarantinedReview.OutputRef, "invalid_output") {
 			t.Fatalf("schema-invalid latest review = %#v, want quarantined schema failure", quarantinedReview)
 		}
 		reviewControl := requireReviewNodeControl(t, detail, "review")

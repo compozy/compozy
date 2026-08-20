@@ -51,10 +51,8 @@ func (m *Manager) prepareCreateStart(ctx context.Context, opts CreateOpts) (sess
 	if err != nil {
 		return sessionStartSpec{}, err
 	}
-	if networkParticipation.Mode == participation.ModeLive {
-		if err := validateLiveNetworkPeerID(agentName, sessionID); err != nil {
-			return sessionStartSpec{}, err
-		}
+	if err := validateCreateNetworkParticipant(agentName, sessionID, networkParticipation.Mode); err != nil {
+		return sessionStartSpec{}, err
 	}
 	requestedSpeed, err := normalizeRequestedSpeed(opts.Speed)
 	if err != nil {
@@ -85,6 +83,7 @@ func (m *Manager) prepareCreateStart(ctx context.Context, opts CreateOpts) (sess
 		sessionType:              sessionType,
 		lineage:                  lineage,
 		allowedToolsOverride:     append([]string(nil), opts.AllowedToolsOverride...),
+		deniedToolsOverride:      append([]string(nil), opts.DeniedToolsOverride...),
 		creationProfile:          cloneCreationProfile(opts.CreationProfile),
 		creationIdentity:         cloneCreationIdentity(opts.CreationIdentity),
 		creationIdentityPinned:   opts.CreationProfile != nil || opts.CreationIdentity != nil,
@@ -95,6 +94,13 @@ func (m *Manager) prepareCreateStart(ctx context.Context, opts CreateOpts) (sess
 		startAction:              sessionStartActionCreate,
 		cleanupSessionDir:        true,
 	}, nil
+}
+
+func validateCreateNetworkParticipant(agentName string, sessionID string, mode participation.Mode) error {
+	if mode != participation.ModeLive {
+		return nil
+	}
+	return validateLiveNetworkPeerID(agentName, sessionID)
 }
 
 type createLocation struct {

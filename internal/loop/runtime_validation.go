@@ -8,6 +8,7 @@ import (
 
 	"github.com/compozy/compozy/internal/loop/dsl"
 	"github.com/compozy/compozy/internal/modelcatalog"
+	speedpkg "github.com/compozy/compozy/internal/speed"
 )
 
 // ValidateDefinitionRuntime validates only runtime values authored in one definition.
@@ -33,7 +34,7 @@ func ValidateDefinitionRuntime(
 	if err := validateRuntimeCriteria(ctx, catalog, "contract.verification", def.Contract.Verification); err != nil {
 		return err
 	}
-	return validateRuntimeGraph(ctx, catalog, def.Graph)
+	return validateRuntimeGraph(ctx, catalog, def.Inputs, def.Graph)
 }
 
 // ValidateLoopConfigRuntime validates runtime values in one raw configuration layer.
@@ -78,7 +79,12 @@ func ValidateEffectiveRuntime(ctx context.Context, catalog RuntimeCatalog, cfg E
 	return validateRuntimeRules(ctx, catalog, cfg.RunRuntimeRules)
 }
 
-func validateRuntimeGraph(ctx context.Context, catalog RuntimeCatalog, graph dsl.Graph) error {
+func validateRuntimeGraph(
+	ctx context.Context,
+	catalog RuntimeCatalog,
+	inputs map[string]dsl.Input,
+	graph dsl.Graph,
+) error {
 	for _, node := range graph.Nodes {
 		if value, exists := node.Params["cwd"]; exists {
 			return runtimeValidation(
@@ -92,28 +98,26 @@ func validateRuntimeGraph(ctx context.Context, catalog RuntimeCatalog, graph dsl
 		}
 		switch {
 		case node.Class == dsl.NodeClassAction && dsl.ActionKind(node.Kind) == dsl.ActionRunAgent:
-			var params dsl.RunAgentParams
-			if err := node.Params.Decode(&params); err != nil {
-				return fmt.Errorf("%w: decode run-agent params for %q: %w", ErrValidation, node.ID, err)
-			}
-			if err := validateRuntimeSpec(
+			if err := validateNodeRuntimeAuthoring(
 				ctx,
 				catalog,
+				inputs,
 				fmt.Sprintf("graph.nodes.%s.params.runtime", node.ID),
-				params.Runtime,
+				node.Params,
 			); err != nil {
 				return err
 			}
 		case node.Class == dsl.NodeClassAction && dsl.ActionKind(node.Kind) == dsl.ActionGoal:
-			var params dsl.GoalParams
-			if err := node.Params.Decode(&params); err != nil {
+			params, err := decodeGoalNodeParams(node.Params)
+			if err != nil {
 				return fmt.Errorf("%w: decode goal params for %q: %w", ErrValidation, node.ID, err)
 			}
-			if err := validateRuntimeSpec(
+			if err := validateNodeRuntimeAuthoring(
 				ctx,
 				catalog,
+				inputs,
 				fmt.Sprintf("graph.nodes.%s.params.runtime", node.ID),
-				params.Runtime,
+				node.Params,
 			); err != nil {
 				return err
 			}
@@ -135,7 +139,7 @@ func validateRuntimeGraph(ctx context.Context, catalog RuntimeCatalog, graph dsl
 			return err
 		}
 		if node.Body != nil {
-			if err := validateRuntimeGraph(ctx, catalog, *node.Body); err != nil {
+			if err := validateRuntimeGraph(ctx, catalog, inputs, *node.Body); err != nil {
 				return err
 			}
 		}
@@ -216,6 +220,13 @@ func validateRuntimeSpec(
 			Value:  reasoning,
 			Reason: "unsupported_reasoning",
 		})
+	}
+	if requested := strings.TrimSpace(string(runtime.Speed)); requested != "" {
+		if _, err := speedpkg.Parse(requested); err != nil {
+			return NewRuntimeValidationError(RuntimeValidationItem{
+				Field: runtimeFieldSpeed, Value: requested, Reason: "unsupported_speed",
+			})
+		}
 	}
 	if catalog == nil || !runtimeSpecHasValue(runtime) {
 		return nil

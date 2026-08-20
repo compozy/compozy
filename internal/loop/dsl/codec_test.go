@@ -8,6 +8,7 @@ import (
 
 	"github.com/compozy/compozy/internal/loop/dsl"
 	"github.com/compozy/compozy/internal/network/participation"
+	speedpkg "github.com/compozy/compozy/internal/speed"
 	"gopkg.in/yaml.v3"
 )
 
@@ -340,8 +341,28 @@ func TestCodecShouldRoundTripContractOptionalFields(t *testing.T) {
 		wantConstraints  []string
 		wantBoundaries   []string
 		wantStopWhen     string
+		wantWorkerSpeed  speedpkg.Speed
 		wantSerializedIn []string
 	}{
+		{
+			name: "Should preserve an authored worker speed",
+			body: minimalDefinition(`
+contract:
+  goal: Ship safely
+  definition_of_done: Tests pass
+  verification: []
+  terminal_states: [done, failed]
+  iteration_cap: 3
+  no_progress: { window: 2 }
+  budget: { tokens: 0, wall_clock_sec: 0, on_exceeded: halt }
+  runtime_defaults:
+    worker: { speed: fast }
+`),
+			wantConstraints:  []string{},
+			wantBoundaries:   []string{},
+			wantWorkerSpeed:  speedpkg.SpeedFast,
+			wantSerializedIn: []string{"runtime_defaults:", "speed: fast"},
+		},
 		{
 			name: "Should default absent optional contract fields to empty",
 			body: minimalDefinition(`
@@ -400,6 +421,17 @@ contract:
 			if def.Contract.StopWhen.Expr != tt.wantStopWhen {
 				t.Fatalf("StopWhen.Expr = %q, want %q", def.Contract.StopWhen.Expr, tt.wantStopWhen)
 			}
+			workerSpeed := speedpkg.Speed("")
+			if def.Contract.RuntimeDefaults != nil {
+				workerSpeed = def.Contract.RuntimeDefaults.Worker.Speed
+			}
+			if workerSpeed != tt.wantWorkerSpeed {
+				t.Fatalf(
+					"RuntimeDefaults.Worker.Speed = %q, want %q",
+					workerSpeed,
+					tt.wantWorkerSpeed,
+				)
+			}
 
 			serialized, err := dsl.Serialize(def)
 			if err != nil {
@@ -414,6 +446,17 @@ contract:
 					"round-trip Constraints = %#v, want %#v",
 					reparsed.Contract.Constraints,
 					tt.wantConstraints,
+				)
+			}
+			roundTripWorkerSpeed := speedpkg.Speed("")
+			if reparsed.Contract.RuntimeDefaults != nil {
+				roundTripWorkerSpeed = reparsed.Contract.RuntimeDefaults.Worker.Speed
+			}
+			if roundTripWorkerSpeed != tt.wantWorkerSpeed {
+				t.Fatalf(
+					"round-trip RuntimeDefaults.Worker.Speed = %q, want %q",
+					roundTripWorkerSpeed,
+					tt.wantWorkerSpeed,
 				)
 			}
 			for _, fragment := range tt.wantSerializedIn {

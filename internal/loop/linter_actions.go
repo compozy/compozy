@@ -21,8 +21,8 @@ func (c *lintContext) lintReservedActionNode(node dsl.Node) {
 }
 
 func (c *lintContext) lintRunAgentNode(node dsl.Node) {
-	var params dsl.RunAgentParams
-	if err := node.Params.Decode(&params); err != nil {
+	params, err := decodeRunAgentNodeParams(node.Params)
+	if err != nil {
 		c.add(node.ID, refs.CodeUnresolvablePath, "run-agent params are invalid: %v", err)
 		return
 	}

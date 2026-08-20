@@ -3,6 +3,7 @@ package loop
 import (
 	"encoding/json"
 	"fmt"
+	"maps"
 	"math"
 	"strings"
 
@@ -14,16 +15,27 @@ import (
 const fanOutMaterializationKind = "fan_out"
 
 type fanOutMaterialization struct {
-	Kind        string  `json:"kind"`
-	Branches    int     `json:"branches"`
-	BatchSize   int     `json:"batch_size"`
-	MaxParallel int     `json:"max_parallel"`
-	Chunks      [][]any `json:"chunks"`
+	Kind        string              `json:"kind"`
+	Branches    int                 `json:"branches"`
+	BatchSize   int                 `json:"batch_size"`
+	MaxParallel int                 `json:"max_parallel"`
+	Chunks      [][]fanOutCandidate `json:"chunks"`
+}
+
+type fanOutCandidate struct {
+	Index int `json:"index"`
+	Item  any `json:"item"`
+}
+
+type fanOutFilterEvaluation struct {
+	Candidates  []fanOutCandidate
+	Disposition *PredicateFailureDisposition
+	Diagnostics []PredicateDiagnostic
 }
 
 func buildFanOutMaterialization(
 	node dsl.Node,
-	items []any,
+	candidates []fanOutCandidate,
 	defaultMaxParallel int,
 ) (fanOutMaterialization, *task.CoordinatorTerminal) {
 	batchSize := node.BatchSize
@@ -37,7 +49,7 @@ func buildFanOutMaterialization(
 	if maxParallel <= 0 {
 		maxParallel = 1
 	}
-	chunks := chunkFanOutItems(items, batchSize)
+	chunks := chunkFanOutCandidates(candidates, batchSize)
 	if node.MaxFanOut > 0 && len(chunks) > node.MaxFanOut {
 		return fanOutMaterialization{}, fanOutBoundTerminal()
 	}
@@ -50,17 +62,35 @@ func buildFanOutMaterialization(
 	}, nil
 }
 
-func chunkFanOutItems(items []any, batchSize int) [][]any {
-	if len(items) == 0 {
-		return [][]any{}
+func chunkFanOutCandidates(candidates []fanOutCandidate, batchSize int) [][]fanOutCandidate {
+	if len(candidates) == 0 {
+		return [][]fanOutCandidate{}
 	}
-	branchCount := int(math.Ceil(float64(len(items)) / float64(batchSize)))
-	chunks := make([][]any, 0, branchCount)
-	for start := 0; start < len(items); start += batchSize {
-		end := min(start+batchSize, len(items))
-		chunks = append(chunks, append([]any(nil), items[start:end]...))
+	branchCount := int(math.Ceil(float64(len(candidates)) / float64(batchSize)))
+	chunks := make([][]fanOutCandidate, 0, branchCount)
+	for start := 0; start < len(candidates); start += batchSize {
+		end := min(start+batchSize, len(candidates))
+		chunks = append(chunks, append([]fanOutCandidate(nil), candidates[start:end]...))
 	}
 	return chunks
+}
+
+func indexedFanOutCandidates(items []any) []fanOutCandidate {
+	candidates := make([]fanOutCandidate, len(items))
+	for index, item := range items {
+		candidates[index] = fanOutCandidate{Index: index, Item: item}
+	}
+	return candidates
+}
+
+func fanOutBranchIndexes(materialization fanOutMaterialization) []int {
+	indexes := make([]int, 0, len(materialization.Chunks))
+	for _, chunk := range materialization.Chunks {
+		if len(chunk) > 0 {
+			indexes = append(indexes, chunk[0].Index)
+		}
+	}
+	return indexes
 }
 
 func fanOutMaterializationRef(materialization fanOutMaterialization) (string, error) {
@@ -76,18 +106,82 @@ func parseFanOutMaterialization(ref string) (fanOutMaterialization, bool, error)
 	if trimmed == "" {
 		return fanOutMaterialization{}, false, nil
 	}
-	var materialization fanOutMaterialization
-	if err := json.Unmarshal([]byte(trimmed), &materialization); err != nil {
+	var persisted struct {
+		Kind        string              `json:"kind"`
+		Branches    int                 `json:"branches"`
+		BatchSize   int                 `json:"batch_size"`
+		MaxParallel int                 `json:"max_parallel"`
+		Chunks      [][]json.RawMessage `json:"chunks"`
+	}
+	if err := json.Unmarshal([]byte(trimmed), &persisted); err != nil {
 		return fanOutMaterialization{}, false, fmt.Errorf(
 			"%w: decode fan-out materialization: %w",
 			ErrValidation,
 			err,
 		)
 	}
-	if materialization.Kind != fanOutMaterializationKind {
+	if persisted.Kind != fanOutMaterializationKind {
 		return fanOutMaterialization{}, false, nil
 	}
-	return materialization, true, nil
+	chunks, err := decodeFanOutCandidateChunks(persisted.Chunks)
+	if err != nil {
+		return fanOutMaterialization{}, false, fmt.Errorf(
+			"%w: decode fan-out materialization: %w",
+			ErrValidation,
+			err,
+		)
+	}
+	return fanOutMaterialization{
+		Kind:        persisted.Kind,
+		Branches:    persisted.Branches,
+		BatchSize:   persisted.BatchSize,
+		MaxParallel: persisted.MaxParallel,
+		Chunks:      chunks,
+	}, true, nil
+}
+
+func decodeFanOutCandidateChunks(rawChunks [][]json.RawMessage) ([][]fanOutCandidate, error) {
+	if rawChunks == nil {
+		return nil, nil
+	}
+	chunks := make([][]fanOutCandidate, len(rawChunks))
+	usesCandidateEnvelope := fanOutChunksUseCandidateEnvelope(rawChunks)
+	candidateIndex := 0
+	for chunkIndex, rawChunk := range rawChunks {
+		chunks[chunkIndex] = make([]fanOutCandidate, len(rawChunk))
+		for itemIndex, rawItem := range rawChunk {
+			candidate := fanOutCandidate{Index: candidateIndex}
+			var err error
+			if usesCandidateEnvelope {
+				err = json.Unmarshal(rawItem, &candidate)
+			} else {
+				err = json.Unmarshal(rawItem, &candidate.Item)
+			}
+			if err != nil {
+				return nil, fmt.Errorf("decode chunk %d item %d: %w", chunkIndex, itemIndex, err)
+			}
+			chunks[chunkIndex][itemIndex] = candidate
+			candidateIndex++
+		}
+	}
+	return chunks, nil
+}
+
+func fanOutChunksUseCandidateEnvelope(rawChunks [][]json.RawMessage) bool {
+	hasCandidate := false
+	for _, rawChunk := range rawChunks {
+		for _, rawItem := range rawChunk {
+			var fields map[string]json.RawMessage
+			if err := json.Unmarshal(rawItem, &fields); err != nil {
+				return false
+			}
+			if len(fields) != 2 || fields["index"] == nil || fields["item"] == nil {
+				return false
+			}
+			hasCandidate = true
+		}
+	}
+	return hasCandidate
 }
 
 func fanOutItem(
@@ -103,16 +197,26 @@ func fanOutItem(
 		if err != nil || !ok {
 			return nil, false, err
 		}
-		if itemIndex < 0 || itemIndex >= len(materialization.Chunks) {
+		var chunk []fanOutCandidate
+		for _, candidateChunk := range materialization.Chunks {
+			if len(candidateChunk) > 0 && candidateChunk[0].Index == itemIndex {
+				chunk = candidateChunk
+				break
+			}
+		}
+		if len(chunk) == 0 {
 			return nil, false, nil
 		}
-		chunk := materialization.Chunks[itemIndex]
 		// batch_size: 1 scopes `.item` to the fanned element itself; larger batch
 		// sizes scope `.item` to the chunk slice, even for a short final chunk.
 		if materialization.BatchSize == 1 && len(chunk) == 1 {
-			return chunk[0], true, nil
+			return chunk[0].Item, true, nil
 		}
-		return chunk, true, nil
+		items := make([]any, len(chunk))
+		for index, candidate := range chunk {
+			items[index] = candidate.Item
+		}
+		return items, true, nil
 	}
 	return nil, false, nil
 }
@@ -128,18 +232,77 @@ func resolveFanOutCollection(
 		value, ok := valueAtPath(namespace, tmpl.References[0].Path)
 		if !ok {
 			return nil, fmt.Errorf(
-				"%w: fan-out collection reference %q is unavailable",
-				ErrValidation,
+				"%w: fan-out collection reference %q is unavailable: %w",
+				ErrActionMaterialization,
 				tmpl.References[0].Raw,
+				ErrValidation,
 			)
 		}
 		return collectionItems(value)
 	}
 	rendered, err := refs.RenderTemplateString(key, node.Collection, namespace)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("%w: %s: %w", ErrActionMaterialization, key, err)
 	}
 	return collectionItems(rendered)
+}
+
+func evaluateFanOutFilter(
+	resolved *ResolvedDefinition,
+	node dsl.Node,
+	namespace map[string]any,
+	items []any,
+) (fanOutFilterEvaluation, error) {
+	candidates := indexedFanOutCandidates(items)
+	if strings.TrimSpace(node.Filter) == "" {
+		return fanOutFilterEvaluation{Candidates: candidates}, nil
+	}
+	key := fmt.Sprintf("nodes.%s.filter", node.ID)
+	condition := resolved.Conditions[key]
+	if condition == nil {
+		return fanOutFilterEvaluation{}, fmt.Errorf(
+			"%w: compiled fan-out filter %q is missing",
+			ErrValidation,
+			key,
+		)
+	}
+	result := fanOutFilterEvaluation{Candidates: make([]fanOutCandidate, 0, len(items))}
+	for index, item := range items {
+		variables := fanOutFilterVariables(namespace, node, item, index)
+		evaluated, err := evaluatePredicate(
+			key,
+			condition,
+			variables,
+			PredicateRouting,
+			node.OnEvalError,
+		)
+		if err != nil {
+			return fanOutFilterEvaluation{}, fmt.Errorf("loop: evaluate fan-out %s filter: %w", node.ID, err)
+		}
+		result.Diagnostics = append(result.Diagnostics, evaluated.Diagnostics...)
+		if evaluated.Disposition != nil {
+			result.Disposition = evaluated.Disposition
+			return result, nil
+		}
+		if evaluated.Value {
+			result.Candidates = append(result.Candidates, fanOutCandidate{Index: index, Item: item})
+		}
+	}
+	return result, nil
+}
+
+func fanOutFilterVariables(namespace map[string]any, node dsl.Node, item any, index int) map[string]any {
+	variables := make(map[string]any, len(namespace)+4)
+	maps.Copy(variables, namespace)
+	variables["item"] = item
+	variables["index"] = int64(index)
+	if name := strings.TrimSpace(node.BindAs); name != "" {
+		variables[name] = item
+	}
+	if name := strings.TrimSpace(node.IndexAs); name != "" {
+		variables[name] = int64(index)
+	}
+	return variables
 }
 
 func isPureTemplateReference(raw string, reference refs.Reference) bool {

@@ -21,23 +21,23 @@ func TestNextFanOutWindowIndexesShouldAdvanceDeterministically(t *testing.T) {
 	}{
 		{
 			name:  "Should materialize the first bounded window",
-			state: fanOutWindowState{Total: 5, MaxParallel: 2},
+			state: fanOutWindowState{Indexes: []int{0, 1, 2, 3, 4}, MaxParallel: 2},
 			want:  []int{0, 1},
 		},
 		{
 			name: "Should advance one lane after one settles",
-			state: fanOutWindowState{Total: 5, MaxParallel: 2,
+			state: fanOutWindowState{Indexes: []int{0, 1, 2, 3, 4}, MaxParallel: 2,
 				Materialized: map[int]bool{0: true, 1: true}, Settled: map[int]bool{0: true}},
 			want: []int{2},
 		},
 		{
 			name:  "Should materialize all lanes when the window covers the collection",
-			state: fanOutWindowState{Total: 3, MaxParallel: 8},
+			state: fanOutWindowState{Indexes: []int{0, 1, 2}, MaxParallel: 8},
 			want:  []int{0, 1, 2},
 		},
 		{
 			name: "Should not recreate materialized lanes after restart",
-			state: fanOutWindowState{Total: 3, MaxParallel: 2,
+			state: fanOutWindowState{Indexes: []int{0, 1, 2}, MaxParallel: 2,
 				Materialized: map[int]bool{0: true, 1: true}},
 			want: []int{},
 		},
@@ -57,7 +57,13 @@ func TestMaterializeFanOutWindowShouldReformFromDurableOutputs(t *testing.T) {
 	graph := fanOutWindowGraph()
 	topology := newControlTopology(graph)
 	outputs := []GenerationOutput{{Generation: 1, NodeID: "work", ItemIndex: 0, Status: generationOutputSucceeded}}
-	materialization := fanOutMaterialization{Branches: 4, MaxParallel: 2}
+	materialization := fanOutMaterialization{
+		Branches:    4,
+		MaxParallel: 2,
+		Chunks: [][]fanOutCandidate{
+			{{Index: 0}}, {{Index: 1}}, {{Index: 2}}, {{Index: 3}},
+		},
+	}
 	if changed := materializeFanOutWindow(graph, topology, 1, "fan", materialization, &outputs); !changed {
 		t.Fatal("materializeFanOutWindow() changed = false, want true")
 	}

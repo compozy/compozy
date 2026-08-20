@@ -10,6 +10,7 @@ import (
 	looppkg "github.com/compozy/compozy/internal/loop"
 	goalpkg "github.com/compozy/compozy/internal/loop/goal"
 	"github.com/compozy/compozy/internal/session"
+	speedpkg "github.com/compozy/compozy/internal/speed"
 	"github.com/compozy/compozy/internal/store"
 )
 
@@ -76,10 +77,11 @@ func (b *loopActionSessionBinder) BindActionSession(
 	if activeFound {
 		binding, handled, err := b.bindFromActiveSession(ctx, req, key, active)
 		if err != nil || handled {
-			return binding, err
+			return b.projectActionBindingSpeed(ctx, binding, err)
 		}
 	}
-	return b.bindMissingOrAdvancedSession(ctx, creator, req, key, active, activeFound)
+	binding, err := b.bindMissingOrAdvancedSession(ctx, creator, req, key, active, activeFound)
+	return b.projectActionBindingSpeed(ctx, binding, err)
 }
 
 func (b *loopActionSessionBinder) bindEphemeralActionSession(
@@ -110,14 +112,20 @@ func (b *loopActionSessionBinder) bindEphemeralActionSession(
 			errors.New("daemon: loop action session create returned nil"),
 		)
 	}
+	info := created.Info()
+	appliedRuntime := appliedRuntimeFromCreateOptions(opts)
+	if info.Speed != "" {
+		appliedRuntime.Speed = info.Speed
+	}
 	return looppkg.ActionSessionBinding{
-		WorkspaceID:    req.WorkspaceID,
-		LoopRunID:      req.LoopRunID,
-		SessionID:      strings.TrimSpace(created.Info().ID),
-		Handle:         strings.TrimSpace(req.Handle),
-		SharedKey:      strings.TrimSpace(req.SharedKey),
-		Isolated:       req.Isolated,
-		AppliedRuntime: appliedRuntimeFromCreateOptions(opts),
+		WorkspaceID:     req.WorkspaceID,
+		LoopRunID:       req.LoopRunID,
+		SessionID:       strings.TrimSpace(info.ID),
+		Handle:          strings.TrimSpace(req.Handle),
+		SharedKey:       strings.TrimSpace(req.SharedKey),
+		Isolated:        req.Isolated,
+		AppliedRuntime:  appliedRuntime,
+		SpeedResolution: speedpkg.CloneResolution(info.SpeedResolution),
 	}, nil
 }
 

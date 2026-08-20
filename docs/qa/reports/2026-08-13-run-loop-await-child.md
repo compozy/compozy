@@ -74,8 +74,8 @@ None.
 - **Terminal mapping:** `done` and `no-op` children settle the parent node as succeeded; failed and canceled children settle it as failed. Live children continue yielding through the existing coordinator path.
 - **Recovery:** Restart E2E proves the first child id survives daemon restart, no duplicate child is submitted, and the second child remains pending until the first is terminal.
 - **Workspace and ownership fence:** Unit coverage rejects a child from another workspace or another parent and clears the untrusted child id instead of normalizing or retaining it.
-- **Malformed durable state:** Empty, malformed, incomplete, padded, or contradictory awaited results fail closed with the stable existing `action_schema_invalid` reason and operator-safe diagnostic.
-- **Missing authored owner:** A completed action whose graph node is absent now fails closed as `action_schema_invalid` instead of being promoted to success.
+- **Malformed durable state:** Empty, malformed, incomplete, padded, or contradictory awaited results fail closed with the stable `invalid_output` reason and operator-safe diagnostic.
+- **Missing authored owner:** A completed action whose graph node is absent now fails closed as `invalid_output` instead of being promoted to success.
 - **Public surfaces:** The isolated walk compared CLI/UDS and HTTP before and after restart and again at terminal state. Native-tool IDs, HTTP/UDS schemas, hooks, config, extension formats, and Web behavior are unchanged.
 - **Generated contracts:** No public enum or schema shape changes in this fix. `make codegen-check` remains part of the final gate; no generated TypeScript update is expected.
 - **Documentation:** Issue #386 and the checked-in design use a standalone authored-Loop reproduction with the actual manual/HTTP/UDS ingress allowlist. The official Loop skill and site guardrails describe ordering, restart, and terminal mapping. Batuta remains discovery evidence only.

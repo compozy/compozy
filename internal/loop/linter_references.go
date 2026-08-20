@@ -9,6 +9,8 @@ import (
 	"github.com/compozy/compozy/internal/loop/dsl/refs"
 )
 
+const fanOutFilterField = "filter"
+
 func (c *lintContext) lintContractReferences(namespace refs.Namespace) {
 	narrativeNamespace := contractNarrativeNamespace(namespace)
 	for _, item := range contractNarrativeStringFields(c.def.Contract) {
@@ -92,13 +94,14 @@ func (c *lintContext) lintNodeReferences(node dsl.Node, namespace refs.Namespace
 		}
 	}
 	for _, item := range nodeConditionFields(node) {
-		condition, err := c.compileCondition(item.value, namespace)
+		conditionNamespace := nodeConditionNamespace(node, item.name, namespace)
+		condition, err := c.compileCondition(item.value, conditionNamespace)
 		if err != nil {
 			c.addRefsError(node.ID, err)
 			continue
 		}
 		if condition != nil {
-			c.warnUnknownOutputReferences(node.ID, condition.References, namespace)
+			c.warnUnknownOutputReferences(node.ID, condition.References, conditionNamespace)
 		}
 	}
 	c.lintWatchEventsFilterReferences(node, namespace)
@@ -309,7 +312,7 @@ func paramListStringFields(
 func nodeConditionFields(node dsl.Node) []namedString {
 	fields := []namedString{
 		{name: "condition", value: node.Condition},
-		{name: "filter", value: node.Filter},
+		{name: fanOutFilterField, value: node.Filter},
 	}
 	if node.Review != nil {
 		fields = append(fields, namedString{name: "review.when", value: node.Review.When})
@@ -321,6 +324,31 @@ func nodeConditionFields(node dsl.Node) []namedString {
 		})
 	}
 	return fields
+}
+
+func nodeConditionNamespace(node dsl.Node, field string, namespace refs.Namespace) refs.Namespace {
+	if field != fanOutFilterField || !isControlKind(node, dsl.ControlFanOut) {
+		return namespace
+	}
+	filtered := namespace
+	filtered.AllowFanout = true
+	filtered.FanoutItems = cloneReferenceNames(namespace.FanoutItems)
+	filtered.FanoutIndexes = cloneReferenceNames(namespace.FanoutIndexes)
+	if name := strings.TrimSpace(node.BindAs); name != "" {
+		filtered.FanoutItems[name] = struct{}{}
+	}
+	if name := strings.TrimSpace(node.IndexAs); name != "" {
+		filtered.FanoutIndexes[name] = struct{}{}
+	}
+	return filtered
+}
+
+func cloneReferenceNames(source map[string]struct{}) map[string]struct{} {
+	cloned := make(map[string]struct{}, len(source)+1)
+	for name := range source {
+		cloned[name] = struct{}{}
+	}
+	return cloned
 }
 
 func (c *lintContext) compileTemplate(
@@ -389,16 +417,24 @@ func (c *lintContext) namespace(allowFanout bool, allowTrigger bool) refs.Namesp
 		inputs[name] = inputSchema(input)
 	}
 	nodes := map[string]refs.NodeSchema{}
+	gates := map[string]struct{}{}
 	for _, node := range c.def.Graph.Nodes {
 		schema, ok := c.outputSchema(node)
 		nodes[string(node.ID)] = refs.NodeSchema{
 			Output: schema, HasOutput: ok,
 			HasProgress: isControlKind(node, dsl.ControlFanOut),
 		}
+		if isControlKind(node, dsl.ControlGate) {
+			gates[string(node.ID)] = struct{}{}
+		}
+	}
+	if len(c.def.Contract.Verification) > 0 {
+		gates["contract"] = struct{}{}
 	}
 	return refs.Namespace{
 		Inputs:       inputs,
 		Nodes:        nodes,
+		Gates:        gates,
 		AllowFanout:  allowFanout,
 		AllowTrigger: allowTrigger,
 	}

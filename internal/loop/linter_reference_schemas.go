@@ -70,16 +70,16 @@ func (c *lintContext) actionOutputSchema(node dsl.Node) (refs.Schema, bool) {
 	}
 	switch dsl.ActionKind(node.Kind) {
 	case dsl.ActionGoal:
-		var params dsl.GoalParams
+		params, err := decodeGoalNodeParams(node.Params)
 		// Invalid params expose no trustworthy output schema, so downstream reference checks stop here.
-		if err := node.Params.Decode(&params); err != nil || params.OutputSchema == nil {
+		if err != nil || params.OutputSchema == nil {
 			return nil, false
 		}
 		return convertSchema(*params.OutputSchema), true
 	case dsl.ActionRunAgent:
-		var params dsl.RunAgentParams
+		params, err := decodeRunAgentNodeParams(node.Params)
 		// Invalid params expose no trustworthy output schema, so downstream reference checks stop here.
-		if err := node.Params.Decode(&params); err != nil || len(params.OutputSchema) == 0 {
+		if err != nil || len(params.OutputSchema) == 0 {
 			return nil, false
 		}
 		return convertSchema(params.OutputSchema), true

@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	looppkg "github.com/compozy/compozy/internal/loop"
+	speedpkg "github.com/compozy/compozy/internal/speed"
 )
 
 func TestParseLoopRuntimeFlagsShouldParseDefaultsAndRules(t *testing.T) {
@@ -108,6 +109,24 @@ func TestParseLoopRuntimeFlagsShouldParseDefaultsAndRules(t *testing.T) {
 			t.Fatalf("resolved runtime = %#v, want later run rule", resolved)
 		}
 	})
+
+	t.Run("Should parse final speed suffix and speed-only intent", func(t *testing.T) {
+		t.Parallel()
+
+		got, err := parseLoopRuntimeFlags([]string{
+			"worker=claude/opus@high:speed=fast",
+			"judge=-/-:speed=normal",
+			"type=frontend:-/-:speed=fast",
+		})
+		if err != nil {
+			t.Fatalf("parseLoopRuntimeFlags() error = %v", err)
+		}
+		assertRuntimeFlagSpec(t, got.RuntimeDefaults.Worker, looppkg.RuntimeSpec{
+			Provider: "claude", Model: "opus", Reasoning: "high", Speed: speedpkg.SpeedFast,
+		})
+		assertRuntimeFlagSpec(t, got.RuntimeDefaults.Judge, looppkg.RuntimeSpec{Speed: speedpkg.SpeedNormal})
+		assertRuntimeFlagSpec(t, got.RuntimeRules[0].Runtime, looppkg.RuntimeSpec{Speed: speedpkg.SpeedFast})
+	})
 }
 
 func TestParseLoopRuntimeFlagsShouldRejectInvalidGrammar(t *testing.T) {
@@ -130,6 +149,12 @@ func TestParseLoopRuntimeFlagsShouldRejectInvalidGrammar(t *testing.T) {
 			want: "rule match must contain one selector value without ':'",
 		},
 		{name: "Should reject invalid reasoning", value: "worker=claude/opus@ultra", want: "invalid reasoning suffix"},
+		{name: "Should reject invalid speed", value: "worker=claude/opus:speed=turbo", want: "invalid speed suffix"},
+		{
+			name:  "Should reject duplicate speed",
+			value: "worker=claude/opus:speed=fast:speed=normal",
+			want:  "invalid speed suffix",
+		},
 		{
 			name: "Should reject implicit empty provider segments", value: "worker=/opus",
 			want: "empty provider/model segments must use '-'",
@@ -152,7 +177,8 @@ func TestParseLoopRuntimeFlagsShouldRejectInvalidGrammar(t *testing.T) {
 
 func assertRuntimeFlagSpec(t *testing.T, got looppkg.RuntimeSpec, want looppkg.RuntimeSpec) {
 	t.Helper()
-	if got.Provider != want.Provider || got.Model != want.Model || got.Reasoning != want.Reasoning {
+	if got.Provider != want.Provider || got.Model != want.Model || got.Reasoning != want.Reasoning ||
+		got.Speed != want.Speed {
 		t.Fatalf("runtime spec = %#v, want %#v", got, want)
 	}
 }

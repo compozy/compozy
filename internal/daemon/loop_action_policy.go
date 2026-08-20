@@ -4,11 +4,13 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"slices"
 	"strings"
 
 	compozyconfig "github.com/compozy/compozy/internal/config"
 	looppkg "github.com/compozy/compozy/internal/loop"
 	"github.com/compozy/compozy/internal/session"
+	toolspkg "github.com/compozy/compozy/internal/tools"
 	workspacepkg "github.com/compozy/compozy/internal/workspace"
 )
 
@@ -77,6 +79,10 @@ func (g *loopSessionPolicyGate) applyResolved(
 	if err := applyAllowedToolsNarrowing(opts, allowedTools); err != nil {
 		return loopSessionPolicyResolution{}, err
 	}
+	resolvedAgent.DenyTools = mergeLoopActionDeniedTools(
+		resolvedAgent.DenyTools,
+		opts.DeniedToolsOverride,
+	)
 	cwd, err := session.ResolveSessionCWD(resolved.RootDir, opts.CWD)
 	if err != nil {
 		return loopSessionPolicyResolution{}, err
@@ -96,6 +102,33 @@ func (g *loopSessionPolicyGate) applyResolved(
 		resolvedAgent.Toolsets = nil
 	}
 	return loopSessionPolicyResolution{workspace: resolved, agent: resolvedAgent}, nil
+}
+
+func loopActionTerminalTools() []string {
+	return []string{
+		toolspkg.ToolIDTaskRunComplete.String(),
+		toolspkg.ToolIDTaskRunFail.String(),
+	}
+}
+
+func mergeLoopActionDeniedTools(groups ...[]string) []string {
+	seen := make(map[string]struct{})
+	merged := make([]string, 0)
+	for _, values := range groups {
+		for _, value := range values {
+			trimmed := strings.TrimSpace(value)
+			if trimmed == "" {
+				continue
+			}
+			if _, ok := seen[trimmed]; ok {
+				continue
+			}
+			seen[trimmed] = struct{}{}
+			merged = append(merged, trimmed)
+		}
+	}
+	slices.Sort(merged)
+	return merged
 }
 
 func (g *loopSessionPolicyGate) resolveWorkspace(

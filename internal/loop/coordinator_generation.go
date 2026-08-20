@@ -97,7 +97,7 @@ func (r *CoordinatorRunner) prepareGenerationFinisherState(
 	effective EffectiveConfig,
 	outputs []GenerationOutput,
 ) (generationFinisherState, error) {
-	topology := newControlTopology(resolved.Definition.Graph)
+	topology := newResolvedControlTopology(resolved)
 	normalized, _, controlTerminal, live, loopStops, err := r.refreshGenerationOutputs(
 		ctx, run, generation, resolved.Definition.Graph, topology, outputs,
 	)

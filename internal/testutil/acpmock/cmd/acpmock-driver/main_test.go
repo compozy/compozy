@@ -249,9 +249,10 @@ func TestMockAgentSessionConfigOptions(t *testing.T) {
 			diagnosticsPath: diagnosticsPath,
 			configTemplate: sessionConfigOptionsFromFixture([]acpmock.SessionConfigOptionFixture{
 				{
-					ID:      "model",
-					Name:    "Model",
-					Current: "qa-browser-model",
+					ID:       "model",
+					Name:     "Model",
+					Category: "model_config",
+					Current:  "qa-browser-model",
 					Values: []acpmock.SessionConfigOptionValueFixture{
 						{Value: "qa-browser-model", Label: "QA Browser Model"},
 						{Value: "qa-browser-model-alt", Label: "QA Browser Model Alt"},
@@ -263,6 +264,10 @@ func TestMockAgentSessionConfigOptions(t *testing.T) {
 		session, err := agent.NewSession(context.Background(), acpsdk.NewSessionRequest{})
 		if err != nil {
 			t.Fatalf("NewSession() error = %v", err)
+		}
+		if session.ConfigOptions[0].Select.Category == nil ||
+			*session.ConfigOptions[0].Select.Category != acpsdk.SessionConfigOptionCategory("model_config") {
+			t.Fatalf("config option category = %#v, want model_config", session.ConfigOptions[0].Select.Category)
 		}
 
 		response, err := agent.SetSessionConfigOption(

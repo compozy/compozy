@@ -39,6 +39,7 @@ type sessionStartSpec struct {
 	sessionType              Type
 	lineage                  *store.SessionLineage
 	allowedToolsOverride     []string
+	deniedToolsOverride      []string
 	creationProfile          *store.SessionCreationProfile
 	creationOptions          *store.SessionCreationOptions
 	creationIdentity         *store.SessionCreationIdentity

@@ -166,7 +166,7 @@ func TestLoopGoalManagedRuntimeIntegration(t *testing.T) {
 	t.Run("Should reject a runtime triple that diverges from the active pinned profile", func(t *testing.T) {
 		fixture := newLoopGoalManagedRuntimeFixture(t, "runtime-profile", nil, withoutInitialGoalBinding())
 		firstRequest := fixture.bindingRequest("runtime-profile")
-		firstRequest.Runtime = looppkg.RuntimeSpec{Model: "first-model"}
+		firstRequest.Runtime = &looppkg.RuntimeSpec{Model: "first-model"}
 
 		first, err := fixture.runtime.BindActionSession(testutil.Context(t), firstRequest)
 		if err != nil {
@@ -179,7 +179,7 @@ func TestLoopGoalManagedRuntimeIntegration(t *testing.T) {
 		secondRequest := fixture.bindingRequest("runtime-profile")
 		secondRequest.BindingAttemptID = "binding-attempt-goal-managed-runtime-profile-divergent"
 		secondRequest.DesiredSessionID = "sess-goal-managed-runtime-profile-divergent"
-		secondRequest.Runtime = looppkg.RuntimeSpec{Model: "second-model"}
+		secondRequest.Runtime = &looppkg.RuntimeSpec{Model: "second-model"}
 		_, err = fixture.runtime.BindActionSession(testutil.Context(t), secondRequest)
 		reason, reasonMatched := errors.AsType[*looppkg.ReasonError](err)
 		if !reasonMatched || reason.Code != looppkg.ReasonCodeContinuousBindingMismatch ||

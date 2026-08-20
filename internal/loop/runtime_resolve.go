@@ -6,6 +6,7 @@ import (
 	"strings"
 
 	"github.com/compozy/compozy/internal/modelcatalog"
+	speedpkg "github.com/compozy/compozy/internal/speed"
 )
 
 // ResolveItemRuntime resolves one worker item using the ADR-001 field precedence.
@@ -20,6 +21,7 @@ func ResolveItemRuntime(layers RuntimeLayers, item ItemRuntime) (ResolvedRuntime
 	applyRuntime(&resolved, layers.Defaults, RuntimeSourceDefault)
 	applyRuntime(&resolved, item.Node, RuntimeSourceNode)
 	applyRuntime(&resolved, resolveMatchingRuntime(layers.ConfigRules, item), RuntimeSourceConfig)
+	applyRuntime(&resolved, item.Input, RuntimeSourceInput)
 	applyRuntime(&resolved, item.Frontmatter, RuntimeSourceFrontmatter)
 	applyRuntime(&resolved, resolveMatchingRuntime(layers.RunRules, item), RuntimeSourceRun)
 	return normalizeResolvedRuntime(resolved), nil
@@ -54,6 +56,16 @@ func ValidateResolvedRuntime(
 			Reason: "unsupported_reasoning",
 		})
 	}
+	if requested := resolved.Runtime.Speed; requested != "" {
+		if _, err := speedpkg.Parse(string(requested)); err != nil {
+			return ResolvedRuntime{}, NewRuntimeValidationError(RuntimeValidationItem{
+				TaskID: taskID,
+				Field:  runtimeFieldSpeed,
+				Value:  string(requested),
+				Reason: "unsupported_speed",
+			})
+		}
+	}
 	if catalog == nil {
 		if resolved.Runtime.Provider == "" && resolved.Runtime.Model == "" {
 			return resolved, nil
@@ -77,13 +89,18 @@ func ValidateResolvedRuntime(
 }
 
 func resolveMatchingRuntime(rules []RuntimeRule, item ItemRuntime) RuntimeSpec {
-	fields := [3]runtimeCandidate{}
+	fields := [4]runtimeCandidate{}
 	for index, rule := range rules {
 		specificity, matches := runtimeRuleSpecificity(rule.Match, item)
 		if !matches {
 			continue
 		}
-		values := [3]string{rule.Runtime.Provider, rule.Runtime.Model, rule.Runtime.Reasoning}
+		values := [4]string{
+			rule.Runtime.Provider,
+			rule.Runtime.Model,
+			rule.Runtime.Reasoning,
+			string(rule.Runtime.Speed),
+		}
 		for field, value := range values {
 			value = strings.TrimSpace(value)
 			if value == "" {
@@ -100,6 +117,7 @@ func resolveMatchingRuntime(rules []RuntimeRule, item ItemRuntime) RuntimeSpec {
 		Provider:  fields[0].value,
 		Model:     fields[1].value,
 		Reasoning: fields[2].value,
+		Speed:     speedpkg.Speed(fields[3].value),
 	}
 }
 
@@ -136,17 +154,24 @@ func applyRuntime(resolved *ResolvedRuntime, runtime RuntimeSpec, source Runtime
 		resolved.Runtime.Reasoning = value
 		resolved.Source.Reasoning = source
 	}
+	if value := strings.TrimSpace(string(runtime.Speed)); value != "" {
+		resolved.Runtime.Speed = speedpkg.Speed(value)
+		resolved.Source.Speed = source
+	}
 }
 
 func normalizeResolvedRuntime(resolved ResolvedRuntime) ResolvedRuntime {
 	resolved.Runtime.Provider = strings.TrimSpace(resolved.Runtime.Provider)
 	resolved.Runtime.Model = strings.TrimSpace(resolved.Runtime.Model)
 	resolved.Runtime.Reasoning = strings.TrimSpace(resolved.Runtime.Reasoning)
+	resolved.Runtime.Speed = speedpkg.Speed(strings.TrimSpace(string(resolved.Runtime.Speed)))
+	resolved.SpeedResolution = speedpkg.CloneResolution(resolved.SpeedResolution)
 	return resolved
 }
 
 func runtimeSpecHasValue(runtime RuntimeSpec) bool {
 	return strings.TrimSpace(runtime.Provider) != "" ||
 		strings.TrimSpace(runtime.Model) != "" ||
-		strings.TrimSpace(runtime.Reasoning) != ""
+		strings.TrimSpace(runtime.Reasoning) != "" ||
+		strings.TrimSpace(string(runtime.Speed)) != ""
 }

@@ -11,7 +11,8 @@ func fanOutProgressValue(
 	outputs []GenerationOutput,
 	fanOutID dsl.NodeID,
 ) map[string]any {
-	total, ok := fanOutBranchCount(outputs, fanOutID)
+	branchIndexes, ok := fanOutOutputBranchIndexes(outputs, fanOutID)
+	total := len(branchIndexes)
 	if !ok {
 		total = 0
 	}
@@ -25,7 +26,7 @@ func fanOutProgressValue(
 		return progress
 	}
 	var succeeded, failed, canceled, running int
-	for itemIndex := range total {
+	for _, itemIndex := range branchIndexes {
 		lane := collectLaneState(topology, outputs, fanOutID, collectID, itemIndex)
 		switch lane.Status {
 		case generationOutputSucceeded:

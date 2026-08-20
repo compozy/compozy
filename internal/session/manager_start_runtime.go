@@ -33,6 +33,9 @@ func (m *Manager) resolveSessionStartRuntime(
 	if err := spec.applyAllowedToolsOverride(&resolved, m.toolsetCatalog); err != nil {
 		return sessionStartRuntime{}, fmt.Errorf("session: apply allowed tools for %q: %w", spec.sessionID, err)
 	}
+	if err := spec.applyDeniedToolsOverride(&resolved); err != nil {
+		return sessionStartRuntime{}, fmt.Errorf("session: apply denied tools for %q: %w", spec.sessionID, err)
+	}
 	if err := spec.materializeRootDelegationTools(resolved, m.toolsetCatalog, m.toolUniverse); err != nil {
 		return sessionStartRuntime{}, fmt.Errorf(
 			"session: materialize delegation tools for %q: %w",

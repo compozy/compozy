@@ -7,9 +7,10 @@ import (
 	"strings"
 
 	"github.com/compozy/compozy/internal/loop/dsl"
+	speedpkg "github.com/compozy/compozy/internal/speed"
 )
 
-// RuntimeSpec is the provider/model/reasoning intent resolved by the Loop engine.
+// RuntimeSpec is the provider/model/reasoning/speed intent resolved by the Loop engine.
 type RuntimeSpec = dsl.RuntimeSpec
 
 // RuntimeDefaults contains worker and judge default runtime intent.
@@ -28,6 +29,7 @@ const (
 	runtimeFieldProvider  = "provider"
 	runtimeFieldModel     = "model"
 	runtimeFieldReasoning = "reasoning"
+	runtimeFieldSpeed     = "speed"
 
 	// RuntimeSourceRun identifies a per-run runtime rule.
 	RuntimeSourceRun RuntimeSource = "run"
@@ -35,6 +37,8 @@ const (
 	RuntimeSourceFrontmatter RuntimeSource = "frontmatter"
 	// RuntimeSourceConfig identifies a configured runtime rule.
 	RuntimeSourceConfig RuntimeSource = "config"
+	// RuntimeSourceInput identifies a typed runtime input referenced by a node.
+	RuntimeSourceInput RuntimeSource = "input"
 	// RuntimeSourceNode identifies rendered node params.runtime.
 	RuntimeSourceNode RuntimeSource = "node"
 	// RuntimeSourceDefault identifies effective runtime_defaults.
@@ -50,12 +54,15 @@ type RuntimeProvenance struct {
 	Provider  RuntimeSource `json:"provider,omitempty"`
 	Model     RuntimeSource `json:"model,omitempty"`
 	Reasoning RuntimeSource `json:"reasoning,omitempty"`
+	Speed     RuntimeSource `json:"speed,omitempty"`
 }
 
 // ResolvedRuntime is field-merged runtime intent plus per-field provenance.
 type ResolvedRuntime struct {
 	Runtime RuntimeSpec       `json:"runtime"`
 	Source  RuntimeProvenance `json:"source"`
+	// SpeedResolution is the confirmed ACP outcome for Runtime.Speed.
+	SpeedResolution *speedpkg.Resolution `json:"speed_resolution,omitempty"`
 }
 
 // RuntimeLayers are the ordered runtime-selection layers owned by the engine.
@@ -72,6 +79,7 @@ type ItemRuntime struct {
 	Complexity  string
 	Frontmatter RuntimeSpec
 	Node        RuntimeSpec
+	Input       RuntimeSpec
 }
 
 // RuntimeValidationItem is one deterministic runtime validation diagnostic.

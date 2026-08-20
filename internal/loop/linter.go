@@ -173,6 +173,10 @@ func (c *lintContext) lintEvalErrorPolicy(node dsl.Node) {
 	if strings.TrimSpace(node.Condition) != "" {
 		return
 	}
+	if node.Class == dsl.NodeClassControl && dsl.ControlKind(node.Kind) == dsl.ControlFanOut &&
+		strings.TrimSpace(node.Filter) != "" {
+		return
+	}
 	if node.Class == dsl.NodeClassControl && dsl.ControlKind(node.Kind) == dsl.ControlRoute &&
 		len(node.Routes) > 0 {
 		return

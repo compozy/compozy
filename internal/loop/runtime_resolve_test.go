@@ -4,6 +4,7 @@ import (
 	"testing"
 
 	loop "github.com/compozy/compozy/internal/loop"
+	speedpkg "github.com/compozy/compozy/internal/speed"
 )
 
 func TestResolveItemRuntimeShouldMergeFieldsByPrecedence(t *testing.T) {
@@ -120,6 +121,44 @@ func TestResolveItemRuntimeShouldMergeFieldsByPrecedence(t *testing.T) {
 		)
 	})
 
+	t.Run("Should place typed input between config and frontmatter per field", func(t *testing.T) {
+		t.Parallel()
+
+		got := resolveRuntimeForTest(t, loop.RuntimeLayers{
+			Defaults: loop.RuntimeSpec{
+				Provider: "default", Model: "default", Reasoning: "none", Speed: speedpkg.SpeedNormal,
+			},
+			ConfigRules: []loop.RuntimeRule{{
+				Match: loop.RuntimeMatch{Type: "frontend"},
+				Runtime: loop.RuntimeSpec{
+					Provider: "config", Model: "config", Reasoning: "medium", Speed: speedpkg.SpeedNormal,
+				},
+			}},
+			RunRules: []loop.RuntimeRule{{
+				Match:   loop.RuntimeMatch{ID: "task_01"},
+				Runtime: loop.RuntimeSpec{Reasoning: "max"},
+			}},
+		}, loop.ItemRuntime{
+			TaskID: "task_01", TaskType: "frontend",
+			Node: loop.RuntimeSpec{Provider: "node", Model: "node", Reasoning: "low"},
+			Input: loop.RuntimeSpec{
+				Provider: "input", Model: "input", Reasoning: "high", Speed: speedpkg.SpeedFast,
+			},
+			Frontmatter: loop.RuntimeSpec{Model: "frontmatter"},
+		})
+		assertResolvedRuntime(t, got,
+			loop.RuntimeSpec{
+				Provider: "input", Model: "frontmatter", Reasoning: "max", Speed: speedpkg.SpeedFast,
+			},
+			loop.RuntimeProvenance{
+				Provider:  loop.RuntimeSourceInput,
+				Model:     loop.RuntimeSourceFrontmatter,
+				Reasoning: loop.RuntimeSourceRun,
+				Speed:     loop.RuntimeSourceInput,
+			},
+		)
+	})
+
 	t.Run("Should apply defaults only to non task items", func(t *testing.T) {
 		t.Parallel()
 
@@ -200,7 +239,7 @@ func assertResolvedRuntime(
 ) {
 	t.Helper()
 	if got.Runtime.Provider != wantRuntime.Provider || got.Runtime.Model != wantRuntime.Model ||
-		got.Runtime.Reasoning != wantRuntime.Reasoning {
+		got.Runtime.Reasoning != wantRuntime.Reasoning || got.Runtime.Speed != wantRuntime.Speed {
 		t.Fatalf("ResolvedRuntime.Runtime = %#v, want %#v", got.Runtime, wantRuntime)
 	}
 	if got.Source != wantSource {

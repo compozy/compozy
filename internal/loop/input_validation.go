@@ -9,6 +9,7 @@ import (
 	"strings"
 
 	"github.com/compozy/compozy/internal/loop/dsl"
+	speedpkg "github.com/compozy/compozy/internal/speed"
 )
 
 // InputValidationReason is the closed machine-readable input failure vocabulary.
@@ -120,6 +121,9 @@ func safeInputValue(input dsl.Input, value any) string {
 	if runtime.Reasoning != "" {
 		display += "@" + runtime.Reasoning
 	}
+	if runtime.Speed != "" {
+		display += ":speed=" + string(runtime.Speed)
+	}
 	return display
 }
 
@@ -167,7 +171,7 @@ func runtimeInputSpec(value any) (dsl.RuntimeSpec, error) {
 		if len(typed.Extra) > 0 {
 			return dsl.RuntimeSpec{}, fmt.Errorf("contains unknown fields")
 		}
-		return typed, nil
+		return runtimeInputSpecFromMap(runtimeInputValue(typed))
 	case *dsl.RuntimeSpec:
 		if typed == nil {
 			return dsl.RuntimeSpec{}, fmt.Errorf("must be an object")
@@ -175,6 +179,18 @@ func runtimeInputSpec(value any) (dsl.RuntimeSpec, error) {
 		return runtimeInputSpec(*typed)
 	case map[string]any:
 		return runtimeInputSpecFromMap(typed)
+	case dsl.NodeParams:
+		return runtimeInputSpecFromMap(map[string]any(typed))
+	case map[any]any:
+		values := make(map[string]any, len(typed))
+		for key, field := range typed {
+			name, ok := key.(string)
+			if !ok {
+				return dsl.RuntimeSpec{}, fmt.Errorf("field name must be a string")
+			}
+			values[name] = field
+		}
+		return runtimeInputSpecFromMap(values)
 	case map[string]string:
 		values := make(map[string]any, len(typed))
 		for key, field := range typed {
@@ -206,6 +222,12 @@ func runtimeInputSpecFromMap(value map[string]any) (dsl.RuntimeSpec, error) {
 			runtime.Model = strings.TrimSpace(text)
 		case runtimeFieldReasoning:
 			runtime.Reasoning = strings.TrimSpace(text)
+		case runtimeFieldSpeed:
+			parsed, err := speedpkg.Parse(text)
+			if err != nil {
+				return dsl.RuntimeSpec{}, err
+			}
+			runtime.Speed = parsed
 		default:
 			return dsl.RuntimeSpec{}, fmt.Errorf("%s is unknown", key)
 		}
@@ -214,7 +236,7 @@ func runtimeInputSpecFromMap(value map[string]any) (dsl.RuntimeSpec, error) {
 }
 
 func runtimeInputValue(runtime dsl.RuntimeSpec) map[string]any {
-	value := make(map[string]any, 3)
+	value := make(map[string]any, 4)
 	if runtime.Provider != "" {
 		value[runtimeFieldProvider] = runtime.Provider
 	}
@@ -223,6 +245,9 @@ func runtimeInputValue(runtime dsl.RuntimeSpec) map[string]any {
 	}
 	if runtime.Reasoning != "" {
 		value[runtimeFieldReasoning] = runtime.Reasoning
+	}
+	if runtime.Speed != "" {
+		value[runtimeFieldSpeed] = string(runtime.Speed)
 	}
 	return value
 }

@@ -24,6 +24,7 @@ import {
 } from "@/systems/runtime";
 import { WorktreeRefSelect } from "@/systems/workspace";
 import { useLocalRowKeys } from "@/hooks/use-local-row-keys";
+import type { RuntimeSpeed } from "@/lib/api-contract";
 
 import type { LoopInputSchemaField } from "../../types";
 import type { LoopEntityKind } from "../../lib/loop-input-kinds";
@@ -309,11 +310,18 @@ function runtimeValue(value: unknown): RuntimeSelectorValue {
   };
 }
 
-function emittedRuntime(value: RuntimeSelectorValue): Record<string, string> {
+function runtimeSpeed(value: unknown): RuntimeSpeed | undefined {
+  if (typeof value !== "object" || value === null || Array.isArray(value)) return undefined;
+  const speed = (value as Record<string, unknown>).speed;
+  return speed === "normal" || speed === "fast" ? speed : undefined;
+}
+
+function emittedRuntime(value: RuntimeSelectorValue, speed?: RuntimeSpeed): Record<string, string> {
   const next: Record<string, string> = {};
   if (value.provider) next.provider = value.provider;
   if (value.model) next.model = value.model;
   if (value.reasoning_effort) next.reasoning = value.reasoning_effort;
+  if (speed) next.speed = speed;
   return next;
 }
 
@@ -330,6 +338,7 @@ function RuntimeValueControl({
 }) {
   const catalogs = useLoopInputCatalogs();
   const current = runtimeValue(value);
+  const currentSpeed = runtimeSpeed(value);
   return (
     <RuntimeSelector
       allowCustomProvider
@@ -339,13 +348,15 @@ function RuntimeValueControl({
       disabled={disabled}
       loading={catalogs.runtimeLoading}
       models={catalogs.runtimeModels}
-      onChange={next => onChange(emittedRuntime(next))}
+      onChange={next => onChange(emittedRuntime(next, currentSpeed))}
+      onSpeedChange={speed => onChange(emittedRuntime(current, speed))}
       onRefreshCatalog={catalogs.refreshRuntime}
       providers={catalogs.runtimeProviders}
       refreshing={catalogs.refreshingRuntime}
       triggerId={controlId}
       triggerTestId={testId}
       value={current}
+      speed={currentSpeed ?? "normal"}
     />
   );
 }

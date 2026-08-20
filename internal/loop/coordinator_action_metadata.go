@@ -4,6 +4,8 @@ import (
 	"encoding/json"
 	"fmt"
 	"strings"
+
+	"github.com/compozy/compozy/internal/loop/dsl"
 )
 
 type coordinatorActionRunMetadata struct {
@@ -18,6 +20,7 @@ type coordinatorActionRunMetadata struct {
 	ResumeFromSessionID string                 `json:"resume_from_session_id,omitempty"`
 	DeathCheckpoint     *DeathResumeCheckpoint `json:"death_resume_checkpoint,omitempty"`
 	ReviewedParamsRef   string                 `json:"reviewed_params_ref,omitempty"`
+	OutputSchema        dsl.Schema             `json:"output_schema,omitempty"`
 }
 
 func parseCoordinatorActionRunMetadata(raw json.RawMessage) (coordinatorActionRunMetadata, error) {

@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"strings"
 
+	speedpkg "github.com/compozy/compozy/internal/speed"
 	"gopkg.in/yaml.v3"
 )
 
@@ -12,6 +13,7 @@ type RuntimeSpec struct {
 	Provider  string         `json:"provider,omitempty"  yaml:"provider,omitempty"  toml:"provider"`
 	Model     string         `json:"model,omitempty"     yaml:"model,omitempty"     toml:"model"`
 	Reasoning string         `json:"reasoning,omitempty" yaml:"reasoning,omitempty" toml:"reasoning"`
+	Speed     speedpkg.Speed `json:"speed,omitempty"     yaml:"speed,omitempty"     toml:"speed"`
 	Extra     map[string]any `json:"-"                   yaml:",inline"`
 }
 
@@ -41,6 +43,12 @@ func (r *RuntimeSpec) UnmarshalYAML(value *yaml.Node) error {
 			r.Model = text
 		case "reasoning":
 			r.Reasoning = text
+		case "speed":
+			parsed, err := speedpkg.Parse(text)
+			if err != nil {
+				return fmt.Errorf("runtime.speed: %w", err)
+			}
+			r.Speed = parsed
 		default:
 			return fmt.Errorf(
 				"runtime.%s is unknown; see MIGRATION_GUIDE.md#per-task-runtime-selection",

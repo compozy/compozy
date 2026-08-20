@@ -4075,6 +4075,96 @@ func TestGlobalDBCoordinatorSuccessionShouldConvergeAcrossRealClaims(t *testing.
 	}
 }
 
+func testGlobalDBLoopWorkerSettlementAuthority(t *testing.T) {
+	t.Helper()
+
+	globalDB := openLoopTestGlobalDB(t)
+	ctx := testutil.Context(t)
+	now := time.Date(2026, 8, 19, 12, 0, 0, 0, time.UTC)
+	loopRun, err := globalDB.CreateLoopRunForStart(
+		ctx,
+		testLoopRun("looprun-owner-only-settlement", now, looppkg.StatusRunning),
+		dsl.ConcurrencyAllow,
+	)
+	if err != nil {
+		t.Fatalf("CreateLoopRunForStart() error = %v", err)
+	}
+	taskRecord := taskRecordForTest("task-owner-only-settlement")
+	taskRecord.Status = taskpkg.TaskStatusReady
+	if err := globalDB.CreateTask(ctx, taskRecord); err != nil {
+		t.Fatalf("CreateTask() error = %v", err)
+	}
+	metadata := json.RawMessage(`{"generation":1,"node_id":"work","item_index":0,"attempt":1,"epoch":0}`)
+	reservation := queuedRunReservationForTest(
+		taskRecord.ID,
+		"run-owner-only-settlement",
+		"owner-only-settlement",
+		taskpkg.Origin{Kind: taskpkg.OriginKindDaemon, Ref: "loop"},
+		metadata,
+		now,
+	)
+	reservation.RunKind = taskpkg.RunKindWorker
+	reservation.LoopRunID = string(loopRun.ID)
+	if _, _, _, err := globalDB.ReserveQueuedRun(ctx, reservation); err != nil {
+		t.Fatalf("ReserveQueuedRun(worker) error = %v", err)
+	}
+	if _, err := globalDB.db.ExecContext(
+		ctx,
+		`INSERT INTO loop_generation_outputs (
+				loop_run_id, generation, node_id, item_index, status, task_run_id
+			) VALUES (?, 1, 'work', 0, 'enqueued', ?)`,
+		string(loopRun.ID),
+		reservation.RunID,
+	); err != nil {
+		t.Fatalf("insert generation output error = %v", err)
+	}
+	claim, err := globalDB.ClaimNextRun(ctx, taskpkg.ClaimCriteria{
+		Scope:            taskpkg.ScopeGlobal,
+		ClaimerSessionID: "session-loop-worker",
+		ClaimedBy:        &taskpkg.ActorIdentity{Kind: taskpkg.ActorKindDaemon, Ref: "loop"},
+		LeaseDuration:    time.Minute,
+		Now:              now,
+	})
+	if err != nil {
+		t.Fatalf("ClaimNextRun() error = %v", err)
+	}
+	agent := taskpkg.ActorContext{
+		Actor:     taskpkg.ActorIdentity{Kind: taskpkg.ActorKindAgentSession, Ref: "session-loop-worker"},
+		Origin:    taskpkg.Origin{Kind: taskpkg.OriginKindAgentSession, Ref: "session-loop-worker"},
+		Authority: taskpkg.Authority{Read: true, Write: true},
+		Scope: taskpkg.CallerScope{
+			SessionID: "session-loop-worker", WorkspaceID: string(loopRun.WorkspaceID),
+		},
+	}
+	if _, err := globalDB.CompleteRunLease(ctx, taskpkg.LeaseCompletion{
+		Actor: agent, RunID: claim.Run.ID, ClaimToken: claim.ClaimToken,
+		Result: taskpkg.RunResult{Value: json.RawMessage(`{"status":"done"}`)},
+		Now:    now.Add(time.Second),
+	}); !errors.Is(err, taskpkg.ErrPermissionDenied) {
+		t.Fatalf("CompleteRunLease(agent) error = %v, want %v", err, taskpkg.ErrPermissionDenied)
+	}
+	if _, err := globalDB.FailRunLease(ctx, taskpkg.LeaseFailure{
+		Actor: agent, RunID: claim.Run.ID, ClaimToken: claim.ClaimToken,
+		Failure: taskpkg.RunFailure{Error: "agent attempted settlement"},
+		Now:     now.Add(time.Second),
+	}); !errors.Is(err, taskpkg.ErrPermissionDenied) {
+		t.Fatalf("FailRunLease(agent) error = %v, want %v", err, taskpkg.ErrPermissionDenied)
+	}
+	if _, err := globalDB.HeartbeatRunLease(ctx, taskpkg.LeaseHeartbeat{
+		Actor: agent, RunID: claim.Run.ID, ClaimToken: claim.ClaimToken,
+		LeaseDuration: time.Minute, Now: now.Add(2 * time.Second),
+	}); err != nil {
+		t.Fatalf("HeartbeatRunLease(agent) error = %v", err)
+	}
+	if _, err := globalDB.CompleteRunLease(ctx, taskpkg.LeaseCompletion{
+		Actor: coordinatorActorContextForTest(), RunID: claim.Run.ID, ClaimToken: claim.ClaimToken,
+		Result: taskpkg.RunResult{Value: json.RawMessage(`{"status":"done"}`)},
+		Now:    now.Add(3 * time.Second),
+	}); err != nil {
+		t.Fatalf("CompleteRunLease(owner) error = %v", err)
+	}
+}
+
 func testGlobalDBCoordinatorSuccessionConvergence(
 	t *testing.T,
 	placement gate.Placement,
@@ -6333,6 +6423,11 @@ func TestGlobalDBCompleteCoordinatorAndEnqueueNextShouldCreateNodeTasksDependenc
 		testGlobalDBCompleteCoordinatorAndEnqueueNextShouldCreateNodeTasksDependenciesAndRuns(t)
 	})
 
+	t.Run("Should drain open descendants when the coordinator terminates", func(t *testing.T) {
+		t.Parallel()
+		testGlobalDBCoordinatorTerminalShouldDrainOpenDescendants(t)
+	})
+
 	t.Run("Should coalesce one deterministic coordinator run across internal origins", func(t *testing.T) {
 		t.Parallel()
 		testGlobalDBCompleteCoordinatorAndEnqueueNextShouldCoalesceDeterministicRun(t)
@@ -6471,6 +6566,7 @@ func testGlobalDBCompleteCoordinatorAndEnqueueNextShouldCreateNodeTasksDependenc
 	)
 	rootTaskID := "loop.looprun-coordinator-materialize.g1.node.load.0"
 	childTaskID := "loop.looprun-coordinator-materialize.g1.node.agent.0"
+	attentionTaskID := "loop.looprun-coordinator-materialize.g1.node.attention.0"
 	rootRunID := "run.loop.looprun-coordinator-materialize.g1.node.load.0"
 
 	result, err := globalDB.CompleteCoordinatorAndEnqueueNext(ctx, taskpkg.CoordinatorCompletion{
@@ -6488,6 +6584,11 @@ func testGlobalDBCompleteCoordinatorAndEnqueueNextShouldCreateNodeTasksDependenc
 					TaskID:   childTaskID,
 					Title:    "Loop delivery node agent",
 					Metadata: json.RawMessage(`{"node_id":"agent"}`),
+				},
+				{
+					TaskID:   attentionTaskID,
+					Title:    "Loop delivery node attention",
+					Metadata: json.RawMessage(`{"node_id":"attention"}`),
 				},
 			},
 			Dependencies: []taskpkg.CoordinatorDependencySpec{
@@ -6574,8 +6675,108 @@ func testGlobalDBCompleteCoordinatorAndEnqueueNextShouldCreateNodeTasksDependenc
 	}
 }
 
+func testGlobalDBCoordinatorTerminalShouldDrainOpenDescendants(t *testing.T) {
+	t.Helper()
+
+	globalDB := openLoopTestGlobalDB(t)
+	ctx := testutil.Context(t)
+	now := time.Date(2026, 7, 4, 16, 45, 0, 0, time.UTC)
+	loopRun, err := globalDB.CreateLoopRunForStart(
+		ctx,
+		testLoopRun("looprun-coordinator-terminal-drain", now, looppkg.StatusRunning),
+		dsl.ConcurrencyAllow,
+	)
+	if err != nil {
+		t.Fatalf("CreateLoopRunForStart() error = %v", err)
+	}
+	claim := claimCoordinatorRunForTest(
+		ctx,
+		t,
+		globalDB,
+		loopRun.ID,
+		"run-coordinator-terminal-drain",
+		now,
+	)
+
+	rootTask := workspaceTaskRecordForTest("loop-terminal-drain-root", string(loopRun.WorkspaceID))
+	rootTask.ParentTaskID = claim.Run.TaskID
+	rootTask.Status = taskpkg.TaskStatusReady
+	childTask := workspaceTaskRecordForTest("loop-terminal-drain-child", string(loopRun.WorkspaceID))
+	childTask.ParentTaskID = rootTask.ID
+	childTask.Status = taskpkg.TaskStatusReady
+	attentionTask := workspaceTaskRecordForTest("loop-terminal-drain-attention", string(loopRun.WorkspaceID))
+	attentionTask.ParentTaskID = claim.Run.TaskID
+	attentionTask.Status = taskpkg.TaskStatusNeedsAttention
+	for _, taskRecord := range []taskpkg.Task{rootTask, childTask, attentionTask} {
+		if err := globalDB.CreateTask(ctx, taskRecord); err != nil {
+			t.Fatalf("CreateTask(%s) error = %v", taskRecord.ID, err)
+		}
+	}
+
+	rootRun := taskRunForTest("run-loop-terminal-drain-root", rootTask.ID)
+	rootRun.LoopRunID = string(loopRun.ID)
+	attentionRun := taskRunForTest("run-loop-terminal-drain-attention", attentionTask.ID)
+	attentionRun.Status = taskpkg.TaskRunStatusNeedsAttention
+	attentionRun.LoopRunID = string(loopRun.ID)
+	attentionRun.Error = "provider process stopped"
+	for _, runRecord := range []taskpkg.Run{rootRun, attentionRun} {
+		if err := globalDB.CreateTaskRun(ctx, runRecord); err != nil {
+			t.Fatalf("CreateTaskRun(%s) error = %v", runRecord.ID, err)
+		}
+	}
+
+	if _, err := globalDB.CompleteCoordinatorAndEnqueueNext(ctx, taskpkg.CoordinatorCompletion{
+		RunID: claim.Run.ID, ClaimToken: claim.ClaimToken,
+		Actor: coordinatorActorContextForTest(),
+		Plan: taskpkg.CoordinatorCompletionPlan{
+			Snapshot: taskpkg.GenerationSnapshot{
+				LoopRunID: string(loopRun.ID), Generation: 1,
+				Payload: looppkg.GenerationSnapshotPayload{Outputs: []looppkg.GenerationOutput{
+					{NodeID: "root", Status: "failed", TaskRunID: rootRun.ID},
+					{NodeID: "child", Status: "pending"},
+				}},
+			},
+			Terminal: &taskpkg.CoordinatorTerminal{
+				Status: string(looppkg.StatusFailed), Cause: string(looppkg.TransitionCauseContract),
+			},
+		},
+		Now: now.Add(time.Second),
+	}, looppkg.NewStoreFinalizer()); err != nil {
+		t.Fatalf("CompleteCoordinatorAndEnqueueNext() error = %v", err)
+	}
+
+	drainedRootRun, err := globalDB.GetTaskRun(ctx, rootRun.ID)
+	if err != nil {
+		t.Fatalf("GetTaskRun(root) error = %v", err)
+	}
+	if drainedRootRun.Status != taskpkg.TaskRunStatusCanceled {
+		t.Fatalf("root run status = %q, want canceled", drainedRootRun.Status)
+	}
+	drainedAttentionRun, err := globalDB.GetTaskRun(ctx, attentionRun.ID)
+	if err != nil {
+		t.Fatalf("GetTaskRun(attention) error = %v", err)
+	}
+	if drainedAttentionRun.Status != taskpkg.TaskRunStatusFailed {
+		t.Fatalf("attention run status = %q, want failed", drainedAttentionRun.Status)
+	}
+	for _, taskID := range []string{rootTask.ID, childTask.ID, attentionTask.ID} {
+		drainedTask, err := globalDB.GetTask(ctx, taskID)
+		if err != nil {
+			t.Fatalf("GetTask(%s) error = %v", taskID, err)
+		}
+		if drainedTask.Status != taskpkg.TaskStatusCanceled {
+			t.Fatalf("task %s status = %q, want canceled", taskID, drainedTask.Status)
+		}
+	}
+}
+
 func TestGlobalDBRunLeaseTerminalShouldRecordLoopNodeProgress(t *testing.T) {
 	t.Parallel()
+
+	t.Run("Should reserve daemon-owned Loop worker settlement for the exact owner", func(t *testing.T) {
+		t.Parallel()
+		testGlobalDBLoopWorkerSettlementAuthority(t)
+	})
 
 	cases := []struct {
 		name             string
@@ -6691,7 +6892,7 @@ func TestGlobalDBRunLeaseTerminalShouldRecordLoopNodeProgress(t *testing.T) {
 				ClaimerSessionID: "worker-" + strings.ReplaceAll(tc.name, " ", "-"),
 				ClaimedBy: &taskpkg.ActorIdentity{
 					Kind: taskpkg.ActorKindDaemon,
-					Ref:  "worker",
+					Ref:  "loop",
 				},
 				LeaseDuration: time.Minute,
 				Now:           now,
@@ -6966,7 +7167,7 @@ func TestGlobalDBCompleteRunLeaseShouldCommitCoordinatorControlWithoutNodeSucces
 			ClaimerSessionID: "worker-goal-control-pending",
 			ClaimedBy: &taskpkg.ActorIdentity{
 				Kind: taskpkg.ActorKindDaemon,
-				Ref:  "worker",
+				Ref:  "loop",
 			},
 			LeaseDuration: time.Minute,
 			Now:           now,
@@ -7498,7 +7699,7 @@ func TestGlobalDBCompleteRunLeaseShouldStoreLargeLoopOutputByRef(t *testing.T) {
 			ClaimerSessionID: "worker-large-output-ref",
 			ClaimedBy: &taskpkg.ActorIdentity{
 				Kind: taskpkg.ActorKindDaemon,
-				Ref:  "worker",
+				Ref:  "loop",
 			},
 			LeaseDuration: time.Minute,
 			Now:           now,
@@ -7507,7 +7708,9 @@ func TestGlobalDBCompleteRunLeaseShouldStoreLargeLoopOutputByRef(t *testing.T) {
 			t.Fatalf("ClaimNextRun() error = %v", err)
 		}
 		resultPayload, err := json.Marshal(map[string]string{
-			"body": strings.Repeat("x", looppkg.LoopOutputInlineLimitBytes+1),
+			"status": "done",
+			"tipo":   "backend",
+			"resumo": strings.Repeat("x", looppkg.LoopOutputInlineLimitBytes+1),
 		})
 		if err != nil {
 			t.Fatalf("marshal result payload error = %v", err)

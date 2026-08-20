@@ -47,18 +47,18 @@ func dependencyOutputForNode(
 	return output, ok
 }
 
-func fanOutBranchCount(outputs []GenerationOutput, fanOutID dsl.NodeID) (int, bool) {
+func fanOutOutputBranchIndexes(outputs []GenerationOutput, fanOutID dsl.NodeID) ([]int, bool) {
 	for _, output := range outputs {
 		if output.NodeID != string(fanOutID) || output.ItemIndex != 0 {
 			continue
 		}
 		materialization, ok, err := parseFanOutMaterialization(generationOutputRuntimePayload(output))
 		if err != nil || !ok {
-			return 0, false
+			return nil, false
 		}
-		return materialization.Branches, true
+		return fanOutBranchIndexes(materialization), true
 	}
-	return 0, false
+	return nil, false
 }
 
 func fanOutSlotAvailable(
@@ -79,11 +79,11 @@ func fanOutSlotAvailable(
 		limit = 1
 	}
 	active := 0
-	branchCount, ok := fanOutBranchCount(outputs, fanOutID)
+	branchIndexes, ok := fanOutOutputBranchIndexes(outputs, fanOutID)
 	if !ok {
 		return false
 	}
-	for itemIndex := range branchCount {
+	for _, itemIndex := range branchIndexes {
 		if branchStarted(topology, outputs, fanOutID, itemIndex) &&
 			!branchComplete(graph, topology, outputs, fanOutID, itemIndex) {
 			active++
@@ -237,11 +237,11 @@ func allGenerationOutputsSucceededControlAware(
 			if fanOutCollectSettled(topology, outputMap, fanOutID) {
 				continue
 			}
-			branchCount, ok := fanOutBranchCount(outputs, fanOutID)
+			branchIndexes, ok := fanOutOutputBranchIndexes(outputs, fanOutID)
 			if !ok {
 				return false
 			}
-			for itemIndex := range branchCount {
+			for _, itemIndex := range branchIndexes {
 				output, ok := outputMap[generationOutputKey{nodeID: string(node.ID), itemIndex: itemIndex}]
 				if !ok || output.Status != generationOutputSucceeded {
 					return false

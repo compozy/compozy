@@ -5,6 +5,7 @@ import (
 	"strings"
 
 	"github.com/compozy/compozy/internal/loop/dsl"
+	speedpkg "github.com/compozy/compozy/internal/speed"
 )
 
 const (
@@ -198,6 +199,26 @@ func (c LoopDefaultConfig) Validate(path string) error {
 	if err := c.Budget.Validate(path + ".budget"); err != nil {
 		return err
 	}
+	if err := validateLoopRuntimeSpeed(
+		path+".runtime_defaults.worker.speed",
+		c.RuntimeDefaults.Worker.Speed,
+	); err != nil {
+		return err
+	}
+	if err := validateLoopRuntimeSpeed(
+		path+".runtime_defaults.judge.speed",
+		c.RuntimeDefaults.Judge.Speed,
+	); err != nil {
+		return err
+	}
+	for index, rule := range c.RuntimeRules {
+		if err := validateLoopRuntimeSpeed(
+			fmt.Sprintf("%s.runtime_rules[%d].runtime.speed", path, index),
+			rule.Runtime.Speed,
+		); err != nil {
+			return err
+		}
+	}
 	if err := validateLoopDefaultNonNegative(path+".fan_out_width", c.FanOutWidth); err != nil {
 		return err
 	}
@@ -223,6 +244,16 @@ func (c LoopDefaultConfig) Validate(path string) error {
 		return err
 	}
 	return validateLoopAutopauseRules(path+".autopause", c.Autopause)
+}
+
+func validateLoopRuntimeSpeed(path string, value speedpkg.Speed) error {
+	if strings.TrimSpace(string(value)) == "" {
+		return nil
+	}
+	if _, err := speedpkg.Parse(string(value)); err != nil {
+		return ValidationError{Path: path, Message: err.Error()}
+	}
+	return nil
 }
 
 // Validate enforces SET budget semantics before config writes are persisted.

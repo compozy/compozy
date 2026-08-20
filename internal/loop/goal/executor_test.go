@@ -17,6 +17,7 @@ import (
 	"github.com/compozy/compozy/internal/loop"
 	"github.com/compozy/compozy/internal/loop/dsl"
 	"github.com/compozy/compozy/internal/loop/gate"
+	speedpkg "github.com/compozy/compozy/internal/speed"
 	"github.com/compozy/compozy/internal/task"
 )
 
@@ -216,6 +217,42 @@ func TestExecutorShouldMaterializeGoalParamsOnceBeforeEffects(t *testing.T) {
 		payload, ok := judge.calls[0].Criteria[0].Inputs["payload"].(map[string]any)
 		if !ok || payload["completed"] != true {
 			t.Fatalf("judge payload = %#v, want typed JSON object", judge.calls[0].Criteria[0].Inputs)
+		}
+	})
+
+	t.Run("Should bind a direct typed runtime input before Goal effects", func(t *testing.T) {
+		t.Parallel()
+
+		store := newFakeExecutorStore()
+		binder := newFakeManagedBinder(store, scriptedEndTurn("done", 1))
+		judge := &fakeJudge{results: []JudgeResult{judgeResult(gate.VerdictOutcomeApproved, 1)}}
+		executor := newTestExecutor(t, store, binder, judge, &fakeBudgetGuard{})
+		node := testGoalNode(1)
+		node.Params["runtime"] = "{{ .inputs.worker_runtime }}"
+		input := testGoalInput(t)
+		input.Namespace = map[string]any{"inputs": map[string]any{
+			"worker_runtime": map[string]any{
+				"provider": "cursor", "model": "grok-4.6", "reasoning": "high", "speed": "fast",
+			},
+		}}
+
+		raw, err := executor.Execute(t.Context(), node, input)
+		if err != nil {
+			t.Fatalf("Execute() error = %v", err)
+		}
+		if len(binder.binds) != 1 {
+			t.Fatalf("Goal binds = %d, want 1", len(binder.binds))
+		}
+		bound := binder.binds[0].Runtime
+		if bound.Provider != "cursor" || bound.Model != "grok-4.6" || bound.Reasoning != "high" ||
+			bound.Speed != speedpkg.SpeedFast {
+			t.Fatalf("Goal bind runtime = %#v, want typed input runtime", bound)
+		}
+		if raw.ResolvedRuntime == nil || raw.ResolvedRuntime.Source.Provider != loop.RuntimeSourceInput ||
+			raw.ResolvedRuntime.Source.Model != loop.RuntimeSourceInput ||
+			raw.ResolvedRuntime.Source.Reasoning != loop.RuntimeSourceInput ||
+			raw.ResolvedRuntime.Source.Speed != loop.RuntimeSourceInput {
+			t.Fatalf("Goal resolved runtime = %#v, want input provenance", raw.ResolvedRuntime)
 		}
 	})
 

@@ -12,6 +12,7 @@ import (
 
 	"github.com/compozy/compozy/internal/loop"
 	"github.com/compozy/compozy/internal/loop/dsl"
+	speedpkg "github.com/compozy/compozy/internal/speed"
 	"github.com/compozy/compozy/internal/task"
 	"github.com/compozy/compozy/internal/tools"
 )
@@ -120,8 +121,8 @@ func TestActionRegistryShouldResolveReservedKindsBeforeRuntimeAndRejectUnknownKi
 			toolID.String(),
 			expected,
 		)
-		if !errors.Is(err, loop.ErrActionSchemaInvalid) {
-			t.Fatalf("ResolvePinned() error = %v, want ErrActionSchemaInvalid", err)
+		if !errors.Is(err, loop.ErrActionInvalidOutput) {
+			t.Fatalf("ResolvePinned() error = %v, want ErrActionInvalidOutput", err)
 		}
 		reason, reasonMatched := errors.AsType[*loop.ReasonError](err)
 		if !reasonMatched || reason.Code != loop.ReasonCodeActionContractStale {
@@ -601,6 +602,69 @@ func TestReservedActionExecutorsShouldRunAgentLoopAndTransform(t *testing.T) {
 		}
 		if !strings.Contains(prompts[1], "did not satisfy output_schema") {
 			t.Fatalf("retry prompt = %q, want schema validation feedback", prompts[1])
+		}
+	})
+
+	t.Run("Should bind a direct typed runtime input with input provenance", func(t *testing.T) {
+		t.Parallel()
+
+		inputRuntime := loop.RuntimeSpec{
+			Provider: "cursor", Model: "grok-4.6", Reasoning: "high", Speed: speedpkg.SpeedFast,
+		}
+		binder := &fakeActionSessionBinder{
+			binding: loop.ActionSessionBinding{
+				SessionID: "sess-input-runtime", Handle: "main", AppliedRuntime: inputRuntime,
+				SpeedResolution: &speedpkg.Resolution{
+					Requested: speedpkg.SpeedFast, Status: speedpkg.ResolutionUnsupported,
+					Reason: speedpkg.ReasonCapabilityAbsent,
+				},
+			},
+			promptResults: []loop.ActionPromptResult{{Text: "done"}},
+		}
+		actions := newActionRegistryForTest(t, &fakeActionToolRegistry{}, loop.WithActionSessionBinder(binder))
+		executor, err := actions.Resolve(context.Background(), tools.Scope{}, string(dsl.ActionRunAgent))
+		if err != nil {
+			t.Fatalf("Resolve(run-agent) error = %v", err)
+		}
+		node := dsl.Node{
+			ID: "agent", Class: dsl.NodeClassAction, Kind: string(dsl.ActionRunAgent),
+			Params: dsl.NodeParams{
+				"agent": "planner", "prompt": "Work",
+				"runtime": "{{ .inputs.worker_runtime }}",
+			},
+		}
+		raw, err := executor.Execute(context.Background(), node, loop.ActionExecutionInput{
+			WorkspaceID: "ws-1",
+			Namespace: map[string]any{"inputs": map[string]any{
+				"worker_runtime": map[string]any{
+					"provider":  inputRuntime.Provider,
+					"model":     inputRuntime.Model,
+					"reasoning": inputRuntime.Reasoning,
+					"speed":     string(inputRuntime.Speed),
+				},
+			}},
+			RuntimeSelection: &loop.ActionRuntimeSelection{
+				Defaults: loop.RuntimeDefaults{Worker: loop.RuntimeSpec{Model: "default-model"}},
+				Catalog:  actionTestRuntimeCatalog{},
+			},
+		})
+		if err != nil {
+			t.Fatalf("Execute() error = %v", err)
+		}
+		if got := binder.mustSingleBind(t).Runtime; got.Provider != inputRuntime.Provider ||
+			got.Model != inputRuntime.Model || got.Reasoning != inputRuntime.Reasoning ||
+			got.Speed != inputRuntime.Speed {
+			t.Fatalf("bound runtime = %#v, want %#v", got, inputRuntime)
+		}
+		if raw.ResolvedRuntime.Source.Provider != loop.RuntimeSourceInput ||
+			raw.ResolvedRuntime.Source.Model != loop.RuntimeSourceInput ||
+			raw.ResolvedRuntime.Source.Reasoning != loop.RuntimeSourceInput ||
+			raw.ResolvedRuntime.Source.Speed != loop.RuntimeSourceInput {
+			t.Fatalf("resolved runtime = %#v, want input provenance", raw.ResolvedRuntime)
+		}
+		if raw.ResolvedRuntime.SpeedResolution == nil ||
+			raw.ResolvedRuntime.SpeedResolution.Status != speedpkg.ResolutionUnsupported {
+			t.Fatalf("resolved runtime = %#v, want unsupported speed outcome", raw.ResolvedRuntime)
 		}
 	})
 

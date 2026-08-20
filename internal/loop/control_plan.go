@@ -3,6 +3,7 @@ package loop
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"strings"
 	"time"
 
@@ -30,7 +31,7 @@ func buildInitialControlAwareCoordinatorPlan(
 	scheduledAt time.Time,
 ) (task.CoordinatorCompletionPlan, error) {
 	graph := resolved.Definition.Graph
-	topology := newControlTopology(graph)
+	topology := newResolvedControlTopology(resolved)
 	outputs := initialGenerationOutputs(graph, topology, generation)
 	plan, err := newInitialControlCoordinatorPlan(
 		run,
@@ -174,7 +175,10 @@ func advanceControlNodes(
 				)
 			}
 			if err != nil {
-				return nil, err
+				if !errors.Is(err, ErrActionMaterialization) {
+					return nil, err
+				}
+				updated = materializationFailedOutput(output)
 			}
 			key := generationOutputKey{nodeID: output.NodeID, itemIndex: output.ItemIndex}
 			if idx, ok := indexes[key]; ok {
@@ -192,6 +196,19 @@ func advanceControlNodes(
 			return nil, nil
 		}
 	}
+}
+
+func materializationFailedOutput(output GenerationOutput) GenerationOutput {
+	output.Status = generationOutputFailed
+	failure := NewActionFailure(
+		string(ReasonCodeActionMaterializationFailed),
+		"an authored node value could not be materialized",
+		"fix the node template or its referenced data",
+	)
+	if ref, ok := ActionFailureOutputRef(failure); ok {
+		setGenerationOutputRef(&output, ref)
+	}
+	return output
 }
 
 func evaluateControlNode(
@@ -321,7 +338,27 @@ func evaluateFanOutNode(
 	if err != nil {
 		return GenerationOutput{}, nil, err
 	}
-	materialization, terminal := buildFanOutMaterialization(node, items, eval.fanOutWidth)
+	filtered, err := evaluateFanOutFilter(eval.resolved, node, namespace, items)
+	if err != nil {
+		return GenerationOutput{}, nil, err
+	}
+	eval.gateEvaluations.recordPredicate(filtered.Diagnostics...)
+	if filtered.Disposition != nil {
+		if filtered.Disposition.Policy == PredicateErrorExit {
+			output.Status = generationOutputSucceeded
+			return output, predicateExitTerminal(filtered.Disposition.Diagnostic), nil
+		}
+		failed, failureErr := applyPredicateFailureDisposition(
+			output,
+			node,
+			filtered.Disposition.Failure,
+			eval.resolved.Definition.Graph,
+			eval.topology,
+			outputs,
+		)
+		return failed, nil, failureErr
+	}
+	materialization, terminal := buildFanOutMaterialization(node, filtered.Candidates, eval.fanOutWidth)
 	if terminal != nil {
 		return output, terminal, nil
 	}

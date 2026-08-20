@@ -13,6 +13,7 @@ import (
 	looppkg "github.com/compozy/compozy/internal/loop"
 	"github.com/compozy/compozy/internal/loop/dsl"
 	"github.com/compozy/compozy/internal/network/participation"
+	speedpkg "github.com/compozy/compozy/internal/speed"
 	"github.com/compozy/compozy/internal/testutil"
 )
 
@@ -431,10 +432,17 @@ func TestGlobalDBLoopAPIEventsShouldResumeBySequenceAndWorkspace(t *testing.T) {
 		}
 		insertLoopRuntimeOutputForTest(t, globalDB, run.ID, 1, "work", 2)
 		resolved := looppkg.ResolvedRuntime{
-			Runtime: looppkg.RuntimeSpec{Provider: "codex", Model: "gpt-5.6-terra", Reasoning: "high"},
+			Runtime: looppkg.RuntimeSpec{
+				Provider: "codex", Model: "gpt-5.6-terra", Reasoning: "high", Speed: speedpkg.SpeedFast,
+			},
 			Source: looppkg.RuntimeProvenance{
 				Provider: looppkg.RuntimeSourceRun,
 				Model:    looppkg.RuntimeSourceFrontmatter, Reasoning: looppkg.RuntimeSourceDefault,
+				Speed: looppkg.RuntimeSourceInput,
+			},
+			SpeedResolution: &speedpkg.Resolution{
+				Requested: speedpkg.SpeedFast, Status: speedpkg.ResolutionUnsupported,
+				Reason: speedpkg.ReasonCapabilityAbsent,
 			},
 		}
 		if err := globalDB.RecordAppliedRuntime(ctx, "ws-a", run.ID, 1, "work", 2, resolved); err != nil {
@@ -480,7 +488,9 @@ func TestGlobalDBLoopAPIEventsShouldResumeBySequenceAndWorkspace(t *testing.T) {
 		}
 		got := outputs[0].ResolvedRuntime
 		if got.Runtime.Provider != resolved.Runtime.Provider || got.Runtime.Model != resolved.Runtime.Model ||
-			got.Runtime.Reasoning != resolved.Runtime.Reasoning || got.Source != resolved.Source {
+			got.Runtime.Reasoning != resolved.Runtime.Reasoning || got.Runtime.Speed != resolved.Runtime.Speed ||
+			got.Source != resolved.Source || got.SpeedResolution == nil ||
+			*got.SpeedResolution != *resolved.SpeedResolution {
 			t.Fatalf("resolved runtime after reopen = %#v, want %#v", got, resolved)
 		}
 		events, err := reopened.ListLoopRunEvents(ctx, looppkg.RunEventQuery{
@@ -504,10 +514,13 @@ func TestGlobalDBLoopAPIEventsShouldResumeBySequenceAndWorkspace(t *testing.T) {
 			NodeID          string `json:"node_id"`
 			ItemIndex       int    `json:"item_index"`
 			ResolvedRuntime struct {
-				Provider string `json:"provider"`
-				Model    string `json:"model"`
-				Source   struct {
-					Model string `json:"model"`
+				Provider        string              `json:"provider"`
+				Model           string              `json:"model"`
+				Speed           speedpkg.Speed      `json:"speed"`
+				SpeedResolution speedpkg.Resolution `json:"speed_resolution"`
+				Source          struct {
+					Model string                `json:"model"`
+					Speed looppkg.RuntimeSource `json:"speed"`
 				} `json:"source"`
 			} `json:"resolved_runtime"`
 		}
@@ -517,7 +530,11 @@ func TestGlobalDBLoopAPIEventsShouldResumeBySequenceAndWorkspace(t *testing.T) {
 		if eventPayload.Generation != 1 || eventPayload.NodeID != "work" || eventPayload.ItemIndex != 2 ||
 			eventPayload.ResolvedRuntime.Provider != "codex" ||
 			eventPayload.ResolvedRuntime.Model != "gpt-5.6-terra" ||
-			eventPayload.ResolvedRuntime.Source.Model != "frontmatter" {
+			eventPayload.ResolvedRuntime.Speed != speedpkg.SpeedFast ||
+			eventPayload.ResolvedRuntime.SpeedResolution.Status != speedpkg.ResolutionUnsupported ||
+			eventPayload.ResolvedRuntime.SpeedResolution.Reason != speedpkg.ReasonCapabilityAbsent ||
+			eventPayload.ResolvedRuntime.Source.Model != "frontmatter" ||
+			eventPayload.ResolvedRuntime.Source.Speed != looppkg.RuntimeSourceInput {
 			t.Fatalf("runtime event payload = %#v, want durable public runtime shape", eventPayload)
 		}
 	})

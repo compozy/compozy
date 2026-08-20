@@ -7,6 +7,7 @@ import (
 
 	loop "github.com/compozy/compozy/internal/loop"
 	"github.com/compozy/compozy/internal/loop/dsl"
+	speedpkg "github.com/compozy/compozy/internal/speed"
 )
 
 func TestValidateResolvedRuntimeShouldHonorCatalogValidation(t *testing.T) {
@@ -110,6 +111,84 @@ func TestValidateDefinitionRuntimeShouldEnforceStaticRuntimeContract(t *testing.
 		err := loop.ValidateDefinitionRuntime(context.Background(), nil, definition)
 		assertRuntimeValidationItem(t, err, loop.RuntimeValidationItem{
 			Field: "reasoning", Value: "ultra", Reason: "unsupported_reasoning",
+		})
+	})
+
+	t.Run("Should accept the complete speed vocabulary", func(t *testing.T) {
+		t.Parallel()
+
+		for _, value := range []speedpkg.Speed{speedpkg.SpeedNormal, speedpkg.SpeedFast} {
+			t.Run("Should accept "+string(value), func(t *testing.T) {
+				t.Parallel()
+
+				definition := dsl.Definition{Contract: dsl.Contract{RuntimeDefaults: &dsl.RuntimeDefaults{
+					Worker: dsl.RuntimeSpec{Speed: value},
+				}}}
+				if err := loop.ValidateDefinitionRuntime(context.Background(), nil, definition); err != nil {
+					t.Fatalf("ValidateDefinitionRuntime(%q) error = %v", value, err)
+				}
+			})
+		}
+	})
+
+	t.Run("Should reject unsupported speed before binding", func(t *testing.T) {
+		t.Parallel()
+
+		definition := dsl.Definition{Contract: dsl.Contract{RuntimeDefaults: &dsl.RuntimeDefaults{
+			Worker: dsl.RuntimeSpec{Speed: speedpkg.Speed("turbo")},
+		}}}
+		err := loop.ValidateDefinitionRuntime(context.Background(), nil, definition)
+		assertRuntimeValidationItem(t, err, loop.RuntimeValidationItem{
+			Field: "speed", Value: "turbo", Reason: "unsupported_speed",
+		})
+	})
+
+	t.Run("Should accept an exact reference to a declared runtime input", func(t *testing.T) {
+		t.Parallel()
+
+		definition := dsl.Definition{
+			Inputs: map[string]dsl.Input{"worker_runtime": {Type: dsl.InputTypeRuntime}},
+			Graph: dsl.Graph{Nodes: []dsl.Node{{
+				ID: "work", Class: dsl.NodeClassAction, Kind: string(dsl.ActionRunAgent),
+				Params: dsl.NodeParams{
+					"agent": "worker", "prompt": "Work",
+					"runtime": "{{ .inputs.worker_runtime }}",
+				},
+			}}},
+		}
+		if err := loop.ValidateDefinitionRuntime(context.Background(), nil, definition); err != nil {
+			t.Fatalf("ValidateDefinitionRuntime() error = %v", err)
+		}
+	})
+
+	t.Run("Should reject a runtime reference to a non runtime input", func(t *testing.T) {
+		t.Parallel()
+
+		definition := dsl.Definition{
+			Inputs: map[string]dsl.Input{"worker_runtime": {Type: dsl.InputTypeString}},
+			Graph: dsl.Graph{Nodes: []dsl.Node{{
+				ID: "work", Class: dsl.NodeClassAction, Kind: string(dsl.ActionRunAgent),
+				Params: dsl.NodeParams{"runtime": "{{ .inputs.worker_runtime }}"},
+			}}},
+		}
+		err := loop.ValidateDefinitionRuntime(context.Background(), nil, definition)
+		assertRuntimeValidationItem(t, err, loop.RuntimeValidationItem{
+			Field: "graph.nodes.work.params.runtime", Value: "worker_runtime", Reason: "runtime_input_required",
+		})
+	})
+
+	t.Run("Should reject interpolation inside a runtime object", func(t *testing.T) {
+		t.Parallel()
+
+		definition := dsl.Definition{Graph: dsl.Graph{Nodes: []dsl.Node{{
+			ID: "work", Class: dsl.NodeClassAction, Kind: string(dsl.ActionRunAgent),
+			Params: dsl.NodeParams{"runtime": map[string]any{
+				"provider": "{{ .inputs.worker_runtime.provider }}", "model": "literal",
+			}},
+		}}}}
+		err := loop.ValidateDefinitionRuntime(context.Background(), nil, definition)
+		assertRuntimeValidationItem(t, err, loop.RuntimeValidationItem{
+			Field: "graph.nodes.work.params.runtime", Reason: "invalid_runtime_binding",
 		})
 	})
 

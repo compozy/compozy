@@ -8,6 +8,7 @@ import (
 
 	looppkg "github.com/compozy/compozy/internal/loop"
 	goalpkg "github.com/compozy/compozy/internal/loop/goal"
+	speedpkg "github.com/compozy/compozy/internal/speed"
 	"github.com/compozy/compozy/internal/store"
 )
 
@@ -147,6 +148,35 @@ func actionBindingFromGoal(
 		Isolated:           req.Isolated,
 		AppliedRuntime:     appliedRuntime,
 	}
+}
+
+func (b *loopActionSessionBinder) projectActionBindingSpeed(
+	ctx context.Context,
+	binding looppkg.ActionSessionBinding,
+	bindErr error,
+) (looppkg.ActionSessionBinding, error) {
+	if bindErr != nil || strings.TrimSpace(binding.SessionID) == "" {
+		return binding, bindErr
+	}
+	info, err := b.sessions.Status(ctx, binding.SessionID)
+	if err != nil {
+		return looppkg.ActionSessionBinding{}, fmt.Errorf(
+			"daemon: load applied Loop runtime for session %q: %w",
+			binding.SessionID,
+			err,
+		)
+	}
+	if info == nil {
+		return looppkg.ActionSessionBinding{}, fmt.Errorf(
+			"daemon: load applied Loop runtime for session %q: empty session info",
+			binding.SessionID,
+		)
+	}
+	if info.Speed != "" {
+		binding.AppliedRuntime.Speed = info.Speed
+	}
+	binding.SpeedResolution = speedpkg.CloneResolution(info.SpeedResolution)
+	return binding, nil
 }
 
 func (b *loopActionSessionBinder) PromptActionSession(

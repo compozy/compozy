@@ -8,6 +8,7 @@ import (
 
 	"github.com/compozy/compozy/internal/loop/dsl"
 	"github.com/compozy/compozy/internal/network/participation"
+	speedpkg "github.com/compozy/compozy/internal/speed"
 	"github.com/compozy/compozy/internal/task"
 	"github.com/compozy/compozy/internal/tools"
 )
@@ -50,8 +51,10 @@ var (
 	ErrActionDependencyMissing = errors.New("loop: action dependency missing")
 	// ErrActionStalled reports a harvest that must wait for an external result.
 	ErrActionStalled = errors.New("loop: action stalled")
-	// ErrActionSchemaInvalid reports run-agent structured output that failed output_schema validation.
-	ErrActionSchemaInvalid = errors.New("loop: action schema validation failed")
+	// ErrActionInvalidOutput reports run-agent structured output that failed output_schema validation.
+	ErrActionInvalidOutput = errors.New("loop: action output schema validation failed")
+	// ErrActionMaterialization reports authored templates that cannot resolve against the runtime namespace.
+	ErrActionMaterialization = errors.New("loop: action materialization failed")
 	// ErrActionTimeout reports an action turn canceled by the node timeout.
 	ErrActionTimeout = errors.New("loop: action timeout")
 )
@@ -63,8 +66,10 @@ const (
 	ReasonCodeActionDependencyMissing ReasonCode = "action_dependency_missing"
 	// ReasonCodeActionStalled reports a harvest window that produced no designated result.
 	ReasonCodeActionStalled ReasonCode = "action_stalled"
-	// ReasonCodeActionSchemaInvalid reports run-agent output_schema validation failure.
-	ReasonCodeActionSchemaInvalid ReasonCode = "action_schema_invalid"
+	// ReasonCodeInvalidOutput reports run-agent output_schema validation failure.
+	ReasonCodeInvalidOutput ReasonCode = "invalid_output"
+	// ReasonCodeActionMaterializationFailed reports an authored value that could not be materialized.
+	ReasonCodeActionMaterializationFailed ReasonCode = "action_materialization_failed"
 	// ReasonCodeActionTimeout reports timeout cancellation of an action turn.
 	ReasonCodeActionTimeout ReasonCode = "action_timeout"
 	// ReasonCodeActionContractStale reports runtime tool schemas that differ from the Run snapshot.
@@ -269,11 +274,19 @@ type ActionSessionBindRequest struct {
 	PinnedCreationDigest           string
 	StaticPolicySpecDigest         string
 	Isolated                       bool
-	Runtime                        RuntimeSpec
+	Runtime                        *RuntimeSpec
 	AllowedTools                   []string
 	MaxTurns                       int
 	ContractBlock                  string
 	NetworkParticipation           *participation.Spec
+}
+
+// RuntimeValue returns the requested runtime or the zero-value intent when none was supplied.
+func (r ActionSessionBindRequest) RuntimeValue() RuntimeSpec {
+	if r.Runtime == nil {
+		return RuntimeSpec{}
+	}
+	return *r.Runtime
 }
 
 // ActionSessionCellFence identifies the live ordinary-action cell allowed to activate a session binding.
@@ -331,6 +344,7 @@ type ActionSessionBinding struct {
 	Ownership          string
 	Isolated           bool
 	AppliedRuntime     RuntimeSpec
+	SpeedResolution    *speedpkg.Resolution
 }
 
 // ActionPromptRequest is one work-order turn inside a bound run-agent session.

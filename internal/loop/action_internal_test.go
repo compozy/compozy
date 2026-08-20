@@ -205,8 +205,8 @@ func TestActionSchemaAndJSONInternalsShouldCoverStructuredExtraction(t *testing.
 			"required":   []any{"status"},
 		}
 		_, err := ValidateActionStructured(schema, ActionPromptResult{Text: "Done — everything works."})
-		if !errors.Is(err, ErrActionSchemaInvalid) {
-			t.Fatalf("ValidateActionStructured(prose) error = %v, want ErrActionSchemaInvalid", err)
+		if !errors.Is(err, ErrActionInvalidOutput) {
+			t.Fatalf("ValidateActionStructured(prose) error = %v, want ErrActionInvalidOutput", err)
 		}
 		provider, ok := errors.AsType[SafeActionFailureProvider](err)
 		if !ok {
@@ -267,16 +267,42 @@ func TestActionSchemaAndJSONInternalsShouldCoverStructuredExtraction(t *testing.
 		}
 		invalid := ActionPromptResult{Structured: json.RawMessage(`{"summary":12}`)}
 		_, err := validateRunAgentStructured(schema, invalid)
-		if !errors.Is(err, ErrActionSchemaInvalid) {
-			t.Fatalf("validateRunAgentStructured(invalid) error = %v, want ErrActionSchemaInvalid", err)
+		if !errors.Is(err, ErrActionInvalidOutput) {
+			t.Fatalf("validateRunAgentStructured(invalid) error = %v, want ErrActionInvalidOutput", err)
 		}
 		provider, ok := errors.AsType[SafeActionFailureProvider](err)
 		if !ok {
 			t.Fatalf("validateRunAgentStructured(invalid) error = %T, want SafeActionFailureProvider", err)
 		}
 		failure := provider.SafeActionFailure()
-		if failure.Code != string(ReasonCodeActionSchemaInvalid) || failure.Cause == "" || failure.Recovery == "" {
-			t.Fatalf("schema failure = %#v, want structured action_schema_invalid guidance", failure)
+		if failure.Code != string(ReasonCodeInvalidOutput) || failure.Cause == "" || failure.Recovery == "" {
+			t.Fatalf("schema failure = %#v, want structured invalid_output guidance", failure)
+		}
+	})
+
+	t.Run("Should revalidate the exact lease result against the pinned output schema", func(t *testing.T) {
+		t.Parallel()
+
+		metadata := json.RawMessage(
+			`{"generation":1,"node_id":"worker","item_index":0,"attempt":1,"epoch":0,` +
+				`"output_schema":{"type":"object","properties":{"status":{"type":"string"},` +
+				`"summary":{"type":"string"}},"required":["status","summary"]}}`,
+		)
+		run := task.Run{
+			ID: "run-worker", RunKind: task.RunKindWorker, LoopRunID: "looprun-worker", Metadata: metadata,
+		}
+		valid := task.RunResult{Value: json.RawMessage(`{"status":"done","summary":"complete"}`)}
+		if err := ValidateActionRunResult(run, valid); err != nil {
+			t.Fatalf("ValidateActionRunResult(valid) error = %v", err)
+		}
+		invalid := task.RunResult{Value: json.RawMessage(`{"status":"done"}`)}
+		err := ValidateActionRunResult(run, invalid)
+		if !errors.Is(err, ErrActionInvalidOutput) {
+			t.Fatalf("ValidateActionRunResult(invalid) error = %v, want ErrActionInvalidOutput", err)
+		}
+		provider, ok := errors.AsType[SafeActionFailureProvider](err)
+		if !ok || provider.SafeActionFailure().Code != string(ReasonCodeInvalidOutput) {
+			t.Fatalf("ValidateActionRunResult(invalid) failure = %#v, want invalid_output", provider)
 		}
 	})
 
@@ -529,8 +555,8 @@ func TestReservedActionInternalsShouldCoverErrorBranches(t *testing.T) {
 				"output_schema": map[string]any{"summary": "string"},
 			},
 		}, ActionExecutionInput{})
-		if !errors.Is(err, ErrActionSchemaInvalid) {
-			t.Fatalf("Execute(run-agent invalid retry) error = %v, want ErrActionSchemaInvalid", err)
+		if !errors.Is(err, ErrActionInvalidOutput) {
+			t.Fatalf("Execute(run-agent invalid retry) error = %v, want ErrActionInvalidOutput", err)
 		}
 		if len(binder.prompts) != 2 {
 			t.Fatalf("prompt calls = %d, want 2", len(binder.prompts))
@@ -544,6 +570,9 @@ func TestReservedActionInternalsShouldCoverErrorBranches(t *testing.T) {
 		actionNode := dsl.Node{
 			ID: "worker", Class: dsl.NodeClassAction, Kind: string(dsl.ActionRunAgent),
 			Session: &dsl.SessionSpec{Handle: "main"},
+			Params: dsl.NodeParams{"output_schema": map[string]any{
+				"type": "object", "required": []string{"summary"},
+			}},
 		}
 		metadata, err := coordinatorNodeMetadataWithFanOutItem(run, 2, actionNode, 3, 1, 4, nil, false)
 		if err != nil {
@@ -556,6 +585,9 @@ func TestReservedActionInternalsShouldCoverErrorBranches(t *testing.T) {
 		wantActionKey := actionSessionSharedKey(2, actionNode.ID, 3, "main")
 		if got := actionPayload["session_handle"]; got != wantActionKey {
 			t.Fatalf("run-agent session_handle = %#v, want %q", got, wantActionKey)
+		}
+		if _, ok := actionPayload[outputSchemaParamKey].(map[string]any); !ok {
+			t.Fatalf("run-agent output_schema = %#v, want pinned schema", actionPayload[outputSchemaParamKey])
 		}
 
 		goalNode := dsl.Node{

@@ -228297,8 +228297,52 @@
                                       },
                                       "reasoning": {
                                         "type": "string"
+                                      },
+                                      "speed": {
+                                        "type": "string"
                                       }
                                     },
+                                    "type": "object"
+                                  },
+                                  "speed": {
+                                    "enum": [
+                                      "normal",
+                                      "fast"
+                                    ],
+                                    "type": "string"
+                                  },
+                                  "speed_resolution": {
+                                    "nullable": true,
+                                    "properties": {
+                                      "reason": {
+                                        "enum": [
+                                          "capability_absent",
+                                          "capability_ambiguous",
+                                          "value_ambiguous",
+                                          "provider_rejected"
+                                        ],
+                                        "type": "string"
+                                      },
+                                      "requested": {
+                                        "enum": [
+                                          "normal",
+                                          "fast"
+                                        ],
+                                        "type": "string"
+                                      },
+                                      "status": {
+                                        "enum": [
+                                          "applied",
+                                          "unsupported",
+                                          "rejected"
+                                        ],
+                                        "type": "string"
+                                      }
+                                    },
+                                    "required": [
+                                      "requested",
+                                      "status"
+                                    ],
                                     "type": "object"
                                   }
                                 },
@@ -230257,6 +230301,13 @@
                                     },
                                     "reasoning": {
                                       "type": "string"
+                                    },
+                                    "speed": {
+                                      "enum": [
+                                        "normal",
+                                        "fast"
+                                      ],
+                                      "type": "string"
                                     }
                                   },
                                   "type": "object"
@@ -230270,6 +230321,13 @@
                                       "type": "string"
                                     },
                                     "reasoning": {
+                                      "type": "string"
+                                    },
+                                    "speed": {
+                                      "enum": [
+                                        "normal",
+                                        "fast"
+                                      ],
                                       "type": "string"
                                     }
                                   },
@@ -230304,6 +230362,13 @@
                                         "type": "string"
                                       },
                                       "reasoning": {
+                                        "type": "string"
+                                      },
+                                      "speed": {
+                                        "enum": [
+                                          "normal",
+                                          "fast"
+                                        ],
                                         "type": "string"
                                       }
                                     },
@@ -230410,6 +230475,13 @@
                                         "type": "string"
                                       },
                                       "reasoning": {
+                                        "type": "string"
+                                      },
+                                      "speed": {
+                                        "enum": [
+                                          "normal",
+                                          "fast"
+                                        ],
                                         "type": "string"
                                       }
                                     },
@@ -231773,8 +231845,52 @@
                                         },
                                         "reasoning": {
                                           "type": "string"
+                                        },
+                                        "speed": {
+                                          "type": "string"
                                         }
                                       },
+                                      "type": "object"
+                                    },
+                                    "speed": {
+                                      "enum": [
+                                        "normal",
+                                        "fast"
+                                      ],
+                                      "type": "string"
+                                    },
+                                    "speed_resolution": {
+                                      "nullable": true,
+                                      "properties": {
+                                        "reason": {
+                                          "enum": [
+                                            "capability_absent",
+                                            "capability_ambiguous",
+                                            "value_ambiguous",
+                                            "provider_rejected"
+                                          ],
+                                          "type": "string"
+                                        },
+                                        "requested": {
+                                          "enum": [
+                                            "normal",
+                                            "fast"
+                                          ],
+                                          "type": "string"
+                                        },
+                                        "status": {
+                                          "enum": [
+                                            "applied",
+                                            "unsupported",
+                                            "rejected"
+                                          ],
+                                          "type": "string"
+                                        }
+                                      },
+                                      "required": [
+                                        "requested",
+                                        "status"
+                                      ],
                                       "type": "object"
                                     }
                                   },
@@ -232411,6 +232527,13 @@
                                 },
                                 "reasoning": {
                                   "type": "string"
+                                },
+                                "speed": {
+                                  "enum": [
+                                    "normal",
+                                    "fast"
+                                  ],
+                                  "type": "string"
                                 }
                               },
                               "type": "object"
@@ -232424,6 +232547,13 @@
                                   "type": "string"
                                 },
                                 "reasoning": {
+                                  "type": "string"
+                                },
+                                "speed": {
+                                  "enum": [
+                                    "normal",
+                                    "fast"
+                                  ],
                                   "type": "string"
                                 }
                               },
@@ -232458,6 +232588,13 @@
                                     "type": "string"
                                   },
                                   "reasoning": {
+                                    "type": "string"
+                                  },
+                                  "speed": {
+                                    "enum": [
+                                      "normal",
+                                      "fast"
+                                    ],
                                     "type": "string"
                                   }
                                 },
@@ -232564,6 +232701,13 @@
                                     "type": "string"
                                   },
                                   "reasoning": {
+                                    "type": "string"
+                                  },
+                                  "speed": {
+                                    "enum": [
+                                      "normal",
+                                      "fast"
+                                    ],
                                     "type": "string"
                                   }
                                 },
@@ -245956,6 +246100,13 @@
                                       },
                                       "reasoning": {
                                         "type": "string"
+                                      },
+                                      "speed": {
+                                        "enum": [
+                                          "normal",
+                                          "fast"
+                                        ],
+                                        "type": "string"
                                       }
                                     },
                                     "type": "object"
@@ -245969,6 +246120,13 @@
                                         "type": "string"
                                       },
                                       "reasoning": {
+                                        "type": "string"
+                                      },
+                                      "speed": {
+                                        "enum": [
+                                          "normal",
+                                          "fast"
+                                        ],
                                         "type": "string"
                                       }
                                     },
@@ -246003,6 +246161,13 @@
                                           "type": "string"
                                         },
                                         "reasoning": {
+                                          "type": "string"
+                                        },
+                                        "speed": {
+                                          "enum": [
+                                            "normal",
+                                            "fast"
+                                          ],
                                           "type": "string"
                                         }
                                       },
@@ -246109,6 +246274,13 @@
                                           "type": "string"
                                         },
                                         "reasoning": {
+                                          "type": "string"
+                                        },
+                                        "speed": {
+                                          "enum": [
+                                            "normal",
+                                            "fast"
+                                          ],
                                           "type": "string"
                                         }
                                       },
@@ -247143,6 +247315,13 @@
                                   },
                                   "reasoning": {
                                     "type": "string"
+                                  },
+                                  "speed": {
+                                    "enum": [
+                                      "normal",
+                                      "fast"
+                                    ],
+                                    "type": "string"
                                   }
                                 },
                                 "type": "object"
@@ -247156,6 +247335,13 @@
                                     "type": "string"
                                   },
                                   "reasoning": {
+                                    "type": "string"
+                                  },
+                                  "speed": {
+                                    "enum": [
+                                      "normal",
+                                      "fast"
+                                    ],
                                     "type": "string"
                                   }
                                 },
@@ -247190,6 +247376,13 @@
                                       "type": "string"
                                     },
                                     "reasoning": {
+                                      "type": "string"
+                                    },
+                                    "speed": {
+                                      "enum": [
+                                        "normal",
+                                        "fast"
+                                      ],
                                       "type": "string"
                                     }
                                   },
@@ -247296,6 +247489,13 @@
                                       "type": "string"
                                     },
                                     "reasoning": {
+                                      "type": "string"
+                                    },
+                                    "speed": {
+                                      "enum": [
+                                        "normal",
+                                        "fast"
+                                      ],
                                       "type": "string"
                                     }
                                   },
@@ -249033,6 +249233,13 @@
                                         },
                                         "reasoning": {
                                           "type": "string"
+                                        },
+                                        "speed": {
+                                          "enum": [
+                                            "normal",
+                                            "fast"
+                                          ],
+                                          "type": "string"
                                         }
                                       },
                                       "type": "object"
@@ -249046,6 +249253,13 @@
                                           "type": "string"
                                         },
                                         "reasoning": {
+                                          "type": "string"
+                                        },
+                                        "speed": {
+                                          "enum": [
+                                            "normal",
+                                            "fast"
+                                          ],
                                           "type": "string"
                                         }
                                       },
@@ -249080,6 +249294,13 @@
                                             "type": "string"
                                           },
                                           "reasoning": {
+                                            "type": "string"
+                                          },
+                                          "speed": {
+                                            "enum": [
+                                              "normal",
+                                              "fast"
+                                            ],
                                             "type": "string"
                                           }
                                         },
@@ -249186,6 +249407,13 @@
                                             "type": "string"
                                           },
                                           "reasoning": {
+                                            "type": "string"
+                                          },
+                                          "speed": {
+                                            "enum": [
+                                              "normal",
+                                              "fast"
+                                            ],
                                             "type": "string"
                                           }
                                         },
@@ -251915,6 +252143,13 @@
                                         },
                                         "reasoning": {
                                           "type": "string"
+                                        },
+                                        "speed": {
+                                          "enum": [
+                                            "normal",
+                                            "fast"
+                                          ],
+                                          "type": "string"
                                         }
                                       },
                                       "type": "object"
@@ -251928,6 +252163,13 @@
                                           "type": "string"
                                         },
                                         "reasoning": {
+                                          "type": "string"
+                                        },
+                                        "speed": {
+                                          "enum": [
+                                            "normal",
+                                            "fast"
+                                          ],
                                           "type": "string"
                                         }
                                       },
@@ -251962,6 +252204,13 @@
                                             "type": "string"
                                           },
                                           "reasoning": {
+                                            "type": "string"
+                                          },
+                                          "speed": {
+                                            "enum": [
+                                              "normal",
+                                              "fast"
+                                            ],
                                             "type": "string"
                                           }
                                         },
@@ -252068,6 +252317,13 @@
                                             "type": "string"
                                           },
                                           "reasoning": {
+                                            "type": "string"
+                                          },
+                                          "speed": {
+                                            "enum": [
+                                              "normal",
+                                              "fast"
+                                            ],
                                             "type": "string"
                                           }
                                         },
@@ -254196,6 +254452,13 @@
                                   },
                                   "reasoning": {
                                     "type": "string"
+                                  },
+                                  "speed": {
+                                    "enum": [
+                                      "normal",
+                                      "fast"
+                                    ],
+                                    "type": "string"
                                   }
                                 },
                                 "type": "object"
@@ -254209,6 +254472,13 @@
                                     "type": "string"
                                   },
                                   "reasoning": {
+                                    "type": "string"
+                                  },
+                                  "speed": {
+                                    "enum": [
+                                      "normal",
+                                      "fast"
+                                    ],
                                     "type": "string"
                                   }
                                 },
@@ -254243,6 +254513,13 @@
                                       "type": "string"
                                     },
                                     "reasoning": {
+                                      "type": "string"
+                                    },
+                                    "speed": {
+                                      "enum": [
+                                        "normal",
+                                        "fast"
+                                      ],
                                       "type": "string"
                                     }
                                   },
@@ -254349,6 +254626,13 @@
                                       "type": "string"
                                     },
                                     "reasoning": {
+                                      "type": "string"
+                                    },
+                                    "speed": {
+                                      "enum": [
+                                        "normal",
+                                        "fast"
+                                      ],
                                       "type": "string"
                                     }
                                   },
@@ -256090,6 +256374,13 @@
                                         },
                                         "reasoning": {
                                           "type": "string"
+                                        },
+                                        "speed": {
+                                          "enum": [
+                                            "normal",
+                                            "fast"
+                                          ],
+                                          "type": "string"
                                         }
                                       },
                                       "type": "object"
@@ -256103,6 +256394,13 @@
                                           "type": "string"
                                         },
                                         "reasoning": {
+                                          "type": "string"
+                                        },
+                                        "speed": {
+                                          "enum": [
+                                            "normal",
+                                            "fast"
+                                          ],
                                           "type": "string"
                                         }
                                       },
@@ -256137,6 +256435,13 @@
                                             "type": "string"
                                           },
                                           "reasoning": {
+                                            "type": "string"
+                                          },
+                                          "speed": {
+                                            "enum": [
+                                              "normal",
+                                              "fast"
+                                            ],
                                             "type": "string"
                                           }
                                         },
@@ -256243,6 +256548,13 @@
                                             "type": "string"
                                           },
                                           "reasoning": {
+                                            "type": "string"
+                                          },
+                                          "speed": {
+                                            "enum": [
+                                              "normal",
+                                              "fast"
+                                            ],
                                             "type": "string"
                                           }
                                         },
@@ -259014,6 +259326,13 @@
                                 },
                                 "reasoning": {
                                   "type": "string"
+                                },
+                                "speed": {
+                                  "enum": [
+                                    "normal",
+                                    "fast"
+                                  ],
+                                  "type": "string"
                                 }
                               },
                               "type": "object"
@@ -259027,6 +259346,13 @@
                                   "type": "string"
                                 },
                                 "reasoning": {
+                                  "type": "string"
+                                },
+                                "speed": {
+                                  "enum": [
+                                    "normal",
+                                    "fast"
+                                  ],
                                   "type": "string"
                                 }
                               },
@@ -259061,6 +259387,13 @@
                                     "type": "string"
                                   },
                                   "reasoning": {
+                                    "type": "string"
+                                  },
+                                  "speed": {
+                                    "enum": [
+                                      "normal",
+                                      "fast"
+                                    ],
                                     "type": "string"
                                   }
                                 },
@@ -259166,6 +259499,13 @@
                                   },
                                   "reasoning": {
                                     "type": "string"
+                                  },
+                                  "speed": {
+                                    "enum": [
+                                      "normal",
+                                      "fast"
+                                    ],
+                                    "type": "string"
                                   }
                                 },
                                 "type": "object"
@@ -259191,6 +259531,13 @@
                                 },
                                 "reasoning": {
                                   "type": "string"
+                                },
+                                "speed": {
+                                  "enum": [
+                                    "normal",
+                                    "fast"
+                                  ],
+                                  "type": "string"
                                 }
                               },
                               "type": "object"
@@ -259204,6 +259551,13 @@
                                   "type": "string"
                                 },
                                 "reasoning": {
+                                  "type": "string"
+                                },
+                                "speed": {
+                                  "enum": [
+                                    "normal",
+                                    "fast"
+                                  ],
                                   "type": "string"
                                 }
                               },
@@ -259238,6 +259592,13 @@
                                     "type": "string"
                                   },
                                   "reasoning": {
+                                    "type": "string"
+                                  },
+                                  "speed": {
+                                    "enum": [
+                                      "normal",
+                                      "fast"
+                                    ],
                                     "type": "string"
                                   }
                                 },
@@ -259694,6 +260055,13 @@
                               },
                               "reasoning": {
                                 "type": "string"
+                              },
+                              "speed": {
+                                "enum": [
+                                  "normal",
+                                  "fast"
+                                ],
+                                "type": "string"
                               }
                             },
                             "type": "object"
@@ -259707,6 +260075,13 @@
                                 "type": "string"
                               },
                               "reasoning": {
+                                "type": "string"
+                              },
+                              "speed": {
+                                "enum": [
+                                  "normal",
+                                  "fast"
+                                ],
                                 "type": "string"
                               }
                             },
@@ -259741,6 +260116,13 @@
                                   "type": "string"
                                 },
                                 "reasoning": {
+                                  "type": "string"
+                                },
+                                "speed": {
+                                  "enum": [
+                                    "normal",
+                                    "fast"
+                                  ],
                                   "type": "string"
                                 }
                               },
@@ -259860,6 +260242,13 @@
                                 },
                                 "reasoning": {
                                   "type": "string"
+                                },
+                                "speed": {
+                                  "enum": [
+                                    "normal",
+                                    "fast"
+                                  ],
+                                  "type": "string"
                                 }
                               },
                               "type": "object"
@@ -259873,6 +260262,13 @@
                                   "type": "string"
                                 },
                                 "reasoning": {
+                                  "type": "string"
+                                },
+                                "speed": {
+                                  "enum": [
+                                    "normal",
+                                    "fast"
+                                  ],
                                   "type": "string"
                                 }
                               },
@@ -259907,6 +260303,13 @@
                                     "type": "string"
                                   },
                                   "reasoning": {
+                                    "type": "string"
+                                  },
+                                  "speed": {
+                                    "enum": [
+                                      "normal",
+                                      "fast"
+                                    ],
                                     "type": "string"
                                   }
                                 },
@@ -260012,6 +260415,13 @@
                                   },
                                   "reasoning": {
                                     "type": "string"
+                                  },
+                                  "speed": {
+                                    "enum": [
+                                      "normal",
+                                      "fast"
+                                    ],
+                                    "type": "string"
                                   }
                                 },
                                 "type": "object"
@@ -260037,6 +260447,13 @@
                                 },
                                 "reasoning": {
                                   "type": "string"
+                                },
+                                "speed": {
+                                  "enum": [
+                                    "normal",
+                                    "fast"
+                                  ],
+                                  "type": "string"
                                 }
                               },
                               "type": "object"
@@ -260050,6 +260467,13 @@
                                   "type": "string"
                                 },
                                 "reasoning": {
+                                  "type": "string"
+                                },
+                                "speed": {
+                                  "enum": [
+                                    "normal",
+                                    "fast"
+                                  ],
                                   "type": "string"
                                 }
                               },
@@ -260084,6 +260508,13 @@
                                     "type": "string"
                                   },
                                   "reasoning": {
+                                    "type": "string"
+                                  },
+                                  "speed": {
+                                    "enum": [
+                                      "normal",
+                                      "fast"
+                                    ],
                                     "type": "string"
                                   }
                                 },
@@ -262904,6 +263335,13 @@
                               },
                               "reasoning": {
                                 "type": "string"
+                              },
+                              "speed": {
+                                "enum": [
+                                  "normal",
+                                  "fast"
+                                ],
+                                "type": "string"
                               }
                             },
                             "type": "object"
@@ -262917,6 +263355,13 @@
                                 "type": "string"
                               },
                               "reasoning": {
+                                "type": "string"
+                              },
+                              "speed": {
+                                "enum": [
+                                  "normal",
+                                  "fast"
+                                ],
                                 "type": "string"
                               }
                             },
@@ -262951,6 +263396,13 @@
                                   "type": "string"
                                 },
                                 "reasoning": {
+                                  "type": "string"
+                                },
+                                "speed": {
+                                  "enum": [
+                                    "normal",
+                                    "fast"
+                                  ],
                                   "type": "string"
                                 }
                               },
@@ -263599,6 +264051,13 @@
                                     },
                                     "reasoning": {
                                       "type": "string"
+                                    },
+                                    "speed": {
+                                      "enum": [
+                                        "normal",
+                                        "fast"
+                                      ],
+                                      "type": "string"
                                     }
                                   },
                                   "type": "object"
@@ -263612,6 +264071,13 @@
                                       "type": "string"
                                     },
                                     "reasoning": {
+                                      "type": "string"
+                                    },
+                                    "speed": {
+                                      "enum": [
+                                        "normal",
+                                        "fast"
+                                      ],
                                       "type": "string"
                                     }
                                   },
@@ -263646,6 +264112,13 @@
                                         "type": "string"
                                       },
                                       "reasoning": {
+                                        "type": "string"
+                                      },
+                                      "speed": {
+                                        "enum": [
+                                          "normal",
+                                          "fast"
+                                        ],
                                         "type": "string"
                                       }
                                     },
@@ -263752,6 +264225,13 @@
                                         "type": "string"
                                       },
                                       "reasoning": {
+                                        "type": "string"
+                                      },
+                                      "speed": {
+                                        "enum": [
+                                          "normal",
+                                          "fast"
+                                        ],
                                         "type": "string"
                                       }
                                     },
@@ -263870,6 +264350,13 @@
                                       },
                                       "reasoning": {
                                         "type": "string"
+                                      },
+                                      "speed": {
+                                        "enum": [
+                                          "normal",
+                                          "fast"
+                                        ],
+                                        "type": "string"
                                       }
                                     },
                                     "type": "object"
@@ -263895,6 +264382,13 @@
                                     },
                                     "reasoning": {
                                       "type": "string"
+                                    },
+                                    "speed": {
+                                      "enum": [
+                                        "normal",
+                                        "fast"
+                                      ],
+                                      "type": "string"
                                     }
                                   },
                                   "type": "object"
@@ -263908,6 +264402,13 @@
                                       "type": "string"
                                     },
                                     "reasoning": {
+                                      "type": "string"
+                                    },
+                                    "speed": {
+                                      "enum": [
+                                        "normal",
+                                        "fast"
+                                      ],
                                       "type": "string"
                                     }
                                   },
@@ -263942,6 +264443,13 @@
                                         "type": "string"
                                       },
                                       "reasoning": {
+                                        "type": "string"
+                                      },
+                                      "speed": {
+                                        "enum": [
+                                          "normal",
+                                          "fast"
+                                        ],
                                         "type": "string"
                                       }
                                     },
@@ -264391,6 +264899,13 @@
                                     },
                                     "reasoning": {
                                       "type": "string"
+                                    },
+                                    "speed": {
+                                      "enum": [
+                                        "normal",
+                                        "fast"
+                                      ],
+                                      "type": "string"
                                     }
                                   },
                                   "type": "object"
@@ -264404,6 +264919,13 @@
                                       "type": "string"
                                     },
                                     "reasoning": {
+                                      "type": "string"
+                                    },
+                                    "speed": {
+                                      "enum": [
+                                        "normal",
+                                        "fast"
+                                      ],
                                       "type": "string"
                                     }
                                   },
@@ -264438,6 +264960,13 @@
                                         "type": "string"
                                       },
                                       "reasoning": {
+                                        "type": "string"
+                                      },
+                                      "speed": {
+                                        "enum": [
+                                          "normal",
+                                          "fast"
+                                        ],
                                         "type": "string"
                                       }
                                     },
@@ -264544,6 +265073,13 @@
                                         "type": "string"
                                       },
                                       "reasoning": {
+                                        "type": "string"
+                                      },
+                                      "speed": {
+                                        "enum": [
+                                          "normal",
+                                          "fast"
+                                        ],
                                         "type": "string"
                                       }
                                     },
@@ -265515,6 +266051,13 @@
                                     },
                                     "reasoning": {
                                       "type": "string"
+                                    },
+                                    "speed": {
+                                      "enum": [
+                                        "normal",
+                                        "fast"
+                                      ],
+                                      "type": "string"
                                     }
                                   },
                                   "type": "object"
@@ -265528,6 +266071,13 @@
                                       "type": "string"
                                     },
                                     "reasoning": {
+                                      "type": "string"
+                                    },
+                                    "speed": {
+                                      "enum": [
+                                        "normal",
+                                        "fast"
+                                      ],
                                       "type": "string"
                                     }
                                   },
@@ -265562,6 +266112,13 @@
                                         "type": "string"
                                       },
                                       "reasoning": {
+                                        "type": "string"
+                                      },
+                                      "speed": {
+                                        "enum": [
+                                          "normal",
+                                          "fast"
+                                        ],
                                         "type": "string"
                                       }
                                     },
@@ -265668,6 +266225,13 @@
                                         "type": "string"
                                       },
                                       "reasoning": {
+                                        "type": "string"
+                                      },
+                                      "speed": {
+                                        "enum": [
+                                          "normal",
+                                          "fast"
+                                        ],
                                         "type": "string"
                                       }
                                     },
@@ -265786,6 +266350,13 @@
                                       },
                                       "reasoning": {
                                         "type": "string"
+                                      },
+                                      "speed": {
+                                        "enum": [
+                                          "normal",
+                                          "fast"
+                                        ],
+                                        "type": "string"
                                       }
                                     },
                                     "type": "object"
@@ -265811,6 +266382,13 @@
                                     },
                                     "reasoning": {
                                       "type": "string"
+                                    },
+                                    "speed": {
+                                      "enum": [
+                                        "normal",
+                                        "fast"
+                                      ],
+                                      "type": "string"
                                     }
                                   },
                                   "type": "object"
@@ -265824,6 +266402,13 @@
                                       "type": "string"
                                     },
                                     "reasoning": {
+                                      "type": "string"
+                                    },
+                                    "speed": {
+                                      "enum": [
+                                        "normal",
+                                        "fast"
+                                      ],
                                       "type": "string"
                                     }
                                   },
@@ -265858,6 +266443,13 @@
                                         "type": "string"
                                       },
                                       "reasoning": {
+                                        "type": "string"
+                                      },
+                                      "speed": {
+                                        "enum": [
+                                          "normal",
+                                          "fast"
+                                        ],
                                         "type": "string"
                                       }
                                     },
@@ -266307,6 +266899,13 @@
                                     },
                                     "reasoning": {
                                       "type": "string"
+                                    },
+                                    "speed": {
+                                      "enum": [
+                                        "normal",
+                                        "fast"
+                                      ],
+                                      "type": "string"
                                     }
                                   },
                                   "type": "object"
@@ -266320,6 +266919,13 @@
                                       "type": "string"
                                     },
                                     "reasoning": {
+                                      "type": "string"
+                                    },
+                                    "speed": {
+                                      "enum": [
+                                        "normal",
+                                        "fast"
+                                      ],
                                       "type": "string"
                                     }
                                   },
@@ -266354,6 +266960,13 @@
                                         "type": "string"
                                       },
                                       "reasoning": {
+                                        "type": "string"
+                                      },
+                                      "speed": {
+                                        "enum": [
+                                          "normal",
+                                          "fast"
+                                        ],
                                         "type": "string"
                                       }
                                     },
@@ -266460,6 +267073,13 @@
                                         "type": "string"
                                       },
                                       "reasoning": {
+                                        "type": "string"
+                                      },
+                                      "speed": {
+                                        "enum": [
+                                          "normal",
+                                          "fast"
+                                        ],
                                         "type": "string"
                                       }
                                     },
@@ -267967,6 +268587,13 @@
                                   },
                                   "reasoning": {
                                     "type": "string"
+                                  },
+                                  "speed": {
+                                    "enum": [
+                                      "normal",
+                                      "fast"
+                                    ],
+                                    "type": "string"
                                   }
                                 },
                                 "type": "object"
@@ -267980,6 +268607,13 @@
                                     "type": "string"
                                   },
                                   "reasoning": {
+                                    "type": "string"
+                                  },
+                                  "speed": {
+                                    "enum": [
+                                      "normal",
+                                      "fast"
+                                    ],
                                     "type": "string"
                                   }
                                 },
@@ -268014,6 +268648,13 @@
                                       "type": "string"
                                     },
                                     "reasoning": {
+                                      "type": "string"
+                                    },
+                                    "speed": {
+                                      "enum": [
+                                        "normal",
+                                        "fast"
+                                      ],
                                       "type": "string"
                                     }
                                   },
@@ -268120,6 +268761,13 @@
                                       "type": "string"
                                     },
                                     "reasoning": {
+                                      "type": "string"
+                                    },
+                                    "speed": {
+                                      "enum": [
+                                        "normal",
+                                        "fast"
+                                      ],
                                       "type": "string"
                                     }
                                   },

@@ -226,7 +226,7 @@ func validatePinnedActionContract(
 	meta["current_output_schema_digest"] = strings.TrimSpace(descriptor.OutputSchemaDigest)
 	return reasonError(
 		ReasonCodeActionContractStale,
-		fmt.Errorf("%w: action tool contract changed after Start", ErrActionSchemaInvalid),
+		fmt.Errorf("%w: action tool contract changed after Start", ErrActionInvalidOutput),
 		meta,
 	)
 }

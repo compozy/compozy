@@ -15,7 +15,7 @@ func MaterializeContract(contract dsl.Contract, inputs map[string]any) (dsl.Cont
 	var err error
 	materialized.Goal, err = refs.RenderTemplateString("contract.goal", contract.Goal, namespace)
 	if err != nil {
-		return dsl.Contract{}, fmt.Errorf("materialize contract.goal: %w", err)
+		return dsl.Contract{}, fmt.Errorf("%w: materialize contract.goal: %w", ErrActionMaterialization, err)
 	}
 	materialized.DefinitionOfDone, err = refs.RenderTemplateString(
 		"contract.definition_of_done",
@@ -23,7 +23,11 @@ func MaterializeContract(contract dsl.Contract, inputs map[string]any) (dsl.Cont
 		namespace,
 	)
 	if err != nil {
-		return dsl.Contract{}, fmt.Errorf("materialize contract.definition_of_done: %w", err)
+		return dsl.Contract{}, fmt.Errorf(
+			"%w: materialize contract.definition_of_done: %w",
+			ErrActionMaterialization,
+			err,
+		)
 	}
 	materialized.Constraints, err = materializeContractLines(
 		"contract.constraints",
@@ -53,7 +57,7 @@ func materializeContractLines(
 	for index, line := range lines {
 		rendered, err := refs.RenderTemplateString(fmt.Sprintf("%s[%d]", prefix, index), line, namespace)
 		if err != nil {
-			return nil, fmt.Errorf("materialize %s[%d]: %w", prefix, index, err)
+			return nil, fmt.Errorf("%w: materialize %s[%d]: %w", ErrActionMaterialization, prefix, index, err)
 		}
 		materialized = append(materialized, rendered)
 	}

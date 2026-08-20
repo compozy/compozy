@@ -10,7 +10,7 @@ part of this journey.
 flowchart TD
     A([Start review-and-fix with task_name]) --> B[Reviewer returns structured issues]
     B --> V{Schema valid?}
-    V -->|No| X[Fail action_schema_invalid; write no partial round]
+    V -->|No| X[Fail invalid_output; write no partial round]
     V -->|Yes| C{Any issues?}
     C -->|No| D([True end: terminal done])
     C -->|Yes| E[Write exclusive reviews-NNN artifact round]
@@ -58,7 +58,7 @@ journey:
   abandonment:
     - at_step: 2
       how: "The reviewer returns output that violates the declared schema."
-      resume: "The run fails with action_schema_invalid and no partial artifact round."
+      resume: "The run fails with invalid_output and no partial artifact round."
     - at_step: 3
       how: "A fixer omits a result or leaves an issue pending."
       resume: "The round remains unfinalized; correct the complete batch and start a new run."

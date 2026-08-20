@@ -9,6 +9,7 @@ import (
 
 	"github.com/compozy/compozy/internal/loop"
 	"github.com/compozy/compozy/internal/loop/dsl"
+	speedpkg "github.com/compozy/compozy/internal/speed"
 )
 
 // Execute advances ordinary Goal turns serially until the first control boundary.
@@ -54,7 +55,7 @@ func (e *Executor) initializeSegment(
 	if err := validateGoalParams(params); err != nil {
 		return nil, err
 	}
-	item, err := loop.ItemRuntimeFromNamespace(in.Namespace, params.Runtime)
+	item, err := loop.ItemRuntimeFromNamespace(in.Namespace, node.Params, params.Runtime)
 	if err != nil {
 		return nil, err
 	}
@@ -193,7 +194,11 @@ func (e *Executor) bindSegment(ctx context.Context, segment *segmentState) error
 				return fmt.Errorf("%w: managed Goal binding identity is incomplete", loop.ErrValidation)
 			}
 			segment.binding = binding
-			segment.resolvedRuntime = appliedGoalRuntime(segment.resolvedRuntime, binding.AppliedRuntime)
+			segment.resolvedRuntime = appliedGoalRuntime(
+				segment.resolvedRuntime,
+				binding.AppliedRuntime,
+				binding.SpeedResolution,
+			)
 			runtimeSelection := segment.input.RuntimeSelectionOrZero()
 			if runtimeSelection.Recorder != nil {
 				if err := runtimeSelection.Recorder.RecordAppliedRuntime(
@@ -278,6 +283,7 @@ func (e *Executor) actionSessionBindRequest(
 	if err != nil {
 		return loop.ActionSessionBindRequest{}, err
 	}
+	runtimeRequest := segment.resolvedRuntime.Runtime
 	return loop.ActionSessionBindRequest{
 		WorkspaceID:                    segment.key.WorkspaceID,
 		LoopRunID:                      segment.key.LoopRunID,
@@ -306,7 +312,7 @@ func (e *Executor) actionSessionBindRequest(
 		PinnedCreationDigest:           strings.TrimSpace(segment.input.OriginCreationDigest),
 		StaticPolicySpecDigest:         strings.TrimSpace(segment.input.OriginPolicySpecDigest),
 		Isolated:                       segment.node.Session != nil && segment.node.Session.Isolated,
-		Runtime:                        segment.resolvedRuntime.Runtime,
+		Runtime:                        &runtimeRequest,
 		MaxTurns:                       segment.params.MaxTurns,
 		ContractBlock:                  loop.RenderContractBlock(contract),
 		NetworkParticipation:           segment.input.NetworkParticipation,
@@ -359,8 +365,14 @@ func (e *Executor) rawResult(
 	}, nil
 }
 
-func appliedGoalRuntime(intent loop.ResolvedRuntime, applied loop.RuntimeSpec) loop.ResolvedRuntime {
-	resolved := loop.ResolvedRuntime{Runtime: applied, Source: intent.Source}
+func appliedGoalRuntime(
+	intent loop.ResolvedRuntime,
+	applied loop.RuntimeSpec,
+	speedResolution *speedpkg.Resolution,
+) loop.ResolvedRuntime {
+	resolved := loop.ResolvedRuntime{
+		Runtime: applied, Source: intent.Source, SpeedResolution: speedpkg.CloneResolution(speedResolution),
+	}
 	if strings.TrimSpace(intent.Runtime.Provider) == "" && strings.TrimSpace(applied.Provider) != "" {
 		resolved.Source.Provider = loop.RuntimeSourceAgent
 	}
@@ -369,6 +381,9 @@ func appliedGoalRuntime(intent loop.ResolvedRuntime, applied loop.RuntimeSpec) l
 	}
 	if strings.TrimSpace(intent.Runtime.Reasoning) == "" && strings.TrimSpace(applied.Reasoning) != "" {
 		resolved.Source.Reasoning = loop.RuntimeSourceAgent
+	}
+	if strings.TrimSpace(string(intent.Runtime.Speed)) == "" && applied.Speed != "" {
+		resolved.Source.Speed = loop.RuntimeSourceAgent
 	}
 	return resolved
 }

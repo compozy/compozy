@@ -50,6 +50,7 @@ func TestLoopActionRuntimeRetriesWorkspaceCapacityDeferral(t *testing.T) {
 		RunKind:     taskpkg.RunKindWorker,
 		Status:      taskpkg.TaskRunStatusQueued,
 		QueuedAt:    now,
+		Metadata:    json.RawMessage(`{"generation":1,"node_id":"work","item_index":0,"attempt":1,"epoch":0}`),
 	}
 	manager := &loopActionCapacityTestManager{completed: make(chan taskpkg.LeaseCompletion, 1), run: run}
 	runner := &loopActionCapacityTestRunner{}
@@ -216,6 +217,52 @@ func TestLoopActionRuntimeEnforcesActionLiveness(t *testing.T) {
 				manager.completedCalls.Load(),
 				manager.failure,
 			)
+		}
+	})
+
+	t.Run("Should fail invalid captured output before completing the lease", func(t *testing.T) {
+		t.Parallel()
+
+		manager, taskRecord, run := newLoopActionLivenessTestFixture()
+		run.Metadata = json.RawMessage(
+			`{"generation":1,"node_id":"work","item_index":0,"attempt":1,"epoch":0,` +
+				`"output_schema":{"type":"object","properties":{"status":{"type":"string"},` +
+				`"summary":{"type":"string"}},"required":["status","summary"]}}`,
+		)
+		manager.run = run
+		runner := &loopActionLivenessTestRunner{
+			completeAfter: time.Millisecond,
+			result:        json.RawMessage(`{"status":"done"}`),
+		}
+		runtime, err := newLoopActionRuntime(
+			manager,
+			&loopActionCapacityTestStore{taskRecord: taskRecord, run: run},
+			runner,
+			nil,
+			discardLogger(),
+			nil,
+		)
+		if err != nil {
+			t.Fatalf("newLoopActionRuntime() error = %v", err)
+		}
+
+		err = runtime.executeQueuedRun(context.Background(), taskRecord, run, loopActionRuntimeReasonEnqueued)
+		if !errors.Is(err, looppkg.ErrActionInvalidOutput) {
+			t.Fatalf("executeQueuedRun() error = %v, want ErrActionInvalidOutput", err)
+		}
+		if manager.completedCalls.Load() != 0 || manager.failure.RunID != run.ID {
+			t.Fatalf(
+				"completion/failure = %d/%#v, want failure without completion",
+				manager.completedCalls.Load(),
+				manager.failure,
+			)
+		}
+		var metadata loopActionFailureMetadata
+		if err := json.Unmarshal(manager.failure.Failure.Metadata, &metadata); err != nil {
+			t.Fatalf("json.Unmarshal(failure metadata) error = %v", err)
+		}
+		if metadata.ReasonCode != string(looppkg.ReasonCodeInvalidOutput) {
+			t.Fatalf("failure reason_code = %q, want invalid_output", metadata.ReasonCode)
 		}
 	})
 
@@ -474,6 +521,7 @@ func newLoopActionLivenessTestFixture() (
 		RunKind:     taskpkg.RunKindWorker,
 		Status:      taskpkg.TaskRunStatusQueued,
 		QueuedAt:    now,
+		Metadata:    json.RawMessage(`{"generation":1,"node_id":"work","item_index":0,"attempt":1,"epoch":0}`),
 	}
 	return &loopActionLivenessTestManager{run: run}, taskRecord, run
 }
@@ -701,6 +749,7 @@ type loopActionLivenessTestRunner struct {
 	completeAfter time.Duration
 	sessionID     string
 	executeErr    error
+	result        json.RawMessage
 }
 
 func (r *loopActionLivenessTestRunner) ActionRunTimeoutReason(
@@ -727,7 +776,7 @@ func (r *loopActionLivenessTestRunner) ExecuteActionRun(
 		defer timer.Stop()
 		select {
 		case <-timer.C:
-			return taskpkg.RunResult{TokensUsed: r.tokensUsed}, nil
+			return taskpkg.RunResult{Value: r.result, TokensUsed: r.tokensUsed}, nil
 		case <-ctx.Done():
 			return taskpkg.RunResult{TokensUsed: r.tokensUsed}, ctx.Err()
 		}

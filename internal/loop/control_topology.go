@@ -12,6 +12,8 @@ type controlTopology struct {
 	nodeFanOut   map[dsl.NodeID]dsl.NodeID
 	collectScope map[dsl.NodeID]dsl.NodeID
 	fanOutScopes map[dsl.NodeID]fanOutScope
+	historyNodes map[dsl.NodeID]any
+	historyGates map[string]struct{}
 }
 
 type fanOutScope struct {
@@ -21,12 +23,29 @@ type fanOutScope struct {
 }
 
 func newControlTopology(graph dsl.Graph) controlTopology {
+	return newDefinitionControlTopology(dsl.Definition{Graph: graph}, nil)
+}
+
+func newResolvedControlTopology(resolved *ResolvedDefinition) controlTopology {
+	if resolved == nil {
+		return newControlTopology(dsl.Graph{})
+	}
+	return newDefinitionControlTopology(resolved.Definition, resolved.ToolSchemas)
+}
+
+func newDefinitionControlTopology(
+	definition dsl.Definition,
+	toolSchemas map[string]ToolSchemaSnapshot,
+) controlTopology {
+	graph := definition.Graph
 	topology := controlTopology{
 		dependencies: graphDependencies(graph),
 		dependents:   graphDependents(graph),
 		nodeFanOut:   map[dsl.NodeID]dsl.NodeID{},
 		collectScope: map[dsl.NodeID]dsl.NodeID{},
 		fanOutScopes: map[dsl.NodeID]fanOutScope{},
+		historyNodes: historyNodeZeroValues(definition, toolSchemas),
+		historyGates: historyGateIDs(definition),
 	}
 	for _, node := range graph.Nodes {
 		if !isControlKind(node, dsl.ControlFanOut) {
