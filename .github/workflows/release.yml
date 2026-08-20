@@ -45,7 +45,7 @@ env:
   NODE_VERSION: "22"
   COSIGN_VERSION: "v3.1.3"
   INITIAL_VERSION: "v0.0.2"
-  PR_RELEASE_MODULE: github.com/compozy/releasepr@v0.0.28
+  PR_RELEASE_MODULE: github.com/compozy/releasepr@v0.0.29
   NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
   NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
 
