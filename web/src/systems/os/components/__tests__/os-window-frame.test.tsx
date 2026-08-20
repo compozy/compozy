@@ -215,4 +215,43 @@ describe("OsWindowFrame", () => {
     expect(document.querySelector('[data-slot="topbar-crumbs"]')).toBeNull();
     expect(screen.queryByRole("button", { name: "Back one level" })).toBeNull();
   });
+
+  it("Should cast a window shadow only on floating chrome", () => {
+    const classesOf = (node: HTMLElement) => node.className.split(/\s+/);
+    const { rerender } = render(
+      <OsWindowFrame title="Home" data-testid="frame">
+        <p>body</p>
+      </OsWindowFrame>
+    );
+    const frame = () => screen.getByTestId("frame");
+
+    expect(frame()).toHaveAttribute("data-kind", "floating");
+    expect(classesOf(frame())).toContain("shadow-window");
+
+    rerender(
+      <OsWindowFrame title="Home" focused={false} data-testid="frame">
+        <p>body</p>
+      </OsWindowFrame>
+    );
+    expect(frame()).toHaveAttribute("data-kind", "floating");
+    expect(classesOf(frame())).toContain("shadow-window-unfocused");
+
+    rerender(
+      <OsWindowFrame title="Home" kind="tiled" data-testid="frame">
+        <p>body</p>
+      </OsWindowFrame>
+    );
+    expect(frame()).toHaveAttribute("data-kind", "tiled");
+    expect(classesOf(frame())).not.toContain("shadow-window");
+    expect(classesOf(frame())).not.toContain("shadow-window-unfocused");
+
+    rerender(
+      <OsWindowFrame title="Home" kind="tiled" focused={false} data-testid="frame">
+        <p>body</p>
+      </OsWindowFrame>
+    );
+    expect(frame()).toHaveAttribute("data-kind", "tiled");
+    expect(classesOf(frame())).not.toContain("shadow-window");
+    expect(classesOf(frame())).not.toContain("shadow-window-unfocused");
+  });
 });

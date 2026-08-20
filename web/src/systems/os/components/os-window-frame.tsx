@@ -7,14 +7,17 @@ import { OsTrafficLights, type OsTrafficLightAction } from "./os-traffic-lights"
 
 /**
  * Outer shell chrome for one window frame (solo window or tab group): border,
- * radius, and cast shadow are the sanctioned shell carve-out; everything
- * inside stays flat. Presentational only — drag, z-order, and focus come from
- * the window manager.
+ * radius, and (for floating frames) the cast window shadow are the sanctioned
+ * shell carve-out. Tiled frames keep radius and border without a cast that
+ * cannot fit the layout gutters. Everything inside stays flat. Presentational
+ * only — drag, z-order, and focus come from the window manager.
  */
 export interface OsWindowChromeProps extends React.ComponentProps<"section"> {
   focused?: boolean;
   /** Compact (<960px): full-bleed stack surface — no border/radius/shadow. */
   presentation?: "floating" | "compact";
+  /** Tiled panes sit in the work-area gutters; floating frames lift off the wallpaper. */
+  kind?: "tiled" | "floating";
 }
 
 function targetsWindowChromeControl(target: EventTarget | null): boolean {
@@ -27,26 +30,28 @@ function targetsWindowChromeControl(target: EventTarget | null): boolean {
 export function OsWindowChrome({
   focused = true,
   presentation = "floating",
+  kind = "floating",
   className,
   children,
   onPointerDownCapture,
   ...props
 }: OsWindowChromeProps) {
   const compact = presentation === "compact";
+  const tiled = kind === "tiled";
   return (
     <section
       data-slot="os-window-frame"
       data-focused={focused ? "" : undefined}
       data-presentation={compact ? "compact" : undefined}
+      data-kind={kind}
       className={cn(
         "flex min-h-0 flex-col overflow-hidden bg-canvas",
         compact
           ? "rounded-none border-0 shadow-none"
           : [
               "rounded-window border",
-              focused
-                ? "border-line-focus shadow-window"
-                : "border-line-strong shadow-window-unfocused",
+              focused ? "border-line-focus" : "border-line-strong",
+              tiled ? "shadow-none" : focused ? "shadow-window" : "shadow-window-unfocused",
             ],
         className
       )}

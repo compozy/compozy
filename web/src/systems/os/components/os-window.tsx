@@ -124,6 +124,7 @@ export function OsWindow({ frame }: OsWindowProps) {
         ref={chromeRef}
         focused={focused}
         presentation={presentation}
+        kind={frame.kind}
         // Reduced opacity plus a slight shrink while dragging keeps the merge
         // and snap affordances underneath readable through the moving frame.
         className={cn(
