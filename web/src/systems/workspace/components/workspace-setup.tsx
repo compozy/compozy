@@ -67,7 +67,6 @@ function WorkspaceSetupDialog({ open, onOpenChange, model }: WorkspaceSetupDialo
           <EntityDialogFooter
             cancelDisabled={isSubmitting}
             cancelTestId="workspace-setup-cancel"
-            hint="Registration is instant — sessions can launch here right away."
             isSaving={setup.submissionMode === "create"}
             onCancel={() => onOpenChange(false)}
             primaryDisabled={!setup.canSubmit}

@@ -48,7 +48,7 @@ A human/agent-operable surface — CLI, HTTP/SSE, UDS, or web UI — over the sa
 
 An external messaging or platform adapter (Slack, Discord, and peers). Do not call a bridge a `channel`: `channel` is the Compozy Network namespace and coordination-channel term.
 
-**UI label:** "connection".
+**UI label:** "Bridge" / "Bridges" — keep the product name. Do not alias to "connection" or "Connections".
 
 ---
 
@@ -150,7 +150,7 @@ Implemented providers are `local` and `daytona`. Provider lifecycle surfaces use
 
 Do not call this product feature an `environment`. Reserve `environment`, `env`, and `environment variable` for process-level variables and operating-system context.
 
-**UI label:** "Permissions" — profile-editor and dock label only; the canonical name stays `sandbox` in code, config (`[sandboxes.<name>]`), CLI, and docs. This alias collides with two live meanings that keep their own names: extension [Permissions](#permissions) (`permissions.requires`) and agent permission modes (`[permissions] mode`). Never use the alias on a surface where either could be meant.
+**UI label:** "Sandbox" — keep the product name on the dock, Go menu, window title, command palette, and profile-editor surface. Do not alias to "Permissions". Permissions remains a nested concept: extension [Permissions](#permissions) (`permissions.requires`), agent permission modes (`[permissions] mode`), and sandbox permission policy. Those meanings keep their own names and must not replace this surface.
 
 ---
 
@@ -494,10 +494,10 @@ This table mirrors the Surface Aliases table in `COPY.md` §6. The two are one t
 | --- | --- | --- |
 | `daemon` | "CompozyOS" / "CompozyOS is running" | Never "daemon" in end-user UI. |
 | `workspace` | "project" | Alias may NOT be "environment" — reserved for process-level variables and operating-system context (see [Sandbox](#sandbox)). |
-| `bridge` | "connection" | Alias may NOT be "channel" — `channel` is the Compozy Network namespace, not an adapter. |
+| `bridge` | keep | The product surface is Bridges. Do not alias to "connection" or "Connections". Alias may NOT be "channel" — `channel` is the Compozy Network namespace, not an adapter. |
 | `event ledger` | "history" | Use only where the implementation actually exposes the event trail. |
 | `tool registry` / `toolset` | "what agents are allowed to do" | A descriptive gloss, not a label swap. |
-| `sandbox` (profile editor surface) | "Permissions" | Dock label only; canonical stays `sandbox`. Collides with extension [Permissions](#permissions) (`permissions.requires`) and agent permission modes (`[permissions] mode`), which keep their names in code, config, CLI, and docs. |
+| `sandbox` | keep | The product surface is Sandbox. Do not alias to "Permissions". Permissions remains a nested concept (extension [Permissions](#permissions), `[permissions] mode`, sandbox permission policy) and must not replace this surface name. |
 | `control surface` | — drop from UI | Internal vocabulary; stays the runtime term in specs and docs. |
 | `capability` | keep + define on first use | Wire identity `(peer_id, capability_id)` unchanged. `recipe`, `procedure`, and `playbook` stay forbidden everywhere. |
 | `session` | keep + gloss on first use | Already everyday English. |

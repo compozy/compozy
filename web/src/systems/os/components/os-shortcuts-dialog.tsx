@@ -131,10 +131,7 @@ export function OsShortcutsDialog({ open, onOpenChange }: OsShortcutsDialogProps
                     <dt className="text-small-body text-fg">{row.label}</dt>
                     <dd className="inline-flex gap-1">
                       {row.keys.map(key => (
-                        <Kbd
-                          className="inline-flex h-5 min-w-5 items-center justify-center rounded-sm border border-dashed border-line-strong px-1 font-mono text-mono-id text-muted"
-                          key={key}
-                        >
+                        <Kbd className="border-dashed border-line-strong bg-transparent" key={key}>
                           {key.includes("+") ? shortcutLabel(key, primaryModifier) : key}
                         </Kbd>
                       ))}

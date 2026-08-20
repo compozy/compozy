@@ -6,7 +6,7 @@ persona: Bruno
 journey: J-24
 expected: `/jobs` and `/triggers` render as ListingPage catalogs (PageHead + ListingToolbar search/filters/view + rows/cards) instead of SplitPane master-detail; row click opens `/jobs/$jobId` or `/triggers/$triggerId` with breadcrumb parent link; Create CTA stays in topbar actions; `?create=loop&loop=` from Loop detail still opens the create editor seeded at that Loop; dynamic Edit/Delete remain source-gated detail actions, and Run now is available only for Jobs.
 entry_points: web `/jobs`; web `/triggers`; Loop detail Add schedule/trigger CTAs
-qa_status: pass
+qa_status: untested
 bug_ids:
 fix_status:
 retest_status:
@@ -54,3 +54,6 @@ breadcrumb, Create CTA, and the Loop create seed. Status reset to untested pendi
 QA 2026-08-15: an isolated Bruno walk passed the Triggers catalog search and
 clear flow, row-to-detail navigation, breadcrumb/back/forward behavior, managed
 trigger controls, and the Jobs canary. Run now appeared only on the Job detail.
+
+QA impact 2026-08-20: catalog ListingToolbar search height now uses `--height-search`
+(28px) to match RouteNav / Filter / view pills. Reset the listing chrome walk.

@@ -79,7 +79,6 @@ export function AutomationSettingsPage() {
 
   return (
     <SettingsPageFrame
-      description="Scheduled jobs and event triggers CompozyOS runs on its own."
       meta={[
         {
           key: "jobs",
@@ -200,11 +199,7 @@ function AutomationHero({ runtime }: { runtime: AutomationRuntime }) {
 
 function ManageSection({ runtime }: { runtime: AutomationRuntime }) {
   return (
-    <SettingsGroup
-      data-testid="settings-page-automation-operational-links"
-      description="Jobs and triggers live in their own views; this page owns the engine itself."
-      title="Manage"
-    >
+    <SettingsGroup data-testid="settings-page-automation-operational-links" title="Manage">
       <SettingLinkRow
         data-testid="settings-page-automation-link-jobs"
         description={`${runtime.job_total} defined, ${runtime.job_enabled} enabled`}
@@ -228,11 +223,10 @@ interface DraftSectionProps {
 
 function EngineSection({ draft, setDraft }: DraftSectionProps) {
   return (
-    <SettingsGroup title="Engine" description="persisted to config.toml">
+    <SettingsGroup title="Engine">
       <SettingsFieldRow
         data-testid="settings-page-automation-enabled"
         label="Run automation"
-        description="Runs jobs and triggers on CompozyOS"
         control={
           <Switch
             data-testid="settings-page-automation-enabled-switch"
@@ -249,7 +243,7 @@ function EngineSection({ draft, setDraft }: DraftSectionProps) {
       <SettingsFieldRow
         data-testid="settings-page-automation-timezone"
         label="Schedule timezone"
-        description="Used for cron schedule resolution"
+        help="Used for cron schedule resolution"
         control={
           <Input
             className="w-56 font-mono"
@@ -279,11 +273,11 @@ function LimitsSection({
   setValidationError: (key: string) => (message: string | null) => void;
 }) {
   return (
-    <SettingsGroup title="Limits" description="resource caps">
+    <SettingsGroup title="Limits">
       <SettingsFieldRow
         data-testid="settings-page-automation-max-concurrent"
         label="Max jobs at once"
-        description={
+        help={
           <span className="inline-flex flex-wrap items-center gap-1.5">
             Caps the number of jobs running simultaneously
             <SettingsProvChip>automation.max_concurrent_jobs</SettingsProvChip>
@@ -312,7 +306,7 @@ function LimitsSection({
       <SettingsFieldRow
         data-testid="settings-page-automation-fire-limit-max"
         label="Default fire limit"
-        description={
+        help={
           <span className="inline-flex flex-wrap items-center gap-1.5">
             Maximum invocations per window for new triggers
             <SettingsProvChip>automation.default_fire_limit</SettingsProvChip>

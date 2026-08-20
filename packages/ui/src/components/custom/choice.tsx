@@ -47,7 +47,7 @@ function ChoiceKey({ children, className, ...props }: React.ComponentProps<"kbd"
       data-slot="choice-key"
       className={cn(
         "grid size-[18px] shrink-0 place-items-center rounded-xs border border-line",
-        "font-mono text-mono-id text-subtle tabular-nums",
+        "font-keys text-kbd text-subtle tabular-nums",
         className
       )}
       {...props}

@@ -6,7 +6,7 @@ persona: Bruno
 journey: J-isolated-task-loop-execution
 expected: The task setup sheet exposes the worktree policy in the Environment fieldset with the locked mode vocabulary, offers only same-workspace ready worktrees for a named reference, flags a reference that no longer resolves, and locks every control while a run is active. The policy is written through its own patch route so saving unrelated setup fields never overwrites it, and the profile view reads the policy back.
 entry_points: S10 Task detail -> Setup -> Environment -> Worktree
-qa_status: pass
+qa_status: untested
 bug_ids:
 fix_status:
 retest_status:
@@ -17,3 +17,5 @@ overlaps: TA-task-per-run-worktree-isolation; TA-task-fanout-worktree-isolation
 ---
 
 QA impact: Task 07 adds the task worktree policy fieldset, its read row, and the patch-only write path.
+
+QA impact 2026-08-20: "Comma-separated agent names." moved into HelpTips on Allowed agents and Allowed reviewers. Sheet one-liner and locked-while-running banner kept. Reset to untested.

@@ -7,7 +7,6 @@ import {
   Button,
   EntityDialogBody,
   EntityDialogFooter,
-  EntityDialogToolbar,
   Field,
   FieldLabel,
   FormSection,
@@ -177,17 +176,6 @@ export function AutomationJobForm({
       data-testid="automation-job-form"
       onSubmit={form.handleSubmit}
     >
-      <EntityDialogToolbar
-        trailing={
-          <WorkspaceScopeStatement
-            destination={destination}
-            kind={mode === "edit" ? "edit" : "create"}
-            scope={draft.scope}
-            variant="chip"
-          />
-        }
-      />
-
       <EntityDialogBody data-testid="automation-job-form-body">
         {view === "preview" ? (
           <JobPreview preview={form.preview} />
@@ -262,7 +250,7 @@ export function AutomationJobForm({
             </FormSection>
 
             <FormSection
-              description="All times evaluate in UTC, the runtime's automation timezone."
+              help="All times evaluate in UTC, the runtime's automation timezone."
               icon={Clock}
               title="On this schedule"
             >
@@ -344,10 +332,12 @@ export function AutomationJobForm({
 
       <EntityDialogFooter
         hint={
-          <>
-            Created as a <b className="font-medium text-muted">dynamic</b> job: editable,
-            disable-able, and deletable anytime.
-          </>
+          <WorkspaceScopeStatement
+            destination={destination}
+            kind={mode === "edit" ? "edit" : "create"}
+            scope={draft.scope}
+            variant="note"
+          />
         }
         isSaving={isPending}
         leading={

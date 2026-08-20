@@ -93,12 +93,8 @@ function AvailabilitySection({ draft, setDraft }: DraftSectionProps) {
       <SettingsFieldRow
         data-testid="settings-page-network-enabled"
         label="Embedded network"
-        description={
-          <span className="inline-flex flex-wrap items-center gap-1.5">
-            Allow explicitly Live executions to join coordination conversations
-            <SettingsLiveChip />
-          </span>
-        }
+        help="Allow explicitly Live executions to join coordination conversations"
+        description={<SettingsLiveChip />}
         control={
           <Switch
             aria-label="Embedded network"
@@ -119,7 +115,7 @@ function DeliverySafetySection({
   setValidationError,
 }: NetworkSettingsSectionsProps) {
   return (
-    <SettingsGroup title="Delivery safety" description="replay protection">
+    <SettingsGroup title="Delivery safety">
       <SettingsFieldRow
         label="Accept replayed messages within"
         description="Messages older than this window are rejected"
@@ -143,7 +139,6 @@ function DeliverySafetySection({
       />
       <SettingLinkRow
         data-testid="settings-page-network-link-network"
-        description="Channels, peers, and live coordination for this workspace."
         label="Open the network view"
         render={<Link to="/network" />}
       />

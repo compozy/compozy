@@ -6,7 +6,7 @@ persona: Bruno
 journey: J-marketplace-acquisition
 expected: Search filters only the active kind and scope, a failed kind owns its recoverable error state, and an all-zero query offers one clear-search action without changing kind or scope.
 entry_points: /marketplace/<kind>?q=<query>; Marketplace kind search field
-qa_status: pass
+qa_status: untested
 bug_ids: BUG-20260714-keyboard-focus-invisible
 fix_status: fixed
 retest_status: pass
@@ -43,3 +43,6 @@ search. Verify the shortcut from the page body while preserving normal typing in
 
 QA impact 2026-08-02: the active-kind union lost the retired kind. Reset to verify isolation,
 pagination, keyboard focus, and recovery across the surviving three kinds.
+
+QA impact 2026-08-20: Marketplace kind ListingToolbar search height now uses `--height-search`
+(28px) to match RouteNav and scope pills. Reset the kind-search chrome walk.

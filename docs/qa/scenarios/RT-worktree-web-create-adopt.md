@@ -6,7 +6,7 @@ persona: Ada
 journey: J-worktree-management
 expected: Creation is name-first with the generated name in the placeholder only, a live `branch → path` preview, and field-level name-collision, branch-held, and base-ref refusals; after acceptance, Cancel stays live until the exact row reaches ready, then the Web selects it and closes the dialog. A failed setup still completes as ready, while cancellation or materialization failure stays distinct. Selecting a discovered row confirms adoption, validates the linked checkout, refuses the main checkout without touching it, and does not re-run bootstrap.
 entry_points: S4 Workspace menu → New worktree; S1|S3 nest → discovered row; S2 overview menu → discovered row Adopt / New worktree footer row; S5 Worktree row/status
-qa_status: pass
+qa_status: untested
 bug_ids: BUG-20260813-pending-worktree-marked-missing; BUG-20260813-base-ref-accepted-before-validation
 fix_status: fixed
 retest_status: pass
@@ -63,3 +63,6 @@ including automatic selection/dialog close, pending cancellation, asynchronous r
 
 2026-08-14 targeted walk: `feature-analytics` reached ready, the dialog closed, the new worktree
 became the selected scope, and the selected identity survived a browser refresh.
+
+2026-08-20 qa-impact: New worktree name helper "Leave empty to accept {generatedName}" moved from a
+visible hint to a HelpTip beside the Name label. Reset to untested.

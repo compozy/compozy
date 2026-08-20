@@ -235,7 +235,7 @@ export const WorkspaceMenuOpen: Story = {
   render: () => <MenubarFixture overlay="workspace-menu" listing={MENUBAR_NEST_LISTING} />,
 };
 
-/** Global on: the menu lists project folders with no check, plus the scope notice. */
+/** Global on: the menu lists project folders with no check and no notices. */
 export const WorkspaceMenuOpenWhileGlobal: Story = {
   args: { workspace: { name: "Global", monogram: "~" } },
   render: () => (

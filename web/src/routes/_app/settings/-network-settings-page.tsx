@@ -69,7 +69,6 @@ export function NetworkSettingsPage() {
 
   return (
     <SettingsPageFrame
-      description="How CompozyOS talks to other agents over Compozy Network."
       meta={[
         {
           key: "status",

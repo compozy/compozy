@@ -159,6 +159,12 @@
      `web/src/**` and `packages/ui/src/**` — review-enforced, no lint rule.
      Site re-binds this to Playfair Display in `packages/site/app/global.css`. */
   --font-display: var(--font-sans);
+  /* Keyboard-key stack — system-first (SF Pro on macOS, Segoe UI on Windows)
+     so modifier glyphs (⌘ ⇧ ⌥ ⌃ ⏎ ⌫ ⇥ ⎋) and letters render from one face
+     with native menu metrics. The bundled Geist/JetBrains subsets ship none
+     of those code points, so mono-styled key caps fell through to per-glyph
+     system fallback with mismatched size and baseline. */
+  --font-keys: -apple-system, "BlinkMacSystemFont", "Segoe UI", "Geist Variable", sans-serif;
 
   /* Weight ladder. Medium is 510 (not 500) — OpenDesign UI medium: a soft
      half-step between Regular and classic Medium that `font-medium` maps to
@@ -181,6 +187,18 @@
      optically, so it steps down a size and takes positive tracking. */
   --text-eyebrow-caps: 0.6875rem; /* 11px */
   --text-eyebrow-caps--line-height: 1rem;
+  /* Keyboard-key cap tier — the one size every shortcut chip renders at.
+     Legibility comes from the single-face --font-keys stack (the old blur was
+     per-glyph fallback, not the point size); 10px regular keeps caps a quiet
+     secondary hint beside 13.5px labels — SF's key glyphs draw near full cap
+     height, so this tier sits below the text ramp on purpose. A dedicated
+     role token because --text-eyebrow is the lint-enforced structural-label
+     contract, never a key size. */
+  --text-kbd: 0.65625rem; /* 10.5px */
+  --text-kbd--line-height: 0.75rem;
+  /* Weight rides the token so every text-kbd caller inherits it: sub-11px SF
+     regular strokes too thin — medium (510) restores legibility at this size. */
+  --text-kbd--font-weight: 510;
   --text-display-2xl: 1.75rem; /* 28px */
   --text-display-2xl--line-height: 1;
   --text-site-lead: 1.1875rem; /* 19px */
@@ -252,6 +270,11 @@
   --tracking-eyebrow: -0.005em;
   --tracking-eyebrow-caps: 0.06em;
   --tracking-mono-id: 0;
+  /* Key-cap air — a chord renders as one glyph run (⌘⇧P) inside one cap;
+     positive tracking keeps adjacent symbols from blobbing into a single
+     mark at 12px. One step above --tracking-mono (0.02em): symbol-dense
+     runs need more separation than mono text. */
+  --tracking-kbd: 0.03em;
   /* Body baseline tracking — matches the `letter-spacing: -0.006em` set on
      `body` (see `:root` baseline below). Used by tabs label and any UI
      row that needs to read against body type without optical drift. */
@@ -342,10 +365,11 @@
 
   /* Form control geometry — the field-control ladder. Input / Select /
      NativeSelect / CommandSelect trigger = 36; compact (Select sm, NativeSelect
-     sm, Command input) = 32; search field = 32; textarea min body = 84. */
+     sm, Command input) = 32; toolbar search = 28 (RouteNav / PillGroup track
+     outer: 24px segment + 2px padding each side); textarea min body = 84. */
   --height-input: 36px;
   --height-control-compact: 32px;
-  --height-search: 32px;
+  --height-search: 28px;
   --height-textarea-min: 84px;
 
   /* Switch geometry — default vs sm. */
@@ -509,7 +533,6 @@
 
   /* Shell chrome geometry. */
   --height-menubar: 44px;
-  --height-menubar-chip: 26px;
   --size-dock-item: 46px;
   --size-dock-icon: 21px;
   --size-dock-badge: 15px;

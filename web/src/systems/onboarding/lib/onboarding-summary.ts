@@ -53,7 +53,7 @@ function workspacesSummary(workspaces: OnboardingSummaryInput["workspaces"]): On
   if (workspaces.length === 0) {
     return {
       label: "Workspaces",
-      value: "None yet — start in Global scope. Add project folders any time.",
+      value: "None yet",
       tone: "neutral",
     };
   }

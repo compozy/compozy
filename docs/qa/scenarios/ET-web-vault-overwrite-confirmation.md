@@ -6,7 +6,7 @@ persona: Dora
 journey: J-keep-secrets-contained
 expected: Add vault secret splits into a reference section (ref, kind) and a value section carrying a write-only secret field that is never prefilled from any read path. Typing a reference that already exists — compared after trimming, the same normalization the daemon applies — raises a warning notice stating that saving rotates the stored value and that the current value stays unreadable, plus an explicit "Confirm replacement" switch. Store secret stays disabled until that switch is on. Pointing the reference at a different value retracts the confirmation, so an affirmation for one secret cannot carry over to another. A brand-new reference shows no notice and saves directly. A failed write keeps the reference, kind, and typed value. Replacing an existing secret continues to happen in the vault inspect sheet; this dialog stays create-only.
 entry_points: web vault window → New secret
-qa_status: pass
+qa_status: untested
 bug_ids:
 fix_status:
 retest_status: pass

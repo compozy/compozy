@@ -24,12 +24,11 @@ export function PolicySection({ draft, setDraft, canMutate }: PolicySectionProps
     <>
       <SettingsGroup
         data-testid="settings-page-extensions-source-section"
-        description="The install sources CompozyOS accepts for published extensions."
         title="Where extensions come from"
       >
         <SettingsFieldRow
           data-testid="settings-page-extensions-policy-github-enabled"
-          description="Install extensions from GitHub releases"
+          help="Install extensions from GitHub releases"
           label="GitHub"
           control={
             <Switch
@@ -52,7 +51,7 @@ export function PolicySection({ draft, setDraft, canMutate }: PolicySectionProps
         />
         <SettingsFieldRow
           data-testid="settings-page-extensions-policy-github-base-url"
-          description="Endpoint used for GitHub installs and search"
+          help="Endpoint used for GitHub installs and search"
           label="GitHub API URL"
           control={
             <Input
@@ -75,7 +74,7 @@ export function PolicySection({ draft, setDraft, canMutate }: PolicySectionProps
         />
         <SettingsFieldRow
           data-testid="settings-page-extensions-policy-git-enabled"
-          description="Install extensions by cloning a Git repository"
+          help="Install extensions by cloning a Git repository"
           label="Git"
           control={
             <Switch
@@ -102,12 +101,8 @@ export function PolicySection({ draft, setDraft, canMutate }: PolicySectionProps
       >
         <SettingsFieldRow
           data-testid="settings-page-extensions-policy-allow-unverified"
-          description={
-            <span className="inline-flex flex-wrap items-center gap-1.5">
-              Unverified extensions can be installed after an explicit warning
-              <SettingsLiveChip />
-            </span>
-          }
+          help="Unverified extensions can be installed after an explicit warning"
+          description={<SettingsLiveChip />}
           label="Allow unverified extensions"
           control={
             <Switch
@@ -127,14 +122,9 @@ export function PolicySection({ draft, setDraft, canMutate }: PolicySectionProps
         />
       </SettingsGroup>
 
-      <SettingsGroup
-        data-testid="settings-page-extensions-manage-section"
-        description="Install, update, and remove extensions from the marketplace view."
-        title="Manage"
-      >
+      <SettingsGroup data-testid="settings-page-extensions-manage-section" title="Manage">
         <SettingLinkRow
           data-testid="settings-page-extensions-link-installed"
-          description="Everything installed on this machine."
           label="Installed extensions"
           render={<Link to="/marketplace/extensions" />}
         />

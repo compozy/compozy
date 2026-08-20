@@ -1,4 +1,4 @@
-import { Field, FieldContent, FieldDescription, FieldLabel, RequiredMark } from "@compozy/ui";
+import { Field, FieldLabel, RequiredMark } from "@compozy/ui";
 
 import { AgentCommandSelect, type AgentPayload } from "@/systems/agent";
 
@@ -32,15 +32,10 @@ function SessionCreateSimpleSection({
 
   return (
     <Field>
-      <FieldContent>
-        <FieldLabel htmlFor="session-create-agent">
-          Agent
-          <RequiredMark />
-        </FieldLabel>
-        <FieldDescription>
-          The agent owns the instructions and tools for this session.
-        </FieldDescription>
-      </FieldContent>
+      <FieldLabel htmlFor="session-create-agent">
+        Agent
+        <RequiredMark />
+      </FieldLabel>
       <AgentCommandSelect
         agents={agents}
         disabled={!workspaceSelected || !hasAgents || isSubmitting}

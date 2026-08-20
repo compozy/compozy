@@ -216,7 +216,7 @@ function ContextMenuShortcut({ className, ...props }: React.ComponentProps<"span
     <span
       data-slot="context-menu-shortcut"
       className={cn(
-        "ml-auto font-mono text-badge tracking-mono text-faint group-focus/context-menu-item:text-fg",
+        "ml-auto font-keys text-kbd tracking-kbd text-faint group-focus/context-menu-item:text-fg",
         className
       )}
       {...props}

@@ -20,12 +20,12 @@ function renderRecallSection({
   return (
     <SettingsGroup
       title="Recall pipeline"
-      description="deterministic FTS5 + scope-shadow + freshness banner"
+      help="deterministic FTS5 + scope-shadow + freshness banner"
     >
       <SettingsFieldRow
         data-testid={`${TEST_PREFIX}-recall-top-k`}
         label="Top-K"
-        description="Curated entries surfaced per recall after fusion"
+        help="Curated entries surfaced per recall after fusion"
         error={validationErrors.recallTopK ?? undefined}
         control={
           <SettingsNumberInput
@@ -49,7 +49,7 @@ function renderRecallSection({
       <SettingsFieldRow
         data-testid={`${TEST_PREFIX}-recall-raw-candidates`}
         label="Raw candidates"
-        description="Pre-fusion candidate pool size pulled from each FTS lane"
+        help="Pre-fusion candidate pool size pulled from each FTS lane"
         error={validationErrors.recallRawCandidates ?? undefined}
         control={
           <SettingsNumberInput
@@ -95,7 +95,7 @@ function renderRecallSection({
       <SettingsFieldRow
         data-testid={`${TEST_PREFIX}-recall-include-already-surfaced`}
         label="Include already surfaced"
-        description="Re-include entries already injected this session"
+        help="Re-include entries already injected this session"
         control={
           <Switch
             data-testid={`${TEST_PREFIX}-recall-include-already-surfaced-switch`}
@@ -115,7 +115,7 @@ function renderRecallSection({
       <SettingsFieldRow
         data-testid={`${TEST_PREFIX}-recall-include-system`}
         label="Include _system entries"
-        description="Surface dreaming, extractor, and ad-hoc files (normally hidden)"
+        help="Surface dreaming, extractor, and ad-hoc files (normally hidden)"
         control={
           <Switch
             data-testid={`${TEST_PREFIX}-recall-include-system-switch`}
@@ -135,7 +135,7 @@ function renderRecallSection({
       <SettingsFieldRow
         data-testid={`${TEST_PREFIX}-recall-weight-bm25-unicode`}
         label="Weight · BM25 unicode"
-        description="Score blend coefficient for the unicode FTS lane"
+        help="Score blend coefficient for the unicode FTS lane"
         error={validationErrors.recallWeightUnicode ?? undefined}
         control={
           <SettingsDecimalInput
@@ -164,7 +164,7 @@ function renderRecallSection({
       <SettingsFieldRow
         data-testid={`${TEST_PREFIX}-recall-weight-bm25-trigram`}
         label="Weight · BM25 trigram"
-        description="Score blend coefficient for the trigram FTS lane"
+        help="Score blend coefficient for the trigram FTS lane"
         error={validationErrors.recallWeightTrigram ?? undefined}
         control={
           <SettingsDecimalInput
@@ -193,7 +193,7 @@ function renderRecallSection({
       <SettingsFieldRow
         data-testid={`${TEST_PREFIX}-recall-weight-recency`}
         label="Weight · recency"
-        description="Score blend coefficient for the recency signal"
+        help="Score blend coefficient for the recency signal"
         error={validationErrors.recallWeightRecency ?? undefined}
         control={
           <SettingsDecimalInput
@@ -222,7 +222,7 @@ function renderRecallSection({
       <SettingsFieldRow
         data-testid={`${TEST_PREFIX}-recall-weight-recall-signal`}
         label="Weight · recall signal"
-        description="Score blend coefficient for prior-recall reinforcement"
+        help="Score blend coefficient for prior-recall reinforcement"
         error={validationErrors.recallWeightRecallSignal ?? undefined}
         control={
           <SettingsDecimalInput
@@ -251,7 +251,7 @@ function renderRecallSection({
       <SettingsFieldRow
         data-testid={`${TEST_PREFIX}-recall-banner-after-days`}
         label="Freshness banner after"
-        description="Days before a surfaced entry shows a staleness banner"
+        help="Days before a surfaced entry shows a staleness banner"
         error={validationErrors.recallBannerAfter ?? undefined}
         control={
           <SettingsNumberInput
@@ -278,7 +278,7 @@ function renderRecallSection({
       <SettingsFieldRow
         data-testid={`${TEST_PREFIX}-recall-signals-queue`}
         label="Signal queue capacity"
-        description="Bounded post-recall signal queue; oldest entries drop on overflow"
+        help="Bounded post-recall signal queue; oldest entries drop on overflow"
         error={validationErrors.recallSignalQueue ?? undefined}
         control={
           <SettingsNumberInput
@@ -305,7 +305,7 @@ function renderRecallSection({
       <SettingsFieldRow
         data-testid={`${TEST_PREFIX}-recall-signals-retry`}
         label="Signal retry max"
-        description="Per-update attempts before emitting a failed-signal event"
+        help="Per-update attempts before emitting a failed-signal event"
         error={validationErrors.recallSignalRetry ?? undefined}
         control={
           <SettingsNumberInput

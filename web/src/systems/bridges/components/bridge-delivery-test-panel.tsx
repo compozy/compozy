@@ -5,8 +5,9 @@ import {
   Button,
   Field,
   FieldContent,
-  FieldDescription,
+  FieldHeader,
   FieldTitle,
+  HelpTip,
   FormSection,
   Input,
   MetadataList,
@@ -153,18 +154,18 @@ export function BridgeDeliveryTestPanel({
   return (
     <FormSection
       data-testid="bridge-delivery-test-panel"
-      description={`Resolve a target without provider side effects, or send one real message through ${bridgeName ?? "this bridge"}.`}
+      help={`Resolve a target without provider side effects, or send one real message through ${bridgeName ?? "this bridge"}.`}
       icon={SearchCheck}
       title="Delivery test"
     >
       <Field>
-        <FieldContent>
+        <FieldHeader>
           <FieldTitle>Message</FieldTitle>
-          <FieldDescription>
+          <HelpTip label="About message">
             Optional for a dry run — it is echoed with the resolved target. Required to send a real
             message.
-          </FieldDescription>
-        </FieldContent>
+          </HelpTip>
+        </FieldHeader>
         <Textarea
           data-testid="test-delivery-message"
           onChange={event => onDraftChange({ ...draft, message: event.target.value })}

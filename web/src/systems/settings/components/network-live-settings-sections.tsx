@@ -28,7 +28,7 @@ export function NetworkLiveSettingsSections(props: NetworkLiveSettingsProps) {
   );
 }
 
-function rowDescription(text: string, configKey?: string) {
+function rowHelp(text: string, configKey?: string) {
   if (!configKey) return text;
   return (
     <span className="inline-flex flex-wrap items-center gap-1.5">
@@ -61,7 +61,7 @@ function LiveDefaultsSection({
     >
       <NumberRow
         label="Max wakes"
-        description={rowDescription("Wakes one Live participation may consume")}
+        help={rowHelp("Wakes one Live participation may consume")}
         testId="settings-page-network-live-default-max-wakes"
         value={draft.live.defaults.max_wakes}
         errorMessage={validationErrors.defaultMaxWakes ?? undefined}
@@ -70,7 +70,7 @@ function LiveDefaultsSection({
       />
       <NumberRow
         label="Max wake depth"
-        description={rowDescription("How deep wake chains may cascade")}
+        help={rowHelp("How deep wake chains may cascade")}
         testId="settings-page-network-live-default-max-depth"
         value={draft.live.defaults.max_wake_depth}
         errorMessage={validationErrors.defaultMaxDepth ?? undefined}
@@ -79,10 +79,7 @@ function LiveDefaultsSection({
       />
       <NumberRow
         label="Input token budget"
-        description={rowDescription(
-          "Prompt tokens per participation",
-          "live.defaults.max_input_tokens"
-        )}
+        help={rowHelp("Prompt tokens per participation", "live.defaults.max_input_tokens")}
         testId="settings-page-network-live-default-input-tokens"
         value={draft.live.defaults.max_input_tokens}
         errorMessage={validationErrors.defaultInputTokens ?? undefined}
@@ -91,7 +88,7 @@ function LiveDefaultsSection({
       />
       <NumberRow
         label="Output token budget"
-        description={rowDescription("Completion tokens per participation")}
+        help={rowHelp("Completion tokens per participation")}
         testId="settings-page-network-live-default-output-tokens"
         value={draft.live.defaults.max_output_tokens}
         errorMessage={validationErrors.defaultOutputTokens ?? undefined}
@@ -100,21 +97,21 @@ function LiveDefaultsSection({
       />
       <TextRow
         label="Wake timeout"
-        description={rowDescription("Wall time one wake may run")}
+        help={rowHelp("Wall time one wake may run")}
         testId="settings-page-network-live-default-wake-time"
         value={draft.live.defaults.max_wake_wall_time}
         onChange={value => update({ max_wake_wall_time: value })}
       />
       <TextRow
         label="Total timeout"
-        description={rowDescription("Wall time across the whole participation")}
+        help={rowHelp("Wall time across the whole participation")}
         testId="settings-page-network-live-default-total-time"
         value={draft.live.defaults.max_total_wall_time}
         onChange={value => update({ max_total_wall_time: value })}
       />
       <TextRow
         label="Coalesce window"
-        description={rowDescription("Burst messages merge into one wake inside this window")}
+        help={rowHelp("Burst messages merge into one wake inside this window")}
         testId="settings-page-network-live-default-coalesce"
         value={draft.live.defaults.coalesce_window}
         onChange={value => update({ coalesce_window: value })}
@@ -146,7 +143,7 @@ function LiveLimitsSection({
     >
       <NumberRow
         label="Max wakes"
-        description={rowDescription("Inclusive ceiling", "live.limits.max_wakes")}
+        help={rowHelp("Inclusive ceiling", "live.limits.max_wakes")}
         testId="settings-page-network-live-limit-max-wakes"
         value={draft.live.limits.max_wakes}
         errorMessage={validationErrors.limitMaxWakes ?? undefined}
@@ -155,7 +152,7 @@ function LiveLimitsSection({
       />
       <NumberRow
         label="Max wake depth"
-        description={rowDescription("Inclusive ceiling", "live.limits.max_wake_depth")}
+        help={rowHelp("Inclusive ceiling", "live.limits.max_wake_depth")}
         testId="settings-page-network-live-limit-max-depth"
         value={draft.live.limits.max_wake_depth}
         errorMessage={validationErrors.limitMaxDepth ?? undefined}
@@ -164,7 +161,7 @@ function LiveLimitsSection({
       />
       <NumberRow
         label="Input token budget"
-        description={rowDescription("Inclusive ceiling", "live.limits.max_input_tokens")}
+        help={rowHelp("Inclusive ceiling", "live.limits.max_input_tokens")}
         testId="settings-page-network-live-limit-input-tokens"
         value={draft.live.limits.max_input_tokens}
         errorMessage={validationErrors.limitInputTokens ?? undefined}
@@ -173,7 +170,7 @@ function LiveLimitsSection({
       />
       <NumberRow
         label="Output token budget"
-        description={rowDescription("Inclusive ceiling", "live.limits.max_output_tokens")}
+        help={rowHelp("Inclusive ceiling", "live.limits.max_output_tokens")}
         testId="settings-page-network-live-limit-output-tokens"
         value={draft.live.limits.max_output_tokens}
         errorMessage={validationErrors.limitOutputTokens ?? undefined}
@@ -182,34 +179,28 @@ function LiveLimitsSection({
       />
       <TextRow
         label="Wake timeout"
-        description={rowDescription("Inclusive ceiling", "live.limits.max_wake_wall_time")}
+        help={rowHelp("Inclusive ceiling", "live.limits.max_wake_wall_time")}
         testId="settings-page-network-live-limit-wake-time"
         value={draft.live.limits.max_wake_wall_time}
         onChange={value => update({ max_wake_wall_time: value })}
       />
       <TextRow
         label="Total timeout"
-        description={rowDescription("Inclusive ceiling", "live.limits.max_total_wall_time")}
+        help={rowHelp("Inclusive ceiling", "live.limits.max_total_wall_time")}
         testId="settings-page-network-live-limit-total-time"
         value={draft.live.limits.max_total_wall_time}
         onChange={value => update({ max_total_wall_time: value })}
       />
       <TextRow
         label="Minimum coalesce window"
-        description={rowDescription(
-          "Floor for per-execution coalescing",
-          "live.limits.min_coalesce_window"
-        )}
+        help={rowHelp("Floor for per-execution coalescing", "live.limits.min_coalesce_window")}
         testId="settings-page-network-live-limit-min-coalesce"
         value={draft.live.limits.min_coalesce_window}
         onChange={value => update({ min_coalesce_window: value })}
       />
       <TextRow
         label="Maximum coalesce window"
-        description={rowDescription(
-          "Ceiling for per-execution coalescing",
-          "live.limits.max_coalesce_window"
-        )}
+        help={rowHelp("Ceiling for per-execution coalescing", "live.limits.max_coalesce_window")}
         testId="settings-page-network-live-limit-max-coalesce"
         value={draft.live.limits.max_coalesce_window}
         onChange={value => update({ max_coalesce_window: value })}
@@ -220,7 +211,7 @@ function LiveLimitsSection({
 
 interface NumberRowProps {
   label: string;
-  description: React.ReactNode;
+  help: React.ReactNode;
   testId: string;
   value: number;
   errorMessage?: string;
@@ -232,7 +223,7 @@ function NumberRow(props: NumberRowProps) {
   return (
     <SettingsFieldRow
       label={props.label}
-      description={props.description}
+      help={props.help}
       error={props.errorMessage}
       control={
         <SettingsNumberInput
@@ -251,7 +242,7 @@ function NumberRow(props: NumberRowProps) {
 
 interface TextRowProps {
   label: string;
-  description: React.ReactNode;
+  help: React.ReactNode;
   testId: string;
   value: string;
   onChange: (value: string) => void;
@@ -261,7 +252,7 @@ function TextRow(props: TextRowProps) {
   return (
     <SettingsFieldRow
       label={props.label}
-      description={props.description}
+      help={props.help}
       control={
         <Input
           aria-label={props.label}

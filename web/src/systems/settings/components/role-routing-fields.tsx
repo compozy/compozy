@@ -43,14 +43,12 @@ export function RoleRoutingFields({
         <SettingsFieldRow
           data-testid={`${testId}-agent`}
           label="Agent"
+          help="Route to a catalog agent, or keep the role default."
           description={
-            <>
-              <span>Route to a catalog agent, or keep the role default.</span>
-              <RoleEffectiveHint
-                effective={vm.effective.agent ?? null}
-                emptyLabel="Resolves at invocation."
-              />
-            </>
+            <RoleEffectiveHint
+              effective={vm.effective.agent ?? null}
+              emptyLabel="Resolves at invocation."
+            />
           }
           control={
             <AgentCommandSelect
@@ -68,17 +66,15 @@ export function RoleRoutingFields({
       <SettingsFieldRow
         data-testid={`${testId}-runtime`}
         label={<span id={runtimeLabelId}>Runtime</span>}
+        help="Provider, model and reasoning effort for this role."
         description={
-          <>
-            <span>Provider, model and reasoning effort for this role.</span>
-            {noProviders ? (
-              <span className="mt-0.5 block text-form-hint text-warning">
-                No providers configured yet.
-              </span>
-            ) : (
-              <RoleEffectiveHint effective={vm.routeSummary} emptyLabel="Resolves at invocation." />
-            )}
-          </>
+          noProviders ? (
+            <span className="mt-0.5 block text-form-hint text-warning">
+              No providers configured yet.
+            </span>
+          ) : (
+            <RoleEffectiveHint effective={vm.routeSummary} emptyLabel="Resolves at invocation." />
+          )
         }
         control={
           <div className="flex items-center gap-2">

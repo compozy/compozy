@@ -44,3 +44,7 @@ The panel behaviors this file owns — focus containment, inert chrome, suppress
 runtime popover portaling above, the wake transition — are unchanged by the pass. Re-walk them
 alongside the copy, and read the whole panel at the new 15px baseline: the type lift reflows the
 two-pane workspace split, and the shell is where a first run either fits or clips.
+
+2026-08-20 qa-impact: workspace-step copy density (heading HelpTip; Skip/empty/footer no longer
+restate Global). Shell contract this file owns is unchanged. Status stays skipped per the
+explicit replay skip above.

@@ -145,7 +145,7 @@ export const RuledFooter: Story = {
     docs: {
       description: {
         story:
-          '`DialogFooter variant="ruled"` matches the header rule with `border-t border-line` and `px-5 py-3` rhythm so callers can compose flush primary/secondary actions inside `DialogContent unframed`.',
+          '`DialogFooter variant="ruled"` matches the header with `border-t border-line`, `px-5 py-3`, and the same `--color-canvas-soft` fill so the unframed shell is one surface.',
       },
     },
   },

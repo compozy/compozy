@@ -87,7 +87,6 @@ export function ProvidersSettingsPage() {
 
   return (
     <SettingsPageFrame
-      description="The agent CLIs and model providers your sessions run on. Each provider is saved on its own."
       meta={[
         {
           key: "ready",

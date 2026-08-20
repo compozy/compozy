@@ -38,7 +38,6 @@ export function HooksSettingsPage() {
     );
   return (
     <SettingsPageFrame
-      description="What CompozyOS does on lifecycle events — each hook applies the moment you flip it."
       meta={[
         {
           key: "hooks",

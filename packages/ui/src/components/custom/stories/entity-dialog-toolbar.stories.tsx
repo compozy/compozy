@@ -10,7 +10,7 @@ const meta: Meta<typeof EntityDialogToolbar> = {
     docs: {
       description: {
         component:
-          "The band between a modal header and its body (`.modebar`, modal-system.css:194). Rules only its bottom edge — a top border would stack against the ruled header's own and print a 2px seam. `EntityModeToolbar` composes this and adds the Simple/Advanced pills; surfaces with scope but no disclosure tier use this directly, so scope sits in the same place on every modal that has it.",
+          "Layout row between a modal header and its body. Unpainted on its own. `EntityModeToolbar` composes this, adds the Simple/Advanced pills, and paints the recessed `--color-canvas-tint` chrome strip. Trailing is compact status. Workspace scope belongs in the footer hint, not this row.",
       },
     },
   },
@@ -26,20 +26,15 @@ const meta: Meta<typeof EntityDialogToolbar> = {
 export default meta;
 type Story = StoryObj<typeof meta>;
 
-/** Stand-in for the domain-owned scope statement chip that fills this slot in production. */
-const scopeStatement = (
-  <span className="inline-flex h-7 items-center rounded-md border border-line bg-canvas-tint px-2.5 text-form-hint text-muted">
-    Creates in <span className="ml-1 font-medium text-fg-strong">launch-hq</span>
-  </span>
-);
+/** Stand-in for compact trailing status (source badge, usage count). */
+const statusLabel = <span className="font-mono text-form-label text-muted">overlay draft</span>;
 
 /**
- * Scope only — the automation editors, which have no disclosure tier. With
- * nothing on the leading edge the statement starts at the gutter.
+ * Trailing only — compact status with no disclosure tier.
  */
 export const TrailingOnly: Story = {
   args: {},
-  render: () => <EntityDialogToolbar trailing={scopeStatement} />,
+  render: () => <EntityDialogToolbar trailing={statusLabel} />,
 };
 
 /** With a leading control the trailing one is pushed to the far edge. */
@@ -59,12 +54,12 @@ export const LeadingAndTrailing: Story = {
           value="simple"
         />
       }
-      trailing={scopeStatement}
+      trailing={statusLabel}
     />
   ),
 };
 
-/** Empty bar — verifies the band keeps its height with no controls. */
+/** Empty layout row — the primitive stays unpainted without a mode control. */
 export const Empty: Story = {
   args: {},
   render: () => <EntityDialogToolbar />,

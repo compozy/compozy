@@ -1,6 +1,15 @@
 import { Bot } from "lucide-react";
 
-import { Field, FieldDescription, FieldError, FieldLabel, FormSection, Input } from "@compozy/ui";
+import {
+  Field,
+  FieldDescription,
+  FieldError,
+  FieldHeader,
+  FieldLabel,
+  FormSection,
+  HelpTip,
+  Input,
+} from "@compozy/ui";
 
 import type { AgentSettingsDraft, AgentSettingsValidation } from "../lib/agent-settings-draft";
 
@@ -20,12 +29,7 @@ export function AgentSettingsBasicsSection({
   onPatch,
 }: AgentSettingsBasicsSectionProps) {
   return (
-    <FormSection
-      data-testid="agent-settings-basics"
-      icon={Bot}
-      title="Basics"
-      description="Identity fields for this agent definition."
-    >
+    <FormSection data-testid="agent-settings-basics" icon={Bot} title="Basics">
       <Field>
         <FieldLabel htmlFor="agent-settings-name">Name</FieldLabel>
         <Input
@@ -39,7 +43,12 @@ export function AgentSettingsBasicsSection({
         <FieldDescription>Renaming is not supported.</FieldDescription>
       </Field>
       <Field data-invalid={Boolean(errors.categoryPath)}>
-        <FieldLabel htmlFor="agent-settings-category">Category path</FieldLabel>
+        <FieldHeader>
+          <FieldLabel htmlFor="agent-settings-category">Category path</FieldLabel>
+          <HelpTip label="About category path">
+            Slash-separated segments. Leave blank for uncategorized.
+          </HelpTip>
+        </FieldHeader>
         <Input
           id="agent-settings-category"
           data-testid="agent-settings-category"
@@ -50,9 +59,6 @@ export function AgentSettingsBasicsSection({
           onChange={event => onPatch({ categoryPath: event.target.value })}
           placeholder="ops/release"
         />
-        <FieldDescription>
-          Slash-separated segments. Leave blank for uncategorized.
-        </FieldDescription>
         <FieldError data-testid="agent-settings-category-error">{errors.categoryPath}</FieldError>
       </Field>
     </FormSection>

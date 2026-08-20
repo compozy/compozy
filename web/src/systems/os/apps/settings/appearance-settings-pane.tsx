@@ -3,8 +3,10 @@ import { useRef } from "react";
 import {
   Field,
   FieldDescription,
+  FieldHeader,
   FieldLabel,
   FieldTitle,
+  HelpTip,
   PageShell,
   Switch,
   cn,
@@ -122,12 +124,10 @@ export function AppearanceSettingsPane() {
       <div className="flex max-w-2xl flex-col gap-8" data-testid="os-appearance-pane">
         <Field>
           <FieldTitle>Wallpaper</FieldTitle>
-          <FieldDescription>Backdrop for the current shell session.</FieldDescription>
           <WallpaperPicker value={appearance.wallpaper} onChange={appearance.setWallpaper} />
         </Field>
         <Field>
           <FieldLabel htmlFor="os-appearance-magnify">Dock magnification</FieldLabel>
-          <FieldDescription>Dock icons lift and scale under the pointer.</FieldDescription>
           <div className="min-w-0">
             <Switch
               id="os-appearance-magnify"
@@ -138,12 +138,19 @@ export function AppearanceSettingsPane() {
           </div>
         </Field>
         <Field>
-          <FieldLabel htmlFor="os-appearance-reduce-motion">Reduce motion</FieldLabel>
-          <FieldDescription>
-            {appearance.systemReducedMotion
-              ? "Your system already prefers reduced motion — that preference wins while it is on."
-              : "Window, dock, and minimize animations become instant."}
-          </FieldDescription>
+          <FieldHeader>
+            <FieldLabel htmlFor="os-appearance-reduce-motion">Reduce motion</FieldLabel>
+            {appearance.systemReducedMotion ? null : (
+              <HelpTip label="About reduce motion">
+                Window, dock, and minimize animations become instant.
+              </HelpTip>
+            )}
+          </FieldHeader>
+          {appearance.systemReducedMotion ? (
+            <FieldDescription>
+              Your system already prefers reduced motion — that preference wins while it is on.
+            </FieldDescription>
+          ) : null}
           <div className="min-w-0">
             <Switch
               id="os-appearance-reduce-motion"

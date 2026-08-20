@@ -26,7 +26,6 @@ export interface ActiveWorkspaceResolution {
   chip: WorkspaceChipIdentity;
   toggleLocked: boolean;
   canDisableGlobal: boolean;
-  deletionNotice: string | null;
 }
 
 export function workspaceMonogram(name: string): string {
@@ -60,7 +59,6 @@ export function resolveActiveWorkspace(input: {
           : { name: "", monogram: "" },
       toggleLocked: true,
       canDisableGlobal: false,
-      deletionNotice: null,
     };
   }
   const { homeWorkspace, projectWorkspaces } = partitionProjectWorkspaces(
@@ -71,7 +69,6 @@ export function resolveActiveWorkspace(input: {
     ? projectWorkspaces.find(workspace => workspace.id === input.selectedWorkspaceId)
     : undefined;
   const toggleLocked = projectWorkspaces.length === 0;
-  const rememberedMissing = Boolean(input.selectedWorkspaceId) && rememberedWorkspace === undefined;
   const canDisableGlobal = rememberedWorkspace !== undefined && !toggleLocked;
 
   let scope: WorkspaceScopeMode = input.scope;
@@ -81,8 +78,6 @@ export function resolveActiveWorkspace(input: {
 
   const activeWorkspace = scope === "workspace" ? rememberedWorkspace : undefined;
   const runtimeWorkspace = scope === "global" ? homeWorkspace : activeWorkspace;
-  const deletionNotice =
-    scope === "global" && rememberedMissing ? GLOBAL_SCOPE_COPY.rememberedWorkspaceRemoved : null;
 
   return {
     scope,
@@ -104,6 +99,5 @@ export function resolveActiveWorkspace(input: {
           },
     toggleLocked,
     canDisableGlobal,
-    deletionNotice,
   };
 }

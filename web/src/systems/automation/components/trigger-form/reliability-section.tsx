@@ -48,8 +48,8 @@ export function ReliabilitySection({
         onChange={onFireLimitChange}
       />
       <ReliabilityEnabledField
-        description="Disabled triggers stay registered but never fire."
         enabled={enabled}
+        help="Disabled triggers stay registered but never fire."
         idPrefix="trigger"
         label="Trigger enabled"
         onChange={onEnabledChange}

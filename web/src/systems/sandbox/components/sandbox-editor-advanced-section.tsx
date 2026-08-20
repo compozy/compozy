@@ -1,11 +1,12 @@
 import {
   Field,
   FieldContent,
-  FieldDescription,
   FieldError,
+  FieldHeader,
   FieldLabel,
   FieldTitle,
   FormSection,
+  HelpTip,
   Input,
   NativeSelect,
   NativeSelectOption,
@@ -87,11 +88,7 @@ export function SandboxEditorAdvancedSection({
 
   return (
     <>
-      <FormSection
-        data-testid="sandbox-editor-lifecycle"
-        description="What happens to the sandbox between sessions."
-        title="Isolation & lifecycle"
-      >
+      <FormSection data-testid="sandbox-editor-lifecycle" title="Isolation & lifecycle">
         <Field>
           <FieldLabel htmlFor="sandbox-editor-persistence">Persistence</FieldLabel>
           <NativeSelect
@@ -125,10 +122,12 @@ export function SandboxEditorAdvancedSection({
         </Field>
 
         <Field data-invalid={Boolean(envError)}>
-          <FieldLabel htmlFor="sandbox-editor-env">Environment</FieldLabel>
-          <FieldDescription>
-            Non-secret <code className="font-mono">KEY=value</code> pairs, one per line.
-          </FieldDescription>
+          <FieldHeader>
+            <FieldLabel htmlFor="sandbox-editor-env">Environment</FieldLabel>
+            <HelpTip label="About environment">
+              Non-secret <code className="font-mono">KEY=value</code> pairs, one per line.
+            </HelpTip>
+          </FieldHeader>
           <Textarea
             aria-invalid={Boolean(envError)}
             data-testid="sandbox-editor-env"
@@ -145,12 +144,14 @@ export function SandboxEditorAdvancedSection({
         </Field>
 
         <Field data-invalid={Boolean(secretEnvError)}>
-          <FieldLabel htmlFor="sandbox-editor-secret-env">Secret environment</FieldLabel>
-          <FieldDescription>
-            <code className="font-mono">KEY=env:NAME</code> or{" "}
-            <code className="font-mono">KEY=vault:sandbox/…</code> references, one per line. The
-            profile stores the reference; the value never passes through here.
-          </FieldDescription>
+          <FieldHeader>
+            <FieldLabel htmlFor="sandbox-editor-secret-env">Secret environment</FieldLabel>
+            <HelpTip label="About secret environment">
+              <code className="font-mono">KEY=env:NAME</code> or{" "}
+              <code className="font-mono">KEY=vault:sandbox/…</code> references, one per line. The
+              profile stores the reference; the value never passes through here.
+            </HelpTip>
+          </FieldHeader>
           <Textarea
             aria-invalid={Boolean(secretEnvError)}
             data-testid="sandbox-editor-secret-env"
@@ -169,7 +170,7 @@ export function SandboxEditorAdvancedSection({
 
       <FormSection
         data-testid="sandbox-editor-network"
-        description={
+        help={
           isDaytona
             ? "Daytona supports public ingress. It does not enforce outbound or host allow and deny rules."
             : "Outbound and ingress rules enforced by the backend."
@@ -178,12 +179,14 @@ export function SandboxEditorAdvancedSection({
       >
         <Field orientation="horizontal">
           <FieldContent>
-            <FieldTitle>Allow public ingress</FieldTitle>
-            <FieldDescription>
-              {isDaytona
-                ? "Expose the Daytona sandbox publicly."
-                : "Expose the sandbox publicly — only when the backend supports it."}
-            </FieldDescription>
+            <FieldHeader>
+              <FieldTitle>Allow public ingress</FieldTitle>
+              <HelpTip label="About allow public ingress">
+                {isDaytona
+                  ? "Expose the Daytona sandbox publicly."
+                  : "Expose the sandbox publicly — only when the backend supports it."}
+              </HelpTip>
+            </FieldHeader>
           </FieldContent>
           <Switch
             aria-label="Allow public ingress"
@@ -210,10 +213,12 @@ export function SandboxEditorAdvancedSection({
           <>
             <Field orientation="horizontal">
               <FieldContent>
-                <FieldTitle>Allow outbound</FieldTitle>
-                <FieldDescription>
-                  Permit outbound connections, subject to the lists below.
-                </FieldDescription>
+                <FieldHeader>
+                  <FieldTitle>Allow outbound</FieldTitle>
+                  <HelpTip label="About allow outbound">
+                    Permit outbound connections, subject to the lists below.
+                  </HelpTip>
+                </FieldHeader>
               </FieldContent>
               <Switch
                 aria-label="Allow outbound"
@@ -269,11 +274,7 @@ export function SandboxEditorAdvancedSection({
       </FormSection>
 
       {isDaytona ? (
-        <FormSection
-          data-testid="sandbox-editor-daytona"
-          description="Cloud workspace parameters for this profile."
-          title="Daytona workspace"
-        >
+        <FormSection data-testid="sandbox-editor-daytona" title="Daytona workspace">
           <div className="grid gap-3.5 md:grid-cols-2">
             {DAYTONA_FIELDS.map(field => (
               <Field key={field.key}>

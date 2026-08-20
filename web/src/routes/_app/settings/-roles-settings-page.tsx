@@ -97,7 +97,6 @@ export function RolesSettingsPage() {
   return (
     <SettingsPageFrame
       slug="roles"
-      description="Choose how each background role is routed."
       restart={page.restart}
       saveBar={
         <SettingsSaveBar

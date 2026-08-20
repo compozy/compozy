@@ -11,7 +11,7 @@ interface ProviderGeneralFieldsProps {
 }
 
 /**
- * Provider basics — the minimum needed to launch an ACP subprocess.
+ * Provider basics — name, display name, and the launch command.
  *
  * On edit the name renders as `ImmutableIdentity`: `PutSettingsProvider` keys
  * the overlay by its path name, so renaming is a create, and a disabled input
@@ -21,11 +21,7 @@ export function ProviderGeneralFields({ mode, draft, onChange }: ProviderGeneral
   const isCreate = mode === "create";
 
   return (
-    <FormSection
-      data-testid="settings-providers-editor-basics"
-      description="The minimum needed to launch an ACP subprocess."
-      title="Provider basics"
-    >
+    <FormSection data-testid="settings-providers-editor-basics" title="Provider basics">
       {isCreate ? (
         <ModalSettingsFieldRow
           control={
@@ -39,7 +35,7 @@ export function ProviderGeneralFields({ mode, draft, onChange }: ProviderGeneral
             />
           }
           data-testid="settings-providers-editor-name"
-          description="Lower-case identifier used in agent frontmatter and CLI flags."
+          help="Lower-case identifier used in agent frontmatter and CLI flags."
           label={
             <>
               Name
@@ -68,7 +64,6 @@ export function ProviderGeneralFields({ mode, draft, onChange }: ProviderGeneral
           />
         }
         data-testid="settings-providers-editor-display-name"
-        description="Operator-facing label shown beside the provider id."
         label={
           <>
             Display name
@@ -88,7 +83,7 @@ export function ProviderGeneralFields({ mode, draft, onChange }: ProviderGeneral
           />
         }
         data-testid="settings-providers-editor-command"
-        description={
+        help={
           isCreate
             ? "Executable used to launch the ACP subprocess."
             : "Executable used to launch the ACP subprocess. Clearing it falls back to the builtin definition."

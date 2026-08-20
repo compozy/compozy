@@ -10,7 +10,6 @@ import {
   Button,
   Dialog,
   DialogContent,
-  DialogDescription,
   DialogTitle,
   Empty,
   Skeleton,
@@ -111,6 +110,7 @@ export function DesktopsOverview({
         aria-busy={state.status === "loading"}
         data-slot="desktops-overview"
         initialFocus={initialFocusDesktopId ? initialFocusRef : undefined}
+        aria-describedby={undefined}
         className={cn(
           "top-0 left-0 h-full w-full max-w-none translate-x-0 translate-y-0 rounded-none sm:max-w-none",
           "overflow-hidden bg-transparent shadow-none backdrop-blur-shell-scrim"
@@ -123,9 +123,6 @@ export function DesktopsOverview({
                 <DialogTitle className="text-compact-h1 font-semibold text-fg-strong">
                   Desktops
                 </DialogTitle>
-                <DialogDescription className="max-w-2xl text-small-body text-muted">
-                  Switch desktops, move windows, and change their order.
-                </DialogDescription>
               </div>
               {ready && !empty ? (
                 <Button

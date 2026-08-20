@@ -1,9 +1,10 @@
 import {
   Field,
   FieldContent,
-  FieldDescription,
   FieldGroup,
+  FieldHeader,
   FieldTitle,
+  HelpTip,
   Input,
   NativeSelect,
   NativeSelectOption,
@@ -73,8 +74,12 @@ export function BridgeRoutingFields({ onChange, testIdPrefix, value }: BridgeRou
           onCheckedChange={checked => onChange({ ...value, include_peer: checked })}
         />
         <FieldContent>
-          <FieldTitle>Include peer</FieldTitle>
-          <FieldDescription>Differentiate direct targets by peer identifier.</FieldDescription>
+          <FieldHeader>
+            <FieldTitle>Include peer</FieldTitle>
+            <HelpTip label="About include peer">
+              Differentiate direct targets by peer identifier.
+            </HelpTip>
+          </FieldHeader>
         </FieldContent>
       </Field>
       <Field orientation="horizontal">
@@ -85,10 +90,12 @@ export function BridgeRoutingFields({ onChange, testIdPrefix, value }: BridgeRou
           onCheckedChange={checked => onChange({ ...value, include_group: checked })}
         />
         <FieldContent>
-          <FieldTitle>Include group</FieldTitle>
-          <FieldDescription>
-            Keep routes isolated per group or channel when the platform supports it.
-          </FieldDescription>
+          <FieldHeader>
+            <FieldTitle>Include group</FieldTitle>
+            <HelpTip label="About include group">
+              Keep routes isolated per group or channel when the platform supports it.
+            </HelpTip>
+          </FieldHeader>
         </FieldContent>
       </Field>
       <Field orientation="horizontal">
@@ -99,10 +106,12 @@ export function BridgeRoutingFields({ onChange, testIdPrefix, value }: BridgeRou
           onCheckedChange={checked => onChange({ ...value, include_thread: checked })}
         />
         <FieldContent>
-          <FieldTitle>Include thread</FieldTitle>
-          <FieldDescription>
-            Use thread identity as an additional routing dimension.
-          </FieldDescription>
+          <FieldHeader>
+            <FieldTitle>Include thread</FieldTitle>
+            <HelpTip label="About include thread">
+              Use thread identity as an additional routing dimension.
+            </HelpTip>
+          </FieldHeader>
         </FieldContent>
       </Field>
     </FieldGroup>
@@ -182,19 +191,21 @@ export function BridgeDeliveryFields({ onChange, testIdPrefix, value }: BridgeDe
 
       <div className="border-t border-line pt-4">
         <div className="mb-3">
-          <FieldTitle>Delivery progress</FieldTitle>
-          <FieldDescription>
-            Keep provider defaults, or define how tool progress appears in external conversations.
-          </FieldDescription>
+          <FieldHeader>
+            <FieldTitle>Delivery progress</FieldTitle>
+            <HelpTip label="About delivery progress">
+              Keep provider defaults, or define how tool progress appears in external conversations.
+            </HelpTip>
+          </FieldHeader>
         </div>
         <FieldGroup className="grid gap-4 lg:grid-cols-2">
           <Field>
-            <FieldContent>
+            <FieldHeader>
               <FieldTitle>Tool progress</FieldTitle>
-              <FieldDescription>
+              <HelpTip label="About tool progress">
                 Provider default omits the entire progress override.
-              </FieldDescription>
-            </FieldContent>
+              </HelpTip>
+            </FieldHeader>
             <NativeSelect
               aria-label="Tool progress mode"
               data-testid={`${testIdPrefix}-delivery-progress-mode-select`}
@@ -218,12 +229,12 @@ export function BridgeDeliveryFields({ onChange, testIdPrefix, value }: BridgeDe
             </NativeSelect>
           </Field>
           <Field>
-            <FieldContent>
+            <FieldHeader>
               <FieldTitle>Grouping</FieldTitle>
-              <FieldDescription>
+              <HelpTip label="About grouping">
                 Accumulate updates or post each update separately.
-              </FieldDescription>
-            </FieldContent>
+              </HelpTip>
+            </FieldHeader>
             <NativeSelect
               aria-label="Progress grouping"
               data-testid={`${testIdPrefix}-delivery-progress-grouping-select`}

@@ -23,7 +23,7 @@ export function SandboxPage({ search = {} }: { search?: SandboxRouteSearch }) {
   useTopbarSlot({
     glyph: <Boxes />,
     count: page.isLoading ? undefined : page.counts.total,
-    crumb: "Permissions",
+    crumb: "Sandbox",
     actions: (
       <div className="flex items-center gap-2" data-testid="sandbox-topbar-actions">
         <Button

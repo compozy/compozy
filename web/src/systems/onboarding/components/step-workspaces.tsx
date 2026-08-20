@@ -5,7 +5,6 @@ import { Alert, AlertDescription, Button, Eyebrow } from "@compozy/ui";
 import { GLOBAL_SCOPE_COPY } from "@/systems/workspace";
 import type { OnboardingWorkspacesApi } from "../hooks/use-onboarding-workspaces";
 import { DirectoryBrowser } from "./directory-browser";
-import { OnboardingNetworkMention } from "./onboarding-network-mention";
 
 interface StepWorkspacesProps {
   workspaces: OnboardingWorkspacesApi;
@@ -79,7 +78,7 @@ export function StepWorkspaces({ workspaces, onSkip, skipDisabled = false }: Ste
           ) : null}
           {selected.length === 0 ? (
             <p className="mt-2.5 grid flex-1 place-items-center rounded-md border border-dashed border-line px-4 py-4 text-center text-small-body leading-5 text-faint max-md:min-h-24">
-              Nothing yet. Pick a folder on the left to add your first workspace.
+              None yet
             </p>
           ) : (
             <ul className="mt-2.5 flex min-h-0 flex-1 flex-col gap-2 overflow-y-auto max-md:max-h-50">
@@ -117,10 +116,7 @@ export function StepWorkspaces({ workspaces, onSkip, skipDisabled = false }: Ste
               ))}
             </ul>
           )}
-          <div
-            className="mt-3 flex items-start gap-3 rounded-md bg-canvas-soft px-2.5 py-2 ring-1 ring-inset ring-line"
-            data-testid="onboarding-skip-global"
-          >
+          <div className="mt-3" data-testid="onboarding-skip-global">
             <Button
               disabled={skipDisabled}
               onClick={onSkip}
@@ -130,14 +126,9 @@ export function StepWorkspaces({ workspaces, onSkip, skipDisabled = false }: Ste
             >
               {GLOBAL_SCOPE_COPY.skipOnboarding}
             </Button>
-            <p className="min-w-0 flex-1 text-form-hint text-muted">
-              {GLOBAL_SCOPE_COPY.skipOnboardingHint}
-            </p>
           </div>
         </section>
       </div>
-
-      <OnboardingNetworkMention className="mt-4.5 border-t border-line pt-3.5" />
     </div>
   );
 }

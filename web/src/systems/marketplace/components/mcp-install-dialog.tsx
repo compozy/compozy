@@ -9,10 +9,11 @@ import {
   DialogHeader,
   DialogTitle,
   Field,
-  FieldDescription,
   FieldError,
   FieldGroup,
+  FieldHeader,
   FieldLabel,
+  HelpTip,
   FormSection,
   Input,
   MetadataList,
@@ -230,15 +231,14 @@ function MCPInstallField({
     return (
       <Field>
         <div className="flex items-start justify-between gap-3">
-          <div className="flex flex-col gap-1">
-            <div className="flex flex-wrap items-center gap-2">
+          <div className="flex flex-wrap items-center gap-2">
+            <FieldHeader>
               <FieldLabel htmlFor={id}>{field.id}</FieldLabel>
-              {badges}
-            </div>
-            <FieldDescription id={`${id}-description`}>{field.prompt}</FieldDescription>
+              {field.prompt ? <HelpTip label={`About ${field.id}`}>{field.prompt}</HelpTip> : null}
+            </FieldHeader>
+            {badges}
           </div>
           <Switch
-            aria-describedby={`${id}-description`}
             checked={binding.typedValue === "true"}
             id={id}
             onCheckedChange={next =>
@@ -254,14 +254,16 @@ function MCPInstallField({
     return (
       <Field data-invalid={showError ? "true" : undefined}>
         <div className="flex flex-wrap items-center gap-2">
-          <FieldLabel className="font-mono" htmlFor={id}>
-            {field.id}
-          </FieldLabel>
+          <FieldHeader>
+            <FieldLabel className="font-mono" htmlFor={id}>
+              {field.id}
+            </FieldLabel>
+            {field.prompt ? <HelpTip label={`About ${field.id}`}>{field.prompt}</HelpTip> : null}
+          </FieldHeader>
           {badges}
         </div>
-        <FieldDescription id={`${id}-description`}>{field.prompt}</FieldDescription>
         <Input
-          aria-describedby={showError ? `${id}-description ${id}-error` : `${id}-description`}
+          aria-describedby={showError ? `${id}-error` : undefined}
           aria-invalid={showError ? true : undefined}
           autoComplete="off"
           id={id}
@@ -281,6 +283,7 @@ function MCPInstallField({
     <SecretField
       badges={
         <>
+          {field.prompt ? <HelpTip label={`About ${field.id}`}>{field.prompt}</HelpTip> : null}
           <Pill mono size="xs">
             secret
           </Pill>
@@ -310,7 +313,6 @@ function MCPInstallField({
         sources: vaultSecrets,
       }}
       createTestId={`mcp-create-secret-${field.id}`}
-      description={field.prompt}
       error={showError ? "Choose a present Vault ref or enter a value." : undefined}
       id={id}
       label={field.id}

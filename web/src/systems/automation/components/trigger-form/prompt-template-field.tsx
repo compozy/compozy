@@ -1,6 +1,6 @@
 import { useRef } from "react";
 
-import { Field, FieldDescription, FieldLabel, Textarea } from "@compozy/ui";
+import { Field, FieldHeader, FieldLabel, HelpTip, Textarea } from "@compozy/ui";
 
 import { VariableBar } from "./variable-bar";
 
@@ -32,10 +32,13 @@ export function PromptTemplateField({ value, variables, onChange }: PromptTempla
 
   return (
     <Field>
-      <FieldLabel htmlFor="trigger-prompt">
-        Prompt template
-        <span className="font-normal text-faint"> (click a variable to insert it)</span>
-      </FieldLabel>
+      <FieldHeader>
+        <FieldLabel htmlFor="trigger-prompt">Prompt template</FieldLabel>
+        <HelpTip label="About prompt template">
+          Go <code className="font-mono text-mono-id text-muted">text/template</code> syntax.
+          Variables resolve against the matched event; see the rendered result on the right.
+        </HelpTip>
+      </FieldHeader>
       <VariableBar onInsert={insertVariable} variables={variables} />
       <Textarea
         className="min-h-28"
@@ -46,10 +49,6 @@ export function PromptTemplateField({ value, variables, onChange }: PromptTempla
         value={value}
         variant="mono"
       />
-      <FieldDescription>
-        Go <code className="font-mono text-mono-id text-muted">text/template</code> syntax.
-        Variables resolve against the matched event; see the rendered result on the right.
-      </FieldDescription>
     </Field>
   );
 }

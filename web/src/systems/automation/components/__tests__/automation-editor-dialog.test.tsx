@@ -158,6 +158,11 @@ describe("AutomationEditorDialog", () => {
     expect(screen.getByTestId("workspace-scope-statement")).toHaveTextContent(
       "Creates in test-workspace"
     );
+    expect(
+      screen
+        .getByTestId("workspace-scope-statement")
+        .closest('[data-slot="entity-dialog-footer-hint"]')
+    ).not.toBeNull();
     expect(screen.queryByTestId("automation-trigger-form")).not.toBeInTheDocument();
   });
 

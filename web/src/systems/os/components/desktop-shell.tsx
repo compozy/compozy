@@ -220,7 +220,6 @@ function DesktopShellScopedBody({
         scopePending={model.pending}
         toggleLocked={model.toggleLocked}
         canDisableGlobal={model.canDisableGlobal}
-        deletionNotice={model.deletionNotice}
         rememberedWorkspaceName={model.rememberedWorkspace?.name ?? null}
         onToggleGlobalScope={model.toggleGlobalScope}
         onSelectWorkspace={workspaceId =>

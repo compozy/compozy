@@ -1,6 +1,6 @@
 import { ChevronUp } from "lucide-react";
 
-import { Button, cn, Dock } from "@compozy/ui";
+import { Button, cn, Dock, Kbd } from "@compozy/ui";
 
 import { usePermissionDock } from "../hooks/use-permission-dock";
 import { useRejectMenuElements } from "../hooks/use-reject-menu-elements";
@@ -146,7 +146,7 @@ export function PermissionDock({
                       onClick={() => decide("reject-always")}
                     >
                       Reject always
-                      <kbd className="ml-auto font-mono text-pill-group-badge text-faint">4</kbd>
+                      <Kbd className="ml-auto">4</Kbd>
                     </button>
                   </div>
                 ) : null}

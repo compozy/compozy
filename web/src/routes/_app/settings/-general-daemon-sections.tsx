@@ -18,12 +18,13 @@ interface DraftSectionProps {
 export function DaemonSection({ draft, setDraft }: DraftSectionProps) {
   return (
     <SettingsGroup
-      description="Controls periodic process-memory snapshots in logs and runtime diagnostics."
+      help="Controls periodic process-memory snapshots in logs and runtime diagnostics."
       title="Runtime memory reporting"
     >
       <SettingRow
         data-testid="settings-page-general-memory-report-interval"
-        description="Cadence for process-memory snapshots in logs and the runtime.memory probe. Set 0s to disable memory reporting."
+        help="Cadence for process-memory snapshots in logs and the runtime.memory probe."
+        description="Set 0s to disable memory reporting."
         label={
           <>
             Report interval <SettingsProvChip>restart required</SettingsProvChip>
@@ -53,14 +54,11 @@ export function DaemonSection({ draft, setDraft }: DraftSectionProps) {
 
 export function RedactionSection({ draft, setDraft }: DraftSectionProps) {
   return (
-    <SettingsGroup
-      data-testid="settings-page-general-redact"
-      description="Controls heuristic credential redaction in agent-visible and operational text."
-      title="Secret redaction"
-    >
+    <SettingsGroup data-testid="settings-page-general-redact" title="Secret redaction">
       <SettingRow
         data-testid="settings-page-general-redact-enabled"
-        description="Redacts likely credentials in agent-visible text, logs, and event content. Exact secret protections remain active when disabled."
+        help="Redacts likely credentials in agent-visible text, logs, and event content."
+        description="Exact secret protections remain active when disabled."
         label={
           <>
             Secret redaction heuristics <SettingsProvChip>restart required</SettingsProvChip>

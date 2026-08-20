@@ -27,7 +27,6 @@ export function ShortcutBindingKeys({
       {bindings.map((binding, index) => (
         <Kbd
           className={cn(
-            "border border-line bg-canvas",
             index > 0 && "border-dashed border-line-strong bg-transparent",
             overridden && "border-accent-dim text-accent-strong",
             compact && "px-1"

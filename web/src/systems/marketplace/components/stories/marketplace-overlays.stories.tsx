@@ -104,7 +104,9 @@ export const ExtensionUnionInstall: Story = {
     await userEvent.click(await canvas.findByTestId("marketplace-extension-install"));
     const dialog = within(document.body);
     await expect(dialog.findByTestId("extension-install-dialog")).resolves.toBeDefined();
-    await expect(dialog.findByText(/absolute path to a built extension/i)).resolves.toBeDefined();
+    await expect(
+      dialog.findByRole("button", { name: "About directory path" })
+    ).resolves.toBeDefined();
   },
 };
 

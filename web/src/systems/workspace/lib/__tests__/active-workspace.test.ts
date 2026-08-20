@@ -58,8 +58,9 @@ describe("resolveActiveWorkspace", () => {
     });
     expect(resolved.scope).toBe("global");
     expect(resolved.activeWorkspaceId).toBeNull();
-    expect(resolved.deletionNotice).toContain("removed");
+    expect(resolved.rememberedWorkspace).toBeUndefined();
     expect(resolved.canDisableGlobal).toBe(false);
+    expect(resolved.chip).toEqual({ name: "Global", monogram: "~" });
   });
 
   it("Should remember the project workspace while Global is on", () => {
@@ -84,8 +85,7 @@ describe("resolveActiveWorkspace", () => {
       pending: true,
     });
     expect(resolved.pending).toBe(true);
-    // Loading is not "deleted": no removal notice, no home row leaking into projects.
-    expect(resolved.deletionNotice).toBeNull();
+    // Loading is not "deleted": no home row leaking into projects.
     expect(resolved.projectWorkspaces).toEqual([]);
     expect(resolved.activeWorkspaceId).toBeNull();
     expect(resolved.runtimeWorkspaceId).toBeNull();

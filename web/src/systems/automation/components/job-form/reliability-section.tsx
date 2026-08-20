@@ -1,8 +1,9 @@
 import {
   Field,
-  FieldDescription,
+  FieldHeader,
   FieldLabel,
   FieldTitle,
+  HelpTip,
   Input,
   PillGroup,
   type PillGroupItem,
@@ -109,7 +110,16 @@ export function ReliabilitySection({
       {recurring ? (
         <>
           <Field className="col-span-2" data-testid="job-catch-up-field">
-            <FieldTitle>Catch-up policy</FieldTitle>
+            <FieldHeader>
+              <FieldTitle>Catch-up policy</FieldTitle>
+              <HelpTip label="About catch-up policy">
+                What happens to fires missed while the runtime was down. Default:{" "}
+                {CATCH_UP_DESCRIPTIONS[CATCH_UP_DEFAULT]} Skip missed:{" "}
+                {CATCH_UP_DESCRIPTIONS.skip_missed} Coalesce: {CATCH_UP_DESCRIPTIONS.coalesce}{" "}
+                Replay: {CATCH_UP_DESCRIPTIONS.replay} Run once:{" "}
+                {CATCH_UP_DESCRIPTIONS.run_once_on_catchup}
+              </HelpTip>
+            </FieldHeader>
             <PillGroup
               aria-label="Catch-up policy"
               items={CATCH_UP_ITEMS}
@@ -117,10 +127,15 @@ export function ReliabilitySection({
               size="sm"
               value={catchUpValue}
             />
-            <FieldDescription>{CATCH_UP_DESCRIPTIONS[catchUpValue]}</FieldDescription>
           </Field>
           <Field>
-            <FieldLabel htmlFor="job-misfire-grace">Grace window</FieldLabel>
+            <FieldHeader>
+              <FieldLabel htmlFor="job-misfire-grace">Grace window</FieldLabel>
+              <HelpTip label="About grace window">
+                Applies only when the effective policy is Skip missed. Whole seconds the latest
+                missed fire may still run; 0 or empty uses the scheduler&apos;s default grace.
+              </HelpTip>
+            </FieldHeader>
             <Input
               className="font-mono"
               data-testid="job-misfire-grace"
@@ -139,16 +154,12 @@ export function ReliabilitySection({
               type="number"
               value={misfireGraceSeconds ?? ""}
             />
-            <FieldDescription>
-              Applies only when the effective policy is Skip missed. Whole seconds the latest missed
-              fire may still run; 0 or empty uses the scheduler&apos;s default grace.
-            </FieldDescription>
           </Field>
         </>
       ) : null}
       <ReliabilityEnabledField
-        description="Disabled jobs stay stored but never dispatch on their schedule."
         enabled={enabled}
+        help="Disabled jobs stay stored but never dispatch on their schedule."
         idPrefix="job"
         label={mode === "create" ? "Enabled on create" : "Enabled"}
         onChange={onEnabledChange}

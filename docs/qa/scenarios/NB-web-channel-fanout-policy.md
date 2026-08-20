@@ -6,7 +6,7 @@ persona: Dora
 journey: J-23
 expected: Creating a channel offers the fanout policy as three neutral radio cards (Best match / Coordinator / Everyone) with their contract values shown; selected state is a neutral glaze plus rim, never accent. Coordinator is visible but not selectable at create time, with a hint explaining that a coordinator needs a live member peer and is chosen in Delivery policy afterwards; the create request therefore carries `fanout_policy` and never `coordinator_peer_id`. Editing a channel shows its name and members as a readable locked summary (the update contract cannot change either), leaves purpose and fanout editable, and reveals a coordinator picker — populated from the channel's live member peers — only while the coordinator policy is selected. Leaving coordinator clears the selected peer, because the daemon rejects a coordinator id under any other policy. The save stays blocked while coordinator is selected with no peer chosen.
 entry_points: web network window → New channel; web network channel toolbar → Delivery policy
-qa_status: blocked-verify
+qa_status: untested
 bug_ids:
 fix_status:
 retest_status:
@@ -25,3 +25,5 @@ The coordinator gate at create time is a runtime-truth constraint, not a layout 
 src: web/src/systems/network/components/network-create-channel-dialog.tsx; web/src/systems/network/components/channel-fanout-cards.tsx; web/src/systems/network/components/shell/channel-policy-dialog.tsx; web/src/systems/network/hooks/use-network-create-channel-action.tsx
 
 inventory: Needs QA
+
+QA impact 2026-08-20: helper copy on channel create/edit moved into HelpTip or was deleted. Reset to untested.

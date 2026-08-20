@@ -68,7 +68,7 @@ How deep the vocabulary may go, by surface. Depth is a ceiling, not a target —
 | Inspector, events, settings advanced                          | Full runtime vocabulary. This is where precision earns its cost.                                   |
 | CLI, API, config, reference docs                              | Canonical vocabulary only. No aliases, no glosses standing in for the real name.                   |
 
-Surface aliases (the UI label that differs from the canonical noun) are governed by `COPY.md` §6 and reserved in `docs/_memory/glossary.md`. An alias is a label, never a rename.
+Surface aliases (the UI label that differs from the canonical noun) are governed by `COPY.md` §6 and reserved in `docs/_memory/glossary.md`. An alias is a label, never a rename. `Sandbox` and `Bridges` keep those names on every end-user surface — they must not be aliased to Permissions or Connections.
 
 ## Accessibility & Inclusion
 

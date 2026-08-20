@@ -38,7 +38,7 @@ const MODAL_CONTENT_CLASS = `text-fg grid-rows-[minmax(0,1fr)] ${dialogShellClas
   fill: true,
 })}`;
 
-const SHELL_CLASS = "flex min-h-0 flex-1 flex-col bg-canvas text-fg";
+const SHELL_CLASS = "flex min-h-0 flex-1 flex-col text-fg";
 
 export function TaskEditorModal({
   open,

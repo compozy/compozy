@@ -11,9 +11,10 @@ import {
   Eyebrow,
   Field,
   FieldContent,
-  FieldDescription,
+  FieldHeader,
   FieldLabel,
   FormSection,
+  HelpTip,
   ImmutableIdentity,
   Input,
   Textarea,
@@ -107,15 +108,15 @@ function KnowledgeEditDialog({
             ]}
           />
           <FormSection
-            description="Only the description and content are saved — the runtime re-indexes on save."
+            help="Only the description and content are saved — the runtime re-indexes on save."
             title="The content"
           >
             <div className="flex flex-col gap-4">
               <Field>
-                <FieldContent>
+                <FieldHeader>
                   <FieldLabel htmlFor="knowledge-edit-description">Description</FieldLabel>
-                  <FieldDescription>What should retrieval match?</FieldDescription>
-                </FieldContent>
+                  <HelpTip label="About description">What should retrieval match?</HelpTip>
+                </FieldHeader>
                 <Input
                   data-testid="knowledge-edit-description"
                   id="knowledge-edit-description"
@@ -153,7 +154,6 @@ function KnowledgeEditDialog({
         ) : null}
         <EntityDialogFooter
           cancelTestId="cancel-edit-memory-btn"
-          hint="Only changed fields are saved."
           isSaving={isPending}
           onCancel={() => onOpenChange(false)}
           onPrimary={handleSubmit}

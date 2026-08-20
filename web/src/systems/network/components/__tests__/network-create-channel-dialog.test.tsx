@@ -72,9 +72,7 @@ describe("NetworkCreateChannelDialog", () => {
     const onChannelNameChange = vi.fn();
     renderDialog({ onChannelNameChange });
 
-    expect(
-      screen.getByText("Use lowercase letters, numbers, underscores, or hyphens; e.g. coord_core.")
-    ).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "About channel name" })).toBeInTheDocument();
     expect(screen.getByTestId("network-channel-name-input")).toHaveAttribute(
       "placeholder",
       "e.g. website_copy"

@@ -12,7 +12,7 @@ export function MemorySystemSection({ draft, setDraft }: DraftSectionProps) {
       <SettingsFieldRow
         data-testid={`${TEST_PREFIX}-enabled`}
         label="Memory persistence"
-        description="Persist curated recall across sessions"
+        help="Persist curated recall across sessions"
         control={
           <Switch
             data-testid={`${TEST_PREFIX}-enabled-switch`}
@@ -29,7 +29,7 @@ export function MemorySystemSection({ draft, setDraft }: DraftSectionProps) {
       <SettingsFieldRow
         data-testid={`${TEST_PREFIX}-global-dir`}
         label="Global memory directory"
-        description="Root for global-scope memory files"
+        help="Root for global-scope memory files"
         control={
           <Input
             className="w-72 font-mono"
@@ -61,7 +61,7 @@ export function ProviderResilienceSection({
   return (
     <SettingsGroup
       title="Memory provider"
-      description="circuit-breaker policy when an external memory provider is configured"
+      help="circuit-breaker policy when an external memory provider is configured"
     >
       <SettingsFieldRow
         data-testid={`${TEST_PREFIX}-provider-name`}
@@ -110,7 +110,7 @@ export function ProviderResilienceSection({
       <SettingsFieldRow
         data-testid={`${TEST_PREFIX}-provider-failure-threshold`}
         label="Failure threshold"
-        description="Consecutive failures before the breaker opens"
+        help="Consecutive failures before the breaker opens"
         error={validationErrors.providerFailureThreshold ?? undefined}
         control={
           <SettingsNumberInput
@@ -134,7 +134,7 @@ export function ProviderResilienceSection({
       <SettingsFieldRow
         data-testid={`${TEST_PREFIX}-provider-cooldown`}
         label="Cooldown"
-        description="How long the breaker stays open before retrying"
+        help="How long the breaker stays open before retrying"
         control={
           <Input
             className="w-32 font-mono"

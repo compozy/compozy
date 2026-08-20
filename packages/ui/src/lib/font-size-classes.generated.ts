@@ -25,6 +25,8 @@ export const fontSizeClasses = [
   "text-group-label",
   "text-inline-code",
   "text-item-title",
+  "text-kbd",
+  "text-kbd--font-weight",
   "text-kpi-compact",
   "text-kpi-value",
   "text-metric-value",

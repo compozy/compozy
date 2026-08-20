@@ -16,10 +16,10 @@ import {
   EntityDialogFooter,
   EntityDialogHeader,
   Field,
-  FieldContent,
-  FieldDescription,
+  FieldHeader,
   FieldLabel,
   FormSection,
+  HelpTip,
   ImmutableIdentity,
   Input,
 } from "@compozy/ui";
@@ -157,15 +157,15 @@ function ChannelPolicyDialogForm({
           ]}
         />
 
-        <FormSection description="The mutable half of the channel." title="Purpose & fanout">
+        <FormSection title="Purpose & fanout">
           <div className="flex flex-col gap-4">
             <Field>
-              <FieldContent>
+              <FieldHeader>
                 <FieldLabel htmlFor="network-channel-policy-purpose">Purpose</FieldLabel>
-                <FieldDescription>
+                <HelpTip label="About purpose">
                   Used by agents to decide whether this room is relevant.
-                </FieldDescription>
-              </FieldContent>
+                </HelpTip>
+              </FieldHeader>
               <Input
                 className="font-mono"
                 data-testid="channel-policy-purpose"
@@ -176,12 +176,12 @@ function ChannelPolicyDialogForm({
             </Field>
 
             <Field>
-              <FieldContent>
+              <FieldHeader>
                 <FieldLabel>Who receives a message?</FieldLabel>
-                <FieldDescription>
+                <HelpTip label="About who receives a message">
                   The fanout policy routes unaddressed thread traffic.
-                </FieldDescription>
-              </FieldContent>
+                </HelpTip>
+              </FieldHeader>
               <ChannelFanoutCards
                 disabled={isSubmitting}
                 onChange={setPolicy}
@@ -192,10 +192,12 @@ function ChannelPolicyDialogForm({
 
             {requiresCoordinator ? (
               <Field>
-                <FieldContent>
+                <FieldHeader>
                   <FieldLabel id="channel-policy-coordinator-label">Coordinator peer</FieldLabel>
-                  <FieldDescription>Derived from the channel's live members.</FieldDescription>
-                </FieldContent>
+                  <HelpTip label="About coordinator peer">
+                    Derived from the channel's live members.
+                  </HelpTip>
+                </FieldHeader>
                 <CommandSelect onOpenChange={setCoordinatorOpen} open={coordinatorOpen}>
                   <CommandSelectTrigger
                     aria-labelledby="channel-policy-coordinator-label"

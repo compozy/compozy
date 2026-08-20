@@ -47,6 +47,16 @@ describe("EntityModeToolbar", () => {
     expect(screen.queryByText("Creates in")).not.toBeInTheDocument();
   });
 
+  it("Should paint a recessed chrome strip distinct from the dialog body", () => {
+    const { container } = renderToolbar();
+
+    expect(container.querySelector('[data-slot="entity-mode-toolbar"]')).toHaveClass(
+      "bg-canvas-tint",
+      "border-b",
+      "border-line-soft"
+    );
+  });
+
   it("Should raise the mode segments to the touch target below 760px", () => {
     renderToolbar();
 

@@ -14,21 +14,25 @@ export const ONBOARDING_STEP_COUNT = 2;
 
 /**
  * The step strip carries progress and the footer carries what will be saved, so
- * a pane only needs its own question and the sentence that answers "why".
+ * a pane only needs a heading that stands alone. Skip, default, and Network
+ * consequences the heading does not name live in `help`.
  */
 export interface OnboardingStepMeta {
   title: string;
-  lead: string;
+  help: string;
+  helpLabel: string;
 }
 
 const STEP_META: Record<number, OnboardingStepMeta> = {
   1: {
     title: "Choose the model your agents run on",
-    lead: "New agents use this provider and model unless you give them their own. Change it any time in Settings.",
+    help: "New agents inherit this model. Change it any time in Settings.",
+    helpLabel: "About the default model",
   },
   2: {
     title: "Pick where agents can work",
-    lead: "A workspace is a folder CompozyOS is allowed to open, read and write inside. Add project folders now, or skip and start in Global scope.",
+    help: "Skip starts in Global (~, your home folder). Setup does not enable Network.",
+    helpLabel: "About workspace",
   },
 };
 

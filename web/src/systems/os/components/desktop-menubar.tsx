@@ -44,7 +44,6 @@ export interface DesktopMenubarProps {
   scopePending?: boolean;
   toggleLocked?: boolean;
   canDisableGlobal?: boolean;
-  deletionNotice?: string | null;
   rememberedWorkspaceName?: string | null;
   onToggleGlobalScope?: () => void;
   onSelectWorkspace: (workspaceId: string) => void;
@@ -73,7 +72,7 @@ export interface DesktopMenubarProps {
 
 /**
  * The wired menubar: the CompozyOS system menu, the workspace switcher, the static
- * Session / Go / Window / Help set, the bell aggregator, the ⌘K chip, and the
+ * Session / Go / Window / Help set, the bell aggregator, the palette button, and the
  * settings cog. All actions are runtime-backed — no menu item renders without a
  * working mechanism, and none is hidden when its predicate fails (SD-007).
  */
@@ -86,7 +85,6 @@ export function DesktopMenubar({
   scopePending = false,
   toggleLocked = false,
   canDisableGlobal = Boolean(activeWorkspace),
-  deletionNotice = null,
   rememberedWorkspaceName,
   onToggleGlobalScope,
   onSelectWorkspace,
@@ -234,7 +232,6 @@ export function DesktopMenubar({
           workspaces={workspaces}
           activeWorkspaceId={globalOn ? undefined : activeWorkspace?.id}
           globalScopeOn={globalOn}
-          deletionNotice={deletionNotice}
           monogram={workspaceMonogram}
           onSelectWorkspace={onSelectWorkspace}
           onOpenWorkspaces={onOpenWorkspaces}

@@ -3,6 +3,8 @@ import userEvent from "@testing-library/user-event";
 import { useState } from "react";
 import { describe, expect, it, vi } from "vitest";
 
+import { TooltipProvider, UIProvider } from "@compozy/ui";
+
 import {
   TaskEditorModal,
   type TaskEditorModalMode,
@@ -15,7 +17,8 @@ import {
 } from "../../lib/task-editor";
 import type { TaskTemplateId } from "../../lib/task-templates";
 import { buildTaskExecutionProfileFixture } from "../../mocks/fixtures";
-import type { TaskRecord } from "../../types";
+import type { TaskOwnerKind, TaskRecord } from "../../types";
+import { QueueOwnershipSection } from "../task-form/queue-ownership-section";
 
 vi.mock("@/systems/status", () => ({
   useDaemonStatus: () => ({ data: undefined }),
@@ -104,7 +107,13 @@ function renderModal({
     );
   }
 
-  render(<Harness />);
+  render(
+    <UIProvider reducedMotion="always">
+      <TooltipProvider delay={0}>
+        <Harness />
+      </TooltipProvider>
+    </UIProvider>
+  );
 
   return { onOpenChange, onTemplateChange, onSubmit, onDraftChange };
 }
@@ -185,6 +194,41 @@ describe("TaskEditorModal", () => {
     expect(screen.getByTestId("task-title-input")).toBeInTheDocument();
   });
 
+  it("Should keep field help behind tips and leave approval consequences visible", () => {
+    renderModal();
+
+    fireEvent.click(screen.getByTestId("task-mode-advanced"));
+
+    expect(
+      screen.queryByText("Describe the expected outcome, constraints, and completion criteria.")
+    ).not.toBeInTheDocument();
+    expect(
+      screen.queryByText("Local by default. Live requires an explicit channel strategy.")
+    ).not.toBeInTheDocument();
+    expect(
+      screen.getAllByRole("button", { name: "About network participation" }).length
+    ).toBeGreaterThan(0);
+    expect(screen.getByRole("button", { name: "About parent task" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "About owner" })).toBeInTheDocument();
+    expect(screen.queryByText(/makes this a child in an epic/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/leave unassigned to let a pool claim it/)).not.toBeInTheDocument();
+
+    expect(screen.getByTestId("task-approval-hint")).toHaveTextContent(
+      "A run is retried up to its max attempts before the task is marked failed."
+    );
+    fireEvent.click(screen.getByTestId("task-approval-manual"));
+    expect(screen.getByTestId("task-approval-hint")).toHaveTextContent(
+      "The first run waits for approval in your Inbox before an owner can claim it."
+    );
+
+    fireEvent.click(screen.getByTestId("task-execution-toggle"));
+    expect(screen.getByRole("button", { name: "About save as draft" })).toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: "About auto-enqueue when ready" })
+    ).toBeInTheDocument();
+    expect(screen.queryByText(/Create the contract without enqueueing/)).not.toBeInTheDocument();
+  });
+
   it("Should snap an advanced-only template back to a Simple-valid default on leaving Advanced", () => {
     const { onTemplateChange } = renderModal({ templateId: "recurring" });
 
@@ -233,6 +277,11 @@ describe("TaskEditorModal", () => {
     expect(screen.getByTestId("workspace-scope-statement")).toHaveTextContent(
       "Creates in launch-hq"
     );
+    expect(
+      screen
+        .getByTestId("workspace-scope-statement")
+        .closest('[data-slot="entity-dialog-footer-hint"]')
+    ).not.toBeNull();
     expect(screen.queryByTestId("task-workspace-select")).toBeNull();
   });
 
@@ -292,6 +341,12 @@ describe("TaskEditorModal", () => {
     expect(screen.getByTestId("task-title-input")).toHaveValue("Summarize review feedback");
     expect(screen.queryByTestId("task-network-input")).not.toBeInTheDocument();
     expect(screen.getByTestId("task-editor-modal-submit")).toHaveTextContent("Save changes");
+    expect(screen.getByTestId("workspace-scope-statement")).toHaveTextContent("Lives in launch-hq");
+    expect(
+      screen
+        .getByTestId("workspace-scope-statement")
+        .closest('[data-slot="entity-dialog-footer-hint"]')
+    ).not.toBeNull();
   });
 
   it("Should hold the edit host on a loading state instead of a half-bound form", () => {
@@ -349,5 +404,41 @@ describe("TaskEditorModal", () => {
       }),
       false
     );
+  });
+});
+
+describe("QueueOwnershipSection", () => {
+  it("Should update owner help with the selected kind", async () => {
+    const user = userEvent.setup();
+
+    function Harness() {
+      const [ownerKind, setOwnerKind] = useState<TaskOwnerKind | "">("");
+      return (
+        <TooltipProvider delay={0}>
+          <QueueOwnershipSection
+            approvalPolicy="none"
+            maxAttempts={1}
+            onApprovalPolicy={() => undefined}
+            onMaxAttempts={() => undefined}
+            onOwnerKind={setOwnerKind}
+            onOwnerRef={() => undefined}
+            ownerKind={ownerKind}
+            ownerRef=""
+          />
+        </TooltipProvider>
+      );
+    }
+
+    render(<Harness />);
+
+    expect(
+      screen.queryByText(/Leave ownership empty unless a specific agent/)
+    ).not.toBeInTheDocument();
+
+    await user.click(screen.getByTestId("task-owner-help"));
+    expect(screen.getByText(/Leave ownership empty unless a specific agent/)).toBeInTheDocument();
+
+    fireEvent.change(screen.getByTestId("task-owner-kind"), { target: { value: "pool" } });
+    expect(screen.getByText(/Use an agent name or worker-pool id/)).toBeInTheDocument();
   });
 });

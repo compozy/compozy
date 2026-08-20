@@ -6,7 +6,7 @@ persona: Dora
 journey: J-mcp-authorize-repair
 expected: Opening Add MCP server shows Simple only — a two-card choice between Local process and Streamable HTTP endpoint, the server name, and either the command or the endpoint URL. Advanced adds the process environment (args, env, typed secret inputs) for a local server, or the discovered OAuth registration block for a remote one — never both. Switching transport replaces the launch configuration: the abandoned branch's command, args, env, and secret_env are omitted from the request entirely. On edit, the server name and scope render as readable locked identity because they are the tool prefix agents already see. Untouched secret bindings emit their preservation flags and are never disclosed; a Vault-bound secret shows only its reference. The scope the definition writes to stays visible in both modes.
 entry_points: web desktop shell → Marketplace → MCPs → Installed → Add server / Edit
-qa_status: skipped
+qa_status: untested
 bug_ids:
 fix_status:
 retest_status:
@@ -25,3 +25,5 @@ Introduced by the modal redesign (`.compozy/tasks/modals-redesign/`, `_techspec.
 The editor keeps its own dialog rather than routing through `SettingsEditorDialog`: the mode toolbar and the transport-dependent body are not part of that shell's contract, and nesting them would produce two chromes.
 
 src: web/src/systems/settings/components/mcp-server-editor.tsx; web/src/systems/settings/components/mcp-editor-connection-section.tsx; web/src/systems/settings/components/mcp-editor-stdio-section.tsx; web/src/systems/settings/components/mcp-editor-oauth-section.tsx; web/src/systems/settings/lib/mcp-editor-model.ts
+
+2026-08-20 qa-impact: Simple/Advanced sits on a recessed `--color-canvas-tint` chrome strip against the `--color-canvas-soft` shell. Status remains untested.

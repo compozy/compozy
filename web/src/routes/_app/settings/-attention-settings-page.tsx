@@ -110,7 +110,7 @@ export function AttentionSettingsPage() {
 
   return (
     <SettingsPageFrame
-      description="How CompozyOS tells you a session needs you. Changes apply immediately."
+      description="Changes apply immediately."
       restart={page.restart}
       slug="attention"
     >
@@ -122,7 +122,6 @@ export function AttentionSettingsPage() {
       <SettingsGroup title="Delivery">
         <SettingRow
           label="Toasts"
-          description="In-app, for needs-you moments and finished sessions"
           control={
             <Switch
               checked={page.config.toasts}
@@ -135,7 +134,6 @@ export function AttentionSettingsPage() {
         />
         <SettingRow
           label="Sound"
-          description="One chime per delivery, following the same rules"
           control={
             <Switch
               checked={page.config.sound}

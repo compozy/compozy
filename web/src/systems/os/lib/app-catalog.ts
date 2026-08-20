@@ -118,7 +118,7 @@ export const OS_APP_DESCRIPTORS: Record<OsAppId, OsAppDescriptor> = {
   },
   bridges: {
     id: "bridges",
-    title: "Connections",
+    title: "Bridges",
     icon: Waypoints,
     paths: ["/bridges"],
     dock: { group: 3 },
@@ -132,7 +132,7 @@ export const OS_APP_DESCRIPTORS: Record<OsAppId, OsAppDescriptor> = {
   },
   sandbox: {
     id: "sandbox",
-    title: "Permissions",
+    title: "Sandbox",
     icon: Boxes,
     paths: ["/sandbox"],
     dock: { group: 4 },

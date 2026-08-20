@@ -1,6 +1,6 @@
 "use client";
 
-import { cn } from "@compozy/ui";
+import { cn, Kbd } from "@compozy/ui";
 import { Search } from "lucide-react";
 import { useSearchContext } from "fumadocs-ui/contexts/search";
 import type { ComponentProps } from "react";
@@ -15,11 +15,7 @@ const searchInputClasses = [
   "placeholder:text-muted focus-visible:outline-none",
 ];
 
-const keyboardHintClasses = [
-  "ms-auto hidden items-center gap-0.5 text-eyebrow text-subtle",
-  "xl:inline-flex [&_kbd]:rounded-md [&_kbd]:border [&_kbd]:border-line",
-  "[&_kbd]:bg-background [&_kbd]:px-1.5 [&_kbd]:font-mono",
-];
+const keyboardHintClasses = ["ms-auto hidden items-center gap-0.5 text-subtle", "xl:inline-flex"];
 
 export function HeaderSearchInput({ className, hideIfDisabled, ...props }: HeaderSearchInputProps) {
   const { enabled, hotKey, setOpenSearch } = useSearchContext();
@@ -63,7 +59,7 @@ export function HeaderSearchInput({ className, hideIfDisabled, ...props }: Heade
       />
       <span aria-hidden className={cn(keyboardHintClasses)}>
         {hotKey.map((key, index) => (
-          <kbd key={index}>{key.display}</kbd>
+          <Kbd key={index}>{key.display}</Kbd>
         ))}
       </span>
     </form>

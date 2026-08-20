@@ -5,6 +5,7 @@ import { XIcon } from "lucide-react";
 import { AnimatePresence, m } from "motion/react";
 import * as React from "react";
 
+import { firstDialogTabbable } from "../lib/dialog-initial-focus";
 import { cn } from "../lib/utils";
 import { Button } from "./button";
 import {
@@ -106,9 +107,10 @@ const DIALOG_HEADER_RULED = "flex flex-col gap-2 border-b border-line bg-canvas-
 
 const DIALOG_FOOTER_DEFAULT =
   "-mx-4 -mb-4 flex min-w-0 flex-col-reverse gap-2 rounded-b-lg border-t border-line bg-canvas-tint p-4 sm:flex-row sm:justify-end";
-// The ruled footer uses the same horizontal gutter as the rest of the shell.
+// Ruled chrome is one dialog surface: same `--color-canvas-soft` as the header
+// and unframed body. A second fill here made entity editors look two-toned.
 const DIALOG_FOOTER_RULED =
-  "flex min-w-0 flex-col-reverse gap-2 border-t border-line bg-canvas-tint px-5 py-3 sm:flex-row sm:justify-end";
+  "flex min-w-0 flex-col-reverse gap-2 border-t border-line bg-canvas-soft px-5 py-3 sm:flex-row sm:justify-end";
 
 interface DialogContentProps extends DialogPrimitive.Popup.Props {
   showCloseButton?: boolean;
@@ -126,12 +128,22 @@ function DialogContent({
   showCloseButton = true,
   unframed = false,
   style,
+  initialFocus,
   ...props
 }: DialogContentProps) {
   const { actionsRef, open } = useDialogMotion();
   const overlayContainer = useOverlayContainer();
   const windowScoped = overlayContainer !== null;
   const transition = useDialogMotionTransition();
+  const popupRef = React.useRef<HTMLDivElement | null>(null);
+  const resolvedInitialFocus =
+    initialFocus ??
+    ((openType: string) => {
+      if (openType === "touch") return popupRef.current ?? true;
+      const popup = popupRef.current;
+      if (!popup) return true;
+      return firstDialogTabbable(popup) ?? true;
+    });
   const popupRender = (
     <m.div
       initial={false}
@@ -151,8 +163,10 @@ function DialogContent({
         <DialogPortal key="dialog-portal" keepMounted>
           <DialogOverlay />
           <DialogPrimitive.Popup
+            ref={popupRef}
             data-slot="dialog-content"
             data-frame={unframed ? "unframed" : "framed"}
+            initialFocus={resolvedInitialFocus}
             render={popupRender}
             className={cn(
               DIALOG_CONTENT_BASE,

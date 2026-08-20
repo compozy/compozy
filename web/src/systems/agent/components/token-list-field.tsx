@@ -5,7 +5,9 @@ import {
   Field,
   FieldDescription,
   FieldError,
+  FieldHeader,
   FieldLabel,
+  HelpTip,
   InputGroup,
   InputGroupAddon,
   InputGroupButton,
@@ -16,10 +18,13 @@ import {
 import { appendAgentCreateTokens, removeAgentCreateToken } from "../lib/agent-create-draft";
 
 export interface TokenListFieldProps {
-  description: string;
+  /** Visible caption under the label. Prefer `help` for explanatory prose. */
+  description?: string;
   disabled?: boolean;
   readOnly?: boolean;
   error?: string;
+  /** Explanatory prose, shown as a `HelpTip` beside the label. */
+  help?: string;
   label: string;
   onChange: (values: string[]) => void;
   placeholder: string;
@@ -32,6 +37,7 @@ export function TokenListField({
   disabled = false,
   readOnly = false,
   error,
+  help,
   label,
   onChange,
   placeholder,
@@ -56,8 +62,15 @@ export function TokenListField({
 
   return (
     <Field data-invalid={Boolean(error)}>
-      <FieldLabel htmlFor={inputId}>{label}</FieldLabel>
-      <FieldDescription>{description}</FieldDescription>
+      {help ? (
+        <FieldHeader>
+          <FieldLabel htmlFor={inputId}>{label}</FieldLabel>
+          <HelpTip label={`About ${label.toLowerCase()}`}>{help}</HelpTip>
+        </FieldHeader>
+      ) : (
+        <FieldLabel htmlFor={inputId}>{label}</FieldLabel>
+      )}
+      {description ? <FieldDescription>{description}</FieldDescription> : null}
       <InputGroup>
         <InputGroupInput
           aria-disabled={readOnly || undefined}

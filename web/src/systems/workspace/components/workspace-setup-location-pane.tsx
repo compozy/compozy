@@ -1,10 +1,10 @@
 import {
   Eyebrow,
   Field,
-  FieldContent,
-  FieldDescription,
+  FieldHeader,
   FieldLabel,
   FormSection,
+  HelpTip,
   ImmutableIdentity,
   Input,
 } from "@compozy/ui";
@@ -26,11 +26,7 @@ interface WorkspaceSetupLocationPaneProps {
 export function WorkspaceSetupLocationPane({ setup }: WorkspaceSetupLocationPaneProps) {
   return (
     <div className="flex min-h-0 flex-col gap-4">
-      <FormSection
-        className="flex min-h-0 flex-col"
-        description="Pick the folder agents work in."
-        title="Location"
-      >
+      <FormSection className="flex min-h-0 flex-col" title="Location">
         <div className="flex min-h-0 flex-col gap-4">
           <div className="flex min-h-0 flex-col gap-1.5">
             <span className="flex items-center text-form-label text-fg">
@@ -61,17 +57,13 @@ export function WorkspaceSetupLocationPane({ setup }: WorkspaceSetupLocationPane
               hint="Sessions read and write inside this root — it cannot change later."
               rows={[{ label: "Selected root", value: setup.draft.rootDir, mono: true }]}
             />
-          ) : (
-            <p className="text-form-hint text-subtle" data-testid="workspace-setup-root-empty">
-              Pick the workspace root in the browser above.
-            </p>
-          )}
+          ) : null}
 
           <Field>
-            <FieldContent>
+            <FieldHeader>
               <FieldLabel htmlFor="workspace-setup-name">Display name</FieldLabel>
-              <FieldDescription>Defaults to the folder name.</FieldDescription>
-            </FieldContent>
+              <HelpTip label="About display name">Defaults to the folder name.</HelpTip>
+            </FieldHeader>
             <Input
               data-testid="workspace-setup-name-input"
               disabled={setup.submissionMode !== null}

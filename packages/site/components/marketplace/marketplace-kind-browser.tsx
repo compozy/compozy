@@ -76,7 +76,7 @@ export function MarketplaceKindBrowser({
             onChange={event => setQuery(event.target.value)}
             placeholder="Filter entries…"
             aria-label={`Filter ${noun}`}
-            className="h-8 w-full rounded-md border border-line bg-canvas ps-7.5 pe-2.5 text-small-body text-fg transition-colors outline-none placeholder:text-subtle focus-visible:border-line-strong"
+            className="h-search w-full rounded-md border border-line bg-canvas py-0 ps-7.5 pe-2.5 text-eyebrow leading-none text-fg transition-colors outline-none placeholder:text-subtle focus-visible:border-line-strong"
           />
         </div>
       </div>

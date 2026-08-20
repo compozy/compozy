@@ -4,9 +4,9 @@ area: ET
 title: Navigate the desktop app registry
 persona: Bruno
 journey: J-marketplace-acquisition
-expected: The dock and command palette expose the canonical desktop app registry without duplicate windows; the registry labels read Connections (route `/bridges`) and Permissions (route `/sandbox`), and every dock tooltip, Go menu entry, window title, and palette hit shows the same label from the one descriptor; Marketplace owns its Extensions, Skills, and MCP routes; Permissions and Vault stay in the final dock group; Settings opens from the menubar cog; focusing a child route preserves the owning app window.
+expected: The dock and command palette expose the canonical desktop app registry without duplicate windows; the registry labels read Bridges (route `/bridges`) and Sandbox (route `/sandbox`), and every dock tooltip, Go menu entry, window title, and palette hit shows the same label from the one descriptor; Marketplace owns its Extensions, Skills, and MCP routes; Sandbox and Vault stay in the final dock group; Settings opens from the menubar cog; focusing a child route preserves the owning app window.
 entry_points: web desktop dock; command palette; settings cog; Catalog and System destinations
-qa_status: skipped
+qa_status: untested
 bug_ids: BUG-20260802-retired-marketplace-kind-alias
 fix_status: fixed
 retest_status: pass
@@ -39,10 +39,11 @@ the next QA cycle.
 QA impact 2026-08-20: the normie-friendly UI foundation pass renamed two registry labels —
 `Bridges` → **Connections** and `Sandbox` → **Permissions** (`os/lib/app-catalog.ts:118,132`) — and
 swapped the Session icon from `SquareTerminal` to `MessagesSquare` (`:57`). Routes are unchanged
-(`/bridges`, `/sandbox`); these are COPY.md §6 surface aliases, not renames, so the canonical nouns
-stay in code, wire, CLI, and API. Reset because this file is where the registry labels are asserted.
+(`/bridges`, `/sandbox`). That label remap was reverted the same day: the product surfaces are
+**Bridges** and **Sandbox** again. `expected:` was rewritten to match. Reset because this file is
+where the registry labels are asserted.
 
 One array feeds the dock, the Go menu, window titles, and the command palette, so the walk's real
-question is consistency: a persona searching the palette for "Connections" must find the bridges app,
-and no surface may still say Bridges or Sandbox. `Loops`, `Jobs`, `Triggers`, and `Network` were
-deliberately left alone pending an owner decision on the alias table.
+question is consistency: a persona searching the palette for "Bridges" must find the bridges app,
+and no surface may still say Connections or Permissions for those two apps. `Loops`, `Jobs`,
+`Triggers`, and `Network` were deliberately left alone pending an owner decision on the alias table.

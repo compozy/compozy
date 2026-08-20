@@ -11,10 +11,10 @@ import {
   EntityDialogHeader,
   Eyebrow,
   Field,
-  FieldContent,
-  FieldDescription,
+  FieldHeader,
   FieldLabel,
   FormSection,
+  HelpTip,
   Input,
   Pill,
   Textarea,
@@ -88,21 +88,18 @@ export function NetworkCreateChannelDialog({
 
         <form className="grid min-h-0 grid-rows-[minmax(0,1fr)_auto]" onSubmit={handleSubmit}>
           <EntityDialogBody className="flex flex-col">
-            <FormSection
-              description="Name and membership are fixed after creation."
-              title="The channel"
-            >
+            <FormSection help="Name and membership are fixed after creation." title="The channel">
               <div className="flex flex-col gap-4">
                 <Field>
-                  <FieldContent>
+                  <FieldHeader>
                     <FieldLabel htmlFor="network-channel-name">
                       Channel name
                       <Eyebrow className="ml-1.5 text-accent-strong">required</Eyebrow>
                     </FieldLabel>
-                    <FieldDescription>
+                    <HelpTip label="About channel name">
                       Use lowercase letters, numbers, underscores, or hyphens; e.g. coord_core.
-                    </FieldDescription>
-                  </FieldContent>
+                    </HelpTip>
+                  </FieldHeader>
                   <Input
                     className="font-mono"
                     data-testid="network-channel-name-input"
@@ -114,15 +111,15 @@ export function NetworkCreateChannelDialog({
                 </Field>
 
                 <Field>
-                  <FieldContent>
+                  <FieldHeader>
                     <FieldLabel htmlFor="network-channel-purpose">
                       Purpose
                       <Eyebrow className="ml-1.5 text-accent-strong">required</Eyebrow>
                     </FieldLabel>
-                    <FieldDescription>
+                    <HelpTip label="About purpose">
                       Peers use the purpose to decide whether to delegate here.
-                    </FieldDescription>
-                  </FieldContent>
+                    </HelpTip>
+                  </FieldHeader>
                   <Textarea
                     aria-required="true"
                     className="min-h-24 border-line bg-canvas-soft p-3 text-small-body leading-6"
@@ -138,7 +135,6 @@ export function NetworkCreateChannelDialog({
             </FormSection>
 
             <FormSection
-              description="Agents from the workspace catalog."
               rightLabel={
                 <Pill mono data-testid="network-selected-agents-count">
                   {draft.selectedAgentNames.length} selected
@@ -170,10 +166,7 @@ export function NetworkCreateChannelDialog({
               ) : null}
             </FormSection>
 
-            <FormSection
-              description="The fanout policy routes incoming work."
-              title="Who receives a message?"
-            >
+            <FormSection title="Who receives a message?">
               <ChannelFanoutCards
                 disabled={isSubmitting}
                 onChange={onFanoutPolicyChange}

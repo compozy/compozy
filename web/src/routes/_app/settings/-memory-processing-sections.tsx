@@ -9,7 +9,7 @@ export function DecisionsSection({
   setValidationError,
 }: ValidatedSectionProps) {
   return (
-    <SettingsGroup title="Decisions retention" description="memory_decisions WAL housekeeping">
+    <SettingsGroup title="Decisions retention">
       <SettingsFieldRow
         data-testid={`${TEST_PREFIX}-decisions-prune-after`}
         label="Prune after applied (days)"
@@ -37,7 +37,7 @@ export function DecisionsSection({
       <SettingsFieldRow
         data-testid={`${TEST_PREFIX}-decisions-keep-summary`}
         label="Keep audit summary on prune"
-        description="Emit memory.decisions.audit_summarized before deleting old rows"
+        help="Emit memory.decisions.audit_summarized before deleting old rows"
         control={
           <Switch
             data-testid={`${TEST_PREFIX}-decisions-keep-summary-switch`}
@@ -57,7 +57,7 @@ export function DecisionsSection({
       <SettingsFieldRow
         data-testid={`${TEST_PREFIX}-decisions-max-post-content`}
         label="Max post_content bytes"
-        description="Per-row body cap; oversize rows store a content-hash reference instead"
+        help="Per-row body cap; oversize rows store a content-hash reference instead"
         error={validationErrors.decisionsMaxPostBytes ?? undefined}
         control={
           <SettingsNumberInput
@@ -89,7 +89,7 @@ export function ExtractorSection({
   setValidationError,
 }: ValidatedSectionProps) {
   return (
-    <SettingsGroup title="Extractor" description="post-message proposal generation">
+    <SettingsGroup title="Extractor">
       <SettingsFieldRow
         data-testid={`${TEST_PREFIX}-extractor-mode`}
         label="Mode"
@@ -115,7 +115,7 @@ export function ExtractorSection({
       <SettingsFieldRow
         data-testid={`${TEST_PREFIX}-extractor-throttle`}
         label="Throttle turns"
-        description="Skip N turns between extractor invocations"
+        help="Skip N turns between extractor invocations"
         error={validationErrors.extractorThrottle ?? undefined}
         control={
           <SettingsNumberInput
@@ -139,7 +139,7 @@ export function ExtractorSection({
       <SettingsFieldRow
         data-testid={`${TEST_PREFIX}-extractor-deadline`}
         label="Deadline"
-        description="Per-extraction wall clock budget"
+        help="Per-extraction wall clock budget"
         control={
           <Input
             className="w-32 font-mono"
@@ -161,7 +161,7 @@ export function ExtractorSection({
       <SettingsFieldRow
         data-testid={`${TEST_PREFIX}-extractor-sandbox`}
         label="Sandbox to inbox only"
-        description="Restrict the extractor sub-agent to writes under _inbox/"
+        help="Restrict the extractor sub-agent to writes under _inbox/"
         control={
           <Switch
             data-testid={`${TEST_PREFIX}-extractor-sandbox-switch`}
@@ -181,7 +181,7 @@ export function ExtractorSection({
       <SettingsFieldRow
         data-testid={`${TEST_PREFIX}-extractor-queue-capacity`}
         label="Queue capacity"
-        description="Per-session in-flight extraction slots"
+        help="Per-session in-flight extraction slots"
         error={validationErrors.extractorQueueCapacity ?? undefined}
         control={
           <SettingsNumberInput
@@ -208,7 +208,7 @@ export function ExtractorSection({
       <SettingsFieldRow
         data-testid={`${TEST_PREFIX}-extractor-coalesce-max`}
         label="Coalesce ceiling"
-        description="Maximum coalesced batches before drop-oldest kicks in"
+        help="Maximum coalesced batches before drop-oldest kicks in"
         error={validationErrors.extractorCoalesce ?? undefined}
         control={
           <SettingsNumberInput
@@ -235,7 +235,7 @@ export function ExtractorSection({
       <SettingsFieldRow
         data-testid={`${TEST_PREFIX}-extractor-inbox-path`}
         label="Inbox path"
-        description="Where extractor JSONL output lands — read-only, managed by CompozyOS"
+        description="Read-only, managed by CompozyOS"
         control={
           <Input
             readOnly
@@ -248,7 +248,7 @@ export function ExtractorSection({
       <SettingsFieldRow
         data-testid={`${TEST_PREFIX}-extractor-dlq-path`}
         label="DLQ path"
-        description="Where extractor failure records land — read-only, managed by CompozyOS"
+        description="Read-only, managed by CompozyOS"
         control={
           <Input
             readOnly

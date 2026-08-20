@@ -21,8 +21,8 @@ export interface SettingRowProps {
   /** The consequence sentence — what this does to the user's work (≤52ch). */
   description?: ReactNode;
   /**
-   * Explanation, moved into a `HelpTip` beside the label. Modal rows only —
-   * `description` stays for what the runtime will do with the value.
+   * Explanation, moved into a `HelpTip` beside the label. Use `description`
+   * only for what the runtime will do with the value.
    */
   help?: ReactNode;
   error?: ReactNode;
@@ -48,6 +48,7 @@ function settingRowIds(testId: string | undefined, fallbackId: string) {
 export function SettingRow({
   label,
   description,
+  help,
   error,
   control,
   className,
@@ -77,13 +78,16 @@ export function SettingRow({
       data-testid={testId}
     >
       <div className="min-w-0 flex-1">
-        <LabelTag
-          className="flex items-center gap-1.5 text-ws-name font-medium text-fg-strong"
-          htmlFor={labelHtmlFor}
-          id={labelId}
-        >
-          {label}
-        </LabelTag>
+        <div className="flex items-center gap-1.5">
+          <LabelTag
+            className="text-ws-name font-medium text-fg-strong"
+            htmlFor={labelHtmlFor}
+            id={labelId}
+          >
+            {label}
+          </LabelTag>
+          {help ? <HelpTip label={helpTriggerLabel(label)}>{help}</HelpTip> : null}
+        </div>
         {description ? (
           <div
             className="mt-0.5 max-w-setting-description text-form-label leading-normal text-muted"

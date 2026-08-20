@@ -13,7 +13,7 @@ const meta: Meta<typeof SearchInput> = {
     docs: {
       description: {
         component:
-          "Search field with leading glyph, optional kbd hint slot, and standard 36px row.",
+          "Toolbar search with leading glyph, optional kbd hint, and `--height-search` (28px) to match compact pill tracks.",
       },
     },
   },

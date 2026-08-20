@@ -76,19 +76,16 @@ function renderControl({
 /** One editable role policy field rendered as a settings row. */
 export function RoleFieldControl(props: RoleFieldControlProps) {
   const { field, hasEffective, effective, error, testId } = props;
-  const description = (
-    <>
-      {field.description ? <span>{field.description}</span> : null}
-      {hasEffective ? (
-        <RoleEffectiveHint effective={effective} emptyLabel="Resolves at invocation." />
-      ) : null}
-    </>
-  );
   return (
     <SettingsFieldRow
       data-testid={testId}
       label={field.label}
-      description={description}
+      help={field.description}
+      description={
+        hasEffective ? (
+          <RoleEffectiveHint effective={effective} emptyLabel="Resolves at invocation." />
+        ) : undefined
+      }
       error={error}
       control={renderControl(props)}
     />

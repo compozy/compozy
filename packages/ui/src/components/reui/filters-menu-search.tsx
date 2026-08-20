@@ -127,9 +127,7 @@ function FiltersMenuSearchInput<T = unknown>({
           }}
         />
         {enableShortcut && shortcutLabel ? (
-          <Kbd className="absolute top-1/2 right-2 -translate-y-1/2 border bg-background">
-            {shortcutLabel}
-          </Kbd>
+          <Kbd className="absolute top-1/2 right-2 -translate-y-1/2">{shortcutLabel}</Kbd>
         ) : null}
       </div>
       <DropdownMenuSeparator />

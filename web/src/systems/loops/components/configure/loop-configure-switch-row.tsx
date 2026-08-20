@@ -1,6 +1,6 @@
 import type { ReactNode } from "react";
 
-import { Switch } from "@compozy/ui";
+import { HelpTip, Switch } from "@compozy/ui";
 
 import { MonoTag } from "../mono-tag";
 
@@ -9,6 +9,8 @@ interface LoopConfigureSwitchRowProps {
   typeLabel?: string;
   title: string;
   description?: string;
+  /** Explanatory prose, shown as a `HelpTip` beside the title. */
+  help?: string;
   checked: boolean;
   /** Locked rows render the switch on + disabled (can't be removed without a fork). */
   disabled?: boolean;
@@ -28,6 +30,7 @@ export function LoopConfigureSwitchRow({
   typeLabel,
   title,
   description,
+  help,
   checked,
   disabled = false,
   lockedHint,
@@ -48,7 +51,10 @@ export function LoopConfigureSwitchRow({
           </MonoTag>
         ) : null}
         <div className="min-w-0 flex-1">
-          <p className="text-small-body font-medium text-fg-strong">{title}</p>
+          <div className="flex items-center gap-1.5">
+            <p className="text-small-body font-medium text-fg-strong">{title}</p>
+            {help ? <HelpTip label={`About ${title.toLowerCase()}`}>{help}</HelpTip> : null}
+          </div>
           {description ? (
             <p className="mt-0.5 text-form-hint leading-snug text-subtle">{description}</p>
           ) : null}

@@ -39,12 +39,7 @@ export function BridgeCreateSimpleSection({
         supportsManifest={supportsManifest}
       />
 
-      <FormSection
-        data-testid="bridge-create-section-identity"
-        description="How this bridge appears in lists and receipts."
-        icon={Fingerprint}
-        title="Identity"
-      >
+      <FormSection data-testid="bridge-create-section-identity" icon={Fingerprint} title="Identity">
         <Field>
           <FieldLabel htmlFor="bridge-display-name-input">
             Display name

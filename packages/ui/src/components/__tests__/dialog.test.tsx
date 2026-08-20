@@ -13,7 +13,9 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "../dialog";
+import { HelpTip } from "../custom/help-tip";
 import { OverlayContainerContext } from "../hooks/use-overlay-container";
+import { TooltipProvider } from "../tooltip";
 import { Button } from "../button";
 
 function DialogExample({ defaultOpen = false }: { defaultOpen?: boolean }) {
@@ -67,6 +69,30 @@ describe("Dialog", () => {
     const user = userEvent.setup();
     render(<DialogExample defaultOpen />);
     await waitFor(() => expect(screen.getByRole("dialog")).toBeInTheDocument());
+    await user.keyboard("{Escape}");
+    await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument(), {
+      timeout: 1500,
+    });
+  });
+
+  it("Should skip HelpTip on open so Escape dismisses the dialog", async () => {
+    const user = userEvent.setup();
+    render(
+      <TooltipProvider delay={0}>
+        <Dialog defaultOpen>
+          <DialogContent>
+            <DialogTitle>Install github</DialogTitle>
+            <HelpTip label="About token">GitHub personal access token</HelpTip>
+            <input aria-label="token" />
+          </DialogContent>
+        </Dialog>
+      </TooltipProvider>
+    );
+    await waitFor(() => expect(screen.getByRole("dialog")).toBeInTheDocument());
+    await waitFor(() => expect(screen.getByRole("textbox", { name: "token" })).toHaveFocus());
+    expect(screen.getByRole("button", { name: "About token" })).not.toHaveFocus();
+    expect(screen.queryByText("GitHub personal access token")).not.toBeInTheDocument();
+
     await user.keyboard("{Escape}");
     await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument(), {
       timeout: 1500,

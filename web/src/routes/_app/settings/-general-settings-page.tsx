@@ -130,7 +130,7 @@ export function GeneralSettingsPage() {
 
   return (
     <SettingsPageFrame
-      description="Defaults and day-to-day behavior for this runtime. Changes here apply to new sessions on this machine."
+      description="Changes here apply to new sessions on this machine."
       meta={
         runtime.available
           ? [
@@ -168,11 +168,7 @@ export function GeneralSettingsPage() {
     >
       <DefaultsGroup draft={draft} setDraft={setDraft} />
 
-      <SettingsGroup
-        data-testid="settings-page-general-permissions"
-        description="How much agents can do before asking you first."
-        title="Permissions"
-      >
+      <SettingsGroup data-testid="settings-page-general-permissions" title="Permissions">
         <SettingsChoiceGroup
           ariaLabel="Permission mode"
           data-testid="settings-page-general-permissions-group"
@@ -189,10 +185,11 @@ export function GeneralSettingsPage() {
 
       <ToolApprovalGrantsSection />
 
-      <SettingsGroup description="Lifecycle for sessions CompozyOS hosts." title="Sessions">
+      <SettingsGroup title="Sessions">
         <SettingRow
           data-testid="settings-page-general-session-timeout"
-          description="A session with no activity for this long is ended and kept in history. 0 keeps sessions open."
+          help="A session with no activity for this long is ended and kept in history."
+          description="0 keeps sessions open."
           error={validationErrors.sessionTimeout ?? undefined}
           label="End idle sessions after"
           control={
@@ -219,11 +216,7 @@ export function GeneralSettingsPage() {
       <DaemonSection draft={draft} setDraft={setDraft} />
       <RedactionSection draft={draft} setDraft={setDraft} />
 
-      <SettingsGroup
-        bare
-        description="Where CompozyOS is listening right now. Read-only."
-        title="Runtime"
-      >
+      <SettingsGroup bare description="Read-only." title="Runtime">
         {runtime.available ? (
           <SettingsTiles>
             <SettingsTile
@@ -296,7 +289,7 @@ export function GeneralSettingsPage() {
           description={
             page.applyRecords.data?.entries?.length
               ? `${page.applyRecords.data.entries.length} apply records.`
-              : "History of applied configuration changes."
+              : undefined
           }
           label="Configuration changes"
           onClick={() => setApplyRecordsOpen(true)}
@@ -309,10 +302,7 @@ export function GeneralSettingsPage() {
         {update.data ? (
           <SettingRow
             data-testid="settings-page-general-update-detail"
-            description={
-              update.data.runtime.recommendation ??
-              "Latest stable and install-method detail for this machine."
-            }
+            description={update.data.runtime.recommendation ?? undefined}
             label="Update detail"
             control={
               <SettingValue mono>
@@ -364,14 +354,9 @@ function DefaultsGroup({ draft, setDraft }: DraftSectionProps) {
   const sandboxNames = (sandboxes.data?.sandboxes ?? []).map(entry => entry.name);
 
   return (
-    <SettingsGroup
-      data-testid="settings-page-general-defaults"
-      description="What new sessions start with unless you pick something else."
-      title="Defaults"
-    >
+    <SettingsGroup data-testid="settings-page-general-defaults" title="Defaults">
       <SettingRow
         data-testid="settings-page-general-default-agent"
-        description="Used when you start a session without choosing an agent."
         label="Default agent"
         control={
           <Input
@@ -389,7 +374,6 @@ function DefaultsGroup({ draft, setDraft }: DraftSectionProps) {
       />
       <SettingRow
         data-testid="settings-page-general-default-provider"
-        description="The provider new agents run on when none is set."
         label="Default provider"
         control={
           <NativeSelect
@@ -417,7 +401,7 @@ function DefaultsGroup({ draft, setDraft }: DraftSectionProps) {
       />
       <SettingRow
         data-testid="settings-page-general-default-sandbox"
-        description="How much of your file system new sessions can touch."
+        help="How much of your file system new sessions can touch."
         label="Default sandbox"
         control={
           <NativeSelect

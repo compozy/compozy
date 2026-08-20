@@ -1221,7 +1221,7 @@ describe("MarketplaceKindPage", () => {
 
     await user.click(screen.getByTestId("marketplace-extension-install"));
     await user.click(screen.getByTestId("extension-install-source-git"));
-    expect(screen.getByText(/public HTTPS repository URL/)).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "About repository url" })).toBeInTheDocument();
 
     const ref = screen.getByTestId("extension-install-ref");
     await user.type(ref, "ssh://git.example.com/acme/hello.git");

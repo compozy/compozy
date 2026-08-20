@@ -10,6 +10,7 @@ import {
   DialogHeader,
   DialogTitle,
   Eyebrow,
+  HelpTip,
   Pill,
   Spinner,
   Textarea,
@@ -213,26 +214,27 @@ function AuthorizeContent({ authorize, scope, server }: MCPAuthorizeDialogProps)
             className="mt-3.5 border-t border-line-soft pt-3.5"
             data-testid="settings-page-mcp-authorize-manual"
           >
-            <label
-              className="mb-1.5 flex items-center gap-2 text-form-label font-medium text-fg"
-              htmlFor="mcp-authorize-manual-value"
-            >
-              Full redirect URL
+            <div className="mb-1.5 flex items-center gap-2">
+              <label
+                className="text-form-label font-medium text-fg"
+                htmlFor="mcp-authorize-manual-value"
+              >
+                Full redirect URL
+              </label>
+              <HelpTip label="About full redirect URL">
+                Use this when the browser cannot reach this machine. Paste the complete redirected
+                URL, including its query parameters. Authorization codes alone are not accepted.
+              </HelpTip>
               <Eyebrow className="ml-auto text-muted">required</Eyebrow>
-            </label>
+            </div>
             <Textarea
               id="mcp-authorize-manual-value"
               className="font-mono"
               value={manualValue}
               onChange={event => setManualValue(event.target.value)}
               placeholder="Paste the complete URL returned after provider authorization"
-              aria-describedby="mcp-authorize-manual-help"
               data-testid="settings-page-mcp-authorize-manual-input"
             />
-            <p className="mt-1.5 text-caption text-muted" id="mcp-authorize-manual-help">
-              Use this when the browser cannot reach this machine. Paste the complete redirected
-              URL, including its query parameters. Authorization codes alone are not accepted.
-            </p>
           </div>
         ) : null}
       </div>

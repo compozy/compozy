@@ -89,6 +89,9 @@ describe("TaskSetupSheet", () => {
     );
 
     expect(screen.getByTestId("tasks-setup-form")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "About allowed agents" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "About allowed reviewers" })).toBeInTheDocument();
+    expect(screen.queryByText("Comma-separated agent names.")).not.toBeInTheDocument();
     expect(screen.getByTestId("tasks-setup-editor-save")).toBeDisabled();
     expect(screen.getByTestId("tasks-setup-editor-save")).toHaveTextContent("Saving…");
   });

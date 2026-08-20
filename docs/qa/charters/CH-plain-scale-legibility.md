@@ -23,7 +23,7 @@ charter:
       - "Confirm reduced-motion still holds after the duration and easing change (fast 120ms, base 180ms, slow 260ms): nothing may pulse or slide when the OS asks it not to."
       - "Watch for the de-mono regression specifically: meta, counters, and ids that lost font-mono must still read as meta and not blend into content."
     must_avoid:
-      - "Nav label wording (Connections, Permissions) — ET-web-catalog-navigation and CH-untested-068-operate-desktop-shell-bruno own it."
+      - "Nav label wording (Bridges, Sandbox) — ET-web-catalog-navigation and CH-untested-068-operate-desktop-shell-bruno own it."
       - "The session transcript and the composer decision dock — CH-session-calm-transcript and CH-session-permission-dock own those surfaces, including their own a11y reads."
       - "The docs site; its ramp and eyebrow moved too, but it is out of this cycle and gated by --audit-site in codegen-check."
 ```

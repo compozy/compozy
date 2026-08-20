@@ -52,7 +52,6 @@ export function ExtensionsSettingsPage() {
   if (page.draft.sources.git.enabled) enabledSources.push("git");
   return (
     <SettingsPageFrame
-      description="What extensions are allowed to run on this machine, and from where."
       meta={[
         {
           key: "sources",

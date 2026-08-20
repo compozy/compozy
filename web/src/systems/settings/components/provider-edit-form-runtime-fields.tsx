@@ -31,11 +31,7 @@ export function ProviderRuntimeFields({ draft, onChange }: ProviderRuntimeFields
   const runtimeProviderRequired = draft.harness === "pi_acp";
 
   return (
-    <FormSection
-      data-testid="settings-providers-editor-runtime"
-      description="Provider-specific overrides stay out of the primary path."
-      title="Runtime & models"
-    >
+    <FormSection data-testid="settings-providers-editor-runtime" title="Runtime & models">
       <ModalSettingsFieldRow
         control={
           <NativeSelect
@@ -52,7 +48,7 @@ export function ProviderRuntimeFields({ draft, onChange }: ProviderRuntimeFields
           </NativeSelect>
         }
         data-testid="settings-providers-editor-harness"
-        description="Runtime adapter used to launch the provider."
+        help="Runtime adapter used to launch the provider."
         label={
           <>
             Harness
@@ -74,7 +70,7 @@ export function ProviderRuntimeFields({ draft, onChange }: ProviderRuntimeFields
           />
         }
         data-testid="settings-providers-editor-runtime-provider"
-        description="Downstream provider id used by the selected harness. Required when using pi_acp."
+        help="Downstream provider id used by the selected harness. Required when using pi_acp."
         label={
           <>
             Runtime provider
@@ -98,7 +94,7 @@ export function ProviderRuntimeFields({ draft, onChange }: ProviderRuntimeFields
           />
         }
         data-testid="settings-providers-editor-transport"
-        description="Provider API family or Pi models override transport."
+        help="Provider API family or Pi models override transport."
         label={
           <>
             Transport
@@ -119,7 +115,7 @@ export function ProviderRuntimeFields({ draft, onChange }: ProviderRuntimeFields
           />
         }
         data-testid="settings-providers-editor-base-url"
-        description="Custom API base URL for Pi-backed model overrides."
+        help="Custom API base URL for Pi-backed model overrides."
         label={
           <>
             Base URL
@@ -141,7 +137,7 @@ export function ProviderRuntimeFields({ draft, onChange }: ProviderRuntimeFields
           />
         }
         data-testid="settings-providers-editor-model"
-        description="Sent to the provider when an agent does not specify one."
+        help="Sent to the provider when an agent does not specify one."
         label={
           <>
             Default model
@@ -163,7 +159,7 @@ export function ProviderRuntimeFields({ draft, onChange }: ProviderRuntimeFields
           />
         }
         data-testid="settings-providers-editor-curated-models"
-        description="Provider-scoped model IDs stored under models.curated."
+        help="Provider-scoped model IDs stored under models.curated."
         label={
           <>
             Curated models
@@ -190,7 +186,7 @@ export function ProviderRuntimeFields({ draft, onChange }: ProviderRuntimeFields
           </NativeSelect>
         }
         data-testid="settings-providers-editor-env-policy"
-        description="Runtime environment inheritance for the provider subprocess."
+        help="Runtime environment inheritance for the provider subprocess."
         label={
           <>
             Env policy
@@ -217,7 +213,7 @@ export function ProviderRuntimeFields({ draft, onChange }: ProviderRuntimeFields
           </NativeSelect>
         }
         data-testid="settings-providers-editor-home-policy"
-        description="Provider CLI state location policy."
+        help="Provider CLI state location policy."
         label={
           <>
             Home policy

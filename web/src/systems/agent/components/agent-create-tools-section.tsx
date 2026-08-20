@@ -27,14 +27,14 @@ export function AgentCreateToolsSection({
   return (
     <FormSection
       data-testid="agent-create-tools-section"
-      description="Empty lists mean the runtime defaults apply."
+      help="Empty lists mean the runtime defaults apply."
       icon={Wrench}
       title="Tools & skills"
     >
       <div className="grid gap-3.5 md:grid-cols-2">
         <TokenListField
-          description="Canonical tool IDs or namespace wildcards."
           error={errors.tools}
+          help="Canonical tool IDs or namespace wildcards."
           label="Allowed tools"
           onChange={tools => onDraftChange({ ...draft, tools })}
           placeholder="compozy__skill_view, mcp__github__*"
@@ -42,8 +42,8 @@ export function AgentCreateToolsSection({
           values={draft.tools}
         />
         <TokenListField
-          description="Tool groups enabled for the agent."
           error={errors.toolsets}
+          help="Tool groups enabled for the agent."
           label="Allowed toolsets"
           onChange={toolsets => onDraftChange({ ...draft, toolsets })}
           placeholder="compozy__catalog"
@@ -51,8 +51,8 @@ export function AgentCreateToolsSection({
           values={draft.toolsets}
         />
         <TokenListField
-          description="Canonical tools to deny after allow rules."
           error={errors.denyTools}
+          help="Canonical tools to deny after allow rules."
           label="Denied tools"
           onChange={denyTools => onDraftChange({ ...draft, denyTools })}
           placeholder="compozy__task_*"
@@ -60,7 +60,7 @@ export function AgentCreateToolsSection({
           values={draft.denyTools}
         />
         <TokenListField
-          description="Skill names disabled only for this agent."
+          help="Skill names disabled only for this agent."
           label="Disabled skills"
           onChange={disabledSkills => onDraftChange({ ...draft, disabledSkills })}
           placeholder="code-review, release-notes"

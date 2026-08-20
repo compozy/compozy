@@ -87,7 +87,6 @@ export function SkillsSettingsPage() {
 
   return (
     <SettingsPageFrame
-      description="Which skills your agents can use, and where new ones may come from."
       meta={[
         ...(envelope.runtime_available
           ? [
@@ -266,7 +265,7 @@ function ScopeSelector({
           <SettingsFieldRow
             data-testid="settings-page-skills-agent-select"
             label="Agent"
-            description="Select the logical agent that receives the tombstone list"
+            help="Select the logical agent that receives the tombstone list"
             control={
               <AgentCommandSelect
                 agents={agents}
@@ -281,7 +280,7 @@ function ScopeSelector({
           <SettingsFieldRow
             data-testid="settings-page-skills-workspace-context"
             label="Workspace context"
-            description="Optional workspace resolver context for the selected agent"
+            help="Optional workspace resolver context for the selected agent"
             control={
               <NativeSelect
                 className="w-56"
@@ -315,7 +314,6 @@ function EngineSection({ draft, setDraft }: DraftSectionProps) {
       <SettingsFieldRow
         data-testid="settings-page-skills-enabled"
         label="Use skills"
-        description="Enable discovery and task resolution"
         control={
           <Switch
             data-testid="settings-page-skills-enabled-switch"
@@ -335,11 +333,11 @@ function EngineSection({ draft, setDraft }: DraftSectionProps) {
 
 function MarketplaceSection({ draft, setDraft }: DraftSectionProps) {
   return (
-    <SettingsGroup title="Marketplace" description="where new skills come from">
+    <SettingsGroup title="Marketplace">
       <SettingsFieldRow
         data-testid="settings-page-skills-marketplace-registry"
         label="Skills come from"
-        description="Identifier of the marketplace publisher"
+        help="Identifier of the marketplace publisher"
         control={
           <Input
             className="w-56"
@@ -360,7 +358,7 @@ function MarketplaceSection({ draft, setDraft }: DraftSectionProps) {
       <SettingsFieldRow
         data-testid="settings-page-skills-poll-interval"
         label="Check for updates every"
-        description="How often the registry re-scans sources"
+        help="How often the registry re-scans sources"
         control={
           <Input
             className="w-32 font-mono"
@@ -382,10 +380,9 @@ function MarketplaceSection({ draft, setDraft }: DraftSectionProps) {
 
 function ManageSection() {
   return (
-    <SettingsGroup title="Manage" description="manage runtime state outside of settings">
+    <SettingsGroup title="Manage">
       <SettingLinkRow
         data-testid="settings-page-skills-link-skills"
-        description="Install, update, and disable skills from the marketplace view."
         label="Manage installed skills"
         render={<Link to="/marketplace/skills" />}
       />
@@ -397,7 +394,6 @@ function AgentScopePolicyNotice() {
   return (
     <SettingsGroup
       title="Marketplace & policy"
-      description="read-only in agent scope"
       data-testid="settings-page-skills-agent-policy-note"
     >
       <p className="text-sm text-muted">
@@ -414,7 +410,7 @@ function InstallPolicySection({ draft, setDraft }: DraftSectionProps) {
       <SettingsFieldRow
         data-testid="settings-page-skills-marketplace-base-url"
         label="Marketplace URL"
-        description={
+        help={
           <span className="inline-flex flex-wrap items-center gap-1.5">
             Override the registry&apos;s default endpoint
             <SettingsProvChip>skills.marketplace.base_url</SettingsProvChip>
@@ -441,7 +437,7 @@ function InstallPolicySection({ draft, setDraft }: DraftSectionProps) {
       <SettingsFieldRow
         data-testid="settings-page-skills-allowed-mcp"
         label="Allowed MCP installs"
-        description={
+        help={
           <span className="inline-flex flex-wrap items-center gap-1.5">
             Marketplace MCP packages that may be installed
             <SettingsProvChip>skills.allowed_marketplace_mcp</SettingsProvChip>
@@ -464,7 +460,7 @@ function InstallPolicySection({ draft, setDraft }: DraftSectionProps) {
       <SettingsFieldRow
         data-testid="settings-page-skills-allowed-hooks"
         label="Allowed hook installs"
-        description={
+        help={
           <span className="inline-flex flex-wrap items-center gap-1.5">
             Marketplace hook packages that may be installed
             <SettingsProvChip>skills.allowed_marketplace_hooks</SettingsProvChip>

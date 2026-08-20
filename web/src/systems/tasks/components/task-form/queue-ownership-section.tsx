@@ -1,9 +1,8 @@
-import { useId } from "react";
-
 import {
   Field,
-  FieldDescription,
+  FieldHeader,
   FieldLabel,
+  HelpTip,
   Input,
   NativeSelect,
   NativeSelectOption,
@@ -107,9 +106,9 @@ interface QueueOwnershipSectionProps {
 
 /**
  * Queue & ownership — who runs the task and how retries / approval behave.
- * Owner kind drives the ref placeholder and help line; the ref input is
- * disabled until a kind is chosen. The approval hint flips between the
- * retry contract and the manual-approval gate.
+ * Owner kind drives the ref placeholder and help tip; the ref input is
+ * disabled until a kind is chosen. The approval hint stays visible and
+ * flips between the retry contract and the manual-approval gate.
  */
 export function QueueOwnershipSection({
   ownerKind,
@@ -121,7 +120,6 @@ export function QueueOwnershipSection({
   onMaxAttempts,
   onApprovalPolicy,
 }: QueueOwnershipSectionProps) {
-  const ownerHelpId = useId();
   const ownerKindOption = resolveOwnerKindOption(ownerKind);
   const ownerDescription = ownerKindOption?.description ?? UNASSIGNED_OWNER_DESCRIPTION;
   const ownerRefPlaceholder = ownerKindOption?.placeholder ?? "Select an owner kind first";
@@ -132,12 +130,13 @@ export function QueueOwnershipSection({
   return (
     <div className="flex flex-col gap-4">
       <Field>
-        <FieldLabel htmlFor="task-owner-kind">
-          Owner
-          <span className="font-normal text-faint"> (leave unassigned to let a pool claim it)</span>
-        </FieldLabel>
+        <FieldHeader>
+          <FieldLabel htmlFor="task-owner-kind">Owner</FieldLabel>
+          <HelpTip data-testid="task-owner-help" label="About owner">
+            {ownerDescription}
+          </HelpTip>
+        </FieldHeader>
         <NativeSelect
-          aria-describedby={ownerHelpId}
           aria-label="Owner kind"
           className="w-full"
           data-testid="task-owner-kind"
@@ -152,11 +151,7 @@ export function QueueOwnershipSection({
             </NativeSelectOption>
           ))}
         </NativeSelect>
-        <FieldDescription data-testid="task-owner-help" id={ownerHelpId}>
-          {ownerDescription}
-        </FieldDescription>
         <Input
-          aria-describedby={ownerHelpId}
           aria-label="Owner reference"
           className="mt-2 font-mono"
           data-testid="task-owner-ref"

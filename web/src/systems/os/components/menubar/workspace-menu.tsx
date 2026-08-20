@@ -1,8 +1,6 @@
-import { Check, ChevronRight, Info } from "lucide-react";
+import { Check, ChevronRight } from "lucide-react";
 
 import {
-  Alert,
-  AlertDescription,
   MenubarContent,
   MenubarItem,
   MenubarMenu,
@@ -31,7 +29,6 @@ export interface WorkspaceMenuProps {
   workspaces: WorkspacePayload[];
   activeWorkspaceId: string | undefined;
   globalScopeOn?: boolean;
-  deletionNotice?: string | null;
   monogram: (name: string) => string;
   onSelectWorkspace: (workspaceId: string) => void;
   onOpenWorkspaces: () => void;
@@ -76,7 +73,6 @@ export function WorkspaceMenu({
   workspaces,
   activeWorkspaceId,
   globalScopeOn = false,
-  deletionNotice = null,
   monogram,
   onSelectWorkspace,
   onOpenWorkspaces,
@@ -100,17 +96,6 @@ export function WorkspaceMenu({
     <MenubarMenu open={open} onOpenChange={onOpenChange}>
       {trigger}
       <MenubarContent align="start" data-testid="os-workspace-menu">
-        {deletionNotice ? (
-          <Alert
-            className="mx-1.5 mb-1 px-2.5 py-2"
-            data-testid="os-workspace-deletion-notice"
-            role="note"
-            variant="info"
-          >
-            <Info aria-hidden="true" className="size-3.5" />
-            <AlertDescription className="text-form-hint">{deletionNotice}</AlertDescription>
-          </Alert>
-        ) : null}
         {orderedWorkspaces.map(workspace => {
           const node = nodeByWorkspaceId.get(workspace.id);
           // Shared absence rule: a non-git workspace gets no worktree

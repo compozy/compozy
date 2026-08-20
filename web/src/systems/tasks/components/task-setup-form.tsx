@@ -1,8 +1,9 @@
 import {
   Field,
-  FieldDescription,
   FieldGroup,
+  FieldHeader,
   FieldLabel,
+  HelpTip,
   Input,
   NativeSelect,
   NativeSelectOption,
@@ -134,8 +135,10 @@ export function TaskSetupForm({
           ) : null}
         </Field>
         <Field>
-          <FieldLabel htmlFor="tasks-setup-worker-allowed">Allowed agents</FieldLabel>
-          <FieldDescription>Comma-separated agent names.</FieldDescription>
+          <FieldHeader>
+            <FieldLabel htmlFor="tasks-setup-worker-allowed">Allowed agents</FieldLabel>
+            <HelpTip label="About allowed agents">Comma-separated agent names.</HelpTip>
+          </FieldHeader>
           <Input
             defaultValue={listValue(value.worker.allowed_agent_names)}
             id="tasks-setup-worker-allowed"
@@ -223,8 +226,10 @@ export function TaskSetupForm({
           />
         </Field>
         <Field>
-          <FieldLabel htmlFor="tasks-setup-review-agents">Allowed reviewers</FieldLabel>
-          <FieldDescription>Comma-separated agent names.</FieldDescription>
+          <FieldHeader>
+            <FieldLabel htmlFor="tasks-setup-review-agents">Allowed reviewers</FieldLabel>
+            <HelpTip label="About allowed reviewers">Comma-separated agent names.</HelpTip>
+          </FieldHeader>
           <Input
             defaultValue={listValue(value.review.allowed_agent_names)}
             id="tasks-setup-review-agents"

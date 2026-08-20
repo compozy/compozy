@@ -4,9 +4,9 @@ area: RT
 title: First-run Skip starts in Global scope
 persona: Lea
 journey: J-19
-expected: Workspaces is step 2 of 2. Continue is enabled with zero folders. A Skip row (`onboarding-skip-global`) reads "Skip" with hint "Start in Global scope — your home folder, ~. Add project folders any time." Finishing without adding a folder lands on the live desktop: chip Global (`~`), Switch on and locked, no full-page workspace gate. The skip path does not `POST /api/workspaces/resolve` for `$HOME`. Adding a folder remains valid and turns Global off after selection.
+expected: Workspaces is step 2 of 2. Continue is enabled with zero folders. The step heading stands alone; a HelpTip on it (`About workspace`) states that Skip starts in Global (~) and that setup does not enable Network. A Skip control (`onboarding-skip-global`) reads "Skip" with no adjacent paragraph. Empty selection and the footer both report "None yet" without tutorial clauses. Finishing without adding a folder lands on the live desktop: chip Global (`~`), Switch on and locked, no full-page workspace gate. The skip path does not `POST /api/workspaces/resolve` for `$HOME`. Adding a folder remains valid and turns Global off after selection.
 entry_points: web `/_app/` first-run; onboarding Workspaces step
-qa_status: pass
+qa_status: untested
 bug_ids:
 fix_status:
 retest_status:
@@ -25,3 +25,5 @@ src: web/src/systems/onboarding/components/step-workspaces.tsx; web/src/systems/
 2026-08-12 walk: blocked-verify. This implementation cycle captured Storybook visual-contract evidence (`.compozy/tasks/global-workspace-menubar/evidence/visual/menubar-toggle/VC-01`–`VC-04`) and unit/typecheck coverage. An isolated QA lab with a live daemon (`COMPOZY_HOME`, production-parity web) was not started, so a persona walk through public entry points could not meet the qa-execution evidence standard.
 
 2026-08-13 re-walk: Lea selected the native Codex runtime, reached Workspaces, added and removed a project through the directory browser, then used Skip with zero project folders. The desktop opened in locked Global scope, the public workspace read contained only the operator-home registration, and refresh preserved the first-run completion state.
+
+2026-08-20 qa-impact: workspace-step copy density. The step subtitle, Skip paragraph, Network paragraph, and footer tutorial clause were removed; Skip/Global/Network consequences moved into the heading HelpTip. Reset for a copy walk.

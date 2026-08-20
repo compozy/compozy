@@ -67,7 +67,7 @@ export function HooksSection({
             </span>
             <SearchInput
               aria-label="Search hooks & events"
-              className="h-7 w-56"
+              containerClassName="w-56"
               data-testid="settings-page-hooks-search"
               onChange={setQuery}
               placeholder="Search hooks & events"
