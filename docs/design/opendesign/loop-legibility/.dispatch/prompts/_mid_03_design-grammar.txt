@@ -1,0 +1,30 @@
+---
+
+## This slice (must name all three)
+
+- **Slice scope (primary sources — read these, do not roam):**
+  - `/Users/pedronauck/Dev/compozy/compozy/docs/design/opendesign/graph-eng/` (DESIGN-NOTES.md, graph-eng.css, needs-you / timeline / progress / node-verbs / index boards)
+  - `/Users/pedronauck/Dev/compozy/compozy/docs/design/opendesign/design-system/` (ds-core.css, ds-shell.css, GUIDE.md)
+  - `/Users/pedronauck/Dev/compozy/compozy/docs/design/opendesign/_done/loops_v2/` (DESIGN-LESSONS.md, loop-run-detail.html, loop-inventories.html, index.html)
+  - `/Users/pedronauck/Dev/compozy/compozy/docs/design/opendesign/_done/tasks/` (task-detail.html, TASK-DETAILS-REDESIGN-PLAN.md)
+  - `/Users/pedronauck/Dev/compozy/compozy/docs/design/opendesign/command-palette/` (DESIGN-NOTES.md + index.html only — set-file convention, not the palette UI)
+  - `/Users/pedronauck/Dev/compozy/compozy/packages/ui/src/tokens.css`
+  - `/Users/pedronauck/Dev/compozy/compozy/packages/ui/src/index.ts`
+  - `/Users/pedronauck/Dev/compozy/compozy/DESIGN.md` (token tables + anti-patterns + signal palette only)
+  - `/Users/pedronauck/Dev/compozy/compozy/COPY.md` (loop/task/status label maps only)
+- **Slug and ordinal:** `03_analysis_design-grammar`
+- **Exact target path:** `/Users/pedronauck/Dev/compozy/compozy/docs/design/opendesign/loop-legibility/analysis/03_analysis_design-grammar.md`
+
+## Slice question
+
+What locked visual grammar — tokens, shell/lab layout, needs-you request tones, set-file conventions, reusable primitives — must every loop-legibility board inherit so the set continues graph-eng rather than forking a second language?
+
+## Extraction rules
+
+- Extract the graph-eng request→tone/glyph map and wait-kind / decision vocabulary (do not propose alternatives).
+- Record lab-layout precedent: full-viewport labs, staged fragments at production content width (fluid ≤1240), 320px rail pixel-true.
+- Record CSS authority and chaptering rules from graph-eng.css / command-palette.css (append-only after mark, chapter comments).
+- List `@compozy/ui` primitives likely reused (Badge, Card, Table, Progress, Disclosure, Button variants) — names from `packages/ui/src/index.ts` only.
+- Quote token names for canvas, fg, muted, signal colors (action/success/warning/danger/info) from tokens.css — never invent hex.
+- Note loops_v2 / tasks boards that are anti-references vs reusable chrome.
+- Adjacent slices own spec states (01) and production TSX (02). Do not read `web/src/systems/` or `_spec.md`.

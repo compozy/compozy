@@ -1,0 +1,19 @@
+{
+  "version": 1,
+  "kind": "html",
+  "title": "loop-legibility/loop-legibility-run-roster.html",
+  "entry": "loop-legibility/loop-legibility-run-roster.html",
+  "renderer": "html",
+  "status": "complete",
+  "exports": [
+    "html",
+    "pdf",
+    "zip"
+  ],
+  "createdAt": "2026-08-20T01:25:10.946Z",
+  "updatedAt": "2026-08-20T01:25:10.946Z",
+  "metadata": {
+    "inferred": true,
+    "reconciled": true
+  }
+}

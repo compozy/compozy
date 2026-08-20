@@ -1,0 +1,19 @@
+{
+  "version": 1,
+  "kind": "html",
+  "title": "loop-legibility/index.html",
+  "entry": "loop-legibility/index.html",
+  "renderer": "html",
+  "status": "complete",
+  "exports": [
+    "html",
+    "pdf",
+    "zip"
+  ],
+  "createdAt": "2026-08-20T01:22:50.376Z",
+  "updatedAt": "2026-08-20T01:22:50.376Z",
+  "metadata": {
+    "inferred": true,
+    "reconciled": true
+  }
+}

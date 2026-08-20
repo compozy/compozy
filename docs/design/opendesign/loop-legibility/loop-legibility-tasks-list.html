@@ -1,0 +1,251 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="dark">
+<title>Tasks list · Loop legibility · CompozyOS</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Geist:wght@400..700&family=JetBrains+Mono:wght@400..700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../design-system/ds-core.css">
+<link rel="stylesheet" href="../design-system/ds-shell.css">
+<link rel="stylesheet" href="../graph-eng/graph-eng.css">
+<link rel="stylesheet" href="loop-legibility.css">
+<!--
+  loop-legibility-tasks-list · S1 — tasks list + kanban.
+  Spec: .compozy/tasks/loop-task-legibility/_uiux.md S1 · US-001, US-002 ·
+  task_04/VC-01–06. Contract: DESIGN-NOTES.md.
+  Provenance:
+    production — tasks-list-surface.tsx listing chrome; ListingToolbar locked
+                 order (search → filters → spacer → PillGroup); ListingRow parts
+    spec — loop records leave the default listing (server-owned exclusion);
+           the reveal is off on every navigation and is not a config.toml key
+    authorized delta — the reveal renders as a two-state PillGroup rather than a
+                       lone pressed button, because ds-core `.btn` paints no
+                       [aria-pressed] state (the previous revision was invisible)
+-->
+</head>
+<body>
+<div class="shell"><div class="main">
+  <header class="w2head" data-od-id="tk-head">
+    <a class="w2-back" href="index.html" aria-label="Back to set"><svg data-lucide="chevron-left"></svg></a>
+    <nav class="w2-crumbs">
+      <a class="w2-crumb" href="index.html">Loop legibility</a>
+      <span class="w2-sep">/</span>
+      <h1 class="w2-title">Tasks list</h1>
+    </nav>
+    <div class="w2-flex"></div>
+    <div class="w2-actions">
+      <a class="btn btn--sm" href="loop-legibility-runs-roster.html">Runs roster →</a>
+    </div>
+  </header>
+  <div class="scroll"><div class="page">
+
+    <section class="lab-sec" data-od-id="tk-final">
+      <div class="lab-sec__head"><span class="lab-sec__num">01</span><h2 class="lab-sec__t">Default — work items only</h2>
+        <span class="lab-sec__gist">task_04/VC-01</span></div>
+      <div class="spec">
+        <div class="spec__note"><b>Calm default</b>Zero loop rows while <code>revisao-paralela</code> is live. Bucket counts are coherent by construction because the exclusion is server-owned. The reveal sits in the toolbar trailing slot, off. <span class="mono">US-001.AC-1/2</span></div>
+        <div class="spec__demo">
+          <div class="stage stage--tall stage--pad">
+            <section class="win is-focused win--list" data-od-id="tk-final-win">
+              <header class="win-head">
+                <div class="win-controls">
+                  <button class="wc wc-close" tabindex="-1" aria-label="Close"></button>
+                  <button class="wc wc-min" tabindex="-1" aria-label="Minimize"></button>
+                  <button class="wc wc-zoom" tabindex="-1" aria-label="Zoom"></button>
+                </div>
+                <div class="w2-id"><span class="w2-glyph"><svg data-lucide="list-checks"></svg></span><span class="w2-title">Tasks</span><span class="w2-count">2</span></div>
+                <span class="w2-flex" aria-hidden="true"></span>
+                <div class="win-trail">
+                  <div class="w2-actions"><button class="btn btn--sm btn--primary" type="button"><svg data-lucide="plus"></svg>New task</button></div>
+                </div>
+              </header>
+              <div class="win-toolbar">
+                <div class="app-toolbar listing-toolbar" data-od-id="tk-final-toolbar">
+                  <div class="listing-toolbar__leading">
+                    <label class="field field-search"><svg data-lucide="search"></svg><input type="search" placeholder="Search tasks" aria-label="Search tasks"></label>
+                    <div class="filters">
+                      <span class="filter-chip">
+                        <span class="filter-chip__label">status</span>
+                        <span class="filter-chip__op">is</span>
+                        <span class="filter-chip__val">open</span>
+                        <button class="filter-chip__x" type="button" aria-label="Clear status filter"><svg data-lucide="x"></svg></button>
+                      </span>
+                    </div>
+                  </div>
+                  <div class="listing-toolbar__trailing">
+                    <div class="pill-group pill-group--sm" role="group" aria-label="Records shown" data-od-id="tk-final-reveal">
+                      <button class="pill-group__item is-on" type="button" aria-pressed="true">Work items</button>
+                      <button class="pill-group__item" type="button" aria-pressed="false"><svg data-lucide="git-branch"></svg>+ loop records</button>
+                    </div>
+                  </div>
+                </div>
+              </div>
+              <div class="win-body"><div class="app">
+                <section class="ll-group">
+                <div class="ll-grp" data-od-id="tk-final-grp-active">
+                  <span class="eyebrow">In progress</span><span class="count-chip">1</span>
+                </div>
+                <div class="list-shell">
+                  <a class="listing-row" href="#" data-od-id="tk-row-memoria">
+                    <span class="listing-row__icon"><svg data-lucide="list-checks"></svg></span>
+                    <div class="listing-row__main">
+                      <div class="listing-row__name"><b class="sans">Escrever post sobre memoria</b></div>
+                      <div class="listing-row__meta"><span class="k">tsk-92ab41</span><span class="dotsep"></span><span>started 12m ago</span></div>
+                    </div>
+                    <div class="listing-row__trail">
+                      <span class="pill" data-tone="accent"><span class="d d--run d--pulse"></span>In progress</span>
+                    </div>
+                  </a>
+                </div>
+                </section>
+                <section class="ll-group">
+                <div class="ll-grp" data-od-id="tk-final-grp-ready">
+                  <span class="eyebrow">Ready</span><span class="count-chip">1</span>
+                </div>
+                <div class="list-shell">
+                  <a class="listing-row" href="#" data-od-id="tk-row-landing">
+                    <span class="listing-row__icon"><svg data-lucide="list-checks"></svg></span>
+                    <div class="listing-row__main">
+                      <div class="listing-row__name"><b class="sans">Revisar landing page</b></div>
+                      <div class="listing-row__meta"><span class="k">tsk-88cf02</span><span class="dotsep"></span><span>unassigned</span></div>
+                    </div>
+                    <div class="listing-row__trail">
+                      <span class="pill">Ready</span>
+                    </div>
+                  </a>
+                </div>
+                </section>
+              </div></div>
+            </section>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="lab-sec" data-od-id="tk-states">
+      <div class="lab-sec__head"><span class="lab-sec__num">02</span><h2 class="lab-sec__t">Reveal and its edges</h2>
+        <span class="lab-sec__gist">task_04/VC-02–05</span></div>
+
+      <div class="spec">
+        <div class="spec__note"><b>Revealed — mixed records</b>Loop rows join the same row geometry, distinguished by the loop glyph and a plain identity, never by a second row shape. Activation lands on the run page. Ids stay in the meta line. <span class="mono">US-002.AC-1</span></div>
+        <div class="spec__demo">
+          <div class="stage stage--short stage--pad">
+            <div class="list-shell" data-od-id="tk-reveal-list">
+              <a class="listing-row" href="loop-legibility-run-default.html" data-od-id="tk-rev-coord">
+                <span class="listing-row__icon"><svg data-lucide="git-branch"></svg></span>
+                <div class="listing-row__main">
+                  <div class="listing-row__name"><b class="sans">revisao-paralela · run</b><span class="tag">Loop run</span></div>
+                  <p class="listing-row__desc">Loop execution record — open the run to act on it.</p>
+                </div>
+                <div class="listing-row__trail"><span class="pill" data-tone="warning"><svg data-lucide="triangle-alert"></svg>Needs you</span></div>
+              </a>
+              <a class="listing-row" href="loop-legibility-run-default.html" data-od-id="tk-rev-cell">
+                <span class="listing-row__icon"><svg data-lucide="git-branch"></svg></span>
+                <div class="listing-row__main">
+                  <div class="listing-row__name"><b class="sans">revisao-paralela · round 1 · step revisor-perf</b><span class="tag">Loop step</span></div>
+                  <p class="listing-row__desc">Waiting on the approval “aplicar-correcoes”.</p>
+                </div>
+                <div class="listing-row__trail"><span class="pill" data-tone="warning"><svg data-lucide="hourglass"></svg>Waiting</span></div>
+              </a>
+              <a class="listing-row" href="#" data-od-id="tk-rev-work">
+                <span class="listing-row__icon"><svg data-lucide="list-checks"></svg></span>
+                <div class="listing-row__main">
+                  <div class="listing-row__name"><b class="sans">Escrever post sobre memoria</b></div>
+                  <div class="listing-row__meta"><span class="k">tsk-92ab41</span></div>
+                </div>
+                <div class="listing-row__trail"><span class="pill" data-tone="accent"><span class="d d--run d--pulse"></span>In progress</span></div>
+              </a>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="spec">
+        <div class="spec__note"><b>Run no longer available</b>Retention removed the run; the record stays and says so. <code>loop_name</code> is absent, so the row leads with the generic entity name and the id carries identity. No broken link. <span class="mono">US-002.EC-2</span></div>
+        <div class="spec__demo">
+          <div class="stage stage--short stage--pad">
+            <div class="list-shell" data-od-id="tk-gone">
+              <div class="listing-row" data-od-id="tk-gone-row">
+                <span class="listing-row__icon"><svg data-lucide="git-branch"></svg></span>
+                <div class="listing-row__main">
+                  <div class="listing-row__name"><b class="sans">Loop run</b><span class="tag">Loop run</span></div>
+                  <div class="listing-row__meta"><span class="k">looprun-8f3ab2c1d4e5f607</span></div>
+                </div>
+                <div class="listing-row__trail"><span class="pill" data-form="absent"><svg data-lucide="circle-slash"></svg>Run no longer available</span></div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="spec">
+        <div class="spec__note"><b>Revealed empty</b>Filter-scoped, not the generic empty — the copy names the filter and how to leave it. <span class="mono">US-002.EC-1</span></div>
+        <div class="spec__demo">
+          <div class="stage stage--short stage--pad">
+            <div class="empty" data-od-id="tk-empty-rev">
+              <svg data-lucide="git-branch"></svg>
+              <b>No loop records in this workspace</b>
+              <p>Turn the filter back to work items to see your tasks.</p>
+              <button class="btn" type="button">Show work items</button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="spec">
+        <div class="spec__note"><b>Loop-only workspace</b>Every record here is a loop record, so the default read is genuinely empty. No mechanical rows leak in to fill it. <span class="mono">US-001.EC-2</span></div>
+        <div class="spec__demo">
+          <div class="stage stage--short stage--pad">
+            <div class="empty" data-od-id="tk-empty-true">
+              <svg data-lucide="list-checks"></svg>
+              <b>No tasks yet</b>
+              <p>Open a new task contract from the topbar to populate this list.</p>
+              <button class="btn btn--primary" type="button"><svg data-lucide="plus"></svg>New task</button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+    </section>
+
+    <section class="lab-sec" data-od-id="tk-kanban">
+      <div class="lab-sec__head"><span class="lab-sec__num">03</span><h2 class="lab-sec__t">Kanban default</h2>
+        <span class="lab-sec__gist">task_04/VC-06</span></div>
+      <div class="spec">
+        <div class="spec__note"><b>Roots are work items</b>Same exclusion, second projection: no loop cards on the board, and no nesting machinery. Column labels are the board's own words. <span class="mono">US-001.AC-2</span></div>
+        <div class="spec__demo">
+          <div class="stage stage--short stage--pad">
+            <div class="ll-kanban" data-od-id="tk-kanban-board">
+              <div class="ll-kcol">
+                <div class="ll-kcol__h"><span class="eyebrow">In progress</span><span class="count-chip">1</span></div>
+                <div class="listing-card"><div class="listing-card__title">Escrever post sobre memoria</div></div>
+              </div>
+              <div class="ll-kcol">
+                <div class="ll-kcol__h"><span class="eyebrow">Ready</span><span class="count-chip">1</span></div>
+                <div class="listing-card"><div class="listing-card__title">Revisar landing page</div></div>
+              </div>
+              <div class="ll-kcol">
+                <div class="ll-kcol__h"><span class="eyebrow">Blocked</span><span class="count-chip">0</span></div>
+              </div>
+              <div class="ll-kcol">
+                <div class="ll-kcol__h"><span class="eyebrow">Done</span><span class="count-chip">0</span></div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <p class="lab-foot" data-od-id="tk-foot">Spec <code>_uiux.md</code> S1 · contract <code>DESIGN-NOTES.md</code> · production seams <code>tasks-list-surface.tsx</code>, <code>tasks-kanban-board.tsx</code>. S3 task-detail provenance reuses the revealed-row grammar above and ships no separate board. Content illustrative; runtime truth owns final values.</p>
+
+  </div></div>
+</div></div>
+<script src="https://unpkg.com/lucide@latest/dist/umd/lucide.min.js"></script>
+<script>
+(function () { if (window.lucide) window.lucide.createIcons(); })();
+</script>
+</body>
+</html>

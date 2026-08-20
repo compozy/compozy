@@ -1,0 +1,19 @@
+{
+  "version": 1,
+  "kind": "html",
+  "title": "loop-legibility/loop-legibility-tasks-list.html",
+  "entry": "loop-legibility/loop-legibility-tasks-list.html",
+  "renderer": "html",
+  "status": "complete",
+  "exports": [
+    "html",
+    "pdf",
+    "zip"
+  ],
+  "createdAt": "2026-08-20T01:24:15.864Z",
+  "updatedAt": "2026-08-20T01:24:15.864Z",
+  "metadata": {
+    "inferred": true,
+    "reconciled": true
+  }
+}

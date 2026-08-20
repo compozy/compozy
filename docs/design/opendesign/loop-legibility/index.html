@@ -1,0 +1,115 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="dark">
+<title>Loop &amp; task legibility · CompozyOS design</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Geist:wght@400..700&family=JetBrains+Mono:wght@400..700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../design-system/ds-core.css">
+<!--
+  loop-legibility-index · set map — tasks calm default · run two-register · roster.
+  Spec: .compozy/tasks/loop-task-legibility/_uiux.md (S1–S7) · contract: DESIGN-NOTES.md.
+  Provenance:
+    production — opendesign index pattern (graph-eng / command-palette)
+    spec — `_uiux.md` surface map
+    authorized delta — none
+-->
+<style>
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{background:var(--canvas);color:var(--fg);font-family:var(--font-sans);font-size:13.5px;line-height:1.5;letter-spacing:-.006em;-webkit-font-smoothing:antialiased}
+  a{color:inherit;text-decoration:none}
+  .mono{font-family:var(--font-mono);font-variant-numeric:tabular-nums}
+  .page{max-width:880px;margin:0 auto;padding:52px 36px 80px}
+  h1{font-size:20px;font-weight:560;letter-spacing:-.025em;color:var(--fg-strong)}
+  .lede{margin-top:8px;font-size:13px;line-height:1.6;color:var(--muted);max-width:66ch}
+  .lede code{font-family:var(--font-mono);font-size:11.5px;color:var(--subtle)}
+  .grp{margin-top:36px}
+  .grp__t{font-size:10.5px;font-weight:600;letter-spacing:.05em;text-transform:uppercase;color:var(--subtle);padding-bottom:10px}
+  .cards{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+  .card{display:flex;flex-direction:column;gap:5px;padding:14px 16px;border:1px solid var(--line);border-radius:var(--radius-lg);
+    background:var(--canvas-soft);transition:border-color var(--dur) var(--ease),background var(--dur) var(--ease)}
+  a.card:hover{border-color:var(--line-strong);background:var(--elevated)}
+  .card__top{display:flex;align-items:center;gap:8px}
+  .card__name{font-size:13.5px;font-weight:560;color:var(--fg-strong)}
+  .card__file{margin-left:auto;font-family:var(--font-mono);font-size:9.5px;color:var(--faint)}
+  .card__sub{font-size:12px;line-height:1.5;color:var(--muted)}
+  .tag{font-family:var(--font-mono);font-size:8.5px;font-weight:600;letter-spacing:.05em;text-transform:uppercase;
+    padding:2px 6px;border-radius:var(--radius-xs);background:var(--badge-fill);color:var(--subtle);flex:none}
+  .tag--final{background:var(--success-tint);color:var(--success)}
+  .tag--none{background:var(--neutral-tint);color:var(--subtle)}
+  .foot{margin-top:40px;padding-top:16px;border-top:1px solid var(--line);font-size:11.5px;line-height:1.6;color:var(--faint);max-width:70ch}
+  @media (max-width:760px){.cards{grid-template-columns:1fr}.page{padding:36px 20px 64px}}
+</style>
+</head>
+<body>
+<div class="page" data-od-id="ll-index">
+  <h1>Loop &amp; task legibility</h1>
+  <p class="lede">Six boards from <code>.compozy/tasks/loop-task-legibility/_uiux.md</code>. Tasks stay calm by default. The run page is two registers — the briefing first, everything mechanical one step deeper behind Inspect. The semantic contract is in <a href="DESIGN-NOTES.md" style="text-decoration:underline;color:var(--muted)"><span class="mono">DESIGN-NOTES.md</span></a>.</p>
+
+  <div class="grp" data-od-id="ll-index-tasks">
+    <div class="grp__t">Tasks</div>
+    <div class="cards">
+      <a class="card" href="loop-legibility-tasks-list.html" data-od-id="card-tasks">
+        <span class="card__top"><span class="card__name">Tasks list + kanban</span><span class="tag tag--final">final + lab</span><span class="card__file">loop-legibility-tasks-list.html</span></span>
+        <span class="card__sub">S1 — work items only by default. The reveal is quiet, off on every navigation, and brings loop records back in the same row geometry. task_04/VC-01–06.</span>
+      </a>
+    </div>
+  </div>
+
+  <div class="grp" data-od-id="ll-index-run">
+    <div class="grp__t">Run page</div>
+    <div class="cards">
+      <a class="card" href="loop-legibility-run-default.html" data-od-id="card-default">
+        <span class="card__top"><span class="card__name">Default read</span><span class="tag tag--final">final + lab</span><span class="card__file">loop-legibility-run-default.html</span></span>
+        <span class="card__sub">S4 — briefing, needs-you, progress, story, and the Usage rail. Needs-you and failure never collapse. task_05/VC-01–12.</span>
+      </a>
+      <a class="card" href="loop-legibility-needs-you.html" data-od-id="card-needs">
+        <span class="card__top"><span class="card__name">Needs you</span><span class="tag tag--final">final + lab</span><span class="card__file">loop-legibility-needs-you.html</span></span>
+        <span class="card__sub">S4 — the decision card, and the set's one request vocabulary. Pending inks warning here; danger belongs to the bell. task_05/VC-13–16.</span>
+      </a>
+      <a class="card" href="loop-legibility-run-dag.html" data-od-id="card-dag">
+        <span class="card__top"><span class="card__name">Live run DAG</span><span class="tag tag--final">final + lab</span><span class="card__file">loop-legibility-run-dag.html</span></span>
+        <span class="card__sub">S5 — operator register. Kind and status ride separate channels; pending is not not-taken. task_05/VC-17–24.</span>
+      </a>
+      <a class="card" href="loop-legibility-run-roster.html" data-od-id="card-roster">
+        <span class="card__top"><span class="card__name">Node roster</span><span class="tag tag--final">final + lab</span><span class="card__file">loop-legibility-run-roster.html</span></span>
+        <span class="card__sub">S5 — every node × round, healthy included, plus generation history. Attempts are metadata, never siblings. task_05/VC-25–32.</span>
+      </a>
+    </div>
+  </div>
+
+  <div class="grp" data-od-id="ll-index-loops">
+    <div class="grp__t">Loops at a glance</div>
+    <div class="cards">
+      <a class="card" href="loop-legibility-runs-roster.html" data-od-id="card-runs">
+        <span class="card__top"><span class="card__name">Runs roster</span><span class="tag tag--final">final + lab</span><span class="card__file">loop-legibility-runs-roster.html</span></span>
+        <span class="card__sub">S6 — needs-you first, then active, then terminal, decided server-side. Columns: Loop · Status · Progress · Started · Duration. task_05/VC-33–36.</span>
+      </a>
+    </div>
+  </div>
+
+  <div class="grp" data-od-id="ll-index-none">
+    <div class="grp__t">No dedicated board</div>
+    <div class="cards">
+      <div class="card" data-od-id="card-s2">
+        <span class="card__top"><span class="card__name">Dashboard + inbox</span><span class="tag tag--none">S2</span></span>
+        <span class="card__sub">The numbers change, the composition does not. Loop escalations reach you through the bell and the run page.</span>
+      </div>
+      <div class="card" data-od-id="card-s3">
+        <span class="card__top"><span class="card__name">Task detail provenance</span><span class="tag tag--none">S3</span></span>
+        <span class="card__sub">Reuses the revealed-row grammar from S1. The link back to the run is mandatory.</span>
+      </div>
+      <div class="card" data-od-id="card-s7">
+        <span class="card__top"><span class="card__name">Node inventory</span><span class="tag tag--none">S7</span></span>
+        <span class="card__sub">Workspace scope keeps its exception-state contract. Only the vocabulary aligns — “step”, in plain words.</span>
+      </div>
+    </div>
+  </div>
+
+  <p class="foot">Tokens from <span class="mono">design-system/ds-core.css</span> + <span class="mono">ds-shell.css</span>; request, story, progress and DAG grammar from <span class="mono">graph-eng.css</span>; only the domain layer lives in <span class="mono">loop-legibility.css</span>. Content illustrative; runtime truth owns values. Fixture: <span class="mono">revisao-paralela</span> · <span class="mono">fabrica-assistida</span>.</p>
+</div>
+</body>
+</html>

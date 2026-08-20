@@ -1,0 +1,247 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="dark">
+<title>Needs you · Loop legibility · CompozyOS</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Geist:wght@400..700&family=JetBrains+Mono:wght@400..700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../design-system/ds-core.css">
+<link rel="stylesheet" href="../design-system/ds-shell.css">
+<link rel="stylesheet" href="../graph-eng/graph-eng.css">
+<link rel="stylesheet" href="loop-legibility.css">
+<!--
+  loop-legibility-needs-you · S4 — needs-you card anatomy.
+  Spec: .compozy/tasks/loop-task-legibility/_uiux.md S4 · US-007 ·
+  task_05/VC-13–16. Contract: DESIGN-NOTES.md.
+  Provenance:
+    production — loop-run-needs-you-card.tsx; loop-request-decision-bar.tsx;
+                 loop-request-vocabulary.ts
+    spec — the card answers what is asked, who asks, which choices exist and
+           when it expires; it never collapses; buttons render only the
+           persisted decision set (an absent decision is omitted, never disabled)
+    authorized delta — the gate `aplicar-correcoes` persists approve + reject,
+                       so edit and respond are absent from its bar
+-->
+</head>
+<body>
+<div class="shell"><div class="main">
+  <header class="w2head" data-od-id="ny-head">
+    <a class="w2-back" href="index.html" aria-label="Back to set"><svg data-lucide="chevron-left"></svg></a>
+    <nav class="w2-crumbs">
+      <a class="w2-crumb" href="index.html">Loop legibility</a>
+      <span class="w2-sep">/</span>
+      <h1 class="w2-title">Needs you</h1>
+    </nav>
+    <div class="w2-flex"></div>
+    <div class="w2-actions">
+      <a class="btn btn--sm" href="loop-legibility-run-default.html">Default →</a>
+    </div>
+  </header>
+  <div class="scroll"><div class="page">
+
+    <section class="lab-sec" data-od-id="ny-single">
+      <div class="lab-sec__head"><span class="lab-sec__num">01</span><h2 class="lab-sec__t">Single card</h2>
+        <span class="lab-sec__gist">task_05/VC-13</span></div>
+      <div class="spec">
+        <div class="spec__note"><b>Anatomy</b>What is asked, who asks, choices, expiry. Pending = warning. One primary Approve on this screen.</div>
+        <div class="spec__demo">
+          <div class="stage stage--short stage--pad">
+            <div class="req-stack" data-od-id="ny-single-stack">
+              <article class="req-card" data-tone="warning">
+                <svg class="req-card__glyph" data-lucide="triangle-alert"></svg>
+                <div class="req-card__main">
+                  <div class="req-card__kicker">
+                    <span class="req-chip" data-tone="warning"><svg data-lucide="triangle-alert"></svg>pending</span>
+                    <span class="req-deadline">waiting 3m</span>
+                  </div>
+                  <h3 class="req-card__prompt">Apply the reviewers' corrections?</h3>
+                  <p class="req-ctx__body">aplicar-correcoes is waiting for a decision on its proposed action.</p>
+                  <div class="req-bar" role="group" aria-label="Gate decisions">
+                    <button class="btn btn--sm btn--primary" type="button" data-decision="approve" data-od-id="ny-single-approve"><svg data-lucide="check"></svg>Approve</button>
+                    <button class="btn btn--sm btn--destructive" type="button" data-decision="reject"><svg data-lucide="x"></svg>Reject</button>
+                  </div>
+                  <div class="req-who"><span class="agent-chip">RP</span><span class="req-who__name">revisor-perf</span></div>
+                  <div class="req-card__micro">review · aplicar-correcoes · round 1</div>
+                </div>
+              </article>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="lab-sec" data-od-id="ny-multi">
+      <div class="lab-sec__head"><span class="lab-sec__num">02</span><h2 class="lab-sec__t">Multiple, ordered, with count</h2>
+        <span class="lab-sec__gist">task_05/VC-14</span></div>
+      <div class="spec">
+        <div class="spec__note"><b>Same stack</b>Approval then a quarantine. Gist is <code>2 pending</code>. Second card has no primary — Open entry is ghost.</div>
+        <div class="spec__demo">
+          <div class="stage stage--short stage--pad">
+            <div class="lsec" data-open="true" data-od-id="ny-multi-sec">
+              <button class="lsec__head" type="button" aria-expanded="true">
+                <svg data-lucide="bell"></svg>
+                <span class="eyebrow">Needs you</span>
+                <span class="lsec__gist">2 pending</span>
+                <svg class="lsec__chev" data-lucide="chevron-down"></svg>
+              </button>
+              <div class="lsec__body">
+                <div class="req-stack">
+                  <article class="req-card" data-tone="warning">
+                    <svg class="req-card__glyph" data-lucide="triangle-alert"></svg>
+                    <div class="req-card__main">
+                      <div class="req-card__kicker">
+                        <span class="req-chip" data-tone="warning"><svg data-lucide="triangle-alert"></svg>pending</span>
+                        <span class="req-deadline">waiting 3m</span>
+                      </div>
+                      <h3 class="req-card__prompt">Apply the reviewers' corrections?</h3>
+                      <div class="req-bar">
+                        <button class="btn btn--sm btn--primary" type="button" data-decision="approve"><svg data-lucide="check"></svg>Approve</button>
+                        <button class="btn btn--sm btn--destructive" type="button" data-decision="reject"><svg data-lucide="x"></svg>Reject</button>
+                      </div>
+                    </div>
+                  </article>
+                  <article class="req-card" data-tone="danger">
+                    <svg class="req-card__glyph" data-lucide="circle-alert"></svg>
+                    <div class="req-card__main">
+                      <div class="req-card__kicker">
+                        <span class="req-chip" data-tone="danger"><svg data-lucide="circle-alert"></svg>quarantined</span>
+                      </div>
+                      <h3 class="req-card__prompt">revisor-estilo is quarantined</h3>
+                      <p class="req-ctx__body">Open the entry to inspect the tool error from attempt 1.</p>
+                      <div class="req-bar"><button class="btn btn--sm" type="button">Open entry</button></div>
+                      <div class="req-card__micro">quarantine · revisor-estilo · round 1</div>
+                    </div>
+                  </article>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="lab-sec" data-od-id="ny-expiry">
+      <div class="lab-sec__head"><span class="lab-sec__num">03</span><h2 class="lab-sec__t">Expiry stated</h2>
+        <span class="lab-sec__gist">task_05/VC-15</span></div>
+      <div class="spec">
+        <div class="spec__note"><b>Near-expiry</b>Same warning family. Clock + <code>expires 4m</code>. Never auto-retries.</div>
+        <div class="spec__demo">
+          <div class="stage stage--short stage--pad">
+            <div class="req-stack">
+              <article class="req-card" data-tone="warning" data-od-id="ny-exp-card">
+                <svg class="req-card__glyph" data-lucide="clock"></svg>
+                <div class="req-card__main">
+                  <div class="req-card__kicker">
+                    <span class="req-chip" data-tone="warning"><svg data-lucide="clock"></svg>pending<span class="req-chip__cd">expires 4m</span></span>
+                  </div>
+                  <h3 class="req-card__prompt">Apply the reviewers' corrections?</h3>
+                  <div class="req-bar">
+                    <button class="btn btn--sm btn--primary" type="button" data-decision="approve"><svg data-lucide="check"></svg>Approve</button>
+                    <button class="btn btn--sm btn--destructive" type="button" data-decision="reject"><svg data-lucide="x"></svg>Reject</button>
+                  </div>
+                </div>
+              </article>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="lab-sec" data-od-id="ny-resolved">
+      <div class="lab-sec__head"><span class="lab-sec__num">04</span><h2 class="lab-sec__t">Resolved elsewhere</h2>
+        <span class="lab-sec__gist">task_05/VC-16</span></div>
+      <div class="spec">
+        <div class="spec__note"><b>No answer form</b>CLI approved while the page was open. Info chip + who answered.</div>
+        <div class="spec__demo">
+          <div class="stage stage--short stage--pad">
+            <div class="req-stack">
+              <article class="req-card" data-tone="info" data-od-id="ny-res-card">
+                <svg class="req-card__glyph" data-lucide="check"></svg>
+                <div class="req-card__main">
+                  <div class="req-card__kicker">
+                    <span class="req-chip" data-tone="info"><svg data-lucide="check"></svg>answered</span>
+                  </div>
+                  <h3 class="req-card__prompt">Apply the reviewers' corrections?</h3>
+                  <div class="req-resolved">
+                    <p class="req-resolved__line">pedro approved via CLI.</p>
+                  </div>
+                  <div class="req-who"><span class="agent-chip">PN</span><span class="req-who__name">pedro</span></div>
+                </div>
+              </article>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="lab-sec" data-od-id="ny-legend">
+      <div class="lab-sec__head"><span class="lab-sec__num">05</span><h2 class="lab-sec__t">Request vocabulary</h2>
+        <span class="lab-sec__gist">the set's one tone map</span></div>
+      <div class="spec">
+        <div class="spec__note"><b>Tone never travels alone</b>Every state pairs a tone, a glyph and its literal word. Pending inks <b>warning</b> on the run page; danger is reserved for expired requests, failed and quarantined nodes, and the bell's re-ink. Absence — canceled, not taken, never materialised — stays on the neutral ramp. <span class="mono">graph-eng lock · ADR-006</span></div>
+        <div class="spec__demo">
+          <div class="plain" data-od-id="ny-legend-table">
+            <div class="req-legend">
+              <div class="req-legend__row">
+                <span class="req-chip" data-tone="warning"><svg data-lucide="triangle-alert"></svg>pending</span>
+                <span class="req-legend__word">pending</span>
+                <span class="req-legend__tone" data-tone="warning">warning</span>
+                <span class="req-legend__when">A human decision is outstanding on this run page.</span>
+              </div>
+              <div class="req-legend__row">
+                <span class="req-chip" data-tone="warning"><svg data-lucide="clock"></svg>pending<span class="req-chip__cd">expires 4m</span></span>
+                <span class="req-legend__word">near-expiry</span>
+                <span class="req-legend__tone" data-tone="warning">warning</span>
+                <span class="req-legend__when">Still warning, with the shared mono countdown. It never auto-answers.</span>
+              </div>
+              <div class="req-legend__row">
+                <span class="req-chip" data-tone="danger"><svg data-lucide="circle-alert"></svg>expired</span>
+                <span class="req-legend__word">expired</span>
+                <span class="req-legend__tone" data-tone="danger">danger</span>
+                <span class="req-legend__when">The window closed. The loop settled without your answer.</span>
+              </div>
+              <div class="req-legend__row">
+                <span class="req-chip" data-tone="info"><svg data-lucide="check"></svg>answered</span>
+                <span class="req-legend__word">answered / amended</span>
+                <span class="req-legend__tone" data-tone="info">info</span>
+                <span class="req-legend__when">Settled — here, from the CLI, or by another operator. The actor is named.</span>
+              </div>
+              <div class="req-legend__row">
+                <span class="req-chip" data-tone="warning"><svg data-lucide="triangle-alert"></svg>partial 7 of 10</span>
+                <span class="req-legend__word">partial</span>
+                <span class="req-legend__tone" data-tone="warning">warning</span>
+                <span class="req-legend__when">A join settled short. The chip always carries the word and the coverage.</span>
+              </div>
+              <div class="req-legend__row">
+                <span class="req-chip" data-tone="neutral"><svg data-lucide="minus"></svg>canceled</span>
+                <span class="req-legend__word">canceled / not taken</span>
+                <span class="req-legend__tone" data-tone="neutral">neutral</span>
+                <span class="req-legend__when">Absence is calm. The cause and the actor live in the sentence beside it.</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <p class="lab-foot" data-od-id="ny-foot">Spec <code>_uiux.md</code> S4 · contract <code>DESIGN-NOTES.md</code> · production seams <code>loop-run-needs-you-card.tsx</code>, <code>loop-request-decision-bar.tsx</code>. Decisions render exactly <code>approve · edit · reject · respond</code>; <code>requeue</code> is a node verb on the operator panel, not a needs-you decision. Content illustrative; runtime truth owns final values.</p>
+
+  </div></div>
+</div></div>
+<script src="https://unpkg.com/lucide@latest/dist/umd/lucide.min.js"></script>
+<script>
+(function () {
+  if (window.lucide) window.lucide.createIcons();
+  document.querySelectorAll(".req-bar [data-decision]").forEach(function (btn) {
+    btn.addEventListener("click", function () {
+      var bar = btn.closest(".req-bar");
+      bar.setAttribute("data-busy", "");
+    });
+  });
+})();
+</script>
+</body>
+</html>

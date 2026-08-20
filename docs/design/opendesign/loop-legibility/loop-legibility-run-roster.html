@@ -1,0 +1,309 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="dark">
+<title>Node roster · Loop legibility · CompozyOS</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Geist:wght@400..700&family=JetBrains+Mono:wght@400..700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../design-system/ds-core.css">
+<link rel="stylesheet" href="../design-system/ds-shell.css">
+<link rel="stylesheet" href="../graph-eng/graph-eng.css">
+<link rel="stylesheet" href="loop-legibility.css">
+<!--
+  loop-legibility-run-roster · S5 — operator register, node roster + generations.
+  Spec: .compozy/tasks/loop-task-legibility/_uiux.md S5 · US-012, US-013 ·
+  task_05/VC-25–32. Contract: DESIGN-NOTES.md.
+  Provenance:
+    production — loop-node-inventory-view.tsx row vocabulary; graph-eng
+                 `.gen-list` / `.gen-row` generation entries (chapter 10)
+    spec — every node × round, healthy included; attempts are metadata on the
+           step, never sibling steps; fan-out grouped under its node with a
+           rollup; strategy-canceled and operator-canceled carry cause + actor
+    authorized delta — the duration column uses the ds-core `.meter` instead of
+                       a bespoke gantt bar; the round filter is a PillGroup
+                       because ds-core `.btn` paints no [aria-pressed] state
+-->
+</head>
+<body>
+<div class="shell"><div class="main">
+  <header class="w2head" data-od-id="nr-head">
+    <a class="w2-back" href="index.html" aria-label="Back to set"><svg data-lucide="chevron-left"></svg></a>
+    <nav class="w2-crumbs">
+      <a class="w2-crumb" href="index.html">Loop legibility</a>
+      <span class="w2-sep">/</span>
+      <h1 class="w2-title">Node roster</h1>
+    </nav>
+    <div class="w2-flex"></div>
+    <div class="w2-actions">
+      <a class="btn btn--sm" href="loop-legibility-run-dag.html">← Live DAG</a>
+      <a class="btn btn--sm" href="loop-legibility-run-default.html">Run page →</a>
+    </div>
+  </header>
+  <div class="scroll"><div class="page">
+
+    <section class="lab-sec" data-od-id="nr-final">
+      <div class="lab-sec__head"><span class="lab-sec__num">01</span><h2 class="lab-sec__t">Every node, healthy included</h2>
+        <span class="lab-sec__gist">task_05/VC-25</span></div>
+      <div class="spec">
+        <div class="spec__note"><b>Not an exception list</b>The run page shows exceptions; the roster shows the whole run. Attempts are metadata on the step — a recovered node reads by its current state, with the attempt count beside it. Fan-out workers group under their node and never become siblings. <span class="mono">US-012.AC-1 · EC-1</span></div>
+        <div class="spec__demo">
+          <div class="stage stage--tall stage--pad">
+            <div class="ll-group" data-od-id="nr-final-block">
+              <div class="ll-grp">
+                <span class="eyebrow">Nodes</span><span class="count-chip">6</span>
+                <div class="pill-group pill-group--sm ll-grp__meta" role="group" aria-label="Round" data-od-id="nr-round-filter">
+                  <button class="pill-group__item is-on" type="button" aria-pressed="true">Round 1</button>
+                  <button class="pill-group__item" type="button" aria-pressed="false">All rounds</button>
+                </div>
+              </div>
+              <div class="panelbox">
+                <div class="ll-table-wrap">
+                  <table class="ll-table" data-od-id="nr-table">
+                    <thead><tr><th>Step</th><th>State</th><th>Attempt</th><th>Duration</th><th>Usage</th><th>Session</th></tr></thead>
+                    <tbody>
+                      <tr>
+                        <td><span class="ll-table__name">implementar</span><div class="ll-table__sub ll-kind"><svg data-lucide="bot"></svg>agent</div></td>
+                        <td><span class="pill" data-tone="success"><svg data-lucide="check"></svg>succeeded</span></td>
+                        <td class="mono">1 of 1</td>
+                        <td><span class="meter" role="img" aria-label="4 minutes 2 seconds"><span class="meter-fill" style="width:100%"></span></span><div class="ll-table__id">4m02s</div></td>
+                        <td class="mono">31.2k · $0.11</td>
+                        <td><a class="story-link" href="#">Open<svg data-lucide="arrow-up-right"></svg></a></td>
+                      </tr>
+                      <tr>
+                        <td><span class="ll-table__name">revisores</span><div class="ll-table__sub ll-kind"><svg data-lucide="split"></svg>fan-out · 3 workers</div></td>
+                        <td><span class="pill" data-tone="warning"><svg data-lucide="hourglass"></svg>waiting</span></td>
+                        <td class="mono">—</td>
+                        <td><span class="meter"><span class="meter-fill" data-s="wait" style="width:62%"></span></span><div class="ll-table__id">2m40s</div></td>
+                        <td class="mono">44.9k · $0.17</td>
+                        <td class="mono">—</td>
+                      </tr>
+                      <tr>
+                        <td class="ll-table__nest"><svg data-lucide="corner-down-right"></svg><span class="ll-table__name">revisor-seguranca</span></td>
+                        <td><span class="pill" data-tone="success"><svg data-lucide="check"></svg>succeeded</span></td>
+                        <td class="mono">1 of 1</td>
+                        <td><span class="meter"><span class="meter-fill" style="width:70%"></span></span><div class="ll-table__id">1m52s</div></td>
+                        <td class="mono">14.8k · $0.05</td>
+                        <td><a class="story-link" href="#">Open<svg data-lucide="arrow-up-right"></svg></a></td>
+                      </tr>
+                      <tr>
+                        <td class="ll-table__nest"><svg data-lucide="corner-down-right"></svg><span class="ll-table__name">revisor-estilo</span></td>
+                        <td><span class="pill" data-tone="success"><svg data-lucide="check"></svg>succeeded</span></td>
+                        <td class="mono">2 of 2</td>
+                        <td><span class="meter"><span class="meter-fill" style="width:48%"></span></span><div class="ll-table__id">1m18s</div></td>
+                        <td class="mono">24.1k · $0.09</td>
+                        <td><a class="story-link" href="#">Open<svg data-lucide="arrow-up-right"></svg></a></td>
+                      </tr>
+                      <tr>
+                        <td class="ll-table__nest"><svg data-lucide="corner-down-right"></svg><span class="ll-table__name">revisor-perf</span></td>
+                        <td><span class="pill" data-tone="warning"><svg data-lucide="hourglass"></svg>waiting</span></td>
+                        <td class="mono">1 of 1</td>
+                        <td><span class="meter"><span class="meter-fill" data-s="wait" style="width:62%"></span></span><div class="ll-table__id">2m40s</div></td>
+                        <td class="mono">6.0k · $0.03</td>
+                        <td><a class="story-link" href="#">Open<svg data-lucide="arrow-up-right"></svg></a></td>
+                      </tr>
+                      <tr>
+                        <td><span class="ll-table__name">aplicar-correcoes</span><div class="ll-table__sub ll-kind"><svg data-lucide="check-check"></svg>gate</div></td>
+                        <td><span class="pill" data-tone="warning"><svg data-lucide="triangle-alert"></svg>pending</span></td>
+                        <td class="mono">—</td>
+                        <td><span class="meter"><span class="meter-fill" data-s="wait" style="width:34%"></span></span><div class="ll-table__id">waiting 3m</div></td>
+                        <td class="mono">—</td>
+                        <td class="mono">—</td>
+                      </tr>
+                      <tr>
+                        <td><span class="ll-table__name">sintetizador</span><div class="ll-table__sub ll-kind"><svg data-lucide="git-merge"></svg>collect</div></td>
+                        <td><span class="pill" data-form="hollow"><svg data-lucide="circle-dashed"></svg>pending</span></td>
+                        <td class="mono">—</td>
+                        <td class="mono">not started</td>
+                        <td class="mono">—</td>
+                        <td class="mono">—</td>
+                      </tr>
+                      <tr>
+                        <td><span class="ll-table__name">saida</span><div class="ll-table__sub ll-kind"><svg data-lucide="bot"></svg>agent</div></td>
+                        <td><span class="pill" data-form="hollow"><svg data-lucide="circle-dashed"></svg>pending</span></td>
+                        <td class="mono">—</td>
+                        <td class="mono">not started</td>
+                        <td class="mono">—</td>
+                        <td class="mono">—</td>
+                      </tr>
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="lab-sec" data-od-id="nr-states">
+      <div class="lab-sec__head"><span class="lab-sec__num">02</span><h2 class="lab-sec__t">Roster states</h2>
+        <span class="lab-sec__gist">task_05/VC-26–29, VC-32</span></div>
+
+      <div class="spec">
+        <div class="spec__note"><b>Attempt history, and when the next one lands</b>Ten attempts stay one row. The history opens beneath it as a disclosure — attempts never become sibling steps. A retrying node names its next retry time in the same cell as the count. <span class="mono">US-012.AC-2</span></div>
+        <div class="spec__demo">
+          <div class="stage stage--short stage--pad">
+            <div class="ll-stack" data-od-id="nr-attempts">
+              <div class="panelbox">
+                <table class="ll-table">
+                  <thead><tr><th>Step</th><th>State</th><th>Attempt</th><th>Duration</th></tr></thead>
+                  <tbody>
+                    <tr>
+                      <td><span class="ll-table__name">revisor-perf</span><div class="ll-table__sub ll-kind"><svg data-lucide="bot"></svg>agent</div></td>
+                      <td><span class="pill" data-tone="warning"><svg data-lucide="rotate-ccw"></svg>retrying</span></td>
+                      <td class="mono">10 of 12 · next 18:47</td>
+                      <td class="mono">6m11s</td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+              <div class="lsec" data-open="true">
+                <button class="lsec__head" type="button" aria-expanded="true">
+                  <svg data-lucide="history"></svg>
+                  <span class="eyebrow">Attempt history</span>
+                  <span class="lsec__gist">10 attempts · 9 tool errors, 1 timeout</span>
+                  <svg class="lsec__chev" data-lucide="chevron-down"></svg>
+                </button>
+                <div class="lsec__body">
+                  <div class="strat-list">
+                    <div class="strat-row" data-st="fail">
+                      <svg class="strat-row__glyph" data-lucide="circle-alert"></svg>
+                      <div><div class="strat-row__name">Attempt 10 — tool error</div><div class="strat-row__note">The GitHub tool refused the connection.</div></div>
+                      <span class="strat-row__th">18:44 · 22s</span>
+                    </div>
+                    <div class="strat-row" data-st="fail">
+                      <svg class="strat-row__glyph" data-lucide="circle-alert"></svg>
+                      <div><div class="strat-row__name">Attempt 9 — timed out</div><div class="strat-row__note">No response within the step budget.</div></div>
+                      <span class="strat-row__th">18:41 · 90s</span>
+                    </div>
+                  </div>
+                  <p class="app-note">8 earlier attempts, all tool errors. Open the node to read each one.</p>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="spec">
+        <div class="spec__note"><b>Canceled is calm — and says who</b>Strategy-canceled and operator-canceled share the neutral ramp; the difference lives in the words, never in an alarm colour. Cause and actor are part of the row, not a tooltip. <span class="mono">US-012.EC-2 · UT-005</span></div>
+        <div class="spec__demo">
+          <div class="stage stage--short stage--pad">
+            <div class="ll-stack" data-od-id="nr-cancel">
+              <div class="panelbox">
+                <table class="ll-table">
+                  <thead><tr><th>Step</th><th>State</th><th>Cause</th><th>Duration</th></tr></thead>
+                  <tbody>
+                    <tr>
+                      <td><span class="ll-table__name">revisor-estilo</span><div class="ll-table__sub ll-kind"><svg data-lucide="bot"></svg>agent · round 2</div></td>
+                      <td><span class="pill" data-form="absent"><svg data-lucide="minus"></svg>canceled</span></td>
+                      <td>The <b>first-wins</b> strategy stopped the remaining reviewers.</td>
+                      <td class="mono">41s</td>
+                    </tr>
+                    <tr>
+                      <td><span class="ll-table__name">saida</span><div class="ll-table__sub ll-kind"><svg data-lucide="bot"></svg>agent · round 2</div></td>
+                      <td><span class="pill" data-form="absent"><svg data-lucide="minus"></svg>canceled</span></td>
+                      <td>Pedro canceled the run at 18:12.</td>
+                      <td class="mono">—</td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="spec">
+        <div class="spec__note"><b>A run with no action nodes</b>A watch-only run reaches terminal without ever running a step. The roster says that in words rather than rendering an empty table. <span class="mono">US-012.EC-1</span></div>
+        <div class="spec__demo">
+          <div class="stage stage--short stage--pad">
+            <div class="empty" data-od-id="nr-zero">
+              <svg data-lucide="radio"></svg>
+              <b>This run had nothing to execute</b>
+              <p>It watched for an event that never arrived and settled as a no-op. There are no steps to inspect.</p>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="spec">
+        <div class="spec__note"><b>Crash-interrupted round</b>The round is rendered in its true partial state — the steps that settled keep their result, the one that was in flight reads interrupted. No back-filled guesses. <span class="mono">US-013</span></div>
+        <div class="spec__demo">
+          <div class="stage stage--short stage--pad">
+            <div class="ll-stack" data-od-id="nr-crash">
+              <div class="panelbox">
+                <table class="ll-table">
+                  <thead><tr><th>Step</th><th>State</th><th>Attempt</th><th>Duration</th></tr></thead>
+                  <tbody>
+                    <tr>
+                      <td><span class="ll-table__name">implementar</span><div class="ll-table__sub ll-kind"><svg data-lucide="bot"></svg>agent · round 2</div></td>
+                      <td><span class="pill" data-tone="success"><svg data-lucide="check"></svg>succeeded</span></td>
+                      <td class="mono">1 of 1</td><td class="mono">3m48s</td>
+                    </tr>
+                    <tr>
+                      <td><span class="ll-table__name">revisores</span><div class="ll-table__sub ll-kind"><svg data-lucide="split"></svg>fan-out · round 2</div></td>
+                      <td><span class="pill" data-tone="danger"><svg data-lucide="circle-alert"></svg>interrupted</span></td>
+                      <td class="mono">1 of 1</td><td class="mono">unknown</td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+              <p class="app-note">The daemon restarted mid-round. Duration is unknown because the step never wrote its end — unknown renders as unknown.</p>
+            </div>
+          </div>
+        </div>
+      </div>
+
+    </section>
+
+    <section class="lab-sec" data-od-id="nr-gens">
+      <div class="lab-sec__head"><span class="lab-sec__num">03</span><h2 class="lab-sec__t">Generation history</h2>
+        <span class="lab-sec__gist">task_05/VC-30–31</span></div>
+      <div class="spec">
+        <div class="spec__note"><b>Per-round outcome, verdict and spend</b>One entry per round, carrying what the round settled on, the loop's own verdict when it defines one, and the round's usage. Compare and Fork stay available from the entry. <span class="mono">US-013</span></div>
+        <div class="spec__demo">
+          <div class="stage stage--short stage--pad">
+            <div class="gen-list" data-od-id="nr-gen-list">
+              <div class="gen-row" data-current>
+                <div class="gen-row__top">
+                  <span class="gen-row__n">Round 2</span>
+                  <span class="pill" data-tone="success"><svg data-lucide="check"></svg>accepted</span>
+                  <span class="gen-row__settle">The synthesiser kept both security notes and rewrote the intro.</span>
+                </div>
+                <div class="gen-row__detail"><span>score 0.88 · threshold 0.80</span><span>118.4k tokens · $0.48 · 9m03s</span></div>
+                <div class="gen-row__acts">
+                  <button class="btn btn--sm" type="button">Compare with round 1</button>
+                  <button class="btn btn--sm" type="button">Fork from here</button>
+                </div>
+              </div>
+              <div class="gen-row">
+                <div class="gen-row__top">
+                  <span class="gen-row__n">Round 1</span>
+                  <span class="pill" data-tone="warning"><svg data-lucide="triangle-alert"></svg>below threshold</span>
+                  <span class="gen-row__settle">Two reviewers disagreed on the rate-limit example, so the loop ran again.</span>
+                </div>
+                <div class="gen-row__detail"><span>score 0.71 · threshold 0.80</span><span>96.1k tokens · $0.39 · 9m09s</span></div>
+                <div class="gen-row__acts">
+                  <button class="btn btn--sm" type="button">Fork from here</button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <p class="lab-foot" data-od-id="nr-foot">Spec <code>_uiux.md</code> S5 · contract <code>DESIGN-NOTES.md</code> · production seams <code>loop-node-inventory-view.tsx</code>, <code>loop-run-inspect-sections.tsx</code>. S7 workspace node inventory keeps its exception-state contract unchanged and ships no board. Content illustrative; runtime truth owns final values.</p>
+
+  </div></div>
+</div></div>
+<script src="https://unpkg.com/lucide@latest/dist/umd/lucide.min.js"></script>
+<script>
+(function () { if (window.lucide) window.lucide.createIcons(); })();
+</script>
+</body>
+</html>

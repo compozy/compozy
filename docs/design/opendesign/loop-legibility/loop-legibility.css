@@ -1,0 +1,488 @@
+/* ============================================================
+   LOOP LEGIBILITY — loop-legibility.css
+   Loop & task observability: tasks calm default, two-register
+   run page, live DAG, node roster, runs roster.
+
+   Companion to design-system/ds-core.css + ds-shell.css and
+   graph-eng/graph-eng.css. Link order:
+     ds-core → ds-shell → graph-eng → this file.
+
+   Authority chain (highest first):
+     1. packages/ui/src/tokens.css + production run-page / tasks seams
+     2. .compozy/tasks/loop-task-legibility/_uiux.md (+ _user_stories.md)
+     3. design-system/ds-core.css + ds-shell.css + graph-eng.css
+     4. This file
+
+   ------------------------------------------------------------
+   REUSE BEFORE CREATE — consolidation pass 2026-08-20
+   The first revision shipped 30 bespoke class families; 28 of
+   them duplicated something the canon already defines. They are
+   DELETED. This file now carries only the domain layer.
+
+     briefing strip ......... .notice (+ --calm / --lead here)     ds-core
+     needs-you card ......... .req-stack .req-card .req-bar        graph-eng 2–3
+     state chip ............. .pill[data-tone]                     ds-core
+     progress panel ......... .prog .prog__bar .prog__seg          graph-eng 7
+     step rows .............. .strat-list .strat-row               graph-eng 7
+     rollup chips ........... .prog__counts .prog-count            graph-eng 7
+     fan-out aggregate ...... .agg-grid .agg-cell .agg-legend      graph-eng 7
+     story .................. .story-stack .story-row .story-ring  graph-eng 6
+     disclosure ............. .lsec                                graph-eng 2
+     usage + about rail ..... .railbox .rail-sec .prow .meter      ds-core
+     artifacts + task rows .. .list-shell .listing-row             ds-core
+     group header ........... .agent-group__head/__name/__count    ds-core
+     window tool strip ...... .win-toolbar                         ds-shell
+     toolbar + toggles ...... .listing-toolbar .field .pill-group  ds-core
+     empty states ........... .empty                               ds-core
+     node panel ............. .panel .panel-h                      ds-core
+     page grid + rail ....... .run-page / .run-cols              graph-eng 2
+     DAG shell + node card .. .ed-dag .ed-dag__card                graph-eng 11
+
+   Deleted outright, with the reason:
+     .chip-st ....... third chip vocabulary → .pill
+     .beat / .story . second timeline geometry → .story-row
+     .flow / .fnode . duplicate of .strat-row (same grid, 0.5px off)
+     .lanes / .lane . verbatim copy of .prog__seg
+     .usage-* ....... third key/value grammar → .rail-sec + .prow
+     .about-* ....... ditto
+     .usage-bar ..... fourth bar primitive → .meter
+     .gantt ......... fifth bar primitive, and it hardcoded 55% → .meter
+     .trow .......... bespoke row → .listing-row
+     .tgroup ........ bespoke group head → .agent-group
+     .tb ............ bespoke toolbar → .win-toolbar + .listing-toolbar
+     .reveal ........ bespoke toggle → .pill-group__item[aria-pressed]
+     .rfilter ....... .btn[aria-pressed] renders no state → .pill-group
+     .insp .......... fifth disclosure → .lsec
+     .ll-empty ...... fourth empty grammar → .empty
+     .npane ......... bespoke panel → .panel
+     .brief ......... tone-bordered panel (breaks the graph-eng
+                      anti-wash lock) → .notice tint
+     .arti .......... bespoke chip → .listing-row
+     .fan / .att .... micro-badges; .att also COLLIDED with the
+                      ds-core .att attention block → .ll-att
+     .dnode/.dfan ... third node-card system → .ed-dag__card
+     --ll-win-w ..... duplicate of graph-eng --req-win-w
+     :root --subtle/--faint rebind — a leaf board must not rebind
+                      ramp tokens. ds-core has drifted from
+                      packages/ui/src/tokens.css (which ships the
+                      oklch pair); the fix belongs in ds-core, not
+                      here. Reported, not patched locally.
+
+   Artboard CSS is a contract — never imported into production.
+   ============================================================ */
+
+:root{
+  --ll-list-w:920px;   /* tasks / runs listing window */
+  --ll-node-w:150px;   /* read-only DAG node card */
+}
+
+/* ============================================================
+   13 · TWO STATE FORMS THE CANON DOES NOT CARRY
+   `.pill` (ds-core) is the state chip everywhere in this set.
+   SI-14 needs `pending` and `not_taken` to be visually AND
+   semantically distinct, and neither may use opacity (which
+   drops 12.5px fg-strong under the AA floor):
+     pending   — reachable, upstream unsettled → hollow ring
+     not_taken — durable route evidence        → neutral fill, dim ink
+   Both keep tone + glyph + the literal state word.
+   ============================================================ */
+.pill svg{width:11px;height:11px;flex:none}
+.pill[data-form="hollow"]{
+  background:transparent;color:var(--subtle);
+  box-shadow:inset 0 0 0 1px var(--line-strong);
+}
+.pill[data-form="absent"]{
+  background:var(--neutral-tint);color:var(--faint);
+  box-shadow:inset 0 0 0 1px var(--line-strong);
+}
+
+/* ============================================================
+   13b · ICON SIZING FOR CONTAINERS THE CANON LEAVES UNSIZED
+   A Lucide `<svg data-lucide>` with no width/height rule in its
+   parent chain renders at its intrinsic 24×24 — three sizes above
+   anything around it. ds-shell sizes `.w2-glyph svg` and
+   `.w2-back svg` but not `.w2-status`; ds-core sizes `.field`,
+   `.btn` and `.empty` but not `.rail-sec__t`. Every container this
+   set puts an icon in is sized here, on the 11 / 12 / 13 / 14 px
+   ladder. Nothing in these boards may carry an inline size.
+   ============================================================ */
+.w2-status svg{width:12px;height:12px;flex:none}
+/* graph-eng sizes `.req-bar .btn svg` at 13px for its 26px buttons.
+   Production ships the decision bar at 22px (`size="sm"`), where the
+   glyph is 12px — and the more specific graph-eng rule would win. */
+.req-bar .btn--sm svg{width:12px;height:12px}
+/* ds-core pairs `.btn--icon{width:26px}` with `.btn--sm{height:22px}`
+   and never reconciles them, so a small icon button is a 26×22
+   rectangle. Squared here; the root fix belongs in ds-core. */
+.btn--sm.btn--icon{width:22px}
+.livebadge svg{width:11px;height:11px;flex:none}
+.rail-sec__t svg{width:12px;height:12px;flex:none;color:var(--muted)}
+.ll-table td > svg,.ll-table th > svg{width:12px;height:12px;flex:none}
+/* Node KIND keeps its own channel in the roster and the node panel,
+   exactly as it does on the DAG card: a muted 12px glyph, never a
+   signal colour. Status stays on the pill. */
+.ll-kind{display:inline-flex;align-items:center;gap:5px}
+/* `.ll-table__sub` is a block sub-line; the kind glyph must not
+   collapse it onto the name row. */
+.ll-table__sub.ll-kind{display:flex}
+.ll-kind svg{width:12px;height:12px;flex:none;color:var(--muted)}
+
+/* Rail section headings carry an icon, as production does:
+   Coins on Usage, Info on About, 12px in `--muted`, 6px from the
+   eyebrow, 8px above the first property row.
+   (loop-run-usage-rail.tsx:24 · loop-run-about-rail.tsx:44)
+   Group headings deliberately do NOT: production's runs-table groups
+   are a bare Eyebrow + count, and an icon beside every heading is
+   decoration, not wayfinding. */
+.rail-sec__t{display:flex;align-items:center;gap:6px}
+
+/* ds-core's `.empty > svg` sizes the GLYPH at 38px inside 11px of
+   padding — a 60px box. Production's Empty is a 38px well with a
+   16px glyph (packages/ui/src/components/empty.tsx). Corrected here
+   for this set; the root fix belongs in ds-core. */
+.empty > svg{width:16px;height:16px}
+
+/* Production run-page metrics (loop-run-page-body.tsx):
+   grid gap 32 · main-column section rhythm 26 · rail column 320.
+   graph-eng's `.run-page` was authored at 20/14, which reads
+   cramped beside the shipped page. */
+.run-page{gap:32px}
+.run-page > .run-cols{gap:26px}
+.run-page > .run-cols > .lsec + .lsec{margin-top:0}
+
+/* Rail footer bar — Inspect on the left, digest on the right
+   (loop-run-page-body.tsx:340-350). 12/10 padding, not a rail-sec. */
+.rail-foot{
+  display:flex;align-items:center;justify-content:space-between;gap:10px;
+  padding:10px 12px;border-top:1px solid var(--line-soft);
+}
+.rail-foot .btn{min-height:24px}
+/* Trailing "open elsewhere" glyph rides at the inline-link size
+   (12px), not the button size — loop-run-now-card.tsx uses
+   ArrowUpRight at size-3 for exactly these three links. */
+.btn svg[data-lucide="arrow-up-right"],
+.btn svg.lucide-arrow-up-right{width:12px;height:12px;color:var(--faint)}
+.story-link:has(svg){display:inline-flex;align-items:center;gap:4px}
+.story-link svg{width:12px;height:12px;flex:none;display:inline-block;vertical-align:-2px}
+.btn svg[data-lucide="ban"],.btn svg.lucide-ban{color:var(--danger)}
+.rail-foot__digest{
+  font-family:var(--font-mono);font-size:9px;color:var(--faint);
+  font-variant-numeric:tabular-nums;white-space:nowrap;
+}
+
+/* ============================================================
+   14 · BRIEFING STRIP — the served verdict, ds-core .notice
+   Warning tint is the default fill (pending human decision);
+   `--calm` is the healthy read; `--danger` ships in ds-core.
+   Tone lives in the fill + glyph + word, never in a border —
+   the graph-eng anti-wash lock (chapter 2) applies here too.
+   ============================================================ */
+.notice--calm{background:var(--neutral-tint)}
+.notice--calm > svg{color:var(--muted)}
+.notice--lead{gap:12px;padding:14px 16px;align-items:flex-start}
+.notice__main{min-width:0;flex:1;display:flex;flex-direction:column;gap:7px}
+.notice__kicker{display:flex;flex-wrap:wrap;align-items:center;gap:8px}
+.notice__h{
+  font-size:15px;font-weight:560;letter-spacing:-.016em;line-height:1.35;
+  color:var(--fg-strong);text-wrap:pretty;
+}
+.notice__d{font-size:12.5px;line-height:1.55;color:var(--muted);max-width:62ch}
+.notice__act{display:flex;flex-wrap:wrap;align-items:center;gap:8px;margin-top:1px}
+.notice__main > .req-bar{margin-top:1px}
+
+/* ============================================================
+   15 · PROGRESS — step rows are graph-eng .strat-row
+   Only the state inks and the fan-out band are new. A fan-out
+   is ONE entity (US-011.EC-1): its band hangs off the step row
+   and draws derived lanes in the .prog__seg vocabulary, with
+   named workers up to six and a rollup sentence beyond.
+   ============================================================ */
+.strat-row[data-st="done"] .strat-row__glyph{color:var(--success)}
+.strat-row[data-st="live"] .strat-row__glyph{color:var(--accent)}
+.strat-row[data-st="wait"] .strat-row__glyph{color:var(--warning)}
+.strat-row[data-st="fail"] .strat-row__glyph{color:var(--danger)}
+.strat-row[data-st="pending"] .strat-row__glyph,
+.strat-row[data-st="canceled"] .strat-row__glyph{color:var(--faint)}
+.strat-row__trail{display:flex;align-items:center;gap:8px;flex:none}
+a.strat-row{color:inherit;border-radius:var(--radius-sm)}
+a.strat-row:hover{background:var(--row-hover)}
+a.strat-row:hover .strat-row__name{color:var(--fg-strong)}
+a.strat-row:focus-visible{box-shadow:var(--focus-ring-inset)}
+.strat-row--group{align-items:start}
+.strat-row--group .strat-row__glyph{margin-top:3px}
+.strat-row--group .strat-row__trail{padding-top:2px}
+/* The step list closes the progress panel; the hairline separates it
+   from the bar without a second border-radius. */
+.prog__body > .strat-list{margin-top:12px;padding-top:2px;border-top:1px solid var(--line-soft)}
+/* Budget bar in the rail. ds-core's `.meter` sets no display, so a
+   <span> collapses to inline and loses its height — declare it here
+   rather than forcing every caller to reach for a <div>. */
+.rail-sec .meter,.ll-table .meter{display:block}
+.rail-sec .meter{margin:1px 0 7px}
+
+.ll-lanes{display:flex;gap:3px;height:6px}
+.ll-lanes .prog__seg{max-width:44px}
+.ll-band{
+  margin:8px 0 2px;padding:0 0 2px 12px;
+  border-left:1px solid var(--line-strong);
+  display:flex;flex-direction:column;gap:8px;
+}
+.ll-band[data-st="live"]{border-left-color:var(--accent-dim)}
+.ll-band[data-st="wait"]{border-left-color:color-mix(in oklab,var(--warning) 40%,var(--line-strong))}
+.ll-band__key{display:flex;flex-wrap:wrap;gap:5px 16px;font-size:11.5px;color:var(--subtle)}
+.ll-band__key li{display:flex;align-items:center;gap:6px}
+.ll-band__key li::before{
+  content:"";width:6px;height:6px;flex:none;border-radius:var(--radius-pill);
+  background:var(--badge-fill);box-shadow:inset 0 0 0 1px var(--line-strong);
+}
+.ll-band__key li[data-state="clean"]::before{background:var(--success);box-shadow:none}
+.ll-band__key li[data-state="active"]::before{background:var(--accent);box-shadow:none}
+.ll-band__key li[data-state="parked"]::before{background:var(--warning);box-shadow:none}
+.ll-band__key li[data-state="failed"]::before{background:var(--danger);box-shadow:none}
+.ll-band__key li[data-state="canceled"]::before,
+.ll-band__key li[data-state="never"]::before{background:var(--neutral-tint)}
+.ll-band__sum{font-size:11.5px;line-height:1.5;color:var(--subtle)}
+.ll-att{
+  font-family:var(--font-mono);font-size:10px;color:var(--faint);
+  font-variant-numeric:tabular-nums;
+}
+
+/* ============================================================
+   16 · READ-ONLY RUN DAG — kind ≠ status
+   Shell and node card are graph-eng `.ed-dag` / `.ed-dag__card`
+   (chapter 11) with every authoring affordance absent. This
+   chapter adds run-state variants, the fan-out band, and edges.
+   Node *kind* = the muted glyph. *Status* = a `.pill` + word.
+   Dashed border means exactly one thing here: not started yet.
+   ============================================================ */
+.ll-dag{display:flex;align-items:center;gap:0;padding:14px;overflow-x:auto}
+.ll-dag--loose{flex-wrap:wrap;gap:12px}
+.ll-node{
+  width:var(--ll-node-w);gap:7px;padding:10px;
+  transition:border-color var(--dur) var(--ease),background var(--dur) var(--ease);
+}
+.ll-node .pill{align-self:flex-start}
+a.ll-node:hover,button.ll-node:hover{border-color:var(--line-strong);background:var(--elevated)}
+a.ll-node:focus-visible,button.ll-node:focus-visible{box-shadow:var(--focus-ring)}
+.ll-node[data-st="running"]{border-color:var(--accent-dim)}
+.ll-node[data-st="waiting"]{border-color:color-mix(in oklab,var(--warning) 36%,var(--line))}
+.ll-node[data-st="failed"],
+.ll-node[data-st="quarantined"]{border-color:color-mix(in oklab,var(--danger) 40%,var(--line))}
+.ll-node[data-st="pending"]{border-style:dashed}
+.ll-node[data-st="not_taken"]{background:var(--neutral-tint);border-color:var(--line-soft)}
+.ll-node[data-st="not_taken"] .ed-dag__id{color:var(--muted)}
+.ll-node__m{font-size:11px;line-height:1.45;color:var(--subtle)}
+
+/* Node panel — ds-core .panel as a stacked column. */
+.panel.ll-npanel{display:flex;flex-direction:column;align-items:flex-start;gap:9px}
+.ll-npanel .panel-h{width:100%;margin-bottom:0}
+.ll-npanel .req-ctx__body{max-width:46ch}
+.rail-stack > .panel{width:var(--req-rail-w);flex:none}
+
+/* Fan-out node: one entity; branches live inside its boundary. */
+.ll-fan{
+  width:200px;flex:none;padding:9px;gap:7px;
+  display:flex;flex-direction:column;
+  border:1px solid var(--line-strong);border-radius:var(--radius-md);
+  background:var(--canvas-tint);
+  transition:border-color var(--dur) var(--ease),background var(--dur) var(--ease);
+}
+.ll-fan--wide{width:236px}
+.ll-fan[data-st="running"]{border-color:var(--accent-dim)}
+.ll-fan[data-st="waiting"]{border-color:color-mix(in oklab,var(--warning) 45%,var(--line-strong))}
+a.ll-fan:hover{background:var(--elevated)}
+a.ll-fan:focus-visible{box-shadow:var(--focus-ring)}
+.ll-fan .pill{align-self:flex-start}
+.ll-fan__n{margin-left:auto;font-family:var(--font-mono);font-size:10px;color:var(--muted)}
+.ll-branch{
+  display:flex;align-items:center;gap:7px;min-width:0;
+  padding:5px 7px;border-radius:var(--radius-sm);background:var(--input-fill);
+}
+.ll-branch__dot{
+  width:7px;height:7px;flex:none;border-radius:var(--radius-pill);
+  background:var(--badge-fill);box-shadow:inset 0 0 0 1px var(--line-strong);
+}
+.ll-branch[data-s="done"] .ll-branch__dot{background:var(--success);box-shadow:none}
+.ll-branch[data-s="live"] .ll-branch__dot{background:var(--accent);box-shadow:none}
+.ll-branch[data-s="wait"] .ll-branch__dot{background:var(--warning);box-shadow:none}
+.ll-branch[data-s="fail"] .ll-branch__dot{background:var(--danger);box-shadow:none}
+.ll-branch__id{
+  min-width:0;flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;
+  font-size:11.5px;color:var(--fg);
+}
+.ll-branch__st{
+  font-family:var(--font-mono);font-size:10px;color:var(--subtle);
+  font-variant-numeric:tabular-nums;
+}
+
+/* Edges carry liveness. Reduced motion UNMOUNTS the dot. */
+.ll-edge{position:relative;flex:none;width:28px;height:2px;background:var(--line-strong)}
+.ll-edge[data-taken]{background:var(--muted)}
+.ll-edge[data-not]{height:0;background:none;border-top:2px dashed var(--line-strong)}
+.ll-edge[data-live]{background:var(--accent)}
+.ll-edge[data-live]::after{
+  content:"";position:absolute;right:0;top:-3px;width:8px;height:8px;border-radius:50%;
+  background:var(--accent);animation:pulse 1.8s var(--ease) infinite;
+}
+@media (prefers-reduced-motion:reduce){
+  .ll-edge[data-live]::after{display:none}
+  .d--pulse,.story-row[data-live] .story-ring{animation:none}
+}
+
+/* ============================================================
+   16b · OPERATOR REGISTER SHELL — where the live DAG actually lives
+   The DAG is not a floating component. It renders inside the run
+   page's Inspect disclosure, in the main column (never the editor's
+   full-bleed exception), as the first of four lanes over one read
+   model: Graph · Nodes · Generations · Events. Lane tabs are the
+   ds-core `.lane-tabs` (40px, 1.5px foreground underline).
+   ============================================================ */
+.ll-insp{display:flex;flex-direction:column;min-width:0}
+.lane-tab svg{width:13px;height:13px;flex:none}
+.lsec__head .pill{flex:none;margin-left:8px}
+.ll-insp .lane-tabs{padding:0 12px;flex:none}
+.ll-insp__body{min-width:0;padding:12px}
+/* A real topology is wider than the column, so the graph lane
+   scrolls horizontally inside it. The right edge fades so the cut
+   reads as "there is more", not as a clipped card. */
+.ll-insp__body > .ll-dag{
+  padding:0;
+  scroll-padding-inline:2px;
+  mask-image:linear-gradient(to right,#000 calc(100% - 36px),transparent);
+}
+.ll-insp__body > .ll-dag::-webkit-scrollbar{height:6px}
+.ll-insp__body > .ll-dag::-webkit-scrollbar-thumb{background:var(--line-strong);border-radius:var(--radius-pill)}
+.ll-insp__body > .ll-dag::-webkit-scrollbar-track{background:transparent}
+.ll-insp__foot{
+  display:flex;flex-wrap:wrap;align-items:center;gap:6px 10px;
+  padding:10px 12px;border-top:1px solid var(--line-soft);
+  font-size:11.5px;color:var(--subtle);
+}
+.ll-insp__foot svg{width:12px;height:12px;flex:none;color:var(--faint)}
+.ll-insp__foot b{font-weight:500;color:var(--fg)}
+/* The live badge rides the disclosure head, left of the chevron. */
+.lsec__head .livebadge{flex:none;margin-left:8px}
+.lsec__head .livebadge .d{width:6px;height:6px}
+
+/* ============================================================
+   17 · ROSTER TABLES — one family, both rosters
+   ds-core ships no table primitive; @compozy/ui `Table` is the
+   production counterpart and this mirrors its metrics (9px head
+   row, eyebrow head cells, hairline body rules, hover row).
+   Columns per _uiux.md: runs → Loop · Status · Progress ·
+   Started · Duration; nodes → Step · State · Attempt ·
+   Duration · Usage · Session.
+   ============================================================ */
+.ll-table-wrap{overflow-x:auto}
+.ll-table{width:100%;border-collapse:collapse}
+.ll-table th{
+  text-align:left;white-space:nowrap;
+  font-size:9.5px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;
+  color:var(--subtle);padding:8px 12px;border-bottom:1px solid var(--line);
+}
+.ll-table td.mono,.ll-table td .mono{white-space:nowrap}
+.ll-table td{
+  padding:10px 12px;border-bottom:1px solid var(--line-soft);
+  font-size:12px;color:var(--fg);vertical-align:middle;
+}
+.ll-table tbody tr:last-child td{border-bottom:0}
+.ll-table tbody tr:hover td{background:var(--row-hover)}
+.ll-table__name{font-size:14px;font-weight:500;letter-spacing:-.01em;color:var(--fg-strong)}
+.ll-table a.ll-table__name{text-underline-offset:3px}
+.ll-table tbody tr:hover a.ll-table__name{text-decoration:underline}
+.ll-table a.ll-table__name:focus-visible{box-shadow:var(--focus-ring);border-radius:var(--radius-xxs)}
+.ll-table__sub{margin-top:2px;font-size:11.5px;color:var(--subtle)}
+.ll-table__id{margin-top:2px;font-family:var(--font-mono);font-size:10px;color:var(--faint)}
+.ll-table__nest{padding-left:22px}
+.ll-table__nest svg{
+  display:inline-block;width:12px;height:12px;margin-right:6px;
+  vertical-align:-2px;color:var(--faint);
+}
+/* Needs-you rows earn their distinction from the chip and the
+   group they sort into — never a colored side rail (DESIGN.md
+   §10 no-side-stripe-accent). */
+.ll-table tbody tr[data-needs] td{background:var(--row-selected)}
+.ll-table tbody tr[data-needs]:hover td{background:var(--surface-glaze)}
+/* Duration micro-bar reuses the ds-core meter at roster scale. */
+.ll-table .meter{width:72px}
+.ll-table .meter-fill[data-s="wait"]{background:var(--warning)}
+.ll-table .meter-fill[data-s="fail"]{background:var(--danger)}
+
+/* ============================================================
+   17b · GROUP HEADING + DEGRADED BLOCK
+   ds-core's `.agent-group__head` is an interactive collapsible
+   header (cursor:pointer, rail background) — using it as a static
+   caption would be a fake affordance, so the roster groups get a
+   static heading built from `.eyebrow` + `.count-chip`.
+   ============================================================ */
+.ll-group{display:flex;flex-direction:column;min-width:0;gap:10px}
+.ll-grp{display:flex;align-items:center;gap:8px;min-height:24px;padding:0 2px}
+/* `.ll-table-wrap` gives ONE table horizontal scroll. Stacking blocks
+   is `.ll-stack`'s job — the wrapper declared no gap, so siblings
+   inside it ran at 0px. */
+.ll-stack{display:flex;flex-direction:column;min-width:0;gap:12px}
+.ll-grp__meta{margin-left:auto}
+.ll-degraded{display:flex;flex-direction:column;gap:10px}
+.ll-sk{display:flex;flex-direction:column;gap:12px;padding:13px 14px}
+.ll-sk > .sk{height:14px}
+.ll-sk > .sk:nth-child(1){width:44%}
+.ll-sk > .sk:nth-child(2){width:62%}
+.ll-sk > .sk:nth-child(3){width:38%}
+
+/* ============================================================
+   18 · KANBAN BOARD — roots are work items, never loop cells
+   Cards are ds-core `.listing-card`; only the column frame is new.
+   ============================================================ */
+.ll-kanban{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px}
+.ll-kcol{
+  display:flex;flex-direction:column;gap:8px;min-height:150px;padding:9px;
+  border:1px solid var(--line);border-radius:var(--radius-lg);background:var(--canvas-soft);
+}
+.ll-kcol__h{
+  display:flex;align-items:center;justify-content:space-between;gap:8px;
+  padding:2px 3px;
+}
+.ll-kcol .listing-card{padding:11px 12px;gap:6px;background:var(--elevated)}
+.ll-kcol .listing-card__title{font-size:12.5px;font-weight:500;color:var(--fg-strong);line-height:1.4}
+@media (max-width:900px){.ll-kanban{grid-template-columns:repeat(2,minmax(0,1fr))}}
+
+/* ============================================================
+   19 · LAB FIT — widths only, no new component surfaces.
+   Every stage fit lives here; boards carry no inline style.
+   ============================================================ */
+/* Run-page window. `.win--req` is graph-eng's and stays untouched;
+   this variant carries the production page padding (px-9 pt-6 pb-18
+   scaled to the window frame) instead of graph-eng's tighter 14/16,
+   which read cramped once the section rhythm went to 26px. */
+.win--run{width:min(var(--req-win-w),100%);margin-inline:auto;min-height:0;resize:none}
+.win--run .win-body{background:var(--canvas)}
+.win--run .win-head{cursor:default}
+.win--run .app{padding:20px 24px 28px}
+.win--list{width:min(var(--ll-list-w),100%);margin-inline:auto}
+.win--list .app{padding:16px 20px 20px}
+.win--list .win-body{background:var(--canvas)}
+.stage .win{resize:none}
+.stage--pad > .notice,
+.stage--pad > .prog,
+.stage--pad > .story-stack,
+.stage--pad > .list-shell,
+.stage--pad > .req-stack,
+.stage--pad > .lsec,
+.stage--pad > .ll-insp,
+.stage--pad > .ll-table-wrap,
+.stage--pad > .ll-degraded,
+.stage--pad > .ll-stack,
+.stage--pad > .ll-group{width:min(640px,100%)}
+.stage--pad > .empty{width:min(520px,100%);padding:28px 16px}
+.stage--pad > .railbox{width:var(--req-rail-w);position:static}
+.stage--pad > .ll-dag{width:auto;max-width:100%}
+.stage--pad > .ll-kanban{width:min(880px,100%)}
+.stage--pad > .rail-stack{width:min(760px,100%)}
+.stage--pad > .notice-gallery{width:min(720px,100%);display:flex;flex-direction:column;gap:10px}
+.notice-gallery__lab{
+  font-family:var(--font-mono);font-size:10px;letter-spacing:.04em;text-transform:uppercase;
+  color:var(--faint);padding-top:4px;
+}
+.notice-gallery__lab:first-child{padding-top:0}
+
+/* ==== APPEND POINT — later runs add chapters after this line ==== */

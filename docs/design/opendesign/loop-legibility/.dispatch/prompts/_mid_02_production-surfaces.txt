@@ -1,0 +1,44 @@
+---
+
+## This slice (must name all three)
+
+- **Slice scope (primary sources — read these, do not roam):**
+  - `/Users/pedronauck/Dev/compozy/compozy/web/src/systems/loops/` — run page, runs roster, node inventory, palette, DAG
+  - `/Users/pedronauck/Dev/compozy/compozy/web/src/systems/tasks/` — list, kanban, filters, hierarchy, formatters, detail rail
+- **Slug and ordinal:** `02_analysis_production-surfaces`
+- **Exact target path:** `/Users/pedronauck/Dev/compozy/compozy/docs/design/opendesign/loop-legibility/analysis/02_analysis_production-surfaces.md`
+
+## Slice question
+
+What production chrome, components, layout seams, delete targets, and current copy must the six artboards reuse, restyle, or omit so they stay truthful to the live host and do not invent unsupported controls?
+
+## Extraction rules
+
+Focus files (read these first; expand only inside the two system dirs):
+
+Loops:
+- `web/src/systems/loops/components/run-page/loop-run-page-body.tsx`
+- `web/src/systems/loops/components/run-page/` (now card, inspect, story, rail)
+- `web/src/systems/loops/components/runs/loop-runs-table.tsx`
+- `web/src/systems/loops/components/runs/loop-node-inventory-view.tsx`
+- `web/src/systems/loops/components/detail/loop-body-dag.tsx`
+- `web/src/systems/loops/lib/loop-palette.ts`
+- `web/src/systems/loops/lib/loop-node-lifecycle.ts`
+- `web/src/systems/loops/lib/loop-run-progress.ts`
+
+Tasks:
+- `web/src/systems/tasks/components/tasks-list-surface.tsx`
+- `web/src/systems/tasks/lib/tasks-list-filters.ts`
+- `web/src/systems/tasks/lib/task-hierarchy.ts`
+- `web/src/systems/tasks/lib/task-formatters.ts`
+- `web/src/systems/tasks/components/task-subtask-list.tsx`
+- `web/src/systems/tasks/components/task-properties-rail.tsx`
+- list/kanban row components that render identity and status
+
+Capture:
+- Page chrome: nav, title, rail width (~320px), content max (~1240), toolbar, tabs.
+- Current section order on the run page (what competes today).
+- Status chips, node-kind glyphs, request/approval UI already shipped.
+- Delete targets named in comments or obvious loop-nesting/id-regex paths.
+- What the artboards must NOT invent (metrics, verbs, filters that do not exist).
+- Adjacent slices own the spec text (01) and OD design-system CSS (03). Stay in `web/src/systems/{loops,tasks}/`.

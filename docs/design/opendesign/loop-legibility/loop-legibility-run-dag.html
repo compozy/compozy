@@ -1,0 +1,481 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="dark">
+<title>Live run DAG · Loop legibility · CompozyOS</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Geist:wght@400..700&family=JetBrains+Mono:wght@400..700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../design-system/ds-core.css">
+<link rel="stylesheet" href="../design-system/ds-shell.css">
+<link rel="stylesheet" href="../graph-eng/graph-eng.css">
+<link rel="stylesheet" href="loop-legibility.css">
+<!--
+  loop-legibility-run-dag · S5 — operator register, live run DAG.
+  Spec: .compozy/tasks/loop-task-legibility/_uiux.md S5 · US-011, US-014, US-015 ·
+  task_05/VC-17–24. Contract: DESIGN-NOTES.md.
+  Provenance:
+    production — loop-body-dag.tsx node card; loop-node-kind-icons.ts kind glyphs;
+                 loop-node-row-actions.tsx verb set
+    spec — read-only observability surface (ADR-003): authoring chrome fully
+           absent; kind and status ride separate channels; edge lighting means
+           data flowed; not_taken only on durable route evidence
+    authorized delta — the graph reuses the graph-eng `.ed-dag` shell and
+                       `.ed-dag__card` anatomy rather than a third node system;
+                       this set adds only run-state variants, the fan-out band
+                       and the live edge
+-->
+</head>
+<body>
+<div class="shell"><div class="main">
+  <header class="w2head" data-od-id="dag-head">
+    <a class="w2-back" href="index.html" aria-label="Back to set"><svg data-lucide="chevron-left"></svg></a>
+    <nav class="w2-crumbs">
+      <a class="w2-crumb" href="index.html">Loop legibility</a>
+      <span class="w2-sep">/</span>
+      <h1 class="w2-title">Live run DAG</h1>
+    </nav>
+    <div class="w2-flex"></div>
+    <div class="w2-actions">
+      <a class="btn btn--sm" href="loop-legibility-run-default.html">← Run page</a>
+      <a class="btn btn--sm" href="loop-legibility-run-roster.html">Node roster →</a>
+    </div>
+  </header>
+  <div class="scroll"><div class="page">
+
+    <section class="lab-sec" data-od-id="dag-final">
+      <div class="lab-sec__head"><span class="lab-sec__num">01</span><h2 class="lab-sec__t">Where the live graph actually lives</h2>
+        <span class="lab-sec__gist">task_05/VC-17 · the run page with Inspect open</span></div>
+      <div class="spec">
+        <div class="spec__note"><b>Inside the page, not beside it</b>The graph is not a separate screen and not a floating widget. It is the first lane of the operator register, which is what the run page's single <b>Inspect</b> disclosure opens into. The default read stays above it — the briefing and the needs-you card never collapse — while Progress and Story fold to their gists. The graph renders in the main column at the column's width, never full-bleed. <span class="mono">ADR-002 · ADR-003</span></div>
+        <div class="spec__demo">
+          <div class="stage stage--tall stage--pad" data-od-id="dag-final-stage">
+            <section class="win is-focused win--run" data-od-id="dag-final-win">
+              <header class="win-head">
+                <div class="win-controls">
+                  <button class="wc wc-close" tabindex="-1" aria-label="Close"></button>
+                  <button class="wc wc-min" tabindex="-1" aria-label="Minimize"></button>
+                  <button class="wc wc-zoom" tabindex="-1" aria-label="Zoom"></button>
+                </div>
+                <div class="w2-id">
+                  <span class="w2-glyph"><svg data-lucide="git-branch"></svg></span>
+                  <span class="w2-title">revisao-paralela</span>
+                </div>
+                <span class="w2-flex" aria-hidden="true"></span>
+                <div class="win-trail">
+                  <span class="w2-status" data-tone="needs"><svg data-lucide="triangle-alert"></svg>Needs you</span>
+                  <span class="w2-vsep"></span>
+                  <div class="w2-actions">
+                    <button class="btn btn--sm" type="button"><svg data-lucide="ban"></svg>Cancel run</button>
+                    <button class="btn btn--sm btn--icon" type="button" aria-label="More run actions"><svg data-lucide="ellipsis"></svg></button>
+                  </div>
+                </div>
+              </header>
+              <div class="win-body"><div class="app">
+                <div class="run-page">
+                  <div class="run-cols">
+
+                    <div class="notice notice--lead" data-od-id="dag-final-brief">
+                      <svg data-lucide="triangle-alert"></svg>
+                      <div class="notice__main">
+                        <h2 class="notice__h">The gate “aplicar-correcoes” has been waiting 3m for your decision</h2>
+                        <p class="notice__d">Nothing else can move until you approve or reject the reviewers' corrections.</p>
+                      </div>
+                    </div>
+
+                    <div class="lsec" data-open="true" data-od-id="dag-final-needs">
+                      <button class="lsec__head" type="button" aria-expanded="true">
+                        <svg data-lucide="bell"></svg>
+                        <span class="eyebrow">Needs you</span>
+                        <span class="lsec__gist">1 pending</span>
+                        <svg class="lsec__chev" data-lucide="chevron-down"></svg>
+                      </button>
+                      <div class="lsec__body">
+                        <div class="req-stack">
+                          <article class="req-card" data-tone="warning">
+                            <svg class="req-card__glyph" data-lucide="triangle-alert"></svg>
+                            <div class="req-card__main">
+                              <div class="req-card__kicker">
+                                <span class="req-chip" data-tone="warning"><svg data-lucide="triangle-alert"></svg>pending</span>
+                                <span class="req-deadline">waiting 3m</span>
+                              </div>
+                              <h3 class="req-card__prompt">Apply the reviewers' corrections?</h3>
+                              <div class="req-bar" role="group" aria-label="Gate decisions">
+                                <button class="btn btn--sm btn--primary" type="button" data-decision="approve"><svg data-lucide="check"></svg>Approve</button>
+                                <button class="btn btn--sm btn--destructive" type="button" data-decision="reject"><svg data-lucide="x"></svg>Reject</button>
+                              </div>
+                            </div>
+                          </article>
+                        </div>
+                      </div>
+                    </div>
+
+                    <div class="lsec" data-open="false" data-od-id="dag-final-prog">
+                      <button class="lsec__head" type="button" aria-expanded="false">
+                        <svg data-lucide="gauge"></svg>
+                        <span class="eyebrow">Progress</span>
+                        <span class="lsec__gist">step 4 of 6 · round 1 · revisores 2 of 3</span>
+                        <svg class="lsec__chev" data-lucide="chevron-down"></svg>
+                      </button>
+                      <div class="lsec__body"></div>
+                    </div>
+
+                    <div class="lsec" data-open="false" data-od-id="dag-final-story">
+                      <button class="lsec__head" type="button" aria-expanded="false">
+                        <svg data-lucide="history"></svg>
+                        <span class="eyebrow">Story</span>
+                        <span class="lsec__gist">last beat 18:44 — the gate opened</span>
+                        <svg class="lsec__chev" data-lucide="chevron-down"></svg>
+                      </button>
+                      <div class="lsec__body"></div>
+                    </div>
+
+                    <div class="lsec" data-open="true" data-od-id="dag-final-inspect">
+                      <button class="lsec__head" type="button" aria-expanded="true">
+                        <svg data-lucide="search"></svg>
+                        <span class="eyebrow">Inspect</span>
+                        <span class="lsec__gist">graph · 8 nodes · 2 generations · 214 events</span>
+                        <span class="livebadge"><span class="d d--run d--pulse"></span>Live</span>
+                        <svg class="lsec__chev" data-lucide="chevron-down"></svg>
+                      </button>
+                      <div class="lsec__body">
+                        <div class="panelbox ll-insp" data-od-id="dag-final-register">
+                          <div class="lane-tabs" role="tablist" aria-label="Operator register">
+                            <button class="lane-tab is-on" type="button" role="tab" aria-selected="true"><svg data-lucide="workflow"></svg>Graph</button>
+                            <button class="lane-tab" type="button" role="tab" aria-selected="false"><svg data-lucide="table-2"></svg>Nodes<span class="count">8</span></button>
+                            <button class="lane-tab" type="button" role="tab" aria-selected="false"><svg data-lucide="history"></svg>Generations<span class="count">2</span></button>
+                            <button class="lane-tab" type="button" role="tab" aria-selected="false"><svg data-lucide="braces"></svg>Events<span class="count">214</span></button>
+                          </div>
+                          <div class="ll-insp__body">
+                            <div class="ed-dag__row ll-dag" data-od-id="dag-final-graph">
+                              <a class="ed-dag__card ll-node" data-st="succeeded" href="#" data-od-id="dag-n-impl">
+                                <div class="ed-dag__top"><svg data-lucide="bot"></svg><span class="ed-dag__id">implementar</span></div>
+                                <span class="pill" data-tone="success"><svg data-lucide="check"></svg>succeeded</span>
+                              </a>
+                              <span class="ll-edge" data-taken aria-hidden="true"></span>
+                              <a class="ll-fan" data-st="waiting" href="#" data-od-id="dag-n-fan">
+                                <div class="ed-dag__top"><svg data-lucide="split"></svg><span class="ed-dag__id">revisores</span><span class="ll-fan__n">2/3</span></div>
+                                <div class="ll-branch" data-s="done"><span class="ll-branch__dot"></span><span class="ll-branch__id">revisor-seguranca</span><span class="ll-branch__st">done</span></div>
+                                <div class="ll-branch" data-s="done"><span class="ll-branch__dot"></span><span class="ll-branch__id">revisor-estilo</span><span class="ll-branch__st">done · att 2</span></div>
+                                <div class="ll-branch" data-s="wait"><span class="ll-branch__dot"></span><span class="ll-branch__id">revisor-perf</span><span class="ll-branch__st">waiting</span></div>
+                              </a>
+                              <span class="ll-edge" data-live aria-hidden="true"></span>
+                              <a class="ed-dag__card ll-node" data-st="waiting" href="#" data-od-id="dag-n-gate">
+                                <div class="ed-dag__top"><svg data-lucide="check-check"></svg><span class="ed-dag__id">aplicar-correcoes</span></div>
+                                <span class="pill" data-tone="warning"><svg data-lucide="triangle-alert"></svg>pending</span>
+                              </a>
+                              <span class="ll-edge" aria-hidden="true"></span>
+                              <a class="ed-dag__card ll-node" data-st="pending" href="#" data-od-id="dag-n-sint">
+                                <div class="ed-dag__top"><svg data-lucide="git-merge"></svg><span class="ed-dag__id">sintetizador</span></div>
+                                <span class="pill" data-form="hollow"><svg data-lucide="circle-dashed"></svg>pending</span>
+                              </a>
+                              <span class="ll-edge" aria-hidden="true"></span>
+                              <a class="ed-dag__card ll-node" data-st="pending" href="#" data-od-id="dag-n-saida">
+                                <div class="ed-dag__top"><svg data-lucide="bot"></svg><span class="ed-dag__id">saida</span></div>
+                                <span class="pill" data-form="hollow"><svg data-lucide="circle-dashed"></svg>pending</span>
+                              </a>
+                            </div>
+                          </div>
+                          <div class="ll-insp__foot" data-od-id="dag-final-foot">
+                            <svg data-lucide="crosshair"></svg>
+                            <span>Centred on <b>aplicar-correcoes</b> — the node waiting on you.</span>
+                            <span class="dotsep"></span>
+                            <span>Round 1 of 1</span>
+                            <span class="dotsep"></span>
+                            <span>Scroll the lane for the rest of the shape — <b>sintetizador</b> and <b>saida</b> sit past the fold.</span>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+
+                  </div>
+
+                  <aside class="railbox" data-od-id="dag-final-rail">
+                    <div class="rail-sec">
+                      <div class="rail-sec__t"><svg data-lucide="coins"></svg>Usage</div>
+                      <div class="prow"><span class="prow__k">Tokens</span><span class="prow__v mono">82.4k</span></div>
+                      <div class="prow"><span class="prow__k">Cost</span><span class="prow__v mono">$0.31</span></div>
+                      <div class="prow"><span class="prow__k">Budget</span><span class="prow__v mono">12%</span></div>
+                      <span class="meter" role="img" aria-label="12 percent of the budget used"><span class="meter-fill" style="width:12%"></span></span>
+                      <div class="prow"><span class="prow__k">Duration</span><span class="prow__v mono">9m40s</span></div>
+                    </div>
+                    <div class="rail-sec">
+                      <div class="rail-sec__t"><svg data-lucide="info"></svg>About</div>
+                      <div class="prow"><span class="prow__k">Loop</span><span class="prow__v">revisao-paralela</span></div>
+                      <div class="prow"><span class="prow__k">Started</span><span class="prow__v">18:32</span></div>
+                      <div class="prow"><span class="prow__k">Run</span><span class="prow__v mono">looprun-8f3ab2c1d4e5f607</span></div>
+                    </div>
+                    <div class="rail-foot">
+                      <button class="btn btn--sm btn--ghost" type="button"><svg data-lucide="search"></svg>Inspect</button>
+                      <span class="rail-foot__digest">digest 8f3ab2c</span>
+                    </div>
+                  </aside>
+                </div>
+              </div></div>
+            </section>
+          </div>
+        </div>
+      </div>
+
+      <div class="spec">
+        <div class="spec__note"><b>What “live” actually changes</b>Sixty seconds later, after Approve. Node states flip, the edge that carried the data lights, the pulse moves to whatever is now running, and the foot re-centres. Nothing re-mounts and the scroll position holds — states reconcile from the roster read while the stream only accelerates them. <span class="mono">US-011.AC-1 · US-014</span></div>
+        <div class="spec__demo">
+          <div class="stage stage--short stage--pad">
+            <div class="panelbox ll-insp" data-od-id="dag-live-after">
+              <div class="lane-tabs" role="tablist" aria-label="Operator register">
+                <button class="lane-tab is-on" type="button" role="tab" aria-selected="true"><svg data-lucide="workflow"></svg>Graph</button>
+                <button class="lane-tab" type="button" role="tab" aria-selected="false"><svg data-lucide="table-2"></svg>Nodes<span class="count">8</span></button>
+                <button class="lane-tab" type="button" role="tab" aria-selected="false"><svg data-lucide="history"></svg>Generations<span class="count">2</span></button>
+                <button class="lane-tab" type="button" role="tab" aria-selected="false"><svg data-lucide="braces"></svg>Events<span class="count">228</span></button>
+              </div>
+              <div class="ll-insp__body">
+                <div class="ed-dag__row ll-dag">
+                  <article class="ed-dag__card ll-node" data-st="succeeded">
+                    <div class="ed-dag__top"><svg data-lucide="split"></svg><span class="ed-dag__id">revisores</span></div>
+                    <span class="pill" data-tone="success"><svg data-lucide="check"></svg>3 of 3 done</span>
+                  </article>
+                  <span class="ll-edge" data-taken aria-hidden="true"></span>
+                  <article class="ed-dag__card ll-node" data-st="succeeded">
+                    <div class="ed-dag__top"><svg data-lucide="check-check"></svg><span class="ed-dag__id">aplicar-correcoes</span></div>
+                    <span class="pill" data-tone="info"><svg data-lucide="check"></svg>approved</span>
+                  </article>
+                  <span class="ll-edge" data-live aria-hidden="true"></span>
+                  <article class="ed-dag__card ll-node" data-st="running">
+                    <div class="ed-dag__top"><svg data-lucide="git-merge"></svg><span class="ed-dag__id">sintetizador</span></div>
+                    <span class="pill" data-tone="accent"><span class="d d--run d--pulse"></span>running</span>
+                  </article>
+                  <span class="ll-edge" aria-hidden="true"></span>
+                  <article class="ed-dag__card ll-node" data-st="pending">
+                    <div class="ed-dag__top"><svg data-lucide="bot"></svg><span class="ed-dag__id">saida</span></div>
+                    <span class="pill" data-form="hollow"><svg data-lucide="circle-dashed"></svg>pending</span>
+                  </article>
+                </div>
+              </div>
+              <div class="ll-insp__foot">
+                <svg data-lucide="crosshair"></svg>
+                <span>Re-centred on <b>sintetizador</b> — nothing needs you now.</span>
+                <span class="dotsep"></span>
+                <span>Updated 2s ago</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="spec">
+        <div class="spec__note"><b>When the stream drops</b>A degraded transport says so in the register's own foot and keeps rendering the last reconciled read. It never blanks the graph and never silently shows stale state as live — the live badge leaves the disclosure head with it. <span class="mono">truthful UI</span></div>
+        <div class="spec__demo">
+          <div class="stage stage--short stage--pad">
+            <div class="ll-degraded" data-od-id="dag-live-degraded">
+              <div class="lsec" data-open="true">
+                <button class="lsec__head" type="button" aria-expanded="true">
+                  <svg data-lucide="search"></svg>
+                  <span class="eyebrow">Inspect</span>
+                  <span class="lsec__gist">graph · 8 nodes · 2 generations</span>
+                  <span class="pill" data-tone="warning"><svg data-lucide="plug-zap"></svg>reconnecting</span>
+                  <svg class="lsec__chev" data-lucide="chevron-down"></svg>
+                </button>
+                <div class="lsec__body">
+                  <div class="panelbox ll-insp">
+                    <div class="ll-insp__foot">
+                      <svg data-lucide="plug-zap"></svg>
+                      <span>Showing the last read, from <b>40s ago</b>. Retrying the stream.</span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="lab-sec" data-od-id="dag-states">
+      <div class="lab-sec__head"><span class="lab-sec__num">02</span><h2 class="lab-sec__t">Node states</h2>
+        <span class="lab-sec__gist">task_05/VC-18–22, VC-24</span></div>
+
+      <div class="spec">
+        <div class="spec__note"><b>Terminal is faithful, not the last live frame</b>Every node reads its final state, the pulse is gone, and the route the run actually took is the only one lit. <span class="mono">US-011.AC-2</span></div>
+        <div class="spec__demo">
+          <div class="stage stage--short stage--pad">
+            <div class="ed-dag" data-od-id="dag-terminal">
+              <div class="ed-dag__row ll-dag">
+                <article class="ed-dag__card ll-node" data-st="succeeded">
+                  <div class="ed-dag__top"><svg data-lucide="bot"></svg><span class="ed-dag__id">implementar</span></div>
+                  <span class="pill" data-tone="success"><svg data-lucide="check"></svg>succeeded</span>
+                </article>
+                <span class="ll-edge" data-taken aria-hidden="true"></span>
+                <article class="ed-dag__card ll-node" data-st="succeeded">
+                  <div class="ed-dag__top"><svg data-lucide="git-merge"></svg><span class="ed-dag__id">sintetizador</span></div>
+                  <span class="pill" data-tone="success"><svg data-lucide="check"></svg>succeeded</span>
+                </article>
+                <span class="ll-edge" data-taken aria-hidden="true"></span>
+                <article class="ed-dag__card ll-node" data-st="succeeded">
+                  <div class="ed-dag__top"><svg data-lucide="bot"></svg><span class="ed-dag__id">saida</span></div>
+                  <span class="pill" data-tone="success"><svg data-lucide="check"></svg>succeeded</span>
+                </article>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="spec">
+        <div class="spec__note"><b>Pending is not not-taken</b>The distinction this board exists to prove. <b>Pending</b> is reachable and unsettled: dashed border, hollow chip. <b>Not taken</b> is durable route evidence: solid border, neutral fill, route glyph, and the literal words. Neither uses opacity, which would drop the node name under the contrast floor. <span class="mono">Safety Invariant 14 · US-011.EC-2</span></div>
+        <div class="spec__demo">
+          <div class="stage stage--short stage--pad">
+            <div class="ed-dag" data-od-id="dag-si14">
+              <div class="ed-dag__row ll-dag ll-dag--loose">
+                <article class="ed-dag__card ll-node" data-st="pending" data-od-id="dag-pending">
+                  <div class="ed-dag__top"><svg data-lucide="bot"></svg><span class="ed-dag__id">saida</span></div>
+                  <span class="pill" data-form="hollow"><svg data-lucide="circle-dashed"></svg>pending</span>
+                  <p class="ll-node__m">Reachable. Waiting on the gate upstream.</p>
+                </article>
+                <article class="ed-dag__card ll-node" data-st="not_taken" data-od-id="dag-not-taken">
+                  <div class="ed-dag__top"><svg data-lucide="signpost"></svg><span class="ed-dag__id">rota-manual</span></div>
+                  <span class="pill" data-form="absent"><svg data-lucide="git-branch"></svg>not taken</span>
+                  <p class="ll-node__m">The route chose the automatic branch at 18:39.</p>
+                </article>
+              </div>
+              <div class="ed-dag__foot">Absence stays calm: not-taken, never-materialized and strategy-canceled all read on the neutral ramp, with the cause in words.</div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="spec">
+        <div class="spec__note"><b>Failed and quarantined</b>Danger family, with the literal state word beside the glyph. The kind glyph stays neutral — a failed agent is still an agent. <span class="mono">US-011.AC-1</span></div>
+        <div class="spec__demo">
+          <div class="stage stage--short stage--pad">
+            <div class="ed-dag" data-od-id="dag-fail">
+              <div class="ed-dag__row ll-dag ll-dag--loose">
+                <article class="ed-dag__card ll-node" data-st="failed" data-od-id="dag-fail-n">
+                  <div class="ed-dag__top"><svg data-lucide="bot"></svg><span class="ed-dag__id">revisor-perf</span></div>
+                  <span class="pill" data-tone="danger"><svg data-lucide="circle-alert"></svg>failed</span>
+                  <p class="ll-node__m">The model refused the request three times.</p>
+                </article>
+                <article class="ed-dag__card ll-node" data-st="quarantined" data-od-id="dag-quar-n">
+                  <div class="ed-dag__top"><svg data-lucide="bot"></svg><span class="ed-dag__id">revisor-estilo</span></div>
+                  <span class="pill" data-tone="danger"><svg data-lucide="circle-alert"></svg>quarantined</span>
+                  <p class="ll-node__m">Held back after repeated tool errors.</p>
+                </article>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="spec">
+        <div class="spec__note"><b>Wide fan-out stays one entity</b>Past four branches the named rows give way to derived lanes in the shared segment vocabulary — width and fate stay drawn, the count carries the number, and a rollup sentence says it in words. Ten workers never become ten nodes. <span class="mono">US-011.EC-1</span></div>
+        <div class="spec__demo">
+          <div class="stage stage--short stage--pad">
+            <div class="ed-dag" data-od-id="dag-wide">
+              <div class="ed-dag__row ll-dag">
+                <div class="ll-fan ll-fan--wide" data-st="waiting" data-od-id="dag-wide-fan">
+                  <div class="ed-dag__top"><svg data-lucide="split"></svg><span class="ed-dag__id">revisores</span><span class="ll-fan__n">7/10</span></div>
+                  <div class="ll-lanes" role="img" aria-label="Ten workers in parallel: seven succeeded, one failed, two running">
+                    <span class="prog__seg" data-state="clean"></span><span class="prog__seg" data-state="clean"></span>
+                    <span class="prog__seg" data-state="clean"></span><span class="prog__seg" data-state="clean"></span>
+                    <span class="prog__seg" data-state="clean"></span><span class="prog__seg" data-state="clean"></span>
+                    <span class="prog__seg" data-state="clean"></span><span class="prog__seg" data-state="failed"></span>
+                    <span class="prog__seg" data-state="active"></span><span class="prog__seg" data-state="active"></span>
+                  </div>
+                  <p class="ll-band__sum">7 done · 1 failed · 2 still running</p>
+                  <span class="pill" data-tone="warning"><svg data-lucide="triangle-alert"></svg>partial 7 of 10</span>
+                </div>
+                <span class="ll-edge" data-live aria-hidden="true"></span>
+                <article class="ed-dag__card ll-node" data-st="pending">
+                  <div class="ed-dag__top"><svg data-lucide="git-merge"></svg><span class="ed-dag__id">sintetizador</span></div>
+                  <span class="pill" data-form="hollow"><svg data-lucide="circle-dashed"></svg>pending</span>
+                </article>
+              </div>
+              <div class="ed-dag__foot">A filtered fan-out sends its skipped branches to <b>never</b> — neutral tint with an inset ring — and they leave the denominator.</div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="spec">
+        <div class="spec__note"><b>Reduced motion unmounts, never freezes</b>Under <code>prefers-reduced-motion</code> the travelling dot is removed from the render (<code>display:none</code>). The live edge keeps its static accent fill, so liveness is still readable without animation. <span class="mono">task_05/VC-24</span></div>
+        <div class="spec__demo">
+          <div class="stage stage--short stage--pad">
+            <div class="plain" data-od-id="dag-motion">
+              <div class="ll-dag ll-dag--loose">
+                <span class="ll-edge" data-live aria-hidden="true"></span>
+                <span class="ll-edge" data-taken aria-hidden="true"></span>
+                <span class="ll-edge" aria-hidden="true"></span>
+                <span class="ll-edge" data-not aria-hidden="true"></span>
+              </div>
+              <p class="app-note">Left to right: live (accent, pulse dot) · data flowed · reachable, nothing has flowed yet · route not taken.</p>
+            </div>
+          </div>
+        </div>
+      </div>
+
+    </section>
+
+    <section class="lab-sec" data-od-id="dag-panel">
+      <div class="lab-sec__head"><span class="lab-sec__num">03</span><h2 class="lab-sec__t">Node panel</h2>
+        <span class="lab-sec__gist">task_05/VC-23</span></div>
+      <div class="spec">
+        <div class="spec__note"><b>Links stay valid after terminal</b>Open session and Open record work post-terminal; a pruned target degrades to a sentence, never a dead link. Verbs render only where the daemon authorises them — absent, never disabled — and a panel carries at most one primary, only when that verb is the natural next move. <span class="mono">US-014 · US-015.EC-1</span></div>
+        <div class="spec__demo">
+          <div class="stage stage--short stage--pad">
+            <div class="rail-stack" data-od-id="dag-panel-pair">
+              <section class="panel ll-npanel" data-od-id="dag-panel-ok">
+                <div class="panel-h"><h3>revisor-estilo</h3><span class="prov ll-kind"><svg data-lucide="bot"></svg>round 1 · agent</span></div>
+                <span class="pill" data-tone="success"><svg data-lucide="check"></svg>succeeded</span>
+                <p class="req-ctx__body">Recovered on attempt 2. The first attempt ended in a tool error at 18:40 and the step re-ran itself.</p>
+                <div class="req-card__micro">attempt 2 of 2 · 1m18s · 24.1k tokens</div>
+                <div class="req-actions">
+                  <a class="btn btn--sm" href="#">Open session<svg data-lucide="arrow-up-right"></svg></a>
+                  <a class="btn btn--sm" href="#">Open record<svg data-lucide="arrow-up-right"></svg></a>
+                  <button class="btn btn--sm btn--icon" type="button" aria-label="More node actions"><svg data-lucide="ellipsis"></svg></button>
+                </div>
+              </section>
+              <section class="panel ll-npanel" data-od-id="dag-panel-failed">
+                <div class="panel-h"><h3>revisor-perf</h3><span class="prov ll-kind"><svg data-lucide="bot"></svg>round 1 · agent</span></div>
+                <span class="pill" data-tone="danger"><svg data-lucide="circle-alert"></svg>failed</span>
+                <p class="req-ctx__body">The model refused the request three times. Nothing downstream started.</p>
+                <div class="req-card__micro">attempt 3 of 3 · next retry — · last error 18:44</div>
+                <div class="req-actions">
+                  <button class="btn btn--sm btn--primary" type="button"><svg data-lucide="rotate-ccw"></svg>Requeue</button>
+                  <a class="btn btn--sm" href="#">Open session<svg data-lucide="arrow-up-right"></svg></a>
+                  <button class="btn btn--sm btn--icon" type="button" aria-label="More node actions"><svg data-lucide="ellipsis"></svg></button>
+                </div>
+              </section>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="spec">
+        <div class="spec__note"><b>Pruned session</b>The link's target is gone. The row keeps the fact and states the loss in the same place the link would have been. <span class="mono">US-015.EC-1</span></div>
+        <div class="spec__demo">
+          <div class="stage stage--short stage--pad">
+            <div class="rail-stack" data-od-id="dag-panel-pruned">
+              <section class="panel ll-npanel">
+                <div class="panel-h"><h3>revisor-seguranca</h3><span class="prov ll-kind"><svg data-lucide="bot"></svg>round 1 · agent</span></div>
+                <span class="pill" data-tone="success"><svg data-lucide="check"></svg>succeeded</span>
+                <p class="req-ctx__body">Finished at 18:41. Session no longer available — retention removed it after the run settled.</p>
+                <div class="req-actions">
+                  <a class="btn btn--sm" href="#">Open record<svg data-lucide="arrow-up-right"></svg></a>
+                </div>
+              </section>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <p class="lab-foot" data-od-id="dag-foot">Spec <code>_uiux.md</code> S5 · contract <code>DESIGN-NOTES.md</code> · production seams <code>loop-body-dag.tsx</code>, <code>loop-node-kind-icons.ts</code>. The kind inventory is additive — these boards stage a subset as story and never drop a kind. Content illustrative; runtime truth owns final values.</p>
+
+  </div></div>
+</div></div>
+<script src="https://unpkg.com/lucide@latest/dist/umd/lucide.min.js"></script>
+<script>
+(function () { if (window.lucide) window.lucide.createIcons(); })();
+</script>
+</body>
+</html>

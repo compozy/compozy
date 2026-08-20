@@ -1,0 +1,245 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="dark">
+<title>Runs roster · Loop legibility · CompozyOS</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Geist:wght@400..700&family=JetBrains+Mono:wght@400..700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../design-system/ds-core.css">
+<link rel="stylesheet" href="../design-system/ds-shell.css">
+<link rel="stylesheet" href="../graph-eng/graph-eng.css">
+<link rel="stylesheet" href="loop-legibility.css">
+<!--
+  loop-legibility-runs-roster · S6 — /loop-runs.
+  Spec: .compozy/tasks/loop-task-legibility/_uiux.md S6 · US-010 · task_05/VC-33–36.
+  Contract: DESIGN-NOTES.md.
+  Provenance:
+    production — loop-runs-table.tsx group heading (Eyebrow + mono count) over a
+                 panelbox; loop-run-row.tsx status pill + demoted mono run id
+    spec — server order needs-you → active → terminal, applied before pagination;
+           columns Loop · Status · Progress · Started · Duration
+    authorized delta — KPI strip dropped; Gens / Best / Budget demote to the run
+                       page; fabrica-assistida carries no run id in this story
+-->
+</head>
+<body>
+<div class="shell"><div class="main">
+  <header class="w2head" data-od-id="rr-head">
+    <a class="w2-back" href="index.html" aria-label="Back to set"><svg data-lucide="chevron-left"></svg></a>
+    <nav class="w2-crumbs">
+      <a class="w2-crumb" href="index.html">Loop legibility</a>
+      <span class="w2-sep">/</span>
+      <h1 class="w2-title">Runs roster</h1>
+    </nav>
+    <div class="w2-flex"></div>
+    <div class="w2-actions">
+      <a class="btn btn--sm" href="loop-legibility-tasks-list.html">← Tasks</a>
+      <a class="btn btn--sm" href="loop-legibility-run-default.html">Run page →</a>
+    </div>
+  </header>
+  <div class="scroll"><div class="page">
+
+    <section class="lab-sec" data-od-id="rr-final">
+      <div class="lab-sec__head"><span class="lab-sec__num">01</span><h2 class="lab-sec__t">Needs you first</h2>
+        <span class="lab-sec__gist">task_05/VC-33</span></div>
+      <div class="spec">
+        <div class="spec__note"><b>Server order</b>Needs-you, then active, then terminal — decided before pagination, never by client sort. Outcome leads in plain words; the run id demotes to mono under the name. Duration on the live row is the roster clock (22m), not the briefing clock (9m40s). <span class="mono">US-010.AC-1/2</span></div>
+        <div class="spec__demo">
+          <div class="stage stage--tall stage--pad">
+            <section class="win is-focused win--list" data-od-id="rr-final-win">
+              <header class="win-head">
+                <div class="win-controls">
+                  <button class="wc wc-close" tabindex="-1" aria-label="Close"></button>
+                  <button class="wc wc-min" tabindex="-1" aria-label="Minimize"></button>
+                  <button class="wc wc-zoom" tabindex="-1" aria-label="Zoom"></button>
+                </div>
+                <div class="w2-id"><span class="w2-glyph"><svg data-lucide="git-branch"></svg></span><span class="w2-title">Loop runs</span><span class="w2-count">3</span></div>
+                <span class="w2-flex" aria-hidden="true"></span>
+                <div class="win-trail">
+                  <span class="w2-status" data-tone="needs"><svg data-lucide="triangle-alert"></svg>1 needs you</span>
+                </div>
+              </header>
+              <div class="win-toolbar">
+                <div class="app-toolbar listing-toolbar" data-od-id="rr-final-toolbar">
+                  <div class="listing-toolbar__leading">
+                    <label class="field field-search"><svg data-lucide="search"></svg><input type="search" placeholder="Search runs" aria-label="Search runs"></label>
+                    <div class="filters">
+                      <span class="filter-chip">
+                        <span class="filter-chip__label">status</span>
+                        <span class="filter-chip__op">is</span>
+                        <span class="filter-chip__val">any</span>
+                        <button class="filter-chip__x" type="button" aria-label="Clear status filter"><svg data-lucide="x"></svg></button>
+                      </span>
+                    </div>
+                  </div>
+                  <div class="listing-toolbar__trailing">
+                    <span class="toolbar-meta">3 runs</span>
+                  </div>
+                </div>
+              </div>
+              <div class="win-body"><div class="app">
+
+                <section class="ll-group">
+                <div class="ll-grp" data-od-id="rr-grp-needs">
+                  <span class="eyebrow">Needs you</span><span class="count-chip">1</span>
+                </div>
+                <div class="panelbox">
+                  <div class="ll-table-wrap">
+                    <table class="ll-table" data-od-id="rr-table-needs">
+                      <thead><tr><th>Loop</th><th>Status</th><th>Progress</th><th>Started</th><th>Duration</th></tr></thead>
+                      <tbody>
+                        <tr data-needs data-od-id="rr-row-needs">
+                          <td>
+                            <a class="ll-table__name" href="loop-legibility-run-default.html">revisao-paralela</a>
+                            <div class="ll-table__sub">approval “aplicar-correcoes” waiting 3m</div>
+                            <div class="ll-table__id">looprun-8f3ab2c1d4e5f607</div>
+                          </td>
+                          <td><span class="pill" data-tone="warning"><svg data-lucide="triangle-alert"></svg>Needs you</span></td>
+                          <td class="mono">step 4 of 6 · round 1</td>
+                          <td class="mono">18:32</td>
+                          <td class="mono">22m</td>
+                        </tr>
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+                </section>
+
+                <section class="ll-group">
+                <div class="ll-grp" data-od-id="rr-grp-active">
+                  <span class="eyebrow">Active</span><span class="count-chip">1</span>
+                </div>
+                <div class="panelbox">
+                  <div class="ll-table-wrap">
+                    <table class="ll-table" data-od-id="rr-table-active">
+                      <thead><tr><th>Loop</th><th>Status</th><th>Progress</th><th>Started</th><th>Duration</th></tr></thead>
+                      <tbody>
+                        <tr data-od-id="rr-row-fab">
+                          <td>
+                            <a class="ll-table__name" href="loop-legibility-run-default.html">fabrica-assistida</a>
+                            <div class="ll-table__sub">moving on its own</div>
+                          </td>
+                          <td><span class="pill" data-tone="accent"><span class="d d--run d--pulse"></span>Running</span></td>
+                          <td class="mono">step 2 of 9</td>
+                          <td class="mono">18:41</td>
+                          <td class="mono">13m</td>
+                        </tr>
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+                </section>
+
+                <section class="ll-group">
+                <div class="ll-grp" data-od-id="rr-grp-done">
+                  <span class="eyebrow">Recent</span><span class="count-chip">1</span>
+                </div>
+                <div class="panelbox">
+                  <div class="ll-table-wrap">
+                    <table class="ll-table" data-od-id="rr-table-done">
+                      <thead><tr><th>Loop</th><th>Status</th><th>Progress</th><th>Started</th><th>Duration</th></tr></thead>
+                      <tbody>
+                        <tr data-od-id="rr-row-done">
+                          <td>
+                            <a class="ll-table__name" href="loop-legibility-run-default.html">revisao-paralela</a>
+                            <div class="ll-table__sub">finished and wrote post-final.md</div>
+                            <div class="ll-table__id">looprun-77aa01b2c3d4e5f6</div>
+                          </td>
+                          <td><span class="pill" data-tone="success"><svg data-lucide="check"></svg>Done</span></td>
+                          <td class="mono">2 rounds</td>
+                          <td class="mono">17:58</td>
+                          <td class="mono">18m12s</td>
+                        </tr>
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+                </section>
+
+              </div></div>
+            </section>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="lab-sec" data-od-id="rr-states">
+      <div class="lab-sec__head"><span class="lab-sec__num">02</span><h2 class="lab-sec__t">Roster states</h2>
+        <span class="lab-sec__gist">task_05/VC-34–36</span></div>
+
+      <div class="spec">
+        <div class="spec__note"><b>Empty roster</b>No loops have ever run here. One grammar for every empty in the set — <code>.empty</code> — icon well, headline, one sentence, one action. <span class="mono">US-010.EC-1</span></div>
+        <div class="spec__demo">
+          <div class="stage stage--short stage--pad">
+            <div class="empty" data-od-id="rr-empty">
+              <svg data-lucide="git-branch"></svg>
+              <b>No runs yet</b>
+              <p>Start a loop from the catalog and its runs will collect here.</p>
+              <a class="btn" href="#">Browse loops</a>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="spec">
+        <div class="spec__note"><b>Connecting ≠ empty</b>A degraded transport says so. Skeleton rows keep the shape of what is coming; the strip states the cause and offers retry. Never the empty state. <span class="mono">US-010.EC-2 · smithers runsLandingState</span></div>
+        <div class="spec__demo">
+          <div class="stage stage--short stage--pad">
+            <div class="ll-degraded" data-od-id="rr-connecting">
+              <div class="notice notice--calm">
+                <svg data-lucide="plug-zap"></svg>
+                <div class="notice__main">
+                  <div class="notice__d">Reconnecting to the daemon. The list below is the last read, from 40s ago.</div>
+                </div>
+                <div class="notice__actions"><button class="btn btn--sm" type="button"><svg data-lucide="rotate-ccw"></svg>Retry now</button></div>
+              </div>
+              <div class="panelbox ll-sk" aria-hidden="true">
+                <span class="sk"></span><span class="sk"></span><span class="sk"></span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="spec">
+        <div class="spec__note"><b>Dozens active</b>Scale changes the count, not the composition. The needs-you group still sorts first and stays small; active collapses into one scrollable table. No KPI band appears at scale. <span class="mono">US-010.EC-2</span></div>
+        <div class="spec__demo">
+          <div class="stage stage--short stage--pad">
+            <div class="ll-group" data-od-id="rr-scale">
+              <div class="ll-grp">
+                <span class="eyebrow">Active</span><span class="count-chip">34</span>
+                <span class="toolbar-meta ll-grp__meta">showing 1–20</span>
+              </div>
+              <div class="panelbox">
+                <table class="ll-table">
+                  <thead><tr><th>Loop</th><th>Status</th><th>Progress</th><th>Started</th><th>Duration</th></tr></thead>
+                  <tbody>
+                    <tr><td><a class="ll-table__name" href="#">fabrica-assistida</a><div class="ll-table__sub">moving on its own</div></td>
+                      <td><span class="pill" data-tone="accent"><span class="d d--run d--pulse"></span>Running</span></td><td class="mono">step 2 of 9</td><td class="mono">18:41</td><td class="mono">13m</td></tr>
+                    <tr><td><a class="ll-table__name" href="#">revisao-paralela</a><div class="ll-table__sub">waiting for the model to come back</div></td>
+                      <td><span class="pill" data-tone="warning"><svg data-lucide="hourglass"></svg>Retrying</span></td><td class="mono">step 1 of 6</td><td class="mono">18:39</td><td class="mono">15m</td></tr>
+                    <tr><td><a class="ll-table__name" href="#">fabrica-assistida</a><div class="ll-table__sub">queued behind the workspace limit</div></td>
+                      <td><span class="pill" data-form="hollow"><svg data-lucide="circle-dashed"></svg>Queued</span></td><td class="mono">not started</td><td class="mono">18:44</td><td class="mono">—</td></tr>
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+    </section>
+
+    <p class="lab-foot" data-od-id="rr-foot">Spec <code>_uiux.md</code> S6 · contract <code>DESIGN-NOTES.md</code> · production seams <code>loop-runs-table.tsx</code>, <code>loop-run-row.tsx</code>. Content illustrative; runtime truth owns final values.</p>
+
+  </div></div>
+</div></div>
+<script src="https://unpkg.com/lucide@latest/dist/umd/lucide.min.js"></script>
+<script>
+(function () { if (window.lucide) window.lucide.createIcons(); })();
+</script>
+</body>
+</html>

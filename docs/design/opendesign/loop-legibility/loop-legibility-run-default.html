@@ -1,0 +1,574 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="dark">
+<title>Run page — default read · Loop legibility · CompozyOS</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Geist:wght@400..700&family=JetBrains+Mono:wght@400..700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../design-system/ds-core.css">
+<link rel="stylesheet" href="../design-system/ds-shell.css">
+<link rel="stylesheet" href="../graph-eng/graph-eng.css">
+<link rel="stylesheet" href="loop-legibility.css">
+<!--
+  loop-legibility-run-default · S4 — loop run page, default read.
+  Spec: .compozy/tasks/loop-task-legibility/_uiux.md S4 · US-005..009 ·
+  task_05/VC-01–12. Contract: DESIGN-NOTES.md.
+  Provenance:
+    production — loop-run-page-body.tsx 1fr/320px grid; loop-section.tsx
+                 collapsible sections; loop-run-story-timeline.tsx row grid;
+                 loop-run-progress-panel.tsx segmented strip;
+                 loop-run-about-rail.tsx property rows
+    spec — four questions in order: what is running, what needs you, how far
+           along, what came out. Spend lives on the Usage rail only. Failure and
+           needs-you never collapse. Everything else demotes behind Inspect.
+    authorized delta — the briefing strip is the ds-core `.notice` (tint + glyph
+                       + word, no tone-coloured border, per the graph-eng
+                       anti-wash lock); the nine terminal briefing variants are
+                       staged as one gallery instead of nine lab sections
+-->
+</head>
+<body>
+<div class="shell"><div class="main">
+  <header class="w2head" data-od-id="def-head">
+    <a class="w2-back" href="index.html" aria-label="Back to set"><svg data-lucide="chevron-left"></svg></a>
+    <nav class="w2-crumbs">
+      <a class="w2-crumb" href="index.html">Loop legibility</a>
+      <span class="w2-sep">/</span>
+      <h1 class="w2-title">Run page — default read</h1>
+    </nav>
+    <div class="w2-flex"></div>
+    <div class="w2-actions">
+      <a class="btn btn--sm" href="loop-legibility-needs-you.html">Needs you →</a>
+      <a class="btn btn--sm" href="loop-legibility-run-dag.html">Live DAG →</a>
+    </div>
+  </header>
+  <div class="scroll"><div class="page">
+
+    <section class="lab-sec" data-od-id="def-final">
+      <div class="lab-sec__head"><span class="lab-sec__num">01</span><h2 class="lab-sec__t">The default read — something needs you</h2>
+        <span class="lab-sec__gist">task_05/VC-01 composed with VC-13</span></div>
+      <div class="spec">
+        <div class="spec__note"><b>Four questions, in order</b>What is running · what needs you · how far along · what came out. Spend stays on the 320px rail. The run id is never primary text. One primary action on the whole page, and it belongs to the decision card — the briefing only points at it. <span class="mono">US-005.AC-1/2 · US-007.AC-1</span></div>
+        <div class="spec__demo">
+          <div class="stage stage--tall stage--pad" data-od-id="def-final-stage">
+            <section class="win is-focused win--run" data-od-id="def-final-win">
+              <header class="win-head">
+                <div class="win-controls">
+                  <button class="wc wc-close" tabindex="-1" aria-label="Close"></button>
+                  <button class="wc wc-min" tabindex="-1" aria-label="Minimize"></button>
+                  <button class="wc wc-zoom" tabindex="-1" aria-label="Zoom"></button>
+                </div>
+                <div class="w2-id">
+                  <span class="w2-glyph"><svg data-lucide="git-branch"></svg></span>
+                  <span class="w2-title">revisao-paralela</span>
+                </div>
+                <span class="w2-flex" aria-hidden="true"></span>
+                <div class="win-trail">
+                  <span class="w2-status" data-tone="needs"><svg data-lucide="triangle-alert"></svg>Needs you</span>
+                  <span class="w2-vsep"></span>
+                  <div class="w2-actions">
+                    <button class="btn btn--sm" type="button"><svg data-lucide="ban"></svg>Cancel run</button>
+                    <button class="btn btn--sm btn--icon" type="button" aria-label="More run actions"><svg data-lucide="ellipsis"></svg></button>
+                  </div>
+                </div>
+              </header>
+              <div class="win-body"><div class="app">
+                <div class="run-page">
+                  <div class="run-cols">
+
+                    <div class="notice notice--lead" data-od-id="def-final-brief">
+                      <svg data-lucide="triangle-alert"></svg>
+                      <div class="notice__main">
+                        <h2 class="notice__h">The gate “aplicar-correcoes” has been waiting 3m for your decision</h2>
+                        <p class="notice__d">Two reviewers finished and proposed corrections to the draft. Nothing else can move until you approve or reject them. Four of six steps are done in round 1.</p>
+                        <div class="notice__act">
+                          <a class="btn btn--sm" href="#def-final-card" data-od-id="def-final-review"><svg data-lucide="arrow-down"></svg>Review the request</a>
+                        </div>
+                      </div>
+                    </div>
+
+                    <div class="lsec" data-open="true" data-od-id="def-final-needs">
+                      <button class="lsec__head" type="button" aria-expanded="true">
+                        <svg data-lucide="bell"></svg>
+                        <span class="eyebrow">Needs you</span>
+                        <span class="lsec__gist">1 pending</span>
+                        <svg class="lsec__chev" data-lucide="chevron-down"></svg>
+                      </button>
+                      <div class="lsec__body">
+                        <div class="req-stack">
+                          <article class="req-card" data-tone="warning" id="def-final-card" data-od-id="def-final-card">
+                            <svg class="req-card__glyph" data-lucide="triangle-alert"></svg>
+                            <div class="req-card__main">
+                              <div class="req-card__kicker">
+                                <span class="req-chip" data-tone="warning"><svg data-lucide="triangle-alert"></svg>pending</span>
+                                <span class="req-deadline">waiting 3m</span>
+                              </div>
+                              <h3 class="req-card__prompt">Apply the reviewers' corrections?</h3>
+                              <p class="req-ctx__body">aplicar-correcoes is waiting for a decision on its proposed action.</p>
+                              <div class="req-bar" role="group" aria-label="Gate decisions">
+                                <button class="btn btn--sm btn--primary" type="button" data-decision="approve"><svg data-lucide="check"></svg>Approve</button>
+                                <button class="btn btn--sm btn--destructive" type="button" data-decision="reject"><svg data-lucide="x"></svg>Reject</button>
+                              </div>
+                              <div class="req-who"><span class="agent-chip">RP</span><span class="req-who__name">revisor-perf</span></div>
+                              <div class="req-card__micro">review · aplicar-correcoes · round 1</div>
+                            </div>
+                          </article>
+                        </div>
+                      </div>
+                    </div>
+
+                    <div class="lsec" data-open="true" data-od-id="def-final-prog">
+                      <button class="lsec__head" type="button" aria-expanded="true">
+                        <svg data-lucide="gauge"></svg>
+                        <span class="eyebrow">Progress</span>
+                        <span class="lsec__gist">step 4 of 6 · round 1</span>
+                        <svg class="lsec__chev" data-lucide="chevron-down"></svg>
+                      </button>
+                      <div class="lsec__body">
+                        <div class="prog" data-od-id="def-final-progress">
+                          <div class="prog__body">
+                            <div class="prog__goal">Step 4 of 6 · round 1</div>
+                            <p class="prog__done">Done when the synthesiser has folded the kept reviews into one draft and the output step writes it.</p>
+                            <div class="prog__bar" role="img" aria-label="Six steps: three settled, one waiting on you, two not started">
+                              <span class="prog__seg" data-state="clean"></span>
+                              <span class="prog__seg" data-state="clean"></span>
+                              <span class="prog__seg" data-state="clean"></span>
+                              <span class="prog__seg" data-state="parked"></span>
+                              <span class="prog__seg" data-state="pending"></span>
+                              <span class="prog__seg" data-state="pending"></span>
+                            </div>
+                            <div class="prog__meta"><span>3 settled · 1 waiting on you</span><span class="prog__right">2 to go</span></div>
+
+                            <div class="strat-list" data-od-id="def-final-steps">
+                              <div class="strat-row" data-st="done">
+                                <svg class="strat-row__glyph" data-lucide="check"></svg>
+                                <div><div class="strat-row__name">implementar</div><div class="strat-row__note">Wrote the first draft of the rate-limiting post.</div></div>
+                                <span class="strat-row__th">4m02s</span>
+                              </div>
+
+                              <div class="strat-row strat-row--group" data-st="wait" data-od-id="def-final-fanout">
+                                <svg class="strat-row__glyph" data-lucide="split"></svg>
+                                <div>
+                                  <div class="strat-row__name">revisores</div>
+                                  <div class="strat-row__note">Three reviewers in parallel — two finished, one is parked on the gate.</div>
+                                  <div class="ll-band" data-st="wait">
+                                    <div class="ll-lanes" role="img" aria-label="Three workers in parallel: two succeeded, one waiting">
+                                      <span class="prog__seg" data-state="clean"></span>
+                                      <span class="prog__seg" data-state="clean"></span>
+                                      <span class="prog__seg" data-state="parked"></span>
+                                    </div>
+                                    <ul class="ll-band__key">
+                                      <li data-state="clean">revisor-seguranca</li>
+                                      <li data-state="clean">revisor-estilo <span class="ll-att">attempt 2</span></li>
+                                      <li data-state="parked">revisor-perf</li>
+                                    </ul>
+                                  </div>
+                                </div>
+                                <span class="strat-row__trail"><span class="pill" data-mono="true">2/3</span></span>
+                              </div>
+
+                              <div class="strat-row" data-st="wait">
+                                <svg class="strat-row__glyph" data-lucide="check-check"></svg>
+                                <div><div class="strat-row__name">aplicar-correcoes</div><div class="strat-row__note">Waiting 3m for your decision.</div></div>
+                                <span class="strat-row__trail"><span class="pill" data-tone="warning"><svg data-lucide="triangle-alert"></svg>pending</span></span>
+                              </div>
+
+                              <div class="strat-row" data-st="pending">
+                                <svg class="strat-row__glyph" data-lucide="git-merge"></svg>
+                                <div><div class="strat-row__name">sintetizador</div><div class="strat-row__note">Joins whichever reviews you keep.</div></div>
+                                <span class="strat-row__trail"><span class="pill" data-form="hollow"><svg data-lucide="circle-dashed"></svg>pending</span></span>
+                              </div>
+
+                              <div class="strat-row" data-st="pending">
+                                <svg class="strat-row__glyph" data-lucide="bot"></svg>
+                                <div><div class="strat-row__name">saida</div><div class="strat-row__note">Writes the final file.</div></div>
+                                <span class="strat-row__trail"><span class="pill" data-form="hollow"><svg data-lucide="circle-dashed"></svg>pending</span></span>
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+
+                    <div class="lsec" data-open="true" data-od-id="def-final-story">
+                      <button class="lsec__head" type="button" aria-expanded="true">
+                        <svg data-lucide="history"></svg>
+                        <span class="eyebrow">Story</span>
+                        <span class="lsec__gist">notable beats</span>
+                        <svg class="lsec__chev" data-lucide="chevron-down"></svg>
+                      </button>
+                      <div class="lsec__body">
+                        <div class="story-stack">
+                          <div class="story-stack__body">
+                            <article class="story-row" data-tone="warning" data-live>
+                              <span class="story-ring"><svg data-lucide="check-check"></svg></span>
+                              <div class="story-main">
+                                <div class="story-title">The gate opened on the reviewers' corrections</div>
+                                <p class="story-sub">It is holding the run until you approve or reject.</p>
+                              </div>
+                              <div class="story-trail"><time>18:44</time></div>
+                            </article>
+                            <article class="story-row" data-tone="success">
+                              <span class="story-ring"><svg data-lucide="check"></svg></span>
+                              <div class="story-main">
+                                <div class="story-title">The style reviewer recovered on its second try</div>
+                                <p class="story-sub">The first attempt ended in a tool error and the step re-ran itself.</p>
+                              </div>
+                              <div class="story-trail"><time>18:43</time><span class="story-micro">attempt 2</span></div>
+                            </article>
+                            <article class="story-row" data-tone="success">
+                              <span class="story-ring"><svg data-lucide="check"></svg></span>
+                              <div class="story-main">
+                                <div class="story-title">The security and performance reviews finished</div>
+                                <p class="story-sub">Both proposed edits to the rate-limit example.</p>
+                              </div>
+                              <div class="story-trail"><time>18:41</time></div>
+                            </article>
+                            <article class="story-row" data-tone="neutral">
+                              <span class="story-ring"><svg data-lucide="play"></svg></span>
+                              <div class="story-main">
+                                <div class="story-title">The run started on “rate limiting”</div>
+                              </div>
+                              <div class="story-trail"><time>18:32</time></div>
+                            </article>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+
+                  </div>
+
+                  <aside class="railbox" data-od-id="def-final-rail">
+                    <div class="rail-sec">
+                      <div class="rail-sec__t"><svg data-lucide="coins"></svg>Usage</div>
+                      <div class="prow"><span class="prow__k">Tokens</span><span class="prow__v mono">82.4k</span></div>
+                      <div class="prow"><span class="prow__k">Cost</span><span class="prow__v mono">$0.31</span></div>
+                      <div class="prow"><span class="prow__k">Budget</span><span class="prow__v mono">12%</span></div>
+                      <span class="meter" role="img" aria-label="12 percent of the budget used"><span class="meter-fill" style="width:12%"></span></span>
+                      <div class="prow"><span class="prow__k">Rounds</span><span class="prow__v mono">1</span></div>
+                      <div class="prow"><span class="prow__k">Duration</span><span class="prow__v mono">9m40s</span></div>
+                    </div>
+                    <div class="rail-sec">
+                      <div class="rail-sec__t"><svg data-lucide="info"></svg>About</div>
+                      <div class="prow"><span class="prow__k">Loop</span><span class="prow__v">revisao-paralela</span></div>
+                      <div class="prow"><span class="prow__k">Started</span><span class="prow__v">18:32</span></div>
+                      <div class="prow"><span class="prow__k">Input</span><span class="prow__v">tema — rate limiting</span></div>
+                      <div class="prow"><span class="prow__k">Run</span><span class="prow__v mono">looprun-8f3ab2c1d4e5f607</span></div>
+                    </div>
+                    <div class="rail-foot">
+                      <button class="btn btn--sm btn--ghost" type="button" data-od-id="def-final-inspect"><svg data-lucide="search"></svg>Inspect</button>
+                      <span class="rail-foot__digest">digest 8f3ab2c</span>
+                    </div>
+                  </aside>
+                </div>
+              </div></div>
+            </section>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="lab-sec" data-od-id="def-healthy">
+      <div class="lab-sec__head"><span class="lab-sec__num">02</span><h2 class="lab-sec__t">Running healthy — nothing needs you</h2>
+        <span class="lab-sec__gist">task_05/VC-01 · earlier clock</span></div>
+      <div class="spec">
+        <div class="spec__note"><b>Calm, not empty</b>The same four elements, an earlier beat. The briefing drops to the neutral fill and says plainly that nothing is waiting. A running step 1 cannot claim “1 of 6 done” — the copy states what is happening now. <span class="mono">US-005.AC-1</span></div>
+        <div class="spec__demo">
+          <div class="stage stage--short stage--pad">
+            <div class="notice notice--lead notice--calm" data-od-id="def-healthy-brief">
+              <svg data-lucide="loader"></svg>
+              <div class="notice__main">
+                <div class="notice__kicker">
+                  <span class="pill" data-tone="accent"><span class="d d--run d--pulse"></span>Running</span>
+                </div>
+                <h2 class="notice__h">Writing the first draft</h2>
+                <p class="notice__d">Nothing needs you. Step 1 of 6 is running and the reviewers start when it finishes.</p>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="spec">
+        <div class="spec__note"><b>Progress on round 1</b>The round counter is hidden on a single-pass run and on round 1 — it appears only once a second round exists. Route-not-taken and never-materialised steps leave the denominator entirely. <span class="mono">US-006.AC-1</span></div>
+        <div class="spec__demo">
+          <div class="stage stage--short stage--pad">
+            <div class="prog" data-od-id="def-healthy-prog">
+              <div class="prog__body">
+                <div class="prog__goal">Step 1 of 6</div>
+                <p class="prog__done">Done when the synthesiser has folded the kept reviews into one draft and the output step writes it.</p>
+                <div class="prog__bar" role="img" aria-label="Six steps: one running, five not started">
+                  <span class="prog__seg" data-state="active"></span>
+                  <span class="prog__seg" data-state="pending"></span>
+                  <span class="prog__seg" data-state="pending"></span>
+                  <span class="prog__seg" data-state="pending"></span>
+                  <span class="prog__seg" data-state="pending"></span>
+                  <span class="prog__seg" data-state="pending"></span>
+                </div>
+                <div class="prog__meta"><span>Running for 1m12s</span><span class="prog__right">nothing settled yet</span></div>
+                <div class="prog__counts">
+                  <span class="prog-count">running <strong>1</strong></span>
+                  <span class="prog-count">not started <strong>5</strong></span>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="lab-sec" data-od-id="def-briefings">
+      <div class="lab-sec__head"><span class="lab-sec__num">03</span><h2 class="lab-sec__t">Briefing states</h2>
+        <span class="lab-sec__gist">task_05/VC-02–11 · one gallery, not ten sections</span></div>
+      <div class="spec">
+        <div class="spec__note"><b>One strip, ten verdicts</b>The briefing is served by the daemon and the web never re-derives it. Composition never changes — only the fill, the glyph and the sentence. Failure is a strip, never a row inside an accordion. Canceled and no-op stay on the neutral ramp with the actor named. <span class="mono">US-005.EC-1/2 · US-008.AC-1..3 · EC-1..3</span></div>
+        <div class="spec__demo">
+          <div class="stage stage--tall stage--pad">
+            <div class="notice-gallery" data-od-id="def-brief-gallery">
+
+              <div class="notice-gallery__lab">queued on admission</div>
+              <div class="notice notice--lead notice--calm" data-od-id="def-brief-queued">
+                <svg data-lucide="circle-dashed"></svg>
+                <div class="notice__main">
+                  <h2 class="notice__h">Waiting for a free slot</h2>
+                  <p class="notice__d">The workspace already has three loops running, which is its limit. This one starts as soon as one of them finishes.</p>
+                </div>
+              </div>
+
+              <div class="notice-gallery__lab">watching, dormant</div>
+              <div class="notice notice--lead notice--calm" data-od-id="def-brief-watching">
+                <svg data-lucide="radio"></svg>
+                <div class="notice__main">
+                  <h2 class="notice__h">Watching for a pull request to open</h2>
+                  <p class="notice__d">Nothing has happened for 4h. This is the resting state, not a stall — the run wakes when the event arrives.</p>
+                </div>
+              </div>
+
+              <div class="notice-gallery__lab">done — the outcome leads, the artifact follows</div>
+              <div class="notice notice--lead notice--calm" data-od-id="def-brief-done">
+                <svg data-lucide="check"></svg>
+                <div class="notice__main">
+                  <div class="notice__kicker"><span class="pill" data-tone="success"><svg data-lucide="check"></svg>Done</span></div>
+                  <h2 class="notice__h">The post was rewritten and both security notes survived</h2>
+                  <p class="notice__d">Two rounds, 18m12s. The synthesiser accepted round 2 at 0.88 against a threshold of 0.80.</p>
+                </div>
+              </div>
+              <div class="list-shell" data-od-id="def-brief-artifact">
+                <a class="listing-row" href="#">
+                  <span class="listing-row__icon"><svg data-lucide="file-text"></svg></span>
+                  <div class="listing-row__main">
+                    <div class="listing-row__name"><b>post-final.md</b></div>
+                    <div class="listing-row__meta"><span>written by</span><span class="k">saida</span><span class="dotsep"></span><span>18:16</span></div>
+                  </div>
+                  <div class="listing-row__trail"><span class="listing-row__stat"><span class="listing-row__stat-v">7.4 KB</span><span class="listing-row__stat-l">markdown</span></span></div>
+                </a>
+              </div>
+
+              <div class="notice-gallery__lab">failed — outside every accordion</div>
+              <div class="notice notice--lead notice--danger" data-od-id="def-brief-failed">
+                <svg data-lucide="circle-alert"></svg>
+                <div class="notice__main">
+                  <div class="notice__kicker"><span class="pill" data-tone="danger"><svg data-lucide="circle-alert"></svg>Failed</span></div>
+                  <h2 class="notice__h">The performance reviewer never came back</h2>
+                  <p class="notice__d">Three attempts, all refused by the model. The run stopped at step 2 of 6 and nothing downstream started.</p>
+                  <div class="notice__act">
+                    <button class="btn btn--sm" type="button"><svg data-lucide="rotate-ccw"></svg>Retry from this step</button>
+                    <a class="btn btn--sm" href="loop-legibility-run-roster.html">See the failing step</a>
+                  </div>
+                </div>
+              </div>
+
+              <div class="notice-gallery__lab">partial outputs — labelled as partial</div>
+              <div class="notice notice--lead" data-od-id="def-brief-partial">
+                <svg data-lucide="triangle-alert"></svg>
+                <div class="notice__main">
+                  <div class="notice__kicker"><span class="pill" data-tone="warning"><svg data-lucide="triangle-alert"></svg>partial 7 of 10</span></div>
+                  <h2 class="notice__h">The join settled short and the loop said so</h2>
+                  <p class="notice__d">Seven of ten reviewers returned before the join deadline. The draft carries their notes only — the other three are named in the roster.</p>
+                </div>
+              </div>
+
+              <div class="notice-gallery__lab">no-op · canceled — neutral, with the actor</div>
+              <div class="notice notice--lead notice--calm" data-od-id="def-brief-noop">
+                <svg data-lucide="minus"></svg>
+                <div class="notice__main">
+                  <h2 class="notice__h">Nothing to do — the event never arrived</h2>
+                  <p class="notice__d">The run watched for 24h, found no matching pull request and settled without executing a step.</p>
+                </div>
+              </div>
+              <div class="notice notice--lead notice--calm" data-od-id="def-brief-canceled">
+                <svg data-lucide="minus"></svg>
+                <div class="notice__main">
+                  <h2 class="notice__h">Pedro canceled this run at 18:12</h2>
+                  <p class="notice__d">Two steps had finished. Their results are kept and readable; nothing after them started.</p>
+                </div>
+              </div>
+
+              <div class="notice-gallery__lab">pruned artifact — the name survives the bytes</div>
+              <div class="notice notice--lead notice--calm" data-od-id="def-brief-pruned">
+                <svg data-lucide="archive"></svg>
+                <div class="notice__main">
+                  <h2 class="notice__h">The run finished and wrote post-final.md</h2>
+                  <p class="notice__d">Content no longer stored — retention removed the file 30 days after the run settled. The record of what was produced remains.</p>
+                </div>
+              </div>
+
+              <div class="notice-gallery__lab">budget — warning, then exhausted</div>
+              <div class="notice notice--lead" data-od-id="def-brief-budget-near">
+                <svg data-lucide="triangle-alert"></svg>
+                <div class="notice__main">
+                  <h2 class="notice__h">This run has spent 91% of its budget</h2>
+                  <p class="notice__d">Round 3 is running. If it needs a fourth, the loop will stop instead of starting one.</p>
+                  <div class="notice__act"><button class="btn btn--sm" type="button">Raise the budget</button></div>
+                </div>
+              </div>
+              <div class="notice notice--lead notice--danger" data-od-id="def-brief-budget-out">
+                <svg data-lucide="circle-alert"></svg>
+                <div class="notice__main">
+                  <div class="notice__kicker"><span class="pill" data-tone="danger"><svg data-lucide="circle-alert"></svg>Budget exhausted</span></div>
+                  <h2 class="notice__h">The run stopped because it hit its budget</h2>
+                  <p class="notice__d">214.5k tokens and $0.87 across two rounds. Round 2's draft is kept and readable, and it was never accepted.</p>
+                  <div class="notice__act"><button class="btn btn--sm" type="button">Raise the budget and continue</button></div>
+                </div>
+              </div>
+
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="lab-sec" data-od-id="def-story">
+      <div class="lab-sec__head"><span class="lab-sec__num">04</span><h2 class="lab-sec__t">Story at length</h2>
+        <span class="lab-sec__gist">task_05/VC-09–10</span></div>
+      <div class="spec">
+        <div class="spec__note"><b>Meaning, not mechanics</b>Beats come from the durable paged timeline, not a client buffer, so history survives a reload. Heartbeat-class events coalesce into one line with a count. Titles say what happened; ids and event names stay in the operator register. <span class="mono">US-009.AC-2 · EC-1/3</span></div>
+        <div class="spec__demo">
+          <div class="stage stage--short stage--pad">
+            <div class="story-stack" data-od-id="def-story-long">
+              <div class="story-stack__body">
+                <article class="story-row" data-tone="info">
+                  <span class="story-ring"><svg data-lucide="git-fork"></svg></span>
+                  <div class="story-main">
+                    <div class="story-title">Forked from round 1 of an earlier run</div>
+                    <p class="story-sub">Pedro replayed the reviewers with a stricter threshold. <a class="story-link" href="#">Open the parent run</a>.</p>
+                  </div>
+                  <div class="story-trail"><time>18:32</time></div>
+                </article>
+                <article class="story-row" data-tone="neutral">
+                  <span class="story-ring"><svg data-lucide="activity"></svg></span>
+                  <div class="story-main">
+                    <button class="story-agg" type="button" aria-expanded="false">
+                      <svg class="story-agg__chev" data-lucide="chevron-right"></svg>
+                      <span class="story-title">142 progress heartbeats</span>
+                    </button>
+                    <p class="story-sub">Coalesced into one beat. Expand to read them individually.</p>
+                  </div>
+                  <div class="story-trail"><time>18:33–18:41</time></div>
+                </article>
+                <article class="story-row" data-tone="success">
+                  <span class="story-ring"><svg data-lucide="check"></svg></span>
+                  <div class="story-main">
+                    <div class="story-title">Round 2 was accepted</div>
+                    <p class="story-sub">Scored 0.88 against a threshold of 0.80.</p>
+                  </div>
+                  <div class="story-trail"><time>18:15</time><span class="story-micro">round 2</span></div>
+                </article>
+              </div>
+              <button class="park-foot" type="button" data-od-id="def-story-more">
+                <svg data-lucide="chevron-down"></svg>
+                Load 40 earlier beats
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="lab-sec" data-od-id="def-inspect">
+      <div class="lab-sec__head"><span class="lab-sec__num">05</span><h2 class="lab-sec__t">Inspect — the one disclosure</h2>
+        <span class="lab-sec__gist">task_05/VC-12</span></div>
+      <div class="spec">
+        <div class="spec__note"><b>Closed, and still informing</b>There is no simple/advanced toggle — one disclosure, one level. Closed, its gist already says what is inside, so nobody has to open it to find out whether it is worth opening. The live badge stays on the head while the run is live. <span class="mono">SD-012 / L-036</span></div>
+        <div class="spec__demo">
+          <div class="stage stage--short stage--pad">
+            <div class="lsec" data-open="false" data-od-id="def-inspect-closed">
+              <button class="lsec__head" type="button" aria-expanded="false">
+                <svg data-lucide="search"></svg>
+                <span class="eyebrow">Inspect</span>
+                <span class="lsec__gist">graph · 8 nodes · 2 generations · 214 events</span>
+                <span class="livebadge"><span class="d d--run d--pulse"></span>Live</span>
+                <svg class="lsec__chev" data-lucide="chevron-down"></svg>
+              </button>
+              <div class="lsec__body"></div>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="spec">
+        <div class="spec__note"><b>Open, it is four lanes over one read</b>Everything the default read demoted lives here: the graph, the complete node roster, generation history and the raw event stream. They are lanes, not pages — the run page never navigates away. The graph is the default lane. <a class="story-link" href="loop-legibility-run-dag.html">See it in place on the Live DAG board</a>. <span class="mono">ADR-002 · ADR-003</span></div>
+        <div class="spec__demo">
+          <div class="stage stage--short stage--pad">
+            <div class="ll-insp panelbox" data-od-id="def-inspect-open">
+              <div class="lane-tabs" role="tablist" aria-label="Operator register">
+                <button class="lane-tab is-on" type="button" role="tab" aria-selected="true"><svg data-lucide="workflow"></svg>Graph</button>
+                <button class="lane-tab" type="button" role="tab" aria-selected="false"><svg data-lucide="table-2"></svg>Nodes<span class="count">8</span></button>
+                <button class="lane-tab" type="button" role="tab" aria-selected="false"><svg data-lucide="history"></svg>Generations<span class="count">2</span></button>
+                <button class="lane-tab" type="button" role="tab" aria-selected="false"><svg data-lucide="braces"></svg>Events<span class="count">214</span></button>
+              </div>
+              <div class="ll-insp__body">
+                <div class="strat-list">
+                  <a class="strat-row" href="loop-legibility-run-dag.html">
+                    <svg class="strat-row__glyph" data-lucide="workflow"></svg>
+                    <div><div class="strat-row__name">Graph</div><div class="strat-row__note">The authored shape wearing current state, centred on whatever needs a human.</div></div>
+                    <span class="strat-row__th">8 nodes</span>
+                  </a>
+                  <a class="strat-row" href="loop-legibility-run-roster.html">
+                    <svg class="strat-row__glyph" data-lucide="table-2"></svg>
+                    <div><div class="strat-row__name">Nodes</div><div class="strat-row__note">Every node × round, healthy included, with attempts and spend.</div></div>
+                    <span class="strat-row__th">8 rows</span>
+                  </a>
+                  <a class="strat-row" href="loop-legibility-run-roster.html#nr-gens">
+                    <svg class="strat-row__glyph" data-lucide="history"></svg>
+                    <div><div class="strat-row__name">Generations</div><div class="strat-row__note">Per-round outcome, verdict and spend. Compare and Fork.</div></div>
+                    <span class="strat-row__th">2 rounds</span>
+                  </a>
+                  <a class="strat-row" href="#">
+                    <svg class="strat-row__glyph" data-lucide="braces"></svg>
+                    <div><div class="strat-row__name">Events</div><div class="strat-row__note">The escape hatch, paged from the durable timeline.</div></div>
+                    <span class="strat-row__th">214 events</span>
+                  </a>
+                </div>
+              </div>
+              <div class="ll-insp__foot">
+                <svg data-lucide="info"></svg>
+                <span>The lane list is what the register shows before a lane loads. On the run page the Graph lane is already open.</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <p class="lab-foot" data-od-id="def-foot">Spec <code>_uiux.md</code> S4 · contract <code>DESIGN-NOTES.md</code> · production seams <code>loop-run-page-body.tsx</code>, <code>loop-run-progress-panel.tsx</code>, <code>loop-run-story-timeline.tsx</code>, <code>loop-run-about-rail.tsx</code>. Under reduced motion the running dot and the story ring stop animating and the live edge's travelling dot unmounts. Content illustrative; runtime truth owns final values.</p>
+
+  </div></div>
+</div></div>
+<script src="https://unpkg.com/lucide@latest/dist/umd/lucide.min.js"></script>
+<script>
+(function () {
+  if (window.lucide) window.lucide.createIcons();
+  document.querySelectorAll(".lsec__head").forEach(function (head) {
+    head.addEventListener("click", function () {
+      var sec = head.closest(".lsec");
+      var open = sec.getAttribute("data-open") !== "false";
+      sec.setAttribute("data-open", open ? "false" : "true");
+      head.setAttribute("aria-expanded", open ? "false" : "true");
+    });
+  });
+})();
+</script>
+</body>
+</html>

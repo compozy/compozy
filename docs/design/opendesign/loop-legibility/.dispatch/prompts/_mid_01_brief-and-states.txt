@@ -1,0 +1,30 @@
+---
+
+## This slice (must name all three)
+
+- **Slice scope (primary sources — read these, do not roam):**
+  - `/Users/pedronauck/Dev/compozy/compozy/.compozy/tasks/loop-task-legibility/_uiux.md`
+  - `/Users/pedronauck/Dev/compozy/compozy/.compozy/tasks/loop-task-legibility/_user_stories.md`
+  - `/Users/pedronauck/Dev/compozy/compozy/.compozy/tasks/loop-task-legibility/_dx.md`
+  - `/Users/pedronauck/Dev/compozy/compozy/.compozy/tasks/loop-task-legibility/adrs/adr-001.md`
+  - `/Users/pedronauck/Dev/compozy/compozy/.compozy/tasks/loop-task-legibility/adrs/adr-002.md`
+  - `/Users/pedronauck/Dev/compozy/compozy/.compozy/tasks/loop-task-legibility/adrs/adr-003.md`
+  - `/Users/pedronauck/Dev/compozy/compozy/.compozy/tasks/loop-task-legibility/task_04.md`
+  - `/Users/pedronauck/Dev/compozy/compozy/.compozy/tasks/loop-task-legibility/task_05.md`
+  - `/Users/pedronauck/Dev/compozy/compozy/docs/_memory/glossary.md`
+  - `/Users/pedronauck/Dev/compozy/compozy/docs/_memory/standing_directives.md` (SD-012 / L-036 only)
+- **Slug and ordinal:** `01_analysis_brief-and-states`
+- **Exact target path:** `/Users/pedronauck/Dev/compozy/compozy/docs/design/opendesign/loop-legibility/analysis/01_analysis_brief-and-states.md`
+
+## Slice question
+
+What must each of the six artboards contain — default-read vs operator-register, every state to stage, the canonical `revisao-paralela` / `fabrica-assistida` data story, locked copy vocabulary, and the visual-contract IDs from task_04/task_05?
+
+## Extraction rules
+
+- Inventory every artboard filename and its "states to design" list from `_uiux.md` S1/S4/S5/S6. Note S2/S3/S7 as no-artboard with the reuse rule.
+- Map each state to a US-xxx AC/EC from `_user_stories.md` and a VC-xx row from task_04 or task_05.
+- Extract the canonical dataset from `_uiux.md` "Canonical data story" plus `_dx.md` transcripts: loop names, run ids, topology nodes, usage numbers, approval gate, artifacts. Do not invent extra entities.
+- Quote the locked vocabulary: step vs Loop run vs loop cell; briefing questions; needs-you decisions `approve / edit / reject / respond`; filter behavior (hidden, ephemeral).
+- Record ADR-001/002/003 decisions that constrain layout (exclusion, two registers no toggle, DAG in operator register).
+- Adjacent slices own production code (02) and visual tokens/grammar (03). Do not read `web/` or `docs/design/opendesign/graph-eng/`.
