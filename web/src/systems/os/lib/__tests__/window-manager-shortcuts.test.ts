@@ -9,6 +9,7 @@ import { describe, expect, it } from "vitest";
 
 import {
   chordFromKeyboardEvent,
+  coveringShortcutFamily,
   deriveShortcutCheatsheet,
   effectiveShortcutMap,
   findShortcutConflicts,
@@ -19,12 +20,13 @@ import {
   shortcutKeyGlyphs,
   shortcutMatches,
   shortcutLabel,
+  SHORTCUT_RANGE_FAMILIES,
   type ShortcutActionDefinition,
   type ShortcutMap,
 } from "../window-manager-shortcuts";
 
 function coreAction(
-  action: Omit<ShortcutActionDefinition, "source" | "alias"> & Partial<ShortcutActionDefinition>
+  action: Omit<ShortcutActionDefinition, "source" | "alias">
 ): ShortcutActionDefinition {
   return { source: "core", alias: null, ...action };
 }
@@ -51,6 +53,13 @@ const ACTIONS: readonly ShortcutActionDefinition[] = [
     })
   ),
   coreAction({ id: "layout.arrange.grid", label: "Arrange in grid", section: "Layout" }),
+  {
+    id: "ext.notes.capture",
+    label: "Capture note",
+    section: "Notes",
+    source: "ext.notes",
+    alias: "cap",
+  },
 ];
 
 const DEFAULTS: ShortcutMap = {
@@ -170,6 +179,16 @@ describe("daemon-fed registry", () => {
     ).toBe(true);
   });
 
+  it("Should name the indexed family that covers a member when that family is overridden", () => {
+    const overrides: ShortcutMap = { "window.tab.jump": ["control+alt+Digit1..8"] };
+    expect(coveringShortcutFamily("window.tab.jump.3", overrides)).toBe("window.tab.jump");
+    expect(coveringShortcutFamily("desktop.switch.2", overrides)).toBeNull();
+    expect(SHORTCUT_RANGE_FAMILIES.map(family => family.action)).toEqual([
+      "desktop.switch",
+      "window.tab.jump",
+    ]);
+  });
+
   it("Should surface arrays once and collapse numeric families in the cheatsheet [UT-075]", () => {
     const effective = effectiveShortcutMap(DEFAULTS, {
       "window.focus.up": ["control+ArrowUp", "alt+KeyK"],
@@ -188,6 +207,43 @@ describe("daemon-fed registry", () => {
     ]);
     expect(rows.filter(row => row.id === "window.tab.jump")).toHaveLength(1);
     expect(rows.some(row => row.id.startsWith("window.tab.jump."))).toBe(false);
+  });
+
+  it("Should preserve caller-supplied extension source and alias", () => {
+    const effective = effectiveShortcutMap(DEFAULTS, {
+      "ext.notes.capture": ["alt+shift+KeyN"],
+    });
+    const resolved = resolveWindowManagerActions(effective, ACTIONS);
+    expect(resolved.find(action => action.id === "ext.notes.capture")).toEqual(
+      expect.objectContaining({
+        id: "ext.notes.capture",
+        source: "ext.notes",
+        alias: "cap",
+        shortcutLabels: ["⌥⇧N"],
+      })
+    );
+    expect(
+      deriveShortcutCheatsheet(
+        effective,
+        { "ext.notes.capture": ["alt+shift+KeyN"] },
+        ACTIONS
+      ).find(row => row.id === "ext.notes.capture")
+    ).toEqual(
+      expect.objectContaining({
+        source: "ext.notes",
+        alias: "cap",
+        bindings: ["alt+shift+KeyN"],
+        overridden: true,
+      })
+    );
+  });
+
+  it("Should report a collision that includes an unhydrated action id", () => {
+    expect(findShortcutConflicts({ "ext.unknown.open": ["meta+KeyW"] }, DEFAULTS)).toContainEqual({
+      chord: "meta+KeyW",
+      kind: "blocked",
+      actionIds: ["window.close", "ext.unknown.open"],
+    });
   });
 });
 

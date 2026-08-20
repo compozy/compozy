@@ -16,6 +16,19 @@ import (
 
 const windowManagerMaxSnapshotBytes = 16 * 1024 * 1024
 
+type globalHotkeyFailureNotifier interface {
+	NotifyGlobalHotkeyRegistrationFailed(
+		context.Context,
+		cmdpalette.WorkspaceID,
+		cmdpalette.ClientID,
+		cmdpalette.CommandID,
+		string,
+		string,
+	)
+}
+
+var _ globalHotkeyFailureNotifier = (*cmdpalette.Service)(nil)
+
 func (d *Daemon) bootDefaultWorkspaceAndWindowManager(
 	ctx context.Context,
 	state *bootState,
@@ -77,11 +90,11 @@ func (d *Daemon) bootDefaultWorkspaceAndWindowManager(
 				clientID windowmanager.ClientID,
 				registration windowmanager.GlobalShortcutRegistration,
 			) {
-				palette, ok := state.cmdPalette.(*cmdpalette.Service)
-				if !ok || palette == nil {
+				notifier, ok := state.cmdPalette.(globalHotkeyFailureNotifier)
+				if !ok || notifier == nil {
 					return
 				}
-				palette.NotifyGlobalHotkeyRegistrationFailed(
+				notifier.NotifyGlobalHotkeyRegistrationFailed(
 					ctx,
 					cmdpalette.WorkspaceID(workspaceID),
 					cmdpalette.ClientID(clientID),

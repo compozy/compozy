@@ -11,10 +11,9 @@ export function normalizeRankingText(value: string): NormalizedText {
   const text = value
     .normalize("NFKD")
     .replace(COMBINING_MARKS, "")
-    .toLocaleLowerCase()
+    .toLowerCase()
     .replace(SEPARATORS, " ")
-    .trim()
-    .replace(/\s+/gu, " ");
+    .trim();
   const tokens = text === "" ? [] : text.split(" ");
   return { text, tokens, compact: tokens.join("") };
 }

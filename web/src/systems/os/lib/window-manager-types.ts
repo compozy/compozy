@@ -255,14 +255,16 @@ export interface WindowManagerClientView {
   connectedAt: string;
 }
 
-/** Full daemon attachment projection; presentation-only consumers use the base view above. */
+/** Stream and list projection. Registration adds a required attachment token. */
 export interface WindowManagerAttachedClientView extends WindowManagerClientView {
   kind: WindowManagerClientKind;
   contextRevision: LayoutRevision;
   paletteContext: WindowManagerPaletteContext;
-  /** Present only on the registration response; list and stream projections omit it. */
-  attachmentToken: string | null;
   globalShortcuts: readonly ShortcutTypes.WindowManagerGlobalShortcutRegistration[];
+}
+
+export interface WindowManagerRegisteredClientView extends WindowManagerAttachedClientView {
+  attachmentToken: string;
 }
 
 export interface WindowManagerPaletteContext {
@@ -281,7 +283,6 @@ export interface WindowManagerPaletteContext {
 }
 
 export interface WindowManagerClientCommand {
-  workspaceId: string;
   commandId: string;
   op: string;
   payload: unknown;
@@ -377,7 +378,7 @@ export type WindowManagerStreamFrame =
       revision: LayoutRevision;
       client: WindowManagerAttachedClientView;
     }
-  | { type: "client_command"; command: WindowManagerClientCommand }
+  | { type: "client_command"; workspaceId: string; command: WindowManagerClientCommand }
   | { type: "error"; error: WindowManagerErrorPayload };
 
 export interface ProjectionGaps {

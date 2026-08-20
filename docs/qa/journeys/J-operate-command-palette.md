@@ -36,7 +36,7 @@ flowchart TD
 journey:
   id: J-operate-command-palette
   name: "Operate commands through structured surfaces"
-  value_statement: "An agent can discover, invoke, and configure every palette capability safely without relying on the web UI."
+  value_statement: "An agent can discover, invoke, and configure every palette command safely without relying on the web UI."
   personas: [Ada]
   entry_points:
     - url: "compozy cmd-palette list|inspect|invoke|clients"

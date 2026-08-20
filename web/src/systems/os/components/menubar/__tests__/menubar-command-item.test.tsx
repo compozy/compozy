@@ -13,39 +13,27 @@ import { Menubar, MenubarContent, MenubarMenu, MenubarTrigger, UIProvider } from
 
 import { CmdPaletteRegistryProvider } from "../../../contexts/cmd-palette-registry-context";
 import type { PaletteRegistry, ResolvedPaletteCommand } from "../../../lib/cmd-palette-types";
+import {
+  paletteRegistryFixture,
+  resolvedPaletteCommand,
+} from "../../../mocks/cmd-palette-fixtures";
 import { MenubarCommandItem } from "../menubar-command-item";
 
 function command(overrides: Partial<ResolvedPaletteCommand> = {}): ResolvedPaletteCommand {
-  return {
+  return resolvedPaletteCommand({
     id: "window.close",
     title: "Close window",
     section: "Window",
     icon: "x-square",
-    source: "core",
     bindings: ["meta+KeyW"],
-    alias: null,
-    destructive: false,
-    availability_exempt: false,
-    arguments: [],
-    action: { kind: "client_op", op: "window.close" },
     execution: { retry_safe: false, single_flight: true },
-    visible: true,
-    available: true,
-    reason: "",
     chords: ["⌘W"],
     ...overrides,
-  } as ResolvedPaletteCommand;
+  });
 }
 
 function registry(commands: readonly ResolvedPaletteCommand[]): PaletteRegistry {
-  return {
-    commands,
-    byId: new Map(commands.map(entry => [entry.id, entry])),
-    sources: [{ source: "core", status: "healthy" }],
-    catalogRevision: "sha256:test",
-    stale: false,
-    daemonReachable: true,
-  };
+  return paletteRegistryFixture(commands);
 }
 
 function Fixture({

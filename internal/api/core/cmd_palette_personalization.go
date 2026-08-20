@@ -1,7 +1,6 @@
 package core
 
 import (
-	"errors"
 	"net/http"
 	"strings"
 
@@ -16,7 +15,7 @@ func (h *BaseHandlers) GetCmdPaletteRankSignals(c *gin.Context) {
 		return
 	}
 	if h.CmdPalette == nil {
-		h.respondCmdPaletteError(c, workspaceID, errors.New("cmd palette service is unavailable"))
+		h.respondCmdPaletteError(c, workspaceID, errCmdPaletteServiceUnavailable)
 		return
 	}
 	snapshot, err := h.CmdPalette.Personalization(c.Request.Context(), workspaceID)
@@ -29,7 +28,7 @@ func (h *BaseHandlers) GetCmdPaletteRankSignals(c *gin.Context) {
 
 func (h *BaseHandlers) RecordCmdPaletteUsage(c *gin.Context) {
 	if h.CmdPalette == nil {
-		h.respondCmdPaletteError(c, "", errors.New("cmd palette service is unavailable"))
+		h.respondCmdPaletteError(c, "", errCmdPaletteServiceUnavailable)
 		return
 	}
 	var body contract.CmdPaletteUsageRequest
@@ -68,7 +67,7 @@ func (h *BaseHandlers) changeCmdPalettePin(c *gin.Context, pinned bool) {
 		return
 	}
 	if h.CmdPalette == nil {
-		h.respondCmdPaletteError(c, workspaceID, errors.New("cmd palette service is unavailable"))
+		h.respondCmdPaletteError(c, workspaceID, errCmdPaletteServiceUnavailable)
 		return
 	}
 	commandID := cmdpalette.CommandID(strings.TrimSpace(c.Param("id")))
@@ -91,7 +90,7 @@ func (h *BaseHandlers) GetCmdPalettePersonalization(c *gin.Context) {
 		return
 	}
 	if h.CmdPalette == nil {
-		h.respondCmdPaletteError(c, workspaceID, errors.New("cmd palette service is unavailable"))
+		h.respondCmdPaletteError(c, workspaceID, errCmdPaletteServiceUnavailable)
 		return
 	}
 	summary, err := h.CmdPalette.PersonalizationSummary(c.Request.Context(), workspaceID)
@@ -108,7 +107,7 @@ func (h *BaseHandlers) ResetCmdPalettePersonalization(c *gin.Context) {
 		return
 	}
 	if h.CmdPalette == nil {
-		h.respondCmdPaletteError(c, workspaceID, errors.New("cmd palette service is unavailable"))
+		h.respondCmdPaletteError(c, workspaceID, errCmdPaletteServiceUnavailable)
 		return
 	}
 	if err := h.CmdPalette.ResetPersonalization(c.Request.Context(), workspaceID); err != nil {

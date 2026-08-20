@@ -44,6 +44,10 @@ Walk (task_11 plan — stack semantics across all four kinds):
    naming the extension; popping still works.
 6. Set a new-tab destination intent with a stack present — the stack resets (mutual exclusion);
    zero eligible destinations render the honest empty state and Esc clears the intent.
+7. While a programmable view is on the stack, force a patch-revision gap and one acknowledged
+   host effect, then reconnect — the host resyncs a full payload instead of applying the gap, the
+   current generation wins, and the effect does not repeat.
 
 Expected evidence: screenshots of each kind under the shared chrome, the truncated breadcrumb, the
-unavailable frame, and the destination empty state; note the exact pop sequence observed.
+unavailable frame, the destination empty state, a generation-gap resync, and an at-most-once
+effect; note the exact pop sequence observed.

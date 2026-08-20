@@ -43,10 +43,8 @@ func TestManifestCmdPaletteValidation(t *testing.T) {
 			t.Fatalf("loadManifestTOMLContent() error = %v", err)
 		}
 		palette := roundTrip.Resources.CmdPalette
-		if len(palette.Commands) != 3 || len(palette.Views) != 1 ||
-			palette.Commands[0].Execution == nil || palette.Commands[0].Execution.SingleFlight == nil ||
-			!*palette.Commands[0].Execution.SingleFlight {
-			t.Fatalf("round-trip palette = %#v, want complete authored policy", palette)
+		if !reflect.DeepEqual(palette, manifest.Resources.CmdPalette) {
+			t.Fatalf("round-trip palette = %#v, want %#v", palette, manifest.Resources.CmdPalette)
 		}
 	})
 
@@ -124,6 +122,20 @@ func TestManifestCmdPaletteValidation(t *testing.T) {
 			},
 			field: "cmd_palette.views[0].source.tool", text: "read-only risk class",
 		},
+		{
+			name: "Should reject a non-emoji icon grapheme",
+			mutate: func(manifest *Manifest) {
+				manifest.Resources.CmdPalette.Commands[0].Icon = "文"
+			},
+			field: "cmd_palette.commands[0].icon", text: "lowercase icon token or one emoji grapheme",
+		},
+		{
+			name: "Should reject extra action targets in documented field order",
+			mutate: func(manifest *Manifest) {
+				manifest.Resources.CmdPalette.Commands[0].Action.View = "recent"
+			},
+			field: "cmd_palette.commands[0].action.view", text: "is not allowed for tool actions",
+		},
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
@@ -131,8 +143,12 @@ func TestManifestCmdPaletteValidation(t *testing.T) {
 			manifest := cmdPaletteTestManifest("notes")
 			test.mutate(manifest)
 			err := manifest.Validate()
-			if err == nil || !strings.Contains(err.Error(), test.field) || !strings.Contains(err.Error(), test.text) {
-				t.Fatalf("Manifest.Validate() error = %v, want %q and %q", err, test.field, test.text)
+			if err == nil {
+				t.Fatalf("Manifest.Validate() error = nil, want %q and %q", test.field, test.text)
+			}
+			validationErr, ok := errors.AsType[*ManifestValidationError](err)
+			if !ok || validationErr.Field != test.field || !strings.Contains(validationErr.Message, test.text) {
+				t.Fatalf("Manifest.Validate() error = %v, want field %q and message %q", err, test.field, test.text)
 			}
 		})
 	}

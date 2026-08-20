@@ -2,11 +2,15 @@ import { useQuery, useQueryClient, type UseQueryResult } from "@tanstack/react-q
 import { useRouter } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 
+import { useSession } from "@/systems/session";
+import { useWorkspaceScopeMode } from "@/systems/workspace";
+
 import type { OsShellHandle } from "../contexts/os-shell-context";
 import { ClientCommandChannel } from "../lib/client-command-channel";
+import { resolveLivePaletteClientContext } from "../lib/desktop-chrome-client-context";
 import type {
-  WindowManagerAttachedClientView,
   WindowManagerErrorPayload,
+  WindowManagerRegisteredClientView,
   WindowManagerSnapshot,
 } from "../lib/window-manager-types";
 import {
@@ -17,15 +21,18 @@ import {
 import { RoutingCoordinator, type OsRouterPort } from "../lib/routing-coordinator";
 import { subscribeWorkspaceSwitchBarrier } from "../lib/workspace-switch-barrier";
 import { WindowManagerRuntime } from "../runtime/window-manager-runtime";
+import { useDesktop } from "./use-desktop";
+import { useFocusedSessionId } from "./use-focused-session-id";
+import { useGlobalShortcutReconciliation } from "./use-global-shortcut-reconciliation";
 import { useWindowManagerClient } from "./use-window-manager-client";
 import { useWindowManagerStream } from "./use-window-manager-stream";
-import { useGlobalShortcutReconciliation } from "./use-global-shortcut-reconciliation";
+import { useWindowPaletteIntent } from "./use-window-manager-store";
 
 export interface DesktopChromeModel {
   shell: OsShellHandle;
   query: UseQueryResult<WindowManagerSnapshot, Error>;
   /** The attachment this shell speaks for; the palette projection needs its context. */
-  client: WindowManagerAttachedClientView | null;
+  client: WindowManagerRegisteredClientView | null;
   /** Executes a `client_op` the daemon pushed over the window-manager channel. */
   clientCommandChannel: ClientCommandChannel;
 }
@@ -51,6 +58,15 @@ function streamError(error: Error | WindowManagerErrorPayload): Error {
 export function useDesktopChrome(activeWorkspaceId: string | null): DesktopChromeModel {
   const router = useRouter();
   const queryClient = useQueryClient();
+  const scope = useWorkspaceScopeMode();
+  const focusedSessionId = useFocusedSessionId();
+  const focusedSession = useSession(focusedSessionId ?? "", activeWorkspaceId);
+  const paletteIntent = useWindowPaletteIntent();
+  const destinationRoute = useDesktop(state => {
+    const windowId = paletteIntent?.windowId ?? state.focusedId;
+    if (windowId === null) return null;
+    return state.windows[windowId]?.route ?? null;
+  });
   const query = useQuery(windowManagerSnapshotOptions(activeWorkspaceId ?? ""));
   const client = useWindowManagerClient(activeWorkspaceId);
   // Scoped to the active workspace: a rebind stored in the workspace overlay has
@@ -79,12 +95,6 @@ export function useDesktopChrome(activeWorkspaceId: string | null): DesktopChrom
     return () => manager.stop();
   }, [manager]);
 
-  useEffect(() => {
-    manager.setClient(client.client);
-    manager.setLoadError(client.error);
-    shell.coordinator.reportAuthoritativeState();
-  }, [activeWorkspaceId, client.client, client.error, manager, shell]);
-
   useEffect(() => subscribeWorkspaceSwitchBarrier(shell.coordinator), [shell]);
 
   useEffect(() => {
@@ -97,6 +107,14 @@ export function useDesktopChrome(activeWorkspaceId: string | null): DesktopChrom
     return () => manager.unbind();
   }, [activeWorkspaceId, client.clientId, manager, shell]);
 
+  // Bind first: workspace selection and registration can settle in the same
+  // commit, and setClient intentionally rejects a client for an unbound runtime.
+  useEffect(() => {
+    manager.setClient(client.client);
+    manager.setLoadError(client.error);
+    shell.coordinator.reportAuthoritativeState();
+  }, [activeWorkspaceId, client.client, client.error, manager, shell]);
+
   useEffect(() => {
     if (client.status === "registered" && query.data && configQuery.data) {
       shell.coordinator.completeHydration();
@@ -108,13 +126,13 @@ export function useDesktopChrome(activeWorkspaceId: string | null): DesktopChrom
     clientId: client.clientId,
     registrationEpoch: client.registrationEpoch,
     currentClient: client.client,
-    clientContext: {
-      scopeGlobal: client.client?.paletteContext.scopeGlobal ?? false,
-      focusedSessionState: client.client?.paletteContext.focusedSessionState ?? null,
-      workspaceTrusted: client.client?.paletteContext.workspaceTrusted ?? true,
-      destinationIntent: client.client?.paletteContext.destinationIntent ?? null,
+    clientContext: resolveLivePaletteClientContext({
+      scope,
+      focusedSessionState: focusedSession.data?.state,
+      registeredWorkspaceTrusted: client.client?.paletteContext.workspaceTrusted,
+      destinationRoute,
       globalShortcuts: globalShortcuts.registrations,
-    },
+    }),
     enabled: client.status === "registered",
     afterRevision: query.data?.revision ?? 0,
     onStatusChange: status => manager.setConnectionStatus(status),

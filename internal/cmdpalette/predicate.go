@@ -12,10 +12,7 @@ func validatePredicate(predicate Predicate) error {
 	if !knownContextKey(predicate.Key) {
 		return fmt.Errorf("unknown context key %q", predicate.Key)
 	}
-	operator := predicate.Operator
-	if operator == "" {
-		operator = PredicateEquals
-	}
+	operator := predicateOperator(predicate)
 	switch operator {
 	case PredicateEquals, PredicateNotEquals:
 		return nil
@@ -83,11 +80,7 @@ func predicateMatches(predicate Predicate, snapshot *ContextSnapshot) bool {
 	if !exists {
 		return false
 	}
-	operator := predicate.Operator
-	if operator == "" {
-		operator = PredicateEquals
-	}
-	switch operator {
+	switch predicateOperator(predicate) {
 	case PredicateEquals:
 		return reflect.DeepEqual(actual, predicate.Value)
 	case PredicateNotEquals:
@@ -99,6 +92,13 @@ func predicateMatches(predicate Predicate, snapshot *ContextSnapshot) bool {
 	default:
 		return false
 	}
+}
+
+func predicateOperator(predicate Predicate) PredicateOperator {
+	if predicate.Operator == "" {
+		return PredicateEquals
+	}
+	return predicate.Operator
 }
 
 func numericValue(value any) (float64, bool) {

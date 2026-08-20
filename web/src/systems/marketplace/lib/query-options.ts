@@ -14,11 +14,12 @@ import type {
 
 const MARKETPLACE_STALE_TIME = 60_000;
 
-export function marketplaceSearchOptions(options: MarketplaceSearchOptions = {}) {
+export function marketplaceSearchOptions(options: MarketplaceSearchOptions = {}, enabled = true) {
   return queryOptions({
     queryKey: marketplaceKeys.search(options),
     queryFn: ({ signal }) => searchMarketplace(options, signal),
     staleTime: MARKETPLACE_STALE_TIME,
+    enabled,
   });
 }
 

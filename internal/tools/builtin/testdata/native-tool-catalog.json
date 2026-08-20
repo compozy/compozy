@@ -388,7 +388,7 @@
     "destructive": false,
     "open_world": false,
     "input_schema_digest": "94f2e8743f49352d0dbeb68c517ef495fab6719c3be80e2494700dc8f7849067",
-    "output_schema_digest": "a2c799262a3ce3c19ef5cdd983bf3d12b43ab3c426227091b909dcb7054738c0"
+    "output_schema_digest": "75edc382c23b8a0de4c904f331610122712673f166745c970f0a54e1e0cf89dc"
   },
   {
     "tool_id": "compozy__cmd_palette_list",
@@ -401,7 +401,7 @@
     "destructive": false,
     "open_world": false,
     "input_schema_digest": "0a7d98df6da120602dfab7f08416e90d4560064eae1b343265f5ffdcba0279be",
-    "output_schema_digest": "a2c799262a3ce3c19ef5cdd983bf3d12b43ab3c426227091b909dcb7054738c0"
+    "output_schema_digest": "eb3e0163e4f7d6a44eaf86ba06addfeb56fca5dfc9e051acb4d0395aa66d25be"
   },
   {
     "tool_id": "compozy__command_list",

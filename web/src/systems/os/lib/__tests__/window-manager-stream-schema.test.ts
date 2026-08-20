@@ -4,6 +4,7 @@
 // Owning layer: the Web window-manager wire decoder.
 import { describe, expect, it } from "vitest";
 
+import { parseWindowManagerRegisteredClientView } from "../window-manager-schemas";
 import { parseWindowManagerStreamFrame } from "../window-manager-stream-schema";
 
 function eventFrame(commandId: string) {
@@ -47,6 +48,7 @@ function clientFrame(frameRevision: number, presentationRevision: number) {
         workspace_trusted: true,
       },
       connected_at: "2026-07-22T00:00:00Z",
+      global_shortcuts: [],
     },
   };
 }
@@ -136,6 +138,18 @@ describe("parseWindowManagerStreamFrame", () => {
     );
   });
 
+  it("Should omit attachment tokens from stream client projections", () => {
+    const frame = clientFrame(3, 3);
+    const parsed = parseWindowManagerStreamFrame({
+      ...frame,
+      client: { ...frame.client, attachment_token: "tok-1" },
+    });
+    expect(parsed.type).toBe("client");
+    expect(parsed.type === "client" ? parsed.client : undefined).not.toHaveProperty(
+      "attachmentToken"
+    );
+  });
+
   it("Should accept only strict daemon-to-client command envelopes", () => {
     expect(
       parseWindowManagerStreamFrame({
@@ -147,8 +161,8 @@ describe("parseWindowManagerStreamFrame", () => {
       })
     ).toEqual({
       type: "client_command",
+      workspaceId: "workspace:test",
       command: {
-        workspaceId: "workspace:test",
         commandId: "invocation-a",
         op: "palette.open",
         payload: { args: {} },
@@ -163,5 +177,18 @@ describe("parseWindowManagerStreamFrame", () => {
         unexpected: true,
       })
     ).toThrow();
+  });
+});
+
+describe("parseWindowManagerRegisteredClientView", () => {
+  it("Should require a non-empty attachment token on registration", () => {
+    const client = clientFrame(1, 1).client;
+    expect(() => parseWindowManagerRegisteredClientView(client)).toThrow(
+      "Window-manager registration omitted attachment_token."
+    );
+    expect(
+      parseWindowManagerRegisteredClientView({ ...client, attachment_token: "tok-1" })
+        .attachmentToken
+    ).toBe("tok-1");
   });
 });

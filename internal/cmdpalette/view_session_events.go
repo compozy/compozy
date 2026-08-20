@@ -27,8 +27,9 @@ func (s *Service) AdmitEvent(ctx context.Context, token SessionToken, event View
 	if err != nil {
 		return err
 	}
-	if strings.TrimSpace(event.Handler) == "" || event.Seq <= 0 || strings.TrimSpace(event.Revision) == "" {
-		return errors.New("cmd palette view: handler, positive seq, and revision are required")
+	event.Handler = strings.TrimSpace(event.Handler)
+	if event.Handler == "" || event.Seq <= 0 || strings.TrimSpace(event.Revision) == "" {
+		return ErrViewEventInvalid
 	}
 	if event.ViewSession != "" && event.ViewSession != session.id {
 		return ErrViewSessionForbidden
@@ -42,11 +43,11 @@ func (s *Service) AdmitEvent(ctx context.Context, token SessionToken, event View
 	}
 	if event.Seq <= session.lastSeq {
 		s.viewSessionMu.Unlock()
-		return errors.New("cmd palette view: event seq must increase")
+		return ErrViewEventSeqNotIncreasing
 	}
 	if event.Revision != session.currentRevision {
 		s.viewSessionMu.Unlock()
-		return errors.New("cmd palette view: event revision is stale")
+		return ErrViewEventRevisionStale
 	}
 	if !s.handlerAcceptsEventLocked(session, event.Handler) {
 		session.lastSeq = event.Seq
@@ -54,22 +55,22 @@ func (s *Service) AdmitEvent(ctx context.Context, token SessionToken, event View
 		return nil
 	}
 	s.ackEffectsLocked(session, event.AckEffects)
+	coalescible := viewEventIsCoalescible(session, event)
+	if !coalescible && len(session.actions) >= maxViewActionFlights {
+		s.viewSessionMu.Unlock()
+		return ErrViewBusy
+	}
 	session.lastSeq = event.Seq
 	session.nextGeneration++
 	event.Generation = session.nextGeneration
 	event.ViewSession = session.id
 	event.Args = append([]any(nil), event.Args...)
-	coalescible := viewEventIsCoalescible(event)
-	if !coalescible && len(session.actions) >= maxViewActionFlights {
-		s.viewSessionMu.Unlock()
-		return ErrViewBusy
-	}
 	flightCtx, cancel := context.WithCancel(session.ctx)
 	flight := viewEventFlight{seq: event.Seq, generation: event.Generation, cancel: cancel}
 	if coalescible {
 		if session.coalescible != nil {
 			session.coalescible.cancel()
-			session.rejectedGenerations[session.coalescible.generation] = struct{}{}
+			rejectViewGenerationLocked(session, session.coalescible.generation)
 		}
 		session.coalescible = &flight
 	} else {
@@ -149,12 +150,21 @@ func (s *Service) PublishFrame(ctx context.Context, token SessionToken, frame Vi
 	if err := validateViewFrameCausalityLocked(session, validated); err != nil {
 		return err
 	}
-	if validated.Patch != nil && validated.Patch.From != session.currentRevision {
-		return fmt.Errorf(
-			"cmd palette view: patch revision %q does not match %q",
-			validated.Patch.From,
-			session.currentRevision,
-		)
+	if validated.Patch != nil {
+		if strings.TrimSpace(validated.Patch.ViewID) != session.view {
+			return fmt.Errorf(
+				"cmd palette view: patch view %q does not match session %q",
+				validated.Patch.ViewID,
+				session.view,
+			)
+		}
+		if validated.Patch.From != session.currentRevision {
+			return fmt.Errorf(
+				"cmd palette view: patch revision %q does not match %q",
+				validated.Patch.From,
+				session.currentRevision,
+			)
+		}
 	}
 	s.acceptViewFrameLocked(session, validated)
 	return nil
@@ -230,6 +240,8 @@ func (s *Service) finishViewEvent(session *viewSession, generation uint64, coale
 	}
 }
 
+const maxRejectedGenerations = 32
+
 func validateViewFrameCausalityLocked(session *viewSession, frame ViewFrame) error {
 	if frame.Generation > session.nextGeneration ||
 		(frame.Generation == 0 && session.nextGeneration > 0) {
@@ -239,6 +251,12 @@ func validateViewFrameCausalityLocked(session *viewSession, frame ViewFrame) err
 		return ErrViewFrameStale
 	}
 	if frame.InReplyTo == 0 {
+		if session.nextGeneration > 0 && frame.Generation < session.nextGeneration {
+			return ErrViewFrameStale
+		}
+		if session.lastAcceptedGeneration > 0 && frame.Generation < session.lastAcceptedGeneration {
+			return ErrViewFrameStale
+		}
 		return nil
 	}
 	if session.coalescible != nil &&
@@ -265,8 +283,17 @@ func (s *Service) acceptViewFrameLocked(session *viewSession, frame ViewFrame) {
 			delete(session.handlers, handler)
 		}
 	}
+	if err := updateViewEventHandlerRoles(session, frame); err != nil {
+		s.logger.Warn(
+			"cmd palette view handler roles could not be decoded",
+			"view_session", session.id,
+			"error", err,
+		)
+	}
 	frame.Effects = unackedViewEffects(frame.Effects, session.ackedEffects)
 	session.currentRevision = frame.Revision
+	session.lastAcceptedGeneration = frame.Generation
+	pruneRejectedGenerationsLocked(session)
 	session.lastFrame = cloneViewFrame(frame)
 	for id, subscriber := range session.subscribers {
 		select {
@@ -311,14 +338,24 @@ func unackedViewEffects(effects []Effect, acknowledged map[string]struct{}) []Ef
 	return result
 }
 
-func viewEventIsCoalescible(event ViewEvent) bool {
-	if len(event.Args) == 0 {
-		return false
-	}
-	switch event.Args[len(event.Args)-1].(type) {
-	case int, int8, int16, int32, int64, uint, uint8, uint16, uint32, uint64, float64:
-		return true
-	default:
-		return false
+func viewEventIsCoalescible(session *viewSession, event ViewEvent) bool {
+	_, exists := session.coalescibleHandlers[strings.TrimSpace(event.Handler)]
+	return exists
+}
+
+func rejectViewGenerationLocked(session *viewSession, generation uint64) {
+	session.rejectedGenerations[generation] = struct{}{}
+	pruneRejectedGenerationsLocked(session)
+}
+
+func pruneRejectedGenerationsLocked(session *viewSession) {
+	for len(session.rejectedGenerations) > maxRejectedGenerations {
+		oldest := uint64(^uint64(0))
+		for generation := range session.rejectedGenerations {
+			if generation < oldest {
+				oldest = generation
+			}
+		}
+		delete(session.rejectedGenerations, oldest)
 	}
 }

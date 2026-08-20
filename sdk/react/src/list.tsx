@@ -15,11 +15,11 @@ export interface ListProps {
   pagination?: {
     hasMore: boolean;
     pageSize?: number;
-    onLoadMore?: () => void | Promise<void>;
+    onLoadMore?: () => void | Promise<unknown>;
   };
   onSearchTextChange?: (value: string, eventCount: number) => void | Promise<void>;
-  onChipToggle?: (chip: string | null) => void | Promise<void>;
-  onSelectionChange?: (itemID: string) => void | Promise<void>;
+  onChipToggle?: (chip: string | null, eventCount: number) => void | Promise<void>;
+  onSelectionChange?: (itemID: string, eventCount: number) => void | Promise<void>;
 }
 
 export interface ListSectionProps {

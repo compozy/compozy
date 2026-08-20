@@ -25,7 +25,7 @@ type ViewPayload struct {
 
 type ViewChrome struct {
 	IsLoading   bool        `json:"is_loading,omitempty"`
-	SearchText  string      `json:"search_text,omitempty"`
+	SearchText  *string     `json:"search_text,omitempty"`
 	EventCount  int64       `json:"event_count,omitempty"`
 	Placeholder string      `json:"search_placeholder,omitempty"`
 	ThrottleMs  int         `json:"throttle_ms,omitempty"`

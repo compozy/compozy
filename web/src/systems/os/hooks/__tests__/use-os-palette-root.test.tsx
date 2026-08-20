@@ -34,6 +34,7 @@ import type {
   PaletteRegistry,
   ResolvedPaletteCommand,
 } from "../../lib/cmd-palette-types";
+import { paletteCommand } from "../../lib/__tests__/cmd-palette-dispatch-fixtures";
 import { PALETTE_SESSION_ROW_LIMIT } from "../use-os-palette-sessions-view";
 import {
   isPaletteDomainSearchEnabled,
@@ -88,6 +89,7 @@ const paletteMocks = vi.hoisted(() => {
     runFallback: vi.fn(async () => undefined),
     openForAgent: vi.fn(),
     pending: false,
+    scope: "workspace" as "workspace" | "global",
     paletteIntent: null as { kind: "destination"; windowId: string } | null,
     paletteIntentCleared: vi.fn(),
     paletteIntentRequested: vi.fn(),
@@ -97,6 +99,7 @@ const paletteMocks = vi.hoisted(() => {
     sessionsLoading: false,
     sessionsWorkspaceId: vi.fn(),
     sessionsFilters: vi.fn(),
+    sessionGroupWorkspaces: vi.fn(),
     setSessionListScope: vi.fn(),
     toggleLocked: false,
     windowCommands: {
@@ -119,8 +122,14 @@ const paletteMocks = vi.hoisted(() => {
       retry: () => void;
     }>,
     rankSignals: null as CmdPaletteRankSignals | null,
+    domainWorkspaceNames: vi.fn<(names: ReadonlyMap<string, string>) => void>(),
     domainSections: [] as OsPaletteDomainSection[],
     workspaces: [
+      { id: "workspace:alpha", name: "Alpha" },
+      { id: "workspace:beta", name: "Beta" },
+    ],
+    registeredWorkspaces: [
+      { id: "workspace:home", name: "Home" },
       { id: "workspace:alpha", name: "Alpha" },
       { id: "workspace:beta", name: "Beta" },
     ],
@@ -136,39 +145,20 @@ const paletteMocks = vi.hoisted(() => {
   };
 });
 
-vi.mock("@/systems/session/lib/session-display-title", () => ({
-  getSessionDisplayTitle: (session: { id: string; name: string | null }) =>
-    session.name ?? session.id,
-}));
-
-vi.mock("@/systems/session/hooks/use-session-create", () => ({
-  useSessionCreateActions: () => ({ openForAgent: paletteMocks.openForAgent }),
-}));
-
 vi.mock("@/systems/session", async importOriginal => ({
   ...(await importOriginal<typeof import("@/systems/session")>()),
+  getSessionDisplayTitle: (session: { id: string; name: string | null }) =>
+    session.name ?? session.id,
+  useSessionCreateActions: () => ({ openForAgent: paletteMocks.openForAgent }),
   useSessionPromptFallback: () => ({
     pending: paletteMocks.fallbackPending,
     run: paletteMocks.runFallback,
   }),
-}));
-
-vi.mock("@/systems/workspace/hooks/use-worktrees", () => ({
-  useWorktrees: () => ({ data: undefined }),
-  useWorktreeListings: () => ({}),
-}));
-vi.mock("@/systems/workspace/hooks/use-active-worktree", () => ({
-  useScopedWorktreeFilter: () => ({ worktreeId: undefined, resolved: true }),
-  useActiveWorktree: () => ({ selectedWorktreeId: null, activeWorktree: null, fallback: null }),
-}));
-vi.mock("@/systems/session/hooks/use-sessions", () => ({
   useSessions: (workspaceId: string | null, options?: { filters?: Record<string, unknown> }) => {
     paletteMocks.sessionsWorkspaceId(workspaceId);
     paletteMocks.sessionsFilters(options?.filters ?? {});
     return { data: paletteMocks.sessions, isLoading: paletteMocks.sessionsLoading };
   },
-}));
-vi.mock("@/systems/session/hooks/use-session-list-preferences", () => ({
   useSessionListPreferences: () => ({
     sort: "last_activity" as const,
     scope: paletteMocks.sessionListScope,
@@ -177,10 +167,33 @@ vi.mock("@/systems/session/hooks/use-session-list-preferences", () => ({
     loading: false,
     saving: paletteMocks.sessionListSaving,
   }),
+  useWorkspaceSessionGroups: (input: { workspaces: ReadonlyArray<{ id: string }> }) => {
+    paletteMocks.sessionGroupWorkspaces(input.workspaces);
+    return paletteMocks.workspaceGroups;
+  },
 }));
-vi.mock("@/systems/session/hooks/use-workspace-session-groups", () => ({
-  useWorkspaceSessionGroups: () => paletteMocks.workspaceGroups,
+
+vi.mock("@/systems/workspace", async importOriginal => ({
+  ...(await importOriginal<typeof import("@/systems/workspace")>()),
+  useWorktrees: () => ({ data: undefined }),
+  useWorktreeListings: () => ({}),
+  useScopedWorktreeFilter: () => ({ worktreeId: undefined, resolved: true }),
+  useActiveWorktree: () => ({ selectedWorktreeId: null, activeWorktree: null, fallback: null }),
+  useActiveWorkspace: () => ({
+    activeWorkspaceId: paletteMocks.activeWorkspaceId,
+    runtimeWorkspaceId: paletteMocks.activeWorkspaceId,
+    setActiveWorkspaceId: vi.fn(),
+    workspaces: paletteMocks.workspaces,
+    registeredWorkspaces: paletteMocks.registeredWorkspaces,
+    scope: paletteMocks.scope,
+    pending: paletteMocks.pending,
+    hasHydrated: true,
+    toggleLocked: paletteMocks.toggleLocked,
+    canDisableGlobal: true,
+    toggleGlobalScope: vi.fn(),
+  }),
 }));
+
 vi.mock("../use-attention-jump", () => ({
   useAttentionJump: () => paletteMocks.jumpToSession,
 }));
@@ -203,22 +216,10 @@ vi.mock("../use-cmd-palette-fallback-settings", () => ({
 
 vi.mock("../use-os-palette-domain-search", async importOriginal => ({
   ...(await importOriginal<typeof import("../use-os-palette-domain-search")>()),
-  useOsPaletteDomainSearch: () => paletteMocks.domainSections,
-}));
-
-vi.mock("@/systems/workspace/hooks/use-active-workspace", () => ({
-  useActiveWorkspace: () => ({
-    activeWorkspaceId: paletteMocks.activeWorkspaceId,
-    runtimeWorkspaceId: paletteMocks.activeWorkspaceId,
-    setActiveWorkspaceId: vi.fn(),
-    workspaces: paletteMocks.workspaces,
-    scope: "workspace" as const,
-    pending: paletteMocks.pending,
-    hasHydrated: true,
-    toggleLocked: paletteMocks.toggleLocked,
-    canDisableGlobal: true,
-    toggleGlobalScope: vi.fn(),
-  }),
+  useOsPaletteDomainSearch: (input: { workspaceNames: ReadonlyMap<string, string> }) => {
+    paletteMocks.domainWorkspaceNames(input.workspaceNames);
+    return paletteMocks.domainSections;
+  },
 }));
 
 vi.mock("../../hooks/use-desktop", () => ({
@@ -371,32 +372,35 @@ function desktopFixture(
 
 const PALETTE_REGISTRY: PaletteRegistry = (() => {
   const commands = [
-    { id: "window.tab.new", title: "New tab", section: "Tabs" },
-    { id: "app.open.tasks", title: "Open Tasks", section: "Apps", app: "tasks" },
-    { id: "app.open.agents", title: "Open Agents", section: "Apps", app: "agents" },
-    { id: "palette.view.sessions", title: "Sessions", section: "Views", view: "sessions" },
-  ].map(entry => ({
-    id: entry.id,
-    title: entry.title,
-    section: entry.section,
-    icon: "command",
-    source: "core",
-    bindings: [],
-    alias: null,
-    destructive: false,
-    availability_exempt: false,
-    arguments: [],
-    action: entry.app
-      ? { kind: "navigate", app: entry.app }
-      : entry.view
-        ? { kind: "view", view: entry.view }
-        : { kind: "client_op", op: entry.id },
-    execution: { retry_safe: true, single_flight: false },
-    visible: true,
-    available: true,
-    reason: "",
-    chords: [],
-  })) as unknown as ResolvedPaletteCommand[];
+    paletteCommand({
+      id: "window.tab.new",
+      title: "New tab",
+      section: "Tabs",
+      action: { kind: "client_op", op: "window.tab.new" },
+      execution: { retry_safe: true, single_flight: false },
+    }),
+    paletteCommand({
+      id: "app.open.tasks",
+      title: "Open Tasks",
+      section: "Apps",
+      action: { kind: "navigate", app: "tasks" },
+      execution: { retry_safe: true, single_flight: false },
+    }),
+    paletteCommand({
+      id: "app.open.agents",
+      title: "Open Agents",
+      section: "Apps",
+      action: { kind: "navigate", app: "agents" },
+      execution: { retry_safe: true, single_flight: false },
+    }),
+    paletteCommand({
+      id: "palette.view.sessions",
+      title: "Sessions",
+      section: "Views",
+      action: { kind: "view", view: "sessions" },
+      execution: { retry_safe: true, single_flight: false },
+    }),
+  ];
   return {
     commands,
     byId: new Map(commands.map(command => [command.id, command])),
@@ -422,23 +426,14 @@ function PaletteHarness({ children }: { children: ReactNode }) {
 function executionCommand(
   overrides: Partial<ResolvedPaletteCommand> & Pick<ResolvedPaletteCommand, "id" | "title">
 ): ResolvedPaletteCommand {
-  return {
+  return paletteCommand({
     section: "Notes",
     icon: "command",
     source: "core",
-    bindings: [],
-    alias: null,
-    destructive: false,
-    availability_exempt: false,
-    arguments: [],
     action: { kind: "client_op", op: overrides.id },
     execution: { retry_safe: true, single_flight: false },
-    visible: true,
-    available: true,
-    reason: "",
-    chords: [],
     ...overrides,
-  } as unknown as ResolvedPaletteCommand;
+  });
 }
 
 const CAPTURE_COMMAND = executionCommand({
@@ -528,14 +523,11 @@ const paletteDispatch = {
   // an argument-bearing or destructive command reports the step it needs rather
   // than running.
   run: vi.fn(async (command: ResolvedPaletteCommand, options?: CmdPaletteRunOptions) => {
-    // Availability is the seam's first gate, so the double refuses before it
-    // routes anything — otherwise an unavailable row would appear to work here
-    // and nowhere else.
+    // Availability, then declared steps, then routing — the same order as
+    // dispatchPaletteCommand, so a view that needs args never pushes first.
     if (!command.available) {
       return { status: "refused", reason: command.reason } as const;
     }
-    const view = command.action.kind === "view" ? command.action.view : undefined;
-    if (view) paletteMocks.writeViewStack([{ viewId: view as "sessions" }]);
     if (command.arguments.length > 0 && options?.args === undefined) {
       requestPaletteArgs(command);
       return { status: "needs_args" } as const;
@@ -544,6 +536,8 @@ const paletteDispatch = {
       requestPaletteConfirmation(command, options?.args ?? {});
       return { status: "needs_confirmation" } as const;
     }
+    const view = command.action.kind === "view" ? command.action.view : undefined;
+    if (view) paletteMocks.writeViewStack([{ viewId: view as "sessions" }]);
     return { status: "ran" } as const;
   }),
   runById: vi.fn(async (_commandId: string) => ({ status: "ran" }) as const),
@@ -557,6 +551,47 @@ function renderPalette(onOpenChange = vi.fn()) {
       <OsCommandPalette open dispatch={paletteDispatch} onOpenChange={onOpenChange} />
     </PaletteHarness>
   );
+}
+
+function resetPaletteHarness() {
+  resetPaletteExecutionEntry();
+  paletteDispatch.run.mockClear();
+  paletteDispatch.runById.mockClear();
+  paletteDispatch.setPinned.mockClear();
+  paletteMocks.activeWorkspaceId = "workspace:alpha";
+  paletteMocks.closeWindow.mockClear();
+  paletteMocks.coordinator.userActivateWindow.mockClear();
+  paletteMocks.coordinator.userOpen.mockClear();
+  paletteMocks.coordinator.userOpen.mockResolvedValue("window:new-tab");
+  paletteMocks.isWaiting.mockReset();
+  paletteMocks.isWaiting.mockReturnValue(false);
+  paletteMocks.paletteIntent = null;
+  paletteMocks.paletteIntentCleared.mockClear();
+  paletteMocks.paletteIntentRequested.mockClear();
+  paletteMocks.pending = false;
+  paletteMocks.scope = "workspace";
+  paletteMocks.rankSignals = null;
+  paletteMocks.fallbackAgentEnabled = false;
+  paletteMocks.fallbackPending = false;
+  paletteMocks.runFallback.mockClear();
+  paletteMocks.domainWorkspaceNames.mockClear();
+  paletteMocks.domainSections = [];
+  paletteMocks.sessions = [];
+  paletteMocks.sessionsLoading = false;
+  paletteMocks.sessionsWorkspaceId.mockClear();
+  paletteMocks.sessionsFilters.mockClear();
+  paletteMocks.sessionGroupWorkspaces.mockClear();
+  paletteMocks.sessionListScope = "workspace";
+  paletteMocks.sessionListSaving = false;
+  paletteMocks.setSessionListScope.mockClear();
+  paletteMocks.jumpToSession.mockClear();
+  paletteMocks.notifyUser.mockClear();
+  paletteMocks.workspaceGroups = [];
+  paletteMocks.writeViewStack([]);
+  paletteMocks.toggleLocked = false;
+  paletteMocks.windowSlots.clear();
+  paletteMocks.windowCommands.commandsAvailable = true;
+  paletteMocks.desktop = desktopFixture({ "window:tasks": windowFixture() }, "window:tasks");
 }
 
 function renderRoot(open = true, onOpenChange = vi.fn()) {
@@ -574,43 +609,7 @@ function renderRoot(open = true, onOpenChange = vi.fn()) {
 
 describe("useOsPaletteRoot", () => {
   beforeEach(() => {
-    // The execution store is module-scoped, exactly as it is in the shell, so a
-    // leftover argument or confirmation step would leak into the next case.
-    resetPaletteExecutionEntry();
-    paletteDispatch.run.mockClear();
-    paletteDispatch.runById.mockClear();
-    paletteDispatch.setPinned.mockClear();
-    paletteMocks.activeWorkspaceId = "workspace:alpha";
-    paletteMocks.closeWindow.mockClear();
-    paletteMocks.coordinator.userActivateWindow.mockClear();
-    paletteMocks.coordinator.userOpen.mockClear();
-    paletteMocks.coordinator.userOpen.mockResolvedValue("window:new-tab");
-    paletteMocks.isWaiting.mockReset();
-    paletteMocks.isWaiting.mockReturnValue(false);
-    paletteMocks.paletteIntent = null;
-    paletteMocks.paletteIntentCleared.mockClear();
-    paletteMocks.paletteIntentRequested.mockClear();
-    paletteMocks.pending = false;
-    paletteMocks.rankSignals = null;
-    paletteMocks.fallbackAgentEnabled = false;
-    paletteMocks.fallbackPending = false;
-    paletteMocks.runFallback.mockClear();
-    paletteMocks.domainSections = [];
-    paletteMocks.sessions = [];
-    paletteMocks.sessionsLoading = false;
-    paletteMocks.sessionsWorkspaceId.mockClear();
-    paletteMocks.sessionListScope = "workspace";
-    paletteMocks.sessionListSaving = false;
-    paletteMocks.setSessionListScope.mockClear();
-    paletteMocks.jumpToSession.mockClear();
-    paletteMocks.workspaceGroups = [];
-    paletteMocks.writeViewStack([]);
-    paletteMocks.toggleLocked = false;
-    paletteMocks.windowSlots.clear();
-    paletteMocks.windowCommands.commandsAvailable = true;
-    paletteMocks.desktop = desktopFixture({ "window:tasks": windowFixture() }, "window:tasks");
-    paletteDispatch.run.mockClear();
-    paletteDispatch.runById.mockClear();
+    resetPaletteHarness();
   });
 
   afterEach(() => {
@@ -626,6 +625,64 @@ describe("useOsPaletteRoot", () => {
 
     expect(paletteDispatch.run).toHaveBeenCalledOnce();
     expect(paletteDispatch.run.mock.lastCall?.[0]).toMatchObject({ id: "app.open.tasks" });
+  });
+
+  it("Should keep session lookup on the runtime workspace while scope resolution is pending [RA0289]", () => {
+    paletteMocks.pending = true;
+    paletteMocks.toggleLocked = true;
+    renderRoot();
+
+    expect(paletteMocks.sessionsWorkspaceId).toHaveBeenCalledWith("workspace:alpha");
+  });
+
+  it("Should omit workspace-name indexes outside global scope [RA0303]", () => {
+    renderRoot();
+    expect(paletteMocks.domainWorkspaceNames).toHaveBeenLastCalledWith(new Map());
+
+    paletteMocks.scope = "global";
+    renderRoot();
+    expect(paletteMocks.domainWorkspaceNames).toHaveBeenLastCalledWith(
+      new Map([
+        ["workspace:home", "Home"],
+        ["workspace:alpha", "Alpha"],
+        ["workspace:beta", "Beta"],
+      ])
+    );
+  });
+
+  it("Should collect declared arguments before pushing a view [RA0292]", async () => {
+    const command = paletteCommand({
+      id: "palette.view.notes",
+      title: "Notes",
+      action: { kind: "view", view: "sessions" },
+      arguments: [{ name: "q", type: "text", required: true, placeholder: "Query" }],
+    });
+
+    await expect(paletteDispatch.run(command)).resolves.toEqual({ status: "needs_args" });
+    expect(paletteMocks.readViewStack()).toEqual([]);
+  });
+
+  it("Should include the home workspace in global session search", async () => {
+    paletteMocks.scope = "global";
+    paletteMocks.rankSignals = TEST_RANK_SIGNALS;
+    paletteMocks.workspaceGroups = [
+      workspaceGroup("workspace:home", "Home", [
+        paletteSession({
+          id: "s-home",
+          name: "Home target",
+          workspace_id: "workspace:home",
+        }),
+      ]),
+    ];
+    const { result } = renderRoot();
+
+    act(() => result.current.setQuery("Home target"));
+
+    await waitFor(() => expect(result.current.entities.sessions).toHaveLength(1));
+    expect(result.current.entities.sessions[0]?.sessionId).toBe("s-home");
+    expect(paletteMocks.sessionGroupWorkspaces).toHaveBeenLastCalledWith(
+      paletteMocks.registeredWorkspaces
+    );
   });
 
   it("Should remove the agent fallback row when its effective setting is disabled [UT-151]", async () => {
@@ -854,12 +911,7 @@ async function pushSessionsView(user: ReturnType<typeof userEvent.setup>) {
 
 describe("palette nested views", () => {
   beforeEach(() => {
-    paletteMocks.desktop = desktopFixture({ "window:tasks": windowFixture() }, "window:tasks");
-    paletteMocks.writeViewStack([]);
-    paletteMocks.sessions = [];
-    paletteMocks.sessionListScope = "workspace";
-    paletteMocks.setSessionListScope.mockClear();
-    paletteMocks.jumpToSession.mockClear();
+    resetPaletteHarness();
   });
 
   afterEach(() => {
@@ -1200,7 +1252,7 @@ describe("palette nested views", () => {
     expect(rows[0]).not.toHaveProperty("value");
   });
 
-  it("Should cap a domain, preserve siblings, name failures, and label global rows [UT-113, UT-115, UT-116]", () => {
+  it("Should render a prepared domain section's cap, overflow, error, and labels [UT-113, UT-115, UT-116]", () => {
     paletteMocks.domainSections = [
       {
         title: "Tasks",
@@ -1260,12 +1312,12 @@ describe("palette nested views", () => {
         error: null,
       },
     ];
-    const shortcut = {
+    const shortcut = paletteCommand({
       ...PALETTE_REGISTRY.commands[0],
       id: "cheatsheet.shortcuts",
       title: "Keyboard shortcuts",
       section: "Commands",
-    } as ResolvedPaletteCommand;
+    });
     const registry = {
       ...PALETTE_REGISTRY,
       commands: [...PALETTE_REGISTRY.commands, shortcut],
@@ -1321,19 +1373,8 @@ describe("palette execution surfaces", () => {
   }
 
   beforeEach(() => {
-    resetPaletteExecutionEntry();
-    paletteDispatch.run.mockClear();
-    paletteDispatch.runById.mockClear();
-    paletteDispatch.setPinned.mockClear();
+    resetPaletteHarness();
     paletteMocks.desktop = desktopFixture({}, null);
-    paletteMocks.jumpToSession.mockClear();
-    paletteMocks.notifyUser.mockClear();
-    paletteMocks.paletteIntent = null;
-    paletteMocks.rankSignals = null;
-    paletteMocks.domainSections = [];
-    paletteMocks.sessions = [];
-    paletteMocks.workspaceGroups = [];
-    paletteMocks.writeViewStack([]);
   });
 
   afterEach(() => {
@@ -1400,6 +1441,14 @@ describe("palette execution surfaces", () => {
     // The deep link carries the command, so the whole-registry table lands on
     // that row instead of on a list the operator has to search again.
     expect(paletteMocks.coordinator.userOpen).toHaveBeenCalledWith({
+      app: "settings",
+      route: { pathname: "/settings/layouts", search: { command: "palette.open" } },
+    });
+
+    await user.keyboard("{Meta>}k{/Meta}");
+    await screen.findByTestId("os-palette-action-panel");
+    await user.click(screen.getByTestId("os-palette-action-meta.shortcut"));
+    expect(paletteMocks.coordinator.userOpen).toHaveBeenLastCalledWith({
       app: "settings",
       route: { pathname: "/settings/layouts", search: { command: "palette.open" } },
     });
@@ -1575,12 +1624,23 @@ describe("palette execution surfaces", () => {
 
   it("Should absorb the triggering keystroke instead of confirming with it [UT-124]", async () => {
     const user = userEvent.setup();
-    requestPaletteConfirmation(PURGE_COMMAND, {});
     renderExecutionPalette();
+    await user.hover(screen.getByTestId("os-palette-command-ext.notes.purge"));
+    await user.keyboard("{Enter}");
+    expect(await screen.findByTestId("os-palette-confirmation")).toBeInTheDocument();
+    expect(paletteDispatch.run).toHaveBeenCalledWith(
+      expect.objectContaining({ id: "ext.notes.purge" }),
+      expect.not.objectContaining({ confirmed: true })
+    );
     await waitFor(() => expect(screen.getByTestId("os-palette-confirm-cancel")).toHaveFocus());
+    // The Enter that opened the step must not also dismiss or confirm it.
+    expect(screen.getByTestId("os-palette-confirmation")).toBeInTheDocument();
 
     await user.keyboard("{Enter}");
-    expect(paletteDispatch.run).not.toHaveBeenCalled();
+    expect(paletteDispatch.run).not.toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({ confirmed: true })
+    );
     expect(screen.queryByTestId("os-palette-confirmation")).toBeNull();
   });
 
@@ -1601,7 +1661,7 @@ describe("palette execution surfaces", () => {
     // The command the operator triggered is no longer the command the catalog
     // carries — the confirmation must not run against the difference.
     requestPaletteConfirmation(
-      { ...UNHEALTHY_COMMAND, confirmation: PURGE_COMMAND.confirmation } as ResolvedPaletteCommand,
+      paletteCommand({ ...UNHEALTHY_COMMAND, confirmation: PURGE_COMMAND.confirmation }),
       {}
     );
     renderExecutionPalette();

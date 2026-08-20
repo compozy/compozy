@@ -41,21 +41,34 @@ func (h *BaseHandlers) getSettingsSection(c *gin.Context, section settingspkg.Se
 }
 
 func (h *BaseHandlers) updateSettingsSection(c *gin.Context, req settingspkg.SectionUpdateRequest) {
-	if h.Settings == nil {
-		h.respondError(c, http.StatusServiceUnavailable, errSettingsServiceUnavailable)
+	result, ok := h.applySettingsSection(c, req, nil)
+	if !ok {
 		return
 	}
+	c.JSON(http.StatusOK, SettingsApplyResponseFromResult(result))
+}
 
+func (h *BaseHandlers) applySettingsSection(
+	c *gin.Context,
+	req settingspkg.SectionUpdateRequest,
+	respondTypedError func(*gin.Context, error) bool,
+) (settingspkg.ApplyResult, bool) {
+	if h.Settings == nil {
+		h.respondError(c, http.StatusServiceUnavailable, errSettingsServiceUnavailable)
+		return settingspkg.ApplyResult{}, false
+	}
 	result, err := h.Settings.ApplySection(
 		settingspkg.WithMutationSource(c.Request.Context(), h.TransportName),
 		req,
 	)
 	if err != nil {
+		if respondTypedError != nil && respondTypedError(c, err) {
+			return settingspkg.ApplyResult{}, false
+		}
 		h.respondError(c, StatusForSettingsError(err), err)
-		return
+		return settingspkg.ApplyResult{}, false
 	}
-
-	c.JSON(http.StatusOK, SettingsApplyResponseFromResult(result))
+	return result, true
 }
 
 func (h *BaseHandlers) updateSettingsSectionEcho(
@@ -63,19 +76,7 @@ func (h *BaseHandlers) updateSettingsSectionEcho(
 	req settingspkg.SectionUpdateRequest,
 	respondTypedError func(*gin.Context, error) bool,
 ) {
-	if h.Settings == nil {
-		h.respondError(c, http.StatusServiceUnavailable, errSettingsServiceUnavailable)
-		return
-	}
-	_, err := h.Settings.ApplySection(
-		settingspkg.WithMutationSource(c.Request.Context(), h.TransportName),
-		req,
-	)
-	if err != nil {
-		if respondTypedError != nil && respondTypedError(c, err) {
-			return
-		}
-		h.respondError(c, StatusForSettingsError(err), err)
+	if _, ok := h.applySettingsSection(c, req, respondTypedError); !ok {
 		return
 	}
 	envelope, err := h.Settings.GetSection(c.Request.Context(), req.SectionRequest)

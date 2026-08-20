@@ -9,7 +9,12 @@ import {
   registerWindowManagerClient,
   unregisterWindowManagerClient,
 } from "../../adapters/window-manager-api";
-import type { WindowManagerAttachedClientView } from "../../lib/window-manager-types";
+import type { WindowManagerRegisteredClientView } from "../../lib/window-manager-types";
+import { isDesktopShell } from "../../lib/desktop-shell-bridge";
+import {
+  WINDOW_MANAGER_CLIENT_ID_MEMORY_KEY,
+  WINDOW_MANAGER_CLIENT_ID_STORAGE_KEY,
+} from "../../lib/window-manager-client-identity";
 import { useWindowManagerClient } from "../use-window-manager-client";
 
 vi.mock("../../adapters/window-manager-api", () => ({
@@ -17,9 +22,13 @@ vi.mock("../../adapters/window-manager-api", () => ({
   unregisterWindowManagerClient: vi.fn(),
 }));
 
-const STORAGE_KEY = "compozy.window-manager.client-id";
+vi.mock("../../lib/desktop-shell-bridge", () => ({
+  isDesktopShell: vi.fn(() => false),
+}));
 
-function client(presentationRevision = 1): WindowManagerAttachedClientView {
+const STORAGE_KEY = WINDOW_MANAGER_CLIENT_ID_STORAGE_KEY;
+
+function client(presentationRevision = 1): WindowManagerRegisteredClientView {
   return {
     workspaceId: "workspace:test",
     clientId: "client:stable",
@@ -48,8 +57,10 @@ function client(presentationRevision = 1): WindowManagerAttachedClientView {
 }
 
 beforeEach(() => {
+  Reflect.deleteProperty(globalThis, WINDOW_MANAGER_CLIENT_ID_MEMORY_KEY);
   window.localStorage.clear();
   window.localStorage.setItem(STORAGE_KEY, "client:stable");
+  vi.mocked(isDesktopShell).mockReturnValue(false);
 });
 
 afterEach(() => {
@@ -74,6 +85,7 @@ describe("useWindowManagerClient", () => {
       "workspace:test",
       "client:stable",
       undefined,
+      "browser",
       expect.any(AbortSignal)
     );
     expect(unregisterWindowManagerClient).not.toHaveBeenCalled();
@@ -156,7 +168,7 @@ describe("useWindowManagerClient", () => {
   });
 
   it("Should hide a registered client immediately when the workspace changes", async () => {
-    let resolveNext!: (view: WindowManagerAttachedClientView) => void;
+    let resolveNext!: (view: WindowManagerRegisteredClientView) => void;
     vi.mocked(registerWindowManagerClient)
       .mockResolvedValueOnce(client())
       .mockImplementationOnce(() => new Promise(resolve => (resolveNext = resolve)));
@@ -173,5 +185,20 @@ describe("useWindowManagerClient", () => {
 
     resolveNext({ ...client(2), workspaceId: "workspace:next" });
     await waitFor(() => expect(result.current.client?.workspaceId).toBe("workspace:next"));
+  });
+
+  it("Should register as a shell client when the desktop bridge is present", async () => {
+    vi.mocked(isDesktopShell).mockReturnValue(true);
+    vi.mocked(registerWindowManagerClient).mockResolvedValue({ ...client(), kind: "shell" });
+    const { result } = renderHook(() => useWindowManagerClient("workspace:test"));
+
+    await waitFor(() => expect(result.current.status).toBe("registered"));
+    expect(registerWindowManagerClient).toHaveBeenCalledWith(
+      "workspace:test",
+      "client:stable",
+      undefined,
+      "shell",
+      expect.any(AbortSignal)
+    );
   });
 });

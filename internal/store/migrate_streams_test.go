@@ -259,8 +259,9 @@ func TestProductionMigrationStreamsFreshReopenAndAhead(t *testing.T) {
 }
 
 // Suite: command-palette migration tail.
-// Invariant: 00078 remains the approval boundary and 00079 adds the three
-// workspace-scoped personalization tables plus their deletion trigger.
+// Invariant: 00078 remains the approval boundary, 00079 adds the three
+// workspace-scoped personalization tables plus their deletion trigger, and
+// 00080 rebuilds the recovery index so resume_fence precedes expires_at.
 // Owning layer: global migration stream. Canonical suite: this file.
 func TestGlobalCommandPaletteMigrationTail(t *testing.T) {
 	t.Parallel()
@@ -352,7 +353,38 @@ func TestGlobalCommandPaletteMigrationTail(t *testing.T) {
 		if remainingRows != 0 {
 			t.Fatalf("command palette cascade count = %d, want 0", remainingRows)
 		}
+		if sqlText := sqliteIndexSQL(t, db, "idx_tool_approval_pending_recovery"); !strings.Contains(
+			sqlText,
+			"resume_fence",
+		) || strings.Index(sqlText, "resume_fence") > strings.Index(sqlText, "expires_at") {
+			t.Fatalf("recovery index after tail = %q, want resume_fence before expires_at", sqlText)
+		}
 		assertSQLiteIntegrity(t, "global command palette migration tail", db)
+	})
+
+	t.Run("Should rebuild the approval recovery index with resume_fence before expires_at", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t)
+		db := openStreamTestDB(t, "global-approval-recovery-index.db")
+		stream := globaldb.MigrationStream()
+		stream.Bootstrap = nil
+		if err := store.Apply(ctx, db, migrationPrefixStream(t, stream, 79)); err != nil {
+			t.Fatalf("Apply(global through 00079) error = %v", err)
+		}
+		before := sqliteIndexSQL(t, db, "idx_tool_approval_pending_recovery")
+		if strings.Index(before, "expires_at") < 0 ||
+			strings.Index(before, "expires_at") > strings.Index(before, "resume_fence") {
+			t.Fatalf("recovery index at 00079 = %q, want expires_at before resume_fence", before)
+		}
+		if err := store.Apply(ctx, db, stream); err != nil {
+			t.Fatalf("Apply(global through 00080) error = %v", err)
+		}
+		after := sqliteIndexSQL(t, db, "idx_tool_approval_pending_recovery")
+		if strings.Index(after, "resume_fence") < 0 ||
+			strings.Index(after, "resume_fence") > strings.Index(after, "expires_at") {
+			t.Fatalf("recovery index at 00080 = %q, want resume_fence before expires_at", after)
+		}
+		assertSQLiteIntegrity(t, "global approval recovery index", db)
 	})
 }
 
@@ -829,6 +861,19 @@ func normalizedSQLiteObjects(t *testing.T, db *sql.DB, objectTypes ...string) st
 		t.Fatalf("iterate sqlite_master objects: %v", err)
 	}
 	return strings.Join(objects, "\n")
+}
+
+func sqliteIndexSQL(t *testing.T, db *sql.DB, name string) string {
+	t.Helper()
+	var sqlText string
+	if err := db.QueryRowContext(
+		testutil.Context(t),
+		`SELECT sql FROM sqlite_master WHERE type = 'index' AND name = ?`,
+		name,
+	).Scan(&sqlText); err != nil {
+		t.Fatalf("query index %s sql: %v", name, err)
+	}
+	return sqlText
 }
 
 func sqliteTableExists(t *testing.T, db *sql.DB, table string) bool {

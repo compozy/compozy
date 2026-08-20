@@ -140,6 +140,7 @@ function rawClientFrame(presentationRevision: number, clientId = "client:web") {
         workspace_trusted: true,
       },
       connected_at: "2026-07-22T00:00:00Z",
+      global_shortcuts: [],
     },
   };
 }
@@ -589,11 +590,99 @@ describe("useWindowManagerStream", () => {
       })
     );
     expect(onClientCommand).toHaveBeenCalledWith({
-      workspaceId: "workspace:test",
       commandId: "invocation-a",
       op: "palette.open",
       payload: { args: {} },
     });
+  });
+
+  it("Should acknowledge a rejected client command and write its error result", async () => {
+    const queryClient = new QueryClient();
+    const { factory, sockets } = createSocketFactory();
+    const onClientCommand = vi.fn().mockRejectedValueOnce(new Error("palette is busy"));
+
+    renderHook(
+      () =>
+        useWindowManagerStream({
+          workspaceId: "workspace:test",
+          clientId: "client:web",
+          registrationEpoch: 0,
+          currentClient: client(1),
+          enabled: true,
+          afterRevision: 1,
+          socketFactory: factory,
+          onStatusChange: vi.fn(),
+          onSnapshot: vi.fn(),
+          onClient: vi.fn(),
+          onClientCommand,
+          onClientInvalidated: vi.fn(),
+          onError: vi.fn(),
+        }),
+      { wrapper: wrapper(queryClient) }
+    );
+
+    act(() =>
+      sockets[0]?.message({
+        type: "client_command",
+        workspace_id: "workspace:test",
+        command_id: "invocation-b",
+        op: "palette.open",
+        payload: { args: {} },
+      })
+    );
+
+    expect(sockets[0]?.send).toHaveBeenNthCalledWith(
+      1,
+      JSON.stringify({ type: "client_command_ack", command_id: "invocation-b" })
+    );
+    await waitFor(() => expect(sockets[0]?.send).toHaveBeenCalledTimes(2));
+    expect(sockets[0]?.send).toHaveBeenNthCalledWith(
+      2,
+      JSON.stringify({
+        type: "client_command_result",
+        command_id: "invocation-b",
+        error: "palette is busy",
+      })
+    );
+  });
+
+  it("Should ignore client commands whose frame workspace does not match the bound workspace", () => {
+    const queryClient = new QueryClient();
+    const { factory, sockets } = createSocketFactory();
+    const onClientCommand = vi.fn();
+
+    renderHook(
+      () =>
+        useWindowManagerStream({
+          workspaceId: "workspace:test",
+          clientId: "client:web",
+          registrationEpoch: 0,
+          currentClient: client(1),
+          enabled: true,
+          afterRevision: 1,
+          socketFactory: factory,
+          onStatusChange: vi.fn(),
+          onSnapshot: vi.fn(),
+          onClient: vi.fn(),
+          onClientCommand,
+          onClientInvalidated: vi.fn(),
+          onError: vi.fn(),
+        }),
+      { wrapper: wrapper(queryClient) }
+    );
+
+    act(() =>
+      sockets[0]?.message({
+        type: "client_command",
+        workspace_id: "workspace:other",
+        command_id: "invocation-foreign",
+        op: "palette.open",
+        payload: { args: {} },
+      })
+    );
+
+    expect(onClientCommand).not.toHaveBeenCalled();
+    expect(sockets[0]?.send).not.toHaveBeenCalled();
   });
 
   it("Should debounce client context refreshes over the bound socket", async () => {
@@ -653,6 +742,7 @@ describe("useWindowManagerStream", () => {
           focused_session_state: "running",
           workspace_trusted: true,
           destination_intent: { pathname: "/sessions/session-a", search: {} },
+          global_shortcuts: [],
         },
       })
     );

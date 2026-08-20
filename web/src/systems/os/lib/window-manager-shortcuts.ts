@@ -53,15 +53,28 @@ export interface ShortcutConflict {
   winner?: { label: string; surface: string };
 }
 
-interface ShortcutRangeFamily {
-  action: "desktop.switch" | "window.tab.jump";
-  max: 8 | 9;
+export interface ShortcutRangeFamily {
+  readonly action: "desktop.switch" | "window.tab.jump";
+  readonly max: 8 | 9;
 }
 
-const RANGE_FAMILIES: readonly ShortcutRangeFamily[] = [
+/** Indexed families the keymap expands. Settings reset/override indicators must use this list. */
+export const SHORTCUT_RANGE_FAMILIES: readonly ShortcutRangeFamily[] = [
   { action: "desktop.switch", max: 9 },
   { action: "window.tab.jump", max: 8 },
 ];
+
+export function coveringShortcutFamily(
+  commandId: string,
+  overrides: ShortcutMap
+): ShortcutRangeFamily["action"] | null {
+  return (
+    SHORTCUT_RANGE_FAMILIES.find(
+      family => commandId.startsWith(`${family.action}.`) && overrides[family.action] !== undefined
+    )?.action ?? null
+  );
+}
+
 const MODIFIER_ORDER = ["meta", "control", "alt", "shift"] as const;
 const MODIFIER_KEYS = new Set(["Meta", "Control", "Alt", "Shift"]);
 const KEY_CODE_PATTERN =
@@ -145,7 +158,7 @@ export function shortcutLabel(
  * closed list in TypeScript can answer this any more.
  */
 export function isShortcutOverrideActionId(value: string, knownIds: ReadonlySet<string>): boolean {
-  return knownIds.has(value) || RANGE_FAMILIES.some(family => family.action === value);
+  return knownIds.has(value) || SHORTCUT_RANGE_FAMILIES.some(family => family.action === value);
 }
 
 /**
@@ -155,7 +168,7 @@ export function isShortcutOverrideActionId(value: string, knownIds: ReadonlySet<
  */
 export function shortcutBindingProblem(actionId: string, binding: ShortcutBinding): string | null {
   if (binding.length === 0 || (binding.length === 1 && binding[0]?.trim() === "")) return null;
-  const family = RANGE_FAMILIES.find(candidate => candidate.action === actionId);
+  const family = SHORTCUT_RANGE_FAMILIES.find(candidate => candidate.action === actionId);
   for (const member of binding) {
     if (member.trim() === "") return "Empty array members are not shortcuts; use an empty array.";
     const range = parseShortcutRange(member);
@@ -192,7 +205,7 @@ function parseShortcutRange(value: string): { prefix: string; start: number; end
 export function expandShortcutOverrides(overrides: ShortcutMap): Record<string, ShortcutBinding> {
   const expanded: Record<string, ShortcutBinding> = {};
   for (const [actionId, binding] of Object.entries(overrides)) {
-    const family = RANGE_FAMILIES.find(candidate => candidate.action === actionId);
+    const family = SHORTCUT_RANGE_FAMILIES.find(candidate => candidate.action === actionId);
     if (!family) {
       expanded[actionId] = binding.flatMap(member => {
         const parsed = parseShortcutChord(member);
@@ -216,7 +229,7 @@ export function effectiveShortcutMap(base: ShortcutMap, overrides: ShortcutMap):
   const effective: Record<string, ShortcutBinding> = Object.fromEntries(
     Object.entries(base).map(([actionId, binding]) => [actionId, [...binding]])
   );
-  for (const family of RANGE_FAMILIES) {
+  for (const family of SHORTCUT_RANGE_FAMILIES) {
     if (!(family.action in overrides)) continue;
     for (let slot = 1; slot <= family.max; slot += 1) delete effective[`${family.action}.${slot}`];
   }
@@ -226,6 +239,13 @@ export function effectiveShortcutMap(base: ShortcutMap, overrides: ShortcutMap):
   return effective;
 }
 
+function parseEffectiveChords(bindings: ShortcutBinding): ParsedShortcutChord[] {
+  return bindings.flatMap(raw => {
+    const parsed = parseShortcutChord(raw);
+    return parsed ? [parsed] : [];
+  });
+}
+
 /** Binds each supplied action to its effective chords. The action list is the caller's. */
 export function resolveWindowManagerActions(
   effective: ShortcutMap,
@@ -233,10 +253,7 @@ export function resolveWindowManagerActions(
   primaryModifier: PrimaryShortcutModifier = "meta"
 ): readonly ResolvedWindowManagerAction[] {
   return actions.map(action => {
-    const chords = (effective[action.id] ?? []).flatMap(raw => {
-      const parsed = parseShortcutChord(raw);
-      return parsed ? [parsed] : [];
-    });
+    const chords = parseEffectiveChords(effective[action.id] ?? []);
     return {
       ...action,
       chords,
@@ -355,9 +372,7 @@ export function findShortcutConflicts(
   const effective = effectiveShortcutMap(defaults, overrides);
   const byChord = new Map<string, string[]>();
   for (const [actionId, bindings] of Object.entries(effective)) {
-    for (const binding of bindings) {
-      const chord = parseShortcutChord(binding);
-      if (chord === null) continue;
+    for (const chord of parseEffectiveChords(bindings)) {
       const holders = byChord.get(chord.canonical);
       if (holders) holders.push(actionId);
       else byChord.set(chord.canonical, [actionId]);

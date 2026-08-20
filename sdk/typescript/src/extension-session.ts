@@ -1,5 +1,6 @@
 import { validateProvidedMethodCoverage } from "./capabilities.js";
 import { SDK_NAME, type ExtensionSession } from "./extension-contract.js";
+import { cmdPaletteViewIDs } from "./extension-describe.js";
 import { parseInitializeRequest, validateProtocolVersion } from "./extension-initialize.js";
 import { ensureSubset, normalizeHostMethodList, normalizeStringList } from "./extension-runtime.js";
 import type { ExtensionDefinition, HookEvent, InitializeResponse } from "./types.js";
@@ -25,6 +26,7 @@ export function buildExtensionSession(options: BuildExtensionSessionOptions): {
   ensureSubset("provides", requestedProvides, request.capabilities.provides);
   ensureSubset("permissions", requestedPermissions, request.capabilities.granted_permissions);
   validateProvidedMethodCoverage(requestedProvides, options.implementedMethods);
+  const viewIDs = cmdPaletteViewIDs(options.definition.resources?.cmd_palette);
 
   const response: InitializeResponse = {
     protocol_version: "1",
@@ -43,6 +45,7 @@ export function buildExtensionSession(options: BuildExtensionSessionOptions): {
     ...(options.watchSourceKinds.length > 0
       ? { watch_source_kinds: options.watchSourceKinds }
       : {}),
+    ...(viewIDs.length > 0 ? { cmd_palette_views: viewIDs } : {}),
     supports: {
       health_check: true,
     },

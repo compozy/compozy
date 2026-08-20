@@ -36,6 +36,10 @@ export interface PaletteShellHandlers {
 export interface PaletteClientOpContext {
   readonly manager: WindowManagerController;
   readonly shell: PaletteShellHandlers;
+  /** Same port local dispatch uses for `navigate` actions. */
+  readonly navigate: (app: string, pathname: string | null) => void;
+  /** Same port local dispatch uses for `url` actions. */
+  readonly openUrl: (url: string) => void;
 }
 
 export type PaletteClientOpHandler = (

@@ -10,29 +10,24 @@ import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
+import * as os from "@/systems/os";
 import {
   parseSettingsWindowManagerSection,
+  WindowManagerSettingsError,
   type WindowManagerSettingsWire,
-} from "@/systems/os/lib/window-manager-settings-section";
-import { WindowManagerSettingsError } from "@/systems/os/adapters/window-manager-settings-api";
+} from "@/systems/os";
 
 import { useWindowManagerAliasEditor } from "../../hooks/use-window-manager-alias-editor";
 import { useWindowManagerBindingMutations } from "../../hooks/use-window-manager-binding-mutations";
 import { useGlobalShortcutRecorder } from "../../hooks/use-global-shortcut-recorder";
 import { useWindowManagerShortcutRecorder } from "../../hooks/use-window-manager-shortcut-recorder";
-import { settingsWindowManagerSectionFixture } from "../../mocks/window-manager-fixtures";
+import {
+  settingsGlobalShortcutRegistrations,
+  settingsWindowManagerSectionFixture,
+} from "../../mocks/window-manager-fixtures";
+import { withCommandReset } from "../../lib/window-manager-shortcut-rows";
 import { WindowManagerShortcutTable } from "../layouts/window-manager-shortcut-table";
 import { WindowManagerGlobalHotkeys } from "../layouts/window-manager-global-hotkeys";
-
-const { updateWindowManagerBindings } = vi.hoisted(() => ({
-  updateWindowManagerBindings: vi.fn(),
-}));
-
-vi.mock("@/systems/os/adapters/window-manager-settings-api", async importOriginal => {
-  const actual =
-    await importOriginal<typeof import("@/systems/os/adapters/window-manager-settings-api")>();
-  return { ...actual, updateWindowManagerBindings };
-});
 
 function sectionFrom(mutate: (wire: WindowManagerSettingsWire) => void = () => {}) {
   const wire = structuredClone(settingsWindowManagerSectionFixture) as WindowManagerSettingsWire;
@@ -81,13 +76,17 @@ function renderTable(section?: ReturnType<typeof sectionFrom>) {
   };
 }
 
+function updateWindowManagerBindingsMock() {
+  return vi.mocked(os.updateWindowManagerBindings);
+}
+
 describe("WindowManagerShortcutTable", () => {
   beforeEach(() => {
-    updateWindowManagerBindings.mockReset();
-    updateWindowManagerBindings.mockResolvedValue(sectionFrom());
+    vi.spyOn(os, "updateWindowManagerBindings").mockResolvedValue(sectionFrom());
   });
 
   afterEach(() => {
+    vi.restoreAllMocks();
     delete window.compozyShell;
   });
 
@@ -114,7 +113,7 @@ describe("WindowManagerShortcutTable", () => {
     };
     renderTable(
       sectionFrom(wire => {
-        wire.global_shortcuts = [
+        wire.global_shortcuts = settingsGlobalShortcutRegistrations([
           {
             command_id: "palette.summon.global",
             intended_chord: "meta+shift+KeyK",
@@ -125,8 +124,10 @@ describe("WindowManagerShortcutTable", () => {
             command_id: "session.new",
             intended_chord: "meta+shift+KeyN",
             status: "failed_permission",
+            settings_url:
+              "x-apple.systempreferences:com.apple.preference.security?Privacy_Accessibility",
           },
-        ];
+        ]);
       })
     );
 
@@ -159,8 +160,8 @@ describe("WindowManagerShortcutTable", () => {
     );
     await user.keyboard("{Meta>}{Shift>}k{/Shift}{/Meta}");
 
-    await waitFor(() => expect(updateWindowManagerBindings).toHaveBeenCalledTimes(1));
-    expect(updateWindowManagerBindings.mock.calls[0]?.[0]).toMatchObject({
+    await waitFor(() => expect(updateWindowManagerBindingsMock()).toHaveBeenCalledTimes(1));
+    expect(updateWindowManagerBindingsMock().mock.calls[0]?.[0]).toMatchObject({
       globalShortcuts: { "palette.summon.global": "meta+shift+KeyK" },
       workspaceId: "workspace:alpha",
     });
@@ -190,10 +191,10 @@ describe("WindowManagerShortcutTable", () => {
     await user.click(screen.getByTestId("shortcut-recorder-window.close"));
     await user.keyboard("{Meta>}{Shift>}j{/Shift}{/Meta}");
 
-    await waitFor(() => expect(updateWindowManagerBindings).toHaveBeenCalledTimes(1));
+    await waitFor(() => expect(updateWindowManagerBindingsMock()).toHaveBeenCalledTimes(1));
     // The daemon replaces the map wholesale, so the write carries every override
     // in force — not just the one that changed.
-    expect(updateWindowManagerBindings.mock.calls[0]?.[0]).toMatchObject({
+    expect(updateWindowManagerBindingsMock().mock.calls[0]?.[0]).toMatchObject({
       workspaceId: "workspace:alpha",
       shortcuts: { "window.close": ["meta+shift+KeyJ"], "window.tab.new": ["meta+Digit3"] },
     });
@@ -203,7 +204,7 @@ describe("WindowManagerShortcutTable", () => {
     const user = userEvent.setup();
     // `session.new` ships with ⌘N in the fixture registry, so claiming it for
     // the notes command is exactly the daemon refusal the story describes.
-    updateWindowManagerBindings.mockRejectedValueOnce(
+    updateWindowManagerBindingsMock().mockRejectedValueOnce(
       new WindowManagerSettingsError(
         "conflict",
         409,
@@ -220,7 +221,7 @@ describe("WindowManagerShortcutTable", () => {
         "ext.notes.capture": ["meta+KeyN"],
       };
     });
-    updateWindowManagerBindings.mockResolvedValueOnce(afterOverwrite);
+    updateWindowManagerBindingsMock().mockResolvedValueOnce(afterOverwrite);
     const view = renderTable();
 
     await user.click(screen.getByTestId("shortcut-recorder-ext.notes.capture"));
@@ -230,13 +231,13 @@ describe("WindowManagerShortcutTable", () => {
     // The owner is named by its title, not by the id the daemon answered with.
     expect(conflict).toHaveTextContent("New session");
     expect(conflict).toHaveTextContent("⌘N is already used by");
-    expect(updateWindowManagerBindings).toHaveBeenCalledTimes(1);
-    expect(updateWindowManagerBindings.mock.calls[0]?.[0]).not.toHaveProperty("overwrite");
+    expect(updateWindowManagerBindingsMock()).toHaveBeenCalledTimes(1);
+    expect(updateWindowManagerBindingsMock().mock.calls[0]?.[0]).not.toHaveProperty("overwrite");
 
     await user.click(within(conflict).getByRole("button", { name: "Overwrite" }));
 
-    await waitFor(() => expect(updateWindowManagerBindings).toHaveBeenCalledTimes(2));
-    expect(updateWindowManagerBindings.mock.calls[1]?.[0]).toMatchObject({ overwrite: true });
+    await waitFor(() => expect(updateWindowManagerBindingsMock()).toHaveBeenCalledTimes(2));
+    expect(updateWindowManagerBindingsMock().mock.calls[1]?.[0]).toMatchObject({ overwrite: true });
 
     // The loser keeps its row and says what it lost.
     view.showSection(afterOverwrite);
@@ -261,7 +262,7 @@ describe("WindowManagerShortcutTable", () => {
       "Press keys…"
     );
     expect(shellListener).not.toHaveBeenCalled();
-    expect(updateWindowManagerBindings).not.toHaveBeenCalled();
+    expect(updateWindowManagerBindingsMock()).not.toHaveBeenCalled();
     document.removeEventListener("keydown", shellListener);
   });
 
@@ -270,14 +271,14 @@ describe("WindowManagerShortcutTable", () => {
     renderTable();
 
     await user.click(screen.getByTestId("shortcut-reset-window.tab.new"));
-    await waitFor(() => expect(updateWindowManagerBindings).toHaveBeenCalledTimes(1));
-    expect(updateWindowManagerBindings.mock.calls[0]?.[0].shortcuts).not.toHaveProperty(
+    await waitFor(() => expect(updateWindowManagerBindingsMock()).toHaveBeenCalledTimes(1));
+    expect(updateWindowManagerBindingsMock().mock.calls[0]?.[0].shortcuts).not.toHaveProperty(
       "window.tab.new"
     );
 
     await user.click(screen.getByTestId("shortcut-reset-all"));
-    await waitFor(() => expect(updateWindowManagerBindings).toHaveBeenCalledTimes(2));
-    expect(updateWindowManagerBindings.mock.calls[1]?.[0].shortcuts).toEqual({});
+    await waitFor(() => expect(updateWindowManagerBindingsMock()).toHaveBeenCalledTimes(2));
+    expect(updateWindowManagerBindingsMock().mock.calls[1]?.[0].shortcuts).toEqual({});
   });
 
   it("Should reject an alias holding whitespace without asking the daemon [UT-149]", async () => {
@@ -290,7 +291,7 @@ describe("WindowManagerShortcutTable", () => {
 
     expect(screen.getByText("1–32 characters, no whitespace")).toBeVisible();
     expect(field).toHaveAttribute("aria-invalid", "true");
-    expect(updateWindowManagerBindings).not.toHaveBeenCalled();
+    expect(updateWindowManagerBindingsMock()).not.toHaveBeenCalled();
   });
 
   it("Should save a valid alias and block one already taken [UT-149]", async () => {
@@ -300,12 +301,12 @@ describe("WindowManagerShortcutTable", () => {
     await user.type(screen.getByTestId("shortcut-alias-session.new"), "ns");
     await user.tab();
 
-    await waitFor(() => expect(updateWindowManagerBindings).toHaveBeenCalledTimes(1));
-    expect(updateWindowManagerBindings.mock.calls[0]?.[0].aliases).toMatchObject({
+    await waitFor(() => expect(updateWindowManagerBindingsMock()).toHaveBeenCalledTimes(1));
+    expect(updateWindowManagerBindingsMock().mock.calls[0]?.[0].aliases).toMatchObject({
       "session.new": "ns",
     });
 
-    updateWindowManagerBindings.mockRejectedValueOnce(
+    updateWindowManagerBindingsMock().mockRejectedValueOnce(
       new WindowManagerSettingsError("conflict", 409, "alias_conflict", "session.new", null, "ns")
     );
     await user.type(screen.getByTestId("shortcut-alias-window.close"), "ns");
@@ -324,5 +325,55 @@ describe("WindowManagerShortcutTable", () => {
     );
 
     expect(screen.getByText(/ext\.gone\.command: unknown command id/)).toBeVisible();
+  });
+
+  it("Should keep a sibling member override when resetting one range member [UT-148]", () => {
+    const next = withCommandReset(
+      {
+        "window.tab.jump": ["meta+Digit1..8"],
+        "window.tab.jump.3": ["meta+shift+Digit3"],
+      },
+      "window.tab.jump.1"
+    );
+    expect(next["window.tab.jump"]).toBeUndefined();
+    expect(next["window.tab.jump.1"]).toBeUndefined();
+    expect(next["window.tab.jump.3"]).toEqual(["meta+shift+Digit3"]);
+    expect(next["window.tab.jump.2"]).toEqual(["meta+Digit2"]);
+  });
+
+  it("Should add an alternate onto the effective range-member chord [UT-148]", async () => {
+    const user = userEvent.setup();
+    renderTable(
+      sectionFrom(wire => {
+        wire.config.shortcuts = { "window.tab.jump": ["meta+Digit1..8"] };
+        wire.effective_shortcuts = {
+          ...wire.effective_shortcuts,
+          "window.close": ["meta+KeyW"],
+        };
+      })
+    );
+
+    await user.click(
+      screen.getByRole("button", { name: "Add an alternate shortcut for Close window" })
+    );
+    await user.keyboard("{Meta>}{Shift>}w{/Shift}{/Meta}");
+
+    await waitFor(() => expect(updateWindowManagerBindingsMock()).toHaveBeenCalledTimes(1));
+    expect(updateWindowManagerBindingsMock().mock.calls[0]?.[0].shortcuts).toMatchObject({
+      "window.close": ["meta+KeyW", "meta+shift+KeyW"],
+      "window.tab.jump": ["meta+Digit1..8"],
+    });
+  });
+
+  it("Should render an empty state when no global hotkeys are registered [UT-150]", () => {
+    renderTable(
+      sectionFrom(wire => {
+        wire.global_shortcuts = [];
+      })
+    );
+
+    expect(screen.getByTestId("window-manager-global-hotkeys")).toHaveTextContent(
+      "No global hotkeys"
+    );
   });
 });

@@ -6,21 +6,21 @@ function interpolate(minimum: number, maximum: number, ratio: number): number {
 }
 
 function scoreNormalizedField(
-  term: NormalizedText,
+  term: string,
   field: NormalizedText,
   weights: RankingWeights
 ): MatchScore | null {
-  if (term.text === "" || field.text === "") return null;
-  if (field.text === term.text) return { kind: "exact", score: weights.match_exact };
-  if (field.text.startsWith(term.text)) return { kind: "prefix", score: weights.match_prefix };
-  if (field.tokens.some(token => token.startsWith(term.text))) {
+  if (term === "" || field.text === "") return null;
+  if (field.text === term) return { kind: "exact", score: weights.match_exact };
+  if (field.text.startsWith(term)) return { kind: "prefix", score: weights.match_prefix };
+  if (field.tokens.some(token => token.startsWith(term))) {
     return { kind: "token-prefix", score: weights.match_token_prefix };
   }
-  if (field.compact.startsWith(term.compact)) {
+  if (field.compact.startsWith(term)) {
     return { kind: "compact-prefix", score: weights.match_compact_prefix };
   }
-  if (field.text.includes(term.text)) return { kind: "contains", score: weights.match_contains };
-  const subsequence = subsequenceMatch(term.compact, field.text);
+  if (field.text.includes(term)) return { kind: "contains", score: weights.match_contains };
+  const subsequence = subsequenceMatch(term, field.text);
   if (subsequence === null) return null;
   if (subsequence.boundaryMatches > 1) {
     return {
@@ -78,13 +78,12 @@ export function matchRankingCandidate(
   ];
   const termMatches: MatchScore[] = [];
   for (const token of normalizedQuery.tokens) {
-    const term = normalizeRankingText(token);
     let best: MatchScore | null = null;
     for (const field of primaryFields) {
-      best = betterMatch(best, scoreNormalizedField(term, field, weights));
+      best = betterMatch(best, scoreNormalizedField(token, field, weights));
     }
     for (const field of secondaryFields) {
-      best = betterMatch(best, secondary(scoreNormalizedField(term, field, weights), weights));
+      best = betterMatch(best, secondary(scoreNormalizedField(token, field, weights), weights));
     }
     if (best === null) return null;
     termMatches.push(best);

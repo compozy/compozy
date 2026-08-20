@@ -22,6 +22,8 @@ export {
   windowManagerSettingsOptions,
   windowManagerSnapshotOptions,
 } from "./lib/window-manager-query";
+export { isDesktopShell } from "./lib/desktop-shell-bridge";
+export { stableWindowManagerClientId } from "./lib/window-manager-client-identity";
 
 // Bindings and aliases: one daemon-owned settings section, mutated through one
 // path. The daemon decides conflicts and echoes the section it produced, so no
@@ -33,14 +35,21 @@ export {
   type WindowManagerBindingUpdate,
   type WindowManagerMutationCode,
 } from "./adapters/window-manager-settings-api";
-export type {
-  WindowManagerAliasMap,
-  WindowManagerExtensionDefault,
-  WindowManagerSettingsScope,
-  WindowManagerSettingsSection,
-  WindowManagerShortcutCommand,
-  WindowManagerShortcutDiagnostic,
+export {
+  parseSettingsWindowManagerSection,
+  type WindowManagerAliasMap,
+  type WindowManagerExtensionDefault,
+  type WindowManagerSettingsScope,
+  type WindowManagerSettingsSection,
+  type WindowManagerSettingsWire,
+  type WindowManagerShortcutCommand,
+  type WindowManagerShortcutDiagnostic,
 } from "./lib/window-manager-settings-section";
+export {
+  globalShortcutRegistrationSchema,
+  globalShortcutRegistrationStatusSchema,
+  type GlobalShortcutRegistrationStatus,
+} from "./lib/window-manager-global-shortcut-schema";
 export {
   CORE_SHORTCUT_SOURCE,
   groupShortcutRowsBySource,
@@ -67,6 +76,7 @@ export type {
   WindowManagerClientView,
   WindowManagerConfig,
   WindowManagerDragModifier,
+  WindowManagerRegisteredClientView,
   WindowManagerSnapshot,
 } from "./lib/window-manager-types";
 export type {
@@ -108,7 +118,7 @@ export type {
 // which is what makes their ids, labels and chords identical by construction.
 export { CmdPaletteRegistryProvider } from "./contexts/cmd-palette-registry-context";
 export { usePaletteCommand, usePaletteRegistry } from "./hooks/use-palette-registry";
-export { registryBindableIds, registryShortcutActions } from "./lib/cmd-palette-shortcut-actions";
+export { registryShortcutActions } from "./lib/cmd-palette-shortcut-actions";
 export { cmdPaletteKeys } from "./lib/cmd-palette-query-keys";
 export { resetCmdPalettePersonalization } from "./adapters/cmd-palette-api";
 export type {
@@ -121,9 +131,13 @@ export type {
 // diagrams in Settings). Not a command catalog — invocation goes through the
 // registry projection above.
 export {
-  WINDOW_ARRANGE_COMMANDS,
-  WINDOW_PLACEMENT_COMMANDS,
+  WINDOW_ARRANGE_PRESETS,
+  WINDOW_PLACEMENT_PRESETS,
+  windowArrangeCommandId,
+  windowPlacementCommandId,
+  type WindowArrangePreset,
   type WindowPlacementId,
+  type WindowPlacementPreset,
 } from "./lib/window-placement-presets";
 
 // Keyboard grammar. Chord parsing and conflict detection live here; which
@@ -131,6 +145,7 @@ export {
 export {
   type ShortcutActionDefinition,
   chordFromKeyboardEvent,
+  coveringShortcutFamily,
   deriveShortcutCheatsheet,
   effectiveShortcutMap,
   expandShortcutOverrides,
@@ -142,6 +157,7 @@ export {
   shortcutBindingProblem,
   shortcutKeyGlyphs,
   shortcutLabel,
+  SHORTCUT_RANGE_FAMILIES,
   type ParsedShortcutChord,
   type ResolvedWindowManagerAction,
   type ShortcutBinding,
@@ -149,6 +165,7 @@ export {
   type ShortcutConflict,
   type ShortcutConflictKind,
   type ShortcutMap,
+  type ShortcutRangeFamily,
 } from "./lib/window-manager-shortcuts";
 
 // Attention: the system notification channel's truthful platform state, read by

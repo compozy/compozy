@@ -3,7 +3,7 @@
 - **Scope:** Command palette tasks 01–10: daemon registry, structured surfaces, ranking and personalization, execution UX, keymap/settings, domain and extension views, programmable view runtime, desktop global hotkeys, and agent fallback.
 - **Cadence tier:** full
 - **Build:** `3e42a7e988305847477029e9944e858b9328108d` · **Environment:** isolated lab `command-palette-20260820-072509-978555`, daemon `http://127.0.0.1:56298`, browser-use; local production-like build, not a deployed release artifact.
-- **Started:** 2026-08-20T07:25:46Z · **Status:** in-progress
+- **Started:** 2026-08-20T07:25:46Z · **Status:** deferred by operator
 - **Bootstrap manifest:** `/Users/pedronauck/dev/qa-labs/compozy-command-palette-20260820-072509-978555-lab/qa-artifacts/qa/bootstrap-manifest.json`
 - **Real-scenario playbook:** `devtool-oss-launch` (Mateo Rivera, one kickoff; runtime observation and strict audit pending)
 
@@ -42,10 +42,10 @@ Status legend: `Pending | Pass | Fixed | Skipped | Blocked (needs human verify) 
 ## Release-Grade Runtime Scenario
 
 - **Playbook:** `devtool-oss-launch`
-- **Operator kickoff:** Pending
-- **Task activation:** Pending
-- **Observation:** Pending
-- **Strict audit:** Pending
+- **Operator kickoff:** Completed once; transcript captured in the isolated lab
+- **Task activation:** Released for all 11 deterministic tasks
+- **Observation:** Stalled after 300 seconds without runtime-owned journey-log progress
+- **Strict audit:** Deferred to the follow-up QA round
 - **Known open bugs to deduplicate if reproduced:** `BUG-0028`, `BUG-20260719-autonomous-progress-unobservable`, `BUG-20260816-daemon-stop-timeout`
 
 ## Session Debriefs
@@ -75,7 +75,7 @@ None recorded yet.
 
 ## Human Verifications Needed
 
-None recorded yet.
+None. The nine charter walks and the runtime scenario remain Pending in the session matrix; those are unwalked sessions, not human-only blockers.
 
 ## Decisions for a Human
 
@@ -87,7 +87,8 @@ Pending.
 
 ## Final Status
 
-- **Exit gate (full automated suite):** Pending
-- **Issues by user impact:** Pending
-- **Coverage:** 0/9 charters walked; runtime scenario pending
-- **Verdict:** Pending
+- **Exit gate (full automated suite):** Deferred by operator; no completion gate was run
+- **Issues by user impact:** Not assessed in this round
+- **Coverage:** 0/9 charters walked; runtime scenario stopped after the observation stall
+- **Verdict:** Deferred — implementation is being opened for review before QA and gates; a
+  separate follow-up round owns the nine charter walks, strict runtime audit, and final gates.

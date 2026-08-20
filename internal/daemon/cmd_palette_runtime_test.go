@@ -114,6 +114,31 @@ func TestCmdPaletteActionExecutor(t *testing.T) {
 	})
 }
 
+func TestCmdPaletteClientDirectory(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should return no-attached-shell when the window manager is missing", func(t *testing.T) {
+		t.Parallel()
+		directory := &cmdPaletteClientDirectory{}
+		_, err := directory.Context(t.Context(), "workspace-a", "client-a")
+		if !errors.Is(err, cmdpalette.ErrNoAttachedShell) {
+			t.Fatalf("Context() error = %v, want ErrNoAttachedShell", err)
+		}
+	})
+
+	t.Run("Should project empty global shortcut statuses when the window manager is missing", func(t *testing.T) {
+		t.Parallel()
+		directory := &cmdPaletteClientDirectory{}
+		statuses, err := directory.GlobalShortcutStatuses(t.Context(), "workspace-a", "client-a")
+		if err != nil {
+			t.Fatalf("GlobalShortcutStatuses() error = %v", err)
+		}
+		if len(statuses) != 0 {
+			t.Fatalf("GlobalShortcutStatuses() = %#v, want empty map", statuses)
+		}
+	})
+}
+
 func cmdPaletteToolExecutionRequest() cmdpalette.ExecutionRequest {
 	return cmdpalette.ExecutionRequest{
 		WorkspaceID: "workspace-a", InvocationID: "invocation-a",

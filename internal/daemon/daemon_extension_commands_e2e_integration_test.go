@@ -123,6 +123,36 @@ func TestDaemonE2EExtensionCommandPaletteFixture(t *testing.T) {
 	})
 }
 
+func getPaletteFixtureJSON[T any](
+	t *testing.T,
+	ctx context.Context,
+	harness *e2etest.RuntimeHarness,
+	path string,
+) T {
+	t.Helper()
+	request, err := http.NewRequestWithContext(ctx, http.MethodGet, harness.HTTPURL(path), nil)
+	if err != nil {
+		t.Fatalf("create palette fixture request error = %v", err)
+	}
+	response, err := harness.HTTPClient.Do(request)
+	if err != nil {
+		t.Fatalf("get palette fixture error = %v", err)
+	}
+	body, readErr := io.ReadAll(response.Body)
+	closeErr := response.Body.Close()
+	if err := errors.Join(readErr, closeErr); err != nil {
+		t.Fatalf("read palette fixture response error = %v", err)
+	}
+	if response.StatusCode != http.StatusOK {
+		t.Fatalf("palette fixture status = %d, want %d; body=%s", response.StatusCode, http.StatusOK, body)
+	}
+	var result T
+	if err := json.Unmarshal(body, &result); err != nil {
+		t.Fatalf("decode palette fixture error = %v; body=%s", err, body)
+	}
+	return result
+}
+
 func getPaletteFixtureCatalog(
 	t *testing.T,
 	ctx context.Context,
@@ -131,27 +161,7 @@ func getPaletteFixtureCatalog(
 	t.Helper()
 	query := url.Values{"workspace": []string{harness.WorkspaceID}}
 	path := "/api/cmd-palette/commands?" + query.Encode()
-	request, err := http.NewRequestWithContext(ctx, http.MethodGet, harness.HTTPURL(path), nil)
-	if err != nil {
-		t.Fatalf("create palette catalog request error = %v", err)
-	}
-	response, err := harness.HTTPClient.Do(request)
-	if err != nil {
-		t.Fatalf("get palette catalog error = %v", err)
-	}
-	body, readErr := io.ReadAll(response.Body)
-	closeErr := response.Body.Close()
-	if err := errors.Join(readErr, closeErr); err != nil {
-		t.Fatalf("read palette catalog response error = %v", err)
-	}
-	if response.StatusCode != http.StatusOK {
-		t.Fatalf("palette catalog status = %d, want %d; body=%s", response.StatusCode, http.StatusOK, body)
-	}
-	var catalog compozycontract.CmdPaletteCommandsResponse
-	if err := json.Unmarshal(body, &catalog); err != nil {
-		t.Fatalf("decode palette catalog error = %v; body=%s", err, body)
-	}
-	return catalog
+	return getPaletteFixtureJSON[compozycontract.CmdPaletteCommandsResponse](t, ctx, harness, path)
 }
 
 func catalogHasPaletteFixtureSource(catalog compozycontract.CmdPaletteCommandsResponse) bool {
@@ -171,27 +181,7 @@ func getPaletteFixtureView(
 	t.Helper()
 	query := url.Values{"workspace": []string{harness.WorkspaceID}}
 	path := "/api/cmd-palette/views/" + url.PathEscape("ext.notes.recent") + "?" + query.Encode()
-	request, err := http.NewRequestWithContext(ctx, http.MethodGet, harness.HTTPURL(path), nil)
-	if err != nil {
-		t.Fatalf("create palette fixture view request error = %v", err)
-	}
-	response, err := harness.HTTPClient.Do(request)
-	if err != nil {
-		t.Fatalf("get palette fixture view error = %v", err)
-	}
-	body, readErr := io.ReadAll(response.Body)
-	closeErr := response.Body.Close()
-	if err := errors.Join(readErr, closeErr); err != nil {
-		t.Fatalf("read palette fixture view response error = %v", err)
-	}
-	if response.StatusCode != http.StatusOK {
-		t.Fatalf("palette fixture view status = %d, want %d; body=%s", response.StatusCode, http.StatusOK, body)
-	}
-	var view compozycontract.CmdPaletteViewEnvelope
-	if err := json.Unmarshal(body, &view); err != nil {
-		t.Fatalf("decode palette fixture view error = %v; body=%s", err, body)
-	}
-	return view
+	return getPaletteFixtureJSON[compozycontract.CmdPaletteViewEnvelope](t, ctx, harness, path)
 }
 
 func testDaemonE2EExtensionContributedCommandsPreserveToolPolicy(t *testing.T) {

@@ -7,41 +7,41 @@ import (
 )
 
 type shellCommandDefinition struct {
-	id         cmdpalette.CommandID
-	title      string
-	section    string
-	icon       string
-	needsFocus bool
-	exempt     bool
+	id                 cmdpalette.CommandID
+	title              string
+	section            string
+	icon               string
+	needsFocus         bool
+	availabilityExempt bool
 	// when overrides the focused-window requirement for commands whose
 	// relevance is a different piece of client context.
 	when []cmdpalette.Predicate
 }
 
 var fixedShellCommands = []shellCommandDefinition{
-	{id: "palette.open", title: "Command palette", section: coreSectionShell, icon: "command", exempt: true},
+	{id: "palette.open", title: "Command palette", section: coreSectionShell, icon: "command", availabilityExempt: true},
 	{
 		id: "palette.summon.global", title: "Command palette · global",
-		section: coreSectionShell, icon: "command", exempt: true,
+		section: coreSectionShell, icon: "command", availabilityExempt: true,
 	},
-	{id: "session.new", title: "New session", section: coreSectionShell, icon: coreIconTerminal, exempt: true},
-	{id: "scope.global.toggle", title: "Global scope", section: coreSectionShell, icon: coreIconGlobe, exempt: true},
+	{id: "session.new", title: "New session", section: coreSectionShell, icon: coreIconTerminal, availabilityExempt: true},
+	{id: "scope.global.toggle", title: "Global scope", section: coreSectionShell, icon: coreIconGlobe, availabilityExempt: true},
 	{
-		id:         "window.nav.back",
-		title:      "Back",
-		section:    coreSectionShell,
-		icon:       "arrow-left",
-		needsFocus: true,
-		exempt:     true,
+		id:                 "window.nav.back",
+		title:              "Back",
+		section:            coreSectionShell,
+		icon:               "arrow-left",
+		needsFocus:         true,
+		availabilityExempt: true,
 	},
 	{id: "sidebar.toggle", title: "Toggle sidebar", section: coreSectionShell, icon: "panel-left"},
 	{id: "shell.sessions.toggle", title: "Toggle sessions", section: coreSectionShell, icon: "list"},
 	{
-		id:      "shortcuts.cheatsheet",
-		title:   "Keyboard shortcuts",
-		section: coreSectionShell,
-		icon:    "keyboard",
-		exempt:  true,
+		id:                 "shortcuts.cheatsheet",
+		title:              "Keyboard shortcuts",
+		section:            coreSectionShell,
+		icon:               "keyboard",
+		availabilityExempt: true,
 	},
 	{id: "window.close", title: "Close window", section: coreSectionWindow, icon: "x-square", needsFocus: true},
 	{
@@ -143,7 +143,7 @@ func shellCommands() []cmdpalette.Descriptor {
 	for _, placement := range placements {
 		definitions = append(definitions, shellCommandDefinition{
 			id: cmdpalette.CommandID("window.tile." + placement.id), title: placement.title,
-			section: "Tiling", icon: coreIconPanelTop, needsFocus: true,
+			section: coreSectionTiling, icon: coreIconPanelTop, needsFocus: true,
 		})
 	}
 	for slot := 1; slot <= 8; slot++ {
@@ -164,7 +164,7 @@ func shellCommands() []cmdpalette.Descriptor {
 		if definition.id == "palette.summon.global" {
 			command.Action.Op = "palette.open"
 		}
-		command.AvailabilityExempt = definition.exempt
+		command.AvailabilityExempt = definition.availabilityExempt
 		switch {
 		case definition.when != nil:
 			command.When = append([]cmdpalette.Predicate(nil), definition.when...)

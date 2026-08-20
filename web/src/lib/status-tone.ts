@@ -87,7 +87,6 @@ const SHARED_STATUS_TONE: Readonly<Record<string, PillTone>> = {
   queued: "neutral",
   running: "info",
   done: "success",
-  ready: "success",
   missing: "warning",
   unhealthy: "danger",
   healthy: "success",

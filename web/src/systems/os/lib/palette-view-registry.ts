@@ -20,6 +20,11 @@ import { OS_APP_DESCRIPTORS, type OsAppDescriptor } from "./app-catalog";
 /** Open id space: the daemon (and, from P6, extensions) name the views. */
 export type PaletteViewId = string;
 
+/** First segment of an `ext.<name>` source or `ext.<name>.*` view/command id. */
+export function parseExtensionName(id: string): string | null {
+  return /^ext\.([^.]+)(?:\.|$)/.exec(id)?.[1] ?? null;
+}
+
 export interface PaletteViewDefinition {
   readonly id: PaletteViewId;
   /** Breadcrumb crumb and root entry label. */
@@ -44,44 +49,38 @@ export const PALETTE_VIEWS: Readonly<Record<string, PaletteViewDefinition>> = {
     enterHint: "open session",
     description: "Filter sessions by state and open one",
   },
-  worktrees: domainView("worktrees", "Worktrees", GitBranch, "Worktrees"),
-  tasks: domainView("tasks", "Tasks", OS_APP_DESCRIPTORS.tasks.icon, "Tasks"),
-  loops: domainView("loops", "Loops", OS_APP_DESCRIPTORS.loops.icon, "Loops"),
-  jobs: domainView("jobs", "Jobs", OS_APP_DESCRIPTORS.jobs.icon, "Jobs"),
-  triggers: domainView("triggers", "Triggers", OS_APP_DESCRIPTORS.triggers.icon, "Triggers"),
-  agents: domainView("agents", "Agents", OS_APP_DESCRIPTORS.agents.icon, "Agents"),
-  bridges: domainView("bridges", "Bridges", OS_APP_DESCRIPTORS.bridges.icon, "Bridges"),
-  knowledge: domainView("knowledge", "Knowledge", OS_APP_DESCRIPTORS.knowledge.icon, "Knowledge"),
-  vault: domainView("vault", "Vault", OS_APP_DESCRIPTORS.vault.icon, "Vault"),
+  worktrees: domainView("worktrees", "Worktrees", GitBranch),
+  tasks: domainView("tasks", "Tasks", OS_APP_DESCRIPTORS.tasks.icon),
+  loops: domainView("loops", "Loops", OS_APP_DESCRIPTORS.loops.icon),
+  jobs: domainView("jobs", "Jobs", OS_APP_DESCRIPTORS.jobs.icon),
+  triggers: domainView("triggers", "Triggers", OS_APP_DESCRIPTORS.triggers.icon),
+  agents: domainView("agents", "Agents", OS_APP_DESCRIPTORS.agents.icon),
+  bridges: domainView("bridges", "Bridges", OS_APP_DESCRIPTORS.bridges.icon),
+  knowledge: domainView("knowledge", "Knowledge", OS_APP_DESCRIPTORS.knowledge.icon),
+  vault: domainView("vault", "Vault", OS_APP_DESCRIPTORS.vault.icon),
   "network-channels": domainView(
     "network-channels",
     "Network channels",
-    OS_APP_DESCRIPTORS.network.icon,
-    "Network channels"
+    OS_APP_DESCRIPTORS.network.icon
   ),
-  marketplace: domainView(
-    "marketplace",
-    "Marketplace",
-    OS_APP_DESCRIPTORS.marketplace.icon,
-    "Marketplace"
-  ),
-  extensions: domainView("extensions", "Extensions", Blocks, "Extensions"),
+  marketplace: domainView("marketplace", "Marketplace", OS_APP_DESCRIPTORS.marketplace.icon),
+  extensions: domainView("extensions", "Extensions", Blocks),
 };
 
 function domainView(
   id: string,
   title: string,
-  icon: OsAppDescriptor["icon"],
-  domainTitle: string
+  icon: OsAppDescriptor["icon"]
 ): PaletteViewDefinition {
+  const lowerTitle = title.toLocaleLowerCase();
   return {
     id,
     title,
     icon,
-    placeholder: `Search ${title.toLocaleLowerCase()}…`,
+    placeholder: `Search ${lowerTitle}…`,
     enterHint: "open",
-    description: `Search and open ${title.toLocaleLowerCase()}`,
-    domainTitle,
+    description: `Search and open ${lowerTitle}`,
+    domainTitle: title,
   };
 }
 

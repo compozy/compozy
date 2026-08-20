@@ -1,7 +1,7 @@
 import type { Extension } from "./extension.js";
 import type { ExtensionContext } from "./extension-contract.js";
-import { InvalidParamsError } from "./errors.js";
 import { registerProvideSurface } from "./extension-provide-surface.js";
+import { requestRecord, requiredString } from "./protocol-params.js";
 import type {
   ConnectivityEstablishRequest,
   ConnectivityReachability,
@@ -30,23 +30,8 @@ export interface ConnectivityProviderHandlers {
   ) => Promise<ConnectivityTeardownResponse> | ConnectivityTeardownResponse;
 }
 
-function parseRequestRecord(method: string, request: unknown): Record<string, unknown> {
-  if (typeof request !== "object" || request === null || Array.isArray(request)) {
-    throw new InvalidParamsError(`${method} params must be an object`);
-  }
-  return request as Record<string, unknown>;
-}
-
-function requiredString(method: string, request: Record<string, unknown>, field: string): string {
-  const value = request[field];
-  if (typeof value !== "string" || value.length === 0) {
-    throw new InvalidParamsError(`${method} requires a non-empty ${field}`);
-  }
-  return value;
-}
-
 function parseEstablishRequest(request: unknown): ConnectivityEstablishRequest {
-  const record = parseRequestRecord(CONNECTIVITY_ESTABLISH_METHOD, request);
+  const record = requestRecord(CONNECTIVITY_ESTABLISH_METHOD, request);
   return {
     tier: requiredString(CONNECTIVITY_ESTABLISH_METHOD, record, "tier"),
     forward_target: requiredString(CONNECTIVITY_ESTABLISH_METHOD, record, "forward_target"),
@@ -56,14 +41,14 @@ function parseEstablishRequest(request: unknown): ConnectivityEstablishRequest {
 }
 
 function parseStatusRequest(request: unknown): ConnectivityStatusRequest {
-  const record = parseRequestRecord(CONNECTIVITY_STATUS_METHOD, request);
+  const record = requestRecord(CONNECTIVITY_STATUS_METHOD, request);
   return {
     tier: requiredString(CONNECTIVITY_STATUS_METHOD, record, "tier"),
   };
 }
 
 function parseTeardownRequest(request: unknown): ConnectivityTeardownRequest {
-  const record = parseRequestRecord(CONNECTIVITY_TEARDOWN_METHOD, request);
+  const record = requestRecord(CONNECTIVITY_TEARDOWN_METHOD, request);
   return {
     tier: requiredString(CONNECTIVITY_TEARDOWN_METHOD, record, "tier"),
     deadline: requiredString(CONNECTIVITY_TEARDOWN_METHOD, record, "deadline"),

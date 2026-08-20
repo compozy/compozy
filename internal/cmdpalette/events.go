@@ -21,7 +21,7 @@ const (
 	EventViewSessionDegraded            EventName = "cmd_palette.view_session.degraded"
 	EventViewSessionCircuitBroken       EventName = "cmd_palette.view_session.circuit_broken"
 	EventGlobalHotkeyRegistrationFailed EventName = "global_hotkey.registration_failed"
-	eventSubscriberLimit                          = 32
+	eventSubscriberBufferSize                     = 32
 )
 
 type Event struct {
@@ -118,7 +118,7 @@ func (s *Service) SubscribeCmdPaletteEvents(
 	if workspaceID == "" {
 		return nil, nil, errors.New("cmd palette: event subscription workspace is required")
 	}
-	updates := make(chan Event, eventSubscriberLimit)
+	updates := make(chan Event, eventSubscriberBufferSize)
 	s.eventMu.Lock()
 	s.nextSubscriber++
 	id := s.nextSubscriber

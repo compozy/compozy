@@ -5,21 +5,21 @@ import (
 	"fmt"
 	"strings"
 
+	compozyconfig "github.com/compozy/compozy/internal/config"
 	"github.com/spf13/cobra"
 )
 
 const (
-	cmdPaletteKey           = "cmd-palette"
-	cmdPaletteWorkspaceFlag = "workspace"
-	cmdPaletteClientFlag    = "client"
-	cmdPaletteSourceFlag    = "source"
-	cmdPaletteAvailableFlag = "available"
-	cmdPaletteArgFlag       = "arg"
-	cmdPaletteOverwriteFlag = "overwrite"
-	cmdPaletteInspectUse    = "inspect <id>"
-	cmdPaletteClientsUse    = "clients"
-	cmdPaletteInvalidArgs   = "invalid_arguments"
-	cmdPaletteNoShell       = "no_attached_shell"
+	cmdPaletteKey               = "cmd-palette"
+	cmdPaletteWorkspaceFlag     = "workspace"
+	cmdPaletteClientFlag        = "client"
+	cmdPaletteSourceFlag        = "source"
+	cmdPaletteAvailableFlag     = "available"
+	cmdPaletteAvailableFlagHelp = "Filter by current availability when provided; omitted lists all commands"
+	cmdPaletteArgFlag           = "arg"
+	cmdPaletteOverwriteFlag     = "overwrite"
+	cmdPaletteInvalidArgs       = "invalid_arguments"
+	cmdPaletteNoShell           = "no_attached_shell"
 )
 
 type cmdPaletteScopeFlags struct {
@@ -43,10 +43,6 @@ func newCmdPaletteCommand(deps commandDeps) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   cmdPaletteKey,
 		Short: "List, inspect, and invoke command palette commands",
-		Args:  cobra.NoArgs,
-		RunE: func(cmd *cobra.Command, _ []string) error {
-			return cmd.Help()
-		},
 	}
 	cmd.AddCommand(
 		newCmdPaletteListCommand(deps),
@@ -77,17 +73,11 @@ func cmdPaletteMutationClientAndWorkspace(
 	if !ok {
 		return nil, "", errors.New("cli: command palette mutation client is unavailable")
 	}
-	resolution, err := resolveCommandWorkspace(
-		cmd.Context(),
-		cmd,
-		deps,
-		mutationClient,
-		workspaceResolutionRequest{FlagRef: workspaceRef},
-	)
+	workspaceID, err := resolveCmdPaletteWorkspaceID(cmd, deps, mutationClient, workspaceRef)
 	if err != nil {
 		return nil, "", err
 	}
-	return mutationClient, resolution.ID, nil
+	return mutationClient, workspaceID, nil
 }
 
 func cmdPaletteClientAndWorkspace(
@@ -95,25 +85,34 @@ func cmdPaletteClientAndWorkspace(
 	deps commandDeps,
 	workspaceRef string,
 ) (CmdPaletteClient, string, error) {
-	client, err := clientFromDeps(deps)
+	paletteClient, err := cmdPaletteClientFromDeps(deps)
 	if err != nil {
 		return nil, "", err
 	}
-	paletteClient, ok := client.(CmdPaletteClient)
-	if !ok {
-		return nil, "", errors.New("cli: command palette client is unavailable")
+	workspaceID, err := resolveCmdPaletteWorkspaceID(cmd, deps, paletteClient, workspaceRef)
+	if err != nil {
+		return nil, "", err
 	}
+	return paletteClient, workspaceID, nil
+}
+
+func resolveCmdPaletteWorkspaceID(
+	cmd *cobra.Command,
+	deps commandDeps,
+	lookup workspaceLookupClient,
+	workspaceRef string,
+) (string, error) {
 	resolution, err := resolveCommandWorkspace(
 		cmd.Context(),
 		cmd,
 		deps,
-		paletteClient,
+		lookup,
 		workspaceResolutionRequest{FlagRef: workspaceRef},
 	)
 	if err != nil {
-		return nil, "", err
+		return "", err
 	}
-	return paletteClient, resolution.ID, nil
+	return resolution.ID, nil
 }
 
 func requiredCmdPaletteID(value string, noun string) (string, error) {
@@ -122,4 +121,14 @@ func requiredCmdPaletteID(value string, noun string) (string, error) {
 		return "", withCommandExitCode(2, fmt.Errorf("cli: %s is required", noun))
 	}
 	return trimmed, nil
+}
+
+func requiredCmdPaletteAlias(value string) (string, error) {
+	if value == "" {
+		return "", withCommandExitCode(2, fmt.Errorf("cli: alias is required"))
+	}
+	if err := compozyconfig.ValidateCmdPaletteAlias(value); err != nil {
+		return "", withCommandExitCode(2, fmt.Errorf("cli: alias %w", err))
+	}
+	return value, nil
 }

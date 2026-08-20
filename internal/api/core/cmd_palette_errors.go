@@ -3,6 +3,7 @@ package core
 import (
 	"errors"
 	"net/http"
+	"strings"
 
 	"github.com/compozy/compozy/internal/api/contract"
 	"github.com/compozy/compozy/internal/cmdpalette"
@@ -10,6 +11,8 @@ import (
 )
 
 const runtimeUnavailableErrorCode = "runtime_unavailable"
+
+var errCmdPaletteServiceUnavailable = errors.New("cmd palette service is unavailable")
 
 func (h *BaseHandlers) respondCmdPaletteError(
 	c *gin.Context,
@@ -68,9 +71,5 @@ func cmdPaletteErrorPayload(err error) (int, contract.CmdPaletteError) {
 }
 
 func trimCmdPaletteErrorPrefix(message string) string {
-	const prefix = "cmd palette: "
-	if len(message) >= len(prefix) && message[:len(prefix)] == prefix {
-		return message[len(prefix):]
-	}
-	return message
+	return strings.TrimPrefix(message, "cmd palette: ")
 }

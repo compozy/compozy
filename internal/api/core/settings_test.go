@@ -1590,6 +1590,14 @@ func TestSettingsSectionAndCollectionConversions(t *testing.T) {
 					State:         "active",
 					Health:        "ok",
 					HealthMessage: "healthy",
+					Palette: &settingspkg.InstalledExtensionPalette{
+						Commands: []settingspkg.InstalledExtensionPaletteCommand{{
+							ID: "ext-a.jump", Title: "Jump",
+						}},
+						Views: []settingspkg.InstalledExtensionPaletteView{{
+							ID: "ext-a.recent", Title: "Recent", Available: true,
+						}},
+					},
 				}},
 				TransportParity: settingspkg.TransportParityStatus{
 					Known:          true,
@@ -1626,13 +1634,37 @@ func TestSettingsSectionAndCollectionConversions(t *testing.T) {
 					t.Fatalf("attention response JSON = %s, want muted_workspaces as []", data)
 				}
 				return
+			case settingspkg.SectionHooksExtensions:
+				payload, ok := response.(contract.SettingsHooksExtensionsResponse)
+				if !ok {
+					t.Fatalf("hooks-extensions response = %T, want SettingsHooksExtensionsResponse", response)
+				}
+				if len(payload.Installed) != 1 || payload.Installed[0].Palette == nil {
+					t.Fatalf("installed palette = %#v, want one extension palette", payload.Installed)
+				}
+				palette := payload.Installed[0].Palette
+				if len(palette.Commands) != 1 || palette.Commands[0].ID != "ext-a.jump" ||
+					palette.Commands[0].Bindings == nil || len(palette.Commands[0].Bindings) != 0 {
+					t.Fatalf("palette commands = %#v, want non-null empty bindings", palette.Commands)
+				}
+				if len(palette.Views) != 1 || palette.Views[0].ID != "ext-a.recent" {
+					t.Fatalf("palette views = %#v, want ext-a.recent", palette.Views)
+				}
+				data, err := json.Marshal(palette)
+				if err != nil {
+					t.Fatalf("json.Marshal(palette) error = %v", err)
+				}
+				if !bytes.Contains(data, []byte(`"bindings":[]`)) {
+					t.Fatalf("palette JSON = %s, want bindings as []", data)
+				}
+				return
 			case settingspkg.SectionWindowManager:
 			case settingspkg.SectionCmdPalette:
 				payload, ok := response.(contract.SettingsCmdPaletteResponse)
 				if !ok {
 					t.Fatalf("cmd-palette response = %T, want SettingsCmdPaletteResponse", response)
 				}
-				if !payload.Personalization ||
+				if !payload.Personalization || !payload.FallbackAgentEnabled ||
 					payload.WorkspaceID != "ws-test" ||
 					payload.Scope != contract.SettingsWorkspaceScopeWorkspace {
 					t.Fatalf("cmd-palette response = %#v, want workspace personalization", payload)

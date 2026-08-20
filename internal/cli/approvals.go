@@ -13,10 +13,6 @@ func newApprovalsCommand(deps commandDeps) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   observeApprovalsLabel,
 		Short: "Inspect or cancel pending tool approvals",
-		Args:  cobra.NoArgs,
-		RunE: func(cmd *cobra.Command, _ []string) error {
-			return cmd.Help()
-		},
 	}
 	cmd.AddCommand(
 		newApprovalShowCommand(deps),

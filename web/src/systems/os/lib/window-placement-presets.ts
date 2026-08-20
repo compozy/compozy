@@ -3,16 +3,12 @@ import type { SnapCorner, SnapSide } from "./snap-targets";
 
 export type WindowPlacementId = SnapSide | SnapCorner;
 
-export interface WindowPlacementCommand {
-  id: `window.tile.${WindowPlacementId}`;
+export interface WindowPlacementPreset {
   placement: WindowPlacementId;
-  label: string;
 }
 
-export interface WindowArrangeCommand {
-  id: `layout.arrange.${OsArrangePreset}`;
+export interface WindowArrangePreset {
   preset: OsArrangePreset;
-  label: string;
 }
 
 /**
@@ -20,29 +16,41 @@ export interface WindowArrangeCommand {
  * is attached to, not whichever window happens to be focused.
  *
  * This is not a command catalog: the palette's and menubar's tiling rows come
- * from the registry projection, and their ids match these only because both
- * describe the same geometry. Nothing here is invokable by id.
+ * from the registry projection. IDs here are only derived so the menu can look
+ * up the live title. Nothing here is invokable by id.
  */
-export const WINDOW_PLACEMENT_COMMANDS: readonly WindowPlacementCommand[] = [
-  { id: "window.tile.left", placement: "left", label: "Tile left half" },
-  { id: "window.tile.right", placement: "right", label: "Tile right half" },
-  { id: "window.tile.top", placement: "top", label: "Tile top half" },
-  { id: "window.tile.bottom", placement: "bottom", label: "Tile bottom half" },
-  { id: "window.tile.top-left", placement: "top-left", label: "Tile top left quarter" },
-  { id: "window.tile.top-right", placement: "top-right", label: "Tile top right quarter" },
-  { id: "window.tile.bottom-left", placement: "bottom-left", label: "Tile bottom left quarter" },
-  { id: "window.tile.bottom-right", placement: "bottom-right", label: "Tile bottom right quarter" },
+export const WINDOW_PLACEMENT_PRESETS: readonly WindowPlacementPreset[] = [
+  { placement: "left" },
+  { placement: "right" },
+  { placement: "top" },
+  { placement: "bottom" },
+  { placement: "top-left" },
+  { placement: "top-right" },
+  { placement: "bottom-left" },
+  { placement: "bottom-right" },
 ];
 
-export const WINDOW_ARRANGE_COMMANDS: readonly WindowArrangeCommand[] = [
-  { id: "layout.arrange.two-up", preset: "two-up", label: "Arrange left & right" },
-  { id: "layout.arrange.grid", preset: "grid", label: "Arrange in grid" },
+export const WINDOW_ARRANGE_PRESETS: readonly WindowArrangePreset[] = [
+  { preset: "two-up" },
+  { preset: "grid" },
 ];
+
+export function windowPlacementCommandId(
+  placement: WindowPlacementId
+): `window.tile.${WindowPlacementId}` {
+  return `window.tile.${placement}`;
+}
+
+export function windowArrangeCommandId(
+  preset: OsArrangePreset
+): `layout.arrange.${OsArrangePreset}` {
+  return `layout.arrange.${preset}`;
+}
 
 export function dispatchWindowPlacement(
   manager: WindowManagerController,
   windowId: string,
-  command: WindowPlacementCommand
+  preset: WindowPlacementPreset
 ): void {
-  manager.tileWindow(windowId, command.placement);
+  manager.tileWindow(windowId, preset.placement);
 }

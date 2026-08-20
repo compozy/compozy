@@ -1,7 +1,6 @@
 package core
 
 import (
-	"errors"
 	"fmt"
 	"net/http"
 	"strings"
@@ -23,7 +22,7 @@ func (h *BaseHandlers) ListCmdPaletteCommands(c *gin.Context) {
 		return
 	}
 	if h.CmdPalette == nil {
-		h.respondCmdPaletteError(c, workspaceID, errors.New("cmd palette service is unavailable"))
+		h.respondCmdPaletteError(c, workspaceID, errCmdPaletteServiceUnavailable)
 		return
 	}
 	catalog, err := h.CmdPalette.Catalog(
@@ -42,7 +41,7 @@ func (h *BaseHandlers) ListCmdPaletteClients(c *gin.Context) {
 		return
 	}
 	if h.CmdPalette == nil {
-		h.respondCmdPaletteError(c, workspaceID, errors.New("cmd palette service is unavailable"))
+		h.respondCmdPaletteError(c, workspaceID, errCmdPaletteServiceUnavailable)
 		return
 	}
 	clients, err := h.CmdPalette.Clients(c.Request.Context(), workspaceID)
@@ -55,7 +54,7 @@ func (h *BaseHandlers) ListCmdPaletteClients(c *gin.Context) {
 
 func (h *BaseHandlers) InvokeCmdPaletteCommand(c *gin.Context) {
 	if h.CmdPalette == nil {
-		h.respondCmdPaletteError(c, "", errors.New("cmd palette service is unavailable"))
+		h.respondCmdPaletteError(c, "", errCmdPaletteServiceUnavailable)
 		return
 	}
 	var body contract.CmdPaletteInvokeRequest
@@ -88,9 +87,7 @@ func (h *BaseHandlers) InvokeCmdPaletteCommand(c *gin.Context) {
 	if result.Status == cmdpalette.InvokeStatusApprovalPending {
 		status = http.StatusAccepted
 	}
-	c.JSON(status, contract.CmdPaletteInvokeResult{
-		Status: result.Status, Result: result.Result, ApprovalID: result.ApprovalID,
-	})
+	c.JSON(status, contract.CmdPaletteInvokeFromDomain(result))
 }
 
 func (h *BaseHandlers) resolveCmdPaletteWorkspace(

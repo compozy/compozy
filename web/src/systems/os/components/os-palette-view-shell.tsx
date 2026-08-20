@@ -1,4 +1,4 @@
-import { useState, type KeyboardEvent } from "react";
+import { useLayoutEffect, useRef, useState, type KeyboardEvent } from "react";
 
 import {
   Command,
@@ -21,9 +21,7 @@ import type { PaletteViewContent, PaletteViewDefinition } from "../lib/palette-v
 import type { PaletteBreadcrumb } from "../lib/palette-view-stack";
 import { OsPaletteBreadcrumb } from "./os-palette-breadcrumb";
 import { OsPaletteFooter } from "./os-palette-footer";
-import { OsPaletteVirtualRows } from "./os-palette-virtual-rows";
-
-const PALETTE_VIEW_VIRTUAL_THRESHOLD = 150;
+import { OsPaletteVirtualRows, PALETTE_VIEW_VIRTUAL_THRESHOLD } from "./os-palette-virtual-rows";
 
 export interface OsPaletteViewShellProps {
   definition: PaletteViewDefinition;
@@ -33,6 +31,7 @@ export interface OsPaletteViewShellProps {
   onQueryChange: (query: string) => void;
   /** Leaves this level for the one below it. */
   onPop: () => void;
+  loading?: boolean;
 }
 
 function sameRowOrder(left: readonly string[], right: readonly string[]): boolean {
@@ -56,7 +55,30 @@ export function OsPaletteViewShell({
   query,
   onQueryChange,
   onPop,
+  loading = false,
 }: OsPaletteViewShellProps) {
+  const frameRef = useRef<HTMLDivElement>(null);
+  const inputRef = useRef<HTMLInputElement>(null);
+  useLayoutEffect(() => {
+    const frame = frameRef.current;
+    const input = inputRef.current;
+    if (!frame || !input) return;
+    const hiddenAncestor = () => frame.closest("[hidden]") !== null;
+    let wasHidden = hiddenAncestor();
+    const restore = () => {
+      const hidden = hiddenAncestor();
+      if (wasHidden && !hidden) input.focus();
+      if (!wasHidden && hidden && document.activeElement === input) input.blur();
+      wasHidden = hidden;
+    };
+    const observer = new MutationObserver(restore);
+    let node: HTMLElement | null = frame;
+    while (node) {
+      observer.observe(node, { attributes: true, attributeFilter: ["hidden"] });
+      node = node.parentElement;
+    }
+    return () => observer.disconnect();
+  }, []);
   const values = content.rows.map(row => row.value);
   const resetToken = `${query}\u0000${content.resetKey}`;
   const [snapshot, setSnapshot] = useState<{ token: string; values: readonly string[] }>({
@@ -114,40 +136,45 @@ export function OsPaletteViewShell({
     );
 
   return (
-    <Command
-      data-testid="os-command-palette"
-      data-palette-view={definition.id}
-      data-palette-kind={content.kind ?? "list"}
-      shouldFilter={false}
-      value={selected}
-      onValueChange={onSelectionChange}
-      className={cn(paletteViewFrameClass, paletteViewFieldClass)}
-    >
-      <OsPaletteBreadcrumb breadcrumb={breadcrumb} />
-      <CommandInput
-        autoFocus
-        value={query}
-        onValueChange={onQueryChange}
-        onKeyDown={onInputKeyDown}
-        placeholder={definition.placeholder}
-      />
-      {content.header}
-      {content.body === undefined ? (
-        <div className={cn("flex min-h-0", content.aside && "divide-x divide-line")}>
-          <div className="min-w-0 flex-1">{list}</div>
-          {content.aside}
-        </div>
-      ) : (
-        <div className={cn(paletteViewListClass, "overflow-auto")} data-palette-view-body>
-          {content.body}
-        </div>
-      )}
-      <OsPaletteFooter
-        enterHint={definition.enterHint}
-        backHint={content.backHint}
-        hasFilters={content.header !== null}
-        className={cn(paletteViewLeadClass, "py-3")}
-      />
-    </Command>
+    <div ref={frameRef} className="contents">
+      <Command
+        aria-busy={loading}
+        data-testid="os-command-palette"
+        data-palette-view={definition.id}
+        data-palette-kind={content.kind ?? "list"}
+        {...(loading ? { "data-palette-loading": "true" } : {})}
+        shouldFilter={false}
+        value={selected}
+        onValueChange={onSelectionChange}
+        className={cn(paletteViewFrameClass, paletteViewFieldClass)}
+      >
+        <OsPaletteBreadcrumb breadcrumb={breadcrumb} />
+        <CommandInput
+          ref={inputRef}
+          autoFocus
+          value={query}
+          onValueChange={onQueryChange}
+          onKeyDown={onInputKeyDown}
+          placeholder={definition.placeholder}
+        />
+        {content.header}
+        {content.body === undefined ? (
+          <div className={cn("flex min-h-0", content.aside && "divide-x divide-line")}>
+            <div className="min-w-0 flex-1">{list}</div>
+            {content.aside}
+          </div>
+        ) : (
+          <div className={cn(paletteViewListClass, "overflow-auto")} data-palette-view-body>
+            {content.body}
+          </div>
+        )}
+        <OsPaletteFooter
+          enterHint={definition.enterHint}
+          backHint={content.backHint}
+          hasFilters={content.header !== null}
+          className={cn(paletteViewLeadClass, "py-3")}
+        />
+      </Command>
+    </div>
   );
 }

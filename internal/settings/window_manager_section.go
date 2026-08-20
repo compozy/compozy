@@ -37,10 +37,13 @@ func (s *service) buildWindowManagerSection(
 		section.Commands = make([]WindowManagerShortcutCommand, 0, len(catalog.Commands))
 		section.EffectiveShortcuts = make(map[string]windowmanager.ShortcutBinding, len(catalog.Commands))
 		section.Aliases = make(map[string]string)
-		bindableIDs := make(windowmanager.BindableIDs, len(catalog.Commands))
+		catalogIDs := make([]string, 0, len(catalog.Commands))
+		for _, command := range catalog.Commands {
+			catalogIDs = append(catalogIDs, string(command.ID))
+		}
+		bindableIDs := catalogBindableIDs(catalogIDs)
 		for _, command := range catalog.Commands {
 			commandID := string(command.ID)
-			bindableIDs[commandID] = struct{}{}
 			section.Commands = append(section.Commands, WindowManagerShortcutCommand{
 				ID:      commandID,
 				Title:   command.Title,

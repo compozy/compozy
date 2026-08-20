@@ -15,6 +15,7 @@ var (
 	ErrCannotDeferSecrets = errors.New("cmd palette: cannot defer secrets")
 	ErrClientUnauthorized = errors.New("cmd palette: client unauthorized")
 	ErrInvalidExecution   = errors.New("cmd palette: invalid execution result")
+	ErrUnsafeURL          = errors.New("cmd palette: url must be an absolute http or https URL")
 )
 
 type InvalidArgumentsError struct {

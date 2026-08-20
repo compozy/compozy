@@ -15,7 +15,7 @@ func (h *BaseHandlers) StreamCmdPalette(c *gin.Context) {
 		return
 	}
 	if h.CmdPalette == nil {
-		h.respondCmdPaletteError(c, workspaceID, errors.New("cmd palette service is unavailable"))
+		h.respondCmdPaletteError(c, workspaceID, errCmdPaletteServiceUnavailable)
 		return
 	}
 	subscriber, ok := h.CmdPalette.(cmdpalette.EventSubscriber)

@@ -239,7 +239,7 @@ export function useWindowManagerConfigEditor(baseline: WindowManagerConfig) {
       return next;
     },
     onSuccess: async () => {
-      await queryClient.invalidateQueries({ queryKey: windowManagerKeys.config(), exact: true });
+      await queryClient.invalidateQueries({ queryKey: windowManagerKeys.configs() });
     },
   });
   const dirty = configRevision(context.draft) !== context.baselineRevision;

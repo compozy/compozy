@@ -161,6 +161,23 @@ func TestConfigCommandsMutateValidateAndInspectTempHome(t *testing.T) {
 		) {
 			t.Fatalf("WindowManager.Shortcuts[window.focus.left] = %q, want %q", got, want)
 		}
+		if _, _, err := executeRootCommand(
+			t,
+			deps,
+			"config",
+			"set",
+			"window_manager.global_shortcuts.session.new",
+			"meta+shift+KeyN",
+		); err != nil {
+			t.Fatalf("config set window manager global shortcut error = %v", err)
+		}
+		configured, err = compozyconfig.LoadGlobalConfig(homePaths)
+		if err != nil {
+			t.Fatalf("LoadGlobalConfig(global shortcuts) error = %v", err)
+		}
+		if got, want := configured.WindowManager.GlobalShortcuts["session.new"], "meta+shift+KeyN"; got != want {
+			t.Fatalf("WindowManager.GlobalShortcuts[session.new] = %q, want %q", got, want)
+		}
 		discoveryOut, _, err := executeRootCommand(
 			t,
 			deps,
@@ -178,8 +195,10 @@ func TestConfigCommandsMutateValidateAndInspectTempHome(t *testing.T) {
 			t.Fatalf("json.Unmarshal(config get window_manager) error = %v", err)
 		}
 		discovery, ok := discoveryRecord.Value.(map[string]any)
-		if !ok || discovery["defaults"] == nil || discovery["effective"] == nil {
-			t.Fatalf("config get window_manager value = %#v, want defaults and effective", discoveryRecord.Value)
+		if !ok || discovery["defaults"] == nil || discovery["effective"] == nil ||
+			!strings.Contains(discoveryOut, "global_shortcuts") ||
+			!strings.Contains(discoveryOut, "session.new") {
+			t.Fatalf("config get window_manager value = %#v, want global_shortcuts.session.new", discoveryRecord.Value)
 		}
 		if _, _, invalidErr := executeRootCommand(
 			t,
@@ -677,12 +696,12 @@ func TestConfigSetWindowManagerWritesOverlayAndReloadsWhenDaemonRuns(t *testing.
 	if err != nil {
 		t.Fatalf("resolveHome() error = %v", err)
 	}
-	contents, err := os.ReadFile(homePaths.ConfigFile)
+	cfg, err := compozyconfig.LoadGlobalConfig(homePaths)
 	if err != nil {
-		t.Fatalf("read config overlay: %v", err)
+		t.Fatalf("LoadGlobalConfig() error = %v", err)
 	}
-	if !strings.Contains(string(contents), "nav_stack_limit = 1") {
-		t.Fatalf("config overlay = %q, want nav_stack_limit = 1", contents)
+	if cfg.WindowManager.NavStackLimit != 1 {
+		t.Fatalf("WindowManager.NavStackLimit = %d, want 1", cfg.WindowManager.NavStackLimit)
 	}
 
 	var record configSetRecord

@@ -214,18 +214,21 @@ type ClientContextInput struct {
 	GlobalShortcuts     []GlobalShortcutRegistration
 }
 
+// ClientContextUpdate replaces one attached client's palette and global-shortcut context.
 type ClientContextUpdate struct {
 	WorkspaceID WorkspaceID
 	ClientID    ClientID
 	Context     ClientContextInput
 }
 
+// ClientCommand is one invocation the daemon dispatches to an attached client.
 type ClientCommand struct {
 	CommandID string          `json:"command_id"`
 	Op        string          `json:"op"`
 	Payload   json.RawMessage `json:"payload,omitempty"`
 }
 
+// ClientCommandResponseStatus is the ack, result, or error stage of one command.
 type ClientCommandResponseStatus string
 
 const (
@@ -234,6 +237,7 @@ const (
 	ClientCommandFailed       ClientCommandResponseStatus = "error"
 )
 
+// ClientCommandResponse is the client's ack, result, or error for one command.
 type ClientCommandResponse struct {
 	CommandID string                      `json:"command_id"`
 	Status    ClientCommandResponseStatus `json:"status"`
@@ -241,6 +245,7 @@ type ClientCommandResponse struct {
 	Error     string                      `json:"error,omitempty"`
 }
 
+// ClientCommandConnection is the live channel used to dispatch and resolve commands.
 type ClientCommandConnection interface {
 	Commands() <-chan ClientCommand
 	Done() <-chan struct{}

@@ -69952,6 +69952,15 @@
             "schema": {
               "type": "string"
             }
+          },
+          {
+            "description": "Attached client identity token",
+            "in": "header",
+            "name": "X-Compozy-Client-Token",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
           }
         ],
         "requestBody": {
@@ -69990,12 +69999,16 @@
                     "approval_id": {
                       "type": "string"
                     },
+                    "invocation_id": {
+                      "type": "string"
+                    },
                     "result": {},
                     "status": {
                       "type": "string"
                     }
                   },
                   "required": [
+                    "invocation_id",
                     "status"
                   ],
                   "type": "object"
@@ -70012,12 +70025,16 @@
                     "approval_id": {
                       "type": "string"
                     },
+                    "invocation_id": {
+                      "type": "string"
+                    },
                     "result": {},
                     "status": {
                       "type": "string"
                     }
                   },
                   "required": [
+                    "invocation_id",
                     "status"
                   ],
                   "type": "object"
@@ -70025,6 +70042,42 @@
               }
             },
             "description": "Approval pending"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "clients": {
+                      "items": {
+                        "type": "string"
+                      },
+                      "type": "array"
+                    },
+                    "error": {
+                      "type": "string"
+                    },
+                    "fields": {
+                      "additionalProperties": {
+                        "type": "string"
+                      },
+                      "type": "object"
+                    },
+                    "message": {
+                      "type": "string"
+                    },
+                    "reason": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "error"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Invalid request"
           },
           "401": {
             "content": {
@@ -70544,6 +70597,42 @@
             },
             "description": "Unpinned"
           },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "clients": {
+                      "items": {
+                        "type": "string"
+                      },
+                      "type": "array"
+                    },
+                    "error": {
+                      "type": "string"
+                    },
+                    "fields": {
+                      "additionalProperties": {
+                        "type": "string"
+                      },
+                      "type": "object"
+                    },
+                    "message": {
+                      "type": "string"
+                    },
+                    "reason": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "error"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Invalid workspace"
+          },
           "404": {
             "content": {
               "application/json": {
@@ -70666,6 +70755,42 @@
               }
             },
             "description": "Pinned"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "clients": {
+                      "items": {
+                        "type": "string"
+                      },
+                      "type": "array"
+                    },
+                    "error": {
+                      "type": "string"
+                    },
+                    "fields": {
+                      "additionalProperties": {
+                        "type": "string"
+                      },
+                      "type": "object"
+                    },
+                    "message": {
+                      "type": "string"
+                    },
+                    "reason": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "error"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Invalid workspace"
           },
           "404": {
             "content": {
@@ -71544,6 +71669,42 @@
             },
             "description": "Accepted"
           },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "clients": {
+                      "items": {
+                        "type": "string"
+                      },
+                      "type": "array"
+                    },
+                    "error": {
+                      "type": "string"
+                    },
+                    "fields": {
+                      "additionalProperties": {
+                        "type": "string"
+                      },
+                      "type": "object"
+                    },
+                    "message": {
+                      "type": "string"
+                    },
+                    "reason": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "error"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Invalid request"
+          },
           "403": {
             "content": {
               "application/json": {
@@ -71910,6 +72071,7 @@
                               "type": "string"
                             },
                             "search_text": {
+                              "nullable": true,
                               "type": "string"
                             },
                             "throttle_ms": {
@@ -72943,6 +73105,7 @@
                               "type": "string"
                             },
                             "search_text": {
+                              "nullable": true,
                               "type": "string"
                             },
                             "throttle_ms": {
@@ -74209,6 +74372,7 @@
                                   "type": "string"
                                 },
                                 "search_text": {
+                                  "nullable": true,
                                   "type": "string"
                                 },
                                 "throttle_ms": {
@@ -75054,6 +75218,42 @@
             },
             "description": "Opened"
           },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "clients": {
+                      "items": {
+                        "type": "string"
+                      },
+                      "type": "array"
+                    },
+                    "error": {
+                      "type": "string"
+                    },
+                    "fields": {
+                      "additionalProperties": {
+                        "type": "string"
+                      },
+                      "type": "object"
+                    },
+                    "message": {
+                      "type": "string"
+                    },
+                    "reason": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "error"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Invalid request"
+          },
           "401": {
             "content": {
               "application/json": {
@@ -75382,6 +75582,7 @@
                               "type": "string"
                             },
                             "search_text": {
+                              "nullable": true,
                               "type": "string"
                             },
                             "throttle_ms": {
@@ -76290,6 +76491,42 @@
               }
             },
             "description": "View not found"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "clients": {
+                      "items": {
+                        "type": "string"
+                      },
+                      "type": "array"
+                    },
+                    "error": {
+                      "type": "string"
+                    },
+                    "fields": {
+                      "additionalProperties": {
+                        "type": "string"
+                      },
+                      "type": "object"
+                    },
+                    "message": {
+                      "type": "string"
+                    },
+                    "reason": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "error"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Invalid view payload"
           },
           "503": {
             "content": {

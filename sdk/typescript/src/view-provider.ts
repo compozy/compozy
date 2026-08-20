@@ -2,6 +2,7 @@ import type { Extension } from "./extension.js";
 import type { ExtensionContext } from "./extension-contract.js";
 import { InvalidParamsError } from "./errors.js";
 import { registerProvideSurface } from "./extension-provide-surface.js";
+import { isRequestRecord, requestRecord, requiredString } from "./protocol-params.js";
 import type { ViewCloseRequest, ViewEvent, ViewFrame, ViewOpenRequest } from "./types.js";
 import { ViewSessionRegistry } from "./view-session-registry.js";
 
@@ -86,7 +87,7 @@ export function registerViewProvider(
 function parseOpenRequest(params: unknown): ViewOpenRequest {
   const record = requestRecord(VIEW_OPEN_METHOD, params);
   const args = record.args;
-  if (args !== undefined && (!isRecord(args) || Array.isArray(args))) {
+  if (args !== undefined && !isRequestRecord(args)) {
     throw new InvalidParamsError(`${VIEW_OPEN_METHOD} args must be an object`);
   }
   return {
@@ -110,7 +111,7 @@ function parseEvent(params: unknown): ViewEvent {
     generation,
     ...(Array.isArray(record.args) ? { args: record.args as NonNullable<ViewEvent["args"]> } : {}),
     ...(Array.isArray(record.ack_effects) ? { ack_effects: record.ack_effects as string[] } : {}),
-    ...(isRecord(record.effect_result)
+    ...(isRequestRecord(record.effect_result)
       ? {
           effect_result: record.effect_result as unknown as NonNullable<ViewEvent["effect_result"]>,
         }
@@ -131,13 +132,13 @@ function parseCloseRequest(params: unknown): ViewCloseRequest {
 }
 
 function validateFrame(frame: ViewFrame, viewSession: string): void {
-  if (!isRecord(frame)) {
+  if (!isRequestRecord(frame)) {
     throw new InvalidParamsError("view provider must return a frame object");
   }
   if (frame.view_session !== viewSession) {
     throw new InvalidParamsError("view frame session does not match the request");
   }
-  if (!requiredNonEmpty(frame.revision)) {
+  if (typeof frame.revision !== "string" || frame.revision.length === 0) {
     throw new InvalidParamsError("view frame revision is required");
   }
   if (!Number.isSafeInteger(frame.generation) || frame.generation < 0) {
@@ -151,21 +152,6 @@ function validateFrame(frame: ViewFrame, viewSession: string): void {
   }
 }
 
-function requestRecord(method: string, params: unknown): Record<string, unknown> {
-  if (!isRecord(params)) {
-    throw new InvalidParamsError(`${method} params must be an object`);
-  }
-  return params;
-}
-
-function requiredString(method: string, record: Record<string, unknown>, field: string): string {
-  const value = record[field];
-  if (!requiredNonEmpty(value)) {
-    throw new InvalidParamsError(`${method} requires a non-empty ${field}`);
-  }
-  return value;
-}
-
 function requiredPositiveInteger(
   method: string,
   record: Record<string, unknown>,
@@ -176,12 +162,4 @@ function requiredPositiveInteger(
     throw new InvalidParamsError(`${method} requires a positive integer ${field}`);
   }
   return value as number;
-}
-
-function requiredNonEmpty(value: unknown): value is string {
-  return typeof value === "string" && value.length > 0;
-}
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === "object" && value !== null && !Array.isArray(value);
 }

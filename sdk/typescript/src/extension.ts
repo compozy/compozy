@@ -13,6 +13,7 @@ import type {
   HookEvent,
   ExtensionCommandGroupSpec,
   ExtensionToolRuntimeDescriptor,
+  ExtensionToolCallResponse,
   JSONRPCRequestEnvelope,
   JSONValue,
   ShutdownResponse,
@@ -305,7 +306,7 @@ export class Extension {
     request: JSONRPCRequestEnvelope,
     signal: AbortSignal
   ): Promise<unknown> {
-    const requestKey = `${typeof request.id}:${String(request.id)}`;
+    const requestKey = this.requestKey(request);
     this.requestSignals.set(requestKey, signal);
     try {
       if (method === "initialize") {
@@ -419,7 +420,10 @@ export class Extension {
     return { acknowledged: true };
   }
 
-  private async handleToolCall(request: JSONRPCRequestEnvelope, params: unknown) {
+  private async handleToolCall(
+    request: JSONRPCRequestEnvelope,
+    params: unknown
+  ): Promise<ExtensionToolCallResponse> {
     return await callRegisteredTool(this.toolHandlers, params, this.makeContext(request));
   }
 
@@ -436,9 +440,13 @@ export class Extension {
   }
 
   private makeContext(request: JSONRPCRequestEnvelope): ExtensionContext {
-    const requestKey = `${typeof request.id}:${String(request.id)}`;
+    const requestKey = this.requestKey(request);
     const signal = this.requestSignals.get(requestKey) ?? new AbortController().signal;
     return makeExtensionContext(request, signal, this.host, this.session, this.stderr);
+  }
+
+  private requestKey(request: JSONRPCRequestEnvelope): string {
+    return `${typeof request.id}:${String(request.id)}`;
   }
 
   private logError(message: string, error: unknown): void {

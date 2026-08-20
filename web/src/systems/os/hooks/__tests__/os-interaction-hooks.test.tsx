@@ -105,12 +105,12 @@ const CONFIG: WindowManagerConfig = {
  * chords, availability and ids from here exactly as it does in the shell — no
  * TypeScript keymap of its own remains.
  */
-function shortcutRegistry(
-  overrides: Record<string, readonly string[]> = {},
-  availability: Record<string, boolean> = {}
-): PaletteRegistry {
-  const bindings: Record<string, readonly string[]> = { ...TEST_KEYMAP, ...overrides };
-  const commands = Object.entries(bindings).map(([id, chords]) => ({
+function shortcutCommand(
+  id: string,
+  chords: readonly string[],
+  available: boolean
+): ResolvedPaletteCommand {
+  return {
     id,
     title: id,
     section: "Shell",
@@ -124,10 +124,20 @@ function shortcutRegistry(
     action: { kind: "client_op", op: id },
     execution: { retry_safe: true, single_flight: false },
     visible: true,
-    available: availability[id] ?? true,
-    reason: (availability[id] ?? true) ? "" : "runtime unavailable",
+    available,
+    reason: available ? "" : "runtime unavailable",
     chords: [],
-  })) as unknown as ResolvedPaletteCommand[];
+  } as ResolvedPaletteCommand;
+}
+
+function shortcutRegistry(
+  overrides: Record<string, readonly string[]> = {},
+  availability: Record<string, boolean> = {}
+): PaletteRegistry {
+  const bindings: Record<string, readonly string[]> = { ...TEST_KEYMAP, ...overrides };
+  const commands = Object.entries(bindings).map(([id, chords]) =>
+    shortcutCommand(id, chords, availability[id] ?? true)
+  );
   return {
     commands,
     byId: new Map(commands.map(command => [command.id, command])),
@@ -1536,9 +1546,7 @@ describe("useOsZoomMenu", () => {
     act(() => live.result.current.onOpenChange(true));
     act(() =>
       live.result.current.dispatchPlacement({
-        id: "window.tile.left",
         placement: "left",
-        label: "Tile left half",
       })
     );
     expect(liveShell.controller.tileWindow).toHaveBeenCalledWith("window:primary", "left");

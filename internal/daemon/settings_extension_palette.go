@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"sort"
 
+	"github.com/compozy/compozy/internal/cmdpalette"
 	extensionpkg "github.com/compozy/compozy/internal/extension"
 	settingspkg "github.com/compozy/compozy/internal/settings"
 	"github.com/compozy/compozy/internal/windowmanager"
@@ -35,7 +36,8 @@ func (s *settingsRuntimeSurface) attachExtensionPaletteSettings(
 	for _, item := range projection.Defaults {
 		claims = append(claims, windowmanager.ExtensionDefaultShortcut{
 			CommandID: item.CommandID, Chord: item.Chord,
-			Source: "ext." + item.Extension, Active: item.Active,
+			Source: (cmdpalette.Source{Kind: cmdpalette.SourceKindExtension, Extension: item.Extension}).ID(),
+			Active: item.Active,
 		})
 	}
 	effective, statuses, _, err := windowmanager.TolerantEffectiveKeymapWithExtensionDefaults(

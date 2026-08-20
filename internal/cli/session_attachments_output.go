@@ -20,7 +20,7 @@ func sessionAttachmentBundle(info SessionAttachmentRecord) outputBundle {
 		},
 		toon: func() (string, error) {
 			return renderToonObject("session_attachment", []string{
-				"id", sessionNameKey, "mime_type", cliBytesKey, "sha256", networkKindKey,
+				"id", sessionNameKey, "mime_type", cliBytesKey, "sha256", cliKindKey,
 				"width", "height", "created_at",
 			}, []string{
 				info.ID,

@@ -90,6 +90,10 @@ describe("ticketed web socket", () => {
     const socket = createStreamWebSocket(STREAM_PATH);
     expect(() => socket.send("before-open")).toThrow("The stream WebSocket is not open.");
     await vi.waitFor(() => expect(FakeWebSocket.instances).toHaveLength(1));
+    const native = FakeWebSocket.instances[0];
+    native.readyState = 0;
+    expect(() => socket.send("connecting")).toThrow("The stream WebSocket is not open.");
+    native.readyState = FakeWebSocket.OPEN;
 
     socket.send("client-result");
     expect(FakeWebSocket.instances[0].send).toHaveBeenCalledWith("client-result");

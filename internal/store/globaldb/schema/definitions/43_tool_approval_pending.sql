@@ -29,4 +29,4 @@ CREATE INDEX idx_tool_approval_pending_workspace_status
 	ON tool_approval_pending (workspace_id, approval_status, expires_at, approval_id);
 
 CREATE INDEX idx_tool_approval_pending_recovery
-	ON tool_approval_pending (approval_status, execution_status, expires_at, resume_fence);
+	ON tool_approval_pending (approval_status, execution_status, resume_fence, expires_at);

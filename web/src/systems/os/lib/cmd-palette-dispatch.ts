@@ -1,5 +1,6 @@
 import { commandNeedsArguments } from "./cmd-palette-args";
 import { paletteClientOp, type PaletteClientOpContext } from "./cmd-palette-client-ops";
+import { resolvePaletteCopyContent } from "./cmd-palette-copy";
 import type { CmdPaletteInvokeResult, ResolvedPaletteCommand } from "./cmd-palette-types";
 
 /**
@@ -9,7 +10,8 @@ import type { CmdPaletteInvokeResult, ResolvedPaletteCommand } from "./cmd-palet
  * daemon's own `client_command` frame — converges here, so availability,
  * routing and feedback cannot differ by how the operator got in. Execution site
  * is derived from the action kind, never declared twice: `tool` runs in the
- * daemon under its policy, everything else runs in this client.
+ * daemon under its policy, everything else runs in this client. Host-target
+ * `copy` writes the clipboard here after the same gates — never via invoke.
  *
  * Two gates run before any of that. A command that declares arguments cannot
  * execute without them, and a command that declares a confirmation cannot
@@ -43,6 +45,8 @@ export interface PaletteDispatchPorts {
   pushView(viewId: string): void;
   /** The sanctioned external opener; never a bare `window.open`. */
   openUrl(url: string): void;
+  /** Writes host-target copy content after the seam's copy policy gates. */
+  copyToClipboard(content: string): Promise<void>;
   /** Fire-and-forget usage report; failures log, never block (Key Decisions). */
   reportUsage(commandId: string, query: string): void;
   /** Reconciles the source list after an invocation proves its target stale. */
@@ -159,34 +163,45 @@ export async function dispatchPaletteCommand({
     ports.requestConfirmation(command, resolvedArgs);
     return { status: "needs_confirmation" };
   }
+  const ran = (): PaletteDispatchOutcome => {
+    ports.reportUsage(command.id, query);
+    return { status: "ran" };
+  };
   const action = command.action;
   if (action.kind === "client_op") {
     const handler = paletteClientOp(action.op ?? command.id);
     if (handler === null) return refuse(ports, command, UNSUPPORTED_CLIENT_OP_REASON);
     await handler(ports.clientOps, resolvedArgs);
-    ports.reportUsage(command.id, query);
-    return { status: "ran" };
+    return ran();
   }
   if (action.kind === "navigate") {
     const app = action.app?.trim() ?? "";
     if (app === "") return refuse(ports, command, UNSUPPORTED_CLIENT_OP_REASON);
     ports.navigate(app, pathnameFrom(resolvedArgs));
-    ports.reportUsage(command.id, query);
-    return { status: "ran" };
+    return ran();
   }
   if (action.kind === "view") {
     const view = action.view?.trim() ?? "";
     if (view === "") return refuse(ports, command, UNSUPPORTED_CLIENT_OP_REASON);
     ports.pushView(view);
-    ports.reportUsage(command.id, query);
-    return { status: "ran" };
+    return ran();
   }
   if (action.kind === "url") {
     const url = action.url?.trim() ?? "";
     if (url === "") return refuse(ports, command, UNSUPPORTED_CLIENT_OP_REASON);
     ports.openUrl(url);
-    ports.reportUsage(command.id, query);
-    return { status: "ran" };
+    return ran();
+  }
+  if (action.kind === "copy") {
+    const resolved = resolvePaletteCopyContent(action, resolvedArgs);
+    if (!resolved.ok) return refuse(ports, command, resolved.reason);
+    try {
+      await ports.copyToClipboard(resolved.content);
+    } catch (error) {
+      const reason = error instanceof Error ? error.message : UNSUPPORTED_CLIENT_OP_REASON;
+      return refuse(ports, command, reason);
+    }
+    return ran();
   }
   return await runInvoke(command, ports, resolvedArgs);
 }

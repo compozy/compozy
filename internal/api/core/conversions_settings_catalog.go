@@ -52,7 +52,7 @@ func settingsInstalledExtensionPalettePayload(
 	for _, command := range value.Commands {
 		payload.Commands = append(payload.Commands, contract.SettingsInstalledExtensionPaletteCommandPayload{
 			ID: strings.TrimSpace(command.ID), Title: strings.TrimSpace(command.Title),
-			Bindings:       append([]string(nil), command.Bindings...),
+			Bindings:       append([]string{}, command.Bindings...),
 			DefaultBinding: strings.TrimSpace(command.DefaultBinding),
 			DefaultDormant: command.DefaultDormant, ConflictWith: strings.TrimSpace(command.ConflictWith),
 			Available: command.Available, Reason: strings.TrimSpace(command.Reason),

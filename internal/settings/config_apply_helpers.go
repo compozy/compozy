@@ -56,8 +56,7 @@ func (s *service) classifyRuntimeSectionApplyRequest(
 		}
 		return s.classifyGatewayRequest(ctx, req)
 	case SectionWindowManager:
-		if req.WindowManager == nil && req.WindowManagerShortcuts == nil &&
-			req.WindowManagerGlobalShortcuts == nil && req.WindowManagerAliases == nil {
+		if !hasWindowManagerMutation(req) {
 			return lifecycle.Live
 		}
 		return s.classifyWindowManagerRequest(ctx, req)
@@ -151,7 +150,7 @@ func cloneActiveConfig(cfg *compozyconfig.Config) compozyconfig.Config {
 	cloned.Roles = compozyconfig.CloneRolesConfig(&cfg.Roles)
 	cloned.RoleSources = compozyconfig.CloneRoleFieldSources(cfg.RoleSources)
 	cloned.WindowManager = cloneWindowManagerConfig(cfg.WindowManager)
-	cloned.CmdPalette = compozyconfig.CloneConfig(cfg).CmdPalette
+	cloned.CmdPalette = compozyconfig.CloneCmdPaletteConfig(cfg.CmdPalette)
 	cloned.Attention = cloneAttentionConfig(cfg.Attention)
 	return cloned
 }

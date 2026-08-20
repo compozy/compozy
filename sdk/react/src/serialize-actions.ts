@@ -3,6 +3,7 @@ import type { Action as ViewAction, Confirmation, RowAction } from "@compozy/ext
 import type { HandlerRegistry } from "./handler-registry.js";
 import { childNodes } from "./host-types.js";
 import type { HostNode } from "./host-types.js";
+import { isRecord, optionalString, requiredString } from "./serialization-utils.js";
 
 export function serializeActions(owner: HostNode, handlers: HandlerRegistry): RowAction[] {
   const panel = childNodes(owner, "view-action-panel")[0];
@@ -35,7 +36,7 @@ function serializeAction(
   const handler = handlers.bind(node, "onAction", node.props.onAction);
   const action = isRecord(node.props.action) ? parseAction(node.props.action) : undefined;
   const submitForm = node.props.submitForm === true;
-  const targets = Number(handler !== undefined) + Number(action !== undefined) + Number(submitForm);
+  const targets = [handler !== undefined, action !== undefined, submitForm].filter(Boolean).length;
   if (targets !== 1) {
     throw new Error("actions require exactly one handler, target, or form submit");
   }
@@ -75,18 +76,4 @@ function parseAction(record: Record<string, unknown>): ViewAction {
   }
   if (isRecord(record.args)) result.args = record.args as NonNullable<ViewAction["args"]>;
   return result;
-}
-
-function requiredString(value: unknown, field: string): string {
-  const result = optionalString(value);
-  if (!result) throw new Error(`${field} is required`);
-  return result;
-}
-
-function optionalString(value: unknown): string | undefined {
-  return typeof value === "string" && value.length > 0 ? value : undefined;
-}
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === "object" && value !== null && !Array.isArray(value);
 }

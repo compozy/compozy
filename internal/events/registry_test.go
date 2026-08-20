@@ -150,16 +150,19 @@ func TestRegistryMetadata(t *testing.T) {
 			CmdPaletteViewSessionOpened,
 			CmdPaletteViewSessionClosed,
 			CmdPaletteViewSessionDegraded,
-			CmdPaletteViewSessionCircuit,
+			CmdPaletteViewSessionCircuitBroken,
 		} {
-			metadata, ok := Lookup(name)
-			if !ok {
-				t.Fatalf("Lookup(%q) = false", name)
-			}
-			if metadata.Family != "cmd_palette" || metadata.Component != ComponentCmdPalette ||
-				metadata.Outcome != OutcomeInfo || !metadata.GlobalScope || metadata.NotificationEligible {
-				t.Fatalf("command-palette metadata for %q = %#v", name, metadata)
-			}
+			t.Run("Should expose "+name, func(t *testing.T) {
+				t.Parallel()
+				metadata, ok := Lookup(name)
+				if !ok {
+					t.Fatalf("Lookup(%q) = false", name)
+				}
+				if metadata.Family != "cmd_palette" || metadata.Component != ComponentCmdPalette ||
+					metadata.Outcome != OutcomeInfo || !metadata.GlobalScope || metadata.NotificationEligible {
+					t.Fatalf("command-palette metadata for %q = %#v", name, metadata)
+				}
+			})
 		}
 	})
 

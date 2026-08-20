@@ -31348,7 +31348,10 @@ export interface operations {
   invokeCmdPaletteCommand: {
     parameters: {
       query?: never;
-      header?: never;
+      header: {
+        /** @description Attached client identity token */
+        "X-Compozy-Client-Token": string;
+      };
       path: {
         /** @description Canonical command id */
         id: string;
@@ -31376,6 +31379,7 @@ export interface operations {
         content: {
           "application/json": {
             approval_id?: string;
+            invocation_id: string;
             result?: unknown;
             status: string;
           };
@@ -31389,8 +31393,26 @@ export interface operations {
         content: {
           "application/json": {
             approval_id?: string;
+            invocation_id: string;
             result?: unknown;
             status: string;
+          };
+        };
+      };
+      /** @description Invalid request */
+      400: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            clients?: string[];
+            error: string;
+            fields?: {
+              [key: string]: string;
+            };
+            message?: string;
+            reason?: string;
           };
         };
       };
@@ -31646,6 +31668,23 @@ export interface operations {
           };
         };
       };
+      /** @description Invalid workspace */
+      400: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            clients?: string[];
+            error: string;
+            fields?: {
+              [key: string]: string;
+            };
+            message?: string;
+            reason?: string;
+          };
+        };
+      };
       /** @description Command not found */
       404: {
         headers: {
@@ -31705,6 +31744,23 @@ export interface operations {
         content: {
           "application/json": {
             pinned: boolean;
+          };
+        };
+      };
+      /** @description Invalid workspace */
+      400: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            clients?: string[];
+            error: string;
+            fields?: {
+              [key: string]: string;
+            };
+            message?: string;
+            reason?: string;
           };
         };
       };
@@ -32101,6 +32157,23 @@ export interface operations {
           };
         };
       };
+      /** @description Invalid request */
+      400: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            clients?: string[];
+            error: string;
+            fields?: {
+              [key: string]: string;
+            };
+            message?: string;
+            reason?: string;
+          };
+        };
+      };
       /** @description Session ownership mismatch */
       403: {
         headers: {
@@ -32236,7 +32309,7 @@ export interface operations {
                   page_size?: number;
                 } | null;
                 search_placeholder?: string;
-                search_text?: string;
+                search_text?: string | null;
                 throttle_ms?: number;
               } | null;
               detail?: {
@@ -32575,7 +32648,7 @@ export interface operations {
                   page_size?: number;
                 } | null;
                 search_placeholder?: string;
-                search_text?: string;
+                search_text?: string | null;
                 throttle_ms?: number;
               } | null;
               detail?: {
@@ -32993,7 +33066,7 @@ export interface operations {
                     page_size?: number;
                   } | null;
                   search_placeholder?: string;
-                  search_text?: string;
+                  search_text?: string | null;
                   throttle_ms?: number;
                 } | null;
                 detail?: {
@@ -33249,6 +33322,23 @@ export interface operations {
           };
         };
       };
+      /** @description Invalid request */
+      400: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            clients?: string[];
+            error: string;
+            fields?: {
+              [key: string]: string;
+            };
+            message?: string;
+            reason?: string;
+          };
+        };
+      };
       /** @description Invalid client attachment */
       401: {
         headers: {
@@ -33382,7 +33472,7 @@ export interface operations {
                   page_size?: number;
                 } | null;
                 search_placeholder?: string;
-                search_text?: string;
+                search_text?: string | null;
                 throttle_ms?: number;
               } | null;
               detail?: {
@@ -33657,6 +33747,23 @@ export interface operations {
       };
       /** @description View not found */
       404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            clients?: string[];
+            error: string;
+            fields?: {
+              [key: string]: string;
+            };
+            message?: string;
+            reason?: string;
+          };
+        };
+      };
+      /** @description Invalid view payload */
+      422: {
         headers: {
           [name: string]: unknown;
         };

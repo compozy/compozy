@@ -223,6 +223,19 @@ func TestRegistryCatalog(t *testing.T) {
 		if err == nil || !strings.Contains(err.Error(), `duplicate provider source "extension"`) {
 			t.Fatalf("NewRegistry(duplicate aggregate) error = %v, want duplicate provider source", err)
 		}
+
+		padded := testDescriptor("core.command")
+		padded.ID = " core.command "
+		canonical := testDescriptor("core.command")
+		_, err = NewRegistry(
+			[]ProviderRegistration{{
+				Source:   canonical.Source,
+				Provider: staticTestProvider{commands: []Descriptor{canonical, padded}},
+			}}, nil, nil, &testExecutor{},
+		)
+		if !errors.Is(err, ErrDuplicateCommandID) {
+			t.Fatalf("NewRegistry(whitespace IDs) error = %v, want ErrDuplicateCommandID", err)
+		}
 	})
 
 	t.Run("Should retain healthy sources when another provider is degraded [UT-005]", func(t *testing.T) {
@@ -290,6 +303,12 @@ func TestRegistryCatalog(t *testing.T) {
 			defaults, err := service.ExtensionDefaults(t.Context(), "ws-1")
 			if err != nil || len(defaults) != 1 || defaults[0].Active {
 				t.Fatalf("ExtensionDefaults() = %#v, %v", defaults, err)
+			}
+			if _, err := service.ExtensionDefaults(nil, "ws-1"); err == nil {
+				t.Fatal("ExtensionDefaults(nil context) error = nil, want required-context error")
+			}
+			if _, err := service.ExtensionDefaults(t.Context(), ""); err == nil {
+				t.Fatal("ExtensionDefaults(empty workspace) error = nil, want required-workspace error")
 			}
 		},
 	)

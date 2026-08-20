@@ -2,14 +2,14 @@ import { AlertTriangle, ExternalLink, Globe2 } from "lucide-react";
 
 import { Alert, AlertActions, AlertDescription, AlertTitle, Button } from "@compozy/ui";
 
-import { ShortcutBindingKeys, type WindowManagerSettingsSection } from "@/systems/os";
-import { isDesktopShell } from "@/systems/os/lib/desktop-shell-bridge";
+import {
+  isDesktopShell,
+  ShortcutBindingKeys,
+  type WindowManagerSettingsSection,
+} from "@/systems/os";
 
 import type { GlobalShortcutRecorderModel } from "../../hooks/use-global-shortcut-recorder";
 import { WindowManagerBindingConflict } from "./window-manager-binding-conflict";
-
-const ACCESSIBILITY_SETTINGS_URL =
-  "x-apple.systempreferences:com.apple.preference.security?Privacy_Accessibility";
 
 type GlobalRegistration = WindowManagerSettingsSection["globalShortcuts"][number];
 
@@ -45,8 +45,11 @@ export function WindowManagerGlobalHotkeys({
   const shell = isDesktopShell();
   const titleFor = (commandId: string) =>
     section.commands.find(command => command.id === commandId)?.title ?? commandId;
-  const needsAccessibility =
-    shell && section.globalShortcuts.some(item => item.status === "failed_permission");
+  const permissionRegistration = section.globalShortcuts.find(
+    item => item.status === "failed_permission"
+  );
+  const settingsUrl = permissionRegistration?.settingsUrl;
+  const needsAccessibility = shell && permissionRegistration !== undefined;
 
   return (
     <section className="border-t border-line-soft" data-testid="window-manager-global-hotkeys">
@@ -65,17 +68,19 @@ export function WindowManagerGlobalHotkeys({
           <AlertDescription>
             Allow Compozy to register global hotkeys, then return here to retry.
           </AlertDescription>
-          <AlertActions>
-            <Button
-              nativeButton={false}
-              render={<a aria-label="Open System Settings" href={ACCESSIBILITY_SETTINGS_URL} />}
-              size="sm"
-              variant="outline"
-            >
-              Open System Settings
-              <ExternalLink aria-hidden="true" className="size-3.5" />
-            </Button>
-          </AlertActions>
+          {settingsUrl ? (
+            <AlertActions>
+              <Button
+                nativeButton={false}
+                render={<a aria-label="Open System Settings" href={settingsUrl} />}
+                size="sm"
+                variant="outline"
+              >
+                Open System Settings
+                <ExternalLink aria-hidden="true" className="size-3.5" />
+              </Button>
+            </AlertActions>
+          ) : null}
         </Alert>
       ) : null}
 
@@ -85,61 +90,65 @@ export function WindowManagerGlobalHotkeys({
         </p>
       ) : null}
 
-      <div className="divide-y divide-line-soft">
-        {section.globalShortcuts.map(registration => {
-          const shownChord =
-            registration.status === "failed_in_use" && registration.activeChord
-              ? registration.activeChord
-              : registration.intendedChord;
-          const conflict =
-            recorder.conflict?.commandId === registration.commandId ? recorder.conflict : null;
-          const reason = reasonText(shell, registration);
-          return (
-            <div className="px-4 py-3" key={registration.commandId}>
-              <div className="flex flex-wrap items-center gap-3">
-                <div className="min-w-48 flex-1">
-                  <p className="text-form-label font-medium text-fg">
-                    {titleFor(registration.commandId)}
-                  </p>
-                  <p className="font-mono text-micro text-faint">{registration.commandId}</p>
+      {section.globalShortcuts.length === 0 ? (
+        <p className="px-4 py-3 text-form-label text-subtle">No global hotkeys</p>
+      ) : (
+        <div className="divide-y divide-line-soft">
+          {section.globalShortcuts.map(registration => {
+            const shownChord =
+              registration.status === "failed_in_use" && registration.activeChord
+                ? registration.activeChord
+                : registration.intendedChord;
+            const conflict =
+              recorder.conflict?.commandId === registration.commandId ? recorder.conflict : null;
+            const reason = reasonText(shell, registration);
+            return (
+              <div className="px-4 py-3" key={registration.commandId}>
+                <div className="flex flex-wrap items-center gap-3">
+                  <div className="min-w-48 flex-1">
+                    <p className="text-form-label font-medium text-fg">
+                      {titleFor(registration.commandId)}
+                    </p>
+                    <p className="font-mono text-micro text-faint">{registration.commandId}</p>
+                  </div>
+                  <Button
+                    aria-label={`Record global hotkey for ${titleFor(registration.commandId)}`}
+                    className="min-w-32 justify-center"
+                    disabled={!shell || recorder.saving}
+                    size="sm"
+                    type="button"
+                    variant="outline"
+                    onClick={() => recorder.start(registration.commandId)}
+                  >
+                    {recorder.recording === registration.commandId ? (
+                      "Press keys…"
+                    ) : (
+                      <ShortcutBindingKeys bindings={[shownChord]} compact />
+                    )}
+                  </Button>
+                  <div className="w-44 text-right">
+                    <p className="text-form-hint text-subtle">
+                      {statusText(shell, registration.status)}
+                    </p>
+                    {reason ? <p className="text-micro text-faint">{reason}</p> : null}
+                  </div>
                 </div>
-                <Button
-                  aria-label={`Record global hotkey for ${titleFor(registration.commandId)}`}
-                  className="min-w-32 justify-center"
-                  disabled={!shell || recorder.saving}
-                  size="sm"
-                  type="button"
-                  variant="outline"
-                  onClick={() => recorder.start(registration.commandId)}
-                >
-                  {recorder.recording === registration.commandId ? (
-                    "Press keys…"
-                  ) : (
-                    <ShortcutBindingKeys bindings={[shownChord]} compact />
-                  )}
-                </Button>
-                <div className="w-44 text-right">
-                  <p className="text-form-hint text-subtle">
-                    {statusText(shell, registration.status)}
-                  </p>
-                  {reason ? <p className="text-micro text-faint">{reason}</p> : null}
-                </div>
+                {conflict ? (
+                  <WindowManagerBindingConflict
+                    claim={conflict.chord}
+                    consequence={`Overwriting leaves ${titleFor(conflict.owner)} without a global hotkey.`}
+                    ownerTitle={titleFor(conflict.owner)}
+                    overwriteLabel="Overwrite"
+                    testId={`global-hotkey-conflict-${registration.commandId}`}
+                    onCancel={recorder.dismissConflict}
+                    onOverwrite={recorder.overwrite}
+                  />
+                ) : null}
               </div>
-              {conflict ? (
-                <WindowManagerBindingConflict
-                  claim={conflict.chord}
-                  consequence={`Overwriting leaves ${titleFor(conflict.owner)} without a global hotkey.`}
-                  ownerTitle={titleFor(conflict.owner)}
-                  overwriteLabel="Overwrite"
-                  testId={`global-hotkey-conflict-${registration.commandId}`}
-                  onCancel={recorder.dismissConflict}
-                  onOverwrite={recorder.overwrite}
-                />
-              ) : null}
-            </div>
-          );
-        })}
-      </div>
+            );
+          })}
+        </div>
+      )}
       <p className="border-t border-line-soft px-4 py-2 text-micro text-faint">
         physical keys — non-QWERTY layouts may differ from the printed legend
       </p>

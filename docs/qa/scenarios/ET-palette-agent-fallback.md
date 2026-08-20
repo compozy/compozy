@@ -27,8 +27,9 @@ Walk (task_11 plan):
 
 1. Type gibberish — only the visually distinct "Ask agent: '{query}'" row renders; an empty query
    renders no fallback row.
-2. Type a weak-but-nonzero match — the result and the fallback row render together (threshold
-   behavior: at the served threshold both; below it fallback-only).
+2. Capture `GET /api/cmd-palette/rank-signals` `fallback_weak_match_threshold` and the query's
+   top score. Type a weak-but-nonzero match: score equal to the threshold keeps results plus Ask
+   agent; score below the threshold is fallback-only.
 3. Watch the network while typing — nothing carries the query before ⏎.
 4. Press ⏎ — one new session opens with the workspace default agent and the query as its opening
    prompt; the palette closes; a rapid double-⏎ creates exactly one session.
@@ -39,5 +40,6 @@ Walk (task_11 plan):
    `compozy config get cmd_palette.fallback_targets` reports `[]`; re-enable restores it.
 
 Expected evidence: screenshots of the zero-match and weak-match states, the created session with
-the query as first prompt, the picker path, and the Settings toggle; a network capture (or devtools
+the query as first prompt, the picker path, and the Settings toggle; the rank-signals threshold
+and top-score pair for the equality and below-threshold branches; a network capture (or devtools
 note) proving no pre-send; the config-get transcript.

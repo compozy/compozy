@@ -1,11 +1,7 @@
-import {
-  MenubarContent,
-  MenubarItem,
-  MenubarMenu,
-  MenubarSeparator,
-  MenubarTrigger,
-} from "@compozy/ui";
+import { MenubarContent, MenubarItem, MenubarMenu, MenubarTrigger } from "@compozy/ui";
 
+import { usePaletteRegistry } from "../../hooks/use-palette-registry";
+import { MenubarCommandGroups } from "./menubar-command-groups";
 import { MenubarCommandItem } from "./menubar-command-item";
 
 export interface SessionMenuProps {
@@ -19,16 +15,32 @@ export interface SessionMenuProps {
 
 /** Session menu: create work, or reach the global sessions catalog. */
 export function SessionMenu({ open, onOpenChange, onRun, onNewAgent }: SessionMenuProps) {
+  const registry = usePaletteRegistry();
   return (
     <MenubarMenu open={open} onOpenChange={onOpenChange}>
       <MenubarTrigger>Session</MenubarTrigger>
       <MenubarContent align="start" data-testid="os-menu-session">
-        <MenubarCommandItem commandId="session.new" onRun={onRun} />
-        <MenubarItem data-testid="os-menu-new-agent" onClick={onNewAgent}>
-          New agent…
-        </MenubarItem>
-        <MenubarSeparator />
-        <MenubarCommandItem commandId="shell.sessions.toggle" onRun={onRun} />
+        <MenubarCommandGroups
+          groups={[
+            {
+              id: "create",
+              content: (
+                <>
+                  <MenubarCommandItem commandId="session.new" onRun={onRun} />
+                  <MenubarItem data-testid="os-menu-new-agent" onClick={onNewAgent}>
+                    New agent…
+                  </MenubarItem>
+                </>
+              ),
+            },
+            {
+              id: "catalog",
+              content: registry.byId.has("shell.sessions.toggle") ? (
+                <MenubarCommandItem commandId="shell.sessions.toggle" onRun={onRun} />
+              ) : null,
+            },
+          ]}
+        />
       </MenubarContent>
     </MenubarMenu>
   );

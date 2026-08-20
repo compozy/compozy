@@ -46,7 +46,6 @@ function PaletteActionPanelItem({ action, onRun }: PaletteActionPanelItemProps) 
       data-palette-action={action.id}
       data-testid={`os-palette-action-${action.id}`}
       forceMount
-      key={action.id}
       value={action.id}
       onSelect={() => onRun(action)}
     >
@@ -116,6 +115,7 @@ export function PaletteActionPanel({
       >
         <Command shouldFilter={false}>
           <CommandInput
+            aria-label="Filter actions"
             autoFocus
             data-testid="os-palette-action-filter"
             placeholder="Filter actions…"
@@ -136,7 +136,7 @@ export function PaletteActionPanel({
                   "**:[[cmdk-group-heading]]:text-faint"
                 )}
                 heading={section.title}
-                key={section.title}
+                key={`${section.title}:${section.actions.map(action => action.id).join(",")}`}
               >
                 {section.actions.map(action => (
                   <PaletteActionPanelItem action={action} key={action.id} onRun={onRun} />

@@ -37,7 +37,6 @@ export interface FormDropdownProps extends FormFieldBaseProps {
 
 export interface FormDropdownItemProps {
   value: string;
-  title?: string;
 }
 
 export interface FormFilePickerProps extends FormFieldBaseProps {

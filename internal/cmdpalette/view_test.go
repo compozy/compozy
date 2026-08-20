@@ -5,7 +5,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"math/rand/v2"
 	"strings"
 	"sync"
 	"testing"
@@ -71,9 +70,7 @@ func TestViewPayloadValidation(t *testing.T) {
 			Row{ID: "third", Title: "Third", Badge: &ViewBadge{Label: "Broken", Tone: "purple"}},
 		)
 		_, err := ValidateViewPayload(ViewKindList, payload, nil, nil)
-		if err == nil || !strings.Contains(err.Error(), "sections[0].rows[2].badge.tone") {
-			t.Fatalf("ValidateViewPayload() error = %v, want badge tone path", err)
-		}
+		requireViewValidationPath(t, err, "sections[0].rows[2].badge.tone")
 	})
 
 	t.Run("Should reject oversized fields with their wire path", func(t *testing.T) {
@@ -81,9 +78,7 @@ func TestViewPayloadValidation(t *testing.T) {
 		payload := validListViewPayload()
 		payload.Sections[0].Rows[0].Title = strings.Repeat("x", MaxViewTextBytes+1)
 		_, err := ValidateViewPayload(ViewKindList, payload, nil, nil)
-		if err == nil || !strings.Contains(err.Error(), "sections[0].rows[0].title") {
-			t.Fatalf("ValidateViewPayload() error = %v, want row title path", err)
-		}
+		requireViewValidationPath(t, err, "sections[0].rows[0].title")
 	})
 
 	t.Run("Should cap mounted rows and report the exact overflow", func(t *testing.T) {
@@ -100,7 +95,7 @@ func TestViewPayloadValidation(t *testing.T) {
 		if got := len(validated.Sections[0].Rows); got != MaxViewMountRows {
 			t.Fatalf("mounted rows = %d, want %d", got, MaxViewMountRows)
 		}
-		want := ViewOverflowMessage(MaxViewMountRows, MaxViewMountRows+17)
+		want := viewOverflowMessage(MaxViewMountRows, MaxViewMountRows+17)
 		if validated.Empty == nil || validated.Empty.Hint != want {
 			t.Fatalf("overflow hint = %#v, want %q", validated.Empty, want)
 		}
@@ -114,15 +109,46 @@ func TestViewPayloadValidation(t *testing.T) {
 		payload := validListViewPayload()
 		payload.Sections[0].Rows[0].Actions = []RowAction{{Title: "Broken", Handler: "h1", SubmitForm: true}}
 		_, err := ValidateViewPayload(ViewKindList, payload, nil, nil)
-		if err == nil || !strings.Contains(err.Error(), "exactly one") {
-			t.Fatalf("ValidateViewPayload() error = %v, want union error", err)
-		}
+		requireViewValidationPath(t, err, "sections[0].rows[0].actions[0]")
 
 		payload.Sections[0].Rows[0].Actions = []RowAction{{Title: "Delete", Handler: "h1", Destructive: true}}
 		_, err = ValidateViewPayload(ViewKindList, payload, nil, nil)
-		if err == nil || !strings.Contains(err.Error(), "confirmation") {
-			t.Fatalf("ValidateViewPayload() error = %v, want confirmation error", err)
+		requireViewValidationPath(t, err, "sections[0].rows[0].actions[0].confirmation")
+	})
+
+	t.Run("Should accept host-target copy row actions and reject invalid copy payloads", func(t *testing.T) {
+		t.Parallel()
+		payload := validListViewPayload()
+		payload.Sections[0].Rows[0].Actions = []RowAction{{
+			Title: "Copy",
+			Action: &Action{
+				Kind: ActionKindCopy,
+				Args: map[string]any{"content": "clipboard text"},
+			},
+		}}
+		if _, err := ValidateViewPayload(ViewKindList, payload, nil, nil); err != nil {
+			t.Fatalf("ValidateViewPayload() error = %v", err)
 		}
+
+		payload.Sections[0].Rows[0].Actions = []RowAction{{
+			Title:  "Copy",
+			Action: &Action{Kind: ActionKindCopy},
+		}}
+		_, err := ValidateViewPayload(ViewKindList, payload, nil, nil)
+		requireViewValidationPath(t, err, "sections[0].rows[0].actions[0].action")
+		requireErrorContains(t, err, "requires its target")
+
+		payload.Sections[0].Rows[0].Actions = []RowAction{{
+			Title: "Copy",
+			Action: &Action{
+				Kind: ActionKindCopy,
+				URL:  "https://example.com",
+				Args: map[string]any{"content": "clipboard text"},
+			},
+		}}
+		_, err = ValidateViewPayload(ViewKindList, payload, nil, nil)
+		requireViewValidationPath(t, err, "sections[0].rows[0].actions[0].action")
+		requireErrorContains(t, err, "cannot carry")
 	})
 
 	t.Run("Should return an honest unknown kind error", func(t *testing.T) {
@@ -132,6 +158,18 @@ func TestViewPayloadValidation(t *testing.T) {
 		if !errors.As(err, &kindErr) || kindErr.Kind != "canvas" {
 			t.Fatalf("ValidateViewPayload() error = %#v, want canvas UnknownViewKindError", err)
 		}
+	})
+
+	t.Run("Should cap form field text at the per-field host limit", func(t *testing.T) {
+		t.Parallel()
+		payload := ViewPayload{
+			View: ViewContractVersion,
+			Form: &FormBody{Fields: []FormField{{
+				ID: "title", Type: "text", Label: strings.Repeat("x", MaxViewTextBytes+1),
+			}}},
+		}
+		_, err := ValidateViewPayload(ViewKindForm, payload, nil, nil)
+		requireViewValidationPath(t, err, "form.fields[0].label")
 	})
 }
 
@@ -212,11 +250,26 @@ func TestViewPatchApplication(t *testing.T) {
 		}
 	})
 
+	t.Run("Should reject non-RFC array indices", func(t *testing.T) {
+		t.Parallel()
+		current := validListViewPayload()
+		_, _, _, err := ApplyViewPatch(
+			ViewKindList, "vr_1", current,
+			ViewPatch{
+				ViewID: "ext.notes.recent", From: "vr_1", To: "vr_2",
+				Ops: []PatchOp{{
+					Op: "replace", Path: "/sections/01/rows/0/title", Value: json.RawMessage(`"Changed"`),
+				}},
+			}, nil, nil,
+		)
+		requireErrorContains(t, err, `invalid array index "01"`)
+	})
+
 	t.Run("Should preserve deterministic replacement properties", func(t *testing.T) {
 		t.Parallel()
 		for index := range 100 {
 			current := validListViewPayload()
-			value := fmt.Sprintf("row-%d-%d", index, rand.IntN(100_000))
+			value := fmt.Sprintf("row-%d", index)
 			patched, revision, resync, err := ApplyViewPatch(
 				ViewKindList, "vr_a", current,
 				ViewPatch{
@@ -257,9 +310,7 @@ func TestViewService(t *testing.T) {
 			}},
 		}
 		_, err := service.OpenSource(t.Context(), "workspace-a", "ext.notes.recent")
-		if err == nil || !strings.Contains(err.Error(), "read-only") {
-			t.Fatalf("OpenSource() error = %v, want read-only source failure", err)
-		}
+		requireViewValidationPath(t, err, "source.tool")
 		if provider.calls != 0 {
 			t.Fatalf("provider calls = %d, want zero before policy validation", provider.calls)
 		}
@@ -286,8 +337,118 @@ func TestViewService(t *testing.T) {
 			Provider: provider,
 		}}}
 		_, err := service.OpenSource(t.Context(), "workspace-a", "ext.notes.form")
-		if err == nil || !strings.Contains(err.Error(), "detail") && !strings.Contains(err.Error(), "form") {
-			t.Fatalf("OpenSource() error = %v, want validated form path", err)
+		requireViewValidationPath(t, err, "form")
+	})
+
+	t.Run("Should subscribe after a replay cursor then snapshot, and type stream failures", func(t *testing.T) {
+		t.Parallel()
+		events := make(chan ViewPatchEvent)
+		close(events)
+		provider := &viewPatchSubscriberStub{
+			viewSourceProviderStub: viewSourceProviderStub{payload: validListViewPayload()},
+			events:                 events,
+		}
+		service := &Service{
+			viewStreamEpoch: "vse_test",
+			viewProviders: []ViewProviderRegistration{{
+				Descriptor: ViewDescriptor{
+					ID: "ext.notes.recent", Title: "Recent notes", Kind: ViewKindList,
+					Source: &ViewToolSource{Tool: "list_recent", ReadOnly: true},
+				},
+				Provider: provider,
+			}},
+		}
+
+		_, _, _, err := service.SubscribeViewPatches(t.Context(), ViewPatchSubscribeRequest{
+			Workspace: "workspace-a", ViewID: "ext.notes.recent", After: -1,
+		})
+		if !errors.Is(err, ErrViewInvalidSequence) {
+			t.Fatalf("SubscribeViewPatches(after=-1) error = %v, want ErrViewInvalidSequence", err)
+		}
+
+		_, _, _, err = service.SubscribeViewPatches(t.Context(), ViewPatchSubscribeRequest{
+			Workspace: "workspace-a", ViewID: "ext.notes.recent", After: 4,
+		})
+		if !errors.Is(err, ErrViewStreamEpochRequired) {
+			t.Fatalf("SubscribeViewPatches(missing epoch) error = %v, want ErrViewStreamEpochRequired", err)
+		}
+
+		initialSnapshot, _, initialCancel, err := service.SubscribeViewPatches(
+			t.Context(),
+			ViewPatchSubscribeRequest{Workspace: "workspace-a", ViewID: "ext.notes.recent"},
+		)
+		if err != nil {
+			t.Fatalf("SubscribeViewPatches(initial) error = %v", err)
+		}
+		initialCancel()
+		if request := provider.subscribeRequest(); request.StreamEpoch != initialSnapshot.StreamEpoch {
+			t.Fatalf(
+				"SubscribeViewPatches(initial) request epoch = %q, want snapshot epoch %q",
+				request.StreamEpoch,
+				initialSnapshot.StreamEpoch,
+			)
+		}
+
+		snapshot, stream, cancel, err := service.SubscribeViewPatches(t.Context(), ViewPatchSubscribeRequest{
+			Workspace: "workspace-a", ViewID: "ext.notes.recent", After: 4, StreamEpoch: "vse_prior",
+		})
+		if err != nil {
+			t.Fatalf("SubscribeViewPatches() error = %v", err)
+		}
+		cancel()
+		if snapshot.StreamEpoch != "vse_test" || snapshot.Revision == "" {
+			t.Fatalf("SubscribeViewPatches() snapshot = %#v, want current fence", snapshot)
+		}
+		if _, open := <-stream; open {
+			t.Fatal("SubscribeViewPatches() stream stayed open after the fixture closed")
+		}
+		if got := provider.subscribeThenOpen(); !got {
+			t.Fatalf("provider order = %v, want subscribe before open", provider.ops())
+		}
+		if request := provider.subscribeRequest(); request.After != 4 || request.StreamEpoch != "vse_prior" ||
+			request.Workspace != "workspace-a" || request.ViewID != "ext.notes.recent" {
+			t.Fatalf("SubscribeViewPatches() request = %#v", request)
+		}
+
+		missing := &Service{viewProviders: []ViewProviderRegistration{{
+			Descriptor: ViewDescriptor{
+				ID: "ext.notes.recent", Title: "Recent notes", Kind: ViewKindList,
+				Source: &ViewToolSource{Tool: "list_recent", ReadOnly: true},
+			},
+			Provider: &viewSourceProviderStub{payload: validListViewPayload()},
+		}}}
+		_, _, _, err = missing.SubscribeViewPatches(t.Context(), ViewPatchSubscribeRequest{
+			Workspace: "workspace-a", ViewID: "ext.notes.recent",
+		})
+		if !errors.Is(err, ErrViewPatchStreamUnavailable) {
+			t.Fatalf(
+				"SubscribeViewPatches(no subscriber) error = %v, want ErrViewPatchStreamUnavailable",
+				err,
+			)
+		}
+
+		failing := &viewPatchSubscriberStub{
+			viewSourceProviderStub: viewSourceProviderStub{payload: ViewPayload{View: ViewContractVersion}},
+			events:                 events,
+		}
+		broken := &Service{viewProviders: []ViewProviderRegistration{{
+			Descriptor: ViewDescriptor{
+				ID: "ext.notes.form", Title: "Note form", Kind: ViewKindForm,
+				Source: &ViewToolSource{Tool: "note_form", ReadOnly: true},
+			},
+			Provider: failing,
+		}}}
+		_, _, _, err = broken.SubscribeViewPatches(t.Context(), ViewPatchSubscribeRequest{
+			Workspace: "workspace-a", ViewID: "ext.notes.form",
+		})
+		if err == nil {
+			t.Fatal("SubscribeViewPatches(invalid snapshot) error = nil")
+		}
+		if failing.cancelCount() != 1 {
+			t.Fatalf("cancel after snapshot failure = %d, want 1", failing.cancelCount())
+		}
+		if got := failing.subscribeThenOpen(); !got {
+			t.Fatalf("failed-open order = %v, want subscribe before open", failing.ops())
 		}
 	})
 }
@@ -299,24 +460,7 @@ func TestViewProgramSessions(t *testing.T) {
 		t.Parallel()
 		program := newViewProgramProviderStub()
 		recorder := &recordingEventRecorder{wake: make(chan struct{}, 16)}
-		service := testRegistryWithOptions(
-			staticTestProvider{commands: []Descriptor{testDescriptor("test.command")}},
-			&testClientDirectory{
-				clients: []Client{{ID: "client-a", WorkspaceID: "workspace-a"}},
-				tokens:  map[ClientID]string{"client-a": "token-a"},
-			},
-			nil,
-			&testExecutor{},
-			WithViewProviders([]ViewProviderRegistration{{
-				Descriptor: ViewDescriptor{
-					ID: "ext.notes.browser", Title: "Notes", Kind: ViewKindList,
-					Program: true, Extension: "notes",
-				},
-				Provider: &viewSourceProviderStub{},
-			}}),
-			WithViewProgramProvider(program),
-			WithEventRecorder(recorder),
-		)
+		service := testProgramViewService(t, testProgramViewClients("client-a"), program, WithEventRecorder(recorder))
 		service.viewAckBudget = 10 * time.Millisecond
 		opened, err := service.OpenSession(t.Context(), ViewSessionOpenRequest{
 			Workspace: "workspace-a", Client: "client-a", AttachmentToken: "token-a",
@@ -328,7 +472,7 @@ func TestViewProgramSessions(t *testing.T) {
 		token := SessionToken{ViewSession: opened.Token.ViewSession, AttachmentToken: "token-a"}
 		for seq := int64(1); seq <= viewSessionCircuitMisses; seq++ {
 			if err := service.AdmitEvent(t.Context(), token, ViewEvent{
-				Handler: "h_search", Revision: "vr_1", Seq: seq,
+				Handler: "h_action", Args: []any{"row", seq}, Revision: "vr_1", Seq: seq,
 			}); err != nil {
 				t.Fatalf("AdmitEvent(seq=%d) error = %v", seq, err)
 			}
@@ -369,24 +513,7 @@ func TestViewProgramSessions(t *testing.T) {
 		t.Parallel()
 		program := newViewProgramProviderStub()
 		recorder := &recordingEventRecorder{}
-		service := testRegistryWithOptions(
-			staticTestProvider{commands: []Descriptor{testDescriptor("test.command")}},
-			&testClientDirectory{
-				clients: []Client{{ID: "client-a", WorkspaceID: "workspace-a"}},
-				tokens:  map[ClientID]string{"client-a": "token-a"},
-			},
-			nil,
-			&testExecutor{},
-			WithViewProviders([]ViewProviderRegistration{{
-				Descriptor: ViewDescriptor{
-					ID: "ext.notes.browser", Title: "Notes", Kind: ViewKindList,
-					Program: true, Extension: "notes",
-				},
-				Provider: &viewSourceProviderStub{},
-			}}),
-			WithViewProgramProvider(program),
-			WithEventRecorder(recorder),
-		)
+		service := testProgramViewService(t, testProgramViewClients("client-a"), program, WithEventRecorder(recorder))
 		opened, err := service.OpenSession(t.Context(), ViewSessionOpenRequest{
 			Workspace: "workspace-a", Client: "client-a", AttachmentToken: "token-a",
 			View: "ext.notes.browser",
@@ -421,23 +548,7 @@ func TestViewProgramSessions(t *testing.T) {
 	t.Run("Should admit generation-zero pushes only before the first event", func(t *testing.T) {
 		t.Parallel()
 		program := newViewProgramProviderStub()
-		service := testRegistryWithOptions(
-			staticTestProvider{commands: []Descriptor{testDescriptor("test.command")}},
-			&testClientDirectory{
-				clients: []Client{{ID: "client-a", WorkspaceID: "workspace-a"}},
-				tokens:  map[ClientID]string{"client-a": "token-a"},
-			},
-			nil,
-			&testExecutor{},
-			WithViewProviders([]ViewProviderRegistration{{
-				Descriptor: ViewDescriptor{
-					ID: "ext.notes.browser", Title: "Notes", Kind: ViewKindList,
-					Program: true, Extension: "notes",
-				},
-				Provider: &viewSourceProviderStub{},
-			}}),
-			WithViewProgramProvider(program),
-		)
+		service := testProgramViewService(t, testProgramViewClients("client-a"), program)
 		opened, err := service.OpenSession(t.Context(), ViewSessionOpenRequest{
 			Workspace: "workspace-a", AttachmentToken: "token-a", View: "ext.notes.browser",
 		})
@@ -464,30 +575,31 @@ func TestViewProgramSessions(t *testing.T) {
 		}
 	})
 
+	t.Run("Should reject executable OpenURL effect schemes", func(t *testing.T) {
+		t.Parallel()
+		program := newViewProgramProviderStub()
+		service := testProgramViewService(t, testProgramViewClients("client-a"), program)
+		opened, err := service.OpenSession(t.Context(), ViewSessionOpenRequest{
+			Workspace: "workspace-a", AttachmentToken: "token-a", View: "ext.notes.browser",
+		})
+		if err != nil {
+			t.Fatalf("OpenSession() error = %v", err)
+		}
+		frame := viewProgramFrame(opened.Token.ViewSession, "vr_url", 0, 0)
+		frame.Effects = []Effect{{ID: "ef_js", OpenURL: &OpenURLEffect{URL: "javascript:alert(1)"}}}
+		if err := service.PublishFrame(
+			t.Context(),
+			SessionToken{ViewSession: opened.Token.ViewSession, Extension: "notes"},
+			frame,
+		); !errors.Is(err, ErrUnsafeURL) {
+			t.Fatalf("PublishFrame(javascript URL) error = %v, want ErrUnsafeURL", err)
+		}
+	})
+
 	t.Run("Should bind sessions and fence superseded output and acknowledged effects", func(t *testing.T) {
 		t.Parallel()
 		program := newViewProgramProviderStub()
-		clients := &testClientDirectory{
-			clients: []Client{
-				{ID: "client-a", WorkspaceID: "workspace-a"},
-				{ID: "client-b", WorkspaceID: "workspace-a"},
-			},
-			tokens: map[ClientID]string{"client-a": "token-a", "client-b": "token-b"},
-		}
-		service := testRegistryWithOptions(
-			staticTestProvider{commands: []Descriptor{testDescriptor("test.command")}},
-			clients,
-			nil,
-			&testExecutor{},
-			WithViewProviders([]ViewProviderRegistration{{
-				Descriptor: ViewDescriptor{
-					ID: "ext.notes.browser", Title: "Notes", Kind: ViewKindList,
-					Program: true, Extension: "notes",
-				},
-				Provider: &viewSourceProviderStub{},
-			}}),
-			WithViewProgramProvider(program),
-		)
+		service := testProgramViewService(t, testProgramViewClients("client-a", "client-b"), program)
 
 		opened, err := service.OpenSession(t.Context(), ViewSessionOpenRequest{
 			Workspace: "workspace-a", AttachmentToken: "token-a", View: "ext.notes.browser",
@@ -561,15 +673,20 @@ func TestViewProgramSessions(t *testing.T) {
 
 		for seq := int64(3); seq <= 6; seq++ {
 			if err := service.AdmitEvent(t.Context(), clientToken, ViewEvent{
-				Handler: "h_search", Revision: "vr_2", Seq: seq,
+				Handler: "h_action", Args: []any{"row", seq}, Revision: "vr_2", Seq: seq,
 			}); err != nil {
 				t.Fatalf("AdmitEvent(action seq=%d) error = %v", seq, err)
 			}
 		}
 		if err := service.AdmitEvent(t.Context(), clientToken, ViewEvent{
-			Handler: "h_search", Revision: "vr_2", Seq: 7,
+			Handler: "h_action", Args: []any{"row", 7}, Revision: "vr_2", Seq: 7,
 		}); !errors.Is(err, ErrViewBusy) {
 			t.Fatalf("AdmitEvent(over cap) error = %v, want ErrViewBusy", err)
+		}
+		if err := service.AdmitEvent(t.Context(), clientToken, ViewEvent{
+			Handler: "h_action", Args: []any{"row", 7}, Revision: "vr_2", Seq: 7,
+		}); !errors.Is(err, ErrViewBusy) {
+			t.Fatalf("AdmitEvent(retry busy seq) error = %v, want ErrViewBusy", err)
 		}
 
 		if err := service.CloseSession(t.Context(), clientToken, "palette_dismissed"); err != nil {
@@ -586,30 +703,44 @@ func TestViewProgramSessions(t *testing.T) {
 		}
 	})
 
+	t.Run("Should reject invalid, non-increasing, and stale view events with typed causes", func(t *testing.T) {
+		t.Parallel()
+		program := newViewProgramProviderStub()
+		service := testProgramViewService(t, testProgramViewClients("client-a"), program)
+		opened, err := service.OpenSession(t.Context(), ViewSessionOpenRequest{
+			Workspace: "workspace-a", Client: "client-a", AttachmentToken: "token-a",
+			View: "ext.notes.browser",
+		})
+		if err != nil {
+			t.Fatalf("OpenSession() error = %v", err)
+		}
+		token := SessionToken{ViewSession: opened.Token.ViewSession, AttachmentToken: "token-a"}
+		if err := service.AdmitEvent(t.Context(), token, ViewEvent{
+			Handler: "", Revision: "vr_1", Seq: 1,
+		}); !errors.Is(err, ErrViewEventInvalid) {
+			t.Fatalf("AdmitEvent(missing handler) error = %v, want ErrViewEventInvalid", err)
+		}
+		if err := service.AdmitEvent(t.Context(), token, ViewEvent{
+			Handler: "h_action", Args: []any{"row"}, Revision: "vr_1", Seq: 1,
+		}); err != nil {
+			t.Fatalf("AdmitEvent(seq=1) error = %v", err)
+		}
+		if err := service.AdmitEvent(t.Context(), token, ViewEvent{
+			Handler: "h_action", Args: []any{"row"}, Revision: "vr_1", Seq: 1,
+		}); !errors.Is(err, ErrViewEventSeqNotIncreasing) {
+			t.Fatalf("AdmitEvent(non-increasing) error = %v, want ErrViewEventSeqNotIncreasing", err)
+		}
+		if err := service.AdmitEvent(t.Context(), token, ViewEvent{
+			Handler: "h_action", Args: []any{"row"}, Revision: "vr_stale", Seq: 2,
+		}); !errors.Is(err, ErrViewEventRevisionStale) {
+			t.Fatalf("AdmitEvent(stale revision) error = %v, want ErrViewEventRevisionStale", err)
+		}
+	})
+
 	t.Run("Should isolate clients and invalidate replaced extension generations", func(t *testing.T) {
 		t.Parallel()
 		program := newViewProgramProviderStub()
-		clients := &testClientDirectory{
-			clients: []Client{
-				{ID: "client-a", WorkspaceID: "workspace-a"},
-				{ID: "client-b", WorkspaceID: "workspace-a"},
-			},
-			tokens: map[ClientID]string{"client-a": "token-a", "client-b": "token-b"},
-		}
-		service := testRegistryWithOptions(
-			staticTestProvider{commands: []Descriptor{testDescriptor("test.command")}},
-			clients,
-			nil,
-			&testExecutor{},
-			WithViewProviders([]ViewProviderRegistration{{
-				Descriptor: ViewDescriptor{
-					ID: "ext.notes.browser", Title: "Notes", Kind: ViewKindList,
-					Program: true, Extension: "notes",
-				},
-				Provider: &viewSourceProviderStub{},
-			}}),
-			WithViewProgramProvider(program),
-		)
+		service := testProgramViewService(t, testProgramViewClients("client-a", "client-b"), program)
 		first, err := service.OpenSession(t.Context(), ViewSessionOpenRequest{
 			Workspace: "workspace-a", Client: "client-a", AttachmentToken: "token-a",
 			View: "ext.notes.browser",
@@ -692,6 +823,90 @@ type viewSourceProviderStub struct {
 	calls       int
 }
 
+type viewPatchSubscriberStub struct {
+	viewSourceProviderStub
+	mu           sync.Mutex
+	recordedOps  []string
+	request      ViewPatchSubscribeRequest
+	cancels      int
+	events       <-chan ViewPatchEvent
+	subscribeErr error
+}
+
+var (
+	_ ViewSourceProvider  = (*viewPatchSubscriberStub)(nil)
+	_ ViewPatchSubscriber = (*viewPatchSubscriberStub)(nil)
+)
+
+func (s *viewPatchSubscriberStub) OpenSource(
+	ctx context.Context,
+	workspaceID WorkspaceID,
+	viewID string,
+) (ViewPayload, error) {
+	s.mu.Lock()
+	s.recordedOps = append(s.recordedOps, "open")
+	s.mu.Unlock()
+	return s.viewSourceProviderStub.OpenSource(ctx, workspaceID, viewID)
+}
+
+func (s *viewPatchSubscriberStub) SubscribeViewPatches(
+	_ context.Context,
+	request ViewPatchSubscribeRequest,
+) (<-chan ViewPatchEvent, func(), error) {
+	s.mu.Lock()
+	s.recordedOps = append(s.recordedOps, "subscribe")
+	s.request = request
+	err := s.subscribeErr
+	events := s.events
+	s.mu.Unlock()
+	if err != nil {
+		return nil, nil, err
+	}
+	if events == nil {
+		closed := make(chan ViewPatchEvent)
+		close(closed)
+		events = closed
+	}
+	return events, s.cancel, nil
+}
+
+func (s *viewPatchSubscriberStub) cancel() {
+	s.mu.Lock()
+	s.cancels++
+	s.mu.Unlock()
+}
+
+func (s *viewPatchSubscriberStub) ops() []string {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return append([]string(nil), s.recordedOps...)
+}
+
+func (s *viewPatchSubscriberStub) subscribeThenOpen() bool {
+	subscribeAt, openAt := -1, -1
+	for index, op := range s.ops() {
+		if op == "subscribe" && subscribeAt < 0 {
+			subscribeAt = index
+		}
+		if op == "open" && openAt < 0 {
+			openAt = index
+		}
+	}
+	return subscribeAt >= 0 && openAt > subscribeAt
+}
+
+func (s *viewPatchSubscriberStub) subscribeRequest() ViewPatchSubscribeRequest {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.request
+}
+
+func (s *viewPatchSubscriberStub) cancelCount() int {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.cancels
+}
+
 type viewProgramEventCall struct {
 	ctx   context.Context
 	event ViewEvent
@@ -751,10 +966,65 @@ func (s *viewProgramProviderStub) closeCount() int {
 
 func viewProgramFrame(sessionID, revision string, generation uint64, reply int64) ViewFrame {
 	payload := validListViewPayload()
+	payload.Chrome = &ViewChrome{OnSearch: "h_search"}
 	return ViewFrame{
 		ViewSession: sessionID, Revision: revision, Generation: generation, InReplyTo: reply,
-		Payload: &payload, Handlers: []string{"h_search"},
+		Payload: &payload, Handlers: []string{"h_search", "h_action"},
 	}
+}
+
+func requireViewValidationPath(t *testing.T, err error, path string) {
+	t.Helper()
+	var validation *ViewValidationError
+	if !errors.As(err, &validation) {
+		t.Fatalf("error = %#v, want ViewValidationError for %q", err, path)
+	}
+	if validation.Path != path {
+		t.Fatalf("validation path = %q, want %q (error = %v)", validation.Path, path, err)
+	}
+}
+
+func requireErrorContains(t *testing.T, err error, fragment string) {
+	t.Helper()
+	if err == nil || !strings.Contains(err.Error(), fragment) {
+		t.Fatalf("error = %v, want substring %q", err, fragment)
+	}
+}
+
+func testProgramViewClients(ids ...ClientID) *testClientDirectory {
+	clients := make([]Client, 0, len(ids))
+	tokens := make(map[ClientID]string, len(ids))
+	for _, id := range ids {
+		clients = append(clients, Client{ID: id, WorkspaceID: "workspace-a"})
+		tokens[id] = "token-" + strings.TrimPrefix(string(id), "client-")
+	}
+	return &testClientDirectory{clients: clients, tokens: tokens}
+}
+
+func testProgramViewService(
+	t *testing.T,
+	clients ClientDirectory,
+	program ViewProgramProvider,
+	options ...Option,
+) *Service {
+	t.Helper()
+	options = append([]Option{
+		WithViewProviders([]ViewProviderRegistration{{
+			Descriptor: ViewDescriptor{
+				ID: "ext.notes.browser", Title: "Notes", Kind: ViewKindList,
+				Program: true, Extension: "notes",
+			},
+			Provider: &viewSourceProviderStub{},
+		}}),
+		WithViewProgramProvider(program),
+	}, options...)
+	return testRegistryWithOptions(
+		staticTestProvider{commands: []Descriptor{testDescriptor("test.command")}},
+		clients,
+		nil,
+		&testExecutor{},
+		options...,
+	)
 }
 
 func waitForRecordedEvents(t *testing.T, recorder *recordingEventRecorder, count int) {

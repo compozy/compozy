@@ -68,6 +68,7 @@ export function useSettingsPalettePage(): SettingsPalettePageModel {
       ? { scope: "workspace", workspace_id: workspace.activeWorkspaceId }
       : { scope: "global" };
   const query = useQuery({ ...settingsCmdPaletteOptions(filter), enabled: settled });
+  const pageError = workspace.error instanceof Error ? workspace.error : (query.error ?? null);
   const mutation = useMutation({
     mutationFn: (variables: PaletteSettingsWrite) =>
       updateSettingsCmdPalette(variables.update, variables.filter),
@@ -117,9 +118,9 @@ export function useSettingsPalettePage(): SettingsPalettePageModel {
 
   return {
     section,
-    isLoading: !settled || query.isLoading,
+    isLoading: pageError === null && (!settled || query.isLoading),
     isSaving: mutation.isPending,
-    error: query.error,
+    error: pageError,
     saveError: mutation.error instanceof Error ? mutation.error.message : null,
     restart: page.restart,
     scopeLabel,
@@ -137,6 +138,9 @@ export function useSettingsPalettePage(): SettingsPalettePageModel {
     },
     isResetting: resetMutation.isPending,
     resetError: resetMutation.error instanceof Error ? resetMutation.error.message : null,
-    handleRetry: () => void query.refetch(),
+    handleRetry: () => {
+      void workspace.refetch();
+      void query.refetch();
+    },
   };
 }

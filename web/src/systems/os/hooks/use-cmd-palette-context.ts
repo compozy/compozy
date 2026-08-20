@@ -1,7 +1,8 @@
-import { useEffect, useState } from "react";
+import { useEffect, useEffectEvent, useState } from "react";
 import { shallowEqual } from "@xstate/store";
 
 import {
+  CMD_PALETTE_CONTEXT_KEYS,
   buildCmdPaletteContextSnapshot,
   sameContextSnapshot,
   type CmdPaletteContextSnapshot,
@@ -15,6 +16,11 @@ import { useDesktop } from "./use-desktop";
  * (US-037.EC-2).
  */
 export const CMD_PALETTE_CONTEXT_DEBOUNCE_MS = 120;
+
+function contextRevision(snapshot: CmdPaletteContextSnapshot | null): string {
+  if (snapshot === null) return "unattached";
+  return JSON.stringify(CMD_PALETTE_CONTEXT_KEYS.map(key => snapshot[key]));
+}
 
 export interface UseCmdPaletteContextOptions {
   readonly shellDesktop: boolean;
@@ -53,14 +59,16 @@ export function useCmdPaletteContext({
       })
     : null;
   const [settled, setSettled] = useState<CmdPaletteContextSnapshot | null>(live);
+  const commitLive = useEffectEvent(() => {
+    setSettled(current => (sameContextSnapshot(current, live) ? current : live));
+  });
+  const revision = contextRevision(live);
 
   useEffect(() => {
-    if (sameContextSnapshot(settled, live)) return undefined;
-    const timer = setTimeout(() => setSettled(live), debounceMs);
+    if (!attached) return undefined;
+    const timer = setTimeout(commitLive, debounceMs);
     return () => clearTimeout(timer);
-    // `live` is rebuilt every render; the guard above is what decides whether a
-    // rebuild is a real change, so the timer only ever chases genuine movement.
-  });
+  }, [attached, debounceMs, revision]);
 
-  return settled;
+  return attached ? settled : null;
 }

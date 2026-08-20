@@ -6,9 +6,12 @@ import { resolveCommandSelection } from "@compozy/ui";
 import { resolvePaletteRowSubject } from "../lib/cmd-palette-row-actions";
 import { cmdPaletteExecutionStore } from "../stores/cmd-palette-execution-store";
 import type { CmdPaletteDispatch } from "./use-cmd-palette-dispatch";
+import { paletteSelectionValues } from "./os-palette-selection-values";
 import { useOsPaletteExecution, type OsPaletteExecutionModel } from "./use-os-palette-execution";
 import { useOsPaletteRoot, type OsPaletteRootModel } from "./use-os-palette-root";
 import { useOsPaletteViewStack, type OsPaletteViewStackModel } from "./use-os-palette-view-stack";
+
+export { paletteSelectionValues } from "./os-palette-selection-values";
 
 export interface OsPaletteSurfaceModel {
   readonly root: OsPaletteRootModel;
@@ -53,14 +56,7 @@ export function useOsPaletteSurface({
     dispatch: (command, query) => dispatch.run(command, { query }),
     setPinned: (command, pinned) => void dispatch.setPinned(command, pinned),
   });
-  const values = [
-    ...root.sections.flatMap(section => section.commands.map(command => command.id)),
-    ...(root.fallback === null ? [] : [root.fallback.value]),
-    ...root.entities.sessions.map(session => `session:${session.sessionId}`),
-    ...(root.destination ? [] : root.entities.tabs.map(tab => `tab:${tab.windowId}`)),
-    ...(root.destination ? [] : root.entities.worktrees.map(entry => `worktree:${entry.key}`)),
-    ...root.domainSections.flatMap(section => section.rows.map(row => row.key)),
-  ];
+  const values = paletteSelectionValues(root);
   const [selection, setSelection] = useState<{ previous: readonly string[]; value: string }>(
     () => ({ previous: values, value: values[0] ?? "" })
   );

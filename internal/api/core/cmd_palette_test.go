@@ -77,29 +77,44 @@ func TestBaseHandlersCmdPalette(t *testing.T) {
 			wantStatus int
 			wantCode   string
 		}{
-			{name: "unknown", err: cmdpalette.ErrCommandNotFound, wantStatus: 404, wantCode: "command_not_found"},
+			{
+				name:       "unknown",
+				err:        cmdpalette.ErrCommandNotFound,
+				wantStatus: http.StatusNotFound,
+				wantCode:   "command_not_found",
+			},
 			{
 				name:       "invalid arguments",
 				err:        &cmdpalette.InvalidArgumentsError{Fields: map[string]string{"title": "required"}},
-				wantStatus: 422,
+				wantStatus: http.StatusUnprocessableEntity,
 				wantCode:   "invalid_arguments",
 			},
 			{
 				name: "unavailable", err: &cmdpalette.UnavailableError{Reason: "needs two windows"},
-				wantStatus: 412, wantCode: "command_unavailable",
+				wantStatus: http.StatusPreconditionFailed, wantCode: "command_unavailable",
 			},
-			{name: "no shell", err: cmdpalette.ErrNoAttachedShell, wantStatus: 412, wantCode: "no_attached_shell"},
+			{
+				name:       "no shell",
+				err:        cmdpalette.ErrNoAttachedShell,
+				wantStatus: http.StatusPreconditionFailed,
+				wantCode:   "no_attached_shell",
+			},
 			{
 				name:       "multiple clients",
 				err:        &cmdpalette.MultipleClientsError{Clients: []cmdpalette.ClientID{"a", "b"}},
-				wantStatus: 409,
+				wantStatus: http.StatusConflict,
 				wantCode:   "multiple_clients",
 			},
-			{name: "running", err: cmdpalette.ErrAlreadyRunning, wantStatus: 409, wantCode: "already_running"},
+			{
+				name:       "running",
+				err:        cmdpalette.ErrAlreadyRunning,
+				wantStatus: http.StatusConflict,
+				wantCode:   "already_running",
+			},
 			{
 				name:       "forged token",
 				err:        cmdpalette.ErrClientUnauthorized,
-				wantStatus: 401,
+				wantStatus: http.StatusUnauthorized,
 				wantCode:   "client_unauthorized",
 			},
 		}
@@ -135,6 +150,265 @@ func TestBaseHandlersCmdPalette(t *testing.T) {
 					registry.invokeRequest.Caller != cmdpalette.CallerAttachedClient ||
 					registry.invokeRequest.ClientToken != "attachment-token" {
 					t.Fatalf("Invoke() request = %#v, want canonical attached caller", registry.invokeRequest)
+				}
+			})
+		}
+	})
+
+	t.Run("Should include the domain invocation id on a successful invoke", func(t *testing.T) {
+		t.Parallel()
+		registry := &cmdPaletteRegistryStub{invokeResult: cmdpalette.InvokeResult{
+			Status: cmdpalette.InvokeStatusOK, InvocationID: "inv_test",
+			Result: json.RawMessage(`{"note_id":"note-a"}`),
+		}}
+		handlers := newCmdPaletteHandlers(registry, nil)
+		engine := gin.New()
+		engine.POST("/api/cmd-palette/commands/:id/invoke", handlers.InvokeCmdPaletteCommand)
+		body := bytes.NewBufferString(`{"workspace":"alpha","args":{"title":"Standup"}}`)
+		request := httptest.NewRequestWithContext(
+			t.Context(),
+			http.MethodPost,
+			"/api/cmd-palette/commands/ext.notes.capture/invoke",
+			body,
+		)
+		request.Header.Set("Content-Type", "application/json")
+		recorder := httptest.NewRecorder()
+		engine.ServeHTTP(recorder, request)
+		if recorder.Code != http.StatusOK {
+			t.Fatalf("status = %d, want 200; body=%s", recorder.Code, recorder.Body.String())
+		}
+		var response contract.CmdPaletteInvokeResult
+		if err := json.Unmarshal(recorder.Body.Bytes(), &response); err != nil {
+			t.Fatalf("json.Unmarshal(invoke) error = %v", err)
+		}
+		if response.Status != cmdpalette.InvokeStatusOK || response.InvocationID != "inv_test" {
+			t.Fatalf("invoke response = %#v, want invocation_id inv_test", response)
+		}
+	})
+
+	t.Run("Should forward the client attachment header on invoke", func(t *testing.T) {
+		t.Parallel()
+		cases := []struct {
+			name       string
+			token      string
+			wantCaller cmdpalette.CallerKind
+			wantToken  string
+		}{
+			{
+				name: "attached client", token: "attachment-token",
+				wantCaller: cmdpalette.CallerAttachedClient, wantToken: "attachment-token",
+			},
+			{
+				name: "control plane", token: "",
+				wantCaller: cmdpalette.CallerControlPlane, wantToken: "",
+			},
+		}
+		for _, testCase := range cases {
+			t.Run("Should classify "+testCase.name, func(t *testing.T) {
+				t.Parallel()
+				registry := &cmdPaletteRegistryStub{invokeResult: cmdpalette.InvokeResult{
+					Status: cmdpalette.InvokeStatusOK, InvocationID: "inv_header",
+				}}
+				handlers := newCmdPaletteHandlers(registry, nil)
+				engine := gin.New()
+				engine.POST("/api/cmd-palette/commands/:id/invoke", handlers.InvokeCmdPaletteCommand)
+				request := httptest.NewRequestWithContext(
+					t.Context(),
+					http.MethodPost,
+					"/api/cmd-palette/commands/window.close/invoke",
+					bytes.NewBufferString(`{"workspace":"alpha","args":{},"client":"client-a"}`),
+				)
+				request.Header.Set("Content-Type", "application/json")
+				if testCase.token != "" {
+					request.Header.Set("X-Compozy-Client-Token", testCase.token)
+				}
+				recorder := httptest.NewRecorder()
+				engine.ServeHTTP(recorder, request)
+				if recorder.Code != http.StatusOK {
+					t.Fatalf("status = %d, want 200; body=%s", recorder.Code, recorder.Body.String())
+				}
+				if registry.invokeRequest.WorkspaceID != "workspace-canonical" ||
+					registry.invokeRequest.Caller != testCase.wantCaller ||
+					registry.invokeRequest.ClientToken != testCase.wantToken {
+					t.Fatalf(
+						"Invoke() request = %#v, want caller %q token %q",
+						registry.invokeRequest, testCase.wantCaller, testCase.wantToken,
+					)
+				}
+			})
+		}
+	})
+
+	t.Run("Should open admit stream and close a view session", func(t *testing.T) {
+		t.Parallel()
+		frames := make(chan cmdpalette.ViewFrame, 1)
+		frames <- cmdpalette.ViewFrame{ViewSession: "vs_1", Revision: "vr_2", Handlers: []string{"submit"}}
+		close(frames)
+		registry := &cmdPaletteRegistryStub{
+			openResult: cmdpalette.ViewSessionOpenResult{
+				Token: cmdpalette.SessionToken{ViewSession: "vs_1", StreamToken: "vst_1"},
+				FirstFrame: cmdpalette.ViewFrame{
+					ViewSession: "vs_1", Revision: "vr_1", Handlers: []string{"submit"},
+				},
+			},
+			subscribeReplay: cmdpalette.ViewFrame{
+				ViewSession: "vs_1", Revision: "vr_1", Handlers: []string{"submit"},
+			},
+			subscribeFrames: frames,
+		}
+		handlers := newCmdPaletteHandlers(registry, nil)
+		engine := gin.New()
+		engine.POST("/api/cmd-palette/views/:id/open", handlers.OpenCmdPaletteViewSession)
+		engine.GET("/api/cmd-palette/view-sessions/:session/stream", handlers.StreamCmdPaletteViewSession)
+		engine.POST("/api/cmd-palette/view-sessions/:session/events", handlers.AdmitCmdPaletteViewSessionEvent)
+		engine.DELETE("/api/cmd-palette/view-sessions/:session", handlers.CloseCmdPaletteViewSession)
+
+		opened := httptest.NewRecorder()
+		openRequest := httptest.NewRequestWithContext(
+			t.Context(),
+			http.MethodPost,
+			"/api/cmd-palette/views/ext.notes.recent/open",
+			bytes.NewBufferString(`{"workspace":"alpha","args":{"q":"n"}}`),
+		)
+		openRequest.Header.Set("Content-Type", "application/json")
+		openRequest.Header.Set("X-Compozy-Client-Token", "attachment-token")
+		engine.ServeHTTP(opened, openRequest)
+		if opened.Code != http.StatusOK {
+			t.Fatalf("open status = %d, want 200; body=%s", opened.Code, opened.Body.String())
+		}
+		var openResponse contract.CmdPaletteViewSessionOpenResponse
+		if err := json.Unmarshal(opened.Body.Bytes(), &openResponse); err != nil {
+			t.Fatalf("json.Unmarshal(open) error = %v", err)
+		}
+		if openResponse.ViewSession != "vs_1" || openResponse.StreamToken != "vst_1" ||
+			registry.openRequest.Workspace != "workspace-canonical" ||
+			registry.openRequest.View != "ext.notes.recent" ||
+			registry.openRequest.AttachmentToken != "attachment-token" {
+			t.Fatalf("open response/request = %#v / %#v", openResponse, registry.openRequest)
+		}
+
+		streamed := httptest.NewRecorder()
+		engine.ServeHTTP(streamed, httptest.NewRequestWithContext(
+			t.Context(),
+			http.MethodGet,
+			"/api/cmd-palette/view-sessions/vs_1/stream?token=vst_1",
+			http.NoBody,
+		))
+		if streamed.Code != http.StatusOK ||
+			!strings.Contains(streamed.Body.String(), "event: cmd_palette.view.frame") ||
+			!strings.Contains(streamed.Body.String(), `"view_session":"vs_1"`) {
+			t.Fatalf("stream = status %d body %q", streamed.Code, streamed.Body.String())
+		}
+		if registry.subscribeToken.ViewSession != "vs_1" || registry.subscribeToken.StreamToken != "vst_1" {
+			t.Fatalf("subscribe token = %#v", registry.subscribeToken)
+		}
+
+		admitted := httptest.NewRecorder()
+		admitRequest := httptest.NewRequestWithContext(
+			t.Context(),
+			http.MethodPost,
+			"/api/cmd-palette/view-sessions/vs_1/events",
+			bytes.NewBufferString(`{"handler":"submit","revision":"vr_1","seq":1}`),
+		)
+		admitRequest.Header.Set("Content-Type", "application/json")
+		admitRequest.Header.Set("X-Compozy-Client-Token", "attachment-token")
+		engine.ServeHTTP(admitted, admitRequest)
+		if admitted.Code != http.StatusAccepted {
+			t.Fatalf("admit status = %d, want 202; body=%s", admitted.Code, admitted.Body.String())
+		}
+		if registry.admitToken.ViewSession != "vs_1" ||
+			registry.admitToken.AttachmentToken != "attachment-token" ||
+			registry.admitEvent.Handler != "submit" {
+			t.Fatalf("admit token/event = %#v / %#v", registry.admitToken, registry.admitEvent)
+		}
+
+		closed := httptest.NewRecorder()
+		closeRequest := httptest.NewRequestWithContext(
+			t.Context(),
+			http.MethodDelete,
+			"/api/cmd-palette/view-sessions/vs_1",
+			http.NoBody,
+		)
+		closeRequest.Header.Set("X-Compozy-Client-Token", "attachment-token")
+		engine.ServeHTTP(closed, closeRequest)
+		if closed.Code != http.StatusOK || !strings.Contains(closed.Body.String(), `"closed":true`) {
+			t.Fatalf("close = status %d body %q", closed.Code, closed.Body.String())
+		}
+		if registry.closeToken.ViewSession != "vs_1" ||
+			registry.closeToken.AttachmentToken != "attachment-token" {
+			t.Fatalf("close token = %#v", registry.closeToken)
+		}
+	})
+
+	t.Run("Should map typed view-session causes to transport status", func(t *testing.T) {
+		t.Parallel()
+		cases := []struct {
+			name   string
+			err    error
+			status int
+			code   string
+		}{
+			{
+				name:   "stale frame",
+				err:    cmdpalette.ErrViewFrameStale,
+				status: http.StatusBadRequest,
+				code:   "invalid_request",
+			},
+			{
+				name:   "validation",
+				err:    &cmdpalette.ViewValidationError{Path: "revision", Message: "is required"},
+				status: http.StatusUnprocessableEntity,
+				code:   "invalid_view",
+			},
+			{
+				name:   "busy",
+				err:    cmdpalette.ErrViewBusy,
+				status: http.StatusConflict,
+				code:   "view_busy",
+			},
+			{
+				name:   "invalid event",
+				err:    cmdpalette.ErrViewEventInvalid,
+				status: http.StatusBadRequest,
+				code:   "invalid_request",
+			},
+			{
+				name:   "event seq",
+				err:    cmdpalette.ErrViewEventSeqNotIncreasing,
+				status: http.StatusBadRequest,
+				code:   "invalid_request",
+			},
+			{
+				name:   "stale event revision",
+				err:    cmdpalette.ErrViewEventRevisionStale,
+				status: http.StatusBadRequest,
+				code:   "invalid_request",
+			},
+		}
+		for _, testCase := range cases {
+			t.Run("Should classify "+testCase.name, func(t *testing.T) {
+				t.Parallel()
+				registry := &cmdPaletteRegistryStub{admitErr: testCase.err}
+				handlers := newCmdPaletteHandlers(registry, nil)
+				engine := gin.New()
+				engine.POST(
+					"/api/cmd-palette/view-sessions/:session/events",
+					handlers.AdmitCmdPaletteViewSessionEvent,
+				)
+				recorder := httptest.NewRecorder()
+				request := httptest.NewRequestWithContext(
+					t.Context(),
+					http.MethodPost,
+					"/api/cmd-palette/view-sessions/vs_1/events",
+					bytes.NewBufferString(`{"handler":"submit","revision":"vr_1","seq":1}`),
+				)
+				request.Header.Set("Content-Type", "application/json")
+				engine.ServeHTTP(recorder, request)
+				if recorder.Code != testCase.status || !strings.Contains(recorder.Body.String(), testCase.code) {
+					t.Fatalf(
+						"admit %s = status %d body %q, want %d %s",
+						testCase.name, recorder.Code, recorder.Body.String(), testCase.status, testCase.code,
+					)
 				}
 			})
 		}
@@ -376,8 +650,18 @@ func TestBaseHandlersCmdPalette(t *testing.T) {
 			t.Context(), http.MethodGet,
 			"/api/cmd-palette/views/ext.notes.recent/stream?workspace=alpha&after=4", http.NoBody,
 		))
-		if guarded.Code != http.StatusBadRequest {
-			t.Fatalf("guard status = %d, want 400; body=%s", guarded.Code, guarded.Body.String())
+		if guarded.Code != http.StatusBadRequest ||
+			!strings.Contains(guarded.Body.String(), "stream_epoch is required when after is greater than zero") {
+			t.Fatalf("guard status = %d, want 400 epoch required; body=%s", guarded.Code, guarded.Body.String())
+		}
+
+		invalid := httptest.NewRecorder()
+		engine.ServeHTTP(invalid, httptest.NewRequestWithContext(
+			t.Context(), http.MethodGet,
+			"/api/cmd-palette/views/ext.notes.recent/stream?workspace=alpha&after=nope", http.NoBody,
+		))
+		if invalid.Code != http.StatusBadRequest || !strings.Contains(invalid.Body.String(), "invalid sequence") {
+			t.Fatalf("invalid cursor = %d body %q, want 400 invalid sequence", invalid.Code, invalid.Body.String())
 		}
 
 		reset := httptest.NewRecorder()
@@ -392,6 +676,15 @@ func TestBaseHandlersCmdPalette(t *testing.T) {
 		if !strings.Contains(reset.Body.String(), `"stream_epoch":"vse_current"`) ||
 			!strings.Contains(reset.Body.String(), `"revision":"vr_current"`) {
 			t.Fatalf("reset stream body = %q, want current fence", reset.Body.String())
+		}
+		if registry.viewSubscribeRequest.Workspace != "workspace-canonical" ||
+			registry.viewSubscribeRequest.ViewID != "ext.notes.recent" ||
+			registry.viewSubscribeRequest.After != 4 ||
+			registry.viewSubscribeRequest.StreamEpoch != "vse_stale" {
+			t.Fatalf(
+				"SubscribeViewPatches() request = %#v, want cursor after=4 epoch=vse_stale",
+				registry.viewSubscribeRequest,
+			)
 		}
 	})
 }
@@ -417,24 +710,36 @@ func newCmdPaletteHandlers(
 }
 
 type cmdPaletteRegistryStub struct {
-	catalog          cmdpalette.Catalog
-	catalogWorkspace cmdpalette.WorkspaceID
-	catalogClient    cmdpalette.ClientID
-	invokeRequest    cmdpalette.InvokeRequest
-	invokeResult     cmdpalette.InvokeResult
-	invokeErr        error
-	eventUpdates     <-chan cmdpalette.Event
-	snapshot         cmdpalette.Snapshot
-	summary          cmdpalette.PersonalizationSummary
-	usage            cmdpalette.Usage
-	pinWorkspace     cmdpalette.WorkspaceID
-	pinCommand       cmdpalette.CommandID
-	pinned           bool
-	resetWorkspace   cmdpalette.WorkspaceID
-	viewSnapshot     cmdpalette.ViewSnapshot
-	viewWorkspace    cmdpalette.WorkspaceID
-	viewID           string
-	viewEvents       <-chan cmdpalette.ViewPatchEvent
+	catalog              cmdpalette.Catalog
+	catalogWorkspace     cmdpalette.WorkspaceID
+	catalogClient        cmdpalette.ClientID
+	invokeRequest        cmdpalette.InvokeRequest
+	invokeResult         cmdpalette.InvokeResult
+	invokeErr            error
+	eventUpdates         <-chan cmdpalette.Event
+	snapshot             cmdpalette.Snapshot
+	summary              cmdpalette.PersonalizationSummary
+	usage                cmdpalette.Usage
+	pinWorkspace         cmdpalette.WorkspaceID
+	pinCommand           cmdpalette.CommandID
+	pinned               bool
+	resetWorkspace       cmdpalette.WorkspaceID
+	viewSnapshot         cmdpalette.ViewSnapshot
+	viewWorkspace        cmdpalette.WorkspaceID
+	viewID               string
+	viewEvents           <-chan cmdpalette.ViewPatchEvent
+	viewSubscribeRequest cmdpalette.ViewPatchSubscribeRequest
+	openRequest          cmdpalette.ViewSessionOpenRequest
+	openResult           cmdpalette.ViewSessionOpenResult
+	openErr              error
+	admitToken           cmdpalette.SessionToken
+	admitEvent           cmdpalette.ViewEvent
+	admitErr             error
+	closeToken           cmdpalette.SessionToken
+	subscribeToken       cmdpalette.SessionToken
+	subscribeReplay      cmdpalette.ViewFrame
+	subscribeFrames      <-chan cmdpalette.ViewFrame
+	subscribeErr         error
 }
 
 func (s *cmdPaletteRegistryStub) Catalog(
@@ -550,16 +855,86 @@ func (s *cmdPaletteRegistryStub) OpenSource(
 }
 
 func (s *cmdPaletteRegistryStub) SubscribeViewPatches(
-	context.Context,
-	cmdpalette.WorkspaceID,
-	string,
-) (<-chan cmdpalette.ViewPatchEvent, func(), error) {
+	_ context.Context,
+	request cmdpalette.ViewPatchSubscribeRequest,
+) (cmdpalette.ViewSnapshot, <-chan cmdpalette.ViewPatchEvent, func(), error) {
+	s.viewSubscribeRequest = request
+	s.viewWorkspace = request.Workspace
+	s.viewID = request.ViewID
+	if request.After < 0 {
+		return cmdpalette.ViewSnapshot{}, nil, nil, cmdpalette.ErrViewInvalidSequence
+	}
+	if request.After > 0 && strings.TrimSpace(request.StreamEpoch) == "" {
+		return cmdpalette.ViewSnapshot{}, nil, nil, cmdpalette.ErrViewStreamEpochRequired
+	}
+	if s.viewSnapshot.Descriptor.ID == "" {
+		return cmdpalette.ViewSnapshot{}, nil, nil, &cmdpalette.ViewNotFoundError{ViewID: request.ViewID}
+	}
 	if s.viewEvents != nil {
-		return s.viewEvents, func() {}, nil
+		return s.viewSnapshot, s.viewEvents, func() {}, nil
 	}
 	events := make(chan cmdpalette.ViewPatchEvent)
 	close(events)
-	return events, func() {}, nil
+	return s.viewSnapshot, events, func() {}, nil
+}
+
+func (s *cmdPaletteRegistryStub) OpenSession(
+	_ context.Context,
+	request cmdpalette.ViewSessionOpenRequest,
+) (cmdpalette.ViewSessionOpenResult, error) {
+	s.openRequest = request
+	return s.openResult, s.openErr
+}
+
+func (s *cmdPaletteRegistryStub) AdmitEvent(
+	_ context.Context,
+	token cmdpalette.SessionToken,
+	event cmdpalette.ViewEvent,
+) error {
+	s.admitToken = token
+	s.admitEvent = event
+	return s.admitErr
+}
+
+func (s *cmdPaletteRegistryStub) PublishFrame(context.Context, cmdpalette.SessionToken, cmdpalette.ViewFrame) error {
+	return nil
+}
+
+func (s *cmdPaletteRegistryStub) AckEffects(context.Context, cmdpalette.SessionToken, []string) error {
+	return nil
+}
+
+func (s *cmdPaletteRegistryStub) SubscribeSessionFrames(
+	_ context.Context,
+	token cmdpalette.SessionToken,
+) (cmdpalette.ViewFrame, <-chan cmdpalette.ViewFrame, func(), error) {
+	s.subscribeToken = token
+	if s.subscribeErr != nil {
+		return cmdpalette.ViewFrame{}, nil, func() {}, s.subscribeErr
+	}
+	if s.subscribeFrames != nil {
+		return s.subscribeReplay, s.subscribeFrames, func() {}, nil
+	}
+	frames := make(chan cmdpalette.ViewFrame)
+	close(frames)
+	return s.subscribeReplay, frames, func() {}, nil
+}
+
+func (s *cmdPaletteRegistryStub) CloseSession(
+	_ context.Context,
+	token cmdpalette.SessionToken,
+	_ string,
+) error {
+	s.closeToken = token
+	return nil
+}
+
+func (s *cmdPaletteRegistryStub) CloseClientSessions(context.Context, cmdpalette.WorkspaceID, cmdpalette.ClientID) error {
+	return nil
+}
+
+func (s *cmdPaletteRegistryStub) InvalidateInstance(context.Context, cmdpalette.WorkspaceID, string, uint64) error {
+	return nil
 }
 
 type approvalCoordinatorStub struct {

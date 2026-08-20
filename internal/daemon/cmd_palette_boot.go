@@ -33,7 +33,13 @@ func (d *Daemon) bootCmdPalette(
 	extensionProvider := &extensionCmdPaletteProvider{
 		runtime: state.currentExtensionRuntime,
 		tools:   state.toolRegistry,
+		patches: newViewPatchHub(),
 	}
+	state.viewPatches = extensionProvider
+	cleanup.add(func(context.Context) error {
+		extensionProvider.CloseViewPatches()
+		return nil
+	})
 	executor := &cmdPaletteActionExecutor{
 		tools: state.toolRegistry, approvalTokens: state.toolApprovals,
 		windowManager: state.windowManager, approvalTTL: state.cfg.Tools.Policy.ApprovalTimeout(),

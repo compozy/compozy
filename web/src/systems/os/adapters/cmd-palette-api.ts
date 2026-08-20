@@ -6,9 +6,9 @@ import type {
   CmdPaletteInvokeResult,
   CmdPalettePersonalization,
   CmdPaletteRankSignals,
+  CmdPaletteViewEnvelope,
   CmdPaletteViewSessionEvent,
   CmdPaletteViewSessionOpenResponse,
-  CmdPaletteViewEnvelope,
 } from "../lib/cmd-palette-types";
 
 export type CmdPaletteApiErrorKind = "daemon" | "malformed_response" | "transport";
@@ -218,7 +218,34 @@ export async function openCmdPaletteViewSession(
   });
   const fallback = `Failed to open ${viewId}`;
   if (apiRequestFailed(response, error)) throw responseError(fallback, response, error);
-  return responseData(data, response, fallback);
+  return requireViewSessionOpen(data, response, fallback);
+}
+
+function requireViewSessionOpen(
+  data: CmdPaletteViewSessionOpenResponse | undefined,
+  response: Response,
+  fallback: string
+): CmdPaletteViewSessionOpenResponse {
+  const envelope = responseData(data, response, fallback);
+  const token = envelope.stream_token?.trim() ?? "";
+  const session = envelope.view_session?.trim() ?? "";
+  const frame = envelope.first_frame;
+  if (
+    token === "" ||
+    session === "" ||
+    frame == null ||
+    typeof frame.revision !== "string" ||
+    frame.revision.trim() === "" ||
+    typeof frame.view_session !== "string" ||
+    frame.view_session.trim() === ""
+  ) {
+    throw new CmdPaletteApiError(
+      `${fallback}: missing session envelope (${response.status})`,
+      response.status,
+      "malformed_response"
+    );
+  }
+  return envelope;
 }
 
 export async function admitCmdPaletteViewSessionEvent(
@@ -271,6 +298,8 @@ export interface CmdPaletteInvokeInput {
   readonly commandId: string;
   readonly args?: Readonly<Record<string, unknown>>;
   readonly clientId?: string | null;
+  /** Attached-client proof; omitted on control-plane invokes with no token. */
+  readonly attachmentToken?: string | null;
 }
 
 /**
@@ -282,8 +311,12 @@ export async function invokeCmdPaletteCommand(
   signal?: AbortSignal
 ): Promise<CmdPaletteInvokeResult> {
   const client = input.clientId?.trim() || undefined;
+  const attachmentToken = input.attachmentToken?.trim() ?? "";
   const { data, error, response } = await apiClient.POST("/api/cmd-palette/commands/{id}/invoke", {
-    params: { path: { id: input.commandId } },
+    params: {
+      path: { id: input.commandId },
+      header: { [CLIENT_TOKEN_HEADER]: attachmentToken },
+    },
     body: {
       workspace: input.workspaceId,
       args: { ...input.args },

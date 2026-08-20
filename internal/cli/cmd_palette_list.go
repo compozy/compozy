@@ -1,7 +1,6 @@
 package cli
 
 import (
-	"fmt"
 	"sort"
 	"strconv"
 	"strings"
@@ -16,9 +15,10 @@ func newCmdPaletteListCommand(deps commandDeps) *cobra.Command {
 	var source string
 	var available bool
 	cmd := &cobra.Command{
-		Use:   bridgeListKey,
-		Short: "List commands and their current availability",
-		Args:  cobra.NoArgs,
+		Use:     cliListVerb,
+		Short:   "List commands and their current availability",
+		Example: "  compozy cmd-palette list --available=false",
+		Args:    cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, _ []string) error {
 			client, workspace, err := cmdPaletteClientAndWorkspace(cmd, deps, scope.workspace)
 			if err != nil {
@@ -39,14 +39,19 @@ func newCmdPaletteListCommand(deps commandDeps) *cobra.Command {
 	}
 	scope.add(cmd, true)
 	cmd.Flags().StringVar(&source, cmdPaletteSourceFlag, "", "Filter by source (core or ext.<name>)")
-	cmd.Flags().BoolVar(&available, cmdPaletteAvailableFlag, true, "Filter by current availability")
+	cmd.Flags().BoolVar(
+		&available,
+		cmdPaletteAvailableFlag,
+		false,
+		cmdPaletteAvailableFlagHelp,
+	)
 	return cmd
 }
 
 func newCmdPaletteInspectCommand(deps commandDeps) *cobra.Command {
 	var scope cmdPaletteScopeFlags
 	cmd := &cobra.Command{
-		Use:   cmdPaletteInspectUse,
+		Use:   cliInspectIDUse,
 		Short: "Inspect one command descriptor",
 		Args:  cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
@@ -64,7 +69,7 @@ func newCmdPaletteInspectCommand(deps commandDeps) *cobra.Command {
 			}
 			command, ok := findCmdPaletteCommand(catalog.Commands, commandID)
 			if !ok {
-				return fmt.Errorf("command not found: %s", commandID)
+				return cmdPaletteCommandNotFoundError(commandID)
 			}
 			return writeCommandOutput(cmd, cmdPaletteInspectOutput(command))
 		},
@@ -76,7 +81,7 @@ func newCmdPaletteInspectCommand(deps commandDeps) *cobra.Command {
 func newCmdPaletteClientsCommand(deps commandDeps) *cobra.Command {
 	var scope cmdPaletteScopeFlags
 	cmd := &cobra.Command{
-		Use:   cmdPaletteClientsUse,
+		Use:   cliClientsUse,
 		Short: "List clients attached to the workspace",
 		Args:  cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, _ []string) error {
@@ -132,18 +137,8 @@ func cmdPaletteListOutput(workspace string, commands []contract.CmdPaletteComman
 		[]string{"ID", "TITLE", "SOURCE", "AVAILABLE", "BINDINGS"},
 		"commands",
 		[]string{"id", networkTitleKey, automationSourceKey, cmdPaletteAvailableFlag, cliBindingsKey},
-		func(command contract.CmdPaletteCommand) []string {
-			return []string{
-				string(command.ID), command.Title, command.Source,
-				strconv.FormatBool(command.Available), strings.Join(command.Bindings, ","),
-			}
-		},
-		func(command contract.CmdPaletteCommand) []string {
-			return []string{
-				string(command.ID), command.Title, command.Source,
-				strconv.FormatBool(command.Available), strings.Join(command.Bindings, ","),
-			}
-		},
+		cmdPaletteCommandRow,
+		cmdPaletteCommandRow,
 	)
 }
 
@@ -183,22 +178,24 @@ func cmdPaletteClientsOutput(clients []contract.CmdPaletteClient) outputBundle {
 		"ATTACHED CLIENTS",
 		[]string{"CLIENT", "KIND", "WORKSPACE", "ATTACHED"},
 		"clients",
-		[]string{"client_id", networkKindKey, cmdPaletteWorkspaceFlag, "attached_at"},
-		func(client contract.CmdPaletteClient) []string {
-			return []string{
-				string(client.ClientID),
-				client.Kind,
-				string(client.Workspace),
-				client.AttachedAt.Format(time.RFC3339),
-			}
-		},
-		func(client contract.CmdPaletteClient) []string {
-			return []string{
-				string(client.ClientID),
-				client.Kind,
-				string(client.Workspace),
-				client.AttachedAt.Format(time.RFC3339),
-			}
-		},
+		[]string{"client_id", cliKindKey, cmdPaletteWorkspaceFlag, "attached_at"},
+		cmdPaletteClientRow,
+		cmdPaletteClientRow,
 	)
+}
+
+func cmdPaletteCommandRow(command contract.CmdPaletteCommand) []string {
+	return []string{
+		string(command.ID), command.Title, command.Source,
+		strconv.FormatBool(command.Available), strings.Join(command.Bindings, ","),
+	}
+}
+
+func cmdPaletteClientRow(client contract.CmdPaletteClient) []string {
+	return []string{
+		string(client.ClientID),
+		client.Kind,
+		string(client.Workspace),
+		client.AttachedAt.Format(time.RFC3339),
+	}
 }

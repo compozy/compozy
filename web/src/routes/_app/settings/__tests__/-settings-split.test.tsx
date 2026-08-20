@@ -25,8 +25,16 @@ vi.mock("@tanstack/react-router", async importOriginal => {
 });
 
 import { PolicySection } from "../-extensions-policy-section";
-import { ExtensionPalettePanel } from "../-extension-palette-panel";
+import { ExtensionPalettePanel, ExtensionPalettePanels } from "../-extension-palette-panel";
 import { HooksSection } from "../-hooks-section";
+
+function notesExtension() {
+  const extension = settingsHooksExtensionsSectionFixture.installed?.find(
+    item => item.name === "notes"
+  );
+  if (!extension) throw new Error("notes extension fixture is required");
+  return extension;
+}
 
 function PolicyHarness() {
   const [draft, setDraft] = useState(settingsHooksExtensionsSectionFixture.config);
@@ -35,12 +43,7 @@ function PolicyHarness() {
 
 describe("Settings route split", () => {
   it("Should show effective, dormant, and view palette contributions", () => {
-    const extension = settingsHooksExtensionsSectionFixture.installed?.find(
-      item => item.name === "notes"
-    );
-    if (!extension) throw new Error("notes extension fixture is required");
-
-    render(<ExtensionPalettePanel extension={extension} />);
+    render(<ExtensionPalettePanel extension={notesExtension()} />);
 
     expect(screen.getByText("Capture note")).toBeInTheDocument();
     expect(screen.getByText("⌥⇧N")).toBeInTheDocument();
@@ -51,6 +54,38 @@ describe("Settings route split", () => {
     expect(screen.getByTestId("extension-palette-view-ext.notes.browse")).toHaveTextContent(
       "Browse notes"
     );
+  });
+
+  it("Should omit the Palette group when every extension has an empty palette", () => {
+    render(
+      <ExtensionPalettePanels
+        extensions={[
+          { ...notesExtension(), palette: { commands: [], views: [] } },
+          { ...notesExtension(), name: "silent", palette: null },
+        ]}
+      />
+    );
+
+    expect(
+      screen.queryByTestId("settings-page-extensions-palette-section")
+    ).not.toBeInTheDocument();
+    expect(screen.queryByTestId("extension-palette-notes")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("extension-palette-silent")).not.toBeInTheDocument();
+  });
+
+  it("Should keep the Palette group only for extensions that contribute commands or views", () => {
+    render(
+      <ExtensionPalettePanels
+        extensions={[
+          notesExtension(),
+          { ...notesExtension(), name: "empty", palette: { commands: [], views: [] } },
+        ]}
+      />
+    );
+
+    expect(screen.getByTestId("settings-page-extensions-palette-section")).toBeInTheDocument();
+    expect(screen.getByTestId("extension-palette-notes")).toBeInTheDocument();
+    expect(screen.queryByTestId("extension-palette-empty")).not.toBeInTheDocument();
   });
 
   it("Should render exactly the four supported extension source and trust policy fields", () => {

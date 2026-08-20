@@ -8,12 +8,9 @@ import {
   NotInitializedError,
   ParseError,
 } from "../errors.js";
-import {
-  DEFAULT_MAX_MESSAGE_BYTES,
-  JSON_RPC_CANCEL_METHOD,
-  NotReadyTransport,
-  StdioTransport,
-} from "../transport.js";
+import { JSON_RPC_CANCEL_METHOD } from "../index.js";
+import { DEFAULT_MAX_MESSAGE_BYTES, NotReadyTransport, StdioTransport } from "../transport.js";
+import { createMockTransportPair } from "../testing/mock-transport.js";
 
 function createTransport() {
   const input = new PassThrough();
@@ -104,19 +101,23 @@ describe("StdioTransport", () => {
     });
 
     input.write(`${JSON.stringify({ jsonrpc: "2.0", id: 1, result: { stale: true } })}\n`);
-    await new Promise(resolve => setTimeout(resolve, 10));
+    await new Promise<void>(resolve => {
+      setImmediate(resolve);
+    });
     expect(frames).toHaveLength(2);
   });
 
   it("aborts an inbound handler and omits its late response", async () => {
     const { input, frames, transport } = createTransport();
     let signal: AbortSignal | undefined;
-    let finish: (() => void) | undefined;
+    let release: (() => void) | undefined;
+    let handlerReturned = false;
     transport.handle("view/event", async (_params, _request, requestSignal) => {
       signal = requestSignal;
       await new Promise<void>(resolve => {
-        finish = resolve;
+        release = resolve;
       });
+      handlerReturned = true;
       return { stale: true };
     });
     transport.start();
@@ -131,8 +132,11 @@ describe("StdioTransport", () => {
       })}\n`
     );
     await waitFor(() => signal?.aborted === true);
-    finish?.();
-    await new Promise(resolve => setTimeout(resolve, 10));
+    release?.();
+    await waitFor(() => handlerReturned);
+    await new Promise<void>(resolve => {
+      setImmediate(resolve);
+    });
 
     expect(frames).toHaveLength(0);
   });
@@ -241,5 +245,32 @@ describe("StdioTransport", () => {
     transport.start();
     await expect(transport.call("sessions/list")).rejects.toBeInstanceOf(NotInitializedError);
     await transport.close();
+  });
+
+  it("suppresses a late mock-transport result after abort", async () => {
+    const pair = createMockTransportPair();
+    let started!: () => void;
+    const startedPromise = new Promise<void>(resolve => {
+      started = resolve;
+    });
+    let release!: () => void;
+    const held = new Promise<void>(resolve => {
+      release = resolve;
+    });
+    pair.extension.handle("slow", async () => {
+      started();
+      await held;
+      return { stale: true };
+    });
+
+    const controller = new AbortController();
+    const pending = pair.host.call("slow", {}, controller.signal);
+    await startedPromise;
+    controller.abort(new DOMException("superseded", "AbortError"));
+    await expect(pending).rejects.toMatchObject({ name: "AbortError", message: "superseded" });
+    release();
+    await new Promise<void>(resolve => {
+      setImmediate(resolve);
+    });
   });
 });

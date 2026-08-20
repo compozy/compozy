@@ -154,7 +154,7 @@ export function windowManagerClientFixture(
     palette_context: {
       window_focused: true,
       window_floating: false,
-      window_stacked: true,
+      window_stacked: false,
       desktop_window_count: 1,
       scope_global: false,
       shell_desktop: false,

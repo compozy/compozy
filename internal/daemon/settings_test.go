@@ -22,6 +22,7 @@ import (
 	compozyconfig "github.com/compozy/compozy/internal/config"
 	"github.com/compozy/compozy/internal/deadentity"
 	extensionpkg "github.com/compozy/compozy/internal/extension"
+	hookspkg "github.com/compozy/compozy/internal/hooks"
 	mcpauth "github.com/compozy/compozy/internal/mcp/auth"
 	memorypkg "github.com/compozy/compozy/internal/memory"
 	memcontract "github.com/compozy/compozy/internal/memory/contract"
@@ -39,6 +40,7 @@ import (
 )
 
 func TestExtensionPaletteSettingsByName(t *testing.T) {
+	t.Parallel()
 	t.Run("Should preserve effective and dormant contribution state", func(t *testing.T) {
 		t.Parallel()
 
@@ -81,6 +83,109 @@ func TestExtensionPaletteSettingsByName(t *testing.T) {
 			t.Fatalf("view contribution = %#v, want unhealthy reason", palette.Views[0])
 		}
 	})
+}
+
+func TestSettingsRuntimeInstalledExtensionsPalette(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should attach populated and dormant palette contributions", func(t *testing.T) {
+		t.Parallel()
+		cfg := compozyconfig.DefaultWithHome(compozyconfig.HomePaths{HomeDir: t.TempDir()})
+		cfg.WindowManager.Shortcuts["session.new"] = windowmanager.ShortcutBinding{"meta+KeyN"}
+		cfg.WindowManager.Shortcuts["ext.notes.capture"] = windowmanager.ShortcutBinding{"alt+shift+KeyN"}
+		surface := &settingsRuntimeSurface{
+			config: cfg,
+			extensions: settingsExtensionListStub{items: []contract.ExtensionPayload{{
+				Name: "notes", Version: "0.1.0", Enabled: true, State: "running",
+			}}},
+			extensionRuntime: func() extensionRuntime {
+				return settingsPaletteRuntimeStub{projection: extensionpkg.CmdPaletteProjection{
+					Commands: []extensionpkg.CmdPaletteProjectedCommand{
+						{ID: "ext.notes.capture", Title: "Capture note", Extension: "notes"},
+						{
+							ID: "ext.notes.recent", Title: "Recent notes", Extension: "notes",
+							UnavailableReason: "extension notes is unhealthy (crash loop)",
+						},
+					},
+					Views: []extensionpkg.CmdPaletteProjectedView{{
+						ID: "ext.notes.browse", Title: "Browse notes", Extension: "notes",
+						UnavailableReason: "extension notes is unhealthy (crash loop)",
+					}},
+					Defaults: []extensionpkg.CmdPaletteDefaultShortcut{{
+						CommandID: "ext.notes.recent", Chord: "meta+KeyN", Extension: "notes", Active: true,
+					}},
+				}}
+			},
+		}
+		installed, err := surface.InstalledExtensions(t.Context())
+		if err != nil {
+			t.Fatalf("InstalledExtensions() error = %v", err)
+		}
+		if len(installed) != 1 || installed[0].Palette == nil {
+			t.Fatalf("InstalledExtensions() = %#v, want one palette attachment", installed)
+		}
+		palette := installed[0].Palette
+		if len(palette.Commands) != 2 || len(palette.Views) != 1 {
+			t.Fatalf("palette = %#v, want two commands and one view", palette)
+		}
+		if !slices.Equal(palette.Commands[0].Bindings, []string{"alt+shift+KeyN"}) || !palette.Commands[0].Available {
+			t.Fatalf("capture command = %#v, want populated binding", palette.Commands[0])
+		}
+		if !palette.Commands[1].DefaultDormant || palette.Commands[1].Available {
+			t.Fatalf("recent command = %#v, want dormant unavailable contribution", palette.Commands[1])
+		}
+	})
+
+	t.Run("Should wrap palette projection failures", func(t *testing.T) {
+		t.Parallel()
+		want := errors.New("palette projection failed")
+		surface := &settingsRuntimeSurface{
+			config: compozyconfig.DefaultWithHome(compozyconfig.HomePaths{HomeDir: t.TempDir()}),
+			extensions: settingsExtensionListStub{items: []contract.ExtensionPayload{{
+				Name: "notes", Enabled: true,
+			}}},
+			extensionRuntime: func() extensionRuntime {
+				return settingsPaletteRuntimeStub{err: want}
+			},
+		}
+		_, err := surface.InstalledExtensions(t.Context())
+		if !errors.Is(err, want) {
+			t.Fatalf("InstalledExtensions() error = %v, want wrapped %v", err, want)
+		}
+	})
+}
+
+type settingsExtensionListStub struct {
+	items []contract.ExtensionPayload
+	err   error
+}
+
+func (s settingsExtensionListStub) List(context.Context) ([]contract.ExtensionPayload, error) {
+	return s.items, s.err
+}
+
+type settingsPaletteRuntimeStub struct {
+	projection extensionpkg.CmdPaletteProjection
+	err        error
+}
+
+func (s settingsPaletteRuntimeStub) Start(context.Context) error  { return nil }
+func (s settingsPaletteRuntimeStub) Stop(context.Context) error   { return nil }
+func (s settingsPaletteRuntimeStub) Reload(context.Context) error { return nil }
+func (s settingsPaletteRuntimeStub) Get(string) (*extensionpkg.Extension, error) {
+	return nil, errors.New("unexpected Get")
+}
+func (s settingsPaletteRuntimeStub) HookDeclarations(context.Context) ([]hookspkg.HookDecl, error) {
+	return nil, nil
+}
+func (s settingsPaletteRuntimeStub) InspectPackageResources(
+	context.Context,
+	string,
+) (*extensionpkg.Extension, error) {
+	return nil, errors.New("unexpected InspectPackageResources")
+}
+func (s settingsPaletteRuntimeStub) CmdPaletteSettings(string) (extensionpkg.CmdPaletteProjection, error) {
+	return s.projection, s.err
 }
 
 func TestSettingsRuntimeSurfaceMemoryHealthStatus(t *testing.T) {

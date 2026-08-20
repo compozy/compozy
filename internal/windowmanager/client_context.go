@@ -47,7 +47,9 @@ func (m *Manager) UpdateClientContext(
 	view.PaletteContext.FocusedSessionState = strings.TrimSpace(update.Context.FocusedSessionState)
 	view.PaletteContext.WorkspaceTrusted = update.Context.WorkspaceTrusted
 	view.PaletteContext.DestinationIntent = cloneRouteIntentPointer(update.Context.DestinationIntent)
-	registrations, err := normalizeGlobalShortcutRegistrations(update.Context.GlobalShortcuts)
+	registrations, err := normalizeGlobalShortcutRegistrations(
+		CloneGlobalShortcutRegistrations(update.Context.GlobalShortcuts),
+	)
 	if err != nil {
 		m.mu.Unlock()
 		return ClientView{}, fmt.Errorf("client %q global shortcuts: %w", update.ClientID, err)
@@ -78,21 +80,33 @@ func (m *Manager) UpdateClientContext(
 	m.clients[update.WorkspaceID][update.ClientID] = cloneClientView(view)
 	m.mu.Unlock()
 	m.publishClient(view)
-	if m.globalShortcutObserver != nil {
-		for _, registration := range view.GlobalShortcuts {
-			if registration.Status == GlobalShortcutRegistered ||
-				!globalShortcutRegistrationChanged(before.GlobalShortcuts, registration) {
-				continue
-			}
-			m.globalShortcutObserver(
-				ctx,
-				update.WorkspaceID,
-				update.ClientID,
-				registration,
-			)
-		}
-	}
+	m.observeGlobalShortcutFailures(
+		ctx,
+		update.WorkspaceID,
+		update.ClientID,
+		before.GlobalShortcuts,
+		view.GlobalShortcuts,
+	)
 	return cloneClientView(view), nil
+}
+
+func (m *Manager) observeGlobalShortcutFailures(
+	ctx context.Context,
+	workspaceID WorkspaceID,
+	clientID ClientID,
+	before []GlobalShortcutRegistration,
+	current []GlobalShortcutRegistration,
+) {
+	if m.globalShortcutObserver == nil {
+		return
+	}
+	for _, registration := range current {
+		if registration.Status == GlobalShortcutRegistered ||
+			!globalShortcutRegistrationChanged(before, registration) {
+			continue
+		}
+		m.globalShortcutObserver(ctx, workspaceID, clientID, registration)
+	}
 }
 
 func globalShortcutRegistrationChanged(
@@ -133,6 +147,9 @@ func paletteContextsEqual(left, right PaletteContext) bool {
 }
 
 func globalShortcutRegistrationsEqual(left, right []GlobalShortcutRegistration) bool {
+	if len(left) == 0 && len(right) == 0 {
+		return true
+	}
 	return reflect.DeepEqual(left, right)
 }
 

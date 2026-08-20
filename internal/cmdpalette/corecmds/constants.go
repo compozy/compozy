@@ -28,4 +28,8 @@ const (
 	coreSectionDesktops   = "Desktops"
 	coreSectionWorkspaces = "Workspaces"
 	coreSectionLayout     = "Layout"
+	coreSectionSettings   = "Settings"
+	coreSectionViews      = "Views"
+	coreSectionTiling     = "Tiling"
+	coreSectionApps       = "Apps"
 )

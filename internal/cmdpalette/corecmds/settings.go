@@ -2,14 +2,14 @@ package corecmds
 
 import "github.com/compozy/compozy/internal/cmdpalette"
 
-type SettingsDestination struct {
+type settingsDestination struct {
 	Slug     string
 	Title    string
 	Icon     string
 	Keywords []string
 }
 
-var settingsDestinations = []SettingsDestination{
+var settingsDestinations = []settingsDestination{
 	{
 		Slug:     "general",
 		Title:    "General",
@@ -43,16 +43,8 @@ var settingsDestinations = []SettingsDestination{
 		Keywords: []string{"logs", "capture", "support bundle"},
 	},
 	{Slug: "hooks", Title: "Hooks", Icon: "webhook", Keywords: []string{"lifecycle", "events", "presets"}},
+	{Slug: "palette", Title: "Palette", Icon: "command", Keywords: []string{"commands", "shortcuts", "search"}},
 	{Slug: coreAppExtensions, Title: "Extensions", Icon: "puzzle", Keywords: []string{"policy", "registry", "trust"}},
-}
-
-func SettingsDestinations() []SettingsDestination {
-	cloned := make([]SettingsDestination, len(settingsDestinations))
-	copy(cloned, settingsDestinations)
-	for index := range cloned {
-		cloned[index].Keywords = append([]string(nil), settingsDestinations[index].Keywords...)
-	}
-	return cloned
 }
 
 func settingsCommands() []cmdpalette.Descriptor {
@@ -61,7 +53,7 @@ func settingsCommands() []cmdpalette.Descriptor {
 		command := coreDescriptor(
 			cmdpalette.CommandID("settings."+destination.Slug),
 			"Settings → "+destination.Title,
-			"Settings",
+			coreSectionSettings,
 			destination.Icon,
 			cmdpalette.Action{
 				Kind: cmdpalette.ActionKindNavigate,

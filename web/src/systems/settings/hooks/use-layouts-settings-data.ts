@@ -1,13 +1,14 @@
+import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 
 import {
+  isDesktopShell,
+  stableWindowManagerClientId,
   type WindowManagerConfig,
   type WindowManagerSettingsSection,
   windowManagerConfigOptions,
   windowManagerSettingsOptions,
 } from "@/systems/os";
-import { isDesktopShell } from "@/systems/os/lib/desktop-shell-bridge";
-import { stableWindowManagerClientId } from "@/systems/os/lib/window-manager-client-identity";
 import { useActiveWorkspace } from "@/systems/workspace";
 
 import {
@@ -44,14 +45,14 @@ export interface LayoutsSettingsData {
 export function useLayoutsSettingsData(): LayoutsSettingsData {
   const workspace = useActiveWorkspace();
   const workspaceId = workspace.activeWorkspaceId ?? "";
-  const clientId = isDesktopShell() ? stableWindowManagerClientId() : undefined;
+  const [clientId] = useState(() => (isDesktopShell() ? stableWindowManagerClientId() : undefined));
   const settings = useQuery(windowManagerConfigOptions(null, clientId));
   const keyboard = useQuery(
     windowManagerSettingsOptions(workspaceId === "" ? null : workspaceId, clientId)
   );
   const profiles = useQuery(windowManagerLayoutProfilesOptions(workspaceId));
   const layout = useQuery(windowManagerLayoutOptions(workspaceId));
-  const waitingForWorkspace = !workspace.hasHydrated || workspace.isLoading;
+  const waitingForWorkspace = !workspace.hasHydrated || workspace.isLoading || workspace.pending;
   const firstError = [settings.error, keyboard.error, profiles.error, workspace.error, layout.error]
     .filter(entry => entry instanceof Error)
     .at(0);

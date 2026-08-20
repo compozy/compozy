@@ -5,9 +5,12 @@ import (
 	"errors"
 	"fmt"
 	"strings"
+	"time"
 
 	"github.com/google/uuid"
 )
+
+const defaultViewOpenBudget = 5 * time.Second
 
 // OpenSession creates one client- and extension-instance-bound program session.
 func (s *Service) OpenSession(
@@ -85,7 +88,8 @@ func newViewSession(
 		workspace: request.Workspace, client: request.Client, view: descriptor.ID,
 		extension: descriptor.Extension,
 		kind:      descriptor.Kind, ctx: sessionCtx, cancel: cancel,
-		handlers: make(map[string]uint64), ackedEffects: make(map[string]struct{}),
+		handlers: make(map[string]uint64), coalescibleHandlers: make(map[string]struct{}),
+		ackedEffects:        make(map[string]struct{}),
 		subscribers:         make(map[uint64]chan ViewFrame),
 		rejectedGenerations: make(map[uint64]struct{}),
 		actions:             make(map[uint64]viewEventFlight),
@@ -98,12 +102,14 @@ func (s *Service) openInitialViewFrame(
 	descriptor ViewDescriptor,
 	session *viewSession,
 ) (ViewFrame, error) {
-	frame, generation, err := s.viewPrograms.OpenProgram(session.ctx, descriptor.Extension, ViewOpenRequest{
+	openCtx, cancel := context.WithTimeout(session.ctx, defaultViewOpenBudget)
+	defer cancel()
+	frame, generation, err := s.viewPrograms.OpenProgram(openCtx, descriptor.Extension, ViewOpenRequest{
 		ViewSession: session.id,
 		View:        descriptor.ID,
 		Workspace:   request.Workspace,
 		Client:      request.Client,
-		Args:        cloneViewArgs(request.Args),
+		Args:        cloneAnyMap(request.Args),
 	})
 	if err != nil {
 		return ViewFrame{}, s.failViewSessionOpen(ctx, session, "open_failed", err)

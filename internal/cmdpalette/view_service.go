@@ -41,11 +41,17 @@ type ViewSourceProvider interface {
 	OpenSource(context.Context, WorkspaceID, string) (ViewPayload, error)
 }
 
+type ViewPatchSubscribeRequest struct {
+	Workspace   WorkspaceID
+	ViewID      string
+	After       int64
+	StreamEpoch string
+}
+
 type ViewPatchSubscriber interface {
 	SubscribeViewPatches(
 		context.Context,
-		WorkspaceID,
-		string,
+		ViewPatchSubscribeRequest,
 	) (<-chan ViewPatchEvent, func(), error)
 }
 
@@ -66,9 +72,8 @@ type ViewSourceService interface {
 	OpenSource(context.Context, WorkspaceID, string) (ViewSnapshot, error)
 	SubscribeViewPatches(
 		context.Context,
-		WorkspaceID,
-		string,
-	) (<-chan ViewPatchEvent, func(), error)
+		ViewPatchSubscribeRequest,
+	) (ViewSnapshot, <-chan ViewPatchEvent, func(), error)
 }
 
 // ViewSessionService is the Tier-2 programmable-view session authority.
@@ -103,6 +108,7 @@ func WithViewProgramProvider(provider ViewProgramProvider) Option {
 	}
 }
 
+// WithViewProviders registers static declarative and programmable view descriptors.
 func WithViewProviders(registrations []ViewProviderRegistration) Option {
 	return func(service *Service) error {
 		if err := validateViewProviderRegistrations(registrations); err != nil {
@@ -129,30 +135,8 @@ func (s *Service) ResolveView(
 	workspaceID WorkspaceID,
 	viewID string,
 ) (ViewDescriptor, error) {
-	if ctx == nil {
-		return ViewDescriptor{}, errors.New("cmd palette view: context is required")
-	}
-	if workspaceID == "" {
-		return ViewDescriptor{}, errors.New("cmd palette view: workspace ID is required")
-	}
-	viewID = strings.TrimSpace(viewID)
-	for _, registration := range s.viewProviders {
-		if registration.Descriptor.ID == viewID {
-			return cloneViewDescriptor(registration.Descriptor), nil
-		}
-	}
-	for _, provider := range s.dynamicViews {
-		descriptors, err := provider.ProvideViews(ctx, workspaceID)
-		if err != nil {
-			return ViewDescriptor{}, fmt.Errorf("cmd palette view: project dynamic views: %w", err)
-		}
-		for _, descriptor := range descriptors {
-			if descriptor.ID == viewID {
-				return cloneViewDescriptor(descriptor), nil
-			}
-		}
-	}
-	return ViewDescriptor{}, &ViewNotFoundError{ViewID: viewID}
+	descriptor, _, err := s.lookupView(ctx, workspaceID, viewID)
+	return descriptor, err
 }
 
 func (s *Service) OpenSource(
@@ -164,11 +148,8 @@ func (s *Service) OpenSource(
 	if err != nil {
 		return ViewSnapshot{}, err
 	}
-	if descriptor.Program || descriptor.Source == nil {
-		return ViewSnapshot{}, viewValidationError("source", "view %q is not declarative", descriptor.ID)
-	}
-	if !descriptor.Source.ReadOnly {
-		return ViewSnapshot{}, viewValidationError("source.tool", "view source must be read-only")
+	if err := requireDeclarativeViewSource(descriptor); err != nil {
+		return ViewSnapshot{}, err
 	}
 	payload, err := provider.OpenSource(ctx, workspaceID, descriptor.ID)
 	if err != nil {
@@ -190,18 +171,57 @@ func (s *Service) OpenSource(
 
 func (s *Service) SubscribeViewPatches(
 	ctx context.Context,
-	workspaceID WorkspaceID,
-	viewID string,
-) (<-chan ViewPatchEvent, func(), error) {
-	_, provider, err := s.resolveViewProvider(ctx, workspaceID, viewID)
+	request ViewPatchSubscribeRequest,
+) (ViewSnapshot, <-chan ViewPatchEvent, func(), error) {
+	request.ViewID = strings.TrimSpace(request.ViewID)
+	request.StreamEpoch = strings.TrimSpace(request.StreamEpoch)
+	if err := validateViewPatchSubscribeRequest(request); err != nil {
+		return ViewSnapshot{}, nil, nil, err
+	}
+	if request.StreamEpoch == "" {
+		request.StreamEpoch = s.viewStreamEpoch
+	}
+	descriptor, provider, err := s.resolveViewProvider(ctx, request.Workspace, request.ViewID)
 	if err != nil {
-		return nil, nil, err
+		return ViewSnapshot{}, nil, nil, err
+	}
+	if err := requireDeclarativeViewSource(descriptor); err != nil {
+		return ViewSnapshot{}, nil, nil, err
 	}
 	subscriber, ok := provider.(ViewPatchSubscriber)
 	if !ok {
-		return nil, nil, errors.New("cmd palette view: patch stream is unavailable")
+		return ViewSnapshot{}, nil, nil, ErrViewPatchStreamUnavailable
 	}
-	return subscriber.SubscribeViewPatches(ctx, workspaceID, viewID)
+	events, cancel, err := subscriber.SubscribeViewPatches(ctx, request)
+	if err != nil {
+		return ViewSnapshot{}, nil, nil, err
+	}
+	snapshot, err := s.OpenSource(ctx, request.Workspace, request.ViewID)
+	if err != nil {
+		cancel()
+		return ViewSnapshot{}, nil, nil, err
+	}
+	return snapshot, events, cancel, nil
+}
+
+func validateViewPatchSubscribeRequest(request ViewPatchSubscribeRequest) error {
+	if request.After < 0 {
+		return ErrViewInvalidSequence
+	}
+	if request.After > 0 && strings.TrimSpace(request.StreamEpoch) == "" {
+		return ErrViewStreamEpochRequired
+	}
+	return nil
+}
+
+func requireDeclarativeViewSource(descriptor ViewDescriptor) error {
+	if descriptor.Program || descriptor.Source == nil {
+		return viewValidationError("source", "view %q is not declarative", descriptor.ID)
+	}
+	if !descriptor.Source.ReadOnly {
+		return viewValidationError("source.tool", "view source must be read-only")
+	}
+	return nil
 }
 
 func (s *Service) resolveViewProvider(
@@ -209,23 +229,34 @@ func (s *Service) resolveViewProvider(
 	workspaceID WorkspaceID,
 	viewID string,
 ) (ViewDescriptor, ViewSourceProvider, error) {
-	descriptor, err := s.ResolveView(ctx, workspaceID, viewID)
-	if err != nil {
-		return ViewDescriptor{}, nil, err
+	return s.lookupView(ctx, workspaceID, viewID)
+}
+
+func (s *Service) lookupView(
+	ctx context.Context,
+	workspaceID WorkspaceID,
+	viewID string,
+) (ViewDescriptor, ViewSourceProvider, error) {
+	if ctx == nil {
+		return ViewDescriptor{}, nil, errors.New("cmd palette view: context is required")
 	}
+	if workspaceID == "" {
+		return ViewDescriptor{}, nil, errors.New("cmd palette view: workspace ID is required")
+	}
+	viewID = strings.TrimSpace(viewID)
 	for _, registration := range s.viewProviders {
-		if registration.Descriptor.ID == descriptor.ID {
-			return descriptor, registration.Provider, nil
+		if registration.Descriptor.ID == viewID {
+			return cloneViewDescriptor(registration.Descriptor), registration.Provider, nil
 		}
 	}
 	for _, provider := range s.dynamicViews {
-		descriptors, providerErr := provider.ProvideViews(ctx, workspaceID)
-		if providerErr != nil {
-			return ViewDescriptor{}, nil, providerErr
+		descriptors, err := provider.ProvideViews(ctx, workspaceID)
+		if err != nil {
+			return ViewDescriptor{}, nil, fmt.Errorf("cmd palette view: project dynamic views: %w", err)
 		}
-		for _, candidate := range descriptors {
-			if candidate.ID == descriptor.ID {
-				return descriptor, provider, nil
+		for _, descriptor := range descriptors {
+			if descriptor.ID == viewID {
+				return cloneViewDescriptor(descriptor), provider, nil
 			}
 		}
 	}

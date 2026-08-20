@@ -6,16 +6,13 @@ import {
   isEmojiIcon,
 } from "../lib/cmd-palette-icons";
 import type { ResolvedPaletteCommand } from "../lib/cmd-palette-types";
+import { parseExtensionName } from "../lib/palette-view-registry";
 
 export interface OsPaletteCommandRowProps {
   command: ResolvedPaletteCommand;
   /** True while the daemon is running this command for this client (US-017.AC-2). */
   pending?: boolean;
   onSelect: (command: ResolvedPaletteCommand) => void;
-}
-
-function extensionName(source: string): string | null {
-  return source.startsWith("ext.") ? source.slice("ext.".length) : null;
 }
 
 /**
@@ -33,7 +30,7 @@ function extensionName(source: string): string | null {
  * seam is what refuses the run, reporting the same reason the row shows.
  */
 export function OsPaletteCommandRow({ command, pending, onSelect }: OsPaletteCommandRowProps) {
-  const extension = extensionName(command.source);
+  const extension = parseExtensionName(command.source);
   const emoji = isEmojiIcon(command.icon);
   return (
     <CommandItem

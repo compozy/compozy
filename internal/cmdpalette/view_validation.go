@@ -37,6 +37,7 @@ func ValidateViewPayload(
 	if payload.View != ViewContractVersion {
 		return ViewPayload{}, viewValidationError("view", "must be %q", ViewContractVersion)
 	}
+	payload = cloneViewPayload(payload)
 	if err := validateViewKindBody(kind, payload); err != nil {
 		return ViewPayload{}, err
 	}
@@ -173,8 +174,11 @@ func validateGridFields(grid *GridBody) error {
 	for sectionIndex, section := range grid.Sections {
 		for tileIndex, tile := range section.Tiles {
 			path := fmt.Sprintf("grid.sections[%d].tiles[%d]", sectionIndex, tileIndex)
-			if strings.TrimSpace(tile.ID) == "" || strings.TrimSpace(tile.Title) == "" {
-				return viewValidationError(path, "id and title are required")
+			if strings.TrimSpace(tile.ID) == "" {
+				return viewValidationError(path+".id", "is required")
+			}
+			if err := validateViewText(path+".title", tile.Title, true); err != nil {
+				return err
 			}
 			if err := validateImage(path+".image", tile.Image); err != nil {
 				return err
@@ -201,8 +205,20 @@ func validateViewText(path, value string, required bool) error {
 }
 
 func validateFormField(path string, field FormField) error {
-	if strings.TrimSpace(field.ID) == "" || strings.TrimSpace(field.Label) == "" {
-		return viewValidationError(path, "id and label are required")
+	if strings.TrimSpace(field.ID) == "" {
+		return viewValidationError(path+".id", "is required")
+	}
+	if err := validateViewText(path+".label", field.Label, true); err != nil {
+		return err
+	}
+	if err := validateViewText(path+".placeholder", field.Placeholder, false); err != nil {
+		return err
+	}
+	if err := validateViewText(path+".error", field.Error, false); err != nil {
+		return err
+	}
+	if err := validateViewText(path+".empty_hint", field.EmptyHint, false); err != nil {
+		return err
 	}
 	switch field.Type {
 	case "text", string(ArgumentTypePassword), "textarea", "checkbox", "file":
@@ -210,6 +226,13 @@ func validateFormField(path string, field FormField) error {
 			return viewValidationError(path+".options", "is only valid for dropdown fields")
 		}
 	case "dropdown":
+		for optionIndex, option := range field.Options {
+			if err := validateViewText(
+				fmt.Sprintf("%s.options[%d]", path, optionIndex), option, true,
+			); err != nil {
+				return err
+			}
+		}
 	default:
 		return viewValidationError(path+".type", "unknown field type %q", field.Type)
 	}
@@ -316,10 +339,10 @@ func applyViewMountCap(payload *ViewPayload) {
 	if payload.Empty == nil {
 		payload.Empty = &EmptyState{}
 	}
-	payload.Empty.Hint = ViewOverflowMessage(MaxViewMountRows, total)
+	payload.Empty.Hint = viewOverflowMessage(MaxViewMountRows, total)
 }
 
-func ViewOverflowMessage(showing, total int) string {
+func viewOverflowMessage(showing, total int) string {
 	return fmt.Sprintf("showing %d of %d", showing, total)
 }
 

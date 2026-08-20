@@ -10,7 +10,9 @@ import type {
 } from "@/systems/session";
 import type { WorkspacePayload } from "@/systems/workspace";
 
+import { CmdPaletteRegistryProvider } from "../../contexts/cmd-palette-registry-context";
 import { OsShellContext } from "../../contexts/os-shell-context";
+import { cmdPaletteStoryRegistry } from "../../mocks/cmd-palette-fixtures";
 import type { OsAttentionModel } from "../../hooks/use-os-attention";
 import { DesktopMenubar } from "../desktop-menubar";
 import { OsSessionsModal } from "../sessions-modal";
@@ -210,24 +212,26 @@ function BellFixture() {
   const [shell] = useState(() => createStoryShell());
   return (
     <OsShellContext.Provider value={shell}>
-      <AgentCreateHostProvider openDialog={fn()} openForDuplicate={fn()}>
-        <DesktopShell
-          menubar={false}
-          dockItems={buildDeskItems({ badges: { sessions: 1, tasks: 1 } })}
-        >
-          <DesktopMenubar
-            workspaces={[WORKSPACE]}
-            activeWorkspace={WORKSPACE}
-            onSelectWorkspace={fn()}
-            onAddWorkspace={fn()}
-            onRunCommand={fn()}
-            activeOverlay="bell"
-            onOverlayOpenChange={fn()}
-            attention={ATTENTION}
-            updateAvailable={false}
-          />
-        </DesktopShell>
-      </AgentCreateHostProvider>
+      <CmdPaletteRegistryProvider registry={cmdPaletteStoryRegistry}>
+        <AgentCreateHostProvider openDialog={fn()} openForDuplicate={fn()}>
+          <DesktopShell
+            menubar={false}
+            dockItems={buildDeskItems({ badges: { sessions: 1, tasks: 1 } })}
+          >
+            <DesktopMenubar
+              workspaces={[WORKSPACE]}
+              activeWorkspace={WORKSPACE}
+              onSelectWorkspace={fn()}
+              onAddWorkspace={fn()}
+              onRunCommand={fn()}
+              activeOverlay="bell"
+              onOverlayOpenChange={fn()}
+              attention={ATTENTION}
+              updateAvailable={false}
+            />
+          </DesktopShell>
+        </AgentCreateHostProvider>
+      </CmdPaletteRegistryProvider>
     </OsShellContext.Provider>
   );
 }

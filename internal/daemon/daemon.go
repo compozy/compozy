@@ -244,6 +244,7 @@ type extensionManagerDeps struct {
 	SessionHealth          core.SessionHealthReader
 	WakeEvents             core.HeartbeatWakeEventReader
 	CmdPalette             cmdpalette.ViewService
+	ViewPatches            extensionpkg.ViewPatchPublisher
 	ProcessRegistry        *toolruntime.Registry
 	SecretResolver         extensionpkg.SecretRefResolver
 	EnvBindings            extensionpkg.EnvBindingStore

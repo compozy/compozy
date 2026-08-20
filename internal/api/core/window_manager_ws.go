@@ -186,7 +186,7 @@ func (s *windowManagerSocket) writeInitialFence() error {
 
 func (s *windowManagerSocket) runEventLoop(
 	ctx context.Context,
-	readDone chan error,
+	readDone <-chan error,
 	pings <-chan time.Time,
 	clientCommandUpdates <-chan windowmanager.ClientCommand,
 	clientCommandsDone <-chan struct{},

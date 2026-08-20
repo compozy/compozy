@@ -1,7 +1,16 @@
+import { z } from "zod";
+
 import type { CompozyApiOkJsonResponseFor } from "@/storybook/openapi-msw";
 import { storyDefaultWorkspaceId } from "@/storybook/fintech-scenario";
-import { cmdPaletteStoryCommands } from "@/systems/os/mocks/cmd-palette-fixtures";
+import { globalShortcutRegistrationSchema } from "@/systems/os";
+import { cmdPaletteStoryCommands } from "@/systems/os/mocks";
 import type { SettingsWindowManagerSection } from "@/systems/settings";
+
+export function settingsGlobalShortcutRegistrations(
+  entries: z.input<typeof globalShortcutRegistrationSchema>[]
+): z.infer<typeof globalShortcutRegistrationSchema>[] {
+  return z.array(globalShortcutRegistrationSchema).parse(entries);
+}
 
 type WindowManagerSnapshotWire = CompozyApiOkJsonResponseFor<
   "get",
@@ -100,13 +109,13 @@ export const settingsWindowManagerSectionFixture: SettingsWindowManagerSection =
     cmdPaletteStoryCommands.map(command => [command.id, [...command.bindings]])
   ),
   effective_shortcuts: storyEffectiveShortcuts,
-  global_shortcuts: [
+  global_shortcuts: settingsGlobalShortcutRegistrations([
     {
       command_id: "palette.summon.global",
       intended_chord: "meta+shift+Space",
       status: "unsupported",
     },
-  ],
+  ]),
 };
 
 export const settingsWindowManagerDesktopIds = {

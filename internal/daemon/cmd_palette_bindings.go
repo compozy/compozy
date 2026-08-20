@@ -48,15 +48,10 @@ func (r *cmdPaletteBindingsResolver) Bindings(
 	if r == nil || r.workspaces == nil || r.catalog == nil {
 		return nil, nil, errors.New("daemon: command palette binding resolver is unavailable")
 	}
-	resolved, err := r.resolveWorkspace(ctx, workspaceID)
+	configPath, globalConfig, err := r.resolveCmdPaletteConfigPath(ctx, workspaceID)
 	if err != nil {
 		return nil, nil, err
 	}
-	globalConfig, err := r.currentGlobalConfig()
-	if err != nil {
-		return nil, nil, err
-	}
-	configPath := filepath.Join(resolved.RootDir, compozyconfig.DirName, compozyconfig.ConfigName)
 	windowConfig, err := compozyconfig.ApplyWindowManagerOverlayFile(configPath, globalConfig.WindowManager)
 	if err != nil {
 		return nil, nil, fmt.Errorf("daemon: resolve command palette shortcuts: %w", err)
@@ -91,15 +86,10 @@ func (r *cmdPaletteBindingsResolver) BindingsForCatalogSnapshot(
 	if r == nil || r.workspaces == nil {
 		return nil, nil, errors.New("daemon: command palette binding resolver is unavailable")
 	}
-	resolved, err := r.resolveWorkspace(ctx, workspaceID)
+	configPath, globalConfig, err := r.resolveCmdPaletteConfigPath(ctx, workspaceID)
 	if err != nil {
 		return nil, nil, err
 	}
-	globalConfig, err := r.currentGlobalConfig()
-	if err != nil {
-		return nil, nil, err
-	}
-	configPath := filepath.Join(resolved.RootDir, compozyconfig.DirName, compozyconfig.ConfigName)
 	windowConfig, err := compozyconfig.ApplyWindowManagerOverlayFile(configPath, globalConfig.WindowManager)
 	if err != nil {
 		return nil, nil, fmt.Errorf("daemon: resolve command palette shortcuts: %w", err)
@@ -108,12 +98,7 @@ func (r *cmdPaletteBindingsResolver) BindingsForCatalogSnapshot(
 	if err != nil {
 		return nil, nil, fmt.Errorf("daemon: resolve command palette aliases: %w", err)
 	}
-	shortcutDefaults := make([]windowmanager.ExtensionDefaultShortcut, 0, len(defaults))
-	for _, item := range defaults {
-		shortcutDefaults = append(shortcutDefaults, windowmanager.ExtensionDefaultShortcut{
-			CommandID: string(item.CommandID), Chord: item.Chord, Source: item.Source, Active: item.Active,
-		})
-	}
+	shortcutDefaults := windowmanagerExtensionDefaults(defaults)
 	return r.resolveBindingsFromSnapshot(
 		workspaceID, windowConfig, paletteConfig, commandIDs, shortcutDefaults,
 	)
@@ -127,15 +112,10 @@ func (r *cmdPaletteBindingsResolver) GlobalBindingsForCatalogSnapshot(
 	if r == nil || r.workspaces == nil {
 		return nil, errors.New("daemon: command palette binding resolver is unavailable")
 	}
-	resolved, err := r.resolveWorkspace(ctx, workspaceID)
+	configPath, globalConfig, err := r.resolveCmdPaletteConfigPath(ctx, workspaceID)
 	if err != nil {
 		return nil, err
 	}
-	globalConfig, err := r.currentGlobalConfig()
-	if err != nil {
-		return nil, err
-	}
-	configPath := filepath.Join(resolved.RootDir, compozyconfig.DirName, compozyconfig.ConfigName)
 	windowConfig, err := compozyconfig.ApplyWindowManagerOverlayFile(
 		configPath,
 		globalConfig.WindowManager,
@@ -212,13 +192,7 @@ func (r *cmdPaletteBindingsResolver) extensionDefaults(
 	if err != nil {
 		return nil, fmt.Errorf("daemon: list extension shortcut defaults: %w", err)
 	}
-	result := make([]windowmanager.ExtensionDefaultShortcut, 0, len(defaults))
-	for _, item := range defaults {
-		result = append(result, windowmanager.ExtensionDefaultShortcut{
-			CommandID: string(item.CommandID), Chord: item.Chord, Source: item.Source, Active: item.Active,
-		})
-	}
-	return result, nil
+	return windowmanagerExtensionDefaults(defaults), nil
 }
 
 func (r *cmdPaletteBindingsResolver) resolvePaletteConfig(
@@ -230,15 +204,10 @@ func (r *cmdPaletteBindingsResolver) resolvePaletteConfig(
 			"daemon: command palette config resolver is unavailable",
 		)
 	}
-	resolved, err := r.resolveWorkspace(ctx, workspaceID)
+	configPath, globalConfig, err := r.resolveCmdPaletteConfigPath(ctx, workspaceID)
 	if err != nil {
 		return compozyconfig.CmdPaletteConfig{}, err
 	}
-	globalConfig, err := r.currentGlobalConfig()
-	if err != nil {
-		return compozyconfig.CmdPaletteConfig{}, err
-	}
-	configPath := filepath.Join(resolved.RootDir, compozyconfig.DirName, compozyconfig.ConfigName)
 	paletteConfig, err := compozyconfig.ApplyCmdPaletteOverlayFile(configPath, globalConfig.CmdPalette)
 	if err != nil {
 		return compozyconfig.CmdPaletteConfig{}, fmt.Errorf(
@@ -247,6 +216,33 @@ func (r *cmdPaletteBindingsResolver) resolvePaletteConfig(
 		)
 	}
 	return paletteConfig, nil
+}
+
+func windowmanagerExtensionDefaults(
+	defaults []cmdpalette.ExtensionDefaultShortcut,
+) []windowmanager.ExtensionDefaultShortcut {
+	result := make([]windowmanager.ExtensionDefaultShortcut, 0, len(defaults))
+	for _, item := range defaults {
+		result = append(result, windowmanager.ExtensionDefaultShortcut{
+			CommandID: string(item.CommandID), Chord: item.Chord, Source: item.Source, Active: item.Active,
+		})
+	}
+	return result
+}
+
+func (r *cmdPaletteBindingsResolver) resolveCmdPaletteConfigPath(
+	ctx context.Context,
+	workspaceID cmdpalette.WorkspaceID,
+) (string, compozyconfig.Config, error) {
+	resolved, err := r.resolveWorkspace(ctx, workspaceID)
+	if err != nil {
+		return "", compozyconfig.Config{}, err
+	}
+	globalConfig, err := r.currentGlobalConfig()
+	if err != nil {
+		return "", compozyconfig.Config{}, err
+	}
+	return filepath.Join(resolved.RootDir, compozyconfig.DirName, compozyconfig.ConfigName), globalConfig, nil
 }
 
 func (r *cmdPaletteBindingsResolver) currentGlobalConfig() (compozyconfig.Config, error) {

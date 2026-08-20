@@ -124,6 +124,7 @@ type HostAPIHandler struct {
 	heartbeatStatus  hostAPIHeartbeatStatusService
 	heartbeatWake    hostAPIHeartbeatWakeService
 	views            cmdpalette.ViewService
+	viewPatches      ViewPatchPublisher
 	sessionHealth    hostAPISessionHealthReader
 	wakeEvents       hostAPIHeartbeatWakeEventReader
 	memoryProviders  *MemoryProviderRegistry

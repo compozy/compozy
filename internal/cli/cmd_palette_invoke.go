@@ -13,11 +13,12 @@ import (
 )
 
 type cmdPaletteInvokeOutputRecord struct {
-	Status     cmdpalette.InvokeStatus `json:"status"`
-	Command    string                  `json:"command"`
-	Result     json.RawMessage         `json:"result,omitempty"`
-	ApprovalID string                  `json:"approval_id,omitempty"`
-	Message    string                  `json:"message,omitempty"`
+	Status       cmdpalette.InvokeStatus `json:"status"`
+	Command      string                  `json:"command"`
+	Result       json.RawMessage         `json:"result,omitempty"`
+	ApprovalID   string                  `json:"approval_id,omitempty"`
+	InvocationID string                  `json:"invocation_id,omitempty"`
+	Message      string                  `json:"message,omitempty"`
 }
 
 func newCmdPaletteInvokeCommand(deps commandDeps) *cobra.Command {
@@ -42,7 +43,7 @@ func newCmdPaletteInvokeCommand(deps commandDeps) *cobra.Command {
 			}
 			command, ok := findCmdPaletteCommand(catalog.Commands, commandID)
 			if !ok {
-				return fmt.Errorf("command not found: %s", commandID)
+				return cmdPaletteCommandNotFoundError(commandID)
 			}
 			invokeArgs, err := parseCmdPaletteArgs(command, rawArgs)
 			if err != nil {
@@ -55,7 +56,8 @@ func newCmdPaletteInvokeCommand(deps commandDeps) *cobra.Command {
 				return cmdPaletteInvokeError(err)
 			}
 			output := cmdPaletteInvokeOutputRecord{
-				Status: result.Status, Command: commandID, Result: result.Result, ApprovalID: result.ApprovalID,
+				Status: result.Status, Command: commandID, Result: result.Result,
+				ApprovalID: result.ApprovalID, InvocationID: result.InvocationID,
 			}
 			if result.Status == cmdpalette.InvokeStatusApprovalPending {
 				output.Message = "destructive command requires approval"
@@ -122,8 +124,10 @@ func cmdPaletteInvokeOutput(record cmdPaletteInvokeOutputRecord) outputBundle {
 		toon: func() (string, error) {
 			return renderToonObject(
 				"invocation",
-				[]string{automationStatusKey, configCommandKey, "approval_id", "message"},
-				[]string{string(record.Status), record.Command, record.ApprovalID, record.Message},
+				[]string{automationStatusKey, configCommandKey, "approval_id", "invocation_id", "message"},
+				[]string{
+					string(record.Status), record.Command, record.ApprovalID, record.InvocationID, record.Message,
+				},
 			), nil
 		},
 	}

@@ -33,7 +33,7 @@ func nextContextRevision(current uint64) (uint64, error) {
 		return 0, fmt.Errorf(
 			"context revision %d cannot advance: %w",
 			current,
-			ErrPresentationRevisionExhausted,
+			ErrContextRevisionExhausted,
 		)
 	}
 	return current + 1, nil

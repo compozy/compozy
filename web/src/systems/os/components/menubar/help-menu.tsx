@@ -1,13 +1,9 @@
 import { ArrowUpRight } from "lucide-react";
 
-import {
-  MenubarContent,
-  MenubarItem,
-  MenubarMenu,
-  MenubarSeparator,
-  MenubarTrigger,
-} from "@compozy/ui";
+import { MenubarContent, MenubarItem, MenubarMenu, MenubarTrigger } from "@compozy/ui";
 
+import { usePaletteRegistry } from "../../hooks/use-palette-registry";
+import { MenubarCommandGroups } from "./menubar-command-groups";
 import { MenubarCommandItem } from "./menubar-command-item";
 
 export interface HelpMenuProps {
@@ -32,23 +28,45 @@ const ISSUES_URL = "https://github.com/compozy/compozy/issues";
  * the two-step support-bundle consent already lives.
  */
 export function HelpMenu({ open, onOpenChange, onRun }: HelpMenuProps) {
+  const registry = usePaletteRegistry();
   return (
     <MenubarMenu open={open} onOpenChange={onOpenChange}>
       <MenubarTrigger>Help</MenubarTrigger>
       <MenubarContent align="start" data-testid="os-menu-help">
-        <MenubarCommandItem commandId="shortcuts.cheatsheet" onRun={onRun} />
-        <MenubarSeparator />
-        {EXTERNAL_LINKS.map(link => (
-          <ExternalMenuItem
-            key={link.id}
-            testId={`os-menu-${link.id}`}
-            href={link.href}
-            label={link.label}
-          />
-        ))}
-        <MenubarSeparator />
-        <ExternalMenuItem testId="os-menu-report-issue" href={ISSUES_URL} label="Report an issue" />
-        <MenubarCommandItem commandId="settings.observability" onRun={onRun} />
+        <MenubarCommandGroups
+          groups={[
+            {
+              id: "shortcuts",
+              content: registry.byId.has("shortcuts.cheatsheet") ? (
+                <MenubarCommandItem commandId="shortcuts.cheatsheet" onRun={onRun} />
+              ) : null,
+            },
+            {
+              id: "links",
+              content: EXTERNAL_LINKS.map(link => (
+                <ExternalMenuItem
+                  key={link.id}
+                  testId={`os-menu-${link.id}`}
+                  href={link.href}
+                  label={link.label}
+                />
+              )),
+            },
+            {
+              id: "support",
+              content: (
+                <>
+                  <ExternalMenuItem
+                    testId="os-menu-report-issue"
+                    href={ISSUES_URL}
+                    label="Report an issue"
+                  />
+                  <MenubarCommandItem commandId="settings.observability" onRun={onRun} />
+                </>
+              ),
+            },
+          ]}
+        />
       </MenubarContent>
     </MenubarMenu>
   );

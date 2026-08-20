@@ -3,12 +3,16 @@ import { ArrowRightLeft, FolderGit2 } from "lucide-react";
 import { CommandGroup, CommandItem, MonoId, cn } from "@compozy/ui";
 
 import { OS_APP_DESCRIPTORS } from "../lib/app-catalog";
-import type { OsPaletteEntities } from "../hooks/use-os-palette-entities";
-import type { OsPaletteWorktreeResult } from "../hooks/use-os-palette-entities";
+import type { OsPaletteEntities, OsPaletteWorktreeResult } from "../hooks/use-os-palette-entities";
 
 const GROUP_CLASS = "mt-2 border-t border-line-soft px-2 pt-2 pb-0.5";
 const HEADING_CLASS = "**:[[cmdk-group-heading]]:text-faint";
 const ROW_CLASS = "h-12 gap-3 px-3";
+
+function EntityOverflow({ shown, total }: { shown: number; total: number }) {
+  if (total <= shown) return null;
+  return <div className="px-3 py-1 text-micro text-faint">{`showing ${shown} of ${total}`}</div>;
+}
 
 export interface OsPaletteEntitySectionsProps {
   entities: OsPaletteEntities;
@@ -60,6 +64,7 @@ export function OsPaletteEntitySections({
               </span>
             </CommandItem>
           ))}
+          <EntityOverflow shown={entities.sessions.length} total={entities.sessionTotal} />
         </CommandGroup>
       ) : null}
 
@@ -83,7 +88,7 @@ export function OsPaletteEntitySections({
               <span className="min-w-0 truncate">{tab.label}</span>
               {tab.needsInput ? (
                 <span
-                  className="inline-flex h-3.5 min-w-deck-badge shrink-0 items-center justify-center rounded-full bg-accent px-1 font-mono text-[9px] leading-none font-bold text-accent-ink"
+                  className="inline-flex h-3.5 min-w-deck-badge shrink-0 items-center justify-center rounded-full bg-accent px-1 font-mono text-pill-group-badge leading-none font-bold text-accent-ink"
                   data-slot="os-palette-tab-attention"
                 >
                   1
@@ -95,6 +100,7 @@ export function OsPaletteEntitySections({
               </span>
             </CommandItem>
           ))}
+          <EntityOverflow shown={entities.tabs.length} total={entities.tabTotal} />
         </CommandGroup>
       )}
 
@@ -122,6 +128,7 @@ export function OsPaletteEntitySections({
               ) : null}
             </CommandItem>
           ))}
+          <EntityOverflow shown={entities.worktrees.length} total={entities.worktreeTotal} />
         </CommandGroup>
       )}
     </>

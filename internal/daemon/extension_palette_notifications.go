@@ -44,17 +44,6 @@ func newExtensionPaletteNotifier(state *bootState) *extensionPaletteNotifier {
 	}
 }
 
-func (n *extensionPaletteNotifier) Notify(ctx context.Context, workspaceID string) error {
-	if n == nil {
-		return nil
-	}
-	workspaces, err := n.targetWorkspaces(ctx, workspaceID)
-	if err != nil {
-		return err
-	}
-	return n.notifyCatalogs(ctx, workspaces)
-}
-
 func (n *extensionPaletteNotifier) NotifyExtensionChanged(
 	ctx context.Context,
 	workspaceID string,

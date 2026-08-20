@@ -4,6 +4,7 @@ import type {
   ResolvedPaletteCommand,
 } from "./cmd-palette-types";
 import { ghostCompletion } from "./ranking/ghost";
+import { normalizeRankingText } from "./ranking/normalize";
 import { rankCandidates } from "./ranking/rank";
 import { assembleRankingResults } from "./ranking/sections";
 import type { RankingCandidate } from "./ranking/types";
@@ -35,16 +36,15 @@ export interface PaletteResultAssembly {
 }
 
 function normalize(value: string): string {
-  return value
-    .normalize("NFD")
-    .replace(/\p{Diacritic}/gu, "")
-    .toLowerCase();
+  return normalizeRankingText(value).text;
 }
 
 /** Substring match over title, id, alias and keywords; the scorer lands in P2. */
 export function commandMatchesQuery(command: ResolvedPaletteCommand, query: string): boolean {
-  const needle = normalize(query.trim());
-  if (needle === "") return true;
+  const trimmed = query.trim();
+  if (trimmed === "") return true;
+  const needle = normalize(trimmed);
+  if (needle === "") return false;
   const haystack = [command.title, command.id, command.alias ?? "", ...(command.keywords ?? [])];
   return haystack.some(entry => normalize(entry).includes(needle));
 }
@@ -56,7 +56,7 @@ export function commandMatchesQuery(command: ResolvedPaletteCommand, query: stri
  */
 function compareCommands(left: ResolvedPaletteCommand, right: ResolvedPaletteCommand): number {
   if (left.available !== right.available) return left.available ? -1 : 1;
-  return left.title.localeCompare(right.title);
+  return left.title.localeCompare(right.title) || left.id.localeCompare(right.id);
 }
 
 export interface PaletteSectionInput {

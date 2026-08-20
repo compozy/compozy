@@ -9,27 +9,25 @@ import (
 
 const cmdPaletteConfigRoot = "cmd_palette"
 
-func buildCmdPaletteSection(cfg *compozyconfig.Config) CmdPaletteSection {
+func cmdPaletteSectionFromConfig(current compozyconfig.CmdPaletteConfig) CmdPaletteSection {
 	return CmdPaletteSection{
-		FallbackAgentEnabled: slices.Contains(
-			cfg.CmdPalette.FallbackTargets,
-			compozyconfig.CmdPaletteFallbackAgent,
-		),
-		Personalization: cfg.CmdPalette.Personalization,
-	}
-}
-
-func desiredCmdPaletteSection(
-	current compozyconfig.CmdPaletteConfig,
-	update CmdPaletteUpdate,
-) CmdPaletteSection {
-	desired := CmdPaletteSection{
 		FallbackAgentEnabled: slices.Contains(
 			current.FallbackTargets,
 			compozyconfig.CmdPaletteFallbackAgent,
 		),
 		Personalization: current.Personalization,
 	}
+}
+
+func buildCmdPaletteSection(cfg *compozyconfig.Config) CmdPaletteSection {
+	return cmdPaletteSectionFromConfig(cfg.CmdPalette)
+}
+
+func desiredCmdPaletteSection(
+	current compozyconfig.CmdPaletteConfig,
+	update CmdPaletteUpdate,
+) CmdPaletteSection {
+	desired := cmdPaletteSectionFromConfig(current)
 	if update.FallbackAgentEnabled != nil {
 		desired.FallbackAgentEnabled = *update.FallbackAgentEnabled
 	}
@@ -44,14 +42,11 @@ func diffCmdPaletteSettings(
 	desired CmdPaletteSection,
 ) []string {
 	changed := make([]string, 0, 2)
-	currentFallbackEnabled := slices.Contains(
-		current.FallbackTargets,
-		compozyconfig.CmdPaletteFallbackAgent,
-	)
-	if currentFallbackEnabled != desired.FallbackAgentEnabled {
+	currentSection := cmdPaletteSectionFromConfig(current)
+	if currentSection.FallbackAgentEnabled != desired.FallbackAgentEnabled {
 		changed = append(changed, "cmd_palette.fallback_targets")
 	}
-	if current.Personalization != desired.Personalization {
+	if currentSection.Personalization != desired.Personalization {
 		changed = append(changed, "cmd_palette.personalization")
 	}
 	return changed

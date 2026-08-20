@@ -8,9 +8,13 @@ import type { CmdPaletteDispatch } from "../hooks/use-cmd-palette-dispatch";
 import { useOsPaletteDomainView } from "../hooks/use-os-palette-domain-view";
 import { useOsPaletteSessionsView } from "../hooks/use-os-palette-sessions-view";
 import { OS_APP_DESCRIPTORS } from "../lib/app-catalog";
-import { paletteViewDefinition, type PaletteViewId } from "../lib/palette-view-registry";
+import {
+  parseExtensionName,
+  paletteViewDefinition,
+  type PaletteViewId,
+} from "../lib/palette-view-registry";
 import type { PaletteBreadcrumb } from "../lib/palette-view-stack";
-import type { WindowManagerAttachedClientView } from "../lib/window-manager-types";
+import type { WindowManagerRegisteredClientView } from "../lib/window-manager-types";
 import { OsPaletteViewShell } from "./os-palette-view-shell";
 
 interface PaletteViewFrameProps {
@@ -20,7 +24,7 @@ interface PaletteViewFrameProps {
   onQueryChange: (query: string) => void;
   onPop: () => void;
   onDismiss: () => void;
-  client: WindowManagerAttachedClientView | null;
+  client: WindowManagerRegisteredClientView | null;
 }
 
 /**
@@ -49,17 +53,12 @@ function DomainPaletteViewFrame({
   ...shell
 }: PaletteViewFrameProps & { viewId: string }) {
   const definition = paletteViewDefinition(viewId);
-  const content = useOsPaletteDomainView(definition ?? unavailableDefinition(viewId), {
+  const fallbackDefinition = definition ?? unavailableDefinition(viewId);
+  const content = useOsPaletteDomainView(fallbackDefinition, {
     query: shell.query,
     onDismiss,
   });
-  return (
-    <OsPaletteViewShell
-      definition={definition ?? unavailableDefinition(viewId)}
-      content={content}
-      {...shell}
-    />
-  );
+  return <OsPaletteViewShell definition={fallbackDefinition} content={content} {...shell} />;
 }
 
 function DeclarativePaletteViewFrame({
@@ -73,6 +72,7 @@ function DeclarativePaletteViewFrame({
     client,
     dispatch,
     onDismiss,
+    onQueryChange: shell.onQueryChange,
     query: shell.query,
     viewId,
   });
@@ -85,7 +85,7 @@ function DeclarativePaletteViewFrame({
   });
   const model = program.declarative ? declarative : program;
   if (program.declarative && (model.timedOut || model.error)) {
-    const source = extensionName(viewId);
+    const source = parseExtensionName(viewId);
     return (
       <OsPaletteViewShell
         definition={model.definition}
@@ -106,15 +106,23 @@ function DeclarativePaletteViewFrame({
           resetKey: `${viewId}:unavailable`,
           onEmptyQueryBackspace: () => false,
         }}
+        loading={model.loading}
         {...shell}
       />
     );
   }
-  return <OsPaletteViewShell definition={model.definition} content={model.content} {...shell} />;
+  return (
+    <OsPaletteViewShell
+      definition={model.definition}
+      content={model.content}
+      loading={model.loading}
+      {...shell}
+    />
+  );
 }
 
 export interface OsPaletteViewStackProps {
-  client: WindowManagerAttachedClientView | null;
+  client: WindowManagerRegisteredClientView | null;
   dispatch: CmdPaletteDispatch;
   viewId: PaletteViewId;
   breadcrumb: PaletteBreadcrumb;
@@ -137,14 +145,17 @@ export function OsPaletteViewStack({
   onPop,
   onDismiss,
 }: OsPaletteViewStackProps) {
-  const [query, setQuery] = useState("");
+  const [ownedQuery, setOwnedQuery] = useState({ viewId, value: "" });
+  if (ownedQuery.viewId !== viewId) {
+    setOwnedQuery({ viewId, value: "" });
+  }
   const definition = paletteViewDefinition(viewId);
   const shell = {
     breadcrumb,
     client,
     dispatch,
-    query,
-    onQueryChange: setQuery,
+    query: ownedQuery.value,
+    onQueryChange: (value: string) => setOwnedQuery({ viewId, value }),
     onPop,
     onDismiss,
   };
@@ -152,9 +163,9 @@ export function OsPaletteViewStack({
     return <SessionsPaletteViewFrame {...shell} />;
   }
   if (definition?.domainTitle) {
-    return <DomainPaletteViewFrame {...shell} viewId={viewId} />;
+    return <DomainPaletteViewFrame key={viewId} {...shell} viewId={viewId} />;
   }
-  return <DeclarativePaletteViewFrame {...shell} viewId={viewId} />;
+  return <DeclarativePaletteViewFrame key={viewId} {...shell} viewId={viewId} />;
 }
 
 /** A view the catalog offers that this client cannot render — named, never blank. */
@@ -175,7 +186,7 @@ export function OsPaletteViewUnavailable({
         header: null,
         empty: (
           <p className="px-3 py-6 text-center text-small-body text-muted">
-            {extensionName(viewId) ?? viewId} view is not available in this client.
+            {parseExtensionName(viewId) ?? viewId} view is not available in this client.
           </p>
         ),
         note: null,
@@ -183,9 +194,7 @@ export function OsPaletteViewUnavailable({
         resetKey: viewId,
         onEmptyQueryBackspace: () => false,
       }}
-      definition={{
-        ...unavailableDefinition(viewId),
-      }}
+      definition={unavailableDefinition(viewId)}
       query=""
       onPop={onPop}
       onQueryChange={() => {}}
@@ -202,8 +211,4 @@ function unavailableDefinition(viewId: string) {
     enterHint: "open",
     description: "This view is not available in this client",
   };
-}
-
-function extensionName(viewId: string): string | null {
-  return /^ext\.([^.]+)\./.exec(viewId)?.[1] ?? null;
 }

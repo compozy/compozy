@@ -96,7 +96,7 @@ export function useOsPaletteRoot({
   const jumpToSession = useAttentionJump();
   const worktreeDialogs = use(WorktreeDialogActionsContext);
   const workspace = useActiveWorkspace();
-  const { activeWorkspaceId, runtimeWorkspaceId, scope, workspaces } = workspace;
+  const { activeWorkspaceId, registeredWorkspaces, runtimeWorkspaceId, scope } = workspace;
   const [query, setQuery] = useState("");
   const paletteIntent = useWindowPaletteIntent();
   const destinationWindowId =
@@ -112,7 +112,7 @@ export function useOsPaletteRoot({
     destination,
     query,
     signals: rankSignals.data,
-    workspaces,
+    workspaces: registeredWorkspaces,
   });
   const fallbackAgentEnabled = useCmdPaletteFallbackSettings({
     activeWorkspaceId,
@@ -134,7 +134,10 @@ export function useOsPaletteRoot({
     query,
     workspaceId: runtimeWorkspaceId,
     scope,
-    workspaceNames: new Map(workspaces.map(workspace => [workspace.id, workspace.name])),
+    workspaceNames:
+      scope === "global"
+        ? new Map(registeredWorkspaces.map(workspace => [workspace.id, workspace.name]))
+        : new Map(),
     signals: rankSignals.data,
   });
 
@@ -180,7 +183,7 @@ export function useOsPaletteRoot({
     // changing under the operator is never silent (US-017.EC-3).
     if (session.workspaceId !== "" && session.workspaceId !== runtimeWorkspaceId) {
       const name =
-        workspaces.find(workspace => workspace.id === session.workspaceId)?.name ??
+        registeredWorkspaces.find(workspace => workspace.id === session.workspaceId)?.name ??
         session.workspaceLabel ??
         session.workspaceId;
       notifyUser(workspaceSwitchFeedback(name, session.title));

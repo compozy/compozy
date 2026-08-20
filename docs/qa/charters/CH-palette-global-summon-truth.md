@@ -17,7 +17,7 @@ charter:
   guidance:
     must_try:
       - "Fire the summon chord from another app (window restores + palette opens) and over an open Compozy modal (focuses without executing through it)."
-      - "Bind a global chord to an argument-bearing command via `cmd-palette bind --global` — firing it unfocused opens the palette in that command's argument step."
+      - "Bind a global chord to an argument-bearing command via `compozy cmd-palette bind <id> <chord> --global` — firing it unfocused opens the palette in that command's argument step."
       - "Pre-claim a chord in another app and try to take it — Settings shows 'unavailable — in use by another application', the previous confirmed chord keeps working; quit/relaunch the shell and confirm registrations re-register and re-report."
       - "Open the app in a plain browser — the global section carries the 'requires desktop shell' reason (in Settings only), and the in-app ⌘K chord is unaffected; on macOS check the accessibility callout deep-links to System Settings."
     must_avoid:

@@ -26,12 +26,19 @@ func (m *Manager) RegisterClient(ctx context.Context, registration ClientRegistr
 	if err != nil {
 		return ClientView{}, err
 	}
-	stored, changed, err := m.storeRegisteredClient(snapshot, registration, prepared)
+	stored, previousShortcuts, changed, err := m.storeRegisteredClient(snapshot, registration, prepared)
 	if err != nil {
 		return ClientView{}, err
 	}
 	if changed {
 		m.publishClient(stored)
+		m.observeGlobalShortcutFailures(
+			ctx,
+			registration.WorkspaceID,
+			stored.ClientID,
+			previousShortcuts,
+			stored.GlobalShortcuts,
+		)
 	}
 	result := cloneClientView(stored)
 	result.AttachmentToken = prepared.token
@@ -81,7 +88,7 @@ func (m *Manager) storeRegisteredClient(
 	snapshot Snapshot,
 	registration ClientRegistration,
 	prepared preparedClientRegistration,
-) (ClientView, bool, error) {
+) (ClientView, []GlobalShortcutRegistration, bool, error) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	workspaceClients := m.clients[registration.WorkspaceID]
@@ -119,21 +126,36 @@ func (m *Manager) storeRegisteredClient(
 	view.PaletteContext.FocusedSessionState = strings.TrimSpace(registration.Context.FocusedSessionState)
 	view.PaletteContext.WorkspaceTrusted = registration.Context.WorkspaceTrusted
 	view.PaletteContext.DestinationIntent = cloneRouteIntentPointer(registration.Context.DestinationIntent)
+	registrations, err := normalizeGlobalShortcutRegistrations(
+		CloneGlobalShortcutRegistrations(registration.Context.GlobalShortcuts),
+	)
+	if err != nil {
+		return ClientView{}, nil, false, fmt.Errorf("client %q global shortcuts: %w", prepared.clientID, err)
+	}
+	if prepared.kind != ClientKindShell && len(registrations) > 0 {
+		return ClientView{}, nil, false, fmt.Errorf(
+			"browser client %q global shortcuts: %w",
+			prepared.clientID,
+			ErrInvalidCommand,
+		)
+	}
+	view.GlobalShortcuts = registrations
 	view = repairClientView(view, snapshot)
 	changed := !exists || !clientViewsEqual(before, view)
 	contextChanged := !exists || before.Kind != view.Kind ||
-		!paletteContextsEqual(before.PaletteContext, view.PaletteContext)
+		!paletteContextsEqual(before.PaletteContext, view.PaletteContext) ||
+		!globalShortcutRegistrationsEqual(before.GlobalShortcuts, view.GlobalShortcuts)
 	if exists && changed {
 		next, revisionErr := nextPresentationRevision(before.PresentationRevision)
 		if revisionErr != nil {
-			return ClientView{}, false, fmt.Errorf("advance client %q: %w", prepared.clientID, revisionErr)
+			return ClientView{}, nil, false, fmt.Errorf("advance client %q: %w", prepared.clientID, revisionErr)
 		}
 		view.PresentationRevision = next
 	}
 	if exists && contextChanged {
 		next, revisionErr := nextContextRevision(before.ContextRevision)
 		if revisionErr != nil {
-			return ClientView{}, false, fmt.Errorf(
+			return ClientView{}, nil, false, fmt.Errorf(
 				"advance client %q context: %w", prepared.clientID, revisionErr,
 			)
 		}
@@ -148,7 +170,7 @@ func (m *Manager) storeRegisteredClient(
 		m.clientTokens[registration.WorkspaceID] = workspaceTokens
 	}
 	workspaceTokens[prepared.clientID] = prepared.digest
-	return stored, changed, nil
+	return stored, CloneGlobalShortcutRegistrations(before.GlobalShortcuts), changed, nil
 }
 
 // UnregisterClient removes transient presentation state only.

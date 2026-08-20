@@ -134,8 +134,7 @@ func newCmdPaletteUnbindCommand(deps commandDeps) *cobra.Command {
 
 func newCmdPaletteAliasCommand(deps commandDeps) *cobra.Command {
 	cmd := &cobra.Command{
-		Use: "alias", Short: "Manage command aliases", Args: cobra.NoArgs,
-		RunE: func(cmd *cobra.Command, _ []string) error { return cmd.Help() },
+		Use: "alias", Short: "Manage command aliases",
 	}
 	cmd.AddCommand(newCmdPaletteAliasSetCommand(deps), newCmdPaletteAliasClearCommand(deps))
 	return cmd
@@ -151,7 +150,7 @@ func newCmdPaletteAliasSetCommand(deps commandDeps) *cobra.Command {
 			if err != nil {
 				return err
 			}
-			alias, err := requiredCmdPaletteID(args[1], "alias")
+			alias, err := requiredCmdPaletteAlias(args[1])
 			if err != nil {
 				return err
 			}
@@ -222,7 +221,7 @@ func shortcutOwner(
 			continue
 		}
 		for _, candidate := range binding {
-			if strings.EqualFold(candidate, chord) {
+			if shortcutChordsEqual(candidate, chord) {
 				return commandID
 			}
 		}
@@ -236,11 +235,20 @@ func globalShortcutOwner(
 	exclude string,
 ) string {
 	for commandID, candidate := range shortcuts {
-		if commandID != exclude && strings.EqualFold(candidate, chord) {
+		if commandID != exclude && shortcutChordsEqual(candidate, chord) {
 			return commandID
 		}
 	}
 	return ""
+}
+
+func shortcutChordsEqual(left, right string) bool {
+	leftCanonical, leftErr := windowmanager.CanonicalShortcutChord(left)
+	rightCanonical, rightErr := windowmanager.CanonicalShortcutChord(right)
+	if leftErr != nil || rightErr != nil {
+		return strings.EqualFold(left, right)
+	}
+	return leftCanonical == rightCanonical
 }
 
 func cloneCmdPaletteAliases(source map[string]string) map[string]string {

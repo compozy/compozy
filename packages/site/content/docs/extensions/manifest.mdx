@@ -222,11 +222,13 @@ a hand-maintained manifest allowed cannot occur.
 
 ### `[resources.cmd_palette]`
 
-Generated from the SDK definition's `resources.cmd_palette` field. It declares palette commands,
-extension-owned views, and optional default shortcuts. Local IDs are namespaced with the extension
-name at runtime, tool actions may target only tools from the same manifest, and declarative view
-sources must be read-only. See [Command Palette Contributions](/docs/extensions/cmd-palette) for the
-complete contract and examples.
+For subprocess extensions, this table is generated from the SDK definition's `resources.cmd_palette`
+field. Resource-only `extension.toml` files may declare static command-palette entries directly.
+Tool-backed and programmable entries still require the corresponding code-backed resources. Local
+IDs are namespaced with the extension name at runtime, tool actions may target only tools from the
+same manifest, and declarative view sources must be read-only. See
+[Command Palette Contributions](/docs/extensions/cmd-palette) for the complete contract and
+examples.
 
 ### `[[resources.hooks]]`
 

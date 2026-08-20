@@ -20,13 +20,16 @@ type extensionCmdPaletteRuntime interface {
 
 type extensionCmdPaletteProvider struct {
 	runtime func() extensionRuntime
+	palette extensionCmdPaletteRuntime
 	tools   toolspkg.Registry
+	patches *viewPatchHub
 }
 
 var (
 	_ cmdpalette.ContributionProvider = (*extensionCmdPaletteProvider)(nil)
 	_ cmdpalette.DynamicViewProvider  = (*extensionCmdPaletteProvider)(nil)
 	_ cmdpalette.ViewProgramProvider  = (*extensionCmdPaletteProvider)(nil)
+	_ cmdpalette.ViewPatchSubscriber  = (*extensionCmdPaletteProvider)(nil)
 )
 
 func (p *extensionCmdPaletteProvider) OpenProgram(
@@ -110,7 +113,8 @@ func (p *extensionCmdPaletteProvider) ProvideContribution(
 	for _, shortcut := range projection.Defaults {
 		result.Defaults = append(result.Defaults, cmdpalette.ExtensionDefaultShortcut{
 			CommandID: cmdpalette.CommandID(shortcut.CommandID), Chord: shortcut.Chord,
-			Source: "ext." + shortcut.Extension, Active: shortcut.Active,
+			Source: (cmdpalette.Source{Kind: cmdpalette.SourceKindExtension, Extension: shortcut.Extension}).ID(),
+			Active: shortcut.Active,
 		})
 	}
 	return result, nil
@@ -205,11 +209,8 @@ func (p *extensionCmdPaletteProvider) projection(
 	if err := ctx.Err(); err != nil {
 		return extensionpkg.CmdPaletteProjection{}, err
 	}
-	if p == nil || p.runtime == nil {
-		return extensionpkg.CmdPaletteProjection{}, nil
-	}
-	runtime, ok := p.runtime().(extensionCmdPaletteRuntime)
-	if !ok || runtime == nil {
+	runtime := p.paletteRuntime()
+	if runtime == nil {
 		return extensionpkg.CmdPaletteProjection{}, nil
 	}
 	projection, err := runtime.CmdPalette(string(workspaceID))

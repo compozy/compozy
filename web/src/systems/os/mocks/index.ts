@@ -7,3 +7,11 @@ export {
   windowManagerStoryDesktopId,
   windowManagerStoryWindowId,
 } from "./fixtures";
+export {
+  cmdPaletteStoryClientId,
+  cmdPaletteStoryCommands,
+  cmdPaletteStoryRegistry,
+  cmdPaletteStoryShortcuts,
+  paletteRegistryFixture,
+  resolvedPaletteCommand,
+} from "./cmd-palette-fixtures";

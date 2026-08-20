@@ -1,5 +1,7 @@
-import { MenubarContent, MenubarItem, MenubarMenu, MenubarSeparator } from "@compozy/ui";
+import { MenubarContent, MenubarItem, MenubarMenu } from "@compozy/ui";
 
+import { usePaletteRegistry } from "../../hooks/use-palette-registry";
+import { MenubarCommandGroups } from "./menubar-command-groups";
 import { MenubarCommandItem } from "./menubar-command-item";
 
 export interface CompozyMenuProps {
@@ -15,17 +17,34 @@ export interface CompozyMenuProps {
 
 /** The system menu on the CompozyOS mark: identity plus the settings surfaces. */
 export function CompozyMenu({ trigger, open, onOpenChange, onRun, onAbout }: CompozyMenuProps) {
+  const registry = usePaletteRegistry();
+  const has = (commandId: string) => registry.byId.has(commandId);
   return (
     <MenubarMenu open={open} onOpenChange={onOpenChange}>
       {trigger}
       <MenubarContent align="start" data-testid="os-menu-compozy">
-        <MenubarItem data-testid="os-menu-about" onClick={onAbout}>
-          About CompozyOS…
-        </MenubarItem>
-        <MenubarSeparator />
-        <MenubarCommandItem commandId="settings.general" onRun={onRun} />
-        <MenubarCommandItem commandId="settings.appearance" onRun={onRun} />
-        <MenubarCommandItem commandId="settings.layouts" onRun={onRun} />
+        <MenubarCommandGroups
+          groups={[
+            {
+              id: "about",
+              content: (
+                <MenubarItem data-testid="os-menu-about" onClick={onAbout}>
+                  About CompozyOS…
+                </MenubarItem>
+              ),
+            },
+            {
+              id: "settings",
+              content: ["settings.general", "settings.appearance", "settings.layouts"].some(has) ? (
+                <>
+                  <MenubarCommandItem commandId="settings.general" onRun={onRun} />
+                  <MenubarCommandItem commandId="settings.appearance" onRun={onRun} />
+                  <MenubarCommandItem commandId="settings.layouts" onRun={onRun} />
+                </>
+              ) : null,
+            },
+          ]}
+        />
       </MenubarContent>
     </MenubarMenu>
   );

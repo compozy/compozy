@@ -11,7 +11,7 @@ import { Blocks } from "lucide-react";
 
 import { UIProvider } from "@compozy/ui";
 
-import { compareStatusAttentionFirst, TASK_STATUS_TONE } from "@/lib/status-tone";
+import { TASK_STATUS_TONE } from "@/lib/status-tone";
 
 import {
   contentForEnvelope,
@@ -25,11 +25,12 @@ import type {
   CmdPaletteViewGrid,
   CmdPaletteViewEnvelope,
 } from "../../lib/cmd-palette-types";
-import type { PaletteViewContent } from "../../lib/palette-view-registry";
+import type { PaletteViewContent, PaletteViewDefinition } from "../../lib/palette-view-registry";
 import { OsPaletteDomainChips } from "../os-palette-domain-chips";
 import { OsPaletteDomainRow } from "../os-palette-domain-row";
 import { OsPaletteViewShell } from "../os-palette-view-shell";
 import { OsPaletteViewUnavailable } from "../os-palette-view-stack";
+import { PALETTE_VIEW_VIRTUAL_THRESHOLD } from "../os-palette-virtual-rows";
 import { OsPaletteProgramBand, OsPaletteProgramFailure } from "../os-palette-program-status";
 import { PaletteDetailView } from "../palette-detail-view";
 import { PaletteFormView } from "../palette-form-view";
@@ -45,10 +46,22 @@ function withUI(node: React.ReactNode) {
   return render(<UIProvider reducedMotion="always">{node}</UIProvider>);
 }
 
-function shellContent(kind: "list" | "detail" | "form" | "grid"): PaletteViewContent {
+function viewDefinitionFixture(
+  id: string,
+  title: string,
+  placeholder: string,
+  description: string
+): PaletteViewDefinition {
+  return { id, title, icon: Blocks, placeholder, enterHint: "open", description };
+}
+
+function shellContent(
+  kind: "list" | "detail" | "form" | "grid",
+  rows: PaletteViewContent["rows"] = []
+): PaletteViewContent {
   return {
     kind,
-    rows: [],
+    rows,
     body: kind === "list" ? undefined : <div>{kind} body</div>,
     header: null,
     empty: <p>No rows</p>,
@@ -59,6 +72,15 @@ function shellContent(kind: "list" | "detail" | "form" | "grid"): PaletteViewCon
   };
 }
 
+function listRows(count: number): PaletteViewContent["rows"] {
+  return Array.from({ length: count }, (_, index) => ({
+    value: `row-${index}`,
+    testId: `row-${index}`,
+    node: `Row ${index}`,
+    onSelect: () => undefined,
+  }));
+}
+
 describe("command palette view renderers", () => {
   it("Should mount every kind under the same stack chrome and pop on empty Backspace [UT-130]", async () => {
     const user = userEvent.setup();
@@ -67,14 +89,7 @@ describe("command palette view renderers", () => {
       <OsPaletteViewShell
         breadcrumb={{ truncated: false, visible: ["Example"] }}
         content={shellContent("list")}
-        definition={{
-          id: "example",
-          title: "Example",
-          icon: Blocks,
-          placeholder: "Search example…",
-          enterHint: "open",
-          description: "Example",
-        }}
+        definition={viewDefinitionFixture("example", "Example", "Search example…", "Example")}
         query=""
         onPop={onPop}
         onQueryChange={vi.fn()}
@@ -87,14 +102,7 @@ describe("command palette view renderers", () => {
           <OsPaletteViewShell
             breadcrumb={{ truncated: false, visible: ["Example"] }}
             content={shellContent(kind)}
-            definition={{
-              id: "example",
-              title: "Example",
-              icon: Blocks,
-              placeholder: "Search example…",
-              enterHint: "open",
-              description: "Example",
-            }}
+            definition={viewDefinitionFixture("example", "Example", "Search example…", "Example")}
             query=""
             onPop={onPop}
             onQueryChange={vi.fn()}
@@ -106,6 +114,51 @@ describe("command palette view renderers", () => {
     }
     await user.type(screen.getByPlaceholderText("Search example…"), "{Backspace}");
     expect(onPop).toHaveBeenCalledOnce();
+  });
+
+  it("Should mark the shell busy from the declarative loading field [RA0279]", () => {
+    withUI(
+      <OsPaletteViewShell
+        breadcrumb={{ truncated: false, visible: ["Notes"] }}
+        content={shellContent("list")}
+        definition={viewDefinitionFixture("notes", "Notes", "Search notes…", "Notes")}
+        loading
+        query=""
+        onPop={vi.fn()}
+        onQueryChange={vi.fn()}
+      />
+    );
+    const frame = screen.getByTestId("os-command-palette");
+    expect(frame).toHaveAttribute("aria-busy", "true");
+    expect(frame).toHaveAttribute("data-palette-loading", "true");
+  });
+
+  it("Should virtualize list rows with the shared mount threshold [RA0191]", () => {
+    const atCap = withUI(
+      <OsPaletteViewShell
+        breadcrumb={{ truncated: false, visible: ["Notes"] }}
+        content={shellContent("list", listRows(PALETTE_VIEW_VIRTUAL_THRESHOLD))}
+        definition={viewDefinitionFixture("notes", "Notes", "Search notes…", "Notes")}
+        query=""
+        onPop={vi.fn()}
+        onQueryChange={vi.fn()}
+      />
+    );
+    expect(screen.getByRole("listbox")).not.toHaveAttribute("data-virtualized");
+
+    atCap.rerender(
+      <UIProvider reducedMotion="always">
+        <OsPaletteViewShell
+          breadcrumb={{ truncated: false, visible: ["Notes"] }}
+          content={shellContent("list", listRows(PALETTE_VIEW_VIRTUAL_THRESHOLD + 1))}
+          definition={viewDefinitionFixture("notes", "Notes", "Search notes…", "Notes")}
+          query=""
+          onPop={vi.fn()}
+          onQueryChange={vi.fn()}
+        />
+      </UIProvider>
+    );
+    expect(screen.getByRole("listbox")).toHaveAttribute("data-virtualized", "true");
   });
 
   it("Should name an unavailable extension and retain the pop path [UT-131]", async () => {
@@ -150,10 +203,43 @@ describe("command palette view renderers", () => {
       "data-tone",
       TASK_STATUS_TONE.in_progress
     );
+    expect(screen.getByRole("toolbar", { name: "Domain filters" })).toBeVisible();
     expect(screen.getByRole("button", { name: "All, 4" })).toHaveAttribute("aria-pressed", "true");
     await user.click(screen.getByRole("button", { name: "Running, 1" }));
     expect(onChange).toHaveBeenCalledWith("running");
-    expect(compareStatusAttentionFirst("failed", "completed")).toBeLessThan(0);
+  });
+
+  it("Should restore input focus when a hidden parent view becomes visible [RD0054]", async () => {
+    const parent = viewDefinitionFixture("parent", "Parent", "Search parent…", "Parent");
+    const child = viewDefinitionFixture("child", "Child", "Search child…", "Child");
+    const stacked = (active: "parent" | "child") => (
+      <>
+        <div hidden={active !== "parent"}>
+          <OsPaletteViewShell
+            breadcrumb={{ truncated: false, visible: ["Parent"] }}
+            content={shellContent("list")}
+            definition={parent}
+            query=""
+            onPop={vi.fn()}
+            onQueryChange={vi.fn()}
+          />
+        </div>
+        <div hidden={active !== "child"}>
+          <OsPaletteViewShell
+            breadcrumb={{ truncated: false, visible: ["Parent", "Child"] }}
+            content={shellContent("list")}
+            definition={child}
+            query=""
+            onPop={vi.fn()}
+            onQueryChange={vi.fn()}
+          />
+        </div>
+      </>
+    );
+    const view = withUI(stacked("child"));
+    expect(screen.getByPlaceholderText("Search child…")).toHaveFocus();
+    view.rerender(<UIProvider reducedMotion="always">{stacked("parent")}</UIProvider>);
+    await waitFor(() => expect(screen.getByPlaceholderText("Search parent…")).toHaveFocus());
   });
 
   it("Should keep hostile markdown inert and render metadata [UT-135, UT-136]", () => {
@@ -196,7 +282,7 @@ describe("command palette view renderers", () => {
         title: "Save",
         action: { kind: "tool", tool: "capture" },
       })
-    ).toBe("ext.notes.capture");
+    ).toBe("ext__notes__capture");
     withUI(<PaletteFormView form={form} onSubmit={onSubmit} />);
     await user.click(screen.getByRole("button", { name: "Save" }));
     expect(screen.getByLabelText("Title")).toHaveFocus();
@@ -260,7 +346,7 @@ describe("command palette view renderers", () => {
   });
 
   it("Should virtualize grids beyond the mount threshold [UT-139]", () => {
-    const tiles = Array.from({ length: 151 }, (_, index) => ({
+    const tiles = Array.from({ length: PALETTE_VIEW_VIRTUAL_THRESHOLD + 1 }, (_, index) => ({
       id: `tile-${index}`,
       title: `Tile ${index}`,
       image: { token: "image" },
@@ -291,14 +377,12 @@ describe("command palette view renderers", () => {
       <OsPaletteViewShell
         breadcrumb={{ truncated: false, visible: ["Notes"] }}
         content={content}
-        definition={{
-          id: "ext.notes.browser",
-          title: "Browse notes",
-          icon: Blocks,
-          placeholder: "Search notes…",
-          enterHint: "open",
-          description: "Browse notes from Notes",
-        }}
+        definition={viewDefinitionFixture(
+          "ext.notes.browser",
+          "Browse notes",
+          "Search notes…",
+          "Browse notes from Notes"
+        )}
         query=""
         onPop={onPop}
         onQueryChange={onQueryChange}
@@ -317,14 +401,12 @@ describe("command palette view renderers", () => {
             ...content,
             header: <OsPaletteProgramBand phase="degraded" onRetry={vi.fn()} />,
           }}
-          definition={{
-            id: "ext.notes.browser",
-            title: "Browse notes",
-            icon: Blocks,
-            placeholder: "Search notes…",
-            enterHint: "open",
-            description: "Browse notes from Notes",
-          }}
+          definition={viewDefinitionFixture(
+            "ext.notes.browser",
+            "Browse notes",
+            "Search notes…",
+            "Browse notes from Notes"
+          )}
           query=""
           onPop={onPop}
           onQueryChange={onQueryChange}
@@ -352,14 +434,12 @@ describe("command palette view renderers", () => {
             />
           ),
         }}
-        definition={{
-          id: "ext.notes.browser",
-          title: "Browse notes",
-          icon: Blocks,
-          placeholder: "Search notes…",
-          enterHint: "open",
-          description: "Browse notes from Notes",
-        }}
+        definition={viewDefinitionFixture(
+          "ext.notes.browser",
+          "Browse notes",
+          "Search notes…",
+          "Browse notes from Notes"
+        )}
         query=""
         onPop={vi.fn()}
         onQueryChange={vi.fn()}
@@ -375,7 +455,7 @@ describe("command palette view renderers", () => {
     const complete = viewEnvelope(true);
     const incomplete = viewEnvelope(false);
     const shared = {
-      activeChip: "all",
+      activeChip: null,
       query: "alpha",
       runAction: vi.fn(),
       selectedRow: "",

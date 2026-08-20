@@ -44,20 +44,20 @@ var (
 	cmdPaletteIconPattern    = regexp.MustCompile(`^[a-z0-9]+(?:-[a-z0-9]+)*$`)
 )
 
-func validateManifestCmdPalette(manifest *Manifest) error {
+func validateManifestCmdPalette(manifest *Manifest) (map[string]ManifestToolDescriptor, error) {
 	config := manifest.Resources.CmdPalette
 	if len(config.Commands) == 0 && len(config.Views) == 0 {
-		return nil
+		return nil, nil
 	}
 	tools, err := cmdPaletteToolsByName(manifest)
 	if err != nil {
-		return err
+		return nil, err
 	}
 	viewIDs, err := validateCmdPaletteViews(manifest, tools)
 	if err != nil {
-		return err
+		return nil, err
 	}
-	return validateCmdPaletteCommands(config.Commands, tools, viewIDs)
+	return tools, validateCmdPaletteCommands(config.Commands, tools, viewIDs)
 }
 
 func validateCmdPaletteViews(
@@ -239,23 +239,35 @@ func validateCmdPaletteAction(
 	tools map[string]ManifestToolDescriptor,
 	views map[string]struct{},
 ) error {
-	targets := map[string]string{
-		cmdPaletteActionTool:     action.Tool,
-		cmdPaletteActionView:     action.View,
-		cmdPaletteActionNavigate: action.App,
-		cmdPaletteActionURL:      action.URL,
+	targets := []struct {
+		kind  string
+		value string
+	}{
+		{cmdPaletteActionTool, action.Tool},
+		{cmdPaletteActionView, action.View},
+		{cmdPaletteActionNavigate, action.App},
+		{cmdPaletteActionURL, action.URL},
 	}
-	target, exists := targets[action.Kind]
-	if !exists {
+	target := ""
+	knownKind := false
+	for _, candidate := range targets {
+		if candidate.kind != action.Kind {
+			continue
+		}
+		knownKind = true
+		target = candidate.value
+		break
+	}
+	if !knownKind {
 		return cmdPaletteManifestError(path+".kind", action.Kind, "must be tool, view, navigate, or url")
 	}
 	if target == "" {
 		return cmdPaletteManifestError(path+"."+cmdPaletteActionTargetField(action.Kind), "", "value is required")
 	}
-	for kind, value := range targets {
-		if kind != action.Kind && value != "" {
+	for _, candidate := range targets {
+		if candidate.kind != action.Kind && candidate.value != "" {
 			return cmdPaletteManifestError(
-				path+"."+cmdPaletteActionTargetField(kind), value,
+				path+"."+cmdPaletteActionTargetField(candidate.kind), candidate.value,
 				fmt.Sprintf("is not allowed for %s actions", action.Kind),
 			)
 		}
@@ -334,10 +346,42 @@ func validateCmdPaletteIcon(field, value string) error {
 	if cmdPaletteIconPattern.MatchString(value) {
 		return nil
 	}
-	if uniseg.GraphemeClusterCount(value) != 1 || isASCII(value) {
+	if uniseg.GraphemeClusterCount(value) != 1 || isASCII(value) || !isCmdPaletteEmojiGrapheme(value) {
 		return cmdPaletteManifestError(field, value, "must be a lowercase icon token or one emoji grapheme")
 	}
 	return validateCmdPaletteText(field, value, 16)
+}
+
+func isCmdPaletteEmojiGrapheme(value string) bool {
+	hasEmoji := false
+	for _, character := range value {
+		if unicode.IsLetter(character) && !isEmojiRune(character) {
+			return false
+		}
+		if isEmojiRune(character) {
+			hasEmoji = true
+		}
+	}
+	return hasEmoji
+}
+
+func isEmojiRune(character rune) bool {
+	switch {
+	case character == 0x200D || character == 0xFE0F || character == 0x20E3:
+		return true
+	case character >= 0x1F1E6 && character <= 0x1F1FF:
+		return true
+	case character >= 0x1F3FB && character <= 0x1F3FF:
+		return true
+	case character >= 0x2600 && character <= 0x27BF:
+		return true
+	case character >= 0x1F300 && character <= 0x1FAFF:
+		return true
+	case unicode.Is(unicode.So, character):
+		return true
+	default:
+		return false
+	}
 }
 
 func isASCII(value string) bool {

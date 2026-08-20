@@ -8,7 +8,6 @@ const (
 	projectionReasonBridgesExcluded    = "bridges are outside the approved MCP families"
 	projectionReasonModelsExcluded     = "models are outside the approved MCP families"
 	projectionReasonSandboxExcluded    = "sandbox is outside the approved MCP families"
-	projectionReasonSessionOnly        = "method requires an extension-owned view session"
 	projectionReasonTargetOnly         = "target-only request has no workspace binding"
 )
 
@@ -44,24 +43,26 @@ var hostAPIProjectionDecisions = map[extensionprotocol.HostAPIMethod]projectionD
 	extensionprotocol.HostAPIMethodSkillsList: {
 		Reason: "skills are outside the approved MCP families",
 	},
-	extensionprotocol.HostAPIMethodModelsList:               {Reason: projectionReasonModelsExcluded},
-	extensionprotocol.HostAPIMethodModelsRefresh:            {Reason: projectionReasonModelsExcluded},
-	extensionprotocol.HostAPIMethodModelsStatus:             {Reason: projectionReasonModelsExcluded},
-	extensionprotocol.HostAPIMethodAgentsSoulGet:            {Reason: projectionReasonAgentsExcluded},
-	extensionprotocol.HostAPIMethodAgentsSoulValidate:       {Reason: projectionReasonAgentsExcluded},
-	extensionprotocol.HostAPIMethodAgentsSoulPut:            {Reason: projectionReasonAgentsExcluded},
-	extensionprotocol.HostAPIMethodAgentsSoulDelete:         {Reason: projectionReasonAgentsExcluded},
-	extensionprotocol.HostAPIMethodAgentsSoulHistory:        {Reason: projectionReasonAgentsExcluded},
-	extensionprotocol.HostAPIMethodAgentsSoulRollback:       {Reason: projectionReasonAgentsExcluded},
-	extensionprotocol.HostAPIMethodAgentsHeartbeatGet:       {Reason: projectionReasonAgentsExcluded},
-	extensionprotocol.HostAPIMethodAgentsHeartbeatValidate:  {Reason: projectionReasonAgentsExcluded},
-	extensionprotocol.HostAPIMethodAgentsHeartbeatPut:       {Reason: projectionReasonAgentsExcluded},
-	extensionprotocol.HostAPIMethodAgentsHeartbeatDelete:    {Reason: projectionReasonAgentsExcluded},
-	extensionprotocol.HostAPIMethodAgentsHeartbeatHistory:   {Reason: projectionReasonAgentsExcluded},
-	extensionprotocol.HostAPIMethodAgentsHeartbeatRollback:  {Reason: projectionReasonAgentsExcluded},
-	extensionprotocol.HostAPIMethodAgentsHeartbeatStatus:    {Reason: projectionReasonAgentsExcluded},
-	extensionprotocol.HostAPIMethodAgentsHeartbeatWake:      {Reason: projectionReasonAgentsExcluded},
-	extensionprotocol.HostAPIMethodViewPatch:                {Reason: projectionReasonSessionOnly},
+	extensionprotocol.HostAPIMethodModelsList:              {Reason: projectionReasonModelsExcluded},
+	extensionprotocol.HostAPIMethodModelsRefresh:           {Reason: projectionReasonModelsExcluded},
+	extensionprotocol.HostAPIMethodModelsStatus:            {Reason: projectionReasonModelsExcluded},
+	extensionprotocol.HostAPIMethodAgentsSoulGet:           {Reason: projectionReasonAgentsExcluded},
+	extensionprotocol.HostAPIMethodAgentsSoulValidate:      {Reason: projectionReasonAgentsExcluded},
+	extensionprotocol.HostAPIMethodAgentsSoulPut:           {Reason: projectionReasonAgentsExcluded},
+	extensionprotocol.HostAPIMethodAgentsSoulDelete:        {Reason: projectionReasonAgentsExcluded},
+	extensionprotocol.HostAPIMethodAgentsSoulHistory:       {Reason: projectionReasonAgentsExcluded},
+	extensionprotocol.HostAPIMethodAgentsSoulRollback:      {Reason: projectionReasonAgentsExcluded},
+	extensionprotocol.HostAPIMethodAgentsHeartbeatGet:      {Reason: projectionReasonAgentsExcluded},
+	extensionprotocol.HostAPIMethodAgentsHeartbeatValidate: {Reason: projectionReasonAgentsExcluded},
+	extensionprotocol.HostAPIMethodAgentsHeartbeatPut:      {Reason: projectionReasonAgentsExcluded},
+	extensionprotocol.HostAPIMethodAgentsHeartbeatDelete:   {Reason: projectionReasonAgentsExcluded},
+	extensionprotocol.HostAPIMethodAgentsHeartbeatHistory:  {Reason: projectionReasonAgentsExcluded},
+	extensionprotocol.HostAPIMethodAgentsHeartbeatRollback: {Reason: projectionReasonAgentsExcluded},
+	extensionprotocol.HostAPIMethodAgentsHeartbeatStatus:   {Reason: projectionReasonAgentsExcluded},
+	extensionprotocol.HostAPIMethodAgentsHeartbeatWake:     {Reason: projectionReasonAgentsExcluded},
+	extensionprotocol.HostAPIMethodViewPatch: {
+		Reason: "method requires an extension-owned view session",
+	},
 	extensionprotocol.HostAPIMethodAutomationJobs:           {Reason: projectionReasonAutomationExcluded},
 	extensionprotocol.HostAPIMethodAutomationJobsGet:        {Reason: projectionReasonAutomationExcluded},
 	extensionprotocol.HostAPIMethodAutomationJobsCreate:     {Reason: projectionReasonAutomationExcluded},

@@ -13,10 +13,6 @@ func newCmdPalettePersonalizationCommand(deps commandDeps) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "personalization",
 		Short: "Inspect or reset palette personalization",
-		Args:  cobra.NoArgs,
-		RunE: func(cmd *cobra.Command, _ []string) error {
-			return cmd.Help()
-		},
 	}
 	cmd.AddCommand(
 		newCmdPalettePersonalizationShowCommand(deps),
@@ -28,7 +24,7 @@ func newCmdPalettePersonalizationCommand(deps commandDeps) *cobra.Command {
 func newCmdPalettePersonalizationShowCommand(deps commandDeps) *cobra.Command {
 	var scope cmdPaletteScopeFlags
 	cmd := &cobra.Command{
-		Use:   configShowKey,
+		Use:   cliShowVerb,
 		Short: "Show workspace palette personalization",
 		Args:  cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, _ []string) error {
@@ -50,7 +46,7 @@ func newCmdPalettePersonalizationShowCommand(deps commandDeps) *cobra.Command {
 func newCmdPalettePersonalizationResetCommand(deps commandDeps) *cobra.Command {
 	var scope cmdPaletteScopeFlags
 	cmd := &cobra.Command{
-		Use:   onboardingResetKey,
+		Use:   cliResetVerb,
 		Short: "Reset workspace palette personalization",
 		Args:  cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, _ []string) error {

@@ -5,6 +5,7 @@ import type {
   OsPaletteWorktreeResult,
 } from "../hooks/use-os-palette-entities";
 import type { PaletteRegistry, ResolvedPaletteCommand } from "./cmd-palette-types";
+import { normalizeRankingText } from "./ranking/normalize";
 
 /**
  * What the action panel offers for one selected row (`_uiux.md` S7, US-014).
@@ -111,8 +112,8 @@ function metaActions(
       intent: { kind: "pin", commandId: command.id, pinned: !pinned },
     },
   ];
-  // The mutation flows land in task_05; until then these are deep-links into the
-  // surface that owns them, which is why they exist only while that surface does.
+  // Alias and shortcut mutations live on the settings surface. These actions
+  // deep-link there rather than mutating the keymap from the palette row.
   if (registry.byId.has(SHORTCUT_SETTINGS_COMMAND_ID)) {
     actions.push(
       {
@@ -343,7 +344,8 @@ export function paletteRowActions({
 
 function matches(action: PaletteRowAction, needle: string): boolean {
   return (
-    action.title.toLowerCase().includes(needle) || action.section.toLowerCase().includes(needle)
+    normalizeRankingText(action.title).text.includes(needle) ||
+    normalizeRankingText(action.section).text.includes(needle)
   );
 }
 
@@ -356,7 +358,7 @@ export function filterRowActions(
   sections: readonly PaletteRowActionSection[],
   query: string
 ): readonly PaletteRowActionSection[] {
-  const needle = query.trim().toLowerCase();
+  const needle = normalizeRankingText(query).text;
   if (needle === "") return sections;
   const filtered: PaletteRowActionSection[] = [];
   for (const section of sections) {

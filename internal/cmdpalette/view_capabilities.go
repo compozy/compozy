@@ -215,7 +215,7 @@ func resolveRequiredElement[T any](
 		return element, true, nil
 	}
 	if reporter != nil {
-		reporter.RecordCapabilityGap(path, cloneStringMap(requires))
+		reporter.RecordCapabilityGap(path, maps.Clone(requires))
 	}
 	var zero T
 	if fallback == "" || fallback == "drop" {
@@ -263,13 +263,4 @@ func capabilityVersionPart(parts []string, index int) int {
 		return -1
 	}
 	return value
-}
-
-func cloneStringMap(source map[string]string) map[string]string {
-	if source == nil {
-		return nil
-	}
-	cloned := make(map[string]string, len(source))
-	maps.Copy(cloned, source)
-	return cloned
 }

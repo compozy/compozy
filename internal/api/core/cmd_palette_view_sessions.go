@@ -152,27 +152,7 @@ func (h *BaseHandlers) respondCmdPaletteViewSessionError(
 	workspaceID cmdpalette.WorkspaceID,
 	err error,
 ) {
-	status := http.StatusServiceUnavailable
-	code := runtimeUnavailableErrorCode
-	var notFound *cmdpalette.ViewNotFoundError
-	var validation *cmdpalette.ViewValidationError
-	switch {
-	case errors.Is(err, cmdpalette.ErrClientUnauthorized):
-		status, code = http.StatusUnauthorized, "client_unauthorized"
-	case errors.Is(err, cmdpalette.ErrViewSessionForbidden):
-		status, code = http.StatusForbidden, "session_forbidden"
-	case errors.Is(err, cmdpalette.ErrViewSessionGone):
-		status, code = http.StatusGone, "session_gone"
-	case errors.Is(err, cmdpalette.ErrViewBusy):
-		status, code = http.StatusConflict, "view_busy"
-	case errors.As(err, &notFound):
-		status, code = http.StatusNotFound, "view_not_found"
-	case errors.As(err, &validation):
-		status, code = http.StatusUnprocessableEntity, "invalid_view"
-	case strings.Contains(err.Error(), "required") || strings.Contains(err.Error(), "must increase") ||
-		strings.Contains(err.Error(), "is stale"):
-		status, code = http.StatusBadRequest, cmdPaletteInvalidRequestError
-	}
+	status, code := cmdPaletteViewSessionStatus(err)
 	if status >= http.StatusInternalServerError && h.Logger != nil {
 		h.Logger.Error("command palette view session request failed", "workspace_id", workspaceID, "error", err)
 	}

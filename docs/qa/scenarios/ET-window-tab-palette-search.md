@@ -26,12 +26,14 @@ Walk (task_11 plan):
 
 1. Group several windows into tabs across two desktops, minimize one member.
 2. ⌘K and type a tab's title — the tab section lists live tabs with app, desktop, leaf-title,
-   attention, and minimized context; a weak tab match never drops below the fallback threshold
-   silently (result and Ask-agent row can coexist).
+   attention, and minimized context. Capture `GET /api/cmd-palette/rank-signals`
+   `fallback_weak_match_threshold` and the query's top score: score equal to the threshold keeps
+   tab results plus Ask agent; score below the threshold is fallback-only.
 3. Select a result — that exact window restores and activates without changing its route depth,
    including the minimized and cross-desktop members.
 4. Close a listed tab from another surface — the stale row disappears on refresh; a closed-result
    group vanishes without dead rows.
 
 Expected evidence: screenshots of the disambiguated tab results and the restored cross-desktop
-window; note the boundary query where tab results and the fallback row rendered together.
+window; the rank-signals threshold and top-score pair for the equality and below-threshold
+branches.

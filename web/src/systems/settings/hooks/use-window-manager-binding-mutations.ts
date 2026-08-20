@@ -1,3 +1,4 @@
+import { useRef, useState } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 
 import {
@@ -16,7 +17,6 @@ export interface WindowManagerBindingCommit {
 }
 
 export interface WindowManagerBindingMutations {
-  /** Resolves with the section the daemon produced, or throws its refusal. */
   commit: (update: WindowManagerBindingCommit) => Promise<WindowManagerSettingsSection>;
   saving: boolean;
 }
@@ -35,6 +35,9 @@ export function useWindowManagerBindingMutations(
   clientId?: string
 ): WindowManagerBindingMutations {
   const queryClient = useQueryClient();
+  const queue = useRef(Promise.resolve());
+  const inflight = useRef(0);
+  const [saving, setSaving] = useState(false);
   const mutation = useMutation({
     mutationFn: (update: WindowManagerBindingCommit) =>
       updateWindowManagerBindings({
@@ -44,8 +47,6 @@ export function useWindowManagerBindingMutations(
       } as WindowManagerBindingUpdate),
     onSuccess: async section => {
       queryClient.setQueryData(windowManagerKeys.config(workspaceId, clientId), section);
-      // Chord badges and "Title (alias)" rows read the catalog, not this
-      // section, so they would otherwise keep the previous binding on screen.
       await queryClient.invalidateQueries({
         queryKey: cmdPaletteKeys.workspaceCatalogs(workspaceId ?? ""),
       });
@@ -53,7 +54,20 @@ export function useWindowManagerBindingMutations(
   });
 
   return {
-    commit: update => mutation.mutateAsync(update),
-    saving: mutation.isPending,
+    commit: update => {
+      inflight.current += 1;
+      setSaving(true);
+      const run = () => mutation.mutateAsync(update);
+      const next = queue.current.then(run, run);
+      queue.current = next.then(
+        () => undefined,
+        () => undefined
+      );
+      return next.finally(() => {
+        inflight.current -= 1;
+        if (inflight.current === 0) setSaving(false);
+      });
+    },
+    saving,
   };
 }

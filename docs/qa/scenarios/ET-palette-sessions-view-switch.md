@@ -42,7 +42,8 @@ attention order, state filters, truthful counts, zero-match clearing, and scope 
 2026-08-20 qa-impact: Root fallback assembly and default-agent session creation now share the
 session landing path. Keep this scenario `untested`; task 12 owns the isolated re-walk.
 
-Task_11 plan: this is the standing `blocked-verify` debt — the re-walk is explicitly scheduled in
+Historical (2026-08-16): that run stayed `blocked-verify` because an isolated QA lab with a live
+daemon was not started. The current Task 12 walk is `untested` and is scheduled in
 `CH-palette-sessions-landing-canary` (BR-20 adjacent canary). It must run in an isolated QA lab
 with a live daemon so the persona walk meets the qa-execution evidence standard.
 

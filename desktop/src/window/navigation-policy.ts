@@ -1,7 +1,6 @@
-export type NavigationDecision = "allow" | "external" | "deny";
+import { MACOS_ACCESSIBILITY_SETTINGS_URL } from "../shortcuts/accessibility";
 
-const ACCESSIBILITY_SETTINGS_URL =
-  "x-apple.systempreferences:com.apple.preference.security?Privacy_Accessibility";
+export type NavigationDecision = "allow" | "external" | "deny";
 
 function parsed(raw: string): URL | null {
   try {
@@ -20,7 +19,7 @@ function isExternalURL(target: URL): boolean {
   return (
     target.protocol === "http:" ||
     target.protocol === "https:" ||
-    target.toString() === ACCESSIBILITY_SETTINGS_URL
+    target.toString() === MACOS_ACCESSIBILITY_SETTINGS_URL
   );
 }
 

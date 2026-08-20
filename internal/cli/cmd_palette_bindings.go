@@ -127,16 +127,14 @@ func cmdPaletteBindingsOutput(response contract.SettingsWindowManagerResponse) o
 }
 
 func cmdPaletteMutationOutput(value any) outputBundle {
+	renderJSON := func() (string, error) {
+		encoded, err := json.Marshal(value)
+		return string(encoded), err
+	}
 	return outputBundle{
 		jsonValue: value,
 		jsonl:     func(cmd *cobra.Command) error { return writeJSONLine(cmd, value) },
-		human: func() (string, error) {
-			encoded, err := json.Marshal(value)
-			return string(encoded), err
-		},
-		toon: func() (string, error) {
-			encoded, err := json.Marshal(value)
-			return string(encoded), err
-		},
+		human:     renderJSON,
+		toon:      renderJSON,
 	}
 }

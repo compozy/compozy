@@ -1,9 +1,12 @@
 import { storyDefaultWorkspaceId } from "@/storybook/fintech-scenario";
 
+import { buildPaletteRegistry } from "../lib/cmd-palette-registry";
 import type {
   CmdPaletteAttachedClient,
   CmdPaletteCatalogResponse,
   CmdPaletteCommand,
+  PaletteRegistry,
+  ResolvedPaletteCommand,
 } from "../lib/cmd-palette-types";
 
 /**
@@ -14,7 +17,7 @@ import type {
  */
 export const cmdPaletteStoryClientId = "client-story-shell";
 
-function coreCommand(
+function baseCommand(
   command: Partial<CmdPaletteCommand> & Pick<CmdPaletteCommand, "id" | "title">
 ) {
   return {
@@ -33,38 +36,70 @@ function coreCommand(
   } satisfies CmdPaletteCommand;
 }
 
+export function resolvedPaletteCommand(
+  command: Partial<ResolvedPaletteCommand> & Pick<ResolvedPaletteCommand, "id" | "title">
+): ResolvedPaletteCommand {
+  const base = baseCommand(command);
+  return {
+    ...base,
+    visible: true,
+    reason: base.reason ?? "",
+    chords: [],
+    ...command,
+  };
+}
+
+export function paletteRegistryFixture(
+  commands: readonly ResolvedPaletteCommand[]
+): PaletteRegistry {
+  return {
+    commands,
+    byId: new Map(commands.map(entry => [entry.id, entry])),
+    sources: [{ source: "core", status: "healthy" }],
+    catalogRevision: "sha256:test",
+    stale: false,
+    daemonReachable: true,
+  };
+}
+
 const focusedWindowPredicate = [
   { key: "window.focused", value: true, reason: "requires a focused window" },
 ];
 
 export const cmdPaletteStoryCommands: CmdPaletteCommand[] = [
-  coreCommand({
+  baseCommand({
     id: "palette.open",
     title: "Command palette",
     icon: "command",
     availability_exempt: true,
     bindings: ["meta+KeyK"],
   }),
-  coreCommand({
+  baseCommand({
     id: "shortcuts.cheatsheet",
     title: "Keyboard shortcuts",
     icon: "keyboard",
     availability_exempt: true,
     bindings: ["meta+Slash"],
   }),
-  coreCommand({
+  baseCommand({
     id: "shell.sessions.toggle",
     title: "Toggle sessions",
     icon: "list",
   }),
-  coreCommand({
+  baseCommand({
     id: "session.new",
     title: "New session",
     icon: "square-terminal",
     availability_exempt: true,
     bindings: ["meta+KeyN"],
   }),
-  coreCommand({
+  baseCommand({
+    id: "workspace.picker",
+    title: "Workspace picker",
+    icon: "folders",
+    availability_exempt: true,
+  }),
+  baseCommand({
     id: "window.close",
     title: "Close window",
     section: "Window",
@@ -73,7 +108,7 @@ export const cmdPaletteStoryCommands: CmdPaletteCommand[] = [
     execution: { retry_safe: false, single_flight: true },
     when: focusedWindowPredicate,
   }),
-  coreCommand({
+  baseCommand({
     id: "window.minimize",
     title: "Minimize window",
     section: "Window",
@@ -81,7 +116,7 @@ export const cmdPaletteStoryCommands: CmdPaletteCommand[] = [
     bindings: ["meta+KeyM"],
     when: focusedWindowPredicate,
   }),
-  coreCommand({
+  baseCommand({
     id: "window.merge_all",
     title: "Merge all windows",
     section: "Window",
@@ -95,21 +130,21 @@ export const cmdPaletteStoryCommands: CmdPaletteCommand[] = [
       },
     ],
   }),
-  coreCommand({
+  baseCommand({
     id: "window.tab.new",
     title: "New tab",
     section: "Tabs",
     icon: "plus",
     bindings: ["meta+KeyT"],
   }),
-  coreCommand({
+  baseCommand({
     id: "window.tab.detach",
     title: "Move tab to new window",
     section: "Tabs",
     icon: "panels-top-left",
     when: [{ key: "window.stacked", value: true, reason: "needs a tab in a stack" }],
   }),
-  coreCommand({
+  baseCommand({
     id: "window.move",
     title: "Move window",
     section: "Window",
@@ -118,21 +153,21 @@ export const cmdPaletteStoryCommands: CmdPaletteCommand[] = [
     // irrelevant here rather than disabled (US-037.AC-2).
     when: [{ key: "shell.desktop", value: true, reason: "requires an attached shell" }],
   }),
-  coreCommand({
+  baseCommand({
     id: "app.open.agents",
     title: "Open Agents",
     section: "Apps",
     icon: "bot",
     action: { kind: "navigate", app: "agents" },
   }),
-  coreCommand({
+  baseCommand({
     id: "app.open.tasks",
     title: "Open Tasks",
     section: "Apps",
     icon: "list-checks",
     action: { kind: "navigate", app: "tasks" },
   }),
-  coreCommand({
+  baseCommand({
     id: "settings.appearance",
     title: "Settings → Appearance",
     section: "Settings",
@@ -140,7 +175,7 @@ export const cmdPaletteStoryCommands: CmdPaletteCommand[] = [
     keywords: ["wallpaper", "theme", "dock"],
     action: { kind: "navigate", app: "settings", args: { pathname: "/settings/appearance" } },
   }),
-  coreCommand({
+  baseCommand({
     id: "palette.view.sessions",
     title: "Sessions",
     section: "Views",
@@ -148,7 +183,7 @@ export const cmdPaletteStoryCommands: CmdPaletteCommand[] = [
     action: { kind: "view", view: "sessions" },
   }),
   {
-    ...coreCommand({ id: "ext.notes.capture", title: "Capture note" }),
+    ...baseCommand({ id: "ext.notes.capture", title: "Capture note" }),
     section: "Notes",
     icon: "notebook-pen",
     source: "ext.notes",
@@ -173,6 +208,18 @@ export const cmdPaletteCatalogFixture: CmdPaletteCatalogResponse = {
   ],
 };
 
+export const cmdPaletteStoryRegistry = buildPaletteRegistry({
+  catalog: {
+    commands: cmdPaletteCatalogFixture.commands,
+    sources: cmdPaletteCatalogFixture.sources,
+    catalogRevision: cmdPaletteCatalogFixture.catalog_revision,
+  },
+  context: null,
+  daemonReachable: true,
+  stale: false,
+  platform: "MacIntel",
+});
+
 /**
  * The execution surfaces need what the base catalog deliberately lacks: a
  * healthy extension command that declares arguments, and a destructive one that
@@ -181,7 +228,7 @@ export const cmdPaletteCatalogFixture: CmdPaletteCatalogResponse = {
  * (`ext.notes.capture` stays unavailable there on purpose).
  */
 export const cmdPaletteArgumentsCommand: CmdPaletteCommand = {
-  ...coreCommand({ id: "ext.notes.capture_note", title: "Capture note" }),
+  ...baseCommand({ id: "ext.notes.capture_note", title: "Capture note" }),
   section: "Notes",
   icon: "notebook-pen",
   source: "ext.notes",
@@ -196,7 +243,7 @@ export const cmdPaletteArgumentsCommand: CmdPaletteCommand = {
 };
 
 export const cmdPaletteDestructiveCommand: CmdPaletteCommand = {
-  ...coreCommand({ id: "ext.notes.purge", title: "Purge archived notes" }),
+  ...baseCommand({ id: "ext.notes.purge", title: "Purge archived notes" }),
   section: "Notes",
   icon: "trash-2",
   source: "ext.notes",
@@ -225,7 +272,7 @@ export function cmdPaletteExecutionCatalog(): CmdPaletteCatalogResponse {
 /** 60+ rows for the capped-group / overflow-note contract (US-001.EC-2). */
 export function cmdPaletteAtScaleCatalog(): CmdPaletteCatalogResponse {
   const generated = Array.from({ length: 64 }, (_, index) =>
-    coreCommand({
+    baseCommand({
       id: `desktop.switch.${index + 1}`,
       title: `Switch to desktop ${index + 1}`,
       section: "Desktops",
@@ -251,12 +298,6 @@ export const cmdPaletteStoryShortcuts: Record<string, readonly string[]> = Objec
     command.bindings.length > 0 ? [[command.id, command.bindings] as const] : []
   )
 );
-
-/** Overrides that put the table into its conflicted and rebound states. */
-export const cmdPaletteStoryOverrides: Record<string, readonly string[]> = {
-  "window.tab.new": ["meta+Digit3"],
-  "sidebar.toggle": ["meta+KeyB"],
-};
 
 export const cmdPaletteStoryReboundOverrides: Record<string, readonly string[]> = {
   "palette.open": ["meta+shift+KeyP"],

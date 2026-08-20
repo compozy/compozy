@@ -13,48 +13,34 @@ import { OsShellContext, type OsShellHandle } from "../../contexts/os-shell-cont
 import { RoutingCoordinator, type OsRouterPort } from "../../lib/routing-coordinator";
 import { WindowManagerRuntime } from "../../runtime/window-manager-runtime";
 import { CmdPaletteRegistryProvider } from "../../contexts/cmd-palette-registry-context";
-import type { PaletteRegistry, ResolvedPaletteCommand } from "../../lib/cmd-palette-types";
+import { paletteRegistryFixture, resolvedPaletteCommand } from "../../mocks/cmd-palette-fixtures";
 import { OsShortcutsDialog } from "../os-shortcuts-dialog";
 
 /**
  * The cheatsheet is a projection of the registry: a row exists because the
  * catalog carries the command, and its chords come from the daemon keymap.
  */
-const CHEATSHEET_REGISTRY: PaletteRegistry = (() => {
-  const commands = [
-    { id: "workspace.picker", title: "Workspace picker", section: "Workspaces", source: "core" },
-    { id: "shortcuts.cheatsheet", title: "This sheet", section: "Shell", source: "core" },
-    {
-      id: "ext.notes.capture",
-      title: "Capture note",
-      section: "Notes",
-      source: "ext.notes",
-      alias: "cap",
-    },
-  ].map(entry => ({
-    icon: "command",
-    bindings: [],
-    alias: null,
-    ...entry,
-    destructive: false,
+const CHEATSHEET_REGISTRY = paletteRegistryFixture([
+  resolvedPaletteCommand({
+    id: "workspace.picker",
+    title: "Workspace picker",
+    section: "Workspaces",
     availability_exempt: true,
-    arguments: [],
-    action: { kind: "client_op", op: entry.id },
-    execution: { retry_safe: true, single_flight: false },
-    visible: true,
-    available: true,
-    reason: "",
-    chords: [],
-  })) as unknown as ResolvedPaletteCommand[];
-  return {
-    commands,
-    byId: new Map(commands.map(command => [command.id, command])),
-    sources: [{ source: "core", status: "healthy" }],
-    catalogRevision: "sha256:test",
-    stale: false,
-    daemonReachable: true,
-  };
-})();
+  }),
+  resolvedPaletteCommand({
+    id: "shortcuts.cheatsheet",
+    title: "This sheet",
+    availability_exempt: true,
+  }),
+  resolvedPaletteCommand({
+    id: "ext.notes.capture",
+    title: "Capture note",
+    section: "Notes",
+    source: "ext.notes",
+    alias: "cap",
+    availability_exempt: true,
+  }),
+]);
 
 const { desktopState } = vi.hoisted(() => ({
   desktopState: {

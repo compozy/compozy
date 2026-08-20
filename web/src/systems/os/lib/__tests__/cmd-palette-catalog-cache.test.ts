@@ -80,18 +80,21 @@ describe("cmd-palette catalog record", () => {
       expect(command).not.toHaveProperty("available");
       expect(command).not.toHaveProperty("reason");
     }
-    const persisted = JSON.stringify(record);
-    for (const volatileField of ["rank_signals", "weights", "usage", "query_hits", "pins"]) {
-      expect(persisted).not.toContain(`"${volatileField}"`);
-    }
     const [closeWindow] = record.commands;
-    // Structure the projection needs on a cold open survives verbatim.
-    expect(closeWindow).toMatchObject({
+    expect(closeWindow).toEqual({
       id: "window.close",
+      title: "Close window",
+      section: "Window",
+      icon: "x-square",
+      source: "core",
+      keywords: ["dismiss"],
       bindings: ["meta+KeyW"],
       alias: null,
+      destructive: false,
       availability_exempt: false,
+      arguments: [],
       action: { kind: "client_op", op: "window.close" },
+      execution: { retry_safe: false, single_flight: true },
       when: [{ key: "window.focused", value: true, reason: "requires a focused window" }],
     });
     expect(record.sources).toEqual([{ source: "core", status: "healthy" }]);

@@ -16,7 +16,6 @@ import {
   isPrunableSignal,
   matchRankingCandidate,
   rankCandidates,
-  type RankedCandidate,
   type RankingCandidate,
   type RankingSnapshot,
   type RankingWeights,
@@ -127,12 +126,8 @@ describe("command palette ranking", () => {
   });
 
   it("treats regex metacharacters as literal input [UT-026]", () => {
-    expect(() =>
-      rankCandidates("(*\\", [candidate("literal", "Run (*\\ safely")], snapshot())
-    ).not.toThrow();
-    expect(
-      rankCandidates("(*\\", [candidate("literal", "Run (*\\ safely")], snapshot())
-    ).toHaveLength(1);
+    const ranked = rankCandidates("(*\\", [candidate("literal", "Run (*\\ safely")], snapshot());
+    expect(ranked).toHaveLength(1);
   });
 
   it("decays frecency exactly and flags only old weak signals [UT-027, UT-028]", () => {
@@ -182,17 +177,30 @@ describe("command palette ranking", () => {
     const rows = [
       candidate("pinned", "Pinned command"),
       candidate("recent", "Recent command"),
-      candidate("curated", "Curated command"),
+      candidate("view-context", "Context view", { group: "Views", contextual: true }),
+      candidate("view-curated", "Curated view", { group: "Views" }),
+      candidate("app", "Curated app", { group: "Apps" }),
       candidate("tab", "Tab target", { group: "Tabs", subtype: "tab" }),
     ];
     const signals = snapshot({
       pins: ["pinned"],
       usage: [{ command_id: "recent", weight: 1, last_used_at: 10 }],
+      weights: { ...weights, entity_section_visible_cap: 1 },
     });
-    expect(
-      assembleRankingResults("", rows, signals).sections.map(section => section.title)
-    ).toEqual(["Pinned", "Recents", "Curated"]);
+    const emptySections = assembleRankingResults("", rows, signals).sections;
+    expect(emptySections.map(section => section.title)).toEqual([
+      "Pinned",
+      "Recents",
+      "Views",
+      "Tabs",
+      "Apps",
+    ]);
+    expect(emptySections.find(section => section.title === "Views")).toMatchObject({
+      total: 2,
+      candidates: [{ candidate: { id: "view-context" } }],
+    });
     expect(assembleRankingResults("target", rows, signals).sections).toEqual([]);
+    expect(assembleRankingResults("target", rows, signals).fallback).toBe(true);
     expect(
       assembleRankingResults("tab target", rows, signals).sections.map(section => section.title)
     ).toEqual(["Tabs"]);
@@ -222,22 +230,29 @@ describe("command palette ranking", () => {
     expect(assembleRankingResults("", [row], snapshot()).fallback).toBe(false);
   });
 
+  it("treats a match below the promotion floor as fallback", () => {
+    const result = assembleRankingResults("xp", [candidate("x", "xylophone")], snapshot());
+    expect(result.sections).toEqual([]);
+    expect(result.fallback).toBe(true);
+  });
+
   it("returns and accepts an unambiguous casing-preserving ghost only at end of input [UT-118, UT-119]", () => {
     const ranked = rankCandidates("Ne", [candidate("new", "New tab")], snapshot());
-    const tail = ghostCompletion("Ne", ranked as readonly RankedCandidate[], weights);
+    const tail = ghostCompletion("Ne", ranked, weights);
     expect(tail).toBe("w tab");
     expect(acceptGhostCompletion("Ne", tail, 2, 2)).toBe("New tab");
     expect(acceptGhostCompletion("Ne", tail, 1, 1)).toBeNull();
     expect(
       ghostCompletion(
         "Ne",
-        rankCandidates(
-          "Ne",
-          [candidate("new", "New tab"), candidate("news", "News")],
-          snapshot()
-        ) as readonly RankedCandidate[],
+        rankCandidates("Ne", [candidate("new", "New tab"), candidate("news", "News")], snapshot()),
         weights
       )
     ).toBeNull();
+  });
+
+  it("refuses a diacritic-equivalent ghost that would corrupt the raw query", () => {
+    const ranked = rankCandidates("Né", [candidate("new", "New tab")], snapshot());
+    expect(ghostCompletion("Né", ranked, weights)).toBeNull();
   });
 });

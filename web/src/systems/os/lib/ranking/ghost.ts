@@ -15,7 +15,9 @@ export function ghostCompletion(
   const normalizedLabel = normalizeRankingText(top.candidate.label).text;
   if (!normalizedLabel.startsWith(normalizedQuery) || normalizedLabel === normalizedQuery)
     return null;
-  return top.candidate.label.slice(query.length);
+  const rawLabel = top.candidate.label;
+  if (!rawLabel.toLowerCase().startsWith(query.toLowerCase())) return null;
+  return rawLabel.slice(query.length);
 }
 
 export function acceptGhostCompletion(

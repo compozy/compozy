@@ -23,6 +23,7 @@ var (
 	ErrLayoutResourceNotFound        = errors.New("window manager layout resource not found")
 	ErrSlowConsumer                  = errors.New("window manager slow consumer")
 	ErrPresentationRevisionExhausted = errors.New("window manager presentation revision exhausted")
+	ErrContextRevisionExhausted      = errors.New("window manager context revision exhausted")
 	ErrTopologyRevisionExhausted     = errors.New("window manager topology revision exhausted")
 	ErrClosed                        = errors.New("window manager closed")
 	ErrNotStacked                    = errors.New("window manager window not stacked")

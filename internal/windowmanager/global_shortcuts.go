@@ -1,6 +1,7 @@
 package windowmanager
 
 import (
+	"fmt"
 	"sort"
 	"strings"
 )
@@ -113,6 +114,9 @@ func validGlobalShortcutStatus(status GlobalShortcutStatus) bool {
 func normalizeGlobalShortcutRegistrations(
 	registrations []GlobalShortcutRegistration,
 ) ([]GlobalShortcutRegistration, error) {
+	if len(registrations) == 0 {
+		return nil, nil
+	}
 	result := make([]GlobalShortcutRegistration, len(registrations))
 	seen := make(map[string]struct{}, len(registrations))
 	for index, registration := range registrations {
@@ -127,13 +131,21 @@ func normalizeGlobalShortcutRegistrations(
 		}
 		intendedChord, err := CanonicalShortcutChord(registration.IntendedChord)
 		if err != nil {
-			return nil, ErrInvalidCommand
+			return nil, fmt.Errorf(
+				"command %q intended chord: %w",
+				registration.CommandID,
+				err,
+			)
 		}
 		registration.IntendedChord = intendedChord
 		if registration.ActiveChord != "" {
 			activeChord, activeErr := CanonicalShortcutChord(registration.ActiveChord)
 			if activeErr != nil {
-				return nil, ErrInvalidCommand
+				return nil, fmt.Errorf(
+					"command %q active chord: %w",
+					registration.CommandID,
+					activeErr,
+				)
 			}
 			registration.ActiveChord = activeChord
 		}

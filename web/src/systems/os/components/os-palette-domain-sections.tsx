@@ -28,19 +28,27 @@ export function OsPaletteDomainSections({ sections, onOpen }: OsPaletteDomainSec
         key={section.title}
       >
         {section.loading ? (
-          <div className="flex h-10 items-center gap-2 px-3 text-micro text-subtle">
+          <CommandItem
+            className="h-10 gap-2 px-3 text-micro text-subtle"
+            disabled
+            forceMount
+            value={`${section.title}:loading`}
+          >
             <LoaderCircle className="size-3.5 animate-spin" />
             Loading…
-          </div>
+          </CommandItem>
         ) : null}
         {section.error === null ? null : (
-          <div
-            className="flex min-h-10 items-center gap-2 px-3 text-micro text-danger"
+          <CommandItem
+            className="min-h-10 gap-2 px-3 text-micro text-danger"
             data-testid={`os-palette-domain-error-${section.title.toLowerCase().replaceAll(" ", "-")}`}
+            disabled
+            forceMount
+            value={`${section.title}:error`}
           >
             <AlertCircle className="size-3.5 shrink-0" />
             {section.error}
-          </div>
+          </CommandItem>
         )}
         {section.rows.map(row => {
           const Icon = getOsAppDescriptor(row.app).icon;

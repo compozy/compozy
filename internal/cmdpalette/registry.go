@@ -170,10 +170,11 @@ func validateProviderRegistrations(registrations []ProviderRegistration) error {
 			if err := validateProviderDescriptor(registration.Source, descriptor); err != nil {
 				return err
 			}
-			if first, exists := seenCommands[descriptor.ID]; exists {
-				return &DuplicateCommandIDError{ID: descriptor.ID, First: first, Second: sourceID}
+			canonicalID := normalizeDescriptor(descriptor).ID
+			if first, exists := seenCommands[canonicalID]; exists {
+				return &DuplicateCommandIDError{ID: canonicalID, First: first, Second: sourceID}
 			}
-			seenCommands[descriptor.ID] = sourceID
+			seenCommands[canonicalID] = sourceID
 		}
 	}
 	return nil
@@ -196,7 +197,7 @@ func cloneProviderRegistrations(source []ProviderRegistration) []ProviderRegistr
 }
 
 func (s *Service) acquireFlight(workspaceID WorkspaceID, commandID CommandID) bool {
-	key := string(workspaceID) + "\x00" + string(commandID)
+	key := flightKey(workspaceID, commandID)
 	s.flightMu.Lock()
 	defer s.flightMu.Unlock()
 	if _, exists := s.flights[key]; exists {
@@ -207,8 +208,12 @@ func (s *Service) acquireFlight(workspaceID WorkspaceID, commandID CommandID) bo
 }
 
 func (s *Service) releaseFlight(workspaceID WorkspaceID, commandID CommandID) {
-	key := string(workspaceID) + "\x00" + string(commandID)
+	key := flightKey(workspaceID, commandID)
 	s.flightMu.Lock()
 	delete(s.flights, key)
 	s.flightMu.Unlock()
+}
+
+func flightKey(workspaceID WorkspaceID, commandID CommandID) string {
+	return string(workspaceID) + "\x00" + string(commandID)
 }

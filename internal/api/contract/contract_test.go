@@ -441,7 +441,7 @@ func TestWindowManagerV3WireContract(t *testing.T) {
 		}
 	})
 
-	t.Run("Should encode required client collections as arrays when empty", func(t *testing.T) {
+	t.Run("Should encode the required global-shortcut collection as an array when empty", func(t *testing.T) {
 		t.Parallel()
 
 		client, err := contract.WindowManagerClientFromDomain(windowmanager.ClientView{
@@ -453,7 +453,7 @@ func TestWindowManagerV3WireContract(t *testing.T) {
 		}
 		var got map[string]any
 		marshalJSON(t, client, &got)
-		for _, field := range []string{"focus_order", "global_shortcuts"} {
+		for _, field := range []string{"global_shortcuts"} {
 			value, ok := got[field].([]any)
 			if !ok || len(value) != 0 {
 				t.Fatalf("client %s = %#v, want empty JSON array", field, got[field])

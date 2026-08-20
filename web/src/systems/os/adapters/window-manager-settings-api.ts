@@ -89,7 +89,7 @@ function optionalText(value: unknown): string | null {
   return typeof value === "string" && value.trim() !== "" ? value : null;
 }
 
-function mutationError(response: Response, error: unknown, fallback: string) {
+function settingsError(response: Response, error: unknown, fallback: string) {
   const payload = error != null && typeof error === "object" ? error : {};
   const code = mutationCode(Reflect.get(payload, "error"));
   const message = optionalText(Reflect.get(payload, "message"));
@@ -113,7 +113,7 @@ export async function fetchWindowManagerSettings(
   });
   const fallback = "Unable to load window-management settings.";
   if (apiRequestFailed(response, error)) {
-    throw mutationError(response, error, fallback);
+    throw settingsError(response, error, fallback);
   }
   return parseSettingsWindowManagerSection(requireResponseData(data, response, fallback));
 }
@@ -140,7 +140,7 @@ export async function updateWindowManagerBindings(
   });
   const fallback = "Unable to save the keyboard shortcut.";
   if (apiRequestFailed(response, error)) {
-    throw mutationError(response, error, fallback);
+    throw settingsError(response, error, fallback);
   }
   return parseSettingsWindowManagerSection(requireResponseData(data, response, fallback));
 }

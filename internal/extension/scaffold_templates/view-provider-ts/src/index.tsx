@@ -29,7 +29,7 @@ export function createExtension(options: ExtensionOptions = {}): Extension {
       description: "Provide a programmable command-palette view",
       subprocess: { command: "node", args: ["index.js"] },
       capabilities: { provides: ["view.provider"] },
-      permissions: { requires: ["view/patch"] },
+      permissions: { requires: [] },
       resources: {
         cmd_palette: {
           commands: [

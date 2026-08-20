@@ -8,6 +8,10 @@ interface RecordedRequest {
   params: unknown;
 }
 
+function abortReason(signal?: AbortSignal): unknown {
+  return signal?.reason ?? new DOMException("The operation was aborted", "AbortError");
+}
+
 export class MockTransport implements TransportLike {
   private readonly handlers = new Map<string, TransportHandler>();
   private readonly errors = new Set<(error: Error) => void>();
@@ -45,7 +49,11 @@ export class MockTransport implements TransportLike {
     this.closed = true;
   }
 
-  public async call<TResult = unknown>(method: string, params?: unknown): Promise<TResult> {
+  public async call<TResult = unknown>(
+    method: string,
+    params?: unknown,
+    signal?: AbortSignal
+  ): Promise<TResult> {
     if (this.closed) {
       throw new Error("transport closed");
     }
@@ -71,15 +79,50 @@ export class MockTransport implements TransportLike {
       method,
       params,
     };
+    const controller = new AbortController();
+    const onAbort = (): void => {
+      controller.abort(signal?.reason);
+    };
+    if (signal?.aborted) {
+      onAbort();
+    } else {
+      signal?.addEventListener("abort", onAbort, { once: true });
+    }
 
+    let resultPromise: Promise<unknown> | undefined;
     try {
-      return (await handler(params, envelope, new AbortController().signal)) as TResult;
+      if (controller.signal.aborted) {
+        throw abortReason(signal);
+      }
+      resultPromise = Promise.resolve(handler(params, envelope, controller.signal));
+      const abortPromise = new Promise<never>((_, reject) => {
+        const rejectAborted = (): void => {
+          reject(abortReason(signal));
+        };
+        if (controller.signal.aborted) {
+          rejectAborted();
+          return;
+        }
+        controller.signal.addEventListener("abort", rejectAborted, { once: true });
+      });
+      const result = await Promise.race([resultPromise, abortPromise]);
+      if (controller.signal.aborted) {
+        void resultPromise.catch(() => undefined);
+        throw abortReason(signal);
+      }
+      return result as TResult;
     } catch (error) {
+      void resultPromise?.catch(() => undefined);
+      if (controller.signal.aborted) {
+        throw abortReason(signal);
+      }
       const rpcError = ensureRPCError(error);
       for (const listener of this.errors) {
         listener(rpcError);
       }
       throw rpcError;
+    } finally {
+      signal?.removeEventListener("abort", onAbort);
     }
   }
 }

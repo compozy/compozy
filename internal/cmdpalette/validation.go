@@ -2,7 +2,9 @@ package cmdpalette
 
 import (
 	"fmt"
+	"net/url"
 	"regexp"
+	"slices"
 	"strings"
 )
 
@@ -75,7 +77,7 @@ func validateSource(descriptor Descriptor) error {
 		if descriptor.Source.Extension == "" {
 			return invalidDescriptor("%s: extension source name is required", descriptor.ID)
 		}
-		prefix := "ext." + descriptor.Source.Extension + "."
+		prefix := extensionSourcePrefix + descriptor.Source.Extension + "."
 		if !strings.HasPrefix(string(descriptor.ID), prefix) {
 			return invalidDescriptor("%s: extension command must use prefix %q", descriptor.ID, prefix)
 		}
@@ -93,6 +95,9 @@ func validateAction(id CommandID, action Action) error {
 		ActionKindNavigate: action.App,
 		ActionKindURL:      action.URL,
 	}
+	if action.Kind == ActionKindCopy {
+		return validateCopyAction(id, action, values)
+	}
 	required, exists := values[action.Kind]
 	if !exists {
 		return invalidDescriptor("%s: unknown action kind %q", id, action.Kind)
@@ -100,12 +105,93 @@ func validateAction(id CommandID, action Action) error {
 	if required == "" {
 		return invalidDescriptor("%s: action %q requires its target", id, action.Kind)
 	}
-	for kind, value := range values {
-		if kind != action.Kind && value != "" {
-			return invalidDescriptor("%s: action %q cannot carry %q target", id, action.Kind, kind)
+	extras := extraActionTargets(action.Kind, values)
+	if len(extras) > 0 {
+		return invalidDescriptor("%s: action %q cannot carry %q target", id, action.Kind, extras[0])
+	}
+	if action.Kind == ActionKindURL {
+		if err := validateHTTPURL(action.URL); err != nil {
+			return invalidDescriptor("%s: %v", id, err)
 		}
 	}
 	return nil
+}
+
+const copyActionContentKey = "content"
+
+func validateCopyAction(id CommandID, action Action, fieldTargets map[ActionKind]string) error {
+	extras := extraActionTargets(action.Kind, fieldTargets)
+	if len(extras) > 0 {
+		return invalidDescriptor("%s: action %q cannot carry %q target", id, action.Kind, extras[0])
+	}
+	if extraArg := extraCopyActionArg(action.Args); extraArg != "" {
+		return invalidDescriptor("%s: action %q cannot carry %q target", id, action.Kind, extraArg)
+	}
+	content, ok := copyActionContent(action)
+	if !ok {
+		return invalidDescriptor("%s: action %q requires its target", id, action.Kind)
+	}
+	if len(content) > MaxViewTextBytes {
+		return invalidDescriptor("%s: action %q content exceeds %d bytes", id, action.Kind, MaxViewTextBytes)
+	}
+	return nil
+}
+
+func extraActionTargets(kind ActionKind, values map[ActionKind]string) []ActionKind {
+	extras := make([]ActionKind, 0)
+	for targetKind, value := range values {
+		if targetKind != kind && value != "" {
+			extras = append(extras, targetKind)
+		}
+	}
+	slices.Sort(extras)
+	return extras
+}
+
+func extraCopyActionArg(args map[string]any) string {
+	if len(args) == 0 {
+		return ""
+	}
+	extras := make([]string, 0)
+	for key := range args {
+		if key != copyActionContentKey {
+			extras = append(extras, key)
+		}
+	}
+	if len(extras) == 0 {
+		return ""
+	}
+	slices.Sort(extras)
+	return extras[0]
+}
+
+func copyActionContent(action Action) (string, bool) {
+	raw, exists := action.Args[copyActionContentKey]
+	if !exists {
+		return "", false
+	}
+	content, ok := raw.(string)
+	if !ok {
+		return "", false
+	}
+	content = strings.TrimSpace(content)
+	if content == "" {
+		return "", false
+	}
+	return content, true
+}
+
+func validateHTTPURL(raw string) error {
+	parsed, err := url.ParseRequestURI(strings.TrimSpace(raw))
+	if err != nil || parsed.Host == "" {
+		return ErrUnsafeURL
+	}
+	switch parsed.Scheme {
+	case "http", "https":
+		return nil
+	default:
+		return ErrUnsafeURL
+	}
 }
 
 func validateArguments(id CommandID, arguments []Argument) error {

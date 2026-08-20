@@ -69,4 +69,25 @@ describe("session-create store", () => {
 
     expect(store.getSnapshot().context.pendingSubmit).toBeNull();
   });
+
+  it("Should keep palette fallback on submitting then idle without dialog navigation [RA0262]", () => {
+    const store = createSessionCreateStore();
+
+    store.trigger.fallbackRequested({ agentName: "general", workspaceId: "ws_home" });
+    expect(store.getSnapshot().context).toMatchObject({
+      open: false,
+      operation: { status: "submitting", agentName: "general", workspaceId: "ws_home" },
+    });
+
+    store.trigger.fallbackRequested({ agentName: "other", workspaceId: "ws_home" });
+    expect(store.getSnapshot().context.operation).toMatchObject({
+      status: "submitting",
+      agentName: "general",
+    });
+
+    const attempt = store.getSnapshot().context.attempt;
+    store.trigger.fallbackCompleted({ attempt });
+    expect(store.getSnapshot().context.operation).toEqual({ status: "idle" });
+    expect(store.getSnapshot().context.open).toBe(false);
+  });
 });

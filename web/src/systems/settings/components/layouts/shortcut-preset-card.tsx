@@ -49,10 +49,11 @@ export function ShortcutPresetCard({
 }) {
   const [previewOpen, setPreviewOpen] = useState(false);
   const [revertToken, setRevertToken] = useState<ShortcutPresetRevertToken | null>(null);
+  const paletteRegistry = usePaletteRegistry();
   const preview = previewTerminalShortcutPreset(
     overrides,
     defaults,
-    registryShortcutActions(usePaletteRegistry())
+    registryShortcutActions(paletteRegistry)
   );
   const applied = Object.entries(TERMINAL_SHORTCUT_PRESET).every(
     ([actionId, binding]) => JSON.stringify(overrides[actionId] ?? []) === JSON.stringify(binding)

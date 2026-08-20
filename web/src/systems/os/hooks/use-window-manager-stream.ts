@@ -8,6 +8,7 @@ import {
   buildWindowManagerStreamUrl,
   fetchWindowManagerSnapshot,
 } from "../adapters/window-manager-api";
+import { writeWindowManagerClientCommandFrame } from "../lib/window-manager-client-command-frames";
 import { parseWindowManagerStreamFrame } from "../lib/window-manager-stream-schema";
 import { reconcileWindowManagerSnapshot, windowManagerKeys } from "../lib/window-manager-query";
 import type {
@@ -187,6 +188,12 @@ export function useWindowManagerStream({
       return undefined;
     }
 
+    if (bindingKey === null) {
+      lifecycleStore.trigger.disabled();
+      publishStatus("disconnected");
+      return undefined;
+    }
+
     let stopped = false;
     let receivedSnapshot = false;
     let clientRecoveryRequested = false;
@@ -206,7 +213,7 @@ export function useWindowManagerStream({
     const socket = (socketFactory ?? browserWindowManagerSocket)(
       buildWindowManagerStreamUrl(workspaceId, clientId, topologyFence)
     );
-    const activeBindingKey = `${workspaceId}\u0000${clientId}\u0000${registrationEpoch}`;
+    const activeBindingKey = bindingKey;
     boundSocketRef.current = { bindingKey: activeBindingKey, ready: false, socket };
 
     const applySnapshot = (snapshot: WindowManagerSnapshot) => {
@@ -311,46 +318,44 @@ export function useWindowManagerStream({
           publishError(frame.error);
           return;
         }
+        if (frame.workspaceId !== workspaceId) return;
         if (frame.type === "client_command") {
-          if (frame.command.workspaceId !== workspaceId) return;
-          socket.send(
-            JSON.stringify({ type: "client_command_ack", command_id: frame.command.commandId })
-          );
+          const sendFrame = (
+            outbound: Parameters<typeof writeWindowManagerClientCommandFrame>[1]
+          ) => {
+            try {
+              writeWindowManagerClientCommandFrame(data => socket.send(data), outbound);
+            } catch (sendCause) {
+              publishError(
+                sendCause instanceof Error
+                  ? sendCause
+                  : new Error("Unable to return the client operation result.")
+              );
+            }
+          };
+          sendFrame({ type: "client_command_ack", command_id: frame.command.commandId });
           void Promise.resolve()
             .then(() => executeClientCommand(frame.command))
             .then(result => {
               if (stopped) return;
-              socket.send(
-                JSON.stringify({
-                  type: "client_command_result",
-                  command_id: frame.command.commandId,
-                  ...(result === undefined ? {} : { result }),
-                })
-              );
+              sendFrame({
+                type: "client_command_result",
+                command_id: frame.command.commandId,
+                ...(result === undefined ? {} : { result }),
+              });
             })
             .catch(cause => {
               if (stopped) return;
               const error =
                 cause instanceof Error ? cause : new Error("The client operation failed.");
-              try {
-                socket.send(
-                  JSON.stringify({
-                    type: "client_command_result",
-                    command_id: frame.command.commandId,
-                    error: error.message,
-                  })
-                );
-              } catch (sendCause) {
-                publishError(
-                  sendCause instanceof Error
-                    ? sendCause
-                    : new Error("Unable to return the client operation result.")
-                );
-              }
+              sendFrame({
+                type: "client_command_result",
+                command_id: frame.command.commandId,
+                error: error.message,
+              });
             });
           return;
         }
-        if (frame.workspaceId !== workspaceId) return;
         if (frame.type === "snapshot") {
           receivedSnapshot = true;
           lifecycleStore.trigger.snapshotObserved({ revision: frame.snapshot.revision });
@@ -413,6 +418,7 @@ export function useWindowManagerStream({
       if (receivedSnapshot) publishStatus("disconnected");
     };
   }, [
+    bindingKey,
     clientId,
     enabled,
     queryClient,

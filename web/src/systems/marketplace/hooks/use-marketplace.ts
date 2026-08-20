@@ -12,7 +12,7 @@ import type {
 } from "../types";
 
 export function useMarketplaceSearch(options: MarketplaceSearchOptions = {}, enabled = true) {
-  return useQuery({ ...marketplaceSearchOptions(options), enabled });
+  return useQuery(marketplaceSearchOptions(options, enabled));
 }
 
 export function useMarketplaceKind(options: MarketplaceKindOptions, enabled = true) {

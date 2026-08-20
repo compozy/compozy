@@ -75,7 +75,7 @@ type StdioTransport struct {
 	mu       sync.Mutex
 	handlers map[string]TransportHandler
 	pending  map[string]pendingCall
-	inbound  map[string]context.CancelFunc
+	inbound  map[string]*inboundCancel
 	nextID   int64
 	started  bool
 	closed   bool
@@ -113,7 +113,7 @@ func NewStdioTransport(options StdioTransportOptions) *StdioTransport {
 		maxMessageBytes: maxBytes,
 		handlers:        make(map[string]TransportHandler),
 		pending:         make(map[string]pendingCall),
-		inbound:         make(map[string]context.CancelFunc),
+		inbound:         make(map[string]*inboundCancel),
 		done:            make(chan struct{}),
 	}
 }
@@ -423,7 +423,7 @@ func (t *StdioTransport) fail(err error) {
 		pending := t.pending
 		t.pending = make(map[string]pendingCall)
 		inbound := t.inbound
-		t.inbound = make(map[string]context.CancelFunc)
+		t.inbound = make(map[string]*inboundCancel)
 		close(t.done)
 		t.mu.Unlock()
 		if cancel != nil {
@@ -432,8 +432,10 @@ func (t *StdioTransport) fail(err error) {
 		for _, call := range pending {
 			call.err <- err
 		}
-		for _, cancel := range inbound {
-			cancel()
+		for _, entry := range inbound {
+			if entry != nil {
+				entry.cancel()
+			}
 		}
 	})
 }

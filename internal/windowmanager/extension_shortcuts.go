@@ -24,11 +24,7 @@ func TolerantEffectiveKeymapWithExtensionDefaults(
 	bindableIDs BindableIDs,
 	defaults []ExtensionDefaultShortcut,
 ) (map[string]ShortcutBinding, []ExtensionDefaultStatus, []ShortcutDiagnostic, error) {
-	effective, diagnostics, err := TolerantEffectiveKeymap(overrides, bindableIDs)
-	if err != nil {
-		return nil, nil, nil, err
-	}
-	canonicalOverrides, _, err := canonicalStoredShortcutOverrides(overrides)
+	effective, canonicalOverrides, diagnostics, err := tolerantEffectiveKeymap(overrides, bindableIDs)
 	if err != nil {
 		return nil, nil, nil, err
 	}

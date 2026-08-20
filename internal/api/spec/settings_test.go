@@ -199,7 +199,7 @@ func TestSettingsRoutesAndSchemas(t *testing.T) {
 		}
 	})
 
-	t.Run("Should expose workspace scope for command-palette settings", func(t *testing.T) {
+	t.Run("Should expose workspace scope for window-manager and command-palette settings", func(t *testing.T) {
 		t.Parallel()
 
 		for _, path := range []string{

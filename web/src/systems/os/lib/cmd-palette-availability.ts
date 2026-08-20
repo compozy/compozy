@@ -40,7 +40,6 @@ const CLIENT_CONTEXT_KEYS: ReadonlySet<string> = new Set<CmdPaletteContextKey>([
   "window.floating",
   "window.stacked",
   "desktop.windowCount",
-  "shell.desktop",
   "session.focused.state",
 ]);
 

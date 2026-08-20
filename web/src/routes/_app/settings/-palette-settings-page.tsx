@@ -108,7 +108,14 @@ export function PaletteSettingsPage() {
         open={resetOpen}
         title="Reset palette personalization?"
         tone="warning"
-        onConfirm={page.resetPersonalization}
+        onConfirm={async () => {
+          try {
+            await page.resetPersonalization();
+          } catch {
+            return;
+          }
+          setResetOpen(false);
+        }}
         onOpenChange={setResetOpen}
       />
     </SettingsPageFrame>

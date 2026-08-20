@@ -1,5 +1,10 @@
 package config
 
+import (
+	"maps"
+	"strings"
+)
+
 type cmdPaletteOverlay struct {
 	FallbackTargets *[]string         `toml:"fallback_targets"`
 	Personalization *bool             `toml:"personalization"`
@@ -8,15 +13,22 @@ type cmdPaletteOverlay struct {
 
 func (o cmdPaletteOverlay) Apply(dst *CmdPaletteConfig) {
 	if o.FallbackTargets != nil {
-		dst.FallbackTargets = append([]string(nil), (*o.FallbackTargets)...)
+		targets := make([]string, 0, len(*o.FallbackTargets))
+		for _, target := range *o.FallbackTargets {
+			if trimmed := strings.TrimSpace(target); trimmed != "" {
+				targets = append(targets, trimmed)
+			}
+		}
+		dst.FallbackTargets = targets
 	}
 	if o.Personalization != nil {
 		dst.Personalization = *o.Personalization
 	}
-	for commandID, alias := range o.Aliases {
-		if dst.Aliases == nil {
-			dst.Aliases = make(map[string]string)
-		}
-		dst.Aliases[commandID] = alias
+	if len(o.Aliases) == 0 {
+		return
 	}
+	if dst.Aliases == nil {
+		dst.Aliases = make(map[string]string, len(o.Aliases))
+	}
+	maps.Copy(dst.Aliases, o.Aliases)
 }

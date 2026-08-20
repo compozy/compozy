@@ -273,7 +273,7 @@ func newDesktopDeleteCommand(deps commandDeps) *cobra.Command {
 
 func newDesktopClientsCommand(deps commandDeps) *cobra.Command {
 	cmd := &cobra.Command{
-		Use: cmdPaletteClientsUse, Short: "Manage connected window-manager clients", Args: cobra.NoArgs,
+		Use: cliClientsUse, Short: "Manage connected window-manager clients", Args: cobra.NoArgs,
 	}
 	cmd.AddCommand(newDesktopClientsListCommand(deps))
 	cmd.AddCommand(newDesktopClientsRegisterCommand(deps))

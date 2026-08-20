@@ -161,7 +161,8 @@ func (m *Manager) projectCmdPaletteInstanceLocked(
 	extension *managedExtension,
 ) error {
 	manifest := extension.manifest
-	if err := validateManifestCmdPalette(manifest); err != nil {
+	tools, err := validateManifestCmdPalette(manifest)
+	if err != nil {
 		return fmt.Errorf("extension: project command palette for %q: %w", manifest.Name, err)
 	}
 	status := m.statusLocked(extension)
@@ -170,10 +171,6 @@ func (m *Manager) projectCmdPaletteInstanceLocked(
 	projection.Sources = append(projection.Sources, CmdPaletteSourceStatus{
 		Source: sourceID, Status: health, Reason: reason,
 	})
-	tools, err := cmdPaletteToolsByName(manifest)
-	if err != nil {
-		return fmt.Errorf("extension: project command palette tools for %q: %w", manifest.Name, err)
-	}
 	for _, command := range manifest.Resources.CmdPalette.Commands {
 		projected, projectErr := projectCmdPaletteCommand(manifest.Name, command, tools, reason)
 		if projectErr != nil {

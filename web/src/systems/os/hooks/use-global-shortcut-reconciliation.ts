@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 
 import {
   desktopShellBridge,
+  parseGlobalShortcutRegistrations,
   type GlobalShortcutBindingWire,
   type GlobalShortcutRegistrationWire,
 } from "../lib/desktop-shell-bridge";
@@ -9,7 +10,6 @@ import type { WindowManagerGlobalShortcutMap } from "../lib/window-manager-short
 
 export interface GlobalShortcutReconciliation {
   registrations: readonly GlobalShortcutRegistrationWire[];
-  shell: boolean;
 }
 
 interface ReconciliationState {
@@ -17,32 +17,39 @@ interface ReconciliationState {
   registrations: readonly GlobalShortcutRegistrationWire[];
 }
 
+function intendedBindings(
+  intended: WindowManagerGlobalShortcutMap | undefined
+): GlobalShortcutBindingWire[] {
+  return Object.entries(intended ?? {})
+    .sort(([left], [right]) => left.localeCompare(right))
+    .map(([command_id, chord]) => ({ command_id, chord }));
+}
+
 /** Reconciles daemon-owned intent with Electron and returns shell-owned registration truth. */
 export function useGlobalShortcutReconciliation(
   intended: WindowManagerGlobalShortcutMap | undefined
 ): GlobalShortcutReconciliation {
   const bridge = desktopShellBridge();
-  const bindingKey = JSON.stringify(
-    Object.entries(intended ?? {})
-      .sort(([left], [right]) => left.localeCompare(right))
-      .map(([command_id, chord]) => ({ command_id, chord }))
-  );
+  const bindings = intendedBindings(intended);
+  const bindingKey = JSON.stringify(bindings);
   const [state, setState] = useState<ReconciliationState>({ bindingKey: "", registrations: [] });
 
   useEffect(() => {
     if (bridge === null) return undefined;
-    const bindings = JSON.parse(bindingKey) as GlobalShortcutBindingWire[];
+    const currentBindings = JSON.parse(bindingKey) as GlobalShortcutBindingWire[];
     let cancelled = false;
-    void bridge.globalShortcuts.sync(bindings).then(
+    void bridge.globalShortcuts.sync(currentBindings).then(
       result => {
-        if (!cancelled) setState({ bindingKey, registrations: result });
+        if (!cancelled) {
+          setState({ bindingKey, registrations: parseGlobalShortcutRegistrations(result) });
+        }
       },
       error => {
         if (cancelled) return;
         console.warn("Desktop shell global hotkey synchronization failed", error);
         setState({
           bindingKey,
-          registrations: bindings.map(binding => ({
+          registrations: currentBindings.map(binding => ({
             command_id: binding.command_id,
             intended_chord: binding.chord,
             status: "unsupported",
@@ -58,6 +65,5 @@ export function useGlobalShortcutReconciliation(
 
   return {
     registrations: bridge !== null && state.bindingKey === bindingKey ? state.registrations : [],
-    shell: bridge !== null,
   };
 }

@@ -30,9 +30,11 @@ func (m *Manager) OpenProgram(
 		return cmdpalette.ViewFrame{}, 0, err
 	}
 	defer release()
+	callCtx, cancel := m.viewProgramCallContext(ctx)
+	defer cancel()
 	var response cmdpalette.ViewFrame
 	if err := process.Call(
-		ctx,
+		callCtx,
 		string(extensionprotocol.ExtensionServiceMethodViewOpen),
 		request,
 		&response,
@@ -59,9 +61,11 @@ func (m *Manager) HandleProgramEvent(
 		return nil, err
 	}
 	defer release()
+	callCtx, cancel := m.viewProgramCallContext(ctx)
+	defer cancel()
 	var response json.RawMessage
 	if err := process.Call(
-		ctx,
+		callCtx,
 		string(extensionprotocol.ExtensionServiceMethodViewEvent),
 		event,
 		&response,
@@ -99,9 +103,11 @@ func (m *Manager) CloseProgram(
 		return err
 	}
 	defer release()
+	callCtx, cancel := m.viewProgramCallContext(ctx)
+	defer cancel()
 	var response struct{}
 	if err := process.Call(
-		ctx,
+		callCtx,
 		string(extensionprotocol.ExtensionServiceMethodViewClose),
 		request,
 		&response,
@@ -144,4 +150,12 @@ func (m *Manager) viewProgramProcess(
 	generation := uint64(extension.generation)
 	m.mu.RUnlock()
 	return process, name, generation, release, nil
+}
+
+func (m *Manager) viewProgramCallContext(ctx context.Context) (context.Context, context.CancelFunc) {
+	timeout := defaultViewTimeout
+	if m != nil && m.defaultViewTimeout > 0 {
+		timeout = m.defaultViewTimeout
+	}
+	return context.WithTimeout(ctx, timeout)
 }

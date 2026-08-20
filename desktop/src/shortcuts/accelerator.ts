@@ -1,11 +1,11 @@
-const MODIFIERS = new Map([
+const MODIFIERS: ReadonlyMap<string, string> = new Map([
   ["meta", "CommandOrControl"],
   ["ctrl", "Control"],
   ["alt", "Alt"],
   ["shift", "Shift"],
-] as const);
+]);
 
-const NAMED_KEYS = new Map([
+const NAMED_KEYS: ReadonlyMap<string, string> = new Map([
   ["Space", "Space"],
   ["Enter", "Enter"],
   ["Escape", "Esc"],
@@ -20,7 +20,7 @@ const NAMED_KEYS = new Map([
   ["End", "End"],
   ["PageUp", "PageUp"],
   ["PageDown", "PageDown"],
-] as const);
+]);
 
 export class UnconvertibleShortcutError extends Error {
   readonly chord: string;
@@ -33,7 +33,7 @@ export class UnconvertibleShortcutError extends Error {
 }
 
 function acceleratorKey(token: string): string | null {
-  const named = NAMED_KEYS.get(token as never);
+  const named = NAMED_KEYS.get(token);
   if (named) return named;
   if (/^Key[A-Z]$/u.test(token)) return token.slice(3);
   if (/^Digit[0-9]$/u.test(token)) return token.slice(5);
@@ -53,7 +53,7 @@ export function chordToAccelerator(chord: string): string {
   const modifiers: string[] = [];
   const seen = new Set<string>();
   for (const token of tokens.slice(0, -1)) {
-    const modifier = MODIFIERS.get(token as never);
+    const modifier = MODIFIERS.get(token);
     if (!modifier || seen.has(modifier)) throw new UnconvertibleShortcutError(chord);
     seen.add(modifier);
     modifiers.push(modifier);

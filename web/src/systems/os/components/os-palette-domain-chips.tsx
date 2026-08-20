@@ -1,4 +1,4 @@
-import { Pill } from "@compozy/ui";
+import { PaletteChipToolbar } from "./palette-chip-toolbar";
 
 export interface PaletteDomainChip {
   readonly id: string;
@@ -16,20 +16,12 @@ export function OsPaletteDomainChips({
   onChange: (id: string) => void;
 }) {
   return (
-    <div className="flex gap-1 overflow-x-auto border-b border-line px-3 py-2" role="toolbar">
-      {chips.map(chip => (
-        <Pill
-          key={chip.id}
-          active={active === chip.id}
-          aria-label={`${chip.label}, ${chip.count}`}
-          data-testid={`os-palette-domain-filter-${chip.id}`}
-          render={<button type="button" />}
-          size="xs"
-          onClick={() => onChange(chip.id)}
-        >
-          {chip.label} {chip.count}
-        </Pill>
-      ))}
-    </div>
+    <PaletteChipToolbar
+      activeId={active}
+      chips={chips}
+      label="Domain filters"
+      testIdPrefix="os-palette-domain-filter"
+      onSelect={onChange}
+    />
   );
 }

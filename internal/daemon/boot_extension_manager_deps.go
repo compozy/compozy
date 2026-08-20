@@ -67,6 +67,7 @@ func (d *Daemon) extensionManagerDeps(
 		SessionHealth:   state.deps.SessionHealth,
 		WakeEvents:      state.deps.WakeEvents,
 		CmdPalette:      cmdPaletteViews,
+		ViewPatches:     state.viewPatches,
 		ProcessRegistry: state.processRegistry,
 		SecretResolver:  state.providerVault,
 		EnvBindings:     envBindings,

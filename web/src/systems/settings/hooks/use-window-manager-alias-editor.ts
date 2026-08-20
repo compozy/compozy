@@ -1,4 +1,5 @@
-import { useState } from "react";
+import { useEffect, useRef } from "react";
+import { useSelector, useStore } from "@xstate/store-react";
 
 import {
   WindowManagerSettingsError,
@@ -6,26 +7,18 @@ import {
   type WindowManagerSettingsSection,
 } from "@/systems/os";
 
+import { aliasEditorLogic, type AliasConflict } from "../stores/window-manager-alias-editor-store";
 import type { WindowManagerBindingMutations } from "./use-window-manager-binding-mutations";
 
-/** The rule, stated the way the daemon states it (`ValidateCmdPaletteAlias`). */
 export const ALIAS_RULE_HINT = "1–32 characters, no whitespace";
 
 export interface AliasCellState {
   value: string;
-  /** `grammar` for the local rule; otherwise the daemon's own message. */
   problem: string | null;
   saving: boolean;
 }
 
-/** An alias the daemon refused because another command already answers to it. */
-export interface AliasConflict {
-  commandId: string;
-  alias: string;
-  owner: string;
-  ownerTitle: string;
-  desired: WindowManagerAliasMap;
-}
+export type { AliasConflict };
 
 export interface AliasEditorModel {
   cell: (commandId: string) => AliasCellState;
@@ -54,64 +47,53 @@ export function useWindowManagerAliasEditor(
   mutations: WindowManagerBindingMutations,
   titleFor: (commandId: string) => string
 ): AliasEditorModel {
-  const [drafts, setDrafts] = useState<Readonly<Record<string, string>>>({});
-  const [problems, setProblems] = useState<Readonly<Record<string, string>>>({});
-  const [pending, setPending] = useState<string | null>(null);
-  const [conflict, setConflict] = useState<AliasConflict | null>(null);
-  const stored = section.aliases;
+  const store = useStore(aliasEditorLogic);
+  const drafts = useSelector(store, snapshot => snapshot.context.drafts);
+  const problems = useSelector(store, snapshot => snapshot.context.problems);
+  const conflict = useSelector(store, snapshot => snapshot.context.conflict);
+  const aliasesRef = useRef(section.aliases);
+  useEffect(() => {
+    aliasesRef.current = section.aliases;
+  }, [section.aliases]);
+  const sendTail = useRef(Promise.resolve());
   const { commit } = mutations;
 
-  const clearDraft = (commandId: string) => {
-    setDrafts(current => {
-      const next = { ...current };
-      delete next[commandId];
-      return next;
-    });
-    setProblems(current => {
-      const next = { ...current };
-      delete next[commandId];
-      return next;
-    });
-  };
-
   const send = async (commandId: string, desired: WindowManagerAliasMap, alias: string) => {
-    setPending(commandId);
+    store.trigger.saveStarted({ commandId });
     try {
-      await commit({ aliases: desired });
-      clearDraft(commandId);
-      setConflict(null);
+      const nextSection = await commit({ aliases: desired });
+      aliasesRef.current = nextSection.aliases;
+      store.trigger.draftCleared({ commandId });
+      store.trigger.conflictDismissed();
     } catch (cause) {
       if (cause instanceof WindowManagerSettingsError && cause.code === "alias_conflict") {
         const owner = cause.owner ?? "";
-        setConflict({ commandId, alias, owner, ownerTitle: titleFor(owner), desired });
+        store.trigger.conflictSet({
+          conflict: { commandId, alias, owner, ownerTitle: titleFor(owner), desired },
+        });
         return;
       }
-      setProblems(current => ({
-        ...current,
-        [commandId]: cause instanceof Error ? cause.message : "Unable to save the alias.",
-      }));
+      store.trigger.problemSet({
+        commandId,
+        problem: cause instanceof Error ? cause.message : "Unable to save the alias.",
+      });
     } finally {
-      setPending(null);
+      store.trigger.saveFinished();
     }
   };
 
   return {
     cell: commandId => ({
-      value: drafts[commandId] ?? stored[commandId] ?? "",
+      value: drafts[commandId] ?? aliasesRef.current[commandId] ?? "",
       problem: problems[commandId] ?? null,
-      saving: pending === commandId,
+      saving: mutations.saving,
     }),
     conflict,
     change: (commandId, value) => {
-      setDrafts(current => ({ ...current, [commandId]: value }));
-      setProblems(current => {
-        const next = { ...current };
-        // Validate as they type here rather than on blur: the field is one word
-        // long and the only reachable fault is a space, so waiting to report it
-        // would be slower feedback for no gain in calm.
-        if (grammarProblem(value)) next[commandId] = "grammar";
-        else delete next[commandId];
-        return next;
+      store.trigger.draftChanged({
+        commandId,
+        problem: grammarProblem(value) ? "grammar" : null,
+        value,
       });
     },
     commit: commandId => {
@@ -119,33 +101,42 @@ export function useWindowManagerAliasEditor(
       if (draft === undefined) return;
       const alias = draft.trim();
       if (grammarProblem(draft)) return;
-      if (alias === (stored[commandId] ?? "")) {
-        clearDraft(commandId);
-        return;
-      }
-      const desired: Record<string, string> = { ...stored };
-      if (alias === "") delete desired[commandId];
-      else desired[commandId] = alias;
-      void send(commandId, desired, alias);
+      const run = async () => {
+        if (alias === (aliasesRef.current[commandId] ?? "")) {
+          store.trigger.draftCleared({ commandId });
+          return;
+        }
+        const desired: Record<string, string> = { ...aliasesRef.current };
+        if (alias === "") delete desired[commandId];
+        else desired[commandId] = alias;
+        await send(commandId, desired, alias);
+      };
+      const next = sendTail.current.then(run, run);
+      sendTail.current = next.then(
+        () => undefined,
+        () => undefined
+      );
+      void next;
     },
-    cancel: commandId => clearDraft(commandId),
+    cancel: commandId => store.trigger.draftCleared({ commandId }),
     overwrite: () => {
       if (conflict === null) return;
       const { commandId, desired, alias } = conflict;
-      setPending(commandId);
+      store.trigger.saveStarted({ commandId });
       void commit({ aliases: desired, overwrite: true })
-        .then(() => {
-          clearDraft(commandId);
-          setConflict(null);
+        .then(nextSection => {
+          aliasesRef.current = nextSection.aliases;
+          store.trigger.draftCleared({ commandId });
+          store.trigger.conflictDismissed();
         })
         .catch((cause: unknown) => {
-          setProblems(current => ({
-            ...current,
-            [commandId]: cause instanceof Error ? cause.message : `Unable to move ${alias}.`,
-          }));
+          store.trigger.problemSet({
+            commandId,
+            problem: cause instanceof Error ? cause.message : `Unable to move ${alias}.`,
+          });
         })
-        .finally(() => setPending(null));
+        .finally(() => store.trigger.saveFinished());
     },
-    dismissConflict: () => setConflict(null),
+    dismissConflict: () => store.trigger.conflictDismissed(),
   };
 }

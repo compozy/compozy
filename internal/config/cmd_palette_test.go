@@ -73,6 +73,20 @@ func TestCmdPaletteConfig(t *testing.T) {
 		}
 	})
 
+	t.Run("Should keep a whitespace-padded fallback target as the canonical agent", func(t *testing.T) {
+		t.Parallel()
+
+		cfg := DefaultCmdPaletteConfig()
+		cfg.FallbackTargets = []string{" agent "}
+		cfg.normalizeFallbackTargets()
+		if err := cfg.Validate(); err != nil {
+			t.Fatalf("Validate(padded fallback target) error = %v", err)
+		}
+		if len(cfg.FallbackTargets) != 1 || cfg.FallbackTargets[0] != CmdPaletteFallbackAgent {
+			t.Fatalf("FallbackTargets = %#v, want [agent]", cfg.FallbackTargets)
+		}
+	})
+
 	t.Run("Should allow an empty fallback target list to disable delegation", func(t *testing.T) {
 		t.Parallel()
 
@@ -138,6 +152,23 @@ func TestApplyCmdPaletteOverlayFile(t *testing.T) {
 		if got.Personalization || got.Aliases["session.new"] != "new" ||
 			len(got.FallbackTargets) != 1 || got.FallbackTargets[0] != CmdPaletteFallbackAgent {
 			t.Fatalf("ApplyCmdPaletteOverlayFile() = %#v, want merged values", got)
+		}
+	})
+
+	t.Run("Should store a padded fallback target as the canonical agent", func(t *testing.T) {
+		t.Parallel()
+
+		path := filepath.Join(t.TempDir(), ConfigName)
+		contents := []byte("[cmd_palette]\nfallback_targets = [\" agent \"]\n")
+		if err := os.WriteFile(path, contents, 0o600); err != nil {
+			t.Fatalf("WriteFile() error = %v", err)
+		}
+		got, err := ApplyCmdPaletteOverlayFile(path, DefaultCmdPaletteConfig())
+		if err != nil {
+			t.Fatalf("ApplyCmdPaletteOverlayFile() error = %v", err)
+		}
+		if len(got.FallbackTargets) != 1 || got.FallbackTargets[0] != CmdPaletteFallbackAgent {
+			t.Fatalf("ApplyCmdPaletteOverlayFile() FallbackTargets = %#v, want [agent]", got.FallbackTargets)
 		}
 	})
 }

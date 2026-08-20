@@ -6,123 +6,12 @@ import (
 	"errors"
 	"fmt"
 	"maps"
-	"strconv"
 	"time"
 
 	"github.com/compozy/compozy/internal/cmdpalette"
 	toolspkg "github.com/compozy/compozy/internal/tools"
 	"github.com/compozy/compozy/internal/windowmanager"
 )
-
-const cmdPaletteActionKey = "action"
-
-type cmdPaletteClientDirectory struct {
-	windowManager windowmanager.Service
-}
-
-var _ cmdpalette.ClientDirectory = (*cmdPaletteClientDirectory)(nil)
-var _ cmdpalette.GlobalShortcutStatusDirectory = (*cmdPaletteClientDirectory)(nil)
-
-func (d *cmdPaletteClientDirectory) Clients(
-	ctx context.Context,
-	workspaceID cmdpalette.WorkspaceID,
-) ([]cmdpalette.Client, error) {
-	if d == nil || d.windowManager == nil {
-		return []cmdpalette.Client{}, nil
-	}
-	views, err := d.windowManager.Clients(ctx, windowmanager.WorkspaceID(workspaceID))
-	if err != nil {
-		return nil, fmt.Errorf("cmd palette: list window-manager clients: %w", err)
-	}
-	clients := make([]cmdpalette.Client, 0, len(views))
-	for _, view := range views {
-		clients = append(clients, cmdpalette.Client{
-			ID: cmdpalette.ClientID(view.ClientID), Kind: string(view.Kind), WorkspaceID: workspaceID,
-			AttachedAt: view.ConnectedAt, ContextRevision: strconv.FormatUint(view.ContextRevision, 10),
-		})
-	}
-	return clients, nil
-}
-
-func (d *cmdPaletteClientDirectory) Context(
-	ctx context.Context,
-	workspaceID cmdpalette.WorkspaceID,
-	clientID cmdpalette.ClientID,
-) (cmdpalette.ContextSnapshot, error) {
-	clients, err := d.windowManager.Clients(ctx, windowmanager.WorkspaceID(workspaceID))
-	if err != nil {
-		return cmdpalette.ContextSnapshot{}, fmt.Errorf("cmd palette: resolve client context: %w", err)
-	}
-	for _, client := range clients {
-		if client.ClientID != windowmanager.ClientID(clientID) {
-			continue
-		}
-		return cmdPaletteContextSnapshot(client), nil
-	}
-	return cmdpalette.ContextSnapshot{}, cmdpalette.ErrNoAttachedShell
-}
-
-func (d *cmdPaletteClientDirectory) Authorize(
-	ctx context.Context,
-	workspaceID cmdpalette.WorkspaceID,
-	clientID cmdpalette.ClientID,
-	token string,
-) error {
-	if d == nil || d.windowManager == nil {
-		return cmdpalette.ErrClientUnauthorized
-	}
-	return d.windowManager.AuthorizeClient(
-		ctx, windowmanager.WorkspaceID(workspaceID), windowmanager.ClientID(clientID), token,
-	)
-}
-
-func (d *cmdPaletteClientDirectory) GlobalShortcutStatuses(
-	ctx context.Context,
-	workspaceID cmdpalette.WorkspaceID,
-	clientID cmdpalette.ClientID,
-) (map[cmdpalette.CommandID]cmdpalette.GlobalShortcut, error) {
-	if d == nil || d.windowManager == nil {
-		return map[cmdpalette.CommandID]cmdpalette.GlobalShortcut{}, nil
-	}
-	clients, err := d.windowManager.Clients(ctx, windowmanager.WorkspaceID(workspaceID))
-	if err != nil {
-		return nil, fmt.Errorf("cmd palette: resolve global shortcut status: %w", err)
-	}
-	for _, client := range clients {
-		if client.ClientID != windowmanager.ClientID(clientID) {
-			continue
-		}
-		result := make(map[cmdpalette.CommandID]cmdpalette.GlobalShortcut, len(client.GlobalShortcuts))
-		for _, status := range client.GlobalShortcuts {
-			result[cmdpalette.CommandID(status.CommandID)] = cmdpalette.GlobalShortcut{
-				IntendedChord: status.IntendedChord,
-				ActiveChord:   status.ActiveChord,
-				Status:        string(status.Status),
-				Reason:        status.Reason,
-				SettingsURL:   status.SettingsURL,
-			}
-		}
-		return result, nil
-	}
-	return nil, cmdpalette.ErrNoAttachedShell
-}
-
-func cmdPaletteContextSnapshot(client windowmanager.ClientView) cmdpalette.ContextSnapshot {
-	context := client.PaletteContext
-	return cmdpalette.ContextSnapshot{
-		Revision: strconv.FormatUint(client.ContextRevision, 10),
-		Values: map[cmdpalette.ContextKey]any{
-			cmdpalette.ContextWindowFocused:      context.WindowFocused,
-			cmdpalette.ContextWindowFloating:     context.WindowFloating,
-			cmdpalette.ContextWindowStacked:      context.WindowStacked,
-			cmdpalette.ContextDesktopWindowCount: context.DesktopWindowCount,
-			cmdpalette.ContextScopeGlobal:        context.ScopeGlobal,
-			cmdpalette.ContextShellDesktop:       context.ShellDesktop,
-			cmdpalette.ContextSessionState:       context.FocusedSessionState,
-			cmdpalette.ContextWorkspaceTrusted:   context.WorkspaceTrusted,
-		},
-	}
-}
 
 type cmdPaletteActionExecutor struct {
 	tools          toolspkg.Registry
@@ -313,8 +202,8 @@ func (e *cmdPaletteActionExecutor) dispatch(
 		return nil, cmdpalette.ErrNoAttachedShell
 	}
 	payload, err := json.Marshal(map[string]any{
-		cmdPaletteActionKey: request.Descriptor.Action,
-		"args":              mergedCmdPaletteArgs(request.Descriptor.Action.Args, request.Args),
+		nativeActionKey: request.Descriptor.Action,
+		"args":          mergedCmdPaletteArgs(request.Descriptor.Action.Args, request.Args),
 	})
 	if err != nil {
 		return nil, fmt.Errorf("cmd palette: encode client command: %w", err)

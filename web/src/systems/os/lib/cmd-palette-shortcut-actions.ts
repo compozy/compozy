@@ -20,8 +20,3 @@ export function registryShortcutActions(
     alias: command.alias,
   }));
 }
-
-/** Ids an override may name. Open by construction: core plus `ext.*`. */
-export function registryBindableIds(registry: PaletteRegistry): ReadonlySet<string> {
-  return new Set(registry.commands.map(command => command.id));
-}

@@ -59,16 +59,17 @@ func (t *transport) handleRequest(envelope rpcEnvelope) {
 	}
 
 	requestCtx, cancel := context.WithCancel(t.process.lifecycleCtx)
+	token := t.inboundSeq.Add(1)
 	t.inboundMu.Lock()
 	previous := t.inbound[id.key]
-	t.inbound[id.key] = cancel
+	t.inbound[id.key] = inboundCancel{token: token, cancel: cancel}
 	t.inboundMu.Unlock()
-	if previous != nil {
-		previous()
+	if previous.cancel != nil {
+		previous.cancel()
 	}
 
 	t.handlerWG.Go(func() {
-		defer t.releaseInbound(id.key, cancel)
+		defer t.releaseInbound(id.key, token, cancel)
 		result, callErr := handler(requestCtx, envelope.Params)
 		if requestCtx.Err() != nil {
 			return
@@ -101,16 +102,24 @@ func (t *transport) handleCancel(raw json.RawMessage) {
 		return
 	}
 	t.inboundMu.Lock()
-	cancel := t.inbound[id.key]
+	entry := t.inbound[id.key]
 	t.inboundMu.Unlock()
-	if cancel != nil {
-		cancel()
+	if entry.cancel != nil {
+		entry.cancel()
 	}
 }
 
-func (t *transport) releaseInbound(key string, cancel context.CancelFunc) {
+type inboundCancel struct {
+	token  uint64
+	cancel context.CancelFunc
+}
+
+func (t *transport) releaseInbound(key string, token uint64, cancel context.CancelFunc) {
 	t.inboundMu.Lock()
-	delete(t.inbound, key)
+	current, ok := t.inbound[key]
+	if ok && current.token == token {
+		delete(t.inbound, key)
+	}
 	t.inboundMu.Unlock()
 	cancel()
 }
@@ -118,9 +127,9 @@ func (t *transport) releaseInbound(key string, cancel context.CancelFunc) {
 func (t *transport) cancelInbound() {
 	t.inboundMu.Lock()
 	cancels := make([]context.CancelFunc, 0, len(t.inbound))
-	for key, cancel := range t.inbound {
+	for key, entry := range t.inbound {
 		delete(t.inbound, key)
-		cancels = append(cancels, cancel)
+		cancels = append(cancels, entry.cancel)
 	}
 	t.inboundMu.Unlock()
 	for _, cancel := range cancels {

@@ -37,6 +37,11 @@ export interface CmdPalettePendingCommand {
   readonly title: string;
 }
 
+export interface CmdPalettePendingRecord extends CmdPalettePendingCommand {
+  /** Outstanding daemon invocations for this command id. */
+  readonly inFlight: number;
+}
+
 /**
  * What the operator has typed into the current argument step.
  *
@@ -54,7 +59,7 @@ export interface CmdPaletteExecutionState {
   readonly entry: CmdPaletteEntryIntent | null;
   readonly draft: CmdPaletteArgsDraft | null;
   /** In-flight daemon invocations, keyed by command id. */
-  readonly pending: Readonly<Record<string, CmdPalettePendingCommand>>;
+  readonly pending: Readonly<Record<string, CmdPalettePendingRecord>>;
 }
 
 type CmdPaletteExecutionEvents = {
@@ -88,12 +93,32 @@ export const cmdPaletteExecutionStore = createStore<
       ...state,
       draft: event.draft,
     }),
-    pendingStarted: (state, event: { pending: CmdPalettePendingCommand }) => ({
-      ...state,
-      pending: { ...state.pending, [event.pending.commandId]: event.pending },
-    }),
+    pendingStarted: (state, event: { pending: CmdPalettePendingCommand }) => {
+      const existing = state.pending[event.pending.commandId];
+      return {
+        ...state,
+        pending: {
+          ...state.pending,
+          [event.pending.commandId]: {
+            commandId: event.pending.commandId,
+            title: event.pending.title,
+            inFlight: (existing?.inFlight ?? 0) + 1,
+          },
+        },
+      };
+    },
     pendingSettled: (state, event: { commandId: string }) => {
-      if (state.pending[event.commandId] === undefined) return undefined;
+      const existing = state.pending[event.commandId];
+      if (existing === undefined) return undefined;
+      if (existing.inFlight > 1) {
+        return {
+          ...state,
+          pending: {
+            ...state.pending,
+            [event.commandId]: { ...existing, inFlight: existing.inFlight - 1 },
+          },
+        };
+      }
       const pending = { ...state.pending };
       delete pending[event.commandId];
       return { ...state, pending };

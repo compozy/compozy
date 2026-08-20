@@ -12,7 +12,8 @@ import { useDesktopShellModel, type DesktopShellModel } from "../hooks/use-deskt
 import { useDesktopWorktreeScope, WindowScopeContext } from "../hooks/use-worktree-scope";
 import { useWorktreeDialogTargets } from "../hooks/use-worktree-dialog-targets";
 import { useWorkspaceSetupDefaults } from "../hooks/use-workspace-setup-defaults";
-import type { WindowManagerAttachedClientView } from "../lib/window-manager-types";
+import type { ClientCommandChannel } from "../lib/client-command-channel";
+import type { WindowManagerRegisteredClientView } from "../lib/window-manager-types";
 import { DesktopGate } from "./desktop-gate";
 import { DesktopWorktreeDialogs } from "./desktop-worktree-dialogs";
 import { DesktopMenubar } from "./desktop-menubar";
@@ -102,14 +103,14 @@ function DesktopChrome({
 }
 
 interface DesktopShellBodyProps {
-  client: WindowManagerAttachedClientView | null;
+  client: WindowManagerRegisteredClientView | null;
   model: DesktopShellModel;
   firstRun: boolean;
   updateAvailable: boolean;
   workspaceSetupDefaults: WorkspaceSetupDefaultsModel;
   worktreeDialogs: ReturnType<typeof useWorktreeDialogTargets>;
   /** The daemon's client-command channel reads the current shell seam through this port. */
-  clientCommandChannel: ReturnType<typeof useDesktopChrome>["clientCommandChannel"];
+  clientCommandChannel: ClientCommandChannel;
 }
 
 function DesktopChromeContent(props: DesktopShellBodyProps) {
@@ -200,6 +201,7 @@ function DesktopShellScopedBody({
     onNewSession: openNewSession,
     sessionListView,
     clientCommandChannel,
+    client,
   });
   return (
     <div

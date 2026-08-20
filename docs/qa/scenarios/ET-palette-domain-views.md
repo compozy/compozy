@@ -28,11 +28,13 @@ Walk (task_11 plan):
 1. Open the Tasks view — chips show truthful counts with single-select; pick a chip with zero
    matches: the empty state names the filter and one keystroke clears it; state badges pair glyph
    and label (announceable, never color-only).
-2. Open a domain never visited this session — a loading state renders, never a blank treated as
-   empty; rows arrive without a flash.
-3. Select rows with a detail pane — the preview follows selection while keyboard focus stays in
-   the list; long content scrolls the pane independently; delete the selected row from another
-   surface: the pane clears instead of showing stale content.
+2. Reset the session cache, then open Agents (never visited this session) — a loading state
+   renders, never a blank treated as empty; rows arrive without a flash.
+3. Select a row whose detail contains hostile markdown or HTML (`<script>`, a `javascript:`
+   link). The preview shows sanitized or inert text; no script runs and no javascript navigation
+   is offered. The preview follows selection while keyboard focus stays in the list; long content
+   scrolls the pane independently; delete the selected row from another surface: the pane clears
+   instead of showing stale content.
 4. Open a Form view — ⇥ traverses fields in declared order; submit with a required field empty:
    the first invalid field focuses with its inline message; Esc/⌫-on-empty pops with values
    discarded; a re-push starts clean.
@@ -43,7 +45,7 @@ Walk (task_11 plan):
 7. Push one domain view past its mount cap — the view scrolls virtually or states the exact
    overflow.
 
-Expected evidence: screenshots per kind (tasks chips + empty-with-filter, detail pane populated and
-cleared, form blocked on first invalid field, grid with placeholder tile, vault names-only), a
-screen-reader or keyboard-only pass note for the combobox/2D-navigation contract, and the overflow
-note at scale.
+Expected evidence: screenshots per kind (tasks chips + empty-with-filter, sanitized hostile
+detail, detail pane populated and cleared, form blocked on first invalid field, grid with
+placeholder tile, vault names-only), a screen-reader or keyboard-only pass note for the
+combobox/2D-navigation contract, and the overflow note at scale.

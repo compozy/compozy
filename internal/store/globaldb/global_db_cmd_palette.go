@@ -198,7 +198,8 @@ func (r *CmdPaletteRepo) PutCmdPalettePin(
 	if err := r.checkReady(ctx, "pin command palette command"); err != nil {
 		return err
 	}
-	if err := requireCmdPaletteIdentity(workspaceID, commandID); err != nil {
+	workspaceID, commandID, err := requireCmdPaletteIdentity(workspaceID, commandID)
+	if err != nil {
 		return err
 	}
 	if pinnedAt.IsZero() {
@@ -220,7 +221,8 @@ func (r *CmdPaletteRepo) DeleteCmdPalettePin(
 	if err := r.checkReady(ctx, "unpin command palette command"); err != nil {
 		return err
 	}
-	if err := requireCmdPaletteIdentity(workspaceID, commandID); err != nil {
+	workspaceID, commandID, err := requireCmdPaletteIdentity(workspaceID, commandID)
+	if err != nil {
 		return err
 	}
 	if err := r.queries.DeleteCmdPalettePin(ctx, sqlcgen.DeleteCmdPalettePinParams{
@@ -239,7 +241,8 @@ func (r *CmdPaletteRepo) PruneCmdPaletteCommand(
 	if err := r.checkReady(ctx, "prune command palette command"); err != nil {
 		return err
 	}
-	if err := requireCmdPaletteIdentity(workspaceID, commandID); err != nil {
+	workspaceID, commandID, err := requireCmdPaletteIdentity(workspaceID, commandID)
+	if err != nil {
 		return err
 	}
 	if err := r.withImmediateTransaction(ctx, "prune command palette command", func(exec globalSQLExecutor) error {
@@ -274,7 +277,8 @@ func (r *CmdPaletteRepo) PruneCmdPaletteUsage(
 	if err := r.checkReady(ctx, "prune command palette usage"); err != nil {
 		return err
 	}
-	if err := requireCmdPaletteIdentity(workspaceID, commandID); err != nil {
+	workspaceID, commandID, err := requireCmdPaletteIdentity(workspaceID, commandID)
+	if err != nil {
 		return err
 	}
 	if err := r.queries.DeleteCmdPaletteUsage(ctx, sqlcgen.DeleteCmdPaletteUsageParams{
@@ -294,7 +298,8 @@ func (r *CmdPaletteRepo) PruneCmdPaletteQueryHit(
 	if err := r.checkReady(ctx, "prune command palette query hit"); err != nil {
 		return err
 	}
-	if err := requireCmdPaletteIdentity(workspaceID, commandID); err != nil {
+	workspaceID, commandID, err := requireCmdPaletteIdentity(workspaceID, commandID)
+	if err != nil {
 		return err
 	}
 	query = cmdpalette.NormalizeQuery(query)
@@ -342,9 +347,14 @@ func (r *CmdPaletteRepo) ResetCmdPalettePersonalization(
 	return nil
 }
 
-func requireCmdPaletteIdentity(workspaceID cmdpalette.WorkspaceID, commandID cmdpalette.CommandID) error {
-	if strings.TrimSpace(string(workspaceID)) == "" || strings.TrimSpace(string(commandID)) == "" {
-		return errors.New("store: command palette workspace and command IDs are required")
+func requireCmdPaletteIdentity(
+	workspaceID cmdpalette.WorkspaceID,
+	commandID cmdpalette.CommandID,
+) (cmdpalette.WorkspaceID, cmdpalette.CommandID, error) {
+	workspace := cmdpalette.WorkspaceID(strings.TrimSpace(string(workspaceID)))
+	command := cmdpalette.CommandID(strings.TrimSpace(string(commandID)))
+	if workspace == "" || command == "" {
+		return "", "", errors.New("store: command palette workspace and command IDs are required")
 	}
-	return nil
+	return workspace, command, nil
 }

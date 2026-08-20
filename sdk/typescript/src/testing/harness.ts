@@ -112,11 +112,15 @@ export class TestHarness {
     return extension;
   }
 
-  public async call<TResult = unknown>(method: string, params?: unknown): Promise<TResult> {
+  public async call<TResult = unknown>(
+    method: string,
+    params?: unknown,
+    signal?: AbortSignal
+  ): Promise<TResult> {
     if (!this.hostTransport) {
       throw new Error("extension is not loaded");
     }
-    return await this.hostTransport.call<TResult>(method, params);
+    return await this.hostTransport.call<TResult>(method, params, signal);
   }
 
   public getLastInitializeRequest(): InitializeRequest | undefined {

@@ -43,6 +43,7 @@ func validateViewFrame(kind ViewKind, frame ViewFrame) (ViewFrame, error) {
 	}
 	seenEffects := make(map[string]struct{}, len(frame.Effects))
 	for index, effect := range frame.Effects {
+		effect.ID = strings.TrimSpace(effect.ID)
 		if err := validateViewEffect(effect); err != nil {
 			return ViewFrame{}, fmt.Errorf("cmd palette view: effects[%d]: %w", index, err)
 		}
@@ -50,12 +51,13 @@ func validateViewFrame(kind ViewKind, frame ViewFrame) (ViewFrame, error) {
 			return ViewFrame{}, fmt.Errorf("cmd palette view: effects[%d] duplicates %q", index, effect.ID)
 		}
 		seenEffects[effect.ID] = struct{}{}
+		validated.Effects[index] = effect
 	}
 	return validated, nil
 }
 
 func validateViewEffect(effect Effect) error {
-	if strings.TrimSpace(effect.ID) == "" {
+	if effect.ID == "" {
 		return errors.New("id is required")
 	}
 	members := 0
@@ -73,20 +75,25 @@ func validateViewEffect(effect Effect) error {
 	if members != 1 {
 		return errors.New("exactly one effect member is required")
 	}
+	if effect.OpenURL != nil {
+		if err := validateHTTPURL(effect.OpenURL.URL); err != nil {
+			return err
+		}
+	}
 	return nil
 }
 
 func cloneViewFrame(frame ViewFrame) ViewFrame {
 	cloned := frame
 	cloned.Handlers = append([]string(nil), frame.Handlers...)
-	cloned.Effects = append([]Effect(nil), frame.Effects...)
+	cloned.Effects = cloneViewEffects(frame.Effects)
 	if frame.Payload != nil {
-		payload := *frame.Payload
+		payload := cloneViewPayload(*frame.Payload)
 		cloned.Payload = &payload
 	}
 	if frame.Patch != nil {
 		patch := *frame.Patch
-		patch.Ops = append([]PatchOp(nil), frame.Patch.Ops...)
+		patch.Ops = clonePatchOps(frame.Patch.Ops)
 		cloned.Patch = &patch
 	}
 	return cloned

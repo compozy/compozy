@@ -49,24 +49,19 @@ function catalog(revision: string, titles: readonly string[]): CmdPaletteCatalog
   };
 }
 
-let activeQueryClient: QueryClient | null = null;
-
 function harness() {
   const queryClient = new QueryClient({
     defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
   });
-  activeQueryClient = queryClient;
   const wrapper = ({ children }: { children: ReactNode }) => (
     <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
   );
-  return renderHook(() => useCmdPaletteCatalog({ workspaceId: WORKSPACE, clientId: CLIENT }), {
-    wrapper,
-  });
-}
-
-function queryClientOf(_result: unknown): QueryClient {
-  if (activeQueryClient === null) throw new Error("harness() was not rendered");
-  return activeQueryClient;
+  return {
+    ...renderHook(() => useCmdPaletteCatalog({ workspaceId: WORKSPACE, clientId: CLIENT }), {
+      wrapper,
+    }),
+    queryClient,
+  };
 }
 
 describe("useCmdPaletteCatalog (UT-095)", () => {
@@ -136,13 +131,13 @@ describe("useCmdPaletteCatalog (UT-095)", () => {
     const list = vi
       .spyOn(api, "listCmdPaletteCommands")
       .mockResolvedValue(catalog("sha256:live", ["Live row"]));
-    const { result } = harness();
+    const { result, queryClient } = harness();
     await waitFor(() => expect(result.current.daemonReachable).toBe(true));
 
     // The daemon goes away; its last answer is still the best structure to
     // render, but nothing may claim it is reachable.
     list.mockRejectedValue(new CmdPaletteApiError("Command palette unavailable", 503, "daemon"));
-    await queryClientOf(result).refetchQueries();
+    await queryClient.refetchQueries();
 
     await waitFor(() => expect(result.current.daemonReachable).toBe(false));
     expect(result.current.stale).toBe(true);

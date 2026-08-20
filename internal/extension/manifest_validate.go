@@ -56,7 +56,8 @@ func validateManifestResources(manifest *Manifest) error {
 	if err := validateManifestCommandResources(manifest); err != nil {
 		return err
 	}
-	return validateManifestCmdPalette(manifest)
+	_, err := validateManifestCmdPalette(manifest)
+	return err
 }
 
 func validateManifestCapabilities(manifest *Manifest) error {

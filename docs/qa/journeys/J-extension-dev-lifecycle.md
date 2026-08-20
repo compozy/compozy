@@ -36,7 +36,7 @@ journey:
       origin: direct
     - url: compozy__extensions_build|compozy__extensions_validate|compozy__extensions_dev|compozy__extensions_reload|compozy__extensions_logs
       origin: direct
-    - url: compozy cmd-palette list|inspect --source ext.<name> (palette contribution projection)
+    - url: compozy cmd-palette list --source ext.<name>; compozy cmd-palette inspect <id> (palette contribution projection)
       origin: direct
     - url: /marketplace/extension/$entryId Logs panel
       origin: in-app-nav
@@ -69,7 +69,7 @@ journey:
     - at_step: 4
       how: The log connection drops
       resume: Reconnect with the last stream_epoch and sequence; retained lines remain visible, duplicates are rejected, and a changed epoch resets the snapshot
-  crosses: [cli, httpapi, udsapi, native-tools, web, manifest-build, extension-manager, sse, workspace-isolation]
+  crosses: [cli, httpapi, udsapi, native-tools, web, cmdpalette, manifest-build, extension-manager, sse, workspace-isolation]
 ```
 
 ## Coverage notes

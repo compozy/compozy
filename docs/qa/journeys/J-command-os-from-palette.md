@@ -46,7 +46,7 @@ flowchart TD
 journey:
   id: J-command-os-from-palette
   name: "Command the whole OS from the palette"
-  value_statement: "Every OS capability is a few keystrokes away, executes honestly, and the surface learns my habits without ever inventing state."
+  value_statement: "Every OS command is a few keystrokes away, executes honestly, and the surface learns my habits without ever inventing state."
   personas: [Bruno, Sol, Cora]
   entry_points:
     - url: "web ⌘K / ⌘⇧P (palette.open)"
@@ -77,7 +77,7 @@ journey:
       verb: "Type a query nothing matches"
       expected_observable: "A visually distinct 'Ask agent' row appears; nothing is transmitted before Enter; Enter opens a new session with the query as the opening prompt"
   goal:
-    observable: "The selected capability executed (or honestly refused with the runtime's reason) and the palette closed with the effect visible"
+    observable: "The selected command executed (or honestly refused with the runtime's reason) and the palette closed with the effect visible"
     side_effects: [usage-recorded, personalization-updated, session-created-on-fallback]
   true_end_state: "Reopening the palette shows the executed command in Recents, the personalization ranks it higher for the same query, and every surface (row, menubar, cheatsheet, settings) shows identical id, label, and chord."
   exit:

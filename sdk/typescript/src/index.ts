@@ -2,6 +2,7 @@ export { Extension } from "./extension.js";
 export { HostAPI } from "./host-api.js";
 export {
   DEFAULT_MAX_MESSAGE_BYTES,
+  JSON_RPC_CANCEL_METHOD,
   JSON_RPC_VERSION,
   NotReadyTransport,
   StdioTransport,

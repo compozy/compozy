@@ -83,20 +83,11 @@ func (s *service) classifyWindowManagerRequest(
 	if err != nil {
 		return lifecycle.Live
 	}
-	desired := loaded.config.WindowManager
-	if req.WindowManager != nil {
-		desired = *req.WindowManager
-	}
-	if req.WindowManagerShortcuts != nil {
-		desired.Shortcuts = *req.WindowManagerShortcuts
-	}
-	if req.WindowManagerGlobalShortcuts != nil {
-		desired.GlobalShortcuts = *req.WindowManagerGlobalShortcuts
-	}
-	desiredAliases := loaded.config.CmdPalette.Aliases
-	if req.WindowManagerAliases != nil {
-		desiredAliases = *req.WindowManagerAliases
-	}
+	desired, desiredAliases := mergeWindowManagerRequest(
+		loaded.config.WindowManager,
+		loaded.config.CmdPalette.Aliases,
+		req,
+	)
 	changed := diffWindowManagerSettings(
 		loaded.config.WindowManager,
 		loaded.config.CmdPalette.Aliases,

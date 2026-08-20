@@ -4,16 +4,17 @@ package corecmds
 import (
 	"context"
 	"fmt"
-	"maps"
 	"sort"
 
 	"github.com/compozy/compozy/internal/cmdpalette"
 )
 
+// Provider is the daemon-owned core command inventory.
 type Provider struct {
 	commands []cmdpalette.Descriptor
 }
 
+// New builds the workspace-independent core command catalog.
 func New() (*Provider, error) {
 	commands := make([]cmdpalette.Descriptor, 0, 128)
 	commands = append(commands, shellCommands()...)
@@ -35,6 +36,7 @@ func New() (*Provider, error) {
 	return &Provider{commands: commands}, nil
 }
 
+// ProvideCommands returns a defensive copy of the core inventory and ignores workspace.
 func (p *Provider) ProvideCommands(
 	context.Context,
 	cmdpalette.WorkspaceID,
@@ -42,19 +44,13 @@ func (p *Provider) ProvideCommands(
 	return cloneCommands(p.commands), nil
 }
 
+// StaticCommands returns a defensive copy of the core inventory for boot validation.
 func (p *Provider) StaticCommands() []cmdpalette.Descriptor { return cloneCommands(p.commands) }
 
 func cloneCommands(source []cmdpalette.Descriptor) []cmdpalette.Descriptor {
-	cloned := make([]cmdpalette.Descriptor, len(source))
-	copy(cloned, source)
-	for index := range cloned {
-		cloned[index].Keywords = append([]string(nil), source[index].Keywords...)
-		cloned[index].Arguments = append([]cmdpalette.Argument(nil), source[index].Arguments...)
-		cloned[index].When = append([]cmdpalette.Predicate(nil), source[index].When...)
-		if source[index].Action.Args != nil {
-			cloned[index].Action.Args = make(map[string]any, len(source[index].Action.Args))
-			maps.Copy(cloned[index].Action.Args, source[index].Action.Args)
-		}
+	cloned := make([]cmdpalette.Descriptor, 0, len(source))
+	for _, command := range source {
+		cloned = append(cloned, cmdpalette.CloneDescriptor(command))
 	}
 	return cloned
 }

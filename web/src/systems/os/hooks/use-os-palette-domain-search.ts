@@ -7,153 +7,44 @@ import { useLoops } from "@/systems/loops";
 import { useMarketplaceSearch } from "@/systems/marketplace";
 import { useNetworkChannels } from "@/systems/network";
 import { useTasks } from "@/systems/tasks";
-import { useVaultSecrets, type VaultSecret } from "@/systems/vault";
-import { useWorktrees } from "@/systems/workspace";
+import { useVaultSecrets } from "@/systems/vault";
+import { useWorktrees, type WorkspaceScopeMode } from "@/systems/workspace";
 
-import { compareStatusAttentionFirst } from "@/lib/status-tone";
-
+import { usePaletteInfiniteCatalog } from "./use-palette-infinite-catalog";
+import {
+  isPaletteDomainSearchEnabled,
+  knowledgeRoute,
+  marketplaceCatalogTotal,
+  networkChannelRoute,
+  paletteTaskFilters,
+  paletteWorkspaceCatalogFilters,
+  projectVaultRows,
+  rowSeed,
+  searchRoute,
+  section,
+  tasksRoute,
+  workspaceLabel,
+  type OsPaletteDomainSection,
+} from "../lib/os-palette-domain-search";
 import type { CmdPaletteRankSignals } from "../lib/cmd-palette-types";
-import type { OsAppId, OsWindowRoute } from "../lib/os-types";
-import { rankCandidates } from "../lib/ranking/rank";
-import type { RankingCandidate } from "../lib/ranking/types";
+import { useOsPaletteWorkspaceCatalogs } from "./use-os-palette-workspace-catalogs";
 
-export interface OsPaletteDomainRow {
-  readonly key: string;
-  readonly label: string;
-  readonly detail?: string;
-  readonly workspaceLabel?: string;
-  readonly app: OsAppId;
-  readonly route: OsWindowRoute;
-  readonly status?: string;
-}
-
-/** Names and non-secret metadata are the entire Vault palette contract. */
-export interface OsPaletteVaultRow extends OsPaletteDomainRow {
-  readonly namespace: string;
-  readonly kind: string;
-}
-
-export interface OsPaletteDomainSection {
-  readonly title: string;
-  readonly rows: readonly OsPaletteDomainRow[];
-  readonly total: number;
-  readonly loading: boolean;
-  readonly error: string | null;
-}
-
-interface DomainSeed extends RankingCandidate {
-  readonly row: OsPaletteDomainRow;
-}
-
-interface QueryState {
-  readonly isError: boolean;
-  readonly isLoading: boolean;
-  readonly error: unknown;
-}
+export type {
+  OsPaletteDomainRow,
+  OsPaletteDomainSection,
+  OsPaletteVaultRow,
+} from "../lib/os-palette-domain-search";
+export { isPaletteDomainSearchEnabled, projectVaultRows } from "../lib/os-palette-domain-search";
 
 export interface UseOsPaletteDomainSearchOptions {
   readonly open: boolean;
   readonly query: string;
   readonly workspaceId: string | null;
-  readonly scope: "workspace" | "global";
+  readonly scope: WorkspaceScopeMode;
   readonly workspaceNames: ReadonlyMap<string, string>;
   readonly signals: CmdPaletteRankSignals | null;
   /** A pushed view reads one full domain; root search reads every gated domain. */
   readonly targetDomain?: string;
-}
-
-export function isPaletteDomainSearchEnabled(
-  open: boolean,
-  query: string,
-  weights: CmdPaletteRankSignals["weights"] | null
-): boolean {
-  if (!open || weights === null) return false;
-  const normalizedLength = query.trim().normalize("NFKD").length;
-  return (
-    normalizedLength >= weights.min_entity_query_length &&
-    normalizedLength <= weights.max_query_length
-  );
-}
-
-function errorMessage(title: string, error: unknown): string {
-  const message = error instanceof Error ? error.message.trim() : "";
-  return message === "" ? `${title} unavailable` : `${title}: ${message}`;
-}
-
-function workspaceLabel(
-  scope: "workspace" | "global",
-  workspaceId: string | null | undefined,
-  names: ReadonlyMap<string, string>
-): string | undefined {
-  if (scope !== "global") return undefined;
-  if (!workspaceId) return "Global";
-  return names.get(workspaceId) ?? workspaceId;
-}
-
-function route(pathname: string, q: string): OsWindowRoute {
-  return { pathname, search: { q } };
-}
-
-function rowSeed(
-  title: string,
-  row: OsPaletteDomainRow,
-  keywords: readonly string[] = []
-): DomainSeed {
-  return {
-    stableKey: row.key,
-    id: row.key,
-    label: row.label,
-    description: row.detail,
-    group: title,
-    keywords,
-    subtype: "path",
-    row,
-  };
-}
-
-function section(
-  title: string,
-  seeds: readonly DomainSeed[],
-  state: QueryState,
-  enabled: boolean,
-  query: string,
-  signals: CmdPaletteRankSignals,
-  limit = signals.weights.entity_section_visible_cap
-): OsPaletteDomainSection {
-  const attentionOrdered = [...seeds].sort((left, right) =>
-    compareStatusAttentionFirst(left.row.status, right.row.status)
-  );
-  const matched =
-    query.trim() === ""
-      ? attentionOrdered
-      : rankCandidates(query, attentionOrdered, signals).map(candidate => candidate.candidate);
-  return {
-    title,
-    rows: matched.slice(0, limit).map(candidate => candidate.row),
-    total: matched.length,
-    loading: enabled && state.isLoading,
-    error: enabled && state.isError ? errorMessage(title, state.error) : null,
-  };
-}
-
-export function projectVaultRows(
-  secrets: readonly VaultSecret[],
-  scope: "workspace" | "global",
-  names: ReadonlyMap<string, string>
-): readonly OsPaletteVaultRow[] {
-  return secrets.map(secret => {
-    const name = secret.ref.split("/").at(-1) || secret.ref;
-    return {
-      key: `vault:${secret.ref}`,
-      label: name,
-      detail: [secret.namespace, secret.kind].filter(Boolean).join(" · "),
-      workspaceLabel: workspaceLabel(scope, undefined, names),
-      app: "vault",
-      route: route("/vault", name),
-      namespace: secret.namespace,
-      kind: secret.kind ?? "",
-    };
-  });
 }
 
 /**
@@ -173,39 +64,110 @@ export function useOsPaletteDomainSearch({
   const rootEnabled = isPaletteDomainSearchEnabled(open, query, signals?.weights ?? null);
   const domainEnabled = (title: string) =>
     targetDomain === undefined ? rootEnabled : open && targetDomain === title;
-  const domainLimit = targetDomain === undefined ? undefined : Number.MAX_SAFE_INTEGER;
-  const workspace = workspaceId ?? "";
+  const domainLimit =
+    targetDomain === undefined ? signals?.weights.entity_section_visible_cap : undefined;
+  const scopedWorkspace = scope === "workspace" ? workspaceId : null;
+  const workspaceIds = [...workspaceNames.keys()];
+  const workspaceCatalog = paletteWorkspaceCatalogFilters(scope, workspaceId);
+  const taskFilters = paletteTaskFilters(scope, workspaceId);
+  const loopsWorkspaceEnabled =
+    domainEnabled("Loops") && scopedWorkspace !== null && scopedWorkspace !== "";
+  const loopsGlobalEnabled = domainEnabled("Loops") && scope === "global";
+  const networkWorkspaceEnabled =
+    domainEnabled("Network channels") && scopedWorkspace !== null && scopedWorkspace !== "";
+  const networkGlobalEnabled = domainEnabled("Network channels") && scope === "global";
+  const workspaceKnowledgeEnabled = domainEnabled("Knowledge") && scopedWorkspace !== null;
+  const globalKnowledgeEnabled = domainEnabled("Knowledge") && scope === "global";
+  const agentsGlobalEnabled = domainEnabled("Agents") && scope === "global";
+  const extensionsEnabled = domainEnabled("Extensions");
+  const worktreesWorkspaceEnabled =
+    open && targetDomain === "Worktrees" && scopedWorkspace !== null;
+  const worktreesGlobalEnabled = open && targetDomain === "Worktrees" && scope === "global";
 
-  // Root search already owns worktree entity rows. The pushed domain view is the
-  // only consumer here, which prevents duplicate Worktrees sections at root.
-  const worktrees = useWorktrees(workspaceId, {
-    enabled: open && targetDomain === "Worktrees",
+  const worktrees = useWorktrees(scopedWorkspace, {
+    enabled: worktreesWorkspaceEnabled,
   });
-  const agents = useAgents(workspaceId, { enabled: domainEnabled("Agents") });
-  const tasks = useTasks({}, { enabled: domainEnabled("Tasks") });
-  const loops = useLoops(workspace, {}, domainEnabled("Loops") && workspace !== "");
-  const jobs = useAutomationJobs({}, { enabled: domainEnabled("Jobs") });
-  const triggers = useAutomationTriggers({}, { enabled: domainEnabled("Triggers") });
-  const bridges = useBridges({}, { enabled: domainEnabled("Bridges") });
-  const globalMemories = useMemories({ scope: "global" }, { enabled: domainEnabled("Knowledge") });
+  const globalAgents = useAgents(null, { enabled: agentsGlobalEnabled });
+  const workspaceAgents = useAgents(scopedWorkspace, {
+    enabled: domainEnabled("Agents") && scope === "workspace",
+  });
+  const tasks = useTasks(taskFilters, { enabled: domainEnabled("Tasks") });
+  const loops = useLoops(scopedWorkspace ?? "", {}, loopsWorkspaceEnabled);
+  const jobs = useAutomationJobs(workspaceCatalog, { enabled: domainEnabled("Jobs") });
+  const triggers = useAutomationTriggers(workspaceCatalog, { enabled: domainEnabled("Triggers") });
+  const bridges = useBridges(
+    scope === "workspace" && workspaceId
+      ? { scope: "workspace", workspace_id: workspaceId }
+      : { scope: "all" },
+    { enabled: domainEnabled("Bridges") }
+  );
+  const globalMemories = useMemories({ scope: "global" }, { enabled: globalKnowledgeEnabled });
   const workspaceMemories = useMemories(
-    { scope: "workspace", workspaceId: workspace },
-    { enabled: domainEnabled("Knowledge") && workspace !== "" }
+    { scope: "workspace", workspaceId: scopedWorkspace ?? "" },
+    { enabled: workspaceKnowledgeEnabled }
   );
   const vault = useVaultSecrets({}, { enabled: domainEnabled("Vault") });
   const channels = useNetworkChannels({
-    enabled: domainEnabled("Network channels"),
-    workspaceId,
+    enabled: networkWorkspaceEnabled,
+    workspaceId: scopedWorkspace,
   });
-  const marketplace = useMarketplaceSearch({ q: query, workspaceId }, domainEnabled("Marketplace"));
-  const extensions = useExtensionInventory(domainEnabled("Extensions"));
+  const marketplace = useMarketplaceSearch(
+    {
+      q: query,
+      ...(scopedWorkspace ? { workspaceId: scopedWorkspace } : {}),
+    },
+    domainEnabled("Marketplace")
+  );
+  const publishedExtensions = useExtensionInventory(extensionsEnabled && scope === "workspace");
+  const catalogs = useOsPaletteWorkspaceCatalogs({
+    workspaceIds,
+    loopsEnabled: loopsGlobalEnabled,
+    networkEnabled: networkGlobalEnabled,
+    knowledgeEnabled: globalKnowledgeEnabled,
+    agentsEnabled: agentsGlobalEnabled,
+    extensionsEnabled: extensionsEnabled && scope === "global",
+    worktreesEnabled: worktreesGlobalEnabled,
+  });
+
+  usePaletteInfiniteCatalog(tasks, domainEnabled("Tasks"));
+  usePaletteInfiniteCatalog(jobs, domainEnabled("Jobs"));
+  usePaletteInfiniteCatalog(triggers, domainEnabled("Triggers"));
+  usePaletteInfiniteCatalog(bridges, domainEnabled("Bridges"));
+  usePaletteInfiniteCatalog(loops, loopsWorkspaceEnabled);
+  usePaletteInfiniteCatalog(globalMemories, globalKnowledgeEnabled);
+  usePaletteInfiniteCatalog(workspaceMemories, workspaceKnowledgeEnabled);
 
   if (signals === null) return [];
   const wsLabel = (id?: string | null) => workspaceLabel(scope, id, workspaceNames);
+  const limit = { limit: domainLimit };
+  const worktreeRows = scope === "global" ? catalogs.worktrees : (worktrees.data?.worktrees ?? []);
+  const agentRows =
+    scope === "global"
+      ? [
+          ...(globalAgents.data ?? []).map(agent => ({
+            agent,
+            workspaceId: agent.workspace_id,
+          })),
+          ...catalogs.workspaceAgents,
+        ]
+      : (workspaceAgents.data ?? []).map(agent => ({
+          agent,
+          workspaceId: agent.workspace_id ?? workspaceId,
+        }));
+  const loopsEnabled = loopsWorkspaceEnabled || loopsGlobalEnabled;
+  const loopRows =
+    scope === "global"
+      ? catalogs.loops.map(({ loop, workspaceId: loopWorkspaceId }) => ({
+          loop,
+          workspaceId: loopWorkspaceId,
+        }))
+      : loops.loops.map(loop => ({ loop, workspaceId: scopedWorkspace }));
+  const loopState = scope === "global" ? catalogs.loopState : loops;
+  const loopTotal = scope === "global" ? catalogs.loopTotal : loops.total;
   const domainSections = [
     section(
       "Worktrees",
-      (worktrees.data?.worktrees ?? []).map(worktree =>
+      worktreeRows.map(worktree =>
         rowSeed("Worktrees", {
           key: `worktree:${worktree.id}`,
           label: worktree.name,
@@ -213,32 +175,42 @@ export function useOsPaletteDomainSearch({
           workspaceLabel: wsLabel(worktree.workspace_id),
           status: worktree.state,
           app: "dashboard",
-          route: route("/", worktree.name),
+          route: searchRoute("/", worktree.name),
         })
       ),
-      worktrees,
+      scope === "global" ? catalogs.worktreeState : worktrees,
       domainEnabled("Worktrees"),
       query,
       signals,
-      domainLimit
+      {
+        ...limit,
+        catalogTotal:
+          scope === "global" ? catalogs.worktreeTotal : worktrees.data?.worktrees.length,
+      }
     ),
     section(
       "Agents",
-      (agents.data ?? []).map(agent =>
+      agentRows.map(({ agent, workspaceId: agentWorkspaceId }) =>
         rowSeed("Agents", {
-          key: `agent:${agent.name}`,
+          key: `agent:${agentWorkspaceId ?? "global"}:${agent.name}`,
           label: agent.name,
           detail: agent.provider,
-          workspaceLabel: wsLabel(agent.origin === "workspace" ? workspaceId : undefined),
+          workspaceLabel: wsLabel(agent.origin === "workspace" ? agentWorkspaceId : undefined),
           app: "agents",
-          route: route("/agents", agent.name),
+          route: searchRoute("/agents", agent.name),
         })
       ),
-      agents,
+      scope === "global"
+        ? {
+            isLoading: globalAgents.isLoading || catalogs.workspaceAgentState.isLoading,
+            isError: globalAgents.isError || catalogs.workspaceAgentState.isError,
+            error: globalAgents.error ?? catalogs.workspaceAgentState.error,
+          }
+        : workspaceAgents,
       domainEnabled("Agents"),
       query,
       signals,
-      domainLimit
+      { ...limit, catalogTotal: agentRows.length }
     ),
     section(
       "Tasks",
@@ -252,7 +224,7 @@ export function useOsPaletteDomainSearch({
             status: task.status,
             workspaceLabel: wsLabel(task.workspace_id),
             app: "tasks",
-            route: route("/tasks", task.title),
+            route: tasksRoute(task.title),
           },
           task.identifier ? [task.identifier] : []
         )
@@ -261,25 +233,25 @@ export function useOsPaletteDomainSearch({
       domainEnabled("Tasks"),
       query,
       signals,
-      domainLimit
+      { ...limit, catalogTotal: tasks.total }
     ),
     section(
       "Loops",
-      loops.loops.map(loop =>
+      loopRows.map(({ loop, workspaceId: loopWorkspaceId }) =>
         rowSeed("Loops", {
-          key: `loop:${loop.name}`,
+          key: `loop:${loopWorkspaceId ?? "global"}:${loop.name}`,
           label: loop.name,
           detail: loop.contract.goal,
-          workspaceLabel: wsLabel(workspaceId),
+          workspaceLabel: wsLabel(loopWorkspaceId),
           app: "loops",
-          route: route("/loops", loop.name),
+          route: searchRoute("/loops", loop.name),
         })
       ),
-      loops,
-      domainEnabled("Loops"),
+      loopState,
+      loopsEnabled,
       query,
       signals,
-      domainLimit
+      { ...limit, catalogTotal: loopTotal }
     ),
     section(
       "Jobs",
@@ -290,14 +262,14 @@ export function useOsPaletteDomainSearch({
           detail: job.agent_name,
           workspaceLabel: wsLabel(job.workspace_id),
           app: "jobs",
-          route: route("/jobs", job.name),
+          route: searchRoute("/jobs", job.name),
         })
       ),
       jobs,
       domainEnabled("Jobs"),
       query,
       signals,
-      domainLimit
+      { ...limit, catalogTotal: jobs.total }
     ),
     section(
       "Triggers",
@@ -308,14 +280,14 @@ export function useOsPaletteDomainSearch({
           detail: trigger.event,
           workspaceLabel: wsLabel(trigger.workspace_id),
           app: "triggers",
-          route: route("/triggers", trigger.name),
+          route: searchRoute("/triggers", trigger.name),
         })
       ),
       triggers,
       domainEnabled("Triggers"),
       query,
       signals,
-      domainLimit
+      { ...limit, catalogTotal: triggers.total }
     ),
     section(
       "Bridges",
@@ -326,40 +298,60 @@ export function useOsPaletteDomainSearch({
           detail: bridge.platform,
           workspaceLabel: wsLabel(bridge.workspace_id),
           app: "bridges",
-          route: route("/bridges", bridge.display_name),
+          route: searchRoute("/bridges", bridge.display_name),
         })
       ),
       bridges,
       domainEnabled("Bridges"),
       query,
       signals,
-      domainLimit
+      { ...limit, catalogTotal: bridges.total }
     ),
   ];
 
-  const memories = [...(globalMemories.data ?? []), ...(workspaceMemories.data ?? [])];
+  const memories =
+    scope === "global"
+      ? [...(globalMemories.data ?? []), ...catalogs.workspaceMemories]
+      : (workspaceMemories.data ?? []);
+  const knowledgeTotal =
+    scope === "global"
+      ? globalMemories.total + catalogs.workspaceMemoryTotal
+      : workspaceMemories.total;
   domainSections.push(
     section(
       "Knowledge",
       memories.map(memory =>
         rowSeed("Knowledge", {
-          key: `knowledge:${memory.scope}:${memory.filename}`,
+          key: `knowledge:${memory.scope}:${memory.workspace_id ?? ""}:${memory.filename}`,
           label: memory.name,
           detail: memory.description,
           workspaceLabel: wsLabel(memory.workspace_id),
           app: "knowledge",
-          route: route("/knowledge", memory.name),
+          route: knowledgeRoute({
+            filename: memory.filename,
+            scope: memory.scope === "workspace" ? "workspace" : "global",
+            workspaceId: memory.workspace_id,
+          }),
         })
       ),
       {
-        isLoading: globalMemories.isLoading || workspaceMemories.isLoading,
-        isError: globalMemories.isError || workspaceMemories.isError,
-        error: globalMemories.error ?? workspaceMemories.error,
+        isLoading:
+          scope === "global"
+            ? globalMemories.isLoading || catalogs.workspaceMemoryState.isLoading
+            : workspaceMemories.isLoading,
+        isError:
+          scope === "global"
+            ? globalMemories.isError || catalogs.workspaceMemoryState.isError
+            : workspaceMemories.isError,
+        error:
+          scope === "global"
+            ? (globalMemories.error ?? catalogs.workspaceMemoryState.error)
+            : workspaceMemories.error,
       },
       domainEnabled("Knowledge"),
       query,
       signals,
-      domainLimit
+      { ...limit, catalogTotal: knowledgeTotal }
     )
   );
   const vaultRows = projectVaultRows(vault.data ?? [], scope, workspaceNames);
@@ -371,25 +363,32 @@ export function useOsPaletteDomainSearch({
       domainEnabled("Vault"),
       query,
       signals,
-      domainLimit
+      { ...limit, catalogTotal: vaultRows.length }
     ),
     section(
       "Network channels",
-      channels.channels.map(channel =>
-        rowSeed("Network channels", {
-          key: `network-channel:${channel.workspace_id}:${channel.channel}`,
-          label: channel.channel,
-          detail: channel.purpose,
-          workspaceLabel: wsLabel(channel.workspace_id),
-          app: "network",
-          route: route("/network", channel.channel),
-        })
-      ),
-      channels,
-      domainEnabled("Network channels"),
+      (scope === "global" ? catalogs.channels : channels.channels).flatMap(channel => {
+        const channelWorkspaceId = channel.workspace_id ?? scopedWorkspace;
+        if (!channelWorkspaceId) return [];
+        return [
+          rowSeed("Network channels", {
+            key: `network-channel:${channelWorkspaceId}:${channel.channel}`,
+            label: channel.channel,
+            detail: channel.purpose,
+            workspaceLabel: wsLabel(channelWorkspaceId),
+            app: "network",
+            route: networkChannelRoute(channelWorkspaceId, channel.channel),
+          }),
+        ];
+      }),
+      scope === "global" ? catalogs.channelState : channels,
+      networkWorkspaceEnabled || networkGlobalEnabled,
       query,
       signals,
-      domainLimit
+      {
+        ...limit,
+        catalogTotal: scope === "global" ? catalogs.channelTotal : channels.channels.length,
+      }
     ),
     section(
       "Marketplace",
@@ -399,7 +398,7 @@ export function useOsPaletteDomainSearch({
             key: `marketplace:${item.kind}:${item.entry_id}`,
             label: item.name,
             detail: item.description,
-            workspaceLabel: wsLabel(workspaceId),
+            workspaceLabel: wsLabel(scopedWorkspace),
             app: "marketplace",
             route: { pathname: item.manage_path ?? "/marketplace", search: { q: item.name } },
           })
@@ -409,25 +408,43 @@ export function useOsPaletteDomainSearch({
       domainEnabled("Marketplace"),
       query,
       signals,
-      domainLimit
+      { ...limit, catalogTotal: marketplaceCatalogTotal(marketplace.data?.kinds) }
     ),
     section(
       "Extensions",
-      (extensions.data ?? []).map(item =>
+      (scope === "global"
+        ? [
+            ...catalogs.publishedExtensions.map(extension => ({
+              extension,
+              workspaceId: undefined as string | undefined,
+            })),
+            ...catalogs.workspaceExtensions,
+          ]
+        : (publishedExtensions.data ?? []).map(item => ({
+            extension: item.extension,
+            workspaceId: publishedExtensions.workspaceId ?? undefined,
+          }))
+      ).map(({ extension, workspaceId: extensionWorkspaceId }) =>
         rowSeed("Extensions", {
-          key: `extension:${item.extension.name}`,
-          label: item.extension.name,
-          detail: item.extension.health,
-          workspaceLabel: wsLabel(extensions.workspaceId),
+          key: `extension:${extensionWorkspaceId ?? "published"}:${extension.name}`,
+          label: extension.name,
+          detail: extension.health,
+          workspaceLabel: wsLabel(extensionWorkspaceId),
           app: "marketplace",
-          route: route("/marketplace/extensions", item.extension.name),
+          route: searchRoute("/marketplace/extensions", extension.name),
         })
       ),
-      extensions,
-      domainEnabled("Extensions"),
+      scope === "global" ? catalogs.workspaceExtensionState : publishedExtensions,
+      extensionsEnabled,
       query,
       signals,
-      domainLimit
+      {
+        ...limit,
+        catalogTotal:
+          scope === "global"
+            ? catalogs.publishedExtensions.length + catalogs.workspaceExtensions.length
+            : publishedExtensions.data?.length,
+      }
     )
   );
 

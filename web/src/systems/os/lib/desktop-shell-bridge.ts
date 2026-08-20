@@ -1,8 +1,11 @@
-export type GlobalShortcutRegistrationStatus =
-  | "registered"
-  | "failed_in_use"
-  | "failed_permission"
-  | "unsupported";
+import { z } from "zod";
+
+import {
+  globalShortcutRegistrationSchema,
+  type GlobalShortcutRegistrationStatus,
+} from "./window-manager-global-shortcut-schema";
+
+export type { GlobalShortcutRegistrationStatus };
 
 export interface GlobalShortcutBindingWire {
   command_id: string;
@@ -38,6 +41,10 @@ declare global {
   interface Window {
     compozyShell?: CompozyShellBridge;
   }
+}
+
+export function parseGlobalShortcutRegistrations(value: unknown): GlobalShortcutRegistrationWire[] {
+  return z.array(globalShortcutRegistrationSchema).parse(value);
 }
 
 export function desktopShellBridge(): CompozyShellBridge | null {

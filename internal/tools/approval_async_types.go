@@ -10,14 +10,21 @@ import (
 )
 
 var (
-	ErrApprovalNotFound        = errors.New("tool approval not found")
-	ErrApprovalTerminal        = errors.New("tool approval is already terminal")
-	ErrApprovalDispatchFenced  = errors.New("tool approval dispatch is already fenced")
-	ErrApprovalInvalid         = errors.New("tool approval is invalid")
-	ErrCannotDeferSecrets      = errors.New("cannot_defer_secrets")
+	// ErrApprovalNotFound reports a missing pending approval.
+	ErrApprovalNotFound = errors.New("tool approval not found")
+	// ErrApprovalTerminal reports that the approval already reached a terminal state.
+	ErrApprovalTerminal = errors.New("tool approval is already terminal")
+	// ErrApprovalDispatchFenced reports a dispatch that another worker already claimed.
+	ErrApprovalDispatchFenced = errors.New("tool approval dispatch is already fenced")
+	// ErrApprovalInvalid reports a malformed approval request or outcome.
+	ErrApprovalInvalid = errors.New("tool approval is invalid")
+	// ErrCannotDeferSecrets reports that secret arguments cannot wait for approval.
+	ErrCannotDeferSecrets = errors.New("cannot_defer_secrets")
+	// ErrApprovalExecutionFailed reports that approved dispatch failed.
 	ErrApprovalExecutionFailed = errors.New("tool approval execution failed")
 )
 
+// ApprovalTargetKind identifies the capability an approval will execute.
 type ApprovalTargetKind string
 
 const (
@@ -27,6 +34,7 @@ const (
 	ApprovalTargetView     ApprovalTargetKind = "view"
 )
 
+// ApprovalOutcome is the operator decision for one pending approval.
 type ApprovalOutcome string
 
 const (
@@ -37,6 +45,7 @@ const (
 	ApprovalCanceled ApprovalOutcome = "canceled"
 )
 
+// ApprovalExecutionStatus is the post-decision dispatch lifecycle.
 type ApprovalExecutionStatus string
 
 const (
@@ -46,12 +55,14 @@ const (
 	ApprovalUncertain   ApprovalExecutionStatus = "uncertain"
 )
 
+// ApprovalTarget names the capability an approved request will run.
 type ApprovalTarget struct {
 	Kind    ApprovalTargetKind `json:"kind"`
 	ToolID  ToolID             `json:"tool_id,omitempty"`
 	Payload json.RawMessage    `json:"payload,omitempty"`
 }
 
+// ApprovalRequest is the durable payload stored while an operator decides.
 type ApprovalRequest struct {
 	WorkspaceID             string          `json:"workspace_id"`
 	InvocationID            string          `json:"invocation_id"`
@@ -62,6 +73,7 @@ type ApprovalRequest struct {
 	ContainsSecretArguments bool            `json:"-"`
 }
 
+// ApprovalTicket is returned to the caller that started an approval.
 type ApprovalTicket struct {
 	ApprovalID   string          `json:"approval_id"`
 	InvocationID string          `json:"invocation_id"`
@@ -69,6 +81,7 @@ type ApprovalTicket struct {
 	Completion   <-chan struct{} `json:"-"`
 }
 
+// ApprovalStatus is the operator-visible lifecycle of one pending approval.
 type ApprovalStatus struct {
 	ApprovalID      string                  `json:"approval_id"`
 	WorkspaceID     string                  `json:"workspace_id"`
@@ -87,6 +100,7 @@ type ApprovalStatus struct {
 	ResumeFence     bool                    `json:"-"`
 }
 
+// ApprovalCoordinator is the asynchronous approval lifecycle owner.
 type ApprovalCoordinator interface {
 	Begin(context.Context, ApprovalRequest) (ApprovalTicket, error)
 	Resolve(context.Context, string, ApprovalOutcome) error
@@ -96,6 +110,7 @@ type ApprovalCoordinator interface {
 	Close() error
 }
 
+// ApprovalPendingStore persists pending approvals across daemon restarts.
 type ApprovalPendingStore interface {
 	CreateApproval(context.Context, string, ApprovalRequest, time.Time) (ApprovalStatus, error)
 	GetApproval(context.Context, string) (ApprovalStatus, error)
@@ -113,6 +128,7 @@ type ApprovalPendingStore interface {
 	ListPendingApprovals(context.Context) ([]ApprovalStatus, error)
 }
 
+// ApprovalDispatcher executes an approved target.
 type ApprovalDispatcher interface {
 	DispatchApproval(context.Context, ApprovalStatus) (json.RawMessage, error)
 }

@@ -18,6 +18,7 @@ import type { HandlerRegistry } from "./handler-registry.js";
 import { childNodes, firstChildNode, isHostNode } from "./host-types.js";
 import type { HostChild, HostNode } from "./host-types.js";
 import { serializeActions } from "./serialize-actions.js";
+import { isRecord, optionalString, requiredString } from "./serialization-utils.js";
 
 export interface SerializedView {
   payload: ViewPayload;
@@ -28,10 +29,12 @@ export function serializeView(children: HostChild[], registry: HandlerRegistry):
   const root = children.filter(isHostNode).find(node => !node.hidden);
   if (!root) throw new Error("a view program must render one root component");
   registry.beginFrame();
-  const payload = serializeRoot(root, registry);
-  const handlers = registry.activeIDs();
-  registry.endFrame();
-  return { payload, handlers };
+  try {
+    const payload = serializeRoot(root, registry);
+    return { payload, handlers: registry.activeIDs() };
+  } finally {
+    registry.endFrame();
+  }
 }
 
 function serializeRoot(root: HostNode, handlers: HandlerRegistry): ViewPayload {
@@ -130,7 +133,9 @@ function serializeGrid(root: HostNode, handlers: HandlerRegistry): ViewPayload {
     sections.unshift({ tiles: direct.map(item => serializeGridItem(item, handlers)) });
   }
   const grid: GridBody = { sections };
-  return { view: "v1", chrome: serializeChrome(root, handlers), grid };
+  const payload: ViewPayload = { view: "v1", chrome: serializeChrome(root, handlers), grid };
+  if (Array.isArray(root.props.chips)) payload.chips = root.props.chips as Chip[];
+  return payload;
 }
 
 function serializeGridItem(node: HostNode, handlers: HandlerRegistry): GridTile {
@@ -147,8 +152,11 @@ function serializeGridItem(node: HostNode, handlers: HandlerRegistry): GridTile 
 }
 
 function serializeForm(root: HostNode, handlers: HandlerRegistry): FormBody {
+  const validation = isRecord(root.props.validation) ? root.props.validation : {};
   const result: FormBody = {
-    fields: childNodes(root, "view-form-field").map(field => serializeFormField(field, handlers)),
+    fields: childNodes(root, "view-form-field").map(field =>
+      serializeFormField(field, handlers, validation)
+    ),
   };
   const submit = serializeActions(root, handlers).find(action => action.submit_form === true);
   const onSubmit = handlers.bind(root, "onSubmit", root.props.onSubmit);
@@ -157,14 +165,19 @@ function serializeForm(root: HostNode, handlers: HandlerRegistry): FormBody {
   return result;
 }
 
-function serializeFormField(node: HostNode, handlers: HandlerRegistry): FormField {
+function serializeFormField(
+  node: HostNode,
+  handlers: HandlerRegistry,
+  validation: Record<string, unknown>
+): FormField {
+  const id = requiredString(node.props.id, "form field id");
   const result: FormField = {
-    id: requiredString(node.props.id, "form field id"),
+    id,
     type: requiredString(node.props.type, "form field type"),
     label: requiredString(node.props.label, "form field label"),
   };
   const placeholder = optionalString(node.props.placeholder);
-  const error = optionalString(node.props.error);
+  const error = optionalString(validation[id]) ?? optionalString(node.props.error);
   if (placeholder) result.placeholder = placeholder;
   if (node.props.required === true) result.required = true;
   if (Array.isArray(node.props.options)) result.options = node.props.options as string[];
@@ -181,16 +194,18 @@ function serializeFormField(node: HostNode, handlers: HandlerRegistry): FormFiel
   const onBlur = handlers.bind(node, "onBlur", node.props.onBlur);
   if (onChange) result.on_change = onChange;
   if (onBlur) result.on_blur = onBlur;
+  const eventCount = handlers.eventCount(node, ["onChange"]);
+  if (eventCount > 0) result.event_count = eventCount;
   return result;
 }
 
 function serializeChrome(node: HostNode, handlers: HandlerRegistry): ViewChrome {
   const result: ViewChrome = {};
-  const searchText = optionalString(node.props.searchText);
+  const searchText = typeof node.props.searchText === "string" ? node.props.searchText : undefined;
   const placeholder = optionalString(node.props.searchBarPlaceholder);
   const activeChip = optionalString(node.props.activeChip);
   if (node.props.isLoading === true) result.is_loading = true;
-  if (searchText) result.search_text = searchText;
+  if (searchText !== undefined) result.search_text = searchText;
   if (placeholder) result.search_placeholder = placeholder;
   if (typeof node.props.throttle === "number") result.throttle_ms = node.props.throttle;
   else if (node.props.throttle === true) result.throttle_ms = 150;
@@ -213,6 +228,12 @@ function serializeChrome(node: HostNode, handlers: HandlerRegistry): ViewChrome 
   if (onSearch) result.on_search = onSearch;
   if (onChip) result.on_chip = onChip;
   if (onSelection) result.on_selection = onSelection;
+  const eventCount = handlers.eventCount(node, [
+    "onSearchTextChange",
+    "onChipToggle",
+    "onSelectionChange",
+  ]);
+  if (eventCount > 0) result.event_count = eventCount;
   return result;
 }
 
@@ -231,18 +252,4 @@ function parseImage(record: Record<string, unknown>): Image {
   if (token) return { token };
   if (emoji) return { emoji };
   throw new Error("grid item image requires url, token, or emoji");
-}
-
-function requiredString(value: unknown, field: string): string {
-  const result = optionalString(value);
-  if (!result) throw new Error(`${field} is required`);
-  return result;
-}
-
-function optionalString(value: unknown): string | undefined {
-  return typeof value === "string" && value.length > 0 ? value : undefined;
-}
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === "object" && value !== null && !Array.isArray(value);
 }

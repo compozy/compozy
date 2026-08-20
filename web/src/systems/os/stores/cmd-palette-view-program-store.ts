@@ -66,8 +66,19 @@ export const cmdPaletteViewProgramLogic = createStoreLogic<
   on: {
     openStarted: (state, event) =>
       event.preserve && state.payload
-        ? { ...state, phase: "busy", pendingSeq: null, error: null }
-        : initialCmdPaletteViewProgramState(),
+        ? {
+            ...state,
+            phase: "busy",
+            pendingSeq: null,
+            error: null,
+            nextSeq: 0,
+            eventCount: 0,
+            acknowledgedEffects: [],
+            lastEvent: null,
+            activeHandlers: [],
+            quarantinedHandlers: {},
+          }
+        : { ...initialCmdPaletteViewProgramState(), openEpoch: state.openEpoch },
     openSucceeded: (state, event) => acceptFrame(state, event.frame, true),
     openFailed: (state, event) => ({ ...state, phase: "unavailable", error: event.error }),
     eventSent: (state, event) => {
@@ -178,7 +189,18 @@ function acceptFrame(
   frame: CmdPaletteViewFrame,
   opening: boolean
 ): CmdPaletteViewProgramState {
-  if (!opening && state.frame && frame.revision === state.frame.revision) return state;
+  if (!opening && state.frame) {
+    if (frame.view_session !== state.frame.view_session) return state;
+    if (frame.generation < state.frame.generation) return state;
+    if (frame.revision === state.frame.revision) return state;
+    if (frame.patch && frame.patch.from !== state.frame.revision) {
+      return {
+        ...state,
+        phase: "unavailable",
+        error: "The view sent a stale patch.",
+      };
+    }
+  }
   let payload: CmdPaletteViewPayload;
   try {
     payload = payloadFromProgramFrame(state.payload, frame);
@@ -194,17 +216,13 @@ function acceptFrame(
     state.quarantinedHandlers,
     frame.handlers
   );
-  const resolvesPending =
-    state.pendingSeq !== null &&
-    frame.in_reply_to !== undefined &&
-    frame.in_reply_to >= state.pendingSeq;
   return {
     ...state,
     phase: "ready",
     frame,
     payload,
-    pendingSeq: resolvesPending || opening ? null : state.pendingSeq,
-    misses: resolvesPending || opening ? 0 : state.misses,
+    pendingSeq: null,
+    misses: 0,
     error: null,
     activeHandlers: [...frame.handlers],
     quarantinedHandlers: quarantine,

@@ -43,9 +43,10 @@ type CmdPaletteInvokeRequest struct {
 }
 
 type CmdPaletteInvokeResult struct {
-	Status     cmdpalette.InvokeStatus `json:"status"`
-	Result     json.RawMessage         `json:"result,omitempty"`
-	ApprovalID string                  `json:"approval_id,omitempty"`
+	Status       cmdpalette.InvokeStatus `json:"status"`
+	Result       json.RawMessage         `json:"result,omitempty"`
+	ApprovalID   string                  `json:"approval_id,omitempty"`
+	InvocationID string                  `json:"invocation_id"`
 }
 
 type CmdPaletteClient struct {
@@ -214,6 +215,13 @@ func CmdPalettePersonalizationFromDomain(
 		Workspace: summary.Workspace, Pins: append([]cmdpalette.CommandID{}, summary.Pins...),
 		Recents: summary.Recents, FrecencyEntries: summary.FrecencyEntries,
 		QueryAssociations: summary.QueryAssociations,
+	}
+}
+
+func CmdPaletteInvokeFromDomain(result cmdpalette.InvokeResult) CmdPaletteInvokeResult {
+	return CmdPaletteInvokeResult{
+		Status: result.Status, Result: append(json.RawMessage(nil), result.Result...),
+		ApprovalID: result.ApprovalID, InvocationID: result.InvocationID,
 	}
 }
 

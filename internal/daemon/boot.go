@@ -116,6 +116,7 @@ type bootState struct {
 	toolApprovals         toolspkg.ApprovalTokenIssuer
 	approvalCoordinator   toolspkg.ApprovalCoordinator
 	cmdPalette            cmdpalette.Registry
+	viewPatches           *extensionCmdPaletteProvider
 	clarify               *clarifyBridge
 	attentionMuteMutator  attentionWorkspaceMuteMutator
 	observer              Observer

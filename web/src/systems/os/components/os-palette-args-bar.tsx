@@ -1,6 +1,6 @@
 import { useRef, type KeyboardEvent } from "react";
 
-import { Input, KindIcon, cn } from "@compozy/ui";
+import { Checkbox, Input, KindIcon, cn } from "@compozy/ui";
 
 import type { PaletteArgField, PaletteArgsState } from "../lib/cmd-palette-args";
 import {
@@ -17,8 +17,8 @@ const FIELD_CLASS =
 interface PaletteArgFieldRowProps {
   field: PaletteArgField;
   focused: boolean;
-  /** Hands the input node up so a blocked submit can focus it. */
-  registerNode: (node: HTMLInputElement | null) => void;
+  /** Hands the field node up so a blocked submit can focus it. */
+  registerNode: (node: HTMLElement | null) => void;
   onChange: (name: string, value: string) => void;
   onSubmit: () => void;
 }
@@ -43,6 +43,18 @@ function PaletteArgFieldRow({
           registerNode={registerNode}
           onChange={value => onChange(field.name, value)}
           onSubmit={onSubmit}
+        />
+      ) : field.type === "checkbox" ? (
+        <Checkbox
+          ref={registerNode}
+          aria-describedby={field.error === "" ? undefined : `os-palette-arg-error-${field.name}`}
+          aria-invalid={field.error !== "" ? true : undefined}
+          autoFocus={focused}
+          checked={["true", "yes", "1", "on"].includes(field.value.trim().toLowerCase())}
+          className={cn(field.error !== "" && "border-danger")}
+          data-testid={`os-palette-arg-${field.name}`}
+          id={`os-palette-arg-${field.name}`}
+          onCheckedChange={checked => onChange(field.name, checked ? "true" : "false")}
         />
       ) : (
         <Input
@@ -93,7 +105,7 @@ export interface PaletteArgsBarProps {
  */
 export function PaletteArgsBar({ state, onChange, onSubmit }: PaletteArgsBarProps) {
   const emoji = isEmojiIcon(state.icon);
-  const fieldNodes = useRef(new Map<string, HTMLInputElement>());
+  const fieldNodes = useRef(new Map<string, HTMLElement>());
   const firstField = state.fields[0]?.name ?? null;
   /*
    * A blocked submit moves focus to the field that stopped it, every time —

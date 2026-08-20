@@ -1,6 +1,7 @@
 import { z } from "zod";
 
 import { windowManagerWorkspaceConfigSchema } from "./window-manager-config-schema";
+import { globalShortcutRegistrationSchema } from "./window-manager-global-shortcut-schema";
 import type {
   LayoutDesktop,
   LayoutNode,
@@ -13,6 +14,7 @@ import type {
   WindowManagerDiagnosticPayload,
   WindowManagerErrorPayload,
   WindowManagerEvent,
+  WindowManagerRegisteredClientView,
   WindowManagerReturnAnchor,
   WindowManagerSnapshot,
   WindowManagerWindow,
@@ -309,16 +311,7 @@ export const windowManagerClientViewSchema = z
     }),
     connected_at: timestampSchema,
     attachment_token: identifierSchema.optional(),
-    global_shortcuts: z.array(
-      z.strictObject({
-        command_id: identifierSchema,
-        intended_chord: identifierSchema,
-        active_chord: identifierSchema.optional(),
-        status: z.enum(["registered", "failed_in_use", "failed_permission", "unsupported"]),
-        reason: z.string().optional(),
-        settings_url: z.string().optional(),
-      })
-    ),
+    global_shortcuts: z.array(globalShortcutRegistrationSchema),
   })
   .transform(
     (client): WindowManagerAttachedClientView => ({
@@ -343,7 +336,6 @@ export const windowManagerClientViewSchema = z
         destinationIntent: client.palette_context.destination_intent ?? null,
       },
       connectedAt: client.connected_at,
-      attachmentToken: client.attachment_token ?? null,
       globalShortcuts: client.global_shortcuts.map(registration => ({
         commandId: registration.command_id,
         intendedChord: registration.intended_chord,
@@ -445,6 +437,17 @@ export function parseWindowManagerSnapshot(value: unknown): WindowManagerSnapsho
 
 export function parseWindowManagerClientView(value: unknown): WindowManagerAttachedClientView {
   return windowManagerClientViewSchema.parse(value);
+}
+
+export function parseWindowManagerRegisteredClientView(
+  value: unknown
+): WindowManagerRegisteredClientView {
+  const client = parseWindowManagerClientView(value);
+  const parsedToken = z.object({ attachment_token: identifierSchema }).safeParse(value);
+  if (!parsedToken.success) {
+    throw new Error("Window-manager registration omitted attachment_token.");
+  }
+  return { ...client, attachmentToken: parsedToken.data.attachment_token };
 }
 
 export function parseWindowManagerCommandResult(value: unknown): WindowManagerCommandResult {

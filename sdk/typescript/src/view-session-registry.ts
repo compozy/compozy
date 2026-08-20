@@ -17,22 +17,23 @@ export class ViewSessionRegistry {
   }
 
   public require(viewSession: string): ViewOpenRequest {
-    const entry = this.sessions.get(viewSession);
-    if (!entry) {
-      throw new InvalidParamsError(`view session is not open: ${viewSession}`);
-    }
-    return entry.request;
+    return this.requireEntry(viewSession).request;
   }
 
   public admitGeneration(viewSession: string, generation: number): void {
-    const entry = this.sessions.get(viewSession);
-    if (!entry) {
-      throw new InvalidParamsError(`view session is not open: ${viewSession}`);
-    }
+    const entry = this.requireEntry(viewSession);
     if (!Number.isSafeInteger(generation) || generation <= entry.generation) {
       throw new InvalidParamsError(`view generation must increase for ${viewSession}`);
     }
     entry.generation = generation;
+  }
+
+  private requireEntry(viewSession: string): ViewSessionEntry {
+    const entry = this.sessions.get(viewSession);
+    if (!entry) {
+      throw new InvalidParamsError(`view session is not open: ${viewSession}`);
+    }
+    return entry;
   }
 
   public close(viewSession: string): boolean {

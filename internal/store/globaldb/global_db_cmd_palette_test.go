@@ -1,7 +1,6 @@
 package globaldb
 
 import (
-	"context"
 	"path/filepath"
 	"sync"
 	"testing"
@@ -28,7 +27,7 @@ func TestGlobalDBCmdPalettePersonalization(t *testing.T) {
 			}, cmdpalette.WeightsV1); err != nil {
 				t.Fatalf("RecordCmdPaletteUsage(%q) error = %v", workspaceID, err)
 			}
-			if err := database.PutCmdPalettePin(ctx, workspaceID, "session.new", time.Time{}); err != nil {
+			if err := database.PutCmdPalettePin(ctx, workspaceID, "session.new", usedAt); err != nil {
 				t.Fatalf("PutCmdPalettePin(%q) error = %v", workspaceID, err)
 			}
 			if err := database.PutCmdPalettePin(ctx, workspaceID, "session.new", usedAt.Add(time.Hour)); err != nil {
@@ -46,8 +45,8 @@ func TestGlobalDBCmdPalettePersonalization(t *testing.T) {
 		if len(rows.QueryHits) != 1 || rows.QueryHits[0].Query != "sessao nova" {
 			t.Fatalf("query rows = %#v, want normalized pre-selection query", rows.QueryHits)
 		}
-		if len(rows.Pins) != 1 || rows.Pins[0].PinnedAt < 0 {
-			t.Fatalf("pin rows = %#v, want one valid idempotent pin", rows.Pins)
+		if len(rows.Pins) != 1 || rows.Pins[0].PinnedAt != usedAt.UnixMilli() {
+			t.Fatalf("pin rows = %#v, want original timestamp %d", rows.Pins, usedAt.UnixMilli())
 		}
 		other, err := database.CmdPalettePersonalization(ctx, "workspace-b")
 		if err != nil {
@@ -61,6 +60,7 @@ func TestGlobalDBCmdPalettePersonalization(t *testing.T) {
 	t.Run("Should serialize concurrent usage increments without losing writes", func(t *testing.T) {
 		t.Parallel()
 		database := openTestGlobalDB(t)
+		ctx := testutil.Context(t)
 		const writes = 12
 		errorsByWrite := make(chan error, writes)
 		var group sync.WaitGroup
@@ -69,7 +69,7 @@ func TestGlobalDBCmdPalettePersonalization(t *testing.T) {
 			go func() {
 				defer group.Done()
 				errorsByWrite <- database.RecordCmdPaletteUsage(
-					context.Background(),
+					ctx,
 					cmdpalette.Usage{
 						WorkspaceID: "workspace-race",
 						CommandID:   "session.new",
@@ -88,7 +88,7 @@ func TestGlobalDBCmdPalettePersonalization(t *testing.T) {
 			}
 		}
 
-		rows, err := database.CmdPalettePersonalization(testutil.Context(t), "workspace-race")
+		rows, err := database.CmdPalettePersonalization(ctx, "workspace-race")
 		if err != nil {
 			t.Fatalf("CmdPalettePersonalization() error = %v", err)
 		}
@@ -97,6 +97,34 @@ func TestGlobalDBCmdPalettePersonalization(t *testing.T) {
 		}
 		if len(rows.QueryHits) != 1 || rows.QueryHits[0].Weight <= 1 {
 			t.Fatalf("query rows = %#v, want accumulated query weight", rows.QueryHits)
+		}
+	})
+
+	t.Run("Should persist trimmed pin identities", func(t *testing.T) {
+		t.Parallel()
+		database := openTestGlobalDB(t)
+		ctx := testutil.Context(t)
+		usedAt := time.Date(2026, 8, 19, 12, 0, 0, 0, time.UTC)
+		if err := database.PutCmdPalettePin(ctx, " workspace-trim ", " session.new ", usedAt); err != nil {
+			t.Fatalf("PutCmdPalettePin(padded) error = %v", err)
+		}
+		rows, err := database.CmdPalettePersonalization(ctx, "workspace-trim")
+		if err != nil {
+			t.Fatalf("CmdPalettePersonalization() error = %v", err)
+		}
+		if len(rows.Pins) != 1 || rows.Pins[0].CommandID != "session.new" ||
+			rows.Pins[0].PinnedAt != usedAt.UnixMilli() {
+			t.Fatalf("pin rows = %#v, want trimmed identity", rows.Pins)
+		}
+		if err := database.DeleteCmdPalettePin(ctx, " workspace-trim ", " session.new "); err != nil {
+			t.Fatalf("DeleteCmdPalettePin(padded) error = %v", err)
+		}
+		rows, err = database.CmdPalettePersonalization(ctx, "workspace-trim")
+		if err != nil {
+			t.Fatalf("CmdPalettePersonalization(after delete) error = %v", err)
+		}
+		if len(rows.Pins) != 0 {
+			t.Fatalf("pin rows after delete = %#v, want empty", rows.Pins)
 		}
 	})
 

@@ -3,12 +3,12 @@ import { useEffect, useSyncExternalStore } from "react";
 
 import { getSessionDisplayTitle, useSessions, useWorkspaceSessionGroups } from "@/systems/session";
 import {
-  selectWorktreeForScope,
   sortWorktreeNestEntries,
   toWorktreeNestEntries,
   useScopedWorktreeFilter,
   useWorktreeListings,
   useWorktrees,
+  type WorkspaceScopeMode,
   type WorktreeNestEntry,
 } from "@/systems/workspace";
 
@@ -21,6 +21,7 @@ import {
   windowSlotRegistryVersion,
   windowSlotSnapshot,
 } from "../lib/window-slot-registry";
+import { applyPaletteWorktreeSelection } from "../lib/os-palette-worktree-selection";
 import { useDesktop } from "./use-desktop";
 import { useFocusedWorktreeScopeId } from "./use-worktree-scope";
 import type { CmdPaletteRankSignals } from "../lib/cmd-palette-types";
@@ -47,10 +48,13 @@ export interface OsPaletteSessionResult {
 
 export interface OsPaletteEntities {
   readonly sessions: readonly OsPaletteSessionResult[];
+  readonly sessionTotal: number;
   /** Every open tab across windows and desktops (US-021); empty hides the group. */
   readonly tabs: readonly OsPaletteTabResult[];
+  readonly tabTotal: number;
   /** Ready worktrees only: scoping is the sole action, and a pending entry cannot receive work. */
   readonly worktrees: readonly OsPaletteWorktreeResult[];
+  readonly worktreeTotal: number;
   selectWorktree(entry: OsPaletteWorktreeResult): void;
 }
 
@@ -63,7 +67,7 @@ export interface UseOsPaletteEntitiesOptions {
   readonly open: boolean;
   readonly activeWorkspaceId: string | null;
   readonly runtimeWorkspaceId: string | null;
-  readonly scope: "workspace" | "global";
+  readonly scope: WorkspaceScopeMode;
   /** The empty tab being replaced, so it never offers itself as a destination. */
   readonly destinationWindowId: string | null;
   readonly destination: boolean;
@@ -79,21 +83,26 @@ function rankEntityRows<T>(
   query: string,
   signals: CmdPaletteRankSignals | null,
   keepEmptyQuery: boolean
-): readonly T[] {
+): { rows: readonly T[]; total: number } {
   if (signals === null) {
     const needle = normalizeRankingText(query).text;
-    if (needle === "") return rows;
-    return rows.filter(row => {
-      const identity = identify(row);
-      return [identity.id, identity.label, ...(identity.keywords ?? [])].some(value =>
-        normalizeRankingText(value).text.includes(needle)
-      );
-    });
+    const matched =
+      needle === ""
+        ? rows
+        : rows.filter(row => {
+            const identity = identify(row);
+            return [identity.id, identity.label, ...(identity.keywords ?? [])].some(value =>
+              normalizeRankingText(value).text.includes(needle)
+            );
+          });
+    return { rows: matched, total: matched.length };
   }
   const normalizedLength = query.trim().normalize("NFKD").length;
-  if (normalizedLength < signals.weights.min_entity_query_length) return keepEmptyQuery ? rows : [];
-  if (normalizedLength > signals.weights.max_query_length) return [];
-  return rankCandidates(
+  if (normalizedLength < signals.weights.min_entity_query_length) {
+    return keepEmptyQuery ? { rows, total: rows.length } : { rows: [], total: 0 };
+  }
+  if (normalizedLength > signals.weights.max_query_length) return { rows: [], total: 0 };
+  const ranked = rankCandidates(
     query,
     rows.map(row => {
       const identity = identify(row);
@@ -108,9 +117,13 @@ function rankEntityRows<T>(
       };
     }),
     signals
-  )
-    .slice(0, signals.weights.entity_section_visible_cap)
-    .map(candidate => candidate.candidate.row);
+  );
+  return {
+    rows: ranked
+      .slice(0, signals.weights.entity_section_visible_cap)
+      .map(candidate => candidate.candidate.row),
+    total: ranked.length,
+  };
 }
 
 /**
@@ -246,35 +259,43 @@ export function useOsPaletteEntities({
       )
     );
   }
+  const rankedSessions = rankEntityRows(
+    sessionRows,
+    row => ({ id: row.sessionId, label: row.title, keywords: [row.agentName] }),
+    "Sessions",
+    query,
+    signals,
+    destination
+  );
+  const rankedTabs = rankEntityRows(
+    tabs,
+    row => ({ id: row.windowId, label: row.label, keywords: [row.desktopName] }),
+    "Tabs",
+    query,
+    signals,
+    false
+  );
+  const rankedWorktrees = rankEntityRows(
+    worktrees,
+    row => ({ id: row.key, label: row.name, keywords: [row.branch] }),
+    "Worktrees",
+    query,
+    signals,
+    false
+  );
   return {
-    sessions: rankEntityRows(
-      sessionRows,
-      row => ({ id: row.sessionId, label: row.title, keywords: [row.agentName] }),
-      "Sessions",
-      query,
-      signals,
-      destination
-    ),
-    tabs: rankEntityRows(
-      tabs,
-      row => ({ id: row.windowId, label: row.label, keywords: [row.desktopName] }),
-      "Tabs",
-      query,
-      signals,
-      false
-    ),
-    worktrees: rankEntityRows(
-      worktrees,
-      row => ({ id: row.key, label: row.name, keywords: [row.branch] }),
-      "Worktrees",
-      query,
-      signals,
-      false
-    ),
-    selectWorktree: entry => {
-      const targetWorkspaceId = entry.workspaceId ?? activeWorkspaceId;
-      if (!entry.worktree || targetWorkspaceId === null) return;
-      selectWorktreeForScope(worktreeScopeId, targetWorkspaceId, entry.worktree.id);
-    },
+    sessions: rankedSessions.rows,
+    sessionTotal: rankedSessions.total,
+    tabs: rankedTabs.rows,
+    tabTotal: rankedTabs.total,
+    worktrees: rankedWorktrees.rows,
+    worktreeTotal: rankedWorktrees.total,
+    selectWorktree: entry =>
+      applyPaletteWorktreeSelection({
+        scope,
+        worktreeScopeId,
+        activeWorkspaceId,
+        entry,
+      }),
   };
 }

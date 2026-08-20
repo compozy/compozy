@@ -12,17 +12,23 @@ import { ViewRuntimeContext } from "./runtime-context.js";
 import type { ViewRuntime } from "./runtime-context.js";
 import { serializeView } from "./serializer.js";
 
+const CONTROLLED_HANDLER_PROPERTIES = new Set([
+  "onSearchTextChange",
+  "onChipToggle",
+  "onSelectionChange",
+  "onChange",
+]);
+
 export interface ViewRendererOptions extends HandlerRegistryOptions {
   viewSession: string;
   viewID: string;
   signal: AbortSignal;
   publish: (frame: ViewFrame) => Promise<void> | void;
-  scheduleFrame?: (callback: () => void) => unknown;
+  scheduleFrame?: (callback: () => void) => void;
 }
 
 interface ViewStackEntry {
   readonly container: HostContainer;
-  readonly element: ReactElement;
   readonly root: ViewRoot;
 }
 
@@ -33,10 +39,12 @@ export class ViewRenderer {
   private readonly runtime: ViewRuntime;
   private readonly sessionController = new AbortController();
   private readonly abortFromOwner: () => void;
-  private readonly scheduleFrame: (callback: () => void) => unknown;
+  private readonly scheduleFrame: (callback: () => void) => void;
   private scheduled = false;
   private opened = false;
   private closed = false;
+  private allowUnsolicitedPublish = true;
+  private invokeSignal: AbortSignal | undefined;
   private revision = 0;
   private generation = 0;
   private previousPayloadJSON = "";
@@ -55,6 +63,9 @@ export class ViewRenderer {
         popToRoot: () => this.popToRoot(),
       },
       enqueueEffect: effect => {
+        if (this.closed || this.sessionController.signal.aborted) return;
+        if (this.invokeSignal?.aborted) return;
+        if (!this.allowUnsolicitedPublish && this.invokeSignal === undefined) return;
         this.effects.push(effect);
         this.onCommit();
       },
@@ -79,13 +90,39 @@ export class ViewRenderer {
     signal: AbortSignal
   ): Promise<ViewFrame | undefined> {
     this.assertOpen();
-    this.generation = generation;
-    const operation = runViewSync(() =>
-      this.handlers.invoke(handler, args, { ...this.runtime, signal })
-    );
-    await operation;
-    flushViewWork();
-    return this.flushFrame(inReplyTo, generation, false);
+    const eventGeneration = generation;
+    this.allowUnsolicitedPublish = false;
+    this.invokeSignal = signal;
+    const property = this.handlers.property(handler);
+    const eventCount = args.at(-1);
+    if (
+      property &&
+      CONTROLLED_HANDLER_PROPERTIES.has(property) &&
+      typeof eventCount === "number" &&
+      Number.isSafeInteger(eventCount) &&
+      eventCount >= 0
+    ) {
+      this.handlers.recordEventCount(handler, eventCount);
+    }
+    try {
+      if (signal.aborted) return undefined;
+      const operation = runViewSync(() =>
+        this.handlers.invoke(handler, args, { ...this.runtime, signal })
+      );
+      await operation;
+      flushViewWork();
+      if (signal.aborted || this.closed) return undefined;
+      this.generation = eventGeneration;
+      return this.flushFrame(inReplyTo, eventGeneration, false);
+    } catch (error) {
+      if (signal.aborted || this.closed) return undefined;
+      throw error;
+    } finally {
+      this.invokeSignal = undefined;
+      if (!signal.aborted && !this.closed) {
+        this.allowUnsolicitedPublish = true;
+      }
+    }
   }
 
   public close(): void {
@@ -147,7 +184,7 @@ export class ViewRenderer {
       () => undefined,
       null
     );
-    entry = { container, element, root };
+    entry = { container, root };
     updateViewContainer(createElement(ViewRuntimeContext, { value: this.runtime }, element), root);
     return entry;
   }
@@ -156,13 +193,27 @@ export class ViewRenderer {
     if (!this.opened || this.closed || this.scheduled) {
       return;
     }
+    if (!this.allowUnsolicitedPublish) {
+      return;
+    }
+    if (this.invokeSignal?.aborted) {
+      return;
+    }
     this.scheduled = true;
+    const generation = this.generation;
+    const signal = this.invokeSignal;
     this.scheduleFrame(() => {
       this.scheduled = false;
       if (this.closed) {
         return;
       }
-      const frame = this.flushFrame(0, this.generation, false);
+      if (signal?.aborted || this.invokeSignal?.aborted) {
+        return;
+      }
+      if (generation !== this.generation) {
+        return;
+      }
+      const frame = this.flushFrame(0, generation, false);
       if (frame) {
         void Promise.resolve(this.options.publish(frame)).catch(error => {
           this.options.diagnostics?.warn(`view frame publish failed: ${String(error)}`);

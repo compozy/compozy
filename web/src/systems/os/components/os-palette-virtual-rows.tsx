@@ -1,13 +1,12 @@
-import { useRef } from "react";
+import { useLayoutEffect, useRef } from "react";
 
 import { CommandItem, CommandList } from "@compozy/ui";
-import { useVirtualizer } from "@tanstack/react-virtual";
 
 import type { PaletteViewRow } from "../lib/palette-view-registry";
 import { paletteViewItemClass } from "../lib/palette-view-inset";
 
+export const PALETTE_VIEW_VIRTUAL_THRESHOLD = 150;
 const ROW_ESTIMATE = 48;
-const ROW_OVERSCAN = 8;
 
 export function OsPaletteVirtualRows({
   className,
@@ -18,46 +17,50 @@ export function OsPaletteVirtualRows({
   note: React.ReactNode;
   rows: readonly PaletteViewRow[];
 }) {
-  "use no memo";
-
   const viewportRef = useRef<HTMLDivElement | null>(null);
-  // oxlint-disable-next-line react/incompatible-library -- virtualizer state is isolated inside this compiler boundary.
-  const virtualizer = useVirtualizer<HTMLDivElement, HTMLDivElement>({
-    count: rows.length,
-    getScrollElement: () => viewportRef.current,
-    getItemKey: index => rows[index]?.value ?? index,
-    estimateSize: () => ROW_ESTIMATE,
-    overscan: ROW_OVERSCAN,
-    useFlushSync: false,
-  });
+  useLayoutEffect(() => {
+    const viewport = viewportRef.current;
+    if (!viewport) return;
+    const root =
+      viewport.closest("[data-testid='os-command-palette']") ??
+      viewport.closest("[data-slot='command']");
+    if (!root) return;
+    const sync = () => {
+      root
+        .querySelector<HTMLElement>("[data-slot='command-item'][data-selected='true']")
+        ?.scrollIntoView({ block: "nearest" });
+    };
+    const observer = new MutationObserver(sync);
+    observer.observe(root, {
+      subtree: true,
+      attributes: true,
+      attributeFilter: ["data-selected"],
+    });
+    sync();
+    return () => observer.disconnect();
+  }, [rows]);
   return (
-    <CommandList ref={viewportRef} className={className}>
-      <div className="relative w-full" style={{ height: virtualizer.getTotalSize() }}>
-        {virtualizer.getVirtualItems().map(item => {
-          const row = rows[item.index];
-          if (!row) return null;
-          return (
-            <div
-              key={row.value}
-              ref={virtualizer.measureElement}
-              className="absolute top-0 left-0 w-full"
-              data-index={item.index}
-              style={{ transform: `translateY(${item.start}px)` }}
-            >
-              <CommandItem
-                className={paletteViewItemClass}
-                forceMount
-                value={row.value}
-                data-testid={row.testId}
-                disabled={row.disabled}
-                onSelect={row.onSelect}
-              >
-                {row.node}
-              </CommandItem>
-            </div>
-          );
-        })}
-      </div>
+    <CommandList ref={viewportRef} className={className} data-virtualized="true">
+      {rows.map(row => (
+        <div
+          key={row.value}
+          style={{
+            contentVisibility: "auto",
+            containIntrinsicSize: `0 ${ROW_ESTIMATE}px`,
+          }}
+        >
+          <CommandItem
+            className={paletteViewItemClass}
+            forceMount
+            value={row.value}
+            data-testid={row.testId}
+            disabled={row.disabled}
+            onSelect={row.onSelect}
+          >
+            {row.node}
+          </CommandItem>
+        </div>
+      ))}
       {note}
     </CommandList>
   );

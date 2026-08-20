@@ -89,8 +89,8 @@ export const windowManagerStreamFrameSchema = rawWindowManagerStreamFrameSchema.
     if (frame.type === "client_command") {
       return {
         type: frame.type,
+        workspaceId: frame.workspace_id,
         command: {
-          workspaceId: frame.workspace_id,
           commandId: frame.command_id,
           op: frame.op,
           payload: frame.payload ?? null,

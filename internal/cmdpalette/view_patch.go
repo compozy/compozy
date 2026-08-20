@@ -69,6 +69,7 @@ func ApplyViewPatch(
 	return validated, patch.To, false, nil
 }
 
+// ValidateViewPatch checks revision identity, size, and RFC 6902 operation shape.
 func ValidateViewPatch(patch ViewPatch) error {
 	if strings.TrimSpace(patch.ViewID) == "" {
 		return viewValidationError("view_id", "is required")
@@ -311,9 +312,24 @@ func patchArrayIndex(segment string, length int, allowAppend bool) (int, error) 
 	if allowAppend && segment == "-" {
 		return length, nil
 	}
+	if !rfc6902ArrayIndex(segment) {
+		return 0, fmt.Errorf("invalid array index %q", segment)
+	}
 	index, err := strconv.Atoi(segment)
 	if err != nil || index < 0 || index > length || (!allowAppend && index == length) {
 		return 0, fmt.Errorf("invalid array index %q", segment)
 	}
 	return index, nil
+}
+
+func rfc6902ArrayIndex(segment string) bool {
+	if segment == "" {
+		return false
+	}
+	for _, character := range segment {
+		if character < '0' || character > '9' {
+			return false
+		}
+	}
+	return len(segment) == 1 || segment[0] != '0'
 }

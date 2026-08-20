@@ -22,7 +22,7 @@ export const windowManagerKeys = {
     [
       ...windowManagerKeys.configs(),
       windowManagerScopeKey(workspaceId),
-      clientId?.trim() || "no-client",
+      clientId?.trim() || null,
     ] as const,
   snapshots: () => [...windowManagerKeys.all, "snapshot"] as const,
   snapshot: (workspaceId: string) =>

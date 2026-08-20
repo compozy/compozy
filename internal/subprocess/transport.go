@@ -106,10 +106,11 @@ type transport struct {
 	handlersMu sync.RWMutex
 	handlers   map[string]HandlerFunc
 
-	pendingMu sync.Mutex
-	pending   map[string]chan callResult
-	inboundMu sync.Mutex
-	inbound   map[string]context.CancelFunc
+	pendingMu  sync.Mutex
+	pending    map[string]chan callResult
+	inboundMu  sync.Mutex
+	inbound    map[string]inboundCancel
+	inboundSeq atomic.Uint64
 
 	writeMu   sync.Mutex
 	handlerWG sync.WaitGroup
@@ -161,7 +162,7 @@ func newTransport(process *Process, maxMessageBytes int) *transport {
 		maxMessageBytes: maxMessageBytes,
 		handlers:        make(map[string]HandlerFunc),
 		pending:         make(map[string]chan callResult),
-		inbound:         make(map[string]context.CancelFunc),
+		inbound:         make(map[string]inboundCancel),
 		readerDone:      make(chan struct{}),
 	}
 }

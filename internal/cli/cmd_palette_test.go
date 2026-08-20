@@ -160,6 +160,26 @@ func TestCmdPaletteCommands(t *testing.T) {
 		}
 	})
 
+	t.Run("Should list available and unavailable commands when --available is omitted", func(t *testing.T) {
+		t.Parallel()
+		client := newClient()
+		stdout, _, err := executeRootCommand(
+			t,
+			newTestDeps(t, client),
+			"cmd-palette", "list", "--workspace", "workspace-1", "-o", "json",
+		)
+		if err != nil {
+			t.Fatalf("cmd-palette list error = %v", err)
+		}
+		var commands []contract.CmdPaletteCommand
+		if err := json.Unmarshal([]byte(stdout), &commands); err != nil {
+			t.Fatalf("json.Unmarshal(list output) error = %v", err)
+		}
+		if len(commands) != 3 {
+			t.Fatalf("commands = %#v, want the full catalog when --available is omitted", commands)
+		}
+	})
+
 	t.Run("Should parse typed arguments and return pending approval", func(t *testing.T) {
 		t.Parallel()
 		client := newClient()
@@ -295,6 +315,40 @@ func TestCmdPaletteCommands(t *testing.T) {
 		}
 	})
 
+	t.Run("Should name the unbound owner when overwrite chords differ only by modifier order", func(t *testing.T) {
+		t.Parallel()
+		client := newClient()
+		client.bindings = contract.SettingsWindowManagerResponse{
+			Config: contract.SettingsWindowManagerConfigPayload{
+				Shortcuts: map[string]windowmanager.ShortcutBinding{},
+			},
+			EffectiveShortcuts: map[string]windowmanager.ShortcutBinding{
+				"session.new": {"shift+meta+KeyN"},
+			},
+		}
+		client.bindingsResult = contract.SettingsWindowManagerResponse{
+			EffectiveShortcuts: map[string]windowmanager.ShortcutBinding{
+				"ext.notes.capture": {"meta+shift+KeyN"},
+			},
+		}
+		stdout, _, err := executeRootCommand(
+			t,
+			newTestDeps(t, client),
+			"cmd-palette", "bind", "ext.notes.capture", "meta+shift+KeyN",
+			"--overwrite", "--workspace", "workspace-1", "-o", "json",
+		)
+		if err != nil {
+			t.Fatalf("cmd-palette bind overwrite error = %v", err)
+		}
+		var result cmdPaletteBindingMutationResult
+		if err := json.Unmarshal([]byte(stdout), &result); err != nil {
+			t.Fatalf("json.Unmarshal(bind output) error = %v", err)
+		}
+		if result.UnboundOwner != "session.new" {
+			t.Fatalf("unbound owner = %q, want session.new", result.UnboundOwner)
+		}
+	})
+
 	t.Run("Should bind with explicit overwrite and name the unbound owner", func(t *testing.T) {
 		t.Parallel()
 		client := newClient()
@@ -388,6 +442,82 @@ func TestCmdPaletteCommands(t *testing.T) {
 		}
 		if _, exists := (*client.bindingsUpdate.GlobalShortcuts)["session.new"]; exists {
 			t.Fatal("global unbind request retained session.new")
+		}
+	})
+
+	t.Run("Should serialize bind and invoke failures as structured JSON errors", func(t *testing.T) {
+		t.Parallel()
+		client := newClient()
+		client.bindings.Config.Shortcuts = map[string]windowmanager.ShortcutBinding{}
+		client.bindingsErr = &cmdPaletteMutationAPIError{
+			statusCode: http.StatusConflict,
+			payload: contract.SettingsWindowManagerMutationError{
+				Error: "shortcut_conflict", Owner: "session.new", Chord: "meta+shift+KeyN",
+			},
+		}
+		exitCode, _, stderr := executeRootCommandWithExit(
+			t,
+			newTestDeps(t, client),
+			"cmd-palette", "bind", "ext.notes.capture", "meta+shift+KeyN",
+			"--workspace", "workspace-1", "-o", "json",
+		)
+		if exitCode != 1 {
+			t.Fatalf("bind JSON error exit = %d, want 1", exitCode)
+		}
+		var bindPayload contract.ErrorPayload
+		if err := json.Unmarshal([]byte(strings.TrimSpace(stderr)), &bindPayload); err != nil {
+			t.Fatalf("json.Unmarshal(bind error) error = %v stderr=%q", err, stderr)
+		}
+		if bindPayload.Code != "shortcut_conflict" || bindPayload.Details["owner"] != "session.new" {
+			t.Fatalf("bind error payload = %#v, want shortcut_conflict owner", bindPayload)
+		}
+
+		invokeClient := newClient()
+		invokeClient.commands.Commands = []contract.CmdPaletteCommand{{
+			ID:        "ext.notes.capture",
+			Arguments: []cmdpalette.Argument{{Name: "title", Type: cmdpalette.ArgumentTypeText, Required: true}},
+		}}
+		invokeClient.invokeErr = &cmdPaletteAPIError{
+			statusCode: http.StatusUnprocessableEntity,
+			status:     "422 Unprocessable Entity",
+			payload: contract.CmdPaletteError{
+				Error: "invalid_arguments", Fields: map[string]string{"title": "required"},
+			},
+		}
+		exitCode, _, stderr = executeRootCommandWithExit(
+			t,
+			newTestDeps(t, invokeClient),
+			"cmd-palette", "invoke", "ext.notes.capture", "--workspace", "workspace-1", "-o", "json",
+		)
+		if exitCode != 2 {
+			t.Fatalf("invoke JSON error exit = %d, want 2", exitCode)
+		}
+		var invokePayload contract.ErrorPayload
+		if err := json.Unmarshal([]byte(strings.TrimSpace(stderr)), &invokePayload); err != nil {
+			t.Fatalf("json.Unmarshal(invoke error) error = %v stderr=%q", err, stderr)
+		}
+		if invokePayload.Code != "invalid_arguments" || invokePayload.Details["title"] != "required" {
+			t.Fatalf("invoke error payload = %#v, want invalid_arguments title", invokePayload)
+		}
+	})
+
+	t.Run("Should reject an alias that contains surrounding whitespace", func(t *testing.T) {
+		t.Parallel()
+		client := newClient()
+		exitCode, _, stderr := executeRootCommandWithExit(
+			t,
+			newTestDeps(t, client),
+			"cmd-palette", "alias", "set", "ext.notes.capture", " cap ",
+			"--workspace", "workspace-1", "-o", "json",
+		)
+		if exitCode != 2 || client.bindingsUpdate.Aliases != nil {
+			t.Fatalf(
+				"whitespace alias = exit %d request %#v stderr %q, want exit 2 and no store",
+				exitCode, client.bindingsUpdate, stderr,
+			)
+		}
+		if !strings.Contains(stderr, "no whitespace") {
+			t.Fatalf("whitespace alias stderr = %q, want no whitespace", stderr)
 		}
 	})
 
@@ -533,6 +663,7 @@ func TestCmdPaletteCommands(t *testing.T) {
 	})
 
 	t.Run("Should resolve ID name path and nested cwd to one workspace [IT-032]", func(t *testing.T) {
+		t.Parallel()
 		client := newClient()
 		client.DaemonClient = &stubClient{
 			getWorkspaceFn: func(_ context.Context, ref string) (WorkspaceDetailRecord, error) {
@@ -577,7 +708,8 @@ func TestCmdPaletteCommands(t *testing.T) {
 				Arguments: []cmdpalette.Argument{{Name: "title", Type: cmdpalette.ArgumentTypeText, Required: true}},
 			}}
 			client.invokeResult = contract.CmdPaletteInvokeResult{
-				Status: cmdpalette.InvokeStatusOK, Result: json.RawMessage(`{"note_id":"note-a"}`),
+				Status: cmdpalette.InvokeStatusOK, InvocationID: "inv_cli",
+				Result: json.RawMessage(`{"note_id":"note-a"}`),
 			}
 			stdout, _, err := executeRootCommand(
 				t,
@@ -596,7 +728,8 @@ func TestCmdPaletteCommands(t *testing.T) {
 			if err := json.Unmarshal(output.Result, &result); err != nil {
 				t.Fatalf("json.Unmarshal(result) error = %v", err)
 			}
-			if output.Status != cmdpalette.InvokeStatusOK || result["note_id"] != "note-a" ||
+			if output.Status != cmdpalette.InvokeStatusOK || output.InvocationID != "inv_cli" ||
+				result["note_id"] != "note-a" ||
 				client.invokeRequest.Args["title"] != "Standup follow-ups" {
 				t.Fatalf("invoke output/request = %#v / %#v", output, client.invokeRequest)
 			}
@@ -662,10 +795,12 @@ func TestCmdPaletteCommands(t *testing.T) {
 
 func TestCmdPaletteInvokeError(t *testing.T) {
 	t.Parallel()
-
-	err := errors.New("transport failed")
-	var commandErr *commandExitError
-	if !errors.As(cmdPaletteInvokeError(err), &commandErr) || commandErr.cliExitCode() != 1 {
-		t.Fatal("transport invocation error must preserve exit code one")
-	}
+	t.Run("Should preserve the transport error exit code", func(t *testing.T) {
+		t.Parallel()
+		err := errors.New("transport failed")
+		var commandErr *commandExitError
+		if !errors.As(cmdPaletteInvokeError(err), &commandErr) || commandErr.cliExitCode() != 1 {
+			t.Fatal("transport invocation error must preserve exit code one")
+		}
+	})
 }

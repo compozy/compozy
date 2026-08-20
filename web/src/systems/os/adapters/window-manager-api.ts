@@ -1,20 +1,18 @@
 import { apiBaseUrl, runtimeFetch } from "@/lib/api-client";
 
-import { fetchWindowManagerSettings } from "./window-manager-settings-api";
 import {
-  parseWindowManagerClientView,
   parseWindowManagerCommandResult,
   parseWindowManagerError,
+  parseWindowManagerRegisteredClientView,
   parseWindowManagerSnapshot,
 } from "../lib/window-manager-schemas";
 import type {
   LayoutRevision,
-  WindowManagerAttachedClientView,
   WindowManagerClientKind,
   WindowManagerCommandInput,
   WindowManagerCommandResult,
-  WindowManagerConfig,
   WindowManagerErrorPayload,
+  WindowManagerRegisteredClientView,
   WindowManagerSnapshot,
 } from "../lib/window-manager-types";
 
@@ -27,15 +25,6 @@ export class WindowManagerApiError extends Error {
     super(message);
     this.name = "WindowManagerApiError";
   }
-}
-
-/** The keymap half of the settings section, for callers that need nothing else. */
-export async function fetchWindowManagerConfig(
-  workspaceId: string | null,
-  signal?: AbortSignal
-): Promise<WindowManagerConfig> {
-  const section = await fetchWindowManagerSettings({ workspaceId }, signal);
-  return section.config;
 }
 
 function managerPath(workspaceId: string): string {
@@ -88,7 +77,7 @@ export async function registerWindowManagerClient(
   activeDesktopId?: string,
   kind: WindowManagerClientKind = "browser",
   signal?: AbortSignal
-): Promise<WindowManagerAttachedClientView> {
+): Promise<WindowManagerRegisteredClientView> {
   const response = await runtimeFetch(`${apiBaseUrl}${managerPath(workspaceId)}/clients`, {
     ...jsonRequest(
       {
@@ -102,7 +91,7 @@ export async function registerWindowManagerClient(
     ),
     method: "POST",
   });
-  return parseWindowManagerClientView(await requireSuccess(response));
+  return parseWindowManagerRegisteredClientView(await requireSuccess(response));
 }
 
 export async function unregisterWindowManagerClient(

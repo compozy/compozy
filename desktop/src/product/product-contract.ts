@@ -4,6 +4,8 @@ import {
   type GlobalShortcutRegistration,
 } from "../shortcuts/global-shortcut-types";
 
+export const PRODUCT_IPC_CHANNEL = "product:control";
+
 export const PRODUCT_METHOD_VALUES = ["global_shortcuts.sync", "global_shortcuts.status"] as const;
 export type ProductMethod = (typeof PRODUCT_METHOD_VALUES)[number];
 export const PRODUCT_METHODS = new Set<string>(PRODUCT_METHOD_VALUES);
@@ -11,6 +13,14 @@ export const PRODUCT_METHODS = new Set<string>(PRODUCT_METHOD_VALUES);
 export const PRODUCT_EVENT_VALUES = ["shell:summon"] as const;
 export type ProductEvent = (typeof PRODUCT_EVENT_VALUES)[number];
 export const PRODUCT_EVENTS = new Set<string>(PRODUCT_EVENT_VALUES);
+
+export function isProductMethod(value: string): value is ProductMethod {
+  return PRODUCT_METHODS.has(value);
+}
+
+export function isProductEvent(value: string): value is ProductEvent {
+  return PRODUCT_EVENTS.has(value);
+}
 
 const STATUSES = new Set<string>(GLOBAL_SHORTCUT_STATUS_VALUES);
 const REGISTRATION_KEYS = new Set([

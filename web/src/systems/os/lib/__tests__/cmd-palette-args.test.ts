@@ -44,7 +44,7 @@ function captureCommand(
     available: true,
     reason: "",
     chords: ["⌥⇧N"],
-  } as ResolvedPaletteCommand;
+  } satisfies ResolvedPaletteCommand;
 }
 
 function fill(state: PaletteArgsState, values: Record<string, string>): PaletteArgsState {
@@ -81,6 +81,15 @@ describe("cmd-palette argument fields (UT-120)", () => {
     const submission = submitArgs(state);
     expect(submission.values).toEqual({ title: "Standup follow-ups", tag: "inbox" });
     expect(submission.state.focusField).toBeNull();
+  });
+
+  it("Should trim a validated dropdown value before invocation", () => {
+    const state = fill(createArgsState(captureCommand()), {
+      title: "Standup follow-ups",
+      tag: " inbox ",
+    });
+    expect(state.fields[1]?.error).toBe("");
+    expect(submitArgs(state).values).toEqual({ title: "Standup follow-ups", tag: "inbox" });
   });
 
   it("Should omit an optional field the operator left empty", () => {

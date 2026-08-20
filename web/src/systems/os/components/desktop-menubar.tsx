@@ -1,7 +1,7 @@
 import { Popover, PopoverContent, PopoverTrigger } from "@compozy/ui";
 
 import { loopRequestLocation } from "@/systems/loops";
-import { usePaletteRegistry } from "../hooks/use-palette-registry";
+import { usePaletteCommand } from "../hooks/use-palette-registry";
 import type { OsAttentionModel } from "../hooks/use-os-attention";
 import type { DesktopOverlay } from "../hooks/use-desktop-overlays";
 import type { OsAttentionRow } from "../lib/attention-model";
@@ -103,7 +103,7 @@ export function DesktopMenubar({
   const { coordinator } = useOsShell();
   const hydration = useDesktop(state => state.hydration);
   const actions = useMenubarActions();
-  const paletteRegistry = usePaletteRegistry();
+  const paletteOpen = usePaletteCommand("palette.open");
   const jumpToSession = useAttentionJump();
   const globalOn = scope === "global";
   if (rememberedWorkspaceName === undefined) {
@@ -198,7 +198,7 @@ export function DesktopMenubar({
       notifications={attention.notificationCount}
       onCommandClick={() => onRunCommand("palette.open")}
       onSettingsClick={() => onRunCommand("settings.general")}
-      commandShortcutLabel={paletteRegistry.byId.get("palette.open")?.chords[0]}
+      commandShortcutLabel={paletteOpen?.chords[0]}
       logoMenu={trigger => (
         <CompozyMenu
           trigger={trigger}

@@ -1,9 +1,8 @@
-import { useContext, useEffect, useEffectEvent, useRef, useState } from "react";
+import { useEffect, useEffectEvent, useRef, useState } from "react";
 import type { RefObject } from "react";
 import { useSelector, useStore } from "@xstate/store-react";
 
 import { createStreamEventSource } from "@/lib/ticketed-event-source";
-import { notifyUser, type UserFeedbackTone } from "@/lib/user-feedback";
 import { useActiveWorkspace } from "@/systems/workspace";
 
 import {
@@ -13,47 +12,43 @@ import {
   CmdPaletteApiError,
   openCmdPaletteViewSession,
 } from "../adapters/cmd-palette-api";
+import { PaletteConfirmation } from "../components/os-palette-confirmation";
+import { programViewContentForPhase } from "../lib/cmd-palette-program-content";
+import type { WindowManagerRegisteredClientView } from "../lib/window-manager-types";
+import type { CmdPaletteViewAction, CmdPaletteViewFrame } from "../lib/cmd-palette-types";
+import type { CmdPaletteEventSourceFactory } from "../lib/cmd-palette-stream";
 import {
-  OsPaletteProgramBand,
-  OsPaletteProgramFailure,
-  OsPaletteProgramReloaded,
-} from "../components/os-palette-program-status";
-import { CmdPaletteRegistryContext } from "../contexts/cmd-palette-registry-context-value";
-import type { WindowManagerAttachedClientView } from "../lib/window-manager-types";
-import type {
-  CmdPaletteViewAction,
-  CmdPaletteViewEffect,
-  CmdPaletteViewEnvelope,
-  CmdPaletteViewFrame,
-} from "../lib/cmd-palette-types";
-import { finalizeCmdPaletteViewEffects } from "../lib/cmd-palette-view-effects";
+  acknowledgeViewEffects,
+  claimPendingEffectResult,
+  executeCmdPaletteViewEffect,
+  programViewEnvelope,
+  restorePendingEffectResult,
+  runSerializedViewAction,
+  viewErrorMessage,
+  type PendingEffectResult,
+} from "../lib/cmd-palette-program-view-runtime";
 import type { PaletteViewContent } from "../lib/palette-view-registry";
 import {
   cmdPaletteViewProgramLogic,
-  type CmdPaletteViewProgramPhase,
   programHandlerIsLive,
   VIEW_BUSY_BUDGET_MS,
   VIEW_DEGRADED_BUDGET_MS,
 } from "../stores/cmd-palette-view-program-store";
 import {
-  commandForViewAction,
   contentForEnvelope,
   emptyFrame,
-  extensionName,
+  hostFiltersLocally,
+  viewActionCommandID,
   viewDefinition,
   type CmdPaletteDeclarativeViewModel,
 } from "./use-cmd-palette-declarative-view";
 import type { CmdPaletteDispatch } from "./use-cmd-palette-dispatch";
+import { usePaletteRegistry } from "./use-palette-registry";
 
 interface ViewSessionIdentity {
   readonly epoch: number;
   readonly streamToken: string;
   readonly viewSession: string;
-}
-
-interface PendingEffectResult {
-  readonly effect_id: string;
-  readonly payload?: unknown;
 }
 
 export interface CmdPaletteProgramViewModel extends CmdPaletteDeclarativeViewModel {
@@ -63,24 +58,36 @@ export interface CmdPaletteProgramViewModel extends CmdPaletteDeclarativeViewMod
 export function useCmdPaletteProgramView({
   client,
   dispatch,
+  eventSourceFactory,
   onDismiss,
+  onQueryChange,
   query,
   viewId,
 }: {
-  client: WindowManagerAttachedClientView | null;
+  client: WindowManagerRegisteredClientView | null;
   dispatch: CmdPaletteDispatch;
+  eventSourceFactory?: CmdPaletteEventSourceFactory;
   onDismiss: () => void;
+  onQueryChange: (query: string) => void;
   query: string;
   viewId: string;
 }): CmdPaletteProgramViewModel {
   const { runtimeWorkspaceId } = useActiveWorkspace();
-  const registry = useContext(CmdPaletteRegistryContext);
+  const registry = usePaletteRegistry();
   const store = useStore(cmdPaletteViewProgramLogic);
   const state = useSelector(store, snapshot => snapshot.context);
   const [session, setSession] = useState<ViewSessionIdentity | null>(null);
   const [declarativeKey, setDeclarativeKey] = useState<string | null>(null);
-  const [activeChip, setActiveChip] = useState("all");
+  const [localChip, setLocalChip] = useState<{
+    eventCount: number;
+    value: string | null;
+    viewId: string;
+  } | null>(null);
   const [selectedRow, setSelectedRow] = useState("");
+  const [pendingConfirm, setPendingConfirm] = useState<{
+    action: CmdPaletteViewAction;
+    values: Readonly<Record<string, unknown>>;
+  } | null>(null);
   const queryRef = useRef(query);
   const catalogRevisionRef = useRef(registry.catalogRevision);
   const timersRef = useRef<{
@@ -89,25 +96,26 @@ export function useCmdPaletteProgramView({
   } | null>(null);
   const executedEffectsRef = useRef(new Set<string>());
   const effectResultsRef = useRef<PendingEffectResult[]>([]);
-  const attachmentToken = client?.attachmentToken?.trim() ?? "";
+  const attachmentToken = client?.attachmentToken ?? "";
+  const programChrome = state.payload?.chrome;
   const fallbackKey = `${runtimeWorkspaceId ?? ""}\u0000${viewId}\u0000${attachmentToken}`;
   const declarative = declarativeKey === fallbackKey;
 
   useEffect(() => {
     const workspace = runtimeWorkspaceId;
-    const activeAttachmentToken = client?.attachmentToken?.trim() ?? "";
-    store.trigger.openStarted({ preserve: state.openEpoch > 0 });
-    if (!workspace || activeAttachmentToken === "") {
+    store.trigger.openStarted({ preserve: store.getSnapshot().context.payload !== null });
+    const epoch = store.getSnapshot().context.openEpoch;
+    if (!workspace || attachmentToken === "") {
       store.trigger.openFailed({ error: "This browser is not attached to the workspace." });
       return undefined;
     }
     const controller = new AbortController();
     let opened: ViewSessionIdentity | null = null;
-    void openCmdPaletteViewSession(workspace, viewId, activeAttachmentToken, {}, controller.signal)
+    void openCmdPaletteViewSession(workspace, viewId, attachmentToken, {}, controller.signal)
       .then(response => {
         if (controller.signal.aborted) return;
         opened = {
-          epoch: state.openEpoch,
+          epoch,
           streamToken: response.stream_token,
           viewSession: response.view_session,
         };
@@ -120,41 +128,49 @@ export function useCmdPaletteProgramView({
           setDeclarativeKey(fallbackKey);
           return;
         }
-        store.trigger.openFailed({ error: errorMessage(error) });
+        store.trigger.openFailed({ error: viewErrorMessage(error) });
       });
     return () => {
       controller.abort();
+      setSession(null);
       const current = opened;
       if (current) {
-        void closeCmdPaletteViewSession(current.viewSession, activeAttachmentToken).catch(error => {
+        void closeCmdPaletteViewSession(current.viewSession, attachmentToken).catch(error => {
           console.warn("Failed to close command palette view session", error);
         });
       }
     };
-  }, [client?.attachmentToken, fallbackKey, runtimeWorkspaceId, state.openEpoch, store, viewId]);
+  }, [attachmentToken, fallbackKey, runtimeWorkspaceId, state.openEpoch, store, viewId]);
 
   useEffect(() => {
     if (!session || session.epoch !== state.openEpoch || declarative) return undefined;
-    const source = createStreamEventSource(
+    const source = (eventSourceFactory ?? createStreamEventSource)(
       cmdPaletteViewSessionStreamURL(session.viewSession, session.streamToken)
     );
+    const identity = session;
     const onFrame = (event: Event) => {
       if (!(event instanceof MessageEvent)) return;
+      const current = store.getSnapshot().context;
+      if (identity.epoch !== current.openEpoch) return;
       try {
-        store.trigger.frameReceived({ frame: JSON.parse(event.data) as CmdPaletteViewFrame });
+        const frame = JSON.parse(event.data) as CmdPaletteViewFrame;
+        if (frame.view_session !== identity.viewSession) return;
+        store.trigger.frameReceived({ frame });
       } catch (error) {
-        store.trigger.crashed({ error: errorMessage(error) });
+        if (identity.epoch !== store.getSnapshot().context.openEpoch) return;
+        store.trigger.crashed({ error: viewErrorMessage(error) });
       }
     };
     source.addEventListener("cmd_palette.view.frame", onFrame);
     source.onerror = () => {
+      if (identity.epoch !== store.getSnapshot().context.openEpoch) return;
       store.trigger.crashed({ error: "The extension process stopped responding." });
     };
     return () => {
       source.removeEventListener("cmd_palette.view.frame", onFrame);
       source.close();
     };
-  }, [declarative, session, state.openEpoch, store]);
+  }, [declarative, eventSourceFactory, session, state.openEpoch, store]);
 
   useEffect(() => {
     if (catalogRevisionRef.current === registry.catalogRevision) return;
@@ -170,9 +186,9 @@ export function useCmdPaletteProgramView({
   const sendEvent = useEffectEvent(
     (handler: string, args: readonly unknown[], controlled: boolean): void => {
       const current = store.getSnapshot().context;
-      const attachmentToken = client?.attachmentToken?.trim() ?? "";
       if (
         !session ||
+        session.epoch !== current.openEpoch ||
         attachmentToken === "" ||
         !current.frame ||
         !programHandlerIsLive(current, handler)
@@ -182,7 +198,7 @@ export function useCmdPaletteProgramView({
       const seq = current.nextSeq + 1;
       const eventCount = controlled ? current.eventCount + 1 : current.eventCount;
       const resolvedArgs = controlled ? [...args, eventCount] : [...args];
-      const effectResult = effectResultsRef.current[0];
+      const effectResult = claimPendingEffectResult(effectResultsRef.current);
       store.trigger.eventSent({ seq, controlled, handler, args });
       clearViewTimers(timersRef);
       timersRef.current = {
@@ -198,52 +214,49 @@ export function useCmdPaletteProgramView({
           ? { ack_effects: [...current.acknowledgedEffects] }
           : {}),
         ...(effectResult ? { effect_result: effectResult } : {}),
-      })
-        .then(() => {
-          if (effectResult) effectResultsRef.current.shift();
-        })
-        .catch(error => {
-          if (
-            error instanceof CmdPaletteApiError &&
-            (error.status === 403 || error.status === 410)
-          ) {
-            store.trigger.crashed({ error: error.message });
-            return;
-          }
-          console.warn("Command palette view event was rejected", error);
-        });
+      }).catch(error => {
+        restorePendingEffectResult(effectResultsRef.current, effectResult);
+        if (error instanceof CmdPaletteApiError && (error.status === 403 || error.status === 410)) {
+          store.trigger.crashed({ error: error.message });
+          return;
+        }
+        console.warn("Command palette view event was rejected", error);
+      });
     }
   );
 
   useEffect(() => {
-    const handler = state.payload?.chrome?.on_search;
+    const handler = programChrome?.on_search;
     if (!handler || queryRef.current === query) return;
     queryRef.current = query;
-    sendEvent(handler, [query], true);
-  }, [query, state.payload?.chrome?.on_search]);
-
-  const executeEffect = useEffectEvent(async (effect: CmdPaletteViewEffect): Promise<void> => {
-    if (effect.toast) {
-      notifyUser({ message: effect.toast.message, tone: feedbackTone(effect.toast.tone) });
-    } else if (effect.copy) {
-      await copyEffect(effect.copy.content);
-    } else if (effect.open_url) {
-      await runSerializedAction(dispatch, viewId, {
-        title: "Open link",
-        action: { kind: "url", url: effect.open_url.url },
-      });
-    } else if (effect.open_app) {
-      await runSerializedAction(dispatch, viewId, {
-        title: "Open app",
-        action: { kind: "navigate", app: effect.open_app.app },
-      });
-    } else if (effect.pick_files) {
-      effectResultsRef.current.push({
-        effect_id: effect.id,
-        payload: await pickFiles(effect.pick_files.directories ?? false),
-      });
+    const throttle = Math.max(0, programChrome?.throttle_ms ?? 0);
+    if (throttle === 0) {
+      sendEvent(handler, [query], true);
+      return;
     }
-  });
+    const timer = window.setTimeout(() => sendEvent(handler, [query], true), throttle);
+    return () => window.clearTimeout(timer);
+  }, [programChrome, query]);
+
+  useEffect(() => {
+    const searchText = programChrome?.search_text;
+    if (
+      searchText === undefined ||
+      !controlledEchoIsCurrent(programChrome?.event_count, state.eventCount) ||
+      queryRef.current === (searchText ?? "")
+    ) {
+      return;
+    }
+    const nextQuery = searchText ?? "";
+    queryRef.current = nextQuery;
+    onQueryChange(nextQuery);
+  }, [onQueryChange, programChrome, state.eventCount]);
+
+  const executeEffect = useEffectEvent(
+    async (effect: Parameters<typeof executeCmdPaletteViewEffect>[0]): Promise<void> => {
+      await executeCmdPaletteViewEffect(effect, dispatch, viewId, effectResultsRef.current);
+    }
+  );
 
   useEffect(() => {
     const pending = (state.frame?.effects ?? []).filter(
@@ -252,7 +265,7 @@ export function useCmdPaletteProgramView({
     if (pending.length === 0) return;
     for (const effect of pending) executedEffectsRef.current.add(effect.id);
     void Promise.allSettled(pending.map(executeEffect)).then(results => {
-      store.trigger.effectsAcknowledged({ ids: finalizeCmdPaletteViewEffects(pending, results) });
+      store.trigger.effectsAcknowledged({ ids: acknowledgeViewEffects(pending, results) });
     });
   }, [state.frame?.effects, store]);
 
@@ -269,7 +282,7 @@ export function useCmdPaletteProgramView({
       command => command.action.kind === "view" && command.action.view === viewId
     )?.title ?? viewId;
   const envelope = state.payload
-    ? programEnvelope(viewId, title, state.frame!, state.payload)
+    ? programViewEnvelope(viewId, title, state.frame!, state.payload)
     : null;
   const retry = () => {
     if (state.phase === "unavailable") {
@@ -280,20 +293,43 @@ export function useCmdPaletteProgramView({
     const last = state.lastEvent;
     if (last) sendEvent(last.handler, last.args, last.controlled);
   };
+  const echoedChip = programChrome?.active_chip;
+  const activeChip =
+    echoedChip !== undefined &&
+    controlledEchoIsCurrent(
+      programChrome?.event_count,
+      Math.max(state.eventCount, localChip?.viewId === viewId ? localChip.eventCount : 0)
+    )
+      ? echoedChip
+      : localChip?.viewId === viewId
+        ? localChip.value
+        : null;
+  const executeAction = async (
+    action: CmdPaletteViewAction,
+    values: Readonly<Record<string, unknown>>,
+    confirmed = false
+  ) => {
+    if (action.handler) {
+      sendEvent(action.handler, Object.keys(values).length === 0 ? [] : [values], false);
+      return;
+    }
+    await runSerializedViewAction(dispatch, viewId, action, values, onDismiss, registry, confirmed);
+  };
   const runAction = async (
     action: CmdPaletteViewAction | undefined,
     values: Readonly<Record<string, unknown>> = {}
   ) => {
     if (!action) return;
-    if (action.handler) {
-      sendEvent(action.handler, Object.keys(values).length === 0 ? [] : [values], false);
+    const cataloged = registry.byId.has(viewActionCommandID(viewId, action));
+    if (action.confirmation && (action.handler || !cataloged)) {
+      setPendingConfirm({ action, values });
       return;
     }
-    await runSerializedAction(dispatch, viewId, action, values, onDismiss);
+    await executeAction(action, values);
   };
-  const setChip = (id: string) => {
-    setActiveChip(id);
-    const handler = state.payload?.chrome?.on_chip;
+  const setChip = (id: string | null) => {
+    const handler = programChrome?.on_chip;
+    setLocalChip({ eventCount: state.eventCount + (handler ? 1 : 0), value: id, viewId });
     if (handler) sendEvent(handler, [id], true);
   };
   const setSelection = (id: string) => {
@@ -310,20 +346,32 @@ export function useCmdPaletteProgramView({
         selectedRow,
         setActiveChip: setChip,
         setSelectedRow: setSelection,
-        filterLocally: envelope.payload.chrome?.complete === true,
+        filterLocally: hostFiltersLocally(envelope.payload.chrome),
+        runHandler: sendEvent,
       })
     : emptyFrame("Opening view…");
   return {
     declarative,
     definition: viewDefinition(viewId, envelope ?? undefined),
-    content: contentForPhase(
-      baseContent,
-      state.phase,
-      state.reloaded,
-      title,
-      viewId,
-      state.error,
-      retry
+    content: withProgramConfirm(
+      programViewContentForPhase(
+        baseContent,
+        state.phase,
+        state.reloaded,
+        title,
+        viewId,
+        state.error,
+        retry
+      ),
+      pendingConfirm,
+      {
+        onCancel: () => setPendingConfirm(null),
+        onConfirm: () => {
+          const pending = pendingConfirm;
+          setPendingConfirm(null);
+          if (pending) void executeAction(pending.action, pending.values, true);
+        },
+      }
     ),
     error: state.phase === "unavailable" ? state.error : null,
     loading: state.phase === "opening",
@@ -332,86 +380,37 @@ export function useCmdPaletteProgramView({
   };
 }
 
-function contentForPhase(
+export function controlledEchoIsCurrent(
+  echoedEventCount: number | undefined,
+  localEventCount: number
+): boolean {
+  return (echoedEventCount ?? 0) >= localEventCount;
+}
+
+export { hostFiltersLocally };
+
+function withProgramConfirm(
   content: PaletteViewContent,
-  phase: CmdPaletteViewProgramPhase,
-  reloaded: boolean,
-  title: string,
-  viewId: string,
-  error: string | null,
-  retry: () => void
+  pending: { action: CmdPaletteViewAction; values: Readonly<Record<string, unknown>> } | null,
+  handlers: { onCancel: () => void; onConfirm: () => void }
 ): PaletteViewContent {
-  if (phase === "busy" || phase === "degraded") {
-    return {
-      ...content,
-      header: (
-        <>
-          {content.header}
-          <OsPaletteProgramBand phase={phase} onRetry={retry} />
-        </>
-      ),
-    };
-  }
-  if (phase === "circuit-open" || phase === "unavailable") {
-    return {
-      ...emptyFrame(phase),
-      empty: (
-        <OsPaletteProgramFailure
-          error={error}
-          phase={phase}
-          source={`${title} (${extensionSource(viewId)})`}
-        />
-      ),
-    };
-  }
-  if (reloaded) {
-    return {
-      ...content,
-      header: (
-        <>
-          {content.header}
-          <OsPaletteProgramReloaded />
-        </>
-      ),
-    };
-  }
-  return content;
-}
-
-function programEnvelope(
-  viewId: string,
-  title: string,
-  frame: CmdPaletteViewFrame,
-  payload: CmdPaletteViewEnvelope["payload"]
-): CmdPaletteViewEnvelope {
-  const kind = payload.form
-    ? "form"
-    : payload.grid
-      ? "grid"
-      : payload.detail && !payload.sections?.length
-        ? "detail"
-        : "list";
+  const confirmation = pending?.action.confirmation;
+  if (!confirmation) return content;
   return {
-    view_id: viewId,
-    title,
-    kind,
-    revision: frame.revision,
-    stream_epoch: `session:${frame.view_session}`,
-    payload,
+    ...content,
+    header: (
+      <>
+        <PaletteConfirmation
+          confirmation={confirmation}
+          destructive={pending.action.destructive ?? false}
+          invalidatedReason=""
+          onCancel={handlers.onCancel}
+          onConfirm={handlers.onConfirm}
+        />
+        {content.header}
+      </>
+    ),
   };
-}
-
-async function runSerializedAction(
-  dispatch: CmdPaletteDispatch,
-  viewId: string,
-  action: CmdPaletteViewAction,
-  values: Readonly<Record<string, unknown>> = {},
-  onDismiss?: () => void
-): Promise<void> {
-  if (!action.action) return;
-  const outcome = await dispatch.run(commandForViewAction(viewId, action), { args: values });
-  if (outcome.status === "refused") throw new Error(outcome.reason);
-  if (onDismiss && (outcome.status === "ran" || outcome.status === "invoked")) onDismiss();
 }
 
 function clearViewTimers(
@@ -424,38 +423,4 @@ function clearViewTimers(
   clearTimeout(ref.current.soft);
   clearTimeout(ref.current.hard);
   ref.current = null;
-}
-
-function extensionSource(viewId: string): string {
-  const extension = extensionName(viewId);
-  return extension ? `ext.${extension}` : viewId;
-}
-
-function feedbackTone(tone: string): UserFeedbackTone {
-  return tone === "success" || tone === "warning" || tone === "error" ? tone : "info";
-}
-
-async function copyEffect(content: string): Promise<void> {
-  if (!navigator.clipboard) throw new Error("Clipboard access is unavailable.");
-  await navigator.clipboard.writeText(content);
-}
-
-async function pickFiles(directories: boolean): Promise<unknown> {
-  const method = Reflect.get(
-    globalThis,
-    directories ? "showDirectoryPicker" : "showOpenFilePicker"
-  );
-  if (typeof method !== "function") return { unavailable: true };
-  try {
-    const result = await Reflect.apply(method, globalThis, directories ? [] : [{ multiple: true }]);
-    const handles = Array.isArray(result) ? result : [result];
-    return { names: handles.map(handle => String(Reflect.get(handle, "name") ?? "")) };
-  } catch (error) {
-    if (error instanceof DOMException && error.name === "AbortError") return { canceled: true };
-    throw error;
-  }
-}
-
-function errorMessage(error: unknown): string {
-  return error instanceof Error ? error.message : "The view is unavailable.";
 }

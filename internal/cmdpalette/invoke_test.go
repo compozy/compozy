@@ -169,8 +169,8 @@ func TestRegistryInvoke(t *testing.T) {
 		service := testRegistry(staticTestProvider{commands: []Descriptor{descriptor}}, nil, nil, executor)
 		if _, err := service.Invoke(t.Context(), InvokeRequest{
 			WorkspaceID: "ws-1", CommandID: descriptor.ID,
-		}); err == nil || err.Error() != "fixture tool crashed" {
-			t.Fatalf("first Invoke() error = %v, want fixture crash", err)
+		}); !errors.Is(err, errFlakyInvoke) {
+			t.Fatalf("first Invoke() error = %v, want errFlakyInvoke", err)
 		}
 		result, err := service.Invoke(t.Context(), InvokeRequest{
 			WorkspaceID: "ws-1", CommandID: descriptor.ID,
@@ -197,9 +197,9 @@ func TestRegistryInvoke(t *testing.T) {
 		if err != nil || result.Status != InvokeStatusOK {
 			t.Fatalf("Invoke() = %#v, error = %v, want success despite usage failure", result, err)
 		}
-		if store.recorded.WorkspaceID != "workspace-a" || store.recorded.CommandID != descriptor.ID ||
-			store.recorded.Query != "" {
-			t.Fatalf("recorded usage = %#v, want identifiers and no argument-derived data", store.recorded)
+		if recorded := store.lastUsage(); recorded.WorkspaceID != "workspace-a" ||
+			recorded.CommandID != descriptor.ID || recorded.Query != "" {
+			t.Fatalf("recorded usage = %#v, want identifiers and no argument-derived data", recorded)
 		}
 	})
 
@@ -224,14 +224,14 @@ func TestRegistryInvoke(t *testing.T) {
 		if err != nil || result.Status != InvokeStatusOK {
 			t.Fatalf("Invoke() = %#v, error = %v, want success", result, err)
 		}
-		if store.recorded.CommandID != "" {
-			t.Fatalf("recorded usage = %#v, want no write while disabled", store.recorded)
+		if recorded := store.lastUsage(); recorded.CommandID != "" {
+			t.Fatalf("recorded usage = %#v, want no write while disabled", recorded)
 		}
 	})
 
 	t.Run("Should release approval-held single-flight on denial and timeout [IT-010]", func(t *testing.T) {
 		t.Parallel()
-		for _, outcome := range []string{"denial", "timeout"} {
+		for _, outcome := range []string{"denied", "timeout"} {
 			t.Run("Should release after "+outcome, func(t *testing.T) {
 				t.Parallel()
 				descriptor := testDescriptor("note.purge." + CommandID(outcome))
@@ -239,16 +239,33 @@ func TestRegistryInvoke(t *testing.T) {
 				descriptor.Confirmation = &Confirmation{Title: "Purge notes?", Confirm: "Purge"}
 				descriptor.Policy = ExecutionPolicy{SingleFlight: true}
 				completion := make(chan struct{})
-				executor := &testExecutor{approval: true, result: ExecutionResult{
-					ApprovalID: "apr_" + outcome, Completion: completion,
-				}}
-				service := testRegistry(staticTestProvider{commands: []Descriptor{descriptor}}, nil, nil, executor)
+				recorder := &recordingEventRecorder{wake: make(chan struct{}, 1)}
+				executor := &approvalEventExecutor{
+					testExecutor: &testExecutor{
+						approval: true,
+						result:   ExecutionResult{ApprovalID: "apr_" + outcome, Completion: completion},
+					},
+					outcome: outcome,
+				}
+				service := testRegistryWithOptions(
+					staticTestProvider{commands: []Descriptor{descriptor}}, nil, nil, executor,
+					WithEventRecorder(recorder),
+				)
 				if _, err := service.Invoke(t.Context(), InvokeRequest{
 					WorkspaceID: "ws-1", CommandID: descriptor.ID,
 				}); err != nil {
 					t.Fatalf("first Invoke() error = %v", err)
 				}
 				close(completion)
+				select {
+				case <-recorder.wake:
+				case <-time.After(time.Second):
+					t.Fatalf("timed out waiting for %s completion event", outcome)
+				}
+				events := recorder.recorded()
+				if len(events) != 1 || events[0].Outcome != outcome {
+					t.Fatalf("completion events = %#v, want outcome %q", events, outcome)
+				}
 				deadline := time.Now().Add(time.Second)
 				for {
 					_, err := service.Invoke(t.Context(), InvokeRequest{
@@ -308,7 +325,48 @@ func TestRegistryInvoke(t *testing.T) {
 			t.Fatalf("invocation events = %#v", events)
 		}
 	})
+
+	t.Run("Should record usage when a resumed approval completes with ok", func(t *testing.T) {
+		t.Parallel()
+		descriptor := testDescriptor("note.capture")
+		store := &personalizationStoreStub{}
+		completion := make(chan struct{})
+		recorder := &recordingEventRecorder{wake: make(chan struct{}, 1)}
+		executor := &approvalEventExecutor{
+			testExecutor: &testExecutor{
+				approval: true,
+				result:   ExecutionResult{ApprovalID: "apr_ok", Completion: completion},
+			},
+			outcome: "ok",
+		}
+		service := testRegistryWithOptions(
+			staticTestProvider{commands: []Descriptor{descriptor}}, nil, nil, executor,
+			WithPersonalizationStore(store), WithEventRecorder(recorder),
+		)
+		result, err := service.Invoke(t.Context(), InvokeRequest{WorkspaceID: "workspace-a", CommandID: descriptor.ID})
+		if err != nil {
+			t.Fatalf("Invoke() error = %v", err)
+		}
+		if result.Status != InvokeStatusApprovalPending {
+			t.Fatalf("Invoke() = %#v, want approval pending", result)
+		}
+		if recorded := store.lastUsage(); recorded.CommandID != "" {
+			t.Fatalf("recorded usage = %#v, want no write while approval is pending", recorded)
+		}
+		close(completion)
+		select {
+		case <-recorder.wake:
+		case <-time.After(time.Second):
+			t.Fatal("timed out waiting for approved completion event")
+		}
+		if recorded := store.lastUsage(); recorded.WorkspaceID != "workspace-a" ||
+			recorded.CommandID != descriptor.ID || recorded.Query != "" {
+			t.Fatalf("recorded usage = %#v, want one identifier-only usage after ok", recorded)
+		}
+	})
 }
+
+var errFlakyInvoke = errors.New("fixture tool crashed")
 
 type flakyInvokeExecutor struct {
 	mu    sync.Mutex
@@ -323,7 +381,7 @@ func (e *flakyInvokeExecutor) ExecuteAction(
 	defer e.mu.Unlock()
 	e.calls++
 	if e.calls == 1 {
-		return ExecutionResult{}, errors.New("fixture tool crashed")
+		return ExecutionResult{}, errFlakyInvoke
 	}
 	return ExecutionResult{Result: rawResult(map[string]bool{"ok": true})}, nil
 }

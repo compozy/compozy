@@ -20,6 +20,19 @@ import {
   type CmdPaletteContextSnapshot,
 } from "../cmd-palette-context";
 import type { CmdPaletteStructuralCommand } from "../cmd-palette-types";
+import type { OsWindowFrameModel } from "../group-projection";
+import type { OsWindow } from "../os-types";
+
+type PaletteContextState = Parameters<typeof buildCmdPaletteContextSnapshot>[0];
+
+function contextState(state: {
+  activeDesktopId: string;
+  focusedId: string | null;
+  frames: Record<string, Array<Pick<OsWindowFrameModel, "id" | "members" | "activeWindowId">>>;
+  windows: Record<string, Pick<OsWindow, "id" | "desktopId" | "minimized" | "placement">>;
+}): PaletteContextState {
+  return state as unknown as PaletteContextState;
+}
 
 function command(
   overrides: Partial<CmdPaletteStructuralCommand> = {}
@@ -38,10 +51,10 @@ function command(
     action: { kind: "client_op", op: "window.close" },
     execution: { retry_safe: false, single_flight: true },
     ...overrides,
-  } as CmdPaletteStructuralCommand;
+  } satisfies CmdPaletteStructuralCommand;
 }
 
-function snapshot(overrides: Partial<Record<string, unknown>> = {}): CmdPaletteContextSnapshot {
+function snapshot(overrides: Partial<CmdPaletteContextSnapshot> = {}): CmdPaletteContextSnapshot {
   return {
     "window.focused": true,
     "window.floating": false,
@@ -52,7 +65,7 @@ function snapshot(overrides: Partial<Record<string, unknown>> = {}): CmdPaletteC
     "session.focused.state": "",
     "workspace.trusted": true,
     ...overrides,
-  } as CmdPaletteContextSnapshot;
+  };
 }
 
 const reachable = { daemonReachable: true };
@@ -182,7 +195,7 @@ describe("cmd-palette availability (UT-096, UT-097, UT-098, UT-100, UT-101)", ()
 describe("cmd-palette context snapshot", () => {
   it("Should answer the closed key set from live window-manager state", () => {
     const built = buildCmdPaletteContextSnapshot(
-      {
+      contextState({
         activeDesktopId: "desk-1",
         focusedId: "win-a",
         frames: {
@@ -194,7 +207,7 @@ describe("cmd-palette context snapshot", () => {
           "win-c": { id: "win-c", desktopId: "desk-2", minimized: false, placement: "tiled" },
           "win-d": { id: "win-d", desktopId: "desk-1", minimized: true, placement: "tiled" },
         },
-      } as never,
+      }),
       {
         shellDesktop: false,
         scopeGlobal: true,

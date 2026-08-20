@@ -68,13 +68,3 @@ export function paletteKeyBindings(registry: PaletteRegistry): readonly PaletteK
   }
   return bindings;
 }
-
-/**
- * The cheatsheet's grouping key. `window.tab.jump.3` and its siblings collapse
- * into one family row so a nine-member range does not read as nine bindings.
- */
-export function paletteBindingFamily(commandId: string): string | null {
-  if (commandId.startsWith("window.tab.jump.")) return "window.tab.jump";
-  if (/^desktop\.switch\.\d$/.test(commandId)) return "desktop.switch";
-  return null;
-}

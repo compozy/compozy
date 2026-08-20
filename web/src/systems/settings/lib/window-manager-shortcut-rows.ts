@@ -6,15 +6,13 @@
  * run right now, which are still someone's to bind (US-022.AC-1).
  */
 import {
+  coveringShortcutFamily,
   expandShortcutOverrides,
   shortcutSourceLabel,
   type ShortcutConflict,
   type WindowManagerSettingsSection,
   type WindowManagerShortcutMap,
 } from "@/systems/os";
-
-/** Aggregate keys the shipped presets write; each covers an indexed family. */
-const RANGE_FAMILY_IDS = ["window.tab.jump", "desktop.switch"] as const;
 
 export interface ShortcutTableRow {
   commandId: string;
@@ -33,14 +31,6 @@ export interface ShortcutTableRow {
   shadowedReason: string | null;
 }
 
-function coveringFamily(commandId: string, overrides: WindowManagerShortcutMap): string | null {
-  return (
-    RANGE_FAMILY_IDS.find(
-      family => commandId.startsWith(`${family}.`) && overrides[family] !== undefined
-    ) ?? null
-  );
-}
-
 /**
  * Drops one command out of a range override by materializing the members the
  * range still covers. Without this, resetting a member the preset bound would
@@ -52,13 +42,13 @@ export function withCommandReset(
 ): WindowManagerShortcutMap {
   const next: Record<string, readonly string[]> = { ...overrides };
   delete next[commandId];
-  const family = coveringFamily(commandId, overrides);
+  const family = coveringShortcutFamily(commandId, overrides);
   if (family === null) return next;
   delete next[family];
   for (const [memberId, binding] of Object.entries(
     expandShortcutOverrides({ [family]: overrides[family] ?? [] })
   )) {
-    if (memberId !== commandId) next[memberId] = binding;
+    if (memberId !== commandId && next[memberId] === undefined) next[memberId] = binding;
   }
   return next;
 }
@@ -67,7 +57,9 @@ export function isCommandOverridden(
   commandId: string,
   overrides: WindowManagerShortcutMap
 ): boolean {
-  return overrides[commandId] !== undefined || coveringFamily(commandId, overrides) !== null;
+  return (
+    overrides[commandId] !== undefined || coveringShortcutFamily(commandId, overrides) !== null
+  );
 }
 
 export function buildShortcutTableRows(

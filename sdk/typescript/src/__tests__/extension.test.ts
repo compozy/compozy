@@ -107,6 +107,11 @@ describe("Extension", () => {
       {
         name: "test-ext",
         version: "0.1.0",
+        resources: {
+          cmd_palette: {
+            views: [{ id: "browser", title: "Notes", kind: "list", program: true }],
+          },
+        },
       },
       { transport: pair.extension }
     );
@@ -116,6 +121,7 @@ describe("Extension", () => {
     await expect(pair.host.call("health_check", {})).rejects.toBeInstanceOf(NotInitializedError);
     await expect(pair.host.call("initialize", initializeFor(extension))).resolves.toMatchObject({
       protocol_version: "1",
+      cmd_palette_views: ["browser"],
     });
     await expect(startPromise).resolves.toBeDefined();
   });
@@ -441,6 +447,7 @@ describe("Extension", () => {
                 default_shortcut: "alt+shift+KeyS",
               },
             ],
+            views: [{ id: "browser", title: "Notes", kind: "list", program: true }],
           },
         },
         supported_hook_events: ["prompt.post_assemble"],
@@ -493,8 +500,10 @@ describe("Extension", () => {
             default_shortcut: "alt+shift+KeyS",
           },
         ],
+        views: [{ id: "browser", title: "Notes", kind: "list", program: true }],
       },
     });
+    expect(payload.cmd_palette_views).toEqual(["browser"]);
     expect(payload).toMatchObject({
       name: "describe-fixture",
       version: "0.1.0",

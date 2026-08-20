@@ -83,6 +83,12 @@ type SessionCreateStoreEvents = {
     workspaceId: string;
   };
   sessionCreated: { attempt: number; session: SessionPayload };
+  /**
+   * Palette prompt fallback: same single-flight submitting state as the dialog,
+   * without opening it or asking the dialog to navigate.
+   */
+  fallbackRequested: { agentName: string; workspaceId: string };
+  fallbackCompleted: { attempt: number };
   validationFailed: { message: string };
 };
 
@@ -244,6 +250,31 @@ export const sessionCreateStoreLogic = createStoreLogic<
         },
         pendingSubmit: null,
       };
+    },
+    fallbackRequested: (context, event) => {
+      if (context.operation.status !== "idle") return;
+      const attempt = context.attempt + 1;
+      return {
+        ...context,
+        attempt,
+        operation: {
+          agentName: event.agentName,
+          attempt,
+          status: "submitting",
+          workspaceId: event.workspaceId,
+        },
+        pendingSubmit: null,
+        submitError: null,
+      };
+    },
+    fallbackCompleted: (context, event) => {
+      if (
+        context.operation.status !== "submitting" ||
+        context.operation.attempt !== event.attempt
+      ) {
+        return;
+      }
+      return { ...context, operation: { status: "idle" } };
     },
     navigationRequested: (context, event, enqueue) => {
       if (

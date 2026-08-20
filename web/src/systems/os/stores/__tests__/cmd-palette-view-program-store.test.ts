@@ -30,6 +30,38 @@ describe("command palette programmable-view lifecycle", () => {
       phase: "ready",
     });
 
+    store.trigger.eventSent({
+      seq: 1,
+      controlled: true,
+      handler: "search",
+      args: ["stale"],
+    });
+    store.trigger.eventSent({
+      seq: 0,
+      controlled: true,
+      handler: "search",
+      args: ["older"],
+    });
+    expect(store.getSnapshot().context).toMatchObject({
+      eventCount: 1,
+      lastEvent: { args: ["new"], controlled: true, handler: "search" },
+      nextSeq: 1,
+      pendingSeq: 1,
+    });
+
+    store.trigger.eventSent({
+      seq: 2,
+      controlled: false,
+      handler: "search",
+      args: ["uncontrolled"],
+    });
+    expect(store.getSnapshot().context).toMatchObject({
+      eventCount: 1,
+      lastEvent: { args: ["uncontrolled"], controlled: false, handler: "search" },
+      nextSeq: 2,
+      pendingSeq: 2,
+    });
+
     store.trigger.frameReceived({
       frame: frame("vr_2", ["search"], "New result", { in_reply_to: 1, generation: 1 }),
     });
@@ -104,6 +136,59 @@ describe("command palette programmable-view lifecycle", () => {
 
     expect(first.payload?.sections?.[0]?.rows[0]?.title).toBe("Before");
     expect(store.getSnapshot().context.payload?.sections?.[0]?.rows[0]?.title).toBe("After");
+  });
+
+  it("Should keep openEpoch and drop causal state when a session is reopened [RA0253]", () => {
+    const store = cmdPaletteViewProgramLogic.createStore();
+    store.trigger.openSucceeded({ frame: frame("vr_1", ["search"], "Live") });
+    store.trigger.eventSent({ seq: 1, controlled: true, handler: "search", args: ["q"] });
+    store.trigger.reloadRequested({});
+    const epoch = store.getSnapshot().context.openEpoch;
+    store.trigger.openStarted({ preserve: true });
+    expect(store.getSnapshot().context).toMatchObject({
+      eventCount: 0,
+      lastEvent: null,
+      nextSeq: 0,
+      openEpoch: epoch,
+      pendingSeq: null,
+    });
+  });
+
+  it("Should ignore a late foreign session and a stale patch.from [RA0254]", () => {
+    const store = cmdPaletteViewProgramLogic.createStore();
+    store.trigger.openSucceeded({ frame: frame("vr_1", ["search"], "Live") });
+    store.trigger.frameReceived({
+      frame: { ...frame("vr_2", ["search"], "Other"), view_session: "vs_other" },
+    });
+    expect(store.getSnapshot().context.frame?.revision).toBe("vr_1");
+
+    store.trigger.frameReceived({
+      frame: {
+        generation: 1,
+        handlers: ["search"],
+        revision: "vr_3",
+        view_session: "vs_test",
+        patch: {
+          view_id: "ext.notes.browser",
+          from: "vr_missing",
+          to: "vr_3",
+          ops: [{ op: "replace", path: "", value: payload("Stale") }],
+        },
+      },
+    });
+    expect(store.getSnapshot().context.phase).toBe("unavailable");
+  });
+
+  it("Should clear timeout state when a push frame has no in_reply_to [RA0255]", () => {
+    const store = cmdPaletteViewProgramLogic.createStore();
+    store.trigger.openSucceeded({ frame: frame("vr_1", ["search"], "Live") });
+    store.trigger.eventSent({ seq: 1, controlled: true, handler: "search", args: ["q"] });
+    store.trigger.frameReceived({ frame: frame("vr_2", ["search"], "Pushed") });
+    expect(store.getSnapshot().context).toMatchObject({
+      misses: 0,
+      pendingSeq: null,
+      phase: "ready",
+    });
   });
 });
 

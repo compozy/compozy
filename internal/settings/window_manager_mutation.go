@@ -28,9 +28,13 @@ func (s *service) windowManagerBindableIDs(
 	for _, command := range catalog.Commands {
 		ids = append(ids, string(command.ID))
 	}
+	return catalogBindableIDs(ids), nil
+}
+
+func catalogBindableIDs(ids []string) windowmanager.BindableIDs {
 	result := windowmanager.NewBindableIDs(ids)
 	result[windowmanager.DefaultGlobalSummonCommandID] = struct{}{}
-	return result, nil
+	return result
 }
 
 func normalizeShortcutMutation(

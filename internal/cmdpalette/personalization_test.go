@@ -10,6 +10,7 @@ import (
 	"path/filepath"
 	"reflect"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 )
@@ -35,14 +36,14 @@ func TestPersonalization(t *testing.T) {
 		t.Parallel()
 		store := &personalizationStoreStub{}
 		service := personalizationTestRegistry(t, store, nil)
-		if err := service.RecordUsage(context.Background(), Usage{
+		if err := service.RecordUsage(t.Context(), Usage{
 			WorkspaceID: "workspace-a", CommandID: "session.new", Query: "  Séssão   NOVA  ",
 		}); err != nil {
 			t.Fatalf("RecordUsage() error = %v", err)
 		}
-		if store.recorded.Query != "sessao nova" || store.recorded.WorkspaceID != "workspace-a" ||
-			store.recorded.CommandID != "session.new" {
-			t.Fatalf("recorded usage = %#v, want normalized query and identifiers only", store.recorded)
+		if recorded := store.lastUsage(); recorded.Query != "sessao nova" ||
+			recorded.WorkspaceID != "workspace-a" || recorded.CommandID != "session.new" {
+			t.Fatalf("recorded usage = %#v, want normalized query and identifiers only", recorded)
 		}
 	})
 
@@ -63,13 +64,13 @@ func TestPersonalization(t *testing.T) {
 			})),
 		)
 
-		if err := service.RecordUsage(context.Background(), Usage{
+		if err := service.RecordUsage(t.Context(), Usage{
 			WorkspaceID: "workspace-a", CommandID: "session.new", Query: "new",
 		}); err != nil {
 			t.Fatalf("RecordUsage() error = %v", err)
 		}
-		if store.recorded.CommandID != "" {
-			t.Fatalf("recorded usage = %#v, want no write while disabled", store.recorded)
+		if recorded := store.lastUsage(); recorded.CommandID != "" {
+			t.Fatalf("recorded usage = %#v, want no write while disabled", recorded)
 		}
 	})
 
@@ -97,7 +98,7 @@ func TestPersonalization(t *testing.T) {
 			},
 		}}
 		service := personalizationTestRegistry(t, store, func() time.Time { return now })
-		snapshot, err := service.Personalization(context.Background(), "workspace-a")
+		snapshot, err := service.Personalization(t.Context(), "workspace-a")
 		if err != nil {
 			t.Fatalf("Personalization() error = %v", err)
 		}
@@ -122,11 +123,11 @@ func TestPersonalization(t *testing.T) {
 		var logs bytes.Buffer
 		logger := slog.New(slog.NewTextHandler(&logs, nil))
 		service := personalizationTestRegistryWithLogger(t, store, nil, logger)
-		first, err := service.Personalization(context.Background(), "workspace-a")
+		first, err := service.Personalization(t.Context(), "workspace-a")
 		if err != nil {
 			t.Fatalf("Personalization(first) error = %v", err)
 		}
-		second, err := service.Personalization(context.Background(), "workspace-a")
+		second, err := service.Personalization(t.Context(), "workspace-a")
 		if err != nil {
 			t.Fatalf("Personalization(second) error = %v", err)
 		}
@@ -233,6 +234,7 @@ func personalizationTestRegistryWithLogger(
 }
 
 type personalizationStoreStub struct {
+	mu             sync.Mutex
 	recorded       Usage
 	recordErr      error
 	rows           PersonalizationRows
@@ -249,8 +251,16 @@ func (s *personalizationStoreStub) RecordCmdPaletteUsage(
 	usage Usage,
 	_ Weights,
 ) error {
+	s.mu.Lock()
 	s.recorded = usage
+	s.mu.Unlock()
 	return s.recordErr
+}
+
+func (s *personalizationStoreStub) lastUsage() Usage {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.recorded
 }
 
 func (s *personalizationStoreStub) CmdPalettePersonalization(

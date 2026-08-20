@@ -71,6 +71,7 @@ func (d *Daemon) publishBootState(state *bootState) {
 		goalOutboxDone:    state.goalOutboxDone,
 		effectRelayCancel: state.effectRelayCancel,
 		effectRelayDone:   state.effectRelayDone,
+		viewPatches:       state.viewPatches,
 		startedAt:         state.startedAt,
 		info:              state.info,
 	}

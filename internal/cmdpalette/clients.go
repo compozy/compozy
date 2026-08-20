@@ -6,6 +6,7 @@ import (
 	"sort"
 )
 
+// Clients returns the attached shells for a workspace in deterministic id order.
 func (s *Service) Clients(ctx context.Context, workspaceID WorkspaceID) ([]Client, error) {
 	if ctx == nil {
 		return nil, errors.New("cmd palette: clients context is required")

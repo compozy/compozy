@@ -6,6 +6,10 @@ import (
 	"strings"
 )
 
+type inboundCancel struct {
+	cancel context.CancelFunc
+}
+
 func (t *StdioTransport) sendCancel(id json.RawMessage) {
 	go func() {
 		if err := t.writeFrame(requestFrame{
@@ -21,19 +25,24 @@ func (t *StdioTransport) sendCancel(id json.RawMessage) {
 func (t *StdioTransport) startRequest(parent context.Context, request JSONRPCRequestEnvelope) {
 	requestCtx, cancel := context.WithCancel(parent)
 	key := pendingKey(request.ID)
+	entry := &inboundCancel{cancel: cancel}
 	t.mu.Lock()
 	previous := t.inbound[key]
-	t.inbound[key] = cancel
+	t.inbound[key] = entry
 	t.mu.Unlock()
 	if previous != nil {
-		previous()
+		previous.cancel()
 	}
-	go t.dispatchRequest(requestCtx, request)
+	go t.dispatchRequest(requestCtx, request, entry)
 }
 
-func (t *StdioTransport) dispatchRequest(ctx context.Context, request JSONRPCRequestEnvelope) {
+func (t *StdioTransport) dispatchRequest(
+	ctx context.Context,
+	request JSONRPCRequestEnvelope,
+	entry *inboundCancel,
+) {
 	key := pendingKey(request.ID)
-	defer t.releaseInbound(key)
+	defer t.releaseInbound(key, entry)
 	t.mu.Lock()
 	handler := t.handlers[strings.TrimSpace(request.Method)]
 	t.mu.Unlock()
@@ -58,19 +67,18 @@ func (t *StdioTransport) cancelInbound(raw json.RawMessage) {
 		return
 	}
 	t.mu.Lock()
-	cancel := t.inbound[pendingKey(params.ID)]
+	entry := t.inbound[pendingKey(params.ID)]
 	t.mu.Unlock()
-	if cancel != nil {
-		cancel()
+	if entry != nil {
+		entry.cancel()
 	}
 }
 
-func (t *StdioTransport) releaseInbound(key string) {
+func (t *StdioTransport) releaseInbound(key string, entry *inboundCancel) {
 	t.mu.Lock()
-	cancel := t.inbound[key]
-	delete(t.inbound, key)
-	t.mu.Unlock()
-	if cancel != nil {
-		cancel()
+	if t.inbound[key] == entry {
+		delete(t.inbound, key)
 	}
+	t.mu.Unlock()
+	entry.cancel()
 }

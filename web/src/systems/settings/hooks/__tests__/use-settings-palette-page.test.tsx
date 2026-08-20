@@ -27,6 +27,8 @@ const {
     isLoading: false,
     /** The resolver's own signal: the catalog can be loaded while `$HOME` is not. */
     pending: false,
+    error: null as Error | null,
+    refetch: vi.fn(),
     runtimeWorkspaceId: "workspace:home" as string | null,
     activeWorkspace: undefined as { name: string } | undefined,
   },
@@ -74,6 +76,8 @@ describe("useSettingsPalettePage", () => {
     workspace.hasHydrated = true;
     workspace.isLoading = false;
     workspace.pending = false;
+    workspace.error = null;
+    workspace.refetch.mockReset();
     workspace.runtimeWorkspaceId = "workspace:home";
     workspace.activeWorkspace = undefined;
     getSettingsCmdPalette.mockResolvedValue(section(true));
@@ -253,5 +257,18 @@ describe("useSettingsPalettePage", () => {
     rerender();
     await waitFor(() => expect(result.current.section?.personalization).toBe(true));
     expect(getSettingsCmdPalette).toHaveBeenCalledTimes(3);
+  });
+
+  it("Should surface a workspace catalog failure instead of spinning", async () => {
+    workspace.pending = true;
+    workspace.error = new Error("workspace catalog failed");
+    const { result } = renderPage();
+
+    await waitFor(() => expect(result.current.error?.message).toBe("workspace catalog failed"));
+    expect(result.current.isLoading).toBe(false);
+    expect(getSettingsCmdPalette).not.toHaveBeenCalled();
+
+    result.current.handleRetry();
+    expect(workspace.refetch).toHaveBeenCalled();
   });
 });

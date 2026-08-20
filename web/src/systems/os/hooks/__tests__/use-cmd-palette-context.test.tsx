@@ -118,10 +118,47 @@ describe("useCmdPaletteContext (UT-103)", () => {
     expect(result.current?.["window.focused"]).toBe(false);
   });
 
+  it("Should not restart the quiet window for unrelated parent renders", () => {
+    const { result, rerender } = harness(false);
+    rerender({ attached: true });
+
+    for (let index = 0; index < 4; index += 1) {
+      act(() => {
+        vi.advanceTimersByTime(25);
+        rerender({ attached: true });
+      });
+    }
+
+    expect(result.current?.["window.focused"]).toBe(true);
+  });
+
   it("Should produce no snapshot at all while no client is attached", () => {
     const { result } = harness(false);
     expect(result.current).toBeNull();
     // The evaluator turns that into a refusal, never an allow-all.
+    expect(
+      resolvePaletteAvailability(focusedCommand, result.current, { daemonReachable: true })
+    ).toEqual({
+      visible: true,
+      available: false,
+      reason: "requires an attached shell",
+    });
+  });
+
+  it("Should clear the snapshot immediately when attachment is lost during debounce", () => {
+    const { result, rerender } = harness(true);
+    expect(result.current).not.toBeNull();
+
+    act(() => {
+      setFocus(null);
+      rerender({ attached: true });
+    });
+    expect(result.current?.["window.focused"]).toBe(true);
+
+    act(() => {
+      rerender({ attached: false });
+    });
+    expect(result.current).toBeNull();
     expect(
       resolvePaletteAvailability(focusedCommand, result.current, { daemonReachable: true })
     ).toEqual({

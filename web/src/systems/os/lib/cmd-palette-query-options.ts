@@ -3,7 +3,6 @@ import { queryOptions } from "@tanstack/react-query";
 import {
   getCmdPaletteRankSignals,
   getCmdPaletteView,
-  listCmdPaletteClients,
   listCmdPaletteCommands,
 } from "../adapters/cmd-palette-api";
 import { cmdPaletteKeys } from "./cmd-palette-query-keys";
@@ -14,7 +13,6 @@ import { cmdPaletteKeys } from "./cmd-palette-query-keys";
  * projection, and the stream already converges the revision.
  */
 const CATALOG_STALE_TIME = 60_000;
-const CLIENTS_STALE_TIME = 15_000;
 
 export const cmdPaletteCatalogOptions = (
   workspaceId: string | null,
@@ -36,21 +34,12 @@ export const cmdPaletteViewOptions = (
   enabled = true
 ) => {
   const workspace = workspaceId?.trim() ?? "";
+  const view = viewId.trim();
   return queryOptions({
-    queryKey: cmdPaletteKeys.view(workspace, viewId),
-    queryFn: ({ signal }) => getCmdPaletteView(workspace, viewId, signal),
-    enabled: enabled && workspace !== "" && viewId.trim() !== "",
+    queryKey: cmdPaletteKeys.view(workspace, view),
+    queryFn: ({ signal }) => getCmdPaletteView(workspace, view, signal),
+    enabled: enabled && workspace !== "" && view !== "",
     staleTime: 30_000,
-  });
-};
-
-export const cmdPaletteClientsOptions = (workspaceId: string | null, enabled = true) => {
-  const workspace = workspaceId?.trim() ?? "";
-  return queryOptions({
-    queryKey: cmdPaletteKeys.clients(workspace),
-    queryFn: ({ signal }) => listCmdPaletteClients(workspace, signal),
-    enabled: enabled && workspace !== "",
-    staleTime: CLIENTS_STALE_TIME,
   });
 };
 

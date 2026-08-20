@@ -1,16 +1,21 @@
+import { useLayoutEffect, useRef } from "react";
+
 import { CommandDialog } from "@compozy/ui";
 
 import type { useCmdPaletteDispatch } from "../hooks/use-cmd-palette-dispatch";
 import { useOsPaletteSurface } from "../hooks/use-os-palette-surface";
 import { paletteViewDefinition } from "../lib/palette-view-registry";
 import { paletteBreadcrumb } from "../lib/palette-view-stack";
-import type { WindowManagerAttachedClientView } from "../lib/window-manager-types";
+import type { WindowManagerRegisteredClientView } from "../lib/window-manager-types";
 import { PaletteActionPanel } from "./os-palette-action-panel";
 import { PaletteArgsBar } from "./os-palette-args-bar";
 import { PaletteConfirmation } from "./os-palette-confirmation";
+import { focusActivePaletteFrame } from "./os-command-palette-focus";
 import { OsPaletteFooter } from "./os-palette-footer";
 import { OsPaletteRootFrame } from "./os-palette-root-frame";
 import { OsPaletteViewStack } from "./os-palette-view-stack";
+
+export { focusActivePaletteFrame } from "./os-command-palette-focus";
 
 export interface OsCommandPaletteProps {
   open: boolean;
@@ -18,7 +23,7 @@ export interface OsCommandPaletteProps {
   /** The bound dispatch seam; the shell owns the coordinators it closes over. */
   dispatch: ReturnType<typeof useCmdPaletteDispatch>;
   /** The authenticated desktop attachment that owns programmable view sessions. */
-  client?: WindowManagerAttachedClientView | null;
+  client?: WindowManagerRegisteredClientView | null;
 }
 
 /** Base UI reports the dismissal with its reason and lets a listener cancel it. */
@@ -48,8 +53,14 @@ export function OsCommandPalette({
 }: OsCommandPaletteProps) {
   const surface = useOsPaletteSurface({ open, onOpenChange, dispatch });
   const { root, execution, viewStack } = surface;
+  const activeFrameRef = useRef<HTMLDivElement | null>(null);
   const activeView =
     viewStack.activeViewId === null ? null : paletteViewDefinition(viewStack.activeViewId);
+
+  useLayoutEffect(() => {
+    if (viewStack.activeViewId === null) return;
+    focusActivePaletteFrame(activeFrameRef.current);
+  }, [viewStack.activeViewId, viewStack.stack.length]);
 
   const handleOpenChange = (next: boolean, details?: DismissDetails) => {
     if (!next && details?.reason === "escape-key" && execution.escape()) {
@@ -93,7 +104,13 @@ export function OsCommandPalette({
       return (
         <>
           {mountedFrames.map(({ frame, key }) => (
-            <div key={key} hidden={frame !== activeFrame}>
+            <div
+              key={key}
+              hidden={frame !== activeFrame}
+              ref={node => {
+                if (frame === activeFrame) activeFrameRef.current = node;
+              }}
+            >
               <OsPaletteViewStack
                 breadcrumb={paletteBreadcrumb(
                   key

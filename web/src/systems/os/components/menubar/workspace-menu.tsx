@@ -4,7 +4,6 @@ import {
   MenubarContent,
   MenubarItem,
   MenubarMenu,
-  MenubarSeparator,
   MenubarSub,
   MenubarSubContent,
   MenubarSubTrigger,
@@ -21,6 +20,7 @@ import {
   type WorktreeNestEntry,
 } from "@/systems/workspace";
 
+import { MenubarCommandGroups } from "./menubar-command-groups";
 import { MenubarCommandItem } from "./menubar-command-item";
 
 export interface WorkspaceMenuProps {
@@ -99,91 +99,115 @@ export function WorkspaceMenu({
     <MenubarMenu open={open} onOpenChange={onOpenChange}>
       {trigger}
       <MenubarContent align="start" data-testid="os-workspace-menu">
-        {orderedWorkspaces.map(workspace => {
-          const node = nodeByWorkspaceId.get(workspace.id);
-          // Shared absence rule: a non-git workspace gets no worktree
-          // affordance — absent, never disabled.
-          const presence = node ? worktreeNestPresence(node, Boolean(onCreateWorktree)) : "absent";
-          const isActive = !globalScopeOn && workspace.id === activeWorkspaceId;
-          const rowLabel = (
-            <WorkspaceRowLabel
-              monogram={monogram(workspace.name)}
-              name={workspace.name}
-              runningAgents={node?.runningAgents ?? 0}
-            />
-          );
-          if (!node || presence === "absent") {
-            return (
-              <MenubarItem
-                key={workspace.id}
-                data-testid={`os-workspace-option-${workspace.id}`}
-                onClick={() => onSelectWorkspace(workspace.id)}
-              >
-                {rowLabel}
-                {isActive ? <Check className="ml-auto size-3 text-accent" /> : null}
-              </MenubarItem>
-            );
-          }
-          return (
-            <MenubarSub key={workspace.id}>
-              <MenubarSubTrigger
-                // The primitive appends its own ml-auto chevron; hide it so the
-                // active check and the chevron share one trailing lane.
-                className="[&>svg:last-child]:hidden"
-                data-testid={`os-workspace-option-${workspace.id}`}
-                onClick={event => {
-                  // Enter and screen-reader activation (detail 0) keep opening
-                  // the submenu per the menu contract; a pointer click selects.
-                  if (event.detail === 0) return;
-                  onSelectWorkspace(workspace.id);
-                  onOpenChange(false);
-                }}
-              >
-                {rowLabel}
-                <span className="ml-auto flex shrink-0 items-center gap-1">
-                  {isActive ? <Check className="size-3 text-accent" /> : null}
-                  <ChevronRight aria-hidden="true" className="size-3 text-faint" />
-                </span>
-              </MenubarSubTrigger>
-              <MenubarSubContent
-                className={WORKTREE_SUBMENU_FRAME_CLASS}
-                data-testid={`os-worktree-submenu-${workspace.id}`}
-              >
-                <WorktreeSubmenuPanel
-                  node={node}
-                  selectedWorktreeId={globalScopeOn ? null : selectedWorktreeId}
-                  testIdPrefix="os"
-                  variant="menu"
-                  userHomeDir={userHomeDir}
-                  onSelectWorktree={
-                    onSelectWorktree ? entry => onSelectWorktree(workspace.id, entry) : undefined
-                  }
-                  onCreateWorktree={
-                    onCreateWorktree ? () => onCreateWorktree(workspace.id) : undefined
-                  }
-                  onResolveMissing={
-                    onResolveMissingWorktree
-                      ? entry => onResolveMissingWorktree(workspace.id, entry)
-                      : undefined
-                  }
-                  onOpenContext={
-                    onOpenWorktreeContext
-                      ? entry => onOpenWorktreeContext(workspace.id, entry)
-                      : undefined
-                  }
-                  onRemoveWorktree={
-                    onRemoveWorktree ? entry => onRemoveWorktree(workspace.id, entry) : undefined
-                  }
-                />
-              </MenubarSubContent>
-            </MenubarSub>
-          );
-        })}
-        <MenubarSeparator />
-        <MenubarCommandItem commandId="workspace.picker" onRun={onRun} />
-        <MenubarItem data-testid="os-workspace-add" onClick={onAddWorkspace}>
-          Add workspace…
-        </MenubarItem>
+        <MenubarCommandGroups
+          groups={[
+            {
+              id: "workspaces",
+              content:
+                orderedWorkspaces.length > 0 ? (
+                  <>
+                    {orderedWorkspaces.map(workspace => {
+                      const node = nodeByWorkspaceId.get(workspace.id);
+                      // Shared absence rule: a non-git workspace gets no worktree
+                      // affordance — absent, never disabled.
+                      const presence = node
+                        ? worktreeNestPresence(node, Boolean(onCreateWorktree))
+                        : "absent";
+                      const isActive = !globalScopeOn && workspace.id === activeWorkspaceId;
+                      const rowLabel = (
+                        <WorkspaceRowLabel
+                          monogram={monogram(workspace.name)}
+                          name={workspace.name}
+                          runningAgents={node?.runningAgents ?? 0}
+                        />
+                      );
+                      if (!node || presence === "absent") {
+                        return (
+                          <MenubarItem
+                            key={workspace.id}
+                            data-testid={`os-workspace-option-${workspace.id}`}
+                            onClick={() => onSelectWorkspace(workspace.id)}
+                          >
+                            {rowLabel}
+                            {isActive ? <Check className="ml-auto size-3 text-accent" /> : null}
+                          </MenubarItem>
+                        );
+                      }
+                      return (
+                        <MenubarSub key={workspace.id}>
+                          <MenubarSubTrigger
+                            // The primitive appends its own ml-auto chevron; hide it so the
+                            // active check and the chevron share one trailing lane.
+                            className="[&>svg:last-child]:hidden"
+                            data-testid={`os-workspace-option-${workspace.id}`}
+                            onClick={event => {
+                              // Enter and screen-reader activation (detail 0) keep opening
+                              // the submenu per the menu contract; a pointer click selects.
+                              if (event.detail === 0) return;
+                              onSelectWorkspace(workspace.id);
+                              onOpenChange(false);
+                            }}
+                          >
+                            {rowLabel}
+                            <span className="ml-auto flex shrink-0 items-center gap-1">
+                              {isActive ? <Check className="size-3 text-accent" /> : null}
+                              <ChevronRight aria-hidden="true" className="size-3 text-faint" />
+                            </span>
+                          </MenubarSubTrigger>
+                          <MenubarSubContent
+                            className={WORKTREE_SUBMENU_FRAME_CLASS}
+                            data-testid={`os-worktree-submenu-${workspace.id}`}
+                          >
+                            <WorktreeSubmenuPanel
+                              node={node}
+                              selectedWorktreeId={globalScopeOn ? null : selectedWorktreeId}
+                              testIdPrefix="os"
+                              variant="menu"
+                              userHomeDir={userHomeDir}
+                              onSelectWorktree={
+                                onSelectWorktree
+                                  ? entry => onSelectWorktree(workspace.id, entry)
+                                  : undefined
+                              }
+                              onCreateWorktree={
+                                onCreateWorktree ? () => onCreateWorktree(workspace.id) : undefined
+                              }
+                              onResolveMissing={
+                                onResolveMissingWorktree
+                                  ? entry => onResolveMissingWorktree(workspace.id, entry)
+                                  : undefined
+                              }
+                              onOpenContext={
+                                onOpenWorktreeContext
+                                  ? entry => onOpenWorktreeContext(workspace.id, entry)
+                                  : undefined
+                              }
+                              onRemoveWorktree={
+                                onRemoveWorktree
+                                  ? entry => onRemoveWorktree(workspace.id, entry)
+                                  : undefined
+                              }
+                            />
+                          </MenubarSubContent>
+                        </MenubarSub>
+                      );
+                    })}
+                  </>
+                ) : null,
+            },
+            {
+              id: "manage",
+              content: (
+                <>
+                  <MenubarCommandItem commandId="workspace.picker" onRun={onRun} />
+                  <MenubarItem data-testid="os-workspace-add" onClick={onAddWorkspace}>
+                    Add workspace…
+                  </MenubarItem>
+                </>
+              ),
+            },
+          ]}
+        />
       </MenubarContent>
     </MenubarMenu>
   );

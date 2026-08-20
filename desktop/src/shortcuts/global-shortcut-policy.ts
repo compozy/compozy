@@ -18,14 +18,14 @@ interface ActiveBinding {
 
 export class GlobalShortcutPolicy {
   readonly #globalShortcut: GlobalShortcutLike;
-  readonly #accessibility: AccessibilityStatus;
+  readonly #accessibility: () => AccessibilityStatus;
   readonly #onInvoke: (commandID: string) => void;
   readonly #active = new Map<string, ActiveBinding>();
   #statuses: GlobalShortcutRegistration[] = [];
 
   constructor(options: {
     globalShortcut: GlobalShortcutLike;
-    accessibility: AccessibilityStatus;
+    accessibility: () => AccessibilityStatus;
     onInvoke: (commandID: string) => void;
   }) {
     this.#globalShortcut = options.globalShortcut;
@@ -60,8 +60,9 @@ export class GlobalShortcutPolicy {
     if (previous?.chord === binding.chord) {
       return this.#registered(binding, previous.chord);
     }
-    if (!this.#accessibility.allowed) {
-      return this.#failed(binding, "failed_permission", previous, this.#accessibility.settingsURL);
+    const accessibility = this.#accessibility();
+    if (!accessibility.allowed) {
+      return this.#failed(binding, "failed_permission", previous, accessibility.settingsURL);
     }
 
     let accelerator: string;

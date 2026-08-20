@@ -11,10 +11,16 @@ List commands and their current availability
 compozy cmd-palette list [flags]
 ```
 
+### Examples
+
+```
+  compozy cmd-palette list --available=false
+```
+
 ### Options
 
 ```
-      --available          Filter by current availability (default true)
+      --available          Filter by current availability when provided; omitted lists all commands
       --client string      Resolve against one attached client
   -h, --help               help for list
       --source string      Filter by source (core or ext.<name>)

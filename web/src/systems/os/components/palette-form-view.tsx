@@ -19,9 +19,11 @@ type FormValue = string | boolean | readonly string[];
 
 export function PaletteFormView({
   form,
+  onEvent,
   onSubmit,
 }: {
   form: CmdPaletteViewForm;
+  onEvent?: (handler: string, args: readonly unknown[], controlled: boolean) => void;
   onSubmit: (
     action: CmdPaletteViewAction | undefined,
     values: Readonly<Record<string, FormValue>>
@@ -37,7 +39,8 @@ export function PaletteFormView({
     event.preventDefault();
     const invalid: Record<string, string> = {};
     for (const field of form.fields) {
-      if (field.required && isEmptyValue(values[field.id])) invalid[field.id] = "Required";
+      if (field.error) invalid[field.id] = field.error;
+      else if (field.required && isEmptyValue(values[field.id])) invalid[field.id] = "Required";
     }
     setErrors(invalid);
     const first = form.fields.find(field => invalid[field.id] !== undefined);
@@ -66,12 +69,21 @@ export function PaletteFormView({
         return (
           <div key={field.id} className="space-y-1.5" data-field-id={field.id}>
             <Label htmlFor={`palette-field-${field.id}`}>{field.label}</Label>
-            {renderField(field, values[field.id], value => {
-              setValues(current => ({ ...current, [field.id]: value }));
-              if (errors[field.id]) {
-                setErrors(current => ({ ...current, [field.id]: "" }));
+            {renderField(
+              field,
+              values[field.id],
+              Boolean(error),
+              value => {
+                setValues(current => ({ ...current, [field.id]: value }));
+                if (errors[field.id]) {
+                  setErrors(current => ({ ...current, [field.id]: "" }));
+                }
+                if (field.on_change) onEvent?.(field.on_change, [value], true);
+              },
+              () => {
+                if (field.on_blur) onEvent?.(field.on_blur, [], false);
               }
-            })}
+            )}
             {field.type === "dropdown" && field.options?.length === 0 && field.empty_hint ? (
               <p className="text-small-body text-muted">{field.empty_hint}</p>
             ) : null}
@@ -98,15 +110,19 @@ export function PaletteFormView({
 function renderField(
   field: CmdPaletteViewForm["fields"][number],
   value: FormValue | undefined,
-  onChange: (value: FormValue) => void
+  invalid: boolean,
+  onChange: (value: FormValue) => void,
+  onBlur: () => void
 ) {
   const id = `palette-field-${field.id}`;
   if (field.type === "checkbox") {
     return (
       <Checkbox
         id={id}
+        aria-invalid={invalid}
         checked={value === true}
         onCheckedChange={checked => onChange(checked === true)}
+        onBlur={onBlur}
       />
     );
   }
@@ -116,7 +132,7 @@ function renderField(
         value={typeof value === "string" ? value : ""}
         onValueChange={next => onChange(next ?? "")}
       >
-        <SelectTrigger id={id} className="w-full" aria-invalid={Boolean(field.error)}>
+        <SelectTrigger id={id} className="w-full" aria-invalid={invalid} onBlur={onBlur}>
           <SelectValue placeholder={field.placeholder ?? "Select"} />
         </SelectTrigger>
         <SelectContent>
@@ -133,10 +149,11 @@ function renderField(
     return (
       <Textarea
         id={id}
-        aria-invalid={Boolean(field.error)}
+        aria-invalid={invalid}
         placeholder={field.placeholder}
         value={typeof value === "string" ? value : ""}
         onChange={event => onChange(event.target.value)}
+        onBlur={onBlur}
       />
     );
   }
@@ -145,8 +162,10 @@ function renderField(
       <Input
         id={id}
         type="file"
-        multiple={field.directories}
+        aria-invalid={invalid}
+        {...(field.directories ? { webkitdirectory: "" } : {})}
         onChange={event => onChange([...(event.target.files ?? [])].map(file => file.name))}
+        onBlur={onBlur}
       />
     );
   }
@@ -155,10 +174,11 @@ function renderField(
       id={id}
       type={field.type === "password" ? "password" : "text"}
       autoComplete={field.type === "password" ? "new-password" : undefined}
-      aria-invalid={Boolean(field.error)}
+      aria-invalid={invalid}
       placeholder={field.placeholder}
       value={typeof value === "string" ? value : ""}
       onChange={event => onChange(event.target.value)}
+      onBlur={onBlur}
     />
   );
 }
@@ -167,9 +187,16 @@ function initialValues(form: CmdPaletteViewForm): Record<string, FormValue> {
   return Object.fromEntries(
     form.fields.map(field => {
       if (field.type === "checkbox") return [field.id, field.default === true];
+      if (field.type === "file") return [field.id, fileDefault(field.default)];
       return [field.id, typeof field.default === "string" ? field.default : ""];
     })
   );
+}
+
+function fileDefault(value: unknown): readonly string[] {
+  if (typeof value === "string" && value !== "") return [value];
+  if (!Array.isArray(value)) return [];
+  return value.filter((entry): entry is string => typeof entry === "string");
 }
 
 function isEmptyValue(value: FormValue | undefined): boolean {

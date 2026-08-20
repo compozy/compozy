@@ -21,8 +21,6 @@ type PersonalizationResponse =
   operations["getCmdPalettePersonalization"]["responses"][200]["content"]["application/json"];
 type ViewResponse =
   operations["getCmdPaletteView"]["responses"][200]["content"]["application/json"];
-type ViewPatchResponse =
-  operations["streamCmdPaletteView"]["responses"][200]["content"]["text/event-stream"];
 type ViewSessionOpenResponse =
   operations["openCmdPaletteViewSession"]["responses"][200]["content"]["application/json"];
 type ViewSessionEventRequest =
@@ -49,14 +47,10 @@ export type CmdPaletteViewAction = NonNullable<CmdPaletteViewRow["actions"]>[num
 export type CmdPaletteViewDetail = NonNullable<CmdPaletteViewPayload["detail"]>;
 export type CmdPaletteViewForm = NonNullable<CmdPaletteViewPayload["form"]>;
 export type CmdPaletteViewGrid = NonNullable<CmdPaletteViewPayload["grid"]>;
-export type CmdPaletteViewPatchEnvelope = ViewPatchResponse;
 export type CmdPaletteViewSessionOpenResponse = ViewSessionOpenResponse;
 export type CmdPaletteViewFrame = ViewSessionOpenResponse["first_frame"];
 export type CmdPaletteViewEffect = NonNullable<CmdPaletteViewFrame["effects"]>[number];
 export type CmdPaletteViewSessionEvent = ViewSessionEventRequest;
-
-/** The action kinds the dispatch seam routes (BR-2: closed union). */
-export type CmdPaletteActionKind = "client_op" | "tool" | "view" | "navigate" | "url";
 
 /**
  * The structural half of the catalog — what survives in the IndexedDB record.

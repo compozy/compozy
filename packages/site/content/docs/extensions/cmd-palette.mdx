@@ -149,7 +149,6 @@ const extension = new Extension({
   description: "Browse notes",
   subprocess: { command: "node", args: ["index.js"] },
   capabilities: { provides: ["view.provider"] },
-  permissions: { requires: ["view/patch"] },
   resources: {
     cmd_palette: {
       commands: [

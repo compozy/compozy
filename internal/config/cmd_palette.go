@@ -30,10 +30,23 @@ func DefaultCmdPaletteConfig() CmdPaletteConfig {
 	}
 }
 
+func (c *CmdPaletteConfig) normalizeFallbackTargets() {
+	if c == nil || c.FallbackTargets == nil {
+		return
+	}
+	targets := make([]string, 0, len(c.FallbackTargets))
+	for _, target := range c.FallbackTargets {
+		if trimmed := strings.TrimSpace(target); trimmed != "" {
+			targets = append(targets, trimmed)
+		}
+	}
+	c.FallbackTargets = targets
+}
+
 // Validate rejects unsupported fallback targets and malformed aliases.
 func (c CmdPaletteConfig) Validate() error {
 	for index, target := range c.FallbackTargets {
-		if strings.TrimSpace(target) != CmdPaletteFallbackAgent {
+		if target != CmdPaletteFallbackAgent {
 			return ValidationError{
 				Path:    fmt.Sprintf("cmd_palette.fallback_targets[%d]", index),
 				Message: "must be one of agent",
@@ -81,19 +94,11 @@ func ValidateCmdPaletteAlias(alias string) error {
 	return nil
 }
 
-func cloneCmdPaletteConfig(source CmdPaletteConfig) CmdPaletteConfig {
+// CloneCmdPaletteConfig copies fallback targets and aliases without sharing maps.
+func CloneCmdPaletteConfig(source CmdPaletteConfig) CmdPaletteConfig {
 	return CmdPaletteConfig{
 		FallbackTargets: append([]string(nil), source.FallbackTargets...),
 		Personalization: source.Personalization,
-		Aliases:         cloneStringMap(source.Aliases),
+		Aliases:         maps.Clone(source.Aliases),
 	}
-}
-
-func cloneStringMap(source map[string]string) map[string]string {
-	if source == nil {
-		return nil
-	}
-	cloned := make(map[string]string, len(source))
-	maps.Copy(cloned, source)
-	return cloned
 }

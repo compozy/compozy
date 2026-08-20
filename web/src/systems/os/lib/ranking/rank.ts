@@ -28,26 +28,33 @@ function groupRank(group: string, weights: RankingWeights): number {
   return rank === -1 ? weights.group_order.length : rank;
 }
 
-function frecencyScore(commandId: string, snapshot: RankingSnapshot): number {
-  const usage = snapshot.usage.find(signal => signal.command_id === commandId);
+function frecencyScore(
+  usage: RankingSnapshot["usage"][number] | undefined,
+  weights: RankingWeights
+): number {
   if (usage === undefined || usage.weight <= 0) return 0;
-  return Math.min(
-    snapshot.weights.frecency_cap,
-    snapshot.weights.frecency_scale * Math.log1p(usage.weight)
-  );
+  return Math.min(weights.frecency_cap, weights.frecency_scale * Math.log1p(usage.weight));
 }
 
-function queryLearningScore(query: string, commandId: string, snapshot: RankingSnapshot): number {
-  const normalized = normalizeRankingText(query).text;
-  if (normalized === "") return 0;
+interface PreparedQueryHit {
+  readonly query: string;
+  readonly weight: number;
+}
+
+function queryLearningScore(
+  normalizedQuery: string,
+  hits: readonly PreparedQueryHit[] | undefined,
+  weights: RankingWeights
+): number {
+  if (normalizedQuery === "" || hits === undefined) return 0;
   let weight = 0;
-  for (const hit of snapshot.query_hits) {
-    if (hit.command_id !== commandId) continue;
-    const learned = normalizeRankingText(hit.query).text;
-    if (learned.startsWith(normalized) || normalized.startsWith(learned)) weight += hit.weight;
+  for (const hit of hits) {
+    if (hit.query.startsWith(normalizedQuery) || normalizedQuery.startsWith(hit.query)) {
+      weight += hit.weight;
+    }
   }
   if (weight <= 0) return 0;
-  return snapshot.weights.query_learning_cap * (weight / (weight + 1));
+  return weights.query_learning_cap * (weight / (weight + 1));
 }
 
 function scoreBucket(score: number, deadband: number): number {
@@ -80,7 +87,16 @@ export function rankCandidates<T extends RankingCandidate>(
   candidates: readonly T[],
   snapshot: RankingSnapshot
 ): readonly RankedCandidate<T>[] {
-  if (normalizeRankingText(query).text.length > snapshot.weights.max_query_length) return [];
+  const normalizedQuery = normalizeRankingText(query).text;
+  if (normalizedQuery.length > snapshot.weights.max_query_length) return [];
+  const usageById = new Map(snapshot.usage.map(signal => [signal.command_id, signal]));
+  const hitsById = new Map<string, PreparedQueryHit[]>();
+  for (const hit of snapshot.query_hits) {
+    const prepared = { query: normalizeRankingText(hit.query).text, weight: hit.weight };
+    const existing = hitsById.get(hit.command_id);
+    if (existing) existing.push(prepared);
+    else hitsById.set(hit.command_id, [prepared]);
+  }
   const ranked: RankedCandidate<T>[] = [];
   const seen = new Set<string>();
   for (const candidate of candidates) {
@@ -88,8 +104,12 @@ export function rankCandidates<T extends RankingCandidate>(
     seen.add(candidate.stableKey);
     const match = matchRankingCandidate(query, candidate, snapshot.weights);
     if (match === null) continue;
-    const frecency = frecencyScore(candidate.id, snapshot);
-    const learned = queryLearningScore(query, candidate.id, snapshot);
+    const frecency = frecencyScore(usageById.get(candidate.id), snapshot.weights);
+    const learned = queryLearningScore(
+      normalizedQuery,
+      hitsById.get(candidate.id),
+      snapshot.weights
+    );
     const context = candidate.contextual === true ? snapshot.weights.context_boost : 0;
     ranked.push({
       candidate,

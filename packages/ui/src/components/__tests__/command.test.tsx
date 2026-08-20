@@ -46,9 +46,9 @@ interface ExternalItem {
 }
 
 /**
- * A palette driven the way a registry projection drives one: cmdk filters and
- * sorts nothing, the caller supplies both the visible set and its order, and
- * selection survives churn through `resolveCommandSelection`.
+ * A palette driven like a registry projection: cmdk filters and sorts nothing,
+ * the caller supplies both the visible set and its order, and selection
+ * survives churn through `resolveCommandSelection`.
  */
 function ExternalPalette({
   items,

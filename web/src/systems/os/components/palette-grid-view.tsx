@@ -1,4 +1,4 @@
-import { useRef, useState, type KeyboardEvent } from "react";
+import { useLayoutEffect, useRef, useState, type KeyboardEvent, type RefObject } from "react";
 
 import { Pill } from "@compozy/ui";
 import { useVirtualizer } from "@tanstack/react-virtual";
@@ -7,30 +7,59 @@ import { ImageIcon } from "lucide-react";
 import { statusTone } from "@/lib/status-tone";
 import { cn } from "@/lib/utils";
 
+import { cmdPaletteIconRegistry } from "../lib/cmd-palette-icons";
+import {
+  visibleGridSections,
+  visibleGridTiles,
+  virtualGridRows,
+  type PaletteGridTile,
+} from "../lib/cmd-palette-grid";
 import type { CmdPaletteViewAction, CmdPaletteViewGrid } from "../lib/cmd-palette-types";
+import { OsPaletteProgramBand } from "./os-palette-program-status";
+import { PALETTE_VIEW_VIRTUAL_THRESHOLD } from "./os-palette-virtual-rows";
 
-type GridTile = CmdPaletteViewGrid["sections"][number]["tiles"][number];
-type GridSection = CmdPaletteViewGrid["sections"][number];
-
-const GRID_VIRTUAL_THRESHOLD = 150;
 const GRID_ROW_ESTIMATE = 156;
+const GRID_VIEWPORT_CLASS =
+  "max-h-72 overflow-y-auto p-3 outline-none focus-visible:shadow-focus-ring";
 
 export function PaletteGridView({
   columns = 3,
   empty,
+  filterLocally = false,
   grid,
+  loading = false,
   onAction,
+  onSelectionChange,
+  query = "",
 }: {
   columns?: number;
   empty?: { title: string; hint?: string } | null;
+  filterLocally?: boolean;
   grid: CmdPaletteViewGrid;
+  loading?: boolean;
   onAction: (action: CmdPaletteViewAction) => void;
+  onSelectionChange?: (tileId: string) => void;
+  query?: string;
 }) {
   const [selected, setSelected] = useState(0);
   const [failedImages, setFailedImages] = useState<ReadonlySet<string>>(() => new Set());
-  const tiles = grid.sections.flatMap(section => section.tiles);
+  const viewportRef = useRef<HTMLDivElement | null>(null);
+  const tiles = visibleGridTiles(grid, query, filterLocally);
   const safeColumns = Math.max(1, Math.min(columns, 6));
+  const virtualized = tiles.length > PALETTE_VIEW_VIRTUAL_THRESHOLD;
+  const selectedId = tiles[selected]?.id ?? "";
+
+  useLayoutEffect(() => {
+    if (tiles.length === 0 || virtualized || selectedId === "") return;
+    viewportRef.current
+      ?.querySelector(`[data-testid="palette-grid-tile-${selectedId}"]`)
+      ?.scrollIntoView({ block: "nearest" });
+  }, [selectedId, tiles.length, virtualized]);
+
   if (tiles.length === 0) {
+    if (loading) {
+      return <OsPaletteProgramBand phase="busy" onRetry={() => undefined} />;
+    }
     return (
       <div className="px-3 py-8 text-center" data-testid="palette-grid-empty">
         <p className="text-card-title text-fg">{empty?.title ?? "No items yet"}</p>
@@ -39,7 +68,12 @@ export function PaletteGridView({
     );
   }
 
-  const activate = (tile: GridTile | undefined) => {
+  const select = (index: number) => {
+    setSelected(index);
+    const tile = tiles[index];
+    if (tile) onSelectionChange?.(tile.id);
+  };
+  const activate = (tile: PaletteGridTile | undefined) => {
     const action = primaryAction(tile);
     if (action) onAction(action);
   };
@@ -65,100 +99,70 @@ export function PaletteGridView({
         return;
     }
     event.preventDefault();
-    setSelected(next);
+    select(next);
   };
 
-  if (tiles.length > GRID_VIRTUAL_THRESHOLD) {
+  if (virtualized) {
     return (
       <VirtualGrid
         columns={safeColumns}
         failedImages={failedImages}
         grid={grid}
+        query={query}
+        filterLocally={filterLocally}
         selected={selected}
+        viewportRef={viewportRef}
+        onAction={onAction}
         onActivate={activate}
         onImageError={tileID => setFailedImages(current => new Set([...current, tileID]))}
         onKeyDown={keyDown}
-        onSelect={setSelected}
+        onSelect={index => {
+          select(index);
+        }}
       />
     );
   }
 
+  const sections = visibleGridSections(grid.sections, query, filterLocally);
   return (
-    <div
-      className="max-h-72 overflow-y-auto p-3 outline-none focus-visible:shadow-focus-ring"
-      data-testid="palette-grid-view"
-      role="grid"
-      tabIndex={0}
-      onKeyDown={keyDown}
-    >
-      {grid.sections.map((section, sectionIndex) => {
-        const sectionOffset = grid.sections
-          .slice(0, sectionIndex)
-          .reduce((total, prior) => total + prior.tiles.length, 0);
-        return (
-          <section
-            key={`${section.title ?? "section"}:${sectionOffset}`}
-            className="mb-4 last:mb-0"
+    <GridViewport ref={viewportRef} onKeyDown={keyDown}>
+      {sections.map(section => (
+        <section key={section.key} className="mb-4 last:mb-0">
+          {section.title ? <h3 className="eyebrow mb-2 text-muted">{section.title}</h3> : null}
+          <div
+            className="grid gap-2"
+            style={{ gridTemplateColumns: `repeat(${safeColumns}, minmax(0, 1fr))` }}
           >
-            {section.title ? <h3 className="eyebrow mb-2 text-muted">{section.title}</h3> : null}
-            <div
-              className="grid gap-2"
-              style={{ gridTemplateColumns: `repeat(${safeColumns}, minmax(0, 1fr))` }}
-            >
-              {section.tiles.map((tile, tileIndex) => {
-                const index = sectionOffset + tileIndex;
-                return (
-                  <GridTileButton
-                    key={tile.id}
-                    failed={failedImages.has(tile.id)}
-                    selected={selected === index}
-                    tile={tile}
-                    onClick={() => {
-                      setSelected(index);
-                      activate(tile);
-                    }}
-                    onImageError={() => setFailedImages(current => new Set([...current, tile.id]))}
-                  />
-                );
-              })}
-            </div>
-          </section>
-        );
-      })}
-    </div>
+            {section.tiles.map(({ tile, index }) => (
+              <GridTileButton
+                key={tile.id}
+                failed={failedImages.has(tile.id)}
+                selected={selected === index}
+                tile={tile}
+                onAction={onAction}
+                onClick={() => {
+                  select(index);
+                  activate(tile);
+                }}
+                onImageError={() => setFailedImages(current => new Set([...current, tile.id]))}
+              />
+            ))}
+          </div>
+        </section>
+      ))}
+    </GridViewport>
   );
-}
-
-interface VirtualGridRow {
-  readonly key: string;
-  readonly title?: string;
-  readonly tiles: readonly { tile: GridTile; index: number }[];
-}
-
-function virtualGridRows(sections: readonly GridSection[], columns: number): VirtualGridRow[] {
-  const rows: VirtualGridRow[] = [];
-  let offset = 0;
-  for (const section of sections) {
-    for (let start = 0; start < section.tiles.length; start += columns) {
-      rows.push({
-        key: `${section.title ?? "section"}:${start}`,
-        ...(start === 0 && section.title ? { title: section.title } : {}),
-        tiles: section.tiles.slice(start, start + columns).map((tile, localIndex) => ({
-          tile,
-          index: offset + start + localIndex,
-        })),
-      });
-    }
-    offset += section.tiles.length;
-  }
-  return rows;
 }
 
 function VirtualGrid({
   columns,
   failedImages,
+  filterLocally,
   grid,
+  query,
   selected,
+  viewportRef,
+  onAction,
   onActivate,
   onImageError,
   onKeyDown,
@@ -166,17 +170,21 @@ function VirtualGrid({
 }: {
   columns: number;
   failedImages: ReadonlySet<string>;
+  filterLocally: boolean;
   grid: CmdPaletteViewGrid;
+  query: string;
   selected: number;
-  onActivate: (tile: GridTile | undefined) => void;
+  viewportRef: RefObject<HTMLDivElement | null>;
+  onAction: (action: CmdPaletteViewAction) => void;
+  onActivate: (tile: PaletteGridTile | undefined) => void;
   onImageError: (tileID: string) => void;
   onKeyDown: (event: KeyboardEvent<HTMLDivElement>) => void;
   onSelect: (index: number) => void;
 }) {
   "use no memo";
 
-  const viewportRef = useRef<HTMLDivElement | null>(null);
-  const rows = virtualGridRows(grid.sections, columns);
+  const tiles = visibleGridTiles(grid, query, filterLocally);
+  const rows = virtualGridRows(grid.sections, columns, tiles);
   // oxlint-disable-next-line react/incompatible-library -- virtualizer state is isolated inside this compiler boundary.
   const virtualizer = useVirtualizer<HTMLDivElement, HTMLDivElement>({
     count: rows.length,
@@ -186,16 +194,12 @@ function VirtualGrid({
     overscan: 4,
     useFlushSync: false,
   });
+  const selectedRow = rows.findIndex(row => row.tiles.some(entry => entry.index === selected));
+  useLayoutEffect(() => {
+    if (selectedRow >= 0) virtualizer.scrollToIndex(selectedRow, { align: "auto" });
+  }, [selectedRow, virtualizer]);
   return (
-    <div
-      ref={viewportRef}
-      className="max-h-72 overflow-y-auto p-3 outline-none focus-visible:shadow-focus-ring"
-      data-testid="palette-grid-view"
-      data-virtualized="true"
-      role="grid"
-      tabIndex={0}
-      onKeyDown={onKeyDown}
-    >
+    <GridViewport ref={viewportRef} virtualized onKeyDown={onKeyDown}>
       <div className="relative w-full" style={{ height: virtualizer.getTotalSize() }}>
         {virtualizer.getVirtualItems().map(item => {
           const row = rows[item.index];
@@ -206,6 +210,7 @@ function VirtualGrid({
               ref={virtualizer.measureElement}
               className="absolute top-0 left-0 w-full pb-2"
               data-index={item.index}
+              data-row-key={row.key}
               style={{ transform: `translateY(${item.start}px)` }}
             >
               {row.title ? <h3 className="eyebrow mb-2 text-muted">{row.title}</h3> : null}
@@ -219,6 +224,7 @@ function VirtualGrid({
                     failed={failedImages.has(tile.id)}
                     selected={selected === index}
                     tile={tile}
+                    onAction={onAction}
                     onClick={() => {
                       onSelect(index);
                       onActivate(tile);
@@ -231,53 +237,105 @@ function VirtualGrid({
           );
         })}
       </div>
+    </GridViewport>
+  );
+}
+
+function GridViewport({
+  children,
+  ref,
+  virtualized = false,
+  onKeyDown,
+}: {
+  children: React.ReactNode;
+  ref: RefObject<HTMLDivElement | null>;
+  virtualized?: boolean;
+  onKeyDown: (event: KeyboardEvent<HTMLDivElement>) => void;
+}) {
+  return (
+    <div
+      ref={ref}
+      className={GRID_VIEWPORT_CLASS}
+      data-testid="palette-grid-view"
+      {...(virtualized ? { "data-virtualized": "true" } : {})}
+      role="grid"
+      tabIndex={0}
+      onKeyDown={onKeyDown}
+    >
+      {children}
     </div>
   );
 }
 
 function GridTileButton({
   failed,
+  onAction,
   selected,
   tile,
   onClick,
   onImageError,
 }: {
   failed: boolean;
+  onAction: (action: CmdPaletteViewAction) => void;
   selected: boolean;
-  tile: GridTile;
+  tile: PaletteGridTile;
   onClick: () => void;
   onImageError: () => void;
 }) {
+  const extras = secondaryActions(tile);
   return (
-    <button
-      type="button"
+    <div
       aria-selected={selected}
       className={cn(
-        "min-w-0 rounded-md border border-line bg-canvas-tint p-2 text-left outline-none",
-        "hover:bg-elevated",
+        "min-w-0 rounded-md border border-line bg-canvas-tint p-2",
         selected && "border-line-strong bg-elevated shadow-focus-ring"
       )}
       data-action-count={tile.actions?.length ?? 0}
       data-testid={`palette-grid-tile-${tile.id}`}
       role="gridcell"
-      tabIndex={-1}
-      onClick={onClick}
     >
-      <TileImage failed={failed} tile={tile} onError={onImageError} />
-      <div className="mt-2 flex min-w-0 items-center gap-2">
-        <span className="min-w-0 flex-1 truncate text-card-title text-fg">{tile.title}</span>
-        {tile.badge ? (
-          <Pill size="xs" tone={statusTone(tile.badge.tone)}>
-            {tile.badge.label}
-          </Pill>
-        ) : null}
-      </div>
-    </button>
+      <button
+        type="button"
+        className="w-full text-left outline-none"
+        tabIndex={-1}
+        onClick={onClick}
+      >
+        <TileImage failed={failed} tile={tile} onError={onImageError} />
+        <div className="mt-2 flex min-w-0 items-center gap-2">
+          <span className="min-w-0 flex-1 truncate text-card-title text-fg">{tile.title}</span>
+          {tile.badge ? (
+            <Pill size="xs" tone={statusTone(tile.badge.tone)}>
+              {tile.badge.label}
+            </Pill>
+          ) : null}
+        </div>
+      </button>
+      {extras.length > 0 ? (
+        <div className="mt-2 flex flex-wrap gap-1">
+          {extras.map(action => (
+            <button
+              key={action.title}
+              type="button"
+              className="rounded-sm border border-line px-1.5 py-0.5 text-micro text-muted outline-none hover:bg-elevated"
+              onClick={() => onAction(action)}
+            >
+              {action.title}
+            </button>
+          ))}
+        </div>
+      ) : null}
+    </div>
   );
 }
 
-function primaryAction(tile: GridTile | undefined): CmdPaletteViewAction | undefined {
+function primaryAction(tile: PaletteGridTile | undefined): CmdPaletteViewAction | undefined {
   return tile?.actions?.find(action => action.primary) ?? tile?.actions?.[0];
+}
+
+function secondaryActions(tile: PaletteGridTile): readonly CmdPaletteViewAction[] {
+  const actions = tile.actions ?? [];
+  const primary = primaryAction(tile);
+  return actions.filter(action => action !== primary);
 }
 
 function TileImage({
@@ -286,7 +344,7 @@ function TileImage({
   onError,
 }: {
   failed: boolean;
-  tile: GridTile;
+  tile: PaletteGridTile;
   onError: () => void;
 }) {
   if (!failed && tile.image.url) {
@@ -299,12 +357,16 @@ function TileImage({
       />
     );
   }
+  const token = tile.image.token;
+  const TokenIcon = token ? cmdPaletteIconRegistry[token] : undefined;
   return (
     <div className="grid aspect-video w-full place-items-center rounded-sm bg-canvas text-subtle">
       {tile.image.emoji && !failed ? (
         <span aria-hidden="true" className="text-title">
           {tile.image.emoji}
         </span>
+      ) : TokenIcon && !failed ? (
+        <TokenIcon aria-hidden="true" className="size-5" data-icon-token={token} />
       ) : (
         <ImageIcon aria-hidden="true" className="size-5" />
       )}

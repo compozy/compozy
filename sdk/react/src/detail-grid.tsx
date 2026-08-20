@@ -1,4 +1,4 @@
-import type { Image, MetaField, ViewBadge } from "@compozy/extension-sdk";
+import type { Chip, Image, MetaField, ViewBadge } from "@compozy/extension-sdk";
 import { createElement } from "react";
 import type { ReactElement, ReactNode } from "react";
 
@@ -21,9 +21,17 @@ export interface GridProps {
   throttle?: boolean | number;
   filtering?: boolean;
   complete?: boolean;
+  chips?: Chip[];
+  activeChip?: string | null;
+  pagination?: {
+    hasMore: boolean;
+    pageSize?: number;
+    onLoadMore?: () => void | Promise<unknown>;
+  };
   columns?: number;
   onSearchTextChange?: (value: string, eventCount: number) => void | Promise<void>;
-  onSelectionChange?: (itemID: string) => void | Promise<void>;
+  onChipToggle?: (chip: string | null, eventCount: number) => void | Promise<void>;
+  onSelectionChange?: (itemID: string, eventCount: number) => void | Promise<void>;
 }
 
 export interface GridSectionProps {

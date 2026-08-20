@@ -65,7 +65,7 @@ function mergeAllWindows(context: PaletteClientOpContext): void {
   const anchor = state.focusedId;
   if (activeDesktopId === null || anchor === null) return;
   const joiners = Object.values(state.windows)
-    .filter(win => win.desktopId === activeDesktopId && win.id !== anchor)
+    .filter(win => win.desktopId === activeDesktopId && win.id !== anchor && !win.minimized)
     .sort((left, right) => left.id.localeCompare(right.id))
     .map(win => win.id);
   if (joiners.length > 0) context.manager.groupWindows(anchor, joiners);

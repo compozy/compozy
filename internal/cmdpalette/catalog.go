@@ -43,6 +43,8 @@ func (s *Service) BindableIDs(ctx context.Context, workspaceID WorkspaceID) ([]C
 	return ids, nil
 }
 
+// Catalog returns the workspace command projection, optionally scoped to one
+// attached client's context, with commands sorted by id.
 func (s *Service) Catalog(
 	ctx context.Context,
 	workspaceID WorkspaceID,
@@ -216,6 +218,12 @@ func (s *Service) ExtensionDefaults(
 	ctx context.Context,
 	workspaceID WorkspaceID,
 ) ([]ExtensionDefaultShortcut, error) {
+	if ctx == nil {
+		return nil, fmt.Errorf("cmd palette: extension defaults context is required")
+	}
+	if workspaceID == "" {
+		return nil, fmt.Errorf("cmd palette: workspace ID is required")
+	}
 	result := make([]ExtensionDefaultShortcut, 0)
 	for _, registration := range s.providers {
 		provider, ok := registration.Provider.(ContributionProvider)
@@ -289,6 +297,11 @@ func globalShortcutIntent(binding *GlobalShortcut) string {
 		return ""
 	}
 	return binding.IntendedChord
+}
+
+// CloneDescriptor returns an independent copy of one command descriptor.
+func CloneDescriptor(descriptor Descriptor) Descriptor {
+	return cloneDescriptor(descriptor)
 }
 
 func cloneDescriptor(descriptor Descriptor) Descriptor {

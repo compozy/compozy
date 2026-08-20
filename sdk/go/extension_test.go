@@ -149,10 +149,20 @@ func TestToolRegistrationValidation(t *testing.T) {
 					CmdPalette: contracts.CmdPaletteConfig{
 						Commands: []contracts.CmdPaletteCommand{{
 							ID: "search", Title: "Search reviews", Icon: "search",
-							Action: contracts.CmdPaletteAction{Kind: "tool", Tool: "search"},
+							Action: contracts.CmdPaletteAction{
+								Kind: "tool", Tool: "search",
+								Args: map[string]any{
+									"nested": map[string]any{"limit": 4},
+									"tags":   []any{"alpha", "zeta"},
+									"rows":   []map[string]any{{"id": "a"}},
+								},
+							},
 							Execution: &contracts.CmdPaletteExecutionPolicy{
 								SingleFlight: &singleFlight, RetrySafe: &retrySafe,
 							},
+						}},
+						Views: []contracts.CmdPaletteView{{
+							ID: "browser", Title: "Notes", Kind: "list", Program: true,
 						}},
 					},
 				},
@@ -221,18 +231,46 @@ func TestToolRegistrationValidation(t *testing.T) {
 			CmdPalette: contracts.CmdPaletteConfig{
 				Commands: []contracts.CmdPaletteCommand{{
 					ID: "search", Title: "Search reviews", Icon: "search",
-					Action: contracts.CmdPaletteAction{Kind: "tool", Tool: "search"},
+					Action: contracts.CmdPaletteAction{
+						Kind: "tool", Tool: "search",
+						Args: map[string]any{
+							"nested": map[string]any{"limit": 4},
+							"tags":   []any{"alpha", "zeta"},
+							"rows":   []map[string]any{{"id": "a"}},
+						},
+					},
 					Execution: &contracts.CmdPaletteExecutionPolicy{
 						SingleFlight: &singleFlight, RetrySafe: &retrySafe,
 					},
+				}},
+				Views: []contracts.CmdPaletteView{{
+					ID: "browser", Title: "Notes", Kind: "list", Program: true,
 				}},
 			},
 		}
 		if !reflect.DeepEqual(payload.Resources, wantResources) {
 			t.Fatalf("Describe().Resources = %#v, want %#v", payload.Resources, wantResources)
 		}
+		if !slices.Equal(payload.CmdPaletteViews, []string{"browser"}) {
+			t.Fatalf("Describe().CmdPaletteViews = %#v, want [browser]", payload.CmdPaletteViews)
+		}
 		*payload.Resources.CmdPalette.Commands[0].Execution.SingleFlight = false
 		*payload.Resources.CmdPalette.Commands[0].Execution.RetrySafe = true
+		nested, ok := payload.Resources.CmdPalette.Commands[0].Action.Args["nested"].(map[string]any)
+		if !ok {
+			t.Fatalf("Describe() nested args = %#v, want map", payload.Resources.CmdPalette.Commands[0].Action.Args)
+		}
+		nested["limit"] = 99
+		tags, ok := payload.Resources.CmdPalette.Commands[0].Action.Args["tags"].([]any)
+		if !ok {
+			t.Fatalf("Describe() tag args = %#v, want slice", payload.Resources.CmdPalette.Commands[0].Action.Args)
+		}
+		tags[0] = "mutated"
+		rows, ok := payload.Resources.CmdPalette.Commands[0].Action.Args["rows"].([]map[string]any)
+		if !ok || len(rows) != 1 {
+			t.Fatalf("Describe() row args = %#v, want []map", payload.Resources.CmdPalette.Commands[0].Action.Args)
+		}
+		rows[0]["id"] = "mutated"
 		fresh, err := extension.Describe()
 		if err != nil {
 			t.Fatalf("Describe() after output mutation error = %v", err)
@@ -241,6 +279,21 @@ func TestToolRegistrationValidation(t *testing.T) {
 		if policy == nil || policy.SingleFlight == nil || !*policy.SingleFlight ||
 			policy.RetrySafe == nil || *policy.RetrySafe {
 			t.Fatalf("Describe() shared execution policy pointers: %#v", policy)
+		}
+		freshNested, ok := fresh.Resources.CmdPalette.Commands[0].Action.Args["nested"].(map[string]any)
+		if !ok || freshNested["limit"] != 4 {
+			t.Fatalf("Describe() leaked nested args: %#v", fresh.Resources.CmdPalette.Commands[0].Action.Args)
+		}
+		freshTags, ok := fresh.Resources.CmdPalette.Commands[0].Action.Args["tags"].([]any)
+		if !ok || freshTags[0] != "alpha" {
+			t.Fatalf("Describe() leaked tag args: %#v", fresh.Resources.CmdPalette.Commands[0].Action.Args)
+		}
+		freshRows, ok := fresh.Resources.CmdPalette.Commands[0].Action.Args["rows"].([]map[string]any)
+		if !ok || len(freshRows) != 1 || freshRows[0]["id"] != "a" {
+			t.Fatalf("Describe() leaked row args: %#v", fresh.Resources.CmdPalette.Commands[0].Action.Args)
+		}
+		if !slices.Equal(fresh.CmdPaletteViews, []string{"browser"}) {
+			t.Fatalf("Describe() after mutation CmdPaletteViews = %#v", fresh.CmdPaletteViews)
 		}
 	})
 
@@ -354,7 +407,16 @@ func TestStdioRuntimeProvidesAndCallsTools(t *testing.T) {
 
 		runtime := newRuntimeHarness(t)
 		extension := compozysdk.NewExtension(
-			compozysdk.ExtensionDefinition{Name: "Go Tool", Version: "0.1.0"},
+			compozysdk.ExtensionDefinition{
+				Name: "Go Tool", Version: "0.1.0",
+				Resources: compozysdk.DescribeResources{
+					CmdPalette: contracts.CmdPaletteConfig{
+						Views: []contracts.CmdPaletteView{{
+							ID: "browser", Title: "Notes", Kind: "list", Program: true,
+						}},
+					},
+				},
+			},
 			compozysdk.WithStdio(runtime.extensionInput, runtime.extensionOutput),
 			compozysdk.WithStderr(io.Discard),
 		)
@@ -401,6 +463,9 @@ func TestStdioRuntimeProvidesAndCallsTools(t *testing.T) {
 		if !contains(initResult.ImplementedMethods, "provide_tools") ||
 			!contains(initResult.ImplementedMethods, "tools/call") {
 			t.Fatalf("implemented methods = %#v, want tool provider methods", initResult.ImplementedMethods)
+		}
+		if !slices.Equal(initResult.CmdPaletteViews, []string{"browser"}) {
+			t.Fatalf("initialize CmdPaletteViews = %#v, want [browser]", initResult.CmdPaletteViews)
 		}
 
 		provideTools := runtime.call(t, 2, "provide_tools", map[string]any{})

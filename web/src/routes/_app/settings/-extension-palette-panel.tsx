@@ -112,7 +112,12 @@ export function ExtensionPalettePanels({
 }: {
   extensions: readonly SettingsHooksExtensionsInstalled[];
 }) {
-  const contributors = extensions.filter(extension => extension.palette != null);
+  const contributors = extensions.filter(
+    ({ palette }) =>
+      palette !== null &&
+      palette !== undefined &&
+      (palette.commands.length > 0 || palette.views.length > 0)
+  );
   if (contributors.length === 0) return null;
   return (
     <SettingsGroup data-testid="settings-page-extensions-palette-section" title="Palette">

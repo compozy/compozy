@@ -9,7 +9,7 @@ import type { CmdPaletteArgument, ResolvedPaletteCommand } from "./cmd-palette-t
  *
  * Password discipline is structural here (US-015.EC-4, Safety Invariant 6):
  * password values live in this state and in the invoke payload, and nowhere
- * else — `submitValues` is the only way out, and personalization records the
+ * else — `submitArgs` is the only way out, and personalization records the
  * pre-selection query, never these values.
  */
 
@@ -118,6 +118,7 @@ export interface PaletteArgsSubmission {
 }
 
 function coerce(field: PaletteArgField): unknown {
+  if (field.type === "dropdown") return field.value.trim();
   if (field.type !== "checkbox") return field.value;
   return TRUE_VALUES.includes(field.value.trim().toLowerCase());
 }

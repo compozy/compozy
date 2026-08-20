@@ -5,7 +5,6 @@
 import { describe, expect, it } from "vitest";
 
 import {
-  parseSettingsWindowManagerConfig,
   parseSettingsWindowManagerSection,
   type WindowManagerSettingsWire,
 } from "../window-manager-settings-section";
@@ -112,6 +111,16 @@ describe("parseSettingsWindowManagerSection", () => {
       },
     ]);
     expect(section.diagnostics).toEqual([]);
+    expect(section.globalShortcuts).toEqual([
+      {
+        commandId: "palette.summon.global",
+        intendedChord: "meta+shift+Space",
+        activeChord: "meta+shift+Space",
+        status: "registered",
+        reason: null,
+        settingsUrl: null,
+      },
+    ]);
   });
 
   it("Should carry the daemon's diagnostic for an override it could not resolve [UT-074]", () => {
@@ -132,9 +141,9 @@ describe("parseSettingsWindowManagerSection", () => {
   });
 });
 
-describe("parseSettingsWindowManagerConfig", () => {
+describe("parseSettingsWindowManagerSection.config", () => {
   it("Should project the complete validated global config", () => {
-    expect(parseSettingsWindowManagerConfig(settingsResponse())).toEqual({
+    expect(parseSettingsWindowManagerSection(settingsResponse()).config).toEqual({
       newWindowPolicy: "floating",
       smallViewportPolicy: "stack",
       focusPolicy: "click_directional",
@@ -165,6 +174,7 @@ describe("parseSettingsWindowManagerConfig", () => {
         "desktop.switch.next": ["control+alt+BracketRight", "alt+KeyL"],
         "window.focus.left": ["control+ArrowLeft"],
       },
+      globalShortcuts: { "palette.summon.global": "meta+shift+Space" },
     });
   });
 
@@ -197,7 +207,7 @@ describe("parseSettingsWindowManagerConfig", () => {
     const response = settingsResponse();
     mutate(response);
 
-    expect(() => parseSettingsWindowManagerConfig(response)).toThrow();
+    expect(() => parseSettingsWindowManagerSection(response)).toThrow();
   });
 
   it("Should accept a binding for an id this client has not hydrated yet", () => {
@@ -206,6 +216,6 @@ describe("parseSettingsWindowManagerConfig", () => {
     const response = settingsResponse();
     response.config.shortcuts = { "ext.notes.capture": "meta+shift+KeyN" };
 
-    expect(() => parseSettingsWindowManagerConfig(response)).not.toThrow();
+    expect(() => parseSettingsWindowManagerSection(response)).not.toThrow();
   });
 });

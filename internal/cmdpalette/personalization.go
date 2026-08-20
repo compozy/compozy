@@ -228,7 +228,7 @@ func (s *Service) maintainPersonalization(
 			if err := s.personalization.PruneCmdPaletteQueryHit(
 				ctx, workspaceID, hit.Query, hit.CommandID,
 			); err != nil {
-				s.logPruneError(ctx, workspaceID, hit.CommandID, err)
+				s.logPruneQueryError(ctx, workspaceID, hit.Query, hit.CommandID, err)
 			}
 			continue
 		}
@@ -257,6 +257,17 @@ func (s *Service) logPruneError(
 ) {
 	s.logger.WarnContext(ctx, "prune stale command palette personalization",
 		"workspace_id", workspaceID, "command_id", commandID, "error", err)
+}
+
+func (s *Service) logPruneQueryError(
+	ctx context.Context,
+	workspaceID WorkspaceID,
+	query string,
+	commandID CommandID,
+	err error,
+) {
+	s.logger.WarnContext(ctx, "prune stale command palette personalization",
+		"workspace_id", workspaceID, "query", query, "command_id", commandID, "error", err)
 }
 
 func shouldPruneSignal(weight float64, last, now time.Time) bool {
@@ -309,9 +320,10 @@ func newPersonalizationSnapshot(
 	weights := WeightsV1
 	weights.GroupOrder = append([]string(nil), WeightsV1.GroupOrder...)
 	snapshot := Snapshot{
-		Weights: weights,
-		Usage:   append([]UsageSignal(nil), usage...), QueryHits: append([]QueryHit(nil), queryHits...),
-		Pins: append([]Pin(nil), pins...),
+		Weights:   weights,
+		Usage:     append(make([]UsageSignal, 0, len(usage)), usage...),
+		QueryHits: append(make([]QueryHit, 0, len(queryHits)), queryHits...),
+		Pins:      append(make([]Pin, 0, len(pins)), pins...),
 	}
 	sort.Slice(snapshot.Usage, func(left, right int) bool {
 		if snapshot.Usage[left].LastUsedAt != snapshot.Usage[right].LastUsedAt {

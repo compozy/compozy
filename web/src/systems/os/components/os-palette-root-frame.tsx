@@ -40,13 +40,20 @@ export function OsPaletteRootFrame({
   pending,
   onSelectionChange,
 }: OsPaletteRootFrameProps) {
-  const empty = values.length === 0;
+  const domainBusy = model.domainSections.some(
+    section => section.loading || section.error !== null
+  );
+  const empty = values.length === 0 && !domainBusy;
   // The actions hint is only true while there is a row to act on, and its chord
   // comes from the keymap the daemon serves.
+  const paletteToggleChords = model.registry.byId.get("palette.open")?.chords ?? [];
   const actionsChord =
-    empty || model.destination || selected === model.fallback?.value
+    empty ||
+    model.destination ||
+    selected === model.fallback?.value ||
+    paletteToggleChords.length === 0
       ? undefined
-      : model.registry.byId.get("palette.open")?.chords[0];
+      : paletteToggleChords.join(" / ");
   return (
     <Command
       data-destination={model.destination ? "" : undefined}

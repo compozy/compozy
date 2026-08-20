@@ -161,12 +161,13 @@ async function start(): Promise<void> {
   const shortcutRuntime = new ElectronGlobalShortcut(globalShortcut);
   const shortcutPolicy = new GlobalShortcutPolicy({
     globalShortcut: shortcutRuntime,
-    accessibility: __COMPOZY_DESKTOP_E2E_BUILD__
-      ? { allowed: true }
-      : detectAccessibility({
-          platform: process.platform,
-          isTrusted: () => systemPreferences.isTrustedAccessibilityClient(false),
-        }),
+    accessibility: () =>
+      __COMPOZY_DESKTOP_E2E_BUILD__
+        ? { allowed: true }
+        : detectAccessibility({
+            platform: process.platform,
+            isTrusted: () => systemPreferences.isTrustedAccessibilityClient(false),
+          }),
     onInvoke: commandID => {
       product?.focus();
       product?.send("shell:summon", { command_id: commandID });

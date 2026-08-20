@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"maps"
 	"strings"
 	"sync"
 )
@@ -23,20 +22,22 @@ type viewSession struct {
 	cancel             context.CancelFunc
 	ctx                context.Context
 
-	lastFrame       ViewFrame
-	currentRevision string
-	frameNumber     uint64
-	handlers        map[string]uint64
-	ackedEffects    map[string]struct{}
-	subscribers     map[uint64]chan ViewFrame
-	nextSubscriber  uint64
+	lastFrame           ViewFrame
+	currentRevision     string
+	frameNumber         uint64
+	handlers            map[string]uint64
+	coalescibleHandlers map[string]struct{}
+	ackedEffects        map[string]struct{}
+	subscribers         map[uint64]chan ViewFrame
+	nextSubscriber      uint64
 
-	lastSeq             int64
-	nextGeneration      uint64
-	rejectedGenerations map[uint64]struct{}
-	coalescible         *viewEventFlight
-	actions             map[uint64]viewEventFlight
-	hardMisses          int
+	lastSeq                int64
+	nextGeneration         uint64
+	lastAcceptedGeneration uint64
+	rejectedGenerations    map[uint64]struct{}
+	coalescible            *viewEventFlight
+	actions                map[uint64]viewEventFlight
+	hardMisses             int
 }
 
 type viewEventFlight struct {
@@ -99,7 +100,7 @@ func (s *Service) CloseSession(ctx context.Context, token SessionToken, reason s
 		}
 		return err
 	}
-	return s.removeViewSession(session.id, session, reason, true)
+	return s.removeViewSession(session.id, session, reason)
 }
 
 // CloseClientSessions tears down every programmable view owned by a detached client.
@@ -112,15 +113,9 @@ func (s *Service) CloseClientSessions(
 		return errors.New("cmd palette view: context is required")
 	}
 	s.viewSessionMu.Lock()
-	closed := make([]*viewSession, 0)
-	for id, session := range s.viewSessions {
-		if session.workspace != workspace || session.client != client {
-			continue
-		}
-		delete(s.viewSessions, id)
-		cancelViewSessionLocked(session)
-		closed = append(closed, session)
-	}
+	closed := s.detachViewSessionsLocked(func(session *viewSession) bool {
+		return session.workspace == workspace && session.client == client
+	})
 	s.viewSessionMu.Unlock()
 
 	var closeErr error
@@ -151,18 +146,12 @@ func (s *Service) InvalidateInstance(
 	}
 	extension = strings.TrimSpace(extension)
 	s.viewSessionMu.Lock()
-	invalidated := make([]*viewSession, 0)
-	for id, session := range s.viewSessions {
+	invalidated := s.detachViewSessionsLocked(func(session *viewSession) bool {
 		if session.workspace != workspace || session.extension != extension {
-			continue
+			return false
 		}
-		if generation != 0 && session.instanceGeneration == generation {
-			continue
-		}
-		delete(s.viewSessions, id)
-		cancelViewSessionLocked(session)
-		invalidated = append(invalidated, session)
-	}
+		return generation == 0 || session.instanceGeneration != generation
+	})
 	s.viewSessionMu.Unlock()
 	for _, session := range invalidated {
 		s.emitViewSessionEvent(ctx, EventViewSessionClosed, session)
@@ -213,12 +202,7 @@ func (s *Service) authorizeViewSession(
 	return session, nil
 }
 
-func (s *Service) removeViewSession(
-	id string,
-	session *viewSession,
-	reason string,
-	notifyProgram bool,
-) error {
+func (s *Service) removeViewSession(id string, session *viewSession, reason string) error {
 	s.viewSessionMu.Lock()
 	current := s.viewSessions[id]
 	if current != session {
@@ -229,7 +213,7 @@ func (s *Service) removeViewSession(
 	cancelViewSessionLocked(session)
 	s.viewSessionMu.Unlock()
 	s.emitViewSessionEvent(session.ctx, EventViewSessionClosed, session)
-	if !notifyProgram || s.viewPrograms == nil {
+	if s.viewPrograms == nil {
 		return nil
 	}
 	if err := s.closeViewProgram(session.ctx, session.workspace, session.extension, ViewCloseRequest{
@@ -239,6 +223,19 @@ func (s *Service) removeViewSession(
 		return fmt.Errorf("cmd palette view: close program session: %w", err)
 	}
 	return nil
+}
+
+func (s *Service) detachViewSessionsLocked(match func(*viewSession) bool) []*viewSession {
+	detached := make([]*viewSession, 0)
+	for id, session := range s.viewSessions {
+		if !match(session) {
+			continue
+		}
+		delete(s.viewSessions, id)
+		cancelViewSessionLocked(session)
+		detached = append(detached, session)
+	}
+	return detached
 }
 
 func cancelViewSessionLocked(session *viewSession) {
@@ -255,13 +252,4 @@ func cancelViewSessionLocked(session *viewSession) {
 		close(subscriber)
 		delete(session.subscribers, id)
 	}
-}
-
-func cloneViewArgs(args map[string]any) map[string]any {
-	if len(args) == 0 {
-		return nil
-	}
-	cloned := make(map[string]any, len(args))
-	maps.Copy(cloned, args)
-	return cloned
 }

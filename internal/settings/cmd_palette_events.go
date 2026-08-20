@@ -4,7 +4,7 @@ import (
 	"context"
 	"fmt"
 	"reflect"
-	"sort"
+	"slices"
 	"strings"
 
 	"github.com/compozy/compozy/internal/cmdpalette"
@@ -33,7 +33,7 @@ func changedBindingCommandIDs(
 			changed = append(changed, cmdpalette.CommandID(id))
 		}
 	}
-	sort.Slice(changed, func(i, j int) bool { return changed[i] < changed[j] })
+	slices.Sort(changed)
 	return changed
 }
 
@@ -47,7 +47,7 @@ func changedAliasCommandIDs(current, desired map[string]string) []cmdpalette.Com
 			changed = append(changed, cmdpalette.CommandID(id))
 		}
 	}
-	sort.Slice(changed, func(i, j int) bool { return changed[i] < changed[j] })
+	slices.Sort(changed)
 	return changed
 }
 
@@ -66,7 +66,7 @@ func (s *service) cmdPaletteEventWorkspaces(
 	if !hasChanges {
 		return nil, nil
 	}
-	if _, ok := s.cmdPalette.(cmdPaletteSettingsEventNotifier); !ok {
+	if _, ok := s.cmdPaletteNotifier(); !ok {
 		return nil, nil
 	}
 	if scope == ScopeWorkspace {
@@ -92,8 +92,13 @@ func (s *service) cmdPaletteEventWorkspaces(
 		seen[id] = struct{}{}
 		ids = append(ids, cmdpalette.WorkspaceID(id))
 	}
-	sort.Slice(ids, func(i, j int) bool { return ids[i] < ids[j] })
+	slices.Sort(ids)
 	return ids, nil
+}
+
+func (s *service) cmdPaletteNotifier() (cmdPaletteSettingsEventNotifier, bool) {
+	notifier, ok := s.cmdPalette.(cmdPaletteSettingsEventNotifier)
+	return notifier, ok
 }
 
 func (s *service) emitCmdPaletteSettingsEvents(
@@ -102,7 +107,7 @@ func (s *service) emitCmdPaletteSettingsEvents(
 	bindingChanges []cmdpalette.CommandID,
 	aliasChanges []cmdpalette.CommandID,
 ) {
-	notifier, ok := s.cmdPalette.(cmdPaletteSettingsEventNotifier)
+	notifier, ok := s.cmdPaletteNotifier()
 	if !ok {
 		return
 	}

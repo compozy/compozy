@@ -13,8 +13,11 @@ export interface RankingCandidate {
   readonly aliases?: readonly string[];
   readonly keywords?: readonly string[];
   readonly description?: string;
+  /** Omitted means false — only an explicit true is contextual. */
   readonly contextual?: boolean;
+  /** Omitted means true — treat the candidate as runnable. */
   readonly available?: boolean;
+  /** Omitted means true for empty-query curated sections. */
   readonly curated?: boolean;
   readonly subtype?: RankingSubtype;
 }

@@ -60,19 +60,13 @@ func (h *BaseHandlers) StreamCmdPaletteView(c *gin.Context) {
 		return
 	}
 	requestedEpoch := strings.TrimSpace(c.Query("stream_epoch"))
-	if after > 0 && requestedEpoch == "" {
-		h.respondCmdPaletteViewError(
-			c, workspaceID, errors.New("stream_epoch is required when after is greater than zero"),
-		)
-		return
-	}
 	viewID := c.Param("id")
-	snapshot, err := service.OpenSource(c.Request.Context(), workspaceID, viewID)
-	if err != nil {
-		h.respondCmdPaletteViewError(c, workspaceID, err)
-		return
-	}
-	events, cancel, err := service.SubscribeViewPatches(c.Request.Context(), workspaceID, viewID)
+	snapshot, events, cancel, err := service.SubscribeViewPatches(
+		c.Request.Context(),
+		cmdpalette.ViewPatchSubscribeRequest{
+			Workspace: workspaceID, ViewID: viewID, After: after, StreamEpoch: requestedEpoch,
+		},
+	)
 	if err != nil {
 		h.respondCmdPaletteViewError(c, workspaceID, err)
 		return
@@ -176,18 +170,7 @@ func (h *BaseHandlers) respondCmdPaletteViewError(
 	_ cmdpalette.WorkspaceID,
 	err error,
 ) {
-	status := http.StatusServiceUnavailable
-	var notFound *cmdpalette.ViewNotFoundError
-	var validation *cmdpalette.ViewValidationError
-	switch {
-	case errors.As(err, &notFound):
-		status = http.StatusNotFound
-	case errors.As(err, &validation):
-		status = http.StatusUnprocessableEntity
-	case strings.Contains(err.Error(), "required when after") || strings.Contains(err.Error(), "invalid sequence"):
-		status = http.StatusBadRequest
-	}
-	c.JSON(status, contract.CmdPaletteError{Error: "view_error", Message: err.Error()})
+	c.JSON(cmdPaletteViewStatus(err), contract.CmdPaletteError{Error: "view_error", Message: err.Error()})
 }
 
 func parseCmdPaletteViewSequence(value string) (int64, error) {
@@ -197,7 +180,7 @@ func parseCmdPaletteViewSequence(value string) (int64, error) {
 	}
 	sequence, err := strconv.ParseInt(value, 10, 64)
 	if err != nil || sequence < 0 {
-		return 0, errors.New("invalid sequence")
+		return 0, cmdpalette.ErrViewInvalidSequence
 	}
 	return sequence, nil
 }

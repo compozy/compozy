@@ -8,9 +8,10 @@ import {
   setCmdPalettePin,
 } from "../adapters/cmd-palette-api";
 import { paletteClientOp, type PaletteShellHandlers } from "../lib/cmd-palette-client-ops";
+import { writePaletteClipboard } from "../lib/cmd-palette-copy";
 import {
   dispatchPaletteCommand,
-  UNSUPPORTED_CLIENT_OP_REASON,
+  STALE_TARGET_REASON,
   type PaletteDispatchOutcome,
 } from "../lib/cmd-palette-dispatch";
 import {
@@ -26,6 +27,7 @@ import {
   requestPaletteArgs,
   requestPaletteConfirmation,
 } from "../stores/cmd-palette-execution-store";
+import { windowManagerStore } from "../stores/window-manager-store";
 import { useOsShell } from "./use-os-shell";
 
 /**
@@ -40,12 +42,20 @@ function announce(feedback: PaletteFeedback, retry?: () => void): void {
   });
 }
 
+function openExternalUrl(url: string): void {
+  window.open(url, "_blank", "noopener,noreferrer");
+}
+
 export interface UseCmdPaletteDispatchOptions {
   readonly registry: PaletteRegistry;
   readonly workspaceId: string | null;
   readonly shell: PaletteShellHandlers;
   /** Opens an OS app window; the projection's `navigate` actions land here. */
   readonly openApp: (app: OsAppId, route: OsWindowRoute | null) => void;
+  /** Explicit invoke target; the bound window-manager client is the fallback. */
+  readonly clientId?: string | null;
+  /** Current attachment token; omitted so control-plane invokes send no header. */
+  readonly attachmentToken?: string | null;
 }
 
 export interface CmdPaletteRunOptions {
@@ -80,11 +90,28 @@ export interface CmdPaletteDispatch {
  * per surface. Feedback rides `notifyUser`, which outlives the palette — an
  * invocation the operator started and then dismissed still reports (US-017.AC-2).
  */
+export function resolveInvokeClientId(
+  explicit?: string | null,
+  boundClientId = windowManagerStore.getSnapshot().context.binding?.clientId
+): string | undefined {
+  const fromOptions = explicit?.trim();
+  if (fromOptions) return fromOptions;
+  const bound = boundClientId?.trim();
+  return bound === undefined || bound === "" ? undefined : bound;
+}
+
+export function resolveInvokeAttachmentToken(explicit?: string | null): string | undefined {
+  const token = explicit?.trim();
+  return token === undefined || token === "" ? undefined : token;
+}
+
 export function useCmdPaletteDispatch({
   registry,
   workspaceId,
   shell,
   openApp,
+  clientId,
+  attachmentToken,
 }: UseCmdPaletteDispatchOptions): CmdPaletteDispatch {
   const { manager } = useOsShell();
   const queryClient = useQueryClient();
@@ -93,6 +120,10 @@ export function useCmdPaletteDispatch({
     if (workspaceId === null) return;
     void queryClient.invalidateQueries({ queryKey: cmdPaletteKeys.rankSignals(workspaceId) });
   };
+
+  const navigate = (app: string, pathname: string | null) =>
+    openApp(app as OsAppId, pathname === null ? null : { pathname, search: {} });
+  const clientOps = { manager, shell, navigate, openUrl: openExternalUrl };
 
   const runCommand = (
     command: ResolvedPaletteCommand,
@@ -108,23 +139,27 @@ export function useCmdPaletteDispatch({
       query,
       confirmed,
       ports: {
-        clientOps: { manager, shell },
+        clientOps,
         invoke: async (commandId, invokeArgs) => {
           if (workspaceId === null) {
             throw new Error("This workspace is still connecting. Try again in a moment.");
           }
+          const client = resolveInvokeClientId(clientId);
+          const token = resolveInvokeAttachmentToken(attachmentToken);
           const result = await invokeCmdPaletteCommand({
             workspaceId,
             commandId,
             args: invokeArgs,
+            ...(client === undefined ? {} : { clientId: client }),
+            ...(token === undefined ? {} : { attachmentToken: token }),
           });
           invalidateRankSignals();
           return result;
         },
-        navigate: (app, pathname) =>
-          openApp(app as OsAppId, pathname === null ? null : { pathname, search: {} }),
+        navigate,
         pushView: viewId => shell.openPaletteView(viewId),
-        openUrl: url => window.open(url, "_blank", "noopener,noreferrer"),
+        openUrl: openExternalUrl,
+        copyToClipboard: writePaletteClipboard,
         reportUsage: (commandId, preselectionQuery) => {
           if (workspaceId === null) return;
           void recordCmdPaletteUsage(workspaceId, commandId, preselectionQuery)
@@ -170,7 +205,8 @@ export function useCmdPaletteDispatch({
     if (command === undefined) {
       // Truthful UI: a chord or menu item pointing at a command the catalog no
       // longer carries reports that rather than doing nothing.
-      return { status: "refused", reason: UNSUPPORTED_CLIENT_OP_REASON };
+      announce({ message: STALE_TARGET_REASON, tone: "error", retryable: false });
+      return { status: "refused", reason: STALE_TARGET_REASON };
     }
     return await runCommand(command, options);
   };
@@ -178,7 +214,7 @@ export function useCmdPaletteDispatch({
   const executeClientOp = async (op: string, payload: unknown) => {
     const handler = paletteClientOp(op);
     if (handler === null) throw new Error(`Unsupported client operation: ${op}`);
-    return await handler({ manager, shell }, payload);
+    return await handler(clientOps, payload);
   };
 
   const setPinned = async (command: ResolvedPaletteCommand, pinned: boolean) => {

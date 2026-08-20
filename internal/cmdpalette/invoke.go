@@ -148,7 +148,7 @@ func (s *Service) emitApprovalCompletion(
 	if err != nil || outcome == "" {
 		return
 	}
-	if outcome == "completed" {
+	if outcome == "ok" {
 		s.recordDaemonUsage(ctx, execution)
 	}
 	s.emitInvocation(ctx, execution, outcome, approvalID, startedAt)
@@ -198,10 +198,11 @@ func (s *Service) resolveInvocationClient(
 	if s.clients == nil {
 		return "", ErrNoAttachedShell
 	}
-	clients, err := s.clients.Clients(ctx, request.WorkspaceID)
+	listed, err := s.clients.Clients(ctx, request.WorkspaceID)
 	if err != nil {
 		return "", err
 	}
+	clients := append([]Client(nil), listed...)
 	sort.Slice(clients, func(left, right int) bool { return clients[left].ID < clients[right].ID })
 	switch len(clients) {
 	case 0:

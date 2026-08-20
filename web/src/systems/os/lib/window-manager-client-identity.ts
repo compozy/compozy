@@ -1,4 +1,5 @@
-const CLIENT_ID_STORAGE_KEY = "compozy.window-manager.client-id";
+export const WINDOW_MANAGER_CLIENT_ID_STORAGE_KEY = "compozy.window-manager.client-id";
+export const WINDOW_MANAGER_CLIENT_ID_MEMORY_KEY = "compozy.window-manager.client-id.memory";
 
 function randomClientId(): string {
   const cryptoApi = globalThis.crypto;
@@ -12,15 +13,27 @@ function randomClientId(): string {
   return `web-${Date.now()}-${Math.random().toString(36).slice(2)}`;
 }
 
+function rememberedClientId(): string | null {
+  const cached = Reflect.get(globalThis, WINDOW_MANAGER_CLIENT_ID_MEMORY_KEY);
+  return typeof cached === "string" && cached.trim() !== "" ? cached : null;
+}
+
+function rememberClientId(clientId: string): string {
+  Reflect.set(globalThis, WINDOW_MANAGER_CLIENT_ID_MEMORY_KEY, clientId);
+  return clientId;
+}
+
 export function stableWindowManagerClientId(): string {
   if (typeof window === "undefined") return "web-server-render";
-  const created = randomClientId();
+  const cached = rememberedClientId();
+  if (cached) return cached;
   try {
-    const existing = window.localStorage.getItem(CLIENT_ID_STORAGE_KEY)?.trim();
-    if (existing) return existing;
-    window.localStorage.setItem(CLIENT_ID_STORAGE_KEY, created);
+    const existing = window.localStorage.getItem(WINDOW_MANAGER_CLIENT_ID_STORAGE_KEY)?.trim();
+    if (existing) return rememberClientId(existing);
+    const created = randomClientId();
+    window.localStorage.setItem(WINDOW_MANAGER_CLIENT_ID_STORAGE_KEY, created);
+    return rememberClientId(created);
   } catch {
-    return created;
+    return rememberClientId(randomClientId());
   }
-  return created;
 }

@@ -11,16 +11,7 @@ import (
 )
 
 func (h *BaseHandlers) GetPendingToolApproval(c *gin.Context) {
-	if h.ApprovalCoordinator == nil {
-		h.respondPendingToolApprovalError(c, errors.New("tool approval coordinator is unavailable"))
-		return
-	}
-	status, err := h.ApprovalCoordinator.Status(c.Request.Context(), strings.TrimSpace(c.Param("id")))
-	if err != nil {
-		h.respondPendingToolApprovalError(c, err)
-		return
-	}
-	c.JSON(http.StatusOK, contract.ToolApprovalStatusFromDomain(status))
+	h.writePendingToolApprovalStatus(c, strings.TrimSpace(c.Param("id")))
 }
 
 func (h *BaseHandlers) CancelPendingToolApproval(c *gin.Context) {
@@ -31,6 +22,14 @@ func (h *BaseHandlers) CancelPendingToolApproval(c *gin.Context) {
 	id := strings.TrimSpace(c.Param("id"))
 	if err := h.ApprovalCoordinator.Cancel(c.Request.Context(), id); err != nil {
 		h.respondPendingToolApprovalError(c, err)
+		return
+	}
+	h.writePendingToolApprovalStatus(c, id)
+}
+
+func (h *BaseHandlers) writePendingToolApprovalStatus(c *gin.Context, id string) {
+	if h.ApprovalCoordinator == nil {
+		h.respondPendingToolApprovalError(c, errors.New("tool approval coordinator is unavailable"))
 		return
 	}
 	status, err := h.ApprovalCoordinator.Status(c.Request.Context(), id)

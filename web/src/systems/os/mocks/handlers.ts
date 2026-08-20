@@ -129,6 +129,6 @@ export const handlers: HttpHandler[] = [
   ),
   compozyApiMock.get("/api/cmd-palette/clients", () => HttpResponse.json(cmdPaletteClientsFixture)),
   compozyApiMock.post("/api/cmd-palette/commands/{id}/invoke", () =>
-    HttpResponse.json({ status: "ok" })
+    HttpResponse.json({ status: "ok", invocation_id: "inv-mock" })
   ),
 ];

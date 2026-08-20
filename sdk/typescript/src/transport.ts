@@ -385,7 +385,7 @@ export class NotReadyTransport implements TransportLike {
   }
   public start(): void {}
   public async close(): Promise<void> {}
-  public async call(_method?: string, _params?: unknown): Promise<never> {
+  public async call(_method?: string, _params?: unknown, _signal?: AbortSignal): Promise<never> {
     throw new NotInitializedError();
   }
 }

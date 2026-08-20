@@ -28,4 +28,17 @@ now reads the listener tier explicitly. Reset for a clean-console Web and deskto
 
 qa-impact: 2026-08-20 command-palette QA repaired shell provider order, required empty wire arrays,
 and the scoped settings-cache projection after each defect blocked desktop boot or window rendering.
-Reset for the Task 12 shell-adjacent re-walk.
+Reset for the Task 12 shell-adjacent re-walk under `CH-untested-068-operate-desktop-shell-bruno`.
+
+Walk (Task 12 re-walk):
+
+1. Boot the daemon-served desktop — the palette registry consumer mounts under the shell provider
+   and the desktop renders instead of the root error boundary.
+2. Inspect the command catalog and Window Manager client payloads — command collections, client
+   collections, and `global_shortcuts` are `[]`, never JSON `null`.
+3. Confirm `global_shortcuts` registers the intended map and the shell reports each chord's state.
+4. Confirm settings reads use the workspace/client-scoped Query-cache envelope, not a global bare
+   config, so a window renders after `/agents`.
+
+Expected evidence: boot screenshot without the root boundary; wire excerpts showing empty arrays
+and `global_shortcuts`; the scoped-settings window render after `/agents`.

@@ -17,7 +17,10 @@ const workspace = vi.hoisted(() => ({
   runtimeWorkspace: { default_agent: "general" } as { default_agent?: string } | undefined,
   scope: "global" as "global" | "workspace",
 }));
-const agents = vi.hoisted(() => ({ data: [{ name: "general" }] as Array<{ name: string }> }));
+const agents = vi.hoisted(() => ({
+  data: [{ name: "general" }] as Array<{ name: string }>,
+  isSuccess: true,
+}));
 const createSessionAsync = vi.hoisted(() => vi.fn());
 const notifyUser = vi.hoisted(() => vi.fn());
 const scopedWorktree = vi.hoisted(() => ({
@@ -51,6 +54,7 @@ describe("session create workspace binding", () => {
     workspace.runtimeWorkspace = { default_agent: "general" };
     workspace.scope = "global";
     agents.data = [{ name: "general" }];
+    agents.isSuccess = true;
     scopedWorktree.id = undefined;
     scopedWorktree.resolved = true;
     toastError.mockReset();
@@ -151,12 +155,16 @@ describe("session create workspace binding", () => {
     );
   });
 
-  it("Should send nothing before selection and queue the query only after session creation [UT-141]", async () => {
-    const store = createSessionCreateStore();
-    const onCreated = vi.fn();
+  function renderFallback(store = createSessionCreateStore()) {
     const wrapper = ({ children }: { children: ReactNode }) => (
       <SessionCreateProvider store={store}>{children}</SessionCreateProvider>
     );
+    return { store, wrapper };
+  }
+
+  it("Should send nothing before selection and queue the query only after session creation [UT-141]", async () => {
+    const { store, wrapper } = renderFallback();
+    const onCreated = vi.fn();
     createSessionAsync.mockResolvedValue({
       id: "session-fallback-141",
       workspace_id: "ws_home",
@@ -181,15 +189,17 @@ describe("session create workspace binding", () => {
       claimed: false,
     });
     expect(onCreated).toHaveBeenCalledWith(expect.objectContaining({ id: "session-fallback-141" }));
+    expect(store.getSnapshot().context).toMatchObject({
+      open: false,
+      operation: { status: "idle" },
+    });
   });
 
   it("Should open the agent picker with the query when the default cannot resolve [UT-142]", async () => {
     agents.data = [];
     const store = createSessionCreateStore();
     const onPickerOpened = vi.fn();
-    const wrapper = ({ children }: { children: ReactNode }) => (
-      <SessionCreateProvider store={store}>{children}</SessionCreateProvider>
-    );
+    const { wrapper } = renderFallback(store);
     const fallback = renderHook(
       () => useSessionPromptFallback({ onCreated: vi.fn(), onPickerOpened }),
       { wrapper }
@@ -205,11 +215,25 @@ describe("session create workspace binding", () => {
     expect(onPickerOpened).toHaveBeenCalledTimes(1);
   });
 
-  it("Should report a spawn failure and allow retrying the preserved query [UT-143]", async () => {
+  it("Should open the agent picker while the agent list is still loading [RD0071]", async () => {
+    agents.isSuccess = false;
     const store = createSessionCreateStore();
-    const wrapper = ({ children }: { children: ReactNode }) => (
-      <SessionCreateProvider store={store}>{children}</SessionCreateProvider>
+    const onPickerOpened = vi.fn();
+    const { wrapper } = renderFallback(store);
+    const fallback = renderHook(
+      () => useSessionPromptFallback({ onCreated: vi.fn(), onPickerOpened }),
+      { wrapper }
     );
+
+    await act(async () => fallback.result.current.run("Wait for agents"));
+
+    expect(createSessionAsync).not.toHaveBeenCalled();
+    expect(onPickerOpened).toHaveBeenCalledTimes(1);
+    expect(store.getSnapshot().context.open).toBe(true);
+  });
+
+  it("Should report a spawn failure and allow retrying the preserved query [UT-143]", async () => {
+    const { wrapper } = renderFallback();
     createSessionAsync
       .mockRejectedValueOnce(new Error("agent executable is unavailable"))
       .mockResolvedValueOnce({
@@ -252,10 +276,7 @@ describe("session create workspace binding", () => {
         workspace_id: "ws_home",
         agent_name: "general",
       });
-    const store = createSessionCreateStore();
-    const wrapper = ({ children }: { children: ReactNode }) => (
-      <SessionCreateProvider store={store}>{children}</SessionCreateProvider>
-    );
+    const { store, wrapper } = renderFallback();
     const fallback = renderHook(
       () => useSessionPromptFallback({ onCreated: vi.fn(), onPickerOpened: vi.fn() }),
       { wrapper }
@@ -267,6 +288,8 @@ describe("session create workspace binding", () => {
       void fallback.result.current.run("Plan the release");
     });
     expect(createSessionAsync).toHaveBeenCalledTimes(1);
+    expect(store.getSnapshot().context.operation.status).toBe("submitting");
+    expect(fallback.result.current.pending).toBe(true);
 
     await act(async () => {
       resolveFirst?.({

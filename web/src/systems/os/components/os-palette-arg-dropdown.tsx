@@ -9,7 +9,7 @@ export interface PaletteArgDropdownProps {
   className: string;
   focused: boolean;
   /** Hands the input node up so a blocked submit can focus it. */
-  registerNode: (node: HTMLInputElement | null) => void;
+  registerNode: (node: HTMLElement | null) => void;
   onChange: (value: string) => void;
   /** ⏎ with the list closed leaves the field and submits the bar. */
   onSubmit: () => void;
@@ -41,8 +41,10 @@ export function PaletteArgDropdown({
   const [open, setOpen] = useState(false);
   const [activeIndex, setActiveIndex] = useState(0);
   const options = filterArgOptions(field, field.value);
-  const active = options[Math.min(activeIndex, Math.max(options.length - 1, 0))];
+  const clampedIndex = Math.min(activeIndex, Math.max(options.length - 1, 0));
+  const active = options[clampedIndex];
   const listId = `os-palette-arg-options-${field.name}`;
+  const activeOptionId = active === undefined ? undefined : `${listId}-option-${clampedIndex}`;
 
   const pick = (option: string) => {
     onChange(option);
@@ -60,9 +62,9 @@ export function PaletteArgDropdown({
       return;
     }
     if (event.key !== "Enter") return;
+    event.preventDefault();
+    event.stopPropagation();
     if (open && active !== undefined) {
-      event.preventDefault();
-      event.stopPropagation();
       pick(active);
       return;
     }
@@ -72,7 +74,7 @@ export function PaletteArgDropdown({
   return (
     <div className="relative flex flex-col">
       <Input
-        aria-activedescendant={open && active !== undefined ? `${listId}-${active}` : undefined}
+        aria-activedescendant={open ? activeOptionId : undefined}
         aria-autocomplete="list"
         aria-controls={listId}
         aria-describedby={field.error === "" ? undefined : `os-palette-arg-error-${field.name}`}
@@ -103,14 +105,14 @@ export function PaletteArgDropdown({
           id={listId}
           role="listbox"
         >
-          {options.map(option => (
+          {options.map((option, index) => (
             <button
-              aria-selected={option === active}
+              aria-selected={index === clampedIndex}
               className={cn(
                 "flex h-8 items-center rounded-sm px-2 text-left text-small-body text-fg",
-                option === active && "bg-elevated text-fg-strong"
+                index === clampedIndex && "bg-elevated text-fg-strong"
               )}
-              id={`${listId}-${option}`}
+              id={`${listId}-option-${index}`}
               key={option}
               role="option"
               // The field keeps DOM focus so the combobox contract holds: options

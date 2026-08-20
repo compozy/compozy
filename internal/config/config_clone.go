@@ -9,7 +9,7 @@ func CloneConfig(source *Config) Config {
 	cloned := *source
 	cloned.Attention.MutedWorkspaces = append([]string(nil), source.Attention.MutedWorkspaces...)
 	cloned.WindowManager = cloneWindowManagerConfig(source.WindowManager)
-	cloned.CmdPalette = cloneCmdPaletteConfig(source.CmdPalette)
+	cloned.CmdPalette = CloneCmdPaletteConfig(source.CmdPalette)
 	cloned.MCPServers = cloneMCPServers(source.MCPServers)
 	cloned.Providers = cloneProviders(source.Providers)
 	cloned.ModelCatalog.Sources.ModelsDev.Enabled = cloneBoolPtr(

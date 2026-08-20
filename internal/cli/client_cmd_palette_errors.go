@@ -47,6 +47,44 @@ func (e *cmdPaletteAPIError) cliExitCode() int {
 	return 1
 }
 
+func (e *cmdPaletteAPIError) errorPayload() contract.ErrorPayload {
+	if e == nil {
+		return contract.ErrorPayload{}
+	}
+	details := map[string]string{}
+	for field, reason := range e.payload.Fields {
+		details[field] = reason
+	}
+	if reason := strings.TrimSpace(e.payload.Reason); reason != "" {
+		details["reason"] = reason
+	}
+	if message := strings.TrimSpace(e.payload.Message); message != "" {
+		details["message"] = message
+	}
+	if len(e.payload.Clients) > 0 {
+		clients := make([]string, len(e.payload.Clients))
+		for index, client := range e.payload.Clients {
+			clients[index] = string(client)
+		}
+		sort.Strings(clients)
+		details["clients"] = strings.Join(clients, ",")
+	}
+	payload := contract.ErrorPayload{Error: e.payload.Error, Code: e.payload.Error}
+	if len(details) > 0 {
+		payload.Details = details
+	}
+	return payload
+}
+
+func cmdPaletteCommandNotFoundError(commandID string) error {
+	return &cmdPaletteAPIError{
+		statusCode: 404,
+		payload: contract.CmdPaletteError{
+			Error: "command_not_found", Message: "command not found: " + commandID,
+		},
+	}
+}
+
 func parseCmdPaletteAPIError(statusCode int, status string, body []byte) (bool, error) {
 	var payload contract.CmdPaletteError
 	if json.Unmarshal(body, &payload) != nil || !cmdPaletteErrorCode(payload.Error) {

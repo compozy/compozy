@@ -5,7 +5,6 @@ import (
 	"errors"
 
 	compozyconfig "github.com/compozy/compozy/internal/config"
-	"github.com/compozy/compozy/internal/windowmanager"
 )
 
 func (s *service) updateWindowManagerSection(
@@ -23,28 +22,16 @@ func (s *service) updateWindowManagerSection(
 	if err != nil {
 		return MutationResult{}, err
 	}
-	if req.WindowManager == nil && req.WindowManagerShortcuts == nil &&
-		req.WindowManagerGlobalShortcuts == nil && req.WindowManagerAliases == nil {
+	if !hasWindowManagerMutation(req) {
 		return MutationResult{}, validationError(
 			errors.New("settings: window-manager section payload is required"),
 		)
 	}
-	desired := cloneWindowManagerConfig(loaded.config.WindowManager)
-	if req.WindowManager != nil {
-		desired = cloneWindowManagerConfig(*req.WindowManager)
-	}
-	if req.WindowManagerShortcuts != nil {
-		desired.Shortcuts = windowmanager.CloneShortcutMap(*req.WindowManagerShortcuts)
-	}
-	if req.WindowManagerGlobalShortcuts != nil {
-		desired.GlobalShortcuts = windowmanager.CloneGlobalShortcutMap(
-			*req.WindowManagerGlobalShortcuts,
-		)
-	}
-	desiredAliases := cloneAliases(loaded.config.CmdPalette.Aliases)
-	if req.WindowManagerAliases != nil {
-		desiredAliases = cloneAliases(*req.WindowManagerAliases)
-	}
+	desired, desiredAliases := mergeWindowManagerRequest(
+		loaded.config.WindowManager,
+		loaded.config.CmdPalette.Aliases,
+		req,
+	)
 	bindableIDs, err := s.windowManagerBindableIDs(ctx, loaded.workspaceID)
 	if err != nil {
 		return MutationResult{}, err

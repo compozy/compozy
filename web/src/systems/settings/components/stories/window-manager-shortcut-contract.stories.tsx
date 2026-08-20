@@ -2,19 +2,20 @@ import { useState } from "react";
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { userEvent, within } from "storybook/test";
 
-import type { ShortcutMap, WindowManagerSettingsSection } from "@/systems/os";
+import {
+  parseSettingsWindowManagerSection,
+  type ShortcutMap,
+  type WindowManagerSettingsSection,
+  type WindowManagerSettingsWire,
+} from "@/systems/os";
 import { CenteredSurface } from "@/storybook/story-layout";
-import { cmdPaletteStoryShortcuts } from "@/systems/os/mocks/cmd-palette-fixtures";
+import { cmdPaletteStoryShortcuts } from "@/systems/os/mocks";
 
 import type { AliasEditorModel } from "../../hooks/use-window-manager-alias-editor";
 import type { ShortcutRecorderModel } from "../../hooks/use-window-manager-shortcut-recorder";
 import { settingsWindowManagerSectionFixture } from "../../mocks/window-manager-fixtures";
 import { ShortcutPresetCard } from "../layouts/shortcut-preset-card";
 import { WindowManagerShortcutTable } from "../layouts/window-manager-shortcut-table";
-import {
-  parseSettingsWindowManagerSection,
-  type WindowManagerSettingsWire,
-} from "@/systems/os/lib/window-manager-settings-section";
 
 /**
  * The table renders daemon truth, so a story state is produced by handing it the

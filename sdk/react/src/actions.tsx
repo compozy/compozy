@@ -3,7 +3,6 @@ import { createElement } from "react";
 import type { ReactElement, ReactNode } from "react";
 
 import { useNavigation } from "./hooks/use-navigation.js";
-import { queueViewEffect } from "./view-effects.js";
 
 export interface ActionPanelProps {
   children?: ReactNode;
@@ -75,14 +74,11 @@ function ActionOpenApp({ app, ...props }: ActionOpenAppProps): ReactElement {
 }
 
 function ActionCopyToClipboard({ content, ...props }: ActionCopyProps): ReactElement {
-  return (
-    <ActionRoot
-      {...props}
-      onAction={() => {
-        queueViewEffect({ copy: { content } });
-      }}
-    />
-  );
+  assertDestructiveConfirmation(props);
+  return createElement("view-action", {
+    ...props,
+    action: { kind: "copy", args: { content } },
+  });
 }
 
 function assertDestructiveConfirmation(props: Pick<ActionProps, "style" | "confirmation">): void {

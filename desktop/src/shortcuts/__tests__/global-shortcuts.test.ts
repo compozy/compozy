@@ -30,7 +30,7 @@ describe("global shortcut policy", () => {
     const globalShortcut = shortcutHarness([true, false, true]);
     const policy = new GlobalShortcutPolicy({
       globalShortcut,
-      accessibility: { allowed: true },
+      accessibility: () => ({ allowed: true }),
       onInvoke: vi.fn(),
     });
     expect(policy.sync([{ command_id: "palette.open", chord: "meta+shift+Space" }])).toEqual([
@@ -53,7 +53,7 @@ describe("global shortcut policy", () => {
   it("Should not report an active chord when restoration also fails", () => {
     const policy = new GlobalShortcutPolicy({
       globalShortcut: shortcutHarness([true, false, false]),
-      accessibility: { allowed: true },
+      accessibility: () => ({ allowed: true }),
       onInvoke: vi.fn(),
     });
     policy.sync([{ command_id: "palette.open", chord: "meta+shift+Space" }]);
@@ -67,7 +67,7 @@ describe("global shortcut policy", () => {
     const globalShortcut = shortcutHarness([true]);
     const policy = new GlobalShortcutPolicy({
       globalShortcut,
-      accessibility: { allowed: true },
+      accessibility: () => ({ allowed: true }),
       onInvoke: vi.fn(),
     });
     policy.sync([{ command_id: "palette.open", chord: "meta+shift+Space" }]);
@@ -94,7 +94,7 @@ describe("global shortcut policy", () => {
     const accessibility = detectAccessibility({ platform: "darwin", isTrusted: () => false });
     const policy = new GlobalShortcutPolicy({
       globalShortcut: shortcutHarness([]),
-      accessibility,
+      accessibility: () => accessibility,
       onInvoke: vi.fn(),
     });
     expect(policy.sync([{ command_id: "palette.open", chord: "meta+shift+Space" }])).toEqual([
@@ -102,6 +102,25 @@ describe("global shortcut policy", () => {
         status: "failed_permission",
         settings_url: MACOS_ACCESSIBILITY_SETTINGS_URL,
       }),
+    ]);
+  });
+
+  it("Should register after Accessibility is granted without restarting", () => {
+    let allowed = false;
+    const policy = new GlobalShortcutPolicy({
+      globalShortcut: shortcutHarness([true]),
+      accessibility: () =>
+        allowed
+          ? { allowed: true }
+          : { allowed: false, settingsURL: MACOS_ACCESSIBILITY_SETTINGS_URL },
+      onInvoke: vi.fn(),
+    });
+    expect(policy.sync([{ command_id: "palette.open", chord: "meta+shift+Space" }])).toEqual([
+      expect.objectContaining({ status: "failed_permission" }),
+    ]);
+    allowed = true;
+    expect(policy.sync([{ command_id: "palette.open", chord: "meta+shift+Space" }])).toEqual([
+      expect.objectContaining({ status: "registered", active_chord: "meta+shift+Space" }),
     ]);
   });
 });

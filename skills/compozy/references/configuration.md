@@ -160,7 +160,7 @@ or failed generation leaves the session unnamed.
 
 Other `[roles]` routing keys and the fallback-chain rules live in `references/runtime-operations.md` (Background roles).
 
-## Window Manager
+## Command Palette
 
 `[cmd_palette]` owns `fallback_targets`, the live `personalization` flag, and the
 `[cmd_palette.aliases]` command-to-alias map. `fallback_targets = ["agent"]` enables the agent row for
@@ -170,6 +170,8 @@ workspace-scoped vocabulary: 1–32 characters, no whitespace, and unique per wo
 write scalar settings with `compozy config get|set cmd_palette.<key>`. Use the typed
 `GET|PATCH /api/settings/cmd-palette` surface for live fallback and personalization controls, and
 `compozy cmd-palette alias set|clear` for atomic alias changes through the daemon.
+
+## Window Manager
 
 `[window_manager]` controls global behavior defaults for new-window placement, small-viewport
 fallback, focus and raise policy, drag-away grouping, bounded history, desktop transitions, gaps,

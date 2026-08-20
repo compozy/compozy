@@ -30,95 +30,98 @@ const viewProgramFixtureExtensionName = "notes-ts"
 
 func TestDaemonE2EExtensionViewProgramFixture(t *testing.T) {
 	t.Parallel()
-	ctx, cancel := context.WithTimeout(context.Background(), 180*time.Second)
-	defer cancel()
-	repoRoot := extensionAuthoringE2ERepoRoot(t)
-	binaryPath := buildStampedExtensionAuthoringBinary(t, ctx, repoRoot)
-	harness := e2etest.StartRuntimeHarness(t, &e2etest.RuntimeHarnessOptions{
-		BinaryPath: binaryPath,
-		Env:        map[string]string{"PATH": viewProgramNodePath(t)},
-		ConfigSeed: e2etest.ConfigSeedOptions{Mutate: func(cfg *compozyconfig.Config) {
-			cfg.Extensions.Trust.AllowUnverified = true
-		}},
-		StartTimeout: 30 * time.Second,
+	t.Run("Should isolate programmable view sessions across clients and extension restarts", func(t *testing.T) {
+		t.Parallel()
+		ctx, cancel := context.WithTimeout(context.Background(), 180*time.Second)
+		defer cancel()
+		repoRoot := extensionAuthoringE2ERepoRoot(t)
+		binaryPath := buildStampedExtensionAuthoringBinary(t, ctx, repoRoot)
+		harness := e2etest.StartRuntimeHarness(t, &e2etest.RuntimeHarnessOptions{
+			BinaryPath: binaryPath,
+			Env:        map[string]string{"PATH": viewProgramNodePath(t)},
+			ConfigSeed: e2etest.ConfigSeedOptions{Mutate: func(cfg *compozyconfig.Config) {
+				cfg.Extensions.Trust.AllowUnverified = true
+			}},
+			StartTimeout: 30 * time.Second,
+		})
+
+		fixtureDir := filepath.Join(repoRoot, "internal", "extension", "testdata", "view-program-ts")
+		var build extensionpkg.BuildResult
+		runExtensionAuthoringCLI(t, ctx, harness, &build, "extension", "build", fixtureDir, "-o", "json")
+		var installed compozycontract.ExtensionPayload
+		runExtensionAuthoringCLI(
+			t, ctx, harness, &installed,
+			"extension", "install", build.GenerationDir, "--allow-unverified", "--yes", "-o", "json",
+		)
+		var enabled compozycontract.ExtensionEnableResult
+		runExtensionAuthoringCLI(
+			t, ctx, harness, &enabled,
+			"extension", "enable", viewProgramFixtureExtensionName, "-o", "json",
+		)
+		if !enabled.Extension.Enabled {
+			t.Fatalf("enabled view fixture = %#v, want active extension", enabled)
+		}
+
+		clientA := registerViewProgramClient(t, ctx, harness, "view-client-a")
+		clientB := registerViewProgramClient(t, ctx, harness, "view-client-b")
+		openedA := openViewProgram(t, ctx, harness, clientA.AttachmentToken, nil)
+		openedB := openViewProgram(t, ctx, harness, clientB.AttachmentToken, nil)
+		if openedA.ViewSession == openedB.ViewSession || openedA.StreamToken == openedB.StreamToken {
+			t.Fatalf("two client sessions share identity: A=%#v B=%#v", openedA, openedB)
+		}
+		assertViewProgramForeignOwnership(t, ctx, harness, openedA, clientB)
+
+		streamResponse, streamReader := openViewProgramStream(t, ctx, harness, openedA)
+		defer closeViewProgramBody(t, streamResponse.Body)
+		replayed := readViewProgramFrame(t, streamReader)
+		searchHandler := viewProgramSearchHandler(t, replayed)
+		postViewProgramEvent(t, ctx, harness, openedA, clientA.AttachmentToken, compozycontract.CmdPaletteViewSessionEventRequest{
+			Handler: searchHandler, Args: []any{"standup", 1}, Revision: replayed.Revision, Seq: 1,
+		})
+		searched := readViewProgramFrame(t, streamReader)
+		if searched.Revision == replayed.Revision {
+			t.Fatalf("search frame revision = %q, want advancement from %q", searched.Revision, replayed.Revision)
+		}
+
+		actionHandler := viewProgramActionHandler(t, searched, replayed)
+		postViewProgramEvent(t, ctx, harness, openedA, clientA.AttachmentToken, compozycontract.CmdPaletteViewSessionEventRequest{
+			Handler: actionHandler, Revision: searched.Revision, Seq: 2,
+		})
+		effectFrame := readViewProgramFrame(t, streamReader)
+		if len(effectFrame.Effects) != 1 || effectFrame.Effects[0].ID == "" {
+			t.Fatalf("action frame effects = %#v, want one stable effect", effectFrame.Effects)
+		}
+		postViewProgramEvent(t, ctx, harness, openedA, clientA.AttachmentToken, compozycontract.CmdPaletteViewSessionEventRequest{
+			Handler: searchHandler, Args: []any{"standup", 2}, Revision: effectFrame.Revision, Seq: 3,
+			AckEffects: []string{effectFrame.Effects[0].ID},
+		})
+		replayResponse, replayReader := openViewProgramStream(t, ctx, harness, openedA)
+		defer closeViewProgramBody(t, replayResponse.Body)
+		ackReplay := readViewProgramFrame(t, replayReader)
+		if len(ackReplay.Effects) != 0 {
+			t.Fatalf("reconnected replay effects = %#v, want at-most-once fence", ackReplay.Effects)
+		}
+
+		assertViewProgramSlowSessionIsolation(t, ctx, harness, clientA)
+		closeViewProgram(t, ctx, harness, openedA.ViewSession, clientA.AttachmentToken)
+		assertViewProgramSessionGone(t, ctx, harness, openedA)
+
+		var disabled compozycontract.ExtensionPayload
+		runExtensionAuthoringCLI(
+			t, ctx, harness, &disabled,
+			"extension", "disable", viewProgramFixtureExtensionName, "-o", "json",
+		)
+		assertViewProgramSessionGone(t, ctx, harness, openedB)
+		runExtensionAuthoringCLI(
+			t, ctx, harness, &enabled,
+			"extension", "enable", viewProgramFixtureExtensionName, "-o", "json",
+		)
+		fresh := openViewProgram(t, ctx, harness, clientB.AttachmentToken, nil)
+		if fresh.ViewSession == openedB.ViewSession {
+			t.Fatalf("fresh session = %q, want a new identity after restart", fresh.ViewSession)
+		}
+		closeViewProgram(t, ctx, harness, fresh.ViewSession, clientB.AttachmentToken)
 	})
-
-	fixtureDir := filepath.Join(repoRoot, "internal", "extension", "testdata", "view-program-ts")
-	var build extensionpkg.BuildResult
-	runExtensionAuthoringCLI(t, ctx, harness, &build, "extension", "build", fixtureDir, "-o", "json")
-	var installed compozycontract.ExtensionPayload
-	runExtensionAuthoringCLI(
-		t, ctx, harness, &installed,
-		"extension", "install", build.GenerationDir, "--allow-unverified", "--yes", "-o", "json",
-	)
-	var enabled compozycontract.ExtensionEnableResult
-	runExtensionAuthoringCLI(
-		t, ctx, harness, &enabled,
-		"extension", "enable", viewProgramFixtureExtensionName, "-o", "json",
-	)
-	if !enabled.Extension.Enabled {
-		t.Fatalf("enabled view fixture = %#v, want active extension", enabled)
-	}
-
-	clientA := registerViewProgramClient(t, ctx, harness, "view-client-a")
-	clientB := registerViewProgramClient(t, ctx, harness, "view-client-b")
-	openedA := openViewProgram(t, ctx, harness, clientA.AttachmentToken, nil)
-	openedB := openViewProgram(t, ctx, harness, clientB.AttachmentToken, nil)
-	if openedA.ViewSession == openedB.ViewSession || openedA.StreamToken == openedB.StreamToken {
-		t.Fatalf("two client sessions share identity: A=%#v B=%#v", openedA, openedB)
-	}
-	assertViewProgramForeignOwnership(t, ctx, harness, openedA, clientB)
-
-	streamResponse, streamReader := openViewProgramStream(t, ctx, harness, openedA)
-	defer closeViewProgramBody(t, streamResponse.Body)
-	replayed := readViewProgramFrame(t, streamReader)
-	searchHandler := viewProgramSearchHandler(t, replayed)
-	postViewProgramEvent(t, ctx, harness, openedA, clientA.AttachmentToken, compozycontract.CmdPaletteViewSessionEventRequest{
-		Handler: searchHandler, Args: []any{"standup", 1}, Revision: replayed.Revision, Seq: 1,
-	})
-	searched := readViewProgramFrame(t, streamReader)
-	if searched.Revision == replayed.Revision {
-		t.Fatalf("search frame revision = %q, want advancement from %q", searched.Revision, replayed.Revision)
-	}
-
-	actionHandler := viewProgramActionHandler(t, searched, replayed)
-	postViewProgramEvent(t, ctx, harness, openedA, clientA.AttachmentToken, compozycontract.CmdPaletteViewSessionEventRequest{
-		Handler: actionHandler, Revision: searched.Revision, Seq: 2,
-	})
-	effectFrame := readViewProgramFrame(t, streamReader)
-	if len(effectFrame.Effects) != 1 || effectFrame.Effects[0].ID == "" {
-		t.Fatalf("action frame effects = %#v, want one stable effect", effectFrame.Effects)
-	}
-	postViewProgramEvent(t, ctx, harness, openedA, clientA.AttachmentToken, compozycontract.CmdPaletteViewSessionEventRequest{
-		Handler: searchHandler, Args: []any{"standup", 2}, Revision: effectFrame.Revision, Seq: 3,
-		AckEffects: []string{effectFrame.Effects[0].ID},
-	})
-	replayResponse, replayReader := openViewProgramStream(t, ctx, harness, openedA)
-	defer closeViewProgramBody(t, replayResponse.Body)
-	ackReplay := readViewProgramFrame(t, replayReader)
-	if len(ackReplay.Effects) != 0 {
-		t.Fatalf("reconnected replay effects = %#v, want at-most-once fence", ackReplay.Effects)
-	}
-
-	assertViewProgramSlowSessionIsolation(t, ctx, harness, clientA)
-	closeViewProgram(t, ctx, harness, openedA.ViewSession, clientA.AttachmentToken)
-	assertViewProgramSessionGone(t, ctx, harness, openedA)
-
-	var disabled compozycontract.ExtensionPayload
-	runExtensionAuthoringCLI(
-		t, ctx, harness, &disabled,
-		"extension", "disable", viewProgramFixtureExtensionName, "-o", "json",
-	)
-	assertViewProgramSessionGone(t, ctx, harness, openedB)
-	runExtensionAuthoringCLI(
-		t, ctx, harness, &enabled,
-		"extension", "enable", viewProgramFixtureExtensionName, "-o", "json",
-	)
-	fresh := openViewProgram(t, ctx, harness, clientB.AttachmentToken, nil)
-	if fresh.ViewSession == openedB.ViewSession {
-		t.Fatalf("fresh session = %q, want a new identity after restart", fresh.ViewSession)
-	}
-	closeViewProgram(t, ctx, harness, fresh.ViewSession, clientB.AttachmentToken)
 }
 
 func viewProgramNodePath(t *testing.T) string {
@@ -292,11 +295,15 @@ func assertViewProgramForeignOwnership(
 ) {
 	t.Helper()
 	path := "/api/cmd-palette/view-sessions/" + url.PathEscape(opened.ViewSession) + "/events"
+	var payload compozycontract.CmdPaletteError
 	doViewProgramJSON(
 		t, ctx, harness, http.MethodPost, path,
 		compozycontract.CmdPaletteViewSessionEventRequest{Handler: "foreign", Revision: opened.FirstFrame.Revision, Seq: 1},
-		foreign.AttachmentToken, http.StatusForbidden, nil,
+		foreign.AttachmentToken, http.StatusForbidden, &payload,
 	)
+	if payload.Error != "session_forbidden" {
+		t.Fatalf("foreign ownership error = %#v, want session_forbidden", payload)
+	}
 }
 
 func assertViewProgramSlowSessionIsolation(
@@ -335,7 +342,11 @@ func assertViewProgramSessionGone(
 	t.Helper()
 	path := "/api/cmd-palette/view-sessions/" + url.PathEscape(opened.ViewSession) +
 		"/stream?token=" + url.QueryEscape(opened.StreamToken)
-	doViewProgramJSON(t, ctx, harness, http.MethodGet, path, nil, "", http.StatusGone, nil)
+	var payload compozycontract.CmdPaletteError
+	doViewProgramJSON(t, ctx, harness, http.MethodGet, path, nil, "", http.StatusGone, &payload)
+	if payload.Error != "session_gone" {
+		t.Fatalf("gone session error = %#v, want session_gone", payload)
+	}
 }
 
 func doViewProgramJSON(

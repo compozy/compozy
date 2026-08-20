@@ -7,7 +7,7 @@ import { useDocumentVisible } from "@/hooks/use-document-visible";
 import { registerWindowManagerClient } from "../adapters/window-manager-api";
 import { isDesktopShell } from "../lib/desktop-shell-bridge";
 import { stableWindowManagerClientId } from "../lib/window-manager-client-identity";
-import type { WindowManagerAttachedClientView } from "../lib/window-manager-types";
+import type { WindowManagerRegisteredClientView } from "../lib/window-manager-types";
 import {
   windowManagerClientRegistrationLogic,
   windowManagerRetryDelay,
@@ -16,7 +16,7 @@ import {
 export interface WindowManagerClientRegistrationState {
   clientId: string;
   registrationEpoch: number;
-  client: WindowManagerAttachedClientView | null;
+  client: WindowManagerRegisteredClientView | null;
   status: "idle" | "registering" | "registered" | "error";
   error: Error | null;
   reregister: () => void;

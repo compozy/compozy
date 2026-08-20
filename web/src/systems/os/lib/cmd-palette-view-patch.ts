@@ -99,6 +99,23 @@ function isRecord(value: unknown): value is Record<string, unknown> {
   return value !== null && typeof value === "object" && !Array.isArray(value);
 }
 
-function sameJSON(left: unknown, right: unknown): boolean {
-  return JSON.stringify(left) === JSON.stringify(right);
+/** RFC 6902 object equality is member-order independent. */
+export function sameJSON(left: unknown, right: unknown): boolean {
+  if (Object.is(left, right)) return true;
+  if (left === null || right === null) return left === right;
+  if (typeof left !== typeof right) return false;
+  if (typeof left !== "object" || typeof right !== "object") return left === right;
+  if (Array.isArray(left) || Array.isArray(right)) {
+    if (!Array.isArray(left) || !Array.isArray(right) || left.length !== right.length) {
+      return false;
+    }
+    return left.every((item, index) => sameJSON(item, right[index]));
+  }
+  const leftKeys = Object.keys(left);
+  const rightRecord = right as Record<string, unknown>;
+  const leftRecord = left as Record<string, unknown>;
+  if (leftKeys.length !== Object.keys(rightRecord).length) return false;
+  return leftKeys.every(key =>
+    Object.hasOwn(rightRecord, key) ? sameJSON(leftRecord[key], rightRecord[key]) : false
+  );
 }

@@ -50,6 +50,30 @@ func (e *cmdPaletteMutationAPIError) cliExitCode() int {
 	return 1
 }
 
+func (e *cmdPaletteMutationAPIError) errorPayload() contract.ErrorPayload {
+	if e == nil {
+		return contract.ErrorPayload{}
+	}
+	details := map[string]string{}
+	if owner := strings.TrimSpace(e.payload.Owner); owner != "" {
+		details["owner"] = owner
+	}
+	if chord := strings.TrimSpace(e.payload.Chord); chord != "" {
+		details["chord"] = chord
+	}
+	if alias := strings.TrimSpace(e.payload.Alias); alias != "" {
+		details["alias"] = alias
+	}
+	if message := strings.TrimSpace(e.payload.Message); message != "" {
+		details["message"] = message
+	}
+	payload := contract.ErrorPayload{Error: e.payload.Error, Code: e.payload.Error}
+	if len(details) > 0 {
+		payload.Details = details
+	}
+	return payload
+}
+
 func parseCmdPaletteMutationAPIError(statusCode int, _ string, body []byte) (bool, error) {
 	var payload contract.SettingsWindowManagerMutationError
 	if json.Unmarshal(body, &payload) != nil {

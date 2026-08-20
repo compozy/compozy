@@ -7,10 +7,6 @@ description: "Inspect or reset palette personalization"
 
 Inspect or reset palette personalization
 
-```
-compozy cmd-palette personalization [flags]
-```
-
 ### Options
 
 ```
@@ -26,20 +22,14 @@ compozy cmd-palette personalization [flags]
 
 ## Output Formats
 
-The root `-o, --output` flag accepts these values. A renderer is supported only when this command writes that result; `jsonl` is for commands that emit one JSON record per line.
+This command displays human-readable help and its subcommand list. The inherited `-o, --output` and `--json` flags do not serialize help output.
 
-| Format  | Command result                          |
-| ------- | --------------------------------------- |
-| `human` | Interactive terminal rendering          |
-| `json`  | Machine-readable JSON rendering         |
-| `jsonl` | One JSON record per line when supported |
-| `toon`  | Compact agent-readable rendering        |
-
-Example:
-
-```bash
-compozy cmd-palette personalization -o json
-```
+| Format  | Output                   |
+| ------- | ------------------------ |
+| `human` | Help and subcommand list |
+| `json`  | Not emitted for help     |
+| `jsonl` | Not emitted for help     |
+| `toon`  | Not emitted for help     |
 
 ## Subcommands
 

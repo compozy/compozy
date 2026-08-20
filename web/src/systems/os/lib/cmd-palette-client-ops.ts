@@ -1,4 +1,5 @@
 import type { PaletteClientOpHandler } from "./cmd-palette-client-op-context";
+import { CMD_PALETTE_DAEMON_OPS } from "./cmd-palette-daemon-ops";
 import { CMD_PALETTE_WINDOW_OPS } from "./cmd-palette-window-ops";
 
 export type {
@@ -38,10 +39,12 @@ const SHELL_OPS: ReadonlyMap<string, PaletteClientOpHandler> = new Map<
  */
 export function paletteClientOp(op: string): PaletteClientOpHandler | null {
   const id = op.trim();
-  return SHELL_OPS.get(id) ?? CMD_PALETTE_WINDOW_OPS.get(id) ?? null;
+  return (
+    SHELL_OPS.get(id) ?? CMD_PALETTE_WINDOW_OPS.get(id) ?? CMD_PALETTE_DAEMON_OPS.get(id) ?? null
+  );
 }
 
 /** Every operation this client can execute — the honest capability list. */
 export function paletteClientOpIds(): readonly string[] {
-  return [...SHELL_OPS.keys(), ...CMD_PALETTE_WINDOW_OPS.keys()];
+  return [...SHELL_OPS.keys(), ...CMD_PALETTE_WINDOW_OPS.keys(), ...CMD_PALETTE_DAEMON_OPS.keys()];
 }

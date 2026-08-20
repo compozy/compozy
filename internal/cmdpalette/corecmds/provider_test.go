@@ -1,7 +1,6 @@
 package corecmds
 
 import (
-	"context"
 	"fmt"
 	"slices"
 	"sort"
@@ -18,14 +17,7 @@ func TestProviderAbsorption(t *testing.T) {
 
 	t.Run("Should include every window-manager action exactly once [UT-002]", func(t *testing.T) {
 		t.Parallel()
-		provider, err := New()
-		if err != nil {
-			t.Fatalf("New() error = %v", err)
-		}
-		commands, err := provider.ProvideCommands(t.Context(), "ws-test")
-		if err != nil {
-			t.Fatalf("ProvideCommands() error = %v", err)
-		}
+		commands := mustCommands(t)
 		counts := make(map[cmdpalette.CommandID]int, len(commands))
 		for _, command := range commands {
 			counts[command.ID]++
@@ -40,14 +32,7 @@ func TestProviderAbsorption(t *testing.T) {
 
 	t.Run("Should give every shell-only palette row a bindable id [UT-002]", func(t *testing.T) {
 		t.Parallel()
-		provider, err := New()
-		if err != nil {
-			t.Fatalf("New() error = %v", err)
-		}
-		commands, err := provider.ProvideCommands(context.Background(), "ws-test")
-		if err != nil {
-			t.Fatalf("ProvideCommands() error = %v", err)
-		}
+		commands := mustCommands(t)
 		byID := make(map[cmdpalette.CommandID]cmdpalette.Descriptor, len(commands))
 		for _, command := range commands {
 			byID[command.ID] = command
@@ -83,14 +68,7 @@ func TestProviderAbsorption(t *testing.T) {
 
 	t.Run("Should navigate to every settings route [UT-012]", func(t *testing.T) {
 		t.Parallel()
-		provider, err := New()
-		if err != nil {
-			t.Fatalf("New() error = %v", err)
-		}
-		commands, err := provider.ProvideCommands(context.Background(), "ws-test")
-		if err != nil {
-			t.Fatalf("ProvideCommands() error = %v", err)
-		}
+		commands := mustCommands(t)
 		actual := make([]string, 0)
 		for _, command := range commands {
 			if command.Section != "Settings" {
@@ -114,6 +92,7 @@ func TestProviderAbsorption(t *testing.T) {
 			"settings.memory=/settings/memory",
 			"settings.network=/settings/network",
 			"settings.observability=/settings/observability",
+			"settings.palette=/settings/palette",
 			"settings.providers=/settings/providers",
 			"settings.roles=/settings/roles",
 			"settings.skills=/settings/skills",
@@ -126,14 +105,7 @@ func TestProviderAbsorption(t *testing.T) {
 
 	t.Run("Should expose every built-in palette view exactly once", func(t *testing.T) {
 		t.Parallel()
-		provider, err := New()
-		if err != nil {
-			t.Fatalf("New() error = %v", err)
-		}
-		commands, err := provider.ProvideCommands(context.Background(), "ws-test")
-		if err != nil {
-			t.Fatalf("ProvideCommands() error = %v", err)
-		}
+		commands := mustCommands(t)
 		want := []string{
 			"agents", "bridges", "extensions", "jobs", "knowledge", "loops", "marketplace",
 			"network-channels", "sessions", "tasks", "triggers", "vault", "worktrees",
@@ -157,4 +129,17 @@ func TestProviderAbsorption(t *testing.T) {
 			}
 		}
 	})
+}
+
+func mustCommands(t *testing.T) []cmdpalette.Descriptor {
+	t.Helper()
+	provider, err := New()
+	if err != nil {
+		t.Fatalf("New() error = %v", err)
+	}
+	commands, err := provider.ProvideCommands(t.Context(), "ws-test")
+	if err != nil {
+		t.Fatalf("ProvideCommands() error = %v", err)
+	}
+	return commands
 }
