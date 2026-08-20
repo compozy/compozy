@@ -14783,6 +14783,9 @@
                                         "type": "object"
                                       },
                                       "payload": {},
+                                      "reason": {
+                                        "type": "string"
+                                      },
                                       "run": {
                                         "nullable": true,
                                         "properties": {
@@ -212609,6 +212612,9 @@
                           "type": "object"
                         },
                         "payload": {},
+                        "reason": {
+                          "type": "string"
+                        },
                         "run": {
                           "nullable": true,
                           "properties": {
@@ -213471,6 +213477,9 @@
                             "type": "object"
                           },
                           "payload": {},
+                          "reason": {
+                            "type": "string"
+                          },
                           "run": {
                             "nullable": true,
                             "properties": {

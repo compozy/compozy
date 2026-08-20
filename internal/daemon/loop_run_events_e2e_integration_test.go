@@ -33,6 +33,83 @@ import (
 func TestDaemonE2ELoopRunEventsShouldStreamRichFramesAndResume(t *testing.T) {
 	t.Parallel()
 
+	t.Run("Should repair the incident orphan shape once across two boots E2E-002", func(t *testing.T) {
+		t.Parallel()
+		acpmock.RequireDriver(t)
+
+		homePaths := e2etest.NewHomePaths(t)
+		harnessOptions := e2etest.RuntimeHarnessOptions{
+			HomePaths: homePaths,
+			Workspace: e2etest.WorkspaceSeedOptions{Root: homePaths.HomeDir},
+			MockAgents: []e2etest.MockAgentSpec{{
+				FixturePath: mockFixturePath(t, "loop_events_fixture.json"), FixtureAgent: "loop_events",
+				AgentName: "loop-events-agent",
+			}},
+		}
+		harness := e2etest.StartRuntimeHarness(t, &harnessOptions)
+		ctx, cancel := context.WithTimeout(context.Background(), 90*time.Second)
+		defer cancel()
+		createLoopViaHTTP(t, ctx, harness, loopEventsDefinition())
+		runs := make([]compozycontract.LoopRunPayload, 0, 2)
+		for range 2 {
+			run := runLoopViaHTTP(t, ctx, harness, "loop-events-probe")
+			waitForLoopRunStatus(t, ctx, harness, run.ID, compozycontract.LoopRunStatusDone)
+			runs = append(runs, run)
+		}
+		stopRuntimeHarness(t, harness)
+
+		db, err := globaldb.OpenGlobalDB(ctx, homePaths.DatabaseFile)
+		if err != nil {
+			t.Fatalf("OpenGlobalDB(seed orphan) error = %v", err)
+		}
+		coordinatorTaskIDs := make(map[string]string, len(runs))
+		for _, run := range runs {
+			coordinatorTaskID := fmt.Sprintf("loop.%s.coordinator", run.ID)
+			coordinatorTaskIDs[run.ID] = coordinatorTaskID
+			var orphanRunID string
+			if err := db.DB().QueryRowContext(ctx, `SELECT id FROM task_runs WHERE loop_run_id = ?
+				AND run_kind = 'coordinator' ORDER BY queued_at DESC LIMIT 1`, run.ID).Scan(&orphanRunID); err != nil {
+				t.Fatalf("select orphan task run error = %v", err)
+			}
+			if _, err := db.DB().ExecContext(ctx, `UPDATE task_runs SET status = 'queued', ended_at = NULL,
+				error = NULL WHERE id = ?`, orphanRunID); err != nil {
+				t.Fatalf("seed orphan task run error = %v", err)
+			}
+			if _, err := db.DB().ExecContext(ctx, `UPDATE tasks SET status = 'ready', closed_at = NULL,
+				current_run_id = ? WHERE id = ?`, orphanRunID, coordinatorTaskID); err != nil {
+				t.Fatalf("seed orphan coordinator error = %v", err)
+			}
+		}
+		if err := db.Close(ctx); err != nil {
+			t.Fatalf("Close(seed orphan DB) error = %v", err)
+		}
+
+		firstRestart := e2etest.StartRuntimeHarness(t, &harnessOptions)
+		repairedEvents := make(map[string]int, len(runs))
+		for _, run := range runs {
+			live, events := loopSettlementCounts(
+				t, ctx, homePaths.DatabaseFile, run.ID, coordinatorTaskIDs[run.ID],
+			)
+			if live != 0 || events != 1 {
+				t.Fatalf("first boot settlement for %s = live %d events %d, want 0/1", run.ID, live, events)
+			}
+			repairedEvents[run.ID] = events
+		}
+		stopRuntimeHarness(t, firstRestart)
+
+		secondRestart := e2etest.StartRuntimeHarness(t, &harnessOptions)
+		for _, run := range runs {
+			live, secondEvents := loopSettlementCounts(
+				t, ctx, homePaths.DatabaseFile, run.ID, coordinatorTaskIDs[run.ID],
+			)
+			if live != 0 || secondEvents != repairedEvents[run.ID] {
+				t.Fatalf("second boot settlement for %s = live %d events %d, want 0/%d",
+					run.ID, live, secondEvents, repairedEvents[run.ID])
+			}
+		}
+		stopRuntimeHarness(t, secondRestart)
+	})
+
 	t.Run("Should stream rich frames resume and isolate by workspace", func(t *testing.T) {
 		t.Parallel()
 		acpmock.RequireDriver(t)
@@ -270,6 +347,45 @@ func TestDaemonE2ELoopRunEventsShouldStreamRichFramesAndResume(t *testing.T) {
 			}
 		}
 	})
+}
+
+func stopRuntimeHarness(t testing.TB, harness *e2etest.RuntimeHarness) {
+	t.Helper()
+	stopCtx, stopCancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer stopCancel()
+	if err := harness.Stop(stopCtx); err != nil {
+		t.Fatalf("Stop runtime harness error = %v", err)
+	}
+}
+
+func loopSettlementCounts(
+	t testing.TB,
+	ctx context.Context,
+	databaseFile string,
+	loopRunID string,
+	coordinatorTaskID string,
+) (int, int) {
+	t.Helper()
+	db, err := globaldb.OpenGlobalDB(ctx, databaseFile)
+	if err != nil {
+		t.Fatalf("OpenGlobalDB(inspect settlement) error = %v", err)
+	}
+	defer func() {
+		if err := db.Close(ctx); err != nil {
+			t.Fatalf("Close(inspect settlement DB) error = %v", err)
+		}
+	}()
+	var live int
+	if err := db.DB().QueryRowContext(ctx, `SELECT COUNT(*) FROM task_runs WHERE loop_run_id = ?
+		AND status IN ('queued','claimed','starting','running','needs_attention')`, loopRunID).Scan(&live); err != nil {
+		t.Fatalf("count live Loop task runs error = %v", err)
+	}
+	var events int
+	if err := db.DB().QueryRowContext(ctx, `SELECT COUNT(*) FROM task_events WHERE task_id = ?
+		AND json_extract(payload_json, '$.reason') = 'reconciled_run_terminal'`, coordinatorTaskID).Scan(&events); err != nil {
+		t.Fatalf("count reconciled settlement events error = %v", err)
+	}
+	return live, events
 }
 
 func TestDaemonE2ELoopWatchEventsShouldWakeAndRecover(t *testing.T) {

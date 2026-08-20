@@ -26,7 +26,7 @@ func applyCoordinatorBudgetBoundary(
 	if err != nil {
 		return err
 	}
-	if err := updateLoopBoundaryStatusWithEffects(
+	transitions, err := updateLoopBoundaryStatusWithEffects(
 		ctx,
 		exec,
 		loopRun,
@@ -36,8 +36,12 @@ func applyCoordinatorBudgetBoundary(
 		snapshot.Generation,
 		nil,
 		payload.BoundaryEffects[budgetStatus],
-	); err != nil {
+	)
+	if err != nil {
 		return err
+	}
+	if budgetStatus.Terminal() {
+		result.Settlement = &taskpkg.CompletedRunSettlement{StatusTransitions: transitions}
 	}
 	if budgetStatus == looppkg.StatusNeedsApproval {
 		if err := activateLoopApprovalWithExecutor(
@@ -103,7 +107,7 @@ func applyCoordinatorTerminalBoundary(
 	if err != nil {
 		return err
 	}
-	if err := updateLoopBoundaryStatusWithEffects(
+	transitions, err := updateLoopBoundaryStatusWithEffects(
 		ctx,
 		exec,
 		loopRun,
@@ -113,8 +117,12 @@ func applyCoordinatorTerminalBoundary(
 		snapshot.Generation,
 		nil,
 		payload.BoundaryEffects[terminalStatus],
-	); err != nil {
+	)
+	if err != nil {
 		return err
+	}
+	if terminalStatus.Terminal() {
+		result.Settlement = &taskpkg.CompletedRunSettlement{StatusTransitions: transitions}
 	}
 	if terminalStatus == looppkg.StatusNeedsApproval {
 		gateID := looppkg.NodeID(strings.TrimSpace(completion.Plan.Terminal.GateID))

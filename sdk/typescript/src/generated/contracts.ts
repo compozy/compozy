@@ -6392,6 +6392,7 @@ export interface TaskTimelineItem {
   task: TaskReferencePayload;
   run?: TaskRunSummaryPayload;
   event_type: string;
+  reason?: string;
   actor: ActorIdentity;
   origin: Origin;
   payload?: JSONValue;

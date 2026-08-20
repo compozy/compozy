@@ -11,7 +11,7 @@ import (
 	taskpkg "github.com/compozy/compozy/internal/task"
 )
 
-func (d *Daemon) bootTasks(ctx context.Context, state *bootState) error {
+func (d *Daemon) bootTasks(ctx context.Context, state *bootState, cleanup *bootCleanup) error {
 	if state == nil || state.registry == nil || state.sessions == nil {
 		return nil
 	}
@@ -75,6 +75,9 @@ func (d *Daemon) bootTasks(ctx context.Context, state *bootState) error {
 		coordinatorBackstop,
 		parts.loopJudges,
 	)
+	if err := startLoopReconciliation(ctx, state, state.registry, cleanup, d.readyCh); err != nil {
+		return err
+	}
 	return recoverInstalledTaskRuntime(ctx, state, manager, store, parts.reentry)
 }
 

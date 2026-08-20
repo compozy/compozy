@@ -35,6 +35,7 @@ func (m *Service) timelineItemsFromRecords(
 			Task:      contextForTask.reference,
 			Run:       runSummary,
 			EventType: record.Event.EventType,
+			Reason:    timelineReason(record.Event.Payload),
 			Actor:     record.Event.Actor,
 			Origin:    record.Event.Origin,
 			Payload:   cloneRawJSON(record.Event.Payload),
@@ -52,6 +53,16 @@ func (m *Service) timelineItemsFromRecords(
 		return items[i].EventID < items[j].EventID
 	})
 	return items, nil
+}
+
+func timelineReason(payload json.RawMessage) string {
+	decoded := struct {
+		Reason string `json:"reason"`
+	}{}
+	if len(payload) == 0 || json.Unmarshal(payload, &decoded) != nil {
+		return ""
+	}
+	return strings.TrimSpace(decoded.Reason)
 }
 
 func runSummaryFromRun(run Run, maxAttempts int) *RunSummary {

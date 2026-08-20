@@ -6,9 +6,10 @@ import (
 )
 
 type loopsOverlay struct {
-	Defaults loopsDefaultsOverlay `toml:"defaults"`
-	Breaker  loopBreakerOverlay   `toml:"breaker"`
-	Inputs   LoopInputDefaults    `toml:"inputs"`
+	ReconcileInterval *string              `toml:"reconcile_interval"`
+	Defaults          loopsDefaultsOverlay `toml:"defaults"`
+	Breaker           loopBreakerOverlay   `toml:"breaker"`
+	Inputs            LoopInputDefaults    `toml:"inputs"`
 }
 
 type loopsDefaultsOverlay struct {
@@ -97,6 +98,9 @@ type loopRuntimeSpecOverlay struct {
 }
 
 func (o *loopsOverlay) Apply(dst *LoopsConfig) {
+	if o.ReconcileInterval != nil {
+		dst.ReconcileInterval = *o.ReconcileInterval
+	}
 	o.Defaults.Apply(&dst.Defaults)
 	o.Breaker.Apply(&dst.Breaker)
 	if dst.Inputs == nil {

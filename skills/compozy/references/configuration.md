@@ -120,6 +120,12 @@ These thresholds apply only to true convergence episodes. Compatible sessions th
 
 ## Loop Defaults And Observability
 
+`loops.reconcile_interval` defaults to `1m`, accepts only positive durations, and is
+restart-required. The interval controls the daemon sweep that settles execution records owned by a
+terminal or missing Loop run. Startup performs the same repair before task recovery even when the
+next interval has not elapsed. Read or change it through the structured config surfaces and confirm
+the stored value before restarting the daemon.
+
 `[loops.defaults.delivery]` and `[loops.defaults.watch]` seed new loop effective config before per-loop `loop_config` overrides; they are desired-state defaults, not the DB-backed override plane. Delivery defaults are `iteration_cap = 50`, `no_progress.window = 3`, `gates.max_revisions = 10`, `budget.tokens = 0`, `budget.wall_clock_sec = 0`, `budget.on_exceeded = "halt"`, and `fan_out_width = 4`. Watch defaults are `iteration_cap = 0`, `no_progress.window = 2`, `budget.tokens = 0`, `budget.wall_clock_sec = 0`, `budget.on_exceeded = "halt"`, and `fan_out_width = 2`; gate revisions remain unset for watch unless configured. Both families accept optional positive `requests.expire_after`, used when an ask or review request omits authored expiry, plus field-merged `runtime_defaults.worker|judge.{provider,model,reasoning}` and ordered `runtime_rules` that match one task `id`, `type`, or `complexity`. Operator config may set any nonnegative `fan_out_width`; it controls the active lane window while each node's positive `max_fan_out` bounds logical width. No-progress window must not exceed `30`, and gate revisions must not exceed `64`. `budget.on_exceeded` accepts only `halt` or `escalate`. These paths are restart-required config lifecycle entries; use `compozy config reload -o json` and apply history to inspect activation.
 
 Declared Loop inputs may have global or workspace defaults under `[loops.inputs.<loop-name>]`.

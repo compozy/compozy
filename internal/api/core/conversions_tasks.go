@@ -72,6 +72,7 @@ func TaskTimelineItemPayloadFromItem(item taskpkg.TimelineItem) contract.TaskTim
 		Task:      TaskReferencePayloadFromReference(item.Task),
 		Run:       TaskRunSummaryPayloadFromSummary(item.Run),
 		EventType: item.EventType,
+		Reason:    item.Reason,
 		Actor:     item.Actor,
 		Origin:    item.Origin,
 		Payload:   taskpkg.RedactClaimTokenJSON(item.Payload),

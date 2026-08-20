@@ -3570,6 +3570,8 @@ func testGlobalDBCoordinatorIntentRollbackAtBoundary(t *testing.T, boundary stri
 	}
 }
 
+// Invariant: a public no-op coordinator completion atomically persists evaluator evidence and
+// settles the final hierarchy as completed. This evaluator suite is the canonical no-op owner for IT-001.
 func TestGlobalDBCompleteCoordinatorAndEnqueueNextShouldPersistEvaluatorMetricIntent(t *testing.T) {
 	t.Parallel()
 
@@ -3587,6 +3589,9 @@ func TestGlobalDBCompleteCoordinatorAndEnqueueNextShouldPersistEvaluatorMetricIn
 		if err != nil {
 			t.Fatalf("CreateLoopRunForStart() error = %v", err)
 		}
+		coordinatorTaskID, liveTaskID, liveRunID, terminalTaskID := seedLoopSettlementHierarchyForTest(
+			t, globalDB, loopRun, "no-op-public", now,
+		)
 		claim := claimCoordinatorRunForTest(
 			ctx,
 			t,
@@ -3621,7 +3626,7 @@ func TestGlobalDBCompleteCoordinatorAndEnqueueNextShouldPersistEvaluatorMetricIn
 		if best == nil {
 			t.Fatal("BestUpdateForVerdict() = nil, want first eligible score")
 		}
-		_, err = globalDB.CompleteCoordinatorAndEnqueueNext(ctx, taskpkg.CoordinatorCompletion{
+		completion, err := globalDB.CompleteCoordinatorAndEnqueueNext(ctx, taskpkg.CoordinatorCompletion{
 			RunID: claim.Run.ID, ClaimToken: claim.ClaimToken,
 			Actor: coordinatorActorContextForTest(),
 			Plan: taskpkg.CoordinatorCompletionPlan{
@@ -3647,6 +3652,20 @@ func TestGlobalDBCompleteCoordinatorAndEnqueueNextShouldPersistEvaluatorMetricIn
 		if err != nil {
 			t.Fatalf("CompleteCoordinatorAndEnqueueNext() error = %v", err)
 		}
+		if got, want := coordinatorResultStatus(t, &completion), string(looppkg.StatusNoOp); got != want {
+			t.Fatalf("status = %q, want %q", got, want)
+		}
+		assertLoopPublicTerminalSettlementForTest(
+			t,
+			globalDB,
+			loopRun,
+			coordinatorTaskID,
+			liveTaskID,
+			liveRunID,
+			terminalTaskID,
+			taskpkg.TaskStatusCompleted,
+			"run done; node no longer needed",
+		)
 
 		verdicts, err := globalDB.ListGateVerdicts(ctx, string(loopRun.WorkspaceID), string(loopRun.ID), 1)
 		if err != nil {
@@ -6155,6 +6174,9 @@ func TestGlobalDBCompleteCoordinatorAndEnqueueNextShouldConsumeBudgetApprovalOnc
 	}
 }
 
+// Invariant: a coordinator child-stop settles the child Loop through the same cause-aware
+// authority, preserving terminal cells and leaving no live records. The canonical GlobalDB
+// coordinator run-stop suite owns IT-004.
 func TestGlobalDBCompleteCoordinatorAndEnqueueNextShouldApplyRunStops(t *testing.T) {
 	t.Parallel()
 
@@ -6266,6 +6288,28 @@ func testGlobalDBCompleteCoordinatorAndEnqueueNextShouldApplyRunStops(t *testing
 	if err != nil {
 		t.Fatalf("CreateLoopRunForStart(child) error = %v", err)
 	}
+	childCoordinatorTaskID := loopCoordinatorTaskID(childRun.ID)
+	liveChildTask := workspaceTaskRecordForTest("task-coordinator-stop-child-live", string(childRun.WorkspaceID))
+	liveChildTask.ParentTaskID = childCoordinatorTaskID
+	liveChildTask.Status = taskpkg.TaskStatusReady
+	if err := globalDB.CreateTask(ctx, liveChildTask); err != nil {
+		t.Fatalf("CreateTask(child live cell) error = %v", err)
+	}
+	liveChildRun := taskRunForTest("run-coordinator-stop-child-live", liveChildTask.ID)
+	liveChildRun.LoopRunID = string(childRun.ID)
+	liveChildRun.RunKind = taskpkg.RunKindWorker
+	if err := globalDB.CreateTaskRun(ctx, liveChildRun); err != nil {
+		t.Fatalf("CreateTaskRun(child live cell) error = %v", err)
+	}
+	terminalChildTask := workspaceTaskRecordForTest(
+		"task-coordinator-stop-child-terminal", string(childRun.WorkspaceID),
+	)
+	terminalChildTask.ParentTaskID = childCoordinatorTaskID
+	terminalChildTask.Status = taskpkg.TaskStatusCompleted
+	terminalChildTask.ClosedAt = now
+	if err := globalDB.CreateTask(ctx, terminalChildTask); err != nil {
+		t.Fatalf("CreateTask(child terminal cell) error = %v", err)
+	}
 	claim := claimCoordinatorRunForTest(
 		ctx,
 		t,
@@ -6314,6 +6358,43 @@ func testGlobalDBCompleteCoordinatorAndEnqueueNextShouldApplyRunStops(t *testing
 	}
 	if got, want := storedChild.Status, looppkg.StatusFailed; got != want {
 		t.Fatalf("child status = %q, want %q", got, want)
+	}
+	assertLoopSettlementFinalStateForTest(
+		t,
+		globalDB,
+		childRun,
+		childCoordinatorTaskID,
+		liveChildTask.ID,
+		terminalChildTask.ID,
+		taskpkg.TaskStatusFailed,
+		taskpkg.TaskStatusCompleted,
+	)
+	if result.Settlement == nil {
+		t.Fatal("CoordinatorCompletionResult.Settlement = nil, want child-stop transitions")
+	}
+	transitionStatuses := make(map[string]taskpkg.Status, len(result.Settlement.StatusTransitions))
+	for _, transition := range result.Settlement.StatusTransitions {
+		transitionStatuses[transition.Task.ID] = transition.Task.Status
+	}
+	if transitionStatuses[childCoordinatorTaskID] != taskpkg.TaskStatusFailed ||
+		transitionStatuses[liveChildTask.ID] != taskpkg.TaskStatusCanceled {
+		t.Fatalf("child-stop settlement transitions = %#v, want failed coordinator and canceled live cell",
+			transitionStatuses)
+	}
+	var reason, detail, releaseReason, toStatus string
+	if err := globalDB.db.QueryRowContext(ctx, `SELECT
+		json_extract(payload_json, '$.reason'), json_extract(payload_json, '$.detail'),
+		json_extract(payload_json, '$.release_reason'), json_extract(payload_json, '$.to_status')
+		FROM task_events WHERE task_id = ? AND event_type = 'task.status_changed'
+		ORDER BY event_seq DESC LIMIT 1`, childCoordinatorTaskID).Scan(
+		&reason, &detail, &releaseReason, &toStatus,
+	); err != nil {
+		t.Fatalf("read child-stop settlement event error = %v", err)
+	}
+	if reason != loopRunTerminalReason || detail != "run failed; node no longer needed" ||
+		releaseReason != loopRunTerminalReason || toStatus != string(taskpkg.TaskStatusFailed) {
+		t.Fatalf("child-stop settlement = %q/%q/%q/%q, want structured failed outcome",
+			reason, detail, releaseReason, toStatus)
 	}
 }
 
@@ -6756,8 +6837,8 @@ func testGlobalDBCoordinatorTerminalShouldDrainOpenDescendants(t *testing.T) {
 	if err != nil {
 		t.Fatalf("GetTaskRun(attention) error = %v", err)
 	}
-	if drainedAttentionRun.Status != taskpkg.TaskRunStatusFailed {
-		t.Fatalf("attention run status = %q, want failed", drainedAttentionRun.Status)
+	if drainedAttentionRun.Status != taskpkg.TaskRunStatusCanceled {
+		t.Fatalf("attention run status = %q, want canceled", drainedAttentionRun.Status)
 	}
 	for _, taskID := range []string{rootTask.ID, childTask.ID, attentionTask.ID} {
 		drainedTask, err := globalDB.GetTask(ctx, taskID)
@@ -7815,6 +7896,8 @@ func TestGlobalDBCompleteRunLeaseShouldStoreLargeLoopOutputByRef(t *testing.T) {
 	})
 }
 
+// Invariant: a public done coordinator completion atomically retains rooted outputs and settles
+// the final hierarchy as completed. This retention suite is the canonical done owner for IT-001.
 func TestGlobalDBCompleteCoordinatorAndEnqueueNextShouldSweepOrphanedLoopOutputBlobsAtTerminalBoundary(
 	t *testing.T,
 ) {
@@ -7840,6 +7923,9 @@ func testGlobalDBCompleteCoordinatorAndEnqueueNextShouldSweepOrphanedLoopOutputB
 	if err != nil {
 		t.Fatalf("CreateLoopRunForStart() error = %v", err)
 	}
+	coordinatorTaskID, liveTaskID, liveRunID, terminalTaskID := seedLoopSettlementHierarchyForTest(
+		t, globalDB, loopRun, "done-public", now,
+	)
 	keepPayload := json.RawMessage(`{"body":"keep"}`)
 	keepRef := looppkg.OutputRefForPayload(keepPayload)
 	reportPayload := json.RawMessage(`"goal report evidence"`)
@@ -7914,6 +8000,17 @@ func testGlobalDBCompleteCoordinatorAndEnqueueNextShouldSweepOrphanedLoopOutputB
 	if got, want := coordinatorResultStatus(t, &result), string(looppkg.StatusDone); got != want {
 		t.Fatalf("status = %q, want %q", got, want)
 	}
+	assertLoopPublicTerminalSettlementForTest(
+		t,
+		globalDB,
+		loopRun,
+		coordinatorTaskID,
+		liveTaskID,
+		liveRunID,
+		terminalTaskID,
+		taskpkg.TaskStatusCompleted,
+		"run done; node no longer needed",
+	)
 	loaded, err := getLoopOutputByRefWithExecutor(ctx, globalDB.db, keepRef)
 	if err != nil {
 		t.Fatalf("getLoopOutputByRefWithExecutor(keep) error = %v", err)

@@ -22,7 +22,7 @@ func updateLoopBoundaryStatusWithExecutor(
 	at time.Time,
 	generation int,
 ) error {
-	return updateLoopBoundaryStatusWithEffects(
+	_, err := updateLoopBoundaryStatusWithEffects(
 		ctx,
 		exec,
 		current,
@@ -33,6 +33,7 @@ func updateLoopBoundaryStatusWithExecutor(
 		nil,
 		nil,
 	)
+	return err
 }
 
 func updateLoopBoundaryStatusWithFailure(
@@ -44,7 +45,7 @@ func updateLoopBoundaryStatusWithFailure(
 	at time.Time,
 	generation int,
 	failure *taskpkg.CoordinatorFailure,
-) error {
+) ([]taskpkg.StatusTransition, error) {
 	return updateLoopBoundaryStatusWithEffects(
 		ctx, exec, current, to, cause, at, generation, failure, nil,
 	)
@@ -60,22 +61,22 @@ func updateLoopBoundaryStatusWithEffects(
 	generation int,
 	failure *taskpkg.CoordinatorFailure,
 	effects []loop.RenderedEffectIntent,
-) error {
+) ([]taskpkg.StatusTransition, error) {
 	if current.Status == to {
-		return updateLoopGenerationWithExecutor(ctx, exec, string(current.ID), generation)
+		return nil, updateLoopGenerationWithExecutor(ctx, exec, string(current.ID), generation)
 	}
 	if !to.Valid() {
-		return fmt.Errorf("%w: loop status is invalid: %q", loop.ErrValidation, to)
+		return nil, fmt.Errorf("%w: loop status is invalid: %q", loop.ErrValidation, to)
 	}
 	if strings.TrimSpace(string(cause)) == "" {
-		return fmt.Errorf("%w: transition cause is required", loop.ErrValidation)
+		return nil, fmt.Errorf("%w: transition cause is required", loop.ErrValidation)
 	}
 	completionPartial := int64(0)
 	if to.Terminal() {
 		if err := exec.QueryRowContext(ctx, `SELECT EXISTS(SELECT 1 FROM loop_generation_outputs
 			WHERE loop_run_id = ? AND generation = ? AND status = 'partial')`,
 			current.ID, generation).Scan(&completionPartial); err != nil {
-			return fmt.Errorf("store: inspect partial Loop completion: %w", err)
+			return nil, fmt.Errorf("store: inspect partial Loop completion: %w", err)
 		}
 	}
 	affected, err := sqlcgen.New(exec).TransitionLoopCoordinatorBoundary(
@@ -88,14 +89,14 @@ func updateLoopBoundaryStatusWithEffects(
 		},
 	)
 	if err != nil {
-		return fmt.Errorf(
+		return nil, fmt.Errorf(
 			"store: transition loop run %q at coordinator boundary: %w",
 			current.ID,
 			err,
 		)
 	}
 	if affected == 0 {
-		return fmt.Errorf(
+		return nil, fmt.Errorf(
 			"%w: run_id=%s from=%s to=%s",
 			loop.ErrTransitionConflict,
 			current.ID,
@@ -103,7 +104,7 @@ func updateLoopBoundaryStatusWithEffects(
 			to,
 		)
 	}
-	return appendLoopRunStatusEventWithFailureAndEffects(
+	if err := appendLoopRunStatusEventWithFailureAndEffects(
 		ctx,
 		exec,
 		current.ID,
@@ -114,7 +115,22 @@ func updateLoopBoundaryStatusWithEffects(
 		failure,
 		effects,
 		at,
-	)
+	); err != nil {
+		return nil, err
+	}
+	if to.Terminal() {
+		records, err := listLoopSettlementRecords(ctx, exec, string(current.ID))
+		if err != nil {
+			return nil, err
+		}
+		if _, err := settleLoopRunTerminal(
+			ctx, exec, string(current.ID), terminalCauseForLoopStatus(to, cause),
+		); err != nil {
+			return nil, err
+		}
+		return loopSettlementTransitionsForRecords(ctx, exec, records)
+	}
+	return nil, nil
 }
 
 func updateLoopGenerationWithExecutor(

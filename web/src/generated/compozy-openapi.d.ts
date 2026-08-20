@@ -11459,6 +11459,7 @@ export interface operations {
                       ref: string;
                     };
                     payload?: unknown;
+                    reason?: string;
                     run?: {
                       attempt: number;
                       claim_token_hash?: string;
@@ -85606,6 +85607,7 @@ export interface operations {
                 ref: string;
               };
               payload?: unknown;
+              reason?: string;
               run?: {
                 attempt: number;
                 claim_token_hash?: string;
@@ -85944,6 +85946,7 @@ export interface operations {
                 ref: string;
               };
               payload?: unknown;
+              reason?: string;
               run?: {
                 attempt: number;
                 claim_token_hash?: string;

@@ -219,6 +219,7 @@ type TaskTimelineItemPayload struct {
 	Task      TaskReferencePayload   `json:"task"`
 	Run       *TaskRunSummaryPayload `json:"run,omitempty"`
 	EventType string                 `json:"event_type"`
+	Reason    string                 `json:"reason,omitempty"`
 	Actor     taskpkg.ActorIdentity  `json:"actor"`
 	Origin    taskpkg.Origin         `json:"origin"`
 	Payload   json.RawMessage        `json:"payload,omitempty"`

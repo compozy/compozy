@@ -1126,6 +1126,7 @@ func TestBaseHandlersExpandedTaskEndpoints(t *testing.T) {
 					QueuedAt:    now.Add(-10 * time.Minute),
 				},
 				EventType: "task.run.started",
+				Reason:    "reconciled_run_terminal",
 				Actor:     actor.Actor,
 				Origin:    actor.Origin,
 				Payload:   json.RawMessage(`{"status":"running"}`),
@@ -1417,7 +1418,8 @@ func TestBaseHandlersExpandedTaskEndpoints(t *testing.T) {
 		}
 		var timelinePayload contract.TaskTimelineResponse
 		testutil.DecodeJSONResponse(t, timelineResp, &timelinePayload)
-		if len(timelinePayload.Timeline) != 1 || timelinePayload.Timeline[0].Sequence != 11 {
+		if len(timelinePayload.Timeline) != 1 || timelinePayload.Timeline[0].Sequence != 11 ||
+			timelinePayload.Timeline[0].Reason != "reconciled_run_terminal" {
 			t.Fatalf("timeline payload = %#v", timelinePayload)
 		}
 		if timelineActor.Origin.Ref != "tasks.timeline" || timelineQuery.AfterSequence != 4 ||

@@ -13,9 +13,13 @@ type daemonRuntimeWorkers struct {
 	toolArtifacts         *toolspkg.ToolArtifactSweeper
 	sessionAttachments    *attachmentspkg.Sweeper
 	authoredHeartbeatWake *apiHeartbeatWakePrompter
+	loopReconciler        *loopReconcilerRuntime
 }
 
 func (w daemonRuntimeWorkers) shutdown(ctx context.Context, errs *[]error) {
+	if w.loopReconciler != nil {
+		appendWrappedError(errs, "daemon: shutdown Loop reconciler", w.loopReconciler.Shutdown(ctx))
+	}
 	if w.autoTitle != nil {
 		appendWrappedError(
 			errs,

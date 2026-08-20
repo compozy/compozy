@@ -99,6 +99,9 @@ external_default = "disabled"
 approval_timeout_seconds = 120
 trusted_sources = []
 
+[loops]
+reconcile_interval = "1m"
+
 [loops.defaults.delivery]
 iteration_cap = 50
 fan_out_width = 4

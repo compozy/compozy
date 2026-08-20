@@ -47,6 +47,37 @@ func TestLoopsConfigShouldLoadDefaultsAndOverlays(t *testing.T) {
 		if cfg.Loops.Breaker.Threshold != 5 || cfg.Loops.Breaker.ProbeInterval != "60s" {
 			t.Fatalf("breaker defaults = %#v, want threshold 5 and probe interval 60s", cfg.Loops.Breaker)
 		}
+		if got, want := cfg.Loops.ReconcileInterval, "1m"; got != want {
+			t.Fatalf("reconcile interval = %q, want %q", got, want)
+		}
+	})
+
+	t.Run("Should overlay the reconciliation interval", func(t *testing.T) {
+		t.Parallel()
+
+		homePaths, err := ResolveHomePathsFrom(filepath.Join(t.TempDir(), "home"))
+		if err != nil {
+			t.Fatalf("ResolveHomePathsFrom() error = %v", err)
+		}
+		writeFile(t, homePaths.ConfigFile, "[loops]\nreconcile_interval = \"45s\"\n")
+		cfg, err := LoadForHome(homePaths)
+		if err != nil {
+			t.Fatalf("LoadForHome() error = %v", err)
+		}
+		if got, want := cfg.Loops.ReconcileInterval, "45s"; got != want {
+			t.Fatalf("reconcile interval = %q, want %q", got, want)
+		}
+	})
+
+	t.Run("Should reject a non-positive reconciliation interval", func(t *testing.T) {
+		t.Parallel()
+
+		cfg := DefaultLoopsConfig()
+		cfg.ReconcileInterval = "0s"
+		err := cfg.Validate()
+		if err == nil || !strings.Contains(err.Error(), "reconcile_interval must be positive") {
+			t.Fatalf("Validate() error = %v, want reconcile_interval must be positive", err)
+		}
 	})
 
 	t.Run("Should apply global and workspace overlays with zero values preserved", func(t *testing.T) {
@@ -440,6 +471,11 @@ func TestLoopsConfigShouldExposeAgentMutableToolPaths(t *testing.T) {
 		path []string
 		kind ValueKind
 	}{
+		{
+			name: "Should allow the reconciliation interval",
+			path: []string{"loops", "reconcile_interval"},
+			kind: ConfigValueDuration,
+		},
 		{
 			name: "Should allow delivery fan out defaults",
 			path: []string{"loops", "defaults", "delivery", "fan_out_width"},

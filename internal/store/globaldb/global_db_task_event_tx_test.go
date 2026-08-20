@@ -32,6 +32,8 @@ type recordingTaskEventCommitObserver struct {
 	err     error
 }
 
+// Invariant: coordinator completion commits canonical task events and the matching final task/run
+// state atomically. The GlobalDB task-event transaction suite is the canonical owner.
 func TestGlobalDBCoordinatorCompletionShouldCommitCanonicalEventAtomically(t *testing.T) {
 	t.Run("Should roll back state when the canonical completion event fails", func(t *testing.T) {
 		t.Parallel()
@@ -523,7 +525,7 @@ func TestGlobalDBTaskRunLeaseSettlementShouldPublishCommittedSequence(t *testing
 		if observer.err != nil {
 			t.Fatalf("post-commit observer error = %v", observer.err)
 		}
-		if got, want := len(observer.records), 2; got != want {
+		if got, want := len(observer.records), 3; got != want {
 			t.Fatalf("observer records = %d, want %d: %#v", got, want, observer.records)
 		}
 		if got, want := observer.records[0].Event.EventType, string(hookspkg.HookTaskStatusChanged); got != want {
@@ -533,7 +535,30 @@ func TestGlobalDBTaskRunLeaseSettlementShouldPublishCommittedSequence(t *testing
 			t.Fatalf("first event task = %q, want drained child %q", got, want)
 		}
 
-		event := observer.records[1].Event
+		coordinatorEvent := observer.records[1].Event
+		if got, want := coordinatorEvent.EventType, string(hookspkg.HookTaskStatusChanged); got != want {
+			t.Fatalf("coordinator settlement event type = %q, want %q", got, want)
+		}
+		var settlementPayload taskStatusChangedEventPayload
+		if err := json.Unmarshal(coordinatorEvent.Payload, &settlementPayload); err != nil {
+			t.Fatalf("decode coordinator settlement event error = %v", err)
+		}
+		if settlementPayload.Reason != loopRunTerminalReason {
+			t.Fatalf("coordinator settlement reason = %q, want %q", settlementPayload.Reason, loopRunTerminalReason)
+		}
+		if got, want := settlementPayload.ToStatus, string(taskpkg.TaskStatusFailed); got != want {
+			t.Fatalf("coordinator settlement to_status = %q, want %q", got, want)
+		}
+		if settlementPayload.TaskID != claim.Run.TaskID ||
+			settlementPayload.RunID != claim.Run.ID ||
+			settlementPayload.LoopRunID != string(loopRun.ID) ||
+			settlementPayload.WorkspaceID != string(loopRun.WorkspaceID) ||
+			settlementPayload.ActorKind != string(taskpkg.ActorKindDaemon) ||
+			settlementPayload.ReleaseReason != loopRunTerminalReason {
+			t.Fatalf("coordinator settlement payload = %#v, want complete daemon repair anchors", settlementPayload)
+		}
+
+		event := observer.records[2].Event
 		if got, want := event.EventType, string(hookspkg.HookTaskRunFailed); got != want {
 			t.Fatalf("event type = %q, want %q", got, want)
 		}
@@ -570,6 +595,22 @@ func TestGlobalDBTaskRunLeaseSettlementShouldPublishCommittedSequence(t *testing
 		}
 		if storedChild.Status != taskpkg.TaskStatusCanceled {
 			t.Fatalf("coordinator child status = %q, want canceled", storedChild.Status)
+		}
+		storedCoordinator, err := globalDB.GetTask(ctx, claim.Run.TaskID)
+		if err != nil {
+			t.Fatalf("GetTask(coordinator) error = %v", err)
+		}
+		if storedCoordinator.Status != taskpkg.TaskStatusFailed {
+			t.Fatalf("coordinator final status = %q, want failed", storedCoordinator.Status)
+		}
+		var liveRecords int
+		if err := globalDB.db.QueryRowContext(ctx, `SELECT COUNT(*) FROM task_runs
+			WHERE loop_run_id = ? AND status IN ('queued','claimed','starting','running','needs_attention')`,
+			loopRun.ID).Scan(&liveRecords); err != nil {
+			t.Fatalf("count live Loop records error = %v", err)
+		}
+		if liveRecords != 0 {
+			t.Fatalf("live Loop records = %d, want zero", liveRecords)
 		}
 
 		events, err := globalDB.ListTaskEvents(ctx, taskpkg.EventQuery{

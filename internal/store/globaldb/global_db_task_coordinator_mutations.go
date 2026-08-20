@@ -20,36 +20,38 @@ func applyCoordinatorRunStopsWithExecutor(
 	exec taskSQLExecutor,
 	specs []taskpkg.CoordinatorStopSpec,
 	now time.Time,
-) error {
+) ([]taskpkg.StatusTransition, error) {
 	stoppedAny := false
+	var transitions []taskpkg.StatusTransition
 	for _, spec := range specs {
 		normalized := spec.Normalize()
 		child, err := getLoopRunByIDWithExecutor(ctx, exec, loop.RunID(normalized.LoopRunID))
 		if err != nil {
-			return err
+			return nil, err
 		}
 		if child.Status.Terminal() {
 			continue
 		}
-		if err := updateLoopBoundaryStatusWithExecutor(
+		settled, err := updateLoopBoundaryStatusWithEffects(
 			ctx,
 			exec,
 			child,
 			loop.StatusFailed,
 			loop.TransitionCauseContract,
-			now,
-			child.Generation,
-		); err != nil {
-			return err
+			now, child.Generation, nil, nil,
+		)
+		if err != nil {
+			return nil, err
 		}
+		transitions = append(transitions, settled...)
 		stoppedAny = true
 	}
 	if stoppedAny {
 		if err := sweepOrphanedLoopOutputBlobsWithExecutor(ctx, exec); err != nil {
-			return err
+			return nil, err
 		}
 	}
-	return nil
+	return transitions, nil
 }
 
 func (g *TaskRepo) ensureCoordinatorPlanTasksWithExecutor(

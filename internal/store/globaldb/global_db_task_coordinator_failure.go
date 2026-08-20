@@ -36,7 +36,7 @@ func (g *TaskRepo) settleCoordinatorFailureLoopWithExecutor(
 	if !ok {
 		return nil, nil
 	}
-	if err := updateLoopBoundaryStatusWithFailure(
+	transitions, err := updateLoopBoundaryStatusWithFailure(
 		ctx,
 		exec,
 		loopRun,
@@ -45,28 +45,9 @@ func (g *TaskRepo) settleCoordinatorFailureLoopWithExecutor(
 		failure.Now,
 		loopRun.Generation,
 		&details,
-	); err != nil {
-		return nil, err
-	}
-	canceledRuns, err := g.cancelLiveLoopTaskRunsWithExecutor(
-		ctx,
-		exec,
-		loopRunID,
-		failure.Actor,
-		failure.Now,
 	)
 	if err != nil {
 		return nil, err
 	}
-	canceledTasks, err := g.cancelOpenLoopTaskDescendantsWithExecutor(
-		ctx,
-		exec,
-		run.TaskID,
-		failure.Actor,
-		failure.Now,
-	)
-	if err != nil {
-		return nil, err
-	}
-	return append(canceledRuns, canceledTasks...), nil
+	return transitions, nil
 }

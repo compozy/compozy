@@ -241,6 +241,11 @@ Web timeline use that durable evidence.
 
 ## Terminal Outcomes And Live States
 
+When a Loop reaches a terminal state, CompozyOS settles its coordinator and cell task records in the
+same store transaction. Use `compozy task timeline <task>` to distinguish an inline settlement
+(`reason = loop_run_terminal`), a reconciliation repair (`reconciled_run_terminal`), and an
+execution record whose Loop run was removed (`run_missing`).
+
 A run holds one of twelve states. Report the terminal outcome exactly — never round an error or an
 exhausted budget up to success.
 

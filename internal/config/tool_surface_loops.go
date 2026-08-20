@@ -12,6 +12,7 @@ const (
 
 func loopAndGoalToolPathKinds() map[string]ValueKind {
 	return map[string]ValueKind{
+		"loops.reconcile_interval":                                  ConfigValueDuration,
 		goalMaxTurnsPath:                                            ConfigValueInt,
 		goalContextNudgeRatioPath:                                   ConfigValueFloat,
 		goalOutboxBatchSizePath:                                     ConfigValueInt,

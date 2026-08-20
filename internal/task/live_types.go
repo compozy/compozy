@@ -50,6 +50,7 @@ type TimelineItem struct {
 	Task      Reference       `json:"task"`
 	Run       *RunSummary     `json:"run,omitempty"`
 	EventType string          `json:"event_type"`
+	Reason    string          `json:"reason,omitempty"`
 	Actor     ActorIdentity   `json:"actor"`
 	Origin    Origin          `json:"origin"`
 	Payload   json.RawMessage `json:"payload,omitempty"`

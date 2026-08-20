@@ -54,6 +54,9 @@ func compareAndSwapLoopRunStatusWithEffects(
 		return err
 	}
 	if to.Terminal() {
+		if _, err := settleLoopRunTerminal(ctx, exec, string(runID), terminalCauseForLoopStatus(to, cause)); err != nil {
+			return err
+		}
 		if err := sweepOrphanedLoopOutputBlobsWithExecutor(ctx, exec); err != nil {
 			return err
 		}

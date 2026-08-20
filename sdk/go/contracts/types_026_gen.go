@@ -224,6 +224,19 @@ type TaskRunLeaseExpiredPayload struct {
 	RecoveryReason               string    `json:"recovery_reason,omitempty"`
 }
 
+type TaskTimelineItem struct {
+	Sequence  int64                  `json:"sequence"`
+	EventID   string                 `json:"event_id"`
+	Task      TaskReferencePayload   `json:"task"`
+	Run       *TaskRunSummaryPayload `json:"run,omitempty"`
+	EventType string                 `json:"event_type"`
+	Reason    string                 `json:"reason,omitempty"`
+	Actor     ActorIdentity          `json:"actor"`
+	Origin    Origin                 `json:"origin"`
+	Payload   json.RawMessage        `json:"payload,omitempty"`
+	Timestamp time.Time              `json:"timestamp"`
+}
+
 type TaskRunLeaseExtendedPayload struct {
 	Event                        HookEvent `json:"event"`
 	Timestamp                    time.Time `json:"timestamp"`

@@ -68,6 +68,12 @@ func TestClassifyPath(t *testing.T) {
 			wantDiffClass: DiffClassRestartRequired,
 		},
 		{
+			name:          "Should classify Loop reconciliation cadence as restart required",
+			path:          "loops.reconcile_interval",
+			wantLifecycle: RestartRequired,
+			wantDiffClass: DiffClassRestartRequired,
+		},
+		{
 			name:          "Should classify subprocess health escalation as restart required",
 			path:          "daemon.subprocess_health_escalation_threshold",
 			wantLifecycle: RestartRequired,

@@ -92,6 +92,10 @@ override. JSON files use the same field names.
 
 ## Lifecycle defaults
 
+Set `loops.reconcile_interval` to control how often the daemon repairs execution records left live
+after a Loop has ended. It defaults to `1m`, must be a positive duration, and requires a daemon
+restart. The daemon always runs the same repair once during startup before task recovery begins.
+
 The current Configure sheet does not edit lifecycle policy. Set these operator defaults under both
 `[loops.defaults.delivery]` and `[loops.defaults.watch]` in `config.toml`:
 
@@ -116,6 +120,7 @@ get/set/unset surfaces. For example:
 
 ```bash
 compozy config set loops.defaults.delivery.retry.max_attempts 4
+compozy config set loops.reconcile_interval 45s
 compozy config set loops.defaults.delivery.requests.expire_after 72h
 compozy config set loops.breaker.probe_interval 90s
 ```

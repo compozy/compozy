@@ -3397,6 +3397,7 @@ func TestManagerTimelineSupportsStableOrderingAndWindows(t *testing.T) {
 			EventType: taskEventUpdated,
 			Actor:     actor.Actor,
 			Origin:    actor.Origin,
+			Payload:   json.RawMessage(`{"reason":"reconciled_run_terminal"}`),
 			Timestamp: sameTimestamp,
 		},
 		{
@@ -3483,6 +3484,9 @@ func TestManagerTimelineSupportsStableOrderingAndWindows(t *testing.T) {
 		want,
 	) {
 		t.Fatalf("all event ids = %#v, want %#v", got, want)
+	}
+	if got, want := all[0].Reason, "reconciled_run_terminal"; got != want {
+		t.Fatalf("all[0].Reason = %q, want %q", got, want)
 	}
 }
 

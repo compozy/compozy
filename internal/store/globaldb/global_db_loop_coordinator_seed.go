@@ -2,6 +2,7 @@ package globaldb
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"strings"
@@ -99,7 +100,11 @@ func (g *LoopRepo) ensureLoopCoordinatorTaskWithExecutor(
 	} else if !errorsIsTaskNotFound(err) {
 		return "", err
 	}
-	taskRecord, err := g.tasks.normalizeTaskForCreate(loopCoordinatorTaskRecordForRun(run, taskID, now))
+	taskRecord, err := loopCoordinatorTaskRecordForRun(run, taskID, now)
+	if err != nil {
+		return "", err
+	}
+	taskRecord, err = g.tasks.normalizeTaskForCreate(taskRecord)
 	if err != nil {
 		return "", err
 	}
@@ -146,8 +151,14 @@ func (g *LoopRepo) repairLoopCoordinatorTaskWithExecutor(
 	return nil
 }
 
-func loopCoordinatorTaskRecordForRun(run looppkg.Run, taskID string, now time.Time) taskpkg.Task {
+func loopCoordinatorTaskRecordForRun(run looppkg.Run, taskID string, now time.Time) (taskpkg.Task, error) {
 	origin := loopCoordinatorStartOrigin()
+	metadata, err := json.Marshal(map[string]string{
+		"loop_run_id": string(run.ID), "loop_name": run.LoopName, "workspace_id": string(run.WorkspaceID),
+	})
+	if err != nil {
+		return taskpkg.Task{}, fmt.Errorf("store: marshal Loop coordinator metadata: %w", err)
+	}
 	return taskpkg.Task{
 		ID:                 taskID,
 		Scope:              taskpkg.ScopeWorkspace,
@@ -163,9 +174,10 @@ func loopCoordinatorTaskRecordForRun(run looppkg.Run, taskID string, now time.Ti
 			Ref:  loopCoordinatorActorRef,
 		},
 		Origin:    origin,
+		Metadata:  metadata,
 		CreatedAt: now,
 		UpdatedAt: now,
-	}
+	}, nil
 }
 
 func loopCoordinatorTaskID(loopRunID looppkg.RunID) string {
