@@ -44,15 +44,17 @@ const COPY_FEEDBACK_MS = 1500;
 const EMPTY_LINE = "\u00A0";
 
 /**
- * Terminal-style code block per DESIGN.md §4. Canvas-deep container, JetBrains
- * Mono body at 14px/1.6, optional accent `$ ` prompt, Vitesse syntax
- * highlighting, optional language eyebrow, and a ghost copy button.
+ * Code block per DESIGN.md §4. Canvas-deep container, JetBrains Mono body on
+ * the shared block-code tier (`--text-code-block`, same as JsonViewer),
+ * Vitesse syntax highlighting, optional language eyebrow, and a ghost copy
+ * button. `showPrompt` opts into the accent `$ ` shell prompt — reach for it
+ * only when the block really is a terminal transcript.
  */
 function CodeBlock({
   caption,
   code,
   language,
-  showPrompt = true,
+  showPrompt = false,
   copyable = true,
   copyLabel = "Copy to clipboard",
   copiedLabel = "Copied",
@@ -125,16 +127,15 @@ function CodeBlock({
           "[&::-webkit-scrollbar]:h-1.5 [&::-webkit-scrollbar]:w-1.5",
           "[&::-webkit-scrollbar-track]:bg-transparent",
           "[&::-webkit-scrollbar-thumb]:rounded-pill [&::-webkit-scrollbar-thumb]:bg-line-strong",
-          density === "compact"
-            ? "px-3 py-2 text-small-body leading-normal"
-            : "px-5 py-4 text-card-title leading-relaxed",
+          "text-code-block",
+          density === "compact" ? "px-3 py-2" : "px-5 py-4",
           wrapLines ? "whitespace-pre-wrap break-words" : "whitespace-pre",
           label ? (density === "compact" ? "pt-7" : "pt-9") : null,
           copyable ? (density === "compact" ? "pr-10" : "pr-12") : null,
           clampedLines
             ? density === "compact"
-              ? "max-h-[calc(var(--code-block-lines)*1.4em+1.5rem)] overflow-y-auto"
-              : "max-h-[calc(var(--code-block-lines)*1.6em+2rem)] overflow-y-auto"
+              ? "max-h-[calc(var(--code-block-lines)*1.5em+1.5rem)] overflow-y-auto"
+              : "max-h-[calc(var(--code-block-lines)*1.5em+2rem)] overflow-y-auto"
             : null
         )}
       >
@@ -151,7 +152,7 @@ function CodeBlock({
                 data-line-number={lineNumber}
                 data-highlighted={isHighlightedLine ? "true" : undefined}
                 className={cn(
-                  "block min-h-[1.6em]",
+                  "block min-h-[1.5em]",
                   showLineNumbers ? "grid grid-cols-[2.25rem_minmax(0,1fr)] gap-3" : null,
                   isHighlightedLine ? "-mx-2 rounded-xs bg-surface-glaze px-2" : null
                 )}

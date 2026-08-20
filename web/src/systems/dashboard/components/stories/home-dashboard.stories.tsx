@@ -10,6 +10,7 @@ import type { HomeActivityEvent } from "../../types";
 import { HomeActivityFeed } from "../home-activity-feed";
 import { HomeAgentsPanel } from "../home-agents-panel";
 import { HomeAttentionZone } from "../home-attention-zone";
+import { HomeFirstRun } from "../home-first-run";
 import { HomeKpiStrip } from "../home-kpi-strip";
 import { HomeNetworkPanel } from "../home-network-panel";
 import { HomeOutcomesChart } from "../home-outcomes-chart";
@@ -186,7 +187,7 @@ const systemModel: HomeSystemModel = {
   tiles: [
     {
       key: "daemon",
-      label: "Daemon",
+      label: "Runtime",
       value: "Running",
       detail: "v0.4.2 · up 2d 4h",
       tone: "success",
@@ -298,9 +299,21 @@ export const WorkingNowPartial: Story = {
   args: { workingNowStatus: "partial" },
 };
 
+/** Fresh install: the overview reports no work at all, so the seven zones give way to one start. */
+export const FirstRun: Story = {
+  render: () => (
+    <SessionCreateProvider store={STORY_SESSION_CREATE_STORE}>
+      <div className="mx-auto flex w-full max-w-[1240px] flex-col px-9 pt-6 pb-20">
+        <HomePageMeta today={new Date(NOW)} workspaceName="launch-hq" />
+        <HomeFirstRun workspaceName="launch-hq" />
+      </div>
+    </SessionCreateProvider>
+  ),
+};
+
 export const WorkingNowError: Story = {
   args: {
     workingNowStatus: "error",
-    workingNowErrorMessage: "The daemon did not return active work.",
+    workingNowErrorMessage: "CompozyOS did not return active work.",
   },
 };

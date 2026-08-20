@@ -16,7 +16,7 @@ export type MetricLabelCase = "sentence" | "eyebrow";
 export interface MetricProps extends Omit<React.ComponentProps<"div">, "title"> {
   label: React.ReactNode;
   value: React.ReactNode;
-  /** Small inline detail baseline-aligned with the value — mono micro-unit (e.g. "+12%"). */
+  /** Small inline detail baseline-aligned with the value — sentence-case sans (e.g. "+12%"). */
   detail?: React.ReactNode;
   /** Secondary line rendered below the value. */
   subtext?: React.ReactNode;
@@ -31,7 +31,7 @@ export interface MetricProps extends Omit<React.ComponentProps<"div">, "title"> 
    * `--font-weight-display` (620), the approved dashboard scale.
    */
   size?: MetricSize;
-  /** `sentence` — Geist sentence-case label; `eyebrow` — uppercase KPI label. */
+  /** `sentence` — Geist form label; `eyebrow` — canonical sentence-case eyebrow label. */
   labelCase?: MetricLabelCase;
 }
 
@@ -115,7 +115,7 @@ function Metric({
         {detail !== undefined ? (
           <span
             data-slot="metric-detail"
-            className="shrink-0 truncate font-mono text-eyebrow leading-4 text-subtle"
+            className="shrink-0 truncate text-form-label leading-4 text-subtle"
           >
             {detail}
           </span>

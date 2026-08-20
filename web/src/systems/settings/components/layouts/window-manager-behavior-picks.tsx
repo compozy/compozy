@@ -1,6 +1,6 @@
 import type { ComponentType, Dispatch, SetStateAction } from "react";
 
-import { Switch, cn } from "@compozy/ui";
+import { HelpTip, Switch, cn } from "@compozy/ui";
 
 import { SettingRow } from "../setting-row";
 import {
@@ -135,13 +135,13 @@ export function WindowManagerBehaviorPicks({
       <DiagramPickRow draft={draft} row={TRANSITION} setDraft={setDraft} />
 
       <ModifierRow
-        description="Hold this while dragging to take the group instead of one window."
+        help="Hold this while dragging to take the group instead of one window."
         label="Move the whole group"
         value={draft.groupMoveModifier}
         onChange={groupMoveModifier => setDraft(current => ({ ...current, groupMoveModifier }))}
       />
       <ModifierRow
-        description="Hold this while dropping onto another window to trade places."
+        help="Hold this while dropping onto another window to trade places."
         label="Swap two windows"
         value={draft.swapModifier}
         onChange={swapModifier => setDraft(current => ({ ...current, swapModifier }))}
@@ -159,7 +159,7 @@ export function WindowManagerBehaviorPicks({
             />
           }
           data-testid={`window-manager-${toggle.key}`}
-          description={toggle.description}
+          help={toggle.description}
           key={toggle.key}
           label={toggle.label}
         />
@@ -182,10 +182,10 @@ function DiagramPickRow<TKey extends keyof WindowManagerConfig>({
   return (
     <div className="flex flex-col gap-3 border-t border-line-soft px-4 py-3.5 first:border-t-0 min-[720px]:flex-row min-[720px]:items-center min-[720px]:justify-between min-[720px]:gap-6">
       <div className="min-w-0 flex-1">
-        <p className="text-ws-name font-medium text-fg-strong">{row.label}</p>
-        <p className="mt-0.5 max-w-setting-description text-form-label leading-normal text-muted">
-          {row.description}
-        </p>
+        <div className="flex items-center gap-1.5">
+          <p className="text-ws-name font-medium text-fg-strong">{row.label}</p>
+          <HelpTip label={`About ${row.label.toLowerCase()}`}>{row.description}</HelpTip>
+        </div>
       </div>
       <div
         aria-label={row.label}
@@ -231,12 +231,12 @@ function DiagramPickRow<TKey extends keyof WindowManagerConfig>({
 
 function ModifierRow({
   label,
-  description,
+  help,
   value,
   onChange,
 }: {
   label: string;
-  description: string;
+  help: string;
   value: WindowManagerDragModifier;
   onChange: (next: WindowManagerDragModifier) => void;
 }) {
@@ -254,10 +254,10 @@ function ModifierRow({
               aria-label={key.name}
               className={cn(
                 "inline-flex h-6.5 min-w-8.5 items-center justify-center rounded-sm px-2",
-                "font-mono text-ws-name text-muted transition-colors duration-base ease-out",
+                "font-keys text-ws-name text-muted transition-colors duration-base ease-out",
                 "hover:bg-row-hover hover:text-fg",
                 "focus-visible:outline-none focus-visible:shadow-focus-ring",
-                key.value === "none" && "font-sans text-form-label font-medium",
+                key.value === "none" && "text-form-label font-medium",
                 key.value === value && "bg-elevated text-fg-strong shadow-highlight"
               )}
               key={key.value}
@@ -270,7 +270,7 @@ function ModifierRow({
           ))}
         </div>
       }
-      description={description}
+      help={help}
       label={label}
     />
   );

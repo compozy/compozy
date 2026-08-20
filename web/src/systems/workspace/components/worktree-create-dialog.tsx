@@ -14,7 +14,9 @@ import {
   EntityDialogHeader,
   Field,
   FieldError,
+  FieldHeader,
   FieldLabel,
+  HelpTip,
   Icon,
   Input,
   MonoId,
@@ -71,7 +73,10 @@ export function WorktreeCreateDialog({
         >
           <EntityDialogBody data-testid="worktree-create-dialog-body">
             <Field>
-              <FieldLabel htmlFor="worktree-name">Name</FieldLabel>
+              <FieldHeader>
+                <FieldLabel htmlFor="worktree-name">Name</FieldLabel>
+                <HelpTip label="About name">Leave empty to accept {model.generatedName}.</HelpTip>
+              </FieldHeader>
               <Input
                 id="worktree-name"
                 data-testid="worktree-create-name"
@@ -85,11 +90,6 @@ export function WorktreeCreateDialog({
               />
               {fieldError === "name" ? (
                 <FieldError data-testid="worktree-create-name-error">{refusal?.message}</FieldError>
-              ) : null}
-              {draft.name.trim() === "" ? (
-                <p className="text-form-hint text-subtle">
-                  Leave empty to accept {model.generatedName}.
-                </p>
               ) : null}
             </Field>
 

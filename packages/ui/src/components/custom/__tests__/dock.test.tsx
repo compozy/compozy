@@ -39,7 +39,8 @@ describe("Dock", () => {
     expect(key?.textContent).toBe("1");
   });
 
-  it("Should render the deadline hint as static mono text", () => {
+  // KEEP: DESIGN.md §3 — the dock reserves mono for code and key caps; the deadline is prose.
+  it("Should render the deadline hint as static sans text with tabular figures", () => {
     const { container } = render(
       <Dock>
         <Dock.Head>
@@ -51,7 +52,8 @@ describe("Dock", () => {
     const deadline = container.querySelector<HTMLElement>('[data-slot="dock-deadline"]');
 
     expect(deadline?.textContent).toBe("times out 14:32");
-    expect(deadline?.className).toContain("font-mono");
+    expect(deadline?.className).not.toContain("font-mono");
+    expect(deadline?.className).toContain("tabular-nums");
   });
 
   it("Should tone the status line danger only when asked", () => {

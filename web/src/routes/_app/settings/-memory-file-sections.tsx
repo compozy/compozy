@@ -13,7 +13,7 @@ export function SessionLedgerSection({
   setValidationError,
 }: ValidatedSectionProps) {
   return (
-    <SettingsGroup title="Session ledger" description="forensic JSONL ledger materialization">
+    <SettingsGroup title="Session ledger">
       <SettingsFieldRow
         data-testid={`${TEST_PREFIX}-session-ledger-format`}
         label="Ledger format"
@@ -39,7 +39,7 @@ export function SessionLedgerSection({
       <SettingsFieldRow
         data-testid={`${TEST_PREFIX}-session-events-purge-grace`}
         label="Events purge grace"
-        description="Hold events.db rows this long before purging materialized ledgers"
+        help="Hold events.db rows this long before purging materialized ledgers"
         control={
           <Input
             className="w-32 font-mono"
@@ -61,7 +61,7 @@ export function SessionLedgerSection({
       <SettingsFieldRow
         data-testid={`${TEST_PREFIX}-session-cold-archive-days`}
         label="Cold archive (days)"
-        description="Move ledgers to cold archive after this many days"
+        help="Move ledgers to cold archive after this many days"
         error={validationErrors.sessionColdArchive ?? undefined}
         control={
           <SettingsNumberInput
@@ -109,7 +109,7 @@ export function SessionLedgerSection({
       <SettingsFieldRow
         data-testid={`${TEST_PREFIX}-session-max-archive-bytes`}
         label="Max archive bytes"
-        description="Safety valve for cold archive size"
+        help="Safety valve for cold archive size"
         error={validationErrors.sessionMaxArchive ?? undefined}
         control={
           <SettingsNumberInput
@@ -133,7 +133,7 @@ export function SessionLedgerSection({
       <SettingsFieldRow
         data-testid={`${TEST_PREFIX}-session-ledger-root`}
         label="Ledger root"
-        description="Read-only daemon-managed ledger root"
+        description="Read-only, managed by CompozyOS"
         control={
           <Input
             readOnly
@@ -167,11 +167,11 @@ export function DailyLogsSection({
   setValidationError,
 }: ValidatedSectionProps) {
   return (
-    <SettingsGroup title="Daily logs" description="rotation, dreaming window, and archival">
+    <SettingsGroup title="Daily logs">
       <SettingsFieldRow
         data-testid={`${TEST_PREFIX}-daily-max-bytes`}
         label="Max bytes per file"
-        description="Daily log rotates when it crosses this byte budget"
+        help="Daily log rotates when it crosses this byte budget"
         error={validationErrors.dailyMaxBytes ?? undefined}
         control={
           <SettingsNumberInput
@@ -195,7 +195,7 @@ export function DailyLogsSection({
       <SettingsFieldRow
         data-testid={`${TEST_PREFIX}-daily-max-lines`}
         label="Max lines per file"
-        description="Hard line ceiling before rotation"
+        help="Hard line ceiling before rotation"
         error={validationErrors.dailyMaxLines ?? undefined}
         control={
           <SettingsNumberInput
@@ -219,7 +219,7 @@ export function DailyLogsSection({
       <SettingsFieldRow
         data-testid={`${TEST_PREFIX}-daily-sweep-hour`}
         label="Sweep hour"
-        description="Local hour for the daily housekeeping sweep"
+        help="Local hour for the daily housekeeping sweep"
         error={validationErrors.dailySweepHour ?? undefined}
         control={
           <SettingsNumberInput
@@ -243,7 +243,7 @@ export function DailyLogsSection({
       <SettingsFieldRow
         data-testid={`${TEST_PREFIX}-daily-dreaming-window`}
         label="Dreaming window (days)"
-        description="How many days of daily logs feed dreaming candidates"
+        help="How many days of daily logs feed dreaming candidates"
         error={validationErrors.dailyDreamingWindow ?? undefined}
         control={
           <SettingsNumberInput
@@ -267,7 +267,7 @@ export function DailyLogsSection({
       <SettingsFieldRow
         data-testid={`${TEST_PREFIX}-daily-cold-archive-days`}
         label="Cold archive (days)"
-        description="Move daily logs to cold archive after this many days"
+        help="Move daily logs to cold archive after this many days"
         error={validationErrors.dailyColdArchive ?? undefined}
         control={
           <SettingsNumberInput
@@ -315,7 +315,7 @@ export function DailyLogsSection({
       <SettingsFieldRow
         data-testid={`${TEST_PREFIX}-daily-max-archive-bytes`}
         label="Max archive bytes"
-        description="Safety valve cap for daily-log cold archive size"
+        help="Safety valve cap for daily-log cold archive size"
         error={validationErrors.dailyMaxArchiveBytes ?? undefined}
         control={
           <SettingsNumberInput
@@ -339,7 +339,7 @@ export function DailyLogsSection({
       <SettingsFieldRow
         data-testid={`${TEST_PREFIX}-daily-rotate-format`}
         label="Rotate format"
-        description="Read-only daemon-managed daily-log rotation pattern"
+        description="Read-only, managed by CompozyOS"
         control={
           <Input
             readOnly
@@ -373,11 +373,11 @@ export function FileCapsSection({
   setValidationError,
 }: ValidatedSectionProps) {
   return (
-    <SettingsGroup title="File caps" description="MEMORY.md projection ceilings">
+    <SettingsGroup title="File caps">
       <SettingsFieldRow
         data-testid={`${TEST_PREFIX}-file-max-lines`}
         label="Max lines"
-        description="Soft cap for the MEMORY.md projection"
+        help="Soft cap for the MEMORY.md projection"
         error={validationErrors.fileMaxLines ?? undefined}
         control={
           <SettingsNumberInput
@@ -401,7 +401,7 @@ export function FileCapsSection({
       <SettingsFieldRow
         data-testid={`${TEST_PREFIX}-file-max-bytes`}
         label="Max bytes"
-        description="Hard byte budget for the MEMORY.md projection"
+        help="Hard byte budget for the MEMORY.md projection"
         error={validationErrors.fileMaxBytes ?? undefined}
         control={
           <SettingsNumberInput
@@ -428,7 +428,7 @@ export function FileCapsSection({
 
 export function WorkspaceIdentitySection({ draft, setDraft }: DraftSectionProps) {
   return (
-    <SettingsGroup title="Workspace identity" description=".compozy/workspace.toml lifecycle">
+    <SettingsGroup title="Workspace identity">
       <SettingsFieldRow
         data-testid={`${TEST_PREFIX}-workspace-toml-path`}
         label="Workspace toml path"

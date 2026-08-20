@@ -8,6 +8,8 @@ import {
 } from "../stores/use-onboarding-draft-store";
 import type { FSEntry } from "../types";
 import {
+  isOperatorHomeWorkspace,
+  partitionProjectWorkspaces,
   useCreateWorkspace,
   useDeleteWorkspace,
   useWorkspaces,
@@ -80,12 +82,33 @@ export function useOnboardingWorkspaces(): OnboardingWorkspacesApi {
 
   const browse = useDirectoryBrowser({ path: currentPath || undefined, dirsOnly: true });
   const data = browse.data;
+  const userHomeDir = data?.home ?? undefined;
 
   useEffect(() => {
-    if (registeredWorkspaces.data === undefined || catalogSeeded.current) return;
+    if (
+      registeredWorkspaces.data === undefined ||
+      userHomeDir === undefined ||
+      catalogSeeded.current
+    ) {
+      return;
+    }
+    const operatorHomeDraft = workspaces.find(workspace =>
+      isOperatorHomeWorkspace(
+        { id: workspace.workspaceId ?? "operator-home", root_dir: workspace.path },
+        userHomeDir
+      )
+    );
+    if (operatorHomeDraft) {
+      onboardingDraftStore.trigger.workspaceDraftRemoved({ path: operatorHomeDraft.path });
+      return;
+    }
     catalogSeeded.current = true;
     if (workspaces.length > 0) return;
-    for (const workspace of registeredWorkspaces.data) {
+    const { projectWorkspaces } = partitionProjectWorkspaces(
+      registeredWorkspaces.data,
+      userHomeDir
+    );
+    for (const workspace of projectWorkspaces) {
       const path = workspace.root_dir.trim();
       if (path.length === 0) {
         continue;
@@ -94,7 +117,7 @@ export function useOnboardingWorkspaces(): OnboardingWorkspacesApi {
         workspace: draftFromWorkspace(workspace, path),
       });
     }
-  }, [registeredWorkspaces.data, workspaces.length]);
+  }, [registeredWorkspaces.data, userHomeDir, workspaces]);
 
   const navigateTo = (path: string) => {
     setCurrentPath(path);
@@ -114,7 +137,13 @@ export function useOnboardingWorkspaces(): OnboardingWorkspacesApi {
 
   const addWorkspace = async (path: string) => {
     const trimmed = path.trim();
-    if (trimmed.length === 0 || workspaces.some(item => item.path === trimmed)) return;
+    if (
+      trimmed.length === 0 ||
+      isOperatorHomeWorkspace({ id: "operator-home", root_dir: trimmed }, userHomeDir) ||
+      workspaces.some(item => item.path === trimmed)
+    ) {
+      return;
+    }
     setResolveError(null);
     try {
       const workspace = await createWorkspace.mutateAsync({ root_dir: trimmed });
@@ -129,11 +158,12 @@ export function useOnboardingWorkspaces(): OnboardingWorkspacesApi {
   };
 
   const removeWorkspace = async (path: string) => {
-    if (workspaceCatalog === undefined) {
+    if (workspaceCatalog === undefined || userHomeDir === undefined) {
       return;
     }
+    const { projectWorkspaces } = partitionProjectWorkspaces(workspaceCatalog, userHomeDir);
     const draft = workspaces.find(item => item.path === path);
-    const workspaceId = registeredWorkspaceIdForDraft(draft, workspaceCatalog);
+    const workspaceId = registeredWorkspaceIdForDraft(draft, projectWorkspaces);
     if (workspaceId.length === 0) {
       onboardingDraftStore.trigger.workspaceDraftRemoved({ path });
       return;

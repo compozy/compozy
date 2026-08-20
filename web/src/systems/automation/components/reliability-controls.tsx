@@ -8,9 +8,10 @@ import {
   CollapsibleTrigger,
   Field,
   FieldContent,
-  FieldDescription,
+  FieldHeader,
   FieldLabel,
   FieldTitle,
+  HelpTip,
   Input,
   PillGroup,
   Switch,
@@ -207,7 +208,7 @@ export function ReliabilityFireLimitFields({
 }
 
 interface ReliabilityEnabledFieldProps {
-  description: string;
+  help: string;
   enabled: boolean;
   idPrefix: "job" | "trigger";
   label: string;
@@ -216,7 +217,7 @@ interface ReliabilityEnabledFieldProps {
 
 /** Shared enabled control with a visible, programmatically associated label. */
 export function ReliabilityEnabledField({
-  description,
+  help,
   enabled,
   idPrefix,
   label,
@@ -227,8 +228,10 @@ export function ReliabilityEnabledField({
     <Field className="col-span-2" orientation="horizontal">
       <Switch checked={enabled} data-testid={id} id={id} onCheckedChange={onChange} />
       <FieldContent>
-        <FieldLabel htmlFor={id}>{label}</FieldLabel>
-        <FieldDescription>{description}</FieldDescription>
+        <FieldHeader>
+          <FieldLabel htmlFor={id}>{label}</FieldLabel>
+          <HelpTip label={`About ${label.toLowerCase()}`}>{help}</HelpTip>
+        </FieldHeader>
       </FieldContent>
     </Field>
   );

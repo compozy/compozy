@@ -160,7 +160,7 @@ describe("WorkspaceSetupDialog", () => {
     const user = userEvent.setup();
     renderDialog({ open: true });
 
-    expect(screen.getByTestId("workspace-setup-root-empty")).toBeInTheDocument();
+    expect(screen.queryByTestId("workspace-setup-selected-root")).not.toBeInTheDocument();
     expect(screen.getByTestId("workspace-setup-submit")).toBeDisabled();
 
     await user.click(

@@ -3,7 +3,7 @@ import type { ReactNode } from "react";
 
 import { cn } from "@/lib/utils";
 import type { SessionPromptCapability } from "@/systems/session/lib/session-prompt-capability";
-import { Button } from "@compozy/ui";
+import { Button, Kbd } from "@compozy/ui";
 
 import { SessionAttachButton } from "./session-attach-button";
 import { SessionComposerSendButton } from "./session-composer-send-button";
@@ -71,9 +71,7 @@ export function SessionComposerActionRow({
           data-testid="composer-enter-hint"
           className="inline-flex items-center gap-1 text-micro text-faint"
         >
-          <kbd className="rounded-xs border border-line bg-canvas-soft px-1 py-px font-mono text-micro not-italic text-subtle">
-            ⏎
-          </kbd>
+          <Kbd>⏎</Kbd>
           {actionState.enterHint}
         </span>
       ) : null}

@@ -12,6 +12,46 @@ Canonical vocabulary for CompozyOS and Compozy Network. When the corpus is ambig
 
 **`compozy`** is the command identifier. The binary, `COMPOZY_*` environment variables, Go module path, `@compozy/*` packages, Homebrew formula, socket names, config paths, and `compozy__*` native tool IDs keep this spelling. CompozyOS is the product; `compozy` is its command. Do not use `CompozyOS Runtime` as a separate product name; `CompozyOS runtime` is descriptive prose when the runtime specifically matters.
 
+### Daemon
+
+The local background runtime process. It owns state, executes work, and serves every control surface. `daemon` is the canonical word in code, config, CLI, specs, and runtime docs.
+
+**UI label:** "CompozyOS" (for example, "CompozyOS is running"). Never "daemon" on an end-user surface.
+
+---
+
+### ACP
+
+**Agent Client Protocol** — the standard CompozyOS uses to talk to agent CLIs, spoken over JSON-RPC/stdio to a spawned subprocess. CompozyOS is an ACP host; Claude Code, OpenClaw, and Hermes are ACP-compatible agent CLIs it drives.
+
+**UI label:** none. Expand the acronym on first use in end-user prose; reference and protocol docs may use `ACP` directly.
+
+---
+
+### Session
+
+A durable managed agent run: saved history, resumable state, and the same view from CLI, API, and web. Prefer `session` over `chat`.
+
+**UI label:** "session" — already everyday English. Gloss it on first use rather than aliasing it.
+
+---
+
+### Control surface
+
+A human/agent-operable surface — CLI, HTTP/SSE, UDS, or web UI — over the same daemon-owned state. The term names the class, not any one surface.
+
+**UI label:** none — internal vocabulary. It stays the runtime term in specs and docs and never reaches an end-user label.
+
+---
+
+### Bridge
+
+An external messaging or platform adapter (Slack, Discord, and peers). Do not call a bridge a `channel`: `channel` is the Compozy Network namespace and coordination-channel term.
+
+**UI label:** "Bridge" / "Bridges" — keep the product name. Do not alias to "connection" or "Connections".
+
+---
+
 ### Compozy Network
 
 The agent-to-agent coordination subsystem inside CompozyOS. It lets sessions participate as peers, discover capabilities, exchange typed envelopes, and return receipts. The current protocol/version name is `compozy-network/v0`.
@@ -29,6 +69,8 @@ A capability is **interpretive**, not deterministic — it tells an agent what i
 **Source:** RFC 003-v0 (`.../compozy-rfcs-local/003-compozy-network-v0.md`) renamed `recipe` → `capability`. RFC 004 enforces.
 
 **Operational identity:** `(peer_id, capability_id)`.
+
+**UI label:** "capability" — keep the word and define it on first use. It has no alias: `capability` is the only name in code, wire, docs, and CLI, and the forbidden synonyms above stay forbidden on every surface.
 
 **Capability vs Loop:** a capability is the interpretive network artifact (what an agent offers to peers); a [Loop](#loop) is the deterministic runtime program the daemon owns and executes. The network carries capabilities, never loop execution.
 
@@ -86,6 +128,8 @@ Loops ride CompozyOS's existing durable foundations (work queue, sessions, autom
 
 **Not to be conflated with:** the historical "workflow" positioning. CompozyOS is a runtime with a Loop domain; the Compozy Network protocol remains not a workflow engine.
 
+**UI label:** "Loop" — **pending owner decision, do not alias.** `workflow` is no longer a forbidden synonym for [capability](#capability), but the historical positioning above is still warned off, so no alias lands until the owner decides.
+
 ---
 
 ### Skill
@@ -93,6 +137,8 @@ Loops ride CompozyOS's existing durable foundations (work queue, sessions, autom
 A **bundled procedural instruction** that a CompozyOS session can activate before doing work. Skills are local to CompozyOS (loaded via `internal/skills`), governed by `metadata.compozy.*` frontmatter, scanned via `VerifyContent`, and may declare MCP servers and lifecycle hooks.
 
 **Skills vs. Capabilities:** Skills live inside a CompozyOS instance and govern an agent's behavior locally. Capabilities cross CompozyOS instances over the network and describe what an agent offers to peers. A skill could be exposed as a capability, but they are not the same artifact.
+
+**UI label:** "Skill" — keep the word; it already reads plainly. Gloss it on first use.
 
 ---
 
@@ -103,6 +149,8 @@ The CompozyOS execution boundary selected for a workspace or session. A sandbox 
 Implemented providers are `local` and `daytona`. Provider lifecycle surfaces use `sandbox.prepare`, `sandbox.ready`, `sandbox.sync.before`, `sandbox.sync.after`, and `sandbox.stop` hooks, plus the extension Host API methods `sandbox/list`, `sandbox/info`, and `sandbox/exec`.
 
 Do not call this product feature an `environment`. Reserve `environment`, `env`, and `environment variable` for process-level variables and operating-system context.
+
+**UI label:** "Sandbox" — keep the product name on the dock, Go menu, window title, command palette, and profile-editor surface. Do not alias to "Permissions". Permissions remains a nested concept: extension [Permissions](#permissions) (`permissions.requires`), agent permission modes (`[permissions] mode`), and sandbox permission policy. Those meanings keep their own names and must not replace this surface.
 
 ---
 
@@ -364,6 +412,8 @@ The web UI presents as a desktop environment: a menubar, persistent virtual desk
 
 The runtime object: project root and scoped runtime context (sessions, memory, tasks, vault, config). A workspace owns window-manager topology, but remains the unit of runtime scope. The Workspaces surface switches this runtime context.
 
+**UI label:** "project". The alias may NOT be `environment` — that word is reserved (see [Sandbox](#sandbox)). `workspace` stays canonical in code, `workspace_id`, CLI, API, and docs.
+
 ### Desktop
 
 One persistent virtual arrangement inside a workspace. A workspace may own multiple ordered desktops. Each desktop owns tiled groups and floating-window order; a window belongs to exactly one desktop. The active desktop and focused window are client-local projections. A desktop carries no sessions, memory, or tasks of its own.
@@ -429,6 +479,36 @@ For positioning consistency on the marketing site and in docs:
 - CompozyOS is **not an MCP replacement**. MCP integrates _into_ CompozyOS skills via `metadata.compozy.mcp_servers`.
 - CompozyOS is **not an A2A replacement**. Compozy Network is a peer-to-peer envelope; A2A is an industry standard. They can coexist.
 - CompozyOS **competes on runtime, SDK, observability, DX, and integration depth — NOT the open agent network protocol.** Compozy Network must remain implementable outside CompozyOS.
+
+---
+
+## Surface Names
+
+Aliases are UI labels, never renames. `capability` remains the only name in code, wire, docs, and CLI. Forbidden synonyms stay forbidden.
+
+Canonical values stay in code, payloads, CLI, API, and reference docs; the alias is a UI label only. The canonical noun stays reachable one step deeper — tooltip, detail view, or inspector. An alias that appears in a config key, a wire payload, or a generated reference is a rename, and renames do not happen through this table.
+
+This table mirrors the Surface Aliases table in `COPY.md` §6. The two are one table in two places: a change to either requires the same change to the other. This file owns the reservations; `COPY.md` owns the surface rules that use them.
+
+| Canonical | UI surface alias | Notes |
+| --- | --- | --- |
+| `daemon` | "CompozyOS" / "CompozyOS is running" | Never "daemon" in end-user UI. |
+| `workspace` | "project" | Alias may NOT be "environment" — reserved for process-level variables and operating-system context (see [Sandbox](#sandbox)). |
+| `bridge` | keep | The product surface is Bridges. Do not alias to "connection" or "Connections". Alias may NOT be "channel" — `channel` is the Compozy Network namespace, not an adapter. |
+| `event ledger` | "history" | Use only where the implementation actually exposes the event trail. |
+| `tool registry` / `toolset` | "what agents are allowed to do" | A descriptive gloss, not a label swap. |
+| `sandbox` | keep | The product surface is Sandbox. Do not alias to "Permissions". Permissions remains a nested concept (extension [Permissions](#permissions), `[permissions] mode`, sandbox permission policy) and must not replace this surface name. |
+| `control surface` | — drop from UI | Internal vocabulary; stays the runtime term in specs and docs. |
+| `capability` | keep + define on first use | Wire identity `(peer_id, capability_id)` unchanged. `recipe`, `procedure`, and `playbook` stay forbidden everywhere. |
+| `session` | keep + gloss on first use | Already everyday English. |
+| `Loop` | — pending owner decision | Do not alias. `workflow` is released as a forbidden synonym for `capability`, but the historical "workflow" positioning is still warned off (see [Loop](#loop)). |
+| `Jobs` / `Triggers` / `Network` (dock titles) | — pending owner decision | Do not rename. |
+| settings group `Operator` | "Personal" | Group label only. |
+| settings section `Observability` | "Diagnostics" | Section label only. |
+| settings section `Attention` | "Notifications" | Section label only. |
+| settings section `Gateway` | "Remote access" | Section label only. |
+
+`Roles`, `Hooks`, and `Extensions` keep their names — glossary terms that already read plainly.
 
 ---
 

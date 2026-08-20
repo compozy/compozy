@@ -35,7 +35,7 @@ export function DashboardWindow({ windowId }: { windowId: string }) {
     return (
       <div className="flex flex-1 items-center justify-center p-8" data-testid="home-error">
         <Empty
-          description="Start the daemon to see what your agents are doing."
+          description="Start CompozyOS to see what your agents are doing."
           icon={ServerOff}
           title={<ConnectionIndicator status="disconnected" />}
         />

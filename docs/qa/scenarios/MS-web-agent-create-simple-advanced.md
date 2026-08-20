@@ -6,7 +6,7 @@ persona: Dora
 journey: J-31
 expected: Opening Create agent shows one surface, never a stepper — no "Step N of 4", no Back/Continue. Simple carries the definition (agent name, instructions) and, side by side, the runtime selector with live catalog state and the category path — the two decisions a person makes while naming the agent. Advanced adds the permission policy cards, launch overrides (runtime command), and the tool/skill allowlists, without hiding any Simple field. Explanatory prose sits behind `(?)` help tips; catalog state ("Project runtime defaults will be used.", catalog errors) stays visible because it reports what the daemon will do. An agent name such as `audio designer` remains visible but fails Simple with an inline format error and a disabled Create button; no create request is sent. An invalid category path such as `operations//incident` now fails Simple and shows its error in place, without switching tiers; submitting with an invalid advanced-only field (a blank tool entry) still reveals Advanced instead of leaving a disabled primary with no visible cause. Submit errors render as a danger Alert at the top of the body. Leaving Advanced preserves every authored value. There is no MCP servers control anywhere in the dialog, and the created request never carries `mcp_servers`. The category path is sent as `category_path` segments split on `/`. Destination is derived from the menubar Global switch: the footer shows a `workspace-scope-statement` note ("Creates in Global — visible to every workspace." or "Creates in {workspace}."), never scope pills; Global omits `workspace` on the request.
 entry_points: web desktop shell → New agent (menubar, command palette, agent catalog, agent detail duplicate)
-qa_status: pass
+qa_status: untested
 bug_ids:
 fix_status:
 retest_status:
@@ -61,3 +61,5 @@ then started the boundary-valid agent in Live mode: its generated peer ID measur
 the session reached `active`, and Network reported one local peer and one channel with no
 `backend_unhealthy` state. Evidence and teardown are recorded in
 `docs/qa/reports/2026-08-13-pr-367-agent-name-validation-rewalk.md`.
+
+2026-08-20 qa-impact: Simple/Advanced sits on a recessed `--color-canvas-tint` chrome strip against the `--color-canvas-soft` shell. Status remains untested.

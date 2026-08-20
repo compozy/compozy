@@ -154,7 +154,7 @@ function MarketplaceMCPAuthorizationSection({
         label="Method"
         sub={
           automatic
-            ? "The daemon registers itself as a client on first authorize — no client ID or secret to paste."
+            ? "CompozyOS registers itself as a client on first authorize — no client ID or secret to paste."
             : undefined
         }
       >
@@ -206,7 +206,7 @@ function MarketplaceMCPConnectionSection({
             ? "Runs on the provider's infrastructure. Nothing is installed or kept running on this machine."
             : docker
               ? "Runs as a container image pulled onto this machine."
-              : "Launched on this machine and managed by the daemon."
+              : "Launched on this machine and managed by CompozyOS."
         }
       >
         {remote ? "Hosted HTTP" : docker ? "Docker container" : "Local process"}
@@ -292,8 +292,8 @@ function MarketplaceMCPToolsSection({
           title="No tools discovered yet"
           description={
             installed
-              ? "The daemon probes the server after it can connect and lists the discovered tools here."
-              : "The daemon probes the server after install and lists the discovered tools here."
+              ? "CompozyOS probes the server after it can connect and lists the discovered tools here."
+              : "CompozyOS probes the server after install and lists the discovered tools here."
           }
         />
       )}

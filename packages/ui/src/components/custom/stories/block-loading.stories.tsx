@@ -7,6 +7,12 @@ const meta: Meta<typeof BlockLoading> = {
   component: BlockLoading,
   parameters: {
     layout: "padded",
+    docs: {
+      description: {
+        component:
+          "Placeholder for a block of content that is still loading. `label` is always the spinner's accessible name; `showLabel` also renders it as visible text for surfaces where a silent spinner leaves the reader guessing.",
+      },
+    },
   },
 };
 
@@ -24,5 +30,12 @@ export const BareSmall: Story = {
     label: "Loading session secrets",
     size: "sm",
     surface: "bare",
+  },
+};
+
+export const WithVisibleLabel: Story = {
+  args: {
+    label: "Working…",
+    showLabel: true,
   },
 };

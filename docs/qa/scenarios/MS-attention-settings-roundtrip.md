@@ -6,7 +6,7 @@ persona: Dora
 journey: J-administer-runtime-settings
 expected: Settings → Attention, config.toml, compozy config get/set, HTTP, and UDS read and write the same toasts, sound, system, and muted_workspaces values; valid changes apply live without a daemon restart, concurrent writes preserve a complete config, and deleting a muted workspace removes its id.
 entry_points: web Settings → Attention; config.toml [attention]; compozy config get/set attention.*; GET/PATCH /api/settings/attention over HTTP and UDS; workspace deletion
-qa_status: pass
+qa_status: untested
 bug_ids:
 fix_status:
 retest_status:

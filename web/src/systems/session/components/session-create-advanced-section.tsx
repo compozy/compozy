@@ -1,12 +1,4 @@
-import {
-  Field,
-  FieldContent,
-  FieldDescription,
-  FieldError,
-  FieldLabel,
-  Input,
-  Spinner,
-} from "@compozy/ui";
+import { Field, FieldError, FieldLabel, Input, Spinner } from "@compozy/ui";
 
 import type { NetworkParticipationDraft } from "@/lib/network-participation";
 
@@ -53,10 +45,7 @@ function SessionCreateAdvancedSection({
       ) : null}
 
       <Field>
-        <FieldContent>
-          <FieldLabel htmlFor="session-create-name">Session name</FieldLabel>
-          <FieldDescription>Optional — shown in the sidebar and session lists.</FieldDescription>
-        </FieldContent>
+        <FieldLabel htmlFor="session-create-name">Session name</FieldLabel>
         <Input
           data-testid="session-create-name-input"
           disabled={isSubmitting}

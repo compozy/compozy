@@ -154,7 +154,7 @@ export function TriggerRunList({ trigger, runs, error, isLoading, onRetry }: Tri
     <TriggerDetailSection
       count={settled ? runs.length : undefined}
       data-testid="automation-run-history"
-      gist={settled ? (runs.length === 0 ? "no runs yet" : "last 10 from the daemon") : undefined}
+      gist={settled ? (runs.length === 0 ? "no runs yet" : "last 10 recorded") : undefined}
       icon={History}
       label="Recent runs"
     >

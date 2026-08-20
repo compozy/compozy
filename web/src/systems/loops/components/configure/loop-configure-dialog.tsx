@@ -100,8 +100,8 @@ export function LoopConfigureDialog({
             <div className="overflow-hidden rounded-lg border border-line-soft bg-canvas-tint">
               <LoopConfigureSwitchRow
                 checked={model.draft.humanGateEnabled}
-                description="Pauses the run as needs-approval for a human decision before it completes. Off by default."
                 disabled={model.busy}
+                help="Pauses the run as needs-approval for a human decision before it completes. Off by default."
                 onCheckedChange={model.setHumanGate}
                 testId="loop-configure-human-gate"
                 title="Pause for a human decision"

@@ -140,3 +140,19 @@ weight 600 / -0.005em**; `--text-eyebrow` and `--tracking-eyebrow` are unchanged
 feature block. The rule this lesson establishes — one primitive, one utility, one uppercase
 contract — is unchanged; only the typeface name moved. The evidence and analysis above are the
 2026-05-10 record and are intentionally left as written.
+
+## Addendum — 2026-08-20
+
+Uppercase stopped being the default. The canonical contract is now **Geist sentence case
+12 px / weight 510 (medium) / -0.005em**: `--text-eyebrow` moved to `0.75rem` and the
+`@utility eyebrow` declaration dropped `uppercase` and `font-semibold`. Uppercase is opt-in
+through `<Eyebrow variant="caps">`, which adds the case and nothing else — same utility, same
+size and tracking tokens — so **one primitive, one utility, one canonical style** still holds.
+`caps` is the single sanctioned variant; the anti-pattern against re-growing a variant matrix
+(`case` / `family` / `tone` / `size` / `weight`) stands.
+
+Two pointers in the record above are stale and are corrected here rather than rewritten in
+place: the `@utility eyebrow` declaration lives in `packages/ui/src/tokens-runtime.css`, not
+`tokens.css` (the `--text-eyebrow` / `--tracking-eyebrow` tokens are still in `tokens.css`),
+and the lint rule ships from `lint-plugins/compozy-design-system-core-rules.mjs`. The
+2026-05-10 and 2026-08-09 records are intentionally left as written.

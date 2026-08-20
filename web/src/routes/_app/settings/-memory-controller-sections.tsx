@@ -12,12 +12,12 @@ export function ControllerSection({
   return (
     <SettingsGroup
       title="Write controller"
-      description="lexical/entity-only ADD / UPDATE / DELETE / NOOP / REJECT pipeline"
+      help="lexical/entity-only ADD / UPDATE / DELETE / NOOP / REJECT pipeline"
     >
       <SettingsFieldRow
         data-testid={`${TEST_PREFIX}-controller-mode`}
         label="Controller mode"
-        description="hybrid uses rules with an LLM tiebreaker; rules and llm pin a single strategy"
+        help="hybrid uses rules with an LLM tiebreaker; rules and llm pin a single strategy"
         control={
           <Input
             className="w-40 font-mono"
@@ -86,7 +86,7 @@ export function ControllerSection({
       <SettingsFieldRow
         data-testid={`${TEST_PREFIX}-controller-policy-max-content`}
         label="Max content chars"
-        description="Per-candidate body cap enforced before the controller decides"
+        help="Per-candidate body cap enforced before the controller decides"
         error={validationErrors.policyMaxContentChars ?? undefined}
         control={
           <SettingsNumberInput
@@ -113,7 +113,7 @@ export function ControllerSection({
       <SettingsFieldRow
         data-testid={`${TEST_PREFIX}-controller-policy-max-writes`}
         label="Max writes per minute"
-        description="Soft rate limit applied at controller entry"
+        help="Soft rate limit applied at controller entry"
         error={validationErrors.policyMaxWritesPerMin ?? undefined}
         control={
           <SettingsNumberInput

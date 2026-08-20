@@ -6,7 +6,7 @@ persona: Dora
 journey: J-operate-workspace-context
 expected: Add workspace opens as a two-pane extra-wide dialog. The left pane is a filesystem browser (home/up toolbar, Locations row, mono current path, "Use this folder", hover-reveal row picks) that chooses the root; there is no plain path input and no one-click global-default / home-folder card. Picking a root only updates the draft — it must not register a workspace — and it autofills the display name from the folder name until the operator types their own. The right pane carries optional session defaults: default agent, sandbox profile, and additional directories as removable chips. Exactly one `POST /api/workspaces` is issued when the footer primary is pressed, carrying `root_dir` plus any of `name`, `add_dirs`, `default_agent`, and `sandbox_ref` that are set. A failed registration reports inline and keeps every entered value. Below 980px the two panes collapse to one column with session defaults stacked underneath. The browser's reading, empty, and permission-error states are all visible. First-run onboarding uses the same browser; folders are optional and Skip starts in Global scope without calling `POST /api/workspaces/resolve` for `$HOME`.
 entry_points: web desktop shell → Add workspace; web workspaces overview → New workspace; web first-run onboarding
-qa_status: blocked-verify
+qa_status: untested
 bug_ids:
 fix_status:
 retest_status:
@@ -33,3 +33,5 @@ inventory: Needs QA
 2026-08-12 qa-impact: menubar-owned Global scope deleted the one-click global-default card. Add workspace is project folders only; first-run Skip starts in Global without `resolve` for `$HOME`. Reset to untested.
 
 2026-08-12 walk: blocked-verify. This implementation cycle captured Storybook visual-contract evidence (`.compozy/tasks/global-workspace-menubar/evidence/visual/menubar-toggle/VC-01`–`VC-04`) and unit/typecheck coverage. An isolated QA lab with a live daemon (`COMPOZY_HOME`, production-parity web) was not started, so a persona walk through public entry points could not meet the qa-execution evidence standard.
+
+2026-08-20 qa-impact: density cleanup removed the Location and Session defaults helper paragraphs, the empty-root hint, the default-agent helper, and the footer registration one-liner. Display name default, sandbox isolation, and extra-roots copy moved behind HelpTip. Reset to untested.

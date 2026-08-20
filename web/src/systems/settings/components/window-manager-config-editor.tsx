@@ -1,4 +1,4 @@
-import { Button, Pill, Slider } from "@compozy/ui";
+import { Button, HelpTip, Pill, Slider } from "@compozy/ui";
 
 import type { WindowManagerConfigEditorModel } from "../hooks/use-window-manager-config-editor";
 import { useWindowManagerShortcutRecorder } from "../hooks/use-window-manager-shortcut-recorder";
@@ -35,7 +35,7 @@ export function WindowManagerConfigEditor({ editor }: WindowManagerConfigEditorP
     <>
       <SettingsGroup
         action={<SettingsLiveChip />}
-        description="Defaults for every workspace. These take effect immediately."
+        description="These take effect immediately."
         title="Window behavior"
       >
         <WindowManagerBehaviorPicks draft={editor.draft} setDraft={editor.setDraft} />
@@ -43,19 +43,19 @@ export function WindowManagerConfigEditor({ editor }: WindowManagerConfigEditorP
 
       <SettingsGroup
         bare
-        description="Drag the guides. Every value is measured in screen pixels."
+        help="Drag the guides. Every value is measured in screen pixels."
         title="Spacing and snapping"
       >
         <div className="grid gap-3 min-[900px]:grid-cols-2">
           <Card
-            description="Drag the four outer guides for screen insets, and the cross in the middle for the space between tiles."
+            help="Drag the four outer guides for screen insets, and the cross in the middle for the space between tiles."
             problem={editor.problems.find(problem => problem.field === "gaps")?.message}
             title="Gaps"
           >
             <WindowManagerGapEditor draft={editor.draft} setDraft={editor.setDraft} />
           </Card>
           <Card
-            description="Where a dragged window is caught. Drag a band to resize it; pick what a centre zone claims."
+            help="Where a dragged window is caught. Drag a band to resize it; pick what a centre zone claims."
             problem={editor.problems.find(problem => problem.field === "snap")?.message}
             title="Snap zones"
           >
@@ -64,7 +64,7 @@ export function WindowManagerConfigEditor({ editor }: WindowManagerConfigEditorP
         </div>
         <Card
           className="mt-3"
-          description="Snapping a window to the same edge again cycles it through these widths. Drag a stop to move it, click the track to add one, or press Backspace on a selected stop to remove it."
+          help="Snapping a window to the same edge again cycles it through these widths. Drag a stop to move it, click the track to add one, or press Backspace on a selected stop to remove it."
           problem={editor.problems.find(problem => problem.field === "repeatRatios")?.message}
           title="Repeat widths"
         >
@@ -89,7 +89,7 @@ export function WindowManagerConfigEditor({ editor }: WindowManagerConfigEditorP
             </Button>
           </>
         }
-        description="Click a chord to record a new one. Only the ones you change are stored — everything else follows the shipped default."
+        help="Click a chord to record a new one. Only the ones you change are stored — everything else follows the shipped default."
         title="Shortcuts"
       >
         <ShortcutPresetCard
@@ -123,7 +123,7 @@ export function WindowManagerConfigEditor({ editor }: WindowManagerConfigEditorP
               </span>
             </div>
           }
-          description="How many undo and redo steps each workspace keeps. Older steps fall off the end."
+          description="Older steps fall off the end."
           error={editor.problems.find(problem => problem.field === "historyLimit")?.message}
           label={
             <>
@@ -143,13 +143,13 @@ export function WindowManagerConfigEditor({ editor }: WindowManagerConfigEditorP
 
 function Card({
   title,
-  description,
+  help,
   problem,
   className,
   children,
 }: {
   title: string;
-  description: string;
+  help: string;
   problem?: string;
   className?: string;
   children: React.ReactNode;
@@ -159,8 +159,10 @@ function Card({
       className={`flex flex-col overflow-hidden rounded-lg border border-line bg-canvas-soft ${className ?? ""}`}
     >
       <header className="border-b border-line-soft px-3.5 py-3">
-        <h3 className="text-small-body font-semibold text-fg-strong">{title}</h3>
-        <p className="mt-0.5 text-form-label leading-normal text-muted">{description}</p>
+        <div className="flex items-center gap-1.5">
+          <h3 className="text-small-body font-semibold text-fg-strong">{title}</h3>
+          <HelpTip label={`About ${title.toLowerCase()}`}>{help}</HelpTip>
+        </div>
       </header>
       <div className="flex flex-1 flex-col gap-3 p-3.5">
         {children}

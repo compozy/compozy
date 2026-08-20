@@ -22,7 +22,6 @@ export function ToolApprovalGrantsSection() {
     <Section
       divided
       label="Remembered decisions"
-      note="Native-tool approvals CompozyOS remembers for this workspace"
       count={state === "ready" ? total : undefined}
       data-testid={`${TEST_ID}-section`}
       right={

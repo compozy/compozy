@@ -222,7 +222,7 @@ export function ExtensionNetworkConfirmDialog({
       confirmIcon={Radio}
       confirmLabel="Confirm and continue"
       contentProps={{ "data-testid": "extension-network-confirm-dialog" }}
-      description={`${verb} ${extensionName} applies the Live Compozy Network participation it declares. The daemon records this decision against the digest below.`}
+      description={`${verb} ${extensionName} applies the Live Compozy Network participation it declares. CompozyOS records this decision against the digest below.`}
       error={error}
       isPending={pending}
       note={

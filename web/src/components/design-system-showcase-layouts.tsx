@@ -54,7 +54,7 @@ compozy session list --active`;
       }
     >
       <div className="grid gap-4 pt-4 md:grid-cols-2">
-        <CodeBlock code={sampleCode} language="shell" />
+        <CodeBlock code={sampleCode} language="shell" showPrompt />
         <div className="flex flex-col gap-3">
           <ChatMessageBubble messageRole="user" meta={<span>YOU · 10:42</span>}>
             Spin up a new run against the research workspace.

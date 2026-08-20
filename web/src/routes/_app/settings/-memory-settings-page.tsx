@@ -78,7 +78,6 @@ export function MemorySettingsPage() {
 
   return (
     <SettingsPageFrame
-      description="What your agents remember across sessions, and how those memories are made."
       meta={
         health.available
           ? [

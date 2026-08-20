@@ -7,7 +7,7 @@ import { SettingsSaveBar } from "../settings-save-bar";
 function renderFrame(saveBar: React.ReactNode) {
   return render(
     <SettingsPageFrame
-      description="Defaults and day-to-day behavior."
+      description="Changes here apply to new sessions on this machine."
       meta={[{ key: "sessions", content: <span>3 active sessions</span> }]}
       saveBar={saveBar}
       slug="general"
@@ -22,7 +22,7 @@ describe("SettingsPageFrame", () => {
     renderFrame(null);
 
     const subhead = screen.getByTestId("settings-page-general-subhead");
-    expect(subhead).toHaveTextContent("Defaults and day-to-day behavior.");
+    expect(subhead).toHaveTextContent("Changes here apply to new sessions on this machine.");
     expect(subhead).toHaveTextContent("3 active sessions");
     expect(screen.getByTestId("settings-page-general-body")).toContainElement(
       screen.getByTestId("frame-body-content")
@@ -60,5 +60,34 @@ describe("SettingsPageFrame", () => {
     renderFrame(null);
 
     expect(screen.queryByRole("heading", { level: 1 })).not.toBeInTheDocument();
+  });
+
+  it("omits the subhead when there is no consequence line and no meta", () => {
+    render(
+      <SettingsPageFrame slug="roles">
+        <div data-testid="frame-body-content">content</div>
+      </SettingsPageFrame>
+    );
+
+    expect(screen.queryByTestId("settings-page-roles-subhead")).not.toBeInTheDocument();
+  });
+
+  it("renders live meta without a restating page subtitle", () => {
+    render(
+      <SettingsPageFrame
+        meta={[
+          { key: "ready", content: <span>1 ready</span> },
+          { key: "fresh", content: <span>updated now</span> },
+        ]}
+        slug="providers"
+      >
+        <div>content</div>
+      </SettingsPageFrame>
+    );
+
+    const subhead = screen.getByTestId("settings-page-providers-subhead");
+    expect(subhead).toHaveTextContent("1 ready");
+    expect(subhead).toHaveTextContent("updated now");
+    expect(subhead.querySelectorAll('[aria-hidden="true"]')).toHaveLength(1);
   });
 });

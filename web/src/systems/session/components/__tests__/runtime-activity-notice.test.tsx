@@ -81,7 +81,9 @@ describe("RuntimeActivityNotice", () => {
     expect(screen.getByTestId("runtime-activity-detail")).toHaveTextContent("Using Bash");
     const meta = screen.getByTestId("runtime-activity-meta");
     expect(meta).toHaveTextContent("11m elapsed · 42s idle");
-    expect(meta.className).toContain("font-mono");
+    // Meta reads as language: sans, with tabular figures so the numbers stay aligned.
+    expect(meta.className).not.toContain("font-mono");
+    expect(meta.className).toContain("tabular-nums");
   });
 
   it("renders warnings with alert semantics", () => {
@@ -175,14 +177,15 @@ describe("RuntimeActivityNotice", () => {
     );
 
     expect(screen.getByRole("alert")).toHaveAttribute("data-tone", "danger");
-    // The summary is the sentence; the raw kind string is faint mono meta —
+    // The summary is the sentence; the raw kind string is faint sans meta —
     // never a pill, never a "Transcript marker" card title.
     expect(screen.getByTestId("transcript-marker-summary")).toHaveTextContent(
       "Runtime activity timed out."
     );
     const kind = screen.getByTestId("transcript-marker-kind");
     expect(kind).toHaveTextContent("transcript_marker.prompt_timeout");
-    expect(kind.className).toContain("font-mono");
+    expect(kind.className).not.toContain("font-mono");
+    expect(kind.className).toContain("tabular-nums");
   });
 
   it("renders the file-mutation verifier marker with warning semantics", () => {

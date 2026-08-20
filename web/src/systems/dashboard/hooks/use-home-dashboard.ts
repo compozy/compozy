@@ -1,6 +1,7 @@
 import { useQuery } from "@tanstack/react-query";
 import type { ConnectionStatus } from "@compozy/ui";
 
+import { hasNoRecordedWork } from "../lib/home-overview-empty";
 import { homeScopeForActiveWorkspace, type HomeScope } from "../lib/home-scope";
 import { homeActivityOptions, homeOverviewOptions } from "../lib/query-options";
 import type {
@@ -27,6 +28,8 @@ export interface HomeDashboardModel {
   overview: HomeOverview | undefined;
   overviewStatus: HomeSurfaceStatus;
   overviewErrorMessage: string | null;
+  /** The overview loaded and reports no work at all — the first-run read. */
+  hasNoWork: boolean;
   activity: HomeActivityEvent[] | undefined;
   activityStatus: HomeSurfaceStatus;
   activityErrorMessage: string | null;
@@ -105,6 +108,7 @@ export function useHomeDashboard({
       overviewQuery.data !== undefined
     ),
     overviewErrorMessage: overviewQuery.error instanceof Error ? overviewQuery.error.message : null,
+    hasNoWork: overview !== undefined && hasNoRecordedWork(overview),
     activity: activityQuery.data,
     activityStatus: surfaceStatus(
       activityQuery.isLoading || !scopeSettled,

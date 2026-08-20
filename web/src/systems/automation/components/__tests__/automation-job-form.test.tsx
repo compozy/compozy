@@ -137,6 +137,11 @@ describe("AutomationJobForm", () => {
     renderJobForm({ activeWorkspaceId: null, draft: createAutomationJobDraft(null) });
 
     expect(screen.getByTestId("workspace-scope-statement")).toHaveTextContent("Creates in Global");
+    expect(
+      screen
+        .getByTestId("workspace-scope-statement")
+        .closest('[data-slot="entity-dialog-footer-hint"]')
+    ).not.toBeNull();
     expect(screen.queryByTestId("job-scope-global")).toBeNull();
     expect(screen.queryByTestId("job-workspace-select")).toBeNull();
   });
@@ -145,6 +150,11 @@ describe("AutomationJobForm", () => {
     renderJobForm();
 
     expect(screen.getByTestId("workspace-scope-statement")).toHaveTextContent("Creates in alpha");
+    expect(
+      screen
+        .getByTestId("workspace-scope-statement")
+        .closest('[data-slot="entity-dialog-footer-hint"]')
+    ).not.toBeNull();
     expect(screen.queryByTestId("job-workspace-select")).toBeNull();
   });
 
@@ -159,6 +169,7 @@ describe("AutomationJobForm", () => {
 
     const statement = screen.getByTestId("workspace-scope-statement");
     expect(statement).toHaveTextContent("Lives in alpha");
+    expect(statement.closest('[data-slot="entity-dialog-footer-hint"]')).not.toBeNull();
     expect(screen.queryByTestId("job-scope-global")).toBeNull();
     expect(screen.queryByTestId("job-scope-workspace")).toBeNull();
     expect(screen.queryByTestId("job-workspace-select")).toBeNull();
@@ -596,6 +607,25 @@ describe("AutomationJobForm", () => {
     expect(screen.getByTestId("automation-request-payload")).not.toHaveTextContent(
       "misfire_grace_seconds"
     );
+  });
+
+  it("Should keep prompt, schedule, and reliability explanations on HelpTip instead of under the fields", () => {
+    renderJobForm();
+
+    expect(screen.getByRole("button", { name: "About prompt" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "About on this schedule" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "About frequency" })).toBeInTheDocument();
+    expect(screen.queryByText(/Sent to the agent verbatim/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/All times evaluate in UTC/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/Created as a/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/Pick a frequency/)).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByTestId("job-governance-toggle"));
+    expect(screen.getByRole("button", { name: "About catch-up policy" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "About grace window" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "About enabled on create" })).toBeInTheDocument();
+    expect(screen.queryByText(/Runtime picks the catch-up/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/Disabled jobs stay stored/)).not.toBeInTheDocument();
   });
 
   it("Should keep a decodable cron expression editable after selecting Custom", () => {

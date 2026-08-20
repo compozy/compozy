@@ -460,7 +460,7 @@ describe("SessionThread transcript states", () => {
 
     const pane = await screen.findByTestId("thread-transcript-error");
     expect(pane).toHaveAttribute("role", "alert");
-    expect(within(pane).getByText("Transcript unavailable")).toBeInTheDocument();
+    expect(within(pane).getByText("Couldn't load this conversation")).toBeInTheDocument();
     expect(screen.getByTestId("thread-transcript-error-detail")).toHaveTextContent(
       "recorder temporarily unavailable"
     );
@@ -555,7 +555,7 @@ describe("SessionThread transcript states", () => {
   it("Should render ThreadEmpty only for success with zero messages", async () => {
     renderThreadState({ status: "success" });
 
-    expect(await screen.findByText(/Start a conversation/i)).toBeInTheDocument();
+    expect(await screen.findByText(/Start the conversation/i)).toBeInTheDocument();
     expect(screen.queryByTestId("thread-transcript-skeleton")).not.toBeInTheDocument();
     expect(screen.queryByTestId("thread-transcript-error")).not.toBeInTheDocument();
   });

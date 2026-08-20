@@ -30,7 +30,8 @@ export function useTasksDashboardPage(filters: TaskDashboardFilter, enabled: boo
       await pauseMutation.mutateAsync(normalizedReason ? { reason: normalizedReason } : {});
       toast.success("Scheduler paused.");
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Failed to pause scheduler");
+      console.error("Failed to pause the scheduler", error);
+      toast.error("Couldn't drain the queue.");
       throw error;
     }
   };
@@ -40,7 +41,8 @@ export function useTasksDashboardPage(filters: TaskDashboardFilter, enabled: boo
       await resumeMutation.mutateAsync(normalizedReason ? { reason: normalizedReason } : {});
       toast.success("Scheduler resumed.");
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Failed to resume scheduler");
+      console.error("Failed to resume the scheduler", error);
+      toast.error("Couldn't resume the queue.");
       throw error;
     }
   };
@@ -59,7 +61,8 @@ export function useTasksDashboardPage(filters: TaskDashboardFilter, enabled: boo
       });
       toast.success("Scheduler drain requested.");
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Failed to drain scheduler");
+      console.error("Failed to drain the scheduler", error);
+      toast.error("Couldn't pause the queue.");
       throw error;
     }
   };

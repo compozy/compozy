@@ -12,13 +12,15 @@ fix_status:
 retest_status: pass
 fix_commits:
 evidence: web/src/systems/marketplace/components/extension-install-dialog.tsx;web/src/systems/marketplace/components/extension-install-model.ts;web/e2e/__tests__/extensions.spec.ts;/Users/pedronauck/dev/qa-labs/compozy-ext-improvs-final-20260729-230047-267985-lab/qa-artifacts/qa/browser/extension-management.json;/Users/pedronauck/dev/qa-labs/compozy-devtool-oss-launch-20260802-195112-911343-lab/qa-artifacts/qa;/Users/pedronauck/dev/qa-labs/compozy-go-modernization-closeout-20260804-121411-946266-lab/qa-artifacts/qa/evidence/extensions-closeout.json;/Users/pedronauck/dev/qa-labs/compozy-go-modernization-closeout-20260804-121411-946266-lab/qa-artifacts/qa/screenshots
-last_report: docs/qa/reports/2026-08-04-go-modernization-closeout.md
+last_report: docs/qa/reports/2026-08-20-pr-440-coderabbit.md
 overlaps: ET-web-extensions-manage; ET-extension-published-source-installs
 ---
 
 Added by ext-improvs Task 08. Cover all three sources against one real daemon: a relative local path
 rejected before the request, an absolute path installed after consent, `owner/repo[@tag]` grammar,
 and a credential-bearing git URL rejected inline.
+
+2026-08-20 targeted review walk: passed the changed source-guidance contract against a live daemon. The Git URL choice exposed the repository HelpTip on hover with public HTTPS/version guidance, and the modal retained its install controls and explicit consent boundary without browser errors. The request union remains covered by the existing canonical browser/API evidence listed above.
 
 QA impact 2026-07-29: new surface. Never verified against a real daemon.
 

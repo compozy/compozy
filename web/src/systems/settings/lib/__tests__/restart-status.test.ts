@@ -52,7 +52,7 @@ describe("settingsRestartPresentation", () => {
         title: "Restart needed",
         role: "status",
         dismissLabel: "Not now",
-        triggerLabel: "Restart daemon",
+        triggerLabel: "Restart CompozyOS",
         triggerPending: false,
       },
     },

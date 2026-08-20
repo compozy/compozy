@@ -77,7 +77,7 @@ export function useWindowManagerClient(
       .then(view => {
         if (controller.signal.aborted) return;
         if (view.workspaceId !== selectedWorkspaceId || view.clientId !== clientId) {
-          throw new Error("The daemon registered a different window-manager client.");
+          throw new Error("CompozyOS registered a different window-manager client.");
         }
         store.trigger.registrationSucceeded({ client: view, epoch });
       })

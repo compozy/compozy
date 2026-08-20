@@ -77,9 +77,7 @@ describe("MCPServerEditor", () => {
     await user.click(screen.getByTestId("settings-mcp-servers-editor-transport-remote"));
 
     expect(screen.getByTestId("settings-mcp-editor-oauth")).toBeInTheDocument();
-    expect(screen.getByTestId("settings-mcp-editor-oauth-automatic")).toHaveTextContent(
-      "CompozyOS discovers OAuth requirements"
-    );
+    expect(screen.getByRole("button", { name: "About authorization" })).toBeInTheDocument();
     expect(screen.queryByTestId("settings-mcp-editor-stdio")).toBeNull();
   });
 

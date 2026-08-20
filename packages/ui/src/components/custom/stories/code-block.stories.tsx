@@ -11,7 +11,7 @@ const meta: Meta<typeof CodeBlock> = {
     docs: {
       description: {
         component:
-          "Terminal-style code block per DESIGN.md §4. Canvas-deep container, JetBrains Mono body at 14px/1.6, optional accent `$ ` prompt, Vitesse syntax highlighting via Shiki, optional language eyebrow, and a ghost copy button with success/failure feedback.",
+          "Code block per DESIGN.md §4. Canvas-deep container, JetBrains Mono body at 14px/1.6, Vitesse syntax highlighting via Shiki, optional language eyebrow, and a ghost copy button with success/failure feedback. Plain code by default; `showPrompt` opts into the accent `$ ` shell prompt for real terminal transcripts.",
       },
     },
   },
@@ -23,11 +23,12 @@ type Story = StoryObj<typeof meta>;
 export const ShellCommand: Story = {
   args: {
     code: "compozy start",
+    showPrompt: true,
   },
   parameters: {
     docs: {
       description: {
-        story: "Default shell prompt: single command with the accent `$ ` prompt.",
+        story: "Opt-in shell prompt: a real terminal transcript with the accent `$ ` prompt.",
       },
     },
   },
@@ -35,7 +36,6 @@ export const ShellCommand: Story = {
 
 export const MultilineWithoutPrompt: Story = {
   args: {
-    showPrompt: false,
     language: "typescript",
     themeMode: "dark",
     code: `export function greet(name: string) {
@@ -45,7 +45,7 @@ export const MultilineWithoutPrompt: Story = {
   parameters: {
     docs: {
       description: {
-        story: "Source-code block with prompts disabled, rendered as plain code.",
+        story: "The default read: source code rendered plainly, with no shell prompt injected.",
       },
     },
   },
@@ -55,6 +55,7 @@ export const LanguageLabel: Story = {
   args: {
     caption: "compozy network",
     language: "bash",
+    showPrompt: true,
     code: `# discover peers, send one task
 compozy network status
 compozy network peers
@@ -73,7 +74,6 @@ compozy network send reviewer --kind direct \\
 
 export const UnknownLanguageFallback: Story = {
   args: {
-    showPrompt: false,
     language: "not-a-language",
     code: ['<unsafe-tag data-value="render as text">', "  escaped: true", "</unsafe-tag>"].join(
       "\n"
@@ -91,7 +91,6 @@ export const UnknownLanguageFallback: Story = {
 
 export const LineNumbersAndHighlights: Story = {
   args: {
-    showPrompt: false,
     showLineNumbers: true,
     highlightLines: [2, 4],
     language: "typescript",
@@ -106,7 +105,6 @@ export const LineNumbersAndHighlights: Story = {
 
 export const WrappedLongLine: Story = {
   args: {
-    showPrompt: false,
     wrapLines: true,
     language: "json",
     code: JSON.stringify(
@@ -195,7 +193,6 @@ export const CopyInteraction: Story = {
 export const Truncated: Story = {
   args: {
     code: ["First line", "Second line", "Third line", "Fourth line"].join("\n"),
-    showPrompt: false,
     truncateLines: 2,
   },
 };

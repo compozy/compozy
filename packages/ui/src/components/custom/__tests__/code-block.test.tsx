@@ -41,8 +41,14 @@ describe("CodeBlock", () => {
     expect(code?.textContent).toContain("compozy start");
   });
 
-  it("Should render the `$ ` prompt when showPrompt is true", () => {
+  // KEEP: DESIGN.md §4 — a code block is not a terminal until the caller says so.
+  it("Should omit the `$ ` prompt by default", () => {
     const { container } = render(<CodeBlock code="compozy start" />);
+    expect(container.querySelector('[data-slot="code-block-prompt"]')).toBeNull();
+  });
+
+  it("Should render the `$ ` prompt when showPrompt is true", () => {
+    const { container } = render(<CodeBlock code="compozy start" showPrompt />);
     const prompt = container.querySelector<HTMLElement>('[data-slot="code-block-prompt"]');
     expect(prompt).not.toBeNull();
     expect(prompt?.textContent).toBe("$ ");
@@ -53,16 +59,9 @@ describe("CodeBlock", () => {
     const code = ["# comment", "compozy network status", '    --body \'{"task":"go"}\'', ""].join(
       "\n"
     );
-    const { container } = render(<CodeBlock code={code} />);
+    const { container } = render(<CodeBlock code={code} showPrompt />);
     const prompts = container.querySelectorAll('[data-slot="code-block-prompt"]');
     expect(prompts.length).toBe(1);
-  });
-
-  it("Should omit prompts entirely when showPrompt is false", () => {
-    const { container } = render(
-      <CodeBlock code={"const x = 1;\nconst y = 2;"} showPrompt={false} />
-    );
-    expect(container.querySelector('[data-slot="code-block-prompt"]')).toBeNull();
   });
 
   it("Should render the language eyebrow only when the language prop is provided", () => {

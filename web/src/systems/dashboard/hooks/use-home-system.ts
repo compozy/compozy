@@ -47,7 +47,7 @@ export function useHomeSystem(
     const uptime = formatUptime(status.health.uptime_seconds);
     tiles.push({
       key: "daemon",
-      label: "Daemon",
+      label: "Runtime",
       value: "Running",
       detail: `v${status.daemon.version} · ${uptime}`,
       tone: "success",

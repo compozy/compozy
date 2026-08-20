@@ -28,7 +28,7 @@ const meta: Meta<typeof WorkspaceScopeStatement> = {
 export default meta;
 type Story = StoryObj<typeof meta>;
 
-/** Chip used in editor toolbars; workspace create omits the trailing period. */
+/** Compact chip variant; entity editors use the footer note instead. */
 export const CreateWorkspaceChip: Story = {
   args: {
     destination: "alpha",

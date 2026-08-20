@@ -50,7 +50,7 @@ export function settingsRestartPresentation(
       title: "Restart failed",
       body:
         state.failureReason?.trim() ||
-        "The daemon did not come back. Check its logs, then try again.",
+        "CompozyOS did not come back. Check its logs, then try again.",
       role: "alert",
       sessionLabel,
       dismissLabel: "Dismiss",
@@ -76,7 +76,7 @@ export function settingsRestartPresentation(
       phase: "polling",
       tone: "info",
       title: "Restarting…",
-      body: "The daemon comes back in a few seconds. Sessions reconnect on their own.",
+      body: "CompozyOS comes back in a few seconds. Sessions reconnect on their own.",
       role: "status",
       sessionLabel: null,
       dismissLabel: null,
@@ -88,11 +88,11 @@ export function settingsRestartPresentation(
     phase: "required",
     tone: "warning",
     title: "Restart needed",
-    body: "Some saved changes apply after the daemon restarts. Running sessions keep their current rules until then.",
+    body: "Some saved changes apply after CompozyOS restarts. Running sessions keep their current rules until then.",
     role: "status",
     sessionLabel,
     dismissLabel: state.isTriggerPending ? null : "Not now",
-    triggerLabel: state.isTriggerPending ? "Starting…" : "Restart daemon",
+    triggerLabel: state.isTriggerPending ? "Starting…" : "Restart CompozyOS",
     triggerPending: state.isTriggerPending,
   };
 }

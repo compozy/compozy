@@ -11,11 +11,11 @@ import {
   CommandSelectShell,
   CommandSelectTrigger,
   Field,
-  FieldContent,
-  FieldDescription,
+  FieldHeader,
   FieldLabel,
   FieldTitle,
   FormSection,
+  HelpTip,
   Input,
   Pill,
 } from "@compozy/ui";
@@ -93,16 +93,10 @@ export function WorkspaceSetupDefaultsPane({ setup, defaults }: WorkspaceSetupDe
   };
 
   return (
-    <FormSection
-      description="Optional — every one of these can change later."
-      title="Session defaults"
-    >
+    <FormSection title="Session defaults">
       <div className="flex flex-col gap-4">
         <Field>
-          <FieldContent>
-            <FieldLabel htmlFor="workspace-setup-default-agent">Default agent</FieldLabel>
-            <FieldDescription>Preselected when a session starts here.</FieldDescription>
-          </FieldContent>
+          <FieldLabel htmlFor="workspace-setup-default-agent">Default agent</FieldLabel>
           <AgentCommandSelect
             agents={agents}
             clearLabel="No default agent"
@@ -128,10 +122,12 @@ export function WorkspaceSetupDefaultsPane({ setup, defaults }: WorkspaceSetupDe
         </Field>
 
         <Field>
-          <FieldContent>
+          <FieldHeader>
             <FieldTitle id="workspace-setup-sandbox-label">Sandbox profile</FieldTitle>
-            <FieldDescription>Isolation applied to sessions in this workspace.</FieldDescription>
-          </FieldContent>
+            <HelpTip label="About sandbox profile">
+              Isolation applied to sessions in this workspace.
+            </HelpTip>
+          </FieldHeader>
           <CommandSelect onOpenChange={setSandboxOpen} open={sandboxOpen}>
             <CommandSelectTrigger
               aria-labelledby="workspace-setup-sandbox-label"
@@ -194,10 +190,10 @@ export function WorkspaceSetupDefaultsPane({ setup, defaults }: WorkspaceSetupDe
         </Field>
 
         <Field>
-          <FieldContent>
+          <FieldHeader>
             <FieldLabel htmlFor="workspace-setup-add-dir">Additional directories</FieldLabel>
-            <FieldDescription>Extra roots sessions may read.</FieldDescription>
-          </FieldContent>
+            <HelpTip label="About additional directories">Extra roots sessions may read.</HelpTip>
+          </FieldHeader>
           <div className="flex items-center gap-2">
             <Input
               className="font-mono"

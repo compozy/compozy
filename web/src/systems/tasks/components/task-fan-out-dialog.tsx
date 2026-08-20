@@ -10,8 +10,9 @@ import {
   DialogTitle,
   dialogShellClass,
   Field,
-  FieldDescription,
+  FieldHeader,
   FieldLabel,
+  HelpTip,
   Spinner,
   Textarea,
 } from "@compozy/ui";
@@ -80,10 +81,12 @@ export function TaskFanOutDialog({
             ) : null}
 
             <Field>
-              <FieldLabel htmlFor="tasks-fan-out-designations">Assignments</FieldLabel>
-              <FieldDescription>
-                One line per run. Each line is injected as that worker's assignment brief.
-              </FieldDescription>
+              <FieldHeader>
+                <FieldLabel htmlFor="tasks-fan-out-designations">Assignments</FieldLabel>
+                <HelpTip label="About assignments">
+                  One line per run. Each line is injected as that worker&apos;s assignment brief.
+                </HelpTip>
+              </FieldHeader>
               <Textarea
                 data-testid="tasks-fan-out-designations"
                 id="tasks-fan-out-designations"

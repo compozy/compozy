@@ -6,7 +6,7 @@ persona: Dora
 journey: J-complete-web-bridge-setup
 expected: Opening Edit bridge shows platform, extension, and scope as readable locked identity — never as disabled inputs — because the update contract omits them. Simple carries the display name and DM policy. Advanced adds credential rotation (presence plus the stored vault reference, never a value), routing, delivery defaults, the provider-config JSON, and the delivery test. Save stays inert until something actually changes: reformatting the provider-config JSON without changing the object does not enable it, while a typed rotation does. Saving commits the PATCH and any typed rotation through the same single primary. The delivery test is reachable only from Advanced — the standalone check/send dialogs are gone. From the bridge detail, one "Test delivery" button opens the editor already in Advanced. The dry run resolves a target with no provider side effect; the real send needs a message and an enabled bridge, and says so when the bridge is disabled. An indeterminate provider result is reported as such rather than as success.
 entry_points: web desktop shell → Bridges → bridge detail → Edit bridge, or bridge detail → Test delivery
-qa_status: blocked-verify
+qa_status: untested
 bug_ids:
 fix_status:
 retest_status:
@@ -27,3 +27,5 @@ src: web/src/systems/bridges/components/bridge-edit-dialog.tsx; web/src/systems/
 QA impact 2026-07-28: dry runs now receive the bridge rendered by the current route instead of
 retaining the previously viewed bridge. Retest an A-to-B route transition before submitting.
 Status remains untested; no QA replay ran.
+
+2026-08-20 qa-impact: Simple/Advanced sits on a recessed `--color-canvas-tint` chrome strip against the `--color-canvas-soft` shell. Reset to untested.

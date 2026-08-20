@@ -30,7 +30,7 @@ export function DesktopLayoutThumbnail({
             key={window.id}
             className={cn(
               "absolute min-h-px min-w-px rounded-xs border border-line-strong bg-elevated",
-              window.placement === "floating" && "shadow-elevated"
+              window.placement === "floating" && "shadow-shell-plate"
             )}
             style={thumbnailStyle(window.rect, workArea)}
           />

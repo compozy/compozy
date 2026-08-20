@@ -1,6 +1,16 @@
 import { Lock } from "lucide-react";
 
-import { Dialog, DialogContent, DialogTitle, Icon, Logo, Pill, cn } from "@compozy/ui";
+import {
+  Dialog,
+  DialogContent,
+  DialogTitle,
+  FieldHeader,
+  HelpTip,
+  Icon,
+  Logo,
+  Pill,
+  cn,
+} from "@compozy/ui";
 
 import type { OnboardingWizardApi } from "../hooks/use-onboarding-wizard";
 import { useSetupBodyHeight } from "../hooks/use-setup-body-height";
@@ -72,7 +82,7 @@ export function OnboardingSetupFrame({ wizard }: OnboardingSetupFrameProps) {
             size="md"
             tone="neutral"
             className="flex-none gap-1.5 border border-line bg-transparent text-subtle"
-            title="The daemon runs on this machine — no account, no upload."
+            title="CompozyOS runs on this machine — no account, no upload."
           >
             <Icon as={Lock} size="sm" aria-hidden="true" />
             Runs locally
@@ -97,12 +107,17 @@ export function OnboardingSetupFrame({ wizard }: OnboardingSetupFrameProps) {
         >
           <div key={wizard.step} className="onboarding-setup-pane-in">
             <div ref={measureRef} className="flex flex-col px-6 pt-5.5 pb-6.5 max-md:px-4">
-              <h3 className="text-compact-h1 font-semibold tracking-compact-h1 text-fg-strong">
-                {wizard.meta.title}
-              </h3>
-              <p className="mt-1.75 max-w-[64ch] text-small-body leading-5 text-muted">
-                {wizard.meta.lead}
-              </p>
+              <FieldHeader>
+                <h3 className="text-compact-h1 font-semibold tracking-compact-h1 text-fg-strong">
+                  {wizard.meta.title}
+                </h3>
+                <HelpTip
+                  data-testid={wizard.step === 2 ? "onboarding-workspace-help" : undefined}
+                  label={wizard.meta.helpLabel}
+                >
+                  {wizard.meta.help}
+                </HelpTip>
+              </FieldHeader>
               {wizard.step === 1 ? (
                 <StepDefaultModel model={wizard.defaultModel} />
               ) : (

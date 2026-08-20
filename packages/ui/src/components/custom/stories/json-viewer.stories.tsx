@@ -10,7 +10,7 @@ const meta: Meta<typeof JsonViewer> = {
     docs: {
       description: {
         component:
-          "Structured JSON viewer. Pretty-prints with 2-space indent and tokenises into `key`/`string`/`number`/`boolean`/`null`/`punct` spans coloured with the Compozy signal palette. Use for inspector payloads and wire-card bodies.",
+          "Structured JSON viewer. Pretty-prints with 2-space indent and tokenises into `key`/`string`/`number`/`boolean`/`null`/`punct` spans coloured with the Compozy signal palette. Use for inspector payloads and raw record bodies.",
       },
     },
   },

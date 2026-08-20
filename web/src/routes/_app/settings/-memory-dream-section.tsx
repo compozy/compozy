@@ -33,7 +33,7 @@ function renderDreamSection({
   return (
     <SettingsGroup
       title="Memory dreaming"
-      description="background recall-signal scoring + curated promotion"
+      help="background recall-signal scoring + curated promotion"
       action={
         <Button
           type="button"
@@ -51,7 +51,7 @@ function renderDreamSection({
       <SettingsFieldRow
         data-testid={`${TEST_PREFIX}-dream-min-hours`}
         label="Min idle hours"
-        description="Wait at least this many hours since the last dream run"
+        help="Wait at least this many hours since the last dream run"
         error={validationErrors.dreamMinHours ?? undefined}
         control={
           <SettingsDecimalInput
@@ -76,7 +76,7 @@ function renderDreamSection({
       <SettingsFieldRow
         data-testid={`${TEST_PREFIX}-dream-min-sessions`}
         label="Min sessions"
-        description="Sessions required since the last dream run"
+        help="Sessions required since the last dream run"
         error={validationErrors.dreamMinSessions ?? undefined}
         control={
           <SettingsNumberInput
@@ -100,7 +100,7 @@ function renderDreamSection({
       <SettingsFieldRow
         data-testid={`${TEST_PREFIX}-dream-debounce`}
         label="Debounce"
-        description="Anti-thrash debounce after a no-op tick"
+        help="Anti-thrash debounce after a no-op tick"
         control={
           <Input
             className="w-32 font-mono"
@@ -119,7 +119,7 @@ function renderDreamSection({
       <SettingsFieldRow
         data-testid={`${TEST_PREFIX}-dream-check-interval`}
         label="Check interval"
-        description="How often the dreaming runtime evaluates idle gates"
+        help="How often the dreaming runtime evaluates idle gates"
         control={
           <Input
             className="w-32 font-mono"
@@ -141,7 +141,7 @@ function renderDreamSection({
       <SettingsFieldRow
         data-testid={`${TEST_PREFIX}-dream-prompt-version`}
         label="Prompt version"
-        description="Pinned dreaming-prompt revision; bumping invalidates idempotency keys"
+        help="Pinned dreaming-prompt revision; bumping invalidates idempotency keys"
         control={
           <Input
             className="w-32 font-mono"
@@ -163,7 +163,7 @@ function renderDreamSection({
       <SettingsFieldRow
         data-testid={`${TEST_PREFIX}-dream-gate-min-unpromoted`}
         label="Gate · min unpromoted"
-        description="Recall-signal candidates that must be unpromoted to start a run"
+        help="Recall-signal candidates that must be unpromoted to start a run"
         error={validationErrors.dreamGateMinUnpromoted ?? undefined}
         control={
           <SettingsNumberInput
@@ -190,7 +190,7 @@ function renderDreamSection({
       <SettingsFieldRow
         data-testid={`${TEST_PREFIX}-dream-gate-min-recall-count`}
         label="Gate · min recall count"
-        description="Recall events per candidate required to qualify"
+        help="Recall events per candidate required to qualify"
         error={validationErrors.dreamGateMinRecallCount ?? undefined}
         control={
           <SettingsNumberInput
@@ -217,7 +217,7 @@ function renderDreamSection({
       <SettingsFieldRow
         data-testid={`${TEST_PREFIX}-dream-gate-min-score`}
         label="Gate · min score"
-        description="Promotion score threshold (0-1)"
+        help="Promotion score threshold (0-1)"
         error={validationErrors.dreamGateMinScore ?? undefined}
         control={
           <SettingsDecimalInput
@@ -243,7 +243,7 @@ function renderDreamSection({
       <SettingsFieldRow
         data-testid={`${TEST_PREFIX}-dream-scoring-recency-half-life`}
         label="Scoring · recency half-life (days)"
-        description="Half-life applied to the recency component"
+        help="Half-life applied to the recency component"
         error={validationErrors.dreamScoringHalfLife ?? undefined}
         control={
           <SettingsNumberInput

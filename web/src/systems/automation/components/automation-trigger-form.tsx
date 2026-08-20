@@ -7,7 +7,6 @@ import {
   Button,
   EntityDialogBody,
   EntityDialogFooter,
-  EntityDialogToolbar,
   Field,
   FieldLabel,
   FormSection,
@@ -85,17 +84,6 @@ export function AutomationTriggerForm({
       data-testid="automation-trigger-form"
       onSubmit={form.handleSubmit}
     >
-      <EntityDialogToolbar
-        trailing={
-          <WorkspaceScopeStatement
-            destination={destination}
-            kind={mode === "edit" ? "edit" : "create"}
-            scope={scope}
-            variant="chip"
-          />
-        }
-      />
-
       <EntityDialogBody data-testid="automation-trigger-form-body">
         {view === "preview" ? (
           <TriggerPreview preview={form.preview} />
@@ -208,12 +196,12 @@ export function AutomationTriggerForm({
 
       <EntityDialogFooter
         hint={
-          submitError ? undefined : (
-            <>
-              Created as a <b className="font-medium text-muted">dynamic</b> trigger: editable and
-              deletable anytime.
-            </>
-          )
+          <WorkspaceScopeStatement
+            destination={destination}
+            kind={mode === "edit" ? "edit" : "create"}
+            scope={scope}
+            variant="note"
+          />
         }
         isSaving={isPending}
         leading={

@@ -139,9 +139,8 @@ export function useTaskCreateState(
             try {
               await enqueueMutation.mutateAsync({ id: created.id });
             } catch (runError) {
-              const message =
-                runError instanceof Error ? runError.message : "Failed to enqueue first run";
-              toast.error(`Task created, but enqueue failed: ${message}`);
+              console.error("Failed to enqueue the first task run", runError);
+              toast.error("Task created, but its first run didn't start.");
             }
           }
 
@@ -155,11 +154,15 @@ export function useTaskCreateState(
 
           return created;
         } catch (error) {
-          toast.error(error instanceof Error ? error.message : "Failed to create task");
+          console.error("Failed to create task", error);
+          toast.error("Couldn't create the task.");
           return null;
         }
       },
-      error => toast.error(error instanceof Error ? error.message : "Failed to create task")
+      error => {
+        console.error("Failed to create task", error);
+        toast.error("Couldn't create the task.");
+      }
     );
   };
 

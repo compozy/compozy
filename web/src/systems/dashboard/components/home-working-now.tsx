@@ -126,9 +126,9 @@ export function HomeWorkingNow({
       {status === "error" ? (
         <Empty
           data-slot="home-working-now-error"
-          description={errorMessage ?? "The daemon did not return active work."}
+          description={errorMessage ?? "Try again in a moment."}
           icon={AlertTriangle}
-          title="Unable to load live work"
+          title="Couldn't load live work"
         />
       ) : status === "loading" && cards.length === 0 ? (
         <Surface data-slot="home-working-now-loading">

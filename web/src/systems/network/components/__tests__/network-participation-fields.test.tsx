@@ -2,6 +2,8 @@ import { fireEvent, render, screen } from "@testing-library/react";
 import { useState } from "react";
 import { describe, expect, it } from "vitest";
 
+import { UIProvider } from "@compozy/ui";
+
 import type {
   NetworkParticipationDraft,
   NetworkParticipationStrategy,
@@ -27,7 +29,11 @@ function renderFields(
     );
   }
 
-  return render(<Harness />);
+  return render(
+    <UIProvider reducedMotion="always">
+      <Harness />
+    </UIProvider>
+  );
 }
 
 describe("NetworkParticipationFields", () => {

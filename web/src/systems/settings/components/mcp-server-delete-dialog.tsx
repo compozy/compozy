@@ -65,7 +65,7 @@ export function MCPServerDeleteDialog({
                   <SettingsSourceBadge source={shadowed[0]} />
                 </div>
                 <span>
-                  Lower-precedence definitions remain on disk and become the next source the daemon
+                  Lower-precedence definitions remain on disk and become the next source CompozyOS
                   reads at restart.
                 </span>
               </div>

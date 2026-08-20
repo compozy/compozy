@@ -30,7 +30,7 @@ export function askFields(_raw: RawLoopNode): FieldSpec[] {
       path: ["params", "expect"],
       json: true,
       required: true,
-      hint: "JSON Schema the answer must satisfy. The run page renders its form from this shape, and the daemon rejects an answer that does not match.",
+      hint: "JSON Schema the answer must satisfy. The run page renders its form from this shape, and an answer that does not match is rejected.",
     },
     {
       type: "switch",

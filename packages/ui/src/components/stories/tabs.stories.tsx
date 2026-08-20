@@ -10,7 +10,7 @@ const meta: Meta<typeof Tabs> = {
     docs: {
       description: {
         component:
-          "Page-head filter row. Triggers are separated by a `·` glyph; counts render inline as bare 10.5px mono `--faint` (no chip). Segmented-control surfaces use `<PillGroup>` instead.",
+          "Page-head filter row. Counts use 11px sans with tabular numerals in compact neutral chips. Segmented-control surfaces use `<PillGroup>` instead.",
       },
     },
   },
@@ -43,7 +43,7 @@ export const Default: Story = {
     docs: {
       description: {
         story:
-          "Default lane row — Triggers separated by `·`; counts render inline as bare 10.5px mono `--faint` (no chip).",
+          "Default lane row with 11px sans counts, tabular numerals, and compact neutral chips.",
       },
     },
   },

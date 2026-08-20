@@ -23,7 +23,7 @@ const FIXTURE_TASKS = [
   buildTaskFixture({
     id: "task_b",
     status: "ready",
-    title: "Wire daemon /healthz to status footer",
+    title: "Wire /healthz to status footer",
     priority: "medium",
   }),
   buildTaskFixture({
@@ -188,7 +188,7 @@ export const Empty: Story = {
 
 export const ErrorState: Story = {
   args: {},
-  render: () => <Stateful tasks={[]} errorMessage="Daemon unreachable on /api/tasks." />,
+  render: () => <Stateful tasks={[]} errorMessage="CompozyOS unreachable on /api/tasks." />,
 };
 
 export const SingleGroup: Story = {

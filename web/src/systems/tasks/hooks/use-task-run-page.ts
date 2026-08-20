@@ -81,7 +81,8 @@ function useTaskRunPage(taskId: string, runId: string, options: UseTaskRunPageOp
       await cancelMutation.mutateAsync({ runId });
       toast.success("Run canceled.");
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Failed to cancel run");
+      console.error("Failed to cancel task run", error);
+      toast.error("Couldn't cancel this run.");
     }
   };
 
@@ -94,7 +95,8 @@ function useTaskRunPage(taskId: string, runId: string, options: UseTaskRunPageOp
       });
       toast.success("Run released.");
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Failed to release run");
+      console.error("Failed to release task run", error);
+      toast.error("Couldn't release this run.");
     }
   };
 
@@ -104,7 +106,8 @@ function useTaskRunPage(taskId: string, runId: string, options: UseTaskRunPageOp
       await forceFailMutation.mutateAsync({ runId, data: { reason: reason.trim() } });
       toast.success("Run failed.");
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Failed to fail run");
+      console.error("Failed to force-fail task run", error);
+      toast.error("Couldn't mark this run as failed.");
     }
   };
 
@@ -117,7 +120,8 @@ function useTaskRunPage(taskId: string, runId: string, options: UseTaskRunPageOp
       await retryMutation.mutateAsync({ runId });
       toast.success("Retry queued.");
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Failed to retry run");
+      console.error("Failed to retry task run", error);
+      toast.error("Couldn't queue a retry.");
     }
   };
 
@@ -130,7 +134,8 @@ function useTaskRunPage(taskId: string, runId: string, options: UseTaskRunPageOp
       await recoverMutation.mutateAsync({ runId, taskId: authoritativeTaskId });
       toast.success("Run recovered.");
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Failed to recover run");
+      console.error("Failed to recover task run", error);
+      toast.error("Couldn't recover this run.");
     }
   };
 

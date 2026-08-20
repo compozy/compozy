@@ -1,4 +1,4 @@
-import { Bell, ChevronsUpDown, Settings } from "lucide-react";
+import { Bell, ChevronsUpDown, Command, Settings } from "lucide-react";
 
 import { Icon, Logo, Menubar, MenubarTrigger } from "@compozy/ui";
 
@@ -12,7 +12,7 @@ import { cn } from "@/lib/utils";
  * The mark and the workspace chip are separate `role="menubar"`s so the globe
  * toggle can sit between them without becoming a menu item. App menus follow
  * in a third menubar. Compact chrome can hide Session/Go/Window/Help without
- * losing mark + toggle + chip. The bell, the ⌘K chip, and the settings cog
+ * losing mark + toggle + chip. The bell, the palette button, and the settings cog
  * stay outside all three: they are controls, not menus.
  *
  * The shell owns the menus themselves; a control renders as a real trigger only
@@ -251,16 +251,17 @@ export function OsMenuBar({
             <Icon as={Bell} size="lg" />
             {notifications ? <NotificationBadge count={notifications} /> : null}
           </Control>
-          {commandShortcutLabel ? (
-            <Control
-              data-slot="os-menubar-command"
-              title="Command palette"
-              className="flex h-menubar-chip items-center rounded-md border border-line px-2.5 font-mono text-eyebrow text-muted"
-              onClick={onCommandClick}
-            >
-              {commandShortcutLabel}
-            </Control>
-          ) : null}
+          <Control
+            data-slot="os-menubar-command"
+            aria-label="Command palette"
+            title={
+              commandShortcutLabel ? `Command palette · ${commandShortcutLabel}` : "Command palette"
+            }
+            className="grid size-7 place-items-center rounded-md text-muted"
+            onClick={onCommandClick}
+          >
+            <Icon as={Command} size="lg" />
+          </Control>
           <Control
             data-slot="os-menubar-settings"
             aria-label="Settings"

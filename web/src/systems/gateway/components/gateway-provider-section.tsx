@@ -75,7 +75,7 @@ export function GatewayProviderSection({
         <Empty
           className="py-8"
           data-testid="gateway-provider-empty"
-          description="Install a connectivity provider in Settings → Extensions before exposing the daemon remotely."
+          description="Install a connectivity provider in Settings → Extensions before exposing this machine remotely."
           title="No connectivity provider installed"
         />
       ) : null}

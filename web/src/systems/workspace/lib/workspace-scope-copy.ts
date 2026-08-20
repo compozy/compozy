@@ -7,13 +7,10 @@ export const GLOBAL_SCOPE_COPY = {
   tooltipPickWorkspace: "Pick a workspace to scope down",
   liveOn: "Global scope on",
   liveOff: "Global scope off",
-  rememberedWorkspaceRemoved:
-    "The remembered workspace was removed — pick a workspace to leave Global scope",
   paletteToggleOn: "Turn on Global scope",
   paletteToggleOff: "Turn off Global scope",
   paletteSwitchTurnsOff: "turns Global scope off",
   skipOnboarding: "Skip",
-  skipOnboardingHint: "Start in Global scope — your home folder, ~. Add project folders any time.",
 } as const;
 
 export function globalScopeTooltipOn(workspaceName: string): string {

@@ -11,7 +11,7 @@ import type { PillTone } from "./pill";
 export interface StatusLineItem {
   /** Stable identity used when items reorder or filter. */
   key: React.Key;
-  /** Optional structural prefix rendered as an `<Eyebrow>` (uppercase). */
+  /** Optional structural prefix rendered as an `<Eyebrow>` (sentence case). */
   label?: string;
   /** Item content (count, identifier, short message). */
   value: React.ReactNode;

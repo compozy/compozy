@@ -31,14 +31,6 @@
   --font-mono:
     var(--font-jetbrains-mono), "JetBrains Mono Variable", "JetBrains Mono", "Courier New",
     monospace;
-  --text-eyebrow: 0.6875rem;
-  --text-eyebrow--line-height: 1rem;
-  --text-display-2xl: 1.75rem;
-  --text-display-2xl--line-height: 1;
-  --text-site-lead: 1.1875rem;
-  --text-site-lead--line-height: 1.5;
-  --text-micro: 0.65625rem;
-  --text-micro--line-height: 0.75rem;
   --text-inline-code: 0.9em;
   --text-accent-glyph: 0.85em;
   --text-ui-title-lg: 1.35rem;
@@ -85,11 +77,10 @@
   --text-site-bento-xs: 1.65rem;
   --leading-small-body: var(--text-small-body--line-height);
   --leading-doc-body: 1.8;
-  --tracking-badge: var(--tracking-badge);
   --radius-chip: var(--radius-chip);
   --radius-mono-badge: var(--radius-mono-badge);
   --radius-diagram: var(--radius-xl);
-  --radius-icon-well: 0.625rem;
+  --radius-icon-well: 0.75rem;
   --container-site-layout-width: var(--site-layout-width);
   --spacing-site-doc-sidebar-section-label-offset: var(--site-doc-sidebar-section-label-offset);
   --spacing-site-doc-sidebar-group-gap: var(--site-doc-sidebar-group-gap);
@@ -206,22 +197,22 @@
  * single warm accent #E8572A.
  */
 .dark {
-  --color-fd-background: #141312;
-  --color-fd-foreground: #e5e5e7;
-  --color-fd-muted: #1e1c1b;
-  --color-fd-muted-foreground: #8e8e93;
-  --color-fd-popover: #2e2c2b;
-  --color-fd-popover-foreground: #e5e5e7;
-  --color-fd-card: #1e1c1b;
-  --color-fd-card-foreground: #e5e5e7;
-  --color-fd-border: #3c3a39;
-  --color-fd-primary: #e8572a;
+  --color-fd-background: var(--color-canvas);
+  --color-fd-foreground: var(--color-fg);
+  --color-fd-muted: var(--color-canvas-soft);
+  --color-fd-muted-foreground: var(--color-muted);
+  --color-fd-popover: var(--color-elevated);
+  --color-fd-popover-foreground: var(--color-fg);
+  --color-fd-card: var(--color-canvas-soft);
+  --color-fd-card-foreground: var(--color-fg);
+  --color-fd-border: var(--color-line);
+  --color-fd-primary: var(--color-accent);
   --color-fd-primary-foreground: #ffffff;
-  --color-fd-secondary: #1e1c1b;
-  --color-fd-secondary-foreground: #e5e5e7;
-  --color-fd-accent: #2e2c2b;
-  --color-fd-accent-foreground: #e5e5e7;
-  --color-fd-ring: #e8572a;
+  --color-fd-secondary: var(--color-canvas-soft);
+  --color-fd-secondary-foreground: var(--color-fg);
+  --color-fd-accent: var(--color-elevated);
+  --color-fd-accent-foreground: var(--color-fg);
+  --color-fd-ring: var(--color-accent);
   --color-fd-info: var(--color-info);
   --color-fd-warning: var(--color-warning);
   --color-fd-error: var(--color-danger);
@@ -241,9 +232,9 @@ body:has(.site-home) .bg-fd-secondary\/50.p-3 {
 
 /* neutral.css ships a sidebar-specific override; realign it to DESIGN.md. */
 .dark #nd-sidebar {
-  --color-fd-muted: #1e1c1b;
-  --color-fd-secondary: #1e1c1b;
-  --color-fd-muted-foreground: #8e8e93;
+  --color-fd-muted: var(--color-canvas-soft);
+  --color-fd-secondary: var(--color-canvas-soft);
+  --color-fd-muted-foreground: var(--color-muted);
 }
 
 body {

@@ -368,9 +368,7 @@ export function BridgeSetupChecklist(props: BridgeSetupChecklistProps) {
 
       {projection.globalChecks.length > 0 ? (
         <div className="mt-4" data-testid="bridge-global-checks">
-          <p className="mb-2 text-eyebrow uppercase tracking-mono text-muted">
-            General verification checks
-          </p>
+          <p className="eyebrow mb-2 text-muted">General verification checks</p>
           <ItemGroup className="gap-2">
             {projection.globalChecks.map(check => (
               <GeneralCheck check={check} key={check.check} />

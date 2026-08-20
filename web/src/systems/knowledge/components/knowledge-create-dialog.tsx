@@ -11,9 +11,10 @@ import {
   Eyebrow,
   Field,
   FieldContent,
-  FieldDescription,
+  FieldHeader,
   FieldLabel,
   FormSection,
+  HelpTip,
   Input,
   RadioCard,
   Textarea,
@@ -135,10 +136,7 @@ function KnowledgeCreateDialog({
           title="Create knowledge entry"
         />
         <EntityDialogBody className="flex flex-col">
-          <FormSection
-            description="The form decides how agents consume it."
-            title="What kind of knowledge?"
-          >
+          <FormSection title="What kind of knowledge?">
             <div
               aria-label="Knowledge type"
               className="grid grid-cols-1 gap-2 sm:grid-cols-2"
@@ -158,10 +156,7 @@ function KnowledgeCreateDialog({
               ))}
             </div>
           </FormSection>
-          <FormSection
-            description="A stable name and a retrieval-friendly description help agents find it."
-            title="The content"
-          >
+          <FormSection title="The content">
             <div className="flex flex-col gap-4">
               <Field>
                 <FieldContent>
@@ -180,10 +175,10 @@ function KnowledgeCreateDialog({
                 />
               </Field>
               <Field>
-                <FieldContent>
+                <FieldHeader>
                   <FieldLabel htmlFor="knowledge-create-description">Description</FieldLabel>
-                  <FieldDescription>What should retrieval match?</FieldDescription>
-                </FieldContent>
+                  <HelpTip label="About description">What should retrieval match?</HelpTip>
+                </FieldHeader>
                 <Input
                   data-testid="knowledge-create-description"
                   id="knowledge-create-description"

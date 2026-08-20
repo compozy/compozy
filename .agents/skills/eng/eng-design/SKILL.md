@@ -26,7 +26,7 @@ Use the canonical visual authorities before making Compozy design decisions.
   neutral at rest.
 - Flat depth model; use `--shadow-overlay` for overlays and `--shadow-highlight` for active rims.
 - Pull values from `--color-*`, `--text-*`, `--radius-*`, `--duration-*`, and `--shadow-*` tokens; do not hardcode production hex or one-off sizes.
-- `<Eyebrow>` is the only uppercase label contract; do not inline typography tuples for labels.
+- `<Eyebrow>` is the only structural label contract — sentence case by default, uppercase only via `variant="caps"`; do not inline typography tuples for labels.
 - See `DESIGN.md` section 10 for the anti-pattern list and lint/test guardrails.
 
 ## Named visual contracts

@@ -63,12 +63,12 @@ export function OsAboutDialog({ open, onOpenChange }: OsAboutDialogProps) {
         <div className="min-h-0 flex-1 overflow-y-auto px-5 py-4">
           {daemon.isPending ? (
             <p className="text-small-body text-muted" role="status">
-              Reading daemon status…
+              Reading CompozyOS status…
             </p>
           ) : null}
           {daemon.isError ? (
             <p className="text-small-body text-danger" role="status">
-              Daemon status is unavailable. The desktop keeps running on its last snapshot.
+              CompozyOS status is unavailable. The desktop keeps running on its last snapshot.
             </p>
           ) : null}
           {rows.length > 0 ? (

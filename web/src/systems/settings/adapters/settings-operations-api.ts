@@ -30,11 +30,11 @@ export async function triggerSettingsRestart(
   });
   if (apiRequestFailed(response, error)) {
     throw new SettingsApiError(
-      defaultApiErrorMessage("Failed to trigger daemon restart", response, error),
+      defaultApiErrorMessage("Failed to restart CompozyOS", response, error),
       response.status
     );
   }
-  return requireResponseData(data, response, "Failed to trigger daemon restart");
+  return requireResponseData(data, response, "Failed to restart CompozyOS");
 }
 
 export async function reloadSettings(signal?: AbortSignal): Promise<SettingsApplyResponse> {

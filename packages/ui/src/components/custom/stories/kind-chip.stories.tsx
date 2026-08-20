@@ -10,7 +10,7 @@ const meta: Meta<typeof KindChip> = {
     docs: {
       description: {
         component:
-          "Protocol kind marker — transparent surface, neutral border, mono UPPERCASE label, leading colored dot keyed off the protocol-kind registry (`--color-kind-say|greet|direct|receipt|capability|trace|whois`). Unknown kinds render without a dot unless `dotColor` is explicit.",
+          "Protocol kind marker — neutral tinted pill, sans label, leading colored dot keyed off the protocol-kind registry (`--color-kind-say|greet|direct|receipt|capability|trace|whois`). Unknown kinds render without a dot unless `dotColor` is explicit. Wrap the label in `<MonoId>` when the kind is a raw identifier the reader must match character by character.",
       },
     },
   },

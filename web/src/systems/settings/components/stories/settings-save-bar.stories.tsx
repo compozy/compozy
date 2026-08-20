@@ -54,7 +54,7 @@ export const Invalid: Story = {
 export const WithError: Story = {
   args: {
     slug: "general",
-    state: { kind: "error", message: "Could not reach the daemon" },
+    state: { kind: "error", message: "Could not reach CompozyOS" },
     onSave: fn(),
     onReset: fn(),
   },

@@ -1,4 +1,5 @@
 import type * as React from "react";
+import { Kbd } from "@compozy/ui";
 import { fn } from "storybook/test";
 
 import { OsDockZone, type OsDockEntry, type OsDockItemData } from "../os-dock";
@@ -117,9 +118,7 @@ export function DesktopShell({
             className="pointer-events-none absolute inset-0 z-[1] flex items-center justify-center text-small-body text-muted"
           >
             <span className="inline-flex items-center gap-2">
-              <kbd className="rounded-sm border border-line bg-elevated px-1.5 py-0.5 font-mono text-eyebrow text-subtle">
-                ⌘K
-              </kbd>
+              <Kbd>⌘K</Kbd>
               to open anything — or pick a surface from the dock
             </span>
           </p>

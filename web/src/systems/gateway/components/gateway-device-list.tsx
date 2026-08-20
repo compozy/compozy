@@ -52,7 +52,7 @@ export function GatewayDeviceList({
           description={
             onPair
               ? "Pair a device to reach CompozyOS from somewhere other than this machine."
-              : "Pair devices from this daemon's private address or from the daemon machine."
+              : "Pair devices from this machine's private address, or from the machine running CompozyOS."
           }
           title="No paired devices yet"
         />

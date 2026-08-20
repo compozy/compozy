@@ -9,7 +9,7 @@ function DockKey({ children, className, ...props }: React.ComponentProps<"kbd">)
   return (
     <kbd
       data-slot="dock-key"
-      className={cn("ml-[3px] font-mono text-[9px] text-current opacity-60", className)}
+      className={cn("ml-[3px] font-keys text-kbd text-current opacity-60", className)}
       {...props}
     >
       {children}

@@ -151,7 +151,7 @@ function markerLabel(marker: TranscriptMarkerPayload | null, event: AgentEventPa
   return marker?.kind || event.title || event.type;
 }
 
-/** Faint ×N mono count appended when consecutive same-kind events clustered. */
+/** Faint ×N tabular count appended when consecutive same-kind events clustered. */
 function ClusterCount({ count }: { count: number }) {
   if (count <= 1) return null;
   return <MarkerMeta data-testid="marker-cluster-count"> ×{count}</MarkerMeta>;
@@ -160,8 +160,8 @@ function ClusterCount({ count }: { count: number }) {
 /**
  * Runtime events as one-line markers — the calm replacement for the old tinted
  * Alert cards. Tone lives in the 12px glyph; the raw kind string renders as
- * faint mono meta, never as a pill; consecutive same-kind events arrive
- * pre-clustered with a ×N count.
+ * faint sans meta with tabular figures, never as a pill; consecutive same-kind
+ * events arrive pre-clustered with a ×N count.
  */
 export function RuntimeActivityNotice({
   event,

@@ -45,8 +45,13 @@ export function BridgeCreateSecretSlots({
       data-testid="bridge-create-section-credentials"
       description={
         declared.length > 0
-          ? "Values go straight to the vault — the bridge configuration stores only references, never plaintext."
+          ? undefined
           : "This provider declares no credential slots in its manifest."
+      }
+      help={
+        declared.length > 0
+          ? "Values go straight to the vault — the bridge configuration stores only references, never plaintext."
+          : undefined
       }
       icon={KeyRound}
       title="Credentials"

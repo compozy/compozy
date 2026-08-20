@@ -57,6 +57,22 @@ describe("Section", () => {
     expect(container.querySelector('[data-slot="section-label"]')?.textContent).toBe("0");
   });
 
+  // KEEP: DESIGN.md §3 — Section's heading is a sentence-case structural title, not an eyebrow.
+  it("Should render the label as a sentence-case title and the count chip in sans tabular figures", () => {
+    const { container } = render(
+      <Section label="Members" count={12}>
+        body
+      </Section>
+    );
+    const label = container.querySelector('[data-slot="section-label"]');
+    const count = container.querySelector('[data-slot="section-count"]');
+
+    expect(label?.className).toContain("text-item-title");
+    expect(label?.className).not.toContain("uppercase");
+    expect(count?.className).toContain("tabular-nums");
+    expect(count?.className).not.toContain("font-mono");
+  });
+
   it("Should expose data-bordered=null when bordered is not set", () => {
     const { container } = render(<Section label="Members">body</Section>);
     const head = container.querySelector('[data-slot="section-head"]');

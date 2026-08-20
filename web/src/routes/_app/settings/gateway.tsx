@@ -5,7 +5,7 @@ import { createOsRouteSync } from "@/systems/os";
 
 export const Route = createFileRoute("/_app/settings/gateway")({
   beforeLoad: (): { topbar: TopbarRouteContext } => ({
-    topbar: { crumb: { label: "Gateway" } },
+    topbar: { crumb: { label: "Remote access" } },
   }),
   component: createOsRouteSync("settings"),
 });

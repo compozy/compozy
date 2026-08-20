@@ -52,7 +52,7 @@ function Receipt({ tone = "neutral", icon, children, className, ...props }: Rece
         className={cn(
           "min-w-0 truncate",
           "[&_b]:font-medium [&_b]:text-muted [&_strong]:font-medium [&_strong]:text-muted",
-          "[&_code]:font-mono [&_code]:text-transcript-caption [&_code]:text-muted"
+          "[&_code]:font-mono [&_code]:text-transcript-body [&_code]:text-muted"
         )}
       >
         {children}

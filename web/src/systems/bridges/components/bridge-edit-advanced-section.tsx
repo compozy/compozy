@@ -2,10 +2,10 @@ import { KeyRound, Waypoints } from "lucide-react";
 
 import {
   Field,
-  FieldContent,
-  FieldDescription,
+  FieldHeader,
   FieldTitle,
   FormSection,
+  HelpTip,
   SecretField,
   Textarea,
 } from "@compozy/ui";
@@ -61,7 +61,7 @@ export function BridgeEditAdvancedSection({
       {rotations.length > 0 && onRotationValueChange && onRotationEditingChange ? (
         <FormSection
           data-testid="bridge-edit-section-credentials"
-          description="Only presence is returned. Rotate a slot to send a new write-only value."
+          help="Only presence is returned. Rotate a slot to send a new write-only value."
           icon={KeyRound}
           title="Credentials"
         >
@@ -90,7 +90,6 @@ export function BridgeEditAdvancedSection({
 
       <FormSection
         data-testid="bridge-edit-section-routing"
-        description="Optional policies from the bridge update contract."
         icon={Waypoints}
         title="Routing & delivery"
       >
@@ -107,13 +106,13 @@ export function BridgeEditAdvancedSection({
         />
 
         <Field>
-          <FieldContent>
+          <FieldHeader>
             <FieldTitle>Provider configuration</FieldTitle>
-            <FieldDescription>
+            <HelpTip label="About provider configuration">
               Non-secret JSON for provider settings such as tenant identifiers or mode flags.{" "}
               {configSchema}
-            </FieldDescription>
-          </FieldContent>
+            </HelpTip>
+          </FieldHeader>
           <Textarea
             aria-invalid={Boolean(providerConfigError)}
             aria-label="Provider configuration JSON"

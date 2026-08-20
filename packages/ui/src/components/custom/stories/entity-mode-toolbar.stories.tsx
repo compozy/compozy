@@ -13,7 +13,7 @@ const meta: Meta<typeof EntityModeToolbar> = {
     docs: {
       description: {
         component:
-          "Simple/Advanced toolbar for entity editors. Advanced is the only disclosure tier and never hides a required field. The trailing slot stays domain-free — web surfaces pass a destination statement, not a scope picker.",
+          "Full-width Simple/Advanced chrome strip for entity editors. Recessed `--color-canvas-tint` against the dialog's `--color-canvas-soft` so the switcher reads as chrome, not as the first form row. Advanced is the only disclosure tier and never hides a required field. The trailing slot is compact status — workspace scope belongs in the footer hint.",
       },
     },
   },
@@ -48,9 +48,7 @@ function Harness({
         testIdPrefix="entity"
         trailing={
           withTrailing ? (
-            <span className="inline-flex h-7 items-center truncate rounded-md border border-line bg-canvas-tint px-2.5 text-form-hint text-muted">
-              Creates in alpha
-            </span>
+            <span className="font-mono text-form-label text-muted">overlay draft</span>
           ) : undefined
         }
       />

@@ -6,7 +6,12 @@ the overview or losing their display preferences.
 
 ```mermaid
 flowchart TD
-    E[Entry: Home dashboard] --> Z[Read seven ordered zones from observe overview]
+    E[Entry: Home dashboard] --> OV{Overview reports any work?}
+    OV -->|no work at all| ZI[One heading plus Start a session, Create a task, Browse the marketplace]
+    ZI --> ZS[Follow one start and produce the first work]
+    ZS --> ZE[True end: reload shows the seven zones and the zero state is gone for good]
+    ZI -.->|close without starting anything| ZA[Abandon: reload returns the same honest zero state and nothing was created]
+    OV -->|work exists| Z[Read seven ordered zones from observe overview]
     Z --> T{Attention item available?}
     T -->|approval| A[Approve or reject from Needs you]
     T -->|retryable failure| R[Retry the named run]
@@ -34,6 +39,9 @@ journey:
     - url: "GET /api/observe/overview over HTTP or UDS"
       origin: direct
   actions:
+    - step: 0
+      verb: "Open Home on a workspace where nothing has run yet"
+      expected_observable: "The seven zones give way to one heading and the three starts that actually exist; no zero-filled panels and no explainer paragraph"
     - step: 1
       verb: "Read each Home zone in order"
       expected_observable: "Attention, work, outcomes, usage, agents, activity, and system state render from persisted daemon data with truthful empty states"
@@ -49,12 +57,15 @@ journey:
   goal:
     observable: "The owner can act once, explain the result, and trust every displayed number and empty state"
     side_effects: [attention-action-settled, home-preferences-persisted, overview-refetched]
-  true_end_state: "After reload, the attention action remains settled, usage and System preferences remain selected, and structured overview data matches the rendered zones."
+  true_end_state: "After reload, the attention action remains settled, usage and System preferences remain selected, and structured overview data matches the rendered zones. On a workspace that started at zero, the first real start replaces the zero state with the seven zones and it never returns while work exists."
   exit:
     natural: "The owner starts a new session or leaves Home with no unresolved stale action."
   abandonment:
+    - at_step: 0
+      how: "Read the zero state, take none of the three starts, and close the window."
+      resume: "Return to Home; the same honest zero state renders and nothing was created by looking."
     - at_step: 2
       how: "Leave while an attention action is settling."
       resume: "Return to Home; the daemon-owned result, not optimistic UI, determines the row and count."
-  crosses: [observe-overview, tasks, runs, usage-ledger, web-dashboard, local-preferences, HTTP, UDS]
+  crosses: [observe-overview, tasks, runs, usage-ledger, web-dashboard, local-preferences, zero-inventory-first-run, session-create, marketplace, HTTP, UDS]
 ```

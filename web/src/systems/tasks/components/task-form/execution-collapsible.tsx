@@ -8,8 +8,9 @@ import {
   CollapsibleTrigger,
   Field,
   FieldContent,
-  FieldDescription,
+  FieldHeader,
   FieldTitle,
+  HelpTip,
   Switch,
 } from "@compozy/ui";
 
@@ -57,10 +58,12 @@ export function ExecutionCollapsible({
             onCheckedChange={onSaveAsDraft}
           />
           <FieldContent>
-            <FieldTitle>Save as draft</FieldTitle>
-            <FieldDescription>
-              Create the contract without enqueueing a run. Enqueue it later from the task.
-            </FieldDescription>
+            <FieldHeader>
+              <FieldTitle>Save as draft</FieldTitle>
+              <HelpTip label="About save as draft">
+                Create the contract without enqueueing a run. Enqueue it later from the task.
+              </HelpTip>
+            </FieldHeader>
           </FieldContent>
         </Field>
 
@@ -71,10 +74,12 @@ export function ExecutionCollapsible({
             onCheckedChange={onAutoEnqueue}
           />
           <FieldContent>
-            <FieldTitle>Auto-enqueue when ready</FieldTitle>
-            <FieldDescription>
-              Once dependencies resolve, queue a run automatically without manual action.
-            </FieldDescription>
+            <FieldHeader>
+              <FieldTitle>Auto-enqueue when ready</FieldTitle>
+              <HelpTip label="About auto-enqueue when ready">
+                Once dependencies resolve, queue a run automatically without manual action.
+              </HelpTip>
+            </FieldHeader>
           </FieldContent>
         </Field>
       </CollapsibleContent>

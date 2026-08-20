@@ -1,4 +1,4 @@
-import { Eyebrow, Field, FieldDescription, FieldLabel, Input, Textarea } from "@compozy/ui";
+import { Eyebrow, Field, FieldLabel, Input, Textarea } from "@compozy/ui";
 
 interface ContractSectionProps {
   title: string;
@@ -37,9 +37,6 @@ export function ContractSection({
 
       <Field>
         <FieldLabel htmlFor="task-description-input">Description</FieldLabel>
-        <FieldDescription>
-          Describe the expected outcome, constraints, and completion criteria.
-        </FieldDescription>
         <Textarea
           className="min-h-form-textarea"
           data-testid="task-description-input"

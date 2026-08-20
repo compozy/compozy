@@ -2,7 +2,6 @@ import { Cloud, MonitorSmartphone } from "lucide-react";
 
 import {
   Field,
-  FieldDescription,
   FieldError,
   FieldLabel,
   FormSection,
@@ -51,11 +50,7 @@ export function SandboxEditorSimpleSection({
 
   return (
     <>
-      <FormSection
-        data-testid="sandbox-editor-profile"
-        description="Safe defaults are enough for most agent sessions."
-        title="The profile"
-      >
+      <FormSection data-testid="sandbox-editor-profile" title="The profile">
         {isCreate ? (
           <Field data-invalid={Boolean(nameError)}>
             <FieldLabel htmlFor="sandbox-editor-name">
@@ -89,11 +84,7 @@ export function SandboxEditorSimpleSection({
 
       <FormSection
         data-testid="sandbox-editor-backend-section"
-        description={
-          isCreate
-            ? "The execution backend for sessions using this profile."
-            : "Switching backend applies to new sessions only."
-        }
+        help={!isCreate ? "Switching backend applies to new sessions only." : undefined}
         title="Where does it run?"
       >
         <div
@@ -147,7 +138,6 @@ export function SandboxEditorSimpleSection({
 
         <Field>
           <FieldLabel htmlFor="sandbox-editor-sync-mode">Workspace sync</FieldLabel>
-          <FieldDescription>How files move between the workspace and the sandbox.</FieldDescription>
           <NativeSelect
             data-testid="sandbox-editor-sync-mode"
             id="sandbox-editor-sync-mode"

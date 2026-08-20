@@ -12,7 +12,7 @@ export const EXTENSION_INSTALL_SOURCES: readonly {
   {
     value: "local_path",
     label: "Local path",
-    hint: "An absolute path to a built extension directory on this daemon's host.",
+    hint: "An absolute path to a built extension directory on the CompozyOS machine.",
     refLabel: "Directory path",
     refPlaceholder: "/Users/you/src/hello/dist/gen-a1b2c3",
   },
@@ -60,7 +60,7 @@ export function validateExtensionInstallForm(
 function validateLocalPath(ref: string): ExtensionInstallFieldError {
   const absolute = ref.startsWith("/") || /^[A-Za-z]:[\\/]/.test(ref);
   if (!absolute) {
-    return { ref: "Use an absolute path — the daemon resolves it on its own host." };
+    return { ref: "Use an absolute path on the CompozyOS machine." };
   }
   return {};
 }

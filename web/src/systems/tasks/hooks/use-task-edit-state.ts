@@ -71,11 +71,15 @@ export function useTaskEditState(
           onSaved();
           return true;
         } catch (error) {
-          toast.error(error instanceof Error ? error.message : "Failed to update task");
+          console.error("Failed to update task", error);
+          toast.error("Couldn't save your changes.");
           return null;
         }
       },
-      error => toast.error(error instanceof Error ? error.message : "Failed to update task")
+      error => {
+        console.error("Failed to update task", error);
+        toast.error("Couldn't save your changes.");
+      }
     );
 
   return {

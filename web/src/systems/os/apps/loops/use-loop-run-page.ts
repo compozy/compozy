@@ -234,7 +234,7 @@ export function useLoopRunPage(
             void navigate({ to: "/loop-runs/$runId", params: { runId: newRunId } });
             return;
           }
-          toast.error("The daemon accepted the request but returned no run");
+          toast.error("The request was accepted, but no run came back.");
         },
         onError: error =>
           toast.error(error instanceof Error ? error.message : "Failed to start a new run"),

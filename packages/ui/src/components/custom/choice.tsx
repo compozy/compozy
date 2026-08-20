@@ -47,7 +47,7 @@ function ChoiceKey({ children, className, ...props }: React.ComponentProps<"kbd"
       data-slot="choice-key"
       className={cn(
         "grid size-[18px] shrink-0 place-items-center rounded-xs border border-line",
-        "font-mono text-[10px] text-subtle tabular-nums",
+        "font-keys text-kbd text-subtle tabular-nums",
         className
       )}
       {...props}
@@ -62,7 +62,7 @@ function ChoiceHint({ children, className, ...props }: React.ComponentProps<"spa
   return (
     <span
       data-slot="choice-hint"
-      className={cn("ml-auto shrink-0 text-[11px] text-subtle", className)}
+      className={cn("ml-auto shrink-0 text-form-label text-subtle", className)}
       {...props}
     >
       {children}

@@ -1,8 +1,9 @@
 import {
   Field,
-  FieldDescription,
   FieldError,
+  FieldHeader,
   FieldLabel,
+  HelpTip,
   Input,
   NativeSelect,
   NativeSelectOption,
@@ -56,11 +57,13 @@ export function NetworkParticipationFields({
   return (
     <div {...props} className={cn("flex flex-col gap-3", className)} data-testid={testIdPrefix}>
       <Field>
-        <FieldLabel htmlFor={`${testIdPrefix}-mode`}>Network participation</FieldLabel>
-        <FieldDescription>
-          Local keeps the execution off the network. Live joins a channel explicitly — availability
-          settings never enroll executions.
-        </FieldDescription>
+        <FieldHeader>
+          <FieldLabel htmlFor={`${testIdPrefix}-mode`}>Network participation</FieldLabel>
+          <HelpTip label="About network participation">
+            Local keeps the execution off the network. Live joins a channel explicitly —
+            availability settings never enroll executions.
+          </HelpTip>
+        </FieldHeader>
         <NativeSelect
           disabled={disabled}
           id={`${testIdPrefix}-mode`}

@@ -1,9 +1,8 @@
-import { Kbd } from "@compozy/ui";
-
 import type { DesktopLayerModel, OsWinLayerModel } from "../hooks/use-os-win-layer";
 import { useWindowManagerGesturePreview } from "../hooks/use-window-manager-store";
 import type { LayoutProjection } from "../lib/window-manager-types";
 import type { DesktopTransitionIntent } from "../stores/window-manager-store";
+import { OsShortcutChords } from "./os-shortcut-chords";
 import { OsSnapOverlay } from "./os-snap-overlay";
 import { OsSnapSeamLayer, type SeamGestureHandlers } from "./os-snap-seam";
 import { OsWindow } from "./os-window";
@@ -112,8 +111,8 @@ function DesktopLayer({
           data-testid="os-desk-hint"
           className="pointer-events-none absolute top-1/2 left-1/2 flex -translate-x-1/2 -translate-y-1/2 items-center gap-2 text-small-body text-subtle select-none"
         >
-          {paletteShortcutLabel ? <Kbd>{paletteShortcutLabel}</Kbd> : null} to open anything — or
-          pick a surface from the dock
+          {paletteShortcutLabel ? <OsShortcutChords label={paletteShortcutLabel} /> : null} to open
+          anything — or pick a surface from the dock
         </p>
       ) : null}
       {model.frames.map(frame => (

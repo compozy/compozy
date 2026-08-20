@@ -62,12 +62,16 @@ export interface MarkerMetaProps extends React.ComponentProps<"span"> {
   children: React.ReactNode;
 }
 
-/** Faint mono meta inside a marker sentence — raw kind strings, ×N counts. */
+/**
+ * Faint meta inside a marker sentence — raw kind strings, ×N counts. Sans, so
+ * the transcript reads as language; wrap the child in `<MonoId>` when the
+ * reader has to match an identifier character by character.
+ */
 function MarkerMeta({ children, className, ...props }: MarkerMetaProps) {
   return (
     <span
       data-slot="marker-meta"
-      className={cn("font-mono text-badge text-faint", className)}
+      className={cn("text-transcript-body text-faint tabular-nums", className)}
       {...props}
     >
       {children}

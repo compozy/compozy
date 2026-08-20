@@ -45,7 +45,6 @@ function StreamMarkdownCode({
         code={code}
         language={rawLanguage || undefined}
         caption={rawLanguage ? (normalizedLanguage ?? rawLanguage) : undefined}
-        showPrompt={false}
         copyable
         density="compact"
         className="my-2"

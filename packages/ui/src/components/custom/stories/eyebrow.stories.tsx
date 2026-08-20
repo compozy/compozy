@@ -10,7 +10,7 @@ const meta: Meta<typeof Eyebrow> = {
     docs: {
       description: {
         component:
-          "Canonical eyebrow primitive — single Geist UC 11 px / 600 / -0.005em contract. The component is prop-less (children + className only); tone, size, case, and weight have been collapsed (/ §11, lesson L-022). Apply text-color utilities through `className` when a tone is needed (`text-muted`, `text-subtle`, `text-accent`, signal palette).",
+          'Canonical eyebrow primitive — Geist sentence case 12 px / 510 / -0.005em by default. `variant="caps"` is the only opt-in: the fixed uppercase kicker rendition (11 px / 600 / +0.06em — a size step down with positive tracking, because uppercase reads optically larger). Both renditions are utilities in tokens-runtime.css, so there is still one eyebrow source with no free parameters (lesson L-022). Tone stays collapsed; apply text-color utilities through `className` when a tone is needed (`text-muted`, `text-subtle`, `text-accent`, signal palette).',
       },
     },
   },
@@ -50,10 +50,29 @@ export const Tones: Story = {
     <div className="grid grid-cols-[160px_1fr] items-baseline gap-x-6 gap-y-3">
       {TONES.map(({ label, className }) => (
         <div key={label} className="contents">
-          <span className="text-[11px] text-subtle">{label}</span>
+          <span className="text-badge text-subtle">{label}</span>
           <Eyebrow className={className}>Active sessions</Eyebrow>
         </div>
       ))}
+    </div>
+  ),
+};
+
+export const Caps: Story = {
+  parameters: {
+    docs: {
+      description: {
+        story:
+          "The opt-in uppercase kicker. Reach for it only where a label is a true typographic kicker; structural labels — table heads, section titles, card meta, KPI labels — stay sentence case.",
+      },
+    },
+  },
+  render: () => (
+    <div className="flex flex-col gap-3">
+      <Eyebrow className="text-muted">Active sessions</Eyebrow>
+      <Eyebrow variant="caps" className="text-muted">
+        Active sessions
+      </Eyebrow>
     </div>
   ),
 };

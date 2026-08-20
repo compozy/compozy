@@ -232,6 +232,11 @@ describe("AutomationTriggerForm", () => {
     renderTriggerForm();
 
     expect(screen.getByTestId("workspace-scope-statement")).toHaveTextContent("Creates in alpha");
+    expect(
+      screen
+        .getByTestId("workspace-scope-statement")
+        .closest('[data-slot="entity-dialog-footer-hint"]')
+    ).not.toBeNull();
     expect(screen.queryByTestId("trigger-scope-global")).toBeNull();
     expect(screen.queryByTestId("trigger-workspace-select")).toBeNull();
   });
@@ -240,6 +245,11 @@ describe("AutomationTriggerForm", () => {
     renderTriggerForm({ draft: createAutomationTriggerDraft(null) });
 
     expect(screen.getByTestId("workspace-scope-statement")).toHaveTextContent("Creates in Global");
+    expect(
+      screen
+        .getByTestId("workspace-scope-statement")
+        .closest('[data-slot="entity-dialog-footer-hint"]')
+    ).not.toBeNull();
     expect(screen.queryByTestId("trigger-workspace-select")).toBeNull();
   });
 
@@ -254,6 +264,7 @@ describe("AutomationTriggerForm", () => {
 
     const statement = screen.getByTestId("workspace-scope-statement");
     expect(statement).toHaveTextContent("Lives in alpha");
+    expect(statement.closest('[data-slot="entity-dialog-footer-hint"]')).not.toBeNull();
     expect(screen.queryByTestId("trigger-scope-global")).toBeNull();
     expect(screen.queryByTestId("trigger-scope-workspace")).toBeNull();
     expect(screen.queryByTestId("trigger-workspace-select")).toBeNull();
@@ -317,6 +328,19 @@ describe("AutomationTriggerForm", () => {
     expect(screen.queryByTestId("trigger-endpoint-slug-input")).not.toBeInTheDocument();
     expect(screen.queryByTestId("trigger-webhook-id-input")).not.toBeInTheDocument();
     expect(screen.queryByTestId("trigger-webhook-secret-value-input")).not.toBeInTheDocument();
+  });
+
+  it("Should keep prompt-template and enabled explanations on HelpTip instead of under the fields", () => {
+    renderTriggerForm();
+
+    expect(screen.getByRole("button", { name: "About prompt template" })).toBeInTheDocument();
+    expect(screen.queryByText(/click a variable to insert it/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/text\/template/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/Created as a/)).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByTestId("trigger-governance-toggle"));
+    expect(screen.getByRole("button", { name: "About trigger enabled" })).toBeInTheDocument();
+    expect(screen.queryByText(/Disabled triggers stay registered/)).not.toBeInTheDocument();
   });
 
   it("resets trigger retry values when switching back to none", () => {

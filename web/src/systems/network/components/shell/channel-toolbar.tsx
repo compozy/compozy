@@ -102,7 +102,7 @@ export function ChannelToolbar({
 
       <div className="flex items-center gap-2 px-5 py-3">
         <SearchInput
-          className="h-8 w-56"
+          containerClassName="w-56"
           data-testid="network-list-search"
           onChange={toolbar.setSearchQuery}
           placeholder={`Search #${channel.channel}…`}

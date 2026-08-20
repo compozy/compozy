@@ -6,7 +6,7 @@ import { RUN_STATUS_LABEL, RUN_STATUS_TONE, RunCard } from "../run-card";
 const RUN_ID = "run_2026_05_11_abc";
 
 describe("RunCard", () => {
-  it("Should render the pill row + 4-col grid in CHANNEL / QUEUED / STARTED / ELAPSED order", () => {
+  it("Should render the pill row + 4-col grid in Channel / Queued / Started / Elapsed order", () => {
     const { container } = render(
       <RunCard
         status="in_progress"
@@ -39,7 +39,7 @@ describe("RunCard", () => {
     const labelSlots = Array.from(
       grid?.querySelectorAll<HTMLElement>("[data-slot$='-label']") ?? []
     ).map(el => el.textContent?.trim());
-    expect(labelSlots).toEqual(["CHANNEL", "QUEUED", "STARTED", "ELAPSED"]);
+    expect(labelSlots).toEqual(["Channel", "Queued", "Started", "Elapsed"]);
   });
 
   it("Should map every RunCardStatus to its expected PillTone", () => {

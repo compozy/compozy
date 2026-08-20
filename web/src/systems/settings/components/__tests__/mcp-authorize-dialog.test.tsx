@@ -121,6 +121,7 @@ describe("MCPAuthorizeDialog failure recovery", () => {
 
     expect(screen.getByText("Authorization could not be completed")).toBeInTheDocument();
     expect(screen.getByTestId("settings-page-mcp-authorize-manual")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "About full redirect URL" })).toBeInTheDocument();
     expect(screen.getByTestId("settings-page-mcp-authorize-exchange")).toBeInTheDocument();
     expect(screen.queryByTestId("settings-page-mcp-authorize-retry")).not.toBeInTheDocument();
   });

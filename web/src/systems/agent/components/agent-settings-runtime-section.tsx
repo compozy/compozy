@@ -3,11 +3,12 @@ import { Settings2 } from "lucide-react";
 import {
   Button,
   Field,
-  FieldDescription,
   FieldError,
+  FieldHeader,
   FieldLabel,
   FieldTitle,
   FormSection,
+  HelpTip,
   Input,
   RadioCard,
 } from "@compozy/ui";
@@ -87,17 +88,14 @@ export function AgentSettingsRuntimeSection({
   );
 
   return (
-    <FormSection
-      data-testid="agent-settings-runtime"
-      icon={Settings2}
-      title="Runtime"
-      description="Provider and optional overrides for new sessions."
-    >
+    <FormSection data-testid="agent-settings-runtime" icon={Settings2} title="Runtime">
       <Field data-invalid={Boolean(errors.provider)}>
-        <FieldTitle id="agent-settings-runtime-label">Runtime</FieldTitle>
-        <FieldDescription>
-          Provider, model, and reasoning effort inherited by new sessions.
-        </FieldDescription>
+        <FieldHeader>
+          <FieldTitle id="agent-settings-runtime-label">Runtime</FieldTitle>
+          <HelpTip label="About runtime">
+            Provider, model, and reasoning effort inherited by new sessions.
+          </HelpTip>
+        </FieldHeader>
         {inheritedFields.length > 0 ? (
           <p className="text-form-hint text-info" data-testid="agent-settings-runtime-inherited">
             Inheriting {inheritedFields.join(", ")} from project runtime defaults. A selection here
@@ -149,8 +147,12 @@ export function AgentSettingsRuntimeSection({
       </Field>
 
       <Field>
-        <FieldLabel htmlFor="agent-settings-command">Command</FieldLabel>
-        <FieldDescription>Optional provider command override for this agent.</FieldDescription>
+        <FieldHeader>
+          <FieldLabel htmlFor="agent-settings-command">Command</FieldLabel>
+          <HelpTip label="About command">
+            Optional provider command override for this agent.
+          </HelpTip>
+        </FieldHeader>
         <Input
           id="agent-settings-command"
           data-testid="agent-settings-command"
@@ -166,7 +168,6 @@ export function AgentSettingsRuntimeSection({
 
       <Field data-invalid={Boolean(errors.permissions)}>
         <FieldLabel id="agent-settings-permissions-label">Permissions</FieldLabel>
-        <FieldDescription>Default approval posture for this agent.</FieldDescription>
         {draft.legacyPermissions ? (
           <p
             className="mb-2 text-small-body text-warning"

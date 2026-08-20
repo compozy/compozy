@@ -66,6 +66,6 @@ describe("Empty / disabled / error state copy (`_design.md` §7.2 + §7.3)", () 
   it("DaemonDown renders the unreachable error copy verbatim", () => {
     render(<DaemonDown />);
     expect(screen.getByText("Network is unreachable.")).toBeInTheDocument();
-    expect(screen.getByText("Make sure the CompozyOS daemon is running.")).toBeInTheDocument();
+    expect(screen.getByText("Make sure CompozyOS is running.")).toBeInTheDocument();
   });
 });

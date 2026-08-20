@@ -6,7 +6,7 @@ persona: Bruno
 journey: J-marketplace-acquisition
 expected: Manifest-v2 typed inputs accept only their declared string, identifier, boolean, or secret values; secret inputs accept a typed value or present namespace=mcp Vault ref and inline creation stores without echo. Stdio launch entries and Streamable HTTP entries render only their supported fields, catalog default scope applies when omitted, and the next daemon step is announced.
 entry_points: /marketplace/mcp/$entryId; MCP Install action
-qa_status: pass
+qa_status: untested
 bug_ids: BUG-20260714-keyboard-focus-invisible; BUG-20260715-mcp-install-null-values
 fix_status: fixed
 retest_status: pass

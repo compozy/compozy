@@ -42,7 +42,7 @@ export function HooksSection({
     <SettingsGroup
       data-testid="settings-page-hooks-section"
       title="Lifecycle hooks"
-      description="Restart the daemon to re-read hook declarations. Enablement changes persist immediately."
+      description="Restart CompozyOS to re-read hook declarations. Enablement changes persist immediately."
     >
       {hookError ? (
         <span className="text-xs text-danger" data-testid="settings-page-hooks-error-message">
@@ -67,7 +67,7 @@ export function HooksSection({
             </span>
             <SearchInput
               aria-label="Search hooks & events"
-              className="h-7 w-56"
+              containerClassName="w-56"
               data-testid="settings-page-hooks-search"
               onChange={setQuery}
               placeholder="Search hooks & events"

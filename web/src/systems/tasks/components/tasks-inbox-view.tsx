@@ -121,7 +121,7 @@ export function TasksInboxView({
         data-testid="tasks-inbox-toolbar"
       >
         <SearchInput
-          className="h-8 w-64 max-w-full"
+          containerClassName="w-64 max-w-full"
           data-testid="tasks-inbox-search"
           onChange={next => onSearchChange(next)}
           placeholder="Search inbox..."

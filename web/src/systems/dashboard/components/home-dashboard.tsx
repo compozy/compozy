@@ -7,6 +7,7 @@ import { useHomeDashboard } from "../hooks/use-home-dashboard";
 import { HomeActivityFeed } from "./home-activity-feed";
 import { HomeAgentsPanel } from "./home-agents-panel";
 import { HomeAttentionZone } from "./home-attention-zone";
+import { HomeFirstRun } from "./home-first-run";
 import { HomeKpiStrip } from "./home-kpi-strip";
 import { HomeNetworkPanel } from "./home-network-panel";
 import { HomeOutcomesChart } from "./home-outcomes-chart";
@@ -49,6 +50,7 @@ export function HomeDashboard({ className, liveEnabled = true, ...props }: HomeD
   const overview = model.overview;
   const overviewState =
     model.overviewStatus === "ready" && overview ? "ready" : model.overviewStatus;
+  const workspaceName = model.scope.workspaceParam ? model.activeWorkspaceName : null;
 
   return (
     <div
@@ -56,18 +58,20 @@ export function HomeDashboard({ className, liveEnabled = true, ...props }: HomeD
       data-testid="home-body"
       {...props}
     >
-      <HomePageMeta workspaceName={model.scope.workspaceParam ? model.activeWorkspaceName : null} />
+      <HomePageMeta workspaceName={workspaceName} />
       <DataSurface state={overviewState}>
         <div data-surface-state="loading">
           <HomeDashboardSkeleton />
         </div>
         <DataSurface.Error
-          description={model.overviewErrorMessage ?? "The daemon did not return the overview."}
+          description={model.overviewErrorMessage ?? "Try again in a moment."}
           icon={AlertTriangle}
-          title="Unable to load the home overview"
+          title="Couldn't load the overview"
         />
         <DataSurface.Content>
-          {overview ? (
+          {!overview ? null : model.hasNoWork ? (
+            <HomeFirstRun workspaceName={workspaceName} />
+          ) : (
             <div className="flex flex-col gap-6">
               <HomeAttentionZone attention={overview.attention} />
               <HomeKpiStrip
@@ -108,7 +112,7 @@ export function HomeDashboard({ className, liveEnabled = true, ...props }: HomeD
                 system={system}
               />
             </div>
-          ) : null}
+          )}
         </DataSurface.Content>
       </DataSurface>
     </div>

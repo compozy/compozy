@@ -1,4 +1,4 @@
-import { Field, FieldLabel, Textarea } from "@compozy/ui";
+import { Field, FieldHeader, FieldLabel, HelpTip, Textarea } from "@compozy/ui";
 
 import { AgentCommandSelect, type AgentPayload } from "@/systems/agent";
 
@@ -46,17 +46,19 @@ export function AgentRunStep({
         />
       </Field>
       <Field>
-        <FieldLabel htmlFor="job-prompt">Prompt</FieldLabel>
+        <FieldHeader>
+          <FieldLabel htmlFor="job-prompt">Prompt</FieldLabel>
+          <HelpTip label="About prompt">
+            Sent to the agent verbatim; jobs don&apos;t template, there&apos;s no event to
+            interpolate.
+          </HelpTip>
+        </FieldHeader>
         <Textarea
           data-testid="job-prompt-input"
           id="job-prompt"
           onChange={event => onPromptChange(event.target.value)}
           value={prompt}
         />
-        <p className="text-form-hint leading-snug text-subtle">
-          Sent to the agent verbatim; jobs don&apos;t template, there&apos;s no event to
-          interpolate.
-        </p>
       </Field>
     </div>
   );

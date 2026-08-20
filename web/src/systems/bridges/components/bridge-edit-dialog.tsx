@@ -9,11 +9,11 @@ import {
   EntityDialogHeader,
   EntityModeToolbar,
   Field,
-  FieldContent,
-  FieldDescription,
+  FieldHeader,
   FieldLabel,
   FieldTitle,
   FormSection,
+  HelpTip,
   ImmutableIdentity,
   Input,
   NativeSelect,
@@ -167,12 +167,7 @@ export function BridgeEditDialog({
             />
           ) : null}
 
-          <FormSection
-            data-testid="bridge-edit-section-identity"
-            description="How this bridge appears in lists and receipts."
-            icon={Link2}
-            title="Identity"
-          >
+          <FormSection data-testid="bridge-edit-section-identity" icon={Link2} title="Identity">
             <Field>
               <FieldLabel htmlFor="bridge-edit-display-name-input">
                 Display name
@@ -188,12 +183,12 @@ export function BridgeEditDialog({
             </Field>
 
             <Field>
-              <FieldContent>
+              <FieldHeader>
                 <FieldTitle>DM policy</FieldTitle>
-                <FieldDescription>
+                <HelpTip label="About DM policy">
                   {describeBridgeDmPolicy(draft.dmPolicy === "" ? undefined : draft.dmPolicy)}
-                </FieldDescription>
-              </FieldContent>
+                </HelpTip>
+              </FieldHeader>
               <NativeSelect
                 aria-label="Direct message policy"
                 data-testid="bridge-edit-dm-policy-select"
@@ -240,7 +235,6 @@ export function BridgeEditDialog({
         <EntityDialogFooter
           cancelDisabled={isPending}
           cancelTestId="bridge-edit-cancel"
-          hint="Only changed mutable fields are sent."
           isSaving={isPending}
           onCancel={() => onOpenChange(false)}
           onPrimary={onSubmit}

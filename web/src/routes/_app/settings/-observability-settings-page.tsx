@@ -82,7 +82,6 @@ export function ObservabilitySettingsPage() {
 
   return (
     <SettingsPageFrame
-      description="What this daemon records about sessions, and how much disk it may use."
       meta={
         runtime.available
           ? [
@@ -170,11 +169,11 @@ function CaptureSection({
   setValidationError: (key: string) => (message: string | null) => void;
 }) {
   return (
-    <SettingsGroup title="Capture" description="events, transcripts, logs">
+    <SettingsGroup title="Capture">
       <SettingsFieldRow
         data-testid="settings-page-observability-enabled"
         label="Record activity"
-        description="Persist every session event to SQLite for replay"
+        help="Persist every session event to SQLite for replay"
         control={
           <Switch
             data-testid="settings-page-observability-enabled-switch"
@@ -217,11 +216,11 @@ function CaptureSection({
 
 function TranscriptsSection({ draft, setDraft }: DraftSectionProps) {
   return (
-    <SettingsGroup title="Transcripts" description="full replay of agent I/O">
+    <SettingsGroup title="Transcripts">
       <SettingsFieldRow
         data-testid="settings-page-observability-transcripts-enabled"
         label="Save full transcripts"
-        description="Chunked segment-based replay of every prompt + response"
+        help="Chunked segment-based replay of every prompt + response"
         control={
           <Switch
             data-testid="settings-page-observability-transcripts-enabled-switch"
@@ -244,11 +243,11 @@ function TranscriptsSection({ draft, setDraft }: DraftSectionProps) {
 
 function StorageLimitsSection({ draft, setDraft }: DraftSectionProps) {
   return (
-    <SettingsGroup title="Storage limits" description="byte caps for capture stores">
+    <SettingsGroup title="Storage limits">
       <SettingsFieldRow
         data-testid="settings-page-observability-max-global"
         label="Global storage cap"
-        description={
+        help={
           <span className="inline-flex flex-wrap items-center gap-1.5">
             Soft cap across the global event store
             <SettingsProvChip>observability.max_global_bytes</SettingsProvChip>
@@ -271,7 +270,7 @@ function StorageLimitsSection({ draft, setDraft }: DraftSectionProps) {
       <SettingsFieldRow
         data-testid="settings-page-observability-segment"
         label="Transcript segment size"
-        description={
+        help={
           <span className="inline-flex flex-wrap items-center gap-1.5">
             Chunk size for transcript segments
             <SettingsProvChip>observability.transcripts.segment_bytes</SettingsProvChip>
@@ -297,7 +296,7 @@ function StorageLimitsSection({ draft, setDraft }: DraftSectionProps) {
       <SettingsFieldRow
         data-testid="settings-page-observability-max-per-session"
         label="Transcript cap per session"
-        description={
+        help={
           <span className="inline-flex flex-wrap items-center gap-1.5">
             Per-session transcript ceiling
             <SettingsProvChip>observability.transcripts.max_bytes_per_session</SettingsProvChip>

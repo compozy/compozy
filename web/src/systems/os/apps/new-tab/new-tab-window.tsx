@@ -1,5 +1,6 @@
-import { Button, Kbd, useTopbarSlot } from "@compozy/ui";
+import { Button, useTopbarSlot } from "@compozy/ui";
 
+import { OsShortcutChords } from "../../components/os-shortcut-chords";
 import { useDesktop } from "../../hooks/use-desktop";
 import { shortcutActionLabel } from "../../lib/window-manager-shortcuts";
 import { windowManagerStore } from "../../stores/window-manager-store";
@@ -43,7 +44,7 @@ export function NewTabWindow({ windowId }: { windowId: string }) {
       </Button>
       {paletteShortcutLabel ? (
         <p className="text-small-body text-subtle">
-          or press <Kbd>{paletteShortcutLabel}</Kbd>
+          or press <OsShortcutChords label={paletteShortcutLabel} />
         </p>
       ) : null}
     </div>

@@ -132,7 +132,8 @@ function LayoutSections({
           </>
         }
         bare
-        description="The arrangement this workspace restores. Drag tiles, dividers and group edges — the daemon checks the result before anything is applied."
+        help="Drag tiles, dividers and group edges."
+        description="CompozyOS checks the result before anything is applied."
         title="Workspace layout"
       >
         <LayoutStage config={config} editor={editor} />
@@ -140,7 +141,7 @@ function LayoutSections({
 
       <SettingsGroup
         bare
-        description="Named snapshots of an arrangement. Load one into the editor, then review and apply it like any other edit."
+        help="Load one into the editor, then review and apply it like any other edit."
         title="Saved layouts"
       >
         <LayoutProfileGrid document={editor.draft} editor={savedLayouts} />
@@ -178,7 +179,6 @@ function LayoutsSettingsView({
 
   return (
     <SettingsPageFrame
-      description="Shape how windows tile, snap and move — drag the layout instead of typing coordinates."
       meta={meta}
       saveBar={
         <SettingsSaveBar
@@ -192,7 +192,7 @@ function LayoutsSettingsView({
       width="canvas"
     >
       {workspaceId === "" || layout === null ? (
-        <SettingsGroup description="A layout belongs to a workspace." title="Workspace layout">
+        <SettingsGroup title="Workspace layout">
           <p className="px-4 py-5 text-form-label text-subtle">
             Select a workspace to see and change its layout.
           </p>

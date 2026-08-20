@@ -8,8 +8,11 @@ import { SettingsRestartNotice } from "./settings-restart-notice";
 
 export interface SettingsPageFrameProps {
   slug: SettingsSectionSlug;
-  /** One sentence about the page, written for the person (subhead lead). */
-  description: ReactNode;
+  /**
+   * Visible consequence line only — inherited defaults, irreversible apply,
+   * or what this save will do. Restating the page title belongs in `help`.
+   */
+  description?: ReactNode;
   /** Quiet dotsep meta entries after the description (live counts, freshness). */
   meta?: ReadonlyArray<{ key: string; content: ReactNode }>;
   restart?: SettingsRestartViewState;
@@ -33,8 +36,8 @@ const WIDTH_CLASS: Record<SettingsPageWidth, string> = {
 
 /**
  * Settings page scaffold (design system §04): centered column (768px forms /
- * 960px listings), subhead sentence + quiet meta, optional restart notice,
- * groups, and the floating save bar inside the scroll region.
+ * 960px listings), optional consequence line + quiet meta, optional restart
+ * notice, groups, and the floating save bar inside the scroll region.
  */
 export function SettingsPageFrame({
   slug,
@@ -45,6 +48,8 @@ export function SettingsPageFrame({
   saveBar,
   children,
 }: SettingsPageFrameProps) {
+  const hasSubhead = Boolean(description || (meta && meta.length > 0));
+
   return (
     <div
       className="flex min-h-0 flex-1 flex-col overflow-hidden"
@@ -57,18 +62,24 @@ export function SettingsPageFrame({
             WIDTH_CLASS[width]
           )}
         >
-          <div
-            className="flex min-w-0 flex-wrap items-center gap-2 border-b border-line pb-3.5 text-form-label text-subtle"
-            data-testid={`settings-page-${slug}-subhead`}
-          >
-            <span className="max-w-settings-page-description">{description}</span>
-            {meta?.map(entry => (
-              <span className="inline-flex items-center gap-2" key={entry.key}>
-                <span aria-hidden="true" className="size-0.5 rounded-full bg-faint" />
-                {entry.content}
-              </span>
-            ))}
-          </div>
+          {hasSubhead ? (
+            <div
+              className="flex min-w-0 flex-wrap items-center gap-2 border-b border-line pb-3.5 text-form-label text-subtle"
+              data-testid={`settings-page-${slug}-subhead`}
+            >
+              {description ? (
+                <span className="max-w-settings-page-description">{description}</span>
+              ) : null}
+              {meta?.map((entry, index) => (
+                <span className="inline-flex items-center gap-2" key={entry.key}>
+                  {description || index > 0 ? (
+                    <span aria-hidden="true" className="size-0.5 rounded-full bg-faint" />
+                  ) : null}
+                  {entry.content}
+                </span>
+              ))}
+            </div>
+          ) : null}
           {restart ? <SettingsRestartNotice restart={restart} slug={slug} /> : null}
           {children}
           {saveBar}

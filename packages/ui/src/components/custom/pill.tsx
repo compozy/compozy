@@ -128,7 +128,7 @@ function PillDot({
 function PillLink({
   tone = "accent",
   size = "sm",
-  mono = true,
+  mono = false,
   className,
   href,
   render,

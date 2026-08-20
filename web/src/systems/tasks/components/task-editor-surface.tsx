@@ -6,7 +6,6 @@ import { useState, type ReactNode } from "react";
 import {
   EntityDialogBody,
   EntityDialogFooter,
-  EntityDialogToolbar,
   EntityModeToolbar,
   FormSection,
   type EntityMode,
@@ -121,13 +120,13 @@ export function TaskEditorSurface({
       destination={destination}
       kind={isNewMode ? "create" : "edit"}
       scope={draft.scope}
-      variant="chip"
+      variant="note"
     />
   );
 
   return (
     <section
-      className="flex min-h-0 flex-1 flex-col bg-canvas text-fg"
+      className="flex min-h-0 flex-1 flex-col text-fg"
       data-mode={mode}
       data-testid="task-editor-surface"
     >
@@ -144,15 +143,8 @@ export function TaskEditorSurface({
         }}
       >
         {isNewMode ? (
-          <EntityModeToolbar
-            mode={formMode}
-            onModeChange={handleModeChange}
-            testIdPrefix="task"
-            trailing={scopeStatement}
-          />
-        ) : (
-          <EntityDialogToolbar trailing={scopeStatement} />
-        )}
+          <EntityModeToolbar mode={formMode} onModeChange={handleModeChange} testIdPrefix="task" />
+        ) : null}
 
         <EntityDialogBody data-testid="task-editor-modal-body">
           <FormSection
@@ -185,7 +177,7 @@ export function TaskEditorSurface({
           </FormSection>
 
           <FormSection
-            description="Local by default. Live requires an explicit channel strategy."
+            help="Local by default. Live requires an explicit channel strategy."
             title="Network participation"
           >
             <NetworkParticipationFields
@@ -227,7 +219,7 @@ export function TaskEditorSurface({
                 />
               </FormSection>
               <FormSection
-                help="A stable identifier override. Leave it empty and the daemon assigns one."
+                help="A stable identifier override. Leave it empty and CompozyOS assigns one."
                 title="Identity"
               >
                 <IngressIdentitySection
@@ -266,10 +258,10 @@ export function TaskEditorSurface({
             draft.saveAsDraft ? (
               <>
                 Saved as a <b className="font-medium text-muted">draft</b>; no run is queued until
-                you enqueue it.
+                you enqueue it. {scopeStatement}
               </>
             ) : (
-              <>The contract is durable; runs descend from this task and respect dependencies.</>
+              scopeStatement
             )
           }
           hintTestId="task-editor-modal-hint"

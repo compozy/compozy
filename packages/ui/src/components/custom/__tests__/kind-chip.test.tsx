@@ -4,10 +4,11 @@ import { describe, expect, it } from "vitest";
 import { KindChip } from "../kind-chip";
 
 describe("KindChip", () => {
-  it("Should render a mono pill keyed by `kind`", () => {
+  it("Should render a sans pill keyed by `kind`", () => {
     render(<KindChip kind="capability" />);
     const pill = screen.getByText("capability");
     expect(pill.parentElement?.dataset.slot).toBe("kind-chip");
+    expect(pill.parentElement).not.toHaveAttribute("data-mono");
   });
 
   it("Should render a leading dot for known protocol kinds", () => {

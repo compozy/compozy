@@ -16,7 +16,7 @@ function DockStatus({ tone = "neutral", children, className, ...props }: DockSta
       data-slot="dock-status"
       data-tone={tone}
       className={cn(
-        "mt-[7px] text-[11px]",
+        "mt-[7px] text-form-label",
         tone === "danger" ? "text-danger" : "text-subtle",
         className
       )}

@@ -49,14 +49,14 @@ function FullRow({ selected = false }: { selected?: boolean }) {
             Ships a release candidate through the gate.
           </ListingRow.Description>
           <ListingRow.Meta>
-            <span className="font-mono text-[10px] text-subtle">3 inputs</span>
+            <span className="text-badge text-subtle">3 inputs</span>
             <span aria-hidden="true" className="size-0.5 rounded-full bg-faint" />
             <span>iteration cap 8</span>
           </ListingRow.Meta>
         </ListingRow.Main>
       </ListingRow.Link>
       <ListingRow.Trail>
-        <Pill mono size="sm" tone="neutral">
+        <Pill size="sm" tone="neutral">
           delivery
         </Pill>
         <ListingRow.Stat>
@@ -88,7 +88,7 @@ export const NoDescription: Story = {
             <ListingRow.Slug>v0.9.1</ListingRow.Slug>
           </ListingRow.Name>
           <ListingRow.Meta>
-            <span className="font-mono text-[10px] text-subtle">1 input</span>
+            <span className="text-badge text-subtle">1 input</span>
           </ListingRow.Meta>
         </ListingRow.Main>
       </ListingRow.Link>
@@ -124,7 +124,15 @@ export const NoMeta: Story = {
   ),
 };
 
-export const MonoName: Story = {
+export const IdentifierName: Story = {
+  parameters: {
+    docs: {
+      description: {
+        story:
+          "`ListingRow.Name mono` marks the title as an identifier: it keeps the sans title face so the inventory reads as language, and gains tabular figures so a column of ids stays aligned. Wrap in `<MonoId>` only when the reader has to match the string character by character.",
+      },
+    },
+  },
   render: () => (
     <ListingRow>
       <ListingRow.Link href="#vault-key" aria-label="Open vault.key">
@@ -144,7 +152,7 @@ export const MonoName: Story = {
         </ListingRow.Main>
       </ListingRow.Link>
       <ListingRow.Trail>
-        <Pill mono size="sm" tone="neutral">
+        <Pill size="sm" tone="neutral">
           sessions
         </Pill>
       </ListingRow.Trail>
@@ -173,7 +181,7 @@ export const WithTags: Story = {
         </ListingRow.Main>
       </ListingRow.Link>
       <ListingRow.Trail>
-        <Pill mono size="sm" tone="neutral">
+        <Pill size="sm" tone="neutral">
           watch
         </Pill>
       </ListingRow.Trail>
@@ -240,7 +248,7 @@ export const AvatarInWell: Story = {
         </ListingRow.Main>
       </ListingRow.Link>
       <ListingRow.Trail>
-        <span className="text-[11px] text-faint">2h</span>
+        <span className="text-badge text-faint">2h</span>
       </ListingRow.Trail>
     </ListingRow>
   ),

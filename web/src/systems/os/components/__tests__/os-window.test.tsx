@@ -196,6 +196,20 @@ describe("OsWindow", () => {
     );
   });
 
+  it("Should flush tiled chrome without a cast window shadow", () => {
+    const classesOf = (node: HTMLElement) => node.className.split(/\s+/);
+    const view = render(<OsWindow frame={frameModel({ kind: "floating" })} />);
+    const floatingChrome = screen.getByTestId("os-window-frame-window:tasks");
+    expect(floatingChrome).toHaveAttribute("data-kind", "floating");
+    expect(classesOf(floatingChrome)).toContain("shadow-window");
+
+    view.rerender(<OsWindow frame={frameModel({ kind: "tiled", layer: 1 })} />);
+    const tiledChrome = screen.getByTestId("os-window-frame-window:tasks");
+    expect(tiledChrome).toHaveAttribute("data-kind", "tiled");
+    expect(classesOf(tiledChrome)).not.toContain("shadow-window");
+    expect(classesOf(tiledChrome)).not.toContain("shadow-window-unfocused");
+  });
+
   it("Should render resize seams on the semantic seam layer", () => {
     const seam: ProjectedSeam = {
       id: "split:main:0",

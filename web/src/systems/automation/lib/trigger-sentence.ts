@@ -178,7 +178,7 @@ export function describeTriggerWhen(
         icon,
         headline: "Incoming webhook",
         eventId: trigger.event,
-        sub: `${trigger.scope === "workspace" ? "Workspace" : "Global"} path — always answers on this daemon. Public URL is a separate fact.`,
+        sub: `${trigger.scope === "workspace" ? "Workspace" : "Global"} path — always answers on this machine. Public URL is a separate fact.`,
       };
     default:
       return {

@@ -9,7 +9,27 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { statusFixture } from "@/systems/status/mocks";
 
-import { makeHomeOverview } from "../mocks/fixtures";
+import { makeEmptyHomeOverview, makeHomeOverview } from "../mocks/fixtures";
+
+const liveFreshness = () => ({ ...makeEmptyHomeOverview().freshness, has_live_work: true });
+const singleApproval = () => ({
+  total: 1,
+  by_kind: { approval: 1, failure: 0, needs_input: 0 },
+  items: [
+    {
+      kind: "approval" as const,
+      title: "Deploy docs site",
+      task_id: "task-approval",
+      occurred_at: "2026-07-23T10:00:00Z",
+      actions: ["approve" as const, "reject" as const, "open" as const],
+    },
+  ],
+});
+const oneRunCompleted = () => ({ runs_completed: 1, runs_failed: 0, tasks_closed: 0 });
+const busyPulse = () => ({
+  ...makeEmptyHomeOverview().pulse,
+  buckets: [{ weekday: 2, hour: 14, events: 3 }],
+});
 
 const getHomeOverview = vi.fn();
 const getHomeActivity = vi.fn();
@@ -192,6 +212,29 @@ describe("useHomeDashboard", () => {
       expect.objectContaining({ workspace_id: undefined }),
       expect.anything()
     );
+  });
+
+  it("Should report no work only when every overview counter is zero and nothing is live", async () => {
+    getHomeOverview.mockResolvedValue(makeEmptyHomeOverview());
+
+    const { result } = renderHook(() => useHomeDashboard(), { wrapper: wrapper() });
+    expect(result.current.hasNoWork).toBe(false);
+
+    await waitFor(() => expect(result.current.overviewStatus).toBe("ready"));
+    expect(result.current.hasNoWork).toBe(true);
+  });
+
+  it.each([
+    ["live work is running", makeEmptyHomeOverview({ freshness: liveFreshness() })],
+    ["something needs the person", makeEmptyHomeOverview({ attention: singleApproval() })],
+    ["a run closed today", makeEmptyHomeOverview({ today: oneRunCompleted() })],
+    ["the pulse recorded events outside today", makeEmptyHomeOverview({ pulse: busyPulse() })],
+  ])("Should keep the dashboard when %s", async (_case, overview) => {
+    getHomeOverview.mockResolvedValue(overview);
+
+    const { result } = renderHook(() => useHomeDashboard(), { wrapper: wrapper() });
+    await waitFor(() => expect(result.current.overviewStatus).toBe("ready"));
+    expect(result.current.hasNoWork).toBe(false);
   });
 
   it("Should surface an error status with the adapter message", async () => {

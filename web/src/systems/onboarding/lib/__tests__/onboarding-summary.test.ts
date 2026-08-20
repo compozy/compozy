@@ -95,12 +95,12 @@ describe("onboardingSummary", () => {
     });
   });
 
-  it("Should tell the operator what is missing when no workspace is selected", () => {
+  it("Should report an empty workspace count", () => {
     const summary = onboardingSummary(input({ step: 2, workspaces: [] }));
 
     expect(summary).toEqual({
       label: "Workspaces",
-      value: "None yet — start in Global scope. Add project folders any time.",
+      value: "None yet",
       tone: "neutral",
     });
   });

@@ -136,12 +136,11 @@ export function VaultEditor({
           </div>
         </FormSection>
 
-        <FormSection description="Written once, retrievable never." title="The value">
+        <FormSection title="The value">
           <div className="flex flex-col gap-3">
             <SecretField
               id="settings-vault-editor-secret-value"
               label="Secret value"
-              description="Write-only payload. The daemon never returns this value."
               placeholder="Paste the secret value"
               required
               saving={isSaving}

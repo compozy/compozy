@@ -10,7 +10,7 @@ import {
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 
-import { cn, Input, NativeSelect, NativeSelectOption } from "@compozy/ui";
+import { cn, HelpTip, Input, NativeSelect, NativeSelectOption } from "@compozy/ui";
 
 import type { CronFrequency, CronModel } from "../../lib/cron-engine";
 import { formatClock, SCHEDULE_CONSTANTS } from "../../lib/cron-engine";
@@ -159,7 +159,14 @@ export function CronBuilder({
         })}
       </div>
 
-      <div className="eyebrow mb-2 mt-3.5 text-faint">Or build the rhythm</div>
+      <div className="mb-2 mt-3.5 flex items-center gap-1.5">
+        <div className="eyebrow text-faint">Or build the rhythm</div>
+        <HelpTip label="About frequency">
+          Pick a frequency and we compile the 5-field cron for you. Choose Custom to write the
+          expression directly: no seconds field, no{" "}
+          <code className="font-mono text-mono-id">@daily</code> macros.
+        </HelpTip>
+      </div>
 
       <fieldset className="mb-3 flex flex-wrap gap-1.5">
         <legend className="sr-only">Frequency</legend>
@@ -368,13 +375,6 @@ export function CronBuilder({
           <span>Months shorter than this day are skipped; the run won&apos;t fire that month.</span>
         </div>
       ) : null}
-
-      <p className="mt-3 text-form-hint leading-snug text-subtle">
-        Pick a frequency and we compile the <span className="font-medium text-muted">5-field</span>{" "}
-        cron for you. Choose <span className="font-medium text-muted">Custom</span> to write the
-        expression directly: no seconds field, no{" "}
-        <code className="font-mono text-mono-id">@daily</code> macros.
-      </p>
     </div>
   );
 }

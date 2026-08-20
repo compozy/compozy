@@ -87,7 +87,6 @@ export function ProvidersSettingsPage() {
 
   return (
     <SettingsPageFrame
-      description="The agent CLIs and model providers your sessions run on. Each provider is saved on its own."
       meta={[
         {
           key: "ready",
@@ -225,7 +224,7 @@ function ProviderDeleteDialog({
             <span className="font-medium">Builtin provider will be revealed</span>
             <span>
               After delete, the effective provider falls back to the builtin definition shipped with
-              the daemon. The provider stays available with its shipped defaults.
+              CompozyOS. The provider stays available with its shipped defaults.
             </span>
           </div>
         ) : null

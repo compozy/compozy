@@ -210,7 +210,10 @@ export function useSessionPageControls(
 
   const handleRemoveQueuedPrompt = (queueEntryId: string) => {
     cancelSessionInput.mutate(queueEntryId, {
-      onError: error => toast.error(error.message || "Couldn't remove queued prompt."),
+      onError: () => {
+        console.error("Failed to remove a queued prompt");
+        toast.error("Couldn't remove queued prompt.");
+      },
     });
   };
 
@@ -233,7 +236,12 @@ export function useSessionPageControls(
           text: prompt.text,
         },
       },
-      { onError: error => toast.error(error.message || "Couldn't steer queued prompt.") }
+      {
+        onError: error => {
+          console.error("Failed to steer a queued prompt", error);
+          toast.error("Couldn't steer queued prompt.");
+        },
+      }
     );
   };
 
@@ -286,7 +294,8 @@ export function useSessionPageControls(
 
     unarchiveMutation.mutate(sessionId, {
       onError: error => {
-        toast.error(error instanceof Error ? error.message : "Failed to unarchive session");
+        console.error("Failed to unarchive session", error);
+        toast.error("Couldn't unarchive this session.");
       },
     });
   };
@@ -307,7 +316,8 @@ export function useSessionPageControls(
         onDeleteSuccess?.();
       },
       onError: error => {
-        toast.error(error instanceof Error ? error.message : "Failed to delete session");
+        console.error("Failed to delete session", error);
+        toast.error("Couldn't delete this session.");
       },
     });
   };
@@ -320,7 +330,8 @@ export function useSessionPageControls(
       await renameMutation.mutateAsync({ id: sessionId, name });
       toast.success("Session renamed.");
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Failed to rename session");
+      console.error("Failed to rename session", error);
+      toast.error("Couldn't rename this session.");
       throw error;
     }
   };

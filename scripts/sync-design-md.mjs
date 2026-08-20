@@ -32,14 +32,14 @@ const runtime = new Map(runtimeDecls.map(({ name, value }) => [name, value]));
 const body = replaceGeneratedSections(stripFrontmatter(design));
 const nextDesign = emitFrontmatter() + "\n\n" + body.trimStart();
 
-if (args.has("--audit-site")) auditSite();
+const siteAuditPassed = !args.has("--audit-site") || auditSite();
 if (args.has("--write")) {
   if (nextDesign !== design) writeFileSync(designPath, nextDesign);
-  process.exit(0);
+  process.exit(siteAuditPassed ? 0 : 1);
 }
-if (nextDesign === design) process.exit(0);
-process.stdout.write(diffWindow(design, nextDesign));
-if (args.has("--check")) process.exit(1);
+const designIsCurrent = nextDesign === design;
+if (!designIsCurrent) process.stdout.write(diffWindow(design, nextDesign));
+if (!siteAuditPassed || (args.has("--check") && !designIsCurrent)) process.exit(1);
 
 function parseTheme(css, label) {
   const match = css.match(/@theme(?:\s+inline)?\s*\{([\s\S]*?)\n\}/);
@@ -295,9 +295,11 @@ function yamlValue(value) {
 }
 
 function auditSite() {
+  let passed = true;
   for (const { name, value } of siteTheme) {
     const selfRef = value.match(/^var\(--([a-zA-Z0-9-]+)\)$/)?.[1];
     if (selfRef === name && !runtime.has(name)) {
+      passed = false;
       console.error(
         "audit-site: --" +
           name +
@@ -307,17 +309,20 @@ function auditSite() {
   }
   const darkBlock = siteCss.match(/\.dark\s*\{([\s\S]*?)\n\}/)?.[1] ?? "";
   const stale = {
-    "#141312": "var(--color-canvas) / #131211",
-    "#1e1c1b": "var(--color-canvas-soft) / #1a1918",
-    "#2e2c2b": "var(--color-elevated) / #232220",
+    "#141312": "var(--color-canvas) / #171615",
+    "#1e1c1b": "var(--color-canvas-soft) / #1f1e1c",
+    "#2e2c2b": "var(--color-elevated) / #2a2927",
     "#3c3a39": "var(--color-line) / rgba(255, 255, 255, 0.055)",
-    "#e5e5e7": "var(--color-fg) / #ececef",
-    "#8e8e93": "var(--color-muted) / #9a9a9f",
+    "#e5e5e7": "var(--color-fg) / #eeedeb",
+    "#8e8e93": "var(--color-muted) / #a4a29e",
   };
   for (const [hex, expected] of Object.entries(stale)) {
-    if (darkBlock.toLowerCase().includes(hex))
+    if (darkBlock.toLowerCase().includes(hex)) {
+      passed = false;
       console.error("audit-site: stale " + hex + " in .dark block; expected " + expected);
+    }
   }
+  return passed;
 }
 
 function diffWindow(before, after) {

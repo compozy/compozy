@@ -46,10 +46,7 @@ function ChatMessageBubble({
         {...props}
       >
         <span aria-hidden="true" className="h-px flex-1 bg-line" />
-        <div
-          data-slot="chat-message-body"
-          className="font-mono text-eyebrow leading-small-body tracking-mono"
-        >
+        <div data-slot="chat-message-body" className="text-form-label leading-small-body">
           {children}
         </div>
         <span aria-hidden="true" className="h-px flex-1 bg-line" />

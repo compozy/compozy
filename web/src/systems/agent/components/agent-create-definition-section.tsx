@@ -39,7 +39,7 @@ export function AgentCreateDefinitionSection({
   return (
     <FormSection
       data-testid="agent-create-definition"
-      help="Name and instructions are the only fields the daemon rejects when empty. Everything else falls back to the project defaults."
+      help="Name and instructions are the only fields that cannot be empty. Everything else falls back to the project defaults."
       icon={Bot}
       title="The definition"
     >

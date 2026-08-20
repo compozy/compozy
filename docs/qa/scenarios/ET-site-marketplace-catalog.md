@@ -6,7 +6,7 @@ persona: Dora
 journey: J-evaluate-compozy-beta
 expected: /marketplace identifies itself as a checked-in catalog snapshot, shows one section per kind (Skills, Extensions, MCP servers — no bundles) with every entry from catalog/*.json, and offers a Contribute card pointing at the catalog PR flow. /marketplace/[kind] lists that kind; /marketplace/[kind]/[entryId] shows metadata plus a copyable `compozy marketplace search <entry-id> --kind <kind>` command so the daemon resolves the entry against its configured active source before installation. Kind-specific blocks show extension tier + digest + repository, or MCP transport, env fields with secrets flagged but never valued, and default scope. No ratings, downloads, featured flags, or other invented fields appear anywhere.
 entry_points: compozy.com /marketplace; /marketplace/skills; /marketplace/extensions; /marketplace/mcp/context7; /marketplace/bridges; /marketplace/bundled/spec-cycle
-qa_status: pass
+qa_status: untested
 bug_ids:
 fix_status:
 retest_status: pass
@@ -45,3 +45,6 @@ QA impact 2026-07-30 deep-review remediation: reset after manifest-v2 site valid
 parity for launch identifiers, digests, public HTTPS remotes, argument safety, typed defaults, and
 duplicate input destinations. Entry details must pair `--set`, `--secret`, and `--vault-ref` with the
 owning `compozy mcp install` command and continue to expose no secret value.
+
+QA impact 2026-08-20: `/marketplace/[kind]` filter field height now uses `--height-search` (28px)
+instead of a raw `h-8`. Reset the kind-list chrome walk.

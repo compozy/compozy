@@ -12,7 +12,7 @@ const meta: Meta<typeof Empty> = {
     docs: {
       description: {
         component:
-          "Empty state with an icon container, muted title, optional description, cause, and actions. `framed` is the bordered card variant for routed empty/error states.",
+          'Empty state with an icon well, title, and optional description, hint, cause, actions, and starter next steps. `illustration` replaces the icon well when a state earns real art. A raw `cause` stays collapsed behind a "Details" disclosure so an error reads as a sentence first. `framed` is the bordered card variant for routed empty/error states.',
       },
     },
   },
@@ -79,6 +79,14 @@ export const Framed: Story = {
 };
 
 export const WithCause: Story = {
+  parameters: {
+    docs: {
+      description: {
+        story:
+          "The raw cause ships collapsed. The reader gets a plain sentence; the machine string is one keyboard-reachable step deeper.",
+      },
+    },
+  },
   render: () => (
     <div className="w-[420px]">
       <Empty
@@ -87,7 +95,79 @@ export const WithCause: Story = {
         icon={SearchIcon}
         title="The catalog is incomplete"
         description="Installed status is unavailable until the catalog can be checked."
-        cause="marketplace: continuation token expired (409)"
+        cause={`marketplace: continuation token expired (409)\nrequest_id: req_01K19X4Q6Q7K45V3C7M8J9P0R1\nupstream: the catalog response exceeded the accepted continuation window while reading the next page of installed extensions`}
+      />
+    </div>
+  ),
+};
+
+export const WithHintAndNextSteps: Story = {
+  parameters: {
+    docs: {
+      description: {
+        story:
+          "First-run shape: one heading, one line of orientation, a primary action, and starter actions that already exist.",
+      },
+    },
+  },
+  render: () => (
+    <div className="w-[480px]">
+      <Empty
+        icon={InboxIcon}
+        title="Nothing running yet"
+        description="Agents you start show up here."
+        hint="Sessions keep running after you close the tab."
+        action={
+          <Button size="sm" type="button">
+            <PlusIcon className="size-3" />
+            Start a session
+          </Button>
+        }
+        nextSteps={
+          <>
+            <Button size="sm" type="button" variant="ghost">
+              Create a task
+            </Button>
+            <Button size="sm" type="button" variant="ghost">
+              Browse the marketplace
+            </Button>
+          </>
+        }
+      />
+    </div>
+  ),
+};
+
+export const WithIllustration: Story = {
+  parameters: {
+    docs: {
+      description: {
+        story:
+          "`illustration` is an art slot above the icon well for states that earn real art; the icon well stays. Keep the art geometric.",
+      },
+    },
+  },
+  render: () => (
+    <div className="w-[420px]">
+      <Empty
+        illustration={
+          <svg width="96" height="64" viewBox="0 0 96 64" fill="none">
+            <rect
+              x="0.5"
+              y="0.5"
+              width="95"
+              height="63"
+              rx="11.5"
+              className="stroke-line"
+              fill="var(--color-canvas-soft)"
+            />
+            <rect x="16" y="20" width="64" height="4" rx="2" className="fill-line-strong" />
+            <rect x="16" y="32" width="44" height="4" rx="2" className="fill-line" />
+            <rect x="16" y="44" width="28" height="4" rx="2" className="fill-line" />
+          </svg>
+        }
+        title="No history yet"
+        description="Everything you and your agents do gets saved here."
       />
     </div>
   ),

@@ -19,7 +19,7 @@ type Story = StoryObj<typeof meta>;
 export const Default: Story = {
   render: () => (
     <CenteredSurface>
-      <div className="w-full max-w-3xl rounded-2xl border border-line bg-canvas p-4">
+      <div className="w-full max-w-3xl rounded-xl border border-line bg-canvas p-4">
         <GenericContent message={genericToolMessageFixture} />
       </div>
     </CenteredSurface>

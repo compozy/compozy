@@ -27,17 +27,14 @@ type Story = StoryObj<typeof meta>;
 
 export const Form: Story = {
   args: {
-    description: "Defaults and day-to-day behavior for this runtime.",
+    description: "Changes here apply to new sessions on this machine.",
     meta: [{ key: "sessions", content: "3 active sessions" }],
     slug: "general",
     children: (
-      <SettingsGroup
-        description="What new sessions start with unless you pick something else."
-        title="Defaults"
-      >
+      <SettingsGroup title="Defaults">
         <SettingsFieldRow
           control={<Input defaultValue="codex" />}
-          description="Agent used when a session does not choose another."
+          help="Agent used when a session does not choose another."
           label="Default agent"
         />
       </SettingsGroup>
@@ -56,14 +53,13 @@ export const Form: Story = {
 export const Listing: Story = {
   args: {
     children: (
-      <SettingsGroup description="Agent CLIs available to sessions." title="Providers">
+      <SettingsGroup title="Providers">
         <p className="px-4 py-3 text-small-body text-muted">Codex · ready</p>
         <p className="border-t border-line-soft px-4 py-3 text-small-body text-muted">
           Claude Code · needs sign-in
         </p>
       </SettingsGroup>
     ),
-    description: "The agent CLIs and model providers your sessions run on.",
     meta: [{ key: "ready", content: "1 ready" }],
     slug: "providers",
     width: "wide",

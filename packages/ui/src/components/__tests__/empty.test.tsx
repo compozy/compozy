@@ -96,4 +96,49 @@ describe("Empty", () => {
     const slots = Array.from(empty?.children ?? []).map(node => node.getAttribute("data-slot"));
     expect(slots).toEqual(["empty-icon", "empty-title", "empty-description", "empty-cause"]);
   });
+
+  // KEEP: DESIGN.md §3 — an error state reads as a sentence; the raw cause stays one step deeper.
+  it("Should keep the raw cause collapsed behind a Details disclosure", () => {
+    const { container } = render(
+      <Empty title="Couldn't load the overview" cause="rpc error: code = Unavailable" />
+    );
+
+    const disclosure = container.querySelector<HTMLDetailsElement>('[data-slot="empty-cause"]');
+    expect(disclosure?.tagName).toBe("DETAILS");
+    expect(disclosure?.open).toBe(false);
+    expect(screen.getByText("Details")).toBeInTheDocument();
+
+    const detail = container.querySelector('[data-slot="empty-cause-detail"]');
+    expect(detail?.textContent).toBe("rpc error: code = Unavailable");
+    expect(container.querySelector('[data-slot="empty-cause-summary"]')?.className).not.toContain(
+      "font-mono"
+    );
+  });
+
+  it("Should render illustration, hint, and nextSteps in the canonical slot order", () => {
+    const { container } = render(
+      <Empty
+        illustration={<svg data-testid="empty-art" />}
+        title="Nothing running yet"
+        description="Agents you start show up here."
+        hint="Sessions keep running after you close the tab."
+        action={<button type="button">Start a session</button>}
+        nextSteps={<button type="button">Browse the marketplace</button>}
+      />
+    );
+
+    const empty = container.querySelector('[data-slot="empty"]');
+    const slots = Array.from(empty?.children ?? []).map(node => node.getAttribute("data-slot"));
+    expect(slots).toEqual([
+      "empty-illustration",
+      "empty-icon",
+      "empty-title",
+      "empty-description",
+      "empty-hint",
+      "empty-action",
+      "empty-next-steps",
+    ]);
+    expect(screen.getByTestId("empty-art")).toBeInTheDocument();
+    expect(container.querySelector('[data-slot="empty-icon"]')).not.toBeNull();
+  });
 });

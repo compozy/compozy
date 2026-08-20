@@ -12,7 +12,9 @@ import {
   Field,
   FieldDescription,
   FieldError,
+  FieldHeader,
   FieldLabel,
+  HelpTip,
   Input,
   Label,
   RadioGroup,
@@ -86,8 +88,8 @@ export function ExtensionInstallDialog({
           <DialogHeader variant="ruled">
             <DialogTitle>Install an extension</DialogTitle>
             <DialogDescription>
-              Install from a local build, a GitHub release, or a git repository. The daemon
-              validates the source and records provenance.
+              Install from a local build, a GitHub release, or a git repository. CompozyOS validates
+              the source and records provenance.
             </DialogDescription>
           </DialogHeader>
 
@@ -117,13 +119,16 @@ export function ExtensionInstallDialog({
             </Field>
 
             <Field data-invalid={fieldErrors.ref ? true : undefined}>
-              <FieldLabel htmlFor="extension-install-ref">
-                {source?.refLabel ?? "Reference"}
-              </FieldLabel>
+              <FieldHeader>
+                <FieldLabel htmlFor="extension-install-ref">
+                  {source?.refLabel ?? "Reference"}
+                </FieldLabel>
+                {source?.hint ? (
+                  <HelpTip label={`About ${source.refLabel.toLowerCase()}`}>{source.hint}</HelpTip>
+                ) : null}
+              </FieldHeader>
               <Input
-                aria-describedby={
-                  fieldErrors.ref ? "extension-install-ref-error" : "extension-install-ref-hint"
-                }
+                aria-describedby={fieldErrors.ref ? "extension-install-ref-error" : undefined}
                 aria-invalid={fieldErrors.ref ? true : undefined}
                 data-testid="extension-install-ref"
                 id="extension-install-ref"
@@ -138,42 +143,42 @@ export function ExtensionInstallDialog({
                 >
                   {fieldErrors.ref}
                 </FieldError>
-              ) : (
-                <FieldDescription id="extension-install-ref-hint">{source?.hint}</FieldDescription>
-              )}
+              ) : null}
             </Field>
 
             {form.source !== "local_path" ? (
               <Field>
-                <FieldLabel htmlFor="extension-install-version">Version</FieldLabel>
+                <FieldHeader>
+                  <FieldLabel htmlFor="extension-install-version">Version</FieldLabel>
+                  <HelpTip label="About version">
+                    Optional. Leave empty to take the latest release the source resolves.
+                  </HelpTip>
+                </FieldHeader>
                 <Input
-                  aria-describedby="extension-install-version-hint"
                   data-testid="extension-install-version"
                   id="extension-install-version"
                   onChange={event => patch({ version: event.target.value })}
                   placeholder="0.4.2"
                   value={form.version}
                 />
-                <FieldDescription id="extension-install-version-hint">
-                  Optional. Leave empty to take the latest release the source resolves.
-                </FieldDescription>
               </Field>
             ) : null}
 
             {form.source === "github" ? (
               <Field>
-                <FieldLabel htmlFor="extension-install-asset">Asset</FieldLabel>
+                <FieldHeader>
+                  <FieldLabel htmlFor="extension-install-asset">Asset</FieldLabel>
+                  <HelpTip label="About asset">
+                    Optional. Required only when a release publishes several archives.
+                  </HelpTip>
+                </FieldHeader>
                 <Input
-                  aria-describedby="extension-install-asset-hint"
                   data-testid="extension-install-asset"
                   id="extension-install-asset"
                   onChange={event => patch({ asset: event.target.value })}
                   placeholder="hello_darwin_arm64.tar.gz"
                   value={form.asset}
                 />
-                <FieldDescription id="extension-install-asset-hint">
-                  Optional. Required only when a release publishes several archives.
-                </FieldDescription>
               </Field>
             ) : null}
 

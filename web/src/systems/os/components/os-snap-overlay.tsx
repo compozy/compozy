@@ -30,7 +30,7 @@ export function OsSnapOverlay({ preview }: { preview: SnapTarget | null }) {
         height: preview.rect.h,
       }}
     >
-      <span className="absolute top-2 left-2 rounded-sm bg-elevated px-2 py-1 text-form-hint font-medium text-fg shadow-elevated">
+      <span className="absolute top-2 left-2 rounded-sm bg-elevated px-2 py-1 text-form-hint font-medium text-fg shadow-overlay">
         {previewLabel(preview.kind)}
       </span>
     </div>

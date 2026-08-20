@@ -33,3 +33,8 @@ inventory: Needs QA
 QA impact 2026-07-26: opening the create flow without an explicit agent now resolves against the
 live Query-backed agent catalog, including the first available agent after an initially empty read.
 Status remains untested; no QA replay ran.
+
+2026-08-20 qa-impact: density cleanup removed the Agent and Session name helper paragraphs. Status
+lines while creating an environment or starting the session stay visible. Status remains untested.
+
+2026-08-20 qa-impact: Simple/Advanced sits on a recessed `--color-canvas-tint` chrome strip against the `--color-canvas-soft` shell. Status remains untested.

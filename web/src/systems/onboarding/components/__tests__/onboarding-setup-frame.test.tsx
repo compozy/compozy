@@ -3,6 +3,7 @@
 // dismissal behaviour all follow the wizard model and never let the operator out early.
 // Boundary IN: OnboardingSetupFrame and its step strip/footer composition.
 // Boundary OUT: wizard orchestration, provider/workspace transports, the desktop shell.
+import { TooltipProvider, UIProvider } from "@compozy/ui";
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
@@ -120,5 +121,29 @@ describe("OnboardingSetupFrame", () => {
 
     expect(screen.queryByRole("button", { name: /close/i })).toBeNull();
     expect(screen.queryByTestId("os-traffic-lights")).toBeNull();
+  });
+
+  it("Should mention Global and Network on the workspace step without a Network link", async () => {
+    const user = userEvent.setup();
+    render(
+      <UIProvider reducedMotion="always">
+        <TooltipProvider delay={0}>
+          <OnboardingSetupFrame
+            wizard={onboardingWizardFixture({
+              wizard: { step: 2, maxStep: 2 },
+              workspaces: { workspaces: [] },
+            })}
+          />
+        </TooltipProvider>
+      </UIProvider>
+    );
+
+    expect(screen.queryByRole("link")).not.toBeInTheDocument();
+    expect(screen.getByTestId("onboarding-skip-global")).toHaveTextContent(/^Skip$/);
+    expect(screen.getByTestId("onboarding-summary-value")).toHaveTextContent("None yet");
+
+    await user.click(screen.getByRole("button", { name: "About workspace" }));
+    expect(screen.getByText(/Skip starts in Global/)).toBeInTheDocument();
+    expect(screen.getByText(/does not enable Network/)).toBeInTheDocument();
   });
 });

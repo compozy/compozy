@@ -1,7 +1,7 @@
 import { render, screen } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
 
-import { PillGroup } from "@compozy/ui";
+import { PillGroup, TooltipProvider } from "@compozy/ui";
 
 import { SettingRow } from "../setting-row";
 import { ModalSettingsFieldRow, SettingsFieldRow } from "../settings-field-row";
@@ -21,6 +21,24 @@ describe("SettingsFieldRow", () => {
     expect(row).toHaveTextContent("Default provider");
     expect(row).toHaveTextContent("Used for new sessions");
     expect(screen.getByLabelText("Default provider")).toBeInTheDocument();
+  });
+
+  it("renders HelpTip beside the label instead of stacking the explanation", () => {
+    render(
+      <TooltipProvider delay={0}>
+        <SettingsFieldRow
+          label="Default sandbox"
+          help="How much of your file system new sessions can touch."
+          control={<input />}
+          data-testid="field-row"
+        />
+      </TooltipProvider>
+    );
+
+    const row = screen.getByTestId("field-row");
+    expect(row).toHaveTextContent("Default sandbox");
+    expect(row).not.toHaveTextContent("How much of your file system");
+    expect(screen.getByRole("button", { name: "About default sandbox" })).toBeInTheDocument();
   });
 
   it("forwards the error message when provided", () => {

@@ -376,7 +376,7 @@ describe("GeneralSettingsPage", () => {
     pageState.restart.isVisible = true;
     pageState.restart.isRestartRequired = true;
     render(<GeneralSettingsPage />);
-    const button = screen.getByRole("button", { name: "Restart daemon" });
+    const button = screen.getByRole("button", { name: "Restart CompozyOS" });
     fireEvent.click(button);
     expect(pageState.restart.trigger).toHaveBeenCalledTimes(1);
   });

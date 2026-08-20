@@ -11,7 +11,7 @@ const meta: Meta<typeof Pill> = {
     docs: {
       description: {
         component:
-          "Unified semantic pill — flat 4px radius across every size, sentence-case by default (no `uppercase` prop). Mono variants render at 10.5px / 600. Compose with `Pill.Dot` for leading status dots.",
+          "Unified semantic pill — fully rounded across every size, sans sentence-case label at 12.5px / 510 by default. `mono` is the opt-in variant for raw identifiers and renders at 11px / 600. Compose with `Pill.Dot` for leading status dots.",
       },
     },
   },
@@ -35,6 +35,26 @@ const KIND_DOT_COLORS: Record<string, string> = {
 
 export const Default: Story = {
   args: { children: "label" },
+};
+
+export const SansAndMono: Story = {
+  parameters: {
+    docs: {
+      description: {
+        story:
+          "The default label is sans — status words, kinds, and counts read as language. `mono` stays available for raw identifiers a reader has to match character by character.",
+      },
+    },
+  },
+  render: () => (
+    <div className="flex flex-wrap items-center gap-2">
+      <Pill tone="success">Completed</Pill>
+      <Pill tone="info">Running</Pill>
+      <Pill mono tone="neutral">
+        compozy-network/v0
+      </Pill>
+    </div>
+  ),
 };
 
 export const Tones: Story = {
@@ -98,7 +118,7 @@ export const Sizes: Story = {
     docs: {
       description: {
         story:
-          "All sizes share the flat `rounded-xs` (4 px) chip radius Heights: xs = 17 px, sm = 19 px, md = 22 px.",
+          "All sizes share the fully rounded `rounded-pill` chip radius. Heights: xs = 20 px, sm = 22 px, md = 26 px.",
       },
     },
   },

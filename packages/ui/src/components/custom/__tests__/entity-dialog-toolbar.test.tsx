@@ -5,6 +5,14 @@ import { describe, expect, it } from "vitest";
 import { EntityDialogToolbar } from "../entity-dialog-toolbar";
 
 describe("EntityDialogToolbar", () => {
+  it("Should not paint a chrome strip without a mode control", () => {
+    const { container } = render(<EntityDialogToolbar trailing={<span>status</span>} />);
+
+    expect(container.querySelector('[data-slot="entity-dialog-toolbar"]')).not.toHaveClass(
+      "bg-canvas-tint"
+    );
+  });
+
   it("Should render its trailing control", () => {
     render(<EntityDialogToolbar trailing={<button type="button">launch-hq</button>} />);
 

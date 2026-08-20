@@ -247,7 +247,7 @@ function SheetValueSection({ present }: { present: boolean }) {
         </Pill>
       </div>
       <p className="mt-1.5 text-form-hint leading-normal text-subtle">
-        The daemon never returns secret values. Reads expose redacted metadata only.
+        CompozyOS never returns secret values. Reads expose redacted metadata only.
       </p>
     </section>
   );

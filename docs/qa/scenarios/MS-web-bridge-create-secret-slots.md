@@ -6,7 +6,7 @@ persona: Dora
 journey: J-complete-web-bridge-setup
 expected: Opening Create bridge shows one surface, never a stepper. Simple carries the provider choice as a radiogroup (permanent identity), the display name, an "Enable after creation" toggle that defaults off, and one write-only SecretField per slot the provider manifest declares. Advanced adds DM policy, routing, delivery defaults, notification suppression, and the non-secret provider-config JSON. Required slots gate the primary. Submitting creates the bridge first (`POST /api/bridges`, no secret field on the contract) and then writes one secret binding per filled slot. If a binding fails, the dialog stays open with the created bridge shown as immutable identity, names exactly which slots failed, and reopens those fields empty — the earlier plaintext is never shown again and never re-sent implicitly. Switching provider clears every typed slot value. A manifest provider (Slack) does not gate the create on its slots, because the credentials only exist after the app is installed from the manifest.
 entry_points: web desktop shell → Bridges → Create bridge (catalog toolbar and empty state)
-qa_status: blocked-verify
+qa_status: untested
 bug_ids:
 fix_status:
 retest_status:
@@ -27,3 +27,5 @@ src: web/src/systems/bridges/components/bridge-create-dialog.tsx; web/src/system
 QA impact 2026-07-28: after all failed secret bindings are recovered, a navigation failure now
 keeps the completed flow closed instead of restoring obsolete credential fields. Status remains
 untested; no QA replay ran.
+
+2026-08-20 qa-impact: Simple/Advanced sits on a recessed `--color-canvas-tint` chrome strip against the `--color-canvas-soft` shell. Reset to untested.

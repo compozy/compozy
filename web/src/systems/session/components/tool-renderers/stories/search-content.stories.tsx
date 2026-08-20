@@ -18,9 +18,7 @@ type Story = StoryObj<typeof meta>;
 function SearchFrame({ children }: { children: React.ReactNode }) {
   return (
     <CenteredSurface>
-      <div className="w-full max-w-3xl rounded-2xl border border-line bg-canvas p-4">
-        {children}
-      </div>
+      <div className="w-full max-w-3xl rounded-xl border border-line bg-canvas p-4">{children}</div>
     </CenteredSurface>
   );
 }

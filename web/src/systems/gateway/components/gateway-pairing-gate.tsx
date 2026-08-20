@@ -37,7 +37,7 @@ export function GatewayPairingGate({ reload, tier }: GatewayPairingGateProps) {
         <Logo variant="logo" />
         <Empty
           className="max-w-md"
-          description="Open this daemon's private address or use the daemon machine to pair this device."
+          description="Open this machine's private address, or use the machine running CompozyOS, to pair this device."
           framed
           icon={KeyRound}
           title="Pairing is unavailable here"
@@ -65,7 +65,7 @@ export function GatewayPairingGate({ reload, tier }: GatewayPairingGateProps) {
       <Logo variant="logo" />
       <Empty
         className="max-w-md"
-        description="Enter a one-time pairing code minted from the daemon machine or a device you have already paired."
+        description="Enter a one-time pairing code minted from the machine running CompozyOS, or from a device you have already paired."
         framed
         icon={KeyRound}
         title="Pair this device"

@@ -3,9 +3,10 @@ import { Waypoints } from "lucide-react";
 import {
   Field,
   FieldContent,
-  FieldDescription,
+  FieldHeader,
   FieldTitle,
   FormSection,
+  HelpTip,
   NativeSelect,
   NativeSelectOption,
   Switch,
@@ -43,17 +44,16 @@ export function BridgeCreateAdvancedSection({
   return (
     <FormSection
       data-testid="bridge-create-section-routing"
-      description="Optional policies from the bridge request contract."
       icon={Waypoints}
       title="Routing & delivery"
     >
       <Field>
-        <FieldContent>
+        <FieldHeader>
           <FieldTitle>DM policy</FieldTitle>
-          <FieldDescription>
+          <HelpTip label="About DM policy">
             {describeBridgeDmPolicy(draft.dmPolicy === "" ? undefined : draft.dmPolicy)}
-          </FieldDescription>
-        </FieldContent>
+          </HelpTip>
+        </FieldHeader>
         <NativeSelect
           aria-label="Direct message policy"
           data-testid="bridge-dm-policy-select"
@@ -86,10 +86,12 @@ export function BridgeCreateAdvancedSection({
 
       <Field orientation="horizontal">
         <FieldContent>
-          <FieldTitle>Suppress bridge notifications</FieldTitle>
-          <FieldDescription>
-            Prevent notification fanout for deliveries from this bridge.
-          </FieldDescription>
+          <FieldHeader>
+            <FieldTitle>Suppress bridge notifications</FieldTitle>
+            <HelpTip label="About suppress bridge notifications">
+              Prevent notification fanout for deliveries from this bridge.
+            </HelpTip>
+          </FieldHeader>
         </FieldContent>
         <Switch
           aria-label="Suppress bridge notifications"
@@ -102,13 +104,13 @@ export function BridgeCreateAdvancedSection({
       </Field>
 
       <Field>
-        <FieldContent>
+        <FieldHeader>
           <FieldTitle>Provider configuration</FieldTitle>
-          <FieldDescription>
+          <HelpTip label="About provider configuration">
             Non-secret JSON for provider settings such as tenant identifiers or mode flags.{" "}
             {configSchema}
-          </FieldDescription>
-        </FieldContent>
+          </HelpTip>
+        </FieldHeader>
         <Textarea
           aria-invalid={Boolean(providerConfigError)}
           aria-label="Provider configuration JSON"

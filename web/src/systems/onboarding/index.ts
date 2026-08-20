@@ -8,6 +8,5 @@ export { useDirectoryBrowser } from "./hooks/use-directory-browser";
 export type { DirectoryBrowseQuery, FSEntry } from "./types";
 export { OnboardingSetupPanel } from "./components/onboarding-setup-panel";
 export { OnboardingSetupFrame } from "./components/onboarding-setup-frame";
-export { OnboardingNetworkMention } from "./components/onboarding-network-mention";
 export type { OnboardingWizardApi } from "./hooks/use-onboarding-wizard";
 export type { OnboardingStatus } from "./types";

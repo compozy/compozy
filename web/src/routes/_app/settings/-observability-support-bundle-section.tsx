@@ -21,7 +21,7 @@ function safeLogTailURL(value: string | undefined): string | null {
 /** Diagnostics: two-step support-bundle consent + the live daemon log stream row. */
 export function ObservabilityDiagnosticsSection({ logTail }: { logTail: LogTailMeta }) {
   return (
-    <SettingsGroup title="Diagnostics" description="support bundle and live logs">
+    <SettingsGroup title="Diagnostics">
       <SupportBundleRow />
       <LogTailRow logTail={logTail} />
     </SettingsGroup>
@@ -65,16 +65,14 @@ function SupportBundleRow() {
     <div className="flex flex-col" data-testid="settings-page-observability-support-bundle">
       <SettingsFieldRow
         label="Support bundle"
+        help="Redacted runtime archive for sharing with maintainers"
         description={
-          <span className="inline-flex flex-wrap items-center gap-1.5">
-            Redacted daemon archive for sharing with maintainers
-            <Eyebrow
-              className="text-faint"
-              data-testid="settings-page-observability-support-bundle-status"
-            >
-              status: {operation?.status ?? "idle"}
-            </Eyebrow>
-          </span>
+          <Eyebrow
+            className="text-faint"
+            data-testid="settings-page-observability-support-bundle-status"
+          >
+            status: {operation?.status ?? "idle"}
+          </Eyebrow>
         }
         control={
           consentOpen ? null : (
@@ -160,7 +158,7 @@ function LogTailRow({ logTail }: { logTail: LogTailMeta }) {
   return (
     <SettingsFieldRow
       data-testid="settings-page-observability-log-tail"
-      label="Live daemon logs"
+      label="Live runtime logs"
       description={
         <span className="inline-flex flex-wrap items-center gap-1.5">
           <Pill size="xs" tone={logTail.available ? "success" : "neutral"}>

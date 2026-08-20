@@ -127,7 +127,6 @@
   --container-setting-description: 52ch;
   --container-settings-page-form: 768px;
   --height-menubar: 44px;
-  --height-menubar-chip: 26px;
   --size-menubar-logo: 17px;
   --size-workspace-avatar: 18px;
   --spacing-menubar-workspace-gap: 7px;
@@ -596,7 +595,7 @@ code,
 }
 .mb-chip {
   display: flex;
-  height: var(--height-menubar-chip);
+  height: var(--height-button-sm);
   flex: none;
   align-items: center;
   padding: 0 10px;

@@ -1,6 +1,6 @@
 "use client";
 
-import { ChevronRight, TerminalIcon } from "lucide-react";
+import { ChevronRight, WrenchIcon } from "lucide-react";
 import * as React from "react";
 
 import { cn } from "../../lib/utils";
@@ -48,7 +48,7 @@ function renderToolCallIcon(icon: ToolCallRowProps["icon"]): React.ReactNode {
     "size-3.5 shrink-0 text-subtle transition-colors group-hover/tool-row:text-muted";
   if (icon === undefined) {
     return (
-      <TerminalIcon
+      <WrenchIcon
         aria-hidden="true"
         data-slot="tool-call-row-icon"
         className={iconClass}
