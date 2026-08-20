@@ -12,13 +12,15 @@
 @custom-variant dark (&:is(.dark *));
 
 @theme {
-  /* Surface ramp — warm-dark, layered backgrounds (depth without shadows). */
+  /* Surface ramp — warm-dark, layered backgrounds (depth without shadows).
+     Warmth is a whisper, never a cast: hold chroma ≤0.005 OKLCH (R−B delta
+     ≈2–3) or the ramp reads brown/sepia instead of neutral. */
   --color-rail: #0c0b0b;
-  --color-canvas: #171513;
-  --color-canvas-soft: #201d1a;
-  --color-canvas-tint: #232019;
-  --color-sidebar: #201d1a;
-  --color-elevated: #2b2723;
+  --color-canvas: #171615;
+  --color-canvas-soft: #1f1e1c;
+  --color-canvas-tint: #232220;
+  --color-sidebar: #1f1e1c;
+  --color-elevated: #2a2927;
   --color-hover: var(--color-row-hover);
   --color-disabled: #4a4847;
 
@@ -28,12 +30,12 @@
   --color-line-strong: rgba(255, 255, 255, 0.09);
   --color-line-focus: rgba(255, 255, 255, 0.14);
 
-  /* Text. */
-  --color-fg: #f0ece7;
-  --color-fg-strong: #f8f5f1;
-  --color-muted: #a8a29b;
-  --color-subtle: oklch(0.663 0.009 65);
-  --color-faint: oklch(0.638 0.006 65);
+  /* Text — same near-neutral warm discipline as the ramp (chroma ≤0.006). */
+  --color-fg: #eeedeb;
+  --color-fg-strong: #f7f6f4;
+  --color-muted: #a4a29e;
+  --color-subtle: oklch(0.663 0.004 75);
+  --color-faint: oklch(0.638 0.003 75);
 
   /* Accent — warm operator orange (the only non-neutral hue). */
   --color-accent: #e8572a;
@@ -175,6 +177,10 @@
   --text-badge--line-height: 0.75rem;
   --text-eyebrow: 0.75rem; /* 12px */
   --text-eyebrow--line-height: 1rem;
+  /* Caps rendition of the eyebrow contract — uppercase reads ~20% larger
+     optically, so it steps down a size and takes positive tracking. */
+  --text-eyebrow-caps: 0.6875rem; /* 11px */
+  --text-eyebrow-caps--line-height: 1rem;
   --text-display-2xl: 1.75rem; /* 28px */
   --text-display-2xl--line-height: 1;
   --text-site-lead: 1.1875rem; /* 19px */
@@ -210,10 +216,15 @@
   --text-mono-id: 0.6875rem;
   --text-pill-group-badge: 0.5625rem;
   /* 15 px tier for prose-adjacent / card-title surfaces (chat bubble body,
-     code-block content, tool-call title). One step above
-     `--text-small-body` (13.5 px), one step below `--text-item-title` (16 px). */
+     tool-call title). One step above `--text-small-body` (13.5 px), one step
+     below `--text-item-title` (16 px). Block code never rides this sans tier —
+     it has its own mono pair below. */
   --text-card-title: 0.9375rem;
   --text-card-title--line-height: 1.4;
+  /* Block-code tier — JetBrains Mono block surfaces (CodeBlock, JsonViewer)
+     share one size; density varies padding/surface only. */
+  --text-code-block: 0.78125rem; /* 12.5px */
+  --text-code-block--line-height: 1.5;
 
   /* Calm transcript ladder — shared by timeline rows, detail rails, working
      state, and the user-message surface. These preserve the OpenDesign rhythm
@@ -239,6 +250,7 @@
   --tracking-section-head: -0.008em;
   --tracking-tight: -0.014em;
   --tracking-eyebrow: -0.005em;
+  --tracking-eyebrow-caps: 0.06em;
   --tracking-mono-id: 0;
   /* Body baseline tracking — matches the `letter-spacing: -0.006em` set on
      `body` (see `:root` baseline below). Used by tabs label and any UI
@@ -342,10 +354,11 @@
   --height-switch-sm: 14px;
   --width-switch-sm: 24px;
 
-  /* Pill geometry — xs / sm / md heights. */
-  --height-pill-xs: 20px;
-  --height-pill-sm: 22px;
-  --height-pill-md: 26px;
+  /* Pill geometry — xs / sm / md heights. Pills are metadata, not controls:
+     they stay a tier below the button ladder (24/26/30). */
+  --height-pill-xs: 18px;
+  --height-pill-sm: 20px;
+  --height-pill-md: 24px;
 
   /* Sidebar nav row — leaf links and folder headers share one height. */
   --height-sidebar-row: 32px;

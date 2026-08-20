@@ -4,15 +4,15 @@ area: ET
 title: Geist Variable wght + UI medium 510
 persona: Bruno
 journey: J-operate-desktop-shell
-expected: Runtime web and Storybook load Geist Variable on the wght axis only; the computed body `font-family` resolves to `Geist Variable`; no surface sets `font-optical-sizing` and no sans `font-feature-settings` character-variant block survives; every font-medium surface resolves to weight 510; the body baseline is 15px (0.9375rem) at line-height 1.55 and `--text-small-body` is 13.5px; the eyebrow computes Geist **sentence case** at 12px (`--text-eyebrow`) / 510 / `--tracking-eyebrow`, with uppercase reachable only through `<Eyebrow variant="caps">` and no other uppercase eyebrow source in the tree (L-022); UI titles and rows keep the DESIGN.md tracking ladder (detail-h1 / tight / body); tabular figures still align in Metric/KpiCard numeric columns.
+expected: Runtime web and Storybook load Geist Variable on the wght axis only; the computed body `font-family` resolves to `Geist Variable`; no surface sets `font-optical-sizing` and no sans `font-feature-settings` character-variant block survives; every font-medium surface resolves to weight 510; the body baseline is 15px (0.9375rem) at line-height 1.55 and `--text-small-body` is 13.5px; the eyebrow computes Geist **sentence case** at 12px (`--text-eyebrow`) / 510 / `--tracking-eyebrow`, with uppercase reachable only through `<Eyebrow variant="caps">`, which renders the fixed `.eyebrow-caps` kicker at 11px (`--text-eyebrow-caps`) / 600 / +0.06em, and no other uppercase eyebrow source in the tree (L-022); sans pill and pill-group labels compute 12px (`--text-eyebrow`) with pill heights 18/20/24; the surface ramp and text ladder stay near-neutral warm (OKLCH chroma ≤0.006 — no sepia/brown cast) with muted-on-canvas ≥4.5:1; UI titles and rows keep the DESIGN.md tracking ladder (detail-h1 / tight / body); tabular figures still align in Metric/KpiCard numeric columns.
 entry_points: web SPA (`web/src/styles.css`); Storybook (`packages/ui/.storybook/preview.css`); site (`packages/site/app/layout.tsx` Geist loader); tokens `--font-weight-medium`, `--text-eyebrow`
-qa_status: skipped
+qa_status: pass
 bug_ids:
 fix_status:
 retest_status: pass
 fix_commits:
-evidence: /Users/pedronauck/dev/qa-labs/compozy-geist-migration-20260809/qa-artifacts/qa/typography; docs/qa/reports/2026-08-20-ui-normies-retry.md
-last_report: docs/qa/reports/2026-08-20-ui-normies-retry.md
+evidence: /Users/pedronauck/dev/qa-labs/compozy-ui-normies-refine-20260820/qa/typography; docs/qa/reports/2026-08-20-ui-normies-refine.md
+last_report: docs/qa/reports/2026-08-20-ui-normies-refine.md
 overlaps:
 ---
 
@@ -25,6 +25,32 @@ Geist Variable wght, UI medium 510, body tracking −0.006em, no optical sizing,
 block.
 
 2026-08-20 retry: skipped by explicit user instruction. No current typography walk is claimed.
+
+2026-08-20 refinement pass: reset to untested. The eyebrow caps variant split into its own fixed
+rendition (`.eyebrow-caps`, 11px/600/+0.06em — was riding the 12px default), sans pill/pill-group
+labels moved `--text-form-label` → `--text-eyebrow` with pill heights 20/22/26 → 18/20/24, and the
+surface ramp + text ladder were neutralized (canvas `#171513` → `#171615`, fg `#f0ece7` → `#eeedeb`,
+muted `#a8a29b` → `#a4a29e`, subtle/faint chroma halved) to remove the sepia cast while keeping the
+lightness lift. Walk must probe the new caps rendition and the ramp chroma ceiling.
+
+## Walk 2026-08-20 (refinement pass) — pass
+
+Walked the `packages/ui` Storybook (scenario entry point) with CDP computed-style probes after
+`document.fonts.ready` plus deterministic PNG captures (eng-ui-screenshot helper). Evidence:
+`compozy-ui-normies-refine-20260820/qa/typography/` (8 PNGs + `computed-style-probe.txt`).
+
+- Body computes 15px / line-height 23.25px (1.55) / letter-spacing −0.09px (−0.006em) in
+  `Geist Variable`; no explicit `font-optical-sizing`, no sans feature block.
+- Eyebrow default computes 12px / 510 / −0.06px / `text-transform: none`. Caps variant computes
+  11px / 600 / +0.66px (0.06em) / uppercase via the `.eyebrow-caps` utility — the only uppercase
+  eyebrow source in the tree (eyebrow contract test green in the same gate).
+- Sans `Pill` computes 20px height (sm) at 12px/510; `PillGroup` segments compute 24px min-height
+  at 12px/510. Token probe: `--height-pill-xs/sm/md` = 18/20/24px.
+- Ramp/text tokens compute `#171615` canvas, `#eeedeb` fg, `#a4a29e` muted,
+  `oklch(0.663 0.004 75)` subtle — all chroma ≤0.006 (measured), no sepia cast in any capture.
+  Contrast (WCAG, measured): fg/canvas 15.45:1, muted/canvas 7.09:1, muted/elevated 5.70:1,
+  subtle/soft 5.42:1; focus-ring contrast suite green in `make gate`.
+- Tabular figures verified in the ListingRow/Metric captures (stat columns align).
 
 ## Walk 2026-08-09 — pass
 

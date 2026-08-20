@@ -53,11 +53,18 @@
   animation: shimmer 2s ease-in-out infinite;
 }
 
-/* Single eyebrow utility / DESIGN.md §11, lesson L-022. Sentence case by
-   default; uppercase is opt-in through <Eyebrow variant="caps">. */
+/* Eyebrow contract / DESIGN.md §3, lesson L-022. One primitive, two fixed
+   renditions: sentence case by default; the uppercase kicker is opt-in via
+   <Eyebrow variant="caps"> and steps down a size with positive tracking
+   (uppercase reads optically larger and never takes negative tracking). */
 @utility eyebrow {
   @apply font-sans text-(length:--text-eyebrow) font-medium;
   letter-spacing: var(--tracking-eyebrow);
+}
+
+@utility eyebrow-caps {
+  @apply font-sans text-(length:--text-eyebrow-caps) font-semibold uppercase;
+  letter-spacing: var(--tracking-eyebrow-caps);
 }
 
 @keyframes typing-bounce {

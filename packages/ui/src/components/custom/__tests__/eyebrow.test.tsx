@@ -18,13 +18,14 @@ describe("Eyebrow", () => {
     expect(classes(eyebrow)).toEqual(["eyebrow"]);
   });
 
-  // KEEP: DESIGN.md §3 eyebrow contract — uppercase is opt-in and rides the same utility.
-  it("Should add uppercase only for variant='caps', keeping the eyebrow utility as the source", () => {
+  // KEEP: DESIGN.md §3 eyebrow contract — caps is the fixed uppercase rendition
+  // (11/600/+0.06em), a single utility with no free parameters.
+  it("Should render the eyebrow-caps rendition for variant='caps'", () => {
     render(<Eyebrow variant="caps">Run state</Eyebrow>);
     const eyebrow = screen.getByText("Run state");
 
     expect(eyebrow).toHaveAttribute("data-variant", "caps");
-    expect(classes(eyebrow)).toEqual(["eyebrow", "uppercase"]);
+    expect(classes(eyebrow)).toEqual(["eyebrow-caps"]);
   });
 
   // KEEP: DESIGN.md §3 eyebrow contract — verifies utility is preserved when merging consumer className.

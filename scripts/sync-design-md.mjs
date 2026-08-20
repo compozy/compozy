@@ -309,12 +309,12 @@ function auditSite() {
   }
   const darkBlock = siteCss.match(/\.dark\s*\{([\s\S]*?)\n\}/)?.[1] ?? "";
   const stale = {
-    "#141312": "var(--color-canvas) / #171513",
-    "#1e1c1b": "var(--color-canvas-soft) / #201d1a",
-    "#2e2c2b": "var(--color-elevated) / #2b2723",
+    "#141312": "var(--color-canvas) / #171615",
+    "#1e1c1b": "var(--color-canvas-soft) / #1f1e1c",
+    "#2e2c2b": "var(--color-elevated) / #2a2927",
     "#3c3a39": "var(--color-line) / rgba(255, 255, 255, 0.055)",
-    "#e5e5e7": "var(--color-fg) / #f0ece7",
-    "#8e8e93": "var(--color-muted) / #a8a29b",
+    "#e5e5e7": "var(--color-fg) / #eeedeb",
+    "#8e8e93": "var(--color-muted) / #a4a29e",
   };
   for (const [hex, expected] of Object.entries(stale)) {
     if (darkBlock.toLowerCase().includes(hex)) {

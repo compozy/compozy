@@ -204,7 +204,7 @@ export const noInlineEyebrow = {
     },
     messages: {
       inlineEyebrow:
-        'Inlined eyebrow tuple in className. Use <Eyebrow> from @compozy/ui (Geist sentence case 12/510/-0.005em; uppercase only via variant="caps" — no family/tone/size props). See DESIGN.md §3 and lesson L-022.',
+        'Inlined eyebrow tuple in className. Use <Eyebrow> from @compozy/ui (Geist sentence case 12/510/-0.005em; uppercase only via variant="caps", the fixed 11/600/+0.06em kicker — no family/tone/size props). See DESIGN.md §3 and lesson L-022.',
     },
     schema: [],
   },

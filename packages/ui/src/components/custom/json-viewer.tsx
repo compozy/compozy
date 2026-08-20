@@ -72,7 +72,7 @@ function JsonViewer({ value, indent = 2, className, ...props }: JsonViewerProps)
     <pre
       data-slot="json-viewer"
       className={cn(
-        "overflow-x-auto rounded border border-line bg-canvas px-3 py-2 font-mono text-form-hint leading-normal text-fg",
+        "overflow-x-auto rounded border border-line bg-canvas px-3 py-2 font-mono text-code-block text-fg",
         className
       )}
       {...props}

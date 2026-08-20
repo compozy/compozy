@@ -10,22 +10,22 @@ tokens:
   runtime:
     colors:
       rail: "#0c0b0b"
-      canvas: "#171513"
-      canvas-soft: "#201d1a"
-      canvas-tint: "#232019"
-      sidebar: "#201d1a"
-      elevated: "#2b2723"
+      canvas: "#171615"
+      canvas-soft: "#1f1e1c"
+      canvas-tint: "#232220"
+      sidebar: "#1f1e1c"
+      elevated: "#2a2927"
       hover: "var(--color-row-hover)"
       disabled: "#4a4847"
       line: "rgba(255, 255, 255, 0.055)"
       line-soft: "rgba(255, 255, 255, 0.03)"
       line-strong: "rgba(255, 255, 255, 0.09)"
       line-focus: "rgba(255, 255, 255, 0.14)"
-      fg: "#f0ece7"
-      fg-strong: "#f8f5f1"
-      muted: "#a8a29b"
-      subtle: "oklch(0.663 0.009 65)"
-      faint: "oklch(0.638 0.006 65)"
+      fg: "#eeedeb"
+      fg-strong: "#f7f6f4"
+      muted: "#a4a29e"
+      subtle: "oklch(0.663 0.004 75)"
+      faint: "oklch(0.638 0.003 75)"
       accent: "#e8572a"
       accent-hover: "#d14e25"
       accent-strong: "#f6874f"
@@ -131,6 +131,7 @@ tokens:
       small-body: { size: "0.84375rem", line: "1.25rem" }
       badge: { size: "0.6875rem", line: "0.75rem" }
       eyebrow: { size: "0.75rem", line: "1rem", tracking: "-0.005em" }
+      eyebrow-caps: { size: "0.6875rem", line: "1rem", tracking: "0.06em" }
       display-2xl: { size: "1.75rem", line: "1" }
       site-lead: { size: "1.1875rem", line: "1.5" }
       micro: { size: "0.6875rem", line: "0.75rem" }
@@ -155,6 +156,7 @@ tokens:
       mono-id: { size: "0.6875rem", tracking: "0" }
       pill-group-badge: { size: "0.5625rem" }
       card-title: { size: "0.9375rem", line: "1.4" }
+      code-block: { size: "0.78125rem", line: "1.5" }
       transcript-message: { size: "0.84375rem" }
       transcript-body: { size: "0.75rem" }
       transcript-meta: { size: "0.71875rem" }
@@ -240,9 +242,9 @@ tokens:
       width-switch-default: "32px"
       height-switch-sm: "14px"
       width-switch-sm: "24px"
-      height-pill-xs: "20px"
-      height-pill-sm: "22px"
-      height-pill-md: "26px"
+      height-pill-xs: "18px"
+      height-pill-sm: "20px"
+      height-pill-md: "24px"
       height-sidebar-row: "32px"
       height-tabs-list: "40px"
       height-tab-underline: "1.5px"
@@ -525,8 +527,12 @@ glass and blur from §5. Content inside window bodies never does.
 
 The core atmosphere is:
 
-- Warm dark, never cool slate. The neutral ramp leans brown-black so extended
-  working sessions feel less harsh than pure black or blue-gray.
+- Warm dark, never cool slate — and never brown. The neutral ramp carries a
+  whisper of warmth (OKLCH chroma ≤0.005, hue in the 60–90° band) so extended
+  working sessions feel less harsh than pure black or blue-gray. Warmth past
+  that band reads as a sepia/olive cast, not warmth: if a surface's R−B delta
+  exceeds ~3, the ramp has drifted brown and must be pulled back toward
+  neutral.
 - One accent. `--color-accent` means "act" and should usually appear once in a
   viewport as the active CTA or primary identity marker.
 - Flat depth. Hierarchy comes from the surface ramp, translucent hairlines, and
@@ -566,11 +572,11 @@ token or component at the source; do not locally override one callsite.
 | Token                 | Value                    |
 | --------------------- | ------------------------ |
 | `--color-rail`        | `#0c0b0b`                |
-| `--color-canvas`      | `#171513`                |
-| `--color-canvas-soft` | `#201d1a`                |
-| `--color-canvas-tint` | `#232019`                |
-| `--color-sidebar`     | `#201d1a`                |
-| `--color-elevated`    | `#2b2723`                |
+| `--color-canvas`      | `#171615`                |
+| `--color-canvas-soft` | `#1f1e1c`                |
+| `--color-canvas-tint` | `#232220`                |
+| `--color-sidebar`     | `#1f1e1c`                |
+| `--color-elevated`    | `#2a2927`                |
 | `--color-hover`       | `var(--color-row-hover)` |
 | `--color-disabled`    | `#4a4847`                |
 
@@ -595,11 +601,11 @@ token or component at the source; do not locally override one callsite.
 
 | Token               | Value                   |
 | ------------------- | ----------------------- |
-| `--color-fg`        | `#f0ece7`               |
-| `--color-fg-strong` | `#f8f5f1`               |
-| `--color-muted`     | `#a8a29b`               |
-| `--color-subtle`    | `oklch(0.663 0.009 65)` |
-| `--color-faint`     | `oklch(0.638 0.006 65)` |
+| `--color-fg`        | `#eeedeb`               |
+| `--color-fg-strong` | `#f7f6f4`               |
+| `--color-muted`     | `#a4a29e`               |
+| `--color-subtle`    | `oklch(0.663 0.004 75)` |
+| `--color-faint`     | `oklch(0.638 0.003 75)` |
 
 <!-- END:tokens:text-ladder -->
 
@@ -733,11 +739,13 @@ the OpenDesign prototypes. Components should compose from text and tracking
 tokens rather than re-declaring pixel sizes.
 
 The eyebrow contract is intentionally narrow after L-022: one `<Eyebrow>`
-primitive, one `.eyebrow` utility, one canonical style — Geist sentence case
-12/510/-0.005em. Uppercase is no longer the default; it is opt-in through
-`<Eyebrow variant="caps">`, which adds only the case on the same size and
-tracking tokens, so the single-source rule is unchanged. Reach for `caps` only
-where a label is a true typographic kicker. Eyebrow is for structural labels
+primitive with two fixed renditions, both utilities in `tokens-runtime.css`.
+The default is Geist sentence case 12/510/-0.005em (`.eyebrow`). Uppercase is
+opt-in through `<Eyebrow variant="caps">`, which renders the `.eyebrow-caps`
+kicker — 11/600/+0.06em: one size step down, positive tracking, because
+uppercase reads optically ~20% larger and must never take negative tracking.
+Neither rendition has free parameters, so the single-source rule is unchanged.
+Reach for `caps` only where a label is a true typographic kicker. Eyebrow is for structural labels
 such as table heads, metadata terms, section labels, and
 breadcrumbs. Metrics, KPI labels, ids, code, and pills are not eyebrows just
 because they are small. Docs-shell labels are the exception: they keep the
@@ -772,6 +780,7 @@ crumbs) or `--text-group-label` (in-folder groups) — not marketing
 | `--text-small-body`         | `0.84375rem` | `1.25rem`  |            |
 | `--text-badge`              | `0.6875rem`  | `0.75rem`  |            |
 | `--text-eyebrow`            | `0.75rem`    | `1rem`     | `-0.005em` |
+| `--text-eyebrow-caps`       | `0.6875rem`  | `1rem`     | `0.06em`   |
 | `--text-display-2xl`        | `1.75rem`    | `1`        |            |
 | `--text-site-lead`          | `1.1875rem`  | `1.5`      |            |
 | `--text-micro`              | `0.6875rem`  | `0.75rem`  |            |
@@ -796,6 +805,7 @@ crumbs) or `--text-group-label` (in-folder groups) — not marketing
 | `--text-mono-id`            | `0.6875rem`  |            | `0`        |
 | `--text-pill-group-badge`   | `0.5625rem`  |            |            |
 | `--text-card-title`         | `0.9375rem`  | `1.4`      |            |
+| `--text-code-block`         | `0.78125rem` | `1.5`      |            |
 | `--text-transcript-message` | `0.84375rem` |            |            |
 | `--text-transcript-body`    | `0.75rem`    |            |            |
 | `--text-transcript-meta`    | `0.71875rem` |            |            |
@@ -808,14 +818,14 @@ crumbs) or `--text-group-label` (in-folder groups) — not marketing
 
 <!-- BEGIN:tokens:tracking-ladder -->
 
-| Token                    | Value      | Token                     | Value      |
-| ------------------------ | ---------- | ------------------------- | ---------- |
-| `--tracking-mono`        | `0.02em`   | `--tracking-detail-h1`    | `-0.028em` |
-| `--tracking-compact-h1`  | `-0.022em` | `--tracking-empty-h1`     | `-0.022em` |
-| `--tracking-modal-title` | `-0.012em` | `--tracking-section-head` | `-0.008em` |
-| `--tracking-tight`       | `-0.014em` | `--tracking-eyebrow`      | `-0.005em` |
-| `--tracking-mono-id`     | `0`        | `--tracking-body`         | `-0.006em` |
-| `--tracking-row-title`   | `-0.01em`  |                           |            |
+| Token                     | Value      | Token                     | Value      |
+| ------------------------- | ---------- | ------------------------- | ---------- |
+| `--tracking-mono`         | `0.02em`   | `--tracking-detail-h1`    | `-0.028em` |
+| `--tracking-compact-h1`   | `-0.022em` | `--tracking-empty-h1`     | `-0.022em` |
+| `--tracking-modal-title`  | `-0.012em` | `--tracking-section-head` | `-0.008em` |
+| `--tracking-tight`        | `-0.014em` | `--tracking-eyebrow`      | `-0.005em` |
+| `--tracking-eyebrow-caps` | `0.06em`   | `--tracking-mono-id`      | `0`        |
+| `--tracking-body`         | `-0.006em` | `--tracking-row-title`    | `-0.01em`  |
 
 <!-- END:tokens:tracking-ladder -->
 
@@ -875,7 +885,7 @@ widths come from `--site-*` tokens.
 | `--spacing-transcript-meta-gap`            | `3px`                            | `--height-input`                      | `36px`                                                      | `--height-control-compact`              | `32px`                                                                                                                            |
 | `--height-search`                          | `32px`                           | `--height-textarea-min`               | `84px`                                                      | `--height-switch-default`               | `18px`                                                                                                                            |
 | `--width-switch-default`                   | `32px`                           | `--height-switch-sm`                  | `14px`                                                      | `--width-switch-sm`                     | `24px`                                                                                                                            |
-| `--height-pill-xs`                         | `20px`                           | `--height-pill-sm`                    | `22px`                                                      | `--height-pill-md`                      | `26px`                                                                                                                            |
+| `--height-pill-xs`                         | `18px`                           | `--height-pill-sm`                    | `20px`                                                      | `--height-pill-md`                      | `24px`                                                                                                                            |
 | `--height-sidebar-row`                     | `32px`                           | `--height-tabs-list`                  | `40px`                                                      | `--height-tab-underline`                | `1.5px`                                                                                                                           |
 | `--spacing-count-chip`                     | `19px`                           | `--spacing-count-chip-sm`             | `17px`                                                      | `--height-property-row`                 | `30px`                                                                                                                            |
 | `--spacing-property-row-y`                 | `3px`                            | `--size-empty-icon`                   | `48px`                                                      | `--width-menu-sub-min`                  | `96px`                                                                                                                            |

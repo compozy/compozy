@@ -10,7 +10,7 @@ const meta: Meta<typeof Eyebrow> = {
     docs: {
       description: {
         component:
-          'Canonical eyebrow primitive — single Geist 12 px / 510 / -0.005em contract, sentence case. `variant="caps"` is the only opt-in: it adds uppercase on the same size and tracking tokens, so there is still one eyebrow source (/ §11, lesson L-022). Tone, size, and weight stay collapsed; apply text-color utilities through `className` when a tone is needed (`text-muted`, `text-subtle`, `text-accent`, signal palette).',
+          'Canonical eyebrow primitive — Geist sentence case 12 px / 510 / -0.005em by default. `variant="caps"` is the only opt-in: the fixed uppercase kicker rendition (11 px / 600 / +0.06em — a size step down with positive tracking, because uppercase reads optically larger). Both renditions are utilities in tokens-runtime.css, so there is still one eyebrow source with no free parameters (lesson L-022). Tone stays collapsed; apply text-color utilities through `className` when a tone is needed (`text-muted`, `text-subtle`, `text-accent`, signal palette).',
       },
     },
   },
