@@ -114,7 +114,12 @@
     },
     "overrides": [
         {
-            "files": ["web/src/**/*.tsx", "packages/ui/src/**/*.tsx", "packages/site/**/*.tsx"],
+            "files": [
+                "web/src/**/*.tsx",
+                "packages/ui/src/**/*.tsx",
+                "packages/site/**/*.tsx",
+                "sdk/react/src/**/*.tsx"
+            ],
             "rules": {
                 "compozy-react/max-component-complexity": [
                     "error",
@@ -131,7 +136,8 @@
             "files": [
                 "web/src/**/*.{ts,tsx}",
                 "packages/ui/src/**/*.{ts,tsx}",
-                "packages/site/**/*.{ts,tsx}"
+                "packages/site/**/*.{ts,tsx}",
+                "sdk/react/src/**/*.{ts,tsx}"
             ],
             "rules": {
                 "compozy-react-hooks/hooks-in-hooks-folder": "error"
@@ -141,7 +147,8 @@
             "files": [
                 "web/src/**/*.{ts,tsx}",
                 "packages/ui/src/**/*.{ts,tsx}",
-                "packages/site/**/*.{ts,tsx}"
+                "packages/site/**/*.{ts,tsx}",
+                "sdk/react/src/**/*.{ts,tsx}"
             ],
             "rules": {
                 "react/error-boundaries": "error",

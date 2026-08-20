@@ -50,7 +50,7 @@ type Row struct {
 	Title       string            `json:"title"`
 	Subtitle    string            `json:"subtitle,omitempty"`
 	Icon        string            `json:"icon,omitempty"`
-	Badge       *Badge            `json:"badge,omitempty"`
+	Badge       *ViewBadge        `json:"badge,omitempty"`
 	Keywords    []string          `json:"keywords,omitempty"`
 	Accessories []string          `json:"accessories,omitempty"`
 	Detail      *DetailBody       `json:"detail,omitempty"`
@@ -137,7 +137,7 @@ type GridTile struct {
 	ID       string            `json:"id"`
 	Title    string            `json:"title"`
 	Image    Image             `json:"image"`
-	Badge    *Badge            `json:"badge,omitempty"`
+	Badge    *ViewBadge        `json:"badge,omitempty"`
 	Actions  []RowAction       `json:"actions,omitempty"`
 	Requires map[string]string `json:"requires,omitempty"`
 	Fallback string            `json:"fallback,omitempty"`
@@ -186,7 +186,7 @@ type PatchOp struct {
 	Value json.RawMessage `json:"value,omitempty"`
 }
 
-type Badge struct {
+type ViewBadge struct {
 	Label string `json:"label"`
 	Tone  string `json:"tone"`
 }

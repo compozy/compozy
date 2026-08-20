@@ -4,12 +4,14 @@ import (
 	"fmt"
 	"net/url"
 	"regexp"
+	"slices"
 	"strings"
 	"unicode"
 	"unicode/utf8"
 
 	"github.com/rivo/uniseg"
 
+	extensionprotocol "github.com/compozy/compozy/internal/extensionprotocol"
 	toolspkg "github.com/compozy/compozy/internal/tools"
 	"github.com/compozy/compozy/internal/windowmanager"
 )
@@ -51,39 +53,68 @@ func validateManifestCmdPalette(manifest *Manifest) error {
 	if err != nil {
 		return err
 	}
+	viewIDs, err := validateCmdPaletteViews(manifest, tools)
+	if err != nil {
+		return err
+	}
+	return validateCmdPaletteCommands(config.Commands, tools, viewIDs)
+}
+
+func validateCmdPaletteViews(
+	manifest *Manifest,
+	tools map[string]ManifestToolDescriptor,
+) (map[string]struct{}, error) {
+	config := manifest.Resources.CmdPalette
 	viewIDs := make(map[string]struct{}, len(config.Views))
 	for index, view := range config.Views {
 		path := fmt.Sprintf("cmd_palette.views[%d]", index)
 		if err := validateCmdPaletteLocalID(path+".id", view.ID, viewIDs); err != nil {
-			return err
+			return nil, err
 		}
 		if err := validateCmdPaletteText(path+".title", view.Title, cmdPaletteTitleMaxRunes); err != nil {
-			return err
+			return nil, err
 		}
 		switch view.Kind {
 		case cmdPaletteViewList, cmdPaletteViewDetail, cmdPaletteViewForm, cmdPaletteViewGrid:
 		default:
-			return cmdPaletteManifestError(path+".kind", view.Kind, "must be list, detail, form, or grid")
+			return nil, cmdPaletteManifestError(path+".kind", view.Kind, "must be list, detail, form, or grid")
 		}
 		if view.Program == (view.Source != nil) {
-			return cmdPaletteManifestError(path, "", "exactly one of source or program is required")
+			return nil, cmdPaletteManifestError(path, "", "exactly one of source or program is required")
+		}
+		if view.Program && !slices.Contains(
+			manifest.Capabilities.Provides,
+			string(extensionprotocol.CapabilityProvideViewProvider),
+		) {
+			return nil, cmdPaletteManifestError(
+				path+".program",
+				"true",
+				"requires the view.provider capability",
+			)
 		}
 		if view.Source != nil {
 			tool, exists := tools[view.Source.Tool]
 			if !exists {
-				return cmdPaletteUnknownRef(path+".source.tool", "tool", view.Source.Tool)
+				return nil, cmdPaletteUnknownRef(path+".source.tool", "tool", view.Source.Tool)
 			}
 			if tool.Tool.Risk != toolspkg.RiskRead || !tool.Tool.ReadOnly || tool.Tool.Destructive ||
 				tool.Tool.OpenWorld || tool.Tool.RequiresInteraction {
-				return cmdPaletteManifestError(
+				return nil, cmdPaletteManifestError(
 					path+".source.tool", view.Source.Tool, "view source tool must be read-only risk class",
 				)
 			}
 		}
 	}
+	return viewIDs, nil
+}
 
-	commandIDs := make(map[string]struct{}, len(config.Commands))
-	for index, command := range config.Commands {
+func validateCmdPaletteCommands(
+	commands []CmdPaletteCommand,
+	tools map[string]ManifestToolDescriptor,
+	viewIDs map[string]struct{},
+) error {
+	commandIDs := make(map[string]struct{}, len(commands))
+	for index, command := range commands {
 		path := fmt.Sprintf("cmd_palette.commands[%d]", index)
 		if err := validateCmdPaletteLocalID(path+".id", command.ID, commandIDs); err != nil {
 			return err

@@ -9,10 +9,8 @@ import {
 import { HostAPI } from "./host-api.js";
 import type {
   ExtensionDefinition,
-  ExtensionProvideToolsResponse,
   HealthCheckResult,
   HookEvent,
-  ExtensionToolCallResponse,
   ExtensionCommandGroupSpec,
   ExtensionToolRuntimeDescriptor,
   JSONRPCRequestEnvelope,
@@ -31,21 +29,16 @@ import {
   MethodNotFoundError,
   NotInitializedError,
   ShutdownInProgressError,
-  isRPCError,
 } from "./errors.js";
 
 import {
   implementedExtensionMethods,
   normalizeStringList,
-  normalizeToolResult,
   parseShutdownRequest,
-  parseToolCallRequest,
-  toolExecutionError,
   transportMethods,
 } from "./extension-runtime.js";
 import { SDK_VERSION } from "./extension-contract.js";
 import { makeExtensionContext, writeExtensionError } from "./extension-context.js";
-import { makeExtensionToolContext } from "./extension-tool-context.js";
 import { buildExtensionSession } from "./extension-session.js";
 import {
   buildExtensionDescribePayload,
@@ -54,6 +47,7 @@ import {
   runExtensionDescribeMode,
 } from "./extension-describe.js";
 import { buildRegisteredTool } from "./extension-tool-registration.js";
+import { callRegisteredTool, provideRegisteredTools } from "./extension-tool-dispatch.js";
 import {
   ExtensionProvideSurfaces,
   registerProvideSurface,
@@ -85,6 +79,7 @@ export class Extension {
   });
   private readonly readyCallbacks = new Set<ReadyCallback>();
   private readonly transportBindings = new Set<string>();
+  private readonly requestSignals = new Map<string, AbortSignal>();
   private readonly provideSurfaces = new ExtensionProvideSurfaces({
     handlers: this.handlers,
     validateMethod: method => {
@@ -293,13 +288,13 @@ export class Extension {
     if (this.transportBindings.has(method)) {
       this.transport.handle(
         method,
-        async (params, request) => await this.dispatch(method, params, request)
+        async (params, request, signal) => await this.dispatch(method, params, request, signal)
       );
       return;
     }
     this.transport.handle(
       method,
-      async (params, request) => await this.dispatch(method, params, request)
+      async (params, request, signal) => await this.dispatch(method, params, request, signal)
     );
     this.transportBindings.add(method);
   }
@@ -307,33 +302,40 @@ export class Extension {
   private async dispatch(
     method: string,
     params: unknown,
-    request: JSONRPCRequestEnvelope
+    request: JSONRPCRequestEnvelope,
+    signal: AbortSignal
   ): Promise<unknown> {
-    if (method === "initialize") {
-      return await this.handleInitialize(params);
-    }
-    if (!this.initialized || !this.session) {
-      throw new NotInitializedError();
-    }
-    if (this.shutdownStarted && method !== "shutdown") {
-      throw new ShutdownInProgressError(
-        this.shutdownDeadlineMS === undefined ? {} : { deadline_ms: this.shutdownDeadlineMS }
-      );
-    }
+    const requestKey = `${typeof request.id}:${String(request.id)}`;
+    this.requestSignals.set(requestKey, signal);
+    try {
+      if (method === "initialize") {
+        return await this.handleInitialize(params);
+      }
+      if (!this.initialized || !this.session) {
+        throw new NotInitializedError();
+      }
+      if (this.shutdownStarted && method !== "shutdown") {
+        throw new ShutdownInProgressError(
+          this.shutdownDeadlineMS === undefined ? {} : { deadline_ms: this.shutdownDeadlineMS }
+        );
+      }
 
-    switch (method) {
-      case "health_check":
-        return await this.handleHealthCheck(request, params);
-      case "shutdown":
-        return await this.handleShutdown(request, params);
-      case PROVIDE_TOOLS_METHOD:
-        return this.handleProvideTools();
-      case TOOLS_CALL_METHOD:
-        return await this.handleToolCall(request, params);
-      case WATCH_POLL_METHOD:
-        return await this.watchSources.handlePoll(request, params);
-      default:
-        return await this.handleUserMethod(method, request, params);
+      switch (method) {
+        case "health_check":
+          return await this.handleHealthCheck(request, params);
+        case "shutdown":
+          return await this.handleShutdown(request, params);
+        case PROVIDE_TOOLS_METHOD:
+          return provideRegisteredTools(this.getToolDescriptors());
+        case TOOLS_CALL_METHOD:
+          return await this.handleToolCall(request, params);
+        case WATCH_POLL_METHOD:
+          return await this.watchSources.handlePoll(request, params);
+        default:
+          return await this.handleUserMethod(method, request, params);
+      }
+    } finally {
+      this.requestSignals.delete(requestKey);
     }
   }
 
@@ -417,39 +419,8 @@ export class Extension {
     return { acknowledged: true };
   }
 
-  private handleProvideTools(): ExtensionProvideToolsResponse {
-    return {
-      tools: this.getToolDescriptors(),
-    };
-  }
-
-  private async handleToolCall(
-    request: JSONRPCRequestEnvelope,
-    params: unknown
-  ): Promise<ExtensionToolCallResponse> {
-    const call = parseToolCallRequest(params);
-    const registered = this.toolHandlers.get(call.handler);
-    if (!registered) {
-      throw new MethodNotFoundError(call.handler);
-    }
-    if (registered.descriptor.id !== call.tool_id) {
-      throw new InvalidParamsError("tool_id does not match handler", {
-        expected_tool_id: registered.descriptor.id,
-        actual_tool_id: call.tool_id,
-        handler: call.handler,
-      });
-    }
-
-    const context = this.makeContext(request);
-    try {
-      const result = await registered.handler(makeExtensionToolContext(call, context));
-      return { result: normalizeToolResult(result) };
-    } catch (error) {
-      if (isRPCError(error)) {
-        throw error;
-      }
-      throw toolExecutionError(error, call, registered.sensitiveInputFields);
-    }
+  private async handleToolCall(request: JSONRPCRequestEnvelope, params: unknown) {
+    return await callRegisteredTool(this.toolHandlers, params, this.makeContext(request));
   }
 
   private async handleUserMethod(
@@ -465,7 +436,9 @@ export class Extension {
   }
 
   private makeContext(request: JSONRPCRequestEnvelope): ExtensionContext {
-    return makeExtensionContext(request, this.host, this.session, this.stderr);
+    const requestKey = `${typeof request.id}:${String(request.id)}`;
+    const signal = this.requestSignals.get(requestKey) ?? new AbortController().signal;
+    return makeExtensionContext(request, signal, this.host, this.session, this.stderr);
   }
 
   private logError(message: string, error: unknown): void {

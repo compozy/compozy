@@ -115,6 +115,36 @@ type CmdPaletteViewPatch struct {
 	Reset       bool                    `json:"reset,omitempty"`
 }
 
+type CmdPaletteViewSessionOpenRequest struct {
+	Workspace string         `json:"workspace"`
+	Args      map[string]any `json:"args,omitempty"`
+}
+
+type CmdPaletteViewSessionOpenResponse struct {
+	ViewSession string               `json:"view_session"`
+	StreamToken string               `json:"stream_token"`
+	FirstFrame  cmdpalette.ViewFrame `json:"first_frame"`
+}
+
+type CmdPaletteViewSessionEventRequest struct {
+	Handler      string                   `json:"handler"`
+	Args         []any                    `json:"args,omitempty"`
+	Revision     string                   `json:"revision"`
+	Seq          int64                    `json:"seq"`
+	AckEffects   []string                 `json:"ack_effects,omitempty"`
+	EffectResult *cmdpalette.EffectResult `json:"effect_result,omitempty"`
+}
+
+type CmdPaletteViewSessionAccepted struct {
+	Accepted bool `json:"accepted"`
+}
+
+type CmdPaletteViewSessionClosed struct {
+	Closed bool `json:"closed"`
+}
+
+type ViewFrame = cmdpalette.ViewFrame
+
 type ToolApprovalStatusResponse struct {
 	ApprovalStatus  toolspkg.ApprovalOutcome         `json:"approval_status"`
 	ExecutionStatus toolspkg.ApprovalExecutionStatus `json:"execution_status,omitempty"`

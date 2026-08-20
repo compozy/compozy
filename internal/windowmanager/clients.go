@@ -180,6 +180,11 @@ func (m *Manager) UnregisterClient(ctx context.Context, workspaceID WorkspaceID,
 		endpoint.closeWithError(ErrClientNotFound)
 	}
 	m.closeClientSubscriptions(workspaceID, clientID)
+	if m.clientObserver != nil {
+		if err := m.clientObserver(ctx, workspaceID, clientID); err != nil {
+			return fmt.Errorf("unregister client %q observer: %w", clientID, err)
+		}
+	}
 	return nil
 }
 

@@ -447,7 +447,20 @@ func TestClientLifecycle(t *testing.T) {
 		"Should keep preview local, order clients deterministically, and unregister transient state",
 		func(t *testing.T) {
 			t.Parallel()
-			environment := newTestEnvironment(t, DefaultConfig(), "workspace-a")
+			var observedWorkspace WorkspaceID
+			var observedClient ClientID
+			environment := newTestEnvironmentWithOptions(
+				t,
+				DefaultConfig(),
+				[]WorkspaceID{"workspace-a"},
+				WithClientUnregisteredObserver(
+					func(_ context.Context, workspaceID WorkspaceID, clientID ClientID) error {
+						observedWorkspace = workspaceID
+						observedClient = clientID
+						return nil
+					},
+				),
+			)
 			created := executeTestCommand(
 				t,
 				environment.manager,
@@ -581,6 +594,15 @@ func TestClientLifecycle(t *testing.T) {
 			}
 			if err := environment.manager.UnregisterClient(t.Context(), "workspace-a", clientID); err != nil {
 				t.Fatalf("UnregisterClient() error = %v", err)
+			}
+			if observedWorkspace != "workspace-a" || observedClient != clientID {
+				t.Fatalf(
+					"client unregister observer = (%q, %q), want (%q, %q)",
+					observedWorkspace,
+					observedClient,
+					WorkspaceID("workspace-a"),
+					clientID,
+				)
 			}
 			if _, open := <-subscription.Updates(); open ||
 				!errors.Is(subscription.Err(), ErrClientNotFound) {

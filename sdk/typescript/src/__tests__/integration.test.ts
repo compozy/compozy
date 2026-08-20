@@ -293,6 +293,7 @@ describe("SDK integration", () => {
       "memory.backend",
       "model.source",
       "tool.provider",
+      "view.provider",
     ]);
     expect(provides).not.toContain("bridge.adapter");
 

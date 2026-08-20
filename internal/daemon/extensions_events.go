@@ -115,7 +115,11 @@ func (s *daemonExtensionService) recordCanonicalExtensionLifecycleEvents(
 	}
 	for _, event := range events {
 		if extensionLifecycleChangesPalette(event.Type) {
-			return s.paletteNotifier.Notify(ctx, event.WorkspaceID)
+			return s.paletteNotifier.NotifyExtensionChanged(
+				ctx,
+				event.WorkspaceID,
+				event.ExtensionName,
+			)
 		}
 	}
 	return nil
@@ -242,7 +246,7 @@ func (s *daemonExtensionService) recordExtensionLifecycleEvent(
 		return err
 	}
 	if extensionLifecycleChangesPalette(eventType) {
-		return s.paletteNotifier.Notify(ctx, payload.WorkspaceID)
+		return s.paletteNotifier.NotifyExtensionChanged(ctx, payload.WorkspaceID, payload.Name)
 	}
 	return nil
 }

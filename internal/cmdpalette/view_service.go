@@ -60,8 +60,8 @@ type DynamicViewProvider interface {
 	ViewSourceProvider
 }
 
-// ViewService is the Tier-1 read surface consumed by both API transports.
-type ViewService interface {
+// ViewSourceService is the Tier-1 read surface consumed by both API transports.
+type ViewSourceService interface {
 	ResolveView(context.Context, WorkspaceID, string) (ViewDescriptor, error)
 	OpenSource(context.Context, WorkspaceID, string) (ViewSnapshot, error)
 	SubscribeViewPatches(
@@ -69,6 +69,38 @@ type ViewService interface {
 		WorkspaceID,
 		string,
 	) (<-chan ViewPatchEvent, func(), error)
+}
+
+// ViewSessionService is the Tier-2 programmable-view session authority.
+type ViewSessionService interface {
+	OpenSession(context.Context, ViewSessionOpenRequest) (ViewSessionOpenResult, error)
+	AdmitEvent(context.Context, SessionToken, ViewEvent) error
+	PublishFrame(context.Context, SessionToken, ViewFrame) error
+	AckEffects(context.Context, SessionToken, []string) error
+	SubscribeSessionFrames(
+		context.Context,
+		SessionToken,
+	) (ViewFrame, <-chan ViewFrame, func(), error)
+	CloseSession(context.Context, SessionToken, string) error
+	CloseClientSessions(context.Context, WorkspaceID, ClientID) error
+	InvalidateInstance(context.Context, WorkspaceID, string, uint64) error
+}
+
+// ViewService owns both declarative views and programmable sessions.
+type ViewService interface {
+	ViewSourceService
+	ViewSessionService
+}
+
+// WithViewProgramProvider registers the single view.provider runtime.
+func WithViewProgramProvider(provider ViewProgramProvider) Option {
+	return func(service *Service) error {
+		if provider == nil {
+			return errors.New("cmd palette view: program provider is required")
+		}
+		service.viewPrograms = provider
+		return nil
+	}
 }
 
 func WithViewProviders(registrations []ViewProviderRegistration) Option {
@@ -262,4 +294,8 @@ func UnknownViewKindPayload(kind ViewKind) ViewPayload {
 	}
 }
 
-var _ ViewService = (*Service)(nil)
+var (
+	_ ViewSourceService  = (*Service)(nil)
+	_ ViewSessionService = (*Service)(nil)
+	_ ViewService        = (*Service)(nil)
+)

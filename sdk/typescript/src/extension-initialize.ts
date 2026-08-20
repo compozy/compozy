@@ -51,6 +51,15 @@ export function parseInitializeRequest(params: unknown): InitializeRequest {
       throw new InvalidParamsError(`${field} must be greater than zero`);
     }
   }
+  if (
+    request.capabilities.provides.includes("view.provider") &&
+    (!Number.isFinite(request.runtime.default_view_timeout_ms) ||
+      (request.runtime.default_view_timeout_ms ?? 0) <= 0)
+  ) {
+    throw new InvalidParamsError(
+      "default_view_timeout_ms must be greater than zero for view.provider"
+    );
+  }
   return request;
 }
 

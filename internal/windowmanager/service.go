@@ -20,6 +20,7 @@ type Manager struct {
 	generate           idGenerator
 	subscriptionBuffer int
 	eventObserver      EventObserver
+	clientObserver     ClientUnregisteredObserver
 	workspaceConfig    WorkspaceConfigResolver
 	defaultsMu         sync.RWMutex
 
@@ -98,6 +99,7 @@ func NewService(
 		generate:           resolved.generate,
 		subscriptionBuffer: resolved.subscriptionBuffer,
 		eventObserver:      resolved.eventObserver,
+		clientObserver:     resolved.clientObserver,
 		workspaceConfig:    resolved.workspaceConfig,
 		workspaceLocks:     make(map[WorkspaceID]*workspaceLock),
 		clients:            make(map[WorkspaceID]map[ClientID]ClientView),

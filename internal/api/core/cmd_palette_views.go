@@ -19,7 +19,7 @@ const (
 
 type cmdPaletteViewStream struct {
 	h           *BaseHandlers
-	service     cmdpalette.ViewService
+	service     cmdpalette.ViewSourceService
 	writer      FlushWriter
 	workspaceID cmdpalette.WorkspaceID
 	viewID      string
@@ -162,8 +162,8 @@ func (s *cmdPaletteViewStream) resync(ctx context.Context, sequence int64) bool 
 func (h *BaseHandlers) cmdPaletteViewService(
 	c *gin.Context,
 	workspaceID cmdpalette.WorkspaceID,
-) (cmdpalette.ViewService, bool) {
-	service, ok := h.CmdPalette.(cmdpalette.ViewService)
+) (cmdpalette.ViewSourceService, bool) {
+	service, ok := h.CmdPalette.(cmdpalette.ViewSourceService)
 	if !ok {
 		h.respondCmdPaletteViewError(c, workspaceID, errors.New("cmd palette view service is unavailable"))
 		return nil, false

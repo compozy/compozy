@@ -4,6 +4,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/compozy/compozy/sdk/go/contracts"
 	"github.com/compozy/compozy/sdk/go/extensiontest"
 )
 
@@ -14,7 +15,7 @@ func TestPublicProvideConformance(t *testing.T) {
 	t.Run("Should expose every public provide fixture", func(t *testing.T) {
 		t.Parallel()
 
-		if got, want := len(fixtures), 6; got != want {
+		if got, want := len(fixtures), len(contracts.PublicProvideConformanceFixtures()); got != want {
 			t.Fatalf("PublicProvideFixtures() count = %d, want %d", got, want)
 		}
 	})

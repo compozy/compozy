@@ -26,7 +26,57 @@ type extensionCmdPaletteProvider struct {
 var (
 	_ cmdpalette.ContributionProvider = (*extensionCmdPaletteProvider)(nil)
 	_ cmdpalette.DynamicViewProvider  = (*extensionCmdPaletteProvider)(nil)
+	_ cmdpalette.ViewProgramProvider  = (*extensionCmdPaletteProvider)(nil)
 )
+
+func (p *extensionCmdPaletteProvider) OpenProgram(
+	ctx context.Context,
+	extensionName string,
+	request cmdpalette.ViewOpenRequest,
+) (cmdpalette.ViewFrame, uint64, error) {
+	runtime, err := p.viewProgramRuntime()
+	if err != nil {
+		return cmdpalette.ViewFrame{}, 0, err
+	}
+	return runtime.OpenProgram(ctx, extensionName, request)
+}
+
+func (p *extensionCmdPaletteProvider) HandleProgramEvent(
+	ctx context.Context,
+	workspaceID cmdpalette.WorkspaceID,
+	extensionName string,
+	event cmdpalette.ViewEvent,
+) (*cmdpalette.ViewFrame, error) {
+	runtime, err := p.viewProgramRuntime()
+	if err != nil {
+		return nil, err
+	}
+	return runtime.HandleProgramEvent(ctx, workspaceID, extensionName, event)
+}
+
+func (p *extensionCmdPaletteProvider) CloseProgram(
+	ctx context.Context,
+	workspaceID cmdpalette.WorkspaceID,
+	extensionName string,
+	request cmdpalette.ViewCloseRequest,
+) error {
+	runtime, err := p.viewProgramRuntime()
+	if err != nil {
+		return err
+	}
+	return runtime.CloseProgram(ctx, workspaceID, extensionName, request)
+}
+
+func (p *extensionCmdPaletteProvider) viewProgramRuntime() (cmdpalette.ViewProgramProvider, error) {
+	if p == nil || p.runtime == nil {
+		return nil, errors.New("daemon: extension view-program runtime is unavailable")
+	}
+	runtime, ok := p.runtime().(cmdpalette.ViewProgramProvider)
+	if !ok || runtime == nil {
+		return nil, errors.New("daemon: extension view-program runtime is unavailable")
+	}
+	return runtime, nil
+}
 
 func (p *extensionCmdPaletteProvider) ProvideCommands(
 	ctx context.Context,

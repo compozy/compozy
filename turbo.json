@@ -21,6 +21,18 @@
             "dependsOn": [],
             "outputs": []
         },
+        "@compozy/extension-react#typecheck": {
+            "dependsOn": ["//#codegen-check", "^build"],
+            "outputs": []
+        },
+        "@compozy/extension-react#test": {
+            "dependsOn": ["//#codegen-check", "^build"],
+            "outputs": []
+        },
+        "@compozy/view-program-fixture#typecheck": {
+            "dependsOn": ["//#codegen-check", "^build"],
+            "outputs": []
+        },
         "build-storybook": {
             "dependsOn": ["^build"],
             "outputs": ["storybook-static/**"]

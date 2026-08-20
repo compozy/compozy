@@ -6,6 +6,7 @@ import (
 	"errors"
 	"strings"
 
+	extensioncontract "github.com/compozy/compozy/internal/extension/contract"
 	"github.com/compozy/compozy/internal/resources"
 	"github.com/compozy/compozy/internal/subprocess"
 )
@@ -37,7 +38,11 @@ func (h *HostAPIHandler) Handle(
 	if err := h.capChecker.CheckHostAPI(capabilityGrantID, method); err != nil {
 		return nil, rpcCapabilityDenied(err)
 	}
-	if err := h.limiter.Allow(extName, method); err != nil {
+	limiter := h.limiter
+	if method == string(extensioncontract.HostAPIMethodViewPatch) {
+		limiter = h.viewLimiter
+	}
+	if err := limiter.Allow(extName, method); err != nil {
 		return nil, normalizeHostAPIRPCError(method, err)
 	}
 

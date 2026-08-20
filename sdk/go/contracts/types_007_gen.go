@@ -2,10 +2,71 @@
 
 package contracts
 
-import (
-	"encoding/json"
-	"time"
-)
+import "time"
+
+type ContextPostCompactPatch struct {
+	Deny          bool           `json:"deny,omitempty"`
+	DenyReason    string         `json:"deny_reason,omitempty"`
+	Reason        *string        `json:"reason,omitempty"`
+	Strategy      *string        `json:"strategy,omitempty"`
+	ContextBlocks []ContextBlock `json:"context_blocks,omitempty"`
+}
+
+type ContextPostCompactPayload struct {
+	Event          HookEvent      `json:"event"`
+	Timestamp      time.Time      `json:"timestamp"`
+	SessionID      string         `json:"session_id,omitempty"`
+	SessionName    string         `json:"session_name,omitempty"`
+	SessionType    string         `json:"session_type,omitempty"`
+	AgentName      string         `json:"agent_name,omitempty"`
+	WorkspaceID    string         `json:"workspace_id,omitempty"`
+	Workspace      string         `json:"workspace,omitempty"`
+	WorktreeID     string         `json:"worktree_id,omitempty"`
+	ACPSessionID   string         `json:"acp_session_id,omitempty"`
+	State          string         `json:"state,omitempty"`
+	SoulSnapshotID string         `json:"soul_snapshot_id,omitempty"`
+	SoulDigest     string         `json:"soul_digest,omitempty"`
+	CreatedAt      time.Time      `json:"created_at"`
+	UpdatedAt      time.Time      `json:"updated_at"`
+	TurnID         string         `json:"turn_id,omitempty"`
+	Reason         string         `json:"reason,omitempty"`
+	Strategy       string         `json:"strategy,omitempty"`
+	Summary        string         `json:"summary,omitempty"`
+	ContextBlocks  []ContextBlock `json:"context_blocks,omitempty"`
+}
+
+type ContextPreCompactPatch struct {
+	Deny          bool           `json:"deny,omitempty"`
+	DenyReason    string         `json:"deny_reason,omitempty"`
+	Reason        *string        `json:"reason,omitempty"`
+	Strategy      *string        `json:"strategy,omitempty"`
+	ContextBlocks []ContextBlock `json:"context_blocks,omitempty"`
+}
+
+type ContextPreCompactPayload struct {
+	Event          HookEvent      `json:"event"`
+	Timestamp      time.Time      `json:"timestamp"`
+	SessionID      string         `json:"session_id,omitempty"`
+	SessionName    string         `json:"session_name,omitempty"`
+	SessionType    string         `json:"session_type,omitempty"`
+	AgentName      string         `json:"agent_name,omitempty"`
+	WorkspaceID    string         `json:"workspace_id,omitempty"`
+	Workspace      string         `json:"workspace,omitempty"`
+	WorktreeID     string         `json:"worktree_id,omitempty"`
+	ACPSessionID   string         `json:"acp_session_id,omitempty"`
+	State          string         `json:"state,omitempty"`
+	SoulSnapshotID string         `json:"soul_snapshot_id,omitempty"`
+	SoulDigest     string         `json:"soul_digest,omitempty"`
+	CreatedAt      time.Time      `json:"created_at"`
+	UpdatedAt      time.Time      `json:"updated_at"`
+	TurnID         string         `json:"turn_id,omitempty"`
+	Reason         string         `json:"reason,omitempty"`
+	Strategy       string         `json:"strategy,omitempty"`
+	Summary        string         `json:"summary,omitempty"`
+	ContextBlocks  []ContextBlock `json:"context_blocks,omitempty"`
+}
+
+type ControlMethod string
 
 type ControlPatch struct {
 	Deny       bool   `json:"deny,omitempty"`
@@ -164,6 +225,10 @@ type CoordinatorStoppedPayload struct {
 	Error                        string    `json:"error,omitempty"`
 }
 
+type CopyEffect struct {
+	Content string `json:"content"`
+}
+
 type CostSource string
 
 type CostStatus string
@@ -191,35 +256,3 @@ type DeliveryAck struct {
 }
 
 type DeliveryAckOutcome string
-
-type DeliveryErrorDetail struct {
-	Message string `json:"message"`
-}
-
-type DeliveryEvent struct {
-	DeliveryID       string                    `json:"delivery_id"`
-	BridgeInstanceID string                    `json:"bridge_instance_id"`
-	RoutingKey       RoutingKey                `json:"routing_key"`
-	DeliveryTarget   DeliveryTarget            `json:"delivery_target"`
-	Seq              int64                     `json:"seq"`
-	EventType        DeliveryEventType         `json:"event_type"`
-	Content          MessageContent            `json:"content"`
-	Final            bool                      `json:"final"`
-	Operation        DeliveryOperation         `json:"operation,omitempty"`
-	Reference        *DeliveryMessageReference `json:"reference,omitempty"`
-	Error            *DeliveryErrorDetail      `json:"error,omitempty"`
-	Resume           *DeliveryResumeState      `json:"resume,omitempty"`
-	Progress         *ToolProgress             `json:"progress,omitempty"`
-	ProviderMetadata json.RawMessage           `json:"provider_metadata,omitempty"`
-}
-
-type DeliveryEventType string
-
-type DeliveryMessageReference struct {
-	DeliveryID      string `json:"delivery_id,omitempty"`
-	RemoteMessageID string `json:"remote_message_id,omitempty"`
-}
-
-type DeliveryMode string
-
-type DeliveryOperation string

@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"math/rand/v2"
 	"strings"
+	"sync"
 	"testing"
 )
 
@@ -66,7 +67,7 @@ func TestViewPayloadValidation(t *testing.T) {
 		payload := validListViewPayload()
 		payload.Sections[0].Rows = append(payload.Sections[0].Rows,
 			Row{ID: "second", Title: "Second"},
-			Row{ID: "third", Title: "Third", Badge: &Badge{Label: "Broken", Tone: "purple"}},
+			Row{ID: "third", Title: "Third", Badge: &ViewBadge{Label: "Broken", Tone: "purple"}},
 		)
 		_, err := ValidateViewPayload(ViewKindList, payload, nil, nil)
 		if err == nil || !strings.Contains(err.Error(), "sections[0].rows[2].badge.tone") {
@@ -290,11 +291,260 @@ func TestViewService(t *testing.T) {
 	})
 }
 
+func TestViewProgramSessions(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should admit generation-zero pushes only before the first event", func(t *testing.T) {
+		t.Parallel()
+		program := newViewProgramProviderStub()
+		service := testRegistryWithOptions(
+			staticTestProvider{commands: []Descriptor{testDescriptor("test.command")}},
+			&testClientDirectory{
+				clients: []Client{{ID: "client-a", WorkspaceID: "workspace-a"}},
+				tokens:  map[ClientID]string{"client-a": "token-a"},
+			},
+			nil,
+			&testExecutor{},
+			WithViewProviders([]ViewProviderRegistration{{
+				Descriptor: ViewDescriptor{
+					ID: "ext.notes.browser", Title: "Notes", Kind: ViewKindList,
+					Program: true, Extension: "notes",
+				},
+				Provider: &viewSourceProviderStub{},
+			}}),
+			WithViewProgramProvider(program),
+		)
+		opened, err := service.OpenSession(t.Context(), ViewSessionOpenRequest{
+			Workspace: "workspace-a", AttachmentToken: "token-a", View: "ext.notes.browser",
+		})
+		if err != nil {
+			t.Fatalf("OpenSession() error = %v", err)
+		}
+		extensionToken := SessionToken{ViewSession: opened.Token.ViewSession, Extension: "notes"}
+		beforeEvent := viewProgramFrame(opened.Token.ViewSession, "vr_push", 0, 0)
+		if err := service.PublishFrame(t.Context(), extensionToken, beforeEvent); err != nil {
+			t.Fatalf("PublishFrame(generation zero before event) error = %v", err)
+		}
+		clientToken := SessionToken{
+			ViewSession: opened.Token.ViewSession, AttachmentToken: "token-a",
+		}
+		if err := service.AdmitEvent(t.Context(), clientToken, ViewEvent{
+			Handler: "h_search", Args: []any{"query", 1}, Revision: "vr_push", Seq: 1,
+		}); err != nil {
+			t.Fatalf("AdmitEvent() error = %v", err)
+		}
+		<-program.events
+		afterEvent := viewProgramFrame(opened.Token.ViewSession, "vr_late_push", 0, 0)
+		if err := service.PublishFrame(t.Context(), extensionToken, afterEvent); !errors.Is(err, ErrViewFrameStale) {
+			t.Fatalf("PublishFrame(generation zero after event) error = %v, want ErrViewFrameStale", err)
+		}
+	})
+
+	t.Run("Should bind sessions and fence superseded output and acknowledged effects", func(t *testing.T) {
+		t.Parallel()
+		program := newViewProgramProviderStub()
+		clients := &testClientDirectory{
+			clients: []Client{
+				{ID: "client-a", WorkspaceID: "workspace-a"},
+				{ID: "client-b", WorkspaceID: "workspace-a"},
+			},
+			tokens: map[ClientID]string{"client-a": "token-a", "client-b": "token-b"},
+		}
+		service := testRegistryWithOptions(
+			staticTestProvider{commands: []Descriptor{testDescriptor("test.command")}},
+			clients,
+			nil,
+			&testExecutor{},
+			WithViewProviders([]ViewProviderRegistration{{
+				Descriptor: ViewDescriptor{
+					ID: "ext.notes.browser", Title: "Notes", Kind: ViewKindList,
+					Program: true, Extension: "notes",
+				},
+				Provider: &viewSourceProviderStub{},
+			}}),
+			WithViewProgramProvider(program),
+		)
+
+		opened, err := service.OpenSession(t.Context(), ViewSessionOpenRequest{
+			Workspace: "workspace-a", AttachmentToken: "token-a", View: "ext.notes.browser",
+		})
+		if err != nil {
+			t.Fatalf("OpenSession() error = %v", err)
+		}
+		if opened.FirstFrame.ViewSession != opened.Token.ViewSession || opened.Token.StreamToken == "" {
+			t.Fatalf("OpenSession() = %#v, want bound session and stream token", opened)
+		}
+		if program.lastOpen.Client != "client-a" || program.lastOpen.Workspace != "workspace-a" {
+			t.Fatalf("view/open request = %#v, want token-resolved client", program.lastOpen)
+		}
+
+		foreign := SessionToken{ViewSession: opened.Token.ViewSession, Extension: "other"}
+		err = service.PublishFrame(t.Context(), foreign, viewProgramFrame(opened.Token.ViewSession, "vr_2", 1, 0))
+		if !errors.Is(err, ErrViewSessionForbidden) {
+			t.Fatalf("PublishFrame(foreign) error = %v, want ErrViewSessionForbidden", err)
+		}
+
+		clientToken := SessionToken{
+			ViewSession: opened.Token.ViewSession, AttachmentToken: "token-a",
+		}
+		if err := service.AdmitEvent(t.Context(), clientToken, ViewEvent{
+			Handler: "h_search", Args: []any{"a", 1}, Revision: "vr_1", Seq: 1,
+		}); err != nil {
+			t.Fatalf("AdmitEvent(seq=1) error = %v", err)
+		}
+		first := <-program.events
+		if first.event.Generation != 1 {
+			t.Fatalf("first generation = %d, want 1", first.event.Generation)
+		}
+		if err := service.AdmitEvent(t.Context(), clientToken, ViewEvent{
+			Handler: "h_search", Args: []any{"ab", 2}, Revision: "vr_1", Seq: 2,
+		}); err != nil {
+			t.Fatalf("AdmitEvent(seq=2) error = %v", err)
+		}
+		second := <-program.events
+		select {
+		case <-first.ctx.Done():
+		default:
+			t.Fatal("superseded event context was not canceled")
+		}
+		if second.event.Generation != 2 {
+			t.Fatalf("second generation = %d, want 2", second.event.Generation)
+		}
+
+		extensionToken := SessionToken{ViewSession: opened.Token.ViewSession, Extension: "notes"}
+		stale := viewProgramFrame(opened.Token.ViewSession, "vr_stale", 1, 0)
+		if err := service.PublishFrame(t.Context(), extensionToken, stale); !errors.Is(err, ErrViewFrameStale) {
+			t.Fatalf("PublishFrame(stale push) error = %v, want ErrViewFrameStale", err)
+		}
+		fresh := viewProgramFrame(opened.Token.ViewSession, "vr_2", 2, 2)
+		fresh.Effects = []Effect{{ID: "ef_1", Toast: &ToastEffect{Tone: "success", Message: "Saved"}}}
+		if err := service.PublishFrame(t.Context(), extensionToken, fresh); err != nil {
+			t.Fatalf("PublishFrame(fresh) error = %v", err)
+		}
+		if err := service.AckEffects(t.Context(), clientToken, []string{"ef_1"}); err != nil {
+			t.Fatalf("AckEffects() error = %v", err)
+		}
+		replay, _, cancel, err := service.SubscribeSessionFrames(t.Context(), SessionToken{
+			ViewSession: opened.Token.ViewSession, StreamToken: opened.Token.StreamToken,
+		})
+		if err != nil {
+			t.Fatalf("SubscribeSessionFrames() error = %v", err)
+		}
+		cancel()
+		if len(replay.Effects) != 0 {
+			t.Fatalf("replay effects = %#v, want acknowledged effect fenced", replay.Effects)
+		}
+
+		for seq := int64(3); seq <= 6; seq++ {
+			if err := service.AdmitEvent(t.Context(), clientToken, ViewEvent{
+				Handler: "h_search", Revision: "vr_2", Seq: seq,
+			}); err != nil {
+				t.Fatalf("AdmitEvent(action seq=%d) error = %v", seq, err)
+			}
+		}
+		if err := service.AdmitEvent(t.Context(), clientToken, ViewEvent{
+			Handler: "h_search", Revision: "vr_2", Seq: 7,
+		}); !errors.Is(err, ErrViewBusy) {
+			t.Fatalf("AdmitEvent(over cap) error = %v, want ErrViewBusy", err)
+		}
+
+		if err := service.CloseSession(t.Context(), clientToken, "palette_dismissed"); err != nil {
+			t.Fatalf("CloseSession() error = %v", err)
+		}
+		if err := service.CloseSession(t.Context(), clientToken, "again"); err != nil {
+			t.Fatalf("CloseSession(idempotent) error = %v", err)
+		}
+		if err := service.PublishFrame(t.Context(), extensionToken, fresh); !errors.Is(err, ErrViewSessionGone) {
+			t.Fatalf("PublishFrame(after close) error = %v, want ErrViewSessionGone", err)
+		}
+		if program.closeCount() != 1 {
+			t.Fatalf("view/close calls = %d, want 1", program.closeCount())
+		}
+	})
+
+	t.Run("Should isolate clients and invalidate replaced extension generations", func(t *testing.T) {
+		t.Parallel()
+		program := newViewProgramProviderStub()
+		clients := &testClientDirectory{
+			clients: []Client{
+				{ID: "client-a", WorkspaceID: "workspace-a"},
+				{ID: "client-b", WorkspaceID: "workspace-a"},
+			},
+			tokens: map[ClientID]string{"client-a": "token-a", "client-b": "token-b"},
+		}
+		service := testRegistryWithOptions(
+			staticTestProvider{commands: []Descriptor{testDescriptor("test.command")}},
+			clients,
+			nil,
+			&testExecutor{},
+			WithViewProviders([]ViewProviderRegistration{{
+				Descriptor: ViewDescriptor{
+					ID: "ext.notes.browser", Title: "Notes", Kind: ViewKindList,
+					Program: true, Extension: "notes",
+				},
+				Provider: &viewSourceProviderStub{},
+			}}),
+			WithViewProgramProvider(program),
+		)
+		first, err := service.OpenSession(t.Context(), ViewSessionOpenRequest{
+			Workspace: "workspace-a", Client: "client-a", AttachmentToken: "token-a",
+			View: "ext.notes.browser",
+		})
+		if err != nil {
+			t.Fatalf("OpenSession(client-a) error = %v", err)
+		}
+		second, err := service.OpenSession(t.Context(), ViewSessionOpenRequest{
+			Workspace: "workspace-a", Client: "client-b", AttachmentToken: "token-b",
+			View: "ext.notes.browser",
+		})
+		if err != nil {
+			t.Fatalf("OpenSession(client-b) error = %v", err)
+		}
+		if first.Token.ViewSession == second.Token.ViewSession || first.Token.StreamToken == second.Token.StreamToken {
+			t.Fatalf("client sessions share identity: %#v / %#v", first.Token, second.Token)
+		}
+		if err := service.AckEffects(t.Context(), SessionToken{
+			ViewSession: first.Token.ViewSession, AttachmentToken: "token-b",
+		}, nil); !errors.Is(err, ErrViewSessionForbidden) {
+			t.Fatalf("foreign client access error = %v, want ErrViewSessionForbidden", err)
+		}
+		if err := service.CloseClientSessions(t.Context(), "workspace-a", "client-a"); err != nil {
+			t.Fatalf("CloseClientSessions(client-a) error = %v", err)
+		}
+		if _, _, _, err := service.SubscribeSessionFrames(
+			t.Context(),
+			first.Token,
+		); !errors.Is(err, ErrViewSessionGone) {
+			t.Fatalf("SubscribeSessionFrames(detached client) error = %v, want ErrViewSessionGone", err)
+		}
+		if _, _, cancel, err := service.SubscribeSessionFrames(
+			t.Context(),
+			second.Token,
+		); err != nil {
+			t.Fatalf("SubscribeSessionFrames(client-b) error = %v", err)
+		} else {
+			cancel()
+		}
+		if program.closeCount() != 1 {
+			t.Fatalf("view/close calls after client detach = %d, want 1", program.closeCount())
+		}
+		if err := service.InvalidateInstance(t.Context(), "workspace-a", "notes", 8); err != nil {
+			t.Fatalf("InvalidateInstance() error = %v", err)
+		}
+		if _, _, _, err := service.SubscribeSessionFrames(
+			t.Context(),
+			second.Token,
+		); !errors.Is(err, ErrViewSessionGone) {
+			t.Fatalf("SubscribeSessionFrames(second invalidated) error = %v, want ErrViewSessionGone", err)
+		}
+	})
+}
+
 func validListViewPayload() ViewPayload {
 	return ViewPayload{
 		View: ViewContractVersion,
 		Sections: []Section{{Rows: []Row{{
-			ID: "task-1", Title: "Review task", Badge: &Badge{Label: "Queued", Tone: "info"},
+			ID: "task-1", Title: "Review task", Badge: &ViewBadge{Label: "Queued", Tone: "info"},
 		}}}},
 	}
 }
@@ -316,6 +566,71 @@ type viewSourceProviderStub struct {
 	payload     ViewPayload
 	workspaceID WorkspaceID
 	calls       int
+}
+
+type viewProgramEventCall struct {
+	ctx   context.Context
+	event ViewEvent
+}
+
+type viewProgramProviderStub struct {
+	mu         sync.Mutex
+	lastOpen   ViewOpenRequest
+	closes     []ViewCloseRequest
+	events     chan viewProgramEventCall
+	generation uint64
+}
+
+func newViewProgramProviderStub() *viewProgramProviderStub {
+	return &viewProgramProviderStub{events: make(chan viewProgramEventCall, 16), generation: 7}
+}
+
+func (s *viewProgramProviderStub) OpenProgram(
+	_ context.Context,
+	_ string,
+	request ViewOpenRequest,
+) (ViewFrame, uint64, error) {
+	s.mu.Lock()
+	s.lastOpen = request
+	s.mu.Unlock()
+	return viewProgramFrame(request.ViewSession, "vr_1", 0, 0), s.generation, nil
+}
+
+func (s *viewProgramProviderStub) HandleProgramEvent(
+	ctx context.Context,
+	_ WorkspaceID,
+	_ string,
+	event ViewEvent,
+) (*ViewFrame, error) {
+	s.events <- viewProgramEventCall{ctx: ctx, event: event}
+	<-ctx.Done()
+	return nil, ctx.Err()
+}
+
+func (s *viewProgramProviderStub) CloseProgram(
+	_ context.Context,
+	_ WorkspaceID,
+	_ string,
+	request ViewCloseRequest,
+) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.closes = append(s.closes, request)
+	return nil
+}
+
+func (s *viewProgramProviderStub) closeCount() int {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return len(s.closes)
+}
+
+func viewProgramFrame(sessionID, revision string, generation uint64, reply int64) ViewFrame {
+	payload := validListViewPayload()
+	return ViewFrame{
+		ViewSession: sessionID, Revision: revision, Generation: generation, InReplyTo: reply,
+		Payload: &payload, Handlers: []string{"h_search"},
+	}
 }
 
 func (s *viewSourceProviderStub) OpenSource(

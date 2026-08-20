@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"errors"
 	"math"
+	"slices"
 	"strings"
 	"time"
 )
@@ -35,6 +36,13 @@ func validateInitializeRequest(request InitializeRequest) error {
 	}
 	if request.Runtime.DefaultHookTimeoutMS <= 0 {
 		return NewInvalidParamsError("default_hook_timeout_ms must be greater than zero", nil)
+	}
+	if slices.Contains(request.Capabilities.Provides, CapabilityProvideViewProvider) &&
+		request.Runtime.DefaultViewTimeoutMS <= 0 {
+		return NewInvalidParamsError(
+			"default_view_timeout_ms must be greater than zero for view.provider",
+			nil,
+		)
 	}
 	return nil
 }

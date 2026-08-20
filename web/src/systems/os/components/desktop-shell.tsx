@@ -12,6 +12,7 @@ import { useDesktopShellModel, type DesktopShellModel } from "../hooks/use-deskt
 import { useDesktopWorktreeScope, WindowScopeContext } from "../hooks/use-worktree-scope";
 import { useWorktreeDialogTargets } from "../hooks/use-worktree-dialog-targets";
 import { useWorkspaceSetupDefaults } from "../hooks/use-workspace-setup-defaults";
+import type { WindowManagerAttachedClientView } from "../lib/window-manager-types";
 import { DesktopGate } from "./desktop-gate";
 import { DesktopWorktreeDialogs } from "./desktop-worktree-dialogs";
 import { DesktopMenubar } from "./desktop-menubar";
@@ -99,6 +100,7 @@ function DesktopChrome({
               openForDuplicate={model.agentCreate.openForDuplicate}
             >
               <DesktopShellBody
+                client={chrome.client}
                 firstRun={firstRun}
                 model={model}
                 clientCommandChannel={chrome.clientCommandChannel}
@@ -123,6 +125,7 @@ function DesktopChrome({
 }
 
 interface DesktopShellBodyProps {
+  client: WindowManagerAttachedClientView | null;
   model: DesktopShellModel;
   firstRun: boolean;
   updateAvailable: boolean;
@@ -145,6 +148,7 @@ function DesktopShellBody(props: DesktopShellBodyProps) {
 }
 
 function DesktopShellScopedBody({
+  client,
   model,
   firstRun,
   updateAvailable,
@@ -302,6 +306,7 @@ function DesktopShellScopedBody({
       {/* Route matches mount here as sync-controllers; they render null. */}
       <Outlet />
       <OsCommandPalette
+        client={client}
         open={overlays.activeOverlay === "palette"}
         onOpenChange={open => overlays.setOverlayOpen("palette", open)}
         dispatch={paletteDispatch}

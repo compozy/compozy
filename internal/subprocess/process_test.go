@@ -1065,6 +1065,28 @@ func TestValidateInitializeResponseRejectsInvalidContracts(t *testing.T) {
 			},
 			wantSub: "watch/poll",
 		},
+		{
+			name: "missing-view-provider-close-service",
+			setup: func(request *InitializeRequest) {
+				request.Capabilities.Provides = []string{extensionprotocol.CapabilityProvideViewProvider}
+				request.Methods.ExtensionServices = extensionprotocol.CapabilityServiceMethods(
+					request.Capabilities.Provides,
+				)
+				request.Runtime.DefaultViewTimeoutMS = 3_000
+			},
+			mutate: func(response *InitializeResponse) {
+				response.AcceptedCapabilities.Provides = []string{
+					extensionprotocol.CapabilityProvideViewProvider,
+				}
+				response.ImplementedMethods = []string{
+					"health_check",
+					"shutdown",
+					string(extensionprotocol.ExtensionServiceMethodViewOpen),
+					string(extensionprotocol.ExtensionServiceMethodViewEvent),
+				}
+			},
+			wantSub: "view/close",
+		},
 	}
 
 	for _, tc := range testCases {

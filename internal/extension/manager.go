@@ -42,6 +42,7 @@ const (
 	defaultHealthCheckTimeout  = 5 * time.Second
 	defaultInitializeTimeout   = 15 * time.Second
 	defaultHookTimeout         = 5 * time.Second
+	defaultViewTimeout         = 3 * time.Second
 	defaultShutdownTimeout     = 10 * time.Second
 	defaultRestartBackoffMax   = 60 * time.Second
 	// DefaultRestartFailureThreshold is the production crash-loop cutoff shared by status and doctor projections.
@@ -269,6 +270,7 @@ type Manager struct {
 	initializeTimeout         time.Duration
 	healthCheckTimeout        time.Duration
 	defaultHookTimeout        time.Duration
+	defaultViewTimeout        time.Duration
 	defaultShutdownTimeout    time.Duration
 	restartBackoffMax         time.Duration
 	restartFailureThreshold   int
@@ -284,6 +286,7 @@ type Manager struct {
 
 	devOperations     int
 	devOperationsDone chan struct{}
+	viewCallGates     viewCallGateRegistry
 
 	extensions      map[string]*managedExtension
 	devExtensions   map[InstanceKey]*managedExtension
@@ -320,6 +323,7 @@ func newManagerDefaults(registry *Registry) *Manager {
 		initializeTimeout:         defaultInitializeTimeout,
 		healthCheckTimeout:        defaultHealthCheckTimeout,
 		defaultHookTimeout:        defaultHookTimeout,
+		defaultViewTimeout:        defaultViewTimeout,
 		defaultShutdownTimeout:    defaultShutdownTimeout,
 		restartBackoffMax:         defaultRestartBackoffMax,
 		restartFailureThreshold:   DefaultRestartFailureThreshold,
@@ -375,6 +379,9 @@ func normalizeManagerDefaults(manager *Manager) {
 	}
 	if manager.defaultHookTimeout <= 0 {
 		manager.defaultHookTimeout = defaultHookTimeout
+	}
+	if manager.defaultViewTimeout <= 0 {
+		manager.defaultViewTimeout = defaultViewTimeout
 	}
 	if manager.defaultShutdownTimeout <= 0 {
 		manager.defaultShutdownTimeout = defaultShutdownTimeout

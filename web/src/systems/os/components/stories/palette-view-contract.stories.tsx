@@ -11,6 +11,11 @@ import type { PaletteViewContent } from "../../lib/palette-view-registry";
 import { OsPaletteDomainChips } from "../os-palette-domain-chips";
 import { OsPaletteViewShell } from "../os-palette-view-shell";
 import { OsPaletteViewUnavailable } from "../os-palette-view-stack";
+import {
+  OsPaletteProgramBand,
+  OsPaletteProgramFailure,
+  OsPaletteProgramReloaded,
+} from "../os-palette-program-status";
 import { PaletteDetailView } from "../palette-detail-view";
 import { PaletteFormView } from "../palette-form-view";
 import { PaletteGridView } from "../palette-grid-view";
@@ -321,5 +326,58 @@ export const Timeout: Story = {
         </div>
       ),
     }),
+  },
+};
+
+export const ProgramBusy: Story = {
+  args: {
+    content: {
+      ...listContent(),
+      header: <OsPaletteProgramBand phase="busy" onRetry={fn()} />,
+    },
+  },
+};
+
+export const ProgramDegraded: Story = {
+  args: {
+    content: {
+      ...listContent(),
+      header: <OsPaletteProgramBand phase="degraded" onRetry={fn()} />,
+    },
+  },
+};
+
+export const ProgramCircuitBroken: Story = {
+  args: {
+    content: {
+      ...listContent({ rows: [] }),
+      empty: (
+        <OsPaletteProgramFailure error={null} phase="circuit-open" source="Fixture (ext.fixture)" />
+      ),
+    },
+  },
+};
+
+export const ProgramCrashed: Story = {
+  args: {
+    content: {
+      ...listContent({ rows: [] }),
+      empty: (
+        <OsPaletteProgramFailure
+          error="The extension process stopped responding."
+          phase="unavailable"
+          source="Fixture (ext.fixture)"
+        />
+      ),
+    },
+  },
+};
+
+export const ProgramReloaded: Story = {
+  args: {
+    content: {
+      ...listContent(),
+      header: <OsPaletteProgramReloaded />,
+    },
   },
 };

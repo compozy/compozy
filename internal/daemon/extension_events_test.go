@@ -191,10 +191,12 @@ func TestExtensionEventCallSitesUseCanonicalSafePayloads(t *testing.T) {
 		t.Parallel()
 
 		catalog := &recordingExtensionPaletteCatalog{}
+		views := &recordingExtensionViewSessions{}
 		service := &daemonExtensionService{
 			eventWriter: &extensionEventRecorder{},
 			paletteNotifier: &extensionPaletteNotifier{
 				catalog: func() cmdpalette.Registry { return catalog },
+				views:   func() cmdpalette.ViewSessionService { return views },
 				workspaces: func(context.Context) ([]workspacepkg.Workspace, error) {
 					return []workspacepkg.Workspace{{ID: "ws-a"}, {ID: "ws-b"}}, nil
 				},
@@ -213,12 +215,65 @@ func TestExtensionEventCallSitesUseCanonicalSafePayloads(t *testing.T) {
 		if !reflect.DeepEqual(catalog.workspaces, []cmdpalette.WorkspaceID{"ws-a", "ws-b"}) {
 			t.Fatalf("notified workspaces = %#v, want ws-a and ws-b", catalog.workspaces)
 		}
+		if !reflect.DeepEqual(views.invalidations, []viewSessionInvalidation{
+			{workspace: "ws-a", extension: "notes"},
+			{workspace: "ws-b", extension: "notes"},
+		}) {
+			t.Fatalf("view invalidations = %#v, want notes in both workspaces", views.invalidations)
+		}
+	})
+
+	t.Run("Should invalidate workspace view sessions on extension crash", func(t *testing.T) {
+		t.Parallel()
+
+		catalog := &recordingExtensionPaletteCatalog{}
+		views := &recordingExtensionViewSessions{}
+		sink := extensionPaletteLifecycleEventSink{notifier: &extensionPaletteNotifier{
+			catalog: func() cmdpalette.Registry { return catalog },
+			views:   func() cmdpalette.ViewSessionService { return views },
+		}}
+		if err := sink.RecordExtensionLifecycleEvent(t.Context(), extensionpkg.LifecycleEvent{
+			Type: eventspkg.ExtensionCrashLoopBackoff, ExtensionName: "notes", WorkspaceID: "ws-a",
+		}); err != nil {
+			t.Fatalf("RecordExtensionLifecycleEvent(crash) error = %v", err)
+		}
+		if !reflect.DeepEqual(catalog.workspaces, []cmdpalette.WorkspaceID{"ws-a"}) {
+			t.Fatalf("notified workspaces = %#v, want ws-a", catalog.workspaces)
+		}
+		if !reflect.DeepEqual(views.invalidations, []viewSessionInvalidation{{
+			workspace: "ws-a", extension: "notes",
+		}}) {
+			t.Fatalf("view invalidations = %#v, want notes in ws-a", views.invalidations)
+		}
 	})
 }
 
 type recordingExtensionPaletteCatalog struct {
 	cmdpalette.Registry
 	workspaces []cmdpalette.WorkspaceID
+}
+
+type viewSessionInvalidation struct {
+	workspace cmdpalette.WorkspaceID
+	extension string
+}
+
+type recordingExtensionViewSessions struct {
+	cmdpalette.ViewSessionService
+	invalidations []viewSessionInvalidation
+}
+
+func (s *recordingExtensionViewSessions) InvalidateInstance(
+	_ context.Context,
+	workspace cmdpalette.WorkspaceID,
+	extension string,
+	_ uint64,
+) error {
+	s.invalidations = append(s.invalidations, viewSessionInvalidation{
+		workspace: workspace,
+		extension: extension,
+	})
+	return nil
 }
 
 func (c *recordingExtensionPaletteCatalog) NotifyCatalogChanged(

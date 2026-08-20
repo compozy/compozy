@@ -31,6 +31,7 @@ const (
 	ScaffoldTemplateToolProviderGo  ScaffoldTemplate = "tool-provider-go"
 	ScaffoldTemplateHookTS          ScaffoldTemplate = "hook-ts"
 	ScaffoldTemplateMemoryBackendTS ScaffoldTemplate = "memory-backend-ts"
+	ScaffoldTemplateViewProviderTS  ScaffoldTemplate = "view-provider-ts"
 	// #nosec G101 -- this public scaffold identifier is not a credential.
 	ScaffoldTemplateLoopWatchSourceGo      ScaffoldTemplate = "loop-watch-source-go"
 	ScaffoldTemplateConnectivityProviderGo ScaffoldTemplate = "connectivity-provider-go"
@@ -45,6 +46,7 @@ var scaffoldTemplates = []ScaffoldTemplate{
 	ScaffoldTemplateMemoryBackendTS,
 	ScaffoldTemplateToolProviderGo,
 	ScaffoldTemplateToolProviderTS,
+	ScaffoldTemplateViewProviderTS,
 }
 
 // ScaffoldRequest configures one extension project created from embedded assets.

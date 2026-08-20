@@ -9,6 +9,8 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
+const runtimeUnavailableErrorCode = "runtime_unavailable"
+
 func (h *BaseHandlers) respondCmdPaletteError(
 	c *gin.Context,
 	workspaceID cmdpalette.WorkspaceID,
@@ -60,7 +62,7 @@ func cmdPaletteErrorPayload(err error) (int, contract.CmdPaletteError) {
 		}
 	default:
 		return http.StatusServiceUnavailable, contract.CmdPaletteError{
-			Error: "runtime_unavailable", Message: "cmd palette runtime is unavailable",
+			Error: runtimeUnavailableErrorCode, Message: "cmd palette runtime is unavailable",
 		}
 	}
 }

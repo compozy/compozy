@@ -2,6 +2,10 @@
 
 package contracts
 
+type ApprovalPolicy string
+
+type ApprovalState string
+
 type ArtifactRef struct {
 	URI      string `json:"uri"`
 	Name     string `json:"name,omitempty"`
@@ -168,15 +172,4 @@ type AutomationRunsParams struct {
 	TriggerID string    `json:"trigger_id,omitempty"`
 	Status    RunStatus `json:"status,omitempty"`
 	Limit     int       `json:"limit,omitempty"`
-}
-
-type AutomationSchedulePayload struct {
-	Mode     string `json:"mode,omitempty"`
-	Expr     string `json:"expr,omitempty"`
-	Interval string `json:"interval,omitempty"`
-	Time     string `json:"time,omitempty"`
-}
-
-type AutomationTargetParams struct {
-	ID string `json:"id"`
 }

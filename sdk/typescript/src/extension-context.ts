@@ -7,6 +7,7 @@ import type { JSONRPCRequestEnvelope } from "./types.js";
 
 export function makeExtensionContext(
   request: JSONRPCRequestEnvelope,
+  signal: AbortSignal,
   host: HostAPI,
   session: ExtensionSession | undefined,
   stderr: NodeJS.WritableStream
@@ -22,6 +23,7 @@ export function makeExtensionContext(
     requestId: request.id,
     host,
     session,
+    signal,
     log: (...values: unknown[]) => {
       stderr.write(`${format(...values)}\n`);
     },

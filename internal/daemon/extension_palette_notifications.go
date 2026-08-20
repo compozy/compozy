@@ -18,6 +18,7 @@ type cmdPaletteCatalogNotifier interface {
 
 type extensionPaletteNotifier struct {
 	catalog    func() cmdpalette.Registry
+	views      func() cmdpalette.ViewSessionService
 	workspaces func(context.Context) ([]workspacepkg.Workspace, error)
 }
 
@@ -27,6 +28,13 @@ func newExtensionPaletteNotifier(state *bootState) *extensionPaletteNotifier {
 	}
 	return &extensionPaletteNotifier{
 		catalog: func() cmdpalette.Registry { return state.cmdPalette },
+		views: func() cmdpalette.ViewSessionService {
+			service, ok := state.cmdPalette.(cmdpalette.ViewSessionService)
+			if !ok {
+				return nil
+			}
+			return service
+		},
 		workspaces: func(ctx context.Context) ([]workspacepkg.Workspace, error) {
 			if state.workspaceResolver == nil {
 				return nil, nil
@@ -37,35 +45,108 @@ func newExtensionPaletteNotifier(state *bootState) *extensionPaletteNotifier {
 }
 
 func (n *extensionPaletteNotifier) Notify(ctx context.Context, workspaceID string) error {
-	if n == nil || n.catalog == nil {
+	if n == nil {
+		return nil
+	}
+	workspaces, err := n.targetWorkspaces(ctx, workspaceID)
+	if err != nil {
+		return err
+	}
+	return n.notifyCatalogs(ctx, workspaces)
+}
+
+func (n *extensionPaletteNotifier) NotifyExtensionChanged(
+	ctx context.Context,
+	workspaceID string,
+	extension string,
+) error {
+	if n == nil {
+		return nil
+	}
+	workspaces, err := n.targetWorkspaces(ctx, workspaceID)
+	if err != nil {
+		return err
+	}
+	return errors.Join(
+		n.notifyCatalogs(ctx, workspaces),
+		n.invalidateViewSessions(ctx, workspaces, extension),
+	)
+}
+
+func (n *extensionPaletteNotifier) targetWorkspaces(
+	ctx context.Context,
+	workspaceID string,
+) ([]cmdpalette.WorkspaceID, error) {
+	workspaceID = strings.TrimSpace(workspaceID)
+	if workspaceID != "" {
+		return []cmdpalette.WorkspaceID{cmdpalette.WorkspaceID(workspaceID)}, nil
+	}
+	if n.workspaces == nil {
+		return nil, nil
+	}
+	workspaces, err := n.workspaces(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("daemon: list workspaces for extension palette notification: %w", err)
+	}
+	ids := make([]cmdpalette.WorkspaceID, 0, len(workspaces))
+	for _, workspace := range workspaces {
+		ids = append(ids, cmdpalette.WorkspaceID(workspace.ID))
+	}
+	return ids, nil
+}
+
+func (n *extensionPaletteNotifier) notifyCatalogs(
+	ctx context.Context,
+	workspaces []cmdpalette.WorkspaceID,
+) error {
+	if n.catalog == nil {
 		return nil
 	}
 	notifier, ok := n.catalog().(cmdPaletteCatalogNotifier)
 	if !ok || notifier == nil {
 		return nil
 	}
-	workspaceID = strings.TrimSpace(workspaceID)
-	if workspaceID != "" {
-		if err := notifier.NotifyCatalogChanged(ctx, cmdpalette.WorkspaceID(workspaceID)); err != nil {
-			return fmt.Errorf("daemon: notify extension palette catalog for workspace %q: %w", workspaceID, err)
-		}
-		return nil
-	}
-	if n.workspaces == nil {
-		return nil
-	}
-	workspaces, err := n.workspaces(ctx)
-	if err != nil {
-		return fmt.Errorf("daemon: list workspaces for extension palette notification: %w", err)
-	}
 	var notifyErr error
-	for _, workspace := range workspaces {
-		if err := notifier.NotifyCatalogChanged(ctx, cmdpalette.WorkspaceID(workspace.ID)); err != nil {
-			notifyErr = errors.Join(notifyErr, err)
+	for _, workspaceID := range workspaces {
+		if err := notifier.NotifyCatalogChanged(ctx, workspaceID); err != nil {
+			notifyErr = errors.Join(notifyErr, fmt.Errorf(
+				"notify workspace %q: %w",
+				workspaceID,
+				err,
+			))
 		}
 	}
 	if notifyErr != nil {
 		return fmt.Errorf("daemon: notify extension palette catalogs: %w", notifyErr)
+	}
+	return nil
+}
+
+func (n *extensionPaletteNotifier) invalidateViewSessions(
+	ctx context.Context,
+	workspaces []cmdpalette.WorkspaceID,
+	extension string,
+) error {
+	if n.views == nil || strings.TrimSpace(extension) == "" {
+		return nil
+	}
+	views := n.views()
+	if views == nil {
+		return nil
+	}
+	var invalidateErr error
+	for _, workspaceID := range workspaces {
+		if err := views.InvalidateInstance(ctx, workspaceID, extension, 0); err != nil {
+			invalidateErr = errors.Join(invalidateErr, fmt.Errorf(
+				"invalidate %q in workspace %q: %w",
+				extension,
+				workspaceID,
+				err,
+			))
+		}
+	}
+	if invalidateErr != nil {
+		return fmt.Errorf("daemon: invalidate extension view sessions: %w", invalidateErr)
 	}
 	return nil
 }
@@ -87,7 +168,7 @@ func (s extensionPaletteLifecycleEventSink) RecordExtensionLifecycleEvent(
 	if event.Type != eventspkg.ExtensionCrashLoopBackoff {
 		return nil
 	}
-	return s.notifier.Notify(ctx, event.WorkspaceID)
+	return s.notifier.NotifyExtensionChanged(ctx, event.WorkspaceID, event.ExtensionName)
 }
 
 func extensionLifecycleChangesPalette(eventType string) bool {

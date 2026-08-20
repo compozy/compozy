@@ -6,6 +6,8 @@ import type {
   CmdPaletteInvokeResult,
   CmdPalettePersonalization,
   CmdPaletteRankSignals,
+  CmdPaletteViewSessionEvent,
+  CmdPaletteViewSessionOpenResponse,
   CmdPaletteViewEnvelope,
 } from "../lib/cmd-palette-types";
 
@@ -195,6 +197,73 @@ export async function getCmdPaletteView(
     );
   }
   return envelope;
+}
+
+const CLIENT_TOKEN_HEADER = "X-Compozy-Client-Token";
+
+export async function openCmdPaletteViewSession(
+  workspaceId: string,
+  viewId: string,
+  attachmentToken: string,
+  args: Readonly<Record<string, unknown>> = {},
+  signal?: AbortSignal
+): Promise<CmdPaletteViewSessionOpenResponse> {
+  const { data, error, response } = await apiClient.POST("/api/cmd-palette/views/{id}/open", {
+    params: {
+      path: { id: viewId },
+      header: { [CLIENT_TOKEN_HEADER]: attachmentToken },
+    },
+    body: { workspace: workspaceId, args: { ...args } },
+    signal,
+  });
+  const fallback = `Failed to open ${viewId}`;
+  if (apiRequestFailed(response, error)) throw responseError(fallback, response, error);
+  return responseData(data, response, fallback);
+}
+
+export async function admitCmdPaletteViewSessionEvent(
+  viewSession: string,
+  attachmentToken: string,
+  event: CmdPaletteViewSessionEvent,
+  signal?: AbortSignal
+): Promise<void> {
+  const { error, response } = await apiClient.POST(
+    "/api/cmd-palette/view-sessions/{session}/events",
+    {
+      params: {
+        path: { session: viewSession },
+        header: { [CLIENT_TOKEN_HEADER]: attachmentToken },
+      },
+      body: event,
+      signal,
+    }
+  );
+  if (apiRequestFailed(response, error)) {
+    throw responseError("Failed to send a view event", response, error);
+  }
+}
+
+export async function closeCmdPaletteViewSession(
+  viewSession: string,
+  attachmentToken: string,
+  signal?: AbortSignal
+): Promise<void> {
+  const { error, response } = await apiClient.DELETE("/api/cmd-palette/view-sessions/{session}", {
+    params: {
+      path: { session: viewSession },
+      header: { [CLIENT_TOKEN_HEADER]: attachmentToken },
+    },
+    signal,
+  });
+  if (apiRequestFailed(response, error)) {
+    throw responseError("Failed to close the view session", response, error);
+  }
+}
+
+export function cmdPaletteViewSessionStreamURL(viewSession: string, streamToken: string): string {
+  const session = encodeURIComponent(viewSession);
+  const token = encodeURIComponent(streamToken);
+  return `/api/cmd-palette/view-sessions/${session}/stream?token=${token}`;
 }
 
 export interface CmdPaletteInvokeInput {

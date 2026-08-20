@@ -16,6 +16,7 @@ type DescribePayload struct {
 	Tools                []toolspkg.ExtensionToolRuntimeDescriptor `json:"tools,omitempty"`
 	HookEvents           []string                                  `json:"hook_events,omitempty"`
 	WatchSourceKinds     []string                                  `json:"watch_source_kinds,omitempty"`
+	CmdPaletteViews      []string                                  `json:"cmd_palette_views,omitempty"`
 	CommandGroups        []ExtensionCommandGroupSpec               `json:"command_groups,omitempty"`
 	SDK                  DescribeSDKInfo                           `json:"sdk"`
 }

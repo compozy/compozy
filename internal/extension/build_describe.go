@@ -34,12 +34,16 @@ func decodeDescribePayload(data []byte) (extensioncontract.DescribePayload, erro
 	return payload, nil
 }
 
-func manifestFromDescribe(payload extensioncontract.DescribePayload) (*Manifest, error) {
+func manifestFromDescribe(input *extensioncontract.DescribePayload) (*Manifest, error) {
+	if input == nil {
+		return nil, errors.New("extension: describe payload is required")
+	}
+	payload := *input
 	payload.Provides = sortedBuildStrings(payload.Provides)
 	payload.Permissions = sortedBuildStrings(payload.Permissions)
 	payload.RequiresEnv = sortedBuildStrings(payload.RequiresEnv)
 	payload.Resources = normalizeDescribeResources(payload.Resources)
-	if err := validateDescribeCapabilityCoverage(payload); err != nil {
+	if err := validateDescribeCapabilityCoverage(&payload); err != nil {
 		return nil, err
 	}
 	manifest := &Manifest{
@@ -238,7 +242,7 @@ func sortedBuildStrings(values []string) []string {
 	return normalized
 }
 
-func validateDescribeCapabilityCoverage(payload extensioncontract.DescribePayload) error {
+func validateDescribeCapabilityCoverage(payload *extensioncontract.DescribePayload) error {
 	if len(payload.Tools) > 0 && !slices.Contains(payload.Provides, extensionprotocol.CapabilityToolProvider) {
 		return errors.New("extension: described tools require tool.provider")
 	}

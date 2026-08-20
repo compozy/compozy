@@ -38,14 +38,16 @@ export function useCmdPaletteDeclarativeView({
   onDismiss,
   query,
   viewId,
+  enabled = true,
 }: {
   dispatch: CmdPaletteDispatch;
   onDismiss: () => void;
   query: string;
   viewId: string;
+  enabled?: boolean;
 }): CmdPaletteDeclarativeViewModel {
   const { runtimeWorkspaceId } = useActiveWorkspace();
-  const request = useQuery(cmdPaletteViewOptions(runtimeWorkspaceId, viewId, true));
+  const request = useQuery(cmdPaletteViewOptions(runtimeWorkspaceId, viewId, enabled));
   const [timedOut, setTimedOut] = useState(false);
   const [selectedRow, setSelectedRow] = useState("");
   const [activeChip, setActiveChip] = useState("all");
@@ -92,7 +94,7 @@ export function useCmdPaletteDeclarativeView({
   };
 }
 
-function contentForEnvelope(input: {
+export function contentForEnvelope(input: {
   activeChip: string;
   envelope: CmdPaletteViewEnvelope;
   query: string;
@@ -103,6 +105,7 @@ function contentForEnvelope(input: {
   selectedRow: string;
   setActiveChip: (id: string) => void;
   setSelectedRow: (id: string) => void;
+  filterLocally?: boolean;
 }): PaletteViewContent {
   const { envelope, runAction } = input;
   switch (envelope.kind) {
@@ -148,10 +151,14 @@ function listContent(input: {
   selectedRow: string;
   setActiveChip: (id: string) => void;
   setSelectedRow: (id: string) => void;
+  filterLocally?: boolean;
 }): PaletteViewContent {
   const payload = input.envelope.payload;
   const rows = (payload.sections ?? []).flatMap(section => section.rows);
-  const filtered = rows.filter(row => rowMatches(row, input.query, input.activeChip));
+  const filtered =
+    input.filterLocally === false
+      ? rows
+      : rows.filter(row => rowMatches(row, input.query, input.activeChip));
   const selected = filtered.find(row => row.id === input.selectedRow) ?? filtered[0] ?? null;
   return {
     kind: "list",
@@ -208,7 +215,7 @@ function bodyContent(kind: "detail" | "form" | "grid", body: React.ReactNode): P
   };
 }
 
-function emptyFrame(message: string): PaletteViewContent {
+export function emptyFrame(message: string): PaletteViewContent {
   return {
     kind: "list",
     rows: [],
@@ -221,7 +228,7 @@ function emptyFrame(message: string): PaletteViewContent {
   };
 }
 
-function viewDefinition(
+export function viewDefinition(
   viewId: string,
   envelope: CmdPaletteViewEnvelope | undefined
 ): PaletteViewDefinition {
@@ -238,7 +245,7 @@ function viewDefinition(
   };
 }
 
-function extensionName(viewId: string): string | null {
+export function extensionName(viewId: string): string | null {
   const match = /^ext\.([^.]+)\./.exec(viewId);
   return match?.[1] ?? null;
 }
@@ -263,7 +270,7 @@ function overflowNote(payload: CmdPaletteViewPayload): React.ReactNode {
   return <OsPaletteViewNote>{payload.empty.hint}</OsPaletteViewNote>;
 }
 
-function commandForViewAction(
+export function commandForViewAction(
   viewId: string,
   action: CmdPaletteViewAction
 ): ResolvedPaletteCommand {

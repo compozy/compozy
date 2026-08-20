@@ -1,5 +1,7 @@
 package contract
 
+import "github.com/compozy/compozy/internal/cmdpalette"
+
 // CmdPaletteConfig declares commands and views contributed by an extension.
 type CmdPaletteConfig struct {
 	Commands []CmdPaletteCommand `toml:"commands,omitempty" json:"commands,omitempty"`
@@ -74,3 +76,6 @@ type CmdPaletteView struct {
 type CmdPaletteViewSource struct {
 	Tool string `toml:"tool" json:"tool"`
 }
+
+// ViewFrame is the canonical programmable-view frame shared with SDK codegen.
+type ViewFrame = cmdpalette.ViewFrame

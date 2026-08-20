@@ -47,6 +47,7 @@ extension cannot claim compatibility its SDK does not have.
 | `tool-provider-ts`         | Agent-callable tools in TypeScript (default).  |
 | `tool-provider-go`         | Agent-callable tools in Go.                    |
 | `hook-ts`                  | A runtime hook that returns a payload patch.   |
+| `view-provider-ts`         | A programmable palette view with React.        |
 | `memory-backend-ts`        | The `memory.backend` provide surface.          |
 | `loop-watch-source-go`     | The `loop.watch_source` provide surface.       |
 | `connectivity-provider-go` | A Gateway connectivity provider in Go.         |
@@ -154,6 +155,7 @@ Closed set, validated at build, install, and load.
 | `memory.backend`        | `memory/store`, `memory/recall`, `memory/forget`                         | yes    |
 | `model.source`          | `models/list`                                                            | yes    |
 | `loop.watch_source`     | `watch/poll`                                                             | yes    |
+| `view.provider`         | `view/open`, `view/event`, `view/close`                                  | yes    |
 | `connectivity.provider` | `connectivity/establish`, `connectivity/status`, `connectivity/teardown` | yes    |
 | `forge.provider`        | `forge/capabilities`, `forge/status`, `forge/pr_create`                  | yes    |
 | `bridge.adapter`        | `bridges/deliver`, `bridges/targets/snapshot`                            | no     |
@@ -225,6 +227,14 @@ extension-owned views. IDs are local in source and become `ext.<extension>.<id>`
 actions may reference only tools from the same extension; declarative views require a read-only
 source tool. Invalid contributions fail build, validation, install, or dev reload instead of entering
 the live catalog.
+
+For a programmable view, start with `view-provider-ts`, declare `program: true`, and map view IDs to
+React components with `registerReactViews` from `@compozy/extension-react`. This registers the
+TypeScript-only `view.provider` surface (`view/open`, `view/event`, `view/close`). Add `view/patch`
+to `permissions.requires` only when the provider pushes frames between user events. Each attached
+client owns an isolated session; handler `AbortSignal`s are canceled when work is superseded or the
+session closes. Go builds reject programs with `views[<index>].program: view programs require a
+TypeScript extension this release`.
 
 Default shortcuts never override core or operator bindings. A conflict stays dormant and Settings
 reports the owner. Enabled unhealthy extensions keep their palette entries visible but unavailable

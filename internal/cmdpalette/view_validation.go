@@ -250,7 +250,7 @@ func validateRowAction(path string, action RowAction) error {
 	return nil
 }
 
-func validateBadge(path string, badge *Badge) error {
+func validateBadge(path string, badge *ViewBadge) error {
 	if badge == nil {
 		return nil
 	}

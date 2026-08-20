@@ -2,127 +2,38 @@
 
 package contracts
 
-import (
-	"encoding/json"
-	"time"
-)
+import "time"
 
-type SessionHealthIneligibilityReason string
-
-type SessionHealthPayload struct {
-	SessionID           string                           `json:"session_id"`
-	WorkspaceID         string                           `json:"workspace_id"`
-	AgentName           string                           `json:"agent_name"`
-	State               SessionHealthState               `json:"state"`
-	Health              SessionHealthStatus              `json:"health"`
-	ActivePrompt        bool                             `json:"active_prompt"`
-	Attachable          bool                             `json:"attachable"`
-	EligibleForWake     bool                             `json:"eligible_for_wake"`
-	IneligibilityReason SessionHealthIneligibilityReason `json:"ineligibility_reason,omitempty"`
-	LastActivityAt      *time.Time                       `json:"last_activity_at,omitempty"`
-	LastPresenceAt      *time.Time                       `json:"last_presence_at,omitempty"`
-	LastError           string                           `json:"last_error,omitempty"`
-	UpdatedAt           time.Time                        `json:"updated_at"`
+type SandboxReadyPayload struct {
+	Event                 HookEvent `json:"event"`
+	Timestamp             time.Time `json:"timestamp"`
+	SessionID             string    `json:"session_id,omitempty"`
+	SessionName           string    `json:"session_name,omitempty"`
+	SessionType           string    `json:"session_type,omitempty"`
+	AgentName             string    `json:"agent_name,omitempty"`
+	WorkspaceID           string    `json:"workspace_id,omitempty"`
+	Workspace             string    `json:"workspace,omitempty"`
+	WorktreeID            string    `json:"worktree_id,omitempty"`
+	ACPSessionID          string    `json:"acp_session_id,omitempty"`
+	State                 string    `json:"state,omitempty"`
+	SoulSnapshotID        string    `json:"soul_snapshot_id,omitempty"`
+	SoulDigest            string    `json:"soul_digest,omitempty"`
+	CreatedAt             time.Time `json:"created_at"`
+	UpdatedAt             time.Time `json:"updated_at"`
+	SandboxID             string    `json:"sandbox_id,omitempty"`
+	Backend               string    `json:"backend,omitempty"`
+	Profile               string    `json:"profile,omitempty"`
+	InstanceID            string    `json:"instance_id,omitempty"`
+	RuntimeRootDir        string    `json:"runtime_root,omitempty"`
+	RuntimeAdditionalDirs []string  `json:"runtime_additional_dirs,omitempty"`
 }
 
-type SessionHealthResponse struct {
-	Health SessionHealthPayload `json:"health"`
+type SandboxStopPatch struct {
+	Deny       bool   `json:"deny,omitempty"`
+	DenyReason string `json:"deny_reason,omitempty"`
 }
 
-type SessionHealthState string
-
-type SessionHealthStatus string
-
-type SessionHealthUpdateAfterPayload struct {
-	Event               HookEvent `json:"event"`
-	Timestamp           time.Time `json:"timestamp"`
-	SessionID           string    `json:"session_id,omitempty"`
-	SessionName         string    `json:"session_name,omitempty"`
-	SessionType         string    `json:"session_type,omitempty"`
-	AgentName           string    `json:"agent_name,omitempty"`
-	WorkspaceID         string    `json:"workspace_id,omitempty"`
-	Workspace           string    `json:"workspace,omitempty"`
-	WorktreeID          string    `json:"worktree_id,omitempty"`
-	ACPSessionID        string    `json:"acp_session_id,omitempty"`
-	State               string    `json:"state,omitempty"`
-	SoulSnapshotID      string    `json:"soul_snapshot_id,omitempty"`
-	SoulDigest          string    `json:"soul_digest,omitempty"`
-	CreatedAt           time.Time `json:"created_at"`
-	UpdatedAt           time.Time `json:"updated_at"`
-	Health              string    `json:"health,omitempty"`
-	ActivePrompt        bool      `json:"active_prompt,omitempty"`
-	Attachable          bool      `json:"attachable,omitempty"`
-	EligibleForWake     bool      `json:"eligible_for_wake,omitempty"`
-	IneligibilityReason string    `json:"ineligibility_reason,omitempty"`
-	LastActivityAt      time.Time `json:"last_activity_at"`
-	LastPresenceAt      time.Time `json:"last_presence_at"`
-	LastError           string    `json:"last_error,omitempty"`
-}
-
-type SessionInput struct {
-	ID              string                         `json:"id"`
-	SessionID       string                         `json:"session_id"`
-	MessageID       string                         `json:"message_id,omitempty"`
-	IdempotencyKey  string                         `json:"idempotency_key,omitempty"`
-	TargetTurnID    string                         `json:"target_turn_id,omitempty"`
-	Status          string                         `json:"status"`
-	Mode            PromptMode                     `json:"mode"`
-	Delivery        PromptDelivery                 `json:"delivery"`
-	Text            string                         `json:"text"`
-	QueueGeneration int64                          `json:"queue_generation"`
-	EnqueuedAt      time.Time                      `json:"enqueued_at"`
-	Runtime         *PromptRuntimeSelectionPayload `json:"runtime,omitempty"`
-}
-
-type SessionInputListResult struct {
-	Inputs []SessionInput `json:"inputs"`
-}
-
-type SessionInputPromoteParams struct {
-	WorkspaceID    string `json:"workspace_id"`
-	SessionID      string `json:"session_id"`
-	QueueEntryID   string `json:"queue_entry_id"`
-	Text           string `json:"text"`
-	MessageID      string `json:"message_id"`
-	IdempotencyKey string `json:"idempotency_key"`
-	ExpectedTurnID string `json:"expected_turn_id"`
-}
-
-type SessionInputReplaceParams struct {
-	WorkspaceID    string `json:"workspace_id"`
-	SessionID      string `json:"session_id"`
-	QueueEntryID   string `json:"queue_entry_id"`
-	Text           string `json:"text"`
-	MessageID      string `json:"message_id"`
-	IdempotencyKey string `json:"idempotency_key"`
-}
-
-type SessionInputResult struct {
-	Input SessionInput `json:"input"`
-}
-
-type SessionInputTargetParams struct {
-	WorkspaceID  string `json:"workspace_id"`
-	SessionID    string `json:"session_id"`
-	QueueEntryID string `json:"queue_entry_id"`
-}
-
-type SessionInputsListParams struct {
-	WorkspaceID string `json:"workspace_id"`
-	SessionID   string `json:"session_id"`
-}
-
-type SessionInspectResponse struct {
-	SessionID    string                             `json:"session_id"`
-	Health       SessionHealthPayload               `json:"health"`
-	WakeState    *HeartbeatWakeStatePayload         `json:"wake_state,omitempty"`
-	WakeEvents   []HeartbeatWakeEventPayload        `json:"wake_events,omitempty"`
-	PolicyDigest string                             `json:"policy_digest,omitempty"`
-	ConfigDigest string                             `json:"config_digest,omitempty"`
-	Diagnostics  []AuthoredContextDiagnosticPayload `json:"diagnostics,omitempty"`
-}
-
-type SessionLifecyclePayload struct {
+type SandboxStopPayload struct {
 	Event          HookEvent `json:"event"`
 	Timestamp      time.Time `json:"timestamp"`
 	SessionID      string    `json:"session_id,omitempty"`
@@ -138,38 +49,188 @@ type SessionLifecyclePayload struct {
 	SoulDigest     string    `json:"soul_digest,omitempty"`
 	CreatedAt      time.Time `json:"created_at"`
 	UpdatedAt      time.Time `json:"updated_at"`
+	SandboxID      string    `json:"sandbox_id,omitempty"`
+	Backend        string    `json:"backend,omitempty"`
+	Profile        string    `json:"profile,omitempty"`
+	InstanceID     string    `json:"instance_id,omitempty"`
+	RuntimeRootDir string    `json:"runtime_root,omitempty"`
+	StopReason     string    `json:"stop_reason,omitempty"`
+	WillDestroy    bool      `json:"will_destroy,omitempty"`
+	Denied         bool      `json:"denied,omitempty"`
+	DenyReason     string    `json:"deny_reason,omitempty"`
 }
 
-type SessionMessagePersistedPayload struct {
-	Event           HookEvent       `json:"event"`
-	Timestamp       time.Time       `json:"timestamp"`
-	SessionID       string          `json:"session_id,omitempty"`
-	SessionName     string          `json:"session_name,omitempty"`
-	SessionType     string          `json:"session_type,omitempty"`
-	AgentName       string          `json:"agent_name,omitempty"`
-	WorkspaceID     string          `json:"workspace_id,omitempty"`
-	Workspace       string          `json:"workspace,omitempty"`
-	WorktreeID      string          `json:"worktree_id,omitempty"`
-	ACPSessionID    string          `json:"acp_session_id,omitempty"`
-	State           string          `json:"state,omitempty"`
-	SoulSnapshotID  string          `json:"soul_snapshot_id,omitempty"`
-	SoulDigest      string          `json:"soul_digest,omitempty"`
-	CreatedAt       time.Time       `json:"created_at"`
-	UpdatedAt       time.Time       `json:"updated_at"`
-	TurnID          string          `json:"turn_id,omitempty"`
-	MessageID       string          `json:"message_id,omitempty"`
-	MessageSeq      int64           `json:"message_seq,omitempty"`
-	Role            string          `json:"role,omitempty"`
-	Text            string          `json:"text,omitempty"`
-	Raw             json.RawMessage `json:"raw,omitempty"`
-	Persisted       json.RawMessage `json:"persisted,omitempty"`
-	RootSessionID   string          `json:"root_session_id,omitempty"`
-	ParentSessionID string          `json:"parent_session_id,omitempty"`
-	ActorKind       string          `json:"actor_kind,omitempty"`
-	ActorID         string          `json:"actor_id,omitempty"`
+type SandboxSummary struct {
+	SessionID  string `json:"session_id"`
+	SandboxID  string `json:"sandbox_id"`
+	Backend    string `json:"backend"`
+	Profile    string `json:"profile,omitempty"`
+	InstanceID string `json:"instance_id,omitempty"`
+	State      string `json:"state"`
+	SyncState  string `json:"sync_state,omitempty"`
 }
 
-type SessionPostCreatePatch struct {
+type SandboxSyncAfterPatch struct{}
+
+type SandboxSyncAfterPayload struct {
+	Event            HookEvent `json:"event"`
+	Timestamp        time.Time `json:"timestamp"`
+	SessionID        string    `json:"session_id,omitempty"`
+	SessionName      string    `json:"session_name,omitempty"`
+	SessionType      string    `json:"session_type,omitempty"`
+	AgentName        string    `json:"agent_name,omitempty"`
+	WorkspaceID      string    `json:"workspace_id,omitempty"`
+	Workspace        string    `json:"workspace,omitempty"`
+	WorktreeID       string    `json:"worktree_id,omitempty"`
+	ACPSessionID     string    `json:"acp_session_id,omitempty"`
+	State            string    `json:"state,omitempty"`
+	SoulSnapshotID   string    `json:"soul_snapshot_id,omitempty"`
+	SoulDigest       string    `json:"soul_digest,omitempty"`
+	CreatedAt        time.Time `json:"created_at"`
+	UpdatedAt        time.Time `json:"updated_at"`
+	SandboxID        string    `json:"sandbox_id,omitempty"`
+	Backend          string    `json:"backend,omitempty"`
+	Profile          string    `json:"profile,omitempty"`
+	InstanceID       string    `json:"instance_id,omitempty"`
+	RuntimeRootDir   string    `json:"runtime_root,omitempty"`
+	Direction        string    `json:"direction,omitempty"`
+	Reason           string    `json:"reason,omitempty"`
+	FilesSynced      int       `json:"files_synced,omitempty"`
+	BytesTransferred int64     `json:"bytes_transferred,omitempty"`
+	DurationMS       int64     `json:"duration_ms,omitempty"`
+	Errors           []string  `json:"errors,omitempty"`
+}
+
+type SandboxSyncBeforePatch struct {
+	Deny            bool     `json:"deny,omitempty"`
+	DenyReason      string   `json:"deny_reason,omitempty"`
+	ExcludePatterns []string `json:"exclude_patterns,omitempty"`
+}
+
+type SandboxSyncBeforePayload struct {
+	Event           HookEvent `json:"event"`
+	Timestamp       time.Time `json:"timestamp"`
+	SessionID       string    `json:"session_id,omitempty"`
+	SessionName     string    `json:"session_name,omitempty"`
+	SessionType     string    `json:"session_type,omitempty"`
+	AgentName       string    `json:"agent_name,omitempty"`
+	WorkspaceID     string    `json:"workspace_id,omitempty"`
+	Workspace       string    `json:"workspace,omitempty"`
+	WorktreeID      string    `json:"worktree_id,omitempty"`
+	ACPSessionID    string    `json:"acp_session_id,omitempty"`
+	State           string    `json:"state,omitempty"`
+	SoulSnapshotID  string    `json:"soul_snapshot_id,omitempty"`
+	SoulDigest      string    `json:"soul_digest,omitempty"`
+	CreatedAt       time.Time `json:"created_at"`
+	UpdatedAt       time.Time `json:"updated_at"`
+	SandboxID       string    `json:"sandbox_id,omitempty"`
+	Backend         string    `json:"backend,omitempty"`
+	Profile         string    `json:"profile,omitempty"`
+	InstanceID      string    `json:"instance_id,omitempty"`
+	RuntimeRootDir  string    `json:"runtime_root,omitempty"`
+	Direction       string    `json:"direction,omitempty"`
+	Reason          string    `json:"reason,omitempty"`
+	ExcludePatterns []string  `json:"exclude_patterns,omitempty"`
+	Denied          bool      `json:"denied,omitempty"`
+	DenyReason      string    `json:"deny_reason,omitempty"`
+}
+
+type ScheduleMode string
+
+type ScheduleSpec struct {
+	Mode                ScheduleMode           `json:"mode"`
+	Expr                string                 `json:"expr,omitempty"`
+	Interval            string                 `json:"interval,omitempty"`
+	Time                string                 `json:"time,omitempty"`
+	CatchUpPolicy       SchedulerCatchUpPolicy `json:"catch_up_policy,omitempty"`
+	MisfireGraceSeconds int                    `json:"misfire_grace_seconds,omitempty"`
+}
+
+type SchedulerCatchUpPolicy string
+
+type Scope string
+
+type Section struct {
+	Title string `json:"title,omitempty"`
+	Rows  []Row  `json:"rows"`
+}
+
+type SessionActivityHealth struct {
+	SessionID          string     `json:"session_id"`
+	TurnID             string     `json:"turn_id,omitempty"`
+	TurnSource         string     `json:"turn_source,omitempty"`
+	TurnStartedAt      *time.Time `json:"turn_started_at,omitempty"`
+	LastActivityAt     *time.Time `json:"last_activity_at,omitempty"`
+	LastActivityKind   string     `json:"last_activity_kind,omitempty"`
+	LastActivityDetail string     `json:"last_activity_detail,omitempty"`
+	CurrentTool        string     `json:"current_tool,omitempty"`
+	ToolCallID         string     `json:"tool_call_id,omitempty"`
+	LastProgressAt     *time.Time `json:"last_progress_at,omitempty"`
+	IterationCurrent   int        `json:"iteration_current,omitempty"`
+	IterationMax       int        `json:"iteration_max,omitempty"`
+	IdleSeconds        int64      `json:"idle_seconds,omitempty"`
+	ElapsedSeconds     int64      `json:"elapsed_seconds,omitempty"`
+	Status             string     `json:"status"`
+	StallState         string     `json:"stall_state,omitempty"`
+	StallReason        string     `json:"stall_reason,omitempty"`
+}
+
+type SessionAttentionChangedPayload struct {
+	Event          HookEvent `json:"event"`
+	Timestamp      time.Time `json:"timestamp"`
+	SessionID      string    `json:"session_id,omitempty"`
+	SessionName    string    `json:"session_name,omitempty"`
+	SessionType    string    `json:"session_type,omitempty"`
+	AgentName      string    `json:"agent_name,omitempty"`
+	WorkspaceID    string    `json:"workspace_id,omitempty"`
+	Workspace      string    `json:"workspace,omitempty"`
+	WorktreeID     string    `json:"worktree_id,omitempty"`
+	ACPSessionID   string    `json:"acp_session_id,omitempty"`
+	State          string    `json:"state,omitempty"`
+	SoulSnapshotID string    `json:"soul_snapshot_id,omitempty"`
+	SoulDigest     string    `json:"soul_digest,omitempty"`
+	CreatedAt      time.Time `json:"created_at"`
+	UpdatedAt      time.Time `json:"updated_at"`
+	From           string    `json:"from"`
+	To             string    `json:"to"`
+	Class          string    `json:"class"`
+	At             time.Time `json:"at"`
+}
+
+type SessionAttentionObservationPatch struct{}
+
+type SessionConfigOptionPayload struct {
+	ID          string                            `json:"id"`
+	Label       string                            `json:"label,omitempty"`
+	Description string                            `json:"description,omitempty"`
+	Kind        string                            `json:"kind"`
+	Current     string                            `json:"current,omitempty"`
+	Values      []SessionConfigOptionValuePayload `json:"values,omitempty"`
+}
+
+type SessionConfigOptionValuePayload struct {
+	Value       string `json:"value"`
+	Label       string `json:"label,omitempty"`
+	Description string `json:"description,omitempty"`
+}
+
+type SessionContext struct {
+	SessionID      string    `json:"session_id,omitempty"`
+	SessionName    string    `json:"session_name,omitempty"`
+	SessionType    string    `json:"session_type,omitempty"`
+	AgentName      string    `json:"agent_name,omitempty"`
+	WorkspaceID    string    `json:"workspace_id,omitempty"`
+	Workspace      string    `json:"workspace,omitempty"`
+	WorktreeID     string    `json:"worktree_id,omitempty"`
+	ACPSessionID   string    `json:"acp_session_id,omitempty"`
+	State          string    `json:"state,omitempty"`
+	SoulSnapshotID string    `json:"soul_snapshot_id,omitempty"`
+	SoulDigest     string    `json:"soul_digest,omitempty"`
+	CreatedAt      time.Time `json:"created_at"`
+	UpdatedAt      time.Time `json:"updated_at"`
+}
+
+type SessionCreatePatch struct {
 	Deny        bool    `json:"deny,omitempty"`
 	DenyReason  string  `json:"deny_reason,omitempty"`
 	SessionName *string `json:"session_name,omitempty"`
@@ -179,104 +240,35 @@ type SessionPostCreatePatch struct {
 	Workspace   *string `json:"workspace,omitempty"`
 }
 
-type SessionPostCreatePayload struct {
-	Event          HookEvent `json:"event"`
-	Timestamp      time.Time `json:"timestamp"`
-	SessionID      string    `json:"session_id,omitempty"`
-	SessionName    string    `json:"session_name,omitempty"`
-	SessionType    string    `json:"session_type,omitempty"`
-	AgentName      string    `json:"agent_name,omitempty"`
-	WorkspaceID    string    `json:"workspace_id,omitempty"`
-	Workspace      string    `json:"workspace,omitempty"`
-	WorktreeID     string    `json:"worktree_id,omitempty"`
-	ACPSessionID   string    `json:"acp_session_id,omitempty"`
-	State          string    `json:"state,omitempty"`
-	SoulSnapshotID string    `json:"soul_snapshot_id,omitempty"`
-	SoulDigest     string    `json:"soul_digest,omitempty"`
-	CreatedAt      time.Time `json:"created_at"`
-	UpdatedAt      time.Time `json:"updated_at"`
+type SessionCreateResult struct {
+	SessionID string `json:"session_id"`
 }
 
-type SessionPostResumePatch struct {
-	Deny        bool    `json:"deny,omitempty"`
-	DenyReason  string  `json:"deny_reason,omitempty"`
-	SessionName *string `json:"session_name,omitempty"`
-	SessionType *string `json:"session_type,omitempty"`
-	AgentName   *string `json:"agent_name,omitempty"`
-	WorkspaceID *string `json:"workspace_id,omitempty"`
-	Workspace   *string `json:"workspace,omitempty"`
+type SessionEvent struct {
+	Type      string    `json:"type"`
+	Timestamp time.Time `json:"timestamp"`
+	Data      any       `json:"data,omitempty"`
 }
 
-type SessionPostResumePayload struct {
-	Event          HookEvent `json:"event"`
-	Timestamp      time.Time `json:"timestamp"`
-	SessionID      string    `json:"session_id,omitempty"`
-	SessionName    string    `json:"session_name,omitempty"`
-	SessionType    string    `json:"session_type,omitempty"`
-	AgentName      string    `json:"agent_name,omitempty"`
-	WorkspaceID    string    `json:"workspace_id,omitempty"`
-	Workspace      string    `json:"workspace,omitempty"`
-	WorktreeID     string    `json:"worktree_id,omitempty"`
-	ACPSessionID   string    `json:"acp_session_id,omitempty"`
-	State          string    `json:"state,omitempty"`
-	SoulSnapshotID string    `json:"soul_snapshot_id,omitempty"`
-	SoulDigest     string    `json:"soul_digest,omitempty"`
-	CreatedAt      time.Time `json:"created_at"`
-	UpdatedAt      time.Time `json:"updated_at"`
+type SessionEventsParams struct {
+	WorkspaceID string    `json:"workspace_id"`
+	SessionID   string    `json:"session_id"`
+	Type        string    `json:"type,omitempty"`
+	AgentName   string    `json:"agent_name,omitempty"`
+	TurnID      string    `json:"turn_id,omitempty"`
+	Limit       int       `json:"limit,omitempty"`
+	Offset      int64     `json:"offset,omitempty"`
+	Since       time.Time `json:"since,omitzero"`
 }
 
-type SessionPostStopPatch struct {
-	Deny        bool    `json:"deny,omitempty"`
-	DenyReason  string  `json:"deny_reason,omitempty"`
-	SessionName *string `json:"session_name,omitempty"`
-	SessionType *string `json:"session_type,omitempty"`
-	AgentName   *string `json:"agent_name,omitempty"`
-	WorkspaceID *string `json:"workspace_id,omitempty"`
-	Workspace   *string `json:"workspace,omitempty"`
-}
-
-type SessionPostStopPayload struct {
-	Event          HookEvent `json:"event"`
-	Timestamp      time.Time `json:"timestamp"`
-	SessionID      string    `json:"session_id,omitempty"`
-	SessionName    string    `json:"session_name,omitempty"`
-	SessionType    string    `json:"session_type,omitempty"`
-	AgentName      string    `json:"agent_name,omitempty"`
-	WorkspaceID    string    `json:"workspace_id,omitempty"`
-	Workspace      string    `json:"workspace,omitempty"`
-	WorktreeID     string    `json:"worktree_id,omitempty"`
-	ACPSessionID   string    `json:"acp_session_id,omitempty"`
-	State          string    `json:"state,omitempty"`
-	SoulSnapshotID string    `json:"soul_snapshot_id,omitempty"`
-	SoulDigest     string    `json:"soul_digest,omitempty"`
-	CreatedAt      time.Time `json:"created_at"`
-	UpdatedAt      time.Time `json:"updated_at"`
-}
-
-type SessionPreCreatePayload struct {
-	Event          HookEvent `json:"event"`
-	Timestamp      time.Time `json:"timestamp"`
-	SessionID      string    `json:"session_id,omitempty"`
-	SessionName    string    `json:"session_name,omitempty"`
-	SessionType    string    `json:"session_type,omitempty"`
-	AgentName      string    `json:"agent_name,omitempty"`
-	WorkspaceID    string    `json:"workspace_id,omitempty"`
-	Workspace      string    `json:"workspace,omitempty"`
-	WorktreeID     string    `json:"worktree_id,omitempty"`
-	ACPSessionID   string    `json:"acp_session_id,omitempty"`
-	State          string    `json:"state,omitempty"`
-	SoulSnapshotID string    `json:"soul_snapshot_id,omitempty"`
-	SoulDigest     string    `json:"soul_digest,omitempty"`
-	CreatedAt      time.Time `json:"created_at"`
-	UpdatedAt      time.Time `json:"updated_at"`
-}
-
-type SessionPreResumePatch struct {
-	Deny        bool    `json:"deny,omitempty"`
-	DenyReason  string  `json:"deny_reason,omitempty"`
-	SessionName *string `json:"session_name,omitempty"`
-	SessionType *string `json:"session_type,omitempty"`
-	AgentName   *string `json:"agent_name,omitempty"`
-	WorkspaceID *string `json:"workspace_id,omitempty"`
-	Workspace   *string `json:"workspace,omitempty"`
+type SessionFailureHealth struct {
+	SessionID       string      `json:"session_id"`
+	AgentName       string      `json:"agent_name,omitempty"`
+	Provider        string      `json:"provider,omitempty"`
+	WorkspaceID     string      `json:"workspace_id,omitempty"`
+	State           string      `json:"state,omitempty"`
+	FailureKind     FailureKind `json:"failure_kind"`
+	Summary         string      `json:"summary,omitempty"`
+	CrashBundlePath string      `json:"crash_bundle_path,omitempty"`
+	UpdatedAt       time.Time   `json:"updated_at"`
 }

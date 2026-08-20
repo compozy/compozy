@@ -3,6 +3,8 @@ import { CommandDialog } from "@compozy/ui";
 import type { useCmdPaletteDispatch } from "../hooks/use-cmd-palette-dispatch";
 import { useOsPaletteSurface } from "../hooks/use-os-palette-surface";
 import { paletteViewDefinition } from "../lib/palette-view-registry";
+import { paletteBreadcrumb } from "../lib/palette-view-stack";
+import type { WindowManagerAttachedClientView } from "../lib/window-manager-types";
 import { PaletteActionPanel } from "./os-palette-action-panel";
 import { PaletteArgsBar } from "./os-palette-args-bar";
 import { PaletteConfirmation } from "./os-palette-confirmation";
@@ -15,6 +17,8 @@ export interface OsCommandPaletteProps {
   onOpenChange: (open: boolean) => void;
   /** The bound dispatch seam; the shell owns the coordinators it closes over. */
   dispatch: ReturnType<typeof useCmdPaletteDispatch>;
+  /** The authenticated desktop attachment that owns programmable view sessions. */
+  client?: WindowManagerAttachedClientView | null;
 }
 
 /** Base UI reports the dismissal with its reason and lets a listener cancel it. */
@@ -36,7 +40,12 @@ interface DismissDetails {
  * step, then the whole surface. Cancelling the dismissal keeps a click outside
  * closing everything, which is what an operator means by clicking away.
  */
-export function OsCommandPalette({ open, onOpenChange, dispatch }: OsCommandPaletteProps) {
+export function OsCommandPalette({
+  client = null,
+  open,
+  onOpenChange,
+  dispatch,
+}: OsCommandPaletteProps) {
   const surface = useOsPaletteSurface({ open, onOpenChange, dispatch });
   const { root, execution, viewStack } = surface;
   const activeView =
@@ -75,17 +84,32 @@ export function OsCommandPalette({ open, onOpenChange, dispatch }: OsCommandPale
       );
     }
     if (viewStack.activeViewId !== null) {
+      const activeFrame = viewStack.stack.at(-1);
+      let framePath = "";
+      const mountedFrames = viewStack.stack.map(frame => {
+        framePath = `${framePath}/${frame.viewId}`;
+        return { frame, key: framePath };
+      });
       return (
-        <OsPaletteViewStack
-          // Each level is its own instance: pushing or popping starts the new
-          // level's search and selection clean instead of inheriting them.
-          key={`${viewStack.stack.length}:${viewStack.activeViewId}`}
-          breadcrumb={viewStack.breadcrumb}
-          dispatch={dispatch}
-          viewId={viewStack.activeViewId}
-          onDismiss={() => onOpenChange(false)}
-          onPop={viewStack.pop}
-        />
+        <>
+          {mountedFrames.map(({ frame, key }) => (
+            <div key={key} hidden={frame !== activeFrame}>
+              <OsPaletteViewStack
+                breadcrumb={paletteBreadcrumb(
+                  key
+                    .slice(1)
+                    .split("/")
+                    .map(id => paletteViewDefinition(id)?.title ?? id)
+                )}
+                client={client}
+                dispatch={dispatch}
+                viewId={frame.viewId}
+                onDismiss={() => onOpenChange(false)}
+                onPop={viewStack.pop}
+              />
+            </div>
+          ))}
+        </>
       );
     }
     return (

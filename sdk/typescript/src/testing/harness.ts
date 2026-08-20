@@ -47,6 +47,7 @@ const DEFAULT_RUNTIME: InitializeRuntime = {
   health_check_timeout_ms: 5_000,
   shutdown_timeout_ms: 10_000,
   default_hook_timeout_ms: 5_000,
+  default_view_timeout_ms: 3_000,
 };
 
 const DAEMON_METHODS = new Set(["execute_hook", "health_check", "shutdown"]);

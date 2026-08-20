@@ -48,6 +48,7 @@ const (
 	HostAPIMethodAgentsHeartbeatRollback     = extensionprotocol.HostAPIMethodAgentsHeartbeatRollback
 	HostAPIMethodAgentsHeartbeatStatus       = extensionprotocol.HostAPIMethodAgentsHeartbeatStatus
 	HostAPIMethodAgentsHeartbeatWake         = extensionprotocol.HostAPIMethodAgentsHeartbeatWake
+	HostAPIMethodViewPatch                   = extensionprotocol.HostAPIMethodViewPatch
 	HostAPIMethodAutomationJobs              = extensionprotocol.HostAPIMethodAutomationJobs
 	HostAPIMethodAutomationJobsGet           = extensionprotocol.HostAPIMethodAutomationJobsGet
 	HostAPIMethodAutomationJobsCreate        = extensionprotocol.HostAPIMethodAutomationJobsCreate

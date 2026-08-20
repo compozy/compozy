@@ -108,8 +108,82 @@ view payload; CompozyOS validates that payload before rendering it.
 The source tool must be read-only. A mutating, destructive, interactive, or open-world tool is
 rejected at validation time, so opening a declarative view never starts an approval flow.
 
-The alternative `program: true` shape reserves a programmable view. It does not carry `source`; its
-runtime provider must implement the programmable view contract.
+## Programmable views
+
+A programmable view sets `program: true` instead of `source`. It is backed by the public
+`view.provider` provide surface and is TypeScript-only in this release. Start from the complete
+template:
+
+```bash
+compozy extension init notes --template view-provider-ts
+```
+
+Declare `view.provider`, request `view/patch` only if the provider pushes frames between user events,
+then map each declared view ID to a React component:
+
+```tsx
+import { Extension } from "@compozy/extension-sdk";
+import { Action, ActionPanel, List, registerReactViews } from "@compozy/extension-react";
+
+function NotesView() {
+  return (
+    <List searchBarPlaceholder="Search notes…" complete>
+      <List.Section title="Notes">
+        <List.Item
+          id="welcome"
+          title="Welcome"
+          actions={
+            <ActionPanel>
+              <Action title="Open" onAction={() => undefined} />
+            </ActionPanel>
+          }
+        />
+      </List.Section>
+    </List>
+  );
+}
+
+const extension = new Extension({
+  name: "notes",
+  version: "0.1.0",
+  description: "Browse notes",
+  subprocess: { command: "node", args: ["index.js"] },
+  capabilities: { provides: ["view.provider"] },
+  permissions: { requires: ["view/patch"] },
+  resources: {
+    cmd_palette: {
+      commands: [
+        {
+          id: "browse",
+          title: "Browse notes",
+          icon: "search",
+          action: { kind: "view", view: "browser" },
+        },
+      ],
+      views: [{ id: "browser", title: "Notes", kind: "list", program: true }],
+    },
+  },
+});
+
+registerReactViews(extension, { browser: NotesView });
+```
+
+`@compozy/extension-react` provides `List`, `Grid`, `Detail`, `Form`, `ActionPanel`, navigation,
+cached state and promise hooks, and toast effects. Components render into a serializable frame; no
+extension code runs in the browser.
+
+CompozyOS opens one isolated provider session per attached client. User interactions call
+`view/event`; leaving the view calls `view/close`. The SDK passes an `AbortSignal` to handlers, so
+superseded or closed work can stop promptly. Navigation keeps parent frames mounted, which preserves
+their component state while a child frame is open.
+
+Frames carry a revision, generation, handler table, and either a full payload or an RFC 6902 patch.
+The runtime rejects stale generations, duplicate effects, oversized frames, and handlers that keep
+failing. A short failure keeps the last safe frame visible with a retry state; repeated failures
+open the circuit instead of replaying unsafe work.
+
+Building a programmable view with the Go SDK fails with
+`views[<index>].program: view programs require a TypeScript extension this release`.
 
 ## Default shortcuts
 

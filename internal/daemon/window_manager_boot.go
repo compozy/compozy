@@ -7,6 +7,7 @@ import (
 	"math"
 
 	"github.com/compozy/compozy/internal/clientstate"
+	"github.com/compozy/compozy/internal/cmdpalette"
 	compozyconfig "github.com/compozy/compozy/internal/config"
 	"github.com/compozy/compozy/internal/deadentity"
 	"github.com/compozy/compozy/internal/windowmanager"
@@ -56,6 +57,19 @@ func (d *Daemon) bootDefaultWorkspaceAndWindowManager(
 		windowManagerDefaults(state.cfg.WindowManager),
 		windowmanager.WithLifecycleContext(ctx),
 		windowmanager.WithEventObserver(newWindowManagerHookObserver(state)),
+		windowmanager.WithClientUnregisteredObserver(
+			func(ctx context.Context, workspaceID windowmanager.WorkspaceID, clientID windowmanager.ClientID) error {
+				views, ok := state.cmdPalette.(cmdpalette.ViewSessionService)
+				if !ok || views == nil {
+					return nil
+				}
+				return views.CloseClientSessions(
+					ctx,
+					cmdpalette.WorkspaceID(workspaceID),
+					cmdpalette.ClientID(clientID),
+				)
+			},
+		),
 		windowmanager.WithWorkspaceConfigResolver(
 			windowManagerWorkspaceConfigResolver{resolver: state.workspaceResolver},
 		),

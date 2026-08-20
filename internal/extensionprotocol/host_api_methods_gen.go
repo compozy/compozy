@@ -46,6 +46,7 @@ const (
 	HostAPIMethodAgentsHeartbeatRollback     HostAPIMethod = "agents/heartbeat/rollback"
 	HostAPIMethodAgentsHeartbeatStatus       HostAPIMethod = "agents/heartbeat/status"
 	HostAPIMethodAgentsHeartbeatWake         HostAPIMethod = "agents/heartbeat/wake"
+	HostAPIMethodViewPatch                   HostAPIMethod = "view/patch"
 	HostAPIMethodAutomationJobs              HostAPIMethod = "automation/jobs"
 	HostAPIMethodAutomationJobsGet           HostAPIMethod = "automation/jobs/get"
 	HostAPIMethodAutomationJobsCreate        HostAPIMethod = "automation/jobs/create"
@@ -144,6 +145,7 @@ var allHostAPIMethods = []HostAPIMethod{
 	HostAPIMethodAgentsHeartbeatRollback,
 	HostAPIMethodAgentsHeartbeatStatus,
 	HostAPIMethodAgentsHeartbeatWake,
+	HostAPIMethodViewPatch,
 	HostAPIMethodAutomationJobs,
 	HostAPIMethodAutomationJobsGet,
 	HostAPIMethodAutomationJobsCreate,

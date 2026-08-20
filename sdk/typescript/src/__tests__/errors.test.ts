@@ -81,4 +81,15 @@ describe("errors", () => {
     expect(isRPCError(original)).toBe(true);
     expect(isRPCError(new Error("nope"))).toBe(false);
   });
+
+  it("keeps internal diagnostics locally while masking the wire message", () => {
+    const normalized = ensureRPCError(new Error("open failed"));
+    expect(normalized.message).toBe("open failed");
+    expect(normalized.toJSONRPC()).toEqual({
+      code: -32603,
+      message: "Internal error",
+      data: { error: "open failed" },
+    });
+    expect(errorFromObject(normalized.toJSONRPC()).message).toBe("open failed");
+  });
 });

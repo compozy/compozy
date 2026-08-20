@@ -8,7 +8,12 @@ import {
   NotInitializedError,
   ParseError,
 } from "../errors.js";
-import { DEFAULT_MAX_MESSAGE_BYTES, NotReadyTransport, StdioTransport } from "../transport.js";
+import {
+  DEFAULT_MAX_MESSAGE_BYTES,
+  JSON_RPC_CANCEL_METHOD,
+  NotReadyTransport,
+  StdioTransport,
+} from "../transport.js";
 
 function createTransport() {
   const input = new PassThrough();
@@ -81,6 +86,55 @@ describe("StdioTransport", () => {
         expect.objectContaining({ id: 2, result: { method: "fast" } }),
       ])
     );
+  });
+
+  it("sends cancellation and discards a late outbound response", async () => {
+    const { input, frames, transport } = createTransport();
+    const controller = new AbortController();
+    const pending = transport.call("view/event", {}, controller.signal);
+    await waitFor(() => frames.length === 1);
+
+    controller.abort(new DOMException("superseded", "AbortError"));
+    await expect(pending).rejects.toMatchObject({ name: "AbortError", message: "superseded" });
+    await waitFor(() => frames.length === 2);
+    expect(JSON.parse(frames[1]!)).toEqual({
+      jsonrpc: "2.0",
+      method: JSON_RPC_CANCEL_METHOD,
+      params: { id: 1 },
+    });
+
+    input.write(`${JSON.stringify({ jsonrpc: "2.0", id: 1, result: { stale: true } })}\n`);
+    await new Promise(resolve => setTimeout(resolve, 10));
+    expect(frames).toHaveLength(2);
+  });
+
+  it("aborts an inbound handler and omits its late response", async () => {
+    const { input, frames, transport } = createTransport();
+    let signal: AbortSignal | undefined;
+    let finish: (() => void) | undefined;
+    transport.handle("view/event", async (_params, _request, requestSignal) => {
+      signal = requestSignal;
+      await new Promise<void>(resolve => {
+        finish = resolve;
+      });
+      return { stale: true };
+    });
+    transport.start();
+    input.write(`${JSON.stringify({ jsonrpc: "2.0", id: 7, method: "view/event" })}\n`);
+    await waitFor(() => signal !== undefined);
+
+    input.write(
+      `${JSON.stringify({
+        jsonrpc: "2.0",
+        method: JSON_RPC_CANCEL_METHOD,
+        params: { id: 7 },
+      })}\n`
+    );
+    await waitFor(() => signal?.aborted === true);
+    finish?.();
+    await new Promise(resolve => setTimeout(resolve, 10));
+
+    expect(frames).toHaveLength(0);
   });
 
   it("rejects messages over 10 MiB", async () => {

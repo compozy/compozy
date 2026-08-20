@@ -56,7 +56,7 @@ func (h *BaseHandlers) respondPendingToolApprovalError(c *gin.Context, err error
 			h.Logger.Error("pending tool approval request failed", "error", err)
 		}
 		c.JSON(http.StatusServiceUnavailable, contract.CmdPaletteError{
-			Error: "runtime_unavailable", Message: "tool approval runtime is unavailable",
+			Error: runtimeUnavailableErrorCode, Message: "tool approval runtime is unavailable",
 		})
 	}
 }

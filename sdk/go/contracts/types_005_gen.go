@@ -7,6 +7,10 @@ import (
 	"time"
 )
 
+type BridgeCheckStatus string
+
+type BridgeDMPolicy string
+
 type BridgeDegradation struct {
 	Reason  BridgeDegradationReason `json:"reason"`
 	Message string                  `json:"message,omitempty"`
@@ -103,31 +107,16 @@ type CatalogSort string
 
 type ChannelStrategy string
 
+type Chip struct {
+	ID       string            `json:"id"`
+	Label    string            `json:"label"`
+	Count    *int              `json:"count,omitempty"`
+	Requires map[string]string `json:"requires,omitempty"`
+	Fallback string            `json:"fallback,omitempty"`
+}
+
 type ClarifyAnswer struct {
 	Choice   *int   `json:"choice"`
 	Text     string `json:"text"`
 	Fallback bool   `json:"fallback"`
-}
-
-type ClarifyAskParams struct {
-	InvocationID string   `json:"invocation_id"`
-	Question     string   `json:"question"`
-	Choices      []string `json:"choices,omitempty"`
-}
-
-type CmdPaletteAction struct {
-	Kind string         `json:"kind"`
-	Tool string         `json:"tool,omitempty"`
-	View string         `json:"view,omitempty"`
-	App  string         `json:"app,omitempty"`
-	URL  string         `json:"url,omitempty"`
-	Args map[string]any `json:"args,omitempty"`
-}
-
-type CmdPaletteArgument struct {
-	Name        string   `json:"name"`
-	Type        string   `json:"type"`
-	Placeholder string   `json:"placeholder,omitempty"`
-	Required    bool     `json:"required,omitempty"`
-	Options     []string `json:"options,omitempty"`
 }

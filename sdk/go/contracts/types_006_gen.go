@@ -7,6 +7,31 @@ import (
 	"time"
 )
 
+type ClarifyAskParams struct {
+	InvocationID string   `json:"invocation_id"`
+	Question     string   `json:"question"`
+	Choices      []string `json:"choices,omitempty"`
+}
+
+type ClientID string
+
+type CmdPaletteAction struct {
+	Kind string         `json:"kind"`
+	Tool string         `json:"tool,omitempty"`
+	View string         `json:"view,omitempty"`
+	App  string         `json:"app,omitempty"`
+	URL  string         `json:"url,omitempty"`
+	Args map[string]any `json:"args,omitempty"`
+}
+
+type CmdPaletteArgument struct {
+	Name        string   `json:"name"`
+	Type        string   `json:"type"`
+	Placeholder string   `json:"placeholder,omitempty"`
+	Required    bool     `json:"required,omitempty"`
+	Options     []string `json:"options,omitempty"`
+}
+
 type CmdPaletteCommand struct {
 	ID              string                     `json:"id"`
 	Title           string                     `json:"title"`
@@ -74,6 +99,12 @@ const (
 type CompactionMatcher struct {
 	Reason   string `json:"compaction_reason,omitempty"`
 	Strategy string `json:"compaction_strategy,omitempty"`
+}
+
+type Confirmation struct {
+	Title   string `json:"title"`
+	Body    string `json:"body,omitempty"`
+	Confirm string `json:"confirm"`
 }
 
 type ConnectivityAdvertisedEndpoint struct {
@@ -151,67 +182,3 @@ type ContextCompactionPatch struct {
 	Strategy      *string        `json:"strategy,omitempty"`
 	ContextBlocks []ContextBlock `json:"context_blocks,omitempty"`
 }
-
-type ContextPostCompactPatch struct {
-	Deny          bool           `json:"deny,omitempty"`
-	DenyReason    string         `json:"deny_reason,omitempty"`
-	Reason        *string        `json:"reason,omitempty"`
-	Strategy      *string        `json:"strategy,omitempty"`
-	ContextBlocks []ContextBlock `json:"context_blocks,omitempty"`
-}
-
-type ContextPostCompactPayload struct {
-	Event          HookEvent      `json:"event"`
-	Timestamp      time.Time      `json:"timestamp"`
-	SessionID      string         `json:"session_id,omitempty"`
-	SessionName    string         `json:"session_name,omitempty"`
-	SessionType    string         `json:"session_type,omitempty"`
-	AgentName      string         `json:"agent_name,omitempty"`
-	WorkspaceID    string         `json:"workspace_id,omitempty"`
-	Workspace      string         `json:"workspace,omitempty"`
-	WorktreeID     string         `json:"worktree_id,omitempty"`
-	ACPSessionID   string         `json:"acp_session_id,omitempty"`
-	State          string         `json:"state,omitempty"`
-	SoulSnapshotID string         `json:"soul_snapshot_id,omitempty"`
-	SoulDigest     string         `json:"soul_digest,omitempty"`
-	CreatedAt      time.Time      `json:"created_at"`
-	UpdatedAt      time.Time      `json:"updated_at"`
-	TurnID         string         `json:"turn_id,omitempty"`
-	Reason         string         `json:"reason,omitempty"`
-	Strategy       string         `json:"strategy,omitempty"`
-	Summary        string         `json:"summary,omitempty"`
-	ContextBlocks  []ContextBlock `json:"context_blocks,omitempty"`
-}
-
-type ContextPreCompactPatch struct {
-	Deny          bool           `json:"deny,omitempty"`
-	DenyReason    string         `json:"deny_reason,omitempty"`
-	Reason        *string        `json:"reason,omitempty"`
-	Strategy      *string        `json:"strategy,omitempty"`
-	ContextBlocks []ContextBlock `json:"context_blocks,omitempty"`
-}
-
-type ContextPreCompactPayload struct {
-	Event          HookEvent      `json:"event"`
-	Timestamp      time.Time      `json:"timestamp"`
-	SessionID      string         `json:"session_id,omitempty"`
-	SessionName    string         `json:"session_name,omitempty"`
-	SessionType    string         `json:"session_type,omitempty"`
-	AgentName      string         `json:"agent_name,omitempty"`
-	WorkspaceID    string         `json:"workspace_id,omitempty"`
-	Workspace      string         `json:"workspace,omitempty"`
-	WorktreeID     string         `json:"worktree_id,omitempty"`
-	ACPSessionID   string         `json:"acp_session_id,omitempty"`
-	State          string         `json:"state,omitempty"`
-	SoulSnapshotID string         `json:"soul_snapshot_id,omitempty"`
-	SoulDigest     string         `json:"soul_digest,omitempty"`
-	CreatedAt      time.Time      `json:"created_at"`
-	UpdatedAt      time.Time      `json:"updated_at"`
-	TurnID         string         `json:"turn_id,omitempty"`
-	Reason         string         `json:"reason,omitempty"`
-	Strategy       string         `json:"strategy,omitempty"`
-	Summary        string         `json:"summary,omitempty"`
-	ContextBlocks  []ContextBlock `json:"context_blocks,omitempty"`
-}
-
-type ControlMethod string

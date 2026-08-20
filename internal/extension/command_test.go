@@ -225,7 +225,8 @@ func TestCommandGroupValidationAndRoundTrip(t *testing.T) {
 			nil,
 			false,
 		)
-		built, err := manifestFromDescribe(commandDescribePayload(t, manifest))
+		payload := commandDescribePayload(t, manifest)
+		built, err := manifestFromDescribe(&payload)
 		if err != nil {
 			t.Fatalf("manifestFromDescribe() error = %v", err)
 		}
@@ -513,7 +514,8 @@ func commandDescribePayload(t *testing.T, manifest *Manifest) extensioncontract.
 func assertCommandRejectedAtBuildAndLoad(t *testing.T, manifest *Manifest, fragments ...string) {
 	t.Helper()
 
-	_, buildErr := manifestFromDescribe(commandDescribePayload(t, manifest))
+	payload := commandDescribePayload(t, manifest)
+	_, buildErr := manifestFromDescribe(&payload)
 	assertCommandValidationError(t, "build", buildErr, fragments...)
 	assertCommandValidationError(t, "load", manifest.Validate(), fragments...)
 }

@@ -39,6 +39,9 @@ const CapabilityProvideConnectivityProvider = "connectivity.provider"
 // CapabilityProvideForgeProvider is the public forge integration surface.
 const CapabilityProvideForgeProvider = "forge.provider"
 
+// CapabilityProvideViewProvider is reserved for TypeScript programmable command-palette views.
+const CapabilityProvideViewProvider = "view.provider"
+
 // ExtensionServiceMethodProvideTools is the runtime descriptor service method.
 const ExtensionServiceMethodProvideTools = "provide_tools"
 
@@ -193,6 +196,7 @@ type InitializeRuntime struct {
 	HealthCheckTimeoutMS  int64           `json:"health_check_timeout_ms"`
 	ShutdownTimeoutMS     int64           `json:"shutdown_timeout_ms"`
 	DefaultHookTimeoutMS  int64           `json:"default_hook_timeout_ms"`
+	DefaultViewTimeoutMS  int64           `json:"default_view_timeout_ms,omitempty"`
 	Bridge                json.RawMessage `json:"bridge,omitempty"`
 }
 
@@ -204,6 +208,7 @@ type InitializeResponse struct {
 	ImplementedMethods   []string                `json:"implemented_methods"`
 	SupportedHookEvents  []string                `json:"supported_hook_events"`
 	WatchSourceKinds     []string                `json:"watch_source_kinds,omitempty"`
+	CmdPaletteViews      []string                `json:"cmd_palette_views,omitempty"`
 	Supports             InitializeSupports      `json:"supports"`
 }
 

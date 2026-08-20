@@ -12,6 +12,11 @@ import (
 	"github.com/compozy/compozy/internal/subprocess"
 )
 
+const (
+	defaultViewHostAPIRateLimit = 60
+	defaultViewHostAPIBurst     = 120
+)
+
 type hostAPIRateLimiter struct {
 	mu      sync.Mutex
 	now     func() time.Time

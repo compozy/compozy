@@ -1,6 +1,6 @@
 // Suite: command palette view renderers
-// Invariant: list, detail, form, and grid share one stack chrome while each body keeps
-// its own focus, validation, sanitization, and activation contract.
+// Invariant: list, detail, form, grid, and program degradation share one live stack
+// chrome while each body keeps its own focus, validation, sanitization, and activation contract.
 // Boundary IN: renderer components and the shared view shell.
 // Boundary OUT: TanStack domain fetches, daemon patch transport, and browser E2E stack teardown.
 
@@ -13,19 +13,24 @@ import { UIProvider } from "@compozy/ui";
 
 import { compareStatusAttentionFirst, TASK_STATUS_TONE } from "@/lib/status-tone";
 
-import { viewActionCommandID } from "../../hooks/use-cmd-palette-declarative-view";
+import {
+  contentForEnvelope,
+  viewActionCommandID,
+} from "../../hooks/use-cmd-palette-declarative-view";
 import type { OsPaletteDomainRow as DomainRow } from "../../hooks/use-os-palette-domain-search";
 import type {
   CmdPaletteViewAction,
   CmdPaletteViewDetail,
   CmdPaletteViewForm,
   CmdPaletteViewGrid,
+  CmdPaletteViewEnvelope,
 } from "../../lib/cmd-palette-types";
 import type { PaletteViewContent } from "../../lib/palette-view-registry";
 import { OsPaletteDomainChips } from "../os-palette-domain-chips";
 import { OsPaletteDomainRow } from "../os-palette-domain-row";
 import { OsPaletteViewShell } from "../os-palette-view-shell";
 import { OsPaletteViewUnavailable } from "../os-palette-view-stack";
+import { OsPaletteProgramBand, OsPaletteProgramFailure } from "../os-palette-program-status";
 import { PaletteDetailView } from "../palette-detail-view";
 import { PaletteFormView } from "../palette-form-view";
 import { PaletteGridView } from "../palette-grid-view";
@@ -265,4 +270,149 @@ describe("command palette view renderers", () => {
     expect(screen.getByRole("grid")).toHaveAttribute("data-virtualized", "true");
     expect(screen.queryAllByRole("gridcell").length).toBeLessThan(tiles.length);
   });
+
+  it("Should keep the shell and last-good rows live across busy and degraded bands [UT-165]", async () => {
+    const user = userEvent.setup();
+    const onPop = vi.fn();
+    const onQueryChange = vi.fn();
+    const content = {
+      ...shellContent("list"),
+      rows: [
+        {
+          value: "last-good",
+          testId: "last-good",
+          node: <span>Last good row</span>,
+          onSelect: vi.fn(),
+        },
+      ],
+      header: <OsPaletteProgramBand phase="busy" onRetry={vi.fn()} />,
+    } satisfies PaletteViewContent;
+    const view = withUI(
+      <OsPaletteViewShell
+        breadcrumb={{ truncated: false, visible: ["Notes"] }}
+        content={content}
+        definition={{
+          id: "ext.notes.browser",
+          title: "Browse notes",
+          icon: Blocks,
+          placeholder: "Search notes…",
+          enterHint: "open",
+          description: "Browse notes from Notes",
+        }}
+        query=""
+        onPop={onPop}
+        onQueryChange={onQueryChange}
+      />
+    );
+    expect(screen.getByText("updating")).toBeVisible();
+    expect(screen.getByText("Last good row")).toBeVisible();
+    await user.type(screen.getByPlaceholderText("Search notes…"), "n");
+    expect(onQueryChange).toHaveBeenCalledWith("n");
+
+    view.rerender(
+      <UIProvider reducedMotion="always">
+        <OsPaletteViewShell
+          breadcrumb={{ truncated: false, visible: ["Notes"] }}
+          content={{
+            ...content,
+            header: <OsPaletteProgramBand phase="degraded" onRetry={vi.fn()} />,
+          }}
+          definition={{
+            id: "ext.notes.browser",
+            title: "Browse notes",
+            icon: Blocks,
+            placeholder: "Search notes…",
+            enterHint: "open",
+            description: "Browse notes from Notes",
+          }}
+          query=""
+          onPop={onPop}
+          onQueryChange={onQueryChange}
+        />
+      </UIProvider>
+    );
+    expect(screen.getByText("degraded")).toBeVisible();
+    expect(screen.getByRole("button", { name: "Retry" })).toBeVisible();
+    expect(screen.getByText("Last good row")).toBeVisible();
+    await user.type(screen.getByPlaceholderText("Search notes…"), "{Backspace}");
+    expect(onPop).toHaveBeenCalledOnce();
+  });
+
+  it("Should render circuit and crash frames without trapping the shared chrome [UT-165]", () => {
+    withUI(
+      <OsPaletteViewShell
+        breadcrumb={{ truncated: false, visible: ["Notes", "Browse notes"] }}
+        content={{
+          ...shellContent("list"),
+          empty: (
+            <OsPaletteProgramFailure
+              error={null}
+              phase="circuit-open"
+              source="Browse notes (ext.notes)"
+            />
+          ),
+        }}
+        definition={{
+          id: "ext.notes.browser",
+          title: "Browse notes",
+          icon: Blocks,
+          placeholder: "Search notes…",
+          enterHint: "open",
+          description: "Browse notes from Notes",
+        }}
+        query=""
+        onPop={vi.fn()}
+        onQueryChange={vi.fn()}
+      />
+    );
+    expect(screen.getByText("view broken")).toBeVisible();
+    expect(screen.getByText("Browse notes (ext.notes)")).toBeVisible();
+    expect(screen.getByText("until reopen")).toBeVisible();
+    expect(screen.getByPlaceholderText("Search notes…")).toBeVisible();
+  });
+
+  it("Should filter complete frames locally and leave incomplete frames provider-owned [UT-163]", () => {
+    const complete = viewEnvelope(true);
+    const incomplete = viewEnvelope(false);
+    const shared = {
+      activeChip: "all",
+      query: "alpha",
+      runAction: vi.fn(),
+      selectedRow: "",
+      setActiveChip: vi.fn(),
+      setSelectedRow: vi.fn(),
+    };
+    expect(
+      contentForEnvelope({ ...shared, envelope: complete, filterLocally: true }).rows.map(
+        row => row.value
+      )
+    ).toEqual(["alpha"]);
+    expect(
+      contentForEnvelope({ ...shared, envelope: incomplete, filterLocally: false }).rows.map(
+        row => row.value
+      )
+    ).toEqual(["alpha", "beta"]);
+  });
 });
+
+function viewEnvelope(complete: boolean): CmdPaletteViewEnvelope {
+  return {
+    view_id: "ext.notes.browser",
+    title: "Browse notes",
+    kind: "list",
+    revision: "vr_1",
+    stream_epoch: "session:vs_test",
+    payload: {
+      view: "v1",
+      chrome: { complete },
+      sections: [
+        {
+          rows: [
+            { id: "alpha", title: "Alpha" },
+            { id: "beta", title: "Beta" },
+          ],
+        },
+      ],
+    },
+  };
+}

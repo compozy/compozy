@@ -369,6 +369,13 @@
         }
     },
     {
+        "constant": "HostAPIMethodViewPatch",
+        "wire": "view/patch",
+        "family": "core",
+        "params": { "name": "ViewFrame", "value": "ViewFrame{}" },
+        "result": { "name": "EmptyResult", "value": "EmptyResult{}" }
+    },
+    {
         "constant": "HostAPIMethodAutomationJobs",
         "wire": "automation/jobs",
         "family": "automation",

@@ -51,6 +51,15 @@ func TestStdioTransportLifecycle(t *testing.T) {
 		case <-time.After(time.Second):
 			t.Fatal("first Call() did not return after cancellation")
 		}
+		cancelRequest := readTestMessage(t, bufio.NewReader(outputReader))
+		if got, want := cancelRequest["method"], jsonRPCCancelMethod; got != want {
+			t.Fatalf("cancel method = %#v, want %q", got, want)
+		}
+		params, ok := cancelRequest["params"].(map[string]any)
+		cancelID, idOK := params["id"].(float64)
+		if !ok || !idOK || int(cancelID) != firstID {
+			t.Fatalf("cancel params = %#v, want id %d", cancelRequest["params"], firstID)
+		}
 		input.WriteLine(t, fmt.Sprintf(`{"jsonrpc":"2.0","id":%d,"result":{"value":"ignored"}}`, firstID))
 		select {
 		case <-input.readStarted:

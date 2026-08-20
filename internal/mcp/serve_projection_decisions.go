@@ -8,6 +8,7 @@ const (
 	projectionReasonBridgesExcluded    = "bridges are outside the approved MCP families"
 	projectionReasonModelsExcluded     = "models are outside the approved MCP families"
 	projectionReasonSandboxExcluded    = "sandbox is outside the approved MCP families"
+	projectionReasonSessionOnly        = "method requires an extension-owned view session"
 	projectionReasonTargetOnly         = "target-only request has no workspace binding"
 )
 
@@ -60,6 +61,7 @@ var hostAPIProjectionDecisions = map[extensionprotocol.HostAPIMethod]projectionD
 	extensionprotocol.HostAPIMethodAgentsHeartbeatRollback:  {Reason: projectionReasonAgentsExcluded},
 	extensionprotocol.HostAPIMethodAgentsHeartbeatStatus:    {Reason: projectionReasonAgentsExcluded},
 	extensionprotocol.HostAPIMethodAgentsHeartbeatWake:      {Reason: projectionReasonAgentsExcluded},
+	extensionprotocol.HostAPIMethodViewPatch:                {Reason: projectionReasonSessionOnly},
 	extensionprotocol.HostAPIMethodAutomationJobs:           {Reason: projectionReasonAutomationExcluded},
 	extensionprotocol.HostAPIMethodAutomationJobsGet:        {Reason: projectionReasonAutomationExcluded},
 	extensionprotocol.HostAPIMethodAutomationJobsCreate:     {Reason: projectionReasonAutomationExcluded},

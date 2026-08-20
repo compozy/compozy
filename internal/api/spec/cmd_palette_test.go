@@ -12,12 +12,16 @@ func TestCmdPaletteOperationsSupportHTTPAndUDS(t *testing.T) {
 	t.Parallel()
 
 	want := map[string]string{
-		"GET /api/cmd-palette/commands":              "listCmdPaletteCommands",
-		"GET /api/cmd-palette/clients":               "listCmdPaletteClients",
-		"POST /api/cmd-palette/commands/{id}/invoke": "invokeCmdPaletteCommand",
-		"GET /api/cmd-palette/stream":                "streamCmdPalette",
-		"GET /api/tools/approvals/{id}":              "getPendingToolApproval",
-		"POST /api/tools/approvals/{id}/cancel":      "cancelPendingToolApproval",
+		"GET /api/cmd-palette/commands":                        "listCmdPaletteCommands",
+		"GET /api/cmd-palette/clients":                         "listCmdPaletteClients",
+		"POST /api/cmd-palette/commands/{id}/invoke":           "invokeCmdPaletteCommand",
+		"POST /api/cmd-palette/views/{id}/open":                "openCmdPaletteViewSession",
+		"GET /api/cmd-palette/view-sessions/{session}/stream":  "streamCmdPaletteViewSession",
+		"POST /api/cmd-palette/view-sessions/{session}/events": "admitCmdPaletteViewSessionEvent",
+		"DELETE /api/cmd-palette/view-sessions/{session}":      "closeCmdPaletteViewSession",
+		"GET /api/cmd-palette/stream":                          "streamCmdPalette",
+		"GET /api/tools/approvals/{id}":                        "getPendingToolApproval",
+		"POST /api/tools/approvals/{id}/cancel":                "cancelPendingToolApproval",
 	}
 	seen := make(map[string]OperationSpec, len(want))
 	for _, operation := range Operations() {

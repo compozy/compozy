@@ -68,6 +68,7 @@ func (d *Daemon) bootCmdPalette(
 		cmdpalette.WithPersonalizationStore(personalizationStore),
 		cmdpalette.WithPersonalizationPolicy(bindings), cmdpalette.WithLogger(state.logger),
 		cmdpalette.WithDynamicViewProvider(extensionProvider),
+		cmdpalette.WithViewProgramProvider(extensionProvider),
 	)
 	if err != nil {
 		return fmt.Errorf("daemon: create command palette registry: %w", err)

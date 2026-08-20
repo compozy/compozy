@@ -40,6 +40,15 @@ export {
   registerForgeProvider,
 } from "./forge-provider.js";
 export type { ForgeProviderHandlers } from "./forge-provider.js";
+export {
+  VIEW_CLOSE_METHOD,
+  VIEW_EVENT_METHOD,
+  VIEW_OPEN_METHOD,
+  VIEW_PROVIDER_CAPABILITY,
+  registerViewProvider,
+} from "./view-provider.js";
+export type { ViewProviderHandlers, ViewProviderOptions } from "./view-provider.js";
+export { ViewSessionRegistry } from "./view-session-registry.js";
 export { canonicalJSON, schemaDigest } from "./schema-digest.js";
 export type {
   ExtensionContext,
@@ -60,6 +69,7 @@ export type {
 } from "./watch-source.js";
 export type {
   AcceptedCapabilities,
+  Action,
   AgentCrashedPatch,
   AgentCrashedPayload,
   AgentHeartbeatDeleteParams,
@@ -102,6 +112,7 @@ export type {
   AgentStartPatch,
   AgentStoppedPatch,
   AgentStoppedPayload,
+  Badge,
   ArtifactRef,
   AuthoredContextActorPayload,
   AuthoredContextDiagnosticPayload,
@@ -114,6 +125,7 @@ export type {
   BridgeScope,
   BridgeStatus,
   CapabilitiesConfig,
+  Chip,
   ConnectivityAdvertisedEndpoint,
   ConnectivityEstablishRequest,
   ConnectivityReachability,
@@ -135,7 +147,11 @@ export type {
   ContextPostCompactPayload,
   ContextPreCompactPatch,
   ContextPreCompactPayload,
+  Confirmation,
+  DetailBody,
   EmptyResult,
+  Effect,
+  EffectResult,
   EventPostRecordPatch,
   EventPostRecordPayload,
   EventPreRecordPatch,
@@ -147,6 +163,11 @@ export type {
   ExtensionDefinition,
   ExtensionManifest,
   ExtensionSourceTier,
+  FormBody,
+  FormField,
+  GridBody,
+  GridSection,
+  GridTile,
   HealthCheckResult,
   HeartbeatActorKind,
   HeartbeatActorPayload,
@@ -191,6 +212,7 @@ export type {
   HookRunOutcome,
   HookSkillSource,
   HookSource,
+  Image,
   InitializeCapabilities,
   InitializeBridgeBoundSecret,
   InitializeBridgeRuntime,
@@ -214,6 +236,7 @@ export type {
   JSONRPCResponseEnvelope,
   JSONValue,
   MCPServerConfig,
+  MetaField,
   MemoryForgetParams,
   MemoryRecallEntry,
   MemoryRecallParams,
@@ -266,9 +289,12 @@ export type {
   PromptPayload,
   ProtocolVersion,
   Redaction,
+  Row,
+  RowAction,
   RoutingKey,
   RoutingPolicy,
   ResourcesConfig,
+  Section,
   SessionContext,
   SessionCreatePatch,
   SessionCreateResult,
@@ -323,6 +349,7 @@ export type {
   ToolResult,
   ToolResultPatch,
   ToolSource,
+  ToastEffect,
   ExtensionProvideToolsResponse,
   ExtensionToolCallRequest,
   ExtensionToolCallResponse,
@@ -335,5 +362,13 @@ export type {
   TurnPayload,
   TurnStartPatch,
   TurnStartPayload,
+  ViewCloseRequest,
+  ViewBadge,
+  ViewChrome,
+  ViewEvent,
+  ViewFrame,
+  ViewOpenRequest,
+  ViewPayload,
+  ViewPatch,
 } from "./types.js";
 export type { State as SessionState } from "./types.js";

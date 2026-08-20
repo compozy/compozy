@@ -3,12 +3,14 @@ import { useState } from "react";
 import { Button } from "@compozy/ui";
 
 import { useCmdPaletteDeclarativeView } from "../hooks/use-cmd-palette-declarative-view";
+import { useCmdPaletteProgramView } from "../hooks/use-cmd-palette-program-view";
 import type { CmdPaletteDispatch } from "../hooks/use-cmd-palette-dispatch";
 import { useOsPaletteDomainView } from "../hooks/use-os-palette-domain-view";
 import { useOsPaletteSessionsView } from "../hooks/use-os-palette-sessions-view";
 import { OS_APP_DESCRIPTORS } from "../lib/app-catalog";
 import { paletteViewDefinition, type PaletteViewId } from "../lib/palette-view-registry";
 import type { PaletteBreadcrumb } from "../lib/palette-view-stack";
+import type { WindowManagerAttachedClientView } from "../lib/window-manager-types";
 import { OsPaletteViewShell } from "./os-palette-view-shell";
 
 interface PaletteViewFrameProps {
@@ -18,6 +20,7 @@ interface PaletteViewFrameProps {
   onQueryChange: (query: string) => void;
   onPop: () => void;
   onDismiss: () => void;
+  client: WindowManagerAttachedClientView | null;
 }
 
 /**
@@ -27,6 +30,7 @@ interface PaletteViewFrameProps {
  * palette.
  */
 function SessionsPaletteViewFrame({
+  client: _client,
   dispatch: _dispatch,
   onDismiss,
   ...shell
@@ -38,6 +42,7 @@ function SessionsPaletteViewFrame({
 }
 
 function DomainPaletteViewFrame({
+  client: _client,
   dispatch: _dispatch,
   onDismiss,
   viewId,
@@ -58,18 +63,28 @@ function DomainPaletteViewFrame({
 }
 
 function DeclarativePaletteViewFrame({
+  client,
   dispatch,
   onDismiss,
   viewId,
   ...shell
 }: PaletteViewFrameProps & { viewId: string }) {
-  const model = useCmdPaletteDeclarativeView({
+  const program = useCmdPaletteProgramView({
+    client,
     dispatch,
     onDismiss,
     query: shell.query,
     viewId,
   });
-  if (model.timedOut || model.error) {
+  const declarative = useCmdPaletteDeclarativeView({
+    dispatch,
+    enabled: program.declarative,
+    onDismiss,
+    query: shell.query,
+    viewId,
+  });
+  const model = program.declarative ? declarative : program;
+  if (program.declarative && (model.timedOut || model.error)) {
     const source = extensionName(viewId);
     return (
       <OsPaletteViewShell
@@ -99,6 +114,7 @@ function DeclarativePaletteViewFrame({
 }
 
 export interface OsPaletteViewStackProps {
+  client: WindowManagerAttachedClientView | null;
   dispatch: CmdPaletteDispatch;
   viewId: PaletteViewId;
   breadcrumb: PaletteBreadcrumb;
@@ -114,6 +130,7 @@ export interface OsPaletteViewStackProps {
  * asked, and a stale query would ask it of the wrong list.
  */
 export function OsPaletteViewStack({
+  client,
   dispatch,
   viewId,
   breadcrumb,
@@ -124,6 +141,7 @@ export function OsPaletteViewStack({
   const definition = paletteViewDefinition(viewId);
   const shell = {
     breadcrumb,
+    client,
     dispatch,
     query,
     onQueryChange: setQuery,

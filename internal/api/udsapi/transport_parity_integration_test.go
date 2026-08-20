@@ -233,28 +233,58 @@ func TestUDSTransportCmdPaletteViewRoutesMatchHTTP(t *testing.T) {
 	workspace := url.QueryEscape(runtimeHarness.WorkspaceID)
 	testCases := []struct {
 		name       string
+		method     string
 		path       string
+		body       []byte
 		wantStatus int
 	}{
 		{
 			name:       "missing declarative view",
+			method:     http.MethodGet,
 			path:       "/api/cmd-palette/views/ext.missing.recent?workspace=" + workspace,
 			wantStatus: http.StatusNotFound,
 		},
 		{
 			name:       "stream cursor without epoch",
+			method:     http.MethodGet,
 			path:       "/api/cmd-palette/views/ext.missing.recent/stream?workspace=" + workspace + "&after=1",
 			wantStatus: http.StatusBadRequest,
+		},
+		{
+			name:       "program open without client identity",
+			method:     http.MethodPost,
+			path:       "/api/cmd-palette/views/ext.missing.browser/open",
+			body:       []byte(`{"workspace":"` + runtimeHarness.WorkspaceID + `"}`),
+			wantStatus: http.StatusUnauthorized,
+		},
+		{
+			name:       "missing program stream",
+			method:     http.MethodGet,
+			path:       "/api/cmd-palette/view-sessions/vs_missing/stream?token=vst_missing",
+			wantStatus: http.StatusGone,
+		},
+		{
+			name:       "missing program event",
+			method:     http.MethodPost,
+			path:       "/api/cmd-palette/view-sessions/vs_missing/events",
+			body:       []byte(`{"handler":"h","revision":"vr_1","seq":1}`),
+			wantStatus: http.StatusGone,
+		},
+		{
+			name:       "idempotent missing program close",
+			method:     http.MethodDelete,
+			path:       "/api/cmd-palette/view-sessions/vs_missing",
+			wantStatus: http.StatusOK,
 		},
 	}
 	for _, testCase := range testCases {
 		t.Run(testCase.name, func(t *testing.T) {
 			t.Parallel()
 			httpResponse := mustUnixRequest(
-				t, clients.HTTPClient, http.MethodGet, runtimeHarness.HTTPURL(testCase.path), nil, nil,
+				t, clients.HTTPClient, testCase.method, runtimeHarness.HTTPURL(testCase.path), testCase.body, nil,
 			)
 			udsResponse := mustUnixRequest(
-				t, clients.UDSClient, http.MethodGet, runtimeHarness.UDSURL(testCase.path), nil, nil,
+				t, clients.UDSClient, testCase.method, runtimeHarness.UDSURL(testCase.path), testCase.body, nil,
 			)
 			httpBody := readAndCloseHTTPBody(t, httpResponse)
 			udsBody := readAndCloseHTTPBody(t, udsResponse)

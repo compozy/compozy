@@ -3,6 +3,7 @@ package contract
 import (
 	apicontract "github.com/compozy/compozy/internal/api/contract"
 	bridgepkg "github.com/compozy/compozy/internal/bridges/contract"
+	"github.com/compozy/compozy/internal/cmdpalette"
 	"github.com/compozy/compozy/internal/hooks"
 	memcontract "github.com/compozy/compozy/internal/memory/contract"
 	"github.com/compozy/compozy/internal/resources"
@@ -135,6 +136,11 @@ type HookContractSpec struct {
 }
 
 var sdkRootTypes = []NamedType{
+	{Name: "ViewOpenRequest", Value: cmdpalette.ViewOpenRequest{}},
+	{Name: "ViewEvent", Value: cmdpalette.ViewEvent{}},
+	{Name: "EffectResult", Value: cmdpalette.EffectResult{}},
+	{Name: "ViewFrame", Value: cmdpalette.ViewFrame{}},
+	{Name: "ViewCloseRequest", Value: cmdpalette.ViewCloseRequest{}},
 	{Name: "InitializeRequest", Value: subprocess.InitializeRequest{}},
 	{Name: "InitializeExtension", Value: subprocess.InitializeExtension{}},
 	{Name: "InitializeCapabilities", Value: subprocess.InitializeCapabilities{}},

@@ -16,6 +16,7 @@ type managerOptions struct {
 	generate           idGenerator
 	subscriptionBuffer int
 	eventObserver      EventObserver
+	clientObserver     ClientUnregisteredObserver
 	workspaceConfig    WorkspaceConfigResolver
 	lifecycleContext   context.Context
 }
@@ -25,6 +26,9 @@ type Option func(*managerOptions) error
 
 // EventObserver receives an isolated copy of one observable committed event.
 type EventObserver func(context.Context, Event)
+
+// ClientUnregisteredObserver tears down transient state owned by a detached client.
+type ClientUnregisteredObserver func(context.Context, WorkspaceID, ClientID) error
 
 // WorkspaceConfigResolver overlays workspace-scoped behavior onto active defaults.
 type WorkspaceConfigResolver interface {
@@ -71,6 +75,17 @@ func WithEventObserver(observer EventObserver) Option {
 			return errors.New("window manager event observer is required")
 		}
 		options.eventObserver = observer
+		return nil
+	}
+}
+
+// WithClientUnregisteredObserver observes a client after its local state is removed.
+func WithClientUnregisteredObserver(observer ClientUnregisteredObserver) Option {
+	return func(options *managerOptions) error {
+		if observer == nil {
+			return errors.New("window manager client unregister observer is required")
+		}
+		options.clientObserver = observer
 		return nil
 	}
 }

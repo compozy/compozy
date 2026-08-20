@@ -123,6 +123,7 @@ var consentByHostAPIMethod = map[string]string{
 	"sessions/unarchive":             permissionSessionWrite,
 	"skills/list":                    "skills.read",
 	"clarify/ask":                    "clarify.ask",
+	"view/patch":                     "view.write",
 }
 
 // PermissionContracts returns every Host API permission in protocol order.

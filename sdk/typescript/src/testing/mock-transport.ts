@@ -73,7 +73,7 @@ export class MockTransport implements TransportLike {
     };
 
     try {
-      return (await handler(params, envelope)) as TResult;
+      return (await handler(params, envelope, new AbortController().signal)) as TResult;
     } catch (error) {
       const rpcError = ensureRPCError(error);
       for (const listener of this.errors) {

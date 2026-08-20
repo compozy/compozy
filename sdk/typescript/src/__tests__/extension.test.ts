@@ -31,7 +31,15 @@ import { canonicalJSON, schemaDigest } from "../schema-digest.js";
 import { TestHarness } from "../testing/harness.js";
 import { createMockTransportPair, MockTransport } from "../testing/mock-transport.js";
 import type { TransportHandler } from "../transport.js";
-import type { DescribePayload, InitializeRequest, JSONValue } from "../types.js";
+import type { DescribePayload, InitializeRequest, JSONValue, ViewFrame } from "../types.js";
+import {
+  VIEW_CLOSE_METHOD,
+  VIEW_EVENT_METHOD,
+  VIEW_OPEN_METHOD,
+  registerViewProvider,
+  type ViewProviderHandlers,
+} from "../view-provider.js";
+import { ViewSessionRegistry } from "../view-session-registry.js";
 
 interface SchemaDigestFixture {
   name: string;
@@ -91,6 +99,7 @@ function initializeFor(extension: Extension): InitializeRequest {
       health_check_timeout_ms: 5_000,
       shutdown_timeout_ms: 10_000,
       default_hook_timeout_ms: 5_000,
+      default_view_timeout_ms: 3_000,
     },
   };
 }
@@ -670,6 +679,102 @@ describe("Extension", () => {
     ).resolves.toMatchObject({ status: "created", number: 8 });
   });
 
+  it("owns view sessions, admits increasing generations, and closes idempotently", async () => {
+    const harness = new TestHarness();
+    const extension = new Extension({ name: "view-provider", version: "0.1.0" });
+    const registry = new ViewSessionRegistry();
+    const close = vi.fn<ViewProviderHandlers["close"]>();
+    const signals: AbortSignal[] = [];
+    registerViewProvider(
+      extension,
+      {
+        open: (context, request) => {
+          signals.push(context.signal);
+          return viewFrame(request.view_session, "r1", 0);
+        },
+        event: (context, request) => {
+          signals.push(context.signal);
+          return viewFrame(request.view_session, `r${request.generation + 1}`, request.generation);
+        },
+        close,
+      },
+      { registry }
+    );
+    await harness.loadExtension(extension);
+
+    await expect(
+      harness.call(VIEW_OPEN_METHOD, {
+        view_session: "vs_1",
+        view: "notes.browser",
+        workspace: "ws_1",
+        client: "client_1",
+      })
+    ).resolves.toMatchObject({ view_session: "vs_1", generation: 0 });
+    expect(registry.size).toBe(1);
+    await expect(
+      harness.call(VIEW_EVENT_METHOD, {
+        view_session: "vs_1",
+        handler: "search",
+        revision: "r1",
+        seq: 1,
+        generation: 1,
+      })
+    ).resolves.toMatchObject({ revision: "r2", generation: 1 });
+    await expect(
+      harness.call(VIEW_EVENT_METHOD, {
+        view_session: "vs_1",
+        handler: "search",
+        revision: "r2",
+        seq: 2,
+        generation: 1,
+      })
+    ).rejects.toBeInstanceOf(InvalidParamsError);
+    await expect(
+      harness.call(VIEW_EVENT_METHOD, {
+        view_session: "vs_foreign",
+        handler: "search",
+        revision: "r1",
+        seq: 1,
+        generation: 1,
+      })
+    ).rejects.toBeInstanceOf(InvalidParamsError);
+
+    await expect(harness.call(VIEW_CLOSE_METHOD, { view_session: "vs_1" })).resolves.toEqual({});
+    await expect(harness.call(VIEW_CLOSE_METHOD, { view_session: "vs_1" })).resolves.toEqual({});
+    expect(close).toHaveBeenCalledTimes(1);
+    expect(registry.size).toBe(0);
+    expect(signals).toHaveLength(2);
+    expect(signals.every(signal => signal instanceof AbortSignal)).toBe(true);
+  });
+
+  it("rolls back view sessions when open fails", async () => {
+    const harness = new TestHarness();
+    const extension = new Extension({ name: "view-open-failure", version: "0.1.0" });
+    const registry = new ViewSessionRegistry();
+    registerViewProvider(
+      extension,
+      {
+        open: () => {
+          throw new Error("open failed");
+        },
+        event: () => undefined,
+        close: () => undefined,
+      },
+      { registry }
+    );
+    await harness.loadExtension(extension);
+
+    await expect(
+      harness.call(VIEW_OPEN_METHOD, {
+        view_session: "vs_failed",
+        view: "notes.browser",
+        workspace: "ws_1",
+        client: "client_1",
+      })
+    ).rejects.toThrow("open failed");
+    expect(registry.size).toBe(0);
+  });
+
   it("keeps forge provider registration atomic across collisions", () => {
     const extension = new Extension({ name: "forge-collision", version: "0.1.0" });
     extension.handle(FORGE_STATUS_METHOD, () => ({ provider: "existing" }));
@@ -884,5 +989,18 @@ function forgeHandlers(): ForgeProviderHandlers {
       number: 8,
       url: "https://github.com/acme/repo/pull/8",
     }),
+  };
+}
+
+function viewFrame(viewSession: string, revision: string, generation: number): ViewFrame {
+  return {
+    view_session: viewSession,
+    revision,
+    generation,
+    payload: {
+      view: "notes.browser",
+      sections: [{ rows: [{ id: "note-1", title: "First note" }] }],
+    },
+    handlers: ["search"],
   };
 }

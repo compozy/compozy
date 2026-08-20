@@ -7,6 +7,96 @@ import (
 	"time"
 )
 
+type EventPreRecordPatch struct {
+	Labels map[string]string `json:"labels,omitempty"`
+}
+
+type EventPreRecordPayload struct {
+	Event          HookEvent       `json:"event"`
+	Timestamp      time.Time       `json:"timestamp"`
+	SessionID      string          `json:"session_id,omitempty"`
+	SessionName    string          `json:"session_name,omitempty"`
+	SessionType    string          `json:"session_type,omitempty"`
+	AgentName      string          `json:"agent_name,omitempty"`
+	WorkspaceID    string          `json:"workspace_id,omitempty"`
+	Workspace      string          `json:"workspace,omitempty"`
+	WorktreeID     string          `json:"worktree_id,omitempty"`
+	ACPSessionID   string          `json:"acp_session_id,omitempty"`
+	State          string          `json:"state,omitempty"`
+	SoulSnapshotID string          `json:"soul_snapshot_id,omitempty"`
+	SoulDigest     string          `json:"soul_digest,omitempty"`
+	CreatedAt      time.Time       `json:"created_at"`
+	UpdatedAt      time.Time       `json:"updated_at"`
+	TurnID         string          `json:"turn_id,omitempty"`
+	RecordType     string          `json:"record_type,omitempty"`
+	Sequence       int64           `json:"sequence,omitempty"`
+	Content        json.RawMessage `json:"content,omitempty"`
+}
+
+type EventRecordPatch struct {
+	Labels map[string]string `json:"labels,omitempty"`
+}
+
+type EventRecordPayload struct {
+	Event          HookEvent       `json:"event"`
+	Timestamp      time.Time       `json:"timestamp"`
+	SessionID      string          `json:"session_id,omitempty"`
+	SessionName    string          `json:"session_name,omitempty"`
+	SessionType    string          `json:"session_type,omitempty"`
+	AgentName      string          `json:"agent_name,omitempty"`
+	WorkspaceID    string          `json:"workspace_id,omitempty"`
+	Workspace      string          `json:"workspace,omitempty"`
+	WorktreeID     string          `json:"worktree_id,omitempty"`
+	ACPSessionID   string          `json:"acp_session_id,omitempty"`
+	State          string          `json:"state,omitempty"`
+	SoulSnapshotID string          `json:"soul_snapshot_id,omitempty"`
+	SoulDigest     string          `json:"soul_digest,omitempty"`
+	CreatedAt      time.Time       `json:"created_at"`
+	UpdatedAt      time.Time       `json:"updated_at"`
+	TurnID         string          `json:"turn_id,omitempty"`
+	RecordType     string          `json:"record_type,omitempty"`
+	Sequence       int64           `json:"sequence,omitempty"`
+	Content        json.RawMessage `json:"content,omitempty"`
+}
+
+type ExtensionCommandGroupSpec struct {
+	Path    string `json:"path"`
+	Summary string `json:"summary"`
+}
+
+type ExtensionCommandSpec struct {
+	Verb    string            `json:"verb"`
+	Summary string            `json:"summary"`
+	Example string            `json:"example,omitempty"`
+	Flags   map[string]string `json:"flags,omitempty"`
+}
+
+type ExtensionManifestSummary struct {
+	Name              string   `json:"name"`
+	Version           string   `json:"version"`
+	Description       string   `json:"description,omitempty"`
+	MinCompozyVersion string   `json:"min_compozy_version"`
+	Provides          []string `json:"provides"`
+	Permissions       []string `json:"permissions"`
+}
+
+type ExtensionProvideToolsResponse struct {
+	Tools []ExtensionToolRuntimeDescriptor `json:"tools"`
+}
+
+type ExtensionToolCallRequest struct {
+	ToolID           ToolID                       `json:"tool_id"`
+	Handler          string                       `json:"handler"`
+	SessionID        string                       `json:"session_id,omitempty"`
+	InvocationID     string                       `json:"invocation_id,omitempty"`
+	TrustedWorkspace *ExtensionToolWorkspaceScope `json:"trusted_workspace,omitempty"`
+	Input            json.RawMessage              `json:"input"`
+}
+
+type ExtensionToolCallResponse struct {
+	Result ToolResult `json:"result"`
+}
+
 type ExtensionToolRuntimeDescriptor struct {
 	ID                  ToolID                `json:"id"`
 	Handler             string                `json:"handler"`
@@ -112,78 +202,8 @@ type ForgeStatusResponse struct {
 	Cause     string    `json:"cause,omitempty"`
 }
 
-type GatewayIngressPayload struct {
-	SubjectKind                 string     `json:"subject_kind"`
-	SubjectID                   string     `json:"subject_id"`
-	ScopeKind                   string     `json:"scope_kind"`
-	WorkspaceID                 string     `json:"workspace_id,omitempty"`
-	URL                         string     `json:"url,omitempty"`
-	Reachability                string     `json:"reachability"`
-	EndpointGeneration          uint64     `json:"endpoint_generation"`
-	ConfirmedEndpointGeneration uint64     `json:"confirmed_endpoint_generation,omitempty"`
-	ConfirmedAt                 *time.Time `json:"confirmed_at,omitempty"`
-	EnablePath                  string     `json:"enable_path,omitempty"`
-}
-
-type HeartbeatActorKind string
-
-type HeartbeatActorPayload struct {
-	Kind HeartbeatActorKind `json:"kind"`
-	Ref  string             `json:"ref,omitempty"`
-}
-
-type HeartbeatConfigProvenancePayload struct {
-	Digest string                       `json:"digest"`
-	Subset HeartbeatConfigSubsetPayload `json:"subset"`
-}
-
-type HeartbeatConfigSubsetPayload struct {
-	Enabled                      bool   `json:"enabled"`
-	MaxBodyBytes                 int64  `json:"max_body_bytes"`
-	ContextProjectionBytes       int64  `json:"context_projection_bytes"`
-	MinInterval                  string `json:"min_interval"`
-	DefaultInterval              string `json:"default_interval"`
-	WakeCooldown                 string `json:"wake_cooldown"`
-	MaxWakesPerCycle             int    `json:"max_wakes_per_cycle"`
-	ActiveSessionOnly            bool   `json:"active_session_only"`
-	AllowActiveHoursPreferences  bool   `json:"allow_active_hours_preferences"`
-	WakeEventRetention           string `json:"wake_event_retention"`
-	SessionHealthStaleAfter      string `json:"session_health_stale_after"`
-	SessionHealthHookMinInterval string `json:"session_health_hook_min_interval"`
-}
-
-type HeartbeatContextProjectionPayload struct {
-	Include []string `json:"include,omitempty"`
-}
-
-type HeartbeatDeleteRequest struct {
-	WorkspaceID    string `json:"workspace_id,omitempty"`
-	AgentName      string `json:"agent_name"`
-	ExpectedDigest string `json:"expected_digest"`
-}
-
-type HeartbeatFrontmatterPayload struct {
-	Version     int                                    `json:"version"`
-	Enabled     bool                                   `json:"enabled"`
-	Summary     string                                 `json:"summary,omitempty"`
-	Preferences HeartbeatFrontmatterPreferencesPayload `json:"preferences"`
-	Context     HeartbeatContextProjectionPayload      `json:"context"`
-}
-
-type HeartbeatFrontmatterPreferencesPayload struct {
-	MinInterval  string                       `json:"min_interval,omitempty"`
-	ActiveHours  []HeartbeatTimeWindowPayload `json:"active_hours,omitempty"`
-	QuietWindows []HeartbeatTimeWindowPayload `json:"quiet_windows,omitempty"`
-}
-
-type HeartbeatHistoryRequest struct {
-	WorkspaceID string `json:"workspace_id,omitempty"`
-	AgentName   string `json:"agent_name"`
-	Limit       int    `json:"limit,omitempty"`
-	Cursor      string `json:"cursor,omitempty"`
-}
-
-type HeartbeatHistoryResponse struct {
-	Revisions  []HeartbeatRevisionPayload `json:"revisions"`
-	NextCursor string                     `json:"next_cursor,omitempty"`
+type FormBody struct {
+	Fields   []FormField `json:"fields"`
+	Submit   *RowAction  `json:"submit,omitempty"`
+	OnSubmit string      `json:"on_submit,omitempty"`
 }
