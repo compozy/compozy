@@ -850,8 +850,18 @@ func TestUDSTransportWindowManagerMatchesHTTP(t *testing.T) {
 			); err != nil {
 				t.Fatalf("UDS window manager client registration error = %v", err)
 			}
-			if !reflect.DeepEqual(httpClient, udsClient) {
-				t.Fatalf("window manager client parity mismatch: HTTP=%#v UDS=%#v", httpClient, udsClient)
+			if httpClient.AttachmentToken == "" || udsClient.AttachmentToken == "" {
+				t.Fatalf("window manager registration tokens must be present: HTTP=%q UDS=%q", httpClient.AttachmentToken, udsClient.AttachmentToken)
+			}
+			if httpClient.AttachmentToken == udsClient.AttachmentToken {
+				t.Fatal("window manager client re-registration did not rotate the attachment token")
+			}
+			httpStableClient := httpClient
+			udsStableClient := udsClient
+			httpStableClient.AttachmentToken = ""
+			udsStableClient.AttachmentToken = ""
+			if !reflect.DeepEqual(httpStableClient, udsStableClient) {
+				t.Fatalf("window manager client parity mismatch: HTTP=%#v UDS=%#v", httpStableClient, udsStableClient)
 			}
 
 			var httpLayout compozycontract.WindowManagerLayoutDocument
