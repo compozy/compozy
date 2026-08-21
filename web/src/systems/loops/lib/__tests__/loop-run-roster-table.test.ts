@@ -217,6 +217,56 @@ describe("buildRosterTable", () => {
     expect(container?.usageTokens).toBe(15_000);
   });
 
+  // Both dispositions ink neutral, so without the cause and the actor on the row
+  // a strategy cancellation and an operator one are the same grey word — and the
+  // roster's own contract row (VC-27) exists to tell them apart.
+  it("Should carry why each cancellation happened, and who did it", () => {
+    const { rows } = build([
+      node({
+        node_id: "fix_batch",
+        state: "canceled",
+        cancellation: {
+          disposition: "strategy",
+          cause: "Its siblings already satisfied the gate.",
+        },
+      }),
+      node({
+        node_id: "collect_fixes",
+        state: "canceled",
+        cancellation: {
+          disposition: "operator",
+          actor_kind: "operator",
+          actor_ref: "pedro",
+          cause: "Stopped by hand while the run was still going.",
+        },
+      }),
+    ]);
+
+    const [strategy, operator] = rows;
+    expect(strategy.cancellation?.label).toBe("Canceled by the loop's strategy");
+    expect(strategy.cancellation?.actorLabel).toBeNull();
+    expect(operator.cancellation?.label).toBe("Canceled by an operator");
+    expect(operator.cancellation?.actorLabel).toBe("pedro");
+    // The two readings have to differ, which is the whole point of the row.
+    expect(strategy.cancellation?.label).not.toBe(operator.cancellation?.label);
+  });
+
+  it("Should keep the runtime's own reason code off the row", () => {
+    // `canceled_by_strategy` is a machine reason the label already says in words.
+    const { rows } = build([
+      node({
+        state: "canceled",
+        cancellation: { disposition: "strategy", cause: "canceled_by_strategy" },
+      }),
+    ]);
+
+    expect(rows[0].cancellation?.cause).toBeNull();
+  });
+
+  it("Should leave a step that was never canceled without a cancellation reading", () => {
+    expect(build([node({ state: "succeeded" })]).rows[0].cancellation).toBeNull();
+  });
+
   it("Should say a run reached nothing rather than render an empty table", () => {
     expect(build([]).reachedNothing).toBe(true);
   });

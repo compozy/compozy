@@ -33,6 +33,10 @@ const { LoopNodeRoster } = await import("../run-page/inspect/loop-node-roster");
 const { LoopRunArtifactList } = await import("../run-page/loop-run-artifact-list");
 const registerFixtures = await import("../stories/loop-run-register-fixtures");
 const visualContractFixtures = await import("../stories/loop-run-vc-fixtures");
+const lifecycleFixtures = await import("../stories/loop-run-lifecycle-fixtures");
+const graphEngFixtures = await import("../stories/loop-run-graph-eng-fixtures");
+const pageFixtures = await import("../stories/loop-run-page-fixtures");
+const metricFixtures = await import("../stories/loop-run-metric-fixtures");
 const { registerPartialOutputsScenario } = registerFixtures;
 const { buildScenarioProps } = await import("../stories/loop-run-scenario-props");
 const { LoopRunNeedsYouCard } = await import("../run-page/loop-run-needs-you-card");
@@ -1266,17 +1270,41 @@ describe("run-page reads that failed", () => {
 // its visual contract. Sweeping the module rather than a list means a scenario
 // added later cannot quietly opt out.
 describe("staged register scenarios", () => {
+  // Every module that exports staged scenarios, so a story added to any of them
+  // is covered without anyone remembering to add it here.
   const scenarios = [
     ...Object.entries(registerFixtures),
     ...Object.entries(visualContractFixtures),
+    ...Object.entries(lifecycleFixtures),
+    ...Object.entries(graphEngFixtures),
+    ...Object.entries(pageFixtures),
+    ...Object.entries(metricFixtures),
   ].filter(
     (candidate): candidate is [string, () => LoopRunStoryScenario] =>
-      /^(register|vc)\w+Scenario$/.test(candidate[0]) && typeof candidate[1] === "function"
+      candidate[0].endsWith("Scenario") &&
+      typeof candidate[1] === "function" &&
+      candidate[1].length === 0
   );
 
-  it("Should stage at least every scenario the visual contract captures", () => {
-    // A filter that silently matched nothing would make every case below vacuous.
-    expect(scenarios.length).toBeGreaterThanOrEqual(18);
+  it("Should match at least one staged scenario", () => {
+    // The only thing this guard owes: a filter that matched nothing would make
+    // every case below pass without asserting anything. How many fixtures the
+    // modules happen to export is not an invariant — freezing a count here would
+    // fail on a scenario being added or retired, neither of which can break read
+    // agreement.
+    expect(scenarios).not.toHaveLength(0);
+  });
+
+  // A scenario that stages events has a history, and the story pane reads the
+  // durable timeline rather than those events — so several contract rows
+  // captured "Nothing has happened in this run yet." over a run several rounds
+  // deep, and passed. The read is derived from the scenario's own events now,
+  // which is what the daemon does with them.
+  it.each(scenarios)("Should give %s a story when its events say it has one", (_name, build) => {
+    const scenario = build();
+    if (scenario.frames.length === 0) return;
+
+    expect(buildScenarioProps(scenario).registers.beats.length).toBeGreaterThan(0);
   });
 
   it.each(scenarios)("Should keep %s's briefing agreeing with its run", (_name, build) => {

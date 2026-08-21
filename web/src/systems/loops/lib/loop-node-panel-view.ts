@@ -101,7 +101,15 @@ const CANCELLATION_LABELS: Record<string, string> = {
  */
 const RUNTIME_CANCELLATION_CAUSES = new Set(["canceled_by_strategy", "canceled_never_started"]);
 
-function cancellationView(node: LoopRosterNode): LoopNodeCancellationView | null {
+/**
+ * Exported because the roster needs the same reading.
+ *
+ * `nr-cancel` locks cause and actor to the row itself — "not a tooltip" — so a
+ * strategy cancellation and an operator one have to read differently without
+ * opening anything. Sharing this builder keeps the runtime-reason suppression
+ * above from having to be remembered twice.
+ */
+export function buildNodeCancellationView(node: LoopRosterNode): LoopNodeCancellationView | null {
   const cancellation = node.cancellation;
   if (!cancellation) return null;
   const actorRef = cancellation.actor_ref?.trim();
@@ -183,7 +191,7 @@ export function buildNodePanel({
     startedAt: neverMaterialized ? null : (node.started_at ?? null),
     endedAt: neverMaterialized ? null : (node.ended_at ?? null),
     attempts: neverMaterialized ? [] : attemptRows(node),
-    cancellation: cancellationView(node),
+    cancellation: buildNodeCancellationView(node),
     links,
     degradedLinks,
     neverMaterialized,

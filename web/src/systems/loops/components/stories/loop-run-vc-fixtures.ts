@@ -274,6 +274,18 @@ export function vcGenerationHistoryScenario(): LoopRunStoryScenario {
       rosterNode("review", "succeeded", { generation: 1, usage: { tokens: 24_100 } }),
       rosterNode("fix_batch", "succeeded", { generation: 2, usage: { tokens: 31_800 } }),
       rosterNode("write_artifacts", "succeeded", { generation: 3, usage: { tokens: 8_400 } }),
+      // Round 3 is the round the DAG draws, and this scenario is also VC-18's
+      // terminal graph. Without a row per node for that round the graph read
+      // every unlisted step as "Reachable. Nothing has reached it yet." — a
+      // finished run drawn as though it were still on its way.
+      rosterNode("review", "succeeded", { generation: 3 }),
+      rosterNode("has_issues", "succeeded", { generation: 3 }),
+      // The round found no issues, so the fix branch was provably declined —
+      // durable route evidence, not a step still waiting its turn.
+      rosterNode("fix_batches", "not_taken", { generation: 3 }),
+      rosterNode("fix_batch", "not_taken", { generation: 3 }),
+      rosterNode("collect_fixes", "not_taken", { generation: 3 }),
+      rosterNode("finalize_round", "succeeded", { generation: 3 }),
     ],
   };
 }

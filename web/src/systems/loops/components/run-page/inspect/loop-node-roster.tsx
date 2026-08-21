@@ -203,6 +203,22 @@ export function LoopNodeRoster({
                     {row.fanOutLabel ? `${row.kindLabel} · ${row.fanOutLabel}` : row.kindLabel}
                   </span>
                 ) : null}
+                {/* Strategy-canceled and operator-canceled share the neutral
+                    ramp, so the state word alone cannot tell them apart. The
+                    cause and the actor belong on the row itself — a reader
+                    should not have to open a panel to learn who stopped a step
+                    (US-012.EC-2). */}
+                {row.cancellation ? (
+                  <span
+                    className="mt-0.5 block text-form-hint text-subtle"
+                    data-disposition={row.cancellation.disposition}
+                    data-testid={`loop-roster-cancellation-${row.key}`}
+                  >
+                    {[row.cancellation.label, row.cancellation.actorLabel, row.cancellation.cause]
+                      .filter(Boolean)
+                      .join(" · ")}
+                  </span>
+                ) : null}
               </TableCell>
               {showsRound ? (
                 <TableCell className="font-mono text-mono-id text-subtle">

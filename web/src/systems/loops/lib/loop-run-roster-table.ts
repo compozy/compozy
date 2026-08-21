@@ -1,6 +1,7 @@
 import type { LoopFanoutRollup, LoopRosterNode } from "../types";
 import type { LoopGraph } from "./loop-graph";
 import { loopDagKindLabel } from "./loop-node-labels";
+import { type LoopNodeCancellationView, buildNodeCancellationView } from "./loop-node-panel-view";
 import { loopFanOutContainerState, resolveFanOutBranches } from "./loop-run-fanout-band";
 import {
   type LoopStateChip,
@@ -44,6 +45,15 @@ export interface LoopRosterRow {
   kindLabel: string | null;
   /** "3 workers" on a fan-out container, null elsewhere. */
   fanOutLabel: string | null;
+  /**
+   * Why this node was canceled, and by whom.
+   *
+   * On the row rather than behind the node panel: strategy-canceled and
+   * operator-canceled share the neutral ramp, so without the cause and the
+   * actor the two are the same grey word and the distinction US-012.EC-2 asks
+   * for is unreadable until something is opened.
+   */
+  cancellation: LoopNodeCancellationView | null;
   chip: LoopStateChip;
   generation: number;
   itemIndex: number;
@@ -210,6 +220,7 @@ export function buildRosterTable({
       isBranch,
       kindLabel: isBranch ? null : loopDagKindLabel(authored),
       fanOutLabel: null,
+      cancellation: buildNodeCancellationView(node),
       chip: loopRosterStateChip(node.state),
       generation: node.generation,
       itemIndex: node.item_index,
@@ -248,6 +259,8 @@ export function buildRosterTable({
       isBranch: false,
       kindLabel: loopDagKindLabel(graph?.nodes.find(entry => entry.id === nodeId)),
       fanOutLabel: `${rollup.total} ${rollup.total === 1 ? "worker" : "workers"}`,
+      // A container is not itself canceled; its workers each carry their own.
+      cancellation: null,
       chip: loopRosterStateChip(containerState),
       generation,
       itemIndex: 0,

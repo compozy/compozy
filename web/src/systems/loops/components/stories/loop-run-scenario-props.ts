@@ -8,6 +8,7 @@ import { projectLoopRunRegisters } from "../../lib/loop-run-registers-view";
 import { materializeContractFixture } from "../../mocks/materialize-contract-fixture";
 import type { LoopRunPageBodyProps } from "../run-page/loop-run-page-body";
 import type { LoopRunStoryScenario } from "./loop-run-scenario-types";
+import { timelineFromFrames } from "./loop-run-timeline-from-frames";
 import { STORY_NOW } from "./loop-run-page-fixture-world";
 import type { LoopRunEventFrame, LoopTimelineEntry } from "../../types";
 
@@ -45,7 +46,12 @@ function stageTimeline(scenario: LoopRunStoryScenario): {
   timeline: LoopTimelineEntry[];
   hasOlder: boolean;
 } {
-  const timeline = scenario.timeline ?? [];
+  // A scenario that stages events but no timeline has a history; it simply has
+  // not written the read out. Deriving it here mirrors the daemon, which builds
+  // the timeline from those same events, and removes the failure mode that let
+  // several contract rows capture "Nothing has happened in this run yet." over a
+  // run several rounds deep.
+  const timeline = scenario.timeline ?? timelineFromFrames(scenario.frames);
   const pageSize = scenario.timelinePageSize;
   if (pageSize === undefined || timeline.length <= pageSize) {
     return { timeline, hasOlder: false };
