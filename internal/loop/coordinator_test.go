@@ -216,7 +216,7 @@ func TestCoordinatorRunnerShouldResolveFanOutFromWorkspaceDefaults(t *testing.T)
 	})
 }
 
-func TestCoordinatorActionExecutionInputShouldCarryPinnedGoalPolicy(t *testing.T) {
+func TestCoordinatorActionExecutionInputShouldCarryPinnedPolicyAndSessionProvenance(t *testing.T) {
 	t.Parallel()
 
 	t.Run("Should copy the Run context nudge ratio into every Goal action input", func(t *testing.T) {
@@ -323,6 +323,64 @@ func TestCoordinatorActionExecutionInputShouldCarryPinnedGoalPolicy(t *testing.T
 		}
 		if got := capture.input.ProvenanceParentSessionID; got != "session-origin" {
 			t.Fatalf("executed provenance parent = %q, want session-origin", got)
+		}
+	})
+
+	t.Run("Should resolve the nearest session before executing a run-agent action", func(t *testing.T) {
+		t.Parallel()
+
+		node := dsl.Node{ID: "agent", Class: dsl.NodeClassAction, Kind: string(dsl.ActionRunAgent)}
+		origin := Run{
+			ID: "looprun-agent-origin", WorkspaceID: "ws-agent-provenance",
+			StartedBy: task.ActorIdentity{Kind: task.ActorKindAgentSession, Ref: "session-agent-origin"},
+			Origin:    &RunOrigin{Kind: RunOriginCatalog},
+		}
+		loopRun := Run{
+			ID: "looprun-agent-provenance", WorkspaceID: origin.WorkspaceID,
+			ParentLoopRunID: origin.ID, Inputs: map[string]any{},
+			StartedBy: task.ActorIdentity{Kind: task.ActorKindDaemon, Ref: "loop-runner"},
+			Origin:    &RunOrigin{Kind: RunOriginCatalog},
+		}
+		coordinatorRun := controlCoordinatorRun(loopRun, 1)
+		capture := &recordingActionExecutor{}
+		actions, err := NewActionRegistry(
+			&internalActionRegistryFake{},
+			WithActionRunAgentExecutor(capture),
+		)
+		if err != nil {
+			t.Fatalf("NewActionRegistry() error = %v", err)
+		}
+		runner := newCoordinatorRunnerForTestWithDefinition(
+			t,
+			loopRun,
+			coordinatorRun,
+			nil,
+			coordinatorRunnerOutputs{outputs: map[int][]GenerationOutput{1: {{
+				Generation: 1, NodeID: string(node.ID), Status: generationOutputRunning, TaskRunID: "run-agent",
+			}}}},
+			dsl.Definition{Graph: dsl.Graph{Nodes: []dsl.Node{node}}},
+			WithCoordinatorActionRegistry(actions),
+		)
+		setCoordinatorRunnerRunsForTest(t, runner, map[RunID]Run{
+			loopRun.ID: loopRun,
+			origin.ID:  origin,
+		})
+		metadata, err := json.Marshal(coordinatorActionRunMetadata{
+			Generation: 1, NodeID: string(node.ID), Attempt: 1,
+		})
+		if err != nil {
+			t.Fatalf("json.Marshal(action metadata) error = %v", err)
+		}
+		workerRun := task.Run{
+			ID: "run-agent", RunKind: task.RunKindWorker, LoopRunID: string(loopRun.ID),
+			Status: task.TaskRunStatusClaimed, Metadata: metadata,
+		}
+
+		if _, err := runner.ExecuteActionRun(t.Context(), workerRun, task.ActorContext{}); err != nil {
+			t.Fatalf("ExecuteActionRun() error = %v", err)
+		}
+		if got := capture.input.ProvenanceParentSessionID; got != "session-agent-origin" {
+			t.Fatalf("executed provenance parent = %q, want session-agent-origin", got)
 		}
 	})
 

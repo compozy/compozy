@@ -4,6 +4,7 @@ package globaldb
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"reflect"
 	"strconv"
@@ -12,8 +13,10 @@ import (
 	"time"
 
 	looppkg "github.com/compozy/compozy/internal/loop"
+	"github.com/compozy/compozy/internal/loop/dsl"
 	"github.com/compozy/compozy/internal/loop/goal"
 	"github.com/compozy/compozy/internal/store"
+	taskpkg "github.com/compozy/compozy/internal/task"
 	"github.com/compozy/compozy/internal/testutil"
 )
 
@@ -144,6 +147,110 @@ func TestGoalSessionCreationIdentityIntegration(t *testing.T) {
 
 func TestGoalSessionBindingLifecycleIntegration(t *testing.T) {
 	t.Parallel()
+
+	t.Run("Should close a completed run-agent binding and publish durable cleanup", func(t *testing.T) {
+		t.Parallel()
+
+		const (
+			workspaceID = "ws-run-agent-completion"
+			loopRunID   = "run-agent-completion"
+			taskID      = "task-run-agent-completion"
+			taskRunID   = "taskrun-run-agent-completion"
+			handle      = "action:run-agent-completion"
+			sessionID   = "session-run-agent-completion"
+		)
+		globalDB := openLoopTestGlobalDB(t, workspaceID)
+		ctx := testutil.Context(t)
+		now := time.Date(2026, 8, 20, 19, 52, 11, 0, time.UTC)
+		insertGoalSchemaLoopRun(t, globalDB, loopRunID, workspaceID, "catalog", nil)
+		if _, err := globalDB.db.ExecContext(
+			ctx,
+			`INSERT INTO loop_generations (loop_run_id, generation, parent_generation, origin, created_at)
+			 VALUES (?, 1, 0, 'initial', ?)`,
+			loopRunID,
+			store.FormatTimestamp(now),
+		); err != nil {
+			t.Fatalf("insert run-agent generation error = %v", err)
+		}
+
+		taskRecord := workspaceTaskRecordForTest(taskID, workspaceID)
+		taskRecord.Status = taskpkg.TaskStatusReady
+		if err := globalDB.CreateTask(ctx, taskRecord); err != nil {
+			t.Fatalf("CreateTask() error = %v", err)
+		}
+		metadata, err := json.Marshal(map[string]any{
+			"generation":     1,
+			"node_id":        "execute",
+			"item_index":     0,
+			"attempt":        1,
+			"epoch":          4,
+			"node_kind":      string(dsl.ActionRunAgent),
+			"session_handle": handle,
+		})
+		if err != nil {
+			t.Fatalf("json.Marshal(run-agent metadata) error = %v", err)
+		}
+		run := taskRunForTest(taskRunID, taskID)
+		run.RunKind = taskpkg.RunKindWorker
+		run.LoopRunID = loopRunID
+		run.Metadata = metadata
+		if err := globalDB.CreateTaskRun(ctx, run); err != nil {
+			t.Fatalf("CreateTaskRun() error = %v", err)
+		}
+		if _, err := globalDB.db.ExecContext(
+			ctx,
+			`INSERT INTO loop_generation_outputs (
+				loop_run_id, generation, node_id, item_index, status, task_run_id, epoch
+			 ) VALUES (?, 1, 'execute', 0, 'enqueued', ?, 4)`,
+			loopRunID,
+			taskRunID,
+		); err != nil {
+			t.Fatalf("insert run-agent cell error = %v", err)
+		}
+		seedActiveGoalBindingForTest(t, globalDB, loopRunID, workspaceID, handle, 5, sessionID, now)
+
+		leaseOwner := taskpkg.ActorIdentity{Kind: taskpkg.ActorKindDaemon, Ref: "loop-action-runtime"}
+		claim, err := globalDB.ClaimNextRun(ctx, taskpkg.ClaimCriteria{
+			RunID: taskRunID, Scope: taskpkg.ScopeWorkspace, WorkspaceID: workspaceID,
+			RunKind: taskpkg.RunKindWorker, ClaimedBy: &leaseOwner,
+			LeaseDuration: time.Minute, Now: now.Add(time.Second),
+		})
+		if err != nil {
+			t.Fatalf("ClaimNextRun() error = %v", err)
+		}
+		actor := taskpkg.ActorContext{
+			Actor:     leaseOwner,
+			Origin:    taskpkg.Origin{Kind: taskpkg.OriginKindDaemon, Ref: "daemon.loop-action"},
+			Authority: taskpkg.Authority{Read: true, Write: true},
+		}
+		if _, err := globalDB.CompleteRunLease(ctx, taskpkg.LeaseCompletion{
+			Actor: actor, RunID: claim.Run.ID, ClaimToken: claim.ClaimToken,
+			Result: taskpkg.RunResult{Value: json.RawMessage(`{"summary":"done"}`)},
+			Now:    now.Add(2 * time.Second),
+		}); err != nil {
+			t.Fatalf("CompleteRunLease() error = %v", err)
+		}
+
+		binding, err := globalDB.GetSessionBindingAttempt(ctx, goal.BindingKey{
+			WorkspaceID: workspaceID,
+			LoopRunID:   loopRunID,
+			Handle:      handle,
+		}, 5)
+		if err != nil {
+			t.Fatalf("GetSessionBindingAttempt() error = %v", err)
+		}
+		if binding.State != goal.BindingStateClosed {
+			t.Fatalf("binding state = %q, want %q", binding.State, goal.BindingStateClosed)
+		}
+		cleanups, err := globalDB.ClaimGoalSessionCleanup(ctx, 10)
+		if err != nil {
+			t.Fatalf("ClaimGoalSessionCleanup() error = %v", err)
+		}
+		if len(cleanups) != 1 || cleanups[0].SessionID != sessionID ||
+			cleanups[0].Cause != goal.SessionCleanupCauseTerminal {
+			t.Fatalf("run-agent cleanups = %#v, want one terminal session cleanup", cleanups)
+		}
+	})
 
 	t.Run(
 		"Should fence ordinary action activation by cell owner and publish cleanup for stale creation",

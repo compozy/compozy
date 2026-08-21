@@ -516,13 +516,15 @@ func TestReservedActionExecutorsShouldRunAgentLoopAndTransform(t *testing.T) {
 			},
 		}
 		raw, err := executor.Execute(ctx, node, loop.ActionExecutionInput{
-			WorkspaceID:   "ws-1",
-			LoopRunID:     "looprun-managed",
-			Generation:    1,
-			NodeID:        "agent",
-			ItemIndex:     2,
-			CellEpoch:     4,
-			CorrelationID: "taskrun-managed-5",
+			WorkspaceID:               "ws-1",
+			LoopRunID:                 "looprun-managed",
+			Generation:                1,
+			NodeID:                    "agent",
+			ItemIndex:                 2,
+			CellEpoch:                 4,
+			CorrelationID:             "taskrun-managed-5",
+			OriginSessionID:           "sess-origin",
+			ProvenanceParentSessionID: "sess-provenance-parent",
 			Namespace: map[string]any{
 				"inputs": map[string]any{"topic": "delivery"},
 			},
@@ -566,6 +568,9 @@ func TestReservedActionExecutorsShouldRunAgentLoopAndTransform(t *testing.T) {
 		if bind.TargetBindingEpoch != 5 || bind.ExpectedControlEpoch != 0 || bind.CellFence == nil ||
 			bind.CellFence.Epoch != 4 || bind.CellFence.TaskRunID != "taskrun-managed-5" {
 			t.Fatalf("managed bind fence = %#v, want binding epoch 5 + exact cell owner", bind)
+		}
+		if bind.OriginSessionID != "" || bind.ProvenanceParentSessionID != "sess-provenance-parent" {
+			t.Fatalf("managed bind provenance = %#v, want a new child of the nearest parent", bind)
 		}
 		if bind.Runtime.Model != "gpt-5.4" || bind.MaxTurns != 3 || len(bind.AllowedTools) != 1 {
 			t.Fatalf("bind overrides = %#v, want model/tool/max_turns", bind)
