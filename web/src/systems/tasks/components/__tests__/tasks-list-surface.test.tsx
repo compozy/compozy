@@ -23,7 +23,7 @@ const { TasksListSurface } = await import("../tasks-list-surface");
 const { TasksListToolbar } = await import("../tasks-list-toolbar");
 type TaskListItem = import("../../types").TaskListItem;
 const { countTasksByStatus } = await import("../../lib/task-formatters");
-const { buildTaskListTree } = await import("../../lib/task-hierarchy");
+type TaskRecordsFilter = import("../../types").TaskRecordsFilter;
 
 function buildTask(overrides: Partial<TaskListItem> = {}): TaskListItem {
   return {
@@ -51,6 +51,8 @@ interface RenderOptions {
   onRetryLoad?: () => void;
   searchQuery?: string;
   statusCounts?: ReturnType<typeof countTasksByStatus>;
+  recordsFilter?: TaskRecordsFilter;
+  onShowWorkItems?: () => void;
 }
 
 function renderSurface(options: RenderOptions = {}) {
@@ -65,8 +67,10 @@ function renderSurface(options: RenderOptions = {}) {
         onRetryLoad={options.onRetryLoad}
         searchQuery={options.searchQuery ?? ""}
         filterState={options.statusFilter ? "active" : "inactive"}
+        onShowWorkItems={options.onShowWorkItems}
+        recordsFilter={options.recordsFilter}
         statusCounts={options.statusCounts ?? countTasksByStatus(tasks)}
-        taskTree={buildTaskListTree(tasks)}
+        tasks={tasks}
         hasMore={options.hasMore}
       />
     </UIProvider>
@@ -127,17 +131,20 @@ describe("TasksListSurface", () => {
 
   it("Should render search and forward list query changes", () => {
     const handleSearchQueryChange = vi.fn();
+    const handleRecordsFilterChange = vi.fn();
     render(
       <UIProvider reducedMotion="never" skipAnimations>
         <TasksListToolbar
           onOwnerChange={() => {}}
           onPriorityChange={() => {}}
+          onRecordsFilterChange={handleRecordsFilterChange}
           onSearchQueryChange={handleSearchQueryChange}
           onSortChange={() => {}}
           onStatusChange={() => {}}
           ownerFilter={null}
           ownerOptions={[]}
           priorityFilter={null}
+          recordsFilter="work"
           searchQuery="api"
           sortBy="recent"
           statusFilter={null}
@@ -150,11 +157,38 @@ describe("TasksListSurface", () => {
     fireEvent.change(search, { target: { value: "deploy" } });
     expect(handleSearchQueryChange).toHaveBeenCalledWith("deploy");
     expect(screen.queryByTestId("tasks-view-nav")).toBeNull();
+
+    // The reveal is off by default and opting in is one explicit act.
+    expect(screen.getByTestId("tasks-records-filter-work")).toHaveAttribute("aria-pressed", "true");
+    fireEvent.click(screen.getByTestId("tasks-records-filter-loop"));
+    expect(handleRecordsFilterChange).toHaveBeenCalledWith("loop");
   });
 
   it("Should render the empty state when the list is empty", () => {
     renderSurface({ tasks: [] });
     expect(screen.getByTestId("tasks-list-surface-empty")).toBeInTheDocument();
+  });
+
+  // UT-041
+  it("Should scope the empty message to the reveal filter instead of the generic empty", () => {
+    const onShowWorkItems = vi.fn();
+    renderSurface({ tasks: [], recordsFilter: "loop", onShowWorkItems });
+
+    const empty = screen.getByTestId("tasks-list-surface-loop-empty");
+    expect(empty).toHaveTextContent("No loop records in this workspace");
+    expect(empty).toHaveTextContent("Turn the filter back to work items to see your tasks.");
+    expect(screen.queryByTestId("tasks-list-surface-empty")).toBeNull();
+
+    fireEvent.click(screen.getByRole("button", { name: "Show work items" }));
+    expect(onShowWorkItems).toHaveBeenCalledTimes(1);
+  });
+
+  it("Should keep the narrower filtered-empty message when a filter rides on top of the reveal", () => {
+    renderSurface({ tasks: [], recordsFilter: "loop", searchQuery: "missing" });
+    expect(screen.queryByTestId("tasks-list-surface-loop-empty")).toBeNull();
+    expect(screen.getByTestId("tasks-list-surface-empty")).toHaveTextContent(
+      "No tasks match the current filters"
+    );
   });
 
   it("Should describe an empty server search as filtered", () => {

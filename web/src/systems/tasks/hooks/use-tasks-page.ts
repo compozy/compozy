@@ -1,3 +1,5 @@
+import { useState } from "react";
+
 import { useDebouncedInput } from "@/hooks/use-debounced-input";
 import { useTaskInbox, useTaskInboxBadge } from "./use-task-inbox";
 import { useTasks } from "./use-tasks";
@@ -7,12 +9,12 @@ import type {
   TaskListFilter,
   TaskListSortKey,
   TaskPriority,
+  TaskRecordsFilter,
   TaskStatus,
   TaskViewMode,
 } from "../types";
 import { groupTasksForKanban } from "@/systems/tasks/lib/task-grouping";
 import type { KanbanColumnGroup } from "@/systems/tasks/lib/task-grouping";
-import { buildTaskListTree, type TaskListTree } from "@/systems/tasks/lib/task-hierarchy";
 import type { InboxLaneFilterId } from "@/systems/tasks/lib/inbox-grouping";
 import { taskStatusCountsFromFacets } from "@/systems/tasks/lib/task-list-query";
 import {
@@ -38,11 +40,6 @@ import { useWorktreeScopeId } from "@/hooks/use-window-scope";
 
 type InboxLaneFilter = InboxLaneFilterId;
 const SEARCH_DEBOUNCE_MS = 200;
-const EMPTY_TASK_LIST_TREE: TaskListTree = {
-  childrenByParent: new Map(),
-  roots: [],
-  size: 0,
-};
 
 interface UseTasksPageOptions {
   /** Validated URL state. The route is the sole owner of catalog filters. */
@@ -78,6 +75,19 @@ function useTasksPage(options: UseTasksPageOptions = {}) {
   const inboxPriorityFilter = routeSearch.inboxPriority ?? null;
   const inboxUnreadOnly = routeSearch.inboxUnread === true;
   const routeInboxSearchQuery = routeSearch.inboxQuery ?? "";
+  // Ephemeral by contract (US-002.AC-3): local state, never route search, so it
+  // survives neither a reload nor a shared link. The mode rides along so
+  // switching surface resets it.
+  const [reveal, setReveal] = useState<{ mode: TaskViewMode; records: TaskRecordsFilter }>({
+    mode,
+    records: "work",
+  });
+  if (reveal.mode !== mode) {
+    setReveal({ mode, records: "work" });
+  }
+  const recordsFilter: TaskRecordsFilter = reveal.mode === mode ? reveal.records : "work";
+  // The reveal is a list-surface affordance; kanban roots are work items only.
+  const includeLoop = mode === "list" && recordsFilter === "loop";
   const updateSearch = (patch: Partial<TasksRouteSearch>) => {
     options.onSearchChange?.(current =>
       validateTasksSearch({
@@ -122,10 +132,14 @@ function useTasksPage(options: UseTasksPageOptions = {}) {
     (!worktreeScopeResolved || !workspace.hasHydrated || workspace.pending);
   const scopeError = resolveTaskScopeError(hasActiveTaskScope, scopeLoading, scopeSourceError);
   const listFilters: TaskListFilter = activeTaskScope
-    ? taskListFilterFromRouteSearch(activeTaskScope, {
-        ...routeSearch,
-        query: routeSearchQuery || undefined,
-      })
+    ? taskListFilterFromRouteSearch(
+        activeTaskScope,
+        {
+          ...routeSearch,
+          query: routeSearchQuery || undefined,
+        },
+        { includeLoop }
+      )
     : {};
   const dashboardFilters: TaskDashboardFilter = {
     scope: activeTaskScope?.scope,
@@ -164,11 +178,10 @@ function useTasksPage(options: UseTasksPageOptions = {}) {
   const allTasks = tasksQuery.data ?? [];
   const visibleTasks = allTasks;
   const statusCounts = taskStatusCountsFromFacets(tasksQuery.facets);
-  const taskTree =
-    mode === "list" || mode === "kanban" ? buildTaskListTree(visibleTasks) : EMPTY_TASK_LIST_TREE;
-  // Kanban shows top-level cards; nested subtasks stay behind their parent.
+  // The server already cut the population, so the board renders exactly what the
+  // list does — counts stay coherent by construction (US-001.AC-3).
   const kanbanColumns: KanbanColumnGroup[] =
-    mode === "kanban" ? groupTasksForKanban(taskTree.roots) : [];
+    mode === "kanban" ? groupTasksForKanban(visibleTasks) : [];
   const ownerOptions = tasksQuery.facets.owners.map(facet => ({
     kind: facet.owner.kind,
     ref: facet.owner.ref,
@@ -197,8 +210,11 @@ function useTasksPage(options: UseTasksPageOptions = {}) {
     void inboxQuery.refetch();
   };
 
+  // The reveal counts as a filter here, or a revealed workspace with no loop
+  // records would fall through to the zero-inventory template panel instead of
+  // the filter-scoped message that explains what emptied the list.
   const hasListFilters = Boolean(
-    statusFilter || ownerFilter || priorityFilter || routeSearchQuery.trim()
+    statusFilter || ownerFilter || priorityFilter || routeSearchQuery.trim() || includeLoop
   );
   const isEmpty =
     hasActiveTaskScope &&
@@ -228,6 +244,7 @@ function useTasksPage(options: UseTasksPageOptions = {}) {
       updateSearch({ owner: owner ? taskOwnerFilterValue(owner) : undefined }),
     handlePriorityChange: (priority: TaskPriority | null) =>
       updateSearch({ priority: priority ?? undefined }),
+    handleRecordsFilterChange: (records: TaskRecordsFilter) => setReveal({ mode, records }),
     handleSortChange: (sort: TaskListSortKey) =>
       updateSearch({ sort: sort === "recent" ? undefined : sort }),
     handleStatusChange: (status: TaskStatus | null) =>
@@ -257,6 +274,7 @@ function useTasksPage(options: UseTasksPageOptions = {}) {
     ownerFilter,
     ownerOptions,
     priorityFilter,
+    recordsFilter,
     retryInbox,
     retryTasks,
     searchQuery: listSearch.draftValue,
@@ -265,7 +283,6 @@ function useTasksPage(options: UseTasksPageOptions = {}) {
     sortBy,
     statusCounts,
     statusFilter,
-    taskTree,
     hasActiveTaskScope,
     scopeError,
     scopeLoading,

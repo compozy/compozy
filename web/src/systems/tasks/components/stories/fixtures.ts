@@ -1,1 +1,9 @@
-export { TASK_FIXTURES, buildDetailFixture, buildTaskFixture } from "../../mocks/fixtures";
+export {
+  LOOP_TASK_FIXTURES,
+  TASK_FIXTURES,
+  buildDetailFixture,
+  buildTaskFixture,
+  loopCellTaskFixture,
+  loopCoordinatorTaskFixture,
+  loopRunGoneTaskFixture,
+} from "../../mocks/fixtures";

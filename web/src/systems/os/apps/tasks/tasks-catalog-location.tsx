@@ -108,12 +108,14 @@ export function TasksCatalogLocation({ search }: { search: TasksRouteSearch }) {
           <TasksListToolbar
             onOwnerChange={page.handleOwnerChange}
             onPriorityChange={page.handlePriorityChange}
+            onRecordsFilterChange={page.handleRecordsFilterChange}
             onSearchQueryChange={page.setSearchQuery}
             onSortChange={page.handleSortChange}
             onStatusChange={page.handleStatusChange}
             ownerFilter={page.ownerFilter}
             ownerOptions={page.ownerOptions}
             priorityFilter={page.priorityFilter}
+            recordsFilter={page.recordsFilter}
             searchQuery={page.searchQuery}
             sortBy={page.sortBy}
             statusFilter={page.statusFilter}
@@ -232,9 +234,11 @@ export function TasksCatalogLocation({ search }: { search: TasksRouteSearch }) {
           isLoadingMore={page.isLoadingMoreTasks}
           onLoadMore={page.loadMoreTasks}
           onRetryLoad={page.retryTasks}
+          onShowWorkItems={() => page.handleRecordsFilterChange("work")}
+          recordsFilter={page.recordsFilter}
           searchQuery={page.searchQuery}
           statusCounts={page.statusCounts}
-          taskTree={page.taskTree}
+          tasks={page.visibleTasks}
         />
       )}
     </div>

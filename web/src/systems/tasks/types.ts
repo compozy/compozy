@@ -143,5 +143,12 @@ export type TaskInboxLane = TaskInboxItem["lane"];
 
 export type TaskViewMode = "list" | "kanban" | "dashboard" | "inbox";
 
+/**
+ * Which population the Tasks listing asks the daemon for. `work` is the calm
+ * default and sends no `include_loop`; `loop` is the opt-in reveal. Ephemeral
+ * per navigation by design (US-002.AC-3) — never a URL param, never a setting.
+ */
+export type TaskRecordsFilter = "work" | "loop";
+
 /** Sort dimension for the tasks list surface toolbar. */
 export type TaskListSortKey = "recent" | "priority";

@@ -292,6 +292,92 @@ describe("useTasksPage", () => {
     ).toEqual({ status: "failed", inboxUnread: true });
   });
 
+  it("keeps the reveal filter off by default and off the wire", async () => {
+    const { result } = renderHook(() => useControlledTasksPage(), { wrapper: createWrapper() });
+
+    await waitFor(() => {
+      expect(result.current.visibleTasks).toHaveLength(3);
+    });
+
+    expect(result.current.recordsFilter).toBe("work");
+    const [listFilters] = vi.mocked(listTasks).mock.calls.at(-1) ?? [];
+    // The daemon owns the default: a calm read sends no include flag at all.
+    expect(listFilters?.include_loop).toBeUndefined();
+    expect(result.current.isEmpty).toBe(false);
+  });
+
+  it("sends include_loop only while the reveal is on, and counts it as a list filter", async () => {
+    const { result } = renderHook(() => useControlledTasksPage(), { wrapper: createWrapper() });
+
+    await waitFor(() => {
+      expect(result.current.visibleTasks).toHaveLength(3);
+    });
+
+    act(() => {
+      result.current.handleRecordsFilterChange("loop");
+    });
+
+    await waitFor(() => {
+      expect(result.current.recordsFilter).toBe("loop");
+    });
+    await waitFor(() => {
+      const [revealed] = vi.mocked(listTasks).mock.calls.at(-1) ?? [];
+      expect(revealed?.include_loop).toBe(true);
+    });
+
+    act(() => {
+      result.current.handleRecordsFilterChange("work");
+    });
+    await waitFor(() => {
+      expect(result.current.recordsFilter).toBe("work");
+    });
+
+    // Reveal-on and reveal-off are distinct cache keys, so returning to the calm
+    // read serves the cached page rather than refetching. What must hold across
+    // every request the surface ever makes is that the calm default is the
+    // absence of the flag — an explicit `false` would be a second default.
+    expect(
+      vi.mocked(listTasks).mock.calls.every(([filters]) => filters?.include_loop !== false)
+    ).toBe(true);
+  });
+
+  it("resets the reveal when the surface changes so the board stays work-items only", async () => {
+    const { result } = renderHook(() => useControlledTasksPage(), { wrapper: createWrapper() });
+
+    await waitFor(() => {
+      expect(result.current.visibleTasks).toHaveLength(3);
+    });
+
+    act(() => {
+      result.current.handleRecordsFilterChange("loop");
+    });
+    await waitFor(() => {
+      expect(result.current.recordsFilter).toBe("loop");
+    });
+
+    act(() => {
+      result.current.handleSortChange("priority");
+    });
+    // A filter change inside the list keeps the revealed context.
+    await waitFor(() => {
+      expect(result.current.recordsFilter).toBe("loop");
+    });
+
+    const { result: kanban } = renderHook(() => useControlledTasksPage({ mode: "kanban" }), {
+      wrapper: createWrapper(),
+    });
+    await waitFor(() => {
+      expect(kanban.current.visibleTasks).toHaveLength(3);
+    });
+    act(() => {
+      kanban.current.handleRecordsFilterChange("loop");
+    });
+    await waitFor(() => {
+      const [boardFilters] = vi.mocked(listTasks).mock.calls.at(-1) ?? [];
+      expect(boardFilters?.include_loop).toBeUndefined();
+    });
+  });
+
   it("exposes exact Kanban state, counts, and derived columns", async () => {
     const { result } = renderHook(() => useControlledTasksPage({ mode: "kanban" }), {
       wrapper: createWrapper(),

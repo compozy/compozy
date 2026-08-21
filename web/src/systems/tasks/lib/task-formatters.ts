@@ -65,48 +65,9 @@ export function taskStatusSignal(status?: TaskStatus | string | null): TaskStatu
   }
 }
 
-/**
- * Loop-owned task ids follow the daemon's canonical cell format
- * (`internal/loop` NodeCellTaskID): `loop.<run>.g<gen>.node.<node>.<item>` for
- * cells and `loop.<run>.coordinator` for the parent.
- */
-const LOOP_CELL_TASK_ID = /^loop\..+\.g(\d+)\.node\.(.+)\.(\d+)$/;
-const LOOP_COORDINATOR_TASK_ID = /^loop\..+\.coordinator$/;
-
-export interface LoopTaskIdentity {
-  kind: "cell" | "coordinator";
-  generation?: number;
-  nodeId?: string;
-  itemIndex?: number;
-}
-
-export function parseLoopTaskId(id: string): LoopTaskIdentity | null {
-  const cell = LOOP_CELL_TASK_ID.exec(id);
-  if (cell) {
-    return {
-      kind: "cell",
-      generation: Number(cell[1]),
-      nodeId: cell[2],
-      itemIndex: Number(cell[3]),
-    };
-  }
-  if (LOOP_COORDINATOR_TASK_ID.test(id)) {
-    return { kind: "coordinator" };
-  }
-  return null;
-}
-
 /** Convenience: short identifier for `MonoBadge` id chips in list rows. */
 export function taskShortId(task: { id: string; identifier?: string | null }): string {
   if (task.identifier) return task.identifier;
-  const loopIdentity = parseLoopTaskId(task.id);
-  if (loopIdentity?.kind === "coordinator") {
-    return "coordinator";
-  }
-  if (loopIdentity?.kind === "cell") {
-    const item = (loopIdentity.itemIndex ?? 0) > 0 ? `[${loopIdentity.itemIndex}]` : "";
-    return `g${loopIdentity.generation}.${loopIdentity.nodeId}${item}`;
-  }
   return task.id.length > 7 ? task.id.slice(0, 7) : task.id;
 }
 

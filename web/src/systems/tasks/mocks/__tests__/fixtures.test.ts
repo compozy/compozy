@@ -204,7 +204,9 @@ describe("tasks MSW handlers preserve counted query contracts", () => {
     const first: TaskListPage = await firstResponse.json();
 
     expect(first.tasks.map(task => task.id)).toEqual(["task_006", "task_004"]);
-    expect(first.page.total).toBe(TASK_CATALOG_FIXTURES.length);
+    // "Complete" means every work item — Loop execution records are excluded by
+    // the daemon's default predicate before counting.
+    expect(first.page.total).toBe(TASK_CATALOG_FIXTURES.filter(task => !task.loop).length);
     expect(first.page.has_more).toBe(true);
     expect(first.page.next_cursor).toBeTypeOf("string");
 
@@ -231,6 +233,38 @@ describe("tasks MSW handlers preserve counted query contracts", () => {
     expect(defaultPage.tasks.some(task => task.status === "draft")).toBe(false);
     expect(withDrafts.tasks.some(task => task.status === "draft")).toBe(true);
     expect(withDrafts.page.total).toBe(defaultPage.page.total + 1);
+  });
+
+  it("Should exclude Loop records by default and reveal them only when asked", async () => {
+    const defaultResponse = await fetch("http://localhost/api/tasks?scope=all&sort=recent");
+    const defaultPage: TaskListPage = await defaultResponse.json();
+    const revealedResponse = await fetch(
+      "http://localhost/api/tasks?scope=all&include_loop=true&sort=recent"
+    );
+    const revealed: TaskListPage = await revealedResponse.json();
+
+    expect(defaultPage.tasks.some(task => task.loop)).toBe(false);
+    expect(revealed.tasks.some(task => task.loop?.role === "coordinator")).toBe(true);
+    expect(revealed.tasks.some(task => task.loop?.role === "cell")).toBe(true);
+    // Counts and facets are computed over the same filtered set the rows come
+    // from, so exclusion can never produce an incoherent header.
+    expect(revealed.page.total).toBeGreaterThan(defaultPage.page.total);
+    const defaultStatusTotal = defaultPage.facets.statuses.reduce(
+      (total, facet) => total + facet.count,
+      0
+    );
+    expect(defaultStatusTotal).toBe(defaultPage.page.total);
+  });
+
+  it("Should scope to one run and imply include when a run filter is given", async () => {
+    const response = await fetch(
+      "http://localhost/api/tasks?scope=all&loop_run_id=looprun-8f3ab2c1d4e5f607&sort=recent"
+    );
+    const page: TaskListPage = await response.json();
+
+    expect(page.tasks.length).toBeGreaterThan(0);
+    expect(page.tasks.every(task => task.loop?.run_id === "looprun-8f3ab2c1d4e5f607")).toBe(true);
+    expect(page.page.total).toBe(page.tasks.length);
   });
 
   it("Should keep exact inbox metadata stable while cursor pages distribute items by lane", async () => {
