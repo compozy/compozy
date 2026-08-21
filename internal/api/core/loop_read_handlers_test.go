@@ -97,9 +97,12 @@ func TestLoopReadHandlersMapping(t *testing.T) {
 			nil,
 		)
 		assertLoopStatus(t, response.Code, http.StatusBadRequest, response.Body.String())
-		var body map[string]string
+		var body contract.ErrorPayload
 		testutil.DecodeJSONResponse(t, response, &body)
-		if body["error"] != "timeline_position_beyond_head" || body["code"] != "timeline_position_beyond_head" {
+		if body.Error != "position 3 is beyond this run's history (head: 2)" ||
+			body.Code != "timeline_position_beyond_head" ||
+			body.Details["position"] != "3" ||
+			body.Details["head_seq"] != "2" {
 			t.Fatalf("body = %#v", body)
 		}
 	})

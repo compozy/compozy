@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"strconv"
 	"strings"
 
 	"github.com/gin-gonic/gin"
@@ -113,6 +114,7 @@ func (h *BaseHandlers) requireLoopRunReadService(c *gin.Context) (LoopRunReadSer
 
 func (h *BaseHandlers) respondLoopRunReadError(c *gin.Context, runID string, err error) {
 	var invalidState *looppkg.InvalidNodeStateError
+	var timelinePosition *looppkg.TimelinePositionError
 	switch {
 	case errors.Is(err, looppkg.ErrRunNotFound):
 		c.JSON(http.StatusNotFound, contract.ErrorPayload{
@@ -128,10 +130,14 @@ func (h *BaseHandlers) respondLoopRunReadError(c *gin.Context, runID string, err
 			Error: "invalid_cursor",
 			Code:  "invalid_cursor",
 		})
-	case errors.Is(err, looppkg.ErrTimelinePositionBeyondHead):
+	case errors.As(err, &timelinePosition):
 		c.JSON(http.StatusBadRequest, contract.ErrorPayload{
-			Error: looppkg.ErrTimelinePositionBeyondHead.Error(),
+			Error: timelinePosition.Error(),
 			Code:  looppkg.ErrTimelinePositionBeyondHead.Error(),
+			Details: map[string]string{
+				"position": strconv.FormatInt(timelinePosition.Position, 10),
+				"head_seq": strconv.FormatInt(timelinePosition.Head, 10),
+			},
 		})
 	case errors.As(err, &invalidState):
 		c.JSON(http.StatusBadRequest, contract.ErrorPayload{
