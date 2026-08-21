@@ -259,6 +259,39 @@ func TestBriefingContract(t *testing.T) {
 			t.Fatalf("briefing = %#v", got)
 		}
 	})
+	t.Run("Should label mixed named and unnamed terminal outputs", func(t *testing.T) {
+		t.Parallel()
+		source := healthyBriefing(now)
+		source.Run.Status = StatusDone
+		source.Artifacts = []RunArtifact{
+			{Name: " report ", Output: "report-output", Ref: "sha256:report"},
+			{Name: " ", Output: "summary-output", Ref: "sha256:summary"},
+			{Ref: "sha256:archive"},
+			{},
+		}
+		got := ProjectBriefing(&source)
+		wantNames := []string{"report", "summary-output", "sha256:archive", "output 4"}
+		gotNames := make([]string, 0, len(got.Artifacts))
+		for _, artifact := range got.Artifacts {
+			gotNames = append(gotNames, artifact.Name)
+		}
+		if !slices.Equal(gotNames, wantNames) ||
+			got.Headline != "Run finished: done. Produced: report, summary-output, sha256:archive, output 4." {
+			t.Fatalf("briefing = %#v, want artifact names %#v", got, wantNames)
+		}
+	})
+	t.Run("Should number all unnamed terminal outputs without empty headline entries", func(t *testing.T) {
+		t.Parallel()
+		source := healthyBriefing(now)
+		source.Run.Status = StatusDone
+		source.Artifacts = []RunArtifact{{}, {}}
+		got := ProjectBriefing(&source)
+		if len(got.Artifacts) != 2 ||
+			got.Headline != "Run finished: done. Produced: output 1, output 2." ||
+			got.Artifacts[0].Name != "output 1" || got.Artifacts[1].Name != "output 2" {
+			t.Fatalf("briefing = %#v", got)
+		}
+	})
 	t.Run("Should keep terminal failure outcome when failed nodes remain in the roster", func(t *testing.T) {
 		t.Parallel()
 		source := healthyBriefing(now)

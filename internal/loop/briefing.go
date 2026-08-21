@@ -271,6 +271,7 @@ func runningHeadline(roster RosterPage, generation int) string {
 
 func terminalBriefing(result Briefing, source *BriefingSource) Briefing {
 	run := source.Run
+	result.Artifacts = labelTerminalArtifacts(result.Artifacts)
 	if source.Outcome != nil {
 		outcome := *source.Outcome
 		result.Outcome = &outcome
@@ -295,6 +296,23 @@ func terminalBriefing(result Briefing, source *BriefingSource) Briefing {
 	}
 	result.Detail = progressDetail(result.Progress)
 	return result
+}
+
+func labelTerminalArtifacts(artifacts []RunArtifact) []RunArtifact {
+	for index := range artifacts {
+		label := strings.TrimSpace(artifacts[index].Name)
+		if label == "" {
+			label = strings.TrimSpace(artifacts[index].Output)
+		}
+		if label == "" {
+			label = strings.TrimSpace(artifacts[index].Ref)
+		}
+		if label == "" {
+			label = fmt.Sprintf("output %d", index+1)
+		}
+		artifacts[index].Name = label
+	}
+	return artifacts
 }
 
 func terminalHeadline(outcome RunOutcome, artifacts []RunArtifact) string {
