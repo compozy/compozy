@@ -90,6 +90,43 @@
                     ]
                 }
             ]
+        },
+        {
+            "name": "lifecycle_quarantine",
+            "provider": "acpmock",
+            "permissions": "approve-all",
+            "turns": [
+                {
+                    "name": "requeued-generation-holds-running",
+                    "match": {
+                        "turn_source": "user",
+                        "user_text_contains": "quarantine probe generation 3"
+                    },
+                    "steps": [
+                        {
+                            "kind": "driver_control",
+                            "driver_control": { "action": "delay", "delay_ms": 3000 }
+                        },
+                        {
+                            "kind": "assistant",
+                            "text": "```json\n{\"summary\":\"requeue accepted\"}\n```"
+                        }
+                    ]
+                },
+                {
+                    "name": "quarantine-repeated-failure",
+                    "match": {
+                        "turn_source": "user",
+                        "user_text_contains": "quarantine probe"
+                    },
+                    "steps": [
+                        {
+                            "kind": "assistant",
+                            "text": "```json\n{\"summary\":\"target unavailable\",\"error\":\"deterministic quarantine\"}\n```"
+                        }
+                    ]
+                }
+            ]
         }
     ]
 }

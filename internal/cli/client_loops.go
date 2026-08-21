@@ -16,6 +16,7 @@ type LoopRunListQuery struct {
 	Status        string
 	Origin        string
 	OriginSession string
+	Cursor        string
 	Limit         int
 }
 
@@ -436,6 +437,9 @@ func loopRunValues(query LoopRunListQuery) url.Values {
 	}
 	if trimmed := strings.TrimSpace(query.OriginSession); trimmed != "" {
 		values.Set("origin_session", trimmed)
+	}
+	if trimmed := strings.TrimSpace(query.Cursor); trimmed != "" {
+		values.Set("cursor", trimmed)
 	}
 	if query.Limit > 0 {
 		values.Set("limit", strconv.Itoa(query.Limit))

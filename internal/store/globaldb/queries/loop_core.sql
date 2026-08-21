@@ -116,6 +116,22 @@ WHERE workspace_id = sqlc.arg(workspace_id)
 ORDER BY seq ASC
 LIMIT sqlc.arg(row_limit);
 
+-- name: GetLoopRunEventHead :one
+SELECT CAST(COALESCE(MAX(seq), 0) AS INTEGER)
+FROM loop_run_events
+WHERE workspace_id = sqlc.arg(workspace_id)
+  AND loop_run_id = sqlc.arg(loop_run_id);
+
+-- name: ListLoopRunEventsBackward :many
+SELECT watch_seq, id, loop_run_id, workspace_id, seq, kind, payload_json, at, delivery_key
+FROM loop_run_events
+WHERE workspace_id = sqlc.arg(workspace_id)
+  AND loop_run_id = sqlc.arg(loop_run_id)
+  AND seq <= sqlc.arg(fixed_head_seq)
+  AND seq < sqlc.arg(before_seq)
+ORDER BY seq DESC
+LIMIT sqlc.arg(row_limit);
+
 -- name: ListLoopRouteCauses :many
 SELECT payload_json, at
 FROM loop_run_events

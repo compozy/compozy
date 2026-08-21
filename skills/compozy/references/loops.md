@@ -17,8 +17,8 @@ structured output. Never guess a schema — resolve `compozy__tool_info` for the
 ## The Tool Set And CLI Verbs
 
 Toolset `compozy__loops` — 30 native tools. All 28 Loop tools have matching `compozy loop` verbs;
-the two session-bound Goal tools use the session command/native report surfaces. The CLI adds one verb
-(`edit`) that has no native tool.
+the two session-bound Goal tools use the session command/native report surfaces. The CLI also exposes
+operator-focused `edit`, `why`, `events`, and run-scoped `nodes` reads without new native tool IDs.
 
 | Native tool                  | Mode                            | CLI                         | Purpose                                                                      |
 | ---------------------------- | ------------------------------- | --------------------------- | ---------------------------------------------------------------------------- |
@@ -66,8 +66,16 @@ The response is `loops`, exact self-filtered `facets` (`kinds`, `categories`, `s
 
 Opaque cursors bind workspace, search, kind, category, status, and sort; limit may change. Stable order is read-only before workspace, then normalized name and ID. CompozyOS computes the cut from lean records and loads definition YAML only for selected rows. `last_run` is the all-time latest run and includes `best_generation`/`best_score` when the run has a scored best candidate; only `aggregate_30d` and `success_rate_30d` use the 30-day window.
 
-`compozy loop runs` / `compozy__loop_runs` is a different, non-cursor contract: it returns `runs` plus aggregates, defaults to 100 rows, caps at 500, and does not expose `has_more` or `next_cursor`.
-Each run summary exposes `best_generation`/`best_score` but never embeds generation history.
+`compozy loop runs` / `compozy__loop_runs` returns `runs` plus aggregates. Each summary includes
+`attention` when a person must act and current-round `progress`; the server orders needs-you runs,
+then active runs, then terminal runs. It never embeds generation history.
+
+For a single run, use `compozy loop why <run> -o json` for the server-owned verdict and executable
+unblocker, `compozy loop nodes --run <run> --all -o json` for the complete node-generation roster and
+attempt ledger, and `compozy loop events <run> --view notable|all -o jsonl` for durable history.
+`events --after <seq> --follow` resumes at a plain per-run sequence; HTTP timeline pagination instead
+uses an opaque run-bound cursor. Follow attaches after the first page's `head_seq`, so the durable/live
+handoff does not duplicate or skip events.
 
 ## Typed Inputs
 

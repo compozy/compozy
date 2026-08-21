@@ -568,18 +568,17 @@ func TestLoopCommandShouldMapCLIVerbsToClient(t *testing.T) {
 			t,
 			deps,
 			"loop", "approve",
+			"looprun-1",
 			"--workspace", "alpha",
-			"--run-id", "looprun-1",
-			"--gate-id", "human-review",
-			"--decision", "request_changes",
+			"--gate", "human-review",
 			"-o", "json",
 		); err != nil {
 			t.Fatalf("executeRootCommand(loop approve) error = %v", err)
 		}
 
 		if capturedRequest.GateID != "human-review" ||
-			capturedRequest.Decision != contract.LoopGateDecisionRequestChanges {
-			t.Fatalf("ApproveLoopRun request = %#v, want human-review/request_changes", capturedRequest)
+			capturedRequest.Decision != contract.LoopGateDecisionApprove {
+			t.Fatalf("ApproveLoopRun request = %#v, want human-review/approve", capturedRequest)
 		}
 		if capturedCredentials.SessionID != "sess-author" || capturedCredentials.AgentName != "coder" {
 			t.Fatalf("ApproveLoopRun credentials = %#v, want sess-author/coder", capturedCredentials)

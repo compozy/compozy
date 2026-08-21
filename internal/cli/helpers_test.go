@@ -269,17 +269,21 @@ type stubClient struct {
 	putLoopInputDefaultFn func(
 		context.Context, string, string, string, contract.PutLoopInputDefaultRequest,
 	) (contract.LoopInputDefaultResponse, error)
-	listLoopRunsFn    func(context.Context, string, LoopRunListQuery) (contract.LoopRunsResponse, error)
-	listGoalTurnsFn   func(context.Context, string, string, GoalTurnListQuery) (contract.GoalTurnPage, error)
-	getLoopRunFn      func(context.Context, string, string) (contract.LoopRunResponse, error)
-	cancelLoopRunFn   func(context.Context, string, string, agentidentity.Credentials) (contract.LoopMutationResponse, error)
-	killLoopRunFn     func(context.Context, string, string, agentidentity.Credentials) (contract.LoopMutationResponse, error)
-	listLoopNodesFn   func(context.Context, string, LoopNodeListQuery) (contract.LoopNodeInventoryResponse, error)
-	pauseLoopNodeFn   func(context.Context, string, string, string, contract.LoopNodePauseRequest, agentidentity.Credentials) (contract.LoopMutationResponse, error)
-	resumeLoopNodeFn  func(context.Context, string, string, string, contract.LoopNodeResumeRequest, agentidentity.Credentials) (contract.LoopMutationResponse, error)
-	cancelLoopNodeFn  func(context.Context, string, string, string, contract.LoopNodeMutationRequest, agentidentity.Credentials) (contract.LoopMutationResponse, error)
-	killLoopNodeFn    func(context.Context, string, string, string, contract.LoopNodeMutationRequest, agentidentity.Credentials) (contract.LoopMutationResponse, error)
-	requeueLoopNodeFn func(
+	listLoopRunsFn     func(context.Context, string, LoopRunListQuery) (contract.LoopRunsResponse, error)
+	listGoalTurnsFn    func(context.Context, string, string, GoalTurnListQuery) (contract.GoalTurnPage, error)
+	getLoopRunFn       func(context.Context, string, string) (contract.LoopRunResponse, error)
+	getLoopRunNodesFn  func(context.Context, string, string, LoopRunNodesQuery) (contract.LoopRunNodesResponse, error)
+	getLoopBriefingFn  func(context.Context, string, string) (contract.LoopBriefingResponse, error)
+	getLoopTimelineFn  func(context.Context, string, string, LoopTimelineQuery) (contract.LoopTimelineResponse, error)
+	streamLoopEventsFn func(context.Context, string, string, int64, SSEHandler) error
+	cancelLoopRunFn    func(context.Context, string, string, agentidentity.Credentials) (contract.LoopMutationResponse, error)
+	killLoopRunFn      func(context.Context, string, string, agentidentity.Credentials) (contract.LoopMutationResponse, error)
+	listLoopNodesFn    func(context.Context, string, LoopNodeListQuery) (contract.LoopNodeInventoryResponse, error)
+	pauseLoopNodeFn    func(context.Context, string, string, string, contract.LoopNodePauseRequest, agentidentity.Credentials) (contract.LoopMutationResponse, error)
+	resumeLoopNodeFn   func(context.Context, string, string, string, contract.LoopNodeResumeRequest, agentidentity.Credentials) (contract.LoopMutationResponse, error)
+	cancelLoopNodeFn   func(context.Context, string, string, string, contract.LoopNodeMutationRequest, agentidentity.Credentials) (contract.LoopMutationResponse, error)
+	killLoopNodeFn     func(context.Context, string, string, string, contract.LoopNodeMutationRequest, agentidentity.Credentials) (contract.LoopMutationResponse, error)
+	requeueLoopNodeFn  func(
 		context.Context,
 		string,
 		string,
@@ -2331,6 +2335,54 @@ func (s *stubClient) GetLoopRun(
 		return s.getLoopRunFn(ctx, workspaceID, runID)
 	}
 	return contract.LoopRunResponse{}, errors.New("unexpected GetLoopRun call")
+}
+
+func (s *stubClient) GetLoopRunNodes(
+	ctx context.Context,
+	workspaceID string,
+	runID string,
+	query LoopRunNodesQuery,
+) (contract.LoopRunNodesResponse, error) {
+	if s.getLoopRunNodesFn != nil {
+		return s.getLoopRunNodesFn(ctx, workspaceID, runID, query)
+	}
+	return contract.LoopRunNodesResponse{}, errors.New("unexpected GetLoopRunNodes call")
+}
+
+func (s *stubClient) GetLoopRunBriefing(
+	ctx context.Context,
+	workspaceID string,
+	runID string,
+) (contract.LoopBriefingResponse, error) {
+	if s.getLoopBriefingFn != nil {
+		return s.getLoopBriefingFn(ctx, workspaceID, runID)
+	}
+	return contract.LoopBriefingResponse{}, errors.New("unexpected GetLoopRunBriefing call")
+}
+
+func (s *stubClient) GetLoopRunTimeline(
+	ctx context.Context,
+	workspaceID string,
+	runID string,
+	query LoopTimelineQuery,
+) (contract.LoopTimelineResponse, error) {
+	if s.getLoopTimelineFn != nil {
+		return s.getLoopTimelineFn(ctx, workspaceID, runID, query)
+	}
+	return contract.LoopTimelineResponse{}, errors.New("unexpected GetLoopRunTimeline call")
+}
+
+func (s *stubClient) StreamLoopRunEvents(
+	ctx context.Context,
+	workspaceID string,
+	runID string,
+	after int64,
+	handler SSEHandler,
+) error {
+	if s.streamLoopEventsFn != nil {
+		return s.streamLoopEventsFn(ctx, workspaceID, runID, after, handler)
+	}
+	return errors.New("unexpected StreamLoopRunEvents call")
 }
 
 func (s *stubClient) DiffLoopRun(

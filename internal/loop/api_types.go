@@ -3,19 +3,30 @@ package loop
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"time"
 )
 
+var ErrInvalidRunListCursor = errors.New("invalid_cursor")
+
 // RunListQuery filters workspace-scoped loop run listings.
 type RunListQuery struct {
-	WorkspaceID     WorkspaceID
-	LoopName        string
-	Status          Status
-	OriginKind      string
-	OriginSessionID string
-	Live            *bool
-	Limit           int
-	CreatedAfter    time.Time
+	WorkspaceID      WorkspaceID
+	LoopName         string
+	Status           Status
+	OriginKind       string
+	OriginSessionID  string
+	Live             *bool
+	Limit            int
+	CreatedAfter     time.Time
+	OperationalOrder bool
+	After            *RunListPosition
+}
+
+type RunListPosition struct {
+	Rank      int
+	CreatedAt time.Time
+	ID        RunID
 }
 
 // RunEventQuery filters retained loop run events.

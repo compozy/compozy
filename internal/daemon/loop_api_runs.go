@@ -7,7 +7,6 @@ import (
 	"strings"
 
 	"github.com/compozy/compozy/internal/api/contract"
-	core "github.com/compozy/compozy/internal/api/core"
 	looppkg "github.com/compozy/compozy/internal/loop"
 	"github.com/compozy/compozy/internal/network/participation"
 	taskpkg "github.com/compozy/compozy/internal/task"
@@ -100,48 +99,6 @@ func (s *daemonLoopAPIService) PutLoopAnnotations(
 		return contract.LoopAnnotationsResponse{}, err
 	}
 	return contract.LoopAnnotationsResponse{Annotations: loopAnnotationsPayload(annotations)}, nil
-}
-
-func (s *daemonLoopAPIService) ListLoopRuns(
-	ctx context.Context,
-	workspaceID string,
-	query core.LoopRunListQuery,
-) (contract.LoopRunsResponse, error) {
-	ws, err := normalizeLoopWorkspaceID(workspaceID)
-	if err != nil {
-		return contract.LoopRunsResponse{}, err
-	}
-	runs, err := s.persistence.ListLoopRuns(ctx, looppkg.RunListQuery{
-		WorkspaceID:     ws,
-		LoopName:        strings.TrimSpace(query.LoopName),
-		Status:          looppkg.Status(strings.TrimSpace(query.Status)),
-		OriginKind:      strings.TrimSpace(query.Origin),
-		OriginSessionID: strings.TrimSpace(query.OriginSession),
-		Live:            query.Live,
-		Limit:           query.Limit,
-	})
-	if err != nil {
-		return contract.LoopRunsResponse{}, err
-	}
-	payloads := make([]contract.LoopRunPayload, 0, len(runs))
-	for _, run := range runs {
-		if lineage, ok := s.persistence.(looppkg.TimeTravelStore); ok {
-			forks, err := lineage.ListForks(ctx, ws, run.ID)
-			if err != nil {
-				return contract.LoopRunsResponse{}, err
-			}
-			run.SetForks(forks)
-		}
-		payload, err := loopRunPayload(run)
-		if err != nil {
-			return contract.LoopRunsResponse{}, err
-		}
-		payloads = append(payloads, payload)
-	}
-	return contract.LoopRunsResponse{
-		Runs:       payloads,
-		Aggregates: loopRunsAggregate(runs),
-	}, nil
 }
 
 func (s *daemonLoopAPIService) GetLoopRun(

@@ -256,6 +256,7 @@ func loopRuntimeOperations() []OperationSpec {
 				queryParam("origin", "Filter by catalog or session origin", false),
 				queryParam("origin_session", "Filter by origin session id", false),
 				boolQueryParam("live", "Filter by live or terminal status"),
+				queryParam("cursor", "Opaque server-order cursor", false),
 				intQueryParam("limit", "Maximum number of records to return"),
 			},
 			[]ResponseSpec{ok(contract.LoopRunsResponse{}), badRequest(), loopUnavailable(), internalError()},
@@ -275,6 +276,9 @@ func loopRuntimeOperations() []OperationSpec {
 				internalError(),
 			},
 		),
+		loopRunNodesOperation(),
+		loopRunBriefingOperation(),
+		loopRunTimelineOperation(),
 		loopRunMutationOperation("pauseLoopRun", "Pause one Loop run", "/pause"),
 		loopRunMutationOperation("resumeLoopRun", "Resume one Loop run", "/resume"),
 		loopOperation(

@@ -248,6 +248,10 @@ func (h *BaseHandlers) ListLoopRuns(c *gin.Context) {
 	}
 	response, err := service.ListLoopRuns(c.Request.Context(), c.Param("workspace_id"), query)
 	if err != nil {
+		if errors.Is(err, looppkg.ErrInvalidRunListCursor) {
+			c.JSON(http.StatusBadRequest, gin.H{bridgesErrorKey: "invalid_cursor"})
+			return
+		}
 		h.respondLoopError(c, err)
 		return
 	}
@@ -412,6 +416,7 @@ func ParseLoopRunListQuery(c *gin.Context) (LoopRunListQuery, error) {
 		Status:        strings.TrimSpace(c.Query("status")),
 		Origin:        strings.TrimSpace(c.Query("origin")),
 		OriginSession: strings.TrimSpace(c.Query("origin_session")),
+		Cursor:        strings.TrimSpace(c.Query("cursor")),
 		Limit:         limit,
 	}
 	if raw, present := c.GetQuery("live"); present {

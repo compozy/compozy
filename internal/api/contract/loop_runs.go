@@ -75,12 +75,27 @@ type LoopRunPayload struct {
 	PauseRequested               bool                  `json:"pause_requested"`
 	Inputs                       map[string]any        `json:"inputs,omitempty"`
 	ResolvedNetworkParticipation *participation.Spec   `json:"resolved_network_participation"`
+	Attention                    *LoopRunAttention     `json:"attention,omitempty"`
+	Progress                     LoopRunProgress       `json:"progress"`
+}
+
+type LoopRunAttention struct {
+	Kind  string    `json:"kind"`
+	Count int       `json:"count"`
+	Since time.Time `json:"since"`
+}
+
+type LoopRunProgress struct {
+	Round      int `json:"round"`
+	StepsDone  int `json:"steps_done"`
+	StepsTotal int `json:"steps_total"`
 }
 
 // LoopRunsResponse lists workspace-scoped loop runs.
 type LoopRunsResponse struct {
 	Runs       []LoopRunPayload         `json:"runs"`
 	Aggregates LoopRunsAggregatePayload `json:"aggregates"`
+	NextCursor string                   `json:"next_cursor,omitempty"`
 }
 
 // LoopRunsAggregatePayload summarizes the returned run set.
