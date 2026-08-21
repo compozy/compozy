@@ -162,6 +162,11 @@ export function LoopRunsLocation({ search }: { search: LoopRunsRouteSearch }) {
       <LoopRunsView
         isError={isReadFailed}
         isReconnecting={isRetrying}
+        // The cache's own last-success stamp, so the age the notice prints is
+        // when these rows were read rather than when the page happened to mount.
+        lastReadAt={
+          runsQuery.dataUpdatedAt > 0 ? new Date(runsQuery.dataUpdatedAt).toISOString() : undefined
+        }
         onEmptyAction={outcome === "all" ? openLoops : () => setOutcome("all")}
         onRetry={() => void runsQuery.refetch()}
         outcome={outcome}

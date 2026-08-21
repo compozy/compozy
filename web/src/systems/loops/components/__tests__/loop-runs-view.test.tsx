@@ -130,6 +130,39 @@ describe("LoopRunsView", () => {
     expect(onRetry).toHaveBeenCalledTimes(1);
   });
 
+  // "The list below is the last read" without an age reads as "this is current".
+  // Stating how old it is is the difference between a stale view and a lie.
+  it("Should say how old the retained read is while the transport is degraded", () => {
+    render(
+      <LoopRunsView
+        isReconnecting
+        lastReadAt={new Date(Date.now() - 40_000).toISOString()}
+        outcome="all"
+        runs={[NEEDS_YOU, ACTIVE]}
+      />
+    );
+
+    expect(screen.getByTestId("loop-runs-degraded")).toHaveTextContent(
+      "Reconnecting to the daemon. The list below is the last read, from 40s ago."
+    );
+  });
+
+  it("Should not age a read that is not on screen", () => {
+    // No rows means nothing retained to age; the sentence would be about nothing.
+    render(
+      <LoopRunsView
+        isReconnecting
+        lastReadAt={new Date(Date.now() - 40_000).toISOString()}
+        outcome="all"
+        runs={[]}
+      />
+    );
+
+    const degraded = screen.getByTestId("loop-runs-degraded");
+    expect(degraded).toHaveTextContent("Reconnecting to the daemon. No runs have been read yet.");
+    expect(degraded).not.toHaveTextContent("ago");
+  });
+
   it("Should keep the shape of what is coming when a degraded read has no rows yet", () => {
     render(<LoopRunsView isError outcome="all" runs={[]} />);
 

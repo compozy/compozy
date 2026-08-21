@@ -16,6 +16,16 @@ const meta: Meta<typeof LoopRunsView> = {
 export default meta;
 type Story = StoryObj<typeof meta>;
 
+/**
+ * When the degraded read landed, near the board's staged 40s.
+ *
+ * Stamped once when the module loads rather than on every render: a pinned ISO
+ * would age into "3w ago" and reading the clock during render is impure. Each
+ * capture navigates to a fresh page, so the sentence lands within seconds of the
+ * staged window.
+ */
+const STALE_READ_AT = new Date(Date.now() - 40_000).toISOString();
+
 function RunsHarness({
   outcome = "all",
   runs = loopRunFixtures,
@@ -30,6 +40,11 @@ function RunsHarness({
       <div className="mx-auto max-w-[1320px]">
         <LoopRunsView
           isReconnecting={isReconnecting}
+          lastReadAt={isReconnecting ? STALE_READ_AT : undefined}
+          // The host wires both branches (`loop-runs-location.tsx`): browse the
+          // catalog when nothing has ever run, clear the filter otherwise. A
+          // story that omitted it captured an empty state with no action at all.
+          onEmptyAction={() => undefined}
           onRetry={() => undefined}
           outcome={outcome}
           runs={runs}

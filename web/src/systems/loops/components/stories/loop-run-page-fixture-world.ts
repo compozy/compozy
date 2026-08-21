@@ -16,14 +16,21 @@ import type {
 /** Shared story data for the bundled agent-authored review Loop. */
 
 /**
- * The story clock, pinned.
+ * The story clock: one instant per load, and every fixture offset from it.
  *
- * `Date.now()` here made every fixture with a fixed timestamp drift a little
- * further from the run it belonged to on each passing day, and turned every
- * elapsed reading in a visual-contract capture into a value that changes
- * between runs. One fixed instant is what makes two captures comparable.
+ * A literal instant was pinned here to stop elapsed readings drifting between
+ * captures. It achieved the opposite. Projections take `nowMs: STORY_NOW`, but
+ * the components render relative time against the wall clock, so the two
+ * disagreed by however long ago the literal was written — every beat in every
+ * visual-contract capture read "1d ago", and a retry scheduled two minutes into
+ * the future read "next 1d ago", which is not a thing that can happen.
+ *
+ * Stamping once at module load keeps what pinning was for — every offset in the
+ * world is authored against this one instant, so a scenario is internally
+ * ordered and two captures in a session are identical — and makes the relative
+ * readings true. It also stops the drift growing by a day every day.
  */
-export const STORY_NOW = Date.UTC(2026, 7, 19, 18, 45, 0);
+export const STORY_NOW = Date.now();
 
 /** The one run every register and visual-contract fixture stages. */
 export const STORY_RUN_ID = "r-7c4e19";

@@ -8,6 +8,7 @@ import type {
   LoopGateDecision,
 } from "../../lib/loop-events";
 import type { LoopNodeLifecycle } from "../../lib/loop-node-lifecycle";
+import { humanizeLoopNodeId } from "../../lib/loop-node-labels";
 import type { LoopRequestView } from "../../lib/loop-request-model";
 import type { LoopRunRecord } from "../../types";
 import { LoopSection } from "../loop-section";
@@ -98,10 +99,19 @@ export function LoopRunNeedsYouCard({
   if (!showApproval && quarantinedNodes.length === 0 && requests.length === 0) return null;
   const gateId = request?.gateId ?? run.active_gate_id ?? "approve";
   const facts = request?.facts && request.facts.length > 0 ? request.facts : fallbackFacts;
-  const micro =
-    gateId === "budget"
-      ? `needs_approval · ${gateId} · on_exceeded: ${run.budget_on_exceeded}`
-      : `needs_approval · ${gateId}`;
+  // Who is asking, and from which round — the "who asks" half of the card's
+  // stated anatomy. This line used to read `needs_approval · <gate id>`, and
+  // `needs_approval · budget · on_exceeded: <enum>` on the budget gate: two wire
+  // enums and a machine id, printed in the default register that task_05
+  // requirement 1 forbids them from. The budget policy is not restated either —
+  // the usage rail already says it in a sentence (`loop-run-usage.ts:146`).
+  const gateName = request?.gateId ?? run.active_gate_id ?? "";
+  const micro = [
+    gateName === "" ? null : humanizeLoopNodeId(gateName),
+    run.generation > 0 ? `round ${run.generation}` : null,
+  ]
+    .filter((part): part is string => part !== null)
+    .join(" · ");
   const gistCount = (showApproval ? 1 : 0) + quarantinedNodes.length + requests.length;
   return (
     <LoopSection
@@ -171,7 +181,16 @@ export function LoopRunNeedsYouCard({
                   )
                 )}
               </div>
-              <div className="mt-3 font-mono text-pill-group-badge text-faint">{micro}</div>
+              {micro === "" ? null : (
+                // Plain language, so not the mono face the ids and fixed
+                // operational values wear.
+                <div
+                  className="mt-3 text-form-hint text-faint"
+                  data-testid="loop-run-needs-approval-origin"
+                >
+                  {micro}
+                </div>
+              )}
             </div>
           </div>
         ) : null}

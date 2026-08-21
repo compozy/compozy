@@ -13,6 +13,7 @@ import {
 } from "./loop-request-vocabulary";
 import type { LoopRequest, LoopRunStatus } from "../types";
 import { isTerminalLoopStatus } from "./loop-formatters";
+import { humanizeLoopNodeId } from "./loop-node-labels";
 
 const NEAR_EXPIRY_WINDOW_MS = 60 * 60 * 1000;
 
@@ -30,6 +31,8 @@ export interface LoopRequestView {
   decisions: LoopRequestDecision[];
 
   laneLabel: string;
+  /** Which step is asking, and from which round. */
+  originLabel: string;
   expiry: LoopRequestExpiry | null;
 
   resolution: LoopRequestResolution | null;
@@ -100,6 +103,24 @@ function resolutionOf(request: LoopRequest): LoopRequestResolution | null {
   };
 }
 
+/**
+ * Who is asking, and from where.
+ *
+ * `_uiux.md` requires the needs-you card to say "what is asked, who asks,
+ * choices, expiry", and the card said everything but who — the asking step and
+ * its round were on the wire and never rendered. The step id is humanised
+ * because this card is in the default read, where the same rule keeps machine
+ * ids out. The request kind stays off this line: `LOOP_REQUEST_KIND_TITLE`
+ * already says it in words above, and the raw enum is exactly what the copy
+ * rule bans.
+ */
+function originLabelOf(request: LoopRequest): string {
+  const parts: string[] = [];
+  if (request.node_id) parts.push(humanizeLoopNodeId(request.node_id));
+  if (request.generation > 0) parts.push(`round ${request.generation}`);
+  return parts.join(" · ");
+}
+
 export function projectLoopRequest(
   request: LoopRequest,
   { nowMs, runStatus }: { nowMs: number; runStatus?: LoopRunStatus }
@@ -123,6 +144,7 @@ export function projectLoopRequest(
     isAnswerable,
     decisions: request.decisions.filter(isLoopRequestDecision),
     laneLabel: request.item_index > 0 ? `lane ${request.item_index}` : "",
+    originLabel: originLabelOf(request),
     expiry,
     resolution: state === "pending" ? null : resolutionOf(request),
   };

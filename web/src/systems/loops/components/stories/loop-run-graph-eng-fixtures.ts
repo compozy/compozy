@@ -16,7 +16,11 @@ import {
   releaseTrainRunDetail,
 } from "../../mocks";
 import type { LoopRunDetail, LoopRunEventFrame, LoopRequest } from "../../types";
-import { type StoryVerdict, briefingFor } from "./loop-run-read-builders";
+import {
+  type StoryVerdict,
+  briefingFor,
+  makeTimelineEntry as entry,
+} from "./loop-run-read-builders";
 import type { LoopRunStoryScenario } from "./loop-run-scenario-types";
 import { createFrameFactory } from "./loop-run-page-fixture-world";
 
@@ -168,9 +172,31 @@ export function laneRequestsScenario(): LoopRunStoryScenario {
   };
 }
 
+/**
+ * The fork's own history, which is not the same as its lineage.
+ *
+ * `run_forked` is appended to the *source* run
+ * (`global_db_loop_timetravel_create.go:241` writes it against `source.ID`), so
+ * a forked child never carries that beat and a fixture that staged one on this
+ * run would be inventing an event. The child's story is its own beats; the
+ * "forked from" side is served on the run record and rendered by
+ * `LoopRunLineageSection`. Staging nothing left the pane reading "Nothing has
+ * happened in this run yet." over a run that had plainly run.
+ */
+function forkedRunTimeline() {
+  return [
+    entry(14, "node_running", "Step confirm-rollout running", {
+      generation: 2,
+      node_id: "confirm-rollout",
+    }),
+    entry(11, "node_succeeded", "Step services succeeded", { generation: 2, node_id: "services" }),
+    entry(8, "generation_started", "Round 2 started", { generation: 2 }),
+  ];
+}
+
 export function forkedRunScenario(): LoopRunStoryScenario {
   const frame = createFrameFactory(GRAPH_ENG_FORK_RUN_ID);
-  return fromRunDetail(
+  const scenario = fromRunDetail(
     releaseTrainForkRunDetail,
     [frame("generation_started", 6, { generation: 2, parent_generation: 1, origin: "fork_seed" })],
     {
@@ -179,4 +205,5 @@ export function forkedRunScenario(): LoopRunStoryScenario {
       detail: "The original run is untouched; this one carries the changed input.",
     }
   );
+  return { ...scenario, timeline: forkedRunTimeline() };
 }

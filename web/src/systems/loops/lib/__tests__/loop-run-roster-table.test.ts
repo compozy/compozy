@@ -92,6 +92,25 @@ describe("buildRosterTable", () => {
     expect(row.durationMs).toBeNull();
   });
 
+  // The crash-interrupted contract row (VC-31) is about exactly this: the daemon
+  // restarted mid-step, nothing about the timing survived, and the roster used to
+  // answer "not started" about a step that had plainly run.
+  it("Should say unknown, not not-started, when a step that ran kept no timing", () => {
+    for (const state of ["succeeded", "failed", "running", "canceled"] as const) {
+      const [row] = build([node({ state, started_at: null, ended_at: null })]).rows;
+
+      expect(row.progressState).toBe("unknown");
+      expect(row.durationMs).toBeNull();
+    }
+  });
+
+  it("Should still read a declined branch as never started", () => {
+    // `not_taken` is durable route evidence, not a missing measurement.
+    const [row] = build([node({ state: "not_taken", started_at: null, ended_at: null })]).rows;
+
+    expect(row.progressState).toBe("not-started");
+  });
+
   it("Should measure a settled step by its own span, not by the clock", () => {
     const [row] = build([node()]).rows;
 

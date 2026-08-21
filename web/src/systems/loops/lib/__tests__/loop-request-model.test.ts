@@ -113,6 +113,31 @@ describe("projectLoopRequest", () => {
     ).toBe("lane 2");
   });
 
+  // "What is asked, who asks, choices, expiry" is the card's stated anatomy, and
+  // "who asks" was the one part never rendered even though the wire carried it.
+  it("Should name the step that is asking and the round it is asking from", () => {
+    expect(projectLoopRequest(pendingReviewRequest, { nowMs: NOW }).originLabel).toBe(
+      "apply migration · round 3"
+    );
+  });
+
+  it("Should keep the asking step's machine id out of the default read", () => {
+    const view = projectLoopRequest(
+      { ...pendingAskRequest, node_id: "choose_reviewer_batch" },
+      { nowMs: NOW }
+    );
+    expect(view.originLabel).toContain("choose reviewer batch");
+    expect(view.originLabel).not.toContain("_");
+  });
+
+  it("Should say nothing about origin when the request carries neither step nor round", () => {
+    const view = projectLoopRequest(
+      { ...pendingAskRequest, node_id: "", generation: 0 },
+      { nowMs: NOW }
+    );
+    expect(view.originLabel).toBe("");
+  });
+
   it("Should key a request by generation, node, and lane so refreshes keep identity", () => {
     expect(loopRequestKey(pendingReviewRequest)).toBe("3:apply-migration:0");
     expect(loopRequestKey({ ...pendingReviewRequest, generation: 2, item_index: 4 })).toBe(

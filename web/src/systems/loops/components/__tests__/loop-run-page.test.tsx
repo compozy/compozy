@@ -4,6 +4,7 @@ import { describe, expect, it, vi } from "vitest";
 
 import { loopNodeLifecycleFixture } from "../../testing/loop-node-lifecycle-fixture";
 import type { LoopRosterTableModel } from "../../lib/loop-run-roster-table";
+import type { LoopRunStoryScenario } from "../stories/loop-run-scenario-types";
 
 vi.mock("@tanstack/react-router", async importOriginal => {
   const actual = await importOriginal<typeof import("@tanstack/react-router")>();
@@ -30,7 +31,9 @@ const { LoopRunDag } = await import("../run-page/inspect/loop-run-dag");
 const { LoopRunStory } = await import("../run-page/loop-run-story");
 const { LoopNodeRoster } = await import("../run-page/inspect/loop-node-roster");
 const { LoopRunArtifactList } = await import("../run-page/loop-run-artifact-list");
-const { registerPartialOutputsScenario } = await import("../stories/loop-run-register-fixtures");
+const registerFixtures = await import("../stories/loop-run-register-fixtures");
+const visualContractFixtures = await import("../stories/loop-run-vc-fixtures");
+const { registerPartialOutputsScenario } = registerFixtures;
 const { buildScenarioProps } = await import("../stories/loop-run-scenario-props");
 const { LoopRunNeedsYouCard } = await import("../run-page/loop-run-needs-you-card");
 const { LOOP_NEEDS_YOU_ANCHOR_ID, LoopRunBriefing } = await import("../run-page/loop-run-briefing");
@@ -193,7 +196,10 @@ describe("LoopRunNeedsYouCard", () => {
     expect(onDecision).toHaveBeenNthCalledWith(1, "approve", "budget");
     expect(onDecision).toHaveBeenNthCalledWith(2, "request_changes", "budget");
     expect(onDecision).toHaveBeenNthCalledWith(3, "reject", "budget");
-    expect(screen.getByText(/on_exceeded: halt/)).toBeInTheDocument();
+    // The streamed gate is what the card names, and it names it in words. This
+    // assertion used to read `on_exceeded: halt` — it was pinning a wire enum
+    // into the default register rather than checking the gate travelled.
+    expect(screen.getByTestId("loop-run-needs-approval-origin")).toHaveTextContent("budget");
   });
 
   it("Should stand in with the usage snapshot when the payload has no facts", () => {
@@ -211,6 +217,49 @@ describe("LoopRunNeedsYouCard", () => {
     const facts = screen.getAllByTestId("loop-run-fact");
     expect(facts).toHaveLength(2);
     expect(facts[0]).toHaveTextContent("45m 00s of 45m");
+  });
+
+  // task_05 requirement 1 bans machine ids and raw enums from the default
+  // register, and this line printed two of them — `needs_approval · <gate id>`,
+  // and `on_exceeded: <enum>` on top of that when the gate was the budget.
+  it("Should name the asking gate in words instead of the wire enum", () => {
+    render(
+      <LoopRunNeedsYouCard
+        run={run({ status: "needs-approval", active_gate_id: "finalize_round", generation: 2 })}
+        request={null}
+        fallbackFacts={[]}
+        onDecision={vi.fn()}
+      />
+    );
+
+    const origin = screen.getByTestId("loop-run-needs-approval-origin");
+    expect(origin).toHaveTextContent("finalize round · round 2");
+    const card = screen.getByTestId("loop-run-needs-approval");
+    expect(card).not.toHaveTextContent("needs_approval");
+    expect(card).not.toHaveTextContent("finalize_round");
+  });
+
+  it("Should not restate the budget policy the usage rail already spells out", () => {
+    render(
+      <LoopRunNeedsYouCard
+        run={run({
+          status: "needs-approval",
+          active_gate_id: "budget",
+          budget_on_exceeded: "escalate",
+          generation: 2,
+        })}
+        request={null}
+        fallbackFacts={[]}
+        onDecision={vi.fn()}
+      />
+    );
+
+    const card = screen.getByTestId("loop-run-needs-approval");
+    expect(card).not.toHaveTextContent("on_exceeded");
+    expect(card).not.toHaveTextContent("escalate");
+    expect(screen.getByTestId("loop-run-needs-approval-origin")).toHaveTextContent(
+      "budget · round 2"
+    );
   });
 
   it("Should render a quarantine row without the approval block", () => {
@@ -1206,6 +1255,41 @@ describe("run-page reads that failed", () => {
     );
     expect(screen.queryByTestId("loop-node-roster-empty")).toBeNull();
     expect(screen.getByTestId("loop-node-roster-error")).toHaveTextContent("could not be read");
+  });
+});
+
+// A staged scenario is evidence about the production reads, so its two reads
+// have to agree the way the daemon's do. They did not: the briefing was built
+// independently of the run record and re-synchronised on status and progress
+// alone, which left the spend free to drift — every register capture showed
+// 82.4k tokens over a run recording 68k, and every one of those captures passed
+// its visual contract. Sweeping the module rather than a list means a scenario
+// added later cannot quietly opt out.
+describe("staged register scenarios", () => {
+  const scenarios = [
+    ...Object.entries(registerFixtures),
+    ...Object.entries(visualContractFixtures),
+  ].filter(
+    (candidate): candidate is [string, () => LoopRunStoryScenario] =>
+      /^(register|vc)\w+Scenario$/.test(candidate[0]) && typeof candidate[1] === "function"
+  );
+
+  it("Should stage at least every scenario the visual contract captures", () => {
+    // A filter that silently matched nothing would make every case below vacuous.
+    expect(scenarios.length).toBeGreaterThanOrEqual(18);
+  });
+
+  it.each(scenarios)("Should keep %s's briefing agreeing with its run", (_name, build) => {
+    const { run, briefing } = build();
+
+    expect(briefing.run_id).toBe(run.id);
+    expect(briefing.status).toBe(run.status);
+    expect(briefing.progress).toEqual(run.progress);
+    // Tokens are the run record's own number, never a second opinion about it.
+    expect(briefing.usage.tokens).toBe(run.tokens_used);
+    // A budget percentage over a run with no budget would be a division by zero
+    // rendered as a fact.
+    expect(briefing.usage.budget_used_pct === undefined).toBe(run.budget_tokens === 0);
   });
 });
 

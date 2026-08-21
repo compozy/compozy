@@ -8,6 +8,7 @@ import {
   Button,
   cn,
   Empty,
+  formatRelativeTime,
   Skeleton,
   SkeletonRows,
 } from "@compozy/ui";
@@ -28,6 +29,14 @@ export interface LoopRunsViewProps extends Omit<ComponentProps<"div">, "children
   onRetry?: () => void;
   /** Runs the empty state's action (`Browse loops` / `Clear filter`). */
   onEmptyAction?: () => void;
+  /**
+   * When the rows below were last read, as an ISO timestamp.
+   *
+   * A degraded transport that says "the list below is the last read" without
+   * saying how old it is leaves the reader to assume it is current — which is
+   * the one thing the truthful-UI rule forbids a stale view from doing.
+   */
+  lastReadAt?: string;
 }
 
 /** Which transport failed. They are told apart because they recover differently. */
@@ -47,19 +56,24 @@ type DegradedCause = "read-failed" | "reconnecting";
 function DegradedNotice({
   cause,
   hasRows,
+  lastReadAt,
   onRetry,
 }: {
   cause: DegradedCause;
   hasRows: boolean;
+  lastReadAt?: string;
   onRetry?: () => void;
 }) {
   const failed = cause === "read-failed";
+  // Only ages a read that is actually on screen; "no runs read yet" has no age.
+  const age = hasRows && lastReadAt ? formatRelativeTime(lastReadAt) : null;
+  const retained = age ? `, from ${age}` : "";
   const body = failed
     ? hasRows
-      ? "This workspace's runs could not be read. The list below is the last read that worked."
+      ? `This workspace's runs could not be read. The list below is the last read that worked${retained}.`
       : "This workspace's runs could not be read."
     : hasRows
-      ? "Reconnecting to the daemon. The list below is the last read."
+      ? `Reconnecting to the daemon. The list below is the last read${retained}.`
       : "Reconnecting to the daemon. No runs have been read yet.";
   return (
     <Alert
@@ -104,6 +118,7 @@ export function LoopRunsView({
   isReconnecting = false,
   onRetry,
   onEmptyAction,
+  lastReadAt,
   className,
   ...props
 }: LoopRunsViewProps) {
@@ -125,7 +140,9 @@ export function LoopRunsView({
       data-loaded-count={roster.loadedCount}
       {...props}
     >
-      {cause ? <DegradedNotice cause={cause} hasRows={hasRows} onRetry={onRetry} /> : null}
+      {cause ? (
+        <DegradedNotice cause={cause} hasRows={hasRows} lastReadAt={lastReadAt} onRetry={onRetry} />
+      ) : null}
       <RosterBody
         degraded={degraded}
         onEmptyAction={onEmptyAction}

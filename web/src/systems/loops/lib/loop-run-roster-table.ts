@@ -27,8 +27,14 @@ import { deriveCostEstimate } from "./loop-run-usage";
  * A node that started and has not ended is *running*, and printing "not started"
  * against it — the single most common state on a live run — inverts the one fact
  * the reader came for. Only a node with no start at all has not started.
+ *
+ * And only one the run has not reached yet. A step that succeeded, failed or was
+ * interrupted has plainly started; if no timing survived, the honest word is
+ * `unknown`, which is what the crash-interrupted contract row is about — the
+ * daemon restarted mid-step, the step never wrote its end, and unknown renders
+ * as unknown rather than as "not started".
  */
-export type LoopRosterProgressState = "settled" | "in-progress" | "not-started";
+export type LoopRosterProgressState = "settled" | "in-progress" | "not-started" | "unknown";
 
 export interface LoopRosterRow {
   key: string;
@@ -79,10 +85,14 @@ function parseTime(value: string | null | undefined): number | null {
 function timingOf(
   startedAt: string | null | undefined,
   endedAt: string | null | undefined,
-  nowMs: number
+  nowMs: number,
+  state: string
 ): RosterTiming {
   const start = parseTime(startedAt);
-  if (start === null) return { progressState: "not-started", durationMs: null };
+  if (start === null) {
+    const reached = state !== "pending" && state !== "queued" && state !== "not_taken";
+    return { progressState: reached ? "unknown" : "not-started", durationMs: null };
+  }
   const end = parseTime(endedAt);
   if (end !== null) return { progressState: "settled", durationMs: Math.max(end - start, 0) };
   // Elapsed, not a frozen zero: a step that has been running eleven minutes and a
@@ -191,7 +201,7 @@ export function buildRosterTable({
   }
 
   const rowFor = (node: LoopRosterNode, isBranch: boolean): LoopRosterRow => {
-    const timing = timingOf(node.started_at, node.ended_at, nowMs);
+    const timing = timingOf(node.started_at, node.ended_at, nowMs, node.state);
     const authored = graph?.nodes.find(entry => entry.id === node.node_id);
     const tokens = node.usage?.tokens ?? null;
     return {
@@ -226,7 +236,11 @@ export function buildRosterTable({
     // The container has no roster row of its own — only a rollup — so its state
     // and its span are the ones its workers put it in.
     const span = branchSpan(branches);
-    const timing = timingOf(span.startedAt, span.endedAt, nowMs);
+    const containerState = loopFanOutContainerState(
+      branches.map(branch => branch.state),
+      rollup
+    );
+    const timing = timingOf(span.startedAt, span.endedAt, nowMs, containerState);
     const tokens = branches.reduce((total, branch) => total + (branch.usage?.tokens ?? 0), 0);
     const containerRow: LoopRosterRow = {
       key: `${generation}:${nodeId}:container`,
@@ -234,12 +248,7 @@ export function buildRosterTable({
       isBranch: false,
       kindLabel: loopDagKindLabel(graph?.nodes.find(entry => entry.id === nodeId)),
       fanOutLabel: `${rollup.total} ${rollup.total === 1 ? "worker" : "workers"}`,
-      chip: loopRosterStateChip(
-        loopFanOutContainerState(
-          branches.map(branch => branch.state),
-          rollup
-        )
-      ),
+      chip: loopRosterStateChip(containerState),
       generation,
       itemIndex: 0,
       attemptLabel: "—",

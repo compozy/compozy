@@ -1,10 +1,12 @@
 import { useState } from "react";
+import { MotionConfig } from "motion/react";
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { expect, userEvent, within } from "storybook/test";
 
 import { StoryTopbarHost } from "@/storybook/story-layout";
 
 import { type LoopNodeSelection, LoopRunPageBody } from "../../index";
+import { registerDeepAndWideScenario } from "./loop-run-deep-graph-fixtures";
 import { buildScenarioProps } from "./loop-run-scenario-props";
 import type { LoopRunStoryScenario } from "./loop-run-scenario-types";
 import {
@@ -53,6 +55,11 @@ function RegisterPage({
             {...buildScenarioProps(scenario)}
             inspect={{ open: inspectOpen, onOpenChange: setInspectOpen }}
             nodeSelection={nodeSelection}
+            // `use-loop-run-timetravel` wires both on the real page (US-013:
+            // "Compare/Fork preserved"), so a story that omitted them captured a
+            // generation history the shipped surface does not have.
+            onCompareGeneration={() => undefined}
+            onForkGeneration={() => undefined}
             onNodeSelectionChange={setNodeSelection}
             prunedSessionIds={prunedSessionIds}
           />
@@ -111,9 +118,11 @@ export const GraphFailedAndQuarantined: Story = {
   play: openLane("graph"),
 };
 
-// VC-22 · a wide graph stays navigable rather than clipping.
+// VC-22 · deep as well as wide: the tail sits outside the lane's box and the
+// lane stays navigable to it. Staging the wide scenario here made this row a
+// duplicate of VC-21.
 export const GraphDeepAndWide: Story = {
-  render: () => <RegisterPage scenario={registerWideFanOutScenario()} />,
+  render: () => <RegisterPage scenario={registerDeepAndWideScenario()} />,
   play: openLane("graph"),
 };
 
@@ -128,11 +137,23 @@ export const NodePanelOpen: Story = {
   },
 };
 
-// VC-24 · reduced motion: the edge pulse is unmounted, not paused.
+/**
+ * VC-24 · reduced motion: the edge pulse is unmounted, not paused.
+ *
+ * `MotionConfig` is what actually reduces it. `useReducedMotionConfig` resolves
+ * against motion's own context first and the media query second, and the
+ * Storybook `globals.reducedMotion` this story used to rely on moves neither —
+ * a DOM probe showed the pulse still mounted under it, so the row's evidence was
+ * the animated state labelled as the reduced one.
+ */
 export const GraphReducedMotion: Story = {
   parameters: { reducedMotion: "reduce" },
   globals: { reducedMotion: "reduce" },
-  render: () => <RegisterPage scenario={registerRunningScenario()} />,
+  render: () => (
+    <MotionConfig reducedMotion="always">
+      <RegisterPage scenario={registerRunningScenario()} />
+    </MotionConfig>
+  ),
   play: openLane("graph"),
 };
 

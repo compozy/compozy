@@ -1,4 +1,4 @@
-import type { LoopBriefing, LoopRequest } from "../../types";
+import type { LoopRequest, LoopRunRecord } from "../../types";
 import {
   registerDoneScenario,
   registerFailedScenario,
@@ -7,7 +7,8 @@ import {
 } from "./loop-run-register-fixtures";
 import { STORY_RUN_ID, reviewAndFixRun } from "./loop-run-page-fixture-world";
 import {
-  asRunStatus,
+  type StoryVerdict,
+  briefingFor,
   makeGeneration as generation,
   makeRosterNode as rosterNode,
   storyAt,
@@ -24,49 +25,59 @@ import type { LoopRunStoryScenario } from "./loop-run-scenario-types";
  */
 
 /**
- * A briefing override that keeps the run beside it honest.
+ * Restage a scenario's run, and derive its briefing from the result.
  *
- * `LoopRunPageBody` reads `run.status` for the live/terminal split, so a
- * scenario that changes only the briefing stages a contradiction: a "done"
- * verdict over a run the page still paints as running.
+ * The previous helper went the other way — it merged briefing overrides, cast
+ * the result, and rebuilt the run from the briefing — and every scenario that
+ * bypassed it by assigning `run:` directly kept the briefing it inherited. That
+ * is how VC-27 came to photograph a calm "Reviewing the second draft" over a
+ * canceled run and VC-31 a "Done" verdict over a failed one. Deriving forward
+ * from the run makes the disagreement unrepresentable rather than discouraged.
  */
-function withBriefing(
+function restage(
   scenario: LoopRunStoryScenario,
-  overrides: Partial<LoopBriefing>,
-  runOverrides: Partial<Parameters<typeof reviewAndFixRun>[0]> = {}
+  runOverrides: Partial<LoopRunRecord>,
+  verdict: StoryVerdict
 ): LoopRunStoryScenario {
-  const briefing = { ...scenario.briefing, ...overrides } as LoopBriefing;
-  return {
-    ...scenario,
-    briefing,
-    run: reviewAndFixRun({
-      ...scenario.run,
-      status: asRunStatus(briefing.status, scenario.run.status),
-      generation: briefing.progress.round,
-      progress: briefing.progress,
-      ...runOverrides,
-    }),
-  };
+  const run = reviewAndFixRun({ ...scenario.run, ...runOverrides });
+  return { ...scenario, run, briefing: briefingFor(run, verdict) };
 }
+
+/** The calm running verdict the register world serves, restated where inherited. */
+const RUNNING_VERDICT: StoryVerdict = {
+  tone: "ok",
+  headline: "Reviewing the second draft",
+  detail: "Nothing needs you. Two of four steps are done in round 2.",
+  usage: { cost_usd: 0.31, duration: "9m40s" },
+};
 
 /** VC-02: admitted but not started — the cap is the reason, and it says so. */
 export function vcQueuedScenario(): LoopRunStoryScenario {
-  return withBriefing(registerRunningScenario(), {
-    status: "queued",
-    tone: "ok",
-    headline: "Waiting to start — one other run of this loop is already going",
-    detail: "This loop admits one run at a time.",
-    progress: { round: 1, steps_done: 0, steps_total: 4 },
-  });
+  return restage(
+    registerRunningScenario(),
+    {
+      status: "queued",
+      generation: 1,
+      progress: { round: 1, steps_done: 0, steps_total: 4 },
+      // Admitted and not started: nothing has been spent yet.
+      tokens_used: 0,
+    },
+    {
+      tone: "ok",
+      headline: "Waiting to start — one other run of this loop is already going",
+      detail: "This loop admits one run at a time.",
+    }
+  );
 }
 
 /** VC-12: the budget is nearly spent, and the rail warns before it stops. */
 export function vcBudgetWarningScenario(): LoopRunStoryScenario {
-  const scenario = registerRunningScenario();
-  return withBriefing(
-    scenario,
-    { usage: { tokens: 468_000, cost_usd: 2.34, budget_used_pct: 93.6, duration: "19m40s" } },
-    { tokens_used: 468_000, budget_tokens: 500_000 }
+  // The percentage is arithmetic on the record, not a second opinion about it:
+  // 468k of 500k is the 93.6% the rail warns on.
+  return restage(
+    registerRunningScenario(),
+    { tokens_used: 468_000, budget_tokens: 500_000 },
+    { ...RUNNING_VERDICT, usage: { cost_usd: 2.34, duration: "19m40s" } }
   );
 }
 
@@ -91,20 +102,25 @@ export function vcRequestExpiryScenario(): LoopRunStoryScenario {
     expires_at: storyAt(-4),
   };
   return {
-    ...withBriefing(scenario, {
-      headline: 'The question on "fix_batch" expires in 4m',
-      detail: "Nothing is retried automatically; an expired question simply closes.",
-      blockers: [
-        {
-          kind: "request",
-          node_id: "fix_batch",
-          item_index: 0,
-          waiting_since: storyAt(3),
-          expires_at: storyAt(-4),
-          unblocker: `compozy loop respond ${STORY_RUN_ID} --node fix_batch`,
-        },
-      ],
-    }),
+    ...restage(
+      scenario,
+      {},
+      {
+        tone: "needs_you",
+        headline: "The question on the fix batch step expires in 4m",
+        detail: "Nothing is retried automatically; an expired question simply closes.",
+        blockers: [
+          {
+            kind: "request",
+            node_id: "fix_batch",
+            item_index: 0,
+            waiting_since: storyAt(3),
+            expires_at: storyAt(-4),
+            unblocker: `compozy loop respond ${STORY_RUN_ID} --node fix_batch`,
+          },
+        ],
+      }
+    ),
     requests: [request],
   };
 }
@@ -156,10 +172,27 @@ export function vcFailedAndQuarantinedScenario(): LoopRunStoryScenario {
 
 /** VC-27: the loop's own strategy cancelled one step; an operator cancelled another. */
 export function vcCancelDispositionsScenario(): LoopRunStoryScenario {
-  const scenario = registerRunningScenario();
+  const scenario = restage(
+    registerRunningScenario(),
+    { status: "canceled" },
+    {
+      // `briefing.go` tones every non-failed terminal status `ok`; a cancellation
+      // is a decision, not a fault, and the neutral outcome pill carries it.
+      tone: "ok",
+      headline: "The run was stopped before it finished",
+      detail: "Two of four steps had settled in round 2.",
+      outcome: {
+        status: "canceled",
+        cause: "operator_cancel",
+        at: storyAt(3),
+        actor_kind: "operator",
+        actor_ref: "pedro",
+      },
+      usage: { cost_usd: 0.31, duration: "9m40s" },
+    }
+  );
   return {
     ...scenario,
-    run: reviewAndFixRun({ status: "canceled" }),
     rosterNodes: [
       rosterNode("review", "succeeded", { session_id: "ses-77120a3f" }),
       rosterNode("fix_batch", "canceled", {
@@ -186,7 +219,27 @@ export function vcCancelDispositionsScenario(): LoopRunStoryScenario {
 
 /** VC-30: rounds with a score beside rounds the loop never scored. */
 export function vcGenerationHistoryScenario(): LoopRunStoryScenario {
-  const scenario = registerDoneScenario();
+  // Three generations means the run reached round 3; leaving the record at
+  // round 2 put "Rounds 2 / 3" in the rail above a history listing a round 3.
+  const scenario = restage(
+    registerDoneScenario(),
+    { generation: 3, progress: { round: 3, steps_done: 3, steps_total: 3 } },
+    {
+      tone: "ok",
+      headline: "The draft was rewritten and both review notes survived",
+      detail: "Three rounds, 18m12s.",
+      usage: { cost_usd: 0.87, duration: "18m12s" },
+      outcome: { status: "done", cause: "verified", at: storyAt(47) },
+      artifacts: [
+        {
+          name: "post-final.md",
+          output: "write_artifacts",
+          availability: "available",
+          ref: "sha256:2f81c4a9",
+        },
+      ],
+    }
+  );
   return {
     ...scenario,
     generations: [
@@ -227,10 +280,32 @@ export function vcGenerationHistoryScenario(): LoopRunStoryScenario {
 
 /** VC-31: the run died mid-round, and the round says so instead of settling. */
 export function vcCrashInterruptedScenario(): LoopRunStoryScenario {
-  const scenario = vcGenerationHistoryScenario();
+  const history = vcGenerationHistoryScenario();
+  // The daemon restarted inside round 2, so the run never reached round 3 and
+  // its verdict is `failed` — the previous fixture kept the done briefing and
+  // captured a "Done" strip over a failed run.
+  const scenario = restage(
+    history,
+    { status: "failed", generation: 2, progress: { round: 2, steps_done: 1, steps_total: 3 } },
+    {
+      tone: "failed",
+      headline: "The daemon restarted while round 2 was still running",
+      detail: "The step that was in flight never wrote its end, so its duration is unknown.",
+      outcome: { status: "failed", cause: "daemon_restart", at: storyAt(3) },
+    }
+  );
   return {
     ...scenario,
-    run: reviewAndFixRun({ status: "failed" }),
+    generations: [
+      // Round 1 settled and keeps its verdict.
+      history.generations[0] as (typeof history.generations)[number],
+      // Round 2 has no verdict, because the gate never got to write one. Keeping
+      // the history's `approved` here printed an `accepted` pill beside the words
+      // "interrupted before it finished" — the exact back-filled guess the
+      // reference's own spec note forbids. The step that did settle keeps its
+      // result; the one in flight recorded nothing.
+      generation(2, { outputs: [{ node_id: "review", status: "succeeded", generation: 2 }] }),
+    ],
     rosterNodes: [
       rosterNode("review", "succeeded", { generation: 1, usage: { tokens: 24_100 } }),
       // Started, never ended, on a run that is over: interrupted, not settled.

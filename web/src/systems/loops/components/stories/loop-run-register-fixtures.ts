@@ -1,6 +1,13 @@
-import type { LoopBriefing, LoopFanoutRollup, LoopRunRecord, LoopTimelineEntry } from "../../types";
+import type {
+  LoopBriefing,
+  LoopFanoutRollup,
+  LoopRunArtifact,
+  LoopRunRecord,
+  LoopTimelineEntry,
+} from "../../types";
 import {
-  makeBriefing,
+  type StoryVerdict,
+  briefingFor,
   makeRosterNode as node,
   makeTimelineEntry as entry,
   storyAt,
@@ -40,16 +47,37 @@ interface StoryReadState {
   status: LoopRunRecord["status"];
   /** The progress both reads agree on. */
   progress: LoopBriefing["progress"];
+  /** Spend the run record carries, when a scenario is about the spend. */
+  spend?: Pick<LoopRunRecord, "tokens_used" | "budget_tokens">;
 }
 
+/**
+ * The calm verdict the running world serves when nothing needs a person.
+ *
+ * `cost_usd` and `duration` are stated because the daemon computes them and the
+ * run record cannot; everything else about the spend is derived from the record.
+ */
+const RUNNING_VERDICT: StoryVerdict = {
+  tone: "ok",
+  headline: "Reviewing the second draft",
+  detail: "Nothing needs you. Two of four steps are done in round 2.",
+  usage: { cost_usd: 0.31, duration: "9m40s" },
+};
+
+/**
+ * One run record, one briefing derived from it.
+ *
+ * The briefing used to be built independently and then re-synchronised on
+ * `status` and `progress` alone, which left the spend free to disagree: every
+ * register capture showed 82.4k tokens over a run recording 68k. Deriving the
+ * briefing from the record removes the disagreement rather than patching it.
+ */
 function readState(
-  { status, progress }: StoryReadState,
-  briefingOverrides: Partial<LoopBriefing> = {}
+  { status, progress, spend }: StoryReadState,
+  verdict: StoryVerdict = RUNNING_VERDICT
 ): Pick<LoopRunStoryScenario, "run" | "briefing"> {
-  return {
-    run: reviewAndFixRun({ status, generation: progress.round, progress }),
-    briefing: makeBriefing({ status, progress, ...briefingOverrides }),
-  };
+  const run = reviewAndFixRun({ status, generation: progress.round, progress, ...spend });
+  return { run, briefing: briefingFor(run, verdict) };
 }
 
 const RUNNING: StoryReadState = {
@@ -63,17 +91,34 @@ function base(overrides: Partial<LoopRunStoryScenario> = {}): LoopRunStoryScenar
     definition: reviewAndFixDefinition,
     frames: [],
     generations: [],
+    // Timestamps and usage are not decoration: a settled node always carries
+    // them on the wire, and without them the roster printed "not started"
+    // beside a succeeded step and an empty spend column.
     rosterNodes: [
-      node("review", "succeeded", { session_id: "ses-77120a3f", cell_task_id: "task_review" }),
-      node("fix_batch", "running", { session_id: "ses-c3f00e42" }),
+      node("review", "succeeded", {
+        session_id: "ses-77120a3f",
+        cell_task_id: "task_review",
+        started_at: storyAt(14),
+        ended_at: storyAt(10),
+        usage: { tokens: 31_200 },
+      }),
+      node("fix_batch", "running", {
+        session_id: "ses-c3f00e42",
+        started_at: storyAt(3),
+        usage: { tokens: 12_400 },
+      }),
       node("collect_fixes", "pending"),
       node("write_artifacts", "pending"),
     ],
     rosterRollups: [],
+    // Titles are the daemon's own, verbatim: `timelineTitle` in
+    // `internal/loop/timeline.go` writes "Step <node_id> <state>" and
+    // "Round <n> started". A prettier fixture sentence would make every capture
+    // evidence about copy the shipped page cannot produce.
     timeline: [
-      entry(90, "node_running", "step fix_batch started"),
-      entry(84, "node_succeeded", "step review succeeded"),
-      entry(80, "generation_started", "round 2 started"),
+      entry(90, "node_running", "Step fix_batch running", { node_id: "fix_batch" }),
+      entry(84, "node_succeeded", "Step review succeeded", { node_id: "review" }),
+      entry(80, "generation_started", "Round 2 started"),
     ],
     ...overrides,
   };
@@ -112,44 +157,55 @@ export function registerNeedsYouScenario(): LoopRunStoryScenario {
   });
 }
 
-/** VC-04: a finished run leading with its outcome and what it produced. */
-export function registerDoneScenario(): LoopRunStoryScenario {
-  return base({
-    ...readState(
-      { status: "done", progress: { round: 2, steps_done: 4, steps_total: 4 } },
+/** The settled run both terminal scenarios stage, spend included. */
+const DONE: StoryReadState = {
+  status: "done",
+  progress: { round: 2, steps_done: 4, steps_total: 4 },
+  spend: { tokens_used: 214_500, budget_tokens: 0 },
+};
+
+/** The done verdict, differing only in what survived retention. */
+function doneVerdict(availability: LoopRunArtifact["availability"]): StoryVerdict {
+  return {
+    // `briefing.go` tones every non-failed terminal status `ok`.
+    tone: "ok",
+    headline: "The draft was rewritten and both review notes survived",
+    detail: "Two rounds, 18m12s.",
+    usage: { cost_usd: 0.87, duration: "18m12s" },
+    outcome: { status: "done", cause: "verified", at: storyAt(47) },
+    artifacts: [
       {
-        headline: "The draft was rewritten and both review notes survived",
-        detail: "Two rounds, 18m12s.",
-        outcome: { status: "done", cause: "verified", at: storyAt(47) },
-        artifacts: [
-          {
-            name: "post-final.md",
-            output: "write_artifacts",
-            availability: "available",
-            ref: "sha256:2f81c4a9",
-          },
-        ],
-      }
-    ),
-    rosterNodes: [
-      node("review", "succeeded"),
-      node("fix_batch", "succeeded"),
-      node("collect_fixes", "succeeded"),
-      node("write_artifacts", "succeeded"),
+        name: "post-final.md",
+        output: "write_artifacts",
+        availability,
+        // Pruned bytes have no digest left to cite.
+        ...(availability === "pruned" ? {} : { ref: "sha256:2f81c4a9" }),
+      },
     ],
-  });
+  };
 }
 
-/** VC-09: retention removed the bytes; the name and the fact survive. */
+const DONE_ROSTER = [
+  node("review", "succeeded"),
+  node("fix_batch", "succeeded"),
+  node("collect_fixes", "succeeded"),
+  node("write_artifacts", "succeeded"),
+];
+
+/** VC-04: a finished run leading with its outcome and what it produced. */
+export function registerDoneScenario(): LoopRunStoryScenario {
+  return base({ ...readState(DONE, doneVerdict("available")), rosterNodes: DONE_ROSTER });
+}
+
+/**
+ * VC-09: retention removed the bytes; the name and the fact survive.
+ *
+ * Restaged rather than patched on top of the done briefing: the previous
+ * `as LoopBriefing` cast switched type checking off on the one object that is
+ * supposed to prove a capture matches the generated read contract.
+ */
 export function registerPrunedArtifactScenario(): LoopRunStoryScenario {
-  const done = registerDoneScenario();
-  return {
-    ...done,
-    briefing: {
-      ...done.briefing!,
-      artifacts: [{ name: "post-final.md", output: "write_artifacts", availability: "pruned" }],
-    } as LoopBriefing,
-  };
+  return base({ ...readState(DONE, doneVerdict("pruned")), rosterNodes: DONE_ROSTER });
 }
 
 /**
@@ -303,8 +359,15 @@ export function registerRetryingScenario(): LoopRunStoryScenario {
 export function registerNoStepsScenario(): LoopRunStoryScenario {
   return base({
     ...readState(
-      { status: "no-op", progress: { round: 1, steps_done: 0, steps_total: 0 } },
       {
+        status: "no-op",
+        progress: { round: 1, steps_done: 0, steps_total: 0 },
+        spend: { tokens_used: 0, budget_tokens: 0 },
+      },
+      {
+        // A run that executed nothing is still tone `ok` — `briefing.go` reserves
+        // `failed` for failed/exhausted/stalled.
+        tone: "ok",
         headline: "Nothing to do — the event never arrived",
         detail: "The run watched for 24h and settled without executing a step.",
         outcome: { status: "no-op", cause: "no_work", at: storyAt(45) },
@@ -326,37 +389,82 @@ export function registerNoStepsScenario(): LoopRunStoryScenario {
 export const LONG_STORY_EVENT_COUNT = 620;
 /** One page of the durable timeline, matching `TIMELINE_PAGE_LIMIT`. */
 export const LONG_STORY_PAGE_SIZE = 50;
+/**
+ * The run this one forked to — the set's second canonical run id.
+ *
+ * `DESIGN-NOTES.md` fixes the data story at exactly two runs and forbids
+ * minting a third, so the fork points at the one that already exists.
+ */
+export const LONG_STORY_FORK_RUN_ID = "looprun-77aa01b2c3d4e5f6";
+
+/** The steps a round cycles through, so a page of history reads as a run. */
+const LONG_STORY_NODES = ["review", "fix_batch", "collect_fixes", "write_artifacts"] as const;
+
+/**
+ * How many raw events the one folded heartbeat beat stands for.
+ *
+ * `coalesceTimeline` collapses consecutive heartbeat-class events — `token_tick`,
+ * `runtime_applied`, `predicate_diagnostic` — into one entry spanning
+ * `first_seq..seq`, and serves only that entry. Staging the fold rather than the
+ * raw ticks is what makes the story pane show a coalesced beat at all; a fixture
+ * of 600 individual step events produced a wall of identical rows and never
+ * exercised the count once.
+ */
+const HEARTBEAT_SPAN = 142;
+
+/**
+ * Which beat is the folded one, counting from the newest.
+ *
+ * Deep enough that reaching it proves the story paged, close enough to the
+ * paging control that one frame can hold both — the contract row is about a
+ * long story that stays navigable, and evidence for that has to show the fold
+ * and the way back in the same viewport.
+ */
+const HEARTBEAT_INDEX = 93;
+
+function longStoryRound(seq: number): number {
+  return seq > 400 ? 3 : seq > 200 ? 2 : 1;
+}
+
+function longStoryBeat(seq: number, index: number): LoopTimelineEntry {
+  const generation = longStoryRound(seq);
+  const at = storyAt(index);
+  if (seq === 400 || seq === 200) {
+    return entry(seq, "generation_started", `Round ${generation} started`, { at });
+  }
+  if (seq === 404) {
+    return entry(seq, "gate_verdict", 'Approval "quality": approved', { generation, at });
+  }
+  const nodeId = LONG_STORY_NODES[seq % LONG_STORY_NODES.length];
+  return seq % 3 === 0
+    ? entry(seq, "node_succeeded", `Step ${nodeId} succeeded`, { generation, at, node_id: nodeId })
+    : entry(seq, "node_running", `Step ${nodeId} running`, { generation, at, node_id: nodeId });
+}
 
 export function longStoryTimeline(): LoopTimelineEntry[] {
   const entries: LoopTimelineEntry[] = [];
-  for (let index = 0; index < LONG_STORY_EVENT_COUNT; index += 1) {
-    const seq = LONG_STORY_EVENT_COUNT - index;
-    const round = seq > 400 ? 3 : seq > 200 ? 2 : 1;
-    if (seq === 400 || seq === 200) {
+  let seq = LONG_STORY_EVENT_COUNT;
+  for (let index = 0; seq >= 2; index += 1) {
+    if (index === HEARTBEAT_INDEX) {
       entries.push(
-        entry(seq, "generation_started", `round ${round} started`, {
-          generation: round,
+        entry(seq, "token_tick", "Token usage increased", {
+          generation: longStoryRound(seq),
           at: storyAt(index),
+          first_seq: seq - (HEARTBEAT_SPAN - 1),
         })
       );
+      // The seqs the fold covers are never served as entries of their own.
+      seq -= HEARTBEAT_SPAN;
       continue;
     }
-    entries.push(
-      seq % 7 === 0
-        ? entry(seq, "node_succeeded", "step fix batch succeeded", {
-            generation: round,
-            at: storyAt(index),
-          })
-        : entry(seq, "node_running", "step fix batch started", {
-            generation: round,
-            at: storyAt(index),
-          })
-    );
+    entries.push(longStoryBeat(seq, index));
+    seq -= 1;
   }
   // The oldest beat is the fork point, so paging all the way back reaches the
-  // one entry US-009.EC-3 is about.
+  // one entry US-009.EC-3 is about. `timelineTitle` names the run the fork
+  // produced; the "forked from" side is the lineage section's, not the story's.
   entries.push(
-    entry(1, "run_forked", "forked from round 1 of an earlier run", {
+    entry(1, "run_forked", `Run forked to ${LONG_STORY_FORK_RUN_ID}`, {
       generation: 1,
       at: storyAt(LONG_STORY_EVENT_COUNT),
     })

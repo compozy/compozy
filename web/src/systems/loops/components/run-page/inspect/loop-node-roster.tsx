@@ -44,6 +44,11 @@ interface LoopNodeRosterProps extends Omit<ComponentProps<"div">, "children" | "
  * than an empty one, which would read as zero rather than as not-applicable.
  */
 function LoopRosterDurationCell({ row }: { row: LoopRosterRow }) {
+  if (row.progressState === "unknown") {
+    // The step plainly ran; nothing about when survived. Saying "not started"
+    // here would be a back-filled guess about a step that did start.
+    return <span className="font-mono text-mono-id text-faint">unknown</span>;
+  }
   if (row.progressState === "not-started" || row.durationMs === null) {
     return <span className="font-mono text-mono-id text-faint">not started</span>;
   }

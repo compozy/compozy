@@ -144,6 +144,12 @@ export const loopRunFixtures: LoopRun[] = [
     id: "looprun_needs_approval",
     loop_name: "quality-gate-demo",
     status: "needs-approval",
+    // The server-owned attention summary is what puts a run in the needs-you
+    // group (`groupOf` in `lib/loop-runs-view.ts`). Without it the roster's
+    // whole ranking — needs-you, then active, then terminal — never appeared,
+    // and the run that was waiting on a person sat inside "Active".
+    attention: { kind: "approval", count: 1, since: "2026-07-05T12:15:00Z" },
+    active_gate_id: "aplicar-correcoes",
     generation: 3,
     tokens_used: 1_100_000,
     budget_tokens: 2_000_000,
