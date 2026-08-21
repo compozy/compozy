@@ -366,7 +366,7 @@ const cases: PreloadCase[] = [
     mountConsumer: queryClient =>
       mountQueries(queryClient, () => {
         useMemories({
-          scope: "global",
+          scope: "profile",
           includeSystem: false,
           limit: DEFAULT_MEMORY_LIST_LIMIT,
           sort: "recent",
@@ -1091,7 +1091,7 @@ describe("route query preloading", () => {
     await waitFor(() => {
       const knowledgeState = queryClient.getQueryState(
         memoriesListOptions({
-          scope: "global",
+          scope: "profile",
           includeSystem: false,
           limit: DEFAULT_MEMORY_LIST_LIMIT,
           sort: "recent",

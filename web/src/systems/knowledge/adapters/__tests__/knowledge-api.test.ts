@@ -27,7 +27,7 @@ const validHeader = {
   filename: "user_role.md",
   mod_time: "2026-04-01T12:00:00Z",
   name: "User Role",
-  scope: "global",
+  scope: "profile",
   type: "user",
   recall_count: 0,
   injection: true,
@@ -89,10 +89,10 @@ describe("listMemories", () => {
     mockJsonResponse({ memories: [], page: { has_more: false, limit: 50, total: 0 } });
     const controller = new AbortController();
 
-    await listMemories({ scope: "global" }, controller.signal);
+    await listMemories({ scope: "profile" }, controller.signal);
 
     await expectFetchRequest({
-      path: "/api/memory?scope=global",
+      path: "/api/memory?scope=profile",
       signal: controller.signal,
     });
   });
@@ -109,10 +109,10 @@ describe("readMemory", () => {
   it("Should call GET /api/memory/:filename with the selector and return summary + content", async () => {
     mockJsonResponse({ memory: { summary: validHeader, content: "# Memory content" } });
 
-    const result = await readMemory({ scope: "global" }, "user_role.md");
+    const result = await readMemory({ scope: "profile" }, "user_role.md");
 
     expect(result).toMatchObject({ filename: "user_role.md", content: "# Memory content" });
-    await expectFetchRequest({ path: "/api/memory/user_role.md?scope=global" });
+    await expectFetchRequest({ path: "/api/memory/user_role.md?scope=profile" });
   });
 
   it("Should pass agent and workspace selectors to the query string", async () => {
@@ -136,12 +136,12 @@ describe("readMemory", () => {
   it("Should throw KnowledgeApiError with 404 for unknown memory", async () => {
     vi.mocked(globalThis.fetch).mockResolvedValue(new Response(null, { status: 404 }));
 
-    await expect(readMemory({ scope: "global" }, "missing.md")).rejects.toThrow(
+    await expect(readMemory({ scope: "profile" }, "missing.md")).rejects.toThrow(
       "Memory not found: missing.md"
     );
 
     try {
-      await readMemory({ scope: "global" }, "missing.md");
+      await readMemory({ scope: "profile" }, "missing.md");
     } catch (error) {
       expect(error).toBeInstanceOf(KnowledgeApiError);
       expect((error as KnowledgeApiError).status).toBe(404);
@@ -151,7 +151,7 @@ describe("readMemory", () => {
   it("Should throw KnowledgeApiError on other failures", async () => {
     vi.mocked(globalThis.fetch).mockResolvedValue(new Response(null, { status: 503 }));
 
-    await expect(readMemory({ scope: "global" }, "test.md")).rejects.toThrow(
+    await expect(readMemory({ scope: "profile" }, "test.md")).rejects.toThrow(
       'Failed to read memory "test.md": 503'
     );
   });
@@ -159,9 +159,9 @@ describe("readMemory", () => {
   it("Should encode filename in the URL", async () => {
     mockJsonResponse({ memory: { summary: validHeader, content: "" } });
 
-    await readMemory({ scope: "global" }, "my file.md");
+    await readMemory({ scope: "profile" }, "my file.md");
 
-    await expectFetchRequest({ path: "/api/memory/my%20file.md?scope=global" });
+    await expectFetchRequest({ path: "/api/memory/my%20file.md?scope=profile" });
   });
 });
 
@@ -170,7 +170,7 @@ describe("writeMemory", () => {
     mockJsonResponse(memoryWriteFixture);
 
     const result = await writeMemory({
-      scope: "global",
+      scope: "profile",
       type: "reference",
       name: "Test memory",
       content: "content here",
@@ -182,7 +182,7 @@ describe("writeMemory", () => {
       body: {
         content: "content here",
         name: "Test memory",
-        scope: "global",
+        scope: "profile",
         type: "reference",
         workspace_id: "ws_launch",
       },
@@ -195,7 +195,7 @@ describe("writeMemory", () => {
     vi.mocked(globalThis.fetch).mockResolvedValue(new Response(null, { status: 400 }));
 
     const body = {
-      scope: "global",
+      scope: "profile",
       type: "reference",
       name: "Test memory",
       content: "bad",
@@ -212,7 +212,7 @@ describe("editMemory", () => {
     const result = await editMemory("operator-style.md", {
       content: "updated body",
       description: "tightened tone",
-      scope: "global",
+      scope: "profile",
       type: "user",
       name: "Operator Style",
     });
@@ -222,7 +222,7 @@ describe("editMemory", () => {
       body: {
         content: "updated body",
         description: "tightened tone",
-        scope: "global",
+        scope: "profile",
         type: "user",
         name: "Operator Style",
       },
@@ -252,12 +252,12 @@ describe("deleteMemory", () => {
   it("Should call DELETE /api/memory/:filename with the selector", async () => {
     mockJsonResponse(memoryDeleteFixture);
 
-    const result = await deleteMemory({ scope: "global" }, "old.md");
+    const result = await deleteMemory({ scope: "profile" }, "old.md");
 
     expect(result).toEqual(memoryDeleteFixture);
     await expectFetchRequest({
       method: "DELETE",
-      path: "/api/memory/old.md?scope=global",
+      path: "/api/memory/old.md?scope=profile",
     });
   });
 
@@ -283,7 +283,7 @@ describe("deleteMemory", () => {
   it("Should throw KnowledgeApiError with 404 for unknown memory", async () => {
     vi.mocked(globalThis.fetch).mockResolvedValue(new Response(null, { status: 404 }));
 
-    await expect(deleteMemory({ scope: "global" }, "missing.md")).rejects.toThrow(
+    await expect(deleteMemory({ scope: "profile" }, "missing.md")).rejects.toThrow(
       "Memory not found: missing.md"
     );
   });
@@ -344,7 +344,7 @@ describe("listMemoryDecisions", () => {
   it("Should surface daemon errors as KnowledgeApiError", async () => {
     vi.mocked(globalThis.fetch).mockResolvedValue(new Response(null, { status: 500 }));
 
-    await expect(listMemoryDecisions({ scope: "global" })).rejects.toThrow(KnowledgeApiError);
+    await expect(listMemoryDecisions({ scope: "profile" })).rejects.toThrow(KnowledgeApiError);
   });
 });
 

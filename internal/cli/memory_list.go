@@ -19,7 +19,7 @@ func newMemoryListCommand(deps commandDeps) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   memoryListKey,
 		Short: "List Memory v2 entries",
-		Example: `  # List the newest global and current-workspace memories
+		Example: `  # List the newest profile and current-workspace memories
   compozy memory list
 
   # Walk agent-workspace memories by normalized name

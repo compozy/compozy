@@ -4,6 +4,7 @@
 // Boundary IN: renderer components and the shared view shell.
 // Boundary OUT: TanStack domain fetches, daemon patch transport, and browser E2E stack teardown.
 
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
@@ -35,6 +36,13 @@ import { OsPaletteProgramBand, OsPaletteProgramFailure } from "../os-palette-pro
 import { PaletteDetailView } from "../palette-detail-view";
 import { PaletteFormView } from "../palette-form-view";
 import { PaletteGridView } from "../palette-grid-view";
+import {
+  closeProfileDialog,
+  profileKeys,
+  profileDialogStore,
+  resetProfileViews,
+  useProfilesPaletteView,
+} from "@/systems/profiles";
 
 const ACTION: CmdPaletteViewAction = {
   title: "Open",
@@ -496,3 +504,90 @@ function viewEnvelope(complete: boolean): CmdPaletteViewEnvelope {
     },
   };
 }
+
+describe("profiles palette view (UT-096)", () => {
+  function ProfilesViewHarness() {
+    const content = useProfilesPaletteView({
+      query: "",
+      lens: { scope: "global" },
+      onDismiss: vi.fn(),
+    });
+    return (
+      <OsPaletteViewShell
+        breadcrumb={{ truncated: false, visible: ["Profiles"] }}
+        content={content}
+        definition={viewDefinitionFixture("profiles", "Profiles", "Switch profile…", "Profiles")}
+        query=""
+        onPop={vi.fn()}
+        onQueryChange={vi.fn()}
+      />
+    );
+  }
+
+  function renderProfilesView() {
+    closeProfileDialog();
+    resetProfileViews();
+    const queryClient = new QueryClient({
+      defaultOptions: { mutations: { retry: false }, queries: { retry: false } },
+    });
+    queryClient.setQueryData(profileKeys.list(), [
+      {
+        id: "00000000000000000000000000",
+        name: "default",
+        color: "#8a8f98",
+        icon: "user-round",
+        emoji: null,
+        state: "active",
+        created_at: "2026-08-01T09:00:00Z",
+        work_items: 8,
+      },
+      {
+        id: "01J9GROWTH0000000000000000",
+        name: "growth",
+        color: "#4cb782",
+        icon: "trending-up",
+        emoji: null,
+        state: "active",
+        created_at: "2026-08-01T09:00:00Z",
+        needs_setup: true,
+      },
+      {
+        id: "01J9OLDAGENCY00000000000000",
+        name: "old-agency",
+        color: "#b58e5f",
+        icon: "briefcase",
+        emoji: null,
+        state: "archived",
+        created_at: "2026-08-01T09:00:00Z",
+        archived_at: "2026-08-20T09:00:00Z",
+        work_items: 0,
+      },
+    ]);
+    queryClient.setQueryData(profileKeys.selection({ scope: "global" }), {
+      scope: "global",
+      profile: "default",
+    });
+    return render(
+      <QueryClientProvider client={queryClient}>
+        <UIProvider reducedMotion="always">
+          <ProfilesViewHarness />
+        </UIProvider>
+      </QueryClientProvider>
+    );
+  }
+
+  it("Should map profile states and delegate lifecycle without mutation state", () => {
+    renderProfilesView();
+
+    expect(screen.getByText("current")).toBeInTheDocument();
+    const reason = screen.getByText("needs setup");
+    expect(reason).toHaveAttribute("data-slot", "os-palette-reason");
+    expect(screen.getByText("archived")).toBeInTheDocument();
+
+    fireEvent.click(screen.getByTestId("os-palette-profile-old-agency"));
+    expect(profileDialogStore.getSnapshot().context.intent).toEqual({
+      flow: "unarchive",
+      profile: "old-agency",
+    });
+  });
+});

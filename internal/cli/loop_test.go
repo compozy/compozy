@@ -1099,7 +1099,7 @@ func TestLoopRunInputsShouldNormalizeRuntimeAndRespectPromptMode(t *testing.T) {
 				t.Fatalf("GetLoopInputDefaults target = %s/%s", workspaceID, name)
 			}
 			values := map[string]any{}
-			if scope == contract.LoopInputDefaultsScopeGlobal {
+			if scope == contract.LoopInputDefaultsScopeUser {
 				values["target"] = "configured"
 			}
 			return contract.LoopInputDefaultsResponse{LoopName: name, Scope: scope, Values: values}, nil

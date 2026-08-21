@@ -15,8 +15,16 @@ import (
 
 const defaultProfileID = "00000000000000000000000000"
 
+// Event is the profile lifecycle payload persisted as an event summary and
+// streamed to clients over the logs stream. The tags are load-bearing: the
+// marshaled form lands in the public `content` field of every log event, so it
+// follows the same snake_case shape as the rest of that wire.
 type Event struct {
-	Name, ProfileID, ProfileName, OperationID, Error string
+	Name        string `json:"name"`
+	ProfileID   string `json:"profile_id"`
+	ProfileName string `json:"profile_name"`
+	OperationID string `json:"operation_id,omitempty"`
+	Error       string `json:"error,omitempty"`
 }
 
 type EventRecorder interface{ RecordProfileEvent(Event) }

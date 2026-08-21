@@ -23,7 +23,7 @@ function memorySummary(
   return {
     mod_time: summary.mod_time ?? MOD_TIME,
     recall_count: summary.recall_count ?? 0,
-    scope: summary.scope ?? "global",
+    scope: summary.scope ?? "profile",
     injection: summary.injection ?? true,
     system_managed: summary.system_managed ?? false,
     ...summary,
@@ -165,7 +165,7 @@ const editDecision: MemoryDecision = {
   id: "dec_edit_fixture",
   candidate_hash: "sha256:edit-candidate",
   op: "update",
-  scope: "global",
+  scope: "profile",
   source: "rule",
   confidence: 0.92,
   decided_at: DECIDED_AT,
@@ -184,7 +184,7 @@ const deleteDecision: MemoryDecision = {
   id: "dec_delete_fixture",
   candidate_hash: "sha256:delete-candidate",
   op: "delete",
-  scope: "global",
+  scope: "profile",
   source: "rule",
   confidence: 1,
   decided_at: "2026-04-16T17:31:00Z",
@@ -203,7 +203,7 @@ const addDecision: MemoryDecision = {
   id: "dec_add_fixture",
   candidate_hash: "sha256:add-candidate",
   op: "add",
-  scope: "global",
+  scope: "profile",
   source: "rule",
   confidence: 0.98,
   decided_at: "2026-04-17T18:31:00Z",
@@ -244,7 +244,7 @@ export const memoryDreamTriggerFixture: MemoryDreamTriggerResponse = {
   dream: {
     id: "dream_fixture",
     status: "running",
-    scope: "global",
+    scope: "profile",
     candidate_count: 0,
     promoted_count: 0,
     started_at: "2026-04-17T17:32:00Z",
@@ -269,7 +269,7 @@ export const memorySearchFixture: MemorySearchResponse = {
   recall: {
     blocks: [
       {
-        scope: "global",
+        scope: "profile",
         entries: [
           {
             id: "block_global_pricing",

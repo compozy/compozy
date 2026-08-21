@@ -11,6 +11,7 @@ import {
   Radio,
   Route,
   SlidersHorizontal,
+  UsersRound,
   Webhook,
   Wrench,
   Zap,
@@ -49,6 +50,13 @@ export const SETTINGS_SECTIONS: readonly SettingsSectionDescriptor[] = [
     icon: PanelTop,
     group: "workspace",
     keywords: "window manager desktops profiles split stack geometry snap focus shortcuts alias",
+  },
+  {
+    slug: "profiles",
+    label: "Profiles",
+    icon: UsersRound,
+    group: "workspace",
+    keywords: "profile context switch identity archive selection separation",
   },
   {
     slug: "palette",

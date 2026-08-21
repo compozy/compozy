@@ -159,7 +159,7 @@ func parseOptionalMemoryScope(raw string) (memcontract.Scope, error) {
 	case memcontract.ScopeProfile, memcontract.ScopeWorkspace, memcontract.ScopeAgent:
 		return scope, nil
 	default:
-		return "", NewMemoryValidationError(fmt.Errorf("scope must be one of global, workspace, or agent"))
+		return "", NewMemoryValidationError(fmt.Errorf("scope must be one of profile, workspace, or agent"))
 	}
 }
 

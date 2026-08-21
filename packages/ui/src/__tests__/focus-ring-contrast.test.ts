@@ -3,6 +3,15 @@ import { join } from "node:path";
 
 import { describe, expect, it } from "vitest";
 
+import {
+  AA_NON_TEXT_CONTRAST,
+  compositeOver,
+  contrastRatio,
+  parseHexColor,
+  parseRgbaColor,
+  type Rgb,
+} from "../lib/contrast";
+
 /**
  * Cross-surface computed focus-indicator audit (BUG-20260714).
  *
@@ -22,7 +31,7 @@ import { describe, expect, it } from "vitest";
 const TOKENS_CSS = readFileSync(join(__dirname, "..", "tokens.css"), "utf8");
 
 const MIN_RING_PX = 2;
-const MIN_NON_TEXT_CONTRAST = 3;
+const MIN_NON_TEXT_CONTRAST = AA_NON_TEXT_CONTRAST;
 
 // The exclusive focus tokens (outset + inset). Resting/hairline tokens
 // (`--shadow-hairline*` / `--shadow-inset-strong`) intentionally stay on
@@ -38,12 +47,6 @@ const SURFACE_TOKENS = [
   "color-elevated",
 ] as const;
 
-interface Rgb {
-  r: number;
-  g: number;
-  b: number;
-}
-
 function readToken(name: string): string {
   const match = TOKENS_CSS.match(new RegExp(`--${name}\\s*:\\s*([^;]+);`));
   if (!match) throw new Error(`token --${name} not found in tokens.css`);
@@ -51,19 +54,15 @@ function readToken(name: string): string {
 }
 
 function parseHex(hex: string): Rgb {
-  const match = hex.trim().match(/^#([0-9a-fA-F]{6})$/);
-  if (!match) throw new Error(`expected a 6-digit hex color, got "${hex}"`);
-  const int = Number.parseInt(match[1], 16);
-  return { r: (int >> 16) & 0xff, g: (int >> 8) & 0xff, b: int & 0xff };
+  const parsed = parseHexColor(hex);
+  if (!parsed) throw new Error(`expected a hex color, got "${hex}"`);
+  return parsed;
 }
 
 function parseRgba(value: string): { rgb: Rgb; alpha: number } {
-  const match = value.match(/rgba?\(\s*(\d+)\s*,\s*(\d+)\s*,\s*(\d+)\s*(?:,\s*([\d.]+)\s*)?\)/);
-  if (!match) throw new Error(`no rgba() color found in "${value}"`);
-  return {
-    rgb: { r: Number(match[1]), g: Number(match[2]), b: Number(match[3]) },
-    alpha: match[4] === undefined ? 1 : Number(match[4]),
-  };
+  const parsed = parseRgbaColor(value);
+  if (!parsed) throw new Error(`no rgba() color found in "${value}"`);
+  return parsed;
 }
 
 function ringWidthPx(shadow: string): number {
@@ -72,29 +71,6 @@ function ringWidthPx(shadow: string): number {
   const match = shadow.match(/(\d+(?:\.\d+)?)px\s+(?:rgba?|hsla?|var|#)/);
   if (!match) throw new Error(`no ring width found in "${shadow}"`);
   return Number(match[1]);
-}
-
-function composite(fg: Rgb, alpha: number, bg: Rgb): Rgb {
-  return {
-    r: alpha * fg.r + (1 - alpha) * bg.r,
-    g: alpha * fg.g + (1 - alpha) * bg.g,
-    b: alpha * fg.b + (1 - alpha) * bg.b,
-  };
-}
-
-function relativeLuminance({ r, g, b }: Rgb): number {
-  const linear = (c: number): number => {
-    const s = c / 255;
-    return s <= 0.03928 ? s / 12.92 : ((s + 0.055) / 1.055) ** 2.4;
-  };
-  return 0.2126 * linear(r) + 0.7152 * linear(g) + 0.0722 * linear(b);
-}
-
-function contrastRatio(a: Rgb, b: Rgb): number {
-  const la = relativeLuminance(a);
-  const lb = relativeLuminance(b);
-  const [hi, lo] = la >= lb ? [la, lb] : [lb, la];
-  return (hi + 0.05) / (lo + 0.05);
 }
 
 describe("shared focus indicator token contract (BUG-20260714)", () => {
@@ -111,7 +87,7 @@ describe("shared focus indicator token contract (BUG-20260714)", () => {
 
     for (const over of surfaces) {
       it(`Should hold ≥${MIN_NON_TEXT_CONTRAST}:1 for --${token} composited over --${over.name}`, () => {
-        const ring = composite(rgb, alpha, over.rgb);
+        const ring = compositeOver(rgb, alpha, over.rgb);
         for (const against of surfaces) {
           const ratio = contrastRatio(ring, against.rgb);
           expect(

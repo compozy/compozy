@@ -20,6 +20,8 @@ import {
   settingsProvidersTestIds,
   settingsShellTestIds,
   settingsSkillsTestIds,
+  profilesOperatorSelectors,
+  profilesTestIds,
   sandboxOperatorSelectors,
   sandboxOperatorTestIds,
   sessionLifecycleSelectors,
@@ -594,5 +596,55 @@ describe("tasks operator selectors", () => {
     );
     expect(selectors.runsRow("run_browser_01")).toBe("locator:tasks-runs-row-run_browser_01");
     expect(selectors.runReviews).toBe(`locator:${tasksOperatorTestIds.runReviews}`);
+  });
+});
+
+describe("profiles operator selectors", () => {
+  it("maps the switcher, settings page, and lifecycle dialogs to stable test IDs", () => {
+    const getByTestId = vi.fn((testId: string) => `locator:${testId}` as unknown as Locator);
+    const selectors = profilesOperatorSelectors({ getByTestId } as never);
+
+    expect(selectors.switcher).toBe(`locator:${profilesTestIds.switcher}`);
+    expect(selectors.switcherMenu).toBe(`locator:${profilesTestIds.switcherMenu}`);
+    expect(selectors.switcherAll).toBe(`locator:${profilesTestIds.switcherAll}`);
+    expect(selectors.switcherCreate).toBe(`locator:${profilesTestIds.switcherCreate}`);
+    expect(selectors.page).toBe(`locator:${profilesTestIds.page}`);
+    expect(selectors.pageArchived).toBe(`locator:${profilesTestIds.pageArchived}`);
+    expect(selectors.pageSelectionMap).toBe(`locator:${profilesTestIds.pageSelectionMap}`);
+    expect(selectors.createDialog).toBe(`locator:${profilesTestIds.createDialog}`);
+    expect(selectors.createConfirm).toBe(`locator:${profilesTestIds.createConfirm}`);
+    expect(selectors.identityDialog).toBe(`locator:${profilesTestIds.identityDialog}`);
+    expect(selectors.identityConfirm).toBe(`locator:${profilesTestIds.identityConfirm}`);
+    expect(selectors.renamePlan).toBe(`locator:${profilesTestIds.renamePlan}`);
+    expect(selectors.archivePaused).toBe(`locator:${profilesTestIds.archivePaused}`);
+    expect(selectors.archiveBlocked).toBe(`locator:${profilesTestIds.archiveBlocked}`);
+    expect(selectors.unarchivePaused).toBe(`locator:${profilesTestIds.unarchivePaused}`);
+    expect(selectors.deleteEnumeration).toBe(`locator:${profilesTestIds.deleteEnumeration}`);
+    expect(selectors.deleteArchiveInstead).toBe(`locator:${profilesTestIds.deleteArchiveInstead}`);
+
+    expect(selectors.switcherOption("marketing")).toBe("locator:profile-switcher-option-marketing");
+    expect(selectors.row("marketing")).toBe("locator:profile-row-marketing");
+    expect(selectors.editIdentityRow("marketing")).toBe("locator:profile-edit-identity-marketing");
+    expect(selectors.renameRow("marketing")).toBe("locator:profile-rename-marketing");
+    expect(selectors.archiveRow("marketing")).toBe("locator:profile-archive-marketing");
+    expect(selectors.unarchiveRow("scratch")).toBe("locator:profile-unarchive-scratch");
+    expect(selectors.deleteRow("scratch")).toBe("locator:profile-delete-scratch");
+    expect(selectors.needsSetup("growth")).toBe("locator:profile-needs-setup-growth");
+    expect(selectors.renameRepo("ws-acme")).toBe("locator:profile-rename-repo-ws-acme");
+    expect(selectors.paletteRow("marketing")).toBe("locator:os-palette-profile-marketing");
+  });
+
+  it("scopes the settings surface to its owning window while chrome stays page-level", () => {
+    const pageGetByTestId = vi.fn((testId: string) => `page:${testId}` as unknown as Locator);
+    const scopeGetByTestId = vi.fn((testId: string) => `window:${testId}` as unknown as Locator);
+    const selectors = profilesOperatorSelectors(
+      { getByTestId: pageGetByTestId } as never,
+      { getByTestId: scopeGetByTestId } as never
+    );
+
+    // A page-level match would resolve the settings surface of a second window.
+    expect(selectors.page).toBe(`window:${profilesTestIds.page}`);
+    expect(selectors.activeList).toBe(`window:${profilesTestIds.activeList}`);
+    expect(selectors.switcher).toBe(`page:${profilesTestIds.switcher}`);
   });
 });

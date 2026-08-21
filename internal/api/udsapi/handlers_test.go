@@ -51,6 +51,21 @@ func TestRegisterRoutesCoversTechSpecEndpoints(t *testing.T) {
 		sort.Strings(got)
 
 		want := []string{
+			"DELETE /api/profiles/:name",
+			"GET /api/profiles",
+			"GET /api/profiles/:name",
+			"GET /api/profiles/:name/archive-plan",
+			"GET /api/profiles/:name/delete-plan",
+			"GET /api/profiles/:name/rename-plan",
+			"GET /api/profiles/ops",
+			"GET /api/profiles/selection",
+			"PATCH /api/profiles/:name",
+			"POST /api/profiles",
+			"POST /api/profiles/:name/archive",
+			"POST /api/profiles/:name/rename",
+			"POST /api/profiles/:name/unarchive",
+			"POST /api/profiles/ops/:op_id/retry",
+			"PUT /api/profiles/selection",
 			"DELETE /api/cmd-palette/personalization",
 			"DELETE /api/cmd-palette/pins/:id",
 			"DELETE /api/cmd-palette/view-sessions/:session",

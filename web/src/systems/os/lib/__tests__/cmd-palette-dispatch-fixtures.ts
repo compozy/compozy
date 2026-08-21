@@ -50,6 +50,7 @@ export function shellFixture(): PaletteShellHandlers {
     toggleSessions: vi.fn(),
     toggleSidebar: vi.fn(),
     toggleGlobalScope: vi.fn(),
+    useProfile: vi.fn(),
     cycleWorkspace: vi.fn(),
     cycleSession: vi.fn(),
     focusAttention: vi.fn(),

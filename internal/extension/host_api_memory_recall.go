@@ -122,6 +122,6 @@ func (h *HostAPIHandler) memoryStoreFor(
 		}
 		return h.memory.ForWorkspace(workspaceRoot), memcontract.ScopeWorkspace, nil
 	default:
-		return nil, "", invalidParamsRPCError(fmt.Errorf("memory scope must be one of global or workspace"))
+		return nil, "", invalidParamsRPCError(fmt.Errorf("memory scope must be one of profile or workspace"))
 	}
 }

@@ -90,7 +90,7 @@ func TestRegisterRoutesExposesResourceSurfaceWhenOperatorAuthPresent(t *testing.
 		engine,
 		http.MethodPut,
 		"/api/resources/fixture.resource/demo",
-		[]byte(`{"scope":{"kind":"global"},"spec":{"enabled":true}}`),
+		[]byte(`{"scope":{"kind":"user"},"spec":{"enabled":true}}`),
 	)
 	if resp.Code != http.StatusCreated {
 		t.Fatalf("status = %d, want %d; body=%s", resp.Code, http.StatusCreated, resp.Body.String())
@@ -139,7 +139,7 @@ func TestResourceMutationRoutesRemainUnavailableWithoutOperatorAuth(t *testing.T
 		engine,
 		http.MethodPut,
 		"/api/resources/fixture.resource/demo",
-		[]byte(`{"scope":{"kind":"global"},"spec":{"enabled":true}}`),
+		[]byte(`{"scope":{"kind":"user"},"spec":{"enabled":true}}`),
 	)
 	if putResp.Code != http.StatusNotFound {
 		t.Fatalf("PUT status = %d, want %d; body=%s", putResp.Code, http.StatusNotFound, putResp.Body.String())

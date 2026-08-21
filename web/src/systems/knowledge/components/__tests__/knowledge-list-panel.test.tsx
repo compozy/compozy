@@ -9,10 +9,10 @@ import { KnowledgeListPanel } from "../knowledge-list-panel";
 
 const GLOBAL: KnowledgeMemoryItem = {
   filename: "user-role.md",
-  key: "global:user-role.md",
+  key: "profile:user-role.md",
   mod_time: "2026-04-09T10:00:00Z",
   name: "User Role",
-  scope: "global",
+  scope: "profile",
   type: "user",
   recall_count: 2,
   injection: true,
@@ -74,16 +74,16 @@ describe("KnowledgeListPanel", () => {
     const groups = screen.getAllByTestId(/^knowledge-group-/).filter(element => {
       const id = element.getAttribute("data-testid") ?? "";
       return [
-        "knowledge-group-global",
+        "knowledge-group-profile",
         "knowledge-group-workspace",
         "knowledge-group-agent",
       ].includes(id);
     });
-    expect(groups[0]).toHaveAttribute("data-testid", "knowledge-group-global");
+    expect(groups[0]).toHaveAttribute("data-testid", "knowledge-group-profile");
     expect(groups[1]).toHaveAttribute("data-testid", "knowledge-group-workspace");
     expect(groups[2]).toHaveAttribute("data-testid", "knowledge-group-agent");
     expect(
-      within(screen.getByTestId("knowledge-group-header-global")).getByText("1")
+      within(screen.getByTestId("knowledge-group-header-profile")).getByText("1")
     ).toBeInTheDocument();
   });
 
@@ -102,7 +102,7 @@ describe("KnowledgeListPanel", () => {
 
   it("Should keep scope + agent-tier pills untouched and surface staleness", () => {
     renderPanel();
-    expect(screen.getByTestId("scope-badge-global")).toHaveAttribute("data-tone", "neutral");
+    expect(screen.getByTestId("scope-badge-profile")).toHaveAttribute("data-tone", "neutral");
     expect(screen.getByTestId("scope-badge-workspace")).toHaveAttribute("data-tone", "info");
     expect(screen.getByTestId("scope-badge-agent")).toHaveAttribute("data-tone", "warning");
     expect(screen.getByTestId("agent-tier-badge-workspace")).toBeInTheDocument();
@@ -180,7 +180,7 @@ describe("KnowledgeListPanel", () => {
     expect(
       selected.querySelector('[data-slot="item-selection-indicator"][data-indicator="rail"]')
     ).not.toBeNull();
-    const unselected = screen.getByTestId("memory-item-global:user-role.md");
+    const unselected = screen.getByTestId("memory-item-profile:user-role.md");
     expect(
       unselected.querySelector('[data-slot="item-selection-indicator"][data-indicator="rail"]')
     ).toBeNull();
@@ -188,7 +188,7 @@ describe("KnowledgeListPanel", () => {
 
   it("Should render row timestamps through the shared <Time> primitive", () => {
     renderPanel();
-    const row = screen.getByTestId("memory-item-global:user-role.md");
+    const row = screen.getByTestId("memory-item-profile:user-role.md");
     const timeEl = row.querySelector("time[datetime]");
     expect(timeEl).not.toBeNull();
     expect(timeEl?.getAttribute("datetime")).toBe(GLOBAL.mod_time);
@@ -233,7 +233,7 @@ describe("KnowledgeListPanel", () => {
       totalCount: 9,
     });
 
-    expect(screen.getByTestId("memory-item-global:user-role.md")).toBeInTheDocument();
+    expect(screen.getByTestId("memory-item-profile:user-role.md")).toBeInTheDocument();
     expect(screen.getByTestId("knowledge-list-pagination-error")).toHaveTextContent(
       "Next page unavailable"
     );
@@ -253,7 +253,7 @@ describe("KnowledgeListPanel", () => {
       searchQuery: "operator",
     });
 
-    expect(screen.getByTestId("memory-item-global:user-role.md")).toBeInTheDocument();
+    expect(screen.getByTestId("memory-item-profile:user-role.md")).toBeInTheDocument();
     expect(screen.getByTestId("knowledge-list-pagination-error")).toHaveTextContent(
       "Recall refresh failed"
     );

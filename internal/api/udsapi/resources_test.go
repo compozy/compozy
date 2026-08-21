@@ -159,7 +159,7 @@ func TestPutResourceHandlerPreservesExpectedVersionAndStatusSemantics(t *testing
 	}{
 		{
 			name:            "create",
-			body:            []byte(`{"scope":{"kind":"global"},"spec":{"enabled":true}}`),
+			body:            []byte(`{"scope":{"kind":"user"},"spec":{"enabled":true}}`),
 			wantStatus:      http.StatusCreated,
 			wantVersion:     1,
 			wantScopeKind:   resources.ResourceScopeKindUser,
@@ -286,7 +286,7 @@ func TestPutResourceHandlerMapsResourceErrors(t *testing.T) {
 				engine,
 				http.MethodPut,
 				fixtureResourceAPIPath("demo"),
-				[]byte(`{"scope":{"kind":"global"},"spec":{"enabled":true}}`),
+				[]byte(`{"scope":{"kind":"user"},"spec":{"enabled":true}}`),
 			)
 			if resp.Code != tt.want {
 				t.Fatalf("status = %d, want %d; body=%s", resp.Code, tt.want, resp.Body.String())

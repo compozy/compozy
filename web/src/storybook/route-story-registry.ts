@@ -312,6 +312,13 @@ export const routeStoryRegistry = [
   },
   {
     system: "settings",
+    routePath: "/settings/profiles",
+    storybookPath: "/settings/profiles",
+    title: "systems/settings/routes/SettingsProfiles",
+    storyName: "Default",
+  },
+  {
+    system: "settings",
     routePath: "/settings/palette",
     storybookPath: "/settings/palette",
     title: "systems/settings/routes/SettingsPalette",

@@ -101,7 +101,7 @@ export function useOsPaletteDomainSearch({
       : { scope: "all" },
     { enabled: domainEnabled("Bridges") }
   );
-  const globalMemories = useMemories({ scope: "global" }, { enabled: globalKnowledgeEnabled });
+  const globalMemories = useMemories({ scope: "profile" }, { enabled: globalKnowledgeEnabled });
   const workspaceMemories = useMemories(
     { scope: "workspace", workspaceId: scopedWorkspace ?? "" },
     { enabled: workspaceKnowledgeEnabled }

@@ -2,9 +2,11 @@ package profile
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"sync"
 	"testing"
@@ -115,6 +117,58 @@ func TestManagerProfileLifecycle(t *testing.T) {
 		}
 		if selections != 0 {
 			t.Fatalf("selection rows = %d, want 0", selections)
+		}
+	})
+
+	t.Run("Should record lifecycle events with snake_case payload keys", func(t *testing.T) {
+		t.Parallel()
+
+		recorder := &recordingEventRecorder{}
+		manager := newTestManagerWithRecorder(t, recorder)
+		ctx := testutil.Context(t)
+		created, err := manager.Create(ctx, CreateInput{
+			Name: "marketing", Color: "#ff7f3a", Icon: "megaphone",
+			Activate: &Lens{Kind: SelectionLensGlobal},
+		})
+		if err != nil {
+			t.Fatalf("Create() error = %v", err)
+		}
+		names := recorder.names()
+		if !slices.Contains(names, "profile.created") || !slices.Contains(names, "profile.selection_changed") {
+			t.Fatalf("recorded events = %v, want profile.created and profile.selection_changed", names)
+		}
+
+		selection, ok := recorder.find("profile.selection_changed")
+		if !ok {
+			t.Fatalf("recorded events = %v, want profile.selection_changed", names)
+		}
+		// The marshaled form is what reaches clients as the `content` field of a
+		// log event, so the wire keys are the contract — not the Go field names.
+		payload, err := json.Marshal(selection)
+		if err != nil {
+			t.Fatalf("Marshal(event) error = %v", err)
+		}
+		var wire map[string]string
+		if err := json.Unmarshal(payload, &wire); err != nil {
+			t.Fatalf("Unmarshal(event) error = %v", err)
+		}
+		if wire["name"] != "profile.selection_changed" {
+			t.Fatalf("event name = %q, want %q", wire["name"], "profile.selection_changed")
+		}
+		if wire["profile_id"] != created.ID {
+			t.Fatalf("event profile_id = %q, want %q", wire["profile_id"], created.ID)
+		}
+		if wire["profile_name"] != "marketing" {
+			t.Fatalf("event profile_name = %q, want %q", wire["profile_name"], "marketing")
+		}
+		// An empty error must not reach the wire at all — clients branch on presence.
+		if _, present := wire["error"]; present {
+			t.Fatalf("event payload = %v, want no error key when the event succeeded", wire)
+		}
+		for key := range wire {
+			if strings.ToLower(key) != key {
+				t.Fatalf("event payload key %q is not snake_case: %v", key, wire)
+			}
 		}
 	})
 
@@ -389,6 +443,64 @@ func newTestManager(t *testing.T) (*Manager, *globaldb.GlobalDB, compozyconfig.H
 		t.Fatalf("NewManager() error = %v", err)
 	}
 	return manager, database, home
+}
+
+// recordingEventRecorder captures emitted lifecycle events so a test can assert
+// the payload that reaches the durable event store and, from there, the logs
+// stream.
+type recordingEventRecorder struct {
+	mu     sync.Mutex
+	events []Event
+}
+
+func (r *recordingEventRecorder) RecordProfileEvent(event Event) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	r.events = append(r.events, event)
+}
+
+func (r *recordingEventRecorder) names() []string {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	names := make([]string, 0, len(r.events))
+	for _, event := range r.events {
+		names = append(names, event.Name)
+	}
+	return names
+}
+
+func (r *recordingEventRecorder) find(name string) (Event, bool) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	for _, event := range r.events {
+		if event.Name == name {
+			return event, true
+		}
+	}
+	return Event{}, false
+}
+
+func newTestManagerWithRecorder(t *testing.T, recorder EventRecorder) *Manager {
+	t.Helper()
+
+	home, err := compozyconfig.ResolveHomePathsFrom(t.TempDir())
+	if err != nil {
+		t.Fatalf("ResolveHomePathsFrom() error = %v", err)
+	}
+	database, err := globaldb.OpenGlobalDB(testutil.Context(t), home.DatabaseFile)
+	if err != nil {
+		t.Fatalf("OpenGlobalDB() error = %v", err)
+	}
+	t.Cleanup(func() {
+		if err := database.Close(context.Background()); err != nil {
+			t.Errorf("Close() error = %v", err)
+		}
+	})
+	manager, err := NewManager(WithStore(database), WithHomePaths(home), WithEventRecorder(recorder))
+	if err != nil {
+		t.Fatalf("NewManager() error = %v", err)
+	}
+	return manager
 }
 
 func insertLifecycleOperation(

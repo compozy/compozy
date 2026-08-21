@@ -49,6 +49,7 @@ describe("useSettingsPage", () => {
       "general",
       "appearance",
       "layouts",
+      "profiles",
       "palette",
       "providers",
       "memory",

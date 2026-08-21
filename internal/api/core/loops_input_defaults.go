@@ -118,11 +118,11 @@ func (h *BaseHandlers) DeleteLoopInputDefault(c *gin.Context) {
 func parseLoopInputDefaultsScope(raw string) (contract.LoopInputDefaultsScope, error) {
 	scope := contract.LoopInputDefaultsScope(strings.ToLower(strings.TrimSpace(raw)))
 	switch scope {
-	case contract.LoopInputDefaultsScopeGlobal, contract.LoopInputDefaultsScopeWorkspace:
+	case contract.LoopInputDefaultsScopeUser, contract.LoopInputDefaultsScopeWorkspace:
 		return scope, nil
 	default:
 		return "", fmt.Errorf(
-			"%w: input-default scope must be global or workspace",
+			"%w: input-default scope must be user or workspace",
 			looppkg.ErrValidation,
 		)
 	}

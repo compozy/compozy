@@ -121,8 +121,8 @@ export function useCmdPaletteDispatch({
     void queryClient.invalidateQueries({ queryKey: cmdPaletteKeys.rankSignals(workspaceId) });
   };
 
-  const navigate = (app: string, pathname: string | null) =>
-    openApp(app as OsAppId, pathname === null ? null : { pathname, search: {} });
+  const navigate = (app: string, pathname: string | null, search: Record<string, string> = {}) =>
+    openApp(app as OsAppId, pathname === null ? null : { pathname, search });
   const clientOps = { manager, shell, navigate, openUrl: openExternalUrl };
 
   const runCommand = (

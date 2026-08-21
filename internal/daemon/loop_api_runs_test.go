@@ -481,18 +481,18 @@ func TestDaemonLoopAPIServiceShouldManageScopedInputDefaultsWithoutCollapsingPre
 		}),
 	}
 
-	global, err := service.PutLoopInputDefault(
+	user, err := service.PutLoopInputDefault(
 		t.Context(),
 		"ws-input-defaults",
 		"review-and-fix",
 		"auto_commit",
-		contract.PutLoopInputDefaultRequest{Scope: contract.LoopInputDefaultsScopeGlobal, Value: false},
+		contract.PutLoopInputDefaultRequest{Scope: contract.LoopInputDefaultsScopeUser, Value: false},
 	)
 	if err != nil {
-		t.Fatalf("PutLoopInputDefault(global) error = %v", err)
+		t.Fatalf("PutLoopInputDefault(user) error = %v", err)
 	}
-	if !global.Present || global.Value != false {
-		t.Fatalf("global input default = %#v, want present explicit false", global)
+	if !user.Present || user.Value != false {
+		t.Fatalf("user input default = %#v, want present explicit false", user)
 	}
 	emptyRuntime, err := service.PutLoopInputDefault(
 		t.Context(),
@@ -551,17 +551,17 @@ func TestDaemonLoopAPIServiceShouldManageScopedInputDefaultsWithoutCollapsingPre
 		t.Fatalf("workspace runtime = %#v, want typed runtime object", workspace.Values["runtime"])
 	}
 
-	globalLayer, err := service.GetLoopInputDefaults(
+	userLayer, err := service.GetLoopInputDefaults(
 		t.Context(),
 		"ws-input-defaults",
 		"review-and-fix",
-		contract.LoopInputDefaultsScopeGlobal,
+		contract.LoopInputDefaultsScopeUser,
 	)
 	if err != nil {
-		t.Fatalf("GetLoopInputDefaults(global) error = %v", err)
+		t.Fatalf("GetLoopInputDefaults(user) error = %v", err)
 	}
-	if value, present := globalLayer.Values["auto_commit"]; !present || value != false {
-		t.Fatalf("global layer after workspace override = %#v, want explicit false preserved", globalLayer.Values)
+	if value, present := userLayer.Values["auto_commit"]; !present || value != false {
+		t.Fatalf("user layer after workspace override = %#v, want explicit false preserved", userLayer.Values)
 	}
 
 	deleted, err := service.DeleteLoopInputDefault(

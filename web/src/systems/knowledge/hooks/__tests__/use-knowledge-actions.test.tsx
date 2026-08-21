@@ -55,7 +55,7 @@ describe("useDeleteMemory", () => {
     const queryClient = new QueryClient({
       defaultOptions: { queries: { retry: false } },
     });
-    const listKey = knowledgeKeys.list({ scope: "global", limit: 1 });
+    const listKey = knowledgeKeys.list({ scope: "profile", limit: 1 });
     const cachedList = {
       pageParams: [undefined],
       pages: [
@@ -106,7 +106,7 @@ describe("useDeleteMemory", () => {
     const { result } = renderHook(() => useDeleteMemory(), { wrapper });
 
     act(() => {
-      result.current.mutate({ selector: { scope: "global" }, filename: "missing.md" });
+      result.current.mutate({ selector: { scope: "profile" }, filename: "missing.md" });
     });
 
     await waitFor(() => {
@@ -142,7 +142,7 @@ describe("useEditMemory", () => {
     act(() => {
       result.current.mutate({
         filename: "operator-style.md",
-        body: { content: "next", scope: "global", type: "user", name: "Operator Style" },
+        body: { content: "next", scope: "profile", type: "user", name: "Operator Style" },
       });
     });
 
@@ -152,7 +152,7 @@ describe("useEditMemory", () => {
 
     expect(editMemory).toHaveBeenCalledWith("operator-style.md", {
       content: "next",
-      scope: "global",
+      scope: "profile",
       type: "user",
       name: "Operator Style",
     });

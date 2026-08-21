@@ -8,7 +8,7 @@ import {
 } from "@/systems/knowledge";
 
 const initialKnowledgeSelector: KnowledgeListFilter = {
-  scope: "global",
+  scope: "profile",
   includeSystem: false,
   limit: DEFAULT_MEMORY_LIST_LIMIT,
   sort: "recent",

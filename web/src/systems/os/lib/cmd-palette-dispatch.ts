@@ -39,8 +39,14 @@ export interface PaletteDispatchPorts {
     commandId: string,
     args: Readonly<Record<string, unknown>>
   ): Promise<CmdPaletteInvokeResult>;
-  /** Opens an OS app, optionally at a declared route. */
-  navigate(app: string, pathname: string | null): void;
+  /**
+   * Opens an OS app, optionally at a declared route.
+   *
+   * `search` carries whatever the action declared beyond the pathname — the
+   * intent a command is navigating *with*, such as which lifecycle flow to
+   * raise. Dropping it would leave the destination guessing.
+   */
+  navigate(app: string, pathname: string | null, search?: Record<string, string>): void;
   /** Pushes a palette view level. */
   pushView(viewId: string): void;
   /** The sanctioned external opener; never a bare `window.open`. */
@@ -78,6 +84,22 @@ function argsFor(
 function pathnameFrom(args: Readonly<Record<string, unknown>>): string | null {
   const pathname = args.pathname;
   return typeof pathname === "string" && pathname.trim() !== "" ? pathname : null;
+}
+
+/**
+ * Everything the action declared except the destination itself, as route search.
+ *
+ * Only scalars survive: a route search is a URL, and a value that cannot be
+ * spelled in one has no business being pushed into it.
+ */
+function searchFrom(args: Readonly<Record<string, unknown>>): Record<string, string> {
+  const search: Record<string, string> = {};
+  for (const [key, value] of Object.entries(args)) {
+    if (key === "pathname") continue;
+    if (typeof value === "string" && value.trim() !== "") search[key] = value;
+    else if (typeof value === "number" || typeof value === "boolean") search[key] = String(value);
+  }
+  return search;
 }
 
 /**
@@ -177,7 +199,7 @@ export async function dispatchPaletteCommand({
   if (action.kind === "navigate") {
     const app = action.app?.trim() ?? "";
     if (app === "") return refuse(ports, command, UNSUPPORTED_CLIENT_OP_REASON);
-    ports.navigate(app, pathnameFrom(resolvedArgs));
+    ports.navigate(app, pathnameFrom(resolvedArgs), searchFrom(resolvedArgs));
     return ran();
   }
   if (action.kind === "view") {

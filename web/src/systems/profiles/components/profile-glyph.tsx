@@ -1,0 +1,103 @@
+import type { ComponentProps } from "react";
+import { Layers } from "lucide-react";
+
+import { cn, identityColorsFor, KindIcon } from "@compozy/ui";
+
+import { PROFILE_ICON_REGISTRY, symbolOf } from "../lib/profile-identity";
+
+export type ProfileGlyphSize = "sm" | "default" | "lg";
+
+export interface ProfileGlyphProps extends Omit<ComponentProps<"span">, "children"> {
+  name: string;
+  color?: string;
+  icon?: string | null;
+  emoji?: string | null;
+  size?: ProfileGlyphSize;
+  /** Ring in the identity color — data, not a signal. */
+  current?: boolean;
+  /** Warning dot paired with the words "needs setup" by the row that owns it. */
+  needsSetup?: boolean;
+  /** The neutral layered mark: an aggregate is not an identity. */
+  aggregate?: boolean;
+  /** Surface the glyph sits on, so the ink is measured against the right plate. */
+  surface?: string;
+}
+
+const SIZE_CLASS: Record<ProfileGlyphSize, string> = {
+  sm: "size-[18px] rounded-xs",
+  default: "size-topbar-glyph rounded-sm",
+  lg: "size-7 rounded-md",
+};
+
+const GLYPH_CLASS: Record<ProfileGlyphSize, string> = {
+  sm: "size-2.5",
+  default: "size-3",
+  lg: "size-4",
+};
+
+/** Renders user-chosen identity color with measured foreground contrast. */
+export function ProfileGlyph({
+  className,
+  name,
+  color,
+  icon,
+  emoji,
+  size = "default",
+  current = false,
+  needsSetup = false,
+  aggregate = false,
+  surface,
+  style,
+  ...props
+}: ProfileGlyphProps) {
+  const symbol = symbolOf({ icon: icon ?? null, emoji: emoji ?? null });
+  const identity = identityColorsFor(color, surface);
+  const label = aggregate ? "All profiles" : name;
+
+  return (
+    <span
+      data-slot="profile-glyph"
+      data-current={current ? "true" : undefined}
+      data-aggregate={aggregate ? "true" : undefined}
+      role="img"
+      aria-label={label}
+      className={cn(
+        "relative inline-grid shrink-0 place-items-center text-badge leading-none",
+        SIZE_CLASS[size],
+        aggregate && "border border-line-strong bg-badge-fill text-muted",
+        current && !aggregate && "ring-[1.5px]",
+        className
+      )}
+      style={
+        aggregate
+          ? style
+          : {
+              backgroundColor: identity.bg,
+              color: identity.fg,
+              ...(current ? { "--tw-ring-color": identity.fg } : {}),
+              ...style,
+            }
+      }
+      {...props}
+    >
+      {aggregate ? (
+        <Layers aria-hidden="true" className={GLYPH_CLASS[size]} strokeWidth={1.75} />
+      ) : symbol.kind === "emoji" ? (
+        <span aria-hidden="true">{symbol.value}</span>
+      ) : (
+        <KindIcon
+          kind={symbol.value}
+          registry={PROFILE_ICON_REGISTRY}
+          className={cn(GLYPH_CLASS[size], "text-current")}
+        />
+      )}
+      {needsSetup ? (
+        <span
+          aria-hidden="true"
+          data-slot="profile-glyph-dot"
+          className="absolute -top-0.5 -right-0.5 size-2 rounded-full bg-warning ring-2 ring-canvas-soft"
+        />
+      ) : null}
+    </span>
+  );
+}

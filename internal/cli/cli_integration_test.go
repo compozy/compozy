@@ -2447,7 +2447,7 @@ func TestMemoryWriteListIntegration(t *testing.T) {
 		t.Fatalf("written = %#v, want applied decision with target filename", written)
 	}
 
-	listOut, _, err := executeRootCommand(t, h.deps, "memory", "list", "--scope", "global", "-o", "json")
+	listOut, _, err := executeRootCommand(t, h.deps, "memory", "list", "--scope", "profile", "-o", "json")
 	if err != nil {
 		t.Fatalf("memory list error = %v", err)
 	}

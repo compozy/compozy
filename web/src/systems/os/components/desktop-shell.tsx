@@ -30,6 +30,7 @@ import { OsWinLayer } from "./os-win-layer";
 import { OsSessionsModal } from "./sessions-modal";
 import { AgentCreateDialog, AgentCreateHostProvider } from "@/systems/agent";
 import { useOnboardingStatus } from "@/systems/onboarding";
+import { ProfileLifecycleHost, ProfileSwitcherSlot } from "@/systems/profiles";
 import {
   SessionCreateDialogHost,
   SessionCreateProvider,
@@ -214,6 +215,11 @@ function DesktopShellScopedBody({
       className="flex min-h-0 flex-1 flex-col overflow-hidden focus-visible:shadow-focus-inset focus-visible:outline-none"
     >
       <DesktopMenubar
+        profileSwitcher={
+          <ProfileSwitcherSlot
+            onOpenSettings={() => void paletteDispatch.runById("settings.profiles")}
+          />
+        }
         // Dimmed while setup blocks: readable enough to see what you unlock,
         // never bright enough to read as available.
         className={cn(
@@ -416,6 +422,9 @@ function DesktopShellScopedBody({
         workspaceId={model.agentCreate.workspaceId}
         workspaceName={model.agentCreate.workspaceName}
       />
+      {/* Profile lifecycle dialogs live at the shell so a flow started from the
+          command palette does not depend on Settings being open. */}
+      <ProfileLifecycleHost />
     </div>
   );
 }

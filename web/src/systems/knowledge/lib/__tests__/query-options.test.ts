@@ -9,7 +9,7 @@ import {
 
 describe("memoriesListOptions", () => {
   it("Should expose infinite cursor pages without automatic catalog polling", () => {
-    const options = memoriesListOptions({ scope: "global" });
+    const options = memoriesListOptions({ scope: "profile" });
     expect(options.staleTime).toBe(30_000);
     expect(options.refetchInterval).toBeUndefined();
     expect(options.initialPageParam).toBeUndefined();
@@ -50,7 +50,7 @@ describe("memoriesListOptions", () => {
     expect(options.queryKey).toEqual([
       "knowledge",
       "list",
-      "global",
+      "profile",
       "",
       "",
       "",
@@ -64,17 +64,17 @@ describe("memoriesListOptions", () => {
 
 describe("memoryDetailOptions", () => {
   it("Should include staleTime defaults", () => {
-    const options = memoryDetailOptions({ scope: "global" }, "test.md");
+    const options = memoryDetailOptions({ scope: "profile" }, "test.md");
     expect(options.staleTime).toBe(30_000);
   });
 
   it("Should include scope, filename, and selector tuple in the query key", () => {
-    const options = memoryDetailOptions({ scope: "global", workspaceId: "ws" }, "user_role.md");
+    const options = memoryDetailOptions({ scope: "profile", workspaceId: "ws" }, "user_role.md");
     expect(options.queryKey).toEqual([
       "knowledge",
       "detail",
       "user_role.md",
-      "global",
+      "profile",
       "ws",
       "",
       "",
@@ -87,30 +87,30 @@ describe("memoryDetailOptions", () => {
   });
 
   it("Should be disabled when filename is empty", () => {
-    const options = memoryDetailOptions({ scope: "global" }, "");
+    const options = memoryDetailOptions({ scope: "profile" }, "");
     expect(options.enabled).toBe(false);
   });
 
   it("Should be enabled when both selector and filename are provided", () => {
-    const options = memoryDetailOptions({ scope: "global" }, "test.md");
+    const options = memoryDetailOptions({ scope: "profile" }, "test.md");
     expect(options.enabled).toBe(true);
   });
 });
 
 describe("memorySearchOptions", () => {
   it("Should be disabled when query text is empty", () => {
-    const options = memorySearchOptions({ scope: "global" }, "");
+    const options = memorySearchOptions({ scope: "profile" }, "");
     expect(options.enabled).toBe(false);
   });
 
   it("Should be enabled when selector and query text are present", () => {
-    const options = memorySearchOptions({ scope: "global" }, "launch");
+    const options = memorySearchOptions({ scope: "profile" }, "launch");
     expect(options.enabled).toBe(true);
     expect(options.queryKey).toEqual([
       "knowledge",
       "search",
       "launch",
-      "global",
+      "profile",
       "",
       "",
       "",
@@ -140,7 +140,7 @@ describe("memorySearchOptions", () => {
   });
 
   it("Should include response-shaping search options in the query key", () => {
-    const options = memorySearchOptions({ scope: "global" }, "rollout", {
+    const options = memorySearchOptions({ scope: "profile" }, "rollout", {
       topK: 7,
       includeSystem: true,
       explain: true,

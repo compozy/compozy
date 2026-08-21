@@ -8,6 +8,13 @@ export type {
   PaletteShellHandlers,
 } from "./cmd-palette-client-op-context";
 
+/** Reads the `profile` argument the daemon declares on `profile.use`. */
+function profileArg(payload: unknown): string {
+  if (payload === null || typeof payload !== "object") return "";
+  const profile = Reflect.get(payload, "profile");
+  return typeof profile === "string" ? profile.trim() : "";
+}
+
 /**
  * Shell-level operations: overlays, scope, and the surfaces the palette raises.
  * Window topology lives next door in `cmd-palette-window-ops`.
@@ -23,6 +30,9 @@ const SHELL_OPS: ReadonlyMap<string, PaletteClientOpHandler> = new Map<
   ["shell.sessions.toggle", context => context.shell.toggleSessions()],
   ["session.new", context => context.shell.openNewSession()],
   ["scope.global.toggle", context => context.shell.toggleGlobalScope()],
+  // `profile.use` switches directly; every other profile.* command navigates to
+  // the canonical lifecycle flow instead of mutating from here (ADR-016).
+  ["profile.use", (context, payload) => context.shell.useProfile(profileArg(payload))],
   ["session.cycle.previous", context => context.shell.cycleSession("previous")],
   ["session.cycle.next", context => context.shell.cycleSession("next")],
   ["session.focus.attention", context => context.shell.focusAttention()],

@@ -23,7 +23,7 @@ import type {
 describe("knowledge contract types", () => {
   it("Should keep memory payloads aligned with the generated Memory v2 contract", () => {
     expectTypeOf<MemoryType>().toEqualTypeOf<"user" | "feedback" | "project" | "reference">();
-    expectTypeOf<MemoryScope>().toEqualTypeOf<"global" | "workspace" | "agent" | undefined>();
+    expectTypeOf<MemoryScope>().toEqualTypeOf<"profile" | "workspace" | "agent" | undefined>();
     expectTypeOf<MemoryAgentTier>().toEqualTypeOf<"workspace" | "global" | undefined>();
 
     expectTypeOf<MemoryHeader>().toMatchTypeOf<{
@@ -31,7 +31,7 @@ describe("knowledge contract types", () => {
       mod_time: string;
       name: string;
       type: Exclude<MemoryType, undefined>;
-      scope: "global" | "workspace" | "agent";
+      scope: "profile" | "workspace" | "agent";
       recall_count: number;
       injection: boolean;
       system_managed: boolean;
@@ -69,7 +69,7 @@ describe("knowledge contract types", () => {
 
     expectTypeOf<MemorySearchRequest>().toMatchTypeOf<{
       query_text: string;
-      scope?: "global" | "workspace" | "agent";
+      scope?: "profile" | "workspace" | "agent";
       workspace_id?: string;
       agent_name?: string;
       agent_tier?: "workspace" | "global";
@@ -98,21 +98,21 @@ describe("knowledge contract types", () => {
     }>();
 
     expectTypeOf<MemoryWriteRequest>().toMatchTypeOf<{
-      scope: "global" | "workspace" | "agent";
+      scope: "profile" | "workspace" | "agent";
       type: MemoryType;
       name: string;
       content: string;
     }>();
 
     expectTypeOf<KnowledgeSelector>().toMatchTypeOf<{
-      scope: "global" | "workspace" | "agent";
+      scope: "profile" | "workspace" | "agent";
       workspaceId?: string;
       agentName?: string;
       agentTier?: "workspace" | "global";
     }>();
 
     expectTypeOf<KnowledgeFilter>().toMatchTypeOf<{
-      scope: "global" | "workspace" | "agent";
+      scope: "profile" | "workspace" | "agent";
       type?: MemoryType;
       search?: string;
     }>();

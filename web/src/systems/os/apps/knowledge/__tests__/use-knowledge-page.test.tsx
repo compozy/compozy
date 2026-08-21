@@ -95,7 +95,7 @@ const GLOBAL_MEMORY: MemoryHeader = {
   name: "Operator Playbook 0425",
   description: "Reusable operator checklist",
   type: "reference",
-  scope: "global",
+  scope: "profile",
   recall_count: 0,
   injection: true,
   system_managed: false,
@@ -167,7 +167,7 @@ describe("useKnowledgePage", () => {
       if (!selector) {
         return catalogResult([], 0, false);
       }
-      if (selector.scope === "global") {
+      if (selector.scope === "profile") {
         return catalogResult([GLOBAL_MEMORY], 17, true);
       }
       if (selector.scope === "workspace") {
@@ -238,12 +238,12 @@ describe("useKnowledgePage", () => {
     const { result } = renderHook(() => useKnowledgePage());
 
     await waitFor(() => {
-      expect(result.current.activeScope).toBe("global");
+      expect(result.current.activeScope).toBe("profile");
       expect(result.current.memories).toHaveLength(1);
     });
 
     expect(useMemoriesMock).toHaveBeenLastCalledWith(
-      { scope: "global", includeSystem: false, limit: 50, sort: "recent" },
+      { scope: "profile", includeSystem: false, limit: 50, sort: "recent" },
       expect.objectContaining({ enabled: true })
     );
     expect(result.current.memoryCount).toBe(17);
@@ -418,7 +418,7 @@ describe("useKnowledgePage", () => {
       body: expect.objectContaining({
         content: "next body",
         description: "tightened",
-        scope: "global",
+        scope: "profile",
       }),
     });
   });
@@ -441,7 +441,7 @@ describe("useKnowledgePage", () => {
     expect(params?.body).not.toHaveProperty("type");
   });
 
-  it("Should show a workspace memory created while browsing Global in its destination scope", async () => {
+  it("Should show a workspace memory created while browsing Profile in its destination scope", async () => {
     const { result } = renderHook(() => useKnowledgePage());
 
     await act(async () => {
@@ -477,7 +477,7 @@ describe("useKnowledgePage", () => {
             id: "dec_match",
             candidate_hash: "h",
             op: "update",
-            scope: "global",
+            scope: "profile",
             source: "rule",
             confidence: 0.9,
             decided_at: "2026-04-25T21:03:00Z",
@@ -504,7 +504,7 @@ describe("useKnowledgePage", () => {
     expect(result.current.decisions[0]?.id).toBe("dec_match");
     expect(useMemoryDecisionsMock).toHaveBeenLastCalledWith(
       {
-        scope: "global",
+        scope: "profile",
         filename: "operator-playbook-0425.md",
         limit: 10,
       },
@@ -517,7 +517,7 @@ describe("useKnowledgePage", () => {
       id: "dec_match",
       candidate_hash: "h",
       op: "update",
-      scope: "global",
+      scope: "profile",
       source: "rule",
       confidence: 0.9,
       decided_at: "2026-04-25T21:03:00Z",
@@ -565,7 +565,7 @@ describe("useKnowledgePage", () => {
     });
 
     act(() => {
-      result.current.setSelectedMemoryKey("global:other.md");
+      result.current.setSelectedMemoryKey("profile:other.md");
     });
 
     expect(result.current.deleteError).toBeNull();
@@ -577,7 +577,7 @@ describe("useKnowledgePage", () => {
     );
 
     await waitFor(() => {
-      expect(result.current.effectiveSelectedMemoryKey).toBe("global:operator-playbook-0425.md");
+      expect(result.current.effectiveSelectedMemoryKey).toBe("profile:operator-playbook-0425.md");
     });
     expect(result.current.selectedMemory?.filename).toBe("operator-playbook-0425.md");
   });
@@ -603,7 +603,7 @@ describe("useKnowledgePage", () => {
 
   it("Should not select the first memory when the route name is absent from the list", async () => {
     const { result } = renderHook(() =>
-      useKnowledgePage({ routeMemory: "missing.md", routeScope: "global" })
+      useKnowledgePage({ routeMemory: "missing.md", routeScope: "profile" })
     );
 
     await waitFor(() => {
@@ -631,7 +631,7 @@ describe("knowledge-route-selection", () => {
 
   it("Should map a route filename to the matching catalog key", () => {
     expect(knowledgeKeyForRouteMemory("operator-playbook-0425.md", memories)).toBe(
-      "global:operator-playbook-0425.md"
+      "profile:operator-playbook-0425.md"
     );
     expect(knowledgeKeyForRouteMemory("missing.md", memories)).toBeNull();
   });
@@ -648,7 +648,7 @@ describe("knowledge-route-selection", () => {
 
   it("Should fall back to the route key when local selection is gone", () => {
     expect(resolveKnowledgeSelectedKey("operator-playbook-0425.md", null, memories)).toBe(
-      "global:operator-playbook-0425.md"
+      "profile:operator-playbook-0425.md"
     );
   });
 
@@ -658,7 +658,7 @@ describe("knowledge-route-selection", () => {
 
   it("Should select the first memory when the route names none", () => {
     expect(resolveKnowledgeSelectedKey(null, null, memories)).toBe(
-      "global:operator-playbook-0425.md"
+      "profile:operator-playbook-0425.md"
     );
   });
 });

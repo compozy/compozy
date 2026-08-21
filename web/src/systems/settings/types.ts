@@ -237,6 +237,7 @@ export type SettingsSectionSlug =
   | "appearance"
   | "layouts"
   | "palette"
+  | "profiles"
   | "providers"
   | "sandboxes"
   | "memory"

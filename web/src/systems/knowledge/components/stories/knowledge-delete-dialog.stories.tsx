@@ -37,7 +37,7 @@ export const PendingDelete: Story = {
       onConfirm={async () => {}}
       onOpenChange={() => undefined}
       open
-      scope="global"
+      scope="profile"
     />
   ),
 };

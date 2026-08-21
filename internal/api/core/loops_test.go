@@ -657,7 +657,7 @@ func TestLoopInputDefaultsHandlersExposeScopedLifecycleOverHTTPAndUDS(t *testing
 				req contract.PutLoopInputDefaultsRequest,
 			) (contract.LoopInputDefaultsResponse, error) {
 				if workspaceID != "ws-1" || name != "alpha" ||
-					req.Scope != contract.LoopInputDefaultsScopeGlobal || req.Values["retries"] != float64(0) {
+					req.Scope != contract.LoopInputDefaultsScopeUser || req.Values["retries"] != float64(0) {
 					t.Fatalf("PutLoopInputDefaults() = %s/%s/%#v", workspaceID, name, req)
 				}
 				return contract.LoopInputDefaultsResponse{LoopName: name, Scope: req.Scope, Values: req.Values}, nil
@@ -685,7 +685,7 @@ func TestLoopInputDefaultsHandlersExposeScopedLifecycleOverHTTPAndUDS(t *testing
 				scope contract.LoopInputDefaultsScope,
 			) (contract.DeleteLoopInputDefaultResponse, error) {
 				if workspaceID != "ws-1" || name != "alpha" || key != "reviewer" ||
-					scope != contract.LoopInputDefaultsScopeGlobal {
+					scope != contract.LoopInputDefaultsScopeUser {
 					t.Fatalf("DeleteLoopInputDefault() = %s/%s/%s/%s", workspaceID, name, key, scope)
 				}
 				return contract.DeleteLoopInputDefaultResponse{
@@ -719,7 +719,7 @@ func TestLoopInputDefaultsHandlersExposeScopedLifecycleOverHTTPAndUDS(t *testing
 			response = performRequest(
 				t, engine, http.MethodPut,
 				"/workspaces/ws-1/loops/alpha/input-defaults",
-				[]byte(`{"scope":"global","values":{"retries":0}}`),
+				[]byte(`{"scope":"user","values":{"retries":0}}`),
 			)
 			assertLoopStatus(t, response.Code, http.StatusOK, response.Body.String())
 
@@ -732,7 +732,7 @@ func TestLoopInputDefaultsHandlersExposeScopedLifecycleOverHTTPAndUDS(t *testing
 
 			response = performRequest(
 				t, engine, http.MethodDelete,
-				"/workspaces/ws-1/loops/alpha/input-defaults/reviewer?scope=global", nil,
+				"/workspaces/ws-1/loops/alpha/input-defaults/reviewer?scope=user", nil,
 			)
 			assertLoopStatus(t, response.Code, http.StatusOK, response.Body.String())
 			var deleted contract.DeleteLoopInputDefaultResponse

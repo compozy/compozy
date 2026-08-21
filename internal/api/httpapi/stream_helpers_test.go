@@ -377,6 +377,68 @@ func TestStreamLogsCarriesHarnessLifecyclePayloads(t *testing.T) {
 	}
 }
 
+func TestStreamLogsCarriesProfileLifecyclePayloads(t *testing.T) {
+	homePaths := newTestHomePaths(t)
+	done := make(chan struct{})
+	var doneOnce sync.Once
+	var capturedQuery store.EventSummaryQuery
+	observer := stubObserver{
+		QueryEventsFn: func(_ context.Context, query store.EventSummaryQuery) ([]store.EventSummary, error) {
+			capturedQuery = query
+			doneOnce.Do(func() { close(done) })
+			// Profile events are global scope: they carry no workspace, session, or
+			// agent, and the registry allows that.
+			return []store.EventSummary{{
+				ID:        "sum-profile",
+				Type:      "profile.selection_changed",
+				Outcome:   "info",
+				Summary:   "profile.selection_changed",
+				Content:   []byte(`{"name":"profile.selection_changed","profile_id":"01J9","profile_name":"marketing"}`),
+				Timestamp: time.Date(2026, 8, 21, 9, 0, 0, 0, time.UTC),
+			}}, nil
+		},
+	}
+	handlers := newTestHandlers(t, stubSessionManager{}, observer, homePaths)
+	handlers.setStreamDone(done)
+	engine := newTestRouter(t, handlers)
+
+	recorder := httptest.NewRecorder()
+	req := httptest.NewRequestWithContext(
+		context.Background(),
+		http.MethodGet,
+		"/api/logs/stream?component=profile&replay=false",
+		http.NoBody,
+	)
+	engine.ServeHTTP(recorder, req)
+
+	if got, want := capturedQuery.Component, "profile"; got != want {
+		t.Fatalf("observer query component = %q, want %q", got, want)
+	}
+	// An exact-match workspace filter would drop every global-scope profile row.
+	if got := capturedQuery.WorkspaceID; got != "" {
+		t.Fatalf("observer query workspace_id = %q, want empty for global-scope profile events", got)
+	}
+
+	records := parseSSE(t, recorder.Body.String())
+	if got, want := len(records), 1; got != want {
+		t.Fatalf("len(records) = %d, want %d; body=%s", got, want, recorder.Body.String())
+	}
+	if got, want := records[0].Event, "profile.selection_changed"; got != want {
+		t.Fatalf("records[0].Event = %q, want %q", got, want)
+	}
+
+	var payload logEventPayload
+	if err := json.Unmarshal(records[0].Data, &payload); err != nil {
+		t.Fatalf("json.Unmarshal(profile payload) error = %v", err)
+	}
+	if got, want := payload.Type, "profile.selection_changed"; got != want {
+		t.Fatalf("payload.Type = %q, want %q", got, want)
+	}
+	if !bytes.Contains(payload.Content, []byte(`"profile_name":"marketing"`)) {
+		t.Fatalf("payload.Content = %s, want snake_case profile payload", string(payload.Content))
+	}
+}
+
 func TestStreamBridgeHealthPollsForChangedSnapshots(t *testing.T) {
 	homePaths := newTestHomePaths(t)
 	done := make(chan struct{})

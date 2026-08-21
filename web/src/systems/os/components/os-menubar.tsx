@@ -53,6 +53,12 @@ export interface OsMenuBarProps extends React.ComponentProps<"header"> {
   scopeControl?: React.ReactNode;
   /** Wraps the bell in its popover owner (shell wiring). */
   wrapBellTrigger?: (trigger: React.ReactElement) => React.ReactNode;
+  /**
+   * Profile switcher, rendered between the command-palette trigger and Settings.
+   * Quiet-until-plural is the switcher's own business: the bar just gives it the
+   * slot.
+   */
+  profileSwitcher?: React.ReactNode;
 }
 
 const WINDOW_DRAG = "[app-region:drag]";
@@ -144,6 +150,7 @@ export function OsMenuBar({
   workspaceMenu,
   scopeControl,
   wrapBellTrigger,
+  profileSwitcher,
   className,
   ...props
 }: OsMenuBarProps) {
@@ -262,6 +269,10 @@ export function OsMenuBar({
           >
             <Icon as={Command} size="lg" />
           </Control>
+          {/* The conventional profile-selector position: last thing before
+              Settings, and outside every `role="menubar"` subtree so its popover
+              keeps its own semantics. */}
+          {profileSwitcher}
           <Control
             data-slot="os-menubar-settings"
             aria-label="Settings"

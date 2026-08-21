@@ -13,6 +13,7 @@ describe("settings sections metadata", () => {
       "general",
       "appearance",
       "layouts",
+      "profiles",
       "palette",
       "providers",
       "memory",

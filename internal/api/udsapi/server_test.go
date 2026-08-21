@@ -416,7 +416,7 @@ func TestServerStartRejectsRestartDuringShutdown(t *testing.T) {
 			req, requestErr := http.NewRequestWithContext(
 				context.Background(),
 				http.MethodGet,
-				"http://unix/api/sessions",
+				"http://unix/api/sessions?all_workspaces=true",
 				http.NoBody,
 			)
 			if requestErr != nil {

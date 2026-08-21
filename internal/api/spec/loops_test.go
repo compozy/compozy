@@ -63,6 +63,22 @@ func TestLoopOpenAPIContract(t *testing.T) {
 		assertNotRequired(t, nodes.Items.Value, "base", "against")
 	})
 
+	t.Run("Should expose only current config scopes for Loop input defaults", func(t *testing.T) {
+		t.Parallel()
+
+		doc, err := Document()
+		if err != nil {
+			t.Fatalf("Document() error = %v", err)
+		}
+		operation := operationFor(
+			t,
+			doc,
+			"/api/workspaces/{workspace_id}/loops/{name}/input-defaults",
+			"GET",
+		)
+		assertParameterEnumValues(t, operation, "scope", "user", "workspace")
+	})
+
 	t.Run("Should expose every Loop route with expected status bodies", func(t *testing.T) {
 		t.Parallel()
 

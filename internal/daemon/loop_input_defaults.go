@@ -254,12 +254,12 @@ func (s *daemonLoopAPIService) loopInputDefaultsWorkspaceRoot(
 
 func loopInputDefaultsWriteScope(scope contract.LoopInputDefaultsScope) (compozyconfig.WriteScope, error) {
 	switch scope {
-	case contract.LoopInputDefaultsScopeGlobal:
+	case contract.LoopInputDefaultsScopeUser:
 		return compozyconfig.WriteScopeUser, nil
 	case contract.LoopInputDefaultsScopeWorkspace:
 		return compozyconfig.WriteScopeWorkspace, nil
 	default:
-		return "", fmt.Errorf("%w: input-default scope must be global or workspace", looppkg.ErrValidation)
+		return "", fmt.Errorf("%w: input-default scope must be user or workspace", looppkg.ErrValidation)
 	}
 }
 

@@ -93,6 +93,7 @@ func TestProviderAbsorption(t *testing.T) {
 			"settings.network=/settings/network",
 			"settings.observability=/settings/observability",
 			"settings.palette=/settings/palette",
+			"settings.profiles=/settings/profiles",
 			"settings.providers=/settings/providers",
 			"settings.roles=/settings/roles",
 			"settings.skills=/settings/skills",

@@ -14,8 +14,10 @@ import { SettingsWindowNav } from "./settings-window-nav";
 import { SETTINGS_SECTIONS } from "@/systems/settings";
 import { useDaemonConnectionStatus } from "@/systems/status";
 
-interface SettingsSectionPageProps {
+export interface SettingsSectionPageProps {
   focusCommandId?: string;
+  /** Lifecycle flow a palette command navigated here to raise. */
+  profileFlow?: { flow: string; profile?: string };
 }
 
 /**
@@ -74,6 +76,11 @@ const SECTION_PAGES = {
       default: m.GatewaySettingsPage,
     }))
   ),
+  profiles: lazy(() =>
+    import("@/routes/_app/settings/-profiles-settings-page").then(m => ({
+      default: m.ProfilesSettingsPage,
+    }))
+  ),
   palette: lazy(() =>
     import("@/routes/_app/settings/-palette-settings-page").then(m => ({
       default: m.PaletteSettingsPage,
@@ -118,6 +125,22 @@ function sectionSlugFromPathname(pathname: string): MappedSectionSlug {
 const TYPING_TAGS = /^(INPUT|SELECT|TEXTAREA)$/;
 const DEFAULT_SETTINGS_ROUTE = { pathname: "/settings", search: {} } as const;
 
+/**
+ * The lifecycle flow a `profile.*` palette command navigated here with.
+ *
+ * The daemon declares the flow on the action; the dispatch seam carries the
+ * action's non-pathname args through as route search, and this is where that
+ * intent lands.
+ */
+function profileFlowFromSearch(
+  search: Record<string, unknown>
+): { flow: string; profile?: string } | undefined {
+  const flow = typeof search.flow === "string" ? search.flow.trim() : "";
+  if (flow === "") return undefined;
+  const profile = typeof search.profile === "string" ? search.profile.trim() : "";
+  return profile === "" ? { flow } : { flow, profile };
+}
+
 function focusCommandFromSearch(search: Record<string, unknown>): string | undefined {
   const command = search.command;
   if (typeof command !== "string") return undefined;
@@ -133,6 +156,7 @@ export function SettingsWindow({ windowId }: { windowId: string }) {
   const SectionPage = SECTION_PAGES[activeSlug];
   const focusCommandId =
     activeSlug === "layouts" ? focusCommandFromSearch(route.search) : undefined;
+  const profileFlow = activeSlug === "profiles" ? profileFlowFromSearch(route.search) : undefined;
 
   // Window-scoped `/` shortcut: focus the sidebar search unless the user is
   // already typing in a field.
@@ -166,7 +190,7 @@ export function SettingsWindow({ windowId }: { windowId: string }) {
               </div>
             }
           >
-            <SectionPage focusCommandId={focusCommandId} />
+            <SectionPage focusCommandId={focusCommandId} profileFlow={profileFlow} />
           </Suspense>
         </div>
       </div>

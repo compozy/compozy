@@ -405,8 +405,8 @@ func TestConfigCommandsManageDynamicLoopInputDefaults(t *testing.T) {
 		t.Fatalf("PutLoopInputDefault() calls = %d, want 4", len(calls))
 	}
 	for _, call := range calls {
-		if call.Scope != contract.LoopInputDefaultsScopeGlobal {
-			t.Fatalf("PutLoopInputDefault() scope = %q, want global", call.Scope)
+		if call.Scope != contract.LoopInputDefaultsScopeUser {
+			t.Fatalf("PutLoopInputDefault() scope = %q, want user", call.Scope)
 		}
 	}
 }

@@ -275,7 +275,7 @@ func TestMemoryDecisionCommands(t *testing.T) {
 			"decisions",
 			"list",
 			"--scope",
-			"global",
+			"profile",
 			"--filename",
 			"prefs.md",
 			"--limit",
@@ -287,7 +287,7 @@ func TestMemoryDecisionCommands(t *testing.T) {
 			t.Fatalf("memory decisions list error = %v", err)
 		}
 		if seen.Scope != memcontract.ScopeProfile || seen.TargetFilename != "prefs.md" || seen.Limit != 1 {
-			t.Fatalf("memory decision query = %#v, want global prefs.md limit 1", seen)
+			t.Fatalf("memory decision query = %#v, want profile prefs.md limit 1", seen)
 		}
 		if !strings.Contains(stdout, "dec-filtered") {
 			t.Fatalf("memory decisions list output = %q, want filtered decision", stdout)

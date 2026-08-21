@@ -269,7 +269,7 @@ func TestLoopRuntimeSelectionIntegration(t *testing.T) {
 			http.MethodPut,
 			inputDefaultsPath,
 			contract.PutLoopInputDefaultRequest{
-				Scope: contract.LoopInputDefaultsScopeGlobal,
+				Scope: contract.LoopInputDefaultsScopeUser,
 				Value: false,
 			},
 			new(contract.LoopInputDefaultResponse),

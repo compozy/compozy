@@ -65,6 +65,11 @@ export interface DesktopMenubarProps {
   onResolveMissingWorktree?: (workspaceId: string, entry: WorktreeNestEntry) => void;
   onOpenWorktreeContext?: (workspaceId: string, entry: WorktreeNestEntry) => void;
   onRemoveWorktree?: (workspaceId: string, entry: WorktreeNestEntry) => void;
+  /**
+   * Profile switcher, supplied by the shell. It owns its own reads, so it is
+   * injected rather than constructed here — the bar stays presentational.
+   */
+  profileSwitcher?: React.ReactNode;
 }
 
 /**
@@ -99,6 +104,7 @@ export function DesktopMenubar({
   onResolveMissingWorktree,
   onOpenWorktreeContext,
   onRemoveWorktree,
+  profileSwitcher,
 }: DesktopMenubarProps) {
   const { coordinator } = useOsShell();
   const hydration = useDesktop(state => state.hydration);
@@ -251,6 +257,7 @@ export function DesktopMenubar({
           </>
         ) : null
       }
+      profileSwitcher={profileSwitcher}
       wrapBellTrigger={trigger => (
         <Popover
           open={activeOverlay === "bell"}

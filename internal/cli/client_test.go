@@ -3043,12 +3043,12 @@ func TestUnixSocketClientMethods(t *testing.T) {
 						`{"operations":[{"id":"memevt_1","operation":"memory.write","scope":"workspace","workspace":"/workspace/project","filename":"memory.md","agent_name":"daemon","summary":"scope=workspace filename=memory.md","timestamp":"2026-04-03T12:00:00Z"}]}`,
 					), nil
 				case req.Method == http.MethodGet && req.URL.Path == "/api/memory":
-					if got := req.URL.Query().Get("scope"); got != "global" {
-						t.Fatalf("memory scope query = %q, want %q", got, "global")
+					if got := req.URL.Query().Get("scope"); got != "profile" {
+						t.Fatalf("memory scope query = %q, want %q", got, "profile")
 					}
 					return newHTTPResponse(
 						http.StatusOK,
-						`{"memories":[{"filename":"memory.md","mod_time":"2026-04-03T12:00:00Z","name":"Memory","description":"desc","type":"user","scope":"global","injection":true}]}`,
+						`{"memories":[{"filename":"memory.md","mod_time":"2026-04-03T12:00:00Z","name":"Memory","description":"desc","type":"user","scope":"profile","injection":true}]}`,
 					), nil
 				case req.Method == http.MethodPost && req.URL.Path == "/api/memory/search":
 					var body contract.MemorySearchRequest
@@ -3064,12 +3064,12 @@ func TestUnixSocketClientMethods(t *testing.T) {
 						`{"results":[{"memory":{"filename":"release.md","scope":"workspace","workspace_id":"/workspace/project","type":"project","name":"Release Plan","description":"plan","mod_time":"2026-04-03T12:00:00Z","injection":true},"score":3.4,"snippet":"Ship phases incrementally"}],"recall":{"blocks":null}}`,
 					), nil
 				case req.Method == http.MethodGet && req.URL.Path == "/api/memory/memory.md":
-					if got := req.URL.Query().Get("scope"); got != "global" {
-						t.Fatalf("show memory scope query = %q, want %q", got, "global")
+					if got := req.URL.Query().Get("scope"); got != "profile" {
+						t.Fatalf("show memory scope query = %q, want %q", got, "profile")
 					}
 					return newHTTPResponse(
 						http.StatusOK,
-						`{"memory":{"summary":{"filename":"memory.md","name":"Memory","type":"user","scope":"global","mod_time":"2026-04-03T12:00:00Z","injection":true},"content":"hello"}}`,
+						`{"memory":{"summary":{"filename":"memory.md","name":"Memory","type":"user","scope":"profile","mod_time":"2026-04-03T12:00:00Z","injection":true},"content":"hello"}}`,
 					), nil
 				case req.Method == http.MethodPost && req.URL.Path == "/api/memory":
 					var body contract.MemoryCreateRequest
@@ -3084,7 +3084,7 @@ func TestUnixSocketClientMethods(t *testing.T) {
 					}
 					return newHTTPResponse(
 						http.StatusOK,
-						`{"decision":{"id":"dec-write","candidate_hash":"sha256:test","op":"add","scope":"global","frontmatter":{"name":"Memory","type":"user"},"confidence":0.9,"source":"rule","decided_at":"2026-04-03T12:00:00Z"},"applied":true}`,
+						`{"decision":{"id":"dec-write","candidate_hash":"sha256:test","op":"add","scope":"profile","frontmatter":{"name":"Memory","type":"user"},"confidence":0.9,"source":"rule","decided_at":"2026-04-03T12:00:00Z"},"applied":true}`,
 					), nil
 				case req.Method == http.MethodDelete && req.URL.Path == "/api/memory/memory.md":
 					if got := req.URL.Query().Get("scope"); got != "workspace" {

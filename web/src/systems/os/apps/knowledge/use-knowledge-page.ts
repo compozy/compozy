@@ -77,7 +77,7 @@ function useKnowledgePage(options?: {
   const { activeWorkspaceId } = useActiveWorkspace();
   const destination = useCreateDestination();
 
-  const [activeScope, setActiveScope] = useState<KnowledgeScope>(options?.routeScope ?? "global");
+  const [activeScope, setActiveScope] = useState<KnowledgeScope>(options?.routeScope ?? "profile");
   const [agentName, setAgentName] = useState("");
   const [agentTier, setAgentTier] = useState<KnowledgeAgentTier>("workspace");
   const searchInput = useDebouncedInput({
@@ -113,7 +113,7 @@ function useKnowledgePage(options?: {
   const trimmedSearchQuery = searchInput.committedValue.trim();
 
   const listWorkspaceId = routeWorkspaceId || activeWorkspaceId;
-  let selector: KnowledgeSelector | null = { scope: "global" };
+  let selector: KnowledgeSelector | null = { scope: "profile" };
   if (activeScope === "workspace") {
     selector = listWorkspaceId ? { scope: "workspace", workspaceId: listWorkspaceId } : null;
   } else if (activeScope === "agent") {
@@ -132,7 +132,7 @@ function useKnowledgePage(options?: {
       ? selector
       : destination.scope === "workspace" && destination.workspaceId
         ? { scope: "workspace", workspaceId: destination.workspaceId }
-        : { scope: "global" };
+        : { scope: "profile" };
   const createDestinationLabel =
     activeScope === "agent" ? trimmedAgentName || "Agent" : destination.destinationLabel;
 
@@ -454,11 +454,11 @@ function useKnowledgePage(options?: {
         ? "workspace"
         : activeScope === "agent"
           ? "agent"
-          : "global"
+          : "profile"
     ),
     canCreateMemory: Boolean(createSelector),
     createDestinationLabel,
-    createScope: createSelector?.scope ?? "global",
+    createScope: createSelector?.scope ?? "profile",
     decisions: decisionsForSelected,
     decisionsError: decisionsQuery.error,
     isDecisionsLoading: decisionsQuery.isLoading && Boolean(selectedMemory),

@@ -17,6 +17,7 @@ var settingsDestinations = []settingsDestination{
 		Keywords: []string{"defaults", "permissions", "updates"},
 	},
 	{Slug: "appearance", Title: "Appearance", Icon: "palette", Keywords: []string{"wallpaper", "theme", "dock"}},
+	{Slug: "profiles", Title: "Profiles", Icon: "users", Keywords: []string{"identity", "context", "switch"}},
 	{
 		Slug:     "layouts",
 		Title:    "Layouts",
