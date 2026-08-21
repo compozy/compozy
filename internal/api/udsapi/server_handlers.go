@@ -45,6 +45,7 @@ func udsCoreHandlerConfig(cfg *handlerConfig) *core.BaseHandlerConfig {
 		Loops:                        cfg.loops,
 		Bridges:                      cfg.bridges,
 		Notifications:                cfg.notifications,
+		Profiles:                     cfg.profiles,
 		SupportBundles:               cfg.supportBundles,
 		Tools:                        cfg.tools,
 		ToolArtifacts:                cfg.toolArtifacts,

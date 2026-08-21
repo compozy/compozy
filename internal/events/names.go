@@ -79,6 +79,14 @@ const (
 	RoleFallbackUsed = "role.fallback.used"
 	RoleResolveError = "role.resolve.error"
 
+	ProfileCreated              = "profile.created"
+	ProfileRenamed              = "profile.renamed"
+	ProfileIdentityUpdated      = "profile.identity_updated"
+	ProfileArchived             = "profile.archived"
+	ProfileUnarchived           = "profile.unarchived"
+	ProfileDeleted              = "profile.deleted"
+	ProfileSelectionChanged     = "profile.selection_changed"
+	ProfilePlanStale            = "profile.plan_stale"
 	ProfileLifecycleOpRecovered = "profile.lifecycle_op_recovered"
 	ProfileLifecycleOpFailed    = "profile.lifecycle_op_failed"
 

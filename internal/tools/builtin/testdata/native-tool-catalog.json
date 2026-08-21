@@ -2345,6 +2345,32 @@
     "output_schema_digest": "a2c799262a3ce3c19ef5cdd983bf3d12b43ab3c426227091b909dcb7054738c0"
   },
   {
+    "tool_id": "compozy__profile_current",
+    "native_name": "profile_current",
+    "toolsets": [
+      "compozy__catalog"
+    ],
+    "risk": "read",
+    "read_only": true,
+    "destructive": false,
+    "open_world": false,
+    "input_schema_digest": "cd1a463c46d6264134447db17a8c3c7abe5b9a2488c6d759fea66da1f96b133e",
+    "output_schema_digest": "8c9850885bc39ab590f4416e5a587ceff929390905015f29504173d201a5829b"
+  },
+  {
+    "tool_id": "compozy__profile_list",
+    "native_name": "profile_list",
+    "toolsets": [
+      "compozy__catalog"
+    ],
+    "risk": "read",
+    "read_only": true,
+    "destructive": false,
+    "open_world": false,
+    "input_schema_digest": "cd1a463c46d6264134447db17a8c3c7abe5b9a2488c6d759fea66da1f96b133e",
+    "output_schema_digest": "c37815b7350972182de53805a5d851ee5ffded0e3dd3739fd7dd7f050d469b9f"
+  },
+  {
     "tool_id": "compozy__provider_models_curate",
     "native_name": "provider_models_curate",
     "toolsets": [

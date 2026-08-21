@@ -120,6 +120,10 @@ const (
 	ToolIDAgentHeartbeatWake ToolID = "compozy__agent_heartbeat_wake"
 	// ToolIDWorkspaceList lists registered workspaces.
 	ToolIDWorkspaceList ToolID = "compozy__workspace_list"
+	// ToolIDProfileList lists the daemon profile catalog for the bound session.
+	ToolIDProfileList ToolID = "compozy__profile_list"
+	// ToolIDProfileCurrent reads the immutable profile bound to the caller session.
+	ToolIDProfileCurrent ToolID = "compozy__profile_current"
 	// ToolIDAgentList lists agent definitions visible in one workspace scope.
 	ToolIDAgentList ToolID = "compozy__agent_list"
 	// ToolIDWorkspaceInfo reads one registered workspace record.

@@ -41,6 +41,7 @@ import (
 	"github.com/compozy/compozy/internal/network/participation"
 	"github.com/compozy/compozy/internal/notifications"
 	"github.com/compozy/compozy/internal/observe"
+	profilepkg "github.com/compozy/compozy/internal/profile"
 	"github.com/compozy/compozy/internal/resources"
 	"github.com/compozy/compozy/internal/session"
 	settingspkg "github.com/compozy/compozy/internal/settings"
@@ -96,6 +97,14 @@ type nativeEntityAgentCatalog struct {
 	global          []core.AgentCatalogEntry
 	workspace       []core.AgentCatalogEntry
 	listedWorkspace string
+}
+
+type nativeProfileReaderStub struct {
+	profiles []profilepkg.ProfileWithCounts
+}
+
+func (s nativeProfileReaderStub) List(context.Context) ([]profilepkg.ProfileWithCounts, error) {
+	return append([]profilepkg.ProfileWithCounts(nil), s.profiles...), nil
 }
 
 func (c *nativeEntityAgentCatalog) ListAgents(context.Context) ([]core.AgentCatalogEntry, error) {
@@ -360,6 +369,45 @@ func nativeNetworkTestSessionManager(workspaceID string) apitest.StubSessionMana
 
 func TestDaemonNativeTools(t *testing.T) {
 	t.Parallel()
+
+	t.Run("Should expose the session-bound profile through read-only native tools [UT-073]", func(t *testing.T) {
+		t.Parallel()
+		const marketingID = "01PROFILEMARKETING000000000"
+		sessions := nativeNetworkTestSessionManager("ws-native-profile")
+		sessions.StatusFn = func(context.Context, string) (*session.Info, error) {
+			return &session.Info{
+				ID: "sess-profile", ProfileID: marketingID, WorkspaceID: "ws-native-profile", State: session.StateActive,
+			}, nil
+		}
+		registry := newDaemonNativeRegistry(t, &daemonNativeToolsDeps{
+			Profiles: nativeProfileReaderStub{profiles: []profilepkg.ProfileWithCounts{
+				{Profile: profilepkg.Profile{ID: store.DefaultProfileID, Name: "default", State: profilepkg.StateActive}},
+				{Profile: profilepkg.Profile{ID: marketingID, Name: "marketing", State: profilepkg.StateActive}, WorkItems: 3},
+			}},
+			Sessions:   sessions,
+			Workspaces: nativeNetworkTestWorkspaceService(t),
+		}, nativeApproveAllPolicyInputs())
+		scope := toolspkg.Scope{SessionID: "sess-profile", WorkspaceID: "ws-native-profile", AgentName: "coder"}
+		list, err := registry.Call(t.Context(), scope, toolspkg.CallRequest{
+			ToolID: toolspkg.ToolIDProfileList, Input: json.RawMessage(`{}`),
+		})
+		if err != nil {
+			t.Fatalf("profile list error = %v", err)
+		}
+		if !bytes.Contains(list.Structured, []byte(`"name":"marketing","state":"active","current":true`)) {
+			t.Fatalf("profile list = %s", list.Structured)
+		}
+		current, err := registry.Call(t.Context(), scope, toolspkg.CallRequest{
+			ToolID: toolspkg.ToolIDProfileCurrent, Input: json.RawMessage(`{}`),
+		})
+		if err != nil {
+			t.Fatalf("profile current error = %v", err)
+		}
+		if !bytes.Contains(current.Structured, []byte(`"profile":"marketing"`)) ||
+			!bytes.Contains(current.Structured, []byte(`"source":"session"`)) {
+			t.Fatalf("profile current = %s", current.Structured)
+		}
+	})
 
 	t.Run("Should execute the session orchestration tool chain with scoped typed results", func(t *testing.T) {
 		t.Parallel()

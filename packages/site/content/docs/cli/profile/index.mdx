@@ -1,0 +1,48 @@
+---
+title: "compozy profile"
+description: "Manage profiles"
+---
+
+## compozy profile
+
+Manage profiles
+
+### Options
+
+```
+  -h, --help   help for profile
+```
+
+### Options inherited from parent commands
+
+```
+      --json             Emit JSON output
+  -o, --output string    Output format: human, json, jsonl, or toon (default "human")
+      --profile string   Act as a profile for this command
+```
+
+## Output Formats
+
+This command displays human-readable help and its subcommand list. The inherited `-o, --output` and `--json` flags do not serialize help output.
+
+| Format  | Output                   |
+| ------- | ------------------------ |
+| `human` | Help and subcommand list |
+| `json`  | Not emitted for help     |
+| `jsonl` | Not emitted for help     |
+| `toon`  | Not emitted for help     |
+
+## Subcommands
+
+| Command                                                  | Description                       |
+| -------------------------------------------------------- | --------------------------------- |
+| [compozy profile archive](/docs/cli/profile/archive)     | Archive a profile                 |
+| [compozy profile create](/docs/cli/profile/create)       | Create and activate a profile     |
+| [compozy profile current](/docs/cli/profile/current)     | Show the active profile           |
+| [compozy profile delete](/docs/cli/profile/delete)       | Delete an empty profile           |
+| [compozy profile list](/docs/cli/profile/list)           | List profiles                     |
+| [compozy profile ops](/docs/cli/profile/ops)             | List profile lifecycle operations |
+| [compozy profile rename](/docs/cli/profile/rename)       | Rename a profile                  |
+| [compozy profile unarchive](/docs/cli/profile/unarchive) | Unarchive a profile               |
+| [compozy profile update](/docs/cli/profile/update)       | Update profile identity           |
+| [compozy profile use](/docs/cli/profile/use)             | Remember the active profile       |

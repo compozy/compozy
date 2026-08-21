@@ -13,6 +13,7 @@ import (
 	"github.com/compozy/compozy/internal/api/testutil"
 	bridgepkg "github.com/compozy/compozy/internal/bridges"
 	"github.com/compozy/compozy/internal/gateway"
+	"github.com/compozy/compozy/internal/store"
 	"github.com/gin-gonic/gin"
 )
 
@@ -124,6 +125,7 @@ func TestBridgeSendTestUsesRealDeliveryWhileDryRunDoesNot(t *testing.T) {
 				now := time.Date(2026, 7, 12, 14, 0, 0, 0, time.UTC)
 				return &bridgepkg.BridgeInstance{
 					ID:            "brg-1",
+					ProfileID:     store.DefaultProfileID,
 					Platform:      "slack",
 					ExtensionName: "slack",
 					DisplayName:   "Slack support",
@@ -231,6 +233,7 @@ func TestBridgeSendTestUsesRealDeliveryWhileDryRunDoesNot(t *testing.T) {
 					now := time.Date(2026, 7, 13, 18, 0, 0, 0, time.UTC)
 					return &bridgepkg.BridgeInstance{
 						ID:            "brg-committed",
+						ProfileID:     store.DefaultProfileID,
 						Platform:      "slack",
 						ExtensionName: "slack",
 						DisplayName:   "Slack committed outcome",

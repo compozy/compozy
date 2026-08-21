@@ -123,6 +123,7 @@ func (m *Manager) UpdateIdentity(
 	if err != nil {
 		return Profile{}, err
 	}
+	m.recordEvent("profile.identity_updated", updated, "")
 	return updated, nil
 }
 

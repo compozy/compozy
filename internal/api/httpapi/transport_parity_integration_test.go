@@ -777,6 +777,34 @@ func TestHTTPTransportTaskSurfaceMatchesDocumentedSpecOperations(t *testing.T) {
 		t.Fatalf("HTTP task routes = %v, want documented task routes %v", got, want)
 	}
 }
+
+func TestHTTPTransportProfileSurfaceMatchesDocumentedSpecOperations(t *testing.T) {
+	t.Parallel()
+
+	engine := newTestRouter(t, newTestHandlers(t, stubSessionManager{}, stubObserver{}, newTestHomePaths(t)))
+
+	got := make([]string, 0)
+	for _, route := range engine.Routes() {
+		if strings.HasPrefix(route.Path, "/api/profiles") {
+			got = append(got, route.Method+" "+route.Path)
+		}
+	}
+	sort.Strings(got)
+
+	want := make([]string, 0)
+	for _, operation := range apispec.Operations() {
+		if slices.Contains(operation.Transports, apispec.TransportHTTP) &&
+			strings.HasPrefix(operation.Path, "/api/profiles") {
+			want = append(want, operation.Method+" "+normalizeSpecRoutePath(operation.Path))
+		}
+	}
+	sort.Strings(want)
+
+	if !slices.Equal(got, want) {
+		t.Fatalf("HTTP profile routes = %v, want documented profile routes %v", got, want)
+	}
+}
+
 func seedTransportWebhookTrigger(
 	t testing.TB,
 	ctx context.Context,

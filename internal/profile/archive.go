@@ -2,6 +2,7 @@ package profile
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"strings"
 
@@ -25,6 +26,7 @@ func (m *Manager) Archive(
 	}
 	var result ArchiveResult
 	var idempotent bool
+	var archived Profile
 	err = m.write(ctx, "archive profile", func(exec globaldb.ProfileWriteExecutor) error {
 		profile, err := getProfileByName(ctx, exec, name)
 		if err != nil {
@@ -33,6 +35,7 @@ func (m *Manager) Archive(
 		if err := rejectPermanent(profile, "archive"); err != nil {
 			return err
 		}
+		archived = profile
 		if profile.State == StateArchived {
 			idempotent = true
 			result.PausedAutomations, err = m.pausedAutomations(ctx, exec, profile.ID)
@@ -115,12 +118,17 @@ func (m *Manager) Archive(
 		return nil
 	})
 	if err != nil {
+		if errors.Is(err, ErrPlanStale) {
+			m.recordEvent("profile.plan_stale", archived, opID)
+		}
 		return ArchiveResult{}, err
 	}
 	if !idempotent {
 		if err := m.finalizeOperation(context.WithoutCancel(ctx), opID, false); err != nil {
 			return ArchiveResult{}, err
 		}
+		archived.State = StateArchived
+		m.recordEvent("profile.archived", archived, opID)
 	}
 	return result, nil
 }
@@ -188,6 +196,7 @@ func (m *Manager) Unarchive(ctx context.Context, name string) (UnarchiveResult, 
 		if err := m.finalizeOperation(context.WithoutCancel(ctx), opID, false); err != nil {
 			return UnarchiveResult{}, err
 		}
+		m.recordEvent("profile.unarchived", result.Profile, opID)
 	}
 	return result, nil
 }

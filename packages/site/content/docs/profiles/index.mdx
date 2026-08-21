@@ -1,0 +1,31 @@
+---
+title: Profiles
+description: Separate work and operator context on one CompozyOS installation, then select the profile each command or session uses.
+---
+
+A profile is an operator-owned partition of CompozyOS work. Every installation starts with the permanent
+`default` profile. Existing work belongs to `default`, and creating another profile does not move it.
+
+Profiles are global identities. A workspace remembers which profile to use, but the profile itself is not
+owned by that workspace. Sessions bind the resolved profile when they are created, so a later selection
+change does not rewrite an existing session.
+
+Start with the generated [`compozy profile`](/docs/cli/profile) reference or list the current catalog:
+
+```bash
+compozy profile list
+compozy profile current
+```
+
+Agents running inside CompozyOS can inspect the same truth with `compozy__profile_list` and
+`compozy__profile_current`. Resolve each live descriptor before calling it. Profile mutations remain on
+the local CLI, HTTP, UDS, desktop, and command-palette surfaces.
+
+## In this section
+
+- [Selection and precedence](/docs/profiles/selection) explains `--profile`, `COMPOZY_PROFILE`, remembered choices, and session binding.
+- [Lifecycle](/docs/profiles/lifecycle) covers create, update, rename, archive, unarchive, delete, plans, and recovery operations.
+- [Errors](/docs/profiles/errors) lists the structured failure contract and the next safe action.
+
+The [Profiles API](/docs/api/profiles) is generated from the same contract used by HTTP and UDS. Reads are
+available on an enabled remote surface; every profile-state write is local-only.

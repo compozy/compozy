@@ -492,13 +492,13 @@ func TestMemoryHelpersAndMissingStoreBranches(t *testing.T) {
 		body   []byte
 	}{
 		{method: http.MethodGet, path: "/memory"},
-		{method: http.MethodGet, path: "/memory/valid.md?scope=global"},
+		{method: http.MethodGet, path: "/memory/valid.md?scope=profile"},
 		{
 			method: http.MethodPost,
 			path:   "/memory",
-			body:   []byte(`{"scope":"global","type":"user","name":"Valid","content":"hello"}`),
+			body:   []byte(`{"scope":"profile","type":"user","name":"Valid","content":"hello"}`),
 		},
-		{method: http.MethodDelete, path: "/memory/valid.md?scope=global"},
+		{method: http.MethodDelete, path: "/memory/valid.md?scope=profile"},
 	}
 	for _, request := range requests {
 		t.Run(request.method+" "+request.path, func(t *testing.T) {
@@ -720,7 +720,7 @@ func TestMemoryErrorAndDisabledBranches(t *testing.T) {
 		t,
 		fixture.Engine,
 		http.MethodGet,
-		"/memory/missing.md?scope=global",
+		"/memory/missing.md?scope=profile",
 		nil,
 	)
 	if readMissing.Code != http.StatusNotFound {
@@ -731,7 +731,7 @@ func TestMemoryErrorAndDisabledBranches(t *testing.T) {
 		t,
 		fixture.Engine,
 		http.MethodDelete,
-		"/memory/missing.md?scope=global",
+		"/memory/missing.md?scope=profile",
 		nil,
 	)
 	if deleteMissing.Code != http.StatusNotFound {
@@ -743,7 +743,7 @@ func TestMemoryErrorAndDisabledBranches(t *testing.T) {
 		fixture.Engine,
 		http.MethodPost,
 		"/memory",
-		[]byte(`{"scope":"global","type":"user","name":"Bad"}`),
+		[]byte(`{"scope":"profile","type":"user","name":"Bad"}`),
 	)
 	if badWrite.Code != http.StatusBadRequest {
 		t.Fatalf("bad write status = %d, want %d", badWrite.Code, http.StatusBadRequest)

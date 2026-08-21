@@ -9,6 +9,7 @@
 - Autonomy scheduler
 - Loop defaults and observability
 - Goals
+- Profile selection environment
 - Automation schedules
 - Session compaction
 - Session attachments
@@ -133,6 +134,14 @@ Loop observability is durable runtime state, not a transient UI stream. `loop_ru
 ## Goals
 
 `[goals]` sets `max_turns = 20` and `context_nudge_ratio = 0.8` for new Goals, plus the daemon-wide durable session-event relay controls `outbox_batch_size = 50` and `outbox_poll_interval = "100ms"`. The Goal defaults are global/workspace-overridable; relay controls use global config because one relay serves every workspace. All four are agent-mutable, restart-required paths. `max_turns` must be positive; the ratio accepts `0.0` through `1.0`, with zero preserved; the relay batch accepts `1` through `200`; and its poll interval must be positive. Each Run pins its resolved ratio and every Goal checkpoint copies that value, so config reload or daemon restart cannot change an active Goal. Relay settings take effect when the daemon starts.
+
+## Profile Selection Environment
+
+Profiles add no `config.toml` key. `COMPOZY_PROFILE` selects one active profile for commands in the
+current process environment, after an explicit root `--profile` flag and before the workspace's
+remembered choice. `daemon`, `doctor`, and `update` ignore both inputs. Persist a workspace or Global
+lens choice with `compozy profile use`; read `references/profiles.md` for the complete precedence and
+lifecycle contract.
 
 ## Automation Schedules
 

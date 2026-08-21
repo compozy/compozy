@@ -340,7 +340,7 @@ func TestOperatorResourceServiceUsesDefaultControlActorAndCodecValidation(t *tes
 		1024,
 		func(_ context.Context, scope resources.ResourceScope, value spec) (spec, error) {
 			if scope.Kind != resources.ResourceScopeKindUser {
-				t.Fatalf("validator scope = %#v, want global", scope)
+				t.Fatalf("validator scope = %#v, want user", scope)
 			}
 			value.Name = strings.TrimSpace(value.Name)
 			return value, nil
@@ -469,7 +469,7 @@ func TestOperatorResourceServiceUsesDefaultControlActorAndCodecValidation(t *tes
 			t.Fatalf("%s actor source = %#v, want daemon/system", name, actor.Source)
 		}
 		if actor.MaxScope.Kind != resources.ResourceScopeKindUser {
-			t.Fatalf("%s actor max_scope = %#v, want global", name, actor.MaxScope)
+			t.Fatalf("%s actor max_scope = %#v, want user", name, actor.MaxScope)
 		}
 	}
 }
@@ -568,7 +568,7 @@ func TestBaseHandlersResourceEndpointsUseSharedSemantics(t *testing.T) {
 		ctx, recorder := newResourceRequestContext(
 			t,
 			http.MethodGet,
-			fixtureResourceAPIPath("")+"?scope_kind=global&limit=2",
+			fixtureResourceAPIPath("")+"?scope_kind=user&limit=2",
 			nil,
 			gin.Params{{Key: "kind", Value: string(fixtureResourceKind)}},
 		)
@@ -655,7 +655,7 @@ func TestBaseHandlersResourceEndpointsUseSharedSemantics(t *testing.T) {
 			t,
 			http.MethodPut,
 			fixtureResourceAPIPath("demo"),
-			[]byte(`{"scope":{"kind":"global"},"spec":{"enabled":true}}`),
+			[]byte(`{"scope":{"kind":"user"},"spec":{"enabled":true}}`),
 			gin.Params{{Key: "kind", Value: string(fixtureResourceKind)}, {Key: "id", Value: "demo"}},
 		)
 
@@ -740,7 +740,7 @@ func TestBaseHandlersResourceEndpointsHandleUnavailableServicesAndBadRequests(t 
 				name:   "put",
 				method: http.MethodPut,
 				target: fixtureResourceAPIPath("demo"),
-				body:   []byte(`{"scope":{"kind":"global"},"spec":{"enabled":true}}`),
+				body:   []byte(`{"scope":{"kind":"user"},"spec":{"enabled":true}}`),
 				params: gin.Params{{Key: "kind", Value: string(fixtureResourceKind)}, {Key: "id", Value: "demo"}},
 				call:   (*BaseHandlers).PutResource,
 			},
@@ -896,7 +896,7 @@ func TestBaseHandlersResourceEndpointsHandleUnavailableServicesAndBadRequests(t 
 				name:   "put payload too large",
 				method: http.MethodPut,
 				target: fixtureResourceAPIPath("demo"),
-				body:   []byte(`{"scope":{"kind":"global"},"spec":{"enabled":true}}`),
+				body:   []byte(`{"scope":{"kind":"user"},"spec":{"enabled":true}}`),
 				params: gin.Params{{Key: "kind", Value: string(fixtureResourceKind)}, {Key: "id", Value: "demo"}},
 				call:   (*BaseHandlers).PutResource,
 				want:   http.StatusRequestEntityTooLarge,

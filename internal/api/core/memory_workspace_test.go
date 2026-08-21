@@ -307,11 +307,11 @@ func TestMemoryHandlersAndHelpers(t *testing.T) {
 		}
 	})
 
-	t.Run("Should read global memory", func(t *testing.T) {
+	t.Run("Should read profile memory", func(t *testing.T) {
 		t.Parallel()
 
 		fixture, _, _ := setup(t)
-		readResp := performRequest(t, fixture.Engine, http.MethodGet, "/memory/global.md?scope=global", nil)
+		readResp := performRequest(t, fixture.Engine, http.MethodGet, "/memory/global.md?scope=profile", nil)
 		if readResp.Code != http.StatusOK {
 			t.Fatalf("read memory status = %d, want %d", readResp.Code, http.StatusOK)
 		}
@@ -791,7 +791,7 @@ func TestMemoryHandlersAndHelpers(t *testing.T) {
 			t,
 			fixture.Engine,
 			http.MethodGet,
-			"/memory/decisions?scope=global&filename="+
+			"/memory/decisions?scope=profile&filename="+
 				url.QueryEscape(writePayload.Decision.TargetFilename)+"&limit=1",
 			nil,
 		)
@@ -843,7 +843,7 @@ func TestMemoryHandlersAndHelpers(t *testing.T) {
 			t,
 			fixture.Engine,
 			http.MethodGet,
-			"/memory/"+writePayload.Decision.TargetFilename+"?scope=global",
+			"/memory/"+writePayload.Decision.TargetFilename+"?scope=profile",
 			nil,
 		)
 		if readResp.Code != http.StatusNotFound {
@@ -1179,7 +1179,7 @@ func TestMemoryHandlersAndHelpers(t *testing.T) {
 			fixture.Engine,
 			http.MethodPost,
 			"/memory/reset",
-			[]byte(`{"scope":"global","derived_only":false,"confirm":true}`),
+			[]byte(`{"scope":"profile","derived_only":false,"confirm":true}`),
 		)
 		if rejectedResetResp.Code != http.StatusUnprocessableEntity {
 			t.Fatalf(
@@ -1200,7 +1200,7 @@ func TestMemoryHandlersAndHelpers(t *testing.T) {
 			fixture.Engine,
 			http.MethodPost,
 			"/memory/reset",
-			[]byte(`{"scope":"global","derived_only":true,"confirm":true}`),
+			[]byte(`{"scope":"profile","derived_only":true,"confirm":true}`),
 		)
 		if resetResp.Code != http.StatusOK {
 			t.Fatalf("reset status = %d, want %d; body=%s", resetResp.Code, http.StatusOK, resetResp.Body.String())
@@ -1211,7 +1211,7 @@ func TestMemoryHandlersAndHelpers(t *testing.T) {
 			t.Fatalf("reset payload = %#v, want derived reset timestamp", resetPayload)
 		}
 
-		reloadResp := performRequest(t, fixture.Engine, http.MethodPost, "/memory/reload?scope=global", nil)
+		reloadResp := performRequest(t, fixture.Engine, http.MethodPost, "/memory/reload?scope=profile", nil)
 		if reloadResp.Code != http.StatusOK {
 			t.Fatalf("reload status = %d, want %d; body=%s", reloadResp.Code, http.StatusOK, reloadResp.Body.String())
 		}
@@ -1226,7 +1226,7 @@ func TestMemoryHandlersAndHelpers(t *testing.T) {
 			fixture.Engine,
 			http.MethodPost,
 			"/memory/ad-hoc",
-			[]byte(`{"scope":"global","content":"Remember ad-hoc API notes.","slug":"api-note"}`),
+			[]byte(`{"scope":"profile","content":"Remember ad-hoc API notes.","slug":"api-note"}`),
 		)
 		if adhocResp.Code != http.StatusOK {
 			t.Fatalf("ad-hoc status = %d, want %d; body=%s", adhocResp.Code, http.StatusOK, adhocResp.Body.String())

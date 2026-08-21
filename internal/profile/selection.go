@@ -86,7 +86,8 @@ func (s *selectionStore) Put(ctx context.Context, selection Selection) error {
 	if profileID == "" || profileID == "@all" {
 		return fmt.Errorf("%w: selection requires a real profile id", ErrInvalidInput)
 	}
-	return s.manager.write(ctx, "put profile selection", func(exec globaldb.ProfileWriteExecutor) error {
+	var selected Profile
+	err = s.manager.write(ctx, "put profile selection", func(exec globaldb.ProfileWriteExecutor) error {
 		profile, err := getProfileByID(ctx, exec, profileID)
 		if err != nil {
 			return err
@@ -94,6 +95,7 @@ func (s *selectionStore) Put(ctx context.Context, selection Selection) error {
 		if err := ensureAvailable(ctx, exec, profile, true); err != nil {
 			return err
 		}
+		selected = profile
 		_, err = exec.ExecContext(
 			ctx,
 			`INSERT INTO profile_selections (lens, workspace_id, profile_id, updated_at)
@@ -109,6 +111,11 @@ func (s *selectionStore) Put(ctx context.Context, selection Selection) error {
 		}
 		return nil
 	})
+	if err != nil {
+		return err
+	}
+	s.manager.recordEvent("profile.selection_changed", selected, "")
+	return nil
 }
 
 func (s *selectionStore) SweepProfile(ctx context.Context, profileID string) error {

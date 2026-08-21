@@ -138,6 +138,10 @@ func (m *Manager) create(
 	if err := m.finalizeOperation(context.WithoutCancel(ctx), opID, false); err != nil {
 		return Profile{}, err
 	}
+	m.recordEvent("profile.created", created, opID)
+	if activate != nil {
+		m.recordEvent("profile.selection_changed", created, opID)
+	}
 	return created, nil
 }
 

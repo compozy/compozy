@@ -1113,7 +1113,7 @@ func TestDocumentTracksRequiredFieldsAndEnums(t *testing.T) {
 					"idempotency_key",
 					"dry_run",
 				)
-				assertEnumValues(t, propertySchema(t, writeMemorySchema, "scope"), "global", "workspace", "agent")
+				assertEnumValues(t, propertySchema(t, writeMemorySchema, "scope"), "profile", "workspace", "agent")
 				assertEnumValues(t, propertySchema(t, writeMemorySchema, "agent_tier"), "workspace", "global")
 				assertEnumValues(
 					t,
@@ -1145,7 +1145,7 @@ func TestDocumentTracksRequiredFieldsAndEnums(t *testing.T) {
 				memorySchema := propertySchema(t, readMemorySchema, "memory")
 				assertRequired(t, memorySchema, "summary", "content")
 				summarySchema := propertySchema(t, memorySchema, "summary")
-				assertEnumValues(t, propertySchema(t, summarySchema, "scope"), "global", "workspace", "agent")
+				assertEnumValues(t, propertySchema(t, summarySchema, "scope"), "profile", "workspace", "agent")
 				assertEnumValues(t, propertySchema(t, summarySchema, "agent_tier"), "workspace", "global")
 
 				searchMemory := operationFor(t, doc, "/api/memory/search", "POST")

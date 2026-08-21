@@ -9,6 +9,7 @@ import (
 	compozyconfig "github.com/compozy/compozy/internal/config"
 	extensionpkg "github.com/compozy/compozy/internal/extension"
 	memorypkg "github.com/compozy/compozy/internal/memory"
+	profilepkg "github.com/compozy/compozy/internal/profile"
 	sessionpkg "github.com/compozy/compozy/internal/session"
 	skillspkg "github.com/compozy/compozy/internal/skills"
 	"github.com/compozy/compozy/internal/store"
@@ -38,6 +39,10 @@ type extensionPublishSecretResolver interface {
 	ResolveRef(context.Context, string) (string, error)
 }
 
+type nativeProfileReader interface {
+	List(context.Context) ([]profilepkg.ProfileWithCounts, error)
+}
+
 type daemonNativeToolsDeps struct {
 	Registry                   func() toolspkg.Registry
 	CmdPalette                 func() cmdpalette.Registry
@@ -45,6 +50,7 @@ type daemonNativeToolsDeps struct {
 	Config                     compozyconfig.Config
 	Skills                     daemonNativeSkillsRegistry
 	Sessions                   core.SessionManager
+	Profiles                   nativeProfileReader
 	SessionAttachments         attachmentspkg.Store
 	Workspaces                 core.WorkspaceService
 	Worktrees                  core.WorktreeService

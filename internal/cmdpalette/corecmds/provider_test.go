@@ -108,7 +108,7 @@ func TestProviderAbsorption(t *testing.T) {
 		commands := mustCommands(t)
 		want := []string{
 			"agents", "bridges", "extensions", "jobs", "knowledge", "loops", "marketplace",
-			"network-channels", "sessions", "tasks", "triggers", "vault", "worktrees",
+			"network-channels", "profiles", "sessions", "tasks", "triggers", "vault", "worktrees",
 		}
 		actual := make([]string, 0, len(want))
 		seen := make(map[string]int, len(want))
@@ -126,6 +126,34 @@ func TestProviderAbsorption(t *testing.T) {
 		for _, viewID := range want {
 			if seen[viewID] != 1 {
 				t.Errorf("view %q count = %d, want 1", viewID, seen[viewID])
+			}
+		}
+	})
+
+	t.Run("Should expose stable profile actions with canonical handoffs [UT-095]", func(t *testing.T) {
+		t.Parallel()
+		commands := mustCommands(t)
+		byID := make(map[cmdpalette.CommandID]cmdpalette.Descriptor, len(commands))
+		for _, command := range commands {
+			byID[command.ID] = command
+		}
+		for _, id := range []cmdpalette.CommandID{
+			"profile.use", "profile.create", "profile.update", "profile.rename",
+			"profile.archive", "profile.unarchive", "profile.delete",
+		} {
+			command, found := byID[id]
+			if !found {
+				t.Errorf("profile command %q is missing", id)
+				continue
+			}
+			if id == "profile.use" {
+				if command.Action.Kind != cmdpalette.ActionKindClientOp || command.Action.Op != string(id) {
+					t.Errorf("profile.use action = %#v, want canonical client operation", command.Action)
+				}
+				continue
+			}
+			if command.Action.Kind != cmdpalette.ActionKindNavigate || command.Action.Args["pathname"] != "/settings/profiles" {
+				t.Errorf("profile command %q action = %#v, want profiles flow handoff", id, command.Action)
 			}
 		}
 	})

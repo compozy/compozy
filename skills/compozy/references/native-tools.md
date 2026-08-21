@@ -6,6 +6,7 @@
 - Discovery and catalog toolsets
 - Command palette tools
 - Runtime and workspace tools
+- Profile tools
 - Workspace boundary
 - Window management tools
 - Skills and memory tools
@@ -213,6 +214,18 @@ live catalog; omitting it preserves Cursor's native default. Refresh through
 Model-list and curation results may include a `cost` object with independent `input_per_million`, `output_per_million`, `cache_read_per_million`, `cache_write_per_million`, and `reasoning_per_million` fields. A missing field means that bucket is unpriced; never infer it from another field.
 
 Provider authentication is a management surface. Write `providers.<id>.auth_login_command` only through `config.toml`, `compozy config set`, or `compozy__config_set`; it is write-only and redacted from config show, list, get, diff, and set reads. Provider status, doctor, API/UDS, Settings, and Web expose for it only `{configured, source, executable, presence, recommended_action}`, where `executable` is the basename. `compozy provider auth login <provider>` executes the configured login command internally and never returns the raw command.
+
+## Profile Tools
+
+`compozy__profile_list` returns the active and archived profile catalog and marks the profile bound to
+the caller session. `compozy__profile_current` returns that immutable session profile with
+`source: "session"`; outside a bound session it returns the permanent default with
+`source: "default"`. Both are read-only catalog tools with empty input. Resolve their live descriptors
+before calling them.
+
+Profile selection and lifecycle mutations remain management surfaces. Use `compozy profile`, local
+HTTP/UDS `/api/profiles` routes, the desktop, or the stable `profile.*` command-palette actions. Remote
+profile-state writes are forbidden. Read `references/profiles.md` before changing profile state.
 
 ## Workspace Boundary
 

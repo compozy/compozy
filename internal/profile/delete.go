@@ -2,6 +2,7 @@ package profile
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"strings"
 
@@ -24,6 +25,7 @@ func (m *Manager) Delete(
 		return DeleteResult{}, err
 	}
 	var result DeleteResult
+	var deleted Profile
 	err = m.write(ctx, "delete profile", func(exec globaldb.ProfileWriteExecutor) error {
 		profile, err := getProfileByName(ctx, exec, name)
 		if err != nil {
@@ -35,6 +37,7 @@ func (m *Manager) Delete(
 		if err := ensureAvailable(ctx, exec, profile, false); err != nil {
 			return err
 		}
+		deleted = profile
 		plan, err := m.deletePlan(ctx, exec, profile)
 		if err != nil {
 			return err
@@ -82,10 +85,14 @@ func (m *Manager) Delete(
 		return nil
 	})
 	if err != nil {
+		if errors.Is(err, ErrPlanStale) {
+			m.recordEvent("profile.plan_stale", deleted, opID)
+		}
 		return DeleteResult{}, err
 	}
 	if err := m.finalizeOperation(context.WithoutCancel(ctx), opID, false); err != nil {
 		return DeleteResult{}, err
 	}
+	m.recordEvent("profile.deleted", deleted, opID)
 	return result, nil
 }

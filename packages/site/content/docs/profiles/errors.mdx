@@ -1,0 +1,43 @@
+---
+title: Profile errors
+description: Interpret the stable profile error code, message, and action returned by CLI, HTTP, and UDS.
+---
+
+Profile failures use one shape across structured CLI output, HTTP, and UDS:
+
+```json
+{
+  "error": {
+    "code": "profile_archived",
+    "message": "profile \"finance\" is archived",
+    "action": "run compozy profile unarchive finance"
+  }
+}
+```
+
+The CLI exits with status `1`. Under `-o json` it emits the object above; JSONL emits the same object as one
+line. Human output combines `message` and `action` without changing their meaning.
+
+| Code                                  | Meaning                                                   |
+| ------------------------------------- | --------------------------------------------------------- |
+| `profile_not_found`                   | The requested profile does not exist.                     |
+| `profile_archived`                    | Selection requires an active profile.                     |
+| `profile_name_invalid`                | The name does not match the profile grammar.              |
+| `profile_name_taken`                  | Another profile already owns the name.                    |
+| `profile_name_reserved`               | The name is reserved by an aggregate or permanent lens.   |
+| `profile_permanent`                   | The operation would mutate the permanent `default`.       |
+| `profile_owns_work`                   | Delete cannot remove work owned by the profile.           |
+| `profile_sessions_running`            | Archive must wait for running sessions to stop.           |
+| `profile_deliveries_in_flight`        | A guarded delivery still owns profile work.               |
+| `profile_approvals_pending`           | A pending approval must be resolved first.                |
+| `profile_plan_stale`                  | State changed after the plan was prepared.                |
+| `profile_unavailable`                 | The profile subsystem is not ready for the operation.     |
+| `profile_session_conflict`            | The requested profile conflicts with session ownership.   |
+| `profile_selection_conflict`          | Selection flags request incompatible views.               |
+| `profile_config_key_denied`           | The config key cannot be overridden by a profile.         |
+| `profile_secret_env_forbidden`        | A profile secret cannot come from the shared environment. |
+| `profile_remote_management_forbidden` | A remote listener rejected a profile-state write.         |
+
+Use the returned `action` as the recovery instruction. For `profile_plan_stale`, fetch a new plan and
+review it before retrying. For `profile_remote_management_forbidden`, repeat the mutation on a local
+surface rather than changing the remote Gateway tier.

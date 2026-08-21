@@ -27,12 +27,12 @@ var (
 var EnvNamePattern = regexp.MustCompile(`^[A-Za-z_][A-Za-z0-9_]*$`)
 
 var vaultRefPattern = regexp.MustCompile(
-	`^vault:(providers|bridges|automation|mcp|hooks|extensions|sandbox|sessions)/` +
+	`^vault:(providers|profiles|bridges|automation|mcp|hooks|extensions|sandbox|sessions)/` +
 		`[a-z0-9][a-z0-9_.-]*(?:/[A-Za-z0-9][A-Za-z0-9_.-]*)*$`,
 )
 
 var vaultRefPrefixPattern = regexp.MustCompile(
-	`^vault:(providers|bridges|automation|mcp|hooks|extensions|sandbox|sessions)/` +
+	`^vault:(providers|profiles|bridges|automation|mcp|hooks|extensions|sandbox|sessions)/` +
 		`(?:[A-Za-z0-9][A-Za-z0-9_.-]*(?:/|$))*$`,
 )
 
@@ -43,6 +43,7 @@ var supportedNamespaces = map[string]struct{}{
 	"hooks":          {},
 	"mcp":            {},
 	"providers":      {},
+	"profiles":       {},
 	"sandbox":        {},
 	typesSessionsKey: {},
 }

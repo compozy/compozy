@@ -40,6 +40,7 @@ func NativeDescriptors() []toolspkg.Descriptor {
 		sessionOrchestrationDescriptors(),
 		authoredContextDescriptors(),
 		workspaceDescriptors(),
+		profileDescriptors(),
 		vaultDescriptors(),
 		worktreeDescriptors(),
 		providerModelsDescriptors(),

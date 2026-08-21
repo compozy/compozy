@@ -2715,6 +2715,24 @@ func TestUDSTransportTaskSurfaceMatchesHTTPAndDocumentedSpecOperations(t *testin
 		t.Fatalf("UDS task routes = %v, want documented task routes %v", udsRoutes, specRoutes)
 	}
 }
+
+func TestUDSTransportProfileSurfaceMatchesHTTPAndDocumentedSpecOperations(t *testing.T) {
+	t.Parallel()
+
+	udsEngine := newTestRouter(t, newTestHandlers(t, stubSessionManager{}, stubObserver{}, newTestHomePaths(t)))
+	udsRoutes := profileRoutesFromEngine(udsEngine.Routes())
+
+	httpRoutes := documentedProfileRoutesForTransport(apispec.TransportHTTP)
+	if !slices.Equal(udsRoutes, httpRoutes) {
+		t.Fatalf("UDS profile routes = %v, want documented HTTP profile routes %v", udsRoutes, httpRoutes)
+	}
+
+	specRoutes := documentedProfileRoutesForTransport(apispec.TransportUDS)
+	if !slices.Equal(udsRoutes, specRoutes) {
+		t.Fatalf("UDS profile routes = %v, want documented profile routes %v", udsRoutes, specRoutes)
+	}
+}
+
 func waitForUDSAutomationRun(
 	t testing.TB,
 	ctx context.Context,
@@ -2812,6 +2830,29 @@ func taskRoutesFromEngine(routes gin.RoutesInfo) []string {
 	}
 	sort.Strings(filtered)
 	return filtered
+}
+
+func profileRoutesFromEngine(routes gin.RoutesInfo) []string {
+	filtered := make([]string, 0)
+	for _, route := range routes {
+		if strings.HasPrefix(route.Path, "/api/profiles") {
+			filtered = append(filtered, route.Method+" "+route.Path)
+		}
+	}
+	sort.Strings(filtered)
+	return filtered
+}
+
+func documentedProfileRoutesForTransport(transport apispec.Transport) []string {
+	routes := make([]string, 0)
+	for _, operation := range apispec.Operations() {
+		if slices.Contains(operation.Transports, transport) &&
+			strings.HasPrefix(operation.Path, "/api/profiles") {
+			routes = append(routes, operation.Method+" "+normalizeSpecRoutePath(operation.Path))
+		}
+	}
+	sort.Strings(routes)
+	return routes
 }
 
 func documentedTaskRoutesForTransport(transport apispec.Transport) []string {

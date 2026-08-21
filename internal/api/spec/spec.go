@@ -171,6 +171,7 @@ const (
 	specNotificationsKey                                     = "notifications"
 	specObserveKey                                           = "observe"
 	specProvidersKey                                         = "providers"
+	specProfilesKey                                          = "profiles"
 	specResourcesKey                                         = "resources"
 	specRolesKey                                             = "roles"
 	specSessionsKey                                          = "sessions"
@@ -289,6 +290,7 @@ func Document() (*openapi3.T, error) {
 			{Name: specObserveKey},
 			{Name: specOpenAIKey},
 			{Name: specProvidersKey},
+			{Name: specProfilesKey},
 			{Name: specResourcesKey},
 			{Name: specRolesKey},
 			{Name: specSessionsKey},

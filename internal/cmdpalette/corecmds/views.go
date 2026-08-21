@@ -7,6 +7,7 @@ var viewOnlyDefinitions = []domainDefinition{
 	{id: "worktrees", title: "Worktrees", icon: "git-branch"},
 	{id: "network-channels", title: "Network channels", icon: coreIconGlobe},
 	{id: coreAppExtensions, title: "Extensions", icon: "blocks"},
+	{id: "profiles", title: "Profiles", icon: "users-round"},
 }
 
 func viewCommands() []cmdpalette.Descriptor {

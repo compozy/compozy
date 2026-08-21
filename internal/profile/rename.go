@@ -2,6 +2,7 @@ package profile
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -35,6 +36,7 @@ func (m *Manager) Rename(
 		return RenameResult{}, err
 	}
 	var plan RenamePlan
+	var renamed Profile
 	err = m.write(ctx, "rename profile", func(exec globaldb.ProfileWriteExecutor) error {
 		profile, err := getProfileByName(ctx, exec, name)
 		if err != nil {
@@ -49,6 +51,8 @@ func (m *Manager) Rename(
 		if err := ensureNameAvailable(ctx, exec, newName, profile.ID); err != nil {
 			return err
 		}
+		renamed = profile
+		renamed.Name = newName
 		plan, err = m.renamePlan(ctx, exec, profile, newName)
 		if err != nil {
 			return err
@@ -78,6 +82,9 @@ func (m *Manager) Rename(
 		)
 	})
 	if err != nil {
+		if errors.Is(err, ErrPlanStale) {
+			m.recordEvent("profile.plan_stale", renamed, opID)
+		}
 		return RenameResult{}, err
 	}
 	if err := m.finalizeOperation(context.WithoutCancel(ctx), opID, false); err != nil {
@@ -85,6 +92,7 @@ func (m *Manager) Rename(
 	}
 	result := RenameResult{DormantPlacements: plan.DormantPlacements}
 	result.RepoResults = m.applyRepoRenames(plan.RepoCandidates, name, newName, opts.Repos)
+	m.recordEvent("profile.renamed", renamed, opID)
 	return result, nil
 }
 

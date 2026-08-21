@@ -6,6 +6,15 @@ import (
 	"errors"
 )
 
+func (m *Manager) recordEvent(name string, profile Profile, opID string) {
+	if m == nil || m.events == nil {
+		return
+	}
+	m.events.RecordProfileEvent(Event{
+		Name: name, ProfileID: profile.ID, ProfileName: profile.Name, OperationID: opID,
+	})
+}
+
 func (m *Manager) recordOperationEvent(ctx context.Context, name, opID string, cause error) {
 	if m.events == nil {
 		return

@@ -1,0 +1,46 @@
+---
+title: "compozy profile update"
+description: "Update profile identity"
+---
+
+## compozy profile update
+
+Update profile identity
+
+```
+compozy profile update <name> [flags]
+```
+
+### Options
+
+```
+      --color string   Profile color as #rrggbb
+      --emoji string   Profile emoji
+  -h, --help           help for update
+      --icon string    Profile icon name
+```
+
+### Options inherited from parent commands
+
+```
+      --json             Emit JSON output
+  -o, --output string    Output format: human, json, jsonl, or toon (default "human")
+      --profile string   Act as a profile for this command
+```
+
+## Output Formats
+
+The root `-o, --output` flag accepts these values. A renderer is supported only when this command writes that result; `jsonl` is for commands that emit one JSON record per line.
+
+| Format  | Command result                          |
+| ------- | --------------------------------------- |
+| `human` | Interactive terminal rendering          |
+| `json`  | Machine-readable JSON rendering         |
+| `jsonl` | One JSON record per line when supported |
+| `toon`  | Compact agent-readable rendering        |
+
+Example:
+
+```bash
+compozy profile update <name> -o json
+```

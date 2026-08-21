@@ -33,4 +33,5 @@ const (
 	coreSectionViews      = "Views"
 	coreSectionTiling     = "Tiling"
 	coreSectionApps       = "Apps"
+	coreSectionProfiles   = "Profiles"
 )

@@ -16,6 +16,7 @@
         "autonomy",
         "memory",
         "workspaces",
+        "profiles",
         "worktrees",
         "sandbox",
         "---Automation---",
