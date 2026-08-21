@@ -2,6 +2,7 @@ package loop
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"slices"
 	"strings"
@@ -96,7 +97,7 @@ func TestBriefingContract(t *testing.T) {
 			"--node", "ask;echo",
 			"--item", "3",
 			"--decision", "respond",
-			"--payload", "<json>",
+			"--payload", `{}`,
 		}
 		assertBlockerCommand(t, got.Blockers, 0, wantArguments)
 	})
@@ -116,8 +117,10 @@ func TestBriefingContract(t *testing.T) {
 		}
 		got := ProjectBriefing(&source)
 		arguments := assertBlockerCommand(t, got.Blockers, 0, nil)
-		if !slices.Contains(arguments, "<decision>") || !slices.Contains(arguments, "<json>") {
-			t.Fatalf("review unblocker arguments = %#v, want explicit decision and payload placeholders", arguments)
+		payloadIndex := slices.Index(arguments, "--payload")
+		if !slices.Contains(arguments, "<decision>") || payloadIndex < 0 || payloadIndex+1 >= len(arguments) ||
+			!json.Valid([]byte(arguments[payloadIndex+1])) {
+			t.Fatalf("review unblocker arguments = %#v, want an explicit decision placeholder and valid JSON payload", arguments)
 		}
 	})
 	t.Run("Should satisfy UT-005 with neutral canceled actor outcome", func(t *testing.T) {

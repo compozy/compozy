@@ -187,7 +187,7 @@ func briefingBlockers(source *BriefingSource, now time.Time) []Blocker {
 				"--node", string(request.NodeID),
 				"--item", strconv.Itoa(request.ItemIndex),
 				"--decision", requestUnblockerDecision(request),
-				"--payload", "<json>",
+				"--payload", `{}`,
 			),
 		}
 		blocker.Expired = request.ExpiresAt != nil && !request.ExpiresAt.After(now)
