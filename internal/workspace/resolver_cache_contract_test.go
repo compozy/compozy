@@ -127,6 +127,121 @@ func TestWorkspaceContractResolverCacheDependencies(t *testing.T) {
 	})
 }
 
+func TestWorkspaceContractProfileConfigCacheDependencies(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should invalidate the profile cache when a profile config appears", func(t *testing.T) {
+		t.Parallel()
+
+		homePaths := newTestHomePaths(t)
+		root := t.TempDir()
+		ws := Workspace{ID: "ws_profile_config_cache", RootDir: root, Name: "repo"}
+		configCalls := 0
+		resolver := newTestResolver(t, newMockWorkspaceStore(ws),
+			WithHomePaths(homePaths),
+			WithProfileConfigLoader(func(_ string, _ string) (compozyconfig.Config, error) {
+				configCalls++
+				return validConfig(homePaths), nil
+			}),
+		)
+
+		if _, err := resolver.ResolveForProfile(t.Context(), ws.ID, "marketing"); err != nil {
+			t.Fatalf("ResolveForProfile(first) error = %v", err)
+		}
+		if _, err := resolver.ResolveForProfile(t.Context(), ws.ID, "marketing"); err != nil {
+			t.Fatalf("ResolveForProfile(cache hit) error = %v", err)
+		}
+		if got, want := configCalls, 1; got != want {
+			t.Fatalf("profile config loader calls before dependency change = %d, want %d", got, want)
+		}
+
+		profileConfig := filepath.Join(homePaths.ProfilesDir, "marketing", compozyconfig.ConfigName)
+		writeFile(t, profileConfig, "[http]\nport = 4243\n")
+		if _, err := resolver.ResolveForProfile(t.Context(), ws.ID, "marketing"); err != nil {
+			t.Fatalf("ResolveForProfile(after profile config) error = %v", err)
+		}
+		if got, want := configCalls, 2; got != want {
+			t.Fatalf("profile config loader calls after dependency change = %d, want %d", got, want)
+		}
+	})
+
+	t.Run("Should invalidate the profile cache when an existing profile layer changes", func(t *testing.T) {
+		t.Parallel()
+
+		for _, test := range []struct {
+			name string
+			path func(compozyconfig.HomePaths, string) string
+		}{
+			{
+				name: "personal config",
+				path: func(home compozyconfig.HomePaths, _ string) string {
+					return filepath.Join(home.ProfilesDir, "marketing", compozyconfig.ConfigName)
+				},
+			},
+			{
+				name: "personal MCP sidecar",
+				path: func(home compozyconfig.HomePaths, _ string) string {
+					return filepath.Join(home.ProfilesDir, "marketing", compozyconfig.MCPJSONName)
+				},
+			},
+			{
+				name: "workspace profile config",
+				path: func(_ compozyconfig.HomePaths, root string) string {
+					return filepath.Join(
+						root, compozyconfig.DirName, compozyconfig.ProfilesDirName,
+						"marketing", compozyconfig.ConfigName,
+					)
+				},
+			},
+			{
+				name: "workspace profile MCP sidecar",
+				path: func(_ compozyconfig.HomePaths, root string) string {
+					return filepath.Join(
+						root, compozyconfig.DirName, compozyconfig.ProfilesDirName,
+						"marketing", compozyconfig.MCPJSONName,
+					)
+				},
+			},
+		} {
+			t.Run("Should invalidate after editing "+test.name, func(t *testing.T) {
+				t.Parallel()
+
+				homePaths := newTestHomePaths(t)
+				root := t.TempDir()
+				dependency := test.path(homePaths, root)
+				writeFile(t, dependency, "first\n")
+				ws := Workspace{
+					ID:      "ws_profile_layer_" + strings.ReplaceAll(test.name, " ", "_"),
+					RootDir: root,
+					Name:    "repo",
+				}
+				configCalls := 0
+				resolver := newTestResolver(t, newMockWorkspaceStore(ws),
+					WithHomePaths(homePaths),
+					WithProfileConfigLoader(func(_ string, _ string) (compozyconfig.Config, error) {
+						configCalls++
+						return validConfig(homePaths), nil
+					}),
+				)
+
+				if _, err := resolver.ResolveForProfile(t.Context(), ws.ID, "marketing"); err != nil {
+					t.Fatalf("ResolveForProfile(first) error = %v", err)
+				}
+				if _, err := resolver.ResolveForProfile(t.Context(), ws.ID, "marketing"); err != nil {
+					t.Fatalf("ResolveForProfile(cache hit) error = %v", err)
+				}
+				writeFile(t, dependency, "second revision\n")
+				if _, err := resolver.ResolveForProfile(t.Context(), ws.ID, "marketing"); err != nil {
+					t.Fatalf("ResolveForProfile(after edit) error = %v", err)
+				}
+				if got, want := configCalls, 2; got != want {
+					t.Fatalf("profile config loader calls after %s edit = %d, want %d", test.name, got, want)
+				}
+			})
+		}
+	})
+}
+
 func TestWorkspaceContractConfigClone(t *testing.T) {
 	t.Parallel()
 

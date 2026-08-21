@@ -2,6 +2,8 @@ import { fireEvent, render, screen } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 
 import { UIProvider } from "@compozy/ui";
+import { ownerFromRow } from "@/systems/profiles";
+import { aggregateProfileTaskFixture } from "../../mocks/profile-fixtures";
 
 vi.mock("@tanstack/react-router", async importOriginal => {
   const actual = await importOriginal<typeof import("@tanstack/react-router")>();
@@ -56,11 +58,19 @@ interface RenderOptions {
   onOpenLoopRun?: () => void;
 }
 
+const STORY_PROFILE_SCOPE = {
+  aggregate: false,
+  destination: "default",
+  scopeLabel: "default",
+  ownerOf: () => ({ id: "00000000000000000000000000", name: "default", archived: false }),
+};
+
 function renderSurface(options: RenderOptions = {}) {
   const tasks = options.tasks ?? [];
   return render(
     <UIProvider reducedMotion="never" skipAnimations>
       <TasksListSurface
+        profile={STORY_PROFILE_SCOPE}
         errorMessage={options.errorMessage ?? null}
         isLoading={options.isLoading}
         isLoadingMore={options.isLoadingMore}
@@ -187,6 +197,51 @@ describe("TasksListSurface", () => {
     expect(screen.getByTestId("tasks-records-filter-work")).toHaveAttribute("aria-pressed", "true");
     fireEvent.click(screen.getByTestId("tasks-records-filter-loop"));
     expect(handleRecordsFilterChange).toHaveBeenCalledWith("loop");
+  });
+
+  it("Should name the profile the list is scoped to, not the create target", () => {
+    renderSurface({ tasks: [] });
+    expect(screen.getByTestId("tasks-list-surface-empty")).toHaveTextContent(
+      "No tasks in default yet"
+    );
+  });
+
+  it("Should say the machine is empty rather than name a profile under the aggregate", () => {
+    render(
+      <UIProvider reducedMotion="never" skipAnimations>
+        <TasksListSurface
+          profile={{ ...STORY_PROFILE_SCOPE, aggregate: true, scopeLabel: null }}
+          errorMessage={null}
+          searchQuery=""
+          statusCounts={countTasksByStatus([])}
+          tasks={[]}
+        />
+      </UIProvider>
+    );
+    const empty = screen.getByTestId("tasks-list-surface-empty");
+    expect(empty).toHaveTextContent("No tasks in any profile yet");
+    expect(empty).not.toHaveTextContent("default");
+  });
+
+  it("Should render each task's profile owner under the aggregate", () => {
+    const task = aggregateProfileTaskFixture;
+    render(
+      <UIProvider reducedMotion="never" skipAnimations>
+        <TasksListSurface
+          profile={{
+            aggregate: true,
+            scopeLabel: null,
+            ownerOf: ownerFromRow,
+          }}
+          errorMessage={null}
+          searchQuery=""
+          statusCounts={countTasksByStatus([task])}
+          tasks={[task]}
+        />
+      </UIProvider>
+    );
+
+    expect(screen.getByTestId(`task-card-profile-${task.id}`)).toHaveTextContent("marketing");
   });
 
   it("Should render the empty state when the list is empty", () => {

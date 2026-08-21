@@ -28,6 +28,8 @@ import {
 } from "../automation-formatters";
 
 const triggerFixture = {
+  profile_id: "00000000000000000000000000",
+  profile_name: "default",
   id: "trg_push_review",
   name: "push-review",
   agent_name: "reviewer",
@@ -87,15 +89,25 @@ describe("automation formatter helpers", () => {
   });
 
   it("describes webhook and non-webhook triggers", () => {
-    expect(describeTrigger({ ...triggerFixture, event: "ext.github.push" })).toBe(
-      "ext.github.push"
-    );
-    expect(describeTrigger(triggerFixture)).toBe("webhook:push-review");
-    expect(describeTrigger({ ...triggerFixture, endpoint_slug: undefined })).toBe(
-      "webhook:wbh_push_review"
-    );
     expect(
-      describeTrigger({ ...triggerFixture, endpoint_slug: undefined, webhook_id: undefined })
+      describeTrigger({
+        ...triggerFixture,
+        event: "ext.github.push",
+      })
+    ).toBe("ext.github.push");
+    expect(describeTrigger(triggerFixture)).toBe("webhook:push-review");
+    expect(
+      describeTrigger({
+        ...triggerFixture,
+        endpoint_slug: undefined,
+      })
+    ).toBe("webhook:wbh_push_review");
+    expect(
+      describeTrigger({
+        ...triggerFixture,
+        endpoint_slug: undefined,
+        webhook_id: undefined,
+      })
     ).toBe("webhook");
   });
 

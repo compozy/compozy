@@ -42,7 +42,7 @@ const validHeader: MemoryHeader = {
   filename: "user_role.md",
   mod_time: "2026-04-01T12:00:00Z",
   name: "User Role",
-  scope: "global",
+  scope: "profile",
   type: "user",
   recall_count: 0,
   injection: true,
@@ -64,7 +64,7 @@ describe("useMemories", () => {
       page: { has_more: false, limit: 50, total: 7 },
     });
 
-    const { result } = renderHook(() => useMemories({ scope: "global", workspaceId: "ws" }), {
+    const { result } = renderHook(() => useMemories({ scope: "profile", workspaceId: "ws" }), {
       wrapper: createWrapper(),
     });
 
@@ -77,7 +77,7 @@ describe("useMemories", () => {
     expect(result.current.total).toBe(7);
 
     expect(listMemories).toHaveBeenCalledWith(
-      { scope: "global", workspaceId: "ws" },
+      { scope: "profile", workspaceId: "ws" },
       expect.any(AbortSignal)
     );
   });
@@ -104,7 +104,7 @@ describe("useMemories", () => {
         page: { has_more: false, limit: 1, total: 2 },
       });
 
-    const { result } = renderHook(() => useMemories({ scope: "global", limit: 1 }), {
+    const { result } = renderHook(() => useMemories({ scope: "profile", limit: 1 }), {
       wrapper: createWrapper(),
     });
 
@@ -120,7 +120,7 @@ describe("useMemories", () => {
     expect(result.current.total).toBe(2);
     expect(listMemories).toHaveBeenNthCalledWith(
       2,
-      { scope: "global", cursor: "next", limit: 1 },
+      { scope: "profile", cursor: "next", limit: 1 },
       expect.any(AbortSignal)
     );
   });
@@ -143,7 +143,7 @@ describe("useMemory", () => {
   it("Should load a memory's summary plus content", async () => {
     vi.mocked(readMemory).mockResolvedValue({ ...validHeader, content: "# Memory content" });
 
-    const { result } = renderHook(() => useMemory({ scope: "global" }, "test.md"), {
+    const { result } = renderHook(() => useMemory({ scope: "profile" }, "test.md"), {
       wrapper: createWrapper(),
     });
 
@@ -152,7 +152,7 @@ describe("useMemory", () => {
     });
 
     expect(readMemory).toHaveBeenCalledWith(
-      { scope: "global" },
+      { scope: "profile" },
       "test.md",
       expect.any(AbortSignal)
     );
@@ -164,7 +164,7 @@ describe("useMemory", () => {
   });
 
   it("Should not fetch when filename is empty", () => {
-    renderHook(() => useMemory({ scope: "global" }, ""), { wrapper: createWrapper() });
+    renderHook(() => useMemory({ scope: "profile" }, ""), { wrapper: createWrapper() });
     expect(readMemory).not.toHaveBeenCalled();
   });
 });
@@ -179,7 +179,7 @@ describe("useMemorySearch", () => {
   });
 
   it("Should not call the search adapter when query text is empty", () => {
-    renderHook(() => useMemorySearch({ scope: "global" }, "   "), {
+    renderHook(() => useMemorySearch({ scope: "profile" }, "   "), {
       wrapper: createWrapper(),
     });
     expect(searchMemory).not.toHaveBeenCalled();
@@ -192,7 +192,12 @@ describe("useMemorySearch", () => {
     });
 
     const { result } = renderHook(
-      () => useMemorySearch({ scope: "global", workspaceId: "ws" }, "  rollout  ", { topK: 4 }),
+      () =>
+        useMemorySearch(
+          { profile: "marketing", scope: "profile", workspaceId: "ws" },
+          "  rollout  ",
+          { topK: 4 }
+        ),
       {
         wrapper: createWrapper(),
       }
@@ -205,10 +210,11 @@ describe("useMemorySearch", () => {
     expect(searchMemory).toHaveBeenCalledWith(
       expect.objectContaining({
         query_text: "rollout",
-        scope: "global",
+        scope: "profile",
         workspace_id: "ws",
         top_k: 4,
       }),
+      "marketing",
       expect.any(AbortSignal)
     );
   });
@@ -234,7 +240,7 @@ describe("useMemoryDecisions", () => {
     const { result } = renderHook(
       () =>
         useMemoryDecisions({
-          scope: "global",
+          scope: "profile",
           limit: 5,
         }),
       { wrapper: createWrapper() }
@@ -245,7 +251,7 @@ describe("useMemoryDecisions", () => {
     });
 
     expect(listMemoryDecisions).toHaveBeenCalledWith(
-      { scope: "global", limit: 5 },
+      { scope: "profile", limit: 5 },
       expect.any(AbortSignal)
     );
   });

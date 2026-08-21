@@ -10,6 +10,7 @@ import (
 	"strings"
 
 	"github.com/compozy/compozy/internal/diagnostics"
+	"github.com/compozy/compozy/internal/store"
 
 	"github.com/compozy/compozy/internal/vault"
 )
@@ -122,9 +123,13 @@ func (m *Manager) resolveBoundEnvMap(
 	if ctx == nil {
 		return nil, nil, errors.New("extension: bound env context is required")
 	}
-	bindings, err := m.envBindings.ListEnvBindings(ctx, key.Name, key.WorkspaceID)
+	profileID := key.ProfileID
+	if profileID == "" {
+		profileID = store.DefaultProfileID
+	}
+	bindings, err := m.envBindings.ResolveEnvBindings(ctx, key.Name, profileID, key.WorkspaceID)
 	if err != nil {
-		return nil, nil, fmt.Errorf("extension: list subprocess env bindings for %q: %w", key.runtimeID(), err)
+		return nil, nil, fmt.Errorf("extension: resolve subprocess env bindings for %q: %w", key.runtimeID(), err)
 	}
 	declared := make(map[string]struct{}, len(requiresEnv))
 	for _, name := range normalizeStrings(requiresEnv) {

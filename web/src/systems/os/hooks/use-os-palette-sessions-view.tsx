@@ -21,6 +21,7 @@ import {
 } from "../lib/palette-session-filters";
 import type { PaletteViewContent, PaletteViewControllerInput } from "../lib/palette-view-registry";
 import { useAttentionJump } from "./use-attention-jump";
+import { useProfileReadScope } from "@/systems/profiles";
 
 /**
  * How many rows the view mounts at once. Keyboard navigation needs every
@@ -49,6 +50,7 @@ export function useOsPaletteSessionsView({
   // Transient, like the sidebar's: the archive is a way of looking right now,
   // not a preference worth round-tripping through config.
   const [archived, setArchived] = useState(false);
+  const profile = useProfileReadScope();
   const preferences = useSessionListPreferences();
   const { registeredWorkspaces, runtimeWorkspaceId } = useActiveWorkspace();
   const jumpToSession = useAttentionJump();
@@ -101,6 +103,7 @@ export function useOsPaletteSessionsView({
       twoLine: true,
       node: (
         <OsPaletteSessionRow
+          owner={profile.aggregate ? profile.ownerOf(session) : undefined}
           session={session}
           workspaceLabel={
             allWorkspaces ? workspaceNames.get(session.workspace_id ?? "") : undefined

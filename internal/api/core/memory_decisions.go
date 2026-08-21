@@ -17,8 +17,9 @@ import (
 
 // ListMemoryDecisions returns filtered Memory v2 controller decisions.
 func (h *BaseHandlers) ListMemoryDecisions(c *gin.Context) {
-	if h.MemoryStore == nil {
-		h.respondMemoryError(c, http.StatusInternalServerError, errors.New("memory store is not configured"), nil)
+	store, err := h.memoryBoundStore(c.Request.Context())
+	if err != nil {
+		h.respondMemoryError(c, http.StatusInternalServerError, err, nil)
 		return
 	}
 	query, err := h.memoryDecisionListQuery(c)
@@ -26,7 +27,7 @@ func (h *BaseHandlers) ListMemoryDecisions(c *gin.Context) {
 		h.respondMemoryError(c, StatusForMemoryError(err), err, nil)
 		return
 	}
-	records, err := h.MemoryStore.ListDecisionRecords(c.Request.Context(), query)
+	records, err := store.ListDecisionRecords(c.Request.Context(), query)
 	if err != nil {
 		h.respondMemoryError(c, StatusForMemoryError(err), err, nil)
 		return
@@ -40,11 +41,12 @@ func (h *BaseHandlers) ListMemoryDecisions(c *gin.Context) {
 
 // GetMemoryDecision returns one Memory v2 controller decision.
 func (h *BaseHandlers) GetMemoryDecision(c *gin.Context) {
-	if h.MemoryStore == nil {
-		h.respondMemoryError(c, http.StatusInternalServerError, errors.New("memory store is not configured"), nil)
+	store, err := h.memoryBoundStore(c.Request.Context())
+	if err != nil {
+		h.respondMemoryError(c, http.StatusInternalServerError, err, nil)
 		return
 	}
-	record, err := h.MemoryStore.LoadDecisionRecord(c.Request.Context(), c.Param("decision_id"))
+	record, err := store.LoadDecisionRecord(c.Request.Context(), c.Param("decision_id"))
 	if err != nil {
 		h.respondMemoryError(c, StatusForMemoryError(err), err, nil)
 		return
@@ -54,8 +56,9 @@ func (h *BaseHandlers) GetMemoryDecision(c *gin.Context) {
 
 // RevertMemoryDecision re-applies prior content for one persisted decision.
 func (h *BaseHandlers) RevertMemoryDecision(c *gin.Context) {
-	if h.MemoryStore == nil {
-		h.respondMemoryError(c, http.StatusInternalServerError, errors.New("memory store is not configured"), nil)
+	store, err := h.memoryBoundStore(c.Request.Context())
+	if err != nil {
+		h.respondMemoryError(c, http.StatusInternalServerError, err, nil)
 		return
 	}
 	var req contract.MemoryDecisionRevertRequest
@@ -69,7 +72,7 @@ func (h *BaseHandlers) RevertMemoryDecision(c *gin.Context) {
 		return
 	}
 	id := strings.TrimSpace(c.Param("decision_id"))
-	record, err := h.MemoryStore.LoadDecisionRecord(c.Request.Context(), id)
+	record, err := store.LoadDecisionRecord(c.Request.Context(), id)
 	if err != nil {
 		h.respondMemoryError(c, StatusForMemoryError(err), err, nil)
 		return
@@ -99,8 +102,9 @@ func (h *BaseHandlers) memoryStoreForDecisionRecord(
 	ctx context.Context,
 	record memory.DecisionRecord,
 ) (*memory.Store, error) {
-	if h.MemoryStore == nil {
-		return nil, errors.New("memory store is not configured")
+	store, err := h.memoryBoundStore(ctx)
+	if err != nil {
+		return nil, err
 	}
 	scope := record.Decision.Frontmatter.Scope.Normalize()
 	if scope == memcontract.ScopeWorkspace {
@@ -108,16 +112,16 @@ func (h *BaseHandlers) memoryStoreForDecisionRecord(
 		if err != nil {
 			return nil, err
 		}
-		return h.MemoryStore.ForWorkspace(workspace.RootDir), nil
+		return store.ForWorkspace(workspace.RootDir), nil
 	}
 	if scope == memcontract.ScopeAgent && record.AgentTier.Normalize() == memcontract.AgentTierWorkspace {
 		workspace, err := h.workspaceForMemoryDecision(ctx, record.WorkspaceID)
 		if err != nil {
 			return nil, err
 		}
-		return h.MemoryStore.ForWorkspace(workspace.RootDir), nil
+		return store.ForWorkspace(workspace.RootDir), nil
 	}
-	return h.MemoryStore, nil
+	return store, nil
 }
 
 func (h *BaseHandlers) workspaceForMemoryDecision(

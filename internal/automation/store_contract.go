@@ -3,6 +3,8 @@ package automation
 import (
 	"context"
 	"time"
+
+	"github.com/compozy/compozy/internal/store"
 )
 
 // Store is the persistence surface consumed by the composed automation manager.
@@ -37,21 +39,24 @@ type Store interface {
 	ListTriggerEnabledOverlays(ctx context.Context) ([]TriggerEnabledOverlay, error)
 	DeleteTriggerEnabledOverlay(ctx context.Context, triggerID string) error
 	CreateSuggestion(ctx context.Context, suggestion Suggestion, pendingCap int) (Suggestion, error)
-	GetSuggestion(ctx context.Context, workspaceID string, id string) (Suggestion, error)
+	GetSuggestion(ctx context.Context, profileID string, workspaceID string, id string) (Suggestion, error)
 	ListSuggestions(
 		ctx context.Context,
+		readScope store.ReadScope,
 		workspaceID string,
 		status SuggestionStatus,
 	) ([]Suggestion, error)
 	ListAcceptedSuggestions(ctx context.Context) ([]Suggestion, error)
 	ResolveSuggestion(
 		ctx context.Context,
+		profileID string,
 		workspaceID string,
 		id string,
 		to SuggestionStatus,
 	) (Suggestion, error)
 	RollbackSuggestionAcceptance(
 		ctx context.Context,
+		profileID string,
 		workspaceID string,
 		id string,
 		resolvedAt time.Time,

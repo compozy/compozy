@@ -402,13 +402,13 @@ func (o *loopWatchEventsObserver) writeObserverEvent(
 	if err != nil {
 		return fmt.Errorf("daemon: marshal loop watch-events observer event: %w", err)
 	}
-	return o.store.WriteEventSummary(ctx, store.EventSummary{
+	return o.store.WriteEventSummary(ctx, daemonEventSummary(store.EventSummary{
+		ProfileID:   strings.TrimSpace(subscription.ProfileID),
 		SessionID:   loopWatchEventsObserverSessionID,
 		WorkspaceID: strings.TrimSpace(subscription.WorkspaceID),
 		Type:        eventType,
 		AgentName:   loopWatchEventsDaemonAgentName,
 		Outcome:     loopWatchEventsOutcome(eventType),
-		Content:     content,
 		EventCorrelation: store.EventCorrelation{
 			TaskID:               strings.TrimSpace(event.TaskID),
 			RunID:                firstNonEmptyWatchEventsValue(run.ID, event.RunID),
@@ -420,7 +420,7 @@ func (o *loopWatchEventsObserver) writeObserverEvent(
 		},
 		Summary:   loopWatchEventsSummary(eventType, event, subscription),
 		Timestamp: o.now().UTC(),
-	})
+	}, content))
 }
 
 func (o *loopWatchEventsObserver) startLoopCoordinatorBackstop(ctx context.Context) error {

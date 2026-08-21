@@ -28,6 +28,7 @@ import (
 	memcontract "github.com/compozy/compozy/internal/memory/contract"
 	localprovider "github.com/compozy/compozy/internal/memory/provider/local"
 	"github.com/compozy/compozy/internal/memory/provider/local/memstore"
+	"github.com/compozy/compozy/internal/profile"
 
 	"github.com/compozy/compozy/internal/network/participation"
 
@@ -81,6 +82,7 @@ type bootState struct {
 	commandService         session.CommandService
 	notifier               *hooksNotifier
 	registry               Registry
+	profiles               *profile.Manager
 	deadEntities           *deadentity.Service
 	loopTargetHealth       *loopTargetHealthSlot
 	processRegistry        *toolruntime.Registry
@@ -118,7 +120,6 @@ type bootState struct {
 	cmdPalette            cmdpalette.Registry
 	viewPatches           *extensionCmdPaletteProvider
 	clarify               *clarifyBridge
-	attentionMuteMutator  attentionWorkspaceMuteMutator
 	observer              Observer
 	lifecycleObservers    *sessionLifecycleFanout
 	hookTelemetrySinks    *hookTelemetryFanout
@@ -315,7 +316,7 @@ func (d *Daemon) bootPromptProviders(ctx context.Context, state *bootState) erro
 	state.startupOverlay = compozyRuntimePromptOverlay{}
 	promptAugmenterDescriptors := defaultPromptInputAugmenterDescriptors(
 		situation.WorkspaceKnowledgeAugmenter,
-		memory.NewRecallAugmenter(state.memoryStore),
+		memory.NewProfileRecallAugmenter(state.memoryStore, d.memoryRecallStoreResolver(state)),
 		newSkillsCatalogAugmenter(state.skillsRegistry, func() session.AgentResolver {
 			return agentCatalogDependency(state.agentCatalog)
 		}, func() promptSkillsWorkspaceResolver {

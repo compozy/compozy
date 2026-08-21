@@ -30,6 +30,7 @@ func TestReconciliationIndexesSessionDirNotInDB(t *testing.T) {
 
 		if err := store.WriteSessionMeta(metaPath, store.SessionMeta{
 			ID:                   "sess-new",
+			ProfileID:            store.DefaultProfileID,
 			Name:                 "New",
 			AgentName:            "coder",
 			Provider:             "claude",
@@ -54,7 +55,9 @@ func TestReconciliationIndexesSessionDirNotInDB(t *testing.T) {
 			t.Fatalf("Indexed = %#v, want %#v", got, want)
 		}
 
-		sessions, err := h.observer.registry.ListSessions(testutil.Context(t), store.SessionListQuery{})
+		sessions, err := h.observer.registry.ListSessions(testutil.Context(t), store.SessionListQuery{
+			ReadScope: store.ReadScope{AllProfiles: true},
+		})
 		if err != nil {
 			t.Fatalf("ListSessions() error = %v", err)
 		}
@@ -100,6 +103,7 @@ func TestReconciliationPreservesDurableSessionProjectionMetadata(t *testing.T) {
 		acpSessionID := "acp-child"
 		creationProfile := store.SessionCreationProfile{
 			Version: store.SessionCreationProfileVersion, AgentName: "coder", Provider: "claude",
+			ProfileID:   store.DefaultProfileID,
 			WorkspaceID: h.workspaceID, CWD: h.workspace, SandboxMode: store.SessionCreationSandboxNone,
 			Permissions: "approve-reads",
 		}
@@ -145,6 +149,7 @@ func TestReconciliationPreservesDurableSessionProjectionMetadata(t *testing.T) {
 			store.SessionMetaFile(filepath.Join(h.home.SessionsDir, rootID)),
 			store.SessionMeta{
 				ID:                   rootID,
+				ProfileID:            store.DefaultProfileID,
 				Name:                 "Root",
 				AgentName:            "coder",
 				Provider:             "claude",
@@ -162,6 +167,7 @@ func TestReconciliationPreservesDurableSessionProjectionMetadata(t *testing.T) {
 			store.SessionMetaFile(filepath.Join(h.home.SessionsDir, parentID)),
 			store.SessionMeta{
 				ID:                   parentID,
+				ProfileID:            store.DefaultProfileID,
 				Name:                 "Parent",
 				AgentName:            "coder",
 				Provider:             "claude",
@@ -184,6 +190,7 @@ func TestReconciliationPreservesDurableSessionProjectionMetadata(t *testing.T) {
 			store.SessionMetaFile(filepath.Join(h.home.SessionsDir, childID)),
 			store.SessionMeta{
 				ID:                   childID,
+				ProfileID:            store.DefaultProfileID,
 				Name:                 "Child",
 				AgentName:            "coder",
 				Provider:             "claude",
@@ -245,7 +252,9 @@ func TestReconciliationPreservesDurableSessionProjectionMetadata(t *testing.T) {
 			t.Fatalf("Indexed = %#v, want %#v", got, want)
 		}
 
-		sessions, err := h.observer.registry.ListSessions(testutil.Context(t), store.SessionListQuery{})
+		sessions, err := h.observer.registry.ListSessions(testutil.Context(t), store.SessionListQuery{
+			ReadScope: store.ReadScope{AllProfiles: true},
+		})
 		if err != nil {
 			t.Fatalf("ListSessions() error = %v", err)
 		}
@@ -359,6 +368,7 @@ func TestReconciliationMarksMissingDirectoryAsOrphaned(t *testing.T) {
 		now := h.now
 		if err := h.observer.registry.RegisterSession(testutil.Context(t), store.SessionInfo{
 			ID:            "sess-orphan",
+			ProfileID:     store.DefaultProfileID,
 			Name:          "Orphan",
 			AgentName:     "coder",
 			Provider:      "claude",
@@ -380,7 +390,9 @@ func TestReconciliationMarksMissingDirectoryAsOrphaned(t *testing.T) {
 			t.Fatalf("Orphaned = %#v, want %#v", got, want)
 		}
 
-		sessions, err := h.observer.registry.ListSessions(testutil.Context(t), store.SessionListQuery{})
+		sessions, err := h.observer.registry.ListSessions(testutil.Context(t), store.SessionListQuery{
+			ReadScope: store.ReadScope{AllProfiles: true},
+		})
 		if err != nil {
 			t.Fatalf("ListSessions() error = %v", err)
 		}
@@ -406,6 +418,7 @@ func TestReconciliationSkipsSessionMetadataWithoutProvider(t *testing.T) {
 		now := h.now.Add(45 * time.Minute)
 		if err := store.WriteSessionMeta(validMetaPath, store.SessionMeta{
 			ID:                   "sess-valid",
+			ProfileID:            store.DefaultProfileID,
 			Name:                 "Valid",
 			AgentName:            "coder",
 			Provider:             "claude",
@@ -422,6 +435,7 @@ func TestReconciliationSkipsSessionMetadataWithoutProvider(t *testing.T) {
 		invalidMetaPath := store.SessionMetaFile(filepath.Join(h.home.SessionsDir, "sess-without-provider"))
 		if err := store.WriteSessionMeta(invalidMetaPath, store.SessionMeta{
 			ID:                   "sess-without-provider",
+			ProfileID:            store.DefaultProfileID,
 			Name:                 "Missing Provider",
 			AgentName:            "coder",
 			WorkspaceID:          h.workspaceID,
@@ -447,7 +461,9 @@ func TestReconciliationSkipsSessionMetadataWithoutProvider(t *testing.T) {
 			t.Fatalf("Indexed = %#v, want %#v", got, want)
 		}
 
-		sessions, err := h.observer.registry.ListSessions(testutil.Context(t), store.SessionListQuery{})
+		sessions, err := h.observer.registry.ListSessions(testutil.Context(t), store.SessionListQuery{
+			ReadScope: store.ReadScope{AllProfiles: true},
+		})
 		if err != nil {
 			t.Fatalf("ListSessions() error = %v", err)
 		}
@@ -503,7 +519,9 @@ func TestReconciliationSkipsSessionMetadataMissingWorkspaceID(t *testing.T) {
 			t.Fatalf("Orphaned = %#v, want empty", result.Orphaned)
 		}
 
-		sessions, err := h.observer.registry.ListSessions(testutil.Context(t), store.SessionListQuery{})
+		sessions, err := h.observer.registry.ListSessions(testutil.Context(t), store.SessionListQuery{
+			ReadScope: store.ReadScope{AllProfiles: true},
+		})
 		if err != nil {
 			t.Fatalf("ListSessions() error = %v", err)
 		}

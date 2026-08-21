@@ -55,6 +55,7 @@ func (r *coordinatorRuntime) dispatchSpawned(
 	_, err := r.hooks.DispatchCoordinatorSpawned(ctx, hookspkg.CoordinatorSpawnedPayload{
 		PayloadBase: hookspkg.PayloadBase{Event: hookspkg.HookCoordinatorSpawned, Timestamp: r.now().UTC()},
 		CoordinatorContext: hookspkg.CoordinatorContext{
+			ProfileID:                    decision.ProfileID,
 			WorkspaceID:                  decision.WorkspaceID,
 			Workspace:                    info.Workspace,
 			AgentName:                    info.AgentName,
@@ -81,6 +82,7 @@ func (r *coordinatorRuntime) dispatchStopped(ctx context.Context, info *session.
 	_, err := r.hooks.DispatchCoordinatorStopped(ctx, hookspkg.CoordinatorStoppedPayload{
 		PayloadBase: hookspkg.PayloadBase{Event: hookspkg.HookCoordinatorStopped, Timestamp: r.now().UTC()},
 		CoordinatorContext: hookspkg.CoordinatorContext{
+			ProfileID:                    info.ProfileID,
 			WorkspaceID:                  info.WorkspaceID,
 			Workspace:                    info.Workspace,
 			AgentName:                    info.AgentName,
@@ -110,6 +112,7 @@ func (r *coordinatorRuntime) dispatchFailed(
 	_, err := r.hooks.DispatchCoordinatorFailed(ctx, hookspkg.CoordinatorFailedPayload{
 		PayloadBase: hookspkg.PayloadBase{Event: hookspkg.HookCoordinatorFailed, Timestamp: r.now().UTC()},
 		CoordinatorContext: hookspkg.CoordinatorContext{
+			ProfileID:                    decision.ProfileID,
 			WorkspaceID:                  decision.WorkspaceID,
 			TaskID:                       decision.TaskID,
 			RunID:                        decision.RunID,
@@ -142,6 +145,7 @@ func (r *coordinatorRuntime) dispatchDecision(
 	_, err := r.hooks.DispatchCoordinatorDecision(ctx, hookspkg.CoordinatorDecisionPayload{
 		PayloadBase: hookspkg.PayloadBase{Event: hookspkg.HookCoordinatorDecision, Timestamp: r.now().UTC()},
 		CoordinatorContext: hookspkg.CoordinatorContext{
+			ProfileID:                    decision.ProfileID,
 			WorkspaceID:                  decision.WorkspaceID,
 			TaskID:                       decision.TaskID,
 			RunID:                        decision.RunID,
@@ -165,6 +169,7 @@ func (r *coordinatorRuntime) preSpawnPayload(
 	return hookspkg.CoordinatorPreSpawnPayload{
 		PayloadBase: hookspkg.PayloadBase{Event: hookspkg.HookCoordinatorPreSpawn, Timestamp: r.now().UTC()},
 		CoordinatorContext: hookspkg.CoordinatorContext{
+			ProfileID:                    decision.ProfileID,
 			WorkspaceID:                  decision.WorkspaceID,
 			AgentName:                    cfg.AgentName,
 			TaskID:                       decision.TaskID,

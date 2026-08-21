@@ -31,11 +31,19 @@ func (g *WatchEventsRepo) readNetworkWatchEventsCursor(
 	query normalizedWatchEventsQuery,
 ) (int64, error) {
 	if _, ok := stringSet(query.kinds)[string(hookspkg.HookNetworkMessagePersisted)]; ok {
-		raw, err := g.queries.GetNetworkWatchEventsCursor(ctx, query.workspaceID)
-		if err != nil {
-			return 0, fmt.Errorf("store: read network watch-events cursor: %w", err)
-		}
-		return watchEventsCursorFromGenerated(raw, looppkg.WatchEventsNetworkStream)
+		scopeSQL, scopeArgs := networkWatchEventsScopeClause(query.readScope)
+		args := append([]any{query.workspaceID}, scopeArgs...)
+		return scanWatchEventCursor(
+			g.db.QueryRowContext(
+				ctx,
+				`SELECT COALESCE(MAX(ntl.sequence), 0)
+				 `+networkWatchEventsOwnerFromSQL+`
+				 WHERE ntl.workspace_id = ?
+				   AND `+scopeSQL,
+				args...,
+			),
+			looppkg.WatchEventsNetworkStream,
+		)
 	}
 	return g.readProjectedNetworkWatchEventsCursor(ctx, query)
 }
@@ -58,7 +66,7 @@ func (g *WatchEventsRepo) readProjectedNetworkWatchEventsCursor(
 		if scanErr != nil {
 			return 0, joinRowsCloseError(rows, scanErr, "network watch-events cursor query")
 		}
-		events, eventErr := g.networkWatchEventsForRow(ctx, row, query.kinds)
+		events, eventErr := g.networkWatchEventsForRow(ctx, &row, query.kinds)
 		if eventErr != nil {
 			return 0, joinRowsCloseError(rows, eventErr, "network watch-events cursor query")
 		}
@@ -96,7 +104,7 @@ func (g *WatchEventsRepo) readNetworkWatchEvents(
 		if scanErr != nil {
 			return nil, joinRowsCloseError(rows, scanErr, "network watch-events query")
 		}
-		rowEvents, eventErr := g.networkWatchEventsForRow(ctx, row, query.kinds)
+		rowEvents, eventErr := g.networkWatchEventsForRow(ctx, &row, query.kinds)
 		if eventErr != nil {
 			return nil, joinRowsCloseError(rows, eventErr, "network watch-events query")
 		}
@@ -130,8 +138,10 @@ func (g *WatchEventsRepo) readNetworkWatchEventRows(
 	if !ok {
 		return nil, false, nil
 	}
-	// dynamic-sql: requested network hook kinds select a package-owned candidate predicate at runtime.
-	// #nosec G202 -- predicate is assembled from fixed SQL fragments, values are parameterized.
+	scopeSQL, scopeArgs := networkWatchEventsScopeClause(query.readScope)
+	args := append([]any{query.workspaceID}, scopeArgs...)
+	args = append(args, after)
+	// #nosec G202 -- predicates and owner joins are fixed SQL; scope and values are parameterized.
 	rows, err := g.db.QueryContext(
 		ctx,
 		`SELECT
@@ -158,18 +168,42 @@ func (g *WatchEventsRepo) readNetworkWatchEventRows(
 			ntl.work_opened,
 			ntl.work_transitioned,
 			ntl.work_state
-		   FROM network_timeline_log ntl
+		   `+networkWatchEventsOwnerFromSQL+`
 		  WHERE ntl.workspace_id = ?
+		    AND `+scopeSQL+`
 		    AND ntl.sequence > ?
 		    AND (`+predicate+`)
 		  ORDER BY ntl.sequence ASC`,
-		query.workspaceID,
-		after,
+		args...,
 	)
 	if err != nil {
 		return nil, false, fmt.Errorf("store: read network watch-events: %w", err)
 	}
 	return rows, true, nil
+}
+
+const networkWatchEventsOwnerFromSQL = `FROM network_timeline_log ntl
+	LEFT JOIN network_threads AS owner_thread
+		ON owner_thread.workspace_id = ntl.workspace_id
+		AND owner_thread.channel = ntl.channel
+		AND owner_thread.thread_id = ntl.thread_id
+	LEFT JOIN network_direct_rooms AS owner_direct
+		ON owner_direct.workspace_id = ntl.workspace_id
+		AND owner_direct.channel = ntl.channel
+		AND owner_direct.direct_id = ntl.direct_id
+	JOIN network_channels AS owner_channel
+		ON owner_channel.workspace_id = ntl.workspace_id
+		AND owner_channel.channel = ntl.channel`
+
+func networkWatchEventsScopeClause(scope store.ReadScope) (string, []any) {
+	clauses, args := store.BuildClauses(store.ReadScopeCoalescedClause(
+		[]string{"owner_thread.profile_id", "owner_direct.profile_id", "owner_channel.profile_id"},
+		scope,
+	))
+	if len(clauses) == 0 {
+		return watchEventsAllRowsSQL, nil
+	}
+	return clauses[0], args
 }
 
 func scanNetworkWatchEventRow(row rowScanner) (networkWatchEventRow, error) {
@@ -223,7 +257,7 @@ func scanNetworkWatchEventRow(row rowScanner) (networkWatchEventRow, error) {
 func networkWatchEventsCandidatePredicate(kinds []string) (string, bool) {
 	kindSet := stringSet(kinds)
 	if _, ok := kindSet[string(hookspkg.HookNetworkMessagePersisted)]; ok {
-		return "1 = 1", true
+		return watchEventsAllRowsSQL, true
 	}
 	predicates := make([]string, 0, 3)
 	if _, ok := kindSet[string(hookspkg.HookNetworkThreadOpened)]; ok {
@@ -243,7 +277,7 @@ func networkWatchEventsCandidatePredicate(kinds []string) (string, bool) {
 
 func (g *WatchEventsRepo) networkWatchEventsForRow(
 	ctx context.Context,
-	row networkWatchEventRow,
+	row *networkWatchEventRow,
 	kinds []string,
 ) ([]looppkg.WatchEvent, error) {
 	kindSet := stringSet(kinds)

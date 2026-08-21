@@ -257,7 +257,7 @@ func refreshCompletedTaskRunOutput(
 		refreshed, terminal, err := resolveGoalActionControl(parent, output, run)
 		return refreshed, false, nil, terminal, err
 	}
-	payload := run.Result
+	payload := run.ResultValue()
 	runtimeRef := generationOutputRuntimePayload(output)
 	if len(payload) == 0 && runtimeRef != "" && !OutputRefLooksContentAddressed(runtimeRef) {
 		payload = json.RawMessage(runtimeRef)

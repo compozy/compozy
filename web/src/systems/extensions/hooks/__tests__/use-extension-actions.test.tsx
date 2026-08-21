@@ -8,10 +8,10 @@ import { extensionKeys } from "../../lib/query-keys";
 import { marketplaceKeys } from "@/systems/marketplace/lib/query-keys";
 
 const mocks = vi.hoisted(() => ({
+  activeProfileName: "default",
   activeWorkspaceId: null as string | null,
-  disableExtension: vi.fn(),
-  enableExtension: vi.fn(),
   removeExtension: vi.fn(),
+  setExtensionEnablement: vi.fn(),
   toastError: vi.fn(),
   toastSuccess: vi.fn(),
   updateExtension: vi.fn(),
@@ -25,15 +25,18 @@ vi.mock("@/systems/workspace/hooks/use-active-workspace", () => ({
   useActiveWorkspace: () => ({ activeWorkspaceId: mocks.activeWorkspaceId }),
 }));
 
+vi.mock("@/systems/profiles", () => ({
+  useProfileReadScope: () => ({ destination: mocks.activeProfileName }),
+}));
+
 vi.mock("../../adapters/extensions-api", async () => {
   const actual = await vi.importActual<typeof import("../../adapters/extensions-api")>(
     "../../adapters/extensions-api"
   );
   return {
     ExtensionsApiError: actual.ExtensionsApiError,
-    disableExtension: mocks.disableExtension,
-    enableExtension: mocks.enableExtension,
     removeExtension: mocks.removeExtension,
+    setExtensionEnablement: mocks.setExtensionEnablement,
     updateExtension: mocks.updateExtension,
   };
 });
@@ -56,12 +59,9 @@ function setup() {
 
 beforeEach(() => {
   vi.clearAllMocks();
+  mocks.activeProfileName = "default";
   mocks.activeWorkspaceId = null;
-  mocks.enableExtension.mockResolvedValue({
-    automation_started: [],
-    extension: extensionFixtures[0],
-  });
-  mocks.disableExtension.mockResolvedValue(extensionFixtures[0]);
+  mocks.setExtensionEnablement.mockResolvedValue({ enabled: true, profile: "default" });
   mocks.updateExtension.mockResolvedValue(undefined);
   mocks.removeExtension.mockResolvedValue(undefined);
 });
@@ -70,11 +70,11 @@ describe("useToggleExtension", () => {
   it("Should roll an optimistic toggle back and toast the daemon error", async () => {
     const { queryClient, wrapper } = setup();
     const original = extensionFixtures.map(extension => ({ ...extension }));
-    queryClient.setQueryData(extensionKeys.list(), original);
-    let rejectDisable: ((error: Error) => void) | undefined;
-    mocks.disableExtension.mockReturnValue(
+    queryClient.setQueryData(extensionKeys.list(null, "default"), original);
+    let rejectToggle: ((error: Error) => void) | undefined;
+    mocks.setExtensionEnablement.mockReturnValue(
       new Promise((_resolve, reject) => {
-        rejectDisable = reject;
+        rejectToggle = reject;
       })
     );
     const { result } = renderHook(() => useToggleExtension(), { wrapper });
@@ -82,83 +82,37 @@ describe("useToggleExtension", () => {
     act(() => result.current.mutate({ enabled: false, name: "otel-bridge" }));
 
     await waitFor(() =>
-      expect(queryClient.getQueryData<typeof original>(extensionKeys.list())?.[0]?.enabled).toBe(
-        false
-      )
+      expect(
+        queryClient.getQueryData<typeof original>(extensionKeys.list(null, "default"))?.[0]?.enabled
+      ).toBe(false)
     );
-    act(() => rejectDisable?.(new Error("daemon refused the toggle")));
+    act(() => rejectToggle?.(new Error("daemon refused the toggle")));
 
     await waitFor(() =>
-      expect(queryClient.getQueryData<typeof original>(extensionKeys.list())?.[0]?.enabled).toBe(
-        true
-      )
+      expect(
+        queryClient.getQueryData<typeof original>(extensionKeys.list(null, "default"))?.[0]?.enabled
+      ).toBe(true)
     );
     expect(mocks.toastError).toHaveBeenCalledWith("daemon refused the toggle");
   });
 
-  it("Should enable through the daemon and enumerate the automation it started", async () => {
+  it("Should change enablement only for the active profile", async () => {
+    mocks.activeProfileName = "growth";
     const { wrapper } = setup();
-    mocks.enableExtension.mockResolvedValue({
-      automation_started: ["weekly-audit", "dep-sweep"],
-      extension: extensionFixtures[0],
-    });
+    mocks.setExtensionEnablement.mockResolvedValue({ enabled: true, profile: "growth" });
     const { result } = renderHook(() => useToggleExtension(), { wrapper });
 
     await act(async () => {
       await result.current.mutateAsync({ enabled: true, name: "dep-kit-ops" });
     });
 
-    expect(mocks.enableExtension).toHaveBeenCalledWith("dep-kit-ops", {
-      confirmNetworkDigest: undefined,
-    });
-    expect(mocks.toastSuccess).toHaveBeenCalledWith("dep-kit-ops enabled · 2 automation started", {
-      description: "dep-sweep, weekly-audit",
-    });
-  });
-
-  it("Should carry the ratified digest on a confirmed enable retry", async () => {
-    const { wrapper } = setup();
-    const { result } = renderHook(() => useToggleExtension(), { wrapper });
-
-    await act(async () => {
-      await result.current.mutateAsync({
-        confirmNetworkDigest: "sha256:6f1c0a94d3b27e58",
-        enabled: true,
-        name: "dep-kit-ops",
-      });
-    });
-
-    expect(mocks.enableExtension).toHaveBeenCalledWith("dep-kit-ops", {
-      confirmNetworkDigest: "sha256:6f1c0a94d3b27e58",
-    });
+    expect(mocks.setExtensionEnablement).toHaveBeenCalledWith("dep-kit-ops", "growth", true);
+    expect(mocks.toastSuccess).toHaveBeenCalledWith("dep-kit-ops enabled in growth");
   });
 
   /**
-   * A confirmation refusal is not an error the operator has to dismiss: the dialog owns it, so a
-   * toast here would double-signal the same state.
-   */
-  it("Should stay silent for a network-confirmation refusal instead of toasting it", async () => {
-    const { wrapper } = setup();
-    mocks.enableExtension.mockRejectedValue(
-      new ExtensionsApiError("confirmation required", 409, "daemon", {
-        code: "extension_network_confirmation_required",
-        currentDigest: "sha256:6f1c0a94d3b27e58",
-      })
-    );
-    const { result } = renderHook(() => useToggleExtension(), { wrapper });
-
-    await act(async () => {
-      await expect(
-        result.current.mutateAsync({ enabled: true, name: "dep-kit-ops" })
-      ).rejects.toThrow("confirmation required");
-    });
-
-    expect(mocks.toastError).not.toHaveBeenCalled();
-  });
-
-  /**
-   * Enabling and disabling change which kit resources are live and whether confirmation is still
-   * required, so a stale inventory would render badges the daemon no longer backs.
+   * Enabling and disabling change which kit resources are live, so a stale inventory would render
+   * badges the daemon no longer backs.
    */
   it.each([
     ["enable", true],
@@ -185,14 +139,15 @@ describe("useToggleExtension", () => {
   );
 
   it("Should apply the optimistic toggle to the active workspace instance row only", async () => {
+    mocks.activeProfileName = "growth";
     mocks.activeWorkspaceId = "ws_northstar";
     const { queryClient, wrapper } = setup();
     queryClient.setQueryData(
-      extensionKeys.list("ws_northstar"),
+      extensionKeys.list("ws_northstar", "growth"),
       extensionFixtures.map(extension => ({ ...extension }))
     );
     queryClient.setQueryData(
-      extensionKeys.list(),
+      extensionKeys.list(null, "growth"),
       extensionFixtures.map(extension => ({ ...extension }))
     );
     const { result } = renderHook(() => useToggleExtension(), { wrapper });
@@ -202,11 +157,13 @@ describe("useToggleExtension", () => {
     });
 
     expect(
-      queryClient.getQueryData<typeof extensionFixtures>(extensionKeys.list("ws_northstar"))?.[0]
-        ?.enabled
+      queryClient.getQueryData<typeof extensionFixtures>(
+        extensionKeys.list("ws_northstar", "growth")
+      )?.[0]?.enabled
     ).toBe(false);
     expect(
-      queryClient.getQueryData<typeof extensionFixtures>(extensionKeys.list())?.[0]?.enabled
+      queryClient.getQueryData<typeof extensionFixtures>(extensionKeys.list(null, "growth"))?.[0]
+        ?.enabled
     ).toBe(true);
   });
 });
@@ -294,6 +251,7 @@ describe("extension lifecycle mutations", () => {
     });
 
     expect(mocks.removeExtension).toHaveBeenCalledWith("slack-notify", {
+      profileName: "default",
       workspaceId: "ws_northstar",
     });
     expect(mocks.toastSuccess).toHaveBeenCalledWith("slack-notify dev overlay unlinked");

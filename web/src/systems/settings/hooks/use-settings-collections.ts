@@ -9,7 +9,11 @@ import {
   settingsProviderDetailOptions,
   settingsProvidersListOptions,
 } from "../lib/query-options";
-import type { SettingsMCPServerListFilter, SettingsNotificationPresetFilter } from "../types";
+import type {
+  SettingsHookListFilter,
+  SettingsMCPServerListFilter,
+  SettingsNotificationPresetFilter,
+} from "../types";
 
 interface QueryEnabledOptions {
   enabled?: boolean;
@@ -35,8 +39,8 @@ export function useSettingsSandbox(name: string, options: QueryEnabledOptions = 
   return useQuery(settingsSandboxDetailOptions(name, options.enabled ?? true));
 }
 
-export function useSettingsHooks() {
-  return useQuery(settingsHooksListOptions());
+export function useSettingsHooks(filter: SettingsHookListFilter = {}) {
+  return useQuery(settingsHooksListOptions(filter));
 }
 
 export function useSettingsMCPServers(

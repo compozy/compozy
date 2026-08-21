@@ -28,7 +28,7 @@ func newMCPInstallCommand(deps commandDeps) *cobra.Command {
 			request := InstallSettingsMCPServerRequest{
 				EntryID:     strings.TrimSpace(args[0]),
 				Name:        strings.TrimSpace(flags.name),
-				Scope:       contract.SettingsWorkspaceScopeKind(strings.TrimSpace(flags.scope)),
+				Scope:       contract.SettingsLayeredScopeKind(strings.TrimSpace(flags.scope)),
 				WorkspaceID: strings.TrimSpace(flags.workspaceID),
 			}
 			if request.Name != "" {
@@ -40,7 +40,7 @@ func newMCPInstallCommand(deps commandDeps) *cobra.Command {
 			if err != nil {
 				return err
 			}
-			if request.Scope == contract.SettingsWorkspaceScopeWorkspace {
+			if request.Scope == contract.SettingsLayeredScopeWorkspace {
 				resolution, err := resolveCommandWorkspace(
 					cmd.Context(),
 					cmd,
@@ -53,7 +53,18 @@ func newMCPInstallCommand(deps commandDeps) *cobra.Command {
 				}
 				request.WorkspaceID = resolution.ID
 			}
-			if err := validateMCPInstallScope(request.Scope, request.WorkspaceID); err != nil {
+			if request.Scope == contract.SettingsLayeredScopeProfile {
+				profiles, _, err := profileResolutionClientFromDeps(deps)
+				if err != nil {
+					return err
+				}
+				resolution, err := resolveCommandProfile(cmd.Context(), cmd, deps, profiles, client)
+				if err != nil {
+					return err
+				}
+				request.Profile = strings.TrimSpace(resolution.Profile.Name)
+			}
+			if err := validateMCPInstallScope(request.Scope, request.WorkspaceID, request.Profile); err != nil {
 				return err
 			}
 			secretReader := newMCPInstallSecretReader(
@@ -85,7 +96,7 @@ func bindMCPInstallFlags(cmd *cobra.Command, flags *mcpInstallFlags) {
 		&flags.scope,
 		mcpScopeKey,
 		"",
-		"Install scope override: global or workspace (defaults to the catalog entry)",
+		"Install scope override: user, profile, or workspace (defaults to the catalog entry)",
 	)
 	cmd.Flags().
 		StringVar(&flags.workspaceID, "workspace", "", "Override workspace (ID, name, or path)")

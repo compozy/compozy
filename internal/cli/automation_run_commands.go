@@ -55,11 +55,12 @@ func newAutomationRunsCommand(deps commandDeps) *cobra.Command {
 		StringVar(&untilRaw, "until", "", "Show runs until an RFC3339 timestamp or relative duration")
 	cmd.Flags().IntVar(&last, "last", 0, "Show only the most recent N runs")
 	cmd.AddCommand(newAutomationRunsGetCommand(deps))
+	configureProfileReadCommand(cmd, deps)
 	return cmd
 }
 
 func newAutomationRunsGetCommand(deps commandDeps) *cobra.Command {
-	return &cobra.Command{
+	cmd := &cobra.Command{
 		Use:   automationGetIDValue,
 		Short: "Show one automation run",
 		Args:  exactOneNonBlankArg(),
@@ -76,6 +77,8 @@ func newAutomationRunsGetCommand(deps commandDeps) *cobra.Command {
 			return writeCommandOutput(cmd, automationRunBundle(run))
 		},
 	}
+	configureProfileReadCommand(cmd, deps)
+	return cmd
 }
 
 func parseAutomationRunListQuery(

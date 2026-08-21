@@ -111,6 +111,7 @@ func (b *harnessReentryBridge) writeEventSummaryWithContext(
 		return
 	}
 	summaryPayload := store.EventSummary{
+		ProfileID: store.DefaultProfileID,
 		SessionID: targetSessionID,
 		Type:      strings.TrimSpace(eventType),
 		AgentName: targetAgentName,
@@ -120,6 +121,7 @@ func (b *harnessReentryBridge) writeEventSummaryWithContext(
 	if b.sessions != nil {
 		info, err := b.sessions.Status(ctx, targetSessionID)
 		if err == nil && info != nil {
+			summaryPayload.ProfileID = strings.TrimSpace(info.ProfileID)
 			summaryPayload = harnessEventSummaryWithLineage(summaryPayload, info.Lineage)
 		}
 	}

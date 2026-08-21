@@ -111,13 +111,23 @@ type SkillRuntimeStatusPayload struct {
 
 // ConfigRuntimeStatusPayload reports daemon config validation and apply lifecycle state.
 type ConfigRuntimeStatusPayload struct {
-	Status          string `json:"status"`
-	Validated       bool   `json:"validated"`
-	ValidationError string `json:"validation_error,omitempty"`
-	HomeDir         string `json:"home_dir,omitempty"`
-	ConfigFile      string `json:"config_file,omitempty"`
-	RestartRequired bool   `json:"restart_required"`
-	ApplyState      string `json:"apply_state"`
+	Status          string                         `json:"status"`
+	Validated       bool                           `json:"validated"`
+	ValidationError string                         `json:"validation_error,omitempty"`
+	HomeDir         string                         `json:"home_dir,omitempty"`
+	ConfigFile      string                         `json:"config_file,omitempty"`
+	RestartRequired bool                           `json:"restart_required"`
+	ApplyState      string                         `json:"apply_state"`
+	Diagnostics     []ConfigLayerDiagnosticPayload `json:"diagnostics,omitempty"`
+}
+
+// ConfigLayerDiagnosticPayload reports a dormant profile-owned config artifact.
+type ConfigLayerDiagnosticPayload struct {
+	Code    string `json:"code"`
+	Layer   string `json:"layer"`
+	Profile string `json:"profile"`
+	Path    string `json:"path"`
+	Message string `json:"message"`
 }
 
 // LogTailStatusPayload reports the log-tail capability advertised by settings.

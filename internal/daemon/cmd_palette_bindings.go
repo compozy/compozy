@@ -15,10 +15,11 @@ import (
 )
 
 type cmdPaletteBindingsResolver struct {
-	workspaces cmdPaletteWorkspaceResolver
-	loadGlobal func() (compozyconfig.Config, error)
-	catalog    func() cmdpalette.BindableCatalog
-	logger     *slog.Logger
+	workspaces  cmdPaletteWorkspaceResolver
+	loadGlobal  func() (compozyconfig.Config, error)
+	loadProfile func(string, string) (compozyconfig.Config, error)
+	catalog     func() cmdpalette.BindableCatalog
+	logger      *slog.Logger
 }
 
 type cmdPaletteWorkspaceResolver interface {
@@ -32,9 +33,10 @@ var _ cmdpalette.PersonalizationPolicy = (*cmdPaletteBindingsResolver)(nil)
 
 func (r *cmdPaletteBindingsResolver) PersonalizationEnabled(
 	ctx context.Context,
+	profileLens cmdpalette.ProfileLens,
 	workspaceID cmdpalette.WorkspaceID,
 ) (bool, error) {
-	paletteConfig, err := r.resolvePaletteConfig(ctx, workspaceID)
+	paletteConfig, err := r.resolvePaletteConfig(ctx, profileLens, workspaceID)
 	if err != nil {
 		return false, err
 	}
@@ -43,12 +45,13 @@ func (r *cmdPaletteBindingsResolver) PersonalizationEnabled(
 
 func (r *cmdPaletteBindingsResolver) Bindings(
 	ctx context.Context,
+	profileLens cmdpalette.ProfileLens,
 	workspaceID cmdpalette.WorkspaceID,
 ) (map[cmdpalette.CommandID][]string, map[cmdpalette.CommandID]string, error) {
 	if r == nil || r.workspaces == nil || r.catalog == nil {
 		return nil, nil, errors.New("daemon: command palette binding resolver is unavailable")
 	}
-	configPath, globalConfig, err := r.resolveCmdPaletteConfigPath(ctx, workspaceID)
+	configPath, globalConfig, err := r.resolveCmdPaletteConfigPath(ctx, profileLens, workspaceID)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -64,11 +67,11 @@ func (r *cmdPaletteBindingsResolver) Bindings(
 	if catalog == nil {
 		return nil, nil, errors.New("daemon: command palette catalog is unavailable")
 	}
-	commandIDs, err := catalog.BindableIDs(ctx, workspaceID)
+	commandIDs, err := catalog.BindableIDs(ctx, profileLens, workspaceID)
 	if err != nil {
 		return nil, nil, fmt.Errorf("daemon: list bindable command ids: %w", err)
 	}
-	defaults, err := r.extensionDefaults(ctx, catalog, workspaceID)
+	defaults, err := r.extensionDefaults(ctx, catalog, profileLens, workspaceID)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -79,6 +82,7 @@ func (r *cmdPaletteBindingsResolver) Bindings(
 
 func (r *cmdPaletteBindingsResolver) BindingsForCatalogSnapshot(
 	ctx context.Context,
+	profileLens cmdpalette.ProfileLens,
 	workspaceID cmdpalette.WorkspaceID,
 	commandIDs []cmdpalette.CommandID,
 	defaults []cmdpalette.ExtensionDefaultShortcut,
@@ -86,7 +90,7 @@ func (r *cmdPaletteBindingsResolver) BindingsForCatalogSnapshot(
 	if r == nil || r.workspaces == nil {
 		return nil, nil, errors.New("daemon: command palette binding resolver is unavailable")
 	}
-	configPath, globalConfig, err := r.resolveCmdPaletteConfigPath(ctx, workspaceID)
+	configPath, globalConfig, err := r.resolveCmdPaletteConfigPath(ctx, profileLens, workspaceID)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -106,13 +110,14 @@ func (r *cmdPaletteBindingsResolver) BindingsForCatalogSnapshot(
 
 func (r *cmdPaletteBindingsResolver) GlobalBindingsForCatalogSnapshot(
 	ctx context.Context,
+	profileLens cmdpalette.ProfileLens,
 	workspaceID cmdpalette.WorkspaceID,
 	commandIDs []cmdpalette.CommandID,
 ) (map[cmdpalette.CommandID]string, error) {
 	if r == nil || r.workspaces == nil {
 		return nil, errors.New("daemon: command palette binding resolver is unavailable")
 	}
-	configPath, globalConfig, err := r.resolveCmdPaletteConfigPath(ctx, workspaceID)
+	configPath, globalConfig, err := r.resolveCmdPaletteConfigPath(ctx, profileLens, workspaceID)
 	if err != nil {
 		return nil, err
 	}
@@ -182,13 +187,14 @@ func (r *cmdPaletteBindingsResolver) resolveBindingsFromSnapshot(
 func (r *cmdPaletteBindingsResolver) extensionDefaults(
 	ctx context.Context,
 	catalog cmdpalette.BindableCatalog,
+	profileLens cmdpalette.ProfileLens,
 	workspaceID cmdpalette.WorkspaceID,
 ) ([]windowmanager.ExtensionDefaultShortcut, error) {
 	provider, ok := catalog.(cmdpalette.ExtensionDefaultCatalog)
 	if !ok {
 		return nil, nil
 	}
-	defaults, err := provider.ExtensionDefaults(ctx, workspaceID)
+	defaults, err := provider.ExtensionDefaults(ctx, profileLens, workspaceID)
 	if err != nil {
 		return nil, fmt.Errorf("daemon: list extension shortcut defaults: %w", err)
 	}
@@ -197,6 +203,7 @@ func (r *cmdPaletteBindingsResolver) extensionDefaults(
 
 func (r *cmdPaletteBindingsResolver) resolvePaletteConfig(
 	ctx context.Context,
+	profileLens cmdpalette.ProfileLens,
 	workspaceID cmdpalette.WorkspaceID,
 ) (compozyconfig.CmdPaletteConfig, error) {
 	if r == nil || r.workspaces == nil {
@@ -204,7 +211,7 @@ func (r *cmdPaletteBindingsResolver) resolvePaletteConfig(
 			"daemon: command palette config resolver is unavailable",
 		)
 	}
-	configPath, globalConfig, err := r.resolveCmdPaletteConfigPath(ctx, workspaceID)
+	configPath, globalConfig, err := r.resolveCmdPaletteConfigPath(ctx, profileLens, workspaceID)
 	if err != nil {
 		return compozyconfig.CmdPaletteConfig{}, err
 	}
@@ -232,17 +239,32 @@ func windowmanagerExtensionDefaults(
 
 func (r *cmdPaletteBindingsResolver) resolveCmdPaletteConfigPath(
 	ctx context.Context,
+	profileLens cmdpalette.ProfileLens,
 	workspaceID cmdpalette.WorkspaceID,
 ) (string, compozyconfig.Config, error) {
 	resolved, err := r.resolveWorkspace(ctx, workspaceID)
 	if err != nil {
 		return "", compozyconfig.Config{}, err
 	}
-	globalConfig, err := r.currentGlobalConfig()
+	globalConfig, err := r.currentConfig(profileLens, resolved.RootDir)
 	if err != nil {
 		return "", compozyconfig.Config{}, err
 	}
 	return filepath.Join(resolved.RootDir, compozyconfig.DirName, compozyconfig.ConfigName), globalConfig, nil
+}
+
+func (r *cmdPaletteBindingsResolver) currentConfig(
+	profileLens cmdpalette.ProfileLens,
+	workspaceRoot string,
+) (compozyconfig.Config, error) {
+	if !profileLens.IsAggregate() && r != nil && r.loadProfile != nil {
+		config, err := r.loadProfile(strings.TrimSpace(profileLens.Name), workspaceRoot)
+		if err != nil {
+			return compozyconfig.Config{}, fmt.Errorf("daemon: load command palette profile config: %w", err)
+		}
+		return config, nil
+	}
+	return r.currentGlobalConfig()
 }
 
 func (r *cmdPaletteBindingsResolver) currentGlobalConfig() (compozyconfig.Config, error) {

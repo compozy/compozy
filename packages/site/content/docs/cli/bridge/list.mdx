@@ -14,6 +14,7 @@ compozy bridge list [flags]
 ### Options
 
 ```
+      --all-profiles       Read across every profile and include owner labels
       --cursor string      Continue from a bridge catalog cursor
   -h, --help               help for list
       --limit int          Maximum bridges to return (default 50, max 200)
@@ -28,8 +29,9 @@ compozy bridge list [flags]
 ### Options inherited from parent commands
 
 ```
-      --json            Emit JSON output
-  -o, --output string   Output format: human, json, jsonl, or toon (default "human")
+      --json             Emit JSON output
+  -o, --output string    Output format: human, json, jsonl, or toon (default "human")
+      --profile string   Act as a profile for this command
 ```
 
 ## Output Formats

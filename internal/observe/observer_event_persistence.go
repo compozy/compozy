@@ -27,19 +27,21 @@ func (o *Observer) writeObservedEventSummary(
 	timestamp time.Time,
 ) error {
 	correlation := event.Normalize()
-	return o.registry.WriteEventSummary(ctx, store.EventSummary{
+	summary := store.EventSummary{
+		ProfileID:        snapshot.profileID,
 		SessionID:        sessionID,
 		WorkspaceID:      snapshot.workspaceID,
 		Type:             strings.TrimSpace(event.Type),
 		AgentName:        snapshot.agentName,
-		Content:          observedEventContent(event),
 		EventCorrelation: correlation,
 		ParentSessionID:  snapshot.parentSessionID,
 		RootSessionID:    snapshot.rootSessionID,
 		SpawnDepth:       snapshot.spawnDepth,
 		Summary:          summarizeEvent(event),
 		Timestamp:        timestamp,
-	})
+	}
+	summary.SetContent(observedEventContent(event))
+	return o.registry.WriteEventSummary(ctx, summary)
 }
 
 func (o *Observer) writeObservedPermissionLog(

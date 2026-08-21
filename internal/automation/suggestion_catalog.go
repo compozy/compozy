@@ -47,19 +47,22 @@ var starterSuggestionCatalog = []suggestionCatalogEntry{
 
 func (m *Manager) ensureStarterSuggestions(
 	ctx context.Context,
+	profileID string,
 	workspaceID string,
 	agentName string,
 ) error {
 	for _, entry := range starterSuggestionCatalog {
 		dedupKey := starterSuggestionDedupKey(entry.key)
 		_, err := m.store.CreateSuggestion(ctx, Suggestion{
-			ID:          stableConfigID("sugcat", workspaceID, dedupKey),
+			ID:          stableConfigID("sugcat", profileID, workspaceID, dedupKey),
+			ProfileID:   profileID,
 			WorkspaceID: workspaceID,
 			Source:      SuggestionSourceCatalog,
 			DedupKey:    dedupKey,
 			Status:      SuggestionStatusPending,
 			Payload: Job{
-				ID:          suggestionJobID(workspaceID, dedupKey),
+				ID:          suggestionJobID(profileID, workspaceID, dedupKey),
+				ProfileID:   profileID,
 				Scope:       AutomationScopeWorkspace,
 				Name:        entry.name,
 				TargetKind:  TargetKindAgent,
@@ -91,6 +94,6 @@ func starterSuggestionDedupKey(key string) string {
 	return "catalog:" + starterSuggestionCatalogVersion + ":" + strings.TrimSpace(key)
 }
 
-func suggestionJobID(workspaceID string, dedupKey string) string {
-	return stableConfigID("jobsug", workspaceID, dedupKey)
+func suggestionJobID(profileID string, workspaceID string, dedupKey string) string {
+	return stableConfigID("jobsug", profileID, workspaceID, dedupKey)
 }

@@ -49,6 +49,34 @@ describe("TasksEmptyState", () => {
     expect(screen.getByRole("heading", { name: "No tasks yet" })).toBeInTheDocument();
   });
 
+  it('Should name the active profile so the empty state answers "empty for whom"', () => {
+    render(<TasksEmptyState onSelectTemplate={vi.fn()} profileScopeLabel="Marketing" />);
+    expect(screen.getByRole("heading", { name: "No tasks in Marketing yet" })).toBeInTheDocument();
+  });
+
+  it("Should prefer the profile over the workspace, which is the wider question", () => {
+    render(
+      <TasksEmptyState
+        onSelectTemplate={vi.fn()}
+        profileScopeLabel="Marketing"
+        workspaceName="Polybot"
+      />
+    );
+    expect(screen.getByRole("heading", { name: "No tasks in Marketing yet" })).toBeInTheDocument();
+    expect(
+      screen.queryByRole("heading", { name: "No tasks yet in Polybot" })
+    ).not.toBeInTheDocument();
+  });
+
+  it("Should never name a profile while every profile is on screen", () => {
+    // `default` is only where a *new* task would land. Saying the aggregate is
+    // empty "in default" would describe one profile while showing all of them.
+    render(<TasksEmptyState onSelectTemplate={vi.fn()} profileScopeLabel={null} />);
+    const heading = screen.getByRole("heading", { name: /^No tasks/ });
+    expect(heading).toHaveTextContent("No tasks in any profile yet");
+    expect(heading).not.toHaveTextContent("default");
+  });
+
   it("Should invoke onSelectTemplate from Blank task and from Use template", () => {
     const onSelectTemplate = vi.fn();
     render(<TasksEmptyState onSelectTemplate={onSelectTemplate} />);

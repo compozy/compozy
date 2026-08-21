@@ -27,7 +27,7 @@ func decodeLogQueryInput(
 	}
 	workspaceID := nativeCallerWorkspaceInput(input.WorkspaceID, scope)
 	input.WorkspaceID = workspaceID
-	query, err := input.eventSummaryQuery(req.ToolID)
+	query, err := input.eventSummaryQuery(req.ToolID, store.ReadScope{ProfileID: scope.ProfileID})
 	if err != nil {
 		return logQueryInput{}, store.EventSummaryQuery{}, err
 	}
@@ -47,7 +47,7 @@ func decodeObserveSearchInput(
 	}
 	workspaceID := nativeCallerWorkspaceInput(input.WorkspaceID, scope)
 	input.WorkspaceID = workspaceID
-	query, err := input.eventSummaryQuery(req.ToolID)
+	query, err := input.eventSummaryQuery(req.ToolID, store.ReadScope{ProfileID: scope.ProfileID})
 	if err != nil {
 		return observeSearchInput{}, store.EventSummaryQuery{}, err
 	}
@@ -74,8 +74,9 @@ func parseNativeOptionalRFC3339(id toolspkg.ToolID, field string, raw string) (t
 
 func logEventPayloads(events []store.EventSummary) []contract.LogEventPayload {
 	payload := make([]contract.LogEventPayload, 0, len(events))
-	for _, event := range events {
-		item := core.LogEventPayloadFromSummary(event)
+	for index := range events {
+		event := &events[index]
+		item := core.LogEventPayloadFromSummary(*event)
 		item.Summary = taskpkg.RedactClaimTokens(strings.TrimSpace(item.Summary))
 		payload = append(payload, item)
 	}
@@ -125,12 +126,13 @@ func filterListLogs(
 		return events
 	}
 	filtered := make([]contract.LogEventPayload, 0, len(events))
-	for _, event := range events {
+	for index := range events {
+		event := &events[index]
 		values := []string{event.ID, event.SessionID, event.Type, event.AgentName, event.Summary}
 		if slices.ContainsFunc(values, func(value string) bool {
 			return strings.Contains(strings.ToLower(value), needle)
 		}) {
-			filtered = append(filtered, event)
+			filtered = append(filtered, *event)
 		}
 	}
 	return filtered
@@ -162,10 +164,17 @@ func sessionHistoryPayload(history []store.TurnHistory, info *session.Info) []an
 }
 
 func actorContextFromScope(scope toolspkg.Scope) (taskpkg.ActorContext, error) {
+	var actor taskpkg.ActorContext
+	var err error
 	if sessionID := strings.TrimSpace(scope.SessionID); sessionID != "" {
-		return taskpkg.DeriveAgentSessionActorContext(sessionID, scope.WorkspaceID)
+		actor, err = taskpkg.DeriveAgentSessionActorContext(sessionID, scope.WorkspaceID)
+	} else {
+		actor, err = taskpkg.DeriveDaemonActorContext("native-tools", "tool.registry")
 	}
-	return taskpkg.DeriveDaemonActorContext("native-tools", "tool.registry")
+	if err != nil {
+		return taskpkg.ActorContext{}, err
+	}
+	return bindNativeTaskActorProfile(actor, scope)
 }
 
 func searchSkills(skillList []*skills.Skill, query string) []*skills.Skill {

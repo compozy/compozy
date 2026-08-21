@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"net/http"
 	"strconv"
+	"strings"
 
 	"github.com/compozy/compozy/internal/api/contract"
 	looppkg "github.com/compozy/compozy/internal/loop"
@@ -16,6 +17,11 @@ func (h *BaseHandlers) ListLoopRequests(c *gin.Context) {
 	service, ok := h.requireLoopService(c)
 	if !ok {
 		return
+	}
+	if runID := strings.TrimSpace(c.Query("run_id")); runID != "" {
+		if !h.requireLoopRunProfileByID(c, service, runID, false) {
+			return
+		}
 	}
 	query := LoopRequestListQuery{RunID: c.Query("run_id"), State: c.Query("state"), Cursor: c.Query("cursor")}
 	if raw := c.Query("limit"); raw != "" {
@@ -37,6 +43,9 @@ func (h *BaseHandlers) ListLoopRequests(c *gin.Context) {
 func (h *BaseHandlers) GetLoopRequest(c *gin.Context) {
 	service, ok := h.requireLoopService(c)
 	if !ok {
+		return
+	}
+	if !h.requireLoopRunProfile(c, service, false) {
 		return
 	}
 	itemIndex, err := optionalRequestItemIndex(c)
@@ -70,6 +79,9 @@ func requiredRequestGeneration(c *gin.Context) (int, error) {
 func (h *BaseHandlers) RespondLoopRequest(c *gin.Context) {
 	service, ok := h.requireLoopService(c)
 	if !ok {
+		return
+	}
+	if !h.requireLoopRunProfile(c, service, true) {
 		return
 	}
 	var req contract.RespondLoopRequest

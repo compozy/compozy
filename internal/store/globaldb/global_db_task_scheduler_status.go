@@ -183,7 +183,7 @@ func (g *TaskRepo) SchedulerBacklog(
 }
 
 func schedulerBacklogWhere(query taskpkg.SchedulerBacklogQuery) (string, []any) {
-	where := []string{"tr.status = ?"}
+	where := []string{globalDBTaskRunStatusFilter}
 	args := []any{taskpkg.TaskRunStatusQueued.String()}
 	if query.Scope.Normalize() != "" {
 		where = append(where, "t.scope = ?")

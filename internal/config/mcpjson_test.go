@@ -159,7 +159,7 @@ func TestPutMCPSidecarServerPreservesUnknownTopLevelKeysAndUntouchedEntries(t *t
 	if err != nil {
 		t.Fatalf("ResolveHomePathsFrom() error = %v", err)
 	}
-	target, err := ResolveMCPSidecarWriteTarget(homePaths, "", WriteScopeGlobal)
+	target, err := ResolveMCPSidecarWriteTarget(homePaths, "", WriteScopeUser, "")
 	if err != nil {
 		t.Fatalf("ResolveMCPSidecarWriteTarget() error = %v", err)
 	}
@@ -230,7 +230,7 @@ func TestPutMCPSidecarServerRejectsSymlinkWithoutReadingTarget(t *testing.T) {
 	if err != nil {
 		t.Fatalf("ResolveHomePathsFrom() error = %v", err)
 	}
-	target, err := ResolveMCPSidecarWriteTarget(homePaths, "", WriteScopeGlobal)
+	target, err := ResolveMCPSidecarWriteTarget(homePaths, "", WriteScopeUser, "")
 	if err != nil {
 		t.Fatalf("ResolveMCPSidecarWriteTarget() error = %v", err)
 	}
@@ -273,7 +273,7 @@ func TestDeleteMCPSidecarServerRejectsSymlinkWithoutReadingTarget(t *testing.T) 
 	if err != nil {
 		t.Fatalf("ResolveHomePathsFrom() error = %v", err)
 	}
-	target, err := ResolveMCPSidecarWriteTarget(homePaths, "", WriteScopeGlobal)
+	target, err := ResolveMCPSidecarWriteTarget(homePaths, "", WriteScopeUser, "")
 	if err != nil {
 		t.Fatalf("ResolveMCPSidecarWriteTarget() error = %v", err)
 	}
@@ -335,7 +335,7 @@ func TestMCPSidecarMutationKeepsTheHeldParentAfterPathReplacement(t *testing.T) 
 		}
 		target := WriteTarget{
 			kind:  WriteTargetGlobalMCPSidecar,
-			scope: WriteScopeGlobal,
+			scope: WriteScopeUser,
 			path:  livePath,
 		}
 
@@ -401,7 +401,7 @@ func TestPutMCPSidecarServerPreservesRemoteAuthFields(t *testing.T) {
 		if err != nil {
 			t.Fatalf("ResolveHomePathsFrom() error = %v", err)
 		}
-		target, err := ResolveMCPSidecarWriteTarget(homePaths, "", WriteScopeGlobal)
+		target, err := ResolveMCPSidecarWriteTarget(homePaths, "", WriteScopeUser, "")
 		if err != nil {
 			t.Fatalf("ResolveMCPSidecarWriteTarget() error = %v", err)
 		}
@@ -481,7 +481,7 @@ func TestDeleteMCPSidecarServerRemovesEntriesFromSnakeCaseCollectionWhenBothExis
 	if err != nil {
 		t.Fatalf("ResolveHomePathsFrom() error = %v", err)
 	}
-	target, err := ResolveMCPSidecarWriteTarget(homePaths, "", WriteScopeGlobal)
+	target, err := ResolveMCPSidecarWriteTarget(homePaths, "", WriteScopeUser, "")
 	if err != nil {
 		t.Fatalf("ResolveMCPSidecarWriteTarget() error = %v", err)
 	}
@@ -544,7 +544,7 @@ func TestPutMCPSidecarServerPreservesExistingCamelCaseCollection(t *testing.T) {
 	if err != nil {
 		t.Fatalf("ResolveHomePathsFrom() error = %v", err)
 	}
-	target, err := ResolveMCPSidecarWriteTarget(homePaths, "", WriteScopeGlobal)
+	target, err := ResolveMCPSidecarWriteTarget(homePaths, "", WriteScopeUser, "")
 	if err != nil {
 		t.Fatalf("ResolveMCPSidecarWriteTarget() error = %v", err)
 	}
@@ -603,7 +603,7 @@ func TestDeleteMCPSidecarServerNoOpPreservesDocument(t *testing.T) {
 	if err != nil {
 		t.Fatalf("ResolveHomePathsFrom() error = %v", err)
 	}
-	target, err := ResolveMCPSidecarWriteTarget(homePaths, "", WriteScopeGlobal)
+	target, err := ResolveMCPSidecarWriteTarget(homePaths, "", WriteScopeUser, "")
 	if err != nil {
 		t.Fatalf("ResolveMCPSidecarWriteTarget() error = %v", err)
 	}

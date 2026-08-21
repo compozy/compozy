@@ -31,7 +31,9 @@ export function programViewEnvelope(
   viewId: string,
   title: string,
   frame: CmdPaletteViewFrame,
-  payload: CmdPaletteViewEnvelope["payload"]
+  payload: CmdPaletteViewEnvelope["payload"],
+  /** The lens the daemon opened this view session under — never re-derived here. */
+  profileLens: CmdPaletteViewEnvelope["profile_lens"]
 ): CmdPaletteViewEnvelope {
   const kind = payload.form
     ? "form"
@@ -47,6 +49,7 @@ export function programViewEnvelope(
     revision: frame.revision,
     stream_epoch: `session:${frame.view_session}`,
     payload,
+    profile_lens: profileLens,
   };
 }
 

@@ -39,7 +39,9 @@ func (g *WatchEventsRepo) readAutomationWatchEventsCursor(
 	}
 	// dynamic-sql: requested automation hooks map to a variable-width status set.
 	placeholders, statusArgs := sqlInPlaceholders(statuses)
-	args := append([]any{query.workspaceID}, statusArgs...)
+	scopeSQL, scopeArgs := automationWatchEventsScopeClause(query.readScope)
+	args := append([]any{query.workspaceID}, scopeArgs...)
+	args = append(args, statusArgs...)
 	// #nosec G202 -- IN placeholders are generated from normalized status count; values are parameterized.
 	return scanWatchEventCursor(
 		g.db.QueryRowContext(
@@ -47,6 +49,7 @@ func (g *WatchEventsRepo) readAutomationWatchEventsCursor(
 			`SELECT COALESCE(MAX(awe.seq), 0)
 			   FROM automation_watch_events awe
 			  WHERE awe.workspace_id = ?
+			    AND `+scopeSQL+`
 			    AND awe.status IN (`+placeholders+`)`,
 			args...,
 		),
@@ -64,10 +67,10 @@ func (g *WatchEventsRepo) readAutomationWatchEvents(
 	}
 	// dynamic-sql: requested automation hooks map to a variable-width status set.
 	placeholders, statusArgs := sqlInPlaceholders(statuses)
-	args := append([]any{
-		query.workspaceID,
-		query.streams[looppkg.WatchEventsAutomationStream],
-	}, statusArgs...)
+	scopeSQL, scopeArgs := automationWatchEventsScopeClause(query.readScope)
+	args := append([]any{query.workspaceID}, scopeArgs...)
+	args = append(args, query.streams[looppkg.WatchEventsAutomationStream])
+	args = append(args, statusArgs...)
 	args = append(args, query.limit)
 	// #nosec G202 -- IN placeholders are generated from normalized status count; values are parameterized.
 	rows, err := g.db.QueryContext(
@@ -88,6 +91,7 @@ func (g *WatchEventsRepo) readAutomationWatchEvents(
 			awe.retry_json
 		   FROM automation_watch_events awe
 		  WHERE awe.workspace_id = ?
+		    AND `+scopeSQL+`
 		    AND awe.seq > ?
 		    AND awe.status IN (`+placeholders+`)
 		  ORDER BY awe.seq ASC
@@ -120,6 +124,15 @@ func (g *WatchEventsRepo) readAutomationWatchEvents(
 		return nil, err
 	}
 	return events, nil
+}
+
+func automationWatchEventsScopeClause(scope store.ReadScope) (string, []any) {
+	if scope.AllProfiles {
+		return watchEventsAllRowsSQL, nil
+	}
+	return automationWatchEventProfileIDSQL + " = ?", []any{
+		strings.TrimSpace(scope.ProfileID),
+	}
 }
 
 func scanAutomationWatchEventRow(row rowScanner) (automationWatchEventRow, error) {

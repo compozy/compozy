@@ -18,7 +18,7 @@ const baseDecision: MemoryDecision = {
   id: "dec_alpha",
   candidate_hash: "h",
   op: "update",
-  scope: "global",
+  scope: "profile",
   source: "rule",
   confidence: 0.93,
   decided_at: "2026-04-17T17:31:00Z",

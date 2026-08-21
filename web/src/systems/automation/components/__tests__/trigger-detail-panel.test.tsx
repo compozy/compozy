@@ -67,6 +67,8 @@ import {
 import { buildTriggerLede, describeTriggerWhen } from "../../lib/trigger-sentence";
 
 const triggerDefaults: AutomationTrigger = {
+  profile_id: "00000000000000000000000000",
+  profile_name: "default",
   id: "trg_summarize_failures",
   name: "summarize-failures",
   agent_name: "summarizer",
@@ -119,6 +121,8 @@ const webhookTrigger = makeTrigger({
 });
 
 const runDefaults: AutomationRun = {
+  profile_id: "00000000000000000000000000",
+  profile_name: "default",
   id: "run_001",
   status: "completed" as const,
   attempt: 1,

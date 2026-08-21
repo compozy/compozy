@@ -12,6 +12,9 @@ func (r *Resolver) createWorkspaceRegistration(ctx context.Context, opts Registe
 	if err != nil {
 		return Workspace{}, err
 	}
+	if err := r.rejectOperatorHomeRegistration(rootDir); err != nil {
+		return Workspace{}, err
+	}
 
 	additionalDirs, err := normalizeAdditionalDirs(rootDir, opts.AdditionalDirs)
 	if err != nil {

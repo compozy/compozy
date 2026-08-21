@@ -13,9 +13,9 @@ import { windowManagerLayoutOptions } from "../window-manager-layout-query";
 describe("windowManagerLayoutOptions", () => {
   it("Should select layout state from the runtime snapshot query key", () => {
     const snapshot = parseWindowManagerSnapshot(windowManagerSnapshotFixture);
-    const options = windowManagerLayoutOptions(snapshot.workspaceId);
+    const options = windowManagerLayoutOptions(snapshot.workspaceId, "marketing");
 
-    expect(options.queryKey).toEqual(windowManagerKeys.snapshot(snapshot.workspaceId));
+    expect(options.queryKey).toEqual(windowManagerKeys.snapshot(snapshot.workspaceId, "marketing"));
     expect(options.select?.(snapshot)).toMatchObject({
       revision: snapshot.revision,
       document: {

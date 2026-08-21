@@ -11,6 +11,9 @@ func compareInstanceKeys(left, right InstanceKey) int {
 	if result := cmp.Compare(left.Name, right.Name); result != 0 {
 		return result
 	}
+	if result := cmp.Compare(left.ProfileID, right.ProfileID); result != 0 {
+		return result
+	}
 	return cmp.Compare(left.WorkspaceID, right.WorkspaceID)
 }
 
@@ -37,10 +40,20 @@ func (ext *managedExtension) instanceKey() InstanceKey {
 }
 
 func (ext *managedExtension) maxResourceScope() resources.ResourceScopeKind {
-	if ext != nil && !ext.instanceKey().IsGlobal() {
+	if ext == nil {
+		return resources.ResourceScopeKindUser
+	}
+	key := ext.instanceKey()
+	if key.IsProfileScoped() && !key.IsGlobal() {
+		return resources.ResourceScopeKindWorkspaceProfile
+	}
+	if key.IsProfileScoped() {
+		return resources.ResourceScopeKindProfile
+	}
+	if !key.IsGlobal() {
 		return resources.ResourceScopeKindWorkspace
 	}
-	return resources.ResourceScopeKindGlobal
+	return resources.ResourceScopeKindUser
 }
 
 func extensionCapabilityGrantID(key InstanceKey, sessionNonce string) string {
@@ -49,6 +62,9 @@ func extensionCapabilityGrantID(key InstanceKey, sessionNonce string) string {
 
 func (m *Manager) instanceLocked(key InstanceKey) *managedExtension {
 	key = key.Normalize()
+	if key.IsProfileScoped() {
+		return m.profileExtensions[key]
+	}
 	if key.IsGlobal() {
 		return m.extensions[key.Name]
 	}
@@ -68,6 +84,10 @@ func (m *Manager) lookupInstance(key InstanceKey) (*managedExtension, bool) {
 
 func (m *Manager) deleteInstanceLocked(key InstanceKey) {
 	key = key.Normalize()
+	if key.IsProfileScoped() {
+		delete(m.profileExtensions, key)
+		return
+	}
 	if key.IsGlobal() {
 		delete(m.extensions, key.Name)
 		return
@@ -79,10 +99,14 @@ func (m *Manager) coordinatorFor(key InstanceKey) *sync.Mutex {
 	key = key.Normalize()
 	m.mu.Lock()
 	defer m.mu.Unlock()
-	coordinator := m.devCoordinators[key]
+	coordinators := m.devCoordinators
+	if key.IsProfileScoped() {
+		coordinators = m.profileCoordinators
+	}
+	coordinator := coordinators[key]
 	if coordinator == nil {
 		coordinator = &sync.Mutex{}
-		m.devCoordinators[key] = coordinator
+		coordinators[key] = coordinator
 	}
 	return coordinator
 }

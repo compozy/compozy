@@ -8,15 +8,16 @@ function normalizedText(value: string | undefined): string | undefined {
 }
 
 export function normalizeSessionListFilters(filters: SessionListFilters = {}): SessionListFilters {
-  const normalized: SessionListFilters = {};
-  const workspace = normalizedText(filters.workspace);
+  const workspaceId = normalizedText(filters.workspace_id);
+  const normalized: SessionListFilters = workspaceId
+    ? { workspace_id: workspaceId }
+    : { all_workspaces: true };
   const agent = normalizedText(filters.agent);
   const search = normalizedText(filters.q);
   // Server-side scoping: a worktree selection filters on the bound worktree id
   // rather than trimming a loaded page client-side.
   const worktree = normalizedText(filters.worktree);
 
-  if (workspace) normalized.workspace = workspace;
   if (worktree) normalized.worktree = worktree;
   if (filters.include_health !== undefined) {
     normalized.include_health = filters.include_health;
@@ -35,6 +36,13 @@ export function normalizeSessionListFilters(filters: SessionListFilters = {}): S
   if (filters.archive !== undefined) normalized.archive = filters.archive;
   if (filters.sort !== undefined) normalized.sort = filters.sort;
   if (filters.limit !== undefined) normalized.limit = filters.limit;
+  // Profile scope is part of the request, so it is part of the key: two profiles
+  // reading the same workspace are two catalogs, never one shared cache entry.
+  if (filters.all_profiles === true) normalized.all_profiles = true;
+  else {
+    const profile = normalizedText(filters.profile);
+    if (profile) normalized.profile = profile;
+  }
 
   return normalized;
 }

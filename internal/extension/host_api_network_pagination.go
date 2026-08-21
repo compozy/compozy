@@ -15,8 +15,10 @@ import (
 func hostAPINetworkThreadQuery(
 	params extensioncontract.NetworkThreadsParams,
 	sessionID string,
+	readScope store.ReadScope,
 ) (store.NetworkThreadQuery, error) {
 	query := store.NetworkThreadQuery{
+		ReadScope: readScope,
 		Search:    strings.TrimSpace(params.Query),
 		SessionID: strings.TrimSpace(sessionID),
 		Sort:      strings.TrimSpace(params.Sort),
@@ -33,8 +35,10 @@ func hostAPINetworkThreadQuery(
 func hostAPINetworkDirectRoomQuery(
 	params extensioncontract.NetworkDirectsParams,
 	sessionID string,
+	readScope store.ReadScope,
 ) (store.NetworkDirectRoomQuery, error) {
 	query := store.NetworkDirectRoomQuery{
+		ReadScope: readScope,
 		Search:    strings.TrimSpace(params.Query),
 		SessionID: strings.TrimSpace(sessionID),
 		Sort:      strings.TrimSpace(params.Sort),
@@ -74,7 +78,11 @@ func (h *HostAPIHandler) handleNetworkThreads(ctx context.Context, raw json.RawM
 	if err != nil {
 		return nil, err
 	}
-	query, err := hostAPINetworkThreadQuery(params, sessionID)
+	readScope, err := hostAPIProfileReadScope(ctx)
+	if err != nil {
+		return nil, err
+	}
+	query, err := hostAPINetworkThreadQuery(params, sessionID, readScope)
 	if err != nil {
 		return nil, err
 	}
@@ -123,7 +131,11 @@ func (h *HostAPIHandler) handleNetworkDirects(ctx context.Context, raw json.RawM
 	if err != nil {
 		return nil, err
 	}
-	query, err := hostAPINetworkDirectRoomQuery(params, sessionID)
+	readScope, err := hostAPIProfileReadScope(ctx)
+	if err != nil {
+		return nil, err
+	}
+	query, err := hostAPINetworkDirectRoomQuery(params, sessionID, readScope)
 	if err != nil {
 		return nil, err
 	}
@@ -189,8 +201,10 @@ func hostAPINetworkConversationMessageQuery(
 	after string,
 	kind string,
 	workID string,
+	readScope store.ReadScope,
 ) (store.NetworkConversationMessageQuery, error) {
 	query := store.NetworkConversationMessageQuery{
+		ReadScope:       readScope,
 		BeforeMessageID: strings.TrimSpace(before),
 		AfterMessageID:  strings.TrimSpace(after),
 		Kind:            strings.TrimSpace(kind),

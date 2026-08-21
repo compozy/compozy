@@ -1,10 +1,12 @@
 package daemon
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"maps"
 	"slices"
+	"strings"
 	"time"
 
 	core "github.com/compozy/compozy/internal/api/core"
@@ -81,6 +83,25 @@ func newDaemonNativeProvider(deps *daemonNativeToolsDeps) (toolspkg.Provider, er
 	nativeTools := make([]toolspkg.NativeTool, 0, len(descriptors))
 	for _, descriptor := range descriptors {
 		binding := bindings[descriptor.ID]
+		if binding.call != nil {
+			call := binding.call
+			toolID := descriptor.ID
+			binding.call = func(
+				ctx context.Context,
+				scope toolspkg.Scope,
+				req toolspkg.CallRequest,
+			) (toolspkg.ToolResult, error) {
+				if nativeMemoryToolRequiresCallerProfile(toolID) &&
+					strings.TrimSpace(scope.ProfileID) == "" && strings.TrimSpace(scope.SessionID) == "" {
+					return call(ctx, scope, req)
+				}
+				effectiveScope, err := adapter.nativeEffectiveScope(ctx, scope)
+				if err != nil {
+					return toolspkg.ToolResult{}, err
+				}
+				return call(ctx, effectiveScope, req)
+			}
+		}
 		nativeTools = append(nativeTools, toolspkg.NativeTool{
 			Descriptor:   descriptor,
 			Call:         binding.call,
@@ -88,6 +109,21 @@ func newDaemonNativeProvider(deps *daemonNativeToolsDeps) (toolspkg.Provider, er
 		})
 	}
 	return toolspkg.NewNativeProvider(builtintools.Source(), nativeTools...)
+}
+
+func (n *daemonNativeTools) nativeEffectiveScope(
+	ctx context.Context,
+	scope toolspkg.Scope,
+) (toolspkg.Scope, error) {
+	profileID, _, workspaceID, err := n.nativeCurrentProfileIdentity(ctx, scope)
+	if err != nil {
+		return toolspkg.Scope{}, err
+	}
+	scope.ProfileID = strings.TrimSpace(profileID)
+	if strings.TrimSpace(scope.WorkspaceID) == "" {
+		scope.WorkspaceID = strings.TrimSpace(workspaceID)
+	}
+	return scope, nil
 }
 
 func validateNativeToolBindings(
@@ -149,14 +185,14 @@ func appendToolEventSinkOption(
 	options []toolspkg.RegistryOption,
 	registry extensionLifecycleEventWriter,
 	now func() time.Time,
+	profileForSession func(context.Context, string) (string, error),
 ) []toolspkg.RegistryOption {
 	writer := extensionEventSummaryStore(registry)
 	if writer == nil {
 		return options
 	}
 	return append(options, toolspkg.WithToolEventSink(&daemonToolEventSink{
-		writer: writer,
-		now:    now,
+		writer: writer, now: now, profileForSession: profileForSession,
 	}))
 }
 

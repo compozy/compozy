@@ -10,6 +10,7 @@ import (
 	compozyconfig "github.com/compozy/compozy/internal/config"
 	"github.com/compozy/compozy/internal/network/participation"
 	"github.com/compozy/compozy/internal/session"
+	storepkg "github.com/compozy/compozy/internal/store"
 	taskpkg "github.com/compozy/compozy/internal/task"
 	"github.com/compozy/compozy/internal/testutil"
 	workspacepkg "github.com/compozy/compozy/internal/workspace"
@@ -29,6 +30,7 @@ func runCoordinatorBootstrapStartsOnceForUserTaskRunsIntegration(t *testing.T) {
 	actor := coordinatorTaskActor()
 
 	created, err := manager.CreateTask(ctx, taskpkg.CreateTask{
+		ProfileID:   storepkg.DefaultProfileID,
 		Scope:       taskpkg.ScopeWorkspace,
 		WorkspaceID: "ws-int",
 		Title:       "First executable task",
@@ -64,6 +66,7 @@ func runCoordinatorBootstrapStartsOnceForUserTaskRunsIntegration(t *testing.T) {
 	}
 
 	second, err := manager.CreateTask(ctx, taskpkg.CreateTask{
+		ProfileID:   storepkg.DefaultProfileID,
 		Scope:       taskpkg.ScopeWorkspace,
 		WorkspaceID: "ws-int",
 		Title:       "Second executable task",
@@ -85,6 +88,7 @@ func TestCoordinatorRecoveryRestartsAfterStoppedCoordinatorIntegration(t *testin
 	actor := coordinatorTaskActor()
 
 	created, err := manager.CreateTask(ctx, taskpkg.CreateTask{
+		ProfileID:   storepkg.DefaultProfileID,
 		Scope:       taskpkg.ScopeWorkspace,
 		WorkspaceID: "ws-int",
 		Title:       "Recoverable task",

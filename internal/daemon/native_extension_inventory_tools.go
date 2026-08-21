@@ -8,7 +8,7 @@ import (
 
 func (n *daemonNativeTools) extensionInventory(
 	ctx context.Context,
-	_ toolspkg.Scope,
+	scope toolspkg.Scope,
 	req toolspkg.CallRequest,
 ) (toolspkg.ToolResult, error) {
 	var input extensionNameInput
@@ -19,27 +19,11 @@ func (n *daemonNativeTools) extensionInventory(
 	if err != nil {
 		return toolspkg.ToolResult{}, err
 	}
-	payload, err := n.extensionCoreService().Inventory(ctx, name)
+	actor, err := nativeExtensionScopedActorContext(scope, req)
 	if err != nil {
 		return toolspkg.ToolResult{}, nativeExtensionToolError(req.ToolID, err)
 	}
-	return structuredResult(payload, payload.Extension)
-}
-
-func (n *daemonNativeTools) extensionPreview(
-	ctx context.Context,
-	_ toolspkg.Scope,
-	req toolspkg.CallRequest,
-) (toolspkg.ToolResult, error) {
-	var input extensionNameInput
-	if err := decodeNativeInput(req, &input); err != nil {
-		return toolspkg.ToolResult{}, err
-	}
-	name, err := requiredNativeString(req.ToolID, "name", input.Name)
-	if err != nil {
-		return toolspkg.ToolResult{}, err
-	}
-	payload, err := n.extensionCoreService().Preview(ctx, name)
+	payload, err := n.extensionCoreService().InventoryScoped(ctx, name, actor)
 	if err != nil {
 		return toolspkg.ToolResult{}, nativeExtensionToolError(req.ToolID, err)
 	}

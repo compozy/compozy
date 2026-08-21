@@ -43,6 +43,12 @@ func TestMCPResolverResolveAutoApprovesTrustedSources(t *testing.T) {
 		{name: "Should auto approve user source", skillName: "user", source: SourceUser},
 		{name: "Should auto approve additional source", skillName: "additional", source: SourceAdditional},
 		{name: "Should auto approve workspace source", skillName: "workspace", source: SourceWorkspace},
+		{name: "Should auto approve profile source", skillName: "profile", source: SourceProfile},
+		{
+			name:      "Should auto approve workspace profile source",
+			skillName: "workspace-profile",
+			source:    SourceWorkspaceProfile,
+		},
 	}
 
 	for _, tt := range tests {

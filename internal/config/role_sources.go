@@ -6,15 +6,17 @@ import (
 )
 
 const (
-	RoleFieldSourceDefault   = "default"
-	RoleFieldSourceGlobal    = "global"
-	RoleFieldSourceWorkspace = "workspace"
-	RoleFieldEnabled         = "enabled"
-	RoleFieldAgent           = "agent"
-	RoleFieldProvider        = "provider"
-	RoleFieldModel           = "model"
-	RoleFieldReasoning       = "reasoning_effort"
-	RoleFieldFallbacks       = "fallback_chain"
+	RoleFieldSourceDefault          = "default"
+	RoleFieldSourceGlobal           = "global"
+	RoleFieldSourceProfile          = "profile"
+	RoleFieldSourceWorkspace        = "workspace"
+	RoleFieldSourceWorkspaceProfile = "workspace_profile"
+	RoleFieldEnabled                = "enabled"
+	RoleFieldAgent                  = "agent"
+	RoleFieldProvider               = "provider"
+	RoleFieldModel                  = "model"
+	RoleFieldReasoning              = "reasoning_effort"
+	RoleFieldFallbacks              = "fallback_chain"
 )
 
 // RoleFieldSources records which config layer last wrote each routed role field.

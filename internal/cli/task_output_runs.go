@@ -13,6 +13,7 @@ func taskRunBundle(item TaskRunRecord) outputBundle {
 		human: func() (string, error) {
 			return renderHumanSection("Task Run", []keyValue{
 				{Label: "ID", Value: stringOrDash(item.ID)},
+				{Label: cliProfileHeader, Value: stringOrDash(item.ProfileName)},
 				{Label: taskTaskValue, Value: stringOrDash(item.TaskID)},
 				{Label: taskStatusValue, Value: stringOrDash(item.Status.String())},
 				{Label: taskAttemptValue, Value: intOrDash(item.Attempt)},
@@ -40,6 +41,7 @@ func taskRunBundle(item TaskRunRecord) outputBundle {
 		toon: func() (string, error) {
 			return renderToonObject("task_run", []string{
 				"id",
+				profileNameOutputKey,
 				taskTaskIDKey,
 				taskStatusKey,
 				taskAttemptKey,
@@ -58,6 +60,7 @@ func taskRunBundle(item TaskRunRecord) outputBundle {
 				clientResultKey,
 			}, []string{
 				item.ID,
+				item.ProfileName,
 				item.TaskID,
 				item.Status.String(),
 				strconv.Itoa(item.Attempt),
@@ -199,6 +202,7 @@ func taskRunListBundle(items []TaskRunRecord) outputBundle {
 		"Task Runs",
 		[]string{
 			"ID",
+			sessionProfileValue,
 			taskStatusValue,
 			taskAttemptValue,
 			taskSessionValue,
@@ -212,6 +216,7 @@ func taskRunListBundle(items []TaskRunRecord) outputBundle {
 		"task_runs",
 		[]string{
 			"id",
+			profileNameOutputKey,
 			taskStatusKey,
 			taskAttemptKey,
 			taskSessionIDKey,
@@ -225,6 +230,7 @@ func taskRunListBundle(items []TaskRunRecord) outputBundle {
 		func(item TaskRunRecord) []string {
 			return []string{
 				stringOrDash(item.ID),
+				stringOrDash(item.ProfileName),
 				stringOrDash(item.Status.String()),
 				intOrDash(item.Attempt),
 				stringOrDash(item.SessionID),
@@ -239,6 +245,7 @@ func taskRunListBundle(items []TaskRunRecord) outputBundle {
 		func(item TaskRunRecord) []string {
 			return []string{
 				item.ID,
+				item.ProfileName,
 				item.Status.String(),
 				strconv.Itoa(item.Attempt),
 				item.SessionID,
@@ -259,6 +266,7 @@ func taskChildRows(items []TaskSummaryRecord) [][]string {
 		item := &items[idx]
 		rows = append(rows, []string{
 			stringOrDash(item.ID),
+			stringOrDash(item.ProfileName),
 			stringOrDash(item.Identifier),
 			stringOrDash(string(item.Scope)),
 			stringOrDash(item.WorkspaceID),
@@ -276,6 +284,7 @@ func taskChildToonRows(items []TaskSummaryRecord) [][]string {
 		item := &items[idx]
 		rows = append(rows, []string{
 			item.ID,
+			item.ProfileName,
 			item.Identifier,
 			string(item.Scope),
 			item.WorkspaceID,
@@ -318,6 +327,7 @@ func taskRunRows(items []TaskRunRecord) [][]string {
 	for _, item := range items {
 		rows = append(rows, []string{
 			stringOrDash(item.ID),
+			stringOrDash(item.ProfileName),
 			stringOrDash(item.Status.String()),
 			intOrDash(item.Attempt),
 			stringOrDash(item.SessionID),
@@ -337,6 +347,7 @@ func taskRunToonRows(items []TaskRunRecord) [][]string {
 	for _, item := range items {
 		rows = append(rows, []string{
 			item.ID,
+			item.ProfileName,
 			item.Status.String(),
 			strconv.Itoa(item.Attempt),
 			item.SessionID,

@@ -8,6 +8,7 @@ import {
 import { SessionRewindMessageAction } from "@/systems/session";
 import { CopyIconButton } from "@compozy/ui";
 import { deriveMessageActions } from "./message-actions.logic";
+import { useSessionThreadReadOnly } from "./hooks/use-session-thread-read-only";
 
 const ACTIONS_CLASS_NAME = "flex items-center gap-2 text-small-body text-muted tabular-nums";
 
@@ -30,6 +31,7 @@ export function MessageActions({ align, copyLabel, testId }: MessageActionsProps
     state => state.message as { content?: unknown; status?: { type?: string } }
   );
   const { source, timestampMs, visible } = deriveMessageActions(message);
+  const readOnly = useSessionThreadReadOnly();
 
   if (!visible) {
     return null;
@@ -65,7 +67,7 @@ export function MessageActions({ align, copyLabel, testId }: MessageActionsProps
         <>
           {timestamp}
           {copy}
-          <SessionRewindMessageAction />
+          {readOnly ? null : <SessionRewindMessageAction />}
         </>
       ) : (
         <>

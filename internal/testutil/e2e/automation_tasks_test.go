@@ -433,7 +433,7 @@ func TestAutomationTaskHelpersUseExpectedPublicSurfaces(t *testing.T) {
 	claimed, err := harness.ClaimExactTaskRunForSession(
 		context.Background(),
 		"task-run-1",
-		compozycontract.SessionPayload{
+		&compozycontract.SessionPayload{
 			ID:          "sess-agent",
 			AgentName:   "worker",
 			WorkspaceID: "ws-1",
@@ -459,7 +459,7 @@ func TestAutomationTaskHelpersUseExpectedPublicSurfaces(t *testing.T) {
 	completed, err := harness.CompleteClaimedTaskRunForSession(
 		context.Background(),
 		"task-run-1",
-		compozycontract.SessionPayload{ID: "sess-agent", AgentName: "worker", WorkspaceID: "ws-1"},
+		&compozycontract.SessionPayload{ID: "sess-agent", AgentName: "worker", WorkspaceID: "ws-1"},
 		compozycontract.AgentTaskCompleteRequest{
 			Result: json.RawMessage(`{"ok":true}`),
 		})

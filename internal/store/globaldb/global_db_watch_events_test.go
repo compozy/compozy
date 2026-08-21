@@ -54,6 +54,7 @@ func TestGlobalDBWatchEventsReadMatches(t *testing.T) {
 		appendTaskWatchEventForTest(ctx, t, globalDB, foreign.ID, base.Add(2*time.Minute), "blocked")
 
 		cursors, err := globalDB.ReadCursors(ctx, looppkg.WatchEventsQuery{
+			ReadScope:   store.ReadScope{ProfileID: store.DefaultProfileID},
 			WorkspaceID: "ws-a",
 			Streams:     map[string]int64{looppkg.WatchEventsTaskStream: 0},
 			Kinds:       []string{string(hookspkg.HookTaskStatusChanged)},
@@ -67,6 +68,7 @@ func TestGlobalDBWatchEventsReadMatches(t *testing.T) {
 		}
 
 		events, err := globalDB.ReadMatches(ctx, looppkg.WatchEventsQuery{
+			ReadScope:   store.ReadScope{ProfileID: store.DefaultProfileID},
 			WorkspaceID: "ws-a",
 			Streams:     map[string]int64{looppkg.WatchEventsTaskStream: 1},
 			Kinds:       []string{string(hookspkg.HookTaskStatusChanged)},
@@ -89,6 +91,7 @@ func TestGlobalDBWatchEventsReadMatches(t *testing.T) {
 
 		appendTaskWatchEventForTest(ctx, t, globalDB, parent.ID, base.Add(3*time.Minute), "completed")
 		rootEvents, err := globalDB.ReadMatches(ctx, looppkg.WatchEventsQuery{
+			ReadScope:   store.ReadScope{ProfileID: store.DefaultProfileID},
 			WorkspaceID: "ws-a",
 			Streams:     map[string]int64{looppkg.WatchEventsTaskStream: 2},
 			Kinds:       []string{string(hookspkg.HookTaskStatusChanged)},
@@ -146,6 +149,7 @@ func TestGlobalDBWatchEventsReadMatches(t *testing.T) {
 			t.Fatalf("CompareAndSwapLoopRunStatus() error = %v", err)
 		}
 		cursors, err := globalDB.ReadCursors(ctx, looppkg.WatchEventsQuery{
+			ReadScope:   store.ReadScope{ProfileID: store.DefaultProfileID},
 			WorkspaceID: "ws-a",
 			Streams: map[string]int64{
 				looppkg.WatchEventsTaskStream: 0,
@@ -165,6 +169,7 @@ func TestGlobalDBWatchEventsReadMatches(t *testing.T) {
 		}
 
 		events, err := globalDB.ReadMatches(ctx, looppkg.WatchEventsQuery{
+			ReadScope:   store.ReadScope{ProfileID: store.DefaultProfileID},
 			WorkspaceID: "ws-a",
 			Streams: map[string]int64{
 				looppkg.WatchEventsTaskStream: 0,
@@ -232,6 +237,7 @@ func TestGlobalDBWatchEventsReadMatches(t *testing.T) {
 			t.Fatalf("CompareAndSwapLoopRunStatus(noisy) error = %v", err)
 		}
 		cursors, err := globalDB.ReadCursors(ctx, looppkg.WatchEventsQuery{
+			ReadScope:   store.ReadScope{ProfileID: store.DefaultProfileID},
 			WorkspaceID: "ws-a",
 			Streams:     map[string]int64{looppkg.WatchEventsLoopStream: 0},
 			Kinds:       []string{"status_changed"},
@@ -271,6 +277,7 @@ func TestGlobalDBWatchEventsReadMatches(t *testing.T) {
 		}
 
 		events, err := globalDB.ReadMatches(ctx, looppkg.WatchEventsQuery{
+			ReadScope:   store.ReadScope{ProfileID: store.DefaultProfileID},
 			WorkspaceID: "ws-a",
 			Streams:     map[string]int64{looppkg.WatchEventsLoopStream: armedCursor},
 			Kinds:       []string{"status_changed"},
@@ -292,6 +299,7 @@ func TestGlobalDBWatchEventsReadMatches(t *testing.T) {
 			t.Fatalf("fresh terminal event missing after armed cursor %d: %#v", armedCursor, events)
 		}
 		refreshed, err := globalDB.ReadCursors(ctx, looppkg.WatchEventsQuery{
+			ReadScope:   store.ReadScope{ProfileID: store.DefaultProfileID},
 			WorkspaceID: "ws-a",
 			Streams:     map[string]int64{looppkg.WatchEventsLoopStream: 0},
 			Kinds:       []string{"status_changed"},
@@ -333,6 +341,7 @@ func TestGlobalDBWatchEventsReadMatches(t *testing.T) {
 			t.Fatalf("append first terminal event error = %v", err)
 		}
 		cursors, err := globalDB.ReadCursors(ctx, looppkg.WatchEventsQuery{
+			ReadScope:   store.ReadScope{ProfileID: store.DefaultProfileID},
 			WorkspaceID: "ws-a",
 			Streams:     map[string]int64{looppkg.WatchEventsLoopStream: 0},
 			Kinds:       []string{loopRunEventStatusChanged},
@@ -375,6 +384,7 @@ func TestGlobalDBWatchEventsReadMatches(t *testing.T) {
 		}
 
 		events, err := globalDB.ReadMatches(ctx, looppkg.WatchEventsQuery{
+			ReadScope:   store.ReadScope{ProfileID: store.DefaultProfileID},
 			WorkspaceID: "ws-a",
 			Streams:     map[string]int64{looppkg.WatchEventsLoopStream: deliveredCursor},
 			Kinds:       []string{loopRunEventStatusChanged},
@@ -422,6 +432,7 @@ func TestGlobalDBWatchEventsReadMatches(t *testing.T) {
 		seen := make([]looppkg.WatchEvent, 0, 5)
 		for page := range 3 {
 			events, err := globalDB.ReadMatches(ctx, looppkg.WatchEventsQuery{
+				ReadScope:   store.ReadScope{ProfileID: store.DefaultProfileID},
 				WorkspaceID: "ws-a",
 				Streams:     map[string]int64{looppkg.WatchEventsLoopStream: cursor},
 				Kinds:       []string{loopRunEventStatusChanged},
@@ -449,6 +460,7 @@ func TestGlobalDBWatchEventsReadMatches(t *testing.T) {
 			t.Fatalf("paged rows = %d, want %d", got, want)
 		}
 		current, err := globalDB.ReadCursors(ctx, looppkg.WatchEventsQuery{
+			ReadScope:   store.ReadScope{ProfileID: store.DefaultProfileID},
 			WorkspaceID: "ws-a",
 			Streams:     map[string]int64{looppkg.WatchEventsLoopStream: 0},
 			Kinds:       []string{loopRunEventStatusChanged},
@@ -474,6 +486,7 @@ func TestGlobalDBWatchEventsReadMatches(t *testing.T) {
 			t.Fatalf("CreateLoopRunForStart() error = %v", err)
 		}
 		query := looppkg.WatchEventsQuery{
+			ReadScope:   store.ReadScope{ProfileID: store.DefaultProfileID},
 			WorkspaceID: "ws-a",
 			Streams:     map[string]int64{looppkg.WatchEventsLoopStream: 0},
 			Kinds:       []string{loopRunEventStatusChanged},
@@ -517,6 +530,7 @@ func TestGlobalDBWatchEventsReadMatches(t *testing.T) {
 		ctx := testutil.Context(t)
 		globalDB := openLoopTestGlobalDB(t, "ws-a")
 		query := looppkg.WatchEventsQuery{
+			ReadScope:   store.ReadScope{ProfileID: store.DefaultProfileID},
 			WorkspaceID: "ws-a",
 			Streams:     map[string]int64{looppkg.WatchEventsLoopStream: 0},
 			Kinds:       []string{loopRunEventStatusChanged},
@@ -611,6 +625,7 @@ func TestGlobalDBWatchEventsReadMatches(t *testing.T) {
 		}
 
 		events, err := globalDB.ReadMatches(ctx, looppkg.WatchEventsQuery{
+			ReadScope:   store.ReadScope{ProfileID: store.DefaultProfileID},
 			WorkspaceID: "ws-a",
 			Streams:     map[string]int64{looppkg.WatchEventsLoopStream: 0},
 			Kinds:       []string{"status_changed"},
@@ -629,6 +644,7 @@ func TestGlobalDBWatchEventsReadMatches(t *testing.T) {
 			t.Fatalf("second loop event = %#v, want second local workspace/run", got)
 		}
 		cursors, err := globalDB.ReadCursors(ctx, looppkg.WatchEventsQuery{
+			ReadScope:   store.ReadScope{ProfileID: store.DefaultProfileID},
 			WorkspaceID: "ws-a",
 			Streams:     map[string]int64{looppkg.WatchEventsLoopStream: 0},
 			Kinds:       []string{"status_changed"},
@@ -641,6 +657,7 @@ func TestGlobalDBWatchEventsReadMatches(t *testing.T) {
 			t.Fatalf("loop cursor = %d, want latest local terminal seq %d", got, want)
 		}
 		afterFirst, err := globalDB.ReadMatches(ctx, looppkg.WatchEventsQuery{
+			ReadScope:   store.ReadScope{ProfileID: store.DefaultProfileID},
 			WorkspaceID: "ws-a",
 			Streams:     map[string]int64{looppkg.WatchEventsLoopStream: events[0].Seq},
 			Kinds:       []string{loopRunEventStatusChanged},
@@ -697,6 +714,7 @@ func TestGlobalDBWatchEventsReadMatches(t *testing.T) {
 			t.Fatalf("CreateRun(seed completed) error = %v", err)
 		}
 		cursorBefore, err := globalDB.ReadCursors(ctx, looppkg.WatchEventsQuery{
+			ReadScope:   store.ReadScope{ProfileID: store.DefaultProfileID},
 			WorkspaceID: "ws-a",
 			Streams:     map[string]int64{looppkg.WatchEventsAutomationStream: 0},
 			Kinds:       []string{string(hookspkg.HookAutomationRunCompleted)},
@@ -720,6 +738,7 @@ func TestGlobalDBWatchEventsReadMatches(t *testing.T) {
 		}
 
 		events, err := globalDB.ReadMatches(ctx, looppkg.WatchEventsQuery{
+			ReadScope:   store.ReadScope{ProfileID: store.DefaultProfileID},
 			WorkspaceID: "ws-a",
 			Streams: map[string]int64{
 				looppkg.WatchEventsAutomationStream: cursorBefore[looppkg.WatchEventsAutomationStream],
@@ -770,6 +789,7 @@ func TestGlobalDBWatchEventsReadMatches(t *testing.T) {
 		}
 
 		failedEvents, err := globalDB.ReadMatches(ctx, looppkg.WatchEventsQuery{
+			ReadScope:   store.ReadScope{ProfileID: store.DefaultProfileID},
 			WorkspaceID: "ws-a",
 			Streams:     map[string]int64{looppkg.WatchEventsAutomationStream: 0},
 			Kinds:       []string{string(hookspkg.HookAutomationRunFailed)},
@@ -819,6 +839,7 @@ func TestGlobalDBWatchEventsReadMatches(t *testing.T) {
 			t.Fatalf("CreateRun(first terminal) error = %v", err)
 		}
 		cursors, err := globalDB.ReadCursors(ctx, looppkg.WatchEventsQuery{
+			ReadScope:   store.ReadScope{ProfileID: store.DefaultProfileID},
 			WorkspaceID: "ws-a",
 			Streams:     map[string]int64{looppkg.WatchEventsAutomationStream: 0},
 			Kinds:       []string{string(hookspkg.HookAutomationRunCompleted)},
@@ -835,6 +856,7 @@ func TestGlobalDBWatchEventsReadMatches(t *testing.T) {
 			t.Fatalf("DeleteRun(first terminal) error = %v", err)
 		}
 		preserved, err := globalDB.ReadMatches(ctx, looppkg.WatchEventsQuery{
+			ReadScope:   store.ReadScope{ProfileID: store.DefaultProfileID},
 			WorkspaceID: "ws-a",
 			Streams:     map[string]int64{looppkg.WatchEventsAutomationStream: 0},
 			Kinds:       []string{string(hookspkg.HookAutomationRunCompleted)},
@@ -855,6 +877,7 @@ func TestGlobalDBWatchEventsReadMatches(t *testing.T) {
 			t.Fatalf("CreateRun(second terminal) error = %v", err)
 		}
 		resumed, err := globalDB.ReadMatches(ctx, looppkg.WatchEventsQuery{
+			ReadScope:   store.ReadScope{ProfileID: store.DefaultProfileID},
 			WorkspaceID: "ws-a",
 			Streams:     map[string]int64{looppkg.WatchEventsAutomationStream: firstCursor},
 			Kinds:       []string{string(hookspkg.HookAutomationRunCompleted)},
@@ -907,6 +930,7 @@ func TestGlobalDBWatchEventsReadMatches(t *testing.T) {
 		}
 
 		_, err = globalDB.ReadMatches(ctx, looppkg.WatchEventsQuery{
+			ReadScope:   store.ReadScope{ProfileID: store.DefaultProfileID},
 			WorkspaceID: "ws-a",
 			Streams:     map[string]int64{looppkg.WatchEventsAutomationStream: 0},
 			Kinds:       []string{string(hookspkg.HookAutomationRunFailed)},
@@ -922,6 +946,8 @@ func TestGlobalDBWatchEventsReadMatches(t *testing.T) {
 
 		ctx := testutil.Context(t)
 		globalDB := openLoopTestGlobalDB(t, "ws-a", "ws-b")
+		registerNetworkChannelForGlobalTests(t, globalDB, "ws-a", "builders")
+		registerNetworkChannelForGlobalTests(t, globalDB, "ws-b", "builders")
 		registerWatchSessionForTest(ctx, t, globalDB, "coder.sess-a", "ws-a", "coder")
 		registerWatchSessionForTest(ctx, t, globalDB, "reviewer.sess-a", "ws-a", "reviewer")
 		registerWatchSessionForTest(ctx, t, globalDB, "coder.sess-b", "ws-b", "coder")
@@ -967,6 +993,7 @@ func TestGlobalDBWatchEventsReadMatches(t *testing.T) {
 		}
 
 		threadEvents, err := globalDB.ReadMatches(ctx, looppkg.WatchEventsQuery{
+			ReadScope:   store.ReadScope{ProfileID: store.DefaultProfileID},
 			WorkspaceID: "ws-a",
 			Streams:     map[string]int64{looppkg.WatchEventsNetworkStream: 0},
 			Kinds:       []string{string(hookspkg.HookNetworkThreadOpened)},
@@ -999,6 +1026,7 @@ func TestGlobalDBWatchEventsReadMatches(t *testing.T) {
 			t.Fatalf("WriteConversationMessage(direct) error = %v", err)
 		}
 		directEvents, err := globalDB.ReadMatches(ctx, looppkg.WatchEventsQuery{
+			ReadScope:   store.ReadScope{ProfileID: store.DefaultProfileID},
 			WorkspaceID: "ws-a",
 			Streams:     map[string]int64{looppkg.WatchEventsNetworkStream: 0},
 			Kinds:       []string{string(hookspkg.HookNetworkDirectRoomOpened)},
@@ -1015,6 +1043,7 @@ func TestGlobalDBWatchEventsReadMatches(t *testing.T) {
 		}
 
 		events, err := globalDB.ReadMatches(ctx, looppkg.WatchEventsQuery{
+			ReadScope:   store.ReadScope{ProfileID: store.DefaultProfileID},
 			WorkspaceID: "ws-a",
 			Streams:     map[string]int64{looppkg.WatchEventsNetworkStream: 0},
 			Kinds:       []string{string(hookspkg.HookNetworkWorkTransitioned)},
@@ -1037,6 +1066,7 @@ func TestGlobalDBWatchEventsReadMatches(t *testing.T) {
 			t.Fatalf("network payload kind = %v, want %q", got, want)
 		}
 		cursors, err := globalDB.ReadCursors(ctx, looppkg.WatchEventsQuery{
+			ReadScope:   store.ReadScope{ProfileID: store.DefaultProfileID},
 			WorkspaceID: "ws-a",
 			Streams:     map[string]int64{looppkg.WatchEventsNetworkStream: 0},
 			Kinds:       []string{string(hookspkg.HookNetworkWorkTransitioned)},
@@ -1066,6 +1096,7 @@ func TestGlobalDBWatchEventsReadMatches(t *testing.T) {
 			now,
 		)
 		cursors, err := globalDB.ReadCursors(ctx, looppkg.WatchEventsQuery{
+			ReadScope:   store.ReadScope{ProfileID: store.DefaultProfileID},
 			WorkspaceID: "ws-a",
 			Streams:     map[string]int64{looppkg.WatchEventsObserveStream: 0},
 			Kinds:       []string{string(hookspkg.HookCoordinatorStopped)},
@@ -1111,6 +1142,7 @@ func TestGlobalDBWatchEventsReadMatches(t *testing.T) {
 		)
 
 		events, err := reopened.ReadMatches(ctx, looppkg.WatchEventsQuery{
+			ReadScope:   store.ReadScope{ProfileID: store.DefaultProfileID},
 			WorkspaceID: "ws-a",
 			Streams:     map[string]int64{looppkg.WatchEventsObserveStream: cursor},
 			Kinds:       []string{string(hookspkg.HookCoordinatorStopped)},
@@ -1172,6 +1204,7 @@ func TestGlobalDBWatchEventsReadMatches(t *testing.T) {
 		)
 		stream := looppkg.WatchEventsSessionStreamForSession("sess-watch-a")
 		cursors, err := globalDB.ReadCursors(ctx, looppkg.WatchEventsQuery{
+			ReadScope:   store.ReadScope{ProfileID: store.DefaultProfileID},
 			WorkspaceID: "ws-a",
 			Streams:     map[string]int64{stream: 0},
 			Kinds:       []string{string(hookspkg.HookEventPostRecord)},
@@ -1184,6 +1217,7 @@ func TestGlobalDBWatchEventsReadMatches(t *testing.T) {
 			t.Fatalf("session cursor = %d, want %d", got, want)
 		}
 		events, err := globalDB.ReadMatches(ctx, looppkg.WatchEventsQuery{
+			ReadScope:   store.ReadScope{ProfileID: store.DefaultProfileID},
 			WorkspaceID: "ws-a",
 			Streams:     map[string]int64{stream: 0},
 			Kinds:       []string{string(hookspkg.HookEventPostRecord)},
@@ -1220,6 +1254,232 @@ func TestGlobalDBWatchEventsReadMatches(t *testing.T) {
 			t.Fatalf("event.post_record encoded event leaked content: %s", encoded)
 		}
 	})
+}
+
+// Invariant: watch-event cursors and matches never cross profile boundaries,
+// even when both owners share one workspace and the underlying sequence is global.
+// Owning layer: GlobalDB watch-event reader. Canonical suite: this file.
+func TestGlobalDBWatchEventsProfileIsolation(t *testing.T) {
+	t.Run("Should isolate cursors and matches across profile-owned streams", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t)
+		now := time.Date(2026, 8, 23, 18, 0, 0, 0, time.UTC)
+		globalDB := openLoopTestGlobalDB(t, "ws-a")
+		const marketingProfileID = "01JPROFILEWATCHMARKETING00"
+		if _, err := globalDB.db.ExecContext(
+			ctx,
+			`INSERT INTO profiles (id, name, color, icon, state, created_at)
+		 VALUES (?, 'marketing', '#E8572A', 'briefcase', 'active', ?)`,
+			marketingProfileID,
+			store.FormatTimestamp(now),
+		); err != nil {
+			t.Fatalf("insert marketing profile error = %v", err)
+		}
+		defaultScope := store.ReadScope{ProfileID: store.DefaultProfileID}
+		marketingScope := store.ReadScope{ProfileID: marketingProfileID}
+
+		defaultTask := workspaceTaskRecordForTest("watch-profile-task-default", "ws-a")
+		marketingTask := workspaceTaskRecordForTest("watch-profile-task-marketing", "ws-a")
+		marketingTask.ProfileID = marketingProfileID
+		for _, taskRecord := range []taskpkg.Task{defaultTask, marketingTask} {
+			if err := globalDB.CreateTask(ctx, taskRecord); err != nil {
+				t.Fatalf("CreateTask(%s) error = %v", taskRecord.ID, err)
+			}
+		}
+		appendTaskWatchEventForTest(ctx, t, globalDB, defaultTask.ID, now, "blocked")
+		appendTaskWatchEventForTest(ctx, t, globalDB, marketingTask.ID, now.Add(time.Second), "blocked")
+		assertProfileWatchEventsForTest(ctx, t, globalDB, defaultScope, looppkg.WatchEventsTaskStream,
+			[]string{string(hookspkg.HookTaskStatusChanged)},
+			func(event looppkg.WatchEvent) bool { return event.TaskID == defaultTask.ID })
+		assertProfileWatchEventsForTest(ctx, t, globalDB, marketingScope, looppkg.WatchEventsTaskStream,
+			[]string{string(hookspkg.HookTaskStatusChanged)},
+			func(event looppkg.WatchEvent) bool { return event.TaskID == marketingTask.ID })
+
+		defaultLoop := testLoopRun("watch-profile-loop-default", now, looppkg.StatusRunning)
+		defaultLoop.WorkspaceID = "ws-a"
+		marketingLoop := testLoopRun("watch-profile-loop-marketing", now.Add(time.Second), looppkg.StatusRunning)
+		marketingLoop.ProfileID = marketingProfileID
+		marketingLoop.WorkspaceID = "ws-a"
+		for _, loopRun := range []looppkg.Run{defaultLoop, marketingLoop} {
+			if _, err := globalDB.CreateLoopRunForStart(ctx, loopRun, dsl.ConcurrencyAllow); err != nil {
+				t.Fatalf("CreateLoopRunForStart(%s) error = %v", loopRun.ID, err)
+			}
+			if err := globalDB.CompareAndSwapLoopRunStatus(
+				ctx, loopRun.ID, looppkg.StatusRunning, looppkg.StatusDone,
+				looppkg.TransitionCauseContract, now.Add(2*time.Second),
+			); err != nil {
+				t.Fatalf("CompareAndSwapLoopRunStatus(%s) error = %v", loopRun.ID, err)
+			}
+		}
+		assertProfileWatchEventsForTest(ctx, t, globalDB, defaultScope, looppkg.WatchEventsLoopStream,
+			[]string{loopRunEventStatusChanged},
+			func(event looppkg.WatchEvent) bool { return event.LoopRunID == string(defaultLoop.ID) })
+		assertProfileWatchEventsForTest(ctx, t, globalDB, marketingScope, looppkg.WatchEventsLoopStream,
+			[]string{loopRunEventStatusChanged},
+			func(event looppkg.WatchEvent) bool { return event.LoopRunID == string(marketingLoop.ID) })
+
+		defaultJob := automationJobForTest(
+			automation.AutomationScopeWorkspace, "watch-profile-job-default", "ws-a", automation.JobSourceDynamic,
+		)
+		marketingJob := automationJobForTest(
+			automation.AutomationScopeWorkspace, "watch-profile-job-marketing", "ws-a", automation.JobSourceDynamic,
+		)
+		marketingJob.ProfileID = marketingProfileID
+		createdDefaultJob, err := globalDB.CreateJob(ctx, defaultJob)
+		if err != nil {
+			t.Fatalf("CreateJob(default) error = %v", err)
+		}
+		createdMarketingJob, err := globalDB.CreateJob(ctx, marketingJob)
+		if err != nil {
+			t.Fatalf("CreateJob(marketing) error = %v", err)
+		}
+		defaultRun, err := globalDB.CreateRun(
+			ctx, automationRunForJob(createdDefaultJob.ID, automation.RunCompleted, 1, now.Add(3*time.Second)),
+		)
+		if err != nil {
+			t.Fatalf("CreateRun(default) error = %v", err)
+		}
+		marketingRun, err := globalDB.CreateRun(
+			ctx, automationRunForJob(createdMarketingJob.ID, automation.RunCompleted, 1, now.Add(4*time.Second)),
+		)
+		if err != nil {
+			t.Fatalf("CreateRun(marketing) error = %v", err)
+		}
+		assertProfileWatchEventsForTest(ctx, t, globalDB, defaultScope, looppkg.WatchEventsAutomationStream,
+			[]string{string(hookspkg.HookAutomationRunCompleted)},
+			func(event looppkg.WatchEvent) bool { return event.RunID == defaultRun.ID })
+		assertProfileWatchEventsForTest(ctx, t, globalDB, marketingScope, looppkg.WatchEventsAutomationStream,
+			[]string{string(hookspkg.HookAutomationRunCompleted)},
+			func(event looppkg.WatchEvent) bool { return event.RunID == marketingRun.ID })
+
+		for _, summary := range []EventSummary{
+			{ProfileID: store.DefaultProfileID,
+				SessionID:   "watch-profile-observe-default",
+				WorkspaceID: "ws-a", Type: "profile.observe", AgentName: "coder",
+				Outcome: "info", Timestamp: now.Add(5 * time.Second),
+				EventCorrelation: store.EventCorrelation{CoordinatorSessionID: "watch-profile-observe-default"}},
+			{ProfileID: marketingProfileID,
+				SessionID:   "watch-profile-observe-marketing",
+				WorkspaceID: "ws-a", Type: "profile.observe", AgentName: "coder",
+				Outcome: "info", Timestamp: now.Add(6 * time.Second),
+				EventCorrelation: store.EventCorrelation{CoordinatorSessionID: "watch-profile-observe-marketing"}},
+		} {
+			summary.SetContent([]byte(`{}`))
+			if err := globalDB.WriteEventSummary(ctx, summary); err != nil {
+				t.Fatalf("WriteEventSummary(%s) error = %v", summary.ProfileID, err)
+			}
+		}
+		assertProfileWatchEventsForTest(ctx, t, globalDB, defaultScope, looppkg.WatchEventsObserveStream,
+			[]string{"profile.observe"},
+			func(event looppkg.WatchEvent) bool { return event.SessionID == "watch-profile-observe-default" })
+		assertProfileWatchEventsForTest(ctx, t, globalDB, marketingScope, looppkg.WatchEventsObserveStream,
+			[]string{"profile.observe"},
+			func(event looppkg.WatchEvent) bool { return event.SessionID == "watch-profile-observe-marketing" })
+
+		registerNetworkChannelForGlobalTests(t, globalDB, "ws-a", "watch-default")
+		if err := globalDB.WriteNetworkChannel(ctx, store.NetworkChannelEntry{
+			ProfileID:   marketingProfileID,
+			WorkspaceID: "ws-a", Channel: "watch-marketing",
+			Purpose: "Watch profile isolation", CreatedBy: "test", CreatedAt: now, UpdatedAt: now,
+		}); err != nil {
+			t.Fatalf("WriteNetworkChannel(marketing) error = %v", err)
+		}
+		for _, message := range []store.NetworkMessageEntry{
+			{ProfileID: store.DefaultProfileID,
+				MessageID:   "watch-profile-network-default",
+				WorkspaceID: "ws-a", Channel: "watch-default", Direction: "received",
+				PeerFrom: "default.peer", Kind: store.NetworkKindGreet, Body: []byte(`{}`), Timestamp: now.Add(7 * time.Second)},
+			{ProfileID: marketingProfileID,
+				MessageID:   "watch-profile-network-marketing",
+				WorkspaceID: "ws-a", Channel: "watch-marketing", Direction: "received",
+				PeerFrom: "marketing.peer", Kind: store.NetworkKindGreet, Body: []byte(`{}`), Timestamp: now.Add(8 * time.Second)},
+		} {
+			if err := globalDB.WriteNetworkMessage(ctx, message); err != nil {
+				t.Fatalf("WriteNetworkMessage(%s) error = %v", message.ProfileID, err)
+			}
+		}
+		assertProfileWatchEventsForTest(ctx, t, globalDB, defaultScope, looppkg.WatchEventsNetworkStream,
+			[]string{string(hookspkg.HookNetworkMessagePersisted)},
+			func(event looppkg.WatchEvent) bool {
+				return event.Payload[watchEventsPayloadMessageIDKey] == "watch-profile-network-default"
+			})
+		assertProfileWatchEventsForTest(ctx, t, globalDB, marketingScope, looppkg.WatchEventsNetworkStream,
+			[]string{string(hookspkg.HookNetworkMessagePersisted)},
+			func(event looppkg.WatchEvent) bool {
+				return event.Payload[watchEventsPayloadMessageIDKey] == "watch-profile-network-marketing"
+			})
+
+		registerWatchSessionForTest(ctx, t, globalDB, "watch-profile-session-default", "ws-a", "coder")
+		if err := globalDB.RegisterSession(ctx, SessionInfo{
+			ProfileID: marketingProfileID,
+			ID:        "watch-profile-session-marketing",
+			Name:      "watch-profile-session-marketing", AgentName: "coder", Provider: "mock",
+			RuntimeStatus: store.SessionRuntimeUnbound, WorkspaceID: "ws-a", SessionType: defaultSessionType,
+			State:     globalDBSessionStateActive,
+			Lineage:   store.NormalizeSessionLineage("watch-profile-session-marketing", nil),
+			CreatedAt: now, UpdatedAt: now,
+		}); err != nil {
+			t.Fatalf("RegisterSession(marketing) error = %v", err)
+		}
+		appendSessionWatchEventForTest(ctx, t, globalDB, "watch-profile-session-default", store.SessionEvent{
+			TurnID: "turn-default", Type: "agent_message", AgentName: "coder", Content: `{}`, Timestamp: now,
+		})
+		appendSessionWatchEventForTest(ctx, t, globalDB, "watch-profile-session-marketing", store.SessionEvent{
+			TurnID: "turn-marketing", Type: "agent_message", AgentName: "coder", Content: `{}`, Timestamp: now,
+		})
+		defaultSessionStream := looppkg.WatchEventsSessionStreamForSession("watch-profile-session-default")
+		marketingSessionStream := looppkg.WatchEventsSessionStreamForSession("watch-profile-session-marketing")
+		assertProfileWatchEventsForTest(ctx, t, globalDB, defaultScope, defaultSessionStream,
+			[]string{string(hookspkg.HookEventPostRecord)},
+			func(event looppkg.WatchEvent) bool { return event.SessionID == "watch-profile-session-default" })
+		assertProfileWatchEventsForTest(ctx, t, globalDB, marketingScope, marketingSessionStream,
+			[]string{string(hookspkg.HookEventPostRecord)},
+			func(event looppkg.WatchEvent) bool { return event.SessionID == "watch-profile-session-marketing" })
+		foreignEvents, err := globalDB.ReadMatches(ctx, looppkg.WatchEventsQuery{
+			ReadScope:   defaultScope,
+			WorkspaceID: "ws-a",
+			Streams:     map[string]int64{marketingSessionStream: 0},
+			Kinds:       []string{string(hookspkg.HookEventPostRecord)}, Limit: 10,
+		})
+		if err != nil {
+			t.Fatalf("ReadMatches(foreign session) error = %v", err)
+		}
+		if len(foreignEvents) != 0 {
+			t.Fatalf("foreign session events = %#v, want none", foreignEvents)
+		}
+	})
+}
+
+func assertProfileWatchEventsForTest(
+	ctx context.Context,
+	t *testing.T,
+	globalDB *GlobalDB,
+	readScope store.ReadScope,
+	stream string,
+	kinds []string,
+	matches func(looppkg.WatchEvent) bool,
+) {
+	t.Helper()
+	query := looppkg.WatchEventsQuery{
+		ReadScope:   readScope,
+		WorkspaceID: "ws-a",
+		Streams:     map[string]int64{stream: 0}, Kinds: kinds, Limit: 10,
+	}
+	events, err := globalDB.ReadMatches(ctx, query)
+	if err != nil {
+		t.Fatalf("ReadMatches(%s, %#v) error = %v", stream, readScope, err)
+	}
+	if len(events) != 1 || !matches(events[0]) {
+		t.Fatalf("ReadMatches(%s, %#v) = %#v, want exactly the scoped owner", stream, readScope, events)
+	}
+	cursors, err := globalDB.ReadCursors(ctx, query)
+	if err != nil {
+		t.Fatalf("ReadCursors(%s, %#v) error = %v", stream, readScope, err)
+	}
+	if got := cursors[stream]; got != events[0].Seq {
+		t.Fatalf("ReadCursors(%s, %#v) = %d, want scoped seq %d", stream, readScope, got, events[0].Seq)
+	}
 }
 
 func TestGlobalDBWatchEventsCursorMigration(t *testing.T) {
@@ -1406,6 +1666,7 @@ func TestGlobalDBWatchEventsCursorMigration(t *testing.T) {
 			t.Fatal("parkedWatchEventSubscriptionHasGap(at fence) = true, want false")
 		}
 		beforeNew, err := upgraded.ReadMatches(ctx, looppkg.WatchEventsQuery{
+			ReadScope:   store.ReadScope{ProfileID: store.DefaultProfileID},
 			WorkspaceID: workspaceID,
 			Streams:     map[string]int64{looppkg.WatchEventsLoopStream: migrationFence},
 			Kinds:       []string{loopRunEventStatusChanged},
@@ -1429,6 +1690,7 @@ func TestGlobalDBWatchEventsCursorMigration(t *testing.T) {
 			t.Fatalf("append post-migration terminal event error = %v", err)
 		}
 		afterNew, err := upgraded.ReadMatches(ctx, looppkg.WatchEventsQuery{
+			ReadScope:   store.ReadScope{ProfileID: store.DefaultProfileID},
 			WorkspaceID: workspaceID,
 			Streams:     map[string]int64{looppkg.WatchEventsLoopStream: migrationFence},
 			Kinds:       []string{loopRunEventStatusChanged},
@@ -1463,6 +1725,7 @@ func TestGlobalDBWatchEventsCursorMigration(t *testing.T) {
 			}
 		})
 		replayed, err := reopened.ReadMatches(ctx, looppkg.WatchEventsQuery{
+			ReadScope:   store.ReadScope{ProfileID: store.DefaultProfileID},
 			WorkspaceID: workspaceID,
 			Streams:     map[string]int64{looppkg.WatchEventsLoopStream: migrationFence},
 			Kinds:       []string{loopRunEventStatusChanged},
@@ -1533,6 +1796,7 @@ func TestGlobalDBWatchEventsCoordinatorIntegration(t *testing.T) {
 
 		appendTaskWatchEventForTest(ctx, t, globalDB, targetTask.ID, now.Add(2*time.Second), "blocked")
 		targetCursors, err := globalDB.ReadCursors(ctx, looppkg.WatchEventsQuery{
+			ReadScope:   store.ReadScope{ProfileID: store.DefaultProfileID},
 			WorkspaceID: "ws-a",
 			Streams:     map[string]int64{looppkg.WatchEventsTaskStream: 0},
 			Kinds:       []string{string(hookspkg.HookTaskStatusChanged)},
@@ -1728,7 +1992,16 @@ func TestGlobalDBWatchEventsParkedIndexAndRecovery(t *testing.T) {
 		ctx := testutil.Context(t)
 		now := time.Date(2026, 7, 8, 18, 30, 0, 0, time.UTC)
 		globalDB := openLoopTestGlobalDB(t, "ws-a")
-		created, targetTask := parkWatchEventsLoopForRecoveryTest(ctx, t, globalDB, now)
+		if _, err := globalDB.db.ExecContext(ctx, `
+			INSERT INTO profiles (id, name, color, icon, state, created_at)
+			VALUES (?, ?, ?, ?, ?, ?)`,
+			"01JPROFILEMARKETING0000000", "marketing", "#E8572A", "briefcase", "active", now,
+		); err != nil {
+			t.Fatalf("insert marketing profile: %v", err)
+		}
+		created, targetTask := parkWatchEventsLoopForRecoveryTest(
+			ctx, t, globalDB, now, "01JPROFILEMARKETING0000000",
+		)
 
 		parked, err := globalDB.ListParkedWatchEventSubscriptions(ctx)
 		if err != nil {
@@ -1740,6 +2013,9 @@ func TestGlobalDBWatchEventsParkedIndexAndRecovery(t *testing.T) {
 		subscription := parked[0]
 		if got, want := subscription.LoopRunID, string(created.ID); got != want {
 			t.Fatalf("LoopRunID = %q, want %q", got, want)
+		}
+		if got, want := subscription.ProfileID, "01JPROFILEMARKETING0000000"; got != want {
+			t.Fatalf("ProfileID = %q, want %q", got, want)
 		}
 		if got, want := subscription.NodeID, "watch_tasks"; got != want {
 			t.Fatalf("NodeID = %q, want %q", got, want)
@@ -1903,7 +2179,16 @@ func TestGlobalDBWatchEventsParkedIndexAndRecovery(t *testing.T) {
 		ctx := testutil.Context(t)
 		now := time.Date(2026, 7, 8, 18, 45, 0, 0, time.UTC)
 		globalDB := openLoopTestGlobalDB(t, "ws-a")
-		created, targetTask := parkWatchEventsLoopForRecoveryTest(ctx, t, globalDB, now)
+		if _, err := globalDB.db.ExecContext(ctx, `
+			INSERT INTO profiles (id, name, color, icon, state, created_at)
+			VALUES (?, ?, ?, ?, ?, ?)`,
+			"01JPROFILEMARKETING0000000", "marketing", "#E8572A", "briefcase", "active", now,
+		); err != nil {
+			t.Fatalf("insert marketing profile: %v", err)
+		}
+		created, targetTask := parkWatchEventsLoopForRecoveryTest(
+			ctx, t, globalDB, now, "01JPROFILEMARKETING0000000",
+		)
 		appendTaskWatchEventForTest(ctx, t, globalDB, targetTask.ID, now.Add(time.Second), "blocked")
 		actor := coordinatorActorContextForTest()
 
@@ -1931,16 +2216,27 @@ func TestGlobalDBWatchEventsParkedIndexAndRecovery(t *testing.T) {
 		if got, want := len(queued), 1; got != want {
 			t.Fatalf("queued coordinator runs = %d, want %d", got, want)
 		}
-		summaries, err := globalDB.ListEventSummaries(ctx, EventSummaryQuery{Type: watchEventsWakeEnqueuedEvent})
+		summaries, err := globalDB.ListEventSummaries(
+			ctx,
+			EventSummaryQuery{ReadScope: store.ReadScope{AllProfiles: true}, Type: watchEventsWakeEnqueuedEvent},
+		)
 		if err != nil {
 			t.Fatalf("ListEventSummaries(wake_enqueued) error = %v", err)
 		}
 		if got := len(summaries); got == 0 {
 			t.Fatal("wake_enqueued summaries = 0, want at least one")
 		}
-		coalesced, err := globalDB.ListEventSummaries(ctx, EventSummaryQuery{
-			Type: "loop.watch_events.wake_coalesced",
-		})
+		for _, summary := range summaries {
+			if got, want := summary.ProfileID, "01JPROFILEMARKETING0000000"; got != want {
+				t.Fatalf("wake_enqueued summary profile = %q, want %q", got, want)
+			}
+		}
+		coalesced, err := globalDB.ListEventSummaries(
+			ctx,
+			EventSummaryQuery{ReadScope: store.ReadScope{AllProfiles: true},
+				Type: "loop.watch_events.wake_coalesced",
+			},
+		)
 		if err != nil {
 			t.Fatalf("ListEventSummaries(wake_coalesced) error = %v", err)
 		}
@@ -2020,7 +2316,7 @@ func TestGlobalDBWatchEventsParkedIndexAndRecovery(t *testing.T) {
 		ctx := testutil.Context(t)
 		now := time.Date(2026, 7, 8, 19, 0, 0, 0, time.UTC)
 		globalDB := openLoopTestGlobalDB(t, "ws-a")
-		created, targetTask := parkWatchEventsLoopForRecoveryTest(ctx, t, globalDB, now)
+		created, targetTask := parkWatchEventsLoopForRecoveryTest(ctx, t, globalDB, now, store.DefaultProfileID)
 		appendTaskWatchEventForTest(ctx, t, globalDB, targetTask.ID, now.Add(time.Second), "blocked")
 		actor := coordinatorActorContextForTest()
 
@@ -2042,6 +2338,8 @@ func TestGlobalDBWatchEventsParkedIndexAndRecovery(t *testing.T) {
 		ctx := testutil.Context(t)
 		now := time.Date(2026, 7, 8, 21, 30, 0, 0, time.UTC)
 		globalDB := openLoopTestGlobalDB(t, "ws-a", "ws-b")
+		registerNetworkChannelForGlobalTests(t, globalDB, "ws-a", "builders")
+		registerNetworkChannelForGlobalTests(t, globalDB, "ws-b", "builders")
 		registerWatchSessionForTest(ctx, t, globalDB, "coder.sess-a", "ws-a", "coder")
 		registerWatchSessionForTest(ctx, t, globalDB, "reviewer.sess-a", "ws-a", "reviewer")
 		registerWatchSessionForTest(ctx, t, globalDB, "coder.sess-b", "ws-b", "coder")
@@ -2418,14 +2716,17 @@ func parkWatchEventsLoopForRecoveryTest(
 	t *testing.T,
 	globalDB *GlobalDB,
 	now time.Time,
+	profileID string,
 ) (looppkg.Run, taskpkg.Task) {
 	t.Helper()
 	targetTask := workspaceTaskRecordForTest("watch-recovery-target", "ws-a")
+	targetTask.ProfileID = profileID
 	if err := globalDB.CreateTask(ctx, targetTask); err != nil {
 		t.Fatalf("CreateTask(target) error = %v", err)
 	}
 	resolved := compileWatchEventsIntegrationDefinitionForTest(t)
 	loopRun := testLoopRun("watch-events-recovery", now, looppkg.StatusRunning)
+	loopRun.ProfileID = profileID
 	pinLoopRunDefinitionForTest(t, &loopRun, resolved)
 	loopRun.WorkspaceID = "ws-a"
 	loopRun.Inputs = map[string]any{"target_task_id": targetTask.ID}
@@ -2627,14 +2928,14 @@ func appendCoordinatorWatchSummaryForTest(
 	if err != nil {
 		t.Fatalf("Marshal(coordinator watch content) error = %v", err)
 	}
-	if err := globalDB.WriteEventSummary(ctx, EventSummary{
+	summary := EventSummary{
+		ProfileID:   store.DefaultProfileID,
 		SessionID:   coordinatorSessionID,
 		WorkspaceID: workspaceID,
 		Type:        string(event),
 		AgentName:   "coordinator-agent",
 		Provider:    "mock",
 		Outcome:     "info",
-		Content:     content,
 		EventCorrelation: store.EventCorrelation{
 			HookEvent:            string(event),
 			CoordinatorSessionID: coordinatorSessionID,
@@ -2642,7 +2943,9 @@ func appendCoordinatorWatchSummaryForTest(
 		},
 		Summary:   "coordinator watch summary",
 		Timestamp: at,
-	}); err != nil {
+	}
+	summary.SetContent(content)
+	if err := globalDB.WriteEventSummary(ctx, summary); err != nil {
 		t.Fatalf("WriteEventSummary(%s) error = %v", event, err)
 	}
 }
@@ -2657,6 +2960,7 @@ func registerWatchSessionForTest(
 ) {
 	t.Helper()
 	if err := globalDB.RegisterSession(ctx, SessionInfo{
+		ProfileID:     store.DefaultProfileID,
 		ID:            sessionID,
 		Name:          sessionID,
 		AgentName:     agentName,
@@ -2685,7 +2989,11 @@ func appendSessionWatchEventForTest(
 	if err := os.MkdirAll(sessionDir, 0o755); err != nil {
 		t.Fatalf("MkdirAll(%q) error = %v", sessionDir, err)
 	}
-	sessions, err := globalDB.ListSessions(ctx, store.SessionListQuery{ID: sessionID, Limit: 1})
+	sessions, err := globalDB.ListSessions(ctx, store.SessionListQuery{
+		ReadScope: store.ReadScope{AllProfiles: true},
+		ID:        sessionID,
+		Limit:     1,
+	})
 	if err != nil {
 		t.Fatalf("ListSessions(%s) error = %v", sessionID, err)
 	}
@@ -2730,6 +3038,7 @@ func networkWatchThreadMessageForTest(
 		Text:        text,
 		PreviewText: text,
 		Body:        []byte(`{"text":"` + text + `"}`),
+		ProfileID:   store.DefaultProfileID,
 		Timestamp:   timestamp,
 	}
 }
@@ -2765,6 +3074,7 @@ func networkWatchDirectMessageForTest(
 		Text:        text,
 		PreviewText: text,
 		Body:        []byte(`{"text":"` + text + `"}`),
+		ProfileID:   store.DefaultProfileID,
 		Timestamp:   timestamp,
 	}
 }
@@ -2791,6 +3101,7 @@ func networkWatchTraceMessageForTest(
 		WorkID:      workID,
 		PreviewText: state,
 		Body:        []byte(`{"state":"` + state + `"}`),
+		ProfileID:   store.DefaultProfileID,
 		Timestamp:   timestamp,
 	}
 }
@@ -3141,12 +3452,48 @@ func assertWatchEventRFC3339UTC(t *testing.T, value string) {
 func TestGlobalDBWatchEventsReadMatchesShouldRejectInvalidQuery(t *testing.T) {
 	t.Parallel()
 
+	t.Run("Should reject missing or contradictory profile read scope", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t)
+		globalDB := openLoopTestGlobalDB(t, "ws-a")
+		for _, test := range []struct {
+			name      string
+			readScope store.ReadScope
+		}{
+			{name: "missing", readScope: store.ReadScope{}},
+			{
+				name: "contradictory",
+				readScope: store.ReadScope{
+					ProfileID:   store.DefaultProfileID,
+					AllProfiles: true,
+				},
+			},
+		} {
+			t.Run("Should reject "+test.name+" scope", func(t *testing.T) {
+				t.Parallel()
+
+				_, err := globalDB.ReadMatches(ctx, looppkg.WatchEventsQuery{
+					ReadScope:   test.readScope,
+					WorkspaceID: "ws-a",
+					Streams:     map[string]int64{looppkg.WatchEventsTaskStream: 0},
+					Kinds:       []string{string(hookspkg.HookTaskStatusChanged)},
+					Limit:       1,
+				})
+				if !errors.Is(err, store.ErrReadScopeInvalid) {
+					t.Fatalf("ReadMatches() error = %v, want %v", err, store.ErrReadScopeInvalid)
+				}
+			})
+		}
+	})
+
 	t.Run("Should reject unsupported watch-events streams", func(t *testing.T) {
 		t.Parallel()
 
 		ctx := testutil.Context(t)
 		globalDB := openLoopTestGlobalDB(t, "ws-a")
 		_, err := globalDB.ReadMatches(ctx, looppkg.WatchEventsQuery{
+			ReadScope:   store.ReadScope{ProfileID: store.DefaultProfileID},
 			WorkspaceID: "ws-a",
 			Streams:     map[string]int64{"unsupported": 0},
 			Kinds:       []string{string(hookspkg.HookTaskStatusChanged)},

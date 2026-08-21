@@ -25,6 +25,7 @@ const WORKSPACE = "ws-hq";
 
 function servedCatalog(): CmdPaletteCatalogResponse {
   return {
+    profile_lens: { profile_lens_id: "00000000000000000000000000", profile_name: "default" },
     catalog_revision: "sha256:catalog-1",
     context_revision: "7",
     commands: [
@@ -67,13 +68,14 @@ function servedCatalog(): CmdPaletteCatalogResponse {
 }
 
 async function clearStore(): Promise<void> {
-  await dropCatalogRecord(WORKSPACE);
-  await dropCatalogRecord("ws-other");
+  await dropCatalogRecord(WORKSPACE, "default");
+  await dropCatalogRecord(WORKSPACE, "marketing");
+  await dropCatalogRecord("ws-other", "default");
 }
 
 describe("cmd-palette catalog record", () => {
   it("Should keep structure and strip every client-resolved field", () => {
-    const record = toCatalogRecord(WORKSPACE, servedCatalog());
+    const record = toCatalogRecord(WORKSPACE, "default", servedCatalog());
     expect(record.catalogRevision).toBe("sha256:catalog-1");
     expect(record.commands).toHaveLength(2);
     for (const command of record.commands) {
@@ -101,7 +103,7 @@ describe("cmd-palette catalog record", () => {
   });
 
   it("Should reject a record that carries resolved availability", () => {
-    const record = toCatalogRecord(WORKSPACE, servedCatalog());
+    const record = toCatalogRecord(WORKSPACE, "default", servedCatalog());
     const poisoned = {
       ...record,
       commands: [{ ...record.commands[0], available: true, reason: "" }],
@@ -110,7 +112,7 @@ describe("cmd-palette catalog record", () => {
   });
 
   it("Should reject a record written under another contract version", () => {
-    const record = toCatalogRecord(WORKSPACE, servedCatalog());
+    const record = toCatalogRecord(WORKSPACE, "default", servedCatalog());
     expect(
       parseCatalogRecord({
         ...record,
@@ -126,8 +128,8 @@ describe("cmd-palette catalog cache", () => {
   });
 
   it("Should round-trip the last-known catalog for a workspace", async () => {
-    await writeCatalogRecord(toCatalogRecord(WORKSPACE, servedCatalog()));
-    const stored = await readCatalogRecord(WORKSPACE);
+    await writeCatalogRecord(toCatalogRecord(WORKSPACE, "default", servedCatalog()));
+    const stored = await readCatalogRecord(WORKSPACE, "default");
     expect(stored?.catalogRevision).toBe("sha256:catalog-1");
     expect(stored?.commands.map(command => command.id)).toEqual([
       "window.close",
@@ -136,32 +138,55 @@ describe("cmd-palette catalog cache", () => {
   });
 
   it("Should keep one bounded record per workspace", async () => {
-    await writeCatalogRecord(toCatalogRecord(WORKSPACE, servedCatalog()));
+    await writeCatalogRecord(toCatalogRecord(WORKSPACE, "default", servedCatalog()));
     await writeCatalogRecord(
-      toCatalogRecord(WORKSPACE, { ...servedCatalog(), catalog_revision: "sha256:catalog-2" })
+      toCatalogRecord(WORKSPACE, "default", {
+        ...servedCatalog(),
+        catalog_revision: "sha256:catalog-2",
+      })
     );
-    const stored = await readCatalogRecord(WORKSPACE);
+    const stored = await readCatalogRecord(WORKSPACE, "default");
     expect(stored?.catalogRevision).toBe("sha256:catalog-2");
   });
 
   it("Should never serve one workspace's catalog to another", async () => {
-    await writeCatalogRecord(toCatalogRecord(WORKSPACE, servedCatalog()));
-    expect(await readCatalogRecord("ws-other")).toBeNull();
+    await writeCatalogRecord(toCatalogRecord(WORKSPACE, "default", servedCatalog()));
+    expect(await readCatalogRecord("ws-other", "default")).toBeNull();
+  });
+
+  it("Should never serve one profile lens's catalog to another", async () => {
+    // The catalog answers differently per lens, so the two records coexist in
+    // the same workspace and neither may stand in for the other.
+    await writeCatalogRecord(toCatalogRecord(WORKSPACE, "default", servedCatalog()));
+    expect(await readCatalogRecord(WORKSPACE, "marketing")).toBeNull();
+
+    await writeCatalogRecord(
+      toCatalogRecord(WORKSPACE, "marketing", {
+        ...servedCatalog(),
+        catalog_revision: "sha256:marketing-1",
+      })
+    );
+    expect((await readCatalogRecord(WORKSPACE, "default"))?.catalogRevision).toBe(
+      "sha256:catalog-1"
+    );
+    expect((await readCatalogRecord(WORKSPACE, "marketing"))?.catalogRevision).toBe(
+      "sha256:marketing-1"
+    );
   });
 
   it("Should drop a corrupt record and report a cold open", async () => {
     await writeCatalogRecord({
-      ...toCatalogRecord(WORKSPACE, servedCatalog()),
+      ...toCatalogRecord(WORKSPACE, "default", servedCatalog()),
       // A record that lost its revision is unusable: the projection could not
       // tell whether the daemon had moved past it.
       catalogRevision: "",
     });
-    expect(await readCatalogRecord(WORKSPACE)).toBeNull();
+    expect(await readCatalogRecord(WORKSPACE, "default")).toBeNull();
     // The drop is durable — a second read does not resurrect it.
-    expect(await readCatalogRecord(WORKSPACE)).toBeNull();
+    expect(await readCatalogRecord(WORKSPACE, "default")).toBeNull();
   });
 
   it("Should report a cold open when no record exists", async () => {
-    expect(await readCatalogRecord(WORKSPACE)).toBeNull();
+    expect(await readCatalogRecord(WORKSPACE, "default")).toBeNull();
   });
 });

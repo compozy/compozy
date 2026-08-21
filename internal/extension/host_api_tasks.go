@@ -26,7 +26,7 @@ func (h *HostAPIHandler) handleTasks(ctx context.Context, raw json.RawMessage) (
 	if err != nil {
 		return nil, mapTaskRPCError("", err)
 	}
-	return taskCatalogResponseFromPage(page), nil
+	return h.taskCatalogResponse(ctx, page)
 }
 
 func (h *HostAPIHandler) handleTasksGet(ctx context.Context, raw json.RawMessage) (any, error) {
@@ -48,7 +48,7 @@ func (h *HostAPIHandler) handleTasksGet(ctx context.Context, raw json.RawMessage
 	if err != nil {
 		return nil, mapTaskRPCError(taskID, err)
 	}
-	return taskDetailPayloadFromView(view), nil
+	return h.taskDetailResponse(ctx, view)
 }
 
 func (h *HostAPIHandler) handleTasksTimeline(ctx context.Context, raw json.RawMessage) (any, error) {
@@ -166,7 +166,7 @@ func (h *HostAPIHandler) handleTasksCreate(ctx context.Context, raw json.RawMess
 	if err != nil {
 		return nil, mapTaskRPCError(spec.ID, err)
 	}
-	return taskPayloadFromTask(record), nil
+	return h.taskPayloadResponse(ctx, record)
 }
 
 func (h *HostAPIHandler) handleTasksUpdate(ctx context.Context, raw json.RawMessage) (any, error) {
@@ -195,7 +195,7 @@ func (h *HostAPIHandler) handleTasksUpdate(ctx context.Context, raw json.RawMess
 	if err != nil {
 		return nil, mapTaskRPCError(taskID, err)
 	}
-	return taskPayloadFromTask(record), nil
+	return h.taskPayloadResponse(ctx, record)
 }
 
 func (h *HostAPIHandler) handleTasksCancel(ctx context.Context, raw json.RawMessage) (any, error) {
@@ -221,5 +221,5 @@ func (h *HostAPIHandler) handleTasksCancel(ctx context.Context, raw json.RawMess
 	if err != nil {
 		return nil, mapTaskRPCError(taskID, err)
 	}
-	return taskPayloadFromTask(record), nil
+	return h.taskPayloadResponse(ctx, record)
 }

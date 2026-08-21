@@ -3,6 +3,7 @@ package config
 import (
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 )
 
@@ -109,6 +110,7 @@ func TestHomePathsExtensionDataPathEncodesInstanceScope(t *testing.T) {
 		name        string
 		extension   string
 		workspaceID string
+		profileID   string
 		wantSegment string
 	}{
 		{name: "Should encode a global dotted name", extension: "acme.tools", wantSegment: "acme.tools"},
@@ -118,12 +120,19 @@ func TestHomePathsExtensionDataPathEncodesInstanceScope(t *testing.T) {
 			workspaceID: "abc-123",
 			wantSegment: "acme.tools@ws-abc-123",
 		},
+		{
+			name:        "Should encode a rename-stable default profile instance",
+			extension:   "acme.tools",
+			workspaceID: "abc-123",
+			profileID:   "00000000000000000000000000",
+			wantSegment: "acme.tools@ws-abc-123@pf-00000000000000000000000000",
+		},
 		{name: "Should keep the data package under the dedicated root", extension: "data", wantSegment: "data"},
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
 			t.Parallel()
-			got, pathErr := paths.ExtensionDataPath(test.extension, test.workspaceID)
+			got, pathErr := paths.ExtensionDataPath(test.extension, test.workspaceID, test.profileID)
 			if pathErr != nil {
 				t.Fatalf("ExtensionDataPath() error = %v", pathErr)
 			}
@@ -136,7 +145,7 @@ func TestHomePathsExtensionDataPathEncodesInstanceScope(t *testing.T) {
 		})
 	}
 
-	dataPath, err := paths.ExtensionDataPath("data", "")
+	dataPath, err := paths.ExtensionDataPath("data", "", "")
 	if err != nil {
 		t.Fatalf("ExtensionDataPath(data) error = %v", err)
 	}
@@ -146,9 +155,14 @@ func TestHomePathsExtensionDataPathEncodesInstanceScope(t *testing.T) {
 	}
 
 	for _, invalid := range []string{"../escape", "name@workspace", "a/b"} {
-		if _, pathErr := paths.ExtensionDataPath(invalid, ""); pathErr == nil {
+		if _, pathErr := paths.ExtensionDataPath(invalid, "", ""); pathErr == nil {
 			t.Fatalf("ExtensionDataPath(%q) error = nil, want containment rejection", invalid)
 		}
+	}
+	if _, pathErr := paths.ExtensionDataPath("acme.tools", "", "marketing"); pathErr == nil {
+		t.Fatal("ExtensionDataPath(profile name) error = nil, want stable profile id rejection")
+	} else if !strings.Contains(pathErr.Error(), "profile id") {
+		t.Fatalf("ExtensionDataPath(profile name) error = %v, want profile id validation", pathErr)
 	}
 }
 
@@ -184,6 +198,8 @@ func TestEnsureHomeLayoutCreatesRequiredDirectories(t *testing.T) {
 		"UpdateOperationLock":   filepath.Join(paths.HomeDir, UpdateOperationLockName),
 		"UpdateHistoryFile":     filepath.Join(paths.LogsDir, UpdateHistoryFileName),
 		"DesktopProvenanceFile": filepath.Join(paths.HomeDir, BinDirName, DesktopProvenanceFileName),
+		"ProfilesDir":           filepath.Join(paths.HomeDir, ProfilesDirName),
+		"DefaultProfileDir":     filepath.Join(paths.HomeDir, ProfilesDirName, DefaultProfileDirName),
 	}
 	for label, want := range pathContracts {
 		var got string
@@ -200,6 +216,10 @@ func TestEnsureHomeLayoutCreatesRequiredDirectories(t *testing.T) {
 			got = paths.UpdateHistoryFile
 		case "DesktopProvenanceFile":
 			got = paths.DesktopProvenanceFile
+		case "ProfilesDir":
+			got = paths.ProfilesDir
+		case "DefaultProfileDir":
+			got = paths.DefaultProfileDir
 		}
 		if got != want {
 			t.Fatalf("ResolveHomePathsFrom() %s = %q, want %q", label, got, want)
@@ -211,6 +231,8 @@ func TestEnsureHomeLayoutCreatesRequiredDirectories(t *testing.T) {
 		paths.AgentsDir,
 		paths.SkillsDir,
 		paths.LoopsDir,
+		paths.ProfilesDir,
+		paths.DefaultProfileDir,
 		paths.MemoryDir,
 		paths.SessionsDir,
 		paths.ToolArtifactsDir,
@@ -249,7 +271,13 @@ func TestResolveHomePathsFromExpandsTildePaths(t *testing.T) {
 			filepath.Join(userHome, "compozy-test-home"),
 		)
 	}
-	if got, want := paths.MemoryDir, filepath.Join(userHome, "compozy-test-home", MemoryDirName); got != want {
+	if got, want := paths.MemoryDir, filepath.Join(
+		userHome,
+		"compozy-test-home",
+		ProfilesDirName,
+		DefaultProfileDirName,
+		MemoryDirName,
+	); got != want {
 		t.Fatalf("ResolveHomePathsFrom() MemoryDir = %q, want %q", got, want)
 	}
 	if got, want := paths.SkillsDir, filepath.Join(userHome, "compozy-test-home", SkillsDirName); got != want {

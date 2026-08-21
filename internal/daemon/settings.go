@@ -176,7 +176,7 @@ func (s *settingsRuntimeSurface) MemoryHealthStatus(ctx context.Context) (settin
 		return status, nil
 	}
 
-	count, err := s.memoryStore.SourceHeaderCount(ctx, memcontract.ScopeGlobal)
+	count, err := s.memoryStore.SourceHeaderCount(ctx, memcontract.ScopeProfile)
 	if err != nil {
 		return settingspkg.MemoryHealthStatus{}, fmt.Errorf("daemon: settings memory health scan: %w", err)
 	}
@@ -293,7 +293,8 @@ func (s *settingsRuntimeSurface) InstalledExtensions(
 	}
 
 	installed := make([]settingspkg.InstalledExtension, 0, len(items))
-	for _, item := range items {
+	for index := range items {
+		item := &items[index]
 		installed = append(installed, settingspkg.InstalledExtension{
 			Name:          strings.TrimSpace(item.Name),
 			Version:       strings.TrimSpace(item.Version),

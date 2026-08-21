@@ -56,6 +56,7 @@ const (
 	CodeConfigDriftStale                = diagnosticcontract.CodeConfigDriftStale
 	CodeConfigInvalid                   = diagnosticcontract.CodeConfigInvalid
 	CodeConfigPartialFailure            = diagnosticcontract.CodeConfigPartialFailure
+	CodeConfigProfileLayerOrphaned      = diagnosticcontract.CodeConfigProfileLayerOrphaned
 	CodeConfigReloadTimeout             = diagnosticcontract.CodeConfigReloadTimeout
 	CodeConfigRestartRequired           = diagnosticcontract.CodeConfigRestartRequired
 	CodeConfigValidateFailed            = diagnosticcontract.CodeConfigValidateFailed

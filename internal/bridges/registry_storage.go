@@ -25,7 +25,7 @@ func (s *Service) checkReady(ctx context.Context, action string) error {
 }
 
 func (s *Service) loadRoutableInstance(ctx context.Context, bridgeInstanceID string) (BridgeInstance, error) {
-	instance, err := s.store.GetBridgeInstance(ctx, bridgeInstanceID)
+	instance, err := s.store.GetBridgeInstance(ctx, store.ReadScope{AllProfiles: true}, bridgeInstanceID)
 	if err != nil {
 		return BridgeInstance{}, err
 	}
@@ -67,6 +67,7 @@ func (r CreateInstanceRequest) toInstance(now func() time.Time) (BridgeInstance,
 
 	instance := BridgeInstance{
 		ID:                   r.ID,
+		ProfileID:            strings.TrimSpace(r.ProfileID),
 		Scope:                r.Scope.Normalize(),
 		WorkspaceID:          r.WorkspaceID,
 		Platform:             strings.TrimSpace(r.Platform),

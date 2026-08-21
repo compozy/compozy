@@ -15,6 +15,11 @@ func (h *BaseHandlers) ListAutomationSuggestions(c *gin.Context) {
 	if !ok {
 		return
 	}
+	readScope, err := h.resolveProfileReadScope(c)
+	if err != nil {
+		h.respondProfileReadScopeError(c, err)
+		return
+	}
 	status := automationpkg.SuggestionStatus(strings.TrimSpace(c.Query("status")))
 	if status == "" {
 		status = automationpkg.SuggestionStatusPending
@@ -23,14 +28,24 @@ func (h *BaseHandlers) ListAutomationSuggestions(c *gin.Context) {
 		h.respondError(c, http.StatusBadRequest, NewAutomationValidationError(err))
 		return
 	}
-	suggestions, err := manager.ListSuggestions(c.Request.Context(), c.Param("workspace_id"), status)
+	suggestions, err := manager.ListSuggestions(c.Request.Context(), readScope, c.Param("workspace_id"), status)
 	if err != nil {
 		h.respondError(c, StatusForAutomationError(err), err)
 		return
 	}
-	c.JSON(http.StatusOK, contract.AutomationSuggestionsResponse{
-		Suggestions: AutomationSuggestionPayloadsFromSuggestions(suggestions),
-	})
+	payloads := AutomationSuggestionPayloadsFromSuggestions(suggestions)
+	jobs := make([]contract.JobPayload, 0, len(payloads))
+	for index := range payloads {
+		jobs = append(jobs, payloads[index].Payload)
+	}
+	if err := h.decorateAutomationJobOwners(c.Request.Context(), jobs); err != nil {
+		h.respondError(c, StatusForAutomationError(err), err)
+		return
+	}
+	for index := range payloads {
+		payloads[index].Payload = jobs[index]
+	}
+	c.JSON(http.StatusOK, contract.AutomationSuggestionsResponse{Suggestions: payloads})
 }
 
 // AcceptAutomationSuggestion accepts one proposal and creates its Job.
@@ -39,8 +54,14 @@ func (h *BaseHandlers) AcceptAutomationSuggestion(c *gin.Context) {
 	if !ok {
 		return
 	}
+	mutationScope, err := h.resolveProfileMutationScope(c)
+	if err != nil {
+		h.respondProfileReadScopeError(c, err)
+		return
+	}
 	accepted, err := manager.AcceptSuggestion(
 		c.Request.Context(),
+		mutationScope.ProfileID,
 		c.Param("workspace_id"),
 		c.Param("suggestion_id"),
 	)
@@ -48,10 +69,14 @@ func (h *BaseHandlers) AcceptAutomationSuggestion(c *gin.Context) {
 		h.respondError(c, StatusForAutomationError(err), err)
 		return
 	}
-	c.JSON(http.StatusOK, contract.AutomationSuggestionAcceptanceResponse{
-		Suggestion: AutomationSuggestionPayloadFromSuggestion(accepted.Suggestion),
-		Job:        JobPayloadFromJob(accepted.Job, nil, nil),
-	})
+	suggestion := AutomationSuggestionPayloadFromSuggestion(accepted.Suggestion)
+	job := JobPayloadFromJob(accepted.Job, nil, nil)
+	if err := h.decorateAutomationJobOwner(c.Request.Context(), &job); err != nil {
+		h.respondError(c, StatusForAutomationError(err), err)
+		return
+	}
+	suggestion.Payload = job
+	c.JSON(http.StatusOK, contract.AutomationSuggestionAcceptanceResponse{Suggestion: suggestion, Job: job})
 }
 
 // DismissAutomationSuggestion dismisses one proposal without creating a Job.
@@ -60,8 +85,14 @@ func (h *BaseHandlers) DismissAutomationSuggestion(c *gin.Context) {
 	if !ok {
 		return
 	}
+	mutationScope, err := h.resolveProfileMutationScope(c)
+	if err != nil {
+		h.respondProfileReadScopeError(c, err)
+		return
+	}
 	dismissed, err := manager.DismissSuggestion(
 		c.Request.Context(),
+		mutationScope.ProfileID,
 		c.Param("workspace_id"),
 		c.Param("suggestion_id"),
 	)
@@ -69,8 +100,13 @@ func (h *BaseHandlers) DismissAutomationSuggestion(c *gin.Context) {
 		h.respondError(c, StatusForAutomationError(err), err)
 		return
 	}
+	payload := AutomationSuggestionPayloadFromSuggestion(dismissed)
+	if err := h.decorateAutomationJobOwner(c.Request.Context(), &payload.Payload); err != nil {
+		h.respondError(c, StatusForAutomationError(err), err)
+		return
+	}
 	c.JSON(http.StatusOK, contract.AutomationSuggestionResponse{
-		Suggestion: AutomationSuggestionPayloadFromSuggestion(dismissed),
+		Suggestion: payload,
 	})
 }
 
@@ -80,6 +116,7 @@ func AutomationSuggestionPayloadFromSuggestion(
 ) contract.AutomationSuggestionPayload {
 	return contract.AutomationSuggestionPayload{
 		ID:          suggestion.ID,
+		ProfileID:   suggestion.ProfileID,
 		WorkspaceID: suggestion.WorkspaceID,
 		Source:      suggestion.Source,
 		DedupKey:    suggestion.DedupKey,

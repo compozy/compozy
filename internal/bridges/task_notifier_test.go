@@ -13,6 +13,7 @@ import (
 	"unicode/utf8"
 
 	"github.com/compozy/compozy/internal/notifications"
+	"github.com/compozy/compozy/internal/store"
 	taskpkg "github.com/compozy/compozy/internal/task"
 	"github.com/compozy/compozy/internal/testutil"
 )
@@ -45,6 +46,16 @@ func TestBridgeTaskSubscriptionValidation(t *testing.T) {
 		}
 	})
 
+	t.Run("Should reject a subscription without a profile owner", func(t *testing.T) {
+		t.Parallel()
+
+		subscription := bridgeTaskSubscriptionForNotifierTest()
+		subscription.ProfileID = ""
+		if err := subscription.Validate(); !errors.Is(err, ErrInvalidBridgeTaskSubscription) {
+			t.Fatalf("Validate(missing profile) error = %v, want ErrInvalidBridgeTaskSubscription", err)
+		}
+	})
+
 	t.Run("Should preserve every opaque subscription identity component", func(t *testing.T) {
 		t.Parallel()
 
@@ -67,6 +78,7 @@ func TestBridgeTaskSubscriptionValidation(t *testing.T) {
 			t.Fatalf("Normalize() = %#v, want byte-exact opaque identities %#v", got, want)
 		}
 		if got, want := normalized.CursorKey(), (notifications.CursorKey{
+			ProfileID:  store.DefaultProfileID,
 			Scope:      notifications.ScopeRef{Kind: notifications.ScopeKindWorkspace, WorkspaceID: " workspace-1 "},
 			ConsumerID: " sub-1 ",
 			StreamName: BridgeTaskNotificationStream,
@@ -116,7 +128,7 @@ func TestTerminalTaskNotifierDeliverDue(t *testing.T) {
 			)},
 		})
 
-		sweep, err := notifier.DeliverDue(ctx, BridgeTaskSubscriptionQuery{TaskID: "task-1"})
+		sweep, err := notifier.DeliverDue(ctx, notifierQueryForTest(subscription))
 		if err != nil {
 			t.Fatalf("DeliverDue() error = %v", err)
 		}
@@ -198,7 +210,7 @@ func TestTerminalTaskNotifierDeliverDue(t *testing.T) {
 			BridgeInstance{NotificationSuppress: true},
 		)
 
-		sweep, err := notifier.DeliverDue(ctx, BridgeTaskSubscriptionQuery{TaskID: "task-1"})
+		sweep, err := notifier.DeliverDue(ctx, notifierQueryForTest(subscription))
 		if err != nil {
 			t.Fatalf("DeliverDue() error = %v", err)
 		}
@@ -252,7 +264,7 @@ func TestTerminalTaskNotifierDeliverDue(t *testing.T) {
 			)},
 		})
 
-		sweep, err := notifier.DeliverDue(ctx, BridgeTaskSubscriptionQuery{TaskID: "task-1"})
+		sweep, err := notifier.DeliverDue(ctx, notifierQueryForTest(subscription))
 		if err == nil {
 			t.Fatal("DeliverDue() error = nil, want delivery failure")
 		}
@@ -298,7 +310,7 @@ func TestTerminalTaskNotifierDeliverDue(t *testing.T) {
 			)},
 		})
 
-		sweep, err := notifier.DeliverDue(ctx, BridgeTaskSubscriptionQuery{TaskID: "task-1"})
+		sweep, err := notifier.DeliverDue(ctx, notifierQueryForTest(subscription))
 		if err != nil {
 			t.Fatalf("DeliverDue() error = %v", err)
 		}
@@ -342,7 +354,7 @@ func TestTerminalTaskNotifierDeliverDue(t *testing.T) {
 			)},
 		})
 
-		sweep, err := notifier.DeliverDue(ctx, BridgeTaskSubscriptionQuery{TaskID: "task-1"})
+		sweep, err := notifier.DeliverDue(ctx, notifierQueryForTest(subscription))
 		if !errors.Is(err, ErrTerminalTaskNotificationMismatch) {
 			t.Fatalf("DeliverDue() error = %v, want ErrTerminalTaskNotificationMismatch", err)
 		}
@@ -391,7 +403,7 @@ func TestTerminalTaskNotifierDeliverDue(t *testing.T) {
 		})
 		notifier.eventLimit = 2
 
-		firstSweep, err := notifier.DeliverDue(ctx, BridgeTaskSubscriptionQuery{TaskID: "task-1"})
+		firstSweep, err := notifier.DeliverDue(ctx, notifierQueryForTest(subscription))
 		if err != nil {
 			t.Fatalf("DeliverDue(first sweep) error = %v", err)
 		}
@@ -407,7 +419,7 @@ func TestTerminalTaskNotifierDeliverDue(t *testing.T) {
 			t.Fatalf("cursor after first sweep = %#v, want progress through ignored records", cursor)
 		}
 
-		secondSweep, err := notifier.DeliverDue(ctx, BridgeTaskSubscriptionQuery{TaskID: "task-1"})
+		secondSweep, err := notifier.DeliverDue(ctx, notifierQueryForTest(subscription))
 		if err != nil {
 			t.Fatalf("DeliverDue(second sweep) error = %v", err)
 		}
@@ -446,7 +458,7 @@ func TestTerminalTaskNotifierDeliverDue(t *testing.T) {
 			)},
 		})
 
-		sweep, err := notifier.DeliverDue(ctx, BridgeTaskSubscriptionQuery{TaskID: "task-1"})
+		sweep, err := notifier.DeliverDue(ctx, notifierQueryForTest(subscription))
 		if err != nil {
 			t.Fatalf("DeliverDue() error = %v", err)
 		}
@@ -514,7 +526,7 @@ func TestTerminalTaskNotifierDeliverDue(t *testing.T) {
 			}},
 		})
 
-		sweep, err := notifier.DeliverDue(ctx, BridgeTaskSubscriptionQuery{TaskID: "task-1"})
+		sweep, err := notifier.DeliverDue(ctx, notifierQueryForTest(subscription))
 		if err != nil {
 			t.Fatalf("DeliverDue() error = %v", err)
 		}
@@ -622,7 +634,7 @@ func TestTerminalTaskNotifierDeliverDue(t *testing.T) {
 			},
 		})
 
-		sweep, err := notifier.DeliverDue(ctx, BridgeTaskSubscriptionQuery{TaskID: "task-1"})
+		sweep, err := notifier.DeliverDue(ctx, notifierQueryForTest(subscription))
 		if err != nil {
 			t.Fatalf("DeliverDue() error = %v", err)
 		}
@@ -679,7 +691,7 @@ func TestTerminalTaskNotifierDeliverDue(t *testing.T) {
 			)},
 		})
 
-		sweep, err := notifier.DeliverDue(ctx, BridgeTaskSubscriptionQuery{TaskID: "task-1"})
+		sweep, err := notifier.DeliverDue(ctx, notifierQueryForTest(subscription))
 		if err != nil {
 			t.Fatalf("DeliverDue() error = %v", err)
 		}
@@ -728,7 +740,7 @@ func TestTerminalTaskNotifierRedactsCursorDiagnostics(t *testing.T) {
 			)},
 		})
 
-		_, err := notifier.DeliverDue(ctx, BridgeTaskSubscriptionQuery{TaskID: "task-1"})
+		_, err := notifier.DeliverDue(ctx, notifierQueryForTest(subscription))
 		if err == nil {
 			t.Fatal("DeliverDue() error = nil, want delivery failure")
 		}
@@ -837,6 +849,7 @@ func bridgeTaskSubscriptionForNotifierTest() BridgeTaskSubscription {
 	now := terminalTaskNotifierTestTime()
 	return BridgeTaskSubscription{
 		SubscriptionID:   "sub-1",
+		ProfileID:        store.DefaultProfileID,
 		TaskID:           "task-1",
 		BridgeInstanceID: "brg-1",
 		Scope:            ScopeGlobal,
@@ -849,6 +862,15 @@ func bridgeTaskSubscriptionForNotifierTest() BridgeTaskSubscription {
 		},
 		CreatedAt: now,
 		UpdatedAt: now,
+	}
+}
+
+func notifierQueryForTest(subscription BridgeTaskSubscription) BridgeTaskSubscriptionQuery {
+	return BridgeTaskSubscriptionQuery{
+		TaskID: subscription.TaskID,
+		ReadScope: store.ReadScope{
+			ProfileID: subscription.ProfileID,
+		},
 	}
 }
 
@@ -926,6 +948,7 @@ func (s *fakeBridgeTaskSubscriptionStore) PutBridgeTaskSubscription(
 
 func (s *fakeBridgeTaskSubscriptionStore) GetBridgeTaskSubscription(
 	context.Context,
+	store.ReadScope,
 	string,
 ) (BridgeTaskSubscription, error) {
 	return BridgeTaskSubscription{}, errors.New("unexpected GetBridgeTaskSubscription call")
@@ -1023,10 +1046,28 @@ func (r *fakeBridgeInstanceReader) GetBridgeInstance(_ context.Context, id strin
 type memoryCursorStore struct {
 	mu      sync.Mutex
 	cursors map[notifications.CursorKey]notifications.Cursor
+	permits map[string]struct{}
 }
 
 func newMemoryCursorStore() *memoryCursorStore {
-	return &memoryCursorStore{cursors: make(map[notifications.CursorKey]notifications.Cursor)}
+	return &memoryCursorStore{
+		cursors: make(map[notifications.CursorKey]notifications.Cursor),
+		permits: make(map[string]struct{}),
+	}
+}
+
+func (s *memoryCursorStore) AcquireDeliveryPermit(
+	_ context.Context,
+	permit notifications.DeliveryPermit,
+) error {
+	normalized, err := permit.Normalize(terminalTaskNotifierTestTime())
+	if err != nil {
+		return err
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.permits[normalized.DeliveryID] = struct{}{}
+	return nil
 }
 
 func (s *memoryCursorStore) GetCursor(
@@ -1116,6 +1157,7 @@ func (s *memoryCursorStore) AdvanceCursor(
 		UpdatedAt:       normalized.Now,
 	}
 	s.cursors[key] = cursor
+	delete(s.permits, normalized.DeliveryID)
 	return cursor, nil
 }
 

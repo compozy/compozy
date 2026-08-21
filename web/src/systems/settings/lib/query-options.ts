@@ -12,6 +12,7 @@ import {
   getSettingsNetwork,
   listSettingsNotificationPresets,
   getSettingsObservability,
+  getSettingsPersona,
   getSettingsProvider,
   getSettingsRestartStatus,
   getSettingsRoles,
@@ -29,9 +30,12 @@ import { settingsKeys } from "./query-keys";
 import { isTerminalRestartStatus } from "./restart-status";
 import type {
   SettingsApplyRecordsFilter,
+  SettingsAttentionFilter,
   SettingsMCPServerListFilter,
   SettingsNotificationPresetFilter,
   SettingsCmdPaletteFilter,
+  SettingsHookListFilter,
+  SettingsPersonaFilter,
   SettingsSkillsFilter,
 } from "../types";
 
@@ -67,6 +71,24 @@ export function settingsGeneralOptions() {
     refetchInterval: SECTION_REFETCH_INTERVAL,
     retry: shouldRetrySettingsQuery,
   });
+}
+
+export function settingsPersonaOptions(filter: SettingsPersonaFilter) {
+  return queryOptions({
+    queryKey: settingsKeys.personaSection(filter),
+    queryFn: ({ signal }) => getSettingsPersona(filter, signal),
+    staleTime: SECTION_STALE_TIME,
+    refetchInterval: SECTION_REFETCH_INTERVAL,
+    retry: shouldRetrySettingsQuery,
+  });
+}
+
+export function settingsPersonaFilterForProfile(profile: string): SettingsPersonaFilter {
+  return profile === "default" ? { scope: "user" } : { scope: "profile", profile };
+}
+
+export function settingsAttentionFilterForProfile(profile: string): SettingsAttentionFilter {
+  return profile === "default" ? { scope: "user" } : { scope: "profile", profile };
 }
 
 export function settingsUpdateOptions() {
@@ -152,10 +174,10 @@ export function settingsCmdPaletteOptions(filter: SettingsCmdPaletteFilter = {})
   });
 }
 
-export function settingsAttentionOptions() {
+export function settingsAttentionOptions(filter: SettingsAttentionFilter) {
   return queryOptions({
-    queryKey: settingsKeys.section("attention"),
-    queryFn: ({ signal }) => getSettingsAttention(signal),
+    queryKey: settingsKeys.attentionSection(filter),
+    queryFn: ({ signal }) => getSettingsAttention(filter, signal),
     staleTime: SECTION_STALE_TIME,
     refetchInterval: SECTION_REFETCH_INTERVAL,
     retry: shouldRetrySettingsQuery,
@@ -235,10 +257,10 @@ export function settingsSandboxDetailOptions(name: string, enabled = true) {
   });
 }
 
-export function settingsHooksListOptions() {
+export function settingsHooksListOptions(filter: SettingsHookListFilter = {}) {
   return queryOptions({
-    queryKey: settingsKeys.hooksList(),
-    queryFn: ({ signal }) => listSettingsHooks(signal),
+    queryKey: settingsKeys.hooksList(filter),
+    queryFn: ({ signal }) => listSettingsHooks(filter, signal),
     staleTime: COLLECTION_STALE_TIME,
     refetchInterval: COLLECTION_REFETCH_INTERVAL,
     retry: shouldRetrySettingsQuery,

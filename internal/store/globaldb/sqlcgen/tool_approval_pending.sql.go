@@ -20,7 +20,7 @@ WHERE approval_id = ?5
   AND approval_status = 'approved'
   AND execution_status = 'dispatching'
   AND resume_fence = 1
-RETURNING approval_id, workspace_id, invocation_id, target_kind, tool_id, target_json, command_id, args_json, approval_status, execution_status, result_json, error_json, requested_at, expires_at, resolved_at, executed_at, resume_fence
+RETURNING approval_id, profile_id, workspace_id, invocation_id, target_kind, tool_id, target_json, command_id, args_json, approval_status, execution_status, result_json, error_json, requested_at, expires_at, resolved_at, executed_at, resume_fence
 `
 
 type CompleteToolApprovalExecutionParams struct {
@@ -42,6 +42,7 @@ func (q *Queries) CompleteToolApprovalExecution(ctx context.Context, arg Complet
 	var i ToolApprovalPending
 	err := row.Scan(
 		&i.ApprovalID,
+		&i.ProfileID,
 		&i.WorkspaceID,
 		&i.InvocationID,
 		&i.TargetKind,
@@ -64,20 +65,23 @@ func (q *Queries) CompleteToolApprovalExecution(ctx context.Context, arg Complet
 
 const createPendingToolApproval = `-- name: CreatePendingToolApproval :one
 INSERT INTO tool_approval_pending (
+  profile_id,
   approval_id, workspace_id, invocation_id, target_kind, tool_id, target_json,
   command_id, args_json, approval_status, requested_at, expires_at
 ) VALUES (
-  ?1, ?2, ?3,
-  ?4, ?5, ?6,
-  ?7, ?8, 'pending',
-  ?9, ?10
+  ?1,
+  ?2, ?3, ?4,
+  ?5, ?6, ?7,
+  ?8, ?9, 'pending',
+  ?10, ?11
 )
-RETURNING approval_id, workspace_id, invocation_id, target_kind, tool_id, target_json, command_id, args_json, approval_status, execution_status, result_json, error_json, requested_at, expires_at, resolved_at, executed_at, resume_fence
+RETURNING approval_id, profile_id, workspace_id, invocation_id, target_kind, tool_id, target_json, command_id, args_json, approval_status, execution_status, result_json, error_json, requested_at, expires_at, resolved_at, executed_at, resume_fence
 `
 
 type CreatePendingToolApprovalParams struct {
+	ProfileID    string         `json:"profile_id"`
 	ApprovalID   string         `json:"approval_id"`
-	WorkspaceID  string         `json:"workspace_id"`
+	WorkspaceID  sql.NullString `json:"workspace_id"`
 	InvocationID string         `json:"invocation_id"`
 	TargetKind   string         `json:"target_kind"`
 	ToolID       sql.NullString `json:"tool_id"`
@@ -90,6 +94,7 @@ type CreatePendingToolApprovalParams struct {
 
 func (q *Queries) CreatePendingToolApproval(ctx context.Context, arg CreatePendingToolApprovalParams) (ToolApprovalPending, error) {
 	row := q.db.QueryRowContext(ctx, createPendingToolApproval,
+		arg.ProfileID,
 		arg.ApprovalID,
 		arg.WorkspaceID,
 		arg.InvocationID,
@@ -104,6 +109,7 @@ func (q *Queries) CreatePendingToolApproval(ctx context.Context, arg CreatePendi
 	var i ToolApprovalPending
 	err := row.Scan(
 		&i.ApprovalID,
+		&i.ProfileID,
 		&i.WorkspaceID,
 		&i.InvocationID,
 		&i.TargetKind,
@@ -129,7 +135,7 @@ UPDATE tool_approval_pending
 SET approval_status = 'timeout', resolved_at = ?1
 WHERE approval_status = 'pending'
   AND expires_at <= ?1
-RETURNING approval_id, workspace_id, invocation_id, target_kind, tool_id, target_json, command_id, args_json, approval_status, execution_status, result_json, error_json, requested_at, expires_at, resolved_at, executed_at, resume_fence
+RETURNING approval_id, profile_id, workspace_id, invocation_id, target_kind, tool_id, target_json, command_id, args_json, approval_status, execution_status, result_json, error_json, requested_at, expires_at, resolved_at, executed_at, resume_fence
 `
 
 func (q *Queries) ExpirePendingToolApprovals(ctx context.Context, resolvedAt sql.NullInt64) ([]ToolApprovalPending, error) {
@@ -143,6 +149,7 @@ func (q *Queries) ExpirePendingToolApprovals(ctx context.Context, resolvedAt sql
 		var i ToolApprovalPending
 		if err := rows.Scan(
 			&i.ApprovalID,
+			&i.ProfileID,
 			&i.WorkspaceID,
 			&i.InvocationID,
 			&i.TargetKind,
@@ -174,7 +181,7 @@ func (q *Queries) ExpirePendingToolApprovals(ctx context.Context, resolvedAt sql
 }
 
 const getPendingToolApproval = `-- name: GetPendingToolApproval :one
-SELECT approval_id, workspace_id, invocation_id, target_kind, tool_id, target_json, command_id, args_json, approval_status, execution_status, result_json, error_json, requested_at, expires_at, resolved_at, executed_at, resume_fence
+SELECT approval_id, profile_id, workspace_id, invocation_id, target_kind, tool_id, target_json, command_id, args_json, approval_status, execution_status, result_json, error_json, requested_at, expires_at, resolved_at, executed_at, resume_fence
 FROM tool_approval_pending
 WHERE approval_id = ?1
 `
@@ -184,6 +191,7 @@ func (q *Queries) GetPendingToolApproval(ctx context.Context, approvalID string)
 	var i ToolApprovalPending
 	err := row.Scan(
 		&i.ApprovalID,
+		&i.ProfileID,
 		&i.WorkspaceID,
 		&i.InvocationID,
 		&i.TargetKind,
@@ -205,7 +213,7 @@ func (q *Queries) GetPendingToolApproval(ctx context.Context, approvalID string)
 }
 
 const listPendingToolApprovals = `-- name: ListPendingToolApprovals :many
-SELECT approval_id, workspace_id, invocation_id, target_kind, tool_id, target_json, command_id, args_json, approval_status, execution_status, result_json, error_json, requested_at, expires_at, resolved_at, executed_at, resume_fence
+SELECT approval_id, profile_id, workspace_id, invocation_id, target_kind, tool_id, target_json, command_id, args_json, approval_status, execution_status, result_json, error_json, requested_at, expires_at, resolved_at, executed_at, resume_fence
 FROM tool_approval_pending
 WHERE approval_status = 'pending'
 ORDER BY expires_at, approval_id
@@ -222,6 +230,7 @@ func (q *Queries) ListPendingToolApprovals(ctx context.Context) ([]ToolApprovalP
 		var i ToolApprovalPending
 		if err := rows.Scan(
 			&i.ApprovalID,
+			&i.ProfileID,
 			&i.WorkspaceID,
 			&i.InvocationID,
 			&i.TargetKind,
@@ -258,7 +267,7 @@ SET execution_status = 'uncertain', executed_at = ?1
 WHERE approval_status = 'approved'
   AND execution_status = 'dispatching'
   AND resume_fence = 1
-RETURNING approval_id, workspace_id, invocation_id, target_kind, tool_id, target_json, command_id, args_json, approval_status, execution_status, result_json, error_json, requested_at, expires_at, resolved_at, executed_at, resume_fence
+RETURNING approval_id, profile_id, workspace_id, invocation_id, target_kind, tool_id, target_json, command_id, args_json, approval_status, execution_status, result_json, error_json, requested_at, expires_at, resolved_at, executed_at, resume_fence
 `
 
 func (q *Queries) RecoverDispatchingToolApprovals(ctx context.Context, executedAt sql.NullInt64) ([]ToolApprovalPending, error) {
@@ -272,6 +281,7 @@ func (q *Queries) RecoverDispatchingToolApprovals(ctx context.Context, executedA
 		var i ToolApprovalPending
 		if err := rows.Scan(
 			&i.ApprovalID,
+			&i.ProfileID,
 			&i.WorkspaceID,
 			&i.InvocationID,
 			&i.TargetKind,
@@ -316,7 +326,7 @@ SET approval_status = ?1,
     END
 WHERE approval_id = ?3
   AND approval_status = 'pending'
-RETURNING approval_id, workspace_id, invocation_id, target_kind, tool_id, target_json, command_id, args_json, approval_status, execution_status, result_json, error_json, requested_at, expires_at, resolved_at, executed_at, resume_fence
+RETURNING approval_id, profile_id, workspace_id, invocation_id, target_kind, tool_id, target_json, command_id, args_json, approval_status, execution_status, result_json, error_json, requested_at, expires_at, resolved_at, executed_at, resume_fence
 `
 
 type ResolvePendingToolApprovalParams struct {
@@ -330,6 +340,7 @@ func (q *Queries) ResolvePendingToolApproval(ctx context.Context, arg ResolvePen
 	var i ToolApprovalPending
 	err := row.Scan(
 		&i.ApprovalID,
+		&i.ProfileID,
 		&i.WorkspaceID,
 		&i.InvocationID,
 		&i.TargetKind,

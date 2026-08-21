@@ -61,6 +61,7 @@ type SessionMeta struct {
 	RuntimeRecovery   *SessionRuntimeRecovery       `json:"runtime_recovery,omitempty"`
 	RuntimeSelection  *SessionRuntimeSelectionState `json:"runtime_selection,omitempty"`
 	*SessionProviderExecutionState
+	ProfileID   string `json:"profile_id"`
 	WorkspaceID string `json:"workspace_id,omitempty"`
 	*SessionWorktreeState
 	CWD                  string                  `json:"cwd,omitempty"`

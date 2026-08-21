@@ -56,10 +56,11 @@ func loopRunsOutputBundle(response contract.LoopRunsResponse, now func() time.Ti
 		response,
 		response.Runs,
 		"Loop runs",
-		[]string{cliStatusHeader, taskLoopColumn, "PROGRESS", "STARTED", loopDurationHeader},
+		[]string{cliStatusHeader, cliProfileHeader, taskLoopColumn, "PROGRESS", "STARTED", loopDurationHeader},
 		"loop_runs",
 		[]string{
 			"id",
+			profileNameOutputKey,
 			"loop_name",
 			automationStatusKey,
 			configAttentionKey,
@@ -82,7 +83,7 @@ func loopRunsOutputBundle(response contract.LoopRunsResponse, now func() time.Ti
 			rows = append(rows, loopRunSummaryRow(run, now))
 		}
 		return renderLoopReadTable(
-			[]string{cliStatusHeader, taskLoopColumn, "PROGRESS", "STARTED", loopDurationHeader},
+			[]string{cliStatusHeader, cliProfileHeader, taskLoopColumn, "PROGRESS", "STARTED", loopDurationHeader},
 			rows,
 		), nil
 	}
@@ -146,6 +147,7 @@ func loopRunSummaryRow(run contract.LoopRunPayload, now func() time.Time) []stri
 	}
 	return []string{
 		status,
+		stringOrDash(run.ProfileName),
 		stringOrDash(run.LoopName),
 		progress,
 		started,
@@ -164,6 +166,7 @@ func formatLoopReadDuration(duration time.Duration) string {
 func loopRunSummaryTOONRow(run contract.LoopRunPayload) []string {
 	return []string{
 		stringOrDash(run.ID),
+		stringOrDash(run.ProfileName),
 		stringOrDash(run.LoopName),
 		stringOrDash(string(run.Status)),
 		loopRunAttentionLabel(run.Attention),

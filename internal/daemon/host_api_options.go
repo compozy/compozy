@@ -21,6 +21,7 @@ func buildHostAPIOptions(
 		extensionpkg.WithHostAPIModelCatalogService(deps.ModelCatalog),
 		extensionpkg.WithHostAPICapabilityChecker(capChecker),
 		extensionpkg.WithHostAPIWorkspaceResolver(deps.WorkspaceResolver),
+		extensionpkg.WithHostAPIProfileReader(deps.Profiles),
 		extensionpkg.WithHostAPIResourceStore(resourceStore),
 		extensionpkg.WithHostAPIResourceCodecRegistry(deps.ResourceCodecs),
 		extensionpkg.WithHostAPIResourceTrigger(deps.ResourceTrigger),
@@ -32,6 +33,7 @@ func buildHostAPIOptions(
 		extensionpkg.WithHostAPISessionHealth(deps.SessionHealth),
 		extensionpkg.WithHostAPIHeartbeatWakeEvents(deps.WakeEvents),
 		extensionpkg.WithHostAPIMemoryProviderRegistry(deps.MemoryProviderRegistry),
+		extensionpkg.WithHostAPIMemoryStoreResolver(deps.MemoryStoreResolver),
 		extensionpkg.WithHostAPIClarify(deps.Clarify),
 		extensionpkg.WithHostAPIViewService(deps.CmdPalette),
 	}

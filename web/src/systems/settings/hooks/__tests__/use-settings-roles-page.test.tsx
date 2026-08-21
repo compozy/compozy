@@ -36,7 +36,7 @@ import type { SettingsRolesConfig } from "@/systems/settings";
 
 const appliedMutation = {
   section: "roles" as const,
-  scope: "global" as const,
+  scope: "user" as const,
   applied: true,
   active_config_hash: "sha256:test",
   active_generation: 1,

@@ -3,13 +3,12 @@ package httpapi
 import (
 	"github.com/compozy/compozy/internal/api/core"
 	"github.com/compozy/compozy/internal/gateway"
-	"github.com/compozy/compozy/internal/windowmanager"
 )
 
 type httpExtendedServices struct {
 	resources         core.ResourceService
 	extensions        ExtensionService
-	windowManager     windowmanager.Service
+	windowManager     core.WindowManagerProvider
 	gateway           core.GatewayService
 	gatewayAdmission  gateway.AdmissionController
 	gatewayChallenges gateway.ChallengeResolver
@@ -20,9 +19,9 @@ type httpExtendedServices struct {
 	surfaceSet        SurfaceSet
 }
 
-// WithWindowManagerService injects the daemon-authoritative window manager.
-func WithWindowManagerService(service windowmanager.Service) Option {
+// WithWindowManagerProvider injects the per-profile window managers.
+func WithWindowManagerProvider(provider core.WindowManagerProvider) Option {
 	return func(server *Server) {
-		server.windowManager = service
+		server.windowManager = provider
 	}
 }

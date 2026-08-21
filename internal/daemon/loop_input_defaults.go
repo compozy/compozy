@@ -14,6 +14,7 @@ import (
 func (s *daemonLoopAPIService) GetLoopInputDefaults(
 	ctx context.Context,
 	workspaceID string,
+	_ string,
 	name string,
 	scope contract.LoopInputDefaultsScope,
 ) (contract.LoopInputDefaultsResponse, error) {
@@ -31,6 +32,7 @@ func (s *daemonLoopAPIService) GetLoopInputDefaults(
 func (s *daemonLoopAPIService) GetLoopInputDefault(
 	ctx context.Context,
 	workspaceID string,
+	profileID string,
 	name string,
 	key string,
 	scope contract.LoopInputDefaultsScope,
@@ -39,7 +41,7 @@ func (s *daemonLoopAPIService) GetLoopInputDefault(
 	if err != nil {
 		return contract.LoopInputDefaultResponse{}, err
 	}
-	response, err := s.GetLoopInputDefaults(ctx, workspaceID, name, scope)
+	response, err := s.GetLoopInputDefaults(ctx, workspaceID, profileID, name, scope)
 	if err != nil {
 		return contract.LoopInputDefaultResponse{}, err
 	}
@@ -56,6 +58,7 @@ func (s *daemonLoopAPIService) GetLoopInputDefault(
 func (s *daemonLoopAPIService) PutLoopInputDefaults(
 	ctx context.Context,
 	workspaceID string,
+	profileID string,
 	name string,
 	req contract.PutLoopInputDefaultsRequest,
 ) (contract.LoopInputDefaultsResponse, error) {
@@ -67,7 +70,7 @@ func (s *daemonLoopAPIService) PutLoopInputDefaults(
 	if err != nil {
 		return contract.LoopInputDefaultsResponse{}, err
 	}
-	if err := s.validateLoopInputDefaultLayer(ctx, ws, loopName, req.Scope, values); err != nil {
+	if err := s.validateLoopInputDefaultLayer(ctx, ws, profileID, loopName, req.Scope, values); err != nil {
 		return contract.LoopInputDefaultsResponse{}, err
 	}
 	root, target, err := s.loopInputDefaultsWriteTarget(ctx, ws, req.Scope)
@@ -88,12 +91,13 @@ func (s *daemonLoopAPIService) PutLoopInputDefaults(
 	); err != nil {
 		return contract.LoopInputDefaultsResponse{}, fmt.Errorf("daemon: replace Loop input defaults: %w", err)
 	}
-	return s.GetLoopInputDefaults(ctx, workspaceID, loopName, req.Scope)
+	return s.GetLoopInputDefaults(ctx, workspaceID, profileID, loopName, req.Scope)
 }
 
 func (s *daemonLoopAPIService) PutLoopInputDefault(
 	ctx context.Context,
 	workspaceID string,
+	profileID string,
 	name string,
 	key string,
 	req contract.PutLoopInputDefaultRequest,
@@ -116,7 +120,7 @@ func (s *daemonLoopAPIService) PutLoopInputDefault(
 		)
 	}
 	if err := s.validateLoopInputDefaultLayer(
-		ctx, ws, loopName, req.Scope, map[string]any{inputKey: value},
+		ctx, ws, profileID, loopName, req.Scope, map[string]any{inputKey: value},
 	); err != nil {
 		return contract.LoopInputDefaultResponse{}, err
 	}
@@ -138,12 +142,13 @@ func (s *daemonLoopAPIService) PutLoopInputDefault(
 	); err != nil {
 		return contract.LoopInputDefaultResponse{}, fmt.Errorf("daemon: set Loop input default: %w", err)
 	}
-	return s.GetLoopInputDefault(ctx, workspaceID, loopName, inputKey, req.Scope)
+	return s.GetLoopInputDefault(ctx, workspaceID, profileID, loopName, inputKey, req.Scope)
 }
 
 func (s *daemonLoopAPIService) DeleteLoopInputDefault(
 	ctx context.Context,
 	workspaceID string,
+	_ string,
 	name string,
 	key string,
 	scope contract.LoopInputDefaultsScope,
@@ -227,7 +232,7 @@ func (s *daemonLoopAPIService) loopInputDefaultsWriteTarget(
 			return "", compozyconfig.WriteTarget{}, err
 		}
 	}
-	target, err := compozyconfig.ResolveConfigWriteTarget(s.homePaths, root, writeScope)
+	target, err := compozyconfig.ResolveConfigWriteTarget(s.homePaths, root, writeScope, "")
 	if err != nil {
 		return "", compozyconfig.WriteTarget{}, fmt.Errorf("daemon: resolve Loop input defaults target: %w", err)
 	}
@@ -254,12 +259,12 @@ func (s *daemonLoopAPIService) loopInputDefaultsWorkspaceRoot(
 
 func loopInputDefaultsWriteScope(scope contract.LoopInputDefaultsScope) (compozyconfig.WriteScope, error) {
 	switch scope {
-	case contract.LoopInputDefaultsScopeGlobal:
-		return compozyconfig.WriteScopeGlobal, nil
+	case contract.LoopInputDefaultsScopeUser:
+		return compozyconfig.WriteScopeUser, nil
 	case contract.LoopInputDefaultsScopeWorkspace:
 		return compozyconfig.WriteScopeWorkspace, nil
 	default:
-		return "", fmt.Errorf("%w: input-default scope must be global or workspace", looppkg.ErrValidation)
+		return "", fmt.Errorf("%w: input-default scope must be user or workspace", looppkg.ErrValidation)
 	}
 }
 
@@ -314,6 +319,7 @@ func normalizeLoopInputDefaultValue(value any) (any, error) {
 func (s *daemonLoopAPIService) validateLoopInputDefaultLayer(
 	ctx context.Context,
 	workspaceID looppkg.WorkspaceID,
+	profileID string,
 	loopName string,
 	scope contract.LoopInputDefaultsScope,
 	values map[string]any,
@@ -321,7 +327,7 @@ func (s *daemonLoopAPIService) validateLoopInputDefaultLayer(
 	if s.resolver == nil {
 		return fmt.Errorf("%w: Loop definition resolver is required", looppkg.ErrValidation)
 	}
-	resolved, err := s.resolver.ResolveLoop(ctx, workspaceID, loopName)
+	resolved, err := s.resolver.ResolveLoop(ctx, workspaceID, profileID, loopName)
 	if err != nil {
 		return err
 	}

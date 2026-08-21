@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import type { SettingsMCPServerEntry } from "../../types";
+import type { SettingsMCPServerEntry, SettingsSource } from "../../types";
 import { deriveMCPManagementFilter } from "../mcp-management-target";
 import {
   authTone,
@@ -27,12 +27,9 @@ interface EntryOverrides {
   auth?: AuthConfig | null;
   authStatus?: Partial<AuthStatus> | null;
   runtimeStatus?: Partial<RuntimeStatus> | null;
-  effectiveSource?: {
-    kind: string;
-    scope: "global" | "workspace";
-    workspace_id?: string;
-  };
-  scope?: "global" | "workspace";
+  effectiveSource?: SettingsSource;
+  scope?: "global" | "user" | "profile" | "workspace";
+  profile?: string;
   workspaceId?: string;
 }
 
@@ -76,6 +73,7 @@ function makeEntry(overrides: EntryOverrides = {}): SettingsMCPServerEntry {
     source_metadata: {
       effective_source: overrides.effectiveSource,
     },
+    profile: overrides.profile,
     workspace_id: overrides.workspaceId,
   } as SettingsMCPServerEntry;
 }
@@ -248,14 +246,14 @@ describe("authorize gating", () => {
 });
 
 describe("authorization target", () => {
-  it("uses a global effective source even when the collection row is workspace-scoped", () => {
+  it("uses a user effective source even when the collection row is workspace-scoped", () => {
     const server = makeEntry({
-      effectiveSource: { kind: "global-config", scope: "global" },
+      effectiveSource: { kind: "global-config", scope: "user" },
       scope: "workspace",
       workspaceId: "ws-active",
     });
 
-    expect(deriveMCPAuthFilter(server)).toEqual({ scope: "global" });
+    expect(deriveMCPAuthFilter(server)).toEqual({ scope: "user" });
   });
 
   it("uses the effective workspace source identity", () => {
@@ -265,7 +263,7 @@ describe("authorization target", () => {
         scope: "workspace",
         workspace_id: "ws-owner",
       },
-      scope: "global",
+      scope: "user",
     });
 
     expect(deriveMCPAuthFilter(server)).toEqual({
@@ -283,10 +281,10 @@ describe("authorization target", () => {
   });
 
   it.each([
-    ["global-config", { scope: "global", target: "config" }],
-    ["global-mcp-sidecar", { scope: "global", target: "sidecar" }],
-  ] as const)("maps %s to its exact global management target", (kind, expected) => {
-    const server = makeEntry({ effectiveSource: { kind, scope: "global" } });
+    ["global-config", { scope: "user", target: "config" }],
+    ["global-mcp-sidecar", { scope: "user", target: "sidecar" }],
+  ] as const)("maps %s to its exact user management target", (kind, expected) => {
+    const server = makeEntry({ effectiveSource: { kind, scope: "user" } });
 
     expect(deriveMCPManagementFilter(server)).toEqual(expected);
   });
@@ -297,7 +295,7 @@ describe("authorization target", () => {
   ] as const)("maps %s to its exact workspace management target", (kind, target) => {
     const server = makeEntry({
       effectiveSource: { kind, scope: "workspace", workspace_id: "ws-owner" },
-      scope: "global",
+      scope: "user",
     });
 
     expect(deriveMCPManagementFilter(server)).toEqual({
@@ -305,6 +303,49 @@ describe("authorization target", () => {
       target,
       workspace_id: "ws-owner",
     });
+  });
+
+  it("maps a personal profile source to its exact config and auth target", () => {
+    const server = makeEntry({
+      effectiveSource: {
+        kind: "profile-config",
+        scope: "profile",
+        profile: "marketing",
+        workspace_id: "ws-owner",
+      },
+      scope: "profile",
+    });
+
+    expect(deriveMCPManagementFilter(server)).toEqual({
+      scope: "profile",
+      target: "config",
+      profile: "marketing",
+      workspace_id: "ws-owner",
+    });
+    expect(deriveMCPAuthFilter(server)).toEqual({
+      scope: "profile",
+      profile: "marketing",
+      workspace_id: "ws-owner",
+    });
+  });
+
+  it("maps a profile MCP sidecar to its exact sidecar and auth target", () => {
+    const server = makeEntry({
+      effectiveSource: {
+        kind: "profile-mcp-sidecar",
+        scope: "profile",
+        profile: "marketing",
+      },
+      scope: "profile",
+      profile: "marketing",
+    });
+
+    expect(deriveMCPManagementFilter(server)).toEqual({
+      scope: "profile",
+      target: "sidecar",
+      profile: "marketing",
+    });
+    expect(deriveMCPAuthFilter(server)).toEqual({ scope: "profile", profile: "marketing" });
   });
 });
 

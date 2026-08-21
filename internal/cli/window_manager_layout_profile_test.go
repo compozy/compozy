@@ -44,7 +44,7 @@ func TestLayoutProfileCommands(t *testing.T) {
 					Kind: resources.ResourceScopeKindWorkspace, ID: "w1",
 				}, 4),
 				layoutProfileRecord("focus-session", resources.ResourceScope{
-					Kind: resources.ResourceScopeKindGlobal,
+					Kind: resources.ResourceScopeKindUser,
 				}, 2),
 			}}, nil
 		}
@@ -137,7 +137,7 @@ func TestLayoutProfileCommands(t *testing.T) {
 			if workspace != "w1" || profileID != "two-up-review" {
 				t.Fatalf("put target = %q/%q, want w1/two-up-review", workspace, profileID)
 			}
-			if request.Scope.Kind != resources.ResourceScopeKindGlobal || request.Scope.ID != "" {
+			if request.Scope.Kind != resources.ResourceScopeKindUser || request.Scope.ID != "" {
 				t.Fatalf("scope = %#v, want global", request.Scope)
 			}
 			if request.ExpectedVersion != 4 {

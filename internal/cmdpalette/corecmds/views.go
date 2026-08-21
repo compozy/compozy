@@ -2,11 +2,14 @@ package corecmds
 
 import "github.com/compozy/compozy/internal/cmdpalette"
 
+const coreProfilesKey = "profiles"
+
 var viewOnlyDefinitions = []domainDefinition{
 	{id: "sessions", title: "Sessions", icon: coreIconTerminal},
 	{id: "worktrees", title: "Worktrees", icon: "git-branch"},
 	{id: "network-channels", title: "Network channels", icon: coreIconGlobe},
 	{id: coreAppExtensions, title: "Extensions", icon: "blocks"},
+	{id: coreProfilesKey, title: "Profiles", icon: "users-round"},
 }
 
 func viewCommands() []cmdpalette.Descriptor {

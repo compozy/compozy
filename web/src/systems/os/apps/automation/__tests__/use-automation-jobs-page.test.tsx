@@ -22,7 +22,7 @@ const pageState = vi.hoisted(() => ({
 
 const jobsState = vi.hoisted(() => ({
   error: null as Error | null,
-  jobs: [] as Array<{ id: string }>,
+  jobs: [] as Array<{ id: string; profile_name: string }>,
   triggerJob: vi.fn(),
 }));
 
@@ -118,7 +118,7 @@ describe("useAutomationJobsPage", () => {
   });
 
   it("Should preserve loaded jobs while exposing a later query failure", () => {
-    jobsState.jobs = [{ id: "job-1" }];
+    jobsState.jobs = [{ id: "job-1", profile_name: "marketing" }];
     jobsState.error = new Error("Jobs refresh failed");
 
     const { result } = renderHook(() => useAutomationJobsPage(), { wrapper: createWrapper() });
@@ -129,7 +129,7 @@ describe("useAutomationJobsPage", () => {
   });
 
   it("Should block cached job runs while the automation runtime is unavailable", () => {
-    jobsState.jobs = [{ id: "job-1" }];
+    jobsState.jobs = [{ id: "job-1", profile_name: "marketing" }];
     jobsState.error = new AutomationApiError("runtime unavailable", 503);
 
     const { result } = renderHook(() => useAutomationJobsPage(), { wrapper: createWrapper() });
@@ -141,6 +141,10 @@ describe("useAutomationJobsPage", () => {
   });
 
   it("Should keep every job pending until its own manual run request settles", async () => {
+    jobsState.jobs = [
+      { id: "job-a", profile_name: "marketing" },
+      { id: "job-b", profile_name: "consulting" },
+    ];
     const resolvers = new Map<string, (value: { id: string }) => void>();
     jobsState.triggerJob.mockImplementation(
       ({ id }: { id: string }) =>
@@ -160,6 +164,14 @@ describe("useAutomationJobsPage", () => {
       expect([...result.current.runPendingIds]).toEqual(["job-a", "job-b"]);
     });
     expect(jobsState.triggerJob).toHaveBeenCalledTimes(2);
+    expect(jobsState.triggerJob).toHaveBeenNthCalledWith(1, {
+      id: "job-a",
+      profile: "marketing",
+    });
+    expect(jobsState.triggerJob).toHaveBeenNthCalledWith(2, {
+      id: "job-b",
+      profile: "consulting",
+    });
 
     await act(async () => {
       resolvers.get("job-a")?.({ id: "run-a" });

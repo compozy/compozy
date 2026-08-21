@@ -309,6 +309,26 @@ func (m *Manager) extensionWorkspaceScope(
 	ext *managedExtension,
 ) (resources.ResourceScope, error) {
 	key := ext.instanceKey()
+	if key.IsProfileScoped() {
+		if m.profileNames == nil {
+			return resources.ResourceScope{}, errors.New("extension: profile name resolver is required")
+		}
+		profileName, err := m.profileNames.ProfileName(ctx, key.ProfileID)
+		if err != nil {
+			return resources.ResourceScope{}, fmt.Errorf(
+				"extension: bind profile runtime %q: %w",
+				key.runtimeID(),
+				err,
+			)
+		}
+		if !key.IsGlobal() {
+			return resources.ResourceScope{
+				Kind: resources.ResourceScopeKindWorkspaceProfile,
+				ID:   profileWorkspaceScopeID(key.WorkspaceID, profileName),
+			}, nil
+		}
+		return resources.ResourceScope{Kind: resources.ResourceScopeKindProfile, ID: key.ProfileID}, nil
+	}
 	if !key.IsGlobal() {
 		return resources.ResourceScope{
 			Kind: resources.ResourceScopeKindWorkspace,
@@ -319,8 +339,8 @@ func (m *Manager) extensionWorkspaceScope(
 	case SourceBundled, SourceUser, SourceMarketplace:
 		// Marketplace artifacts are installed once under the daemon home, not
 		// owned by any project workspace. Their read-oriented capability ceiling
-		// is the trust boundary; the runtime principal is explicitly global.
-		return resources.ResourceScope{Kind: resources.ResourceScopeKindGlobal}, nil
+		// is the trust boundary; the runtime principal is explicitly user-scoped.
+		return resources.ResourceScope{Kind: resources.ResourceScopeKindUser}, nil
 	case SourceWorkspace:
 		if m.workspaceResolver == nil {
 			return resources.ResourceScope{}, errors.New(
@@ -366,7 +386,7 @@ func extensionManagerResourceActor() resources.MutationActor {
 			Kind: resources.ResourceSourceKind("daemon"),
 			ID:   "extension-manager",
 		},
-		MaxScope: resources.ResourceScope{Kind: resources.ResourceScopeKindGlobal},
+		MaxScope: resources.ResourceScope{Kind: resources.ResourceScopeKindUser},
 	}
 }
 

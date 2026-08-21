@@ -1,11 +1,13 @@
 -- name: InsertTask :exec
 INSERT INTO tasks (
+  profile_id,
   id, identifier, scope, workspace_id, parent_task_id, title, description,
   priority, max_attempts, auto_enqueue_on_ready, status, approval_policy, approval_state,
   owner_kind, owner_ref, created_by_kind, created_by_ref, origin_kind, origin_ref,
   created_at, updated_at, closed_at, paused, paused_by, paused_at, paused_reason, wake_creator,
   metadata_json
 ) VALUES (
+  sqlc.arg(profile_id),
   sqlc.arg(id), sqlc.narg(identifier), sqlc.arg(scope), sqlc.narg(workspace_id),
   sqlc.narg(parent_task_id), sqlc.arg(title), sqlc.narg(description),
   sqlc.arg(priority), sqlc.arg(max_attempts), sqlc.arg(auto_enqueue_on_ready), sqlc.arg(status),
@@ -55,7 +57,7 @@ WHERE id = sqlc.arg(id);
 
 -- name: GetTask :one
 SELECT
-  id, identifier, scope, workspace_id, parent_task_id, title, description,
+  id, profile_id, identifier, scope, workspace_id, parent_task_id, title, description,
   priority, max_attempts, auto_enqueue_on_ready, status, approval_policy, approval_state,
   owner_kind, owner_ref, created_by_kind, created_by_ref, origin_kind, origin_ref,
   created_at, updated_at, closed_at, current_run_id,

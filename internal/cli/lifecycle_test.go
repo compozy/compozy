@@ -303,7 +303,7 @@ func TestUpdateCheckReportsAvailableReleaseForDirectBinaryInstall(t *testing.T) 
 func TestConfigEditUsesEditorAndValidatesResult(t *testing.T) {
 	t.Parallel()
 
-	deps := newWorkspaceTestDeps(t, &stubClient{})
+	deps := newDefaultProfileWorkspaceTestDeps(t, &stubClient{})
 	homePaths, err := deps.resolveHome()
 	if err != nil {
 		t.Fatalf("resolveHome() error = %v", err)

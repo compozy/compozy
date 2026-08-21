@@ -23,7 +23,7 @@ type automationSuggestionActionInput struct {
 
 func (n *daemonNativeTools) automationSuggestionsList(
 	ctx context.Context,
-	_ toolspkg.Scope,
+	scope toolspkg.Scope,
 	req toolspkg.CallRequest,
 ) (toolspkg.ToolResult, error) {
 	var input automationSuggestionsListInput
@@ -41,7 +41,11 @@ func (n *daemonNativeTools) automationSuggestionsList(
 	if err := status.Validate("status"); err != nil {
 		return toolspkg.ToolResult{}, nativeAutomationValidationError(req.ToolID, err)
 	}
-	suggestions, err := n.automationManager().ListSuggestions(ctx, workspaceID, status)
+	readScope, err := n.nativeProfileReadScope(ctx, scope)
+	if err != nil {
+		return toolspkg.ToolResult{}, err
+	}
+	suggestions, err := n.automationManager().ListSuggestions(ctx, readScope, workspaceID, status)
 	if err != nil {
 		return toolspkg.ToolResult{}, nativeAutomationToolError(req.ToolID, err)
 	}
@@ -54,14 +58,23 @@ func (n *daemonNativeTools) automationSuggestionsList(
 
 func (n *daemonNativeTools) automationSuggestionsAccept(
 	ctx context.Context,
-	_ toolspkg.Scope,
+	scope toolspkg.Scope,
 	req toolspkg.CallRequest,
 ) (toolspkg.ToolResult, error) {
 	input, err := decodeAutomationSuggestionActionInput(req)
 	if err != nil {
 		return toolspkg.ToolResult{}, err
 	}
-	accepted, err := n.automationManager().AcceptSuggestion(ctx, input.WorkspaceID, input.SuggestionID)
+	readScope, err := n.nativeProfileReadScope(ctx, scope)
+	if err != nil {
+		return toolspkg.ToolResult{}, err
+	}
+	accepted, err := n.automationManager().AcceptSuggestion(
+		ctx,
+		readScope.ProfileID,
+		input.WorkspaceID,
+		input.SuggestionID,
+	)
 	if err != nil {
 		return toolspkg.ToolResult{}, nativeAutomationToolError(req.ToolID, err)
 	}
@@ -74,14 +87,23 @@ func (n *daemonNativeTools) automationSuggestionsAccept(
 
 func (n *daemonNativeTools) automationSuggestionsDismiss(
 	ctx context.Context,
-	_ toolspkg.Scope,
+	scope toolspkg.Scope,
 	req toolspkg.CallRequest,
 ) (toolspkg.ToolResult, error) {
 	input, err := decodeAutomationSuggestionActionInput(req)
 	if err != nil {
 		return toolspkg.ToolResult{}, err
 	}
-	dismissed, err := n.automationManager().DismissSuggestion(ctx, input.WorkspaceID, input.SuggestionID)
+	readScope, err := n.nativeProfileReadScope(ctx, scope)
+	if err != nil {
+		return toolspkg.ToolResult{}, err
+	}
+	dismissed, err := n.automationManager().DismissSuggestion(
+		ctx,
+		readScope.ProfileID,
+		input.WorkspaceID,
+		input.SuggestionID,
+	)
 	if err != nil {
 		return toolspkg.ToolResult{}, nativeAutomationToolError(req.ToolID, err)
 	}

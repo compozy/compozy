@@ -112,8 +112,12 @@ func (m *Service) loadTaskTriageState(
 	return TriageState{}, err
 }
 
-func (m *Service) loadCancellationTree(ctx context.Context, taskID string) ([]Task, Task, error) {
-	tree, err := m.collectTaskTree(ctx, taskID)
+func (m *Service) loadCancellationTree(
+	ctx context.Context,
+	taskID string,
+	actor ActorContext,
+) ([]Task, Task, error) {
+	tree, err := m.collectTaskTree(ctx, taskID, actor)
 	if err != nil {
 		return nil, Task{}, err
 	}

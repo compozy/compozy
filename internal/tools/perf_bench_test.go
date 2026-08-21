@@ -21,11 +21,11 @@ var (
 		"read_only":true,
 		"concurrency_safe":true
 	}`)
-	benchmarkToolScope = resources.ResourceScope{Kind: resources.ResourceScopeKindGlobal}
+	benchmarkToolScope = resources.ResourceScope{Kind: resources.ResourceScopeKindUser}
 	benchmarkToolSpec  = Tool{
-		ID:           "ext__linear__search",
-		DisplayTitle: "Search",
-		Description:  "Search files",
+		ID:               "ext__linear__search",
+		ToolPresentation: NewToolPresentation("Search", "", ""),
+		Description:      "Search files",
 		Backend: BackendRef{
 			Kind:        BackendExtensionHost,
 			ExtensionID: "linear",

@@ -43,7 +43,7 @@ func (i *descriptorMetadataIndex) remember(workspaceID string, entries []*regist
 		presentation := descriptor.Presentation()
 		next[descriptor.ID] = toolmeta.DescriptorMetadata{
 			ID:           descriptor.ID.String(),
-			DisplayTitle: descriptor.DisplayTitle,
+			DisplayTitle: descriptor.Presentation().DisplayTitle,
 			FriendlyVerb: presentation.FriendlyVerb,
 			Preview:      presentation.Preview,
 		}

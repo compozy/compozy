@@ -20,6 +20,7 @@ import type {
   UpdateAutomationJobRequest,
   UpdateAutomationTriggerRequest,
 } from "../types";
+import type { ProfileScopeParams } from "@/systems/profiles";
 
 export class AutomationApiError extends Error {
   constructor(
@@ -40,12 +41,22 @@ function normalizeOptionalText(value?: string | null): string | undefined {
   return normalized === "" ? undefined : normalized;
 }
 
+function requireProfileName(value: string): string {
+  const profile = normalizeOptionalText(value);
+  if (!profile) {
+    throw new AutomationApiError("Automation profile is required", 400);
+  }
+  return profile;
+}
+
 function normalizeRunFilters(filters: AutomationRunHistoryFilter = {}): AutomationRunHistoryFilter {
   return {
     status: filters.status,
     since: normalizeOptionalText(filters.since),
     until: normalizeOptionalText(filters.until),
     limit: filters.limit,
+    profile: normalizeOptionalText(filters.profile),
+    all_profiles: filters.all_profiles,
   };
 }
 
@@ -64,6 +75,8 @@ export async function listAutomationJobs(
         cursor: normalizeOptionalText(filters.cursor),
         limit: filters.limit,
         loop: normalizeOptionalText(filters.loop),
+        profile: normalizeOptionalText(filters.profile),
+        all_profiles: filters.all_profiles,
       },
     },
     signal,
@@ -79,9 +92,13 @@ export async function listAutomationJobs(
   return requireResponseData(data, response, "Failed to fetch automation jobs");
 }
 
-export async function getAutomationJob(id: string, signal?: AbortSignal): Promise<AutomationJob> {
+export async function getAutomationJob(
+  id: string,
+  scope: ProfileScopeParams,
+  signal?: AbortSignal
+): Promise<AutomationJob> {
   const { data, error, response } = await apiClient.GET("/api/automation/jobs/{id}", {
-    params: { path: { id } },
+    params: { path: { id }, query: scope },
     signal,
   });
 
@@ -101,10 +118,13 @@ export async function getAutomationJob(id: string, signal?: AbortSignal): Promis
 
 export async function createAutomationJob(
   body: CreateAutomationJobRequest,
+  /** The profile that will own the job. Omitting it files into `default`. */
+  profile?: string,
   signal?: AbortSignal
 ): Promise<AutomationJob> {
   const { data, error, response } = await apiClient.POST("/api/automation/jobs", {
     body,
+    params: { query: { profile: normalizeOptionalText(profile) } },
     signal,
   });
 
@@ -121,10 +141,11 @@ export async function createAutomationJob(
 export async function updateAutomationJob(
   id: string,
   body: UpdateAutomationJobRequest,
+  profile: string,
   signal?: AbortSignal
 ): Promise<AutomationJob> {
   const { data, error, response } = await apiClient.PATCH("/api/automation/jobs/{id}", {
-    params: { path: { id } },
+    params: { path: { id }, query: { profile: requireProfileName(profile) } },
     body,
     signal,
   });
@@ -143,9 +164,13 @@ export async function updateAutomationJob(
   return requireResponseData(data, response, `Failed to update automation job "${id}"`).job;
 }
 
-export async function deleteAutomationJob(id: string, signal?: AbortSignal): Promise<void> {
+export async function deleteAutomationJob(
+  id: string,
+  profile: string,
+  signal?: AbortSignal
+): Promise<void> {
   const { error, response } = await apiClient.DELETE("/api/automation/jobs/{id}", {
-    params: { path: { id } },
+    params: { path: { id }, query: { profile: requireProfileName(profile) } },
     signal,
   });
 
@@ -163,10 +188,11 @@ export async function deleteAutomationJob(id: string, signal?: AbortSignal): Pro
 
 export async function triggerAutomationJob(
   id: string,
+  profile: string,
   signal?: AbortSignal
 ): Promise<AutomationRun> {
   const { data, error, response } = await apiClient.POST("/api/automation/jobs/{id}/trigger", {
-    params: { path: { id } },
+    params: { path: { id }, query: { profile: requireProfileName(profile) } },
     signal,
   });
 
@@ -228,6 +254,8 @@ export async function listAutomationTriggers(
         cursor: normalizeOptionalText(filters.cursor),
         limit: filters.limit,
         loop: normalizeOptionalText(filters.loop),
+        profile: normalizeOptionalText(filters.profile),
+        all_profiles: filters.all_profiles,
       },
     },
     signal,
@@ -245,10 +273,11 @@ export async function listAutomationTriggers(
 
 export async function getAutomationTrigger(
   id: string,
+  scope: ProfileScopeParams,
   signal?: AbortSignal
 ): Promise<AutomationTrigger> {
   const { data, error, response } = await apiClient.GET("/api/automation/triggers/{id}", {
-    params: { path: { id } },
+    params: { path: { id }, query: scope },
     signal,
   });
 
@@ -268,10 +297,13 @@ export async function getAutomationTrigger(
 
 export async function createAutomationTrigger(
   body: CreateAutomationTriggerRequest,
+  /** The profile that will own the trigger. Omitting it files into `default`. */
+  profile?: string,
   signal?: AbortSignal
 ): Promise<AutomationTrigger> {
   const { data, error, response } = await apiClient.POST("/api/automation/triggers", {
     body,
+    params: { query: { profile: normalizeOptionalText(profile) } },
     signal,
   });
 
@@ -288,10 +320,11 @@ export async function createAutomationTrigger(
 export async function updateAutomationTrigger(
   id: string,
   body: UpdateAutomationTriggerRequest,
+  profile: string,
   signal?: AbortSignal
 ): Promise<AutomationTrigger> {
   const { data, error, response } = await apiClient.PATCH("/api/automation/triggers/{id}", {
-    params: { path: { id } },
+    params: { path: { id }, query: { profile: requireProfileName(profile) } },
     body,
     signal,
   });
@@ -310,9 +343,13 @@ export async function updateAutomationTrigger(
   return requireResponseData(data, response, `Failed to update automation trigger "${id}"`).trigger;
 }
 
-export async function deleteAutomationTrigger(id: string, signal?: AbortSignal): Promise<void> {
+export async function deleteAutomationTrigger(
+  id: string,
+  profile: string,
+  signal?: AbortSignal
+): Promise<void> {
   const { error, response } = await apiClient.DELETE("/api/automation/triggers/{id}", {
-    params: { path: { id } },
+    params: { path: { id }, query: { profile: requireProfileName(profile) } },
     signal,
   });
 
@@ -373,6 +410,8 @@ export async function listAutomationRuns(
         since: normalizeOptionalText(filters.since),
         until: normalizeOptionalText(filters.until),
         limit: filters.limit,
+        profile: normalizeOptionalText(filters.profile),
+        all_profiles: filters.all_profiles,
       },
     },
     signal,

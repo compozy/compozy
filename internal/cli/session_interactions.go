@@ -36,7 +36,7 @@ func sessionInteractionsBundle(response SessionInteractionsRecord) outputBundle 
 		response,
 		response.Interactions,
 		"Pending Session Interactions",
-		[]string{"INTERACTION", "KIND", "REQUEST", cliStatusHeader, "TITLE"},
+		[]string{"INTERACTION", cliKindHeader, "REQUEST", cliStatusHeader, "TITLE"},
 		"interactions",
 		[]string{
 			"interaction_id", agentKernelKindKey, "provider_request_id", automationStatusKey, networkTitleKey,

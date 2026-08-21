@@ -9,6 +9,7 @@ import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { useTopbarSlot } from "@compozy/ui";
+import { scopedListingScopeFixture } from "@/systems/profiles/mocks";
 
 const { inventoryRefetch, useLoopRunsRouteMock } = vi.hoisted(() => ({
   inventoryRefetch: vi.fn(),
@@ -38,6 +39,7 @@ describe("LoopRunsLocation", () => {
     inventoryRefetch.mockReset();
     vi.mocked(useTopbarSlot).mockClear();
     useLoopRunsRouteMock.mockReturnValue({
+      profile: scopedListingScopeFixture,
       outcome: "all",
       runsQuery: { data: { runs: [] }, isLoading: false, error: null },
       setOriginFilter: vi.fn(),

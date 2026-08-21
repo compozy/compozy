@@ -1,0 +1,16 @@
+{
+    "title": "Profile",
+    "pages": [
+        "index",
+        "archive",
+        "create",
+        "current",
+        "delete",
+        "list",
+        "rename",
+        "unarchive",
+        "update",
+        "use",
+        "ops"
+    ]
+}

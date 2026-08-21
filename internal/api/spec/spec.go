@@ -34,24 +34,25 @@ const (
 	specAPIAutomationJobsIDPath                              = "/api/automation/jobs/{id}"
 	specAPIAutomationTriggersIDPath                          = "/api/automation/triggers/{id}"
 	specAPIExtensionsPath                                    = "/api/extensions"
+	specAPIExtensionsPreviewInstallPath                      = specAPIExtensionsPath + "/preview-install"
 	specAPIExtensionsCommandsPath                            = specAPIExtensionsPath + "/commands"
 	specAPIExtensionsNamePath                                = "/api/extensions/{name}"
 	specAPIExtensionsNameProvenancePath                      = specAPIExtensionsNamePath + "/provenance"
-	specAPIExtensionsNameEnablePath                          = specAPIExtensionsNamePath + "/enable"
-	specAPIExtensionsNameDisablePath                         = specAPIExtensionsNamePath + "/disable"
 	specAPIExtensionsDevPath                                 = specAPIExtensionsPath + "/dev"
 	specAPIExtensionsNameReloadPath                          = specAPIExtensionsNamePath + "/reload"
 	specAPIExtensionsNameLogsPath                            = specAPIExtensionsNamePath + "/logs"
 	specAPIExtensionsNameInventoryPath                       = specAPIExtensionsNamePath + "/inventory"
-	specAPIExtensionsNamePreviewPath                         = specAPIExtensionsNamePath + "/preview"
 	specAPIExtensionsNameSecretsPath                         = specAPIExtensionsNamePath + "/secrets"
 	specAPIExtensionsNameSecretPath                          = specAPIExtensionsNameSecretsPath + "/{env_name}"
+	specAPIExtensionsNameEnablementPath                      = specAPIExtensionsNamePath + "/enablement"
 	specAPIMemoryFilenamePath                                = "/api/memory/{filename}"
 	specAPINotificationsPresetsPath                          = "/api/notifications/presets"
 	specAPINotificationsPresetsNamePath                      = specAPINotificationsPresetsPath + "/{name}"
+	specAPINotificationsPresetsNameEnablementPath            = specAPINotificationsPresetsNamePath + "/enablement"
 	specAPIResourcesKindIDPath                               = "/api/resources/{kind}/{id}"
 	specAPISettingsAutomationPath                            = "/api/settings/automation"
 	specAPISettingsGeneralPath                               = "/api/settings/general"
+	specAPISettingsPersonaPath                               = "/api/settings/persona"
 	specAPISettingsHooksExtensionsPath                       = "/api/settings/hooks-extensions"
 	specAPISettingsHooksNamePath                             = "/api/settings/hooks/{name}"
 	specAPISettingsMCPServersNamePath                        = "/api/settings/mcp-servers/{name}"
@@ -171,6 +172,8 @@ const (
 	specNotificationsKey                                     = "notifications"
 	specObserveKey                                           = "observe"
 	specProvidersKey                                         = "providers"
+	specProfileNotFoundDescription                           = "Profile not found"
+	specProfilesKey                                          = "profiles"
 	specResourcesKey                                         = "resources"
 	specRolesKey                                             = "roles"
 	specSessionsKey                                          = "sessions"
@@ -289,6 +292,7 @@ func Document() (*openapi3.T, error) {
 			{Name: specObserveKey},
 			{Name: specOpenAIKey},
 			{Name: specProvidersKey},
+			{Name: specProfilesKey},
 			{Name: specResourcesKey},
 			{Name: specRolesKey},
 			{Name: specSessionsKey},

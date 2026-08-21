@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/compozy/compozy/internal/diagnostics"
+	memcontract "github.com/compozy/compozy/internal/memory/contract"
 	memoryextractor "github.com/compozy/compozy/internal/memory/extractor"
 	storepkg "github.com/compozy/compozy/internal/store"
 )
@@ -34,14 +35,19 @@ func (s *Store) RecordExtractorEvent(ctx context.Context, event memoryextractor.
 	if err != nil {
 		return err
 	}
+	eventScope := memcontract.ScopeProfile
+	if strings.TrimSpace(normalized.WorkspaceID) != "" {
+		eventScope = memcontract.ScopeWorkspace
+	}
 	return s.catalog.withCatalogWriteTx(ctx, "extractor event insert", func(tx *storepkg.WriteTx) error {
 		if _, err := tx.ExecContext(
 			ctx,
 			`INSERT INTO memory_events (
-				op, scope, agent_name, agent_tier, workspace_id, session_id,
+				op, profile_id, scope, agent_name, agent_tier, workspace_id, session_id,
 				actor_kind, decision_id, target_id, metadata, ts_ms
-			) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+			) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
 			normalized.Op,
+			s.profileIDForScope(eventScope),
 			nil,
 			nullStringForEmpty(strings.TrimSpace(normalized.AgentID)),
 			nil,

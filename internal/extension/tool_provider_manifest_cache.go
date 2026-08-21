@@ -9,6 +9,7 @@ import (
 	"slices"
 	"strings"
 
+	"github.com/compozy/compozy/internal/store"
 	toolspkg "github.com/compozy/compozy/internal/tools"
 )
 
@@ -94,16 +95,24 @@ func (p *ExtensionToolProvider) manifestToolsWithFingerprint(
 	}
 
 	workspaceID := strings.TrimSpace(scope.WorkspaceID)
+	profileID := strings.TrimSpace(scope.ProfileID)
+	if profileID == "" {
+		profileID = store.DefaultProfileID
+	}
 	infos, err := p.manifestToolInfos(workspaceID)
 	if err != nil {
 		return nil, "", err
 	}
-	sources := p.manifestToolSources(workspaceID, infos)
-	p.reconcileManifestSnapshots(workspaceID, sources)
+	sources, err := p.manifestToolSources(profileID, workspaceID, infos)
+	if err != nil {
+		return nil, "", err
+	}
+	scopeID := profileID + "\x00" + workspaceID
+	p.reconcileManifestSnapshots(scopeID, sources)
 	if err := extensionProviderContextErr(ctx); err != nil {
 		return nil, "", err
 	}
-	fingerprint := extensionToolManifestFingerprint(workspaceID, sources)
+	fingerprint := extensionToolManifestFingerprint(profileID, workspaceID, sources)
 	if cached, ok := p.cachedManifestTools(fingerprint); ok {
 		return cached, fingerprint, nil
 	}
@@ -147,15 +156,26 @@ func (p *ExtensionToolProvider) manifestToolInfos(workspaceID string) ([]Extensi
 }
 
 func (p *ExtensionToolProvider) manifestToolSources(
+	profileID string,
 	workspaceID string,
 	infos []ExtensionInfo,
-) []extensionManifestToolSource {
+) ([]extensionManifestToolSource, error) {
 	sources := make([]extensionManifestToolSource, 0, len(infos))
 	for i := range infos {
 		info := infos[i]
 		if normalizeExtensionFormat(info.Format) == FormatAgentPlugin {
 			continue
 		}
+		enabled, err := p.registry.IsEnabledForProfile(info.Name, profileID)
+		if err != nil {
+			return nil, fmt.Errorf(
+				"extension: resolve tool enablement for %q and profile %q: %w",
+				info.Name,
+				profileID,
+				err,
+			)
+		}
+		info.Enabled = enabled
 		source := extensionManifestToolSource{info: info}
 		if !info.Enabled {
 			source.snapshot.fingerprint = extensionManifestDisabledFingerprint
@@ -163,7 +183,7 @@ func (p *ExtensionToolProvider) manifestToolSources(
 			continue
 		}
 
-		source.key = GlobalInstanceKey(info.Name)
+		source.key = ProfileInstanceKey(info.Name, profileID, "")
 		if workspaceID != "" {
 			if link, err := p.registry.GetDevLink(info.Name, workspaceID); err == nil &&
 				strings.TrimSpace(link.BundleGeneration) == strings.TrimSpace(info.Checksum) {
@@ -173,7 +193,7 @@ func (p *ExtensionToolProvider) manifestToolSources(
 		source.snapshot = p.manifestSnapshot(info.ManifestPath)
 		sources = append(sources, source)
 	}
-	return sources
+	return sources, nil
 }
 
 func (p *ExtensionToolProvider) manifestSnapshot(path string) extensionManifestSnapshot {
@@ -356,10 +376,13 @@ func (p *ExtensionToolProvider) reconcileManifestSnapshots(
 }
 
 func extensionToolManifestFingerprint(
+	profileID string,
 	workspaceID string,
 	sources []extensionManifestToolSource,
 ) string {
 	var builder strings.Builder
+	builder.WriteString(strings.TrimSpace(profileID))
+	builder.WriteByte(0)
 	builder.WriteString(strings.TrimSpace(workspaceID))
 	builder.WriteByte(0)
 	for i := range sources {

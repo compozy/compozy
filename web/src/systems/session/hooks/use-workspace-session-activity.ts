@@ -79,7 +79,7 @@ export function useWorkspaceSessionActivity(
       queryFn: ({ signal }: { signal: AbortSignal }) =>
         fetchSessions(
           {
-            workspace,
+            workspace_id: workspace,
             state: "active",
             type: "user",
             sort: "last_activity",

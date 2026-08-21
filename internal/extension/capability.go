@@ -211,7 +211,7 @@ type EffectiveGrant struct {
 // Register records one extension's effective grants by applying the source-tier
 // ceiling before intersecting it with the manifest requests.
 func (c *CapabilityChecker) Register(extName string, source ExtensionSource, manifest *Manifest) {
-	if _, err := c.RegisterForSession(extName, source, manifest, resources.ResourceScopeKindGlobal); err != nil {
+	if _, err := c.RegisterForSession(extName, source, manifest, resources.ResourceScopeKindUser); err != nil {
 		return
 	}
 }

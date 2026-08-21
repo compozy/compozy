@@ -277,7 +277,7 @@ func (p *Provider) backendForSnapshot(
 ) (Backend, memcontract.Scope, error) {
 	scope := req.Scope.Normalize()
 	if scope == "" {
-		scope = memcontract.ScopeGlobal
+		scope = memcontract.ScopeProfile
 	}
 	if err := scope.Validate(); err != nil {
 		return nil, "", fmt.Errorf("memory provider local: snapshot scope: %w", err)

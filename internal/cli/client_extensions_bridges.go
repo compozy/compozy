@@ -111,6 +111,19 @@ func (c *daemonClient) ListNotificationPresets(
 	return response, nil
 }
 
+func (c *daemonClient) SetNotificationPresetEnablement(
+	ctx context.Context,
+	name string,
+	request contract.SetNotificationPresetEnablementRequest,
+) (contract.NotificationPresetEnablementPayload, error) {
+	var response contract.NotificationPresetEnablementPayload
+	path := "/api/notifications/presets/" + url.PathEscape(strings.TrimSpace(name)) + "/enablement"
+	if err := c.doJSON(ctx, http.MethodPut, path, nil, request, &response); err != nil {
+		return contract.NotificationPresetEnablementPayload{}, err
+	}
+	return response, nil
+}
+
 func (c *daemonClient) GetNotificationPreset(
 	ctx context.Context,
 	name string,

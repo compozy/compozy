@@ -49,15 +49,29 @@ const (
 	cliLifecycleValue        = "Lifecycle"
 	cliNextActionKey         = "next_action"
 	cliNextActionValue       = "Next Action"
+	cliNamedCreateUse        = "create <name>"
+	cliNamedDeleteUse        = "delete <name>"
+	cliNamedUpdateUse        = "update <name>"
 	cliPIDKey                = "pid"
 	cliPIDValue              = "PID"
 	cliOutputTokensKey       = "output_tokens"
 	cliOutputTokensValue     = "Output Tokens"
+	cliProfileHeader         = "PROFILE"
 	cliSeverityValue         = "Severity"
 	cliRunsKey               = "runs"
 	cliStatusHeader          = "STATUS"
 	cliTurnsValue            = "Turns"
 	cliUptimeValue           = "Uptime"
+	completionCommandKey     = "completion"
+	extensionSecretsKey      = "secrets"
+	networkWorkKey           = "work"
+	profileCurrentKey        = "current"
+	profileNameOutputKey     = "profile_name"
+	profileOpsKey            = "ops"
+	profileRepoNoneValue     = "none"
+	profileSecretEnvDenied   = "profile_secret_env_forbidden"
+	providerDefaultSource    = "user (default)"
+	shellBashKey             = "bash"
 )
 
 type outputBundle struct {
@@ -166,6 +180,9 @@ func writeCommandOutput(cmd *cobra.Command, bundle outputBundle) error {
 	case OutputJSONL:
 		if bundle.jsonl == nil {
 			return errors.New("cli: jsonl formatter is required")
+		}
+		if err := writeAggregateReadResolutionFrame(cmd); err != nil {
+			return err
 		}
 		return bundle.jsonl(cmd)
 	case OutputToon:

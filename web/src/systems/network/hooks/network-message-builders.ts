@@ -28,10 +28,19 @@ export function buildSendRequest(
   return { ...base, direct_id: input.directId };
 }
 
+/**
+ * Builds the local row shown before the daemon accepts the send.
+ *
+ * `owner` is the profile the message will be filed under once accepted. It is
+ * passed in rather than derived here so the placeholder names the same profile
+ * the destination chip promised. Until the profile list resolves the id stays
+ * empty — the row is replaced by the labeled one on reconciliation either way.
+ */
 export function buildOptimisticMessage(
   input: SendNetworkMessageInput,
   clientMessageId: string,
-  timestamp: string
+  timestamp: string,
+  owner: { id: string; name: string }
 ): OptimisticConversationMessage {
   const base: OptimisticConversationMessage = {
     body: { text: input.text },
@@ -42,6 +51,8 @@ export function buildOptimisticMessage(
     local: true,
     message_id: clientMessageId,
     optimistic: "pending",
+    profile_id: owner.id,
+    profile_name: owner.name,
     peer_from: input.peerFrom,
     preview_text: input.text,
     session_id: input.sessionId,

@@ -40,7 +40,9 @@ var (
 
 // ListQuery describes one public session catalog page.
 type ListQuery struct {
+	ReadScope       store.ReadScope
 	WorkspaceID     string
+	AllWorkspaces   bool
 	WorktreeID      string
 	State           string
 	SessionType     Type
@@ -67,7 +69,10 @@ type ListPage struct {
 }
 
 type sessionListFingerprint struct {
+	ProfileID       string                     `json:"profile_id"`
+	AllProfiles     bool                       `json:"all_profiles"`
 	WorkspaceID     string                     `json:"workspace_id"`
+	AllWorkspaces   bool                       `json:"all_workspaces"`
 	WorktreeID      string                     `json:"worktree_id"`
 	State           string                     `json:"state"`
 	SessionType     Type                       `json:"type"`
@@ -110,24 +115,7 @@ func (m *Manager) ListPage(ctx context.Context, query ListQuery) (ListPage, erro
 
 	activeByID, activeIDs, activeMatches := m.activeSessionCatalogRows(normalized)
 
-	durable, err := pager.PageSessions(ctx, store.SessionCatalogPageQuery{
-		WorkspaceID:         normalized.WorkspaceID,
-		WorktreeID:          normalized.WorktreeID,
-		State:               normalized.State,
-		SessionType:         string(normalized.SessionType),
-		AgentName:           normalized.AgentName,
-		ParentSessionID:     normalized.ParentSessionID,
-		RootSessionID:       normalized.RootSessionID,
-		Search:              normalized.Search,
-		Resumable:           normalized.Resumable,
-		Archive:             normalized.Archive,
-		Sort:                normalized.Sort,
-		Limit:               normalized.Limit + 1,
-		After:               after,
-		ExcludeIDs:          activeIDs,
-		ExcludeSessionTypes: []string{string(SessionTypeDream)},
-		ExcludeSpawnRoles:   []string{SpawnRoleMemoryExtractor, SpawnRoleAutoTitle},
-	})
+	durable, err := pager.PageSessions(ctx, sessionCatalogPageQuery(normalized, after, activeIDs))
 	if err != nil {
 		return ListPage{}, fmt.Errorf("session: page durable catalog: %w", err)
 	}
@@ -167,6 +155,32 @@ func (m *Manager) ListPage(ctx context.Context, query ListQuery) (ListPage, erro
 	return page, nil
 }
 
+func sessionCatalogPageQuery(
+	normalized ListQuery,
+	after *store.SessionCatalogPosition,
+	activeIDs []string,
+) store.SessionCatalogPageQuery {
+	return store.SessionCatalogPageQuery{
+		ReadScope:           normalized.ReadScope,
+		WorkspaceID:         normalized.WorkspaceID,
+		WorktreeID:          normalized.WorktreeID,
+		State:               normalized.State,
+		SessionType:         string(normalized.SessionType),
+		AgentName:           normalized.AgentName,
+		ParentSessionID:     normalized.ParentSessionID,
+		RootSessionID:       normalized.RootSessionID,
+		Search:              normalized.Search,
+		Resumable:           normalized.Resumable,
+		Archive:             normalized.Archive,
+		Sort:                normalized.Sort,
+		Limit:               normalized.Limit + 1,
+		After:               after,
+		ExcludeIDs:          activeIDs,
+		ExcludeSessionTypes: []string{string(SessionTypeDream)},
+		ExcludeSpawnRoles:   []string{SpawnRoleMemoryExtractor, SpawnRoleAutoTitle},
+	}
+}
+
 func (m *Manager) activeSessionCatalogRows(
 	query ListQuery,
 ) (map[string]*Info, []string, []store.SessionInfo) {
@@ -190,7 +204,17 @@ func (m *Manager) activeSessionCatalogRows(
 }
 
 func normalizeListQuery(query ListQuery) (ListQuery, error) {
+	query.ReadScope.ProfileID = strings.TrimSpace(query.ReadScope.ProfileID)
+	if err := query.ReadScope.Validate(); err != nil {
+		return ListQuery{}, fmt.Errorf("%w: %w", ErrListQueryInvalid, err)
+	}
 	query.WorkspaceID = strings.TrimSpace(query.WorkspaceID)
+	if (query.WorkspaceID != "") == query.AllWorkspaces {
+		return ListQuery{}, fmt.Errorf(
+			"%w: choose exactly one workspace or all workspaces",
+			ErrListQueryInvalid,
+		)
+	}
 	query.WorktreeID = strings.TrimSpace(query.WorktreeID)
 	query.State = strings.TrimSpace(query.State)
 	query.SessionType = Type(strings.TrimSpace(string(query.SessionType)))
@@ -275,7 +299,8 @@ func sessionMatchesIdentityFilters(info *Info, query ListQuery) bool {
 	if !isPublicSessionCatalogInfo(info) {
 		return false
 	}
-	return (query.WorkspaceID == "" || strings.TrimSpace(info.WorkspaceID) == query.WorkspaceID) &&
+	return query.ReadScope.Matches(info.ProfileID) &&
+		(query.WorkspaceID == "" || strings.TrimSpace(info.WorkspaceID) == query.WorkspaceID) &&
 		(query.WorktreeID == "" || strings.TrimSpace(info.WorktreeID) == query.WorktreeID) &&
 		(query.State == "" || strings.TrimSpace(string(info.State)) == query.State) &&
 		(query.SessionType == "" || normalizeSessionType(info.Type) == query.SessionType) &&
@@ -318,7 +343,10 @@ func sessionMatchesArchiveFilter(info *Info, filter store.SessionArchiveFilter) 
 
 func sessionListFingerprintForQuery(query ListQuery) (string, error) {
 	fingerprint, err := listcursor.Fingerprint(sessionListFingerprint{
+		ProfileID:       query.ReadScope.ProfileID,
+		AllProfiles:     query.ReadScope.AllProfiles,
 		WorkspaceID:     query.WorkspaceID,
+		AllWorkspaces:   query.AllWorkspaces,
 		WorktreeID:      query.WorktreeID,
 		State:           query.State,
 		SessionType:     query.SessionType,
@@ -394,6 +422,7 @@ func sessionInfoFromCatalog(info store.SessionInfo) *Info {
 	attention := info.AttentionSnapshot()
 	return &Info{
 		ID:                     strings.TrimSpace(info.ID),
+		ProfileID:              strings.TrimSpace(info.ProfileID),
 		Name:                   strings.TrimSpace(info.Name),
 		AgentName:              strings.TrimSpace(info.AgentName),
 		Provider:               strings.TrimSpace(info.Provider),

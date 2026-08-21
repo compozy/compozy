@@ -45,8 +45,8 @@ type hookRuntime interface {
 	) (hookspkg.SessionRuntimeRecoveryExhaustedPayload, error)
 	DispatchSandboxPrepare(
 		context.Context,
-		hookspkg.SandboxPreparePayload,
-	) (hookspkg.SandboxPreparePayload, error)
+		*hookspkg.SandboxPreparePayload,
+	) (*hookspkg.SandboxPreparePayload, error)
 	DispatchSandboxReady(
 		context.Context,
 		hookspkg.SandboxReadyPayload,

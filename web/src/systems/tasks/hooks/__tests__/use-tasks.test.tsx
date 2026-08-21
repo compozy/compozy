@@ -89,8 +89,10 @@ describe("tasks read hooks", () => {
 
     expect(result.current.total).toBe(3);
 
+    // Every task read carries its profile scope; an omitted selector resolves
+    // `default` at the boundary and would answer for the wrong profile.
     expect(listTasks).toHaveBeenCalledWith(
-      { scope: "workspace", workspace: "ws_alpha" },
+      expect.objectContaining({ scope: "workspace", workspace: "ws_alpha", profile: "default" }),
       expect.any(AbortSignal)
     );
   });
@@ -117,7 +119,7 @@ describe("tasks read hooks", () => {
     expect(result.current.total).toBe(2);
     expect(listTasks).toHaveBeenNthCalledWith(
       2,
-      { cursor: "next", limit: 1 },
+      expect.objectContaining({ cursor: "next", limit: 1, profile: "default" }),
       expect.any(AbortSignal)
     );
   });
@@ -207,8 +209,14 @@ describe("tasks read hooks", () => {
       expect(inbox.result.current.data?.page.total).toBe(0);
     });
 
-    expect(getTaskDashboard).toHaveBeenCalledWith({ scope: "workspace" }, expect.any(AbortSignal));
-    expect(getTaskInbox).toHaveBeenCalledWith({ lane: "approvals" }, expect.any(AbortSignal));
+    expect(getTaskDashboard).toHaveBeenCalledWith(
+      expect.objectContaining({ scope: "workspace", profile: "default" }),
+      expect.any(AbortSignal)
+    );
+    expect(getTaskInbox).toHaveBeenCalledWith(
+      expect.objectContaining({ lane: "approvals", profile: "default" }),
+      expect.any(AbortSignal)
+    );
   });
 
   it("refetches the canonical inbox when an existing query becomes active again", async () => {
@@ -307,7 +315,7 @@ describe("tasks read hooks", () => {
     expect(items.map(item => item.task.id)).toEqual(["task_001", "task_002"]);
     expect(getTaskInbox).toHaveBeenNthCalledWith(
       2,
-      { cursor: "inbox:1", limit: 1 },
+      expect.objectContaining({ cursor: "inbox:1", limit: 1, profile: "default" }),
       expect.any(AbortSignal)
     );
   });

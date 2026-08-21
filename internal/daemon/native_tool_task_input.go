@@ -43,6 +43,7 @@ func (i taskCreateInput) spec(scope toolspkg.Scope) taskpkg.CreateTask {
 	}
 	return taskpkg.CreateTask{
 		ID:                   strings.TrimSpace(i.ID),
+		ProfileID:            strings.TrimSpace(scope.ProfileID),
 		Identifier:           strings.TrimSpace(i.Identifier),
 		Scope:                taskScope,
 		WorkspaceID:          workspaceID,

@@ -19,6 +19,7 @@ func TaskRunPayloadFromRun(run *taskpkg.Run) contract.TaskRunPayload {
 	}
 	return contract.TaskRunPayload{
 		ID:                           run.ID,
+		ProfileID:                    run.ProfileID,
 		TaskID:                       run.TaskID,
 		Status:                       run.Status,
 		Attempt:                      int(run.Attempt),
@@ -44,6 +45,6 @@ func TaskRunPayloadFromRun(run *taskpkg.Run) contract.TaskRunPayload {
 		EndedAt:                      optionalTime(run.EndedAt),
 		Error:                        taskpkg.RedactClaimTokens(run.Error),
 		Metadata:                     taskpkg.RedactClaimTokenJSON(run.Metadata),
-		Result:                       taskpkg.RedactClaimTokenJSON(run.Result),
+		Result:                       taskpkg.RedactClaimTokenJSON(run.ResultValue()),
 	}
 }

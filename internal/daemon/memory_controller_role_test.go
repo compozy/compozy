@@ -119,7 +119,7 @@ func TestMemoryControllerTiebreakerUsesTheLiveRoleCallContract(t *testing.T) {
 			globalCWD: t.TempDir(),
 		}
 		result, err := tiebreaker.BreakTie(t.Context(), controller.TiebreakerRequest{
-			Candidate: memcontract.Candidate{Scope: memcontract.ScopeGlobal, Content: "candidate"},
+			Candidate: memcontract.Candidate{Scope: memcontract.ScopeProfile, Content: "candidate"},
 			Targets: []controller.Target{
 				{ID: "target-a", Content: "a"},
 				{ID: "target-b", Content: "b"},

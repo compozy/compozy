@@ -11,6 +11,7 @@ import type { CreateAutomationJobRequest, CreateAutomationTriggerRequest } from 
 import { AutomationJobForm } from "./automation-job-form";
 import { AutomationTriggerForm } from "./automation-trigger-form";
 import type { AgentPayload } from "@/systems/agent";
+import { useAggregateDestination } from "@/systems/profiles";
 
 type AutomationDialogEditorState =
   | {
@@ -95,6 +96,8 @@ export function AutomationEditorDialog({
   workspaces,
 }: AutomationEditorDialogProps) {
   const isEditorOpen = editor !== null;
+  const aggregateDestination = useAggregateDestination();
+  const profileDestination = editor?.mode === "create" ? aggregateDestination : null;
 
   return (
     <Dialog
@@ -128,6 +131,7 @@ export function AutomationEditorDialog({
               onCancel={editor.onCancel}
               onChange={editor.onChange}
               onSubmit={editor.onSubmit}
+              profileDestination={profileDestination}
               workspaces={workspaces}
             />
           ) : (
@@ -142,6 +146,7 @@ export function AutomationEditorDialog({
               onCancel={editor.onCancel}
               onChange={editor.onChange}
               onSubmit={editor.onSubmit}
+              profileDestination={profileDestination}
               submitError={editor.submitError}
               workspaces={workspaces}
             />

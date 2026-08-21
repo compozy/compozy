@@ -49,6 +49,7 @@ func (d *manifestDocument) toManifest() (Manifest, error) {
 		Permissions:          normalizePermissionsConfig(d.Permissions),
 		Subprocess:           normalizeSubprocessConfig(d.Subprocess),
 		Bridge:               normalizeBridgeConfig(d.Bridge),
+		Profiles:             normalizeManifestProfiles(d.Profiles),
 	}
 	return manifest, nil
 }
@@ -120,11 +121,11 @@ func (m *Manifest) MissingEnv(getenv func(string) string) []string {
 
 func normalizeResourcesConfig(cfg ResourcesConfig) ResourcesConfig {
 	return ResourcesConfig{
-		Skills:        normalizeStrings(cfg.Skills),
-		Loops:         normalizeStrings(cfg.Loops),
-		Agents:        normalizeStrings(cfg.Agents),
-		Automation:    normalizeStrings(cfg.Automation),
-		Layouts:       normalizeStrings(cfg.Layouts),
+		Skills:        normalizeManifestResourcePaths(cfg.Skills),
+		Loops:         normalizeManifestResourcePaths(cfg.Loops),
+		Agents:        normalizeManifestResourcePaths(cfg.Agents),
+		Automation:    normalizeManifestResourcePaths(cfg.Automation),
+		Layouts:       normalizeManifestResourcePaths(cfg.Layouts),
 		Hooks:         normalizeHooks(cfg.Hooks),
 		Tools:         normalizeTools(cfg.Tools),
 		CommandGroups: normalizeCommandGroups(cfg.CommandGroups),
@@ -132,6 +133,52 @@ func normalizeResourcesConfig(cfg ResourcesConfig) ResourcesConfig {
 		MCPServers:    normalizeMCPServers(cfg.MCPServers),
 		Publish:       normalizeResourceGrantRequest(cfg.Publish),
 	}
+}
+
+func normalizeManifestResourcePaths(values []ManifestResourcePath) []ManifestResourcePath {
+	result := make([]ManifestResourcePath, 0, len(values))
+	for _, value := range values {
+		path := strings.TrimSpace(value.Path)
+		if path == "" {
+			continue
+		}
+		result = append(result, ManifestResourcePath{
+			Path: path, Profile: strings.TrimSpace(value.Profile),
+		})
+	}
+	if len(result) == 0 {
+		return nil
+	}
+	return result
+}
+
+func normalizeManifestProfiles(values []ManifestProfile) []ManifestProfile {
+	result := make([]ManifestProfile, 0, len(values))
+	for _, value := range values {
+		profile := ManifestProfile{
+			Name: strings.TrimSpace(value.Name), Color: strings.ToLower(strings.TrimSpace(value.Color)),
+			Icon: strings.TrimSpace(value.Icon), Emoji: strings.TrimSpace(value.Emoji),
+			Defaults: ManifestProfileDefaults{
+				Agent:    strings.TrimSpace(value.Defaults.Agent),
+				Provider: strings.TrimSpace(value.Defaults.Provider),
+				Sandbox:  strings.TrimSpace(value.Defaults.Sandbox),
+			},
+			Credentials: make([]ManifestProfileCredential, 0, len(value.Credentials)),
+		}
+		for _, credential := range value.Credentials {
+			profile.Credentials = append(profile.Credentials, ManifestProfileCredential{
+				Provider: strings.TrimSpace(credential.Provider), Slot: strings.TrimSpace(credential.Slot),
+			})
+		}
+		if len(profile.Credentials) == 0 {
+			profile.Credentials = nil
+		}
+		result = append(result, profile)
+	}
+	if len(result) == 0 {
+		return nil
+	}
+	return result
 }
 
 func normalizeResourceGrantRequest(cfg ResourceGrantRequest) ResourceGrantRequest {

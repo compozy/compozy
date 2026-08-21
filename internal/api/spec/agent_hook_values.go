@@ -62,11 +62,11 @@ func hookOutcomeValues() []string {
 
 func hookSkillSourceValues() []string {
 	return []string{
-		string(hooks.HookSkillSourceBundled),
-		string(hooks.HookSkillSourceMarketplace),
-		string(hooks.HookSkillSourceUser),
-		string(hooks.HookSkillSourceAdditional),
-		string(hooks.HookSkillSourceWorkspace),
+		hooks.HookSkillSourceBundled.String(),
+		hooks.HookSkillSourceMarketplace.String(),
+		hooks.HookSkillSourceUser.String(),
+		hooks.HookSkillSourceAdditional.String(),
+		hooks.HookSkillSourceWorkspace.String(),
 	}
 }
 

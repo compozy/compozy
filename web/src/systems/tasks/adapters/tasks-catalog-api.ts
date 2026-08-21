@@ -22,6 +22,7 @@ import type {
   UpdateTaskRequest,
 } from "../types";
 import { TasksApiError } from "./tasks-api-errors";
+import type { ProfileScopeParams } from "@/systems/profiles";
 
 export async function listTasks(
   filters: TaskListFilter = {},
@@ -42,9 +43,13 @@ export async function listTasks(
   return requireResponseData(data, response, "Failed to fetch tasks");
 }
 
-export async function getTask(id: string, signal?: AbortSignal): Promise<TaskDetailView> {
+export async function getTask(
+  id: string,
+  scope: ProfileScopeParams,
+  signal?: AbortSignal
+): Promise<TaskDetailView> {
   const { data, error, response } = await apiClient.GET("/api/tasks/{id}", {
-    params: { path: { id } },
+    params: { path: { id }, query: scope },
     signal,
   });
 
@@ -99,9 +104,15 @@ export async function deleteTask(id: string, signal?: AbortSignal): Promise<void
 
 export async function createTask(
   body: CreateTaskRequest,
+  /** The profile that will own the task. Omitting it files into `default`. */
+  profile?: string,
   signal?: AbortSignal
 ): Promise<TaskRecord> {
-  const { data, error, response } = await apiClient.POST("/api/tasks", { body, signal });
+  const { data, error, response } = await apiClient.POST("/api/tasks", {
+    body,
+    params: { query: profile ? { profile } : {} },
+    signal,
+  });
   if (apiRequestFailed(response, error)) {
     throw new TasksApiError(
       defaultApiErrorMessage("Failed to create task", response, error),

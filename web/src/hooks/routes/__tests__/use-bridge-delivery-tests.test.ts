@@ -4,8 +4,10 @@ import { createElement, type ReactNode } from "react";
 import { describe, expect, it, vi } from "vitest";
 
 const bridgeHookMocks = vi.hoisted(() => ({
+  registerBridgeWebhook: vi.fn(),
   sendBridgeTest: vi.fn(),
   testBridgeDelivery: vi.fn(),
+  verifyBridge: vi.fn(),
 }));
 
 vi.mock("sonner", () => ({ toast: { error: vi.fn(), success: vi.fn() } }));
@@ -14,14 +16,23 @@ vi.mock("@/systems/bridges", async importOriginal => {
   const actual = await importOriginal<typeof import("@/systems/bridges")>();
   return {
     ...actual,
+    useRegisterBridgeWebhook: () => ({ mutateAsync: bridgeHookMocks.registerBridgeWebhook }),
     useSendBridgeTest: () => ({ mutateAsync: bridgeHookMocks.sendBridgeTest }),
     useTestBridgeDelivery: () => ({ mutateAsync: bridgeHookMocks.testBridgeDelivery }),
+    useVerifyBridge: () => ({ mutateAsync: bridgeHookMocks.verifyBridge }),
   };
 });
 
-import type { BridgeSummary, TestBridgeDeliveryResponse } from "@/systems/bridges";
+import type {
+  BridgeSummary,
+  BridgeWebhookRegistrationResponse,
+  SendBridgeTestResponse,
+  TestBridgeDeliveryResponse,
+} from "@/systems/bridges";
+import { bridgeVerifyFixture, sendBridgeTestFixture } from "@/systems/bridges/mocks";
 
 import { useBridgeDeliveryTests } from "../use-bridge-delivery-tests";
+import { useBridgeSetupFlow } from "../use-bridge-setup-flow";
 
 const bridge = {
   created_at: "2026-07-25T12:00:00Z",
@@ -39,6 +50,8 @@ const bridge = {
   status: "ready",
   updated_at: "2026-07-25T12:00:00Z",
   workspace_id: "workspace-alpha",
+  profile_id: "00000000000000000000000000",
+  profile_name: "default",
 } satisfies BridgeSummary;
 
 function createQueryClientWrapper() {
@@ -75,7 +88,79 @@ describe("use bridge delivery tests", () => {
           target: expect.objectContaining({ bridge_instance_id: nextBridge.id }),
         }),
         id: nextBridge.id,
+        profile: nextBridge.profile_name,
       });
     });
+  });
+
+  it("Should send a real test through the rendered bridge owner", async () => {
+    const ownedBridge = { ...bridge, profile_name: "marketing" };
+    bridgeHookMocks.sendBridgeTest.mockReset();
+    bridgeHookMocks.sendBridgeTest.mockResolvedValue({
+      ...sendBridgeTestFixture,
+      bridge_instance_id: ownedBridge.id,
+    } satisfies SendBridgeTestResponse);
+
+    const { result } = renderHook(() => useBridgeDeliveryTests(ownedBridge), {
+      wrapper: createQueryClientWrapper(),
+    });
+
+    act(() => result.current.resetDraft());
+    act(() =>
+      result.current.panelProps.onDraftChange({
+        ...result.current.panelProps.draft,
+        message: "Profile-owned delivery",
+      })
+    );
+    act(() => result.current.panelProps.onSendTest());
+
+    await waitFor(() => {
+      expect(bridgeHookMocks.sendBridgeTest).toHaveBeenCalledWith({
+        data: expect.objectContaining({ message: "Profile-owned delivery" }),
+        id: ownedBridge.id,
+        profile: ownedBridge.profile_name,
+      });
+    });
+  });
+
+  it("Should register and verify setup through the rendered bridge owner", async () => {
+    const ownedBridge = { ...bridge, profile_name: "marketing" };
+    bridgeHookMocks.registerBridgeWebhook.mockReset();
+    bridgeHookMocks.verifyBridge.mockReset();
+    bridgeHookMocks.registerBridgeWebhook.mockResolvedValue({
+      bridge_instance_id: ownedBridge.id,
+      remediation: "",
+      status: "pass",
+    } satisfies BridgeWebhookRegistrationResponse);
+    bridgeHookMocks.verifyBridge.mockResolvedValue({
+      ...bridgeVerifyFixture,
+      bridge_instance_id: ownedBridge.id,
+    });
+
+    const { result } = renderHook(
+      () =>
+        useBridgeSetupFlow({
+          bindings: [],
+          bridge: ownedBridge,
+          health: undefined,
+          provider: undefined,
+        }),
+      { wrapper: createQueryClientWrapper() }
+    );
+
+    act(() => result.current.registerWebhook());
+    await waitFor(() =>
+      expect(bridgeHookMocks.registerBridgeWebhook).toHaveBeenCalledWith({
+        id: ownedBridge.id,
+        profile: ownedBridge.profile_name,
+      })
+    );
+    act(() => result.current.verify());
+    await waitFor(() =>
+      expect(bridgeHookMocks.verifyBridge).toHaveBeenCalledWith({
+        id: ownedBridge.id,
+        profile: ownedBridge.profile_name,
+      })
+    );
   });
 });

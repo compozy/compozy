@@ -21,10 +21,12 @@ import {
 } from "@/systems/runtime";
 import {
   usePutSettingsProvider,
-  useSettingsGeneral,
+  useSettingsPersona,
   useSettingsProvider,
-  useUpdateSettingsGeneral,
+  useUpdateSettingsPersona,
 } from "@/systems/settings";
+
+const ONBOARDING_PERSONA_FILTER = { scope: "user" } as const;
 
 export interface OnboardingDefaultModelApi {
   providersLoading: boolean;
@@ -109,9 +111,9 @@ export function useOnboardingDefaultModel(): OnboardingDefaultModelApi {
 
   const provider = draft.provider;
 
-  const generalQuery = useSettingsGeneral();
+  const personaQuery = useSettingsPersona(ONBOARDING_PERSONA_FILTER);
   const providerDetailQuery = useSettingsProvider(provider, { enabled: provider.length > 0 });
-  const updateGeneral = useUpdateSettingsGeneral();
+  const updatePersona = useUpdateSettingsPersona();
   const putProvider = usePutSettingsProvider();
 
   const existingApiKeyTargetEnv =
@@ -175,12 +177,12 @@ export function useOnboardingDefaultModel(): OnboardingDefaultModelApi {
           : "Provider settings are still loading."
       );
     }
-    const config = generalQuery.data?.config;
+    const config = personaQuery.data?.config;
     if (!config) {
       throw new Error(
-        generalQuery.error
-          ? describeError("Failed to load general settings.", generalQuery.error)
-          : "General settings are still loading."
+        personaQuery.error
+          ? describeError("Failed to load profile defaults.", personaQuery.error)
+          : "Profile defaults are still loading."
       );
     }
     const body = buildOnboardingProviderRequest(detail.settings, {
@@ -192,8 +194,9 @@ export function useOnboardingDefaultModel(): OnboardingDefaultModelApi {
       provider: trimmedProvider,
     });
     await putProvider.mutateAsync({ name: trimmedProvider, body });
-    await updateGeneral.mutateAsync({
-      config: { ...config, defaults: { ...config.defaults, provider: trimmedProvider } },
+    await updatePersona.mutateAsync({
+      body: { config: { ...config, provider: trimmedProvider } },
+      filter: ONBOARDING_PERSONA_FILTER,
     });
   };
 
@@ -201,8 +204,8 @@ export function useOnboardingDefaultModel(): OnboardingDefaultModelApi {
     provider.length > 0 && providerDetailQuery.error
       ? describeError("Failed to load provider settings.", providerDetailQuery.error)
       : null;
-  const generalSettingsError = generalQuery.error
-    ? describeError("Failed to load general settings.", generalQuery.error)
+  const personaSettingsError = personaQuery.error
+    ? describeError("Failed to load profile defaults.", personaQuery.error)
     : null;
   const missingBoundSecretTarget =
     authMode === "bound_secret" &&
@@ -215,11 +218,11 @@ export function useOnboardingDefaultModel(): OnboardingDefaultModelApi {
     ? "Enter the environment variable the provider expects."
     : null;
   const configurationError =
-    providerSettingsError ?? generalSettingsError ?? credentialTargetError ?? null;
+    providerSettingsError ?? personaSettingsError ?? credentialTargetError ?? null;
   const canCommit =
     provider.trim().length > 0 &&
     providerDetailQuery.isSuccess &&
-    generalQuery.isSuccess &&
+    personaQuery.isSuccess &&
     !missingBoundSecretTarget;
 
   return {
@@ -244,7 +247,7 @@ export function useOnboardingDefaultModel(): OnboardingDefaultModelApi {
     missingEnvVar,
     configurationError,
     isValid: canCommit,
-    isCommitting: putProvider.isPending || updateGeneral.isPending,
+    isCommitting: putProvider.isPending || updatePersona.isPending,
     onRuntimeChange: updateRuntime,
     onRefreshCatalog,
     onAuthModeChange: updateAuthMode,

@@ -35,7 +35,7 @@ func (g *LoopRepo) listParkedLoopWaitEventSubscriptions(
 	if err := g.checkReady(ctx, "list parked Loop event waits"); err != nil {
 		return nil, err
 	}
-	query := `SELECT run.workspace_id, run.id, run.loop_name, run.inputs_json,
+	query := `SELECT run.workspace_id, run.profile_id, run.id, run.loop_name, run.inputs_json,
 		run.definition_digest, snapshot.definition_json, wait.generation, wait.node_id,
 		wait.item_index, wait.issued_epoch, wait.ahead_payload_json
 		FROM loop_node_waits AS wait
@@ -82,11 +82,11 @@ func (g *LoopRepo) listParkedLoopWaitEventSubscriptions(
 }
 
 func scanParkedLoopWaitEventSubscription(row rowScanner) (looppkg.ParkedWatchEventSubscription, error) {
-	var workspaceID, loopRunID, loopName, inputsRaw, digest, snapshotRaw, nodeID string
+	var workspaceID, profileID, loopRunID, loopName, inputsRaw, digest, snapshotRaw, nodeID string
 	var aheadPayload sql.NullString
 	var generation, itemIndex int
 	var issuedEpoch int64
-	if err := row.Scan(&workspaceID, &loopRunID, &loopName, &inputsRaw, &digest, &snapshotRaw,
+	if err := row.Scan(&workspaceID, &profileID, &loopRunID, &loopName, &inputsRaw, &digest, &snapshotRaw,
 		&generation, &nodeID, &itemIndex, &issuedEpoch, &aheadPayload); err != nil {
 		return looppkg.ParkedWatchEventSubscription{}, fmt.Errorf("store: scan parked Loop event wait: %w", err)
 	}
@@ -125,7 +125,7 @@ func scanParkedLoopWaitEventSubscription(row rowScanner) (looppkg.ParkedWatchEve
 		)
 	}
 	return looppkg.ParkedWatchEventSubscription{
-		WorkspaceID: workspaceID, LoopRunID: loopRunID, LoopName: loopName,
+		WorkspaceID: workspaceID, ProfileID: profileID, LoopRunID: loopRunID, LoopName: loopName,
 		NodeID: nodeID, Generation: generation, Inputs: inputs,
 		Subscriptions: []watchpkg.EventSubscriptionRef{{
 			Kind: strings.TrimSpace(params.Event.Kind), Filter: strings.TrimSpace(params.Event.Filter),

@@ -16,8 +16,16 @@ func (h *BaseHandlers) RenameSession(c *gin.Context) {
 		h.respondError(c, http.StatusServiceUnavailable, errors.New("api: session rename manager is required"))
 		return
 	}
-	scope, sessionID, _, ok := h.routeSessionInWorkspace(c)
+	scope, sessionID, info, ok := h.routeSessionInWorkspace(c)
 	if !ok {
+		return
+	}
+	profileScope, err := h.resolveProfileMutationScope(c)
+	if err != nil {
+		h.respondProfileReadScopeError(c, err)
+		return
+	}
+	if !h.requireSessionInProfile(c, info, profileScope) {
 		return
 	}
 	var req contract.RenameSessionRequest
@@ -29,7 +37,7 @@ func (h *BaseHandlers) RenameSession(c *gin.Context) {
 		)
 		return
 	}
-	info, err := manager.Rename(
+	info, err = manager.Rename(
 		c.Request.Context(),
 		scope.SessionWorkspaceID(),
 		sessionID,
@@ -39,5 +47,10 @@ func (h *BaseHandlers) RenameSession(c *gin.Context) {
 		h.respondError(c, StatusForSessionError(err), err)
 		return
 	}
-	c.JSON(http.StatusOK, contract.SessionResponse{Session: SessionPayloadFromInfo(info)})
+	payload, err := h.sessionPayloadWithOptionalHealth(c.Request.Context(), info, false)
+	if err != nil {
+		h.respondError(c, StatusForSessionError(err), err)
+		return
+	}
+	c.JSON(http.StatusOK, contract.SessionResponse{Session: payload})
 }

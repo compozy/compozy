@@ -16,7 +16,9 @@ import (
 )
 
 func (s *daemonLoopAPIService) findLoopRecord(
+	ctx context.Context,
 	workspaceID string,
+	profileID string,
 	name string,
 ) (looppkg.WorkspaceID, resources.Record[looppkg.ResourceSpec], error) {
 	ws, err := normalizeLoopWorkspaceID(workspaceID)
@@ -27,7 +29,11 @@ func (s *daemonLoopAPIService) findLoopRecord(
 	if err != nil {
 		return "", resources.Record[looppkg.ResourceSpec]{}, fmt.Errorf("%w: %v", looppkg.ErrValidation, err)
 	}
-	records := looppkg.ResolveEffectiveResources(s.catalog.Snapshot(), string(ws))
+	lens, err := resolveLoopResourceLens(ctx, s.profiles, string(ws), profileID)
+	if err != nil {
+		return "", resources.Record[looppkg.ResourceSpec]{}, err
+	}
+	records := looppkg.ResolveEffectiveResources(s.catalog.Snapshot(), lens)
 	for _, record := range records {
 		if strings.TrimSpace(record.Spec.Name) == loopName {
 			return ws, record, nil

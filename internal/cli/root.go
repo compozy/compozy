@@ -79,7 +79,7 @@ type commandDeps struct {
 	newSSHExecutor              func() sshExecutor
 	reportClientTarget          func(ClientTarget) error
 	newDaemon                   func() (daemonRunner, error)
-	runRelaunchHelper           func(context.Context, compozydaemon.RelaunchHelperConfig) error
+	runRelaunchHelper           func(context.Context, *compozydaemon.RelaunchHelperConfig) error
 	readDaemonInfo              func(path string) (compozydaemon.Info, error)
 	signalProcess               func(pid int, sig syscall.Signal) error
 	processAlive                func(pid int) bool
@@ -134,6 +134,7 @@ func newRootCommand(deps commandDeps) *cobra.Command {
 	configureRootClientTargetReporting(cmd, &deps)
 	configureRootFlags(cmd)
 	registerRootCommands(cmd, deps)
+	configureProfileIndependentCompletionCommands(cmd)
 
 	return cmd
 }
@@ -167,28 +168,7 @@ func configureRootFlags(cmd *cobra.Command) {
 	cmd.PersistentFlags().
 		StringP(outputFlagName, "o", string(OutputHuman), "Output format: human, json, jsonl, or toon")
 	cmd.PersistentFlags().Bool(jsonFlagName, false, "Emit JSON output")
-}
-
-func registerRootCommands(cmd *cobra.Command, deps commandDeps) {
-	cmd.AddCommand(
-		newVersionCommand(), newInstallCommand(deps), newConfigCommand(deps), newSupportCommand(deps),
-		newUpdateCommand(deps), newUninstallCommand(deps), newStatusCommand(deps), newObserveCommand(deps),
-		newDoctorCommand(deps), newDrainCommand(deps), newUndrainCommand(deps), newOnboardingCommand(deps),
-		newDaemonCommand(deps), newNetworkCommand(deps), newMeCommand(deps), newSpawnCommand(deps),
-		newChannelCommand(deps), newNotifyCommand(deps), newSessionCommand(deps), newProviderCommand(deps),
-		newBridgeCommand(deps),
-		newGatewayCommand(deps), newPairCommand(deps), newDeviceCommand(deps), newConnectCommand(deps),
-		newNotificationsCommand(deps), newMarketplaceCommand(deps), newWorkspaceCommand(deps), newDesktopCommand(deps),
-		newWorktreeCommand(deps),
-		newWindowCommand(deps), newLayoutCommand(deps), newLayoutProfileCommand(deps), newAgentCommand(deps),
-		newRolesCommand(deps), newExtensionCommand(deps), newHooksCommand(deps), newAutomationCommand(deps),
-		newLoopCommand(deps), newSchedulerCommand(deps), newTaskCommand(deps), newSkillCommand(deps),
-		newResourceCommand(deps), newMemoryCommand(deps), newVaultCommand(deps), newToolCommand(deps),
-		newToolsetsCommand(deps), newMCPCommand(deps), newLogsCommand(deps), newWhoamiCommand(deps),
-		newCmdPaletteCommand(deps), newApprovalsCommand(deps),
-		newOpenCommand(deps), newDocCommand(), newInternalCommand(),
-		newAppCommand(deps),
-	)
+	configureRootProfileFlag(cmd)
 }
 
 func newVersionCommand() *cobra.Command {
@@ -252,6 +232,9 @@ func writeExecutionError(stderr io.Writer, args []string, err error) int {
 }
 
 func renderHumanExecutionError(err error) (string, bool) {
+	if rendered, ok := renderProfileExecutionError(err); ok {
+		return rendered, true
+	}
 	item, ok := diagnosticspkg.ItemFromError(err)
 	if !ok {
 		return "", false
@@ -272,6 +255,12 @@ func renderHumanExecutionError(err error) (string, bool) {
 }
 
 func marshalStructuredExecutionError(args []string, err error) ([]byte, bool) {
+	if profileErr, ok := errors.AsType[interface {
+		error
+		profileErrorPayload() contract.ProfileErrorPayload
+	}](err); ok {
+		return marshalProfileExecutionError(args, profileErr.profileErrorPayload())
+	}
 	if appErr, ok := errors.AsType[*appCommandError](err); ok {
 		return marshalAppCommandExecutionError(args, appErr)
 	}
@@ -472,29 +461,4 @@ func marshalDiagnosticExecutionError(args []string, err error) ([]byte, bool) {
 	default:
 		return nil, false
 	}
-}
-
-func isStructuredAgentCommandError(err error) bool {
-	agentErr, ok := errors.AsType[*agentidentity.Error](err)
-	return ok && agentErr != nil
-}
-
-func requestedOutputFormat(args []string) OutputFormat {
-	mode := OutputHuman
-	for i := 0; i < len(args); i++ {
-		switch arg := strings.TrimSpace(args[i]); {
-		case arg == jsonFlagArg:
-			mode = OutputJSON
-		case arg == "-o" || arg == outputFlagArg:
-			if i+1 < len(args) {
-				mode = OutputFormat(strings.ToLower(strings.TrimSpace(args[i+1])))
-				i++
-			}
-		case strings.HasPrefix(arg, outputFlagArg+"="):
-			mode = OutputFormat(strings.ToLower(strings.TrimSpace(strings.TrimPrefix(arg, outputFlagArg+"="))))
-		case strings.HasPrefix(arg, "-o="):
-			mode = OutputFormat(strings.ToLower(strings.TrimSpace(strings.TrimPrefix(arg, "-o="))))
-		}
-	}
-	return mode
 }

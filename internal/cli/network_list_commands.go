@@ -47,6 +47,7 @@ func newNetworkThreadsListCommand(deps commandDeps, workspaceRef *string) *cobra
 		&flags.after,
 		"threads",
 	)
+	configureProfileReadCommand(cmd, deps)
 	return cmd
 }
 
@@ -91,6 +92,7 @@ func newNetworkDirectsListCommand(deps commandDeps, workspaceRef *string) *cobra
 		&flags.after,
 		"direct rooms",
 	)
+	configureProfileReadCommand(cmd, deps)
 	return cmd
 }
 

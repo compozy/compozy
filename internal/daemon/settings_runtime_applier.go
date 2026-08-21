@@ -354,8 +354,8 @@ func (a daemonSettingsRuntimeApplier) rollbackRuntimeDependencies(
 	previous *compozyconfig.Config,
 	failures []settingspkg.ApplyFailure,
 ) []settingspkg.ApplyFailure {
-	if a.state.windowManager != nil {
-		if err := a.state.windowManager.UpdateDefaults(windowManagerDefaults(previous.WindowManager)); err != nil {
+	if a.state.windowManagers != nil {
+		if err := a.state.windowManagers.UpdateDefaults(windowManagerDefaults(previous.WindowManager)); err != nil {
 			failures = append(failures, configApplyFailure(
 				"window_manager_rollback",
 				diagnosticcontract.CategoryConfig,
@@ -403,8 +403,8 @@ func (a daemonSettingsRuntimeApplier) applyRuntimeDependencies(
 	next *compozyconfig.Config,
 ) []settingspkg.ApplyFailure {
 	var failures []settingspkg.ApplyFailure
-	if a.state.windowManager != nil {
-		if err := a.state.windowManager.UpdateDefaults(windowManagerDefaults(next.WindowManager)); err != nil {
+	if a.state.windowManagers != nil {
+		if err := a.state.windowManagers.UpdateDefaults(windowManagerDefaults(next.WindowManager)); err != nil {
 			failures = append(failures, configApplyFailure(
 				"window_manager",
 				diagnosticcontract.CategoryConfig,

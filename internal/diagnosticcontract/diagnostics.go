@@ -69,6 +69,7 @@ const (
 	CodeConfigDriftStale               = "config_drift_stale"
 	CodeConfigInvalid                  = "config_invalid"
 	CodeConfigPartialFailure           = "config_partial_failure"
+	CodeConfigProfileLayerOrphaned     = "config_profile_layer_orphaned"
 	CodeConfigReloadTimeout            = "config_reload_timeout"
 	CodeConfigRestartRequired          = "config_restart_required"
 	CodeConfigValidateFailed           = "config_validate_failed"
@@ -215,6 +216,7 @@ var diagnosticCodeSpecs = []DiagnosticCodeSpec{
 	{Code: CodeConfigDriftStale, Category: CategoryConfig},
 	{Code: CodeConfigInvalid, Category: CategoryConfig},
 	{Code: CodeConfigPartialFailure, Category: CategoryConfig},
+	{Code: CodeConfigProfileLayerOrphaned, Category: CategoryConfig},
 	{Code: CodeConfigReloadTimeout, Category: CategoryConfig},
 	{Code: CodeConfigRestartRequired, Category: CategoryConfig},
 	{Code: CodeConfigValidateFailed, Category: CategoryConfig},

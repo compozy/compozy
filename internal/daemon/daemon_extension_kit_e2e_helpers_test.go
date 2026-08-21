@@ -78,8 +78,11 @@ start: [{ kind: manual }]
 	const oldDefinition = "\t\tPermissions: compozysdk.PermissionsConfig{},\n"
 	requiresEnv := fmt.Sprintf("\t\tRequiresEnv: []string{%q},\n", extensionKitE2EEnvName)
 	newDefinition := fmt.Sprintf(`%s		Resources: compozysdk.DescribeResources{
-			Skills: []string{"skills"}, Loops: []string{"loops"}, Agents: []string{"agents"},
-			Automation: []string{"automation"}, Layouts: []string{"layouts/kit-e2e.json"},
+			Skills: []compozysdk.DescribeResourcePath{{Path: "skills"}},
+			Loops: []compozysdk.DescribeResourcePath{{Path: "loops"}},
+			Agents: []compozysdk.DescribeResourcePath{{Path: "agents"}},
+			Automation: []compozysdk.DescribeResourcePath{{Path: "automation"}},
+			Layouts: []compozysdk.DescribeResourcePath{{Path: "layouts/kit-e2e.json"}},
 		},
 		Permissions: compozysdk.PermissionsConfig{},
 `, requiresEnv)

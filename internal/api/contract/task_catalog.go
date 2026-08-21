@@ -75,6 +75,10 @@ type TaskCatalogRunPayload struct {
 // TaskCatalogItemPayload is one lean task catalog row.
 type TaskCatalogItemPayload struct {
 	ID                           string                 `json:"id"`
+	ProfileID                    string                 `json:"profile_id"`
+	ProfileName                  string                 `json:"profile_name"`
+	ProfileColor                 string                 `json:"profile_color,omitempty"`
+	ProfileIcon                  string                 `json:"profile_icon,omitempty"`
 	Identifier                   string                 `json:"identifier,omitempty"`
 	Scope                        taskpkg.Scope          `json:"scope"`
 	WorkspaceID                  string                 `json:"workspace_id,omitempty"`
@@ -127,6 +131,7 @@ func TaskCatalogItemPayloadFromSummary(record *taskpkg.Summary) TaskCatalogItemP
 		record.Status.Normalize() == taskpkg.TaskStatusNeedsAttention
 	return TaskCatalogItemPayload{
 		ID:                           record.ID,
+		ProfileID:                    record.ProfileID,
 		Identifier:                   record.Identifier,
 		Scope:                        record.Scope,
 		WorkspaceID:                  record.WorkspaceID,

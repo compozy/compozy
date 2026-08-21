@@ -20,6 +20,8 @@ const usage: TaskRunNetworkUsage = {
 
 function message(id: string, text: string): NetworkConversationMessage {
   return {
+    profile_id: "00000000000000000000000000",
+    profile_name: "default",
     message_id: id,
     channel: "coord-run-1",
     surface: "thread",

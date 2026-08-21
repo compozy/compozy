@@ -73,7 +73,12 @@ func (d *Daemon) bootToolRegistry(
 			toolspkg.WithProjectionGeneration(state.toolProjectionEpoch.Snapshot),
 		)
 	}
-	registryOptions = appendToolEventSinkOption(registryOptions, state.registry, d.now)
+	registryOptions = appendToolEventSinkOption(
+		registryOptions,
+		state.registry,
+		d.now,
+		optionalDaemonSessionProfileResolver(state.sessions, "daemon: tool event session profile is unavailable"),
+	)
 	registry, err = toolspkg.NewRegistry(registryOptions...)
 	if err != nil {
 		return fmt.Errorf("daemon: create tool registry: %w", err)
@@ -85,4 +90,14 @@ func (d *Daemon) bootToolRegistry(
 	state.deps.Toolsets = registry
 	state.deps.ToolApprovals = approvalTokens
 	return nil
+}
+
+func optionalDaemonSessionProfileResolver(
+	sessions SessionManager,
+	unavailableMessage string,
+) func(context.Context, string) (string, error) {
+	if sessions == nil {
+		return nil
+	}
+	return daemonSessionProfileResolver(sessions, unavailableMessage)
 }

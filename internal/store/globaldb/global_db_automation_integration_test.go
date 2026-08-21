@@ -78,7 +78,7 @@ func TestGlobalDBAutomationPersistenceSurvivesReopen(t *testing.T) {
 		}
 	})
 
-	jobs, err := second.ListJobs(ctx, JobListQuery{})
+	jobs, err := second.ListJobs(ctx, JobListQuery{ReadScope: automationAllProfiles})
 	if err != nil {
 		t.Fatalf("ListJobs() error = %v", err)
 	}
@@ -171,7 +171,7 @@ func TestGlobalDBRunWindowQueriesSurviveReopen(t *testing.T) {
 		}
 	})
 
-	count, err := second.CountRuns(ctx, RunQuery{
+	count, err := second.CountRuns(ctx, RunQuery{ReadScope: automationAllProfiles,
 		JobID: job.ID,
 		Since: base.Add(-15 * time.Minute),
 		Until: base,
@@ -183,7 +183,7 @@ func TestGlobalDBRunWindowQueriesSurviveReopen(t *testing.T) {
 		t.Fatalf("CountRuns() = %d, want %d", got, want)
 	}
 
-	runs, err := second.ListRuns(ctx, RunQuery{
+	runs, err := second.ListRuns(ctx, RunQuery{ReadScope: automationAllProfiles,
 		JobID: job.ID,
 		Since: base.Add(-15 * time.Minute),
 		Until: base,
@@ -316,7 +316,7 @@ func TestGlobalDBAutomationRunReservation(t *testing.T) {
 			t.Fatalf("rejected.RetryAt = %s, want %s", got, want)
 		}
 
-		runs, err := first.ListRuns(ctx, automation.RunQuery{
+		runs, err := first.ListRuns(ctx, automation.RunQuery{ReadScope: automationAllProfiles,
 			JobID: job.ID,
 			Since: now.Add(-window),
 			Until: now,

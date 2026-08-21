@@ -21,12 +21,16 @@ func TestNetworkAuditContractTimelineExtensions(t *testing.T) {
 			AuditDirectionReceived,
 			envelope,
 			time.Date(2026, 4, 10, 12, 0, 0, 0, time.UTC),
+			testWorkProfileID,
 		)
 		if err != nil {
 			t.Fatalf("normalizeTimelineMessageEntry() error = %v", err)
 		}
 		if !ok {
 			t.Fatal("normalizeTimelineMessageEntry() ok = false, want true")
+		}
+		if got, want := entry.ProfileID, testWorkProfileID; got != want {
+			t.Fatalf("entry.ProfileID = %q, want %q", got, want)
 		}
 		if got, want := string(entry.ExtJSON), `{"coordination":{"run_id":"run-1","task_id":"task-1"}}`; got != want {
 			t.Fatalf("entry.ExtJSON = %q, want %q", got, want)

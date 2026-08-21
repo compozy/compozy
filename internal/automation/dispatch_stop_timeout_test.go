@@ -4,6 +4,7 @@ import (
 	"testing"
 	"time"
 
+	storepkg "github.com/compozy/compozy/internal/store"
 	"github.com/compozy/compozy/internal/testutil"
 )
 
@@ -40,7 +41,10 @@ func TestDispatcherSessionStopTimeout(t *testing.T) {
 			t.Fatalf("run.Status = %q, want %q", got, want)
 		}
 
-		reloadedRuns, err := store.ListRuns(testutil.Context(t), RunQuery{JobID: job.ID})
+		reloadedRuns, err := store.ListRuns(testutil.Context(t), RunQuery{
+			ReadScope: storepkg.ReadScope{ProfileID: job.ProfileID},
+			JobID:     job.ID,
+		})
 		if err != nil {
 			t.Fatalf("ListRuns() error = %v", err)
 		}

@@ -158,7 +158,7 @@ func TestNetworkCommandsAndFormatting(t *testing.T) {
 				if workspaceRef != "ws-alpha" {
 					t.Fatalf("NetworkChannels() workspace = %q, want ws-alpha", workspaceRef)
 				}
-				return []NetworkChannelRecord{{Channel: "builders", PeerCount: 2}}, nil
+				return []NetworkChannelRecord{{ProfileName: "default", Channel: "builders", PeerCount: 2}}, nil
 			},
 			createNetworkChannelFn: func(
 				_ context.Context,
@@ -294,8 +294,41 @@ func TestNetworkCommandsAndFormatting(t *testing.T) {
 		if err != nil {
 			t.Fatalf("network channels error = %v", err)
 		}
-		if !strings.Contains(channelsOut, "network_channels[1]{channel,peer_count}:") {
+		if !strings.Contains(channelsOut, "network_channels[1]{profile_name,channel,peer_count}:") ||
+			!strings.Contains(channelsOut, "default") {
 			t.Fatalf("network channels toon = %q, want TOON list", channelsOut)
+		}
+		channelsHumanOut, _, err := executeRootCommand(
+			t,
+			deps,
+			"network",
+			"--workspace",
+			"ws-alpha",
+			"channels",
+			"-o",
+			"human",
+		)
+		if err != nil {
+			t.Fatalf("network channels human error = %v", err)
+		}
+		if !strings.Contains(channelsHumanOut, "PROFILE") || !strings.Contains(channelsHumanOut, "default") {
+			t.Fatalf("network channels human = %q, want profile value", channelsHumanOut)
+		}
+		channelsJSONL, _, err := executeRootCommand(
+			t,
+			deps,
+			"network",
+			"--workspace",
+			"ws-alpha",
+			"channels",
+			"-o",
+			"jsonl",
+		)
+		if err != nil {
+			t.Fatalf("network channels jsonl error = %v", err)
+		}
+		if !strings.Contains(channelsJSONL, `"profile_name":"default"`) {
+			t.Fatalf("network channels jsonl = %q, want profile value", channelsJSONL)
 		}
 
 		createOut, _, err := executeRootCommand(
@@ -448,6 +481,7 @@ func TestNetworkConversationCommandsAndFormatting(t *testing.T) {
 
 	directID := "direct_99401d24bee62651d189e5a561785466"
 	thread := NetworkThreadRecord{
+		ProfileName:        "marketing",
 		Channel:            "builders",
 		ThreadID:           "thread_launch",
 		RootMessageID:      "msg-root",
@@ -462,6 +496,7 @@ func TestNetworkConversationCommandsAndFormatting(t *testing.T) {
 		LastMessagePreview: "ready for review",
 	}
 	direct := NetworkDirectRoomRecord{
+		ProfileName:        "marketing",
 		Channel:            "builders",
 		DirectID:           directID,
 		SessionA:           "sess-a",
@@ -473,6 +508,7 @@ func TestNetworkConversationCommandsAndFormatting(t *testing.T) {
 		LastMessagePreview: "please review",
 	}
 	threadMessage := NetworkConversationMessageRecord{
+		ProfileName: "marketing",
 		MessageID:   "msg-thread-1",
 		Channel:     "builders",
 		Surface:     "thread",
@@ -486,6 +522,7 @@ func TestNetworkConversationCommandsAndFormatting(t *testing.T) {
 		Timestamp:   fixedTestNow,
 	}
 	directMessage := NetworkConversationMessageRecord{
+		ProfileName: "marketing",
 		MessageID:   "msg-direct-1",
 		Channel:     "builders",
 		Surface:     "direct",
@@ -500,6 +537,7 @@ func TestNetworkConversationCommandsAndFormatting(t *testing.T) {
 		Timestamp:   fixedTestNow,
 	}
 	work := NetworkWorkRecord{
+		ProfileName:     "marketing",
 		WorkID:          "work_1",
 		Channel:         "builders",
 		Surface:         "direct",
@@ -569,7 +607,8 @@ func TestNetworkConversationCommandsAndFormatting(t *testing.T) {
 		if err := json.Unmarshal([]byte(out), &response); err != nil {
 			t.Fatalf("json.Unmarshal(network threads list) error = %v", err)
 		}
-		if len(response.Threads) != 1 || response.Threads[0].ThreadID != "thread_launch" {
+		if len(response.Threads) != 1 || response.Threads[0].ThreadID != "thread_launch" ||
+			response.Threads[0].ProfileName != "marketing" {
 			t.Fatalf("response = %#v, want one thread", response)
 		}
 		if response.Page.Total != 8 || response.Page.Limit != 2 || !response.Page.HasMore ||
@@ -612,7 +651,8 @@ func TestNetworkConversationCommandsAndFormatting(t *testing.T) {
 		if err != nil {
 			t.Fatalf("network threads show error = %v", err)
 		}
-		if !strings.Contains(out, "network_thread{") || !strings.Contains(out, "thread_launch") {
+		if !strings.Contains(out, "network_thread{") || !strings.Contains(out, "thread_launch") ||
+			!strings.Contains(out, "marketing") {
 			t.Fatalf("network threads show toon = %q, want thread object", out)
 		}
 	})
@@ -680,7 +720,7 @@ func TestNetworkConversationCommandsAndFormatting(t *testing.T) {
 		if err := json.Unmarshal([]byte(lines[0]), &decoded); err != nil {
 			t.Fatalf("json.Unmarshal(thread message line) error = %v", err)
 		}
-		if decoded.MessageID != "msg-thread-1" || decoded.Surface != "thread" {
+		if decoded.MessageID != "msg-thread-1" || decoded.Surface != "thread" || decoded.ProfileName != "marketing" {
 			t.Fatalf("decoded = %#v, want thread message", decoded)
 		}
 	})
@@ -741,7 +781,8 @@ func TestNetworkConversationCommandsAndFormatting(t *testing.T) {
 		if err := json.Unmarshal([]byte(out), &response); err != nil {
 			t.Fatalf("json.Unmarshal(network directs list) error = %v", err)
 		}
-		if len(response.Directs) != 1 || response.Directs[0].DirectID != directID {
+		if len(response.Directs) != 1 || response.Directs[0].DirectID != directID ||
+			response.Directs[0].ProfileName != "marketing" {
 			t.Fatalf("response = %#v, want one direct room", response)
 		}
 		if response.Page.Total != 1 || response.Page.Limit != 2 || response.Page.HasMore ||
@@ -836,7 +877,8 @@ func TestNetworkConversationCommandsAndFormatting(t *testing.T) {
 		if err != nil {
 			t.Fatalf("network directs show error = %v", err)
 		}
-		if !strings.Contains(out, "network_direct{") || !strings.Contains(out, directID) {
+		if !strings.Contains(out, "network_direct{") || !strings.Contains(out, directID) ||
+			!strings.Contains(out, "marketing") {
 			t.Fatalf("network directs show toon = %q, want direct object", out)
 		}
 	})
@@ -893,7 +935,7 @@ func TestNetworkConversationCommandsAndFormatting(t *testing.T) {
 		if err := json.Unmarshal([]byte(lines[0]), &decoded); err != nil {
 			t.Fatalf("json.Unmarshal(direct message line) error = %v", err)
 		}
-		if decoded.MessageID != "msg-direct-1" || decoded.Surface != "direct" {
+		if decoded.MessageID != "msg-direct-1" || decoded.Surface != "direct" || decoded.ProfileName != "marketing" {
 			t.Fatalf("decoded = %#v, want direct message", decoded)
 		}
 	})
@@ -929,7 +971,8 @@ func TestNetworkConversationCommandsAndFormatting(t *testing.T) {
 		if err := json.Unmarshal([]byte(out), &response); err != nil {
 			t.Fatalf("json.Unmarshal(network work lookup) error = %v", err)
 		}
-		if response.Work.WorkID != "work_1" || response.Work.DirectID != directID {
+		if response.Work.WorkID != "work_1" || response.Work.DirectID != directID ||
+			response.Work.ProfileName != "marketing" {
 			t.Fatalf("response = %#v, want work", response)
 		}
 	})
@@ -961,7 +1004,8 @@ func TestNetworkConversationCommandsAndFormatting(t *testing.T) {
 		if err != nil {
 			t.Fatalf("network work lookup error = %v", err)
 		}
-		if !strings.Contains(out, "network_work{") || !strings.Contains(out, "work_1") {
+		if !strings.Contains(out, "network_work{") || !strings.Contains(out, "work_1") ||
+			!strings.Contains(out, "marketing") {
 			t.Fatalf("network work lookup toon = %q, want work object", out)
 		}
 	})

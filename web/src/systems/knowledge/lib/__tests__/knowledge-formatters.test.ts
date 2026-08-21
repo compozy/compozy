@@ -15,26 +15,26 @@ import {
 
 describe("knowledge-formatters", () => {
   it("Should derive a stable knowledge memory key from scope plus filename", () => {
-    expect(knowledgeMemoryKey({ filename: "user.md", scope: "global", key: undefined })).toBe(
-      "global:user.md"
+    expect(knowledgeMemoryKey({ filename: "user.md", scope: "profile", key: undefined })).toBe(
+      "profile:user.md"
     );
     expect(knowledgeMemoryKey({ filename: "user.md", scope: "agent", key: "custom-key" })).toBe(
       "custom-key"
     );
   });
 
-  it("Should sort scopes with global before workspace before agent", () => {
-    expect(compareKnowledgeScope("global", "workspace")).toBeLessThan(0);
-    expect(compareKnowledgeScope("workspace", "global")).toBeGreaterThan(0);
+  it("Should sort scopes with profile before workspace before agent", () => {
+    expect(compareKnowledgeScope("profile", "workspace")).toBeLessThan(0);
+    expect(compareKnowledgeScope("workspace", "profile")).toBeGreaterThan(0);
     expect(compareKnowledgeScope("agent", "workspace")).toBeGreaterThan(0);
-    expect(compareKnowledgeScope("global", "global")).toBe(0);
+    expect(compareKnowledgeScope("profile", "profile")).toBe(0);
   });
 
   it("Should expose sentence-case scope labels", () => {
-    expect(knowledgeScopeLabel("global")).toBe("Global");
+    expect(knowledgeScopeLabel("profile")).toBe("Profile");
     expect(knowledgeScopeLabel("workspace")).toBe("Workspace");
     expect(knowledgeScopeLabel("agent")).toBe("Agent");
-    expect(knowledgeScopeShortLabel("global")).toBe("global");
+    expect(knowledgeScopeShortLabel("profile")).toBe("profile");
     expect(knowledgeScopeShortLabel("workspace")).toBe("ws");
     expect(knowledgeScopeShortLabel("agent")).toBe("agent");
   });
@@ -54,7 +54,7 @@ describe("knowledge-formatters", () => {
   });
 
   it("Should pass memory scope tone through unchanged", () => {
-    expect(memoryScopeTone("global")).toBe("global");
+    expect(memoryScopeTone("profile")).toBe("profile");
     expect(memoryScopeTone("workspace")).toBe("workspace");
     expect(memoryScopeTone("agent")).toBe("agent");
   });

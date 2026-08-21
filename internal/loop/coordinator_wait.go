@@ -8,6 +8,7 @@ import (
 
 	"github.com/compozy/compozy/internal/loop/dsl"
 	"github.com/compozy/compozy/internal/loop/watch"
+	"github.com/compozy/compozy/internal/store"
 	"github.com/compozy/compozy/internal/task"
 )
 
@@ -134,7 +135,10 @@ func captureRejectedAheadWaitEvents(
 		return nil, nil, err
 	}
 	cursors, err := reader.ReadCursors(eval.ctx, WatchEventsQuery{
-		WorkspaceID: string(eval.run.WorkspaceID), Streams: streams, Kinds: kinds,
+		WorkspaceID: string(eval.run.WorkspaceID),
+		ReadScope:   store.ReadScope{ProfileID: strings.TrimSpace(eval.run.ProfileID)},
+		Streams:     streams,
+		Kinds:       kinds,
 	})
 	if err != nil {
 		return nil, nil, fmt.Errorf("loop: read reject ahead-arrival cursors: %w", err)
@@ -177,7 +181,11 @@ func consumeAheadWaitEvent(
 		return false, output, err
 	}
 	rows, err := runtime.ledger.ReadMatches(eval.ctx, WatchEventsQuery{
-		WorkspaceID: string(eval.run.WorkspaceID), Streams: streams, Kinds: kinds, Limit: LoopWatchEventPageLimit,
+		WorkspaceID: string(eval.run.WorkspaceID),
+		ReadScope:   store.ReadScope{ProfileID: strings.TrimSpace(eval.run.ProfileID)},
+		Streams:     streams,
+		Kinds:       kinds,
+		Limit:       LoopWatchEventPageLimit,
 	})
 	if err != nil {
 		return false, output, fmt.Errorf("loop: read ahead wait events for node %q: %w", node.ID, err)

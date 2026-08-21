@@ -21,7 +21,7 @@ func TestGlobalDBToolApprovalPending(t *testing.T) {
 
 	t.Run("Should fence transitions recover ambiguous dispatch and cascade workspace deletion", func(t *testing.T) {
 		t.Parallel()
-		ctx := testutil.Context(t)
+		ctx := toolspkg.WithApprovalProfile(testutil.Context(t), store.DefaultProfileID)
 		globalDB := openTestGlobalDB(t)
 		workspaceID := registerWorkspaceForGlobalTests(t, globalDB, "approval-pending", t.TempDir())
 		now := approvalGrantTestTime()
@@ -36,6 +36,30 @@ func TestGlobalDBToolApprovalPending(t *testing.T) {
 		}
 		if created.ApprovalStatus != toolspkg.ApprovalPending || created.ResumeFence {
 			t.Fatalf("CreateApproval() = %#v, want unfenced pending", created)
+		}
+		foreignProfileID := "01ARZ3NDEKTSV4RRFFQ69G5FAV"
+		if _, err := globalDB.db.ExecContext(ctx, `
+			INSERT INTO profiles (id, name, color, icon, state, created_at)
+			VALUES (?, 'approval-foreign', '#5FBF85', 'circle', 'active', ?)`,
+			foreignProfileID,
+			store.FormatTimestamp(now),
+		); err != nil {
+			t.Fatalf("insert foreign approval profile error = %v", err)
+		}
+		foreignContext := toolspkg.WithApprovalProfile(testutil.Context(t), foreignProfileID)
+		if _, err := globalDB.GetApproval(foreignContext, created.ApprovalID); !errors.Is(
+			err,
+			toolspkg.ErrApprovalNotFound,
+		) {
+			t.Fatalf("GetApproval(foreign profile) error = %v, want ErrApprovalNotFound", err)
+		}
+		if _, err := globalDB.ResolveApproval(
+			foreignContext,
+			created.ApprovalID,
+			toolspkg.ApprovalDenied,
+			now.Add(time.Second),
+		); !errors.Is(err, toolspkg.ErrApprovalNotFound) {
+			t.Fatalf("ResolveApproval(foreign profile) error = %v, want ErrApprovalNotFound", err)
 		}
 		claimed, err := globalDB.ResolveApproval(
 			ctx,
@@ -104,7 +128,7 @@ func TestGlobalDBToolApprovalPendingMigration(t *testing.T) {
 		if err != nil {
 			t.Fatalf("OpenGlobalDB(00078 upgrade) error = %v", err)
 		}
-		ctx := testutil.Context(t)
+		ctx := toolspkg.WithApprovalProfile(testutil.Context(t), store.DefaultProfileID)
 		assertTableHasColumns(t, upgraded.db, "tool_approval_pending", []string{
 			"approval_id", "workspace_id", "invocation_id", "approval_status",
 			"execution_status", "resume_fence", "expires_at",
@@ -132,7 +156,10 @@ func TestGlobalDBToolApprovalPendingMigration(t *testing.T) {
 				t.Errorf("Close(reopened) error = %v", err)
 			}
 		})
-		status, err := reopened.GetApproval(testutil.Context(t), created.ApprovalID)
+		status, err := reopened.GetApproval(
+			toolspkg.WithApprovalProfile(testutil.Context(t), store.DefaultProfileID),
+			created.ApprovalID,
+		)
 		if err != nil || status.InvocationID != "invocation-upgrade" ||
 			status.ApprovalStatus != toolspkg.ApprovalPending {
 			t.Fatalf("GetApproval(reopened) = %#v, error = %v", status, err)
@@ -151,6 +178,7 @@ func pendingApprovalTestRequest(
 	expiresAt time.Time,
 ) toolspkg.ApprovalRequest {
 	return toolspkg.ApprovalRequest{
+		ProfileID:   store.DefaultProfileID,
 		WorkspaceID: workspaceID, InvocationID: invocationID,
 		Target: toolspkg.ApprovalTarget{
 			Kind: toolspkg.ApprovalTargetTool, ToolID: toolspkg.ToolID("compozy__test"),

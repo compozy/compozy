@@ -15,6 +15,7 @@ type ContextPostCompactPatch struct {
 type ContextPostCompactPayload struct {
 	Event          HookEvent      `json:"event"`
 	Timestamp      time.Time      `json:"timestamp"`
+	ProfileID      string         `json:"profile_id,omitempty"`
 	SessionID      string         `json:"session_id,omitempty"`
 	SessionName    string         `json:"session_name,omitempty"`
 	SessionType    string         `json:"session_type,omitempty"`
@@ -46,6 +47,7 @@ type ContextPreCompactPatch struct {
 type ContextPreCompactPayload struct {
 	Event          HookEvent      `json:"event"`
 	Timestamp      time.Time      `json:"timestamp"`
+	ProfileID      string         `json:"profile_id,omitempty"`
 	SessionID      string         `json:"session_id,omitempty"`
 	SessionName    string         `json:"session_name,omitempty"`
 	SessionType    string         `json:"session_type,omitempty"`
@@ -88,6 +90,7 @@ type CoordinationChannelPayload struct {
 type CoordinationMessageKind string
 
 type CoordinatorContext struct {
+	ProfileID                    string `json:"profile_id,omitempty"`
 	WorkspaceID                  string `json:"workspace_id,omitempty"`
 	Workspace                    string `json:"workspace,omitempty"`
 	AgentName                    string `json:"agent_name,omitempty"`
@@ -103,6 +106,7 @@ type CoordinatorContext struct {
 type CoordinatorDecisionPayload struct {
 	Event                        HookEvent `json:"event"`
 	Timestamp                    time.Time `json:"timestamp"`
+	ProfileID                    string    `json:"profile_id,omitempty"`
 	WorkspaceID                  string    `json:"workspace_id,omitempty"`
 	Workspace                    string    `json:"workspace,omitempty"`
 	AgentName                    string    `json:"agent_name,omitempty"`
@@ -122,6 +126,7 @@ type CoordinatorDecisionPayload struct {
 type CoordinatorFailedPayload struct {
 	Event                        HookEvent `json:"event"`
 	Timestamp                    time.Time `json:"timestamp"`
+	ProfileID                    string    `json:"profile_id,omitempty"`
 	WorkspaceID                  string    `json:"workspace_id,omitempty"`
 	Workspace                    string    `json:"workspace,omitempty"`
 	AgentName                    string    `json:"agent_name,omitempty"`
@@ -141,6 +146,7 @@ type CoordinatorFailedPayload struct {
 type CoordinatorLifecyclePayload struct {
 	Event                        HookEvent `json:"event"`
 	Timestamp                    time.Time `json:"timestamp"`
+	ProfileID                    string    `json:"profile_id,omitempty"`
 	WorkspaceID                  string    `json:"workspace_id,omitempty"`
 	Workspace                    string    `json:"workspace,omitempty"`
 	AgentName                    string    `json:"agent_name,omitempty"`
@@ -164,6 +170,7 @@ type CoordinatorObservationPatch struct {
 type CoordinatorPreSpawnPayload struct {
 	Event                        HookEvent `json:"event"`
 	Timestamp                    time.Time `json:"timestamp"`
+	ProfileID                    string    `json:"profile_id,omitempty"`
 	WorkspaceID                  string    `json:"workspace_id,omitempty"`
 	Workspace                    string    `json:"workspace,omitempty"`
 	AgentName                    string    `json:"agent_name,omitempty"`
@@ -190,6 +197,7 @@ type CoordinatorSpawnPatch struct {
 type CoordinatorSpawnedPayload struct {
 	Event                        HookEvent `json:"event"`
 	Timestamp                    time.Time `json:"timestamp"`
+	ProfileID                    string    `json:"profile_id,omitempty"`
 	WorkspaceID                  string    `json:"workspace_id,omitempty"`
 	Workspace                    string    `json:"workspace,omitempty"`
 	AgentName                    string    `json:"agent_name,omitempty"`
@@ -209,6 +217,7 @@ type CoordinatorSpawnedPayload struct {
 type CoordinatorStoppedPayload struct {
 	Event                        HookEvent `json:"event"`
 	Timestamp                    time.Time `json:"timestamp"`
+	ProfileID                    string    `json:"profile_id,omitempty"`
 	WorkspaceID                  string    `json:"workspace_id,omitempty"`
 	Workspace                    string    `json:"workspace,omitempty"`
 	AgentName                    string    `json:"agent_name,omitempty"`

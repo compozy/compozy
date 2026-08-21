@@ -534,7 +534,7 @@ func TestRelaunchHelperWaitsForReleaseBeforeLaunchingReplacement(t *testing.T) {
 	observedOldAlive := make(chan struct{})
 	var observedOldAliveOnce atomic.Bool
 	allowExit := make(chan struct{})
-	helper := newRelaunchHelper(RelaunchHelperConfig{
+	helper := newRelaunchHelper(&RelaunchHelperConfig{
 		HomePaths:      homePaths,
 		OperationID:    operation.OperationID,
 		PollInterval:   10 * time.Millisecond,
@@ -638,7 +638,7 @@ func TestRelaunchHelperReturnsWithoutWorkForTerminalFailure(t *testing.T) {
 		t.Fatalf("Transition(failed) error = %v", err)
 	}
 
-	helper := newRelaunchHelper(RelaunchHelperConfig{
+	helper := newRelaunchHelper(&RelaunchHelperConfig{
 		HomePaths:   homePaths,
 		OperationID: operation.OperationID,
 	})
@@ -682,7 +682,7 @@ func TestRelaunchHelperExecutableFailurePersistsFailedOperation(t *testing.T) {
 		t.Fatalf("Transition(stopping) error = %v", err)
 	}
 
-	helper := newRelaunchHelper(RelaunchHelperConfig{
+	helper := newRelaunchHelper(&RelaunchHelperConfig{
 		HomePaths:      homePaths,
 		OperationID:    operation.OperationID,
 		PollInterval:   10 * time.Millisecond,
@@ -734,7 +734,7 @@ func TestRelaunchHelperReleaseTimeoutPersistsFailure(t *testing.T) {
 		t.Fatalf("Transition(stopping) error = %v", err)
 	}
 
-	helper := newRelaunchHelper(RelaunchHelperConfig{
+	helper := newRelaunchHelper(&RelaunchHelperConfig{
 		HomePaths:      homePaths,
 		OperationID:    operation.OperationID,
 		PollInterval:   10 * time.Millisecond,
@@ -781,7 +781,7 @@ func TestRelaunchHelperStoppingTimeoutPersistsFailure(t *testing.T) {
 		t.Fatalf("Create() error = %v", err)
 	}
 
-	helper := newRelaunchHelper(RelaunchHelperConfig{
+	helper := newRelaunchHelper(&RelaunchHelperConfig{
 		HomePaths:      homePaths,
 		OperationID:    operation.OperationID,
 		PollInterval:   10 * time.Millisecond,
@@ -830,7 +830,7 @@ func TestRelaunchHelperReleaseConditionsMetBranches(t *testing.T) {
 			t.Fatalf("os.WriteFile(socket) error = %v", err)
 		}
 
-		helper := newRelaunchHelper(RelaunchHelperConfig{HomePaths: homePaths})
+		helper := newRelaunchHelper(&RelaunchHelperConfig{HomePaths: homePaths})
 		helper.processAlive = func(int) bool { return false }
 		helper.acquireLock = func(string, int) (*Lock, error) {
 			t.Fatal("helper.acquireLock() was called before old socket release")
@@ -850,7 +850,7 @@ func TestRelaunchHelperReleaseConditionsMetBranches(t *testing.T) {
 		t.Parallel()
 
 		homePaths := testHomePaths(t)
-		helper := newRelaunchHelper(RelaunchHelperConfig{HomePaths: homePaths})
+		helper := newRelaunchHelper(&RelaunchHelperConfig{HomePaths: homePaths})
 		helper.processAlive = func(int) bool { return false }
 		helper.acquireLock = func(string, int) (*Lock, error) {
 			t.Fatal("helper.acquireLock() was called before daemon info release")
@@ -877,7 +877,7 @@ func TestRelaunchHelperReleaseConditionsMetBranches(t *testing.T) {
 		t.Parallel()
 
 		homePaths := testHomePaths(t)
-		helper := newRelaunchHelper(RelaunchHelperConfig{HomePaths: homePaths})
+		helper := newRelaunchHelper(&RelaunchHelperConfig{HomePaths: homePaths})
 		helper.processAlive = func(int) bool { return false }
 		helper.acquireLock = func(string, int) (*Lock, error) {
 			return nil, errAlreadyRunning{pid: 5151}
@@ -896,7 +896,7 @@ func TestRelaunchHelperReleaseConditionsMetBranches(t *testing.T) {
 		t.Parallel()
 
 		homePaths := testHomePaths(t)
-		helper := newRelaunchHelper(RelaunchHelperConfig{HomePaths: homePaths})
+		helper := newRelaunchHelper(&RelaunchHelperConfig{HomePaths: homePaths})
 		helper.processAlive = func(int) bool { return false }
 		helper.acquireLock = func(string, int) (*Lock, error) {
 			return &Lock{
@@ -920,7 +920,7 @@ func TestRelaunchHelperReleaseConditionsMetBranches(t *testing.T) {
 		t.Parallel()
 
 		homePaths := testHomePaths(t)
-		helper := newRelaunchHelper(RelaunchHelperConfig{HomePaths: homePaths})
+		helper := newRelaunchHelper(&RelaunchHelperConfig{HomePaths: homePaths})
 		helper.processAlive = func(int) bool { return false }
 		helper.acquireLock = func(string, int) (*Lock, error) {
 			return nil, errors.New("probe blew up")
@@ -1064,7 +1064,7 @@ func TestWaitForReadyReturnsFailureContextWhenPollingReadBreaks(t *testing.T) {
 	}
 
 	waitBlocked := make(chan struct{})
-	helper := newRelaunchHelper(RelaunchHelperConfig{
+	helper := newRelaunchHelper(&RelaunchHelperConfig{
 		HomePaths:    homePaths,
 		OperationID:  operation.OperationID,
 		PollInterval: 5 * time.Millisecond,
@@ -1117,7 +1117,7 @@ func TestWaitForReadyPreservesCancellationCause(t *testing.T) {
 	}
 
 	waitBlocked := make(chan struct{})
-	helper := newRelaunchHelper(RelaunchHelperConfig{
+	helper := newRelaunchHelper(&RelaunchHelperConfig{
 		HomePaths:     homePaths,
 		OperationID:   operation.OperationID,
 		PollInterval:  5 * time.Millisecond,
@@ -1335,7 +1335,7 @@ func TestRunRelaunchHelperReplacementFailurePersistsFailedOperation(t *testing.T
 		t.Fatalf("Transition(stopping) error = %v", err)
 	}
 
-	helper := newRelaunchHelper(RelaunchHelperConfig{
+	helper := newRelaunchHelper(&RelaunchHelperConfig{
 		HomePaths:      homePaths,
 		OperationID:    operation.OperationID,
 		PollInterval:   10 * time.Millisecond,
@@ -1410,7 +1410,7 @@ func TestRunRelaunchHelperWrapperUsesDefaultLauncherAndPersistsFailure(t *testin
 		t.Fatalf("os.WriteFile(script) error = %v", err)
 	}
 
-	err = RunRelaunchHelper(testutil.Context(t), RelaunchHelperConfig{
+	err = RunRelaunchHelper(testutil.Context(t), &RelaunchHelperConfig{
 		HomePaths:      homePaths,
 		OperationID:    operation.OperationID,
 		Executable:     func() (string, error) { return scriptPath, nil },

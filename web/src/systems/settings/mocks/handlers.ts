@@ -16,7 +16,6 @@ import {
   settingsSandboxesCollectionFixture,
   settingsSandboxFixtures,
   settingsGeneralSectionFixture,
-  settingsHooksCollectionFixture,
   settingsHooksExtensionsSectionFixture,
   mcpAuthBeginFixture,
   mcpAuthStatusAuthenticatedFixture,
@@ -33,6 +32,10 @@ import {
   settingsRestartStatusFixture,
   settingsSkillsSectionFixture,
 } from "./fixtures";
+import {
+  settingsHooksCollectionFixtureFor,
+  settingsPersonaSectionFixtureFor,
+} from "./layered-fixtures";
 import {
   settingsWindowManagerDesktopIds,
   settingsWindowManagerSectionFixture,
@@ -87,7 +90,7 @@ function applyRecordsForUrl(request: Request) {
 
 function mcpAuthTarget(request: Request, serverName: string) {
   const url = new URL(request.url);
-  const scope = url.searchParams.get("scope") === "workspace" ? "workspace" : "global";
+  const scope = url.searchParams.get("scope") === "workspace" ? "workspace" : "user";
   const workspaceId = url.searchParams.get("workspace_id")?.trim();
   return {
     server_name: serverName,
@@ -96,12 +99,53 @@ function mcpAuthTarget(request: Request, serverName: string) {
   };
 }
 
+function settingsHooksTarget(request: Request) {
+  const url = new URL(request.url);
+  const scope = url.searchParams.get("scope");
+  const profile = url.searchParams.get("profile")?.trim();
+  const workspaceId = url.searchParams.get("workspace_id")?.trim();
+
+  if (scope === "profile" && profile) {
+    return settingsHooksCollectionFixtureFor({
+      scope: "profile",
+      profile,
+      ...(workspaceId ? { workspace_id: workspaceId } : {}),
+    });
+  }
+  if (scope === "workspace" && workspaceId) {
+    return settingsHooksCollectionFixtureFor({ scope: "workspace", workspace_id: workspaceId });
+  }
+  return settingsHooksCollectionFixtureFor({ scope: "user" });
+}
+
+function settingsPersonaTarget(request: Request) {
+  const url = new URL(request.url);
+  const scope = url.searchParams.get("scope");
+  const profile = url.searchParams.get("profile")?.trim();
+  const workspaceId = url.searchParams.get("workspace_id")?.trim();
+
+  if (scope === "profile" && profile) {
+    return settingsPersonaSectionFixtureFor({
+      scope: "profile",
+      profile,
+      ...(workspaceId ? { workspace_id: workspaceId } : {}),
+    });
+  }
+  if (scope === "workspace" && workspaceId) {
+    return settingsPersonaSectionFixtureFor({ scope: "workspace", workspace_id: workspaceId });
+  }
+  return settingsPersonaSectionFixtureFor({ scope: "user" });
+}
+
 export const handlers: HttpHandler[] = [
   compozyApiMock.get("/api/settings/general", () =>
     HttpResponse.json(settingsGeneralSectionFixture)
   ),
   compozyApiMock.patch("/api/settings/general", () =>
     HttpResponse.json(mutationResult("general", true))
+  ),
+  compozyApiMock.get("/api/settings/persona", ({ request }) =>
+    HttpResponse.json(settingsPersonaTarget(request))
   ),
   compozyApiMock.get("/api/settings/update", () => HttpResponse.json(settingsUpdateStatusFixture)),
   // Apply acknowledges acquisition only; the GET above stays the terminal truth.
@@ -265,6 +309,7 @@ export const handlers: HttpHandler[] = [
     return HttpResponse.json(
       {
         preset: {
+          profile: "default",
           name: body.name ?? "custom",
           events: body.events ?? [],
           targets: body.targets ?? [],
@@ -342,8 +387,8 @@ export const handlers: HttpHandler[] = [
     HttpResponse.json(mutationResult("sandboxes", true))
   ),
 
-  compozyApiMock.get("/api/settings/hooks", () =>
-    HttpResponse.json(settingsHooksCollectionFixture)
+  compozyApiMock.get("/api/settings/hooks", ({ request }) =>
+    HttpResponse.json(settingsHooksTarget(request))
   ),
   compozyApiMock.put("/api/settings/hooks/{name}", () =>
     HttpResponse.json(mutationResult("hooks-extensions", true))

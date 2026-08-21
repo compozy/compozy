@@ -634,7 +634,15 @@ Do not treat stale UI state, chat messages, or memory notes as runtime authority
 
 ## Status, Doctor, Logs, And Support
 
-`compozy observe overview -o json` is the global home read model, optionally workspace-scoped: everything currently waiting on the user (`attention` items carry only the verbs the daemon accepts — `approve`, `reject`, `retry`, `open`), today's terminal counters, 14-day run outcomes, retention-bounded daily token usage with estimated cost and per-agent share (`--usage-window 7|30|90`), an hour-by-weekday event pulse, today's network message and hook-dispatch counters, and a `freshness` block. `--workspace <ref>` scopes aggregates to one workspace; omitting it selects the global home scope. The same payload serves `GET /api/observe/overview` on HTTP and UDS and backs the web home dashboard.
+`compozy observe overview -o json` reads the selected profile by default. Use `--profile <name>` for
+another active profile or `--all-profiles` for an intentional aggregate; combine either mode with
+`--workspace <ref>` when the overview should cover one workspace. HTTP and UDS use the matching
+`profile=<name>` or `all_profiles=true` query parameters on `GET /api/observe/overview`. The payload
+contains attention items with only accepted verbs (`approve`, `reject`, `retry`, `open`), today's
+terminal counters, 14-day run outcomes, retention-bounded daily token usage with estimated cost and
+per-agent share (`--usage-window 7|30|90`), an hour-by-weekday event pulse, today's network and hook
+counters, and freshness. Aggregate usage includes owner-labeled `usage.profiles` rows. The same
+payload backs the web home dashboard.
 
 `compozy status -o json` is the consolidated daemon-wide status surface for daemon health, providers, MCP servers, config apply status, schema migration streams, and log tail summary. To resolve skill diagnostics for one workspace, call `GET /api/status?workspace_id=<id>` or `GET /api/status?workspace=<id|name|path>`; bare `compozy status` does not select a workspace. Inspect `schema_streams` after startup to confirm that the global and memory streams report their expected version, applied migration count, and digest. An incompatible daemon-global `compozy.db` is refused during boot, before readiness. By contrast, an incompatible per-session `events.db` can be discovered after the daemon is ready when a reader such as `compozy session history <id> -o json` or `GET /api/workspaces/{workspace_id}/sessions/{session_id}/history` opens that session; that operation fails without making the healthy daemon-global store unavailable.
 

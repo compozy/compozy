@@ -1713,6 +1713,7 @@ func registerInputQueueSession(t *testing.T, globalDB *GlobalDB) string {
 	sessionID := "sess-input-queue"
 	if err := globalDB.RegisterSession(testutil.Context(t), SessionInfo{
 		ID:            sessionID,
+		ProfileID:     store.DefaultProfileID,
 		Name:          "Input Queue",
 		AgentName:     "coder",
 		Provider:      "claude",

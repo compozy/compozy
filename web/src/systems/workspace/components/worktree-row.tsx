@@ -9,6 +9,7 @@ import { WorktreePath } from "./worktree-path";
 import { WorktreeDetachedPin } from "./worktree-signal-parts";
 import { WorktreeSignals } from "./worktree-signals";
 import { WorktreeStateChip } from "./worktree-state-chip";
+import { ownerFromRow, ProfileOwnerTag } from "@/systems/profiles";
 
 const STATE_ICON: Record<WorktreeDisplayState, LucideIcon> = {
   ready: FolderGit2,
@@ -98,6 +99,10 @@ export function WorktreeRow({
           ) : (
             <WorktreeStateChip state={entry.displayState} />
           )}
+          {/* A worktree is disk state every profile can see, so the owner tag
+              rides the row in every profile rather than only in the aggregate —
+              hiding it would misstate the repo (US-009.EC-1). */}
+          {entry.worktree ? <ProfileOwnerTag owner={ownerFromRow(entry.worktree)} /> : null}
           <WorktreeSignals
             dirty={worktree?.dirty ?? null}
             ahead={worktree?.ahead ?? null}

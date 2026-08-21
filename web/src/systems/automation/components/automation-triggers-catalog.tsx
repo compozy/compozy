@@ -7,6 +7,7 @@ import {
 } from "./automation-catalog-shell";
 import { AutomationTriggerCard } from "./automation-trigger-card";
 import { AutomationTriggerRow } from "./automation-trigger-row";
+import type { ProfileListingScope } from "@/systems/profiles";
 
 export interface AutomationTriggersCatalogProps {
   triggers: AutomationTrigger[];
@@ -17,6 +18,8 @@ export interface AutomationTriggersCatalogProps {
   pagination: AutomationCatalogPagination;
   onClearFilters: () => void;
   onCreate: () => void;
+  /** Owner tags in aggregate mode; names the listing scope in the empty state. */
+  profileScope: ProfileListingScope;
 }
 
 /** Triggers catalog body: rows or cards with shared empty/loading/error/load-more. */
@@ -29,6 +32,7 @@ function AutomationTriggersCatalog({
   pagination,
   onClearFilters,
   onCreate,
+  profileScope,
 }: AutomationTriggersCatalogProps) {
   return (
     <AutomationCatalogShell
@@ -40,13 +44,22 @@ function AutomationTriggersCatalog({
       onClearFilters={onClearFilters}
       onCreate={onCreate}
       pagination={pagination}
+      profileScope={profileScope}
       view={view}
     >
       {triggers.map(trigger =>
         view === "cards" ? (
-          <AutomationTriggerCard key={trigger.id} trigger={trigger} />
+          <AutomationTriggerCard
+            key={trigger.id}
+            owner={profileScope.aggregate ? profileScope.ownerOf(trigger) : undefined}
+            trigger={trigger}
+          />
         ) : (
-          <AutomationTriggerRow key={trigger.id} trigger={trigger} />
+          <AutomationTriggerRow
+            key={trigger.id}
+            profileOwner={profileScope.aggregate ? profileScope.ownerOf(trigger) : undefined}
+            trigger={trigger}
+          />
         )
       )}
     </AutomationCatalogShell>

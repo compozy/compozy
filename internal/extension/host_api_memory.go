@@ -121,8 +121,13 @@ func (h *HostAPIHandler) handleListLogs(ctx context.Context, raw json.RawMessage
 	if err != nil {
 		return nil, err
 	}
+	profileID, err := hostAPIProfileID(ctx)
+	if err != nil {
+		return nil, invalidParamsRPCError(err)
+	}
 
 	events, err := h.observer.QueryEvents(ctx, store.EventSummaryQuery{
+		ReadScope:     store.ReadScope{ProfileID: profileID},
 		WorkspaceID:   workspaceID,
 		SessionID:     strings.TrimSpace(params.SessionID),
 		AgentName:     strings.TrimSpace(params.AgentName),

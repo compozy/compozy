@@ -480,6 +480,14 @@ func TestWorkspaceHelperFunctions(t *testing.T) {
 		if !strings.HasPrefix(got, "ws_") {
 			t.Fatalf("generateID(ws) = %q, want ws_ prefix", got)
 		}
+		if !IsRegistrationID(got) {
+			t.Fatalf("IsRegistrationID(%q) = false, want generated workspace id accepted", got)
+		}
+		for _, invalid := range []string{"", "ws_route", "ws_0123456789ABCDE", "ws_0123456789abcdef0"} {
+			if IsRegistrationID(invalid) {
+				t.Fatalf("IsRegistrationID(%q) = true, want malformed workspace id rejected", invalid)
+			}
+		}
 		got, err = generateID("")
 		if err != nil {
 			t.Fatalf("generateID(empty) error = %v", err)

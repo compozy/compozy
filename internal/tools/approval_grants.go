@@ -6,6 +6,8 @@ import (
 	"fmt"
 	"strings"
 	"time"
+
+	"github.com/compozy/compozy/internal/store"
 )
 
 var (
@@ -52,9 +54,13 @@ func (r ApprovalGrantSetRequest) Normalize() ApprovalGrantSetRequest {
 }
 
 // BuildGrant validates the explicit management boundary and returns its durable wider key.
-func (r ApprovalGrantSetRequest) BuildGrant(workspaceID string) (ApprovalGrant, error) {
+func (r ApprovalGrantSetRequest) BuildGrant(profileID string, workspaceID string) (ApprovalGrant, error) {
 	r = r.Normalize()
+	profileID = strings.TrimSpace(profileID)
 	workspaceID = strings.TrimSpace(workspaceID)
+	if profileID == "" {
+		return ApprovalGrant{}, fmt.Errorf("%w: profile_id is required", ErrApprovalGrantInvalid)
+	}
 	if workspaceID == "" {
 		return ApprovalGrant{}, fmt.Errorf("%w: workspace_id is required", ErrApprovalGrantInvalid)
 	}
@@ -80,6 +86,7 @@ func (r ApprovalGrantSetRequest) BuildGrant(workspaceID string) (ApprovalGrant, 
 	}
 	grant := ApprovalGrant{
 		ApprovalGrantKey: ApprovalGrantKey{
+			ProfileID:   profileID,
 			WorkspaceID: workspaceID,
 			AgentName:   r.AgentName,
 			ToolID:      r.ToolID,
@@ -94,6 +101,7 @@ func (r ApprovalGrantSetRequest) BuildGrant(workspaceID string) (ApprovalGrant, 
 
 // ApprovalGrantKey identifies one durable native-tool approval decision.
 type ApprovalGrantKey struct {
+	ProfileID   string `json:"profile_id"`
 	WorkspaceID string `json:"workspace_id"`
 	AgentName   string `json:"agent_name,omitempty"`
 	ToolID      ToolID `json:"tool_id"`
@@ -102,6 +110,7 @@ type ApprovalGrantKey struct {
 
 // Normalize returns a canonical approval grant key.
 func (k ApprovalGrantKey) Normalize() ApprovalGrantKey {
+	k.ProfileID = strings.TrimSpace(k.ProfileID)
 	k.WorkspaceID = strings.TrimSpace(k.WorkspaceID)
 	k.AgentName = strings.TrimSpace(k.AgentName)
 	k.ToolID = ToolID(strings.TrimSpace(k.ToolID.String()))
@@ -112,6 +121,9 @@ func (k ApprovalGrantKey) Normalize() ApprovalGrantKey {
 // Validate checks the fields required by every durable approval lookup.
 func (k ApprovalGrantKey) Validate() error {
 	k = k.Normalize()
+	if k.ProfileID == "" {
+		return fmt.Errorf("%w: profile_id is required", ErrApprovalGrantInvalid)
+	}
 	if k.WorkspaceID == "" {
 		return fmt.Errorf("%w: workspace_id is required", ErrApprovalGrantInvalid)
 	}
@@ -128,9 +140,14 @@ func (k ApprovalGrantKey) Validate() error {
 type ApprovalGrant struct {
 	ID string `json:"id"`
 	ApprovalGrantKey
-	Decision   ApprovalGrantDecision `json:"decision"`
-	CreatedAt  time.Time             `json:"created_at"`
-	LastUsedAt time.Time             `json:"last_used_at"`
+	ProfileName     string                `json:"profile_name,omitempty"`
+	ProfileColor    string                `json:"profile_color,omitempty"`
+	ProfileIcon     string                `json:"profile_icon,omitempty"`
+	ProfileEmoji    string                `json:"profile_emoji,omitempty"`
+	ProfileArchived bool                  `json:"profile_archived,omitempty"`
+	Decision        ApprovalGrantDecision `json:"decision"`
+	CreatedAt       time.Time             `json:"created_at"`
+	LastUsedAt      time.Time             `json:"last_used_at"`
 }
 
 // Normalize returns a canonical durable grant.
@@ -179,6 +196,6 @@ func (g ApprovalGrant) Validate() error {
 type ApprovalGrantStore interface {
 	LookupApprovalGrant(ctx context.Context, key ApprovalGrantKey) (ApprovalGrant, bool, error)
 	PutApprovalGrant(ctx context.Context, grant ApprovalGrant) (ApprovalGrant, error)
-	ListApprovalGrants(ctx context.Context, workspaceID string) ([]ApprovalGrant, error)
-	RevokeApprovalGrant(ctx context.Context, workspaceID, id string) error
+	ListApprovalGrants(ctx context.Context, readScope store.ReadScope, workspaceID string) ([]ApprovalGrant, error)
+	RevokeApprovalGrant(ctx context.Context, profileID, workspaceID, id string) error
 }

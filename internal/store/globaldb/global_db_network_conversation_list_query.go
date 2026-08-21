@@ -84,11 +84,16 @@ func networkThreadListFilterClauses(
 	ref store.NetworkChannelRef,
 	query store.NetworkThreadQuery,
 ) ([]string, []any) {
-	where := []string{globalDBNetworkConversationsWorkspaceIDValue, globalDBNetworkConversationsChannelValue}
+	where, scopeArgs := store.BuildClauses(store.ReadScopeClause("network_threads.profile_id", query.ReadScope))
+	where = append(where, "network_threads.workspace_id = ?", "network_threads.channel = ?")
 	args := []any{ref.WorkspaceID, ref.Channel}
+	args = append(scopeArgs, args...)
 	if search := strings.TrimSpace(query.Search); search != "" {
 		pattern := "%" + escapeNetworkLikePattern(search) + "%"
-		where = append(where, "(title LIKE ? ESCAPE '\\' OR last_message_preview LIKE ? ESCAPE '\\')")
+		where = append(
+			where,
+			"(network_threads.title LIKE ? ESCAPE '\\' OR network_threads.last_message_preview LIKE ? ESCAPE '\\')",
+		)
 		args = append(args, pattern, pattern)
 	}
 	if sessionID := strings.TrimSpace(query.SessionID); sessionID != "" {
@@ -106,7 +111,7 @@ func networkThreadListFilterClauses(
 		if *query.HasWork {
 			operator = "> 0"
 		}
-		where = append(where, "open_work_count "+operator)
+		where = append(where, "network_threads.open_work_count "+operator)
 	}
 	return where, args
 }
@@ -115,18 +120,22 @@ func networkDirectRoomListFilterClauses(
 	ref store.NetworkChannelRef,
 	query store.NetworkDirectRoomQuery,
 ) ([]string, []any) {
-	where := []string{globalDBNetworkConversationsWorkspaceIDValue, globalDBNetworkConversationsChannelValue}
+	where, scopeArgs := store.BuildClauses(store.ReadScopeClause("network_direct_rooms.profile_id", query.ReadScope))
+	where = append(where, "network_direct_rooms.workspace_id = ?", "network_direct_rooms.channel = ?")
 	args := []any{ref.WorkspaceID, ref.Channel}
+	args = append(scopeArgs, args...)
 	if search := strings.TrimSpace(query.Search); search != "" {
 		pattern := "%" + escapeNetworkLikePattern(search) + "%"
 		where = append(
 			where,
-			"(session_a LIKE ? ESCAPE '\\' OR session_b LIKE ? ESCAPE '\\' OR last_message_preview LIKE ? ESCAPE '\\')",
+			"(network_direct_rooms.session_a LIKE ? ESCAPE '\\' OR "+
+				"network_direct_rooms.session_b LIKE ? ESCAPE '\\' OR "+
+				"network_direct_rooms.last_message_preview LIKE ? ESCAPE '\\')",
 		)
 		args = append(args, pattern, pattern, pattern)
 	}
 	if sessionID := strings.TrimSpace(query.SessionID); sessionID != "" {
-		where = append(where, "(session_a = ? OR session_b = ?)")
+		where = append(where, "(network_direct_rooms.session_a = ? OR network_direct_rooms.session_b = ?)")
 		args = append(args, sessionID, sessionID)
 	}
 	if query.HasWork != nil {
@@ -134,7 +143,7 @@ func networkDirectRoomListFilterClauses(
 		if *query.HasWork {
 			operator = "> 0"
 		}
-		where = append(where, "open_work_count "+operator)
+		where = append(where, "network_direct_rooms.open_work_count "+operator)
 	}
 	return where, args
 }
@@ -210,6 +219,7 @@ func escapeNetworkLikePattern(value string) string {
 
 func networkConversationCursorFingerprint(
 	ref store.NetworkChannelRef,
+	readScope store.ReadScope,
 	search string,
 	sessionID string,
 	sortOrder string,
@@ -218,6 +228,8 @@ func networkConversationCursorFingerprint(
 ) (string, error) {
 	return listcursor.Fingerprint(struct {
 		WorkspaceID string `json:"workspace_id"`
+		ProfileID   string `json:"profile_id"`
+		AllProfiles bool   `json:"all_profiles"`
 		Channel     string `json:"channel"`
 		Search      string `json:"query"`
 		SessionID   string `json:"session_id"`
@@ -226,6 +238,8 @@ func networkConversationCursorFingerprint(
 		Limit       int    `json:"limit"`
 	}{
 		WorkspaceID: ref.WorkspaceID,
+		ProfileID:   readScope.ProfileID,
+		AllProfiles: readScope.AllProfiles,
 		Channel:     ref.Channel,
 		Search:      search,
 		SessionID:   sessionID,
@@ -244,6 +258,7 @@ func decodeNetworkThreadCursor(
 ) (networkThreadCursor, error) {
 	fingerprint, err := networkConversationCursorFingerprint(
 		ref,
+		query.ReadScope,
 		query.Search,
 		query.SessionID,
 		query.Sort,
@@ -300,6 +315,7 @@ func decodeNetworkDirectRoomCursor(
 ) (networkDirectRoomCursor, error) {
 	fingerprint, err := networkConversationCursorFingerprint(
 		ref,
+		query.ReadScope,
 		query.Search,
 		query.SessionID,
 		query.Sort,
@@ -372,6 +388,7 @@ func encodeNetworkThreadCursor(
 ) (string, error) {
 	fingerprint, err := networkConversationCursorFingerprint(
 		ref,
+		query.ReadScope,
 		query.Search,
 		query.SessionID,
 		query.Sort,
@@ -420,6 +437,7 @@ func encodeNetworkDirectRoomCursor(
 ) (string, error) {
 	fingerprint, err := networkConversationCursorFingerprint(
 		ref,
+		query.ReadScope,
 		query.Search,
 		query.SessionID,
 		query.Sort,

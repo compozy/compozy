@@ -13,7 +13,7 @@ import (
 
 // Triggers returns overlay-aware trigger definitions from persistence.
 func (m *Manager) Triggers(ctx context.Context) ([]Trigger, error) {
-	return m.loadEffectiveTriggers(ctx, TriggerListQuery{})
+	return m.loadEffectiveTriggers(ctx, TriggerListQuery{ReadScope: store.ReadScope{AllProfiles: true}})
 }
 
 // ListTriggers returns overlay-aware trigger definitions using the supplied
@@ -46,11 +46,19 @@ func (m *Manager) CreateTrigger(
 	if err := ValidateTriggerEvent(trigger.Event, "trigger"); err != nil {
 		return Trigger{}, err
 	}
+	trigger.ProfileID = strings.TrimSpace(trigger.ProfileID)
+	if trigger.ProfileID == "" {
+		trigger.ProfileID = store.DefaultProfileID
+	}
 	if m.resourceDefinitionsEnabled() {
 		return m.createTriggerResource(ctx, trigger, webhookSecret)
 	}
 
 	next := cloneTrigger(trigger)
+	next.ProfileID = strings.TrimSpace(next.ProfileID)
+	if next.ProfileID == "" {
+		next.ProfileID = store.DefaultProfileID
+	}
 	if next.Source == "" {
 		next.Source = JobSourceDynamic
 	}

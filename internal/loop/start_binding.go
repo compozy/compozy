@@ -23,6 +23,7 @@ type StartBindingRequest struct {
 // StartTargetValidation validates static and mapped inputs for one automation-carried start.
 type StartTargetValidation struct {
 	WorkspaceID  WorkspaceID
+	ProfileID    string
 	LoopName     string
 	Kind         dsl.StartKind
 	Inputs       map[string]any
@@ -66,7 +67,14 @@ func StartFromActor(
 	if service == nil {
 		return nil, fmt.Errorf("%w: loop service is required", ErrValidation)
 	}
-	if _, err := ResolveStartBinding(ctx, resolver, req.WorkspaceID, req.LoopName, req.Kind); err != nil {
+	if _, err := ResolveStartBinding(
+		ctx,
+		resolver,
+		req.WorkspaceID,
+		req.Inputs.ProfileID,
+		req.LoopName,
+		req.Kind,
+	); err != nil {
 		return nil, err
 	}
 	return service.Start(ctx, req.WorkspaceID, req.LoopName, req.Inputs, actor)
@@ -77,10 +85,11 @@ func ResolveStartBinding(
 	ctx context.Context,
 	resolver DefinitionResolver,
 	ws WorkspaceID,
+	profileID string,
 	name string,
 	kind dsl.StartKind,
 ) (*dsl.StartBinding, error) {
-	_, binding, err := resolveStartBindingAndDefinition(ctx, resolver, ws, name, kind)
+	_, binding, err := resolveStartBindingAndDefinition(ctx, resolver, ws, profileID, name, kind)
 	return binding, err
 }
 
@@ -90,7 +99,14 @@ func ValidateStartTarget(
 	resolver DefinitionResolver,
 	req StartTargetValidation,
 ) error {
-	resolved, err := resolveStartTargetDefinition(ctx, resolver, req.WorkspaceID, req.LoopName, req.Kind)
+	resolved, err := resolveStartTargetDefinition(
+		ctx,
+		resolver,
+		req.WorkspaceID,
+		req.ProfileID,
+		req.LoopName,
+		req.Kind,
+	)
 	if err != nil {
 		return err
 	}
@@ -103,7 +119,14 @@ func ResolveStartTargetInputs(
 	resolver DefinitionResolver,
 	req StartTargetResolution,
 ) (map[string]any, error) {
-	resolved, err := resolveStartTargetDefinition(ctx, resolver, req.WorkspaceID, req.LoopName, req.Kind)
+	resolved, err := resolveStartTargetDefinition(
+		ctx,
+		resolver,
+		req.WorkspaceID,
+		req.ProfileID,
+		req.LoopName,
+		req.Kind,
+	)
 	if err != nil {
 		return nil, err
 	}
@@ -173,10 +196,11 @@ func resolveStartTargetDefinition(
 	ctx context.Context,
 	resolver DefinitionResolver,
 	ws WorkspaceID,
+	profileID string,
 	name string,
 	kind dsl.StartKind,
 ) (*ResolvedDefinition, error) {
-	resolved, _, err := resolveStartBindingAndDefinition(ctx, resolver, ws, name, kind)
+	resolved, _, err := resolveStartBindingAndDefinition(ctx, resolver, ws, profileID, name, kind)
 	return resolved, err
 }
 
@@ -184,6 +208,7 @@ func resolveStartBindingAndDefinition(
 	ctx context.Context,
 	resolver DefinitionResolver,
 	ws WorkspaceID,
+	profileID string,
 	name string,
 	kind dsl.StartKind,
 ) (*ResolvedDefinition, *dsl.StartBinding, error) {
@@ -198,7 +223,11 @@ func resolveStartBindingAndDefinition(
 	if err != nil {
 		return nil, nil, err
 	}
-	resolved, err := resolver.ResolveLoop(ctx, ws, trimmedName)
+	profileID = strings.TrimSpace(profileID)
+	if profileID == "" {
+		return nil, nil, fmt.Errorf("%w: profile id is required", ErrValidation)
+	}
+	resolved, err := resolver.ResolveLoop(ctx, ws, profileID, trimmedName)
 	if err != nil {
 		return nil, nil, err
 	}

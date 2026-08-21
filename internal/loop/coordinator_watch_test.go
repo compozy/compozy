@@ -14,6 +14,7 @@ import (
 	"github.com/compozy/compozy/internal/hooks"
 	"github.com/compozy/compozy/internal/loop/dsl"
 	watchpkg "github.com/compozy/compozy/internal/loop/watch"
+	"github.com/compozy/compozy/internal/store"
 	"github.com/compozy/compozy/internal/task"
 )
 
@@ -776,6 +777,7 @@ func (f watchPollerFunc) Poll(ctx context.Context, req watchpkg.PollRequest) (wa
 func watchLoopRun(status Status, generation int, lastProgressAt time.Time) Run {
 	return Run{
 		ID:             "looprun-watch-source",
+		ProfileID:      store.DefaultProfileID,
 		WorkspaceID:    "ws-1",
 		LoopName:       "watch-loop",
 		Status:         status,
@@ -893,6 +895,7 @@ func (l *watchEventsLedgerForTest) ReadMatches(
 func cloneWatchEventsQueryForTest(query WatchEventsQuery) WatchEventsQuery {
 	return WatchEventsQuery{
 		WorkspaceID: query.WorkspaceID,
+		ReadScope:   query.ReadScope,
 		Streams:     cloneInt64Map(query.Streams),
 		Kinds:       append([]string(nil), query.Kinds...),
 		Limit:       query.Limit,

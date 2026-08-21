@@ -6,6 +6,7 @@ import (
 	"strings"
 
 	bridgepkg "github.com/compozy/compozy/internal/bridges"
+	"github.com/compozy/compozy/internal/store"
 	"github.com/spf13/cobra"
 )
 
@@ -18,7 +19,7 @@ func parseBridgeScope(raw string) (bridgepkg.Scope, error) {
 }
 
 func validateBridgeCreatePayload(payload CreateBridgeRequest) error {
-	if _, err := payload.ToCreateInstanceRequest(); err != nil {
+	if _, err := payload.ToCreateInstanceRequest(store.DefaultProfileID); err != nil {
 		return fmt.Errorf("cli: invalid bridge create payload: %w", err)
 	}
 	return nil

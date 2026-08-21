@@ -25,11 +25,16 @@ func (h *BaseHandlers) OpenCmdPaletteViewSession(c *gin.Context) {
 	if !ok {
 		return
 	}
+	profileLens, ok := h.resolveCmdPaletteProfileLens(c, false)
+	if !ok {
+		return
+	}
 	service, ok := h.cmdPaletteViewSessionService(c, workspaceID)
 	if !ok {
 		return
 	}
 	result, err := service.OpenSession(c.Request.Context(), cmdpalette.ViewSessionOpenRequest{
+		ProfileLens:     profileLens,
 		Workspace:       workspaceID,
 		View:            strings.TrimSpace(c.Param("id")),
 		Args:            body.Args,
@@ -40,6 +45,7 @@ func (h *BaseHandlers) OpenCmdPaletteViewSession(c *gin.Context) {
 		return
 	}
 	c.JSON(http.StatusOK, contract.CmdPaletteViewSessionOpenResponse{
+		ProfileLens: result.ProfileLens,
 		ViewSession: result.Token.ViewSession,
 		StreamToken: result.Token.StreamToken,
 		FirstFrame:  result.FirstFrame,

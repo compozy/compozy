@@ -83,7 +83,9 @@ func (c *daemonClient) sessionWorkspaceRef(ctx context.Context, sessionID string
 func sessionListValues(query SessionListQuery) url.Values {
 	values := url.Values{}
 	if trimmed := strings.TrimSpace(query.Workspace); trimmed != "" {
-		values.Set("workspace", trimmed)
+		values.Set("workspace_id", trimmed)
+	} else {
+		values.Set("all_workspaces", "true")
 	}
 	if trimmed := strings.TrimSpace(query.Worktree); trimmed != "" {
 		values.Set("worktree", trimmed)

@@ -11,9 +11,9 @@ func bridgeTargetOperations() []OperationSpec {
 			Summary:     "List routes owned by a bridge instance",
 			Tags:        []string{specBridgesKey},
 			Transports:  []Transport{TransportHTTP, TransportUDS},
-			Parameters: []ParameterSpec{
+			Parameters: withProfileScope(
 				pathParam("id", "Bridge instance id"),
-			},
+			),
 			Responses: []ResponseSpec{
 				{Status: 200, Description: "OK", Body: contract.BridgeRoutesResponse{}},
 				{Status: 404, Description: specBridgeInstanceNotFoundDescription, Body: contract.ErrorPayload{}},
@@ -28,11 +28,11 @@ func bridgeTargetOperations() []OperationSpec {
 			Summary:     "List discovered targets for a bridge instance",
 			Tags:        []string{specBridgesKey},
 			Transports:  []Transport{TransportHTTP, TransportUDS},
-			Parameters: []ParameterSpec{
+			Parameters: withProfileScope(
 				pathParam("id", "Bridge instance id"),
 				queryParam("q", "Filter targets by display name, qualifier, or route", false),
 				intQueryParam("limit", "Maximum targets to return"),
-			},
+			),
 			Responses: []ResponseSpec{
 				{Status: 200, Description: "OK", Body: contract.BridgeTargetsResponse{}},
 				{Status: 404, Description: specBridgeInstanceNotFoundDescription, Body: contract.ErrorPayload{}},
@@ -47,9 +47,9 @@ func bridgeTargetOperations() []OperationSpec {
 			Summary:     "Resolve a bridge target name without sending",
 			Tags:        []string{specBridgesKey},
 			Transports:  []Transport{TransportHTTP, TransportUDS},
-			Parameters: []ParameterSpec{
+			Parameters: withProfileScope(
 				pathParam("id", "Bridge instance id"),
-			},
+			),
 			RequestBody: contract.BridgeResolveTargetRequest{},
 			Responses: []ResponseSpec{
 				{Status: 200, Description: "OK", Body: contract.BridgeResolveTargetResponse{}},

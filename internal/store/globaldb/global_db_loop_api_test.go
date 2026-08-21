@@ -14,6 +14,7 @@ import (
 	"github.com/compozy/compozy/internal/loop/dsl"
 	"github.com/compozy/compozy/internal/network/participation"
 	speedpkg "github.com/compozy/compozy/internal/speed"
+	"github.com/compozy/compozy/internal/store"
 	"github.com/compozy/compozy/internal/testutil"
 )
 
@@ -226,13 +227,71 @@ func (e *countingLoopCatalogQueryExecutor) QueryContext(
 func TestGlobalDBLoopAPIRunsShouldRemainWorkspaceScoped(t *testing.T) {
 	t.Parallel()
 
+	t.Run("Should isolate profile-scoped and aggregate loop reads", func(t *testing.T) {
+		t.Parallel()
+
+		globalDB := openLoopTestGlobalDB(t, "ws-profile")
+		ctx := testutil.Context(t)
+		now := time.Date(2026, 8, 23, 12, 0, 0, 0, time.UTC)
+		foreignProfileID := "eeeeeeeeeeeeeeeeeeeeeeeeee"
+		if _, err := globalDB.db.ExecContext(ctx, `
+			INSERT INTO profiles (id, name, color, icon, state, created_at)
+			VALUES (?, 'loop-foreign', '#E8572A', 'circle', 'active', ?)`,
+			foreignProfileID,
+			store.FormatTimestamp(now),
+		); err != nil {
+			t.Fatalf("insert foreign loop profile error = %v", err)
+		}
+
+		owned := testLoopRun("looprun-profile-owned", now, looppkg.StatusRunning)
+		owned.WorkspaceID = "ws-profile"
+		foreign := testLoopRun("looprun-profile-foreign", now.Add(time.Second), looppkg.StatusRunning)
+		foreign.ProfileID = foreignProfileID
+		foreign.WorkspaceID = "ws-profile"
+		for _, run := range []looppkg.Run{owned, foreign} {
+			if _, err := globalDB.CreateLoopRunForStart(ctx, run, dsl.ConcurrencyAllow); err != nil {
+				t.Fatalf("CreateLoopRunForStart(%s) error = %v", run.ID, err)
+			}
+		}
+
+		scoped, err := globalDB.ListLoopRuns(ctx, looppkg.RunListQuery{
+			ReadScope: store.ReadScope{ProfileID: store.DefaultProfileID}, WorkspaceID: "ws-profile",
+		})
+		if err != nil {
+			t.Fatalf("ListLoopRuns(scoped) error = %v", err)
+		}
+		if len(scoped) != 1 || scoped[0].ID != owned.ID || scoped[0].ProfileID != store.DefaultProfileID {
+			t.Fatalf("ListLoopRuns(scoped) = %#v, want only default-owned run", scoped)
+		}
+
+		aggregate, err := globalDB.ListLoopRuns(ctx, looppkg.RunListQuery{
+			ReadScope: store.ReadScope{AllProfiles: true}, WorkspaceID: "ws-profile",
+		})
+		if err != nil {
+			t.Fatalf("ListLoopRuns(aggregate) error = %v", err)
+		}
+		if len(aggregate) != 2 || aggregate[0].ProfileID != foreignProfileID ||
+			aggregate[1].ProfileID != store.DefaultProfileID {
+			t.Fatalf("ListLoopRuns(aggregate) = %#v, want both profile owners", aggregate)
+		}
+
+		if _, err := globalDB.ListLoopRuns(ctx, looppkg.RunListQuery{WorkspaceID: "ws-profile"}); !errors.Is(
+			err,
+			store.ErrReadScopeInvalid,
+		) {
+			t.Fatalf("ListLoopRuns(invalid scope) error = %v, want %v", err, store.ErrReadScopeInvalid)
+		}
+	})
+
 	t.Run("Should join loop-run scan and rows-close errors", func(t *testing.T) {
 		t.Parallel()
 
 		globalDB := openQueryRowsCloseErrorGlobalDB(t)
 		_, err := globalDB.ListLoopRuns(
 			testutil.Context(t),
-			looppkg.RunListQuery{WorkspaceID: "ws-close-error"},
+			looppkg.RunListQuery{
+				ReadScope: store.ReadScope{AllProfiles: true}, WorkspaceID: "ws-close-error",
+			},
 		)
 		if !errors.Is(err, errQueryRowsClose) || !strings.Contains(err.Error(), "scan loop run") {
 			t.Fatalf("ListLoopRuns() error = %v, want joined scan and rows-close errors", err)
@@ -294,6 +353,7 @@ func TestGlobalDBLoopAPIRunsShouldRemainWorkspaceScoped(t *testing.T) {
 		}
 
 		runs, err := globalDB.ListLoopRuns(ctx, looppkg.RunListQuery{
+			ReadScope:   store.ReadScope{AllProfiles: true},
 			WorkspaceID: "ws-a",
 			LoopName:    "delivery",
 			Status:      looppkg.StatusRunning,
@@ -312,7 +372,9 @@ func TestGlobalDBLoopAPIRunsShouldRemainWorkspaceScoped(t *testing.T) {
 			t.Fatalf("ListLoopRuns() NetworkSpec = %#v, want %#v", got, want)
 		}
 
-		foreign, err := globalDB.ListLoopRuns(ctx, looppkg.RunListQuery{WorkspaceID: "ws-b", Limit: 10})
+		foreign, err := globalDB.ListLoopRuns(ctx, looppkg.RunListQuery{
+			ReadScope: store.ReadScope{AllProfiles: true}, WorkspaceID: "ws-b", Limit: 10,
+		})
 		if err != nil {
 			t.Fatalf("ListLoopRuns(foreign) error = %v", err)
 		}
@@ -325,6 +387,7 @@ func TestGlobalDBLoopAPIRunsShouldRemainWorkspaceScoped(t *testing.T) {
 
 		live := true
 		sessionRuns, err := globalDB.ListLoopRuns(ctx, looppkg.RunListQuery{
+			ReadScope:       store.ReadScope{AllProfiles: true},
 			WorkspaceID:     "ws-a",
 			OriginKind:      "session",
 			OriginSessionID: "session-a",
@@ -339,6 +402,7 @@ func TestGlobalDBLoopAPIRunsShouldRemainWorkspaceScoped(t *testing.T) {
 		}
 
 		foreignSessionRuns, err := globalDB.ListLoopRuns(ctx, looppkg.RunListQuery{
+			ReadScope:       store.ReadScope{AllProfiles: true},
 			WorkspaceID:     "ws-b",
 			OriginSessionID: "session-a",
 			Limit:           10,
@@ -352,6 +416,7 @@ func TestGlobalDBLoopAPIRunsShouldRemainWorkspaceScoped(t *testing.T) {
 
 		terminal := false
 		catalogRuns, err := globalDB.ListLoopRuns(ctx, looppkg.RunListQuery{
+			ReadScope:   store.ReadScope{AllProfiles: true},
 			WorkspaceID: "ws-a",
 			OriginKind:  "catalog",
 			Live:        &terminal,
@@ -392,6 +457,7 @@ func TestGlobalDBLoopAPIEventsShouldResumeBySequenceAndWorkspace(t *testing.T) {
 		}
 
 		events, err := globalDB.ListLoopRunEvents(ctx, looppkg.RunEventQuery{
+			ReadScope:   store.ReadScope{ProfileID: store.DefaultProfileID},
 			WorkspaceID: "ws-a",
 			RunID:       run.ID,
 			AfterSeq:    1,
@@ -407,15 +473,21 @@ func TestGlobalDBLoopAPIEventsShouldResumeBySequenceAndWorkspace(t *testing.T) {
 		}
 
 		foreign, err := globalDB.ListLoopRunEvents(ctx, looppkg.RunEventQuery{
+			ReadScope:   store.ReadScope{ProfileID: store.DefaultProfileID},
 			WorkspaceID: "ws-b",
 			RunID:       run.ID,
 			AfterSeq:    0,
 		})
-		if err != nil {
-			t.Fatalf("ListLoopRunEvents(foreign) error = %v", err)
+		if !errors.Is(err, looppkg.ErrRunNotFound) {
+			t.Fatalf("ListLoopRunEvents(foreign) error = %v, want ErrRunNotFound", err)
 		}
 		if len(foreign) != 0 {
 			t.Fatalf("foreign events = %#v, want none", foreign)
+		}
+		if _, err := globalDB.ListLoopRunEvents(ctx, looppkg.RunEventQuery{
+			ReadScope: store.ReadScope{ProfileID: "profile-foreign"}, WorkspaceID: "ws-a", RunID: run.ID,
+		}); !errors.Is(err, looppkg.ErrRunNotFound) {
+			t.Fatalf("ListLoopRunEvents(foreign profile) error = %v, want ErrRunNotFound", err)
 		}
 	})
 
@@ -539,10 +611,11 @@ func TestGlobalDBLoopAPIEventsShouldResumeBySequenceAndWorkspace(t *testing.T) {
 			t.Fatalf("foreign outputs = %#v, want none", foreignOutputs)
 		}
 		foreignEvents, err := globalDB.ListLoopRunEvents(ctx, looppkg.RunEventQuery{
+			ReadScope:   store.ReadScope{ProfileID: store.DefaultProfileID},
 			WorkspaceID: "ws-b", RunID: run.ID,
 		})
-		if err != nil {
-			t.Fatalf("ListLoopRunEvents(foreign) error = %v", err)
+		if !errors.Is(err, looppkg.ErrRunNotFound) {
+			t.Fatalf("ListLoopRunEvents(foreign) error = %v, want ErrRunNotFound", err)
 		}
 		if len(foreignEvents) != 0 {
 			t.Fatalf("foreign events = %#v, want none", foreignEvents)
@@ -576,6 +649,7 @@ func TestGlobalDBLoopAPIEventsShouldResumeBySequenceAndWorkspace(t *testing.T) {
 			t.Fatalf("resolved runtime after reopen = %#v, want %#v", got, resolved)
 		}
 		events, err := reopened.ListLoopRunEvents(ctx, looppkg.RunEventQuery{
+			ReadScope:   store.ReadScope{ProfileID: store.DefaultProfileID},
 			WorkspaceID: "ws-a", RunID: run.ID,
 		})
 		if err != nil {
@@ -1023,6 +1097,7 @@ func TestGlobalDBLoopRunsShouldOrderOperationalPagesBeforeLimiting(t *testing.T)
 		}
 
 		firstPage, err := globalDB.ListLoopRuns(ctx, looppkg.RunListQuery{
+			ReadScope:   store.ReadScope{ProfileID: store.DefaultProfileID},
 			WorkspaceID: "ws-a", OperationalOrder: true, Limit: 2,
 		})
 		if err != nil {
@@ -1036,6 +1111,7 @@ func TestGlobalDBLoopRunsShouldOrderOperationalPagesBeforeLimiting(t *testing.T)
 			Rank: 1, CreatedAt: firstPage[1].CreatedAt.In(cursorLocation), ID: " active-new ",
 		}
 		secondPage, err := globalDB.ListLoopRuns(ctx, looppkg.RunListQuery{
+			ReadScope:   store.ReadScope{ProfileID: store.DefaultProfileID},
 			WorkspaceID: "ws-a", OperationalOrder: true, Limit: 3,
 			After: cursor,
 		})
@@ -1060,6 +1136,7 @@ func TestGlobalDBLoopRunsShouldOrderOperationalPagesBeforeLimiting(t *testing.T)
 		}
 		_, err = globalDB.ListLoopRuns(ctx, looppkg.RunListQuery{
 			WorkspaceID:      "ws-a",
+			ReadScope:        store.ReadScope{ProfileID: store.DefaultProfileID},
 			OperationalOrder: true,
 			Limit:            2,
 			After: &looppkg.RunListPosition{

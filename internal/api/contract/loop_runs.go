@@ -44,6 +44,10 @@ const (
 // LoopRunPayload is the public loop_run aggregate projection.
 type LoopRunPayload struct {
 	ID                           string                `json:"id"`
+	ProfileID                    string                `json:"profile_id"`
+	ProfileName                  string                `json:"profile_name"`
+	ProfileColor                 string                `json:"profile_color,omitempty"`
+	ProfileIcon                  string                `json:"profile_icon,omitempty"`
 	WorkspaceID                  string                `json:"workspace_id"`
 	LoopName                     string                `json:"loop_name"`
 	Status                       LoopRunStatus         `json:"status"`

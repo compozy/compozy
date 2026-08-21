@@ -7,6 +7,7 @@ import (
 	"errors"
 	"fmt"
 	"path/filepath"
+	"slices"
 	"strings"
 	"sync"
 	"testing"
@@ -33,6 +34,8 @@ type SchedulerState = automation.SchedulerState
 type SchedulerClaim = automation.SchedulerClaim
 type JobEnabledOverlay = automation.JobEnabledOverlay
 type TriggerEnabledOverlay = automation.TriggerEnabledOverlay
+
+var automationAllProfiles = store.ReadScope{AllProfiles: true}
 
 func automationNamedParticipation(channelID string) *participation.Request {
 	mode := participation.ModeLive
@@ -80,6 +83,7 @@ func TestOpenGlobalDBCreatesAutomationSchemaAndIndexes(t *testing.T) {
 	)
 	assertTableColumns(t, globalDB.db, "automation_jobs", []string{
 		"id",
+		"profile_id",
 		"scope",
 		"name",
 		"agent_name",
@@ -102,6 +106,7 @@ func TestOpenGlobalDBCreatesAutomationSchemaAndIndexes(t *testing.T) {
 	})
 	assertTableColumns(t, globalDB.db, "automation_triggers", []string{
 		"id",
+		"profile_id",
 		"scope",
 		"name",
 		"agent_name",
@@ -193,6 +198,7 @@ func TestOpenGlobalDBCreatesAutomationSchemaAndIndexes(t *testing.T) {
 	)
 	assertTableColumns(t, globalDB.db, "automation_suggestions", []string{
 		"id",
+		"profile_id",
 		"workspace_id",
 		"source",
 		"dedup_key",
@@ -205,8 +211,8 @@ func TestOpenGlobalDBCreatesAutomationSchemaAndIndexes(t *testing.T) {
 		t,
 		globalDB.db,
 		"automation_suggestions",
-		"automation_suggestions_workspace_id_dedup_key",
-		"idx_automation_suggestions_workspace_status",
+		"automation_suggestions_profile_workspace_dedup_key",
+		"idx_automation_suggestions_profile_workspace_status",
 	)
 	assertTableSQLContains(
 		t,
@@ -651,7 +657,7 @@ func TestGlobalDBTriggerUniquenessAndWebhookIDConstraints(t *testing.T) {
 		t.Fatalf("CreateTrigger(duplicate webhook) error = %v, want ErrTriggerWebhookIDTaken", err)
 	}
 
-	filtered, err := globalDB.ListTriggers(testutil.Context(t), TriggerListQuery{
+	filtered, err := globalDB.ListTriggers(testutil.Context(t), TriggerListQuery{ReadScope: automationAllProfiles,
 		Scope:  automation.AutomationScopeWorkspace,
 		Event:  "webhook",
 		Source: automation.JobSourceDynamic,
@@ -666,6 +672,148 @@ func TestGlobalDBTriggerUniquenessAndWebhookIDConstraints(t *testing.T) {
 
 func TestGlobalDBAutomationListsSearchPageAndIsolateWorkspaces(t *testing.T) {
 	t.Parallel()
+
+	t.Run("Should isolate jobs triggers runs and cursors by explicit profile scope", func(t *testing.T) {
+		t.Parallel()
+
+		globalDB := openTestGlobalDB(t)
+		ctx := testutil.Context(t)
+		profileB := strings.Repeat("b", 26)
+		if _, err := globalDB.db.ExecContext(
+			ctx,
+			`INSERT INTO profiles (id, name, color, icon, state, created_at) VALUES (?, ?, ?, ?, ?, ?)`,
+			profileB,
+			"automation-secondary",
+			"#8E8EB5",
+			"circle",
+			"active",
+			store.FormatTimestamp(time.Date(2026, 4, 10, 17, 0, 0, 0, time.UTC)),
+		); err != nil {
+			t.Fatalf("insert secondary profile: %v", err)
+		}
+
+		defaultJob, err := globalDB.CreateJob(ctx, automationJobForTest(
+			automation.AutomationScopeGlobal, "profile-default-job", "", automation.JobSourceDynamic,
+		))
+		if err != nil {
+			t.Fatalf("CreateJob(default) error = %v", err)
+		}
+		secondDefaultJob := automationJobForTest(
+			automation.AutomationScopeGlobal, "profile-default-job-2", "", automation.JobSourceDynamic,
+		)
+		if _, err := globalDB.CreateJob(ctx, secondDefaultJob); err != nil {
+			t.Fatalf("CreateJob(default second) error = %v", err)
+		}
+		foreignJobInput := automationJobForTest(
+			automation.AutomationScopeGlobal, "profile-foreign-job", "", automation.JobSourceDynamic,
+		)
+		foreignJobInput.ProfileID = profileB
+		foreignJob, err := globalDB.CreateJob(ctx, foreignJobInput)
+		if err != nil {
+			t.Fatalf("CreateJob(foreign) error = %v", err)
+		}
+
+		defaultTrigger, err := globalDB.CreateTrigger(ctx, automationNonWebhookTriggerForTest(
+			automation.AutomationScopeGlobal, "profile-default-trigger", "", automation.JobSourceDynamic,
+		))
+		if err != nil {
+			t.Fatalf("CreateTrigger(default) error = %v", err)
+		}
+		foreignTriggerInput := automationNonWebhookTriggerForTest(
+			automation.AutomationScopeGlobal, "profile-foreign-trigger", "", automation.JobSourceDynamic,
+		)
+		foreignTriggerInput.ProfileID = profileB
+		foreignTrigger, err := globalDB.CreateTrigger(ctx, foreignTriggerInput)
+		if err != nil {
+			t.Fatalf("CreateTrigger(foreign) error = %v", err)
+		}
+
+		startedAt := time.Date(2026, 4, 10, 18, 30, 0, 0, time.UTC)
+		if _, err := globalDB.CreateRun(ctx, automationRunForJob(
+			defaultJob.ID, automation.RunCompleted, 1, startedAt,
+		)); err != nil {
+			t.Fatalf("CreateRun(default job) error = %v", err)
+		}
+		if _, err := globalDB.CreateRun(ctx, automationRunForTrigger(
+			defaultTrigger.ID, automation.RunCompleted, 1, startedAt.Add(time.Minute),
+		)); err != nil {
+			t.Fatalf("CreateRun(default trigger) error = %v", err)
+		}
+		if _, err := globalDB.CreateRun(ctx, automationRunForJob(
+			foreignJob.ID, automation.RunCompleted, 1, startedAt.Add(2*time.Minute),
+		)); err != nil {
+			t.Fatalf("CreateRun(foreign job) error = %v", err)
+		}
+		if _, err := globalDB.CreateRun(ctx, automationRunForTrigger(
+			foreignTrigger.ID, automation.RunCompleted, 1, startedAt.Add(3*time.Minute),
+		)); err != nil {
+			t.Fatalf("CreateRun(foreign trigger) error = %v", err)
+		}
+
+		defaultScope := store.ReadScope{ProfileID: store.DefaultProfileID}
+		jobs, err := globalDB.ListJobs(ctx, JobListQuery{ReadScope: defaultScope, Limit: 1})
+		if err != nil {
+			t.Fatalf("ListJobs(default) error = %v", err)
+		}
+		if len(jobs.Jobs) != 1 || jobs.Total != 2 || !jobs.HasMore ||
+			jobs.Jobs[0].ProfileID != store.DefaultProfileID {
+			t.Fatalf("ListJobs(default) = %#v, want one of two default-owned jobs", jobs)
+		}
+		if _, err := globalDB.ListJobs(ctx, JobListQuery{
+			ReadScope: store.ReadScope{ProfileID: profileB}, Limit: 1, Cursor: jobs.NextCursor,
+		}); !errors.Is(err, automation.ErrListCursorInvalid) {
+			t.Fatalf("ListJobs(cross-profile cursor) error = %v, want ErrListCursorInvalid", err)
+		}
+		foreignJobs, err := globalDB.ListJobs(ctx, JobListQuery{
+			ReadScope: store.ReadScope{ProfileID: profileB}, Limit: 10,
+		})
+		if err != nil || len(foreignJobs.Jobs) != 1 || foreignJobs.Jobs[0].ID != foreignJob.ID ||
+			foreignJobs.Jobs[0].ProfileID != profileB {
+			t.Fatalf("ListJobs(foreign) = %#v, %v", foreignJobs, err)
+		}
+		allJobs, err := globalDB.ListJobs(ctx, JobListQuery{ReadScope: automationAllProfiles, Limit: 10})
+		if err != nil || allJobs.Total != 3 {
+			t.Fatalf("ListJobs(all profiles) total/error = %d/%v, want 3/nil", allJobs.Total, err)
+		}
+		if !slices.ContainsFunc(allJobs.Jobs, func(job automation.Job) bool {
+			return job.ID == foreignJob.ID && job.ProfileID == profileB
+		}) {
+			t.Fatalf("ListJobs(all profiles) = %#v, want foreign owner", allJobs.Jobs)
+		}
+
+		foreignTriggers, err := globalDB.ListTriggers(ctx, TriggerListQuery{
+			ReadScope: store.ReadScope{ProfileID: profileB}, Limit: 10,
+		})
+		if err != nil || len(foreignTriggers.Triggers) != 1 ||
+			foreignTriggers.Triggers[0].ID != foreignTrigger.ID ||
+			foreignTriggers.Triggers[0].ProfileID != profileB {
+			t.Fatalf("ListTriggers(foreign) = %#v, %v", foreignTriggers, err)
+		}
+		defaultRuns, err := globalDB.ListRuns(ctx, RunQuery{ReadScope: defaultScope})
+		if err != nil || len(defaultRuns) != 2 {
+			t.Fatalf("ListRuns(default) len/error = %d/%v, want 2/nil", len(defaultRuns), err)
+		}
+		for _, run := range defaultRuns {
+			if run.ProfileID != store.DefaultProfileID {
+				t.Fatalf("ListRuns(default) run = %#v, want default owner", run)
+			}
+		}
+		foreignRuns, err := globalDB.ListRuns(ctx, RunQuery{
+			ReadScope: store.ReadScope{ProfileID: profileB},
+		})
+		if err != nil || len(foreignRuns) != 2 {
+			t.Fatalf("ListRuns(foreign) len/error = %d/%v, want 2/nil", len(foreignRuns), err)
+		}
+		for _, run := range foreignRuns {
+			if run.ProfileID != profileB {
+				t.Fatalf("ListRuns(foreign) run = %#v, want owner %q", run, profileB)
+			}
+		}
+		allRunCount, err := globalDB.CountRuns(ctx, RunQuery{ReadScope: automationAllProfiles})
+		if err != nil || allRunCount != 4 {
+			t.Fatalf("CountRuns(all profiles) count/error = %d/%v, want 4/nil", allRunCount, err)
+		}
+	})
 
 	t.Run("Should update and delete catalog projections with rich definitions", func(t *testing.T) {
 		t.Parallel()
@@ -685,7 +833,7 @@ func TestGlobalDBAutomationListsSearchPageAndIsolateWorkspaces(t *testing.T) {
 		if _, err := globalDB.UpdateJob(ctx, job); err != nil {
 			t.Fatalf("UpdateJob() error = %v", err)
 		}
-		jobs, err := globalDB.ListJobs(ctx, JobListQuery{Search: "45M", Limit: 10})
+		jobs, err := globalDB.ListJobs(ctx, JobListQuery{ReadScope: automationAllProfiles, Search: "45M", Limit: 10})
 		if err != nil {
 			t.Fatalf("ListJobs(updated schedule) error = %v", err)
 		}
@@ -707,7 +855,7 @@ func TestGlobalDBAutomationListsSearchPageAndIsolateWorkspaces(t *testing.T) {
 		if _, err := globalDB.UpdateTrigger(ctx, trigger); err != nil {
 			t.Fatalf("UpdateTrigger() error = %v", err)
 		}
-		triggers, err := globalDB.ListTriggers(ctx, TriggerListQuery{
+		triggers, err := globalDB.ListTriggers(ctx, TriggerListQuery{ReadScope: automationAllProfiles,
 			Search: "PROJECTION-UPDATED",
 			Limit:  10,
 		})
@@ -723,11 +871,11 @@ func TestGlobalDBAutomationListsSearchPageAndIsolateWorkspaces(t *testing.T) {
 		if err := globalDB.DeleteTrigger(ctx, trigger.ID); err != nil {
 			t.Fatalf("DeleteTrigger() error = %v", err)
 		}
-		jobs, err = globalDB.ListJobs(ctx, JobListQuery{Search: "45m", Limit: 10})
+		jobs, err = globalDB.ListJobs(ctx, JobListQuery{ReadScope: automationAllProfiles, Search: "45m", Limit: 10})
 		if err != nil {
 			t.Fatalf("ListJobs(after delete) error = %v", err)
 		}
-		triggers, err = globalDB.ListTriggers(ctx, TriggerListQuery{
+		triggers, err = globalDB.ListTriggers(ctx, TriggerListQuery{ReadScope: automationAllProfiles,
 			Search: "projection-updated",
 			Limit:  10,
 		})
@@ -762,26 +910,29 @@ func TestGlobalDBAutomationListsSearchPageAndIsolateWorkspaces(t *testing.T) {
 				t.Fatalf("CreateTrigger(%d) error = %v", index, err)
 			}
 		}
-		jobs, err := globalDB.ListJobs(ctx, JobListQuery{Limit: 1})
+		jobs, err := globalDB.ListJobs(ctx, JobListQuery{ReadScope: automationAllProfiles, Limit: 1})
 		if err != nil {
 			t.Fatalf("ListJobs(first) error = %v", err)
 		}
 		firstJobID := jobs.Jobs[0].ID
-		jobs, err = globalDB.ListJobs(ctx, JobListQuery{Limit: 1, Cursor: jobs.NextCursor})
+		jobs, err = globalDB.ListJobs(
+			ctx,
+			JobListQuery{ReadScope: automationAllProfiles, Limit: 1, Cursor: jobs.NextCursor},
+		)
 		if err != nil {
 			t.Fatalf("ListJobs(second) error = %v", err)
 		}
 		if len(jobs.Jobs) != 1 || jobs.Jobs[0].ID == firstJobID {
 			t.Fatalf("ListJobs(second).Jobs = %#v, want one different job", jobs.Jobs)
 		}
-		triggers, err := globalDB.ListTriggers(ctx, TriggerListQuery{Limit: 1})
+		triggers, err := globalDB.ListTriggers(ctx, TriggerListQuery{ReadScope: automationAllProfiles, Limit: 1})
 		if err != nil {
 			t.Fatalf("ListTriggers(first) error = %v", err)
 		}
 		firstTriggerID := triggers.Triggers[0].ID
 		triggers, err = globalDB.ListTriggers(
 			ctx,
-			TriggerListQuery{Limit: 1, Cursor: triggers.NextCursor},
+			TriggerListQuery{ReadScope: automationAllProfiles, Limit: 1, Cursor: triggers.NextCursor},
 		)
 		if err != nil {
 			t.Fatalf("ListTriggers(second) error = %v", err)
@@ -850,7 +1001,7 @@ func TestGlobalDBAutomationListsSearchPageAndIsolateWorkspaces(t *testing.T) {
 
 		automation.SortJobsForList(expected)
 		enabled := true
-		query := JobListQuery{
+		query := JobListQuery{ReadScope: automationAllProfiles,
 			Scope:       automation.AutomationScopeWorkspace,
 			WorkspaceID: workspaceID,
 			Enabled:     &enabled,
@@ -960,7 +1111,7 @@ func TestGlobalDBAutomationListsSearchPageAndIsolateWorkspaces(t *testing.T) {
 
 		automation.SortTriggersForList(expected)
 		enabled := true
-		query := TriggerListQuery{
+		query := TriggerListQuery{ReadScope: automationAllProfiles,
 			Scope:       automation.AutomationScopeWorkspace,
 			WorkspaceID: workspaceID,
 			Enabled:     &enabled,
@@ -1054,7 +1205,7 @@ func TestGlobalDBAutomationListsSearchPageAndIsolateWorkspaces(t *testing.T) {
 
 		automation.SortJobsForList(expected)
 		enabled := true
-		query := JobListQuery{
+		query := JobListQuery{ReadScope: automationAllProfiles,
 			Scope:       automation.AutomationScopeWorkspace,
 			WorkspaceID: workspaceID,
 			Enabled:     &enabled,
@@ -1146,7 +1297,7 @@ func TestGlobalDBAutomationListsSearchPageAndIsolateWorkspaces(t *testing.T) {
 
 		automation.SortTriggersForList(expected)
 		enabled := true
-		query := TriggerListQuery{
+		query := TriggerListQuery{ReadScope: automationAllProfiles,
 			Scope:       automation.AutomationScopeWorkspace,
 			WorkspaceID: workspaceID,
 			Enabled:     &enabled,
@@ -1257,7 +1408,7 @@ func TestGlobalDBAutomationSuggestionMigrations(t *testing.T) {
 				t.Errorf("reopened.Close() error = %v", err)
 			}
 		})
-		stored, err := reopened.GetSuggestion(ctx, workspaceID, created.ID)
+		stored, err := reopened.GetSuggestion(ctx, created.ProfileID, workspaceID, created.ID)
 		if err != nil {
 			t.Fatalf("GetSuggestion(reopen) error = %v", err)
 		}
@@ -1330,7 +1481,7 @@ func TestGlobalDBAutomationSuggestionMigrations(t *testing.T) {
 				t.Errorf("upgraded.Close() error = %v", err)
 			}
 		})
-		stored, err := upgraded.GetSuggestion(ctx, workspaceID, created.ID)
+		stored, err := upgraded.GetSuggestion(ctx, created.ProfileID, workspaceID, created.ID)
 		if err != nil {
 			t.Fatalf("GetSuggestion(payload rename) error = %v", err)
 		}
@@ -1339,7 +1490,7 @@ func TestGlobalDBAutomationSuggestionMigrations(t *testing.T) {
 			t.Fatalf("GetSuggestion(payload rename) = %#v, want preserved %#v", stored, created)
 		}
 		assertTableColumns(t, upgraded.db, "automation_suggestions", []string{
-			"id", "workspace_id", "source", "dedup_key", "status", "payload", "created_at", "resolved_at",
+			"id", "profile_id", "workspace_id", "source", "dedup_key", "status", "payload", "created_at", "resolved_at",
 		})
 	})
 }
@@ -1369,6 +1520,7 @@ func TestGlobalDBAutomationSuggestionsEnforceConsentInvariants(t *testing.T) {
 		}
 		listed, err := globalDB.ListSuggestions(
 			testutil.Context(t),
+			store.ReadScope{ProfileID: store.DefaultProfileID},
 			workspaceA,
 			automation.SuggestionStatusPending,
 		)
@@ -1377,6 +1529,81 @@ func TestGlobalDBAutomationSuggestionsEnforceConsentInvariants(t *testing.T) {
 		}
 		if len(listed) != 0 {
 			t.Fatalf("ListSuggestions(after rejection) = %#v, want empty", listed)
+		}
+	})
+
+	t.Run("Should isolate deduplication pending caps reads and transitions by profile", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t)
+		globalDB := openTestGlobalDB(t)
+		workspaceID := registerWorkspaceForGlobalTests(t, globalDB, "suggestions-profile-boundary", t.TempDir())
+		profileID := "01ARZ3NDEKTSV4RRFFQ69G5FAW"
+		if _, err := globalDB.DB().ExecContext(ctx, `
+			INSERT INTO profiles (id, name, color, icon, state, created_at)
+			VALUES (?, 'marketing', '#8E8EB5', 'circle', 'active', ?)`,
+			profileID,
+			store.FormatTimestamp(time.Now().UTC()),
+		); err != nil {
+			t.Fatalf("insert marketing profile: %v", err)
+		}
+		defaultSuggestion := automationSuggestionForTest(
+			"suggestion-profile-default",
+			workspaceID,
+			"catalog:v1:shared-key",
+		)
+		marketingSuggestion := automationSuggestionForTest(
+			"suggestion-profile-marketing",
+			workspaceID,
+			defaultSuggestion.DedupKey,
+		)
+		marketingSuggestion.ProfileID = profileID
+		marketingSuggestion.Payload.ProfileID = profileID
+		for _, suggestion := range []automation.Suggestion{defaultSuggestion, marketingSuggestion} {
+			if _, err := globalDB.CreateSuggestion(ctx, suggestion, 1); err != nil {
+				t.Fatalf("CreateSuggestion(%s) error = %v", suggestion.ProfileID, err)
+			}
+		}
+		for _, profile := range []string{store.DefaultProfileID, profileID} {
+			listed, err := globalDB.ListSuggestions(
+				ctx,
+				store.ReadScope{ProfileID: profile},
+				workspaceID,
+				automation.SuggestionStatusPending,
+			)
+			if err != nil {
+				t.Fatalf("ListSuggestions(%s) error = %v", profile, err)
+			}
+			if len(listed) != 1 || listed[0].ProfileID != profile {
+				t.Fatalf("ListSuggestions(%s) = %#v, want one owned suggestion", profile, listed)
+			}
+		}
+		aggregate, err := globalDB.ListSuggestions(
+			ctx,
+			store.ReadScope{AllProfiles: true},
+			workspaceID,
+			automation.SuggestionStatusPending,
+		)
+		if err != nil {
+			t.Fatalf("ListSuggestions(all profiles) error = %v", err)
+		}
+		if len(aggregate) != 2 {
+			t.Fatalf("len(ListSuggestions(all profiles)) = %d, want 2", len(aggregate))
+		}
+		if _, err := globalDB.GetSuggestion(ctx, profileID, workspaceID, defaultSuggestion.ID); !errors.Is(
+			err,
+			automation.ErrSuggestionNotFound,
+		) {
+			t.Fatalf("GetSuggestion(foreign profile) error = %v, want ErrSuggestionNotFound", err)
+		}
+		if _, err := globalDB.ResolveSuggestion(
+			ctx,
+			profileID,
+			workspaceID,
+			defaultSuggestion.ID,
+			automation.SuggestionStatusDismissed,
+		); !errors.Is(err, automation.ErrSuggestionNotFound) {
+			t.Fatalf("ResolveSuggestion(foreign profile) error = %v, want ErrSuggestionNotFound", err)
 		}
 	})
 
@@ -1396,6 +1623,7 @@ func TestGlobalDBAutomationSuggestionsEnforceConsentInvariants(t *testing.T) {
 		}
 		dismissed, err := globalDB.ResolveSuggestion(
 			testutil.Context(t),
+			created.ProfileID,
 			workspaceA,
 			created.ID,
 			automation.SuggestionStatusDismissed,
@@ -1416,6 +1644,7 @@ func TestGlobalDBAutomationSuggestionsEnforceConsentInvariants(t *testing.T) {
 		}
 		if _, err := globalDB.GetSuggestion(
 			testutil.Context(t),
+			created.ProfileID,
 			workspaceB,
 			created.ID,
 		); !errors.Is(err, automation.ErrSuggestionNotFound) {
@@ -1423,6 +1652,7 @@ func TestGlobalDBAutomationSuggestionsEnforceConsentInvariants(t *testing.T) {
 		}
 		pending, err := globalDB.ListSuggestions(
 			testutil.Context(t),
+			store.ReadScope{ProfileID: created.ProfileID},
 			workspaceA,
 			automation.SuggestionStatusPending,
 		)
@@ -1470,6 +1700,7 @@ func TestGlobalDBAutomationSuggestionsEnforceConsentInvariants(t *testing.T) {
 				}
 				resolved, err := globalDB.ResolveSuggestion(
 					testutil.Context(t),
+					created.ProfileID,
 					workspaceID,
 					created.ID,
 					tc.status,
@@ -1486,11 +1717,14 @@ func TestGlobalDBAutomationSuggestionsEnforceConsentInvariants(t *testing.T) {
 						t.Fatalf("RecordSuggestionTransition(attempt %d) error = %v", attempt, err)
 					}
 				}
-				summaries, err := globalDB.ListEventSummaries(testutil.Context(t), EventSummaryQuery{
-					WorkspaceID: workspaceID,
-					Type:        tc.event,
-					Limit:       10,
-				})
+				summaries, err := globalDB.ListEventSummaries(
+					testutil.Context(t),
+					EventSummaryQuery{ReadScope: store.ReadScope{AllProfiles: true},
+						WorkspaceID: workspaceID,
+						Type:        tc.event,
+						Limit:       10,
+					},
+				)
 				if err != nil {
 					t.Fatalf("ListEventSummaries() error = %v", err)
 				}
@@ -1503,7 +1737,7 @@ func TestGlobalDBAutomationSuggestionsEnforceConsentInvariants(t *testing.T) {
 					t.Fatalf("transition summary = %#v, want exact workspace/actor/outcome", summary)
 				}
 				var content suggestionTransitionContent
-				if err := json.Unmarshal(summary.Content, &content); err != nil {
+				if err := json.Unmarshal(summary.ContentValue(), &content); err != nil {
 					t.Fatalf("json.Unmarshal(summary.Content) error = %v", err)
 				}
 				if content.WorkspaceID != workspaceID || content.SuggestionID != resolved.ID ||
@@ -1585,6 +1819,7 @@ func TestGlobalDBAutomationSuggestionsEnforceConsentInvariants(t *testing.T) {
 			workers.Go(func() {
 				_, resolveErr := globalDB.ResolveSuggestion(
 					testutil.Context(t),
+					created.ProfileID,
 					workspaceID,
 					created.ID,
 					status,
@@ -1648,7 +1883,7 @@ func TestGlobalDBAutomationCatalogUsesWorkspaceOrderIndexes(t *testing.T) {
 		t.Parallel()
 
 		globalDB := openTestGlobalDB(t)
-		query := automationmodel.JobListQueryWithDefaultLimit(JobListQuery{
+		query := automationmodel.JobListQueryWithDefaultLimit(JobListQuery{ReadScope: automationAllProfiles,
 			WorkspaceID: "ws-plan",
 			Limit:       25,
 		})
@@ -1673,7 +1908,7 @@ func TestGlobalDBAutomationCatalogUsesWorkspaceOrderIndexes(t *testing.T) {
 		t.Parallel()
 
 		globalDB := openTestGlobalDB(t)
-		query := automationmodel.TriggerListQueryWithDefaultLimit(TriggerListQuery{
+		query := automationmodel.TriggerListQueryWithDefaultLimit(TriggerListQuery{ReadScope: automationAllProfiles,
 			WorkspaceID: "ws-plan",
 			Limit:       25,
 		})
@@ -1700,25 +1935,28 @@ func TestGlobalDBAutomationValidationAndDeleteBehavior(t *testing.T) {
 
 	globalDB := openTestGlobalDB(t)
 
-	if _, err := globalDB.ListJobs(testutil.Context(t), JobListQuery{
+	if _, err := globalDB.ListJobs(testutil.Context(t), JobListQuery{ReadScope: automationAllProfiles,
 		Scope:       automation.AutomationScopeGlobal,
 		WorkspaceID: "ws-ignored",
 	}); err == nil {
 		t.Fatal("ListJobs(invalid scope/workspace filter) error = nil, want non-nil")
 	}
-	if _, err := globalDB.ListTriggers(testutil.Context(t), TriggerListQuery{
+	if _, err := globalDB.ListTriggers(testutil.Context(t), TriggerListQuery{ReadScope: automationAllProfiles,
 		Scope:       automation.AutomationScopeGlobal,
 		WorkspaceID: "ws-ignored",
 	}); err == nil {
 		t.Fatal("ListTriggers(invalid scope/workspace filter) error = nil, want non-nil")
 	}
-	if _, err := globalDB.ListRuns(testutil.Context(t), RunQuery{
+	if _, err := globalDB.ListRuns(testutil.Context(t), RunQuery{ReadScope: automationAllProfiles,
 		Since: time.Date(2026, 4, 10, 12, 0, 0, 0, time.UTC),
 		Until: time.Date(2026, 4, 10, 11, 0, 0, 0, time.UTC),
 	}); err == nil {
 		t.Fatal("ListRuns(invalid window) error = nil, want non-nil")
 	}
-	if _, err := globalDB.CreateRun(testutil.Context(t), Run{Status: automation.RunCompleted, Attempt: 1}); err == nil {
+	if _, err := globalDB.CreateRun(testutil.Context(t), Run{
+		ProfileID: store.DefaultProfileID,
+		Status:    automation.RunCompleted, Attempt: 1,
+	}); err == nil {
 		t.Fatal("CreateRun(without job or trigger) error = nil, want non-nil")
 	}
 
@@ -1836,7 +2074,11 @@ func TestGlobalDBAutomationValidationAndDeleteBehavior(t *testing.T) {
 
 	jobs, err := globalDB.ListJobs(
 		testutil.Context(t),
-		JobListQuery{Scope: automation.AutomationScopeWorkspace, Source: automation.JobSourceDynamic},
+		JobListQuery{
+			ReadScope: automationAllProfiles,
+			Scope:     automation.AutomationScopeWorkspace,
+			Source:    automation.JobSourceDynamic,
+		},
 	)
 	if err != nil {
 		t.Fatalf("ListJobs(filtered) error = %v", err)
@@ -1967,7 +2209,7 @@ func TestGlobalDBAutomationLoopTargetsPersistFilterAndCorrelateRuns(t *testing.T
 		if _, err := globalDB.CreateJob(ctx, agentJob); err != nil {
 			t.Fatalf("CreateJob(agent target) error = %v", err)
 		}
-		filteredJobs, err := globalDB.ListJobs(ctx, JobListQuery{
+		filteredJobs, err := globalDB.ListJobs(ctx, JobListQuery{ReadScope: automationAllProfiles,
 			Scope:       automation.AutomationScopeWorkspace,
 			WorkspaceID: workspaceID,
 			LoopName:    "triage",
@@ -2044,7 +2286,7 @@ func TestGlobalDBAutomationLoopTargetsPersistFilterAndCorrelateRuns(t *testing.T
 		if _, err := globalDB.CreateTrigger(ctx, agentTrigger); err != nil {
 			t.Fatalf("CreateTrigger(agent target) error = %v", err)
 		}
-		filteredTriggers, err := globalDB.ListTriggers(ctx, TriggerListQuery{
+		filteredTriggers, err := globalDB.ListTriggers(ctx, TriggerListQuery{ReadScope: automationAllProfiles,
 			Scope:       automation.AutomationScopeWorkspace,
 			WorkspaceID: workspaceID,
 			LoopName:    "triage",
@@ -2102,6 +2344,7 @@ func TestGlobalDBAutomationLoopTargetsPersistFilterAndCorrelateRuns(t *testing.T
 			Attempt:   1,
 			StartedAt: timePointer(startedAt),
 			EndedAt:   timePointer(startedAt.Add(time.Second)),
+			ProfileID: store.DefaultProfileID,
 			LoopRunID: string(createdLoopRun.ID),
 		})
 		if err != nil {
@@ -2232,8 +2475,9 @@ func TestAutomationStoreHelperBranches(t *testing.T) {
 	})
 
 	run, err := globalDB.normalizeRunForCreate(Run{
-		JobID:  "job-1",
-		Status: automation.RunRunning,
+		ProfileID: store.DefaultProfileID,
+		JobID:     "job-1",
+		Status:    automation.RunRunning,
 	})
 	if err != nil {
 		t.Fatalf("normalizeRunForCreate() error = %v", err)
@@ -2242,17 +2486,19 @@ func TestAutomationStoreHelperBranches(t *testing.T) {
 		t.Fatalf("normalizeRunForCreate().Attempt = %d, want %d", got, want)
 	}
 	if _, err := globalDB.normalizeRunForCreate(Run{
-		JobID:   "job-1",
-		Status:  automation.RunRunning,
-		Attempt: -1,
+		JobID:     "job-1",
+		Status:    automation.RunRunning,
+		ProfileID: store.DefaultProfileID,
+		Attempt:   -1,
 	}); err == nil {
 		t.Fatal("normalizeRunForCreate(negative attempt) error = nil, want non-nil")
 	}
 	if _, err := globalDB.normalizeRunForUpdate(Run{
-		ID:      "run-1",
-		JobID:   "job-1",
-		Status:  automation.RunRunning,
-		Attempt: 0,
+		ID:        "run-1",
+		JobID:     "job-1",
+		Status:    automation.RunRunning,
+		ProfileID: store.DefaultProfileID,
+		Attempt:   0,
 	}); err == nil {
 		t.Fatal("normalizeRunForUpdate(zero attempt) error = nil, want non-nil")
 	}
@@ -2264,22 +2510,24 @@ func TestAutomationStoreHelperBranches(t *testing.T) {
 		t.Fatalf("requireAutomationID(trimmed) = (%q, %v), want (job-1, nil)", got, err)
 	}
 
-	if err := validateAutomationRunQuery(RunQuery{Status: "bad-status"}); err == nil {
+	if err := validateAutomationRunQuery(RunQuery{ReadScope: automationAllProfiles, Status: "bad-status"}); err == nil {
 		t.Fatal("validateAutomationRunQuery(bad status) error = nil, want non-nil")
 	}
 	if err := validateAutomationRunRecord(Run{
 		JobID:     "job-1",
 		TriggerID: "trg-1",
 		Status:    automation.RunRunning,
+		ProfileID: store.DefaultProfileID,
 		Attempt:   1,
 	}); err == nil {
 		t.Fatal("validateAutomationRunRecord(both job and trigger) error = nil, want non-nil")
 	}
 	if err := validateAutomationRunRecord(Run{
-		JobID:   "job-1",
-		Status:  automation.RunDelegated,
-		Attempt: 1,
-		TaskID:  "task-1",
+		JobID:     "job-1",
+		Status:    automation.RunDelegated,
+		Attempt:   1,
+		ProfileID: store.DefaultProfileID,
+		TaskID:    "task-1",
 	}); err == nil {
 		t.Fatal("validateAutomationRunRecord(delegated without task run) error = nil, want non-nil")
 	}
@@ -2453,10 +2701,14 @@ func TestAutomationOverlayNormalizersAndQueryValidators(t *testing.T) {
 	); err == nil {
 		t.Fatal("normalizeTriggerOverlay(empty) error = nil, want non-nil")
 	}
-	if err := automation.ValidateJobListQuery(JobListQuery{Source: "bad-source"}); err == nil {
+	if err := automation.ValidateJobListQuery(
+		JobListQuery{ReadScope: automationAllProfiles, Source: "bad-source"},
+	); err == nil {
 		t.Fatal("validateAutomationJobListQuery(bad source) error = nil, want non-nil")
 	}
-	if err := automation.ValidateTriggerListQuery(TriggerListQuery{Source: "bad-source"}); err == nil {
+	if err := automation.ValidateTriggerListQuery(
+		TriggerListQuery{ReadScope: automationAllProfiles, Source: "bad-source"},
+	); err == nil {
 		t.Fatal("validateAutomationTriggerListQuery(bad source) error = nil, want non-nil")
 	}
 }
@@ -2505,7 +2757,7 @@ func TestGlobalDBListRunsFiltersByJobTriggerStatusAndTimeWindow(t *testing.T) {
 		}
 	}
 
-	jobRuns, err := globalDB.ListRuns(testutil.Context(t), RunQuery{
+	jobRuns, err := globalDB.ListRuns(testutil.Context(t), RunQuery{ReadScope: automationAllProfiles,
 		JobID:  jobA.ID,
 		Status: automation.RunFailed,
 		Since:  base.Add(-6 * time.Minute),
@@ -2521,7 +2773,7 @@ func TestGlobalDBListRunsFiltersByJobTriggerStatusAndTimeWindow(t *testing.T) {
 		t.Fatalf("jobRuns[0].Attempt = %d, want %d", got, want)
 	}
 
-	triggerRuns, err := globalDB.ListRuns(testutil.Context(t), RunQuery{
+	triggerRuns, err := globalDB.ListRuns(testutil.Context(t), RunQuery{ReadScope: automationAllProfiles,
 		TriggerID: trigger.ID,
 		Status:    automation.RunCompleted,
 		Since:     base.Add(-5 * time.Minute),
@@ -2536,7 +2788,7 @@ func TestGlobalDBListRunsFiltersByJobTriggerStatusAndTimeWindow(t *testing.T) {
 		t.Fatalf("triggerRuns[0].TriggerID = %q, want %q", got, want)
 	}
 
-	count, err := globalDB.CountRuns(testutil.Context(t), RunQuery{
+	count, err := globalDB.CountRuns(testutil.Context(t), RunQuery{ReadScope: automationAllProfiles,
 		JobID: jobA.ID,
 		Since: base.Add(-30 * time.Minute),
 	})
@@ -2581,6 +2833,7 @@ func TestGlobalDBSchedulerStateSaveClaimAndDeliveryError(t *testing.T) {
 	claimedAt := time.Date(2026, 4, 11, 9, 0, 1, 0, time.UTC)
 	nextAfterClaim := time.Date(2026, 4, 12, 9, 0, 0, 0, time.UTC)
 	claim, err := globalDB.ClaimScheduledRun(ctx, SchedulerClaim{
+		ProfileID:            job.ProfileID,
 		JobID:                job.ID,
 		RunID:                "run-scheduler-claim",
 		FireID:               "fire-scheduler-claim",
@@ -2602,12 +2855,16 @@ func TestGlobalDBSchedulerStateSaveClaimAndDeliveryError(t *testing.T) {
 	if got, want := claim.Run.FireID, "fire-scheduler-claim"; got != want {
 		t.Fatalf("ClaimScheduledRun().Run.FireID = %q, want %q", got, want)
 	}
+	if got, want := claim.Run.ProfileID, job.ProfileID; got != want {
+		t.Fatalf("ClaimScheduledRun().Run.ProfileID = %q, want %q", got, want)
+	}
 	if got, want := claim.Run.ScheduledAt, &nextRun; got == nil || !got.Equal(*want) {
 		t.Fatalf("ClaimScheduledRun().Run.ScheduledAt = %v, want %v", got, want)
 	}
 	assertAutomationNamedParticipation(t, claim.Run.NetworkParticipation, "scheduled-ops")
 
 	_, duplicateErr := globalDB.ClaimScheduledRun(ctx, SchedulerClaim{
+		ProfileID:    job.ProfileID,
 		JobID:        job.ID,
 		RunID:        "run-scheduler-duplicate",
 		FireID:       "fire-scheduler-claim",
@@ -2631,7 +2888,10 @@ func TestGlobalDBSchedulerStateSaveClaimAndDeliveryError(t *testing.T) {
 		t.Fatalf("RecordRunDeliveryError().Error = %q, want empty normal execution error", recordedRun.Error)
 	}
 
-	count, err := globalDB.CountRuns(ctx, RunQuery{JobID: job.ID, ExcludeID: claim.Run.ID})
+	count, err := globalDB.CountRuns(
+		ctx,
+		RunQuery{ReadScope: automationAllProfiles, JobID: job.ID, ExcludeID: claim.Run.ID},
+	)
 	if err != nil {
 		t.Fatalf("CountRuns(exclude claimed run) error = %v", err)
 	}
@@ -2673,6 +2933,7 @@ func TestGlobalDBSchedulerClaimSuppressesSelfOverlapForOneFire(t *testing.T) {
 
 	next := base.Add(time.Minute)
 	skipped, err := globalDB.ClaimScheduledRun(ctx, SchedulerClaim{
+		ProfileID:    job.ProfileID,
 		JobID:        job.ID,
 		RunID:        "run-overlap-skip",
 		FireID:       "fire-overlap-skip",
@@ -2703,6 +2964,7 @@ func TestGlobalDBSchedulerClaimSuppressesSelfOverlapForOneFire(t *testing.T) {
 	}
 	nextAfterNormal := next.Add(time.Minute)
 	normal, err := globalDB.ClaimScheduledRun(ctx, SchedulerClaim{
+		ProfileID:    job.ProfileID,
 		JobID:        job.ID,
 		RunID:        "run-after-overlap",
 		FireID:       "fire-after-overlap",
@@ -2722,6 +2984,7 @@ func TestGlobalDBSchedulerClaimSuppressesSelfOverlapForOneFire(t *testing.T) {
 	}
 
 	_, duplicateErr := globalDB.ClaimScheduledRun(ctx, SchedulerClaim{
+		ProfileID:    job.ProfileID,
 		JobID:        job.ID,
 		RunID:        "run-after-overlap-duplicate",
 		FireID:       normal.Run.FireID,
@@ -2767,6 +3030,7 @@ func TestGlobalDBSchedulerClaimPreventsDuplicateAfterReopen(t *testing.T) {
 	}
 
 	claim, err := first.ClaimScheduledRun(ctx, SchedulerClaim{
+		ProfileID:    job.ProfileID,
 		JobID:        job.ID,
 		RunID:        "run-durable-reopen",
 		FireID:       "fire-durable-reopen",
@@ -2804,6 +3068,7 @@ func TestGlobalDBSchedulerClaimPreventsDuplicateAfterReopen(t *testing.T) {
 	}
 
 	_, duplicateErr := second.ClaimScheduledRun(ctx, SchedulerClaim{
+		ProfileID:    job.ProfileID,
 		JobID:        job.ID,
 		RunID:        "run-durable-reopen-duplicate",
 		FireID:       claim.Run.FireID,
@@ -2819,7 +3084,7 @@ func TestGlobalDBSchedulerClaimPreventsDuplicateAfterReopen(t *testing.T) {
 		)
 	}
 
-	runs, err := second.ListRuns(ctx, RunQuery{JobID: job.ID})
+	runs, err := second.ListRuns(ctx, RunQuery{ReadScope: automationAllProfiles, JobID: job.ID})
 	if err != nil {
 		t.Fatalf("ListRuns() after duplicate claim error = %v", err)
 	}
@@ -2902,6 +3167,7 @@ func automationJobForTest(
 ) Job {
 	createdAt := time.Date(2026, 4, 10, 18, 0, 0, 0, time.UTC)
 	return Job{
+		ProfileID:   store.DefaultProfileID,
 		Scope:       scope,
 		Name:        name,
 		AgentName:   "researcher",
@@ -2928,6 +3194,7 @@ func automationWebhookTriggerForTest(
 ) Trigger {
 	createdAt := time.Date(2026, 4, 10, 18, 5, 0, 0, time.UTC)
 	return Trigger{
+		ProfileID:        store.DefaultProfileID,
 		Scope:            scope,
 		Name:             name,
 		AgentName:        "reviewer",
@@ -2954,6 +3221,7 @@ func automationNonWebhookTriggerForTest(
 ) Trigger {
 	createdAt := time.Date(2026, 4, 10, 18, 10, 0, 0, time.UTC)
 	return Trigger{
+		ProfileID:   store.DefaultProfileID,
 		Scope:       scope,
 		Name:        name,
 		AgentName:   "reviewer",
@@ -2979,6 +3247,7 @@ func automationRunForJob(jobID string, status automation.RunStatus, attempt int,
 		Status:    status,
 		Attempt:   attempt,
 		StartedAt: timePointer(startedAt),
+		ProfileID: store.DefaultProfileID,
 		EndedAt:   timePointer(endedAt),
 	}
 }
@@ -2990,6 +3259,7 @@ func automationRunForTrigger(triggerID string, status automation.RunStatus, atte
 		Status:    status,
 		Attempt:   attempt,
 		StartedAt: timePointer(startedAt),
+		ProfileID: store.DefaultProfileID,
 		EndedAt:   timePointer(endedAt),
 	}
 }
@@ -2997,12 +3267,14 @@ func automationRunForTrigger(triggerID string, status automation.RunStatus, atte
 func automationSuggestionForTest(id string, workspaceID string, dedupKey string) automation.Suggestion {
 	return automation.Suggestion{
 		ID:          id,
+		ProfileID:   store.DefaultProfileID,
 		WorkspaceID: workspaceID,
 		Source:      automation.SuggestionSourceCatalog,
 		DedupKey:    dedupKey,
 		Status:      automation.SuggestionStatusPending,
 		Payload: Job{
 			ID:          "job-" + id,
+			ProfileID:   store.DefaultProfileID,
 			Scope:       automation.AutomationScopeWorkspace,
 			Name:        "Suggested job",
 			TargetKind:  automation.TargetKindAgent,

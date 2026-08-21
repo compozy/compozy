@@ -64,7 +64,7 @@ func resolveRemoteDaemon(
 		return remoteDaemonResolution{}, err
 	}
 	startOutput, err := executor.Run(
-		ctx, target, remoteCompozyCommand(options.remoteHome, "daemon", "start", "-o", "json"),
+		ctx, target, remoteCompozyCommand(options.remoteHome, configDaemonKey, "start", "-o", "json"),
 	)
 	if err != nil {
 		status, statusErr := waitForOwnedRemoteDaemon(
@@ -175,7 +175,7 @@ func readRemoteDaemonStatusRaw(
 	output, err := executor.Run(
 		ctx,
 		target,
-		remoteCompozyCommand(remoteHome, "status", "-o", "json"),
+		remoteCompozyCommand(remoteHome, automationStatusKey, "-o", "json"),
 	)
 	if err != nil {
 		if isRemoteDaemonUnavailable(err) {
@@ -414,14 +414,14 @@ func classifySSHFailure(err error) error {
 func sshConnectionOutput(record sshConnectionRecord) outputBundle {
 	return simpleGatewayOutput(record, func() string {
 		return renderHumanSection("SSH Connection", []keyValue{
-			{Label: "Profile", Value: record.Profile.Name},
+			{Label: sessionProfileValue, Value: record.Profile.Name},
 			{Label: "Local URL", Value: record.LocalURL},
 			{Label: "Remote HTTP", Value: record.RemoteHTTP},
 			{Label: "Daemon", Value: record.Daemon},
 		})
 	}, func() string {
 		return renderToonObject("ssh_connection", []string{
-			"profile", "local_url", "remote_http", configDaemonKey,
+			profileFlagName, "local_url", "remote_http", configDaemonKey,
 		}, []string{
 			record.Profile.Name,
 			record.LocalURL,

@@ -8,13 +8,21 @@ type SettingsAttentionPayload struct {
 	MutedWorkspaces []string `json:"muted_workspaces"`
 }
 
-// UpdateSettingsAttentionRequest replaces the complete attention section.
-type UpdateSettingsAttentionRequest struct {
-	Config SettingsAttentionPayload `json:"config"`
+// UpdateSettingsAttentionPayload updates delivery channels and optionally replaces one profile's mutes.
+type UpdateSettingsAttentionPayload struct {
+	Toasts          bool      `json:"toasts"`
+	Sound           bool      `json:"sound"`
+	System          bool      `json:"system"`
+	MutedWorkspaces *[]string `json:"muted_workspaces,omitempty"`
 }
 
-// SettingsAttentionResponse returns the effective global attention settings.
+// UpdateSettingsAttentionRequest updates the attention section for the selected profile.
+type UpdateSettingsAttentionRequest struct {
+	Config UpdateSettingsAttentionPayload `json:"config"`
+}
+
+// SettingsAttentionResponse returns global delivery channels plus the selected profile's mutes.
 type SettingsAttentionResponse struct {
-	SettingsGlobalSectionResponseMetaPayload
+	SettingsLayeredSectionResponseMetaPayload
 	Config SettingsAttentionPayload `json:"config"`
 }

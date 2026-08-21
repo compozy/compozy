@@ -86,7 +86,7 @@ func SynthesizeAgentPluginManifest(pkg *agentplugin.Package, rootDir string) (*M
 		Name:              strings.TrimSpace(pkg.Name),
 		Version:           strings.TrimSpace(pkg.Version),
 		Description:       strings.TrimSpace(pkg.Description),
-		Resources:         ResourcesConfig{Skills: skills, MCPServers: servers},
+		Resources:         ResourcesConfig{Skills: unplacedManifestResourcePaths(skills), MCPServers: servers},
 		Capabilities:      CapabilitiesConfig{},
 		Permissions:       PermissionsConfig{},
 		Subprocess:        SubprocessConfig{},

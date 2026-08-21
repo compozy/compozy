@@ -17,8 +17,10 @@ const (
 	NetworkMessageMaxLimit              = 200
 )
 
-// NetworkMessageQuery filters persisted network timeline lookups.
+// NetworkMessageQuery filters persisted network timeline lookups through one
+// explicit profile or the AllProfiles aggregate.
 type NetworkMessageQuery struct {
+	ReadScope       ReadScope
 	SessionID       string
 	WorkspaceID     string
 	Channel         string
@@ -39,6 +41,9 @@ type NetworkMessageQuery struct {
 
 // Validate ensures the query uses sane bounds.
 func (q NetworkMessageQuery) Validate() error {
+	if err := q.ReadScope.Validate(); err != nil {
+		return fmt.Errorf("store: invalid network message read scope: %w", err)
+	}
 	if err := requireField(q.WorkspaceID, "network message query workspace_id"); err != nil {
 		return err
 	}
@@ -51,8 +56,10 @@ func (q NetworkMessageQuery) Validate() error {
 	return requirePositiveLimit(q.Limit, "network message limit")
 }
 
-// NetworkThreadQuery filters and orders public-thread summary lookups.
+// NetworkThreadQuery filters and orders public-thread summary lookups through
+// one explicit profile or the AllProfiles aggregate.
 type NetworkThreadQuery struct {
+	ReadScope ReadScope
 	Search    string
 	SessionID string
 	Sort      string
@@ -72,6 +79,9 @@ type NetworkThreadPage struct {
 
 // Validate ensures the query uses a supported order and sane bounds.
 func (q NetworkThreadQuery) Validate() error {
+	if err := q.ReadScope.Validate(); err != nil {
+		return fmt.Errorf("store: invalid network thread read scope: %w", err)
+	}
 	if err := validateNetworkConversationSort(q.Sort); err != nil {
 		return err
 	}
@@ -93,8 +103,10 @@ func (q NetworkThreadQuery) Normalize() NetworkThreadQuery {
 	return q
 }
 
-// NetworkDirectRoomQuery filters and orders direct-room summary lookups.
+// NetworkDirectRoomQuery filters and orders direct-room summary lookups through
+// one explicit profile or the AllProfiles aggregate.
 type NetworkDirectRoomQuery struct {
+	ReadScope ReadScope
 	Search    string
 	SessionID string
 	Sort      string
@@ -114,6 +126,9 @@ type NetworkDirectRoomPage struct {
 
 // Validate ensures the query uses a supported order and sane bounds.
 func (q NetworkDirectRoomQuery) Validate() error {
+	if err := q.ReadScope.Validate(); err != nil {
+		return fmt.Errorf("store: invalid network direct room read scope: %w", err)
+	}
 	if err := validateNetworkConversationSort(q.Sort); err != nil {
 		return err
 	}
@@ -135,8 +150,10 @@ func (q NetworkDirectRoomQuery) Normalize() NetworkDirectRoomQuery {
 	return q
 }
 
-// NetworkConversationMessageQuery filters conversation message lookups.
+// NetworkConversationMessageQuery filters conversation message lookups through
+// one explicit profile or the AllProfiles aggregate.
 type NetworkConversationMessageQuery struct {
+	ReadScope       ReadScope
 	BeforeMessageID string
 	AfterMessageID  string
 	Kind            string
@@ -146,6 +163,9 @@ type NetworkConversationMessageQuery struct {
 
 // Validate ensures the query uses sane bounds and one cursor direction.
 func (q NetworkConversationMessageQuery) Validate() error {
+	if err := q.ReadScope.Validate(); err != nil {
+		return fmt.Errorf("store: invalid network conversation message read scope: %w", err)
+	}
 	if strings.TrimSpace(q.BeforeMessageID) != "" && strings.TrimSpace(q.AfterMessageID) != "" {
 		return fmt.Errorf("store: network conversation message query cannot specify both before and after cursors")
 	}
@@ -162,14 +182,19 @@ func (q NetworkConversationMessageQuery) Validate() error {
 	return requirePositiveLimit(q.Limit, "network conversation message limit")
 }
 
-// NetworkRecentQuery limits the cross-channel recent-conversation projection.
+// NetworkRecentQuery limits the cross-channel recent-conversation projection
+// through one explicit profile or the AllProfiles aggregate.
 type NetworkRecentQuery struct {
+	ReadScope   ReadScope
 	WorkspaceID string
 	Limit       int
 }
 
 // Validate ensures recents never cross workspace boundaries.
 func (q NetworkRecentQuery) Validate() error {
+	if err := q.ReadScope.Validate(); err != nil {
+		return fmt.Errorf("store: invalid network recent read scope: %w", err)
+	}
 	if err := requireField(q.WorkspaceID, "network recent query workspace_id"); err != nil {
 		return err
 	}

@@ -42,6 +42,7 @@ func manifestFromDescribe(input *extensioncontract.DescribePayload) (*Manifest, 
 	payload.Provides = sortedBuildStrings(payload.Provides)
 	payload.Permissions = sortedBuildStrings(payload.Permissions)
 	payload.RequiresEnv = sortedBuildStrings(payload.RequiresEnv)
+	payload.Profiles = normalizeDescribeProfiles(payload.Profiles)
 	payload.Resources = normalizeDescribeResources(payload.Resources)
 	if err := validateDescribeCapabilityCoverage(&payload); err != nil {
 		return nil, err
@@ -52,12 +53,13 @@ func manifestFromDescribe(input *extensioncontract.DescribePayload) (*Manifest, 
 		Description:       strings.TrimSpace(payload.Description),
 		MinCompozyVersion: strings.TrimSpace(payload.SDK.MinCompozyVersion),
 		RequiresEnv:       payload.RequiresEnv,
+		Profiles:          manifestProfilesFromDescribe(payload.Profiles),
 		Resources: ResourcesConfig{
-			Skills:     payload.Resources.Skills,
-			Loops:      payload.Resources.Loops,
-			Agents:     payload.Resources.Agents,
-			Automation: payload.Resources.Automation,
-			Layouts:    payload.Resources.Layouts,
+			Skills:     manifestResourcePathsFromDescribe(payload.Resources.Skills),
+			Loops:      manifestResourcePathsFromDescribe(payload.Resources.Loops),
+			Agents:     manifestResourcePathsFromDescribe(payload.Resources.Agents),
+			Automation: manifestResourcePathsFromDescribe(payload.Resources.Automation),
+			Layouts:    manifestResourcePathsFromDescribe(payload.Resources.Layouts),
 			CmdPalette: payload.Resources.CmdPalette,
 		},
 		Capabilities: CapabilitiesConfig{
@@ -104,13 +106,93 @@ func manifestFromDescribe(input *extensioncontract.DescribePayload) (*Manifest, 
 
 func normalizeDescribeResources(resources extensioncontract.DescribeResources) extensioncontract.DescribeResources {
 	return extensioncontract.DescribeResources{
-		Skills:     sortedBuildStrings(resources.Skills),
-		Loops:      sortedBuildStrings(resources.Loops),
-		Agents:     sortedBuildStrings(resources.Agents),
-		Automation: sortedBuildStrings(resources.Automation),
-		Layouts:    sortedBuildStrings(resources.Layouts),
+		Skills:     normalizeDescribeResourcePaths(resources.Skills),
+		Loops:      normalizeDescribeResourcePaths(resources.Loops),
+		Agents:     normalizeDescribeResourcePaths(resources.Agents),
+		Automation: normalizeDescribeResourcePaths(resources.Automation),
+		Layouts:    normalizeDescribeResourcePaths(resources.Layouts),
 		CmdPalette: normalizeCmdPaletteConfig(resources.CmdPalette),
 	}
+}
+
+func normalizeDescribeResourcePaths(
+	resources []extensioncontract.DescribeResourcePath,
+) []extensioncontract.DescribeResourcePath {
+	normalized := make([]extensioncontract.DescribeResourcePath, 0, len(resources))
+	for _, resource := range resources {
+		normalized = append(normalized, extensioncontract.DescribeResourcePath{
+			Path: strings.TrimSpace(resource.Path), Profile: strings.TrimSpace(resource.Profile),
+		})
+	}
+	slices.SortFunc(normalized, func(left, right extensioncontract.DescribeResourcePath) int {
+		if compared := strings.Compare(left.Path, right.Path); compared != 0 {
+			return compared
+		}
+		return strings.Compare(left.Profile, right.Profile)
+	})
+	return slices.Compact(normalized)
+}
+
+func manifestResourcePathsFromDescribe(
+	resources []extensioncontract.DescribeResourcePath,
+) []ManifestResourcePath {
+	result := make([]ManifestResourcePath, 0, len(resources))
+	for _, resource := range resources {
+		result = append(result, ManifestResourcePath{Path: resource.Path, Profile: resource.Profile})
+	}
+	return result
+}
+
+func normalizeDescribeProfiles(profiles []extensioncontract.DescribeProfile) []extensioncontract.DescribeProfile {
+	normalized := make([]extensioncontract.DescribeProfile, 0, len(profiles))
+	for _, profile := range profiles {
+		credentials := make([]extensioncontract.DescribeProfileCredential, 0, len(profile.Credentials))
+		for _, credential := range profile.Credentials {
+			credentials = append(credentials, extensioncontract.DescribeProfileCredential{
+				Provider: strings.TrimSpace(credential.Provider), Slot: strings.TrimSpace(credential.Slot),
+			})
+		}
+		slices.SortFunc(credentials, func(left, right extensioncontract.DescribeProfileCredential) int {
+			if compared := strings.Compare(left.Provider, right.Provider); compared != 0 {
+				return compared
+			}
+			return strings.Compare(left.Slot, right.Slot)
+		})
+		normalized = append(normalized, extensioncontract.DescribeProfile{
+			Name: strings.TrimSpace(profile.Name), Color: strings.TrimSpace(profile.Color),
+			Icon: strings.TrimSpace(profile.Icon), Emoji: strings.TrimSpace(profile.Emoji),
+			Defaults: extensioncontract.DescribeProfileDefaults{
+				Agent:    strings.TrimSpace(profile.Defaults.Agent),
+				Provider: strings.TrimSpace(profile.Defaults.Provider),
+				Sandbox:  strings.TrimSpace(profile.Defaults.Sandbox),
+			},
+			Credentials: slices.Compact(credentials),
+		})
+	}
+	slices.SortFunc(normalized, func(left, right extensioncontract.DescribeProfile) int {
+		return strings.Compare(left.Name, right.Name)
+	})
+	return normalized
+}
+
+func manifestProfilesFromDescribe(profiles []extensioncontract.DescribeProfile) []ManifestProfile {
+	result := make([]ManifestProfile, 0, len(profiles))
+	for _, profile := range profiles {
+		credentials := make([]ManifestProfileCredential, 0, len(profile.Credentials))
+		for _, credential := range profile.Credentials {
+			credentials = append(credentials, ManifestProfileCredential{
+				Provider: credential.Provider, Slot: credential.Slot,
+			})
+		}
+		result = append(result, ManifestProfile{
+			Name: profile.Name, Color: profile.Color, Icon: profile.Icon, Emoji: profile.Emoji,
+			Defaults: ManifestProfileDefaults{
+				Agent: profile.Defaults.Agent, Provider: profile.Defaults.Provider, Sandbox: profile.Defaults.Sandbox,
+			},
+			Credentials: credentials,
+		})
+	}
+	return result
 }
 
 func validateDescribeSDK(info extensioncontract.DescribeSDKInfo) error {
@@ -154,6 +236,7 @@ func manifestToolsFromDescribe(
 			}
 		}
 		result[handler] = ToolConfig{
+			Profile:      strings.TrimSpace(descriptor.Profile),
 			ID:           descriptor.ID.String(),
 			Description:  strings.TrimSpace(descriptor.Description),
 			FriendlyVerb: strings.TrimSpace(descriptor.FriendlyVerb),
@@ -204,16 +287,16 @@ func validateDescribeToolSchemas(descriptor toolspkg.ExtensionToolRuntimeDescrip
 }
 
 func manifestHooksFromDescribe(
-	events []string,
+	events []extensioncontract.DescribeHookEvent,
 	process extensioncontract.DescribeSubprocess,
 ) ([]HookConfig, error) {
-	normalized := sortedBuildStrings(events)
+	normalized := normalizeDescribeHookEvents(events)
 	if len(normalized) == 0 {
 		return nil, nil
 	}
 	hooks := make([]HookConfig, 0, len(normalized))
-	for _, value := range normalized {
-		event := hookspkg.HookEvent(value)
+	for _, described := range normalized {
+		event := described.Event
 		if err := event.Validate(); err != nil {
 			return nil, err
 		}
@@ -222,9 +305,10 @@ func manifestHooksFromDescribe(
 			mode = string(hookspkg.HookModeSync)
 		}
 		hooks = append(hooks, HookConfig{
-			Name:  strings.ReplaceAll(value, ".", "-"),
-			Event: value,
-			Mode:  mode,
+			Profile: described.Profile,
+			Name:    strings.ReplaceAll(string(described.Event), ".", "-"),
+			Event:   string(described.Event),
+			Mode:    mode,
 			Executor: HookExecutorConfig{
 				Kind:    describeSubprocessKey,
 				Command: strings.TrimSpace(process.Command),
@@ -234,6 +318,23 @@ func manifestHooksFromDescribe(
 		})
 	}
 	return hooks, nil
+}
+
+func normalizeDescribeHookEvents(events []extensioncontract.DescribeHookEvent) []extensioncontract.DescribeHookEvent {
+	normalized := make([]extensioncontract.DescribeHookEvent, 0, len(events))
+	for _, event := range events {
+		normalized = append(normalized, extensioncontract.DescribeHookEvent{
+			Event:   hookspkg.HookEvent(strings.TrimSpace(string(event.Event))),
+			Profile: strings.TrimSpace(event.Profile),
+		})
+	}
+	slices.SortFunc(normalized, func(left, right extensioncontract.DescribeHookEvent) int {
+		if compared := strings.Compare(string(left.Event), string(right.Event)); compared != 0 {
+			return compared
+		}
+		return strings.Compare(left.Profile, right.Profile)
+	})
+	return slices.Compact(normalized)
 }
 
 func sortedBuildStrings(values []string) []string {

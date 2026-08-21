@@ -24,6 +24,7 @@ type roleEventSummaryWriter interface {
 }
 
 type roleInvocationCorrelation struct {
+	ProfileID       string
 	WorkspaceID     string
 	SessionID       string
 	AgentName       string
@@ -143,14 +144,15 @@ func recordRoleFallbackEvent(
 	}
 	eventCtx, cancel := detachedDaemonOperationContext(ctx, roleEventWriteTimeout)
 	defer cancel()
-	if err := role.eventWriter.WriteEventSummary(eventCtx, store.EventSummary{
+	if err := role.eventWriter.WriteEventSummary(eventCtx, daemonEventSummary(store.EventSummary{
+		ProfileID: roleEventProfileID(correlation),
 		SessionID: correlation.SessionID, WorkspaceID: correlation.WorkspaceID,
 		Type: eventspkg.RoleFallbackUsed, AgentName: firstRoleValue(correlation.AgentName, route.AgentName),
-		Provider: route.Provider, Outcome: string(eventspkg.OutcomeFor(eventspkg.RoleFallbackUsed)), Content: content,
+		Provider: route.Provider, Outcome: string(eventspkg.OutcomeFor(eventspkg.RoleFallbackUsed)),
 		EventCorrelation: correlation.Event, ParentSessionID: correlation.ParentSessionID,
 		RootSessionID: correlation.RootSessionID, SpawnDepth: correlation.SpawnDepth,
 		Summary: fmt.Sprintf("%s role fallback attempt %d", role.Role, attempt),
-	}); err != nil {
+	}, content)); err != nil {
 		return fmt.Errorf("daemon: record %s: %w", eventspkg.RoleFallbackUsed, err)
 	}
 	return nil
@@ -180,15 +182,26 @@ func (r *roleResolver) recordRoleResolveError(
 	}
 	eventCtx, cancel := detachedDaemonOperationContext(ctx, roleEventWriteTimeout)
 	defer cancel()
-	if err := r.events.WriteEventSummary(eventCtx, store.EventSummary{
+	if err := r.events.WriteEventSummary(eventCtx, daemonEventSummary(store.EventSummary{
+		ProfileID: roleEventProfileID(correlation),
 		SessionID: correlation.SessionID, WorkspaceID: correlation.WorkspaceID,
 		Type: eventspkg.RoleResolveError, AgentName: firstRoleValue(correlation.AgentName, agentName),
-		Outcome: string(eventspkg.OutcomeFor(eventspkg.RoleResolveError)), Content: content,
+		Outcome:          string(eventspkg.OutcomeFor(eventspkg.RoleResolveError)),
 		EventCorrelation: correlation.Event, ParentSessionID: correlation.ParentSessionID,
 		RootSessionID: correlation.RootSessionID, SpawnDepth: correlation.SpawnDepth,
 		Summary: fmt.Sprintf("%s role resolution failed: %s", role, errorCode),
-	}); err != nil {
+	}, content)); err != nil {
 		return fmt.Errorf("daemon: record %s: %w", eventspkg.RoleResolveError, err)
 	}
 	return nil
+}
+
+func roleEventProfileID(correlation roleInvocationCorrelation) string {
+	if profileID := strings.TrimSpace(correlation.ProfileID); profileID != "" {
+		return profileID
+	}
+	if strings.TrimSpace(correlation.SessionID) != "" {
+		return ""
+	}
+	return store.DefaultProfileID
 }

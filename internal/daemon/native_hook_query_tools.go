@@ -117,8 +117,16 @@ func (n *daemonNativeTools) hooksRuns(
 	if err != nil {
 		return toolspkg.ToolResult{}, nativeNetworkInputError(req.ToolID, err)
 	}
-	if _, err := n.nativeSessionInWorkspace(ctx, req.ToolID, sessionWorkspaceID, query.SessionID); err != nil {
+	info, err := n.nativeSessionInWorkspace(ctx, req.ToolID, sessionWorkspaceID, query.SessionID)
+	if err != nil {
 		return toolspkg.ToolResult{}, err
+	}
+	readScope, err := n.nativeProfileReadScope(ctx, scope)
+	if err != nil {
+		return toolspkg.ToolResult{}, err
+	}
+	if !readScope.Matches(info.ProfileID) {
+		return toolspkg.ToolResult{}, nativeWorkspaceAccessDeniedError(req.ToolID)
 	}
 	runs, err := n.deps.Observer.QueryHookRuns(ctx, query)
 	if err != nil {

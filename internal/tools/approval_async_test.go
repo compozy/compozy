@@ -8,6 +8,8 @@ import (
 	"sync"
 	"testing"
 	"time"
+
+	storepkg "github.com/compozy/compozy/internal/store"
 )
 
 func TestAsyncApprovalCoordinator(t *testing.T) {
@@ -23,6 +25,47 @@ func TestAsyncApprovalCoordinator(t *testing.T) {
 		}
 		if got := store.count(); got != 0 {
 			t.Fatalf("persisted approvals = %d, want 0", got)
+		}
+	})
+
+	t.Run("Should reject an approval without a profile", func(t *testing.T) {
+		t.Parallel()
+		approvalStore := newMemoryApprovalStore()
+		coordinator := newTestApprovalCoordinator(t, approvalStore, &recordingApprovalDispatcher{})
+		request := testApprovalRequest("missing-profile")
+		request.ProfileID = ""
+		_, err := coordinator.Begin(t.Context(), request)
+		if err == nil || !strings.Contains(err.Error(), "profile_id is required") {
+			t.Fatalf("Begin(missing profile) error = %v, want profile_id is required", err)
+		}
+		if got := approvalStore.count(); got != 0 {
+			t.Fatalf("persisted approvals = %d, want 0", got)
+		}
+	})
+
+	t.Run("Should hide and preserve approvals from a foreign profile", func(t *testing.T) {
+		t.Parallel()
+		approvalStore := newMemoryApprovalStore()
+		coordinator := newTestApprovalCoordinator(t, approvalStore, &recordingApprovalDispatcher{})
+		request := testApprovalRequest("foreign-profile")
+		request.ContainsSecretArguments = false
+		ticket, err := coordinator.Begin(t.Context(), request)
+		if err != nil {
+			t.Fatalf("Begin() error = %v", err)
+		}
+		foreignContext := WithApprovalProfile(t.Context(), "01ARZ3NDEKTSV4RRFFQ69G5FAV")
+		if _, err := coordinator.Status(foreignContext, ticket.ApprovalID); !errors.Is(err, ErrApprovalNotFound) {
+			t.Fatalf("Status(foreign profile) error = %v, want ErrApprovalNotFound", err)
+		}
+		if err := coordinator.Cancel(foreignContext, ticket.ApprovalID); !errors.Is(err, ErrApprovalNotFound) {
+			t.Fatalf("Cancel(foreign profile) error = %v, want ErrApprovalNotFound", err)
+		}
+		status, err := coordinator.Status(approvalContext(t), ticket.ApprovalID)
+		if err != nil {
+			t.Fatalf("Status(owner) error = %v", err)
+		}
+		if status.ApprovalStatus != ApprovalPending {
+			t.Fatalf("owner approval status = %q, want %q", status.ApprovalStatus, ApprovalPending)
 		}
 	})
 
@@ -46,18 +89,19 @@ func TestAsyncApprovalCoordinator(t *testing.T) {
 		if err != nil {
 			t.Fatalf("Begin() error = %v", err)
 		}
-		if err := coordinator.Resolve(t.Context(), ticket.ApprovalID, ApprovalApproved); err != nil {
+		if err := coordinator.Resolve(approvalContext(t), ticket.ApprovalID, ApprovalApproved); err != nil {
 			t.Fatalf("Resolve(approved) error = %v", err)
 		}
-		claimed, err := coordinator.Status(t.Context(), ticket.ApprovalID)
+		claimed, err := coordinator.Status(approvalContext(t), ticket.ApprovalID)
 		if err != nil {
 			t.Fatalf("Status(claimed) error = %v", err)
 		}
-		if claimed.ExecutionStatus != ApprovalDispatching || !claimed.ResumeFence {
+		if claimed.ProfileID != storepkg.DefaultProfileID || claimed.ExecutionStatus != ApprovalDispatching ||
+			!claimed.ResumeFence {
 			t.Fatalf("Status(claimed) = %#v, want fenced dispatch before Resolve returns", claimed)
 		}
 		releaseDispatch <- struct{}{}
-		if err := coordinator.Resolve(t.Context(), ticket.ApprovalID, ApprovalApproved); !errors.Is(
+		if err := coordinator.Resolve(approvalContext(t), ticket.ApprovalID, ApprovalApproved); !errors.Is(
 			err,
 			ErrApprovalTerminal,
 		) {
@@ -77,13 +121,15 @@ func TestAsyncApprovalCoordinator(t *testing.T) {
 		store := newMemoryApprovalStore()
 		now := time.Now().UTC()
 		store.seed(ApprovalStatus{
-			ApprovalID: "apr_dispatching", WorkspaceID: "workspace-a", InvocationID: "invocation-a",
+			ApprovalID: "apr_dispatching", ProfileID: storepkg.DefaultProfileID,
+			WorkspaceID: "workspace-a", InvocationID: "invocation-a",
 			Target: ApprovalTarget{Kind: ApprovalTargetTool, ToolID: "compozy__test"}, Args: json.RawMessage(`{}`),
 			ApprovalStatus: ApprovalApproved, ExecutionStatus: ApprovalDispatching,
 			RequestedAt: now.Add(-time.Minute), ExpiresAt: now.Add(time.Minute), ResumeFence: true,
 		})
 		store.seed(ApprovalStatus{
-			ApprovalID: "apr_expired", WorkspaceID: "workspace-a", InvocationID: "invocation-b",
+			ApprovalID: "apr_expired", ProfileID: storepkg.DefaultProfileID,
+			WorkspaceID: "workspace-a", InvocationID: "invocation-b",
 			Target: ApprovalTarget{Kind: ApprovalTargetTool, ToolID: "compozy__test"}, Args: json.RawMessage(`{}`),
 			ApprovalStatus: ApprovalPending, RequestedAt: now.Add(-time.Minute), ExpiresAt: now.Add(-time.Second),
 		})
@@ -92,11 +138,11 @@ func TestAsyncApprovalCoordinator(t *testing.T) {
 		if err := coordinator.Recover(t.Context()); err != nil {
 			t.Fatalf("Recover() error = %v", err)
 		}
-		dispatching, err := coordinator.Status(t.Context(), "apr_dispatching")
+		dispatching, err := coordinator.Status(approvalContext(t), "apr_dispatching")
 		if err != nil {
 			t.Fatalf("Status(dispatching) error = %v", err)
 		}
-		expired, err := coordinator.Status(t.Context(), "apr_expired")
+		expired, err := coordinator.Status(approvalContext(t), "apr_expired")
 		if err != nil {
 			t.Fatalf("Status(expired) error = %v", err)
 		}
@@ -122,7 +168,7 @@ func TestAsyncApprovalCoordinator(t *testing.T) {
 			if err != nil {
 				t.Fatalf("Begin() error = %v", err)
 			}
-			if err := coordinator.Resolve(t.Context(), ticket.ApprovalID, ApprovalDenied); err != nil {
+			if err := coordinator.Resolve(approvalContext(t), ticket.ApprovalID, ApprovalDenied); err != nil {
 				t.Fatalf("Resolve(denied) error = %v", err)
 			}
 			select {
@@ -130,7 +176,7 @@ func TestAsyncApprovalCoordinator(t *testing.T) {
 			case <-time.After(time.Second):
 				t.Fatal("denied approval did not close completion")
 			}
-			status, err := coordinator.Status(t.Context(), ticket.ApprovalID)
+			status, err := coordinator.Status(approvalContext(t), ticket.ApprovalID)
 			if err != nil || status.ApprovalStatus != ApprovalDenied || dispatcher.calls() != 0 {
 				t.Fatalf("denied status = %#v, error = %v, dispatches = %d", status, err, dispatcher.calls())
 			}
@@ -153,7 +199,7 @@ func TestAsyncApprovalCoordinator(t *testing.T) {
 			case <-time.After(2 * time.Second):
 				t.Fatal("timed-out approval did not close completion")
 			}
-			status, err := coordinator.Status(t.Context(), ticket.ApprovalID)
+			status, err := coordinator.Status(approvalContext(t), ticket.ApprovalID)
 			if err != nil || status.ApprovalStatus != ApprovalTimedOut || dispatcher.calls() != 0 {
 				t.Fatalf("timeout status = %#v, error = %v, dispatches = %d", status, err, dispatcher.calls())
 			}
@@ -172,14 +218,14 @@ func TestAsyncApprovalCoordinator(t *testing.T) {
 		if err != nil {
 			t.Fatalf("Begin() error = %v", err)
 		}
-		if err := coordinator.Resolve(t.Context(), ticket.ApprovalID, ApprovalApproved); err != nil {
+		if err := coordinator.Resolve(approvalContext(t), ticket.ApprovalID, ApprovalApproved); err != nil {
 			t.Fatalf("Resolve(approved) error = %v", err)
 		}
 		status := waitForApprovalStatus(t, coordinator, ticket.ApprovalID, ApprovalFailed)
 		if dispatcher.calls() != 1 || !strings.Contains(string(status.Error), "client disconnected") {
 			t.Fatalf("late dispatch = calls %d status %#v", dispatcher.calls(), status)
 		}
-		if err := coordinator.Resolve(t.Context(), ticket.ApprovalID, ApprovalApproved); !errors.Is(
+		if err := coordinator.Resolve(approvalContext(t), ticket.ApprovalID, ApprovalApproved); !errors.Is(
 			err,
 			ErrApprovalTerminal,
 		) {
@@ -208,11 +254,17 @@ func newTestApprovalCoordinator(
 
 func testApprovalRequest(invocationID string) ApprovalRequest {
 	return ApprovalRequest{
+		ProfileID:   storepkg.DefaultProfileID,
 		WorkspaceID: "workspace-a", InvocationID: invocationID,
 		Target: ApprovalTarget{Kind: ApprovalTargetTool, ToolID: "compozy__test"},
 		Args:   json.RawMessage(`{"value":1}`), ExpiresAt: time.Now().UTC().Add(time.Hour),
 		ContainsSecretArguments: true,
 	}
+}
+
+func approvalContext(t *testing.T) context.Context {
+	t.Helper()
+	return WithApprovalProfile(t.Context(), storepkg.DefaultProfileID)
 }
 
 func waitForApprovalStatus(
@@ -224,7 +276,7 @@ func waitForApprovalStatus(
 	t.Helper()
 	deadline := time.Now().Add(3 * time.Second)
 	for time.Now().Before(deadline) {
-		status, err := coordinator.Status(t.Context(), approvalID)
+		status, err := coordinator.Status(approvalContext(t), approvalID)
 		if err != nil {
 			t.Fatalf("Status() error = %v", err)
 		}
@@ -297,9 +349,16 @@ func (s *memoryApprovalStore) CreateApproval(
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	status := ApprovalStatus{
-		ApprovalID: approvalID, WorkspaceID: request.WorkspaceID, InvocationID: request.InvocationID,
-		CommandID: request.CommandID, Target: request.Target, Args: request.Args,
-		ApprovalStatus: ApprovalPending, RequestedAt: requestedAt, ExpiresAt: request.ExpiresAt,
+		ApprovalID:     approvalID,
+		ProfileID:      request.ProfileID,
+		WorkspaceID:    request.WorkspaceID,
+		InvocationID:   request.InvocationID,
+		CommandID:      request.CommandID,
+		Target:         request.Target,
+		Args:           request.Args,
+		ApprovalStatus: ApprovalPending,
+		RequestedAt:    requestedAt,
+		ExpiresAt:      request.ExpiresAt,
 	}
 	s.records[approvalID] = cloneApprovalStatus(status)
 	return cloneApprovalStatus(status), nil

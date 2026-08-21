@@ -45,7 +45,12 @@ func (h *BaseHandlers) SetSessionRuntime(c *gin.Context) {
 		h.respondError(c, StatusForSessionError(err), err)
 		return
 	}
-	c.JSON(http.StatusOK, contract.SessionResponse{Session: SessionPayloadFromInfo(info)})
+	payload, err := h.sessionPayloadWithOptionalHealth(c.Request.Context(), info, false)
+	if err != nil {
+		h.respondError(c, StatusForSessionError(err), err)
+		return
+	}
+	c.JSON(http.StatusOK, contract.SessionResponse{Session: payload})
 }
 
 // ClearSessionRuntime removes the durable runtime preference for future prompts.
@@ -73,7 +78,12 @@ func (h *BaseHandlers) ClearSessionRuntime(c *gin.Context) {
 		h.respondError(c, StatusForSessionError(err), err)
 		return
 	}
-	c.JSON(http.StatusOK, contract.SessionResponse{Session: SessionPayloadFromInfo(info)})
+	payload, err := h.sessionPayloadWithOptionalHealth(c.Request.Context(), info, false)
+	if err != nil {
+		h.respondError(c, StatusForSessionError(err), err)
+		return
+	}
+	c.JSON(http.StatusOK, contract.SessionResponse{Session: payload})
 }
 
 func requiredRuntimeSelectionRevision(c *gin.Context) (int64, error) {

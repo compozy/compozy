@@ -94,6 +94,8 @@ func errorType(err error) string {
 		return "workspace_name_taken"
 	case errors.Is(err, ErrWorkspacePathTaken):
 		return "workspace_path_taken"
+	case errors.Is(err, ErrOperatorHomeWorkspace):
+		return "workspace_home_forbidden"
 	case errors.Is(err, ErrWorkspaceIdentityInvalid):
 		return "workspace_identity_invalid"
 	case errors.Is(err, ErrWorkspaceIdentityPermissionDenied):

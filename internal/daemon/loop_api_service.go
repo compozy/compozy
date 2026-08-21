@@ -49,6 +49,10 @@ type loopAPIWorkspaceResolver interface {
 	Get(context.Context, string) (workspacepkg.Workspace, error)
 }
 
+type loopProfileNameResolver interface {
+	ProfileName(context.Context, string) (string, error)
+}
+
 type daemonLoopAPIService struct {
 	aggregate         looppkg.Service
 	persistence       loopAPIPersistence
@@ -59,6 +63,7 @@ type daemonLoopAPIService struct {
 	publisher         loopResourcePublisher
 	toolRegistry      toolspkg.Registry
 	workspaceResolver loopAPIWorkspaceResolver
+	profiles          loopProfileNameResolver
 	homePaths         compozyconfig.HomePaths
 	now               func() time.Time
 	goalContext       *loopGoalContextRuntime
@@ -117,6 +122,7 @@ func newDaemonLoopAPIService(
 	resolver := &daemonLoopDefinitionResolver{
 		catalog:         state.loopCatalog,
 		compilerFactory: newLoopCompilerFactory(state.deps.ToolRegistry),
+		profiles:        state.profiles,
 	}
 	runtimeCatalog := loopRuntimeCatalogFactory{
 		homePaths: homePaths, workspaceResolver: state.workspaceResolver,
@@ -145,6 +151,7 @@ func newDaemonLoopAPIService(
 		publisher:         state.loopResources,
 		toolRegistry:      state.deps.ToolRegistry,
 		workspaceResolver: state.workspaceResolver,
+		profiles:          state.profiles,
 		homePaths:         homePaths,
 		now:               now,
 		goalContext:       &loopGoalContextRuntime{sessions: state.sessions},
@@ -215,6 +222,7 @@ func sessionCreationStoreFromRegistry(registry any) store.SessionCreationStore {
 func (s *daemonLoopAPIService) CreateLoop(
 	ctx context.Context,
 	workspaceID string,
+	profileID string,
 	req contract.CreateLoopRequest,
 ) (contract.LoopResponse, error) {
 	ws, err := normalizeLoopWorkspaceID(workspaceID)
@@ -235,7 +243,7 @@ func (s *daemonLoopAPIService) CreateLoop(
 				looppkg.ErrValidation,
 			)
 		}
-		_, record, err := s.findLoopRecord(workspaceID, req.ForkFromName)
+		_, record, err := s.findLoopRecord(ctx, workspaceID, profileID, req.ForkFromName)
 		if err != nil {
 			return contract.LoopResponse{}, err
 		}
@@ -265,9 +273,10 @@ func (s *daemonLoopAPIService) CreateLoop(
 func (s *daemonLoopAPIService) GetLoop(
 	ctx context.Context,
 	workspaceID string,
+	profileID string,
 	name string,
 ) (contract.LoopResponse, error) {
-	_, record, err := s.findLoopRecord(workspaceID, name)
+	_, record, err := s.findLoopRecord(ctx, workspaceID, profileID, name)
 	if err != nil {
 		return contract.LoopResponse{}, err
 	}
@@ -286,7 +295,7 @@ func (s *daemonLoopAPIService) GetLoop(
 	if err != nil {
 		return contract.LoopResponse{}, err
 	}
-	snapshot, err := s.aggregate.GetConfigSnapshot(ctx, ws, name)
+	snapshot, err := s.aggregate.GetConfigSnapshot(ctx, ws, profileID, name)
 	if err != nil {
 		return contract.LoopResponse{}, err
 	}
@@ -308,6 +317,7 @@ func (s *daemonLoopAPIService) GetLoop(
 func (s *daemonLoopAPIService) PatchLoop(
 	ctx context.Context,
 	workspaceID string,
+	profileID string,
 	name string,
 	req contract.PatchLoopRequest,
 ) (contract.LoopResponse, error) {
@@ -334,7 +344,7 @@ func (s *daemonLoopAPIService) PatchLoop(
 	s.publishMu.Lock()
 	defer s.publishMu.Unlock()
 
-	ws, current, err := s.findLoopRecord(workspaceID, name)
+	ws, current, err := s.findLoopRecord(ctx, workspaceID, profileID, name)
 	if err != nil {
 		return contract.LoopResponse{}, err
 	}
@@ -362,6 +372,7 @@ func (s *daemonLoopAPIService) PatchLoop(
 func (s *daemonLoopAPIService) ValidateLoop(
 	ctx context.Context,
 	workspaceID string,
+	_ string,
 	name string,
 	req contract.ValidateLoopRequest,
 ) (contract.LoopValidationResponse, error) {
@@ -399,33 +410,38 @@ func (s *daemonLoopAPIService) RunLoop(
 	ctx context.Context,
 	workspaceID string,
 	name string,
-	req contract.RunLoopRequest,
-	startKind dsl.StartKind,
-	actor taskpkg.ActorContext,
-	dry bool,
+	input core.LoopRunInput,
 ) (contract.RunLoopResponse, error) {
 	ws, err := normalizeLoopWorkspaceID(workspaceID)
 	if err != nil {
 		return contract.RunLoopResponse{}, err
 	}
-	values, err := cloneLoopAPIMap(req.Inputs)
+	values, err := cloneLoopAPIMap(input.Request.Inputs)
 	if err != nil {
 		return contract.RunLoopResponse{}, err
 	}
 	inputs := looppkg.Inputs{
+		ProfileID:            strings.TrimSpace(input.ProfileID),
 		Values:               values,
-		ParentLoopRunID:      looppkg.RunID(strings.TrimSpace(req.ParentLoopRunID)),
-		NetworkParticipation: participation.CloneRequest(req.NetworkParticipation),
+		ParentLoopRunID:      looppkg.RunID(strings.TrimSpace(input.Request.ParentLoopRunID)),
+		NetworkParticipation: participation.CloneRequest(input.Request.NetworkParticipation),
 	}
-	if req.ConfigOverrides != nil {
-		config, err := loopConfigDomain(*req.ConfigOverrides)
+	if input.Request.ConfigOverrides != nil {
+		config, err := loopConfigDomain(*input.Request.ConfigOverrides)
 		if err != nil {
 			return contract.RunLoopResponse{}, err
 		}
 		inputs.ConfigOverrides = config
 	}
-	if dry {
-		if _, err := looppkg.ResolveStartBinding(ctx, s.resolver, ws, name, startKind); err != nil {
+	if input.Dry {
+		if _, err := looppkg.ResolveStartBinding(
+			ctx,
+			s.resolver,
+			ws,
+			inputs.ProfileID,
+			name,
+			input.StartKind,
+		); err != nil {
 			return contract.RunLoopResponse{}, err
 		}
 		plan, err := s.aggregate.DryRun(ctx, ws, name, inputs)
@@ -445,9 +461,9 @@ func (s *daemonLoopAPIService) RunLoop(
 	run, err := looppkg.StartFromActor(ctx, s.aggregate, s.resolver, looppkg.StartBindingRequest{
 		WorkspaceID: ws,
 		LoopName:    name,
-		Kind:        startKind,
+		Kind:        input.StartKind,
 		Inputs:      inputs,
-	}, actor)
+	}, input.Actor)
 	if err != nil {
 		return contract.RunLoopResponse{}, err
 	}

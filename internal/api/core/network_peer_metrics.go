@@ -26,15 +26,18 @@ func (h *BaseHandlers) loadPeerAuditEntries(
 	ctx context.Context,
 	networkStore NetworkStore,
 	peer network.PeerInfo,
+	readScope store.ReadScope,
 ) ([]store.NetworkAuditEntry, error) {
 	if peer.SessionID != nil {
 		return networkStore.ListNetworkAudit(ctx, store.NetworkAuditQuery{
+			ReadScope:   readScope,
 			WorkspaceID: strings.TrimSpace(peer.WorkspaceID),
 			SessionID:   strings.TrimSpace(*peer.SessionID),
 		})
 	}
 
 	entries, err := networkStore.ListNetworkAudit(ctx, store.NetworkAuditQuery{
+		ReadScope:   readScope,
 		WorkspaceID: strings.TrimSpace(peer.WorkspaceID),
 		Channel:     strings.TrimSpace(peer.Channel),
 	})

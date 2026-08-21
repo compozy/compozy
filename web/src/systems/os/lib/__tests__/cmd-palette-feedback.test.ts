@@ -25,7 +25,11 @@ describe("cmd-palette feedback copy and retry gating (UT-159, UT-160)", () => {
 
   it("Should name the command on success", () => {
     expect(
-      invokeCompletedFeedback(retrySafe, { status: "ok", invocation_id: "inv-success" })
+      invokeCompletedFeedback(retrySafe, {
+        status: "ok",
+        invocation_id: "inv-success",
+        profile_lens: { profile_lens_id: "00000000000000000000000000", profile_name: "default" },
+      })
     ).toEqual({
       message: "Open Tasks finished",
       tone: "success",
@@ -38,6 +42,7 @@ describe("cmd-palette feedback copy and retry gating (UT-159, UT-160)", () => {
       status: "approval_pending",
       approval_id: "apr_55e0c9",
       invocation_id: "inv-approval",
+      profile_lens: { profile_lens_id: "00000000000000000000000000", profile_name: "default" },
     });
     expect(feedback).toEqual({
       message: "Purge archived notes needs approval before it runs",

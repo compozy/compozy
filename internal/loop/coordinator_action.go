@@ -380,14 +380,16 @@ func actionExecutionInput(
 		},
 		OriginSessionID:           loopRun.Origin.SessionID,
 		ProvenanceParentSessionID: strings.TrimSpace(provenanceParentSessionID),
-		OriginCreationProfileRef:  loopRun.Origin.CreationProfileRef,
-		OriginPolicySpecDigest:    loopRun.Origin.PolicySpecDigest,
-		OriginCreationDigest:      loopRun.Origin.CreationDigest,
 		GoalContextNudgeRatio:     new(loopRun.GoalContextNudgeRatio),
 		GoalSegmentEpoch:          meta.GoalSegmentEpoch,
 		NetworkParticipation:      new(loopRun.NetworkSpecSnapshot()),
 		Environment:               cloneEnvironmentSpec(effective.Environment),
 	}
+	input.SetOriginProvenance(
+		loopRun.Origin.CreationProfileRef,
+		loopRun.Origin.PolicySpecDigest,
+		loopRun.Origin.CreationDigest,
+	)
 	if meta.ContinuationKind == deathResumeContinuationKind {
 		input.DeathResume = &DeathResumeContext{
 			SourceTaskRunID: meta.ResumeFromTaskRunID,
@@ -436,6 +438,7 @@ func actionNodeForRun(graph dsl.Graph, nodeID string) (dsl.Node, error) {
 
 func actionToolScope(run Run, actor task.ActorContext) tools.Scope {
 	return tools.Scope{
+		ProfileID:   strings.TrimSpace(run.ProfileID),
 		WorkspaceID: string(run.WorkspaceID),
 		ActorKind:   string(actor.Actor.Kind.Normalize()),
 	}

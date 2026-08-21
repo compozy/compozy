@@ -25,6 +25,7 @@ import {
 
 export function LoopRunsLocation({ search }: { search: LoopRunsRouteSearch }) {
   const {
+    profile,
     outcome,
     runsQuery,
     setOriginFilter,
@@ -170,6 +171,7 @@ export function LoopRunsLocation({ search }: { search: LoopRunsRouteSearch }) {
         onEmptyAction={outcome === "all" ? openLoops : () => setOutcome("all")}
         onRetry={() => void runsQuery.refetch()}
         outcome={outcome}
+        profileScope={profile}
         runs={runs}
       />
     </ListingPage>

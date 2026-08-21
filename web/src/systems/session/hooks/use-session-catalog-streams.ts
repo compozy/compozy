@@ -4,6 +4,8 @@ import { useQueryClient, type QueryClient } from "@tanstack/react-query";
 
 import { createStreamEventSource } from "@/lib/ticketed-event-source";
 
+import { useProfileReadScope, type ProfileScopeParams } from "@/systems/profiles";
+
 import { sessionKeys } from "../lib/query-keys";
 import type {
   OperatorNotificationEventPayload,
@@ -14,7 +16,6 @@ import {
   sessionCatalogStreamsLogic,
   type SessionCatalogStreamStatus,
 } from "./session-catalog-streams-store";
-import type { WorkspacePayload } from "@/systems/workspace";
 
 const SESSION_CATALOG_CHANGED_EVENT = "session_catalog_changed";
 /** Transition edges — ephemeral delivery signals, never a state patch. */
@@ -37,8 +38,11 @@ interface UseSessionCatalogStreamsOptions extends SessionCatalogStreamHandlers {
 
 export type { SessionCatalogStreamStatus } from "./session-catalog-streams-store";
 
-export function sessionCatalogStreamURL(): string {
-  return "/api/sessions/catalog-stream";
+export function sessionCatalogStreamURL(scope: ProfileScopeParams): string {
+  const params = new URLSearchParams({ all_workspaces: "true" });
+  if ("all_profiles" in scope) params.set("all_profiles", "true");
+  else params.set("profile", scope.profile);
+  return `/api/sessions/catalog-stream?${params.toString()}`;
 }
 
 function defaultEventSourceFactory(url: string): SessionCatalogEventSource {
@@ -53,7 +57,6 @@ function parseSessionCatalogEvent(event: Event): SessionCatalogEventPayload | un
       (payload.kind !== "upserted" && payload.kind !== "deleted") ||
       typeof payload.workspace_id !== "string" ||
       typeof payload.session_id !== "string" ||
-      payload.workspace_id.trim() === "" ||
       payload.session_id.trim() === ""
     ) {
       return undefined;
@@ -93,23 +96,19 @@ function invalidateGlobalSessionViews(queryClient: QueryClient): void {
 
 function openSessionCatalogStream(
   queryClient: QueryClient,
-  workspaceIds: readonly string[],
   eventSourceFactory: SessionCatalogEventSourceFactory,
   onStatusChange: (status: Exclude<SessionCatalogStreamStatus, "disabled">) => void,
-  handlers: SessionCatalogStreamHandlers
+  handlers: SessionCatalogStreamHandlers,
+  url: string
 ): () => void {
-  const authorizedWorkspaceIds = new Set(workspaceIds);
   const reconcileWorkspaces: EventListener = () => {
     onStatusChange("live");
-    for (const workspaceId of authorizedWorkspaceIds) {
-      void queryClient.invalidateQueries({ queryKey: sessionKeys.workspaceLists(workspaceId) });
-    }
     invalidateGlobalSessionViews(queryClient);
   };
   const handleStreamError: EventListener = () => onStatusChange("stale");
   const handleCatalogChange: EventListener = event => {
     const payload = parseSessionCatalogEvent(event);
-    if (!payload || !authorizedWorkspaceIds.has(payload.workspace_id)) return;
+    if (!payload) return;
     void queryClient.invalidateQueries({
       queryKey: sessionKeys.workspaceLists(payload.workspace_id),
     });
@@ -117,6 +116,8 @@ function openSessionCatalogStream(
       queryKey: sessionKeys.detail(payload.workspace_id, payload.session_id),
       exact: true,
     });
+    // Same session, whichever lens is holding it open.
+    void queryClient.invalidateQueries({ queryKey: sessionKeys.byIdRoot(payload.session_id) });
     invalidateGlobalSessionViews(queryClient);
   };
   const handleAttentionEdge: EventListener = event => {
@@ -128,10 +129,11 @@ function openSessionCatalogStream(
       "class",
       "at",
     ]);
-    if (!payload || !authorizedWorkspaceIds.has(payload.workspace_id)) return;
+    if (!payload) return;
     void queryClient.invalidateQueries({
       queryKey: sessionKeys.workspaceLists(payload.workspace_id),
     });
+    void queryClient.invalidateQueries({ queryKey: sessionKeys.byIdRoot(payload.session_id) });
     invalidateGlobalSessionViews(queryClient);
     handlers.onAttentionEdge?.(payload);
   };
@@ -143,7 +145,7 @@ function openSessionCatalogStream(
       "title",
       "at",
     ]);
-    if (!payload || !authorizedWorkspaceIds.has(payload.workspace_id)) return;
+    if (!payload) return;
     handlers.onOperatorNotification?.(payload);
   };
   const listeners: Array<[string, EventListener]> = [
@@ -153,7 +155,7 @@ function openSessionCatalogStream(
     [SESSION_ATTENTION_CHANGED_EVENT, handleAttentionEdge],
     [OPERATOR_NOTIFICATION_EVENT, handleOperatorNotification],
   ];
-  const source = eventSourceFactory(sessionCatalogStreamURL());
+  const source = eventSourceFactory(url);
   const detach = () => {
     for (const [type, listener] of listeners) source.removeEventListener(type, listener);
   };
@@ -171,15 +173,12 @@ function openSessionCatalogStream(
   };
 }
 
-export function useSessionCatalogStreams(
-  workspaces: readonly WorkspacePayload[],
-  {
-    enabled = true,
-    eventSourceFactory,
-    onAttentionEdge,
-    onOperatorNotification,
-  }: UseSessionCatalogStreamsOptions = {}
-) {
+export function useSessionCatalogStreams({
+  enabled = true,
+  eventSourceFactory,
+  onAttentionEdge,
+  onOperatorNotification,
+}: UseSessionCatalogStreamsOptions = {}) {
   const queryClient = useQueryClient();
   // Handlers ride a ref so a re-rendering consumer never reopens the stream.
   // Committed in an effect, not during render: a discarded render must not
@@ -188,22 +187,17 @@ export function useSessionCatalogStreams(
   useEffect(() => {
     handlersRef.current = { onAttentionEdge, onOperatorNotification };
   });
-  const workspaceIds = [
-    ...new Set(
-      workspaces.flatMap(workspace => {
-        const workspaceId = workspace.id.trim();
-        return workspaceId === "" ? [] : [workspaceId];
-      })
-    ),
-  ];
-  const workspaceKey = workspaceIds.join("\u0000");
   const canConnect =
     enabled &&
-    workspaceKey !== "" &&
     typeof window !== "undefined" &&
     (eventSourceFactory !== undefined || typeof EventSource !== "undefined");
   const store = useStore(sessionCatalogStreamsLogic);
   const status = useSelector(store, snapshot => snapshot.context.status);
+  // The URL carries the profile scope, so it doubles as the reconnect identity:
+  // a switch changes the string, which bumps the store's generation, fences every
+  // frame still in flight from the old socket, and closes it before the new one
+  // opens — leaving a profile's scope stops its stream writes (US-010.EC-2).
+  const streamUrl = sessionCatalogStreamURL(useProfileReadScope().params);
 
   useEffect(() => {
     if (!canConnect) {
@@ -212,21 +206,22 @@ export function useSessionCatalogStreams(
     }
 
     store.trigger.connectionRequested({
-      connect: onStatusChange =>
-        openSessionCatalogStream(
+      connect: onStatusChange => {
+        return openSessionCatalogStream(
           queryClient,
-          workspaceKey.split("\u0000"),
           eventSourceFactory ?? defaultEventSourceFactory,
           onStatusChange,
           {
             onAttentionEdge: edge => handlersRef.current.onAttentionEdge?.(edge),
             onOperatorNotification: notification =>
               handlersRef.current.onOperatorNotification?.(notification),
-          }
-        ),
+          },
+          streamUrl
+        );
+      },
     });
     return () => store.trigger.connectionDisabled();
-  }, [canConnect, eventSourceFactory, queryClient, store, workspaceKey]);
+  }, [canConnect, eventSourceFactory, queryClient, store, streamUrl]);
 
   return status;
 }

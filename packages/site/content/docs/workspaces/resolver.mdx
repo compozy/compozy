@@ -36,12 +36,10 @@ travel with it.
   workspace identity.
 </OperatorNote>
 
-On a fresh install, daemon boot registers the operator home directory (`$HOME`) as the default
-workspace through the same resolver path. That registration is a runtime default so sessions and
-`compozy workspace list` have a usable workspace before any project folder is added. The web UI
-does not show `$HOME` as a workspace row; first-run setup can skip project folders and start in
-Global scope. Use `compozy workspace add` for additional project roots that should have their own
-stable names, agents, skills, or config overlays.
+The operator home directory (`$HOME`) is not a workspace. Daemon boot does not register it, and
+explicit or automatic registration refuses it with a validation error. First-run setup can still
+skip project folders and start in Global scope. Register a project root when it needs its own stable
+name, agents, skills, or config overlays.
 
 ## What Gets Stored
 
@@ -155,7 +153,8 @@ compozy workspace add /Users/you/src/checkout-api \
 
 The command writes one registration row and immediately resolves it. If the root is missing, is not
 a directory, or contains invalid workspace config or agent definitions, the registration is rolled
-back.
+back. The operator home directory is reserved for user-wide resources and cannot be registered as a
+workspace; use a project directory beneath it instead.
 
 ## Auto-Registration
 
@@ -221,10 +220,11 @@ produces this cascade:
    the stored `root_dir`.
 4. Config is loaded as built-in defaults, then `~/.compozy/config.toml`, then `~/.compozy/mcp.json`, then
    `<workspace>/.compozy/config.toml`, then `<workspace>/.compozy/mcp.json`.
-5. Agents are discovered from `<workspace>/.compozy/agents/`, then additional roots, then global
-   `$COMPOZY_HOME/agents/`.
-6. Base skills are resolved from bundled plus global `$COMPOZY_HOME/skills/`, then additional roots,
-   then `<workspace>/.compozy/skills/`.
+5. Agents are discovered from `<workspace>/.compozy/agents/`, then additional roots, then user-wide
+   `$COMPOZY_HOME/agents/`. User-wide agents remain visible through every workspace lens.
+6. Base skills are resolved from bundled plus user-wide `$COMPOZY_HOME/skills/`, then additional
+   roots, then `<workspace>/.compozy/skills/`. User-wide skills remain visible through every
+   workspace lens.
 7. If the winning agent has `skills/`, that agent-local directory overlays the base set last.
 8. Same-name agents and skills use first-wins or higher-precedence overlay behavior, so the
    workspace `reviewer` and `repo-map` override the global ones.
@@ -278,6 +278,7 @@ Cache entries expire after 10 minutes of inactivity. The resolver also exposes a
 | Root exists but is a file        | Validation error; HTTP status `500` through resolver paths or `400` for API path validation failures.                    |
 | Duplicate name                   | `workspace name already in use`; HTTP status `409`.                                                                      |
 | Duplicate canonical path         | `workspace path already registered`; HTTP status `409`.                                                                  |
+| Operator home directory          | `operator home directory cannot be registered as a workspace`; validation error.                                         |
 | Workspace still has sessions     | `workspace has sessions`; HTTP status `409` when unregistering. No registration, session, or credential data is deleted. |
 | Invalid config or agent file     | Resolution fails and the registration is not kept on a new add/auto-register.                                            |
 
@@ -297,7 +298,8 @@ while denying at every other one. A denial names `permissions.mode` in its hint,
 you exactly what to change. [Permissions](/docs/sessions/permissions#cross-workspace-access)
 documents the full mapping, the prompt options, and the session-scoped answers.
 
-Your own access is unchanged. Operator commands, global reads such as `GET /api/sessions`, and the
+Your own access is unchanged. Operator commands, aggregate reads such as
+`GET /api/sessions?all_workspaces=true`, and the
 workspace catalog reach every registered workspace. In Web, a session deep link that belongs to
 another workspace asks before it moves you: CompozyOS resolves only the owning workspace's id and name,
 shows a confirmation, and switches the active workspace and its windows only when you confirm.

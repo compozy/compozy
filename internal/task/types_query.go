@@ -1,6 +1,10 @@
 package task
 
-import "time"
+import (
+	"time"
+
+	"github.com/compozy/compozy/internal/store"
+)
 
 // RunStarvation is the durable per-run escalation budget the scheduler advances each cycle a
 // claimable run stays queued past the starvation threshold. It survives daemon restart so the
@@ -28,30 +32,34 @@ type RunStarvationMutation struct {
 	UpdatedAt        time.Time  `json:"updated_at"`
 }
 
-// Query captures the supported list filters for task reads.
+// Query captures the supported task-list filters and an explicit profile or
+// aggregate read lens when supplied.
 type Query struct {
-	Scope         Scope         `json:"scope,omitempty"`
-	WorkspaceID   string        `json:"workspace_id,omitempty"`
-	Status        Status        `json:"status,omitempty"`
-	Priority      Priority      `json:"priority,omitempty"`
-	ApprovalState ApprovalState `json:"approval_state,omitempty"`
-	OwnerKind     OwnerKind     `json:"owner_kind,omitempty"`
-	OwnerRef      string        `json:"owner_ref,omitempty"`
-	ParentTaskID  string        `json:"parent_task_id,omitempty"`
-	Search        string        `json:"search,omitempty"`
-	CreatedByKind ActorKind     `json:"created_by_kind,omitempty"`
-	CreatedByRef  string        `json:"created_by_ref,omitempty"`
-	Limit         int           `json:"limit,omitempty"`
+	ReadScope     store.ReadScope `json:"read_scope,omitzero"`
+	Scope         Scope           `json:"scope,omitempty"`
+	WorkspaceID   string          `json:"workspace_id,omitempty"`
+	Status        Status          `json:"status,omitempty"`
+	Priority      Priority        `json:"priority,omitempty"`
+	ApprovalState ApprovalState   `json:"approval_state,omitempty"`
+	OwnerKind     OwnerKind       `json:"owner_kind,omitempty"`
+	OwnerRef      string          `json:"owner_ref,omitempty"`
+	ParentTaskID  string          `json:"parent_task_id,omitempty"`
+	Search        string          `json:"search,omitempty"`
+	CreatedByKind ActorKind       `json:"created_by_kind,omitempty"`
+	CreatedByRef  string          `json:"created_by_ref,omitempty"`
+	Limit         int             `json:"limit,omitempty"`
 }
 
-// RunQuery captures the supported list filters for task-run reads.
+// RunQuery captures the supported task-run filters and an explicit profile or
+// aggregate read lens when supplied.
 type RunQuery struct {
-	TaskID               string    `json:"task_id,omitempty"`
-	Status               RunStatus `json:"status,omitempty"`
-	SessionID            string    `json:"session_id,omitempty"`
-	DesignationGroupID   string    `json:"designation_group_id,omitempty"`
-	ParticipationChannel string    `json:"participation_channel,omitempty"`
-	Limit                int       `json:"limit,omitempty"`
+	ReadScope            store.ReadScope `json:"read_scope,omitzero"`
+	TaskID               string          `json:"task_id,omitempty"`
+	Status               RunStatus       `json:"status,omitempty"`
+	SessionID            string          `json:"session_id,omitempty"`
+	DesignationGroupID   string          `json:"designation_group_id,omitempty"`
+	ParticipationChannel string          `json:"participation_channel,omitempty"`
+	Limit                int             `json:"limit,omitempty"`
 }
 
 // EventQuery captures the supported list filters for task-event reads.

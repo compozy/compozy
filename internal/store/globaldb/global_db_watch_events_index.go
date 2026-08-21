@@ -97,7 +97,7 @@ func parkedWatchEventSubscriptionsFromGenerated(
 	parked := make([]looppkg.ParkedWatchEventSubscription, 0, len(rows))
 	for _, row := range rows {
 		subscription, err := parkedWatchEventSubscriptionFromFields(
-			row.WorkspaceID, row.ID, row.LoopName, row.Generation, row.InputsJson,
+			row.WorkspaceID, row.ProfileID, row.ID, row.LoopName, row.Generation, row.InputsJson,
 			row.DefinitionDigest, row.DefinitionJson, row.NodeID, row.OutputRef,
 		)
 		if err != nil {
@@ -116,7 +116,7 @@ func parkedWatchEventSubscriptionsForLoopRunFromGenerated(
 	parked := make([]looppkg.ParkedWatchEventSubscription, 0, len(rows))
 	for _, row := range rows {
 		subscription, err := parkedWatchEventSubscriptionFromFields(
-			row.WorkspaceID, row.ID, row.LoopName, row.Generation, row.InputsJson,
+			row.WorkspaceID, row.ProfileID, row.ID, row.LoopName, row.Generation, row.InputsJson,
 			row.DefinitionDigest, row.DefinitionJson, row.NodeID, row.OutputRef,
 		)
 		if err != nil {
@@ -135,7 +135,7 @@ func parkedWatchEventSubscriptionsPageFromGenerated(
 	parked := make([]looppkg.ParkedWatchEventSubscription, 0, len(rows))
 	for _, row := range rows {
 		subscription, err := parkedWatchEventSubscriptionFromFields(
-			row.WorkspaceID, row.ID, row.LoopName, row.Generation, row.InputsJson,
+			row.WorkspaceID, row.ProfileID, row.ID, row.LoopName, row.Generation, row.InputsJson,
 			row.DefinitionDigest, row.DefinitionJson, row.NodeID, row.OutputRef,
 		)
 		if err != nil {
@@ -150,6 +150,7 @@ func parkedWatchEventSubscriptionsPageFromGenerated(
 
 func parkedWatchEventSubscriptionFromFields(
 	workspaceID string,
+	profileID string,
 	loopRunID string,
 	loopName string,
 	generation int64,
@@ -178,8 +179,9 @@ func parkedWatchEventSubscriptionFromFields(
 		)
 	}
 	return looppkg.ParkedWatchEventSubscription{
-		WorkspaceID: strings.TrimSpace(workspaceID), LoopRunID: strings.TrimSpace(loopRunID),
-		LoopName: strings.TrimSpace(loopName), Generation: int(generation), NodeID: strings.TrimSpace(nodeID),
+		WorkspaceID: strings.TrimSpace(workspaceID), ProfileID: strings.TrimSpace(profileID),
+		LoopRunID: strings.TrimSpace(loopRunID),
+		LoopName:  strings.TrimSpace(loopName), Generation: int(generation), NodeID: strings.TrimSpace(nodeID),
 		Inputs: inputs, Subscriptions: state.Subscriptions, Cursors: state.Cursors,
 		Contracts: resolved.WatchEventsContracts,
 	}, nil

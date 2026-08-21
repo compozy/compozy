@@ -297,6 +297,7 @@ func settingsSourceRefPayload(value settingspkg.SourceRef) contract.SettingsSour
 		Kind:        contract.SettingsSourceKind(value.Kind),
 		Scope:       contract.SettingsScopeKind(value.Scope),
 		WorkspaceID: strings.TrimSpace(value.WorkspaceID),
+		Profile:     strings.TrimSpace(value.ProfileName),
 		AgentName:   strings.TrimSpace(value.AgentName),
 	}
 }

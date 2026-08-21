@@ -52,7 +52,7 @@ func TestResolveManifestToolResourcesMatchesDynamicSnapshotCanonicalShape(t *tes
 		if err != nil {
 			t.Fatalf("toolspkg.NewResourceCodec() error = %v", err)
 		}
-		scope := resources.ResourceScope{Kind: resources.ResourceScopeKindGlobal}
+		scope := resources.ResourceScope{Kind: resources.ResourceScopeKindUser}
 
 		manifestCanonical := mustCanonicalToolJSON(t, codec, scope, tools[0])
 		dynamicSpec, err := codec.DecodeAndValidate(testutil.Context(t), scope, []byte(`{

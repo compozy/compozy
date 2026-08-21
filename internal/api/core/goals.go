@@ -46,6 +46,9 @@ func (h *BaseHandlers) ListGoalTurns(c *gin.Context) {
 	if !ok {
 		return
 	}
+	if !h.requireLoopRunProfile(c, service, false) {
+		return
+	}
 	query, err := ParseGoalTurnListQuery(c)
 	if err != nil {
 		h.respondGoalTurnFilterError(c)

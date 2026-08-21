@@ -189,6 +189,7 @@ func evaluateAutomationRunReservation(
 	reservation automation.RunReservation,
 ) (int64, time.Time, error) {
 	where, args := buildAutomationRunClauses(automation.RunQuery{
+		ReadScope: store.ReadScope{AllProfiles: true},
 		JobID:     reservation.Run.JobID,
 		TriggerID: reservation.Run.TriggerID,
 		ExcludeID: reservation.ExistingRunID,

@@ -3,6 +3,7 @@ package automation
 import (
 	"context"
 	"errors"
+	"strings"
 
 	"github.com/compozy/compozy/internal/store"
 )
@@ -22,6 +23,10 @@ func (m *Manager) prepareJobForCreate(ctx context.Context, job Job) (Job, error)
 		return Job{}, errors.New("automation: create job context is required")
 	}
 	next := cloneJob(job)
+	next.ProfileID = strings.TrimSpace(next.ProfileID)
+	if next.ProfileID == "" {
+		next.ProfileID = store.DefaultProfileID
+	}
 	if next.Source == "" {
 		next.Source = JobSourceDynamic
 	}

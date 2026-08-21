@@ -23,6 +23,7 @@ type ReplayResult struct {
 
 type replayDecision struct {
 	ID              string
+	ProfileID       string
 	WorkspaceID     string
 	Scope           memcontract.Scope
 	AgentName       string
@@ -51,7 +52,7 @@ func (s *Store) ReplayPendingDecisions(ctx context.Context) (ReplayResult, error
 		return ReplayResult{}, nil
 	}
 
-	decisions, err := pendingReplayDecisions(ctx, db)
+	decisions, err := pendingReplayDecisions(ctx, db, s.profileID)
 	if err != nil {
 		return ReplayResult{}, err
 	}
@@ -66,7 +67,7 @@ func (s *Store) ReplayPendingDecisions(ctx context.Context) (ReplayResult, error
 		if err != nil {
 			return ReplayResult{}, err
 		}
-		if err := markReplayDecisionApplied(ctx, db, decision.ID); err != nil {
+		if err := markReplayDecisionApplied(ctx, db, decision.ID, decision.ProfileID); err != nil {
 			return ReplayResult{}, err
 		}
 		if applied {
@@ -79,14 +80,16 @@ func (s *Store) ReplayPendingDecisions(ctx context.Context) (ReplayResult, error
 	return result, nil
 }
 
-func pendingReplayDecisions(ctx context.Context, db *sql.DB) (decisions []replayDecision, err error) {
+func pendingReplayDecisions(ctx context.Context, db *sql.DB, profileID string) (decisions []replayDecision, err error) {
 	rows, err := db.QueryContext(
 		ctx,
-		`SELECT id, workspace_id, scope, agent_name, agent_tier, op, target_filename,
+		`SELECT id, profile_id, workspace_id, scope, agent_name, agent_tier, op, target_filename,
 			post_content, post_content_hash
 		 FROM memory_decisions
 		 WHERE applied_at IS NULL
+		 AND ((scope IN ('profile', 'agent') AND profile_id = ?) OR scope NOT IN ('profile', 'agent'))
 		 ORDER BY decided_at ASC, id ASC`,
+		strings.TrimSpace(profileID),
 	)
 	if err != nil {
 		return nil, fmt.Errorf("memory: query pending replay decisions: %w", err)
@@ -119,6 +122,7 @@ func pendingReplayDecisions(ctx context.Context, db *sql.DB) (decisions []replay
 func scanReplayDecision(scanner interface{ Scan(dest ...any) error }) (replayDecision, error) {
 	var (
 		decision        replayDecision
+		profileID       sql.NullString
 		workspaceID     sql.NullString
 		scopeRaw        string
 		agentName       sql.NullString
@@ -129,6 +133,7 @@ func scanReplayDecision(scanner interface{ Scan(dest ...any) error }) (replayDec
 	)
 	if err := scanner.Scan(
 		&decision.ID,
+		&profileID,
 		&workspaceID,
 		&scopeRaw,
 		&agentName,
@@ -141,6 +146,7 @@ func scanReplayDecision(scanner interface{ Scan(dest ...any) error }) (replayDec
 		return replayDecision{}, fmt.Errorf("memory: scan replay decision: %w", err)
 	}
 	decision.WorkspaceID = nullableSQLString(workspaceID)
+	decision.ProfileID = nullableSQLString(profileID)
 	decision.Scope = memcontract.Scope(scopeRaw).Normalize()
 	if err := decision.Scope.Validate(); err != nil {
 		return replayDecision{}, fmt.Errorf("memory: replay decision %q scope: %w", decision.ID, err)
@@ -159,7 +165,7 @@ func scanReplayDecision(scanner interface{ Scan(dest ...any) error }) (replayDec
 
 func (s *Store) storeForReplayDecision(ctx context.Context, decision replayDecision) (*Store, error) {
 	switch decision.Scope.Normalize() {
-	case memcontract.ScopeGlobal:
+	case memcontract.ScopeProfile:
 		return s, nil
 	case memcontract.ScopeWorkspace:
 		if err := s.validateReplayWorkspace(ctx, decision.WorkspaceID); err != nil {
@@ -266,15 +272,16 @@ func (s *Store) reindexReplayScope(
 	return result.IndexedFiles, nil
 }
 
-func markReplayDecisionApplied(ctx context.Context, db *sql.DB, id string) error {
+func markReplayDecisionApplied(ctx context.Context, db *sql.DB, id string, profileID string) error {
 	return storepkg.ExecuteWrite(ctx, db, func(ctx context.Context, tx *storepkg.WriteTx) error {
 		result, err := tx.ExecContext(
 			ctx,
 			`UPDATE memory_decisions
 			 SET applied_at = ?
-			 WHERE id = ? AND applied_at IS NULL`,
+			 WHERE id = ? AND profile_id = ? AND applied_at IS NULL`,
 			timeToUnixMillis(time.Now().UTC()),
 			strings.TrimSpace(id),
+			strings.TrimSpace(profileID),
 		)
 		if err != nil {
 			return fmt.Errorf("memory: mark replay decision %q applied: %w", id, err)

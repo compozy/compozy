@@ -8,12 +8,14 @@ import (
 	"strings"
 
 	automation "github.com/compozy/compozy/internal/automation/model"
+	"github.com/compozy/compozy/internal/store"
 	"github.com/compozy/compozy/internal/store/globaldb/sqlcgen"
 )
 
 const automationJobCatalogWorkspaceIndex = "idx_automation_job_catalog_workspace_order"
 
 const automationJobCatalogBaseSQL = ` FROM automation_job_catalog_entries AS c
+	JOIN automation_jobs AS j ON j.id = c.job_id
 	LEFT JOIN automation_job_overlays AS o ON o.job_id = c.job_id`
 
 func listAutomationJobCatalog(
@@ -89,6 +91,9 @@ func listAutomationJobCatalog(
 func automationJobCatalogWhere(query automation.JobListQuery) (string, []any) {
 	clauses := make([]string, 0, 6)
 	args := make([]any, 0, 16)
+	profileClauses, profileArgs := store.BuildClauses(store.ReadScopeClause("j.profile_id", query.ReadScope))
+	clauses = append(clauses, profileClauses...)
+	args = append(args, profileArgs...)
 	if query.Scope != "" {
 		clauses = append(clauses, "c.scope = ?")
 		args = append(args, query.Scope)
@@ -146,7 +151,7 @@ func readAutomationJobCatalogCandidates(
 	// dynamic-sql: optional filters and keyset cursor terms change the candidate query shape.
 	rows, err := executor.QueryContext(
 		ctx,
-		`SELECT c.job_id, c.source, c.name`+automationJobCatalogBaseSQL+where+
+		`SELECT c.job_id, j.profile_id, c.source, c.name`+automationJobCatalogBaseSQL+where+
 			` ORDER BY c.source_rank, c.name, c.job_id LIMIT ?`,
 		args...,
 	)
@@ -160,7 +165,12 @@ func readAutomationJobCatalogCandidates(
 	}()
 	for rows.Next() {
 		var candidate automationCatalogCandidate
-		if scanErr := rows.Scan(&candidate.ID, &candidate.Source, &candidate.Name); scanErr != nil {
+		if scanErr := rows.Scan(
+			&candidate.ID,
+			&candidate.ProfileID,
+			&candidate.Source,
+			&candidate.Name,
+		); scanErr != nil {
 			return nil, fmt.Errorf("store: scan automation job catalog candidate: %w", scanErr)
 		}
 		candidates = append(candidates, candidate)
@@ -204,6 +214,9 @@ func hydrateAutomationJobCatalogPage(
 			len(jobs),
 			len(candidates),
 		)
+	}
+	for index := range jobs {
+		jobs[index].ProfileID = candidates[index].ProfileID
 	}
 	return jobs, nil
 }

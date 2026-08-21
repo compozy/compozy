@@ -119,6 +119,7 @@ func (n *daemonNativeTools) setNativeLoopInputDefault(
 	response, err := service.PutLoopInputDefault(
 		ctx,
 		workspaceID,
+		scope.ProfileID,
 		path[2],
 		path[3],
 		contract.PutLoopInputDefaultRequest{Scope: inputScope, Value: value},
@@ -202,7 +203,7 @@ func (n *daemonNativeTools) nativeConfigApplyService(
 	if err != nil {
 		return nil, nativeConfigValidationError(id, err)
 	}
-	if target.Scope() != compozyconfig.WriteScopeGlobal || rule.Lifecycle == lifecycle.RestartRequired {
+	if target.Scope() != compozyconfig.WriteScopeUser || rule.Lifecycle == lifecycle.RestartRequired {
 		return nil, nil
 	}
 	service := n.settingsService()

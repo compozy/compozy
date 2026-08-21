@@ -19,7 +19,17 @@ function fleetCategoryPath(index: number): string[] | undefined {
 const fleetStoryAgents = agentFixtures.map((agent, index) => ({
   ...agent,
   category_path: fleetCategoryPath(index),
-  ...(index === 0 ? { origin: "workspace" as const, workspace_id: "ws_launch_hq" } : {}),
+  ...(index === 0
+    ? {
+        layer: "project_profile",
+        origin: "workspace" as const,
+        shadows: [
+          { layer: "project", path: "/workspace/.compozy/agents/reviewer/AGENT.md" },
+          { layer: "profile", path: "/profiles/default/agents/reviewer/AGENT.md" },
+        ],
+        workspace_id: "ws_launch_hq",
+      }
+    : {}),
   ...(index === 1
     ? {
         diagnostics: [

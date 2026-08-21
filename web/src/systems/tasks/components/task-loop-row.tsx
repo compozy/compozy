@@ -12,11 +12,13 @@ import {
 } from "../lib/task-loop-identity";
 import { taskStatusLabel, taskStatusTone } from "../lib/task-formatters";
 import type { TaskListItem } from "../types";
+import { ProfileOwnerTag, type ProfileOwner } from "@/systems/profiles";
 
 export interface TaskLoopRowProps {
   task: TaskListItem;
   loop: TaskLoopProvenance;
   onOpenRun?: () => void;
+  profileOwner?: ProfileOwner;
 }
 
 /** The runtime models a record's state, not a per-step narrative — that lives on the run page. */
@@ -31,7 +33,7 @@ const LOOP_RECORD_DESCRIPTION = "Loop execution record — open the run to act o
  * status — the signal pill in the trail. Identity is plain words end to end; the
  * machine id only ever appears in secondary text.
  */
-export function TaskLoopRow({ task, loop, onOpenRun }: TaskLoopRowProps) {
+export function TaskLoopRow({ task, loop, onOpenRun, profileOwner }: TaskLoopRowProps) {
   const runLink = taskLoopRunLink(loop);
   const roleLabel = taskLoopRoleLabel(loop);
   const identity = taskLoopIdentityLabel(loop);
@@ -42,6 +44,7 @@ export function TaskLoopRow({ task, loop, onOpenRun }: TaskLoopRowProps) {
       <Pill data-slot="task-loop-row-role" size="sm" tone="neutral">
         {roleLabel}
       </Pill>
+      {profileOwner ? <ProfileOwnerTag owner={profileOwner} /> : null}
     </ListingRow.Name>
   );
 

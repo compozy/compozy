@@ -10,6 +10,8 @@ import (
 	"github.com/compozy/compozy/internal/api/contract"
 	extensionpkg "github.com/compozy/compozy/internal/extension"
 	marketplacepkg "github.com/compozy/compozy/internal/marketplace"
+	profilepkg "github.com/compozy/compozy/internal/profile"
+	"github.com/compozy/compozy/internal/store"
 	taskpkg "github.com/compozy/compozy/internal/task"
 	toolspkg "github.com/compozy/compozy/internal/tools"
 )
@@ -159,8 +161,12 @@ func (lateBootExtensionService) Status(context.Context, string) (contract.Extens
 	return contract.ExtensionPayload{}, errors.New("unexpected Status call")
 }
 
-func (lateBootExtensionService) Inventory(context.Context, string) (contract.ExtensionInventoryPayload, error) {
-	return contract.ExtensionInventoryPayload{}, errors.New("unexpected Inventory call")
+func (lateBootExtensionService) InventoryScoped(
+	context.Context,
+	string,
+	taskpkg.ActorContext,
+) (contract.ExtensionInventoryPayload, error) {
+	return contract.ExtensionInventoryPayload{}, errors.New("unexpected InventoryScoped call")
 }
 
 func (lateBootExtensionService) Preview(context.Context, string) (contract.ExtensionEnablePreviewPayload, error) {
@@ -306,6 +312,7 @@ func TestMarketplaceNativeSearch(t *testing.T) {
 		result, err := nativeTools.marketplaceSearch(
 			t.Context(),
 			toolspkg.Scope{
+				ProfileID:   store.DefaultProfileID,
 				WorkspaceID: "ws-native",
 				SessionID:   "session-native",
 				AgentName:   "marketplace-agent",
@@ -326,5 +333,31 @@ func TestMarketplaceNativeSearch(t *testing.T) {
 			t.Fatalf("scoped marketplace actor = %#v, want readable native agent actor", capturedActor)
 		}
 		requireNativeStructuredContains(t, result, []byte(`"installed":true`))
+	})
+
+	t.Run("Should resolve a named profile scope for installed-state projection", func(t *testing.T) {
+		t.Parallel()
+
+		const profileID = "01ARZ3NDEKTSV4RRFFQ69G5FAV"
+		nativeTools := &daemonNativeTools{deps: &daemonNativeToolsDeps{
+			Profiles: nativeProfileReaderStub{profiles: []profilepkg.WithCounts{{
+				Profile: profilepkg.Profile{ID: profileID, Name: "marketing"},
+			}}},
+		}}
+		scope, workspaceID, profileName, err := nativeTools.marketplaceToolScope(
+			t.Context(),
+			toolspkg.Scope{ProfileID: profileID},
+		)
+		if err != nil {
+			t.Fatalf("marketplaceToolScope(profile) error = %v", err)
+		}
+		if scope != contract.MarketplaceScopeProfile || workspaceID != "" || profileName != "marketing" {
+			t.Fatalf(
+				"marketplaceToolScope(profile) = %q/%q/%q, want profile//marketing",
+				scope,
+				workspaceID,
+				profileName,
+			)
+		}
 	})
 }

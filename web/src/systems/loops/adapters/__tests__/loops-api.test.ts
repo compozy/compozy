@@ -181,6 +181,10 @@ describe("loops-api (request construction + error mapping)", () => {
     mockJsonResponse({ run: { id: "run_1" } }, { status: 201 });
     await runLoop(WS, "implement-tasks", { inputs: {} });
     expect(new URL(fetchRequest(1).url).search).toBe("");
+
+    mockJsonResponse({ run: { id: "run_2" } }, { status: 201 });
+    await runLoop(WS, "implement-tasks", { inputs: {} }, { profile: " marketing " });
+    expect(new URL(fetchRequest(2).url).search).toBe("?profile=marketing");
   });
 
   it("Should return the 422 lint verdict from validate instead of throwing", async () => {
@@ -207,9 +211,11 @@ describe("loops-api (request construction + error mapping)", () => {
       origin_session: "session_1",
       live: true,
       limit: 10,
+      profile: " marketing ",
+      all_profiles: false,
     });
     await expectFetchRequest({
-      path: "/api/workspaces/ws_1/loop-runs?loop=implement-tasks&status=running&origin=session&origin_session=session_1&live=true&limit=10",
+      path: "/api/workspaces/ws_1/loop-runs?loop=implement-tasks&status=running&origin=session&origin_session=session_1&live=true&limit=10&profile=marketing&all_profiles=false",
       method: "GET",
     });
   });

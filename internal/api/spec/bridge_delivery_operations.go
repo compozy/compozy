@@ -11,9 +11,9 @@ func bridgeDeliveryOperations() []OperationSpec {
 			Summary:     "Resolve a typed outbound delivery target for a bridge instance",
 			Tags:        []string{specBridgesKey},
 			Transports:  []Transport{TransportHTTP, TransportUDS},
-			Parameters: []ParameterSpec{
+			Parameters: withProfileScope(
 				pathParam("id", "Bridge instance id"),
-			},
+			),
 			RequestBody: contract.BridgeTestDeliveryRequest{},
 			Responses: []ResponseSpec{
 				{Status: 200, Description: "OK", Body: contract.BridgeTestDeliveryResponse{}},

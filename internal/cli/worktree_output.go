@@ -10,6 +10,7 @@ func worktreeRecordBundle(item WorktreeRecord) outputBundle {
 		human: func() (string, error) {
 			return renderHumanSection("Worktree", []keyValue{
 				{Label: "ID", Value: stringOrDash(item.ID)},
+				{Label: sessionProfileValue, Value: stringOrDash(item.ProfileName)},
 				{Label: automationNameValue, Value: stringOrDash(item.Name)},
 				{Label: worktreeBranchLabel, Value: stringOrDash(item.Branch)},
 				{Label: "Path", Value: stringOrDash(item.Path)},
@@ -19,10 +20,20 @@ func worktreeRecordBundle(item WorktreeRecord) outputBundle {
 			}), nil
 		},
 		toon: func() (string, error) {
-			return renderToonObject("worktree",
-				[]string{"id", automationNameKey, worktreeBranchKey, automationPathKey, stateKey,
+			return renderToonObject(
+				"worktree",
+				[]string{"id", profileNameOutputKey, automationNameKey, worktreeBranchKey, automationPathKey, stateKey,
 					taskOriginKey, "agent_activity"},
-				[]string{item.ID, item.Name, item.Branch, item.Path, item.State, item.Origin, item.AgentActivity},
+				[]string{
+					item.ID,
+					item.ProfileName,
+					item.Name,
+					item.Branch,
+					item.Path,
+					item.State,
+					item.Origin,
+					item.AgentActivity,
+				},
 			), nil
 		},
 	}
@@ -36,20 +47,20 @@ func worktreeListBundle(items []WorktreeRecord) outputBundle {
 		items,
 		items,
 		"Worktrees",
-		[]string{"ID", automationNameValue, worktreeBranchLabel, authoredContextStateValue,
+		[]string{"ID", sessionProfileValue, automationNameValue, worktreeBranchLabel, authoredContextStateValue,
 			"Dirty", "Ahead", "Behind", authoredContextAgentValue},
 		"worktrees",
-		[]string{"id", automationNameKey, worktreeBranchKey, automationPathKey, stateKey,
+		[]string{"id", profileNameOutputKey, automationNameKey, worktreeBranchKey, automationPathKey, stateKey,
 			taskOriginKey, "dirty", "ahead", "behind", "agent_activity"},
 		func(item WorktreeRecord) []string {
 			return []string{
-				item.ID, item.Name, item.Branch, item.State, formatOptionalBool(item.Dirty),
+				item.ID, item.ProfileName, item.Name, item.Branch, item.State, formatOptionalBool(item.Dirty),
 				formatOptionalInt(item.Ahead), formatOptionalInt(item.Behind), item.AgentActivity,
 			}
 		},
 		func(item WorktreeRecord) []string {
 			return []string{
-				item.ID, item.Name, item.Branch, item.Path, item.State, item.Origin,
+				item.ID, item.ProfileName, item.Name, item.Branch, item.Path, item.State, item.Origin,
 				formatOptionalBool(item.Dirty), formatOptionalInt(item.Ahead),
 				formatOptionalInt(item.Behind), item.AgentActivity,
 			}

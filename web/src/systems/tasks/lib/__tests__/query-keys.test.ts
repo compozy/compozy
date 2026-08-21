@@ -1,5 +1,7 @@
 import { describe, expect, it } from "vitest";
 
+import { PROFILE_AGGREGATE } from "@/systems/profiles";
+
 import { tasksKeys } from "../query-keys";
 
 describe("tasksKeys", () => {
@@ -34,6 +36,7 @@ describe("tasksKeys", () => {
         sort: "priority",
         cursor: "ignored-cursor",
         limit: 50,
+        profile: "marketing",
       })
     ).toEqual([
       "tasks",
@@ -58,28 +61,10 @@ describe("tasksKeys", () => {
       "review",
       "priority",
       "50",
+      "marketing",
     ]);
 
-    expect(tasksKeys.list()).toEqual([
-      "tasks",
-      "list",
-      "",
-      "",
-      "",
-      "",
-      "",
-      "",
-      "",
-      "",
-      "",
-      "",
-      "",
-      "",
-      "",
-      "",
-      "",
-      "",
-    ]);
+    expect(tasksKeys.list()).toEqual(["tasks", "list", ...Array.from({ length: 17 }, () => "")]);
 
     // The calm default sends no include flag at all, so it must not collide
     // with an explicit reveal.
@@ -87,6 +72,15 @@ describe("tasksKeys", () => {
       tasksKeys.list({ scope: "workspace", include_loop: true })
     );
 
+    // Two profiles reading one workspace are two catalogs; the aggregate is a
+    // third, and never `default`'s.
+    expect(tasksKeys.list({ profile: "marketing" })).not.toEqual(
+      tasksKeys.list({ profile: "default" })
+    );
+    expect(tasksKeys.list({ all_profiles: true })).not.toEqual(
+      tasksKeys.list({ profile: "default" })
+    );
+    expect(tasksKeys.list({ all_profiles: true }).at(-1)).toBe(PROFILE_AGGREGATE);
     expect(tasksKeys.list({ scope: "workspace", sort: "recent", cursor: "first" })).toEqual(
       tasksKeys.list({ scope: "workspace", sort: "recent", cursor: "second" })
     );
@@ -95,6 +89,12 @@ describe("tasksKeys", () => {
 
   it("distinguishes detail, run, timeline, tree, and run-detail keys by id", () => {
     expect(tasksKeys.detail("task_1")).toEqual(["tasks", "detail", "task_1"]);
+    expect(tasksKeys.detail("task_1", { all_profiles: true })).toEqual([
+      "tasks",
+      "detail",
+      "task_1",
+      PROFILE_AGGREGATE,
+    ]);
     expect(tasksKeys.runs("task_1", { status: "running", limit: 5 })).toEqual([
       "tasks",
       "runs",
@@ -117,7 +117,7 @@ describe("tasksKeys", () => {
   it("serializes dashboard and inbox filters stably", () => {
     expect(
       tasksKeys.dashboard({ scope: "workspace", workspace: "ws_alpha", worktree: "wt_alpha" })
-    ).toEqual(["tasks", "dashboard", "workspace", "ws_alpha", "wt_alpha", "", "", "", ""]);
+    ).toEqual(["tasks", "dashboard", "workspace", "ws_alpha", "wt_alpha", "", "", "", "", ""]);
 
     expect(
       tasksKeys.inbox({
@@ -145,6 +145,7 @@ describe("tasksKeys", () => {
       "1",
       "",
       "20",
+      "",
     ]);
     expect(tasksKeys.inbox({ lane: "approvals", cursor: "first" })).toEqual(
       tasksKeys.inbox({ lane: "approvals", cursor: "second" })
@@ -155,6 +156,16 @@ describe("tasksKeys", () => {
     expect(tasksKeys.inbox({ worktree: "wt_alpha" })).not.toEqual(
       tasksKeys.inbox({ worktree: "wt_beta" })
     );
+    // The dashboard and inbox are profile-owned reads too, so the lens separates
+    // them the same way the workspace does.
+    expect(tasksKeys.dashboard({ profile: "marketing" })).not.toEqual(
+      tasksKeys.dashboard({ profile: "default" })
+    );
+    expect(tasksKeys.inbox({ all_profiles: true })).not.toEqual(
+      tasksKeys.inbox({ profile: "default" })
+    );
+    expect(tasksKeys.dashboard({ all_profiles: true }).at(-1)).toBe(PROFILE_AGGREGATE);
+    expect(tasksKeys.inbox({ all_profiles: true }).at(-1)).toBe(PROFILE_AGGREGATE);
   });
 
   it("Should namespace orchestration roots", () => {

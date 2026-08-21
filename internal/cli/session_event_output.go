@@ -120,7 +120,7 @@ func agentEventsBundle(events []AgentEventRecord) outputBundle {
 	)
 }
 
-func displaySessionWorkspace(info SessionRecord) string {
+func displaySessionWorkspace(info *SessionRecord) string {
 	return firstNonEmpty(strings.TrimSpace(info.WorkspacePath), strings.TrimSpace(info.WorkspaceID))
 }
 

@@ -42,7 +42,7 @@ func LoadLayoutResources(
 		}
 		layout, err := codec.DecodeAndValidate(
 			ctx,
-			resources.ResourceScope{Kind: resources.ResourceScopeKindGlobal},
+			resources.ResourceScope{Kind: resources.ResourceScopeKindUser},
 			body,
 		)
 		if err != nil {

@@ -57,6 +57,7 @@ export interface OsPaletteWorkspaceCatalogs {
 }
 
 export interface UseOsPaletteWorkspaceCatalogsOptions {
+  readonly profile: string;
   readonly workspaceIds: readonly string[];
   readonly loopsEnabled: boolean;
   readonly networkEnabled: boolean;
@@ -95,14 +96,18 @@ async function fetchAllWorkspaceLoops(workspaceId: string, signal: AbortSignal) 
   }
 }
 
-async function fetchAllWorkspaceMemories(workspaceId: string, signal: AbortSignal) {
+async function fetchAllWorkspaceMemories(
+  profile: string,
+  workspaceId: string,
+  signal: AbortSignal
+) {
   const memories: MemoryHeader[] = [];
   const seenCursors = new Set<string>();
   let cursor: string | undefined;
   let total = 0;
   for (;;) {
     const page = await listMemories(
-      { scope: "workspace", workspaceId, includeSystem: false, cursor },
+      { profile, scope: "workspace", workspaceId, includeSystem: false, cursor },
       signal
     );
     memories.push(...page.memories);
@@ -122,6 +127,7 @@ async function fetchAllWorkspaceMemories(workspaceId: string, signal: AbortSigna
  * its own query under the domain option factory.
  */
 export function useOsPaletteWorkspaceCatalogs({
+  profile,
   workspaceIds,
   loopsEnabled,
   networkEnabled,
@@ -149,6 +155,7 @@ export function useOsPaletteWorkspaceCatalogs({
   const memoryQueries = useQueries({
     queries: ids.map(workspaceId => {
       const base = memoriesListOptions({
+        profile,
         scope: "workspace",
         workspaceId,
         includeSystem: false,
@@ -156,7 +163,7 @@ export function useOsPaletteWorkspaceCatalogs({
       const queryKey: readonly unknown[] = [...base.queryKey, "palette-all-pages"];
       return queryOptions({
         queryKey,
-        queryFn: ({ signal }) => fetchAllWorkspaceMemories(workspaceId, signal),
+        queryFn: ({ signal }) => fetchAllWorkspaceMemories(profile, workspaceId, signal),
         enabled: knowledgeEnabled,
         staleTime: 30_000,
       });

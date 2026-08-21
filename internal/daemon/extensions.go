@@ -13,6 +13,7 @@ import (
 	"github.com/compozy/compozy/internal/api/contract"
 	extensionpkg "github.com/compozy/compozy/internal/extension"
 	registrypkg "github.com/compozy/compozy/internal/registry"
+	"github.com/compozy/compozy/internal/store"
 	taskpkg "github.com/compozy/compozy/internal/task"
 )
 
@@ -70,7 +71,7 @@ func (s *daemonExtensionService) Status(ctx context.Context, name string) (contr
 	if err != nil {
 		return contract.ExtensionPayload{}, err
 	}
-	return s.payloadFromExtension(ctx, ext)
+	return s.payloadFromExtension(ctx, ext, extensionDefaultProfileLens())
 }
 
 func (s *daemonExtensionService) reload(ctx context.Context) error {
@@ -192,6 +193,7 @@ func populateExtensionManifest(logger *slog.Logger, ext *extensionpkg.Extension)
 func (s *daemonExtensionService) payloadFromExtension(
 	ctx context.Context,
 	ext *extensionpkg.Extension,
+	profile extensionpkg.ProfileLens,
 ) (contract.ExtensionPayload, error) {
 	now := time.Now().UTC()
 	if s.now != nil {
@@ -201,9 +203,15 @@ func (s *daemonExtensionService) payloadFromExtension(
 	if ext == nil {
 		return payload, nil
 	}
+	profile.ID = strings.TrimSpace(profile.ID)
+	profile.Name = strings.TrimSpace(profile.Name)
+	if profile.ID == "" || profile.Name == "" {
+		return contract.ExtensionPayload{}, errors.New("daemon: extension payload profile id and name are required")
+	}
+	payload.Profile = profile.Name
 	key := extensionpkg.InstanceKey{Name: ext.Info.Name, WorkspaceID: ext.Status.WorkspaceID}.Normalize()
 	if s.envBindings != nil {
-		bindings, err := s.envBindings.ListEnvBindings(ctx, key.Name, key.WorkspaceID)
+		bindings, err := s.envBindings.ResolveEnvBindings(ctx, key.Name, profile.ID, key.WorkspaceID)
 		if err != nil {
 			return contract.ExtensionPayload{}, fmt.Errorf("daemon: list extension secret bindings for status: %w", err)
 		}
@@ -243,7 +251,14 @@ func (s *daemonExtensionService) payloadFromExtension(
 			(strings.TrimSpace(confirmation.ConfirmedBy) == "" || confirmation.ConfirmedAt.IsZero())
 	}
 	payload.Diagnostics = append(payload.Diagnostics, extensionMCPHealthDiagnostics(s.mcpRuntimeHealth, ext)...)
+	if err := s.enrichExtensionProfilePayload(ctx, &payload, ext.Manifest); err != nil {
+		return contract.ExtensionPayload{}, err
+	}
 	return payload, nil
+}
+
+func extensionDefaultProfileLens() extensionpkg.ProfileLens {
+	return extensionpkg.ProfileLens{ID: store.DefaultProfileID, Name: daemonDefaultProfileName}
 }
 
 func (s *daemonExtensionService) marketplaceSourceLoader() extensionpkg.MarketplaceSourceLoader {

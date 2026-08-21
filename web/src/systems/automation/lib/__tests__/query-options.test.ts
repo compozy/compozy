@@ -46,8 +46,48 @@ describe("automation list options", () => {
       "review",
       "10",
       "",
+      // The profile axis rides the same key: two profiles reading one workspace
+      // are two catalogs, so an absent selector must not share an entry with a
+      // named one.
+      "",
     ]);
     expect(options.initialPageParam).toBeUndefined();
+  });
+
+  it("separates two profiles' job catalogs and the aggregate from all of them", () => {
+    const marketing = automationJobsListOptions({ workspace_id: "ws_alpha", profile: "marketing" });
+    const consulting = automationJobsListOptions({
+      workspace_id: "ws_alpha",
+      profile: "consulting",
+    });
+    const aggregate = automationJobsListOptions({ workspace_id: "ws_alpha", all_profiles: true });
+
+    expect(marketing.queryKey).not.toEqual(consulting.queryKey);
+    expect(aggregate.queryKey).not.toEqual(marketing.queryKey);
+    expect(aggregate.queryKey).not.toEqual(
+      automationJobsListOptions({ workspace_id: "ws_alpha", profile: "default" }).queryKey
+    );
+  });
+
+  it("separates two profiles' trigger catalogs and the aggregate from all of them", () => {
+    const marketing = automationTriggersListOptions({
+      workspace_id: "ws_alpha",
+      profile: "marketing",
+    });
+    const consulting = automationTriggersListOptions({
+      workspace_id: "ws_alpha",
+      profile: "consulting",
+    });
+    const aggregate = automationTriggersListOptions({
+      workspace_id: "ws_alpha",
+      all_profiles: true,
+    });
+
+    expect(marketing.queryKey).not.toEqual(consulting.queryKey);
+    expect(aggregate.queryKey).not.toEqual(marketing.queryKey);
+    expect(aggregate.queryKey).not.toEqual(
+      automationTriggersListOptions({ workspace_id: "ws_alpha", profile: "default" }).queryKey
+    );
   });
 
   it("caches the complete suggestion envelope by workspace and status", () => {
@@ -62,12 +102,16 @@ describe("automation list options", () => {
 
 describe("automation detail and run options", () => {
   it("disables detail queries when ids are missing", () => {
-    expect(automationJobDetailOptions("").enabled).toBe(false);
-    expect(automationTriggerDetailOptions("").enabled).toBe(false);
+    expect(automationJobDetailOptions("", { profile: "default" }).enabled).toBe(false);
+    expect(automationTriggerDetailOptions("", { profile: "default" }).enabled).toBe(false);
   });
 
   it("uses a faster refetch cadence for run history", () => {
-    const options = automationJobRunsOptions("job_1", { status: "running", limit: 5 });
+    const options = automationJobRunsOptions("job_1", {
+      status: "running",
+      limit: 5,
+      profile: "marketing",
+    });
 
     expect(options.refetchInterval).toBe(15_000);
     expect(options.enabled).toBe(true);
@@ -80,13 +124,14 @@ describe("automation detail and run options", () => {
       "",
       "",
       "5",
+      "marketing",
     ]);
   });
 
   it("uses the trigger-run cadence for trigger history and global run history", () => {
     const triggerRuns = automationTriggerRunsOptions(
       "trg_1",
-      { status: "failed", limit: 4 },
+      { status: "failed", limit: 4, profile: "marketing" },
       false
     );
     const runs = automationRunsListOptions(
@@ -97,6 +142,7 @@ describe("automation detail and run options", () => {
         since: "2026-04-11T09:00:00Z",
         until: "2026-04-11T10:00:00Z",
         limit: 10,
+        all_profiles: true,
       },
       false
     );
@@ -112,6 +158,7 @@ describe("automation detail and run options", () => {
       "",
       "",
       "4",
+      "marketing",
     ]);
 
     expect(runs.refetchInterval).toBe(15_000);
@@ -126,6 +173,7 @@ describe("automation detail and run options", () => {
       "2026-04-11T09:00:00Z",
       "2026-04-11T10:00:00Z",
       "10",
+      "@all",
     ]);
   });
 });

@@ -14,6 +14,9 @@ func (h *BaseHandlers) AmendLoopNode(c *gin.Context) {
 	if !ok {
 		return
 	}
+	if !h.requireLoopRunProfile(c, service, true) {
+		return
+	}
 	var req contract.LoopNodeAmendRequest
 	if err := decodeStrictLoopJSONBody(c, &req); err != nil {
 		h.respondLoopError(c, fmt.Errorf("%w: decode Loop amendment: %v", looppkg.ErrValidation, err))

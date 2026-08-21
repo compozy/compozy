@@ -32,8 +32,8 @@ var (
 // StreamWindowManager upgrades one HTTP or UDS request to a snapshot-fenced WebSocket stream.
 func (h *BaseHandlers) StreamWindowManager(c *gin.Context) {
 	workspaceID := windowManagerWorkspace(c)
-	if h.WindowManager == nil {
-		h.respondWindowManagerError(c, workspaceID, windowmanager.ErrClosed)
+	service, ok := h.windowManagerService(c, workspaceID)
+	if !ok {
 		return
 	}
 	after, err := windowManagerAfterRevision(c)
@@ -42,13 +42,13 @@ func (h *BaseHandlers) StreamWindowManager(c *gin.Context) {
 		return
 	}
 	clientID := windowManagerStreamClientID(c)
-	stop, done, ok := h.windowManagerStreams.begin()
-	if !ok {
+	stop, done, started := h.windowManagerStreams.begin()
+	if !started {
 		h.respondWindowManagerError(c, workspaceID, windowmanager.ErrClosed)
 		return
 	}
 	defer done()
-	subscription, err := h.WindowManager.Subscribe(
+	subscription, err := service.Subscribe(
 		c.Request.Context(),
 		windowmanager.SubscriptionRequest{
 			WorkspaceID: workspaceID, AfterRevision: after, ClientID: clientID,
@@ -87,7 +87,7 @@ func (h *BaseHandlers) StreamWindowManager(c *gin.Context) {
 	}
 	var clientCommands windowmanager.ClientCommandConnection
 	if clientID != nil {
-		clientCommands, err = h.WindowManager.AttachClientCommands(c.Request.Context(), workspaceID, *clientID)
+		clientCommands, err = service.AttachClientCommands(c.Request.Context(), workspaceID, *clientID)
 		if err != nil {
 			socket := windowManagerSocket{conn: conn, subscription: subscription, stop: stop, workspaceID: workspaceID}
 			terminalErr := socket.cleanup(nil, errors.Join(err, socket.writeError(err)), false)
@@ -99,7 +99,7 @@ func (h *BaseHandlers) StreamWindowManager(c *gin.Context) {
 	}
 	socket := windowManagerSocket{
 		conn: conn, subscription: subscription, clientCommands: clientCommands,
-		stop: stop, workspaceID: workspaceID, clientID: clientID, manager: h.WindowManager,
+		stop: stop, workspaceID: workspaceID, clientID: clientID, manager: service,
 	}
 	err = socket.run(c.Request.Context())
 	if err != nil && !isExpectedWindowManagerSocketError(err) && h.Logger != nil {

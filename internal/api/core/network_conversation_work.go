@@ -26,7 +26,12 @@ func (h *BaseHandlers) NetworkWork(c *gin.Context) {
 	if !ok {
 		return
 	}
-	work, err := h.NetworkStore.GetWork(c.Request.Context(), scope.NetworkWorkspaceID(), workID)
+	readScope, err := h.resolveProfileReadScope(c)
+	if err != nil {
+		h.respondProfileReadScopeError(c, err)
+		return
+	}
+	work, err := h.NetworkStore.GetWork(c.Request.Context(), readScope, scope.NetworkWorkspaceID(), workID)
 	if err != nil {
 		h.respondError(c, StatusForNetworkError(err), err)
 		return

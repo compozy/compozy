@@ -30,6 +30,7 @@ func cursorKeyForTarget(
 		return notifications.CursorKey{}, err
 	}
 	return notifications.CursorKey{
+		ProfileID:  event.ProfileID,
 		Scope:      event.Scope,
 		ConsumerID: consumerID,
 		StreamName: event.Type,

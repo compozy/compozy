@@ -13,11 +13,11 @@ import (
 	"github.com/compozy/compozy/internal/gateway"
 	mcppkg "github.com/compozy/compozy/internal/mcp"
 	"github.com/compozy/compozy/internal/memory"
+	"github.com/compozy/compozy/internal/profile"
 	"github.com/compozy/compozy/internal/session"
 	"github.com/compozy/compozy/internal/situation"
 	taskpkg "github.com/compozy/compozy/internal/task"
 	toolspkg "github.com/compozy/compozy/internal/tools"
-	"github.com/compozy/compozy/internal/windowmanager"
 	workspacepkg "github.com/compozy/compozy/internal/workspace"
 	"github.com/compozy/compozy/internal/workspaceaccess"
 )
@@ -50,6 +50,7 @@ type RuntimeDeps struct {
 	Bridges             core.BridgeService
 	Notifications       core.NotificationPresetService
 	Registry            Registry
+	Profiles            *profile.Manager
 	MemoryStore         *memory.Store
 	MemoryExtractor     core.MemoryExtractorService
 	MemoryProviders     core.MemoryProviderService
@@ -87,7 +88,7 @@ type RuntimeDeps struct {
 	Vault               core.VaultService
 	Extensions          udsapi.ExtensionService
 	Resources           core.ResourceService
-	WindowManager       windowmanager.Service
+	WindowManagers      *windowManagerRegistry
 	Gateway             *gateway.Service
 	GatewayChallenges   *gateway.ChallengeRegistry
 	GatewayAuthLimiter  *gateway.AuthFailureLimiter

@@ -100,7 +100,7 @@ func (n *daemonNativeTools) mcpStatus(
 	}
 	collectionRequest := settingspkg.CollectionRequest{
 		Collection: settingspkg.CollectionMCPServers,
-		Scope:      settingspkg.ScopeGlobal,
+		Scope:      settingspkg.ScopeUser,
 	}
 	if workspaceID != "" {
 		collectionRequest.Scope = settingspkg.ScopeWorkspace

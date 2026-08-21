@@ -12,8 +12,8 @@ import (
 )
 
 type cmdPaletteSettingsEventNotifier interface {
-	NotifyBindingChanged(context.Context, cmdpalette.WorkspaceID, cmdpalette.CommandID)
-	NotifyAliasChanged(context.Context, cmdpalette.WorkspaceID, cmdpalette.CommandID)
+	NotifyBindingChanged(context.Context, cmdpalette.ProfileLens, cmdpalette.WorkspaceID, cmdpalette.CommandID)
+	NotifyAliasChanged(context.Context, cmdpalette.ProfileLens, cmdpalette.WorkspaceID, cmdpalette.CommandID)
 }
 
 func changedBindingCommandIDs(
@@ -112,11 +112,14 @@ func (s *service) emitCmdPaletteSettingsEvents(
 		return
 	}
 	for _, workspaceID := range workspaces {
+		// Base settings changes affect every profile. An aggregate lens lets
+		// profile-scoped subscribers invalidate their effective catalog too.
+		profileLens := cmdpalette.AggregateProfileLens()
 		for _, commandID := range bindingChanges {
-			notifier.NotifyBindingChanged(ctx, workspaceID, commandID)
+			notifier.NotifyBindingChanged(ctx, profileLens, workspaceID, commandID)
 		}
 		for _, commandID := range aliasChanges {
-			notifier.NotifyAliasChanged(ctx, workspaceID, commandID)
+			notifier.NotifyAliasChanged(ctx, profileLens, workspaceID, commandID)
 		}
 	}
 }

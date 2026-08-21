@@ -166,7 +166,7 @@ func (h *RuntimeHarness) ListTaskRuns(
 func (h *RuntimeHarness) ClaimExactTaskRunForSession(
 	ctx context.Context,
 	runID string,
-	session compozycontract.SessionPayload,
+	session *compozycontract.SessionPayload,
 ) (compozycontract.TaskRunPayload, error) {
 	requestBody, err := json.Marshal(compozycontract.AgentTaskClaimNextRequest{
 		RunID:       strings.TrimSpace(runID),
@@ -229,7 +229,7 @@ func (h *RuntimeHarness) StartTaskRun(
 func (h *RuntimeHarness) StartClaimedTaskRunForSession(
 	ctx context.Context,
 	runID string,
-	session compozycontract.SessionPayload,
+	session *compozycontract.SessionPayload,
 	request compozycontract.StartTaskRunRequest,
 ) (compozycontract.TaskRunPayload, error) {
 	path := "/api/agent/tasks/" + url.PathEscape(strings.TrimSpace(runID)) + "/start"
@@ -284,7 +284,7 @@ func (h *RuntimeHarness) CompleteTaskRun(
 func (h *RuntimeHarness) CompleteClaimedTaskRunForSession(
 	ctx context.Context,
 	runID string,
-	session compozycontract.SessionPayload,
+	session *compozycontract.SessionPayload,
 	request compozycontract.AgentTaskCompleteRequest,
 ) (compozycontract.TaskRunLeaseSummaryPayload, error) {
 	path := "/api/agent/tasks/" + url.PathEscape(strings.TrimSpace(runID)) + "/complete"

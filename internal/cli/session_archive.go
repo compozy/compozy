@@ -35,7 +35,7 @@ func newSessionArchiveActionCommand(deps commandDeps, archived bool) *cobra.Comm
 			if err != nil {
 				return err
 			}
-			return writeCommandOutput(cmd, sessionBundle(record, deps.now))
+			return writeCommandOutput(cmd, sessionBundle(&record, deps.now))
 		},
 	}
 }

@@ -2,8 +2,8 @@
 id: RT-session-parent-provenance
 area: RT
 title: Session creation provenance recorded and queryable across CLI/HTTP/tool
-persona: Ana
-journey: J-03
+persona: Ada
+journey: J-15
 expected: compozy session new --parent <id> creates a user-type session whose lineage carries parent_session_id, root_session_id inherited from the parent's tree, and a server-computed spawn_depth, with no TTL, auto-stop, budget, or permission narrowing; a cross-workspace or missing parent is rejected with a deterministic error. POST /api/sessions accepts parent_session_id and infers the caller session when validated agent identity headers arrive without an explicit parent. compozy__session_create records the bound caller automatically (same workspace only). session list --parent <id> returns direct children, --root <id> returns the whole tree including the root, and the human table shows a Parent column; the same parent/root filters work on GET /api/sessions (HTTP+UDS) and compozy__session_list. Governed spawn (compozy spawn) semantics are unchanged, and the reaper never touches user-type provenance sessions.
 entry_points: compozy session new --parent; compozy session list --parent/--root; POST /api/sessions; compozy__session_create; compozy__session_list
 qa_status: pass

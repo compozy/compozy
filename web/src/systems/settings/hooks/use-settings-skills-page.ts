@@ -23,7 +23,7 @@ type SkillsConfig = SettingsSkillsSection["config"];
 const DEFAULT_AGENT_NAME = "general";
 
 export type SkillsScopeSelection =
-  | { scope: "global" }
+  | { scope: "user" }
   | { scope: "agent"; agentName: string; workspaceId?: string };
 
 function cloneDisabled(config: SkillsConfig): string[] {
@@ -75,7 +75,7 @@ function selectionToFilter(selection: SkillsScopeSelection): SettingsSkillsFilte
     };
   }
 
-  return { scope: "global" };
+  return { scope: "user" };
 }
 
 function envelopeScopeKey(envelope: SettingsSkillsSection): string {
@@ -100,12 +100,12 @@ export function useSettingsSkillsPage() {
   const agents = sortAgents(agentsQuery.data ?? []);
   const workspaces: WorkspacePayload[] = workspaceQuery.data ?? [];
 
-  const [storedSelection, setSelection] = useState<SkillsScopeSelection>({ scope: "global" });
+  const [storedSelection, setSelection] = useState<SkillsScopeSelection>({ scope: "user" });
   const selection: SkillsScopeSelection =
     storedSelection.scope !== "agent"
       ? storedSelection
       : agents.length === 0
-        ? { scope: "global" }
+        ? { scope: "user" }
         : agents.some(agent => agent.name === storedSelection.agentName)
           ? storedSelection
           : {
@@ -142,7 +142,7 @@ export function useSettingsSkillsPage() {
   const lastDisabledLabel = draftFlow.key === envelopeKey ? draftFlow.labels.disabled : null;
   const lastPolicyLabel = draftFlow.key === envelopeKey ? draftFlow.labels.policy : null;
 
-  const availableScopes = envelope?.available_scopes ?? ["global"];
+  const availableScopes = envelope?.available_scopes ?? ["user"];
   const selectedAgent =
     selection.scope === "agent"
       ? (agents.find(agent => agent.name === selection.agentName) ?? null)
@@ -225,11 +225,13 @@ export function useSettingsSkillsPage() {
 
   const handleRetry = () => {
     void query.refetch();
+    void agentsQuery.refetch();
+    void workspaceQuery.refetch();
   };
 
-  const selectGlobal = () => {
+  const selectUser = () => {
     resetScopedState();
-    setSelection({ scope: "global" });
+    setSelection({ scope: "user" });
   };
 
   const selectAgentScope = () => {
@@ -273,8 +275,8 @@ export function useSettingsSkillsPage() {
   };
 
   return {
-    isLoading: query.isLoading || (selection.scope === "agent" && agentsQuery.isLoading),
-    error: query.error,
+    isLoading: query.isLoading || agentsQuery.isLoading || workspaceQuery.isLoading,
+    error: query.error ?? agentsQuery.error ?? workspaceQuery.error,
     envelope,
     draft,
     setDraft,
@@ -301,7 +303,7 @@ export function useSettingsSkillsPage() {
     workspaces,
     selectedAgent,
     selectedWorkspaceContext,
-    selectGlobal,
+    selectUser,
     selectAgentScope,
     selectAgent,
     selectWorkspaceContext,

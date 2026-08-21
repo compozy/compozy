@@ -72,6 +72,8 @@ const WORKSPACE_ID = "ws_alpha";
 
 function makeSession(state: SessionPayload["state"], turnId?: string): SessionPayload {
   return {
+    profile_id: "00000000000000000000000000",
+    profile_name: "default",
     id: "sess-1",
     agent_name: "codex-agent",
     runtime: {

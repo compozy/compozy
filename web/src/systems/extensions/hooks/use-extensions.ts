@@ -7,14 +7,19 @@ import {
 } from "../lib/query-options";
 import type { InstalledExtensionView } from "../types";
 import { useActiveWorkspace } from "@/systems/workspace";
+import { useProfileReadScope } from "@/systems/profiles";
 
 /**
- * The active workspace selects which daemon instance a name resolves to: the workspace dev overlay
- * when one is linked, the global published row otherwise.
+ * The active workspace selects the dev overlay when one is linked, while the active profile selects
+ * the profile-owned inventory within that instance.
  */
-export function useExtensionInstanceScope(): { workspaceId: string | null } {
+export function useExtensionInstanceScope(): {
+  workspaceId: string | null;
+  profileName: string;
+} {
   const { activeWorkspaceId } = useActiveWorkspace();
-  return { workspaceId: activeWorkspaceId ?? null };
+  const { destination } = useProfileReadScope();
+  return { profileName: destination, workspaceId: activeWorkspaceId ?? null };
 }
 
 export function useExtensionInventory(enabled = true) {
@@ -29,7 +34,12 @@ export function useExtensionInventory(enabled = true) {
     };
   });
 
-  return { ...local, data: items, workspaceId: scope.workspaceId };
+  return {
+    ...local,
+    data: items,
+    profileName: scope.profileName,
+    workspaceId: scope.workspaceId,
+  };
 }
 
 export function useExtensionDetail(name: string) {

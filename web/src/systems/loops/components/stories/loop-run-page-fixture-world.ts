@@ -202,6 +202,8 @@ export const metricRatchetDefinition: LoopDefinition = {
 export function reviewAndFixRun(overrides: Partial<LoopRunRecord> = {}): LoopRunRecord {
   return {
     id: STORY_RUN_ID,
+    profile_name: "default",
+    profile_id: "00000000000000000000000000",
     workspace_id: "ws_default",
     loop_name: "review-and-fix",
     status: "running",

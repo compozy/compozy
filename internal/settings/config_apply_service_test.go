@@ -26,6 +26,67 @@ import (
 func TestConfigApplyServiceRecordsLiveApplyAndAdvancesGeneration(t *testing.T) {
 	t.Parallel()
 
+	t.Run("Should keep user and profile writes in one provenance timeline [IT-046]", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := t.Context()
+		homePaths := testHomePaths(t)
+		writeFile(t, homePaths.ConfigFile, baseSettingsConfig())
+		db, err := globaldb.OpenGlobalDB(ctx, homePaths.DatabaseFile)
+		if err != nil {
+			t.Fatalf("OpenGlobalDB() error = %v", err)
+		}
+		t.Cleanup(func() {
+			if err := db.Close(context.Background()); err != nil {
+				t.Fatalf("Close() error = %v", err)
+			}
+		})
+
+		service := testService(t, homePaths, Dependencies{
+			ApplyRecords: NewConfigApplyRecordRepository(db.DB(), nil),
+		})
+		for _, request := range []SectionUpdateRequest{
+			{
+				SectionRequest: SectionRequest{Section: SectionPersona, Scope: ScopeUser},
+				Persona: &compozyconfig.DefaultsConfig{
+					Agent: "user-agent", Provider: "codex", Sandbox: "dev",
+				},
+			},
+			{
+				SectionRequest: SectionRequest{
+					Section: SectionPersona, Scope: ScopeProfile, ProfileName: "marketing",
+				},
+				Persona: &compozyconfig.DefaultsConfig{
+					Agent: "profile-agent", Provider: "codex", Sandbox: "dev",
+				},
+			},
+		} {
+			if _, err := service.ApplySection(WithMutationSource(ctx, "http"), request); err != nil {
+				t.Fatalf("ApplySection(%s) error = %v", request.Scope, err)
+			}
+		}
+
+		records, err := service.ListApplyRecords(ctx, ApplyRecordFilter{})
+		if err != nil {
+			t.Fatalf("ListApplyRecords() error = %v", err)
+		}
+		if len(records) != 2 {
+			t.Fatalf("ListApplyRecords() len = %d, want 2", len(records))
+		}
+		pathsByTarget := make(map[WriteTargetKind]string, len(records))
+		for _, record := range records {
+			pathsByTarget[record.WriteTarget] = record.WritePath
+		}
+		if got, want := pathsByTarget[WriteTargetGlobalConfig], homePaths.ConfigFile; got != want {
+			t.Fatalf("user apply path = %q, want %q", got, want)
+		}
+		if got, want := pathsByTarget[WriteTargetProfileConfig], filepath.Join(
+			homePaths.ProfilesDir, "marketing", compozyconfig.ConfigName,
+		); got != want {
+			t.Fatalf("profile apply path = %q, want %q", got, want)
+		}
+	})
+
 	t.Run("Should persist applied live record and advance active generation", func(t *testing.T) {
 		t.Parallel()
 
@@ -241,7 +302,7 @@ func TestConfigApplyServiceRecordsLiveApplyAndAdvancesGeneration(t *testing.T) {
 			t.Fatalf("GetSection(workspace roles) error = %v", err)
 		}
 		if envelope.Scope != ScopeWorkspace ||
-			!reflect.DeepEqual(envelope.AvailableScopes, []ScopeKind{ScopeGlobal, ScopeWorkspace}) {
+			!reflect.DeepEqual(envelope.AvailableScopes, []ScopeKind{ScopeUser, ScopeWorkspace}) {
 			t.Fatalf("GetSection(workspace roles) envelope = %#v", envelope)
 		}
 	})
@@ -471,7 +532,7 @@ cost_reasoning_per_million = 30
 			1,
 		)
 		writeFile(t, homePaths.ConfigFile, pendingRestartConfig)
-		desired := compozyconfig.AttentionConfig{
+		desired := AttentionSettings{
 			Toasts:          false,
 			Sound:           false,
 			System:          true,
@@ -479,8 +540,9 @@ cost_reasoning_per_million = 30
 		}
 
 		result, err := service.ApplySection(ctx, SectionUpdateRequest{
-			SectionRequest: SectionRequest{Section: SectionAttention},
-			Attention:      &desired,
+			SectionRequest:                 SectionRequest{Section: SectionAttention},
+			Attention:                      &desired,
+			ReplaceAttentionWorkspaceMutes: true,
 		})
 		if err != nil {
 			t.Fatalf("ApplySection(attention) error = %v", err)
@@ -491,25 +553,21 @@ cost_reasoning_per_million = 30
 		if got, want := applier.calls, 1; got != want {
 			t.Fatalf("ApplyActiveConfig() calls = %d, want %d", got, want)
 		}
-		if got := applier.snapshots[0].Attention; !reflect.DeepEqual(got, desired) {
-			t.Fatalf("runtime Attention = %#v, want %#v", got, desired)
+		wantRuntime := compozyconfig.AttentionConfig{Toasts: false, Sound: false, System: true}
+		if got := applier.snapshots[0].Attention; !reflect.DeepEqual(got, wantRuntime) {
+			t.Fatalf("runtime Attention = %#v, want %#v", got, wantRuntime)
 		}
 		if got, want := applier.snapshots[0].Defaults.Provider, initialActive.Defaults.Provider; got != want {
 			t.Fatalf("runtime defaults.provider = %q, want pending restart value %q excluded", got, want)
 		}
 
 		desired.MutedWorkspaces[0] = "ws_abcdef0123456789"
-		first, err := service.ActiveConfig(ctx)
+		section, err := service.GetSection(ctx, SectionRequest{Section: SectionAttention})
 		if err != nil {
-			t.Fatalf("ActiveConfig(first) error = %v", err)
+			t.Fatalf("GetSection(attention) error = %v", err)
 		}
-		first.Attention.MutedWorkspaces[0] = "ws_1111111111111111"
-		second, err := service.ActiveConfig(ctx)
-		if err != nil {
-			t.Fatalf("ActiveConfig(second) error = %v", err)
-		}
-		if got, want := second.Attention.MutedWorkspaces[0], "ws_0123456789abcdef"; got != want {
-			t.Fatalf("active muted workspace = %q, want %q", got, want)
+		if got, want := section.Attention.Config.MutedWorkspaces[0], "ws_0123456789abcdef"; got != want {
+			t.Fatalf("stored muted workspace = %q, want %q", got, want)
 		}
 	})
 
@@ -571,20 +629,14 @@ cost_reasoning_per_million = 30
 		}
 	})
 
-	t.Run("Should prune and restore one attention mute through the live apply pipeline", func(t *testing.T) {
+	t.Run("Should isolate profile mutes without writing them to config", func(t *testing.T) {
 		t.Parallel()
 
-		ctx := WithMutationSource(context.Background(), "workspace.unregister")
+		ctx := WithMutationSource(context.Background(), "http")
 		homePaths := testHomePaths(t)
 		const removedID = "ws_0123456789abcdef"
 		const retainedID = "ws_abcdef0123456789"
-		writeFile(t, homePaths.ConfigFile, baseSettingsConfig()+fmt.Sprintf(`
-[attention]
-toasts = true
-sound = true
-system = false
-muted_workspaces = ["%s", "%s"]
-`, removedID, retainedID))
+		writeFile(t, homePaths.ConfigFile, baseSettingsConfig())
 		db, err := globaldb.OpenGlobalDB(ctx, homePaths.DatabaseFile)
 		if err != nil {
 			t.Fatalf("OpenGlobalDB() error = %v", err)
@@ -594,43 +646,42 @@ muted_workspaces = ["%s", "%s"]
 				t.Errorf("Close() error = %v", err)
 			}
 		})
-		applier := &fakeConfigRuntimeApplier{}
+		mutes := &settingsTestAttentionMuteStore{byProfile: map[string][]string{
+			store.DefaultProfileID: {removedID, retainedID},
+			"profile-marketing":    {removedID},
+		}}
 		service := testService(t, homePaths, Dependencies{
-			RuntimeApplier: applier,
-			ApplyRecords:   NewConfigApplyRecordRepository(db.DB(), nil),
+			RuntimeApplier:          &fakeConfigRuntimeApplier{},
+			ApplyRecords:            NewConfigApplyRecordRepository(db.DB(), nil),
+			AttentionWorkspaceMutes: mutes,
 		})
 
-		changed, err := service.SetAttentionWorkspaceMuted(ctx, removedID, false)
-		if err != nil || !changed {
-			t.Fatalf("SetAttentionWorkspaceMuted(prune) = %t, error = %v, want changed", changed, err)
+		desired := AttentionSettings{Toasts: true, Sound: true, MutedWorkspaces: []string{retainedID}}
+		if _, err := service.ApplySection(ctx, SectionUpdateRequest{
+			SectionRequest:                 SectionRequest{Section: SectionAttention},
+			Attention:                      &desired,
+			ReplaceAttentionWorkspaceMutes: true,
+		}); err != nil {
+			t.Fatalf("ApplySection(attention mutes) error = %v", err)
 		}
-		loaded, err := compozyconfig.LoadForHome(homePaths)
+		defaultSection, err := service.GetSection(ctx, SectionRequest{Section: SectionAttention})
 		if err != nil {
-			t.Fatalf("LoadForHome(pruned) error = %v", err)
+			t.Fatalf("GetSection(default attention) error = %v", err)
 		}
-		if got, want := loaded.Attention.MutedWorkspaces, []string{retainedID}; !reflect.DeepEqual(got, want) {
-			t.Fatalf("pruned muted workspaces = %#v, want %#v", got, want)
-		}
-		changed, err = service.SetAttentionWorkspaceMuted(ctx, removedID, false)
-		if err != nil || changed {
-			t.Fatalf("SetAttentionWorkspaceMuted(repeated prune) = %t, error = %v, want no change", changed, err)
-		}
-
-		changed, err = service.SetAttentionWorkspaceMuted(ctx, removedID, true)
-		if err != nil || !changed {
-			t.Fatalf("SetAttentionWorkspaceMuted(restore) = %t, error = %v, want changed", changed, err)
-		}
-		loaded, err = compozyconfig.LoadForHome(homePaths)
+		marketingSection, err := service.GetSection(ctx, SectionRequest{
+			Section: SectionAttention, Scope: ScopeProfile, ProfileName: "marketing",
+		})
 		if err != nil {
-			t.Fatalf("LoadForHome(restored) error = %v", err)
+			t.Fatalf("GetSection(marketing attention) error = %v", err)
 		}
-		got := loaded.Attention.MutedWorkspaces
-		want := []string{retainedID, removedID}
-		if !reflect.DeepEqual(got, want) {
-			t.Fatalf("restored muted workspaces = %#v, want %#v", got, want)
+		if got := defaultSection.Attention.Config.MutedWorkspaces; !reflect.DeepEqual(got, []string{retainedID}) {
+			t.Fatalf("default muted workspaces = %#v, want retained only", got)
 		}
-		if got, want := applier.calls, 2; got != want {
-			t.Fatalf("ApplyActiveConfig() calls = %d, want %d", got, want)
+		if got := marketingSection.Attention.Config.MutedWorkspaces; !reflect.DeepEqual(got, []string{removedID}) {
+			t.Fatalf("marketing muted workspaces = %#v, want unchanged", got)
+		}
+		if configText := readFile(t, homePaths.ConfigFile); strings.Contains(configText, "muted_workspaces") {
+			t.Fatalf("config contains retired muted_workspaces key:\n%s", configText)
 		}
 	})
 
@@ -653,7 +704,7 @@ muted_workspaces = ["%s", "%s"]
 			RuntimeApplier: &fakeConfigRuntimeApplier{},
 			ApplyRecords:   NewConfigApplyRecordRepository(db.DB(), nil),
 		})
-		candidates := []compozyconfig.AttentionConfig{
+		candidates := []AttentionSettings{
 			{Toasts: true, Sound: false, MutedWorkspaces: []string{"ws_0123456789abcdef"}},
 			{Toasts: false, Sound: true, System: true, MutedWorkspaces: []string{"ws_abcdef0123456789"}},
 			{Toasts: true, Sound: true, System: true, MutedWorkspaces: []string{"ws_1111111111111111"}},
@@ -661,11 +712,12 @@ muted_workspaces = ["%s", "%s"]
 		errorsByWriter := make(chan error, len(candidates))
 		var writers sync.WaitGroup
 		for index := range candidates {
-			candidate := cloneAttentionConfig(candidates[index])
+			candidate := normalizeAttentionSettings(candidates[index])
 			writers.Go(func() {
 				_, applyErr := service.ApplySection(ctx, SectionUpdateRequest{
-					SectionRequest: SectionRequest{Section: SectionAttention},
-					Attention:      &candidate,
+					SectionRequest:                 SectionRequest{Section: SectionAttention},
+					Attention:                      &candidate,
+					ReplaceAttentionWorkspaceMutes: true,
 				})
 				errorsByWriter <- applyErr
 			})
@@ -677,14 +729,14 @@ muted_workspaces = ["%s", "%s"]
 				t.Fatalf("ApplySection(concurrent attention) error = %v", writerErr)
 			}
 		}
-		loaded, err := compozyconfig.LoadForHome(homePaths)
+		envelope, err := service.GetSection(ctx, SectionRequest{Section: SectionAttention})
 		if err != nil {
-			t.Fatalf("LoadForHome(concurrent attention) error = %v", err)
+			t.Fatalf("GetSection(concurrent attention) error = %v", err)
 		}
-		if !slices.ContainsFunc(candidates, func(candidate compozyconfig.AttentionConfig) bool {
-			return reflect.DeepEqual(candidate, loaded.Attention)
+		if !slices.ContainsFunc(candidates, func(candidate AttentionSettings) bool {
+			return reflect.DeepEqual(normalizeAttentionSettings(candidate), envelope.Attention.Config)
 		}) {
-			t.Fatalf("concurrent attention = %#v, want one complete candidate", loaded.Attention)
+			t.Fatalf("concurrent attention = %#v, want one complete candidate", envelope.Attention.Config)
 		}
 	})
 
@@ -1046,7 +1098,6 @@ func TestConfigApplyServiceRecordsRestartRequiredWithoutAdvancingGeneration(t *t
 			t.Fatalf("LoadForHome() error = %v", err)
 		}
 		general := GeneralSettings{
-			Defaults:       cfg.Defaults,
 			Limits:         cfg.Limits,
 			Permissions:    cfg.Permissions,
 			SessionTimeout: cfg.Session.Limits.Timeout,
@@ -1349,7 +1400,10 @@ default_reasoning_effort = "high"
 		if got := applier.calls; got != 0 {
 			t.Fatalf("ApplyActiveConfig() calls = %d, want 0", got)
 		}
-		summaries, err := eventStore.ListEventSummaries(ctx, store.EventSummaryQuery{})
+		summaries, err := eventStore.ListEventSummaries(
+			ctx,
+			store.EventSummaryQuery{ReadScope: store.ReadScope{AllProfiles: true}},
+		)
 		if err != nil {
 			t.Fatalf("ListEventSummaries() error = %v", err)
 		}
@@ -2118,7 +2172,7 @@ func TestConfigApplyServiceReloadUsesBootedConfigAsActiveState(t *testing.T) {
 		if active.Automation.Enabled {
 			t.Fatal("ActiveConfig(after restart).Automation.Enabled = true, want false")
 		}
-		target, err := compozyconfig.ResolveConfigWriteTarget(homePaths, "", compozyconfig.WriteScopeGlobal)
+		target, err := compozyconfig.ResolveConfigWriteTarget(homePaths, "", compozyconfig.WriteScopeUser, "")
 		if err != nil {
 			t.Fatalf("ResolveConfigWriteTarget() error = %v", err)
 		}

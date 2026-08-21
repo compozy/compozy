@@ -182,10 +182,29 @@ func actorAllowsScope(actor MutationActor, target ResourceScope) bool {
 	maxScope := actor.MaxScope.Normalize()
 	target = target.Normalize()
 	switch maxScope.Kind {
-	case ResourceScopeKindGlobal:
-		return target.Kind == ResourceScopeKindGlobal || target.Kind == ResourceScopeKindWorkspace
+	case ResourceScopeKindUser:
+		return target.Kind == ResourceScopeKindUser || target.Kind == ResourceScopeKindWorkspace ||
+			target.Kind == ResourceScopeKindProfile || target.Kind == ResourceScopeKindWorkspaceProfile
 	case ResourceScopeKindWorkspace:
-		return target.Kind == ResourceScopeKindWorkspace && target.ID == maxScope.ID
+		if target.Kind == ResourceScopeKindWorkspace {
+			return target.ID == maxScope.ID
+		}
+		if target.Kind != ResourceScopeKindWorkspaceProfile {
+			return false
+		}
+		workspaceID, _, ok := strings.Cut(target.ID, "@pf:")
+		return ok && workspaceID == maxScope.ID
+	case ResourceScopeKindProfile:
+		if target.Kind == ResourceScopeKindProfile {
+			return target.ID == maxScope.ID
+		}
+		if target.Kind != ResourceScopeKindWorkspaceProfile {
+			return false
+		}
+		_, profileName, ok := strings.Cut(target.ID, "@pf:")
+		return ok && profileName == maxScope.ID
+	case ResourceScopeKindWorkspaceProfile:
+		return target.Kind == ResourceScopeKindWorkspaceProfile && target.ID == maxScope.ID
 	default:
 		return false
 	}

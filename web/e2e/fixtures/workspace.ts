@@ -1,3 +1,6 @@
+import { mkdir } from "node:fs/promises";
+import path from "node:path";
+
 import { expect, type Locator, type Page } from "@playwright/test";
 
 import type { BrowserRuntime } from "./runtime";
@@ -18,7 +21,10 @@ export async function ensureGlobalWorkspace(runtime: BrowserRuntime): Promise<vo
   if (runtime.seeded.workspace || !runtime.paths?.homeDir) {
     return;
   }
-  await runtime.resolveWorkspace(runtime.paths.homeDir);
+
+  const workspaceRoot = path.join(runtime.paths.homeDir, "workspace");
+  await mkdir(workspaceRoot, { recursive: true });
+  await runtime.resolveWorkspace(workspaceRoot);
 }
 
 export async function completeOnboardingIfPrompted(input: WorkspaceShellInput): Promise<void> {

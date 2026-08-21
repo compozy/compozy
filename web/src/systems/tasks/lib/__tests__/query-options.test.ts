@@ -19,9 +19,22 @@ import {
   taskTimelineOptions,
   taskTreeOptions,
   tasksListOptions,
+  withTaskProfileScope,
 } from "../query-options";
 
 describe("tasks list options", () => {
+  it("Should replace caller-owned profile selectors with the active profile scope", () => {
+    expect(
+      withTaskProfileScope(
+        { all_profiles: true, profile: "stale", status: "ready" },
+        { profile: "marketing" }
+      )
+    ).toEqual({ profile: "marketing", status: "ready" });
+    expect(
+      withTaskProfileScope({ profile: "stale", status: "ready" }, { all_profiles: true })
+    ).toEqual({ all_profiles: true, status: "ready" });
+  });
+
   it("uses infinite cursor pages without automatic catalog polling", () => {
     const options = tasksListOptions();
 
@@ -58,7 +71,7 @@ describe("tasks list options", () => {
 
 describe("tasks detail and run options", () => {
   it("stops detail polling after the active run becomes terminal", () => {
-    const options = taskDetailOptions("task_1");
+    const options = taskDetailOptions("task_1", { profile: "default" });
     const refetchInterval = options.refetchInterval;
     expect(typeof refetchInterval).toBe("function");
     if (typeof refetchInterval !== "function") return;
@@ -79,9 +92,9 @@ describe("tasks detail and run options", () => {
   });
 
   it("disables detail queries for empty ids", () => {
-    expect(taskDetailOptions("").enabled).toBe(false);
-    expect(taskDetailOptions("task_1", false).enabled).toBe(false);
-    expect(taskDetailOptions("task_1").enabled).toBe(true);
+    expect(taskDetailOptions("", { profile: "default" }).enabled).toBe(false);
+    expect(taskDetailOptions("task_1", { profile: "default" }, false).enabled).toBe(false);
+    expect(taskDetailOptions("task_1", { profile: "default" }).enabled).toBe(true);
   });
 
   it("uses the live cadence for runs, timeline, tree, and run detail", () => {

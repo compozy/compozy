@@ -145,7 +145,7 @@ func TestGlobalDBGatewayMutationCommitFence(t *testing.T) {
 		trigger.ID = "trigger-gateway-fenced"
 		trigger.WebhookID = "wbh_gateway_fenced"
 		trigger.EndpointSlug = "gateway-fenced"
-		insertGatewayResourceRecord(ctx, t, database, "automation.trigger", trigger.ID, "global", "", trigger)
+		insertGatewayResourceRecord(ctx, t, database, "automation.trigger", trigger.ID, "user", "", trigger)
 		ref := gateway.IngressSubjectRef{Kind: gateway.IngressSubjectWebhookTrigger, ID: trigger.ID}
 		subject, err := database.ResolveIngressSubject(ctx, ref)
 		if err != nil {
@@ -384,6 +384,7 @@ func TestGlobalDBGatewayIngressLifecycle(t *testing.T) {
 		database := openFreshTestGlobalDB(t)
 		ctx := testutil.Context(t)
 		bridge := bridges.BridgeInstanceSpec{
+			ProfileID:     store.DefaultProfileID,
 			Scope:         bridges.ScopeGlobal,
 			Platform:      "telegram",
 			ExtensionName: "telegram-adapter",
@@ -396,7 +397,7 @@ func TestGlobalDBGatewayIngressLifecycle(t *testing.T) {
 		}
 		const bridgeID = "bridge-gateway-resource"
 		insertGatewayResourceRecord(
-			ctx, t, database, "bridge.instance", bridgeID, "global", "", bridge,
+			ctx, t, database, "bridge.instance", bridgeID, "user", "", bridge,
 		)
 
 		ref := gateway.IngressSubjectRef{Kind: gateway.IngressSubjectBridgeInstance, ID: bridgeID}
@@ -451,6 +452,7 @@ func TestGlobalDBGatewayIngressLifecycle(t *testing.T) {
 		ctx := testutil.Context(t)
 		insertGatewayTestWorkspace(ctx, t, database, "workspace-owner")
 		instance := bridges.BridgeInstance{
+			ProfileID:     store.DefaultProfileID,
 			ID:            "bridge-gateway-owned",
 			Scope:         bridges.ScopeWorkspace,
 			WorkspaceID:   "workspace-owner",
@@ -570,8 +572,9 @@ func TestGlobalDBGatewayIngressLifecycle(t *testing.T) {
 				database := openFreshTestGlobalDB(t)
 				ctx := testutil.Context(t)
 				instance := bridges.BridgeInstance{
-					ID:    fmt.Sprintf("bridge-gateway-target-%d", index),
-					Scope: bridges.ScopeGlobal, Platform: "telegram", ExtensionName: "telegram-adapter",
+					ProfileID: store.DefaultProfileID,
+					ID:        fmt.Sprintf("bridge-gateway-target-%d", index),
+					Scope:     bridges.ScopeGlobal, Platform: "telegram", ExtensionName: "telegram-adapter",
 					DisplayName: "Gateway target bridge", Enabled: true, Status: bridges.BridgeStatusReady,
 					RoutingPolicy: bridges.RoutingPolicy{IncludePeer: true},
 					ProviderConfig: json.RawMessage(
@@ -649,6 +652,7 @@ func TestGlobalDBGatewayIngressLifecycle(t *testing.T) {
 		insertGatewayTestWorkspace(ctx, t, database, "workspace-before")
 		insertGatewayTestWorkspace(ctx, t, database, "workspace-after")
 		instance := bridges.BridgeInstance{
+			ProfileID:     store.DefaultProfileID,
 			ID:            "bridge-gateway-reassigned",
 			Scope:         bridges.ScopeWorkspace,
 			WorkspaceID:   "workspace-before",
@@ -692,6 +696,7 @@ func TestGlobalDBGatewayIngressLifecycle(t *testing.T) {
 		database := openFreshTestGlobalDB(t)
 		ctx := testutil.Context(t)
 		instance := bridges.BridgeInstance{
+			ProfileID:     store.DefaultProfileID,
 			ID:            "bridge-external-proxy",
 			Scope:         bridges.ScopeGlobal,
 			Platform:      "telegram",
@@ -720,6 +725,7 @@ func TestGlobalDBGatewayIngressLifecycle(t *testing.T) {
 		database := openFreshTestGlobalDB(t)
 		ctx := testutil.Context(t)
 		instance := bridges.BridgeInstance{
+			ProfileID:     store.DefaultProfileID,
 			ID:            "bridge-invalid-local-target",
 			Scope:         bridges.ScopeGlobal,
 			Platform:      "telegram",
@@ -751,6 +757,7 @@ func TestGlobalDBGatewayIngressLifecycle(t *testing.T) {
 		database := openFreshTestGlobalDB(t)
 		ctx := testutil.Context(t)
 		instance := bridges.BridgeInstance{
+			ProfileID:     store.DefaultProfileID,
 			ID:            "bridge-missing-provider-config",
 			Scope:         bridges.ScopeGlobal,
 			Platform:      "telegram",
@@ -763,6 +770,7 @@ func TestGlobalDBGatewayIngressLifecycle(t *testing.T) {
 			t.Fatalf("InsertBridgeInstance() error = %v", err)
 		}
 		resource := bridges.BridgeInstanceSpec{
+			ProfileID:     store.DefaultProfileID,
 			Scope:         bridges.ScopeGlobal,
 			Platform:      "telegram",
 			ExtensionName: "telegram-adapter",
@@ -770,7 +778,7 @@ func TestGlobalDBGatewayIngressLifecycle(t *testing.T) {
 			RoutingPolicy: bridges.RoutingPolicy{IncludePeer: true},
 		}
 		const resourceID = "bridge-resource-missing-provider-config"
-		insertGatewayResourceRecord(ctx, t, database, "bridge.instance", resourceID, "global", "", resource)
+		insertGatewayResourceRecord(ctx, t, database, "bridge.instance", resourceID, "user", "", resource)
 
 		for _, bridgeID := range []string{instance.ID, resourceID} {
 			subject, err := database.ResolveIngressSubject(ctx, gateway.IngressSubjectRef{
@@ -791,6 +799,7 @@ func TestGlobalDBGatewayIngressLifecycle(t *testing.T) {
 		database := openFreshTestGlobalDB(t)
 		ctx := testutil.Context(t)
 		instance := bridges.BridgeInstance{
+			ProfileID:     store.DefaultProfileID,
 			ID:            "bridge-mode-switch",
 			Scope:         bridges.ScopeGlobal,
 			Platform:      "telegram",

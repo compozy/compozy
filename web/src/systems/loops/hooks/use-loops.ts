@@ -10,6 +10,7 @@ import {
 } from "../lib/query-options";
 import { flattenLoopCatalogPages, loopCatalogPage } from "../lib/loops-list-query";
 import type { LoopCatalogStableFilter, LoopRunsFilter } from "../types";
+import { useProfileReadScope } from "@/systems/profiles";
 
 export function useLoops(
   workspaceId: string,
@@ -48,7 +49,8 @@ export function useLoopAnnotations(workspaceId: string, name: string, enabled = 
 }
 
 export function useLoopRuns(workspaceId: string, filters: LoopRunsFilter = {}, enabled = true) {
-  return useQuery(loopRunsOptions(workspaceId, filters, enabled));
+  const { params } = useProfileReadScope();
+  return useQuery(loopRunsOptions(workspaceId, { ...filters, ...params }, enabled));
 }
 
 export function useLoopRun(workspaceId: string, runId: string, enabled = true) {

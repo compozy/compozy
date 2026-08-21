@@ -121,7 +121,11 @@ func (d *Daemon) newLoopPublisher(
 			return err
 		},
 		daemonLoopDeclarationProvider(d.homePaths, state.registry, state.workspaceResolver, state.logger),
-		extensionLoopDeclarationProvider(registry, state.currentExtensionRuntime, state.logger),
+		extensionLoopDeclarationProvider(
+			registry,
+			state.currentExtensionRuntime,
+			state.deps.Profiles,
+		),
 	), nil
 }
 
@@ -133,7 +137,7 @@ func loopSyncActor() resources.MutationActor {
 			Kind: resources.ResourceSourceKind("daemon"),
 			ID:   "loop-sync",
 		},
-		MaxScope: resources.ResourceScope{Kind: resources.ResourceScopeKindGlobal},
+		MaxScope: resources.ResourceScope{Kind: resources.ResourceScopeKindUser},
 	}
 }
 
@@ -272,14 +276,14 @@ func daemonLoopDeclarationProvider(
 	logger *slog.Logger,
 ) loopDeclarationProvider {
 	return func(ctx context.Context) ([]loopPublicationInput, error) {
-		globalScope := resources.ResourceScope{Kind: resources.ResourceScopeKindGlobal}
+		userScope := resources.ResourceScope{Kind: resources.ResourceScopeKindUser}
 		var desired []loopPublicationInput
 
 		global, err := scanLoopResourceDir(ctx, homePaths.LoopsDir, looppkg.SourceUser)
 		if err != nil {
 			return nil, fmt.Errorf("daemon: discover global loops: %w", err)
 		}
-		appendLoopResources(&desired, globalScope, "loops/global", global)
+		appendLoopResources(&desired, userScope, "loops/global", global)
 
 		workspaces, err := registeredWorkspaces(ctx, registry, workspaceResolver, logger)
 		if err != nil {
@@ -295,6 +299,7 @@ func daemonLoopDeclarationProvider(
 				resolved.RootDir,
 				resolved.AdditionalDirs,
 				homePaths,
+				"",
 			) {
 				if root.Source == compozyconfig.WorkspaceDiscoverySourceGlobal {
 					continue
@@ -315,7 +320,7 @@ func daemonLoopDeclarationProvider(
 func extensionLoopDeclarationProvider(
 	registry *extensionpkg.Registry,
 	runtime func() extensionRuntime,
-	logger *slog.Logger,
+	profileCatalog extensionProfileCatalog,
 ) loopDeclarationProvider {
 	return func(ctx context.Context) ([]loopPublicationInput, error) {
 		if err := ctx.Err(); err != nil {
@@ -328,8 +333,13 @@ func extensionLoopDeclarationProvider(
 		if manager == nil {
 			return nil, nil
 		}
+		if profileCatalog == nil {
+			return nil, errors.New("daemon: profile catalog is required for extension loop sync")
+		}
 		var desired []loopPublicationInput
-		snapshots, err := extensionResourceSnapshots(registry, manager, logger)
+		snapshots, err := extensionResourceSnapshotsForProfiles(
+			ctx, registry, manager, profileCatalog,
+		)
 		if err != nil {
 			return nil, err
 		}

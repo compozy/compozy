@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	bridgepkg "github.com/compozy/compozy/internal/bridges"
+	storepkg "github.com/compozy/compozy/internal/store"
 	"github.com/compozy/compozy/internal/testutil"
 )
 
@@ -14,6 +15,7 @@ func TestRegistryResolveDeliveryTargetUsesInstanceDefaults(t *testing.T) {
 
 	registry, _ := newRegistryTestHarness(t)
 	instance := createTestBridgeInstance(t, registry, bridgepkg.CreateInstanceRequest{
+		ProfileID:     storepkg.DefaultProfileID,
 		ID:            "brg-target-defaults",
 		Scope:         bridgepkg.ScopeGlobal,
 		Platform:      "telegram",
@@ -54,6 +56,7 @@ func TestRegistryResolveDeliveryTargetKeepsWorkspaceScopeIsolated(t *testing.T) 
 	workspaceID := registerWorkspaceForBridgesTests(t, db, "ws-target-scope", "target-scope")
 
 	globalInstance := createTestBridgeInstance(t, registry, bridgepkg.CreateInstanceRequest{
+		ProfileID:        storepkg.DefaultProfileID,
 		ID:               "brg-target-global",
 		Scope:            bridgepkg.ScopeGlobal,
 		Platform:         "telegram",
@@ -65,6 +68,7 @@ func TestRegistryResolveDeliveryTargetKeepsWorkspaceScopeIsolated(t *testing.T) 
 		DeliveryDefaults: []byte(`{"group_id":"global-group","mode":"direct-send"}`),
 	})
 	workspaceInstance := createTestBridgeInstance(t, registry, bridgepkg.CreateInstanceRequest{
+		ProfileID:        storepkg.DefaultProfileID,
 		ID:               "brg-target-workspace",
 		Scope:            bridgepkg.ScopeWorkspace,
 		WorkspaceID:      workspaceID,

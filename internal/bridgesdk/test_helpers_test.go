@@ -22,6 +22,7 @@ func testCheckHandler(
 func testBridgeInstance(id string) bridgepkg.BridgeInstance {
 	return bridgepkg.BridgeInstance{
 		ID:            id,
+		ProfileID:     "profile-1",
 		Scope:         bridgepkg.ScopeWorkspace,
 		WorkspaceID:   "ws-1",
 		Platform:      "telegram",

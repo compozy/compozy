@@ -261,7 +261,7 @@ export class Extension {
   }
 
   public getSupportedHookEvents(): HookEvent[] {
-    return [...(this.definition.supported_hook_events ?? [])];
+    return (this.definition.supported_hook_events ?? []).map(item => item.event);
   }
 
   public getToolDescriptors(): ExtensionToolRuntimeDescriptor[] {

@@ -4,6 +4,7 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
+	"strings"
 )
 
 // DeliveryKind classifies whether a cursor advanced after an outbound send or a skip.
@@ -99,4 +100,39 @@ func EncodeDeliveryID(identity DeliveryIdentity) (string, error) {
 		return "", fmt.Errorf("notifications: encode delivery identity: %w", err)
 	}
 	return deliveryIDPrefix + base64.RawURLEncoding.EncodeToString(encoded), nil
+}
+
+// DecodeDeliveryID validates and returns an opaque delivery identity.
+func DecodeDeliveryID(value string) (DeliveryIdentity, error) {
+	encoded := value
+	if !strings.HasPrefix(encoded, deliveryIDPrefix) {
+		return DeliveryIdentity{}, fmt.Errorf("%w: delivery id has an unsupported version", ErrInvalidCursor)
+	}
+	raw, err := base64.RawURLEncoding.DecodeString(strings.TrimPrefix(encoded, deliveryIDPrefix))
+	if err != nil {
+		return DeliveryIdentity{}, fmt.Errorf("%w: decode delivery id: %v", ErrInvalidCursor, err)
+	}
+	var decoded encodedDeliveryIdentity
+	if err := json.Unmarshal(raw, &decoded); err != nil {
+		return DeliveryIdentity{}, fmt.Errorf("%w: decode delivery id payload: %v", ErrInvalidCursor, err)
+	}
+	if decoded.Version != deliveryIDVersion {
+		return DeliveryIdentity{}, fmt.Errorf("%w: delivery id has an unsupported version", ErrInvalidCursor)
+	}
+	identity := DeliveryIdentity{
+		Cursor:         decoded.Cursor,
+		TargetIdentity: decoded.TargetIdentity,
+		TargetIndex:    decoded.TargetIndex,
+		Sequence:       decoded.Sequence,
+		Kind:           decoded.Kind,
+		Reason:         decoded.Reason,
+	}
+	canonical, err := EncodeDeliveryID(identity)
+	if err != nil {
+		return DeliveryIdentity{}, err
+	}
+	if canonical != encoded {
+		return DeliveryIdentity{}, fmt.Errorf("%w: delivery id is not canonical", ErrInvalidCursor)
+	}
+	return identity, nil
 }

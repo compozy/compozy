@@ -7,6 +7,7 @@ type extensionClientAPI interface {
 	ListExtensionsScoped(context.Context, string) ([]ExtensionRecord, error)
 	SearchExtensions(context.Context, ExtensionSearchRequest) (ExtensionSearchRecord, error)
 	ListExtensionCommands(context.Context, string, string) (ExtensionCommandsRecord, error)
+	PreviewExtensionInstall(context.Context, InstallExtensionRequest) (ExtensionInstallPreviewRecord, error)
 	InstallExtension(context.Context, InstallExtensionRequest) (ExtensionRecord, error)
 	UpdateExtension(context.Context, string, UpdateExtensionRequest) (ExtensionUpdateRecord, error)
 	UpdateExtensions(context.Context, UpdateExtensionsRequest) ([]ExtensionUpdateRecord, error)

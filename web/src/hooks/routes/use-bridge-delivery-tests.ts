@@ -26,6 +26,7 @@ export function useBridgeDeliveryTests(bridge: BridgeSummary | undefined) {
   const executeDryRun = (targetBridge: BridgeSummary, draft: BridgeTestDeliveryDraft) =>
     dryRunMutation.mutateAsync({
       id: targetBridge.id,
+      profile: targetBridge.profile_name,
       data: {
         message: optionalMessage(draft.message),
         target: {
@@ -37,6 +38,7 @@ export function useBridgeDeliveryTests(bridge: BridgeSummary | undefined) {
   const executeSendTest = (targetBridge: BridgeSummary, draft: BridgeTestDeliveryDraft) =>
     sendTestMutation.mutateAsync({
       id: targetBridge.id,
+      profile: targetBridge.profile_name,
       data: {
         message: draft.message.trim(),
         target: {

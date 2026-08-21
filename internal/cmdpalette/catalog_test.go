@@ -34,11 +34,11 @@ func TestRegistryCatalog(t *testing.T) {
 		if err != nil {
 			t.Fatalf("NewRegistry() error = %v", err)
 		}
-		first, err := service.Catalog(t.Context(), "ws-1", "")
+		first, err := service.Catalog(t.Context(), testCatalogRequest("ws-1", ""))
 		if err != nil {
 			t.Fatalf("Catalog() error = %v", err)
 		}
-		second, err := service.Catalog(t.Context(), "ws-1", "")
+		second, err := service.Catalog(t.Context(), testCatalogRequest("ws-1", ""))
 		if err != nil {
 			t.Fatalf("Catalog() second error = %v", err)
 		}
@@ -47,6 +47,15 @@ func TestRegistryCatalog(t *testing.T) {
 		}
 		if first.Revision != second.Revision || !strings.HasPrefix(first.Revision, "cr_") {
 			t.Fatalf("revisions = %q, %q, want stable cr_ digest", first.Revision, second.Revision)
+		}
+		aggregate, err := service.Catalog(t.Context(), CatalogRequest{
+			ProfileLens: AggregateProfileLens(), WorkspaceID: "ws-1",
+		})
+		if err != nil {
+			t.Fatalf("Catalog(aggregate) error = %v", err)
+		}
+		if aggregate.Revision == first.Revision || aggregate.ProfileLens != AggregateProfileLens() {
+			t.Fatalf("aggregate catalog = %#v, want lens-partitioned revision", aggregate)
 		}
 		if first.Commands[0].Bindings[0] != "meta+KeyK" || first.Commands[1].Alias == nil ||
 			*first.Commands[1].Alias != "capture" {
@@ -73,11 +82,11 @@ func TestRegistryCatalog(t *testing.T) {
 			}
 			bindings := &testBindings{bindings: map[CommandID][]string{}, aliases: map[CommandID]string{}}
 			service := testRegistry(provider, directory, bindings, &testExecutor{})
-			clientA, err := service.Catalog(t.Context(), "ws-1", "client-a")
+			clientA, err := service.Catalog(t.Context(), testCatalogRequest("ws-1", "client-a"))
 			if err != nil {
 				t.Fatalf("Catalog(client-a) error = %v", err)
 			}
-			clientB, err := service.Catalog(t.Context(), "ws-1", "client-b")
+			clientB, err := service.Catalog(t.Context(), testCatalogRequest("ws-1", "client-b"))
 			if err != nil {
 				t.Fatalf("Catalog(client-b) error = %v", err)
 			}
@@ -88,7 +97,7 @@ func TestRegistryCatalog(t *testing.T) {
 				t.Fatalf("availability = %#v / %#v", clientA.Commands[0], clientB.Commands[0])
 			}
 			provider.commands[0].Title = "Changed title"
-			changed, err := service.Catalog(t.Context(), "ws-1", "client-a")
+			changed, err := service.Catalog(t.Context(), testCatalogRequest("ws-1", "client-a"))
 			if err != nil {
 				t.Fatalf("Catalog(changed) error = %v", err)
 			}
@@ -141,15 +150,15 @@ func TestRegistryCatalog(t *testing.T) {
 		service := testRegistry(
 			staticTestProvider{commands: []Descriptor{descriptor}}, directory, bindings, &testExecutor{},
 		)
-		clientA, err := service.Catalog(t.Context(), "ws-1", "shell-a")
+		clientA, err := service.Catalog(t.Context(), testCatalogRequest("ws-1", "shell-a"))
 		if err != nil {
 			t.Fatalf("Catalog(shell-a) error = %v", err)
 		}
-		clientB, err := service.Catalog(t.Context(), "ws-1", "shell-b")
+		clientB, err := service.Catalog(t.Context(), testCatalogRequest("ws-1", "shell-b"))
 		if err != nil {
 			t.Fatalf("Catalog(shell-b) error = %v", err)
 		}
-		stale, err := service.Catalog(t.Context(), "ws-1", "shell-stale")
+		stale, err := service.Catalog(t.Context(), testCatalogRequest("ws-1", "shell-stale"))
 		if err != nil {
 			t.Fatalf("Catalog(shell-stale) error = %v", err)
 		}
@@ -207,7 +216,7 @@ func TestRegistryCatalog(t *testing.T) {
 		if err != nil {
 			t.Fatalf("NewRegistry(dynamic) error = %v", err)
 		}
-		_, err = service.Catalog(t.Context(), "ws-1", "")
+		_, err = service.Catalog(t.Context(), testCatalogRequest("ws-1", ""))
 		if !errors.Is(err, ErrInvalidDescriptor) && !errors.Is(err, ErrDuplicateCommandID) {
 			t.Fatalf("Catalog() error = %v, want invalid extension namespace or duplicate", err)
 		}
@@ -253,7 +262,7 @@ func TestRegistryCatalog(t *testing.T) {
 		if err != nil {
 			t.Fatalf("NewRegistry() error = %v", err)
 		}
-		catalog, err := service.Catalog(t.Context(), "ws-1", "")
+		catalog, err := service.Catalog(t.Context(), testCatalogRequest("ws-1", ""))
 		if err != nil {
 			t.Fatalf("Catalog() error = %v", err)
 		}
@@ -282,7 +291,7 @@ func TestRegistryCatalog(t *testing.T) {
 			if err != nil {
 				t.Fatalf("NewRegistry() error = %v", err)
 			}
-			healthy, err := service.Catalog(t.Context(), "ws-1", "")
+			healthy, err := service.Catalog(t.Context(), testCatalogRequest("ws-1", ""))
 			if err != nil {
 				t.Fatalf("Catalog(healthy) error = %v", err)
 			}
@@ -291,7 +300,7 @@ func TestRegistryCatalog(t *testing.T) {
 				Source: "ext.notes", Status: SourceUnhealthy, Reason: "extension notes is unhealthy (crash loop)",
 			}
 			provider.contribution.Defaults[0].Active = false
-			unhealthy, err := service.Catalog(t.Context(), "ws-1", "")
+			unhealthy, err := service.Catalog(t.Context(), testCatalogRequest("ws-1", ""))
 			if err != nil {
 				t.Fatalf("Catalog(unhealthy) error = %v", err)
 			}
@@ -300,15 +309,15 @@ func TestRegistryCatalog(t *testing.T) {
 				unhealthy.Sources[0].Status != SourceUnhealthy || healthy.Revision == unhealthy.Revision {
 				t.Fatalf("catalog transition = %#v -> %#v", healthy, unhealthy)
 			}
-			defaults, err := service.ExtensionDefaults(t.Context(), "ws-1")
+			defaults, err := service.ExtensionDefaults(t.Context(), testProfileLens, "ws-1")
 			if err != nil || len(defaults) != 1 || defaults[0].Active {
 				t.Fatalf("ExtensionDefaults() = %#v, %v", defaults, err)
 			}
 			var missingContext context.Context
-			if _, err := service.ExtensionDefaults(missingContext, "ws-1"); err == nil {
+			if _, err := service.ExtensionDefaults(missingContext, testProfileLens, "ws-1"); err == nil {
 				t.Fatal("ExtensionDefaults(nil context) error = nil, want required-context error")
 			}
-			if _, err := service.ExtensionDefaults(t.Context(), ""); err == nil {
+			if _, err := service.ExtensionDefaults(t.Context(), testProfileLens, ""); err == nil {
 				t.Fatal("ExtensionDefaults(empty workspace) error = nil, want required-workspace error")
 			}
 		},
@@ -332,7 +341,7 @@ func TestRegistryCatalog(t *testing.T) {
 		if err != nil {
 			t.Fatalf("NewRegistry() error = %v", err)
 		}
-		if _, err := service.Catalog(t.Context(), "ws-1", ""); err != nil {
+		if _, err := service.Catalog(t.Context(), testCatalogRequest("ws-1", "")); err != nil {
 			t.Fatalf("Catalog() error = %v", err)
 		}
 		if provider.calls != 1 || len(bindings.defaults) != 1 ||
@@ -353,17 +362,25 @@ func TestRegistryCatalog(t *testing.T) {
 			WithEventRecorder(recorder),
 			WithClock(func() time.Time { return now }),
 		)
-		workspaceEvents, cancelWorkspace, err := service.SubscribeCmdPaletteEvents(t.Context(), "ws-1")
+		workspaceEvents, cancelWorkspace, err := service.SubscribeCmdPaletteEvents(t.Context(), testProfileLens, "ws-1")
 		if err != nil {
 			t.Fatalf("SubscribeCmdPaletteEvents(ws-1) error = %v", err)
 		}
 		defer cancelWorkspace()
-		foreignEvents, cancelForeign, err := service.SubscribeCmdPaletteEvents(t.Context(), "ws-2")
+		foreignEvents, cancelForeign, err := service.SubscribeCmdPaletteEvents(t.Context(), testProfileLens, "ws-2")
 		if err != nil {
 			t.Fatalf("SubscribeCmdPaletteEvents(ws-2) error = %v", err)
 		}
 		defer cancelForeign()
-		if err := service.NotifyCatalogChanged(t.Context(), "ws-1"); err != nil {
+		profileB := ScopedProfileLens("01ARZ3NDEKTSV4RRFFQ69G5FAV", "profile-b")
+		profileBEvents, cancelProfileB, err := service.SubscribeCmdPaletteEvents(
+			t.Context(), profileB, "ws-1",
+		)
+		if err != nil {
+			t.Fatalf("SubscribeCmdPaletteEvents(profile-b) error = %v", err)
+		}
+		defer cancelProfileB()
+		if err := service.NotifyCatalogChanged(t.Context(), testProfileLens, "ws-1"); err != nil {
 			t.Fatalf("NotifyCatalogChanged() error = %v", err)
 		}
 		event := <-workspaceEvents
@@ -374,6 +391,11 @@ func TestRegistryCatalog(t *testing.T) {
 		select {
 		case foreign := <-foreignEvents:
 			t.Fatalf("foreign workspace received event %#v", foreign)
+		default:
+		}
+		select {
+		case foreign := <-profileBEvents:
+			t.Fatalf("foreign profile received event %#v", foreign)
 		default:
 		}
 		if recorded := recorder.recorded(); len(recorded) != 1 || recorded[0] != event {
@@ -393,6 +415,7 @@ func TestRegistryCatalog(t *testing.T) {
 		)
 		service.NotifyGlobalHotkeyRegistrationFailed(
 			t.Context(),
+			testProfileLens,
 			"ws-1",
 			"client-shell",
 			"palette.summon.global",
@@ -412,6 +435,74 @@ func TestRegistryCatalog(t *testing.T) {
 	})
 }
 
+func TestCatalogForwardsProfileLensToCollaborators(t *testing.T) {
+	t.Parallel()
+
+	provider := &recordingCatalogProvider{descriptor: testDescriptor("profile.forwarded")}
+	bindings := &recordingCatalogBindings{}
+	service, err := NewRegistry(
+		[]ProviderRegistration{{Source: provider.descriptor.Source, Provider: provider}},
+		nil,
+		bindings,
+		&testExecutor{},
+	)
+	if err != nil {
+		t.Fatalf("NewRegistry() error = %v", err)
+	}
+	wantLens := ScopedProfileLens("01ARZ3NDEKTSV4RRFFQ69G5FAV", "marketing")
+	if _, err := service.Catalog(
+		t.Context(),
+		CatalogRequest{ProfileLens: wantLens, WorkspaceID: "ws-profile"},
+	); err != nil {
+		t.Fatalf("Catalog() error = %v", err)
+	}
+	if provider.profileLens != wantLens || provider.workspaceID != "ws-profile" {
+		t.Fatalf(
+			"provider request = %#v/%q, want %#v/%q",
+			provider.profileLens,
+			provider.workspaceID,
+			wantLens,
+			"ws-profile",
+		)
+	}
+	if bindings.profileLens != wantLens || bindings.workspaceID != "ws-profile" {
+		t.Fatalf(
+			"binding request = %#v/%q, want %#v/%q",
+			bindings.profileLens,
+			bindings.workspaceID,
+			wantLens,
+			"ws-profile",
+		)
+	}
+}
+
+type recordingCatalogProvider struct {
+	descriptor  Descriptor
+	profileLens ProfileLens
+	workspaceID WorkspaceID
+}
+
+func (p *recordingCatalogProvider) ProvideCommands(_ context.Context, request CatalogRequest) ([]Descriptor, error) {
+	p.profileLens = request.ProfileLens
+	p.workspaceID = request.WorkspaceID
+	return []Descriptor{p.descriptor}, nil
+}
+
+type recordingCatalogBindings struct {
+	profileLens ProfileLens
+	workspaceID WorkspaceID
+}
+
+func (b *recordingCatalogBindings) Bindings(
+	_ context.Context,
+	profileLens ProfileLens,
+	workspaceID WorkspaceID,
+) (map[CommandID][]string, map[CommandID]string, error) {
+	b.profileLens = profileLens
+	b.workspaceID = workspaceID
+	return map[CommandID][]string{}, map[CommandID]string{}, nil
+}
+
 type contributionTestProvider struct {
 	contribution Contribution
 }
@@ -421,13 +512,13 @@ type countingContributionProvider struct {
 	calls        int
 }
 
-func (p *countingContributionProvider) ProvideCommands(context.Context, WorkspaceID) ([]Descriptor, error) {
+func (p *countingContributionProvider) ProvideCommands(context.Context, CatalogRequest) ([]Descriptor, error) {
 	return cloneDescriptors(p.contribution.Commands), nil
 }
 
 func (p *countingContributionProvider) ProvideContribution(
 	context.Context,
-	WorkspaceID,
+	CatalogRequest,
 ) (Contribution, error) {
 	p.calls++
 	return p.contribution, nil
@@ -439,6 +530,7 @@ type snapshotTestBindings struct {
 
 func (b *snapshotTestBindings) Bindings(
 	context.Context,
+	ProfileLens,
 	WorkspaceID,
 ) (map[CommandID][]string, map[CommandID]string, error) {
 	return map[CommandID][]string{}, map[CommandID]string{}, nil
@@ -446,6 +538,7 @@ func (b *snapshotTestBindings) Bindings(
 
 func (b *snapshotTestBindings) BindingsForCatalogSnapshot(
 	_ context.Context,
+	_ ProfileLens,
 	_ WorkspaceID,
 	_ []CommandID,
 	defaults []ExtensionDefaultShortcut,
@@ -454,11 +547,11 @@ func (b *snapshotTestBindings) BindingsForCatalogSnapshot(
 	return map[CommandID][]string{}, map[CommandID]string{}, nil
 }
 
-func (p *contributionTestProvider) ProvideCommands(context.Context, WorkspaceID) ([]Descriptor, error) {
+func (p *contributionTestProvider) ProvideCommands(context.Context, CatalogRequest) ([]Descriptor, error) {
 	return cloneDescriptors(p.contribution.Commands), nil
 }
 
-func (p *contributionTestProvider) ProvideContribution(context.Context, WorkspaceID) (Contribution, error) {
+func (p *contributionTestProvider) ProvideContribution(context.Context, CatalogRequest) (Contribution, error) {
 	result := p.contribution
 	result.Commands = cloneDescriptors(p.contribution.Commands)
 	result.Sources = append([]SourceStatus(nil), p.contribution.Sources...)

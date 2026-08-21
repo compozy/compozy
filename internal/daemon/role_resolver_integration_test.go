@@ -156,7 +156,7 @@ func TestRoleResolverIntegration(t *testing.T) {
 		if err != nil {
 			t.Fatalf("LoadForHome() error = %v", err)
 		}
-		agents, err := compozyconfig.LoadWorkspaceAgentDefs("", nil, homePaths)
+		agents, err := compozyconfig.LoadWorkspaceAgentDefs("", nil, homePaths, "")
 		if err != nil {
 			t.Fatalf("LoadWorkspaceAgentDefs() error = %v", err)
 		}

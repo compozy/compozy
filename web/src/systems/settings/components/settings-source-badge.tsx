@@ -11,9 +11,13 @@ interface SettingsSourceBadgeProps {
 const KIND_LABELS: Record<SettingsSourceKind, string> = {
   "builtin-provider": "BUILTIN",
   "global-config": "CONFIG",
+  "profile-config": "PROFILE",
   "workspace-config": "WORKSPACE",
+  "workspace-profile-config": "WORKSPACE PROFILE",
   "global-mcp-sidecar": "MCP.JSON",
+  "profile-mcp-sidecar": "PROFILE MCP.JSON",
   "workspace-mcp-sidecar": "WS-MCP.JSON",
+  "workspace-profile-mcp-sidecar": "WS-PROFILE MCP.JSON",
   "global-agent-file": "AGENT",
   "workspace-agent-file": "WS-AGENT",
 };
@@ -25,9 +29,13 @@ function badgeTone(kind: SettingsSourceKind): PillTone {
     case "global-config":
     case "global-mcp-sidecar":
     case "global-agent-file":
+    case "profile-config":
+    case "profile-mcp-sidecar":
       return "info";
     case "workspace-config":
+    case "workspace-profile-config":
     case "workspace-mcp-sidecar":
+    case "workspace-profile-mcp-sidecar":
     case "workspace-agent-file":
       return "warning";
     default:
@@ -42,6 +50,9 @@ function sourceLabel(source: SettingsSource): string {
   }
   if (source.workspace_id) {
     parts.push(source.workspace_id);
+  }
+  if (source.profile) {
+    parts.push(source.profile);
   }
   return parts.join(" · ");
 }
@@ -70,7 +81,7 @@ function SettingsSourceBadge({
             <Pill
               mono
               tone="neutral"
-              key={`${entry.kind}-${entry.scope}-${entry.agent_name ?? ""}-${entry.workspace_id ?? ""}`}
+              key={`${entry.kind}-${entry.scope}-${entry.agent_name ?? ""}-${entry.profile ?? ""}-${entry.workspace_id ?? ""}`}
             >
               {sourceLabel(entry)}
             </Pill>

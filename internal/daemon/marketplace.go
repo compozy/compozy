@@ -270,12 +270,12 @@ func (n *daemonMarketplaceNotifier) NotifyCatalogRefresh(
 	case marketplace.RefreshOutcomeFailed:
 		eventOutcome = eventspkg.OutcomeFailure
 	}
-	return n.writeEvent(ctx, "catalog.refresh", store.EventSummary{
-		Type:    eventspkg.MarketplaceCatalogRefresh,
-		Outcome: string(eventOutcome),
-		Content: content,
-		Summary: fmt.Sprintf("marketplace catalog %s refresh %s", outcome.Kind, outcome.Outcome),
-	})
+	return n.writeEvent(ctx, "catalog.refresh", daemonEventSummary(store.EventSummary{
+		ProfileID: store.DefaultProfileID,
+		Type:      eventspkg.MarketplaceCatalogRefresh,
+		Outcome:   string(eventOutcome),
+		Summary:   fmt.Sprintf("marketplace catalog %s refresh %s", outcome.Kind, outcome.Outcome),
+	}, content))
 }
 
 func (n *daemonMarketplaceNotifier) NotifyInstall(ctx context.Context, outcome marketplace.InstallOutcome) error {
@@ -294,12 +294,12 @@ func (n *daemonMarketplaceNotifier) NotifyInstall(ctx context.Context, outcome m
 	case marketplace.InstallOutcomeFailed:
 		eventOutcome = eventspkg.OutcomeFailure
 	}
-	return n.writeEvent(ctx, "install", store.EventSummary{
-		Type:    eventspkg.MarketplaceInstall,
-		Outcome: string(eventOutcome),
-		Content: content,
-		Summary: fmt.Sprintf("marketplace %s install %s", outcome.Kind, outcome.Outcome),
-	})
+	return n.writeEvent(ctx, "install", daemonEventSummary(store.EventSummary{
+		ProfileID: store.DefaultProfileID,
+		Type:      eventspkg.MarketplaceInstall,
+		Outcome:   string(eventOutcome),
+		Summary:   fmt.Sprintf("marketplace %s install %s", outcome.Kind, outcome.Outcome),
+	}, content))
 }
 
 func (n *daemonMarketplaceNotifier) writeEvent(

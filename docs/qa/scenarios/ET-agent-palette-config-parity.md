@@ -21,6 +21,16 @@ Minted by command-palette task 11 (planning): tasks 04–05 and 09 shipped the m
 discover → invoke → approval flow — the configuration-parity behavior had no owner. Task 12 owns
 the first walk.
 
+2026-08-23 qa-impact (Profiles): `[cmd_palette]` fallback targets, personalization, and aliases are
+now profile-layerable, so the same scripted mutation can resolve differently per profile, while
+`[window_manager.global_shortcuts]` stays machine-only and is rejected on a profile layer with the
+typed denylist error. Pins and personalization are partitioned by profile lens. Already `untested`,
+so no reset was needed. Extend step 6 to write one `cmd_palette` key under `--scope profile` and
+confirm the effective value differs between two profiles, and that `--global` binding into
+`[window_manager.global_shortcuts]` is refused from a profile layer with allowed-prefix guidance.
+The per-lens partitioning of pins and ranking is owned by `ET-profile-palette-lens-isolation`; the
+layered write mechanics are owned by `MS-layered-config-write-truth`.
+
 Walk (task_11 plan):
 
 1. `bind` a chord owned by another command — exit 1 `shortcut_conflict` naming the owner; re-run

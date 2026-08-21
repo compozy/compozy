@@ -7,6 +7,9 @@ import {
 
 import type {
   SettingsHookCollection,
+  SettingsHookDeleteFilter,
+  SettingsHookListFilter,
+  SettingsHookPutFilter,
   SettingsHookRequest,
   SettingsMCPServerCollection,
   SettingsMCPServerDeleteFilter,
@@ -21,23 +24,26 @@ import type {
   SettingsSandboxDetail,
   SettingsSandboxRequest,
 } from "../types";
-import { normalizeOptionalText, SettingsApiError } from "./settings-api-error";
+import { SettingsApiError } from "./settings-api-error";
+import { normalizeSettingsLayerFilter } from "./settings-layer-filter";
 
 function normalizeMCPListFilter(filter: SettingsMCPServerListFilter = {}) {
-  return {
-    scope: filter.scope,
-    workspace_id: normalizeOptionalText(filter.workspace_id),
-  };
+  return normalizeSettingsLayerFilter(filter);
 }
 
 function normalizeMCPMutationFilter(
   filter: SettingsMCPServerPutFilter | SettingsMCPServerDeleteFilter = {}
 ) {
   return {
-    scope: filter.scope,
-    workspace_id: normalizeOptionalText(filter.workspace_id),
+    ...normalizeSettingsLayerFilter(filter),
     target: filter.target,
   };
+}
+
+function normalizeHookFilter(
+  filter: SettingsHookListFilter | SettingsHookPutFilter | SettingsHookDeleteFilter = {}
+) {
+  return normalizeSettingsLayerFilter(filter);
 }
 
 export async function listSettingsProviders(
@@ -176,8 +182,14 @@ export async function deleteSettingsSandbox(
   return requireResponseData(data, response, `Failed to delete sandbox "${name}"`);
 }
 
-export async function listSettingsHooks(signal?: AbortSignal): Promise<SettingsHookCollection> {
-  const { data, error, response } = await apiClient.GET("/api/settings/hooks", { signal });
+export async function listSettingsHooks(
+  filter: SettingsHookListFilter = {},
+  signal?: AbortSignal
+): Promise<SettingsHookCollection> {
+  const { data, error, response } = await apiClient.GET("/api/settings/hooks", {
+    params: { query: normalizeHookFilter(filter) },
+    signal,
+  });
   if (apiRequestFailed(response, error)) {
     throw new SettingsApiError(
       defaultApiErrorMessage("Failed to list settings hooks", response, error),
@@ -190,10 +202,11 @@ export async function listSettingsHooks(signal?: AbortSignal): Promise<SettingsH
 export async function putSettingsHook(
   name: string,
   body: SettingsHookRequest,
+  filter: SettingsHookPutFilter = {},
   signal?: AbortSignal
 ): Promise<SettingsMutationResult> {
   const { data, error, response } = await apiClient.PUT("/api/settings/hooks/{name}", {
-    params: { path: { name } },
+    params: { path: { name }, query: normalizeHookFilter(filter) },
     body,
     signal,
   });
@@ -208,10 +221,11 @@ export async function putSettingsHook(
 
 export async function deleteSettingsHook(
   name: string,
+  filter: SettingsHookDeleteFilter = {},
   signal?: AbortSignal
 ): Promise<SettingsMutationResult> {
   const { data, error, response } = await apiClient.DELETE("/api/settings/hooks/{name}", {
-    params: { path: { name } },
+    params: { path: { name }, query: normalizeHookFilter(filter) },
     signal,
   });
   if (apiRequestFailed(response, error)) {

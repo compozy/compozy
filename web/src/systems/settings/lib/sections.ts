@@ -11,6 +11,8 @@ import {
   Radio,
   Route,
   SlidersHorizontal,
+  UsersRound,
+  UserRoundCog,
   Webhook,
   Wrench,
   Zap,
@@ -37,6 +39,13 @@ export const SETTINGS_SECTIONS: readonly SettingsSectionDescriptor[] = [
     keywords: "defaults permissions session timeout update version runtime socket",
   },
   {
+    slug: "defaults",
+    label: "Defaults",
+    icon: UserRoundCog,
+    group: "workspace",
+    keywords: "profile agent provider sandbox defaults new sessions",
+  },
+  {
     slug: "appearance",
     label: "Appearance",
     icon: Palette,
@@ -49,6 +58,13 @@ export const SETTINGS_SECTIONS: readonly SettingsSectionDescriptor[] = [
     icon: PanelTop,
     group: "workspace",
     keywords: "window manager desktops profiles split stack geometry snap focus shortcuts alias",
+  },
+  {
+    slug: "profiles",
+    label: "Profiles",
+    icon: UsersRound,
+    group: "workspace",
+    keywords: "profile context switch identity archive selection separation",
   },
   {
     slug: "palette",

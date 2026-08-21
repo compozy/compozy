@@ -1,6 +1,9 @@
 package hooks
 
-import "encoding/json"
+import (
+	"encoding/json"
+	"strings"
+)
 
 // InputAttachmentMetadata is the byte-free attachment view exposed to hooks.
 type InputAttachmentMetadata struct {
@@ -83,6 +86,7 @@ type AutomationSchedulePayload struct {
 
 // AutomationJobPreFirePayload is delivered before a job fire dispatches.
 type AutomationJobPreFirePayload struct {
+	ProfileID   string                     `json:"profile_id,omitempty"`
 	JobID       string                     `json:"job_id"`
 	JobName     string                     `json:"job_name,omitempty"`
 	AgentName   string                     `json:"agent_name,omitempty"`
@@ -93,8 +97,12 @@ type AutomationJobPreFirePayload struct {
 	Attempt     int                        `json:"attempt,omitempty"`
 }
 
+// HookProfileID returns the durable owner used to isolate profile-scoped declarations.
+func (p AutomationJobPreFirePayload) HookProfileID() string { return strings.TrimSpace(p.ProfileID) }
+
 // AutomationJobPostFirePayload is delivered after a job fire hands off to a session.
 type AutomationJobPostFirePayload struct {
+	ProfileID   string `json:"profile_id,omitempty"`
 	JobID       string `json:"job_id"`
 	JobName     string `json:"job_name,omitempty"`
 	AgentName   string `json:"agent_name,omitempty"`
@@ -103,8 +111,12 @@ type AutomationJobPostFirePayload struct {
 	SessionID   string `json:"session_id,omitempty"`
 }
 
+// HookProfileID returns the durable owner used to isolate profile-scoped declarations.
+func (p AutomationJobPostFirePayload) HookProfileID() string { return strings.TrimSpace(p.ProfileID) }
+
 // AutomationTriggerPreFirePayload is delivered before a trigger fire dispatches.
 type AutomationTriggerPreFirePayload struct {
+	ProfileID   string         `json:"profile_id,omitempty"`
 	TriggerID   string         `json:"trigger_id"`
 	TriggerName string         `json:"trigger_name,omitempty"`
 	Event       string         `json:"event,omitempty"`
@@ -115,8 +127,14 @@ type AutomationTriggerPreFirePayload struct {
 	Attempt     int            `json:"attempt,omitempty"`
 }
 
+// HookProfileID returns the durable owner used to isolate profile-scoped declarations.
+func (p AutomationTriggerPreFirePayload) HookProfileID() string {
+	return strings.TrimSpace(p.ProfileID)
+}
+
 // AutomationTriggerPostFirePayload is delivered after a trigger fire hands off to a session.
 type AutomationTriggerPostFirePayload struct {
+	ProfileID   string `json:"profile_id,omitempty"`
 	TriggerID   string `json:"trigger_id"`
 	TriggerName string `json:"trigger_name,omitempty"`
 	Event       string `json:"event,omitempty"`
@@ -126,8 +144,14 @@ type AutomationTriggerPostFirePayload struct {
 	SessionID   string `json:"session_id,omitempty"`
 }
 
+// HookProfileID returns the durable owner used to isolate profile-scoped declarations.
+func (p AutomationTriggerPostFirePayload) HookProfileID() string {
+	return strings.TrimSpace(p.ProfileID)
+}
+
 // AutomationRunCompletedPayload is delivered after an automation run finishes successfully.
 type AutomationRunCompletedPayload struct {
+	ProfileID   string `json:"profile_id,omitempty"`
 	RunID       string `json:"run_id"`
 	JobID       string `json:"job_id,omitempty"`
 	TriggerID   string `json:"trigger_id,omitempty"`
@@ -138,8 +162,12 @@ type AutomationRunCompletedPayload struct {
 	DurationMS  int64  `json:"duration_ms,omitempty"`
 }
 
+// HookProfileID returns the durable owner used to isolate profile-scoped declarations.
+func (p AutomationRunCompletedPayload) HookProfileID() string { return strings.TrimSpace(p.ProfileID) }
+
 // AutomationRunFailedPayload is delivered after an automation run fails.
 type AutomationRunFailedPayload struct {
+	ProfileID   string `json:"profile_id,omitempty"`
 	RunID       string `json:"run_id"`
 	JobID       string `json:"job_id,omitempty"`
 	TriggerID   string `json:"trigger_id,omitempty"`
@@ -150,6 +178,9 @@ type AutomationRunFailedPayload struct {
 	Attempt     int    `json:"attempt,omitempty"`
 	WillRetry   bool   `json:"will_retry,omitempty"`
 }
+
+// HookProfileID returns the durable owner used to isolate profile-scoped declarations.
+func (p AutomationRunFailedPayload) HookProfileID() string { return strings.TrimSpace(p.ProfileID) }
 
 // AutomationFirePatch mutates or cancels one automation pre-fire dispatch.
 type AutomationFirePatch struct {

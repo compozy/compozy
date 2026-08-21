@@ -40,7 +40,7 @@ func newDaemonParticipationResolver(
 			return state.Enabled, nil
 		},
 		ChannelExists: func(ctx context.Context, workspaceID, channelID string) (bool, error) {
-			_, readErr := channels.GetNetworkChannel(ctx, store.NetworkChannelRef{
+			_, readErr := channels.GetNetworkChannel(ctx, store.ReadScope{AllProfiles: true}, store.NetworkChannelRef{
 				WorkspaceID: workspaceID,
 				Channel:     channelID,
 			})

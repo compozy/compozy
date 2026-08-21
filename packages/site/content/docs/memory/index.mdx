@@ -1,11 +1,11 @@
 ---
 title: Memory
-description: How CompozyOS stores durable Markdown memory across global, workspace, and agent scopes, gates dreaming runs, and routes every write through the controller.
+description: How CompozyOS stores durable Markdown memory across profile, workspace, and agent scopes, gates dreaming runs, and routes every write through the controller.
 ---
 
 Memory is the durable layer that survives a session. CompozyOS stores curated facts as Markdown files
 behind typed indexes so agents can rediscover knowledge without replaying past transcripts. The
-runtime keeps three scopes — global, workspace, and agent — and a dreaming loop that promotes
+runtime keeps three scopes — profile, workspace, and agent — and a dreaming loop that promotes
 recall-validated signal into curated memory.
 
 Use this section when an agent should carry durable project knowledge across sessions, when a
@@ -34,7 +34,7 @@ enough that one project does not leak into another.
   <RouteRow
     href="/docs/memory/scopes"
     label="Scopes"
-    title="Global, workspace, and agent memory"
+    title="Profile, workspace, and agent memory"
     description="Use this page when you need scope resolution rules, agent-tier selection, and where each kind of memory lives on disk."
     meta="Resolution"
   />

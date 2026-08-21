@@ -19,12 +19,15 @@ func (m *Service) RunDetail(
 	if err != nil {
 		return nil, err
 	}
-	taskRecord, err := m.runDetailTask(ctx, run)
+	taskRecord, err := m.runDetailTask(ctx, run, actor)
 	if err != nil {
 		return nil, err
 	}
 	if err := m.runReadAuthorizer.AuthorizeRunRead(ctx, actor, run, taskRecord); err != nil {
 		return nil, err
+	}
+	if taskRecord != nil {
+		run.ProfileID = taskRecord.ProfileID
 	}
 	taskReference, err := m.runDetailTaskReference(ctx, taskRecord)
 	if err != nil {
@@ -48,12 +51,12 @@ func (m *Service) RunDetail(
 	}, nil
 }
 
-func (m *Service) runDetailTask(ctx context.Context, run Run) (*Task, error) {
+func (m *Service) runDetailTask(ctx context.Context, run Run, actor ActorContext) (*Task, error) {
 	if strings.TrimSpace(run.TaskID) == "" {
 		return nil, nil
 	}
 
-	taskRecord, err := m.store.GetTask(ctx, run.TaskID)
+	taskRecord, err := m.loadAuthorizedTask(ctx, m.store, run.TaskID, actor)
 	if err != nil {
 		return nil, err
 	}

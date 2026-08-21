@@ -27,6 +27,7 @@ import { bridgeOperatorSelectors } from "../fixtures/selectors";
 import { expect, test } from "../fixtures/test";
 import { ensureGlobalWorkspace, completeOnboardingIfPrompted } from "../fixtures/workspace";
 
+const DEFAULT_PROFILE_ID = "00000000000000000000000000";
 const NOW = "2026-07-12T12:00:00Z";
 const CREATED_BRIDGE_ID = "brg_browser_slack_setup";
 const CREATED_WEBHOOK_PUBLIC_URL = "https://hooks.example.com/browser-slack-setup";
@@ -457,6 +458,8 @@ function bridgeFromCreateRequest(
   return {
     ...body,
     created_at: NOW,
+    profile_id: DEFAULT_PROFILE_ID,
+    profile_name: "default",
     id,
     notification_suppress: body.notification_suppress ?? false,
     source: "dynamic",
@@ -477,6 +480,8 @@ function makeSlackBridge({
 }): BridgeSummary {
   return {
     created_at: NOW,
+    profile_id: DEFAULT_PROFILE_ID,
+    profile_name: "default",
     delivery_defaults: { mode: "direct-send", peer_id: "default-peer" },
     display_name: displayName,
     enabled,

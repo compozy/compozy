@@ -12,8 +12,11 @@ import { describe, expect, it, vi } from "vitest";
 
 import type { AutomationJob, AutomationTrigger } from "../../types";
 import { AutomationCatalogShell } from "../automation-catalog-shell";
+import { AutomationJobsCatalog } from "../automation-jobs-catalog";
 import { AutomationJobRow } from "../automation-job-row";
+import { AutomationTriggersCatalog } from "../automation-triggers-catalog";
 import { AutomationTriggerRow } from "../automation-trigger-row";
+import { aggregateListingScopeFixture, scopedListingScopeFixture } from "@/systems/profiles/mocks";
 
 vi.mock("@tanstack/react-router", () => ({
   Link: ({
@@ -33,6 +36,8 @@ vi.mock("@tanstack/react-router", () => ({
 }));
 
 const jobFixture: AutomationJob = {
+  profile_id: "00000000000000000000000000",
+  profile_name: "default",
   id: "job_daily_review",
   name: "daily-review",
   agent_name: "reviewer",
@@ -51,6 +56,8 @@ const jobFixture: AutomationJob = {
 };
 
 const loopTriggerFixture: AutomationTrigger = {
+  profile_id: "00000000000000000000000000",
+  profile_name: "default",
   id: "trg_loop",
   name: "loop-launch",
   agent_name: "",
@@ -107,6 +114,51 @@ describe("AutomationJobRow", () => {
   });
 });
 
+describe("Automation card catalogs", () => {
+  it("Should label job and trigger cards with their owners in the aggregate view", () => {
+    const job = { ...jobFixture, profile_id: "profile-marketing", profile_name: "marketing" };
+    const trigger = {
+      ...loopTriggerFixture,
+      profile_id: "profile-marketing",
+      profile_name: "marketing",
+    };
+    const pagination = { hasNextPage: false, isFetchingNextPage: false };
+
+    render(
+      <>
+        <AutomationJobsCatalog
+          errorMessage={null}
+          hasActiveFilters={false}
+          isLoading={false}
+          jobs={[job]}
+          onClearFilters={vi.fn()}
+          onCreate={vi.fn()}
+          onRun={vi.fn()}
+          pagination={pagination}
+          profileScope={aggregateListingScopeFixture}
+          runDisabled={false}
+          runPendingIds={new Set()}
+          view="cards"
+        />
+        <AutomationTriggersCatalog
+          errorMessage={null}
+          hasActiveFilters={false}
+          isLoading={false}
+          onClearFilters={vi.fn()}
+          onCreate={vi.fn()}
+          pagination={pagination}
+          profileScope={aggregateListingScopeFixture}
+          triggers={[trigger]}
+          view="cards"
+        />
+      </>
+    );
+
+    expect(screen.getByTestId(`automation-profile-${job.id}`)).toHaveTextContent("marketing");
+    expect(screen.getByTestId(`automation-profile-${trigger.id}`)).toHaveTextContent("marketing");
+  });
+});
+
 describe("AutomationCatalogShell", () => {
   function renderShell(
     overrides: Partial<Parameters<typeof AutomationCatalogShell>[0]> = {},
@@ -122,6 +174,7 @@ describe("AutomationCatalogShell", () => {
         onClearFilters={vi.fn()}
         onCreate={vi.fn()}
         pagination={{ hasNextPage: false, isFetchingNextPage: false }}
+        profileScope={scopedListingScopeFixture}
         view="rows"
         {...overrides}
       >
@@ -182,7 +235,7 @@ describe("AutomationCatalogShell", () => {
     expect(empty.className).toContain("flex-1");
     expect(empty.className).toContain("min-h-0");
     expect(empty.querySelector('[data-slot="empty"]')).toHaveAttribute("data-fill", "false");
-    expect(screen.getByRole("heading", { name: "No jobs yet" })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "No jobs in default yet" })).toBeInTheDocument();
     expect(screen.getByTestId("jobs-list-create")).toHaveTextContent("Create from scratch");
     expect(screen.getByTestId("jobs-empty-panel")).toBeInTheDocument();
     await user.click(screen.getByTestId("jobs-list-create"));
@@ -192,9 +245,19 @@ describe("AutomationCatalogShell", () => {
   it("Should keep trigger zero-inventory truthful without a suggestion panel", () => {
     renderShell({ itemCount: 0, kind: "triggers" });
 
-    expect(screen.getByRole("heading", { name: "No triggers yet" })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "No triggers in default yet" })).toBeInTheDocument();
     expect(screen.getByTestId("triggers-list-create")).toHaveTextContent("Create from scratch");
     expect(screen.queryByTestId("automation-suggestions-card")).not.toBeInTheDocument();
+  });
+
+  it("Should not name a profile while every profile's automations are on screen", () => {
+    renderShell({ itemCount: 0, profileScope: aggregateListingScopeFixture });
+
+    // `default` is only where a new job would land; the aggregate is bounded by
+    // no single profile, so naming one would describe the wrong list.
+    const heading = screen.getByRole("heading", { name: /^No jobs/ });
+    expect(heading).toHaveTextContent("No jobs in any profile yet");
+    expect(heading).not.toHaveTextContent("default");
   });
 
   it("Should preserve the selected card geometry while the catalog is loading", () => {

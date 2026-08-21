@@ -24,16 +24,47 @@ import (
 	eventspkg "github.com/compozy/compozy/internal/events"
 	extensionpkg "github.com/compozy/compozy/internal/extension"
 	marketplacepkg "github.com/compozy/compozy/internal/marketplace"
+	profilepkg "github.com/compozy/compozy/internal/profile"
 	registrypkg "github.com/compozy/compozy/internal/registry"
 	registrygit "github.com/compozy/compozy/internal/registry/gitsrc"
 	"github.com/compozy/compozy/internal/store"
 	"github.com/compozy/compozy/internal/store/globaldb"
+	taskpkg "github.com/compozy/compozy/internal/task"
 	toolspkg "github.com/compozy/compozy/internal/tools"
 )
 
 type nativeExtensionSource struct {
 	latestVersion string
 	downloads     map[string]*registrypkg.DownloadResult
+}
+
+func TestNativeExtensionScopedActorContextShouldCarryProfileScope(t *testing.T) {
+	t.Parallel()
+
+	const profileID = "profile-extension-owner"
+	for _, test := range []struct {
+		name  string
+		scope toolspkg.Scope
+		want  taskpkg.ActorKind
+	}{
+		{name: "Should scope agent actor", scope: toolspkg.Scope{SessionID: "session-extension", WorkspaceID: "ws-extension", ProfileID: profileID}, want: taskpkg.ActorKindAgentSession},
+		{name: "Should scope operator actor", scope: toolspkg.Scope{Operator: true, WorkspaceID: "ws-extension", ProfileID: profileID}, want: taskpkg.ActorKindHuman},
+		{name: "Should scope daemon actor", scope: toolspkg.Scope{WorkspaceID: "ws-extension", ProfileID: profileID}, want: taskpkg.ActorKindDaemon},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			t.Parallel()
+			actor, err := nativeExtensionScopedActorContext(
+				test.scope,
+				toolspkg.CallRequest{ToolID: toolspkg.ToolIDExtensionsList},
+			)
+			if err != nil {
+				t.Fatalf("nativeExtensionScopedActorContext() error = %v", err)
+			}
+			if actor.Actor.Kind != test.want || actor.ReadScope.ProfileID != profileID {
+				t.Fatalf("actor = %#v, want kind %q/profile %q", actor, test.want, profileID)
+			}
+		})
+	}
 }
 
 type nativeExtensionCatalog struct {
@@ -132,23 +163,24 @@ func (s *nativeExtensionSource) Close() error {
 }
 
 func TestDaemonNativeExtensionTools(t *testing.T) {
-	t.Run("Should expose inventory and preview through native bindings", func(t *testing.T) {
+	t.Run("Should expose inventory through native bindings", func(t *testing.T) {
 		t.Parallel()
 
 		deps, _, _, _ := newNativeExtensionToolDeps(t)
+		service := &nativeInventoryExtensionService{
+			inventory: contract.ExtensionInventoryPayload{
+				Extension: "kit", Enabled: true,
+				Items: []contract.ExtensionKitItemPayload{{Kind: "automation.job", Name: "kit/daily", Live: true}},
+			},
+		}
 		deps.Extensions = func() core.ExtensionService {
-			return nativeInventoryExtensionService{
-				inventory: contract.ExtensionInventoryPayload{
-					Extension: "kit", Enabled: true,
-					Items: []contract.ExtensionKitItemPayload{{Kind: "automation.job", Name: "kit/daily", Live: true}},
-				},
-				preview: contract.ExtensionEnablePreviewPayload{
-					Extension: "kit", AutomationStarting: []string{"kit/daily"}, MissingEnv: []string{"API_KEY"},
-				},
-			}
+			return service
 		}
 		registry := newDaemonNativeRegistry(t, deps, nativeApproveAllPolicyInputs())
-		inventory, err := registry.Call(t.Context(), toolspkg.Scope{}, toolspkg.CallRequest{
+		inventory, err := registry.Call(t.Context(), toolspkg.Scope{
+			Operator:  true,
+			ProfileID: "profile-marketing",
+		}, toolspkg.CallRequest{
 			ToolID: toolspkg.ToolIDExtensionsInventory,
 			Input:  json.RawMessage(`{"name":"kit"}`),
 		})
@@ -157,16 +189,12 @@ func TestDaemonNativeExtensionTools(t *testing.T) {
 		}
 		requireNativeStructuredContains(t, inventory, []byte(`"extension":"kit"`))
 		requireNativeStructuredContains(t, inventory, []byte(`"live":true`))
-
-		preview, err := registry.Call(t.Context(), toolspkg.Scope{}, toolspkg.CallRequest{
-			ToolID: toolspkg.ToolIDExtensionsPreview,
-			Input:  json.RawMessage(`{"name":"kit"}`),
-		})
-		if err != nil {
-			t.Fatalf("Registry.Call(extensions_preview) error = %v", err)
+		if service.actor.ReadScope.ProfileID != "profile-marketing" {
+			t.Fatalf(
+				"InventoryScoped() profile ID = %q, want profile-marketing",
+				service.actor.ReadScope.ProfileID,
+			)
 		}
-		requireNativeStructuredContains(t, preview, []byte(`"automation_starting":["kit/daily"]`))
-		requireNativeStructuredContains(t, preview, []byte(`"missing_env":["API_KEY"]`))
 	})
 
 	t.Run("Should serialize only safe development boot diagnostics", func(t *testing.T) {
@@ -421,6 +449,39 @@ func TestDaemonNativeExtensionTools(t *testing.T) {
 			derefNativeExtensionString(installed.RegistrySlug) != "acme/tool-ext" {
 			t.Fatalf("installed extension = %#v, want marketplace provenance", installed)
 		}
+		marketing, err := deps.ProfileManager.Create(t.Context(), profilepkg.CreateInput{Name: "marketing"})
+		if err != nil {
+			t.Fatalf("profiles.Create(marketing) error = %v", err)
+		}
+		marketingResult, err := registry.Call(
+			t.Context(),
+			toolspkg.Scope{Operator: true, ProfileID: marketing.ID},
+			toolspkg.CallRequest{
+				ToolID: toolspkg.ToolIDExtensionsDisable,
+				Input:  json.RawMessage(`{"name":"tool-ext"}`),
+			},
+		)
+		if err != nil {
+			t.Fatalf("Registry.Call(extensions_disable marketing) error = %v", err)
+		}
+		var marketingState contract.ExtensionEnablementPayload
+		if err := json.Unmarshal(marketingResult.Structured, &marketingState); err != nil {
+			t.Fatalf("json.Unmarshal(marketing enablement) error = %v", err)
+		}
+		if marketingState.Profile != "marketing" || marketingState.Enabled {
+			t.Fatalf("marketing enablement = %#v, want disabled marketing profile", marketingState)
+		}
+		marketingEnabled, err := extRegistry.IsEnabledForProfile("tool-ext", marketing.ID)
+		if err != nil {
+			t.Fatalf("IsEnabledForProfile(marketing) error = %v", err)
+		}
+		defaultEnabled, err := extRegistry.IsEnabledForProfile("tool-ext", store.DefaultProfileID)
+		if err != nil {
+			t.Fatalf("IsEnabledForProfile(default) error = %v", err)
+		}
+		if marketingEnabled || !defaultEnabled {
+			t.Fatalf("profile enablement = marketing:%v default:%v, want false/true", marketingEnabled, defaultEnabled)
+		}
 
 		if _, err := registry.Call(
 			t.Context(),
@@ -618,9 +679,13 @@ func TestDaemonNativeExtensionTools(t *testing.T) {
 			!installed.Provenance.ChecksumVerified {
 			t.Fatalf("curated provenance = %#v, want separate verified archive and tree digests", installed.Provenance)
 		}
-		summaries, err := deps.ExtensionEvents.ListEventSummaries(t.Context(), store.EventSummaryQuery{
-			Type: eventspkg.ExtensionDigestVerify,
-		})
+		summaries, err := deps.ExtensionEvents.ListEventSummaries(
+			t.Context(),
+			store.EventSummaryQuery{
+				ReadScope: store.ReadScope{AllProfiles: true},
+				Type:      eventspkg.ExtensionDigestVerify,
+			},
+		)
 		if err != nil {
 			t.Fatalf("ListEventSummaries(digest verification) error = %v", err)
 		}
@@ -683,9 +748,13 @@ func TestDaemonNativeExtensionTools(t *testing.T) {
 		if _, err := extRegistry.Get("tool-ext"); !errors.Is(err, extensionpkg.ErrExtensionNotFound) {
 			t.Fatalf("extension registry Get(after digest mismatch) error = %v, want ErrExtensionNotFound", err)
 		}
-		summaries, listErr := deps.ExtensionEvents.ListEventSummaries(t.Context(), store.EventSummaryQuery{
-			Type: eventspkg.ExtensionDigestVerify,
-		})
+		summaries, listErr := deps.ExtensionEvents.ListEventSummaries(
+			t.Context(),
+			store.EventSummaryQuery{
+				ReadScope: store.ReadScope{AllProfiles: true},
+				Type:      eventspkg.ExtensionDigestVerify,
+			},
+		)
 		if listErr != nil {
 			t.Fatalf("ListEventSummaries(digest mismatch) error = %v", listErr)
 		}
@@ -736,21 +805,16 @@ func TestDaemonNativeExtensionTools(t *testing.T) {
 type nativeInventoryExtensionService struct {
 	core.ExtensionService
 	inventory contract.ExtensionInventoryPayload
-	preview   contract.ExtensionEnablePreviewPayload
+	actor     taskpkg.ActorContext
 }
 
-func (s nativeInventoryExtensionService) Inventory(
-	context.Context,
-	string,
+func (s *nativeInventoryExtensionService) InventoryScoped(
+	_ context.Context,
+	_ string,
+	actor taskpkg.ActorContext,
 ) (contract.ExtensionInventoryPayload, error) {
+	s.actor = actor
 	return s.inventory, nil
-}
-
-func (s nativeInventoryExtensionService) Preview(
-	context.Context,
-	string,
-) (contract.ExtensionEnablePreviewPayload, error) {
-	return s.preview, nil
 }
 
 func newNativeExtensionToolDeps(
@@ -778,6 +842,13 @@ func newNativeExtensionToolDeps(
 	source := newNativeExtensionSource(t, "1.0.0", "2.0.0")
 	runtime := &fakeExtensionRuntime{}
 	extRegistry := extensionpkg.NewRegistry(db.DB())
+	profileManager, err := profilepkg.NewManager(
+		profilepkg.WithStore(db),
+		profilepkg.WithHomePaths(homePaths),
+	)
+	if err != nil {
+		t.Fatalf("profile.NewManager() error = %v", err)
+	}
 	runtime.getFn = func(name string) (*extensionpkg.Extension, error) {
 		info, getErr := extRegistry.Get(name)
 		if getErr != nil {
@@ -805,6 +876,7 @@ func newNativeExtensionToolDeps(
 	deps := daemonNativeToolsDeps{
 		HomePaths:         homePaths,
 		ExtensionRegistry: extRegistry,
+		ProfileManager:    profileManager,
 		ExtensionRuntime: func() extensionRuntime {
 			return runtime
 		},
@@ -868,8 +940,8 @@ func nativeExtensionTarGzWithNetwork(t *testing.T, version string, channelScope 
 	integrationManifestSections := ""
 	if strings.TrimSpace(channelScope) != "" {
 		integrationManifestSections = fmt.Sprintf(`
-[resources]
-skills = ["skills/"]
+[[resources.skills]]
+path = "skills/"
 
 [network_participation]
 required = true

@@ -9,6 +9,7 @@ import (
 
 	bridgepkg "github.com/compozy/compozy/internal/bridges"
 	"github.com/compozy/compozy/internal/resources"
+	"github.com/compozy/compozy/internal/store"
 	"github.com/compozy/compozy/internal/testutil"
 )
 
@@ -33,6 +34,7 @@ func TestBridgeInstanceResourceCodecRejectsInvalidPayloads(t *testing.T) {
 			wantIs:    resources.ErrInvalidScopeBinding,
 			wantError: `bridge.scope "global" does not match resource scope "workspace"`,
 			raw: []byte(`{
+				"profile_id":"profile-default",
 				"scope":"global",
 				"platform":"telegram",
 				"extension_name":"ext-telegram",
@@ -44,9 +46,10 @@ func TestBridgeInstanceResourceCodecRejectsInvalidPayloads(t *testing.T) {
 		},
 		{
 			name:      "malformed provider config",
-			scope:     resources.ResourceScope{Kind: resources.ResourceScopeKindGlobal},
+			scope:     resources.ResourceScope{Kind: resources.ResourceScopeKindUser},
 			wantError: "bridge instance provider config must be a JSON object or null",
 			raw: []byte(`{
+				"profile_id":"profile-default",
 				"scope":"global",
 				"platform":"telegram",
 				"extension_name":"ext-telegram",
@@ -59,9 +62,10 @@ func TestBridgeInstanceResourceCodecRejectsInvalidPayloads(t *testing.T) {
 		},
 		{
 			name:      "invalid dm policy",
-			scope:     resources.ResourceScope{Kind: resources.ResourceScopeKindGlobal},
+			scope:     resources.ResourceScope{Kind: resources.ResourceScopeKindUser},
 			wantError: `unsupported dm policy "invite-everyone"`,
 			raw: []byte(`{
+				"profile_id":"profile-default",
 				"scope":"global",
 				"platform":"telegram",
 				"extension_name":"ext-telegram",
@@ -73,9 +77,10 @@ func TestBridgeInstanceResourceCodecRejectsInvalidPayloads(t *testing.T) {
 		},
 		{
 			name:      "invalid delivery defaults field type",
-			scope:     resources.ResourceScope{Kind: resources.ResourceScopeKindGlobal},
+			scope:     resources.ResourceScope{Kind: resources.ResourceScopeKindUser},
 			wantError: `bridge instance delivery defaults field "thread_id" must be a string`,
 			raw: []byte(`{
+					"profile_id":"profile-default",
 					"scope":"global",
 					"platform":"telegram",
 					"extension_name":"ext-telegram",
@@ -116,8 +121,9 @@ func TestBridgeInstanceResourceCodecAllowsProviderSpecificDeliveryDefaults(t *te
 
 	spec, err := codec.DecodeAndValidate(
 		testutil.Context(t),
-		resources.ResourceScope{Kind: resources.ResourceScopeKindGlobal},
+		resources.ResourceScope{Kind: resources.ResourceScopeKindUser},
 		[]byte(`{
+			"profile_id":"profile-default",
 			"scope":"global",
 			"platform":"telegram",
 			"extension_name":"ext-telegram",
@@ -146,6 +152,7 @@ func TestBridgeProgressConfigValidationAndResolution(t *testing.T) {
 		t.Parallel()
 
 		raw := []byte(`{
+			"profile_id":"profile-default",
 			"scope":"global",
 			"platform":"slack",
 			"extension_name":"ext-slack",
@@ -164,7 +171,7 @@ func TestBridgeProgressConfigValidationAndResolution(t *testing.T) {
 		}
 		spec, err := codec.DecodeAndValidate(
 			testutil.Context(t),
-			resources.ResourceScope{Kind: resources.ResourceScopeKindGlobal},
+			resources.ResourceScope{Kind: resources.ResourceScopeKindUser},
 			raw,
 		)
 		if err != nil {
@@ -206,8 +213,9 @@ func TestBridgeInstanceResourceCodecEnforcesProviderManifestMetadata(t *testing.
 		t.Fatalf("NewBridgeInstanceResourceCodec() error = %v", err)
 	}
 
-	scope := resources.ResourceScope{Kind: resources.ResourceScopeKindGlobal}
+	scope := resources.ResourceScope{Kind: resources.ResourceScopeKindUser}
 	spec, err := codec.DecodeAndValidate(scopeContext(t), scope, []byte(`{
+		"profile_id":"profile-default",
 		"scope":"global",
 		"platform":"telegram",
 		"extension_name":"ext-telegram",
@@ -240,6 +248,7 @@ func TestBridgeInstanceResourceCodecEnforcesProviderManifestMetadata(t *testing.
 		{
 			name: "platform mismatch",
 			raw: []byte(`{
+			"profile_id":"profile-default",
 			"scope":"global",
 			"platform":"slack",
 			"extension_name":"ext-telegram",
@@ -253,6 +262,7 @@ func TestBridgeInstanceResourceCodecEnforcesProviderManifestMetadata(t *testing.
 		{
 			name: "secret slot mismatch",
 			raw: []byte(`{
+			"profile_id":"profile-default",
 			"scope":"global",
 			"platform":"telegram",
 			"extension_name":"ext-telegram",
@@ -267,6 +277,7 @@ func TestBridgeInstanceResourceCodecEnforcesProviderManifestMetadata(t *testing.
 		{
 			name: "config schema mismatch",
 			raw: []byte(`{
+			"profile_id":"profile-default",
 			"scope":"global",
 			"platform":"telegram",
 			"extension_name":"ext-telegram",
@@ -281,6 +292,7 @@ func TestBridgeInstanceResourceCodecEnforcesProviderManifestMetadata(t *testing.
 		{
 			name: "unknown provider",
 			raw: []byte(`{
+			"profile_id":"profile-default",
 			"scope":"global",
 			"platform":"telegram",
 			"extension_name":"missing-provider",
@@ -329,7 +341,7 @@ func TestBridgeResourceBuildComputesDeltaWithoutApplyingSideEffects(t *testing.T
 	records := []resources.Record[bridgepkg.BridgeInstanceSpec]{{
 		ID:        "brg-existing",
 		Version:   7,
-		Scope:     resources.ResourceScope{Kind: resources.ResourceScopeKindGlobal},
+		Scope:     resources.ResourceScope{Kind: resources.ResourceScopeKindUser},
 		Spec:      resourceSpec("Updated", true),
 		CreatedAt: now.Add(-time.Hour),
 		UpdatedAt: now,
@@ -400,7 +412,7 @@ func TestBridgeResourceApplyReturnsReplaceFailure(t *testing.T) {
 		[]resources.Record[bridgepkg.BridgeInstanceSpec]{{
 			ID:        "brg-fail",
 			Version:   1,
-			Scope:     resources.ResourceScope{Kind: resources.ResourceScopeKindGlobal},
+			Scope:     resources.ResourceScope{Kind: resources.ResourceScopeKindUser},
 			Spec:      resourceSpec("Failing", true),
 			CreatedAt: time.Date(2026, 4, 16, 12, 0, 0, 0, time.UTC),
 			UpdatedAt: time.Date(2026, 4, 16, 12, 0, 0, 0, time.UTC),
@@ -519,7 +531,7 @@ func TestBridgeResourceProjectionPlanAccessorsAndRollback(t *testing.T) {
 		[]resources.Record[bridgepkg.BridgeInstanceSpec]{{
 			ID:        "brg-accessor",
 			Version:   17,
-			Scope:     resources.ResourceScope{Kind: resources.ResourceScopeKindGlobal},
+			Scope:     resources.ResourceScope{Kind: resources.ResourceScopeKindUser},
 			Spec:      spec,
 			CreatedAt: now.Add(-time.Hour),
 			UpdatedAt: now,
@@ -592,7 +604,7 @@ func TestBridgeResourceProjectionIgnoresSemanticallyEquivalentJSON(t *testing.T)
 		[]resources.Record[bridgepkg.BridgeInstanceSpec]{{
 			ID:        "brg-json",
 			Version:   9,
-			Scope:     resources.ResourceScope{Kind: resources.ResourceScopeKindGlobal},
+			Scope:     resources.ResourceScope{Kind: resources.ResourceScopeKindUser},
 			Spec:      spec,
 			CreatedAt: now.Add(-time.Hour),
 			UpdatedAt: now,
@@ -666,7 +678,7 @@ func TestBridgeResourceProjectionDetectsLargeJSONNumberChanges(t *testing.T) {
 				[]resources.Record[bridgepkg.BridgeInstanceSpec]{{
 					ID:        "brg-json-number",
 					Version:   10,
-					Scope:     resources.ResourceScope{Kind: resources.ResourceScopeKindGlobal},
+					Scope:     resources.ResourceScope{Kind: resources.ResourceScopeKindUser},
 					Spec:      spec,
 					CreatedAt: now.Add(-time.Hour),
 					UpdatedAt: now,
@@ -690,6 +702,7 @@ func TestBridgeInstanceSpecFromCreateRequestBindsWorkspaceScope(t *testing.T) {
 	t.Parallel()
 
 	request := bridgepkg.CreateInstanceRequest{
+		ProfileID:        "profile-marketing",
 		Scope:            bridgepkg.ScopeWorkspace,
 		WorkspaceID:      "ws-alpha",
 		Platform:         "telegram",
@@ -713,6 +726,9 @@ func TestBridgeInstanceSpecFromCreateRequestBindsWorkspaceScope(t *testing.T) {
 	if strings.TrimSpace(id) == "" {
 		t.Fatalf("BridgeInstanceSpecFromCreateRequest() id is empty")
 	}
+	if got, want := spec.ProfileID, "profile-marketing"; got != want {
+		t.Fatalf("spec.ProfileID = %q, want %q", got, want)
+	}
 	scope := bridgepkg.ResourceScopeForBridge(spec.Scope, spec.WorkspaceID)
 	if got, want := scope.Kind, resources.ResourceScopeKindWorkspace; got != want {
 		t.Fatalf("scope.Kind = %q, want %q", got, want)
@@ -732,6 +748,7 @@ func scopeContext(t *testing.T) context.Context {
 
 func resourceSpec(displayName string, enabled bool) bridgepkg.BridgeInstanceSpec {
 	return bridgepkg.BridgeInstanceSpec{
+		ProfileID:        store.DefaultProfileID,
 		Scope:            bridgepkg.ScopeGlobal,
 		Platform:         "telegram",
 		ExtensionName:    "ext-telegram",
@@ -751,7 +768,10 @@ type projectionStore struct {
 	replaceErr   error
 }
 
-func (s *projectionStore) ListBridgeInstances(context.Context) ([]bridgepkg.BridgeInstance, error) {
+func (s *projectionStore) ListBridgeInstances(
+	context.Context,
+	store.ReadScope,
+) ([]bridgepkg.BridgeInstance, error) {
 	instances := make([]bridgepkg.BridgeInstance, 0, len(s.instances))
 	for _, instance := range s.instances {
 		instances = append(instances, cloneBridgeInstanceForTest(instance))

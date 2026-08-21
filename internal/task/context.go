@@ -1,9 +1,14 @@
 package task
 
-import "time"
+import (
+	"time"
+
+	"github.com/compozy/compozy/internal/store"
+)
 
 // ContextRequest identifies the active lease context one agent session may read.
 type ContextRequest struct {
+	ProfileID string    `json:"profile_id"`
 	SessionID string    `json:"session_id"`
 	RunID     string    `json:"run_id,omitempty"`
 	Now       time.Time `json:"now"`
@@ -11,8 +16,9 @@ type ContextRequest struct {
 
 // OperatorTaskContextRequest identifies the task context an operator read path may request.
 type OperatorTaskContextRequest struct {
-	TaskID string    `json:"task_id"`
-	Now    time.Time `json:"now"`
+	ReadScope store.ReadScope `json:"read_scope"`
+	TaskID    string          `json:"task_id"`
+	Now       time.Time       `json:"now"`
 }
 
 // RuntimeLimits reports the runtime limits relevant to one task context bundle.

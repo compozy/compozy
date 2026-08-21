@@ -220,7 +220,7 @@ function KnowledgeCreateDialog({
             <WorkspaceScopeStatement
               destination={destinationLabel}
               kind="create"
-              scope={scope === "global" ? "global" : "workspace"}
+              scope={scope === "profile" ? "global" : "workspace"}
               variant="note"
             />
           }

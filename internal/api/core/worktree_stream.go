@@ -95,6 +95,7 @@ func (h *BaseHandlers) StreamWorktree(c *gin.Context) {
 		return
 	}
 	query := store.EventSummaryQuery{
+		ReadScope:   store.ReadScope{AllProfiles: true},
 		WorkspaceID: scope.RegistryID, WorktreeID: worktreeID, AfterSequence: afterSequence, Limit: worktreeReplayLimit,
 	}
 	afterSequence, ok = h.replayWorktreeEvents(c, writer, query)
@@ -136,7 +137,7 @@ func (h *BaseHandlers) replayWorktreeEvents(
 			if event.Sequence <= cursor {
 				continue
 			}
-			payload := event.Content
+			payload := event.ContentValue()
 			if len(payload) == 0 {
 				payload = json.RawMessage("{}")
 			}

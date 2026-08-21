@@ -131,7 +131,7 @@ func lookupSessionSnapshot(ctx context.Context, lookup SessionLookup, creds Cred
 		)
 	}
 	snapshot = normalizeSessionSnapshot(snapshot)
-	if snapshot.ID == "" || snapshot.State != session.StateActive {
+	if snapshot.ID == "" || snapshot.ProfileID == "" || snapshot.State != session.StateActive {
 		return SessionSnapshot{}, identityError(
 			ErrIdentityStale,
 			"identity_stale",

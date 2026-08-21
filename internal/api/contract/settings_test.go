@@ -17,16 +17,16 @@ func TestSettingsMutationResultsJSONShape(t *testing.T) {
 	}{
 		{
 			name: "ShouldOmitOptionalFieldsForGlobalSectionMutations",
-			input: SettingsGlobalSectionMutationResult{
+			input: SettingsUserSectionMutationResult{
 				Section:         SettingsSectionGeneral,
-				Scope:           SettingsGlobalScope,
+				Scope:           SettingsUserScope,
 				Behavior:        SettingsMutationBehaviorRestartRequired,
 				Applied:         false,
 				RestartRequired: true,
 			},
 			wantPresent: map[string]any{
 				"section":          string(SettingsSectionGeneral),
-				"scope":            string(SettingsGlobalScope),
+				"scope":            string(SettingsUserScope),
 				"behavior":         string(SettingsMutationBehaviorRestartRequired),
 				"applied":          false,
 				"restart_required": true,
@@ -62,9 +62,9 @@ func TestSettingsMutationResultsJSONShape(t *testing.T) {
 		},
 		{
 			name: "ShouldKeepGlobalCollectionMutationsAgentFree",
-			input: SettingsGlobalCollectionMutationResult{
+			input: SettingsUserCollectionMutationResult{
 				Section:         SettingsCollectionProviders,
-				Scope:           SettingsGlobalScope,
+				Scope:           SettingsUserScope,
 				WriteTarget:     SettingsWriteTargetGlobalConfig,
 				Behavior:        SettingsMutationBehaviorRestartRequired,
 				Applied:         false,
@@ -72,7 +72,7 @@ func TestSettingsMutationResultsJSONShape(t *testing.T) {
 			},
 			wantPresent: map[string]any{
 				"section":          string(SettingsCollectionProviders),
-				"scope":            string(SettingsGlobalScope),
+				"scope":            string(SettingsUserScope),
 				"write_target":     string(SettingsWriteTargetGlobalConfig),
 				"behavior":         string(SettingsMutationBehaviorRestartRequired),
 				"applied":          false,
@@ -82,9 +82,9 @@ func TestSettingsMutationResultsJSONShape(t *testing.T) {
 		},
 		{
 			name: "ShouldPreserveWorkspaceMetadataForScopedCollectionMutations",
-			input: SettingsGlobalWorkspaceCollectionMutationResult{
+			input: SettingsLayeredCollectionMutationResult{
 				Section:         SettingsCollectionMCPServers,
-				Scope:           SettingsWorkspaceScopeWorkspace,
+				Scope:           SettingsLayeredScopeWorkspace,
 				WriteTarget:     SettingsWriteTargetWorkspaceMCPSidecar,
 				WorkspaceID:     "ws-alpha",
 				Behavior:        SettingsMutationBehaviorAppliedNow,
@@ -94,7 +94,7 @@ func TestSettingsMutationResultsJSONShape(t *testing.T) {
 			},
 			wantPresent: map[string]any{
 				"section":          string(SettingsCollectionMCPServers),
-				"scope":            string(SettingsWorkspaceScopeWorkspace),
+				"scope":            string(SettingsLayeredScopeWorkspace),
 				"write_target":     string(SettingsWriteTargetWorkspaceMCPSidecar),
 				"workspace_id":     "ws-alpha",
 				"behavior":         string(SettingsMutationBehaviorAppliedNow),

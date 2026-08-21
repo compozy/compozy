@@ -1,6 +1,7 @@
 package core
 
 import (
+	"context"
 	"errors"
 
 	"strings"
@@ -8,6 +9,32 @@ import (
 	"github.com/compozy/compozy/internal/api/contract"
 	automationpkg "github.com/compozy/compozy/internal/automation"
 )
+
+func updateAutomationJob(
+	ctx context.Context,
+	manager AutomationManager,
+	current automationpkg.Job,
+	req contract.UpdateJobRequest,
+) (automationpkg.Job, error) {
+	if current.Source == automationpkg.JobSourceConfig || current.Source == automationpkg.JobSourcePackage {
+		if err := validateManagedJobUpdate(req); err != nil {
+			return automationpkg.Job{}, NewAutomationValidationError(err)
+		}
+		return manager.SetJobEnabled(ctx, current.ID, *req.Enabled)
+	}
+
+	next, err := applyJobPatch(current, req)
+	if err != nil {
+		return automationpkg.Job{}, NewAutomationValidationError(err)
+	}
+	if err := next.Validate("job"); err != nil {
+		return automationpkg.Job{}, NewAutomationValidationError(err)
+	}
+	if err := automationpkg.ValidateJobAgentName(next, "job"); err != nil {
+		return automationpkg.Job{}, NewAutomationValidationError(err)
+	}
+	return manager.UpdateJob(ctx, next)
+}
 
 // AutomationJobFromCreateRequest converts the shared create payload into the
 // canonical automation job model.

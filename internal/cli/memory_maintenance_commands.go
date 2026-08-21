@@ -160,8 +160,8 @@ func newMemoryPromoteCommand(deps commandDeps) *cobra.Command {
 		},
 	}
 	addMemorySelectorFlags(cmd, &flags)
-	cmd.Flags().StringVar(&fromRaw, "from", "", "Source scope: global, workspace, agent:workspace, or agent:global")
-	cmd.Flags().StringVar(&toRaw, "to", "", "Destination scope: global, workspace, agent:workspace, or agent:global")
+	cmd.Flags().StringVar(&fromRaw, "from", "", "Source scope: profile, workspace, agent:workspace, or agent:global")
+	cmd.Flags().StringVar(&toRaw, "to", "", "Destination scope: profile, workspace, agent:workspace, or agent:global")
 	cmd.Flags().BoolVar(&dryRun, "dry-run", false, "Ask for a promotion decision without applying it")
 	mustMarkFlagRequired(cmd, "from")
 	mustMarkFlagRequired(cmd, "to")

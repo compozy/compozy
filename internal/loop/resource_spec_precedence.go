@@ -8,18 +8,33 @@ import (
 	"github.com/compozy/compozy/internal/resources"
 )
 
+// ResourceLens selects the four resource layers visible to one active profile
+// inside one workspace.
+type ResourceLens struct {
+	WorkspaceID string
+	ProfileID   string
+	ProfileName string
+}
+
+// Normalize returns the canonical resource selection lens.
+func (l ResourceLens) Normalize() ResourceLens {
+	return ResourceLens{
+		WorkspaceID: strings.TrimSpace(l.WorkspaceID),
+		ProfileID:   strings.TrimSpace(l.ProfileID),
+		ProfileName: strings.TrimSpace(l.ProfileName),
+	}
+}
+
 // ResolveEffectiveResources overlays records for one read scope using loop precedence.
 func ResolveEffectiveResources(
 	records []resources.Record[ResourceSpec],
-	workspaceID string,
+	lens ResourceLens,
 ) []resources.Record[ResourceSpec] {
+	lens = lens.Normalize()
 	effective := map[string]resources.Record[ResourceSpec]{}
 	for _, record := range records {
 		scope := record.Scope.Normalize()
-		if scope.Kind == resources.ResourceScopeKindWorkspace && scope.ID != strings.TrimSpace(workspaceID) {
-			continue
-		}
-		if scope.Kind != resources.ResourceScopeKindGlobal && scope.Kind != resources.ResourceScopeKindWorkspace {
+		if !loopResourceScopeMatches(scope, lens) {
 			continue
 		}
 		name := strings.TrimSpace(record.Spec.Name)
@@ -36,6 +51,22 @@ func ResolveEffectiveResources(
 		resolved = append(resolved, effective[name])
 	}
 	return resolved
+}
+
+func loopResourceScopeMatches(scope resources.ResourceScope, lens ResourceLens) bool {
+	switch scope.Kind {
+	case resources.ResourceScopeKindUser:
+		return true
+	case resources.ResourceScopeKindProfile:
+		return lens.ProfileID != "" && scope.ID == lens.ProfileID
+	case resources.ResourceScopeKindWorkspace:
+		return lens.WorkspaceID != "" && scope.ID == lens.WorkspaceID
+	case resources.ResourceScopeKindWorkspaceProfile:
+		return lens.WorkspaceID != "" && lens.ProfileName != "" &&
+			scope.ID == lens.WorkspaceID+"@pf:"+lens.ProfileName
+	default:
+		return false
+	}
 }
 
 func compareLoopRecordPrecedence(
@@ -58,8 +89,13 @@ func compareLoopRecordPrecedence(
 
 func loopRecordPrecedenceRank(record resources.Record[ResourceSpec]) int {
 	rank := record.Spec.Source.PrecedenceRank()
-	if record.Scope.Normalize().Kind == resources.ResourceScopeKindWorkspace {
+	switch record.Scope.Normalize().Kind {
+	case resources.ResourceScopeKindProfile:
 		rank += 100
+	case resources.ResourceScopeKindWorkspace:
+		rank += 200
+	case resources.ResourceScopeKindWorkspaceProfile:
+		rank += 300
 	}
 	return rank
 }

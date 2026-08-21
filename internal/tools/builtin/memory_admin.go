@@ -405,7 +405,7 @@ func memoryAdminSchema(required []string, properties string) string {
 	return builder.String()
 }
 
-const memoryAdminSelectorProperties = `"scope":{"type":"string","enum":["","global","workspace","agent"]}` +
+const memoryAdminSelectorProperties = `"scope":{"type":"string","enum":["","profile","workspace","agent"]}` +
 	`,"workspace":{"type":"string"}` +
 	`,"agent_name":{"type":"string"}` +
 	`,"agent_tier":{"type":"string","enum":["","workspace","global"]}`

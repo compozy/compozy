@@ -35,6 +35,7 @@ func (g *NetworkRepo) normalizeDirectRoomEntry(
 		)
 	}
 	normalized := store.NetworkDirectRoomEntry{
+		ProfileID:      strings.TrimSpace(entry.ProfileID),
 		WorkspaceID:    strings.TrimSpace(entry.WorkspaceID),
 		Channel:        strings.TrimSpace(entry.Channel),
 		DirectID:       directID,
@@ -60,6 +61,7 @@ func (g *NetworkRepo) normalizeConversationMessage(
 ) (store.NetworkConversationMessage, error) {
 	normalized := store.NetworkConversationMessage{
 		MessageID:   strings.TrimSpace(entry.MessageID),
+		ProfileID:   strings.TrimSpace(entry.ProfileID),
 		SessionID:   strings.TrimSpace(entry.SessionID),
 		WorkspaceID: strings.TrimSpace(entry.WorkspaceID),
 		Channel:     strings.TrimSpace(entry.Channel),
@@ -111,6 +113,7 @@ func resolveDirectRoomWithExecutor(
 	entry store.NetworkDirectRoomEntry,
 ) (store.NetworkDirectRoomSummary, bool, error) {
 	rowsAffected, err := sqlcgen.New(exec).InsertNetworkDirectRoom(ctx, sqlcgen.InsertNetworkDirectRoomParams{
+		ProfileID:   entry.ProfileID,
 		WorkspaceID: entry.WorkspaceID, Channel: entry.Channel, DirectID: entry.DirectID,
 		SessionA: entry.SessionA, SessionB: entry.SessionB,
 		OpenedAt:       store.FormatTimestamp(entry.OpenedAt),
@@ -190,6 +193,27 @@ func insertNetworkTimelineMessageWithExecutor(
 	exec networkSQLExecutor,
 	entry store.NetworkConversationMessage,
 ) (bool, int64, error) {
+	var channelProfileID string
+	if err := exec.QueryRowContext(
+		ctx,
+		`SELECT profile_id FROM network_channels WHERE workspace_id = ? AND channel = ?`,
+		entry.WorkspaceID,
+		entry.Channel,
+	).Scan(&channelProfileID); errors.Is(err, sql.ErrNoRows) {
+		return false, 0, fmt.Errorf("%w: %s/%s", store.ErrNetworkChannelNotFound, entry.WorkspaceID, entry.Channel)
+	} else if err != nil {
+		return false, 0, fmt.Errorf("store: resolve network channel owner: %w", err)
+	}
+	if channelProfileID != entry.ProfileID {
+		return false, 0, fmt.Errorf(
+			"%w: network channel %s/%s belongs to profile %q, message belongs to %q",
+			store.ErrNetworkChannelNotFound,
+			entry.WorkspaceID,
+			entry.Channel,
+			channelProfileID,
+			entry.ProfileID,
+		)
+	}
 	result, err := sqlcgen.New(exec).InsertNetworkTimelineMessage(
 		ctx,
 		sqlcgen.InsertNetworkTimelineMessageParams{
@@ -287,6 +311,7 @@ func ensureNetworkThreadWithExecutor(
 	entry store.NetworkConversationMessage,
 ) (bool, error) {
 	rowsAffected, err := sqlcgen.New(exec).InsertNetworkThread(ctx, sqlcgen.InsertNetworkThreadParams{
+		ProfileID:   entry.ProfileID,
 		WorkspaceID: entry.WorkspaceID, Channel: entry.Channel, ThreadID: entry.ThreadID,
 		RootMessageID: entry.MessageID, Title: entry.PreviewText, OpenedByPeerID: entry.PeerFrom,
 		OpenedSessionID: entry.SessionID, OpenedAt: store.FormatTimestamp(entry.Timestamp),
@@ -325,6 +350,7 @@ func ensureNetworkDirectRoomWithExecutor(
 		)
 	}
 	_, opened, err := resolveDirectRoomWithExecutor(ctx, exec, store.NetworkDirectRoomEntry{
+		ProfileID:      entry.ProfileID,
 		WorkspaceID:    entry.WorkspaceID,
 		Channel:        entry.Channel,
 		DirectID:       directID,

@@ -6,6 +6,8 @@ import (
 	"fmt"
 	"strings"
 	"time"
+
+	"github.com/compozy/compozy/internal/store"
 )
 
 var (
@@ -56,6 +58,12 @@ func (s DeliveryLedgerState) Validate() error {
 // DeliveryLedgerRecord is the checkpoint-only durable identity and state of one delivery.
 type DeliveryLedgerRecord struct {
 	DeliveryID       string              `json:"delivery_id"`
+	ProfileID        string              `json:"profile_id"`
+	ProfileName      string              `json:"profile_name,omitempty"`
+	ProfileColor     string              `json:"profile_color,omitempty"`
+	ProfileIcon      string              `json:"profile_icon,omitempty"`
+	ProfileEmoji     string              `json:"profile_emoji,omitempty"`
+	ProfileArchived  bool                `json:"profile_archived,omitempty"`
 	SessionID        string              `json:"session_id"`
 	TurnID           string              `json:"turn_id"`
 	RoutingKey       RoutingKey          `json:"routing_key"`
@@ -239,6 +247,7 @@ func (r DeliveryMetricRecord) Validate() error {
 
 // DeliveryLedgerQuery scopes ledger and metric reads without an instance join.
 type DeliveryLedgerQuery struct {
+	ReadScope        store.ReadScope     `json:"-"`
 	Scope            Scope               `json:"scope"`
 	WorkspaceID      string              `json:"workspace_id,omitempty"`
 	BridgeInstanceID string              `json:"bridge_instance_id,omitempty"`
@@ -259,6 +268,9 @@ func (q DeliveryLedgerQuery) Canonicalize() (DeliveryLedgerQuery, error) {
 
 // Validate reports whether a query has one exact global or workspace scope.
 func (q DeliveryLedgerQuery) Validate() error {
+	if err := q.ReadScope.Validate(); err != nil {
+		return fmt.Errorf("bridges: invalid delivery ledger profile read scope: %w", err)
+	}
 	if err := ValidateScopeWorkspaceID(q.Scope, q.WorkspaceID); err != nil {
 		return err
 	}

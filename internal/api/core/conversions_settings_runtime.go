@@ -10,13 +10,13 @@ import (
 	settingspkg "github.com/compozy/compozy/internal/settings"
 )
 
-func settingsGlobalScopeKindsPayload(scopes []settingspkg.ScopeKind) []contract.SettingsGlobalScopeKind {
+func settingsUserScopeKindsPayload(scopes []settingspkg.ScopeKind) []contract.SettingsUserScopeKind {
 	if len(scopes) == 0 {
 		return nil
 	}
-	payloads := make([]contract.SettingsGlobalScopeKind, 0, len(scopes))
+	payloads := make([]contract.SettingsUserScopeKind, 0, len(scopes))
 	for _, scope := range scopes {
-		payloads = append(payloads, contract.SettingsGlobalScopeKind(scope))
+		payloads = append(payloads, contract.SettingsUserScopeKind(scope))
 	}
 	return payloads
 }
@@ -33,6 +33,19 @@ func settingsAgentScopeKindsPayload(scopes []settingspkg.ScopeKind) []contract.S
 }
 
 func settingsWorkspaceScopeKindsPayload(
+	scopes []settingspkg.ScopeKind,
+) []contract.SettingsLayeredScopeKind {
+	if len(scopes) == 0 {
+		return nil
+	}
+	payloads := make([]contract.SettingsLayeredScopeKind, 0, len(scopes))
+	for _, scope := range scopes {
+		payloads = append(payloads, contract.SettingsLayeredScopeKind(scope))
+	}
+	return payloads
+}
+
+func settingsUserWorkspaceScopeKindsPayload(
 	scopes []settingspkg.ScopeKind,
 ) []contract.SettingsWorkspaceScopeKind {
 	if len(scopes) == 0 {

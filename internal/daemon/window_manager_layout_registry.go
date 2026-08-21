@@ -69,14 +69,14 @@ func (r *windowManagerLayoutRegistry) List(
 		if workspaceScoped && scope.ID != wantedWorkspace {
 			continue
 		}
-		if !workspaceScoped && scope.Kind != resources.ResourceScopeKindGlobal {
+		if !workspaceScoped && scope.Kind != resources.ResourceScopeKindUser {
 			return nil, fmt.Errorf("window layout resource %q has invalid scope %q", record.ID, scope.Kind)
 		}
 		if record.ID != record.Spec.ID {
 			return nil, fmt.Errorf("window layout resource ID %q does not match spec ID %q", record.ID, record.Spec.ID)
 		}
 		current, exists := selected[record.Spec.ID]
-		if !exists || (workspaceScoped && current.Scope.Normalize().Kind == resources.ResourceScopeKindGlobal) {
+		if !exists || (workspaceScoped && current.Scope.Normalize().Kind == resources.ResourceScopeKindUser) {
 			selected[record.Spec.ID] = record
 		}
 	}

@@ -8,6 +8,7 @@ import (
 	apicontract "github.com/compozy/compozy/internal/api/contract"
 	automationpkg "github.com/compozy/compozy/internal/automation"
 	extensioncontract "github.com/compozy/compozy/internal/extension/contract"
+	"github.com/compozy/compozy/internal/store"
 )
 
 func (h *HostAPIHandler) handleAutomationJobs(ctx context.Context, raw json.RawMessage) (any, error) {
@@ -25,8 +26,13 @@ func (h *HostAPIHandler) handleAutomationJobs(ctx context.Context, raw json.RawM
 	if err != nil {
 		return nil, err
 	}
+	profileID, err := hostAPIProfileID(ctx)
+	if err != nil {
+		return nil, err
+	}
 
 	query := automationpkg.JobListQuery{
+		ReadScope:   store.ReadScope{ProfileID: profileID},
 		Scope:       params.Scope,
 		WorkspaceID: workspaceID,
 		Enabled:     params.Enabled,
@@ -70,8 +76,13 @@ func (h *HostAPIHandler) handleAutomationTriggers(ctx context.Context, raw json.
 	if err != nil {
 		return nil, err
 	}
+	profileID, err := hostAPIProfileID(ctx)
+	if err != nil {
+		return nil, err
+	}
 
 	query := automationpkg.TriggerListQuery{
+		ReadScope:   store.ReadScope{ProfileID: profileID},
 		Scope:       params.Scope,
 		WorkspaceID: workspaceID,
 		Event:       strings.TrimSpace(params.Event),

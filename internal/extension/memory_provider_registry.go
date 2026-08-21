@@ -298,12 +298,14 @@ func (r *MemoryProviderRegistry) recordCollision(
 	if err != nil {
 		return fmt.Errorf("extension: encode memory provider collision: %w", err)
 	}
-	return r.eventWriter.WriteEventSummary(ctx, store.EventSummary{
+	summary := store.EventSummary{
+		ProfileID: store.DefaultProfileID,
 		Type:      memoryProviderCollisionEvent,
-		Content:   content,
 		Summary:   memoryProviderCollisionSummary,
 		Timestamp: occurredAt,
-	})
+	}
+	summary.SetContent(content)
+	return r.eventWriter.WriteEventSummary(ctx, summary)
 }
 
 func (r *MemoryProviderRegistry) checkContext(ctx context.Context) error {

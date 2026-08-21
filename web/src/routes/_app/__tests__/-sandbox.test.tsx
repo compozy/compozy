@@ -33,7 +33,7 @@ const localEnv: SettingsSandboxEntry = {
   },
   source_metadata: {
     available_targets: ["global-config"],
-    effective_source: { kind: "global-config", scope: "global" },
+    effective_source: { kind: "global-config", scope: "user" },
   },
 };
 
@@ -48,7 +48,7 @@ const builtinEnv: SettingsSandboxEntry = {
   },
   source_metadata: {
     available_targets: ["global-config"],
-    effective_source: { kind: "builtin-provider", scope: "global" },
+    effective_source: { kind: "builtin-provider", scope: "user" },
   },
 };
 

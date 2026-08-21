@@ -19,6 +19,7 @@ type NotificationTargetPayload struct {
 // NotificationPresetPayload is the shared HTTP/UDS notification preset shape.
 type NotificationPresetPayload struct {
 	Name                   string                      `json:"name"`
+	Profile                string                      `json:"profile"`
 	Events                 []string                    `json:"events"`
 	Targets                []NotificationTargetPayload `json:"targets"`
 	Filter                 string                      `json:"filter,omitempty"`
@@ -44,13 +45,25 @@ type NotificationPresetResponse struct {
 	Preset NotificationPresetPayload `json:"preset"`
 }
 
+// SetNotificationPresetEnablementRequest changes one profile's effective state.
+type SetNotificationPresetEnablementRequest struct {
+	Profile string `json:"profile"`
+	Enabled bool   `json:"enabled"`
+}
+
+// NotificationPresetEnablementPayload confirms one profile's effective state.
+type NotificationPresetEnablementPayload struct {
+	Name    string `json:"name"`
+	Profile string `json:"profile"`
+	Enabled bool   `json:"enabled"`
+}
+
 // CreateNotificationPresetRequest creates one preset.
 type CreateNotificationPresetRequest struct {
 	Name    string                      `json:"name"`
 	Events  []string                    `json:"events"`
 	Targets []NotificationTargetPayload `json:"targets"`
 	Filter  string                      `json:"filter,omitempty"`
-	Enabled bool                        `json:"enabled"`
 }
 
 // UpdateNotificationPresetRequest mutates one preset.
@@ -58,7 +71,6 @@ type UpdateNotificationPresetRequest struct {
 	Events  *[]string                    `json:"events,omitempty"`
 	Targets *[]NotificationTargetPayload `json:"targets,omitempty"`
 	Filter  *string                      `json:"filter,omitempty"`
-	Enabled *bool                        `json:"enabled,omitempty"`
 }
 
 // ToCreatePreset converts the transport create shape into the domain request.
@@ -68,16 +80,14 @@ func (r CreateNotificationPresetRequest) ToCreateRequest() presetspkg.CreateRequ
 		Events:  append([]string(nil), r.Events...),
 		Targets: notificationTargetsFromPayloads(r.Targets),
 		Filter:  strings.TrimSpace(r.Filter),
-		Enabled: r.Enabled,
 	}
 }
 
 // ToUpdateRequest converts the transport patch shape into the domain request.
 func (r UpdateNotificationPresetRequest) ToUpdateRequest() presetspkg.UpdateRequest {
 	update := presetspkg.UpdateRequest{
-		Events:  r.Events,
-		Filter:  r.Filter,
-		Enabled: r.Enabled,
+		Events: r.Events,
+		Filter: r.Filter,
 	}
 	if r.Targets != nil {
 		targets := notificationTargetsFromPayloads(*r.Targets)
@@ -87,10 +97,14 @@ func (r UpdateNotificationPresetRequest) ToUpdateRequest() presetspkg.UpdateRequ
 }
 
 // NotificationPresetPayloadFromDomain converts a preset into a transport payload.
-func NotificationPresetPayloadFromDomain(preset presetspkg.Preset) NotificationPresetPayload {
+func NotificationPresetPayloadFromDomain(
+	preset presetspkg.Preset,
+	profileName string,
+) NotificationPresetPayload {
 	normalized := preset.Normalize()
 	return NotificationPresetPayload{
 		Name:                   normalized.Name,
+		Profile:                strings.TrimSpace(profileName),
 		Events:                 append([]string(nil), normalized.Events...),
 		Targets:                notificationTargetPayloadsFromDomain(normalized.Targets),
 		Filter:                 normalized.Filter,

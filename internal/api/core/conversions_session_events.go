@@ -134,6 +134,12 @@ func TokenUsagePayloadFromUsage(usage *acp.TokenUsage) *contract.TokenUsagePaylo
 func LogEventPayloadFromSummary(event store.EventSummary) contract.LogEventPayload {
 	return contract.LogEventPayload{
 		ID:               event.ID,
+		ProfileID:        event.ProfileID,
+		ProfileName:      event.ProfileName,
+		ProfileColor:     event.ProfileColor,
+		ProfileIcon:      event.ProfileIcon,
+		ProfileEmoji:     event.ProfileEmoji,
+		ProfileArchived:  event.ProfileArchived,
 		SessionID:        event.SessionID,
 		WorkspaceID:      event.WorkspaceID,
 		Type:             event.Type,
@@ -141,7 +147,7 @@ func LogEventPayloadFromSummary(event store.EventSummary) contract.LogEventPaylo
 		Provider:         event.Provider,
 		Component:        eventspkg.ComponentFor(event.Type),
 		Outcome:          logEventOutcome(event),
-		Content:          ssepkg.ScrubMemoryContextBytes(append([]byte(nil), event.Content...)),
+		Content:          ssepkg.ScrubMemoryContextBytes(event.ContentValue()),
 		EventCorrelation: event.Normalize(),
 		ParentSessionID:  event.ParentSessionID,
 		RootSessionID:    event.RootSessionID,

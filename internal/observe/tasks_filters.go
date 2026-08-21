@@ -47,7 +47,9 @@ func (o *Observer) liveSessionIDs(ctx context.Context) (map[string]struct{}, err
 		return live, nil
 	}
 
-	sessions, err := o.registry.ListSessions(ctx, store.SessionListQuery{})
+	sessions, err := o.registry.ListSessions(ctx, store.SessionListQuery{
+		ReadScope: store.ReadScope{AllProfiles: true},
+	})
 	if err != nil {
 		return nil, fmt.Errorf("observe: list sessions for task health: %w", err)
 	}

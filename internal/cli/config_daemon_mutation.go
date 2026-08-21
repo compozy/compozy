@@ -112,7 +112,7 @@ func maybeReloadConfigAfterLocalWrite(
 	target compozyconfig.WriteTarget,
 	record configSetRecord,
 ) (*configSetRecord, error) {
-	if target.Scope() != compozyconfig.WriteScopeGlobal {
+	if target.Scope() != compozyconfig.WriteScopeUser {
 		return nil, nil
 	}
 	client, running, err := daemonClientIfRunning(ctx, deps)
@@ -128,17 +128,19 @@ func maybeReloadConfigAfterLocalWrite(
 	}
 	record.Lifecycle = string(result.Lifecycle)
 	record.ApplyRecordID = result.ApplyRecordID
-	record.Applied = result.Applied
 	record.ActiveGeneration = result.ActiveGeneration
 	record.ActiveConfigHash = result.ActiveConfigHash
-	record.NextAction = string(result.NextAction)
+	if record.Status != configStatusOverridden {
+		record.Applied = result.Applied
+		record.NextAction = string(result.NextAction)
+	}
 	record.RestartRequired = result.RestartRequired
 	record.RestartScope = result.RestartScope
 	return &record, nil
 }
 
 func supportsDaemonManagedConfigSet(path []string, target compozyconfig.WriteTarget) bool {
-	if target.Scope() != compozyconfig.WriteScopeGlobal {
+	if target.Scope() != compozyconfig.WriteScopeUser {
 		return false
 	}
 	if len(path) == 2 && path[0] == configSkillsKey && path[1] == agentDisabledSkillsKey {

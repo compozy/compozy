@@ -12,8 +12,9 @@ import (
 )
 
 type structuralCatalog struct {
-	Commands []structuralCommand `json:"commands"`
-	Sources  []SourceStatus      `json:"sources"`
+	ProfileLens ProfileLens         `json:"profile_lens"`
+	Commands    []structuralCommand `json:"commands"`
+	Sources     []SourceStatus      `json:"sources"`
 }
 
 type structuralCommand struct {
@@ -24,14 +25,24 @@ type structuralCommand struct {
 }
 
 // BindableIDs returns the current workspace catalog ids in deterministic order.
-func (s *Service) BindableIDs(ctx context.Context, workspaceID WorkspaceID) ([]CommandID, error) {
+func (s *Service) BindableIDs(
+	ctx context.Context,
+	profileLens ProfileLens,
+	workspaceID WorkspaceID,
+) ([]CommandID, error) {
 	if ctx == nil {
 		return nil, fmt.Errorf("cmd palette: bindable ids context is required")
 	}
 	if workspaceID == "" {
 		return nil, fmt.Errorf("cmd palette: workspace ID is required")
 	}
-	descriptors, _, _, err := s.collectDescriptors(ctx, workspaceID)
+	if err := profileLens.Validate(); err != nil {
+		return nil, err
+	}
+	descriptors, _, _, err := s.collectDescriptors(ctx, CatalogRequest{
+		ProfileLens: profileLens,
+		WorkspaceID: workspaceID,
+	})
 	if err != nil {
 		return nil, err
 	}
@@ -47,45 +58,77 @@ func (s *Service) BindableIDs(ctx context.Context, workspaceID WorkspaceID) ([]C
 // attached client's context, with commands sorted by id.
 func (s *Service) Catalog(
 	ctx context.Context,
-	workspaceID WorkspaceID,
-	clientID ClientID,
+	request CatalogRequest,
 ) (Catalog, error) {
 	if ctx == nil {
 		return Catalog{}, fmt.Errorf("cmd palette: catalog context is required")
 	}
-	if workspaceID == "" {
+	if request.WorkspaceID == "" {
 		return Catalog{}, fmt.Errorf("cmd palette: workspace ID is required")
 	}
-	descriptors, sources, defaults, err := s.collectDescriptors(ctx, workspaceID)
+	if err := request.ProfileLens.Validate(); err != nil {
+		return Catalog{}, err
+	}
+	descriptors, sources, defaults, err := s.collectDescriptors(ctx, request)
 	if err != nil {
 		return Catalog{}, err
 	}
-	bindings, aliases, err := s.resolveSnapshotBindings(ctx, workspaceID, descriptors, defaults)
+	bindings, aliases, err := s.resolveSnapshotBindings(
+		ctx, request.ProfileLens, request.WorkspaceID, descriptors, defaults,
+	)
 	if err != nil {
 		return Catalog{}, err
 	}
-	globalBindings, err := s.resolveSnapshotGlobalBindings(ctx, workspaceID, descriptors)
+	globalBindings, err := s.resolveSnapshotGlobalBindings(
+		ctx, request.ProfileLens, request.WorkspaceID, descriptors,
+	)
 	if err != nil {
 		return Catalog{}, err
 	}
 	globalStatuses := map[CommandID]GlobalShortcut{}
 	var snapshot *ContextSnapshot
-	if clientID != "" {
+	if request.ClientID != "" {
 		if s.clients == nil {
 			return Catalog{}, ErrNoAttachedShell
 		}
-		resolved, contextErr := s.clients.Context(ctx, workspaceID, clientID)
+		resolved, contextErr := s.clients.Context(ctx, request.WorkspaceID, request.ClientID)
 		if contextErr != nil {
 			return Catalog{}, contextErr
 		}
 		snapshot = &resolved
 		if directory, ok := s.clients.(GlobalShortcutStatusDirectory); ok {
-			globalStatuses, err = directory.GlobalShortcutStatuses(ctx, workspaceID, clientID)
+			globalStatuses, err = directory.GlobalShortcutStatuses(
+				ctx, request.ProfileLens, request.WorkspaceID, request.ClientID,
+			)
 			if err != nil {
 				return Catalog{}, err
 			}
 		}
 	}
+	commands := resolveCatalogCommands(descriptors, bindings, aliases, globalBindings, globalStatuses, snapshot)
+	sort.Slice(commands, func(left, right int) bool { return commands[left].ID < commands[right].ID })
+	revision, err := structuralRevision(request.ProfileLens, commands, sources)
+	if err != nil {
+		return Catalog{}, err
+	}
+	catalog := Catalog{
+		Commands: commands, Sources: sources, Revision: revision,
+		ProfileLens: request.ProfileLens,
+	}
+	if snapshot != nil {
+		catalog.ContextRevision = snapshot.Revision
+	}
+	return catalog, nil
+}
+
+func resolveCatalogCommands(
+	descriptors []Descriptor,
+	bindings map[CommandID][]string,
+	aliases map[CommandID]string,
+	globalBindings map[CommandID]string,
+	globalStatuses map[CommandID]GlobalShortcut,
+	snapshot *ContextSnapshot,
+) []ResolvedCommand {
 	commands := make([]ResolvedCommand, 0, len(descriptors))
 	for _, descriptor := range descriptors {
 		available, reason := resolveAvailability(descriptor, snapshot)
@@ -116,20 +159,12 @@ func (s *Service) Catalog(
 			GlobalShortcut:    globalShortcut,
 		})
 	}
-	sort.Slice(commands, func(left, right int) bool { return commands[left].ID < commands[right].ID })
-	revision, err := structuralRevision(commands, sources)
-	if err != nil {
-		return Catalog{}, err
-	}
-	catalog := Catalog{Commands: commands, Sources: sources, Revision: revision}
-	if snapshot != nil {
-		catalog.ContextRevision = snapshot.Revision
-	}
-	return catalog, nil
+	return commands
 }
 
 func (s *Service) resolveSnapshotGlobalBindings(
 	ctx context.Context,
+	profileLens ProfileLens,
 	workspaceID WorkspaceID,
 	descriptors []Descriptor,
 ) (map[CommandID]string, error) {
@@ -141,7 +176,7 @@ func (s *Service) resolveSnapshotGlobalBindings(
 	for _, descriptor := range descriptors {
 		ids = append(ids, descriptor.ID)
 	}
-	bindings, err := resolver.GlobalBindingsForCatalogSnapshot(ctx, workspaceID, ids)
+	bindings, err := resolver.GlobalBindingsForCatalogSnapshot(ctx, profileLens, workspaceID, ids)
 	if err != nil {
 		return nil, fmt.Errorf("cmd palette: resolve global bindings: %w", err)
 	}
@@ -150,8 +185,11 @@ func (s *Service) resolveSnapshotGlobalBindings(
 
 func (s *Service) collectDescriptors(
 	ctx context.Context,
-	workspaceID WorkspaceID,
+	request CatalogRequest,
 ) ([]Descriptor, []SourceStatus, []ExtensionDefaultShortcut, error) {
+	if err := request.ProfileLens.Validate(); err != nil {
+		return nil, nil, nil, err
+	}
 	commands := make([]Descriptor, 0)
 	sources := make([]SourceStatus, 0, len(s.providers))
 	defaults := make([]ExtensionDefaultShortcut, 0)
@@ -159,7 +197,7 @@ func (s *Service) collectDescriptors(
 	for _, registration := range s.providers {
 		sourceID := registration.Source.ID()
 		if provider, ok := registration.Provider.(ContributionProvider); ok {
-			contribution, err := provider.ProvideContribution(ctx, workspaceID)
+			contribution, err := provider.ProvideContribution(ctx, request)
 			if err != nil {
 				sources = append(sources, SourceStatus{
 					Source: sourceID, Status: SourceDegraded, Reason: err.Error(),
@@ -189,7 +227,7 @@ func (s *Service) collectDescriptors(
 			defaults = append(defaults, contribution.Defaults...)
 			continue
 		}
-		provided, err := registration.Provider.ProvideCommands(ctx, workspaceID)
+		provided, err := registration.Provider.ProvideCommands(ctx, request)
 		if err != nil {
 			sources = append(sources, SourceStatus{Source: sourceID, Status: SourceDegraded, Reason: err.Error()})
 			continue
@@ -216,6 +254,7 @@ func (s *Service) collectDescriptors(
 // ExtensionDefaults returns the active and dormant extension shortcut claims in enable order.
 func (s *Service) ExtensionDefaults(
 	ctx context.Context,
+	profileLens ProfileLens,
 	workspaceID WorkspaceID,
 ) ([]ExtensionDefaultShortcut, error) {
 	if ctx == nil {
@@ -224,13 +263,19 @@ func (s *Service) ExtensionDefaults(
 	if workspaceID == "" {
 		return nil, fmt.Errorf("cmd palette: workspace ID is required")
 	}
+	if err := profileLens.Validate(); err != nil {
+		return nil, err
+	}
 	result := make([]ExtensionDefaultShortcut, 0)
 	for _, registration := range s.providers {
 		provider, ok := registration.Provider.(ContributionProvider)
 		if !ok {
 			continue
 		}
-		contribution, err := provider.ProvideContribution(ctx, workspaceID)
+		contribution, err := provider.ProvideContribution(ctx, CatalogRequest{
+			ProfileLens: profileLens,
+			WorkspaceID: workspaceID,
+		})
 		if err != nil {
 			return nil, err
 		}
@@ -241,12 +286,13 @@ func (s *Service) ExtensionDefaults(
 
 func (s *Service) resolveBindings(
 	ctx context.Context,
+	profileLens ProfileLens,
 	workspaceID WorkspaceID,
 ) (map[CommandID][]string, map[CommandID]string, error) {
 	if s.bindings == nil {
 		return map[CommandID][]string{}, map[CommandID]string{}, nil
 	}
-	bindings, aliases, err := s.bindings.Bindings(ctx, workspaceID)
+	bindings, aliases, err := s.bindings.Bindings(ctx, profileLens, workspaceID)
 	if err != nil {
 		return nil, nil, fmt.Errorf("cmd palette: resolve bindings: %w", err)
 	}
@@ -255,6 +301,7 @@ func (s *Service) resolveBindings(
 
 func (s *Service) resolveSnapshotBindings(
 	ctx context.Context,
+	profileLens ProfileLens,
 	workspaceID WorkspaceID,
 	descriptors []Descriptor,
 	defaults []ExtensionDefaultShortcut,
@@ -264,17 +311,26 @@ func (s *Service) resolveSnapshotBindings(
 		for _, descriptor := range descriptors {
 			ids = append(ids, descriptor.ID)
 		}
-		bindings, aliases, err := resolver.BindingsForCatalogSnapshot(ctx, workspaceID, ids, defaults)
+		bindings, aliases, err := resolver.BindingsForCatalogSnapshot(
+			ctx, profileLens, workspaceID, ids, defaults,
+		)
 		if err != nil {
 			return nil, nil, fmt.Errorf("cmd palette: resolve snapshot bindings: %w", err)
 		}
 		return bindings, aliases, nil
 	}
-	return s.resolveBindings(ctx, workspaceID)
+	return s.resolveBindings(ctx, profileLens, workspaceID)
 }
 
-func structuralRevision(commands []ResolvedCommand, sources []SourceStatus) (string, error) {
-	structural := structuralCatalog{Sources: append([]SourceStatus(nil), sources...)}
+func structuralRevision(
+	profileLens ProfileLens,
+	commands []ResolvedCommand,
+	sources []SourceStatus,
+) (string, error) {
+	structural := structuralCatalog{
+		ProfileLens: profileLens,
+		Sources:     append([]SourceStatus(nil), sources...),
+	}
 	structural.Commands = make([]structuralCommand, 0, len(commands))
 	for _, command := range commands {
 		structural.Commands = append(structural.Commands, structuralCommand{

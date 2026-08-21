@@ -223,6 +223,7 @@ func (g *BridgeRepo) ResolveBridgeRoute(ctx context.Context, key bridges.Routing
 // ListBridgeRoutes returns persisted routes for one bridge instance ordered by recency.
 func (g *BridgeRepo) ListBridgeRoutes(
 	ctx context.Context,
+	readScope store.ReadScope,
 	bridgeInstanceID string,
 ) (routes []bridges.BridgeRoute, err error) {
 	if err := g.checkReady(ctx, "list bridge routes"); err != nil {
@@ -233,18 +234,40 @@ func (g *BridgeRepo) ListBridgeRoutes(
 	if trimmedInstanceID == "" {
 		return nil, errors.New("store: bridge instance id is required")
 	}
-
-	rows, err := g.queries.ListBridgeRoutes(ctx, trimmedInstanceID)
+	if err := readScope.Validate(); err != nil {
+		return nil, fmt.Errorf("store: invalid bridge route read scope: %w", err)
+	}
+	statement := `SELECT br.routing_key_hash, br.scope, br.workspace_id, br.bridge_instance_id,
+		br.peer_id, br.thread_id, br.group_id, br.session_id, br.agent_name,
+		br.last_activity_at, br.created_at, br.updated_at
+		FROM bridge_routes br
+		JOIN bridge_instances bi ON bi.id = br.bridge_instance_id
+		WHERE br.bridge_instance_id = ?`
+	args := []any{trimmedInstanceID}
+	if !readScope.AllProfiles {
+		statement += globalDBBridgeProfileClause
+		args = append(args, readScope.ProfileID)
+	}
+	statement += ` ORDER BY br.updated_at DESC, br.created_at DESC, br.routing_key_hash ASC`
+	rows, err := g.db.QueryContext(ctx, statement, args...)
 	if err != nil {
 		return nil, fmt.Errorf("store: query bridge routes for %q: %w", trimmedInstanceID, err)
 	}
-	routes = make([]bridges.BridgeRoute, 0, len(rows))
-	for _, row := range rows {
-		route, scanErr := bridgeRouteFromGenerated(row)
+	defer func() {
+		if closeErr := rows.Close(); closeErr != nil {
+			err = errors.Join(err, fmt.Errorf("store: close bridge route rows: %w", closeErr))
+		}
+	}()
+	routes = make([]bridges.BridgeRoute, 0)
+	for rows.Next() {
+		route, scanErr := scanBridgeRoute(rows)
 		if scanErr != nil {
 			return nil, scanErr
 		}
 		routes = append(routes, route)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("store: iterate bridge route rows: %w", err)
 	}
 	return routes, nil
 }

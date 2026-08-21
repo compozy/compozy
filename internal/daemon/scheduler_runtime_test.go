@@ -128,7 +128,7 @@ func TestSchedulerTaskSourcePendingRunsShouldExposeOnlyTaskAnchoredGenericWorker
 			t.Fatalf("InsertWorkspace(ws-scheduler) error = %v", err)
 		}
 		if err := db.RegisterSession(ctx, store.SessionInfo{
-			ID: "sess-1", AgentName: "coder", Provider: "test",
+			ProfileID: store.DefaultProfileID, ID: "sess-1", AgentName: "coder", Provider: "test",
 			WorkspaceID: "ws-scheduler", State: "active", CreatedAt: now, UpdatedAt: now,
 			RuntimeStatus: store.SessionRuntimeUnbound,
 		}); err != nil {
@@ -199,7 +199,7 @@ func TestSchedulerTaskSourcePendingRunsShouldExposeOnlyTaskAnchoredGenericWorker
 		}
 
 		if err := db.RegisterSession(ctx, store.SessionInfo{
-			ID: "sess-active", AgentName: "coder", Provider: "test",
+			ProfileID: store.DefaultProfileID, ID: "sess-active", AgentName: "coder", Provider: "test",
 			WorkspaceID: "ws-scheduler", State: "active", CreatedAt: now, UpdatedAt: now,
 			RuntimeStatus: store.SessionRuntimeUnbound,
 		}); err != nil {
@@ -608,6 +608,7 @@ func TestSchedulerTaskSourceLoopCoordinatorBackstopShouldSettleWatchPollFailure(
 			t.Fatalf("failed coordinator persisted unsafe error = %q", failedRun.Error)
 		}
 		events, err := db.ListLoopRunEvents(ctx, looppkg.RunEventQuery{
+			ReadScope:   store.ReadScope{AllProfiles: true},
 			WorkspaceID: created.WorkspaceID,
 			RunID:       created.ID,
 		})
@@ -1008,11 +1009,18 @@ func seedSchedulerNetworkWakeForTest(
 
 	senderSessionID := "sender-" + runID
 	if err := db.RegisterSession(testutil.Context(t), store.SessionInfo{
-		ID: senderSessionID, AgentName: "coder", Provider: "test",
+		ProfileID: store.DefaultProfileID, ID: senderSessionID, AgentName: "coder", Provider: "test",
 		WorkspaceID: workspaceID, State: "active", CreatedAt: now, UpdatedAt: now,
 		RuntimeStatus: store.SessionRuntimeUnbound,
 	}); err != nil {
 		t.Fatalf("RegisterSession(%q) error = %v", senderSessionID, err)
+	}
+	if err := db.WriteNetworkChannel(testutil.Context(t), store.NetworkChannelEntry{
+		ProfileID: store.DefaultProfileID, WorkspaceID: workspaceID, Channel: "operations",
+		Purpose: "Scheduler wake fixture", FanoutPolicy: store.NetworkFanoutPolicyAllMembers,
+		CreatedAt: now, UpdatedAt: now,
+	}); err != nil {
+		t.Fatalf("WriteNetworkChannel(operations) error = %v", err)
 	}
 	directID, _, _, err := store.NetworkDirectRoomIdentity(
 		workspaceID,
@@ -1023,9 +1031,9 @@ func seedSchedulerNetworkWakeForTest(
 	if err != nil {
 		t.Fatalf("NetworkDirectRoomIdentity(%q) error = %v", runID, err)
 	}
-	result, err := db.AcceptNetworkMessage(testutil.Context(t), store.AcceptNetworkMessageRequest{
+	result, err := db.AcceptNetworkMessage(testutil.Context(t), &store.AcceptNetworkMessageRequest{
 		Message: store.NetworkConversationMessage{
-			MessageID: "message-" + runID, SessionID: senderSessionID,
+			ProfileID: store.DefaultProfileID, MessageID: "message-" + runID, SessionID: senderSessionID,
 			WorkspaceID: workspaceID, Channel: "operations",
 			Surface: store.NetworkSurfaceDirect, DirectID: directID,
 			Direction: "sent", PeerFrom: senderSessionID, PeerTo: targetSessionID,

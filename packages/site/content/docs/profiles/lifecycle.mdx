@@ -1,0 +1,69 @@
+---
+title: Manage the profile lifecycle
+description: Create, rename, archive, recover, and safely delete profiles through local daemon-owned surfaces.
+---
+
+Create a profile with a lowercase name that starts with a letter and contains only letters, digits, and
+hyphens. `default`, `all`, and `global` are reserved. Omitted identity fields are assigned by the daemon,
+and the CLI activates the new profile for the current workspace or Global lens.
+
+```bash
+compozy profile create marketing --color '#FF7F3A' --icon megaphone
+compozy profile update marketing --emoji '🚀'
+```
+
+`--icon` and `--emoji` are alternatives. Identity updates also work while a profile is archived.
+
+## Planned mutations
+
+Rename, archive, and delete are plan-based changes. The CLI first reads a plan, displays its effects when
+confirmation is needed, then submits the returned `plan_revision`. The daemon rejects a stale plan instead
+of applying effects that were not previewed.
+
+```bash
+compozy profile rename dev eng --repos none
+compozy profile archive finance
+compozy profile unarchive finance
+compozy profile delete scratch --yes
+```
+
+Rename moves daemon-owned profile state and rewrites matching `vault:profiles/<name>/...` references.
+Repository `.compozy/profiles/<name>/` folders are renamed only when selected with `--repos`; otherwise
+they remain dormant and can become active if that old profile name is created again.
+
+Archive preserves owned work. It blocks while sessions are running or other guarded work is in flight,
+pauses active automations, and freezes queued runs. Unarchive makes the profile selectable again and
+restores frozen work; automations that were paused stay paused until explicitly enabled.
+
+Delete is intentionally narrower than archive. It succeeds only when the profile owns no work, presents a
+complete removal summary, sweeps remembered selections, and frees the name. `default` cannot be renamed,
+archived, or deleted. Structured and non-interactive deletion requires `--yes`.
+
+## Recover lifecycle operations
+
+Durable multi-step work appears in `compozy profile ops`. A failed operation keeps its step and error for
+inspection; retry it by operation ID:
+
+```bash
+compozy profile ops
+compozy profile ops retry <op-id>
+```
+
+Normal lifecycle events are `profile.created`, `profile.identity_updated`, `profile.renamed`,
+`profile.archived`, `profile.unarchived`, `profile.deleted`, and `profile.selection_changed`. Recovery and
+conflict paths emit `profile.lifecycle_op_recovered`, `profile.lifecycle_op_failed`, and
+`profile.plan_stale`. Event payloads do not contain secret references.
+
+## API boundary
+
+HTTP and UDS mount the same `/api/profiles` route set, including selection, plans, and operation recovery.
+Remote HTTP surfaces may read the profile catalog and selections, but writes return `403` with
+`profile_remote_management_forbidden`. Perform lifecycle changes through a local CLI, desktop, HTTP, or
+UDS connection.
+
+## Related
+
+[Create your first profile](/docs/profiles/quickstart) covers creation in context.
+[Profile files](/docs/configuration/file-locations#profile-files) lists the folders a rename moves,
+and [`compozy profile`](/docs/cli/profile) plus the [Profiles API](/docs/api/profiles) carry the
+exact flags, routes, and payloads.

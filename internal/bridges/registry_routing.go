@@ -5,6 +5,8 @@ import (
 
 	"errors"
 	"fmt"
+
+	"github.com/compozy/compozy/internal/store"
 )
 
 // BuildRoutingKey canonicalizes the supplied routing identity under the owning instance policy.
@@ -14,7 +16,7 @@ func (s *Service) BuildRoutingKey(ctx context.Context, key RoutingKey) (RoutingK
 	}
 
 	bridgeID := key.BridgeInstanceID
-	instance, err := s.store.GetBridgeInstance(ctx, bridgeID)
+	instance, err := s.store.GetBridgeInstance(ctx, store.ReadScope{AllProfiles: true}, bridgeID)
 	if err != nil {
 		return RoutingKey{}, fmt.Errorf("bridges: build routing key for %q: load bridge instance: %w", bridgeID, err)
 	}
@@ -146,14 +148,23 @@ func (s *Service) UpsertRoute(ctx context.Context, route BridgeRoute) (*BridgeRo
 
 // ListRoutes returns the persisted routes owned by one bridge instance.
 func (s *Service) ListRoutes(ctx context.Context, bridgeInstanceID string) ([]BridgeRoute, error) {
+	return s.ListRoutesScoped(ctx, store.ReadScope{AllProfiles: true}, bridgeInstanceID)
+}
+
+// ListRoutesScoped returns bridge routes visible through one explicit profile lens.
+func (s *Service) ListRoutesScoped(
+	ctx context.Context,
+	readScope store.ReadScope,
+	bridgeInstanceID string,
+) ([]BridgeRoute, error) {
 	if err := s.checkReady(ctx, "list bridge routes"); err != nil {
 		return nil, err
 	}
 
-	if _, err := s.store.GetBridgeInstance(ctx, bridgeInstanceID); err != nil {
+	if _, err := s.store.GetBridgeInstance(ctx, store.ReadScope{AllProfiles: true}, bridgeInstanceID); err != nil {
 		return nil, fmt.Errorf("bridges: list bridge routes for %q: load bridge instance: %w", bridgeInstanceID, err)
 	}
-	routes, err := s.store.ListBridgeRoutes(ctx, bridgeInstanceID)
+	routes, err := s.store.ListBridgeRoutes(ctx, readScope, bridgeInstanceID)
 	if err != nil {
 		return nil, fmt.Errorf("bridges: list bridge routes for %q: %w", bridgeInstanceID, err)
 	}

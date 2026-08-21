@@ -21,7 +21,7 @@ func TestSkillResourceCodecRejectsInvalidSpecs(t *testing.T) {
 	if err != nil {
 		t.Fatalf("NewResourceCodec() error = %v", err)
 	}
-	scope := resources.ResourceScope{Kind: resources.ResourceScopeKindGlobal}
+	scope := resources.ResourceScope{Kind: resources.ResourceScopeKindUser}
 
 	tests := []struct {
 		name    string
@@ -129,7 +129,7 @@ func TestSkillResourceCodecRejectsSecretLikeLiteralMCPEnv(t *testing.T) {
 		}
 		_, err = codec.DecodeAndValidate(
 			context.Background(),
-			resources.ResourceScope{Kind: resources.ResourceScopeKindGlobal},
+			resources.ResourceScope{Kind: resources.ResourceScopeKindUser},
 			raw,
 		)
 		if err == nil {
@@ -199,7 +199,7 @@ func TestSkillResourceCodecPreservesProvenanceAndSidecarMCP(t *testing.T) {
 	}
 	decoded, err := codec.DecodeAndValidate(
 		context.Background(),
-		resources.ResourceScope{Kind: resources.ResourceScopeKindGlobal},
+		resources.ResourceScope{Kind: resources.ResourceScopeKindUser},
 		raw,
 	)
 	if err != nil {
@@ -335,7 +335,7 @@ func TestResourceAuthorityKeepsFilesystemDiscoveryNonAuthoritative(t *testing.T)
 		Kind: SkillResourceKind,
 		ID:   "global:resource-backed",
 		Scope: resources.ResourceScope{
-			Kind: resources.ResourceScopeKindGlobal,
+			Kind: resources.ResourceScopeKindUser,
 		},
 		Spec: SkillResourceSpec{
 			Name:        "resource-backed",
@@ -375,7 +375,7 @@ func TestResourceAuthorityProjectsWorkspaceSkills(t *testing.T) {
 			Kind: SkillResourceKind,
 			ID:   "global:global-skill",
 			Scope: resources.ResourceScope{
-				Kind: resources.ResourceScopeKindGlobal,
+				Kind: resources.ResourceScopeKindUser,
 			},
 			Spec: SkillResourceSpec{
 				Name:        "global-skill",

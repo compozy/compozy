@@ -213,11 +213,12 @@ func newTaskRunListCommand(deps commandDeps) *cobra.Command {
 		"Filter by resolved Network participation channel",
 	)
 	cmd.Flags().IntVar(&last, "last", 0, "Show only the most recent N runs")
+	configureProfileReadCommand(cmd, deps)
 	return cmd
 }
 
 func newTaskRunShowCommand(deps commandDeps) *cobra.Command {
-	return &cobra.Command{
+	cmd := &cobra.Command{
 		Use:   "show <run-id>",
 		Short: "Show a task run",
 		Args:  exactOneNonBlankArg(),
@@ -234,6 +235,8 @@ func newTaskRunShowCommand(deps commandDeps) *cobra.Command {
 			return writeCommandOutput(cmd, taskRunDetailBundle(&detail))
 		},
 	}
+	configureProfileReadCommand(cmd, deps)
+	return cmd
 }
 
 func newTaskRunEnqueueCommand(deps commandDeps) *cobra.Command {

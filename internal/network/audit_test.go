@@ -49,6 +49,7 @@ func TestNormalizeAuditEntryRejectsRejectedWithoutReason(t *testing.T) {
 	t.Parallel()
 
 	_, err := NormalizeAuditEntry(
+		store.DefaultProfileID,
 		"sess-audit",
 		AuditDirectionRejected,
 		testAuditEnvelope(t),
@@ -74,7 +75,9 @@ func TestAuditWriterNormalizesRecordsConsistentlyAcrossSinks(t *testing.T) {
 	recordingTime := time.Date(2026, 4, 10, 12, 0, 0, 0, time.UTC)
 	writer.now = func() time.Time { return recordingTime }
 
-	if err := writer.RecordReceived(context.Background(), "sess-audit", testAuditEnvelope(t)); err != nil {
+	if err := writer.RecordReceived(
+		context.Background(), store.DefaultProfileID, "sess-audit", testAuditEnvelope(t),
+	); err != nil {
 		t.Fatalf("RecordReceived() error = %v", err)
 	}
 
@@ -112,6 +115,7 @@ func TestAuditWriterCommittedSentUsesOnlyTheFileSink(t *testing.T) {
 
 	if err := writer.RecordCommittedSent(
 		context.Background(),
+		store.DefaultProfileID,
 		"sess-audit",
 		testAuditEnvelope(t),
 	); err != nil {
@@ -145,10 +149,14 @@ func TestAuditWriterRecordSentAndRejected(t *testing.T) {
 		return time.Date(2026, 4, 10, 12, 0, 0, 0, time.UTC)
 	}
 
-	if err := writer.RecordSent(context.Background(), "sess-audit", testAuditEnvelope(t)); err != nil {
+	if err := writer.RecordSent(
+		context.Background(), store.DefaultProfileID, "sess-audit", testAuditEnvelope(t),
+	); err != nil {
 		t.Fatalf("RecordSent() error = %v", err)
 	}
-	if err := writer.RecordRejected(context.Background(), "sess-audit", testAuditEnvelope(t), "not_found"); err != nil {
+	if err := writer.RecordRejected(
+		context.Background(), store.DefaultProfileID, "sess-audit", testAuditEnvelope(t), "not_found",
+	); err != nil {
 		t.Fatalf("RecordRejected() error = %v", err)
 	}
 
@@ -175,7 +183,9 @@ func TestAuditWriterRecordsDeliveredDirection(t *testing.T) {
 			t.Fatalf("NewAuditWriter() error = %v", err)
 		}
 
-		if err := writer.RecordDelivered(context.Background(), "sess-audit", testAuditEnvelope(t)); err != nil {
+		if err := writer.RecordDelivered(
+			context.Background(), store.DefaultProfileID, "sess-audit", testAuditEnvelope(t),
+		); err != nil {
 			t.Fatalf("RecordDelivered() error = %v", err)
 		}
 		if got, want := len(storeSink.entries), 1; got != want {
@@ -202,7 +212,9 @@ func TestAuditWriterDoesNotPersistTimelineMessages(t *testing.T) {
 			return time.Date(2026, 4, 10, 12, 0, 0, 0, time.UTC)
 		}
 
-		if err := writer.RecordSent(context.Background(), "sess-audit", testSayAuditEnvelope(t)); err != nil {
+		if err := writer.RecordSent(
+			context.Background(), store.DefaultProfileID, "sess-audit", testSayAuditEnvelope(t),
+		); err != nil {
 			t.Fatalf("RecordSent() error = %v", err)
 		}
 		if got, want := len(storeSink.entries), 1; got != want {
@@ -227,6 +239,7 @@ func TestAuditWriterRecordsCapabilityTransfersAsCapabilityAudits(t *testing.T) {
 
 		if err := writer.RecordReceived(
 			context.Background(),
+			store.DefaultProfileID,
 			"sess-audit",
 			testCapabilityAuditEnvelope(t),
 		); err != nil {
@@ -274,13 +287,13 @@ func TestAuditWriterRecordsRepeatedGreetHeartbeatsOnlyAsAuditRows(t *testing.T) 
 		second := testGreetAuditEnvelope(t, recordedAt.Add(30*time.Second), "msg_greet_02", "")
 		third := testGreetAuditEnvelope(t, recordedAt.Add(2*time.Minute), "msg_greet_03", "")
 
-		if err := writer.RecordSent(context.Background(), "sess-audit", first); err != nil {
+		if err := writer.RecordSent(context.Background(), store.DefaultProfileID, "sess-audit", first); err != nil {
 			t.Fatalf("RecordSent(first greet) error = %v", err)
 		}
-		if err := writer.RecordSent(context.Background(), "sess-audit", second); err != nil {
+		if err := writer.RecordSent(context.Background(), store.DefaultProfileID, "sess-audit", second); err != nil {
 			t.Fatalf("RecordSent(second greet) error = %v", err)
 		}
-		if err := writer.RecordSent(context.Background(), "sess-audit", third); err != nil {
+		if err := writer.RecordSent(context.Background(), store.DefaultProfileID, "sess-audit", third); err != nil {
 			t.Fatalf("RecordSent(third greet) error = %v", err)
 		}
 
@@ -301,7 +314,7 @@ func TestAuditWriterReturnsAuditStoreFailures(t *testing.T) {
 			t.Fatalf("NewAuditWriter() error = %v", err)
 		}
 
-		err = writer.RecordSent(context.Background(), "sess-audit", testSayAuditEnvelope(t))
+		err = writer.RecordSent(context.Background(), store.DefaultProfileID, "sess-audit", testSayAuditEnvelope(t))
 		if !errors.Is(err, storeErr) {
 			t.Fatalf("RecordSent() error = %v, want wrapped store error", err)
 		}
@@ -325,6 +338,7 @@ func TestAuditWriterRecordTaskIngress(t *testing.T) {
 		}
 
 		if err := writer.RecordTaskIngress(context.Background(), TaskIngressAudit{
+			ProfileID:   store.DefaultProfileID,
 			WorkspaceID: testWorkspaceID,
 			Action:      "task.enqueue",
 			Direction:   AuditDirectionRejected,
@@ -364,6 +378,7 @@ func TestAuditWriterRecordTaskIngress(t *testing.T) {
 		writer := &FileAuditWriter{}
 
 		err := writer.RecordTaskIngress(context.Background(), TaskIngressAudit{
+			ProfileID:   store.DefaultProfileID,
 			WorkspaceID: testWorkspaceID,
 			Action:      "task.enqueue",
 			Direction:   AuditDirectionRejected,
@@ -382,6 +397,7 @@ func TestAuditWriterRecordTaskIngress(t *testing.T) {
 		writer := &FileAuditWriter{store: storeSink}
 
 		if err := writer.RecordTaskIngress(context.Background(), TaskIngressAudit{
+			ProfileID:   store.DefaultProfileID,
 			WorkspaceID: testWorkspaceID,
 			Action:      "task.enqueue",
 			Direction:   AuditDirectionRejected,
@@ -404,6 +420,7 @@ func TestAuditWriterRecordTaskIngress(t *testing.T) {
 		writer := &FileAuditWriter{store: &recordingAuditStore{}}
 
 		err := writer.RecordTaskIngress(context.Background(), TaskIngressAudit{
+			ProfileID: store.DefaultProfileID,
 			Direction: AuditDirectionRejected,
 			PeerID:    "reviewer.sess-ops",
 			Channel:   "ops",
@@ -432,6 +449,7 @@ func TestAuditWriterRecordTaskIngress(t *testing.T) {
 		}
 
 		err := writer.RecordTaskIngress(context.Background(), TaskIngressAudit{
+			ProfileID:   store.DefaultProfileID,
 			WorkspaceID: testWorkspaceID,
 			Action:      "task.enqueue",
 			Direction:   AuditDirectionRejected,
@@ -465,7 +483,9 @@ func TestAuditWriterAllowsFileOnlySinksWithoutTimelineNormalization(t *testing.T
 			t.Fatalf("NewAuditWriter() error = %v", err)
 		}
 
-		if err := writer.RecordSent(context.Background(), "sess-audit", testInvalidSayAuditEnvelope(t)); err != nil {
+		if err := writer.RecordSent(
+			context.Background(), store.DefaultProfileID, "sess-audit", testInvalidSayAuditEnvelope(t),
+		); err != nil {
 			t.Fatalf("RecordSent(file-only invalid say) error = %v", err)
 		}
 

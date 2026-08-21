@@ -99,6 +99,7 @@ func (m *Manager) joinNetworkPeerWithBinding(
 		ctx,
 		newNetworkPeerJoin(
 			info.ID,
+			info.ProfileID,
 			networkPeerID(info.AgentName, info.ID),
 			info.WorkspaceID,
 			firstTrimmedNonEmpty(info.Name, info.AgentName),

@@ -124,6 +124,7 @@ export const SecretBindingRecovery: Story = {
     <BridgeCreateDialogHarness
       secretRecovery={{
         bridgeId: "brg_launch_room",
+        profileName: "default",
         bound: ["signing_secret"],
         failures: { bot_token: "Vault is unavailable. The value was not stored." },
         provider: bridgeProvidersFixture[0],

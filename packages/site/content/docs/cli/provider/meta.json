@@ -1,4 +1,4 @@
 {
     "title": "Provider",
-    "pages": ["index", "list", "auth", "models"]
+    "pages": ["index", "inspect", "list", "auth", "models"]
 }

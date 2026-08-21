@@ -31,6 +31,7 @@ func TestGlobalDBSessionLineagePersistsAfterReopenAndFilters(t *testing.T) {
 		ttl := now.Add(90 * time.Minute)
 
 		if err := globalDB.RegisterSession(ctx, SessionInfo{
+			ProfileID:     store.DefaultProfileID,
 			ID:            "sess-root",
 			AgentName:     "coder",
 			Provider:      "claude",
@@ -44,6 +45,7 @@ func TestGlobalDBSessionLineagePersistsAfterReopenAndFilters(t *testing.T) {
 			t.Fatalf("RegisterSession(root) error = %v", err)
 		}
 		if err := globalDB.RegisterSession(ctx, SessionInfo{
+			ProfileID:     store.DefaultProfileID,
 			ID:            "sess-child",
 			AgentName:     "coder",
 			Provider:      "claude",
@@ -94,6 +96,7 @@ func TestGlobalDBSessionLineagePersistsAfterReopenAndFilters(t *testing.T) {
 		})
 
 		spawned, err := reopened.ListSessions(ctx, SessionListQuery{
+			ReadScope:       store.ReadScope{ProfileID: store.DefaultProfileID},
 			SessionType:     "spawned",
 			RootSessionID:   "sess-root",
 			ParentSessionID: "sess-root",
@@ -131,7 +134,11 @@ func TestGlobalDBSessionLineagePersistsAfterReopenAndFilters(t *testing.T) {
 			t.Fatalf("policy tools = %#v, want stable policy atoms", got)
 		}
 
-		roots, err := reopened.ListSessions(ctx, SessionListQuery{SessionType: "user", RootSessionID: "sess-root"})
+		roots, err := reopened.ListSessions(ctx, SessionListQuery{
+			ReadScope:     store.ReadScope{ProfileID: store.DefaultProfileID},
+			SessionType:   "user",
+			RootSessionID: "sess-root",
+		})
 		if err != nil {
 			t.Fatalf("ListSessions(root filter) error = %v", err)
 		}
@@ -189,7 +196,10 @@ func TestGlobalDBSessionLineagePersistsAfterReopenAndFilters(t *testing.T) {
 		if err != nil {
 			t.Fatalf("upgrade through 00066 error = %v", err)
 		}
-		children, err := upgraded.ListSessions(ctx, SessionListQuery{ID: "sess-notify-child"})
+		children, err := upgraded.ListSessions(ctx, SessionListQuery{
+			ReadScope: store.ReadScope{ProfileID: store.DefaultProfileID},
+			ID:        "sess-notify-child",
+		})
 		if err != nil {
 			t.Fatalf("ListSessions(after migration) error = %v", err)
 		}
@@ -220,7 +230,10 @@ func TestGlobalDBSessionLineagePersistsAfterReopenAndFilters(t *testing.T) {
 				t.Errorf("close reopened database error = %v", closeErr)
 			}
 		})
-		children, err = reopened.ListSessions(ctx, SessionListQuery{ID: "sess-notify-child"})
+		children, err = reopened.ListSessions(ctx, SessionListQuery{
+			ReadScope: store.ReadScope{ProfileID: store.DefaultProfileID},
+			ID:        "sess-notify-child",
+		})
 		if err != nil {
 			t.Fatalf("ListSessions(after reopen) error = %v", err)
 		}

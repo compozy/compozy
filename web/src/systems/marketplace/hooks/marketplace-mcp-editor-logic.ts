@@ -2,7 +2,7 @@ import { createStoreLogic } from "@xstate/store";
 
 import { notifyUser } from "@/lib/user-feedback";
 
-import type { MCPConfigScope } from "./marketplace-mcp-scope";
+import type { SettingsLayeredScope } from "@/systems/settings";
 import type {
   MCPDraft,
   SettingsMCPServerEntry,
@@ -12,21 +12,22 @@ import type {
 
 export type MarketplaceMCPEditorState =
   | { mode: "closed" }
-  | {
+  | (MarketplaceMCPEditorScopeContext & {
       draft: MCPDraft;
       mode: "create";
-      scope: MCPConfigScope;
-      target: SettingsMCPServerTarget;
-      workspaceId?: string;
-    }
-  | {
+    })
+  | (MarketplaceMCPEditorScopeContext & {
       draft: MCPDraft;
       entry: SettingsMCPServerEntry;
       mode: "edit";
-      scope: MCPConfigScope;
-      target: SettingsMCPServerTarget;
-      workspaceId?: string;
-    };
+    });
+
+export interface MarketplaceMCPEditorScopeContext {
+  scope: SettingsLayeredScope;
+  target: SettingsMCPServerTarget;
+  workspaceId?: string;
+  profileName?: string;
+}
 
 export type MarketplaceMCPEditorFlow = {
   editor: MarketplaceMCPEditorState;

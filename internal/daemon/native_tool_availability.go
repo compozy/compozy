@@ -21,6 +21,7 @@ type nativeToolAvailabilitySet struct {
 	networkRead          toolspkg.NativeAvailabilityFunc
 	networkUsage         toolspkg.NativeAvailabilityFunc
 	sessions             toolspkg.NativeAvailabilityFunc
+	profiles             toolspkg.NativeAvailabilityFunc
 	sessionOrchestration toolspkg.NativeAvailabilityFunc
 	sessionWait          toolspkg.NativeAvailabilityFunc
 	sessionSpawn         toolspkg.NativeAvailabilityFunc
@@ -77,6 +78,7 @@ func (n *daemonNativeTools) baseNativeToolAvailability() nativeToolAvailabilityS
 func (n *daemonNativeTools) coreNativeToolAvailability() nativeToolAvailabilitySet {
 	return nativeToolAvailabilitySet{
 		registry: n.registryAvailability(),
+		profiles: n.dependencyAvailability(func() bool { return n.deps.Profiles != nil }),
 		cmdPalette: n.dependencyAvailability(func() bool {
 			return n.cmdPaletteRegistry() != nil
 		}),

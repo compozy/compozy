@@ -2,7 +2,6 @@ package testutil
 
 import (
 	"context"
-	"database/sql"
 	"errors"
 
 	core "github.com/compozy/compozy/internal/api/core"
@@ -58,8 +57,18 @@ type StubNetworkStore struct {
 		store.NetworkConversationRef,
 		store.NetworkConversationMessageQuery,
 	) ([]store.NetworkConversationMessage, error)
-	GetWorkFn                       func(context.Context, string, string) (store.NetworkWorkEntry, error)
-	GetNetworkChannelFn             func(context.Context, store.NetworkChannelRef) (store.NetworkChannelEntry, error)
+	GetWorkFn                 func(context.Context, string, string) (store.NetworkWorkEntry, error)
+	GetNetworkChannelFn       func(context.Context, store.NetworkChannelRef) (store.NetworkChannelEntry, error)
+	GetNetworkChannelScopedFn func(
+		context.Context, store.ReadScope, store.NetworkChannelRef,
+	) (store.NetworkChannelEntry, error)
+	GetThreadScopedFn func(
+		context.Context, store.ReadScope, store.NetworkChannelRef, string,
+	) (store.NetworkThreadSummary, error)
+	GetDirectRoomScopedFn func(
+		context.Context, store.ReadScope, store.NetworkChannelRef, string,
+	) (store.NetworkDirectRoomSummary, error)
+	GetWorkScopedFn                 func(context.Context, store.ReadScope, string, string) (store.NetworkWorkEntry, error)
 	ListNetworkChannelsFn           func(context.Context, store.NetworkChannelQuery) ([]store.NetworkChannelEntry, error)
 	ListNetworkChannelProjectionsFn func(
 		context.Context,
@@ -75,7 +84,7 @@ type StubNetworkStore struct {
 	) ([]store.NetworkRecentSummary, error)
 	CreateNetworkChannelFn func(context.Context, store.NetworkChannelEntry) error
 	WriteNetworkChannelFn  func(context.Context, store.NetworkChannelEntry) error
-	PatchNetworkChannelFn  func(context.Context, store.NetworkChannelRef, store.NetworkChannelPatch) error
+	PatchNetworkChannelFn  func(context.Context, store.ReadScope, store.NetworkChannelRef, store.NetworkChannelPatch) error
 	DeleteNetworkChannelFn func(context.Context, store.NetworkChannelRef) error
 	WriteNetworkAuditFn    func(context.Context, store.NetworkAuditEntry) error
 	ListNetworkAuditFn     func(context.Context, store.NetworkAuditQuery) ([]store.NetworkAuditEntry, error)
@@ -174,26 +183,6 @@ func (s StubNetworkStore) ListNetworkAudit(
 	return nil, nil
 }
 
-func (s StubNetworkStore) GetNetworkChannel(
-	ctx context.Context,
-	ref store.NetworkChannelRef,
-) (store.NetworkChannelEntry, error) {
-	if s.GetNetworkChannelFn != nil {
-		return s.GetNetworkChannelFn(ctx, ref)
-	}
-	return store.NetworkChannelEntry{}, sql.ErrNoRows
-}
-
-func (s StubNetworkStore) ListNetworkChannels(
-	ctx context.Context,
-	query store.NetworkChannelQuery,
-) ([]store.NetworkChannelEntry, error) {
-	if s.ListNetworkChannelsFn != nil {
-		return s.ListNetworkChannelsFn(ctx, query)
-	}
-	return nil, nil
-}
-
 func (s StubNetworkStore) ListNetworkChannelProjections(
 	ctx context.Context,
 	query store.NetworkChannelProjectionQuery,
@@ -246,13 +235,14 @@ func (s StubNetworkStore) CreateNetworkChannel(
 
 func (s StubNetworkStore) PatchNetworkChannel(
 	ctx context.Context,
+	readScope store.ReadScope,
 	ref store.NetworkChannelRef,
 	patch store.NetworkChannelPatch,
 ) error {
 	if s.PatchNetworkChannelFn != nil {
-		return s.PatchNetworkChannelFn(ctx, ref, patch)
+		return s.PatchNetworkChannelFn(ctx, readScope, ref, patch)
 	}
-	entry, err := s.GetNetworkChannel(ctx, ref)
+	entry, err := s.GetNetworkChannel(ctx, readScope, ref)
 	if err != nil {
 		return err
 	}
@@ -297,17 +287,6 @@ func (s StubNetworkStore) ListThreads(
 	return store.NetworkThreadPage{Limit: query.Normalize().Limit}, nil
 }
 
-func (s StubNetworkStore) GetThread(
-	ctx context.Context,
-	ref store.NetworkChannelRef,
-	threadID string,
-) (store.NetworkThreadSummary, error) {
-	if s.GetThreadFn != nil {
-		return s.GetThreadFn(ctx, ref, threadID)
-	}
-	return store.NetworkThreadSummary{}, store.ErrNetworkConversationNotFound
-}
-
 func (s StubNetworkStore) ListThreadParticipants(
 	ctx context.Context,
 	ref store.NetworkChannelRef,
@@ -350,17 +329,6 @@ func (s StubNetworkStore) ListDirectRooms(
 	return store.NetworkDirectRoomPage{Limit: query.Normalize().Limit}, nil
 }
 
-func (s StubNetworkStore) GetDirectRoom(
-	ctx context.Context,
-	ref store.NetworkChannelRef,
-	directID string,
-) (store.NetworkDirectRoomSummary, error) {
-	if s.GetDirectRoomFn != nil {
-		return s.GetDirectRoomFn(ctx, ref, directID)
-	}
-	return store.NetworkDirectRoomSummary{}, store.ErrNetworkConversationNotFound
-}
-
 func (s StubNetworkStore) ListConversationMessages(
 	ctx context.Context,
 	ref store.NetworkConversationRef,
@@ -370,17 +338,6 @@ func (s StubNetworkStore) ListConversationMessages(
 		return s.ListConversationMessagesFn(ctx, ref, query)
 	}
 	return nil, nil
-}
-
-func (s StubNetworkStore) GetWork(
-	ctx context.Context,
-	workspaceID string,
-	workID string,
-) (store.NetworkWorkEntry, error) {
-	if s.GetWorkFn != nil {
-		return s.GetWorkFn(ctx, workspaceID, workID)
-	}
-	return store.NetworkWorkEntry{}, store.ErrNetworkConversationNotFound
 }
 
 func (s StubNetworkStore) ListNetworkMessages(

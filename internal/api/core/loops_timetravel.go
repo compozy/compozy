@@ -18,6 +18,9 @@ func (h *BaseHandlers) DiffLoopRun(c *gin.Context) {
 	if !ok {
 		return
 	}
+	if !h.requireLoopRunProfile(c, service, false) {
+		return
+	}
 	query := looppkg.DiffQuery{AgainstRunID: looppkg.RunID(strings.TrimSpace(c.Query("against_run")))}
 	var err error
 	query.Generation, err = parseLoopGenerationQuery(c.Query("generation"))
@@ -41,6 +44,9 @@ func (h *BaseHandlers) DiffLoopRun(c *gin.Context) {
 func (h *BaseHandlers) RerunLoopRun(c *gin.Context) {
 	service, ok := h.requireLoopService(c)
 	if !ok {
+		return
+	}
+	if !h.requireLoopRunProfile(c, service, true) {
 		return
 	}
 	var request contract.RerunLoopRequest
@@ -67,6 +73,9 @@ func (h *BaseHandlers) RerunLoopRun(c *gin.Context) {
 func (h *BaseHandlers) ForkLoopRun(c *gin.Context) {
 	service, ok := h.requireLoopService(c)
 	if !ok {
+		return
+	}
+	if !h.requireLoopRunProfile(c, service, true) {
 		return
 	}
 	var request contract.ForkLoopRequest

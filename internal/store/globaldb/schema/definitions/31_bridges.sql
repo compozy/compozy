@@ -7,6 +7,7 @@ CREATE TABLE bridge_ingest_dedup (
 
 CREATE TABLE bridge_instances (
 		id                TEXT PRIMARY KEY,
+		profile_id        TEXT NOT NULL REFERENCES profiles(id),
 		scope             TEXT NOT NULL,
 		workspace_id      TEXT REFERENCES workspaces(id) ON DELETE CASCADE,
 		platform          TEXT NOT NULL,
@@ -184,6 +185,9 @@ CREATE INDEX idx_bridge_delivery_metrics_scope
 			ON bridge_delivery_metrics(scope, workspace_id, updated_at, bridge_instance_id);
 
 CREATE INDEX idx_bridge_instances_scope ON bridge_instances(scope, workspace_id, id);
+
+CREATE INDEX idx_bridge_instances_profile_catalog
+			ON bridge_instances(profile_id, display_name, created_at, id);
 
 CREATE INDEX idx_bridge_routes_instance ON bridge_routes(bridge_instance_id, updated_at DESC);
 

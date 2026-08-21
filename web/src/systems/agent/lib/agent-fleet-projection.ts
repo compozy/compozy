@@ -11,6 +11,8 @@ export interface AgentFleetRowModel {
   meta: string;
   cardCategory: string | null;
   cardOrigin: string;
+  layer: string;
+  shadowLayers: string[];
   ariaLabel: string;
   hasDiagnostics: boolean;
   sessionsAvailable: boolean;
@@ -24,6 +26,25 @@ export interface AgentFleetSessionSignals {
 
 export function formatAgentOriginLabel(origin: AgentPayload["origin"]): string {
   return origin === "workspace" ? "Workspace" : "Global";
+}
+
+export function formatAgentLayer(agent: AgentPayload): string {
+  const originLayers: Record<AgentPayload["origin"], string> = {
+    global: "user",
+    workspace: "project",
+  };
+  return agent.layer?.trim() || originLayers[agent.origin];
+}
+
+export function agentShadowLayers(agent: AgentPayload): string[] {
+  return Array.from(
+    new Set(
+      (agent.shadows ?? []).flatMap(shadow => {
+        const layer = shadow.layer.trim();
+        return layer ? [layer] : [];
+      })
+    )
+  );
 }
 
 /** Middle-truncate long category joins while preserving first and last segments. */
@@ -98,6 +119,8 @@ export function projectAgentFleetRows(input: {
       meta: formatAgentFleetMeta(agent),
       cardCategory: formatAgentFleetCardCategory(agent),
       cardOrigin: formatAgentOriginLabel(agent.origin),
+      layer: formatAgentLayer(agent),
+      shadowLayers: agentShadowLayers(agent),
       ariaLabel: formatAgentFleetAriaLabel(agent, signals, input.sessionsAvailable),
       hasDiagnostics: Array.isArray(agent.diagnostics) && agent.diagnostics.length > 0,
       sessionsAvailable: input.sessionsAvailable,

@@ -115,19 +115,19 @@ func requireResourceValidationErrorContains(t *testing.T, err error, want string
 func TestResourceSpecShouldResolveLoopPrecedence(t *testing.T) {
 	t.Parallel()
 
-	t.Run("Should prefer workspace records over global and user over marketplace", func(t *testing.T) {
+	t.Run("Should prefer workspace records over user and marketplace records", func(t *testing.T) {
 		t.Parallel()
 
 		records := []resources.Record[loop.ResourceSpec]{
 			loopRecord(
 				"market",
-				resources.ResourceScope{Kind: resources.ResourceScopeKindGlobal},
+				resources.ResourceScope{Kind: resources.ResourceScopeKindUser},
 				loop.SourceMarketplace,
 				2,
 			),
 			loopRecord(
 				"user",
-				resources.ResourceScope{Kind: resources.ResourceScopeKindGlobal},
+				resources.ResourceScope{Kind: resources.ResourceScopeKindUser},
 				loop.SourceUser,
 				3,
 			),
@@ -154,7 +154,7 @@ func TestResourceSpecShouldResolveLoopPrecedence(t *testing.T) {
 			records[idx].Spec.Name = "delivery-loop"
 		}
 
-		resolved := loop.ResolveEffectiveResources(records, "ws-1")
+		resolved := loop.ResolveEffectiveResources(records, loop.ResourceLens{WorkspaceID: "ws-1"})
 		if got, want := len(resolved), 1; got != want {
 			t.Fatalf("len(ResolveEffectiveResources()) = %d, want %d", got, want)
 		}
@@ -162,9 +162,49 @@ func TestResourceSpecShouldResolveLoopPrecedence(t *testing.T) {
 			t.Fatalf("resolved[0].ID = %q, want %q", got, want)
 		}
 
-		global := loop.ResolveEffectiveResources(records, "")
-		if got, want := global[0].ID, "user"; got != want {
-			t.Fatalf("global resolved ID = %q, want %q", got, want)
+		unscoped := loop.ResolveEffectiveResources(records, loop.ResourceLens{})
+		if got, want := unscoped[0].ID, "user"; got != want {
+			t.Fatalf("unscoped resolved ID = %q, want %q", got, want)
+		}
+	})
+
+	t.Run("Should isolate profile layers and apply four-layer precedence", func(t *testing.T) {
+		t.Parallel()
+
+		records := []resources.Record[loop.ResourceSpec]{
+			loopRecord("user", resources.ResourceScope{Kind: resources.ResourceScopeKindUser}, loop.SourceWorkspace, 1),
+			loopRecord("marketing-profile", resources.ResourceScope{
+				Kind: resources.ResourceScopeKindProfile, ID: "profile-marketing",
+			}, loop.SourceMarketplace, 1),
+			loopRecord("engineering-profile", resources.ResourceScope{
+				Kind: resources.ResourceScopeKindProfile, ID: "profile-engineering",
+			}, loop.SourceWorkspace, 1),
+			loopRecord("workspace", resources.ResourceScope{
+				Kind: resources.ResourceScopeKindWorkspace, ID: "ws-1",
+			}, loop.SourceMarketplace, 1),
+			loopRecord("marketing-workspace-profile", resources.ResourceScope{
+				Kind: resources.ResourceScopeKindWorkspaceProfile, ID: "ws-1@pf:marketing",
+			}, loop.SourceMarketplace, 1),
+			loopRecord("engineering-workspace-profile", resources.ResourceScope{
+				Kind: resources.ResourceScopeKindWorkspaceProfile, ID: "ws-1@pf:engineering",
+			}, loop.SourceWorkspace, 1),
+		}
+		for idx := range records {
+			records[idx].Spec.Name = "delivery-loop"
+		}
+
+		marketing := loop.ResolveEffectiveResources(records, loop.ResourceLens{
+			WorkspaceID: "ws-1", ProfileID: "profile-marketing", ProfileName: "marketing",
+		})
+		if got, want := marketing[0].ID, "marketing-workspace-profile"; got != want {
+			t.Fatalf("marketing resolved ID = %q, want %q", got, want)
+		}
+
+		engineering := loop.ResolveEffectiveResources(records, loop.ResourceLens{
+			WorkspaceID: "ws-1", ProfileID: "profile-engineering", ProfileName: "engineering",
+		})
+		if got, want := engineering[0].ID, "engineering-workspace-profile"; got != want {
+			t.Fatalf("engineering resolved ID = %q, want %q", got, want)
 		}
 	})
 }

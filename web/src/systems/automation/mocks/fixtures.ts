@@ -6,8 +6,14 @@ import type {
 } from "../types";
 import { storyAgentNames, storySessionIds, storyWorkspaceIds } from "@/storybook/fintech-scenario";
 
+const defaultProfileOwner = {
+  profile_id: "00000000000000000000000000",
+  profile_name: "default",
+} as const;
+
 export const automationJobFixtures: AutomationJob[] = [
   {
+    ...defaultProfileOwner,
     id: "job_launch_command_digest",
     name: "launch-command-digest",
     agent_name: storyAgentNames.product,
@@ -48,6 +54,7 @@ export const automationJobFixtures: AutomationJob[] = [
     updated_at: "2026-04-17T18:10:00Z",
   },
   {
+    ...defaultProfileOwner,
     id: "job_launch_crm_release",
     name: "launch-crm-release",
     agent_name: storyAgentNames.marketing,
@@ -73,6 +80,7 @@ export const automationJobFixtures: AutomationJob[] = [
 
 export const automationTriggerFixtures: AutomationTrigger[] = [
   {
+    ...defaultProfileOwner,
     id: "trg_support_sla_breach",
     name: "support-sla-breach",
     agent_name: storyAgentNames.support,
@@ -104,6 +112,7 @@ export const automationTriggerFixtures: AutomationTrigger[] = [
     updated_at: "2026-04-17T17:45:00Z",
   },
   {
+    ...defaultProfileOwner,
     id: "trg_copy_claims_review",
     name: "copy-claims-review",
     agent_name: storyAgentNames.compliance,
@@ -143,6 +152,7 @@ export const automationTriggerFixtures: AutomationTrigger[] = [
  */
 export const automationTriggerDetailFixtures: AutomationTrigger[] = [
   {
+    ...defaultProfileOwner,
     id: "trg_summarize_failures",
     name: "summarize-failures",
     agent_name: storyAgentNames.release,
@@ -162,6 +172,7 @@ export const automationTriggerDetailFixtures: AutomationTrigger[] = [
     updated_at: "2026-04-17T16:40:00Z",
   },
   {
+    ...defaultProfileOwner,
     id: "trg_rerun_delivery",
     name: "rerun-delivery",
     agent_name: "",
@@ -186,6 +197,7 @@ export const automationTriggerDetailFixtures: AutomationTrigger[] = [
     updated_at: "2026-04-17T17:05:00Z",
   },
   {
+    ...defaultProfileOwner,
     id: "trg_deploy_webhook",
     name: "deploy-webhook",
     agent_name: storyAgentNames.platform,
@@ -221,6 +233,7 @@ export const automationTriggerDetailFixtures: AutomationTrigger[] = [
 
 export const automationRunFixtures: AutomationRun[] = [
   {
+    ...defaultProfileOwner,
     id: "run_launch_command_digest_001",
     status: "completed",
     attempt: 1,
@@ -232,6 +245,7 @@ export const automationRunFixtures: AutomationRun[] = [
     ended_at: "2026-04-17T18:10:42Z",
   },
   {
+    ...defaultProfileOwner,
     id: "run_support_sla_breach_002",
     status: "running",
     attempt: 1,
@@ -244,6 +258,7 @@ export const automationRunFixtures: AutomationRun[] = [
 /** Canceled runs the scheduler recorded as durable skips (never dispatched). */
 export const automationRunSkipFixtures: AutomationRun[] = [
   {
+    ...defaultProfileOwner,
     id: "run_launch_command_digest_003",
     status: "canceled",
     attempt: 1,
@@ -253,6 +268,7 @@ export const automationRunSkipFixtures: AutomationRun[] = [
     metadata: { reason: "self_overlap" },
   },
   {
+    ...defaultProfileOwner,
     id: "run_launch_command_digest_004",
     status: "canceled",
     attempt: 1,
@@ -265,6 +281,7 @@ export const automationRunSkipFixtures: AutomationRun[] = [
 
 export const automationSuggestionFixtures: AutomationSuggestion[] = [
   {
+    profile_id: defaultProfileOwner.profile_id,
     created_at: "2026-04-17T16:00:00Z",
     dedup_key: "launch-command-digest",
     id: "suggestion_launch_command_digest",
@@ -278,6 +295,7 @@ export const automationSuggestionFixtures: AutomationSuggestion[] = [
     workspace_id: storyWorkspaceIds.hq,
   },
   {
+    profile_id: defaultProfileOwner.profile_id,
     created_at: "2026-04-17T16:05:00Z",
     dedup_key: "launch-crm-release",
     id: "suggestion_launch_crm_release",
@@ -293,6 +311,7 @@ export const automationSuggestionFixtures: AutomationSuggestion[] = [
     workspace_id: storyWorkspaceIds.hq,
   },
   {
+    profile_id: defaultProfileOwner.profile_id,
     created_at: "2026-04-17T16:10:00Z",
     dedup_key: "launch-command-digest-accepted",
     id: "suggestion_launch_command_digest_accepted",
@@ -310,6 +329,7 @@ export const automationSuggestionFixtures: AutomationSuggestion[] = [
 /** Recent-run samples for the detail-surface triggers, one per status shape. */
 export const automationTriggerDetailRunFixtures: AutomationRun[] = [
   {
+    ...defaultProfileOwner,
     id: "run_summarize_failures_001",
     status: "completed",
     attempt: 1,
@@ -319,6 +339,7 @@ export const automationTriggerDetailRunFixtures: AutomationRun[] = [
     ended_at: "2026-04-17T16:38:22Z",
   },
   {
+    ...defaultProfileOwner,
     id: "run_summarize_failures_002",
     status: "failed",
     attempt: 2,
@@ -328,6 +349,7 @@ export const automationTriggerDetailRunFixtures: AutomationRun[] = [
     ended_at: "2026-04-17T12:04:00Z",
   },
   {
+    ...defaultProfileOwner,
     id: "run_rerun_delivery_001",
     status: "delegated",
     attempt: 1,
@@ -336,6 +358,7 @@ export const automationTriggerDetailRunFixtures: AutomationRun[] = [
     started_at: "2026-04-17T17:02:10Z",
   },
   {
+    ...defaultProfileOwner,
     id: "run_deploy_webhook_002",
     status: "running",
     attempt: 1,
@@ -344,6 +367,7 @@ export const automationTriggerDetailRunFixtures: AutomationRun[] = [
     started_at: "2026-04-17T17:52:00Z",
   },
   {
+    ...defaultProfileOwner,
     id: "run_deploy_webhook_001",
     status: "completed",
     attempt: 1,
@@ -354,6 +378,7 @@ export const automationTriggerDetailRunFixtures: AutomationRun[] = [
     ended_at: "2026-04-17T17:50:18Z",
   },
   {
+    ...defaultProfileOwner,
     id: "run_deploy_webhook_003",
     status: "scheduled",
     attempt: 1,

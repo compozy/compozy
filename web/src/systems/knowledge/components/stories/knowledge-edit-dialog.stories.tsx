@@ -38,7 +38,7 @@ export const Default: Story = {
       onConfirm={async () => {}}
       onOpenChange={() => undefined}
       open
-      scope="global"
+      scope="profile"
     />
   ),
 };
@@ -55,7 +55,7 @@ export const PendingSave: Story = {
       onConfirm={async () => {}}
       onOpenChange={() => undefined}
       open
-      scope="global"
+      scope="profile"
     />
   ),
 };
@@ -73,7 +73,7 @@ export const RejectedByPolicy: Story = {
       onConfirm={async () => {}}
       onOpenChange={() => undefined}
       open
-      scope="global"
+      scope="profile"
     />
   ),
 };
@@ -109,7 +109,7 @@ export const ConfirmSubmits: Story = {
         onConfirm={onConfirm}
         onOpenChange={() => undefined}
         open
-        scope="global"
+        scope="profile"
       />
     );
   },

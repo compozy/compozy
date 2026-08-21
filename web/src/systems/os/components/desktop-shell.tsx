@@ -9,6 +9,7 @@ import { WorktreeDialogActionsContext } from "../contexts/worktree-dialog-action
 import { useDesktopChrome } from "../hooks/use-desktop-chrome";
 import { useDesktopShellBody } from "../hooks/use-desktop-shell-body";
 import { useDesktopShellModel, type DesktopShellModel } from "../hooks/use-desktop-shell-model";
+import { useProfileAutomationEnablement } from "../hooks/use-profile-automation-enablement";
 import { useDesktopWorktreeScope, WindowScopeContext } from "../hooks/use-worktree-scope";
 import { useWorktreeDialogTargets } from "../hooks/use-worktree-dialog-targets";
 import { useWorkspaceSetupDefaults } from "../hooks/use-workspace-setup-defaults";
@@ -30,6 +31,11 @@ import { OsWinLayer } from "./os-win-layer";
 import { OsSessionsModal } from "./sessions-modal";
 import { AgentCreateDialog, AgentCreateHostProvider } from "@/systems/agent";
 import { useOnboardingStatus } from "@/systems/onboarding";
+import {
+  ProfileLifecycleHost,
+  ProfileSwitcherSlot,
+  WorkspaceProfilesHint,
+} from "@/systems/profiles";
 import {
   SessionCreateDialogHost,
   SessionCreateProvider,
@@ -168,6 +174,7 @@ function DesktopShellScopedBody({
 }: DesktopShellBodyProps & DesktopWorktreeScope) {
   const sessionCreate = useSessionCreateActions();
   const sessionLifecycle = useSessionLifecycleActions({ workspaceId: model.runtimeWorkspaceId });
+  const setAutomationEnabled = useProfileAutomationEnablement();
   // Scope and order are the operator's, persisted by the daemon; the modal
   // renders them rather than fetching its own.
   const sessionListView = useSessionListView();
@@ -214,6 +221,11 @@ function DesktopShellScopedBody({
       className="flex min-h-0 flex-1 flex-col overflow-hidden focus-visible:shadow-focus-inset focus-visible:outline-none"
     >
       <DesktopMenubar
+        profileSwitcher={
+          <ProfileSwitcherSlot
+            onOpenSettings={() => void paletteDispatch.runById("settings.profiles")}
+          />
+        }
         // Dimmed while setup blocks: readable enough to see what you unlock,
         // never bright enough to read as available.
         className={cn(
@@ -255,6 +267,12 @@ function DesktopShellScopedBody({
       />
       <div data-slot="os-desk" className="relative min-h-0 flex-1 overflow-hidden">
         <OsWallpaper wallpaper={desktop.wallpaper} />
+        {model.activeWorkspaceId !== null ? (
+          <WorkspaceProfilesHint
+            hints={model.workspaceProfileHints}
+            workspaceId={model.activeWorkspaceId}
+          />
+        ) : null}
         {Object.keys(desktop.windows).map(windowId => (
           <OsAppPreloader key={windowId} windowId={windowId} />
         ))}
@@ -416,6 +434,9 @@ function DesktopShellScopedBody({
         workspaceId={model.agentCreate.workspaceId}
         workspaceName={model.agentCreate.workspaceName}
       />
+      {/* Profile lifecycle dialogs live at the shell so a flow started from the
+          command palette does not depend on Settings being open. */}
+      <ProfileLifecycleHost onSetAutomationEnabled={setAutomationEnabled} />
     </div>
   );
 }

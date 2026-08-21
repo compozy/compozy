@@ -55,14 +55,14 @@ func TestMCPAuthLoginUsesDaemonOwnedManualExchange(t *testing.T) {
 			context.Context,
 			SettingsMCPAuthTarget,
 		) (SettingsMCPAuthStatusRecord, error) {
-			return mcpAuthStatus("linear", "global", "", false, nil), nil
+			return mcpAuthStatus("linear", "user", "", false, nil), nil
 		}
 		client.beginSettingsMCPAuthFn = func(
 			_ context.Context,
 			target SettingsMCPAuthTarget,
 			request SettingsMCPAuthBeginRequest,
 		) (SettingsMCPAuthBeginRecord, error) {
-			if target.Name != "linear" || target.Scope != contract.SettingsWorkspaceScopeGlobal {
+			if target.Name != "linear" || target.Scope != contract.SettingsLayeredScopeUser {
 				t.Fatalf("begin target = %#v", target)
 			}
 			if request.Mode != contract.SettingsMCPAuthBeginModeManual {
@@ -84,7 +84,7 @@ func TestMCPAuthLoginUsesDaemonOwnedManualExchange(t *testing.T) {
 			if target.Name != "linear" || request.RedirectURL != wantRedirectURL {
 				t.Fatalf("exchange target/request = %#v / %#v", target, request)
 			}
-			return mcpAuthStatus("linear", "global", "", true, timePointer(time.Now())), nil
+			return mcpAuthStatus("linear", "user", "", true, timePointer(time.Now())), nil
 		}
 
 		stdout, stderr, err := executeMCPAuthCommandWithInput(
@@ -119,7 +119,7 @@ func TestMCPAuthLoginUsesDaemonOwnedManualExchange(t *testing.T) {
 				context.Context,
 				SettingsMCPAuthTarget,
 			) (SettingsMCPAuthStatusRecord, error) {
-				return mcpAuthStatus("linear", "global", "", false, nil), nil
+				return mcpAuthStatus("linear", "user", "", false, nil), nil
 			},
 			beginSettingsMCPAuthFn: func(
 				context.Context,
@@ -136,7 +136,7 @@ func TestMCPAuthLoginUsesDaemonOwnedManualExchange(t *testing.T) {
 				SettingsMCPAuthTarget,
 				SettingsMCPAuthExchangeRequest,
 			) (SettingsMCPAuthStatusRecord, error) {
-				status := mcpAuthStatus("linear", "global", "", false, nil)
+				status := mcpAuthStatus("linear", "user", "", false, nil)
 				status.Status = string(mcpauth.StatusAuthenticated)
 				return status, nil
 			},
@@ -162,7 +162,7 @@ func TestMCPAuthLoginUsesDaemonOwnedManualExchange(t *testing.T) {
 				SettingsMCPAuthTarget,
 			) (SettingsMCPAuthStatusRecord, error) {
 				return SettingsMCPAuthStatusRecord{
-					ServerName: "filesystem", Scope: "global", Status: string(mcpauth.StatusUnconfigured),
+					ServerName: "filesystem", Scope: "user", Status: string(mcpauth.StatusUnconfigured),
 				}, nil
 			},
 		}
@@ -199,7 +199,7 @@ func TestMCPAuthLoginManualHonorsTimeout(t *testing.T) {
 				context.Context,
 				SettingsMCPAuthTarget,
 			) (SettingsMCPAuthStatusRecord, error) {
-				return mcpAuthStatus("linear", "global", "", false, nil), nil
+				return mcpAuthStatus("linear", "user", "", false, nil), nil
 			},
 			beginSettingsMCPAuthFn: func(
 				context.Context,
@@ -537,7 +537,7 @@ func TestMCPAuthLoginWaitsForAChangedConfirmedCredential(t *testing.T) {
 				if statusCalls.Add(1) >= 3 {
 					updatedAt = &newUpdatedAt
 				}
-				return mcpAuthStatus("linear", "global", "", true, updatedAt), nil
+				return mcpAuthStatus("linear", "user", "", true, updatedAt), nil
 			},
 			beginSettingsMCPAuthFn: func(
 				_ context.Context,
@@ -588,7 +588,7 @@ func TestMCPAuthStatusAndLogoutHonorWorkspaceIdentity(t *testing.T) {
 			_ context.Context,
 			target SettingsMCPAuthTarget,
 		) (SettingsMCPAuthStatusRecord, error) {
-			if target.Scope != contract.SettingsWorkspaceScopeWorkspace || target.WorkspaceID != workspaceID {
+			if target.Scope != contract.SettingsLayeredScopeWorkspace || target.WorkspaceID != workspaceID {
 				t.Fatalf("status target = %#v", target)
 			}
 			return wantStatus, nil
@@ -597,7 +597,7 @@ func TestMCPAuthStatusAndLogoutHonorWorkspaceIdentity(t *testing.T) {
 			_ context.Context,
 			target SettingsMCPAuthTarget,
 		) (SettingsMCPAuthStatusRecord, error) {
-			if target.Scope != contract.SettingsWorkspaceScopeWorkspace || target.WorkspaceID != workspaceID {
+			if target.Scope != contract.SettingsLayeredScopeWorkspace || target.WorkspaceID != workspaceID {
 				t.Fatalf("logout target = %#v", target)
 			}
 			status := wantStatus
@@ -605,7 +605,7 @@ func TestMCPAuthStatusAndLogoutHonorWorkspaceIdentity(t *testing.T) {
 			status.TokenPresent = false
 			return status, nil
 		}
-		deps := newWorkspaceTestDeps(t, client)
+		deps := newDefaultProfileWorkspaceTestDeps(t, client)
 
 		stdout, _, err := executeRootCommand(
 			t,
@@ -652,6 +652,95 @@ func TestMCPAuthStatusAndLogoutHonorWorkspaceIdentity(t *testing.T) {
 		}
 		if _, found := logoutFields["resolution_source"]; found {
 			t.Fatalf("mcp auth logout JSON contains resolution_source, want raw daemon payload: %s", logout)
+		}
+	})
+
+	t.Run("Should honor the active profile for profile auth", func(t *testing.T) {
+		t.Parallel()
+
+		client := &profileAwareStubClient{
+			stubClient: withWorkspaceResolution(&stubClient{getSettingsMCPAuthStatusFn: func(
+				_ context.Context,
+				target SettingsMCPAuthTarget,
+			) (SettingsMCPAuthStatusRecord, error) {
+				if target.Scope != contract.SettingsLayeredScopeProfile || target.Profile != "marketing" ||
+					target.WorkspaceID != "" {
+					t.Fatalf("profile auth target = %#v", target)
+				}
+				return mcpAuthStatus("linear", "profile", "", true, timePointer(time.Now())), nil
+			}}),
+			profileClientStub: &profileClientStub{profiles: []contract.Profile{
+				{Name: "default", State: "active"},
+				{Name: "marketing", State: "active"},
+			}},
+		}
+		_, _, err := executeRootCommand(
+			t, newTestDeps(t, client),
+			"--profile", "marketing", "mcp", "auth", "status", "linear", "--scope", "profile", "-o", "json",
+		)
+		if err != nil {
+			t.Fatalf("profile MCP auth status error = %v", err)
+		}
+	})
+
+	t.Run("Should combine workspace and active profile for workspace-profile auth", func(t *testing.T) {
+		t.Parallel()
+
+		client := &profileAwareStubClient{
+			stubClient: withWorkspaceResolution(&stubClient{getSettingsMCPAuthStatusFn: func(
+				_ context.Context,
+				target SettingsMCPAuthTarget,
+			) (SettingsMCPAuthStatusRecord, error) {
+				if target.Scope != contract.SettingsLayeredScopeProfile || target.Profile != "marketing" ||
+					target.WorkspaceID != "workspace-a" {
+					t.Fatalf("workspace-profile auth target = %#v", target)
+				}
+				return mcpAuthStatus(
+					"linear", string(mcpauth.ScopeWorkspaceProfile), "workspace-a@pf:marketing", true,
+					timePointer(time.Now()),
+				), nil
+			}}),
+			profileClientStub: &profileClientStub{profiles: []contract.Profile{
+				{Name: "default", State: "active"},
+				{Name: "marketing", State: "active"},
+			}},
+		}
+		_, _, err := executeRootCommand(
+			t,
+			newTestDeps(t, client),
+			"--profile", "marketing",
+			"mcp", "auth", "status", "linear",
+			"--scope", "profile",
+			"--workspace", "workspace-a",
+			"-o", "json",
+		)
+		if err != nil {
+			t.Fatalf("workspace-profile MCP auth status error = %v", err)
+		}
+	})
+
+	t.Run("Should keep an unqualified status list inside one profile", func(t *testing.T) {
+		t.Parallel()
+
+		marketingStatus := mcpAuthStatus("linear", "profile", "", true, timePointer(time.Now()))
+		marketingStatus.Profile = "marketing"
+		salesStatus := mcpAuthStatus("github", "profile", "", true, timePointer(time.Now()))
+		salesStatus.Profile = "sales"
+		servers := []contract.SettingsMCPServerItemPayload{
+			{
+				Name: "linear", Scope: contract.SettingsScopeProfile, Profile: "marketing",
+				AuthStatus: &marketingStatus,
+			},
+			{
+				Name: "github", Scope: contract.SettingsScopeProfile, Profile: "sales",
+				AuthStatus: &salesStatus,
+			},
+		}
+		statuses := mcpAuthStatuses(servers, mcpAuthCommandOptions{
+			scope: "profile", profile: "marketing",
+		})
+		if len(statuses) != 1 || statuses[0].Profile != "marketing" {
+			t.Fatalf("profile MCP auth statuses = %#v", statuses)
 		}
 	})
 }
@@ -730,7 +819,7 @@ func TestMCPAuthLoginRequiresExplicitScopeEscalationApproval(t *testing.T) {
 				context.Context,
 				SettingsMCPAuthTarget,
 			) (SettingsMCPAuthStatusRecord, error) {
-				return mcpAuthStatus("linear", "global", "", false, nil), nil
+				return mcpAuthStatus("linear", "user", "", false, nil), nil
 			},
 			beginSettingsMCPAuthFn: func(
 				_ context.Context,
@@ -754,7 +843,7 @@ func TestMCPAuthLoginRequiresExplicitScopeEscalationApproval(t *testing.T) {
 				SettingsMCPAuthTarget,
 				SettingsMCPAuthExchangeRequest,
 			) (SettingsMCPAuthStatusRecord, error) {
-				return mcpAuthStatus("linear", "global", "", true, timePointer(time.Now())), nil
+				return mcpAuthStatus("linear", "user", "", true, timePointer(time.Now())), nil
 			},
 		}
 		_, _, err := executeMCPAuthCommandWithInput(

@@ -421,17 +421,18 @@ func sensitiveFieldName(key string, configured []string) bool {
 	if slices.Contains(configured, normalized) {
 		return true
 	}
-	if publicDiagnosticFieldName(normalized) {
+	if publicStructuredFieldName(normalized) {
 		return false
 	}
 	return sensitiveMetadataKey(normalized)
 }
 
-func publicDiagnosticFieldName(normalized string) bool {
+func publicStructuredFieldName(normalized string) bool {
 	return normalized == "token_present" ||
 		normalized == "canonical_token" ||
 		normalized == "max_input_tokens" ||
-		normalized == "max_output_tokens"
+		normalized == "max_output_tokens" ||
+		normalized == "credential_requirements"
 }
 
 func digestRaw(raw json.RawMessage) string {

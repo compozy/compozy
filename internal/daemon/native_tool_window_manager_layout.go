@@ -164,7 +164,11 @@ func (n *daemonNativeTools) layoutValidate(
 	if err != nil {
 		return toolspkg.ToolResult{}, err
 	}
-	validation, err := n.windowManagerService().ValidateLayout(ctx, snapshot.WorkspaceID, input.Document)
+	service, err := n.windowManagerService(req.ToolID, scope)
+	if err != nil {
+		return toolspkg.ToolResult{}, err
+	}
+	validation, err := service.ValidateLayout(ctx, snapshot.WorkspaceID, input.Document)
 	if err != nil {
 		return toolspkg.ToolResult{}, windowManagerToolError(req.ToolID, err)
 	}
@@ -186,9 +190,9 @@ func (n *daemonNativeTools) layoutApply(
 	if err := decodeWindowManagerInput(req, &input); err != nil {
 		return toolspkg.ToolResult{}, err
 	}
-	service := n.windowManagerService()
-	if service == nil {
-		return toolspkg.ToolResult{}, nativeUnavailableError(req.ToolID, "window manager is unavailable")
+	service, err := n.windowManagerService(req.ToolID, scope)
+	if err != nil {
+		return toolspkg.ToolResult{}, err
 	}
 	workspaceRef := firstNonEmpty(input.WorkspaceID, string(input.Document.WorkspaceID))
 	workspaceID, err := n.windowManagerWorkspaceID(ctx, req.ToolID, workspaceRef, scope)

@@ -96,10 +96,10 @@ func (c *extensionKitItemCollector) appendAgentSkillItems(
 	if len(ext.StaticAgents) == 0 && len(ext.Skills) == 0 {
 		return nil
 	}
-	globalScope := resources.ResourceScope{Kind: resources.ResourceScopeKindGlobal}
+	userScope := resources.ResourceScope{Kind: resources.ResourceScopeKindUser}
 	declarations := agentSkillDeclarations{}
-	appendExtensionAgentResources(&declarations, globalScope, ext.Info.Name, ext.StaticAgents)
-	appendSkillResources(&declarations, globalScope, skillPublicationSource{
+	appendExtensionAgentResources(&declarations, userScope, ext.Info.Name, ext.StaticAgents)
+	appendSkillResources(&declarations, userScope, skillPublicationSource{
 		prefix: "extension/" + strings.TrimSpace(ext.Info.Name) + "/skills",
 		owner:  extensionOwner(ext.Info.Name),
 	}, ext.Skills)
@@ -160,7 +160,7 @@ func (c *extensionKitItemCollector) appendToolMCPItems(
 	if len(ext.Manifest.Resources.Tools) == 0 && len(ext.Manifest.Resources.MCPServers) == 0 {
 		return nil
 	}
-	globalScope := resources.ResourceScope{Kind: resources.ResourceScopeKindGlobal}
+	userScope := resources.ResourceScope{Kind: resources.ResourceScopeKindUser}
 	declarations := toolMCPDesiredResources{}
 	tools, err := extensionpkg.ResolveManifestToolResources(ext.Manifest)
 	if err != nil {
@@ -169,10 +169,10 @@ func (c *extensionKitItemCollector) appendToolMCPItems(
 	for _, tool := range tools {
 		declarations.tools = append(declarations.tools, toolPublicationInput{
 			sourceKey: "extension/" + ext.Info.Name + "/tool/" + strings.TrimSpace(tool.ID.String()),
-			scope:     globalScope, owner: extensionOwner(ext.Info.Name), spec: cloneToolSpec(tool),
+			scope:     userScope, owner: extensionOwner(ext.Info.Name), spec: cloneToolSpec(tool),
 		})
 	}
-	if err := appendExtensionMCPServerDeclarations(&declarations, ext, getenv, globalScope); err != nil {
+	if err := appendExtensionMCPServerDeclarations(&declarations, ext, getenv, userScope); err != nil {
 		return err
 	}
 
@@ -216,12 +216,12 @@ func (c *extensionKitItemCollector) appendLoopItems(
 	if err != nil {
 		return fmt.Errorf("daemon: resolve extension preview loop codec: %w", err)
 	}
-	globalScope := resources.ResourceScope{Kind: resources.ResourceScopeKindGlobal}
+	userScope := resources.ResourceScope{Kind: resources.ResourceScopeKindUser}
 	inputs := make([]loopPublicationInput, 0, len(ext.Loops))
 	for _, spec := range ext.Loops {
 		inputs = append(inputs, loopPublicationInput{
 			sourceKey: "extension/" + ext.Info.Name + "/loops/" + strings.TrimSpace(spec.Name),
-			scope:     globalScope, owner: extensionOwner(ext.Info.Name), spec: looppkg.CloneResourceSpec(spec),
+			scope:     userScope, owner: extensionOwner(ext.Info.Name), spec: looppkg.CloneResourceSpec(spec),
 		})
 	}
 	syncer := &loopSourceSyncer{
@@ -284,16 +284,16 @@ func (c *extensionKitItemCollector) appendAutomationItems(
 	if err != nil {
 		return fmt.Errorf("daemon: resolve extension preview trigger codec: %w", err)
 	}
-	globalScope := resources.ResourceScope{Kind: resources.ResourceScopeKindGlobal}
+	userScope := resources.ResourceScope{Kind: resources.ResourceScopeKindUser}
 	for _, job := range ext.AutomationJobs {
-		validated, encoded, err := validateAndEncodeResource(ctx, jobCodec, globalScope, job)
+		validated, encoded, err := validateAndEncodeResource(ctx, jobCodec, userScope, job)
 		if err != nil {
 			return fmt.Errorf("daemon: validate extension preview job %q: %w", job.Name, err)
 		}
 		c.append(automationpkg.JobResourceKind, validated.ID, validated.Name, encoded)
 	}
 	for _, trigger := range ext.AutomationTriggers {
-		validated, encoded, err := validateAndEncodeResource(ctx, triggerCodec, globalScope, trigger)
+		validated, encoded, err := validateAndEncodeResource(ctx, triggerCodec, userScope, trigger)
 		if err != nil {
 			return fmt.Errorf("daemon: validate extension preview trigger %q: %w", trigger.Name, err)
 		}
@@ -317,13 +317,13 @@ func (c *extensionKitItemCollector) appendLayoutItems(
 	if err != nil {
 		return fmt.Errorf("daemon: resolve extension preview layout codec: %w", err)
 	}
-	globalScope := resources.ResourceScope{Kind: resources.ResourceScopeKindGlobal}
+	userScope := resources.ResourceScope{Kind: resources.ResourceScopeKindUser}
 	for _, layout := range ext.Layouts {
 		name := strings.TrimSpace(layout.ID)
 		id := "extension/" + ext.Info.Name + "/window_layout/" + name
 		materialized := windowmanager.CloneLayoutResource(layout)
 		materialized.ID = id
-		_, encoded, err := validateAndEncodeResource(ctx, codec, globalScope, materialized)
+		_, encoded, err := validateAndEncodeResource(ctx, codec, userScope, materialized)
 		if err != nil {
 			return fmt.Errorf("daemon: validate extension preview layout %q: %w", name, err)
 		}

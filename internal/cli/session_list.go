@@ -11,6 +11,8 @@ import (
 	"github.com/spf13/cobra"
 )
 
+const allWorkspacesFlagName = "all-workspaces"
+
 type sessionListFlags struct {
 	includeAll      bool
 	workspaceFilter string
@@ -66,7 +68,7 @@ func newSessionListCommand(deps commandDeps) *cobra.Command {
 	cmd.Flags().BoolVar(&flags.resumable, "resumable", false, "Show only sessions eligible for resume attach")
 	cmd.Flags().BoolVar(&flags.attention, "attention", false, "Show only sessions that need operator attention")
 	cmd.Flags().StringSliceVar(&flags.badgeFilters, "badge", nil, "Filter by exact badge (repeat or comma-separate)")
-	cmd.Flags().BoolVar(&flags.allWorkspaces, "all-workspaces", false, "List sessions across every workspace")
+	cmd.Flags().BoolVar(&flags.allWorkspaces, allWorkspacesFlagName, false, "List sessions across every workspace")
 	cmd.Flags().BoolVar(&flags.summary, "summary", false, "Show exact attention counts across workspaces")
 	cmd.Flags().BoolVar(&flags.archived, "archived", false, "Show only archived sessions")
 	cmd.Flags().BoolVar(&flags.includeArchived, "include-archived", false, "Include archived sessions")
@@ -75,6 +77,7 @@ func newSessionListCommand(deps commandDeps) *cobra.Command {
 	cmd.Flags().IntVar(&flags.limit, "limit", 0, "Sessions per page (1-100)")
 	cmd.Flags().StringVar(&flags.sortKey, "sort", "", "Sort by recent, last_activity, or attention")
 	cmd.Flags().StringVar(&flags.cursor, "cursor", "", "Continue from an opaque next_cursor")
+	configureProfileReadCommand(cmd, deps)
 	return cmd
 }
 
@@ -204,41 +207,59 @@ func sessionListBundle(page SessionListPage, now func() time.Time) outputBundle 
 		page,
 		items,
 		"Sessions",
-		[]string{
-			"ID", sessionNameValue, sessionAgentValue, "Parent", sessionProviderValue, sessionBackendValue,
-			sessionStateValue, sessionBadgeValue, "Failure", sessionWorkspaceValue, sessionChannelValue,
-			"Health State", "Health", sessionUpdatedValue,
-		},
+		sessionListHumanHeaders(),
 		"sessions",
-		[]string{
-			"id", sessionNameKey, sessionAgentNameKey, "parent_session_id", sessionProviderKey, "sandbox_backend",
-			sessionStateKey, sessionBadgeKey, taskFailureKindKey, workspaceSkillSource, sessionChannelKey,
-			"health_state", extensionHealthKey, sessionUpdatedAtKey,
-		},
-		func(item SessionRecord) []string {
-			return []string{
-				stringOrDash(item.ID), stringOrDash(item.Name), stringOrDash(item.AgentName),
-				stringOrDash(sessionParentID(item)),
-				stringOrDash(sessionRuntimeProvider(item)), stringOrDash(sessionSandboxBackend(item)),
-				stringOrDash(string(item.State)), stringOrDash(string(item.Badge)),
-				stringOrDash(sessionFailureKind(item)), stringOrDash(displaySessionWorkspace(item)),
-				stringOrDash(sessionResolvedChannelRaw(item)), stringOrDash(sessionHealthState(item)),
-				stringOrDash(sessionHealthStatus(item)), stringOrDash(formatAge(now, item.UpdatedAt)),
-			}
-		},
-		func(item SessionRecord) []string {
-			return []string{
-				item.ID, item.Name, item.AgentName, sessionParentID(item),
-				sessionRuntimeProvider(item), sessionSandboxBackend(item),
-				string(item.State), string(item.Badge), sessionFailureKind(item),
-				displaySessionWorkspace(item), sessionResolvedChannelRaw(item), sessionHealthState(item),
-				sessionHealthStatus(item), formatTime(item.UpdatedAt),
-			}
-		},
+		sessionListToonFields(),
+		sessionListHumanRow(now),
+		sessionListToonRow,
 	)
+	return decorateSessionListBundle(bundle, page)
+}
+
+func sessionListHumanHeaders() []string {
+	return []string{
+		"ID", sessionProfileValue, sessionNameValue, sessionAgentValue, "Parent", sessionProviderValue,
+		sessionBackendValue, sessionStateValue, sessionBadgeValue, "Failure", sessionWorkspaceValue,
+		sessionChannelValue, "Health State", "Health", sessionUpdatedValue,
+	}
+}
+
+func sessionListToonFields() []string {
+	return []string{
+		"id", profileNameOutputKey, sessionNameKey, sessionAgentNameKey, "parent_session_id", sessionProviderKey,
+		"sandbox_backend", sessionStateKey, sessionBadgeKey, taskFailureKindKey, workspaceSkillSource,
+		sessionChannelKey, "health_state", extensionHealthKey, sessionUpdatedAtKey,
+	}
+}
+
+func sessionListHumanRow(now func() time.Time) func(SessionRecord) []string {
+	return func(item SessionRecord) []string {
+		return []string{
+			stringOrDash(item.ID), stringOrDash(item.ProfileName), stringOrDash(item.Name),
+			stringOrDash(item.AgentName), stringOrDash(sessionParentID(&item)),
+			stringOrDash(sessionRuntimeProvider(&item)), stringOrDash(sessionSandboxBackend(&item)),
+			stringOrDash(string(item.State)), stringOrDash(string(item.Badge)),
+			stringOrDash(sessionFailureKind(&item)), stringOrDash(displaySessionWorkspace(&item)),
+			stringOrDash(sessionResolvedChannelRaw(&item)), stringOrDash(sessionHealthState(&item)),
+			stringOrDash(sessionHealthStatus(&item)), stringOrDash(formatAge(now, item.UpdatedAt)),
+		}
+	}
+}
+
+//nolint:gocritic // listBundle's generic row-renderer contract passes list items by value.
+func sessionListToonRow(item SessionRecord) []string {
+	return []string{
+		item.ID, item.ProfileName, item.Name, item.AgentName, sessionParentID(&item),
+		sessionRuntimeProvider(&item), sessionSandboxBackend(&item), string(item.State), string(item.Badge),
+		sessionFailureKind(&item), displaySessionWorkspace(&item), sessionResolvedChannelRaw(&item),
+		sessionHealthState(&item), sessionHealthStatus(&item), formatTime(item.UpdatedAt),
+	}
+}
+
+func decorateSessionListBundle(bundle outputBundle, page SessionListPage) outputBundle {
 	bundle.jsonl = func(cmd *cobra.Command) error {
-		for _, item := range page.Sessions {
-			if err := writeJSONLine(cmd, item); err != nil {
+		for index := range page.Sessions {
+			if err := writeJSONLine(cmd, &page.Sessions[index]); err != nil {
 				return err
 			}
 		}
@@ -280,21 +301,21 @@ func sessionListBundle(page SessionListPage, now func() time.Time) outputBundle 
 	return bundle
 }
 
-func sessionParentID(item SessionRecord) string {
+func sessionParentID(item *SessionRecord) string {
 	if item.Lineage == nil {
 		return ""
 	}
 	return strings.TrimSpace(item.Lineage.ParentSessionID)
 }
 
-func sessionHealthState(item SessionRecord) string {
+func sessionHealthState(item *SessionRecord) string {
 	if item.Health == nil {
 		return ""
 	}
 	return string(item.Health.State)
 }
 
-func sessionHealthStatus(item SessionRecord) string {
+func sessionHealthStatus(item *SessionRecord) string {
 	if item.Health == nil {
 		return ""
 	}

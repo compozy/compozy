@@ -50,6 +50,7 @@ type HookDispatcher interface {
 
 type LifecycleEvent struct {
 	Name        string
+	ProfileID   string
 	WorkspaceID string
 	WorktreeID  string
 	RunID       string
@@ -88,6 +89,7 @@ type ExitEventPayload struct {
 }
 
 type HookWorktree struct {
+	ProfileID     string `json:"profile_id,omitempty"`
 	WorktreeID    string `json:"worktree_id"`
 	WorkspaceID   string `json:"workspace_id"`
 	WorkspaceRoot string `json:"workspace_root,omitempty"`
@@ -123,7 +125,7 @@ func (s *Service) emit(ctx context.Context, name string, item Worktree) {
 		if err != nil {
 			s.logger.ErrorContext(ctx, "worktree event payload failed", "event", name, "error", err)
 		} else if err := s.events.PublishWorktreeEvent(ctx, LifecycleEvent{
-			Name: name, WorkspaceID: item.WorkspaceID, WorktreeID: item.ID,
+			Name: name, ProfileID: item.ProfileID, WorkspaceID: item.WorkspaceID, WorktreeID: item.ID,
 			RunID: item.RunID, Payload: payload,
 		}); err != nil {
 			s.logger.WarnContext(
@@ -180,8 +182,11 @@ func exitLifecycleEvent(name string, operation ExitOperation, value ExitEventPay
 		return LifecycleEvent{}, fmt.Errorf("worktree: marshal exit event payload: %w", err)
 	}
 	return LifecycleEvent{
-		Name: name, WorkspaceID: operation.WorkspaceID, WorktreeID: operation.WorktreeID,
-		Payload: payload,
+		Name:        name,
+		ProfileID:   operation.ProfileID,
+		WorkspaceID: operation.WorkspaceID,
+		WorktreeID:  operation.WorktreeID,
+		Payload:     payload,
 	}, nil
 }
 

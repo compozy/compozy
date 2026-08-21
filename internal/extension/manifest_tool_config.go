@@ -84,6 +84,7 @@ func normalizeHooks(src []HookConfig) []HookConfig {
 	for idx := range src {
 		hook := &src[idx]
 		dst = append(dst, HookConfig{
+			Profile:  strings.TrimSpace(hook.Profile),
 			Name:     strings.TrimSpace(hook.Name),
 			Event:    strings.TrimSpace(hook.Event),
 			Mode:     strings.TrimSpace(hook.Mode),

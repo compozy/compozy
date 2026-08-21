@@ -31,7 +31,7 @@ func newSessionInputCommand(deps commandDeps) *cobra.Command {
 }
 
 func newSessionInputListCommand(deps commandDeps) *cobra.Command {
-	return &cobra.Command{
+	cmd := &cobra.Command{
 		Use:     "list <session-id>",
 		Short:   "List pending input for a session",
 		Args:    exactOneNonBlankArg(),
@@ -48,6 +48,8 @@ func newSessionInputListCommand(deps commandDeps) *cobra.Command {
 			return writeCommandOutput(cmd, sessionInputListBundle(record))
 		},
 	}
+	configureProfileReadCommand(cmd, deps)
+	return cmd
 }
 
 func newSessionInputEditCommand(deps commandDeps) *cobra.Command {
@@ -76,6 +78,7 @@ func newSessionInputEditCommand(deps commandDeps) *cobra.Command {
 		},
 	}
 	bindSessionInputIdentityFlags(cmd, &flags)
+	configureProfileMutationCommand(cmd, deps)
 	return cmd
 }
 
@@ -113,11 +116,12 @@ func newSessionInputSteerCommand(deps commandDeps) *cobra.Command {
 	cmd.Flags().
 		StringVar(&flags.expectedTurnID, "expected-turn-id", "", "Active turn id that this steer request must match")
 	mustMarkFlagRequired(cmd, "expected-turn-id")
+	configureProfileMutationCommand(cmd, deps)
 	return cmd
 }
 
 func newSessionInputCancelCommand(deps commandDeps) *cobra.Command {
-	return &cobra.Command{
+	cmd := &cobra.Command{
 		Use:     "cancel <session-id> <input-id>",
 		Short:   "Cancel one queued session input",
 		Args:    exactTwoNonBlankArgs(),
@@ -134,6 +138,8 @@ func newSessionInputCancelCommand(deps commandDeps) *cobra.Command {
 			return writeCommandOutput(cmd, sessionPromptBundle(record))
 		},
 	}
+	configureProfileMutationCommand(cmd, deps)
+	return cmd
 }
 
 func bindSessionInputIdentityFlags(cmd *cobra.Command, flags *sessionInputIdentityFlags) {

@@ -811,6 +811,7 @@ type fakeWorkspaceResolver struct {
 	byPath                 map[string]workspacepkg.ResolvedWorkspace
 	resolveCalls           []string
 	resolveOrRegisterCalls []string
+	profileRegisterNames   []string
 	resolveErr             error
 	resolveOrRegisterErr   error
 	resolveHook            func(context.Context, string) (workspacepkg.ResolvedWorkspace, error)
@@ -1017,6 +1018,19 @@ func (r *fakeWorkspaceResolver) Resolve(ctx context.Context, idOrPath string) (w
 	return workspacepkg.ResolvedWorkspace{}, workspacepkg.ErrWorkspaceNotFound
 }
 
+func (r *fakeWorkspaceResolver) ResolveForProfile(
+	ctx context.Context,
+	idOrPath string,
+	profileName string,
+) (workspacepkg.ResolvedWorkspace, error) {
+	resolved, err := r.Resolve(ctx, idOrPath)
+	if err != nil {
+		return workspacepkg.ResolvedWorkspace{}, err
+	}
+	resolved.ProfileName = strings.TrimSpace(profileName)
+	return resolved, nil
+}
+
 func (r *fakeWorkspaceResolver) ResolveOrRegister(
 	ctx context.Context,
 	path string,
@@ -1048,6 +1062,23 @@ func (r *fakeWorkspaceResolver) ResolveOrRegister(
 	}
 	r.upsert(&resolved)
 	return cloneResolvedWorkspaceForTests(&resolved), nil
+}
+
+func (r *fakeWorkspaceResolver) ResolveOrRegisterForProfile(
+	ctx context.Context,
+	path string,
+	profileName string,
+) (workspacepkg.ResolvedWorkspace, error) {
+	resolved, err := r.ResolveOrRegister(ctx, path)
+	if err != nil {
+		return workspacepkg.ResolvedWorkspace{}, err
+	}
+	trimmedProfile := strings.TrimSpace(profileName)
+	r.mu.Lock()
+	r.profileRegisterNames = append(r.profileRegisterNames, trimmedProfile)
+	r.mu.Unlock()
+	resolved.ProfileName = trimmedProfile
+	return resolved, nil
 }
 
 func (r *fakeWorkspaceResolver) upsert(resolved *workspacepkg.ResolvedWorkspace) {
@@ -1083,6 +1114,7 @@ func cloneResolvedWorkspaceForTests(src *workspacepkg.ResolvedWorkspace) workspa
 	}
 	dst := *src
 	dst.AdditionalDirs = append([]string(nil), src.AdditionalDirs...)
+	dst.ProfileDeclarations = append([]workspacepkg.ProfileDeclaration(nil), src.ProfileDeclarations...)
 	dst.Agents = append([]compozyconfig.AgentDef(nil), src.Agents...)
 	dst.Skills = append([]workspacepkg.SkillPath(nil), src.Skills...)
 	return dst

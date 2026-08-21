@@ -45,6 +45,8 @@ function renderHeader({
 }
 
 const sampleChannel: NetworkChannelSummary = {
+  profile_id: "00000000000000000000000000",
+  profile_name: "default",
   channel: "ops",
   workspace_id: "w1",
   created_at: "2026-04-17T14:00:00Z",

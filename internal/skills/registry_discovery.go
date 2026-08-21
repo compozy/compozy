@@ -10,24 +10,33 @@ import (
 
 	"github.com/compozy/compozy/internal/filesnap"
 	"github.com/compozy/compozy/internal/resources"
+	"github.com/compozy/compozy/internal/store"
 
 	workspacepkg "github.com/compozy/compozy/internal/workspace"
 )
 
 type resourceSkillProjection struct {
-	globalSkills               map[string]*Skill
-	workspaceSkills            map[string]map[string]*Skill
-	globalCommandCandidates    []*Skill
-	workspaceCommandCandidates map[string][]*Skill
-	seenCommandCandidates      map[string]struct{}
+	globalSkills                      map[string]*Skill
+	profileSkills                     map[string]map[string]*Skill
+	workspaceSkills                   map[string]map[string]*Skill
+	workspaceProfileSkills            map[string]map[string]*Skill
+	globalCommandCandidates           []*Skill
+	profileCommandCandidates          map[string][]*Skill
+	workspaceCommandCandidates        map[string][]*Skill
+	workspaceProfileCommandCandidates map[string][]*Skill
+	seenCommandCandidates             map[string]struct{}
 }
 
 func newResourceSkillProjection() resourceSkillProjection {
 	return resourceSkillProjection{
-		globalSkills:               make(map[string]*Skill),
-		workspaceSkills:            make(map[string]map[string]*Skill),
-		workspaceCommandCandidates: make(map[string][]*Skill),
-		seenCommandCandidates:      make(map[string]struct{}),
+		globalSkills:                      make(map[string]*Skill),
+		profileSkills:                     make(map[string]map[string]*Skill),
+		workspaceSkills:                   make(map[string]map[string]*Skill),
+		workspaceProfileSkills:            make(map[string]map[string]*Skill),
+		profileCommandCandidates:          make(map[string][]*Skill),
+		workspaceCommandCandidates:        make(map[string][]*Skill),
+		workspaceProfileCommandCandidates: make(map[string][]*Skill),
+		seenCommandCandidates:             make(map[string]struct{}),
 	}
 }
 
@@ -88,16 +97,37 @@ func (r *Registry) ApplyResourceRecords(
 	if err != nil {
 		return err
 	}
-	r.emitEventSummaries(
-		ctx,
-		r.buildSkillShadowSummariesFromResolved(
-			mergedSkillList(projection.globalSkills, nil),
-			registryGlobalKey,
-			"",
-			"",
-		),
-	)
+	r.emitResourceGlobalSkillSummaries(ctx, projection)
+	r.emitResourceWorkspaceSkillSummaries(ctx, projection)
+	r.emitResourceProfileSkillSummaries(ctx, projection)
+	r.emitResourceWorkspaceProfileSkillSummaries(ctx, projection)
 
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	r.resourceAuthority = true
+	r.resourceRevision = revision
+	r.resourceWorkspaces = projection.workspaceSkills
+	r.resourceProfiles = projection.profileSkills
+	r.resourceWorkspaceProfiles = projection.workspaceProfileSkills
+	r.resourceGlobalCommandCandidates = projection.globalCommandCandidates
+	r.resourceProfileCommandCandidates = projection.profileCommandCandidates
+	r.resourceWorkspaceCommandCandidates = projection.workspaceCommandCandidates
+	r.resourceWorkspaceProfileCommandCandidates = projection.workspaceProfileCommandCandidates
+	r.globalSkills = projection.globalSkills
+	r.globalDiagnostics = nil
+	r.wsCache = make(map[string]*wsCache)
+	r.globalLoaded = true
+	r.globalVersion.Add(1)
+	return nil
+}
+
+func (r *Registry) emitResourceGlobalSkillSummaries(ctx context.Context, projection resourceSkillProjection) {
+	r.emitEventSummaries(ctx, r.buildSkillShadowSummariesFromResolved(
+		mergedSkillList(projection.globalSkills, nil), registryGlobalKey, store.DefaultProfileID, "", "",
+	))
+}
+
+func (r *Registry) emitResourceWorkspaceSkillSummaries(ctx context.Context, projection resourceSkillProjection) {
 	workspaceIDs := make([]string, 0, len(projection.workspaceSkills))
 	for workspaceID := range projection.workspaceSkills {
 		workspaceIDs = append(workspaceIDs, workspaceID)
@@ -115,25 +145,66 @@ func (r *Registry) ApplyResourceRecords(
 				projection.globalSkills,
 				projection.workspaceSkills[workspaceID],
 				skillSourceWorkspaceName,
+				store.DefaultProfileID,
 				workspaceID,
 				"",
 			),
 		)
 	}
+}
 
-	r.mu.Lock()
-	defer r.mu.Unlock()
-	r.resourceAuthority = true
-	r.resourceRevision = revision
-	r.resourceWorkspaces = projection.workspaceSkills
-	r.resourceGlobalCommandCandidates = projection.globalCommandCandidates
-	r.resourceWorkspaceCommandCandidates = projection.workspaceCommandCandidates
-	r.globalSkills = projection.globalSkills
-	r.globalDiagnostics = nil
-	r.wsCache = make(map[string]*wsCache)
-	r.globalLoaded = true
-	r.globalVersion.Add(1)
-	return nil
+func (r *Registry) emitResourceProfileSkillSummaries(ctx context.Context, projection resourceSkillProjection) {
+	profileIDs := make([]string, 0, len(projection.profileSkills))
+	for profileID := range projection.profileSkills {
+		profileIDs = append(profileIDs, profileID)
+	}
+	slices.Sort(profileIDs)
+	for _, profileID := range profileIDs {
+		r.emitEventSummaries(
+			ctx,
+			r.buildSkillShadowSummaries(
+				projection.globalSkills,
+				projection.profileSkills[profileID],
+				skillSourceProfileName,
+				profileID,
+				"",
+				"",
+			),
+		)
+	}
+}
+
+func (r *Registry) emitResourceWorkspaceProfileSkillSummaries(
+	ctx context.Context,
+	projection resourceSkillProjection,
+) {
+	workspaceProfileKeys := make([]string, 0, len(projection.workspaceProfileSkills))
+	for key := range projection.workspaceProfileSkills {
+		workspaceProfileKeys = append(workspaceProfileKeys, key)
+	}
+	slices.Sort(workspaceProfileKeys)
+	for _, key := range workspaceProfileKeys {
+		workspaceID, profileID, ok := strings.Cut(key, "@pf:")
+		if !ok || strings.TrimSpace(workspaceID) == "" || strings.TrimSpace(profileID) == "" {
+			continue
+		}
+		base := cloneSkillMapFromList(mergedSkillLayers(
+			projection.globalSkills,
+			projection.profileSkills[profileID],
+			projection.workspaceSkills[workspaceID],
+		))
+		r.emitEventSummaries(
+			ctx,
+			r.buildSkillShadowSummaries(
+				base,
+				projection.workspaceProfileSkills[key],
+				skillSourceWorkspaceProfileName,
+				profileID,
+				workspaceID,
+				"",
+			),
+		)
+	}
 }
 
 func (r *Registry) projectResourceSkillRecords(
@@ -165,7 +236,7 @@ func (r *Registry) projectResourceSkillRecord(
 		return nil
 	}
 	switch record.Scope.Kind.Normalize() {
-	case resources.ResourceScopeKindGlobal:
+	case resources.ResourceScopeKindUser:
 		skill.CommandScope = registryGlobalKey
 		if err := appendCommandResourceCandidate(
 			projection.seenCommandCandidates,
@@ -181,7 +252,58 @@ func (r *Registry) projectResourceSkillRecord(
 		r.overlaySkill(projection.globalSkills, skill)
 	case resources.ResourceScopeKindWorkspace:
 		return r.projectWorkspaceResourceSkill(projection, record, skill)
+	case resources.ResourceScopeKindProfile:
+		profileID := strings.TrimSpace(record.Scope.ID)
+		if profileID == "" {
+			return nil
+		}
+		if projection.profileSkills[profileID] == nil {
+			projection.profileSkills[profileID] = make(map[string]*Skill)
+		}
+		skill.CommandScope = registryGlobalKey
+		if err := appendCommandResourceCandidate(
+			projection.seenCommandCandidates,
+			"profile:"+profileID,
+			skill,
+		); err != nil {
+			return err
+		}
+		r.overlaySkill(projection.profileSkills[profileID], skill)
+		projection.profileCommandCandidates[profileID] = append(
+			projection.profileCommandCandidates[profileID],
+			cloneSkill(skill),
+		)
+	case resources.ResourceScopeKindWorkspaceProfile:
+		return r.projectWorkspaceProfileResourceSkill(projection, record, skill)
 	}
+	return nil
+}
+
+func (r *Registry) projectWorkspaceProfileResourceSkill(
+	projection *resourceSkillProjection,
+	record resources.Record[SkillResourceSpec],
+	skill *Skill,
+) error {
+	key := strings.TrimSpace(record.Scope.ID)
+	if key == "" {
+		return nil
+	}
+	if projection.workspaceProfileSkills[key] == nil {
+		projection.workspaceProfileSkills[key] = make(map[string]*Skill)
+	}
+	skill.CommandScope = skillSourceWorkspaceName
+	if err := appendCommandResourceCandidate(
+		projection.seenCommandCandidates,
+		"workspace_profile:"+key,
+		skill,
+	); err != nil {
+		return err
+	}
+	r.overlaySkill(projection.workspaceProfileSkills[key], skill)
+	projection.workspaceProfileCommandCandidates[key] = append(
+		projection.workspaceProfileCommandCandidates[key],
+		cloneSkill(skill),
+	)
 	return nil
 }
 

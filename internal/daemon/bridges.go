@@ -16,6 +16,7 @@ import (
 
 	"github.com/compozy/compozy/internal/notifications"
 	"github.com/compozy/compozy/internal/resources"
+	"github.com/compozy/compozy/internal/store"
 )
 
 var errBridgeSecretResolverRequired = errors.New("daemon: bridge secret resolver is required")
@@ -74,12 +75,13 @@ func (r *bridgeRuntime) PutBridgeTaskSubscription(
 
 func (r *bridgeRuntime) GetBridgeTaskSubscription(
 	ctx context.Context,
+	readScope store.ReadScope,
 	subscriptionID string,
 ) (bridgepkg.BridgeTaskSubscription, error) {
 	if r == nil || r.store == nil {
 		return bridgepkg.BridgeTaskSubscription{}, bridgepkg.ErrBridgeTaskSubscriptionNotFound
 	}
-	return r.store.GetBridgeTaskSubscription(ctx, subscriptionID)
+	return r.store.GetBridgeTaskSubscription(ctx, readScope, subscriptionID)
 }
 
 func (r *bridgeRuntime) ListBridgeTaskSubscriptions(
@@ -155,6 +157,33 @@ func (r *bridgeRuntime) AdvanceCursor(
 		return notifications.Cursor{}, notifications.ErrCursorNotFound
 	}
 	return cursorStore.AdvanceCursor(ctx, update)
+}
+
+func (r *bridgeRuntime) AcquireDeliveryPermit(
+	ctx context.Context,
+	permit notifications.DeliveryPermit,
+) error {
+	if r == nil || r.store == nil {
+		return notifications.ErrCursorNotFound
+	}
+	permitStore, ok := r.store.(notifications.DeliveryPermitStore)
+	if !ok {
+		return notifications.ErrCursorNotFound
+	}
+	return permitStore.AcquireDeliveryPermit(ctx, permit)
+}
+
+func (r *bridgeRuntime) ListDeliveryPermits(
+	ctx context.Context,
+) ([]notifications.DeliveryPermit, error) {
+	if r == nil || r.store == nil {
+		return nil, notifications.ErrInvalidCursor
+	}
+	reader, ok := r.store.(notifications.DeliveryPermitReader)
+	if !ok {
+		return nil, notifications.ErrInvalidCursor
+	}
+	return reader.ListDeliveryPermits(ctx)
 }
 
 func (r *bridgeRuntime) ResetCursor(

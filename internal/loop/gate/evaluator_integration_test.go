@@ -140,11 +140,11 @@ func TestEvaluatorExtensionGateIntegration(t *testing.T) {
 
 func validExtensionDescriptor() tools.Descriptor {
 	return tools.Descriptor{
-		ID:           "ext__quality__gate",
-		DisplayTitle: "Quality Gate",
-		Description:  "Evaluates loop gate quality",
-		InputSchema:  json.RawMessage(`{"type":"object"}`),
-		OutputSchema: json.RawMessage(`{"type":"object"}`),
+		ID:               "ext__quality__gate",
+		ToolPresentation: tools.NewToolPresentation("Quality Gate", "", ""),
+		Description:      "Evaluates loop gate quality",
+		InputSchema:      json.RawMessage(`{"type":"object"}`),
+		OutputSchema:     json.RawMessage(`{"type":"object"}`),
 		Backend: tools.BackendRef{
 			Kind:        tools.BackendExtensionHost,
 			ExtensionID: "quality",

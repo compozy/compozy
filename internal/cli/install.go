@@ -131,6 +131,7 @@ func newInstallCommand(deps commandDeps) *cobra.Command {
 	}
 	cmd.Flags().StringVar(&provider, cliProviderKey, "", "Default provider to configure without opening the wizard")
 	cmd.Flags().StringVar(&model, installModelKey, "", "Default model to configure without opening the wizard")
+	configureProfileIndependentFlag(cmd, "installation state is shared across profiles")
 	return cmd
 }
 

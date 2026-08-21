@@ -45,10 +45,32 @@ describe("cmd-palette dispatch seam (UT-105)", () => {
     });
     expect(outcome).toEqual({
       status: "invoked",
-      result: { status: "ok", invocation_id: "inv-fixture" },
+      result: {
+        status: "ok",
+        invocation_id: "inv-fixture",
+        profile_lens: {
+          profile_lens_id: "00000000000000000000000000",
+          profile_name: "default",
+        },
+      },
     });
     expect(ports.invoke).toHaveBeenCalledExactlyOnceWith("ext.notes.capture", { title: "Standup" });
     expect(ports.reportUsage).not.toHaveBeenCalled();
+  });
+
+  it("Should trim and forward the profile.use client operation", async () => {
+    const { ports, context } = portsFixture();
+    const outcome = await dispatchPaletteCommand({
+      command: paletteCommand({
+        id: "profile.use",
+        action: { kind: "client_op", op: "profile.use" },
+      }),
+      args: { profile: "  marketing  " },
+      ports,
+    });
+
+    expect(outcome).toEqual({ status: "ran" });
+    expect(context.shell.useProfile).toHaveBeenCalledExactlyOnceWith("marketing");
   });
 
   it("Should route navigate, view and url actions to their shell owners", async () => {
@@ -64,7 +86,28 @@ describe("cmd-palette dispatch seam (UT-105)", () => {
       }),
       ports,
     });
-    expect(ports.navigate).toHaveBeenCalledExactlyOnceWith("settings", "/settings/appearance");
+    expect(ports.navigate).toHaveBeenCalledExactlyOnceWith("settings", "/settings/appearance", {});
+
+    // A navigate action carries intent beyond its destination — which lifecycle
+    // flow to raise, against which target. Dropping it would land the operator
+    // on a page that has to guess why they arrived.
+    const { ports: flowPorts } = portsFixture();
+    await dispatchPaletteCommand({
+      command: paletteCommand({
+        id: "profile.archive",
+        action: {
+          kind: "navigate",
+          app: "settings",
+          args: { pathname: "/settings/profiles", flow: "archive" },
+        },
+      }),
+      args: { profile: "marketing" },
+      ports: flowPorts,
+    });
+    expect(flowPorts.navigate).toHaveBeenCalledExactlyOnceWith("settings", "/settings/profiles", {
+      flow: "archive",
+      profile: "marketing",
+    });
 
     await dispatchPaletteCommand({
       command: paletteCommand({
@@ -214,7 +257,14 @@ describe("cmd-palette pre-execution gates (UT-120, UT-123)", () => {
     });
     expect(outcome).toEqual({
       status: "invoked",
-      result: { status: "ok", invocation_id: "inv-fixture" },
+      result: {
+        status: "ok",
+        invocation_id: "inv-fixture",
+        profile_lens: {
+          profile_lens_id: "00000000000000000000000000",
+          profile_name: "default",
+        },
+      },
     });
     expect(ports.requestArgs).not.toHaveBeenCalled();
   });
@@ -243,7 +293,14 @@ describe("cmd-palette pre-execution gates (UT-120, UT-123)", () => {
     });
     expect(outcome).toEqual({
       status: "invoked",
-      result: { status: "ok", invocation_id: "inv-fixture" },
+      result: {
+        status: "ok",
+        invocation_id: "inv-fixture",
+        profile_lens: {
+          profile_lens_id: "00000000000000000000000000",
+          profile_name: "default",
+        },
+      },
     });
     expect(ports.invoke).toHaveBeenCalledOnce();
     expect(ports.requestConfirmation).not.toHaveBeenCalled();
@@ -275,7 +332,11 @@ describe("cmd-palette feedback lifecycle (UT-159, UT-160)", () => {
     const { ports } = portsFixture({
       invoke: vi.fn(async () => {
         order.push("invoke");
-        return { status: "ok", invocation_id: "inv-async" };
+        return {
+          status: "ok",
+          invocation_id: "inv-async",
+          profile_lens: { profile_lens_id: "00000000000000000000000000", profile_name: "default" },
+        };
       }),
       onPendingStart: vi.fn(() => order.push("start")),
       onPendingSettle: vi.fn(() => order.push("settle")),

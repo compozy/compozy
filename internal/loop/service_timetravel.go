@@ -222,7 +222,7 @@ func (s *service) forkChildRun(
 	child.ControlActor = task.ActorIdentity{}
 	child.ControlRequestedAt = time.Time{}
 	child.ActiveGateID = ""
-	child.ActiveHumanCriteria = json.RawMessage(`[]`)
+	child.SetActiveHumanCriteria(json.RawMessage(`[]`))
 	child.BudgetApprovalSeq = 0
 	child.SetForkedFrom(&ForkRef{RunID: source.ID, Generation: input.Generation})
 	child.SetForks(nil)

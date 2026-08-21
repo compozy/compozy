@@ -228,7 +228,7 @@ func TestLoadManifestSynthesizesAgentPluginPackages(t *testing.T) {
 		if first.Format != FormatAgentPlugin || first.Name != "acme.tools" || first.Version != "1.2.0" {
 			t.Fatalf("LoadManifest() identity = %#v, want agent-plugin acme.tools@1.2.0", first)
 		}
-		if got, want := first.Resources.Skills, []string{
+		if got, want := manifestResourcePaths(first.Resources.Skills), []string{
 			filepath.Join("skills", "release", "SKILL.md"),
 			filepath.Join("skills", "review", "SKILL.md"),
 		}; !reflect.DeepEqual(got, want) {
@@ -530,9 +530,20 @@ version = "0.2.1"
 description = "Normalization coverage"
 min_compozy_version = "0.5.0"
 
-[resources]
-skills = ["skills/", "  ", ""]
-agents = ["agents/", "\t"]
+[[resources.skills]]
+path = "skills/"
+
+[[resources.skills]]
+path = "  "
+
+[[resources.skills]]
+path = ""
+
+[[resources.agents]]
+path = "agents/"
+
+[[resources.agents]]
+path = "\t"
 
 [capabilities]
 provides = ["memory.backend", "   "]
@@ -550,10 +561,10 @@ args = ["--config", " ", "\t", "config.toml"]
 	if err != nil {
 		t.Fatalf("LoadManifest() error = %v", err)
 	}
-	if !reflect.DeepEqual(manifest.Resources.Skills, []string{"skills/"}) {
+	if !reflect.DeepEqual(manifestResourcePaths(manifest.Resources.Skills), []string{"skills/"}) {
 		t.Fatalf("Resources.Skills = %#v, want %#v", manifest.Resources.Skills, []string{"skills/"})
 	}
-	if !reflect.DeepEqual(manifest.Resources.Agents, []string{"agents/"}) {
+	if !reflect.DeepEqual(manifestResourcePaths(manifest.Resources.Agents), []string{"agents/"}) {
 		t.Fatalf("Resources.Agents = %#v, want %#v", manifest.Resources.Agents, []string{"agents/"})
 	}
 	if !reflect.DeepEqual(manifest.Capabilities.Provides, []string{"memory.backend"}) {
@@ -564,6 +575,176 @@ args = ["--config", " ", "\t", "config.toml"]
 	}
 	if !reflect.DeepEqual(manifest.Subprocess.Args, []string{"--config", "config.toml"}) {
 		t.Fatalf("Subprocess.Args = %#v, want %#v", manifest.Subprocess.Args, []string{"--config", "config.toml"})
+	}
+}
+
+// Invariant: declared profiles and resource placements cross the manifest
+// boundary as normalized typed values, never as unvalidated strings.
+// Owner: extension manifest normalization and validation.
+// Canonical suite: extension manifest tests.
+// Covers UT-054.
+func TestLoadManifestNormalizesDeclaredProfilesAndPlacements(t *testing.T) {
+	t.Run("Should normalize declared profile placements", func(t *testing.T) {
+		t.Parallel()
+		testLoadManifestNormalizesDeclaredProfilesAndPlacements(t)
+	})
+}
+
+func testLoadManifestNormalizesDeclaredProfilesAndPlacements(t *testing.T) {
+	t.Helper()
+	withDaemonVersion(t, "0.6.0")
+	dir := t.TempDir()
+	writeFile(t, filepath.Join(dir, manifestTOMLFileName), `[extension]
+name = "growth-kit"
+version = "1.0.0"
+min_compozy_version = "0.5.0"
+
+[[profiles]]
+name = "growth"
+color = "#5FBF85"
+icon = "chart-line"
+
+[profiles.defaults]
+agent = "growth-analyst"
+provider = "openai"
+sandbox = "workspace-write"
+
+[[profiles.credentials]]
+provider = "openai"
+slot = "api_key"
+
+[[resources.skills]]
+path = "skills/tweet-writer"
+profile = "growth"
+
+[[resources.skills]]
+path = "skills/changelog-writer"
+
+[[resources.cmd_palette.commands]]
+id = "report"
+title = "Growth report"
+icon = "chart-line"
+profile = "growth"
+action = { kind = "navigate", app = "sessions" }
+`)
+
+	manifest, err := LoadManifest(dir)
+	if err != nil {
+		t.Fatalf("LoadManifest() error = %v", err)
+	}
+	if len(manifest.Profiles) != 1 {
+		t.Fatalf("Profiles = %#v, want one declaration", manifest.Profiles)
+	}
+	declaration := manifest.Profiles[0]
+	if declaration.Name != "growth" || declaration.Color != "#5fbf85" ||
+		declaration.Defaults.Agent != "growth-analyst" || len(declaration.Credentials) != 1 {
+		t.Fatalf("Profiles[0] = %#v, want normalized growth declaration", declaration)
+	}
+	if got := manifest.Resources.Skills; len(got) != 2 || got[0].Path != "skills/tweet-writer" ||
+		got[0].Profile != "growth" || got[1].Profile != "" {
+		t.Fatalf("Resources.Skills = %#v, want placed and unplaced paths", got)
+	}
+	if got := manifest.Resources.CmdPalette.Commands; len(got) != 1 || got[0].Profile != "growth" {
+		t.Fatalf("CmdPalette.Commands = %#v, want growth placement", got)
+	}
+}
+
+// Invariant: credential identity is provider/slot after whitespace
+// normalization, so equivalent declarations cannot be stored twice.
+// Owner: extension manifest normalization and validation.
+// Canonical suite: extension manifest tests.
+func TestLoadManifestRejectsCredentialDuplicatesAfterNormalization(t *testing.T) {
+	t.Parallel()
+	t.Run("Should treat whitespace variants as one credential requirement", func(t *testing.T) {
+		t.Parallel()
+		withDaemonVersion(t, "0.6.0")
+		dir := t.TempDir()
+		writeFile(t, filepath.Join(dir, manifestTOMLFileName), `[extension]
+name = "credential-duplicates"
+version = "1.0.0"
+min_compozy_version = "0.5.0"
+
+[capabilities]
+provides = ["memory.backend"]
+
+[permissions]
+requires = ["sessions/list"]
+
+[[profiles]]
+name = "marketing"
+
+[[profiles.credentials]]
+provider = " openai "
+slot = " api_key "
+
+[[profiles.credentials]]
+provider = "openai"
+slot = "api_key"
+`)
+		_, err := LoadManifest(dir)
+		if err == nil || !strings.Contains(err.Error(), "duplicate credential requirement") {
+			t.Fatalf("LoadManifest() error = %v, want normalized duplicate rejection", err)
+		}
+		var validationErr *ManifestValidationError
+		if !errors.As(err, &validationErr) {
+			t.Fatalf("LoadManifest() error type = %T, want *ManifestValidationError", err)
+		}
+	})
+}
+
+func TestManifestPlacementMatrixReportsDormantProfileResources(t *testing.T) {
+	t.Parallel()
+	t.Run("Should keep all declarations and mark only absent profile placements dormant [UT-056]", func(t *testing.T) {
+		t.Parallel()
+		manifest := &Manifest{Resources: ResourcesConfig{Skills: []ManifestResourcePath{
+			{Path: "skills/shared"},
+			{Path: "skills/growth", Profile: "growth"},
+			{Path: "skills/finance", Profile: "finance"},
+		}}}
+
+		matrix := manifest.PlacementMatrix()
+		if len(matrix) != 3 || matrix[0].Profile != "" || matrix[1].Profile != "growth" {
+			t.Fatalf("PlacementMatrix() = %#v, want shared then name-bound rows", matrix)
+		}
+		dormant := manifest.DormantPlacements([]string{"default", "growth"})
+		if len(dormant) != 1 || dormant[0].Resource != "skills/finance" || dormant[0].Profile != "finance" {
+			t.Fatalf("DormantPlacements() = %#v, want absent finance placement", dormant)
+		}
+	})
+}
+
+// Invariant: invalid or reserved declarations and grammar-invalid placements
+// fail before an extension can be installed or built.
+// Owner: extension manifest validation.
+// Canonical suite: extension manifest tests.
+func TestLoadManifestRejectsInvalidProfileDeclarationsAndPlacements(t *testing.T) {
+	withDaemonVersion(t, "0.6.0")
+	for _, testCase := range []struct {
+		name     string
+		fragment string
+		field    string
+	}{
+		{name: "Should reject invalid declared names", fragment: "[[profiles]]\nname = \"Growth Team\"", field: "profiles[0].name"},
+		{name: "Should reject reserved declared names", fragment: "[[profiles]]\nname = \"global\"", field: "profiles[0].name"},
+		{name: "Should reject invalid placement names", fragment: "[[resources.skills]]\npath = \"skills\"\nprofile = \"Growth Team\"", field: "resources.skills[0].profile"},
+	} {
+		t.Run(testCase.name, func(t *testing.T) {
+			dir := t.TempDir()
+			writeFile(t, filepath.Join(dir, manifestTOMLFileName), `[extension]
+name = "profile-validation"
+version = "1.0.0"
+min_compozy_version = "0.5.0"
+
+`+testCase.fragment+"\n")
+			_, err := LoadManifest(dir)
+			var validationErr *ManifestValidationError
+			if !errors.As(err, &validationErr) {
+				t.Fatalf("LoadManifest() error = %T %v, want ManifestValidationError", err, err)
+			}
+			if validationErr.Field != testCase.field {
+				t.Fatalf("validation field = %q, want %q", validationErr.Field, testCase.field)
+			}
+		})
 	}
 }
 
@@ -1157,7 +1338,7 @@ func TestManifestValidateRejectsDaemonOnlyResourcePublishFamily(t *testing.T) {
 	manifest := expectedManifest()
 	manifest.Resources.Publish = ResourceGrantRequest{
 		Families: []string{"bridge_instances"},
-		MaxScope: resources.ResourceScopeKindGlobal,
+		MaxScope: resources.ResourceScopeKindUser,
 	}
 
 	err := manifest.Validate()
@@ -1686,6 +1867,13 @@ func TestSemanticVersion_HelperValidation(t *testing.T) {
 func withDaemonVersion(t *testing.T, current string) {
 	t.Helper()
 
+	active, activeOK := parseSemanticVersion(version.Current().Version)
+	required, requiredOK := parseSemanticVersion(current)
+	if strings.TrimSpace(current) == extensionTestDaemonVersion ||
+		(strings.TrimSpace(current) == "0.5.0" && activeOK && requiredOK &&
+			compareSemanticVersions(active, required) >= 0) {
+		return
+	}
 	t.Cleanup(version.OverrideVersionForTesting(current))
 }
 
@@ -1709,8 +1897,8 @@ func expectedManifest() Manifest {
 		Description:       "PostgreSQL pgvector memory backend for Compozy",
 		MinCompozyVersion: "0.5.0",
 		Resources: ResourcesConfig{
-			Skills: []string{"skills/"},
-			Agents: []string{"agents/"},
+			Skills: []ManifestResourcePath{{Path: "skills/"}},
+			Agents: []ManifestResourcePath{{Path: "agents/"}},
 			Hooks: []HookConfig{
 				{
 					Name:     "workspace-context",
@@ -1776,9 +1964,11 @@ version = "0.2.1"
 description = "PostgreSQL pgvector memory backend for Compozy"
 min_compozy_version = "0.5.0"
 
-[resources]
-skills = ["skills/"]
-agents = ["agents/"]
+[[resources.skills]]
+path = "skills/"
+
+[[resources.agents]]
+path = "agents/"
 
 [resources.tools.lookup]
 description = "Search workspace content"
@@ -1835,8 +2025,8 @@ const validManifestJSON = `{
     "min_compozy_version": "0.5.0"
   },
   "resources": {
-    "skills": ["skills/"],
-    "agents": ["agents/"],
+    "skills": [{"path": "skills/"}],
+    "agents": [{"path": "agents/"}],
     "tools": {
       "lookup": {
         "description": "Search workspace content",

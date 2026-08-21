@@ -11,7 +11,7 @@ func getSettingsWindowManagerOperationSpec() OperationSpec {
 		Tags:        []string{specSettingsKey},
 		Transports:  []Transport{TransportHTTP, TransportUDS},
 		Parameters: []ParameterSpec{
-			enumQueryParam(specScopeKey, "Select the settings scope", settingsWorkspaceScopeValues()),
+			enumQueryParam(specScopeKey, "Select the settings scope", settingsUserWorkspaceScopeValues()),
 			queryParam("workspace_id", "Select the workspace id for workspace scope", false),
 		},
 		Responses: []ResponseSpec{
@@ -32,7 +32,7 @@ func updateSettingsWindowManagerOperationSpec() OperationSpec {
 		Tags:        []string{specSettingsKey},
 		Transports:  []Transport{TransportHTTP, TransportUDS},
 		Parameters: []ParameterSpec{
-			enumQueryParam(specScopeKey, "Select the settings scope", settingsWorkspaceScopeValues()),
+			enumQueryParam(specScopeKey, "Select the settings scope", settingsUserWorkspaceScopeValues()),
 			queryParam("workspace_id", "Select the workspace id for workspace scope", false),
 		},
 		RequestBody: contract.UpdateSettingsWindowManagerRequest{},

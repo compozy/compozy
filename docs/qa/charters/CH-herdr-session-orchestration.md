@@ -13,7 +13,7 @@ charter:
     network: wifi-fast
     locale: en-US
   journey: J-15
-  scenarios: [RT-session-attention-catalog, RT-operator-notification-delivery, RT-session-wait-state, RT-session-prompt-cancel, RT-session-native-stop]
+  scenarios: [RT-session-attention-catalog, RT-042, RT-operator-notification-delivery, RT-session-wait-state, RT-session-prompt-cancel, RT-session-native-stop]
   tour: Interrupt Tour
   time_box_minutes: 60
   adrs: [ADR-001, ADR-002, ADR-005]

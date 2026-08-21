@@ -3,28 +3,37 @@ package contract
 type SettingsScopeKind string
 
 const (
-	SettingsScopeGlobal    SettingsScopeKind = "global"
+	SettingsScopeUser      SettingsScopeKind = "user"
+	SettingsScopeProfile   SettingsScopeKind = "profile"
 	SettingsScopeWorkspace SettingsScopeKind = "workspace"
 	SettingsScopeAgent     SettingsScopeKind = "agent"
 )
 
-type SettingsGlobalScopeKind string
+type SettingsUserScopeKind string
 
 const (
-	SettingsGlobalScope SettingsGlobalScopeKind = "global"
+	SettingsUserScope SettingsUserScopeKind = "user"
 )
 
 type SettingsAgentScopeKind string
 
 const (
-	SettingsAgentScopeGlobal SettingsAgentScopeKind = "global"
-	SettingsAgentScopeAgent  SettingsAgentScopeKind = "agent"
+	SettingsAgentScopeUser  SettingsAgentScopeKind = "user"
+	SettingsAgentScopeAgent SettingsAgentScopeKind = "agent"
+)
+
+type SettingsLayeredScopeKind string
+
+const (
+	SettingsLayeredScopeUser      SettingsLayeredScopeKind = "user"
+	SettingsLayeredScopeProfile   SettingsLayeredScopeKind = "profile"
+	SettingsLayeredScopeWorkspace SettingsLayeredScopeKind = "workspace"
 )
 
 type SettingsWorkspaceScopeKind string
 
 const (
-	SettingsWorkspaceScopeGlobal    SettingsWorkspaceScopeKind = "global"
+	SettingsWorkspaceScopeUser      SettingsWorkspaceScopeKind = "user"
 	SettingsWorkspaceScopeWorkspace SettingsWorkspaceScopeKind = "workspace"
 )
 
@@ -32,6 +41,7 @@ type SettingsSectionName string
 
 const (
 	SettingsSectionGeneral         SettingsSectionName = "general"
+	SettingsSectionPersona         SettingsSectionName = "persona"
 	SettingsSectionMemory          SettingsSectionName = "memory"
 	SettingsSectionRoles           SettingsSectionName = "roles"
 	SettingsSectionSkills          SettingsSectionName = "skills"
@@ -58,6 +68,7 @@ type SettingsApplyTargetName string
 
 const (
 	SettingsApplyTargetGeneral         SettingsApplyTargetName = SettingsApplyTargetName(SettingsSectionGeneral)
+	SettingsApplyTargetPersona         SettingsApplyTargetName = SettingsApplyTargetName(SettingsSectionPersona)
 	SettingsApplyTargetMemory          SettingsApplyTargetName = SettingsApplyTargetName(SettingsSectionMemory)
 	SettingsApplyTargetRoles           SettingsApplyTargetName = SettingsApplyTargetName(SettingsSectionRoles)
 	SettingsApplyTargetSkills          SettingsApplyTargetName = SettingsApplyTargetName(SettingsSectionSkills)
@@ -79,8 +90,10 @@ type SettingsWriteTargetKind string
 
 const (
 	SettingsWriteTargetGlobalConfig        SettingsWriteTargetKind = "global-config"
+	SettingsWriteTargetProfileConfig       SettingsWriteTargetKind = "profile-config"
 	SettingsWriteTargetWorkspaceConfig     SettingsWriteTargetKind = "workspace-config"
 	SettingsWriteTargetGlobalMCPSidecar    SettingsWriteTargetKind = "global-mcp-sidecar"
+	SettingsWriteTargetProfileMCPSidecar   SettingsWriteTargetKind = "profile-mcp-sidecar"
 	SettingsWriteTargetWorkspaceMCPSidecar SettingsWriteTargetKind = "workspace-mcp-sidecar"
 	SettingsWriteTargetGlobalAgentFile     SettingsWriteTargetKind = "global-agent-file"
 	SettingsWriteTargetWorkspaceAgentFile  SettingsWriteTargetKind = "workspace-agent-file"
@@ -141,13 +154,17 @@ const (
 type SettingsSourceKind string
 
 const (
-	SettingsSourceBuiltinProvider     SettingsSourceKind = "builtin-provider"
-	SettingsSourceGlobalConfig        SettingsSourceKind = "global-config"
-	SettingsSourceWorkspaceConfig     SettingsSourceKind = "workspace-config"
-	SettingsSourceGlobalMCPSidecar    SettingsSourceKind = "global-mcp-sidecar"
-	SettingsSourceWorkspaceMCPSidecar SettingsSourceKind = "workspace-mcp-sidecar"
-	SettingsSourceGlobalAgentFile     SettingsSourceKind = "global-agent-file"
-	SettingsSourceWorkspaceAgentFile  SettingsSourceKind = "workspace-agent-file"
+	SettingsSourceBuiltinProvider            SettingsSourceKind = "builtin-provider"
+	SettingsSourceGlobalConfig               SettingsSourceKind = "global-config"
+	SettingsSourceProfileConfig              SettingsSourceKind = "profile-config"
+	SettingsSourceWorkspaceConfig            SettingsSourceKind = "workspace-config"
+	SettingsSourceWorkspaceProfileConfig     SettingsSourceKind = "workspace-profile-config"
+	SettingsSourceGlobalMCPSidecar           SettingsSourceKind = "global-mcp-sidecar"
+	SettingsSourceProfileMCPSidecar          SettingsSourceKind = "profile-mcp-sidecar"
+	SettingsSourceWorkspaceMCPSidecar        SettingsSourceKind = "workspace-mcp-sidecar"
+	SettingsSourceWorkspaceProfileMCPSidecar SettingsSourceKind = "workspace-profile-mcp-sidecar"
+	SettingsSourceGlobalAgentFile            SettingsSourceKind = "global-agent-file"
+	SettingsSourceWorkspaceAgentFile         SettingsSourceKind = "workspace-agent-file"
 )
 
 type RestartOperationStatus string

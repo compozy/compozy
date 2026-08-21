@@ -249,7 +249,7 @@ func ValidateMCPOAuthURL(path string, raw string) error {
 	switch parsed.Scheme {
 	case urlSchemeHTTPS:
 		return nil
-	case "http":
+	case marketplaceSchemeHTTP:
 		if mcpLoopbackHost(parsed.Hostname()) {
 			return nil
 		}

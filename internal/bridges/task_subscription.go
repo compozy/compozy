@@ -9,6 +9,7 @@ import (
 	"unicode/utf8"
 
 	"github.com/compozy/compozy/internal/notifications"
+	"github.com/compozy/compozy/internal/store"
 	taskpkg "github.com/compozy/compozy/internal/task"
 )
 
@@ -27,6 +28,12 @@ var (
 // BridgeTaskSubscription stores one bridge terminal-notification target for one task.
 type BridgeTaskSubscription struct {
 	SubscriptionID   string                `json:"subscription_id"`
+	ProfileID        string                `json:"profile_id"`
+	ProfileName      string                `json:"profile_name,omitempty"`
+	ProfileColor     string                `json:"profile_color,omitempty"`
+	ProfileIcon      string                `json:"profile_icon,omitempty"`
+	ProfileEmoji     string                `json:"profile_emoji,omitempty"`
+	ProfileArchived  bool                  `json:"profile_archived,omitempty"`
 	TaskID           string                `json:"task_id"`
 	BridgeInstanceID string                `json:"bridge_instance_id"`
 	Scope            Scope                 `json:"scope"`
@@ -42,6 +49,7 @@ type BridgeTaskSubscription struct {
 
 // BridgeTaskSubscriptionQuery filters persisted bridge task subscriptions.
 type BridgeTaskSubscriptionQuery struct {
+	ReadScope        store.ReadScope
 	TaskID           string `json:"task_id,omitempty"`
 	BridgeInstanceID string `json:"bridge_instance_id,omitempty"`
 	Scope            Scope  `json:"scope,omitempty"`
@@ -52,7 +60,11 @@ type BridgeTaskSubscriptionQuery struct {
 // BridgeTaskSubscriptionStore persists bridge task subscription targets.
 type BridgeTaskSubscriptionStore interface {
 	PutBridgeTaskSubscription(ctx context.Context, subscription BridgeTaskSubscription) error
-	GetBridgeTaskSubscription(ctx context.Context, subscriptionID string) (BridgeTaskSubscription, error)
+	GetBridgeTaskSubscription(
+		ctx context.Context,
+		readScope store.ReadScope,
+		subscriptionID string,
+	) (BridgeTaskSubscription, error)
 	ListBridgeTaskSubscriptions(
 		ctx context.Context,
 		query BridgeTaskSubscriptionQuery,
@@ -83,6 +95,7 @@ func (s BridgeTaskSubscription) Validate() error {
 		label string
 	}{
 		{value: normalized.SubscriptionID, label: "bridge task subscription id"},
+		{value: normalized.ProfileID, label: "bridge task subscription profile id"},
 		{value: normalized.TaskID, label: "bridge task subscription task id"},
 		{value: normalized.BridgeInstanceID, label: "bridge task subscription bridge instance id"},
 		{value: normalized.WorkspaceID, label: "bridge task subscription workspace id"},
@@ -97,6 +110,9 @@ func (s BridgeTaskSubscription) Validate() error {
 	}
 	if normalized.SubscriptionID == "" {
 		return fmt.Errorf("%w: bridge task subscription id is required", ErrInvalidBridgeTaskSubscription)
+	}
+	if normalized.ProfileID == "" {
+		return fmt.Errorf("%w: bridge task subscription profile id is required", ErrInvalidBridgeTaskSubscription)
 	}
 	if normalized.TaskID == "" {
 		return fmt.Errorf("%w: bridge task subscription task id is required", ErrInvalidBridgeTaskSubscription)
@@ -131,6 +147,7 @@ func (s BridgeTaskSubscription) Normalize() BridgeTaskSubscription {
 func (s BridgeTaskSubscription) CursorKey() notifications.CursorKey {
 	normalized := s.Normalize()
 	return notifications.CursorKey{
+		ProfileID: normalized.ProfileID,
 		Scope: notifications.ScopeRef{
 			Kind:        notifications.ScopeKind(normalized.Scope),
 			WorkspaceID: normalized.WorkspaceID,
@@ -170,6 +187,7 @@ func (s BridgeTaskSubscription) DeliveryTarget() DeliveryTarget {
 // closed scope enum.
 func (q BridgeTaskSubscriptionQuery) Normalize() BridgeTaskSubscriptionQuery {
 	normalized := BridgeTaskSubscriptionQuery{
+		ReadScope:        q.ReadScope,
 		TaskID:           q.TaskID,
 		BridgeInstanceID: q.BridgeInstanceID,
 		Scope:            q.Scope.Normalize(),
@@ -182,9 +200,12 @@ func (q BridgeTaskSubscriptionQuery) Normalize() BridgeTaskSubscriptionQuery {
 	return normalized
 }
 
-// Validate reports whether optional subscription filters retain valid opaque
-// identity components.
+// Validate reports whether the read scope and optional subscription filters
+// retain valid opaque identity components.
 func (q BridgeTaskSubscriptionQuery) Validate() error {
+	if err := q.ReadScope.Validate(); err != nil {
+		return fmt.Errorf("%w: invalid profile read scope: %w", ErrInvalidBridgeTaskSubscription, err)
+	}
 	for _, field := range []struct {
 		value string
 		label string

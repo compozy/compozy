@@ -152,7 +152,10 @@ type hostedBindRecord struct {
 }
 
 // NewHostedService builds a hosted MCP lifecycle service.
-func NewHostedService(cfg HostedConfig) (*HostedService, error) {
+func NewHostedService(cfg *HostedConfig) (*HostedService, error) {
+	if cfg == nil {
+		return nil, errors.New("mcp: hosted MCP config is required")
+	}
 	now := cfg.Now
 	if now == nil {
 		now = func() time.Time {

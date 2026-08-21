@@ -1,3 +1,4 @@
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 // Suite: Jobs window catalog
 // Invariant: Automation suggestions reach the UI only through the unfiltered
 // zero-inventory empty state — gated by a runtime workspace and non-global
@@ -71,6 +72,7 @@ vi.mock("../../automation/use-automation-page", () => ({
 }));
 
 beforeEach(() => {
+  jobsQueryClient.clear();
   jobsCatalog.mockReset();
   suggestionPanel.mockReset();
   workspaceContext.current = {
@@ -108,14 +110,21 @@ beforeEach(() => {
   };
 });
 
+/** The catalog resolves the active profile, which is a server read. */
+const jobsQueryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+
+function withQueryClient(node: ReactNode) {
+  return <QueryClientProvider client={jobsQueryClient}>{node}</QueryClientProvider>;
+}
+
 describe("JobsCatalogLocation", () => {
   it("Should hand zero-inventory suggestions to the empty state unless scope is Global or no runtime workspace exists", () => {
-    const { rerender } = render(<JobsCatalogLocation search={{}} />);
+    const { rerender } = render(withQueryClient(<JobsCatalogLocation search={{}} />));
 
     expect(screen.getByTestId("automation-suggestions-panel")).toBeInTheDocument();
     expect(suggestionPanel).toHaveBeenLastCalledWith("ws_test");
 
-    rerender(<JobsCatalogLocation search={{ scope: "global" }} />);
+    rerender(withQueryClient(<JobsCatalogLocation search={{ scope: "global" }} />));
     expect(screen.queryByTestId("automation-suggestions-panel")).not.toBeInTheDocument();
 
     workspaceContext.current = {
@@ -123,7 +132,7 @@ describe("JobsCatalogLocation", () => {
       activeWorkspaceId: null,
       runtimeWorkspaceId: "ws_home",
     };
-    rerender(<JobsCatalogLocation search={{}} />);
+    rerender(withQueryClient(<JobsCatalogLocation search={{}} />));
     expect(suggestionPanel).toHaveBeenLastCalledWith("ws_home");
 
     workspaceContext.current = {
@@ -131,14 +140,14 @@ describe("JobsCatalogLocation", () => {
       activeWorkspaceId: null,
       runtimeWorkspaceId: null,
     };
-    rerender(<JobsCatalogLocation search={{}} />);
+    rerender(withQueryClient(<JobsCatalogLocation search={{}} />));
     expect(screen.queryByTestId("automation-suggestions-panel")).not.toBeInTheDocument();
   });
 
   it("Should never render suggestions once the catalog holds inventory", () => {
     jobsPage.current = { ...jobsPage.current, jobs: [], total: 12 };
 
-    render(<JobsCatalogLocation search={{}} />);
+    render(withQueryClient(<JobsCatalogLocation search={{}} />));
 
     expect(screen.queryByTestId("automation-suggestions-panel")).not.toBeInTheDocument();
     expect(jobsCatalog).toHaveBeenLastCalledWith(
@@ -149,7 +158,7 @@ describe("JobsCatalogLocation", () => {
   it("Should withhold suggestions from the filtered-empty state", () => {
     jobsPage.current = { ...jobsPage.current, hasActiveFilters: true, total: 0 };
 
-    render(<JobsCatalogLocation search={{}} />);
+    render(withQueryClient(<JobsCatalogLocation search={{}} />));
 
     expect(screen.queryByTestId("automation-suggestions-panel")).not.toBeInTheDocument();
     expect(jobsCatalog).toHaveBeenLastCalledWith(
@@ -160,7 +169,7 @@ describe("JobsCatalogLocation", () => {
   it("Should delegate card-mode loading geometry to the automation catalog", () => {
     jobsPage.current = { ...jobsPage.current, isLoading: true, view: "cards" };
 
-    render(<JobsCatalogLocation search={{ view: "cards" }} />);
+    render(withQueryClient(<JobsCatalogLocation search={{ view: "cards" }} />));
 
     expect(screen.getByTestId("automation-jobs-catalog")).toBeInTheDocument();
     expect(jobsCatalog).toHaveBeenLastCalledWith(
@@ -174,7 +183,7 @@ describe("JobsCatalogLocation", () => {
     const handleCreate = vi.fn();
     jobsPage.current = { ...jobsPage.current, handleCreate };
 
-    render(<JobsCatalogLocation search={{}} />);
+    render(withQueryClient(<JobsCatalogLocation search={{}} />));
     await user.click(screen.getByTestId("automation-jobs-catalog-create"));
 
     expect(handleCreate).toHaveBeenCalledTimes(1);

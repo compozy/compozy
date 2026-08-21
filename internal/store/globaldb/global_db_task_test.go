@@ -47,6 +47,7 @@ func TestOpenGlobalDBCreatesTaskSchemaAndIndexes(t *testing.T) {
 	)
 	assertTableColumns(t, globalDB.db, "tasks", []string{
 		"id",
+		"profile_id",
 		"identifier",
 		"scope",
 		"workspace_id",
@@ -562,6 +563,45 @@ func TestGlobalDBTaskRoundTripPreservesNullableFields(t *testing.T) {
 	if got, want := children, 1; got != want {
 		t.Fatalf("CountDirectChildren() = %d, want %d", got, want)
 	}
+
+	t.Run("Should enforce explicit profile scope for task detail reads", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t)
+		foreignProfileID := strings.Repeat("f", 26)
+		if _, err := globalDB.DB().ExecContext(ctx, `
+			INSERT INTO profiles (id, name, color, icon, state, created_at)
+			VALUES (?, 'task-foreign', '#8E8EB5', 'circle', 'active', ?)`,
+			foreignProfileID,
+			store.FormatTimestamp(time.Date(2026, 4, 14, 13, 0, 0, 0, time.UTC)),
+		); err != nil {
+			t.Fatalf("insert foreign profile error = %v", err)
+		}
+		foreign := taskRecordForTest("task-foreign-profile")
+		foreign.ProfileID = foreignProfileID
+		if err := globalDB.CreateTask(ctx, foreign); err != nil {
+			t.Fatalf("CreateTask(foreign) error = %v", err)
+		}
+
+		if _, err := globalDB.GetTaskInReadScope(ctx, foreign.ID, store.ReadScope{
+			ProfileID: store.DefaultProfileID,
+		}); !errors.Is(err, taskpkg.ErrTaskNotFound) {
+			t.Fatalf("GetTaskInReadScope(foreign) error = %v, want %v", err, taskpkg.ErrTaskNotFound)
+		}
+		if _, err := globalDB.GetTaskInReadScope(ctx, foreign.ID, store.ReadScope{}); !errors.Is(
+			err,
+			store.ErrReadScopeInvalid,
+		) {
+			t.Fatalf("GetTaskInReadScope(invalid) error = %v, want %v", err, store.ErrReadScopeInvalid)
+		}
+		aggregate, err := globalDB.GetTaskInReadScope(ctx, foreign.ID, store.ReadScope{AllProfiles: true})
+		if err != nil {
+			t.Fatalf("GetTaskInReadScope(aggregate) error = %v", err)
+		}
+		if got, want := aggregate.ProfileID, foreignProfileID; got != want {
+			t.Fatalf("GetTaskInReadScope(aggregate).ProfileID = %q, want %q", got, want)
+		}
+	})
 }
 
 func TestGlobalDBDeleteTaskMapsChildConstraintToValidationError(t *testing.T) {
@@ -1691,6 +1731,7 @@ func TestGlobalDBListTasksSearchAndActivityOrdering(t *testing.T) {
 		Attempt:   1,
 		Origin:    taskpkg.Origin{Kind: taskpkg.OriginKindDaemon, Ref: "scheduler"},
 		QueuedAt:  time.Date(2026, 4, 17, 12, 0, 0, 0, time.UTC),
+		ProfileID: store.DefaultProfileID,
 		StartedAt: time.Date(2026, 4, 17, 12, 5, 0, 0, time.UTC),
 	}); err != nil {
 		t.Fatalf("CreateTaskRun() error = %v", err)
@@ -1816,10 +1857,13 @@ func TestGlobalDBTaskCatalogCoordinatorPulseStaysInProgress(t *testing.T) {
 		}
 		insertCatalogRun(ctx, t, globalDB, "run-closed-1", closed.ID, "coordinator", "completed", 6, now)
 
-		page, err := globalDB.ListTaskCatalog(ctx, taskpkg.CatalogQuery{
-			Scope: taskpkg.CatalogScopeGlobal,
-			Limit: 10,
-		})
+		page, err := globalDB.ListTaskCatalog(
+			ctx,
+			taskpkg.CatalogQuery{ReadScope: store.ReadScope{ProfileID: store.DefaultProfileID},
+				Scope: taskpkg.CatalogScopeGlobal,
+				Limit: 10,
+			},
+		)
 		if err != nil {
 			t.Fatalf("ListTaskCatalog() error = %v", err)
 		}
@@ -1900,7 +1944,10 @@ func TestGlobalDBTaskCatalogPaginationAndFacets(t *testing.T) {
 			t.Fatalf("seed migrated run mode: %v", err)
 		}
 
-		page, err := globalDB.ListTaskCatalog(ctx, taskpkg.CatalogQuery{IncludeDrafts: true})
+		page, err := globalDB.ListTaskCatalog(
+			ctx,
+			taskpkg.CatalogQuery{ReadScope: store.ReadScope{ProfileID: store.DefaultProfileID}, IncludeDrafts: true},
+		)
 		if err != nil {
 			t.Fatalf("ListTaskCatalog() error = %v", err)
 		}
@@ -1921,13 +1968,15 @@ func TestGlobalDBTaskCatalogPaginationAndFacets(t *testing.T) {
 		now := time.Date(2026, 8, 12, 18, 0, 0, 0, time.UTC)
 		worktrees := []worktreepkg.Worktree{
 			{
-				ID: "wt-catalog-alpha", WorkspaceID: workspaceID, Name: "alpha", Branch: "feature/alpha",
+				ID: "wt-catalog-alpha", ProfileID: store.DefaultProfileID,
+				WorkspaceID: workspaceID, Name: "alpha", Branch: "feature/alpha",
 				Path: filepath.Join(t.TempDir(), "alpha"), State: worktreepkg.StateReady,
 				Origin: worktreepkg.OriginManual, SetupState: worktreepkg.SetupNone,
 				CreatedAt: now, UpdatedAt: now,
 			},
 			{
-				ID: "wt-catalog-beta", WorkspaceID: workspaceID, Name: "beta", Branch: "feature/beta",
+				ID: "wt-catalog-beta", ProfileID: store.DefaultProfileID,
+				WorkspaceID: workspaceID, Name: "beta", Branch: "feature/beta",
 				Path: filepath.Join(t.TempDir(), "beta"), State: worktreepkg.StateReady,
 				Origin: worktreepkg.OriginManual, SetupState: worktreepkg.SetupNone,
 				CreatedAt: now, UpdatedAt: now,
@@ -1973,7 +2022,7 @@ func TestGlobalDBTaskCatalogPaginationAndFacets(t *testing.T) {
 			t.Fatalf("CreateTaskRun(fanout) error = %v", err)
 		}
 
-		query := taskpkg.CatalogQuery{
+		query := taskpkg.CatalogQuery{ReadScope: store.ReadScope{ProfileID: store.DefaultProfileID},
 			Scope:         taskpkg.CatalogScopeWorkspace,
 			WorkspaceID:   workspaceID,
 			WorktreeID:    worktrees[0].ID,
@@ -2022,6 +2071,7 @@ func TestGlobalDBTaskCatalogPaginationAndFacets(t *testing.T) {
 		}
 
 		inbox, err := globalDB.ListTaskInbox(ctx, taskpkg.InboxQuery{
+			ReadScope:   store.ReadScope{ProfileID: store.DefaultProfileID},
 			Scope:       taskpkg.CatalogScopeWorkspace,
 			WorkspaceID: workspaceID,
 			WorktreeID:  worktrees[0].ID,
@@ -2065,12 +2115,15 @@ func TestGlobalDBTaskCatalogPaginationAndFacets(t *testing.T) {
 			}
 		}
 
-		page, err := globalDB.ListTaskCatalog(ctx, taskpkg.CatalogQuery{
-			Scope:         taskpkg.CatalogScopeGlobal,
-			Search:        "needle",
-			IncludeDrafts: true,
-			Limit:         5,
-		})
+		page, err := globalDB.ListTaskCatalog(
+			ctx,
+			taskpkg.CatalogQuery{ReadScope: store.ReadScope{ProfileID: store.DefaultProfileID},
+				Scope:         taskpkg.CatalogScopeGlobal,
+				Search:        "needle",
+				IncludeDrafts: true,
+				Limit:         5,
+			},
+		)
 		if err != nil {
 			t.Fatalf("ListTaskCatalog(search) error = %v", err)
 		}
@@ -2091,11 +2144,13 @@ func TestGlobalDBTaskCatalogPaginationAndFacets(t *testing.T) {
 		}
 
 		counting := &countingTaskCatalogExecutor{taskSQLExecutor: globalDB.db}
-		normalized, err := taskpkg.NormalizeCatalogQuery(taskpkg.CatalogQuery{
-			Scope:         taskpkg.CatalogScopeGlobal,
-			IncludeDrafts: true,
-			Limit:         10,
-		})
+		normalized, err := taskpkg.NormalizeCatalogQuery(
+			taskpkg.CatalogQuery{ReadScope: store.ReadScope{ProfileID: store.DefaultProfileID},
+				Scope:         taskpkg.CatalogScopeGlobal,
+				IncludeDrafts: true,
+				Limit:         10,
+			},
+		)
 		if err != nil {
 			t.Fatalf("NormalizeCatalogQuery() error = %v", err)
 		}
@@ -2131,7 +2186,7 @@ func TestGlobalDBTaskCatalogPaginationAndFacets(t *testing.T) {
 			}
 		}
 
-		query := taskpkg.CatalogQuery{
+		query := taskpkg.CatalogQuery{ReadScope: store.ReadScope{ProfileID: store.DefaultProfileID},
 			Scope:         taskpkg.CatalogScopeGlobal,
 			IncludeDrafts: true,
 			Sort:          taskpkg.CatalogSortPriority,
@@ -2281,11 +2336,14 @@ func TestGlobalDBTaskCatalogPaginationAndFacets(t *testing.T) {
 			t.Fatalf("CreateDependency(released) error = %v", err)
 		}
 
-		inProgress, err := globalDB.ListTaskCatalog(ctx, taskpkg.CatalogQuery{
-			Scope:         taskpkg.CatalogScopeGlobal,
-			Status:        taskpkg.TaskStatusInProgress,
-			IncludeDrafts: true,
-		})
+		inProgress, err := globalDB.ListTaskCatalog(
+			ctx,
+			taskpkg.CatalogQuery{ReadScope: store.ReadScope{ProfileID: store.DefaultProfileID},
+				Scope:         taskpkg.CatalogScopeGlobal,
+				Status:        taskpkg.TaskStatusInProgress,
+				IncludeDrafts: true,
+			},
+		)
 		if err != nil {
 			t.Fatalf("ListTaskCatalog(in_progress) error = %v", err)
 		}
@@ -2302,11 +2360,14 @@ func TestGlobalDBTaskCatalogPaginationAndFacets(t *testing.T) {
 			t.Fatalf("in-progress status facets = %#v, want %#v", got, want)
 		}
 
-		blocked, err := globalDB.ListTaskCatalog(ctx, taskpkg.CatalogQuery{
-			Scope:         taskpkg.CatalogScopeGlobal,
-			Status:        taskpkg.TaskStatusBlocked,
-			IncludeDrafts: true,
-		})
+		blocked, err := globalDB.ListTaskCatalog(
+			ctx,
+			taskpkg.CatalogQuery{ReadScope: store.ReadScope{ProfileID: store.DefaultProfileID},
+				Scope:         taskpkg.CatalogScopeGlobal,
+				Status:        taskpkg.TaskStatusBlocked,
+				IncludeDrafts: true,
+			},
+		)
 		if err != nil {
 			t.Fatalf("ListTaskCatalog(blocked) error = %v", err)
 		}
@@ -2320,12 +2381,15 @@ func TestGlobalDBTaskCatalogPaginationAndFacets(t *testing.T) {
 			t.Fatalf("blocked status facets = %#v, want %#v", got, want)
 		}
 
-		alice, err := globalDB.ListTaskCatalog(ctx, taskpkg.CatalogQuery{
-			Scope:         taskpkg.CatalogScopeGlobal,
-			OwnerKind:     taskpkg.OwnerKindHuman,
-			OwnerRef:      "user:alice",
-			IncludeDrafts: true,
-		})
+		alice, err := globalDB.ListTaskCatalog(
+			ctx,
+			taskpkg.CatalogQuery{ReadScope: store.ReadScope{ProfileID: store.DefaultProfileID},
+				Scope:         taskpkg.CatalogScopeGlobal,
+				OwnerKind:     taskpkg.OwnerKindHuman,
+				OwnerRef:      "user:alice",
+				IncludeDrafts: true,
+			},
+		)
 		if err != nil {
 			t.Fatalf("ListTaskCatalog(owner) error = %v", err)
 		}
@@ -2339,11 +2403,14 @@ func TestGlobalDBTaskCatalogPaginationAndFacets(t *testing.T) {
 			t.Fatalf("alice owner facets = %#v, want %#v", got, want)
 		}
 
-		releasedPage, err := globalDB.ListTaskCatalog(ctx, taskpkg.CatalogQuery{
-			Scope:         taskpkg.CatalogScopeGlobal,
-			Search:        "released by canonical dependency completion",
-			IncludeDrafts: true,
-		})
+		releasedPage, err := globalDB.ListTaskCatalog(
+			ctx,
+			taskpkg.CatalogQuery{ReadScope: store.ReadScope{ProfileID: store.DefaultProfileID},
+				Scope:         taskpkg.CatalogScopeGlobal,
+				Search:        "released by canonical dependency completion",
+				IncludeDrafts: true,
+			},
+		)
 		if err != nil {
 			t.Fatalf("ListTaskCatalog(released dependency) error = %v", err)
 		}
@@ -2380,12 +2447,14 @@ func TestGlobalDBTaskCatalogPaginationAndFacets(t *testing.T) {
 		globalDB := openTestGlobalDB(t)
 		ctx := testutil.Context(t)
 		workspaceID := registerWorkspaceForGlobalTests(t, globalDB, "catalog-plan", t.TempDir())
-		normalized, err := taskpkg.NormalizeCatalogQuery(taskpkg.CatalogQuery{
-			Scope:         taskpkg.CatalogScopeWorkspace,
-			WorkspaceID:   workspaceID,
-			IncludeDrafts: true,
-			Limit:         10,
-		})
+		normalized, err := taskpkg.NormalizeCatalogQuery(
+			taskpkg.CatalogQuery{ReadScope: store.ReadScope{ProfileID: store.DefaultProfileID},
+				Scope:         taskpkg.CatalogScopeWorkspace,
+				WorkspaceID:   workspaceID,
+				IncludeDrafts: true,
+				Limit:         10,
+			},
+		)
 		if err != nil {
 			t.Fatalf("NormalizeCatalogQuery() error = %v", err)
 		}
@@ -2463,11 +2532,14 @@ func TestGlobalDBTaskCatalogPaginationAndFacets(t *testing.T) {
 				t.Fatalf("CreateTask(%q) error = %v", record.ID, err)
 			}
 		}
-		catalog, err := globalDB.ListTaskCatalog(ctx, taskpkg.CatalogQuery{
-			Scope:         taskpkg.CatalogScopeGlobal,
-			Search:        "%_",
-			IncludeDrafts: true,
-		})
+		catalog, err := globalDB.ListTaskCatalog(
+			ctx,
+			taskpkg.CatalogQuery{ReadScope: store.ReadScope{ProfileID: store.DefaultProfileID},
+				Scope:         taskpkg.CatalogScopeGlobal,
+				Search:        "%_",
+				IncludeDrafts: true,
+			},
+		)
 		if err != nil {
 			t.Fatalf("ListTaskCatalog(literal search) error = %v", err)
 		}
@@ -2477,8 +2549,9 @@ func TestGlobalDBTaskCatalogPaginationAndFacets(t *testing.T) {
 			t.Fatalf("literal catalog search ids = %#v, want %#v", got, want)
 		}
 		inbox, err := globalDB.ListTaskInbox(ctx, taskpkg.InboxQuery{
-			Scope:  taskpkg.CatalogScopeGlobal,
-			Search: "%_",
+			ReadScope: store.ReadScope{ProfileID: store.DefaultProfileID},
+			Scope:     taskpkg.CatalogScopeGlobal,
+			Search:    "%_",
 		}, taskpkg.ActorIdentity{Kind: taskpkg.ActorKindHuman, Ref: "user:alice"})
 		if err != nil {
 			t.Fatalf("ListTaskInbox(literal search) error = %v", err)
@@ -2503,25 +2576,31 @@ func TestGlobalDBTaskCatalogPaginationAndFacets(t *testing.T) {
 			}
 		}
 
-		first, err := globalDB.ListTaskCatalog(ctx, taskpkg.CatalogQuery{
-			Scope:         taskpkg.CatalogScopeWorkspace,
-			WorkspaceID:   workspaceA,
-			IncludeDrafts: true,
-			Limit:         1,
-		})
+		first, err := globalDB.ListTaskCatalog(
+			ctx,
+			taskpkg.CatalogQuery{ReadScope: store.ReadScope{ProfileID: store.DefaultProfileID},
+				Scope:         taskpkg.CatalogScopeWorkspace,
+				WorkspaceID:   workspaceA,
+				IncludeDrafts: true,
+				Limit:         1,
+			},
+		)
 		if err != nil {
 			t.Fatalf("ListTaskCatalog(workspace A) error = %v", err)
 		}
 		if first.NextCursor == "" {
 			t.Fatal("ListTaskCatalog(workspace A).NextCursor = empty, want continuation")
 		}
-		_, err = globalDB.ListTaskCatalog(ctx, taskpkg.CatalogQuery{
-			Scope:         taskpkg.CatalogScopeWorkspace,
-			WorkspaceID:   workspaceB,
-			IncludeDrafts: true,
-			Cursor:        first.NextCursor,
-			Limit:         1,
-		})
+		_, err = globalDB.ListTaskCatalog(
+			ctx,
+			taskpkg.CatalogQuery{ReadScope: store.ReadScope{ProfileID: store.DefaultProfileID},
+				Scope:         taskpkg.CatalogScopeWorkspace,
+				WorkspaceID:   workspaceB,
+				IncludeDrafts: true,
+				Cursor:        first.NextCursor,
+				Limit:         1,
+			},
+		)
 		if !errors.Is(err, taskpkg.ErrCatalogCursorInvalid) {
 			t.Fatalf(
 				"ListTaskCatalog(cross-workspace cursor) error = %v, want %v",
@@ -2542,7 +2621,8 @@ func TestGlobalDBTaskCatalogPaginationAndFacets(t *testing.T) {
 			t.Fatalf("CreateTaskRun(foreign Loop run) error = %v", err)
 		}
 		isolated, err := globalDB.ListTaskCatalog(ctx, taskpkg.CatalogQuery{
-			Scope: taskpkg.CatalogScopeWorkspace, WorkspaceID: workspaceA,
+			ReadScope: store.ReadScope{ProfileID: store.DefaultProfileID},
+			Scope:     taskpkg.CatalogScopeWorkspace, WorkspaceID: workspaceA,
 			LoopRunID: foreignRun.LoopRunID, IncludeDrafts: true, Limit: 10,
 		})
 		if err != nil {
@@ -2623,6 +2703,7 @@ func TestGlobalDBTaskCatalogPaginationAndFacets(t *testing.T) {
 			ctx := testutil.Context(t)
 
 			defaultPage, err := globalDB.ListTaskCatalog(ctx, taskpkg.CatalogQuery{
+				ReadScope:        store.ReadScope{ProfileID: store.DefaultProfileID},
 				Scope:            taskpkg.CatalogScopeGlobal,
 				ExcludeCreatedBy: excluded,
 				IncludeDrafts:    true,
@@ -2648,7 +2729,8 @@ func TestGlobalDBTaskCatalogPaginationAndFacets(t *testing.T) {
 			cursor := ""
 			for {
 				page, err := globalDB.ListTaskCatalog(ctx, taskpkg.CatalogQuery{
-					Scope: taskpkg.CatalogScopeGlobal, ExcludeCreatedBy: excluded,
+					ReadScope: store.ReadScope{ProfileID: store.DefaultProfileID},
+					Scope:     taskpkg.CatalogScopeGlobal, ExcludeCreatedBy: excluded,
 					IncludeDrafts: true, Cursor: cursor, Limit: 1,
 				})
 				if err != nil {
@@ -2672,7 +2754,8 @@ func TestGlobalDBTaskCatalogPaginationAndFacets(t *testing.T) {
 				t.Fatalf("default ids across pages = %#v, want %#v without recent Loop cells", got, want)
 			}
 			inbox, err := globalDB.ListTaskInbox(ctx, taskpkg.InboxQuery{
-				Scope: taskpkg.CatalogScopeGlobal, ExcludeCreatedBy: excluded, Limit: 10,
+				ReadScope: store.ReadScope{ProfileID: store.DefaultProfileID},
+				Scope:     taskpkg.CatalogScopeGlobal, ExcludeCreatedBy: excluded, Limit: 10,
 			}, taskpkg.ActorIdentity{Kind: taskpkg.ActorKindHuman, Ref: "user:alice"})
 			if err != nil {
 				t.Fatalf("ListTaskInbox(default) error = %v", err)
@@ -2687,6 +2770,7 @@ func TestGlobalDBTaskCatalogPaginationAndFacets(t *testing.T) {
 			ctx := testutil.Context(t)
 
 			included, err := globalDB.ListTaskCatalog(ctx, taskpkg.CatalogQuery{
+				ReadScope:     store.ReadScope{ProfileID: store.DefaultProfileID},
 				Scope:         taskpkg.CatalogScopeGlobal,
 				IncludeDrafts: true,
 				Limit:         10,
@@ -2712,6 +2796,7 @@ func TestGlobalDBTaskCatalogPaginationAndFacets(t *testing.T) {
 			runCursor := ""
 			for {
 				runPage, err := globalDB.ListTaskCatalog(ctx, taskpkg.CatalogQuery{
+					ReadScope:     store.ReadScope{ProfileID: store.DefaultProfileID},
 					Scope:         taskpkg.CatalogScopeGlobal,
 					LoopRunID:     "looprun-alpha",
 					IncludeDrafts: true,
@@ -2747,6 +2832,7 @@ func TestGlobalDBTaskCatalogPaginationAndFacets(t *testing.T) {
 			}
 
 			children, err := globalDB.ListTaskCatalog(ctx, taskpkg.CatalogQuery{
+				ReadScope:        store.ReadScope{ProfileID: store.DefaultProfileID},
 				Scope:            taskpkg.CatalogScopeGlobal,
 				ParentTaskID:     coordinator.ID,
 				ExcludeCreatedBy: excluded,
@@ -2768,7 +2854,8 @@ func TestGlobalDBTaskCatalogPaginationAndFacets(t *testing.T) {
 			ctx := testutil.Context(t)
 
 			unknown, err := globalDB.ListTaskCatalog(ctx, taskpkg.CatalogQuery{
-				Scope: taskpkg.CatalogScopeGlobal, LoopRunID: "looprun-missing", Limit: 10,
+				ReadScope: store.ReadScope{ProfileID: store.DefaultProfileID},
+				Scope:     taskpkg.CatalogScopeGlobal, LoopRunID: "looprun-missing", Limit: 10,
 			})
 			if err != nil {
 				t.Fatalf("ListTaskCatalog(unknown loop run) error = %v", err)
@@ -2779,6 +2866,7 @@ func TestGlobalDBTaskCatalogPaginationAndFacets(t *testing.T) {
 			}
 
 			first, err := globalDB.ListTaskCatalog(ctx, taskpkg.CatalogQuery{
+				ReadScope:        store.ReadScope{ProfileID: store.DefaultProfileID},
 				Scope:            taskpkg.CatalogScopeGlobal,
 				ExcludeCreatedBy: excluded,
 				IncludeDrafts:    true,
@@ -2791,6 +2879,7 @@ func TestGlobalDBTaskCatalogPaginationAndFacets(t *testing.T) {
 				t.Fatal("ListTaskCatalog(cursor source) next cursor = empty")
 			}
 			_, err = globalDB.ListTaskCatalog(ctx, taskpkg.CatalogQuery{
+				ReadScope:     store.ReadScope{ProfileID: store.DefaultProfileID},
 				Scope:         taskpkg.CatalogScopeGlobal,
 				IncludeDrafts: true,
 				Cursor:        first.NextCursor,
@@ -2806,7 +2895,8 @@ func TestGlobalDBTaskCatalogPaginationAndFacets(t *testing.T) {
 			ctx := testutil.Context(t)
 
 			normalized, err := taskpkg.NormalizeCatalogQuery(taskpkg.CatalogQuery{
-				Scope: taskpkg.CatalogScopeGlobal, ExcludeCreatedBy: excluded, Limit: 10,
+				ReadScope: store.ReadScope{ProfileID: store.DefaultProfileID},
+				Scope:     taskpkg.CatalogScopeGlobal, ExcludeCreatedBy: excluded, Limit: 10,
 			})
 			if err != nil {
 				t.Fatalf("NormalizeCatalogQuery(plan) error = %v", err)
@@ -2855,7 +2945,8 @@ func TestGlobalDBTaskCatalogPaginationAndFacets(t *testing.T) {
 			t.Fatalf("CreateTask() error = %v", err)
 		}
 		page, err := globalDB.ListTaskCatalog(ctx, taskpkg.CatalogQuery{
-			Scope: taskpkg.CatalogScopeWorkspace, WorkspaceID: workspaceID,
+			ReadScope: store.ReadScope{ProfileID: store.DefaultProfileID},
+			Scope:     taskpkg.CatalogScopeWorkspace, WorkspaceID: workspaceID,
 			ExcludeCreatedBy: []taskpkg.ActorRef{{
 				Kind: taskpkg.ActorKindDaemon, Ref: "loop-coordinator",
 			}},
@@ -2886,8 +2977,9 @@ func TestGlobalDBTaskInboxUsesTwoStatementPaging(t *testing.T) {
 		}
 		actor := taskpkg.ActorIdentity{Kind: taskpkg.ActorKindHuman, Ref: "user:alice"}
 		query, normalizedActor, err := taskpkg.NormalizeInboxQuery(taskpkg.InboxQuery{
-			Scope: taskpkg.CatalogScopeGlobal,
-			Limit: 10,
+			ReadScope: store.ReadScope{ProfileID: store.DefaultProfileID},
+			Scope:     taskpkg.CatalogScopeGlobal,
+			Limit:     10,
 		}, actor)
 		if err != nil {
 			t.Fatalf("NormalizeInboxQuery() error = %v", err)
@@ -3114,7 +3206,7 @@ func TestGlobalDBTaskRunRoundTripAndFilters(t *testing.T) {
 	completedRun := runningRun
 	completedRun.Status = taskpkg.TaskRunStatusCompleted
 	completedRun.EndedAt = runningRun.StartedAt.Add(5 * time.Minute)
-	completedRun.Result = json.RawMessage(`{"ok":true}`)
+	completedRun.SetResult(json.RawMessage(`{"ok":true}`))
 	completedRun.LeaseUntil = time.Time{}
 	completedRun.HeartbeatAt = time.Time{}
 	if err := globalDB.withTaskMutationTransactionForTest(
@@ -4862,6 +4954,7 @@ func TestGlobalDBRecoverTaskRun(t *testing.T) {
 			t.Fatalf("cleared Loop attention = %q/%q, want empty", attentionFlag, attentionReason)
 		}
 		events, err := globalDB.ListLoopRunEvents(ctx, looppkg.RunEventQuery{
+			ReadScope:   store.ReadScope{AllProfiles: true},
 			WorkspaceID: loopRun.WorkspaceID,
 			RunID:       loopRun.ID,
 			Limit:       100,
@@ -5223,6 +5316,7 @@ func taskRecordForTest(id string) taskpkg.Task {
 	now := time.Date(2026, 4, 14, 12, 0, 0, 0, time.UTC)
 	return taskpkg.Task{
 		ID:             id,
+		ProfileID:      store.DefaultProfileID,
 		Identifier:     "identifier-" + id,
 		Scope:          taskpkg.ScopeGlobal,
 		Title:          "Task " + id,
@@ -5346,6 +5440,7 @@ func taskRunForTest(id string, taskID string) taskpkg.Run {
 		Attempt:         1,
 		Origin:          taskpkg.Origin{Kind: taskpkg.OriginKindDaemon, Ref: "scheduler"},
 		RunNetworkState: &taskpkg.RunNetworkState{NetworkSpec: participation.LocalSpec()},
+		ProfileID:       store.DefaultProfileID,
 		QueuedAt:        queuedAt,
 	}
 }
@@ -5357,9 +5452,10 @@ func insertLoopRunForCoordinatorIndexTest(ctx context.Context, t *testing.T, db 
 	if _, err := db.ExecContext(
 		ctx,
 		`INSERT INTO loop_runs (
-			id, workspace_id, loop_name, status, last_progress_at, inputs_json
-		) VALUES (?, ?, ?, ?, ?, ?)`,
+			id, profile_id, workspace_id, loop_name, status, last_progress_at, inputs_json
+		) VALUES (?, ?, ?, ?, ?, ?, ?)`,
 		id,
+		store.DefaultProfileID,
 		"ws-loop-index",
 		"software-delivery",
 		"running",
@@ -5633,7 +5729,7 @@ func assertTaskRunEqual(t *testing.T, got taskpkg.Run, want taskpkg.Run) {
 		!got.HeartbeatAt.Equal(want.HeartbeatAt) ||
 		got.Error != want.Error ||
 		string(got.Metadata) != string(want.Metadata) ||
-		string(got.Result) != string(want.Result) ||
+		string(got.ResultValue()) != string(want.ResultValue()) ||
 		!testutil.EqualStringSlices(got.RequiredCapabilities, want.RequiredCapabilities) ||
 		!testutil.EqualStringSlices(got.PreferredCapabilities, want.PreferredCapabilities) {
 		t.Fatalf("task run = %#v, want %#v", got, want)

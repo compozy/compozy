@@ -1,0 +1,45 @@
+---
+title: "compozy notification-preset"
+description: "Manage notification presets"
+---
+
+## compozy notification-preset
+
+Manage notification presets
+
+### Options
+
+```
+  -h, --help   help for notification-preset
+```
+
+### Options inherited from parent commands
+
+```
+      --json             Emit JSON output
+  -o, --output string    Output format: human, json, jsonl, or toon (default "human")
+      --profile string   Act as a profile for this command
+```
+
+## Output Formats
+
+This command displays human-readable help and its subcommand list. The inherited `-o, --output` and `--json` flags do not serialize help output.
+
+| Format  | Output                   |
+| ------- | ------------------------ |
+| `human` | Help and subcommand list |
+| `json`  | Not emitted for help     |
+| `jsonl` | Not emitted for help     |
+| `toon`  | Not emitted for help     |
+
+## Subcommands
+
+| Command                                                                      | Description                         |
+| ---------------------------------------------------------------------------- | ----------------------------------- |
+| [compozy notification-preset create](/docs/cli/notification-preset/create)   | Create a notification preset        |
+| [compozy notification-preset delete](/docs/cli/notification-preset/delete)   | Delete a custom notification preset |
+| [compozy notification-preset disable](/docs/cli/notification-preset/disable) | Disable a notification preset       |
+| [compozy notification-preset enable](/docs/cli/notification-preset/enable)   | Enable a notification preset        |
+| [compozy notification-preset list](/docs/cli/notification-preset/list)       | List notification presets           |
+| [compozy notification-preset show](/docs/cli/notification-preset/show)       | Show one notification preset        |
+| [compozy notification-preset update](/docs/cli/notification-preset/update)   | Update a notification preset        |

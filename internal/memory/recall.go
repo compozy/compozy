@@ -25,9 +25,20 @@ const (
 	RecallAugmenterBudget = maxRecallCharacters + recallWrapperBytes
 )
 
+// RecallStoreResolver binds one session profile to its profile-owned store.
+type RecallStoreResolver func(context.Context, string) (*Store, error)
+
 // NewRecallAugmenter returns a bounded prompt augmenter that prepends durable
 // memory recall ahead of the live user message.
 func NewRecallAugmenter(store *Store) session.PromptInputAugmenter {
+	return NewProfileRecallAugmenter(store, nil)
+}
+
+// NewProfileRecallAugmenter resolves the durable owner from the session profile.
+func NewProfileRecallAugmenter(
+	store *Store,
+	resolveProfileStore RecallStoreResolver,
+) session.PromptInputAugmenter {
 	if store == nil {
 		return nil
 	}
@@ -45,8 +56,17 @@ func NewRecallAugmenter(store *Store) session.PromptInputAugmenter {
 		info := sess.Info()
 		workspaceRoot := strings.TrimSpace(info.Workspace)
 		target := store
+		if resolveProfileStore != nil {
+			resolved, err := resolveProfileStore(ctx, strings.TrimSpace(info.ProfileID))
+			if err != nil {
+				return message, err
+			}
+			if resolved != nil {
+				target = resolved
+			}
+		}
 		if workspaceRoot != "" {
-			target = store.ForWorkspace(workspaceRoot)
+			target = target.ForWorkspace(workspaceRoot)
 		}
 
 		packaged, err := target.Recall(ctx, memcontract.Query{

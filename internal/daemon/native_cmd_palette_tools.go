@@ -8,6 +8,7 @@ import (
 
 	"github.com/compozy/compozy/internal/api/contract"
 	"github.com/compozy/compozy/internal/cmdpalette"
+	"github.com/compozy/compozy/internal/store"
 	toolspkg "github.com/compozy/compozy/internal/tools"
 )
 
@@ -44,15 +45,19 @@ func (n *daemonNativeTools) cmdPaletteList(
 	if err != nil {
 		return toolspkg.ToolResult{}, err
 	}
+	profileLens, err := n.nativeCmdPaletteProfileLens(ctx, scope)
+	if err != nil {
+		return toolspkg.ToolResult{}, nativeCmdPaletteError(req.ToolID, err)
+	}
 	registry := n.cmdPaletteRegistry()
 	if registry == nil {
 		return toolspkg.ToolResult{}, nativeUnavailableError(req.ToolID, "command palette is unavailable")
 	}
-	catalog, err := registry.Catalog(
-		ctx,
-		cmdpalette.WorkspaceID(workspaceID),
-		cmdpalette.ClientID(strings.TrimSpace(input.Client)),
-	)
+	catalog, err := registry.Catalog(ctx, cmdpalette.CatalogRequest{
+		ProfileLens: profileLens,
+		WorkspaceID: cmdpalette.WorkspaceID(workspaceID),
+		ClientID:    cmdpalette.ClientID(strings.TrimSpace(input.Client)),
+	})
 	if err != nil {
 		return toolspkg.ToolResult{}, nativeCmdPaletteError(req.ToolID, err)
 	}
@@ -86,11 +91,16 @@ func (n *daemonNativeTools) cmdPaletteInvoke(
 	if err != nil {
 		return toolspkg.ToolResult{}, err
 	}
+	profileLens, err := n.nativeCmdPaletteProfileLens(ctx, scope)
+	if err != nil {
+		return toolspkg.ToolResult{}, nativeCmdPaletteError(req.ToolID, err)
+	}
 	registry := n.cmdPaletteRegistry()
 	if registry == nil {
 		return toolspkg.ToolResult{}, nativeUnavailableError(req.ToolID, "command palette is unavailable")
 	}
 	result, err := registry.Invoke(ctx, cmdpalette.InvokeRequest{
+		ProfileLens: profileLens,
 		WorkspaceID: cmdpalette.WorkspaceID(workspaceID),
 		CommandID:   cmdpalette.CommandID(commandID),
 		Args:        input.Args,
@@ -104,6 +114,29 @@ func (n *daemonNativeTools) cmdPaletteInvoke(
 		Status: result.Status, Result: result.Result, ApprovalID: result.ApprovalID,
 	}
 	return structuredResult(payload, string(result.Status))
+}
+
+func (n *daemonNativeTools) nativeCmdPaletteProfileLens(
+	ctx context.Context,
+	scope toolspkg.Scope,
+) (cmdpalette.ProfileLens, error) {
+	profileID, _, _, err := n.nativeCurrentProfileIdentity(ctx, scope)
+	if err != nil {
+		return cmdpalette.ProfileLens{}, err
+	}
+	profileName := ""
+	if n != nil && n.deps != nil && n.deps.Profiles != nil {
+		profileName, err = n.deps.Profiles.ProfileName(ctx, profileID)
+		if err != nil {
+			return cmdpalette.ProfileLens{}, err
+		}
+	} else if profileID == store.DefaultProfileID {
+		profileName = daemonDefaultProfileName
+	}
+	if strings.TrimSpace(profileName) == "" {
+		return cmdpalette.ProfileLens{}, errors.New("daemon: command palette profile name is unavailable")
+	}
+	return cmdpalette.ScopedProfileLens(cmdpalette.ProfileLensID(profileID), profileName), nil
 }
 
 func (n *daemonNativeTools) nativeCmdPaletteWorkspaceID(

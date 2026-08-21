@@ -37,7 +37,7 @@ func resolveGoalActionControl(
 	run task.Run,
 ) (GenerationOutput, *task.CoordinatorTerminal, error) {
 	wasAwaitingGoal := output.Status == generationOutputAwaitingGoal
-	control, err := DecodeActionControlResult(run.Result)
+	control, err := DecodeActionControlResult(run.ResultValue())
 	if err != nil {
 		return GenerationOutput{}, nil, err
 	}

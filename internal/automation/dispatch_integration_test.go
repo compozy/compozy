@@ -112,7 +112,10 @@ func TestDispatcherIntegrationRunLifecycleStateTransitionsPersist(t *testing.T) 
 		t.Fatal("dispatch did not reach Create() in time")
 	}
 
-	scheduledRuns, err := db.ListRuns(ctx, RunQuery{JobID: job.ID})
+	scheduledRuns, err := db.ListRuns(ctx, RunQuery{
+		ReadScope: store.ReadScope{ProfileID: job.ProfileID},
+		JobID:     job.ID,
+	})
 	if err != nil {
 		t.Fatalf("ListRuns(scheduled) error = %v", err)
 	}
@@ -137,7 +140,10 @@ func TestDispatcherIntegrationRunLifecycleStateTransitionsPersist(t *testing.T) 
 		t.Fatal("dispatch did not reach Prompt() in time")
 	}
 
-	runningRuns, err := db.ListRuns(ctx, RunQuery{JobID: job.ID})
+	runningRuns, err := db.ListRuns(ctx, RunQuery{
+		ReadScope: store.ReadScope{ProfileID: job.ProfileID},
+		JobID:     job.ID,
+	})
 	if err != nil {
 		t.Fatalf("ListRuns(running) error = %v", err)
 	}

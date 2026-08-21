@@ -17,7 +17,7 @@ const (
 	sessionCatalogSortAttention     = "attention"
 )
 
-const sessionInfoSelectQuery = `SELECT id, name, agent_name, provider, model, reasoning_effort, speed,
+const sessionInfoSelectQuery = `SELECT id, profile_id, name, agent_name, provider, model, reasoning_effort, speed,
 	speed_resolution_json, runtime_status, runtime_transition, runtime_failure,
 	runtime_generation, runtime_recovery_json,
 	selected_provider, selected_model, selected_reasoning_effort, selected_speed,
@@ -133,6 +133,7 @@ func sessionCatalogPageFilters(
 	now string,
 ) ([]string, []any, error) {
 	where, args := store.BuildClauses(
+		store.ReadScopeClause("profile_id", query.ReadScope),
 		store.StringClause("workspace_id", query.WorkspaceID),
 		store.StringClause("worktree_id", query.WorktreeID),
 		store.StringClause("state", query.State),

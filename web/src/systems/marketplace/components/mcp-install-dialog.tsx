@@ -28,12 +28,14 @@ import { bindingValuePresent, type MCPFieldBinding, type MCPInputField } from ".
 import { formatMarketplaceMCPLaunch, marketplaceErrorMessage } from "./marketplace-ui";
 import { useMCPInstallDialog } from "./use-mcp-install-dialog";
 import { WorkspaceScopeStatement, destinationLabel } from "@/systems/workspace";
+import type { SettingsLayeredScope } from "@/systems/settings";
 
 interface MCPInstallDialogProps {
   data: MarketplaceEntryResponse;
   open: boolean;
   workspaceId?: string | null;
-  scope?: "global" | "workspace";
+  scope?: SettingsLayeredScope;
+  profileName?: string | null;
   workspaceName?: string | null;
   onInstall: (request: MCPInstallRequest) => Promise<MCPInstallResponse>;
   onOpenChange: (open: boolean) => void;
@@ -44,6 +46,7 @@ function MCPInstallDialog({
   open,
   workspaceId,
   scope: requestedScope,
+  profileName,
   workspaceName,
   onInstall,
   onOpenChange,
@@ -63,7 +66,14 @@ function MCPInstallDialog({
     scope,
     updateBinding,
     vaultQuery,
-  } = useMCPInstallDialog({ data, onInstall, onOpenChange, workspaceId, scope: requestedScope });
+  } = useMCPInstallDialog({
+    data,
+    onInstall,
+    onOpenChange,
+    workspaceId,
+    profileName,
+    scope: requestedScope,
+  });
 
   if (!mcp) return null;
 
@@ -165,12 +175,16 @@ function MCPInstallDialog({
 
         <DialogFooter variant="ruled">
           <p className="min-w-0 flex-1 text-form-hint text-muted">
-            <WorkspaceScopeStatement
-              destination={destinationLabel(scope, workspaceName)}
-              kind="install"
-              scope={scope}
-              variant="note"
-            />
+            {scope === "profile" ? (
+              <>Installs for profile {profileName}.</>
+            ) : (
+              <WorkspaceScopeStatement
+                destination={destinationLabel(scope === "user" ? "global" : scope, workspaceName)}
+                kind="install"
+                scope={scope === "user" ? "global" : scope}
+                variant="note"
+              />
+            )}
           </p>
           <Button
             disabled={installing}

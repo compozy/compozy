@@ -211,7 +211,7 @@ func toolApprovalCallID(call toolspkg.CallRequest) string {
 }
 
 func toolApprovalTitle(descriptor toolspkg.Descriptor) string {
-	if title := strings.TrimSpace(descriptor.DisplayTitle); title != "" {
+	if title := strings.TrimSpace(descriptor.Presentation().DisplayTitle); title != "" {
 		return title
 	}
 	return descriptor.ID.String()

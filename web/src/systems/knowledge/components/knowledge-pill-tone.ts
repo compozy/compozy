@@ -18,7 +18,7 @@ export function pillToneFromKnowledgeTone(tone: KnowledgeTone): PillTone {
       return "warning";
     case "project":
       return "info";
-    case "global":
+    case "profile":
     case "user":
     case "feedback":
     default:

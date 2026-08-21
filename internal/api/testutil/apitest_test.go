@@ -11,6 +11,7 @@ import (
 	"github.com/compozy/compozy/internal/network/participation"
 	"github.com/compozy/compozy/internal/resources"
 	"github.com/compozy/compozy/internal/session"
+	storepkg "github.com/compozy/compozy/internal/store"
 	taskpkg "github.com/compozy/compozy/internal/task"
 	workspacepkg "github.com/compozy/compozy/internal/workspace"
 )
@@ -254,10 +255,13 @@ func TestStubTaskManagerFallbacks(t *testing.T) {
 		}
 		now := time.Date(2026, 7, 16, 12, 0, 0, 0, time.UTC)
 		stub := &StubTaskManager{ListTasksFn: func(
-			context.Context,
-			taskpkg.Query,
-			taskpkg.ActorContext,
+			_ context.Context,
+			gotQuery taskpkg.Query,
+			_ taskpkg.ActorContext,
 		) ([]taskpkg.Summary, error) {
+			if gotQuery.ReadScope != (storepkg.ReadScope{ProfileID: storepkg.DefaultProfileID}) {
+				t.Fatalf("ListTasks() read scope = %#v, want default profile", gotQuery.ReadScope)
+			}
 			return []taskpkg.Summary{
 				{
 					ID: "task-1", Priority: taskpkg.PriorityHigh, LastActivityAt: now,
@@ -270,6 +274,7 @@ func TestStubTaskManagerFallbacks(t *testing.T) {
 			}, nil
 		}}
 		query := taskpkg.CatalogQuery{
+			ReadScope:            storepkg.ReadScope{ProfileID: storepkg.DefaultProfileID},
 			Scope:                taskpkg.CatalogScopeGlobal,
 			Sort:                 taskpkg.CatalogSortRecent,
 			Limit:                1,
@@ -326,7 +331,7 @@ func TestStubResourceServicePut(t *testing.T) {
 		draft := resources.RawDraft{
 			Kind:     resources.ResourceKind("agent"),
 			ID:       "agent.demo",
-			Scope:    resources.ResourceScope{Kind: resources.ResourceScopeKindGlobal},
+			Scope:    resources.ResourceScope{Kind: resources.ResourceScopeKindUser},
 			SpecJSON: specJSON,
 		}
 

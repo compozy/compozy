@@ -19,6 +19,7 @@ import (
 	diagcontract "github.com/compozy/compozy/internal/diagnosticcontract"
 	"github.com/compozy/compozy/internal/subprocess"
 	"github.com/compozy/compozy/internal/testutil"
+	"github.com/compozy/compozy/internal/vault"
 	shellquote "github.com/kballard/go-shellquote"
 )
 
@@ -118,6 +119,56 @@ func TestPreStarter(t *testing.T) {
 		}
 		if report.Item.Code != diagcontract.CodeProviderNotAuthenticated {
 			t.Fatalf("Code = %q, want %q", report.Item.Code, diagcontract.CodeProviderNotAuthenticated)
+		}
+	})
+}
+
+type profileCredentialMetadata map[string]bool
+
+func (m profileCredentialMetadata) GetMetadata(_ context.Context, ref string) (vault.Metadata, error) {
+	present, exists := m[ref]
+	if !exists {
+		return vault.Metadata{}, vault.ErrSecretNotFound
+	}
+	return vault.Metadata{Ref: ref, Present: present}, nil
+}
+
+func TestProfileCredentialSlotsPreferPresentOverrideAndFallbackToUser(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should report a profile ref only while its override is present", func(t *testing.T) {
+		t.Parallel()
+
+		slots := []compozyconfig.ProviderCredentialSlot{{
+			Name: "api_key", TargetEnv: "OPENAI_API_KEY", SecretRef: "vault:providers/openai/api_key", Required: true,
+		}}
+		profileRef := "vault:profiles/marketing/providers/openai/api_key"
+		resolved, err := ProfileCredentialSlots(
+			t.Context(),
+			"openai",
+			"marketing",
+			slots,
+			profileCredentialMetadata{profileRef: true},
+		)
+		if err != nil {
+			t.Fatalf("ProfileCredentialSlots(override) error = %v", err)
+		}
+		if got := resolved[0].SecretRef; got != profileRef {
+			t.Fatalf("override SecretRef = %q, want %q", got, profileRef)
+		}
+
+		fallback, err := ProfileCredentialSlots(
+			t.Context(),
+			"openai",
+			"sales",
+			slots,
+			profileCredentialMetadata{},
+		)
+		if err != nil {
+			t.Fatalf("ProfileCredentialSlots(fallback) error = %v", err)
+		}
+		if got := fallback[0].SecretRef; got != slots[0].SecretRef {
+			t.Fatalf("fallback SecretRef = %q, want user slot %q", got, slots[0].SecretRef)
 		}
 	})
 }
@@ -446,6 +497,10 @@ func TestPreStarterCachesOnlyMatchingFinalScope(t *testing.T) {
 		workspaceScope.WorkspaceID = "workspace-two"
 		assertMissingCLIReport(t, probe(workspaceScope))
 
+		profileScope := scope
+		profileScope.ProfileID = "profile-two"
+		assertMissingCLIReport(t, probe(profileScope))
+
 		homeScope := scope
 		homeScope.HomeIdentity = "/compozy/home-two"
 		assertMissingCLIReport(t, probe(homeScope))
@@ -454,8 +509,8 @@ func TestPreStarterCachesOnlyMatchingFinalScope(t *testing.T) {
 		runtimeScope.SandboxID = "sandbox-two"
 		assertMissingCLIReport(t, probe(runtimeScope))
 
-		if calls != 4 {
-			t.Fatalf("scope-separated LookPath calls = %d, want 4", calls)
+		if calls != 5 {
+			t.Fatalf("scope-separated LookPath calls = %d, want 5", calls)
 		}
 	})
 }
@@ -1053,6 +1108,7 @@ func probeEnvWithResolvedLaunch(
 func preStartTestScope(sandboxID string) PreStartScope {
 	return PreStartScope{
 		WorkspaceID:    "workspace-one",
+		ProfileID:      "profile-one",
 		HomeIdentity:   "/compozy/home-one",
 		SandboxID:      "sandbox-" + sandboxID,
 		SandboxBackend: "local",

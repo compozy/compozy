@@ -1,11 +1,22 @@
 import type { ToolApprovalGrant, ToolApprovalGrantsListResponse } from "@/systems/tool-approvals";
 
+const DEFAULT_PROFILE_OWNER = {
+  profile_archived: false,
+  profile_color: "#8a8f98",
+  profile_id: "00000000000000000000000000",
+  profile_name: "default",
+} satisfies Pick<
+  ToolApprovalGrant,
+  "profile_archived" | "profile_color" | "profile_id" | "profile_name"
+>;
+
 /**
  * Fixtures cover both explicit wider scopes and one prompt-origin exact decision. They use
  * real catalog tool ids and stay newest-first to match daemon `created_at DESC` ordering.
  */
 export const toolApprovalGrantFixtures: ToolApprovalGrant[] = [
   {
+    ...DEFAULT_PROFILE_OWNER,
     id: "5f3a1c2e-8b7d-4a6f-9c1e-2d3b4a5c6d7e",
     workspace_id: "ws_default",
     agent_name: "claude-code",
@@ -15,6 +26,7 @@ export const toolApprovalGrantFixtures: ToolApprovalGrant[] = [
     last_used_at: "2026-07-15T08:40:00Z",
   },
   {
+    ...DEFAULT_PROFILE_OWNER,
     id: "a1b2c3d4-e5f6-4a7b-8c9d-0e1f2a3b4c5d",
     workspace_id: "ws_default",
     tool_id: "compozy__task_create",
@@ -23,6 +35,7 @@ export const toolApprovalGrantFixtures: ToolApprovalGrant[] = [
     last_used_at: "2026-07-14T22:15:00Z",
   },
   {
+    ...DEFAULT_PROFILE_OWNER,
     id: "c9d8e7f6-a5b4-4c3d-9e2f-1a0b9c8d7e6f",
     workspace_id: "ws_default",
     agent_name: "openclaw",

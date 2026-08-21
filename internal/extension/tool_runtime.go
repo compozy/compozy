@@ -177,9 +177,10 @@ func (m *Manager) extensionServiceProcessForInstance(
 	if m == nil {
 		return nil, "", ErrManagerRequired
 	}
-	key = key.Normalize()
-	if err := key.Validate(); err != nil {
-		return nil, "", err
+	requestedKey := key.Normalize()
+	key, err := m.ensureProfileRuntime(ctx, requestedKey)
+	if err != nil {
+		return nil, requestedKey.Name, err
 	}
 	name := key.Name
 	methodName := string(method)

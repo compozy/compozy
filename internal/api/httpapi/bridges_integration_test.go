@@ -13,6 +13,7 @@ import (
 
 	"github.com/compozy/compozy/internal/api/contract"
 	bridgepkg "github.com/compozy/compozy/internal/bridges"
+	storepkg "github.com/compozy/compozy/internal/store"
 	"github.com/compozy/compozy/internal/testutil"
 )
 
@@ -76,7 +77,11 @@ func TestHTTPBridgeCreateReturnsPersistedPayload(t *testing.T) {
 		t.Fatalf("payload.Bridge.DeliveryDefaults = %s, want %s", got, want)
 	}
 
-	stored, err := runtime.registry.GetBridgeInstance(context.Background(), payload.Bridge.ID)
+	stored, err := runtime.registry.GetBridgeInstance(
+		context.Background(),
+		storepkg.ReadScope{ProfileID: storepkg.DefaultProfileID},
+		payload.Bridge.ID,
+	)
 	if err != nil {
 		t.Fatalf("runtime.registry.GetBridgeInstance() error = %v", err)
 	}
@@ -163,6 +168,7 @@ func TestHTTPBridgeRoutesEndpointReturnsOnlyRequestedInstanceRoutes(t *testing.T
 	runtime := newIntegrationRuntime(t)
 
 	first := createIntegrationBridge(t, runtime, bridgepkg.CreateInstanceRequest{
+		ProfileID:     storepkg.DefaultProfileID,
 		ID:            "brg-http-a",
 		Scope:         bridgepkg.ScopeGlobal,
 		Platform:      "telegram",
@@ -173,6 +179,7 @@ func TestHTTPBridgeRoutesEndpointReturnsOnlyRequestedInstanceRoutes(t *testing.T
 		RoutingPolicy: bridgepkg.RoutingPolicy{IncludePeer: true},
 	})
 	second := createIntegrationBridge(t, runtime, bridgepkg.CreateInstanceRequest{
+		ProfileID:     storepkg.DefaultProfileID,
 		ID:            "brg-http-b",
 		Scope:         bridgepkg.ScopeGlobal,
 		Platform:      "telegram",
@@ -229,6 +236,7 @@ func TestHTTPBridgeDeliveryContract(t *testing.T) {
 
 		runtime := newIntegrationRuntime(t)
 		instance := createIntegrationBridge(t, runtime, bridgepkg.CreateInstanceRequest{
+			ProfileID:        storepkg.DefaultProfileID,
 			ID:               "brg/http+test-delivery",
 			Scope:            bridgepkg.ScopeGlobal,
 			Platform:         "telegram",
@@ -312,6 +320,7 @@ func TestHTTPObserveHealthIncludesBridgeMetricsAndPreservesSessionFields(t *test
 	}
 
 	instance := createIntegrationBridge(t, runtime, bridgepkg.CreateInstanceRequest{
+		ProfileID:     storepkg.DefaultProfileID,
 		ID:            "brg-http-health",
 		Scope:         bridgepkg.ScopeGlobal,
 		Platform:      "telegram",
@@ -372,6 +381,7 @@ func TestHTTPBridgeDetailShowsAuthRequiredStatusAndHealth(t *testing.T) {
 	runtime := newIntegrationRuntime(t)
 
 	instance := createIntegrationBridge(t, runtime, bridgepkg.CreateInstanceRequest{
+		ProfileID:     storepkg.DefaultProfileID,
 		ID:            "brg-http-auth",
 		Scope:         bridgepkg.ScopeGlobal,
 		Platform:      "telegram",
@@ -422,6 +432,7 @@ func TestHTTPBridgeDetailReportsBacklogAndClearsAfterDeliveryCompletes(t *testin
 	runtime := newIntegrationRuntime(t)
 
 	instance := createIntegrationBridge(t, runtime, bridgepkg.CreateInstanceRequest{
+		ProfileID:     storepkg.DefaultProfileID,
 		ID:            "brg-http-backlog",
 		Scope:         bridgepkg.ScopeGlobal,
 		Platform:      "telegram",

@@ -1,19 +1,33 @@
 package settings
 
 func builtinProviderSource() SourceRef {
-	return SourceRef{Kind: SourceKindBuiltinProvider, Scope: ScopeGlobal}
+	return SourceRef{Kind: SourceKindBuiltinProvider, Scope: ScopeUser}
 }
 
-func sourceRefForWriteTarget(kind WriteTargetKind, workspaceID string) SourceRef {
+func sourceRefForWriteTarget(kind WriteTargetKind, workspaceID string, profileName string) SourceRef {
 	switch kind {
 	case WriteTargetGlobalConfig:
-		return SourceRef{Kind: SourceKindGlobalConfig, Scope: ScopeGlobal}
+		return SourceRef{Kind: SourceKindGlobalConfig, Scope: ScopeUser}
+	case WriteTargetProfileConfig:
+		return SourceRef{Kind: SourceKindProfileConfig, Scope: ScopeProfile, ProfileName: profileName}
 	case WriteTargetWorkspaceConfig:
 		return SourceRef{Kind: SourceKindWorkspaceConfig, Scope: ScopeWorkspace, WorkspaceID: workspaceID}
+	case WriteTargetWorkspaceProfileConfig:
+		return SourceRef{
+			Kind: SourceKindWorkspaceProfileConfig, Scope: ScopeProfile,
+			WorkspaceID: workspaceID, ProfileName: profileName,
+		}
 	case WriteTargetGlobalMCPSidecar:
-		return SourceRef{Kind: SourceKindGlobalMCPSidecar, Scope: ScopeGlobal}
+		return SourceRef{Kind: SourceKindGlobalMCPSidecar, Scope: ScopeUser}
+	case WriteTargetProfileMCPSidecar:
+		return SourceRef{Kind: SourceKindProfileMCPSidecar, Scope: ScopeProfile, ProfileName: profileName}
 	case WriteTargetWorkspaceMCPSidecar:
 		return SourceRef{Kind: SourceKindWorkspaceMCPSidecar, Scope: ScopeWorkspace, WorkspaceID: workspaceID}
+	case WriteTargetWorkspaceProfileMCPSidecar:
+		return SourceRef{
+			Kind: SourceKindWorkspaceProfileMCPSidecar, Scope: ScopeProfile,
+			WorkspaceID: workspaceID, ProfileName: profileName,
+		}
 	case WriteTargetGlobalAgentFile:
 		return SourceRef{Kind: SourceKindGlobalAgentFile, Scope: ScopeAgent}
 	case WriteTargetWorkspaceAgentFile:
@@ -31,14 +45,25 @@ func availableTargetsForScope(scope ScopeKind) []WriteTargetKind {
 	switch scope {
 	case ScopeWorkspace:
 		return []WriteTargetKind{WriteTargetWorkspaceConfig, WriteTargetWorkspaceMCPSidecar}
+	case ScopeProfile:
+		return []WriteTargetKind{WriteTargetProfileConfig, WriteTargetProfileMCPSidecar}
 	default:
 		return []WriteTargetKind{WriteTargetGlobalConfig, WriteTargetGlobalMCPSidecar}
 	}
 }
 
+func isMCPDefinitionSidecarTarget(target WriteTargetKind) bool {
+	switch target {
+	case WriteTargetGlobalMCPSidecar, WriteTargetProfileMCPSidecar, WriteTargetWorkspaceMCPSidecar:
+		return true
+	default:
+		return false
+	}
+}
+
 func singleTargetSourceMetadata(kind WriteTargetKind, workspaceID string) SourceMetadata {
 	return SourceMetadata{
-		EffectiveSource:  sourceRefForWriteTarget(kind, workspaceID),
+		EffectiveSource:  sourceRefForWriteTarget(kind, workspaceID, ""),
 		AvailableTargets: []WriteTargetKind{kind},
 	}
 }

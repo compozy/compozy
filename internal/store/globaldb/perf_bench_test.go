@@ -47,6 +47,7 @@ func BenchmarkReadNetworkMessagePersistedCursor(b *testing.B) {
 	}); err != nil {
 		b.Fatalf("InsertWorkspace() error = %v", err)
 	}
+	registerNetworkChannelForGlobalTests(b, globalDB, workspaceID, "bench")
 	const rowCount = 4096
 	for index := range rowCount {
 		if err := globalDB.WriteNetworkMessage(ctx, store.NetworkMessageEntry{
@@ -59,6 +60,7 @@ func BenchmarkReadNetworkMessagePersistedCursor(b *testing.B) {
 			PeerFrom:    "peer.bench",
 			Kind:        store.NetworkKindSay,
 			Body:        []byte(`{}`),
+			ProfileID:   store.DefaultProfileID,
 			Timestamp:   now.Add(time.Duration(index) * time.Millisecond),
 		}); err != nil {
 			b.Fatalf("WriteNetworkMessage(%d) error = %v", index, err)
@@ -66,6 +68,7 @@ func BenchmarkReadNetworkMessagePersistedCursor(b *testing.B) {
 	}
 	query := normalizedWatchEventsQuery{
 		workspaceID: workspaceID,
+		readScope:   store.ReadScope{ProfileID: store.DefaultProfileID},
 		streams:     map[string]int64{looppkg.WatchEventsNetworkStream: 0},
 		kinds:       []string{string(hookspkg.HookNetworkMessagePersisted)},
 		limit:       looppkg.LoopWatchEventPageLimit,
@@ -112,6 +115,7 @@ func BenchmarkReadNetworkWorkProjectedCursor(b *testing.B) {
 	}); err != nil {
 		b.Fatalf("InsertWorkspace() error = %v", err)
 	}
+	registerNetworkChannelForGlobalTests(b, globalDB, workspaceID, "bench")
 	const rowCount = 1024
 	for index := range rowCount {
 		entry := benchmarkNetworkWorkMessage(workspaceID, index, now.Add(time.Duration(index)*time.Millisecond))
@@ -121,6 +125,7 @@ func BenchmarkReadNetworkWorkProjectedCursor(b *testing.B) {
 	}
 	query := normalizedWatchEventsQuery{
 		workspaceID: workspaceID,
+		readScope:   store.ReadScope{ProfileID: store.DefaultProfileID},
 		streams:     map[string]int64{looppkg.WatchEventsNetworkStream: 0},
 		kinds:       []string{string(hookspkg.HookNetworkWorkTransitioned)},
 		limit:       looppkg.LoopWatchEventPageLimit,
@@ -174,6 +179,7 @@ func benchmarkNetworkWorkMessage(
 		Text:        "work update",
 		PreviewText: "work update",
 		Body:        []byte(`{"text":"work update"}`),
+		ProfileID:   store.DefaultProfileID,
 		Timestamp:   timestamp,
 	}
 	if index == 0 {

@@ -53,6 +53,7 @@ import (
 	"github.com/compozy/compozy/internal/network"
 	"github.com/compozy/compozy/internal/observe"
 	"github.com/compozy/compozy/internal/procutil"
+	profilepkg "github.com/compozy/compozy/internal/profile"
 	registrypkg "github.com/compozy/compozy/internal/registry"
 	registrygithub "github.com/compozy/compozy/internal/registry/github"
 	"github.com/compozy/compozy/internal/resources"
@@ -1364,10 +1365,10 @@ func TestShutdownClosesResourceReconcileDriver(t *testing.T) {
 	}
 }
 
-func TestBootRegistersOperatorHomeAsDefaultWorkspace(t *testing.T) {
+func TestBootDoesNotRegisterOperatorHomeAsWorkspace(t *testing.T) {
 	t.Parallel()
 
-	t.Run("Should register operator home before serving workspaces", func(t *testing.T) {
+	t.Run("Should serve with no workspaces and refuse operator home registration", func(t *testing.T) {
 		t.Parallel()
 
 		operatorHome := filepath.Join(t.TempDir(), "operator-home")
@@ -1413,45 +1414,26 @@ func TestBootRegistersOperatorHomeAsDefaultWorkspace(t *testing.T) {
 			}
 		})
 
-		wantRoot := canonicalDaemonRoot(t, operatorHome)
 		workspaces, err := d.registry.ListWorkspaces(testutil.Context(t))
 		if err != nil {
 			t.Fatalf("ListWorkspaces() error = %v", err)
 		}
-		if len(workspaces) != 1 {
-			t.Fatalf("ListWorkspaces() = %#v, want one default workspace", workspaces)
-		}
-		if got := workspaces[0].RootDir; got != wantRoot {
-			t.Fatalf("default workspace root = %q, want operator home %q", got, wantRoot)
-		}
-		if got := workspaces[0].RootDir; got == homePaths.HomeDir {
-			t.Fatalf("default workspace root = Compozy home %q, want operator home %q", got, wantRoot)
+		if len(workspaces) != 0 {
+			t.Fatalf("ListWorkspaces() = %#v, want no synthetic workspace", workspaces)
 		}
 
-		resolved, err := d.workspaceResolver.Resolve(testutil.Context(t), operatorHome)
-		if err != nil {
-			t.Fatalf("Resolve(operator home) error = %v", err)
-		}
-		if resolved.ID != workspaces[0].ID {
-			t.Fatalf("Resolve(operator home) ID = %q, want %q", resolved.ID, workspaces[0].ID)
-		}
-		if got, want := resolved.Config.Gateway.PrivatePort, 4242; got != want {
-			t.Fatalf("Resolve(operator home) Gateway.PrivatePort = %d, want isolated global %d", got, want)
-		}
-
-		again, err := d.workspaceResolver.ResolveOrRegister(testutil.Context(t), operatorHome)
-		if err != nil {
-			t.Fatalf("ResolveOrRegister(operator home) error = %v", err)
-		}
-		if again.ID != workspaces[0].ID {
-			t.Fatalf("ResolveOrRegister(operator home) ID = %q, want %q", again.ID, workspaces[0].ID)
+		if _, err := d.workspaceResolver.ResolveOrRegister(testutil.Context(t), operatorHome); !errors.Is(
+			err,
+			workspacepkg.ErrOperatorHomeWorkspace,
+		) {
+			t.Fatalf("ResolveOrRegister(operator home) error = %v, want ErrOperatorHomeWorkspace", err)
 		}
 		after, err := d.registry.ListWorkspaces(testutil.Context(t))
 		if err != nil {
-			t.Fatalf("ListWorkspaces(after idempotent resolve) error = %v", err)
+			t.Fatalf("ListWorkspaces(after refused registration) error = %v", err)
 		}
-		if len(after) != 1 {
-			t.Fatalf("ListWorkspaces(after idempotent resolve) = %#v, want one workspace", after)
+		if len(after) != 0 {
+			t.Fatalf("ListWorkspaces(after refused registration) = %#v, want none", after)
 		}
 	})
 }
@@ -2569,7 +2551,10 @@ func TestDefaultExtensionManagerFactory(t *testing.T) {
 		if !errors.Is(err, lookupErr) {
 			t.Fatalf("extension runtime Start() error = %v, want env binding lookup failure", err)
 		}
-		wantCalls := []extensionEnvBindingLookup{{extension: extensionName, workspaceID: ""}}
+		wantCalls := []extensionEnvBindingLookup{{
+			extension: extensionName,
+			profileID: store.DefaultProfileID,
+		}}
 		if got := bindingStore.snapshot(); !reflect.DeepEqual(got, wantCalls) {
 			t.Fatalf("ListEnvBindings() calls = %#v, want %#v", got, wantCalls)
 		}
@@ -2578,6 +2563,7 @@ func TestDefaultExtensionManagerFactory(t *testing.T) {
 
 type extensionEnvBindingLookup struct {
 	extension   string
+	profileID   string
 	workspaceID string
 }
 
@@ -2590,12 +2576,24 @@ type recordingExtensionEnvBindingStore struct {
 func (s *recordingExtensionEnvBindingStore) ListEnvBindings(
 	_ context.Context,
 	extension string,
+	profileID string,
 	workspaceID string,
 ) ([]extensionpkg.EnvBinding, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	s.calls = append(s.calls, extensionEnvBindingLookup{extension: extension, workspaceID: workspaceID})
+	s.calls = append(s.calls, extensionEnvBindingLookup{
+		extension: extension, profileID: profileID, workspaceID: workspaceID,
+	})
 	return nil, s.listErr
+}
+
+func (s *recordingExtensionEnvBindingStore) ResolveEnvBindings(
+	ctx context.Context,
+	extension string,
+	profileID string,
+	workspaceID string,
+) ([]extensionpkg.EnvBinding, error) {
+	return s.ListEnvBindings(ctx, extension, profileID, workspaceID)
 }
 
 func (*recordingExtensionEnvBindingStore) PutEnvBinding(context.Context, extensionpkg.EnvBinding) error {
@@ -2604,6 +2602,7 @@ func (*recordingExtensionEnvBindingStore) PutEnvBinding(context.Context, extensi
 
 func (*recordingExtensionEnvBindingStore) DeleteEnvBinding(
 	context.Context,
+	string,
 	string,
 	string,
 	string,
@@ -2694,7 +2693,7 @@ func TestBootHooksBuildsResourceBackedRuntimeAndAttachesObserver(t *testing.T) {
 		Kind:     resources.MutationActorKindDaemon,
 		ID:       "reader",
 		Source:   resources.ResourceSource{Kind: resources.ResourceSourceKind("daemon"), ID: "reader"},
-		MaxScope: resources.ResourceScope{Kind: resources.ResourceScopeKindGlobal},
+		MaxScope: resources.ResourceScope{Kind: resources.ResourceScopeKindUser},
 	}, resources.ResourceFilter{})
 	if err != nil {
 		t.Fatalf("store.List() error = %v", err)
@@ -3348,7 +3347,7 @@ func TestHooksNotifierNoopDispatchesWithoutRuntime(t *testing.T) {
 func TestDaemonExtensionServiceInstallStatusEnableAndDisable(t *testing.T) {
 	t.Parallel()
 
-	t.Run("Should install disabled and transition through enable and disable", func(t *testing.T) {
+	t.Run("Should install enabled and support repeated enable then disable", func(t *testing.T) {
 		t.Parallel()
 
 		homePaths := testHomePaths(t)
@@ -3416,14 +3415,14 @@ func TestDaemonExtensionServiceInstallStatusEnableAndDisable(t *testing.T) {
 		if got, want := installed.Name, "service-ext"; got != want {
 			t.Fatalf("installed.Name = %q, want %q", got, want)
 		}
-		if got, want := installed.State, "disabled"; got != want {
+		if got, want := installed.State, "active"; got != want {
 			t.Fatalf("installed.State = %q, want %q", got, want)
 		}
-		if installed.Enabled {
-			t.Fatal("installed.Enabled = true, want false")
+		if !installed.Enabled {
+			t.Fatal("installed.Enabled = false, want default-on install")
 		}
-		if got, want := installed.PID, 0; got != want {
-			t.Fatalf("installed.PID = %d, want %d", got, want)
+		if installed.PID <= 0 {
+			t.Fatalf("installed.PID = %d, want active subprocess", installed.PID)
 		}
 		if installed.Provenance == nil ||
 			installed.Provenance.InstalledFrom != extensionpkg.ExtensionInstalledFromLocalPath ||
@@ -3448,8 +3447,8 @@ func TestDaemonExtensionServiceInstallStatusEnableAndDisable(t *testing.T) {
 		if got, want := listed[0].Name, "service-ext"; got != want {
 			t.Fatalf("service.List()[0].Name = %q, want %q", got, want)
 		}
-		if listed[0].Enabled {
-			t.Fatal("service.List()[0].Enabled = true, want false")
+		if !listed[0].Enabled {
+			t.Fatal("service.List()[0].Enabled = false, want default-on install")
 		}
 
 		info, err := registry.Get("service-ext")
@@ -3471,14 +3470,14 @@ func TestDaemonExtensionServiceInstallStatusEnableAndDisable(t *testing.T) {
 		if got, want := status.Name, "service-ext"; got != want {
 			t.Fatalf("status.Name = %q, want %q", got, want)
 		}
-		if got, want := status.State, "disabled"; got != want {
+		if got, want := status.State, "active"; got != want {
 			t.Fatalf("status.State = %q, want %q", got, want)
 		}
-		if status.Enabled {
-			t.Fatal("status.Enabled = true, want false")
+		if !status.Enabled {
+			t.Fatal("status.Enabled = false, want default-on install")
 		}
-		if got, want := status.PID, 0; got != want {
-			t.Fatalf("status.PID = %d, want %d", got, want)
+		if status.PID <= 0 {
+			t.Fatalf("status.PID = %d, want active subprocess", status.PID)
 		}
 
 		enabled, err := service.Enable(
@@ -3521,9 +3520,12 @@ func TestDaemonExtensionServiceInstallStatusEnableAndDisable(t *testing.T) {
 		if syncs != 3 {
 			t.Fatalf("hook binding sync count = %d, want 3", syncs)
 		}
-		summaries, err := db.ListEventSummaries(testutil.Context(t), store.EventSummaryQuery{
-			Component: eventspkg.ComponentExtension,
-		})
+		summaries, err := db.ListEventSummaries(
+			testutil.Context(t),
+			store.EventSummaryQuery{ReadScope: store.ReadScope{AllProfiles: true},
+				Component: eventspkg.ComponentExtension,
+			},
+		)
 		if err != nil {
 			t.Fatalf("ListEventSummaries(extension) error = %v", err)
 		}
@@ -3865,9 +3867,12 @@ func TestDaemonExtensionServiceRecordsCommittedBatchUpdatesBeforeReturningFailur
 		payloads[0].Warnings[0].Code != diagnosticcontract.CodeExtensionUpdateCleanupFailed {
 		t.Fatalf("finalizeMarketplaceUpdateBatch() warnings = %#v, want cleanup warning", payloads[0].Warnings)
 	}
-	summaries, err := db.ListEventSummaries(t.Context(), store.EventSummaryQuery{
-		Type: eventspkg.ExtensionUpdateCompleted,
-	})
+	summaries, err := db.ListEventSummaries(
+		t.Context(),
+		store.EventSummaryQuery{ReadScope: store.ReadScope{AllProfiles: true},
+			Type: eventspkg.ExtensionUpdateCompleted,
+		},
+	)
 	if err != nil {
 		t.Fatalf("ListEventSummaries(extension.update.completed) error = %v", err)
 	}
@@ -3895,9 +3900,12 @@ func TestDaemonExtensionServiceRecordsCommittedBatchUpdatesBeforeReturningFailur
 			t.Fatalf("extension.update.completed summaries = %#v, want event for %s", summaries, name)
 		}
 	}
-	failed, err := db.ListEventSummaries(t.Context(), store.EventSummaryQuery{
-		Type: eventspkg.ExtensionUpdateFailed,
-	})
+	failed, err := db.ListEventSummaries(
+		t.Context(),
+		store.EventSummaryQuery{ReadScope: store.ReadScope{AllProfiles: true},
+			Type: eventspkg.ExtensionUpdateFailed,
+		},
+	)
 	if err != nil {
 		t.Fatalf("ListEventSummaries(extension.update.failed) error = %v", err)
 	}
@@ -3942,10 +3950,10 @@ func (*daemonExtensionEventStoreStub) ListEventSummaries(
 	return nil, nil
 }
 
-func TestDaemonExtensionServiceRollsBackFailedEnableReload(t *testing.T) {
+func TestDaemonExtensionServiceRollsBackFailedInstallReload(t *testing.T) {
 	t.Parallel()
 
-	t.Run("Should keep the managed install disabled when enable reload fails", func(t *testing.T) {
+	t.Run("Should remove the managed install when default-on reload fails", func(t *testing.T) {
 		t.Parallel()
 
 		homePaths := testHomePaths(t)
@@ -3996,8 +4004,8 @@ version = "0.1.0"
 description = "Invalid extension used to verify daemon install rollback."
 min_compozy_version = "0.0.1"
 
-[resources]
-agents = ["agents"]
+[[resources.agents]]
+path = "agents"
 `),
 			0o644,
 		); err != nil {
@@ -4016,57 +4024,27 @@ Broken agent missing required name.
 			t.Fatalf("os.WriteFile(AGENT.md) error = %v", err)
 		}
 
-		installed, err := service.Install(testutil.Context(t), contract.InstallExtensionRequest{
+		_, err = service.Install(testutil.Context(t), contract.InstallExtensionRequest{
 			Source:          contract.InstallExtensionSourceLocalPath,
 			Ref:             fixtureDir,
 			AllowUnverified: true,
 		}, actor)
-		if err != nil {
-			t.Fatalf("service.Install(invalid extension) error = %v", err)
-		}
-		if installed.Enabled {
-			t.Fatal("service.Install(invalid extension).Enabled = true, want false")
-		}
-		if got, want := installed.State, "disabled"; got != want {
-			t.Fatalf("service.Install(invalid extension).State = %q, want %q", got, want)
-		}
-
-		_, err = service.Enable(
-			testutil.Context(t),
-			"rollback-ext",
-			contract.EnableExtensionRequest{},
-			actor,
-		)
 		if err == nil {
-			t.Fatal("service.Enable(invalid extension) error = nil, want reload failure")
+			t.Fatal("service.Install(invalid extension) error = nil, want reload failure")
 		}
 		if !strings.Contains(err.Error(), "agent name is required") {
-			t.Fatalf("service.Enable(invalid extension) error = %v, want agent parse failure", err)
+			t.Fatalf("service.Install(invalid extension) error = %v, want agent parse failure", err)
 		}
 
-		info, err := registry.Get("rollback-ext")
-		if err != nil {
-			t.Fatalf("registry.Get(rollback-ext) error = %v", err)
-		}
-		if info.Enabled {
-			t.Fatal("registry.Get(rollback-ext).Enabled = true, want rolled back disabled state")
+		if _, err := registry.Get("rollback-ext"); !errors.Is(err, extensionpkg.ErrExtensionNotFound) {
+			t.Fatalf("registry.Get(rollback-ext) error = %v, want ErrExtensionNotFound", err)
 		}
 		managedPath := extensionpkg.ManagedInstallPath(homePaths, "rollback-ext")
-		if _, err := os.Stat(managedPath); err != nil {
-			t.Fatalf("os.Stat(%q) error = %v, want managed install preserved", managedPath, err)
+		if _, err := os.Stat(managedPath); !errors.Is(err, os.ErrNotExist) {
+			t.Fatalf("os.Stat(%q) error = %v, want rolled-back install absent", managedPath, err)
 		}
-		managed, err := manager.Get("rollback-ext")
-		if err != nil {
-			t.Fatalf("manager.Get(rollback-ext) error = %v", err)
-		}
-		if managed.Status.Enabled {
-			t.Fatal("manager.Get(rollback-ext).Status.Enabled = true, want false")
-		}
-		if managed.Status.Active {
-			t.Fatal("manager.Get(rollback-ext).Status.Active = true, want false")
-		}
-		if got, want := managed.Status.PID, 0; got != want {
-			t.Fatalf("manager.Get(rollback-ext).Status.PID = %d, want %d", got, want)
+		if _, err := manager.Get("rollback-ext"); !errors.Is(err, extensionpkg.ErrExtensionNotFound) {
+			t.Fatalf("manager.Get(rollback-ext) error = %v, want ErrExtensionNotFound", err)
 		}
 		if _, err := os.Stat(filepath.Join(fixtureDir, "extension.toml")); err != nil {
 			t.Fatalf("source fixture manifest stat error = %v", err)
@@ -4090,26 +4068,36 @@ func TestDaemonExtensionServiceCheckReadyErrors(t *testing.T) {
 
 func TestExtensionDeclarationProviderReturnsRuntimeDeclarations(t *testing.T) {
 	t.Parallel()
+	t.Run("Should project one isolated declaration for every active profile", func(t *testing.T) {
+		t.Parallel()
 
-	want := []hookspkg.HookDecl{
-		{
+		want := []hookspkg.HookDecl{{
 			Name:         "ext-turn-start",
 			Event:        hookspkg.HookTurnStart,
 			Mode:         hookspkg.HookModeSync,
 			ExecutorKind: hookspkg.HookExecutorSubprocess,
 			Command:      "/bin/sh",
 			Args:         []string{"-c", "printf '{}'"},
-		},
-	}
-	runtime := &fakeExtensionRuntime{hookDecls: want}
+		}}
+		runtime := &fakeExtensionRuntime{hookDecls: want}
+		profiles := extensionHookProfileCatalogStub{profiles: []profilepkg.WithCounts{
+			{Profile: profilepkg.Profile{ID: store.DefaultProfileID, Name: "default", State: profilepkg.StateActive}},
+			{Profile: profilepkg.Profile{ID: "profile-marketing", Name: "marketing", State: profilepkg.StateActive}},
+		}}
 
-	got, err := extensionDeclarationProvider(func() extensionRuntime { return runtime })(testutil.Context(t))
-	if err != nil {
-		t.Fatalf("extensionDeclarationProvider() error = %v", err)
-	}
-	if !testutil.EqualStringSlices([]string{got[0].Name}, []string{want[0].Name}) {
-		t.Fatalf("extensionDeclarationProvider() = %#v, want %#v", got, want)
-	}
+		got, err := extensionDeclarationProvider(
+			func() extensionRuntime { return runtime },
+			profiles,
+		)(
+			testutil.Context(t),
+		)
+		if err != nil {
+			t.Fatalf("extensionDeclarationProvider() error = %v", err)
+		}
+		if len(got) != 2 || got[0].ProfileID != store.DefaultProfileID || got[1].ProfileID != "profile-marketing" {
+			t.Fatalf("extensionDeclarationProvider() = %#v, want default and marketing owners", got)
+		}
+	})
 }
 
 func TestChainDeclarationProvidersWrapsProviderErrors(t *testing.T) {
@@ -4137,7 +4125,10 @@ func TestExtensionDeclarationProviderWrapsRuntimeErrors(t *testing.T) {
 	wantErr := errors.New("runtime boom")
 	runtime := &fakeExtensionRuntime{hookErr: wantErr}
 
-	_, err := extensionDeclarationProvider(func() extensionRuntime { return runtime })(testutil.Context(t))
+	_, err := extensionDeclarationProvider(
+		func() extensionRuntime { return runtime },
+		extensionHookProfileCatalogStub{profiles: defaultExtensionHookProfiles()},
+	)(testutil.Context(t))
 	if !errors.Is(err, wantErr) {
 		t.Fatalf("extensionDeclarationProvider() error = %v, want wrapped %v", err, wantErr)
 	}
@@ -4160,7 +4151,10 @@ func TestBootStateExtensionRuntimeAccessIsSynchronized(t *testing.T) {
 			Args:         []string{"-c", "printf '{}'"},
 		}},
 	}
-	provider := extensionDeclarationProvider(state.currentExtensionRuntime)
+	provider := extensionDeclarationProvider(
+		state.currentExtensionRuntime,
+		extensionHookProfileCatalogStub{profiles: defaultExtensionHookProfiles()},
+	)
 
 	start := make(chan struct{})
 	providerErrors := make(chan error, 16*128)
@@ -6533,6 +6527,7 @@ func testTaskRuntimeDetachedHarnessSubmissionAllowsProcessedReentryMetadata(t *t
 	workspace := resolveDaemonWorkspace(t, resolver, filepath.Join(t.TempDir(), "workspace"))
 	sessions.infos = []*session.Info{
 		{
+			ProfileID:            store.DefaultProfileID,
 			ID:                   "sess-owner",
 			Type:                 session.SessionTypeSystem,
 			State:                session.StateActive,
@@ -6541,6 +6536,7 @@ func testTaskRuntimeDetachedHarnessSubmissionAllowsProcessedReentryMetadata(t *t
 			NetworkParticipation: daemonTestLiveParticipation(workspace.ID, "builders"),
 		},
 		{
+			ProfileID:            store.DefaultProfileID,
 			ID:                   "sess-wake",
 			Type:                 session.SessionTypeSystem,
 			State:                session.StateActive,
@@ -7083,6 +7079,7 @@ func seedDetachedHarnessRecoveryRunForTest(
 	}
 
 	if err := db.CreateTask(testutil.Context(t), taskpkg.Task{
+		ProfileID: store.DefaultProfileID,
 		ID:        taskID,
 		Scope:     taskpkg.ScopeGlobal,
 		Title:     summary,
@@ -7096,7 +7093,8 @@ func seedDetachedHarnessRecoveryRunForTest(
 	}); err != nil {
 		t.Fatalf("CreateTask(%q) error = %v", taskID, err)
 	}
-	command, err := taskpkg.NewTerminalRunHistoryImport(taskpkg.Run{
+	run := taskpkg.Run{
+		ProfileID:       store.DefaultProfileID,
 		ID:              runID,
 		TaskID:          taskID,
 		Status:          taskpkg.TaskRunStatusCompleted,
@@ -7109,8 +7107,9 @@ func seedDetachedHarnessRecoveryRunForTest(
 		ClaimedAt:       completedAt.Add(-90 * time.Second),
 		StartedAt:       completedAt.Add(-time.Minute),
 		EndedAt:         completedAt,
-		Result:          json.RawMessage(`{"ok":true}`),
-	}, actor)
+	}
+	run.SetResult(json.RawMessage(`{"ok":true}`))
+	command, err := taskpkg.NewTerminalRunHistoryImport(run, actor)
 	if err != nil {
 		t.Fatalf("NewTerminalRunHistoryImport(%q) error = %v", runID, err)
 	}
@@ -8787,6 +8786,22 @@ type queuedAttachmentStore struct {
 	entries []store.SessionInputQueueEntry
 }
 
+func (r *recordingRegistry) VerifyDefaultProfile(context.Context) error {
+	return nil
+}
+
+func (r *recordingRegistry) ListAttentionWorkspaceMutes(context.Context, string) ([]string, error) {
+	return []string{}, nil
+}
+
+func (r *recordingRegistry) ReplaceAttentionWorkspaceMutes(context.Context, string, []string) error {
+	return nil
+}
+
+func (r *recordingRegistry) IsAttentionWorkspaceMuted(context.Context, string, string) (bool, error) {
+	return false, nil
+}
+
 func (s queuedAttachmentStore) ListPendingSessionInputs(
 	context.Context,
 	string,
@@ -8980,24 +8995,26 @@ func (r *recordingRegistry) PutApprovalGrant(
 
 func (r *recordingRegistry) ListApprovalGrants(
 	_ context.Context,
+	readScope store.ReadScope,
 	workspaceID string,
 ) ([]toolspkg.ApprovalGrant, error) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	grants := make([]toolspkg.ApprovalGrant, 0)
 	for key, grant := range r.approvalGrants {
-		if key.WorkspaceID == workspaceID {
+		if key.WorkspaceID == workspaceID &&
+			(readScope.AllProfiles || key.ProfileID == readScope.ProfileID) {
 			grants = append(grants, grant)
 		}
 	}
 	return grants, nil
 }
 
-func (r *recordingRegistry) RevokeApprovalGrant(_ context.Context, workspaceID, id string) error {
+func (r *recordingRegistry) RevokeApprovalGrant(_ context.Context, profileID, workspaceID, id string) error {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	for key, grant := range r.approvalGrants {
-		if key.WorkspaceID == workspaceID && grant.ID == id {
+		if key.ProfileID == profileID && key.WorkspaceID == workspaceID && grant.ID == id {
 			delete(r.approvalGrants, key)
 			return nil
 		}
@@ -9067,6 +9084,7 @@ func (r *recordingRegistry) RecordCmdPaletteUsage(
 
 func (r *recordingRegistry) CmdPalettePersonalization(
 	context.Context,
+	cmdpalette.ProfileLensID,
 	cmdpalette.WorkspaceID,
 ) (cmdpalette.PersonalizationRows, error) {
 	return cmdpalette.PersonalizationRows{}, nil
@@ -9074,6 +9092,7 @@ func (r *recordingRegistry) CmdPalettePersonalization(
 
 func (r *recordingRegistry) PutCmdPalettePin(
 	context.Context,
+	cmdpalette.ProfileLensID,
 	cmdpalette.WorkspaceID,
 	cmdpalette.CommandID,
 	time.Time,
@@ -9083,6 +9102,7 @@ func (r *recordingRegistry) PutCmdPalettePin(
 
 func (r *recordingRegistry) DeleteCmdPalettePin(
 	context.Context,
+	cmdpalette.ProfileLensID,
 	cmdpalette.WorkspaceID,
 	cmdpalette.CommandID,
 ) error {
@@ -9091,6 +9111,7 @@ func (r *recordingRegistry) DeleteCmdPalettePin(
 
 func (r *recordingRegistry) PruneCmdPaletteCommand(
 	context.Context,
+	cmdpalette.ProfileLensID,
 	cmdpalette.WorkspaceID,
 	cmdpalette.CommandID,
 ) error {
@@ -9099,6 +9120,7 @@ func (r *recordingRegistry) PruneCmdPaletteCommand(
 
 func (r *recordingRegistry) PruneCmdPaletteUsage(
 	context.Context,
+	cmdpalette.ProfileLensID,
 	cmdpalette.WorkspaceID,
 	cmdpalette.CommandID,
 ) error {
@@ -9107,6 +9129,7 @@ func (r *recordingRegistry) PruneCmdPaletteUsage(
 
 func (r *recordingRegistry) PruneCmdPaletteQueryHit(
 	context.Context,
+	cmdpalette.ProfileLensID,
 	cmdpalette.WorkspaceID,
 	string,
 	cmdpalette.CommandID,
@@ -9116,6 +9139,7 @@ func (r *recordingRegistry) PruneCmdPaletteQueryHit(
 
 func (r *recordingRegistry) ResetCmdPalettePersonalization(
 	context.Context,
+	cmdpalette.ProfileLensID,
 	cmdpalette.WorkspaceID,
 ) error {
 	return nil
@@ -9133,37 +9157,35 @@ func (r *recordingRegistry) MarkDeadEntity(_ context.Context, entity store.DeadE
 
 func (r *recordingRegistry) ClearDeadEntity(
 	_ context.Context,
-	workspaceID string,
-	kind store.DeadEntityKind,
-	entityID string,
+	key store.DeadEntityKey,
 ) error {
 	r.mu.Lock()
 	defer r.mu.Unlock()
-	delete(r.deadEntities, store.DeadEntityKey{WorkspaceID: workspaceID, Kind: kind, EntityID: entityID})
+	delete(r.deadEntities, key)
 	return nil
 }
 
 func (r *recordingRegistry) FindDeadEntity(
 	_ context.Context,
-	workspaceID string,
-	kind store.DeadEntityKind,
-	entityID string,
+	key store.DeadEntityKey,
 ) (store.DeadEntity, bool, error) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
-	entity, ok := r.deadEntities[store.DeadEntityKey{WorkspaceID: workspaceID, Kind: kind, EntityID: entityID}]
+	entity, ok := r.deadEntities[key]
 	return entity, ok, nil
 }
 
 func (r *recordingRegistry) ListDeadEntities(
 	_ context.Context,
+	readScope store.ReadScope,
 	workspaceID string,
 ) ([]store.DeadEntity, error) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	entities := make([]store.DeadEntity, 0)
 	for key, entity := range r.deadEntities {
-		if key.WorkspaceID == workspaceID {
+		if key.WorkspaceID == workspaceID &&
+			(readScope.AllProfiles || key.ProfileID == readScope.ProfileID) {
 			entities = append(entities, entity)
 		}
 	}
@@ -9171,8 +9193,9 @@ func (r *recordingRegistry) ListDeadEntities(
 }
 
 var (
-	_ Registry  = (*recordingRegistry)(nil)
-	_ taskStore = (*recordingRegistry)(nil)
+	_ Registry              = (*recordingRegistry)(nil)
+	_ taskStore             = (*recordingRegistry)(nil)
+	_ store.DeadEntityStore = (*recordingRegistry)(nil)
 )
 
 func (r *recordingRegistry) Path() string {
@@ -9403,7 +9426,7 @@ func (r *recordingRegistry) SetNetworkAvailability(
 
 func (*recordingRegistry) AcceptNetworkMessage(
 	context.Context,
-	store.AcceptNetworkMessageRequest,
+	*store.AcceptNetworkMessageRequest,
 ) (store.AcceptNetworkMessageResult, error) {
 	return store.AcceptNetworkMessageResult{}, nil
 }
@@ -9537,6 +9560,7 @@ func (r *recordingRegistry) CreateNetworkChannel(context.Context, store.NetworkC
 
 func (r *recordingRegistry) PatchNetworkChannel(
 	context.Context,
+	store.ReadScope,
 	store.NetworkChannelRef,
 	store.NetworkChannelPatch,
 ) error {
@@ -9545,6 +9569,7 @@ func (r *recordingRegistry) PatchNetworkChannel(
 
 func (r *recordingRegistry) GetNetworkChannel(
 	context.Context,
+	store.ReadScope,
 	store.NetworkChannelRef,
 ) (store.NetworkChannelEntry, error) {
 	return store.NetworkChannelEntry{}, sql.ErrNoRows
@@ -9620,6 +9645,7 @@ func (r *recordingRegistry) ListThreads(
 
 func (r *recordingRegistry) GetThread(
 	context.Context,
+	store.ReadScope,
 	store.NetworkChannelRef,
 	string,
 ) (store.NetworkThreadSummary, error) {
@@ -9636,6 +9662,7 @@ func (r *recordingRegistry) ListDirectRooms(
 
 func (r *recordingRegistry) GetDirectRoom(
 	context.Context,
+	store.ReadScope,
 	store.NetworkChannelRef,
 	string,
 ) (store.NetworkDirectRoomSummary, error) {
@@ -9650,7 +9677,12 @@ func (r *recordingRegistry) ListConversationMessages(
 	return nil, nil
 }
 
-func (r *recordingRegistry) GetWork(context.Context, string, string) (store.NetworkWorkEntry, error) {
+func (r *recordingRegistry) GetWork(
+	context.Context,
+	store.ReadScope,
+	string,
+	string,
+) (store.NetworkWorkEntry, error) {
 	return store.NetworkWorkEntry{}, store.ErrNetworkConversationNotFound
 }
 
@@ -10344,6 +10376,7 @@ func (f *fakeAutomationManager) Shutdown(context.Context) error {
 
 func (f *fakeAutomationManager) ListSuggestions(
 	context.Context,
+	store.ReadScope,
 	string,
 	automationpkg.SuggestionStatus,
 ) ([]automationpkg.Suggestion, error) {
@@ -10354,12 +10387,14 @@ func (f *fakeAutomationManager) AcceptSuggestion(
 	context.Context,
 	string,
 	string,
+	string,
 ) (automationpkg.SuggestionAcceptance, error) {
 	return automationpkg.SuggestionAcceptance{}, automationpkg.ErrSuggestionNotFound
 }
 
 func (f *fakeAutomationManager) DismissSuggestion(
 	context.Context,
+	string,
 	string,
 	string,
 ) (automationpkg.Suggestion, error) {
@@ -10952,8 +10987,8 @@ func (f *fakeHookRuntime) DispatchContextPostCompact(
 
 func (f *fakeHookRuntime) DispatchSandboxPrepare(
 	_ context.Context,
-	payload hookspkg.SandboxPreparePayload,
-) (hookspkg.SandboxPreparePayload, error) {
+	payload *hookspkg.SandboxPreparePayload,
+) (*hookspkg.SandboxPreparePayload, error) {
 	return payload, nil
 }
 
@@ -11455,6 +11490,20 @@ type fakeExtensionRuntime struct {
 	onReload    func(context.Context) error
 }
 
+type extensionHookProfileCatalogStub struct {
+	profiles []profilepkg.WithCounts
+}
+
+func (s extensionHookProfileCatalogStub) List(context.Context) ([]profilepkg.WithCounts, error) {
+	return append([]profilepkg.WithCounts(nil), s.profiles...), nil
+}
+
+func defaultExtensionHookProfiles() []profilepkg.WithCounts {
+	return []profilepkg.WithCounts{{
+		Profile: profilepkg.Profile{ID: store.DefaultProfileID, Name: "default", State: profilepkg.StateActive},
+	}}
+}
+
 func (f *fakeExtensionRuntime) Start(context.Context) error {
 	f.startCount++
 	if f.onStart != nil {
@@ -11510,6 +11559,25 @@ func (f *fakeExtensionRuntime) HookDeclarations(context.Context) ([]hookspkg.Hoo
 		decls = append(decls, cloned)
 	}
 	return decls, f.hookErr
+}
+
+func (f *fakeExtensionRuntime) HookDeclarationsForProfiles(
+	_ context.Context,
+	profiles []extensionpkg.ProfileLens,
+) ([]hookspkg.HookDecl, error) {
+	if f.hookErr != nil {
+		return nil, f.hookErr
+	}
+	decls := make([]hookspkg.HookDecl, 0, len(f.hookDecls)*len(profiles))
+	for _, profile := range profiles {
+		for _, declaration := range f.hookDecls {
+			cloned := declaration
+			cloned.ProfileID = profile.ID
+			cloned.Args = append([]string(nil), declaration.Args...)
+			decls = append(decls, cloned)
+		}
+	}
+	return decls, nil
 }
 
 func (f *fakeExtensionRuntime) InspectPackageResources(

@@ -94,6 +94,7 @@ func createSessionOperationSpec() OperationSpec {
 		Summary:     "Create a session",
 		Tags:        []string{specSessionsKey},
 		Transports:  []Transport{TransportHTTP, TransportUDS},
+		Parameters:  withProfileSelector(),
 		RequestBody: contract.CreateSessionRequest{},
 		Responses: []ResponseSpec{
 			{Status: 201, Description: specCreatedDescription, Body: contract.SessionResponse{}},
@@ -131,10 +132,10 @@ func getSessionByIDOperationSpec() OperationSpec {
 		Summary:     "Get one session snapshot by id",
 		Tags:        []string{specSessionsKey},
 		Transports:  []Transport{TransportHTTP, TransportUDS},
-		Parameters: []ParameterSpec{
+		Parameters: withProfileScope(
 			pathParam("session_id", "Session id"),
 			boolQueryParam("include_health", "Include metadata-only session health when available"),
-		},
+		),
 		Responses: []ResponseSpec{
 			{Status: 200, Description: "OK", Body: contract.SessionResponse{}},
 			{Status: 404, Description: specSessionNotFoundDescription, Body: contract.ErrorPayload{}},
@@ -150,11 +151,11 @@ func getSessionOperationSpec() OperationSpec {
 		Summary:     "Get one session snapshot",
 		Tags:        []string{specSessionsKey},
 		Transports:  []Transport{TransportHTTP, TransportUDS},
-		Parameters: []ParameterSpec{
+		Parameters: withProfileScope(
 			pathParam("workspace_id", "Workspace id"),
 			pathParam("session_id", "Session id"),
 			boolQueryParam("include_health", "Include metadata-only session health when available"),
-		},
+		),
 		Responses: []ResponseSpec{
 			{Status: 200, Description: "OK", Body: contract.SessionResponse{}},
 			{Status: 404, Description: specSessionNotFoundDescription, Body: contract.ErrorPayload{}},

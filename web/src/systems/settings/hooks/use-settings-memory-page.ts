@@ -3,6 +3,7 @@ import { useState, type SetStateAction } from "react";
 import { useSettingsPage } from "./use-settings-page";
 
 import { useTriggerMemoryDream } from "@/systems/knowledge";
+import { useProfileReadScope } from "@/systems/profiles";
 import {
   SettingsApiError,
   type SettingsMemorySection,
@@ -14,6 +15,7 @@ import {
 type MemoryConfig = SettingsMemorySection["config"];
 
 export function useSettingsMemoryPage() {
+  const { destination: profile } = useProfileReadScope();
   const query = useSettingsMemory();
   const mutation = useUpdateSettingsMemory();
   const triggerDream = useTriggerMemoryDream();
@@ -58,7 +60,7 @@ export function useSettingsMemoryPage() {
   const handleTriggerDream = () => {
     setActionMessage(null);
     triggerDream.mutate(
-      {},
+      { profile },
       {
         onSuccess: response => {
           setActionMessage(

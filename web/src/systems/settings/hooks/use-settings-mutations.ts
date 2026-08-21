@@ -7,14 +7,11 @@ import {
   deleteSettingsHook,
   deleteSettingsMCPServer,
   deleteSettingsProvider,
-  createSettingsNotificationPreset,
-  deleteSettingsNotificationPreset,
   putSettingsSandbox,
   putSettingsHook,
   putSettingsMCPServer,
   putSettingsProvider,
   reloadSettings,
-  updateSettingsNotificationPreset,
   updateSettingsAttention,
   updateSettingsAutomation,
   updateSettingsGeneral,
@@ -22,6 +19,7 @@ import {
   updateSettingsMemory,
   updateSettingsNetwork,
   updateSettingsObservability,
+  updateSettingsPersona,
   updateSettingsRoles,
   updateSettingsShell,
   updateSettingsSkills,
@@ -36,8 +34,8 @@ import { settingsRestartStore } from "../stores/settings-restart-store";
 import type {
   SettingsSandboxRequest,
   SettingsHookRequest,
-  SettingsCreateNotificationPresetRequest,
-  SettingsNotificationPresetEntry,
+  SettingsHookDeleteFilter,
+  SettingsHookPutFilter,
   SettingsMCPAuthBeginRequest,
   SettingsMCPAuthExchangeRequest,
   SettingsMCPAuthFilter,
@@ -45,8 +43,8 @@ import type {
   SettingsMCPServerPutFilter,
   SettingsMCPServerRequest,
   SettingsMutationResult,
-  SettingsUpdateNotificationPresetRequest,
   SettingsProviderRequest,
+  SettingsPersonaFilter,
   SettingsUpdateAutomationRequest,
   SettingsUpdateGeneralRequest,
   SettingsUpdateHooksExtensionsRequest,
@@ -55,9 +53,11 @@ import type {
   SettingsUpdateAttentionRequest,
   SettingsUpdateShellRequest,
   SettingsUpdateObservabilityRequest,
+  SettingsUpdatePersonaRequest,
   SettingsRolesSection,
   SettingsUpdateRolesRequest,
   SettingsAttentionSection,
+  SettingsUpdateAttentionFilter,
   SettingsShellSection,
   SettingsSectionName,
   SettingsUpdateSkillsFilter,
@@ -163,6 +163,28 @@ export function useUpdateSettingsGeneral() {
   });
 }
 
+export function useUpdateSettingsPersona() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: ({
+      body,
+      filter,
+    }: {
+      body: SettingsUpdatePersonaRequest;
+      filter: SettingsPersonaFilter;
+    }) => updateSettingsPersona(body, filter),
+    onSuccess: recordMutation,
+    onSettled: (_result, _error, variables) =>
+      Promise.all([
+        queryClient.invalidateQueries({
+          queryKey: settingsKeys.personaSection(variables.filter),
+        }),
+        invalidateApplyRecords(queryClient),
+      ]),
+  });
+}
+
 export function useUpdateSettingsMemory() {
   const queryClient = useQueryClient();
 
@@ -230,15 +252,38 @@ export function useUpdateSettingsAttention() {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: (body: SettingsUpdateAttentionRequest) => updateSettingsAttention(body),
+    mutationFn: ({
+      body,
+      filter,
+    }: {
+      body: SettingsUpdateAttentionRequest;
+      filter: SettingsUpdateAttentionFilter;
+    }) => updateSettingsAttention(body, filter),
     onSuccess: (result, variables) => {
       recordMutation(result);
       queryClient.setQueryData<SettingsAttentionSection>(
-        settingsKeys.section("attention"),
-        previous => (previous ? { ...previous, config: variables.config } : previous)
+        settingsKeys.attentionSection(variables.filter),
+        previous =>
+          previous
+            ? {
+                ...previous,
+                config: {
+                  ...previous.config,
+                  ...variables.body.config,
+                  muted_workspaces:
+                    variables.body.config.muted_workspaces ?? previous.config.muted_workspaces,
+                },
+              }
+            : previous
       );
     },
-    onSettled: () => invalidateSection(queryClient, "attention"),
+    onSettled: (_result, _error, variables) =>
+      Promise.all([
+        queryClient.invalidateQueries({
+          queryKey: settingsKeys.attentionSection(variables.filter),
+        }),
+        invalidateApplyRecords(queryClient),
+      ]),
   });
 }
 
@@ -332,8 +377,12 @@ export function usePutSettingsHook() {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: ({ name, body }: NameBodyParams<SettingsHookRequest>) =>
-      putSettingsHook(name, body),
+    mutationFn: ({
+      name,
+      body,
+      filter,
+    }: NameBodyParams<SettingsHookRequest> & { filter?: SettingsHookPutFilter }) =>
+      putSettingsHook(name, body, filter ?? {}),
     onSuccess: recordMutation,
     onSettled: () => invalidateHooks(queryClient),
   });
@@ -343,7 +392,8 @@ export function useDeleteSettingsHook() {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: (name: string) => deleteSettingsHook(name),
+    mutationFn: ({ name, filter }: { name: string; filter?: SettingsHookDeleteFilter }) =>
+      deleteSettingsHook(name, filter ?? {}),
     onSuccess: recordMutation,
     onSettled: () => invalidateHooks(queryClient),
   });
@@ -358,11 +408,6 @@ interface MCPPutParams {
 interface MCPDeleteParams {
   name: string;
   filter?: SettingsMCPServerDeleteFilter;
-}
-
-interface SettingsNotificationPresetUpdateParams {
-  name: string;
-  body: SettingsUpdateNotificationPresetRequest;
 }
 
 export function usePutSettingsMCPServer() {
@@ -429,41 +474,8 @@ export function useLogoutMCPAuth() {
   });
 }
 
-function invalidateNotificationPresets(queryClient: ReturnType<typeof useQueryClient>) {
-  return queryClient.invalidateQueries({ queryKey: settingsKeys.notificationsRoot() });
-}
-
-export function useCreateSettingsNotificationPreset() {
-  const queryClient = useQueryClient();
-
-  return useMutation<
-    SettingsNotificationPresetEntry,
-    Error,
-    SettingsCreateNotificationPresetRequest
-  >({
-    mutationFn: body => createSettingsNotificationPreset(body),
-    onSettled: () => invalidateNotificationPresets(queryClient),
-  });
-}
-
-export function useUpdateSettingsNotificationPreset() {
-  const queryClient = useQueryClient();
-
-  return useMutation<
-    SettingsNotificationPresetEntry,
-    Error,
-    SettingsNotificationPresetUpdateParams
-  >({
-    mutationFn: ({ name, body }) => updateSettingsNotificationPreset(name, body),
-    onSettled: () => invalidateNotificationPresets(queryClient),
-  });
-}
-
-export function useDeleteSettingsNotificationPreset() {
-  const queryClient = useQueryClient();
-
-  return useMutation<void, Error, string>({
-    mutationFn: name => deleteSettingsNotificationPreset(name),
-    onSettled: () => invalidateNotificationPresets(queryClient),
-  });
-}
+export {
+  useCreateSettingsNotificationPreset,
+  useDeleteSettingsNotificationPreset,
+  useUpdateSettingsNotificationPreset,
+} from "./use-settings-notification-mutations";

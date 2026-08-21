@@ -72,7 +72,7 @@ func TestExtensionSingleRecordBundlesEmitJSONL(t *testing.T) {
 		name   string
 		bundle outputBundle
 	}{
-		{name: "Should emit status as one JSON object", bundle: extensionBundle(ExtensionRecord{Name: "alpha"})},
+		{name: "Should emit status as one JSON object", bundle: extensionBundle(&ExtensionRecord{Name: "alpha"})},
 		{
 			name:   "Should emit remove as one JSON object",
 			bundle: extensionRemoveBundle(extensionRemoveItem{Name: "alpha", Status: "removed"}),
@@ -242,7 +242,7 @@ func TestExtensionStatusShowsFailureSummary(t *testing.T) {
 	t.Run("Should explain failure count and restart backoff", func(t *testing.T) {
 		t.Parallel()
 
-		bundle := extensionBundle(ExtensionRecord{
+		bundle := extensionBundle(&ExtensionRecord{
 			Name:                "alpha",
 			Enabled:             true,
 			State:               "errored",
@@ -297,7 +297,7 @@ func TestExtensionAgentPluginOutputContract(t *testing.T) {
 	t.Run("Should render install format ingested skipped and portable next step", func(t *testing.T) {
 		t.Parallel()
 
-		human, err := extensionInstallSuccessBundle(item, report).human()
+		human, err := extensionInstallSuccessBundle(&item, report).human()
 		if err != nil {
 			t.Fatalf("extensionInstallSuccessBundle().human() error = %v", err)
 		}
@@ -319,14 +319,14 @@ func TestExtensionAgentPluginOutputContract(t *testing.T) {
 		t.Parallel()
 
 		native := ExtensionRecord{Name: "native", Version: "1.0.0", Type: "resource", Format: "compozy"}
-		human, err := extensionInstallSuccessBundle(native, nil).human()
+		human, err := extensionInstallSuccessBundle(&native, nil).human()
 		if err != nil {
 			t.Fatalf("extensionInstallSuccessBundle(native).human() error = %v", err)
 		}
 		want := renderHumanBlocks(
 			"✓ install native",
 			"next: compozy extension status native",
-			extensionHumanDetail(native, false),
+			extensionHumanDetail(&native, false),
 		)
 		if human != want || strings.Contains(human, "Format:") || strings.Contains(human, "Ingested") {
 			t.Fatalf("native install output = %q, want legacy shape %q", human, want)
@@ -338,7 +338,7 @@ func TestExtensionAgentPluginOutputContract(t *testing.T) {
 
 		dual := &extensionpkg.ValidationReport{DualManifest: true, Format: string(extensionpkg.FormatCompozy)}
 		human, err := extensionInstallSuccessBundle(
-			ExtensionRecord{Name: "dual-target", Format: string(extensionpkg.FormatCompozy)}, dual,
+			&ExtensionRecord{Name: "dual-target", Format: string(extensionpkg.FormatCompozy)}, dual,
 		).human()
 		if err != nil {
 			t.Fatalf("extensionInstallSuccessBundle(dual).human() error = %v", err)
@@ -357,7 +357,7 @@ func TestExtensionAgentPluginOutputContract(t *testing.T) {
 			name   string
 			bundle outputBundle
 		}{
-			{name: "install", bundle: extensionInstallSuccessBundle(item, report)},
+			{name: "install", bundle: extensionInstallSuccessBundle(&item, report)},
 			{name: "validate", bundle: extensionValidationBundle(report)},
 		}
 		for _, test := range bundles {
@@ -420,7 +420,7 @@ func TestExtensionAgentPluginOutputContract(t *testing.T) {
 		degraded.Enabled = true
 		degraded.DaemonRunning = true
 		degraded.Health = "healthy"
-		if got, want := extensionRuntimeSummary(degraded), "running (1 component skipped)"; got != want {
+		if got, want := extensionRuntimeSummary(&degraded), "running (1 component skipped)"; got != want {
 			t.Fatalf("extensionRuntimeSummary() = %q, want %q", got, want)
 		}
 	})
@@ -520,7 +520,7 @@ func TestExtensionSuccessBundlesNameNextStep(t *testing.T) {
 		t.Run("Should render "+test.verb+" confirmation", func(t *testing.T) {
 			t.Parallel()
 
-			bundle := extensionSuccessBundle(test.verb, ExtensionRecord{Name: "alpha"})
+			bundle := extensionSuccessBundle(test.verb, &ExtensionRecord{Name: "alpha"})
 			output, err := bundle.human()
 			if err != nil {
 				t.Fatalf("extensionSuccessBundle(%s).human() error = %v", test.verb, err)
@@ -561,7 +561,7 @@ func TestExtensionEnableOutputUsesTheActionResult(t *testing.T) {
 			},
 			AutomationStarted: []string{"alpha/daily", "alpha/on-task"},
 		}
-		bundle := extensionEnableBundle(result)
+		bundle := extensionEnableBundle(&result)
 		human, err := bundle.human()
 		if err != nil {
 			t.Fatalf("extensionEnableBundle().human() error = %v", err)
@@ -592,7 +592,7 @@ func TestExtensionEnableOutputUsesTheActionResult(t *testing.T) {
 	t.Run("Should omit the automation section for an empty kit", func(t *testing.T) {
 		t.Parallel()
 
-		human, err := extensionEnableBundle(ExtensionEnableRecord{
+		human, err := extensionEnableBundle(&ExtensionEnableRecord{
 			Extension: ExtensionRecord{Name: "empty", Enabled: true},
 		}).human()
 		if err != nil {
@@ -610,18 +610,6 @@ func TestExtensionInventoryPreviewAndSecretsOutputParity(t *testing.T) {
 	inventory := ExtensionInventoryRecord{
 		Extension: "alpha", Enabled: true,
 		Items: []ExtensionKitItemRecord{{Kind: "agent", ID: "agent/alpha/writer", Name: "writer", Live: true}},
-	}
-	preview := ExtensionEnablePreviewRecord{
-		Extension: "alpha",
-		Changes: []contract.ExtensionKitChangePayload{{
-			Kind: "automation.job", ID: "automation.job/alpha/daily", Name: "alpha/daily",
-			Change: contract.ExtensionKitChangeAdded,
-		}},
-		AgentConflicts:              []string{"writer"},
-		MissingEnv:                  []string{"API_KEY"},
-		AutomationStarting:          []string{"alpha/daily"},
-		NetworkRequirementDigest:    "digest-current",
-		NetworkConfirmationRequired: true,
 	}
 	secrets := ExtensionSecretsRecord{
 		DeclaredEnv:  []string{"API_KEY"},
@@ -647,14 +635,6 @@ func TestExtensionInventoryPreviewAndSecretsOutputParity(t *testing.T) {
 			wantTOON:   []string{"extension_inventory", "items", "writer"},
 			newDecoded: func() any { return &ExtensionInventoryRecord{} },
 			want:       inventory,
-		},
-		{
-			name:       "Should render preview",
-			bundle:     extensionEnablePreviewBundle(preview),
-			wantHuman:  []string{"Enable preview", "writer", "API_KEY", "alpha/daily", "digest-current"},
-			wantTOON:   []string{"extension_preview", "changes", "added", "digest-current"},
-			newDecoded: func() any { return &ExtensionEnablePreviewRecord{} },
-			want:       preview,
 		},
 		{
 			name:   "Should render presence-only secrets",

@@ -1,9 +1,11 @@
 -- name: InsertWorktree :exec
 INSERT INTO worktrees (
+  profile_id,
   id, workspace_id, name, branch, path, git_dir, state, pending_phase, origin,
   setup_state, setup_error, base_ref, created_branch, run_namespace, created_head,
   run_id, created_at, updated_at
 ) VALUES (
+  sqlc.arg(profile_id),
   sqlc.arg(id), sqlc.arg(workspace_id), sqlc.arg(name), sqlc.arg(branch), sqlc.arg(path),
   sqlc.arg(git_dir), sqlc.arg(state), sqlc.arg(pending_phase), sqlc.arg(origin),
   sqlc.arg(setup_state), sqlc.arg(setup_error), sqlc.arg(base_ref), sqlc.arg(created_branch),

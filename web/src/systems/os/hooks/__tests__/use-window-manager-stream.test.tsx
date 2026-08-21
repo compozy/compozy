@@ -220,6 +220,45 @@ afterEach(() => {
 });
 
 describe("useWindowManagerStream", () => {
+  it("Should close and reopen the stream when only the profile binding changes", () => {
+    const queryClient = new QueryClient();
+    const { factory, sockets } = createSocketFactory();
+    const callbacks = {
+      onStatusChange: vi.fn(),
+      onSnapshot: vi.fn(),
+      onClient: vi.fn(),
+      onClientInvalidated: vi.fn(),
+      onError: vi.fn(),
+    };
+    const { rerender } = renderHook(
+      ({ profileId }: { profileId: string }) =>
+        useWindowManagerStream({
+          workspaceId: "workspace:test",
+          profileId,
+          clientId: "client:web",
+          registrationEpoch: 0,
+          currentClient: null,
+          enabled: true,
+          afterRevision: 0,
+          socketFactory: factory,
+          ...callbacks,
+        }),
+      { initialProps: { profileId: "marketing" }, wrapper: wrapper(queryClient) }
+    );
+
+    expect(factory).toHaveBeenCalledExactlyOnceWith(
+      "/api/workspaces/workspace%3Atest/window-manager/stream?after_revision=0&client_id=client%3Aweb&profile=marketing"
+    );
+
+    rerender({ profileId: "research" });
+
+    expect(sockets[0]?.close).toHaveBeenCalledOnce();
+    expect(factory).toHaveBeenLastCalledWith(
+      "/api/workspaces/workspace%3Atest/window-manager/stream?after_revision=0&client_id=client%3Aweb&profile=research"
+    );
+    expect(factory).toHaveBeenCalledTimes(2);
+  });
+
   it("Should reconcile a removed workspace before opening the replacement stream", async () => {
     const staleWorkspace = workspace("workspace:stale");
     const currentWorkspace = workspace("workspace:current");
@@ -244,6 +283,7 @@ describe("useWindowManagerStream", () => {
           const { runtimeWorkspaceId } = useActiveWorkspace();
           useWindowManagerStream({
             workspaceId: runtimeWorkspaceId,
+            profileId: "marketing",
             clientId: "client:web",
             registrationEpoch: 0,
             currentClient: null,
@@ -263,7 +303,7 @@ describe("useWindowManagerStream", () => {
 
       expect(result.current).toBe(staleWorkspace.id);
       expect(factory).toHaveBeenCalledWith(
-        "/api/workspaces/workspace%3Astale/window-manager/stream?after_revision=0&client_id=client%3Aweb"
+        "/api/workspaces/workspace%3Astale/window-manager/stream?after_revision=0&client_id=client%3Aweb&profile=marketing"
       );
 
       act(() => {
@@ -282,17 +322,20 @@ describe("useWindowManagerStream", () => {
       await waitFor(() => expect(result.current).toBe(homeRow.id));
       expect(fetchWorkspaces).toHaveBeenCalledOnce();
       expect(factory).toHaveBeenLastCalledWith(
-        "/api/workspaces/workspace%3Ahome/window-manager/stream?after_revision=0&client_id=client%3Aweb"
+        "/api/workspaces/workspace%3Ahome/window-manager/stream?after_revision=0&client_id=client%3Aweb&profile=marketing"
       );
     } finally {
-      clearActiveWorkspaceSelection();
+      act(() => clearActiveWorkspaceSelection());
     }
   });
 
   it("Should keep one socket across topology advances and reconnect with the latest cached fence", async () => {
     vi.useFakeTimers();
     const queryClient = new QueryClient();
-    queryClient.setQueryData(windowManagerKeys.snapshot("workspace:test"), snapshot(1));
+    queryClient.setQueryData(
+      windowManagerKeys.snapshot("workspace:test", "marketing"),
+      snapshot(1)
+    );
     const { factory, sockets } = createSocketFactory();
     const callbacks = {
       onStatusChange: vi.fn(),
@@ -306,6 +349,7 @@ describe("useWindowManagerStream", () => {
       ({ revision }: { revision: number }) =>
         useWindowManagerStream({
           workspaceId: "workspace:test",
+          profileId: "marketing",
           clientId: "client:web",
           registrationEpoch: 0,
           currentClient: client(1),
@@ -318,9 +362,12 @@ describe("useWindowManagerStream", () => {
     );
 
     expect(factory).toHaveBeenCalledWith(
-      "/api/workspaces/workspace%3Atest/window-manager/stream?after_revision=1&client_id=client%3Aweb"
+      "/api/workspaces/workspace%3Atest/window-manager/stream?after_revision=1&client_id=client%3Aweb&profile=marketing"
     );
-    queryClient.setQueryData(windowManagerKeys.snapshot("workspace:test"), snapshot(4));
+    queryClient.setQueryData(
+      windowManagerKeys.snapshot("workspace:test", "marketing"),
+      snapshot(4)
+    );
     rerender({ revision: 5 });
     expect(factory).toHaveBeenCalledOnce();
 
@@ -329,7 +376,7 @@ describe("useWindowManagerStream", () => {
 
     expect(factory).toHaveBeenCalledTimes(2);
     expect(factory).toHaveBeenLastCalledWith(
-      "/api/workspaces/workspace%3Atest/window-manager/stream?after_revision=5&client_id=client%3Aweb"
+      "/api/workspaces/workspace%3Atest/window-manager/stream?after_revision=5&client_id=client%3Aweb&profile=marketing"
     );
 
     act(() => sockets[1]?.message(rawSnapshotFrame(5)));
@@ -342,7 +389,10 @@ describe("useWindowManagerStream", () => {
 
   it("Should serialize burst refreshes until Query reaches the highest announced revision", async () => {
     const queryClient = new QueryClient();
-    queryClient.setQueryData(windowManagerKeys.snapshot("workspace:test"), snapshot(1));
+    queryClient.setQueryData(
+      windowManagerKeys.snapshot("workspace:test", "marketing"),
+      snapshot(1)
+    );
     const { factory, sockets } = createSocketFactory();
     const revisionTwo = deferred<WindowManagerSnapshot>();
     const revisionThree = deferred<WindowManagerSnapshot>();
@@ -354,6 +404,7 @@ describe("useWindowManagerStream", () => {
       () =>
         useWindowManagerStream({
           workspaceId: "workspace:test",
+          profileId: "marketing",
           clientId: "client:web",
           registrationEpoch: 0,
           currentClient: client(1),
@@ -377,14 +428,16 @@ describe("useWindowManagerStream", () => {
     await act(async () => revisionTwo.resolve(snapshot(2)));
     expect(fetchWindowManagerSnapshot).toHaveBeenCalledTimes(2);
     expect(
-      queryClient.getQueryData<WindowManagerSnapshot>(windowManagerKeys.snapshot("workspace:test"))
-        ?.revision
+      queryClient.getQueryData<WindowManagerSnapshot>(
+        windowManagerKeys.snapshot("workspace:test", "marketing")
+      )?.revision
     ).toBe(2);
 
     await act(async () => revisionThree.resolve(snapshot(3)));
     expect(
-      queryClient.getQueryData<WindowManagerSnapshot>(windowManagerKeys.snapshot("workspace:test"))
-        ?.revision
+      queryClient.getQueryData<WindowManagerSnapshot>(
+        windowManagerKeys.snapshot("workspace:test", "marketing")
+      )?.revision
     ).toBe(3);
   });
 
@@ -404,6 +457,7 @@ describe("useWindowManagerStream", () => {
       }) =>
         useWindowManagerStream({
           workspaceId: "workspace:test",
+          profileId: "marketing",
           clientId: "client:web",
           registrationEpoch,
           currentClient,
@@ -464,7 +518,10 @@ describe("useWindowManagerStream", () => {
   it("Should retry a failed snapshot refresh until Query reaches the announced revision", async () => {
     vi.useFakeTimers();
     const queryClient = new QueryClient();
-    queryClient.setQueryData(windowManagerKeys.snapshot("workspace:test"), snapshot(1));
+    queryClient.setQueryData(
+      windowManagerKeys.snapshot("workspace:test", "marketing"),
+      snapshot(1)
+    );
     const { factory, sockets } = createSocketFactory();
     const onError = vi.fn();
     vi.mocked(fetchWindowManagerSnapshot)
@@ -475,6 +532,7 @@ describe("useWindowManagerStream", () => {
       () =>
         useWindowManagerStream({
           workspaceId: "workspace:test",
+          profileId: "marketing",
           clientId: "client:web",
           registrationEpoch: 0,
           currentClient: client(1),
@@ -501,14 +559,18 @@ describe("useWindowManagerStream", () => {
 
     expect(fetchWindowManagerSnapshot).toHaveBeenCalledTimes(2);
     expect(
-      queryClient.getQueryData<WindowManagerSnapshot>(windowManagerKeys.snapshot("workspace:test"))
-        ?.revision
+      queryClient.getQueryData<WindowManagerSnapshot>(
+        windowManagerKeys.snapshot("workspace:test", "marketing")
+      )?.revision
     ).toBe(3);
   });
 
   it("Should abort an in-flight snapshot refresh when the binding is disposed", () => {
     const queryClient = new QueryClient();
-    queryClient.setQueryData(windowManagerKeys.snapshot("workspace:test"), snapshot(1));
+    queryClient.setQueryData(
+      windowManagerKeys.snapshot("workspace:test", "marketing"),
+      snapshot(1)
+    );
     const { factory, sockets } = createSocketFactory();
     const pending = deferred<WindowManagerSnapshot>();
     vi.mocked(fetchWindowManagerSnapshot).mockReturnValueOnce(pending.promise);
@@ -517,6 +579,7 @@ describe("useWindowManagerStream", () => {
       () =>
         useWindowManagerStream({
           workspaceId: "workspace:test",
+          profileId: "marketing",
           clientId: "client:web",
           registrationEpoch: 0,
           currentClient: client(1),
@@ -533,7 +596,7 @@ describe("useWindowManagerStream", () => {
     );
 
     act(() => sockets[0]?.message(rawEventFrame(2)));
-    const signal = vi.mocked(fetchWindowManagerSnapshot).mock.calls[0]?.[1];
+    const signal = vi.mocked(fetchWindowManagerSnapshot).mock.calls[0]?.[2];
     expect(signal?.aborted).toBe(false);
 
     unmount();
@@ -550,6 +613,7 @@ describe("useWindowManagerStream", () => {
       () =>
         useWindowManagerStream({
           workspaceId: "workspace:test",
+          profileId: "marketing",
           clientId: "client:web",
           registrationEpoch: 0,
           currentClient: client(1),
@@ -605,6 +669,7 @@ describe("useWindowManagerStream", () => {
       () =>
         useWindowManagerStream({
           workspaceId: "workspace:test",
+          profileId: "marketing",
           clientId: "client:web",
           registrationEpoch: 0,
           currentClient: client(1),
@@ -655,6 +720,7 @@ describe("useWindowManagerStream", () => {
       () =>
         useWindowManagerStream({
           workspaceId: "workspace:test",
+          profileId: "marketing",
           clientId: "client:web",
           registrationEpoch: 0,
           currentClient: client(1),
@@ -701,6 +767,7 @@ describe("useWindowManagerStream", () => {
       ({ clientContext }: { clientContext: WindowManagerClientContextInput }) =>
         useWindowManagerStream({
           workspaceId: "workspace:test",
+          profileId: "marketing",
           clientId: "client:web",
           registrationEpoch: 0,
           currentClient: client(1),

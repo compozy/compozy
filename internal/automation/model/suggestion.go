@@ -13,7 +13,7 @@ var (
 	ErrSuggestionPendingCap = errors.New("automation: suggestion pending cap reached")
 )
 
-// DefaultSuggestionPendingCap bounds unresolved suggestions per workspace.
+// DefaultSuggestionPendingCap bounds unresolved suggestions per scope.
 const DefaultSuggestionPendingCap = 5
 
 // SuggestionSource identifies the emitter that proposed a Job.
@@ -62,9 +62,12 @@ func (s SuggestionStatus) Validate(path string) error {
 	}
 }
 
-// Suggestion is a workspace-scoped proposal for a prefilled Job.
+// Suggestion is a profile-owned proposal for a prefilled Job. ProfileID binds
+// the pending cap and payload to one profile. WorkspaceID is empty for global
+// automation and otherwise binds the same proposal and payload to one workspace.
 type Suggestion struct {
 	ID          string           `json:"id"`
+	ProfileID   string           `json:"profile_id"`
 	WorkspaceID string           `json:"workspace_id"`
 	Source      SuggestionSource `json:"source"`
 	DedupKey    string           `json:"dedup_key"`
@@ -79,8 +82,8 @@ func (s Suggestion) Validate(path string) error {
 	if strings.TrimSpace(s.ID) == "" {
 		return errors.New(nestedPath(path, "id") + " is required")
 	}
-	if strings.TrimSpace(s.WorkspaceID) == "" {
-		return errors.New(nestedPath(path, "workspace_id") + " is required")
+	if strings.TrimSpace(s.ProfileID) == "" {
+		return errors.New(nestedPath(path, "profile_id") + " is required")
 	}
 	if err := s.Source.Validate(nestedPath(path, "source")); err != nil {
 		return err
@@ -94,11 +97,15 @@ func (s Suggestion) Validate(path string) error {
 	if strings.TrimSpace(s.Payload.ID) == "" {
 		return errors.New(nestedPath(path, "payload.id") + " is required")
 	}
-	if s.Payload.Scope != AutomationScopeWorkspace {
+	expectedScope := AutomationScopeGlobal
+	if strings.TrimSpace(s.WorkspaceID) != "" {
+		expectedScope = AutomationScopeWorkspace
+	}
+	if s.Payload.Scope != expectedScope {
 		return fmt.Errorf(
 			"%s must be %q: %q",
 			nestedPath(path, "payload.scope"),
-			AutomationScopeWorkspace,
+			expectedScope,
 			s.Payload.Scope,
 		)
 	}
@@ -107,6 +114,13 @@ func (s Suggestion) Validate(path string) error {
 			"%s must match %s",
 			nestedPath(path, "payload.workspace_id"),
 			nestedPath(path, "workspace_id"),
+		)
+	}
+	if strings.TrimSpace(s.Payload.ProfileID) != strings.TrimSpace(s.ProfileID) {
+		return fmt.Errorf(
+			"%s must match %s",
+			nestedPath(path, "payload.profile_id"),
+			nestedPath(path, "profile_id"),
 		)
 	}
 	if s.Payload.Source != JobSourceDynamic {

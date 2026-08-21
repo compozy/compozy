@@ -21,6 +21,8 @@ import {
   discardOptimisticMessage,
   reconcileOptimisticMessage,
 } from "./network-message-cache";
+import { resolveNetworkMessageOwner, type NetworkMessageOwner } from "./network-message-owner";
+import { useProfileReadScope } from "@/systems/profiles";
 import { useActiveWorkspace } from "@/systems/workspace";
 
 export const THREAD_COLLISION_TOAST = "Couldn't open this thread. Try again.";
@@ -28,6 +30,8 @@ export const THREAD_COLLISION_TOAST = "Couldn't open this thread. Try again.";
 interface CreateThreadAttemptArgs extends CreateNetworkThreadInput {
   threadId: string;
   workspaceId: string;
+  /** Lens-derived fallback while the channel owner is still loading. */
+  fallbackOwner: NetworkMessageOwner;
 }
 
 async function attemptCreateThread(
@@ -39,21 +43,34 @@ async function attemptCreateThread(
     ...args,
     surface: "thread",
   };
-  const optimistic = buildOptimisticMessage(input, clientMessageId, new Date().toISOString());
-  await queryClient.cancelQueries({ queryKey: canonicalNetworkMessageKey(input), exact: true });
-  applyOptimisticMessage(queryClient, input, optimistic);
+  const owner = resolveNetworkMessageOwner(
+    queryClient,
+    args.workspaceId,
+    args.channel,
+    args.fallbackOwner
+  );
+  if (owner) {
+    const optimistic = buildOptimisticMessage(
+      input,
+      clientMessageId,
+      new Date().toISOString(),
+      owner
+    );
+    await queryClient.cancelQueries({ queryKey: canonicalNetworkMessageKey(input), exact: true });
+    applyOptimisticMessage(queryClient, input, optimistic);
+  }
   try {
     const response = await sendNetworkMessage(
       args.workspaceId,
       buildSendRequest(input, clientMessageId, args.workspaceId)
     );
-    reconcileOptimisticMessage(queryClient, input, clientMessageId, response.message);
+    if (owner) reconcileOptimisticMessage(queryClient, input, clientMessageId, response.message);
     return {
       threadId: response.message.thread_id ?? args.threadId,
       rootMessageId: response.message.id,
     };
   } catch (error) {
-    discardOptimisticMessage(queryClient, input, clientMessageId);
+    if (owner) discardOptimisticMessage(queryClient, input, clientMessageId);
     throw error;
   }
 }
@@ -63,6 +80,11 @@ export function useCreateNetworkThread(
 ): UseCreateNetworkThreadResult {
   const queryClient = useQueryClient();
   const { runtimeWorkspaceId } = useActiveWorkspace();
+  const scope = useProfileReadScope();
+  const fallbackOwner: NetworkMessageOwner = {
+    id: scope.destinationOwner?.id ?? "",
+    name: scope.destination,
+  };
   const workspaceId = options.workspaceId ?? runtimeWorkspaceId;
   const mutation = useMutation<
     CreateNetworkThreadResult,
@@ -72,11 +94,19 @@ export function useCreateNetworkThread(
     mutationFn: async input => {
       const firstId = `thread_${generateClientMessageId().replace(/-/g, "")}`;
       try {
-        return await attemptCreateThread(queryClient, { ...input, threadId: firstId });
+        return await attemptCreateThread(queryClient, {
+          ...input,
+          threadId: firstId,
+          fallbackOwner,
+        });
       } catch (firstError) {
         const secondId = `thread_${generateClientMessageId().replace(/-/g, "")}`;
         try {
-          return await attemptCreateThread(queryClient, { ...input, threadId: secondId });
+          return await attemptCreateThread(queryClient, {
+            ...input,
+            threadId: secondId,
+            fallbackOwner,
+          });
         } catch (secondError) {
           toast.error(THREAD_COLLISION_TOAST);
           throw secondError instanceof Error ? secondError : firstError;

@@ -23,6 +23,7 @@ import (
 	"github.com/compozy/compozy/internal/loop/gate"
 	"github.com/compozy/compozy/internal/network/participation"
 	speedpkg "github.com/compozy/compozy/internal/speed"
+	storepkg "github.com/compozy/compozy/internal/store"
 	"github.com/compozy/compozy/internal/task"
 )
 
@@ -113,16 +114,21 @@ func TestServiceParticipationShouldResolvePersistAndValidateLoopOwnership(t *tes
 			copied,
 			loop.WithParticipationResolver(loopTestParticipationResolver(t, true)),
 		)
-		preview, err := svc.DryRun(context.Background(), "ws-1", "valid-loop", loop.Inputs{
-			Values: map[string]any{"tasks": "task-ref"},
-		})
+		preview, err := svc.DryRun(
+			context.Background(),
+			"ws-1",
+			"valid-loop",
+			loop.Inputs{ProfileID: storepkg.DefaultProfileID,
+				Values: map[string]any{"tasks": "task-ref"},
+			},
+		)
 		if err != nil {
 			t.Fatalf("DryRun() error = %v", err)
 		}
 		if got := preview.ResolvedNetworkParticipation; got != participation.LocalSpec() {
 			t.Fatalf("DryRun participation = %#v, want canonical Local", got)
 		}
-		run, err := svc.Start(context.Background(), "ws-1", "valid-loop", loop.Inputs{
+		run, err := svc.Start(context.Background(), "ws-1", "valid-loop", loop.Inputs{ProfileID: "profile-marketing",
 			Values: map[string]any{"tasks": "task-ref"},
 		}, humanActor(t))
 		if err != nil {
@@ -131,8 +137,29 @@ func TestServiceParticipationShouldResolvePersistAndValidateLoopOwnership(t *tes
 		if got := run.NetworkSpecSnapshot(); got != participation.LocalSpec() {
 			t.Fatalf("Start participation = %#v, want canonical Local", got)
 		}
+		if got, want := run.ProfileID, "profile-marketing"; got != want {
+			t.Fatalf("Start().ProfileID = %q, want %q", got, want)
+		}
 		if got := store.mustRun(t, run.ID).NetworkSpecSnapshot(); got != participation.LocalSpec() {
 			t.Fatalf("stored participation = %#v, want canonical Local", got)
+		}
+	})
+
+	t.Run("Should reject a Loop start without an explicit profile owner", func(t *testing.T) {
+		t.Parallel()
+
+		store := newFakeLoopStore()
+		svc := newParticipationTestService(
+			t,
+			store,
+			validDefinition(),
+			loop.WithParticipationResolver(loopTestParticipationResolver(t, true)),
+		)
+		_, err := svc.Start(context.Background(), "ws-1", "valid-loop", loop.Inputs{
+			Values: map[string]any{"tasks": "task-ref"},
+		}, humanActor(t))
+		if !errors.Is(err, loop.ErrValidation) || !strings.Contains(err.Error(), "profile id is required") {
+			t.Fatalf("Start() error = %v, want missing profile validation", err)
 		}
 	})
 
@@ -172,7 +199,7 @@ func TestServiceParticipationShouldResolvePersistAndValidateLoopOwnership(t *tes
 					definition,
 					loop.WithParticipationResolver(loopTestParticipationResolver(t, true)),
 				)
-				inputs := loop.Inputs{Values: map[string]any{"tasks": "task-ref"}}
+				inputs := loop.Inputs{ProfileID: storepkg.DefaultProfileID, Values: map[string]any{"tasks": "task-ref"}}
 				if _, err := svc.DryRun(context.Background(), "ws-1", "valid-loop", inputs); !errors.Is(
 					err,
 					participation.ErrLoopRequiresLive,
@@ -207,9 +234,15 @@ func TestServiceParticipationShouldResolvePersistAndValidateLoopOwnership(t *tes
 			definition,
 			loop.WithParticipationResolver(loopTestParticipationResolver(t, true)),
 		)
-		run, err := svc.Start(context.Background(), "ws-1", "valid-loop", loop.Inputs{
-			Values: map[string]any{"tasks": "task-ref"},
-		}, humanActor(t))
+		run, err := svc.Start(
+			context.Background(),
+			"ws-1",
+			"valid-loop",
+			loop.Inputs{ProfileID: storepkg.DefaultProfileID,
+				Values: map[string]any{"tasks": "task-ref"},
+			},
+			humanActor(t),
+		)
 		if err != nil {
 			t.Fatalf("Start() error = %v", err)
 		}
@@ -238,7 +271,7 @@ func TestServiceParticipationShouldResolvePersistAndValidateLoopOwnership(t *tes
 		startCtx, cancelStart := context.WithCancel(context.Background())
 		hooks.cancelStarted = cancelStart
 		defer cancelStart()
-		run, err := svc.Start(startCtx, "ws-1", "valid-loop", loop.Inputs{
+		run, err := svc.Start(startCtx, "ws-1", "valid-loop", loop.Inputs{ProfileID: storepkg.DefaultProfileID,
 			Values: map[string]any{"tasks": "task-ref"},
 		}, humanActor(t))
 		if err != nil {
@@ -291,14 +324,20 @@ func TestServiceParticipationShouldResolvePersistAndValidateLoopOwnership(t *tes
 		)
 		mode := participation.ModeLive
 		strategy := participation.StrategyLoopRun
-		run, err := svc.Start(context.Background(), "ws-1", "valid-loop", loop.Inputs{
-			Values: map[string]any{"tasks": "task-ref"},
-			NetworkParticipation: &participation.Request{
-				Mode:            &mode,
-				ChannelStrategy: &strategy,
+		run, err := svc.Start(
+			context.Background(),
+			"ws-1",
+			"valid-loop",
+			loop.Inputs{ProfileID: storepkg.DefaultProfileID,
+				Values: map[string]any{"tasks": "task-ref"},
+				NetworkParticipation: &participation.Request{
+					Mode:            &mode,
+					ChannelStrategy: &strategy,
+				},
+				NetworkParticipationSource: participation.SourceAutomationJob,
 			},
-			NetworkParticipationSource: participation.SourceAutomationJob,
-		}, humanActor(t))
+			humanActor(t),
+		)
 		if err != nil {
 			t.Fatalf("Start() error = %v", err)
 		}
@@ -322,9 +361,15 @@ func TestServiceParticipationShouldResolvePersistAndValidateLoopOwnership(t *tes
 			liveLoopTestDefinition(),
 			loop.WithParticipationResolver(loopTestParticipationResolver(t, false)),
 		)
-		_, err := svc.Start(context.Background(), "ws-1", "valid-loop", loop.Inputs{
-			Values: map[string]any{"tasks": "task-ref"},
-		}, humanActor(t))
+		_, err := svc.Start(
+			context.Background(),
+			"ws-1",
+			"valid-loop",
+			loop.Inputs{ProfileID: storepkg.DefaultProfileID,
+				Values: map[string]any{"tasks": "task-ref"},
+			},
+			humanActor(t),
+		)
 		if !errors.Is(err, participation.ErrUnavailable) {
 			t.Fatalf("Start() error = %v, want network participation unavailable", err)
 		}
@@ -679,9 +724,15 @@ func TestServiceStartShouldUseDefaultsResolver(t *testing.T) {
 			}),
 		)
 
-		run, err := svc.Start(context.Background(), "ws-config", "valid-loop", loop.Inputs{
-			Values: map[string]any{"tasks": "task-ref"},
-		}, humanActor(t))
+		run, err := svc.Start(
+			context.Background(),
+			"ws-config",
+			"valid-loop",
+			loop.Inputs{ProfileID: storepkg.DefaultProfileID,
+				Values: map[string]any{"tasks": "task-ref"},
+			},
+			humanActor(t),
+		)
 		if err != nil {
 			t.Fatalf("Start() error = %v", err)
 		}
@@ -740,7 +791,12 @@ func TestServiceStartShouldUseDefaultsResolver(t *testing.T) {
 			}),
 		)
 
-		preview, err := svc.DryRun(context.Background(), "ws-inputs", "valid-loop", loop.Inputs{})
+		preview, err := svc.DryRun(
+			context.Background(),
+			"ws-inputs",
+			"valid-loop",
+			loop.Inputs{ProfileID: storepkg.DefaultProfileID},
+		)
 		if err != nil {
 			t.Fatalf("DryRun() error = %v", err)
 		}
@@ -761,7 +817,7 @@ func TestServiceStartShouldUseDefaultsResolver(t *testing.T) {
 			context.Background(),
 			"ws-inputs",
 			"valid-loop",
-			loop.Inputs{Values: map[string]any{"tasks": "explicit-task"}},
+			loop.Inputs{ProfileID: storepkg.DefaultProfileID, Values: map[string]any{"tasks": "explicit-task"}},
 			humanActor(t),
 		)
 		if err != nil {
@@ -800,7 +856,7 @@ func TestServiceStartShouldUseDefaultsResolver(t *testing.T) {
 			context.Background(),
 			"ws-inputs",
 			"valid-loop",
-			loop.Inputs{Values: map[string]any{"tasks": "task-ref"}},
+			loop.Inputs{ProfileID: storepkg.DefaultProfileID, Values: map[string]any{"tasks": "task-ref"}},
 			humanActor(t),
 		)
 		validation, ok := loop.AsInputValidationError(err)
@@ -830,7 +886,7 @@ func TestServiceInlineGoalStartAndReplaceShouldSharePinnedStartPath(t *testing.T
 			context.Background(),
 			"ws-1",
 			inlineGoalDefinition("ship the release", "judge-v1"),
-			loop.Inputs{},
+			loop.Inputs{ProfileID: storepkg.DefaultProfileID},
 			inlineGoalOrigin("session-origin"),
 			humanActor(t),
 		)
@@ -855,7 +911,7 @@ func TestServiceInlineGoalStartAndReplaceShouldSharePinnedStartPath(t *testing.T
 			context.Background(),
 			"ws-1",
 			inlineGoalDefinition("ship the release", ""),
-			loop.Inputs{},
+			loop.Inputs{ProfileID: storepkg.DefaultProfileID},
 			inlineGoalOrigin("session-origin"),
 			humanActor(t),
 		)
@@ -883,7 +939,7 @@ func TestServiceInlineGoalStartAndReplaceShouldSharePinnedStartPath(t *testing.T
 			old.ID,
 			"ws-1",
 			inlineGoalDefinition("ship the safer release", "judge-v1"),
-			loop.Inputs{},
+			loop.Inputs{ProfileID: storepkg.DefaultProfileID},
 			inlineGoalOrigin("session-origin"),
 			humanActor(t),
 		)
@@ -931,7 +987,7 @@ func TestServiceInlineGoalStartAndReplaceShouldSharePinnedStartPath(t *testing.T
 			old.ID,
 			"ws-1",
 			inlineGoalDefinition("ship the safer release", "judge-v1"),
-			loop.Inputs{},
+			loop.Inputs{ProfileID: storepkg.DefaultProfileID},
 			inlineGoalOrigin("session-origin"),
 			humanActor(t),
 		)
@@ -960,7 +1016,7 @@ func TestServiceInlineGoalStartAndReplaceShouldSharePinnedStartPath(t *testing.T
 		invalid := inlineGoalDefinition("ship the release", "judge-v1")
 		invalid.Graph.Nodes[0].Params["objective"] = ""
 		if _, err := svc.ReplaceInline(
-			context.Background(), old.ID, "ws-1", invalid, loop.Inputs{},
+			context.Background(), old.ID, "ws-1", invalid, loop.Inputs{ProfileID: storepkg.DefaultProfileID},
 			inlineGoalOrigin("session-origin"), humanActor(t),
 		); err == nil {
 			t.Fatal("ReplaceInline(invalid) error = nil")
@@ -1009,6 +1065,7 @@ func TestServiceStartShouldPinGoalRunPolicy(t *testing.T) {
 				context.Context,
 				loop.WorkspaceID,
 				string,
+				string,
 			) (*loop.ResolvedDefinition, error) {
 				return resolved, nil
 			}),
@@ -1028,9 +1085,15 @@ func TestServiceStartShouldPinGoalRunPolicy(t *testing.T) {
 			t.Fatalf("NewService() error = %v", err)
 		}
 
-		run, err := svc.Start(context.Background(), "ws-goal-policy", "valid-loop", loop.Inputs{
-			Values: map[string]any{"tasks": "task-ref"},
-		}, humanActor(t))
+		run, err := svc.Start(
+			context.Background(),
+			"ws-goal-policy",
+			"valid-loop",
+			loop.Inputs{ProfileID: storepkg.DefaultProfileID,
+				Values: map[string]any{"tasks": "task-ref"},
+			},
+			humanActor(t),
+		)
 		if err != nil {
 			t.Fatalf("Start() error = %v", err)
 		}
@@ -1057,6 +1120,7 @@ func TestServiceStartShouldPinGoalRunPolicy(t *testing.T) {
 				context.Context,
 				loop.WorkspaceID,
 				string,
+				string,
 			) (*loop.ResolvedDefinition, error) {
 				return resolved, nil
 			}),
@@ -1071,9 +1135,15 @@ func TestServiceStartShouldPinGoalRunPolicy(t *testing.T) {
 			t.Fatalf("NewService() error = %v", err)
 		}
 
-		_, err = svc.Start(context.Background(), "ws-goal-policy", "valid-loop", loop.Inputs{
-			Values: map[string]any{"tasks": "task-ref"},
-		}, humanActor(t))
+		_, err = svc.Start(
+			context.Background(),
+			"ws-goal-policy",
+			"valid-loop",
+			loop.Inputs{ProfileID: storepkg.DefaultProfileID,
+				Values: map[string]any{"tasks": "task-ref"},
+			},
+			humanActor(t),
+		)
 		if !errors.Is(err, wantErr) {
 			t.Fatalf("Start() error = %v, want %v", err, wantErr)
 		}
@@ -1093,9 +1163,15 @@ func TestServiceStartShouldEnforceConcurrencyAndAncestry(t *testing.T) {
 		seedFakeRun(store, loop.StatusRunning)
 		svc := newTestService(t, store, validDefinition())
 
-		_, err := svc.Start(context.Background(), "ws-1", "valid-loop", loop.Inputs{
-			Values: map[string]any{"tasks": "task-ref"},
-		}, humanActor(t))
+		_, err := svc.Start(
+			context.Background(),
+			"ws-1",
+			"valid-loop",
+			loop.Inputs{ProfileID: storepkg.DefaultProfileID,
+				Values: map[string]any{"tasks": "task-ref"},
+			},
+			humanActor(t),
+		)
 		if !errors.Is(err, loop.ErrConcurrencyConflict) {
 			t.Fatalf("Start() error = %v, want ErrConcurrencyConflict", err)
 		}
@@ -1114,9 +1190,15 @@ func TestServiceStartShouldEnforceConcurrencyAndAncestry(t *testing.T) {
 		def.Concurrency = dsl.ConcurrencyQueue
 		svc := newTestService(t, store, def)
 
-		run, err := svc.Start(context.Background(), "ws-1", "valid-loop", loop.Inputs{
-			Values: map[string]any{"tasks": "task-ref"},
-		}, humanActor(t))
+		run, err := svc.Start(
+			context.Background(),
+			"ws-1",
+			"valid-loop",
+			loop.Inputs{ProfileID: storepkg.DefaultProfileID,
+				Values: map[string]any{"tasks": "task-ref"},
+			},
+			humanActor(t),
+		)
 		if err != nil {
 			t.Fatalf("Start() error = %v", err)
 		}
@@ -1132,10 +1214,16 @@ func TestServiceStartShouldEnforceConcurrencyAndAncestry(t *testing.T) {
 		parent := seedFakeRun(store, loop.StatusRunning)
 		svc := newTestService(t, store, validDefinition())
 
-		_, err := svc.Start(context.Background(), "ws-1", "valid-loop", loop.Inputs{
-			Values:          map[string]any{"tasks": "task-ref"},
-			ParentLoopRunID: parent.ID,
-		}, humanActor(t))
+		_, err := svc.Start(
+			context.Background(),
+			"ws-1",
+			"valid-loop",
+			loop.Inputs{ProfileID: storepkg.DefaultProfileID,
+				Values:          map[string]any{"tasks": "task-ref"},
+				ParentLoopRunID: parent.ID,
+			},
+			humanActor(t),
+		)
 		if !errors.Is(err, loop.ErrAncestryRejected) {
 			t.Fatalf("Start() error = %v, want ErrAncestryRejected", err)
 		}
@@ -1155,10 +1243,16 @@ func TestServiceStartShouldEnforceConcurrencyAndAncestry(t *testing.T) {
 		store.seed(parent)
 		svc := newTestService(t, store, validDefinition())
 
-		_, err := svc.Start(context.Background(), "ws-1", "valid-loop", loop.Inputs{
-			Values:          map[string]any{"tasks": "task-ref"},
-			ParentLoopRunID: parent.ID,
-		}, humanActor(t))
+		_, err := svc.Start(
+			context.Background(),
+			"ws-1",
+			"valid-loop",
+			loop.Inputs{ProfileID: storepkg.DefaultProfileID,
+				Values:          map[string]any{"tasks": "task-ref"},
+				ParentLoopRunID: parent.ID,
+			},
+			humanActor(t),
+		)
 		if !errors.Is(err, loop.ErrAncestryRejected) {
 			t.Fatalf("Start() error = %v, want ErrAncestryRejected", err)
 		}
@@ -1179,10 +1273,16 @@ func TestServiceStartShouldEnforceConcurrencyAndAncestry(t *testing.T) {
 		}
 		svc := newTestService(t, store, validDefinition())
 
-		_, err := svc.Start(context.Background(), "ws-1", "valid-loop", loop.Inputs{
-			Values:          map[string]any{"tasks": "task-ref"},
-			ParentLoopRunID: parent.ID,
-		}, humanActor(t))
+		_, err := svc.Start(
+			context.Background(),
+			"ws-1",
+			"valid-loop",
+			loop.Inputs{ProfileID: storepkg.DefaultProfileID,
+				Values:          map[string]any{"tasks": "task-ref"},
+				ParentLoopRunID: parent.ID,
+			},
+			humanActor(t),
+		)
 		if !errors.Is(err, loop.ErrAncestryRejected) || !strings.Contains(err.Error(), "identity") {
 			t.Fatalf("Start() error = %v, want identity rejection", err)
 		}
@@ -1332,12 +1432,16 @@ func TestServiceControlMethodsShouldPreserveStatusContracts(t *testing.T) {
 		approvable := seedFakeRun(store, loop.StatusNeedsApproval)
 		approvable.ID = "run-approve"
 		approvable.ActiveGateID = "review_gate"
-		approvable.ActiveHumanCriteria = []byte(`[{"id":"human","type":"human","outcome":"awaiting_approval"}]`)
+		approvable.SetActiveHumanCriteria(
+			json.RawMessage(`[{"id":"human","type":"human","outcome":"awaiting_approval"}]`),
+		)
 		store.seed(approvable)
 		rejectable := seedFakeRun(store, loop.StatusNeedsApproval)
 		rejectable.ID = "run-reject"
 		rejectable.ActiveGateID = "review_gate"
-		rejectable.ActiveHumanCriteria = []byte(`[{"id":"human","type":"human","outcome":"awaiting_approval"}]`)
+		rejectable.SetActiveHumanCriteria(
+			json.RawMessage(`[{"id":"human","type":"human","outcome":"awaiting_approval"}]`),
+		)
 		store.seed(rejectable)
 		running := seedFakeRun(store, loop.StatusRunning)
 		running.ID = "run-running-approve"
@@ -1400,7 +1504,9 @@ func TestServiceControlMethodsShouldPreserveStatusContracts(t *testing.T) {
 		run := seedFakeRun(store, loop.StatusNeedsApproval)
 		run.ID = "run-stale-gate"
 		run.ActiveGateID = "current_gate"
-		run.ActiveHumanCriteria = []byte(`[{"id":"human","type":"human","outcome":"awaiting_approval"}]`)
+		run.SetActiveHumanCriteria(
+			json.RawMessage(`[{"id":"human","type":"human","outcome":"awaiting_approval"}]`),
+		)
 		store.seed(run)
 		svc := newTestService(t, store, validDefinition())
 
@@ -1635,7 +1741,7 @@ func TestServiceConfigMethodsShouldReadWriteRawOverrides(t *testing.T) {
 		store := newFakeLoopStore()
 		svc := newTestService(t, store, validDefinition())
 
-		if err := svc.Configure(context.Background(), "ws-1", "valid-loop", loop.LoopConfig{
+		if err := svc.Configure(context.Background(), "ws-1", storepkg.DefaultProfileID, "valid-loop", loop.LoopConfig{
 			EnabledChecks: []byte(`{"human":true}`),
 			FanOutWidth:   new(500),
 		}); err != nil {
@@ -1651,7 +1757,9 @@ func TestServiceConfigMethodsShouldReadWriteRawOverrides(t *testing.T) {
 		if string(cfg.EnabledChecks) != `{"human":true}` {
 			t.Fatalf("EnabledChecks = %s, want persisted JSON", cfg.EnabledChecks)
 		}
-		snapshot, err := svc.GetConfigSnapshot(context.Background(), "ws-1", "valid-loop")
+		snapshot, err := svc.GetConfigSnapshot(
+			context.Background(), "ws-1", storepkg.DefaultProfileID, "valid-loop",
+		)
 		if err != nil {
 			t.Fatalf("GetConfigSnapshot() error = %v", err)
 		}
@@ -1674,16 +1782,21 @@ func TestServiceConfigMethodsShouldReadWriteRawOverrides(t *testing.T) {
 			Mode:        dsl.EnvironmentWorktree,
 			WorktreeRef: "child-feature",
 		}
-		if err := svc.Configure(context.Background(), "ws-1", "valid-loop", loop.LoopConfig{
+		if err := svc.Configure(context.Background(), "ws-1", storepkg.DefaultProfileID, "valid-loop", loop.LoopConfig{
 			Environment: &childEnvironment,
 		}); err != nil {
 			t.Fatalf("Configure(child environment) error = %v", err)
 		}
 		parentEnvironment := dsl.EnvironmentSpec{Mode: dsl.EnvironmentPerRun}
-		preview, err := svc.DryRun(context.Background(), "ws-1", "valid-loop", loop.Inputs{
-			Values:               map[string]any{"tasks": "task-ref"},
-			InheritedEnvironment: &parentEnvironment,
-		})
+		preview, err := svc.DryRun(
+			context.Background(),
+			"ws-1",
+			"valid-loop",
+			loop.Inputs{ProfileID: storepkg.DefaultProfileID,
+				Values:               map[string]any{"tasks": "task-ref"},
+				InheritedEnvironment: &parentEnvironment,
+			},
+		)
 		if err != nil {
 			t.Fatalf("DryRun(inherited environment) error = %v", err)
 		}
@@ -1695,11 +1808,16 @@ func TestServiceConfigMethodsShouldReadWriteRawOverrides(t *testing.T) {
 			)
 		}
 		explicitRunEnvironment := dsl.EnvironmentSpec{Mode: dsl.EnvironmentRoot}
-		preview, err = svc.DryRun(context.Background(), "ws-1", "valid-loop", loop.Inputs{
-			Values:               map[string]any{"tasks": "task-ref"},
-			InheritedEnvironment: &parentEnvironment,
-			ConfigOverrides:      loop.LoopConfig{Environment: &explicitRunEnvironment},
-		})
+		preview, err = svc.DryRun(
+			context.Background(),
+			"ws-1",
+			"valid-loop",
+			loop.Inputs{ProfileID: storepkg.DefaultProfileID,
+				Values:               map[string]any{"tasks": "task-ref"},
+				InheritedEnvironment: &parentEnvironment,
+				ConfigOverrides:      loop.LoopConfig{Environment: &explicitRunEnvironment},
+			},
+		)
 		if err != nil {
 			t.Fatalf("DryRun(explicit environment) error = %v", err)
 		}
@@ -1716,7 +1834,7 @@ func TestServiceConfigMethodsShouldReadWriteRawOverrides(t *testing.T) {
 		t.Parallel()
 
 		svc := newTestService(t, newFakeLoopStore(), validDefinition())
-		err := svc.Configure(context.Background(), "ws-1", "valid-loop", loop.LoopConfig{
+		err := svc.Configure(context.Background(), "ws-1", storepkg.DefaultProfileID, "valid-loop", loop.LoopConfig{
 			EnabledChecks: []byte(`{`),
 		})
 		if !errors.Is(err, loop.ErrValidation) {
@@ -1734,6 +1852,7 @@ func TestServiceConfigMethodsShouldReadWriteRawOverrides(t *testing.T) {
 				context.Context,
 				loop.WorkspaceID,
 				string,
+				string,
 			) (*loop.ResolvedDefinition, error) {
 				return nil, nil
 			}),
@@ -1743,7 +1862,7 @@ func TestServiceConfigMethodsShouldReadWriteRawOverrides(t *testing.T) {
 			t.Fatalf("NewService() error = %v", err)
 		}
 
-		err = svc.Configure(context.Background(), "ws-1", "missing-loop", loop.LoopConfig{
+		err = svc.Configure(context.Background(), "ws-1", storepkg.DefaultProfileID, "missing-loop", loop.LoopConfig{
 			IterationCap: new(3),
 		})
 		if !errors.Is(err, loop.ErrDefinitionNotFound) {
@@ -1786,9 +1905,15 @@ func TestServiceGetAndDefaultsShouldExposeRunState(t *testing.T) {
 			Delivery: loop.LoopConfig{BudgetTokens: new(4444)},
 		}))
 
-		run, err := svc.Start(context.Background(), "ws-1", "valid-loop", loop.Inputs{
-			Values: map[string]any{"tasks": "task-ref"},
-		}, humanActor(t))
+		run, err := svc.Start(
+			context.Background(),
+			"ws-1",
+			"valid-loop",
+			loop.Inputs{ProfileID: storepkg.DefaultProfileID,
+				Values: map[string]any{"tasks": "task-ref"},
+			},
+			humanActor(t),
+		)
 		if err != nil {
 			t.Fatalf("Start() error = %v", err)
 		}
@@ -2027,9 +2152,14 @@ func TestServiceDryRunShouldReturnPlanPreviewWithoutState(t *testing.T) {
 		definition.Contract.DefinitionOfDone = "{{ .inputs.tasks }} is complete"
 		svc := newTestService(t, store, definition)
 
-		preview, err := svc.DryRun(context.Background(), "ws-1", "valid-loop", loop.Inputs{
-			Values: map[string]any{"tasks": "task-ref"},
-		})
+		preview, err := svc.DryRun(
+			context.Background(),
+			"ws-1",
+			"valid-loop",
+			loop.Inputs{ProfileID: storepkg.DefaultProfileID,
+				Values: map[string]any{"tasks": "task-ref"},
+			},
+		)
 		if err != nil {
 			t.Fatalf("DryRun() error = %v", err)
 		}
@@ -2073,7 +2203,7 @@ func TestServiceDryRunShouldReturnPlanPreviewWithoutState(t *testing.T) {
 			definition,
 			loop.WithRuntimeCatalog(rejectingServiceRuntimeCatalogFactory{}),
 		)
-		inputs := loop.Inputs{Values: map[string]any{"tasks": "task-ref"}}
+		inputs := loop.Inputs{ProfileID: storepkg.DefaultProfileID, Values: map[string]any{"tasks": "task-ref"}}
 
 		if _, err := svc.DryRun(context.Background(), "ws-1", "valid-loop", inputs); err == nil {
 			t.Fatal("DryRun() error = nil, want runtime validation")
@@ -2124,9 +2254,14 @@ func TestServiceDryRunShouldReturnPlanPreviewWithoutState(t *testing.T) {
 			}),
 		)
 
-		_, err := svc.DryRun(context.Background(), "ws-1", "valid-loop", loop.Inputs{
-			Values: map[string]any{"tasks": "task-ref"},
-		})
+		_, err := svc.DryRun(
+			context.Background(),
+			"ws-1",
+			"valid-loop",
+			loop.Inputs{ProfileID: storepkg.DefaultProfileID,
+				Values: map[string]any{"tasks": "task-ref"},
+			},
+		)
 		validation, ok := loop.AsInputValidationError(err)
 		if !ok || validation.Field != "reviewer" || validation.Kind != "agent" ||
 			validation.Value != "deleted-agent" || validation.Origin != loop.InputOriginWorkspace ||
@@ -2150,7 +2285,7 @@ func TestServiceDryRunShouldReturnPlanPreviewWithoutState(t *testing.T) {
 			definition,
 			loop.WithRuntimeCatalog(rejectingServiceRuntimeCatalogFactory{}),
 		)
-		inputs := loop.Inputs{Values: map[string]any{
+		inputs := loop.Inputs{ProfileID: storepkg.DefaultProfileID, Values: map[string]any{
 			"tasks": "task-ref", "runtime": map[string]any{"provider": "flarp"},
 		}}
 		for _, invoke := range []struct {
@@ -2192,6 +2327,7 @@ func TestServiceDryRunShouldReturnPlanPreviewWithoutState(t *testing.T) {
 				context.Context,
 				loop.WorkspaceID,
 				string,
+				string,
 			) (*loop.ResolvedDefinition, error) {
 				return resolved, nil
 			}),
@@ -2207,9 +2343,14 @@ func TestServiceDryRunShouldReturnPlanPreviewWithoutState(t *testing.T) {
 			t.Fatalf("NewService() error = %v", err)
 		}
 
-		_, err = svc.DryRun(context.Background(), "ws-1", "valid-loop", loop.Inputs{
-			Values: map[string]any{"tasks": "task-ref"},
-		})
+		_, err = svc.DryRun(
+			context.Background(),
+			"ws-1",
+			"valid-loop",
+			loop.Inputs{ProfileID: storepkg.DefaultProfileID,
+				Values: map[string]any{"tasks": "task-ref"},
+			},
+		)
 		if !errors.Is(err, loop.ErrValidation) || !strings.Contains(
 			err.Error(),
 			`template manifest key "nodes.agent.params.prompt" added during hydration`,
@@ -2304,6 +2445,7 @@ func TestServiceConstructorAndReasonErrorsShouldBeStable(t *testing.T) {
 			context.Context,
 			loop.WorkspaceID,
 			string,
+			string,
 		) (*loop.ResolvedDefinition, error) {
 			return nil, nil
 		})
@@ -2347,9 +2489,15 @@ func TestServiceConstructorAndReasonErrorsShouldBeStable(t *testing.T) {
 		delete(definition.Graph.Nodes[2].Params, "output_schema")
 		store := &amendmentFakeStore{fakeLoopStore: newFakeLoopStore()}
 		svc := newTestServiceWithOptions(t, store, definition)
-		run, err := svc.Start(context.Background(), "ws-1", "valid-loop", loop.Inputs{
-			Values: map[string]any{"tasks": "task-ref"},
-		}, humanActor(t))
+		run, err := svc.Start(
+			context.Background(),
+			"ws-1",
+			"valid-loop",
+			loop.Inputs{ProfileID: storepkg.DefaultProfileID,
+				Values: map[string]any{"tasks": "task-ref"},
+			},
+			humanActor(t),
+		)
 		if err != nil {
 			t.Fatalf("Start() error = %v", err)
 		}
@@ -2479,9 +2627,15 @@ func TestServiceTimeTravelShouldPreserveHistoryContracts(t *testing.T) {
 		store := newTimeTravelFakeStore()
 		service := newTestServiceWithOptions(t, store, validDefinition())
 		svc := service.(loop.TimeTravelService)
-		run, err := service.Start(context.Background(), "ws-1", "valid-loop", loop.Inputs{
-			Values: map[string]any{"tasks": "task-ref"},
-		}, humanActor(t))
+		run, err := service.Start(
+			context.Background(),
+			"ws-1",
+			"valid-loop",
+			loop.Inputs{ProfileID: storepkg.DefaultProfileID,
+				Values: map[string]any{"tasks": "task-ref"},
+			},
+			humanActor(t),
+		)
 		if err != nil {
 			t.Fatalf("Start() error = %v", err)
 		}
@@ -2560,12 +2714,18 @@ func TestServiceTimeTravelShouldPreserveHistoryContracts(t *testing.T) {
 			loop.WithInputEntityCatalog(entityCatalog),
 		)
 		mode, strategy := participation.ModeLive, participation.StrategyLoopRun
-		source, err := starter.Start(context.Background(), "ws-1", "valid-loop", loop.Inputs{
-			Values: map[string]any{"tasks": "source-ref"},
-			NetworkParticipation: &participation.Request{
-				Mode: &mode, ChannelStrategy: &strategy,
+		source, err := starter.Start(
+			context.Background(),
+			"ws-1",
+			"valid-loop",
+			loop.Inputs{ProfileID: storepkg.DefaultProfileID,
+				Values: map[string]any{"tasks": "source-ref"},
+				NetworkParticipation: &participation.Request{
+					Mode: &mode, ChannelStrategy: &strategy,
+				},
 			},
-		}, humanActor(t))
+			humanActor(t),
+		)
 		if err != nil {
 			t.Fatalf("Start() error = %v", err)
 		}
@@ -2664,9 +2824,15 @@ func TestServiceCancellationShouldRecordCanceledTerminalTruth(t *testing.T) {
 				},
 			}),
 		)
-		run, err := svc.Start(context.Background(), "ws-1", "valid-loop", loop.Inputs{
-			Values: map[string]any{"tasks": "task-ref"},
-		}, humanActor(t))
+		run, err := svc.Start(
+			context.Background(),
+			"ws-1",
+			"valid-loop",
+			loop.Inputs{ProfileID: storepkg.DefaultProfileID,
+				Values: map[string]any{"tasks": "task-ref"},
+			},
+			humanActor(t),
+		)
 		if err != nil {
 			t.Fatalf("Start() error = %v", err)
 		}
@@ -2712,9 +2878,15 @@ func TestServiceCancellationShouldRecordCanceledTerminalTruth(t *testing.T) {
 				},
 			}),
 		)
-		run, err := svc.Start(context.Background(), "ws-1", "valid-loop", loop.Inputs{
-			Values: map[string]any{"tasks": "task-ref"},
-		}, humanActor(t))
+		run, err := svc.Start(
+			context.Background(),
+			"ws-1",
+			"valid-loop",
+			loop.Inputs{ProfileID: storepkg.DefaultProfileID,
+				Values: map[string]any{"tasks": "task-ref"},
+			},
+			humanActor(t),
+		)
 		if err != nil {
 			t.Fatalf("Start() error = %v", err)
 		}
@@ -2762,9 +2934,15 @@ func TestServiceCancellationShouldRecordCanceledTerminalTruth(t *testing.T) {
 				activated = run
 			})),
 		)
-		run, err := svc.Start(context.Background(), "ws-1", "valid-loop", loop.Inputs{
-			Values: map[string]any{"tasks": "task-ref"},
-		}, humanActor(t))
+		run, err := svc.Start(
+			context.Background(),
+			"ws-1",
+			"valid-loop",
+			loop.Inputs{ProfileID: storepkg.DefaultProfileID,
+				Values: map[string]any{"tasks": "task-ref"},
+			},
+			humanActor(t),
+		)
 		if err != nil {
 			t.Fatalf("Start() error = %v", err)
 		}
@@ -2809,9 +2987,15 @@ func TestServiceCancellationShouldRecordCanceledTerminalTruth(t *testing.T) {
 		)
 		store := newFakeLoopStore()
 		svc := newTestService(t, store, definition)
-		parent, err := svc.Start(context.Background(), "ws-1", "valid-loop", loop.Inputs{
-			Values: map[string]any{"tasks": "task-ref"},
-		}, humanActor(t))
+		parent, err := svc.Start(
+			context.Background(),
+			"ws-1",
+			"valid-loop",
+			loop.Inputs{ProfileID: storepkg.DefaultProfileID,
+				Values: map[string]any{"tasks": "task-ref"},
+			},
+			humanActor(t),
+		)
 		if err != nil {
 			t.Fatalf("Start(parent) error = %v", err)
 		}
@@ -2865,9 +3049,15 @@ func TestServiceCancellationShouldRecordCanceledTerminalTruth(t *testing.T) {
 		}
 		store := newFakeLoopStore()
 		svc := newTestService(t, store, definition)
-		parent, err := svc.Start(context.Background(), "ws-1", "valid-loop", loop.Inputs{
-			Values: map[string]any{"tasks": "task-ref"},
-		}, humanActor(t))
+		parent, err := svc.Start(
+			context.Background(),
+			"ws-1",
+			"valid-loop",
+			loop.Inputs{ProfileID: storepkg.DefaultProfileID,
+				Values: map[string]any{"tasks": "task-ref"},
+			},
+			humanActor(t),
+		)
 		if err != nil {
 			t.Fatalf("Start(parent) error = %v", err)
 		}
@@ -2926,9 +3116,15 @@ func TestServiceCancellationShouldRecordCanceledTerminalTruth(t *testing.T) {
 				activated = run
 			})),
 		)
-		parent, err := svc.Start(context.Background(), "ws-1", "valid-loop", loop.Inputs{
-			Values: map[string]any{"tasks": "task-ref"},
-		}, humanActor(t))
+		parent, err := svc.Start(
+			context.Background(),
+			"ws-1",
+			"valid-loop",
+			loop.Inputs{ProfileID: storepkg.DefaultProfileID,
+				Values: map[string]any{"tasks": "task-ref"},
+			},
+			humanActor(t),
+		)
 		if err != nil {
 			t.Fatalf("Start(parent) error = %v", err)
 		}
@@ -3378,9 +3574,15 @@ func TestServiceRespondShouldValidateAnnotatedEntityReferences(t *testing.T) {
 				missingKind: dsl.EntityKindAgent, missingValue: "removed-reviewer",
 			}),
 		)
-		run, err := svc.Start(context.Background(), "ws-response", definition.Meta.Name, loop.Inputs{
-			Values: map[string]any{"tasks": "task-ref"},
-		}, humanActor(t))
+		run, err := svc.Start(
+			context.Background(),
+			"ws-response",
+			definition.Meta.Name,
+			loop.Inputs{ProfileID: storepkg.DefaultProfileID,
+				Values: map[string]any{"tasks": "task-ref"},
+			},
+			humanActor(t),
+		)
 		if err != nil {
 			t.Fatalf("Start() error = %v", err)
 		}
@@ -3442,6 +3644,7 @@ func newTestServiceWithOptions(
 		loop.DefinitionResolverFunc(func(
 			context.Context,
 			loop.WorkspaceID,
+			string,
 			string,
 		) (*loop.ResolvedDefinition, error) {
 			return resolved, nil
@@ -3533,6 +3736,7 @@ func newParticipationTestService(
 		loop.DefinitionResolverFunc(func(
 			context.Context,
 			loop.WorkspaceID,
+			string,
 			string,
 		) (*loop.ResolvedDefinition, error) {
 			return resolved, nil
@@ -4283,7 +4487,7 @@ func (s *fakeLoopStore) ReactivateGoalRun(
 	}
 	run.Status = loop.StatusRunning
 	run.ActiveGateID = ""
-	run.ActiveHumanCriteria = []byte(`[]`)
+	run.SetActiveHumanCriteria(json.RawMessage(`[]`))
 	s.runs[run.ID] = run
 	s.goalControl = nil
 	return loop.GoalReactivationResult{
@@ -4323,7 +4527,7 @@ func (s *fakeLoopStore) ReactivateLoopCoordinator(
 	run.Status = loop.StatusRunning
 	run.PauseRequested = false
 	run.ActiveGateID = ""
-	run.ActiveHumanCriteria = []byte(`[]`)
+	run.SetActiveHumanCriteria(json.RawMessage(`[]`))
 	s.runs[run.ID] = run
 	s.transitions = append(s.transitions, fakeTransition{
 		runID: run.ID,
@@ -4395,7 +4599,7 @@ func (s *fakeLoopStore) CompareAndSwapLoopRunStatus(
 	if to == loop.StatusRunning || to == loop.StatusPaused || to.Terminal() {
 		run.PauseRequested = false
 		run.ActiveGateID = ""
-		run.ActiveHumanCriteria = []byte(`[]`)
+		run.SetActiveHumanCriteria(json.RawMessage(`[]`))
 	}
 	s.runs[runID] = run
 	s.transitions = append(

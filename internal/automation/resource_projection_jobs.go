@@ -18,7 +18,7 @@ func defaultAutomationResourceActor() resources.MutationActor {
 		Kind:     resources.MutationActorKindDaemon,
 		ID:       "automation-resource-sync",
 		Source:   resources.ResourceSource{Kind: resources.ResourceSourceKind("daemon"), ID: "automation"},
-		MaxScope: resources.ResourceScope{Kind: resources.ResourceScopeKindGlobal},
+		MaxScope: resources.ResourceScope{Kind: resources.ResourceScopeKindUser},
 	}
 }
 

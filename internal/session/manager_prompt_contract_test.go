@@ -1282,6 +1282,7 @@ func TestApplyAutomaticSessionTitleOwnsGeneratedIdentity(t *testing.T) {
 		})
 		catalogEvents, cancelCatalogEvents, err := h.manager.SubscribeSessionCatalogEvents(
 			testutil.Context(t),
+			CatalogScope{ReadScope: store.ReadScope{AllProfiles: true}, AllWorkspaces: true},
 		)
 		if err != nil {
 			t.Fatalf("SubscribeSessionCatalogEvents() error = %v", err)

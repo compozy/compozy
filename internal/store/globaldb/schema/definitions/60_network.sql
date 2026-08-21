@@ -1,5 +1,6 @@
 CREATE TABLE network_audit_log (
 			id         TEXT PRIMARY KEY,
+			profile_id TEXT NOT NULL REFERENCES profiles(id),
 			session_id TEXT NOT NULL,
 			workspace_id TEXT NOT NULL,
 			direction  TEXT NOT NULL,
@@ -48,7 +49,8 @@ CREATE TABLE network_channel_stats (
 	);
 
 CREATE TABLE network_channels (
-			workspace_id TEXT NOT NULL REFERENCES workspaces(id) ON DELETE CASCADE,
+			profile_id   TEXT NOT NULL REFERENCES profiles(id),
+			workspace_id TEXT NOT NULL,
 			channel      TEXT NOT NULL,
 			purpose      TEXT NOT NULL,
 			created_by   TEXT NOT NULL DEFAULT '',
@@ -56,10 +58,12 @@ CREATE TABLE network_channels (
 			updated_at   TEXT NOT NULL, fanout_policy TEXT NOT NULL DEFAULT 'capability_match' CHECK (
 					fanout_policy IN ('capability_match', 'coordinator', 'all_members')
 				), coordinator_peer_id TEXT NOT NULL DEFAULT '',
-			PRIMARY KEY (workspace_id, channel)
+			PRIMARY KEY (workspace_id, channel),
+			FOREIGN KEY (workspace_id) REFERENCES workspaces(id) ON DELETE CASCADE
 		);
 
 CREATE TABLE network_direct_rooms (
+		profile_id          TEXT NOT NULL REFERENCES profiles(id),
 		workspace_id         TEXT NOT NULL,
 		channel              TEXT NOT NULL,
 		direct_id            TEXT NOT NULL,
@@ -165,6 +169,7 @@ CREATE TABLE network_thread_session_token_stats (
 		);
 
 CREATE TABLE network_threads (
+		profile_id           TEXT NOT NULL REFERENCES profiles(id),
 		workspace_id         TEXT NOT NULL,
 		channel              TEXT NOT NULL,
 		thread_id            TEXT NOT NULL,
@@ -222,6 +227,7 @@ CREATE TABLE network_timeline_log (
 
 CREATE TABLE network_work (
 		work_id           TEXT NOT NULL,
+		profile_id        TEXT NOT NULL REFERENCES profiles(id),
 		workspace_id      TEXT NOT NULL,
 		channel           TEXT NOT NULL,
 		surface           TEXT NOT NULL CHECK (surface IN ('thread', 'direct')),
@@ -262,7 +268,7 @@ CREATE TABLE workspace_network_coordination (
 
 CREATE TABLE task_network_coordination (
 	task_id TEXT NOT NULL PRIMARY KEY REFERENCES tasks(id) ON DELETE CASCADE,
-	workspace_id TEXT NOT NULL REFERENCES workspaces(id) ON DELETE CASCADE,
+	workspace_id TEXT NOT NULL,
 	enabled INTEGER NOT NULL CHECK (enabled IN (0, 1)),
 	revision INTEGER NOT NULL CHECK (revision >= 1),
 	updated_at TEXT NOT NULL,
@@ -273,7 +279,7 @@ CREATE INDEX idx_task_network_coordination_workspace
 	ON task_network_coordination(workspace_id, task_id);
 
 CREATE TABLE network_coordination_invitations (
-	workspace_id TEXT NOT NULL REFERENCES workspaces(id) ON DELETE CASCADE,
+	workspace_id TEXT NOT NULL,
 	scope_kind TEXT NOT NULL CHECK (scope_kind IN ('workspace', 'task')),
 	scope_id TEXT NOT NULL CHECK (length(trim(scope_id)) > 0),
 	dismissed_at TEXT NOT NULL,
@@ -291,7 +297,7 @@ CREATE TABLE network_availability (
 );
 
 CREATE TABLE network_message_dispositions (
-	workspace_id TEXT NOT NULL REFERENCES workspaces(id) ON DELETE CASCADE,
+	workspace_id TEXT NOT NULL,
 	message_id TEXT NOT NULL,
 	recipient_session_id TEXT NOT NULL,
 	decision TEXT NOT NULL,
@@ -308,7 +314,7 @@ CREATE TABLE network_live_wakes (
 	wake_id TEXT NOT NULL,
 	task_run_id TEXT NOT NULL UNIQUE REFERENCES task_runs(id) ON DELETE CASCADE,
 	owner_key TEXT NOT NULL CHECK (length(trim(owner_key)) > 0),
-	workspace_id TEXT NOT NULL REFERENCES workspaces(id) ON DELETE CASCADE,
+	workspace_id TEXT NOT NULL,
 	channel TEXT NOT NULL,
 	root_id TEXT NOT NULL,
 	depth INTEGER NOT NULL CHECK (depth >= 0),
@@ -323,13 +329,11 @@ CREATE TABLE network_live_wakes (
 	usage_state TEXT NOT NULL DEFAULT '' CHECK (usage_state IN ('', 'actual', 'usage_unavailable')),
 	reason TEXT NOT NULL DEFAULT '',
 	PRIMARY KEY (workspace_id, wake_id),
-	UNIQUE (workspace_id, wake_id, owner_key),
-	FOREIGN KEY (workspace_id, task_run_id)
-		REFERENCES task_runs(workspace_id, id) ON DELETE CASCADE
+	UNIQUE (workspace_id, wake_id, owner_key)
 );
 
 CREATE TABLE network_wake_sources (
-	workspace_id TEXT NOT NULL REFERENCES workspaces(id) ON DELETE CASCADE,
+	workspace_id TEXT NOT NULL,
 	owner_key TEXT NOT NULL,
 	envelope_id TEXT NOT NULL,
 	wake_id TEXT NOT NULL,
@@ -341,7 +345,7 @@ CREATE TABLE network_wake_sources (
 );
 
 CREATE TABLE network_participation_budgets (
-	workspace_id TEXT NOT NULL REFERENCES workspaces(id) ON DELETE CASCADE,
+	workspace_id TEXT NOT NULL,
 	owner_key TEXT NOT NULL CHECK (length(trim(owner_key)) > 0),
 	wakes_used INTEGER NOT NULL DEFAULT 0 CHECK (wakes_used >= 0),
 	wall_ms_used INTEGER NOT NULL DEFAULT 0 CHECK (wall_ms_used >= 0),
@@ -354,9 +358,9 @@ CREATE TABLE network_participation_budgets (
 
 CREATE TABLE network_wake_events (
 	sequence INTEGER PRIMARY KEY AUTOINCREMENT,
-	workspace_id TEXT NOT NULL REFERENCES workspaces(id) ON DELETE CASCADE,
+	workspace_id TEXT NOT NULL,
 	wake_id TEXT NOT NULL,
-	task_run_id TEXT NOT NULL,
+	task_run_id TEXT NOT NULL REFERENCES task_runs(id) ON DELETE CASCADE,
 	owner_key TEXT NOT NULL CHECK (length(trim(owner_key)) > 0),
 	target_session_id TEXT NOT NULL,
 	event_type TEXT NOT NULL CHECK (
@@ -374,8 +378,6 @@ CREATE TABLE network_wake_events (
 	timestamp TEXT NOT NULL,
 	FOREIGN KEY (workspace_id, wake_id, owner_key)
 		REFERENCES network_live_wakes(workspace_id, wake_id, owner_key) ON DELETE CASCADE,
-	FOREIGN KEY (workspace_id, task_run_id)
-		REFERENCES task_runs(workspace_id, id) ON DELETE CASCADE,
 	FOREIGN KEY (workspace_id, target_session_id)
 		REFERENCES sessions(workspace_id, id) ON DELETE CASCADE
 );
@@ -384,6 +386,9 @@ CREATE INDEX idx_net_audit_conversation
 			ON network_audit_log(workspace_id, channel, surface, thread_id, direct_id, timestamp);
 
 CREATE INDEX idx_net_audit_ts ON network_audit_log(timestamp);
+
+CREATE INDEX idx_net_audit_profile_workspace_timestamp
+	ON network_audit_log(profile_id, workspace_id, timestamp, id);
 
 CREATE INDEX idx_net_audit_work
 			ON network_audit_log(workspace_id, work_id, timestamp)

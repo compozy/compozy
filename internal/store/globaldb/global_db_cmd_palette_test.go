@@ -2,16 +2,78 @@ package globaldb
 
 import (
 	"path/filepath"
+	"strings"
 	"sync"
 	"testing"
 	"time"
 
 	"github.com/compozy/compozy/internal/cmdpalette"
+	"github.com/compozy/compozy/internal/store"
 	"github.com/compozy/compozy/internal/testutil"
 )
 
+// Invariant: command-palette ranking and pins are partitioned by an explicit real-profile or aggregate lens.
+// The GlobalDB command-palette suite owns durable identity, validation, and migration-backed trigger behavior.
 func TestGlobalDBCmdPalettePersonalization(t *testing.T) {
 	t.Parallel()
+
+	t.Run("Should isolate real-profile and aggregate lenses and reject unknown owners", func(t *testing.T) {
+		t.Parallel()
+		database := openTestGlobalDB(t)
+		ctx := testutil.Context(t)
+		profileID := cmdpalette.ProfileLensID("01ARZ3NDEKTSV4RRFFQ69G5FAV")
+		now := time.Date(2026, 8, 19, 11, 0, 0, 0, time.UTC)
+		if _, err := database.db.ExecContext(
+			ctx,
+			`INSERT INTO profiles (id, name, color, icon, state, created_at)
+			 VALUES (?, 'marketing', '#8E8EB5', 'circle', 'active', ?)`,
+			profileID,
+			store.FormatTimestamp(now),
+		); err != nil {
+			t.Fatalf("insert profile owner error = %v", err)
+		}
+		for _, lens := range []cmdpalette.ProfileLensID{
+			cmdpalette.DefaultProfileLensID,
+			profileID,
+			cmdpalette.AggregateProfileLensID,
+		} {
+			if err := database.RecordCmdPaletteUsage(ctx, cmdpalette.Usage{
+				ProfileLens: cmdPaletteUsageLens(lens),
+				WorkspaceID: "workspace-lens",
+				CommandID:   "session.new",
+				UsedAt:      now,
+			}, cmdpalette.WeightsV1); err != nil {
+				t.Fatalf("RecordCmdPaletteUsage(%q) error = %v", lens, err)
+			}
+		}
+		for _, lens := range []cmdpalette.ProfileLensID{
+			cmdpalette.DefaultProfileLensID,
+			profileID,
+			cmdpalette.AggregateProfileLensID,
+		} {
+			rows, err := database.CmdPalettePersonalization(ctx, lens, "workspace-lens")
+			if err != nil {
+				t.Fatalf("CmdPalettePersonalization(%q) error = %v", lens, err)
+			}
+			if len(rows.Usage) != 1 || rows.Usage[0].UseCount != 1 {
+				t.Fatalf("lens %q usage = %#v, want one isolated signal", lens, rows.Usage)
+			}
+		}
+		if err := database.RecordCmdPaletteUsage(ctx, cmdpalette.Usage{
+			ProfileLens: cmdPaletteUsageLens("01ARZ3NDEKTSV4RRFFQ69G5FAW"),
+			WorkspaceID: "workspace-lens",
+			CommandID:   "session.new",
+			UsedAt:      now,
+		}, cmdpalette.WeightsV1); err == nil || !strings.Contains(
+			err.Error(),
+			"profile_lens_not_found",
+		) {
+			t.Fatalf(
+				"RecordCmdPaletteUsage(unknown profile) error = %v, want profile-lens validation error",
+				err,
+			)
+		}
+	})
 
 	t.Run("Should persist normalized usage, query history, and idempotent pins per workspace", func(t *testing.T) {
 		t.Parallel()
@@ -20,6 +82,7 @@ func TestGlobalDBCmdPalettePersonalization(t *testing.T) {
 		usedAt := time.Date(2026, 8, 19, 12, 0, 0, 0, time.UTC)
 		for _, workspaceID := range []cmdpalette.WorkspaceID{"workspace-a", "workspace-b"} {
 			if err := database.RecordCmdPaletteUsage(ctx, cmdpalette.Usage{
+				ProfileLens: cmdPaletteUsageLens(cmdpalette.DefaultProfileLensID),
 				WorkspaceID: workspaceID,
 				CommandID:   "session.new",
 				Query:       "  Séssão   NOVA ",
@@ -27,15 +90,21 @@ func TestGlobalDBCmdPalettePersonalization(t *testing.T) {
 			}, cmdpalette.WeightsV1); err != nil {
 				t.Fatalf("RecordCmdPaletteUsage(%q) error = %v", workspaceID, err)
 			}
-			if err := database.PutCmdPalettePin(ctx, workspaceID, "session.new", usedAt); err != nil {
+			if err := database.PutCmdPalettePin(
+				ctx, cmdpalette.DefaultProfileLensID, workspaceID, "session.new", usedAt,
+			); err != nil {
 				t.Fatalf("PutCmdPalettePin(%q) error = %v", workspaceID, err)
 			}
-			if err := database.PutCmdPalettePin(ctx, workspaceID, "session.new", usedAt.Add(time.Hour)); err != nil {
+			if err := database.PutCmdPalettePin(
+				ctx, cmdpalette.DefaultProfileLensID, workspaceID, "session.new", usedAt.Add(time.Hour),
+			); err != nil {
 				t.Fatalf("PutCmdPalettePin(%q idempotent) error = %v", workspaceID, err)
 			}
 		}
 
-		rows, err := database.CmdPalettePersonalization(ctx, "workspace-a")
+		rows, err := database.CmdPalettePersonalization(
+			ctx, cmdpalette.DefaultProfileLensID, "workspace-a",
+		)
 		if err != nil {
 			t.Fatalf("CmdPalettePersonalization() error = %v", err)
 		}
@@ -48,7 +117,9 @@ func TestGlobalDBCmdPalettePersonalization(t *testing.T) {
 		if len(rows.Pins) != 1 || rows.Pins[0].PinnedAt != usedAt.UnixMilli() {
 			t.Fatalf("pin rows = %#v, want original timestamp %d", rows.Pins, usedAt.UnixMilli())
 		}
-		other, err := database.CmdPalettePersonalization(ctx, "workspace-b")
+		other, err := database.CmdPalettePersonalization(
+			ctx, cmdpalette.DefaultProfileLensID, "workspace-b",
+		)
 		if err != nil {
 			t.Fatalf("CmdPalettePersonalization(workspace-b) error = %v", err)
 		}
@@ -71,6 +142,7 @@ func TestGlobalDBCmdPalettePersonalization(t *testing.T) {
 				errorsByWrite <- database.RecordCmdPaletteUsage(
 					ctx,
 					cmdpalette.Usage{
+						ProfileLens: cmdPaletteUsageLens(cmdpalette.DefaultProfileLensID),
 						WorkspaceID: "workspace-race",
 						CommandID:   "session.new",
 						Query:       "new session",
@@ -88,7 +160,9 @@ func TestGlobalDBCmdPalettePersonalization(t *testing.T) {
 			}
 		}
 
-		rows, err := database.CmdPalettePersonalization(ctx, "workspace-race")
+		rows, err := database.CmdPalettePersonalization(
+			ctx, cmdpalette.DefaultProfileLensID, "workspace-race",
+		)
 		if err != nil {
 			t.Fatalf("CmdPalettePersonalization() error = %v", err)
 		}
@@ -105,10 +179,14 @@ func TestGlobalDBCmdPalettePersonalization(t *testing.T) {
 		database := openTestGlobalDB(t)
 		ctx := testutil.Context(t)
 		usedAt := time.Date(2026, 8, 19, 12, 0, 0, 0, time.UTC)
-		if err := database.PutCmdPalettePin(ctx, " workspace-trim ", " session.new ", usedAt); err != nil {
+		if err := database.PutCmdPalettePin(
+			ctx, cmdpalette.DefaultProfileLensID, " workspace-trim ", " session.new ", usedAt,
+		); err != nil {
 			t.Fatalf("PutCmdPalettePin(padded) error = %v", err)
 		}
-		rows, err := database.CmdPalettePersonalization(ctx, "workspace-trim")
+		rows, err := database.CmdPalettePersonalization(
+			ctx, cmdpalette.DefaultProfileLensID, "workspace-trim",
+		)
 		if err != nil {
 			t.Fatalf("CmdPalettePersonalization() error = %v", err)
 		}
@@ -116,10 +194,14 @@ func TestGlobalDBCmdPalettePersonalization(t *testing.T) {
 			rows.Pins[0].PinnedAt != usedAt.UnixMilli() {
 			t.Fatalf("pin rows = %#v, want trimmed identity", rows.Pins)
 		}
-		if err := database.DeleteCmdPalettePin(ctx, " workspace-trim ", " session.new "); err != nil {
+		if err := database.DeleteCmdPalettePin(
+			ctx, cmdpalette.DefaultProfileLensID, " workspace-trim ", " session.new ",
+		); err != nil {
 			t.Fatalf("DeleteCmdPalettePin(padded) error = %v", err)
 		}
-		rows, err = database.CmdPalettePersonalization(ctx, "workspace-trim")
+		rows, err = database.CmdPalettePersonalization(
+			ctx, cmdpalette.DefaultProfileLensID, "workspace-trim",
+		)
 		if err != nil {
 			t.Fatalf("CmdPalettePersonalization(after delete) error = %v", err)
 		}
@@ -134,25 +216,34 @@ func TestGlobalDBCmdPalettePersonalization(t *testing.T) {
 		ctx := testutil.Context(t)
 		for _, workspaceID := range []cmdpalette.WorkspaceID{"workspace-reset", "workspace-keep"} {
 			if err := database.RecordCmdPaletteUsage(ctx, cmdpalette.Usage{
+				ProfileLens: cmdPaletteUsageLens(cmdpalette.DefaultProfileLensID),
 				WorkspaceID: workspaceID, CommandID: "session.new", Query: "new",
 			}, cmdpalette.WeightsV1); err != nil {
 				t.Fatalf("RecordCmdPaletteUsage(%q) error = %v", workspaceID, err)
 			}
-			if err := database.PutCmdPalettePin(ctx, workspaceID, "session.new", time.Time{}); err != nil {
+			if err := database.PutCmdPalettePin(
+				ctx, cmdpalette.DefaultProfileLensID, workspaceID, "session.new", time.Time{},
+			); err != nil {
 				t.Fatalf("PutCmdPalettePin(%q) error = %v", workspaceID, err)
 			}
 		}
-		if err := database.ResetCmdPalettePersonalization(ctx, "workspace-reset"); err != nil {
+		if err := database.ResetCmdPalettePersonalization(
+			ctx, cmdpalette.DefaultProfileLensID, "workspace-reset",
+		); err != nil {
 			t.Fatalf("ResetCmdPalettePersonalization() error = %v", err)
 		}
-		resetRows, err := database.CmdPalettePersonalization(ctx, "workspace-reset")
+		resetRows, err := database.CmdPalettePersonalization(
+			ctx, cmdpalette.DefaultProfileLensID, "workspace-reset",
+		)
 		if err != nil {
 			t.Fatalf("CmdPalettePersonalization(reset) error = %v", err)
 		}
 		if len(resetRows.Usage)+len(resetRows.QueryHits)+len(resetRows.Pins) != 0 {
 			t.Fatalf("reset rows = %#v, want empty", resetRows)
 		}
-		keptRows, err := database.CmdPalettePersonalization(ctx, "workspace-keep")
+		keptRows, err := database.CmdPalettePersonalization(
+			ctx, cmdpalette.DefaultProfileLensID, "workspace-keep",
+		)
 		if err != nil {
 			t.Fatalf("CmdPalettePersonalization(kept) error = %v", err)
 		}
@@ -173,11 +264,14 @@ func TestGlobalDBCmdPalettePersonalization(t *testing.T) {
 			t, first, "palette-cascade", filepath.Join(t.TempDir(), "palette-cascade"),
 		))
 		if err := first.RecordCmdPaletteUsage(ctx, cmdpalette.Usage{
+			ProfileLens: cmdPaletteUsageLens(cmdpalette.DefaultProfileLensID),
 			WorkspaceID: workspaceID, CommandID: "session.new", Query: "new",
 		}, cmdpalette.WeightsV1); err != nil {
 			t.Fatalf("RecordCmdPaletteUsage() error = %v", err)
 		}
-		if err := first.PutCmdPalettePin(ctx, workspaceID, "session.new", time.Time{}); err != nil {
+		if err := first.PutCmdPalettePin(
+			ctx, cmdpalette.DefaultProfileLensID, workspaceID, "session.new", time.Time{},
+		); err != nil {
 			t.Fatalf("PutCmdPalettePin() error = %v", err)
 		}
 		if err := first.Close(ctx); err != nil {
@@ -193,7 +287,9 @@ func TestGlobalDBCmdPalettePersonalization(t *testing.T) {
 				t.Errorf("Close(reopened) error = %v", err)
 			}
 		})
-		rows, err := reopened.CmdPalettePersonalization(ctx, workspaceID)
+		rows, err := reopened.CmdPalettePersonalization(
+			ctx, cmdpalette.DefaultProfileLensID, workspaceID,
+		)
 		if err != nil {
 			t.Fatalf("CmdPalettePersonalization(reopen) error = %v", err)
 		}
@@ -203,7 +299,9 @@ func TestGlobalDBCmdPalettePersonalization(t *testing.T) {
 		if err := reopened.DeleteWorkspace(ctx, string(workspaceID)); err != nil {
 			t.Fatalf("DeleteWorkspace() error = %v", err)
 		}
-		rows, err = reopened.CmdPalettePersonalization(ctx, workspaceID)
+		rows, err = reopened.CmdPalettePersonalization(
+			ctx, cmdpalette.DefaultProfileLensID, workspaceID,
+		)
 		if err != nil {
 			t.Fatalf("CmdPalettePersonalization(after delete) error = %v", err)
 		}
@@ -211,4 +309,15 @@ func TestGlobalDBCmdPalettePersonalization(t *testing.T) {
 			t.Fatalf("rows after workspace delete = %#v, want cascade cleanup", rows)
 		}
 	})
+}
+
+func cmdPaletteUsageLens(id cmdpalette.ProfileLensID) cmdpalette.ProfileLens {
+	if id == cmdpalette.AggregateProfileLensID {
+		return cmdpalette.AggregateProfileLens()
+	}
+	name := "marketing"
+	if id == cmdpalette.DefaultProfileLensID {
+		name = "default"
+	}
+	return cmdpalette.ScopedProfileLens(id, name)
 }

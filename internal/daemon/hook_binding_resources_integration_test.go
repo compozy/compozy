@@ -493,7 +493,7 @@ func newHookBindingIntegrationHarness(
 			Kind:     resources.MutationActorKindDaemon,
 			ID:       "integration-control",
 			Source:   resources.ResourceSource{Kind: resources.ResourceSourceKind("daemon"), ID: "integration"},
-			MaxScope: resources.ResourceScope{Kind: resources.ResourceScopeKindGlobal},
+			MaxScope: resources.ResourceScope{Kind: resources.ResourceScopeKindUser},
 		},
 		[]resources.ProjectorRegistration{registration},
 		resources.WithReconcileLogger(discardLogger()),
@@ -521,7 +521,7 @@ func newHookBindingIntegrationHarness(
 			Kind:     resources.MutationActorKindDaemon,
 			ID:       "integration-writer",
 			Source:   resources.ResourceSource{Kind: resources.ResourceSourceKind("daemon"), ID: "integration"},
-			MaxScope: resources.ResourceScope{Kind: resources.ResourceScopeKindGlobal},
+			MaxScope: resources.ResourceScope{Kind: resources.ResourceScopeKindUser},
 		},
 	}
 }

@@ -20,9 +20,11 @@ type Registry struct {
 
 // ExtensionInfo is one persisted extension registry row.
 type ExtensionInfo struct {
-	Name                     string
-	Version                  string
-	Source                   ExtensionSource
+	Name    string
+	Version string
+	Source  ExtensionSource
+	// Enabled is true when at least one active profile has no disabled exception
+	// for this extension; it is an effective runtime projection, not a global flag.
 	Enabled                  bool
 	ManifestPath             string
 	Format                   ExtensionFormat

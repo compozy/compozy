@@ -24,7 +24,7 @@ func (q *Queries) GetNetworkWatchEventsCursor(ctx context.Context, workspaceID s
 }
 
 const listParkedWatchEventSubscriptions = `-- name: ListParkedWatchEventSubscriptions :many
-SELECT lr.workspace_id, lr.id, lr.loop_name, lr.generation, lr.inputs_json,
+SELECT lr.workspace_id, lr.profile_id, lr.id, lr.loop_name, lr.generation, lr.inputs_json,
        lr.definition_digest, lds.definition_json, lgo.node_id,
        COALESCE(lgo.output_ref, '') AS output_ref
 FROM loop_runs lr
@@ -46,6 +46,7 @@ type ListParkedWatchEventSubscriptionsParams struct {
 
 type ListParkedWatchEventSubscriptionsRow struct {
 	WorkspaceID      string `json:"workspace_id"`
+	ProfileID        string `json:"profile_id"`
 	ID               string `json:"id"`
 	LoopName         string `json:"loop_name"`
 	Generation       int64  `json:"generation"`
@@ -67,6 +68,7 @@ func (q *Queries) ListParkedWatchEventSubscriptions(ctx context.Context, arg Lis
 		var i ListParkedWatchEventSubscriptionsRow
 		if err := rows.Scan(
 			&i.WorkspaceID,
+			&i.ProfileID,
 			&i.ID,
 			&i.LoopName,
 			&i.Generation,
@@ -90,7 +92,7 @@ func (q *Queries) ListParkedWatchEventSubscriptions(ctx context.Context, arg Lis
 }
 
 const listParkedWatchEventSubscriptionsForLoopRun = `-- name: ListParkedWatchEventSubscriptionsForLoopRun :many
-SELECT lr.workspace_id, lr.id, lr.loop_name, lr.generation, lr.inputs_json,
+SELECT lr.workspace_id, lr.profile_id, lr.id, lr.loop_name, lr.generation, lr.inputs_json,
        lr.definition_digest, lds.definition_json, lgo.node_id,
        COALESCE(lgo.output_ref, '') AS output_ref
 FROM loop_runs lr
@@ -114,6 +116,7 @@ type ListParkedWatchEventSubscriptionsForLoopRunParams struct {
 
 type ListParkedWatchEventSubscriptionsForLoopRunRow struct {
 	WorkspaceID      string `json:"workspace_id"`
+	ProfileID        string `json:"profile_id"`
 	ID               string `json:"id"`
 	LoopName         string `json:"loop_name"`
 	Generation       int64  `json:"generation"`
@@ -135,6 +138,7 @@ func (q *Queries) ListParkedWatchEventSubscriptionsForLoopRun(ctx context.Contex
 		var i ListParkedWatchEventSubscriptionsForLoopRunRow
 		if err := rows.Scan(
 			&i.WorkspaceID,
+			&i.ProfileID,
 			&i.ID,
 			&i.LoopName,
 			&i.Generation,
@@ -158,7 +162,7 @@ func (q *Queries) ListParkedWatchEventSubscriptionsForLoopRun(ctx context.Contex
 }
 
 const listParkedWatchEventSubscriptionsPage = `-- name: ListParkedWatchEventSubscriptionsPage :many
-SELECT lr.workspace_id, lr.id, lr.loop_name, lr.generation, lr.inputs_json,
+SELECT lr.workspace_id, lr.profile_id, lr.id, lr.loop_name, lr.generation, lr.inputs_json,
        lr.definition_digest, lds.definition_json, lgo.node_id,
        COALESCE(lgo.output_ref, '') AS output_ref
 FROM loop_runs lr
@@ -192,6 +196,7 @@ type ListParkedWatchEventSubscriptionsPageParams struct {
 
 type ListParkedWatchEventSubscriptionsPageRow struct {
 	WorkspaceID      string `json:"workspace_id"`
+	ProfileID        string `json:"profile_id"`
 	ID               string `json:"id"`
 	LoopName         string `json:"loop_name"`
 	Generation       int64  `json:"generation"`
@@ -220,6 +225,7 @@ func (q *Queries) ListParkedWatchEventSubscriptionsPage(ctx context.Context, arg
 		var i ListParkedWatchEventSubscriptionsPageRow
 		if err := rows.Scan(
 			&i.WorkspaceID,
+			&i.ProfileID,
 			&i.ID,
 			&i.LoopName,
 			&i.Generation,

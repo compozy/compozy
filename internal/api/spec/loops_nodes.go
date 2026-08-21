@@ -49,7 +49,7 @@ func loopRunLifecycleMutation(operationID string, summary string, suffix string)
 		operationID,
 		summary,
 		map[string]any{},
-		[]ParameterSpec{workspaceIDParam(), loopRunIDParam()},
+		withProfileSelector(workspaceIDParam(), loopRunIDParam()),
 		loopLifecycleMutationResponses(),
 	)
 }
@@ -66,7 +66,7 @@ func loopNodeMutationOperation(
 		operationID,
 		summary,
 		request,
-		[]ParameterSpec{workspaceIDParam(), loopRunIDParam(), pathParam("node_id", "Loop node id")},
+		withProfileSelector(workspaceIDParam(), loopRunIDParam(), pathParam("node_id", "Loop node id")),
 		loopLifecycleMutationResponses(),
 	)
 }
@@ -78,14 +78,14 @@ func listLoopNodesOperation() OperationSpec {
 		"listLoopNodes",
 		"List workspace Loop node state",
 		nil,
-		[]ParameterSpec{
+		withProfileScope(
 			workspaceIDParam(),
 			queryParam("state", "Node inventory state", true),
 			queryParam("loop", "Filter by Loop name", false),
 			queryParam("run_id", "Filter by Loop run id", false),
 			queryParam("cursor", "Opaque continuation cursor", false),
 			intQueryParam("limit", "Maximum number of records to return"),
-		},
+		),
 		[]ResponseSpec{
 			ok(contract.LoopNodeInventoryResponse{}),
 			badRequest(),

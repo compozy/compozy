@@ -5,7 +5,6 @@ import (
 	"errors"
 	"os"
 	"path/filepath"
-	"reflect"
 	"sync"
 	"testing"
 	"time"
@@ -225,6 +224,7 @@ func TestWindowManagerWorkspaceDeletionGate(t *testing.T) {
 		deadEntities := deadentity.New(fixture.database, deadentity.WithPermanentFailureThreshold(1))
 		mcpRetirer := &windowManagerMCPStateRetirer{}
 		deadKey := store.DeadEntityKey{
+			ProfileID:   store.DefaultProfileID,
 			WorkspaceID: fixture.workspace.ID,
 			Kind:        store.DeadEntityKindMCPSidecar,
 			EntityID:    "github",
@@ -238,18 +238,15 @@ func TestWindowManagerWorkspaceDeletionGate(t *testing.T) {
 			workspaceID:        fixture.workspace.ID,
 			preparation:        sessionPreparation,
 		}
-		attentionMutator := &recordingAttentionWorkspaceMuteMutator{}
 		state := &bootState{
 			windowManagerBootState: windowManagerBootState{
 				windowManagerStoreResolver: fixture.storeResolver,
 				windowManagerStore:         fixture.engine,
-				windowManagerRepository:    fixture.repository,
-				windowManager:              fixture.manager,
+				windowManagers:             fixture.registry,
 			},
-			workspaceResolver:    fixture.resolver,
-			deadEntities:         deadEntities,
-			mcpToolProvider:      mcpRetirer,
-			attentionMuteMutator: attentionMutator,
+			workspaceResolver: fixture.resolver,
+			deadEntities:      deadEntities,
+			mcpToolProvider:   mcpRetirer,
 		}
 		if err := installWorkspaceRemovalPreparer(state, sessions); err != nil {
 			t.Fatalf("installWorkspaceRemovalPreparer() error = %v", err)
@@ -296,12 +293,6 @@ func TestWindowManagerWorkspaceDeletionGate(t *testing.T) {
 				sessionPreparation.commits,
 				sessionPreparation.rollbacks,
 			)
-		}
-		if got, want := attentionMutator.calls, []attentionWorkspaceMuteCall{{
-			workspaceID: fixture.workspace.ID,
-			muted:       false,
-		}}; !reflect.DeepEqual(got, want) {
-			t.Fatalf("attention mute calls = %#v, want %#v", got, want)
 		}
 		select {
 		case _, open := <-subscription.Updates():
@@ -363,8 +354,7 @@ func TestWindowManagerWorkspaceDeletionGate(t *testing.T) {
 		preparation, err := fixture.storeResolver.prepareRemoval(
 			fixture.workspace,
 			fixture.engine,
-			fixture.manager,
-			fixture.repository,
+			fixture.registry,
 		)
 		if err != nil {
 			t.Fatalf("prepareRemoval() error = %v", err)
@@ -488,24 +478,6 @@ func (m *windowManagerRemovalSessionManager) PrepareWorkspaceRemoval(
 type windowManagerSessionRemovalPreparation struct {
 	commits   int
 	rollbacks int
-}
-
-type attentionWorkspaceMuteCall struct {
-	workspaceID string
-	muted       bool
-}
-
-type recordingAttentionWorkspaceMuteMutator struct {
-	calls []attentionWorkspaceMuteCall
-}
-
-func (m *recordingAttentionWorkspaceMuteMutator) SetAttentionWorkspaceMuted(
-	_ context.Context,
-	workspaceID string,
-	muted bool,
-) (bool, error) {
-	m.calls = append(m.calls, attentionWorkspaceMuteCall{workspaceID: workspaceID, muted: muted})
-	return !muted, nil
 }
 
 type windowManagerMCPStateRetirer struct {

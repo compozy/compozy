@@ -22,6 +22,7 @@ func New() (*Provider, error) {
 	commands = append(commands, appCommands()...)
 	commands = append(commands, settingsCommands()...)
 	commands = append(commands, viewCommands()...)
+	commands = append(commands, profileCommands()...)
 	sort.Slice(commands, func(left, right int) bool { return commands[left].ID < commands[right].ID })
 	seen := make(map[cmdpalette.CommandID]struct{}, len(commands))
 	for _, command := range commands {
@@ -39,7 +40,7 @@ func New() (*Provider, error) {
 // ProvideCommands returns a defensive copy of the core inventory and ignores workspace.
 func (p *Provider) ProvideCommands(
 	context.Context,
-	cmdpalette.WorkspaceID,
+	cmdpalette.CatalogRequest,
 ) ([]cmdpalette.Descriptor, error) {
 	return cloneCommands(p.commands), nil
 }

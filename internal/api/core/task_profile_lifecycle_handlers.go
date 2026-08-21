@@ -271,13 +271,23 @@ func (h *BaseHandlers) CancelTask(c *gin.Context) {
 		return
 	}
 
-	c.JSON(http.StatusOK, contract.TaskResponse{Task: TaskPayloadFromTask(record)})
+	payload := TaskPayloadFromTask(record)
+	if err := h.decorateTaskOwner(c.Request.Context(), &payload); err != nil {
+		h.respondError(c, StatusForTaskError(err), err)
+		return
+	}
+	c.JSON(http.StatusOK, contract.TaskResponse{Task: payload})
 }
 
 // CreateChildTask creates one child task beneath the supplied parent.
 func (h *BaseHandlers) CreateChildTask(c *gin.Context) {
 	manager, ok := h.requireTaskManager(c)
 	if !ok {
+		return
+	}
+	mutationScope, err := h.resolveProfileMutationScope(c)
+	if err != nil {
+		h.respondProfileReadScopeError(c, err)
 		return
 	}
 
@@ -303,7 +313,7 @@ func (h *BaseHandlers) CreateChildTask(c *gin.Context) {
 		return
 	}
 
-	spec, err := h.createChildTaskSpecFromRequest(c.Request.Context(), req)
+	spec, err := h.createChildTaskSpecFromRequest(c.Request.Context(), mutationScope.ProfileID, req)
 	if err != nil {
 		h.respondError(c, StatusForTaskError(err), err)
 		return
@@ -314,7 +324,12 @@ func (h *BaseHandlers) CreateChildTask(c *gin.Context) {
 		h.respondError(c, StatusForTaskError(err), err)
 		return
 	}
-	c.JSON(http.StatusCreated, contract.TaskResponse{Task: TaskPayloadFromTask(record)})
+	payload := TaskPayloadFromTask(record)
+	if err := h.decorateTaskOwner(c.Request.Context(), &payload); err != nil {
+		h.respondError(c, StatusForTaskError(err), err)
+		return
+	}
+	c.JSON(http.StatusCreated, contract.TaskResponse{Task: payload})
 }
 
 // AddTaskDependency adds one blocking dependency edge.

@@ -32,6 +32,7 @@ func taskBundle(item *TaskRecord) outputBundle {
 		human: func() (string, error) {
 			return renderHumanSection(taskTaskValue, []keyValue{
 				{Label: "ID", Value: stringOrDash(item.ID)},
+				{Label: sessionProfileValue, Value: stringOrDash(item.ProfileName)},
 				{Label: taskIdentifierValue, Value: stringOrDash(item.Identifier)},
 				{Label: taskScopeValue, Value: stringOrDash(string(item.Scope))},
 				{Label: taskWorkspaceValue, Value: stringOrDash(item.WorkspaceID)},
@@ -58,6 +59,7 @@ func taskBundle(item *TaskRecord) outputBundle {
 		toon: func() (string, error) {
 			return renderToonObject(taskTaskKey, []string{
 				"id",
+				profileNameOutputKey,
 				taskIdentifierKey,
 				taskScopeKey,
 				taskWorkspaceIDKey,
@@ -78,6 +80,7 @@ func taskBundle(item *TaskRecord) outputBundle {
 				"metadata",
 			}, []string{
 				item.ID,
+				item.ProfileName,
 				item.Identifier,
 				string(item.Scope),
 				item.WorkspaceID,

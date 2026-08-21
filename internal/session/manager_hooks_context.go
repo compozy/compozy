@@ -42,6 +42,7 @@ func hookSessionContextFromInfo(info *Info) hookspkg.SessionContext {
 	}
 	ref := workref.NewRoot(info.WorkspaceID, info.Workspace)
 	return hookspkg.SessionContext{
+		ProfileID:             strings.TrimSpace(info.ProfileID),
 		SessionID:             strings.TrimSpace(info.ID),
 		SessionName:           strings.TrimSpace(info.Name),
 		SessionType:           string(info.Type),

@@ -1,0 +1,308 @@
+---
+title: Create your first profile
+description: Split one CompozyOS installation into two working contexts — create a profile, run work inside it, switch between them, and give it its own defaults, keys, and extensions.
+---
+
+By the end of this page you will have two working contexts on one machine. Work you start while
+`marketing` is active belongs to `marketing` and disappears from the list when you switch back to
+`default`. One command shows both at once, owner-labeled.
+
+Expect about ten minutes. Nothing here is destructive, and nothing you already have moves.
+
+## Before you start
+
+- The daemon is running on this machine (`compozy status`).
+- One workspace is registered. The examples use a workspace named `my-saas`; substitute your own.
+- You are on a local surface. Reads work through a remote gateway, but every profile-state write is
+  local-only.
+
+You already have one profile: the permanent `default`. Everything you have made so far belongs to
+it, and nothing in this walkthrough moves it.
+
+## Step 1: Create the profile
+
+A profile needs a name, and optionally a color and a symbol. The name is lowercase letters, digits,
+and hyphens, starting with a letter.
+
+```bash
+compozy profile create marketing --color '#FF7F3A' --icon megaphone
+```
+
+```text
+Created profile marketing — now active.
+```
+
+Creating a profile activates it for the context you created it in. Skip `--color`, `--icon`, or
+`--emoji` and the daemon assigns them; you can change them later with `compozy profile update`.
+`--icon` and `--emoji` are alternatives, never both.
+
+<OperatorNote>
+  `default`, `all`, and `global` are reserved names, and a name stays taken while a profile is
+  archived. A rejected name comes back as `profile_name_reserved`, `profile_name_taken`, or
+  `profile_name_invalid`, each naming the rule it broke.
+</OperatorNote>
+
+## Step 2: Confirm which profile you are in
+
+```bash
+compozy profile current
+```
+
+```text
+marketing (remembered choice of workspace my-saas)
+```
+
+The part in parentheses is the reason, not decoration. CompozyOS resolves a profile in a fixed
+order — `--profile`, then `COMPOZY_PROFILE`, then the choice remembered for the resolved workspace,
+then `default` — and reports which link in that chain answered.
+
+Scripts and agents read the same answer as data:
+
+```bash
+compozy profile current -o json
+```
+
+```json
+{ "profile": "marketing", "source": "remembered", "workspace": "my-saas" }
+```
+
+`source` is one of `flag`, `env`, `remembered`, `session`, or `default`. A `note` field appears when
+a fallback happened. Full rules: [Select a profile](/docs/profiles/selection).
+
+## Step 3: Do some work in it
+
+```bash
+compozy session new --workspace my-saas --name launch-tweet-thread -o json
+```
+
+The response is the new session, already stamped with `marketing` (output trimmed):
+
+```json
+{
+  "id": "01JBQ7...",
+  "profile_name": "marketing",
+  "name": "launch-tweet-thread",
+  "state": "starting",
+  "workspace_id": "01J9..."
+}
+```
+
+Copy the `id` from your own output — it is a fresh identifier, not a fixed value. The stamp is set
+when the session is created and never changes afterwards. Give the session something to do,
+substituting that id for `<session-id>`:
+
+```bash
+compozy session prompt <session-id> "Draft the launch tweet thread."
+```
+
+## Step 4: See that the work was filed
+
+```bash
+compozy session list -o json
+```
+
+The terminal table is wide, so read the JSON for the field that matters — every row carries its
+owner (illustrative, output trimmed):
+
+```json
+{
+  "sessions": [
+    {
+      "id": "01JBQ7...",
+      "profile_name": "marketing",
+      "name": "launch-tweet-thread",
+      "state": "running",
+      "workspace_id": "01J9..."
+    }
+  ]
+}
+```
+
+The same filter applies to tasks, loop runs, automations, bridges, network conversations, usage, and
+attention badges. The daemon applies it, not the client, and it fails closed: if the profile cannot
+be resolved, you get an error rather than unfiltered rows. Two surfaces are ruled exceptions —
+worktrees stay visible in every profile with an owner tag, and network delivery is profile-blind —
+both described in [Scoped and aggregate reads](/docs/profiles/reads).
+
+## Step 5: Switch back
+
+```bash
+compozy profile use default
+```
+
+```text
+Active profile for workspace my-saas: default.
+```
+
+Run `compozy session list -o json` again. The `marketing` session is gone from the results — not
+deleted, just filed elsewhere. The choice is remembered per workspace, so returning to `my-saas`
+later reopens it in `default` until you switch again.
+
+## Step 6: Switch from the command palette
+
+Open the command palette and run **Profiles**, the command `palette.view.profiles`. The view lists
+your profiles; pressing enter on one switches to it. The lifecycle commands — `profile.create`,
+`profile.update`, `profile.rename`, `profile.archive`, `profile.unarchive`, `profile.delete` — open
+the same Settings flows the CLI drives, so there is no second way for a profile to change.
+
+`profile.use` is a client operation: an attached shell performs the switch, and the daemon records it
+through the same selection endpoint `compozy profile use` calls. For scripts and agents, call
+`compozy profile use` directly rather than routing through the palette.
+
+The palette catalog itself is readable from the CLI, and it carries the profile lens:
+
+```bash
+compozy cmd-palette list -o json
+```
+
+Inside a session, the palette derives its profile from that session's binding and refuses to re-aim
+it. See [Palette contributions](/docs/extensions/cmd-palette) for how contributed commands are
+filtered per profile.
+
+## Step 7: See everything at once
+
+```bash
+compozy session list --all-profiles -o json
+```
+
+Rows from every profile come back, each still carrying `profile_name`. This is the only way to widen
+a read, it is always explicit, and results are always owner-labeled.
+
+Asking for one profile and every profile in the same command is a mistake the daemon names rather
+than guesses at. `compozy session list --profile marketing --all-profiles` exits 1 with
+`profile_selection_conflict` and tells you to pick one. HTTP and UDS clients request the same
+aggregate with `all_profiles=true` and get the same refusal for the same combination.
+
+Details, including how deep links and single-item lookups behave:
+[Scoped and aggregate reads](/docs/profiles/reads).
+
+## Step 8: Give the profile its own defaults
+
+Switch back to `marketing` and set a default agent for it alone:
+
+```bash
+compozy profile use marketing
+compozy config set defaults.agent copywriter -o json
+```
+
+The record names the layer the write landed in (output trimmed — the full record also carries
+lifecycle, apply-record, generation, and restart fields):
+
+```json
+{
+  "path": "defaults.agent",
+  "value": "copywriter",
+  "scope": "profile",
+  "target": "/Users/you/.compozy/profiles/marketing/config.toml",
+  "applied": true
+}
+```
+
+With no `--scope`, a write lands in the layer that owns your current context: the user file under
+`default`, the profile file under any other profile. `--scope user|profile|workspace` picks a
+different target.
+
+If a more specific layer already wins the key, the write still happens and says so:
+
+```json
+{ "status": "ok_overridden", "applied": false, "winning_layer": "workspace" }
+```
+
+That is "saved, but not the effective value" — useful to know before you go looking for why nothing
+changed. A profile layer also cannot change daemon identity (`http`, `daemon`, `log`, `database`,
+`gateway`, `shell`, `marketplace`, `observability`, `network`, `sandboxes`); those come back as
+`profile_config_key_denied` with the `--scope user` alternative.
+
+See [Profile layer precedence](/docs/configuration#profile-layer-precedence) for all four layers and
+[Profile files](/docs/configuration/file-locations#profile-files) for every path a profile owns.
+
+## Step 9: Give the profile its own key
+
+Every profile uses your user credentials until it overrides one. Overrides live in the Vault, per
+provider, and the value never touches your shell history:
+
+```bash
+printf '%s' "$OPENAI_API_KEY" |
+  compozy --profile marketing secret set providers/openai/api_key --value-stdin -o json
+```
+
+```json
+{
+  "ref": "vault:profiles/marketing/providers/openai/api_key",
+  "profile": "marketing",
+  "status": "saved"
+}
+```
+
+The process environment is refused for a non-default profile, because one environment is shared by
+the whole machine. Usage and spend still attribute to the profile that owned the work, whichever key
+executed it. See [Credentials](/docs/profiles/credentials).
+
+## Step 10: Turn an extension off in one profile only
+
+This step needs an extension already installed. List what you have and pick one:
+
+```bash
+compozy extension list
+```
+
+An extension is installed once per machine, and each profile decides whether it is on. The example
+below uses `growth-kit`; substitute a name from your own list.
+
+```bash
+compozy extension disable growth-kit
+```
+
+```text
+Disabled in profile marketing.
+```
+
+Only `marketing` changed. Every other profile keeps whatever enablement choice it already had.
+Notification presets work the same way: one shared library,
+[one choice per profile](/docs/autonomy/notification-presets).
+
+Extensions can go further and place a contributed skill or agent into a named profile, or declare a
+profile to create at install time. That is [an authoring concern](/docs/extensions/manifest), and
+the [install flow](/docs/extensions/install) names every profile it will create before you confirm.
+
+## Verify
+
+```bash
+compozy profile list
+```
+
+```text
+     NAME       SYMBOL  STATE   WORK
+---  ----       ------  -----   ----
+     default    ●       active  12 items
+*    marketing  ●       active  1 items
+```
+
+`*` marks the profile resolved for this invocation. `WORK` counts what each profile owns across
+sessions, tasks, loop runs, automations, bridges, and worktrees — children are never counted twice,
+and your `default` number will differ from the example. The terminal prints a dot for a profile
+identified by an icon and prints the character itself for an emoji profile; color and icon render in
+the web UI.
+
+You now have two contexts. Work stays where it was created, listings follow the active profile, and
+one flag shows everything.
+
+## What to do next
+
+- Rename, archive, or delete a profile: [Manage the profile lifecycle](/docs/profiles/lifecycle).
+- Understand what a profile does and does not separate: [Profiles](/docs/profiles).
+- Share a division of contexts with a team by committing `.compozy/profiles/<name>/` folders:
+  [Profile files](/docs/configuration/file-locations#profile-files).
+- Look up exact flags: [`compozy profile`](/docs/cli/profile) and the
+  [Profiles API](/docs/api/profiles).
+
+## If something went wrong
+
+| Symptom                                              | First check                       | Where to go next                                                         |
+| ---------------------------------------------------- | --------------------------------- | ------------------------------------------------------------------------ |
+| A command acted as the wrong profile                 | `compozy profile current -o json` | [Select a profile](/docs/profiles/selection)                             |
+| A list is empty and you expected rows                | `compozy profile current`         | [Scoped and aggregate reads](/docs/profiles/reads)                       |
+| Switching is refused because the profile is archived | `compozy profile list`            | [Lifecycle](/docs/profiles/lifecycle)                                    |
+| A config write saved but changed nothing             | the `winning_layer` field         | [Profile layer precedence](/docs/configuration#profile-layer-precedence) |
+| A command fails with `profile_unavailable`           | `compozy profile ops`             | [Lifecycle](/docs/profiles/lifecycle)                                    |
+| Any other `profile_*` code                           | the `action` field in the error   | [Profile errors](/docs/profiles/errors)                                  |

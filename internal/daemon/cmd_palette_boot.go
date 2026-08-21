@@ -7,6 +7,7 @@ import (
 
 	"github.com/compozy/compozy/internal/cmdpalette"
 	"github.com/compozy/compozy/internal/cmdpalette/corecmds"
+	compozyconfig "github.com/compozy/compozy/internal/config"
 	toolspkg "github.com/compozy/compozy/internal/tools"
 )
 
@@ -42,7 +43,7 @@ func (d *Daemon) bootCmdPalette(
 	})
 	executor := &cmdPaletteActionExecutor{
 		tools: state.toolRegistry, approvalTokens: state.toolApprovals,
-		windowManager: state.windowManager, approvalTTL: state.cfg.Tools.Policy.ApprovalTimeout(),
+		windowManagers: state.windowManagers, approvalTTL: state.cfg.Tools.Policy.ApprovalTimeout(),
 		now: d.now,
 	}
 	eventRecorder := &cmdPaletteEventRecorder{writer: state.registry, logger: state.logger}
@@ -60,8 +61,15 @@ func (d *Daemon) bootCmdPalette(
 	bindings := &cmdPaletteBindingsResolver{
 		workspaces: state.workspaceResolver,
 		loadGlobal: d.loadConfig,
-		catalog:    func() cmdpalette.BindableCatalog { return registry },
-		logger:     state.logger,
+		loadProfile: func(profileName, workspaceRoot string) (compozyconfig.Config, error) {
+			return compozyconfig.LoadForHome(
+				d.homePaths,
+				compozyconfig.WithProfile(profileName),
+				compozyconfig.WithWorkspaceRoot(workspaceRoot),
+			)
+		},
+		catalog: func() cmdpalette.BindableCatalog { return registry },
+		logger:  state.logger,
 	}
 	registry, err = cmdpalette.NewRegistry(
 		[]cmdpalette.ProviderRegistration{{
@@ -69,7 +77,7 @@ func (d *Daemon) bootCmdPalette(
 		}, {
 			Source: cmdpalette.Source{Kind: cmdpalette.SourceKindExtension}, Provider: extensionProvider,
 		}},
-		&cmdPaletteClientDirectory{windowManager: state.windowManager}, bindings, executor,
+		&cmdPaletteClientDirectory{windowManagers: state.windowManagers}, bindings, executor,
 		cmdpalette.WithEventRecorder(eventRecorder), cmdpalette.WithClock(d.now),
 		cmdpalette.WithPersonalizationStore(personalizationStore),
 		cmdpalette.WithPersonalizationPolicy(bindings), cmdpalette.WithLogger(state.logger),

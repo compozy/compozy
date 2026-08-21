@@ -118,3 +118,16 @@ export { Textarea, type TextareaProps, type TextareaVariant } from "../component
 export { Toaster, type ToasterProps } from "../components/sonner";
 export { toast } from "../components/sonner-toast";
 export { DirectionProvider, useDirection } from "../components/direction";
+export { SymbolPicker, type SymbolPickerProps } from "../components/custom/symbol-picker";
+export {
+  matchesSymbolQuery,
+  normalizeHexColor,
+  SYMBOL_PICKER_DEFAULT_LABELS,
+  type SymbolPickerLabels,
+  type SymbolEmojiOption,
+  type SymbolIconOption,
+  type SymbolKind,
+  type SymbolSwatch,
+  type SymbolValue,
+} from "../lib/symbol-palette";
+export { identityColorsFor, type IdentityColors } from "../lib/identity-palette";

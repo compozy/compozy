@@ -16,7 +16,7 @@ import (
 )
 
 func addMemorySelectorFlags(cmd *cobra.Command, flags *memorySelectorFlags) {
-	cmd.Flags().StringVar(&flags.Scope, automationScopeKey, "", "Memory scope: global, workspace, or agent")
+	cmd.Flags().StringVar(&flags.Scope, automationScopeKey, "", "Memory scope: profile, workspace, or agent")
 	cmd.Flags().
 		StringVar(&flags.Workspace, "workspace", "", "Override workspace binding (ID, name, or path)")
 	cmd.Flags().StringVar(&flags.Agent, "agent", "", "Agent name for agent-scoped memory")
@@ -92,10 +92,10 @@ func parseOptionalCLIMemoryScope(raw string) (memcontract.Scope, error) {
 	switch scope {
 	case "":
 		return "", nil
-	case memcontract.ScopeGlobal, memcontract.ScopeWorkspace, memcontract.ScopeAgent:
+	case memcontract.ScopeProfile, memcontract.ScopeWorkspace, memcontract.ScopeAgent:
 		return scope, nil
 	default:
-		return "", errors.New("memory.scope.invalid: scope must be one of global, workspace, or agent")
+		return "", errors.New("memory.scope.invalid: scope must be one of profile, workspace, or agent")
 	}
 }
 

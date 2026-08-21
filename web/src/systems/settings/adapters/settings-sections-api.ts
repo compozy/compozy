@@ -7,6 +7,7 @@ import {
 
 import type {
   SettingsAttentionSection,
+  SettingsAttentionFilter,
   SettingsAutomationSection,
   SettingsCreateNotificationPresetRequest,
   SettingsGeneralSection,
@@ -22,6 +23,7 @@ import type {
   SettingsSkillsFilter,
   SettingsSkillsSection,
   SettingsUpdateAttentionRequest,
+  SettingsUpdateAttentionFilter,
   SettingsUpdateAutomationRequest,
   SettingsUpdateGeneralRequest,
   SettingsUpdateHooksExtensionsRequest,
@@ -38,8 +40,10 @@ import type {
   SettingsUpdateStatus,
 } from "../types";
 import { normalizeOptionalText, SettingsApiError } from "./settings-api-error";
+import { normalizeSettingsLayerFilter } from "./settings-layer-filter";
 
 export { getSettingsCmdPalette, updateSettingsCmdPalette } from "./settings-cmd-palette-api";
+export { getSettingsPersona, updateSettingsPersona } from "./settings-persona-api";
 
 function normalizeNotificationPresetFilter(filter: SettingsNotificationPresetFilter = {}) {
   return {
@@ -328,9 +332,13 @@ export async function updateSettingsNetwork(
 }
 
 export async function getSettingsAttention(
+  filter: SettingsAttentionFilter,
   signal?: AbortSignal
 ): Promise<SettingsAttentionSection> {
-  const { data, error, response } = await apiClient.GET("/api/settings/attention", { signal });
+  const { data, error, response } = await apiClient.GET("/api/settings/attention", {
+    params: { query: normalizeSettingsLayerFilter(filter) },
+    signal,
+  });
   if (apiRequestFailed(response, error)) {
     throw new SettingsApiError(
       defaultApiErrorMessage("Failed to load attention settings", response, error),
@@ -340,13 +348,15 @@ export async function getSettingsAttention(
   return requireResponseData(data, response, "Failed to load attention settings");
 }
 
-/** Full-config PATCH, mirroring every other section: the body carries the whole `[attention]` block. */
+/** Typed PATCH: global delivery fields are required; profile-owned mutes are replaced when present. */
 export async function updateSettingsAttention(
   body: SettingsUpdateAttentionRequest,
+  filter: SettingsUpdateAttentionFilter,
   signal?: AbortSignal
 ): Promise<SettingsMutationResult> {
   const { data, error, response } = await apiClient.PATCH("/api/settings/attention", {
     body,
+    params: { query: normalizeSettingsLayerFilter(filter) },
     signal,
   });
   if (apiRequestFailed(response, error)) {

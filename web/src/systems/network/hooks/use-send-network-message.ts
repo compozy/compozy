@@ -21,7 +21,9 @@ import {
   reconcileOptimisticMessage,
   resetOptimisticMessage,
 } from "./network-message-cache";
+import { resolveNetworkMessageOwner, type NetworkMessageOwner } from "./network-message-owner";
 import { sessionKeys } from "@/systems/session";
+import { useProfileReadScope } from "@/systems/profiles";
 import { useActiveWorkspace } from "@/systems/workspace";
 
 function invalidateConversation(
@@ -50,26 +52,45 @@ export function useSendNetworkMessage(
 ): UseSendNetworkMessageResult {
   const queryClient = useQueryClient();
   const { runtimeWorkspaceId } = useActiveWorkspace();
+  const scope = useProfileReadScope();
+  const fallbackOwner: NetworkMessageOwner = {
+    id: scope.destinationOwner?.id ?? "",
+    name: scope.destination,
+  };
   const workspaceId = options.workspaceId ?? runtimeWorkspaceId;
   const mutation = useMutation<SendNetworkMessageResult, Error, ScopedSendNetworkMessageInput>({
     mutationFn: async input => {
       const clientMessageId = input.clientMessageId ?? generateClientMessageId();
-      const optimistic = buildOptimisticMessage(input, clientMessageId, new Date().toISOString());
-      await queryClient.cancelQueries({
-        queryKey: canonicalNetworkMessageKey(input),
-        exact: true,
-      });
-      if (input.clientMessageId) resetOptimisticMessage(queryClient, input, optimistic);
-      else applyOptimisticMessage(queryClient, input, optimistic);
+      const owner = resolveNetworkMessageOwner(
+        queryClient,
+        input.workspaceId,
+        input.channel,
+        fallbackOwner
+      );
+      if (owner) {
+        const optimistic = buildOptimisticMessage(
+          input,
+          clientMessageId,
+          new Date().toISOString(),
+          owner
+        );
+        await queryClient.cancelQueries({
+          queryKey: canonicalNetworkMessageKey(input),
+          exact: true,
+        });
+        if (input.clientMessageId) resetOptimisticMessage(queryClient, input, optimistic);
+        else applyOptimisticMessage(queryClient, input, optimistic);
+      }
       try {
         const response = await sendNetworkMessage(
           input.workspaceId,
           buildSendRequest(input, clientMessageId, input.workspaceId)
         );
-        reconcileOptimisticMessage(queryClient, input, clientMessageId, response.message);
+        if (owner)
+          reconcileOptimisticMessage(queryClient, input, clientMessageId, response.message);
         return { clientMessageId, response };
       } catch (error) {
-        markOptimisticMessageFailed(queryClient, input, clientMessageId);
+        if (owner) markOptimisticMessageFailed(queryClient, input, clientMessageId);
         throw error;
       }
     },

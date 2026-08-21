@@ -25,6 +25,8 @@ function parsedLocation(
 }
 
 const threadDetail: NetworkThreadDetail = {
+  profile_id: "00000000000000000000000000",
+  profile_name: "default",
   channel: "general",
   message_count: 3,
   open_work_count: 4,
@@ -35,6 +37,8 @@ const threadDetail: NetworkThreadDetail = {
 };
 
 const directDetail: NetworkDirectRoomDetail = {
+  profile_id: "00000000000000000000000000",
+  profile_name: "default",
   channel: "general",
   direct_id: "dr_1",
   message_count: 2,

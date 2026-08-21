@@ -8,7 +8,6 @@ import (
 )
 
 type SettingsGeneralConfigPayload struct {
-	Defaults       SettingsDefaultsPayload    `json:"defaults"`
 	Limits         SettingsLimitsPayload      `json:"limits"`
 	Permissions    SettingsPermissionsPayload `json:"permissions"`
 	SessionTimeout string                     `json:"session_timeout"`
@@ -482,6 +481,7 @@ type SettingsSourceRefPayload struct {
 	Kind        SettingsSourceKind `json:"kind"`
 	Scope       SettingsScopeKind  `json:"scope"`
 	WorkspaceID string             `json:"workspace_id,omitempty"`
+	Profile     string             `json:"profile,omitempty"`
 	AgentName   string             `json:"agent_name,omitempty"`
 }
 

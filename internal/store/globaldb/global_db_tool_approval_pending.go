@@ -28,8 +28,9 @@ func (g *ApprovalPendingRepo) CreateApproval(
 		targetJSON = json.RawMessage(`{}`)
 	}
 	row, err := g.queries.CreatePendingToolApproval(ctx, sqlcgen.CreatePendingToolApprovalParams{
+		ProfileID:    request.ProfileID,
 		ApprovalID:   approvalID,
-		WorkspaceID:  request.WorkspaceID,
+		WorkspaceID:  nullableApprovalString(request.WorkspaceID),
 		InvocationID: request.InvocationID,
 		TargetKind:   string(request.Target.Kind),
 		ToolID:       nullableApprovalString(string(request.Target.ToolID)),
@@ -54,6 +55,9 @@ func (g *ApprovalPendingRepo) GetApproval(
 	if err := g.checkReady(ctx, "get pending tool approval"); err != nil {
 		return toolspkg.ApprovalStatus{}, err
 	}
+	if err := g.requireApprovalOwner(ctx, approvalID); err != nil {
+		return toolspkg.ApprovalStatus{}, err
+	}
 	row, err := g.queries.GetPendingToolApproval(ctx, approvalID)
 	if errors.Is(err, sql.ErrNoRows) {
 		return toolspkg.ApprovalStatus{}, toolspkg.ErrApprovalNotFound
@@ -71,6 +75,9 @@ func (g *ApprovalPendingRepo) ResolveApproval(
 	resolvedAt time.Time,
 ) (toolspkg.ApprovalStatus, error) {
 	if err := g.checkReady(ctx, "resolve pending tool approval"); err != nil {
+		return toolspkg.ApprovalStatus{}, err
+	}
+	if err := g.requireApprovalOwner(ctx, approvalID); err != nil {
 		return toolspkg.ApprovalStatus{}, err
 	}
 	row, err := g.queries.ResolvePendingToolApproval(ctx, sqlcgen.ResolvePendingToolApprovalParams{
@@ -167,6 +174,27 @@ func (g *ApprovalPendingRepo) approvalTransitionError(
 	return transitionErr
 }
 
+func (g *ApprovalPendingRepo) requireApprovalOwner(ctx context.Context, approvalID string) error {
+	profileID, err := toolspkg.ApprovalProfile(ctx)
+	if err != nil {
+		return err
+	}
+	var storedProfileID string
+	if err := g.db.QueryRowContext(
+		ctx,
+		`SELECT profile_id FROM tool_approval_pending WHERE approval_id = ?`,
+		approvalID,
+	).Scan(&storedProfileID); errors.Is(err, sql.ErrNoRows) {
+		return toolspkg.ErrApprovalNotFound
+	} else if err != nil {
+		return fmt.Errorf("store: inspect tool approval owner %q: %w", approvalID, err)
+	}
+	if storedProfileID != profileID {
+		return toolspkg.ErrApprovalNotFound
+	}
+	return nil
+}
+
 func toolApprovalStatusesFromRows(rows []sqlcgen.ToolApprovalPending) ([]toolspkg.ApprovalStatus, error) {
 	statuses := make([]toolspkg.ApprovalStatus, 0, len(rows))
 	for _, row := range rows {
@@ -181,7 +209,8 @@ func toolApprovalStatusesFromRows(rows []sqlcgen.ToolApprovalPending) ([]toolspk
 
 func toolApprovalStatusFromRow(row sqlcgen.ToolApprovalPending) (toolspkg.ApprovalStatus, error) {
 	status := toolspkg.ApprovalStatus{
-		ApprovalID: row.ApprovalID, WorkspaceID: row.WorkspaceID, InvocationID: row.InvocationID,
+		ApprovalID: row.ApprovalID, ProfileID: row.ProfileID,
+		WorkspaceID: row.WorkspaceID.String, InvocationID: row.InvocationID,
 		CommandID: row.CommandID.String, ApprovalStatus: toolspkg.ApprovalOutcome(row.ApprovalStatus),
 		ExecutionStatus: toolspkg.ApprovalExecutionStatus(row.ExecutionStatus.String),
 		Target: toolspkg.ApprovalTarget{

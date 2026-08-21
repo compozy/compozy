@@ -19,11 +19,12 @@ const (
 
 // InstallExtensionRequest is the shared extension install request payload.
 type InstallExtensionRequest struct {
-	Source          InstallExtensionSource `json:"source"`
-	Ref             string                 `json:"ref"`
-	Version         string                 `json:"version,omitempty"`
-	Asset           string                 `json:"asset,omitempty"`
-	AllowUnverified bool                   `json:"allow_unverified,omitempty"`
+	Source               InstallExtensionSource `json:"source"`
+	Ref                  string                 `json:"ref"`
+	Version              string                 `json:"version,omitempty"`
+	Asset                string                 `json:"asset,omitempty"`
+	AllowUnverified      bool                   `json:"allow_unverified,omitempty"`
+	ConfirmNetworkDigest string                 `json:"confirm_network_digest,omitempty"`
 }
 
 // ExtensionValidationErrorPayload reports positioned extension validation failures.
@@ -147,41 +148,63 @@ type ExtensionProvenancePayload struct {
 
 // ExtensionPayload is the shared extension response payload surfaced by CLI APIs.
 type ExtensionPayload struct {
-	Name                        string                       `json:"name"`
-	WorkspaceID                 string                       `json:"workspace_id,omitempty"`
-	Version                     string                       `json:"version"`
-	Type                        string                       `json:"type"`
-	Format                      string                       `json:"format"`
-	Source                      string                       `json:"source"`
-	Enabled                     bool                         `json:"enabled"`
-	State                       string                       `json:"state"`
-	Capabilities                []string                     `json:"capabilities,omitempty"`
-	Permissions                 []string                     `json:"permissions,omitempty"`
-	RequiresEnv                 []string                     `json:"requires_env,omitempty"`
-	MissingEnv                  []string                     `json:"missing_env,omitempty"`
-	BoundEnvKeys                []string                     `json:"bound_env_keys,omitempty"`
-	NetworkRequirementDigest    string                       `json:"network_requirement_digest,omitempty"`
-	NetworkConfirmationRequired bool                         `json:"network_confirmation_required"`
-	PID                         int                          `json:"pid,omitempty"`
-	UptimeSeconds               int64                        `json:"uptime_seconds,omitempty"`
-	Health                      string                       `json:"health,omitempty"`
-	HealthMessage               string                       `json:"health_message,omitempty"`
-	LastError                   string                       `json:"last_error,omitempty"`
-	FailureCode                 string                       `json:"failure_code,omitempty"`
-	ConsecutiveFailures         int                          `json:"consecutive_failures"`
-	RestartBackoffMS            int64                        `json:"restart_backoff_ms"`
-	GenerationHash              string                       `json:"generation_hash,omitempty"`
-	Dev                         bool                         `json:"dev,omitempty"`
-	OverridesPublished          bool                         `json:"overrides_published,omitempty"`
-	OriginPath                  string                       `json:"origin_path,omitempty"`
-	UpdateAvailable             bool                         `json:"update_available"`
-	RemoteVersion               string                       `json:"remote_version,omitempty"`
-	DigestMatched               bool                         `json:"digest_matched"`
-	DaemonRunning               bool                         `json:"daemon_running"`
-	Provenance                  *ExtensionProvenancePayload  `json:"provenance,omitempty"`
-	Marketplace                 *MarketplaceListingPayload   `json:"marketplace,omitempty"`
-	Trust                       *ExtensionTrustReportPayload `json:"trust,omitempty"`
-	Diagnostics                 []DiagnosticItem             `json:"diagnostics,omitempty"`
+	Name                        string                            `json:"name"`
+	Profile                     string                            `json:"profile"`
+	WorkspaceID                 string                            `json:"workspace_id,omitempty"`
+	Version                     string                            `json:"version"`
+	Type                        string                            `json:"type"`
+	Format                      string                            `json:"format"`
+	Source                      string                            `json:"source"`
+	Enabled                     bool                              `json:"enabled"`
+	State                       string                            `json:"state"`
+	Capabilities                []string                          `json:"capabilities,omitempty"`
+	Permissions                 []string                          `json:"permissions,omitempty"`
+	RequiresEnv                 []string                          `json:"requires_env,omitempty"`
+	MissingEnv                  []string                          `json:"missing_env,omitempty"`
+	BoundEnvKeys                []string                          `json:"bound_env_keys,omitempty"`
+	NetworkRequirementDigest    string                            `json:"network_requirement_digest,omitempty"`
+	NetworkConfirmationRequired bool                              `json:"network_confirmation_required"`
+	PID                         int                               `json:"pid,omitempty"`
+	UptimeSeconds               int64                             `json:"uptime_seconds,omitempty"`
+	Health                      string                            `json:"health,omitempty"`
+	HealthMessage               string                            `json:"health_message,omitempty"`
+	LastError                   string                            `json:"last_error,omitempty"`
+	FailureCode                 string                            `json:"failure_code,omitempty"`
+	ConsecutiveFailures         int                               `json:"consecutive_failures"`
+	RestartBackoffMS            int64                             `json:"restart_backoff_ms"`
+	GenerationHash              string                            `json:"generation_hash,omitempty"`
+	Dev                         bool                              `json:"dev,omitempty"`
+	OverridesPublished          bool                              `json:"overrides_published,omitempty"`
+	OriginPath                  string                            `json:"origin_path,omitempty"`
+	UpdateAvailable             bool                              `json:"update_available"`
+	RemoteVersion               string                            `json:"remote_version,omitempty"`
+	DigestMatched               bool                              `json:"digest_matched"`
+	DaemonRunning               bool                              `json:"daemon_running"`
+	Provenance                  *ExtensionProvenancePayload       `json:"provenance,omitempty"`
+	Marketplace                 *MarketplaceListingPayload        `json:"marketplace,omitempty"`
+	Trust                       *ExtensionTrustReportPayload      `json:"trust,omitempty"`
+	Diagnostics                 []DiagnosticItem                  `json:"diagnostics,omitempty"`
+	DeclaredProfiles            []ExtensionDeclaredProfilePayload `json:"declared_profiles,omitempty"`
+	Placements                  []ExtensionPlacementPayload       `json:"placements,omitempty"`
+	DormantPlacements           []ExtensionPlacementPayload       `json:"dormant_placements,omitempty"`
+}
+
+// ExtensionDeclaredProfilePayload reports one manifest-declared profile and its live setup state.
+type ExtensionDeclaredProfilePayload struct {
+	Name                   string                         `json:"name"`
+	Exists                 bool                           `json:"exists"`
+	CreatedByExtension     bool                           `json:"created_by_extension"`
+	NeedsSetup             bool                           `json:"needs_setup"`
+	CredentialRequirements []ProfileCredentialRequirement `json:"credential_requirements,omitempty"`
+}
+
+// ExtensionPlacementPayload is one row in the extension resource placement matrix.
+type ExtensionPlacementPayload struct {
+	Kind         string `json:"kind"`
+	Resource     string `json:"resource"`
+	Profile      string `json:"profile,omitempty"`
+	Dormant      bool   `json:"dormant"`
+	CreateAction string `json:"create_action,omitempty"`
 }
 
 // ExtensionEnableResult is the committed enable action result.

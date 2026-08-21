@@ -3,7 +3,6 @@ package udsapi
 import (
 	"github.com/compozy/compozy/internal/api/core"
 	mcppkg "github.com/compozy/compozy/internal/mcp"
-	"github.com/compozy/compozy/internal/windowmanager"
 )
 
 type udsExtendedServices struct {
@@ -11,13 +10,13 @@ type udsExtendedServices struct {
 	extensions    ExtensionService
 	hostedMCP     *mcppkg.HostedService
 	mcpHostAPI    mcppkg.HostAPIInvoker
-	windowManager windowmanager.Service
+	windowManager core.WindowManagerProvider
 	gateway       core.GatewayService
 }
 
-// WithWindowManagerService injects the daemon-authoritative window manager.
-func WithWindowManagerService(service windowmanager.Service) Option {
+// WithWindowManagerProvider injects the per-profile window managers.
+func WithWindowManagerProvider(provider core.WindowManagerProvider) Option {
 	return func(server *Server) {
-		server.windowManager = service
+		server.windowManager = provider
 	}
 }

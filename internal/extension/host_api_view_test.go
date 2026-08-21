@@ -5,8 +5,10 @@ import (
 	"encoding/json"
 	"testing"
 
+	bridgepkg "github.com/compozy/compozy/internal/bridges"
 	"github.com/compozy/compozy/internal/cmdpalette"
 	"github.com/compozy/compozy/internal/resources"
+	"github.com/compozy/compozy/internal/subprocess"
 )
 
 func TestHostAPIViewPatch(t *testing.T) {
@@ -36,6 +38,13 @@ func TestHostAPIViewPatch(t *testing.T) {
 				MaxScope: resources.ResourceScope{Kind: resources.ResourceScopeKindWorkspace, ID: "ws-a"},
 			},
 		})
+		ctx = withHostAPIBridgeRuntime(ctx, &subprocess.InitializeBridgeRuntime{
+			ManagedInstances: []subprocess.InitializeBridgeManagedInstance{{
+				Instance: bridgepkg.BridgeInstanceToContract(bridgepkg.BridgeInstance{
+					ID: "bridge-1", ProfileID: "profile-marketing",
+				}),
+			}},
+		})
 		_, err := handler.Handle(ctx, "notes", "view/patch", mustViewPatchParams(t, map[string]any{
 			"patch": map[string]any{
 				"view_id": "ext.notes.recent", "from": "vr_1", "to": "vr_2",
@@ -51,6 +60,9 @@ func TestHostAPIViewPatch(t *testing.T) {
 			publisher.patch.ViewID != "ext.notes.recent" {
 			t.Fatalf("PublishViewPatch = workspace %q extension %q patch %#v",
 				publisher.workspace, publisher.extension, publisher.patch)
+		}
+		if publisher.profileLens.ID != "profile-marketing" {
+			t.Fatalf("PublishViewPatch profile lens = %#v, want profile-marketing", publisher.profileLens)
 		}
 	})
 
@@ -105,17 +117,20 @@ func mustViewPatchParams(t *testing.T, payload map[string]any) json.RawMessage {
 }
 
 type recordingViewPatchPublisher struct {
-	workspace cmdpalette.WorkspaceID
-	extension string
-	patch     cmdpalette.ViewPatch
+	profileLens cmdpalette.ProfileLens
+	workspace   cmdpalette.WorkspaceID
+	extension   string
+	patch       cmdpalette.ViewPatch
 }
 
 func (r *recordingViewPatchPublisher) PublishViewPatch(
 	_ context.Context,
+	profileLens cmdpalette.ProfileLens,
 	workspaceID cmdpalette.WorkspaceID,
 	extension string,
 	patch cmdpalette.ViewPatch,
 ) error {
+	r.profileLens = profileLens
 	r.workspace = workspaceID
 	r.extension = extension
 	r.patch = patch
@@ -128,13 +143,13 @@ type hostAPIViewServiceStub struct {
 }
 
 func (s *hostAPIViewServiceStub) ResolveView(
-	context.Context, cmdpalette.WorkspaceID, string,
+	context.Context, cmdpalette.ProfileLens, cmdpalette.WorkspaceID, string,
 ) (cmdpalette.ViewDescriptor, error) {
 	return cmdpalette.ViewDescriptor{}, nil
 }
 
 func (s *hostAPIViewServiceStub) OpenSource(
-	context.Context, cmdpalette.WorkspaceID, string,
+	context.Context, cmdpalette.ProfileLens, cmdpalette.WorkspaceID, string,
 ) (cmdpalette.ViewSnapshot, error) {
 	return cmdpalette.ViewSnapshot{}, nil
 }
@@ -181,12 +196,19 @@ func (s *hostAPIViewServiceStub) CloseSession(context.Context, cmdpalette.Sessio
 
 func (s *hostAPIViewServiceStub) CloseClientSessions(
 	context.Context,
+	cmdpalette.ProfileLens,
 	cmdpalette.WorkspaceID,
 	cmdpalette.ClientID,
 ) error {
 	return nil
 }
 
-func (s *hostAPIViewServiceStub) InvalidateInstance(context.Context, cmdpalette.WorkspaceID, string, uint64) error {
+func (s *hostAPIViewServiceStub) InvalidateInstance(
+	context.Context,
+	cmdpalette.ProfileLens,
+	cmdpalette.WorkspaceID,
+	string,
+	uint64,
+) error {
 	return nil
 }

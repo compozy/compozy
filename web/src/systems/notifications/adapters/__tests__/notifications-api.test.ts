@@ -6,11 +6,13 @@ import {
   deleteNotificationPreset,
   listNotificationPresets,
   NotificationsApiError,
+  setNotificationPresetEnablement,
   updateNotificationPreset,
 } from "../notifications-api";
 
 const presetFixture = {
   name: "task_terminal",
+  profile: "marketing",
   events: ["task.run_*"],
   targets: [{ bridge_id: "bridge_slack_ops", canonical_route: "channel:ops" }],
   filter: "",
@@ -44,52 +46,72 @@ describe("notificationsApi", () => {
     const result = await listNotificationPresets({
       enabled: true,
       built_in: false,
+      profile: " marketing ",
       name: " task_terminal ",
       limit: 10,
     });
 
     expect(result.presets).toHaveLength(1);
     await expectFetchRequest({
-      path: "/api/notifications/presets?enabled=true&built_in=false&name=task_terminal&limit=10",
+      path: "/api/notifications/presets?enabled=true&built_in=false&profile=marketing&name=task_terminal&limit=10",
     });
   });
 
-  it("creates, updates, and deletes presets through daemon-owned routes", async () => {
+  it("creates and updates presets through profile-scoped daemon routes", async () => {
     mockJsonResponse({ preset: { ...presetFixture, name: "custom_task" } });
 
-    await createNotificationPreset({
-      name: "custom_task",
-      events: ["task.run_*"],
-      targets: [{ bridge_id: "bridge_slack_ops", canonical_route: "channel:ops" }],
-      enabled: true,
-    });
+    await createNotificationPreset(
+      {
+        name: "custom_task",
+        events: ["task.run_*"],
+        targets: [{ bridge_id: "bridge_slack_ops", canonical_route: "channel:ops" }],
+      },
+      "marketing"
+    );
 
     await expectFetchRequest({
       method: "POST",
-      path: "/api/notifications/presets",
+      path: "/api/notifications/presets?profile=marketing",
       body: {
         name: "custom_task",
         events: ["task.run_*"],
         targets: [{ bridge_id: "bridge_slack_ops", canonical_route: "channel:ops" }],
-        enabled: true,
       },
     });
 
     mockJsonResponse({ preset: { ...presetFixture, enabled: true } });
-    await updateNotificationPreset("task_terminal", { enabled: true });
+    await updateNotificationPreset("task_terminal", { filter: "outcome >= warning" }, "marketing");
     await expectFetchRequest({
       callIndex: 1,
       method: "PUT",
-      path: "/api/notifications/presets/task_terminal",
-      body: { enabled: true },
+      path: "/api/notifications/presets/task_terminal?profile=marketing",
+      body: { filter: "outcome >= warning" },
     });
+  });
 
+  it("deletes a custom preset from the shared library", async () => {
     mockEmptyResponse({ status: 204 });
     await deleteNotificationPreset("custom_task");
     await expectFetchRequest({
-      callIndex: 2,
       method: "DELETE",
       path: "/api/notifications/presets/custom_task",
+    });
+  });
+
+  it("sets effective enablement for one profile through the dedicated authority", async () => {
+    mockJsonResponse({ name: "task_terminal", profile: "marketing", enabled: false });
+
+    const result = await setNotificationPresetEnablement("task_terminal", {
+      profile: "marketing",
+      enabled: false,
+    });
+
+    expect(result).toEqual({ name: "task_terminal", profile: "marketing", enabled: false });
+
+    await expectFetchRequest({
+      method: "PUT",
+      path: "/api/notifications/presets/task_terminal/enablement",
+      body: { profile: "marketing", enabled: false },
     });
   });
 

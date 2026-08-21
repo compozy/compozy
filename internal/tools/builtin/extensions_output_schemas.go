@@ -118,28 +118,3 @@ const extensionInventoryOutputSchema = `{
 	},
 	"additionalProperties":false
 }`
-
-const extensionEnablePreviewOutputSchema = `{
-	"type":"object",
-	"required":[
-		"extension","changes","agent_conflicts","missing_env","automation_starting",
-		"network_requirement_digest","network_confirmation_required"
-	],
-	"properties":{
-		"extension":{"type":"string"},
-		"changes":{"type":"array","items":{
-			"type":"object","required":["kind","id","name","change"],
-			"properties":{
-				"kind":{"type":"string"},"id":{"type":"string"},"name":{"type":"string"},
-				"change":{"type":"string","enum":["added","changed","removed"]}
-			},
-			"additionalProperties":false
-		}},
-		"agent_conflicts":{"type":"array","items":{"type":"string"}},
-		"missing_env":{"type":"array","items":{"type":"string"}},
-		"automation_starting":{"type":"array","items":{"type":"string"}},
-		"network_requirement_digest":{"type":"string","pattern":"^$|^[a-f0-9]{64}$"},
-		"network_confirmation_required":{"type":"boolean"}
-	},
-	"additionalProperties":false
-}`

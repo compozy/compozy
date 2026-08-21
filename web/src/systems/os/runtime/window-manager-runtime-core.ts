@@ -1,7 +1,7 @@
 import type { QueryCacheNotifyEvent, QueryClient } from "@tanstack/react-query";
 import { shallowEqual } from "@xstate/store";
 
-import { executeWindowManagerCommand, WindowManagerApiError } from "../adapters/window-manager-api";
+import { executeWindowManagerCommand } from "../adapters/window-manager-api";
 import type { OsDesktopRuntimeStore, OsWallpaper } from "../lib/os-types";
 import type { WindowManagerCommandOutcome } from "../lib/os-types";
 import { effectiveWindowManagerConfig } from "../lib/window-manager-config";
@@ -17,16 +17,23 @@ import type {
   WindowManagerCommandInput,
   WindowManagerConfig,
   WindowManagerConnectionStatus,
-  WindowManagerDiagnosticPayload,
   WindowManagerSnapshot,
 } from "../lib/window-manager-types";
 import { DEFAULT_WINDOW_MANAGER_WORK_AREA } from "../lib/window-manager-view";
 import { windowManagerStore, type DesktopTransitionIntent } from "../stores/window-manager-store";
 import { beginWindowManagerCommand } from "../stores/window-manager-store-commands";
+import {
+  clearSwitchTransition,
+  reportClientUnavailable,
+  reportCommandCompleted,
+  reportCommandRefused,
+} from "./window-manager-command-outcome";
 import { WindowManagerSnapshotRefresher } from "./window-manager-snapshot-refresher";
 
 export interface WindowManagerRuntimeBinding {
   workspaceId: string;
+  /** The profile whose desks this runtime presents; a switch rebinds (US-026). */
+  profileId: string;
   clientId: string;
 }
 
@@ -35,20 +42,6 @@ export function randomWindowManagerId(prefix: string): string {
     return `${prefix}-${globalThis.crypto.randomUUID()}`;
   }
   return `${prefix}-${Date.now()}-${Math.random().toString(36).slice(2)}`;
-}
-
-function commandDiagnostic(error: unknown): WindowManagerDiagnosticPayload {
-  if (error instanceof WindowManagerApiError && error.payload?.diagnostics[0]) {
-    return error.payload.diagnostics[0];
-  }
-  return {
-    code:
-      error instanceof WindowManagerApiError
-        ? (error.payload?.code ?? "command_failed")
-        : "command_failed",
-    path: null,
-    message: error instanceof Error ? error.message : "The window command failed.",
-  };
 }
 
 function queryCacheEventChangesData(event: QueryCacheNotifyEvent): boolean {
@@ -108,7 +101,8 @@ export abstract class WindowManagerRuntimeCore {
         key[0] === windowManagerKeys.all[0] &&
         key[1] === windowManagerKeys.all[1] &&
         key[2] === "snapshot" &&
-        key[3] === this.binding.workspaceId
+        key[3] === this.binding.workspaceId &&
+        key[4] === this.binding.profileId
       ) {
         this.publish();
       }
@@ -183,6 +177,7 @@ export abstract class WindowManagerRuntimeCore {
   bind(binding: WindowManagerRuntimeBinding): void {
     if (
       this.binding?.workspaceId === binding.workspaceId &&
+      this.binding.profileId === binding.profileId &&
       this.binding.clientId === binding.clientId
     ) {
       return;
@@ -277,6 +272,7 @@ export abstract class WindowManagerRuntimeCore {
     if (binding === null) return false;
     const result = await this.snapshotRefresher.refresh(
       binding.workspaceId,
+      binding.profileId,
       () => this.binding === binding
     );
     if (result.status === "stale") return false;
@@ -285,7 +281,7 @@ export abstract class WindowManagerRuntimeCore {
       return false;
     }
     this.queryClient.setQueryData<WindowManagerSnapshot>(
-      windowManagerKeys.snapshot(binding.workspaceId),
+      windowManagerKeys.snapshot(binding.workspaceId, binding.profileId),
       current => reconcileWindowManagerSnapshot(current, result.snapshot)
     );
     this.setLoadError(null);
@@ -301,7 +297,7 @@ export abstract class WindowManagerRuntimeCore {
     if (!this.binding) return null;
     return (
       this.queryClient.getQueryData<WindowManagerSnapshot>(
-        windowManagerKeys.snapshot(this.binding.workspaceId)
+        windowManagerKeys.snapshot(this.binding.workspaceId, this.binding.profileId)
       ) ?? null
     );
   }
@@ -321,7 +317,9 @@ export abstract class WindowManagerRuntimeCore {
 
   protected currentLoadError(): Error | null {
     const snapshotError = this.binding
-      ? this.queryClient.getQueryState(windowManagerKeys.snapshot(this.binding.workspaceId))?.error
+      ? this.queryClient.getQueryState(
+          windowManagerKeys.snapshot(this.binding.workspaceId, this.binding.profileId)
+        )?.error
       : null;
     const configError = this.queryClient.getQueryState(this.configKey())?.error;
     if (snapshotError instanceof Error) return snapshotError;
@@ -336,14 +334,7 @@ export abstract class WindowManagerRuntimeCore {
   }
 
   private reportClientUnavailable(): void {
-    windowManagerStore.trigger.diagnosticReported({
-      diagnostic: {
-        code: "client_unavailable",
-        message: "Window commands are unavailable until this browser reconnects.",
-        severity: "warning",
-        field: null,
-      },
-    });
+    reportClientUnavailable();
     this.publish();
   }
 
@@ -375,6 +366,7 @@ export abstract class WindowManagerRuntimeCore {
     }
     if (
       binding.workspaceId !== enqueuedBinding.workspaceId ||
+      binding.profileId !== enqueuedBinding.profileId ||
       binding.clientId !== enqueuedBinding.clientId
     ) {
       return Promise.resolve(false);
@@ -395,12 +387,13 @@ export abstract class WindowManagerRuntimeCore {
     ) {
       // A recorded revision conflict keeps the surface read-only until the
       // user resolves it; queued commands resolve unapplied instead of racing.
-      this.clearSwitchTransition(command, binding);
+      clearSwitchTransition(command, binding);
       return Promise.resolve(false);
     }
 
     return executeWindowManagerCommand(
       binding.workspaceId,
+      binding.profileId,
       binding.clientId,
       snapshot.revision,
       command
@@ -409,7 +402,7 @@ export abstract class WindowManagerRuntimeCore {
         this.projectionDeferred = true;
         try {
           this.queryClient.setQueryData<WindowManagerSnapshot>(
-            windowManagerKeys.snapshot(binding.workspaceId),
+            windowManagerKeys.snapshot(binding.workspaceId, binding.profileId),
             current => reconcileWindowManagerSnapshot(current, result.snapshot)
           );
           if (result.client !== null) this.setClient(result.client);
@@ -417,72 +410,16 @@ export abstract class WindowManagerRuntimeCore {
           this.projectionDeferred = false;
           this.publish();
         }
-        const firstDiagnostic = result.diagnostics[0];
-        windowManagerStore.trigger.commandCompleted({
-          commandId: requestId,
-          ...(firstDiagnostic
-            ? {
-                diagnostic: {
-                  code: firstDiagnostic.code,
-                  message: firstDiagnostic.message,
-                  severity: "warning" as const,
-                  field: firstDiagnostic.path,
-                },
-              }
-            : {}),
-          binding,
-        });
+        reportCommandCompleted(requestId, result, binding);
         this.publish();
         return result.applied;
       })
       .catch(error => {
-        this.clearSwitchTransition(command, binding);
-        const diagnostic = commandDiagnostic(error);
-        const storeDiagnostic = {
-          code: diagnostic.code,
-          message: diagnostic.message,
-          severity: "error" as const,
-          field: diagnostic.path,
-        };
-        if (
-          error instanceof WindowManagerApiError &&
-          error.status === 409 &&
-          error.payload?.currentRevision !== null
-        ) {
-          windowManagerStore.trigger.conflictRecorded({
-            conflict: {
-              commandId: requestId,
-              expectedRevision: snapshot.revision,
-              currentRevision: error.payload?.currentRevision ?? snapshot.revision,
-            },
-            diagnostic: storeDiagnostic,
-            binding,
-          });
-        } else {
-          windowManagerStore.trigger.commandFailed({
-            commandId: requestId,
-            diagnostic: storeDiagnostic,
-            binding,
-          });
-        }
+        clearSwitchTransition(command, binding);
+        reportCommandRefused(requestId, error, snapshot.revision, binding);
         this.publish();
         return false;
       });
-  }
-
-  /**
-   * Drops the optimistic transition of a failed desktop.switch, but only when
-   * the live intent still targets this command's desktop — a newer queued
-   * switch may have replaced it.
-   */
-  private clearSwitchTransition(
-    command: WindowManagerCommandInput,
-    binding: WindowManagerRuntimeBinding
-  ): void {
-    if (command.commandId !== "desktop.switch") return;
-    const target = command.payload.desktop_id;
-    if (typeof target !== "string") return;
-    windowManagerStore.trigger.transitionIntentRejected({ binding, toDesktopId: target });
   }
 
   protected dispatch(command: WindowManagerCommandInput): WindowManagerCommandOutcome {

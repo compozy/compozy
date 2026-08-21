@@ -18,7 +18,9 @@ func (g *WatchEventsRepo) readObserveWatchEventsCursor(
 	}
 	// dynamic-sql: caller-selected observability event kinds require a variable-width IN list.
 	placeholders, kindArgs := sqlInPlaceholders(query.kinds)
-	args := append([]any{query.workspaceID}, kindArgs...)
+	scopeSQL, scopeArgs := watchEventsScopeClause("profile_id", query.readScope)
+	args := append([]any{query.workspaceID}, scopeArgs...)
+	args = append(args, kindArgs...)
 	// #nosec G202 -- IN placeholders are generated from normalized kind count; values are parameterized.
 	return scanWatchEventCursor(
 		g.db.QueryRowContext(
@@ -26,6 +28,7 @@ func (g *WatchEventsRepo) readObserveWatchEventsCursor(
 			`SELECT COALESCE(MAX(rowid), 0)
 			   FROM event_summaries
 			  WHERE workspace_id = ?
+			    AND `+scopeSQL+`
 			    AND type IN (`+placeholders+`)`,
 			args...,
 		),
@@ -42,10 +45,10 @@ func (g *WatchEventsRepo) readObserveWatchEvents(
 	}
 	// dynamic-sql: caller-selected observability event kinds require a variable-width IN list.
 	placeholders, kindArgs := sqlInPlaceholders(query.kinds)
-	args := append([]any{
-		query.workspaceID,
-		query.streams[looppkg.WatchEventsObserveStream],
-	}, kindArgs...)
+	scopeSQL, scopeArgs := watchEventsScopeClause("profile_id", query.readScope)
+	args := append([]any{query.workspaceID}, scopeArgs...)
+	args = append(args, query.streams[looppkg.WatchEventsObserveStream])
+	args = append(args, kindArgs...)
 	args = append(args, query.limit)
 	// #nosec G202 -- IN placeholders are generated from normalized kind count; values are parameterized.
 	rows, err := g.db.QueryContext(
@@ -64,6 +67,7 @@ func (g *WatchEventsRepo) readObserveWatchEvents(
 			timestamp
 		   FROM event_summaries
 		  WHERE workspace_id = ?
+		    AND `+scopeSQL+`
 		    AND rowid > ?
 		    AND type IN (`+placeholders+`)
 		  ORDER BY rowid ASC

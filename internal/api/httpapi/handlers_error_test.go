@@ -543,7 +543,7 @@ func TestRespondErrorSanitizesInternalFailures(t *testing.T) {
 		},
 	}, stubObserver{}, homePaths))
 
-	recorder := performRequest(t, engine, http.MethodGet, "/api/sessions", nil)
+	recorder := performRequest(t, engine, http.MethodGet, "/api/sessions?all_workspaces=true", nil)
 	if recorder.Code != http.StatusInternalServerError {
 		t.Fatalf("status = %d, want %d", recorder.Code, http.StatusInternalServerError)
 	}

@@ -7,24 +7,29 @@ import (
 	"strings"
 
 	automationpkg "github.com/compozy/compozy/internal/automation"
+	"github.com/compozy/compozy/internal/store"
 )
 
 func (n *daemonNativeTools) nativeAutomationJobForWorkspace(
 	ctx context.Context,
 	workspaceID string,
 	jobID string,
+	readScope store.ReadScope,
 ) (automationpkg.Job, error) {
 	workspaceID = strings.TrimSpace(workspaceID)
 	jobID = strings.TrimSpace(jobID)
-	if workspaceID == "" {
-		return n.automationManager().GetJob(ctx, jobID)
-	}
 	job, err := n.automationManager().GetJob(ctx, jobID)
 	if err != nil {
 		if errors.Is(err, automationpkg.ErrJobNotFound) {
 			return automationpkg.Job{}, automationpkg.ErrJobNotFound
 		}
 		return automationpkg.Job{}, err
+	}
+	if !readScope.Matches(job.ProfileID) {
+		return automationpkg.Job{}, automationpkg.ErrJobNotFound
+	}
+	if workspaceID == "" {
+		return job, nil
 	}
 	if job.Scope != automationpkg.AutomationScopeWorkspace ||
 		strings.TrimSpace(job.WorkspaceID) != workspaceID {
@@ -36,11 +41,13 @@ func (n *daemonNativeTools) nativeAutomationJobForWorkspace(
 func (n *daemonNativeTools) nativeAutomationJobsForWorkspace(
 	ctx context.Context,
 	workspaceID string,
+	readScope store.ReadScope,
 ) ([]automationpkg.Job, error) {
 	query := automationpkg.JobListQuery{
 		Scope:       automationpkg.AutomationScopeWorkspace,
 		WorkspaceID: strings.TrimSpace(workspaceID),
 		Limit:       automationpkg.MaxListLimit,
+		ReadScope:   readScope,
 	}
 	jobs := make([]automationpkg.Job, 0)
 	for {
@@ -61,18 +68,22 @@ func (n *daemonNativeTools) nativeAutomationTriggerForWorkspace(
 	ctx context.Context,
 	workspaceID string,
 	triggerID string,
+	readScope store.ReadScope,
 ) (automationpkg.Trigger, error) {
 	workspaceID = strings.TrimSpace(workspaceID)
 	triggerID = strings.TrimSpace(triggerID)
-	if workspaceID == "" {
-		return n.automationManager().GetTrigger(ctx, triggerID)
-	}
 	trigger, err := n.automationManager().GetTrigger(ctx, triggerID)
 	if err != nil {
 		if errors.Is(err, automationpkg.ErrTriggerNotFound) {
 			return automationpkg.Trigger{}, automationpkg.ErrTriggerNotFound
 		}
 		return automationpkg.Trigger{}, err
+	}
+	if !readScope.Matches(trigger.ProfileID) {
+		return automationpkg.Trigger{}, automationpkg.ErrTriggerNotFound
+	}
+	if workspaceID == "" {
+		return trigger, nil
 	}
 	if trigger.Scope != automationpkg.AutomationScopeWorkspace ||
 		strings.TrimSpace(trigger.WorkspaceID) != workspaceID {
@@ -84,11 +95,13 @@ func (n *daemonNativeTools) nativeAutomationTriggerForWorkspace(
 func (n *daemonNativeTools) nativeAutomationTriggersForWorkspace(
 	ctx context.Context,
 	workspaceID string,
+	readScope store.ReadScope,
 ) ([]automationpkg.Trigger, error) {
 	query := automationpkg.TriggerListQuery{
 		Scope:       automationpkg.AutomationScopeWorkspace,
 		WorkspaceID: strings.TrimSpace(workspaceID),
 		Limit:       automationpkg.MaxListLimit,
+		ReadScope:   readScope,
 	}
 	triggers := make([]automationpkg.Trigger, 0)
 	for {
@@ -109,12 +122,10 @@ func (n *daemonNativeTools) nativeAutomationRunForWorkspace(
 	ctx context.Context,
 	workspaceID string,
 	runID string,
+	readScope store.ReadScope,
 ) (automationpkg.Run, error) {
 	workspaceID = strings.TrimSpace(workspaceID)
 	runID = strings.TrimSpace(runID)
-	if workspaceID == "" {
-		return n.automationManager().GetRun(ctx, runID)
-	}
 	run, err := n.automationManager().GetRun(ctx, runID)
 	if err != nil {
 		if errors.Is(err, automationpkg.ErrRunNotFound) {
@@ -122,24 +133,31 @@ func (n *daemonNativeTools) nativeAutomationRunForWorkspace(
 		}
 		return automationpkg.Run{}, err
 	}
+	if !readScope.Matches(run.ProfileID) {
+		return automationpkg.Run{}, automationpkg.ErrRunNotFound
+	}
 	hasTarget := false
 	if jobID := strings.TrimSpace(run.JobID); jobID != "" {
 		hasTarget = true
-		if _, err := n.nativeAutomationJobForWorkspace(ctx, workspaceID, jobID); err != nil {
-			if errors.Is(err, automationpkg.ErrJobNotFound) {
+		job, jobErr := n.nativeAutomationJobForWorkspace(ctx, workspaceID, jobID, readScope)
+		if jobErr != nil {
+			if errors.Is(jobErr, automationpkg.ErrJobNotFound) {
 				return automationpkg.Run{}, automationpkg.ErrRunNotFound
 			}
-			return automationpkg.Run{}, err
+			return automationpkg.Run{}, jobErr
 		}
+		run.ProfileID = job.ProfileID
 	}
 	if triggerID := strings.TrimSpace(run.TriggerID); triggerID != "" {
 		hasTarget = true
-		if _, err := n.nativeAutomationTriggerForWorkspace(ctx, workspaceID, triggerID); err != nil {
-			if errors.Is(err, automationpkg.ErrTriggerNotFound) {
+		trigger, triggerErr := n.nativeAutomationTriggerForWorkspace(ctx, workspaceID, triggerID, readScope)
+		if triggerErr != nil {
+			if errors.Is(triggerErr, automationpkg.ErrTriggerNotFound) {
 				return automationpkg.Run{}, automationpkg.ErrRunNotFound
 			}
-			return automationpkg.Run{}, err
+			return automationpkg.Run{}, triggerErr
 		}
+		run.ProfileID = trigger.ProfileID
 	}
 	if !hasTarget {
 		return automationpkg.Run{}, automationpkg.ErrRunNotFound
@@ -168,12 +186,17 @@ func (n *daemonNativeTools) validateNativeAutomationRunTargets(
 	query automationpkg.RunQuery,
 ) error {
 	if strings.TrimSpace(query.JobID) != "" {
-		if _, err := n.nativeAutomationJobForWorkspace(ctx, workspaceID, query.JobID); err != nil {
+		if _, err := n.nativeAutomationJobForWorkspace(ctx, workspaceID, query.JobID, query.ReadScope); err != nil {
 			return err
 		}
 	}
 	if strings.TrimSpace(query.TriggerID) != "" {
-		if _, err := n.nativeAutomationTriggerForWorkspace(ctx, workspaceID, query.TriggerID); err != nil {
+		if _, err := n.nativeAutomationTriggerForWorkspace(
+			ctx,
+			workspaceID,
+			query.TriggerID,
+			query.ReadScope,
+		); err != nil {
 			return err
 		}
 	}
@@ -185,11 +208,11 @@ func (n *daemonNativeTools) nativeAutomationRunsAcrossWorkspaceTargets(
 	workspaceID string,
 	query automationpkg.RunQuery,
 ) ([]automationpkg.Run, error) {
-	jobs, err := n.nativeAutomationJobsForWorkspace(ctx, workspaceID)
+	jobs, err := n.nativeAutomationJobsForWorkspace(ctx, workspaceID, query.ReadScope)
 	if err != nil {
 		return nil, err
 	}
-	triggers, err := n.nativeAutomationTriggersForWorkspace(ctx, workspaceID)
+	triggers, err := n.nativeAutomationTriggersForWorkspace(ctx, workspaceID, query.ReadScope)
 	if err != nil {
 		return nil, err
 	}

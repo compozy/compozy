@@ -39,6 +39,11 @@ import (
 	"github.com/pressly/goose/v3"
 )
 
+func eventSummaryWithContent(summary EventSummary, content json.RawMessage) EventSummary {
+	summary.SetContent(content)
+	return summary
+}
+
 type SessionInfo = store.SessionInfo
 type SessionStateUpdate = store.SessionStateUpdate
 type SessionListQuery = store.SessionListQuery
@@ -129,6 +134,51 @@ func reportTestMainError(format string, args ...any) {
 }
 
 func TestOpenGlobalDBAppliesGlobalMigrationsAndEnablesWAL(t *testing.T) {
+	t.Run("Should verify the exact permanent default profile without repairing it", func(t *testing.T) {
+		t.Parallel()
+
+		globalDB := openFreshTestGlobalDB(t)
+		ctx := testutil.Context(t)
+		if err := globalDB.VerifyDefaultProfile(ctx); err != nil {
+			t.Fatalf("VerifyDefaultProfile() error = %v", err)
+		}
+		var handoffTables int
+		if err := globalDB.db.QueryRowContext(
+			ctx,
+			`SELECT COUNT(*) FROM sqlite_master
+			 WHERE type = 'table' AND name = 'phase0_operator_home_context'`,
+		).Scan(&handoffTables); err != nil {
+			t.Fatalf("inspect operator-home handoff table error = %v", err)
+		}
+		if handoffTables != 0 {
+			t.Fatalf("operator-home handoff table count = %d, want migration-only state", handoffTables)
+		}
+		if _, err := globalDB.db.ExecContext(
+			ctx,
+			`UPDATE profiles SET color = '#000000' WHERE id = ?`,
+			store.DefaultProfileID,
+		); err != nil {
+			t.Fatalf("corrupt default profile fixture error = %v", err)
+		}
+		if err := globalDB.VerifyDefaultProfile(ctx); err == nil || !strings.Contains(
+			err.Error(),
+			"does not match the permanent identity",
+		) {
+			t.Fatalf("VerifyDefaultProfile(corrupt) error = %v, want permanent identity mismatch", err)
+		}
+		var color string
+		if err := globalDB.db.QueryRowContext(
+			ctx,
+			`SELECT color FROM profiles WHERE id = ?`,
+			store.DefaultProfileID,
+		).Scan(&color); err != nil {
+			t.Fatalf("read corrupt default profile error = %v", err)
+		}
+		if color != "#000000" {
+			t.Fatalf("VerifyDefaultProfile() repaired color = %q, want verify-only state", color)
+		}
+	})
+
 	t.Run("Should apply the complete global migration stream before repository use", func(t *testing.T) {
 		t.Parallel()
 
@@ -244,6 +294,8 @@ func TestOpenGlobalDBAppliesGlobalMigrationsAndEnablesWAL(t *testing.T) {
 			"active_config_hash",
 			"generation",
 			"actor",
+			"write_target",
+			"write_path",
 			"diff_class",
 			"status",
 			"diagnostic_json",
@@ -498,6 +550,7 @@ func TestOpenGlobalDBReopenPreservesRowsAndStatus(t *testing.T) {
 			ID: "wt-reopen", WorkspaceID: workspace.ID, Name: "reopen-worktree",
 			Branch: "feature/reopen", Path: filepath.Join(t.TempDir(), "reopen-worktree"),
 			State: worktreepkg.StateReady, Origin: worktreepkg.OriginManual, SetupState: worktreepkg.SetupNone,
+			ProfileID: store.DefaultProfileID,
 			CreatedAt: workspace.CreatedAt, UpdatedAt: workspace.UpdatedAt,
 		}
 		if err := first.Worktrees.Insert(ctx, worktree); err != nil {
@@ -589,6 +642,638 @@ func TestOpenGlobalDBReopenPreservesRowsAndStatus(t *testing.T) {
 			t.Fatalf("Status(second post-cut) = %#v, want unchanged %#v", secondStatus, firstStatus)
 		}
 	})
+}
+
+func TestGlobalDBPhase0HomeWorkspaceMigration(t *testing.T) {
+	t.Run("Should re-home synthetic workspace data without cascade loss", func(t *testing.T) {
+		t.Parallel()
+
+		path := filepath.Join(t.TempDir(), GlobalDatabaseName)
+		homeDir := t.TempDir()
+		prefixDB, err := openGlobalMigrationPrefixDatabase(
+			t,
+			path,
+			globalMigrationPrefixBefore(t, "00085_schema.sql"),
+		)
+		if err != nil {
+			t.Fatalf("open migration 00084 fixture error = %v", err)
+		}
+		prefixClosed := false
+		t.Cleanup(func() {
+			if prefixClosed {
+				return
+			}
+			if closeErr := prefixDB.Close(); closeErr != nil {
+				t.Errorf("Close(phase0 fixture cleanup) error = %v", closeErr)
+			}
+		})
+		ctx := globalMigrationTestContext(t)
+		seedPhase0HomeWorkspaceFixture(ctx, t, prefixDB, homeDir)
+		if err := prepareOperatorHomeMigrationContext(ctx, prefixDB, homeDir); err != nil {
+			t.Fatalf("prepare phase0 migration context error = %v", err)
+		}
+		if err := applyGlobalMigrationPrefix(
+			t,
+			prefixDB,
+			globalMigrationPrefixBefore(t, "00086_schema.sql"),
+		); err != nil {
+			t.Fatalf("apply migration through 00085 error = %v", err)
+		}
+		assertPhase0HomeWorkspaceDisposition(ctx, t, prefixDB)
+		assertPhase0RebuiltGuards(ctx, t, prefixDB)
+		if err := prefixDB.Close(); err != nil {
+			t.Fatalf("Close(phase0 fixture) error = %v", err)
+		}
+		prefixClosed = true
+
+		reopened, err := sql.Open(sqliteDriverName, path)
+		if err != nil {
+			t.Fatalf("sql.Open(phase0 reopen) error = %v", err)
+		}
+		t.Cleanup(func() {
+			if closeErr := reopened.Close(); closeErr != nil {
+				t.Errorf("Close(phase0 reopen) error = %v", closeErr)
+			}
+		})
+		assertPhase0HomeWorkspaceDisposition(ctx, t, reopened)
+	})
+
+	t.Run("Should abort atomically when the home workspace owns a worktree", func(t *testing.T) {
+		t.Parallel()
+
+		path := filepath.Join(t.TempDir(), GlobalDatabaseName)
+		homeDir := t.TempDir()
+		prefixDB, err := openGlobalMigrationPrefixDatabase(
+			t,
+			path,
+			globalMigrationPrefixBefore(t, "00085_schema.sql"),
+		)
+		if err != nil {
+			t.Fatalf("open migration 00084 worktree fixture error = %v", err)
+		}
+		ctx := globalMigrationTestContext(t)
+		if _, err := prefixDB.ExecContext(ctx, `INSERT INTO workspaces (
+			id, root_dir, add_dirs, name, created_at, updated_at
+		) VALUES ('home-workspace', ?, '[]', 'home', ?, ?)`, homeDir, phase0FixtureTime, phase0FixtureTime); err != nil {
+			t.Fatalf("seed home workspace error = %v", err)
+		}
+		if _, err := prefixDB.ExecContext(ctx, `INSERT INTO worktrees (
+			id, workspace_id, name, branch, path, state, origin, setup_state, created_at, updated_at
+		) VALUES (
+			'home-worktree', 'home-workspace', 'home', 'main', ?, 'ready', 'manual', 'none', ?, ?
+		)`, filepath.Join(homeDir, "worktree"), phase0FixtureTime, phase0FixtureTime); err != nil {
+			t.Fatalf("seed home worktree error = %v", err)
+		}
+		if err := prefixDB.Close(); err != nil {
+			t.Fatalf("Close(worktree fixture) error = %v", err)
+		}
+
+		_, err = openGlobalMigrationUpgradeWithOptions(t, path, WithOperatorHomeDir(homeDir))
+		if err == nil || !strings.Contains(err.Error(), "worktrees") {
+			t.Fatalf("OpenGlobalDB(worktree fixture) error = %v, want worktrees assertion", err)
+		}
+
+		inspection, err := sql.Open(sqliteDriverName, path)
+		if err != nil {
+			t.Fatalf("sql.Open(worktree inspection) error = %v", err)
+		}
+		t.Cleanup(func() {
+			if closeErr := inspection.Close(); closeErr != nil {
+				t.Errorf("Close(worktree inspection) error = %v", closeErr)
+			}
+		})
+		assertSQLInt64(ctx, t, inspection, `SELECT COUNT(*) FROM workspaces WHERE id = 'home-workspace'`, 1)
+		assertSQLInt64(ctx, t, inspection, `SELECT COUNT(*) FROM worktrees WHERE id = 'home-worktree'`, 1)
+		status, err := store.Status(ctx, inspection, MigrationStream())
+		if err != nil {
+			t.Fatalf("Status(worktree assertion) error = %v", err)
+		}
+		if status.Version != 84 {
+			t.Fatalf("Status(worktree assertion).Version = %d, want 84", status.Version)
+		}
+	})
+}
+
+const phase0FixtureTime = "2026-08-21T12:00:00Z"
+
+func seedPhase0HomeWorkspaceFixture(ctx context.Context, t *testing.T, db *sql.DB, homeDir string) {
+	t.Helper()
+
+	statements := []struct {
+		name  string
+		query string
+		args  []any
+	}{
+		{name: "workspace", query: `INSERT INTO workspaces (
+			id, root_dir, add_dirs, name, created_at, updated_at
+		) VALUES ('home-workspace', ?, '[]', 'home', ?, ?)`, args: []any{homeDir, phase0FixtureTime, phase0FixtureTime}},
+		{name: "session", query: `INSERT INTO sessions (
+			id, agent_name, workspace_id, state, created_at, updated_at
+		) VALUES ('home-session', 'default', 'home-workspace', 'idle', ?, ?)`, args: []any{phase0FixtureTime, phase0FixtureTime}},
+		{name: "session health", query: `INSERT INTO session_health (
+			session_id, workspace_id, agent_name, state, health, active_prompt,
+			attachable, eligible_for_wake, updated_at
+		) VALUES ('home-session', 'home-workspace', 'default', 'idle', 'healthy', 0, 1, 1, ?)`, args: []any{phase0FixtureTime}},
+		{name: "session prompt admission", query: `INSERT INTO session_prompt_admissions (
+			id, workspace_id, session_id, message_id, idempotency_key, operation,
+			fingerprint_version, request_fingerprint, state, turn_id, event_id, created_at, updated_at
+		) VALUES (
+			'home-admission', 'home-workspace', 'home-session', 'message-1', 'key-1', 'prompt',
+			'v1', 'digest-1', 'reserved', 'turn-1', 'event-1', ?, ?
+		)`, args: []any{phase0FixtureTime, phase0FixtureTime}},
+		{name: "task", query: `INSERT INTO tasks (
+			id, scope, workspace_id, title, status, created_by_kind, created_by_ref,
+			origin_kind, origin_ref, created_at, updated_at
+		) VALUES (
+			'home-task', 'workspace', 'home-workspace', 'Home task', 'ready',
+			'daemon', 'phase0', 'daemon', 'phase0', ?, ?
+		)`, args: []any{phase0FixtureTime, phase0FixtureTime}},
+		{name: "task run", query: `INSERT INTO task_runs (
+			id, task_id, workspace_id, status, attempt, origin_kind, origin_ref, queued_at
+		) VALUES ('home-run', 'home-task', 'home-workspace', 'queued', 1, 'daemon', 'phase0', ?)`, args: []any{phase0FixtureTime}},
+		{name: "task block", query: `INSERT INTO task_blocks (
+			id, workspace_id, task_id, kind, reason, created_by_kind, created_by_ref, created_at
+		) VALUES ('home-block', 'home-workspace', 'home-task', 'needs_input', 'input', 'daemon', 'phase0', ?)`, args: []any{phase0FixtureTime}},
+		{name: "automation job", query: `INSERT INTO automation_jobs (
+			id, scope, name, agent_name, workspace_id, prompt, enabled, retry, fire_limit, created_at, updated_at
+		) VALUES ('home-job', 'workspace', 'home-job', 'default', 'home-workspace', 'run', 1, '{}', '{}', ?, ?)`, args: []any{phase0FixtureTime, phase0FixtureTime}},
+		{name: "automation trigger", query: `INSERT INTO automation_triggers (
+			id, scope, name, agent_name, workspace_id, prompt, event, enabled, retry, fire_limit, created_at, updated_at
+		) VALUES ('home-trigger', 'workspace', 'home-trigger', 'default', 'home-workspace', 'run', 'push', 1, '{}', '{}', ?, ?)`, args: []any{phase0FixtureTime, phase0FixtureTime}},
+		{name: "automation suggestion", query: `INSERT INTO automation_suggestions (
+			id, workspace_id, source, dedup_key, status, payload, created_at
+		) VALUES ('home-suggestion', 'home-workspace', 'catalog', 'daily', 'pending', '{}', ?)`, args: []any{phase0FixtureTime}},
+		{
+			name: "automation run",
+			query: `INSERT INTO automation_runs (id, job_id, session_id, task_id, task_run_id, status, attempt)
+		VALUES ('home-automation-run', 'home-job', 'home-session', 'home-task', 'home-run', 'completed', 1)`,
+		},
+		{name: "bridge instance", query: `INSERT INTO bridge_instances (
+			id, scope, workspace_id, platform, extension_name, display_name, status,
+			routing_policy, created_at, updated_at
+		) VALUES (
+			'home-bridge', 'workspace', 'home-workspace', 'test', 'test.extension',
+			'Home bridge', 'active', '{}', ?, ?
+		)`, args: []any{phase0FixtureTime, phase0FixtureTime}},
+		{name: "bridge route", query: `INSERT INTO bridge_routes (
+			routing_key_hash, scope, workspace_id, bridge_instance_id, session_id,
+			agent_name, last_activity_at, created_at, updated_at
+		) VALUES (
+			'home-route', 'workspace', 'home-workspace', 'home-bridge', 'home-session',
+			'default', ?, ?, ?
+		)`, args: []any{phase0FixtureTime, phase0FixtureTime, phase0FixtureTime}},
+		{name: "loop config", query: `INSERT INTO loop_config (
+			workspace_id, loop_name, human_gate_enabled, enabled_checks_json, iteration_cap
+		) VALUES ('home-workspace', 'home-loop', 0, '{}', 3)`},
+		{name: "agent soul snapshot", query: `INSERT INTO agent_soul_snapshots (
+			id, workspace_id, agent_name, source_path, digest, created_at
+		) VALUES ('home-soul-snapshot', 'home-workspace', 'default', 'SOUL.md', 'soul-digest', ?)`, args: []any{phase0FixtureTime}},
+		{name: "agent soul revision", query: `INSERT INTO agent_soul_revisions (
+			id, workspace_id, agent_name, source_path, action, created_at
+		) VALUES ('home-soul-revision', 'home-workspace', 'default', 'SOUL.md', 'put', ?)`, args: []any{phase0FixtureTime}},
+		{name: "agent heartbeat snapshot", query: `INSERT INTO agent_heartbeat_snapshots (
+			id, workspace_id, agent_name, source_path, digest, config_digest, body,
+			frontmatter_json, resolved_json, diagnostics_json, created_at
+		) VALUES (
+			'home-heartbeat-snapshot', 'home-workspace', 'default', 'HEARTBEAT.md',
+			'heartbeat-digest', 'config-digest', '', '{}', '{}', '[]', ?
+		)`, args: []any{phase0FixtureTime}},
+		{name: "agent heartbeat revision", query: `INSERT INTO agent_heartbeat_revisions (
+			id, workspace_id, agent_name, source_path, operation, new_snapshot_id,
+			actor_kind, actor_id, created_at
+		) VALUES (
+			'home-heartbeat-revision', 'home-workspace', 'default', 'HEARTBEAT.md',
+			'write', 'home-heartbeat-snapshot', 'system', 'phase0', ?
+		)`, args: []any{phase0FixtureTime}},
+		{name: "agent heartbeat wake event", query: `INSERT INTO agent_heartbeat_wake_events (
+			id, workspace_id, agent_name, session_id, policy_snapshot_id, source,
+			result, reason, created_at, expires_at
+		) VALUES (
+			'home-heartbeat-event', 'home-workspace', 'default', 'home-session',
+			'home-heartbeat-snapshot', 'manual', 'sent', 'wake_sent', ?, ?
+		)`, args: []any{phase0FixtureTime, "2026-08-22T12:00:00Z"}},
+		{name: "agent heartbeat wake state", query: `INSERT INTO agent_heartbeat_wake_state (
+			workspace_id, agent_name, session_id, policy_snapshot_id, last_result, updated_at
+		) VALUES (
+			'home-workspace', 'default', 'home-session', 'home-heartbeat-snapshot', 'sent', ?
+		)`, args: []any{phase0FixtureTime}},
+		{name: "tool approval grant", query: `INSERT INTO tool_approval_grants (
+			id, workspace_id, agent_name, tool_id, decision, created_at, last_used_at
+		) VALUES ('home-grant', 'home-workspace', 'default', 'test_tool', 'allow', ?, ?)`, args: []any{phase0FixtureTime, phase0FixtureTime}},
+		{name: "dead entity", query: `INSERT INTO dead_entities (workspace_id, kind, entity_id, reason, marked_at)
+		VALUES ('home-workspace', 'extension', 'dead-extension', 'removed', ?)`, args: []any{phase0FixtureTime}},
+		{name: "pending tool approval", query: `INSERT INTO tool_approval_pending (
+			approval_id, workspace_id, invocation_id, target_kind, tool_id, args_json,
+			approval_status, requested_at, expires_at
+		) VALUES (
+			'apr_home', 'home-workspace', 'invocation-home', 'tool', 'test_tool', '{}',
+			'pending', 1, 2
+		)`},
+		{name: "pre-existing aggregate command palette usage", query: `INSERT INTO cmd_palette_usage (
+			workspace_id, command_id, use_count, frecency_weight, last_used_at, updated_at
+		) VALUES ('', 'home.command', 5, 1.5, 20, 9)`},
+		{name: "command palette usage", query: `INSERT INTO cmd_palette_usage (
+			workspace_id, command_id, use_count, frecency_weight, last_used_at, updated_at
+		) VALUES ('home-workspace', 'home.command', 3, 2.5, 10, 10)`},
+		{name: "pre-existing aggregate command palette query hit", query: `INSERT INTO cmd_palette_query_hits (
+			workspace_id, query, command_id, weight, last_used_at
+		) VALUES ('', 'home', 'home.command', 1.5, 20)`},
+		{name: "command palette query hit", query: `INSERT INTO cmd_palette_query_hits (
+			workspace_id, query, command_id, weight, last_used_at
+		) VALUES ('home-workspace', 'home', 'home.command', 4.5, 10)`},
+		{name: "pre-existing aggregate command palette pin", query: `INSERT INTO cmd_palette_pins (
+			workspace_id, command_id, pinned_at
+		) VALUES ('', 'home.command', 5)`},
+		{name: "command palette pin", query: `INSERT INTO cmd_palette_pins (workspace_id, command_id, pinned_at)
+		VALUES ('home-workspace', 'home.command', 10)`},
+		{name: "event summary", query: `INSERT INTO event_summaries (id, workspace_id, type, timestamp)
+		VALUES ('home-summary', 'home-workspace', 'phase0', ?)`, args: []any{phase0FixtureTime}},
+		{name: "pre-existing aggregate daily token usage", query: `INSERT INTO token_usage_daily (
+			day, workspace_id, agent_name, input_tokens, output_tokens, total_tokens,
+			total_cost, cost_currency, cost_status, cost_source, turn_count, updated_at
+		) VALUES (
+			'2026-08-21', '', 'default', 7, 11, 18,
+			1.25, 'USD', 'estimated', 'catalog_config', 2, '2026-08-20T12:00:00Z'
+		)`},
+		{name: "daily token usage", query: `INSERT INTO token_usage_daily (
+			day, workspace_id, agent_name, input_tokens, output_tokens, total_tokens, turn_count, updated_at
+		) VALUES ('2026-08-21', 'home-workspace', 'default', 2, 3, 5, 1, ?)`, args: []any{phase0FixtureTime}},
+		{name: "network channel", query: `INSERT INTO network_channels (
+			workspace_id, channel, purpose, created_at, updated_at
+		) VALUES ('home-workspace', 'general', 'coordination', ?, ?)`, args: []any{phase0FixtureTime, phase0FixtureTime}},
+		{name: "network channel stats", query: `INSERT INTO network_channel_stats (workspace_id, channel)
+		VALUES ('home-workspace', 'general')`},
+		{
+			name: "network channel kind count",
+			query: `INSERT INTO network_channel_kind_counts (workspace_id, channel, kind, message_count)
+		VALUES ('home-workspace', 'general', 'say', 2)`,
+		},
+		{name: "network audit log", query: `INSERT INTO network_audit_log (
+			id, session_id, workspace_id, direction, kind, channel, peer_from,
+			message_id, size, timestamp
+		) VALUES (
+			'home-audit', 'home-session', 'home-workspace', 'outbound', 'say', 'general',
+			'peer-a', 'message-home', 5, ?
+		)`, args: []any{phase0FixtureTime}},
+		{name: "workspace network coordination", query: `INSERT INTO workspace_network_coordination (
+			workspace_id, enabled, revision, updated_at, updated_by
+		) VALUES ('home-workspace', 1, 1, ?, 'phase0')`, args: []any{phase0FixtureTime}},
+		{name: "task network coordination", query: `INSERT INTO task_network_coordination (
+			task_id, workspace_id, enabled, revision, updated_at, updated_by
+		) VALUES ('home-task', 'home-workspace', 1, 1, ?, 'phase0')`, args: []any{phase0FixtureTime}},
+		{name: "pre-existing aggregate notification cursor", query: `INSERT INTO notification_cursors (
+			scope_kind, workspace_id, consumer_id, stream_name, subject_id,
+			last_sequence, last_delivery_id, last_delivered_at, last_error, updated_at
+		) VALUES (
+			'global', '', 'consumer', 'events', '', 11, 'aggregate-delivery',
+			'2026-08-22T12:00:00Z', 'aggregate-error', '2026-08-22T12:00:00Z'
+		)`},
+		{name: "notification cursor", query: `INSERT INTO notification_cursors (
+			scope_kind, workspace_id, consumer_id, stream_name, last_sequence, updated_at
+		) VALUES ('workspace', 'home-workspace', 'consumer', 'events', 7, ?)`, args: []any{phase0FixtureTime}},
+		{name: "extension environment binding", query: `INSERT INTO extension_env_bindings (
+			extension_name, workspace_id, env_name, secret_ref, kind, created_at, updated_at
+		) VALUES ('test.extension', 'home-workspace', 'TOKEN', 'vault:extensions/test/token', 'extension_env', ?, ?)`, args: []any{phase0FixtureTime, phase0FixtureTime}},
+		{name: "extension development link", query: `INSERT INTO extension_dev_links (
+			extension_name, workspace_id, origin_path, bundle_generation, linked_at
+		) VALUES ('test.extension', 'home-workspace', '/tmp/test-extension', '1', ?)`, args: []any{phase0FixtureTime}},
+	}
+	for _, statement := range statements {
+		if _, err := db.ExecContext(ctx, statement.query, statement.args...); err != nil {
+			t.Fatalf("seed phase0 fixture %s error = %v", statement.name, err)
+		}
+	}
+}
+
+func assertPhase0HomeWorkspaceDisposition(ctx context.Context, t *testing.T, db *sql.DB) {
+	t.Helper()
+
+	stringCases := []struct {
+		name  string
+		query string
+		want  string
+	}{
+		{
+			name:  "session scope",
+			query: `SELECT scope || ':' || workspace_id FROM sessions WHERE id = 'home-session'`,
+			want:  "global:",
+		},
+		{
+			name:  "prompt admission",
+			query: `SELECT workspace_id FROM session_prompt_admissions WHERE id = 'home-admission'`,
+			want:  "",
+		},
+		{
+			name:  "session health",
+			query: `SELECT workspace_id FROM session_health WHERE session_id = 'home-session'`,
+			want:  "",
+		},
+		{
+			name:  "task scope",
+			query: `SELECT scope || ':' || coalesce(workspace_id, '') FROM tasks WHERE id = 'home-task'`,
+			want:  "global:",
+		},
+		{name: "task run", query: `SELECT coalesce(workspace_id, '') FROM task_runs WHERE id = 'home-run'`, want: ""},
+		{
+			name:  "automation job",
+			query: `SELECT scope || ':' || coalesce(workspace_id, '') FROM automation_jobs WHERE id = 'home-job'`,
+			want:  "global:",
+		},
+		{
+			name:  "automation trigger",
+			query: `SELECT scope || ':' || coalesce(workspace_id, '') FROM automation_triggers WHERE id = 'home-trigger'`,
+			want:  "global:",
+		},
+		{
+			name:  "automation suggestion",
+			query: `SELECT coalesce(workspace_id, '') FROM automation_suggestions WHERE id = 'home-suggestion'`,
+			want:  "",
+		},
+		{
+			name:  "bridge instance",
+			query: `SELECT scope || ':' || coalesce(workspace_id, '') FROM bridge_instances WHERE id = 'home-bridge'`,
+			want:  "global:",
+		},
+		{name: "loop config", query: `SELECT workspace_id FROM loop_config WHERE loop_name = 'home-loop'`, want: ""},
+		{
+			name:  "soul snapshot",
+			query: `SELECT workspace_id FROM agent_soul_snapshots WHERE id = 'home-soul-snapshot'`,
+			want:  "",
+		},
+		{
+			name:  "heartbeat snapshot",
+			query: `SELECT workspace_id FROM agent_heartbeat_snapshots WHERE id = 'home-heartbeat-snapshot'`,
+			want:  "",
+		},
+		{name: "tool grant", query: `SELECT workspace_id FROM tool_approval_grants WHERE id = 'home-grant'`, want: ""},
+		{
+			name:  "dead entity",
+			query: `SELECT workspace_id FROM dead_entities WHERE entity_id = 'dead-extension'`,
+			want:  "",
+		},
+		{
+			name:  "pending approval",
+			query: `SELECT coalesce(workspace_id, '') FROM tool_approval_pending WHERE approval_id = 'apr_home'`,
+			want:  "",
+		},
+		{
+			name:  "palette usage",
+			query: `SELECT workspace_id FROM cmd_palette_usage WHERE command_id = 'home.command'`,
+			want:  "",
+		},
+		{name: "event summary", query: `SELECT workspace_id FROM event_summaries WHERE id = 'home-summary'`, want: ""},
+		{name: "token usage", query: `SELECT workspace_id FROM token_usage_daily WHERE day = '2026-08-21'`, want: ""},
+		{
+			name:  "network channel",
+			query: `SELECT workspace_id FROM network_channels WHERE channel = 'general'`,
+			want:  "",
+		},
+		{name: "network audit", query: `SELECT workspace_id FROM network_audit_log WHERE id = 'home-audit'`, want: ""},
+		{
+			name:  "task coordination",
+			query: `SELECT workspace_id FROM task_network_coordination WHERE task_id = 'home-task'`,
+			want:  "",
+		},
+		{
+			name:  "notification cursor",
+			query: `SELECT scope_kind || ':' || workspace_id FROM notification_cursors WHERE consumer_id = 'consumer'`,
+			want:  "global:",
+		},
+	}
+	for _, testCase := range stringCases {
+		var got string
+		if err := db.QueryRowContext(ctx, testCase.query).Scan(&got); err != nil {
+			t.Fatalf("query %s error = %v", testCase.name, err)
+		}
+		if got != testCase.want {
+			t.Fatalf("%s = %q, want %q", testCase.name, got, testCase.want)
+		}
+	}
+
+	var usageCount, usageLastUsedAt, usageUpdatedAt int64
+	var usageWeight float64
+	if err := db.QueryRowContext(ctx, `SELECT use_count, frecency_weight, last_used_at, updated_at
+		FROM cmd_palette_usage WHERE workspace_id = '' AND command_id = 'home.command'`).Scan(
+		&usageCount, &usageWeight, &usageLastUsedAt, &usageUpdatedAt,
+	); err != nil {
+		t.Fatalf("query merged command palette usage error = %v", err)
+	}
+	if usageCount != 8 || usageWeight != 4 || usageLastUsedAt != 20 || usageUpdatedAt != 10 {
+		t.Fatalf("merged command palette usage = (%d, %v, %d, %d), want (8, 4, 20, 10)",
+			usageCount, usageWeight, usageLastUsedAt, usageUpdatedAt)
+	}
+
+	var queryWeight float64
+	var queryLastUsedAt int64
+	if err := db.QueryRowContext(ctx, `SELECT weight, last_used_at FROM cmd_palette_query_hits
+		WHERE workspace_id = '' AND query = 'home' AND command_id = 'home.command'`).Scan(
+		&queryWeight, &queryLastUsedAt,
+	); err != nil {
+		t.Fatalf("query merged command palette hit error = %v", err)
+	}
+	if queryWeight != 6 || queryLastUsedAt != 20 {
+		t.Fatalf("merged command palette hit = (%v, %d), want (6, 20)", queryWeight, queryLastUsedAt)
+	}
+	assertSQLInt64(ctx, t, db, `SELECT pinned_at FROM cmd_palette_pins
+		WHERE workspace_id = '' AND command_id = 'home.command'`, 5)
+
+	var inputTokens, outputTokens, totalTokens, turnCount int64
+	var totalCost float64
+	var currency, costStatus, costSource, usageTimestamp string
+	if err := db.QueryRowContext(ctx, `SELECT input_tokens, output_tokens, total_tokens, total_cost,
+		cost_currency, cost_status, cost_source, turn_count, updated_at
+		FROM token_usage_daily WHERE day = '2026-08-21' AND workspace_id = '' AND agent_name = 'default'`).Scan(
+		&inputTokens, &outputTokens, &totalTokens, &totalCost, &currency, &costStatus, &costSource,
+		&turnCount, &usageTimestamp,
+	); err != nil {
+		t.Fatalf("query merged token usage error = %v", err)
+	}
+	if inputTokens != 9 || outputTokens != 14 || totalTokens != 23 || totalCost != 1.25 ||
+		currency != "USD" || costStatus != "unknown" || costSource != "none" || turnCount != 3 ||
+		usageTimestamp != phase0FixtureTime {
+		t.Fatalf(
+			"merged token usage = (%d, %d, %d, %v, %q, %q, %q, %d, %q), want preserved aggregate",
+			inputTokens,
+			outputTokens,
+			totalTokens,
+			totalCost,
+			currency,
+			costStatus,
+			costSource,
+			turnCount,
+			usageTimestamp,
+		)
+	}
+
+	var cursorSequence int64
+	var deliveryID, deliveredAt, lastError, cursorUpdatedAt string
+	if err := db.QueryRowContext(ctx, `SELECT last_sequence, last_delivery_id, last_delivered_at, last_error, updated_at
+		FROM notification_cursors
+		WHERE scope_kind = 'global' AND workspace_id = '' AND consumer_id = 'consumer'
+		AND stream_name = 'events' AND subject_id = ''`).Scan(
+		&cursorSequence, &deliveryID, &deliveredAt, &lastError, &cursorUpdatedAt,
+	); err != nil {
+		t.Fatalf("query merged notification cursor error = %v", err)
+	}
+	if cursorSequence != 11 || deliveryID != "aggregate-delivery" || deliveredAt != "2026-08-22T12:00:00Z" ||
+		lastError != "aggregate-error" || cursorUpdatedAt != "2026-08-22T12:00:00Z" {
+		t.Fatalf("merged notification cursor = (%d, %q, %q, %q, %q), want latest aggregate cursor",
+			cursorSequence, deliveryID, deliveredAt, lastError, cursorUpdatedAt)
+	}
+
+	assertSQLInt64(ctx, t, db, `SELECT COUNT(*) FROM workspaces WHERE id = 'home-workspace'`, 0)
+	assertSQLInt64(
+		ctx,
+		t,
+		db,
+		`SELECT COUNT(*) FROM workspace_network_coordination WHERE workspace_id = 'home-workspace'`,
+		0,
+	)
+	assertSQLInt64(ctx, t, db, `SELECT COUNT(*) FROM extension_env_bindings WHERE workspace_id = 'home-workspace'`, 0)
+	assertSQLInt64(ctx, t, db, `SELECT COUNT(*) FROM extension_dev_links WHERE workspace_id = 'home-workspace'`, 0)
+	assertNoForeignKeyViolations(ctx, t, db)
+}
+
+func assertPhase0RebuiltGuards(ctx context.Context, t *testing.T, db *sql.DB) {
+	t.Helper()
+
+	if _, err := db.ExecContext(ctx, `INSERT INTO sessions (
+		id, agent_name, scope, workspace_id, state, created_at, updated_at
+	) VALUES ('phase0-empty-workspace-session', 'default', 'global', '', 'idle', ?, ?)`,
+		phase0FixtureTime, phase0FixtureTime,
+	); err != nil {
+		t.Fatalf("insert phase0 empty-workspace sentinel session error = %v", err)
+	}
+
+	for _, testCase := range []struct {
+		name  string
+		query string
+		args  []any
+		want  string
+	}{
+		{
+			name: "session insert workspace guard",
+			query: `INSERT INTO sessions (
+				id, agent_name, scope, workspace_id, state, created_at, updated_at
+			) VALUES ('phase0-missing-workspace-session', 'default', 'workspace', 'missing-workspace', 'idle', ?, ?)`,
+			args: []any{phase0FixtureTime, phase0FixtureTime}, want: "workspace not found",
+		},
+		{
+			name: "session update workspace guard",
+			query: `UPDATE sessions SET workspace_id = 'missing-workspace'
+				WHERE id = 'phase0-empty-workspace-session'`,
+			want: "workspace not found",
+		},
+		{
+			name: "task coordination insert workspace guard",
+			query: `INSERT INTO task_network_coordination (
+				task_id, workspace_id, enabled, revision, updated_at, updated_by
+			) VALUES ('phase0-missing-task', 'missing-workspace', 1, 1, ?, 'phase0')`,
+			args: []any{phase0FixtureTime}, want: "workspace not found",
+		},
+		{
+			name:  "task coordination update workspace guard",
+			query: `UPDATE task_network_coordination SET workspace_id = 'missing-workspace' WHERE task_id = 'home-task'`,
+			want:  "workspace not found",
+		},
+		{
+			name: "approval grant insert workspace guard",
+			query: `INSERT INTO tool_approval_grants (
+				id, workspace_id, agent_name, tool_id, decision, created_at, last_used_at
+			) VALUES ('phase0-missing-grant', 'missing-workspace', 'default', 'test_tool', 'allow', ?, ?)`,
+			args: []any{phase0FixtureTime, phase0FixtureTime}, want: "workspace not found",
+		},
+		{
+			name:  "approval grant update workspace guard",
+			query: `UPDATE tool_approval_grants SET workspace_id = 'missing-workspace' WHERE id = 'home-grant'`,
+			want:  "workspace not found",
+		},
+		{
+			name: "session archive insert guard",
+			query: `INSERT INTO sessions (
+				id, agent_name, scope, workspace_id, state, archived_at, created_at, updated_at
+			) VALUES ('phase0-archived-session', 'default', 'global', '', 'idle', ?, ?, ?)`,
+			args: []any{phase0FixtureTime, phase0FixtureTime, phase0FixtureTime}, want: "session is archived",
+		},
+		{
+			name:  "session archive update guard",
+			query: `UPDATE sessions SET archived_at = ? WHERE id = 'phase0-empty-workspace-session'`,
+			args:  []any{phase0FixtureTime}, want: "session is archived",
+		},
+	} {
+		if _, err := db.ExecContext(ctx, testCase.query, testCase.args...); err == nil ||
+			!strings.Contains(err.Error(), testCase.want) {
+			t.Fatalf("%s error = %v, want %q", testCase.name, err, testCase.want)
+		}
+	}
+
+	if _, err := db.ExecContext(ctx, `INSERT INTO task_run_terminal_commands (
+		command_id, run_id, task_id, workspace_id, kind, phase, source_status,
+		source_session_id, source_claim_token_hash, intent_json, actor_json,
+		command_at, admitted_at, updated_at
+	) VALUES (
+		'phase0-terminal-command', 'home-run', 'home-task', '', 'needs_attention', 'admitted', 'queued',
+		'', '', '{}', '{}', ?, ?, ?
+	)`, phase0FixtureTime, phase0FixtureTime, phase0FixtureTime); err != nil {
+		t.Fatalf("insert phase0 terminal command error = %v", err)
+	}
+	for _, testCase := range []struct {
+		name  string
+		query string
+	}{
+		{name: "terminal command update guard", query: `UPDATE task_runs SET status = 'claimed' WHERE id = 'home-run'`},
+		{name: "terminal command delete guard", query: `DELETE FROM task_runs WHERE id = 'home-run'`},
+	} {
+		if _, err := db.ExecContext(ctx, testCase.query); err == nil ||
+			!strings.Contains(err.Error(), terminalRunCommandGuardMessage) {
+			t.Fatalf("%s error = %v, want %q", testCase.name, err, terminalRunCommandGuardMessage)
+		}
+	}
+	if _, err := db.ExecContext(ctx, `DELETE FROM task_run_terminal_commands
+		WHERE command_id = 'phase0-terminal-command'`); err != nil {
+		t.Fatalf("delete phase0 terminal command fixture error = %v", err)
+	}
+	if _, err := db.ExecContext(ctx, `DELETE FROM sessions
+		WHERE id = 'phase0-empty-workspace-session'`); err != nil {
+		t.Fatalf("delete phase0 empty-workspace sentinel fixture error = %v", err)
+	}
+}
+
+func assertSQLInt64(ctx context.Context, t *testing.T, db *sql.DB, query string, want int64) {
+	t.Helper()
+
+	var got int64
+	if err := db.QueryRowContext(ctx, query).Scan(&got); err != nil {
+		t.Fatalf("query %q error = %v", query, err)
+	}
+	if got != want {
+		t.Fatalf("query %q = %d, want %d", query, got, want)
+	}
+}
+
+func assertNoForeignKeyViolations(ctx context.Context, t *testing.T, db *sql.DB) {
+	t.Helper()
+
+	rows, err := db.QueryContext(ctx, `PRAGMA foreign_key_check`)
+	if err != nil {
+		t.Fatalf("query foreign_key_check error = %v", err)
+	}
+	defer func() {
+		if closeErr := rows.Close(); closeErr != nil {
+			t.Errorf("close foreign_key_check rows error = %v", closeErr)
+		}
+	}()
+	if !rows.Next() {
+		return
+	}
+	var table, parent string
+	var rowID sql.NullInt64
+	var foreignKeyID int
+	if err := rows.Scan(&table, &rowID, &parent, &foreignKeyID); err != nil {
+		t.Fatalf("scan foreign_key_check result error = %v", err)
+	}
+	t.Fatalf("foreign_key_check violation: table=%q row_id=%v parent=%q foreign_key_id=%d",
+		table, rowID, parent, foreignKeyID)
 }
 
 func TestGlobalDBTerminalRunCommandMigrationPreservesRowsAcrossReopen(t *testing.T) {
@@ -1204,7 +1889,11 @@ func assertPostCutHistoricalGlobalSchemaFixture(t *testing.T, globalDB *GlobalDB
 		t.Fatalf("task_run_coordination channel count = %d, want 0", autoChannelCount)
 	}
 
-	sessions, err := globalDB.ListSessions(ctx, store.SessionListQuery{ID: "sess-precut", Limit: 10})
+	sessions, err := globalDB.ListSessions(ctx, store.SessionListQuery{
+		ReadScope: store.ReadScope{ProfileID: store.DefaultProfileID},
+		ID:        "sess-precut",
+		Limit:     10,
+	})
 	if err != nil {
 		t.Fatalf("ListSessions(pre-cut history) error = %v", err)
 	}
@@ -1364,9 +2053,9 @@ func TestSweepObservabilityDeletesOnlyRowsOlderThanCutoff(t *testing.T) {
 	fresh := cutoff.Add(time.Nanosecond)
 
 	for _, event := range []EventSummary{
-		{ID: "sum-old", SessionID: "sess-retention", Type: "agent_message", AgentName: "coder", Timestamp: old},
-		{ID: "sum-boundary", SessionID: "sess-retention", Type: "agent_message", AgentName: "coder", Timestamp: boundary},
-		{ID: "sum-fresh", SessionID: "sess-retention", Type: "agent_message", AgentName: "coder", Timestamp: fresh},
+		{ProfileID: store.DefaultProfileID, ID: "sum-old", SessionID: "sess-retention", Type: "agent_message", AgentName: "coder", Timestamp: old},
+		{ProfileID: store.DefaultProfileID, ID: "sum-boundary", SessionID: "sess-retention", Type: "agent_message", AgentName: "coder", Timestamp: boundary},
+		{ProfileID: store.DefaultProfileID, ID: "sum-fresh", SessionID: "sess-retention", Type: "agent_message", AgentName: "coder", Timestamp: fresh},
 	} {
 		if err := globalDB.WriteEventSummary(ctx, event); err != nil {
 			t.Fatalf("WriteEventSummary(%q) error = %v", event.ID, err)
@@ -1428,7 +2117,6 @@ func TestOpenGlobalDBCreatesExtensionsTableWithExpectedColumns(t *testing.T) {
 			"name",
 			"version",
 			"source",
-			"enabled",
 			"manifest_path",
 			"format",
 			"ingest_diagnostics_json",
@@ -1445,6 +2133,11 @@ func TestOpenGlobalDBCreatesExtensionsTableWithExpectedColumns(t *testing.T) {
 			"network_confirmed_by",
 			"network_confirmed_at",
 		})
+		assertTableColumns(t, globalDB.db, "extension_profile_enablement", []string{
+			"extension_name",
+			"profile_id",
+			"enabled",
+		})
 		assertTableColumns(t, globalDB.db, "extension_dev_links", []string{
 			"extension_name",
 			"workspace_id",
@@ -1459,6 +2152,7 @@ func TestOpenGlobalDBCreatesExtensionsTableWithExpectedColumns(t *testing.T) {
 		})
 		assertTableColumns(t, globalDB.db, "extension_env_bindings", []string{
 			"extension_name",
+			"profile_id",
 			"workspace_id",
 			"env_name",
 			"secret_ref",
@@ -1498,7 +2192,6 @@ func TestOpenGlobalDBExtensionsSchemaIsIdempotent(t *testing.T) {
 			"name",
 			"version",
 			"source",
-			"enabled",
 			"manifest_path",
 			"format",
 			"ingest_diagnostics_json",
@@ -1515,6 +2208,11 @@ func TestOpenGlobalDBExtensionsSchemaIsIdempotent(t *testing.T) {
 			"network_confirmed_by",
 			"network_confirmed_at",
 		})
+		assertTableColumns(t, second.db, "extension_profile_enablement", []string{
+			"extension_name",
+			"profile_id",
+			"enabled",
+		})
 		assertTableColumns(t, second.db, "extension_dev_links", []string{
 			"extension_name",
 			"workspace_id",
@@ -1529,6 +2227,7 @@ func TestOpenGlobalDBExtensionsSchemaIsIdempotent(t *testing.T) {
 		})
 		assertTableColumns(t, second.db, "extension_env_bindings", []string{
 			"extension_name",
+			"profile_id",
 			"workspace_id",
 			"env_name",
 			"secret_ref",
@@ -1584,6 +2283,7 @@ func TestGlobalDBRegisterUpdateAndListSessions(t *testing.T) {
 			filepath.Join(t.TempDir(), "workspace-global"),
 		)
 		session := SessionInfo{
+			ProfileID:         store.DefaultProfileID,
 			ID:                "sess-global",
 			Name:              "Alpha",
 			AgentName:         "coder",
@@ -1625,7 +2325,10 @@ func TestGlobalDBRegisterUpdateAndListSessions(t *testing.T) {
 		}
 		globalDB = openGlobalDBForTest(t, databasePath)
 
-		registered, err := globalDB.ListSessions(testutil.Context(t), SessionListQuery{ID: session.ID})
+		registered, err := globalDB.ListSessions(testutil.Context(t), SessionListQuery{
+			ReadScope: store.ReadScope{ProfileID: store.DefaultProfileID},
+			ID:        session.ID,
+		})
 		if err != nil {
 			t.Fatalf("ListSessions(registered recovery) error = %v", err)
 		}
@@ -1659,6 +2362,7 @@ func TestGlobalDBRegisterUpdateAndListSessions(t *testing.T) {
 			filepath.Join(t.TempDir(), "workspace-global-foreign"),
 		)
 		if err := globalDB.RegisterSession(testutil.Context(t), SessionInfo{
+			ProfileID:         store.DefaultProfileID,
 			ID:                "sess-global-foreign",
 			AgentName:         "coder",
 			Provider:          "foreign-provider",
@@ -1674,7 +2378,9 @@ func TestGlobalDBRegisterUpdateAndListSessions(t *testing.T) {
 		}
 
 		sessions, err := globalDB.ListSessions(testutil.Context(t), SessionListQuery{
-			State: "stopped", WorkspaceID: workspaceID,
+			ReadScope:   store.ReadScope{ProfileID: store.DefaultProfileID},
+			State:       "stopped",
+			WorkspaceID: workspaceID,
 		})
 		if err != nil {
 			t.Fatalf("ListSessions() error = %v", err)
@@ -1737,6 +2443,7 @@ func TestGlobalDBRegisterSessionUpsertsProvider(t *testing.T) {
 	createdAt := time.Date(2026, 4, 3, 13, 0, 0, 0, time.UTC)
 
 	session := SessionInfo{
+		ProfileID:     store.DefaultProfileID,
 		ID:            "sess-provider-upsert",
 		AgentName:     "coder",
 		Provider:      "claude",
@@ -1756,7 +2463,9 @@ func TestGlobalDBRegisterSessionUpsertsProvider(t *testing.T) {
 		t.Fatalf("RegisterSession(update) error = %v", err)
 	}
 
-	sessions, err := globalDB.ListSessions(testutil.Context(t), SessionListQuery{})
+	sessions, err := globalDB.ListSessions(testutil.Context(t), SessionListQuery{
+		ReadScope: store.ReadScope{ProfileID: store.DefaultProfileID},
+	})
 	if err != nil {
 		t.Fatalf("ListSessions() error = %v", err)
 	}
@@ -1812,6 +2521,7 @@ func TestGlobalDBRegisterSessionPersistsStopFields(t *testing.T) {
 				filepath.Join(t.TempDir(), "workspace"),
 			)
 			session := SessionInfo{
+				ProfileID:     store.DefaultProfileID,
 				ID:            "sess-" + strings.ReplaceAll(tc.name, " ", "-"),
 				AgentName:     "coder",
 				RuntimeStatus: store.SessionRuntimeUnbound,
@@ -1831,7 +2541,9 @@ func TestGlobalDBRegisterSessionPersistsStopFields(t *testing.T) {
 			assertOptionalStringEqual(t, gotStopReason, tc.wantStopReason, "stop_reason")
 			assertOptionalStringEqual(t, gotStopDetail, tc.wantStopDetail, "stop_detail")
 
-			sessions, err := globalDB.ListSessions(testutil.Context(t), SessionListQuery{})
+			sessions, err := globalDB.ListSessions(testutil.Context(t), SessionListQuery{
+				ReadScope: store.ReadScope{ProfileID: store.DefaultProfileID},
+			})
 			if err != nil {
 				t.Fatalf("ListSessions() error = %v", err)
 			}
@@ -1859,6 +2571,7 @@ func TestGlobalDBRegisterSessionDefaultsTypeToUser(t *testing.T) {
 		filepath.Join(t.TempDir(), "workspace-default-type"),
 	)
 	session := SessionInfo{
+		ProfileID:     store.DefaultProfileID,
 		ID:            "sess-default-type",
 		AgentName:     "coder",
 		RuntimeStatus: store.SessionRuntimeUnbound,
@@ -1872,7 +2585,9 @@ func TestGlobalDBRegisterSessionDefaultsTypeToUser(t *testing.T) {
 		t.Fatalf("RegisterSession() error = %v", err)
 	}
 
-	sessions, err := globalDB.ListSessions(testutil.Context(t), SessionListQuery{})
+	sessions, err := globalDB.ListSessions(testutil.Context(t), SessionListQuery{
+		ReadScope: store.ReadScope{ProfileID: store.DefaultProfileID},
+	})
 	if err != nil {
 		t.Fatalf("ListSessions() error = %v", err)
 	}
@@ -1905,6 +2620,7 @@ func TestGlobalDBTaskEventSequenceReads(t *testing.T) {
 		CreatedBy:      actor,
 		Origin:         origin,
 		CreatedAt:      createdAt,
+		ProfileID:      store.DefaultProfileID,
 		UpdatedAt:      createdAt,
 	}); err != nil {
 		t.Fatalf("CreateTask() error = %v", err)
@@ -1916,6 +2632,7 @@ func TestGlobalDBTaskEventSequenceReads(t *testing.T) {
 		Attempt:   1,
 		Origin:    origin,
 		QueuedAt:  createdAt,
+		ProfileID: store.DefaultProfileID,
 		StartedAt: createdAt.Add(time.Minute),
 	}); err != nil {
 		t.Fatalf("CreateTaskRun() error = %v", err)
@@ -2259,10 +2976,13 @@ func TestGlobalDBWorkspaceCRUDAndLookups(t *testing.T) {
 		if !winner.Enabled || winner.UpdatedBy != "operator:concurrent-first" || winner.Revision != 4 {
 			t.Fatalf("Get(concurrent winner) = %#v, want sole first writer at revision four", winner)
 		}
-		summaries, summaryErr := globalDB.ListEventSummaries(ctx, EventSummaryQuery{
-			WorkspaceID: updated.ID,
-			Type:        "network.coordination.setting_changed",
-		})
+		summaries, summaryErr := globalDB.ListEventSummaries(
+			ctx,
+			EventSummaryQuery{ReadScope: store.ReadScope{AllProfiles: true},
+				WorkspaceID: updated.ID,
+				Type:        "network.coordination.setting_changed",
+			},
+		)
 		if summaryErr != nil {
 			t.Fatalf("ListEventSummaries(coordination) error = %v", summaryErr)
 		}
@@ -2300,6 +3020,7 @@ func TestGlobalDBDeleteWorkspaceCascadeDeletesStoppedSessions(t *testing.T) {
 		filepath.Join(t.TempDir(), "workspace-delete-guard"),
 	)
 	if err := globalDB.RegisterSession(testutil.Context(t), SessionInfo{
+		ProfileID:     store.DefaultProfileID,
 		ID:            "sess-delete-guard",
 		AgentName:     "coder",
 		RuntimeStatus: store.SessionRuntimeUnbound,
@@ -2316,6 +3037,7 @@ func TestGlobalDBDeleteWorkspaceCascadeDeletesStoppedSessions(t *testing.T) {
 	}
 
 	sessions, err := globalDB.ListSessions(testutil.Context(t), SessionListQuery{
+		ReadScope:   store.ReadScope{ProfileID: store.DefaultProfileID},
 		WorkspaceID: workspaceID,
 	})
 	if err != nil {
@@ -2395,12 +3117,12 @@ func TestGlobalDBDeleteWorkspaceWithoutSessions(t *testing.T) {
 		if err := globalDB.DeleteWorkspace(ctx, workspaceID); err != nil {
 			t.Fatalf("DeleteWorkspace() error = %v", err)
 		}
-		deleted, err := globalDB.ListEnvBindings(ctx, "kit", workspaceID)
+		deleted, err := globalDB.ListEnvBindings(ctx, "kit", "", workspaceID)
 		if err != nil || len(deleted) != 0 {
 			t.Fatalf("deleted workspace bindings = %#v, %v; want empty", deleted, err)
 		}
 		for _, preservedWorkspaceID := range []string{"", siblingID} {
-			preserved, listErr := globalDB.ListEnvBindings(ctx, "kit", preservedWorkspaceID)
+			preserved, listErr := globalDB.ListEnvBindings(ctx, "kit", "", preservedWorkspaceID)
 			if listErr != nil || len(preserved) != 1 {
 				t.Fatalf("preserved bindings for %q = %#v, %v; want one", preservedWorkspaceID, preserved, listErr)
 			}
@@ -2408,7 +3130,7 @@ func TestGlobalDBDeleteWorkspaceWithoutSessions(t *testing.T) {
 		if err := globalDB.InsertWorkspace(ctx, deletedWorkspace); err != nil {
 			t.Fatalf("InsertWorkspace(same ID) error = %v", err)
 		}
-		reused, err := globalDB.ListEnvBindings(ctx, "kit", workspaceID)
+		reused, err := globalDB.ListEnvBindings(ctx, "kit", "", workspaceID)
 		if err != nil || len(reused) != 0 {
 			t.Fatalf("reused workspace bindings = %#v, %v; want no recovered secrets", reused, err)
 		}
@@ -2418,7 +3140,7 @@ func TestGlobalDBDeleteWorkspaceWithoutSessions(t *testing.T) {
 		if _, err := globalDB.db.ExecContext(ctx, `DELETE FROM workspaces WHERE id = ?`, workspaceID); err != nil {
 			t.Fatalf("raw workspace delete error = %v", err)
 		}
-		cascaded, err := globalDB.ListEnvBindings(ctx, "kit", workspaceID)
+		cascaded, err := globalDB.ListEnvBindings(ctx, "kit", "", workspaceID)
 		if err != nil || len(cascaded) != 0 {
 			t.Fatalf("raw-delete cascaded bindings = %#v, %v; want empty", cascaded, err)
 		}
@@ -2448,7 +3170,7 @@ func TestGlobalDBDeleteWorkspaceWithoutSessions(t *testing.T) {
 		targets := []mcpauth.Target{
 			{Scope: mcpauth.ScopeWorkspace, WorkspaceID: workspaceID, ServerName: "linear"},
 			{Scope: mcpauth.ScopeWorkspace, WorkspaceID: siblingID, ServerName: "linear"},
-			globalMCPAuthTarget("linear"),
+			userMCPAuthTarget("linear"),
 		}
 		issuedAt := time.Date(2026, 7, 16, 18, 0, 0, 0, time.UTC)
 		for index, target := range targets {
@@ -2615,6 +3337,7 @@ func TestGlobalDBDeleteWorkspaceRejectsActiveSessions(t *testing.T) {
 		filepath.Join(t.TempDir(), "ws-active-sessions"),
 	)
 	if err := globalDB.RegisterSession(testutil.Context(t), SessionInfo{
+		ProfileID:     store.DefaultProfileID,
 		ID:            "sess-active-guard",
 		AgentName:     "coder",
 		RuntimeStatus: store.SessionRuntimeUnbound,
@@ -2693,41 +3416,6 @@ func TestGlobalDBWorkspaceConstraintViolations(t *testing.T) {
 			}
 		})
 	}
-
-	t.Run("Should map a real delete foreign key constraint", func(t *testing.T) {
-		t.Parallel()
-
-		ctx := testutil.Context(t)
-		globalDB := openTestGlobalDB(t)
-		workspaceID := registerWorkspaceForGlobalTests(
-			t,
-			globalDB,
-			"workspace-delete-constraint",
-			filepath.Join(t.TempDir(), "workspace-delete-constraint"),
-		)
-		if err := globalDB.RegisterSession(ctx, SessionInfo{
-			ID:            "sess-delete-constraint",
-			AgentName:     "coder",
-			RuntimeStatus: store.SessionRuntimeUnbound,
-			WorkspaceID:   workspaceID,
-			State:         "stopped",
-			CreatedAt:     time.Date(2026, 4, 3, 14, 0, 0, 0, time.UTC),
-			UpdatedAt:     time.Date(2026, 4, 3, 14, 0, 0, 0, time.UTC),
-		}); err != nil {
-			t.Fatalf("RegisterSession() error = %v", err)
-		}
-
-		_, err := globalDB.db.ExecContext(ctx, `DELETE FROM workspaces WHERE id = ?`, workspaceID)
-		if err == nil {
-			t.Fatal("raw workspace delete error = nil, want foreign key constraint")
-		}
-		if mapped := mapWorkspaceDeleteConstraintError(err); !errors.Is(
-			mapped,
-			compozyworkspace.ErrWorkspaceHasSessions,
-		) {
-			t.Fatalf("mapWorkspaceDeleteConstraintError() error = %v, want ErrWorkspaceHasSessions", mapped)
-		}
-	})
 }
 
 func TestGlobalDBWorkspaceNotFoundErrors(t *testing.T) {
@@ -2964,6 +3652,7 @@ func TestGlobalDBRegisterAndListSessionsUseWorkspaceID(t *testing.T) {
 	)
 
 	session := SessionInfo{
+		ProfileID:           store.DefaultProfileID,
 		ID:                  "sess-workspace-id",
 		AgentName:           "coder",
 		RuntimeStatus:       store.SessionRuntimeUnbound,
@@ -2992,7 +3681,9 @@ func TestGlobalDBRegisterAndListSessionsUseWorkspaceID(t *testing.T) {
 		t.Fatalf("RegisterSession() error = %v", err)
 	}
 
-	sessions, err := globalDB.ListSessions(testutil.Context(t), SessionListQuery{})
+	sessions, err := globalDB.ListSessions(testutil.Context(t), SessionListQuery{
+		ReadScope: store.ReadScope{ProfileID: store.DefaultProfileID},
+	})
 	if err != nil {
 		t.Fatalf("ListSessions() error = %v", err)
 	}
@@ -3050,6 +3741,7 @@ func TestGlobalDBRegisterAndListSessionsUseWorkspaceID(t *testing.T) {
 			"sessions",
 			[]string{
 				"id",
+				"profile_id",
 				"name",
 				"agent_name",
 				"provider",
@@ -3068,6 +3760,7 @@ func TestGlobalDBRegisterAndListSessionsUseWorkspaceID(t *testing.T) {
 				"selected_speed",
 				"runtime_selection_revision",
 				"workspace_id",
+				"scope",
 				"worktree_id",
 				"session_type",
 				"state",
@@ -3141,6 +3834,7 @@ func TestGlobalDBRegisterSessionRejectsStallStateWithoutReason(t *testing.T) {
 	)
 
 	err := globalDB.RegisterSession(testutil.Context(t), SessionInfo{
+		ProfileID:     store.DefaultProfileID,
 		ID:            "sess-invalid-stall",
 		AgentName:     "coder",
 		RuntimeStatus: store.SessionRuntimeUnbound,
@@ -3178,6 +3872,7 @@ func TestGlobalDBRegisterSessionRejectsUnmarshalableActivity(t *testing.T) {
 		unmarshalableTime := time.Date(10000, 1, 1, 0, 0, 0, 0, time.UTC)
 
 		err := globalDB.RegisterSession(testutil.Context(t), SessionInfo{
+			ProfileID:     store.DefaultProfileID,
 			ID:            "sess-invalid-activity",
 			AgentName:     "coder",
 			RuntimeStatus: store.SessionRuntimeUnbound,
@@ -3198,7 +3893,9 @@ func TestGlobalDBRegisterSessionRejectsUnmarshalableActivity(t *testing.T) {
 			t.Fatalf("RegisterSession(unmarshalable activity) error = %v, want activity marshal context", err)
 		}
 
-		sessions, err := globalDB.ListSessions(testutil.Context(t), SessionListQuery{})
+		sessions, err := globalDB.ListSessions(testutil.Context(t), SessionListQuery{
+			ReadScope: store.ReadScope{ProfileID: store.DefaultProfileID},
+		})
 		if err != nil {
 			t.Fatalf("ListSessions() error = %v", err)
 		}
@@ -3215,6 +3912,7 @@ func TestGlobalDBWriteEventSummary(t *testing.T) {
 	registerSessionForGlobalTests(t, globalDB, "sess-summary")
 
 	if err := globalDB.WriteEventSummary(testutil.Context(t), EventSummary{
+		ProfileID:     store.DefaultProfileID,
 		SessionID:     "sess-summary",
 		Type:          "agent_message",
 		AgentName:     "coder",
@@ -3225,7 +3923,10 @@ func TestGlobalDBWriteEventSummary(t *testing.T) {
 		t.Fatalf("WriteEventSummary() error = %v", err)
 	}
 
-	summaries, err := globalDB.ListEventSummaries(testutil.Context(t), EventSummaryQuery{SessionID: "sess-summary"})
+	summaries, err := globalDB.ListEventSummaries(
+		testutil.Context(t),
+		EventSummaryQuery{ReadScope: store.ReadScope{AllProfiles: true}, SessionID: "sess-summary"},
+	)
 	if err != nil {
 		t.Fatalf("ListEventSummaries() error = %v", err)
 	}
@@ -3245,10 +3946,13 @@ func TestGlobalDBWriteEventSummary(t *testing.T) {
 		t.Fatalf("summaries[0].Outcome = %q, want %q", got, want)
 	}
 
-	providerFiltered, err := globalDB.ListEventSummaries(testutil.Context(t), EventSummaryQuery{
-		Provider:  "claude",
-		Component: "session",
-	})
+	providerFiltered, err := globalDB.ListEventSummaries(
+		testutil.Context(t),
+		EventSummaryQuery{ReadScope: store.ReadScope{AllProfiles: true},
+			Provider:  "claude",
+			Component: "session",
+		},
+	)
 	if err != nil {
 		t.Fatalf("ListEventSummaries(provider component) error = %v", err)
 	}
@@ -3257,6 +3961,7 @@ func TestGlobalDBWriteEventSummary(t *testing.T) {
 	}
 
 	if err := globalDB.WriteEventSummary(testutil.Context(t), EventSummary{
+		ProfileID: store.DefaultProfileID,
 		SessionID: "sess-summary",
 		Type:      "task.run_failed",
 		AgentName: "coder",
@@ -3265,11 +3970,14 @@ func TestGlobalDBWriteEventSummary(t *testing.T) {
 	}); err != nil {
 		t.Fatalf("WriteEventSummary(failed task run) error = %v", err)
 	}
-	errorOnly, err := globalDB.ListEventSummaries(testutil.Context(t), EventSummaryQuery{
-		Provider:  "claude",
-		Component: "task",
-		ErrorOnly: true,
-	})
+	errorOnly, err := globalDB.ListEventSummaries(
+		testutil.Context(t),
+		EventSummaryQuery{ReadScope: store.ReadScope{AllProfiles: true},
+			Provider:  "claude",
+			Component: "task",
+			ErrorOnly: true,
+		},
+	)
 	if err != nil {
 		t.Fatalf("ListEventSummaries(error only) error = %v", err)
 	}
@@ -3287,6 +3995,7 @@ func TestGlobalDBWriteEventSummary(t *testing.T) {
 		{
 			name: "workspace",
 			summary: EventSummary{
+				ProfileID: store.DefaultProfileID,
 				SessionID: "sess-summary", WorkspaceID: "different-workspace",
 				Type: "agent_message", AgentName: "coder", Summary: "invalid workspace",
 			},
@@ -3294,6 +4003,7 @@ func TestGlobalDBWriteEventSummary(t *testing.T) {
 		{
 			name: "provider",
 			summary: EventSummary{
+				ProfileID: store.DefaultProfileID,
 				SessionID: "sess-summary", Provider: "different-provider",
 				Type: "agent_message", AgentName: "coder", Summary: "invalid provider",
 			},
@@ -3301,6 +4011,7 @@ func TestGlobalDBWriteEventSummary(t *testing.T) {
 		{
 			name: "worktree",
 			summary: EventSummary{
+				ProfileID: store.DefaultProfileID,
 				SessionID: "sess-summary", EventCorrelation: store.EventCorrelation{WorktreeID: "different-worktree"},
 				Type: "agent_message", AgentName: "coder", Summary: "invalid worktree",
 			},
@@ -3321,13 +4032,28 @@ func TestGlobalDBWriteEventSummariesAtomic(t *testing.T) {
 	globalDB := openTestGlobalDB(t)
 	timestamp := time.Date(2026, 8, 2, 18, 0, 0, 0, time.UTC)
 	err := globalDB.WriteEventSummaries(testutil.Context(t), []EventSummary{
-		{ID: "duplicate-summary", Type: "settings.changed", Summary: "first", Timestamp: timestamp},
-		{ID: "duplicate-summary", Type: "settings.changed", Summary: "second", Timestamp: timestamp},
+		{
+			ProfileID: store.DefaultProfileID,
+			ID:        "duplicate-summary",
+			Type:      "settings.changed",
+			Summary:   "first",
+			Timestamp: timestamp,
+		},
+		{
+			ProfileID: store.DefaultProfileID,
+			ID:        "duplicate-summary",
+			Type:      "settings.changed",
+			Summary:   "second",
+			Timestamp: timestamp,
+		},
 	})
 	if !isSQLitePrimaryKeyConstraint(err) {
 		t.Fatalf("WriteEventSummaries(duplicate id) error = %v, want primary-key constraint", err)
 	}
-	summaries, listErr := globalDB.ListEventSummaries(testutil.Context(t), EventSummaryQuery{})
+	summaries, listErr := globalDB.ListEventSummaries(
+		testutil.Context(t),
+		EventSummaryQuery{ReadScope: store.ReadScope{AllProfiles: true}},
+	)
 	if listErr != nil {
 		t.Fatalf("ListEventSummaries() error = %v", listErr)
 	}
@@ -3353,24 +4079,24 @@ func TestGlobalDBWriteEventSummaryAllowsGlobalEvents(t *testing.T) {
 	}{
 		{
 			name: "Should persist settings changed events with content",
-			summary: EventSummary{
+			summary: eventSummaryWithContent(EventSummary{
+				ProfileID: store.DefaultProfileID,
 				Type:      "settings.changed",
-				Content:   []byte(`{"section":"skills","source":"http","operation":"patch"}`),
 				Summary:   "skills settings changed",
 				Timestamp: time.Date(2026, 5, 4, 14, 5, 0, 0, time.UTC),
-			},
+			}, json.RawMessage(`{"section":"skills","source":"http","operation":"patch"}`)),
 			wantType: "settings.changed",
 			wantBody: `{"section":"skills","source":"http","operation":"patch"}`,
 		},
 		{
 			name: "Should persist skill shadowed events without a session",
-			summary: EventSummary{
+			summary: eventSummaryWithContent(EventSummary{
+				ProfileID: store.DefaultProfileID,
 				Type:      "skill.shadowed",
 				AgentName: "reviewer",
-				Content:   []byte(skillShadowedBody),
 				Summary:   "skill review shadowed workspace with agent-local",
 				Timestamp: time.Date(2026, 5, 4, 14, 6, 0, 0, time.UTC),
-			},
+			}, json.RawMessage(skillShadowedBody)),
 			wantType:  "skill.shadowed",
 			wantAgent: "reviewer",
 			wantBody:  skillShadowedBody,
@@ -3387,7 +4113,10 @@ func TestGlobalDBWriteEventSummaryAllowsGlobalEvents(t *testing.T) {
 				t.Fatalf("WriteEventSummary(global event) error = %v", err)
 			}
 
-			summaries, err := globalDB.ListEventSummaries(testutil.Context(t), EventSummaryQuery{})
+			summaries, err := globalDB.ListEventSummaries(
+				testutil.Context(t),
+				EventSummaryQuery{ReadScope: store.ReadScope{AllProfiles: true}},
+			)
 			if err != nil {
 				t.Fatalf("ListEventSummaries() error = %v", err)
 			}
@@ -3404,7 +4133,7 @@ func TestGlobalDBWriteEventSummaryAllowsGlobalEvents(t *testing.T) {
 				t.Fatalf("summaries[0].AgentName = %q, want %q", got, want)
 			}
 			if got, want := string(
-				summaries[0].Content,
+				summaries[0].ContentValue(),
 			), tt.wantBody; got != want {
 				t.Fatalf("summaries[0].Content = %q, want %q", got, want)
 			}
@@ -3630,7 +4359,9 @@ func TestGlobalDBUpdateSessionStateRejectsUnmarshalableActivity(t *testing.T) {
 		t.Fatalf("UpdateSessionState(unmarshalable activity) error = %v, want activity marshal context", err)
 	}
 
-	sessions, err := globalDB.ListSessions(testutil.Context(t), SessionListQuery{})
+	sessions, err := globalDB.ListSessions(testutil.Context(t), SessionListQuery{
+		ReadScope: store.ReadScope{ProfileID: store.DefaultProfileID},
+	})
 	if err != nil {
 		t.Fatalf("ListSessions() error = %v", err)
 	}
@@ -3659,7 +4390,9 @@ func TestGlobalDBListSessionsWrapsInvalidActivityJSONValidation(t *testing.T) {
 		t.Fatalf("update invalid activity_json error = %v", err)
 	}
 
-	_, err := globalDB.ListSessions(testutil.Context(t), SessionListQuery{})
+	_, err := globalDB.ListSessions(testutil.Context(t), SessionListQuery{
+		ReadScope: store.ReadScope{ProfileID: store.DefaultProfileID},
+	})
 	if err == nil {
 		t.Fatal("ListSessions(invalid activity_json) error = nil, want validation error")
 	}
@@ -3683,6 +4416,7 @@ func TestGlobalDBUpdateSessionStateHandlesStopFields(t *testing.T) {
 			filepath.Join(t.TempDir(), "workspace"),
 		)
 		if err := globalDB.RegisterSession(testutil.Context(t), SessionInfo{
+			ProfileID:     store.DefaultProfileID,
 			ID:            "sess-update-stop",
 			AgentName:     "coder",
 			RuntimeStatus: store.SessionRuntimeUnbound,
@@ -3722,6 +4456,7 @@ func TestGlobalDBUpdateSessionStateHandlesStopFields(t *testing.T) {
 			filepath.Join(t.TempDir(), "workspace"),
 		)
 		if err := globalDB.RegisterSession(testutil.Context(t), SessionInfo{
+			ProfileID:     store.DefaultProfileID,
 			ID:            "sess-preserve-stop",
 			AgentName:     "coder",
 			RuntimeStatus: store.SessionRuntimeUnbound,
@@ -3759,6 +4494,7 @@ func TestGlobalDBUpdateSessionStateHandlesStopFields(t *testing.T) {
 			filepath.Join(t.TempDir(), "workspace"),
 		)
 		if err := globalDB.RegisterSession(testutil.Context(t), SessionInfo{
+			ProfileID:     store.DefaultProfileID,
 			ID:            "sess-clear-stop",
 			AgentName:     "coder",
 			RuntimeStatus: store.SessionRuntimeUnbound,
@@ -3834,6 +4570,7 @@ func TestGlobalDBReconcileSessions(t *testing.T) {
 			State:         "stopped",
 			StopReason:    store.StopCompleted,
 			CreatedAt:     time.Date(2026, 4, 3, 16, 0, 0, 0, time.UTC),
+			ProfileID:     store.DefaultProfileID,
 			UpdatedAt:     time.Date(2026, 4, 3, 16, 0, 0, 0, time.UTC),
 		},
 		{
@@ -3851,6 +4588,7 @@ func TestGlobalDBReconcileSessions(t *testing.T) {
 			StopReason: store.StopUserCanceled,
 			StopDetail: "requested by API",
 			CreatedAt:  time.Date(2026, 4, 3, 16, 0, 0, 0, time.UTC),
+			ProfileID:  store.DefaultProfileID,
 			UpdatedAt:  time.Date(2026, 4, 3, 16, 0, 0, 0, time.UTC),
 		},
 	}
@@ -3868,7 +4606,9 @@ func TestGlobalDBReconcileSessions(t *testing.T) {
 		t.Fatalf("Orphaned = %#v, want %#v", result.Orphaned, []string{"sess-orphan"})
 	}
 
-	sessions, err := globalDB.ListSessions(testutil.Context(t), SessionListQuery{})
+	sessions, err := globalDB.ListSessions(testutil.Context(t), SessionListQuery{
+		ReadScope: store.ReadScope{ProfileID: store.DefaultProfileID},
+	})
 	if err != nil {
 		t.Fatalf("ListSessions() error = %v", err)
 	}
@@ -3916,6 +4656,7 @@ func TestGlobalDBReconcileSessionsSkipsDuplicateIDsAndDefaultsTimestamps(t *test
 			Provider:      "claude",
 			RuntimeStatus: store.SessionRuntimeUnbound,
 			WorkspaceID:   workspaceID,
+			ProfileID:     store.DefaultProfileID,
 			State:         "stopped",
 		},
 		{
@@ -3924,6 +4665,7 @@ func TestGlobalDBReconcileSessionsSkipsDuplicateIDsAndDefaultsTimestamps(t *test
 			Provider:      "codex",
 			RuntimeStatus: store.SessionRuntimeUnbound,
 			WorkspaceID:   workspaceID,
+			ProfileID:     store.DefaultProfileID,
 			State:         "orphaned",
 		},
 	}
@@ -3939,7 +4681,9 @@ func TestGlobalDBReconcileSessionsSkipsDuplicateIDsAndDefaultsTimestamps(t *test
 		t.Fatalf("Orphaned = %#v, want empty", result.Orphaned)
 	}
 
-	sessions, err := globalDB.ListSessions(testutil.Context(t), SessionListQuery{})
+	sessions, err := globalDB.ListSessions(testutil.Context(t), SessionListQuery{
+		ReadScope: store.ReadScope{ProfileID: store.DefaultProfileID},
+	})
 	if err != nil {
 		t.Fatalf("ListSessions() error = %v", err)
 	}
@@ -4029,6 +4773,7 @@ func registerSessionForGlobalTests(t *testing.T, globalDB *GlobalDB, sessionID s
 	)
 	if err := globalDB.RegisterSession(testutil.Context(t), SessionInfo{
 		ID:            sessionID,
+		ProfileID:     store.DefaultProfileID,
 		AgentName:     "coder",
 		Provider:      "claude",
 		RuntimeStatus: store.SessionRuntimeUnbound,
@@ -4083,7 +4828,10 @@ func registerWorkspaceForGlobalTests(t *testing.T, globalDB *GlobalDB, name stri
 func assertEventSummaryIDs(t *testing.T, globalDB *GlobalDB, want []string) {
 	t.Helper()
 
-	events, err := globalDB.ListEventSummaries(testutil.Context(t), EventSummaryQuery{})
+	events, err := globalDB.ListEventSummaries(
+		testutil.Context(t),
+		EventSummaryQuery{ReadScope: store.ReadScope{AllProfiles: true}},
+	)
 	if err != nil {
 		t.Fatalf("ListEventSummaries() error = %v", err)
 	}

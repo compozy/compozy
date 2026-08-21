@@ -17,7 +17,9 @@ func (s *Service) populateSessionRuntimeContext(
 	workspaceID string,
 	payload *contract.AgentContextPayload,
 ) error {
-	taskContext, channelContext, activeChannel, err := s.taskAndChannelContext(ctx, info.ID, workspaceSnapshot)
+	taskContext, channelContext, activeChannel, err := s.taskAndChannelContext(
+		ctx, info.ProfileID, info.ID, workspaceSnapshot,
+	)
 	if err != nil {
 		return err
 	}

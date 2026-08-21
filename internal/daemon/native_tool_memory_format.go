@@ -148,6 +148,14 @@ func nativeMemoryToolError(id toolspkg.ToolID, err error) error {
 	switch {
 	case err == nil:
 		return nil
+	case errors.Is(err, errNativeMemoryCallerProfileRequired):
+		return toolspkg.NewToolError(
+			toolspkg.ErrorCodeDenied,
+			id,
+			err.Error(),
+			fmt.Errorf("%w: %w", toolspkg.ErrToolDenied, err),
+			toolspkg.ReasonScopeMismatch,
+		)
 	case errors.Is(err, memorypkg.ErrValidation):
 		return toolspkg.NewToolError(
 			toolspkg.ErrorCodeInvalidInput,

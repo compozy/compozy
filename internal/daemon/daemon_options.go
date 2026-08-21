@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"log/slog"
 	"os"
+	"strings"
 
 	"time"
 
@@ -166,9 +167,20 @@ func (d *Daemon) applyCoreDefaults() {
 	}
 	if d.openRegistry == nil {
 		d.openRegistry = func(ctx context.Context, path string) (Registry, error) {
+			operatorHome, err := compozyconfig.ResolveOperatorHomeDirWithLookup(
+				d.homePaths,
+				func(key string) (string, bool) {
+					value := d.getenv(key)
+					return value, strings.TrimSpace(value) != ""
+				},
+			)
+			if err != nil {
+				return nil, fmt.Errorf("daemon: resolve operator home for global database: %w", err)
+			}
 			return globaldb.OpenGlobalDB(
 				ctx,
 				path,
+				globaldb.WithOperatorHomeDir(operatorHome),
 				globaldb.WithSessionEventMetadataOpener(
 					sessiondb.NewEventMetadataOpener(d.homePaths.SessionsDir),
 				),

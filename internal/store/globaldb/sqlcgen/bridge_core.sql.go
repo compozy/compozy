@@ -100,7 +100,7 @@ func (q *Queries) GetBridgeIngestDedup(ctx context.Context, arg GetBridgeIngestD
 }
 
 const getBridgeInstance = `-- name: GetBridgeInstance :one
-SELECT id, scope, workspace_id, platform, extension_name, display_name,
+SELECT id, profile_id, scope, workspace_id, platform, extension_name, display_name,
        source, enabled, status, dm_policy, routing_policy, provider_config,
        delivery_defaults, notification_suppress, degradation_reason, degradation_message,
        created_at, updated_at
@@ -112,6 +112,7 @@ func (q *Queries) GetBridgeInstance(ctx context.Context, id string) (BridgeInsta
 	var i BridgeInstance
 	err := row.Scan(
 		&i.ID,
+		&i.ProfileID,
 		&i.Scope,
 		&i.WorkspaceID,
 		&i.Platform,
@@ -214,20 +215,23 @@ func (q *Queries) GetBridgeTaskSubscription(ctx context.Context, subscriptionID 
 
 const insertBridgeInstance = `-- name: InsertBridgeInstance :exec
 INSERT INTO bridge_instances (
+  profile_id,
   id, scope, workspace_id, platform, extension_name, display_name,
   source, enabled, status, dm_policy, routing_policy, provider_config,
   delivery_defaults, notification_suppress, degradation_reason, degradation_message,
   created_at, updated_at
 ) VALUES (
-  ?1, ?2, ?3, ?4,
-  ?5, ?6, ?7, ?8,
-  ?9, ?10, ?11, ?12,
-  ?13, ?14, ?15,
-  ?16, ?17, ?18
+  ?1,
+  ?2, ?3, ?4, ?5,
+  ?6, ?7, ?8, ?9,
+  ?10, ?11, ?12, ?13,
+  ?14, ?15, ?16,
+  ?17, ?18, ?19
 )
 `
 
 type InsertBridgeInstanceParams struct {
+	ProfileID            string         `json:"profile_id"`
 	ID                   string         `json:"id"`
 	Scope                string         `json:"scope"`
 	WorkspaceID          sql.NullString `json:"workspace_id"`
@@ -250,6 +254,7 @@ type InsertBridgeInstanceParams struct {
 
 func (q *Queries) InsertBridgeInstance(ctx context.Context, arg InsertBridgeInstanceParams) error {
 	_, err := q.db.ExecContext(ctx, insertBridgeInstance,
+		arg.ProfileID,
 		arg.ID,
 		arg.Scope,
 		arg.WorkspaceID,
@@ -300,7 +305,7 @@ func (q *Queries) ListBridgeInstanceIDs(ctx context.Context) ([]string, error) {
 }
 
 const listBridgeInstances = `-- name: ListBridgeInstances :many
-SELECT id, scope, workspace_id, platform, extension_name, display_name,
+SELECT id, profile_id, scope, workspace_id, platform, extension_name, display_name,
        source, enabled, status, dm_policy, routing_policy, provider_config,
        delivery_defaults, notification_suppress, degradation_reason, degradation_message,
        created_at, updated_at
@@ -319,6 +324,7 @@ func (q *Queries) ListBridgeInstances(ctx context.Context) ([]BridgeInstance, er
 		var i BridgeInstance
 		if err := rows.Scan(
 			&i.ID,
+			&i.ProfileID,
 			&i.Scope,
 			&i.WorkspaceID,
 			&i.Platform,
@@ -515,16 +521,18 @@ func (q *Queries) UpsertBridgeIngestDedup(ctx context.Context, arg UpsertBridgeI
 
 const upsertBridgeInstance = `-- name: UpsertBridgeInstance :exec
 INSERT INTO bridge_instances (
+  profile_id,
   id, scope, workspace_id, platform, extension_name, display_name,
   source, enabled, status, dm_policy, routing_policy, provider_config,
   delivery_defaults, notification_suppress, degradation_reason, degradation_message,
   created_at, updated_at
 ) VALUES (
-  ?1, ?2, ?3, ?4,
-  ?5, ?6, ?7, ?8,
-  ?9, ?10, ?11, ?12,
-  ?13, ?14, ?15,
-  ?16, ?17, ?18
+  ?1,
+  ?2, ?3, ?4, ?5,
+  ?6, ?7, ?8, ?9,
+  ?10, ?11, ?12, ?13,
+  ?14, ?15, ?16,
+  ?17, ?18, ?19
 )
 ON CONFLICT(id) DO UPDATE SET
   scope = excluded.scope, workspace_id = excluded.workspace_id, platform = excluded.platform,
@@ -564,6 +572,7 @@ ON CONFLICT(id) DO UPDATE SET
 `
 
 type UpsertBridgeInstanceParams struct {
+	ProfileID            string         `json:"profile_id"`
 	ID                   string         `json:"id"`
 	Scope                string         `json:"scope"`
 	WorkspaceID          sql.NullString `json:"workspace_id"`
@@ -586,6 +595,7 @@ type UpsertBridgeInstanceParams struct {
 
 func (q *Queries) UpsertBridgeInstance(ctx context.Context, arg UpsertBridgeInstanceParams) error {
 	_, err := q.db.ExecContext(ctx, upsertBridgeInstance,
+		arg.ProfileID,
 		arg.ID,
 		arg.Scope,
 		arg.WorkspaceID,

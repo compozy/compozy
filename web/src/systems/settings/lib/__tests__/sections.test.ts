@@ -11,8 +11,10 @@ describe("settings sections metadata", () => {
   it("exposes the Settings screen order", () => {
     expect(SETTINGS_SECTIONS.map(section => section.slug)).toEqual([
       "general",
+      "defaults",
       "appearance",
       "layouts",
+      "profiles",
       "palette",
       "providers",
       "memory",

@@ -11,6 +11,7 @@ import (
 
 	"github.com/compozy/compozy/internal/api/contract"
 	"github.com/compozy/compozy/internal/observe"
+	"github.com/compozy/compozy/internal/store"
 	taskpkg "github.com/compozy/compozy/internal/task"
 	workspacepkg "github.com/compozy/compozy/internal/workspace"
 	"github.com/gin-gonic/gin"
@@ -57,11 +58,14 @@ func TestExpandedTaskQueryParsingAndDomainConversion(t *testing.T) {
 			t.Fatalf("ParseTaskListQuery() = %#v", query)
 		}
 
-		domainQuery, err := handlers.taskListDomainQuery(context.Background(), query)
+		domainQuery, err := handlers.taskListDomainQuery(
+			context.Background(), store.ReadScope{ProfileID: store.DefaultProfileID}, query,
+		)
 		if err != nil {
 			t.Fatalf("taskListDomainQuery() error = %v", err)
 		}
-		if domainQuery.WorkspaceID != "ws-alpha" ||
+		if domainQuery.ReadScope.ProfileID != store.DefaultProfileID ||
+			domainQuery.WorkspaceID != "ws-alpha" ||
 			domainQuery.Status != taskpkg.TaskStatusReady ||
 			domainQuery.Priority != taskpkg.PriorityHigh ||
 			domainQuery.ApprovalState != taskpkg.ApprovalStatePending ||
@@ -109,7 +113,11 @@ func TestExpandedTaskQueryParsingAndDomainConversion(t *testing.T) {
 				if err != nil {
 					t.Fatalf("ParseTaskListQuery() error = %v", err)
 				}
-				domainQuery, err := handlers.taskListDomainQuery(context.Background(), transportQuery)
+				domainQuery, err := handlers.taskListDomainQuery(
+					context.Background(),
+					store.ReadScope{ProfileID: store.DefaultProfileID},
+					transportQuery,
+				)
 				if err != nil {
 					t.Fatalf("taskListDomainQuery() error = %v", err)
 				}
@@ -237,11 +245,16 @@ func TestExpandedTaskQueryParsingAndDomainConversion(t *testing.T) {
 			t.Fatalf("ParseTaskDashboardQuery() = %#v", dashboardQuery)
 		}
 
-		domainDashboard, err := handlers.taskDashboardDomainQuery(context.Background(), dashboardQuery)
+		domainDashboard, err := handlers.taskDashboardDomainQuery(
+			context.Background(),
+			store.ReadScope{ProfileID: store.DefaultProfileID},
+			dashboardQuery,
+		)
 		if err != nil {
 			t.Fatalf("taskDashboardDomainQuery() error = %v", err)
 		}
-		if domainDashboard.Scope != taskpkg.ScopeWorkspace ||
+		if domainDashboard.ReadScope.ProfileID != store.DefaultProfileID ||
+			domainDashboard.Scope != taskpkg.ScopeWorkspace ||
 			domainDashboard.WorkspaceID != "ws-alpha" ||
 			domainDashboard.WorktreeID != "wt-alpha" ||
 			domainDashboard.OwnerKind != taskpkg.OwnerKindHuman ||
@@ -269,11 +282,14 @@ func TestExpandedTaskQueryParsingAndDomainConversion(t *testing.T) {
 			t.Fatalf("ParseTaskInboxQuery() = %#v", inboxQuery)
 		}
 
-		domainInbox, err := handlers.taskInboxDomainQuery(context.Background(), inboxQuery)
+		domainInbox, err := handlers.taskInboxDomainQuery(
+			context.Background(), store.ReadScope{ProfileID: store.DefaultProfileID}, inboxQuery,
+		)
 		if err != nil {
 			t.Fatalf("taskInboxDomainQuery() error = %v", err)
 		}
-		if domainInbox.Scope != taskpkg.CatalogScopeWorkspace ||
+		if domainInbox.ReadScope.ProfileID != store.DefaultProfileID ||
+			domainInbox.Scope != taskpkg.CatalogScopeWorkspace ||
 			domainInbox.WorkspaceID != "ws-alpha" ||
 			domainInbox.WorktreeID != "wt-alpha" ||
 			domainInbox.OwnerKind != taskpkg.OwnerKindHuman ||
@@ -310,6 +326,7 @@ func TestExpandedTaskQueryValidationErrors(t *testing.T) {
 		}
 		if _, err := handlers.taskListDomainQuery(
 			context.Background(),
+			store.ReadScope{ProfileID: store.DefaultProfileID},
 			contract.TaskListQuery{Worktree: "wt-alpha"},
 		); err == nil {
 			t.Fatal("taskListDomainQuery(worktree without workspace) error = nil, want non-nil")
@@ -364,6 +381,7 @@ func TestExpandedTaskQueryValidationErrors(t *testing.T) {
 
 		if _, err := handlers.taskInboxDomainQuery(
 			context.Background(),
+			store.ReadScope{ProfileID: store.DefaultProfileID},
 			contract.TaskInboxQuery{Lane: "bogus"},
 		); err == nil {
 			t.Fatal("taskInboxDomainQuery(invalid lane) error = nil, want non-nil")
@@ -394,6 +412,7 @@ func TestExpandedTaskQueryValidationErrors(t *testing.T) {
 		}
 		if _, err := handlers.taskInboxDomainQuery(
 			context.Background(),
+			store.ReadScope{ProfileID: store.DefaultProfileID},
 			query,
 		); !errors.Is(
 			err,

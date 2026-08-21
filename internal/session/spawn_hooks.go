@@ -89,12 +89,14 @@ func spawnHookContext(
 		TTLSeconds:       lineage.SpawnBudget.TTLSeconds,
 	}
 	if parent != nil {
+		ctx.ProfileID = strings.TrimSpace(parent.ProfileID)
 		ctx.WorkspaceID = strings.TrimSpace(parent.WorkspaceID)
 		ctx.Workspace = strings.TrimSpace(parent.Workspace)
 		ctx.ResolvedNetworkParticipation = participation.CloneSpec(parent.NetworkParticipation)
 		ctx.ParentSoulDigest = strings.TrimSpace(parent.SoulDigest)
 	}
 	if child != nil {
+		ctx.ProfileID = strings.TrimSpace(child.ProfileID)
 		ctx.ChildSessionID = strings.TrimSpace(child.ID)
 		ctx.WorkspaceID = strings.TrimSpace(child.WorkspaceID)
 		ctx.Workspace = strings.TrimSpace(child.Workspace)

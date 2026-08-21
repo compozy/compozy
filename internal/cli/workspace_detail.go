@@ -1,5 +1,7 @@
 package cli
 
+import "github.com/compozy/compozy/internal/api/contract"
+
 func renderWorkspaceDetailHuman(detail WorkspaceDetailRecord) (string, error) {
 	workspaceBlock, err := workspaceRecordBundle(detail.Workspace).human()
 	if err != nil {
@@ -35,6 +37,11 @@ func renderWorkspaceDetailHuman(detail WorkspaceDetailRecord) (string, error) {
 			"Skills",
 			[]string{workspaceNameValue, workspaceSourceValue, cliDirectoryValue},
 			workspaceSkillRows(detail.Skills, true),
+		),
+		renderHumanTable(
+			"Profile hints",
+			[]string{cliProfileHeader, "MESSAGE", "ACTION"},
+			workspaceProfileHintRows(detail.ProfileHints, true),
 		),
 	), nil
 }
@@ -75,12 +82,31 @@ func renderWorkspaceDetailToon(detail WorkspaceDetailRecord) (string, error) {
 			[]string{automationNameKey, workspaceSourceKey, "dir"},
 			workspaceSkillRows(detail.Skills, false),
 		),
+		renderToonArray(
+			"profile_hints",
+			[]string{profileFlagName, bridgeMessageKey, authoredContextActionKey},
+			workspaceProfileHintRows(detail.ProfileHints, false),
+		),
 	), nil
+}
+
+func workspaceProfileHintRows(items []contract.WorkspaceProfileHintPayload, human bool) [][]string {
+	rows := make([][]string, 0, len(items))
+	for index := range items {
+		item := &items[index]
+		row := []string{item.Name, item.Message, item.Action}
+		if human {
+			row = []string{stringOrDash(item.Name), stringOrDash(item.Message), stringOrDash(item.Action)}
+		}
+		rows = append(rows, row)
+	}
+	return rows
 }
 
 func workspaceSessionRows(items []SessionRecord, human bool) [][]string {
 	rows := make([][]string, 0, len(items))
-	for _, item := range items {
+	for index := range items {
+		item := &items[index]
 		row := []string{
 			item.ID,
 			item.Name,

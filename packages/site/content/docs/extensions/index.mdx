@@ -4,13 +4,13 @@ description: Install or build packages that ship skills, agents, automation, lay
 ---
 
 An extension is one installable unit that ships runtime behavior and resources behind a single manifest.
-Installation is inert: CompozyOS publishes the package's resources only when the operator enables the
-extension, and removes those live resources when the extension is disabled.
+Installation enables the extension by default for every profile. A per-profile disable keeps the
+package installed while hiding its resources from that profile.
 
 Use extensions when runtime behavior or resources should travel between machines or teams with one install command.
 If the work is only a local instruction set, a skill may be enough. If it includes multiple resources,
 provide surfaces, or a daemon-facing Host API service, an extension gives that package a
-manifest, trust tier, enablement state, and operational lifecycle.
+manifest, trust tier, per-profile enablement state, and operational lifecycle.
 
 <OperatorNote>
   Resource-only extensions ship files CompozyOS already loads (skills, agents, Loops, automations,

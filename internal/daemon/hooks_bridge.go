@@ -96,6 +96,7 @@ func hookSessionContext(sess *session.Session) hookspkg.SessionContext {
 	}
 
 	return hookspkg.SessionContext{
+		ProfileID:             strings.TrimSpace(info.ProfileID),
 		SessionID:             strings.TrimSpace(info.ID),
 		SessionName:           strings.TrimSpace(info.Name),
 		SessionType:           string(info.Type),

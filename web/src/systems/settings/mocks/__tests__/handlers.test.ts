@@ -44,6 +44,60 @@ describe("settings shell MSW handlers", () => {
       },
     });
   });
+
+  it.each([
+    {
+      label: "user",
+      query: "scope=user",
+      expected: { scope: "user" },
+    },
+    {
+      label: "profile",
+      query: "scope=profile&profile=marketing&workspace_id=ws-alpha",
+      expected: { scope: "profile", profile: "marketing", workspace_id: "ws-alpha" },
+    },
+    {
+      label: "workspace",
+      query: "scope=workspace&workspace_id=ws-beta",
+      expected: { scope: "workspace", workspace_id: "ws-beta" },
+    },
+  ])("Should preserve the requested $label hook layer", async ({ query, expected }) => {
+    const response = await fetch(`${API}/api/settings/hooks?${query}`);
+
+    expect(response.status).toBe(200);
+    await expect(response.json()).resolves.toMatchObject({
+      available_scopes: ["user", "profile", "workspace"],
+      collection: "hooks",
+      ...expected,
+    });
+  });
+
+  it.each([
+    {
+      label: "user",
+      query: "scope=user",
+      expected: { scope: "user", config: { agent: "general", provider: "claude" } },
+    },
+    {
+      label: "profile",
+      query: "scope=profile&profile=marketing&workspace_id=ws-alpha",
+      expected: {
+        scope: "profile",
+        profile: "marketing",
+        workspace_id: "ws-alpha",
+        config: { agent: "campaigns", provider: "openai" },
+      },
+    },
+  ])("Should preserve the requested $label persona layer", async ({ query, expected }) => {
+    const response = await fetch(`${API}/api/settings/persona?${query}`);
+
+    expect(response.status).toBe(200);
+    await expect(response.json()).resolves.toMatchObject({
+      available_scopes: ["user", "profile", "workspace"],
+      section: "persona",
+      ...expected,
+    });
+  });
 });
 
 describe("settings MCP auth MSW handlers", () => {
@@ -55,7 +109,7 @@ describe("settings MCP auth MSW handlers", () => {
       query: "scope=global",
       expected: {
         server_name: "linear-global",
-        scope: "global",
+        scope: "user",
         status: "authenticated",
         token_present: true,
       },
@@ -80,7 +134,7 @@ describe("settings MCP auth MSW handlers", () => {
       query: "scope=global",
       expected: {
         server_name: "custom-provider",
-        scope: "global",
+        scope: "user",
         status: "needs_login",
         token_present: false,
         diagnostic: "login required",

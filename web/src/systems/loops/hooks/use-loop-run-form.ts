@@ -12,6 +12,7 @@ import {
   type LoopOverrideDraft,
 } from "../lib/loop-overrides";
 import { isRunFormValid, missingRequiredInputs, serializeRunInputs } from "../lib/loop-run-form";
+import { useProfileReadScope } from "@/systems/profiles";
 import type { LoopDetail, LoopEffectiveConfig } from "../types";
 import { useRunLoop } from "./use-loop-actions";
 import { useLoopRunFormState } from "./use-loop-run-form-state";
@@ -33,6 +34,9 @@ export function useLoopRunForm({
 }: UseLoopRunFormOptions) {
   const contract = loop.definition.contract;
   const schema = loop.definition.inputs;
+  // The run lands in the acting profile — `default` while the aggregate is on,
+  // which is exactly what the destination chip states (ADR-005).
+  const { aggregate, destination } = useProfileReadScope();
   const formState = useLoopRunFormState({
     effectiveConfig,
     networkParticipation: networkParticipationDraftFromPayload(
@@ -102,8 +106,16 @@ export function useLoopRunForm({
     }
     if (busy) return;
     const body = requestBody();
+    // A dry run is evaluated as the acting profile but creates nothing, so the
+    // selector still rides along while the confirmation claims no owner.
     formState.requestDryRun(() =>
-      dryMutation.mutateAsync({ workspaceId, name: loop.name, data: body, dry: true })
+      dryMutation.mutateAsync({
+        workspaceId,
+        name: loop.name,
+        data: body,
+        dry: true,
+        profile: destination,
+      })
     );
   }
 
@@ -114,8 +126,17 @@ export function useLoopRunForm({
     }
     if (busy) return;
     const body = requestBody();
-    formState.requestRun(loop.name, () =>
-      runMutation.mutateAsync({ workspaceId, name: loop.name, data: body, dry: false })
+    formState.requestRun(
+      loop.name,
+      () =>
+        runMutation.mutateAsync({
+          workspaceId,
+          name: loop.name,
+          data: body,
+          dry: false,
+          profile: destination,
+        }),
+      aggregate
     );
   }
 
@@ -132,6 +153,8 @@ export function useLoopRunForm({
     missing,
     valid,
     busy,
+    /** The destination chip's value: a profile name under the aggregate, else null. */
+    profileDestination: aggregate ? destination : null,
     pendingKind: pendingRequest?.kind ?? null,
     setInput,
     setOverridesDraft,

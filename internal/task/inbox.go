@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/compozy/compozy/internal/listcursor"
+	"github.com/compozy/compozy/internal/store"
 )
 
 const (
@@ -51,6 +52,7 @@ func (l InboxLane) Validate(path string) error {
 
 // InboxQuery captures one bounded actor-scoped task inbox request.
 type InboxQuery struct {
+	ReadScope        store.ReadScope
 	Scope            CatalogScope
 	WorkspaceID      string
 	WorktreeID       string
@@ -120,6 +122,8 @@ type InboxCursor struct {
 }
 
 type inboxFingerprint struct {
+	ProfileID        string       `json:"profile_id"`
+	AllProfiles      bool         `json:"all_profiles"`
 	ActorKind        ActorKind    `json:"actor_kind"`
 	ActorRef         string       `json:"actor_ref"`
 	Scope            CatalogScope `json:"scope"`
@@ -186,7 +190,13 @@ func normalizeInboxQueryFields(query InboxQuery) InboxQuery {
 }
 
 func validateInboxQuery(query InboxQuery) error {
+	normalizedReadScope, err := normalizeTaskReadScope(query.ReadScope)
+	if err != nil {
+		return fmt.Errorf("%w: %w", ErrValidation, err)
+	}
+	query.ReadScope = normalizedReadScope
 	catalogQuery := CatalogQuery{
+		ReadScope:        query.ReadScope,
 		Scope:            query.Scope,
 		WorkspaceID:      query.WorkspaceID,
 		WorktreeID:       query.WorktreeID,
@@ -256,6 +266,8 @@ func DecodeInboxCursor(query InboxQuery, actor ActorIdentity) (InboxCursor, erro
 
 func taskInboxFingerprint(query InboxQuery, actor ActorIdentity) (string, error) {
 	fingerprint, err := listcursor.Fingerprint(inboxFingerprint{
+		ProfileID:        query.ReadScope.ProfileID,
+		AllProfiles:      query.ReadScope.AllProfiles,
 		ActorKind:        actor.Kind.Normalize(),
 		ActorRef:         strings.TrimSpace(actor.Ref),
 		Scope:            query.Scope,

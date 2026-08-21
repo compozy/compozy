@@ -38,6 +38,7 @@ export type KnowledgeAgentTier = Exclude<MemoryAgentTier, undefined>;
  * `agent_tier` is `workspace`.
  */
 export interface KnowledgeSelector {
+  profile?: string;
   scope: KnowledgeScope;
   workspaceId?: string;
   agentName?: string;

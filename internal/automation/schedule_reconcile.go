@@ -119,6 +119,7 @@ func (s *Scheduler) reconcileMissedSchedulerState(
 	}
 
 	result, err := s.store.ClaimScheduledRun(persistenceContext(ctx), SchedulerClaim{
+		ProfileID:            job.ProfileID,
 		JobID:                job.ID,
 		RunID:                scheduledRunID(job.ID, missedAt),
 		FireID:               scheduledFireID(job.ID, missedAt),

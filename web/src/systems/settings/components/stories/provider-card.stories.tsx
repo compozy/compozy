@@ -33,7 +33,7 @@ const binaryMissingFixture: SettingsProviderEntry = {
   },
   source_metadata: {
     available_targets: ["global-config"],
-    effective_source: { kind: "builtin-provider", scope: "global" },
+    effective_source: { kind: "builtin-provider", scope: "user" },
   },
   credentials: undefined,
 };

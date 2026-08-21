@@ -11,11 +11,14 @@ import { Spinner } from "@compozy/ui";
 
 import { useDesktop } from "../../hooks/use-desktop";
 import { SettingsWindowNav } from "./settings-window-nav";
+import { profileFlowFromSearch, type ProfileFlowSearch } from "@/systems/profiles";
 import { SETTINGS_SECTIONS } from "@/systems/settings";
 import { useDaemonConnectionStatus } from "@/systems/status";
 
-interface SettingsSectionPageProps {
+export interface SettingsSectionPageProps {
   focusCommandId?: string;
+  /** Lifecycle flow a palette command navigated here to raise. */
+  profileFlow?: ProfileFlowSearch;
 }
 
 /**
@@ -27,6 +30,11 @@ const SECTION_PAGES = {
   general: lazy(() =>
     import("@/routes/_app/settings/-general-settings-page").then(m => ({
       default: m.GeneralSettingsPage,
+    }))
+  ),
+  defaults: lazy(() =>
+    import("@/routes/_app/settings/-defaults-settings-page").then(m => ({
+      default: m.DefaultsSettingsPage,
     }))
   ),
   appearance: lazy(() =>
@@ -72,6 +80,11 @@ const SECTION_PAGES = {
   gateway: lazy(() =>
     import("@/routes/_app/settings/-gateway-settings-page").then(m => ({
       default: m.GatewaySettingsPage,
+    }))
+  ),
+  profiles: lazy(() =>
+    import("@/routes/_app/settings/-profiles-settings-page").then(m => ({
+      default: m.ProfilesSettingsPage,
     }))
   ),
   palette: lazy(() =>
@@ -133,6 +146,7 @@ export function SettingsWindow({ windowId }: { windowId: string }) {
   const SectionPage = SECTION_PAGES[activeSlug];
   const focusCommandId =
     activeSlug === "layouts" ? focusCommandFromSearch(route.search) : undefined;
+  const profileFlow = activeSlug === "profiles" ? profileFlowFromSearch(route.search) : undefined;
 
   // Window-scoped `/` shortcut: focus the sidebar search unless the user is
   // already typing in a field.
@@ -166,7 +180,7 @@ export function SettingsWindow({ windowId }: { windowId: string }) {
               </div>
             }
           >
-            <SectionPage focusCommandId={focusCommandId} />
+            <SectionPage focusCommandId={focusCommandId} profileFlow={profileFlow} />
           </Suspense>
         </div>
       </div>

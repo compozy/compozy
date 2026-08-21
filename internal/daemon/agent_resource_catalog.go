@@ -81,7 +81,7 @@ func (c *resourceAgentCatalog) agentEntriesForWorkspace(
 	})
 	merged := make(map[string]core.AgentCatalogEntry)
 	for _, record := range records {
-		if record.Scope.Kind.Normalize() != resources.ResourceScopeKindGlobal {
+		if record.Scope.Kind.Normalize() != resources.ResourceScopeKindUser {
 			continue
 		}
 		name := strings.TrimSpace(record.Spec.Name)

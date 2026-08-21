@@ -1,6 +1,7 @@
 package hooks
 
 import (
+	"strings"
 	"time"
 
 	"github.com/compozy/compozy/internal/network/participation"
@@ -20,6 +21,7 @@ type TaskRunClaimCriteria struct {
 
 // TaskRunContext carries task-run identifiers shared across task-run hooks.
 type TaskRunContext struct {
+	ProfileID                    string              `json:"profile_id,omitempty"`
 	TaskID                       string              `json:"task_id,omitempty"`
 	RunID                        string              `json:"run_id,omitempty"`
 	RunKind                      *string             `json:"run_kind,omitempty"`
@@ -45,6 +47,9 @@ type TaskRunContext struct {
 	ReleaseReason                string              `json:"release_reason,omitempty"`
 	Error                        string              `json:"error,omitempty"`
 }
+
+// HookProfileID returns the durable owner used to isolate profile-scoped declarations.
+func (c TaskRunContext) HookProfileID() string { return strings.TrimSpace(c.ProfileID) }
 
 // TaskRunEnqueuedPayload is delivered after a task run is enqueued and its audit event is committed.
 type TaskRunEnqueuedPayload struct {

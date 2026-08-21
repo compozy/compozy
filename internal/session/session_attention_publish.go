@@ -43,6 +43,7 @@ func (m *Manager) publishAttentionCommit(
 	}
 	event := AttentionEvent{
 		SessionID:   strings.TrimSpace(after.ID),
+		ProfileID:   strings.TrimSpace(after.ProfileID),
 		WorkspaceID: strings.TrimSpace(after.WorkspaceID),
 		From:        from,
 		To:          to,
@@ -86,9 +87,10 @@ func (m *Manager) sessionInfoForAttentionEvent(ctx context.Context, sessionID st
 		queryCtx = context.WithoutCancel(queryCtx)
 	}
 	rows, err := m.sessionCatalog.ListSessions(queryCtx, store.SessionListQuery{
-		ID:      strings.TrimSpace(sessionID),
-		Archive: store.SessionArchiveInclude,
-		Limit:   1,
+		ReadScope: store.ReadScope{AllProfiles: true},
+		ID:        strings.TrimSpace(sessionID),
+		Archive:   store.SessionArchiveInclude,
+		Limit:     1,
 	})
 	if err != nil {
 		return nil, fmt.Errorf("session: read durable attention event snapshot: %w", err)

@@ -93,6 +93,12 @@ func scanBridgeDeliveryMetrics(scanner rowScanner) (bridges.BridgeDeliveryMetric
 	)
 	if err := scanner.Scan(
 		&metrics.BridgeInstanceID,
+		&metrics.ProfileID,
+		&metrics.ProfileName,
+		&metrics.ProfileColor,
+		&metrics.ProfileIcon,
+		&metrics.ProfileEmoji,
+		&metrics.ProfileArchived,
 		&metrics.DeliveryDroppedTotal,
 		&droppedJSON,
 		&metrics.DeliveryFailuresTotal,

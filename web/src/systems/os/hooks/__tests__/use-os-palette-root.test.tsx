@@ -1,3 +1,4 @@
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 // Suite: OS command palette root
 // Invariant: every row is a projection of the one client registry, entity rows
 // preserve the selected tab's identity, session landing goes through the shared
@@ -50,6 +51,7 @@ const TEST_WEIGHTS = JSON.parse(
 ) as CmdPaletteRankSignals["weights"];
 
 const TEST_RANK_SIGNALS: CmdPaletteRankSignals = {
+  profile_lens: { profile_lens_id: "00000000000000000000000000", profile_name: "default" },
   weights: TEST_WEIGHTS,
   usage: [],
   query_hits: [],
@@ -65,6 +67,12 @@ type PaletteSessionFixture = {
   workspace_id?: string;
   updated_at: string;
   attention_changed_at?: string;
+  profile_id?: string;
+  profile_name?: string;
+  profile_color?: string;
+  profile_icon?: string;
+  profile_emoji?: string;
+  profile_archived?: boolean;
 };
 
 // The view path is the one piece of palette state a click has to move, so the
@@ -89,6 +97,7 @@ const paletteMocks = vi.hoisted(() => {
     runFallback: vi.fn(async () => undefined),
     openForAgent: vi.fn(),
     pending: false,
+    profileAggregate: false,
     scope: "workspace" as "workspace" | "global",
     paletteIntent: null as { kind: "destination"; windowId: string } | null,
     paletteIntentCleared: vi.fn(),
@@ -175,6 +184,8 @@ vi.mock("@/systems/session", async importOriginal => ({
 
 vi.mock("@/systems/workspace", async importOriginal => ({
   ...(await importOriginal<typeof import("@/systems/workspace")>()),
+  useSelectedWorkspaceId: () => paletteMocks.activeWorkspaceId,
+  useWorkspaceScopeMode: () => paletteMocks.scope,
   useWorktrees: () => ({ data: undefined }),
   useWorktreeListings: () => ({}),
   useScopedWorktreeFilter: () => ({ worktreeId: undefined, resolved: true }),
@@ -192,6 +203,30 @@ vi.mock("@/systems/workspace", async importOriginal => ({
     canDisableGlobal: true,
     toggleGlobalScope: vi.fn(),
   }),
+}));
+
+vi.mock("../../../profiles/hooks/use-profile-read-scope", () => ({
+  useProfileReadScope: () => ({
+    aggregate: paletteMocks.profileAggregate,
+    destination: "default",
+    destinationOwner: null,
+    key: paletteMocks.profileAggregate ? "@all" : "default",
+    lens: { scope: "workspace", workspaceId: "workspace:alpha" },
+    ownerOf: (row: PaletteSessionFixture) => ({
+      id: row.profile_id ?? "",
+      name: row.profile_name ?? "",
+      color: row.profile_color,
+      icon: row.profile_icon ?? null,
+      emoji: row.profile_emoji ?? null,
+      archived: row.profile_archived === true,
+    }),
+    params: paletteMocks.profileAggregate ? { all_profiles: true } : { profile: "default" },
+    scopeLabel: paletteMocks.profileAggregate ? null : "default",
+    view: paletteMocks.profileAggregate
+      ? { kind: "aggregate" }
+      : { kind: "profile", profile: "default" },
+  }),
+  useAggregateDestination: () => (paletteMocks.profileAggregate ? "default" : null),
 }));
 
 vi.mock("../use-attention-jump", () => ({
@@ -411,9 +446,16 @@ const PALETTE_REGISTRY: PaletteRegistry = (() => {
   };
 })();
 
+/** The palette resolves the active profile, which is a server read. */
+const paletteQueryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+
 function PaletteHarness({ children }: { children: ReactNode }) {
   return (
-    <CmdPaletteRegistryProvider registry={PALETTE_REGISTRY}>{children}</CmdPaletteRegistryProvider>
+    <QueryClientProvider client={paletteQueryClient}>
+      <CmdPaletteRegistryProvider registry={PALETTE_REGISTRY}>
+        {children}
+      </CmdPaletteRegistryProvider>
+    </QueryClientProvider>
   );
 }
 
@@ -561,6 +603,7 @@ function renderPalette(onOpenChange = vi.fn()) {
 }
 
 function resetPaletteHarness() {
+  paletteQueryClient.clear();
   resetPaletteExecutionEntry();
   paletteDispatch.run.mockClear();
   paletteDispatch.runById.mockClear();
@@ -576,6 +619,7 @@ function resetPaletteHarness() {
   paletteMocks.paletteIntentCleared.mockClear();
   paletteMocks.paletteIntentRequested.mockClear();
   paletteMocks.pending = false;
+  paletteMocks.profileAggregate = false;
   paletteMocks.scope = "workspace";
   paletteMocks.rankSignals = null;
   paletteMocks.fallbackAgentEnabled = false;
@@ -994,6 +1038,30 @@ describe("palette nested views", () => {
     );
     expect(screen.getByText("No sessions in this workspace yet.")).toBeInTheDocument();
     expect(screen.getByTestId("os-palette-breadcrumb")).toBeInTheDocument();
+  });
+
+  it("Should name each session owner under the aggregate profile lens", async () => {
+    const user = userEvent.setup();
+    paletteMocks.profileAggregate = true;
+    paletteMocks.sessions = [
+      paletteSession({
+        id: "s-marketing",
+        name: "Campaign plan",
+        profile_id: "01J9MARKETING00000000000000",
+        profile_name: "marketing",
+        profile_color: "#c26ad6",
+        profile_icon: "megaphone",
+        profile_archived: false,
+      }),
+    ];
+
+    renderPalette();
+    await pushSessionsView(user);
+
+    expect(screen.getByTestId("os-palette-session-view-s-marketing")).toHaveTextContent(
+      "marketing"
+    );
+    expect(screen.getByTestId("profile-owner-tag")).not.toHaveAttribute("data-archived");
   });
 
   it("Should narrow by chip, name a zero match, and clear it in one keystroke [UT-061]", async () => {

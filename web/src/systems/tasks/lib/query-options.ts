@@ -35,12 +35,25 @@ import type {
   TaskRunsFilter,
   TaskTimelineFilter,
 } from "../types";
+import type { ProfileScopeParams } from "@/systems/profiles";
 
 const DEFAULT_STALE_TIME = 15_000;
 const DEFAULT_REFETCH_INTERVAL = 30_000;
 const LIVE_STALE_TIME = 5_000;
 const LIVE_REFETCH_INTERVAL = 15_000;
 const INITIAL_CURSOR: string | undefined = undefined;
+
+type TaskProfileFilter = { profile?: string | null; all_profiles?: boolean | null };
+
+export function withTaskProfileScope<T extends TaskProfileFilter>(
+  filters: T,
+  scope: ProfileScopeParams
+): Omit<T, "profile" | "all_profiles"> & ProfileScopeParams {
+  const unscoped = Object.fromEntries(
+    Object.entries(filters).filter(([key]) => key !== "profile" && key !== "all_profiles")
+  ) as Omit<T, "profile" | "all_profiles">;
+  return { ...unscoped, ...scope };
+}
 
 function taskDetailRefetchInterval(detail: TaskDetailView | undefined): number | false {
   if (!detail) return DEFAULT_REFETCH_INTERVAL;
@@ -77,10 +90,10 @@ export function tasksListOptions(filters: TaskListFilter = {}, enabled = true) {
   });
 }
 
-export function taskDetailOptions(id: string, enabled = true) {
+export function taskDetailOptions(id: string, scope: ProfileScopeParams, enabled = true) {
   return queryOptions({
-    queryKey: tasksKeys.detail(id),
-    queryFn: ({ signal }) => getTask(id, signal),
+    queryKey: tasksKeys.detail(id, scope),
+    queryFn: ({ signal }) => getTask(id, scope, signal),
     staleTime: DEFAULT_STALE_TIME,
     refetchInterval: query => taskDetailRefetchInterval(query.state.data),
     enabled: Boolean(id) && enabled,

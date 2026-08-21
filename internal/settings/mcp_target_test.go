@@ -117,7 +117,7 @@ client_id = "client-id"
 `)
 		runtime := &recordingMCPAuthRuntime{}
 		service := testService(t, homePaths, Dependencies{MCPAuth: runtime})
-		target := mcpauth.Target{Scope: mcpauth.ScopeGlobal, ServerName: "linear"}
+		target := mcpauth.Target{Scope: mcpauth.ScopeUser, ServerName: "linear"}
 
 		if _, err := service.PutCollectionItem(ctx, CollectionItemPutRequest{
 			CollectionRequest: CollectionRequest{Collection: CollectionMCPServers},

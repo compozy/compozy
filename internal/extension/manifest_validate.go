@@ -20,6 +20,9 @@ func validateManifestIdentity(manifest *Manifest) error {
 }
 
 func validateManifestRuntime(manifest *Manifest) error {
+	if err := validateManifestProfiles(manifest); err != nil {
+		return err
+	}
 	if manifest.Format != FormatAgentPlugin {
 		if err := validateNativeManifestCompatibility(manifest); err != nil {
 			return err

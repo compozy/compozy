@@ -17,7 +17,7 @@ function makeEntry(profile: SettingsSandboxEntry["profile"]): SettingsSandboxEnt
     profile,
     source_metadata: {
       available_targets: ["global-config"],
-      effective_source: { kind: "global-config", scope: "global" },
+      effective_source: { kind: "global-config", scope: "user" },
     },
     workspace_usage_count: 2,
   };

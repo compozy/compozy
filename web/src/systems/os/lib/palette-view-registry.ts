@@ -13,7 +13,7 @@
  */
 import type { ReactNode } from "react";
 
-import { Blocks, GitBranch } from "lucide-react";
+import { Blocks, GitBranch, UsersRound } from "lucide-react";
 
 import { OS_APP_DESCRIPTORS, type OsAppDescriptor } from "./app-catalog";
 
@@ -65,6 +65,16 @@ export const PALETTE_VIEWS: Readonly<Record<string, PaletteViewDefinition>> = {
   ),
   marketplace: domainView("marketplace", "Marketplace", OS_APP_DESCRIPTORS.marketplace.icon),
   extensions: domainView("extensions", "Extensions", Blocks),
+  // Profiles owns a dedicated controller rather than the generic domain search:
+  // its rows are identities with switch semantics, not catalog entries to open.
+  profiles: {
+    id: "profiles",
+    title: "Profiles",
+    icon: UsersRound,
+    placeholder: "Switch profile…",
+    enterHint: "switch",
+    description: "Switch, create, and manage profiles",
+  },
 };
 
 function domainView(

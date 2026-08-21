@@ -72,19 +72,27 @@ func (s *toolApprovalGrantService) PutApprovalGrant(
 
 func (s *toolApprovalGrantService) ListApprovalGrants(
 	ctx context.Context,
+	readScope store.ReadScope,
 	workspaceID string,
 ) ([]toolspkg.ApprovalGrant, error) {
 	if s == nil || s.store == nil {
 		return nil, errors.New("daemon: tool approval grant store is unavailable")
 	}
-	return s.store.ListApprovalGrants(ctx, workspaceID)
+	return s.store.ListApprovalGrants(ctx, readScope, workspaceID)
 }
 
-func (s *toolApprovalGrantService) RevokeApprovalGrant(ctx context.Context, workspaceID, id string) error {
+func (s *toolApprovalGrantService) RevokeApprovalGrant(
+	ctx context.Context,
+	profileID string,
+	workspaceID string,
+	id string,
+) error {
 	if s == nil || s.store == nil {
 		return errors.New("daemon: tool approval grant store is unavailable")
 	}
-	grants, err := s.store.ListApprovalGrants(ctx, workspaceID)
+	grants, err := s.store.ListApprovalGrants(
+		ctx, store.ReadScope{ProfileID: profileID}, workspaceID,
+	)
 	if err != nil {
 		return err
 	}
@@ -100,7 +108,7 @@ func (s *toolApprovalGrantService) RevokeApprovalGrant(ctx context.Context, work
 	if !found {
 		return toolspkg.ErrApprovalGrantNotFound
 	}
-	if err := s.store.RevokeApprovalGrant(ctx, workspaceID, id); err != nil {
+	if err := s.store.RevokeApprovalGrant(ctx, profileID, workspaceID, id); err != nil {
 		return err
 	}
 	s.emitTransition(ctx, events.ToolApprovalGrantRevoked, revoked)
@@ -130,14 +138,14 @@ func (s *toolApprovalGrantService) emitTransition(
 	if eventType == events.ToolApprovalGrantRevoked {
 		summary = fmt.Sprintf("approval grant for %s revoked", grant.ToolID)
 	}
-	if err := s.events.WriteEventSummary(context.WithoutCancel(ctx), store.EventSummary{
+	if err := s.events.WriteEventSummary(context.WithoutCancel(ctx), daemonEventSummary(store.EventSummary{
+		ProfileID:   grant.ProfileID,
 		WorkspaceID: grant.WorkspaceID,
 		Type:        eventType,
 		Outcome:     string(events.OutcomeFor(eventType)),
-		Content:     content,
 		Summary:     summary,
 		Timestamp:   s.now().UTC(),
-	}); err != nil {
+	}, content)); err != nil {
 		s.logger.Warn(
 			"daemon: write tool approval grant event failed open",
 			"type", eventType,

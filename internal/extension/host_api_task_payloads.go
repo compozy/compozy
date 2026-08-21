@@ -13,6 +13,7 @@ func taskSummaryPayloadFromSummary(record *taskpkg.Summary) apicontract.TaskSumm
 
 	return apicontract.TaskSummaryPayload{
 		ID:                           record.ID,
+		ProfileID:                    record.ProfileID,
 		Identifier:                   record.Identifier,
 		Scope:                        record.Scope,
 		WorkspaceID:                  record.WorkspaceID,
@@ -48,6 +49,7 @@ func taskPayloadFromTask(record *taskpkg.Task) apicontract.TaskPayload {
 
 	return apicontract.TaskPayload{
 		ID:                 record.ID,
+		ProfileID:          record.ProfileID,
 		Identifier:         record.Identifier,
 		Scope:              record.Scope,
 		WorkspaceID:        record.WorkspaceID,
@@ -90,9 +92,10 @@ func taskRunPayloadFromRun(run *taskpkg.Run) apicontract.TaskRunPayload {
 	}
 
 	return apicontract.TaskRunPayload{
-		ID:     run.ID,
-		TaskID: run.TaskID,
-		Status: run.Status,
+		ID:        run.ID,
+		ProfileID: run.ProfileID,
+		TaskID:    run.TaskID,
+		Status:    run.Status,
 		// Run attempts are int32, which converts exactly to int on every Go architecture.
 		Attempt:                      int(run.Attempt),
 		ClaimedBy:                    cloneActorIdentity(run.ClaimedBy),
@@ -106,6 +109,6 @@ func taskRunPayloadFromRun(run *taskpkg.Run) apicontract.TaskRunPayload {
 		EndedAt:                      optionalTime(run.EndedAt),
 		Error:                        taskpkg.RedactClaimTokens(run.Error),
 		Metadata:                     taskpkg.RedactClaimTokenJSON(run.Metadata),
-		Result:                       taskpkg.RedactClaimTokenJSON(run.Result),
+		Result:                       taskpkg.RedactClaimTokenJSON(run.ResultValue()),
 	}
 }

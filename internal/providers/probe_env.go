@@ -80,6 +80,7 @@ type authStatusCommandResolution struct {
 // in this scope.
 type PreStartScope struct {
 	WorkspaceID       string
+	ProfileID         string
 	HomeIdentity      string
 	SandboxID         string
 	SandboxBackend    string

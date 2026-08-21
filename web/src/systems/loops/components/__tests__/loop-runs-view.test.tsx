@@ -1,5 +1,6 @@
 import { fireEvent, render, screen, within } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
+import { aggregateListingScopeFixture, scopedListingScopeFixture } from "@/systems/profiles/mocks";
 
 vi.mock("@tanstack/react-router", async importOriginal => {
   const actual = await importOriginal<typeof import("@tanstack/react-router")>();
@@ -57,7 +58,13 @@ const RECENT = run({
 // state's words.
 describe("LoopRunsView", () => {
   it("Should render one section per group in server order, with counts and no KPI band", () => {
-    render(<LoopRunsView outcome="all" runs={[RECENT, NEEDS_YOU, ACTIVE]} />);
+    render(
+      <LoopRunsView
+        outcome="all"
+        profileScope={scopedListingScopeFixture}
+        runs={[RECENT, NEEDS_YOU, ACTIVE]}
+      />
+    );
 
     const sections = screen.getAllByTestId(/^loop-runs-group-/);
     expect(sections.map(section => section.getAttribute("data-group"))).toEqual([
@@ -77,7 +84,13 @@ describe("LoopRunsView", () => {
   // the seeds' mostly-terminal mix — the dozens landed in Recent, Active held
   // eight, and the one group the contract is about stayed small.
   it("Should put the dozens in Active while Needs you stays small and first", () => {
-    render(<LoopRunsView outcome="all" runs={dozensActiveRuns} />);
+    render(
+      <LoopRunsView
+        outcome="all"
+        profileScope={scopedListingScopeFixture}
+        runs={dozensActiveRuns}
+      />
+    );
 
     const sections = screen.getAllByTestId(/^loop-runs-group-/);
     // Composition unchanged: the same three groups, in the same order.
@@ -105,7 +118,7 @@ describe("LoopRunsView", () => {
   });
 
   it("Should render Loop, Status, Progress, Started and Duration, and no spend columns", () => {
-    render(<LoopRunsView outcome="all" runs={[ACTIVE]} />);
+    render(<LoopRunsView outcome="all" profileScope={scopedListingScopeFixture} runs={[ACTIVE]} />);
 
     const headers = screen.getAllByRole("columnheader").map(header => header.textContent);
     expect(headers).toEqual(COLUMNS);
@@ -118,7 +131,9 @@ describe("LoopRunsView", () => {
   });
 
   it("Should lead a needs-you row with a warning chip and demote its run id under the name", () => {
-    render(<LoopRunsView outcome="all" runs={[NEEDS_YOU]} />);
+    render(
+      <LoopRunsView outcome="all" profileScope={scopedListingScopeFixture} runs={[NEEDS_YOU]} />
+    );
 
     const row = screen.getByTestId("loop-run-row");
     const status = within(row).getByTestId("loop-run-status");
@@ -138,7 +153,12 @@ describe("LoopRunsView", () => {
     const onEmptyAction = vi.fn();
     // No fixture run is `watching`, so the filter empties the whole roster.
     render(
-      <LoopRunsView onEmptyAction={onEmptyAction} outcome="watching" runs={loopRunFixtures} />
+      <LoopRunsView
+        onEmptyAction={onEmptyAction}
+        outcome="watching"
+        profileScope={scopedListingScopeFixture}
+        runs={loopRunFixtures}
+      />
     );
 
     const empty = screen.getByTestId("loop-runs-empty");
@@ -151,7 +171,13 @@ describe("LoopRunsView", () => {
   it("Should say the rows are the last read when the transport is degraded, never that it is empty", () => {
     const onRetry = vi.fn();
     render(
-      <LoopRunsView isReconnecting onRetry={onRetry} outcome="all" runs={[NEEDS_YOU, ACTIVE]} />
+      <LoopRunsView
+        isReconnecting
+        onRetry={onRetry}
+        outcome="all"
+        profileScope={scopedListingScopeFixture}
+        runs={[NEEDS_YOU, ACTIVE]}
+      />
     );
 
     expect(screen.getByTestId("loop-runs-degraded")).toHaveTextContent(
@@ -170,6 +196,7 @@ describe("LoopRunsView", () => {
       <LoopRunsView
         isReconnecting
         lastReadAt={new Date(Date.now() - 40_000).toISOString()}
+        profileScope={scopedListingScopeFixture}
         outcome="all"
         runs={[NEEDS_YOU, ACTIVE]}
       />
@@ -187,6 +214,7 @@ describe("LoopRunsView", () => {
         isReconnecting
         lastReadAt={new Date(Date.now() - 40_000).toISOString()}
         outcome="all"
+        profileScope={scopedListingScopeFixture}
         runs={[]}
       />
     );
@@ -197,7 +225,9 @@ describe("LoopRunsView", () => {
   });
 
   it("Should keep the shape of what is coming when a degraded read has no rows yet", () => {
-    render(<LoopRunsView isError outcome="all" runs={[]} />);
+    render(
+      <LoopRunsView isError outcome="all" profileScope={scopedListingScopeFixture} runs={[]} />
+    );
 
     expect(screen.getByTestId("loop-runs-degraded")).toHaveTextContent(
       "This workspace's runs could not be read."
@@ -210,16 +240,57 @@ describe("LoopRunsView", () => {
   // A failed request and a dropped stream recover differently, so telling a
   // reader to wait for a reconnect that is not happening is its own failure.
   it("Should name a failed read separately from a dropped stream", () => {
-    const { unmount } = render(<LoopRunsView isReconnecting outcome="all" runs={[NEEDS_YOU]} />);
+    const { unmount } = render(
+      <LoopRunsView
+        isReconnecting
+        outcome="all"
+        profileScope={scopedListingScopeFixture}
+        runs={[NEEDS_YOU]}
+      />
+    );
     const reconnecting = screen.getByTestId("loop-runs-degraded");
     expect(reconnecting).toHaveAttribute("data-cause", "reconnecting");
     expect(reconnecting).toHaveTextContent("Reconnecting to the daemon.");
     unmount();
 
-    render(<LoopRunsView isError outcome="all" runs={[NEEDS_YOU]} />);
+    render(
+      <LoopRunsView
+        isError
+        outcome="all"
+        profileScope={scopedListingScopeFixture}
+        runs={[NEEDS_YOU]}
+      />
+    );
     const failed = screen.getByTestId("loop-runs-degraded");
     expect(failed).toHaveAttribute("data-cause", "read-failed");
     expect(failed).toHaveTextContent("This workspace's runs could not be read.");
     expect(failed).not.toHaveTextContent("Reconnecting to the daemon.");
+  });
+
+  it("Should name the profile a scoped runs list is empty for", () => {
+    render(<LoopRunsView profileScope={scopedListingScopeFixture} outcome="all" runs={[]} />);
+    expect(screen.getByText("No runs in default yet")).toBeInTheDocument();
+  });
+
+  it("Should not name a profile when every profile's runs are on screen", () => {
+    render(<LoopRunsView profileScope={aggregateListingScopeFixture} outcome="all" runs={[]} />);
+    // `default` is the create target, never a description of what is shown.
+    expect(screen.getByText("No runs in any profile yet")).toBeInTheDocument();
+    expect(screen.queryByText(/in default yet/)).not.toBeInTheDocument();
+  });
+
+  it("Should label aggregate run rows with their profile owner", () => {
+    render(
+      <LoopRunsView
+        profileScope={aggregateListingScopeFixture}
+        outcome="all"
+        runs={loopRunFixtures.slice(0, 2)}
+      />
+    );
+
+    expect(screen.getAllByTestId("profile-owner-tag")).toHaveLength(2);
+    expect(
+      screen.getAllByTestId("profile-owner-tag").every(tag => tag.textContent === "default")
+    ).toBe(true);
   });
 });

@@ -22,6 +22,8 @@ vi.mock("@tanstack/react-router", async importOriginal => {
 
 function makeBridge(overrides: Partial<BridgeSummary> = {}): BridgeSummary {
   return {
+    profile_name: "default",
+    profile_id: "00000000000000000000000000",
     created_at: "2026-04-13T12:00:00Z",
     delivery_defaults: { mode: "reply", peer_id: "peer_123" },
     display_name: "Support",

@@ -79,6 +79,7 @@ func (m *Manager) acceptPrepared(
 		AuditDirectionSent,
 		prepared.Envelope,
 		envelopeRecordTime(prepared.Envelope, m.now),
+		m.senderProfileID(senderSessionID),
 	)
 	if err != nil {
 		return "", err
@@ -86,7 +87,9 @@ func (m *Manager) acceptPrepared(
 	if !ok {
 		return "", fmt.Errorf("network: envelope kind %q cannot be persisted", prepared.Envelope.Kind)
 	}
-	m.bindDurableSessionIdentities(&entry, senderSessionID, route)
+	if err := m.bindDurableSessionIdentities(&entry, senderSessionID, route); err != nil {
+		return "", err
+	}
 	rootID, depth, err := m.resolveCausation(ctx, prepared.Envelope)
 	if err != nil {
 		return "", err
@@ -100,7 +103,7 @@ func (m *Manager) acceptPrepared(
 		Dispositions: storeDispositions(route.Dispositions),
 		Admissions:   admissions,
 	}
-	result, err := m.acceptance.AcceptNetworkMessage(ctx, request)
+	result, err := m.acceptance.AcceptNetworkMessage(ctx, &request)
 	if err != nil {
 		m.recordAuditRejected(ctx, senderSessionID, prepared.Envelope, conversationPersistenceReason(err))
 		return "", err
@@ -122,6 +125,13 @@ func (m *Manager) acceptPrepared(
 		return "", err
 	}
 	return prepared.ID, nil
+}
+
+func (m *Manager) senderProfileID(senderSessionID string) string {
+	if runtime, ok := m.sessionSnapshot(senderSessionID); ok {
+		return strings.TrimSpace(runtime.profileID)
+	}
+	return store.DefaultProfileID
 }
 
 func (m *Manager) detachedSendContext(ctx context.Context) (context.Context, context.CancelFunc) {
@@ -181,20 +191,26 @@ func (m *Manager) bindDurableSessionIdentities(
 	entry *store.NetworkConversationMessage,
 	senderSessionID string,
 	route RouteResult,
-) {
+) error {
 	if entry == nil {
-		return
+		return errors.New("network: durable message entry is required")
 	}
 	entry.PeerFrom = strings.TrimSpace(senderSessionID)
+	if runtime, ok := m.sessionSnapshot(senderSessionID); ok {
+		entry.ProfileID = strings.TrimSpace(runtime.profileID)
+	} else if strings.TrimSpace(senderSessionID) != runtimePeerSessionID {
+		return fmt.Errorf("network: sender session %q is no longer managed", strings.TrimSpace(senderSessionID))
+	}
 	if route.Envelope.IsDirected() {
 		for _, delivery := range route.Deliveries {
 			if deliveryAddressedToPeer(delivery) {
 				entry.PeerTo = strings.TrimSpace(delivery.SessionID)
-				return
+				return nil
 			}
 		}
 	}
 	entry.PeerTo = ""
+	return nil
 }
 
 func storeDispositions(values []RoutingDisposition) []store.NetworkMessageDisposition {

@@ -47,6 +47,7 @@ func (h *HostAPIHandler) createBridgeSession(
 		AgentName: agentName,
 		Provider:  "",
 		Workspace: workspaceID,
+		ProfileID: instance.ProfileID,
 		Type:      session.SessionTypeUser,
 	})
 	if err != nil {

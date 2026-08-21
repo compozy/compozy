@@ -5,6 +5,7 @@ import { KindIcon, ListingRow, Pill, providerKindIconRegistry } from "@compozy/u
 
 import { formatCategoryMetaSegment, type AgentFleetRowModel } from "../lib/agent-fleet-projection";
 import { AgentFleetNewSessionButton } from "./agent-fleet-new-session-button";
+import { AgentLayerProvenance } from "./agent-layer-provenance";
 
 export interface AgentFleetRowProps {
   row: AgentFleetRowModel;
@@ -65,6 +66,11 @@ function AgentFleetRow({ row, newSessionDisabled = false, onNewSession }: AgentF
               ))}
             </ListingRow.Meta>
           ) : null}
+          <AgentLayerProvenance
+            data-testid={`agent-fleet-provenance-${agent.name}`}
+            layer={row.layer}
+            shadows={row.shadowLayers}
+          />
         </ListingRow.Main>
       </ListingRow.Link>
       <ListingRow.Trail className="gap-3">

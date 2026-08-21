@@ -18,6 +18,7 @@ import {
   useBridgeProviders,
   useBridges,
 } from "@/systems/bridges";
+import { useProfileReadScope } from "@/systems/profiles";
 import { useActiveWorkspace } from "@/systems/workspace";
 
 function useBridgesPage(search: BridgesRouteSearch = {}) {
@@ -25,6 +26,9 @@ function useBridgesPage(search: BridgesRouteSearch = {}) {
 
   const { activeWorkspace, activeWorkspaceId } = useActiveWorkspace();
   const liveDataEnabled = useCurrentWindowLiveDataEnabled();
+  // `useBridges` sends the scope on the wire; this is the same lens in the shape
+  // the listing needs to label what came back.
+  const profile = useProfileReadScope();
 
   const routeSearchQuery = search.q ?? "";
   const view: ListingViewMode = search.view ?? "rows";
@@ -161,6 +165,9 @@ function useBridgesPage(search: BridgesRouteSearch = {}) {
     openCreateDialog: createFlow.openCreateDialog,
     platformFilter,
     platforms,
+    // The listing tags owners and names an empty scope from this, so the lens
+    // travels with the rows it describes.
+    profile,
     providers,
     scopeFilter,
     searchQuery,

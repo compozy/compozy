@@ -245,14 +245,28 @@ func (n *hooksNotifier) writeCoordinatorWatchEvent(
 	if err != nil {
 		return fmt.Errorf("daemon: marshal coordinator watch event: %w", err)
 	}
-	return writer.WriteEventSummary(ctx, store.EventSummary{
+	profileID := store.DefaultProfileID
+	if sessionID := strings.TrimSpace(payload.CoordinatorSessionID); sessionID != "" {
+		resolved, err := n.sessionProfile(ctx, sessionID)
+		if err != nil {
+			return err
+		}
+		if strings.TrimSpace(resolved) == "" {
+			if n.hasSessionProfileResolver() {
+				return errors.New("daemon: coordinator watch profile is unavailable")
+			}
+		} else {
+			profileID = strings.TrimSpace(resolved)
+		}
+	}
+	return writer.WriteEventSummary(ctx, daemonEventSummary(store.EventSummary{
+		ProfileID:   profileID,
 		SessionID:   strings.TrimSpace(payload.CoordinatorSessionID),
 		WorkspaceID: strings.TrimSpace(payload.WorkspaceID),
 		Type:        string(event),
 		AgentName:   strings.TrimSpace(payload.AgentName),
 		Provider:    strings.TrimSpace(payload.Provider),
 		Outcome:     coordinatorWatchEventOutcome(event),
-		Content:     content,
 		EventCorrelation: store.EventCorrelation{
 			TaskID:               strings.TrimSpace(payload.TaskID),
 			RunID:                strings.TrimSpace(payload.RunID),
@@ -262,7 +276,7 @@ func (n *hooksNotifier) writeCoordinatorWatchEvent(
 		},
 		Summary:   coordinatorWatchEventSummary(event, payload),
 		Timestamp: payload.Timestamp.UTC(),
-	})
+	}, content))
 }
 
 func coordinatorWatchEventOutcome(event hookspkg.HookEvent) string {

@@ -259,6 +259,62 @@ func TestUnixSocketClientCmdPaletteMethods(t *testing.T) {
 	})
 }
 
+func TestUnixSocketClientToolApprovalGrantMethods(t *testing.T) {
+	t.Parallel()
+
+	profileContext := context.WithValue(
+		t.Context(),
+		profileReadSelectionContextKey{},
+		profileReadSelection{Profile: "marketing"},
+	)
+	client := &daemonClient{
+		target: LocalClientTarget("/tmp/compozy.sock"),
+		httpClient: &http.Client{Transport: roundTripperFunc(func(request *http.Request) (*http.Response, error) {
+			if request.URL.Query().Get("profile") != "marketing" {
+				t.Fatalf("profile query = %q, want marketing", request.URL.Query().Get("profile"))
+			}
+			switch {
+			case request.Method == http.MethodPut && request.URL.Path == "/api/tool-approval-grants":
+				return newHTTPResponse(
+					http.StatusOK,
+					`{"grant":{"id":"grant-1","profile_id":"profile-marketing","workspace_id":"ws-1","tool_id":"compozy__probe","decision":"allow","created_at":"2026-08-19T12:00:00Z","last_used_at":"2026-08-19T12:00:00Z"}}`,
+				), nil
+			case request.Method == http.MethodGet && request.URL.Path == "/api/tool-approval-grants":
+				return newHTTPResponse(http.StatusOK, `{"grants":[],"total":0}`), nil
+			case request.Method == http.MethodDelete && request.URL.Path == "/api/tool-approval-grants/grant-1":
+				return newHTTPResponse(http.StatusOK, `{}`), nil
+			default:
+				return newHTTPResponse(http.StatusNotFound, `{"error":"unexpected grant route"}`), nil
+			}
+		})},
+	}
+	client.streamClient = client.httpClient
+
+	t.Run("Should stamp selected profile on set", func(t *testing.T) {
+		t.Parallel()
+		request := ToolApprovalGrantSetRequest{
+			ToolID:   toolspkg.ToolID("compozy__probe"),
+			Decision: toolspkg.ApprovalGrantAllow,
+			Scope:    toolspkg.ApprovalGrantScopeTool,
+		}
+		if _, err := client.SetToolApprovalGrant(profileContext, "ws-1", request); err != nil {
+			t.Fatalf("SetToolApprovalGrant() error = %v", err)
+		}
+	})
+	t.Run("Should stamp selected profile on list", func(t *testing.T) {
+		t.Parallel()
+		if _, err := client.ListToolApprovalGrants(profileContext, "ws-1"); err != nil {
+			t.Fatalf("ListToolApprovalGrants() error = %v", err)
+		}
+	})
+	t.Run("Should stamp selected profile on revoke", func(t *testing.T) {
+		t.Parallel()
+		if err := client.RevokeToolApprovalGrant(profileContext, "ws-1", "grant-1"); err != nil {
+			t.Fatalf("RevokeToolApprovalGrant() error = %v", err)
+		}
+	})
+}
+
 func (r *stagedResponseReader) Read(buffer []byte) (int, error) {
 	if len(r.chunks) == 0 {
 		if r.terminalErr != nil {
@@ -969,9 +1025,10 @@ func TestUnixSocketClientAgentNotifySendsIdentityAndDecodesOutcome(t *testing.T)
 func TestUnixSocketClientUpdateSettingsAttentionRoundTripsContract(t *testing.T) {
 	t.Parallel()
 
-	want := UpdateSettingsAttentionRequest{Config: contract.SettingsAttentionPayload{
+	mutedWorkspaces := []string{"ws_0123456789abcdef"}
+	want := UpdateSettingsAttentionRequest{Config: contract.UpdateSettingsAttentionPayload{
 		Toasts: false, Sound: false, System: true,
-		MutedWorkspaces: []string{"ws_0123456789abcdef"},
+		MutedWorkspaces: &mutedWorkspaces,
 	}}
 	client := &daemonClient{
 		target: LocalClientTarget("/tmp/compozy.sock"),
@@ -3043,12 +3100,12 @@ func TestUnixSocketClientMethods(t *testing.T) {
 						`{"operations":[{"id":"memevt_1","operation":"memory.write","scope":"workspace","workspace":"/workspace/project","filename":"memory.md","agent_name":"daemon","summary":"scope=workspace filename=memory.md","timestamp":"2026-04-03T12:00:00Z"}]}`,
 					), nil
 				case req.Method == http.MethodGet && req.URL.Path == "/api/memory":
-					if got := req.URL.Query().Get("scope"); got != "global" {
-						t.Fatalf("memory scope query = %q, want %q", got, "global")
+					if got := req.URL.Query().Get("scope"); got != "profile" {
+						t.Fatalf("memory scope query = %q, want %q", got, "profile")
 					}
 					return newHTTPResponse(
 						http.StatusOK,
-						`{"memories":[{"filename":"memory.md","mod_time":"2026-04-03T12:00:00Z","name":"Memory","description":"desc","type":"user","scope":"global","injection":true}]}`,
+						`{"memories":[{"filename":"memory.md","mod_time":"2026-04-03T12:00:00Z","name":"Memory","description":"desc","type":"user","scope":"profile","injection":true}]}`,
 					), nil
 				case req.Method == http.MethodPost && req.URL.Path == "/api/memory/search":
 					var body contract.MemorySearchRequest
@@ -3064,19 +3121,19 @@ func TestUnixSocketClientMethods(t *testing.T) {
 						`{"results":[{"memory":{"filename":"release.md","scope":"workspace","workspace_id":"/workspace/project","type":"project","name":"Release Plan","description":"plan","mod_time":"2026-04-03T12:00:00Z","injection":true},"score":3.4,"snippet":"Ship phases incrementally"}],"recall":{"blocks":null}}`,
 					), nil
 				case req.Method == http.MethodGet && req.URL.Path == "/api/memory/memory.md":
-					if got := req.URL.Query().Get("scope"); got != "global" {
-						t.Fatalf("show memory scope query = %q, want %q", got, "global")
+					if got := req.URL.Query().Get("scope"); got != "profile" {
+						t.Fatalf("show memory scope query = %q, want %q", got, "profile")
 					}
 					return newHTTPResponse(
 						http.StatusOK,
-						`{"memory":{"summary":{"filename":"memory.md","name":"Memory","type":"user","scope":"global","mod_time":"2026-04-03T12:00:00Z","injection":true},"content":"hello"}}`,
+						`{"memory":{"summary":{"filename":"memory.md","name":"Memory","type":"user","scope":"profile","mod_time":"2026-04-03T12:00:00Z","injection":true},"content":"hello"}}`,
 					), nil
 				case req.Method == http.MethodPost && req.URL.Path == "/api/memory":
 					var body contract.MemoryCreateRequest
 					if err := json.NewDecoder(req.Body).Decode(&body); err != nil {
 						t.Fatalf("decode memory create request error = %v", err)
 					}
-					if body.Scope != memcontract.ScopeGlobal ||
+					if body.Scope != memcontract.ScopeProfile ||
 						body.Type != memcontract.TypeUser ||
 						body.Name != "Memory" ||
 						body.Content != "payload" {
@@ -3084,7 +3141,7 @@ func TestUnixSocketClientMethods(t *testing.T) {
 					}
 					return newHTTPResponse(
 						http.StatusOK,
-						`{"decision":{"id":"dec-write","candidate_hash":"sha256:test","op":"add","scope":"global","frontmatter":{"name":"Memory","type":"user"},"confidence":0.9,"source":"rule","decided_at":"2026-04-03T12:00:00Z"},"applied":true}`,
+						`{"decision":{"id":"dec-write","candidate_hash":"sha256:test","op":"add","scope":"profile","frontmatter":{"name":"Memory","type":"user"},"confidence":0.9,"source":"rule","decided_at":"2026-04-03T12:00:00Z"},"applied":true}`,
 					), nil
 				case req.Method == http.MethodDelete && req.URL.Path == "/api/memory/memory.md":
 					if got := req.URL.Query().Get("scope"); got != "workspace" {
@@ -3362,7 +3419,7 @@ func TestUnixSocketClientMethods(t *testing.T) {
 	}
 
 	memories, err := client.ListMemory(ctx, MemoryListQuery{
-		MemorySelectorQuery: MemorySelectorQuery{Scope: memcontract.ScopeGlobal},
+		MemorySelectorQuery: MemorySelectorQuery{Scope: memcontract.ScopeProfile},
 	})
 	if err != nil || len(memories.Memories) != 1 {
 		t.Fatalf("ListMemory() = %#v, %v", memories, err)
@@ -3378,13 +3435,13 @@ func TestUnixSocketClientMethods(t *testing.T) {
 		t.Fatalf("SearchMemory() = %#v, %v", searchResults, err)
 	}
 
-	memoryRecord, err := client.ShowMemory(ctx, "memory.md", MemorySelectorQuery{Scope: memcontract.ScopeGlobal})
+	memoryRecord, err := client.ShowMemory(ctx, "memory.md", MemorySelectorQuery{Scope: memcontract.ScopeProfile})
 	if err != nil || !strings.Contains(memoryRecord.Memory.Content, "hello") {
 		t.Fatalf("ShowMemory() = %#v, %v", memoryRecord, err)
 	}
 
 	written, err := client.CreateMemory(ctx, MemoryCreateRequest{
-		Scope:   memcontract.ScopeGlobal,
+		Scope:   memcontract.ScopeProfile,
 		Type:    memcontract.TypeUser,
 		Name:    "Memory",
 		Content: "payload",
@@ -3602,6 +3659,18 @@ func TestUnixSocketClientExtensionMethods(t *testing.T) {
 							http.StatusCreated,
 							`{"extension":{"name":"ext-a","version":"0.1.0","type":"resource","source":"user","enabled":true,"state":"active","daemon_running":true}}`,
 						), nil
+					case req.Method == http.MethodPost && req.URL.Path == "/api/extensions/preview-install":
+						var input contract.InstallExtensionRequest
+						if err := json.NewDecoder(req.Body).Decode(&input); err != nil {
+							t.Fatalf("decode extension install preview request error = %v", err)
+						}
+						if input.Source != contract.InstallExtensionSourceLocalPath || input.Ref != "/tmp/ext-preview" {
+							t.Fatalf("extension install preview body = %#v, want local_path ref", input)
+						}
+						return newHTTPResponse(
+							http.StatusOK,
+							`{"name":"ext-preview","declared_profiles":[{"name":"default","create":false}],"placements":[],"network_requirement_digest":"sha256:preview"}`,
+						), nil
 					case req.Method == http.MethodPost && req.URL.Path == "/api/extensions/ext-a/enable":
 						body, err := io.ReadAll(req.Body)
 						if err != nil {
@@ -3623,6 +3692,15 @@ func TestUnixSocketClientExtensionMethods(t *testing.T) {
 							http.StatusOK,
 							`{"extension":{"name":"ext-a","version":"0.1.0","type":"resource","source":"user","enabled":false,"state":"disabled","daemon_running":true}}`,
 						), nil
+					case req.Method == http.MethodPut && req.URL.Path == "/api/extensions/ext-a/enablement":
+						var input contract.SetExtensionEnablementRequest
+						if err := json.NewDecoder(req.Body).Decode(&input); err != nil {
+							t.Fatalf("decode extension enablement request error = %v", err)
+						}
+						if input.Profile != "work" || !input.Enabled {
+							t.Fatalf("extension enablement body = %#v, want work enabled", input)
+						}
+						return newHTTPResponse(http.StatusOK, `{"profile":"work","enabled":true}`), nil
 					case req.Method == http.MethodGet && req.URL.Path == "/api/extensions/ext-a/inventory":
 						return newHTTPResponse(
 							http.StatusOK,
@@ -3672,6 +3750,15 @@ func TestUnixSocketClientExtensionMethods(t *testing.T) {
 							http.StatusOK,
 							`{"extension":{"name":"ext-dev","workspace_id":"ws-alpha","version":"0.1.0","type":"resource","source":"workspace","enabled":true,"state":"active","dev":true,"daemon_running":true}}`,
 						), nil
+					case req.Method == http.MethodPut && req.URL.Path == "/api/notifications/presets/quiet/enablement":
+						var input contract.SetNotificationPresetEnablementRequest
+						if err := json.NewDecoder(req.Body).Decode(&input); err != nil {
+							t.Fatalf("decode notification preset enablement request error = %v", err)
+						}
+						if input.Profile != "work" || !input.Enabled {
+							t.Fatalf("notification preset enablement body = %#v, want work enabled", input)
+						}
+						return newHTTPResponse(http.StatusOK, `{"name":"quiet","profile":"work","enabled":true}`), nil
 					default:
 						return newHTTPResponse(http.StatusNotFound, `{"error":"missing"}`), nil
 					}
@@ -3710,6 +3797,18 @@ func TestUnixSocketClientExtensionMethods(t *testing.T) {
 		}
 	})
 
+	t.Run("Should preview extension installation", func(t *testing.T) {
+		t.Parallel()
+
+		preview, err := newClient(t).PreviewExtensionInstall(t.Context(), InstallExtensionRequest{
+			Source: contract.InstallExtensionSourceLocalPath,
+			Ref:    "/tmp/ext-preview",
+		})
+		if err != nil || preview.Name != "ext-preview" || preview.NetworkRequirementDigest != "sha256:preview" {
+			t.Fatalf("PreviewExtensionInstall() = %#v, %v", preview, err)
+		}
+	})
+
 	t.Run("Should enable an extension", func(t *testing.T) {
 		t.Parallel()
 
@@ -3730,6 +3829,28 @@ func TestUnixSocketClientExtensionMethods(t *testing.T) {
 		disabled, err := newClient(t).DisableExtension(t.Context(), " ext-a ")
 		if err != nil || disabled.Enabled {
 			t.Fatalf("DisableExtension() = %#v, %v", disabled, err)
+		}
+	})
+
+	t.Run("Should set extension profile enablement", func(t *testing.T) {
+		t.Parallel()
+
+		enablement, err := newClient(t).SetExtensionEnablement(t.Context(), " ext-a ", " work ", true)
+		if err != nil || enablement.Profile != "work" || !enablement.Enabled {
+			t.Fatalf("SetExtensionEnablement() = %#v, %v", enablement, err)
+		}
+	})
+
+	t.Run("Should set notification preset profile enablement", func(t *testing.T) {
+		t.Parallel()
+
+		enablement, err := newClient(t).SetNotificationPresetEnablement(
+			t.Context(),
+			" quiet ",
+			contract.SetNotificationPresetEnablementRequest{Profile: "work", Enabled: true},
+		)
+		if err != nil || enablement.Name != "quiet" || enablement.Profile != "work" || !enablement.Enabled {
+			t.Fatalf("SetNotificationPresetEnablement() = %#v, %v", enablement, err)
 		}
 	})
 
@@ -4907,13 +5028,23 @@ func TestReadAPIErrorAndHelpers(t *testing.T) {
 			Sort:          "last_activity",
 			Cursor:        "cursor-1",
 			Limit:         2,
-		}); got.Get("workspace") != "ws-1" || got.Get("state") != "active" || got.Get("type") != "user" ||
+		}); got.Get("workspace_id") != "ws-1" || got.Get("state") != "active" || got.Get("type") != "user" ||
+			got.Get("all_workspaces") != "" ||
 			got.Get("agent") != "coder" ||
 			got.Get("parent") != "sess-parent" || got.Get("root") != "sess-root" ||
 			got.Get("q") != "needle" || got.Get("resumable") != "true" || got.Get("archive") != "only" ||
 			got.Get("sort") != "last_activity" ||
 			got.Get("include_health") != "true" || got.Get("cursor") != "cursor-1" || got.Get("limit") != "2" {
 			t.Fatalf("sessionListValues() = %v, want all page filters", got)
+		}
+	})
+
+	t.Run("Should request all workspaces when no workspace filter is selected", func(t *testing.T) {
+		t.Parallel()
+
+		got := sessionListValues(SessionListQuery{})
+		if got.Get("all_workspaces") != "true" || got.Get("workspace_id") != "" {
+			t.Fatalf("sessionListValues() = %v, want all_workspaces=true", got)
 		}
 	})
 

@@ -9,8 +9,10 @@ import {
   networkDirectMessagesOptions,
   networkThreadMessagesOptions,
 } from "../../lib/query-options";
+import { networkKeys } from "../../lib/query-keys";
 import type {
   NetworkConversationMessage,
+  NetworkChannel,
   NetworkDirectRoomMessagesResponse,
   NetworkMessagePageParam,
   NetworkThreadMessagesResponse,
@@ -63,6 +65,8 @@ function createWrapper() {
 
 function makeMessage(messageId: string, text: string): NetworkConversationMessage {
   return {
+    profile_id: "00000000000000000000000000",
+    profile_name: "default",
     body: { text },
     channel: "ops",
     direction: "sent",
@@ -81,6 +85,16 @@ function makeMessageData<
     pages,
     pageParams: pages.map((_, index) => (index === 0 ? null : { before: `page-${index}` })),
   };
+}
+
+function setChannelOwner(queryClient: QueryClient): void {
+  queryClient.setQueryData<NetworkChannel>(networkKeys.channelDetail("ws_alpha", "ops"), {
+    channel: "ops",
+    peer_count: 1,
+    peers: [],
+    profile_id: "sender-profile-id",
+    profile_name: "sender-profile",
+  });
 }
 
 describe("useSendNetworkMessage", () => {
@@ -117,6 +131,7 @@ describe("useSendNetworkMessage", () => {
         },
       ])
     );
+    setChannelOwner(queryClient);
     sendNetworkMessageMock.mockResolvedValue({
       message: {
         id: "server-id",
@@ -151,6 +166,8 @@ describe("useSendNetworkMessage", () => {
       >(canonicalKey);
     expect(cacheAfterMutate).toBeDefined();
     expect(cacheAfterMutate?.pages[0]?.messages.at(-1)?.text).toBe("Hello world");
+    expect(cacheAfterMutate?.pages[0]?.messages.at(-1)?.profile_id).toBe("sender-profile-id");
+    expect(cacheAfterMutate?.pages[0]?.messages.at(-1)?.profile_name).toBe("sender-profile");
     expect(cacheAfterMutate?.pages[1]?.messages[0]?.message_id).toBe("older");
 
     await act(async () => {
@@ -167,6 +184,8 @@ describe("useSendNetworkMessage", () => {
     };
     expect(replaced.message_id).toBe("server-id");
     expect(replaced.thread_id).toBe("thread-1");
+    expect(replaced.profile_id).toBe("sender-profile-id");
+    expect(replaced.profile_name).toBe("sender-profile");
     expect(replaced?.optimistic).toBeUndefined();
     expect(
       queryClient.getQueryData<
@@ -191,6 +210,7 @@ describe("useSendNetworkMessage", () => {
         { messages: [], page: { has_more: false, limit: 120 } },
       ] satisfies NetworkThreadMessagesResponse[])
     );
+    setChannelOwner(queryClient);
     sendNetworkMessageMock.mockRejectedValue(new Error("boom"));
 
     const { result } = renderHook(() => useSendNetworkMessage(), { wrapper });
@@ -261,6 +281,7 @@ describe("useSendNetworkMessage", () => {
         { messages: [], page: { has_more: false, limit: 120 } },
       ] satisfies NetworkThreadMessagesResponse[])
     );
+    setChannelOwner(queryClient);
     sendNetworkMessageMock.mockRejectedValue(new Error("boom"));
 
     const { result } = renderHook(() => useSendNetworkMessage(), { wrapper });

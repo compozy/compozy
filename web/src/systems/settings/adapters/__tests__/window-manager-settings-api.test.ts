@@ -166,7 +166,7 @@ describe("window-manager settings API adapter", () => {
     expect(apiClient.GET).toHaveBeenLastCalledWith(
       "/api/settings/window-manager",
       expect.objectContaining({
-        params: { query: { scope: "global" } },
+        params: { query: { scope: "user" } },
       })
     );
   });

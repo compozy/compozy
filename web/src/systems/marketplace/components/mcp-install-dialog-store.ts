@@ -1,8 +1,9 @@
 import { createStoreLogic } from "@xstate/store";
 
 import type { MCPFieldBinding } from "./mcp-install-model";
+import type { SettingsLayeredScope } from "@/systems/settings";
 
-type Scope = "global" | "workspace";
+type Scope = SettingsLayeredScope;
 type Phase = "editing" | "creating-secret" | "installing" | "failed";
 
 export interface MCPInstallDialogState {

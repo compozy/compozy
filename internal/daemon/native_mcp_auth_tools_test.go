@@ -34,6 +34,7 @@ func TestDaemonNativeMCPAuthStatusTool(t *testing.T) {
 			},
 		}
 		registry := newDaemonNativeRegistry(t, &daemonNativeToolsDeps{
+			Sessions: nativeNetworkTestSessionManager("ws-auth"),
 			MCPAuth: func() toolspkg.MCPAuthStatusProvider {
 				return provider
 			},
@@ -109,6 +110,7 @@ func TestDaemonNativeMCPAuthStatusTool(t *testing.T) {
 			Status:     "unconfigured",
 		}}
 		registry := newDaemonNativeRegistry(t, &daemonNativeToolsDeps{
+			Sessions: nativeNetworkTestSessionManager("ws-dead"),
 			MCPAuth: func() toolspkg.MCPAuthStatusProvider {
 				return provider
 			},
@@ -149,6 +151,7 @@ func TestDaemonNativeMCPAuthStatusTool(t *testing.T) {
 		t.Parallel()
 
 		registry := newDaemonNativeRegistry(t, &daemonNativeToolsDeps{
+			Sessions: nativeNetworkTestSessionManager(""),
 			MCPAuth: func() toolspkg.MCPAuthStatusProvider {
 				return &nativeMCPAuthStatusProvider{}
 			},
@@ -174,20 +177,20 @@ func TestDaemonNativeMCPAuthStatusTool(t *testing.T) {
 				Status:     "needs_login",
 			},
 		}
+		settingsService := &nativeMCPSettingsService{servers: []settingspkg.MCPServerItem{{
+			Name: "linear",
+			RuntimeStatus: &settingspkg.MCPServerRuntimeStatus{
+				Configured: true,
+				State:      settingspkg.MCPServerRuntimeStateAuthRequired,
+				Probe:      settingspkg.MCPServerProbeSkipped,
+			},
+		}}}
 		registry := newDaemonNativeRegistry(t, &daemonNativeToolsDeps{
+			Sessions: nativeNetworkTestSessionManager(""),
 			MCPAuth: func() toolspkg.MCPAuthStatusProvider {
 				return provider
 			},
-			Settings: func() core.SettingsService {
-				return &nativeMCPSettingsService{servers: []settingspkg.MCPServerItem{{
-					Name: "linear",
-					RuntimeStatus: &settingspkg.MCPServerRuntimeStatus{
-						Configured: true,
-						State:      settingspkg.MCPServerRuntimeStateAuthRequired,
-						Probe:      settingspkg.MCPServerProbeSkipped,
-					},
-				}}}
-			},
+			Settings: func() core.SettingsService { return settingsService },
 		}, nativeApproveAllPolicyInputs())
 
 		result, err := registry.Call(
@@ -209,6 +212,9 @@ func TestDaemonNativeMCPAuthStatusTool(t *testing.T) {
 			payload.RepairPaths.LoginCLI != `compozy mcp auth login "linear"` ||
 			!strings.Contains(payload.CallableDiscoveryNote, "omitted from callable discovery") {
 			t.Fatalf("payload = %#v, want auth-blocked probe with management repair paths", payload)
+		}
+		if settingsService.lastRequest.Scope != settingspkg.ScopeUser || settingsService.lastRequest.WorkspaceID != "" {
+			t.Fatalf("settings request = %#v, want user scope without workspace", settingsService.lastRequest)
 		}
 	})
 
@@ -232,6 +238,7 @@ func TestDaemonNativeMCPAuthStatusTool(t *testing.T) {
 
 		sentinelErr := errors.New("status failed")
 		registry := newDaemonNativeRegistry(t, &daemonNativeToolsDeps{
+			Sessions: nativeNetworkTestSessionManager(""),
 			MCPAuth: func() toolspkg.MCPAuthStatusProvider {
 				return &nativeMCPAuthStatusProvider{err: sentinelErr}
 			},
@@ -254,6 +261,7 @@ func TestDaemonNativeMCPAuthStatusTool(t *testing.T) {
 		t.Parallel()
 
 		registry := newDaemonNativeRegistry(t, &daemonNativeToolsDeps{
+			Sessions: nativeNetworkTestSessionManager(""),
 			MCPAuth: func() toolspkg.MCPAuthStatusProvider {
 				return &nativeMCPAuthStatusProvider{
 					status: toolspkg.MCPAuthStatus{

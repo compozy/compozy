@@ -25,18 +25,25 @@ func (q *Queries) CountExtensionEnvBindingsBySecretRef(ctx context.Context, secr
 const deleteExtensionEnvBinding = `-- name: DeleteExtensionEnvBinding :execrows
 DELETE FROM extension_env_bindings
 WHERE extension_name = ?1
-  AND workspace_id = ?2
-  AND env_name = ?3
+  AND profile_id = ?2
+  AND workspace_id = ?3
+  AND env_name = ?4
 `
 
 type DeleteExtensionEnvBindingParams struct {
 	ExtensionName string `json:"extension_name"`
+	ProfileID     string `json:"profile_id"`
 	WorkspaceID   string `json:"workspace_id"`
 	EnvName       string `json:"env_name"`
 }
 
 func (q *Queries) DeleteExtensionEnvBinding(ctx context.Context, arg DeleteExtensionEnvBindingParams) (int64, error) {
-	result, err := q.db.ExecContext(ctx, deleteExtensionEnvBinding, arg.ExtensionName, arg.WorkspaceID, arg.EnvName)
+	result, err := q.db.ExecContext(ctx, deleteExtensionEnvBinding,
+		arg.ExtensionName,
+		arg.ProfileID,
+		arg.WorkspaceID,
+		arg.EnvName,
+	)
 	if err != nil {
 		return 0, err
 	}
@@ -46,16 +53,18 @@ func (q *Queries) DeleteExtensionEnvBinding(ctx context.Context, arg DeleteExten
 const deleteExtensionEnvBindings = `-- name: DeleteExtensionEnvBindings :execrows
 DELETE FROM extension_env_bindings
 WHERE extension_name = ?1
-  AND workspace_id = ?2
+  AND profile_id = ?2
+  AND workspace_id = ?3
 `
 
 type DeleteExtensionEnvBindingsParams struct {
 	ExtensionName string `json:"extension_name"`
+	ProfileID     string `json:"profile_id"`
 	WorkspaceID   string `json:"workspace_id"`
 }
 
 func (q *Queries) DeleteExtensionEnvBindings(ctx context.Context, arg DeleteExtensionEnvBindingsParams) (int64, error) {
-	result, err := q.db.ExecContext(ctx, deleteExtensionEnvBindings, arg.ExtensionName, arg.WorkspaceID)
+	result, err := q.db.ExecContext(ctx, deleteExtensionEnvBindings, arg.ExtensionName, arg.ProfileID, arg.WorkspaceID)
 	if err != nil {
 		return 0, err
 	}
@@ -76,20 +85,22 @@ func (q *Queries) DeleteExtensionEnvBindingsByWorkspace(ctx context.Context, wor
 }
 
 const listExtensionEnvBindings = `-- name: ListExtensionEnvBindings :many
-SELECT extension_name, workspace_id, env_name, secret_ref, mcp_server, header_name, kind, created_at, updated_at
+SELECT extension_name, profile_id, workspace_id, env_name, secret_ref, mcp_server, header_name, kind, created_at, updated_at
 FROM extension_env_bindings
 WHERE extension_name = ?1
-  AND workspace_id = ?2
+  AND profile_id = ?2
+  AND workspace_id = ?3
 ORDER BY env_name ASC
 `
 
 type ListExtensionEnvBindingsParams struct {
 	ExtensionName string `json:"extension_name"`
+	ProfileID     string `json:"profile_id"`
 	WorkspaceID   string `json:"workspace_id"`
 }
 
 func (q *Queries) ListExtensionEnvBindings(ctx context.Context, arg ListExtensionEnvBindingsParams) ([]ExtensionEnvBinding, error) {
-	rows, err := q.db.QueryContext(ctx, listExtensionEnvBindings, arg.ExtensionName, arg.WorkspaceID)
+	rows, err := q.db.QueryContext(ctx, listExtensionEnvBindings, arg.ExtensionName, arg.ProfileID, arg.WorkspaceID)
 	if err != nil {
 		return nil, err
 	}
@@ -99,6 +110,7 @@ func (q *Queries) ListExtensionEnvBindings(ctx context.Context, arg ListExtensio
 		var i ExtensionEnvBinding
 		if err := rows.Scan(
 			&i.ExtensionName,
+			&i.ProfileID,
 			&i.WorkspaceID,
 			&i.EnvName,
 			&i.SecretRef,
@@ -153,12 +165,12 @@ func (q *Queries) ListExtensionEnvSecretRefsByWorkspace(ctx context.Context, wor
 
 const upsertExtensionEnvBinding = `-- name: UpsertExtensionEnvBinding :exec
 INSERT INTO extension_env_bindings (
-  extension_name, workspace_id, env_name, secret_ref, mcp_server, header_name, kind, created_at, updated_at
+  extension_name, profile_id, workspace_id, env_name, secret_ref, mcp_server, header_name, kind, created_at, updated_at
 ) VALUES (
-  ?1, ?2, ?3, ?4,
-  ?5, ?6, ?7, ?8, ?9
+  ?1, ?2, ?3, ?4, ?5,
+  ?6, ?7, ?8, ?9, ?10
 )
-ON CONFLICT(extension_name, workspace_id, env_name) DO UPDATE SET
+ON CONFLICT(extension_name, profile_id, workspace_id, env_name) DO UPDATE SET
   secret_ref = excluded.secret_ref,
   mcp_server = excluded.mcp_server,
   header_name = excluded.header_name,
@@ -168,6 +180,7 @@ ON CONFLICT(extension_name, workspace_id, env_name) DO UPDATE SET
 
 type UpsertExtensionEnvBindingParams struct {
 	ExtensionName string `json:"extension_name"`
+	ProfileID     string `json:"profile_id"`
 	WorkspaceID   string `json:"workspace_id"`
 	EnvName       string `json:"env_name"`
 	SecretRef     string `json:"secret_ref"`
@@ -181,6 +194,7 @@ type UpsertExtensionEnvBindingParams struct {
 func (q *Queries) UpsertExtensionEnvBinding(ctx context.Context, arg UpsertExtensionEnvBindingParams) error {
 	_, err := q.db.ExecContext(ctx, upsertExtensionEnvBinding,
 		arg.ExtensionName,
+		arg.ProfileID,
 		arg.WorkspaceID,
 		arg.EnvName,
 		arg.SecretRef,

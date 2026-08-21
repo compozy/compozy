@@ -17,8 +17,9 @@ import (
 )
 
 func (h *BaseHandlers) ListMemoryDreams(c *gin.Context) {
-	if h.MemoryStore == nil {
-		h.respondMemoryError(c, http.StatusInternalServerError, errors.New("memory store is not configured"), nil)
+	store, err := h.memoryBoundStore(c.Request.Context())
+	if err != nil {
+		h.respondMemoryError(c, http.StatusInternalServerError, err, nil)
 		return
 	}
 	query, err := h.memoryDreamListQuery(c)
@@ -26,7 +27,7 @@ func (h *BaseHandlers) ListMemoryDreams(c *gin.Context) {
 		h.respondMemoryError(c, StatusForMemoryError(err), err, nil)
 		return
 	}
-	records, err := h.MemoryStore.ListDreamRunRecords(c.Request.Context(), query)
+	records, err := store.ListDreamRunRecords(c.Request.Context(), query)
 	if err != nil {
 		h.respondMemoryError(c, StatusForMemoryError(err), err, nil)
 		return
@@ -39,11 +40,12 @@ func (h *BaseHandlers) ListMemoryDreams(c *gin.Context) {
 }
 
 func (h *BaseHandlers) GetMemoryDream(c *gin.Context) {
-	if h.MemoryStore == nil {
-		h.respondMemoryError(c, http.StatusInternalServerError, errors.New("memory store is not configured"), nil)
+	store, err := h.memoryBoundStore(c.Request.Context())
+	if err != nil {
+		h.respondMemoryError(c, http.StatusInternalServerError, err, nil)
 		return
 	}
-	record, err := h.MemoryStore.LoadDreamRunRecord(c.Request.Context(), c.Param("dream_id"))
+	record, err := store.LoadDreamRunRecord(c.Request.Context(), c.Param("dream_id"))
 	if err != nil {
 		h.respondMemoryError(c, StatusForMemoryError(err), err, nil)
 		return
@@ -101,8 +103,9 @@ func (h *BaseHandlers) GetMemoryDreamStatus(c *gin.Context) {
 }
 
 func (h *BaseHandlers) ListMemoryDailyLogs(c *gin.Context) {
-	if h.MemoryStore == nil {
-		h.respondMemoryError(c, http.StatusInternalServerError, errors.New("memory store is not configured"), nil)
+	store, err := h.memoryBoundStore(c.Request.Context())
+	if err != nil {
+		h.respondMemoryError(c, http.StatusInternalServerError, err, nil)
 		return
 	}
 	query, err := h.memoryDailyLogListQuery(c)
@@ -110,7 +113,7 @@ func (h *BaseHandlers) ListMemoryDailyLogs(c *gin.Context) {
 		h.respondMemoryError(c, StatusForMemoryError(err), err, nil)
 		return
 	}
-	records, err := h.MemoryStore.ListDailyLogRecords(c.Request.Context(), query)
+	records, err := store.ListDailyLogRecords(c.Request.Context(), query)
 	if err != nil {
 		h.respondMemoryError(c, StatusForMemoryError(err), err, nil)
 		return

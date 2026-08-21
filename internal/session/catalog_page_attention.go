@@ -87,6 +87,7 @@ func attentionCatalogPageQuery(
 	after *store.SessionCatalogPosition,
 ) store.SessionCatalogPageQuery {
 	return store.SessionCatalogPageQuery{
+		ReadScope:           query.ReadScope,
 		WorkspaceID:         query.WorkspaceID,
 		WorktreeID:          query.WorktreeID,
 		State:               query.State,

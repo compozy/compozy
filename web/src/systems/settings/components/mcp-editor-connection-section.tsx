@@ -4,7 +4,7 @@ import { FormSection, ImmutableIdentity, Input, RadioCard } from "@compozy/ui";
 
 import type { MCPDraft, MCPDraftErrors } from "../lib/mcp-editor-model";
 import { withTransport } from "../lib/mcp-editor-model";
-import type { SettingsMCPServerTarget } from "../types";
+import type { SettingsLayeredScope, SettingsMCPServerTarget } from "../types";
 
 import { MCPFieldLabel, MCPNameField, MCPTargetField } from "./mcp-editor-fields";
 
@@ -17,7 +17,7 @@ export interface MCPEditorConnectionSectionProps {
   draft: MCPDraft;
   errors: MCPDraftErrors;
   isCreate: boolean;
-  scope: "global" | "workspace";
+  scope: SettingsLayeredScope;
   target: SettingsMCPServerTarget;
   availableTargets: SettingsMCPServerTarget[];
   onChange: (updater: (draft: MCPDraft) => MCPDraft) => void;

@@ -53,9 +53,17 @@ func applyGlobalMigrationPrefix(
 }
 
 func openGlobalMigrationUpgrade(t *testing.T, path string) (*GlobalDB, error) {
+	return openGlobalMigrationUpgradeWithOptions(t, path)
+}
+
+func openGlobalMigrationUpgradeWithOptions(
+	t *testing.T,
+	path string,
+	options ...OpenOption,
+) (*GlobalDB, error) {
 	t.Helper()
 	globalMigrationTestMu.Lock()
 	defer globalMigrationTestMu.Unlock()
 
-	return OpenGlobalDB(globalMigrationTestContext(t), path)
+	return OpenGlobalDB(globalMigrationTestContext(t), path, options...)
 }

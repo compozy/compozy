@@ -24,16 +24,19 @@ import { sessionKeys } from "@/systems/session";
 import { settingsKeys } from "@/systems/settings";
 import { skillKeys } from "@/systems/skill";
 
-function mcpInstalledPath(input: {
-  entryId: string;
-  scope: string;
-  server: string;
-  workspaceId?: string;
-}): string {
+type MCPInstalledPathInput =
+  | { entryId: string; scope: "user"; server: string }
+  | { entryId: string; scope: "profile"; server: string; profile: string; workspaceId?: string }
+  | { entryId: string; scope: "workspace"; server: string; workspaceId: string };
+
+function mcpInstalledPath(input: MCPInstalledPathInput): string {
   const search = new URLSearchParams({ scope: input.scope });
   if (input.server) search.set("installed_name", input.server);
-  if (input.scope === "workspace" && input.workspaceId) {
+  if (input.scope !== "user" && "workspaceId" in input && input.workspaceId) {
     search.set("workspace_id", input.workspaceId);
+  }
+  if (input.scope === "profile") {
+    search.set("profile", input.profile);
   }
   return `/marketplace/mcp/${encodeURIComponent(input.entryId)}?${search.toString()}`;
 }
@@ -64,22 +67,30 @@ export function useInstallMarketplaceMCP() {
   return useMutation({
     mutationFn: (body: MCPInstallRequest) => installMarketplaceMCP(body),
     onSuccess: (result, variables) => {
-      const installedPath = mcpInstalledPath({
-        entryId: variables.entry_id,
-        scope: result.mcp_server?.scope ?? variables.scope,
-        server: result.mcp_server?.name ?? variables.name ?? "",
-        workspaceId: result.mcp_server?.workspace_id ?? variables.workspace_id,
-      });
+      const scope = result.mcp_server?.scope ?? variables.scope;
+      const server = result.mcp_server?.name ?? variables.name ?? "";
+      const workspaceId = result.mcp_server?.workspace_id ?? variables.workspace_id;
+      const profile = result.mcp_server?.profile ?? variables.profile;
+      const pathInput: MCPInstalledPathInput | null =
+        scope === "user"
+          ? { entryId: variables.entry_id, scope, server }
+          : scope === "profile" && profile
+            ? { entryId: variables.entry_id, profile, scope, server, workspaceId }
+            : scope === "workspace" && workspaceId
+              ? { entryId: variables.entry_id, scope, server, workspaceId }
+              : null;
+      const installedPath = pathInput ? mcpInstalledPath(pathInput) : null;
+      const toastAction = installedPath ? mcpToastAction("Authorize →", installedPath) : undefined;
       if (result.next_step === "authorize") {
         toast.success(
           `${result.mcp_server?.name ?? variables.name ?? "MCP server"} installed · authorization pending`,
-          mcpToastAction("Authorize →", installedPath)
+          toastAction
         );
         return;
       }
       toast.success(
         `${result.mcp_server?.name ?? variables.name ?? "MCP server"} installed`,
-        mcpToastAction("View installed →", installedPath)
+        installedPath ? mcpToastAction("View installed →", installedPath) : undefined
       );
     },
     onSettled: () =>

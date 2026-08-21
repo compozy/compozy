@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"github.com/compozy/compozy/internal/resources"
+	"github.com/compozy/compozy/internal/store"
 )
 
 // SuggestionAcceptance is the durable suggestion transition and resulting Job.
@@ -19,9 +20,13 @@ type SuggestionAcceptance struct {
 // the first-party starter catalog on first touch.
 func (m *Manager) ListSuggestions(
 	ctx context.Context,
+	readScope store.ReadScope,
 	workspaceRef string,
 	status SuggestionStatus,
 ) ([]Suggestion, error) {
+	if err := readScope.Validate(); err != nil {
+		return nil, err
+	}
 	workspaceID, agentName, err := m.resolveSuggestionWorkspace(ctx, workspaceRef)
 	if err != nil {
 		return nil, err
@@ -31,16 +36,19 @@ func (m *Manager) ListSuggestions(
 			return nil, err
 		}
 	}
-	if err := m.ensureStarterSuggestions(ctx, workspaceID, agentName); err != nil {
-		return nil, fmt.Errorf("automation: seed starter suggestions: %w", err)
+	if !readScope.AllProfiles {
+		if err := m.ensureStarterSuggestions(ctx, readScope.ProfileID, workspaceID, agentName); err != nil {
+			return nil, fmt.Errorf("automation: seed starter suggestions: %w", err)
+		}
 	}
-	return m.store.ListSuggestions(ctx, workspaceID, status)
+	return m.store.ListSuggestions(ctx, readScope, workspaceID, status)
 }
 
 // AcceptSuggestion durably accepts one pending proposal and creates its Job
 // through the same validation and authoritative persistence path as CreateJob.
 func (m *Manager) AcceptSuggestion(
 	ctx context.Context,
+	profileID string,
 	workspaceRef string,
 	suggestionID string,
 ) (SuggestionAcceptance, error) {
@@ -48,7 +56,7 @@ func (m *Manager) AcceptSuggestion(
 	if err != nil {
 		return SuggestionAcceptance{}, err
 	}
-	suggestion, err := m.store.GetSuggestion(ctx, workspaceID, strings.TrimSpace(suggestionID))
+	suggestion, err := m.store.GetSuggestion(ctx, profileID, workspaceID, strings.TrimSpace(suggestionID))
 	if err != nil {
 		return SuggestionAcceptance{}, err
 	}
@@ -63,6 +71,7 @@ func (m *Manager) AcceptSuggestion(
 
 	accepted, err := m.store.ResolveSuggestion(
 		ctx,
+		profileID,
 		workspaceID,
 		suggestion.ID,
 		SuggestionStatusAccepted,
@@ -85,6 +94,7 @@ func (m *Manager) AcceptSuggestion(
 // DismissSuggestion durably dismisses one pending proposal without creating a Job.
 func (m *Manager) DismissSuggestion(
 	ctx context.Context,
+	profileID string,
 	workspaceRef string,
 	suggestionID string,
 ) (Suggestion, error) {
@@ -94,6 +104,7 @@ func (m *Manager) DismissSuggestion(
 	}
 	dismissed, err := m.store.ResolveSuggestion(
 		ctx,
+		profileID,
 		workspaceID,
 		strings.TrimSpace(suggestionID),
 		SuggestionStatusDismissed,
@@ -133,7 +144,7 @@ func (m *Manager) resolveSuggestionWorkspace(
 
 func (m *Manager) prepareSuggestedJob(ctx context.Context, suggestion Suggestion) (Job, error) {
 	job := cloneJob(suggestion.Payload)
-	job.ID = suggestionJobID(suggestion.WorkspaceID, suggestion.DedupKey)
+	job.ID = suggestionJobID(suggestion.ProfileID, suggestion.WorkspaceID, suggestion.DedupKey)
 	job.Scope = AutomationScopeWorkspace
 	job.WorkspaceID = suggestion.WorkspaceID
 	job.Source = JobSourceDynamic
@@ -175,6 +186,7 @@ func (m *Manager) handleAcceptedJobCreateFailure(
 		}
 		rollbackErr := m.store.RollbackSuggestionAcceptance(
 			ctx,
+			accepted.ProfileID,
 			accepted.WorkspaceID,
 			accepted.ID,
 			*accepted.ResolvedAt,

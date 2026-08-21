@@ -25,8 +25,10 @@ func TestSettingsRoutesAndSchemas(t *testing.T) {
 			transports []Transport
 		}{
 			{path: "/api/settings/general", method: "GET", transports: []Transport{TransportHTTP, TransportUDS}},
+			{path: "/api/settings/persona", method: "GET", transports: []Transport{TransportHTTP, TransportUDS}},
 			{path: "/api/settings/update", method: "GET", transports: []Transport{TransportHTTP, TransportUDS}},
 			{path: "/api/settings/general", method: "PATCH", transports: []Transport{TransportHTTP, TransportUDS}},
+			{path: "/api/settings/persona", method: "PATCH", transports: []Transport{TransportHTTP, TransportUDS}},
 			{path: "/api/settings/memory", method: "GET", transports: []Transport{TransportHTTP, TransportUDS}},
 			{path: "/api/settings/memory", method: "PATCH", transports: []Transport{TransportHTTP, TransportUDS}},
 			{path: "/api/settings/roles", method: "GET", transports: []Transport{TransportHTTP, TransportUDS}},
@@ -178,13 +180,13 @@ func TestSettingsRoutesAndSchemas(t *testing.T) {
 				transports: []Transport{TransportHTTP, TransportUDS},
 			},
 			{
-				path:       specAPIExtensionsNameEnablePath,
-				method:     "POST",
+				path:       specAPIExtensionsNameEnablementPath,
+				method:     "GET",
 				transports: []Transport{TransportHTTP, TransportUDS},
 			},
 			{
-				path:       specAPIExtensionsNameDisablePath,
-				method:     "POST",
+				path:       specAPIExtensionsNameEnablementPath,
+				method:     "PUT",
 				transports: []Transport{TransportHTTP, TransportUDS},
 			},
 		}
@@ -202,16 +204,18 @@ func TestSettingsRoutesAndSchemas(t *testing.T) {
 	t.Run("Should expose workspace scope for window-manager and command-palette settings", func(t *testing.T) {
 		t.Parallel()
 
-		for _, path := range []string{
-			"/api/settings/window-manager",
-			"/api/settings/cmd-palette",
-		} {
+		for _, path := range []string{"/api/settings/window-manager"} {
 			for _, method := range []string{"GET", "PATCH"} {
 				operation := operationFor(t, doc, path, method)
 				assertParameter(t, operation, "scope", openapi3.ParameterInQuery, false)
 				assertParameter(t, operation, "workspace_id", openapi3.ParameterInQuery, false)
-				assertParameterEnumValues(t, operation, "scope", "global", "workspace")
+				assertParameterEnumValues(t, operation, "scope", "user", "workspace")
 			}
+		}
+		for _, method := range []string{"GET", "PATCH"} {
+			operation := operationFor(t, doc, "/api/settings/cmd-palette", method)
+			assertParameter(t, operation, "profile", openapi3.ParameterInQuery, false)
+			assertParameterEnumValues(t, operation, "scope", "profile", "user", "workspace")
 		}
 	})
 
@@ -223,7 +227,8 @@ func TestSettingsRoutesAndSchemas(t *testing.T) {
 		assertParameter(t, begin, "name", openapi3.ParameterInPath, true)
 		assertParameter(t, begin, "scope", openapi3.ParameterInQuery, true)
 		assertParameter(t, begin, "workspace_id", openapi3.ParameterInQuery, false)
-		assertParameterEnumValues(t, begin, "scope", "global", "workspace")
+		assertParameter(t, begin, "profile", openapi3.ParameterInQuery, false)
+		assertParameterEnumValues(t, begin, "scope", "profile", "user", "workspace")
 		beginRequest := jsonRequestSchema(t, begin)
 		assertRequired(t, beginRequest, "mode")
 		assertEnumValues(t, propertySchema(t, beginRequest, "mode"), "automatic", "manual")
@@ -273,7 +278,14 @@ func TestSettingsRoutesAndSchemas(t *testing.T) {
 		assertRequired(t, updateGeneralSchema, "config")
 
 		generalConfig := propertySchema(t, updateGeneralSchema, "config")
-		assertRequired(t, generalConfig, "defaults", "limits", "permissions", "session_timeout", "http", "daemon")
+		assertRequired(t, generalConfig, "limits", "permissions", "session_timeout", "http", "daemon")
+		assertPropertyAbsent(t, generalConfig, "defaults")
+
+		updatePersona := operationFor(t, doc, "/api/settings/persona", "PATCH")
+		personaRequest := jsonRequestSchema(t, updatePersona)
+		assertRequired(t, personaRequest, "config")
+		assertRequired(t, propertySchema(t, personaRequest, "config"), "agent")
+		assertParameterEnumValues(t, updatePersona, "scope", "profile", "user", "workspace")
 		assertEnumValues(t, propertySchema(t, propertySchema(t, generalConfig, "permissions"), "mode"),
 			"approve-all",
 			"approve-reads",
@@ -338,13 +350,15 @@ func TestSettingsRoutesAndSchemas(t *testing.T) {
 			"global-agent-file",
 			"global-config",
 			"global-mcp-sidecar",
+			"profile-config",
+			"profile-mcp-sidecar",
 			"workspace-agent-file",
 			"workspace-config",
 			"workspace-mcp-sidecar",
 		)
 
 		updateSkills := operationFor(t, doc, "/api/settings/skills", "PATCH")
-		assertParameterEnumValues(t, updateSkills, "scope", "agent", "global")
+		assertParameterEnumValues(t, updateSkills, "scope", "agent", "user")
 		skillsMutationSchema := jsonResponseSchema(t, updateSkills, 200)
 		assertRequired(
 			t,
@@ -527,7 +541,7 @@ func TestSettingsRoutesAndSchemas(t *testing.T) {
 			"global_shortcuts",
 		)
 		assertNotRequired(t, windowManagerResponseSchema, "workspace_id", "agent_name")
-		assertEnumValues(t, propertySchema(t, windowManagerResponseSchema, "scope"), "global", "workspace")
+		assertEnumValues(t, propertySchema(t, windowManagerResponseSchema, "scope"), "user", "workspace")
 
 		updateCmdPalette := operationFor(t, doc, "/api/settings/cmd-palette", "PATCH")
 		cmdPaletteRequestSchema := jsonRequestSchema(t, updateCmdPalette)
@@ -554,8 +568,8 @@ func TestSettingsRoutesAndSchemas(t *testing.T) {
 			"fallback_agent_enabled",
 			"personalization",
 		)
-		assertNotRequired(t, cmdPaletteResponseSchema, "workspace_id", "agent_name")
-		assertEnumValues(t, propertySchema(t, cmdPaletteResponseSchema, "scope"), "global", "workspace")
+		assertNotRequired(t, cmdPaletteResponseSchema, "workspace_id", "profile", "agent_name")
+		assertEnumValues(t, propertySchema(t, cmdPaletteResponseSchema, "scope"), "profile", "user", "workspace")
 
 		reloadSettings := operationFor(t, doc, "/api/settings/reload", "POST")
 		assertOperationTransports(t, reloadSettings, TransportHTTP, TransportUDS)
@@ -591,6 +605,19 @@ func TestSettingsRoutesAndSchemas(t *testing.T) {
 			"next_action",
 			"created_at",
 			"updated_at",
+		)
+		assertNotRequired(t, applyRecordSchema, "write_target", "write_path")
+		assertEnumValues(
+			t,
+			propertySchema(t, applyRecordSchema, "write_target"),
+			"global-agent-file",
+			"global-config",
+			"global-mcp-sidecar",
+			"profile-config",
+			"profile-mcp-sidecar",
+			"workspace-agent-file",
+			"workspace-config",
+			"workspace-mcp-sidecar",
 		)
 		assertEnumValues(t, propertySchema(t, applyRecordSchema, "status"),
 			"applied",
@@ -771,14 +798,16 @@ func TestSettingsRoutesAndSchemas(t *testing.T) {
 		mcpList := operationFor(t, doc, "/api/settings/mcp-servers", "GET")
 		assertParameter(t, mcpList, "scope", openapi3.ParameterInQuery, false)
 		assertParameter(t, mcpList, "workspace_id", openapi3.ParameterInQuery, false)
-		assertParameterEnumValues(t, mcpList, "scope", "global", "workspace")
+		assertParameter(t, mcpList, "profile", openapi3.ParameterInQuery, false)
+		assertParameterEnumValues(t, mcpList, "scope", "profile", "user", "workspace")
 
 		putMCP := operationFor(t, doc, "/api/settings/mcp-servers/{name}", "PUT")
 		assertParameter(t, putMCP, "name", openapi3.ParameterInPath, true)
 		assertParameter(t, putMCP, "scope", openapi3.ParameterInQuery, false)
 		assertParameter(t, putMCP, "workspace_id", openapi3.ParameterInQuery, false)
+		assertParameter(t, putMCP, "profile", openapi3.ParameterInQuery, false)
 		assertParameter(t, putMCP, "target", openapi3.ParameterInQuery, false)
-		assertParameterEnumValues(t, putMCP, "scope", "global", "workspace")
+		assertParameterEnumValues(t, putMCP, "scope", "profile", "user", "workspace")
 		assertParameterEnumValues(t, putMCP, "target", "auto", "config", "sidecar")
 
 		putMCPSchema := jsonRequestSchema(t, putMCP)
@@ -791,8 +820,8 @@ func TestSettingsRoutesAndSchemas(t *testing.T) {
 		installMCP := operationFor(t, doc, "/api/settings/mcp-servers/install", "POST")
 		installMCPSchema := jsonRequestSchema(t, installMCP)
 		assertRequired(t, installMCPSchema, "entry_id", "values")
-		assertNotRequired(t, installMCPSchema, "name", "scope", "workspace_id")
-		assertEnumValues(t, propertySchema(t, installMCPSchema, "scope"), "global", "workspace")
+		assertNotRequired(t, installMCPSchema, "name", "scope", "workspace_id", "profile")
+		assertEnumValues(t, propertySchema(t, installMCPSchema, "scope"), "profile", "user", "workspace")
 		installValuesSchema := propertySchema(t, installMCPSchema, "values")
 		installInputsSchema := propertySchema(t, installValuesSchema, "inputs")
 		if installInputsSchema.AdditionalProperties.Schema == nil ||
@@ -819,8 +848,8 @@ func TestSettingsRoutesAndSchemas(t *testing.T) {
 
 		mcpListSchema := jsonResponseSchema(t, mcpList, 200)
 		assertRequired(t, mcpListSchema, "collection", "scope", "available_scopes", "mcp_servers")
-		assertNotRequired(t, mcpListSchema, "workspace_id")
-		assertEnumValues(t, propertySchema(t, mcpListSchema, "scope"), "global", "workspace")
+		assertNotRequired(t, mcpListSchema, "workspace_id", "profile")
+		assertEnumValues(t, propertySchema(t, mcpListSchema, "scope"), "profile", "user", "workspace")
 		mcpItemRootSchema := propertySchema(t, mcpListSchema, "mcp_servers").Items.Value
 		assertRequired(t, mcpItemRootSchema, "name", "transport", "scope", "source_metadata")
 		assertNotRequired(
@@ -834,6 +863,7 @@ func TestSettingsRoutesAndSchemas(t *testing.T) {
 			"auth",
 			"auth_status",
 			"runtime_status",
+			"profile",
 			"catalog_entry",
 			"catalog_version",
 		)
@@ -853,7 +883,7 @@ func TestSettingsRoutesAndSchemas(t *testing.T) {
 		observabilitySchema := jsonResponseSchema(t, getObservability, 200)
 		assertRequired(t, observabilitySchema, "section", "scope", "available_scopes", "config", "runtime", "log_tail")
 		assertNotRequired(t, observabilitySchema, "workspace_id", "agent_name")
-		assertEnumValues(t, propertySchema(t, observabilitySchema, "scope"), "global")
+		assertEnumValues(t, propertySchema(t, observabilitySchema, "scope"), "user")
 		logTailSchema := propertySchema(t, observabilitySchema, "log_tail")
 		assertRequired(t, logTailSchema, "available")
 		assertNotRequired(t, logTailSchema, "stream_url", "transport")
@@ -863,7 +893,7 @@ func TestSettingsRoutesAndSchemas(t *testing.T) {
 		providersSchema := jsonResponseSchema(t, getProviders, 200)
 		assertRequired(t, providersSchema, "collection", "scope", "available_scopes", "providers")
 		assertNotRequired(t, providersSchema, "workspace_id", "agent_name")
-		assertEnumValues(t, propertySchema(t, providersSchema, "scope"), "global")
+		assertEnumValues(t, propertySchema(t, providersSchema, "scope"), "user")
 		providerItemSchema := propertySchema(t, providersSchema, "providers").Items.Value
 		authStatusSchema := propertySchema(t, providerItemSchema, "auth_status")
 		assertRequired(t, authStatusSchema, "mode", "env_policy", "home_policy", "state", "login")

@@ -32,8 +32,8 @@ export const Default: Story = {
       onConfirm={async () => undefined}
       onOpenChange={() => undefined}
       open
-      destinationLabel="Global"
-      scope="global"
+      destinationLabel="Profile"
+      scope="profile"
     />
   ),
 };

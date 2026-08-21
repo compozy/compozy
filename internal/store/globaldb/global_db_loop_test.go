@@ -202,7 +202,8 @@ func TestGlobalDBLoopTerminalReconciliationShouldConvergeExecutionRecords(t *tes
 			t.Fatalf("BackfillLoopProvenance(second) = %d, %v, want 0, nil", repairedAgain, err)
 		}
 		catalog, err := globalDB.ListTaskCatalog(ctx, taskpkg.CatalogQuery{
-			Scope: taskpkg.CatalogScopeWorkspace, WorkspaceID: string(run.WorkspaceID),
+			ReadScope: storepkg.ReadScope{ProfileID: storepkg.DefaultProfileID},
+			Scope:     taskpkg.CatalogScopeWorkspace, WorkspaceID: string(run.WorkspaceID),
 			LoopRunID: string(run.ID), IncludeDrafts: true, Limit: 10,
 		})
 		if err != nil {
@@ -390,7 +391,8 @@ func TestGlobalDBLoopTerminalReconciliationShouldConvergeExecutionRecords(t *tes
 			)
 		}
 		catalog, err := globalDB.ListTaskCatalog(ctx, taskpkg.CatalogQuery{
-			Scope: taskpkg.CatalogScopeWorkspace, WorkspaceID: string(run.WorkspaceID),
+			ReadScope: storepkg.ReadScope{ProfileID: storepkg.DefaultProfileID},
+			Scope:     taskpkg.CatalogScopeWorkspace, WorkspaceID: string(run.WorkspaceID),
 			LoopRunID: string(run.ID), IncludeDrafts: true, Limit: 10,
 		})
 		if err != nil {
@@ -516,7 +518,8 @@ func TestGlobalDBLoopTerminalReconciliationShouldConvergeExecutionRecords(t *tes
 			t.Fatalf("missing-run metadata retained loop_name: %#v", metadata)
 		}
 		catalog, err := globalDB.ListTaskCatalog(ctx, taskpkg.CatalogQuery{
-			Scope: taskpkg.CatalogScopeWorkspace, WorkspaceID: string(run.WorkspaceID),
+			ReadScope: storepkg.ReadScope{ProfileID: storepkg.DefaultProfileID},
+			Scope:     taskpkg.CatalogScopeWorkspace, WorkspaceID: string(run.WorkspaceID),
 			LoopRunID: missingRunID, IncludeDrafts: true, Limit: 10,
 		})
 		if err != nil {
@@ -2711,6 +2714,7 @@ func TestGlobalDBLoopNodeCancellationShouldCloseAttemptsAndEffectsAtomically(t *
 			t.Fatalf("node cancel outbox = %#v, want one on_cancel", entries)
 		}
 		events, err := globalDB.ListLoopRunEvents(ctx, looppkg.RunEventQuery{
+			ReadScope:   storepkg.ReadScope{AllProfiles: true},
 			WorkspaceID: run.WorkspaceID, RunID: run.ID,
 		})
 		if err != nil {
@@ -2980,6 +2984,7 @@ func TestGlobalDBLoopNodeLivenessShouldRaiseAndSelfClearSilenceAttention(t *test
 		t.Fatalf("recovered controls = %#v, want cleared silence and reset streak", controls[0])
 	}
 	events, err := globalDB.ListLoopRunEvents(ctx, looppkg.RunEventQuery{
+		ReadScope:   storepkg.ReadScope{AllProfiles: true},
 		WorkspaceID: run.WorkspaceID, RunID: run.ID,
 	})
 	if err != nil {
@@ -3338,6 +3343,7 @@ func TestGlobalDBLoopNodeRequeueShouldBeAtomic(t *testing.T) {
 				epoch, firstScheduledAt, storedRun.StartedAt, now, now.Add(time.Minute))
 		}
 		events, err := globalDB.ListLoopRunEvents(ctx, looppkg.RunEventQuery{
+			ReadScope:   storepkg.ReadScope{AllProfiles: true},
 			WorkspaceID: run.WorkspaceID,
 			RunID:       run.ID,
 		})
@@ -4539,6 +4545,7 @@ func TestGlobalDBLoopEffectAcknowledgementShouldBeAtomicAndIdempotent(t *testing
 		t.Fatalf("effect outbox = %#v, want delivered once", outbox)
 	}
 	events, err := globalDB.ListLoopRunEvents(ctx, looppkg.RunEventQuery{
+		ReadScope:   storepkg.ReadScope{AllProfiles: true},
 		WorkspaceID: loopRun.WorkspaceID,
 		RunID:       loopRun.ID,
 	})
@@ -4579,6 +4586,7 @@ func TestValidateLoopCoordinatorReactivation(t *testing.T) {
 			ID:           "looprun-approval",
 			WorkspaceID:  "ws-1",
 			Status:       looppkg.StatusNeedsApproval,
+			ProfileID:    storepkg.DefaultProfileID,
 			ActiveGateID: "human",
 		}
 		decision := looppkg.GateDecisionRecord{
@@ -5030,6 +5038,7 @@ func TestGlobalDBLoopHistoryShouldPersistMachineFacts(t *testing.T) {
 		}
 		liveOnly := true
 		runs, err := globalDB.ListLoopRuns(ctx, looppkg.RunListQuery{
+			ReadScope:   storepkg.ReadScope{ProfileID: storepkg.DefaultProfileID},
 			WorkspaceID: historical.WorkspaceID,
 			Live:        &liveOnly,
 			Limit:       20,
@@ -6112,6 +6121,7 @@ func TestGlobalDBLoopNodePauseShouldFenceAndRestoreRetryState(t *testing.T) {
 		t.Fatalf("reset output = %s/a%d next=%v, want pending attempt 1 without delay", status, attempt, resetNext)
 	}
 	events, err := globalDB.ListLoopRunEvents(ctx, looppkg.RunEventQuery{
+		ReadScope:   storepkg.ReadScope{AllProfiles: true},
 		WorkspaceID: run.WorkspaceID, RunID: run.ID, Limit: 100,
 	})
 	if err != nil {
@@ -6449,6 +6459,7 @@ func TestGlobalDBLoopWaitResumeShouldClaimExactlyOnce(t *testing.T) {
 		t.Fatalf("resumed wait truth = %s/%s/e%d, want resumed/succeeded/e4", waitState, outputStatus, outputEpoch)
 	}
 	events, err := globalDB.ListLoopRunEvents(ctx, looppkg.RunEventQuery{
+		ReadScope:   storepkg.ReadScope{AllProfiles: true},
 		WorkspaceID: run.WorkspaceID, RunID: run.ID, Limit: 100,
 	})
 	if err != nil {
@@ -6480,6 +6491,7 @@ func TestGlobalDBLoopWaitResumeShouldClaimExactlyOnce(t *testing.T) {
 		t.Fatalf("invalid wait truth = %s/%d, want intervention_required/3", waitState, failures)
 	}
 	events, err = globalDB.ListLoopRunEvents(ctx, looppkg.RunEventQuery{
+		ReadScope:   storepkg.ReadScope{AllProfiles: true},
 		WorkspaceID: run.WorkspaceID, RunID: run.ID, Limit: 100,
 	})
 	if err != nil {
@@ -7303,25 +7315,27 @@ func testLoopRun(id string, at time.Time, status looppkg.Status) looppkg.Run {
 	if err != nil {
 		panic(fmt.Sprintf("build test executed definition snapshot: %v", err))
 	}
-	return looppkg.Run{
-		ID:                  looppkg.RunID(id),
-		WorkspaceID:         "ws-1",
-		LoopName:            "delivery",
-		Status:              status,
-		ReattemptStrategy:   looppkg.ReattemptFailedOnly,
-		CreatedAt:           at,
-		StartedAt:           at,
-		LastProgressAt:      at,
-		DefinitionVersion:   resolved.DefinitionVersion,
-		DefinitionDigest:    digest,
-		DefinitionSnapshot:  snapshot,
-		ActiveHumanCriteria: []byte(`[]`),
-		StartMetadata:       map[string]any{},
-		IterationCap:        7,
-		BudgetOnExceeded:    dsl.BudgetExceededHalt,
-		Origin:              &looppkg.RunOrigin{Kind: looppkg.RunOriginCatalog},
-		Inputs:              map[string]any{"tasks": "task-ref"},
+	run := looppkg.Run{
+		ID:                 looppkg.RunID(id),
+		ProfileID:          storepkg.DefaultProfileID,
+		WorkspaceID:        "ws-1",
+		LoopName:           "delivery",
+		Status:             status,
+		ReattemptStrategy:  looppkg.ReattemptFailedOnly,
+		CreatedAt:          at,
+		StartedAt:          at,
+		LastProgressAt:     at,
+		DefinitionVersion:  resolved.DefinitionVersion,
+		DefinitionDigest:   digest,
+		DefinitionSnapshot: snapshot,
+		StartMetadata:      map[string]any{},
+		IterationCap:       7,
+		BudgetOnExceeded:   dsl.BudgetExceededHalt,
+		Origin:             &looppkg.RunOrigin{Kind: looppkg.RunOriginCatalog},
+		Inputs:             map[string]any{"tasks": "task-ref"},
 	}
+	run.SetActiveHumanCriteria(json.RawMessage(`[]`))
+	return run
 }
 
 func waitEscalationTestLoopRun(id string, at time.Time, withRoute bool, waitAdmissionAttempts int) looppkg.Run {
@@ -7351,14 +7365,17 @@ func waitEscalationTestLoopRun(id string, at time.Time, withRoute bool, waitAdmi
 	if err != nil {
 		panic(fmt.Sprintf("build wait escalation test executed definition snapshot: %v", err))
 	}
-	return looppkg.Run{
+	run := looppkg.Run{
 		ID: looppkg.RunID(id), WorkspaceID: "ws-1", LoopName: "delivery", Status: looppkg.StatusRunning,
 		ReattemptStrategy: looppkg.ReattemptFailedOnly, CreatedAt: at, StartedAt: at,
 		LastProgressAt: at, DefinitionVersion: resolved.DefinitionVersion,
-		DefinitionDigest: digest, DefinitionSnapshot: snapshot, ActiveHumanCriteria: []byte(`[]`),
+		DefinitionDigest: digest, DefinitionSnapshot: snapshot,
 		StartMetadata: map[string]any{}, IterationCap: 7, BudgetOnExceeded: dsl.BudgetExceededHalt,
-		Origin: &looppkg.RunOrigin{Kind: looppkg.RunOriginCatalog}, Inputs: map[string]any{"request": "42"},
+		ProfileID: storepkg.DefaultProfileID,
+		Origin:    &looppkg.RunOrigin{Kind: looppkg.RunOriginCatalog}, Inputs: map[string]any{"request": "42"},
 	}
+	run.SetActiveHumanCriteria(json.RawMessage(`[]`))
+	return run
 }
 
 func approvalEscalationTestLoopRun(id string, at time.Time) looppkg.Run {
@@ -7384,14 +7401,17 @@ func approvalEscalationTestLoopRun(id string, at time.Time) looppkg.Run {
 	if err != nil {
 		panic(fmt.Sprintf("build approval escalation executed definition snapshot: %v", err))
 	}
-	return looppkg.Run{
+	run := looppkg.Run{
 		ID: looppkg.RunID(id), WorkspaceID: "ws-1", LoopName: "delivery", Status: looppkg.StatusRunning,
 		ReattemptStrategy: looppkg.ReattemptFailedOnly, CreatedAt: at, StartedAt: at,
 		LastProgressAt: at, DefinitionVersion: resolved.DefinitionVersion,
-		DefinitionDigest: digest, DefinitionSnapshot: snapshot, ActiveHumanCriteria: []byte(`[]`),
+		DefinitionDigest: digest, DefinitionSnapshot: snapshot,
 		StartMetadata: map[string]any{}, IterationCap: 7, BudgetOnExceeded: dsl.BudgetExceededHalt,
-		Origin: &looppkg.RunOrigin{Kind: looppkg.RunOriginCatalog}, Inputs: map[string]any{"request": "42"},
+		ProfileID: storepkg.DefaultProfileID,
+		Origin:    &looppkg.RunOrigin{Kind: looppkg.RunOriginCatalog}, Inputs: map[string]any{"request": "42"},
 	}
+	run.SetActiveHumanCriteria(json.RawMessage(`[]`))
+	return run
 }
 
 func seedApprovalEscalationFixture(
@@ -7776,7 +7796,8 @@ func seedLoopCancellationBindingForTest(
 	t.Helper()
 	ctx := testutil.Context(t)
 	if err := globalDB.RegisterSession(ctx, storepkg.SessionInfo{
-		ID: sessionID, AgentName: "codex", RuntimeStatus: storepkg.SessionRuntimeUnbound,
+		ProfileID: storepkg.DefaultProfileID,
+		ID:        sessionID, AgentName: "codex", RuntimeStatus: storepkg.SessionRuntimeUnbound,
 		WorkspaceID: workspaceID, State: "active", CreatedAt: at, UpdatedAt: at,
 	}); err != nil {
 		t.Fatalf("RegisterSession(cancellation) error = %v", err)
@@ -7861,6 +7882,7 @@ func assertExpiredWaitResumeEventPayloadForTest(
 ) {
 	t.Helper()
 	events, err := globalDB.ListLoopRunEvents(testutil.Context(t), looppkg.RunEventQuery{
+		ReadScope:   storepkg.ReadScope{AllProfiles: true},
 		WorkspaceID: run.WorkspaceID,
 		RunID:       run.ID,
 		Limit:       100,

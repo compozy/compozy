@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	bridgepkg "github.com/compozy/compozy/internal/bridges"
+	storepkg "github.com/compozy/compozy/internal/store"
 	"github.com/compozy/compozy/internal/testutil"
 )
 
@@ -16,6 +17,7 @@ func TestRegistryGlobalAndWorkspaceRoutesStayIsolated(t *testing.T) {
 	workspaceID := registerWorkspaceForBridgesTests(t, db, "ws-route-scope", "route-scope")
 
 	globalInstance := createTestBridgeInstance(t, registry, bridgepkg.CreateInstanceRequest{
+		ProfileID:     storepkg.DefaultProfileID,
 		ID:            "brg-global-route",
 		Scope:         bridgepkg.ScopeGlobal,
 		Platform:      "telegram",
@@ -26,6 +28,7 @@ func TestRegistryGlobalAndWorkspaceRoutesStayIsolated(t *testing.T) {
 		RoutingPolicy: bridgepkg.RoutingPolicy{IncludePeer: true},
 	})
 	workspaceInstance := createTestBridgeInstance(t, registry, bridgepkg.CreateInstanceRequest{
+		ProfileID:     storepkg.DefaultProfileID,
 		ID:            "brg-workspace-route",
 		Scope:         bridgepkg.ScopeWorkspace,
 		WorkspaceID:   workspaceID,
@@ -98,6 +101,7 @@ func TestRegistryUpsertRouteRebindsWithoutDuplicateRows(t *testing.T) {
 
 	registry, _ := newRegistryTestHarness(t)
 	instance := createTestBridgeInstance(t, registry, bridgepkg.CreateInstanceRequest{
+		ProfileID:     storepkg.DefaultProfileID,
 		ID:            "brg-rebind",
 		Scope:         bridgepkg.ScopeGlobal,
 		Platform:      "telegram",
@@ -157,6 +161,7 @@ func TestRegistryListRoutesReturnsOnlyTheRequestedInstance(t *testing.T) {
 
 	registry, _ := newRegistryTestHarness(t)
 	first := createTestBridgeInstance(t, registry, bridgepkg.CreateInstanceRequest{
+		ProfileID:     storepkg.DefaultProfileID,
 		ID:            "brg-list-a",
 		Scope:         bridgepkg.ScopeGlobal,
 		Platform:      "telegram",
@@ -167,6 +172,7 @@ func TestRegistryListRoutesReturnsOnlyTheRequestedInstance(t *testing.T) {
 		RoutingPolicy: bridgepkg.RoutingPolicy{IncludePeer: true},
 	})
 	second := createTestBridgeInstance(t, registry, bridgepkg.CreateInstanceRequest{
+		ProfileID:     storepkg.DefaultProfileID,
 		ID:            "brg-list-b",
 		Scope:         bridgepkg.ScopeGlobal,
 		Platform:      "telegram",

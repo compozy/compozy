@@ -46,8 +46,8 @@ func HookCatalogPayloadsFromEntries(entries []hookspkg.CatalogEntry) []contract.
 			Matcher:      entry.Matcher,
 			Metadata:     cloneCatalogMetadata(entry.Metadata),
 		}
-		if entry.SkillSource != "" {
-			payload.SkillSource = string(entry.SkillSource)
+		if entry.SkillSource != hookspkg.HookSkillSourceUnset {
+			payload.SkillSource = entry.SkillSource.String()
 		}
 		if entry.Timeout > 0 {
 			payload.TimeoutMS = entry.Timeout.Milliseconds()

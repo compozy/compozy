@@ -2,14 +2,27 @@ package task
 
 import (
 	"fmt"
-
 	"strings"
 
 	networkrules "github.com/compozy/compozy/internal/network/rules"
+	"github.com/compozy/compozy/internal/store"
 )
+
+func normalizeTaskReadScope(scope store.ReadScope) (store.ReadScope, error) {
+	scope.ProfileID = strings.TrimSpace(scope.ProfileID)
+	if err := scope.Validate(); err != nil {
+		return store.ReadScope{}, err
+	}
+	return scope, nil
+}
 
 // Validate reports whether the task-query filters are internally consistent.
 func (q Query) Validate(path string) error {
+	if q.ReadScope != (store.ReadScope{}) {
+		if _, err := normalizeTaskReadScope(q.ReadScope); err != nil {
+			return fmt.Errorf("%w: %s: %w", ErrValidation, nestedPath(path, "read_scope"), err)
+		}
+	}
 	if q.Scope.Normalize() != "" {
 		if err := ValidateScopeBinding(q.Scope, q.WorkspaceID, path, "workspace_id"); err != nil {
 			return err
@@ -61,6 +74,11 @@ func (q SchedulerBacklogQuery) Validate(path string) error {
 
 // Validate reports whether the task-run query filters are internally consistent.
 func (q RunQuery) Validate(path string) error {
+	if q.ReadScope != (store.ReadScope{}) {
+		if _, err := normalizeTaskReadScope(q.ReadScope); err != nil {
+			return fmt.Errorf("%w: %s: %w", ErrValidation, nestedPath(path, "read_scope"), err)
+		}
+	}
 	if q.Status.Normalize() != TaskRunStatusUnknown {
 		if err := q.Status.Validate(nestedPath(path, "status")); err != nil {
 			return err

@@ -9,6 +9,7 @@ import (
 
 	"github.com/compozy/compozy/internal/agentidentity"
 	"github.com/compozy/compozy/internal/session"
+	"github.com/compozy/compozy/internal/store"
 	taskpkg "github.com/compozy/compozy/internal/task"
 )
 
@@ -43,6 +44,7 @@ func TestResolveAgentCallerFromEnv(t *testing.T) {
 						}
 						return SessionRecord{
 							ID:          "sess-1",
+							ProfileID:   store.DefaultProfileID,
 							AgentName:   "coder",
 							WorkspaceID: "ws-1",
 							State:       session.StateActive,

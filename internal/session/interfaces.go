@@ -68,6 +68,7 @@ type NetworkPeerCapability struct {
 // late-bound network lifecycle.
 type NetworkPeerJoin struct {
 	SessionID            string
+	ProfileID            string
 	PeerID               string
 	WorkspaceID          string
 	DisplayName          string

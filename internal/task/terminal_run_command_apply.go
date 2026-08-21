@@ -20,7 +20,7 @@ func (c TerminalRunCommand) terminalMutation(current Run) (TerminalRunMutation, 
 	switch c.kind {
 	case TerminalRunCommandCompleted:
 		next.Status = TaskRunStatusCompleted
-		next.Result = cloneRawJSON(c.intent.Result)
+		next.Result = rawJSONPointer(c.intent.Result)
 		next.Error = ""
 	case TerminalRunCommandFailed:
 		if c.intent.Failure == nil {

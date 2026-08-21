@@ -46,6 +46,8 @@ describe("ActivityFeed", () => {
         channel="ops"
         directs={[
           {
+            profile_id: "00000000000000000000000000",
+            profile_name: "default",
             channel: "ops",
             direct_id: "direct-1",
             last_activity_at: "2026-04-17T17:00:00Z",
@@ -60,6 +62,8 @@ describe("ActivityFeed", () => {
         status="ready"
         threads={[
           {
+            profile_id: "00000000000000000000000000",
+            profile_name: "default",
             channel: "ops",
             last_activity_at: "2026-04-17T18:00:00Z",
             last_message_preview: "Newer thread",
@@ -91,6 +95,8 @@ describe("ActivityFeed", () => {
         channel="ops"
         directs={[
           {
+            profile_id: "00000000000000000000000000",
+            profile_name: "default",
             channel: "ops",
             direct_id: "direct-1",
             last_activity_at: "2026-04-17T17:00:00Z",
@@ -105,6 +111,8 @@ describe("ActivityFeed", () => {
         status="ready"
         threads={[
           {
+            profile_id: "00000000000000000000000000",
+            profile_name: "default",
             channel: "ops",
             last_activity_at: "2026-04-17T18:00:00Z",
             last_message_preview: "Thread preview",

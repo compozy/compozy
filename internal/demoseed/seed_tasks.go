@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/compozy/compozy/internal/network/participation"
+	"github.com/compozy/compozy/internal/store"
 	"github.com/compozy/compozy/internal/store/globaldb"
 	"github.com/compozy/compozy/internal/task"
 )
@@ -110,7 +111,7 @@ func taskRecord(workspaceID string, story taskStory) task.Task {
 		`{"initiative":%q,"company":"Northstar Pay"}`, story.Initiative,
 	))
 	return task.Task{
-		ID: story.ID, Identifier: story.Identifier,
+		ID: story.ID, ProfileID: store.DefaultProfileID, Identifier: story.Identifier,
 		Scope: task.ScopeWorkspace, WorkspaceID: workspaceID,
 		Title: story.Title, Description: story.Description, Priority: task.Priority(story.Priority),
 		MaxAttempts: task.DefaultTaskMaxAttempts, Status: task.Status(story.Status),
@@ -126,7 +127,8 @@ func taskRecord(workspaceID string, story taskStory) task.Task {
 
 func historicalTaskRun(workspaceID string, story taskStory, run taskRunStory) task.Run {
 	record := task.Run{
-		ID: run.ID, TaskID: story.ID, WorkspaceID: workspaceID, Attempt: max(1, run.Attempt),
+		ID: run.ID, ProfileID: store.DefaultProfileID,
+		TaskID: story.ID, WorkspaceID: workspaceID, Attempt: max(1, run.Attempt),
 		RunKind: task.RunKindWorker, Status: run.Status,
 		Origin:          task.Origin{Kind: task.OriginKindWeb, Ref: originWebRef},
 		IdempotencyKey:  "northstar/" + run.ID,
@@ -136,7 +138,7 @@ func historicalTaskRun(workspaceID string, story taskStory, run taskRunStory) ta
 		Error: run.Error,
 	}
 	if run.Result != "" {
-		record.Result = json.RawMessage(run.Result)
+		record.SetResult(json.RawMessage(run.Result))
 	}
 	if run.SessionID != "" {
 		record.ClaimedBy = &task.ActorIdentity{Kind: task.ActorKindAgentSession, Ref: run.SessionID}

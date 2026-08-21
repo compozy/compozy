@@ -30,6 +30,7 @@ func (s *Session) infoLocked() *Info {
 
 	return &Info{
 		ID:                       s.ID,
+		ProfileID:                s.ProfileID,
 		Name:                     s.Name,
 		AgentName:                s.AgentName,
 		Provider:                 s.Provider,

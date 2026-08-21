@@ -83,9 +83,19 @@ func (m *Manager) prepareProviderStartPolicies(
 	resolved compozyconfig.ResolvedAgent,
 	opts acp.StartOpts,
 ) (acp.StartOpts, providerSecretBindings, error) {
+	profileSlots, err := authproviders.ProfileCredentialSlots(
+		ctx,
+		resolved.Provider,
+		resolved.ProfileName,
+		resolved.CredentialSlots,
+		providerSecretMetadataResolver{resolver: m.providerSecrets},
+	)
+	if err != nil {
+		return acp.StartOpts{}, providerSecretBindings{}, err
+	}
+	resolved.CredentialSlots = profileSlots
 	opts.Env = setProviderStartEnv(opts.Env, resolved)
 
-	var err error
 	if resolved.HomePolicy == compozyconfig.ProviderHomePolicyIsolated {
 		opts.Env, err = providerenv.ApplyHomePolicy(
 			m.homePaths,
@@ -179,17 +189,22 @@ func providerPreStartScopeForSession(
 		return authproviders.PreStartScope{}
 	}
 	info := session.Info()
-	if info == nil || info.Sandbox == nil {
+	if info == nil {
 		return authproviders.PreStartScope{}
 	}
-	return authproviders.PreStartScope{
-		WorkspaceID:       strings.TrimSpace(info.WorkspaceID),
-		HomeIdentity:      providerHomeIdentity(env),
-		SandboxID:         strings.TrimSpace(info.Sandbox.SandboxID),
-		SandboxBackend:    strings.TrimSpace(info.Sandbox.Backend),
-		SandboxProfile:    strings.TrimSpace(info.Sandbox.Profile),
-		SandboxInstanceID: strings.TrimSpace(info.Sandbox.InstanceID),
+	scope := authproviders.PreStartScope{
+		WorkspaceID:  strings.TrimSpace(info.WorkspaceID),
+		ProfileID:    strings.TrimSpace(info.ProfileID),
+		HomeIdentity: providerHomeIdentity(env),
 	}
+	if info.Sandbox == nil {
+		return scope
+	}
+	scope.SandboxID = strings.TrimSpace(info.Sandbox.SandboxID)
+	scope.SandboxBackend = strings.TrimSpace(info.Sandbox.Backend)
+	scope.SandboxProfile = strings.TrimSpace(info.Sandbox.Profile)
+	scope.SandboxInstanceID = strings.TrimSpace(info.Sandbox.InstanceID)
+	return scope
 }
 
 func providerHomeIdentity(env []string) string {

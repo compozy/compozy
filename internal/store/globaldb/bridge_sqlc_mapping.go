@@ -10,7 +10,6 @@ import (
 	"github.com/compozy/compozy/internal/bridges"
 	"github.com/compozy/compozy/internal/store"
 	"github.com/compozy/compozy/internal/store/globaldb/sqlcgen"
-	taskpkg "github.com/compozy/compozy/internal/task"
 )
 
 func nullableBridgeString(value string) sql.NullString {
@@ -85,7 +84,8 @@ func bridgeInstanceInsertParams(record bridgeInstanceRecord) (sqlcgen.InsertBrid
 		return sqlcgen.InsertBridgeInstanceParams{}, err
 	}
 	return sqlcgen.InsertBridgeInstanceParams{
-		ID: instance.ID, Scope: string(instance.Scope), WorkspaceID: nullableBridgeString(instance.WorkspaceID),
+		ProfileID: instance.ProfileID,
+		ID:        instance.ID, Scope: string(instance.Scope), WorkspaceID: nullableBridgeString(instance.WorkspaceID),
 		Platform: instance.Platform, ExtensionName: instance.ExtensionName, DisplayName: instance.DisplayName,
 		Source: string(instance.Source), Enabled: instance.Enabled, Status: string(instance.Status),
 		DmPolicy: string(instance.DMPolicy), RoutingPolicy: record.routingPolicyJSON,
@@ -122,8 +122,9 @@ func bridgeInstanceUpsertParams(record bridgeInstanceRecord) (sqlcgen.UpsertBrid
 
 func bridgeInstanceFromGenerated(row sqlcgen.BridgeInstance) (bridges.BridgeInstance, error) {
 	instance := bridges.BridgeInstance{
-		ID: row.ID, Scope: bridges.Scope(row.Scope), WorkspaceID: bridgeStringValue(row.WorkspaceID),
-		Platform: row.Platform, ExtensionName: row.ExtensionName, DisplayName: row.DisplayName,
+		ID: row.ID, ProfileID: row.ProfileID, Scope: bridges.Scope(row.Scope),
+		WorkspaceID: bridgeStringValue(row.WorkspaceID),
+		Platform:    row.Platform, ExtensionName: row.ExtensionName, DisplayName: row.DisplayName,
 		Source: bridges.BridgeInstanceSource(row.Source), Enabled: row.Enabled,
 		Status: bridges.BridgeStatus(row.Status), DMPolicy: bridges.BridgeDMPolicy(row.DmPolicy),
 		NotificationSuppress: row.NotificationSuppress,
@@ -217,29 +218,6 @@ func bridgeDedupFromGenerated(row sqlcgen.BridgeIngestDedup) (bridges.IngestDedu
 		return bridges.IngestDedupRecord{}, err
 	}
 	return record, nil
-}
-
-func bridgeSubscriptionFromGenerated(row sqlcgen.BridgeTaskSubscription) (bridges.BridgeTaskSubscription, error) {
-	createdAt, err := store.ParseTimestamp(row.CreatedAt)
-	if err != nil {
-		return bridges.BridgeTaskSubscription{}, err
-	}
-	updatedAt, err := store.ParseTimestamp(row.UpdatedAt)
-	if err != nil {
-		return bridges.BridgeTaskSubscription{}, err
-	}
-	subscription := bridges.BridgeTaskSubscription{
-		SubscriptionID: row.SubscriptionID, TaskID: row.TaskID, BridgeInstanceID: row.BridgeInstanceID,
-		Scope: bridges.Scope(row.Scope), WorkspaceID: opaqueBridgeStringValue(row.WorkspaceID),
-		PeerID: opaqueBridgeStringValue(row.PeerID), ThreadID: opaqueBridgeStringValue(row.ThreadID),
-		GroupID: opaqueBridgeStringValue(row.GroupID), DeliveryMode: bridges.DeliveryMode(row.DeliveryMode),
-		CreatedBy: taskpkg.ActorIdentity{Kind: taskpkg.ActorKind(row.CreatedByKind), Ref: row.CreatedByRef},
-		CreatedAt: createdAt, UpdatedAt: updatedAt,
-	}
-	if err := subscription.Validate(); err != nil {
-		return bridges.BridgeTaskSubscription{}, err
-	}
-	return subscription.Normalize(), nil
 }
 
 func bridgeTargetFromGenerated(row sqlcgen.BridgeTargetDirectory) (bridges.BridgeTarget, error) {

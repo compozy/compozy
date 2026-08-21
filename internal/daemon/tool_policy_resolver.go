@@ -321,6 +321,7 @@ func applySessionToolPolicy(inputs *toolspkg.PolicyInputs, info *session.Info) e
 
 func normalizeToolPolicyScope(scope toolspkg.Scope) toolspkg.Scope {
 	return toolspkg.Scope{
+		ProfileID:   strings.TrimSpace(scope.ProfileID),
 		WorkspaceID: strings.TrimSpace(scope.WorkspaceID),
 		SessionID:   strings.TrimSpace(scope.SessionID),
 		AgentName:   strings.TrimSpace(scope.AgentName),
@@ -335,6 +336,9 @@ func fillToolPolicyScopeFromSession(scope toolspkg.Scope, info *session.Info) to
 	}
 	if strings.TrimSpace(scope.SessionID) == "" {
 		scope.SessionID = strings.TrimSpace(info.ID)
+	}
+	if strings.TrimSpace(scope.ProfileID) == "" {
+		scope.ProfileID = strings.TrimSpace(info.ProfileID)
 	}
 	if strings.TrimSpace(scope.WorkspaceID) == "" {
 		scope.WorkspaceID = strings.TrimSpace(info.WorkspaceID)

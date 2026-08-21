@@ -16,19 +16,31 @@ import {
 import type { TaskListItem } from "../types";
 import { TaskLoopRow } from "./task-loop-row";
 import { TasksListRow } from "./tasks-list-row";
+import { ProfileOwnerTag, type ProfileOwner } from "@/systems/profiles";
 
 export interface TaskCardProps {
   task: TaskListItem;
   onOpenLoopRun?: () => void;
+  /**
+   * The profile that owns the task, supplied only in aggregate mode. Distinct
+   * from `task.owner`, which names the assignee — two different questions.
+   */
+  profileOwner?: ProfileOwner;
 }
 
-export function TaskCard({ task, onOpenLoopRun }: TaskCardProps) {
+export function TaskCard({ task, onOpenLoopRun, profileOwner }: TaskCardProps) {
   // Loop execution records only reach the listing when the reveal filter is on,
   // and they read by their provenance rather than the work-item meta line.
   if (task.loop) {
-    return <TaskLoopRow loop={task.loop} onOpenRun={onOpenLoopRun} task={task} />;
+    return (
+      <TaskLoopRow
+        loop={task.loop}
+        onOpenRun={onOpenLoopRun}
+        profileOwner={profileOwner}
+        task={task}
+      />
+    );
   }
-
   const isBlocked = taskIsBlocked(task);
   const needsAttention = task.status === "needs_attention";
   const showApproval = taskHasApprovalPending(task);
@@ -44,6 +56,15 @@ export function TaskCard({ task, onOpenLoopRun }: TaskCardProps) {
       {ownerLabel}
     </span>,
   ];
+  if (profileOwner) {
+    metaItems.push(
+      <ProfileOwnerTag
+        data-testid={`task-card-profile-${task.id}`}
+        key="profile"
+        owner={profileOwner}
+      />
+    );
+  }
   if (activeRun) {
     metaItems.push(
       <span data-testid={`task-card-attempt-${task.id}`} key="attempt">

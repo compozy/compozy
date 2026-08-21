@@ -95,6 +95,29 @@ func mergedSkillList(globalSkills, workspaceSkills map[string]*Skill) []*Skill {
 	return skills
 }
 
+func mergedSkillLayers(layers ...map[string]*Skill) []*Skill {
+	if len(layers) == 0 {
+		return nil
+	}
+	merged := make(map[string]*Skill)
+	for _, layer := range layers {
+		for name, skill := range layer {
+			if skill == nil {
+				continue
+			}
+			winner := cloneSkill(skill)
+			if loser := merged[name]; loser != nil {
+				winner.Diagnostics.ShadowedDefinitions = append(
+					cloneSkillDefinitionRefs(winner.Diagnostics.ShadowedDefinitions),
+					shadowDefinitionRefsForWinner(loser, time.Time{})...,
+				)
+			}
+			merged[name] = winner
+		}
+	}
+	return cloneSortedSkillList(merged)
+}
+
 func mergedSkillListWithDisabled(globalSkills, workspaceSkills map[string]*Skill, disabledSkills []string) []*Skill {
 	skills := mergedSkillList(globalSkills, workspaceSkills)
 	applyDisabledSkillList(skills, disabledSkills)

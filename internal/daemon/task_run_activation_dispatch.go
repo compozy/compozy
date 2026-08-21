@@ -128,6 +128,7 @@ func activationDispatchPayload(run taskpkg.Run) hookspkg.TaskRunEnqueuedPayload 
 	kind := run.RunKind.Normalize().String()
 	return hookspkg.TaskRunEnqueuedPayload{
 		TaskRunContext: hookspkg.TaskRunContext{
+			ProfileID:                    strings.TrimSpace(run.ProfileID),
 			TaskID:                       strings.TrimSpace(run.TaskID),
 			RunID:                        strings.TrimSpace(run.ID),
 			RunKind:                      &kind,

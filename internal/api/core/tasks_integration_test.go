@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/compozy/compozy/internal/api/testutil"
+	"github.com/compozy/compozy/internal/store"
 	taskpkg "github.com/compozy/compozy/internal/task"
 	workspacepkg "github.com/compozy/compozy/internal/workspace"
 	"github.com/gin-gonic/gin"
@@ -16,6 +17,7 @@ import (
 
 func TestTaskHandlersCreateTaskAndListFiltersReachManagerIntegration(t *testing.T) {
 	t.Parallel()
+	const profileID = "profile-marketing"
 
 	var capturedCreate taskpkg.CreateTask
 	var capturedCreateActor taskpkg.ActorContext
@@ -28,6 +30,7 @@ func TestTaskHandlersCreateTaskAndListFiltersReachManagerIntegration(t *testing.
 			capturedCreateActor = actor
 			return &taskpkg.Task{
 				ID:          "task-1",
+				ProfileID:   spec.ProfileID,
 				Identifier:  spec.Identifier,
 				Scope:       spec.Scope,
 				WorkspaceID: spec.WorkspaceID,
@@ -47,6 +50,7 @@ func TestTaskHandlersCreateTaskAndListFiltersReachManagerIntegration(t *testing.
 			capturedListActor = actor
 			return []taskpkg.Summary{{
 				ID:        "task-1",
+				ProfileID: query.ReadScope.ProfileID,
 				Scope:     query.Scope,
 				Title:     "Review task API",
 				Status:    query.Status,
@@ -75,15 +79,18 @@ func TestTaskHandlersCreateTaskAndListFiltersReachManagerIntegration(t *testing.
 		nil,
 		nil,
 	)
+	fixture.Handlers.Profiles = sessionProfileServiceStub{}
 	fixture.Handlers.TaskActorContextResolver = func(_ *gin.Context, action string) (taskpkg.ActorContext, error) {
-		return taskpkg.DeriveHumanActorContext("user-1", taskpkg.OriginKindHTTP, "tasks."+action)
+		actor, err := taskpkg.DeriveHumanActorContext("user-1", taskpkg.OriginKindHTTP, "tasks."+action)
+		actor.ReadScope = store.ReadScope{ProfileID: profileID}
+		return actor, err
 	}
 
 	createResp := performRequest(
 		t,
 		fixture.Engine,
 		"POST",
-		"/tasks",
+		"/tasks?profile=marketing",
 		[]byte(
 			`{"scope":"workspace","workspace":"alpha","identifier":"TASK-1","title":"Review task API","description":"Check handler wiring","auto_enqueue_on_ready":true,"owner":{"kind":"pool","ref":"reviewers"},"metadata":{"priority":"high"}}`,
 		),
@@ -94,6 +101,10 @@ func TestTaskHandlersCreateTaskAndListFiltersReachManagerIntegration(t *testing.
 
 	if capturedCreate.Scope != taskpkg.ScopeWorkspace || capturedCreate.WorkspaceID != "ws-alpha" {
 		t.Fatalf("create spec = %#v", capturedCreate)
+	}
+	if capturedCreate.ProfileID != profileID ||
+		capturedCreateActor.ReadScope != (store.ReadScope{ProfileID: profileID}) {
+		t.Fatalf("create profile scope = %#v / %#v", capturedCreate, capturedCreateActor.ReadScope)
 	}
 	if capturedCreate.Owner == nil || capturedCreate.Owner.Ref != "reviewers" {
 		t.Fatalf("create spec = %#v", capturedCreate)
@@ -109,7 +120,7 @@ func TestTaskHandlersCreateTaskAndListFiltersReachManagerIntegration(t *testing.
 		t,
 		fixture.Engine,
 		"GET",
-		"/tasks?scope=workspace&workspace=alpha&status=ready&owner_kind=pool&owner_ref=reviewers&parent_task_id=task-root&limit=5",
+		"/tasks?profile=marketing&scope=workspace&workspace=alpha&status=ready&owner_kind=pool&owner_ref=reviewers&parent_task_id=task-root&limit=5",
 		nil,
 	)
 	if listResp.Code != 200 {
@@ -118,6 +129,10 @@ func TestTaskHandlersCreateTaskAndListFiltersReachManagerIntegration(t *testing.
 
 	if capturedList.Scope != taskpkg.ScopeWorkspace || capturedList.WorkspaceID != "ws-alpha" {
 		t.Fatalf("list query = %#v", capturedList)
+	}
+	if capturedList.ReadScope != (store.ReadScope{ProfileID: profileID}) ||
+		capturedListActor.ReadScope != (store.ReadScope{ProfileID: profileID}) {
+		t.Fatalf("list profile scope = %#v / %#v", capturedList.ReadScope, capturedListActor.ReadScope)
 	}
 	if capturedList.Status != taskpkg.TaskStatusReady || capturedList.OwnerKind != taskpkg.OwnerKindPool ||
 		capturedList.OwnerRef != "reviewers" {

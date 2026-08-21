@@ -3,10 +3,13 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { expectFetchRequest, mockJsonResponse } from "@/test/fetch-test-utils";
 import {
   deleteSettingsSandbox,
+  deleteSettingsHook,
   deleteSettingsMCPServer,
   deleteSettingsProvider,
   getSettingsGeneral,
+  getSettingsCmdPalette,
   getSettingsObservability,
+  getSettingsPersona,
   getRolesStatus,
   getSettingsRestartStatus,
   getSettingsRoles,
@@ -17,6 +20,7 @@ import {
   listSettingsMCPServers,
   listSettingsProviders,
   putSettingsSandbox,
+  putSettingsHook,
   putSettingsMCPServer,
   putSettingsProvider,
   reloadSettings,
@@ -24,7 +28,9 @@ import {
   settingsObservabilityLogTailPath,
   triggerSettingsRestart,
   updateSettingsAutomation,
+  updateSettingsCmdPalette,
   updateSettingsGeneral,
+  updateSettingsPersona,
   updateSettingsRoles,
   updateSettingsSkills,
 } from "../settings-api";
@@ -36,8 +42,8 @@ import {
 
 const generalSectionFixture = {
   section: "general" as const,
-  scope: "global" as const,
-  available_scopes: ["global" as const],
+  scope: "user" as const,
+  available_scopes: ["user" as const],
   actions: {
     restart: {
       available: true,
@@ -47,7 +53,6 @@ const generalSectionFixture = {
   },
   config: {
     daemon: { socket: "/tmp/compozy.sock" },
-    defaults: { agent: "claude-code" },
     http: { host: "127.0.0.1", port: 2123 },
     limits: { max_concurrent_agents: 4 },
     permissions: { mode: "approve-reads" as const },
@@ -73,7 +78,7 @@ const mutationFixture = {
   active_config_hash: "sha256:active-live",
   active_generation: 42,
   section: "general" as const,
-  scope: "global" as const,
+  scope: "user" as const,
   applied: true,
   apply_record_id: "cfg_apply_001",
   lifecycle: "restart-required" as const,
@@ -114,8 +119,8 @@ describe("section reads and updates", () => {
   it("loads the observability section and exposes log tail URL", async () => {
     const observability = {
       section: "observability" as const,
-      scope: "global" as const,
-      available_scopes: ["global" as const],
+      scope: "user" as const,
+      available_scopes: ["user" as const],
       config: {
         enabled: true,
         max_global_bytes: 1024,
@@ -160,7 +165,6 @@ describe("section reads and updates", () => {
           reload_timeouts: { bridges: "30s", mcp: "10s", providers: "5s" },
           socket: "/tmp/next.sock",
         },
-        defaults: { agent: "claude-code" },
         http: { host: "127.0.0.1", port: 2123 },
         limits: { max_concurrent_agents: 4 },
         permissions: { mode: "approve-reads" as const },
@@ -177,6 +181,53 @@ describe("section reads and updates", () => {
       body,
       method: "PATCH",
       path: "/api/settings/general",
+    });
+  });
+
+  it("reads persona defaults from the selected profile layer", async () => {
+    const persona = {
+      section: "persona" as const,
+      scope: "profile" as const,
+      profile: "marketing",
+      available_scopes: ["user", "profile", "workspace"] as const,
+      config: { agent: "campaigns", provider: "openai", sandbox: "browser" },
+    };
+    mockJsonResponse(persona);
+
+    const result = await getSettingsPersona({ scope: "profile", profile: " marketing " });
+
+    expect(result).toEqual(persona);
+    await expectFetchRequest({
+      path: "/api/settings/persona?scope=profile&profile=marketing",
+    });
+  });
+
+  it("updates persona defaults in the selected layer", async () => {
+    mockJsonResponse({
+      ...mutationFixture,
+      section: "persona",
+      scope: "profile",
+      profile: "marketing",
+      write_target: "profile-config",
+    });
+    const body = {
+      config: { agent: "campaigns", provider: "openai", sandbox: "browser" },
+    };
+
+    const result = await updateSettingsPersona(body, {
+      scope: "profile",
+      profile: "marketing",
+    });
+
+    expect(result).toMatchObject({
+      scope: "profile",
+      profile: "marketing",
+      write_target: "profile-config",
+    });
+    await expectFetchRequest({
+      body,
+      method: "PATCH",
+      path: "/api/settings/persona?scope=profile&profile=marketing",
     });
   });
 
@@ -206,7 +257,7 @@ describe("section reads and updates", () => {
     const skillsSection = {
       section: "skills" as const,
       scope: "agent" as const,
-      available_scopes: ["global" as const, "agent" as const],
+      available_scopes: ["user" as const, "agent" as const],
       agent_name: "coder",
       workspace_id: "ws-polybot",
       runtime_available: true,
@@ -312,8 +363,8 @@ describe("collection endpoints", () => {
   it("lists providers", async () => {
     const providers = {
       collection: "providers" as const,
-      scope: "global" as const,
-      available_scopes: ["global" as const],
+      scope: "user" as const,
+      available_scopes: ["user" as const],
       providers: [
         {
           name: "openai",
@@ -337,7 +388,7 @@ describe("collection endpoints", () => {
           },
           source_metadata: {
             available_targets: ["global-config" as const],
-            effective_source: { kind: "global-config" as const, scope: "global" as const },
+            effective_source: { kind: "global-config" as const, scope: "user" as const },
           },
           auth_status: {
             mode: "native_cli",
@@ -421,8 +472,8 @@ describe("collection endpoints", () => {
   it("lists sandboxes", async () => {
     const sandboxes = {
       collection: "sandboxes" as const,
-      scope: "global" as const,
-      available_scopes: ["global" as const],
+      scope: "user" as const,
+      available_scopes: ["user" as const],
       sandboxes: [
         {
           name: "local",
@@ -430,7 +481,7 @@ describe("collection endpoints", () => {
           workspace_usage_count: 2,
           source_metadata: {
             available_targets: ["global-config" as const],
-            effective_source: { kind: "global-config" as const, scope: "global" as const },
+            effective_source: { kind: "global-config" as const, scope: "user" as const },
           },
         },
       ],
@@ -471,8 +522,8 @@ describe("collection endpoints", () => {
   it("lists hooks", async () => {
     const hooks = {
       collection: "hooks" as const,
-      scope: "global" as const,
-      available_scopes: ["global" as const],
+      scope: "user" as const,
+      available_scopes: ["user" as const],
       hooks: [],
     };
 
@@ -481,11 +532,37 @@ describe("collection endpoints", () => {
     await expectFetchRequest({ path: "/api/settings/hooks" });
   });
 
+  it("serializes the selected profile for hook list, put, and delete", async () => {
+    mockJsonResponse({ collection: "hooks", scope: "profile", hooks: [] });
+    await listSettingsHooks({ scope: "profile", profile: " marketing " });
+    await expectFetchRequest({ path: "/api/settings/hooks?scope=profile&profile=marketing" });
+
+    vi.mocked(globalThis.fetch).mockClear();
+    mockJsonResponse(mutationFixture);
+    const body = {
+      declaration: { event: "tool.pre_call" as const, matcher: {}, name: "preflight" },
+    };
+    await putSettingsHook("preflight", body, { scope: "profile", profile: " marketing " });
+    await expectFetchRequest({
+      body,
+      method: "PUT",
+      path: "/api/settings/hooks/preflight?scope=profile&profile=marketing",
+    });
+
+    vi.mocked(globalThis.fetch).mockClear();
+    mockJsonResponse(mutationFixture);
+    await deleteSettingsHook("preflight", { scope: "profile", profile: " marketing " });
+    await expectFetchRequest({
+      method: "DELETE",
+      path: "/api/settings/hooks/preflight?scope=profile&profile=marketing",
+    });
+  });
+
   it("lists MCP servers with scope filter and preserves workspace identifier", async () => {
     const mcp = {
       collection: "mcp-servers" as const,
       scope: "workspace" as const,
-      available_scopes: ["global" as const, "workspace" as const],
+      available_scopes: ["user" as const, "workspace" as const],
       mcp_servers: [],
       workspace_id: "ws_alpha",
     };
@@ -505,24 +582,87 @@ describe("collection endpoints", () => {
     await putSettingsMCPServer(
       "github",
       { server: { name: "github", command: "gh" } },
-      { scope: "global", target: "sidecar" }
+      { scope: "user", target: "sidecar" }
     );
 
     await expectFetchRequest({
       body: { server: { name: "github", command: "gh" } },
       method: "PUT",
-      path: "/api/settings/mcp-servers/github?scope=global&target=sidecar",
+      path: "/api/settings/mcp-servers/github?scope=user&target=sidecar",
     });
   });
 
   it("deletes MCP server with auto target", async () => {
     mockJsonResponse({ ...mutationFixture, section: "general" as const });
 
-    await deleteSettingsMCPServer("github", { scope: "global", target: "auto" });
+    await deleteSettingsMCPServer("github", { scope: "user", target: "auto" });
 
     await expectFetchRequest({
       method: "DELETE",
-      path: "/api/settings/mcp-servers/github?scope=global&target=auto",
+      path: "/api/settings/mcp-servers/github?scope=user&target=auto",
+    });
+  });
+
+  it("serializes the selected profile for MCP list, put, and delete", async () => {
+    mockJsonResponse({ collection: "mcp-servers", scope: "profile", mcp_servers: [] });
+    await listSettingsMCPServers({ scope: "profile", profile: " marketing " });
+    await expectFetchRequest({
+      path: "/api/settings/mcp-servers?scope=profile&profile=marketing",
+    });
+
+    vi.mocked(globalThis.fetch).mockClear();
+    mockJsonResponse(mutationFixture);
+    const body = { server: { name: "github", command: "gh" } };
+    await putSettingsMCPServer("github", body, {
+      scope: "profile",
+      profile: " marketing ",
+      target: "sidecar",
+    });
+    await expectFetchRequest({
+      body,
+      method: "PUT",
+      path: "/api/settings/mcp-servers/github?scope=profile&profile=marketing&target=sidecar",
+    });
+
+    vi.mocked(globalThis.fetch).mockClear();
+    mockJsonResponse(mutationFixture);
+    await deleteSettingsMCPServer("github", {
+      scope: "profile",
+      profile: " marketing ",
+      target: "auto",
+    });
+    await expectFetchRequest({
+      method: "DELETE",
+      path: "/api/settings/mcp-servers/github?scope=profile&profile=marketing&target=auto",
+    });
+  });
+});
+
+describe("command palette settings", () => {
+  it("serializes the selected profile for reads and writes", async () => {
+    const section = {
+      section: "cmd-palette" as const,
+      scope: "profile" as const,
+      profile: "marketing",
+      aliases: {},
+      fallback_agent_enabled: true,
+      personalization: true,
+      available_scopes: ["user", "profile", "workspace"] as const,
+    };
+    mockJsonResponse(section);
+    await getSettingsCmdPalette({ scope: "profile", profile: " marketing " });
+    await expectFetchRequest({
+      path: "/api/settings/cmd-palette?scope=profile&profile=marketing",
+    });
+
+    vi.mocked(globalThis.fetch).mockClear();
+    mockJsonResponse(section);
+    const body = { aliases: {}, personalization: true };
+    await updateSettingsCmdPalette(body, { scope: "profile", profile: " marketing " });
+    await expectFetchRequest({
+      body,
+      method: "PATCH",
+      path: "/api/settings/cmd-palette?scope=profile&profile=marketing",
     });
   });
 });

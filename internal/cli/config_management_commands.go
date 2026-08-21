@@ -23,31 +23,16 @@ func newConfigPathCommand(deps commandDeps) *cobra.Command {
 		Short: "Show resolved CompozyOS config paths",
 		Args:  cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, _ []string) error {
-			scope, err := parseWriteScope(scopeRaw)
+			homePaths, selected, homeWorkspace, err := configWriteTarget(cmd, deps, scopeRaw, workspaceRoot)
 			if err != nil {
 				return err
 			}
-			homeWorkspace := ""
-			if scope == compozyconfig.WriteScopeWorkspace || strings.TrimSpace(workspaceRoot) != "" {
-				homeWorkspace, err = resolveConfigWorkspaceRoot(cmd, deps, workspaceRoot)
-				if err != nil {
-					return err
-				}
-			} else {
-				homeWorkspace, err = currentWorkingDirectory(deps)
-				if err != nil {
-					return err
-				}
-			}
-			homePaths, err := deps.resolveHomeForWorkspace(homeWorkspace)
-			if err != nil {
-				return err
-			}
-			globalMCP, err := compozyconfig.ResolveMCPSidecarWriteTarget(homePaths, "", compozyconfig.WriteScopeGlobal)
-			if err != nil {
-				return err
-			}
-			selected, err := compozyconfig.ResolveConfigWriteTarget(homePaths, "", compozyconfig.WriteScopeGlobal)
+			globalMCP, err := compozyconfig.ResolveMCPSidecarWriteTarget(
+				homePaths,
+				"",
+				compozyconfig.WriteScopeUser,
+				"",
+			)
 			if err != nil {
 				return err
 			}
@@ -55,17 +40,18 @@ func newConfigPathCommand(deps commandDeps) *cobra.Command {
 				HomeDir:              homePaths.HomeDir,
 				GlobalConfig:         homePaths.ConfigFile,
 				GlobalMCPJSON:        globalMCP.Path(),
-				Scope:                string(scope),
+				Scope:                string(selected.Scope()),
 				Managed:              detectManagedState(deps).Managed,
 				Manager:              detectManagedState(deps).Manager,
 				SelectedConfigTarget: selected.Path(),
 			}
-			if scope == compozyconfig.WriteScopeWorkspace || strings.TrimSpace(workspaceRoot) != "" {
+			if selected.Scope() == compozyconfig.WriteScopeWorkspace || strings.TrimSpace(workspaceRoot) != "" {
 				workspace := homeWorkspace
 				workspaceConfig, err := compozyconfig.ResolveConfigWriteTarget(
 					homePaths,
 					workspace,
 					compozyconfig.WriteScopeWorkspace,
+					"",
 				)
 				if err != nil {
 					return err
@@ -74,6 +60,7 @@ func newConfigPathCommand(deps commandDeps) *cobra.Command {
 					homePaths,
 					workspace,
 					compozyconfig.WriteScopeWorkspace,
+					"",
 				)
 				if err != nil {
 					return err
@@ -81,7 +68,7 @@ func newConfigPathCommand(deps commandDeps) *cobra.Command {
 				record.WorkspaceRoot = workspace
 				record.WorkspaceConfig = workspaceConfig.Path()
 				record.WorkspaceMCPJSON = workspaceMCP.Path()
-				if scope == compozyconfig.WriteScopeWorkspace {
+				if selected.Scope() == compozyconfig.WriteScopeWorkspace {
 					record.SelectedConfigTarget = workspaceConfig.Path()
 				}
 			}
@@ -89,7 +76,7 @@ func newConfigPathCommand(deps commandDeps) *cobra.Command {
 		},
 	}
 	cmd.Flags().
-		StringVar(&scopeRaw, configScopeKey, string(compozyconfig.WriteScopeGlobal), "Path scope: global or workspace")
+		StringVar(&scopeRaw, configScopeKey, "", "Path scope: user, profile, or workspace (defaults to active owner)")
 	cmd.Flags().
 		StringVar(&workspaceRoot, "workspace", "", "Override workspace binding (ID, name, or path)")
 	return cmd
@@ -143,7 +130,7 @@ func newConfigValidateCommandNamed(deps commandDeps, name string) *cobra.Command
 			if err != nil {
 				return err
 			}
-			loadOptions, err := configDisplayLoadOptions(homePaths, workspace, resolved, deps.getenv)
+			loadOptions, err := configDisplayCommandLoadOptions(cmd, deps, homePaths, workspace, resolved)
 			if err != nil {
 				return err
 			}
@@ -234,11 +221,12 @@ func newConfigEditCommand(deps commandDeps) *cobra.Command {
 			if err := runConfigEditor(cmd, deps, target.Path()); err != nil {
 				return err
 			}
-			loadOptions, err := configDisplayLoadOptions(
+			loadOptions, err := configDisplayCommandLoadOptions(
+				cmd,
+				deps,
 				homePaths,
 				workspace,
 				workspace != "",
-				deps.getenv,
 			)
 			if err != nil {
 				return err
@@ -259,7 +247,7 @@ func newConfigEditCommand(deps commandDeps) *cobra.Command {
 		},
 	}
 	cmd.Flags().
-		StringVar(&scopeRaw, configScopeKey, string(compozyconfig.WriteScopeGlobal), "Edit scope: global or workspace")
+		StringVar(&scopeRaw, configScopeKey, "", "Edit scope: user, profile, or workspace (defaults to active owner)")
 	cmd.Flags().
 		StringVar(&workspaceRoot, "workspace", "", "Override workspace binding (ID, name, or path)")
 	return cmd
@@ -282,7 +270,7 @@ func newConfigReloadCommand(deps commandDeps) *cobra.Command {
 			return writeCommandOutput(cmd, configSetBundle(configSetRecord{
 				Path:             "config.toml",
 				Value:            configReloadCommandName,
-				Scope:            string(compozyconfig.WriteScopeGlobal),
+				Scope:            string(compozyconfig.WriteScopeUser),
 				Target:           configDaemonKey,
 				Lifecycle:        string(result.Lifecycle),
 				ApplyRecordID:    result.ApplyRecordID,

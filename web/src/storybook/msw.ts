@@ -13,6 +13,7 @@ import { handlers as networkHandlers } from "@/systems/network/mocks";
 import { handlers as onboardingHandlers } from "@/systems/onboarding/mocks";
 import { handlers as osHandlers } from "@/systems/os/mocks";
 import { handlers as runtimeHandlers } from "@/systems/runtime/mocks";
+import { handlers as profileHandlers } from "@/systems/profiles/mocks";
 import { handlers as sessionHandlers } from "@/systems/session/mocks";
 import { handlers as gatewayHandlers } from "@/systems/gateway/mocks";
 import { handlers as settingsHandlers } from "@/systems/settings/mocks";
@@ -39,6 +40,7 @@ export type StorybookHandlerGroupName =
   | "onboarding"
   | "os"
   | "runtime"
+  | "profiles"
   | "session"
   | "settings"
   | "skill"
@@ -66,6 +68,7 @@ export const storybookSystemHandlerGroups: StorybookHandlerGroups = {
   onboarding: onboardingHandlers,
   os: osHandlers,
   runtime: runtimeHandlers,
+  profiles: profileHandlers,
   session: sessionHandlers,
   // Gateway is a settings section, so its reads ride the settings group rather
   // than opening a system of their own.

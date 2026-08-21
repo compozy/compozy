@@ -30,6 +30,7 @@ func buildOperationRegistry() []OperationSpec {
 		registrySkillOperations(),
 		registrySettingsOperations(),
 		registrySettingsFeatureOperations(),
+		registryProfileOperations(),
 		registryWorkspaceOperations(),
 		registryWorktreeOperations(),
 	}

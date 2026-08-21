@@ -10,6 +10,7 @@ import (
 
 	compozyconfig "github.com/compozy/compozy/internal/config"
 	"github.com/compozy/compozy/internal/network/participation"
+	storepkg "github.com/compozy/compozy/internal/store"
 	taskpkg "github.com/compozy/compozy/internal/task"
 	"github.com/compozy/compozy/internal/testutil"
 	"github.com/jonboulle/clockwork"
@@ -39,6 +40,7 @@ func TestManagerIntegrationAcceptedSuggestionDispatchesThroughScheduler(t *testi
 
 	suggestions, err := manager.ListSuggestions(
 		h.ctx,
+		storepkg.ReadScope{ProfileID: storepkg.DefaultProfileID},
 		h.workspace.ID,
 		SuggestionStatusPending,
 	)
@@ -55,11 +57,11 @@ func TestManagerIntegrationAcceptedSuggestionDispatchesThroughScheduler(t *testi
 	if daily.ID == "" {
 		t.Fatalf("manager.ListSuggestions() = %#v, want daily workspace briefing", suggestions)
 	}
-	accepted, err := manager.AcceptSuggestion(h.ctx, h.workspace.ID, daily.ID)
+	accepted, err := manager.AcceptSuggestion(h.ctx, daily.ProfileID, h.workspace.ID, daily.ID)
 	if err != nil {
 		t.Fatalf("manager.AcceptSuggestion() error = %v", err)
 	}
-	if got, want := accepted.Job.ID, suggestionJobID(daily.WorkspaceID, daily.DedupKey); got != want {
+	if got, want := accepted.Job.ID, suggestionJobID(daily.ProfileID, daily.WorkspaceID, daily.DedupKey); got != want {
 		t.Fatalf("accepted Job ID = %q, want %q", got, want)
 	}
 	state, err := manager.schedulerSnapshot().State(accepted.Job.ID)
@@ -74,18 +76,31 @@ func TestManagerIntegrationAcceptedSuggestionDispatchesThroughScheduler(t *testi
 	waitForTimers(t, fakeClock, 1)
 	fakeClock.Advance(time.Minute)
 	waitUntil(t, 2*time.Second, 25*time.Millisecond, func() bool {
-		runs, listErr := h.db.ListRuns(h.ctx, RunQuery{JobID: accepted.Job.ID})
+		runs, listErr := h.db.ListRuns(h.ctx, RunQuery{
+			ReadScope: storepkg.ReadScope{ProfileID: accepted.Job.ProfileID},
+			JobID:     accepted.Job.ID,
+		})
 		if listErr != nil {
 			t.Fatalf("ListRuns() error = %v", listErr)
 		}
 		return len(runs) == 1 && runs[0].Status == RunCompleted
 	})
-	runs, err := h.db.ListRuns(h.ctx, RunQuery{JobID: accepted.Job.ID})
+	runs, err := h.db.ListRuns(h.ctx, RunQuery{
+		ReadScope: storepkg.ReadScope{ProfileID: accepted.Job.ProfileID},
+		JobID:     accepted.Job.ID,
+	})
 	if err != nil {
 		t.Fatalf("ListRuns() error = %v", err)
 	}
 	if got, want := runs[0].Status, RunCompleted; got != want {
 		t.Fatalf("ListRuns()[0].Status = %q, want %q; run = %#v", got, want, runs[0])
+	}
+	detail, err := h.db.GetRun(h.ctx, runs[0].ID)
+	if err != nil {
+		t.Fatalf("GetRun() error = %v", err)
+	}
+	if got, want := detail.ProfileID, accepted.Job.ProfileID; got != want {
+		t.Fatalf("GetRun().ProfileID = %q, want %q", got, want)
 	}
 	if got := len(h.sessions.creator.promptCalls()); got != 1 {
 		t.Fatalf("len(Prompt calls) = %d, want 1", got)
@@ -370,7 +385,10 @@ func TestManagerIntegrationAutomationSessionCanCreateTaskWithAutomationOrigin(t 
 		t.Fatal("automation session did not reach Prompt() in time")
 	}
 
-	runs, err := h.db.ListRuns(h.ctx, RunQuery{JobID: job.ID})
+	runs, err := h.db.ListRuns(h.ctx, RunQuery{
+		ReadScope: storepkg.ReadScope{ProfileID: job.ProfileID},
+		JobID:     job.ID,
+	})
 	if err != nil {
 		t.Fatalf("ListRuns() error = %v", err)
 	}
@@ -399,6 +417,7 @@ func TestManagerIntegrationAutomationSessionCanCreateTaskWithAutomationOrigin(t 
 	}
 
 	createdTask, err := taskManager.CreateTask(h.ctx, taskpkg.CreateTask{
+		ProfileID:   storepkg.DefaultProfileID,
 		Scope:       taskpkg.ScopeWorkspace,
 		WorkspaceID: h.workspace.ID,
 		Title:       "Agent-created follow-up",
@@ -513,7 +532,10 @@ func TestManagerIntegrationManualTriggerSurvivesCallerCancellation(t *testing.T)
 			t.Fatal("automation session did not reach Prompt() in time")
 		}
 
-		runs, err := h.db.ListRuns(h.ctx, RunQuery{JobID: job.ID})
+		runs, err := h.db.ListRuns(h.ctx, RunQuery{
+			ReadScope: storepkg.ReadScope{ProfileID: job.ProfileID},
+			JobID:     job.ID,
+		})
 		if err != nil {
 			t.Fatalf("ListRuns() error = %v", err)
 		}

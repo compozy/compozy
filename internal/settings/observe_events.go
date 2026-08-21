@@ -71,11 +71,13 @@ func (s *service) emitSettingsChanged(
 		summary += " (" + strings.TrimSpace(operation) + ")"
 	}
 
-	return s.eventSummaries.WriteEventSummary(ctx, store.EventSummary{
-		Type:    eventspkg.SettingsChanged,
-		Content: content,
-		Summary: summary,
-	})
+	event := store.EventSummary{
+		ProfileID: store.DefaultProfileID,
+		Type:      eventspkg.SettingsChanged,
+		Summary:   summary,
+	}
+	event.SetContent(content)
+	return s.eventSummaries.WriteEventSummary(ctx, event)
 }
 
 func (s *service) finalizeCommittedCollectionMutation(

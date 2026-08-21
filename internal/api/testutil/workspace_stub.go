@@ -17,6 +17,7 @@ type StubWorkspaceService struct {
 	ListFn              func(context.Context) ([]workspacepkg.Workspace, error)
 	GetFn               func(context.Context, string) (workspacepkg.Workspace, error)
 	ResolveFn           func(context.Context, string) (workspacepkg.ResolvedWorkspace, error)
+	ResolveForProfileFn func(context.Context, string, string) (workspacepkg.ResolvedWorkspace, error)
 	ResolveOrRegisterFn func(context.Context, string) (workspacepkg.ResolvedWorkspace, error)
 }
 
@@ -65,6 +66,22 @@ func (s StubWorkspaceService) Resolve(ctx context.Context, ref string) (workspac
 	return workspacepkg.ResolvedWorkspace{}, workspacepkg.ErrWorkspaceNotFound
 }
 
+func (s StubWorkspaceService) ResolveForProfile(
+	ctx context.Context,
+	ref string,
+	profileName string,
+) (workspacepkg.ResolvedWorkspace, error) {
+	if s.ResolveForProfileFn != nil {
+		return s.ResolveForProfileFn(ctx, ref, profileName)
+	}
+	resolved, err := s.Resolve(ctx, ref)
+	if err != nil {
+		return workspacepkg.ResolvedWorkspace{}, err
+	}
+	resolved.ProfileName = profileName
+	return resolved, nil
+}
+
 func (s StubWorkspaceService) ResolveOrRegister(
 	ctx context.Context,
 	path string,
@@ -76,3 +93,4 @@ func (s StubWorkspaceService) ResolveOrRegister(
 }
 
 var _ core.WorkspaceService = (*StubWorkspaceService)(nil)
+var _ workspacepkg.ProfileRuntimeResolver = (*StubWorkspaceService)(nil)

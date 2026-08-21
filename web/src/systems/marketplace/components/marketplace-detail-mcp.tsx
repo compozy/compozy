@@ -30,14 +30,16 @@ import {
   composeMCPRowStatus,
   probeToolLabel,
   type SettingsMCPServerEntry,
+  type SettingsLayeredScope,
 } from "@/systems/settings";
 
 type MCPBlock = NonNullable<MarketplaceEntryResponse["mcp"]>;
 
 interface MarketplaceDetailMCPViewProps {
   data: MarketplaceEntryResponse;
-  scope?: "global" | "workspace";
+  scope?: SettingsLayeredScope;
   workspaceId?: string;
+  profileName?: string;
   liveDataEnabled?: boolean;
 }
 
@@ -49,12 +51,14 @@ function MarketplaceDetailMCPView({
   data,
   scope,
   workspaceId,
+  profileName,
   liveDataEnabled = true,
 }: MarketplaceDetailMCPViewProps) {
   const { query, queryEnabled, server } = useMarketplaceDetailMCPServer(
     data.entry,
     scope,
     workspaceId,
+    profileName,
     liveDataEnabled
   );
   const mcp = data.mcp;

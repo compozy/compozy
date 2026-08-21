@@ -62,7 +62,12 @@ func (h *BaseHandlers) RequestTaskRunReview(c *gin.Context) {
 	if created {
 		status = http.StatusCreated
 	}
-	c.JSON(status, contract.TaskRunReviewRequestResponse{Review: review, Created: created})
+	payload, err := h.taskRunReviewPayload(c.Request.Context(), manager, review, actor)
+	if err != nil {
+		h.respondError(c, StatusForTaskError(err), err)
+		return
+	}
+	c.JSON(status, contract.TaskRunReviewRequestResponse{Review: payload, Created: created})
 }
 
 // ListTaskRunReviews lists reviews scoped to one task run.
@@ -99,7 +104,12 @@ func (h *BaseHandlers) listTaskRunReviews(c *gin.Context, taskID string, runID s
 		return
 	}
 
-	c.JSON(http.StatusOK, contract.TaskRunReviewsResponse{Reviews: TaskRunReviewPayloadsFromReviews(reviews)})
+	payloads, err := h.taskRunReviewPayloads(c.Request.Context(), manager, reviews, actor)
+	if err != nil {
+		h.respondError(c, StatusForTaskError(err), err)
+		return
+	}
+	c.JSON(http.StatusOK, contract.TaskRunReviewsResponse{Reviews: payloads})
 }
 
 // GetTaskRunReview returns one task-run review.
@@ -127,7 +137,12 @@ func (h *BaseHandlers) GetTaskRunReview(c *gin.Context) {
 		return
 	}
 
-	c.JSON(http.StatusOK, contract.TaskRunReviewResponse{Review: review})
+	payload, err := h.taskRunReviewPayload(c.Request.Context(), manager, review, actor)
+	if err != nil {
+		h.respondError(c, StatusForTaskError(err), err)
+		return
+	}
+	c.JSON(http.StatusOK, contract.TaskRunReviewResponse{Review: payload})
 }
 
 // SubmitTaskRunReviewVerdict records one reviewer verdict for a review request.
@@ -171,7 +186,12 @@ func (h *BaseHandlers) SubmitTaskRunReviewVerdict(c *gin.Context) {
 		return
 	}
 
-	c.JSON(http.StatusOK, TaskRunReviewVerdictResponseFromResult(&result))
+	response, err := h.taskRunReviewVerdictResponse(c.Request.Context(), manager, &result, actor)
+	if err != nil {
+		h.respondError(c, StatusForTaskError(err), err)
+		return
+	}
+	c.JSON(http.StatusOK, response)
 }
 
 func taskRunReviewRequestFromRequest(
@@ -255,27 +275,4 @@ func parseTaskRunReviewQuery(c *gin.Context, taskID string, runID string) (taskp
 		return taskpkg.RunReviewQuery{}, err
 	}
 	return query, nil
-}
-
-// TaskRunReviewPayloadsFromReviews converts review records into shared payloads.
-func TaskRunReviewPayloadsFromReviews(reviews []taskpkg.RunReview) []contract.TaskRunReviewPayload {
-	payloads := make([]contract.TaskRunReviewPayload, 0, len(reviews))
-	payloads = append(payloads, reviews...)
-	return payloads
-}
-
-// TaskRunReviewVerdictResponseFromResult converts one verdict result into a shared payload.
-func TaskRunReviewVerdictResponseFromResult(result *taskpkg.RunReviewResult) contract.TaskRunReviewVerdictResponse {
-	if result == nil {
-		return contract.TaskRunReviewVerdictResponse{}
-	}
-	response := contract.TaskRunReviewVerdictResponse{
-		Review:        result.Review,
-		CircuitOpened: result.CircuitOpened,
-	}
-	if result.ContinuationRun != nil {
-		continuation := TaskRunPayloadFromRun(result.ContinuationRun)
-		response.ContinuationRun = &continuation
-	}
-	return response
 }

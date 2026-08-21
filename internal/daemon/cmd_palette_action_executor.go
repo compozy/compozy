@@ -17,7 +17,7 @@ type cmdPaletteActionExecutor struct {
 	tools          toolspkg.Registry
 	approvalTokens toolspkg.ApprovalTokenIssuer
 	approvals      toolspkg.ApprovalCoordinator
-	windowManager  windowmanager.Service
+	windowManagers *windowManagerRegistry
 	approvalTTL    time.Duration
 	now            func() time.Time
 }
@@ -31,8 +31,10 @@ var (
 
 func (e *cmdPaletteActionExecutor) ApprovalCompletionStatus(
 	ctx context.Context,
+	profileLens cmdpalette.ProfileLens,
 	approvalID string,
 ) (string, error) {
+	ctx = toolspkg.WithApprovalProfile(ctx, string(profileLens.ID))
 	status, err := e.approvals.Status(ctx, approvalID)
 	if err != nil {
 		return "", fmt.Errorf("cmd palette: read approval completion: %w", err)
@@ -107,6 +109,7 @@ func (e *cmdPaletteActionExecutor) beginApproval(
 		return cmdpalette.ExecutionResult{}, fmt.Errorf("cmd palette: encode approval target: %w", err)
 	}
 	ticket, err := e.approvals.Begin(ctx, toolspkg.ApprovalRequest{
+		ProfileID:   string(request.ProfileLens.ID),
 		WorkspaceID: string(request.WorkspaceID), InvocationID: request.InvocationID,
 		CommandID: string(request.Descriptor.ID),
 		Target: toolspkg.ApprovalTarget{
@@ -134,14 +137,22 @@ func (e *cmdPaletteActionExecutor) DispatchApproval(
 		return nil, fmt.Errorf("cmd palette: decode deferred approval arguments: %w", err)
 	}
 	request := cmdpalette.ExecutionRequest{
+		ProfileLens: cmdpalette.ScopedProfileLens(cmdpalette.ProfileLensID(status.ProfileID), ""),
 		WorkspaceID: cmdpalette.WorkspaceID(status.WorkspaceID), InvocationID: status.InvocationID,
 		ClientID: target.ClientID, Descriptor: cmdpalette.Descriptor{
 			ID: cmdpalette.CommandID(status.CommandID), Action: target.Action,
 		},
 		Args: args,
 	}
+	if err := request.ProfileLens.Validate(); err != nil {
+		return nil, fmt.Errorf("cmd palette: validate resumed approval owner: %w", err)
+	}
+	requiresApproval, err := e.ApprovalRequired(ctx, request)
+	if err != nil {
+		return nil, fmt.Errorf("cmd palette: recheck resumed approval policy: %w", err)
+	}
 	approvalToken := ""
-	if target.Action.Kind == cmdpalette.ActionKindTool {
+	if target.Action.Kind == cmdpalette.ActionKindTool && requiresApproval {
 		if e.approvalTokens == nil {
 			return nil, errors.New("cmd palette: approval token issuer is unavailable")
 		}
@@ -198,7 +209,7 @@ func (e *cmdPaletteActionExecutor) dispatch(
 		}
 		return encoded, nil
 	}
-	if e.windowManager == nil || request.ClientID == "" {
+	if e.windowManagers == nil || request.ClientID == "" {
 		return nil, cmdpalette.ErrNoAttachedShell
 	}
 	payload, err := json.Marshal(map[string]any{
@@ -208,7 +219,13 @@ func (e *cmdPaletteActionExecutor) dispatch(
 	if err != nil {
 		return nil, fmt.Errorf("cmd palette: encode client command: %w", err)
 	}
-	response, err := e.windowManager.DispatchClientCommand(
+	manager, err := e.windowManagers.ManagerForClient(
+		ctx, windowmanager.WorkspaceID(request.WorkspaceID), windowmanager.ClientID(request.ClientID),
+	)
+	if err != nil {
+		return nil, cmdpalette.ErrNoAttachedShell
+	}
+	response, err := manager.DispatchClientCommand(
 		ctx, windowmanager.WorkspaceID(request.WorkspaceID), windowmanager.ClientID(request.ClientID),
 		windowmanager.ClientCommand{
 			CommandID: request.InvocationID, Op: cmdPaletteClientOp(request.Descriptor.Action), Payload: payload,
@@ -222,7 +239,8 @@ func (e *cmdPaletteActionExecutor) dispatch(
 
 func cmdPaletteToolScope(request cmdpalette.ExecutionRequest) toolspkg.Scope {
 	return toolspkg.Scope{
-		WorkspaceID: string(request.WorkspaceID), SessionID: approvalSessionID(request.InvocationID),
+		ProfileID: string(request.ProfileLens.ID), WorkspaceID: string(request.WorkspaceID),
+		SessionID: approvalSessionID(request.InvocationID),
 		ActorKind: "cmd_palette", Operator: true,
 	}
 }

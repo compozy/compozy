@@ -32,15 +32,16 @@ type AuditStore interface {
 
 // AuditWriter records network activity into the configured sinks.
 type AuditWriter interface {
-	RecordSent(ctx context.Context, sessionID string, envelope Envelope) error
-	RecordReceived(ctx context.Context, sessionID string, envelope Envelope) error
-	RecordRejected(ctx context.Context, sessionID string, envelope Envelope, reason string) error
-	RecordDelivered(ctx context.Context, sessionID string, envelope Envelope) error
+	RecordSent(ctx context.Context, profileID string, sessionID string, envelope Envelope) error
+	RecordReceived(ctx context.Context, profileID string, sessionID string, envelope Envelope) error
+	RecordRejected(ctx context.Context, profileID string, sessionID string, envelope Envelope, reason string) error
+	RecordDelivered(ctx context.Context, profileID string, sessionID string, envelope Envelope) error
 }
 
 // TaskIngressAudit captures one task-domain ingress decision originating from a
 // validated network peer.
 type TaskIngressAudit struct {
+	ProfileID   string
 	Action      string
 	Direction   string
 	PeerID      string
@@ -95,14 +96,20 @@ var _ AuditWriter = (*FileAuditWriter)(nil)
 var _ TaskIngressAuditWriter = (*FileAuditWriter)(nil)
 
 // RecordSent stores a sent network audit record.
-func (w *FileAuditWriter) RecordSent(ctx context.Context, sessionID string, envelope Envelope) error {
-	return w.record(ctx, sessionID, AuditDirectionSent, envelope, "")
+func (w *FileAuditWriter) RecordSent(
+	ctx context.Context,
+	profileID string,
+	sessionID string,
+	envelope Envelope,
+) error {
+	return w.record(ctx, profileID, sessionID, AuditDirectionSent, envelope, "")
 }
 
 // RecordCommittedSent appends the post-commit sent record only to the file
 // sink because atomic conversation acceptance already owns the durable row.
 func (w *FileAuditWriter) RecordCommittedSent(
 	ctx context.Context,
+	profileID string,
 	sessionID string,
 	envelope Envelope,
 ) error {
@@ -115,7 +122,7 @@ func (w *FileAuditWriter) RecordCommittedSent(
 	if w.path == "" {
 		return nil
 	}
-	entry, err := NormalizeAuditEntry(sessionID, AuditDirectionSent, envelope, "", w.now())
+	entry, err := NormalizeAuditEntry(profileID, sessionID, AuditDirectionSent, envelope, "", w.now())
 	if err != nil {
 		return err
 	}
@@ -123,23 +130,34 @@ func (w *FileAuditWriter) RecordCommittedSent(
 }
 
 // RecordReceived stores a received network audit record.
-func (w *FileAuditWriter) RecordReceived(ctx context.Context, sessionID string, envelope Envelope) error {
-	return w.record(ctx, sessionID, AuditDirectionReceived, envelope, "")
+func (w *FileAuditWriter) RecordReceived(
+	ctx context.Context,
+	profileID string,
+	sessionID string,
+	envelope Envelope,
+) error {
+	return w.record(ctx, profileID, sessionID, AuditDirectionReceived, envelope, "")
 }
 
 // RecordRejected stores a rejected network audit record.
 func (w *FileAuditWriter) RecordRejected(
 	ctx context.Context,
+	profileID string,
 	sessionID string,
 	envelope Envelope,
 	reason string,
 ) error {
-	return w.record(ctx, sessionID, AuditDirectionRejected, envelope, reason)
+	return w.record(ctx, profileID, sessionID, AuditDirectionRejected, envelope, reason)
 }
 
 // RecordDelivered stores a delivered network audit record.
-func (w *FileAuditWriter) RecordDelivered(ctx context.Context, sessionID string, envelope Envelope) error {
-	return w.record(ctx, sessionID, AuditDirectionDelivered, envelope, "")
+func (w *FileAuditWriter) RecordDelivered(
+	ctx context.Context,
+	profileID string,
+	sessionID string,
+	envelope Envelope,
+) error {
+	return w.record(ctx, profileID, sessionID, AuditDirectionDelivered, envelope, "")
 }
 
 // RecordTaskIngress stores one accepted or rejected task-ingress audit record
@@ -184,6 +202,7 @@ func (w *FileAuditWriter) RecordTaskIngress(ctx context.Context, audit TaskIngre
 
 func (w *FileAuditWriter) record(
 	ctx context.Context,
+	profileID string,
 	sessionID string,
 	direction string,
 	envelope Envelope,
@@ -196,7 +215,7 @@ func (w *FileAuditWriter) record(
 		return errors.New("network: audit writer is required")
 	}
 
-	entry, err := NormalizeAuditEntry(sessionID, direction, envelope, reason, w.now())
+	entry, err := NormalizeAuditEntry(profileID, sessionID, direction, envelope, reason, w.now())
 	if err != nil {
 		return err
 	}
@@ -216,6 +235,7 @@ func (w *FileAuditWriter) record(
 
 // NormalizeAuditEntry derives a consistent audit row from envelope metadata.
 func NormalizeAuditEntry(
+	profileID string,
 	sessionID string,
 	direction string,
 	envelope Envelope,
@@ -241,6 +261,7 @@ func NormalizeAuditEntry(
 
 	entry := store.NetworkAuditEntry{
 		ID:          auditID,
+		ProfileID:   strings.TrimSpace(profileID),
 		SessionID:   strings.TrimSpace(sessionID),
 		WorkspaceID: strings.TrimSpace(envelope.WorkspaceID),
 		Direction:   strings.TrimSpace(direction),
@@ -269,6 +290,7 @@ func normalizeTimelineMessageEntry(
 	direction string,
 	envelope Envelope,
 	at time.Time,
+	profileID string,
 ) (store.NetworkMessageEntry, bool, error) {
 	switch strings.TrimSpace(direction) {
 	case AuditDirectionSent, AuditDirectionReceived:
@@ -293,6 +315,7 @@ func normalizeTimelineMessageEntry(
 		peerTo = strings.TrimSpace(*envelope.To)
 	}
 	entry := store.NetworkMessageEntry{
+		ProfileID:   strings.TrimSpace(profileID),
 		MessageID:   strings.TrimSpace(envelope.ID),
 		SessionID:   strings.TrimSpace(sessionID),
 		WorkspaceID: strings.TrimSpace(envelope.WorkspaceID),
@@ -354,6 +377,7 @@ func normalizeTaskIngressAuditEntry(audit TaskIngressAudit, at time.Time) (store
 
 	entry := store.NetworkAuditEntry{
 		ID:          auditID,
+		ProfileID:   strings.TrimSpace(audit.ProfileID),
 		SessionID:   "netpeer:" + strings.TrimSpace(audit.PeerID),
 		WorkspaceID: strings.TrimSpace(audit.WorkspaceID),
 		Direction:   strings.TrimSpace(audit.Direction),

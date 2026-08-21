@@ -18,6 +18,7 @@ import (
 	goalpkg "github.com/compozy/compozy/internal/loop/goal"
 	"github.com/compozy/compozy/internal/network/participation"
 	"github.com/compozy/compozy/internal/session"
+	"github.com/compozy/compozy/internal/store"
 	taskpkg "github.com/compozy/compozy/internal/task"
 	toolspkg "github.com/compozy/compozy/internal/tools"
 	workspacepkg "github.com/compozy/compozy/internal/workspace"
@@ -87,13 +88,14 @@ func TestDaemonNativeLoopTools(t *testing.T) {
 			t.Fatalf("workspaceID = %q, want ws-alpha", capturedWorkspaceID)
 		}
 		wantQuery := looppkg.CatalogQuery{
-			Search:   "release",
-			Kind:     looppkg.CatalogKindWorkspace,
-			Category: "delivery",
-			Status:   looppkg.StatusRunning,
-			Sort:     looppkg.CatalogSortName,
-			Cursor:   "cursor-1",
-			Limit:    1,
+			ProfileID: store.DefaultProfileID,
+			Search:    "release",
+			Kind:      looppkg.CatalogKindWorkspace,
+			Category:  "delivery",
+			Status:    looppkg.StatusRunning,
+			Sort:      looppkg.CatalogSortName,
+			Cursor:    "cursor-1",
+			Limit:     1,
 		}
 		if capturedQuery != wantQuery {
 			t.Fatalf("query = %#v, want %#v", capturedQuery, wantQuery)
@@ -150,6 +152,46 @@ func TestDaemonNativeLoopTools(t *testing.T) {
 		if listCalled {
 			t.Fatal("ListLoops was called for a workspace outside caller scope")
 		}
+	})
+
+	t.Run("Should forward the selected profile read scope when listing runs", func(t *testing.T) {
+		t.Parallel()
+		const profileID = "profile-loop-owner"
+		var captured core.LoopRunListQuery
+		registry := newDaemonNativeRegistry(t, &daemonNativeToolsDeps{
+			Workspaces: nativeNetworkTestWorkspaceService(t),
+			Loops: func() core.LoopService {
+				return &nativeLoopServiceStub{
+					listLoopRunsFn: func(
+						_ context.Context,
+						workspaceID string,
+						query core.LoopRunListQuery,
+					) (contract.LoopRunsResponse, error) {
+						if workspaceID != "ws-alpha" {
+							t.Fatalf("ListLoopRuns workspace = %q, want ws-alpha", workspaceID)
+						}
+						captured = query
+						return contract.LoopRunsResponse{Runs: []contract.LoopRunPayload{{
+							ID: "run-profile", ProfileID: profileID,
+						}}}, nil
+					},
+				}
+			},
+		}, nativeApproveAllPolicyInputs())
+		result, err := registry.Call(t.Context(), toolspkg.Scope{
+			ProfileID: profileID, WorkspaceID: "ws-alpha", Operator: true,
+		}, toolspkg.CallRequest{
+			ToolID: toolspkg.ToolIDLoopRuns,
+			Input:  json.RawMessage(`{"workspace":"ws-alpha","loop_name":"release","status":"running","limit":2}`),
+		})
+		if err != nil {
+			t.Fatalf("Registry.Call(loop_runs) error = %v", err)
+		}
+		if captured.ReadScope.ProfileID != profileID || captured.LoopName != "release" ||
+			captured.Status != "running" || captured.Limit != 2 {
+			t.Fatalf("ListLoopRuns query = %#v, want profile-aware release/running/2", captured)
+		}
+		requireNativeStructuredContains(t, result, []byte(`"profile_id":"profile-loop-owner"`))
 	})
 
 	t.Run("Should preserve current version on stale native Loop publishes", func(t *testing.T) {
@@ -561,20 +603,21 @@ func TestDaemonNativeLoopTools(t *testing.T) {
 		var capturedActor taskpkg.ActorContext
 		var capturedDry bool
 		registry := newDaemonNativeRegistry(t, &daemonNativeToolsDeps{
-			Sessions: nativeNetworkTestSessionManager("ws-alpha"),
+			Sessions: nativeNetworkTestSessionManager("ws-alpha", "profile-marketing"),
 			Loops: func() core.LoopService {
 				return &nativeLoopServiceStub{
 					runLoopFn: func(
 						_ context.Context,
 						workspaceID string,
 						name string,
-						request contract.RunLoopRequest,
-						startKind dsl.StartKind,
-						actor taskpkg.ActorContext,
-						dry bool,
+						input core.LoopRunInput,
 					) (contract.RunLoopResponse, error) {
+						request := input.Request
 						if workspaceID != "ws-alpha" || name != "release" {
 							t.Fatalf("RunLoop target = %s/%s, want ws-alpha/release", workspaceID, name)
+						}
+						if input.ProfileID != "profile-marketing" {
+							t.Fatalf("RunLoop profile = %q, want profile-marketing", input.ProfileID)
 						}
 						if request.Inputs["target"] != "prod" {
 							t.Fatalf("RunLoop inputs = %#v, want target prod", request.Inputs)
@@ -595,9 +638,9 @@ func TestDaemonNativeLoopTools(t *testing.T) {
 								request.NetworkParticipation,
 							)
 						}
-						capturedStartKind = startKind
-						capturedActor = actor
-						capturedDry = dry
+						capturedStartKind = input.StartKind
+						capturedActor = input.Actor
+						capturedDry = input.Dry
 						return contract.RunLoopResponse{
 							DryRun: &contract.LoopPlanPayload{
 								LoopName:       "release",
@@ -614,7 +657,7 @@ func TestDaemonNativeLoopTools(t *testing.T) {
 
 		result, err := registry.Call(
 			t.Context(),
-			toolspkg.Scope{SessionID: "sess-caller", WorkspaceID: "ws-alpha"},
+			toolspkg.Scope{SessionID: "sess-caller", ProfileID: "profile-marketing", WorkspaceID: "ws-alpha"},
 			toolspkg.CallRequest{
 				ToolID: toolspkg.ToolIDLoopRun,
 				Input: json.RawMessage(
@@ -646,17 +689,14 @@ func TestDaemonNativeLoopTools(t *testing.T) {
 		t.Parallel()
 
 		registry := newDaemonNativeRegistry(t, &daemonNativeToolsDeps{
-			Sessions: nativeNetworkTestSessionManager("ws-alpha"),
+			Sessions: nativeNetworkTestSessionManager("ws-alpha", "profile-marketing"),
 			Loops: func() core.LoopService {
 				return &nativeLoopServiceStub{
 					runLoopFn: func(
 						context.Context,
 						string,
 						string,
-						contract.RunLoopRequest,
-						dsl.StartKind,
-						taskpkg.ActorContext,
-						bool,
+						core.LoopRunInput,
 					) (contract.RunLoopResponse, error) {
 						return contract.RunLoopResponse{
 							Run:    &contract.LoopRunPayload{ID: "run-release"},
@@ -669,7 +709,7 @@ func TestDaemonNativeLoopTools(t *testing.T) {
 
 		result, err := registry.Call(
 			t.Context(),
-			toolspkg.Scope{SessionID: "sess-caller", WorkspaceID: "ws-alpha"},
+			toolspkg.Scope{SessionID: "sess-caller", ProfileID: "profile-marketing", WorkspaceID: "ws-alpha"},
 			toolspkg.CallRequest{
 				ToolID: toolspkg.ToolIDLoopRun,
 				Input:  json.RawMessage(`{"name":"release"}`),
@@ -689,17 +729,14 @@ func TestDaemonNativeLoopTools(t *testing.T) {
 		t.Parallel()
 
 		registry := newDaemonNativeRegistry(t, &daemonNativeToolsDeps{
-			Sessions: nativeNetworkTestSessionManager("ws-alpha"),
+			Sessions: nativeNetworkTestSessionManager("ws-alpha", "profile-marketing"),
 			Loops: func() core.LoopService {
 				return &nativeLoopServiceStub{
 					runLoopFn: func(
 						context.Context,
 						string,
 						string,
-						contract.RunLoopRequest,
-						dsl.StartKind,
-						taskpkg.ActorContext,
-						bool,
+						core.LoopRunInput,
 					) (contract.RunLoopResponse, error) {
 						return contract.RunLoopResponse{}, &looppkg.InputValidationError{
 							Loop: "review-and-fix", Field: "unknown", Origin: looppkg.InputOriginRun,
@@ -713,7 +750,7 @@ func TestDaemonNativeLoopTools(t *testing.T) {
 
 		_, err := registry.Call(
 			t.Context(),
-			toolspkg.Scope{SessionID: "sess-caller", WorkspaceID: "ws-alpha"},
+			toolspkg.Scope{SessionID: "sess-caller", ProfileID: "profile-marketing", WorkspaceID: "ws-alpha"},
 			toolspkg.CallRequest{
 				ToolID: toolspkg.ToolIDLoopRun,
 				Input:  json.RawMessage(`{"name":"review-and-fix","inputs":{"unknown":true},"dry":true}`),
@@ -1332,7 +1369,7 @@ type nativeLoopServiceStub struct {
 	patchLoopFn            func(context.Context, string, string, contract.PatchLoopRequest) (contract.LoopResponse, error)
 	validateLoopFn         func(context.Context, string, string, contract.ValidateLoopRequest) (contract.LoopValidationResponse, error)
 	deleteLoopFn           func(context.Context, string, string) error
-	runLoopFn              func(context.Context, string, string, contract.RunLoopRequest, dsl.StartKind, taskpkg.ActorContext, bool) (contract.RunLoopResponse, error)
+	runLoopFn              func(context.Context, string, string, core.LoopRunInput) (contract.RunLoopResponse, error)
 	getLoopConfigFn        func(context.Context, string, string) (contract.LoopConfigResponse, error)
 	putLoopConfigFn        func(context.Context, string, string, contract.PutLoopConfigRequest) (contract.LoopConfigResponse, error)
 	listLoopRunsFn         func(context.Context, string, core.LoopRunListQuery) (contract.LoopRunsResponse, error)
@@ -1351,7 +1388,7 @@ type nativeLoopServiceStub struct {
 	pauseLoopRunFn                 func(context.Context, string, string) error
 	resumeLoopRunFn                func(context.Context, string, string) error
 	approveLoopRunFn               func(context.Context, string, string, contract.ApproveLoopRunRequest, taskpkg.ActorContext) error
-	listLoopRunEventsFn            func(context.Context, string, string, int64) ([]contract.LoopRunEventPayload, error)
+	listLoopRunEventsFn            func(context.Context, string, string, int64, store.ReadScope) ([]contract.LoopRunEventPayload, error)
 	listLoopNodesFn                func(context.Context, string, core.LoopNodeListQuery) (contract.LoopNodeInventoryResponse, error)
 	pauseLoopNodeFn                func(context.Context, string, string, string, contract.LoopNodePauseRequest, taskpkg.ActorContext) (contract.LoopMutationResponse, error)
 	resumeLoopNodeFn               func(context.Context, string, string, string, contract.LoopNodeResumeRequest, taskpkg.ActorContext) (contract.LoopMutationResponse, error)
@@ -1446,6 +1483,7 @@ func (s *nativeLoopServiceStub) ListLoops(
 func (s *nativeLoopServiceStub) CreateLoop(
 	ctx context.Context,
 	workspaceID string,
+	_ string,
 	req contract.CreateLoopRequest,
 ) (contract.LoopResponse, error) {
 	if s.createLoopFn != nil {
@@ -1457,6 +1495,7 @@ func (s *nativeLoopServiceStub) CreateLoop(
 func (s *nativeLoopServiceStub) GetLoop(
 	ctx context.Context,
 	workspaceID string,
+	_ string,
 	name string,
 ) (contract.LoopResponse, error) {
 	if s.getLoopFn != nil {
@@ -1468,6 +1507,7 @@ func (s *nativeLoopServiceStub) GetLoop(
 func (s *nativeLoopServiceStub) PatchLoop(
 	ctx context.Context,
 	workspaceID string,
+	_ string,
 	name string,
 	req contract.PatchLoopRequest,
 ) (contract.LoopResponse, error) {
@@ -1480,6 +1520,7 @@ func (s *nativeLoopServiceStub) PatchLoop(
 func (s *nativeLoopServiceStub) ValidateLoop(
 	ctx context.Context,
 	workspaceID string,
+	_ string,
 	name string,
 	req contract.ValidateLoopRequest,
 ) (contract.LoopValidationResponse, error) {
@@ -1489,7 +1530,7 @@ func (s *nativeLoopServiceStub) ValidateLoop(
 	return contract.LoopValidationResponse{}, errors.New("unexpected ValidateLoop call")
 }
 
-func (s *nativeLoopServiceStub) DeleteLoop(ctx context.Context, workspaceID string, name string) error {
+func (s *nativeLoopServiceStub) DeleteLoop(ctx context.Context, workspaceID string, _ string, name string) error {
 	if s.deleteLoopFn != nil {
 		return s.deleteLoopFn(ctx, workspaceID, name)
 	}
@@ -1500,13 +1541,10 @@ func (s *nativeLoopServiceStub) RunLoop(
 	ctx context.Context,
 	workspaceID string,
 	name string,
-	req contract.RunLoopRequest,
-	startKind dsl.StartKind,
-	actor taskpkg.ActorContext,
-	dry bool,
+	input core.LoopRunInput,
 ) (contract.RunLoopResponse, error) {
 	if s.runLoopFn != nil {
-		return s.runLoopFn(ctx, workspaceID, name, req, startKind, actor, dry)
+		return s.runLoopFn(ctx, workspaceID, name, input)
 	}
 	return contract.RunLoopResponse{}, errors.New("unexpected RunLoop call")
 }
@@ -1514,6 +1552,7 @@ func (s *nativeLoopServiceStub) RunLoop(
 func (s *nativeLoopServiceStub) GetLoopConfig(
 	ctx context.Context,
 	workspaceID string,
+	_ string,
 	name string,
 ) (contract.LoopConfigResponse, error) {
 	if s.getLoopConfigFn != nil {
@@ -1525,6 +1564,7 @@ func (s *nativeLoopServiceStub) GetLoopConfig(
 func (s *nativeLoopServiceStub) PutLoopConfig(
 	ctx context.Context,
 	workspaceID string,
+	_ string,
 	name string,
 	req contract.PutLoopConfigRequest,
 ) (contract.LoopConfigResponse, error) {
@@ -1538,6 +1578,7 @@ func (s *nativeLoopServiceStub) GetLoopInputDefaults(
 	context.Context,
 	string,
 	string,
+	string,
 	contract.LoopInputDefaultsScope,
 ) (contract.LoopInputDefaultsResponse, error) {
 	return contract.LoopInputDefaultsResponse{}, errors.New("unexpected GetLoopInputDefaults call")
@@ -1545,6 +1586,7 @@ func (s *nativeLoopServiceStub) GetLoopInputDefaults(
 
 func (s *nativeLoopServiceStub) GetLoopInputDefault(
 	context.Context,
+	string,
 	string,
 	string,
 	string,
@@ -1557,6 +1599,7 @@ func (s *nativeLoopServiceStub) PutLoopInputDefaults(
 	context.Context,
 	string,
 	string,
+	string,
 	contract.PutLoopInputDefaultsRequest,
 ) (contract.LoopInputDefaultsResponse, error) {
 	return contract.LoopInputDefaultsResponse{}, errors.New("unexpected PutLoopInputDefaults call")
@@ -1564,6 +1607,7 @@ func (s *nativeLoopServiceStub) PutLoopInputDefaults(
 
 func (s *nativeLoopServiceStub) PutLoopInputDefault(
 	context.Context,
+	string,
 	string,
 	string,
 	string,
@@ -1577,6 +1621,7 @@ func (s *nativeLoopServiceStub) DeleteLoopInputDefault(
 	string,
 	string,
 	string,
+	string,
 	contract.LoopInputDefaultsScope,
 ) (contract.DeleteLoopInputDefaultResponse, error) {
 	return contract.DeleteLoopInputDefaultResponse{}, errors.New("unexpected DeleteLoopInputDefault call")
@@ -1586,12 +1631,14 @@ func (s *nativeLoopServiceStub) GetLoopAnnotations(
 	context.Context,
 	string,
 	string,
+	string,
 ) (contract.LoopAnnotationsResponse, error) {
 	return contract.LoopAnnotationsResponse{}, errors.New("unexpected GetLoopAnnotations call")
 }
 
 func (s *nativeLoopServiceStub) PutLoopAnnotations(
 	context.Context,
+	string,
 	string,
 	string,
 	contract.PutLoopAnnotationsRequest,
@@ -1830,9 +1877,10 @@ func (s *nativeLoopServiceStub) ListLoopRunEvents(
 	workspaceID string,
 	runID string,
 	afterSeq int64,
+	readScope store.ReadScope,
 ) ([]contract.LoopRunEventPayload, error) {
 	if s.listLoopRunEventsFn != nil {
-		return s.listLoopRunEventsFn(ctx, workspaceID, runID, afterSeq)
+		return s.listLoopRunEventsFn(ctx, workspaceID, runID, afterSeq, readScope)
 	}
 	return nil, errors.New("unexpected ListLoopRunEvents call")
 }

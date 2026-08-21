@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -25,7 +26,7 @@ func TestConfigCommandsMutateValidateAndInspectTempHome(t *testing.T) {
 	t.Run("Should mutate validate and inspect a temporary home [IT-016]", func(t *testing.T) {
 		t.Parallel()
 
-		deps := newWorkspaceTestDeps(t, &stubClient{})
+		deps := newDefaultProfileWorkspaceTestDeps(t, &stubClient{})
 		homePaths, err := deps.resolveHome()
 		if err != nil {
 			t.Fatalf("resolveHome() error = %v", err)
@@ -225,7 +226,6 @@ func TestConfigCommandsMutateValidateAndInspectTempHome(t *testing.T) {
 			{"attention.toasts", "false"},
 			{"attention.sound", "false"},
 			{"attention.system", "true"},
-			{"attention.muted_workspaces", `["ws_0123456789abcdef"]`},
 		} {
 			if _, _, err := executeRootCommand(t, deps, "config", "set", mutation[0], mutation[1]); err != nil {
 				t.Fatalf("config set %s error = %v", mutation[0], err)
@@ -235,9 +235,8 @@ func TestConfigCommandsMutateValidateAndInspectTempHome(t *testing.T) {
 		if err != nil {
 			t.Fatalf("LoadGlobalConfig(attention) error = %v", err)
 		}
-		if configured.Attention.Toasts || configured.Attention.Sound || !configured.Attention.System ||
-			!slices.Equal(configured.Attention.MutedWorkspaces, []string{"ws_0123456789abcdef"}) {
-			t.Fatalf("Attention = %#v, want false/false/true with one muted workspace", configured.Attention)
+		if configured.Attention.Toasts || configured.Attention.Sound || !configured.Attention.System {
+			t.Fatalf("Attention = %#v, want false/false/true", configured.Attention)
 		}
 
 		for _, mutation := range [][2]string{
@@ -282,7 +281,7 @@ func TestConfigSetShouldManageLoopLifecycleDefaults(t *testing.T) {
 	t.Run("Should persist every agent mutable loop lifecycle path", func(t *testing.T) {
 		t.Parallel()
 
-		deps := newWorkspaceTestDeps(t, &stubClient{})
+		deps := newDefaultProfileWorkspaceTestDeps(t, &stubClient{})
 		values := []struct {
 			path  string
 			value string
@@ -370,7 +369,7 @@ func TestConfigCommandsManageDynamicLoopInputDefaults(t *testing.T) {
 			}, nil
 		},
 	}
-	deps := newWorkspaceTestDeps(t, client)
+	deps := newDefaultProfileWorkspaceTestDeps(t, client)
 	for _, testCase := range []struct {
 		path      string
 		rawValue  string
@@ -405,8 +404,8 @@ func TestConfigCommandsManageDynamicLoopInputDefaults(t *testing.T) {
 		t.Fatalf("PutLoopInputDefault() calls = %d, want 4", len(calls))
 	}
 	for _, call := range calls {
-		if call.Scope != contract.LoopInputDefaultsScopeGlobal {
-			t.Fatalf("PutLoopInputDefault() scope = %q, want global", call.Scope)
+		if call.Scope != contract.LoopInputDefaultsScopeUser {
+			t.Fatalf("PutLoopInputDefault() scope = %q, want user", call.Scope)
 		}
 	}
 }
@@ -518,7 +517,7 @@ func TestConfigSetReportsMutationLifecycle(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			deps := newWorkspaceTestDeps(t, &stubClient{})
+			deps := newDefaultProfileWorkspaceTestDeps(t, &stubClient{})
 			out, _, err := executeRootCommand(t, deps, "config", "set", tt.path, tt.value, "-o", "json")
 			if err != nil {
 				t.Fatalf("config set %s error = %v", tt.path, err)
@@ -550,7 +549,7 @@ func TestConfigSetReportsMutationLifecycle(t *testing.T) {
 	t.Run("Should reject global-only Marketplace catalog writes at workspace scope", func(t *testing.T) {
 		t.Parallel()
 
-		deps := newWorkspaceTestDeps(t, &stubClient{})
+		deps := newDefaultProfileWorkspaceTestDeps(t, &stubClient{})
 		workspaceRoot := t.TempDir()
 		_, _, err := executeRootCommand(
 			t,
@@ -586,7 +585,7 @@ func TestConfigSetDisabledSkillsUsesDaemonSettingsWhenRunning(t *testing.T) {
 			captured = request
 			return SettingsMutationRecord{
 				Section:          "skills",
-				Scope:            contract.SettingsScopeGlobal,
+				Scope:            contract.SettingsScopeUser,
 				Lifecycle:        contract.SettingsApplyLifecycleLive,
 				ApplyRecordID:    "cfgapp-test",
 				Applied:          true,
@@ -597,7 +596,7 @@ func TestConfigSetDisabledSkillsUsesDaemonSettingsWhenRunning(t *testing.T) {
 		},
 	}
 
-	deps := newWorkspaceTestDeps(t, client)
+	deps := newDefaultProfileWorkspaceTestDeps(t, client)
 	deps.readDaemonInfo = func(string) (compozydaemon.Info, error) {
 		return compozydaemon.Info{PID: 42, Port: 2123, StartedAt: fixedTestNow}, nil
 	}
@@ -658,7 +657,7 @@ func TestConfigSetWindowManagerWritesOverlayAndReloadsWhenDaemonRuns(t *testing.
 			reloadCalls++
 			return SettingsMutationRecord{
 				Section:          "window-manager",
-				Scope:            contract.SettingsScopeGlobal,
+				Scope:            contract.SettingsScopeUser,
 				Lifecycle:        contract.SettingsApplyLifecycleLive,
 				ApplyRecordID:    "cfgapp-window-manager",
 				Applied:          true,
@@ -669,7 +668,7 @@ func TestConfigSetWindowManagerWritesOverlayAndReloadsWhenDaemonRuns(t *testing.
 		},
 	}
 
-	deps := newWorkspaceTestDeps(t, client)
+	deps := newDefaultProfileWorkspaceTestDeps(t, client)
 	deps.readDaemonInfo = func(string) (compozydaemon.Info, error) {
 		return compozydaemon.Info{PID: 42, Port: 2123, StartedAt: fixedTestNow}, nil
 	}
@@ -726,7 +725,7 @@ func TestConfigSetAttentionUsesDaemonSettingsWhenRunning(t *testing.T) {
 			captured = request
 			return SettingsMutationRecord{
 				Section:          "attention",
-				Scope:            contract.SettingsScopeGlobal,
+				Scope:            contract.SettingsScopeUser,
 				Lifecycle:        contract.SettingsApplyLifecycleLive,
 				ApplyRecordID:    "cfgapp-attention",
 				Applied:          true,
@@ -737,7 +736,7 @@ func TestConfigSetAttentionUsesDaemonSettingsWhenRunning(t *testing.T) {
 		},
 	}
 
-	deps := newWorkspaceTestDeps(t, client)
+	deps := newDefaultProfileWorkspaceTestDeps(t, client)
 	deps.readDaemonInfo = func(string) (compozydaemon.Info, error) {
 		return compozydaemon.Info{PID: 42, Port: 2123, StartedAt: fixedTestNow}, nil
 	}
@@ -747,19 +746,18 @@ func TestConfigSetAttentionUsesDaemonSettingsWhenRunning(t *testing.T) {
 	if err != nil {
 		t.Fatalf("config set attention.system error = %v", err)
 	}
-	if !captured.Config.System || !captured.Config.Toasts || !captured.Config.Sound ||
-		len(captured.Config.MutedWorkspaces) != 0 {
+	if !captured.Config.System || !captured.Config.Toasts || !captured.Config.Sound {
 		t.Fatalf("daemon attention payload = %#v, want complete defaults with system=true", captured.Config)
 	}
-	if captured.Config.MutedWorkspaces == nil {
-		t.Fatal("daemon attention muted_workspaces = nil, want a non-null empty array")
+	if captured.Config.MutedWorkspaces != nil {
+		t.Fatal("daemon attention muted_workspaces was sent by config set, want profile mutes untouched")
 	}
 	payload, err := json.Marshal(captured.Config)
 	if err != nil {
 		t.Fatalf("json.Marshal(daemon attention payload) error = %v", err)
 	}
-	if !bytes.Contains(payload, []byte(`"muted_workspaces":[]`)) {
-		t.Fatalf("daemon attention payload JSON = %s, want muted_workspaces:[]", payload)
+	if bytes.Contains(payload, []byte(`"muted_workspaces"`)) {
+		t.Fatalf("daemon attention payload JSON = %s, want profile mutes omitted", payload)
 	}
 
 	homePaths, err := deps.resolveHome()
@@ -792,7 +790,7 @@ func TestConfigSetShellUsesDaemonSettingsWhenRunning(t *testing.T) {
 			captured = request
 			return SettingsMutationRecord{
 				Section:          "shell",
-				Scope:            contract.SettingsScopeGlobal,
+				Scope:            contract.SettingsScopeUser,
 				Lifecycle:        contract.SettingsApplyLifecycleLive,
 				ApplyRecordID:    "cfgapp-shell",
 				Applied:          true,
@@ -803,7 +801,7 @@ func TestConfigSetShellUsesDaemonSettingsWhenRunning(t *testing.T) {
 		},
 	}
 
-	deps := newWorkspaceTestDeps(t, client)
+	deps := newDefaultProfileWorkspaceTestDeps(t, client)
 	deps.readDaemonInfo = func(string) (compozydaemon.Info, error) {
 		return compozydaemon.Info{PID: 42, Port: 2123, StartedAt: fixedTestNow}, nil
 	}
@@ -847,56 +845,127 @@ func TestConfigSetShellUsesDaemonSettingsWhenRunning(t *testing.T) {
 
 func TestConfigSetReloadsReachableDaemonWhenProcessTimestampMetadataLags(t *testing.T) {
 	t.Parallel()
+	t.Run("Should reload a reachable daemon when process timestamp metadata lags", func(t *testing.T) {
+		t.Parallel()
 
-	reloadCalled := false
-	client := &stubClient{
-		daemonStatusFn: func(context.Context) (DaemonStatus, error) {
-			return DaemonStatus{Status: "running", PID: 42}, nil
-		},
-		reloadSettingsFn: func(context.Context) (SettingsMutationRecord, error) {
-			reloadCalled = true
-			return SettingsMutationRecord{
-				Lifecycle:        contract.SettingsApplyLifecycleLive,
-				ApplyRecordID:    "cfgapp-late-metadata",
-				Applied:          true,
-				ActiveGeneration: 2,
-				ActiveConfigHash: "sha256:late-metadata",
-				NextAction:       contract.SettingsApplyNextActionNone,
-			}, nil
-		},
-	}
+		reloadCalled := false
+		client := &stubClient{
+			daemonStatusFn: func(context.Context) (DaemonStatus, error) {
+				return DaemonStatus{Status: "running", PID: 42}, nil
+			},
+			reloadSettingsFn: func(context.Context) (SettingsMutationRecord, error) {
+				reloadCalled = true
+				return SettingsMutationRecord{
+					Lifecycle:        contract.SettingsApplyLifecycleLive,
+					ApplyRecordID:    "cfgapp-late-metadata",
+					Applied:          true,
+					ActiveGeneration: 2,
+					ActiveConfigHash: "sha256:late-metadata",
+					NextAction:       contract.SettingsApplyNextActionNone,
+				}, nil
+			},
+		}
 
-	deps := newWorkspaceTestDeps(t, client)
-	deps.readDaemonInfo = func(string) (compozydaemon.Info, error) {
-		return compozydaemon.Info{PID: 42, Port: 2123, StartedAt: fixedTestNow}, nil
-	}
-	deps.processAlive = func(pid int) bool { return pid == 42 }
-	deps.processMatchesStartTime = func(int, time.Time) bool { return false }
+		deps := newDefaultProfileWorkspaceTestDeps(t, client)
+		deps.readDaemonInfo = func(string) (compozydaemon.Info, error) {
+			return compozydaemon.Info{PID: 42, Port: 2123, StartedAt: fixedTestNow}, nil
+		}
+		deps.processAlive = func(pid int) bool { return pid == 42 }
+		deps.processMatchesStartTime = func(int, time.Time) bool { return false }
 
-	out, _, err := executeRootCommand(
-		t,
-		deps,
-		"config",
-		"set",
-		"marketplace.catalog.base_url",
-		"http://127.0.0.1:64135",
-		"-o",
-		"json",
-	)
-	if err != nil {
-		t.Fatalf("config set marketplace catalog base URL error = %v", err)
-	}
-	if !reloadCalled {
-		t.Fatal("ReloadSettings was not called through the reachable daemon")
-	}
+		out, _, err := executeRootCommand(
+			t,
+			deps,
+			"config",
+			"set",
+			"marketplace.catalog.base_url",
+			"http://127.0.0.1:64135",
+			"-o",
+			"json",
+		)
+		if err != nil {
+			t.Fatalf("config set marketplace catalog base URL error = %v", err)
+		}
+		if !reloadCalled {
+			t.Fatal("ReloadSettings was not called through the reachable daemon")
+		}
 
-	var record configSetRecord
-	if err := json.Unmarshal([]byte(out), &record); err != nil {
-		t.Fatalf("json.Unmarshal(config set marketplace catalog base URL) error = %v", err)
-	}
-	if record.ApplyRecordID != "cfgapp-late-metadata" || record.ActiveGeneration != 2 || !record.Applied {
-		t.Fatalf("config set record = %#v, want daemon-confirmed active generation", record)
-	}
+		var record configSetRecord
+		if err := json.Unmarshal([]byte(out), &record); err != nil {
+			t.Fatalf("json.Unmarshal(config set marketplace catalog base URL) error = %v", err)
+		}
+		if record.ApplyRecordID != "cfgapp-late-metadata" || record.ActiveGeneration != 2 || !record.Applied {
+			t.Fatalf("config set record = %#v, want daemon-confirmed active generation", record)
+		}
+	})
+}
+
+func TestConfigSetPreservesOverriddenFeedbackAfterDaemonReload(t *testing.T) {
+	t.Parallel()
+	t.Run("Should preserve overridden feedback after daemon reload", func(t *testing.T) {
+		t.Parallel()
+
+		client := &stubClient{
+			daemonStatusFn: func(context.Context) (DaemonStatus, error) {
+				return DaemonStatus{Status: "running", PID: 42}, nil
+			},
+			reloadSettingsFn: func(context.Context) (SettingsMutationRecord, error) {
+				return SettingsMutationRecord{
+					Lifecycle:     contract.SettingsApplyLifecycleLive,
+					ApplyRecordID: "cfgapp-overridden",
+					Applied:       true,
+					NextAction:    contract.SettingsApplyNextActionNone,
+				}, nil
+			},
+		}
+		deps := newDefaultProfileWorkspaceTestDeps(t, client)
+		deps.readDaemonInfo = func(string) (compozydaemon.Info, error) {
+			return compozydaemon.Info{PID: 42, Port: 2123, StartedAt: fixedTestNow}, nil
+		}
+		deps.processAlive = func(pid int) bool { return pid == 42 }
+		deps.processMatchesStartTime = func(int, time.Time) bool { return true }
+		workspaceRoot := t.TempDir()
+		workspaceConfig := filepath.Join(workspaceRoot, compozyconfig.DirName, compozyconfig.ConfigName)
+		if err := os.MkdirAll(filepath.Dir(workspaceConfig), 0o755); err != nil {
+			t.Fatalf("MkdirAll(workspace config) error = %v", err)
+		}
+		if err := os.WriteFile(
+			workspaceConfig,
+			[]byte("[network.live.defaults]\nmax_wakes = 17\n"),
+			0o644,
+		); err != nil {
+			t.Fatalf("WriteFile(workspace config) error = %v", err)
+		}
+
+		out, _, err := executeRootCommand(
+			t,
+			deps,
+			"config",
+			"set",
+			"network.live.defaults.max_wakes",
+			"9",
+			"--scope",
+			"user",
+			"--workspace",
+			workspaceRoot,
+			"-o",
+			"json",
+		)
+		if err != nil {
+			t.Fatalf("config set overridden value error = %v", err)
+		}
+		var record configSetRecord
+		if err := json.Unmarshal([]byte(out), &record); err != nil {
+			t.Fatalf("json.Unmarshal(config set overridden value) error = %v", err)
+		}
+		if record.Status != configStatusOverridden || record.WinningLayer != "workspace" || record.Applied ||
+			record.NextAction != "saved but not applied — workspace wins" {
+			t.Fatalf("config set record = %#v, want persistent workspace override feedback", record)
+		}
+		if record.ApplyRecordID != "cfgapp-overridden" {
+			t.Fatalf("config set apply record id = %q, want daemon reload metadata", record.ApplyRecordID)
+		}
+	})
 }
 
 func TestConfigSetRejectsRemovedMutationPaths(t *testing.T) {
@@ -915,7 +984,7 @@ func TestConfigSetRejectsRemovedMutationPaths(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			deps := newWorkspaceTestDeps(t, &stubClient{})
+			deps := newDefaultProfileWorkspaceTestDeps(t, &stubClient{})
 			_, _, err := executeRootCommand(t, deps, "config", "set", tt.path, "local")
 			if err == nil {
 				t.Fatalf("config set %s error = nil, want unsupported path", tt.path)
@@ -930,7 +999,7 @@ func TestConfigSetRejectsRemovedMutationPaths(t *testing.T) {
 func TestConfigValidateRepairEnvRepairsWorkspaceDotEnvWithoutLeakingValues(t *testing.T) {
 	t.Parallel()
 
-	deps := newWorkspaceTestDeps(t, &stubClient{})
+	deps := newDefaultProfileWorkspaceTestDeps(t, &stubClient{})
 	workspaceRoot := t.TempDir()
 	dotenvPath := filepath.Join(workspaceRoot, ".env")
 	before := "COMPOZY_TASK09_API_KEY=very-secret\u200b-token OTHER=value\n"
@@ -997,7 +1066,7 @@ func TestConfigValidateUsesWorkspaceDotEnvForHomeResolution(t *testing.T) {
 		t.Fatalf("os.WriteFile(.env) error = %v", err)
 	}
 
-	deps := newWorkspaceTestDeps(t, &stubClient{
+	deps := newDefaultProfileWorkspaceTestDeps(t, &stubClient{
 		getWorkspaceFn: func(context.Context, string) (WorkspaceDetailRecord, error) {
 			return WorkspaceDetailRecord{
 				Workspace: WorkspaceRecord{ID: "ws-root", RootDir: workspaceRoot},
@@ -1088,7 +1157,7 @@ func TestConfigValidateReportsInvalidConfigAsJSON(t *testing.T) {
 			t.Fatalf("os.WriteFile(config) error = %v", err)
 		}
 
-		deps := newWorkspaceTestDeps(t, &stubClient{})
+		deps := newDefaultProfileWorkspaceTestDeps(t, &stubClient{})
 		deps.resolveHome = func() (compozyconfig.HomePaths, error) {
 			return homePaths, nil
 		}
@@ -1142,7 +1211,7 @@ func TestConfigValidateReportsInvalidConfigAsJSON(t *testing.T) {
 			t.Fatalf("os.WriteFile(config) error = %v", err)
 		}
 
-		deps := newWorkspaceTestDeps(t, &stubClient{})
+		deps := newDefaultProfileWorkspaceTestDeps(t, &stubClient{})
 		deps.resolveHome = func() (compozyconfig.HomePaths, error) {
 			return homePaths, nil
 		}
@@ -1185,7 +1254,7 @@ func TestConfigValidateReportsInvalidConfigAsJSON(t *testing.T) {
 func TestConfigCommandsUseWorkspaceScopeAndValidateBeforeWriting(t *testing.T) {
 	t.Parallel()
 
-	deps := newWorkspaceTestDeps(t, &stubClient{})
+	deps := newDefaultProfileWorkspaceTestDeps(t, &stubClient{})
 	homePaths, err := deps.resolveHome()
 	if err != nil {
 		t.Fatalf("resolveHome() error = %v", err)
@@ -1252,10 +1321,182 @@ func TestConfigCommandsUseWorkspaceScopeAndValidateBeforeWriting(t *testing.T) {
 	}
 }
 
+func TestConfigProfileLayerWriteTargetsIT043E2E006(t *testing.T) {
+	t.Parallel()
+	t.Run("Should write and resolve user, profile, and workspace layers", func(t *testing.T) {
+		t.Parallel()
+
+		workspaceRoot := t.TempDir()
+		client := &profileAwareStubClient{
+			stubClient: withWorkspaceResolution(&stubClient{}),
+			profileClientStub: &profileClientStub{profiles: []contract.Profile{
+				{Name: "default", State: "active"},
+				{Name: "marketing", State: "active"},
+			}},
+		}
+		deps := newTestDeps(t, client)
+		deps.getwd = func() (string, error) { return workspaceRoot, nil }
+		homePaths, err := deps.resolveHome()
+		if err != nil {
+			t.Fatalf("resolveHome() error = %v", err)
+		}
+
+		set := func(profile string, extra []string, path string, value string) configSetRecord {
+			t.Helper()
+			args := []string{"--profile", profile, "config", "set", path, value, "--workspace", workspaceRoot}
+			args = append(args, extra...)
+			args = append(args, "-o", "json")
+			stdout, _, err := executeRootCommand(t, deps, args...)
+			if err != nil {
+				t.Fatalf("config set profile=%s path=%s error = %v", profile, path, err)
+			}
+			var record configSetRecord
+			if err := json.Unmarshal([]byte(stdout), &record); err != nil {
+				t.Fatalf("decode config set profile=%s path=%s: %v", profile, path, err)
+			}
+			return record
+		}
+
+		user := set("default", nil, "defaults.provider", "claude")
+		if user.Scope != "user" || user.Target != homePaths.ConfigFile {
+			t.Fatalf("default profile write = %#v, want user config", user)
+		}
+		profile := set("marketing", nil, "defaults.provider", "codex")
+		profilePath := filepath.Join(homePaths.ProfilesDir, "marketing", compozyconfig.ConfigName)
+		if profile.Scope != "profile" || profile.Target != profilePath {
+			t.Fatalf("marketing write = %#v, want profile config", profile)
+		}
+		stdout, _, err := executeRootCommand(
+			t, deps,
+			"--profile", "marketing", "config", "get", "defaults.provider", "-o", "json",
+		)
+		if err != nil {
+			t.Fatalf("config get marketing profile value error = %v", err)
+		}
+		var profileValue configValueRecord
+		if err := json.Unmarshal([]byte(stdout), &profileValue); err != nil {
+			t.Fatalf("decode config get marketing profile value: %v", err)
+		}
+		if profileValue.Value != "codex" {
+			t.Fatalf("marketing defaults.provider = %#v, want codex", profileValue.Value)
+		}
+		override := set("marketing", []string{"--scope", "user"}, "defaults.agent", "user-agent")
+		if override.Scope != "user" || override.Target != homePaths.ConfigFile {
+			t.Fatalf("explicit user write = %#v, want user config", override)
+		}
+		workspace := set(
+			"marketing",
+			[]string{"--scope", "workspace"},
+			"defaults.provider",
+			"gemini",
+		)
+		workspacePath := filepath.Join(workspaceRoot, compozyconfig.DirName, compozyconfig.ConfigName)
+		if workspace.Scope != "workspace" || workspace.Target != workspacePath {
+			t.Fatalf("explicit workspace write = %#v, want workspace config", workspace)
+		}
+		userBelowWorkspace := set("marketing", []string{"--scope", "user"}, "defaults.provider", "codex")
+		if userBelowWorkspace.Status != configStatusOverridden || userBelowWorkspace.WinningLayer != "workspace" ||
+			userBelowWorkspace.Applied {
+			t.Fatalf("explicit user write below workspace = %#v, want workspace winner", userBelowWorkspace)
+		}
+
+		lower := set("marketing", nil, "defaults.provider", "openrouter")
+		if lower.Status != configStatusOverridden || lower.WinningLayer != "workspace" || lower.Applied {
+			t.Fatalf("profile write below workspace = %#v, want workspace winner", lower)
+		}
+		stdout, _, err = executeRootCommand(
+			t, deps,
+			"--profile", "marketing", "config", "get", "defaults.provider", "--workspace", workspaceRoot, "-o", "json",
+		)
+		if err != nil {
+			t.Fatalf("config get effective profile value error = %v", err)
+		}
+		var effective configValueRecord
+		if err := json.Unmarshal([]byte(stdout), &effective); err != nil {
+			t.Fatalf("decode config get effective profile value: %v", err)
+		}
+		if effective.Value != "gemini" {
+			t.Fatalf("effective defaults.provider = %#v, want gemini", effective.Value)
+		}
+
+		pathOut, _, err := executeRootCommand(
+			t, deps,
+			"--profile", "marketing", "config", "path", "--workspace", workspaceRoot, "-o", "json",
+		)
+		if err != nil {
+			t.Fatalf("config path under marketing error = %v", err)
+		}
+		var paths configPathRecord
+		if err := json.Unmarshal([]byte(pathOut), &paths); err != nil {
+			t.Fatalf("decode config path under marketing: %v", err)
+		}
+		if paths.Scope != "profile" || paths.SelectedConfigTarget != profilePath {
+			t.Fatalf("marketing config path = %#v, want profile target", paths)
+		}
+		_, _, err = executeRootCommand(
+			t, deps,
+			"--profile", "marketing", "config", "set", "http.port", "2124",
+			"--workspace", workspaceRoot, "-o", "json",
+		)
+		var validation compozyconfig.ValidationError
+		if err == nil || !errors.As(err, &validation) || validation.Code != "profile_config_key_denied" ||
+			!strings.Contains(err.Error(), "--scope user") {
+			t.Fatalf("profile denylist error = %v, want stable code and --scope user guidance", err)
+		}
+
+		if err := os.WriteFile(profilePath, []byte("[defaults\n"), 0o600); err != nil {
+			t.Fatalf("write invalid marketing profile config: %v", err)
+		}
+		if _, _, err := executeRootCommand(t, deps, "config", "validate", "-o", "json"); err != nil {
+			t.Fatalf("default config validate loaded marketing profile: %v", err)
+		}
+		for _, command := range []string{"validate", "check"} {
+			_, _, err := executeRootCommand(
+				t, deps, "--profile", "marketing", "config", command, "-o", "json",
+			)
+			var validationFailure configValidationFailedError
+			if err == nil || !errors.As(err, &validationFailure) {
+				t.Fatalf("marketing config %s error = %v, want profile validation failure", command, err)
+			}
+		}
+	})
+
+	t.Run("Should write an explicit user layer while the daemon is unavailable", func(t *testing.T) {
+		t.Parallel()
+
+		workspaceRoot := t.TempDir()
+		deps := newTestDeps(t, nil)
+		deps.getwd = func() (string, error) { return workspaceRoot, nil }
+		deps.newClient = func(ClientTarget) (DaemonClient, error) {
+			return nil, errors.New("daemon unavailable")
+		}
+		homePaths, err := deps.resolveHome()
+		if err != nil {
+			t.Fatalf("resolveHome() error = %v", err)
+		}
+
+		stdout, _, err := executeRootCommand(
+			t,
+			deps,
+			"config", "set", "defaults.provider", "codex", "--scope", "user", "-o", "json",
+		)
+		if err != nil {
+			t.Fatalf("offline explicit user config set error = %v", err)
+		}
+		var record configSetRecord
+		if err := json.Unmarshal([]byte(stdout), &record); err != nil {
+			t.Fatalf("decode offline explicit user config set: %v", err)
+		}
+		if record.Scope != "user" || record.Target != homePaths.ConfigFile {
+			t.Fatalf("offline explicit user config set = %#v, want user target", record)
+		}
+	})
+}
+
 func TestConfigSetSupportsWorktreeLifecyclePaths(t *testing.T) {
 	t.Parallel()
 
-	deps := newWorkspaceTestDeps(t, &stubClient{})
+	deps := newDefaultProfileWorkspaceTestDeps(t, &stubClient{})
 	homePaths, err := deps.resolveHome()
 	if err != nil {
 		t.Fatalf("resolveHome() error = %v", err)
@@ -1311,7 +1552,7 @@ func TestConfigCommandsResolveContextBeforeSelectingOverlays(t *testing.T) {
 		if err := os.MkdirAll(nested, 0o755); err != nil {
 			t.Fatalf("MkdirAll(nested) error = %v", err)
 		}
-		deps := newWorkspaceTestDeps(t, &stubClient{
+		deps := newDefaultProfileWorkspaceTestDeps(t, &stubClient{
 			getWorkspaceFn: func(context.Context, string) (WorkspaceDetailRecord, error) {
 				return WorkspaceDetailRecord{
 					Workspace: WorkspaceRecord{ID: "ws-root", RootDir: workspaceRoot},
@@ -1366,7 +1607,7 @@ func TestConfigCommandsResolveContextBeforeSelectingOverlays(t *testing.T) {
 		if err != nil {
 			t.Fatalf("ResolveHomePathsFrom(cwd) error = %v", err)
 		}
-		deps := newWorkspaceTestDeps(t, &stubClient{
+		deps := newDefaultProfileWorkspaceTestDeps(t, &stubClient{
 			getWorkspaceFn: func(context.Context, string) (WorkspaceDetailRecord, error) {
 				return WorkspaceDetailRecord{
 					Workspace: WorkspaceRecord{ID: "ws-explicit", RootDir: workspaceRoot},
@@ -1423,7 +1664,7 @@ func TestConfigCommandsResolveContextBeforeSelectingOverlays(t *testing.T) {
 		if err := compozyconfig.EnsureHomeLayout(runtimeHome); err != nil {
 			t.Fatalf("EnsureHomeLayout(runtime) error = %v", err)
 		}
-		deps := newWorkspaceTestDeps(t, &stubClient{
+		deps := newDefaultProfileWorkspaceTestDeps(t, &stubClient{
 			getWorkspaceFn: func(context.Context, string) (WorkspaceDetailRecord, error) {
 				return WorkspaceDetailRecord{
 					Workspace: WorkspaceRecord{ID: "ws-operator-home", RootDir: operatorHome},
@@ -1465,7 +1706,7 @@ func TestConfigSetSupportsAgentAuthoredContextPaths(t *testing.T) {
 	t.Run("Should write valid agent Soul and Heartbeat overlays and reject invalid values", func(t *testing.T) {
 		t.Parallel()
 
-		deps := newWorkspaceTestDeps(t, &stubClient{})
+		deps := newDefaultProfileWorkspaceTestDeps(t, &stubClient{})
 		homePaths, err := deps.resolveHome()
 		if err != nil {
 			t.Fatalf("resolveHome() error = %v", err)
@@ -1557,7 +1798,7 @@ func TestConfigSetSupportsAgentAuthoredContextPaths(t *testing.T) {
 func TestConfigOutputRedactsMCPAndSandboxSecrets(t *testing.T) {
 	t.Parallel()
 
-	deps := newWorkspaceTestDeps(t, &stubClient{})
+	deps := newDefaultProfileWorkspaceTestDeps(t, &stubClient{})
 	homePaths, err := deps.resolveHome()
 	if err != nil {
 		t.Fatalf("resolveHome() error = %v", err)
@@ -2084,7 +2325,7 @@ func TestConfigRenderingAndMutationHelpers(t *testing.T) {
 func TestConfigSetRedactsSensitiveMutationOutputAndManagedModeBlocksMutation(t *testing.T) {
 	t.Parallel()
 
-	deps := newWorkspaceTestDeps(t, &stubClient{})
+	deps := newDefaultProfileWorkspaceTestDeps(t, &stubClient{})
 	if _, _, err := executeRootCommand(t, deps, "config", "set", "sandboxes.dev.backend", "local"); err != nil {
 		t.Fatalf("config set sandbox backend error = %v", err)
 	}
@@ -2112,7 +2353,7 @@ func TestConfigSetRedactsSensitiveMutationOutputAndManagedModeBlocksMutation(t *
 		t.Fatalf("secret config set record = %#v, want redacted placeholder", setRecord)
 	}
 
-	managedDeps := newWorkspaceTestDeps(t, &stubClient{})
+	managedDeps := newDefaultProfileWorkspaceTestDeps(t, &stubClient{})
 	managedDeps.getenv = func(key string) string {
 		if key == compozyupdate.ManagedEnvName {
 			return "homebrew"
@@ -2131,7 +2372,7 @@ func TestConfigSetRedactsSensitiveMutationOutputAndManagedModeBlocksMutation(t *
 func TestCompletionCommandEmitsShellCompletion(t *testing.T) {
 	t.Parallel()
 
-	out, _, err := executeRootCommand(t, newWorkspaceTestDeps(t, &stubClient{}), "completion", "bash")
+	out, _, err := executeRootCommand(t, newDefaultProfileWorkspaceTestDeps(t, &stubClient{}), "completion", "bash")
 	if err != nil {
 		t.Fatalf("completion bash error = %v", err)
 	}

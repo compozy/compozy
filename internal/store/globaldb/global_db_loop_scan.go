@@ -72,6 +72,7 @@ func scanLoopRun(row loopRunScanner) (looppkg.Run, error) {
 func (v *loopRunScanValues) scan(row loopRunScanner) error {
 	return row.Scan(
 		&v.runID,
+		&v.run.ProfileID,
 		&v.workspaceID,
 		&v.run.LoopName,
 		&v.status,
@@ -188,13 +189,14 @@ func applyLoopRunPayloadScan(run *looppkg.Run, v *loopRunScanValues) error {
 	if run.Inputs == nil {
 		run.Inputs = map[string]any{}
 	}
-	run.ActiveHumanCriteria = json.RawMessage(v.activeHumanRaw)
-	if len(run.ActiveHumanCriteria) == 0 {
-		run.ActiveHumanCriteria = json.RawMessage(`[]`)
+	activeHumanCriteria := json.RawMessage(v.activeHumanRaw)
+	if len(activeHumanCriteria) == 0 {
+		activeHumanCriteria = json.RawMessage(`[]`)
 	}
-	if !json.Valid(run.ActiveHumanCriteria) {
+	if !json.Valid(activeHumanCriteria) {
 		return fmt.Errorf("store: decode loop run active human criteria: %w", looppkg.ErrValidation)
 	}
+	run.SetActiveHumanCriteria(activeHumanCriteria)
 	if err := json.Unmarshal([]byte(v.startMetadataRaw), &run.StartMetadata); err != nil {
 		return fmt.Errorf("store: decode loop run start metadata: %w", err)
 	}

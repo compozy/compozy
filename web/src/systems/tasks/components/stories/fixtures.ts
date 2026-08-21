@@ -7,3 +7,4 @@ export {
   loopCoordinatorTaskFixture,
   loopRunGoneTaskFixture,
 } from "../../mocks/fixtures";
+export { aggregateProfileTaskFixture } from "../../mocks/profile-fixtures";

@@ -1343,8 +1343,8 @@ func TestCLISessionProviderOverrideIntegration(t *testing.T) {
 	if got, want := len(listed.Sessions), 1; got != want {
 		t.Fatalf("len(listed) = %d, want %d", got, want)
 	}
-	if sessionRuntimeProvider(listed.Sessions[0]) != "fake-alt" {
-		t.Fatalf("listed runtime provider = %q, want fake-alt", sessionRuntimeProvider(listed.Sessions[0]))
+	if sessionRuntimeProvider(&listed.Sessions[0]) != "fake-alt" {
+		t.Fatalf("listed runtime provider = %q, want fake-alt", sessionRuntimeProvider(&listed.Sessions[0]))
 	}
 
 	stopOut, _, err := executeRootCommand(t, h.deps, "session", "stop", created.ID, "-o", "json")
@@ -1356,7 +1356,7 @@ func TestCLISessionProviderOverrideIntegration(t *testing.T) {
 	if err := json.Unmarshal([]byte(stopOut), &stopped); err != nil {
 		t.Fatalf("json.Unmarshal(session stop) error = %v", err)
 	}
-	if sessionRuntimeProvider(stopped) != "fake-alt" || stopped.State != session.StateStopped {
+	if sessionRuntimeProvider(&stopped) != "fake-alt" || stopped.State != session.StateStopped {
 		t.Fatalf("stopped = %#v, want stopped fake-alt session", stopped)
 	}
 
@@ -2141,7 +2141,7 @@ func TestCLINetworkDirectRetryAndResumeIntegration(t *testing.T) {
 
 func TestExtensionCommandRoundTripIntegration(t *testing.T) {
 	t.Parallel()
-	t.Run("Should round-trip extension inventory preview and network consent", func(t *testing.T) {
+	t.Run("Should require install consent and round-trip profile enablement", func(t *testing.T) {
 		t.Parallel()
 
 		h := newIntegrationHarness(t)
@@ -2169,7 +2169,7 @@ channel_scopes = ["team/*"]
 `,
 		)
 
-		installOut, _, err := executeRootCommand(
+		_, _, installErr := executeRootCommand(
 			t,
 			h.deps,
 			"extension",
@@ -2180,18 +2180,37 @@ channel_scopes = ["team/*"]
 			"-o",
 			"json",
 		)
-		if err != nil {
-			t.Fatalf("extension install error = %v", err)
+		operationErr, operationErrMatched := errors.AsType[*extensionOperationAPIError](installErr)
+		if !operationErrMatched {
+			t.Fatalf("extension install error = %v, want structured network-consent error", installErr)
 		}
+		operationPayload := operationErr.extensionOperationErrorPayload()
+		if operationPayload.Code != "extension_network_confirmation_required" || operationPayload.CurrentDigest == "" {
+			t.Fatalf("extension install error payload = %#v, want current network digest", operationPayload)
+		}
+
+		installOut := mustExecuteRoot(
+			t,
+			h.deps,
+			"extension",
+			"install",
+			dir,
+			"--allow-unverified",
+			"--yes",
+			"--"+extensionConfirmNetworkFlagName,
+			operationPayload.CurrentDigest,
+			"-o",
+			"json",
+		)
 		var installed ExtensionRecord
 		if err := json.Unmarshal([]byte(installOut), &installed); err != nil {
 			t.Fatalf("json.Unmarshal(extension install) error = %v", err)
 		}
-		if installed.Name != "integration-ext" || installed.State != "disabled" || installed.Enabled ||
+		if installed.Name != "integration-ext" || installed.State != "active" || !installed.Enabled ||
 			!installed.DaemonRunning ||
-			installed.NetworkRequirementDigest == "" || !installed.NetworkConfirmationRequired {
+			installed.NetworkRequirementDigest == "" || installed.NetworkConfirmationRequired {
 			t.Fatalf(
-				"installed extension = %#v, want inert daemon-backed extension awaiting network consent",
+				"installed extension = %#v, want active default-on extension with recorded network consent",
 				installed,
 			)
 		}
@@ -2204,8 +2223,9 @@ channel_scopes = ["team/*"]
 		if err := json.Unmarshal([]byte(listOut), &listed); err != nil {
 			t.Fatalf("json.Unmarshal(extension list) error = %v", err)
 		}
-		if len(listed) != 1 || listed[0].Name != "integration-ext" || listed[0].State != "disabled" {
-			t.Fatalf("listed extensions = %#v, want one inert extension", listed)
+		if len(listed) != 1 || listed[0].Name != "integration-ext" || listed[0].State != "active" ||
+			!listed[0].Enabled {
+			t.Fatalf("listed extensions = %#v, want one active default-on extension", listed)
 		}
 
 		statusOut, _, err := executeRootCommand(t, h.deps, "extension", "status", "integration-ext", "-o", "json")
@@ -2216,8 +2236,9 @@ channel_scopes = ["team/*"]
 		if err := json.Unmarshal([]byte(statusOut), &status); err != nil {
 			t.Fatalf("json.Unmarshal(extension status) error = %v", err)
 		}
-		if status.Name != "integration-ext" || status.State != "disabled" || !status.NetworkConfirmationRequired {
-			t.Fatalf("extension status = %#v, want inert extension awaiting network consent", status)
+		if status.Name != "integration-ext" || status.State != "active" || status.NetworkConfirmationRequired ||
+			!status.Enabled {
+			t.Fatalf("extension status = %#v, want active extension with recorded consent", status)
 		}
 
 		inventoryOut := mustExecuteRoot(t, h.deps, "extension", "inventory", "integration-ext", "-o", "json")
@@ -2225,49 +2246,26 @@ channel_scopes = ["team/*"]
 		if err := json.Unmarshal([]byte(inventoryOut), &inventory); err != nil {
 			t.Fatalf("json.Unmarshal(extension inventory) error = %v", err)
 		}
-		if inventory.Extension != "integration-ext" || inventory.Enabled || len(inventory.Items) != 0 {
-			t.Fatalf("extension inventory = %#v, want disabled empty kit", inventory)
+		if inventory.Extension != "integration-ext" || !inventory.Enabled || len(inventory.Items) != 0 {
+			t.Fatalf("extension inventory = %#v, want enabled empty kit", inventory)
 		}
 
-		previewOut := mustExecuteRoot(t, h.deps, "extension", "preview", "integration-ext", "-o", "json")
-		var preview ExtensionEnablePreviewRecord
-		if err := json.Unmarshal([]byte(previewOut), &preview); err != nil {
-			t.Fatalf("json.Unmarshal(extension preview) error = %v", err)
+		disableOut := mustExecuteRoot(t, h.deps, "extension", "disable", "integration-ext", "-o", "json")
+		var disabled ExtensionEnablementRecord
+		if err := json.Unmarshal([]byte(disableOut), &disabled); err != nil {
+			t.Fatalf("json.Unmarshal(extension disable) error = %v", err)
 		}
-		if preview.Extension != "integration-ext" || preview.NetworkRequirementDigest == "" ||
-			!preview.NetworkConfirmationRequired || len(preview.Changes) != 0 {
-			t.Fatalf("extension preview = %#v, want current network digest and empty kit", preview)
-		}
-
-		_, _, enableErr := executeRootCommand(t, h.deps, "extension", "enable", "integration-ext", "-o", "json")
-
-		operationErr, operationErrMatched := errors.AsType[*extensionOperationAPIError](enableErr)
-		if !operationErrMatched {
-			t.Fatalf("extension enable error = %v, want structured operation error", enableErr)
-		}
-		operationPayload := operationErr.extensionOperationErrorPayload()
-		if operationPayload.Code != "extension_network_confirmation_required" ||
-			operationPayload.CurrentDigest != preview.NetworkRequirementDigest {
-			t.Fatalf("extension enable error payload = %#v, want preview digest", operationPayload)
+		if disabled.Profile != "default" || disabled.Enabled {
+			t.Fatalf("disabled extension = %#v, want default-profile exception", disabled)
 		}
 
-		enableOut := mustExecuteRoot(
-			t,
-			h.deps,
-			"extension",
-			"enable",
-			"integration-ext",
-			"--"+extensionConfirmNetworkFlagName,
-			preview.NetworkRequirementDigest,
-			"-o",
-			"json",
-		)
-		var enabled ExtensionEnableRecord
+		enableOut := mustExecuteRoot(t, h.deps, "extension", "enable", "integration-ext", "-o", "json")
+		var enabled ExtensionEnablementRecord
 		if err := json.Unmarshal([]byte(enableOut), &enabled); err != nil {
 			t.Fatalf("json.Unmarshal(extension enable) error = %v", err)
 		}
-		if !enabled.Extension.Enabled || enabled.Extension.NetworkConfirmationRequired {
-			t.Fatalf("enabled extension = %#v, want enabled with recorded network consent", enabled)
+		if enabled.Profile != "default" || !enabled.Enabled {
+			t.Fatalf("enabled extension = %#v, want enabled default-profile result", enabled)
 		}
 	})
 }
@@ -2447,7 +2445,7 @@ func TestMemoryWriteListIntegration(t *testing.T) {
 		t.Fatalf("written = %#v, want applied decision with target filename", written)
 	}
 
-	listOut, _, err := executeRootCommand(t, h.deps, "memory", "list", "--scope", "global", "-o", "json")
+	listOut, _, err := executeRootCommand(t, h.deps, "memory", "list", "--scope", "profile", "-o", "json")
 	if err != nil {
 		t.Fatalf("memory list error = %v", err)
 	}
@@ -4459,9 +4457,10 @@ func (s *integrationExtensionService) Status(_ context.Context, name string) (co
 	return extensionpkg.DescribeExtension(ext, true, time.Now().UTC()), nil
 }
 
-func (s *integrationExtensionService) Inventory(
+func (s *integrationExtensionService) InventoryScoped(
 	ctx context.Context,
 	name string,
+	_ taskpkg.ActorContext,
 ) (contract.ExtensionInventoryPayload, error) {
 	if err := s.requireEmptyIntegrationExtensionKit(ctx, name); err != nil {
 		return contract.ExtensionInventoryPayload{}, err

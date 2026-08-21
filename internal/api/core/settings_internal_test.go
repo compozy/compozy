@@ -270,7 +270,6 @@ func TestSettingsPayloadHelpersRejectInvalidInputs(t *testing.T) {
 	t.Parallel()
 
 	if _, err := generalSettingsFromPayload(contract.SettingsGeneralConfigPayload{
-		Defaults:       contract.SettingsDefaultsPayload{Agent: "coder"},
 		Limits:         contract.SettingsLimitsPayload{MaxConcurrentAgents: 2},
 		Permissions:    contract.SettingsPermissionsPayload{Mode: contract.SettingsPermissionModeApproveReads},
 		SessionTimeout: "bad",
@@ -284,7 +283,6 @@ func TestSettingsPayloadHelpersRejectInvalidInputs(t *testing.T) {
 		t.Parallel()
 
 		validGeneral := contract.SettingsGeneralConfigPayload{
-			Defaults:       contract.SettingsDefaultsPayload{Agent: "coder"},
 			Limits:         contract.SettingsLimitsPayload{MaxConcurrentAgents: 2},
 			Permissions:    contract.SettingsPermissionsPayload{Mode: contract.SettingsPermissionModeApproveReads},
 			SessionTimeout: "30m",
@@ -469,7 +467,6 @@ func TestGeneralSettingsPayloadRoundTripPreservesRedactionGate(t *testing.T) {
 			t.Parallel()
 
 			payload := contract.SettingsGeneralConfigPayload{
-				Defaults:       contract.SettingsDefaultsPayload{Agent: "coder"},
 				Limits:         contract.SettingsLimitsPayload{MaxConcurrentAgents: 2},
 				Permissions:    contract.SettingsPermissionsPayload{Mode: contract.SettingsPermissionModeApproveReads},
 				SessionTimeout: "30m",

@@ -80,7 +80,7 @@ func (q *Queries) DeleteTask(ctx context.Context, id string) (int64, error) {
 
 const getTask = `-- name: GetTask :one
 SELECT
-  id, identifier, scope, workspace_id, parent_task_id, title, description,
+  id, profile_id, identifier, scope, workspace_id, parent_task_id, title, description,
   priority, max_attempts, auto_enqueue_on_ready, status, approval_policy, approval_state,
   owner_kind, owner_ref, created_by_kind, created_by_ref, origin_kind, origin_ref,
   created_at, updated_at, closed_at, current_run_id,
@@ -93,6 +93,7 @@ WHERE tasks.id = ?1
 
 type GetTaskRow struct {
 	ID                   string         `json:"id"`
+	ProfileID            string         `json:"profile_id"`
 	Identifier           sql.NullString `json:"identifier"`
 	Scope                string         `json:"scope"`
 	WorkspaceID          sql.NullString `json:"workspace_id"`
@@ -133,6 +134,7 @@ func (q *Queries) GetTask(ctx context.Context, taskID string) (GetTaskRow, error
 	var i GetTaskRow
 	err := row.Scan(
 		&i.ID,
+		&i.ProfileID,
 		&i.Identifier,
 		&i.Scope,
 		&i.WorkspaceID,
@@ -348,24 +350,27 @@ func (q *Queries) InsertRequiredTaskRunCapability(ctx context.Context, arg Inser
 
 const insertTask = `-- name: InsertTask :exec
 INSERT INTO tasks (
+  profile_id,
   id, identifier, scope, workspace_id, parent_task_id, title, description,
   priority, max_attempts, auto_enqueue_on_ready, status, approval_policy, approval_state,
   owner_kind, owner_ref, created_by_kind, created_by_ref, origin_kind, origin_ref,
   created_at, updated_at, closed_at, paused, paused_by, paused_at, paused_reason, wake_creator,
   metadata_json
 ) VALUES (
-  ?1, ?2, ?3, ?4,
-  ?5, ?6, ?7,
-  ?8, ?9, ?10, ?11,
-  ?12, ?13, ?14, ?15,
-  ?16, ?17, ?18, ?19,
-  ?20, ?21, ?22, ?23,
-  ?24, ?25, ?26, ?27,
-  ?28
+  ?1,
+  ?2, ?3, ?4, ?5,
+  ?6, ?7, ?8,
+  ?9, ?10, ?11, ?12,
+  ?13, ?14, ?15, ?16,
+  ?17, ?18, ?19, ?20,
+  ?21, ?22, ?23, ?24,
+  ?25, ?26, ?27, ?28,
+  ?29
 )
 `
 
 type InsertTaskParams struct {
+	ProfileID          string         `json:"profile_id"`
 	ID                 string         `json:"id"`
 	Identifier         sql.NullString `json:"identifier"`
 	Scope              string         `json:"scope"`
@@ -398,6 +403,7 @@ type InsertTaskParams struct {
 
 func (q *Queries) InsertTask(ctx context.Context, arg InsertTaskParams) error {
 	_, err := q.db.ExecContext(ctx, insertTask,
+		arg.ProfileID,
 		arg.ID,
 		arg.Identifier,
 		arg.Scope,

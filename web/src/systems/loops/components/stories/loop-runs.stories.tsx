@@ -7,6 +7,7 @@ import type { LoopOutcomeValue } from "../../lib/loop-runs-view";
 import type { LoopRun } from "../../types";
 import { loopRunFixtures } from "../../mocks/fixtures";
 import { dozensActiveRuns } from "./loop-runs-scale-fixtures";
+import { scopedListingScopeFixture } from "@/systems/profiles/mocks";
 
 const meta: Meta<typeof LoopRunsView> = {
   title: "systems/loops/components/LoopRuns",
@@ -47,6 +48,7 @@ function RunsHarness({
           // story that omitted it captured an empty state with no action at all.
           onEmptyAction={() => undefined}
           onRetry={() => undefined}
+          profileScope={scopedListingScopeFixture}
           outcome={outcome}
           runs={runs}
         />

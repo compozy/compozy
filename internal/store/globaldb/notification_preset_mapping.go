@@ -13,14 +13,30 @@ type notificationPresetScanner interface {
 	Scan(dest ...any) error
 }
 
-func scanNotificationPreset(scanner notificationPresetScanner) (presetspkg.Preset, error) {
+func scanNotificationPresetWithEnablement(scanner notificationPresetScanner) (presetspkg.Preset, error) {
 	var row sqlcgen.NotificationPreset
-	if err := scanner.Scan(
+	var enabled bool
+	if err := scanNotificationPresetRow(scanner, &row, &enabled); err != nil {
+		return presetspkg.Preset{}, fmt.Errorf("store: scan notification preset enablement: %w", err)
+	}
+	preset, err := notificationPresetFromGenerated(row)
+	if err != nil {
+		return presetspkg.Preset{}, err
+	}
+	preset.Enabled = enabled
+	return preset, nil
+}
+
+func scanNotificationPresetRow(
+	scanner notificationPresetScanner,
+	row *sqlcgen.NotificationPreset,
+	extraDestinations ...any,
+) error {
+	destinations := []any{
 		&row.Name,
 		&row.Events,
 		&row.Targets,
 		&row.Filter,
-		&row.Enabled,
 		&row.BuiltIn,
 		&row.DefaultVersion,
 		&row.DefaultHash,
@@ -28,17 +44,16 @@ func scanNotificationPreset(scanner notificationPresetScanner) (presetspkg.Prese
 		&row.DefaultUpdateAvailable,
 		&row.CreatedAt,
 		&row.UpdatedAt,
-	); err != nil {
-		return presetspkg.Preset{}, fmt.Errorf("store: scan notification preset: %w", err)
 	}
-	return notificationPresetFromGenerated(row)
+	destinations = append(destinations, extraDestinations...)
+	return scanner.Scan(destinations...)
 }
 
 func notificationPresetFromGenerated(row sqlcgen.NotificationPreset) (presetspkg.Preset, error) {
 	preset := presetspkg.Preset{
 		Name:                   row.Name,
 		Filter:                 row.Filter,
-		Enabled:                row.Enabled,
+		Enabled:                true,
 		BuiltIn:                row.BuiltIn,
 		DefaultVersion:         row.DefaultVersion,
 		DefaultHash:            row.DefaultHash,

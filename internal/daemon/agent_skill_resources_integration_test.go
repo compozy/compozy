@@ -444,7 +444,7 @@ func TestAgentSkillPublicationAndBootRebuild(t *testing.T) {
 				registry,
 				func() extensionRuntime { return manager },
 				nil,
-				discardLogger(),
+				defaultToolMCPProfileCatalog{},
 			),
 		)
 		if err := agentSkillSyncer.Sync(ctx); err != nil {
@@ -479,7 +479,7 @@ func TestAgentSkillPublicationAndBootRebuild(t *testing.T) {
 		if got, want := len(mcpRecords), 1; got != want {
 			t.Fatalf("owned portable MCP servers = %d, want %d (%#v)", got, want, mcpRecords)
 		}
-		dataPath, err := homePaths.ExtensionDataPath(portableName, "")
+		dataPath, err := homePaths.ExtensionDataPath(portableName, "", "")
 		if err != nil {
 			t.Fatalf("homePaths.ExtensionDataPath() error = %v", err)
 		}
@@ -700,7 +700,7 @@ func TestSpecCycleBundledSkillPublicationAndBootRebuild(t *testing.T) {
 		}
 		globalSpecCycleCount := 0
 		for _, record := range records {
-			if record.Scope.Kind == resources.ResourceScopeKindGlobal &&
+			if record.Scope.Kind == resources.ResourceScopeKindUser &&
 				record.Spec.InstalledFromExtension == speccycle.Name {
 				globalSpecCycleCount++
 			}
@@ -1118,7 +1118,7 @@ func assertExtensionAgentSidecarOwnership(
 	for _, record := range agents {
 		if record.Owner.Normalize() == wantOwner {
 			agentID = record.ID
-			if record.Scope.Normalize().Kind != resources.ResourceScopeKindGlobal {
+			if record.Scope.Normalize().Kind != resources.ResourceScopeKindUser {
 				t.Fatalf("extension agent scope = %#v, want global", record.Scope)
 			}
 		}
@@ -1240,7 +1240,7 @@ func newAgentSkillIntegrationDriver(
 				Kind: resources.ResourceSourceKind("daemon"),
 				ID:   "agent-skill-integration",
 			},
-			MaxScope: resources.ResourceScope{Kind: resources.ResourceScopeKindGlobal},
+			MaxScope: resources.ResourceScope{Kind: resources.ResourceScopeKindUser},
 		},
 		registrations,
 		resources.WithReconcileLogger(discardLogger()),
@@ -1380,9 +1380,11 @@ name = "agent-skill-ext"
 version = "0.1.0"
 min_compozy_version = "0.5.0"
 
-[resources]
-skills = ["skills/"]
-agents = ["agents/"]
+[[resources.skills]]
+path = "skills/"
+
+[[resources.agents]]
+path = "agents/"
 `)
 	agentPath := filepath.Join(dir, "agents", "ext-agent", "AGENT.md")
 	writeAgentSkillIntegrationFile(t, agentPath, `---
@@ -1436,7 +1438,7 @@ Use extension skill context.
 	if err != nil {
 		t.Fatalf("registry.Get(%q) error = %v", manifest.Name, err)
 	}
-	staticAgents, err := extensionpkg.LoadAgentResources(dir, manifest.Resources.Agents)
+	staticAgents, err := extensionpkg.LoadAgentResources(dir, extensionpkg.ResourcePaths(manifest.Resources.Agents))
 	if err != nil {
 		t.Fatalf("extensionpkg.LoadAgentResources(%q) error = %v", dir, err)
 	}
@@ -1544,7 +1546,10 @@ func agentSkillIntegrationSpecCycleExtension(
 	if err != nil {
 		t.Fatalf("extensionpkg.LoadManifest(%q) error = %v", rootDir, err)
 	}
-	staticAgents, err := extensionpkg.LoadAgentResources(rootDir, manifest.Resources.Agents)
+	staticAgents, err := extensionpkg.LoadAgentResources(
+		rootDir,
+		extensionpkg.ResourcePaths(manifest.Resources.Agents),
+	)
 	if err != nil {
 		t.Fatalf("extensionpkg.LoadAgentResources(%q) error = %v", rootDir, err)
 	}
@@ -1554,7 +1559,7 @@ func agentSkillIntegrationSpecCycleExtension(
 	}
 	skills := make([]*skillspkg.Skill, 0, len(specCycleIntegrationSkillNames))
 	for _, resourcePath := range manifest.Resources.Skills {
-		resourceRoot := filepath.Join(rootDir, filepath.FromSlash(resourcePath))
+		resourceRoot := filepath.Join(rootDir, filepath.FromSlash(resourcePath.Path))
 		if err := filepath.WalkDir(resourceRoot, func(path string, entry os.DirEntry, walkErr error) error {
 			if walkErr != nil {
 				return walkErr

@@ -19,6 +19,8 @@ import {
 } from "../automation-drafts";
 
 const jobFixture = {
+  profile_id: "00000000000000000000000000",
+  profile_name: "default",
   id: "job_daily_review",
   name: "daily-review",
   agent_name: "reviewer",
@@ -37,6 +39,8 @@ const jobFixture = {
 };
 
 const triggerFixture = {
+  profile_id: "00000000000000000000000000",
+  profile_name: "default",
   id: "trg_push_review",
   name: "push-review",
   agent_name: "reviewer",

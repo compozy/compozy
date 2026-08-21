@@ -36,7 +36,7 @@ func loopCatalogOperations() []OperationSpec {
 
 func listLoopsOperation() OperationSpec {
 	return loopOperation(httpMethodGet, loopsPath(), "listLoops", "List Loop catalog entries", nil,
-		append([]ParameterSpec{workspaceIDParam()}, loopCatalogQueryParams()...),
+		withProfileScope(append([]ParameterSpec{workspaceIDParam()}, loopCatalogQueryParams()...)...),
 		[]ResponseSpec{
 			ok(contract.LoopsResponse{}),
 			badRequest(),
@@ -54,7 +54,7 @@ func createLoopOperation() OperationSpec {
 		"createLoop",
 		"Create or fork a Loop definition",
 		contract.CreateLoopRequest{},
-		[]ParameterSpec{workspaceIDParam()},
+		withProfileSelector(workspaceIDParam()),
 		[]ResponseSpec{
 			created(contract.LoopResponse{}),
 			badRequest(),
@@ -74,7 +74,7 @@ func getLoopOperation() OperationSpec {
 		"getLoop",
 		"Inspect one Loop definition",
 		nil,
-		[]ParameterSpec{workspaceIDParam(), loopNameParam()},
+		withProfileScope(workspaceIDParam(), loopNameParam()),
 		[]ResponseSpec{
 			ok(contract.LoopResponse{}),
 			badRequest(),
@@ -92,7 +92,7 @@ func patchLoopOperation() OperationSpec {
 		"patchLoop",
 		"Publish one Loop definition with optimistic concurrency",
 		contract.PatchLoopRequest{},
-		[]ParameterSpec{workspaceIDParam(), loopNameParam()},
+		withProfileSelector(workspaceIDParam(), loopNameParam()),
 		[]ResponseSpec{
 			ok(contract.LoopResponse{}),
 			badRequest(),
@@ -113,7 +113,7 @@ func deleteLoopOperation() OperationSpec {
 		"deleteLoop",
 		"Delete one writable Loop definition",
 		nil,
-		[]ParameterSpec{workspaceIDParam(), loopNameParam()},
+		withProfileSelector(workspaceIDParam(), loopNameParam()),
 		[]ResponseSpec{
 			{Status: 204, Description: specNoContentDescription},
 			badRequest(),
@@ -132,7 +132,7 @@ func validateLoopOperation() OperationSpec {
 		"validateLoop",
 		"Validate one Loop definition without saving",
 		contract.ValidateLoopRequest{},
-		[]ParameterSpec{workspaceIDParam(), loopNameParam()},
+		withProfileSelector(workspaceIDParam(), loopNameParam()),
 		[]ResponseSpec{
 			ok(contract.LoopValidationResponse{}),
 			badRequest(),
@@ -150,11 +150,11 @@ func runLoopOperation() OperationSpec {
 		"runLoop",
 		"Start or dry-run one Loop",
 		contract.RunLoopRequest{},
-		[]ParameterSpec{
+		withProfileSelector(
 			workspaceIDParam(),
 			loopNameParam(),
 			boolQueryParam("dry", "Preview the run without creating durable state"),
-		},
+		),
 		[]ResponseSpec{
 			ok(contract.RunLoopResponse{}),
 			created(contract.RunLoopResponse{}),
@@ -176,7 +176,7 @@ func getLoopConfigOperation() OperationSpec {
 		"getLoopConfig",
 		"Get Loop config override",
 		nil,
-		[]ParameterSpec{workspaceIDParam(), loopNameParam()},
+		withProfileScope(workspaceIDParam(), loopNameParam()),
 		[]ResponseSpec{
 			ok(contract.LoopConfigResponse{}),
 			badRequest(),
@@ -194,7 +194,7 @@ func putLoopConfigOperation() OperationSpec {
 		"putLoopConfig",
 		"Replace Loop config override",
 		contract.PutLoopConfigRequest{},
-		[]ParameterSpec{workspaceIDParam(), loopNameParam()},
+		withProfileSelector(workspaceIDParam(), loopNameParam()),
 		[]ResponseSpec{
 			ok(contract.LoopConfigResponse{}),
 			badRequest(),
@@ -212,7 +212,7 @@ func getLoopAnnotationsOperation() OperationSpec {
 		"getLoopAnnotations",
 		"Get Loop editor annotations",
 		nil,
-		[]ParameterSpec{workspaceIDParam(), loopNameParam()},
+		withProfileScope(workspaceIDParam(), loopNameParam()),
 		[]ResponseSpec{
 			ok(contract.LoopAnnotationsResponse{}),
 			badRequest(),
@@ -230,7 +230,7 @@ func putLoopAnnotationsOperation() OperationSpec {
 		"putLoopAnnotations",
 		"Replace Loop editor annotations",
 		contract.PutLoopAnnotationsRequest{},
-		[]ParameterSpec{workspaceIDParam(), loopNameParam()},
+		withProfileSelector(workspaceIDParam(), loopNameParam()),
 		[]ResponseSpec{
 			ok(contract.LoopAnnotationsResponse{}),
 			badRequest(),
@@ -249,7 +249,7 @@ func loopRuntimeOperations() []OperationSpec {
 			"listLoopRuns",
 			"List Loop runs",
 			nil,
-			[]ParameterSpec{
+			withProfileScope(
 				workspaceIDParam(),
 				queryParam("loop", "Filter by Loop name", false),
 				queryParam("status", "Filter by Loop status", false),
@@ -258,7 +258,7 @@ func loopRuntimeOperations() []OperationSpec {
 				boolQueryParam("live", "Filter by live or terminal status"),
 				queryParam("cursor", "Opaque server-order cursor", false),
 				intQueryParam("limit", "Maximum number of records to return"),
-			},
+			),
 			[]ResponseSpec{ok(contract.LoopRunsResponse{}), badRequest(), loopUnavailable(), internalError()},
 		),
 		loopOperation(
@@ -267,7 +267,7 @@ func loopRuntimeOperations() []OperationSpec {
 			"getLoopRun",
 			"Get one Loop run",
 			nil,
-			[]ParameterSpec{workspaceIDParam(), loopRunIDParam()},
+			withProfileScope(workspaceIDParam(), loopRunIDParam()),
 			[]ResponseSpec{
 				ok(contract.LoopRunResponse{}),
 				badRequest(),
@@ -287,7 +287,7 @@ func loopRuntimeOperations() []OperationSpec {
 			"approveLoopRun",
 			"Approve one Loop gate",
 			contract.ApproveLoopRunRequest{},
-			[]ParameterSpec{workspaceIDParam(), loopRunIDParam()},
+			withProfileSelector(workspaceIDParam(), loopRunIDParam()),
 			[]ResponseSpec{
 				ok(map[string]bool{"ok": true}),
 				badRequest(),
@@ -310,12 +310,12 @@ func loopRunEventsOperation() OperationSpec {
 		"streamLoopRunEvents",
 		"Stream Loop run events",
 		nil,
-		[]ParameterSpec{
+		withProfileScope(
 			workspaceIDParam(),
 			loopRunIDParam(),
 			queryParam("after_sequence", "Resume after this sequence", false),
-			optionalHeaderParam("Last-Event-ID", "Last received event sequence"),
-		},
+			optionalLastEventIDHeaderParam("Last received event sequence"),
+		),
 		[]ResponseSpec{
 			{
 				Status:      200,
@@ -380,7 +380,7 @@ func loopRunMutationOperation(operationID string, summary string, suffix string)
 		operationID,
 		summary,
 		map[string]any{},
-		[]ParameterSpec{workspaceIDParam(), loopRunIDParam()},
+		withProfileSelector(workspaceIDParam(), loopRunIDParam()),
 		[]ResponseSpec{
 			ok(map[string]bool{"ok": true}),
 			badRequest(),

@@ -110,6 +110,7 @@ func TestStartBindingShouldValidateAllowlistAndResolveMappedInputs(t *testing.T)
 		values, err := loop.ResolveStartTargetInputs(context.Background(), resolver, loop.StartTargetResolution{
 			StartTargetValidation: loop.StartTargetValidation{
 				WorkspaceID: "ws-1",
+				ProfileID:   "profile-marketing",
 				LoopName:    "valid-loop",
 				Kind:        dsl.StartTrigger,
 				Inputs: map[string]any{
@@ -139,6 +140,7 @@ func TestStartBindingShouldValidateAllowlistAndResolveMappedInputs(t *testing.T)
 		err := loop.ValidateStartTarget(context.Background(), startBindingResolver(t, startBindingDefinition()),
 			loop.StartTargetValidation{
 				WorkspaceID: "ws-1",
+				ProfileID:   "profile-marketing",
 				LoopName:    "valid-loop",
 				Kind:        dsl.StartHTTP,
 				Inputs:      map[string]any{"tasks": "task-ref"},
@@ -155,6 +157,7 @@ func TestStartBindingShouldValidateAllowlistAndResolveMappedInputs(t *testing.T)
 		err := loop.ValidateStartTarget(context.Background(), startBindingResolver(t, startBindingDefinition()),
 			loop.StartTargetValidation{
 				WorkspaceID: "ws-1",
+				ProfileID:   "profile-marketing",
 				LoopName:    "valid-loop",
 				Kind:        dsl.StartWebhook,
 				Inputs:      map[string]any{"tasks": "task-ref"},
@@ -170,6 +173,7 @@ func TestStartBindingShouldValidateAllowlistAndResolveMappedInputs(t *testing.T)
 		err := loop.ValidateStartTarget(context.Background(), startBindingResolver(t, startBindingDefinition()),
 			loop.StartTargetValidation{
 				WorkspaceID: "ws-1",
+				ProfileID:   "profile-marketing",
 				LoopName:    "valid-loop",
 				Kind:        dsl.StartTrigger,
 				Inputs: map[string]any{
@@ -222,6 +226,7 @@ func TestStartBindingShouldStartThroughServiceForEveryDeclaredSurface(t *testing
 				ActorRef:    "actor-ref",
 				OriginRef:   "origin-ref",
 				Inputs: loop.Inputs{
+					ProfileID: "profile-marketing",
 					Values: map[string]any{
 						"tasks": "task-ref",
 						"title": "direct-title",
@@ -234,6 +239,9 @@ func TestStartBindingShouldStartThroughServiceForEveryDeclaredSurface(t *testing
 			}
 			if run.ID == "" {
 				t.Fatal("StartFromBinding() run ID is empty")
+			}
+			if run.ProfileID != "profile-marketing" {
+				t.Fatalf("StartFromBinding() profile = %q, want profile-marketing", run.ProfileID)
 			}
 			if got := store.createCount(); got != 1 {
 				t.Fatalf("CreateLoopRunForStart calls = %d, want 1", got)
@@ -265,7 +273,7 @@ func startBindingResolver(t *testing.T, def dsl.Definition) loop.DefinitionResol
 	t.Helper()
 	resolved := compileDefinition(t, def)
 	return loop.DefinitionResolverFunc(
-		func(context.Context, loop.WorkspaceID, string) (*loop.ResolvedDefinition, error) {
+		func(context.Context, loop.WorkspaceID, string, string) (*loop.ResolvedDefinition, error) {
 			return resolved, nil
 		},
 	)

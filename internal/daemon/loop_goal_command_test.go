@@ -10,6 +10,7 @@ import (
 	looppkg "github.com/compozy/compozy/internal/loop"
 	"github.com/compozy/compozy/internal/loop/dsl"
 	"github.com/compozy/compozy/internal/network/participation"
+	profilepkg "github.com/compozy/compozy/internal/profile"
 	"github.com/compozy/compozy/internal/session"
 	"github.com/compozy/compozy/internal/store"
 	taskpkg "github.com/compozy/compozy/internal/task"
@@ -95,7 +96,8 @@ func TestDaemonGoalCommandHandlerShouldExecuteCanonicalSessionLifecycle(t *testi
 			t.Fatalf("started Goal snapshot = %#v", started.Result.Snapshot)
 		}
 		first := fixture.mustRun(t, started.Result.Snapshot.RunID)
-		if first.StartedBy.Kind != taskpkg.ActorKindHuman || first.StartedBy.Ref != "operator" ||
+		if first.ProfileID != fixture.profileID || first.ProfileID == store.DefaultProfileID ||
+			first.StartedBy.Kind != taskpkg.ActorKindHuman || first.StartedBy.Ref != "operator" ||
 			first.StartedOrigin.Kind != taskpkg.OriginKindHTTP || first.Origin.CreationProfileRef != fixture.profileRef {
 			t.Fatalf("started Goal identity = %#v", first)
 		}
@@ -145,6 +147,12 @@ func TestDaemonGoalCommandHandlerShouldExecuteCanonicalSessionLifecycle(t *testi
 		if replaced.Result.ReplacedRunID == nil || *replaced.Result.ReplacedRunID != string(first.ID) ||
 			replaced.Result.Snapshot == nil || replaced.Result.Snapshot.RunID != "run-goal-command-4" {
 			t.Fatalf("replacement result = %#v", replaced.Result)
+		}
+		if replacedRun := fixture.mustRun(
+			t,
+			replaced.Result.Snapshot.RunID,
+		); replacedRun.ProfileID != fixture.profileID {
+			t.Fatalf("replaced Goal profile_id = %q, want %q", replacedRun.ProfileID, fixture.profileID)
 		}
 
 		paused, err := fixture.service.Handle(
@@ -380,6 +388,7 @@ type goalCommandHandlerFixture struct {
 	workspaceID string
 	sessionID   string
 	profileRef  string
+	profileID   string
 }
 
 func newGoalCommandHandlerFixture(t *testing.T) goalCommandHandlerFixture {
@@ -407,6 +416,16 @@ max_turns = 7
 context_nudge_ratio = 0.0
 `)
 	db := openDaemonTestGlobalDB(t)
+	profiles, err := profilepkg.NewManager(
+		profilepkg.WithStore(db), profilepkg.WithHomePaths(homePaths), profilepkg.WithLogger(discardLogger()),
+	)
+	if err != nil {
+		t.Fatalf("profile.NewManager() error = %v", err)
+	}
+	profileOwner, err := profiles.Create(ctx, profilepkg.CreateInput{Name: "goal-profile"})
+	if err != nil {
+		t.Fatalf("profiles.Create() error = %v", err)
+	}
 	workspaceID := "ws-goal-command"
 	workspaceRoot := t.TempDir()
 	if err := db.InsertWorkspace(ctx, workspacepkg.Workspace{
@@ -417,7 +436,8 @@ context_nudge_ratio = 0.0
 	}
 	profile := store.SessionCreationProfile{
 		Version: store.SessionCreationProfileVersion, AgentName: "operator-agent",
-		Provider: "cursor", Model: profileModel, WorkspaceID: workspaceID, CWD: workspaceRoot,
+		ProfileID: profileOwner.ID,
+		Provider:  "cursor", Model: profileModel, WorkspaceID: workspaceID, CWD: workspaceRoot,
 		SandboxMode: store.SessionCreationSandboxNone, Permissions: "default",
 	}
 	profileRef, err := db.PutSessionCreationProfile(ctx, profile)
@@ -444,7 +464,7 @@ context_nudge_ratio = 0.0
 		CreationDigest:     creationDigest,
 	}
 	if _, err := db.RegisterSessionWithCreationIdentity(ctx, store.SessionInfo{
-		ID: sessionID, AgentName: profile.AgentName, Provider: profile.Provider,
+		ProfileID: profileOwner.ID, ID: sessionID, AgentName: profile.AgentName, Provider: profile.Provider,
 		WorkspaceID:         workspaceID,
 		SessionNetworkState: &store.SessionNetworkState{NetworkSpec: participation.LocalSpec()},
 		SessionType:         string(session.SessionTypeUser), State: string(session.StateActive),
@@ -463,7 +483,7 @@ context_nudge_ratio = 0.0
 	aggregate, err := looppkg.NewService(
 		db,
 		looppkg.DefinitionResolverFunc(
-			func(context.Context, looppkg.WorkspaceID, string) (*looppkg.ResolvedDefinition, error) {
+			func(context.Context, looppkg.WorkspaceID, string, string) (*looppkg.ResolvedDefinition, error) {
 				return nil, looppkg.ErrDefinitionNotFound
 			},
 		),
@@ -483,7 +503,7 @@ context_nudge_ratio = 0.0
 		t.Fatalf("NewService() error = %v", err)
 	}
 	status := &goalCommandSessionStatus{info: &session.Info{
-		ID: sessionID, AgentName: profile.AgentName, Provider: profile.Provider,
+		ProfileID: profileOwner.ID, ID: sessionID, AgentName: profile.AgentName, Provider: profile.Provider,
 		Model:       activeModel,
 		WorkspaceID: workspaceID, NetworkParticipation: participation.LocalSpec(),
 		Type: session.SessionTypeUser, State: session.StateActive,
@@ -494,7 +514,7 @@ context_nudge_ratio = 0.0
 			homePaths: homePaths, now: func() time.Time { return now },
 			sessionStatus: status, creationStore: db,
 		},
-		db: db, workspaceID: workspaceID, sessionID: sessionID, profileRef: profileRef,
+		db: db, workspaceID: workspaceID, sessionID: sessionID, profileRef: profileRef, profileID: profileOwner.ID,
 	}
 }
 

@@ -38,6 +38,7 @@ func newLoopNodesCommand(deps commandDeps) *cobra.Command {
 		},
 	}
 	addLoopNodesFlags(cmd, opts)
+	configureProfileReadCommand(cmd, deps)
 	return cmd
 }
 

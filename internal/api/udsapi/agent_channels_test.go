@@ -16,6 +16,7 @@ import (
 	"github.com/compozy/compozy/internal/network"
 	"github.com/compozy/compozy/internal/network/participation"
 	"github.com/compozy/compozy/internal/session"
+	"github.com/compozy/compozy/internal/store"
 )
 
 func TestAgentContextReturnsSituationPayload(t *testing.T) {
@@ -469,6 +470,7 @@ func activeAgentSessionManager(t *testing.T) stubSessionManager {
 			now := time.Date(2026, 4, 26, 10, 0, 0, 0, time.UTC)
 			return &session.Info{
 				ID:                   "sess-agent",
+				ProfileID:            store.DefaultProfileID,
 				Name:                 "worker",
 				AgentName:            "coder",
 				Provider:             "test-provider",

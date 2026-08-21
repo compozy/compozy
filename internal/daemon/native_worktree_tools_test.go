@@ -12,6 +12,7 @@ import (
 	core "github.com/compozy/compozy/internal/api/core"
 	apitest "github.com/compozy/compozy/internal/api/testutil"
 	"github.com/compozy/compozy/internal/session"
+	"github.com/compozy/compozy/internal/store"
 	toolspkg "github.com/compozy/compozy/internal/tools"
 	workspacepkg "github.com/compozy/compozy/internal/workspace"
 	"github.com/compozy/compozy/internal/worktree"
@@ -66,7 +67,7 @@ func (s *nativeWorktreeServiceStub) CancelCreate(context.Context, string, string
 	return fmt.Errorf("unexpected CancelCreate call")
 }
 
-func (s *nativeWorktreeServiceStub) Adopt(context.Context, string, string) (*worktree.Worktree, error) {
+func (s *nativeWorktreeServiceStub) Adopt(context.Context, string, string, string) (*worktree.Worktree, error) {
 	return nil, fmt.Errorf("unexpected Adopt call")
 }
 
@@ -164,7 +165,8 @@ func TestNativeWorktreeTools(t *testing.T) {
 				id string,
 			) (*session.Info, error) {
 				return &session.Info{
-					ID: id, WorkspaceID: "ws-a", AgentName: "coder", State: session.StateActive,
+					ID: id, ProfileID: store.DefaultProfileID,
+					WorkspaceID: "ws-a", AgentName: "coder", State: session.StateActive,
 				}, nil
 			}}
 			calls := 0

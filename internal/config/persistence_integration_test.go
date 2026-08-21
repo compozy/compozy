@@ -7,8 +7,77 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"sync"
 	"testing"
 )
+
+func TestEditConfigOverlayConcurrentUserAndProfileWritesIT044(t *testing.T) {
+	t.Parallel()
+
+	homePaths, err := ResolveHomePathsFrom(filepath.Join(t.TempDir(), "home"))
+	if err != nil {
+		t.Fatalf("ResolveHomePathsFrom() error = %v", err)
+	}
+	userTarget, err := ResolveConfigWriteTarget(homePaths, "", WriteScopeUser, "")
+	if err != nil {
+		t.Fatalf("ResolveConfigWriteTarget(user) error = %v", err)
+	}
+	profileTarget, err := ResolveConfigWriteTarget(homePaths, "", WriteScopeProfile, "marketing")
+	if err != nil {
+		t.Fatalf("ResolveConfigWriteTarget(profile) error = %v", err)
+	}
+
+	start := make(chan struct{})
+	errorsByScope := make(chan error, 2)
+	var writers sync.WaitGroup
+	for _, writer := range []struct {
+		target WriteTarget
+		value  string
+	}{
+		{target: userTarget, value: "claude"},
+		{target: profileTarget, value: "codex"},
+	} {
+		writers.Add(1)
+		go func() {
+			defer writers.Done()
+			<-start
+			_, writeErr := EditConfigOverlay(homePaths, "", writer.target, func(editor *OverlayEditor) error {
+				return editor.SetValue([]string{"defaults", "provider"}, writer.value)
+			})
+			errorsByScope <- writeErr
+		}()
+	}
+	close(start)
+	writers.Wait()
+	close(errorsByScope)
+	for writeErr := range errorsByScope {
+		if writeErr != nil {
+			t.Fatalf("EditConfigOverlay(concurrent layer) error = %v", writeErr)
+		}
+	}
+
+	userPayload, err := os.ReadFile(userTarget.Path())
+	if err != nil {
+		t.Fatalf("ReadFile(user config) error = %v", err)
+	}
+	profilePayload, err := os.ReadFile(profileTarget.Path())
+	if err != nil {
+		t.Fatalf("ReadFile(profile config) error = %v", err)
+	}
+	if !strings.Contains(string(userPayload), `provider = "claude"`) {
+		t.Fatalf("user config = %s, want claude", userPayload)
+	}
+	if !strings.Contains(string(profilePayload), `provider = "codex"`) {
+		t.Fatalf("profile config = %s, want codex", profilePayload)
+	}
+	effective, err := LoadForHome(homePaths, WithProfile("marketing"))
+	if err != nil {
+		t.Fatalf("LoadForHome(marketing) error = %v", err)
+	}
+	if effective.Defaults.Provider != "codex" {
+		t.Fatalf("effective defaults.provider = %q, want codex", effective.Defaults.Provider)
+	}
+}
 
 func TestEditConfigOverlayGlobalWritePreservesStructureOnDisk(t *testing.T) {
 	t.Run("Should preserve structure and private permissions on disk", func(t *testing.T) {
@@ -16,7 +85,7 @@ func TestEditConfigOverlayGlobalWritePreservesStructureOnDisk(t *testing.T) {
 		if err != nil {
 			t.Fatalf("ResolveHomePathsFrom() error = %v", err)
 		}
-		target, err := ResolveConfigWriteTarget(homePaths, "", WriteScopeGlobal)
+		target, err := ResolveConfigWriteTarget(homePaths, "", WriteScopeUser, "")
 		if err != nil {
 			t.Fatalf("ResolveConfigWriteTarget() error = %v", err)
 		}
@@ -69,7 +138,7 @@ func TestEditConfigOverlayGlobalWriteFromOperatorHomeWorkspace(t *testing.T) {
 		if err != nil {
 			t.Fatalf("ResolveHomePathsFrom() error = %v", err)
 		}
-		target, err := ResolveConfigWriteTarget(homePaths, operatorHome, WriteScopeGlobal)
+		target, err := ResolveConfigWriteTarget(homePaths, operatorHome, WriteScopeUser, "")
 		if err != nil {
 			t.Fatalf("ResolveConfigWriteTarget() error = %v", err)
 		}
@@ -93,7 +162,7 @@ func TestEditConfigOverlayWorkspaceWriteLeavesGlobalConfigUntouched(t *testing.T
 			t.Fatalf("ResolveHomePathsFrom() error = %v", err)
 		}
 		workspaceRoot := filepath.Join(t.TempDir(), "workspace")
-		target, err := ResolveConfigWriteTarget(homePaths, workspaceRoot, WriteScopeWorkspace)
+		target, err := ResolveConfigWriteTarget(homePaths, workspaceRoot, WriteScopeWorkspace, "")
 		if err != nil {
 			t.Fatalf("ResolveConfigWriteTarget() error = %v", err)
 		}
@@ -149,7 +218,7 @@ func TestPutMCPSidecarServerWritesAndPreservesUnaffectedEntries(t *testing.T) {
 		if err != nil {
 			t.Fatalf("ResolveHomePathsFrom() error = %v", err)
 		}
-		target, err := ResolveMCPSidecarWriteTarget(homePaths, "", WriteScopeGlobal)
+		target, err := ResolveMCPSidecarWriteTarget(homePaths, "", WriteScopeUser, "")
 		if err != nil {
 			t.Fatalf("ResolveMCPSidecarWriteTarget() error = %v", err)
 		}
@@ -208,7 +277,7 @@ func TestPutMCPSidecarServerRejectsDuplicateNamesAcrossTopLevelKeys(t *testing.T
 		if err != nil {
 			t.Fatalf("ResolveHomePathsFrom() error = %v", err)
 		}
-		target, err := ResolveMCPSidecarWriteTarget(homePaths, "", WriteScopeGlobal)
+		target, err := ResolveMCPSidecarWriteTarget(homePaths, "", WriteScopeUser, "")
 		if err != nil {
 			t.Fatalf("ResolveMCPSidecarWriteTarget() error = %v", err)
 		}

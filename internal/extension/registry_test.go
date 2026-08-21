@@ -2,6 +2,7 @@ package extensionpkg
 
 import (
 	"context"
+	"crypto/rand"
 	"crypto/sha256"
 	"database/sql"
 	"errors"
@@ -15,8 +16,10 @@ import (
 	"time"
 
 	"github.com/compozy/compozy/internal/extension/agentplugin"
+	profilepkg "github.com/compozy/compozy/internal/profile"
 	"github.com/compozy/compozy/internal/store"
 	"github.com/compozy/compozy/internal/testutil"
+	"github.com/oklog/ulid"
 )
 
 const legacyRegistryTestExtensionsTableSchema = `CREATE TABLE IF NOT EXISTS extensions (
@@ -731,6 +734,239 @@ func TestRegistryEnableAndDisable(t *testing.T) {
 	if !enabled.Enabled {
 		t.Fatal("Enabled after Enable() = false, want true")
 	}
+}
+
+// Invariant: extension enablement is an exception per profile; absence means
+// enabled and a disable never changes another profile.
+// Owner: extension registry enablement persistence.
+// Canonical suite: extension registry tests.
+func TestRegistryProfileEnablementUsesDisabledExceptions(t *testing.T) {
+	t.Parallel()
+	t.Run("Should keep profile enablement exceptions isolated", func(t *testing.T) {
+		t.Parallel()
+		testRegistryProfileEnablementUsesDisabledExceptions(t)
+	})
+}
+
+// Invariant: profile placement catalogs include both published manifests and
+// workspace development links because profile rename planning must see every
+// owned declaration.
+// Owner: extension registry placement catalog.
+// Canonical suite: extension registry tests.
+func TestRegistryPlacementsForProfileIncludesDevelopmentLinks(t *testing.T) {
+	t.Parallel()
+	t.Run("Should include profile-bound resources from a development link", func(t *testing.T) {
+		t.Parallel()
+		env := newRegistryTestEnv(t)
+		dir := t.TempDir()
+		const extensionName = "dev-placement"
+		writeFile(t, filepath.Join(dir, manifestTOMLFileName), `[extension]
+name = "dev-placement"
+version = "0.2.1"
+min_compozy_version = "0.5.0"
+
+[capabilities]
+provides = ["memory.backend"]
+
+[permissions]
+requires = ["sessions/list"]
+
+[[resources.skills]]
+path = "skills/review"
+profile = "finance"
+`)
+		if _, err := env.registry.LinkDev(DevLinkRequest{
+			Name: extensionName, WorkspaceID: "workspace-a", OriginPath: dir,
+			GenerationHash: strings.Repeat("d", 64),
+		}); err != nil {
+			t.Fatalf("LinkDev() error = %v", err)
+		}
+		placements, err := env.registry.PlacementsForProfile(testutil.Context(t), "finance")
+		if err != nil {
+			t.Fatalf("PlacementsForProfile() error = %v", err)
+		}
+		want := []profilepkg.PlacementRef{{Extension: extensionName, Resource: "skills/review", ProfileName: "finance"}}
+		if !slices.Equal(placements, want) {
+			t.Fatalf("PlacementsForProfile() = %#v, want %#v", placements, want)
+		}
+	})
+}
+
+func testRegistryProfileEnablementUsesDisabledExceptions(t *testing.T) {
+	t.Helper()
+	env := newRegistryTestEnv(t)
+	dir, manifest, checksum := createRegistryTestExtension(t, "profile-toggle", registryManifestOptions{})
+	if err := env.registry.Install(manifest, dir, checksum); err != nil {
+		t.Fatalf("Install() error = %v", err)
+	}
+	financeID := insertActiveRegistryProfile(t, env, "finance")
+
+	initial, err := env.registry.IsEnabledForProfile(manifest.Name, financeID)
+	if err != nil || !initial {
+		t.Fatalf("IsEnabledForProfile(initial) = %t, %v, want true, nil", initial, err)
+	}
+	if err := env.registry.SetEnabledForProfile(manifest.Name, financeID, false); err != nil {
+		t.Fatalf("SetEnabledForProfile(disable) error = %v", err)
+	}
+	disabled, err := env.registry.IsEnabledForProfile(manifest.Name, financeID)
+	if err != nil || disabled {
+		t.Fatalf("IsEnabledForProfile(disabled) = %t, %v, want false, nil", disabled, err)
+	}
+	defaultEnabled, err := env.registry.IsEnabledForProfile(manifest.Name, store.DefaultProfileID)
+	if err != nil || !defaultEnabled {
+		t.Fatalf("IsEnabledForProfile(default) = %t, %v, want true, nil", defaultEnabled, err)
+	}
+	if err := env.registry.SetEnabledForProfile(manifest.Name, financeID, true); err != nil {
+		t.Fatalf("SetEnabledForProfile(enable) error = %v", err)
+	}
+	var exceptions int
+	if err := env.db.QueryRowContext(t.Context(), `SELECT COUNT(*) FROM extension_profile_enablement
+		WHERE extension_name = ? AND profile_id = ?`, manifest.Name, financeID).Scan(&exceptions); err != nil {
+		t.Fatalf("count enablement exceptions: %v", err)
+	}
+	if exceptions != 0 {
+		t.Fatalf("enablement exception rows = %d, want 0", exceptions)
+	}
+}
+
+// Invariant: dev-only links share the durable per-profile enablement authority,
+// and an exception survives while either a published install or any workspace
+// link still owns that extension name.
+// Owner: extension registry enablement persistence.
+// Canonical suite: extension registry tests.
+func TestRegistryDevLinksComposeWithProfileEnablement(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should persist a dev-only disable until the last workspace link is removed [IT-055]", func(t *testing.T) {
+		t.Parallel()
+		env := newRegistryTestEnv(t)
+		const name = "dev-profile-toggle"
+		for index, workspaceID := range []string{"workspace-a", "workspace-b"} {
+			if _, err := env.registry.LinkDev(DevLinkRequest{
+				Name: name, WorkspaceID: workspaceID, OriginPath: "/tmp/dev-profile-toggle",
+				GenerationHash: strings.Repeat(string(rune('a'+index)), 64),
+			}); err != nil {
+				t.Fatalf("LinkDev(%s) error = %v", workspaceID, err)
+			}
+		}
+		if err := env.registry.SetEnabledForProfile(name, store.DefaultProfileID, false); err != nil {
+			t.Fatalf("SetEnabledForProfile(dev-only disabled) error = %v", err)
+		}
+		enabled, err := env.registry.IsEnabledForProfile(name, store.DefaultProfileID)
+		if err != nil || enabled {
+			t.Fatalf("IsEnabledForProfile(dev-only disabled) = %t, %v, want false, nil", enabled, err)
+		}
+		if err := env.registry.UnlinkDev(name, "workspace-a"); err != nil {
+			t.Fatalf("UnlinkDev(workspace-a) error = %v", err)
+		}
+		enabled, err = env.registry.IsEnabledForProfile(name, store.DefaultProfileID)
+		if err != nil || enabled {
+			t.Fatalf("IsEnabledForProfile(remaining link) = %t, %v, want false, nil", enabled, err)
+		}
+		if err := env.registry.UnlinkDev(name, "workspace-b"); err != nil {
+			t.Fatalf("UnlinkDev(workspace-b) error = %v", err)
+		}
+		if _, err := env.registry.IsEnabledForProfile(
+			name,
+			store.DefaultProfileID,
+		); !errors.Is(
+			err,
+			ErrExtensionNotFound,
+		) {
+			t.Fatalf("IsEnabledForProfile(unlinked) error = %v, want ErrExtensionNotFound", err)
+		}
+		var exceptions int
+		if err := env.db.QueryRowContext(
+			t.Context(),
+			`SELECT COUNT(*) FROM extension_profile_enablement WHERE extension_name = ?`, name,
+		).Scan(&exceptions); err != nil {
+			t.Fatalf("count dev-only exceptions error = %v", err)
+		}
+		if exceptions != 0 {
+			t.Fatalf("dev-only exception rows = %d, want 0", exceptions)
+		}
+	})
+
+	t.Run("Should retain an exception when uninstall leaves a development link", func(t *testing.T) {
+		t.Parallel()
+		env := newRegistryTestEnv(t)
+		dir, manifest, checksum := createRegistryTestExtension(t, "published-and-dev", registryManifestOptions{})
+		if err := env.registry.Install(manifest, dir, checksum); err != nil {
+			t.Fatalf("Install() error = %v", err)
+		}
+		if _, err := env.registry.LinkDev(DevLinkRequest{
+			Name: manifest.Name, WorkspaceID: "workspace-a", OriginPath: dir,
+			GenerationHash: strings.Repeat("c", 64),
+		}); err != nil {
+			t.Fatalf("LinkDev() error = %v", err)
+		}
+		if err := env.registry.SetEnabledForProfile(manifest.Name, store.DefaultProfileID, false); err != nil {
+			t.Fatalf("SetEnabledForProfile(disabled) error = %v", err)
+		}
+		if err := env.registry.Uninstall(manifest.Name); err != nil {
+			t.Fatalf("Uninstall() error = %v", err)
+		}
+		enabled, err := env.registry.IsEnabledForProfile(manifest.Name, store.DefaultProfileID)
+		if err != nil || enabled {
+			t.Fatalf("IsEnabledForProfile(dev remains) = %t, %v, want false, nil", enabled, err)
+		}
+	})
+}
+
+// Invariant: runtime eligibility is the union of active profile enablement;
+// disabling one profile cannot stop resources still enabled for another.
+// Owner: extension registry runtime eligibility projection.
+// Canonical suite: extension registry tests.
+func TestRegistryRuntimeEligibilityUsesEveryActiveProfile(t *testing.T) {
+	t.Parallel()
+	t.Run("Should keep runtime eligible while any active profile remains enabled", func(t *testing.T) {
+		t.Parallel()
+		env := newRegistryTestEnv(t)
+		dir, manifest, checksum := createRegistryTestExtension(t, "runtime-eligibility", registryManifestOptions{})
+		if err := env.registry.Install(manifest, dir, checksum); err != nil {
+			t.Fatalf("Install() error = %v", err)
+		}
+		financeID := insertActiveRegistryProfile(t, env, "finance")
+
+		if err := env.registry.SetEnabledForProfile(manifest.Name, store.DefaultProfileID, false); err != nil {
+			t.Fatalf("SetEnabledForProfile(default disabled) error = %v", err)
+		}
+		eligible, err := env.registry.Get(manifest.Name)
+		if err != nil {
+			t.Fatalf("Get(with finance enabled) error = %v", err)
+		}
+		if !eligible.Enabled {
+			t.Fatal("runtime eligible with finance enabled = false, want true")
+		}
+
+		if err := env.registry.SetEnabledForProfile(manifest.Name, financeID, false); err != nil {
+			t.Fatalf("SetEnabledForProfile(finance disabled) error = %v", err)
+		}
+		ineligible, err := env.registry.Get(manifest.Name)
+		if err != nil {
+			t.Fatalf("Get(all active profiles disabled) error = %v", err)
+		}
+		if ineligible.Enabled {
+			t.Fatal("runtime eligible with every active profile disabled = true, want false")
+		}
+
+		if _, err := env.db.ExecContext(
+			t.Context(),
+			`UPDATE profiles SET state = 'archived', archived_at = ? WHERE id = ?`,
+			store.FormatTimestamp(env.installedAt.Add(time.Minute)), financeID); err != nil {
+			t.Fatalf("archive finance profile: %v", err)
+		}
+		if err := env.registry.SetEnabledForProfile(manifest.Name, store.DefaultProfileID, true); err != nil {
+			t.Fatalf("SetEnabledForProfile(default enabled) error = %v", err)
+		}
+		eligible, err = env.registry.Get(manifest.Name)
+		if err != nil {
+			t.Fatalf("Get(archived finance ignored) error = %v", err)
+		}
+		if !eligible.Enabled {
+			t.Fatal("runtime eligible with default enabled and finance archived = false, want true")
+		}
+	})
 }
 
 func TestRegistryUninstallRemovesExtension(t *testing.T) {
@@ -1509,6 +1745,26 @@ func newRegistryTestEnv(t *testing.T) registryTestEnv {
 		db:          db,
 		registry:    registry,
 		installedAt: installedAt,
+	}
+}
+
+func insertActiveRegistryProfile(t *testing.T, env registryTestEnv, name string) string {
+	t.Helper()
+	profileIDValue, err := ulid.New(ulid.Timestamp(time.Now().UTC()), rand.Reader)
+	if err != nil {
+		t.Fatalf("ulid.New(active profile) error = %v", err)
+	}
+	profileID := profileIDValue.String()
+	insertRegistryProfile(t, env, profileID, name, "#112233", "briefcase")
+	return profileID
+}
+
+func insertRegistryProfile(t *testing.T, env registryTestEnv, id, name, color, icon string) {
+	t.Helper()
+	if _, err := env.db.ExecContext(t.Context(), `INSERT INTO profiles (
+		id, name, color, icon, state, created_at
+	) VALUES (?, ?, ?, ?, 'active', ?)`, id, name, color, icon, store.FormatTimestamp(env.installedAt)); err != nil {
+		t.Fatalf("insert %s profile: %v", name, err)
 	}
 }
 

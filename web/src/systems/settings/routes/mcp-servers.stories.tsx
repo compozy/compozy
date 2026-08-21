@@ -353,7 +353,7 @@ export const Empty: Story = {
     ...storybookMswParameters({
       settings: [
         compozyApiMock.get("/api/settings/mcp-servers", () =>
-          HttpResponse.json({ ...mcpManagementCollectionFixture, mcp_servers: [], scope: "global" })
+          HttpResponse.json({ ...mcpManagementCollectionFixture, mcp_servers: [], scope: "user" })
         ),
       ],
     }),

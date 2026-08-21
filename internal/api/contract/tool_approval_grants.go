@@ -26,14 +26,20 @@ func (r ToolApprovalGrantSetRequest) Domain() toolspkg.ApprovalGrantSetRequest {
 
 // ToolApprovalGrantPayload is one workspace-scoped remembered native-tool approval decision.
 type ToolApprovalGrantPayload struct {
-	ID          string                         `json:"id"`
-	WorkspaceID string                         `json:"workspace_id"`
-	AgentName   string                         `json:"agent_name,omitempty"`
-	ToolID      toolspkg.ToolID                `json:"tool_id"`
-	InputDigest string                         `json:"input_digest,omitempty"`
-	Decision    toolspkg.ApprovalGrantDecision `json:"decision"`
-	CreatedAt   time.Time                      `json:"created_at"`
-	LastUsedAt  time.Time                      `json:"last_used_at"`
+	ID              string                         `json:"id"`
+	ProfileID       string                         `json:"profile_id"`
+	ProfileName     string                         `json:"profile_name"`
+	ProfileColor    string                         `json:"profile_color"`
+	ProfileIcon     string                         `json:"profile_icon,omitempty"`
+	ProfileEmoji    string                         `json:"profile_emoji,omitempty"`
+	ProfileArchived bool                           `json:"profile_archived"`
+	WorkspaceID     string                         `json:"workspace_id"`
+	AgentName       string                         `json:"agent_name,omitempty"`
+	ToolID          toolspkg.ToolID                `json:"tool_id"`
+	InputDigest     string                         `json:"input_digest,omitempty"`
+	Decision        toolspkg.ApprovalGrantDecision `json:"decision"`
+	CreatedAt       time.Time                      `json:"created_at"`
+	LastUsedAt      time.Time                      `json:"last_used_at"`
 }
 
 // ToolApprovalGrantListResponse wraps one workspace's remembered decisions.
@@ -50,13 +56,19 @@ type ToolApprovalGrantResponse struct {
 // ToolApprovalGrantPayloadFromDomain converts one durable decision into the shared transport shape.
 func ToolApprovalGrantPayloadFromDomain(grant toolspkg.ApprovalGrant) ToolApprovalGrantPayload {
 	return ToolApprovalGrantPayload{
-		ID:          grant.ID,
-		WorkspaceID: grant.WorkspaceID,
-		AgentName:   grant.AgentName,
-		ToolID:      grant.ToolID,
-		InputDigest: grant.InputDigest,
-		Decision:    grant.Decision,
-		CreatedAt:   grant.CreatedAt.UTC(),
-		LastUsedAt:  grant.LastUsedAt.UTC(),
+		ID:              grant.ID,
+		ProfileID:       grant.ProfileID,
+		ProfileName:     grant.ProfileName,
+		ProfileColor:    grant.ProfileColor,
+		ProfileIcon:     grant.ProfileIcon,
+		ProfileEmoji:    grant.ProfileEmoji,
+		ProfileArchived: grant.ProfileArchived,
+		WorkspaceID:     grant.WorkspaceID,
+		AgentName:       grant.AgentName,
+		ToolID:          grant.ToolID,
+		InputDigest:     grant.InputDigest,
+		Decision:        grant.Decision,
+		CreatedAt:       grant.CreatedAt.UTC(),
+		LastUsedAt:      grant.LastUsedAt.UTC(),
 	}
 }

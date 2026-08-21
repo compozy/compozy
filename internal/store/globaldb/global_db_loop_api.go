@@ -33,7 +33,8 @@ const loopRunOperationalRankSQL = `(CASE
 	ELSE 2
 END)`
 
-// ListLoopRuns loads workspace-scoped loop runs in newest-first order.
+// ListLoopRuns loads loop runs matching the explicit profile scope and
+// workspace filters in newest-first order.
 func (g *LoopRepo) ListLoopRuns(
 	ctx context.Context,
 	query looppkg.RunListQuery,
@@ -51,6 +52,7 @@ func (g *LoopRepo) ListLoopRuns(
 		}
 	}
 	clauses := []store.Clause{
+		store.ReadScopeClause("profile_id", normalized.ReadScope),
 		store.StringClause("workspace_id", string(normalized.WorkspaceID)),
 		store.StringClause("loop_name", normalized.LoopName),
 		store.StringClause("status", string(normalized.Status)),
@@ -159,6 +161,13 @@ func (g *LoopRepo) ListLoopRunEvents(
 	normalized, err := normalizeLoopRunEventQuery(query)
 	if err != nil {
 		return nil, err
+	}
+	run, err := g.GetLoopRun(ctx, normalized.WorkspaceID, normalized.RunID)
+	if err != nil {
+		return nil, err
+	}
+	if !normalized.ReadScope.Matches(run.ProfileID) {
+		return nil, looppkg.ErrRunNotFound
 	}
 	rows, err := g.queries.ListLoopRunEvents(ctx, sqlcgen.ListLoopRunEventsParams{
 		WorkspaceID: string(normalized.WorkspaceID), LoopRunID: string(normalized.RunID),
@@ -318,6 +327,9 @@ func normalizeLoopRunListQuery(query looppkg.RunListQuery) (looppkg.RunListQuery
 	normalized.OriginKind = strings.TrimSpace(query.OriginKind)
 	normalized.OriginSessionID = strings.TrimSpace(query.OriginSessionID)
 	normalized.CreatedAfter = query.CreatedAfter.UTC()
+	if err := normalized.ReadScope.Validate(); err != nil {
+		return looppkg.RunListQuery{}, fmt.Errorf("%w: %w", looppkg.ErrValidation, err)
+	}
 	if normalized.WorkspaceID == "" {
 		return looppkg.RunListQuery{}, fmt.Errorf("%w: workspace_id is required", looppkg.ErrValidation)
 	}
@@ -368,6 +380,9 @@ func loopRunLiveFilterSQL(live bool) string {
 
 func normalizeLoopRunEventQuery(query looppkg.RunEventQuery) (looppkg.RunEventQuery, error) {
 	normalized := query
+	if err := normalized.ReadScope.Validate(); err != nil {
+		return looppkg.RunEventQuery{}, fmt.Errorf("%w: read scope: %v", looppkg.ErrValidation, err)
+	}
 	normalized.WorkspaceID = looppkg.WorkspaceID(strings.TrimSpace(string(query.WorkspaceID)))
 	normalized.RunID = looppkg.RunID(strings.TrimSpace(string(query.RunID)))
 	if normalized.WorkspaceID == "" {

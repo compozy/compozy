@@ -87,7 +87,7 @@ describe("window manager store", () => {
   it("Should preserve work area while resetting scoped interaction for a new binding", () => {
     const store = createWindowManagerStore();
     store.trigger.bindingBound({
-      binding: { workspaceId: "workspace:alpha", clientId: "client:one" },
+      binding: { workspaceId: "workspace:alpha", profileId: "marketing", clientId: "client:one" },
     });
     store.trigger.workAreaMeasured({ workArea: WORK_AREA });
     store.trigger.connectionStatusChanged({ status: "connected" });
@@ -120,11 +120,12 @@ describe("window manager store", () => {
     });
 
     store.trigger.bindingBound({
-      binding: { workspaceId: "workspace:beta", clientId: "client:two" },
+      binding: { workspaceId: "workspace:beta", profileId: "marketing", clientId: "client:two" },
     });
 
     expect(selectWindowManagerBinding(state(store))).toEqual({
       workspaceId: "workspace:beta",
+      profileId: "marketing",
       clientId: "client:two",
     });
     expect(selectWindowManagerConnectionStatus(state(store))).toBe("disconnected");
@@ -141,7 +142,11 @@ describe("window manager store", () => {
 
   it("Should preserve transient state when the identical binding is announced again", () => {
     const store = createWindowManagerStore();
-    const binding = { workspaceId: "workspace:alpha", clientId: "client:one" };
+    const binding = {
+      workspaceId: "workspace:alpha",
+      profileId: "marketing",
+      clientId: "client:one",
+    };
     store.trigger.bindingBound({ binding });
     store.trigger.connectionStatusChanged({ status: "connected" });
     store.trigger.overlayOpened({
@@ -157,6 +162,37 @@ describe("window manager store", () => {
       kind: "layout-editor",
       desktopId: "desktop:one",
     });
+  });
+
+  it("Should reset binding-scoped interaction when only the profile changes", () => {
+    const store = createWindowManagerStore();
+    store.trigger.bindingBound({
+      binding: {
+        workspaceId: "workspace:alpha",
+        profileId: "marketing",
+        clientId: "client:one",
+      },
+    });
+    store.trigger.connectionStatusChanged({ status: "connected" });
+    store.trigger.overlayOpened({
+      overlay: { kind: "layout-editor", desktopId: "desktop:one" },
+    });
+
+    store.trigger.bindingBound({
+      binding: {
+        workspaceId: "workspace:alpha",
+        profileId: "research",
+        clientId: "client:one",
+      },
+    });
+
+    expect(selectWindowManagerBinding(state(store))).toEqual({
+      workspaceId: "workspace:alpha",
+      profileId: "research",
+      clientId: "client:one",
+    });
+    expect(selectWindowManagerConnectionStatus(state(store))).toBe("disconnected");
+    expect(selectWindowManagerOverlay(state(store))).toBeNull();
   });
 
   it("Should keep one exclusive overlay and scope an overflow request to the overview", () => {
@@ -234,14 +270,14 @@ describe("window manager store", () => {
     const store = createWindowManagerStore();
     const seeded = [{ viewId: "sessions" as const }];
     store.trigger.bindingBound({
-      binding: { workspaceId: "workspace:alpha", clientId: "client:one" },
+      binding: { workspaceId: "workspace:alpha", profileId: "marketing", clientId: "client:one" },
     });
     store.trigger.paletteViewStackSet({ stack: seeded });
     seeded.push({ viewId: "sessions" as const });
     expect(state(store).paletteViewStack).toHaveLength(1);
 
     store.trigger.bindingBound({
-      binding: { workspaceId: "workspace:beta", clientId: "client:two" },
+      binding: { workspaceId: "workspace:beta", profileId: "marketing", clientId: "client:two" },
     });
     expect(state(store).paletteViewStack).toEqual([]);
   });
@@ -280,7 +316,11 @@ describe("window manager store", () => {
 
   it("Should reconcile and reject transition intents with atomic target and binding fences", () => {
     const store = createWindowManagerStore();
-    const binding = { workspaceId: "workspace:alpha", clientId: "client:one" };
+    const binding = {
+      workspaceId: "workspace:alpha",
+      profileId: "marketing",
+      clientId: "client:one",
+    };
     store.trigger.bindingBound({ binding });
     store.trigger.transitionIntentChanged({
       intent: {
@@ -314,7 +354,7 @@ describe("window manager store", () => {
       },
     });
     store.trigger.transitionIntentRejected({
-      binding: { workspaceId: "workspace:old", clientId: "client:old" },
+      binding: { workspaceId: "workspace:old", profileId: "marketing", clientId: "client:old" },
       toDesktopId: "desktop:four",
     });
     store.trigger.transitionIntentRejected({ binding, toDesktopId: "desktop:three" });
@@ -493,8 +533,12 @@ describe("window manager store", () => {
 
   it("Should reject an old-binding completion after a new binding starts a command", () => {
     const store = createWindowManagerStore();
-    const alpha = { workspaceId: "workspace:alpha", clientId: "client:one" };
-    const beta = { workspaceId: "workspace:beta", clientId: "client:two" };
+    const alpha = {
+      workspaceId: "workspace:alpha",
+      profileId: "marketing",
+      clientId: "client:one",
+    };
+    const beta = { workspaceId: "workspace:beta", profileId: "marketing", clientId: "client:two" };
     store.trigger.bindingBound({ binding: alpha });
     expect(
       beginWindowManagerCommand(store, {

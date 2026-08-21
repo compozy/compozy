@@ -6,7 +6,7 @@ persona: Ada
 journey: J-administer-window-manager
 expected: Export returns a history-free workspace document and preserves daemon-owned `return_anchor.source_group` state for every tiled return anchor; validate and preview report stable diagnostics without writing; apply replaces the complete topology once at the expected revision; undo and redo round-trip it; global and workspace `window_layout` resources resolve with workspace precedence; malformed, executable-like, mixed resource-inline, foreign-workspace, stale, and unsupported-version documents preserve the last known-good state.
 entry_points: compozy layout export|validate|apply|undo|redo|arrange; compozy__layout_*; compozy__resources_list; Settings layout editor
-qa_status: pass
+qa_status: untested
 bug_ids:
 fix_status:
 retest_status: pass
@@ -22,3 +22,11 @@ qa-impact: 2026-07-22 introduced versioned declarative `window_layout` resources
 
 qa-impact: 2026-07-31 window tabs hard-cut raw layouts to v3 and added stack, navigation, pin,
 and closed-entry state. Reset for the window-tabs targeted cycle.
+
+2026-08-23 qa-impact (Profiles): **reset from `pass` to `untested`** — two things this row asserts
+changed. The `window_layout` resource scope word `global` was hard-cut to `user` and a profile layer
+joined the precedence, so "global and workspace resolve with workspace precedence" must be re-walked
+as user → profile → workspace → workspace-profile. Separately, window-manager snapshots now
+partition per profile, so export, apply, undo, and redo operate on the acting profile's topology.
+Re-walk the resource-precedence and recovery arms in a non-default profile.
+`ET-profile-desktop-restoration` owns per-profile restoration itself.

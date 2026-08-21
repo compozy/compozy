@@ -6,6 +6,8 @@ import (
 	"strings"
 
 	"github.com/compozy/compozy/internal/api/contract"
+	"github.com/compozy/compozy/internal/store"
+	taskpkg "github.com/compozy/compozy/internal/task"
 	"github.com/gin-gonic/gin"
 )
 
@@ -22,6 +24,10 @@ func (h *BaseHandlers) ListExtensionSecrets(c *gin.Context) {
 		return
 	}
 	actor, ok := h.extensionScopedActorContext(c, extensionActionSecretsList, false)
+	if !ok {
+		return
+	}
+	actor, ok = h.extensionSecretsProfileActor(c, actor)
 	if !ok {
 		return
 	}
@@ -48,6 +54,10 @@ func (h *BaseHandlers) SetExtensionSecrets(c *gin.Context) {
 	if !ok {
 		return
 	}
+	actor, ok = h.extensionSecretsProfileActor(c, actor)
+	if !ok {
+		return
+	}
 	payload, err := service.SetExtensionSecrets(c.Request.Context(), name, req, actor)
 	if err != nil {
 		h.respondExtensionError(c, ExtensionStatusCode(err), err)
@@ -71,11 +81,28 @@ func (h *BaseHandlers) DeleteExtensionSecret(c *gin.Context) {
 	if !ok {
 		return
 	}
+	actor, ok = h.extensionSecretsProfileActor(c, actor)
+	if !ok {
+		return
+	}
 	if err := service.DeleteExtensionSecret(c.Request.Context(), name, envName, actor); err != nil {
 		h.respondExtensionError(c, ExtensionStatusCode(err), err)
 		return
 	}
 	c.Status(http.StatusNoContent)
+}
+
+func (h *BaseHandlers) extensionSecretsProfileActor(
+	c *gin.Context,
+	actor taskpkg.ActorContext,
+) (taskpkg.ActorContext, bool) {
+	scope, err := h.resolveProfileMutationScope(c)
+	if err != nil {
+		h.respondProfileReadScopeError(c, err)
+		return taskpkg.ActorContext{}, false
+	}
+	actor.ReadScope = store.ReadScope{ProfileID: scope.ProfileID}
+	return actor, true
 }
 
 func (h *BaseHandlers) namedExtensionSecretsService(

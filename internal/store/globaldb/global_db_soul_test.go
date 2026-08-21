@@ -403,6 +403,7 @@ func TestGlobalDBSoulSessionProvenance(t *testing.T) {
 			}
 			now := time.Date(2026, 5, 2, 15, 0, 0, 0, time.UTC)
 			if err := first.RegisterSession(ctx, store.SessionInfo{
+				ProfileID:        store.DefaultProfileID,
 				ID:               "sess-soul",
 				AgentName:        "coder",
 				Provider:         "claude",
@@ -626,7 +627,9 @@ func assertSessionSoulProvenance(
 ) {
 	t.Helper()
 
-	sessions, err := globalDB.ListSessions(testutil.Context(t), store.SessionListQuery{})
+	sessions, err := globalDB.ListSessions(testutil.Context(t), store.SessionListQuery{
+		ReadScope: store.ReadScope{ProfileID: store.DefaultProfileID},
+	})
 	if err != nil {
 		t.Fatalf("ListSessions() error = %v", err)
 	}

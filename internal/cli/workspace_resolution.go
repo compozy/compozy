@@ -94,6 +94,9 @@ func resolveCommandWorkspace(
 	if commandWorkspaceFlagIsBlank(cmd, request.FlagRef) {
 		return workspaceResolution{}, errWorkspaceReferenceRequired
 	}
+	if resolution, ok := cachedCommandWorkspace(cmd, request); ok {
+		return resolution, nil
+	}
 
 	identityRef, identityAgent, err := workspaceRefFromSessionIdentity(ctx, cmd, deps, client)
 	if err != nil {
@@ -116,6 +119,9 @@ func resolveCommandWorkspace(
 			return workspaceResolution{}, err
 		}
 		resolved = markCrossWorkspaceAttempt(cmd, resolved, identityRef)
+		if err := resolveProfileAtWorkspaceBoundary(ctx, cmd, deps, client, resolved); err != nil {
+			return workspaceResolution{}, err
+		}
 		return resolved, nil
 	}
 
@@ -129,6 +135,9 @@ func resolveCommandWorkspace(
 		)
 		if err == nil {
 			resolved.IdentityAgent = identityAgent
+			if profileErr := resolveProfileAtWorkspaceBoundary(ctx, cmd, deps, client, resolved); profileErr != nil {
+				return workspaceResolution{}, profileErr
+			}
 			return resolved, nil
 		}
 		return workspaceResolution{}, err
@@ -142,6 +151,9 @@ func resolveCommandWorkspace(
 	if err != nil {
 		return workspaceResolution{}, &workspaceResolutionError{CWD: cwd, Cause: err}
 	}
+	if err := resolveProfileAtWorkspaceBoundary(ctx, cmd, deps, client, resolved); err != nil {
+		return workspaceResolution{}, err
+	}
 	return resolved, nil
 }
 
@@ -154,6 +166,11 @@ func resolveWorkspaceOverrideOnly(
 ) (workspaceResolution, bool, error) {
 	if commandWorkspaceFlagIsBlank(cmd, flagRef) {
 		return workspaceResolution{}, true, errWorkspaceReferenceRequired
+	}
+	if strings.TrimSpace(flagRef) != "" {
+		if resolution, ok := commandWorkspaceResolution(cmd); ok && resolution.Source == workspaceResolutionFlag {
+			return resolution, true, nil
+		}
 	}
 	identityRef, _, err := workspaceRefFromSessionIdentity(ctx, cmd, deps, client)
 	if err != nil {
@@ -173,10 +190,30 @@ func resolveWorkspaceOverrideOnly(
 		resolution, err := resolveWorkspaceCandidate(ctx, cmd, client, candidate.ref, candidate.source)
 		if err == nil {
 			resolution = markCrossWorkspaceAttempt(cmd, resolution, identityRef)
+			if profileErr := resolveProfileAtWorkspaceBoundary(ctx, cmd, deps, client, resolution); profileErr != nil {
+				return workspaceResolution{}, true, profileErr
+			}
 		}
 		return resolution, true, err
 	}
 	return workspaceResolution{}, false, nil
+}
+
+func cachedCommandWorkspace(
+	cmd *cobra.Command,
+	request workspaceResolutionRequest,
+) (workspaceResolution, bool) {
+	resolution, ok := commandWorkspaceResolution(cmd)
+	if !ok {
+		return workspaceResolution{}, false
+	}
+	if strings.TrimSpace(request.PositionalRef) != "" {
+		return resolution, resolution.Source == workspaceResolutionPositional
+	}
+	if strings.TrimSpace(request.FlagRef) != "" {
+		return resolution, resolution.Source == workspaceResolutionFlag
+	}
+	return resolution, true
 }
 
 func commandWorkspaceFlagIsBlank(cmd *cobra.Command, value string) bool {
@@ -367,7 +404,11 @@ func recordWorkspaceResolution(cmd *cobra.Command, resolution workspaceResolutio
 	if cmd == nil || strings.TrimSpace(resolution.Source) == "" {
 		return
 	}
-	cmd.SetContext(context.WithValue(cmd.Context(), workspaceResolutionContextKey{}, resolution))
+	parent := cmd.Context()
+	if parent == nil {
+		parent = context.Background()
+	}
+	cmd.SetContext(context.WithValue(parent, workspaceResolutionContextKey{}, resolution))
 }
 
 func markCrossWorkspaceAttempt(

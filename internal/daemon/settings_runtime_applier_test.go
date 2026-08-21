@@ -25,10 +25,9 @@ func TestDaemonSettingsRuntimeApplier(t *testing.T) {
 		previous := compozyconfig.DefaultWithHome(compozyconfig.HomePaths{})
 		next := previous
 		next.Attention = compozyconfig.AttentionConfig{
-			Toasts:          false,
-			Sound:           false,
-			System:          true,
-			MutedWorkspaces: []string{"ws_0123456789abcdef"},
+			Toasts: false,
+			Sound:  false,
+			System: true,
 		}
 		sessions := &attentionConfigSessionManager{fakeSessionManager: &fakeSessionManager{}}
 		daemonInstance := &Daemon{config: previous}
@@ -193,6 +192,7 @@ func TestDaemonSettingsRuntimeApplier(t *testing.T) {
 			ProviderName: "config-apply-cache",
 			PreStartScope: providers.PreStartScope{
 				WorkspaceID:    "workspace-owner",
+				ProfileID:      "profile-owner",
 				HomeIdentity:   "/provider-home-owner",
 				SandboxID:      "sandbox-owner",
 				SandboxBackend: "local",
@@ -207,6 +207,7 @@ func TestDaemonSettingsRuntimeApplier(t *testing.T) {
 			ProviderName: "config-apply-cache",
 			PreStartScope: providers.PreStartScope{
 				WorkspaceID:    "workspace-other",
+				ProfileID:      "profile-other",
 				HomeIdentity:   "/provider-home-other",
 				SandboxID:      "sandbox-other",
 				SandboxBackend: "local",
@@ -301,22 +302,14 @@ func TestDaemonSettingsRuntimeApplier(t *testing.T) {
 		}
 		next := previous
 		next.WindowManager.HistoryLimit = 1
-		manager, err := windowmanager.NewService(
-			windowmanager.NewMemoryRepository(),
-			windowmanager.NewMemoryWorkspaceResolver("workspace-a"),
-			nil,
-			windowManagerDefaults(previous.WindowManager),
-		)
-		if err != nil {
-			t.Fatalf("windowmanager.NewService() error = %v", err)
+		fixture := newDaemonWindowManagerFixture(t)
+		if err := fixture.registry.UpdateDefaults(windowManagerDefaults(previous.WindowManager)); err != nil {
+			t.Fatalf("windowManagerRegistry.UpdateDefaults() error = %v", err)
 		}
-		t.Cleanup(func() {
-			if closeErr := manager.Close(); closeErr != nil {
-				t.Errorf("Manager.Close() error = %v", closeErr)
-			}
-		})
+		manager := fixture.manager
+		workspaceID := windowmanager.WorkspaceID(fixture.workspace.ID)
 		state := &bootState{
-			cfg: previous, windowManagerBootState: windowManagerBootState{windowManager: manager},
+			cfg: previous, windowManagerBootState: windowManagerBootState{windowManagers: fixture.registry},
 			toolMCPResources: &recordingToolMCPPublisher{errors: []error{errors.New("sync boom"), nil}},
 		}
 		failures := daemonSettingsRuntimeApplier{daemon: &Daemon{}, state: state}.
@@ -325,7 +318,7 @@ func TestDaemonSettingsRuntimeApplier(t *testing.T) {
 			t.Fatalf("ApplyActiveConfig(failed) failures = %#v", failures)
 		}
 		first, err := manager.Execute(t.Context(), windowmanager.CommandRequest{
-			WorkspaceID: "workspace-a",
+			WorkspaceID: workspaceID,
 			Payload: windowmanager.CreateDesktopCommand{
 				DesktopID: "desktop-two", Name: "Two",
 			},
@@ -334,7 +327,7 @@ func TestDaemonSettingsRuntimeApplier(t *testing.T) {
 			t.Fatalf("Execute(first) error = %v", err)
 		}
 		second, err := manager.Execute(t.Context(), windowmanager.CommandRequest{
-			WorkspaceID: "workspace-a", ExpectedRevision: first.Snapshot.Revision,
+			WorkspaceID: workspaceID, ExpectedRevision: first.Snapshot.Revision,
 			Payload: windowmanager.CreateDesktopCommand{
 				DesktopID: "desktop-three", Name: "Three",
 			},
@@ -353,7 +346,7 @@ func TestDaemonSettingsRuntimeApplier(t *testing.T) {
 			t.Fatalf("ApplyActiveConfig(success) failures = %#v", failures)
 		}
 		third, err := manager.Execute(t.Context(), windowmanager.CommandRequest{
-			WorkspaceID: "workspace-a", ExpectedRevision: second.Snapshot.Revision,
+			WorkspaceID: workspaceID, ExpectedRevision: second.Snapshot.Revision,
 			Payload: windowmanager.CreateDesktopCommand{
 				DesktopID: "desktop-four", Name: "Four",
 			},
@@ -608,7 +601,6 @@ type attentionConfigSessionManager struct {
 func (m *attentionConfigSessionManager) SetAttentionConfig(cfg compozyconfig.AttentionConfig) error {
 	m.configs = append(m.configs, compozyconfig.AttentionConfig{
 		Toasts: cfg.Toasts, Sound: cfg.Sound, System: cfg.System,
-		MutedWorkspaces: append([]string(nil), cfg.MutedWorkspaces...),
 	})
 	return m.err
 }

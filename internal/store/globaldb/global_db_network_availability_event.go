@@ -41,8 +41,9 @@ func appendNetworkAvailabilityEventSummary(
 	_, err = exec.ExecContext(
 		ctx,
 		`INSERT INTO event_summaries
-        (id, type, content_json, actor_kind, actor_id, summary, timestamp)
-        VALUES (?, ?, ?, ?, ?, ?, ?)`,
+		(profile_id, id, type, content_json, actor_kind, actor_id, summary, timestamp)
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+		store.DefaultProfileID,
 		eventID,
 		eventspkg.NetworkAvailabilityChanged,
 		string(content),

@@ -126,7 +126,13 @@ func TestBaseHandlersSessionAttentionSurfaces(t *testing.T) {
 		t.Parallel()
 
 		manager := attentionRouteSessionManager()
-		manager.Attention.SummaryFn = func(context.Context) (store.SessionAttentionSummary, error) {
+		manager.Attention.SummaryFn = func(
+			_ context.Context,
+			readScope store.ReadScope,
+		) (store.SessionAttentionSummary, error) {
+			if readScope.ProfileID != "" || !readScope.AllProfiles {
+				t.Fatalf("AttentionSummary() read scope = %#v, want all profiles", readScope)
+			}
 			return store.SessionAttentionSummary{
 				NeedsYou: 101,
 				Finished: 17,
@@ -363,7 +369,7 @@ func TestBaseHandlersAttentionOperatorScope(t *testing.T) {
 			path   string
 			body   []byte
 		}{
-			{method: http.MethodGet, path: "/sessions"},
+			{method: http.MethodGet, path: "/sessions?all_workspaces=true"},
 			{method: http.MethodGet, path: "/sessions/attention-summary"},
 			{
 				method: http.MethodPost,
@@ -469,13 +475,13 @@ func attentionRouteSessionManager() testutil.StubSessionManager {
 		StatusFn: func(_ context.Context, id string) (*session.Info, error) {
 			switch id {
 			case "sess-attention":
-				return &session.Info{ID: id, WorkspaceID: "ws-1", State: session.StateActive}, nil
+				return &session.Info{
+					ID: id, ProfileID: store.DefaultProfileID, WorkspaceID: "ws-1", State: session.StateActive,
+				}, nil
 			case "sess-agent":
 				return &session.Info{
-					ID:          id,
-					AgentName:   "coder",
-					WorkspaceID: "ws-1",
-					State:       session.StateActive,
+					ID: id, ProfileID: store.DefaultProfileID, AgentName: "coder",
+					WorkspaceID: "ws-1", State: session.StateActive,
 				}, nil
 			default:
 				return nil, session.ErrSessionNotFound

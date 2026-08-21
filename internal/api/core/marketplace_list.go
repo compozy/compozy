@@ -98,7 +98,7 @@ func (h *BaseHandlers) remoteSkillMarketplaceKind(
 	query string,
 	offset int,
 	limit int,
-	_ marketplaceReadScope,
+	scope marketplaceReadScope,
 ) (marketplaceKindPage, error) {
 	if h == nil {
 		return marketplaceKindPage{}, errors.Join(
@@ -131,7 +131,7 @@ func (h *BaseHandlers) remoteSkillMarketplaceKind(
 	remainingListings := listings[pageStart:]
 	pageEnd := min(limit, len(remainingListings))
 	pageListings := remainingListings[:pageEnd]
-	installed, err := h.skillInstallIndex(ctx)
+	installed, err := h.skillInstallIndex(ctx, scope)
 	if err != nil {
 		return marketplaceKindPage{}, err
 	}
@@ -223,7 +223,7 @@ func (h *BaseHandlers) marketplaceInstallIndex(
 	case contract.MarketplaceKindExtension:
 		return h.extensionInstallIndex(ctx, scope)
 	case contract.MarketplaceKindSkill:
-		return h.skillInstallIndex(ctx)
+		return h.skillInstallIndex(ctx, scope)
 	default:
 		return marketplaceInstallIndex{}, errors.Join(
 			ErrMarketplaceNotFound,
@@ -244,6 +244,7 @@ func (h *BaseHandlers) mcpInstallIndex(
 	}
 	envelope, err := h.Settings.ListCollection(ctx, settingspkg.CollectionRequest{
 		Collection: settingspkg.CollectionMCPServers, Scope: scope.scope, WorkspaceID: scope.workspaceID,
+		ProfileName: scope.profileName,
 	})
 	if err != nil {
 		return marketplaceInstallIndex{}, err
@@ -271,7 +272,8 @@ func (h *BaseHandlers) extensionInstallIndex(
 		return marketplaceInstallIndex{}, err
 	}
 	index := newMarketplaceInstallIndex()
-	for _, item := range items {
+	for itemIndex := range items {
+		item := &items[itemIndex]
 		if item.Provenance == nil {
 			continue
 		}
@@ -291,7 +293,17 @@ func (h *BaseHandlers) extensionInstallIndex(
 	return index, nil
 }
 
-func (h *BaseHandlers) skillInstallIndex(ctx context.Context) (marketplaceInstallIndex, error) {
+func (h *BaseHandlers) skillInstallIndex(
+	ctx context.Context,
+	scope marketplaceReadScope,
+) (marketplaceInstallIndex, error) {
+	if scope.scope != settingspkg.ScopeUser {
+		skillList, err := h.marketplaceScopedSkills(ctx, scope)
+		if err != nil {
+			return marketplaceInstallIndex{}, err
+		}
+		return marketplaceSkillInstallIndex(skillList), nil
+	}
 	service := h.InstalledSkillMarketplace
 	if service == nil {
 		if candidate, ok := h.skillMarketplaceService().(InstalledSkillMarketplaceService); ok {

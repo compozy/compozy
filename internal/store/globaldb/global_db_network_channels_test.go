@@ -48,6 +48,10 @@ func TestNetworkChannels(t *testing.T) {
 			run:  assertGlobalDBPatchNetworkChannelsPreservesUnspecifiedFields,
 		},
 		{
+			name: "Should hide foreign profile channels before patching metadata",
+			run:  assertGlobalDBPatchNetworkChannelRejectsForeignProfile,
+		},
+		{
 			name: "Should reject patches that break channel fanout coupling",
 			run:  assertGlobalDBPatchNetworkChannelRejectsInvalidFanoutCoupling,
 		},
@@ -91,6 +95,7 @@ func assertGlobalDBNetworkSubscriptionChannelCommandIsAtomic(t *testing.T) {
 	recordedAt := time.Date(2026, 7, 16, 12, 0, 0, 0, time.UTC)
 	if err := globalDB.RegisterSession(ctx, store.SessionInfo{
 		ID:            "sess-subscription-command",
+		ProfileID:     store.DefaultProfileID,
 		AgentName:     "worker",
 		Provider:      "codex",
 		RuntimeStatus: store.SessionRuntimeUnbound,
@@ -102,6 +107,7 @@ func assertGlobalDBNetworkSubscriptionChannelCommandIsAtomic(t *testing.T) {
 		t.Fatalf("RegisterSession() error = %v", err)
 	}
 	original := store.NetworkChannelEntry{
+		ProfileID:   store.DefaultProfileID,
 		WorkspaceID: workspaceID,
 		Channel:     "coord.atomic",
 		Purpose:     "Original authority",
@@ -126,7 +132,7 @@ func assertGlobalDBNetworkSubscriptionChannelCommandIsAtomic(t *testing.T) {
 	if err := globalDB.PutNetworkSubscriptionWithChannel(ctx, replacement, entry); err != nil {
 		t.Fatalf("PutNetworkSubscriptionWithChannel(existing) error = %v", err)
 	}
-	stored, err := globalDB.GetNetworkChannel(ctx, store.NetworkChannelRef{
+	stored, err := globalDB.GetNetworkChannel(ctx, store.ReadScope{AllProfiles: true}, store.NetworkChannelRef{
 		WorkspaceID: workspaceID,
 		Channel:     original.Channel,
 	})
@@ -145,7 +151,7 @@ func assertGlobalDBNetworkSubscriptionChannelCommandIsAtomic(t *testing.T) {
 	if err := globalDB.PutNetworkSubscriptionWithChannel(ctx, missingChannel, invalidEntry); err == nil {
 		t.Fatal("PutNetworkSubscriptionWithChannel(missing session) error = nil, want rollback")
 	}
-	if _, err := globalDB.GetNetworkChannel(ctx, store.NetworkChannelRef{
+	if _, err := globalDB.GetNetworkChannel(ctx, store.ReadScope{AllProfiles: true}, store.NetworkChannelRef{
 		WorkspaceID: workspaceID,
 		Channel:     missingChannel.Channel,
 	}); !errors.Is(err, sql.ErrNoRows) {
@@ -165,6 +171,7 @@ func assertGlobalDBCreateNetworkChannelRejectsDuplicate(t *testing.T) {
 		filepath.Join(t.TempDir(), "ws-network-create-only"),
 	)
 	original := store.NetworkChannelEntry{
+		ProfileID:   store.DefaultProfileID,
 		WorkspaceID: workspaceID,
 		Channel:     "ops",
 		Purpose:     "Original purpose",
@@ -181,7 +188,7 @@ func assertGlobalDBCreateNetworkChannelRejectsDuplicate(t *testing.T) {
 		t.Fatalf("CreateNetworkChannel(duplicate) error = %v, want ErrNetworkChannelExists", err)
 	}
 
-	stored, err := globalDB.GetNetworkChannel(ctx, store.NetworkChannelRef{
+	stored, err := globalDB.GetNetworkChannel(ctx, store.ReadScope{AllProfiles: true}, store.NetworkChannelRef{
 		WorkspaceID: workspaceID,
 		Channel:     original.Channel,
 	})
@@ -213,6 +220,7 @@ func assertGlobalDBNetworkChannelsRemainWorkspaceQualified(t *testing.T) {
 	writtenAt := time.Date(2026, 7, 13, 12, 0, 0, 0, time.UTC)
 	for _, entry := range []store.NetworkChannelEntry{
 		{
+			ProfileID:   store.DefaultProfileID,
 			WorkspaceID: workspaceA,
 			Channel:     "ops",
 			Purpose:     "Workspace A operations",
@@ -220,6 +228,7 @@ func assertGlobalDBNetworkChannelsRemainWorkspaceQualified(t *testing.T) {
 			UpdatedAt:   writtenAt,
 		},
 		{
+			ProfileID:   store.DefaultProfileID,
 			WorkspaceID: workspaceB,
 			Channel:     "ops",
 			Purpose:     "Workspace B operations",
@@ -233,10 +242,18 @@ func assertGlobalDBNetworkChannelsRemainWorkspaceQualified(t *testing.T) {
 	}
 
 	for _, want := range []store.NetworkChannelEntry{
-		{WorkspaceID: workspaceA, Channel: "ops", Purpose: "Workspace A operations"},
-		{WorkspaceID: workspaceB, Channel: "ops", Purpose: "Workspace B operations"},
+		{
+			ProfileID:   store.DefaultProfileID,
+			WorkspaceID: workspaceA,
+			Channel:     "ops", Purpose: "Workspace A operations",
+		},
+		{
+			ProfileID:   store.DefaultProfileID,
+			WorkspaceID: workspaceB,
+			Channel:     "ops", Purpose: "Workspace B operations",
+		},
 	} {
-		got, err := globalDB.GetNetworkChannel(ctx, store.NetworkChannelRef{
+		got, err := globalDB.GetNetworkChannel(ctx, store.ReadScope{AllProfiles: true}, store.NetworkChannelRef{
 			WorkspaceID: want.WorkspaceID,
 			Channel:     want.Channel,
 		})
@@ -247,6 +264,7 @@ func assertGlobalDBNetworkChannelsRemainWorkspaceQualified(t *testing.T) {
 			t.Fatalf("GetNetworkChannel(%s) = %#v, want %#v", want.WorkspaceID, got, want)
 		}
 		listed, err := globalDB.ListNetworkChannels(ctx, store.NetworkChannelQuery{
+			ReadScope:   store.ReadScope{AllProfiles: true},
 			WorkspaceID: want.WorkspaceID,
 			Limit:       10,
 		})
@@ -260,6 +278,7 @@ func assertGlobalDBNetworkChannelsRemainWorkspaceQualified(t *testing.T) {
 
 	sessionB := store.SessionInfo{
 		ID:            "sess-network-isolation-b",
+		ProfileID:     store.DefaultProfileID,
 		AgentName:     "reviewer",
 		Provider:      "codex",
 		RuntimeStatus: store.SessionRuntimeUnbound,
@@ -295,6 +314,7 @@ func assertGlobalDBNetworkSubscriptionsRemainDeterministic(t *testing.T) {
 	)
 	recordedAt := time.Date(2026, 7, 13, 13, 0, 0, 0, time.UTC)
 	if err := globalDB.WriteNetworkChannel(ctx, store.NetworkChannelEntry{
+		ProfileID:   store.DefaultProfileID,
 		WorkspaceID: workspaceID,
 		Channel:     "coord.core",
 		Purpose:     "Subscription ordering",
@@ -306,6 +326,7 @@ func assertGlobalDBNetworkSubscriptionsRemainDeterministic(t *testing.T) {
 	for _, session := range []store.SessionInfo{
 		{
 			ID:            "sess-subscription-a",
+			ProfileID:     store.DefaultProfileID,
 			AgentName:     "alpha",
 			Provider:      "codex",
 			RuntimeStatus: store.SessionRuntimeUnbound,
@@ -316,6 +337,7 @@ func assertGlobalDBNetworkSubscriptionsRemainDeterministic(t *testing.T) {
 		},
 		{
 			ID:            "sess-subscription-b",
+			ProfileID:     store.DefaultProfileID,
 			AgentName:     "beta",
 			Provider:      "codex",
 			RuntimeStatus: store.SessionRuntimeUnbound,
@@ -408,6 +430,7 @@ func assertOpenGlobalDBCreatesNetworkChannelsSchema(t *testing.T) {
 
 	assertTablesPresent(t, globalDB.db, "network_channels")
 	assertTableColumns(t, globalDB.db, "network_channels", []string{
+		"profile_id",
 		"workspace_id",
 		"channel",
 		"purpose",
@@ -474,6 +497,7 @@ func assertGlobalDBWriteAndListNetworkChannels(t *testing.T) {
 	globalDB.now = func() time.Time { return recordedAt }
 
 	first := store.NetworkChannelEntry{
+		ProfileID:   store.DefaultProfileID,
 		Channel:     " coord.core ",
 		WorkspaceID: workspaceID,
 		Purpose:     "Cross-agent coordination",
@@ -483,6 +507,7 @@ func assertGlobalDBWriteAndListNetworkChannels(t *testing.T) {
 		t.Fatalf("WriteNetworkChannel(first) error = %v", err)
 	}
 	if err := globalDB.WriteNetworkChannel(testutil.Context(t), store.NetworkChannelEntry{
+		ProfileID:   store.DefaultProfileID,
 		Channel:     "coord.core",
 		WorkspaceID: workspaceID,
 		Purpose:     "Updated purpose",
@@ -492,6 +517,7 @@ func assertGlobalDBWriteAndListNetworkChannels(t *testing.T) {
 		t.Fatalf("WriteNetworkChannel(update) error = %v", err)
 	}
 	if err := globalDB.WriteNetworkChannel(testutil.Context(t), store.NetworkChannelEntry{
+		ProfileID:   store.DefaultProfileID,
 		Channel:     "ops.alerts",
 		WorkspaceID: workspaceID,
 		Purpose:     "Operational alerts",
@@ -502,10 +528,14 @@ func assertGlobalDBWriteAndListNetworkChannels(t *testing.T) {
 		t.Fatalf("WriteNetworkChannel(second) error = %v", err)
 	}
 
-	entry, err := globalDB.GetNetworkChannel(testutil.Context(t), store.NetworkChannelRef{
-		WorkspaceID: workspaceID,
-		Channel:     "coord.core",
-	})
+	entry, err := globalDB.GetNetworkChannel(
+		testutil.Context(t),
+		store.ReadScope{AllProfiles: true},
+		store.NetworkChannelRef{
+			WorkspaceID: workspaceID,
+			Channel:     "coord.core",
+		},
+	)
 	if err != nil {
 		t.Fatalf("GetNetworkChannel() error = %v", err)
 	}
@@ -523,6 +553,7 @@ func assertGlobalDBWriteAndListNetworkChannels(t *testing.T) {
 	}
 
 	entries, err := globalDB.ListNetworkChannels(testutil.Context(t), store.NetworkChannelQuery{
+		ReadScope:   store.ReadScope{AllProfiles: true},
 		WorkspaceID: workspaceID,
 		Limit:       10,
 	})
@@ -549,6 +580,7 @@ func assertGlobalDBPatchNetworkChannelsPreservesUnspecifiedFields(t *testing.T) 
 	)
 	recordedAt := time.Date(2026, 4, 11, 12, 0, 0, 0, time.UTC)
 	if err := globalDB.WriteNetworkChannel(testutil.Context(t), store.NetworkChannelEntry{
+		ProfileID:         store.DefaultProfileID,
 		Channel:           "coord.core",
 		WorkspaceID:       workspaceID,
 		Purpose:           "Original purpose",
@@ -564,15 +596,20 @@ func assertGlobalDBPatchNetworkChannelsPreservesUnspecifiedFields(t *testing.T) 
 	purpose := "Pair reviews"
 	if err := globalDB.PatchNetworkChannel(
 		testutil.Context(t),
+		store.ReadScope{AllProfiles: true},
 		store.NetworkChannelRef{WorkspaceID: workspaceID, Channel: "coord.core"},
 		store.NetworkChannelPatch{Purpose: &purpose, UpdatedAt: recordedAt.Add(time.Minute)},
 	); err != nil {
 		t.Fatalf("PatchNetworkChannel(purpose) error = %v", err)
 	}
-	entry, err := globalDB.GetNetworkChannel(testutil.Context(t), store.NetworkChannelRef{
-		WorkspaceID: workspaceID,
-		Channel:     "coord.core",
-	})
+	entry, err := globalDB.GetNetworkChannel(
+		testutil.Context(t),
+		store.ReadScope{AllProfiles: true},
+		store.NetworkChannelRef{
+			WorkspaceID: workspaceID,
+			Channel:     "coord.core",
+		},
+	)
 	if err != nil {
 		t.Fatalf("GetNetworkChannel(after purpose patch) error = %v", err)
 	}
@@ -586,6 +623,7 @@ func assertGlobalDBPatchNetworkChannelsPreservesUnspecifiedFields(t *testing.T) 
 	coordinatorPeerID := ""
 	if err := globalDB.PatchNetworkChannel(
 		testutil.Context(t),
+		store.ReadScope{AllProfiles: true},
 		store.NetworkChannelRef{WorkspaceID: workspaceID, Channel: "coord.core"},
 		store.NetworkChannelPatch{
 			FanoutPolicy:      &fanoutPolicy,
@@ -595,10 +633,14 @@ func assertGlobalDBPatchNetworkChannelsPreservesUnspecifiedFields(t *testing.T) 
 	); err != nil {
 		t.Fatalf("PatchNetworkChannel(policy) error = %v", err)
 	}
-	entry, err = globalDB.GetNetworkChannel(testutil.Context(t), store.NetworkChannelRef{
-		WorkspaceID: workspaceID,
-		Channel:     "coord.core",
-	})
+	entry, err = globalDB.GetNetworkChannel(
+		testutil.Context(t),
+		store.ReadScope{AllProfiles: true},
+		store.NetworkChannelRef{
+			WorkspaceID: workspaceID,
+			Channel:     "coord.core",
+		},
+	)
 	if err != nil {
 		t.Fatalf("GetNetworkChannel(after policy patch) error = %v", err)
 	}
@@ -606,6 +648,57 @@ func assertGlobalDBPatchNetworkChannelsPreservesUnspecifiedFields(t *testing.T) 
 		entry.FanoutPolicy != store.NetworkFanoutPolicyCapabilityMatch ||
 		entry.CoordinatorPeerID != "" {
 		t.Fatalf("entry after policy patch = %#v", entry)
+	}
+}
+
+func assertGlobalDBPatchNetworkChannelRejectsForeignProfile(t *testing.T) {
+	t.Helper()
+
+	globalDB := openTestGlobalDB(t)
+	ctx := testutil.Context(t)
+	workspaceID := registerWorkspaceForGlobalTests(
+		t,
+		globalDB,
+		"ws-profile-patch",
+		filepath.Join(t.TempDir(), "ws-profile-patch"),
+	)
+	now := time.Date(2026, 4, 11, 12, 0, 0, 0, time.UTC)
+	if err := globalDB.WriteNetworkChannel(ctx, store.NetworkChannelEntry{
+		ProfileID: store.DefaultProfileID, Channel: "design", WorkspaceID: workspaceID,
+		Purpose: "Original", FanoutPolicy: store.NetworkFanoutPolicyAllMembers,
+		CreatedBy: "codex", CreatedAt: now, UpdatedAt: now,
+	}); err != nil {
+		t.Fatalf("WriteNetworkChannel() error = %v", err)
+	}
+	foreignProfileID := "11111111111111111111111111"
+	if _, err := globalDB.DB().ExecContext(ctx, `
+		INSERT INTO profiles (id, name, color, icon, state, created_at)
+		VALUES (?, 'foreign-channel', '#5FBF85', 'circle', 'active', ?)`,
+		foreignProfileID,
+		store.FormatTimestamp(now),
+	); err != nil {
+		t.Fatalf("insert foreign profile error = %v", err)
+	}
+	changedPurpose := "Foreign mutation"
+	err := globalDB.PatchNetworkChannel(
+		ctx,
+		store.ReadScope{ProfileID: foreignProfileID},
+		store.NetworkChannelRef{WorkspaceID: workspaceID, Channel: "design"},
+		store.NetworkChannelPatch{Purpose: &changedPurpose, UpdatedAt: now.Add(time.Minute)},
+	)
+	if !errors.Is(err, sql.ErrNoRows) {
+		t.Fatalf("PatchNetworkChannel(foreign profile) error = %v, want sql.ErrNoRows", err)
+	}
+	entry, err := globalDB.GetNetworkChannel(
+		ctx,
+		store.ReadScope{ProfileID: store.DefaultProfileID},
+		store.NetworkChannelRef{WorkspaceID: workspaceID, Channel: "design"},
+	)
+	if err != nil {
+		t.Fatalf("GetNetworkChannel(owner) error = %v", err)
+	}
+	if entry.Purpose != "Original" || !entry.UpdatedAt.Equal(now) {
+		t.Fatalf("channel after foreign patch = %#v, want unchanged owner metadata", entry)
 	}
 }
 
@@ -621,6 +714,7 @@ func assertGlobalDBPatchNetworkChannelRejectsInvalidFanoutCoupling(t *testing.T)
 	)
 	recordedAt := time.Date(2026, 4, 11, 12, 0, 0, 0, time.UTC)
 	if err := globalDB.WriteNetworkChannel(testutil.Context(t), store.NetworkChannelEntry{
+		ProfileID:         store.DefaultProfileID,
 		Channel:           "coord.core",
 		WorkspaceID:       workspaceID,
 		Purpose:           "Original purpose",
@@ -636,6 +730,7 @@ func assertGlobalDBPatchNetworkChannelRejectsInvalidFanoutCoupling(t *testing.T)
 	coordinatorPeerID := ""
 	err := globalDB.PatchNetworkChannel(
 		testutil.Context(t),
+		store.ReadScope{AllProfiles: true},
 		store.NetworkChannelRef{WorkspaceID: workspaceID, Channel: "coord.core"},
 		store.NetworkChannelPatch{
 			CoordinatorPeerID: &coordinatorPeerID,
@@ -645,10 +740,14 @@ func assertGlobalDBPatchNetworkChannelRejectsInvalidFanoutCoupling(t *testing.T)
 	if err == nil || !strings.Contains(err.Error(), "coordinator_peer_id is required") {
 		t.Fatalf("PatchNetworkChannel(clear coordinator) error = %v, want coordinator peer validation", err)
 	}
-	entry, err := globalDB.GetNetworkChannel(testutil.Context(t), store.NetworkChannelRef{
-		WorkspaceID: workspaceID,
-		Channel:     "coord.core",
-	})
+	entry, err := globalDB.GetNetworkChannel(
+		testutil.Context(t),
+		store.ReadScope{AllProfiles: true},
+		store.NetworkChannelRef{
+			WorkspaceID: workspaceID,
+			Channel:     "coord.core",
+		},
+	)
 	if err != nil {
 		t.Fatalf("GetNetworkChannel(after invalid patch) error = %v", err)
 	}
@@ -662,10 +761,14 @@ func assertGlobalDBGetNetworkChannelNotFound(t *testing.T) {
 	t.Helper()
 
 	globalDB := openTestGlobalDB(t)
-	_, err := globalDB.GetNetworkChannel(testutil.Context(t), store.NetworkChannelRef{
-		WorkspaceID: networkStoreTestWorkspaceID,
-		Channel:     "missing",
-	})
+	_, err := globalDB.GetNetworkChannel(
+		testutil.Context(t),
+		store.ReadScope{AllProfiles: true},
+		store.NetworkChannelRef{
+			WorkspaceID: networkStoreTestWorkspaceID,
+			Channel:     "missing",
+		},
+	)
 	if !errors.Is(err, sql.ErrNoRows) {
 		t.Fatalf("GetNetworkChannel(missing) error = %v, want sql.ErrNoRows", err)
 	}
@@ -682,6 +785,7 @@ func assertGlobalDBDeleteNetworkChannel(t *testing.T) {
 		filepath.Join(t.TempDir(), "ws-alpha"),
 	)
 	if err := globalDB.WriteNetworkChannel(testutil.Context(t), store.NetworkChannelEntry{
+		ProfileID:   store.DefaultProfileID,
 		Channel:     " coord.core ",
 		WorkspaceID: workspaceID,
 		Purpose:     "Cross-agent coordination",
@@ -695,10 +799,17 @@ func assertGlobalDBDeleteNetworkChannel(t *testing.T) {
 	}); err != nil {
 		t.Fatalf("DeleteNetworkChannel() error = %v", err)
 	}
-	if _, err := globalDB.GetNetworkChannel(testutil.Context(t), store.NetworkChannelRef{
-		WorkspaceID: workspaceID,
-		Channel:     "coord.core",
-	}); !errors.Is(err, sql.ErrNoRows) {
+	if _, err := globalDB.GetNetworkChannel(
+		testutil.Context(t),
+		store.ReadScope{AllProfiles: true},
+		store.NetworkChannelRef{
+			WorkspaceID: workspaceID,
+			Channel:     "coord.core",
+		},
+	); !errors.Is(
+		err,
+		sql.ErrNoRows,
+	) {
 		t.Fatalf("GetNetworkChannel(after delete) error = %v, want sql.ErrNoRows", err)
 	}
 }
@@ -714,6 +825,7 @@ func assertGlobalDBDeleteWorkspaceCascadesNetworkChannels(t *testing.T) {
 		filepath.Join(t.TempDir(), "ws-alpha"),
 	)
 	if err := globalDB.WriteNetworkChannel(testutil.Context(t), store.NetworkChannelEntry{
+		ProfileID:   store.DefaultProfileID,
 		Channel:     "coord.core",
 		WorkspaceID: workspaceID,
 		Purpose:     "Cross-agent coordination",
@@ -725,10 +837,17 @@ func assertGlobalDBDeleteWorkspaceCascadesNetworkChannels(t *testing.T) {
 	if err := globalDB.DeleteWorkspace(testutil.Context(t), workspaceID); err != nil {
 		t.Fatalf("DeleteWorkspace() error = %v", err)
 	}
-	if _, err := globalDB.GetNetworkChannel(testutil.Context(t), store.NetworkChannelRef{
-		WorkspaceID: workspaceID,
-		Channel:     "coord.core",
-	}); !errors.Is(err, sql.ErrNoRows) {
+	if _, err := globalDB.GetNetworkChannel(
+		testutil.Context(t),
+		store.ReadScope{AllProfiles: true},
+		store.NetworkChannelRef{
+			WorkspaceID: workspaceID,
+			Channel:     "coord.core",
+		},
+	); !errors.Is(
+		err,
+		sql.ErrNoRows,
+	) {
 		t.Fatalf("GetNetworkChannel(after workspace delete) error = %v, want sql.ErrNoRows", err)
 	}
 }
@@ -746,13 +865,15 @@ func assertGlobalDBListNetworkChannelsWrapsTimestampParseFailures(t *testing.T) 
 	if _, err := globalDB.db.ExecContext(
 		testutil.Context(t),
 		`INSERT INTO network_channels (
+			profile_id,
 			channel,
 			workspace_id,
 			purpose,
 			created_by,
 			created_at,
 			updated_at
-		) VALUES (?, ?, ?, ?, ?, ?)`,
+		) VALUES (?, ?, ?, ?, ?, ?, ?)`,
+		store.DefaultProfileID,
 		"coord.core",
 		workspaceID,
 		"Cross-agent coordination",
@@ -764,6 +885,7 @@ func assertGlobalDBListNetworkChannelsWrapsTimestampParseFailures(t *testing.T) 
 	}
 
 	_, err := globalDB.ListNetworkChannels(testutil.Context(t), store.NetworkChannelQuery{
+		ReadScope:   store.ReadScope{AllProfiles: true},
 		WorkspaceID: workspaceID,
 	})
 	if err == nil {

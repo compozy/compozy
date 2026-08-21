@@ -44,11 +44,12 @@ func (s gatewayProviderAuditSink) RecordEndpointVerified(
 	if err != nil {
 		return fmt.Errorf("daemon: encode verified gateway endpoint: %w", err)
 	}
-	return s.record(ctx, store.EventSummary{
-		Type: eventspkg.GatewayEndpointVerified, Outcome: string(eventspkg.OutcomeSuccess),
-		Provider: safeProvider, Content: payload,
-		Summary: "gateway provider endpoint verified",
-	}, "verified gateway endpoint")
+	return s.record(ctx, daemonEventSummary(store.EventSummary{
+		ProfileID: store.DefaultProfileID,
+		Type:      eventspkg.GatewayEndpointVerified, Outcome: string(eventspkg.OutcomeSuccess),
+		Provider: safeProvider,
+		Summary:  "gateway provider endpoint verified",
+	}, payload), "verified gateway endpoint")
 }
 
 func (s gatewayProviderAuditSink) RecordProviderStateChanged(
@@ -79,11 +80,12 @@ func (s gatewayProviderAuditSink) RecordProviderStateChanged(
 	case gateway.ProviderDegraded:
 		outcome = eventspkg.OutcomeFailure
 	}
-	return s.record(ctx, store.EventSummary{
-		Type: eventspkg.GatewayProviderStateChanged, Outcome: string(outcome),
-		Provider: safeProvider, Content: payload,
-		Summary: "gateway provider state changed",
-	}, "gateway provider state change")
+	return s.record(ctx, daemonEventSummary(store.EventSummary{
+		ProfileID: store.DefaultProfileID,
+		Type:      eventspkg.GatewayProviderStateChanged, Outcome: string(outcome),
+		Provider: safeProvider,
+		Summary:  "gateway provider state changed",
+	}, payload), "gateway provider state change")
 }
 
 func (s gatewayProviderAuditSink) RecordProviderRefusal(
@@ -116,11 +118,12 @@ func (s gatewayProviderAuditSink) RecordProviderRefusal(
 		eventType = eventspkg.GatewayEndpointRejected
 		summary = "gateway provider endpoint rejected"
 	}
-	return s.record(ctx, store.EventSummary{
-		Type: eventType, Outcome: string(eventspkg.OutcomeFailure),
-		Provider: safeProvider, Content: payload,
-		Summary: summary,
-	}, "gateway provider refusal")
+	return s.record(ctx, daemonEventSummary(store.EventSummary{
+		ProfileID: store.DefaultProfileID,
+		Type:      eventType, Outcome: string(eventspkg.OutcomeFailure),
+		Provider: safeProvider,
+		Summary:  summary,
+	}, payload), "gateway provider refusal")
 }
 
 func (s gatewayProviderAuditSink) record(

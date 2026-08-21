@@ -89,6 +89,7 @@ func (n *daemonNativeTools) networkChannels(
 			n.deps.Network,
 			n.deps.Sessions,
 			n.deps.NetworkStore,
+			store.ReadScope{ProfileID: scope.ProfileID},
 			workspaceID,
 		)
 		if err != nil {
@@ -264,6 +265,7 @@ func (n *daemonNativeTools) networkDirectResolve(
 	}
 	now := time.Now().UTC()
 	direct, err := n.deps.NetworkStore.ResolveDirectRoom(ctx, store.NetworkDirectRoomEntry{
+		ProfileID:      scope.ProfileID,
 		WorkspaceID:    workspaceID,
 		Channel:        channel,
 		DirectID:       directID,
@@ -296,7 +298,7 @@ func (n *daemonNativeTools) networkWork(
 	if err != nil {
 		return toolspkg.ToolResult{}, err
 	}
-	work, err := n.deps.NetworkStore.GetWork(ctx, workspaceID, workID)
+	work, err := n.deps.NetworkStore.GetWork(ctx, store.ReadScope{ProfileID: scope.ProfileID}, workspaceID, workID)
 	if err != nil {
 		return toolspkg.ToolResult{}, err
 	}

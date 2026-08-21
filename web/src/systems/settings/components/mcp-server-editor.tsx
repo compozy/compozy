@@ -16,7 +16,11 @@ import {
 } from "@compozy/ui";
 
 import type { MCPDraft, MCPDraftErrors } from "../lib/mcp-editor-model";
-import type { SettingsMCPServerEntry, SettingsMCPServerTarget } from "../types";
+import type {
+  SettingsLayeredScope,
+  SettingsMCPServerEntry,
+  SettingsMCPServerTarget,
+} from "../types";
 
 import { MCPEditorConnectionSection } from "./mcp-editor-connection-section";
 import { MCPEditorOAuthSection } from "./mcp-editor-oauth-section";
@@ -28,7 +32,7 @@ export interface MCPServerEditorProps {
   open: boolean;
   mode: "create" | "edit";
   draft: MCPDraft;
-  scope: "global" | "workspace";
+  scope: SettingsLayeredScope;
   errors: MCPDraftErrors;
   isValid: boolean;
   isSaving: boolean;

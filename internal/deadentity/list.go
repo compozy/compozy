@@ -23,7 +23,7 @@ func (s *Service) List(ctx context.Context, workspaceID string) ([]store.DeadEnt
 	if s == nil || s.store == nil {
 		return []store.DeadEntity{}, nil
 	}
-	entities, err := s.store.ListDeadEntities(ctx, trimmed)
+	entities, err := s.store.ListDeadEntities(ctx, store.ReadScope{AllProfiles: true}, trimmed)
 	if err != nil && contextError(ctx) != nil {
 		return nil, contextError(ctx)
 	}

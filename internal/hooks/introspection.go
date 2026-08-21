@@ -1,6 +1,9 @@
 package hooks
 
-import "time"
+import (
+	"strings"
+	"time"
+)
 
 const (
 	introspectionAuthoredContextObservationPatchValue = "AuthoredContextObservationPatch"
@@ -15,6 +18,7 @@ const (
 
 // CatalogFilter narrows the resolved hook catalog for one workspace/agent view.
 type CatalogFilter struct {
+	ProfileID     string
 	WorkspaceID   string
 	WorkspaceRoot string
 	AgentName     string
@@ -120,6 +124,12 @@ func FilterEventDescriptors(filter EventFilter) []EventDescriptor {
 func catalogHookMatchesFilter(hook *ResolvedHook, filter CatalogFilter) bool {
 	if hook == nil {
 		return false
+	}
+	if profileID := strings.TrimSpace(filter.ProfileID); profileID != "" {
+		hookProfileID := strings.TrimSpace(hook.ProfileID)
+		if hookProfileID != "" && hookProfileID != profileID {
+			return false
+		}
 	}
 	if filter.Event != "" && hook.Event != filter.Event {
 		return false

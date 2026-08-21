@@ -912,8 +912,13 @@ func TestExtensionToolProviderCatalog(t *testing.T) {
 		if err != nil {
 			t.Fatalf("Registry.Get(%q) error = %v", fixture.manifest.Name, err)
 		}
-		tomlDir := t.TempDir()
-		tomlPath := filepath.Join(tomlDir, manifestTOMLFileName)
+		tomlFixture := createManagerTestExtension(t, managerTestManifest("invalid-toml", managerManifestOptions{}), nil)
+		installManagerFixture(t, env.registry, tomlFixture, SourceUser, true)
+		tomlInfo, err := env.registry.Get(tomlFixture.manifest.Name)
+		if err != nil {
+			t.Fatalf("Registry.Get(%q) error = %v", tomlFixture.manifest.Name, err)
+		}
+		tomlPath := tomlInfo.ManifestPath
 		const invalidManifest = "{"
 		writeFile(t, jsonInfo.ManifestPath, invalidManifest)
 		writeFile(t, tomlPath, invalidManifest)
@@ -928,9 +933,6 @@ func TestExtensionToolProviderCatalog(t *testing.T) {
 		if !strings.Contains(jsonParseErr.Error(), "JSON") || !strings.Contains(tomlParseErr.Error(), "toml:") {
 			t.Fatalf("parser errors = %q, %q, want JSON and TOML parser errors", jsonParseErr, tomlParseErr)
 		}
-		tomlInfo := cloneExtensionInfo(*jsonInfo)
-		tomlInfo.Name = "invalid-toml"
-		tomlInfo.ManifestPath = tomlPath
 		runtime := &fakeScopedExtensionToolRuntime{
 			fakeExtensionToolRuntime: newFakeExtensionToolRuntime(
 				t,
@@ -939,7 +941,7 @@ func TestExtensionToolProviderCatalog(t *testing.T) {
 				nil,
 			),
 			infosByWorkspace: map[string][]ExtensionInfo{
-				"workspace-invalid": {*jsonInfo, tomlInfo},
+				"workspace-invalid": {*jsonInfo, *tomlInfo},
 			},
 		}
 		var logs bytes.Buffer
@@ -1059,6 +1061,49 @@ func TestExtensionToolProviderDispatch(t *testing.T) {
 		}
 		if got := runtime.calls[0].Handler; got != "search" {
 			t.Fatalf("Call handler = %q, want search", got)
+		}
+	})
+
+	t.Run("Should route each profile through its isolated runtime identity", func(t *testing.T) {
+		t.Parallel()
+
+		env, fixture, descriptor := createExtensionToolProviderFixture(t, "ext-profile-runtime", true)
+		base := newFakeExtensionToolRuntime(
+			t,
+			env.registry,
+			fixture.manifest.Name,
+			[]toolspkg.ExtensionToolRuntimeDescriptor{descriptor.RuntimeDescriptor},
+		)
+		runtime := &fakeScopedExtensionToolRuntime{fakeExtensionToolRuntime: base}
+		scope := toolspkg.Scope{ProfileID: "profile-marketing", SessionID: "session-marketing"}
+		enabled, err := env.registry.IsEnabledForProfile(fixture.manifest.Name, scope.ProfileID)
+		if err != nil || !enabled {
+			t.Fatalf("IsEnabledForProfile() = %t, %v, want enabled", enabled, err)
+		}
+		provider, err := NewExtensionToolProvider(env.registry, func() ExtensionToolRuntime { return runtime })
+		if err != nil {
+			t.Fatalf("NewExtensionToolProvider() error = %v", err)
+		}
+		catalog, err := provider.List(testutil.Context(t), scope)
+		if err != nil || len(catalog) != 1 {
+			t.Fatalf("Provider.List(profile) = %#v, %v, want one descriptor", catalog, err)
+		}
+		handle, ok, err := provider.Resolve(testutil.Context(t), scope, descriptor.Tool.ID)
+		if err != nil || !ok {
+			t.Fatalf("Provider.Resolve(profile) = %t, %v, want handle", ok, err)
+		}
+		if _, err := handle.Call(testutil.Context(t), toolspkg.CallRequest{
+			ToolID: descriptor.Tool.ID,
+			Input:  json.RawMessage(`{"query":"campaign"}`),
+		}); err != nil {
+			t.Fatalf("Handle.Call(profile) error = %v", err)
+		}
+		wantKey := ProfileInstanceKey(fixture.manifest.Name, scope.ProfileID, "")
+		if !slices.Contains(runtime.providedKeys, wantKey) {
+			t.Fatalf("ProvideToolsForInstance() keys = %#v, want %#v", runtime.providedKeys, wantKey)
+		}
+		if len(runtime.calledKeys) != 1 || runtime.calledKeys[0] != wantKey {
+			t.Fatalf("CallToolForInstance() keys = %#v, want [%#v]", runtime.calledKeys, wantKey)
 		}
 	})
 
@@ -1277,6 +1322,8 @@ type fakeScopedExtensionToolRuntime struct {
 	infosByWorkspace      map[string][]ExtensionInfo
 	extensionsByInstance  map[InstanceKey]*Extension
 	descriptorsByInstance map[InstanceKey][]toolspkg.ExtensionToolRuntimeDescriptor
+	providedKeys          []InstanceKey
+	calledKeys            []InstanceKey
 }
 
 type extensionToolProviderListResult struct {
@@ -1350,7 +1397,10 @@ func (f *fakeScopedExtensionToolRuntime) GetForInstance(key InstanceKey) (*Exten
 }
 
 func (f *fakeScopedExtensionToolRuntime) ListForWorkspace(workspaceID string) []ExtensionInfo {
-	infos := f.infosByWorkspace[workspaceID]
+	infos, ok := f.infosByWorkspace[workspaceID]
+	if !ok {
+		return nil
+	}
 	cloned := make([]ExtensionInfo, len(infos))
 	for i := range infos {
 		cloned[i] = cloneExtensionInfo(infos[i])
@@ -1362,6 +1412,7 @@ func (f *fakeScopedExtensionToolRuntime) ProvideToolsForInstance(
 	ctx context.Context,
 	key InstanceKey,
 ) ([]toolspkg.ExtensionToolRuntimeDescriptor, error) {
+	f.providedKeys = append(f.providedKeys, key.Normalize())
 	if descriptors, ok := f.descriptorsByInstance[key.Normalize()]; ok {
 		return cloneRuntimeToolDescriptors(descriptors), nil
 	}
@@ -1370,9 +1421,10 @@ func (f *fakeScopedExtensionToolRuntime) ProvideToolsForInstance(
 
 func (f *fakeScopedExtensionToolRuntime) CallToolForInstance(
 	ctx context.Context,
-	_ InstanceKey,
+	key InstanceKey,
 	req toolspkg.ExtensionToolCallRequest,
 ) (toolspkg.ToolResult, error) {
+	f.calledKeys = append(f.calledKeys, key.Normalize())
 	return f.CallTool(ctx, "", req)
 }
 

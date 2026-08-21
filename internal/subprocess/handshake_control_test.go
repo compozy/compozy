@@ -281,6 +281,7 @@ func controlManagedBridgeInstance(t *testing.T, id string) InitializeBridgeManag
 	return InitializeBridgeManagedInstance{
 		Instance: bridgepkg.BridgeInstance{
 			ID:            id,
+			ProfileID:     "profile-test",
 			Scope:         bridgepkg.ScopeGlobal,
 			Platform:      "telegram",
 			ExtensionName: "telegram-adapter",

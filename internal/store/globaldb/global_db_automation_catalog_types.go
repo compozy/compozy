@@ -3,9 +3,10 @@ package globaldb
 import automation "github.com/compozy/compozy/internal/automation/model"
 
 type automationCatalogCandidate struct {
-	ID     string
-	Source automation.JobSource
-	Name   string
+	ID        string
+	ProfileID string
+	Source    automation.JobSource
+	Name      string
 }
 
 func appendAutomationCatalogPredicate(where string, predicate string) string {

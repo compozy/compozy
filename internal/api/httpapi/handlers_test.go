@@ -58,6 +58,21 @@ func assertRegisteredRouteContract(t *testing.T) {
 	sort.Strings(got)
 
 	want := []string{
+		"DELETE /api/profiles/:name",
+		"GET /api/profiles",
+		"GET /api/profiles/:name",
+		"GET /api/profiles/:name/archive-plan",
+		"GET /api/profiles/:name/delete-plan",
+		"GET /api/profiles/:name/rename-plan",
+		"GET /api/profiles/ops",
+		"GET /api/profiles/selection",
+		"PATCH /api/profiles/:name",
+		"POST /api/profiles",
+		"POST /api/profiles/:name/archive",
+		"POST /api/profiles/:name/rename",
+		"POST /api/profiles/:name/unarchive",
+		"POST /api/profiles/ops/:op_id/retry",
+		"PUT /api/profiles/selection",
 		"DELETE /api/cmd-palette/personalization",
 		"DELETE /api/cmd-palette/pins/:id",
 		"DELETE /api/cmd-palette/view-sessions/:session",
@@ -145,9 +160,10 @@ func assertRegisteredRouteContract(t *testing.T) {
 		"GET /api/extensions/commands",
 		"GET /api/extensions/search",
 		"GET /api/extensions/:name",
-		"GET /api/extensions/:name/inventory",
-		"GET /api/extensions/:name/logs",
 		"GET /api/extensions/:name/preview",
+		"GET /api/extensions/:name/inventory",
+		"GET /api/extensions/:name/enablement",
+		"GET /api/extensions/:name/logs",
 		"GET /api/extensions/:name/provenance",
 		"GET /api/extensions/:name/secrets",
 		"GET /api/hooks/catalog",
@@ -243,6 +259,7 @@ func assertRegisteredRouteContract(t *testing.T) {
 		"GET /api/settings/sandboxes",
 		"GET /api/settings/sandboxes/:name",
 		"GET /api/settings/general",
+		"GET /api/settings/persona",
 		"GET /api/settings/update",
 		"GET /api/settings/hooks",
 		"GET /api/settings/hooks-extensions",
@@ -329,6 +346,7 @@ func assertRegisteredRouteContract(t *testing.T) {
 		"PATCH /api/settings/shell",
 		"PATCH /api/settings/cmd-palette",
 		"PATCH /api/settings/general",
+		"PATCH /api/settings/persona",
 		"PATCH /api/settings/hooks-extensions",
 		"PATCH /api/settings/memory",
 		"PATCH /api/settings/network",
@@ -431,9 +449,8 @@ func assertRegisteredRouteContract(t *testing.T) {
 		"POST /api/bridges/:id/send-test",
 		"POST /api/bridges/:id/webhook/register",
 		"POST /api/extensions",
+		"POST /api/extensions/preview-install",
 		"POST /api/extensions/:name/reload",
-		"POST /api/extensions/:name/disable",
-		"POST /api/extensions/:name/enable",
 		"POST /api/extensions/dev",
 		"POST /api/extensions/update",
 		"POST /api/notifications/presets",
@@ -513,8 +530,10 @@ func assertRegisteredRouteContract(t *testing.T) {
 		"PUT /api/agents/:name",
 		"PUT /api/bridges/:id/secret-bindings/:binding_name",
 		"PUT /api/extensions/:name",
+		"PUT /api/extensions/:name/enablement",
 		"PUT /api/extensions/:name/secrets",
 		"PUT /api/notifications/presets/:name",
+		"PUT /api/notifications/presets/:name/enablement",
 		"PUT /api/settings/sandboxes/:name",
 		"PUT /api/settings/hooks/:name",
 		"PUT /api/settings/mcp-servers/:name",
@@ -830,6 +849,7 @@ func TestTaskBlockHandlersReturnStatusAndBodies(t *testing.T) {
 				return &taskpkg.View{
 					Summary: taskpkg.Summary{
 						ID:             id,
+						ProfileID:      store.DefaultProfileID,
 						Title:          "Blocked task " + rawClaimToken,
 						Status:         taskpkg.TaskStatusBlocked,
 						PausedReason:   "paused on " + rawClaimToken,
@@ -838,6 +858,7 @@ func TestTaskBlockHandlersReturnStatusAndBodies(t *testing.T) {
 					},
 					Task: taskpkg.Task{
 						ID:           id,
+						ProfileID:    store.DefaultProfileID,
 						Title:        "Blocked task " + rawClaimToken,
 						Description:  "description " + rawClaimToken,
 						Status:       taskpkg.TaskStatusBlocked,
@@ -1253,18 +1274,14 @@ func TestSettingsAndExtensionMutationsReturnForbiddenOnNonLoopbackHost(t *testin
 				t.Fatal("Install should not be called when HTTP mutations are blocked")
 				return contract.ExtensionPayload{}, nil
 			},
-			EnableFn: func(
+			SetEnablementFn: func(
 				context.Context,
 				string,
-				contract.EnableExtensionRequest,
+				contract.SetExtensionEnablementRequest,
 				taskpkg.ActorContext,
-			) (contract.ExtensionEnableResult, error) {
-				t.Fatal("Enable should not be called when HTTP mutations are blocked")
-				return contract.ExtensionEnableResult{}, nil
-			},
-			DisableFn: func(context.Context, string, taskpkg.ActorContext) (contract.ExtensionPayload, error) {
-				t.Fatal("Disable should not be called when HTTP mutations are blocked")
-				return contract.ExtensionPayload{}, nil
+			) (contract.ExtensionEnablementPayload, error) {
+				t.Fatal("SetEnablement should not be called when HTTP mutations are blocked")
+				return contract.ExtensionEnablementPayload{}, nil
 			},
 		},
 		homePaths,
@@ -1311,13 +1328,16 @@ func TestSettingsAndExtensionMutationsReturnForbiddenOnNonLoopbackHost(t *testin
 		{method: http.MethodDelete, path: "/api/settings/hooks/capture"},
 		{method: http.MethodPost, path: "/api/settings/actions/restart", body: []byte(`{}`)},
 		{method: http.MethodPost, path: "/api/extensions", body: []byte(`{}`)},
-		{method: http.MethodPost, path: "/api/extensions/demo/enable", body: []byte(`{}`)},
-		{method: http.MethodPost, path: "/api/extensions/demo/disable", body: []byte(`{}`)},
+		{
+			method: http.MethodPut,
+			path:   "/api/extensions/demo/enablement",
+			body:   []byte(`{"profile":"default","enabled":false}`),
+		},
 		{method: http.MethodPost, path: "/api/marketplace/refresh", body: []byte(`{}`)},
 	}
 
 	for _, tc := range tests {
-		t.Run(tc.method+" "+tc.path, func(t *testing.T) {
+		t.Run("Should reject "+tc.method+" "+tc.path, func(t *testing.T) {
 			recorder := performRequest(t, engine, tc.method, tc.path, tc.body)
 			if recorder.Code != http.StatusForbidden {
 				t.Fatalf(
@@ -1503,9 +1523,9 @@ func TestSettingsAndExtensionMutationsReachHandlersOnLoopbackHost(t *testing.T) 
 	}
 	restartController := &stubSettingsRestartController{}
 	var (
-		installedReq contract.InstallExtensionRequest
-		enabledName  string
-		disabledName string
+		installedReq   contract.InstallExtensionRequest
+		enablementName string
+		enablementReq  contract.SetExtensionEnablementRequest
 	)
 	handlers := newTestHandlersWithSettingsAndExtensions(
 		t,
@@ -1517,20 +1537,15 @@ func TestSettingsAndExtensionMutationsReachHandlersOnLoopbackHost(t *testing.T) 
 				installedReq = req
 				return contract.ExtensionPayload{Name: "demo", State: "registered"}, nil
 			},
-			EnableFn: func(
+			SetEnablementFn: func(
 				_ context.Context,
 				name string,
-				_ contract.EnableExtensionRequest,
+				req contract.SetExtensionEnablementRequest,
 				_ taskpkg.ActorContext,
-			) (contract.ExtensionEnableResult, error) {
-				enabledName = name
-				return contract.ExtensionEnableResult{
-					Extension: contract.ExtensionPayload{Name: name, Enabled: true, State: "active"},
-				}, nil
-			},
-			DisableFn: func(_ context.Context, name string, _ taskpkg.ActorContext) (contract.ExtensionPayload, error) {
-				disabledName = name
-				return contract.ExtensionPayload{Name: name, Enabled: false, State: "inactive"}, nil
+			) (contract.ExtensionEnablementPayload, error) {
+				enablementName = name
+				enablementReq = req
+				return contract.ExtensionEnablementPayload(req), nil
 			},
 		},
 		homePaths,
@@ -1553,8 +1568,7 @@ func TestSettingsAndExtensionMutationsReachHandlersOnLoopbackHost(t *testing.T) 
 			wantStatus: http.StatusOK,
 			body: mustJSONBody(t, contract.UpdateSettingsGeneralRequest{
 				Config: contract.SettingsGeneralConfigPayload{
-					Defaults: contract.SettingsDefaultsPayload{Agent: "coder"},
-					Limits:   contract.SettingsLimitsPayload{MaxConcurrentAgents: 2},
+					Limits: contract.SettingsLimitsPayload{MaxConcurrentAgents: 2},
 					Permissions: contract.SettingsPermissionsPayload{
 						Mode: contract.SettingsPermissionModeApproveReads,
 					},
@@ -1599,7 +1613,7 @@ func TestSettingsAndExtensionMutationsReachHandlersOnLoopbackHost(t *testing.T) 
 			body: mustJSONBody(t, contract.InstallSettingsMCPServerRequest{
 				EntryID:     "github",
 				Name:        "github-workspace",
-				Scope:       contract.SettingsWorkspaceScopeWorkspace,
+				Scope:       contract.SettingsLayeredScopeWorkspace,
 				WorkspaceID: "ws-1",
 				Values: &contract.SettingsMCPCatalogInstallValuesPayload{
 					Inputs: map[string]contract.SettingsMCPCatalogInputPayload{
@@ -1679,28 +1693,15 @@ func TestSettingsAndExtensionMutationsReachHandlersOnLoopbackHost(t *testing.T) 
 			},
 		},
 		{
-			name:       "enable extension",
-			method:     http.MethodPost,
-			path:       "/api/extensions/demo/enable",
-			body:       []byte(`{}`),
+			name:       "Should set extension profile enablement",
+			method:     http.MethodPut,
+			path:       "/api/extensions/demo/enablement",
+			body:       []byte(`{"profile":"finance","enabled":false}`),
 			wantStatus: http.StatusOK,
 			assert: func(t *testing.T) {
 				t.Helper()
-				if enabledName != "demo" {
-					t.Fatalf("enabledName = %q, want %q", enabledName, "demo")
-				}
-			},
-		},
-		{
-			name:       "disable extension",
-			method:     http.MethodPost,
-			path:       "/api/extensions/demo/disable",
-			body:       []byte(`{}`),
-			wantStatus: http.StatusOK,
-			assert: func(t *testing.T) {
-				t.Helper()
-				if disabledName != "demo" {
-					t.Fatalf("disabledName = %q, want %q", disabledName, "demo")
+				if enablementName != "demo" || enablementReq.Profile != "finance" || enablementReq.Enabled {
+					t.Fatalf("enablement = name:%q req:%#v", enablementName, enablementReq)
 				}
 			},
 		},
@@ -1863,7 +1864,7 @@ func TestListSessionsHandlerReturnsAllSessions(t *testing.T) {
 	handlers := newTestHandlers(t, manager, stubObserver{}, homePaths)
 	engine := newTestRouter(t, handlers)
 
-	recorder := performRequest(t, engine, http.MethodGet, "/api/sessions", nil)
+	recorder := performRequest(t, engine, http.MethodGet, "/api/sessions?all_workspaces=true", nil)
 	if recorder.Code != http.StatusOK {
 		t.Fatalf("status = %d, want %d", recorder.Code, http.StatusOK)
 	}
@@ -1903,7 +1904,7 @@ func TestListSessionsHandlerFiltersByWorkspace(t *testing.T) {
 	}
 	engine := newTestRouter(t, newTestHandlersWithWorkspace(t, manager, stubObserver{}, workspaces, homePaths))
 
-	recorder := performRequest(t, engine, http.MethodGet, "/api/sessions?workspace=alpha", nil)
+	recorder := performRequest(t, engine, http.MethodGet, "/api/sessions?workspace_id=alpha", nil)
 	if recorder.Code != http.StatusOK {
 		t.Fatalf("status = %d, want %d; body=%s", recorder.Code, http.StatusOK, recorder.Body.String())
 	}
@@ -2141,6 +2142,10 @@ func TestGetWorkspaceHandlerReturnsDetail(t *testing.T) {
 			Dir:    sharedSkillDir,
 			Source: "workspace",
 		}},
+		ProfileDeclarations: []workspacepkg.ProfileDeclaration{{
+			Name: "marketing",
+			Path: filepath.Join(rootDir, ".compozy", "profiles", "marketing"),
+		}},
 	}
 	manager := stubSessionManager{
 		ListAllFn: func(context.Context) ([]*session.Info, error) {
@@ -2172,6 +2177,10 @@ func TestGetWorkspaceHandlerReturnsDetail(t *testing.T) {
 	}
 	if response.Skills[0].Name != "campaign-brief" {
 		t.Fatalf("skill name = %q, want campaign-brief", response.Skills[0].Name)
+	}
+	if len(response.ProfileHints) != 1 || response.ProfileHints[0].Name != "marketing" ||
+		response.ProfileHints[0].Action != "compozy profile create marketing" {
+		t.Fatalf("profile hints = %#v, want dormant marketing declaration", response.ProfileHints)
 	}
 	providerNames := make([]string, 0, len(response.Providers))
 	for _, provider := range response.Providers {
@@ -3724,7 +3733,7 @@ func TestErrorResponsesUseConsistentShape(t *testing.T) {
 		},
 	}, stubObserver{}, homePaths))
 
-	recorder := performRequest(t, engine, http.MethodGet, "/api/sessions", nil)
+	recorder := performRequest(t, engine, http.MethodGet, "/api/sessions?all_workspaces=true", nil)
 	if recorder.Code != http.StatusInternalServerError {
 		t.Fatalf("status = %d, want %d", recorder.Code, http.StatusInternalServerError)
 	}
@@ -3762,7 +3771,7 @@ func TestCORSHeadersPresentOnResponses(t *testing.T) {
 	req := httptest.NewRequestWithContext(
 		context.Background(),
 		http.MethodGet,
-		"http://127.0.0.1/api/sessions",
+		"http://127.0.0.1/api/sessions?all_workspaces=true",
 		http.NoBody,
 	)
 	req.Header.Set("Origin", "http://127.0.0.1")
@@ -3850,17 +3859,6 @@ func TestExtensionKitAndSecretsRoutesReachHTTPService(t *testing.T) {
 				if payload.Extension != "kit" || len(payload.Items) != 1 ||
 					payload.Items[0].Kind != "agent" || payload.Items[0].Name != "writer" || !payload.Items[0].Live {
 					t.Fatalf("inventory payload = %#v, want live kit writer", payload)
-				}
-			},
-		},
-		{
-			name: "Should return the typed enable preview",
-			path: "/api/extensions/kit/preview",
-			assert: func(t *testing.T, response *httptest.ResponseRecorder) {
-				var payload contract.ExtensionEnablePreviewPayload
-				decodeJSONResponse(t, response, &payload)
-				if payload.Extension != "kit" || !slices.Equal(payload.AutomationStarting, []string{"kit/daily"}) {
-					t.Fatalf("preview payload = %#v, want kit/daily automation", payload)
 				}
 			},
 		},

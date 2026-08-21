@@ -7,6 +7,8 @@ import (
 	"fmt"
 
 	"time"
+
+	"github.com/compozy/compozy/internal/store"
 )
 
 var (
@@ -25,7 +27,18 @@ const (
 			name,
 			version,
 			source,
-			enabled,
+			EXISTS (
+				SELECT 1
+				FROM profiles
+				WHERE profiles.state = 'active'
+					AND NOT EXISTS (
+						SELECT 1
+						FROM extension_profile_enablement
+						WHERE extension_name = extensions.name
+							AND profile_id = profiles.id
+							AND enabled = 0
+					)
+			),
 			manifest_path,
 			format,
 			ingest_diagnostics_json,
@@ -46,7 +59,6 @@ const (
 			name,
 			version,
 			source,
-			enabled,
 			manifest_path,
 			format,
 			ingest_diagnostics_json,
@@ -118,14 +130,14 @@ func (r *Registry) Uninstall(name string) error {
 	return nil
 }
 
-// Enable marks one installed extension as enabled.
+// Enable removes the disabled exception for the default profile.
 func (r *Registry) Enable(name string) error {
-	return r.updateEnabled(name, true)
+	return r.SetEnabledForProfile(name, store.DefaultProfileID, true)
 }
 
-// Disable marks one installed extension as disabled.
+// Disable records a disabled exception for the default profile.
 func (r *Registry) Disable(name string) error {
-	return r.updateEnabled(name, false)
+	return r.SetEnabledForProfile(name, store.DefaultProfileID, false)
 }
 
 // List returns every installed extension ordered by name.

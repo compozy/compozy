@@ -37,6 +37,7 @@ type CmdPaletteCommand struct {
 	Title           string                     `json:"title"`
 	Section         string                     `json:"section,omitempty"`
 	Icon            string                     `json:"icon"`
+	Profile         string                     `json:"profile,omitempty"`
 	Keywords        []string                   `json:"keywords,omitempty"`
 	Arguments       []CmdPaletteArgument       `json:"arguments,omitempty"`
 	Action          CmdPaletteAction           `json:"action"`
@@ -66,6 +67,7 @@ type CmdPaletteView struct {
 	ID      string                `json:"id"`
 	Title   string                `json:"title"`
 	Kind    string                `json:"kind"`
+	Profile string                `json:"profile,omitempty"`
 	Source  *CmdPaletteViewSource `json:"source,omitempty"`
 	Program bool                  `json:"program,omitempty"`
 }
@@ -155,6 +157,7 @@ type ContextBlock struct {
 type ContextCompactPayload struct {
 	Event          HookEvent      `json:"event"`
 	Timestamp      time.Time      `json:"timestamp"`
+	ProfileID      string         `json:"profile_id,omitempty"`
 	SessionID      string         `json:"session_id,omitempty"`
 	SessionName    string         `json:"session_name,omitempty"`
 	SessionType    string         `json:"session_type,omitempty"`

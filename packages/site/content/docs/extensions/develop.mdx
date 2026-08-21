@@ -589,10 +589,10 @@ with the versioned resource and snapshot shapes:
 }
 ```
 
-Install copies the package but publishes nothing. Enable publishes the agent, sidecars, automation,
-and layouts with extension ownership; disable removes that owned set. Use
-`compozy extension preview <name>` before enabling and `compozy extension inventory <name>` to compare
-what the package ships with what is live.
+Install enables the package by default. Per-profile enablement and placement decide which agents,
+sidecars, automation, and layouts are published. Use `compozy extension inventory <extension>` to
+inspect the unscoped shipped-versus-live projection; use profile detail and enablement surfaces for
+profile-specific state.
 
 ## Runtime failure and recovery
 

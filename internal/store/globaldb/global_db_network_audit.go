@@ -47,24 +47,30 @@ func (g *NetworkRepo) ListNetworkAudit(
 
 	// dynamic-sql: the optional audit dimensions, lower time bound, and caller limit change the statement shape.
 	sqlQuery := `SELECT
-		id, session_id, workspace_id, direction, kind, channel, surface, thread_id, direct_id, work_id,
-		peer_from, peer_to, message_id, reason, size, timestamp
-	FROM network_audit_log`
+		audit.profile_id, COALESCE(owner_profile.name, ''),
+		COALESCE(owner_profile.color, ''), COALESCE(owner_profile.icon, ''),
+		COALESCE(owner_profile.emoji, ''), COALESCE(owner_profile.archived_at IS NOT NULL, 0),
+		audit.id, audit.session_id, audit.workspace_id, audit.direction, audit.kind, audit.channel,
+		audit.surface, audit.thread_id, audit.direct_id, audit.work_id, audit.peer_from, audit.peer_to,
+		audit.message_id, audit.reason, audit.size, audit.timestamp
+	FROM network_audit_log AS audit
+	JOIN profiles AS owner_profile ON owner_profile.id = audit.profile_id`
 	where, args := store.BuildClauses(
-		store.StringClause("workspace_id", query.WorkspaceID),
-		store.StringClause("session_id", query.SessionID),
-		store.StringClause("direction", query.Direction),
-		store.StringClause("kind", query.Kind),
-		store.StringClause("channel", query.Channel),
-		store.StringClause("surface", query.Surface),
-		store.StringClause("thread_id", query.ThreadID),
-		store.StringClause("direct_id", query.DirectID),
-		store.StringClause("work_id", query.WorkID),
-		store.StringClause("message_id", query.MessageID),
-		store.TimeClause("timestamp", ">=", query.Since),
+		store.ReadScopeClause("audit.profile_id", query.ReadScope),
+		store.StringClause("audit.workspace_id", query.WorkspaceID),
+		store.StringClause("audit.session_id", query.SessionID),
+		store.StringClause("audit.direction", query.Direction),
+		store.StringClause("audit.kind", query.Kind),
+		store.StringClause("audit.channel", query.Channel),
+		store.StringClause("audit.surface", query.Surface),
+		store.StringClause("audit.thread_id", query.ThreadID),
+		store.StringClause("audit.direct_id", query.DirectID),
+		store.StringClause("audit.work_id", query.WorkID),
+		store.StringClause("audit.message_id", query.MessageID),
+		store.TimeClause("audit.timestamp", ">=", query.Since),
 	)
 	sqlQuery = store.AppendWhere(sqlQuery, where)
-	sqlQuery += " ORDER BY timestamp ASC, id ASC"
+	sqlQuery += " ORDER BY audit.timestamp ASC, audit.id ASC"
 	sqlQuery, args = store.AppendLimit(sqlQuery, args, query.Limit)
 
 	rows, err := g.db.QueryContext(ctx, sqlQuery, args...)
@@ -109,6 +115,12 @@ func scanNetworkAudit(scanner rowScanner) (store.NetworkAuditEntry, error) {
 		timestampRaw string
 	)
 	if err := scanner.Scan(
+		&entry.ProfileID,
+		&entry.ProfileName,
+		&entry.ProfileColor,
+		&entry.ProfileIcon,
+		&entry.ProfileEmoji,
+		&entry.ProfileArchived,
 		&entry.ID,
 		&entry.SessionID,
 		&entry.WorkspaceID,
@@ -161,7 +173,7 @@ func insertNetworkAuditWithExecutor(ctx context.Context, exec networkSQLExecutor
 		return fmt.Errorf("store: validate network audit entry: %w", err)
 	}
 	if err := sqlcgen.New(exec).InsertNetworkAudit(ctx, sqlcgen.InsertNetworkAuditParams{
-		ID: entry.ID, SessionID: entry.SessionID, WorkspaceID: entry.WorkspaceID,
+		ID: entry.ID, ProfileID: entry.ProfileID, SessionID: entry.SessionID, WorkspaceID: entry.WorkspaceID,
 		Direction: entry.Direction, Kind: entry.Kind, Channel: entry.Channel,
 		Surface: nullableNetworkString(entry.Surface), ThreadID: nullableNetworkString(entry.ThreadID),
 		DirectID: nullableNetworkString(entry.DirectID), WorkID: nullableNetworkString(entry.WorkID),

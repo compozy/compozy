@@ -3,11 +3,15 @@ package memory
 import (
 	"context"
 	"errors"
+	"maps"
+	"strings"
 	"sync"
 
 	memcontract "github.com/compozy/compozy/internal/memory/contract"
 	"github.com/compozy/compozy/internal/memory/controller"
 )
+
+const decisionProfileMetadataKey = "__compozy_profile_id"
 
 // DecisionControllerFactory builds the effective write controller for one
 // store view. Store clones share the live factory registration.
@@ -43,7 +47,23 @@ func (s *Store) DecideCandidate(
 	if s == nil {
 		return memcontract.Decision{}, errors.New("memory: store is required")
 	}
-	return s.newDecisionController().Decide(ctx, candidate)
+	return s.newDecisionController().Decide(ctx, s.profileScopedCandidate(candidate))
+}
+
+// profileScopedCandidate makes controller-generated WAL identities distinct
+// for each durable profile. The database keeps decision IDs globally unique,
+// so the profile owner must be part of the deterministic input before the WAL
+// row is created rather than being inferred after a collision.
+func (s *Store) profileScopedCandidate(candidate memcontract.Candidate) memcontract.Candidate {
+	profileID := strings.TrimSpace(s.profileID)
+	if profileID == "" {
+		return candidate
+	}
+	metadata := make(map[string]string, len(candidate.Metadata)+1)
+	maps.Copy(metadata, candidate.Metadata)
+	metadata[decisionProfileMetadataKey] = profileID
+	candidate.Metadata = metadata
+	return candidate
 }
 
 func (s *Store) newDecisionController() memcontract.Controller {

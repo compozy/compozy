@@ -1,5 +1,7 @@
 import { createStreamEventSource, type StreamEventSource } from "@/lib/ticketed-event-source";
 
+import { CMD_PALETTE_AGGREGATE_LENS_KEY, cmdPaletteProfileKey } from "./cmd-palette-query-keys";
+
 /**
  * The daemon's catalog-invalidation stream.
  *
@@ -27,8 +29,20 @@ export interface CmdPaletteStreamHandlers {
   onStatusChange: (status: CmdPaletteStreamStatus) => void;
 }
 
-export function cmdPaletteStreamUrl(workspaceId: string): string {
-  return `/api/cmd-palette/stream?workspace=${encodeURIComponent(workspaceId.trim())}`;
+/**
+ * The invalidation socket is scoped on both axes.
+ *
+ * A catalog revision is a fact about one workspace *under one lens* — an
+ * extension enabled in one profile and absent in another produces different
+ * revisions — so subscribing without the lens would have the daemon answer for
+ * `default` while the operator watches another profile.
+ */
+export function cmdPaletteStreamUrl(workspaceId: string, profileKey: string): string {
+  const params = new URLSearchParams({ workspace: workspaceId.trim() });
+  const lens = cmdPaletteProfileKey(profileKey);
+  if (lens === CMD_PALETTE_AGGREGATE_LENS_KEY) params.set("all_profiles", "true");
+  else params.set("profile", lens);
+  return `/api/cmd-palette/stream?${params.toString()}`;
 }
 
 function parseCatalogChanged(event: Event): CmdPaletteCatalogChangedPayload | null {
@@ -49,10 +63,13 @@ function parseCatalogChanged(event: Event): CmdPaletteCatalogChangedPayload | nu
 
 /**
  * Opens the stream and returns its teardown. Frames for another workspace are
- * dropped before any cache write, so an invalidation can never cross workspaces.
+ * dropped before any cache write, so an invalidation can never cross workspaces;
+ * the lens is carried on the subscription itself, so the daemon never sends this
+ * client another profile's revisions in the first place.
  */
 export function openCmdPaletteStream(
   workspaceId: string,
+  profileKey: string,
   handlers: CmdPaletteStreamHandlers,
   eventSourceFactory: CmdPaletteEventSourceFactory = createStreamEventSource
 ): () => void {
@@ -68,7 +85,7 @@ export function openCmdPaletteStream(
     handlers.onCatalogChanged(payload);
   };
 
-  const source = eventSourceFactory(cmdPaletteStreamUrl(workspace));
+  const source = eventSourceFactory(cmdPaletteStreamUrl(workspace, profileKey));
   const detach = () => {
     source.removeEventListener("open", handleOpen);
     source.removeEventListener("error", handleError);

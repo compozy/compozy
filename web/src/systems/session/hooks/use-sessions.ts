@@ -2,7 +2,7 @@ import { useInfiniteQuery, useQuery } from "@tanstack/react-query";
 import { useEffect } from "react";
 
 import {
-  sessionDetailOptions,
+  sessionScopedDetailOptions,
   sessionGoalOptions,
   sessionLedgerOptions,
   sessionRecapOptions,
@@ -15,19 +15,29 @@ import {
   sessionListTotal,
 } from "../lib/session-list-query";
 import type { SessionListFilters, SessionState } from "../types";
+import { useProfileReadScope } from "@/systems/profiles";
 import { useActiveWorkspace } from "@/systems/workspace";
 
 interface UseSessionsOptions {
   enabled?: boolean;
-  filters?: Omit<SessionListFilters, "workspace">;
+  filters?: Omit<
+    SessionListFilters,
+    "workspace_id" | "all_workspaces" | "profile" | "all_profiles"
+  >;
   /** Follow the cursor chain until this filtered catalog is complete. */
   loadAll?: boolean;
 }
 
 export function useSessions(workspace: string | null = null, options?: UseSessionsOptions) {
+  // The profile scope is applied here rather than at each call site: every
+  // session read is server-scoped, and folding it into the filters means the
+  // query key partitions by profile for free, so a switch cannot show the
+  // previous profile's rows while the new page loads.
+  const { params } = useProfileReadScope();
   const filters = normalizeSessionListFilters({
     ...options?.filters,
-    ...(workspace ? { workspace } : {}),
+    ...(workspace ? { workspace_id: workspace } : { all_workspaces: true }),
+    ...params,
   });
   const query = useInfiniteQuery({
     ...sessionsListOptions(filters),
@@ -56,15 +66,14 @@ export function useSessions(workspace: string | null = null, options?: UseSessio
   };
 }
 
-export function useSession(id: string, workspace?: string | null) {
-  const { runtimeWorkspaceId } = useActiveWorkspace();
-  const workspaceId = workspace ?? runtimeWorkspaceId ?? "";
-  return useQuery(sessionDetailOptions(workspaceId, id));
+export function useSession(id: string) {
+  const { params } = useProfileReadScope();
+  return useQuery(sessionScopedDetailOptions(id, params, { enabled: id.trim() !== "" }));
 }
 
 export function useSessionById(id: string, workspace: string) {
-  const workspaceId = workspace.trim();
-  return useQuery(sessionDetailOptions(workspaceId, id));
+  const { params } = useProfileReadScope();
+  return useQuery(sessionScopedDetailOptions(id, params, { enabled: workspace.trim() !== "" }));
 }
 
 export function useSessionGoal(workspaceId: string, sessionId: string, enabled = true) {

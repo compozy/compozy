@@ -256,7 +256,7 @@ var sdkRootTypes = []NamedType{
 	{Name: "MemoryScope", Value: memcontract.Scope("")},
 	{Name: "HookEventFamily", Value: hooks.HookEventFamily("")},
 	{Name: "HookRunOutcome", Value: hooks.HookRunOutcome("")},
-	{Name: "HookSkillSource", Value: hooks.HookSkillSource("")},
+	{Name: "HookSkillSource", Value: hooks.HookSkillSourceUnset},
 	{Name: sdkPayloadBaseValue, Value: hooks.PayloadBase{}},
 	{Name: sdkSessionContextValue, Value: hooks.SessionContext{}},
 	{Name: sdkTurnContextValue, Value: hooks.TurnContext{}},

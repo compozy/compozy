@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/compozy/compozy/internal/notifications"
+	"github.com/compozy/compozy/internal/store"
 	taskpkg "github.com/compozy/compozy/internal/task"
 )
 
@@ -17,6 +18,7 @@ const (
 )
 
 var taskStatusProjectionCursorKey = notifications.CursorKey{
+	ProfileID:  store.DefaultProfileID,
 	Scope:      notifications.ScopeRef{Kind: notifications.ScopeKindGlobal},
 	ConsumerID: taskStatusProjectionCursorConsumer,
 	StreamName: taskStatusProjectionCursorStream,

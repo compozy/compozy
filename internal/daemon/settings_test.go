@@ -19,6 +19,7 @@ import (
 	"github.com/compozy/compozy/internal/api/contract"
 	core "github.com/compozy/compozy/internal/api/core"
 	"github.com/compozy/compozy/internal/api/testutil"
+	"github.com/compozy/compozy/internal/cmdpalette"
 	compozyconfig "github.com/compozy/compozy/internal/config"
 	"github.com/compozy/compozy/internal/deadentity"
 	extensionpkg "github.com/compozy/compozy/internal/extension"
@@ -90,6 +91,7 @@ func TestSettingsRuntimeInstalledExtensionsPalette(t *testing.T) {
 
 	t.Run("Should attach populated and dormant palette contributions", func(t *testing.T) {
 		t.Parallel()
+		var receivedLens extensionpkg.ProfileLens
 		cfg := compozyconfig.DefaultWithHome(compozyconfig.HomePaths{HomeDir: t.TempDir()})
 		cfg.WindowManager.Shortcuts["session.new"] = windowmanager.ShortcutBinding{"meta+KeyN"}
 		cfg.WindowManager.Shortcuts["ext.notes.capture"] = windowmanager.ShortcutBinding{"alt+shift+KeyN"}
@@ -99,7 +101,7 @@ func TestSettingsRuntimeInstalledExtensionsPalette(t *testing.T) {
 				Name: "notes", Version: "0.1.0", Enabled: true, State: "running",
 			}}},
 			extensionRuntime: func() extensionRuntime {
-				return settingsPaletteRuntimeStub{projection: extensionpkg.CmdPaletteProjection{
+				return settingsPaletteRuntimeStub{lens: &receivedLens, projection: extensionpkg.CmdPaletteProjection{
 					Commands: []extensionpkg.CmdPaletteProjectedCommand{
 						{ID: "ext.notes.capture", Title: "Capture note", Extension: "notes"},
 						{
@@ -123,6 +125,9 @@ func TestSettingsRuntimeInstalledExtensionsPalette(t *testing.T) {
 		}
 		if len(installed) != 1 || installed[0].Palette == nil {
 			t.Fatalf("InstalledExtensions() = %#v, want one palette attachment", installed)
+		}
+		if receivedLens.ID != string(cmdpalette.DefaultProfileLensID) || receivedLens.Name != "default" {
+			t.Fatalf("CmdPaletteSettings() lens = %#v, want default profile lens", receivedLens)
 		}
 		palette := installed[0].Palette
 		if len(palette.Commands) != 2 || len(palette.Views) != 1 {
@@ -167,6 +172,7 @@ func (s settingsExtensionListStub) List(context.Context) ([]contract.ExtensionPa
 type settingsPaletteRuntimeStub struct {
 	projection extensionpkg.CmdPaletteProjection
 	err        error
+	lens       *extensionpkg.ProfileLens
 }
 
 func (s settingsPaletteRuntimeStub) Start(context.Context) error  { return nil }
@@ -184,19 +190,25 @@ func (s settingsPaletteRuntimeStub) InspectPackageResources(
 ) (*extensionpkg.Extension, error) {
 	return nil, errors.New("unexpected InspectPackageResources")
 }
-func (s settingsPaletteRuntimeStub) CmdPaletteSettings(string) (extensionpkg.CmdPaletteProjection, error) {
+func (s settingsPaletteRuntimeStub) CmdPaletteSettings(
+	_ string,
+	profileLens extensionpkg.ProfileLens,
+) (extensionpkg.CmdPaletteProjection, error) {
+	if s.lens != nil {
+		*s.lens = profileLens
+	}
 	return s.projection, s.err
 }
 
 func TestSettingsRuntimeSurfaceMemoryHealthStatus(t *testing.T) {
-	t.Run("Should count every valid global memory source header", func(t *testing.T) {
+	t.Run("Should count every valid profile memory source header", func(t *testing.T) {
 		t.Parallel()
 
 		memoryStore := memorypkg.NewStore(filepath.Join(t.TempDir(), "memory"))
 		for idx := range 205 {
 			filename := fmt.Sprintf("settings-%03d.md", idx)
 			if err := memoryStore.Write(t.Context(),
-				memcontract.ScopeGlobal,
+				memcontract.ScopeProfile,
 				filename,
 				[]byte(memoryDocument(
 					fmt.Sprintf("Settings %03d", idx),
@@ -681,7 +693,7 @@ func TestSettingsRuntimeSurfaceMCPServerRuntimeStatus(t *testing.T) {
 			status.Reason != "backend_dead" {
 			t.Fatalf("MCPServerRuntimeStatus(threshold) = %#v, want dead/skipped/backend_dead", status)
 		}
-		listed, err := globalDB.ListDeadEntities(ctx, workspaceID)
+		listed, err := globalDB.ListDeadEntities(ctx, store.ReadScope{AllProfiles: true}, workspaceID)
 		if err != nil {
 			t.Fatalf("ListDeadEntities() error = %v", err)
 		}
@@ -692,7 +704,7 @@ func TestSettingsRuntimeSurfaceMCPServerRuntimeStatus(t *testing.T) {
 }
 
 func globalMCPTestTarget(serverName string) mcpauth.Target {
-	return mcpauth.Target{Scope: mcpauth.ScopeGlobal, ServerName: serverName}
+	return mcpauth.Target{Scope: mcpauth.ScopeUser, ServerName: serverName}
 }
 
 func newSettingsMCPTestServer() *mcp.Server {

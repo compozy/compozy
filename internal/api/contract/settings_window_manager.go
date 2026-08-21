@@ -106,7 +106,7 @@ type UpdateSettingsWindowManagerRequest struct {
 }
 
 type SettingsWindowManagerResponse struct {
-	SettingsGlobalWorkspaceSectionResponseMetaPayload
+	SettingsWorkspaceSectionResponseMetaPayload
 	Config             SettingsWindowManagerConfigPayload       `json:"config"`
 	Defaults           map[string]windowmanager.ShortcutBinding `json:"defaults"`
 	EffectiveShortcuts map[string]windowmanager.ShortcutBinding `json:"effective_shortcuts"`

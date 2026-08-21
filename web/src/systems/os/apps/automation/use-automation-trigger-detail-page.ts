@@ -60,7 +60,11 @@ export function useAutomationTriggerDetailPage(triggerId: string) {
   const handleToggleEnabled = async (enabled: boolean) => {
     if (!trigger) return;
     try {
-      await updateMutation.mutateAsync({ data: { enabled }, id: trigger.id });
+      await updateMutation.mutateAsync({
+        data: { enabled },
+        id: trigger.id,
+        profile: trigger.profile_name,
+      });
       toast.success(`${enabled ? "Enabled" : "Disabled"} ${trigger.name}.`);
     } catch (error) {
       toast.error(error instanceof Error ? error.message : "Failed to update automation state");
@@ -69,7 +73,7 @@ export function useAutomationTriggerDetailPage(triggerId: string) {
 
   const handleDelete = async () => {
     if (!trigger) throw new Error("This trigger is no longer available.");
-    await deleteMutation.mutateAsync({ id: trigger.id });
+    await deleteMutation.mutateAsync({ id: trigger.id, profile: trigger.profile_name });
     toast.success(`Deleted ${trigger.name}.`);
     void navigate({ to: "/triggers", replace: true });
   };

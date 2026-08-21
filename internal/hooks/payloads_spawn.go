@@ -1,6 +1,10 @@
 package hooks
 
-import "github.com/compozy/compozy/internal/network/participation"
+import (
+	"strings"
+
+	"github.com/compozy/compozy/internal/network/participation"
+)
 
 // PermissionSet captures concrete permission atoms that spawned children may only narrow.
 type PermissionSet struct {
@@ -14,6 +18,7 @@ type PermissionSet struct {
 
 // SpawnContext carries spawn identifiers shared across spawn lifecycle hooks.
 type SpawnContext struct {
+	ProfileID                    string              `json:"profile_id,omitempty"`
 	ParentSessionID              string              `json:"parent_session_id,omitempty"`
 	RootSessionID                string              `json:"root_session_id,omitempty"`
 	ChildSessionID               string              `json:"child_session_id,omitempty"`
@@ -32,6 +37,9 @@ type SpawnContext struct {
 	SoulDigest                   string              `json:"soul_digest,omitempty"`
 	ParentSoulDigest             string              `json:"parent_soul_digest,omitempty"`
 }
+
+// HookProfileID returns the durable owner used to isolate profile-scoped declarations.
+func (c SpawnContext) HookProfileID() string { return strings.TrimSpace(c.ProfileID) }
 
 // SpawnPreCreatePayload is delivered before a child session is created.
 type SpawnPreCreatePayload struct {

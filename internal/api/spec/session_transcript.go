@@ -43,8 +43,7 @@ func sessionTranscriptOperations() []OperationSpec {
 			Parameters: []ParameterSpec{
 				pathParam("workspace_id", "Workspace id"),
 				pathParam("session_id", "Session id"),
-				optionalHeaderParam(
-					"Last-Event-ID",
+				optionalLastEventIDHeaderParam(
 					"Resume after the last applied SSE cursor; transcript reconnects also require epoch and generation",
 				),
 				afterSequenceQueryParam("Initial cursor when Last-Event-ID is not supplied"),

@@ -132,17 +132,33 @@ type ExtensionDefinition struct {
 	Version              string                           `json:"version"`
 	Description          string                           `json:"description,omitempty"`
 	RequiresEnv          []string                         `json:"requires_env,omitempty"`
+	Profiles             []DescribeProfile                `json:"profiles,omitempty"`
 	Resources            DescribeResources                `json:"resources,omitempty"`
 	Subprocess           DescribeSubprocess               `json:"subprocess"`
 	Capabilities         CapabilitiesConfig               `json:"capabilities"`
 	Permissions          PermissionsConfig                `json:"permissions"`
-	SupportedHookEvents  []string                         `json:"supported_hook_events,omitempty"`
+	SupportedHookEvents  []DescribeHookEvent              `json:"supported_hook_events,omitempty"`
 	NetworkParticipation *NetworkParticipationRequirement `json:"network_participation,omitempty"`
 	Metadata             map[string]string                `json:"metadata,omitempty"`
 }
 
 // DescribeResources declares source-relative static resource paths shipped by an extension.
 type DescribeResources = contracts.DescribeResources
+
+// DescribeProfile declares one profile seeded by an SDK-built extension.
+type DescribeProfile = contracts.DescribeProfile
+
+// DescribeProfileDefaults declares defaults seeded with a described profile.
+type DescribeProfileDefaults = contracts.DescribeProfileDefaults
+
+// DescribeProfileCredential declares one profile setup requirement.
+type DescribeProfileCredential = contracts.DescribeProfileCredential
+
+// DescribeResourcePath binds a static resource path to an optional profile.
+type DescribeResourcePath = contracts.DescribeResourcePath
+
+// DescribeHookEvent binds a supported hook event to an optional profile.
+type DescribeHookEvent = contracts.DescribeHookEvent
 
 // NetworkParticipationRequirement declares live network control for digest consent.
 type NetworkParticipationRequirement = contracts.DescribeNetworkParticipation
@@ -259,6 +275,7 @@ type ShutdownResponse struct {
 
 // ToolOptions configures one function-backed extension tool.
 type ToolOptions struct {
+	Profile              string
 	ID                   ToolID
 	Description          string
 	FriendlyVerb         string
@@ -278,6 +295,7 @@ type ExtensionCommandSpec = contracts.ExtensionCommandSpec
 
 // ExtensionToolRuntimeDescriptor is the runtime proof descriptor returned by provide_tools.
 type ExtensionToolRuntimeDescriptor struct {
+	Profile             string                `json:"profile,omitempty"`
 	ID                  ToolID                `json:"id"`
 	Handler             string                `json:"handler"`
 	Description         string                `json:"description,omitempty"`

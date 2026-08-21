@@ -93,6 +93,7 @@ func (m *Service) enqueueRunWithStore(
 		if taskErr == nil {
 			taskErr = m.authorizeTaskResource(ctx, actor, taskRecord)
 		}
+		existing.ProfileID = taskRecord.ProfileID
 		return enqueueRunCommandResult{task: taskRecord, run: *existing, existing: true}, taskErr
 	}
 	taskRecord, err := store.GetTask(ctx, spec.TaskID)
@@ -106,6 +107,7 @@ func (m *Service) enqueueRunWithStore(
 	if err != nil {
 		return enqueueRunCommandResult{}, err
 	}
+	run.ProfileID = taskRecord.ProfileID
 	if existing {
 		return enqueueRunCommandResult{task: taskRecord, run: run, existing: true}, nil
 	}

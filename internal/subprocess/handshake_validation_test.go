@@ -40,6 +40,7 @@ func managedBridgeInstanceContract(id string, now time.Time) InitializeBridgeMan
 	return InitializeBridgeManagedInstance{
 		Instance: bridges.BridgeInstance{
 			ID:            id,
+			ProfileID:     "profile-test",
 			Scope:         bridges.ScopeGlobal,
 			Platform:      "telegram",
 			ExtensionName: "telegram-reference",

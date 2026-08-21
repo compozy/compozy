@@ -38,7 +38,8 @@ func TestDaemonNativeGatewayTool(t *testing.T) {
 			audit: gateway.AuditReport{Ran: true, NoFindings: true, LocalOnly: true},
 		}
 		registry := newDaemonNativeRegistry(t, &daemonNativeToolsDeps{
-			Gateway: func() core.GatewayService { return service },
+			Gateway:  func() core.GatewayService { return service },
+			Sessions: nativeNetworkTestSessionManager("workspace-a"),
 			GatewayPermissionMode: func(context.Context, string) (string, error) {
 				return string(toolspkg.PermissionModeDenyAll), nil
 			},
@@ -85,7 +86,8 @@ func TestDaemonNativeGatewayTool(t *testing.T) {
 
 		service := &nativeGatewayService{}
 		registry := newDaemonNativeRegistry(t, &daemonNativeToolsDeps{
-			Gateway: func() core.GatewayService { return service },
+			Gateway:  func() core.GatewayService { return service },
+			Sessions: nativeNetworkTestSessionManager(""),
 			GatewayPermissionMode: func(context.Context, string) (string, error) {
 				return string(toolspkg.PermissionModeApproveReads), nil
 			},
@@ -112,7 +114,8 @@ func TestDaemonNativeGatewayTool(t *testing.T) {
 
 		service := &nativeGatewayService{status: gateway.Status{Enabled: true}}
 		registry := newDaemonNativeRegistry(t, &daemonNativeToolsDeps{
-			Gateway: func() core.GatewayService { return service },
+			Gateway:  func() core.GatewayService { return service },
+			Sessions: nativeNetworkTestSessionManager(""),
 			GatewayPermissionMode: func(_ context.Context, sessionID string) (string, error) {
 				if strings.TrimSpace(sessionID) != "session-all" {
 					t.Fatalf("permission session id = %q, want session-all", sessionID)

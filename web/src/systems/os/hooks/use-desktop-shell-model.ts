@@ -50,8 +50,7 @@ export function useDesktopShellModel() {
   const [worktreeCreateWorkspaceId, setWorktreeCreateWorkspaceId] = useState<string | null>(null);
   // Attention edges leave the stream through the module-level bus so the
   // notifier can subscribe without ever reopening this connection.
-  const sessionCatalogStreamStatus = useSessionCatalogStreams(registeredWorkspaces, {
-    enabled: registeredWorkspaces.length > 0,
+  const sessionCatalogStreamStatus = useSessionCatalogStreams({
     onAttentionEdge: publishAttentionEdge,
     onOperatorNotification: publishOperatorNotification,
   });
@@ -89,6 +88,7 @@ export function useDesktopShellModel() {
     canDisableGlobal,
     rememberedWorkspace,
     workspaceAgents,
+    workspaceProfileHints: projectWorkspaceDetail.data?.profile_hints ?? [],
     setActiveWorkspaceId,
     toggleGlobalScope,
     areWorkspacesLoading,

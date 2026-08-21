@@ -370,6 +370,10 @@
   --height-input: 36px;
   --height-control-compact: 32px;
   --height-search: 28px;
+  /* Symbol picker geometry — the color field and icon cells share the compact
+     control scale while retaining their own named dimensions. */
+  --width-symbol-picker-color-input: 7.5rem;
+  --size-symbol-picker-cell: 1.75rem;
   --height-textarea-min: 84px;
 
   /* Switch geometry — default vs sm. */
@@ -439,6 +443,9 @@
   /* Icon-well ladder + status vocabulary + avatar sizes. */
   --size-icon-well-row: 34px; /* listing-row identity well */
   --size-topbar-glyph: 22px; /* OS window-head glyph */
+  --size-profile-glyph-sm: 18px;
+  --ring-width-profile-current: 1.5px;
+  --height-profile-row: 54px;
   --size-status-dot: 7px;
   --size-status-dot-sm: 6px;
   --size-avatar-sm: 20px;

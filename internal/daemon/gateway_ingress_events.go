@@ -80,9 +80,10 @@ func (s gatewayIngressAuditSink) record(
 	}
 	writeCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), gatewayAuditWriteTimeout)
 	defer cancel()
-	if err := s.writer.WriteEventSummary(writeCtx, store.EventSummary{
+	if err := s.writer.WriteEventSummary(writeCtx, daemonEventSummary(store.EventSummary{
+		ProfileID:   store.DefaultProfileID,
 		WorkspaceID: binding.WorkspaceID,
-		Type:        eventType, Outcome: string(outcome), Content: payload,
+		Type:        eventType, Outcome: string(outcome),
 		Summary: summary, Timestamp: now().UTC(),
 		EventCorrelation: store.EventCorrelation{
 			ActorKind: event.ActorKind,
@@ -91,7 +92,7 @@ func (s gatewayIngressAuditSink) record(
 				maxGatewayAuditFieldBytes,
 			),
 		},
-	}); err != nil {
+	}, payload)); err != nil {
 		return fmt.Errorf("daemon: record gateway ingress event: %w", err)
 	}
 	return nil

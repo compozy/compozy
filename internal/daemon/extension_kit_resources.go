@@ -27,6 +27,7 @@ type extensionKitSourceSyncer struct {
 	actor        resources.MutationActor
 	registry     *extensionpkg.Registry
 	runtime      func() extensionRuntime
+	profiles     extensionProfileCatalog
 	logger       *slog.Logger
 	trigger      func(context.Context, resources.ResourceKind, resources.ReconcileReason) error
 }
@@ -61,7 +62,8 @@ func (d *Daemon) newExtensionKitResourcePublisher(
 		triggers: triggerStore, triggerCodec: triggerCodec,
 		layouts: layoutStore, layoutCodec: layoutCodec,
 		actor: extensionKitSyncActor(), registry: registry, runtime: state.currentExtensionRuntime,
-		logger: state.logger,
+		profiles: state.deps.Profiles,
+		logger:   state.logger,
 		trigger: func(ctx context.Context, kind resources.ResourceKind, reason resources.ReconcileReason) error {
 			if state.resourceReconcile == nil {
 				return nil
@@ -80,7 +82,7 @@ func extensionKitSyncActor() resources.MutationActor {
 			Kind: resources.ResourceSourceKind("daemon"),
 			ID:   "extension-kit-sync",
 		},
-		MaxScope: resources.ResourceScope{Kind: resources.ResourceScopeKindGlobal},
+		MaxScope: resources.ResourceScope{Kind: resources.ResourceScopeKindUser},
 	}
 }
 
@@ -155,7 +157,15 @@ func (s *extensionKitSourceSyncer) desired(
 	if manager == nil {
 		return jobs, triggers, layouts, nil
 	}
-	snapshots, err := extensionResourceSnapshots(s.registry, manager, s.logger)
+	var snapshots []scopedExtensionResourceSnapshot
+	var err error
+	if s.profiles != nil {
+		snapshots, err = extensionResourceSnapshotsForProfiles(
+			ctx, s.registry, manager, s.profiles,
+		)
+	} else {
+		snapshots, err = extensionResourceSnapshots(s.registry, manager, s.logger)
+	}
 	if err != nil {
 		return nil, nil, nil, err
 	}
@@ -168,6 +178,7 @@ func (s *extensionKitSourceSyncer) desired(
 			ctx,
 			ext,
 			snapshot.scope,
+			snapshot.profileID,
 			jobs,
 			triggers,
 			layouts,
@@ -182,13 +193,14 @@ func (s *extensionKitSourceSyncer) collectDesiredExtensionKitResources(
 	ctx context.Context,
 	ext *extensionpkg.Extension,
 	scope resources.ResourceScope,
+	profileID string,
 	jobs map[string]managedResourceValue[automationpkg.Job],
 	triggers map[string]managedResourceValue[automationpkg.Trigger],
 	layouts map[string]managedResourceValue[windowmanager.LayoutResource],
 ) error {
 	owner := extensionOwner(ext.Info.Name)
 	for _, job := range ext.AutomationJobs {
-		job = bindExtensionJobScope(job, scope)
+		job = bindExtensionJobScope(job, scope, profileID)
 		value, encoded, err := validateAndEncodeResource(ctx, s.jobCodec, scope, job)
 		if err != nil {
 			return fmt.Errorf(
@@ -212,7 +224,7 @@ func (s *extensionKitSourceSyncer) collectDesiredExtensionKitResources(
 		}
 	}
 	for _, trigger := range ext.AutomationTriggers {
-		trigger = bindExtensionTriggerScope(trigger, scope)
+		trigger = bindExtensionTriggerScope(trigger, scope, profileID)
 		value, encoded, err := validateAndEncodeResource(ctx, s.triggerCodec, scope, trigger)
 		if err != nil {
 			return fmt.Errorf(
@@ -256,18 +268,46 @@ func (s *extensionKitSourceSyncer) collectDesiredExtensionKitResources(
 	return nil
 }
 
-func bindExtensionJobScope(job automationpkg.Job, scope resources.ResourceScope) automationpkg.Job {
-	if normalized := scope.Normalize(); normalized.Kind == resources.ResourceScopeKindWorkspace {
+func bindExtensionJobScope(
+	job automationpkg.Job,
+	scope resources.ResourceScope,
+	profileID string,
+) automationpkg.Job {
+	normalized := scope.Normalize()
+	if normalized.Kind == resources.ResourceScopeKindWorkspace {
 		job.Scope = automationpkg.AutomationScopeWorkspace
 		job.WorkspaceID = normalized.ID
+	}
+	if normalized.Kind == resources.ResourceScopeKindWorkspaceProfile {
+		workspaceID, _, _ := strings.Cut(normalized.ID, "@pf:")
+		job.Scope = automationpkg.AutomationScopeWorkspace
+		job.WorkspaceID = workspaceID
+	}
+	if normalized.Kind == resources.ResourceScopeKindProfile ||
+		normalized.Kind == resources.ResourceScopeKindWorkspaceProfile {
+		job.ProfileID = strings.TrimSpace(profileID)
 	}
 	return job
 }
 
-func bindExtensionTriggerScope(trigger automationpkg.Trigger, scope resources.ResourceScope) automationpkg.Trigger {
-	if normalized := scope.Normalize(); normalized.Kind == resources.ResourceScopeKindWorkspace {
+func bindExtensionTriggerScope(
+	trigger automationpkg.Trigger,
+	scope resources.ResourceScope,
+	profileID string,
+) automationpkg.Trigger {
+	normalized := scope.Normalize()
+	if normalized.Kind == resources.ResourceScopeKindWorkspace {
 		trigger.Scope = automationpkg.AutomationScopeWorkspace
 		trigger.WorkspaceID = normalized.ID
+	}
+	if normalized.Kind == resources.ResourceScopeKindWorkspaceProfile {
+		workspaceID, _, _ := strings.Cut(normalized.ID, "@pf:")
+		trigger.Scope = automationpkg.AutomationScopeWorkspace
+		trigger.WorkspaceID = workspaceID
+	}
+	if normalized.Kind == resources.ResourceScopeKindProfile ||
+		normalized.Kind == resources.ResourceScopeKindWorkspaceProfile {
+		trigger.ProfileID = strings.TrimSpace(profileID)
 	}
 	return trigger
 }

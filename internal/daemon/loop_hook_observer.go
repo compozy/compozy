@@ -126,6 +126,7 @@ func (o *loopNativeHookObserver) OnTaskRunTerminal(
 			Timestamp: payload.Timestamp,
 		},
 		LoopContext: hookspkg.LoopContext{
+			ProfileID:                    strings.TrimSpace(payload.ProfileID),
 			LoopRunID:                    loopRunID,
 			WorkspaceID:                  strings.TrimSpace(payload.WorkspaceID),
 			TaskID:                       strings.TrimSpace(payload.TaskID),
@@ -279,10 +280,11 @@ func (o *loopNativeHookObserver) dispatchSettledGoalNodeTerminal(
 	if err != nil {
 		return fmt.Errorf("daemon: load settled Goal task run %q: %w", output.TaskRunID, err)
 	}
-	if run.Status.Normalize() != taskpkg.TaskRunStatusCompleted || !isLoopActionControlEnvelope(run.Result) {
+	result := run.ResultValue()
+	if run.Status.Normalize() != taskpkg.TaskRunStatusCompleted || !isLoopActionControlEnvelope(result) {
 		return nil
 	}
-	control, err := looppkg.DecodeActionControlResult(run.Result)
+	control, err := looppkg.DecodeActionControlResult(result)
 	if err != nil {
 		return fmt.Errorf("daemon: decode settled Goal task run %q: %w", run.ID, err)
 	}
@@ -304,6 +306,7 @@ func (o *loopNativeHookObserver) dispatchSettledGoalNodeTerminal(
 			Timestamp: payload.Timestamp,
 		},
 		LoopContext: hookspkg.LoopContext{
+			ProfileID:                    strings.TrimSpace(run.ProfileID),
 			LoopRunID:                    strings.TrimSpace(payload.LoopRunID),
 			WorkspaceID:                  strings.TrimSpace(payload.WorkspaceID),
 			LoopName:                     strings.TrimSpace(payload.LoopName),

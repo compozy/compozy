@@ -8,9 +8,10 @@ import (
 
 func newNetworkWorkCommand(deps commandDeps, workspaceRef *string) *cobra.Command {
 	cmd := &cobra.Command{
-		Use:   "work",
+		Use:   networkWorkKey,
 		Short: "Inspect lifecycle-bearing network work",
 	}
+	hideProfileFlag(cmd, false)
 	cmd.AddCommand(newNetworkWorkLookupCommand(deps, workspaceRef))
 	return cmd
 }
@@ -37,8 +38,9 @@ func newNetworkWorkLookupCommand(deps commandDeps, workspaceRef *string) *cobra.
 			return writeCommandOutput(cmd, networkWorkBundle(work))
 		},
 	}
-	cmd.Flags().StringVar(&workID, "work", "", "Network work id")
-	mustMarkFlagRequired(cmd, "work")
+	cmd.Flags().StringVar(&workID, networkWorkKey, "", "Network work id")
+	mustMarkFlagRequired(cmd, networkWorkKey)
+	configureProfileReadCommand(cmd, deps)
 	return cmd
 }
 
@@ -166,7 +168,7 @@ func registerNetworkSendFlags(cmd *cobra.Command, flags *networkSendFlags) {
 	cmd.Flags().StringVar(&flags.bodyRaw, "body", "", "Kind-specific JSON value; say requires a non-empty text field")
 	cmd.Flags().StringVar(
 		&flags.workID,
-		"work",
+		networkWorkKey,
 		"",
 		"Required for capability, receipt, and trace; optional for lifecycle-bearing say",
 	)

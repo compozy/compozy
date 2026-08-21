@@ -21,6 +21,7 @@ export function connectivityProviderFixture(
     name: "connectivity-overlay",
     network_confirmation_required: false,
     network_requirement_digest: "sha256:overlay-control-digest",
+    profile: "default",
     requires_env: ["OVERLAY_AUTH_KEY"],
     restart_backoff_ms: 0,
     source: "bundled",

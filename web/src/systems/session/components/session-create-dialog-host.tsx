@@ -5,6 +5,7 @@ import {
 import { SessionCreateDialog } from "./session-create-dialog";
 import type { AgentPayload } from "@/systems/agent";
 import type { WorkspacePayload, WorkspaceScopeMode } from "@/systems/workspace";
+import { useAggregateDestination } from "@/systems/profiles";
 
 interface SessionCreateDialogHostProps extends SessionCreateDialogController {
   agents: AgentPayload[] | undefined;
@@ -23,6 +24,7 @@ export function SessionCreateDialogHost({
   homeWorkspaceId,
   store,
 }: SessionCreateDialogHostProps) {
+  const profileDestination = useAggregateDestination();
   const sessionCreate = useSessionCreateDialogViewModel(
     { agents, activeWorkspace, scope, projectWorkspaceId, homeWorkspaceId },
     store
@@ -30,6 +32,7 @@ export function SessionCreateDialogHost({
 
   return (
     <SessionCreateDialog
+      profileDestination={profileDestination}
       agents={sessionCreate.agents}
       destinationLabel={sessionCreate.destinationLabel}
       destinationReady={sessionCreate.destinationReady}

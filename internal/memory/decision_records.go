@@ -24,7 +24,7 @@ func (s *Store) LoadDecisionRecord(ctx context.Context, id string) (DecisionReco
 	if err := s.ensureDecisionCatalog(ctx); err != nil {
 		return DecisionRecord{}, err
 	}
-	decision, err := s.catalog.loadDecision(ctx, id)
+	decision, err := s.catalog.loadDecision(ctx, s.profileID, id)
 	if err != nil {
 		return DecisionRecord{}, err
 	}
@@ -51,10 +51,11 @@ func (s *Store) RecordMemoryWriteRejected(ctx context.Context, event WriteReject
 		if _, err := tx.ExecContext(
 			ctx,
 			`INSERT INTO memory_events (
-				op, scope, agent_name, agent_tier, workspace_id, session_id,
+				op, profile_id, scope, agent_name, agent_tier, workspace_id, session_id,
 				actor_kind, decision_id, target_id, metadata, ts_ms
-			) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+			) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
 			memoryEventWriteRejected,
+			s.profileIDForScope(event.Scope),
 			nullStringForEmpty(event.Scope.Normalize()),
 			nullStringForEmpty(event.AgentName),
 			nullStringForEmpty(string(event.AgentTier.Normalize())),
@@ -109,7 +110,7 @@ func (s *Store) ListTargets(ctx context.Context, candidate memcontract.Candidate
 			return nil, fmt.Errorf("memory: parse target %q frontmatter: %w", header.Filename, err)
 		}
 		targets = append(targets, controller.Target{
-			ID:             catalogDocIDForHeader(scope, workspaceID, header),
+			ID:             catalogDocIDForHeader(s.profileIDForScope(scope), scope, workspaceID, header),
 			WorkspaceID:    workspaceID,
 			Scope:          scope,
 			AgentName:      strings.TrimSpace(header.AgentName),
@@ -186,7 +187,7 @@ func (s *Store) workspaceIDForDecision(ctx context.Context, scope memcontract.Sc
 
 func (s *Store) storeForStoredDecision(ctx context.Context, decision storedDecision) (*Store, error) {
 	switch decisionScope(decision.Decision) {
-	case memcontract.ScopeGlobal:
+	case memcontract.ScopeProfile:
 		return s, nil
 	case memcontract.ScopeWorkspace:
 		if strings.TrimSpace(decision.WorkspaceID) != "" {

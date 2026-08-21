@@ -29,6 +29,7 @@ import {
 } from "../stores/cmd-palette-execution-store";
 import { windowManagerStore } from "../stores/window-manager-store";
 import { useOsShell } from "./use-os-shell";
+import { useProfileReadScope } from "@/systems/profiles";
 
 /**
  * Delivers one outcome. Retry rides the toast only where the feedback says
@@ -117,14 +118,17 @@ export function useCmdPaletteDispatch({
 }: UseCmdPaletteDispatchOptions): CmdPaletteDispatch {
   const { manager } = useOsShell();
   const queryClient = useQueryClient();
+  const { destination, key: profileKey } = useProfileReadScope();
 
   const invalidateRankSignals = () => {
     if (workspaceId === null) return;
-    void queryClient.invalidateQueries({ queryKey: cmdPaletteKeys.rankSignals(workspaceId) });
+    void queryClient.invalidateQueries({
+      queryKey: cmdPaletteKeys.rankSignals(workspaceId, profileKey),
+    });
   };
 
-  const navigate = (app: string, pathname: string | null) =>
-    openApp(app as OsAppId, pathname === null ? null : { pathname, search: {} });
+  const navigate = (app: string, pathname: string | null, search: Record<string, string> = {}) =>
+    openApp(app as OsAppId, pathname === null ? null : { pathname, search });
   const clientOps = { manager, shell, navigate, openUrl: openExternalUrl };
 
   const runCommand = (
@@ -155,6 +159,10 @@ export function useCmdPaletteDispatch({
           const token = resolveInvokeAttachmentToken(attachmentToken);
           const result = await invokeCmdPaletteCommand({
             workspaceId,
+            // The command runs as the profile the operator is acting as, which
+            // under the aggregate is `default` — the same owner the destination
+            // chip promised.
+            profile: destination,
             commandId,
             args: invokeArgs,
             ...(client === undefined ? {} : { clientId: client }),
@@ -175,7 +183,7 @@ export function useCmdPaletteDispatch({
         copyToClipboard: writePaletteClipboard,
         reportUsage: (commandId, preselectionQuery) => {
           if (workspaceId === null) return;
-          void recordCmdPaletteUsage(workspaceId, commandId, preselectionQuery)
+          void recordCmdPaletteUsage(workspaceId, profileKey, commandId, preselectionQuery)
             .then(invalidateRankSignals)
             .catch(error => {
               console.warn("Failed to record command palette usage", error);
@@ -184,7 +192,7 @@ export function useCmdPaletteDispatch({
         refresh: () => {
           if (workspaceId === null) return;
           void queryClient.invalidateQueries({
-            queryKey: cmdPaletteKeys.workspaceCatalogs(workspaceId),
+            queryKey: cmdPaletteKeys.profileCatalogs(workspaceId, profileKey),
           });
         },
         onFailure: (failed, reason, code) =>
@@ -239,7 +247,7 @@ export function useCmdPaletteDispatch({
       return;
     }
     try {
-      await setCmdPalettePin(workspaceId, command.id, pinned);
+      await setCmdPalettePin(workspaceId, destination, command.id, pinned);
     } catch (error) {
       const reason = error instanceof Error ? error.message : "could not be saved";
       notifyUser({ message: `${command.title} — ${reason}`, tone: "error" });
@@ -249,7 +257,7 @@ export function useCmdPaletteDispatch({
     // both reads reconcile rather than the row guessing its own new state.
     invalidateRankSignals();
     void queryClient.invalidateQueries({
-      queryKey: cmdPaletteKeys.workspaceCatalogs(workspaceId),
+      queryKey: cmdPaletteKeys.profileCatalogs(workspaceId, profileKey),
     });
   };
 

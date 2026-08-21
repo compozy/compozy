@@ -1,0 +1,4 @@
+{
+    "title": "Notification Preset",
+    "pages": ["index", "create", "delete", "disable", "enable", "list", "show", "update"]
+}

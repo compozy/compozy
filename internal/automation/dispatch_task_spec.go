@@ -25,6 +25,7 @@ func directTaskSpec(job *Job, prompt string) taskpkg.CreateTask {
 	}
 
 	return taskpkg.CreateTask{
+		ProfileID:            strings.TrimSpace(job.ProfileID),
 		Scope:                taskScopeForAutomationScope(job.Scope),
 		WorkspaceID:          strings.TrimSpace(job.WorkspaceID),
 		Title:                title,

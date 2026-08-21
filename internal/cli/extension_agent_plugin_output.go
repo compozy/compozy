@@ -101,7 +101,7 @@ func extensionDiagnosticReason(item contract.DiagnosticItem, scope string) strin
 	return message
 }
 
-func extensionInstallSuccessBundle(item ExtensionRecord, report *extensionpkg.ValidationReport) outputBundle {
+func extensionInstallSuccessBundle(item *ExtensionRecord, report *extensionpkg.ValidationReport) outputBundle {
 	bundle := extensionBundle(item)
 	bundle.human = func() (string, error) {
 		portable := strings.TrimSpace(item.Format) == string(extensionpkg.FormatAgentPlugin)

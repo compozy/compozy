@@ -4,6 +4,12 @@ import "time"
 
 // NetworkThreadSummary is the list/detail projection for a public thread.
 type NetworkThreadSummary struct {
+	ProfileID             string
+	ProfileName           string
+	ProfileColor          string
+	ProfileIcon           string
+	ProfileEmoji          string
+	ProfileArchived       bool
 	WorkspaceID           string
 	Channel               string
 	ThreadID              string
@@ -26,6 +32,12 @@ type NetworkThreadSummary struct {
 
 // NetworkDirectRoomSummary is the list/detail projection for a direct room.
 type NetworkDirectRoomSummary struct {
+	ProfileID            string
+	ProfileName          string
+	ProfileColor         string
+	ProfileIcon          string
+	ProfileEmoji         string
+	ProfileArchived      bool
 	WorkspaceID          string
 	Channel              string
 	DirectID             string

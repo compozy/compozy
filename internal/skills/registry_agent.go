@@ -51,7 +51,13 @@ func (r *Registry) ForAgentSession(
 	agent, err := r.resolveAgentScope(resolved, target)
 	if err != nil {
 		if errors.Is(err, ErrAgentLocalInvalid) {
-			r.emitSkillsLoadFailed(ctx, resourceWorkspaceKey(resolved), target, err)
+			r.emitSkillsLoadFailed(
+				ctx,
+				resolvedSkillEventProfileID(resolved),
+				resourceWorkspaceKey(resolved),
+				target,
+				err,
+			)
 		}
 		return nil, err
 	}
@@ -101,7 +107,7 @@ func (r *Registry) ForAgentDefSession(
 	agentSkillsDir := filepath.Join(filepath.Dir(agent.SourcePath), compozyconfig.SkillsDirName)
 	agentLocalSkills, err := r.loadAgentLocalSkills(ctx, agentSkillsDir, target, agent.Skills.Disabled)
 	if err != nil {
-		r.emitSkillsLoadFailed(ctx, resourceWorkspaceKey(resolved), target, err)
+		r.emitSkillsLoadFailed(ctx, resolvedSkillEventProfileID(resolved), resourceWorkspaceKey(resolved), target, err)
 		return nil, err
 	}
 	r.emitEventSummaries(
@@ -110,6 +116,7 @@ func (r *Registry) ForAgentDefSession(
 			skillsByName,
 			agentLocalSkills,
 			"agent",
+			resolvedSkillEventProfileID(resolved),
 			resourceWorkspaceKey(resolved),
 			target,
 		),

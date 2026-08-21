@@ -8,6 +8,7 @@ import (
 	"testing"
 
 	"github.com/compozy/compozy/internal/diagnostics"
+	"github.com/compozy/compozy/internal/store"
 )
 
 func TestManagerResolveInstanceEnvMap(t *testing.T) {
@@ -16,14 +17,28 @@ func TestManagerResolveInstanceEnvMap(t *testing.T) {
 	t.Run("Should merge sources in precedence order and isolate instance bindings", func(t *testing.T) {
 		t.Parallel()
 
-		store := &envResolutionBindingStore{bindings: map[string][]EnvBinding{
-			"demo\x00": {
+		bindingStore := &envResolutionBindingStore{bindings: map[string][]EnvBinding{
+			envResolutionBindingKey("demo", "", ""): {
 				{ExtensionName: "demo", EnvName: "BOUND_ONLY", SecretRef: "vault:global-only"},
 				{ExtensionName: "demo", EnvName: "SHARED", SecretRef: "vault:global-shared"},
 			},
-			"demo\x00ws-1": {
+			envResolutionBindingKey("demo", "", "ws-1"): {
 				{ExtensionName: "demo", WorkspaceID: "ws-1", EnvName: "BOUND_ONLY", SecretRef: "vault:workspace-only"},
 				{ExtensionName: "demo", WorkspaceID: "ws-1", EnvName: "SHARED", SecretRef: "vault:workspace-shared"},
+			},
+			envResolutionBindingKey("demo", "profile-marketing", ""): {
+				{
+					ExtensionName: "demo",
+					ProfileID:     "profile-marketing",
+					EnvName:       "BOUND_ONLY",
+					SecretRef:     "vault:marketing-only",
+				},
+				{
+					ExtensionName: "demo",
+					ProfileID:     "profile-marketing",
+					EnvName:       "SHARED",
+					SecretRef:     "vault:marketing-shared",
+				},
 			},
 		}}
 		manager := NewManager(nil,
@@ -33,13 +48,15 @@ func TestManagerResolveInstanceEnvMap(t *testing.T) {
 				}
 				return ""
 			}),
-			WithEnvBindingStore(store),
+			WithEnvBindingStore(bindingStore),
 			WithSecretResolver(envResolutionSecretResolver{values: map[string]string{
 				"vault:authored":         "authored-secret",
 				"vault:global-only":      "global-bound",
 				"vault:global-shared":    "global-wins",
 				"vault:workspace-only":   "workspace-bound",
 				"vault:workspace-shared": "workspace-wins",
+				"vault:marketing-only":   "marketing-bound",
+				"vault:marketing-shared": "marketing-wins",
 			}}),
 		)
 
@@ -94,9 +111,21 @@ func TestManagerResolveInstanceEnvMap(t *testing.T) {
 			t.Fatalf("resolveInstanceEnvMap(workspace) = %#v, want %#v", workspace, wantWorkspace)
 		}
 
-		wantCalls := []string{"demo\x00", "demo\x00ws-1"}
-		if !slices.Equal(store.calls, wantCalls) {
-			t.Fatalf("ListEnvBindings() calls = %#v, want %#v", store.calls, wantCalls)
+		marketing := resolve(t, InstanceKey{
+			Name: "demo", ProfileID: " profile-marketing ", WorkspaceID: " ws-1 ",
+		})
+		wantMarketing := wantEnv("marketing-wins", "marketing-bound")
+		if !slices.Equal(marketing, wantMarketing) {
+			t.Fatalf("resolveInstanceEnvMap(marketing) = %#v, want %#v", marketing, wantMarketing)
+		}
+
+		wantCalls := []string{
+			envResolutionBindingKey("demo", store.DefaultProfileID, ""),
+			envResolutionBindingKey("demo", store.DefaultProfileID, "ws-1"),
+			envResolutionBindingKey("demo", "profile-marketing", "ws-1"),
+		}
+		if !slices.Equal(bindingStore.calls, wantCalls) {
+			t.Fatalf("ResolveEnvBindings() calls = %#v, want %#v", bindingStore.calls, wantCalls)
 		}
 	})
 
@@ -107,7 +136,7 @@ func TestManagerResolveInstanceEnvMap(t *testing.T) {
 		resolverErr := errors.New("secret material missing")
 		manager := NewManager(nil,
 			WithEnvBindingStore(&envResolutionBindingStore{bindings: map[string][]EnvBinding{
-				"demo\x00": {
+				envResolutionBindingKey("demo", "", ""): {
 					{ExtensionName: "demo", EnvName: "A_OK", SecretRef: "vault:first"},
 					{ExtensionName: "demo", EnvName: "B_BROKEN", SecretRef: "vault:missing"},
 				},
@@ -145,7 +174,7 @@ func TestManagerResolveInstanceEnvMap(t *testing.T) {
 
 		manager := NewManager(nil,
 			WithEnvBindingStore(&envResolutionBindingStore{bindings: map[string][]EnvBinding{
-				"demo\x00": {
+				envResolutionBindingKey("demo", "", ""): {
 					{ExtensionName: "demo", EnvName: "ACTIVE_KEY", SecretRef: "vault:active"},
 					{ExtensionName: "demo", EnvName: "STALE_KEY", SecretRef: "vault:stale"},
 				},
@@ -186,16 +215,53 @@ type envResolutionBindingStore struct {
 func (s *envResolutionBindingStore) ListEnvBindings(
 	_ context.Context,
 	extension string,
+	profileID string,
 	workspaceID string,
 ) ([]EnvBinding, error) {
-	key := strings.TrimSpace(extension) + "\x00" + strings.TrimSpace(workspaceID)
-	s.calls = append(s.calls, key)
+	key := envResolutionBindingKey(extension, profileID, workspaceID)
 	return slices.Clone(s.bindings[key]), nil
+}
+
+func (s *envResolutionBindingStore) ResolveEnvBindings(
+	ctx context.Context,
+	extension string,
+	profileID string,
+	workspaceID string,
+) ([]EnvBinding, error) {
+	s.calls = append(s.calls, envResolutionBindingKey(extension, profileID, workspaceID))
+	precedence := [][2]string{
+		{profileID, workspaceID},
+		{profileID, ""},
+		{"", workspaceID},
+		{"", ""},
+	}
+	resolved := make(map[string]EnvBinding)
+	for _, scope := range precedence {
+		bindings, err := s.ListEnvBindings(ctx, extension, scope[0], scope[1])
+		if err != nil {
+			return nil, err
+		}
+		for _, binding := range bindings {
+			if _, exists := resolved[binding.EnvName]; !exists {
+				resolved[binding.EnvName] = binding
+			}
+		}
+	}
+	result := make([]EnvBinding, 0, len(resolved))
+	for _, binding := range resolved {
+		result = append(result, binding)
+	}
+	return result, nil
+}
+
+func envResolutionBindingKey(extension, profileID, workspaceID string) string {
+	return strings.TrimSpace(extension) + "\x00" + strings.TrimSpace(profileID) + "\x00" +
+		strings.TrimSpace(workspaceID)
 }
 
 func (*envResolutionBindingStore) PutEnvBinding(context.Context, EnvBinding) error { return nil }
 
-func (*envResolutionBindingStore) DeleteEnvBinding(context.Context, string, string, string) error {
+func (*envResolutionBindingStore) DeleteEnvBinding(context.Context, string, string, string, string) error {
 	return nil
 }
 

@@ -56,6 +56,7 @@ func TestScanSessionInfoReadsStopFields(t *testing.T) {
 		row := db.QueryRowContext(context.Background(), `
 		SELECT
 			'sess-scan',
+			?,
 			'Demo',
 			'coder',
 			'claude',
@@ -126,6 +127,7 @@ func TestScanSessionInfoReadsStopFields(t *testing.T) {
 			'sync failed',
 			?,
 			?`,
+			store.DefaultProfileID,
 			string(liveJSON),
 			formatTimestamp(subprocessStartedAt),
 			formatTimestamp(lastUpdateAt),
@@ -270,6 +272,7 @@ func TestGlobalDBSessionCatalogRejectsInconsistentSpeedResolution(t *testing.T) 
 		)
 		now := time.Date(2026, 7, 30, 12, 0, 0, 0, time.UTC)
 		if err := globalDB.RegisterSession(ctx, store.SessionInfo{
+			ProfileID:         store.DefaultProfileID,
 			ID:                "sess-inconsistent-runtime-resolution",
 			AgentName:         "coder",
 			Provider:          "claude",
@@ -293,8 +296,9 @@ func TestGlobalDBSessionCatalogRejectsInconsistentSpeedResolution(t *testing.T) 
 		}
 
 		_, err := globalDB.ListSessions(ctx, store.SessionListQuery{
-			ID:    "sess-inconsistent-runtime-resolution",
-			Limit: 1,
+			ReadScope: store.ReadScope{ProfileID: store.DefaultProfileID},
+			ID:        "sess-inconsistent-runtime-resolution",
+			Limit:     1,
 		})
 		if err == nil || !strings.Contains(err.Error(), "session speed resolution requested") {
 			t.Fatalf(
@@ -315,6 +319,7 @@ func TestScanSessionInfoHandlesNullStopReason(t *testing.T) {
 		row := db.QueryRowContext(context.Background(), `
 		SELECT
 			'sess-null',
+			?,
 			NULL,
 			'coder',
 			'',
@@ -385,6 +390,7 @@ func TestScanSessionInfoHandlesNullStopReason(t *testing.T) {
 			'',
 			?,
 			?`,
+			store.DefaultProfileID,
 			formatTimestamp(time.Date(2026, 4, 3, 12, 0, 0, 0, time.UTC)),
 			formatTimestamp(time.Date(2026, 4, 3, 12, 5, 0, 0, time.UTC)),
 		)
@@ -436,6 +442,7 @@ func TestScanSessionInfoRejectsInvalidSandboxLastSyncAt(t *testing.T) {
 		row := db.QueryRowContext(context.Background(), `
 		SELECT
 			'sess-invalid-last-sync',
+			?,
 			'Demo',
 			'coder',
 			'claude',
@@ -506,6 +513,7 @@ func TestScanSessionInfoRejectsInvalidSandboxLastSyncAt(t *testing.T) {
 			'',
 			?,
 			?`,
+			store.DefaultProfileID,
 			formatTimestamp(time.Date(2026, 4, 3, 12, 0, 0, 0, time.UTC)),
 			formatTimestamp(time.Date(2026, 4, 3, 12, 5, 0, 0, time.UTC)),
 		)
@@ -530,6 +538,7 @@ func TestScanSessionInfoRejectsStallStateWithoutReason(t *testing.T) {
 		row := db.QueryRowContext(context.Background(), `
 		SELECT
 			'sess-invalid-stall',
+			?,
 			'Demo',
 			'coder',
 			'claude',
@@ -600,6 +609,7 @@ func TestScanSessionInfoRejectsStallStateWithoutReason(t *testing.T) {
 			'',
 			?,
 			?`,
+			store.DefaultProfileID,
 			formatTimestamp(time.Date(2026, 4, 3, 12, 3, 0, 0, time.UTC)),
 			formatTimestamp(time.Date(2026, 4, 3, 12, 4, 0, 0, time.UTC)),
 			formatTimestamp(time.Date(2026, 4, 3, 12, 0, 0, 0, time.UTC)),
@@ -635,6 +645,7 @@ func TestGlobalDBAttachSessionRejectsStalledSessions(t *testing.T) {
 		)
 		now := time.Date(2026, 5, 22, 10, 0, 0, 0, time.UTC)
 		if err := globalDB.RegisterSession(ctx, store.SessionInfo{
+			ProfileID:     store.DefaultProfileID,
 			ID:            "sess-stalled-attach",
 			Name:          "Stalled Attach",
 			AgentName:     "coder",
@@ -654,7 +665,10 @@ func TestGlobalDBAttachSessionRejectsStalledSessions(t *testing.T) {
 			t.Fatalf("RegisterSession() error = %v", err)
 		}
 
-		resumable, err := globalDB.ListSessions(ctx, store.SessionListQuery{Resumable: true})
+		resumable, err := globalDB.ListSessions(ctx, store.SessionListQuery{
+			ReadScope: store.ReadScope{ProfileID: store.DefaultProfileID},
+			Resumable: true,
+		})
 		if err != nil {
 			t.Fatalf("ListSessions(resumable) error = %v", err)
 		}
@@ -689,6 +703,7 @@ func TestGlobalDBRegisterSessionPreservesTranscriptEpoch(t *testing.T) {
 		)
 		now := time.Date(2026, 7, 7, 12, 0, 0, 0, time.UTC)
 		session := store.SessionInfo{
+			ProfileID:       store.DefaultProfileID,
 			ID:              "sess-transcript-epoch",
 			Name:            "Transcript Epoch",
 			AgentName:       "coder",
@@ -720,7 +735,10 @@ func TestGlobalDBRegisterSessionPreservesTranscriptEpoch(t *testing.T) {
 			t.Fatalf("SessionTranscriptEpoch() = %d, want 3", epoch)
 		}
 
-		sessions, err := globalDB.ListSessions(ctx, store.SessionListQuery{ID: session.ID})
+		sessions, err := globalDB.ListSessions(ctx, store.SessionListQuery{
+			ReadScope: store.ReadScope{ProfileID: store.DefaultProfileID},
+			ID:        session.ID,
+		})
 		if err != nil {
 			t.Fatalf("ListSessions() error = %v", err)
 		}
@@ -749,6 +767,7 @@ func TestGlobalDBRegisterSessionRejectsImmutableFieldChanges(t *testing.T) {
 		)
 		now := time.Date(2026, 7, 16, 12, 0, 0, 0, time.UTC)
 		session := store.SessionInfo{
+			ProfileID:     store.DefaultProfileID,
 			ID:            "sess-immutable-participation",
 			Name:          "Immutable Participation",
 			AgentName:     "coder",
@@ -789,7 +808,10 @@ func TestGlobalDBRegisterSessionRejectsImmutableFieldChanges(t *testing.T) {
 			t.Fatalf("RegisterSession(Live refresh) error = %v, want participation mismatch", err)
 		}
 
-		stored, err := globalDB.ListSessions(ctx, store.SessionListQuery{ID: session.ID})
+		stored, err := globalDB.ListSessions(ctx, store.SessionListQuery{
+			ReadScope: store.ReadScope{ProfileID: store.DefaultProfileID},
+			ID:        session.ID,
+		})
 		if err != nil {
 			t.Fatalf("ListSessions() error = %v", err)
 		}
@@ -823,6 +845,7 @@ func TestGlobalDBRegisterSessionRejectsImmutableFieldChanges(t *testing.T) {
 		)
 		now := time.Date(2026, 8, 3, 4, 30, 0, 0, time.UTC)
 		session := store.SessionInfo{
+			ProfileID:     store.DefaultProfileID,
 			ID:            "sess-immutable-workspace-owner",
 			Name:          "Original owner",
 			AgentName:     "coder",
@@ -847,7 +870,10 @@ func TestGlobalDBRegisterSessionRejectsImmutableFieldChanges(t *testing.T) {
 			t.Fatalf("RegisterSession(foreign owner) error = %v, want ErrSessionWorkspaceMismatch", err)
 		}
 
-		stored, err := globalDB.ListSessions(ctx, store.SessionListQuery{ID: session.ID})
+		stored, err := globalDB.ListSessions(ctx, store.SessionListQuery{
+			ReadScope: store.ReadScope{ProfileID: store.DefaultProfileID},
+			ID:        session.ID,
+		})
 		if err != nil {
 			t.Fatalf("ListSessions() error = %v", err)
 		}
@@ -885,6 +911,7 @@ func TestGlobalDBRegisterSessionRejectsImmutableFieldChanges(t *testing.T) {
 				WorkspaceID:   foreignWorkspaceID,
 				State:         "stopped",
 				CreatedAt:     now,
+				ProfileID:     store.DefaultProfileID,
 				UpdatedAt:     now,
 			},
 			{
@@ -895,6 +922,7 @@ func TestGlobalDBRegisterSessionRejectsImmutableFieldChanges(t *testing.T) {
 				WorkspaceID:   foreignWorkspaceID,
 				State:         "stopped",
 				CreatedAt:     now,
+				ProfileID:     store.DefaultProfileID,
 				UpdatedAt:     now,
 			},
 		})
@@ -909,7 +937,9 @@ func TestGlobalDBRegisterSessionRejectsImmutableFieldChanges(t *testing.T) {
 			t.Fatalf("ReconcileSessions(workspace conflict) result = %#v, want empty rollback result", result)
 		}
 
-		sessions, err := globalDB.ListSessions(ctx, store.SessionListQuery{})
+		sessions, err := globalDB.ListSessions(ctx, store.SessionListQuery{
+			ReadScope: store.ReadScope{ProfileID: store.DefaultProfileID},
+		})
 		if err != nil {
 			t.Fatalf("ListSessions() error = %v", err)
 		}
@@ -950,6 +980,7 @@ func TestGlobalDBRegisterSessionRejectsImmutableFieldChanges(t *testing.T) {
 		orphanWorkspaceID := registerSessionForGlobalTests(t, globalDB, "sess-duplicate-owner-orphan")
 		now := time.Date(2026, 8, 3, 5, 0, 0, 0, time.UTC)
 		base := store.SessionInfo{
+			ProfileID:     store.DefaultProfileID,
 			ID:            "sess-duplicate-owner",
 			AgentName:     "reviewer",
 			Provider:      "codex",
@@ -970,12 +1001,18 @@ func TestGlobalDBRegisterSessionRejectsImmutableFieldChanges(t *testing.T) {
 		if len(result.Indexed) != 0 || len(result.Orphaned) != 0 {
 			t.Fatalf("ReconcileSessions(duplicate owners) result = %#v, want empty rollback result", result)
 		}
-		if sessions, listErr := globalDB.ListSessions(ctx, store.SessionListQuery{ID: base.ID}); listErr != nil {
+		if sessions, listErr := globalDB.ListSessions(ctx, store.SessionListQuery{
+			ReadScope: store.ReadScope{ProfileID: store.DefaultProfileID},
+			ID:        base.ID,
+		}); listErr != nil {
 			t.Fatalf("ListSessions(duplicate target) error = %v", listErr)
 		} else if len(sessions) != 0 {
 			t.Fatalf("duplicate target persisted after rollback: %#v", sessions)
 		}
-		orphan, listErr := globalDB.ListSessions(ctx, store.SessionListQuery{ID: "sess-duplicate-owner-orphan"})
+		orphan, listErr := globalDB.ListSessions(ctx, store.SessionListQuery{
+			ReadScope: store.ReadScope{ProfileID: store.DefaultProfileID},
+			ID:        "sess-duplicate-owner-orphan",
+		})
 		if listErr != nil {
 			t.Fatalf("ListSessions(orphan candidate) error = %v", listErr)
 		}
@@ -1195,6 +1232,7 @@ func TestGlobalDBEnsureSessionTranscriptEpoch(t *testing.T) {
 		)
 		now := time.Date(2026, 7, 7, 12, 30, 0, 0, time.UTC)
 		session := store.SessionInfo{
+			ProfileID:       store.DefaultProfileID,
 			ID:              "sess-ensure-transcript-epoch",
 			Name:            "Ensure Transcript Epoch",
 			AgentName:       "coder",
@@ -1265,6 +1303,7 @@ func TestGlobalDBListSessionsSweepsExpiredAttachLocks(t *testing.T) {
 		now := time.Date(2026, 5, 22, 11, 0, 0, 0, time.UTC)
 		expiredAt := time.Date(2000, 1, 1, 0, 0, 0, 0, time.UTC)
 		if err := globalDB.RegisterSession(ctx, store.SessionInfo{
+			ProfileID:       store.DefaultProfileID,
 			ID:              "sess-expired-attach",
 			Name:            "Expired Attach",
 			AgentName:       "coder",
@@ -1281,7 +1320,10 @@ func TestGlobalDBListSessionsSweepsExpiredAttachLocks(t *testing.T) {
 			t.Fatalf("RegisterSession() error = %v", err)
 		}
 
-		sessions, err := globalDB.ListSessions(ctx, store.SessionListQuery{ID: "sess-expired-attach"})
+		sessions, err := globalDB.ListSessions(ctx, store.SessionListQuery{
+			ReadScope: store.ReadScope{ProfileID: store.DefaultProfileID},
+			ID:        "sess-expired-attach",
+		})
 		if err != nil {
 			t.Fatalf("ListSessions() error = %v", err)
 		}
@@ -1418,7 +1460,10 @@ func assertSessionDeleteRowCounts(
 ) {
 	t.Helper()
 
-	sessions, err := globalDB.ListSessions(testutil.Context(t), store.SessionListQuery{ID: sessionID})
+	sessions, err := globalDB.ListSessions(testutil.Context(t), store.SessionListQuery{
+		ReadScope: store.ReadScope{ProfileID: store.DefaultProfileID},
+		ID:        sessionID,
+	})
 	if err != nil {
 		t.Fatalf("ListSessions() error = %v", err)
 	}

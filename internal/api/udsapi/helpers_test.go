@@ -264,7 +264,7 @@ func (s *stubSettingsService) ListApplyRecords(
 }
 
 func settingsTestApplyResult(section settingspkg.SectionName) settingspkg.ApplyResult {
-	return settingsTestApplyResultForScope(section, settingspkg.ScopeGlobal, "")
+	return settingsTestApplyResultForScope(section, settingspkg.ScopeUser, "")
 }
 
 func settingsTestApplyResultForScope(
@@ -674,7 +674,7 @@ func settingsTestSectionEnvelope(
 		Section:         section,
 		Scope:           scope,
 		WorkspaceID:     workspaceID,
-		AvailableScopes: []settingspkg.ScopeKind{settingspkg.ScopeGlobal},
+		AvailableScopes: []settingspkg.ScopeKind{settingspkg.ScopeUser},
 	}
 	switch section {
 	case settingspkg.SectionGeneral:
@@ -704,7 +704,7 @@ func settingsTestCollectionEnvelope(
 		Collection:      collection,
 		Scope:           scope,
 		WorkspaceID:     workspaceID,
-		AvailableScopes: []settingspkg.ScopeKind{settingspkg.ScopeGlobal},
+		AvailableScopes: []settingspkg.ScopeKind{settingspkg.ScopeUser},
 	}
 	switch collection {
 	case settingspkg.CollectionProviders:

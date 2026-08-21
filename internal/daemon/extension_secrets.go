@@ -35,7 +35,11 @@ func (s *daemonExtensionService) ListExtensionSecrets(
 	if err != nil {
 		return contract.ExtensionSecretsPayload{}, err
 	}
-	return s.extensionSecretsForInstance(ctx, key)
+	profileID, err := extensionSecretProfileID(actor)
+	if err != nil {
+		return contract.ExtensionSecretsPayload{}, err
+	}
+	return s.extensionSecretsForProfileInstance(ctx, key, profileID)
 }
 
 func (s *daemonExtensionService) SetExtensionSecrets(
@@ -51,15 +55,22 @@ func (s *daemonExtensionService) SetExtensionSecrets(
 	if err != nil {
 		return contract.ExtensionSecretsPayload{}, err
 	}
+	profileID, err := extensionSecretProfileID(actor)
+	if err != nil {
+		return contract.ExtensionSecretsPayload{}, err
+	}
 	var payload contract.ExtensionSecretsPayload
 	err = s.lifecycle.withInstance(ctx, key, func() error {
 		var setErr error
-		payload, setErr = s.setExtensionSecretsForInstance(ctx, key, req)
+		payload, setErr = s.setExtensionSecretsForProfileInstance(ctx, key, profileID, req)
 		if setErr != nil {
 			if !isExtensionSecretValidationRefusal(setErr) {
 				setErr = errors.Join(setErr, s.recordExtensionSecretsFailedEvent(ctx, actor, key))
 			}
 			return setErr
+		}
+		if invalidateErr := s.invalidateExtensionSecretProfileRuntime(ctx, key, profileID); invalidateErr != nil {
+			return errors.Join(invalidateErr, s.recordExtensionSecretsFailedEvent(ctx, actor, key))
 		}
 		return s.recordExtensionSecretsUpdatedEvent(ctx, actor, key, payload)
 	})
@@ -79,19 +90,62 @@ func (s *daemonExtensionService) DeleteExtensionSecret(
 	if err != nil {
 		return err
 	}
+	profileID, err := extensionSecretProfileID(actor)
+	if err != nil {
+		return err
+	}
 	return s.lifecycle.withInstance(ctx, key, func() error {
-		if deleteErr := s.deleteExtensionSecretForInstance(ctx, key, envName); deleteErr != nil {
+		if deleteErr := s.deleteExtensionSecretForProfileInstance(ctx, key, profileID, envName); deleteErr != nil {
 			if !isExtensionSecretValidationRefusal(deleteErr) {
 				deleteErr = errors.Join(deleteErr, s.recordExtensionSecretsFailedEvent(ctx, actor, key))
 			}
 			return deleteErr
 		}
-		payload, payloadErr := s.extensionSecretsForInstance(ctx, key)
+		if invalidateErr := s.invalidateExtensionSecretProfileRuntime(ctx, key, profileID); invalidateErr != nil {
+			return errors.Join(invalidateErr, s.recordExtensionSecretsFailedEvent(ctx, actor, key))
+		}
+		payload, payloadErr := s.extensionSecretsForProfileInstance(ctx, key, profileID)
 		if payloadErr != nil {
 			return errors.Join(payloadErr, s.recordExtensionSecretsFailedEvent(ctx, actor, key))
 		}
 		return s.recordExtensionSecretsUpdatedEvent(ctx, actor, key, payload)
 	})
+}
+
+type extensionProfileRuntimeInvalidator interface {
+	InvalidateProfileRuntime(context.Context, extensionpkg.InstanceKey) error
+}
+
+func (s *daemonExtensionService) invalidateExtensionSecretProfileRuntime(
+	ctx context.Context,
+	key extensionpkg.InstanceKey,
+	profileID string,
+) error {
+	if strings.TrimSpace(profileID) == "" {
+		return nil
+	}
+	runtime, err := s.devRuntime()
+	if err != nil {
+		return err
+	}
+	invalidator, ok := runtime.(extensionProfileRuntimeInvalidator)
+	if !ok {
+		return nil
+	}
+	return invalidator.InvalidateProfileRuntime(
+		ctx,
+		extensionpkg.ProfileInstanceKey(key.Name, profileID, key.WorkspaceID),
+	)
+}
+
+func extensionSecretProfileID(actor taskpkg.ActorContext) (string, error) {
+	if err := actor.ReadScope.Validate(); err != nil {
+		return "", fmt.Errorf("daemon: extension secret profile scope: %w", err)
+	}
+	if actor.ReadScope.AllProfiles {
+		return "", errors.New("daemon: extension secrets require one profile")
+	}
+	return strings.TrimSpace(actor.ReadScope.ProfileID), nil
 }
 
 func (s *daemonExtensionService) extensionSecretInstanceKey(
@@ -125,16 +179,16 @@ func (s *daemonExtensionService) extensionSecretInstanceKey(
 	return globalKey, nil
 }
 
-// extensionSecretsForInstance reports declared names and bound-key presence for exactly one instance.
-func (s *daemonExtensionService) extensionSecretsForInstance(
+func (s *daemonExtensionService) extensionSecretsForProfileInstance(
 	ctx context.Context,
 	key extensionpkg.InstanceKey,
+	profileID string,
 ) (contract.ExtensionSecretsPayload, error) {
 	ext, err := s.extensionSecretTarget(ctx, key)
 	if err != nil {
 		return contract.ExtensionSecretsPayload{}, err
 	}
-	bindings, err := s.envBindings.ListEnvBindings(ctx, key.Name, key.WorkspaceID)
+	bindings, err := s.envBindings.ResolveEnvBindings(ctx, key.Name, profileID, key.WorkspaceID)
 	if err != nil {
 		return contract.ExtensionSecretsPayload{}, fmt.Errorf("daemon: list extension secret bindings: %w", err)
 	}
@@ -169,45 +223,45 @@ func (s *daemonExtensionService) extensionSecretsForInstance(
 	}, nil
 }
 
-// setExtensionSecretsForInstance transactionally updates declared bindings for exactly one instance.
-func (s *daemonExtensionService) setExtensionSecretsForInstance(
+func (s *daemonExtensionService) setExtensionSecretsForProfileInstance(
 	ctx context.Context,
 	key extensionpkg.InstanceKey,
+	profileID string,
 	req contract.SetExtensionSecretsRequest,
 ) (contract.ExtensionSecretsPayload, error) {
 	ext, err := s.extensionSecretTarget(ctx, key)
 	if err != nil {
 		return contract.ExtensionSecretsPayload{}, err
 	}
-	prepared, err := s.prepareExtensionSecrets(ctx, key, ext, req)
+	prepared, err := s.prepareExtensionSecrets(ctx, key, profileID, ext, req)
 	if err != nil {
 		return contract.ExtensionSecretsPayload{}, err
 	}
-	previous, err := s.envBindings.ListEnvBindings(ctx, key.Name, key.WorkspaceID)
+	previous, err := s.envBindings.ListEnvBindings(ctx, key.Name, profileID, key.WorkspaceID)
 	if err != nil {
 		return contract.ExtensionSecretsPayload{}, fmt.Errorf("daemon: snapshot extension secret bindings: %w", err)
 	}
 	previousByName := extensionBindingsByName(previous)
 	mutations := make([]extensionSecretMutation, 0, len(prepared))
 	for _, write := range prepared {
-		mutation, mutationErr := s.applyExtensionSecret(ctx, key, write, previousByName[write.envName])
+		mutation, mutationErr := s.applyExtensionSecret(ctx, key, profileID, write, previousByName[write.envName])
 		if mutationErr != nil {
-			rollbackErr := s.rollbackExtensionSecretMutations(ctx, key, mutations)
+			rollbackErr := s.rollbackExtensionSecretMutations(ctx, key, profileID, mutations)
 			return contract.ExtensionSecretsPayload{}, errors.Join(mutationErr, rollbackErr)
 		}
 		mutations = append(mutations, mutation)
 	}
 	if err := s.gcSupersededExtensionSecrets(ctx, previous, prepared); err != nil {
-		rollbackErr := s.rollbackExtensionSecretMutations(ctx, key, mutations)
+		rollbackErr := s.rollbackExtensionSecretMutations(ctx, key, profileID, mutations)
 		return contract.ExtensionSecretsPayload{}, errors.Join(err, rollbackErr)
 	}
-	return s.extensionSecretsForInstance(ctx, key)
+	return s.extensionSecretsForProfileInstance(ctx, key, profileID)
 }
 
-// deleteExtensionSecretForInstance removes one binding and garbage-collects its unreferenced owned ref.
-func (s *daemonExtensionService) deleteExtensionSecretForInstance(
+func (s *daemonExtensionService) deleteExtensionSecretForProfileInstance(
 	ctx context.Context,
 	key extensionpkg.InstanceKey,
+	profileID string,
 	envName string,
 ) error {
 	if _, err := s.extensionSecretTarget(ctx, key); err != nil {
@@ -220,7 +274,7 @@ func (s *daemonExtensionService) deleteExtensionSecretForInstance(
 			Cause:   extensionpkg.ErrExtensionEnvBindingInvalid,
 		}
 	}
-	bindings, err := s.envBindings.ListEnvBindings(ctx, key.Name, key.WorkspaceID)
+	bindings, err := s.envBindings.ListEnvBindings(ctx, key.Name, profileID, key.WorkspaceID)
 	if err != nil {
 		return fmt.Errorf("daemon: list extension secret bindings: %w", err)
 	}
@@ -228,7 +282,13 @@ func (s *daemonExtensionService) deleteExtensionSecretForInstance(
 	if !ok {
 		return nil
 	}
-	if err := s.envBindings.DeleteEnvBinding(ctx, key.Name, key.WorkspaceID, envName); err != nil {
+	if err := s.envBindings.DeleteEnvBinding(
+		ctx,
+		key.Name,
+		profileID,
+		key.WorkspaceID,
+		envName,
+	); err != nil {
 		return fmt.Errorf("daemon: delete extension secret binding %q: %w", envName, err)
 	}
 	if err := s.gcOwnedExtensionSecret(ctx, previous.SecretRef); err != nil {

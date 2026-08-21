@@ -1,5 +1,6 @@
 import { useState } from "react";
 
+import { useProfileReadScope, type ProfileOwner, type ProfileOwnerLabel } from "@/systems/profiles";
 import { useActiveWorkspace } from "@/systems/workspace";
 
 import { useSessionListPreferences } from "./use-session-list-preferences";
@@ -22,6 +23,15 @@ export interface SessionListViewModel {
   workspaceGroups: WorkspaceSessionGroup[];
   collapsedWorkspaceIds: ReadonlySet<string>;
   toggleWorkspace: (workspaceId: string) => void;
+  /** The aggregate is on — rows name their owner (US-011.AC-1). */
+  aggregate: boolean;
+  /**
+   * The profile the list is bounded by, or `null` under the aggregate. Named by
+   * the empty state; the create target is deliberately not used there.
+   */
+  scopeLabel: string | null;
+  /** Resolves a row's owner tag. Only called while `aggregate` is true. */
+  ownerOf: (session: ProfileOwnerLabel) => ProfileOwner;
 }
 
 /**
@@ -36,6 +46,7 @@ export interface SessionListViewModel {
 export function useSessionListView(): SessionListViewModel {
   const preferences = useSessionListPreferences();
   const { workspaces } = useActiveWorkspace();
+  const profile = useProfileReadScope();
   const [collapsed, setCollapsed] = useState<ReadonlySet<string>>(() => new Set());
   const [archived, setArchived] = useState(false);
   const workspaceGroups = useWorkspaceSessionGroups({
@@ -54,6 +65,9 @@ export function useSessionListView(): SessionListViewModel {
     setSort: preferences.setSort,
     setArchived,
     workspaceGroups: preferences.scope === "all-workspaces" ? workspaceGroups : [],
+    aggregate: profile.aggregate,
+    scopeLabel: profile.scopeLabel,
+    ownerOf: profile.ownerOf,
     collapsedWorkspaceIds: collapsed,
     toggleWorkspace: workspaceId =>
       setCollapsed(current => {

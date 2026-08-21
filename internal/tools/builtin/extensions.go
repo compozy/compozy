@@ -132,18 +132,6 @@ var extensionTools = []toolspkg.Descriptor{
 		[]string{"extension inventory", "extension resources"},
 	),
 	nativeExtensionDescriptorWithOutput(
-		toolspkg.ToolIDExtensionsPreview,
-		"extensions_preview",
-		"Extensions Preview",
-		"Preview enabling one installed extension without changing state.",
-		extensionNameInputSchema,
-		extensionEnablePreviewOutputSchema,
-		toolspkg.RiskRead,
-		true,
-		[]string{extensionsExtensionsKey, extensionsStatusKey, "preview", "enable"},
-		[]string{"preview extension enable", "extension dry run"},
-	),
-	nativeExtensionDescriptorWithOutput(
 		toolspkg.ToolIDExtensionsInstall,
 		"extensions_install",
 		"Extensions Install",
@@ -183,8 +171,8 @@ var extensionTools = []toolspkg.Descriptor{
 		toolspkg.ToolIDExtensionsEnable,
 		"extensions_enable",
 		"Extensions Enable",
-		"Enable one installed extension through the runtime extension lifecycle.",
-		extensionEnableInputSchema,
+		"Enable one installed extension for the caller's active profile.",
+		extensionNameInputSchema,
 		toolspkg.RiskMutating,
 		false,
 		false,
@@ -195,7 +183,7 @@ var extensionTools = []toolspkg.Descriptor{
 		toolspkg.ToolIDExtensionsDisable,
 		"extensions_disable",
 		"Extensions Disable",
-		"Disable one installed extension through the runtime extension lifecycle.",
+		"Disable one installed extension for the caller's active profile.",
 		extensionNameInputSchema,
 		toolspkg.RiskMutating,
 		false,
@@ -296,16 +284,6 @@ const extensionNameInputSchema = `{
 	"additionalProperties":false
 }`
 
-const extensionEnableInputSchema = `{
-	"type":"object",
-	"required":["name"],
-	"properties":{
-		"name":{"type":"string"},
-		"confirm_network_digest":{"type":"string","pattern":"^[a-f0-9]{64}$"}
-	},
-	"additionalProperties":false
-}`
-
 const extensionInstallInputSchema = `{
 	"type":"object",
 	"required":["source","ref"],
@@ -314,7 +292,8 @@ const extensionInstallInputSchema = `{
 		"ref":{"type":"string","minLength":1},
 		"version":{"type":"string"},
 		"asset":{"type":"string"},
-		"allow_unverified":{"type":"boolean"}
+		"allow_unverified":{"type":"boolean"},
+		"confirm_network_digest":{"type":"string","pattern":"^[a-f0-9]{64}$"}
 	},
 	"additionalProperties":false
 }`

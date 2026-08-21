@@ -1,6 +1,9 @@
 package hooks
 
+import "strings"
+
 type WorktreeContext struct {
+	ProfileID     string `json:"profile_id,omitempty"`
 	WorktreeID    string `json:"worktree_id"`
 	WorkspaceID   string `json:"workspace_id"`
 	WorkspaceRoot string `json:"workspace_root,omitempty"`
@@ -10,6 +13,9 @@ type WorktreeContext struct {
 	Origin        string `json:"origin"`
 	RunID         string `json:"run_id,omitempty"`
 }
+
+// HookProfileID returns the durable owner used to isolate profile-scoped declarations.
+func (c WorktreeContext) HookProfileID() string { return strings.TrimSpace(c.ProfileID) }
 
 type WorktreeRisk struct {
 	ChangedFiles    int  `json:"changed_files"`

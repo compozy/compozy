@@ -20,6 +20,8 @@ import (
 	"github.com/compozy/compozy/internal/testutil"
 )
 
+const presetDefaultProfileID = store.DefaultProfileID
+
 func TestNotificationPresetMatchingAndFilters(t *testing.T) {
 	t.Parallel()
 
@@ -51,8 +53,9 @@ func TestNotificationPresetMatchingAndFilters(t *testing.T) {
 			t.Fatalf("CompileFilter() error = %v", err)
 		}
 		if !filter.Eval(Event{
-			Type:    eventspkg.ProviderPermissionDenied,
-			Outcome: eventspkg.OutcomeFailure,
+			ProfileID: presetDefaultProfileID,
+			Type:      eventspkg.ProviderPermissionDenied,
+			Outcome:   eventspkg.OutcomeFailure,
 			Scope: notifications.ScopeRef{
 				Kind:        notifications.ScopeKindWorkspace,
 				WorkspaceID: "ws-alpha",
@@ -62,8 +65,9 @@ func TestNotificationPresetMatchingAndFilters(t *testing.T) {
 			t.Fatal("filter.Eval(failure ws-alpha) = false, want match")
 		}
 		if !filter.Eval(Event{
-			Type:    eventspkg.ProviderRateLimited,
-			Outcome: eventspkg.OutcomeInfo,
+			ProfileID: presetDefaultProfileID,
+			Type:      eventspkg.ProviderRateLimited,
+			Outcome:   eventspkg.OutcomeInfo,
 			Scope: notifications.ScopeRef{
 				Kind:        notifications.ScopeKindWorkspace,
 				WorkspaceID: "ws-beta",
@@ -73,8 +77,9 @@ func TestNotificationPresetMatchingAndFilters(t *testing.T) {
 			t.Fatal("filter.Eval(provider codex) = false, want OR match")
 		}
 		if filter.Eval(Event{
-			Type:    eventspkg.TaskRunCompleted,
-			Outcome: eventspkg.OutcomeSuccess,
+			ProfileID: presetDefaultProfileID,
+			Type:      eventspkg.TaskRunCompleted,
+			Outcome:   eventspkg.OutcomeSuccess,
 			Scope: notifications.ScopeRef{
 				Kind:        notifications.ScopeKindWorkspace,
 				WorkspaceID: "ws-beta",
@@ -156,6 +161,62 @@ func TestNotificationPresetTargetValidation(t *testing.T) {
 func TestNotificationPresetDispatch(t *testing.T) {
 	t.Parallel()
 
+	t.Run("Should route a shared preset only for profiles without a disable exception [IT-056]", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t)
+		presetStore := newPresetMemoryStore([]Preset{{
+			Name:    "task_terminal",
+			Events:  []string{"task.run_*"},
+			Targets: []Target{{BridgeID: "brg-1", CanonicalRoute: "#ops"}},
+			Enabled: true,
+		}})
+		const financeProfileID = "01JPROFILEFINANCE000000000"
+		if err := presetStore.SetPresetEnabled(ctx, "task_terminal", financeProfileID, false); err != nil {
+			t.Fatalf("SetPresetEnabled(finance disabled) error = %v", err)
+		}
+		bridges := newPresetReadyBridgeRuntime()
+		service := NewService(Config{
+			Store: presetStore, Cursors: newPresetMemoryCursorStore(), Bridges: bridges, Now: presetTestNow,
+		})
+		financeResult, err := service.Dispatch(ctx, Event{
+			ProfileID: financeProfileID, ID: "evt-finance", Type: eventspkg.TaskRunCompleted,
+			Scope: notifications.ScopeRef{Kind: notifications.ScopeKindGlobal}, Sequence: 1,
+		})
+		if err != nil {
+			t.Fatalf("Dispatch(finance) error = %v", err)
+		}
+		defaultResult, err := service.Dispatch(ctx, Event{
+			ProfileID: presetDefaultProfileID, ID: "evt-default", Type: eventspkg.TaskRunCompleted,
+			Scope: notifications.ScopeRef{Kind: notifications.ScopeKindGlobal}, Sequence: 1,
+		})
+		if err != nil {
+			t.Fatalf("Dispatch(default) error = %v", err)
+		}
+		if financeResult.Matched != 0 || financeResult.Delivered != 0 ||
+			defaultResult.Matched != 1 || defaultResult.Delivered != 1 || bridges.deliveries != 1 {
+			t.Fatalf(
+				"dispatch results = finance %#v default %#v deliveries %d",
+				financeResult,
+				defaultResult,
+				bridges.deliveries,
+			)
+		}
+		financeLibrary, err := service.ListForProfile(ctx, Query{}, financeProfileID)
+		if err != nil {
+			t.Fatalf("ListForProfile(finance) error = %v", err)
+		}
+		defaultLibrary, err := service.ListForProfile(ctx, Query{}, presetDefaultProfileID)
+		if err != nil {
+			t.Fatalf("ListForProfile(default) error = %v", err)
+		}
+		if len(financeLibrary) != 1 || financeLibrary[0].Enabled ||
+			len(defaultLibrary) != 1 || !defaultLibrary[0].Enabled ||
+			financeLibrary[0].Name != defaultLibrary[0].Name {
+			t.Fatalf("shared library projections = finance %#v default %#v", financeLibrary, defaultLibrary)
+		}
+	})
+
 	t.Run("Should advance cursor for suppressed bridge without delivery", func(t *testing.T) {
 		t.Parallel()
 
@@ -169,6 +230,7 @@ func TestNotificationPresetDispatch(t *testing.T) {
 		cursors := newPresetMemoryCursorStore()
 		bridges := &presetFakeBridgeRuntime{
 			instance: bridgepkg.BridgeInstance{
+				ProfileID:            presetDefaultProfileID,
 				ID:                   "brg-1",
 				Scope:                bridgepkg.ScopeGlobal,
 				Platform:             "slack",
@@ -187,11 +249,12 @@ func TestNotificationPresetDispatch(t *testing.T) {
 		})
 
 		result, err := service.Dispatch(ctx, Event{
-			ID:       "evt-1",
-			Type:     eventspkg.TaskRunCompleted,
-			Scope:    notifications.ScopeRef{Kind: notifications.ScopeKindWorkspace, WorkspaceID: "ws-alpha"},
-			Sequence: 7,
-			Summary:  "Build finished",
+			ProfileID: presetDefaultProfileID,
+			ID:        "evt-1",
+			Type:      eventspkg.TaskRunCompleted,
+			Scope:     notifications.ScopeRef{Kind: notifications.ScopeKindWorkspace, WorkspaceID: "ws-alpha"},
+			Sequence:  7,
+			Summary:   "Build finished",
 		})
 		if err != nil {
 			t.Fatalf("Dispatch() error = %v", err)
@@ -220,11 +283,12 @@ func TestNotificationPresetDispatch(t *testing.T) {
 		}
 
 		replay, err := service.Dispatch(ctx, Event{
-			ID:       "evt-1",
-			Type:     eventspkg.TaskRunCompleted,
-			Scope:    notifications.ScopeRef{Kind: notifications.ScopeKindWorkspace, WorkspaceID: "ws-alpha"},
-			Sequence: 7,
-			Summary:  "Build finished",
+			ProfileID: presetDefaultProfileID,
+			ID:        "evt-1",
+			Type:      eventspkg.TaskRunCompleted,
+			Scope:     notifications.ScopeRef{Kind: notifications.ScopeKindWorkspace, WorkspaceID: "ws-alpha"},
+			Sequence:  7,
+			Summary:   "Build finished",
 		})
 		if err != nil {
 			t.Fatalf("Dispatch(replay) error = %v", err)
@@ -246,6 +310,7 @@ func TestNotificationPresetDispatch(t *testing.T) {
 		}})
 		cursors := newPresetMemoryCursorStore()
 		bridges := &presetFakeBridgeRuntime{instance: bridgepkg.BridgeInstance{
+			ProfileID:     presetDefaultProfileID,
 			ID:            "brg-1",
 			Scope:         bridgepkg.ScopeGlobal,
 			Platform:      "slack",
@@ -262,21 +327,23 @@ func TestNotificationPresetDispatch(t *testing.T) {
 		})
 
 		globalResult, err := service.Dispatch(ctx, Event{
-			ID:       "evt:terminal",
-			Type:     eventspkg.TaskRunCompleted,
-			Scope:    notifications.ScopeRef{Kind: notifications.ScopeKindGlobal},
-			Sequence: 7,
-			Summary:  "Global task finished",
+			ProfileID: presetDefaultProfileID,
+			ID:        "evt:terminal",
+			Type:      eventspkg.TaskRunCompleted,
+			Scope:     notifications.ScopeRef{Kind: notifications.ScopeKindGlobal},
+			Sequence:  7,
+			Summary:   "Global task finished",
 		})
 		if err != nil {
 			t.Fatalf("Dispatch(global) error = %v", err)
 		}
 		workspaceResult, err := service.Dispatch(ctx, Event{
-			ID:       "evt:terminal",
-			Type:     eventspkg.TaskRunCompleted,
-			Scope:    notifications.ScopeRef{Kind: notifications.ScopeKindWorkspace, WorkspaceID: "global"},
-			Sequence: 7,
-			Summary:  "Workspace task finished",
+			ProfileID: presetDefaultProfileID,
+			ID:        "evt:terminal",
+			Type:      eventspkg.TaskRunCompleted,
+			Scope:     notifications.ScopeRef{Kind: notifications.ScopeKindWorkspace, WorkspaceID: "global"},
+			Sequence:  7,
+			Summary:   "Workspace task finished",
 		})
 		if err != nil {
 			t.Fatalf("Dispatch(workspace global) error = %v", err)
@@ -339,6 +406,7 @@ func TestNotificationPresetDispatch(t *testing.T) {
 		}})
 		cursors := newPresetMemoryCursorStore()
 		bridges := &presetFakeBridgeRuntime{instance: bridgepkg.BridgeInstance{
+			ProfileID:     presetDefaultProfileID,
 			ID:            "brg-1",
 			Scope:         bridgepkg.ScopeGlobal,
 			Platform:      "slack",
@@ -355,10 +423,11 @@ func TestNotificationPresetDispatch(t *testing.T) {
 		})
 
 		result, err := service.Dispatch(ctx, Event{
-			ID:       "evt-opaque-target",
-			Type:     eventspkg.TaskRunCompleted,
-			Scope:    notifications.ScopeRef{Kind: notifications.ScopeKindWorkspace, WorkspaceID: "ws-alpha"},
-			Sequence: 7,
+			ProfileID: presetDefaultProfileID,
+			ID:        "evt-opaque-target",
+			Type:      eventspkg.TaskRunCompleted,
+			Scope:     notifications.ScopeRef{Kind: notifications.ScopeKindWorkspace, WorkspaceID: "ws-alpha"},
+			Sequence:  7,
 		})
 		if err != nil {
 			t.Fatalf("Dispatch() error = %v", err)
@@ -398,6 +467,7 @@ func TestNotificationPresetDispatch(t *testing.T) {
 		}})
 		cursors := newPresetMemoryCursorStore()
 		bridges := &presetFakeBridgeRuntime{instance: bridgepkg.BridgeInstance{
+			ProfileID:     presetDefaultProfileID,
 			ID:            "brg-1",
 			Scope:         bridgepkg.ScopeGlobal,
 			Platform:      "slack",
@@ -414,10 +484,11 @@ func TestNotificationPresetDispatch(t *testing.T) {
 		})
 
 		result, err := service.Dispatch(ctx, Event{
-			ID:       "evt-repeated-target",
-			Type:     eventspkg.TaskRunCompleted,
-			Scope:    notifications.ScopeRef{Kind: notifications.ScopeKindWorkspace, WorkspaceID: "ws-alpha"},
-			Sequence: 7,
+			ProfileID: presetDefaultProfileID,
+			ID:        "evt-repeated-target",
+			Type:      eventspkg.TaskRunCompleted,
+			Scope:     notifications.ScopeRef{Kind: notifications.ScopeKindWorkspace, WorkspaceID: "ws-alpha"},
+			Sequence:  7,
 		})
 		if err != nil {
 			t.Fatalf("Dispatch() error = %v", err)
@@ -479,6 +550,7 @@ func TestNotificationPresetDispatchRedactsCursorDiagnostics(t *testing.T) {
 		events := &presetMemoryEventSummaryStore{}
 		bridges := &presetFakeBridgeRuntime{
 			instance: bridgepkg.BridgeInstance{
+				ProfileID:     presetDefaultProfileID,
 				ID:            "brg-1",
 				Scope:         bridgepkg.ScopeGlobal,
 				Platform:      "slack",
@@ -509,10 +581,11 @@ func TestNotificationPresetDispatchRedactsCursorDiagnostics(t *testing.T) {
 		})
 
 		result, err := service.Dispatch(ctx, Event{
-			ID:       "evt-redacted-diagnostic",
-			Type:     eventspkg.TaskRunCompleted,
-			Scope:    notifications.ScopeRef{Kind: notifications.ScopeKindWorkspace, WorkspaceID: "ws-alpha"},
-			Sequence: 7,
+			ProfileID: presetDefaultProfileID,
+			ID:        "evt-redacted-diagnostic",
+			Type:      eventspkg.TaskRunCompleted,
+			Scope:     notifications.ScopeRef{Kind: notifications.ScopeKindWorkspace, WorkspaceID: "ws-alpha"},
+			Sequence:  7,
 		})
 		if err == nil {
 			t.Fatal("Dispatch() error = nil, want delivery failure")
@@ -556,8 +629,8 @@ func TestNotificationPresetDispatchRedactsCursorDiagnostics(t *testing.T) {
 			"oauth-preset-secret",
 			"pkce-preset-secret",
 		} {
-			if strings.Contains(string(events.items[0].Content), secret) {
-				t.Fatalf("dispatch failure event = %s, leaked %q", events.items[0].Content, secret)
+			if strings.Contains(string(events.items[0].ContentValue()), secret) {
+				t.Fatalf("dispatch failure event = %s, leaked %q", events.items[0].ContentValue(), secret)
 			}
 		}
 		if got, want := err.Error(), stored[0].LastError; got != want {
@@ -566,7 +639,7 @@ func TestNotificationPresetDispatchRedactsCursorDiagnostics(t *testing.T) {
 		var payload struct {
 			LastError string `json:"last_error"`
 		}
-		if err := json.Unmarshal(events.items[0].Content, &payload); err != nil {
+		if err := json.Unmarshal(events.items[0].ContentValue(), &payload); err != nil {
 			t.Fatalf("decode dispatch failure event = %v", err)
 		}
 		if got, want := payload.LastError, stored[0].LastError; got != want {
@@ -679,6 +752,7 @@ func (r presetFakeTaskReader) GetTask(_ context.Context, _ string) (taskpkg.Task
 
 func newPresetReadyBridgeRuntime() *presetFakeBridgeRuntime {
 	return &presetFakeBridgeRuntime{instance: bridgepkg.BridgeInstance{
+		ProfileID:     presetDefaultProfileID,
 		ID:            "brg-1",
 		Scope:         bridgepkg.ScopeGlobal,
 		Platform:      "slack",
@@ -725,12 +799,15 @@ func presetTestNow() time.Time {
 }
 
 type presetMemoryStore struct {
-	mu      sync.Mutex
-	presets map[string]Preset
+	mu         sync.Mutex
+	presets    map[string]Preset
+	disabledBy map[string]map[string]bool
 }
 
 func newPresetMemoryStore(items []Preset) *presetMemoryStore {
-	store := &presetMemoryStore{presets: make(map[string]Preset, len(items))}
+	store := &presetMemoryStore{
+		presets: make(map[string]Preset, len(items)), disabledBy: make(map[string]map[string]bool),
+	}
 	for _, item := range items {
 		preset := item.Normalize()
 		if preset.CreatedAt.IsZero() {
@@ -740,28 +817,69 @@ func newPresetMemoryStore(items []Preset) *presetMemoryStore {
 			preset.UpdatedAt = preset.CreatedAt
 		}
 		store.presets[preset.Name] = preset
+		if !preset.Enabled {
+			store.disabledBy[preset.Name] = map[string]bool{presetDefaultProfileID: true}
+		}
 	}
 	return store
 }
 
-func (s *presetMemoryStore) ListPresets(_ context.Context, query Query) ([]Preset, error) {
+func (s *presetMemoryStore) ListPresetsForProfile(
+	_ context.Context,
+	query Query,
+	profileID string,
+) ([]Preset, error) {
 	q := query.Normalize()
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	items := make([]Preset, 0, len(s.presets))
 	for _, preset := range s.presets {
-		if q.Enabled != nil && preset.Enabled != *q.Enabled {
-			continue
-		}
-		if q.BuiltIn != nil && preset.BuiltIn != *q.BuiltIn {
-			continue
-		}
-		if q.Name != "" && preset.Name != q.Name {
-			continue
-		}
+		preset.Enabled = !s.disabledBy[preset.Name][profileID]
 		items = append(items, preset)
 	}
-	return items, nil
+	return filterPresetQuery(items, q), nil
+}
+
+func (s *presetMemoryStore) SetPresetEnabled(
+	_ context.Context,
+	name string,
+	profileID string,
+	enabled bool,
+) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if _, ok := s.presets[name]; !ok {
+		return ErrPresetNotFound
+	}
+	if enabled {
+		delete(s.disabledBy[name], profileID)
+		return nil
+	}
+	if s.disabledBy[name] == nil {
+		s.disabledBy[name] = make(map[string]bool)
+	}
+	s.disabledBy[name][profileID] = true
+	return nil
+}
+
+func filterPresetQuery(items []Preset, query Query) []Preset {
+	filtered := make([]Preset, 0, len(items))
+	for _, preset := range items {
+		if query.Enabled != nil && preset.Enabled != *query.Enabled {
+			continue
+		}
+		if query.BuiltIn != nil && preset.BuiltIn != *query.BuiltIn {
+			continue
+		}
+		if query.Name != "" && preset.Name != query.Name {
+			continue
+		}
+		filtered = append(filtered, preset)
+		if query.Limit > 0 && len(filtered) == query.Limit {
+			break
+		}
+	}
+	return filtered
 }
 
 func (s *presetMemoryStore) GetPreset(_ context.Context, name string) (Preset, error) {
@@ -803,9 +921,6 @@ func (s *presetMemoryStore) UpdatePreset(
 	}
 	if req.Filter != nil {
 		preset.Filter = *req.Filter
-	}
-	if req.Enabled != nil {
-		preset.Enabled = *req.Enabled
 	}
 	preset.UpdatedAt = req.Now
 	s.presets[preset.Name] = preset
@@ -898,7 +1013,20 @@ type presetMemoryCursorStore struct {
 }
 
 func newPresetMemoryCursorStore() *presetMemoryCursorStore {
-	return &presetMemoryCursorStore{cursors: make(map[notifications.CursorKey]notifications.Cursor)}
+	return &presetMemoryCursorStore{
+		cursors: make(map[notifications.CursorKey]notifications.Cursor),
+	}
+}
+
+func (s *presetMemoryCursorStore) AcquireDeliveryPermit(
+	_ context.Context,
+	permit notifications.DeliveryPermit,
+) error {
+	_, err := permit.Normalize(presetTestNow())
+	if err != nil {
+		return err
+	}
+	return nil
 }
 
 func (s *presetMemoryCursorStore) GetCursor(

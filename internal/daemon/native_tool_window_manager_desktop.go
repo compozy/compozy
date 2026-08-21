@@ -104,7 +104,11 @@ func (n *daemonNativeTools) desktopClients(
 	if err != nil {
 		return toolspkg.ToolResult{}, err
 	}
-	clients, err := n.windowManagerService().Clients(ctx, snapshot.WorkspaceID)
+	service, err := n.windowManagerService(req.ToolID, scope)
+	if err != nil {
+		return toolspkg.ToolResult{}, err
+	}
+	clients, err := service.Clients(ctx, snapshot.WorkspaceID)
 	if err != nil {
 		return toolspkg.ToolResult{}, windowManagerToolError(req.ToolID, err)
 	}

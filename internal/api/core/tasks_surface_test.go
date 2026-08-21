@@ -24,6 +24,7 @@ import (
 func TestExpandedTaskPayloadBuildersPreserveLiveAndAggregateFields(t *testing.T) {
 	t.Parallel()
 
+	const profileID = "profile-builders"
 	now := time.Date(2026, 4, 17, 12, 0, 0, 0, time.UTC)
 	lastActivity := now.Add(-time.Minute)
 	lastSeen := now.Add(-2 * time.Minute)
@@ -34,6 +35,7 @@ func TestExpandedTaskPayloadBuildersPreserveLiveAndAggregateFields(t *testing.T)
 
 	summary := taskpkg.Summary{
 		ID:              "task-1",
+		ProfileID:       profileID,
 		Identifier:      "TASK-1",
 		Scope:           taskpkg.ScopeWorkspace,
 		WorkspaceID:     "ws-alpha",
@@ -103,6 +105,7 @@ func TestExpandedTaskPayloadBuildersPreserveLiveAndAggregateFields(t *testing.T)
 
 	summaryPayload := core.TaskSummaryPayloadFromSummary(&summary)
 	if summaryPayload.Priority != taskpkg.PriorityHigh ||
+		summaryPayload.ProfileID != profileID ||
 		summaryPayload.MaxAttempts != 4 ||
 		summaryPayload.ApprovalState != taskpkg.ApprovalStatePending ||
 		summaryPayload.DependencyCount != 1 ||
@@ -135,6 +138,7 @@ func TestExpandedTaskPayloadBuildersPreserveLiveAndAggregateFields(t *testing.T)
 		Summary: summary,
 		Task: taskpkg.Task{
 			ID:             "task-1",
+			ProfileID:      profileID,
 			Identifier:     "TASK-1",
 			Scope:          taskpkg.ScopeWorkspace,
 			WorkspaceID:    "ws-alpha",
@@ -163,6 +167,8 @@ func TestExpandedTaskPayloadBuildersPreserveLiveAndAggregateFields(t *testing.T)
 		}},
 	})
 	if detailPayload.Summary.Priority != taskpkg.PriorityHigh ||
+		detailPayload.Summary.ProfileID != profileID ||
+		detailPayload.Task.ProfileID != profileID ||
 		detailPayload.Task.MaxAttempts != 4 ||
 		detailPayload.Task.ApprovalPolicy != taskpkg.ApprovalPolicyManual ||
 		detailPayload.Task.LatestEventSeq != 17 ||

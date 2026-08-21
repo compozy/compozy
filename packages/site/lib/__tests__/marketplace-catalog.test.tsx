@@ -635,6 +635,7 @@ describe("marketplace bridge providers", () => {
 describe("marketplace bundled resources", () => {
   it("derives the spec-cycle inventory from its manifest and directories", () => {
     const specCycleRoot = resolve(repoRoot, "extensions", "spec-cycle");
+    type ResourcePath = { path: string; profile?: string };
     const manifest = JSON.parse(readFileSync(resolve(specCycleRoot, "extension.json"), "utf8")) as {
       extension: {
         name: string;
@@ -644,13 +645,13 @@ describe("marketplace bundled resources", () => {
       };
       capabilities: { provides: string[] };
       resources: {
-        loops: string[];
-        skills: string[];
-        agents: string[];
+        loops: ResourcePath[];
+        skills: ResourcePath[];
+        agents: ResourcePath[];
         tools: Record<string, unknown>;
       };
     };
-    const loopDirectories = manifest.resources.loops.flatMap(parent =>
+    const loopDirectories = manifest.resources.loops.flatMap(({ path: parent }) =>
       readdirSync(resolve(specCycleRoot, parent), { withFileTypes: true })
         .filter(entry => entry.isDirectory())
         .map(entry => ({ parent, name: entry.name }))
@@ -680,8 +681,14 @@ describe("marketplace bundled resources", () => {
       minCompozyVersion: manifest.extension.min_compozy_version,
       provides: manifest.capabilities.provides,
       loops,
-      skills: manifestDirectories(specCycleRoot, manifest.resources.skills),
-      agents: manifestDirectories(specCycleRoot, manifest.resources.agents),
+      skills: manifestDirectories(
+        specCycleRoot,
+        manifest.resources.skills.map(resource => resource.path)
+      ),
+      agents: manifestDirectories(
+        specCycleRoot,
+        manifest.resources.agents.map(resource => resource.path)
+      ),
     });
     expect(specCycleExtension.tools).toHaveLength(Object.keys(manifest.resources.tools).length);
   });

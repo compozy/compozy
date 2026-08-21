@@ -31,7 +31,7 @@ func (h *HostAPIHandler) handleTasksRuns(ctx context.Context, raw json.RawMessag
 	if err != nil {
 		return nil, mapTaskRPCError(taskID, err)
 	}
-	return taskRunPayloadsFromRuns(runs), nil
+	return h.taskRunPayloadResponses(ctx, manager, actor, runs)
 }
 
 func (h *HostAPIHandler) handleTasksRunsGet(ctx context.Context, raw json.RawMessage) (any, error) {
@@ -83,7 +83,7 @@ func (h *HostAPIHandler) handleTasksRunsEnqueue(ctx context.Context, raw json.Ra
 	if err != nil {
 		return nil, mapTaskRPCError(taskID, err)
 	}
-	return taskRunPayloadFromRun(run), nil
+	return h.taskRunPayloadResponse(ctx, manager, actor, run)
 }
 
 func (h *HostAPIHandler) handleTasksRunsStart(ctx context.Context, raw json.RawMessage) (any, error) {
@@ -109,7 +109,7 @@ func (h *HostAPIHandler) handleTasksRunsStart(ctx context.Context, raw json.RawM
 	if err != nil {
 		return nil, mapTaskRPCError(runID, err)
 	}
-	return taskRunPayloadFromRun(run), nil
+	return h.taskRunPayloadResponse(ctx, manager, actor, run)
 }
 
 func (h *HostAPIHandler) handleTasksRunsAttachSession(ctx context.Context, raw json.RawMessage) (any, error) {
@@ -135,7 +135,7 @@ func (h *HostAPIHandler) handleTasksRunsAttachSession(ctx context.Context, raw j
 	if err != nil {
 		return nil, mapTaskRPCError(runID, err)
 	}
-	return taskRunPayloadFromRun(run), nil
+	return h.taskRunPayloadResponse(ctx, manager, actor, run)
 }
 
 func (h *HostAPIHandler) handleTasksRunsComplete(ctx context.Context, raw json.RawMessage) (any, error) {
@@ -161,7 +161,7 @@ func (h *HostAPIHandler) handleTasksRunsComplete(ctx context.Context, raw json.R
 	if err != nil {
 		return nil, mapTaskRPCError(runID, err)
 	}
-	return taskRunPayloadFromRun(run), nil
+	return h.taskRunPayloadResponse(ctx, manager, actor, run)
 }
 
 func (h *HostAPIHandler) handleTasksRunsFail(ctx context.Context, raw json.RawMessage) (any, error) {
@@ -187,7 +187,7 @@ func (h *HostAPIHandler) handleTasksRunsFail(ctx context.Context, raw json.RawMe
 	if err != nil {
 		return nil, mapTaskRPCError(runID, err)
 	}
-	return taskRunPayloadFromRun(run), nil
+	return h.taskRunPayloadResponse(ctx, manager, actor, run)
 }
 
 func (h *HostAPIHandler) handleTasksRunsCancel(ctx context.Context, raw json.RawMessage) (any, error) {
@@ -213,5 +213,5 @@ func (h *HostAPIHandler) handleTasksRunsCancel(ctx context.Context, raw json.Raw
 	if err != nil {
 		return nil, mapTaskRPCError(runID, err)
 	}
-	return taskRunPayloadFromRun(run), nil
+	return h.taskRunPayloadResponse(ctx, manager, actor, run)
 }

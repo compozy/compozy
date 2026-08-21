@@ -26,6 +26,14 @@ changed this root journey. It remains `untested` for the task_12 tail QA walk.
 
 2026-08-20 qa-impact: Palette density/alignment polish — 32px compact rows and a shared 20px left rail. Visual language of the root list changed; keep `untested` until the next QA walk confirms scanability and keyboard row-step.
 
+2026-08-23 qa-impact (Profiles): the root now carries `palette.view.profiles` and the stable
+`profile.*` actions, and every row resolves under one explicit profile lens — the catalog revision
+itself includes per-profile extension enablement and placement. Already `untested`, so no reset was
+needed; extend the parity check in step 3 to a profile action and confirm the root list changes
+between two profiles only where an extension's enablement differs.
+`ET-profile-palette-view` owns the Profiles view itself and
+`ET-profile-palette-lens-isolation` owns the lens contract — this row stays the generic root.
+
 Walk (task_11 plan):
 
 1. Open ⌘K at rest — Pinned, Recents, and curated groups render instantly; first-run state is never

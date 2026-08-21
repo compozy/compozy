@@ -11,6 +11,7 @@ import (
 
 	eventspkg "github.com/compozy/compozy/internal/events"
 	"github.com/compozy/compozy/internal/store"
+	workspacepkg "github.com/compozy/compozy/internal/workspace"
 )
 
 const (
@@ -86,6 +87,7 @@ func (r *Registry) buildSkillShadowSummaries(
 	base map[string]*Skill,
 	overlay map[string]*Skill,
 	resolutionScope string,
+	profileID string,
 	workspaceID string,
 	agentName string,
 ) []store.EventSummary {
@@ -140,18 +142,20 @@ func (r *Registry) buildSkillShadowSummaries(
 			continue
 		}
 
-		summaries = append(summaries, store.EventSummary{
+		summary := store.EventSummary{
+			ProfileID:   normalizedSkillEventProfileID(profileID),
 			WorkspaceID: strings.TrimSpace(workspaceID),
 			AgentName:   strings.TrimSpace(agentName),
 			Type:        eventspkg.SkillShadowed,
-			Content:     content,
 			Summary: fmt.Sprintf(
 				"skill %s resolved to %s and shadowed %d declaration(s)",
 				strings.TrimSpace(shadows.Name),
 				strings.TrimSpace(shadows.Winner.Tier),
 				len(losers),
 			),
-		})
+		}
+		summary.SetContent(content)
+		summaries = append(summaries, summary)
 	}
 	return summaries
 }
@@ -159,6 +163,7 @@ func (r *Registry) buildSkillShadowSummaries(
 func (r *Registry) buildSkillShadowSummariesFromResolved(
 	skills []*Skill,
 	resolutionScope string,
+	profileID string,
 	workspaceID string,
 	agentName string,
 ) []store.EventSummary {
@@ -193,18 +198,20 @@ func (r *Registry) buildSkillShadowSummariesFromResolved(
 			r.logger.Warn("skills: marshal skill.shadowed content failed", "name", skill.Meta.Name, "error", err)
 			continue
 		}
-		summaries = append(summaries, store.EventSummary{
+		summary := store.EventSummary{
+			ProfileID:   normalizedSkillEventProfileID(profileID),
 			WorkspaceID: strings.TrimSpace(workspaceID),
 			AgentName:   strings.TrimSpace(agentName),
 			Type:        eventspkg.SkillShadowed,
-			Content:     content,
 			Summary: fmt.Sprintf(
 				"skill %s resolved to %s and shadowed %d declaration(s)",
 				strings.TrimSpace(shadows.Name),
 				strings.TrimSpace(shadows.Winner.Tier),
 				len(losers),
 			),
-		})
+		}
+		summary.SetContent(content)
+		summaries = append(summaries, summary)
 	}
 	return summaries
 }
@@ -237,7 +244,13 @@ func (r *Registry) emitEventSummaries(ctx context.Context, summaries []store.Eve
 	}
 }
 
-func (r *Registry) emitSkillsLoadFailed(ctx context.Context, workspaceID string, agentName string, err error) {
+func (r *Registry) emitSkillsLoadFailed(
+	ctx context.Context,
+	profileID string,
+	workspaceID string,
+	agentName string,
+	err error,
+) {
 	if r == nil || r.events == nil || err == nil {
 		return
 	}
@@ -255,13 +268,29 @@ func (r *Registry) emitSkillsLoadFailed(ctx context.Context, workspaceID string,
 		return
 	}
 
-	if writeErr := r.events.WriteEventSummary(ctx, store.EventSummary{
+	summary := store.EventSummary{
+		ProfileID:   normalizedSkillEventProfileID(profileID),
 		WorkspaceID: strings.TrimSpace(workspaceID),
 		AgentName:   strings.TrimSpace(agentName),
 		Type:        eventspkg.SkillLoadFailed,
-		Content:     content,
 		Summary:     fmt.Sprintf("agent-local skills load failed for %s", strings.TrimSpace(agentName)),
-	}); writeErr != nil {
+	}
+	summary.SetContent(content)
+	if writeErr := r.events.WriteEventSummary(ctx, summary); writeErr != nil {
 		r.logger.Warn("skills: write skills.load_failed failed", "agent_name", agentName, "error", writeErr)
 	}
+}
+
+func normalizedSkillEventProfileID(profileID string) string {
+	if trimmed := strings.TrimSpace(profileID); trimmed != "" {
+		return trimmed
+	}
+	return store.DefaultProfileID
+}
+
+func resolvedSkillEventProfileID(resolved *workspacepkg.ResolvedWorkspace) string {
+	if resolved == nil {
+		return store.DefaultProfileID
+	}
+	return normalizedSkillEventProfileID(resolved.ProfileID)
 }

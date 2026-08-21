@@ -2923,6 +2923,7 @@ func testBridgeRuntime(
 	return subprocess.InitializeBridgeManagedInstance{
 		Instance: bridgepkg.BridgeInstance{
 			ID:            instanceID,
+			ProfileID:     "profile-test",
 			Scope:         bridgepkg.ScopeWorkspace,
 			WorkspaceID:   "ws-whatsapp",
 			Platform:      "whatsapp",

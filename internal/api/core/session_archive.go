@@ -25,14 +25,19 @@ func (h *BaseHandlers) setSessionArchived(c *gin.Context, archived bool) {
 		h.respondError(c, http.StatusServiceUnavailable, errors.New("api: session archive manager is required"))
 		return
 	}
-	scope, sessionID, _, ok := h.routeSessionInWorkspace(c)
+	scope, sessionID, existing, ok := h.routeSessionInWorkspace(c)
 	if !ok {
 		return
 	}
-	var (
-		info *session.Info
-		err  error
-	)
+	profileScope, err := h.resolveProfileMutationScope(c)
+	if err != nil {
+		h.respondProfileReadScopeError(c, err)
+		return
+	}
+	if !h.requireSessionInProfile(c, existing, profileScope) {
+		return
+	}
+	var info *session.Info
 	if archived {
 		info, err = archiver.Archive(c.Request.Context(), scope.SessionWorkspaceID(), sessionID)
 	} else {
@@ -42,5 +47,10 @@ func (h *BaseHandlers) setSessionArchived(c *gin.Context, archived bool) {
 		h.respondError(c, StatusForSessionError(err), err)
 		return
 	}
-	c.JSON(http.StatusOK, contract.SessionResponse{Session: SessionPayloadFromInfo(info)})
+	payload, err := h.sessionPayloadWithOptionalHealth(c.Request.Context(), info, false)
+	if err != nil {
+		h.respondError(c, StatusForSessionError(err), err)
+		return
+	}
+	c.JSON(http.StatusOK, contract.SessionResponse{Session: payload})
 }

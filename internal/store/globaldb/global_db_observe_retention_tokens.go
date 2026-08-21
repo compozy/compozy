@@ -169,6 +169,12 @@ func scanEventSummary(scanner rowScanner) (store.EventSummary, error) {
 	if err := scanner.Scan(
 		&summary.Sequence,
 		&summary.ID,
+		&summary.ProfileID,
+		&summary.ProfileName,
+		&summary.ProfileColor,
+		&summary.ProfileIcon,
+		&summary.ProfileEmoji,
+		&summary.ProfileArchived,
 		&summary.SessionID,
 		&summary.WorkspaceID,
 		&summary.WorktreeID,
@@ -202,7 +208,7 @@ func scanEventSummary(scanner rowScanner) (store.EventSummary, error) {
 		summary.Summary = summaryText.String
 	}
 	if strings.TrimSpace(contentJSONRaw) != "" {
-		summary.Content = append(json.RawMessage(nil), []byte(contentJSONRaw)...)
+		summary.SetContent(json.RawMessage(contentJSONRaw))
 	}
 	if parsedLeaseUntil, err := store.ParseNullableTimestamp(leaseUntilRaw); err != nil {
 		return store.EventSummary{}, err

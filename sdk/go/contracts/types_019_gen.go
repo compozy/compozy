@@ -2,7 +2,48 @@
 
 package contracts
 
-import "time"
+import (
+	"encoding/json"
+	"time"
+)
+
+type ResourceOwner struct {
+	Kind ResourceOwnerKind `json:"kind"`
+	ID   string            `json:"id"`
+}
+
+type ResourceOwnerKind string
+
+type ResourceRecord struct {
+	Kind      ResourceKind    `json:"kind"`
+	ID        string          `json:"id"`
+	Version   int64           `json:"version"`
+	Scope     ResourceScope   `json:"scope"`
+	Owner     ResourceOwner   `json:"owner"`
+	Source    ResourceSource  `json:"source"`
+	Spec      json.RawMessage `json:"spec"`
+	CreatedAt time.Time       `json:"created_at"`
+	UpdatedAt time.Time       `json:"updated_at"`
+}
+
+type ResourceScope struct {
+	Kind ResourceScopeKind `json:"kind"`
+	ID   string            `json:"id,omitempty"`
+}
+
+type ResourceScopeKind string
+
+type ResourceSnapshotRecord struct {
+	Kind  ResourceKind    `json:"kind"`
+	ID    string          `json:"id"`
+	Scope ResourceScope   `json:"scope"`
+	Spec  json.RawMessage `json:"spec"`
+}
+
+type ResourceSource struct {
+	Kind ResourceSourceKind `json:"kind"`
+	ID   string             `json:"id"`
+}
 
 type ResourceSourceKind string
 
@@ -87,6 +128,7 @@ type RowAction struct {
 
 type Run struct {
 	ID                   string         `json:"id"`
+	ProfileID            string         `json:"profile_id,omitempty"`
 	JobID                string         `json:"job_id,omitempty"`
 	TriggerID            string         `json:"trigger_id,omitempty"`
 	SessionID            string         `json:"session_id,omitempty"`
@@ -132,66 +174,4 @@ type SandboxExecResult struct {
 	ExitCode int    `json:"exit_code"`
 	Stdout   string `json:"stdout,omitempty"`
 	Stderr   string `json:"stderr,omitempty"`
-}
-
-type SandboxInfoParams struct {
-	WorkspaceID string `json:"workspace_id"`
-	SessionID   string `json:"session_id"`
-}
-
-type SandboxInfoResult struct {
-	SandboxID     string    `json:"sandbox_id"`
-	Backend       string    `json:"backend"`
-	Profile       string    `json:"profile"`
-	InstanceID    string    `json:"instance_id"`
-	RuntimeRoot   string    `json:"runtime_root"`
-	SyncState     string    `json:"sync_state"`
-	CreatedAt     time.Time `json:"created_at"`
-	LastSyncError string    `json:"last_sync_error"`
-}
-
-type SandboxListParams struct {
-	Workspace string `json:"workspace,omitempty"`
-}
-
-type SandboxListResult struct {
-	Sandboxes []SandboxSummary `json:"sandboxes"`
-}
-
-type SandboxObservationPatch struct{}
-
-type SandboxPreparePatch struct {
-	Deny         bool              `json:"deny,omitempty"`
-	DenyReason   string            `json:"deny_reason,omitempty"`
-	EnvOverrides map[string]string `json:"env_overrides,omitempty"`
-}
-
-type SandboxPreparePayload struct {
-	Event               HookEvent             `json:"event"`
-	Timestamp           time.Time             `json:"timestamp"`
-	SessionID           string                `json:"session_id,omitempty"`
-	SessionName         string                `json:"session_name,omitempty"`
-	SessionType         string                `json:"session_type,omitempty"`
-	AgentName           string                `json:"agent_name,omitempty"`
-	WorkspaceID         string                `json:"workspace_id,omitempty"`
-	Workspace           string                `json:"workspace,omitempty"`
-	WorktreeID          string                `json:"worktree_id,omitempty"`
-	ACPSessionID        string                `json:"acp_session_id,omitempty"`
-	State               string                `json:"state,omitempty"`
-	SoulSnapshotID      string                `json:"soul_snapshot_id,omitempty"`
-	SoulDigest          string                `json:"soul_digest,omitempty"`
-	CreatedAt           time.Time             `json:"created_at"`
-	UpdatedAt           time.Time             `json:"updated_at"`
-	SandboxID           string                `json:"sandbox_id,omitempty"`
-	Backend             string                `json:"backend,omitempty"`
-	Profile             SandboxProfilePayload `json:"profile"`
-	LocalRootDir        string                `json:"local_root,omitempty"`
-	LocalAdditionalDirs []string              `json:"local_additional_dirs,omitempty"`
-	AgentCommand        string                `json:"agent_command,omitempty"`
-	AgentEnv            []string              `json:"agent_env,omitempty"`
-	Permissions         string                `json:"permissions,omitempty"`
-	ResumeACPState      string                `json:"resume_acp_state,omitempty"`
-	EnvOverrides        map[string]string     `json:"env_overrides,omitempty"`
-	Denied              bool                  `json:"denied,omitempty"`
-	DenyReason          string                `json:"deny_reason,omitempty"`
 }

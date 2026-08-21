@@ -26,6 +26,8 @@ func (d *Daemon) bootSettings(ctx context.Context, state *bootState) error {
 	networkAvailability := networkAvailabilityStoreDependency(state.registry)
 	service, err := settingspkg.NewService(d.homePaths, settingspkg.Dependencies{
 		WorkspaceResolver:        state.workspaceResolver,
+		ProfileResolver:          state.profiles,
+		AttentionWorkspaceMutes:  state.registry,
 		GeneralRuntime:           surface,
 		MemoryRuntime:            surface,
 		SkillsRuntime:            state.skillsRegistry,
@@ -72,7 +74,6 @@ func (d *Daemon) bootSettings(ctx context.Context, state *bootState) error {
 	}
 
 	state.deps.Settings = service
-	state.attentionMuteMutator = service
 	state.deps.SettingsRestart = settingsRestartController{daemon: d}
 	state.deps.SettingsUpdate = newSettingsUpdateController(d, updateManager)
 	state.updateManager = updateManager

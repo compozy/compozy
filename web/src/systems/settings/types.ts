@@ -3,11 +3,17 @@ import type { LucideIcon } from "lucide-react";
 import type { OperationQuery, OperationRequestBody, OperationResponse } from "@/lib/api-contract";
 
 export type SettingsGeneralSection = OperationResponse<"getSettingsGeneral", 200>;
+export type SettingsPersonaSection = OperationResponse<"getSettingsPersona", 200>;
+export type SettingsPersonaFilter = NonNullable<OperationQuery<"getSettingsPersona">>;
+export type SettingsLayeredScope = SettingsPersonaFilter["scope"];
+export type SettingsUpdatePersonaRequest = OperationRequestBody<"updateSettingsPersona">;
 export type SettingsMemorySection = OperationResponse<"getSettingsMemory", 200>;
 export type SettingsSkillsSection = OperationResponse<"getSettingsSkills", 200>;
 export type SettingsAutomationSection = OperationResponse<"getSettingsAutomation", 200>;
 export type SettingsNetworkSection = OperationResponse<"getSettingsNetwork", 200>;
 export type SettingsAttentionSection = OperationResponse<"getSettingsAttention", 200>;
+export type SettingsAttentionFilter = NonNullable<OperationQuery<"getSettingsAttention">>;
+export type SettingsUpdateAttentionFilter = NonNullable<OperationQuery<"updateSettingsAttention">>;
 /** Operator shell preferences (session list sort + scope) — persisted by the daemon. */
 export type SettingsShellSection = OperationResponse<"getSettingsShell", 200>;
 export type SettingsObservabilitySection = OperationResponse<"getSettingsObservability", 200>;
@@ -109,6 +115,9 @@ export type SettingsSandboxRequest = OperationRequestBody<"putSettingsSandbox">;
 export type SettingsHookCollection = OperationResponse<"listSettingsHooks", 200>;
 export type SettingsHookEntry = SettingsHookCollection["hooks"][number];
 export type SettingsHookRequest = OperationRequestBody<"putSettingsHook">;
+export type SettingsHookListFilter = NonNullable<OperationQuery<"listSettingsHooks">>;
+export type SettingsHookPutFilter = NonNullable<OperationQuery<"putSettingsHook">>;
+export type SettingsHookDeleteFilter = NonNullable<OperationQuery<"deleteSettingsHook">>;
 
 export type SettingsMCPServerCollection = OperationResponse<"listSettingsMCPServers", 200>;
 export type SettingsMCPServerEntry = SettingsMCPServerCollection["mcp_servers"][number];
@@ -143,7 +152,7 @@ export type SettingsUpdateHooksExtensionsRequest =
 export type SettingsUpdateWindowManagerRequest =
   OperationRequestBody<"updateSettingsWindowManager">;
 export type SettingsUpdateCmdPaletteRequest = OperationRequestBody<"updateSettingsCmdPalette">;
-/** `[cmd_palette]` reads and writes global or one workspace, like `[skills]`. */
+/** `[cmd_palette]` reads and writes user, profile, or workspace preferences. */
 export type SettingsCmdPaletteFilter = NonNullable<OperationQuery<"getSettingsCmdPalette">>;
 export type SettingsUpdateCmdPaletteFilter = NonNullable<
   OperationQuery<"updateSettingsCmdPalette">
@@ -181,6 +190,7 @@ export type SettingsApplyRecordsFilter = NonNullable<OperationQuery<"listSetting
  * of a write receipt.
  */
 export type SettingsMutationResult =
+  | OperationResponse<"updateSettingsPersona", 200>
   | OperationResponse<"updateSettingsGeneral", 200>
   | OperationResponse<"updateSettingsMemory", 200>
   | OperationResponse<"updateSettingsSkills", 200>
@@ -203,6 +213,7 @@ export type SettingsScope = SettingsMutationResult["scope"];
 export type SettingsWriteTarget = NonNullable<SettingsMutationResult["write_target"]>;
 export type SettingsSectionName =
   | SettingsGeneralSection["section"]
+  | SettingsPersonaSection["section"]
   | SettingsMemorySection["section"]
   | SettingsRolesSection["section"]
   | SettingsSkillsSection["section"]
@@ -234,9 +245,11 @@ export interface SettingsSectionDescriptor {
 
 export type SettingsSectionSlug =
   | "general"
+  | "defaults"
   | "appearance"
   | "layouts"
   | "palette"
+  | "profiles"
   | "providers"
   | "sandboxes"
   | "memory"

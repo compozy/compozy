@@ -320,7 +320,7 @@ func (s *stubSettingsService) HasPendingConfigRestart(ctx context.Context) (bool
 func defaultApplyResult(section settingspkg.SectionName) settingspkg.ApplyResult {
 	return settingspkg.ApplyResult{
 		Section:    section,
-		Scope:      settingspkg.ScopeGlobal,
+		Scope:      settingspkg.ScopeUser,
 		Applied:    true,
 		NextAction: "none",
 		Record: settingspkg.ApplyRecord{
@@ -565,6 +565,8 @@ func registerSettingsRoutes(engine *gin.Engine, handlers *core.BaseHandlers) {
 	settings.POST("/update/apply", handlers.ApplySettingsUpdate)
 	settings.POST("/update/cancel", handlers.CancelSettingsUpdate)
 	settings.PATCH("/general", handlers.UpdateSettingsGeneral)
+	settings.GET("/persona", handlers.GetSettingsPersona)
+	settings.PATCH("/persona", handlers.UpdateSettingsPersona)
 	settings.GET("/memory", handlers.GetSettingsMemory)
 	settings.PATCH("/memory", handlers.UpdateSettingsMemory)
 	settings.GET("/roles", handlers.GetSettingsRoles)
@@ -579,6 +581,8 @@ func registerSettingsRoutes(engine *gin.Engine, handlers *core.BaseHandlers) {
 	settings.PATCH("/window-manager", handlers.UpdateSettingsWindowManager)
 	settings.GET("/cmd-palette", handlers.GetSettingsCmdPalette)
 	settings.PATCH("/cmd-palette", handlers.UpdateSettingsCmdPalette)
+	settings.GET("/attention", handlers.GetSettingsAttention)
+	settings.PATCH("/attention", handlers.UpdateSettingsAttention)
 	settings.GET("/observability", handlers.GetSettingsObservability)
 	settings.PATCH("/observability", handlers.UpdateSettingsObservability)
 	settings.GET("/hooks-extensions", handlers.GetSettingsHooksExtensions)
@@ -620,8 +624,20 @@ func TestSettingsMCPAuthHandlersKeepSecretsOutOfResponses(t *testing.T) {
 				_ context.Context,
 				req settingspkg.MCPAuthTargetRequest,
 			) (mcpauth.Status, error) {
-				if req.Scope != settingspkg.ScopeWorkspace || req.WorkspaceID != "workspace-a" || req.Name != "linear" {
-					t.Fatalf("GetMCPAuthStatus target = %#v", req)
+				if req.Name != "linear" {
+					t.Fatalf("GetMCPAuthStatus target = %#v, want linear", req)
+				}
+				if req.Scope == settingspkg.ScopeProfile {
+					if req.ProfileName != "marketing" || req.WorkspaceID != "" {
+						t.Fatalf("GetMCPAuthStatus profile target = %#v", req)
+					}
+					status := confirmedWorkspaceMCPAuthStatus(expiresAt)
+					status.Scope = mcpauth.ScopeProfile
+					status.WorkspaceID = "marketing"
+					return status, nil
+				}
+				if req.Scope != settingspkg.ScopeWorkspace || req.WorkspaceID != "workspace-a" {
+					t.Fatalf("GetMCPAuthStatus workspace target = %#v", req)
 				}
 				return confirmedWorkspaceMCPAuthStatus(expiresAt), nil
 			},
@@ -696,6 +712,28 @@ func TestSettingsMCPAuthHandlersKeepSecretsOutOfResponses(t *testing.T) {
 		}
 		if service.ListCollectionCalls != 0 {
 			t.Fatalf("GetSettingsMCPAuthStatus triggered collection listing %d times", service.ListCollectionCalls)
+		}
+
+		profileStatusResponse := performRequest(
+			t,
+			fixture.Engine,
+			http.MethodGet,
+			"/api/settings/mcp-servers/linear/auth/status?scope=profile&profile=marketing",
+			nil,
+		)
+		if profileStatusResponse.Code != http.StatusOK {
+			t.Fatalf(
+				"profile status response = %d, want %d; body=%s",
+				profileStatusResponse.Code,
+				http.StatusOK,
+				profileStatusResponse.Body.String(),
+			)
+		}
+		var profileStatusPayload contract.SettingsMCPAuthStatusPayload
+		decodeJSON(t, profileStatusResponse.Body.Bytes(), &profileStatusPayload)
+		if profileStatusPayload.Scope != "profile" || profileStatusPayload.Profile != "marketing" ||
+			profileStatusPayload.WorkspaceID != "" {
+			t.Fatalf("profile status payload = %#v, want profile owner without workspace id", profileStatusPayload)
 		}
 
 		begin := performRequest(
@@ -889,7 +927,7 @@ func TestSettingsMCPAuthHandlersUseConfiguredRedirectURI(t *testing.T) {
 				t,
 				fixture.Engine,
 				http.MethodPost,
-				"/api/settings/mcp-servers/linear/auth/begin?scope=global",
+				"/api/settings/mcp-servers/linear/auth/begin?scope=user",
 				[]byte(`{"mode":"`+string(tc.mode)+`"}`),
 			)
 			if response.Code != tc.wantStatus {
@@ -922,24 +960,24 @@ func TestSettingsMCPAuthHandlersRejectInvalidTargetsAndBodies(t *testing.T) {
 		},
 		{
 			name: "Should require a supported begin mode",
-			path: "/api/settings/mcp-servers/linear/auth/begin?scope=global",
+			path: "/api/settings/mcp-servers/linear/auth/begin?scope=user",
 			body: []byte(`{"mode":"unspecified"}`),
 		},
 		{
 			name: "Should reject the legacy code exchange field without echoing its value",
-			path: "/api/settings/mcp-servers/linear/auth/exchange?scope=global",
+			path: "/api/settings/mcp-servers/linear/auth/exchange?scope=user",
 			body: []byte(`{"code":"sensitive-code"}`),
 		},
 		{
 			name: "Should reject unknown exchange fields without echoing their value",
-			path: "/api/settings/mcp-servers/linear/auth/exchange?scope=global",
+			path: "/api/settings/mcp-servers/linear/auth/exchange?scope=user",
 			body: []byte(
 				`{"redirect_url":"http://127.0.0.1:2123/api/mcp/oauth/callback?code=sensitive-code","verifier":"sensitive-verifier"}`,
 			),
 		},
 		{
 			name: "Should reject scope escalation without explicit approval",
-			path: "/api/settings/mcp-servers/linear/auth/begin?scope=global",
+			path: "/api/settings/mcp-servers/linear/auth/begin?scope=user",
 			body: []byte(`{"mode":"automatic","approved_scopes":["tools.write"]}`),
 		},
 	}
@@ -1310,8 +1348,8 @@ func TestSettingsSectionAndCollectionConversions(t *testing.T) {
 	sectionEnvelopes := []settingspkg.SectionEnvelope{
 		{
 			Section:         settingspkg.SectionGeneral,
-			Scope:           settingspkg.ScopeGlobal,
-			AvailableScopes: []settingspkg.ScopeKind{settingspkg.ScopeGlobal},
+			Scope:           settingspkg.ScopeUser,
+			AvailableScopes: []settingspkg.ScopeKind{settingspkg.ScopeUser},
 			General: &settingspkg.GeneralSection{
 				Runtime: settingspkg.DaemonRuntimeStatus{
 					Available:      true,
@@ -1335,8 +1373,7 @@ func TestSettingsSectionAndCollectionConversions(t *testing.T) {
 					DaemonInfo:       "/tmp/home/daemon.json",
 				},
 				Settings: settingspkg.GeneralSettings{
-					Defaults: compozyconfig.DefaultsConfig{Agent: "coder", Provider: "openai", Sandbox: "local"},
-					Limits:   compozyconfig.LimitsConfig{MaxConcurrentAgents: 2},
+					Limits: compozyconfig.LimitsConfig{MaxConcurrentAgents: 2},
 					Permissions: compozyconfig.PermissionsConfig{
 						Mode: compozyconfig.PermissionModeApproveReads,
 					},
@@ -1354,9 +1391,22 @@ func TestSettingsSectionAndCollectionConversions(t *testing.T) {
 			},
 		},
 		{
+			Section:     settingspkg.SectionPersona,
+			Scope:       settingspkg.ScopeProfile,
+			ProfileName: "marketing",
+			AvailableScopes: []settingspkg.ScopeKind{
+				settingspkg.ScopeUser,
+				settingspkg.ScopeProfile,
+				settingspkg.ScopeWorkspace,
+			},
+			Persona: &settingspkg.PersonaSection{
+				Config: compozyconfig.DefaultsConfig{Agent: "coder", Provider: "openai", Sandbox: "local"},
+			},
+		},
+		{
 			Section:         settingspkg.SectionMemory,
-			Scope:           settingspkg.ScopeGlobal,
-			AvailableScopes: []settingspkg.ScopeKind{settingspkg.ScopeGlobal},
+			Scope:           settingspkg.ScopeUser,
+			AvailableScopes: []settingspkg.ScopeKind{settingspkg.ScopeUser},
 			Memory: &settingspkg.MemorySection{
 				Config: compozyconfig.MemoryConfig{
 					Enabled:   true,
@@ -1384,8 +1434,8 @@ func TestSettingsSectionAndCollectionConversions(t *testing.T) {
 		},
 		{
 			Section:         settingspkg.SectionSkills,
-			Scope:           settingspkg.ScopeGlobal,
-			AvailableScopes: []settingspkg.ScopeKind{settingspkg.ScopeGlobal},
+			Scope:           settingspkg.ScopeUser,
+			AvailableScopes: []settingspkg.ScopeKind{settingspkg.ScopeUser},
 			Skills: &settingspkg.SkillsSection{
 				Config: compozyconfig.SkillsConfig{
 					Enabled:      true,
@@ -1406,8 +1456,8 @@ func TestSettingsSectionAndCollectionConversions(t *testing.T) {
 		},
 		{
 			Section:         settingspkg.SectionAutomation,
-			Scope:           settingspkg.ScopeGlobal,
-			AvailableScopes: []settingspkg.ScopeKind{settingspkg.ScopeGlobal},
+			Scope:           settingspkg.ScopeUser,
+			AvailableScopes: []settingspkg.ScopeKind{settingspkg.ScopeUser},
 			Automation: &settingspkg.AutomationSection{
 				Config: settingspkg.AutomationSettings{
 					Enabled:           true,
@@ -1431,8 +1481,8 @@ func TestSettingsSectionAndCollectionConversions(t *testing.T) {
 		},
 		{
 			Section:         settingspkg.SectionNetwork,
-			Scope:           settingspkg.ScopeGlobal,
-			AvailableScopes: []settingspkg.ScopeKind{settingspkg.ScopeGlobal},
+			Scope:           settingspkg.ScopeUser,
+			AvailableScopes: []settingspkg.ScopeKind{settingspkg.ScopeUser},
 			Network: &settingspkg.NetworkSection{
 				Config: compozyconfig.NetworkConfig{
 					Enabled:      true,
@@ -1454,8 +1504,8 @@ func TestSettingsSectionAndCollectionConversions(t *testing.T) {
 		},
 		{
 			Section:         settingspkg.SectionWindowManager,
-			Scope:           settingspkg.ScopeGlobal,
-			AvailableScopes: []settingspkg.ScopeKind{settingspkg.ScopeGlobal},
+			Scope:           settingspkg.ScopeUser,
+			AvailableScopes: []settingspkg.ScopeKind{settingspkg.ScopeUser},
 			WindowManager: &settingspkg.WindowManagerSection{
 				Config: compozyconfig.WindowManagerConfig{
 					NewWindowPolicy:     compozyconfig.WindowNewPolicyBesideFocus,
@@ -1494,7 +1544,7 @@ func TestSettingsSectionAndCollectionConversions(t *testing.T) {
 			Section:         settingspkg.SectionCmdPalette,
 			Scope:           settingspkg.ScopeWorkspace,
 			WorkspaceID:     "ws-test",
-			AvailableScopes: []settingspkg.ScopeKind{settingspkg.ScopeGlobal, settingspkg.ScopeWorkspace},
+			AvailableScopes: []settingspkg.ScopeKind{settingspkg.ScopeUser, settingspkg.ScopeWorkspace},
 			CmdPalette: &settingspkg.CmdPaletteSection{
 				FallbackAgentEnabled: true,
 				Personalization:      true,
@@ -1502,14 +1552,15 @@ func TestSettingsSectionAndCollectionConversions(t *testing.T) {
 		},
 		{
 			Section:         settingspkg.SectionAttention,
-			Scope:           settingspkg.ScopeGlobal,
-			AvailableScopes: []settingspkg.ScopeKind{settingspkg.ScopeGlobal},
+			Scope:           settingspkg.ScopeUser,
+			ProfileName:     compozyconfig.DefaultProfileDirName,
+			AvailableScopes: []settingspkg.ScopeKind{settingspkg.ScopeUser, settingspkg.ScopeProfile},
 			Attention:       &settingspkg.AttentionSection{},
 		},
 		{
 			Section:         settingspkg.SectionObservability,
-			Scope:           settingspkg.ScopeGlobal,
-			AvailableScopes: []settingspkg.ScopeKind{settingspkg.ScopeGlobal},
+			Scope:           settingspkg.ScopeUser,
+			AvailableScopes: []settingspkg.ScopeKind{settingspkg.ScopeUser},
 			Observability: &settingspkg.ObservabilitySection{
 				Config: compozyconfig.ObservabilityConfig{
 					Enabled:        true,
@@ -1535,8 +1586,8 @@ func TestSettingsSectionAndCollectionConversions(t *testing.T) {
 		},
 		{
 			Section:         settingspkg.SectionHooksExtensions,
-			Scope:           settingspkg.ScopeGlobal,
-			AvailableScopes: []settingspkg.ScopeKind{settingspkg.ScopeGlobal},
+			Scope:           settingspkg.ScopeUser,
+			AvailableScopes: []settingspkg.ScopeKind{settingspkg.ScopeUser},
 			HooksExtensions: &settingspkg.HooksExtensionsSection{
 				Hooks: []settingspkg.HookItem{{
 					Name: "capture-tool-call",
@@ -1553,7 +1604,7 @@ func TestSettingsSectionAndCollectionConversions(t *testing.T) {
 					SourceMetadata: settingspkg.SourceMetadata{
 						EffectiveSource: settingspkg.SourceRef{
 							Kind:  settingspkg.SourceKindGlobalConfig,
-							Scope: settingspkg.ScopeGlobal,
+							Scope: settingspkg.ScopeUser,
 						},
 						AvailableTargets: []settingspkg.WriteTargetKind{settingspkg.WriteTargetGlobalConfig},
 					},
@@ -1666,8 +1717,18 @@ func TestSettingsSectionAndCollectionConversions(t *testing.T) {
 				}
 				if !payload.Personalization || !payload.FallbackAgentEnabled ||
 					payload.WorkspaceID != "ws-test" ||
-					payload.Scope != contract.SettingsWorkspaceScopeWorkspace {
+					payload.Scope != contract.SettingsLayeredScopeWorkspace {
 					t.Fatalf("cmd-palette response = %#v, want workspace personalization", payload)
+				}
+				return
+			case settingspkg.SectionPersona:
+				payload, ok := response.(contract.SettingsPersonaResponse)
+				if !ok {
+					t.Fatalf("persona response = %T, want SettingsPersonaResponse", response)
+				}
+				if payload.Profile != "marketing" || payload.Scope != contract.SettingsLayeredScopeProfile ||
+					payload.Config.Agent != "coder" || payload.Config.Provider != "openai" {
+					t.Fatalf("persona response = %#v, want marketing persona settings", payload)
 				}
 				return
 			default:
@@ -1728,8 +1789,8 @@ func TestSettingsSectionAndCollectionConversions(t *testing.T) {
 	collectionEnvelopes := []settingspkg.CollectionEnvelope{
 		{
 			Collection:      settingspkg.CollectionProviders,
-			Scope:           settingspkg.ScopeGlobal,
-			AvailableScopes: []settingspkg.ScopeKind{settingspkg.ScopeGlobal},
+			Scope:           settingspkg.ScopeUser,
+			AvailableScopes: []settingspkg.ScopeKind{settingspkg.ScopeUser},
 			Providers: []settingspkg.ProviderItem{
 				{
 					Name: "openai",
@@ -1764,7 +1825,7 @@ func TestSettingsSectionAndCollectionConversions(t *testing.T) {
 					SourceMetadata: settingspkg.SourceMetadata{
 						EffectiveSource: settingspkg.SourceRef{
 							Kind:  settingspkg.SourceKindGlobalConfig,
-							Scope: settingspkg.ScopeGlobal,
+							Scope: settingspkg.ScopeUser,
 						},
 						AvailableTargets: []settingspkg.WriteTargetKind{
 							settingspkg.WriteTargetGlobalConfig,
@@ -1773,7 +1834,7 @@ func TestSettingsSectionAndCollectionConversions(t *testing.T) {
 					Fallback: &settingspkg.ProviderFallback{
 						Source: settingspkg.SourceRef{
 							Kind:  settingspkg.SourceKindBuiltinProvider,
-							Scope: settingspkg.ScopeGlobal,
+							Scope: settingspkg.ScopeUser,
 						},
 						Settings: settingspkg.ProviderSettings{
 							Command: "codex",
@@ -1789,7 +1850,7 @@ func TestSettingsSectionAndCollectionConversions(t *testing.T) {
 			Collection:      settingspkg.CollectionMCPServers,
 			Scope:           settingspkg.ScopeWorkspace,
 			WorkspaceID:     "ws-1",
-			AvailableScopes: []settingspkg.ScopeKind{settingspkg.ScopeGlobal, settingspkg.ScopeWorkspace},
+			AvailableScopes: []settingspkg.ScopeKind{settingspkg.ScopeUser, settingspkg.ScopeWorkspace},
 			MCPServers: []settingspkg.MCPServerItem{{
 				Name:        "memory",
 				Command:     "memoryd",
@@ -1809,8 +1870,8 @@ func TestSettingsSectionAndCollectionConversions(t *testing.T) {
 		},
 		{
 			Collection:      settingspkg.CollectionSandboxes,
-			Scope:           settingspkg.ScopeGlobal,
-			AvailableScopes: []settingspkg.ScopeKind{settingspkg.ScopeGlobal},
+			Scope:           settingspkg.ScopeUser,
+			AvailableScopes: []settingspkg.ScopeKind{settingspkg.ScopeUser},
 			Sandboxes: []settingspkg.SandboxItem{{
 				Name: "local",
 				Profile: compozyconfig.SandboxProfile{
@@ -1823,7 +1884,7 @@ func TestSettingsSectionAndCollectionConversions(t *testing.T) {
 				SourceMetadata: settingspkg.SourceMetadata{
 					EffectiveSource: settingspkg.SourceRef{
 						Kind:  settingspkg.SourceKindGlobalConfig,
-						Scope: settingspkg.ScopeGlobal,
+						Scope: settingspkg.ScopeUser,
 					},
 					AvailableTargets: []settingspkg.WriteTargetKind{
 						settingspkg.WriteTargetGlobalConfig,
@@ -1833,8 +1894,8 @@ func TestSettingsSectionAndCollectionConversions(t *testing.T) {
 		},
 		{
 			Collection:      settingspkg.CollectionHooks,
-			Scope:           settingspkg.ScopeGlobal,
-			AvailableScopes: []settingspkg.ScopeKind{settingspkg.ScopeGlobal},
+			Scope:           settingspkg.ScopeUser,
+			AvailableScopes: []settingspkg.ScopeKind{settingspkg.ScopeUser},
 			Hooks: []settingspkg.HookItem{{
 				Name: "capture",
 				Declaration: hookspkg.HookDecl{
@@ -1853,7 +1914,7 @@ func TestSettingsSectionAndCollectionConversions(t *testing.T) {
 				SourceMetadata: settingspkg.SourceMetadata{
 					EffectiveSource: settingspkg.SourceRef{
 						Kind:  settingspkg.SourceKindGlobalConfig,
-						Scope: settingspkg.ScopeGlobal,
+						Scope: settingspkg.ScopeUser,
 					},
 					AvailableTargets: []settingspkg.WriteTargetKind{
 						settingspkg.WriteTargetGlobalConfig,
@@ -2269,6 +2330,7 @@ func TestUpdateSettingsSectionHandlersDelegateValidPayloads(t *testing.T) {
 	memoryPayload.Dream.MinHours = 1.5
 	memoryPayload.Dream.MinSessions = 2
 	memoryPayload.Dream.CheckInterval = "1h"
+	emptyMutedWorkspaces := []string{}
 
 	tests := []struct {
 		name   string
@@ -2281,11 +2343,6 @@ func TestUpdateSettingsSectionHandlersDelegateValidPayloads(t *testing.T) {
 			path: "/api/settings/general",
 			body: contract.UpdateSettingsGeneralRequest{
 				Config: contract.SettingsGeneralConfigPayload{
-					Defaults: contract.SettingsDefaultsPayload{
-						Agent:    "coder",
-						Provider: "openai",
-						Sandbox:  "local",
-					},
 					Limits: contract.SettingsLimitsPayload{MaxConcurrentAgents: 2},
 					Permissions: contract.SettingsPermissionsPayload{
 						Mode: contract.SettingsPermissionModeApproveReads,
@@ -2297,8 +2354,21 @@ func TestUpdateSettingsSectionHandlersDelegateValidPayloads(t *testing.T) {
 			},
 			assert: func(t *testing.T, req settingspkg.SectionUpdateRequest) {
 				t.Helper()
-				if req.General == nil || req.General.Defaults.Agent != "coder" {
+				if req.General == nil || req.General.Limits.MaxConcurrentAgents != 2 {
 					t.Fatalf("req.General = %#v, want populated general settings", req.General)
+				}
+			},
+		},
+		{
+			name: "Should forward a profile-scoped persona request",
+			path: "/api/settings/persona?scope=profile&profile=marketing",
+			body: contract.UpdateSettingsPersonaRequest{Config: contract.SettingsDefaultsPayload{
+				Agent: "coder", Provider: "openai", Sandbox: "local",
+			}},
+			assert: func(t *testing.T, req settingspkg.SectionUpdateRequest) {
+				t.Helper()
+				if req.Persona == nil || req.Persona.Agent != "coder" || req.ProfileName != "marketing" {
+					t.Fatalf("req = %#v, want profile persona payload", req)
 				}
 			},
 		},
@@ -2442,6 +2512,37 @@ func TestUpdateSettingsSectionHandlersDelegateValidPayloads(t *testing.T) {
 			},
 		},
 		{
+			name: "Should preserve profile attention mutes when omitted",
+			path: "/api/settings/attention?scope=profile&profile=marketing",
+			body: contract.UpdateSettingsAttentionRequest{Config: contract.UpdateSettingsAttentionPayload{
+				Toasts: true,
+				Sound:  true,
+			}},
+			assert: func(t *testing.T, req settingspkg.SectionUpdateRequest) {
+				t.Helper()
+				if req.Attention == nil || req.Scope != settingspkg.ScopeProfile ||
+					req.ProfileName != "marketing" || req.ReplaceAttentionWorkspaceMutes {
+					t.Fatalf("req = %#v, want profile attention update preserving mutes", req)
+				}
+			},
+		},
+		{
+			name: "Should replace profile attention mutes with an explicit empty list",
+			path: "/api/settings/attention?scope=profile&profile=marketing",
+			body: contract.UpdateSettingsAttentionRequest{Config: contract.UpdateSettingsAttentionPayload{
+				Toasts:          true,
+				Sound:           true,
+				MutedWorkspaces: &emptyMutedWorkspaces,
+			}},
+			assert: func(t *testing.T, req settingspkg.SectionUpdateRequest) {
+				t.Helper()
+				if req.Attention == nil || !req.ReplaceAttentionWorkspaceMutes ||
+					req.Attention.MutedWorkspaces == nil || len(req.Attention.MutedWorkspaces) != 0 {
+					t.Fatalf("req = %#v, want explicit empty attention mute replacement", req)
+				}
+			},
+		},
+		{
 			name: "observability",
 			path: "/api/settings/observability",
 			body: contract.UpdateSettingsObservabilityRequest{
@@ -2522,9 +2623,9 @@ func TestUpdateSettingsSectionHandlersDelegateValidPayloads(t *testing.T) {
 					case settingspkg.SectionWindowManager:
 						return settingspkg.SectionEnvelope{
 							Section: req.Section,
-							Scope:   settingspkg.ScopeGlobal,
+							Scope:   settingspkg.ScopeUser,
 							AvailableScopes: []settingspkg.ScopeKind{
-								settingspkg.ScopeGlobal,
+								settingspkg.ScopeUser,
 								settingspkg.ScopeWorkspace,
 							},
 							WindowManager: &settingspkg.WindowManagerSection{
@@ -2534,9 +2635,9 @@ func TestUpdateSettingsSectionHandlersDelegateValidPayloads(t *testing.T) {
 					case settingspkg.SectionCmdPalette:
 						return settingspkg.SectionEnvelope{
 							Section: req.Section,
-							Scope:   settingspkg.ScopeGlobal,
+							Scope:   settingspkg.ScopeUser,
 							AvailableScopes: []settingspkg.ScopeKind{
-								settingspkg.ScopeGlobal,
+								settingspkg.ScopeUser,
 								settingspkg.ScopeWorkspace,
 							},
 							CmdPalette: &settingspkg.CmdPaletteSection{
@@ -3007,7 +3108,7 @@ func TestSettingsCollectionHandlersDelegateValidPayloads(t *testing.T) {
 						Collection:      req.Collection,
 						Scope:           req.Scope,
 						WorkspaceID:     req.WorkspaceID,
-						AvailableScopes: []settingspkg.ScopeKind{settingspkg.ScopeGlobal, settingspkg.ScopeWorkspace},
+						AvailableScopes: []settingspkg.ScopeKind{settingspkg.ScopeUser, settingspkg.ScopeWorkspace},
 					}
 					switch req.Collection {
 					case settingspkg.CollectionProviders:
@@ -3041,7 +3142,7 @@ func TestSettingsCollectionHandlersDelegateValidPayloads(t *testing.T) {
 								SourceMetadata: settingspkg.SourceMetadata{
 									EffectiveSource: settingspkg.SourceRef{
 										Kind:  settingspkg.SourceKindGlobalConfig,
-										Scope: settingspkg.ScopeGlobal,
+										Scope: settingspkg.ScopeUser,
 									},
 									AvailableTargets: []settingspkg.WriteTargetKind{
 										settingspkg.WriteTargetGlobalConfig,
@@ -3075,7 +3176,7 @@ func TestSettingsCollectionHandlersDelegateValidPayloads(t *testing.T) {
 							SourceMetadata: settingspkg.SourceMetadata{
 								EffectiveSource: settingspkg.SourceRef{
 									Kind:  settingspkg.SourceKindGlobalConfig,
-									Scope: settingspkg.ScopeGlobal,
+									Scope: settingspkg.ScopeUser,
 								},
 								AvailableTargets: []settingspkg.WriteTargetKind{
 									settingspkg.WriteTargetGlobalConfig,
@@ -3096,7 +3197,7 @@ func TestSettingsCollectionHandlersDelegateValidPayloads(t *testing.T) {
 							SourceMetadata: settingspkg.SourceMetadata{
 								EffectiveSource: settingspkg.SourceRef{
 									Kind:  settingspkg.SourceKindGlobalConfig,
-									Scope: settingspkg.ScopeGlobal,
+									Scope: settingspkg.ScopeUser,
 								},
 								AvailableTargets: []settingspkg.WriteTargetKind{
 									settingspkg.WriteTargetGlobalConfig,
@@ -3315,8 +3416,8 @@ func TestSettingsRemainingReadAndDeleteHandlers(t *testing.T) {
 				}
 				return settingspkg.SectionEnvelope{
 					Section:         settingspkg.SectionWindowManager,
-					Scope:           settingspkg.ScopeGlobal,
-					AvailableScopes: []settingspkg.ScopeKind{settingspkg.ScopeGlobal},
+					Scope:           settingspkg.ScopeUser,
+					AvailableScopes: []settingspkg.ScopeKind{settingspkg.ScopeUser},
 					WindowManager: &settingspkg.WindowManagerSection{
 						Config: config,
 					},
@@ -3378,7 +3479,7 @@ func TestSettingsRemainingReadAndDeleteHandlers(t *testing.T) {
 				Section:         req.Section,
 				Scope:           req.Scope,
 				WorkspaceID:     req.WorkspaceID,
-				AvailableScopes: []settingspkg.ScopeKind{settingspkg.ScopeGlobal},
+				AvailableScopes: []settingspkg.ScopeKind{settingspkg.ScopeUser},
 			}
 			switch req.Section {
 			case settingspkg.SectionMemory:
@@ -3442,7 +3543,7 @@ func TestSettingsRemainingReadAndDeleteHandlers(t *testing.T) {
 				Collection:      req.Collection,
 				Scope:           req.Scope,
 				WorkspaceID:     req.WorkspaceID,
-				AvailableScopes: []settingspkg.ScopeKind{settingspkg.ScopeGlobal},
+				AvailableScopes: []settingspkg.ScopeKind{settingspkg.ScopeUser},
 			}
 			switch req.Collection {
 			case settingspkg.CollectionSandboxes:
@@ -3454,7 +3555,7 @@ func TestSettingsRemainingReadAndDeleteHandlers(t *testing.T) {
 					SourceMetadata: settingspkg.SourceMetadata{
 						EffectiveSource: settingspkg.SourceRef{
 							Kind:  settingspkg.SourceKindGlobalConfig,
-							Scope: settingspkg.ScopeGlobal,
+							Scope: settingspkg.ScopeUser,
 						},
 						AvailableTargets: []settingspkg.WriteTargetKind{
 							settingspkg.WriteTargetGlobalConfig,
@@ -3567,8 +3668,7 @@ func TestSettingsHandlersReturnServiceUnavailableWithoutInjectedDependencies(t *
 			path:   "/api/settings/general",
 			body: mustJSON(t, contract.UpdateSettingsGeneralRequest{
 				Config: contract.SettingsGeneralConfigPayload{
-					Defaults: contract.SettingsDefaultsPayload{Agent: "coder"},
-					Limits:   contract.SettingsLimitsPayload{MaxConcurrentAgents: 2},
+					Limits: contract.SettingsLimitsPayload{MaxConcurrentAgents: 2},
 					Permissions: contract.SettingsPermissionsPayload{
 						Mode: contract.SettingsPermissionModeApproveReads,
 					},
@@ -3610,7 +3710,7 @@ func TestGetSettingsProviderMissingResourceReturnsNotFound(t *testing.T) {
 		ListCollectionFn: func(context.Context, settingspkg.CollectionRequest) (settingspkg.CollectionEnvelope, error) {
 			return settingspkg.CollectionEnvelope{
 				Collection: settingspkg.CollectionProviders,
-				Scope:      settingspkg.ScopeGlobal,
+				Scope:      settingspkg.ScopeUser,
 			}, nil
 		},
 	}
@@ -3780,7 +3880,7 @@ func TestInstallSettingsMCPServerMapsStrictRequestAndRedactedResponse(t *testing
 		body := mustJSON(t, contract.InstallSettingsMCPServerRequest{
 			EntryID:     "github",
 			Name:        "github",
-			Scope:       contract.SettingsWorkspaceScopeWorkspace,
+			Scope:       contract.SettingsLayeredScopeWorkspace,
 			WorkspaceID: "ws-1",
 			Values: &contract.SettingsMCPCatalogInstallValuesPayload{
 				Inputs: map[string]contract.SettingsMCPCatalogInputPayload{
@@ -3830,6 +3930,39 @@ func TestInstallSettingsMCPServerMapsStrictRequestAndRedactedResponse(t *testing
 		}
 	})
 
+	t.Run("Should forward the selected profile for profile-scoped installation", func(t *testing.T) {
+		t.Parallel()
+
+		service := newService()
+		service.InstallMCPCatalogFn = func(
+			_ context.Context,
+			req settingspkg.MCPCatalogInstallRequest,
+		) (settingspkg.MCPCatalogInstallResult, error) {
+			if req.Scope != settingspkg.ScopeProfile || req.ProfileName != "marketing" || req.WorkspaceID != "" {
+				t.Fatalf("profile install request = %#v", req)
+			}
+			return settingspkg.MCPCatalogInstallResult{
+				Item: settingspkg.MCPServerItem{Name: req.Name, Scope: req.Scope, ProfileName: req.ProfileName},
+			}, nil
+		}
+		fixture := newSettingsHandlerFixture(t, "api-core-http", service, nil)
+		response := performRequest(
+			t,
+			fixture.Engine,
+			http.MethodPost,
+			"/api/settings/mcp-servers/install",
+			[]byte(`{"entry_id":"github","name":"github","scope":"profile","profile":"marketing","values":null}`),
+		)
+		if response.Code != http.StatusOK {
+			t.Fatalf(
+				"profile install status = %d, want %d; body=%s",
+				response.Code,
+				http.StatusOK,
+				response.Body.String(),
+			)
+		}
+	})
+
 	t.Run("Should reject a client override of a feed-locked field", func(t *testing.T) {
 		t.Parallel()
 
@@ -3840,7 +3973,7 @@ func TestInstallSettingsMCPServerMapsStrictRequestAndRedactedResponse(t *testing
 			fixture.Engine,
 			http.MethodPost,
 			"/api/settings/mcp-servers/install",
-			[]byte(`{"entry_id":"github","scope":"global","values":{},"command":"operator-command"}`),
+			[]byte(`{"entry_id":"github","scope":"user","values":{},"command":"operator-command"}`),
 		)
 		if got, want := response.Code, http.StatusBadRequest; got != want {
 			t.Fatalf("override status = %d, want %d; body=%s", got, want, response.Body.String())
@@ -3864,7 +3997,7 @@ func TestInstallSettingsMCPServerMapsStrictRequestAndRedactedResponse(t *testing
 			fixture.Engine,
 			http.MethodPost,
 			"/api/settings/mcp-servers/install",
-			[]byte(`{"entry_id":"linear","name":"linear","scope":"global","values":null}`),
+			[]byte(`{"entry_id":"linear","name":"linear","scope":"user","values":null}`),
 		)
 		if got, want := response.Code, http.StatusOK; got != want {
 			t.Fatalf("null values status = %d, want %d; body=%s", got, want, response.Body.String())
@@ -3887,7 +4020,7 @@ func TestInstallSettingsMCPServerMapsStrictRequestAndRedactedResponse(t *testing
 			fixture.Engine,
 			http.MethodPost,
 			"/api/settings/mcp-servers/install",
-			[]byte(`{"entry_id":"linear","name":"linear","scope":"global"}`),
+			[]byte(`{"entry_id":"linear","name":"linear","scope":"user"}`),
 		)
 		if got, want := response.Code, http.StatusBadRequest; got != want {
 			t.Fatalf("omitted values status = %d, want %d; body=%s", got, want, response.Body.String())
@@ -4059,6 +4192,8 @@ func TestListSettingsApplyRecordsReturnsBlockedDiagnostics(t *testing.T) {
 					ActiveHash:  "sha256:active",
 					Generation:  7,
 					Actor:       "http",
+					WriteTarget: settingspkg.WriteTargetProfileConfig,
+					WritePath:   "/tmp/compozy/profiles/marketing/config.toml",
 					DiffClass:   lifecycle.DiffClassRestartRequired,
 					Status:      lifecycle.StatusBlocked,
 					Lifecycle:   lifecycle.RestartRequired,
@@ -4084,6 +4219,10 @@ func TestListSettingsApplyRecordsReturnsBlockedDiagnostics(t *testing.T) {
 		if got, want := entry.Status, contract.ConfigApplyStatusBlocked; got != want {
 			t.Fatalf("entry.Status = %q, want %q", got, want)
 		}
+		if entry.WriteTarget != contract.SettingsWriteTargetProfileConfig ||
+			entry.WritePath != "/tmp/compozy/profiles/marketing/config.toml" {
+			t.Fatalf("entry provenance = %q %q", entry.WriteTarget, entry.WritePath)
+		}
 		if len(entry.Diagnostics) != 1 {
 			t.Fatalf("entry.Diagnostics len = %d, want 1", len(entry.Diagnostics))
 		}
@@ -4098,8 +4237,8 @@ func TestSettingsHandlersBehaveIdenticallyAcrossTransportShims(t *testing.T) {
 
 	observabilityEnvelope := settingspkg.SectionEnvelope{
 		Section:         settingspkg.SectionObservability,
-		Scope:           settingspkg.ScopeGlobal,
-		AvailableScopes: []settingspkg.ScopeKind{settingspkg.ScopeGlobal},
+		Scope:           settingspkg.ScopeUser,
+		AvailableScopes: []settingspkg.ScopeKind{settingspkg.ScopeUser},
 		Observability: &settingspkg.ObservabilitySection{
 			Config: compozyconfig.ObservabilityConfig{
 				Enabled:        true,

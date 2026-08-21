@@ -95,7 +95,7 @@ func transitionTerminalRunRecordWithExecutor(
 			Status:                 run.Status.String(),
 			EndedAt:                nullableTaskTime(run.EndedAt),
 			Error:                  nullableTaskString(run.Error),
-			ResultJson:             nullableTaskRawJSON(run.Result),
+			ResultJson:             nullableTaskRawJSON(run.ResultValue()),
 			ID:                     run.ID,
 			ExpectedTaskID:         nullableTaskString(fence.TaskID()),
 			ExpectedWorkspaceID:    nullableTaskString(fence.WorkspaceID()),

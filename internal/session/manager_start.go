@@ -119,6 +119,7 @@ func (m *Manager) startAgentProcess(
 func (s *sessionStartSpec) startupSessionContext(updatedAt time.Time) hookspkg.SessionContext {
 	ref := workref.NewRoot(s.workspace.ID, s.workspace.RootDir)
 	ctx := hookspkg.SessionContext{
+		ProfileID:             strings.TrimSpace(s.profileID),
 		SessionID:             strings.TrimSpace(s.sessionID),
 		SessionName:           strings.TrimSpace(s.sessionName),
 		SessionType:           string(normalizeSessionType(s.sessionType)),

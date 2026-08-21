@@ -62,6 +62,14 @@ type Story = StoryObj<typeof meta>;
 /** VC-01: the common path exposes the agent and one clear durable-start action. */
 export const Simple: Story = { args: baseArgs };
 
+/** Creating while All profiles is the read lens names the profile that will own the session. */
+export const AggregateDestination: Story = {
+  args: {
+    ...baseArgs,
+    profileDestination: "default",
+  },
+};
+
 /** VC-02: the sole disclosure tier contains name and Network participation. */
 export const Advanced: Story = {
   args: {

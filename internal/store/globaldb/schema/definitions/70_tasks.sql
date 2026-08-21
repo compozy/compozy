@@ -88,6 +88,7 @@ CREATE TABLE task_triage_state (
 
 CREATE TABLE "tasks" (
 		id              TEXT PRIMARY KEY,
+		profile_id      TEXT NOT NULL REFERENCES profiles(id),
 		identifier      TEXT,
 		scope           TEXT NOT NULL CHECK (scope IN ('global', 'workspace')),
 		workspace_id    TEXT REFERENCES workspaces(id) ON DELETE CASCADE,

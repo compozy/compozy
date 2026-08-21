@@ -8,6 +8,7 @@ import { WorktreePath } from "./worktree-path";
 import { WorktreeSignals } from "./worktree-signals";
 import { WorktreeStateChip } from "./worktree-state-chip";
 import { WorktreeStateDot } from "./worktree-state-dot";
+import { ownerFromRow, ProfileOwnerTag } from "@/systems/profiles";
 
 function NestRowDot({ entry }: { entry: WorktreeNestEntry }) {
   if (entry.displayState === "ready") {
@@ -124,6 +125,8 @@ export function WorktreeNestRow({
           {entry.displayState === "ready" ? null : (
             <WorktreeStateChip className="h-3.5" size="sm" state={entry.displayState} />
           )}
+          {/* Owner-tagged in every profile, like the full-density row. */}
+          {entry.worktree ? <ProfileOwnerTag owner={ownerFromRow(entry.worktree)} /> : null}
           <WorktreePath
             focusable={false}
             path={entry.path}

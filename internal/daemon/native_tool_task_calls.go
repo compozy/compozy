@@ -273,6 +273,7 @@ func (n *daemonNativeTools) taskPromoteFromThread(
 		return toolspkg.ToolResult{}, err
 	}
 	spec := taskpkg.CreateTask{
+		ProfileID:   strings.TrimSpace(scope.ProfileID),
 		Scope:       taskpkg.ScopeWorkspace,
 		WorkspaceID: source.workspaceID,
 		Title:       nativePromotedThreadTaskTitle(input, source),

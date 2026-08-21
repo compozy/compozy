@@ -11,6 +11,7 @@ import (
 	"github.com/compozy/compozy/internal/agentidentity"
 	"github.com/compozy/compozy/internal/api/contract"
 	"github.com/compozy/compozy/internal/session"
+	"github.com/compozy/compozy/internal/store"
 )
 
 func TestMeCommandJSONReturnsValidatedIdentity(t *testing.T) {
@@ -951,6 +952,7 @@ func agentCommandEnv(key string) string {
 func agentCommandSessionRecord() SessionRecord {
 	return SessionRecord{
 		ID:        "sess-agent",
+		ProfileID: store.DefaultProfileID,
 		Name:      "worker",
 		AgentName: "coder",
 		Runtime: contract.SessionRuntimePayload{Effective: &contract.RuntimeSelectionPayload{

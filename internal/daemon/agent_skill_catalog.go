@@ -135,7 +135,7 @@ func (c *resourceAgentCatalog) lookupAgentRecord(
 
 		sortKey := agentRecordSortKey(record)
 		switch record.Scope.Kind.Normalize() {
-		case resources.ResourceScopeKindGlobal:
+		case resources.ResourceScopeKindUser:
 			if !globalFound || sortKey > globalKey {
 				globalKey = sortKey
 				globalAgent = record

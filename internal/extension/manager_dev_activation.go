@@ -52,7 +52,7 @@ func (m *Manager) verifyDevelopmentGeneration(
 	workspaceID string,
 ) (*verifiedDevGeneration, error) {
 	return verifyDevGeneration(originPath, generationHash, func(name string) (string, error) {
-		dataDir, err := m.homePaths.ExtensionDataPath(name, workspaceID)
+		dataDir, err := m.homePaths.ExtensionDataPath(name, workspaceID, "")
 		if err != nil {
 			return "", fmt.Errorf("extension: resolve Agent Plugins development data path: %w", err)
 		}

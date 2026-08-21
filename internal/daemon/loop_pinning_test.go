@@ -1,11 +1,13 @@
 package daemon
 
 import (
+	"encoding/json"
 	"testing"
 	"time"
 
 	looppkg "github.com/compozy/compozy/internal/loop"
 	loopdsl "github.com/compozy/compozy/internal/loop/dsl"
+	"github.com/compozy/compozy/internal/store"
 )
 
 func applyLoopRunPinningForTest(t *testing.T, run *looppkg.Run, at time.Time) {
@@ -33,6 +35,9 @@ func applyResolvedLoopRunPinningForTest(
 	if resolved == nil {
 		t.Fatal("resolved Loop definition is required")
 	}
+	if run.ProfileID == "" {
+		run.ProfileID = store.DefaultProfileID
+	}
 	effective, err := looppkg.ResolveEffectiveConfig(
 		resolved,
 		looppkg.DefaultLoopDefaults(),
@@ -50,7 +55,7 @@ func applyResolvedLoopRunPinningForTest(
 	run.DefinitionVersion = resolved.DefinitionVersion
 	run.DefinitionDigest = digest
 	run.DefinitionSnapshot = append([]byte(nil), snapshot...)
-	run.ActiveHumanCriteria = []byte(`[]`)
+	run.SetActiveHumanCriteria(json.RawMessage(`[]`))
 	if run.StartMetadata == nil {
 		run.StartMetadata = map[string]any{}
 	}

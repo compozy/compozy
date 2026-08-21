@@ -282,11 +282,17 @@ func assertDeadEntityTransitionSummary(
 	wantType string,
 ) {
 	t.Helper()
-	if summary.WorkspaceID != key.WorkspaceID || summary.Type != wantType {
-		t.Fatalf("transition summary = %#v, want workspace %q and type %q", summary, key.WorkspaceID, wantType)
+	if summary.ProfileID != key.ProfileID || summary.WorkspaceID != key.WorkspaceID || summary.Type != wantType {
+		t.Fatalf(
+			"transition summary = %#v, want profile %q, workspace %q and type %q",
+			summary,
+			key.ProfileID,
+			key.WorkspaceID,
+			wantType,
+		)
 	}
 	var content transitionContent
-	if err := json.Unmarshal(summary.Content, &content); err != nil {
+	if err := json.Unmarshal(summary.ContentValue(), &content); err != nil {
 		t.Fatalf("json.Unmarshal(transition content) error = %v", err)
 	}
 	if content.Kind != key.Kind || content.EntityID != key.EntityID {
@@ -524,6 +530,9 @@ func TestServiceList(t *testing.T) {
 		}
 		if calls := deadStore.ListCalls(); len(calls) != 1 || calls[0] != key.WorkspaceID {
 			t.Fatalf("ListDeadEntities calls = %#v, want normalized workspace", calls)
+		}
+		if scopes := deadStore.ListScopes(); len(scopes) != 1 || scopes[0] != (store.ReadScope{AllProfiles: true}) {
+			t.Fatalf("ListDeadEntities read scopes = %#v, want aggregate profile scope", scopes)
 		}
 	})
 
@@ -967,11 +976,11 @@ func TestServiceContextCancellation(t *testing.T) {
 			t.Fatalf("transition summaries = %#v, want two marked publications", summaries)
 		}
 		var first transitionContent
-		if err := json.Unmarshal(summaries[0].Content, &first); err != nil {
+		if err := json.Unmarshal(summaries[0].ContentValue(), &first); err != nil {
 			t.Fatalf("json.Unmarshal(first transition) error = %v", err)
 		}
 		var second transitionContent
-		if err := json.Unmarshal(summaries[1].Content, &second); err != nil {
+		if err := json.Unmarshal(summaries[1].ContentValue(), &second); err != nil {
 			t.Fatalf("json.Unmarshal(second transition) error = %v", err)
 		}
 		if first.Reason != "first permanent failure" || second.Reason != "second permanent failure" {
@@ -1099,6 +1108,7 @@ func TestServiceForgetEntity(t *testing.T) {
 		}
 
 		service.ForgetEntity(store.DeadEntityKey{
+			ProfileID:   "  " + target.ProfileID + "  ",
 			WorkspaceID: "  " + target.WorkspaceID + "  ",
 			Kind:        target.Kind,
 			EntityID:    "  " + target.EntityID + "  ",
@@ -1414,34 +1424,31 @@ func (s *blockingDeadEntityStore) MarkDeadEntity(ctx context.Context, entity sto
 
 func (s *blockingDeadEntityStore) ClearDeadEntity(
 	ctx context.Context,
-	workspaceID string,
-	kind store.DeadEntityKind,
-	entityID string,
+	key store.DeadEntityKey,
 ) error {
 	if s.clearGate != nil {
 		if err := s.clearGate.Wait(ctx); err != nil {
 			return err
 		}
 	}
-	return s.recordingDeadEntityStore.ClearDeadEntity(ctx, workspaceID, kind, entityID)
+	return s.recordingDeadEntityStore.ClearDeadEntity(ctx, key)
 }
 
 func (s *blockingDeadEntityStore) FindDeadEntity(
 	ctx context.Context,
-	workspaceID string,
-	kind store.DeadEntityKind,
-	entityID string,
+	key store.DeadEntityKey,
 ) (store.DeadEntity, bool, error) {
 	if s.findGate != nil {
 		if err := s.findGate.Wait(ctx); err != nil {
 			return store.DeadEntity{}, false, err
 		}
 	}
-	return s.recordingDeadEntityStore.FindDeadEntity(ctx, workspaceID, kind, entityID)
+	return s.recordingDeadEntityStore.FindDeadEntity(ctx, key)
 }
 
 func (s *blockingDeadEntityStore) ListDeadEntities(
 	ctx context.Context,
+	readScope store.ReadScope,
 	workspaceID string,
 ) ([]store.DeadEntity, error) {
 	if s.listGate != nil {
@@ -1449,7 +1456,7 @@ func (s *blockingDeadEntityStore) ListDeadEntities(
 			return nil, err
 		}
 	}
-	return s.recordingDeadEntityStore.ListDeadEntities(ctx, workspaceID)
+	return s.recordingDeadEntityStore.ListDeadEntities(ctx, readScope, workspaceID)
 }
 
 type blockingDeadEntityEventStore struct {
@@ -1499,16 +1506,10 @@ type staleFindDeadEntityStore struct {
 
 func (s *staleFindDeadEntityStore) FindDeadEntity(
 	ctx context.Context,
-	workspaceID string,
-	kind store.DeadEntityKind,
-	entityID string,
+	key store.DeadEntityKey,
 ) (store.DeadEntity, bool, error) {
 	s.mu.Lock()
-	entity, found := s.entities[store.DeadEntityKey{
-		WorkspaceID: workspaceID,
-		Kind:        kind,
-		EntityID:    entityID,
-	}]
+	entity, found := s.entities[key]
 	s.mu.Unlock()
 	if err := s.findGate.Wait(ctx); err != nil {
 		return store.DeadEntity{}, false, err
@@ -1525,14 +1526,15 @@ func (s *staleFindDeadEntityStore) deleteEntity(key store.DeadEntityKey) {
 type recordingDeadEntityStore struct {
 	mu sync.Mutex
 
-	entities  map[store.DeadEntityKey]store.DeadEntity
-	marked    []store.DeadEntity
-	clears    int
-	findErr   error
-	markErr   error
-	clearErr  error
-	listErr   error
-	listCalls []string
+	entities   map[store.DeadEntityKey]store.DeadEntity
+	marked     []store.DeadEntity
+	clears     int
+	findErr    error
+	markErr    error
+	clearErr   error
+	listErr    error
+	listCalls  []string
+	listScopes []store.ReadScope
 }
 
 func newRecordingDeadEntityStore() *recordingDeadEntityStore {
@@ -1558,9 +1560,7 @@ func (s *recordingDeadEntityStore) MarkDeadEntity(_ context.Context, entity stor
 
 func (s *recordingDeadEntityStore) ClearDeadEntity(
 	_ context.Context,
-	workspaceID string,
-	kind store.DeadEntityKind,
-	entityID string,
+	key store.DeadEntityKey,
 ) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -1568,38 +1568,38 @@ func (s *recordingDeadEntityStore) ClearDeadEntity(
 	if s.clearErr != nil {
 		return s.clearErr
 	}
-	delete(s.entities, store.DeadEntityKey{WorkspaceID: workspaceID, Kind: kind, EntityID: entityID})
+	delete(s.entities, key)
 	return nil
 }
 
 func (s *recordingDeadEntityStore) FindDeadEntity(
 	_ context.Context,
-	workspaceID string,
-	kind store.DeadEntityKind,
-	entityID string,
+	key store.DeadEntityKey,
 ) (store.DeadEntity, bool, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	if s.findErr != nil {
 		return store.DeadEntity{}, false, s.findErr
 	}
-	entity, ok := s.entities[store.DeadEntityKey{WorkspaceID: workspaceID, Kind: kind, EntityID: entityID}]
+	entity, ok := s.entities[key]
 	return entity, ok, nil
 }
 
 func (s *recordingDeadEntityStore) ListDeadEntities(
 	_ context.Context,
+	readScope store.ReadScope,
 	workspaceID string,
 ) ([]store.DeadEntity, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	s.listCalls = append(s.listCalls, workspaceID)
+	s.listScopes = append(s.listScopes, readScope)
 	if s.listErr != nil {
 		return nil, s.listErr
 	}
 	entities := make([]store.DeadEntity, 0)
 	for key, entity := range s.entities {
-		if key.WorkspaceID == workspaceID {
+		if key.WorkspaceID == workspaceID && readScope.Matches(key.ProfileID) {
 			entities = append(entities, entity)
 		}
 	}
@@ -1610,6 +1610,12 @@ func (s *recordingDeadEntityStore) ListCalls() []string {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	return append([]string(nil), s.listCalls...)
+}
+
+func (s *recordingDeadEntityStore) ListScopes() []store.ReadScope {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return append([]store.ReadScope(nil), s.listScopes...)
 }
 
 func (s *recordingDeadEntityStore) Marked() []store.DeadEntity {
@@ -1679,6 +1685,7 @@ func (c *deadEntityTestClock) Advance(delta time.Duration) {
 
 func deadEntityTestKey(workspaceID string) store.DeadEntityKey {
 	return store.DeadEntityKey{
+		ProfileID:   store.DefaultProfileID,
 		WorkspaceID: workspaceID,
 		Kind:        store.DeadEntityKindMCPSidecar,
 		EntityID:    "github",
@@ -1687,6 +1694,7 @@ func deadEntityTestKey(workspaceID string) store.DeadEntityKey {
 
 func loopTargetTestKey(workspaceID, entityID string) store.DeadEntityKey {
 	return store.DeadEntityKey{
+		ProfileID:   store.DefaultProfileID,
 		WorkspaceID: workspaceID,
 		Kind:        store.DeadEntityKindLoopTarget,
 		EntityID:    entityID,

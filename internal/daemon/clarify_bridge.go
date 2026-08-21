@@ -10,6 +10,7 @@ import (
 	"sync/atomic"
 	"time"
 
+	"github.com/compozy/compozy/internal/session"
 	"github.com/compozy/compozy/internal/store"
 	toolspkg "github.com/compozy/compozy/internal/tools"
 	"github.com/google/uuid"
@@ -31,16 +32,17 @@ type clarifyOrphanResolver interface {
 }
 
 type clarifyBridge struct {
-	mu        sync.Mutex
-	pending   map[string]*clarifyHandle
-	timeout   time.Duration
-	publisher clarifyEventPublisher
-	summaries clarifySummaryWriter
-	logger    *slog.Logger
-	now       func() time.Time
-	newID     func() string
-	closed    bool
-	waiters   sync.WaitGroup
+	mu                sync.Mutex
+	pending           map[string]*clarifyHandle
+	timeout           time.Duration
+	publisher         clarifyEventPublisher
+	summaries         clarifySummaryWriter
+	logger            *slog.Logger
+	profileForSession func(context.Context, string) (string, error)
+	now               func() time.Time
+	newID             func() string
+	closed            bool
+	waiters           sync.WaitGroup
 }
 
 type clarifyHandle struct {
@@ -50,6 +52,7 @@ type clarifyHandle struct {
 	published    chan struct{}
 	ready        atomic.Bool
 	terminal     bool
+	profileID    string
 }
 
 type clarifyResult struct {
@@ -68,6 +71,34 @@ func withClarifyClock(now func() time.Time) clarifyBridgeOption {
 func withClarifyIDGenerator(newID func() string) clarifyBridgeOption {
 	return func(bridge *clarifyBridge) {
 		bridge.newID = newID
+	}
+}
+
+func withClarifySessionProfileResolver(
+	resolve func(context.Context, string) (string, error),
+) clarifyBridgeOption {
+	return func(bridge *clarifyBridge) {
+		bridge.profileForSession = resolve
+	}
+}
+
+func clarifySessionProfileResolver(
+	manager interface {
+		Status(context.Context, string) (*session.Info, error)
+	},
+) func(context.Context, string) (string, error) {
+	if manager == nil {
+		return nil
+	}
+	return func(ctx context.Context, sessionID string) (string, error) {
+		info, err := manager.Status(ctx, sessionID)
+		if err != nil {
+			return "", err
+		}
+		if info == nil || strings.TrimSpace(info.ProfileID) == "" {
+			return "", errors.New("daemon: clarification session has no bound profile")
+		}
+		return strings.TrimSpace(info.ProfileID), nil
 	}
 }
 
@@ -127,6 +158,7 @@ func (b *clarifyBridge) Ask(
 	}
 	now := b.now().UTC()
 	handle := &clarifyHandle{
+		profileID: strings.TrimSpace(normalizedScope.ProfileID),
 		pending: toolspkg.ClarifyPending{
 			RequestID:   strings.TrimSpace(b.newID()),
 			WorkspaceID: normalizedScope.WorkspaceID,
@@ -206,7 +238,8 @@ func (b *clarifyBridge) Pending(
 	}
 	handle.completionMu.Lock()
 	defer handle.completionMu.Unlock()
-	if handle.terminal || !handle.ready.Load() || !clarifyScopeMatches(normalized, handle.pending) {
+	if handle.terminal || !handle.ready.Load() ||
+		!clarifyScopeMatches(normalized, handle.pending, handle.profileID) {
 		return []toolspkg.ClarifyPending{}, nil
 	}
 	return []toolspkg.ClarifyPending{handle.pending.Clone()}, nil
@@ -242,7 +275,7 @@ func (b *clarifyBridge) Answer(
 	if handle.terminal ||
 		!handle.ready.Load() ||
 		handle.pending.RequestID != target ||
-		!clarifyScopeMatches(normalized, handle.pending) {
+		!clarifyScopeMatches(normalized, handle.pending, handle.profileID) {
 		handle.completionMu.Unlock()
 		return b.resolveOrphaned(ctx, normalized, target, request)
 	}
@@ -326,6 +359,7 @@ func normalizeClarifyScope(scope toolspkg.Scope) (toolspkg.Scope, error) {
 
 func normalizeClarifyLookupScope(scope toolspkg.Scope) (toolspkg.Scope, error) {
 	normalized := toolspkg.Scope{
+		ProfileID:   strings.TrimSpace(scope.ProfileID),
 		WorkspaceID: strings.TrimSpace(scope.WorkspaceID),
 		SessionID:   strings.TrimSpace(scope.SessionID),
 		AgentName:   strings.TrimSpace(scope.AgentName),
@@ -338,7 +372,10 @@ func normalizeClarifyLookupScope(scope toolspkg.Scope) (toolspkg.Scope, error) {
 	return normalized, nil
 }
 
-func clarifyScopeMatches(scope toolspkg.Scope, pending toolspkg.ClarifyPending) bool {
+func clarifyScopeMatches(scope toolspkg.Scope, pending toolspkg.ClarifyPending, profileID string) bool {
+	if scope.ProfileID != "" && strings.TrimSpace(scope.ProfileID) != strings.TrimSpace(profileID) {
+		return false
+	}
 	if scope.WorkspaceID != "" && scope.WorkspaceID != pending.WorkspaceID {
 		return false
 	}

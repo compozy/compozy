@@ -31,6 +31,10 @@ vi.mock("@/systems/marketplace", () => ({
   useMarketplaceKind: mocks.useMarketplaceKind,
 }));
 
+vi.mock("@/systems/profiles", () => ({
+  useProfileReadScope: () => ({ destination: "default" }),
+}));
+
 vi.mock("../../adapters/extensions-api", () => ({
   getExtensionInventory: mocks.getExtensionInventory,
   getExtensionProvenance: mocks.getExtensionProvenance,
@@ -107,21 +111,23 @@ describe("useExtensionInventory", () => {
     await waitFor(() => expect(scoped.result.current.isSuccess).toBe(true));
 
     expect(mocks.listExtensions).toHaveBeenCalledWith(
-      { workspaceId: "ws_northstar" },
+      { profileName: "default", workspaceId: "ws_northstar" },
       expect.any(AbortSignal)
     );
-    expect(client.getQueryData(extensionKeys.list("ws_northstar"))).toEqual(extensionFixtures);
-    expect(client.getQueryData(extensionKeys.list())).toBeUndefined();
+    expect(client.getQueryData(extensionKeys.list("ws_northstar", "default"))).toEqual(
+      extensionFixtures
+    );
+    expect(client.getQueryData(extensionKeys.list(null, "default"))).toBeUndefined();
 
     mocks.activeWorkspaceId = null;
     const global = renderHook(() => useExtensionInventory(), { wrapper: scopedWrapper });
     await waitFor(() => expect(global.result.current.isSuccess).toBe(true));
 
     expect(mocks.listExtensions).toHaveBeenLastCalledWith(
-      { workspaceId: null },
+      { profileName: "default", workspaceId: null },
       expect.any(AbortSignal)
     );
-    expect(client.getQueryData(extensionKeys.list())).toEqual(extensionFixtures);
+    expect(client.getQueryData(extensionKeys.list(null, "default"))).toEqual(extensionFixtures);
   });
 
   it("Should preserve daemon update availability when the server attaches no listing", async () => {

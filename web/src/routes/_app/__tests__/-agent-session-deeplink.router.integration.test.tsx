@@ -78,6 +78,8 @@ type OwnedSession = SessionPayload & { workspace_id: string };
 
 function makeSession(id: string, workspaceId: string, name: string): OwnedSession {
   return {
+    profile_id: "00000000000000000000000000",
+    profile_name: "default",
     id,
     name,
     agent_name: "general",
@@ -121,6 +123,7 @@ function seedSessionRouteQueries(queryClient: QueryClient): void {
   ]);
   const bench = makeSession(BENCH_SESSION_ID, BENCH_WORKSPACE_ID, "bench-ops");
   queryClient.setQueryData(sessionKeys.detail(bench.workspace_id, bench.id), bench);
+  queryClient.setQueryData(sessionKeys.byId(bench.id, "default"), bench);
   queryClient.setQueryData(sessionKeys.transcript(bench.workspace_id, bench.id), {
     pages: [],
     pageParams: [],
@@ -222,7 +225,7 @@ function buildSessionDeepLinkRouter({
   });
   const sessionRoute = createRoute({
     getParentRoute: () => agentRoute,
-    path: "sessions/$id",
+    path: "/sessions/$id",
     validateSearch: validateSessionDeepLinkSearch,
     loaderDeps: ({ search }) => ({ workspaceSwitch: search.workspaceSwitch }),
     beforeLoad,
@@ -231,7 +234,7 @@ function buildSessionDeepLinkRouter({
   });
   const permalinkRoute = createRoute({
     getParentRoute: () => rootRoute,
-    path: "session/$id",
+    path: "/session/$id",
     validateSearch: validateSessionDeepLinkSearch,
     beforeLoad: redirectPermalinkRoute,
     component: PermalinkRouteHarness,
@@ -408,7 +411,7 @@ describe("cross-workspace session deep-link router integration", () => {
       queryClient.getQueryData(sessionKeys.detail(PRIMARY_WORKSPACE_ID, PRIMARY_SESSION_ID))
     ).toBeUndefined();
     expect(
-      queryClient.getQueryData(sessionKeys.list({ workspace: PRIMARY_WORKSPACE_ID }))
+      queryClient.getQueryData(sessionKeys.list({ workspace_id: PRIMARY_WORKSPACE_ID }))
     ).toBeUndefined();
   });
 

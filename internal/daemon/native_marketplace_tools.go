@@ -8,6 +8,7 @@ import (
 
 	"github.com/compozy/compozy/internal/api/contract"
 	core "github.com/compozy/compozy/internal/api/core"
+	"github.com/compozy/compozy/internal/store"
 	taskpkg "github.com/compozy/compozy/internal/task"
 	toolspkg "github.com/compozy/compozy/internal/tools"
 )
@@ -39,9 +40,12 @@ func (n *daemonNativeTools) marketplaceSearch(
 	if err := decodeNativeInput(req, &input); err != nil {
 		return toolspkg.ToolResult{}, err
 	}
-	readScope, workspaceID := marketplaceToolScope(scope)
+	readScope, workspaceID, profileName, err := n.marketplaceToolScope(ctx, scope)
+	if err != nil {
+		return toolspkg.ToolResult{}, marketplaceNativeError(req.ToolID, err)
+	}
 	var actor *taskpkg.ActorContext
-	if workspaceID != "" {
+	if workspaceID != "" || profileName != "" {
 		resolvedActor, actorErr := nativeExtensionScopedActorContext(scope, req)
 		if actorErr != nil {
 			return toolspkg.ToolResult{}, marketplaceNativeError(req.ToolID, actorErr)
@@ -58,7 +62,7 @@ func (n *daemonNativeTools) marketplaceSearch(
 	if kind := strings.TrimSpace(input.Kind); kind != "" {
 		response, err := handlers.MarketplaceKind(ctx, core.MarketplaceKindRequest{
 			Kind: kind, Query: input.Query, Limit: input.Limit, Cursor: input.Cursor,
-			Scope: readScope, WorkspaceID: workspaceID, Actor: actor,
+			Scope: readScope, WorkspaceID: workspaceID, ProfileName: profileName, Actor: actor,
 		})
 		if err != nil {
 			return toolspkg.ToolResult{}, marketplaceNativeError(req.ToolID, err)
@@ -72,7 +76,8 @@ func (n *daemonNativeTools) marketplaceSearch(
 		)
 	}
 	response, err := handlers.MarketplaceSearch(ctx, core.MarketplaceSearchRequest{
-		Query: input.Query, Limit: input.Limit, Scope: readScope, WorkspaceID: workspaceID, Actor: actor,
+		Query: input.Query, Limit: input.Limit, Scope: readScope, WorkspaceID: workspaceID,
+		ProfileName: profileName, Actor: actor,
 	})
 	if err != nil {
 		return toolspkg.ToolResult{}, marketplaceNativeError(req.ToolID, err)
@@ -98,17 +103,35 @@ func (n *daemonNativeTools) marketplaceHandlers() *core.BaseHandlers {
 		InstalledSkillMarketplace: n.deps.MarketplaceInstalledSkills,
 		Extensions:                n.extensionCoreService(),
 		Settings:                  settings,
+		Profiles:                  n.deps.ProfileManager,
 		HomePaths:                 n.deps.HomePaths,
 		Config:                    n.deps.Config,
 	})
 }
 
-func marketplaceToolScope(scope toolspkg.Scope) (string, string) {
+func (n *daemonNativeTools) marketplaceToolScope(
+	ctx context.Context,
+	scope toolspkg.Scope,
+) (string, string, string, error) {
 	workspaceID := strings.TrimSpace(scope.WorkspaceID)
 	if workspaceID == "" {
-		return contract.MarketplaceScopeGlobal, ""
+		profileID := strings.TrimSpace(scope.ProfileID)
+		if profileID == "" || profileID == store.DefaultProfileID {
+			return contract.MarketplaceScopeGlobal, "", "", nil
+		}
+		if n == nil || n.deps == nil || n.deps.Profiles == nil {
+			return "", "", "", errors.Join(
+				core.ErrMarketplaceUnavailable,
+				errors.New("profile catalog is not configured"),
+			)
+		}
+		profileName, err := n.deps.Profiles.ProfileName(ctx, profileID)
+		if err != nil {
+			return "", "", "", fmt.Errorf("resolve marketplace profile %q: %w", profileID, err)
+		}
+		return contract.MarketplaceScopeProfile, "", strings.TrimSpace(profileName), nil
 	}
-	return contract.MarketplaceScopeWorkspace, workspaceID
+	return contract.MarketplaceScopeWorkspace, workspaceID, "", nil
 }
 
 func marketplaceNativeError(id toolspkg.ToolID, err error) error {

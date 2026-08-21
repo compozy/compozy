@@ -134,7 +134,8 @@ func deadEntityDiagnosticItem(
 		markedAt = entity.MarkedAt.UTC().Format(time.RFC3339Nano)
 	}
 	diagnosticID := "doctor.dead_entity." + spec.id + "." +
-		diagnosticIDPart(workspace.ID) + "." + diagnosticIDPart(entity.EntityID)
+		diagnosticIDPart(entity.ProfileID) + "." + diagnosticIDPart(workspace.ID) + "." +
+		diagnosticIDPart(entity.EntityID)
 	return diagnostics.NewItem(diagnostics.ItemSpec{
 		ID:       diagnosticID,
 		Code:     spec.code,
@@ -148,6 +149,7 @@ func deadEntityDiagnosticItem(
 		diagnostics.WithEvidence(map[string]any{
 			"workspace_id":   strings.TrimSpace(workspace.ID),
 			"workspace_name": strings.TrimSpace(workspace.Name),
+			"profile_id":     strings.TrimSpace(entity.ProfileID),
 			"kind":           entity.Kind,
 			"entity_id":      strings.TrimSpace(entity.EntityID),
 			"reason":         strings.TrimSpace(entity.Reason),

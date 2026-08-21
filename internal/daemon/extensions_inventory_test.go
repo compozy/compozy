@@ -14,7 +14,9 @@ import (
 	compozyconfig "github.com/compozy/compozy/internal/config"
 	extensionpkg "github.com/compozy/compozy/internal/extension"
 	mcppkg "github.com/compozy/compozy/internal/mcp"
+	profilepkg "github.com/compozy/compozy/internal/profile"
 	"github.com/compozy/compozy/internal/resources"
+	"github.com/compozy/compozy/internal/store"
 	taskpkg "github.com/compozy/compozy/internal/task"
 	"github.com/compozy/compozy/internal/windowmanager"
 )
@@ -39,7 +41,7 @@ func TestExtensionInventoryAndEnablePreview(t *testing.T) {
 			resourceCodecs: inventoryTestResourceCodecs(t), mcpRuntimeHealth: registry,
 		}
 
-		status, err := service.payloadFromExtension(t.Context(), ext)
+		status, err := service.payloadFromExtension(t.Context(), ext, extensionDefaultProfileLens())
 		if err != nil {
 			t.Fatalf("payloadFromExtension() error = %v", err)
 		}
@@ -62,7 +64,7 @@ func TestExtensionInventoryAndEnablePreview(t *testing.T) {
 			InstanceName: "kit", BundleGeneration: "generation-a", ServerName: "deployment-api",
 		})
 		registry.RecordSuccess(recovery)
-		status, err = service.payloadFromExtension(t.Context(), ext)
+		status, err = service.payloadFromExtension(t.Context(), ext, extensionDefaultProfileLens())
 		if err != nil {
 			t.Fatalf("payloadFromExtension(recovered) error = %v", err)
 		}
@@ -111,6 +113,78 @@ func TestExtensionInventoryAndEnablePreview(t *testing.T) {
 			if item.Live {
 				t.Fatalf("disabled inventory item = %#v, want Live=false", item)
 			}
+		}
+	})
+
+	t.Run("Should expose only live resources visible to the selected profile", func(t *testing.T) {
+		t.Parallel()
+
+		db := openDaemonTestGlobalDB(t)
+		installDaemonTestExtension(t, db, "kit", daemonTestExtensionOptions{}, true)
+		homePaths := testHomePaths(t)
+		profiles, err := profilepkg.NewManager(
+			profilepkg.WithStore(db),
+			profilepkg.WithHomePaths(homePaths),
+			profilepkg.WithLogger(discardLogger()),
+		)
+		if err != nil {
+			t.Fatalf("profile.NewManager() error = %v", err)
+		}
+		marketing, err := profiles.Create(t.Context(), profilepkg.CreateInput{Name: "marketing"})
+		if err != nil {
+			t.Fatalf("profiles.Create(marketing) error = %v", err)
+		}
+		engineering, err := profiles.Create(t.Context(), profilepkg.CreateInput{Name: "engineering"})
+		if err != nil {
+			t.Fatalf("profiles.Create(engineering) error = %v", err)
+		}
+
+		ext := inventoryTestExtension(true)
+		codecs := inventoryTestResourceCodecs(t)
+		desired, err := projectExtensionKitItems(t.Context(), ext, codecs, nil)
+		if err != nil {
+			t.Fatalf("projectExtensionKitItems() error = %v", err)
+		}
+		live := inventoryTestRawRecords(desired)
+		for index := range live {
+			switch extensionResourceNameFromID(live[index]) {
+			case "zeta":
+				live[index].Scope = resources.ResourceScope{
+					Kind: resources.ResourceScopeKindProfile,
+					ID:   marketing.ID,
+				}
+			case "beta":
+				live[index].Scope = resources.ResourceScope{
+					Kind: resources.ResourceScopeKindProfile,
+					ID:   engineering.ID,
+				}
+			}
+		}
+		service := &daemonExtensionService{
+			registry:       extensionpkg.NewRegistry(db.DB()),
+			runtime:        &inventoryExtensionRuntime{ext: ext},
+			profiles:       profiles,
+			resourceStore:  inventoryRawStore{records: live},
+			resourceCodecs: codecs,
+			logger:         discardLogger(),
+		}
+		actor, err := taskpkg.DeriveHumanActorContext("operator", taskpkg.OriginKindCLI, "cli")
+		if err != nil {
+			t.Fatalf("DeriveHumanActorContext() error = %v", err)
+		}
+		actor.ReadScope = store.ReadScope{ProfileID: marketing.ID}
+
+		inventory, err := service.InventoryScoped(t.Context(), "kit", actor)
+		if err != nil {
+			t.Fatalf("InventoryScoped() error = %v", err)
+		}
+		liveByName := make(map[string]bool, len(inventory.Items))
+		for _, item := range inventory.Items {
+			liveByName[item.Name] = item.Live
+		}
+		want := map[string]bool{"kit/alpha": true, "kit/zeta": true, "kit/beta": false}
+		if !reflect.DeepEqual(liveByName, want) {
+			t.Fatalf("InventoryScoped() live resources = %#v, want %#v", liveByName, want)
 		}
 	})
 
@@ -234,7 +308,7 @@ func TestExtensionInventoryAndEnablePreview(t *testing.T) {
 		_, writerSpec, err := validateAndEncodeResource(
 			t.Context(),
 			writerCodec,
-			resources.ResourceScope{Kind: resources.ResourceScopeKindGlobal},
+			resources.ResourceScope{Kind: resources.ResourceScopeKindUser},
 			compozyconfig.AgentDef{Name: "writer", Prompt: "Existing writer"},
 		)
 		if err != nil {
@@ -244,7 +318,7 @@ func TestExtensionInventoryAndEnablePreview(t *testing.T) {
 		store := inventoryRawStore{records: []resources.RawRecord{{
 			Kind:     compozyconfig.AgentResourceKind,
 			ID:       "authored/agent/writer",
-			Scope:    resources.ResourceScope{Kind: resources.ResourceScopeKindGlobal},
+			Scope:    resources.ResourceScope{Kind: resources.ResourceScopeKindUser},
 			SpecJSON: writerSpec,
 			Owner:    resources.ResourceOwner{Kind: resources.ResourceOwnerKind("operator"), ID: "operator"},
 		}}}
@@ -306,7 +380,7 @@ func TestExtensionInventoryAndEnablePreview(t *testing.T) {
 		changes, err := service.extensionKitChanges(t.Context(), desired, []resources.RawRecord{{
 			Kind:     automationpkg.JobResourceKind,
 			ID:       desiredJob.ID,
-			Scope:    resources.ResourceScope{Kind: resources.ResourceScopeKindGlobal},
+			Scope:    resources.ResourceScope{Kind: resources.ResourceScopeKindUser},
 			SpecJSON: semanticallyIdenticalSpec,
 		}})
 		if err != nil {
@@ -359,7 +433,7 @@ func TestExtensionInventoryAndEnablePreview(t *testing.T) {
 		changes, err := service.extensionKitChanges(t.Context(), desired, []resources.RawRecord{{
 			Kind:     automationpkg.JobResourceKind,
 			ID:       liveJob.ID,
-			Scope:    resources.ResourceScope{Kind: resources.ResourceScopeKindGlobal},
+			Scope:    resources.ResourceScope{Kind: resources.ResourceScopeKindUser},
 			SpecJSON: inventoryTestJobSpec(t, codecs, liveJob),
 		}})
 		if err != nil {
@@ -385,7 +459,7 @@ func TestExtensionInventoryAndEnablePreview(t *testing.T) {
 		changes, err := service.extensionKitChanges(t.Context(), desired, []resources.RawRecord{{
 			Kind:     automationpkg.JobResourceKind,
 			ID:       liveJob.ID,
-			Scope:    resources.ResourceScope{Kind: resources.ResourceScopeKindGlobal},
+			Scope:    resources.ResourceScope{Kind: resources.ResourceScopeKindUser},
 			SpecJSON: inventoryTestJobSpec(t, codecs, liveJob),
 		}})
 		if err != nil {
@@ -468,6 +542,128 @@ func TestExtensionInventoryAndEnablePreview(t *testing.T) {
 			t.Fatalf("Preview() error = %v, want required automation dependency error", err)
 		}
 	})
+
+	t.Run("Should project declared profile setup and dormant placement state", func(t *testing.T) {
+		t.Parallel()
+		db := openDaemonTestGlobalDB(t)
+		installDaemonTestExtension(t, db, "kit", daemonTestExtensionOptions{}, true)
+		homePaths := testHomePaths(t)
+		profiles, err := profilepkg.NewManager(
+			profilepkg.WithStore(db), profilepkg.WithHomePaths(homePaths), profilepkg.WithLogger(discardLogger()),
+		)
+		if err != nil {
+			t.Fatalf("profile.NewManager() error = %v", err)
+		}
+		created, err := profiles.CreateDeclared(t.Context(), profilepkg.DeclaredInput{
+			Extension: "kit",
+			Name:      "growth",
+			Seed: profilepkg.DeclaredSeed{CredentialAsks: []profilepkg.CredentialAsk{{
+				Provider: "openai", Slot: "api_key",
+			}}},
+		})
+		if err != nil {
+			t.Fatalf("CreateDeclared() error = %v", err)
+		}
+		service := &daemonExtensionService{profiles: profiles}
+		payload := contract.ExtensionPayload{}
+		manifest := &extensionpkg.Manifest{
+			Name:     "kit",
+			Profiles: []extensionpkg.ManifestProfile{{Name: created.Name}, {Name: "missing"}},
+			Resources: extensionpkg.ResourcesConfig{Loops: []extensionpkg.ManifestResourcePath{{
+				Path: "loops/review", Profile: "missing",
+			}}},
+		}
+		if err := service.enrichExtensionProfilePayload(t.Context(), &payload, manifest); err != nil {
+			t.Fatalf("enrichExtensionProfilePayload() error = %v", err)
+		}
+		if len(payload.DeclaredProfiles) != 2 {
+			t.Fatalf("DeclaredProfiles = %#v, want two declarations", payload.DeclaredProfiles)
+		}
+		growth := payload.DeclaredProfiles[0]
+		if growth.Name != "growth" || !growth.Exists || !growth.CreatedByExtension || !growth.NeedsSetup ||
+			len(growth.CredentialRequirements) != 1 || growth.CredentialRequirements[0].Provider != "openai" {
+			t.Fatalf("growth declaration = %#v, want existing marked profile with one missing credential", growth)
+		}
+		missing := payload.DeclaredProfiles[1]
+		if missing.Name != "missing" || missing.Exists || missing.CreatedByExtension || missing.NeedsSetup {
+			t.Fatalf("missing declaration = %#v, want dormant profile", missing)
+		}
+		if len(payload.Placements) != 1 || !payload.Placements[0].Dormant ||
+			payload.Placements[0].CreateAction != "compozy profile create missing" || len(payload.DormantPlacements) != 1 {
+			t.Fatalf(
+				"placements = %#v dormant = %#v, want one actionable dormant placement",
+				payload.Placements,
+				payload.DormantPlacements,
+			)
+		}
+	})
+
+	t.Run("Should keep foreign credential requirements out of an existing declaration", func(t *testing.T) {
+		t.Parallel()
+
+		db := openDaemonTestGlobalDB(t)
+		installDaemonTestExtension(t, db, "other", daemonTestExtensionOptions{}, true)
+		profiles, err := profilepkg.NewManager(
+			profilepkg.WithStore(db),
+			profilepkg.WithHomePaths(testHomePaths(t)),
+			profilepkg.WithLogger(discardLogger()),
+		)
+		if err != nil {
+			t.Fatalf("profile.NewManager() error = %v", err)
+		}
+		created, err := profiles.CreateDeclared(t.Context(), profilepkg.DeclaredInput{
+			Extension: "other",
+			Name:      "shared",
+			Seed: profilepkg.DeclaredSeed{CredentialAsks: []profilepkg.CredentialAsk{{
+				Provider: "anthropic", Slot: "api_key",
+			}}},
+		})
+		if err != nil {
+			t.Fatalf("CreateDeclared() error = %v", err)
+		}
+		payload := contract.ExtensionPayload{}
+		manifest := &extensionpkg.Manifest{
+			Name: "kit", Profiles: []extensionpkg.ManifestProfile{{Name: created.Name}},
+		}
+		service := &daemonExtensionService{profiles: profiles}
+		if err := service.enrichExtensionProfilePayload(t.Context(), &payload, manifest); err != nil {
+			t.Fatalf("enrichExtensionProfilePayload() error = %v", err)
+		}
+		if len(payload.DeclaredProfiles) != 1 {
+			t.Fatalf("DeclaredProfiles = %#v, want one existing declaration", payload.DeclaredProfiles)
+		}
+		declaration := payload.DeclaredProfiles[0]
+		if !declaration.Exists || declaration.CreatedByExtension || declaration.NeedsSetup ||
+			len(declaration.CredentialRequirements) != 0 {
+			t.Fatalf("declaration = %#v, want existing profile without foreign setup requirements", declaration)
+		}
+	})
+
+	t.Run("Should project dormant placement without a profile manager", func(t *testing.T) {
+		t.Parallel()
+
+		payload := contract.ExtensionPayload{}
+		manifest := &extensionpkg.Manifest{
+			Name:     "kit",
+			Profiles: []extensionpkg.ManifestProfile{{Name: "growth"}},
+			Resources: extensionpkg.ResourcesConfig{Loops: []extensionpkg.ManifestResourcePath{{
+				Path: "loops/review", Profile: "growth",
+			}}},
+		}
+		service := &daemonExtensionService{}
+		if err := service.enrichExtensionProfilePayload(t.Context(), &payload, manifest); err != nil {
+			t.Fatalf("enrichExtensionProfilePayload() error = %v", err)
+		}
+		if len(payload.DeclaredProfiles) != 1 || payload.DeclaredProfiles[0].Exists ||
+			len(payload.DormantPlacements) != 1 ||
+			payload.DormantPlacements[0].CreateAction != "compozy profile create growth" {
+			t.Fatalf(
+				"declared profiles = %#v dormant placements = %#v, want actionable dormant growth profile",
+				payload.DeclaredProfiles,
+				payload.DormantPlacements,
+			)
+		}
+	})
 }
 
 func inventoryTestExtension(enabled bool) *extensionpkg.Extension {
@@ -535,7 +731,7 @@ func inventoryTestJobSpec(
 	_, encoded, err := validateAndEncodeResource(
 		t.Context(),
 		codec,
-		resources.ResourceScope{Kind: resources.ResourceScopeKindGlobal},
+		resources.ResourceScope{Kind: resources.ResourceScopeKindUser},
 		job,
 	)
 	if err != nil {
@@ -561,7 +757,7 @@ func inventoryTestRawRecords(items []extensionpkg.KitItem) []resources.RawRecord
 	for _, item := range items {
 		records = append(records, resources.RawRecord{
 			Kind: item.Kind, ID: item.ID,
-			Scope: resources.ResourceScope{Kind: resources.ResourceScopeKindGlobal},
+			Scope: resources.ResourceScope{Kind: resources.ResourceScopeKindUser},
 			Owner: *extensionOwner("kit"), SpecJSON: slices.Clone(item.SpecJSON),
 		})
 	}
@@ -570,11 +766,16 @@ func inventoryTestRawRecords(items []extensionpkg.KitItem) []resources.RawRecord
 
 type inventoryExtensionRuntime struct {
 	extensionRuntime
+	extensionDevRuntime
 	ext         *extensionpkg.Extension
 	reloadCalls int
 }
 
 func (r *inventoryExtensionRuntime) Get(string) (*extensionpkg.Extension, error) { return r.ext, nil }
+
+func (r *inventoryExtensionRuntime) GetForInstance(extensionpkg.InstanceKey) (*extensionpkg.Extension, error) {
+	return r.ext, nil
+}
 
 func (r *inventoryExtensionRuntime) Reload(context.Context) error {
 	r.reloadCalls++

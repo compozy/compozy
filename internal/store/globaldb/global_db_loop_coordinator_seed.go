@@ -162,6 +162,7 @@ func loopCoordinatorTaskRecordForRun(run looppkg.Run, taskID string, now time.Ti
 	}
 	return taskpkg.Task{
 		ID:                 taskID,
+		ProfileID:          run.ProfileID,
 		Scope:              taskpkg.ScopeWorkspace,
 		WorkspaceID:        string(run.WorkspaceID),
 		Title:              fmt.Sprintf("Loop coordinator %s", strings.TrimSpace(run.LoopName)),

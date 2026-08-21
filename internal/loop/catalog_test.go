@@ -28,6 +28,8 @@ func TestLoopCatalogShouldPageStableEffectiveRows(t *testing.T) {
 
 		first, err := loop.BuildCatalogPage(records, summaries, loop.CatalogQuery{
 			WorkspaceID: "ws-one",
+			ProfileID:   "profile-default",
+			ProfileName: "default",
 			Limit:       2,
 		})
 		if err != nil {
@@ -40,6 +42,8 @@ func TestLoopCatalogShouldPageStableEffectiveRows(t *testing.T) {
 
 		second, err := loop.BuildCatalogPage(records, summaries, loop.CatalogQuery{
 			WorkspaceID: "ws-one",
+			ProfileID:   "profile-default",
+			ProfileName: "default",
 			Cursor:      first.NextCursor,
 			Limit:       1,
 		})
@@ -59,6 +63,8 @@ func TestLoopCatalogShouldPageStableEffectiveRows(t *testing.T) {
 		)
 		remaining, err := loop.BuildCatalogPage(mutated, summaries, loop.CatalogQuery{
 			WorkspaceID: "ws-one",
+			ProfileID:   "profile-default",
+			ProfileName: "default",
 			Cursor:      first.NextCursor,
 			Limit:       10,
 		})
@@ -99,6 +105,8 @@ func TestLoopCatalogShouldApplySelfFilteredFacets(t *testing.T) {
 
 		page, err := loop.BuildCatalogPage(records, summaries, loop.CatalogQuery{
 			WorkspaceID: "ws-one",
+			ProfileID:   "profile-default",
+			ProfileName: "default",
 			Search:      " deploy ",
 			Kind:        loop.CatalogKindWorkspace,
 			Category:    "delivery",
@@ -133,14 +141,17 @@ func TestLoopCatalogShouldRejectInvalidQueriesAndCursors(t *testing.T) {
 			catalogRecord("read-alpha", "alpha", loop.SourceUser, "delivery", "Deploy alpha"),
 			catalogRecord("read-beta", "beta", loop.SourceUser, "delivery", "Deploy beta"),
 		}
-		page, err := loop.BuildCatalogPage(records, nil, loop.CatalogQuery{WorkspaceID: "ws-one", Limit: 1})
+		page, err := loop.BuildCatalogPage(records, nil, loop.CatalogQuery{
+			WorkspaceID: "ws-one", ProfileID: "profile-default", ProfileName: "default", Limit: 1,
+		})
 		if err != nil {
 			t.Fatalf("BuildCatalogPage(first) error = %v", err)
 		}
 		for _, query := range []loop.CatalogQuery{
-			{WorkspaceID: "ws-two", Cursor: page.NextCursor},
-			{WorkspaceID: "ws-one", Search: "different", Cursor: page.NextCursor},
-			{WorkspaceID: "ws-one", Cursor: page.NextCursor[:len(page.NextCursor)-1]},
+			{WorkspaceID: "ws-two", ProfileID: "profile-default", ProfileName: "default", Cursor: page.NextCursor},
+			{WorkspaceID: "ws-one", ProfileID: "profile-marketing", ProfileName: "marketing", Cursor: page.NextCursor},
+			{WorkspaceID: "ws-one", ProfileID: "profile-default", ProfileName: "default", Search: "different", Cursor: page.NextCursor},
+			{WorkspaceID: "ws-one", ProfileID: "profile-default", ProfileName: "default", Cursor: page.NextCursor[:len(page.NextCursor)-1]},
 		} {
 			if _, err := loop.BuildCatalogPage(records, nil, query); !errors.Is(err, loop.ErrCatalogCursorInvalid) {
 				t.Fatalf("BuildCatalogPage(%#v) error = %v, want ErrCatalogCursorInvalid", query, err)
@@ -152,11 +163,16 @@ func TestLoopCatalogShouldRejectInvalidQueriesAndCursors(t *testing.T) {
 		t.Parallel()
 
 		queries := []loop.CatalogQuery{
-			{WorkspaceID: "ws-one", Kind: "global"},
-			{WorkspaceID: "ws-one", Status: "unknown"},
-			{WorkspaceID: "ws-one", Sort: "recent"},
-			{WorkspaceID: "ws-one", Limit: -1},
-			{WorkspaceID: "ws-one", Limit: loop.MaxCatalogLimit + 1},
+			{WorkspaceID: "ws-one", ProfileID: "profile-default", ProfileName: "default", Kind: "global"},
+			{WorkspaceID: "ws-one", ProfileID: "profile-default", ProfileName: "default", Status: "unknown"},
+			{WorkspaceID: "ws-one", ProfileID: "profile-default", ProfileName: "default", Sort: "recent"},
+			{WorkspaceID: "ws-one", ProfileID: "profile-default", ProfileName: "default", Limit: -1},
+			{
+				WorkspaceID: "ws-one",
+				ProfileID:   "profile-default",
+				ProfileName: "default",
+				Limit:       loop.MaxCatalogLimit + 1,
+			},
 		}
 		for _, query := range queries {
 			if _, err := loop.BuildCatalogPage(nil, nil, query); !errors.Is(err, loop.ErrCatalogQueryInvalid) {

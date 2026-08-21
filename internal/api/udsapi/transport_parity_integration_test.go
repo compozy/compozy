@@ -17,7 +17,6 @@ import (
 	"reflect"
 	"runtime"
 	"slices"
-	"sort"
 	"strings"
 	"testing"
 	"time"
@@ -25,6 +24,7 @@ import (
 	"github.com/compozy/compozy/internal/agentidentity"
 	compozycontract "github.com/compozy/compozy/internal/api/contract"
 	apispec "github.com/compozy/compozy/internal/api/spec"
+	apitestutil "github.com/compozy/compozy/internal/api/testutil"
 	automationpkg "github.com/compozy/compozy/internal/automation"
 	compozyconfig "github.com/compozy/compozy/internal/config"
 	"github.com/compozy/compozy/internal/resources"
@@ -34,7 +34,6 @@ import (
 	e2etest "github.com/compozy/compozy/internal/testutil/e2e"
 	transcriptpkg "github.com/compozy/compozy/internal/transcript"
 	"github.com/compozy/compozy/internal/windowmanager"
-	"github.com/gin-gonic/gin"
 )
 
 const (
@@ -998,15 +997,15 @@ func assertWindowManagerLayoutProfileRoundTrip(
 		http.MethodPut,
 		basePath+"/layout-profiles/"+profileID,
 		compozycontract.PutResourceRequest{
-			Scope: resources.ResourceScope{Kind: resources.ResourceScopeKindGlobal},
+			Scope: resources.ResourceScope{Kind: resources.ResourceScopeKindUser},
 			Spec:  profileSpec,
 		},
 		&stored,
 	); err != nil {
 		t.Fatalf("HTTP layout profile put error = %v", err)
 	}
-	if stored.Record.ID != profileID || stored.Record.Scope.Kind != resources.ResourceScopeKindGlobal {
-		t.Fatalf("stored layout profile = %#v, want global profile %q", stored.Record, profileID)
+	if stored.Record.ID != profileID || stored.Record.Scope.Kind != resources.ResourceScopeKindUser {
+		t.Fatalf("stored layout profile = %#v, want user-scoped profile %q", stored.Record, profileID)
 	}
 
 	originalWorkspaceID := runtimeHarness.WorkspaceID
@@ -1615,8 +1614,8 @@ func assertTransportSessionProvenanceParity(
 
 	childIDs := []string{explicitChild.Session.ID, inferredChild.Session.ID}
 	slices.Sort(childIDs)
-	parentQuery := "/api/sessions?parent=" + url.QueryEscape(parent.ID)
-	rootQuery := "/api/sessions?root=" + url.QueryEscape(parent.ID)
+	parentQuery := "/api/sessions?all_workspaces=true&parent=" + url.QueryEscape(parent.ID)
+	rootQuery := "/api/sessions?all_workspaces=true&root=" + url.QueryEscape(parent.ID)
 
 	var udsChildren compozycontract.SessionCatalogResponse
 	if err := runtimeHarness.UDSJSON(ctx, http.MethodGet, parentQuery, nil, &udsChildren); err != nil {
@@ -1926,7 +1925,7 @@ func TestUDSTransportMarketplaceParityMatchesHTTPAndCLI(t *testing.T) {
 		request := compozycontract.InstallSettingsMCPServerRequest{
 			EntryID: "filesystem",
 			Name:    "filesystem-parity",
-			Scope:   compozycontract.SettingsWorkspaceScopeGlobal,
+			Scope:   compozycontract.SettingsLayeredScopeUser,
 			Values:  &compozycontract.SettingsMCPCatalogInstallValuesPayload{},
 		}
 		var httpValue compozycontract.InstallSettingsMCPServerResponse
@@ -2613,7 +2612,7 @@ func TestUDSTransportSettingsMutationsRemainPrivilegedWhenHTTPIsNonLoopback(t *t
 	var forbidden compozycontract.ErrorPayload
 	decodeHTTPJSON(t, httpPutResp, &forbidden)
 
-	var udsMutation compozycontract.SettingsGlobalWorkspaceCollectionMutationResult
+	var udsMutation compozycontract.SettingsLayeredCollectionMutationResult
 	if err := runtimeHarness.UDSJSON(
 		ctx,
 		http.MethodPut,
@@ -2629,7 +2628,7 @@ func TestUDSTransportSettingsMutationsRemainPrivilegedWhenHTTPIsNonLoopback(t *t
 	); err != nil {
 		t.Fatalf("UDSJSON(PUT %s) error = %v", putPath, err)
 	}
-	if udsMutation.Scope != compozycontract.SettingsWorkspaceScopeWorkspace || udsMutation.WorkspaceID != workspaceID {
+	if udsMutation.Scope != compozycontract.SettingsLayeredScopeWorkspace || udsMutation.WorkspaceID != workspaceID {
 		t.Fatalf("UDS mutation = %#v, want workspace-scoped result", udsMutation)
 	}
 
@@ -2664,11 +2663,11 @@ func TestUDSTransportSettingsMutationsRemainPrivilegedWhenHTTPIsNonLoopback(t *t
 
 	deletePath := "/api/settings/mcp-servers/server-a?scope=workspace&workspace_id=" +
 		url.QueryEscape(workspaceID) + "&target=sidecar"
-	var deleteResult compozycontract.SettingsGlobalWorkspaceCollectionMutationResult
+	var deleteResult compozycontract.SettingsLayeredCollectionMutationResult
 	if err := runtimeHarness.UDSJSON(ctx, http.MethodDelete, deletePath, nil, &deleteResult); err != nil {
 		t.Fatalf("UDSJSON(DELETE %s) error = %v", deletePath, err)
 	}
-	if deleteResult.Scope != compozycontract.SettingsWorkspaceScopeWorkspace ||
+	if deleteResult.Scope != compozycontract.SettingsLayeredScopeWorkspace ||
 		deleteResult.WorkspaceID != workspaceID {
 		t.Fatalf("deleteResult = %#v, want workspace-scoped delete result", deleteResult)
 	}
@@ -2708,17 +2707,35 @@ func TestUDSTransportTaskSurfaceMatchesHTTPAndDocumentedSpecOperations(t *testin
 	homePaths := newTestHomePaths(t)
 	udsEngine := newTestRouter(t, newTestHandlers(t, stubSessionManager{}, stubObserver{}, homePaths))
 
-	udsRoutes := taskRoutesFromEngine(udsEngine.Routes())
-	httpRoutes := documentedTaskRoutesForTransport(apispec.TransportHTTP)
+	udsRoutes := apitestutil.RoutesFromEngine(udsEngine.Routes(), isDocumentedTaskRoute)
+	httpRoutes := apitestutil.DocumentedRoutesForTransport(apispec.TransportHTTP, isDocumentedTaskRoute)
 	if !slices.Equal(udsRoutes, httpRoutes) {
 		t.Fatalf("UDS task routes = %v, want documented HTTP task routes %v", udsRoutes, httpRoutes)
 	}
 
-	specRoutes := documentedTaskRoutesForTransport(apispec.TransportUDS)
+	specRoutes := apitestutil.DocumentedRoutesForTransport(apispec.TransportUDS, isDocumentedTaskRoute)
 	if !slices.Equal(udsRoutes, specRoutes) {
 		t.Fatalf("UDS task routes = %v, want documented task routes %v", udsRoutes, specRoutes)
 	}
 }
+
+func TestUDSTransportProfileSurfaceMatchesHTTPAndDocumentedSpecOperations(t *testing.T) {
+	t.Parallel()
+	t.Run("Should match the HTTP and documented profile surfaces", func(t *testing.T) {
+		t.Parallel()
+		udsEngine := newTestRouter(t, newTestHandlers(t, stubSessionManager{}, stubObserver{}, newTestHomePaths(t)))
+		udsRoutes := apitestutil.ProfileRoutesFromEngine(udsEngine.Routes())
+		httpRoutes := apitestutil.DocumentedProfileRoutesForTransport(apispec.TransportHTTP)
+		if !slices.Equal(udsRoutes, httpRoutes) {
+			t.Fatalf("UDS profile routes = %v, want documented HTTP profile routes %v", udsRoutes, httpRoutes)
+		}
+		specRoutes := apitestutil.DocumentedProfileRoutesForTransport(apispec.TransportUDS)
+		if !slices.Equal(udsRoutes, specRoutes) {
+			t.Fatalf("UDS profile routes = %v, want documented profile routes %v", udsRoutes, specRoutes)
+		}
+	})
+}
+
 func waitForUDSAutomationRun(
 	t testing.TB,
 	ctx context.Context,
@@ -2807,46 +2824,10 @@ func seedTransportWebhookTrigger(
 	return state.Triggers[0], endpoint
 }
 
-func taskRoutesFromEngine(routes gin.RoutesInfo) []string {
-	filtered := make([]string, 0)
-	for _, route := range routes {
-		if isDocumentedTaskRoute(route.Path) {
-			filtered = append(filtered, route.Method+" "+route.Path)
-		}
-	}
-	sort.Strings(filtered)
-	return filtered
-}
-
-func documentedTaskRoutesForTransport(transport apispec.Transport) []string {
-	routes := make([]string, 0)
-	for _, operation := range apispec.Operations() {
-		if !slices.Contains(operation.Transports, transport) {
-			continue
-		}
-		if !isDocumentedTaskRoute(operation.Path) {
-			continue
-		}
-		routes = append(routes, operation.Method+" "+normalizeSpecRoutePath(operation.Path))
-	}
-	sort.Strings(routes)
-	return routes
-}
-
 func isDocumentedTaskRoute(path string) bool {
 	return strings.HasPrefix(path, "/api/tasks") ||
 		strings.HasPrefix(path, "/api/task-runs") ||
 		strings.HasPrefix(path, "/api/observe/tasks")
-}
-
-func normalizeSpecRoutePath(path string) string {
-	parts := strings.Split(path, "/")
-	for i, part := range parts {
-		if strings.HasPrefix(part, "{") && strings.HasSuffix(part, "}") && len(part) > 2 {
-			parts[i] = ":" + part[1:len(part)-1]
-		}
-	}
-	return strings.Join(parts, "/")
 }
 
 func waitForHTTPAutomationRun(
@@ -2929,7 +2910,7 @@ func waitForTransportSessionTitle(
 	defer cancel()
 	ticker := time.NewTicker(25 * time.Millisecond)
 	defer ticker.Stop()
-	path := "/api/sessions?workspace=" + url.QueryEscape(harness.WorkspaceID)
+	path := "/api/sessions?workspace_id=" + url.QueryEscape(harness.WorkspaceID)
 
 	var (
 		httpCatalog compozycontract.SessionsResponse

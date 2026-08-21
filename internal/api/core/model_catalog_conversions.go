@@ -8,8 +8,8 @@ import (
 )
 
 const (
-	openAIModelObjectValue = "model"
-	taskActionList         = "list"
+	openAIModelObjectValue     = "model"
+	openAIModelListObjectValue = "list"
 )
 
 func ProviderModelListPayloadFromModels(models []modelcatalog.Model) contract.ProviderModelListResponse {
@@ -98,7 +98,7 @@ func SourceStatusPayloadsFromStatuses(
 
 func OpenAIModelListPayloadFromModels(models []modelcatalog.Model) contract.OpenAIModelListResponse {
 	payload := contract.OpenAIModelListResponse{
-		Object: taskActionList,
+		Object: openAIModelListObjectValue,
 		Data:   make([]contract.OpenAIModelPayload, 0, len(models)),
 	}
 	for _, model := range models {

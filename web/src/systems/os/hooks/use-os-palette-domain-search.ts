@@ -6,6 +6,7 @@ import { useMemories } from "@/systems/knowledge";
 import { useLoops } from "@/systems/loops";
 import { useMarketplaceSearch } from "@/systems/marketplace";
 import { useNetworkChannels } from "@/systems/network";
+import { useProfileReadScope } from "@/systems/profiles";
 import { useTasks } from "@/systems/tasks";
 import { useVaultSecrets } from "@/systems/vault";
 import { useWorktrees, type WorkspaceScopeMode } from "@/systems/workspace";
@@ -61,6 +62,7 @@ export function useOsPaletteDomainSearch({
   signals,
   targetDomain,
 }: UseOsPaletteDomainSearchOptions): readonly OsPaletteDomainSection[] {
+  const { destination: profile } = useProfileReadScope();
   const rootEnabled = isPaletteDomainSearchEnabled(open, query, signals?.weights ?? null);
   const domainEnabled = (title: string) =>
     targetDomain === undefined ? rootEnabled : open && targetDomain === title;
@@ -101,9 +103,12 @@ export function useOsPaletteDomainSearch({
       : { scope: "all" },
     { enabled: domainEnabled("Bridges") }
   );
-  const globalMemories = useMemories({ scope: "global" }, { enabled: globalKnowledgeEnabled });
+  const globalMemories = useMemories(
+    { profile, scope: "profile" },
+    { enabled: globalKnowledgeEnabled }
+  );
   const workspaceMemories = useMemories(
-    { scope: "workspace", workspaceId: scopedWorkspace ?? "" },
+    { profile, scope: "workspace", workspaceId: scopedWorkspace ?? "" },
     { enabled: workspaceKnowledgeEnabled }
   );
   const vault = useVaultSecrets({}, { enabled: domainEnabled("Vault") });
@@ -120,6 +125,7 @@ export function useOsPaletteDomainSearch({
   );
   const publishedExtensions = useExtensionInventory(extensionsEnabled && scope === "workspace");
   const catalogs = useOsPaletteWorkspaceCatalogs({
+    profile,
     workspaceIds,
     loopsEnabled: loopsGlobalEnabled,
     networkEnabled: networkGlobalEnabled,

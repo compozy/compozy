@@ -16,14 +16,14 @@ func (s *Service) Invoke(ctx context.Context, request InvokeRequest) (InvokeResu
 		return InvokeResult{}, err
 	}
 	guarded := resolved.Policy.SingleFlight
-	if guarded && !s.acquireFlight(request.WorkspaceID, request.CommandID) {
+	if guarded && !s.acquireFlight(request.ProfileLens, request.WorkspaceID, request.CommandID) {
 		return InvokeResult{}, fmt.Errorf("%w: %s is already in flight", ErrAlreadyRunning, request.CommandID)
 	}
 	startedAt := s.now().UTC()
 	result, err := s.executor.ExecuteAction(ctx, execution)
 	if err != nil {
 		if guarded {
-			s.releaseFlight(request.WorkspaceID, request.CommandID)
+			s.releaseFlight(request.ProfileLens, request.WorkspaceID, request.CommandID)
 		}
 		s.emitInvocation(ctx, execution, "failed", "", startedAt)
 		return InvokeResult{}, err
@@ -32,12 +32,15 @@ func (s *Service) Invoke(ctx context.Context, request InvokeRequest) (InvokeResu
 		return s.pendingApprovalResult(ctx, execution, resolved, result, startedAt)
 	}
 	if guarded {
-		s.releaseFlight(request.WorkspaceID, request.CommandID)
+		s.releaseFlight(request.ProfileLens, request.WorkspaceID, request.CommandID)
 	}
 	s.recordDaemonUsage(ctx, execution)
 	s.emitInvocation(ctx, execution, "ok", "", startedAt)
 	return InvokeResult{
-		Status: InvokeStatusOK, Result: append([]byte(nil), result.Result...), InvocationID: execution.InvocationID,
+		ProfileLens:  execution.ProfileLens,
+		Status:       InvokeStatusOK,
+		Result:       append([]byte(nil), result.Result...),
+		InvocationID: execution.InvocationID,
 	}, nil
 }
 
@@ -51,10 +54,16 @@ func (s *Service) prepareInvocation(
 	if request.WorkspaceID == "" {
 		return ExecutionRequest{}, ResolvedCommand{}, errors.New("cmd palette: workspace ID is required")
 	}
+	if err := request.ProfileLens.Validate(); err != nil {
+		return ExecutionRequest{}, ResolvedCommand{}, err
+	}
 	if request.CommandID == "" {
 		return ExecutionRequest{}, ResolvedCommand{}, fmt.Errorf("%w: empty command id", ErrCommandNotFound)
 	}
-	baseCatalog, err := s.Catalog(ctx, request.WorkspaceID, "")
+	baseCatalog, err := s.Catalog(ctx, CatalogRequest{
+		ProfileLens: request.ProfileLens,
+		WorkspaceID: request.WorkspaceID,
+	})
 	if err != nil {
 		return ExecutionRequest{}, ResolvedCommand{}, err
 	}
@@ -63,6 +72,9 @@ func (s *Service) prepareInvocation(
 		return ExecutionRequest{}, ResolvedCommand{}, fmt.Errorf(
 			"%w: unknown command: %s", ErrCommandNotFound, request.CommandID,
 		)
+	}
+	if strings.HasPrefix(string(command.ID), "profile.") && !request.ManagementLocal {
+		return ExecutionRequest{}, ResolvedCommand{}, ErrProfileManagementForbidden
 	}
 	if fields := validateInvocationArguments(command.Arguments, request.Args); len(fields) > 0 {
 		return ExecutionRequest{}, ResolvedCommand{}, &InvalidArgumentsError{Fields: fields}
@@ -75,7 +87,11 @@ func (s *Service) prepareInvocation(
 	if err := s.authorizeInvocationClient(ctx, request); err != nil {
 		return ExecutionRequest{}, ResolvedCommand{}, err
 	}
-	resolvedCatalog, err := s.Catalog(ctx, request.WorkspaceID, clientID)
+	resolvedCatalog, err := s.Catalog(ctx, CatalogRequest{
+		ProfileLens: request.ProfileLens,
+		WorkspaceID: request.WorkspaceID,
+		ClientID:    clientID,
+	})
 	if err != nil {
 		return ExecutionRequest{}, ResolvedCommand{}, err
 	}
@@ -93,6 +109,7 @@ func (s *Service) prepareInvocation(
 		return ExecutionRequest{}, ResolvedCommand{}, errors.New("cmd palette: generated invocation ID is empty")
 	}
 	execution := ExecutionRequest{
+		ProfileLens:  request.ProfileLens,
 		WorkspaceID:  request.WorkspaceID,
 		InvocationID: invocationID,
 		ClientID:     clientID,
@@ -114,14 +131,16 @@ func (s *Service) pendingApprovalResult(
 ) (InvokeResult, error) {
 	if result.Completion == nil {
 		if resolved.Policy.SingleFlight {
-			s.releaseFlight(execution.WorkspaceID, execution.Descriptor.ID)
+			s.releaseFlight(execution.ProfileLens, execution.WorkspaceID, execution.Descriptor.ID)
 		}
 		return InvokeResult{}, fmt.Errorf(
 			"%w: approval-pending result requires completion fence", ErrInvalidExecution,
 		)
 	}
 	if resolved.Policy.SingleFlight {
-		go s.releaseFlightOnCompletion(execution.WorkspaceID, execution.Descriptor.ID, result.Completion)
+		go s.releaseFlightOnCompletion(
+			execution.ProfileLens, execution.WorkspaceID, execution.Descriptor.ID, result.Completion,
+		)
 	}
 	if reader, ok := s.executor.(ApprovalCompletionReader); ok {
 		go s.emitApprovalCompletion(
@@ -129,7 +148,8 @@ func (s *Service) pendingApprovalResult(
 		)
 	}
 	return InvokeResult{
-		Status: InvokeStatusApprovalPending, ApprovalID: result.ApprovalID, InvocationID: execution.InvocationID,
+		ProfileLens: execution.ProfileLens,
+		Status:      InvokeStatusApprovalPending, ApprovalID: result.ApprovalID, InvocationID: execution.InvocationID,
 	}, nil
 }
 
@@ -144,7 +164,7 @@ func (s *Service) emitApprovalCompletion(
 	<-completion
 	ctx, cancel := context.WithTimeout(ctx, 5*time.Second)
 	defer cancel()
-	outcome, err := reader.ApprovalCompletionStatus(ctx, approvalID)
+	outcome, err := reader.ApprovalCompletionStatus(ctx, execution.ProfileLens, approvalID)
 	if err != nil || outcome == "" {
 		return
 	}
@@ -163,8 +183,9 @@ func (s *Service) emitInvocation(
 ) {
 	now := s.now().UTC()
 	s.emit(ctx, Event{
-		Name: EventCommandInvoked, WorkspaceID: execution.WorkspaceID,
-		CommandID: execution.Descriptor.ID, Source: execution.Descriptor.Source.ID(),
+		Name: EventCommandInvoked, ProfileLens: execution.ProfileLens,
+		WorkspaceID: execution.WorkspaceID,
+		CommandID:   execution.Descriptor.ID, Source: execution.Descriptor.Source.ID(),
 		ExecutionSite: execution.Descriptor.Action.Kind, Outcome: outcome,
 		DurationMS:   max(0, now.Sub(startedAt).Milliseconds()),
 		InvocationID: execution.InvocationID, ApprovalID: approvalID, OccurredAt: now,
@@ -250,12 +271,13 @@ func (s *Service) rejectDeferredSecrets(ctx context.Context, request ExecutionRe
 }
 
 func (s *Service) releaseFlightOnCompletion(
+	profileLens ProfileLens,
 	workspaceID WorkspaceID,
 	commandID CommandID,
 	completion <-chan struct{},
 ) {
 	<-completion
-	s.releaseFlight(workspaceID, commandID)
+	s.releaseFlight(profileLens, workspaceID, commandID)
 }
 
 func descriptorNeedsClient(descriptor Descriptor) bool {

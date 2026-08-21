@@ -59,9 +59,9 @@ export const settingsRolesConfigFixture: SettingsRolesSection["config"] = {
 };
 
 export const settingsRolesSectionFixture: SettingsRolesSection = {
-  available_scopes: ["global"],
+  available_scopes: ["user"],
   config: settingsRolesConfigFixture,
-  scope: "global",
+  scope: "user",
   section: "roles",
 };
 

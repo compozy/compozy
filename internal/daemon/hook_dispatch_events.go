@@ -17,7 +17,8 @@ type hookEventSummaryWriter interface {
 }
 
 type globalHookDispatchEventEmitter struct {
-	summaries hookEventSummaryWriter
+	summaries         hookEventSummaryWriter
+	profileForSession func(context.Context, string) (string, error)
 }
 
 var _ hookspkg.DispatchEventEmitter = globalHookDispatchEventEmitter{}
@@ -41,8 +42,12 @@ func withGlobalHookDispatchEventEmitter[P any](
 	if summaries == nil {
 		return ctx
 	}
+	var profileForSession func(context.Context, string) (string, error)
+	if notifier.hasSessionProfileResolver() {
+		profileForSession = notifier.sessionProfile
+	}
 	return hookspkg.WithDispatchEventEmitter(ctx, globalHookDispatchEventEmitter{
-		summaries: summaries,
+		summaries: summaries, profileForSession: profileForSession,
 	})
 }
 
@@ -108,16 +113,24 @@ func (e globalHookDispatchEventEmitter) EmitHookDispatchEvent(
 	if timestamp.IsZero() {
 		timestamp = time.Now().UTC()
 	}
+	profileID := store.DefaultProfileID
+	if sessionID := strings.TrimSpace(sessionCtx.SessionID); sessionID != "" && e.profileForSession != nil {
+		resolved, resolveErr := e.profileForSession(ctx, sessionID)
+		if resolveErr != nil || strings.TrimSpace(resolved) == "" {
+			return
+		}
+		profileID = strings.TrimSpace(resolved)
+	}
 
-	if writeErr := e.summaries.WriteEventSummary(ctx, store.EventSummary{
+	if writeErr := e.summaries.WriteEventSummary(ctx, daemonEventSummary(store.EventSummary{
+		ProfileID:        profileID,
 		SessionID:        strings.TrimSpace(sessionCtx.SessionID),
 		Type:             hookDispatchEventType(phase),
 		AgentName:        strings.TrimSpace(sessionCtx.AgentName),
-		Content:          content,
 		EventCorrelation: eventCorrelation,
 		Summary:          globalHookDispatchSummary(hook, phase, outcome),
 		Timestamp:        timestamp.UTC(),
-	}); writeErr != nil {
+	}, content)); writeErr != nil {
 		return
 	}
 }

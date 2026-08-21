@@ -63,12 +63,23 @@ func TestDeadEntityProbe(t *testing.T) {
 			workspace.ID: {
 				{
 					DeadEntityKey: store.DeadEntityKey{
+						ProfileID:   store.DefaultProfileID,
 						WorkspaceID: workspace.ID,
 						Kind:        store.DeadEntityKindMCPSidecar,
 						EntityID:    "github",
 					},
 					Reason:   "invalid api_key=super-secret",
 					MarkedAt: time.Date(2026, 7, 15, 19, 0, 0, 0, time.UTC),
+				},
+				{
+					DeadEntityKey: store.DeadEntityKey{
+						ProfileID:   "01ARZ3NDEKTSV4RRFFQ69G5FAV",
+						WorkspaceID: workspace.ID,
+						Kind:        store.DeadEntityKindMCPSidecar,
+						EntityID:    "github",
+					},
+					Reason:   "profile-specific outage",
+					MarkedAt: time.Date(2026, 7, 15, 19, 0, 1, 0, time.UTC),
 				},
 				{
 					DeadEntityKey: store.DeadEntityKey{
@@ -94,8 +105,8 @@ func TestDeadEntityProbe(t *testing.T) {
 		if err != nil {
 			t.Fatalf("Run(mcp) error = %v", err)
 		}
-		if len(items) != 1 {
-			t.Fatalf("Run(mcp) items = %#v, want one MCP diagnostic", items)
+		if len(items) != 2 {
+			t.Fatalf("Run(mcp) items = %#v, want one diagnostic per profile owner", items)
 		}
 		item := items[0]
 		if item.Code != contract.CodeMCPServerUnavailable || item.Category != contract.CategoryMCP {
@@ -103,6 +114,12 @@ func TestDeadEntityProbe(t *testing.T) {
 		}
 		if item.SuggestedCommand != "" {
 			t.Fatalf("SuggestedCommand = %q, want read-only diagnosis without revive command", item.SuggestedCommand)
+		}
+		if item.ID == items[1].ID {
+			t.Fatalf("profile-owned diagnostic IDs collide: %#v", items)
+		}
+		if got, ok := item.Evidence["profile_id"].(string); !ok || got == "" {
+			t.Fatalf("diagnostic profile evidence = %#v, want non-empty owner", item.Evidence["profile_id"])
 		}
 		reason, ok := item.Evidence["reason"].(string)
 		if !ok || strings.Contains(reason, "super-secret") || !strings.Contains(reason, "[REDACTED]") {

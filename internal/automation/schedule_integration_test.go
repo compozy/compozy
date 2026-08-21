@@ -40,14 +40,20 @@ func TestSchedulerIntegrationFastScheduleDispatchesThroughDispatcher(t *testing.
 	}
 
 	waitUntil(t, 4*time.Second, 25*time.Millisecond, func() bool {
-		runs, err := db.ListRuns(ctx, RunQuery{JobID: job.ID})
+		runs, err := db.ListRuns(ctx, RunQuery{
+			ReadScope: store.ReadScope{ProfileID: job.ProfileID},
+			JobID:     job.ID,
+		})
 		if err != nil {
 			t.Fatalf("ListRuns() error = %v", err)
 		}
 		return len(runs) > 0 && runs[0].Status == RunCompleted
 	})
 
-	runs, err := db.ListRuns(ctx, RunQuery{JobID: job.ID})
+	runs, err := db.ListRuns(ctx, RunQuery{
+		ReadScope: store.ReadScope{ProfileID: job.ProfileID},
+		JobID:     job.ID,
+	})
 	if err != nil {
 		t.Fatalf("ListRuns() error = %v", err)
 	}
@@ -106,14 +112,20 @@ func TestSchedulerIntegrationShutdownCancelsInflightDispatch(t *testing.T) {
 	}
 
 	waitUntil(t, 4*time.Second, 25*time.Millisecond, func() bool {
-		runs, err := db.ListRuns(ctx, RunQuery{JobID: job.ID})
+		runs, err := db.ListRuns(ctx, RunQuery{
+			ReadScope: store.ReadScope{ProfileID: job.ProfileID},
+			JobID:     job.ID,
+		})
 		if err != nil {
 			t.Fatalf("ListRuns() error = %v", err)
 		}
 		return len(runs) > 0 && runs[0].Status == RunCancelled
 	})
 
-	runs, err := db.ListRuns(ctx, RunQuery{JobID: job.ID})
+	runs, err := db.ListRuns(ctx, RunQuery{
+		ReadScope: store.ReadScope{ProfileID: job.ProfileID},
+		JobID:     job.ID,
+	})
 	if err != nil {
 		t.Fatalf("ListRuns() error = %v", err)
 	}
@@ -192,7 +204,10 @@ func TestSchedulerIntegrationRestartDowntimeRunsCatchUpExactlyOnce(t *testing.T)
 	dispatcher.waitForCompletionCount(t, 1, 2*time.Second)
 	dispatcher.assertDispatchCount(t, 1)
 
-	runs, err := db.ListRuns(ctx, RunQuery{JobID: job.ID})
+	runs, err := db.ListRuns(ctx, RunQuery{
+		ReadScope: store.ReadScope{ProfileID: job.ProfileID},
+		JobID:     job.ID,
+	})
 	if err != nil {
 		t.Fatalf("ListRuns() error = %v", err)
 	}

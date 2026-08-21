@@ -21,7 +21,7 @@ func (s *service) Start(
 	if err := actor.Validate(); err != nil {
 		return nil, fmt.Errorf("%w: actor context: %w", ErrValidation, err)
 	}
-	resolved, loopName, err := s.resolveDefinition(ctx, ws, name)
+	resolved, loopName, err := s.resolveDefinition(ctx, ws, inputs.ProfileID, name)
 	if err != nil {
 		return nil, err
 	}
@@ -153,6 +153,10 @@ func (s *service) prepareResolvedStart(
 	origin RunOrigin,
 	actor task.ActorContext,
 ) (Run, error) {
+	inputs.ProfileID = strings.TrimSpace(inputs.ProfileID)
+	if inputs.ProfileID == "" {
+		return Run{}, fmt.Errorf("%w: profile id is required", ErrValidation)
+	}
 	origin = origin.Normalize()
 	if err := origin.Validate(); err != nil {
 		return Run{}, err
@@ -254,17 +258,18 @@ func (s *service) startResolved(
 	}
 	now := s.now().UTC()
 	run := Run{
-		ID: runID, WorkspaceID: ws,
+		ID: runID, ProfileID: inputs.ProfileID, WorkspaceID: ws,
 		LoopName: loopName, Status: StatusRunning, Generation: 0,
 		ReattemptStrategy: effective.ReattemptStrategy, CreatedAt: now, StartedAt: now, LastProgressAt: now,
 		StartedBy: actor.Actor, StartedOrigin: actor.Origin,
 		DefinitionVersion: resolved.DefinitionVersion, DefinitionDigest: digest, DefinitionSnapshot: snapshot,
-		ActiveHumanCriteria: json.RawMessage(`[]`), StartMetadata: cloneStartMetadata(inputs.StartMetadata),
-		IterationCap: effective.IterationCap, BudgetTokens: effective.BudgetTokens,
+		StartMetadata: cloneStartMetadata(inputs.StartMetadata),
+		IterationCap:  effective.IterationCap, BudgetTokens: effective.BudgetTokens,
 		BudgetWallSec: effective.BudgetWallSec, BudgetOnExceeded: effective.BudgetOnExceeded,
 		ParentLoopRunID: inputs.ParentLoopRunID, GoalContextNudgeRatio: policy.ContextNudgeRatio,
 		Origin: &origin, Inputs: resolvedInputs,
 	}
+	run.SetActiveHumanCriteria(json.RawMessage(`[]`))
 	run.SetNetworkSpec(networkSpec)
 	if inputs.Admission != nil {
 		admission := *inputs.Admission

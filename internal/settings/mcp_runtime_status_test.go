@@ -444,6 +444,59 @@ func TestMCPAuthOperationsResolveExactWorkspaceSidecarTarget(t *testing.T) {
 			)
 		}
 	})
+
+	t.Run("Should resolve the exact workspace-profile sidecar target", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := context.Background()
+		homePaths := testHomePaths(t)
+		workspaceRoot := t.TempDir()
+		writeFile(
+			t,
+			filepath.Join(
+				workspaceRoot,
+				compozyconfig.DirName,
+				compozyconfig.ProfilesDirName,
+				"marketing",
+				compozyconfig.MCPJSONName,
+			),
+			`{"mcpServers":{"linear":{"transport":"http","url":"https://marketing.linear.example/mcp","auth":{"registration":"pre_registered","issuer_url":"https://marketing.linear.example","client_id":"marketing-client"}}}}`,
+		)
+		runtime := &recordingMCPAuthRuntime{}
+		service := testService(t, homePaths, Dependencies{
+			WorkspaceResolver: fakeWorkspaceResolver{resolved: map[string]workspacepkg.ResolvedWorkspace{
+				"workspace-a": {
+					Workspace: workspacepkg.Workspace{ID: "workspace-a", RootDir: workspaceRoot},
+				},
+			}},
+			MCPAuth: runtime,
+		})
+		request := MCPAuthTargetRequest{
+			Scope: ScopeProfile, WorkspaceID: "workspace-a", ProfileName: "marketing", Name: "linear",
+		}
+		if _, err := service.GetMCPAuthStatus(ctx, request); err != nil {
+			t.Fatalf("GetMCPAuthStatus(workspace profile) error = %v", err)
+		}
+		want := mcpauth.Target{
+			Scope: mcpauth.ScopeWorkspaceProfile, WorkspaceID: "workspace-a@pf:marketing", ServerName: "linear",
+		}
+		if runtime.statusTarget != want || runtime.statusServer.URL != "https://marketing.linear.example/mcp" {
+			t.Fatalf(
+				"workspace-profile status resolution = target:%#v server:%#v",
+				runtime.statusTarget,
+				runtime.statusServer,
+			)
+		}
+		if _, err := service.BeginMCPAuth(ctx, MCPAuthBeginRequest{
+			MCPAuthTargetRequest: request,
+			CallbackURL:          "http://127.0.0.1:2123/api/mcp/oauth/callback",
+		}); err != nil {
+			t.Fatalf("BeginMCPAuth(workspace profile) error = %v", err)
+		}
+		if runtime.beginTarget != want {
+			t.Fatalf("workspace-profile begin target = %#v, want %#v", runtime.beginTarget, want)
+		}
+	})
 }
 
 type recordingMCPAuthRuntime struct {

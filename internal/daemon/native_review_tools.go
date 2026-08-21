@@ -142,7 +142,11 @@ func (n *daemonNativeTools) submitRunReviewAvailability(
 	if n == nil || n.deps == nil || n.deps.Tasks == nil {
 		return toolspkg.Unavailable(toolspkg.ReasonDependencyMissing)
 	}
-	actor, sessionID, err := reviewToolActorContext(toolspkg.ToolIDTaskRunReviewSubmit, scope)
+	effectiveScope, err := n.nativeEffectiveScope(ctx, scope)
+	if err != nil {
+		return toolspkg.Unavailable(toolspkg.ReasonBackendUnhealthy)
+	}
+	actor, sessionID, err := reviewToolActorContext(toolspkg.ToolIDTaskRunReviewSubmit, effectiveScope)
 	if err != nil {
 		return toolspkg.Unavailable(toolspkg.ReasonAutonomySessionRequired)
 	}
@@ -321,6 +325,10 @@ func reviewToolActorContext(id toolspkg.ToolID, scope toolspkg.Scope) (taskpkg.A
 		)
 	}
 	actor, err := taskpkg.DeriveAgentSessionActorContext(sessionID, scope.WorkspaceID)
+	if err != nil {
+		return taskpkg.ActorContext{}, "", nativeReviewToolError(id, err)
+	}
+	actor, err = bindNativeTaskActorProfile(actor, scope)
 	if err != nil {
 		return taskpkg.ActorContext{}, "", nativeReviewToolError(id, err)
 	}

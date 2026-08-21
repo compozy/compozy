@@ -19,3 +19,8 @@ func mustMarkFlagHidden(cmd *cobra.Command, name string) {
 		panic(fmt.Sprintf("cli: mark hidden flag %q: %v", name, err))
 	}
 }
+
+// mustMarkFlagsMutuallyExclusive makes command-construction bugs fail loudly at startup.
+func mustMarkFlagsMutuallyExclusive(cmd *cobra.Command, names ...string) {
+	cmd.MarkFlagsMutuallyExclusive(names...)
+}

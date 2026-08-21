@@ -130,6 +130,27 @@ func TestManagerSendCommitsBeforeDispatch(t *testing.T) {
 	}
 }
 
+func TestManagerSendPreservesNonDefaultProfileOwnership(t *testing.T) {
+	t.Parallel()
+
+	const profileID = "01ARZ3NDEKTSV4RRFFQ69G5FAV"
+	acceptance := &managerAcceptanceStub{}
+	acceptance.handle = func(req store.AcceptNetworkMessageRequest, _ int) (store.AcceptNetworkMessageResult, error) {
+		return store.AcceptNetworkMessageResult{Dispositions: slices.Clone(req.Dispositions)}, nil
+	}
+	manager := newManagerSendTestManager(t, acceptance)
+	joinManagerSendParticipantForProfile(t, manager, "sess-sender", "sender.sess-abc", profileID, nil)
+	joinManagerSendParticipantForProfile(t, manager, "sess-recipient", "reviewer.sess-target", profileID, nil)
+
+	if _, err := manager.Send(testutil.Context(t), managerThreadSendRequest("msg-manager-profile")); err != nil {
+		t.Fatalf("Send(non-default profile) error = %v", err)
+	}
+	request := acceptance.request(t, 0)
+	if request.Message.ProfileID != profileID {
+		t.Fatalf("accepted message ProfileID = %q, want %q", request.Message.ProfileID, profileID)
+	}
+}
+
 func TestManagerSendDetachesFromRequestCancellation(t *testing.T) {
 	t.Parallel()
 
@@ -1163,9 +1184,21 @@ func joinManagerSendParticipantWithCapabilities(
 	peerID string,
 	capabilities []session.NetworkPeerCapability,
 ) {
+	joinManagerSendParticipantForProfile(t, manager, sessionID, peerID, store.DefaultProfileID, capabilities)
+}
+
+func joinManagerSendParticipantForProfile(
+	t *testing.T,
+	manager *Manager,
+	sessionID string,
+	peerID string,
+	profileID string,
+	capabilities []session.NetworkPeerCapability,
+) {
 	t.Helper()
 	spec := managerSendLiveSpec()
 	if err := manager.JoinChannel(testutil.Context(t), session.NetworkPeerJoin{
+		ProfileID:            profileID,
 		SessionID:            sessionID,
 		PeerID:               peerID,
 		WorkspaceID:          testWorkspaceID,
@@ -1331,10 +1364,10 @@ type managerAcceptanceStub struct {
 
 func (s *managerAcceptanceStub) AcceptNetworkMessage(
 	_ context.Context,
-	req store.AcceptNetworkMessageRequest,
+	req *store.AcceptNetworkMessageRequest,
 ) (store.AcceptNetworkMessageResult, error) {
 	s.mu.Lock()
-	s.requests = append(s.requests, req)
+	s.requests = append(s.requests, *req)
 	call := len(s.requests)
 	handle := s.handle
 	s.inFlight = true
@@ -1344,7 +1377,7 @@ func (s *managerAcceptanceStub) AcceptNetworkMessage(
 	if handle == nil {
 		result = store.AcceptNetworkMessageResult{}
 	} else {
-		result, err = handle(req, call)
+		result, err = handle(*req, call)
 	}
 	s.mu.Lock()
 	s.inFlight = false
@@ -1503,16 +1536,17 @@ type managerAuditWriterSpy struct {
 	misses     int
 }
 
-func (s *managerAuditWriterSpy) RecordSent(_ context.Context, sessionID string, _ Envelope) error {
+func (s *managerAuditWriterSpy) RecordSent(_ context.Context, _ string, sessionID string, _ Envelope) error {
 	return s.record(AuditDirectionSent, sessionID, "")
 }
 
-func (s *managerAuditWriterSpy) RecordReceived(_ context.Context, sessionID string, _ Envelope) error {
+func (s *managerAuditWriterSpy) RecordReceived(_ context.Context, _ string, sessionID string, _ Envelope) error {
 	return s.record(AuditDirectionReceived, sessionID, "")
 }
 
 func (s *managerAuditWriterSpy) RecordRejected(
 	_ context.Context,
+	_ string,
 	sessionID string,
 	_ Envelope,
 	reason string,
@@ -1520,7 +1554,7 @@ func (s *managerAuditWriterSpy) RecordRejected(
 	return s.record(AuditDirectionRejected, sessionID, reason)
 }
 
-func (s *managerAuditWriterSpy) RecordDelivered(_ context.Context, sessionID string, _ Envelope) error {
+func (s *managerAuditWriterSpy) RecordDelivered(_ context.Context, _ string, sessionID string, _ Envelope) error {
 	return s.record(AuditDirectionDelivered, sessionID, "")
 }
 
@@ -1569,11 +1603,13 @@ func (s *managerWakeNotifierStub) recipients() []string {
 
 type managerAuditWriterStub struct{}
 
-func (managerAuditWriterStub) RecordSent(context.Context, string, Envelope) error { return nil }
-func (managerAuditWriterStub) RecordReceived(context.Context, string, Envelope) error {
+func (managerAuditWriterStub) RecordSent(context.Context, string, string, Envelope) error { return nil }
+func (managerAuditWriterStub) RecordReceived(context.Context, string, string, Envelope) error {
 	return nil
 }
-func (managerAuditWriterStub) RecordRejected(context.Context, string, Envelope, string) error {
+func (managerAuditWriterStub) RecordRejected(context.Context, string, string, Envelope, string) error {
 	return nil
 }
-func (managerAuditWriterStub) RecordDelivered(context.Context, string, Envelope) error { return nil }
+func (managerAuditWriterStub) RecordDelivered(context.Context, string, string, Envelope) error {
+	return nil
+}

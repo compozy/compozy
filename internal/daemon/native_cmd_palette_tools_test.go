@@ -10,22 +10,25 @@ import (
 	"github.com/compozy/compozy/internal/api/contract"
 	core "github.com/compozy/compozy/internal/api/core"
 	"github.com/compozy/compozy/internal/cmdpalette"
+	profilepkg "github.com/compozy/compozy/internal/profile"
 	"github.com/compozy/compozy/internal/session"
+	"github.com/compozy/compozy/internal/store"
 	toolspkg "github.com/compozy/compozy/internal/tools"
 	workspacepkg "github.com/compozy/compozy/internal/workspace"
 )
 
 type nativeCmdPaletteRegistryStub struct {
-	catalog       cmdpalette.Catalog
-	invokeResult  cmdpalette.InvokeResult
-	invokeRequest cmdpalette.InvokeRequest
+	catalog        cmdpalette.Catalog
+	catalogRequest cmdpalette.CatalogRequest
+	invokeResult   cmdpalette.InvokeResult
+	invokeRequest  cmdpalette.InvokeRequest
 }
 
 func (s *nativeCmdPaletteRegistryStub) Catalog(
-	context.Context,
-	cmdpalette.WorkspaceID,
-	cmdpalette.ClientID,
+	_ context.Context,
+	request cmdpalette.CatalogRequest,
 ) (cmdpalette.Catalog, error) {
+	s.catalogRequest = request
 	return s.catalog, nil
 }
 
@@ -50,6 +53,7 @@ func (s *nativeCmdPaletteRegistryStub) RecordUsage(context.Context, cmdpalette.U
 
 func (s *nativeCmdPaletteRegistryStub) Personalization(
 	context.Context,
+	cmdpalette.ProfileLens,
 	cmdpalette.WorkspaceID,
 ) (cmdpalette.Snapshot, error) {
 	return cmdpalette.Snapshot{}, errors.New("unexpected Personalization call")
@@ -57,6 +61,7 @@ func (s *nativeCmdPaletteRegistryStub) Personalization(
 
 func (s *nativeCmdPaletteRegistryStub) PersonalizationSummary(
 	context.Context,
+	cmdpalette.ProfileLens,
 	cmdpalette.WorkspaceID,
 ) (cmdpalette.PersonalizationSummary, error) {
 	return cmdpalette.PersonalizationSummary{}, errors.New("unexpected PersonalizationSummary call")
@@ -64,6 +69,7 @@ func (s *nativeCmdPaletteRegistryStub) PersonalizationSummary(
 
 func (s *nativeCmdPaletteRegistryStub) ResetPersonalization(
 	context.Context,
+	cmdpalette.ProfileLens,
 	cmdpalette.WorkspaceID,
 ) error {
 	return errors.New("unexpected ResetPersonalization call")
@@ -71,6 +77,7 @@ func (s *nativeCmdPaletteRegistryStub) ResetPersonalization(
 
 func (s *nativeCmdPaletteRegistryStub) Pin(
 	context.Context,
+	cmdpalette.ProfileLens,
 	cmdpalette.WorkspaceID,
 	cmdpalette.CommandID,
 ) error {
@@ -79,6 +86,7 @@ func (s *nativeCmdPaletteRegistryStub) Pin(
 
 func (s *nativeCmdPaletteRegistryStub) Unpin(
 	context.Context,
+	cmdpalette.ProfileLens,
 	cmdpalette.WorkspaceID,
 	cmdpalette.CommandID,
 ) error {
@@ -149,6 +157,31 @@ func TestNativeCmdPaletteTools(t *testing.T) {
 		if len(payload.Commands) != 1 || payload.Commands[0].ID != "ext.notes.capture" {
 			t.Fatalf("commands = %#v, want ext.notes.capture", payload.Commands)
 		}
+		if got := registry.catalogRequest.ProfileLens; got.ID != store.DefaultProfileID || got.Name != "default" {
+			t.Fatalf("catalog profile lens = %#v, want default lens", got)
+		}
+	})
+
+	t.Run("Should forward an explicit profile lens", func(t *testing.T) {
+		t.Parallel()
+		const profileID = "profile-marketing"
+		registry := &nativeCmdPaletteRegistryStub{}
+		tools := &daemonNativeTools{deps: &daemonNativeToolsDeps{
+			CmdPalette: func() cmdpalette.Registry { return registry },
+			Profiles: nativeProfileReaderStub{profiles: []profilepkg.WithCounts{{Profile: profilepkg.Profile{
+				ID: profileID, Name: "marketing", State: profilepkg.StateActive,
+			}}}},
+			Workspaces: &nativeCmdPaletteWorkspaceStub{resolved: map[string]string{"acme": "workspace-1"}},
+		}}
+		if _, err := tools.cmdPaletteList(t.Context(), toolspkg.Scope{ProfileID: profileID}, toolspkg.CallRequest{
+			ToolID: toolspkg.ToolIDCmdPaletteList,
+			Input:  json.RawMessage(`{"workspace":"acme"}`),
+		}); err != nil {
+			t.Fatalf("cmdPaletteList(explicit profile) error = %v", err)
+		}
+		if got := registry.catalogRequest.ProfileLens; got.ID != profileID || got.Name != "marketing" {
+			t.Fatalf("catalog profile lens = %#v, want marketing lens", got)
+		}
 	})
 
 	t.Run("Should invoke as a control-plane caller and preserve approval pending", func(t *testing.T) {
@@ -173,6 +206,9 @@ func TestNativeCmdPaletteTools(t *testing.T) {
 			registry.invokeRequest.WorkspaceID != "workspace-1" ||
 			registry.invokeRequest.ClientID != "client-1" {
 			t.Fatalf("invoke request = %#v", registry.invokeRequest)
+		}
+		if got := registry.invokeRequest.ProfileLens; got.ID != store.DefaultProfileID || got.Name != "default" {
+			t.Fatalf("invoke profile lens = %#v, want default lens", got)
 		}
 		var payload struct {
 			Status     string `json:"status"`
@@ -273,7 +309,7 @@ type nativeCmdPaletteStaticProvider struct {
 
 func (p nativeCmdPaletteStaticProvider) ProvideCommands(
 	context.Context,
-	cmdpalette.WorkspaceID,
+	cmdpalette.CatalogRequest,
 ) ([]cmdpalette.Descriptor, error) {
 	return append([]cmdpalette.Descriptor(nil), p.commands...), nil
 }

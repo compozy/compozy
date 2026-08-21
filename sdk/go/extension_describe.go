@@ -31,6 +31,7 @@ func (e *Extension) Describe() (contracts.DescribePayload, error) {
 	for _, registered := range e.toolHandlers {
 		descriptor := registered.descriptor
 		tools = append(tools, contracts.ExtensionToolRuntimeDescriptor{
+			Profile:             descriptor.Profile,
 			ID:                  contracts.ToolID(descriptor.ID),
 			Handler:             descriptor.Handler,
 			Description:         descriptor.Description,
@@ -63,12 +64,13 @@ func (e *Extension) Describe() (contracts.DescribePayload, error) {
 		Provides:    requiredStringList(e.definition.Capabilities.Provides),
 		Permissions: requiredStringList(permissions),
 		RequiresEnv: normalizeStrings(e.definition.RequiresEnv),
+		Profiles:    normalizeDescribeProfiles(e.definition.Profiles),
 		Resources: contracts.DescribeResources{
-			Skills:     normalizeStrings(e.definition.Resources.Skills),
-			Loops:      normalizeStrings(e.definition.Resources.Loops),
-			Agents:     normalizeStrings(e.definition.Resources.Agents),
-			Automation: normalizeStrings(e.definition.Resources.Automation),
-			Layouts:    normalizeStrings(e.definition.Resources.Layouts),
+			Skills:     normalizeDescribeResourcePaths(e.definition.Resources.Skills),
+			Loops:      normalizeDescribeResourcePaths(e.definition.Resources.Loops),
+			Agents:     normalizeDescribeResourcePaths(e.definition.Resources.Agents),
+			Automation: normalizeDescribeResourcePaths(e.definition.Resources.Automation),
+			Layouts:    normalizeDescribeResourcePaths(e.definition.Resources.Layouts),
 			CmdPalette: cloneCmdPaletteConfig(e.definition.Resources.CmdPalette),
 		},
 		Subprocess: contracts.DescribeSubprocess{
@@ -79,7 +81,7 @@ func (e *Extension) Describe() (contracts.DescribePayload, error) {
 		NetworkParticipation: normalizeDescribeNetworkParticipation(e.definition.NetworkParticipation),
 		Tools:                tools,
 		CommandGroups:        e.commandGroupsLocked(),
-		HookEvents:           normalizeStrings(e.definition.SupportedHookEvents),
+		HookEvents:           normalizeDescribeHookEvents(e.definition.SupportedHookEvents),
 		WatchSourceKinds:     e.watchSourceKindsLocked(),
 		CmdPaletteViews:      cmdPaletteViewIDs(e.definition.Resources.CmdPalette),
 		SDK: contracts.DescribeSDKInfo{

@@ -52,6 +52,8 @@ function browserWindowManagerSocket(url: string): WindowManagerSocket {
 
 export interface UseWindowManagerStreamOptions {
   workspaceId: string | null;
+  /** The profile whose desks this stream carries; a switch reconnects (US-026). */
+  profileId: string | null;
   clientId: string | null;
   registrationEpoch: number;
   currentClient: WindowManagerClientView | null;
@@ -69,6 +71,7 @@ export interface UseWindowManagerStreamOptions {
 
 export function useWindowManagerStream({
   workspaceId,
+  profileId,
   clientId,
   registrationEpoch,
   currentClient,
@@ -106,8 +109,8 @@ export function useWindowManagerStream({
   } | null>(null);
   const contextRefreshTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const bindingKey =
-    workspaceId !== null && clientId !== null
-      ? `${workspaceId}\u0000${clientId}\u0000${registrationEpoch}`
+    workspaceId !== null && profileId !== null && clientId !== null
+      ? `${workspaceId}\u0000${profileId}\u0000${clientId}\u0000${registrationEpoch}`
       : null;
   const clientContextFrame =
     clientContext === undefined
@@ -179,6 +182,7 @@ export function useWindowManagerStream({
     if (
       !enabled ||
       workspaceId === null ||
+      profileId === null ||
       clientId === null ||
       typeof window === "undefined" ||
       (!socketFactory && typeof WebSocket === "undefined")
@@ -204,14 +208,14 @@ export function useWindowManagerStream({
     let reconnectTimer: ReturnType<typeof setTimeout> | null = null;
     const refreshController = new AbortController();
     const cachedAtOpen = queryClient.getQueryData<WindowManagerSnapshot>(
-      windowManagerKeys.snapshot(workspaceId)
+      windowManagerKeys.snapshot(workspaceId, profileId)
     );
     const topologyFence = Math.max(
       lifecycleStore.getSnapshot().context.topologyRevision,
       cachedAtOpen?.revision ?? 0
     );
     const socket = (socketFactory ?? browserWindowManagerSocket)(
-      buildWindowManagerStreamUrl(workspaceId, clientId, topologyFence)
+      buildWindowManagerStreamUrl(workspaceId, profileId, clientId, topologyFence)
     );
     const activeBindingKey = bindingKey;
     boundSocketRef.current = { bindingKey: activeBindingKey, ready: false, socket };
@@ -219,7 +223,7 @@ export function useWindowManagerStream({
     const applySnapshot = (snapshot: WindowManagerSnapshot) => {
       if (snapshot.workspaceId !== workspaceId) return;
       lifecycleStore.trigger.topologyObserved({ revision: snapshot.revision });
-      const key = windowManagerKeys.snapshot(workspaceId);
+      const key = windowManagerKeys.snapshot(workspaceId, profileId);
       queryClient.setQueryData<WindowManagerSnapshot>(key, current =>
         reconcileWindowManagerSnapshot(current, snapshot)
       );
@@ -238,8 +242,9 @@ export function useWindowManagerStream({
     };
 
     const currentTopologyRevision = () =>
-      queryClient.getQueryData<WindowManagerSnapshot>(windowManagerKeys.snapshot(workspaceId))
-        ?.revision ?? -1;
+      queryClient.getQueryData<WindowManagerSnapshot>(
+        windowManagerKeys.snapshot(workspaceId, profileId)
+      )?.revision ?? -1;
 
     let refreshSnapshot: (minimumRevision: LayoutRevision) => void;
     const scheduleRefreshRetry = () => {
@@ -259,7 +264,11 @@ export function useWindowManagerStream({
       refresh = (async () => {
         while (!stopped && currentTopologyRevision() < pendingMinimumRevision) {
           const before = currentTopologyRevision();
-          const snapshot = await fetchWindowManagerSnapshot(workspaceId, refreshController.signal);
+          const snapshot = await fetchWindowManagerSnapshot(
+            workspaceId,
+            profileId,
+            refreshController.signal
+          );
           if (stopped) return;
           if (snapshot.revision > before) {
             applySnapshot(snapshot);
@@ -370,7 +379,7 @@ export function useWindowManagerStream({
         }
         lifecycleStore.trigger.topologyObserved({ revision: frame.revision });
         const cached = queryClient.getQueryData<WindowManagerSnapshot>(
-          windowManagerKeys.snapshot(workspaceId)
+          windowManagerKeys.snapshot(workspaceId, profileId)
         );
         if (frame.revision > (cached?.revision ?? -1)) refreshSnapshot(frame.revision);
       } catch (cause) {
@@ -421,6 +430,7 @@ export function useWindowManagerStream({
     bindingKey,
     clientId,
     enabled,
+    profileId,
     queryClient,
     reconnectEpoch,
     registrationEpoch,

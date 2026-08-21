@@ -13,6 +13,73 @@ import (
 func TestGlobalDBVaultSecretsCRUD(t *testing.T) {
 	t.Parallel()
 
+	t.Run("Should atomically clear only the matching profile credential requirement", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t)
+		globalDB := openTestGlobalDB(t)
+		now := time.Date(2026, 8, 22, 12, 0, 0, 0, time.UTC)
+		if _, err := globalDB.DB().ExecContext(ctx, `
+			INSERT INTO profiles (id, name, color, icon, emoji, state, created_at)
+			VALUES
+				('00000000000000000000000001', 'marketing', '#5fbf85', 'chart-line', NULL, 'active', ?),
+				('00000000000000000000000002', 'engineering', '#8e8eb5', 'code', NULL, 'active', ?)`,
+			formatTimestamp(now),
+			formatTimestamp(now),
+		); err != nil {
+			t.Fatalf("insert profiles error = %v", err)
+		}
+		if _, err := globalDB.DB().ExecContext(ctx, `
+			INSERT INTO profile_credential_requirements
+				(profile_id, provider, slot, source_extension, declaration_digest, created_at)
+			VALUES ('00000000000000000000000002', 'openai', 'api_key', 'engineering-kit', 'digest', ?)`,
+			formatTimestamp(now),
+		); err != nil {
+			t.Fatalf("insert foreign profile credential requirement error = %v", err)
+		}
+		for _, slot := range []string{"api_key", "organization"} {
+			if _, err := globalDB.DB().ExecContext(ctx, `
+				INSERT INTO profile_credential_requirements
+				(profile_id, provider, slot, source_extension, declaration_digest, created_at)
+				VALUES ('00000000000000000000000001', 'openai', ?, 'growth-kit', 'digest', ?)`,
+				slot,
+				formatTimestamp(now),
+			); err != nil {
+				t.Fatalf("insert credential requirement %q error = %v", slot, err)
+			}
+		}
+		if err := globalDB.PutVaultSecret(ctx, vault.Record{
+			Ref:            "vault:profiles/marketing/providers/openai/api_key",
+			Kind:           "api_key",
+			EncryptedValue: "aes-gcm-v1:profile-ciphertext",
+			CreatedAt:      now,
+			UpdatedAt:      now,
+		}); err != nil {
+			t.Fatalf("PutVaultSecret(profile credential) error = %v", err)
+		}
+		var remaining int
+		if err := globalDB.DB().QueryRowContext(
+			ctx,
+			`SELECT COUNT(*) FROM profile_credential_requirements WHERE profile_id = '00000000000000000000000001'`,
+		).Scan(&remaining); err != nil {
+			t.Fatalf("count requirements error = %v", err)
+		}
+		if remaining != 1 {
+			t.Fatalf("remaining requirements = %d, want only the unrelated slot", remaining)
+		}
+		if err := globalDB.DB().QueryRowContext(
+			ctx,
+			`SELECT COUNT(*) FROM profile_credential_requirements
+			 WHERE profile_id = '00000000000000000000000002'
+			 AND provider = 'openai' AND slot = 'api_key'`,
+		).Scan(&remaining); err != nil {
+			t.Fatalf("count foreign profile requirement error = %v", err)
+		}
+		if remaining != 1 {
+			t.Fatalf("foreign profile requirements = %d, want matching slot preserved", remaining)
+		}
+	})
+
 	t.Run("Should persist list and delete encrypted vault secret records", func(t *testing.T) {
 		t.Parallel()
 

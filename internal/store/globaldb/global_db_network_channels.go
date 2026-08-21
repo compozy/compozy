@@ -19,6 +19,7 @@ func (g *NetworkRepo) CreateNetworkChannel(ctx context.Context, entry store.Netw
 	}
 
 	err = g.queries.CreateNetworkChannel(ctx, sqlcgen.CreateNetworkChannelParams{
+		ProfileID:         entry.ProfileID,
 		Channel:           entry.Channel,
 		WorkspaceID:       entry.WorkspaceID,
 		Purpose:           entry.Purpose,
@@ -45,6 +46,7 @@ func (g *NetworkRepo) WriteNetworkChannel(ctx context.Context, entry store.Netwo
 	}
 
 	if err := g.queries.UpsertNetworkChannel(ctx, sqlcgen.UpsertNetworkChannelParams{
+		ProfileID:         entry.ProfileID,
 		Channel:           entry.Channel,
 		WorkspaceID:       entry.WorkspaceID,
 		Purpose:           entry.Purpose,
@@ -88,6 +90,7 @@ func (g *NetworkRepo) prepareNetworkChannelEntry(
 // GetNetworkChannel returns one persisted network channel metadata row.
 func (g *NetworkRepo) GetNetworkChannel(
 	ctx context.Context,
+	readScope store.ReadScope,
 	ref store.NetworkChannelRef,
 ) (store.NetworkChannelEntry, error) {
 	if err := g.checkReady(ctx, "get network channel"); err != nil {
@@ -100,14 +103,27 @@ func (g *NetworkRepo) GetNetworkChannel(
 	if err := normalized.Validate(); err != nil {
 		return store.NetworkChannelEntry{}, err
 	}
-
-	return getNetworkChannel(ctx, g.db, normalized)
+	if err := readScope.Validate(); err != nil {
+		return store.NetworkChannelEntry{}, fmt.Errorf("store: validate network channel read scope: %w", err)
+	}
+	statement := `SELECT nc.profile_id, p.name, p.color, COALESCE(p.icon, ''), COALESCE(p.emoji, ''),
+		p.archived_at IS NOT NULL, nc.channel, nc.workspace_id, nc.purpose, nc.fanout_policy,
+		nc.coordinator_peer_id, nc.created_by, nc.created_at, nc.updated_at
+		FROM network_channels AS nc
+		JOIN profiles AS p ON p.id = nc.profile_id`
+	where, args := store.BuildClauses(
+		store.ReadScopeClause("nc.profile_id", readScope),
+		store.StringClause("nc.workspace_id", normalized.WorkspaceID),
+		store.StringClause("nc.channel", normalized.Channel),
+	)
+	return scanNetworkChannel(g.db.QueryRowContext(ctx, store.AppendWhere(statement, where), args...))
 }
 
 // PatchNetworkChannel applies one partial metadata update without overwriting
 // unspecified channel fields.
 func (g *NetworkRepo) PatchNetworkChannel(
 	ctx context.Context,
+	readScope store.ReadScope,
 	ref store.NetworkChannelRef,
 	patch store.NetworkChannelPatch,
 ) error {
@@ -121,6 +137,9 @@ func (g *NetworkRepo) PatchNetworkChannel(
 	if err := normalized.Validate(); err != nil {
 		return err
 	}
+	if err := readScope.Validate(); err != nil {
+		return fmt.Errorf("store: validate network channel patch scope: %w", err)
+	}
 	if !patch.HasChanges() {
 		return errors.New("store: network channel patch must include at least one field")
 	}
@@ -128,6 +147,9 @@ func (g *NetworkRepo) PatchNetworkChannel(
 		current, err := getNetworkChannel(ctx, exec, normalized)
 		if err != nil {
 			return err
+		}
+		if !readScope.Matches(current.ProfileID) {
+			return sql.ErrNoRows
 		}
 		next := patch.Apply(current)
 		if next.UpdatedAt.IsZero() {
@@ -168,13 +190,19 @@ func (g *NetworkRepo) ListNetworkChannels(
 	}
 
 	// dynamic-sql: optional identity filters and the caller-provided limit change the statement shape.
-	sqlQuery := `SELECT channel, workspace_id, purpose, fanout_policy, coordinator_peer_id, created_by, created_at, updated_at FROM network_channels`
+	sqlQuery := `SELECT nc.profile_id, p.name, p.color, COALESCE(p.icon, ''), COALESCE(p.emoji, ''),
+		p.archived_at IS NOT NULL,
+		nc.channel, nc.workspace_id, nc.purpose, nc.fanout_policy, nc.coordinator_peer_id,
+		nc.created_by, nc.created_at, nc.updated_at
+		FROM network_channels nc
+		JOIN profiles p ON p.id = nc.profile_id`
 	where, args := store.BuildClauses(
-		store.StringClause("channel", query.Channel),
-		store.StringClause("workspace_id", query.WorkspaceID),
+		store.ReadScopeClause("nc.profile_id", query.ReadScope),
+		store.StringClause("nc.channel", query.Channel),
+		store.StringClause("nc.workspace_id", query.WorkspaceID),
 	)
 	sqlQuery = store.AppendWhere(sqlQuery, where)
-	sqlQuery += " ORDER BY updated_at DESC, channel ASC"
+	sqlQuery += " ORDER BY nc.updated_at DESC, nc.channel ASC"
 	sqlQuery, args = store.AppendLimit(sqlQuery, args, query.Limit)
 
 	rows, err := g.db.QueryContext(ctx, sqlQuery, args...)
@@ -250,7 +278,7 @@ func getNetworkChannel(
 		return store.NetworkChannelEntry{}, fmt.Errorf("store: parse network channel updated_at: %w", err)
 	}
 	return store.NetworkChannelEntry{
-		Channel: row.Channel, WorkspaceID: row.WorkspaceID, Purpose: row.Purpose,
+		ProfileID: row.ProfileID, Channel: row.Channel, WorkspaceID: row.WorkspaceID, Purpose: row.Purpose,
 		FanoutPolicy:      store.NormalizeNetworkFanoutPolicy(row.FanoutPolicy),
 		CoordinatorPeerID: row.CoordinatorPeerID, CreatedBy: row.CreatedBy,
 		CreatedAt: createdAt, UpdatedAt: updatedAt,
@@ -266,6 +294,12 @@ func scanNetworkChannel(scanner rowScanner) (store.NetworkChannelEntry, error) {
 		updatedAtRaw string
 	)
 	if err := scanner.Scan(
+		&entry.ProfileID,
+		&entry.ProfileName,
+		&entry.ProfileColor,
+		&entry.ProfileIcon,
+		&entry.ProfileEmoji,
+		&entry.ProfileArchived,
 		&entry.Channel,
 		&entry.WorkspaceID,
 		&entry.Purpose,

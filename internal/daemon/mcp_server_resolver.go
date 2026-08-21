@@ -11,6 +11,7 @@ import (
 	mcppkg "github.com/compozy/compozy/internal/mcp"
 	mcpauth "github.com/compozy/compozy/internal/mcp/auth"
 	"github.com/compozy/compozy/internal/resources"
+	"github.com/compozy/compozy/internal/store"
 	toolspkg "github.com/compozy/compozy/internal/tools"
 )
 
@@ -51,7 +52,7 @@ func resolveDaemonMCPServer(
 			if err != nil {
 				return mcppkg.ResolvedServer{}, err
 			}
-			server, err := projectExtensionSecretHeaders(ctx, state, record)
+			server, err := projectExtensionSecretHeaders(ctx, state, record, source.ProfileID)
 			if err != nil {
 				return mcppkg.ResolvedServer{}, err
 			}
@@ -64,7 +65,7 @@ func resolveDaemonMCPServer(
 
 	for _, server := range state.cfg.MCPServers {
 		if strings.TrimSpace(server.Name) == name {
-			return globalResolvedMCPServer(server), nil
+			return userResolvedMCPServer(server), nil
 		}
 	}
 	providerNames := make([]string, 0, len(state.cfg.Providers))
@@ -75,7 +76,7 @@ func resolveDaemonMCPServer(
 	for _, providerName := range providerNames {
 		for _, server := range state.cfg.Providers[providerName].MCPServers {
 			if strings.TrimSpace(server.Name) == name {
-				return globalResolvedMCPServer(server), nil
+				return userResolvedMCPServer(server), nil
 			}
 		}
 	}
@@ -86,6 +87,7 @@ func projectExtensionSecretHeaders(
 	ctx context.Context,
 	state *bootState,
 	record resources.Record[compozyconfig.MCPServer],
+	activeProfileID string,
 ) (compozyconfig.MCPServer, error) {
 	server := cloneDaemonMCPServer(record.Spec)
 	owner := record.Owner.Normalize()
@@ -93,7 +95,19 @@ func projectExtensionSecretHeaders(
 		server.EffectiveTransport() != compozyconfig.MCPServerTransportHTTP {
 		return server, nil
 	}
-	bindings, err := state.extensionEnvBindings.ListEnvBindings(ctx, owner.ID, record.Scope.ID)
+	profileID, workspaceID, err := mcpExtensionBindingOwner(ctx, state, record.Scope)
+	if err != nil {
+		return compozyconfig.MCPServer{}, err
+	}
+	if projectedProfileID := strings.TrimSpace(activeProfileID); projectedProfileID != "" {
+		profileID = projectedProfileID
+	}
+	bindings, err := state.extensionEnvBindings.ResolveEnvBindings(
+		ctx,
+		owner.ID,
+		profileID,
+		workspaceID,
+	)
 	if err != nil {
 		return compozyconfig.MCPServer{}, fmt.Errorf(
 			"daemon: list extension MCP header bindings for %q: %w",
@@ -116,11 +130,38 @@ func projectExtensionSecretHeaders(
 	return server, nil
 }
 
-func globalResolvedMCPServer(server compozyconfig.MCPServer) mcppkg.ResolvedServer {
+func mcpExtensionBindingOwner(
+	ctx context.Context,
+	state *bootState,
+	scope resources.ResourceScope,
+) (string, string, error) {
+	normalized := scope.Normalize()
+	switch normalized.Kind {
+	case resources.ResourceScopeKindProfile:
+		return normalized.ID, "", nil
+	case resources.ResourceScopeKindWorkspaceProfile:
+		workspaceID, profileName, ok := strings.Cut(normalized.ID, "@pf:")
+		if !ok || state == nil || state.profiles == nil {
+			return "", "", errors.New("daemon: workspace-profile MCP resource requires profile catalog")
+		}
+		profile, err := state.profiles.GetByName(ctx, profileName)
+		if err != nil {
+			return "", "", fmt.Errorf("daemon: resolve MCP resource profile %q: %w", profileName, err)
+		}
+		return strings.TrimSpace(profile.ID), strings.TrimSpace(workspaceID), nil
+	case resources.ResourceScopeKindWorkspace:
+		return store.DefaultProfileID, normalized.ID, nil
+	case resources.ResourceScopeKindUser:
+		return store.DefaultProfileID, "", nil
+	}
+	return "", "", fmt.Errorf("daemon: unsupported MCP resource scope %q", normalized.Kind)
+}
+
+func userResolvedMCPServer(server compozyconfig.MCPServer) mcppkg.ResolvedServer {
 	name := strings.TrimSpace(server.Name)
 	return mcppkg.ResolvedServer{
 		Server: cloneDaemonMCPServer(server),
-		Target: mcpauth.Target{Scope: mcpauth.ScopeGlobal, ServerName: name},
+		Target: mcpauth.Target{Scope: mcpauth.ScopeUser, ServerName: name},
 	}
 }
 
@@ -128,10 +169,16 @@ func mcpAuthTargetForResource(scope resources.ResourceScope, serverName string) 
 	scope = scope.Normalize()
 	target := mcpauth.Target{ServerName: strings.TrimSpace(serverName)}
 	switch scope.Kind {
-	case resources.ResourceScopeKindGlobal:
-		target.Scope = mcpauth.ScopeGlobal
+	case resources.ResourceScopeKindUser:
+		target.Scope = mcpauth.ScopeUser
 	case resources.ResourceScopeKindWorkspace:
 		target.Scope = mcpauth.ScopeWorkspace
+		target.WorkspaceID = scope.ID
+	case resources.ResourceScopeKindProfile:
+		target.Scope = mcpauth.ScopeProfile
+		target.WorkspaceID = scope.ID
+	case resources.ResourceScopeKindWorkspaceProfile:
+		target.Scope = mcpauth.ScopeWorkspaceProfile
 		target.WorkspaceID = scope.ID
 	default:
 		return mcpauth.Target{}, fmt.Errorf("daemon: unsupported MCP resource scope %q", scope.Kind)
@@ -142,9 +189,9 @@ func mcpAuthTargetForResource(scope resources.ResourceScope, serverName string) 
 	return target, nil
 }
 
-func daemonMCPSources(state *bootState) []toolspkg.SourceRef {
+func daemonMCPSources(ctx context.Context, state *bootState) ([]toolspkg.SourceRef, error) {
 	if state == nil {
-		return nil
+		return nil, nil
 	}
 	sources := make([]toolspkg.SourceRef, 0, len(state.cfg.MCPServers))
 	seen := map[string]struct{}{}
@@ -153,7 +200,8 @@ func daemonMCPSources(state *bootState) []toolspkg.SourceRef {
 		if name == "" {
 			return
 		}
-		key := strings.TrimSpace(source.Scope) + "\x00" + strings.TrimSpace(source.WorkspaceID) + "\x00" + name
+		key := strings.TrimSpace(source.Scope) + "\x00" + strings.TrimSpace(source.ProfileID) + "\x00" +
+			strings.TrimSpace(source.WorkspaceID) + "\x00" + name
 		if _, ok := seen[key]; ok {
 			return
 		}
@@ -164,7 +212,7 @@ func daemonMCPSources(state *bootState) []toolspkg.SourceRef {
 		sources = append(sources, source)
 	}
 	for _, server := range state.cfg.MCPServers {
-		add(server, toolspkg.SourceRef{Scope: string(mcpauth.ScopeGlobal)})
+		add(server, toolspkg.SourceRef{Scope: string(mcpauth.ScopeUser)})
 	}
 	providerNames := make([]string, 0, len(state.cfg.Providers))
 	for name := range state.cfg.Providers {
@@ -173,18 +221,51 @@ func daemonMCPSources(state *bootState) []toolspkg.SourceRef {
 	slices.Sort(providerNames)
 	for _, name := range providerNames {
 		for _, server := range state.cfg.Providers[name].MCPServers {
-			add(server, toolspkg.SourceRef{Scope: string(mcpauth.ScopeGlobal)})
+			add(server, toolspkg.SourceRef{Scope: string(mcpauth.ScopeUser)})
 		}
 	}
 	if state.mcpServerCatalog != nil {
 		for _, record := range state.mcpServerCatalog.Snapshot() {
+			profileID, workspaceID, err := mcpResourceProjectionOwner(ctx, state, record.Scope)
+			if err != nil {
+				return nil, err
+			}
 			add(record.Spec, toolspkg.SourceRef{
 				ResourceID:      record.ID,
 				ResourceVersion: fmt.Sprint(record.Version),
-				WorkspaceID:     record.Scope.ID,
+				ProfileID:       profileID,
+				WorkspaceID:     workspaceID,
 				Scope:           string(record.Scope.Kind),
 			})
 		}
 	}
-	return sources
+	return sources, nil
+}
+
+func mcpResourceProjectionOwner(
+	ctx context.Context,
+	state *bootState,
+	scope resources.ResourceScope,
+) (string, string, error) {
+	normalized := scope.Normalize()
+	switch normalized.Kind {
+	case resources.ResourceScopeKindUser:
+		return "", "", nil
+	case resources.ResourceScopeKindProfile:
+		return normalized.ID, "", nil
+	case resources.ResourceScopeKindWorkspace:
+		return "", normalized.ID, nil
+	case resources.ResourceScopeKindWorkspaceProfile:
+		workspaceID, profileName, ok := strings.Cut(normalized.ID, "@pf:")
+		if !ok || state == nil || state.profiles == nil {
+			return "", "", errors.New("daemon: workspace-profile MCP resource requires profile catalog")
+		}
+		profile, err := state.profiles.GetByName(ctx, profileName)
+		if err != nil {
+			return "", "", fmt.Errorf("daemon: resolve MCP resource profile %q: %w", profileName, err)
+		}
+		return strings.TrimSpace(profile.ID), strings.TrimSpace(workspaceID), nil
+	default:
+		return "", "", fmt.Errorf("daemon: unsupported MCP resource scope %q", normalized.Kind)
+	}
 }

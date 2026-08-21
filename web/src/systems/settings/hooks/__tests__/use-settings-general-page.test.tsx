@@ -52,8 +52,8 @@ import type { SettingsGeneralSection } from "@/systems/settings";
 
 const envelope: SettingsGeneralSection = {
   section: "general",
-  scope: "global",
-  available_scopes: ["global"],
+  scope: "user",
+  available_scopes: ["user"],
   actions: {
     restart: { available: true, behavior: "action_trigger", name: "restart" },
   },
@@ -63,7 +63,6 @@ const envelope: SettingsGeneralSection = {
       reload_timeouts: { bridges: "30s", mcp: "10s", providers: "5s" },
       socket: "/tmp/compozy.sock",
     },
-    defaults: { agent: "general", provider: "claude" },
     http: { host: "127.0.0.1", port: 2123 },
     limits: { max_concurrent_agents: 20 },
     permissions: { mode: "approve-all" },
@@ -131,7 +130,7 @@ describe("useSettingsGeneralPage", () => {
   it("records a restart-required applied label after a save mutation succeeds", async () => {
     vi.mocked(updateSettingsGeneral).mockResolvedValue({
       section: "general",
-      scope: "global",
+      scope: "user",
       applied: true,
       active_config_hash: "sha256:test-active",
       active_generation: 1,
@@ -169,7 +168,7 @@ describe("useSettingsGeneralPage", () => {
     act(() => {
       result.current.setDraft({
         ...envelope.config,
-        defaults: { ...envelope.config.defaults, provider: "stale-provider" },
+        limits: { ...envelope.config.limits, max_concurrent_agents: 37 },
       });
     });
 

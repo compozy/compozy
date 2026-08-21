@@ -74,6 +74,7 @@ type managerOptions struct {
 
 type managedSession struct {
 	sessionID            string
+	profileID            string
 	peerID               string
 	workspaceID          string
 	channel              string

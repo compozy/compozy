@@ -27,6 +27,7 @@ func newNetworkDirectsCommand(deps commandDeps, workspaceRef *string) *cobra.Com
 		Use:   "directs",
 		Short: "Inspect restricted direct rooms",
 	}
+	hideProfileFlag(cmd, false)
 	cmd.AddCommand(newNetworkDirectsListCommand(deps, workspaceRef))
 	cmd.AddCommand(newNetworkDirectsResolveCommand(deps, workspaceRef))
 	cmd.AddCommand(newNetworkDirectsShowCommand(deps, workspaceRef))
@@ -102,6 +103,7 @@ func newNetworkDirectsShowCommand(deps commandDeps, workspaceRef *string) *cobra
 	cmd.Flags().StringVar(&flags.directID, networkSurfaceDirect, "", "Direct room id")
 	mustMarkFlagRequired(cmd, networkChannelKey)
 	mustMarkFlagRequired(cmd, networkSurfaceDirect)
+	configureProfileReadCommand(cmd, deps)
 	return cmd
 }
 
@@ -149,6 +151,7 @@ func newNetworkDirectsMessagesCommand(deps commandDeps, workspaceRef *string) *c
 	)
 	mustMarkFlagRequired(cmd, networkChannelKey)
 	mustMarkFlagRequired(cmd, networkSurfaceDirect)
+	configureProfileReadCommand(cmd, deps)
 	return cmd
 }
 

@@ -16,7 +16,7 @@ describe("marketplace MCP editor logic", () => {
       editor: {
         draft: emptyDraft("stdio"),
         mode: "create",
-        scope: "global",
+        scope: "user",
         target: "auto",
       },
     });

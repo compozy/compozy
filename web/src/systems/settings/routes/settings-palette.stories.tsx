@@ -39,8 +39,9 @@ export const PersonalizationOff: Story = {
         compozyApiMock.get("/api/settings/cmd-palette", () =>
           HttpResponse.json({
             section: "cmd-palette",
-            scope: "global",
-            available_scopes: ["global", "workspace"],
+            scope: "user",
+            available_scopes: ["user", "profile", "workspace"],
+            aliases: {},
             fallback_agent_enabled: true,
             personalization: false,
           })
@@ -60,8 +61,9 @@ export const AgentFallbackOff: Story = {
         compozyApiMock.get("/api/settings/cmd-palette", () =>
           HttpResponse.json({
             section: "cmd-palette",
-            scope: "global",
-            available_scopes: ["global", "workspace"],
+            scope: "user",
+            available_scopes: ["user", "profile", "workspace"],
+            aliases: {},
             fallback_agent_enabled: false,
             personalization: true,
           })

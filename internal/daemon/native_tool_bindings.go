@@ -6,6 +6,7 @@ func (n *daemonNativeTools) bindings() map[toolspkg.ToolID]nativeToolBinding {
 	availability := n.nativeToolAvailability()
 	bindings := make(map[toolspkg.ToolID]nativeToolBinding, 32)
 	addNativeToolBindings(bindings, n.registryToolBindings(availability.registry))
+	addNativeToolBindings(bindings, n.profileToolBindings(availability.profiles))
 	addNativeToolBindings(bindings, n.cmdPaletteToolBindings(availability.cmdPalette))
 	addNativeToolBindings(bindings, n.toolArtifactBindings(availability.toolArtifacts))
 	addNativeToolBindings(bindings, n.toolApprovalBindings(availability.toolApprovals))

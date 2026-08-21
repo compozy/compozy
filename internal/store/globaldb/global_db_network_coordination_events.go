@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"strings"
 	"time"
 
 	eventspkg "github.com/compozy/compozy/internal/events"
@@ -118,6 +119,10 @@ func appendCoordinationEventSummary(
 	actor taskpkg.ActorContext,
 	invitationState string,
 ) error {
+	profileID, err := coordinationEventProfileID(ctx, exec, ref)
+	if err != nil {
+		return err
+	}
 	content, err := json.Marshal(coordinationEventContent{
 		WorkspaceID:     ref.WorkspaceID,
 		Scope:           ref.ScopeKind,
@@ -139,8 +144,9 @@ func appendCoordinationEventSummary(
 	_, err = exec.ExecContext(
 		ctx,
 		`INSERT INTO event_summaries
-        (id, workspace_id, type, content_json, task_id, run_id, actor_kind, actor_id, summary, timestamp)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+		(profile_id, id, workspace_id, type, content_json, task_id, run_id, actor_kind, actor_id, summary, timestamp)
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+		profileID,
 		eventID,
 		ref.WorkspaceID,
 		eventType,
@@ -156,4 +162,29 @@ func appendCoordinationEventSummary(
 		return fmt.Errorf("store: append coordination event %q: %w", eventType, err)
 	}
 	return nil
+}
+
+func coordinationEventProfileID(
+	ctx context.Context,
+	exec taskSQLExecutor,
+	ref workspacepkg.CoordinationRef,
+) (string, error) {
+	if ref.ScopeKind != workspacepkg.InvitationScopeTask {
+		return store.DefaultProfileID, nil
+	}
+	var profileID string
+	err := exec.QueryRowContext(
+		ctx,
+		`SELECT profile_id FROM tasks WHERE id = ? AND workspace_id = ?`,
+		ref.TaskID,
+		ref.WorkspaceID,
+	).Scan(&profileID)
+	if err != nil {
+		return "", fmt.Errorf("store: resolve task coordination profile: %w", err)
+	}
+	profileID = strings.TrimSpace(profileID)
+	if profileID == "" {
+		return "", fmt.Errorf("store: resolve task coordination profile: task %q has no profile", ref.TaskID)
+	}
+	return profileID, nil
 }

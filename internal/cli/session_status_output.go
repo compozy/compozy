@@ -6,7 +6,7 @@ import (
 	"time"
 )
 
-func sessionBundle(info SessionRecord, now func() time.Time) outputBundle {
+func sessionBundle(info *SessionRecord, now func() time.Time) outputBundle {
 	return outputBundle{
 		jsonValue: info,
 		human:     func() (string, error) { return renderSessionHuman(info, now) },
@@ -14,7 +14,7 @@ func sessionBundle(info SessionRecord, now func() time.Time) outputBundle {
 	}
 }
 
-func renderSessionHuman(info SessionRecord, now func() time.Time) (string, error) {
+func renderSessionHuman(info *SessionRecord, now func() time.Time) (string, error) {
 	base := renderHumanSection(sessionSessionValue, []keyValue{
 		{Label: "ID", Value: stringOrDash(info.ID)},
 		{Label: sessionNameValue, Value: stringOrDash(info.Name)},
@@ -45,7 +45,7 @@ func renderSessionHuman(info SessionRecord, now func() time.Time) (string, error
 	return renderHumanBlocks(blocks...), nil
 }
 
-func appendSessionSandboxBlock(blocks []string, info SessionRecord) []string {
+func appendSessionSandboxBlock(blocks []string, info *SessionRecord) []string {
 	if info.Sandbox == nil {
 		return blocks
 	}
@@ -59,7 +59,7 @@ func appendSessionSandboxBlock(blocks []string, info SessionRecord) []string {
 	}))
 }
 
-func appendSessionCapsBlock(blocks []string, info SessionRecord) []string {
+func appendSessionCapsBlock(blocks []string, info *SessionRecord) []string {
 	if info.Runtime.ACPCaps == nil {
 		return blocks
 	}
@@ -69,7 +69,7 @@ func appendSessionCapsBlock(blocks []string, info SessionRecord) []string {
 	}))
 }
 
-func renderSessionToon(info SessionRecord) (string, error) {
+func renderSessionToon(info *SessionRecord) (string, error) {
 	return renderToonObject(sessionSessionKey, []string{
 		"id",
 		sessionNameKey,
@@ -115,7 +115,7 @@ func renderSessionToon(info SessionRecord) (string, error) {
 	}), nil
 }
 
-func sessionSpeedOutcome(info SessionRecord) string {
+func sessionSpeedOutcome(info *SessionRecord) string {
 	effective := info.Runtime.Effective
 	if effective == nil || effective.SpeedResolution == nil {
 		return ""
@@ -126,14 +126,14 @@ func sessionSpeedOutcome(info SessionRecord) string {
 	return string(effective.SpeedResolution.Status) + ":" + string(effective.SpeedResolution.Reason)
 }
 
-func sessionRuntimeProvider(info SessionRecord) string {
+func sessionRuntimeProvider(info *SessionRecord) string {
 	if info.Runtime.Effective == nil {
 		return ""
 	}
 	return info.Runtime.Effective.Provider
 }
 
-func sessionRuntimeSpeed(info SessionRecord) string {
+func sessionRuntimeSpeed(info *SessionRecord) string {
 	if info.Runtime.Effective == nil {
 		return ""
 	}
@@ -204,7 +204,7 @@ func sessionRecapBundle(record *SessionRecapRecord) outputBundle {
 	}
 }
 
-func sessionSandboxBackend(info SessionRecord) string {
+func sessionSandboxBackend(info *SessionRecord) string {
 	if info.Sandbox == nil {
 		return ""
 	}
@@ -326,21 +326,21 @@ func repairSummaryPart(code string, turnID string, ref string) string {
 	return value
 }
 
-func sessionFailureKind(info SessionRecord) string {
+func sessionFailureKind(info *SessionRecord) string {
 	if info.Failure == nil {
 		return ""
 	}
 	return strings.TrimSpace(string(info.Failure.Kind))
 }
 
-func sessionFailureSummary(info SessionRecord) string {
+func sessionFailureSummary(info *SessionRecord) string {
 	if info.Failure == nil {
 		return ""
 	}
 	return strings.TrimSpace(info.Failure.Summary)
 }
 
-func sessionCrashBundlePath(info SessionRecord) string {
+func sessionCrashBundlePath(info *SessionRecord) string {
 	if info.Failure == nil {
 		return ""
 	}

@@ -52,11 +52,11 @@ func (h testHandle) Call(_ context.Context, _ CallRequest) (ToolResult, error) {
 
 func validDescriptor() Descriptor {
 	return Descriptor{
-		ID:           "compozy__skill_view",
-		DisplayTitle: "Skill View",
-		Description:  "View one skill",
-		InputSchema:  json.RawMessage(`{"type":"object"}`),
-		OutputSchema: json.RawMessage(`{"type":"object"}`),
+		ID:               "compozy__skill_view",
+		ToolPresentation: NewToolPresentation("Skill View", "", ""),
+		Description:      "View one skill",
+		InputSchema:      json.RawMessage(`{"type":"object"}`),
+		OutputSchema:     json.RawMessage(`{"type":"object"}`),
 		Backend: BackendRef{
 			Kind:       BackendNativeGo,
 			NativeName: "skill_view",
@@ -332,7 +332,7 @@ func TestShouldValidateDescriptorAndRefBranches(t *testing.T) {
 		t.Parallel()
 
 		descriptor := validDescriptor()
-		descriptor.ToolPresentation = NewToolPresentation("Reading", "arg:name")
+		descriptor.ToolPresentation = NewToolPresentation(descriptor.DisplayTitle, "Reading", "arg:name")
 		sourcePresentation := descriptor.ToolPresentation
 		cold := descriptor.Tool()
 		if err := cold.Validate(); err != nil {

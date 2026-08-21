@@ -30,6 +30,7 @@ type BridgeProviderLookup func(context.Context, string) (BridgeProvider, bool, e
 // the bridge runtime store. This spec carries only desired configuration plus provider manifest
 // metadata that must be validated with the provider before persistence.
 type BridgeInstanceSpec struct {
+	ProfileID            string                      `json:"profile_id"`
 	Scope                Scope                       `json:"scope,omitempty"`
 	WorkspaceID          string                      `json:"workspace_id,omitempty"`
 	Platform             string                      `json:"platform"`
@@ -69,7 +70,7 @@ func ResourceScopeForBridge(scope Scope, workspaceID string) resources.ResourceS
 			ID:   workspaceID,
 		}
 	default:
-		return resources.ResourceScope{Kind: resources.ResourceScopeKindGlobal}
+		return resources.ResourceScope{Kind: resources.ResourceScopeKindUser}
 	}
 }
 
@@ -89,6 +90,7 @@ func BridgeInstanceSpecFromCreateRequest(
 func BridgeInstanceSpecFromInstance(instance BridgeInstance) BridgeInstanceSpec {
 	normalized := instance.normalize()
 	return BridgeInstanceSpec{
+		ProfileID:            normalized.ProfileID,
 		Scope:                normalized.Scope,
 		WorkspaceID:          normalized.WorkspaceID,
 		Platform:             normalized.Platform,
@@ -135,6 +137,7 @@ func validateBridgeInstanceResourceSpec(
 
 func normalizeBridgeInstanceResourceSpec(spec BridgeInstanceSpec) BridgeInstanceSpec {
 	next := spec
+	next.ProfileID = strings.TrimSpace(next.ProfileID)
 	next.Scope = next.Scope.Normalize()
 	next.Platform = strings.TrimSpace(next.Platform)
 	next.ExtensionName = strings.TrimSpace(next.ExtensionName)
@@ -167,7 +170,7 @@ func bindBridgeResourceScope(
 	resourceScope resources.ResourceScope,
 ) error {
 	switch resourceScope.Kind {
-	case resources.ResourceScopeKindGlobal:
+	case resources.ResourceScopeKindUser:
 		if *domainScope == "" {
 			*domainScope = ScopeGlobal
 		}
@@ -217,6 +220,9 @@ func bindBridgeResourceScope(
 }
 
 func validateBridgeInstanceDesiredFields(spec BridgeInstanceSpec) (BridgeInstanceSpec, error) {
+	if err := requireField(spec.ProfileID, "bridge instance profile id"); err != nil {
+		return BridgeInstanceSpec{}, err
+	}
 	if err := ValidateScopeWorkspaceID(spec.Scope, spec.WorkspaceID); err != nil {
 		return BridgeInstanceSpec{}, err
 	}
@@ -383,6 +389,7 @@ func bridgeInstanceFromResourceRecord(
 	}
 
 	instance := BridgeInstance{
+		ProfileID:            record.Spec.ProfileID,
 		ID:                   record.ID,
 		Scope:                record.Spec.Scope,
 		WorkspaceID:          record.Spec.WorkspaceID,

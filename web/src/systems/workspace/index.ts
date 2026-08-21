@@ -230,6 +230,10 @@ export {
   type WorkspaceCommandSelectProps,
 } from "./components/workspace-command-select";
 export { WorkspaceScopeStatement } from "./components/workspace-scope-statement";
+export {
+  CreateDestinationStatement,
+  type CreateDestinationStatementProps,
+} from "./components/create-destination";
 export type {
   WorkspaceScopeStatementKind,
   WorkspaceScopeStatementProps,

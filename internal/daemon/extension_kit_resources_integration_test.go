@@ -20,6 +20,7 @@ import (
 	extensionpkg "github.com/compozy/compozy/internal/extension"
 	hookspkg "github.com/compozy/compozy/internal/hooks"
 	"github.com/compozy/compozy/internal/resources"
+	"github.com/compozy/compozy/internal/store"
 	"github.com/compozy/compozy/internal/store/globaldb"
 	"github.com/compozy/compozy/internal/testutil"
 	"github.com/compozy/compozy/internal/windowmanager"
@@ -148,7 +149,7 @@ func TestExtensionKitResourcePublicationLifecycle(t *testing.T) {
 			t.Fatalf("fake clock wait for package schedule error = %v", err)
 		}
 		fakeClock.Advance(time.Minute)
-		waitForExtensionKitAutomationRun(t, ctx, db, enabledJobID)
+		waitForExtensionKitAutomationRun(t, ctx, db, store.DefaultProfileID, enabledJobID)
 		if _, err := automationManager.SetJobEnabled(ctx, enabledJobID, false); err != nil {
 			t.Fatalf("SetJobEnabled(package overlay) error = %v", err)
 		}
@@ -323,13 +324,17 @@ func waitForExtensionKitAutomationRun(
 	t *testing.T,
 	ctx context.Context,
 	db *globaldb.GlobalDB,
+	profileID string,
 	jobID string,
 ) {
 	t.Helper()
 	deadline := time.Now().Add(5 * time.Second)
 	var lastRuns []automationpkg.Run
 	for time.Now().Before(deadline) {
-		runs, err := db.ListRuns(ctx, automationpkg.RunQuery{JobID: jobID})
+		runs, err := db.ListRuns(ctx, automationpkg.RunQuery{
+			ReadScope: store.ReadScope{ProfileID: profileID},
+			JobID:     jobID,
+		})
 		if err != nil {
 			t.Fatalf("ListRuns(%q) error = %v", jobID, err)
 		}
@@ -571,7 +576,7 @@ func seedExtensionKitUnownedJob(
 ) {
 	t.Helper()
 	if _, err := store.Put(ctx, extensionKitSyncActor(), resources.Draft[automationpkg.Job]{
-		ID: job.ID, Scope: resources.ResourceScope{Kind: resources.ResourceScopeKindGlobal}, Spec: job,
+		ID: job.ID, Scope: resources.ResourceScope{Kind: resources.ResourceScopeKindUser}, Spec: job,
 	}); err != nil {
 		t.Fatalf("seed unowned job error = %v", err)
 	}

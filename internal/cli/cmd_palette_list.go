@@ -45,6 +45,7 @@ func newCmdPaletteListCommand(deps commandDeps) *cobra.Command {
 		false,
 		cmdPaletteAvailableFlagHelp,
 	)
+	configureProfileReadCommand(cmd, deps)
 	return cmd
 }
 
@@ -176,7 +177,7 @@ func cmdPaletteClientsOutput(clients []contract.CmdPaletteClient) outputBundle {
 		clients,
 		clients,
 		"ATTACHED CLIENTS",
-		[]string{"CLIENT", "KIND", "WORKSPACE", "ATTACHED"},
+		[]string{"CLIENT", cliKindHeader, "WORKSPACE", "ATTACHED"},
 		"clients",
 		[]string{"client_id", cliKindKey, cmdPaletteWorkspaceFlag, "attached_at"},
 		cmdPaletteClientRow,

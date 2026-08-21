@@ -12,6 +12,7 @@ import (
 
 	"github.com/compozy/compozy/internal/api/contract"
 	bridgepkg "github.com/compozy/compozy/internal/bridges"
+	"github.com/compozy/compozy/internal/store"
 )
 
 func TestBridgeControlHandlersReturnTypedPayloadsOverUDS(t *testing.T) {
@@ -88,6 +89,7 @@ func TestBridgeControlHandlersReturnTypedPayloadsOverUDS(t *testing.T) {
 				now := time.Date(2026, 7, 12, 12, 0, 0, 0, time.UTC)
 				return &bridgepkg.BridgeInstance{
 					ID:            "brg-telegram",
+					ProfileID:     store.DefaultProfileID,
 					Scope:         bridgepkg.ScopeGlobal,
 					Platform:      "telegram",
 					ExtensionName: "telegram",

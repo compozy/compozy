@@ -17,9 +17,8 @@ import (
 
 // ListBridgeTargets returns the daemon-owned target directory for one bridge instance.
 func (h *BaseHandlers) ListBridgeTargets(c *gin.Context) {
-	bridges, ok := h.bridgeService()
+	bridges, instance, ok := h.bridgeReadControlInstance(c)
 	if !ok {
-		h.respondError(c, http.StatusServiceUnavailable, errBridgeServiceUnavailable)
 		return
 	}
 	limit, err := ParseOptionalInt(c.Query("limit"))
@@ -28,7 +27,7 @@ func (h *BaseHandlers) ListBridgeTargets(c *gin.Context) {
 		return
 	}
 	result, err := bridges.ListBridgeTargets(c.Request.Context(), bridgepkg.BridgeTargetQuery{
-		BridgeID: c.Param("id"),
+		BridgeID: instance.ID,
 		Query:    strings.TrimSpace(c.Query("q")),
 		Limit:    limit,
 	})
@@ -41,11 +40,6 @@ func (h *BaseHandlers) ListBridgeTargets(c *gin.Context) {
 
 // ResolveBridgeTarget resolves a friendly bridge target name without sending.
 func (h *BaseHandlers) ResolveBridgeTarget(c *gin.Context) {
-	bridges, ok := h.bridgeService()
-	if !ok {
-		h.respondError(c, http.StatusServiceUnavailable, errBridgeServiceUnavailable)
-		return
-	}
 	var req contract.BridgeResolveTargetRequest
 	if err := decodeStrictBridgeJSON(c, &req); err != nil {
 		h.respondError(
@@ -58,6 +52,10 @@ func (h *BaseHandlers) ResolveBridgeTarget(c *gin.Context) {
 	name := strings.TrimSpace(req.Name)
 	if name == "" {
 		h.respondError(c, http.StatusBadRequest, fmt.Errorf("%s: bridge target name is required", h.transportName()))
+		return
+	}
+	bridges, _, ok := h.bridgeReadControlInstance(c)
+	if !ok {
 		return
 	}
 	result, err := bridges.ResolveBridgeTarget(

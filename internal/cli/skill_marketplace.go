@@ -347,7 +347,7 @@ func searchMarketplaceSkills(
 			query,
 			limit,
 			"",
-			MarketplaceReadScope{Scope: contract.SettingsWorkspaceScopeGlobal},
+			MarketplaceReadScope{Scope: contract.SettingsLayeredScopeUser},
 		)
 		if err != nil {
 			return nil, err

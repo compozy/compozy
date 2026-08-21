@@ -30,6 +30,7 @@ func TestCmdPaletteActionExecutor(t *testing.T) {
 			t.Fatalf("ExecuteAction() result = %s", result.Result)
 		}
 		if registry.call.ToolCallID != "invocation-a" || registry.call.CorrelationID != "invocation-a" ||
+			registry.scope.ProfileID != string(testCmdPaletteProfileLens.ID) ||
 			registry.scope.WorkspaceID != "workspace-a" || registry.scope.SessionID != "cmd-palette:invocation-a" {
 			t.Fatalf("tool dispatch = scope %#v call %#v", registry.scope, registry.call)
 		}
@@ -62,6 +63,7 @@ func TestCmdPaletteActionExecutor(t *testing.T) {
 			t.Fatalf("ExecuteAction() = %#v, want coordinator ticket", result)
 		}
 		if coordinator.request.InvocationID != "invocation-a" ||
+			coordinator.request.ProfileID != string(testCmdPaletteProfileLens.ID) ||
 			coordinator.request.Target.Kind != toolspkg.ApprovalTargetTool ||
 			coordinator.request.Target.ToolID != "compozy__notes_capture" ||
 			!coordinator.request.ExpiresAt.Equal(now.Add(2*time.Minute)) {
@@ -74,8 +76,10 @@ func TestCmdPaletteActionExecutor(t *testing.T) {
 
 	t.Run("Should resume an approved tool through one-use approval authorization", func(t *testing.T) {
 		t.Parallel()
+		const approvalOwnerProfileID = "01ARZ3NDEKTSV4RRFFQ69G5FAV"
 		registry := &recordingCmdPaletteToolRegistry{
-			result: toolspkg.ToolResult{Structured: json.RawMessage(`{"ok":true}`)},
+			approvalRequired: true,
+			result:           toolspkg.ToolResult{Structured: json.RawMessage(`{"ok":true}`)},
 		}
 		issuer := &recordingCmdPaletteApprovalIssuer{}
 		executor := &cmdPaletteActionExecutor{
@@ -91,7 +95,8 @@ func TestCmdPaletteActionExecutor(t *testing.T) {
 			t.Fatalf("json.Marshal(target) error = %v", err)
 		}
 		result, err := executor.DispatchApproval(t.Context(), toolspkg.ApprovalStatus{
-			ApprovalID: "apr_test", WorkspaceID: "workspace-a", InvocationID: "invocation-a",
+			ApprovalID: "apr_test", ProfileID: approvalOwnerProfileID,
+			WorkspaceID: "workspace-a", InvocationID: "invocation-a",
 			CommandID: "notes.capture", Target: toolspkg.ApprovalTarget{
 				Kind: toolspkg.ApprovalTargetTool, ToolID: "compozy__notes_capture", Payload: target,
 			},
@@ -101,7 +106,8 @@ func TestCmdPaletteActionExecutor(t *testing.T) {
 			t.Fatalf("DispatchApproval() error = %v", err)
 		}
 		if string(result) != `{"ok":true}` || issuer.request.SessionID != "cmd-palette:invocation-a" ||
-			registry.call.ApprovalToken != "approval-token" {
+			registry.call.ApprovalToken != "approval-token" || registry.getCalls != 1 ||
+			registry.scope.ProfileID != approvalOwnerProfileID || issuer.scope.ProfileID != approvalOwnerProfileID {
 			t.Fatalf("resumed dispatch = result %s issuer %#v call %#v", result, issuer.request, registry.call)
 		}
 		var approvedInput map[string]any
@@ -129,7 +135,12 @@ func TestCmdPaletteClientDirectory(t *testing.T) {
 	t.Run("Should project empty global shortcut statuses when the window manager is missing", func(t *testing.T) {
 		t.Parallel()
 		directory := &cmdPaletteClientDirectory{}
-		statuses, err := directory.GlobalShortcutStatuses(t.Context(), "workspace-a", "client-a")
+		statuses, err := directory.GlobalShortcutStatuses(
+			t.Context(),
+			testCmdPaletteProfileLens,
+			"workspace-a",
+			"client-a",
+		)
 		if err != nil {
 			t.Fatalf("GlobalShortcutStatuses() error = %v", err)
 		}
@@ -141,6 +152,7 @@ func TestCmdPaletteClientDirectory(t *testing.T) {
 
 func cmdPaletteToolExecutionRequest() cmdpalette.ExecutionRequest {
 	return cmdpalette.ExecutionRequest{
+		ProfileLens: testCmdPaletteProfileLens,
 		WorkspaceID: "workspace-a", InvocationID: "invocation-a",
 		Descriptor: cmdpalette.Descriptor{
 			ID: "notes.capture",
@@ -155,6 +167,7 @@ func cmdPaletteToolExecutionRequest() cmdpalette.ExecutionRequest {
 
 type recordingCmdPaletteToolRegistry struct {
 	approvalRequired bool
+	getCalls         int
 	result           toolspkg.ToolResult
 	scope            toolspkg.Scope
 	call             toolspkg.CallRequest
@@ -180,6 +193,7 @@ func (r *recordingCmdPaletteToolRegistry) Get(
 	_ toolspkg.Scope,
 	_ toolspkg.ToolID,
 ) (toolspkg.ToolView, error) {
+	r.getCalls++
 	return toolspkg.ToolView{Decision: toolspkg.EffectiveToolDecision{
 		ApprovalRequired: r.approvalRequired,
 	}}, nil
@@ -231,14 +245,16 @@ func (c *recordingCmdPaletteApprovalCoordinator) Recover(context.Context) error 
 func (c *recordingCmdPaletteApprovalCoordinator) Close() error                  { return nil }
 
 type recordingCmdPaletteApprovalIssuer struct {
+	scope   toolspkg.Scope
 	request toolspkg.ApprovalTokenRequest
 }
 
 func (i *recordingCmdPaletteApprovalIssuer) CreateToolApproval(
 	_ context.Context,
-	_ toolspkg.Scope,
+	scope toolspkg.Scope,
 	request toolspkg.ApprovalTokenRequest,
 ) (toolspkg.ApprovalTokenGrant, error) {
+	i.scope = scope
 	i.request = request
 	return toolspkg.ApprovalTokenGrant{ApprovalToken: "approval-token"}, nil
 }

@@ -112,7 +112,7 @@ func orderSkillsBySource(skills []*Skill) []*Skill {
 		if left == nil || right == nil {
 			return left != nil
 		}
-		return left.Source < right.Source
+		return SkillPrecedenceRank(left.Source) < SkillPrecedenceRank(right.Source)
 	})
 	return ordered
 }
@@ -136,7 +136,7 @@ func marketplaceSkillAllowed(skill *Skill, allowedMarketplace map[string]struct{
 	}
 
 	switch skill.Source {
-	case SourceBundled, SourceUser, SourceAdditional, SourceWorkspace:
+	case SourceBundled, SourceUser, SourceAdditional, SourceWorkspace, SourceProfile, SourceWorkspaceProfile:
 		return true
 	case SourceMarketplace:
 		for _, key := range marketplaceConsentKeys(skill) {

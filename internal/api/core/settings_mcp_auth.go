@@ -20,7 +20,7 @@ func settingsMCPAuthStatusPayload(value *settingspkg.MCPAuthStatus) *contract.Se
 	if value == nil {
 		return nil
 	}
-	return &contract.SettingsMCPAuthStatusPayload{
+	payload := &contract.SettingsMCPAuthStatusPayload{
 		ServerName:   strings.TrimSpace(value.ServerName),
 		Scope:        strings.TrimSpace(string(value.Scope)),
 		WorkspaceID:  strings.TrimSpace(value.WorkspaceID),
@@ -36,6 +36,11 @@ func settingsMCPAuthStatusPayload(value *settingspkg.MCPAuthStatus) *contract.Se
 		TokenPresent: value.TokenPresent,
 		Diagnostic:   strings.TrimSpace(value.Diagnostic),
 	}
+	if value.Scope == mcpauth.ScopeProfile {
+		payload.Profile = payload.WorkspaceID
+		payload.WorkspaceID = ""
+	}
+	return payload
 }
 
 // MCPSettingsAuth exposes daemon-owned MCP OAuth operations to API transports.
@@ -223,7 +228,10 @@ func parseSettingsMCPAuthTarget(c *gin.Context) (settingspkg.MCPAuthTargetReques
 		)
 	}
 	return settingspkg.MCPAuthTargetRequest{
-		Scope: settingspkg.ScopeKind(scope), WorkspaceID: strings.TrimSpace(c.Query("workspace_id")), Name: name,
+		Scope:       settingspkg.ScopeKind(scope),
+		WorkspaceID: strings.TrimSpace(c.Query("workspace_id")),
+		ProfileName: strings.TrimSpace(c.Query("profile")),
+		Name:        name,
 	}, nil
 }
 

@@ -5,11 +5,13 @@ import (
 
 	core "github.com/compozy/compozy/internal/api/core"
 	automationpkg "github.com/compozy/compozy/internal/automation"
+	"github.com/compozy/compozy/internal/store"
 )
 
 type StubAutomationManager struct {
 	ListSuggestionsFn func(
 		context.Context,
+		store.ReadScope,
 		string,
 		automationpkg.SuggestionStatus,
 	) ([]automationpkg.Suggestion, error)
@@ -17,9 +19,11 @@ type StubAutomationManager struct {
 		context.Context,
 		string,
 		string,
+		string,
 	) (automationpkg.SuggestionAcceptance, error)
 	DismissSuggestionFn func(
 		context.Context,
+		string,
 		string,
 		string,
 	) (automationpkg.Suggestion, error)
@@ -55,33 +59,36 @@ type StubAutomationManager struct {
 
 func (s StubAutomationManager) ListSuggestions(
 	ctx context.Context,
+	readScope store.ReadScope,
 	workspaceRef string,
 	status automationpkg.SuggestionStatus,
 ) ([]automationpkg.Suggestion, error) {
 	if s.ListSuggestionsFn != nil {
-		return s.ListSuggestionsFn(ctx, workspaceRef, status)
+		return s.ListSuggestionsFn(ctx, readScope, workspaceRef, status)
 	}
 	return nil, nil
 }
 
 func (s StubAutomationManager) AcceptSuggestion(
 	ctx context.Context,
+	profileID string,
 	workspaceRef string,
 	suggestionID string,
 ) (automationpkg.SuggestionAcceptance, error) {
 	if s.AcceptSuggestionFn != nil {
-		return s.AcceptSuggestionFn(ctx, workspaceRef, suggestionID)
+		return s.AcceptSuggestionFn(ctx, profileID, workspaceRef, suggestionID)
 	}
 	return automationpkg.SuggestionAcceptance{}, automationpkg.ErrSuggestionNotFound
 }
 
 func (s StubAutomationManager) DismissSuggestion(
 	ctx context.Context,
+	profileID string,
 	workspaceRef string,
 	suggestionID string,
 ) (automationpkg.Suggestion, error) {
 	if s.DismissSuggestionFn != nil {
-		return s.DismissSuggestionFn(ctx, workspaceRef, suggestionID)
+		return s.DismissSuggestionFn(ctx, profileID, workspaceRef, suggestionID)
 	}
 	return automationpkg.Suggestion{}, automationpkg.ErrSuggestionNotFound
 }

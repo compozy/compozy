@@ -18,6 +18,7 @@ import (
 
 func (c *catalog) logDecisionEvent(
 	ctx context.Context,
+	profileID string,
 	decision memcontract.Decision,
 	workspaceID string,
 	applied bool,
@@ -29,7 +30,7 @@ func (c *catalog) logDecisionEvent(
 	case memcontract.OpNoop:
 		eventOp = memoryEventWriteShadowed
 	}
-	return c.insertDecisionEvent(ctx, eventOp, decision, workspaceID, map[string]string{
+	return c.insertDecisionEvent(ctx, profileID, eventOp, decision, workspaceID, map[string]string{
 		decisionMetadataOperationKey:      decision.Op.String(),
 		decisionMetadataTargetFilenameKey: decision.TargetFilename,
 		decisionMetadataReasonKey:         decision.Reason,
@@ -38,9 +39,10 @@ func (c *catalog) logDecisionEvent(
 	})
 }
 
-func (c *catalog) logRevertEvent(ctx context.Context, decision storedDecision) error {
+func (c *catalog) logRevertEvent(ctx context.Context, profileID string, decision storedDecision) error {
 	return c.insertDecisionEvent(
 		ctx,
+		profileID,
 		memoryEventWriteReverted,
 		decision.Decision,
 		decision.WorkspaceID,
@@ -54,6 +56,7 @@ func (c *catalog) logRevertEvent(ctx context.Context, decision storedDecision) e
 
 func (c *catalog) insertDecisionEvent(
 	ctx context.Context,
+	profileID string,
 	eventOp string,
 	decision memcontract.Decision,
 	workspaceID string,
@@ -67,10 +70,11 @@ func (c *catalog) insertDecisionEvent(
 		if _, err := tx.ExecContext(
 			ctx,
 			`INSERT INTO memory_events (
-				op, scope, agent_name, agent_tier, workspace_id, session_id,
+				op, profile_id, scope, agent_name, agent_tier, workspace_id, session_id,
 				actor_kind, decision_id, target_id, metadata, ts_ms
-			) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+			) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
 			eventOp,
+			strings.TrimSpace(profileID),
 			nullStringForEmpty(decision.Frontmatter.Scope.Normalize()),
 			nullStringForEmpty(decision.Frontmatter.AgentName),
 			nullStringForEmpty(string(decision.Frontmatter.AgentTier.Normalize())),

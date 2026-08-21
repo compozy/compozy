@@ -79,7 +79,7 @@ const generalMutation = {
   active_config_hash: "sha256:active-live",
   active_generation: 42,
   section: "general" as const,
-  scope: "global" as const,
+  scope: "user" as const,
   applied: true,
   apply_record_id: "cfg_apply_001",
   lifecycle: "restart-required" as const,
@@ -115,7 +115,6 @@ describe("useUpdateSettingsGeneral", () => {
             reload_timeouts: { bridges: "30s", mcp: "10s", providers: "5s" },
             socket: "/tmp/a.sock",
           },
-          defaults: { agent: "claude-code" },
           http: { host: "127.0.0.1", port: 2123 },
           limits: { max_concurrent_agents: 4 },
           permissions: { mode: "approve-reads" as const },
@@ -293,7 +292,7 @@ describe("mcp server mutations", () => {
       await result.current.mutateAsync({
         name: "github",
         body: { server: { name: "github", command: "gh" } },
-        filter: { scope: "global", target: "sidecar" },
+        filter: { scope: "user", target: "sidecar" },
       });
     });
 
@@ -305,7 +304,7 @@ describe("mcp server mutations", () => {
     expect(putSettingsMCPServer).toHaveBeenCalledWith(
       "github",
       { server: { name: "github", command: "gh" } },
-      { scope: "global", target: "sidecar" }
+      { scope: "user", target: "sidecar" }
     );
   });
 
@@ -372,7 +371,7 @@ describe("mcp auth mutations", () => {
     const invalidateSpy = vi.spyOn(queryClient, "invalidateQueries");
     vi.mocked(logoutSettingsMCPAuth).mockResolvedValue({
       server_name: "linear",
-      scope: "global",
+      scope: "user",
       status: "needs_login",
       token_present: false,
       refreshable: false,
@@ -381,7 +380,7 @@ describe("mcp auth mutations", () => {
     const { result } = renderHook(() => useLogoutMCPAuth(), { wrapper });
 
     await act(async () => {
-      await result.current.mutateAsync({ name: "linear", filter: { scope: "global" } });
+      await result.current.mutateAsync({ name: "linear", filter: { scope: "user" } });
     });
 
     await waitFor(() => {

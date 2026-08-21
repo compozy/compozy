@@ -28,6 +28,18 @@ func (h *BaseHandlers) NetworkSubscriptions(c *gin.Context) {
 	if !ok {
 		return
 	}
+	readScope, err := h.resolveProfileReadScope(c)
+	if err != nil {
+		h.respondProfileReadScopeError(c, err)
+		return
+	}
+	channelOwner, err := h.NetworkStore.GetNetworkChannel(
+		c.Request.Context(), readScope, scope.NetworkChannelRef(channel),
+	)
+	if err != nil {
+		h.respondError(c, StatusForNetworkError(err), err)
+		return
+	}
 	limit, err := parsePositiveIntQuery(c)
 	if err != nil {
 		h.respondError(c, http.StatusBadRequest, NewNetworkValidationError(err))
@@ -52,9 +64,16 @@ func (h *BaseHandlers) NetworkSubscriptions(c *gin.Context) {
 		h.respondError(c, StatusForNetworkError(err), err)
 		return
 	}
-	c.JSON(http.StatusOK, contract.NetworkSubscriptionsResponse{
-		Subscriptions: NetworkSubscriptionPayloadsFromStore(subscriptions),
-	})
+	payloads := NetworkSubscriptionPayloadsFromStore(subscriptions)
+	for index := range payloads {
+		payloads[index].ProfileID = channelOwner.ProfileID
+		payloads[index].ProfileName = channelOwner.ProfileName
+		payloads[index].ProfileColor = channelOwner.ProfileColor
+		payloads[index].ProfileIcon = channelOwner.ProfileIcon
+		payloads[index].ProfileEmoji = channelOwner.ProfileEmoji
+		payloads[index].ProfileArchived = channelOwner.ProfileArchived
+	}
+	c.JSON(http.StatusOK, contract.NetworkSubscriptionsResponse{Subscriptions: payloads})
 }
 
 // UpsertNetworkSubscription sets one peer delivery preference for a channel or thread.
@@ -69,6 +88,11 @@ func (h *BaseHandlers) UpsertNetworkSubscription(c *gin.Context) {
 	}
 	scope, ok := h.resolveWorkspaceScope(c)
 	if !ok {
+		return
+	}
+	mutationScope, err := h.resolveProfileMutationScope(c)
+	if err != nil {
+		h.respondProfileReadScopeError(c, err)
 		return
 	}
 	var req contract.NetworkSubscriptionRequest
@@ -97,6 +121,7 @@ func (h *BaseHandlers) UpsertNetworkSubscription(c *gin.Context) {
 	channelMetadata, err := h.networkChannelMetadataForUpdate(
 		c.Request.Context(),
 		h.NetworkStore,
+		store.ReadScope{ProfileID: mutationScope.ProfileID},
 		store.NetworkChannelRef{WorkspaceID: entry.WorkspaceID, Channel: entry.Channel},
 	)
 	if err != nil {
@@ -111,9 +136,14 @@ func (h *BaseHandlers) UpsertNetworkSubscription(c *gin.Context) {
 		h.respondError(c, StatusForNetworkError(err), err)
 		return
 	}
-	c.JSON(http.StatusOK, contract.NetworkSubscriptionResponse{
-		Subscription: NetworkSubscriptionPayloadFromStore(entry),
-	})
+	payload := NetworkSubscriptionPayloadFromStore(entry)
+	payload.ProfileID = channelMetadata.ProfileID
+	payload.ProfileName = channelMetadata.ProfileName
+	payload.ProfileColor = channelMetadata.ProfileColor
+	payload.ProfileIcon = channelMetadata.ProfileIcon
+	payload.ProfileEmoji = channelMetadata.ProfileEmoji
+	payload.ProfileArchived = channelMetadata.ProfileArchived
+	c.JSON(http.StatusOK, contract.NetworkSubscriptionResponse{Subscription: payload})
 }
 
 // DeleteNetworkSubscription removes one peer delivery preference.
@@ -130,6 +160,11 @@ func (h *BaseHandlers) DeleteNetworkSubscription(c *gin.Context) {
 	if !ok {
 		return
 	}
+	mutationScope, err := h.resolveProfileMutationScope(c)
+	if err != nil {
+		h.respondProfileReadScopeError(c, err)
+		return
+	}
 	ref := store.NetworkSubscriptionRef{
 		WorkspaceID: scope.NetworkWorkspaceID(),
 		Channel:     channel,
@@ -138,6 +173,14 @@ func (h *BaseHandlers) DeleteNetworkSubscription(c *gin.Context) {
 	}
 	if err := ref.Validate(); err != nil {
 		h.respondError(c, http.StatusBadRequest, NewNetworkValidationError(err))
+		return
+	}
+	if _, err := h.NetworkStore.GetNetworkChannel(
+		c.Request.Context(),
+		store.ReadScope{ProfileID: mutationScope.ProfileID},
+		store.NetworkChannelRef{WorkspaceID: ref.WorkspaceID, Channel: ref.Channel},
+	); err != nil {
+		h.respondError(c, StatusForNetworkError(err), err)
 		return
 	}
 	if err := h.NetworkStore.DeleteNetworkSubscription(c.Request.Context(), ref); err != nil {

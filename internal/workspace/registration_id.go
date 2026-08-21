@@ -4,8 +4,16 @@ import (
 	"crypto/rand"
 	"encoding/hex"
 	"fmt"
+	"regexp"
 	"strings"
 )
+
+var registrationIDPattern = regexp.MustCompile(`^ws_[0-9a-f]{16}$`)
+
+// IsRegistrationID reports whether value is a public workspace registration id.
+func IsRegistrationID(value string) bool {
+	return registrationIDPattern.MatchString(strings.TrimSpace(value))
+}
 
 func generateID(prefix string) (string, error) {
 	var random [8]byte

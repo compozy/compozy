@@ -156,5 +156,6 @@ func externalRawKey(d *Descriptor) string {
 
 func sourceKey(source SourceRef) string {
 	return string(source.Kind) + "\x00" + source.Owner + "\x00" +
-		source.RawServerName + "\x00" + source.RawToolName + "\x00" + source.Scope
+		source.RawServerName + "\x00" + source.RawToolName + "\x00" + source.Scope + "\x00" +
+		source.ProfileID + "\x00" + source.WorkspaceID + "\x00" + source.ResourceID + "\x00" + source.ResourceVersion
 }

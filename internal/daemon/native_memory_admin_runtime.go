@@ -38,7 +38,11 @@ func (n *daemonNativeTools) memoryAdminDailyList(
 	if err != nil {
 		return toolspkg.ToolResult{}, nativeMemoryAdminToolError(req.ToolID, err)
 	}
-	records, err := n.deps.MemoryStore.ListDailyLogRecords(ctx, memorypkg.DailyLogListQuery{
+	profileStore, err := n.profileMemoryStore(ctx, scope)
+	if err != nil {
+		return toolspkg.ToolResult{}, nativeMemoryAdminToolError(req.ToolID, err)
+	}
+	records, err := profileStore.ListDailyLogRecords(ctx, memorypkg.DailyLogListQuery{
 		Date:        date,
 		Scope:       selector.Scope,
 		WorkspaceID: selector.WorkspaceID,

@@ -9,19 +9,21 @@ import (
 	"github.com/compozy/compozy/internal/api/contract"
 	looppkg "github.com/compozy/compozy/internal/loop"
 	"github.com/compozy/compozy/internal/network/participation"
+	"github.com/compozy/compozy/internal/store"
 	taskpkg "github.com/compozy/compozy/internal/task"
 )
 
 func (s *daemonLoopAPIService) GetLoopConfig(
 	ctx context.Context,
 	workspaceID string,
+	profileID string,
 	name string,
 ) (contract.LoopConfigResponse, error) {
 	ws, err := normalizeLoopWorkspaceID(workspaceID)
 	if err != nil {
 		return contract.LoopConfigResponse{}, err
 	}
-	snapshot, err := s.aggregate.GetConfigSnapshot(ctx, ws, name)
+	snapshot, err := s.aggregate.GetConfigSnapshot(ctx, ws, profileID, name)
 	if err != nil {
 		return contract.LoopConfigResponse{}, err
 	}
@@ -39,6 +41,7 @@ func (s *daemonLoopAPIService) GetLoopConfig(
 func (s *daemonLoopAPIService) PutLoopConfig(
 	ctx context.Context,
 	workspaceID string,
+	profileID string,
 	name string,
 	req contract.PutLoopConfigRequest,
 ) (contract.LoopConfigResponse, error) {
@@ -50,10 +53,10 @@ func (s *daemonLoopAPIService) PutLoopConfig(
 	if err != nil {
 		return contract.LoopConfigResponse{}, err
 	}
-	if err := s.aggregate.Configure(ctx, ws, name, cfg); err != nil {
+	if err := s.aggregate.Configure(ctx, ws, profileID, name, cfg); err != nil {
 		return contract.LoopConfigResponse{}, err
 	}
-	snapshot, err := s.aggregate.GetConfigSnapshot(ctx, ws, name)
+	snapshot, err := s.aggregate.GetConfigSnapshot(ctx, ws, profileID, name)
 	if err != nil {
 		return contract.LoopConfigResponse{}, err
 	}
@@ -71,9 +74,10 @@ func (s *daemonLoopAPIService) PutLoopConfig(
 func (s *daemonLoopAPIService) GetLoopAnnotations(
 	ctx context.Context,
 	workspaceID string,
+	profileID string,
 	name string,
 ) (contract.LoopAnnotationsResponse, error) {
-	ws, _, err := s.findLoopRecord(workspaceID, name)
+	ws, _, err := s.findLoopRecord(ctx, workspaceID, profileID, name)
 	if err != nil {
 		return contract.LoopAnnotationsResponse{}, err
 	}
@@ -87,10 +91,11 @@ func (s *daemonLoopAPIService) GetLoopAnnotations(
 func (s *daemonLoopAPIService) PutLoopAnnotations(
 	ctx context.Context,
 	workspaceID string,
+	profileID string,
 	name string,
 	req contract.PutLoopAnnotationsRequest,
 ) (contract.LoopAnnotationsResponse, error) {
-	ws, _, err := s.findLoopRecord(workspaceID, name)
+	ws, _, err := s.findLoopRecord(ctx, workspaceID, profileID, name)
 	if err != nil {
 		return contract.LoopAnnotationsResponse{}, err
 	}
@@ -343,12 +348,14 @@ func (s *daemonLoopAPIService) ListLoopRunEvents(
 	workspaceID string,
 	runID string,
 	afterSeq int64,
+	readScope store.ReadScope,
 ) ([]contract.LoopRunEventPayload, error) {
 	ws, err := normalizeLoopWorkspaceID(workspaceID)
 	if err != nil {
 		return nil, err
 	}
 	events, err := s.persistence.ListLoopRunEvents(ctx, looppkg.RunEventQuery{
+		ReadScope:   readScope,
 		WorkspaceID: ws,
 		RunID:       looppkg.RunID(strings.TrimSpace(runID)),
 		AfterSeq:    afterSeq,

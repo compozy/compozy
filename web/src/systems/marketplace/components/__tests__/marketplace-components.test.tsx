@@ -56,9 +56,11 @@ const mocks = vi.hoisted(() => {
     setScope: vi.fn(),
     toastSuccess: vi.fn(),
     mcpServers: [] as unknown[],
+    mcpFilters: [] as unknown[],
     vaultSecrets: [] as unknown[],
     createSecret: vi.fn(),
     installExtension: vi.fn(),
+    previewExtensionInstall: vi.fn(),
   };
   return Object.assign(state, {
     marketplaceKind(options: unknown, enabled = true) {
@@ -101,6 +103,8 @@ const mocks = vi.hoisted(() => {
     },
   });
 });
+
+const profileScope = vi.hoisted(() => ({ destination: "default" }));
 
 vi.mock("sonner", () => ({
   toast: { success: mocks.toastSuccess },
@@ -173,6 +177,27 @@ vi.mock("@/systems/workspace/hooks/use-active-workspace", () => ({
   useActiveWorkspace: mockActiveWorkspace,
 }));
 
+vi.mock("@/systems/profiles", async importOriginal => ({
+  ...(await importOriginal<typeof import("@/systems/profiles")>()),
+  useProfileReadScope: () => ({
+    aggregate: false,
+    destination: profileScope.destination,
+    key: profileScope.destination,
+    params: { profile: profileScope.destination },
+    view: { kind: "profile" as const, profile: profileScope.destination },
+  }),
+}));
+
+vi.mock("@/systems/profiles/hooks/use-profile-read-scope", () => ({
+  useProfileReadScope: () => ({
+    aggregate: false,
+    destination: profileScope.destination,
+    key: profileScope.destination,
+    params: { profile: profileScope.destination },
+    view: { kind: "profile" as const, profile: profileScope.destination },
+  }),
+}));
+
 vi.mock("@/systems/vault", async () => {
   const actual = await vi.importActual<typeof import("@/systems/vault")>("@/systems/vault");
   return {
@@ -225,11 +250,17 @@ vi.mock("@/systems/extensions", async () => {
     useExtensionInventory: mocks.extensionInventory,
     useRemoveExtension: () => ({ mutateAsync: vi.fn() }),
     useToggleExtension: () => ({ mutateAsync: vi.fn() }),
+    previewExtensionInstall: mocks.previewExtensionInstall,
   };
 });
 
 vi.mock("@/systems/extensions/hooks/use-extensions", () => ({
   useExtensionInventory: mocks.extensionInventory,
+}));
+
+vi.mock("@/systems/extensions/adapters/extensions-api", async importOriginal => ({
+  ...(await importOriginal<typeof import("@/systems/extensions/adapters/extensions-api")>()),
+  previewExtensionInstall: mocks.previewExtensionInstall,
 }));
 
 vi.mock("@/systems/settings/hooks/use-settings-collections", async () => {
@@ -238,17 +269,18 @@ vi.mock("@/systems/settings/hooks/use-settings-collections", async () => {
   >("@/systems/settings/hooks/use-settings-collections");
   return {
     ...actual,
-    useSettingsMCPServers: (filter: { scope: string }) => ({
-      data: {
-        mcp_servers: mocks.mcpServers.filter(
-          server => (server as { scope?: string }).scope === filter.scope
-        ),
-      },
-      error: mocks.mcpError,
-      isLoading: false,
-      isFetching: false,
-      refetch: vi.fn(),
-    }),
+    useSettingsMCPServers: (filter: unknown) => {
+      mocks.mcpFilters.push(filter);
+      return {
+        data: {
+          mcp_servers: mocks.mcpServers,
+        },
+        error: mocks.mcpError,
+        isLoading: false,
+        isFetching: false,
+        refetch: vi.fn(),
+      };
+    },
   };
 });
 
@@ -319,14 +351,16 @@ function renderKindPage(
 interface MarketplaceDialogsHarnessProps {
   data: MarketplaceEntryResponse;
   onInstall: (request: MCPInstallRequest) => Promise<MCPInstallResponse>;
-  scope: "global" | "workspace";
+  scope: "user" | "profile" | "workspace";
   workspaceId: string | null;
+  profileName?: string | null;
 }
 
 function MarketplaceDialogsHarness({
   data,
   onInstall,
   scope,
+  profileName,
   workspaceId,
 }: MarketplaceDialogsHarnessProps) {
   const authorize = useMCPAuthorize();
@@ -340,6 +374,7 @@ function MarketplaceDialogsHarness({
       onInstallMCP={onInstall}
       onMCPClose={() => undefined}
       onTrustClose={() => undefined}
+      profileName={profileName}
       scope={scope}
       trustEntry={null}
       trustError={null}
@@ -364,10 +399,18 @@ describe("MarketplaceKindPage", () => {
     mocks.skills = [];
     mocks.extensions = [];
     mocks.mcpServers = [];
+    mocks.mcpFilters = [];
+    profileScope.destination = "default";
     mocks.vaultSecrets = [];
     mocks.createSecret.mockReset();
     mocks.installExtension.mockReset();
     mocks.installExtension.mockResolvedValue({});
+    mocks.previewExtensionInstall.mockReset();
+    mocks.previewExtensionInstall.mockImplementation(async (request: { ref: string }) => ({
+      declared_profiles: [{ create: false, credentials: [], name: "default" }],
+      name: request.ref.split("/").pop() ?? request.ref,
+      placements: [],
+    }));
     mocks.putMCP.mockImplementation(() => new Promise(() => undefined));
     mocks.isEntryPending.mockReturnValue(false);
     mocks.isInstalledItemPending.mockReturnValue(false);
@@ -582,7 +625,7 @@ describe("MarketplaceKindPage", () => {
         auth: { registration: "auto" },
         auth_status: {
           server_name: "linear",
-          scope: "global",
+          scope: "user",
           status: "needs_login",
           token_present: false,
           refreshable: true,
@@ -596,7 +639,7 @@ describe("MarketplaceKindPage", () => {
         },
         source_metadata: {
           available_targets: [],
-          effective_source: { kind: "global-config", scope: "global" },
+          effective_source: { kind: "global-config", scope: "user" },
           shadowed_sources: [],
         },
       },
@@ -605,17 +648,29 @@ describe("MarketplaceKindPage", () => {
     const card = screen.getByTestId("marketplace-installed-card-linear");
     expect(card).toBeInTheDocument();
     expect(within(card).getByText("http")).toBeInTheDocument();
-    expect(within(card).getByText("global")).toBeInTheDocument();
+    expect(within(card).getByText("user")).toBeInTheDocument();
     expect(within(card).getByText("authorize")).toBeInTheDocument();
     expect(within(card).getByRole("link", { name: "View linear details" })).toHaveAttribute(
       "href",
-      expect.stringMatching(/^\/marketplace\/mcp\/linear\?.*scope=global/)
+      expect.stringMatching(/^\/marketplace\/mcp\/linear\?.*scope=user/)
     );
     expect(within(card).getByRole("link", { name: "View linear details" })).not.toHaveAttribute(
       "href",
       expect.stringContaining("workspace_id")
     );
     expect(screen.getByRole("button", { name: "Authorize" })).toBeInTheDocument();
+  });
+
+  it("Should request MCP inventory for the active profile", () => {
+    profileScope.destination = "marketing";
+    mocks.marketData = marketplaceKindFixture("mcp");
+    renderKindPage("mcp");
+
+    expect(mocks.mcpFilters).toContainEqual({
+      profile: "marketing",
+      scope: "profile",
+      workspace_id: "ws-a",
+    });
   });
 
   it("Should create and edit arbitrary MCP server definitions from Installed", async () => {
@@ -712,10 +767,10 @@ describe("MarketplaceKindPage", () => {
         workspace_id: "ws-a",
       },
       {
-        expectedFilter: { scope: "global", target: "sidecar" },
+        expectedFilter: { scope: "user", target: "sidecar" },
         name: "global-sidecar",
-        scope: "global",
-        source: { kind: "global-mcp-sidecar", scope: "global" },
+        scope: "user",
+        source: { kind: "global-mcp-sidecar", scope: "user" },
         workspace_id: undefined,
       },
       {
@@ -726,10 +781,10 @@ describe("MarketplaceKindPage", () => {
         workspace_id: "ws-a",
       },
       {
-        expectedFilter: { scope: "global", target: "config" },
+        expectedFilter: { scope: "user", target: "config" },
         name: "global-config-from-workspace-collection",
         scope: "workspace",
-        source: { kind: "global-config", scope: "global" },
+        source: { kind: "global-config", scope: "user" },
         workspace_id: "ws-a",
       },
     ] as const;
@@ -900,14 +955,14 @@ describe("MarketplaceKindPage", () => {
     expect(screen.getByText("MCPs results may be out of date")).toBeInTheDocument();
   });
 
-  it("Should keep a global MCP server visible and scoped with an active workspace", async () => {
+  it("Should keep a user-layer MCP server visible and scoped with an active workspace", async () => {
     const user = userEvent.setup();
     mocks.marketData = marketplaceKindFixture("mcp");
     mocks.mcpServers = [
       {
         name: "global-filesystem",
         transport: "stdio",
-        scope: "global",
+        scope: "user",
         runtime_status: {
           configured: true,
           initialized: true,
@@ -917,7 +972,7 @@ describe("MarketplaceKindPage", () => {
         },
         source_metadata: {
           available_targets: [],
-          effective_source: { kind: "global-config", scope: "global" },
+          effective_source: { kind: "global-config", scope: "user" },
           shadowed_sources: [],
         },
       },
@@ -927,13 +982,13 @@ describe("MarketplaceKindPage", () => {
 
     expect(screen.getByRole("link", { name: "View global-filesystem details" })).toHaveAttribute(
       "href",
-      expect.stringMatching(/^\/marketplace\/mcp\/global-filesystem\?.*scope=global/)
+      expect.stringMatching(/^\/marketplace\/mcp\/global-filesystem\?.*scope=user/)
     );
     const menu = screen.getByRole("button", { name: "More for global-filesystem" });
     fireEvent.pointerDown(menu, { button: 0, pointerType: "mouse" });
     await user.click(menu);
     await user.click(await screen.findByRole("menuitem", { name: "Edit configuration" }));
-    expect(screen.getByText("MCP server · global")).toBeInTheDocument();
+    expect(screen.getByText("MCP server · user")).toBeInTheDocument();
   });
 
   it("Should show teaching empty for Installed scope with browse CTA", async () => {
@@ -1168,6 +1223,12 @@ describe("MarketplaceKindPage", () => {
   it("Should install a local path through the source union and gate consent explicitly", async () => {
     const user = userEvent.setup();
     mocks.marketData = { ...marketplaceKindFixture("extension"), items: [], total: 0 };
+    mocks.previewExtensionInstall.mockResolvedValueOnce({
+      declared_profiles: [{ create: true, credentials: [], name: "operations" }],
+      name: "gen-a1b2c3",
+      network_requirement_digest: "sha256:local-network",
+      placements: [],
+    });
     renderKindPage("extension", { tab: "market" });
 
     await user.click(screen.getByTestId("marketplace-extension-install"));
@@ -1184,6 +1245,10 @@ describe("MarketplaceKindPage", () => {
     await user.click(screen.getByTestId("extension-install-allow-unverified"));
     await user.click(screen.getByTestId("extension-install-submit"));
 
+    expect(await screen.findByTestId("extension-install-summary")).toBeVisible();
+    expect(mocks.installExtension).not.toHaveBeenCalled();
+    await user.click(screen.getByTestId("extension-install-submit"));
+
     expect(await screen.findByTestId("extension-trust-dialog")).toBeInTheDocument();
     expect(mocks.installExtension).not.toHaveBeenCalled();
 
@@ -1192,6 +1257,7 @@ describe("MarketplaceKindPage", () => {
     await waitFor(() =>
       expect(mocks.installExtension).toHaveBeenCalledWith({
         allow_unverified: true,
+        confirm_network_digest: "sha256:local-network",
         ref: "/srv/hello/dist/gen-a1b2c3",
         source: "local_path",
       })
@@ -1261,6 +1327,8 @@ describe("MarketplaceKindPage", () => {
     await user.clear(ref);
     await user.type(ref, "https://git.example.com/acme/hello.git@v1.2.3");
     await user.click(screen.getByTestId("extension-install-submit"));
+    expect(await screen.findByTestId("extension-install-summary")).toBeVisible();
+    await user.click(screen.getByTestId("extension-install-submit"));
     await waitFor(() =>
       expect(mocks.installExtension).toHaveBeenCalledWith({
         ref: "https://git.example.com/acme/hello.git@v1.2.3",
@@ -1285,6 +1353,8 @@ describe("MarketplaceKindPage", () => {
 
     await user.click(screen.getByTestId("marketplace-extension-install"));
     await user.type(screen.getByTestId("extension-install-ref"), "/srv/hello/dist/gen-a1b2c3");
+    await user.click(screen.getByTestId("extension-install-submit"));
+    expect(await screen.findByTestId("extension-install-summary")).toBeVisible();
     await user.click(screen.getByTestId("extension-install-submit"));
 
     expect(await screen.findByTestId("extension-trust-dialog")).toBeInTheDocument();
@@ -1318,6 +1388,8 @@ describe("MarketplaceKindPage", () => {
     await user.click(screen.getByTestId("marketplace-extension-install"));
     await user.type(screen.getByTestId("extension-install-ref"), "/srv/hello/dist/gen-a1b2c3");
     await user.click(screen.getByTestId("extension-install-submit"));
+    expect(await screen.findByTestId("extension-install-summary")).toBeVisible();
+    await user.click(screen.getByTestId("extension-install-submit"));
 
     expect(await screen.findByTestId("extension-install-error")).toHaveTextContent(
       "blocked by policy"
@@ -1333,7 +1405,7 @@ describe("MCP guided install", () => {
     const client = new QueryClient({
       defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
     });
-    const renderDialogs = (scope: "global" | "workspace", workspaceId: string | null) => (
+    const renderDialogs = (scope: "user" | "workspace", workspaceId: string | null) => (
       <QueryClientProvider client={client}>
         <MarketplaceDialogsHarness
           data={marketplaceDetails["mcp:github"]!}
@@ -1347,7 +1419,7 @@ describe("MCP guided install", () => {
     const input = screen.getByLabelText(/^github_personal_access_token\*?$/);
     await user.type(input, "workspace-secret");
 
-    view.rerender(renderDialogs("global", null));
+    view.rerender(renderDialogs("user", null));
 
     const resetInput = screen.getByLabelText(/^github_personal_access_token\*?$/);
     expect(resetInput).toHaveValue("");
@@ -1356,7 +1428,7 @@ describe("MCP guided install", () => {
     await waitFor(() => expect(onInstall).toHaveBeenCalledOnce());
     expect(onInstall).toHaveBeenCalledWith(
       expect.objectContaining({
-        scope: "global",
+        scope: "user",
         values: { inputs: { github_personal_access_token: { value: "global-secret" } } },
         workspace_id: undefined,
       })
@@ -1389,6 +1461,46 @@ describe("MCP guided install", () => {
         workspace_id: "ws-story",
       })
     );
+  });
+
+  it("Should serialize the profile owner and fail closed without its name", async () => {
+    const user = userEvent.setup();
+    const onInstall = vi.fn().mockResolvedValue({} as MCPInstallResponse);
+    const client = new QueryClient({
+      defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
+    });
+    const renderDialogs = (profileName: string | null) => (
+      <QueryClientProvider client={client}>
+        <MarketplaceDialogsHarness
+          data={marketplaceDetails["mcp:github"]!}
+          onInstall={onInstall}
+          profileName={profileName}
+          scope="profile"
+          workspaceId={null}
+        />
+      </QueryClientProvider>
+    );
+    const view = render(renderDialogs("marketing"));
+    const input = screen.getByLabelText(/^github_personal_access_token\*?$/);
+    const confirm = screen.getByTestId("mcp-install-confirm");
+    expect(confirm).toBeDisabled();
+    await user.type(input, "profile-secret");
+    expect(confirm).not.toBeDisabled();
+    await user.click(confirm);
+
+    await waitFor(() => expect(onInstall).toHaveBeenCalledOnce());
+    expect(onInstall).toHaveBeenCalledWith(
+      expect.objectContaining({
+        profile: "marketing",
+        scope: "profile",
+        values: { inputs: { github_personal_access_token: { value: "profile-secret" } } },
+        workspace_id: undefined,
+      })
+    );
+
+    view.rerender(renderDialogs(null));
+    const missingProfileConfirm = screen.getByTestId("mcp-install-confirm");
+    expect(missingProfileConfirm).toBeDisabled();
   });
 
   it("Should serialize typed identifier and boolean catalog inputs by stable input ID", async () => {
@@ -1586,7 +1698,7 @@ describe("MCP guided install", () => {
     expect(onInstall).toHaveBeenCalledWith(
       expect.objectContaining({ entry_id: "linear", values: null })
     );
-    expect(buildMCPInstallRequest(remote, "global", null, {}).values).toBeNull();
+    expect(buildMCPInstallRequest(remote, "user", null, null, {}).values).toBeNull();
   });
 
   it("Should render the catalog's pre-registered OAuth mode", () => {

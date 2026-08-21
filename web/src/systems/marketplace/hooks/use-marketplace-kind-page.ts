@@ -5,27 +5,29 @@ import { normalizeListingSearchValue } from "@/lib/listing-search";
 import { useDebouncedInput } from "@/hooks/use-debounced-input";
 
 import { useMarketplaceKind } from "./use-marketplace";
-import type { MCPConfigScope } from "./marketplace-mcp-scope";
 import type { MarketplaceKind, MarketplaceListing, MarketplaceRouteKind } from "../types";
 import { marketplaceRouteKindFor } from "../types";
 import {
+  marketplaceKindPath,
   marketplaceKindScopeFromSearch,
   type MarketplaceKindScope,
   type MarketplaceKindSearch,
 } from "../lib/marketplace-kind-search";
 import {
   buildInstalledItems,
-  mergeMCPServers,
   type MarketplaceInstalledItem,
 } from "../lib/marketplace-installed-items";
 import { countMarketplaceUpdates } from "../lib/marketplace-updates";
 import { useExtensionInventory } from "@/systems/extensions";
 import {
   SETTINGS_QUERY_INTERVALS,
+  type SettingsLayeredScope,
+  type SettingsMCPServerListFilter,
   type SettingsMCPServerEntry,
   useSettingsMCPServers,
 } from "@/systems/settings";
 import { useSkills } from "@/systems/skill";
+import { useProfileReadScope } from "@/systems/profiles";
 import { useActiveWorkspace } from "@/systems/workspace";
 
 export type { MarketplaceInstalledItem } from "../lib/marketplace-installed-items";
@@ -39,7 +41,7 @@ export interface MarketplaceKindPageModel {
   setDraftQuery: (value: string) => void;
   setScope: (scope: MarketplaceKindScope) => void;
   clearSearch: () => void;
-  mcpConfigScope: MCPConfigScope;
+  mcpConfigScope: SettingsLayeredScope;
   marketplaceTotal: number;
   marketplaceTotalExact: boolean;
   installedCount: number;
@@ -58,6 +60,32 @@ export interface MarketplaceKindPageModel {
   refetch: () => void;
   workspaceId: string | null | undefined;
   workspaceName: string | null;
+  profileName: string | null;
+}
+
+export function resolveMarketplaceMCPFilter(
+  profileName: string | null | undefined,
+  workspaceScope: "global" | "workspace",
+  activeWorkspaceId: string | null | undefined
+): { filter: SettingsMCPServerListFilter; scope: SettingsLayeredScope } {
+  const normalizedProfile = profileName?.trim() ?? "";
+  if (normalizedProfile !== "" && normalizedProfile !== "default") {
+    return {
+      filter: {
+        profile: normalizedProfile,
+        scope: "profile",
+        workspace_id: activeWorkspaceId ?? undefined,
+      },
+      scope: "profile",
+    };
+  }
+  if (workspaceScope === "workspace" && activeWorkspaceId) {
+    return {
+      filter: { scope: "workspace", workspace_id: activeWorkspaceId },
+      scope: "workspace",
+    };
+  }
+  return { filter: { scope: "user" }, scope: "user" };
 }
 
 function useMarketplaceKindPage(
@@ -70,12 +98,16 @@ function useMarketplaceKindPage(
   const scope = marketplaceKindScopeFromSearch(search);
   const routeQuery = search.q ?? "";
   const { activeWorkspace, activeWorkspaceId, scope: workspaceScope } = useActiveWorkspace();
-  const mcpConfigScope: MCPConfigScope =
-    workspaceScope === "workspace" && activeWorkspaceId ? "workspace" : "global";
+  const { destination: profileName } = useProfileReadScope();
+  const { filter: mcpFilter, scope: mcpConfigScope } = resolveMarketplaceMCPFilter(
+    profileName,
+    workspaceScope,
+    activeWorkspaceId
+  );
   const updateSearch = (updater: (current: MarketplaceKindSearch) => MarketplaceKindSearch) => {
     void navigate({
       search: current => updater(current as MarketplaceKindSearch),
-      to: `/marketplace/${routeKind}`,
+      to: marketplaceKindPath(routeKind),
     });
   };
   const searchInput = useDebouncedInput({
@@ -107,17 +139,10 @@ function useMarketplaceKindPage(
   const skillsQuery = useSkills(activeWorkspaceId ?? "", liveDataEnabled);
   const extensionsQuery = useExtensionInventory(liveDataEnabled);
   const mcpPollInterval = SETTINGS_QUERY_INTERVALS.collectionRefetchInterval;
-  const mcpGlobalQuery = useSettingsMCPServers(
-    { scope: "global" },
-    { enabled: kind === "mcp" && liveDataEnabled, refetchInterval: mcpPollInterval }
-  );
-  const mcpWorkspaceQuery = useSettingsMCPServers(
-    { scope: "workspace", workspace_id: activeWorkspaceId ?? undefined },
-    {
-      enabled: kind === "mcp" && Boolean(activeWorkspaceId) && liveDataEnabled,
-      refetchInterval: mcpPollInterval,
-    }
-  );
+  const mcpQuery = useSettingsMCPServers(mcpFilter, {
+    enabled: kind === "mcp" && liveDataEnabled,
+    refetchInterval: mcpPollInterval,
+  });
 
   useEffect(() => {
     if (
@@ -165,10 +190,7 @@ function useMarketplaceKindPage(
     listingByName.set(entry.name, entry);
   }
 
-  const mcpServers = mergeMCPServers(
-    mcpGlobalQuery.data?.mcp_servers ?? [],
-    mcpWorkspaceQuery.data?.mcp_servers ?? []
-  );
+  const mcpServers = mcpQuery.data?.mcp_servers ?? [];
 
   const installedInventory = buildInstalledItems({
     kind,
@@ -209,7 +231,7 @@ function useMarketplaceKindPage(
 
   const inventoryLoadingByKind = {
     extension: extensionsQuery.isLoading,
-    mcp: mcpGlobalQuery.isLoading || (Boolean(activeWorkspaceId) && mcpWorkspaceQuery.isLoading),
+    mcp: mcpQuery.isLoading,
     skill: skillsQuery.isLoading,
   } satisfies Record<MarketplaceKind, boolean>;
 
@@ -227,7 +249,7 @@ function useMarketplaceKindPage(
       : marketQuery.isLoading || inventoryLoadingByKind[kind] || installedCatalogLoading;
   const inventoryErrorByKind = {
     extension: extensionsQuery.error ?? null,
-    mcp: mcpGlobalQuery.error ?? mcpWorkspaceQuery.error ?? null,
+    mcp: mcpQuery.error ?? null,
     skill: skillsQuery.error ?? null,
   } satisfies Record<MarketplaceKind, Error | null>;
   const marketError = marketplaceContinuationError ? null : marketQuery.error;
@@ -250,10 +272,7 @@ function useMarketplaceKindPage(
     updatesAvailableExact: !marketQuery.hasNextPage && marketplaceContinuationError === null,
     marketEntries,
     installedItems: scope === "installed" ? installedItems : [],
-    mcpEditorServers: [
-      ...(mcpGlobalQuery.data?.mcp_servers ?? []),
-      ...(mcpWorkspaceQuery.data?.mcp_servers ?? []),
-    ],
+    mcpEditorServers: mcpQuery.data?.mcp_servers ?? [],
     hasNextMarketplacePage: marketQuery.hasNextPage,
     isFetchingNextMarketplacePage: marketQuery.isFetchingNextPage,
     marketplaceContinuationError,
@@ -274,13 +293,11 @@ function useMarketplaceKindPage(
       void marketQuery.refetch();
       if (kind === "skill") void skillsQuery.refetch();
       if (kind === "extension") void extensionsQuery.refetch();
-      if (kind === "mcp") {
-        void mcpGlobalQuery.refetch();
-        if (activeWorkspaceId) void mcpWorkspaceQuery.refetch();
-      }
+      if (kind === "mcp") void mcpQuery.refetch();
     },
     workspaceId: activeWorkspaceId,
     workspaceName: activeWorkspace?.name ?? null,
+    profileName: profileName === "default" ? null : profileName,
   };
 }
 

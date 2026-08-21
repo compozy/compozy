@@ -84,6 +84,7 @@ func (g *WatchEventsRepo) openSessionWatchEventsReader(
 		return nil, false, fmt.Errorf("%w: watch-events session stream is invalid: %q", looppkg.ErrValidation, stream)
 	}
 	sessions, err := g.sessions.ListSessions(ctx, store.SessionListQuery{
+		ReadScope:   query.readScope,
 		ID:          sessionID,
 		WorkspaceID: query.workspaceID,
 		Limit:       1,

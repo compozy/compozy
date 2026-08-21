@@ -3,6 +3,7 @@ import { useState } from "react";
 import { describe, expect, it, vi } from "vitest";
 
 import { settingsHooksExtensionsSectionFixture } from "@/systems/settings/mocks/fixtures";
+import { profileFlowFromSearch, validateProfilesSettingsSearch } from "@/systems/profiles";
 
 vi.mock("@/systems/settings", async importOriginal => {
   const original = await importOriginal<typeof import("@/systems/settings")>();
@@ -52,6 +53,22 @@ function PolicyHarness() {
 }
 
 describe("Settings route split", () => {
+  it("Should normalize the profile lifecycle search contract", () => {
+    const search = validateProfilesSettingsSearch({
+      flow: " rename ",
+      profile: " marketing ",
+      ignored: "value",
+    });
+
+    expect(search).toEqual({ flow: "rename", profile: "marketing" });
+    expect(profileFlowFromSearch(search)).toEqual({ flow: "rename", profile: "marketing" });
+  });
+
+  it("Should omit invalid profile lifecycle search values", () => {
+    expect(validateProfilesSettingsSearch({ flow: " ", profile: 42 })).toEqual({});
+    expect(profileFlowFromSearch({ flow: " ", profile: "marketing" })).toBeUndefined();
+  });
+
   it("Should render the rehosted layouts page without an active layouts router match", () => {
     render(<LayoutsSettingsPage />);
 

@@ -14,6 +14,8 @@ import (
 	workspacepkg "github.com/compozy/compozy/internal/workspace"
 )
 
+var testCmdPaletteProfileLens = cmdpalette.ScopedProfileLens(cmdpalette.DefaultProfileLensID, "default")
+
 func TestCmdPaletteBindingsResolver(t *testing.T) {
 	t.Parallel()
 
@@ -41,7 +43,7 @@ func TestCmdPaletteBindingsResolver(t *testing.T) {
 			},
 		}
 
-		bindings, aliases, err := resolver.Bindings(t.Context(), "workspace-a")
+		bindings, aliases, err := resolver.Bindings(t.Context(), testCmdPaletteProfileLens, "workspace-a")
 		if err != nil {
 			t.Fatalf("Bindings(first) error = %v", err)
 		}
@@ -56,11 +58,11 @@ func TestCmdPaletteBindingsResolver(t *testing.T) {
 		global.WindowManager.Shortcuts["session.new"] = windowmanager.ShortcutBinding{"meta+alt+shift+KeyQ"}
 		global.CmdPalette.Aliases["session.new"] = "create"
 		global.CmdPalette.Personalization = false
-		bindings, aliases, err = resolver.Bindings(t.Context(), "workspace-a")
+		bindings, aliases, err = resolver.Bindings(t.Context(), testCmdPaletteProfileLens, "workspace-a")
 		if err != nil {
 			t.Fatalf("Bindings(second) error = %v", err)
 		}
-		enabled, err := resolver.PersonalizationEnabled(t.Context(), "workspace-a")
+		enabled, err := resolver.PersonalizationEnabled(t.Context(), testCmdPaletteProfileLens, "workspace-a")
 		if err != nil {
 			t.Fatalf("PersonalizationEnabled() error = %v", err)
 		}
@@ -87,7 +89,7 @@ func TestCmdPaletteBindingsResolver(t *testing.T) {
 				return cmdPaletteBindableCatalogStub{}
 			},
 		}
-		_, _, err := resolver.Bindings(t.Context(), "workspace-a")
+		_, _, err := resolver.Bindings(t.Context(), testCmdPaletteProfileLens, "workspace-a")
 		if !errors.Is(err, want) {
 			t.Fatalf("Bindings() error = %v, want wrapped %v", err, want)
 		}
@@ -108,7 +110,7 @@ func TestCmdPaletteBindingsResolver(t *testing.T) {
 				return cmdPaletteBindableCatalogStub{}
 			},
 		}
-		_, _, err := resolver.Bindings(t.Context(), "workspace-a")
+		_, _, err := resolver.Bindings(t.Context(), testCmdPaletteProfileLens, "workspace-a")
 		if !errors.Is(err, want) {
 			t.Fatalf("Bindings() error = %v, want wrapped %v", err, want)
 		}
@@ -138,7 +140,7 @@ func TestCmdPaletteBindingsResolver(t *testing.T) {
 				return cmdPaletteBindableCatalogStub{}
 			},
 		}
-		_, _, err := resolver.Bindings(t.Context(), "workspace-a")
+		_, _, err := resolver.Bindings(t.Context(), testCmdPaletteProfileLens, "workspace-a")
 		if err == nil {
 			t.Fatal("Bindings() error = nil, want overlay validation failure")
 		}
@@ -170,6 +172,7 @@ type cmdPaletteBindableCatalogStub struct {
 
 func (s cmdPaletteBindableCatalogStub) BindableIDs(
 	context.Context,
+	cmdpalette.ProfileLens,
 	cmdpalette.WorkspaceID,
 ) ([]cmdpalette.CommandID, error) {
 	return append([]cmdpalette.CommandID(nil), s.ids...), nil

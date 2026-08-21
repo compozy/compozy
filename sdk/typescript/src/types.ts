@@ -7,6 +7,8 @@ import type {
   HostAPIMethod,
   DescribeSubprocess,
   DescribeResources,
+  DescribeProfile,
+  DescribeHookEvent,
   DescribeNetworkParticipation,
   ExtensionCommandGroupSpec,
   ExtensionCommandSpec,
@@ -119,9 +121,10 @@ export interface ExtensionDefinition extends Pick<
   "name" | "version" | "description" | "capabilities" | "permissions"
 > {
   requires_env?: string[];
+  profiles?: DescribeProfile[];
   resources?: DescribeResources;
   subprocess?: DescribeSubprocess;
-  supported_hook_events?: HookEvent[];
+  supported_hook_events?: DescribeHookEvent[];
   network_participation?: DescribeNetworkParticipation;
 }
 

@@ -65,7 +65,7 @@ func (d *Daemon) hookBindingProviders(
 			state.cfg.Skills.AllowedMarketplaceHooks,
 			state.logger,
 		),
-		extensionDeclarationProvider(state.currentExtensionRuntime),
+		extensionDeclarationProvider(state.currentExtensionRuntime, state.profiles),
 	}
 }
 

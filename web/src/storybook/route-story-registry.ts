@@ -298,6 +298,13 @@ export const routeStoryRegistry = [
   },
   {
     system: "settings",
+    routePath: "/settings/defaults",
+    storybookPath: "/settings/defaults",
+    title: "systems/settings/routes/SettingsDefaults",
+    storyName: "Default",
+  },
+  {
+    system: "settings",
     routePath: "/settings/appearance",
     storybookPath: "/settings/appearance",
     title: "systems/settings/routes/SettingsAppearance",
@@ -308,6 +315,13 @@ export const routeStoryRegistry = [
     routePath: "/settings/layouts",
     storybookPath: "/settings/layouts",
     title: "systems/settings/routes/SettingsLayouts",
+    storyName: "Default",
+  },
+  {
+    system: "settings",
+    routePath: "/settings/profiles",
+    storybookPath: "/settings/profiles",
+    title: "systems/settings/routes/SettingsProfiles",
     storyName: "Default",
   },
   {

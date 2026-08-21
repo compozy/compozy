@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"strings"
 	"time"
 
 	bridgepkg "github.com/compozy/compozy/internal/bridges"
@@ -17,12 +18,13 @@ const defaultDispatchTimeout = 10 * time.Second
 
 // Store persists notification presets.
 type Store interface {
-	ListPresets(ctx context.Context, query Query) ([]Preset, error)
+	ListPresetsForProfile(ctx context.Context, query Query, profileID string) ([]Preset, error)
 	GetPreset(ctx context.Context, name string) (Preset, error)
 	CreatePreset(ctx context.Context, preset Preset) (Preset, error)
 	UpdatePreset(ctx context.Context, name string, req UpdateRequest) (Preset, error)
 	DeletePreset(ctx context.Context, name string) error
 	EnsureBuiltInPresets(ctx context.Context, defaults []Preset) error
+	SetPresetEnabled(ctx context.Context, name string, profileID string, enabled bool) error
 }
 
 // BridgeRuntime is the bridge surface needed for preset fanout.
@@ -62,6 +64,25 @@ type Config struct {
 	Timeout time.Duration
 }
 
+// EnablementChange carries the profile owner and actor context for one preset state change.
+type EnablementChange struct {
+	Name        string
+	ProfileID   string
+	ProfileName string
+	ActorKind   string
+	ActorID     string
+	Enabled     bool
+}
+
+func (c EnablementChange) normalize() EnablementChange {
+	c.Name = normalizePresetName(c.Name)
+	c.ProfileID = strings.TrimSpace(c.ProfileID)
+	c.ProfileName = strings.TrimSpace(c.ProfileName)
+	c.ActorKind = strings.TrimSpace(c.ActorKind)
+	c.ActorID = strings.TrimSpace(c.ActorID)
+	return c
+}
+
 func NewService(cfg Config) *Service {
 	now := cfg.Now
 	if now == nil {
@@ -86,15 +107,48 @@ func NewService(cfg Config) *Service {
 	}
 }
 
-func (s *Service) List(ctx context.Context, query Query) ([]Preset, error) {
+// ListForProfile returns the shared library with effective enablement projected for one profile.
+func (s *Service) ListForProfile(ctx context.Context, query Query, profileID string) ([]Preset, error) {
 	if err := s.checkStore(); err != nil {
 		return nil, err
 	}
-	items, err := s.store.ListPresets(ctx, query.Normalize())
+	profileID = strings.TrimSpace(profileID)
+	if profileID == "" {
+		return nil, fmt.Errorf("%w: profile id is required", ErrInvalidPreset)
+	}
+	items, err := s.store.ListPresetsForProfile(ctx, query.Normalize(), profileID)
 	if err != nil {
 		return nil, fmt.Errorf("notifications: list presets: %w", err)
 	}
 	return items, nil
+}
+
+// SetEnablement persists only a disabled exception for one profile.
+func (s *Service) SetEnablement(
+	ctx context.Context,
+	change EnablementChange,
+) (Preset, error) {
+	if err := s.checkStore(); err != nil {
+		return Preset{}, err
+	}
+	change = change.normalize()
+	if change.Name == "" || change.ProfileID == "" {
+		return Preset{}, fmt.Errorf("%w: preset name and profile id are required", ErrInvalidPreset)
+	}
+	if err := s.store.SetPresetEnabled(ctx, change.Name, change.ProfileID, change.Enabled); err != nil {
+		return Preset{}, fmt.Errorf("notifications: set preset %q enablement: %w", change.Name, err)
+	}
+	items, err := s.store.ListPresetsForProfile(ctx, Query{Name: change.Name}, change.ProfileID)
+	if err != nil {
+		return Preset{}, fmt.Errorf("notifications: reload preset %q enablement: %w", change.Name, err)
+	}
+	if len(items) != 1 {
+		return Preset{}, ErrPresetNotFound
+	}
+	if err := s.recordPresetEnablementEvent(ctx, items[0], change); err != nil {
+		return Preset{}, err
+	}
+	return items[0], nil
 }
 
 func (s *Service) Get(ctx context.Context, name string) (Preset, error) {
@@ -110,6 +164,18 @@ func (s *Service) Get(ctx context.Context, name string) (Preset, error) {
 		)
 	}
 	return preset, nil
+}
+
+// GetForProfile returns one library preset with effective enablement for a profile.
+func (s *Service) GetForProfile(ctx context.Context, name string, profileID string) (Preset, error) {
+	items, err := s.ListForProfile(ctx, Query{Name: name, Limit: 1}, profileID)
+	if err != nil {
+		return Preset{}, err
+	}
+	if len(items) != 1 {
+		return Preset{}, ErrPresetNotFound
+	}
+	return items[0], nil
 }
 
 func (s *Service) Create(ctx context.Context, req CreateRequest) (Preset, error) {
@@ -196,7 +262,7 @@ func (s *Service) Dispatch(ctx context.Context, event Event) (DispatchResult, er
 		return DispatchResult{Skipped: 1}, nil
 	}
 	enabled := true
-	presets, err := s.store.ListPresets(ctx, Query{Enabled: &enabled})
+	presets, err := s.store.ListPresetsForProfile(ctx, Query{Enabled: &enabled}, normalizedEvent.ProfileID)
 	if err != nil {
 		return DispatchResult{}, fmt.Errorf(
 			"notifications: list enabled presets for dispatch: %w",

@@ -183,11 +183,11 @@ func (n *daemonNativeTools) configPath(
 	if err != nil {
 		return toolspkg.ToolResult{}, nativeConfigScopeError(req.ToolID, err)
 	}
-	globalConfig, err := compozyconfig.ResolveConfigWriteTarget(n.deps.HomePaths, "", compozyconfig.WriteScopeGlobal)
+	globalConfig, err := compozyconfig.ResolveConfigWriteTarget(n.deps.HomePaths, "", compozyconfig.WriteScopeUser, "")
 	if err != nil {
 		return toolspkg.ToolResult{}, nativeConfigScopeError(req.ToolID, err)
 	}
-	globalMCP, err := compozyconfig.ResolveMCPSidecarWriteTarget(n.deps.HomePaths, "", compozyconfig.WriteScopeGlobal)
+	globalMCP, err := compozyconfig.ResolveMCPSidecarWriteTarget(n.deps.HomePaths, "", compozyconfig.WriteScopeUser, "")
 	if err != nil {
 		return toolspkg.ToolResult{}, nativeConfigScopeError(req.ToolID, err)
 	}
@@ -212,6 +212,7 @@ func (n *daemonNativeTools) configPath(
 			n.deps.HomePaths,
 			workspaceRoot,
 			compozyconfig.WriteScopeWorkspace,
+			"",
 		)
 		if err != nil {
 			return toolspkg.ToolResult{}, nativeConfigScopeError(req.ToolID, err)
@@ -220,6 +221,7 @@ func (n *daemonNativeTools) configPath(
 			n.deps.HomePaths,
 			workspaceRoot,
 			compozyconfig.WriteScopeWorkspace,
+			"",
 		)
 		if err != nil {
 			return toolspkg.ToolResult{}, nativeConfigScopeError(req.ToolID, err)

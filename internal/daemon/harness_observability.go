@@ -2,13 +2,11 @@ package daemon
 
 import (
 	"context"
-	"fmt"
 	"log/slog"
 	"strconv"
 	"strings"
 	"sync"
 	"time"
-	"unicode/utf8"
 
 	eventspkg "github.com/compozy/compozy/internal/events"
 	"github.com/compozy/compozy/internal/session"
@@ -29,11 +27,12 @@ const (
 )
 
 type harnessLifecycleRecorder struct {
-	mu      sync.Mutex
-	store   store.EventSummaryStore
-	logger  *slog.Logger
-	now     func() time.Time
-	pending map[string][]store.EventSummary
+	mu                sync.Mutex
+	store             store.EventSummaryStore
+	logger            *slog.Logger
+	now               func() time.Time
+	profileForSession func(context.Context, string) (string, error)
+	pending           map[string][]store.EventSummary
 }
 
 type harnessAugmenterObservation struct {
@@ -99,6 +98,7 @@ func (r *harnessLifecycleRecorder) OnSessionCreated(ctx context.Context, sess *s
 
 	for _, summary := range summaries {
 		summary = harnessEventSummaryWithLineage(summary, info.Lineage)
+		summary.ProfileID = strings.TrimSpace(info.ProfileID)
 		r.write(ctx, summaryStore, summary)
 	}
 }
@@ -119,6 +119,7 @@ func (r *harnessLifecycleRecorder) RecordStartupContextResolved(
 ) {
 	r.queue(
 		store.EventSummary{
+			ProfileID: store.DefaultProfileID,
 			SessionID: strings.TrimSpace(startup.SessionID),
 			Type:      harnessSummaryContextResolved,
 			AgentName: harnessSummaryAgentName(startup.AgentName),
@@ -136,6 +137,7 @@ func (r *harnessLifecycleRecorder) RecordStartupSectionSelected(
 ) {
 	r.queue(
 		store.EventSummary{
+			ProfileID: store.DefaultProfileID,
 			SessionID: strings.TrimSpace(startup.SessionID),
 			Type:      harnessSummarySectionSelected,
 			AgentName: harnessSummaryAgentName(startup.AgentName),
@@ -157,6 +159,7 @@ func (r *harnessLifecycleRecorder) RecordPromptContextResolved(
 	r.record(
 		ctx,
 		harnessEventSummaryWithLineage(store.EventSummary{
+			ProfileID: info.ProfileID,
 			SessionID: strings.TrimSpace(info.ID),
 			Type:      harnessSummaryContextResolved,
 			AgentName: harnessSummaryAgentName(info.AgentName),
@@ -176,6 +179,7 @@ func (r *harnessLifecycleRecorder) RecordSyntheticContextResolved(
 	r.record(
 		ctx,
 		store.EventSummary{
+			ProfileID: store.DefaultProfileID,
 			SessionID: strings.TrimSpace(sessionID),
 			Type:      harnessSummaryContextResolved,
 			AgentName: harnessSummaryAgentName(agentName),
@@ -198,6 +202,7 @@ func (r *harnessLifecycleRecorder) RecordAugmenterApplied(
 	r.record(
 		ctx,
 		harnessEventSummaryWithLineage(store.EventSummary{
+			ProfileID: info.ProfileID,
 			SessionID: strings.TrimSpace(info.ID),
 			Type:      harnessSummaryAugmenterApplied,
 			AgentName: harnessSummaryAgentName(info.AgentName),
@@ -221,6 +226,7 @@ func (r *harnessLifecycleRecorder) RecordAugmenterFailed(
 	r.record(
 		ctx,
 		harnessEventSummaryWithLineage(store.EventSummary{
+			ProfileID: info.ProfileID,
 			SessionID: strings.TrimSpace(info.ID),
 			Type:      harnessSummaryAugmenterFailed,
 			AgentName: harnessSummaryAgentName(info.AgentName),
@@ -255,9 +261,28 @@ func (r *harnessLifecycleRecorder) record(ctx context.Context, summary store.Eve
 	}
 	r.mu.Lock()
 	summaryStore := r.store
+	profileResolver := r.profileForSession
 	r.mu.Unlock()
 	if summaryStore == nil {
 		return
+	}
+	if profileResolver != nil && strings.TrimSpace(summary.SessionID) != "" {
+		profileID, err := profileResolver(ctx, summary.SessionID)
+		if err != nil {
+			r.logger.Warn(
+				"daemon: resolve harness summary profile failed",
+				"session_id",
+				summary.SessionID,
+				"error",
+				err,
+			)
+			return
+		}
+		if strings.TrimSpace(profileID) == "" {
+			r.logger.Warn("daemon: harness summary profile is empty", "session_id", summary.SessionID)
+			return
+		}
+		summary.ProfileID = strings.TrimSpace(profileID)
 	}
 	r.write(ctx, summaryStore, summary)
 }
@@ -402,74 +427,4 @@ func harnessAugmenterFailedSummary(
 		"label=" + truncateHarnessToken(resolved.Policy.DiagnosticLabel, 120),
 		"error=" + truncateHarnessQuoted(err.Error(), 160),
 	}, " ")
-}
-
-func joinHarnessPromptSections(sections []HarnessPromptSection) string {
-	if len(sections) == 0 {
-		return "-"
-	}
-	names := make([]string, 0, len(sections))
-	for _, section := range sections {
-		if name := strings.TrimSpace(string(section)); name != "" {
-			names = append(names, name)
-		}
-	}
-	return joinHarnessNames(names)
-}
-
-func joinHarnessAugmenters(augmenters []HarnessAugmenter) string {
-	if len(augmenters) == 0 {
-		return "-"
-	}
-	names := make([]string, 0, len(augmenters))
-	for _, augmenter := range augmenters {
-		if name := strings.TrimSpace(string(augmenter)); name != "" {
-			names = append(names, name)
-		}
-	}
-	return joinHarnessNames(names)
-}
-
-func joinHarnessNames(names []string) string {
-	if len(names) == 0 {
-		return "-"
-	}
-	filtered := make([]string, 0, len(names))
-	for _, name := range names {
-		if trimmed := strings.TrimSpace(name); trimmed != "" {
-			filtered = append(filtered, truncateHarnessToken(trimmed, 80))
-		}
-	}
-	if len(filtered) == 0 {
-		return "-"
-	}
-	return strings.Join(filtered, "|")
-}
-
-func truncateHarnessQuoted(value string, maxRunes int) string {
-	return fmt.Sprintf("%q", truncateHarnessText(value, maxRunes))
-}
-
-func truncateHarnessToken(value string, maxRunes int) string {
-	return strings.ReplaceAll(truncateHarnessText(value, maxRunes), " ", "_")
-}
-
-func truncateHarnessText(value string, maxRunes int) string {
-	trimmed := strings.TrimSpace(value)
-	if trimmed == "" || maxRunes <= 0 || utf8.RuneCountInString(trimmed) <= maxRunes {
-		return trimmed
-	}
-
-	var builder strings.Builder
-	builder.Grow(len(trimmed))
-
-	count := 0
-	for _, r := range trimmed {
-		if count >= maxRunes {
-			break
-		}
-		builder.WriteRune(r)
-		count++
-	}
-	return strings.TrimSpace(builder.String()) + "..."
 }

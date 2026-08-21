@@ -128,8 +128,8 @@ func TestGetSectionBuildsSupportedSections(t *testing.T) {
 				if envelope.General == nil {
 					t.Fatal("General section = nil")
 				}
-				if got, want := envelope.General.Settings.Defaults.Agent, "writer"; got != want {
-					t.Fatalf("General defaults agent = %q, want %q", got, want)
+				if got, want := envelope.General.Settings.Limits.MaxConcurrentAgents, 11; got != want {
+					t.Fatalf("General max concurrent agents = %d, want %d", got, want)
 				}
 				if got, want := envelope.General.Runtime.PID, 1234; got != want {
 					t.Fatalf("General runtime PID = %d, want %d", got, want)
@@ -151,6 +151,22 @@ func TestGetSectionBuildsSupportedSections(t *testing.T) {
 				}
 				if got, want := envelope.Memory.Health.FileCount, 5; got != want {
 					t.Fatalf("Memory file count = %d, want %d", got, want)
+				}
+			},
+		},
+		{
+			name:  SectionPersona,
+			label: "Should build the persona section",
+			assert: func(t *testing.T, envelope SectionEnvelope) {
+				t.Helper()
+				if envelope.Persona == nil {
+					t.Fatal("Persona section = nil")
+				}
+				if got, want := envelope.Persona.Config.Agent, "writer"; got != want {
+					t.Fatalf("Persona agent = %q, want %q", got, want)
+				}
+				if !slices.Equal(envelope.AvailableScopes, []ScopeKind{ScopeUser, ScopeProfile, ScopeWorkspace}) {
+					t.Fatalf("Persona scopes = %q, want user, profile, and workspace", envelope.AvailableScopes)
 				}
 			},
 		},
@@ -241,8 +257,8 @@ func TestGetSectionBuildsSupportedSections(t *testing.T) {
 				if envelope.Gateway == nil {
 					t.Fatal("Gateway section = nil")
 				}
-				if envelope.Scope != ScopeGlobal {
-					t.Fatalf("Gateway scope = %q, want %q", envelope.Scope, ScopeGlobal)
+				if envelope.Scope != ScopeUser {
+					t.Fatalf("Gateway scope = %q, want %q", envelope.Scope, ScopeUser)
 				}
 				if envelope.Gateway.Config.Enabled {
 					t.Fatal("Gateway enabled = true, want secure disabled default")
@@ -279,8 +295,8 @@ func TestGetSectionBuildsSupportedSections(t *testing.T) {
 				if !envelope.CmdPalette.Personalization {
 					t.Fatal("CmdPalette personalization = false, want true")
 				}
-				if !slices.Equal(envelope.AvailableScopes, []ScopeKind{ScopeGlobal, ScopeWorkspace}) {
-					t.Fatalf("CmdPalette scopes = %q, want global and workspace", envelope.AvailableScopes)
+				if !slices.Equal(envelope.AvailableScopes, []ScopeKind{ScopeUser, ScopeProfile, ScopeWorkspace}) {
+					t.Fatalf("CmdPalette scopes = %q, want user, profile, and workspace", envelope.AvailableScopes)
 				}
 			},
 		},
@@ -597,6 +613,164 @@ command = "before"
 	}
 }
 
+func TestProfileScopedSettingsShareCanonicalConfigAndSidecarTargets(t *testing.T) {
+	t.Parallel()
+	t.Run("Should preserve profile-layer provenance across settings surfaces", func(t *testing.T) {
+		t.Parallel()
+		testProfileScopedSettingsShareCanonicalConfigAndSidecarTargets(t)
+	})
+}
+
+func testProfileScopedSettingsShareCanonicalConfigAndSidecarTargets(t *testing.T) {
+	t.Helper()
+
+	ctx := context.Background()
+	homePaths := testHomePaths(t)
+	writeFile(t, homePaths.ConfigFile, baseSettingsConfig())
+	secretStore := newFakeProviderSecretStore()
+	authRuntime := &recordingMCPAuthRuntime{}
+	service := testService(t, homePaths, Dependencies{ProviderSecrets: secretStore, MCPAuth: authRuntime})
+	profileRequest := SectionRequest{Scope: ScopeProfile, ProfileName: "marketing"}
+
+	persona := compozyconfig.DefaultsConfig{Agent: "editor", Provider: "codex", Sandbox: "dev"}
+	personaResult, err := service.UpdateSection(ctx, SectionUpdateRequest{
+		SectionRequest: withSettingsSection(profileRequest, SectionPersona),
+		Persona:        &persona,
+	})
+	if err != nil {
+		t.Fatalf("UpdateSection(persona profile) error = %v", err)
+	}
+	if personaResult.WriteTarget != WriteTargetProfileConfig || personaResult.ProfileName != "marketing" {
+		t.Fatalf("persona mutation = %#v, want marketing profile config", personaResult)
+	}
+
+	aliases := map[string]string{"review": "agent:editor"}
+	paletteResult, err := service.UpdateSection(ctx, SectionUpdateRequest{
+		SectionRequest: withSettingsSection(profileRequest, SectionCmdPalette),
+		CmdPalette: &CmdPaletteUpdate{
+			Personalization: new(false),
+			Aliases:         &aliases,
+		},
+	})
+	if err != nil {
+		t.Fatalf("UpdateSection(cmd palette profile) error = %v", err)
+	}
+	if paletteResult.WriteTarget != WriteTargetProfileConfig {
+		t.Fatalf("cmd palette write target = %q, want profile config", paletteResult.WriteTarget)
+	}
+
+	hookResult, err := service.PutCollectionItem(ctx, CollectionItemPutRequest{
+		CollectionRequest: CollectionRequest{
+			Collection: CollectionHooks, Scope: ScopeProfile, ProfileName: "marketing",
+		},
+		Name: "ship",
+		Hook: &hookspkg.HookDecl{
+			Event: hookspkg.HookToolPreCall, Mode: hookspkg.HookModeAsync, Command: "/bin/ship",
+		},
+	})
+	if err != nil {
+		t.Fatalf("PutCollectionItem(hook profile) error = %v", err)
+	}
+	if hookResult.WriteTarget != WriteTargetProfileConfig {
+		t.Fatalf("hook write target = %q, want profile config", hookResult.WriteTarget)
+	}
+
+	mcpResult, err := service.PutCollectionItem(ctx, CollectionItemPutRequest{
+		CollectionRequest: CollectionRequest{
+			Collection: CollectionMCPServers, Scope: ScopeProfile, ProfileName: "marketing",
+		},
+		Name: "linear", Target: TargetAuto,
+		MCPServer: &compozyconfig.MCPServer{Command: "linear-mcp"},
+		MCPSecrets: MCPSecretValues{SecretEnv: map[string]string{
+			"LINEAR_TOKEN": "profile-secret",
+		}},
+	})
+	if err != nil {
+		t.Fatalf("PutCollectionItem(MCP profile) error = %v", err)
+	}
+	if mcpResult.WriteTarget != WriteTargetProfileMCPSidecar || mcpResult.ProfileName != "marketing" {
+		t.Fatalf("MCP mutation = %#v, want marketing profile sidecar", mcpResult)
+	}
+	if got := secretStore.plaintext["vault:mcp/profile/marketing/linear/env/LINEAR_TOKEN"]; got != "profile-secret" {
+		t.Fatalf("profile MCP secret = %q, want profile-secret", got)
+	}
+	if len(authRuntime.operations) != 2 || authRuntime.operations[0].target.Scope != mcpauth.ScopeProfile ||
+		authRuntime.operations[0].target.WorkspaceID != "marketing" ||
+		authRuntime.operations[1].target != authRuntime.operations[0].target {
+		t.Fatalf("profile MCP auth lifecycle = %#v, want exact marketing target", authRuntime.operations)
+	}
+
+	loaded, err := compozyconfig.LoadForHome(homePaths, compozyconfig.WithProfile("marketing"))
+	if err != nil {
+		t.Fatalf("LoadForHome(profile) error = %v", err)
+	}
+	if loaded.Defaults != persona || loaded.CmdPalette.Personalization ||
+		loaded.CmdPalette.Aliases["review"] != "agent:editor" {
+		t.Fatalf("profile effective config = %#v, want persona and palette overrides", loaded)
+	}
+	if !slices.ContainsFunc(
+		loaded.Hooks.Declarations,
+		func(decl hookspkg.HookDecl) bool { return decl.Name == "ship" },
+	) {
+		t.Fatal("profile effective config is missing the profile hook")
+	}
+	if !slices.ContainsFunc(
+		loaded.MCPServers,
+		func(server compozyconfig.MCPServer) bool { return server.Name == "linear" },
+	) {
+		t.Fatal("profile effective config is missing the profile MCP server")
+	}
+	if _, err := service.PutCollectionItem(ctx, CollectionItemPutRequest{
+		CollectionRequest: CollectionRequest{
+			Collection: CollectionSandboxes, Scope: ScopeProfile, ProfileName: "marketing",
+		},
+		Name: "forbidden", Sandbox: &compozyconfig.SandboxProfile{Backend: "local"},
+	}); err == nil || !errors.Is(err, ErrConflict) {
+		t.Fatalf("PutCollectionItem(sandbox profile) error = %v, want scope conflict", err)
+	}
+}
+
+// Invariant: a profile selector is legal only with profile scope, and every
+// collection read/write path rejects the mismatch before loading or mutating.
+// Owner: settings collection request validation.
+// Canonical suite: settings service tests.
+func TestCollectionProfileSelectorMustMatchScope(t *testing.T) {
+	t.Parallel()
+	t.Run("Should reject a profile selector on user collection operations", func(t *testing.T) {
+		t.Parallel()
+		homePaths := testHomePaths(t)
+		writeFile(t, homePaths.ConfigFile, baseSettingsConfig())
+		service := testService(t, homePaths, Dependencies{})
+		ctx := context.Background()
+		if _, err := service.ListCollection(ctx, CollectionRequest{
+			Collection: CollectionHooks, Scope: ScopeUser, ProfileName: "marketing",
+		}); err == nil || !errors.Is(err, ErrConflict) {
+			t.Fatalf("ListCollection(profile selector in user scope) error = %v, want ErrConflict", err)
+		}
+		if _, err := service.PutCollectionItem(ctx, CollectionItemPutRequest{
+			CollectionRequest: CollectionRequest{
+				Collection: CollectionHooks, Scope: ScopeUser, ProfileName: "marketing",
+			},
+			Name: "ship", Hook: &hookspkg.HookDecl{Event: hookspkg.HookToolPreCall, Command: "/bin/ship"},
+		}); err == nil || !errors.Is(err, ErrConflict) {
+			t.Fatalf("PutCollectionItem(profile selector in user scope) error = %v, want ErrConflict", err)
+		}
+		if _, err := service.DeleteCollectionItem(ctx, CollectionItemDeleteRequest{
+			CollectionRequest: CollectionRequest{
+				Collection: CollectionHooks, Scope: ScopeUser, ProfileName: "marketing",
+			},
+			Name: "ship",
+		}); err == nil || !errors.Is(err, ErrConflict) {
+			t.Fatalf("DeleteCollectionItem(profile selector in user scope) error = %v, want ErrConflict", err)
+		}
+	})
+}
+
+func withSettingsSection(request SectionRequest, section SectionName) SectionRequest {
+	request.Section = section
+	return request
+}
+
 func TestUpdateSectionGeneralReturnsRestartRequired(t *testing.T) {
 	t.Parallel()
 
@@ -608,11 +782,6 @@ func TestUpdateSectionGeneralReturnsRestartRequired(t *testing.T) {
 	result, err := service.UpdateSection(ctx, SectionUpdateRequest{
 		SectionRequest: SectionRequest{Section: SectionGeneral},
 		General: &GeneralSettings{
-			Defaults: compozyconfig.DefaultsConfig{
-				Agent:    "editor",
-				Provider: "codex",
-				Sandbox:  "dev",
-			},
 			Limits: compozyconfig.LimitsConfig{
 				MaxConcurrentAgents: 11,
 			},
@@ -914,10 +1083,27 @@ func TestUpdateSectionWindowManager(t *testing.T) {
 		if got, want := loaded.CmdPalette.Aliases["ext.notes.capture"], "cap"; got != want {
 			t.Fatalf("extension alias = %q, want %q", got, want)
 		}
+		requests := paletteEvents.recordedRequests()
+		if len(requests) != 1 {
+			t.Fatalf("workspace binding catalog requests = %#v, want one", requests)
+		}
+		if got, want := requests[0].ProfileLens, cmdpalette.ScopedProfileLens(
+			cmdpalette.DefaultProfileLensID,
+			"default",
+		); got != want ||
+			requests[0].WorkspaceID != "ws-1" ||
+			requests[0].ClientID != "" {
+			t.Fatalf("workspace binding catalog request = %#v, want default profile, ws-1, blank client", requests[0])
+		}
 		events := paletteEvents.recorded()
 		if len(events) != 2 || events[0].Name != cmdpalette.EventBindingChanged ||
 			events[1].Name != cmdpalette.EventAliasChanged {
 			t.Fatalf("command palette settings events = %#v, want binding then alias", events)
+		}
+		for index, event := range events {
+			if event.ProfileLens != cmdpalette.AggregateProfileLens() {
+				t.Fatalf("settings event[%d] profile lens = %#v, want aggregate", index, event.ProfileLens)
+			}
 		}
 		for index, event := range events {
 			if event.WorkspaceID != "ws-1" || event.CommandID != "ext.notes.capture" {
@@ -951,11 +1137,16 @@ func TestUpdateSectionWindowManager(t *testing.T) {
 		if len(events) != 2 {
 			t.Fatalf("global binding events = %#v, want one per unique workspace", events)
 		}
+		requests := paletteEvents.recordedRequests()
+		if len(requests) != 0 {
+			t.Fatalf("global binding catalog requests = %#v, want none", requests)
+		}
 		if events[0].WorkspaceID != "ws-a" || events[1].WorkspaceID != "ws-b" {
 			t.Fatalf("global binding workspaces = %#v, want sorted ws-a / ws-b", events)
 		}
 		for index, event := range events {
-			if event.Name != cmdpalette.EventBindingChanged || event.CommandID != "palette.open" {
+			if event.Name != cmdpalette.EventBindingChanged || event.CommandID != "palette.open" ||
+				event.ProfileLens != cmdpalette.AggregateProfileLens() {
 				t.Fatalf("global binding event[%d] = %#v", index, event)
 			}
 		}
@@ -1036,7 +1227,7 @@ func TestUpdateSectionAttention(t *testing.T) {
 		homePaths := testHomePaths(t)
 		writeFile(t, homePaths.ConfigFile, baseSettingsConfig())
 		service := testService(t, homePaths, Dependencies{})
-		desired := compozyconfig.AttentionConfig{
+		desired := AttentionSettings{
 			Toasts:          false,
 			Sound:           false,
 			System:          true,
@@ -1044,8 +1235,9 @@ func TestUpdateSectionAttention(t *testing.T) {
 		}
 
 		result, err := service.UpdateSection(ctx, SectionUpdateRequest{
-			SectionRequest: SectionRequest{Section: SectionAttention},
-			Attention:      &desired,
+			SectionRequest:                 SectionRequest{Section: SectionAttention},
+			Attention:                      &desired,
+			ReplaceAttentionWorkspaceMutes: true,
 		})
 		if err != nil {
 			t.Fatalf("UpdateSection(attention) error = %v", err)
@@ -1064,8 +1256,16 @@ func TestUpdateSectionAttention(t *testing.T) {
 		if err != nil {
 			t.Fatalf("LoadForHome(updated attention) error = %v", err)
 		}
-		if !reflect.DeepEqual(loaded.Attention, desired) {
-			t.Fatalf("loaded Attention = %#v, want %#v", loaded.Attention, desired)
+		wantConfig := compozyconfig.AttentionConfig{Toasts: false, Sound: false, System: true}
+		if !reflect.DeepEqual(loaded.Attention, wantConfig) {
+			t.Fatalf("loaded Attention = %#v, want %#v", loaded.Attention, wantConfig)
+		}
+		envelope, err := service.GetSection(ctx, SectionRequest{Section: SectionAttention})
+		if err != nil {
+			t.Fatalf("GetSection(attention) error = %v", err)
+		}
+		if envelope.Attention == nil || !reflect.DeepEqual(envelope.Attention.Config, desired) {
+			t.Fatalf("attention section = %#v, want %#v", envelope.Attention, desired)
 		}
 	})
 
@@ -1077,11 +1277,12 @@ func TestUpdateSectionAttention(t *testing.T) {
 		writeFile(t, homePaths.ConfigFile, baseSettingsConfig())
 		before := readFile(t, homePaths.ConfigFile)
 		service := testService(t, homePaths, Dependencies{})
-		invalid := compozyconfig.AttentionConfig{MutedWorkspaces: []string{"not-a-workspace"}}
+		invalid := AttentionSettings{MutedWorkspaces: []string{"not-a-workspace"}}
 
 		_, err := service.UpdateSection(ctx, SectionUpdateRequest{
-			SectionRequest: SectionRequest{Section: SectionAttention},
-			Attention:      &invalid,
+			SectionRequest:                 SectionRequest{Section: SectionAttention},
+			Attention:                      &invalid,
+			ReplaceAttentionWorkspaceMutes: true,
 		})
 		if err == nil {
 			t.Fatal("UpdateSection(invalid attention) error = nil, want validation error")
@@ -1091,11 +1292,55 @@ func TestUpdateSectionAttention(t *testing.T) {
 		if !matched {
 			t.Fatalf("UpdateSection(invalid attention) error = %T %v, want config.ValidationError", err, err)
 		}
-		if got, want := validationError.Path, "attention.muted_workspaces"; got != want {
+		if got, want := validationError.Path, "muted_workspaces"; got != want {
 			t.Fatalf("UpdateSection(invalid attention) validation path = %q, want %q", got, want)
 		}
 		if after := readFile(t, homePaths.ConfigFile); after != before {
 			t.Fatalf("config changed after validation failure\nbefore:\n%s\nafter:\n%s", before, after)
+		}
+	})
+
+	t.Run("Should restore delivery config when mute persistence fails", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := context.Background()
+		homePaths := testHomePaths(t)
+		writeFile(t, homePaths.ConfigFile, baseSettingsConfig())
+		mutes := &settingsTestAttentionMuteStore{
+			byProfile:  map[string][]string{store.DefaultProfileID: {"ws_0123456789abcdef"}},
+			replaceErr: errors.New("mute store unavailable"),
+		}
+		service := testService(t, homePaths, Dependencies{AttentionWorkspaceMutes: mutes})
+		desired := AttentionSettings{
+			Toasts:          false,
+			Sound:           false,
+			System:          true,
+			MutedWorkspaces: []string{"ws_abcdef0123456789"},
+		}
+
+		_, err := service.UpdateSection(ctx, SectionUpdateRequest{
+			SectionRequest:                 SectionRequest{Section: SectionAttention},
+			Attention:                      &desired,
+			ReplaceAttentionWorkspaceMutes: true,
+		})
+		if err == nil || !strings.Contains(err.Error(), "mute store unavailable") {
+			t.Fatalf("UpdateSection(attention) error = %v, want mute persistence failure", err)
+		}
+
+		loaded, loadErr := compozyconfig.LoadForHome(homePaths)
+		if loadErr != nil {
+			t.Fatalf("LoadForHome(after rollback) error = %v", loadErr)
+		}
+		wantConfig := compozyconfig.AttentionConfig{Toasts: true, Sound: true, System: false}
+		if !reflect.DeepEqual(loaded.Attention, wantConfig) {
+			t.Fatalf("loaded Attention = %#v, want restored %#v", loaded.Attention, wantConfig)
+		}
+		stored, listErr := mutes.ListAttentionWorkspaceMutes(ctx, store.DefaultProfileID)
+		if listErr != nil {
+			t.Fatalf("ListAttentionWorkspaceMutes(after failure) error = %v", listErr)
+		}
+		if !reflect.DeepEqual(stored, []string{"ws_0123456789abcdef"}) {
+			t.Fatalf("stored mutes = %#v, want original mute", stored)
 		}
 	})
 }
@@ -1446,6 +1691,7 @@ func TestListCollectionBuildsProvidersSandboxesAndHooks(t *testing.T) {
 
 	ctx := context.Background()
 	homePaths := testHomePaths(t)
+	workspaceRoot := filepath.Join(t.TempDir(), "hook-workspace")
 	writeFile(t, homePaths.ConfigFile, baseSettingsConfig()+`
 
 [providers.codex]
@@ -1478,6 +1724,30 @@ event = "session.post_create"
 mode = "async"
 command = "/bin/ship"
 `)
+	writeFile(t, filepath.Join(homePaths.ProfilesDir, "marketing", compozyconfig.ConfigName), `
+[[hooks.declarations]]
+name = "ship"
+event = "session.post_create"
+command = "/bin/profile-ship"
+`)
+	writeFile(t, filepath.Join(workspaceRoot, compozyconfig.DirName, compozyconfig.ConfigName), `
+[[hooks.declarations]]
+name = "ship"
+event = "session.post_create"
+command = "/bin/workspace-ship"
+`)
+	writeFile(t, filepath.Join(
+		workspaceRoot,
+		compozyconfig.DirName,
+		compozyconfig.ProfilesDirName,
+		"marketing",
+		compozyconfig.ConfigName,
+	), `
+[[hooks.declarations]]
+name = "ship"
+event = "session.post_create"
+command = "/bin/workspace-profile-ship"
+`)
 
 	service := testService(t, homePaths, Dependencies{
 		ModelCatalog: &settingsModelCatalogStub{models: map[string][]modelcatalog.Model{
@@ -1499,6 +1769,11 @@ command = "/bin/ship"
 			return "", false
 		},
 		WorkspaceResolver: fakeWorkspaceResolver{
+			resolved: map[string]workspacepkg.ResolvedWorkspace{
+				"ws-hooks": {
+					Workspace: workspacepkg.Workspace{ID: "ws-hooks", RootDir: workspaceRoot},
+				},
+			},
 			listed: []workspacepkg.Workspace{
 				{ID: "ws-dev", SandboxRef: "dev"},
 				{ID: "ws-stage-a", SandboxRef: "staging"},
@@ -1573,6 +1848,31 @@ command = "/bin/ship"
 	}
 	if got, want := hooks.Hooks[1].SourceMetadata.EffectiveSource.Kind, SourceKindGlobalConfig; got != want {
 		t.Fatalf("hook effective source = %q, want %q", got, want)
+	}
+
+	profileHooks, err := service.ListCollection(ctx, CollectionRequest{
+		Collection: CollectionHooks,
+		Scope:      ScopeProfile, WorkspaceID: "ws-hooks", ProfileName: "marketing",
+	})
+	if err != nil {
+		t.Fatalf("ListCollection(profile hooks) error = %v", err)
+	}
+	profileShip := findHookItem(t, profileHooks.Hooks, "ship")
+	if got, want := profileShip.SourceMetadata.EffectiveSource.Kind, SourceKindWorkspaceProfileConfig; got != want {
+		t.Fatalf("profile hook effective source = %q, want %q", got, want)
+	}
+	if got, want := profileShip.Declaration.Command, "/bin/workspace-profile-ship"; got != want {
+		t.Fatalf("profile hook command = %q, want %q", got, want)
+	}
+	if got, want := len(profileShip.SourceMetadata.ShadowedSources), 3; got != want {
+		t.Fatalf("profile hook shadowed sources = %d, want %d", got, want)
+	}
+	if got, want := profileShip.SourceMetadata.AvailableTargets, []WriteTargetKind{
+		WriteTargetGlobalConfig,
+		WriteTargetProfileConfig,
+		WriteTargetWorkspaceConfig,
+	}; !reflect.DeepEqual(got, want) {
+		t.Fatalf("profile hook available targets = %#v, want %#v", got, want)
 	}
 }
 
@@ -2749,11 +3049,11 @@ func TestMCPSecretValuesStoreVaultSecrets(t *testing.T) {
 		if got, want := result.WriteTarget, WriteTargetGlobalMCPSidecar; got != want {
 			t.Fatalf("MCP secret write target = %q, want %q", got, want)
 		}
-		if got, want := secretStore.plaintext["vault:mcp/global/github/env/GITHUB_TOKEN"], "ghp-secret"; got != want {
+		if got, want := secretStore.plaintext["vault:mcp/user/github/env/GITHUB_TOKEN"], "ghp-secret"; got != want {
 			t.Fatalf("stored MCP secret_env = %q, want %q", got, want)
 		}
 		sidecarPayload := readFile(t, filepath.Join(homePaths.HomeDir, compozyconfig.MCPJSONName))
-		if !strings.Contains(sidecarPayload, "vault:mcp/global/github/env/GITHUB_TOKEN") {
+		if !strings.Contains(sidecarPayload, "vault:mcp/user/github/env/GITHUB_TOKEN") {
 			t.Fatalf("sidecar payload missing secret ref:\n%s", sidecarPayload)
 		}
 		if strings.Contains(sidecarPayload, "ghp-secret") {
@@ -2790,7 +3090,7 @@ func TestMCPSecretValuesStoreVaultSecrets(t *testing.T) {
 			t.Fatalf("preserved MCP command = %q, want %q", got, want)
 		}
 		assertMCPSecretKeys(t, item, "GITHUB_TOKEN")
-		if got, want := secretStore.plaintext["vault:mcp/global/github/env/GITHUB_TOKEN"], "ghp-secret"; got != want {
+		if got, want := secretStore.plaintext["vault:mcp/user/github/env/GITHUB_TOKEN"], "ghp-secret"; got != want {
 			t.Fatalf("preserved MCP secret plaintext = %q, want %q", got, want)
 		}
 		if _, err := service.DeleteCollectionItem(ctx, CollectionItemDeleteRequest{
@@ -2799,7 +3099,7 @@ func TestMCPSecretValuesStoreVaultSecrets(t *testing.T) {
 		}); err != nil {
 			t.Fatalf("DeleteCollectionItem(non-catalog MCP) error = %v", err)
 		}
-		deletedRef := "vault:mcp/global/github/env/GITHUB_TOKEN"
+		deletedRef := "vault:mcp/user/github/env/GITHUB_TOKEN"
 		_, err = secretStore.GetMetadata(ctx, deletedRef)
 		if !errors.Is(err, vault.ErrSecretNotFound) {
 			t.Fatalf("GetMetadata(deleted non-catalog MCP secret) error = %v, want ErrSecretNotFound", err)
@@ -2848,7 +3148,7 @@ func TestMCPSecretValuesStoreVaultSecrets(t *testing.T) {
 			if item.Command != "old-command" {
 				t.Fatalf("restored command = %q, want old-command", item.Command)
 			}
-			ref := "vault:mcp/global/github/env/GITHUB_TOKEN"
+			ref := "vault:mcp/user/github/env/GITHUB_TOKEN"
 			if got := secretStore.plaintext[ref]; got != "old-secret" {
 				t.Fatalf("restored secret = %q, want old-secret", got)
 			}
@@ -2928,7 +3228,7 @@ func TestMCPSecretValuesStoreVaultSecrets(t *testing.T) {
 			if got := findMCPItem(t, envelope.MCPServers, "github").Command; got != "new-command" {
 				t.Fatalf("committed command = %q, want new-command", got)
 			}
-			ref := "vault:mcp/global/github/env/GITHUB_TOKEN"
+			ref := "vault:mcp/user/github/env/GITHUB_TOKEN"
 			if got := secretStore.plaintext[ref]; got != "new-secret" {
 				t.Fatalf("committed secret = %q, want new-secret", got)
 			}
@@ -2942,7 +3242,7 @@ func TestMCPSecretValuesStoreVaultSecrets(t *testing.T) {
 		writeFile(t, homePaths.ConfigFile, baseSettingsConfig())
 		secretStore := newFakeProviderSecretStore()
 		service := testService(t, homePaths, Dependencies{ProviderSecrets: secretStore})
-		canonicalRef := "vault:mcp/global/shared/env/TOKEN"
+		canonicalRef := "vault:mcp/user/shared/env/TOKEN"
 		if _, err := service.PutCollectionItem(t.Context(), CollectionItemPutRequest{
 			CollectionRequest: CollectionRequest{Collection: CollectionMCPServers},
 			Name:              "shared",
@@ -3068,11 +3368,11 @@ func TestMCPSecretValuesStoreVaultSecrets(t *testing.T) {
 		if err != nil {
 			t.Fatalf("PutCollectionItem(MCP OAuth secret) error = %v", err)
 		}
-		if got, want := secretStore.plaintext["vault:mcp/global/linear/oauth/client-secret"], clientSecret; got != want {
+		if got, want := secretStore.plaintext["vault:mcp/user/linear/oauth/client-secret"], clientSecret; got != want {
 			t.Fatalf("stored MCP OAuth secret = %q, want %q", got, want)
 		}
 		sidecarPayload := readFile(t, filepath.Join(homePaths.HomeDir, compozyconfig.MCPJSONName))
-		if !strings.Contains(sidecarPayload, "vault:mcp/global/linear/oauth/client-secret") {
+		if !strings.Contains(sidecarPayload, "vault:mcp/user/linear/oauth/client-secret") {
 			t.Fatalf("sidecar payload missing client secret ref:\n%s", sidecarPayload)
 		}
 		if strings.Contains(sidecarPayload, clientSecret) {
@@ -3110,7 +3410,7 @@ func TestMCPSecretValuesStoreVaultSecrets(t *testing.T) {
 				item.Auth.ClientSecretRef,
 			)
 		}
-		if got := secretStore.plaintext["vault:mcp/global/linear/oauth/client-secret"]; got != clientSecret {
+		if got := secretStore.plaintext["vault:mcp/user/linear/oauth/client-secret"]; got != clientSecret {
 			t.Fatalf("preserved MCP OAuth plaintext = %q, want original value", got)
 		}
 	})
@@ -3169,7 +3469,7 @@ func TestMCPSecretValuesStoreVaultSecrets(t *testing.T) {
 			t.Fatalf("full OAuth write target = %q, want %q", got, want)
 		}
 
-		canonicalRef := "vault:mcp/global/full-oauth/oauth/client-secret"
+		canonicalRef := "vault:mcp/user/full-oauth/oauth/client-secret"
 		envelope, err := service.ListCollection(ctx, CollectionRequest{Collection: CollectionMCPServers})
 		if err != nil {
 			t.Fatalf("ListCollection(full OAuth config) error = %v", err)
@@ -3215,7 +3515,7 @@ func TestMCPSecretValuesStoreVaultSecrets(t *testing.T) {
 		if err != nil {
 			t.Fatalf("PutCollectionItem(typed MCP secret) error = %v", err)
 		}
-		canonicalRef := "vault:mcp/global/github/env/GITHUB_TOKEN"
+		canonicalRef := "vault:mcp/user/github/env/GITHUB_TOKEN"
 		if got, want := secretStore.plaintext[canonicalRef], "ghp-secret"; got != want {
 			t.Fatalf("stored MCP secret_env = %q, want %q", got, want)
 		}
@@ -3402,7 +3702,7 @@ func TestInstallMCPCatalogAppliesLiveConfiguration(t *testing.T) {
 
 		_, err = service.InstallMCPCatalog(ctx, MCPCatalogInstallRequest{
 			EntryID: "github",
-			Scope:   ScopeGlobal,
+			Scope:   ScopeUser,
 			Values: MCPCatalogInstallValues{Inputs: map[string]MCPSecretInput{
 				"github_token": {Value: "ghp-secret"},
 			}},
@@ -3470,7 +3770,7 @@ func TestInstallMCPCatalogSerializesConcurrentMutations(t *testing.T) {
 				result, err := service.InstallMCPCatalog(ctx, MCPCatalogInstallRequest{
 					EntryID: "github",
 					Name:    name,
-					Scope:   ScopeGlobal,
+					Scope:   ScopeUser,
 					Values: MCPCatalogInstallValues{Inputs: map[string]MCPSecretInput{
 						"github_token": {Value: "secret-" + name},
 					}},
@@ -3574,7 +3874,7 @@ func TestInstallMCPCatalogEnforcesBornValidVaultSemantics(t *testing.T) {
 
 		result, err := service.InstallMCPCatalog(ctx, MCPCatalogInstallRequest{
 			EntryID: "github",
-			Scope:   ScopeGlobal,
+			Scope:   ScopeUser,
 			Values: MCPCatalogInstallValues{Inputs: map[string]MCPSecretInput{
 				"github_token": {Value: "ghp-secret"},
 			}},
@@ -3591,7 +3891,7 @@ func TestInstallMCPCatalogEnforcesBornValidVaultSemantics(t *testing.T) {
 		if got, want := result.Item.CatalogVersion, "1.2.3"; got != want {
 			t.Fatalf("CatalogVersion = %q, want %q", got, want)
 		}
-		canonicalRef := "vault:mcp/global/GitHub/env/GITHUB_TOKEN"
+		canonicalRef := "vault:mcp/user/GitHub/env/GITHUB_TOKEN"
 		assertMCPSecretKeys(t, result.Item, "GITHUB_TOKEN")
 		if got, want := secretStore.plaintext[canonicalRef], "ghp-secret"; got != want {
 			t.Fatalf("stored secret = %q, want %q", got, want)
@@ -3641,7 +3941,7 @@ func TestInstallMCPCatalogEnforcesBornValidVaultSemantics(t *testing.T) {
 
 		result, err := service.InstallMCPCatalog(t.Context(), MCPCatalogInstallRequest{
 			EntryID: "github",
-			Scope:   ScopeGlobal,
+			Scope:   ScopeUser,
 			Values: MCPCatalogInstallValues{Inputs: map[string]MCPSecretInput{
 				"github_token": {Value: "ghp-secret"},
 			}},
@@ -3673,7 +3973,7 @@ func TestInstallMCPCatalogEnforcesBornValidVaultSemantics(t *testing.T) {
 		_, err := service.InstallMCPCatalog(t.Context(), MCPCatalogInstallRequest{
 			EntryID: "plain-env",
 			Name:    "team/server",
-			Scope:   ScopeGlobal,
+			Scope:   ScopeUser,
 			Values: MCPCatalogInstallValues{Inputs: map[string]MCPSecretInput{
 				"project": {Value: "compozy"},
 			}},
@@ -3698,7 +3998,7 @@ func TestInstallMCPCatalogEnforcesBornValidVaultSemantics(t *testing.T) {
 		})
 		result, err := service.InstallMCPCatalog(ctx, MCPCatalogInstallRequest{
 			EntryID: "plain-env",
-			Scope:   ScopeGlobal,
+			Scope:   ScopeUser,
 			Values: MCPCatalogInstallValues{Inputs: map[string]MCPSecretInput{
 				"project": {Value: "compozy"},
 			}},
@@ -3834,7 +4134,7 @@ func TestInstallMCPCatalogEnforcesBornValidVaultSemantics(t *testing.T) {
 		homePaths := testHomePaths(t)
 		writeFile(t, homePaths.ConfigFile, baseSettingsConfig())
 		secretStore := newFakeProviderSecretStore()
-		ownedRef := "vault:mcp/global/GitHub/env/GITHUB_TOKEN"
+		ownedRef := "vault:mcp/user/GitHub/env/GITHUB_TOKEN"
 		if _, err := secretStore.PutSecret(ctx, ownedRef, "mcp", "owned-secret"); err != nil {
 			t.Fatalf("PutSecret(owned) error = %v", err)
 		}
@@ -3845,7 +4145,7 @@ func TestInstallMCPCatalogEnforcesBornValidVaultSemantics(t *testing.T) {
 
 		_, err := service.InstallMCPCatalog(ctx, MCPCatalogInstallRequest{
 			EntryID: "github",
-			Scope:   ScopeGlobal,
+			Scope:   ScopeUser,
 			Values: MCPCatalogInstallValues{Inputs: map[string]MCPSecretInput{
 				"github_token": {Value: "owned-secret"},
 			}},
@@ -3856,7 +4156,7 @@ func TestInstallMCPCatalogEnforcesBornValidVaultSemantics(t *testing.T) {
 
 		replacement, err := service.InstallMCPCatalog(ctx, MCPCatalogInstallRequest{
 			EntryID: "github",
-			Scope:   ScopeGlobal,
+			Scope:   ScopeUser,
 			Values: MCPCatalogInstallValues{Inputs: map[string]MCPSecretInput{
 				"github_token": {VaultRef: ownedRef},
 			}},
@@ -3879,7 +4179,7 @@ func TestInstallMCPCatalogEnforcesBornValidVaultSemantics(t *testing.T) {
 		writeFile(t, homePaths.ConfigFile, baseSettingsConfig())
 		secretStore := newFakeProviderSecretStore()
 		runtime := &recordingMCPAuthRuntime{}
-		ownedRef := "vault:mcp/global/GitHub/env/GITHUB_TOKEN"
+		ownedRef := "vault:mcp/user/GitHub/env/GITHUB_TOKEN"
 		if _, err := secretStore.PutSecret(ctx, ownedRef, "mcp", "owned-secret"); err != nil {
 			t.Fatalf("PutSecret(owned) error = %v", err)
 		}
@@ -3891,7 +4191,7 @@ func TestInstallMCPCatalogEnforcesBornValidVaultSemantics(t *testing.T) {
 
 		initial, err := service.InstallMCPCatalog(ctx, MCPCatalogInstallRequest{
 			EntryID: "github",
-			Scope:   ScopeGlobal,
+			Scope:   ScopeUser,
 			Values: MCPCatalogInstallValues{Inputs: map[string]MCPSecretInput{
 				"github_token": {Value: "owned-secret"},
 			}},
@@ -3903,7 +4203,7 @@ func TestInstallMCPCatalogEnforcesBornValidVaultSemantics(t *testing.T) {
 
 		_, err = service.InstallMCPCatalog(ctx, MCPCatalogInstallRequest{
 			EntryID: "github",
-			Scope:   ScopeGlobal,
+			Scope:   ScopeUser,
 			Values: MCPCatalogInstallValues{Inputs: map[string]MCPSecretInput{
 				"github_token": {VaultRef: ownedRef},
 			}},
@@ -3947,7 +4247,7 @@ func TestInstallMCPCatalogEnforcesBornValidVaultSemantics(t *testing.T) {
 		})
 		result, err := service.InstallMCPCatalog(ctx, MCPCatalogInstallRequest{
 			EntryID: "github",
-			Scope:   ScopeGlobal,
+			Scope:   ScopeUser,
 			Values: MCPCatalogInstallValues{Inputs: map[string]MCPSecretInput{
 				"github_token": {Value: "owned-secret"},
 			}},
@@ -3955,7 +4255,7 @@ func TestInstallMCPCatalogEnforcesBornValidVaultSemantics(t *testing.T) {
 		if err != nil {
 			t.Fatalf("InstallMCPCatalog(owned ref) error = %v", err)
 		}
-		ownedRef := "vault:mcp/global/GitHub/env/GITHUB_TOKEN"
+		ownedRef := "vault:mcp/user/GitHub/env/GITHUB_TOKEN"
 		if _, err := service.DeleteCollectionItem(ctx, CollectionItemDeleteRequest{
 			CollectionRequest: CollectionRequest{Collection: CollectionMCPServers},
 			Name:              result.Item.Name,
@@ -4035,7 +4335,7 @@ func TestInstallMCPCatalogEnforcesBornValidVaultSemantics(t *testing.T) {
 				})
 				result, err := service.InstallMCPCatalog(ctx, MCPCatalogInstallRequest{
 					EntryID: "github",
-					Scope:   ScopeGlobal,
+					Scope:   ScopeUser,
 					Values: MCPCatalogInstallValues{Inputs: map[string]MCPSecretInput{
 						"github_token": {Value: "owned-secret"},
 					}},
@@ -4043,7 +4343,7 @@ func TestInstallMCPCatalogEnforcesBornValidVaultSemantics(t *testing.T) {
 				if err != nil {
 					t.Fatalf("InstallMCPCatalog(ownership proof) error = %v", err)
 				}
-				ownedRef := "vault:mcp/global/GitHub/env/GITHUB_TOKEN"
+				ownedRef := "vault:mcp/user/GitHub/env/GITHUB_TOKEN"
 				tc.mutateStore(secretStore, ownedRef)
 
 				_, err = service.DeleteCollectionItem(ctx, CollectionItemDeleteRequest{
@@ -4149,7 +4449,7 @@ func TestInstallMCPCatalogEnforcesBornValidVaultSemantics(t *testing.T) {
 
 		result, err := service.InstallMCPCatalog(ctx, MCPCatalogInstallRequest{
 			EntryID: "linear",
-			Scope:   ScopeGlobal,
+			Scope:   ScopeUser,
 		})
 		if err != nil {
 			t.Fatalf("InstallMCPCatalog(OAuth) error = %v", err)
@@ -4178,13 +4478,13 @@ func TestInstallMCPCatalogRejectsInvalidInputsBeforeWrites(t *testing.T) {
 	urlQueryOnStdio.Payload = json.RawMessage(`{
 		"launch":{"type":"npm","package":"plain-env-server","version":"1.0.0"},
 		"inputs":[{"id":"project","prompt":"Project","type":"identifier","required":true,"binding":{"type":"url_query","name":"project"}}],
-		"default_scope":"global"
+		"default_scope":"user"
 	}`)
 	secretQueryInput := stdioMCPCatalogEntry()
 	secretQueryInput.Payload = json.RawMessage(`{
 		"launch":{"type":"npm","package":"@modelcontextprotocol/server-github","version":"1.0.0"},
 		"inputs":[{"id":"github_token","prompt":"GitHub token","type":"secret","required":true,"binding":{"type":"url_query","name":"token"}}],
-		"default_scope":"global"
+		"default_scope":"user"
 	}`)
 	nonMCPProjection := &marketplace.Entry{
 		Kind:    marketplace.KindSkill,
@@ -4210,7 +4510,7 @@ func TestInstallMCPCatalogRejectsInvalidInputsBeforeWrites(t *testing.T) {
 			name:       "Should reject a missing required value",
 			catalog:    fakeMCPCatalog{entry: stdioMCPCatalogEntry()},
 			entryID:    "github",
-			scope:      ScopeGlobal,
+			scope:      ScopeUser,
 			wantErr:    ErrValidation,
 			wantDetail: "values.inputs.github_token is required",
 		},
@@ -4218,7 +4518,7 @@ func TestInstallMCPCatalogRejectsInvalidInputsBeforeWrites(t *testing.T) {
 			name:       "Should reject a missing required plain value",
 			catalog:    fakeMCPCatalog{entry: plainEnvMCPCatalogEntry()},
 			entryID:    "plain-env",
-			scope:      ScopeGlobal,
+			scope:      ScopeUser,
 			wantErr:    ErrValidation,
 			wantDetail: "values.inputs.project is required",
 		},
@@ -4226,7 +4526,7 @@ func TestInstallMCPCatalogRejectsInvalidInputsBeforeWrites(t *testing.T) {
 			name:    "Should reject both value modes",
 			catalog: fakeMCPCatalog{entry: stdioMCPCatalogEntry()},
 			entryID: "github",
-			scope:   ScopeGlobal,
+			scope:   ScopeUser,
 			values: MCPCatalogInstallValues{Inputs: map[string]MCPSecretInput{
 				"github_token": {Value: "secret", VaultRef: "vault:mcp/shared/token"},
 			}},
@@ -4237,7 +4537,7 @@ func TestInstallMCPCatalogRejectsInvalidInputsBeforeWrites(t *testing.T) {
 			name:    "Should reject neither value mode",
 			catalog: fakeMCPCatalog{entry: stdioMCPCatalogEntry()},
 			entryID: "github",
-			scope:   ScopeGlobal,
+			scope:   ScopeUser,
 			values: MCPCatalogInstallValues{Inputs: map[string]MCPSecretInput{
 				"github_token": {},
 			}},
@@ -4248,7 +4548,7 @@ func TestInstallMCPCatalogRejectsInvalidInputsBeforeWrites(t *testing.T) {
 			name:    "Should reject a ref outside the MCP namespace",
 			catalog: fakeMCPCatalog{entry: stdioMCPCatalogEntry()},
 			entryID: "github",
-			scope:   ScopeGlobal,
+			scope:   ScopeUser,
 			values: MCPCatalogInstallValues{Inputs: map[string]MCPSecretInput{
 				"github_token": {VaultRef: "vault:providers/github/token"},
 			}},
@@ -4259,7 +4559,7 @@ func TestInstallMCPCatalogRejectsInvalidInputsBeforeWrites(t *testing.T) {
 			name:    "Should reject a missing MCP ref",
 			catalog: fakeMCPCatalog{entry: stdioMCPCatalogEntry()},
 			entryID: "github",
-			scope:   ScopeGlobal,
+			scope:   ScopeUser,
 			values: MCPCatalogInstallValues{Inputs: map[string]MCPSecretInput{
 				"github_token": {VaultRef: "vault:mcp/shared/missing"},
 			}},
@@ -4270,7 +4570,7 @@ func TestInstallMCPCatalogRejectsInvalidInputsBeforeWrites(t *testing.T) {
 			name:       "Should map an unknown catalog entry to not found",
 			catalog:    fakeMCPCatalog{},
 			entryID:    "github",
-			scope:      ScopeGlobal,
+			scope:      ScopeUser,
 			wantErr:    ErrNotFound,
 			wantDetail: "not found",
 		},
@@ -4278,7 +4578,7 @@ func TestInstallMCPCatalogRejectsInvalidInputsBeforeWrites(t *testing.T) {
 			name:       "Should preserve an unexpected catalog detail failure",
 			catalog:    fakeMCPCatalog{detailErr: catalogFailure},
 			entryID:    "github",
-			scope:      ScopeGlobal,
+			scope:      ScopeUser,
 			wantErr:    catalogFailure,
 			wantDetail: "load MCP catalog entry",
 		},
@@ -4286,14 +4586,14 @@ func TestInstallMCPCatalogRejectsInvalidInputsBeforeWrites(t *testing.T) {
 			name:       "Should map a nil catalog detail to not found",
 			catalog:    fakeMCPCatalog{returnNil: true},
 			entryID:    "github",
-			scope:      ScopeGlobal,
+			scope:      ScopeUser,
 			wantErr:    ErrNotFound,
 			wantDetail: "not found",
 		},
 		{
 			name:       "Should require an entry ID",
 			catalog:    fakeMCPCatalog{entry: stdioMCPCatalogEntry()},
-			scope:      ScopeGlobal,
+			scope:      ScopeUser,
 			wantErr:    ErrValidation,
 			wantDetail: "entry_id is required",
 		},
@@ -4306,10 +4606,10 @@ func TestInstallMCPCatalogRejectsInvalidInputsBeforeWrites(t *testing.T) {
 			wantDetail: "requires workspace_id",
 		},
 		{
-			name:       "Should reject workspace ID in global scope",
+			name:       "Should reject workspace ID in user scope",
 			catalog:    fakeMCPCatalog{entry: stdioMCPCatalogEntry()},
 			entryID:    "github",
-			scope:      ScopeGlobal,
+			scope:      ScopeUser,
 			workspace:  "ws-1",
 			wantErr:    ErrConflict,
 			wantDetail: "workspace_id requires workspace scope",
@@ -4325,7 +4625,7 @@ func TestInstallMCPCatalogRejectsInvalidInputsBeforeWrites(t *testing.T) {
 		{
 			name:       "Should report an unavailable catalog",
 			entryID:    "github",
-			scope:      ScopeGlobal,
+			scope:      ScopeUser,
 			wantErr:    ErrUnavailable,
 			wantDetail: "catalog is not configured",
 		},
@@ -4333,7 +4633,7 @@ func TestInstallMCPCatalogRejectsInvalidInputsBeforeWrites(t *testing.T) {
 			name:       "Should reject an invalid MCP projection",
 			catalog:    fakeMCPCatalog{entry: invalidProjection},
 			entryID:    "github",
-			scope:      ScopeGlobal,
+			scope:      ScopeUser,
 			wantErr:    ErrUnprocessable,
 			wantDetail: "project MCP catalog entry",
 		},
@@ -4341,7 +4641,7 @@ func TestInstallMCPCatalogRejectsInvalidInputsBeforeWrites(t *testing.T) {
 			name:       "Should reject a catalog row that does not project MCP",
 			catalog:    fakeMCPCatalog{entry: nonMCPProjection},
 			entryID:    "github",
-			scope:      ScopeGlobal,
+			scope:      ScopeUser,
 			wantErr:    ErrUnprocessable,
 			wantDetail: "does not project an MCP server",
 		},
@@ -4349,7 +4649,7 @@ func TestInstallMCPCatalogRejectsInvalidInputsBeforeWrites(t *testing.T) {
 			name:       "Should require a resolved install name",
 			catalog:    fakeMCPCatalog{entry: blankInstallName},
 			entryID:    "github",
-			scope:      ScopeGlobal,
+			scope:      ScopeUser,
 			wantErr:    ErrValidation,
 			wantDetail: "install name is required",
 		},
@@ -4357,7 +4657,7 @@ func TestInstallMCPCatalogRejectsInvalidInputsBeforeWrites(t *testing.T) {
 			name:    "Should reject an undeclared field",
 			catalog: fakeMCPCatalog{entry: stdioMCPCatalogEntry()},
 			entryID: "github",
-			scope:   ScopeGlobal,
+			scope:   ScopeUser,
 			values: MCPCatalogInstallValues{Inputs: map[string]MCPSecretInput{
 				"github_token": {Value: "secret"},
 				"UNKNOWN":      {Value: "value"},
@@ -4369,7 +4669,7 @@ func TestInstallMCPCatalogRejectsInvalidInputsBeforeWrites(t *testing.T) {
 			name:    "Should reject a Vault ref for a plain field",
 			catalog: fakeMCPCatalog{entry: plainEnvMCPCatalogEntry()},
 			entryID: "plain-env",
-			scope:   ScopeGlobal,
+			scope:   ScopeUser,
 			values: MCPCatalogInstallValues{Inputs: map[string]MCPSecretInput{
 				"project": {VaultRef: "vault:mcp/shared/project"},
 			}},
@@ -4380,7 +4680,7 @@ func TestInstallMCPCatalogRejectsInvalidInputsBeforeWrites(t *testing.T) {
 			name:    "Should reject a URL query input on a stdio launch",
 			catalog: fakeMCPCatalog{entry: urlQueryOnStdio},
 			entryID: "plain-env",
-			scope:   ScopeGlobal,
+			scope:   ScopeUser,
 			values: MCPCatalogInstallValues{Inputs: map[string]MCPSecretInput{
 				"project": {Value: "compozy"},
 			}},
@@ -4391,7 +4691,7 @@ func TestInstallMCPCatalogRejectsInvalidInputsBeforeWrites(t *testing.T) {
 			name:    "Should reject a secret input with a non-env binding",
 			catalog: fakeMCPCatalog{entry: secretQueryInput},
 			entryID: "github",
-			scope:   ScopeGlobal,
+			scope:   ScopeUser,
 			values: MCPCatalogInstallValues{Inputs: map[string]MCPSecretInput{
 				"github_token": {Value: "secret"},
 			}},
@@ -4470,23 +4770,23 @@ func TestInstallMCPCatalogKeepsWorkspaceCanonicalRefsIsolated(t *testing.T) {
 				t.Fatalf("InstallMCPCatalog(%q) error = %v", workspaceID, err)
 			}
 			assertMCPSecretKeys(t, result.Item, "GITHUB_TOKEN")
-			workspaceSegment, segmentErr := vault.MCPWorkspaceSegment(workspaceID)
+			workspaceSegment, segmentErr := vault.MCPOwnerSegment(workspaceID)
 			if segmentErr != nil {
-				t.Fatalf("MCPWorkspaceSegment(%q) error = %v", workspaceID, segmentErr)
+				t.Fatalf("MCPOwnerSegment(%q) error = %v", workspaceID, segmentErr)
 			}
 			refs = append(refs, "vault:mcp/ws/"+workspaceSegment+"/github/env/GITHUB_TOKEN")
 		}
 		if refs[0] == refs[1] {
 			t.Fatalf("workspace refs collided: %#v", refs)
 		}
-		firstSegment, err := vault.MCPWorkspaceSegment(workspaceIDs[0])
+		firstSegment, err := vault.MCPOwnerSegment(workspaceIDs[0])
 		if err != nil {
 			t.Fatalf("workspaceVaultSegment(%q) error = %v", workspaceIDs[0], err)
 		}
 		if got, want := firstSegment, "encoded-576f726b7370616365204f6e65"; got != want {
 			t.Fatalf("encoded workspace segment = %q, want %q", got, want)
 		}
-		reservedSegment, err := vault.MCPWorkspaceSegment(firstSegment)
+		reservedSegment, err := vault.MCPOwnerSegment(firstSegment)
 		if err != nil {
 			t.Fatalf("workspaceVaultSegment(reserved prefix) error = %v", err)
 		}
@@ -4494,7 +4794,7 @@ func TestInstallMCPCatalogKeepsWorkspaceCanonicalRefsIsolated(t *testing.T) {
 			t.Fatalf("reserved literal workspace segment collided with encoded ID: %q", reservedSegment)
 		}
 		for index, workspaceID := range workspaceIDs {
-			segment, err := vault.MCPWorkspaceSegment(workspaceID)
+			segment, err := vault.MCPOwnerSegment(workspaceID)
 			if err != nil {
 				t.Fatalf("workspaceVaultSegment(%q) error = %v", workspaceID, err)
 			}
@@ -4560,7 +4860,7 @@ func TestInstallMCPCatalogCompensatesPartialFailures(t *testing.T) {
 
 			_, err := service.InstallMCPCatalog(ctx, MCPCatalogInstallRequest{
 				EntryID: "github",
-				Scope:   ScopeGlobal,
+				Scope:   ScopeUser,
 				Values: MCPCatalogInstallValues{Inputs: map[string]MCPSecretInput{
 					"github_token": {Value: "orphan-candidate"},
 				}},
@@ -4571,7 +4871,7 @@ func TestInstallMCPCatalogCompensatesPartialFailures(t *testing.T) {
 			if !errors.Is(err, writeFailure) {
 				t.Fatalf("InstallMCPCatalog() error = %v, want definition write failure", err)
 			}
-			canonicalRef := "vault:mcp/global/GitHub/env/GITHUB_TOKEN"
+			canonicalRef := "vault:mcp/user/GitHub/env/GITHUB_TOKEN"
 			metadata, metadataErr := secretStore.GetMetadata(ctx, canonicalRef)
 			if tc.wantRefRemaining {
 				if metadataErr != nil || !metadata.Present {
@@ -4601,7 +4901,7 @@ func TestInstallMCPCatalogCompensatesPartialFailures(t *testing.T) {
 			"",
 		}, "\n"))
 		secretStore := newFakeProviderSecretStore()
-		canonicalRef := "vault:mcp/global/GitHub/env/GITHUB_TOKEN"
+		canonicalRef := "vault:mcp/user/GitHub/env/GITHUB_TOKEN"
 		if _, err := secretStore.PutSecret(ctx, canonicalRef, "shared", "original-secret"); err != nil {
 			t.Fatalf("PutSecret(original) error = %v", err)
 		}
@@ -4613,7 +4913,7 @@ func TestInstallMCPCatalogCompensatesPartialFailures(t *testing.T) {
 
 		_, err := service.InstallMCPCatalog(ctx, MCPCatalogInstallRequest{
 			EntryID: "github",
-			Scope:   ScopeGlobal,
+			Scope:   ScopeUser,
 			Values: MCPCatalogInstallValues{Inputs: map[string]MCPSecretInput{
 				"github_token": {Value: "replacement-secret"},
 			}},
@@ -4639,8 +4939,8 @@ func TestInstallMCPCatalogCompensatesPartialFailures(t *testing.T) {
 		homePaths := testHomePaths(t)
 		writeFile(t, homePaths.ConfigFile, baseSettingsConfig())
 		secretStore := newFakeProviderSecretStore()
-		firstRef := "vault:mcp/global/MultiSecret/env/TOKEN_A"
-		secondRef := "vault:mcp/global/MultiSecret/env/TOKEN_B"
+		firstRef := "vault:mcp/user/MultiSecret/env/TOKEN_A"
+		secondRef := "vault:mcp/user/MultiSecret/env/TOKEN_B"
 		if _, err := secretStore.PutSecret(ctx, firstRef, "shared", "original-secret"); err != nil {
 			t.Fatalf("PutSecret(original) error = %v", err)
 		}
@@ -4653,7 +4953,7 @@ func TestInstallMCPCatalogCompensatesPartialFailures(t *testing.T) {
 
 		_, err := service.InstallMCPCatalog(ctx, MCPCatalogInstallRequest{
 			EntryID: "multi-secret",
-			Scope:   ScopeGlobal,
+			Scope:   ScopeUser,
 			Values: MCPCatalogInstallValues{Inputs: map[string]MCPSecretInput{
 				"token_a": {Value: "replacement-secret"},
 				"token_b": {Value: "second-secret"},
@@ -4678,7 +4978,7 @@ func TestInstallMCPCatalogCompensatesPartialFailures(t *testing.T) {
 		homePaths := testHomePaths(t)
 		writeFile(t, homePaths.ConfigFile, baseSettingsConfig())
 		secretStore := newFakeProviderSecretStore()
-		secondRef := "vault:mcp/global/MultiSecret/env/TOKEN_B"
+		secondRef := "vault:mcp/user/MultiSecret/env/TOKEN_B"
 		metadataFailure := errors.New("forced metadata failure")
 		secretStore.metadataErrors[secondRef] = metadataFailure
 		service := testService(t, homePaths, Dependencies{
@@ -4688,7 +4988,7 @@ func TestInstallMCPCatalogCompensatesPartialFailures(t *testing.T) {
 
 		_, err := service.InstallMCPCatalog(ctx, MCPCatalogInstallRequest{
 			EntryID: "multi-secret",
-			Scope:   ScopeGlobal,
+			Scope:   ScopeUser,
 			Values: MCPCatalogInstallValues{Inputs: map[string]MCPSecretInput{
 				"token_a": {Value: "first-secret"},
 				"token_b": {Value: "second-secret"},
@@ -4698,7 +4998,7 @@ func TestInstallMCPCatalogCompensatesPartialFailures(t *testing.T) {
 			t.Fatalf("InstallMCPCatalog(metadata failure) error = %v, want forced metadata failure", err)
 		}
 		assertMCPSecretRefsAbsent(t, secretStore,
-			"vault:mcp/global/MultiSecret/env/TOKEN_A",
+			"vault:mcp/user/MultiSecret/env/TOKEN_A",
 			secondRef,
 		)
 		if _, statErr := os.Stat(filepath.Join(homePaths.HomeDir, compozyconfig.MCPJSONName)); !os.IsNotExist(statErr) {
@@ -4713,7 +5013,7 @@ func TestInstallMCPCatalogCompensatesPartialFailures(t *testing.T) {
 		homePaths := testHomePaths(t)
 		writeFile(t, homePaths.ConfigFile, baseSettingsConfig())
 		secretStore := newFakeProviderSecretStore()
-		secondRef := "vault:mcp/global/MultiSecret/env/TOKEN_B"
+		secondRef := "vault:mcp/user/MultiSecret/env/TOKEN_B"
 		storeFailure := errors.New("forced store failure")
 		secretStore.putErrors[secondRef] = storeFailure
 		service := testService(t, homePaths, Dependencies{
@@ -4723,7 +5023,7 @@ func TestInstallMCPCatalogCompensatesPartialFailures(t *testing.T) {
 
 		_, err := service.InstallMCPCatalog(ctx, MCPCatalogInstallRequest{
 			EntryID: "multi-secret",
-			Scope:   ScopeGlobal,
+			Scope:   ScopeUser,
 			Values: MCPCatalogInstallValues{Inputs: map[string]MCPSecretInput{
 				"token_a": {Value: "first-secret"},
 				"token_b": {Value: "second-secret"},
@@ -4733,7 +5033,7 @@ func TestInstallMCPCatalogCompensatesPartialFailures(t *testing.T) {
 			t.Fatalf("InstallMCPCatalog(store failure) error = %v, want forced store failure", err)
 		}
 		assertMCPSecretRefsAbsent(t, secretStore,
-			"vault:mcp/global/MultiSecret/env/TOKEN_A",
+			"vault:mcp/user/MultiSecret/env/TOKEN_A",
 			secondRef,
 		)
 		if _, statErr := os.Stat(filepath.Join(homePaths.HomeDir, compozyconfig.MCPJSONName)); !os.IsNotExist(statErr) {
@@ -5203,11 +5503,6 @@ func TestUpdateSectionNoChangesReturnsWarning(t *testing.T) {
 	result, err := service.UpdateSection(ctx, SectionUpdateRequest{
 		SectionRequest: SectionRequest{Section: SectionGeneral},
 		General: &GeneralSettings{
-			Defaults: compozyconfig.DefaultsConfig{
-				Agent:    "writer",
-				Provider: "codex",
-				Sandbox:  "dev",
-			},
 			Limits: compozyconfig.LimitsConfig{
 				MaxConcurrentAgents: 11,
 			},
@@ -5381,36 +5676,49 @@ type fakeCmdPaletteCatalog struct {
 }
 
 type recordingCmdPaletteCatalog struct {
-	mu      sync.Mutex
-	catalog cmdpalette.Catalog
-	events  []cmdpalette.Event
+	mu       sync.Mutex
+	catalog  cmdpalette.Catalog
+	requests []cmdpalette.CatalogRequest
+	events   []cmdpalette.Event
 }
 
 func (r *recordingCmdPaletteCatalog) Catalog(
-	context.Context,
-	cmdpalette.WorkspaceID,
-	cmdpalette.ClientID,
+	_ context.Context,
+	request cmdpalette.CatalogRequest,
 ) (cmdpalette.Catalog, error) {
+	r.mu.Lock()
+	r.requests = append(r.requests, request)
+	r.mu.Unlock()
 	return r.catalog, nil
+}
+
+func (r *recordingCmdPaletteCatalog) recordedRequests() []cmdpalette.CatalogRequest {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	return append([]cmdpalette.CatalogRequest(nil), r.requests...)
 }
 
 func (r *recordingCmdPaletteCatalog) NotifyBindingChanged(
 	_ context.Context,
+	profileLens cmdpalette.ProfileLens,
 	workspaceID cmdpalette.WorkspaceID,
 	commandID cmdpalette.CommandID,
 ) {
 	r.record(cmdpalette.Event{
-		Name: cmdpalette.EventBindingChanged, WorkspaceID: workspaceID, CommandID: commandID,
+		Name: cmdpalette.EventBindingChanged, ProfileLens: profileLens,
+		WorkspaceID: workspaceID, CommandID: commandID,
 	})
 }
 
 func (r *recordingCmdPaletteCatalog) NotifyAliasChanged(
 	_ context.Context,
+	profileLens cmdpalette.ProfileLens,
 	workspaceID cmdpalette.WorkspaceID,
 	commandID cmdpalette.CommandID,
 ) {
 	r.record(cmdpalette.Event{
-		Name: cmdpalette.EventAliasChanged, WorkspaceID: workspaceID, CommandID: commandID,
+		Name: cmdpalette.EventAliasChanged, ProfileLens: profileLens,
+		WorkspaceID: workspaceID, CommandID: commandID,
 	})
 }
 
@@ -5428,8 +5736,7 @@ func (r *recordingCmdPaletteCatalog) recorded() []cmdpalette.Event {
 
 func (f fakeCmdPaletteCatalog) Catalog(
 	context.Context,
-	cmdpalette.WorkspaceID,
-	cmdpalette.ClientID,
+	cmdpalette.CatalogRequest,
 ) (cmdpalette.Catalog, error) {
 	return f.catalog, nil
 }
@@ -5660,7 +5967,7 @@ func stdioMCPCatalogEntry() *marketplace.Entry {
 		Payload: json.RawMessage(`{
 			"launch":{"type":"npm","package":"@modelcontextprotocol/server-github","version":"1.0.0"},
 			"inputs":[{"id":"github_token","prompt":"GitHub token","type":"secret","required":true,"binding":{"type":"env","name":"GITHUB_TOKEN"}}],
-			"default_scope":"global"
+			"default_scope":"user"
 		}`),
 	}
 }
@@ -5677,7 +5984,7 @@ func plainEnvMCPCatalogEntry() *marketplace.Entry {
 				{"id":"project","prompt":"Project","type":"identifier","required":true,"binding":{"type":"env","name":"PROJECT"}},
 				{"id":"region","prompt":"Region","type":"string","required":false,"binding":{"type":"env","name":"REGION"},"default":"us-east-1"}
 			],
-			"default_scope":"global"
+			"default_scope":"user"
 		}`),
 	}
 }
@@ -5694,7 +6001,7 @@ func multiSecretMCPCatalogEntry() *marketplace.Entry {
 				{"id":"token_a","prompt":"Token A","type":"secret","required":true,"binding":{"type":"env","name":"TOKEN_A"}},
 				{"id":"token_b","prompt":"Token B","type":"secret","required":true,"binding":{"type":"env","name":"TOKEN_B"}}
 			],
-			"default_scope":"global"
+			"default_scope":"user"
 		}`),
 	}
 }
@@ -5708,7 +6015,7 @@ func oauthMCPCatalogEntry() *marketplace.Entry {
 		Payload: json.RawMessage(`{
 			"launch":{"type":"remote","url":"https://mcp.linear.example/mcp"},
 			"auth":{"method":"oauth","registration":"auto","scopes":["read"]},
-			"default_scope":"global"
+			"default_scope":"user"
 		}`),
 	}
 }
@@ -5808,7 +6115,7 @@ type recordingEventSummaryStore struct {
 func (r *recordingEventSummaryStore) WriteEventSummary(_ context.Context, summary store.EventSummary) error {
 	r.mu.Lock()
 	defer r.mu.Unlock()
-	summary.Content = append([]byte(nil), summary.Content...)
+	summary.SetContent(summary.ContentValue())
 	r.summaries = append(r.summaries, summary)
 	return nil
 }
@@ -5823,7 +6130,7 @@ func (r *recordingEventSummaryStore) ListEventSummaries(
 	cloned := make([]store.EventSummary, 0, len(r.summaries))
 	for _, summary := range r.summaries {
 		next := summary
-		next.Content = append([]byte(nil), summary.Content...)
+		next.SetContent(summary.ContentValue())
 		cloned = append(cloned, next)
 	}
 	return cloned, nil
@@ -5851,10 +6158,9 @@ func TestSettingsMutationsEmitEventSummaries(t *testing.T) {
 		_, err = service.UpdateSection(WithMutationSource(context.Background(), "http"), SectionUpdateRequest{
 			SectionRequest: SectionRequest{
 				Section: SectionGeneral,
-				Scope:   ScopeGlobal,
+				Scope:   ScopeUser,
 			},
 			General: &GeneralSettings{
-				Defaults: cfg.Defaults,
 				Limits: compozyconfig.LimitsConfig{
 					MaxConcurrentAgents: cfg.Limits.MaxConcurrentAgents + 1,
 				},
@@ -5868,7 +6174,10 @@ func TestSettingsMutationsEmitEventSummaries(t *testing.T) {
 			t.Fatalf("UpdateSection() error = %v", err)
 		}
 
-		summaries, err := eventStore.ListEventSummaries(context.Background(), store.EventSummaryQuery{})
+		summaries, err := eventStore.ListEventSummaries(
+			context.Background(),
+			store.EventSummaryQuery{ReadScope: store.ReadScope{AllProfiles: true}},
+		)
 		if err != nil {
 			t.Fatalf("ListEventSummaries() error = %v", err)
 		}
@@ -5880,7 +6189,7 @@ func TestSettingsMutationsEmitEventSummaries(t *testing.T) {
 		}
 
 		var content map[string]string
-		if err := json.Unmarshal(summaries[0].Content, &content); err != nil {
+		if err := json.Unmarshal(summaries[0].ContentValue(), &content); err != nil {
 			t.Fatalf("Unmarshal(content) error = %v", err)
 		}
 		if got, want := content["section"], string(SectionGeneral); got != want {
@@ -5897,6 +6206,12 @@ func TestSettingsMutationsEmitEventSummaries(t *testing.T) {
 
 func testService(t *testing.T, homePaths compozyconfig.HomePaths, deps Dependencies) Service {
 	t.Helper()
+	if deps.ProfileResolver == nil {
+		deps.ProfileResolver = settingsTestProfileResolver{}
+	}
+	if deps.AttentionWorkspaceMutes == nil {
+		deps.AttentionWorkspaceMutes = &settingsTestAttentionMuteStore{byProfile: make(map[string][]string)}
+	}
 
 	if deps.MCPCatalog != nil && deps.ApplyRecords == nil {
 		ctx := context.Background()
@@ -5928,6 +6243,48 @@ func testService(t *testing.T, homePaths compozyconfig.HomePaths, deps Dependenc
 		t.Fatalf("NewService() error = %v", err)
 	}
 	return service
+}
+
+type settingsTestProfileResolver struct{}
+
+func (settingsTestProfileResolver) AvailableProfileID(_ context.Context, name string) (string, error) {
+	name = strings.TrimSpace(name)
+	if name == compozyconfig.DefaultProfileDirName {
+		return store.DefaultProfileID, nil
+	}
+	if name == "" {
+		return "", errors.New("test profile name is required")
+	}
+	return "profile-" + name, nil
+}
+
+type settingsTestAttentionMuteStore struct {
+	mu         sync.Mutex
+	byProfile  map[string][]string
+	replaceErr error
+}
+
+func (s *settingsTestAttentionMuteStore) ListAttentionWorkspaceMutes(
+	_ context.Context,
+	profileID string,
+) ([]string, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return append([]string(nil), s.byProfile[profileID]...), nil
+}
+
+func (s *settingsTestAttentionMuteStore) ReplaceAttentionWorkspaceMutes(
+	_ context.Context,
+	profileID string,
+	workspaceIDs []string,
+) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.replaceErr != nil {
+		return s.replaceErr
+	}
+	s.byProfile[profileID] = append([]string(nil), workspaceIDs...)
+	return nil
 }
 
 type settingsModelCatalogStub struct {
@@ -6200,13 +6557,24 @@ func mustFindProviderItem(t *testing.T, items []ProviderItem, name string) Provi
 
 func findSandboxItem(t *testing.T, items []SandboxItem, name string) SandboxItem {
 	t.Helper()
-	for _, item := range items {
-		if item.Name == name {
-			return item
+	for index := range items {
+		if items[index].Name == name {
+			return items[index]
 		}
 	}
 	t.Fatalf("Sandbox item %q not found in %#v", name, items)
 	return SandboxItem{}
+}
+
+func findHookItem(t *testing.T, items []HookItem, name string) HookItem {
+	t.Helper()
+	for index := range items {
+		if items[index].Name == name {
+			return items[index]
+		}
+	}
+	t.Fatalf("Hook item %q not found in %#v", name, items)
+	return HookItem{}
 }
 
 func findMCPItem(t *testing.T, items []MCPServerItem, name string) MCPServerItem {

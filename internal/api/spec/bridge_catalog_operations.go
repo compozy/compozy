@@ -6,12 +6,12 @@ func bridgeCatalogOperations() []OperationSpec {
 	return []OperationSpec{
 		{
 			Method:      httpMethodGet,
-			Path:        "/api/bridges",
+			Path:        specBridgesPath,
 			OperationID: "listBridges",
 			Summary:     "List persisted bridge instances",
 			Tags:        []string{specBridgesKey},
 			Transports:  []Transport{TransportHTTP, TransportUDS},
-			Parameters:  bridgeCatalogQueryParams(),
+			Parameters:  withProfileScope(bridgeCatalogQueryParams()...),
 			Responses: []ResponseSpec{
 				{Status: 200, Description: "OK", Body: contract.BridgesResponse{}},
 				{Status: 400, Description: "Invalid bridge list filter", Body: contract.ErrorPayload{}},
@@ -23,11 +23,12 @@ func bridgeCatalogOperations() []OperationSpec {
 		},
 		{
 			Method:      httpMethodPost,
-			Path:        "/api/bridges",
+			Path:        specBridgesPath,
 			OperationID: "createBridge",
 			Summary:     "Create a bridge instance",
 			Tags:        []string{specBridgesKey},
 			Transports:  []Transport{TransportHTTP, TransportUDS},
+			Parameters:  withProfileSelector(),
 			RequestBody: contract.CreateBridgeRequest{},
 			Responses: []ResponseSpec{
 				{Status: 201, Description: specCreatedDescription, Body: contract.BridgeResponse{}},
@@ -62,7 +63,7 @@ func bridgeHealthStreamOperation() OperationSpec {
 		Summary:     "Stream bridge health snapshots",
 		Tags:        []string{specBridgesKey},
 		Transports:  []Transport{TransportHTTP, TransportUDS},
-		Parameters: []ParameterSpec{
+		Parameters: withProfileScope(
 			queryParam(
 				"bridge_ids",
 				"Repeated opaque bridge id from the current catalog page; maximum 200 values",
@@ -75,7 +76,7 @@ func bridgeHealthStreamOperation() OperationSpec {
 			),
 			queryParam("workspace_id", "Filter by active workspace id", false),
 			queryParam(specWorkspaceKey, "Filter by workspace id, name, or path", false),
-		},
+		),
 		Responses: []ResponseSpec{
 			{
 				Status:      200,

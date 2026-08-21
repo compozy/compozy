@@ -33,23 +33,34 @@ func (s *Service) emitTransition(ctx context.Context, entity store.DeadEntity, m
 		MarkedAt: store.FormatTimestamp(entity.MarkedAt),
 	})
 	if err != nil {
-		s.logger.Warn("deadentity: marshal transition event failed", "type", eventType, "error", err)
+		s.logger.Warn(
+			"deadentity: marshal transition event failed",
+			"type", eventType,
+			"profile_id", entity.ProfileID,
+			"workspace_id", entity.WorkspaceID,
+			"kind", entity.Kind,
+			"entity_id", entity.EntityID,
+			"error", err,
+		)
 		return
 	}
 	// The durable transition already committed, so caller cancellation must not drop its event.
 	writeCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), s.transitionEventTimeout)
 	defer cancel()
-	if err := s.events.WriteEventSummary(writeCtx, store.EventSummary{
+	event := store.EventSummary{
+		ProfileID:   entity.ProfileID,
 		WorkspaceID: entity.WorkspaceID,
 		Type:        eventType,
 		Outcome:     string(events.OutcomeFor(eventType)),
-		Content:     content,
 		Summary:     summary,
 		Timestamp:   s.now().UTC(),
-	}); err != nil {
+	}
+	event.SetContent(content)
+	if err := s.events.WriteEventSummary(writeCtx, event); err != nil {
 		s.logger.Warn(
 			"deadentity: write transition event failed open",
 			"type", eventType,
+			"profile_id", entity.ProfileID,
 			"workspace_id", entity.WorkspaceID,
 			"kind", entity.Kind,
 			"entity_id", entity.EntityID,

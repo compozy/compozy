@@ -40,7 +40,7 @@ func TestMCPAuthTokenStoreAtomicityContract(t *testing.T) {
 			t.Fatalf("SaveMCPAuthToken(update) error = %v, want injected metadata failure", err)
 		}
 
-		preserved, err := db.GetMCPAuthToken(ctx, globalMCPAuthTarget("linear"))
+		preserved, err := db.GetMCPAuthToken(ctx, userMCPAuthTarget("linear"))
 		if err != nil {
 			t.Fatalf("GetMCPAuthToken() error = %v", err)
 		}
@@ -68,7 +68,7 @@ func TestMCPAuthTokenStoreAtomicityContract(t *testing.T) {
 			ctx,
 			"CREATE TRIGGER fail_mcp_vault_secret_delete "+
 				"BEFORE DELETE ON vault_secrets "+
-				"WHEN OLD.ref LIKE 'vault:mcp/global/linear/oauth/%' "+
+				"WHEN OLD.ref LIKE 'vault:mcp/user/linear/oauth/%' "+
 				"BEGIN "+
 				"SELECT RAISE(FAIL, 'forced vault secret delete failure'); "+
 				"END;",
@@ -76,7 +76,7 @@ func TestMCPAuthTokenStoreAtomicityContract(t *testing.T) {
 			t.Fatalf("create failure trigger error = %v", err)
 		}
 
-		err := db.DeleteMCPAuthToken(ctx, globalMCPAuthTarget("linear"))
+		err := db.DeleteMCPAuthToken(ctx, userMCPAuthTarget("linear"))
 		if err == nil {
 			t.Fatal("DeleteMCPAuthToken() error = nil, want injected vault delete failure")
 		}
@@ -84,7 +84,7 @@ func TestMCPAuthTokenStoreAtomicityContract(t *testing.T) {
 			t.Fatalf("DeleteMCPAuthToken() error = %v, want injected vault delete failure", err)
 		}
 
-		preserved, err := db.GetMCPAuthToken(ctx, globalMCPAuthTarget("linear"))
+		preserved, err := db.GetMCPAuthToken(ctx, userMCPAuthTarget("linear"))
 		if err != nil {
 			t.Fatalf("GetMCPAuthToken() error = %v", err)
 		}
@@ -110,7 +110,7 @@ func TestMCPOAuthRegistrationStoreAtomicityContract(t *testing.T) {
 		db := openTestGlobalDB(t)
 		registration := mcpOAuthRegistrationRecord(
 			t,
-			globalMCPAuthTarget("linear"),
+			userMCPAuthTarget("linear"),
 			time.Date(2026, 7, 30, 16, 0, 0, 0, time.UTC),
 		)
 		saved, err := db.SaveMCPAuthRegistration(ctx, registration, mcpOAuthRegistrationSecrets())
@@ -175,7 +175,7 @@ func TestMCPOAuthRegistrationStoreAtomicityContract(t *testing.T) {
 		db := openTestGlobalDB(t)
 		registration := mcpOAuthRegistrationRecord(
 			t,
-			globalMCPAuthTarget("linear"),
+			userMCPAuthTarget("linear"),
 			time.Date(2026, 7, 30, 16, 30, 0, 0, time.UTC),
 		)
 		saved, err := db.SaveMCPAuthRegistration(ctx, registration, mcpOAuthRegistrationSecrets())
@@ -213,7 +213,7 @@ func TestMCPOAuthRegistrationStoreAtomicityContract(t *testing.T) {
 		ctx := testutil.Context(t)
 		db := openTestGlobalDB(t)
 		issuedAt := time.Date(2026, 7, 30, 17, 0, 0, 0, time.UTC)
-		target := globalMCPAuthTarget("linear")
+		target := userMCPAuthTarget("linear")
 		if err := db.SaveMCPAuthToken(ctx, mcpAuthorizationTokenRecord(target, issuedAt)); err != nil {
 			t.Fatalf("SaveMCPAuthToken() error = %v", err)
 		}
@@ -253,7 +253,7 @@ func TestMCPOAuthRegistrationStoreAtomicityContract(t *testing.T) {
 func mcpAuthTokenAtomicityRecord(serverName string, accessToken string, refreshToken string) mcpauth.TokenRecord {
 	issuedAt := time.Date(2026, 5, 17, 16, 0, 0, 0, time.UTC)
 	return mcpauth.TokenRecord{
-		Target:                globalMCPAuthTarget(serverName),
+		Target:                userMCPAuthTarget(serverName),
 		DefinitionFingerprint: testMCPDefinitionFingerprint,
 		Issuer:                "https://issuer.example",
 		ClientID:              "client",

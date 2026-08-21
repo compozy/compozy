@@ -5,13 +5,17 @@ import (
 	"encoding/json"
 	"errors"
 	"time"
+
+	"github.com/compozy/compozy/internal/store"
 )
 
 // ErrInvalidRunListCursor reports a malformed or filter-incompatible run-list cursor.
 var ErrInvalidRunListCursor = errors.New("invalid_cursor")
 
-// RunListQuery filters workspace-scoped loop run listings.
+// RunListQuery filters loop run listings within one explicit profile read
+// lens and workspace. AllProfiles is reserved for intentional aggregates.
 type RunListQuery struct {
+	ReadScope        store.ReadScope
 	WorkspaceID      WorkspaceID
 	LoopName         string
 	Status           Status
@@ -34,6 +38,7 @@ type RunListPosition struct {
 
 // RunEventQuery filters retained loop run events.
 type RunEventQuery struct {
+	ReadScope   store.ReadScope
 	WorkspaceID WorkspaceID
 	RunID       RunID
 	AfterSeq    int64

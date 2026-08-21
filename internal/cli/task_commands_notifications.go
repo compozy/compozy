@@ -124,11 +124,12 @@ func newTaskNotificationListCommand(deps commandDeps) *cobra.Command {
 	cmd.Flags().
 		StringVar(&workspaceID, "workspace", "", "Override workspace filter (ID, name, or path)")
 	cmd.Flags().IntVar(&last, "last", 0, "Show only the most recent N subscriptions")
+	configureProfileReadCommand(cmd, deps)
 	return cmd
 }
 
 func newTaskNotificationShowCommand(deps commandDeps) *cobra.Command {
-	return &cobra.Command{
+	cmd := &cobra.Command{
 		Use:   "show <task-id> <subscription-id>",
 		Short: "Show one bridge terminal notification subscription",
 		Args:  exactTwoNonBlankArgs(),
@@ -148,6 +149,8 @@ func newTaskNotificationShowCommand(deps commandDeps) *cobra.Command {
 			return writeCommandOutput(cmd, taskBridgeNotificationSubscriptionBundle(&subscription))
 		},
 	}
+	configureProfileReadCommand(cmd, deps)
+	return cmd
 }
 
 func newTaskNotificationDeleteCommand(deps commandDeps) *cobra.Command {

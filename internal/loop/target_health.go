@@ -67,7 +67,12 @@ func targetHealthKey(
 	if err != nil || !bound {
 		return store.DeadEntityKey{}, false, err
 	}
+	profileID := strings.TrimSpace(input.ToolScope.ProfileID)
+	if profileID == "" {
+		return store.DeadEntityKey{}, false, fmt.Errorf("%w: target health profile id is required", ErrValidation)
+	}
 	key := store.DeadEntityKey{
+		ProfileID:   profileID,
 		WorkspaceID: string(workspaceID),
 		Kind:        store.DeadEntityKindLoopTarget,
 		EntityID:    family + ":" + target,

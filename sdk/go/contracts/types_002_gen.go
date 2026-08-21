@@ -192,6 +192,7 @@ type AgentSpawnedPatch struct {
 type AgentSpawnedPayload struct {
 	Event          HookEvent `json:"event"`
 	Timestamp      time.Time `json:"timestamp"`
+	ProfileID      string    `json:"profile_id,omitempty"`
 	SessionID      string    `json:"session_id,omitempty"`
 	SessionName    string    `json:"session_name,omitempty"`
 	SessionType    string    `json:"session_type,omitempty"`
@@ -229,6 +230,7 @@ type AgentStoppedPatch struct {
 type AgentStoppedPayload struct {
 	Event          HookEvent `json:"event"`
 	Timestamp      time.Time `json:"timestamp"`
+	ProfileID      string    `json:"profile_id,omitempty"`
 	SessionID      string    `json:"session_id,omitempty"`
 	SessionName    string    `json:"session_name,omitempty"`
 	SessionType    string    `json:"session_type,omitempty"`

@@ -8,9 +8,10 @@ describe("notificationKeys", () => {
       notificationKeys.presetsList({
         enabled: true,
         built_in: false,
+        profile: " marketing ",
         name: " task_terminal ",
         limit: 25,
       })
-    ).toEqual(["notifications", "presets", true, false, "task_terminal", 25]);
+    ).toEqual(["notifications", "presets", true, false, "marketing", "task_terminal", 25]);
   });
 });

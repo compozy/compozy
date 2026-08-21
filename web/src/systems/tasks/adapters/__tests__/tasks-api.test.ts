@@ -271,16 +271,18 @@ describe("getTask", () => {
   it("fetches task detail by id", async () => {
     mockJsonResponse({ task: taskDetailFixture });
 
-    const result = await getTask("task_001");
+    const result = await getTask("task_001", { profile: "default" });
 
     expect(result).toEqual(taskDetailFixture);
-    await expectFetchRequest({ path: "/api/tasks/task_001" });
+    await expectFetchRequest({ path: "/api/tasks/task_001?profile=default" });
   });
 
   it("throws not-found for 404", async () => {
     vi.mocked(globalThis.fetch).mockResolvedValue(new Response(null, { status: 404 }));
 
-    await expect(getTask("missing")).rejects.toThrow("Task not found: missing");
+    await expect(getTask("missing", { profile: "default" })).rejects.toThrow(
+      "Task not found: missing"
+    );
   });
 });
 
@@ -621,10 +623,16 @@ describe("dashboard and inbox", () => {
   it("fetches dashboard payload with filter normalization", async () => {
     mockJsonResponse({ dashboard: dashboardFixture });
 
-    await getTaskDashboard({ scope: "workspace", workspace: "  ws_a  ", worktree: "  wt_a  " });
+    await getTaskDashboard({
+      scope: "workspace",
+      workspace: "  ws_a  ",
+      worktree: "  wt_a  ",
+      profile: "  marketing  ",
+      all_profiles: false,
+    });
 
     await expectFetchRequest({
-      path: "/api/observe/tasks/dashboard?scope=workspace&workspace=ws_a&worktree=wt_a",
+      path: "/api/observe/tasks/dashboard?scope=workspace&workspace=ws_a&worktree=wt_a&profile=marketing&all_profiles=false",
     });
   });
 
@@ -641,11 +649,13 @@ describe("dashboard and inbox", () => {
       unread: true,
       cursor: "inbox-cursor",
       limit: 10,
+      profile: "  marketing  ",
+      all_profiles: false,
     });
 
     expect(result).toEqual(inboxFixture);
     await expectFetchRequest({
-      path: "/api/observe/tasks/inbox?scope=workspace&workspace=ws_a&worktree=wt_a&lane=my_work&status=ready&priority=high&unread=true&cursor=inbox-cursor&limit=10",
+      path: "/api/observe/tasks/inbox?scope=workspace&workspace=ws_a&worktree=wt_a&lane=my_work&status=ready&priority=high&unread=true&cursor=inbox-cursor&limit=10&profile=marketing&all_profiles=false",
     });
   });
 });

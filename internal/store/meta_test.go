@@ -170,6 +170,7 @@ func TestSessionMetaValidateRejectsParticipationOutsideCreationIdentity(t *testi
 		Version:     SessionCreationProfileVersion,
 		AgentName:   "coder",
 		Provider:    "codex",
+		ProfileID:   DefaultProfileID,
 		WorkspaceID: "ws-meta-identity",
 		CWD:         "/work/meta-identity",
 		SandboxMode: SessionCreationSandboxNone,

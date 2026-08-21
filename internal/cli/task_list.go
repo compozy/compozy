@@ -42,6 +42,7 @@ func newTaskListCommand(deps commandDeps) *cobra.Command {
 		},
 	}
 	addTaskListFlags(cmd, opts)
+	configureProfileReadCommand(cmd, deps)
 	return cmd
 }
 
@@ -231,6 +232,7 @@ func taskSummaryListBundle(page TaskListRecord) outputBundle {
 		"Tasks",
 		[]string{
 			"ID",
+			cliProfileHeader,
 			strings.ToUpper(taskIdentifierValue),
 			strings.ToUpper(taskScopeValue),
 			strings.ToUpper(taskWorkspaceValue),
@@ -244,6 +246,7 @@ func taskSummaryListBundle(page TaskListRecord) outputBundle {
 		"tasks",
 		[]string{
 			"id",
+			profileNameOutputKey,
 			taskIdentifierKey,
 			taskScopeKey,
 			taskWorkspaceIDKey,
@@ -257,6 +260,7 @@ func taskSummaryListBundle(page TaskListRecord) outputBundle {
 		func(item TaskCatalogItemRecord) []string {
 			return []string{
 				stringOrDash(item.ID),
+				stringOrDash(item.ProfileName),
 				stringOrDash(item.Identifier),
 				stringOrDash(string(item.Scope)),
 				stringOrDash(item.WorkspaceID),
@@ -271,6 +275,7 @@ func taskSummaryListBundle(page TaskListRecord) outputBundle {
 		func(item TaskCatalogItemRecord) []string {
 			return []string{
 				item.ID,
+				item.ProfileName,
 				item.Identifier,
 				string(item.Scope),
 				item.WorkspaceID,

@@ -1286,6 +1286,7 @@ func linearTestManagedInstance(id string) subprocess.InitializeBridgeManagedInst
 	return subprocess.InitializeBridgeManagedInstance{
 		Instance: bridgepkg.BridgeInstance{
 			ID:          id,
+			ProfileID:   "profile-test",
 			Scope:       bridgepkg.ScopeWorkspace,
 			WorkspaceID: "ws-linear",
 		},

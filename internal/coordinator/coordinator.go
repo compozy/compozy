@@ -85,6 +85,7 @@ func ToolAllowlist(spec participation.Spec) []string {
 type Decision struct {
 	ShouldBootstrap      bool
 	Reason               string
+	ProfileID            string
 	WorkspaceID          string
 	TaskID               string
 	RunID                string
@@ -113,6 +114,7 @@ type WorkerWorktreeBinding struct {
 // belongs to the daemon runtime.
 func DecideBootstrap(task taskpkg.Task, run taskpkg.Run, cfg compozyconfig.ResolvedCoordinatorRole) Decision {
 	decision := Decision{
+		ProfileID:            strings.TrimSpace(task.ProfileID),
 		WorkspaceID:          strings.TrimSpace(task.WorkspaceID),
 		TaskID:               strings.TrimSpace(task.ID),
 		RunID:                strings.TrimSpace(run.ID),

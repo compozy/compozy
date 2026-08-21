@@ -8,7 +8,7 @@ import type {
 } from "@/systems/knowledge/types";
 
 const SCOPE_ORDER: Record<KnowledgeScope, number> = {
-  global: 0,
+  profile: 0,
   workspace: 1,
   agent: 2,
 };
@@ -26,13 +26,13 @@ export function compareKnowledgeScope(left: KnowledgeScope, right: KnowledgeScop
 export function knowledgeScopeLabel(scope: KnowledgeScope): string {
   if (scope === "workspace") return "Workspace";
   if (scope === "agent") return "Agent";
-  return "Global";
+  return "Profile";
 }
 
 export function knowledgeScopeShortLabel(scope: KnowledgeScope): string {
   if (scope === "workspace") return "ws";
   if (scope === "agent") return "agent";
-  return "global";
+  return "profile";
 }
 
 export function knowledgeAgentTierLabel(tier: KnowledgeAgentTier): string {

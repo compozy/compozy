@@ -7,6 +7,43 @@ import (
 	"time"
 )
 
+type Effort string
+
+type EmptyResult struct{}
+
+type EmptyState struct {
+	Title string `json:"title"`
+	Hint  string `json:"hint,omitempty"`
+	Icon  string `json:"icon,omitempty"`
+}
+
+type EventPostRecordPatch struct {
+	Labels map[string]string `json:"labels,omitempty"`
+}
+
+type EventPostRecordPayload struct {
+	Event          HookEvent       `json:"event"`
+	Timestamp      time.Time       `json:"timestamp"`
+	ProfileID      string          `json:"profile_id,omitempty"`
+	SessionID      string          `json:"session_id,omitempty"`
+	SessionName    string          `json:"session_name,omitempty"`
+	SessionType    string          `json:"session_type,omitempty"`
+	AgentName      string          `json:"agent_name,omitempty"`
+	WorkspaceID    string          `json:"workspace_id,omitempty"`
+	Workspace      string          `json:"workspace,omitempty"`
+	WorktreeID     string          `json:"worktree_id,omitempty"`
+	ACPSessionID   string          `json:"acp_session_id,omitempty"`
+	State          string          `json:"state,omitempty"`
+	SoulSnapshotID string          `json:"soul_snapshot_id,omitempty"`
+	SoulDigest     string          `json:"soul_digest,omitempty"`
+	CreatedAt      time.Time       `json:"created_at"`
+	UpdatedAt      time.Time       `json:"updated_at"`
+	TurnID         string          `json:"turn_id,omitempty"`
+	RecordType     string          `json:"record_type,omitempty"`
+	Sequence       int64           `json:"sequence,omitempty"`
+	Content        json.RawMessage `json:"content,omitempty"`
+}
+
 type EventPreRecordPatch struct {
 	Labels map[string]string `json:"labels,omitempty"`
 }
@@ -14,6 +51,7 @@ type EventPreRecordPatch struct {
 type EventPreRecordPayload struct {
 	Event          HookEvent       `json:"event"`
 	Timestamp      time.Time       `json:"timestamp"`
+	ProfileID      string          `json:"profile_id,omitempty"`
 	SessionID      string          `json:"session_id,omitempty"`
 	SessionName    string          `json:"session_name,omitempty"`
 	SessionType    string          `json:"session_type,omitempty"`
@@ -40,6 +78,7 @@ type EventRecordPatch struct {
 type EventRecordPayload struct {
 	Event          HookEvent       `json:"event"`
 	Timestamp      time.Time       `json:"timestamp"`
+	ProfileID      string          `json:"profile_id,omitempty"`
 	SessionID      string          `json:"session_id,omitempty"`
 	SessionName    string          `json:"session_name,omitempty"`
 	SessionType    string          `json:"session_type,omitempty"`
@@ -62,6 +101,7 @@ type EventRecordPayload struct {
 type ExtensionCommandGroupSpec struct {
 	Path    string `json:"path"`
 	Summary string `json:"summary"`
+	Profile string `json:"profile,omitempty"`
 }
 
 type ExtensionCommandSpec struct {
@@ -98,6 +138,7 @@ type ExtensionToolCallResponse struct {
 }
 
 type ExtensionToolRuntimeDescriptor struct {
+	Profile             string                `json:"profile,omitempty"`
 	ID                  ToolID                `json:"id"`
 	Handler             string                `json:"handler"`
 	Description         string                `json:"description,omitempty"`
@@ -169,41 +210,4 @@ type ForgeCapabilitiesResponse struct {
 	CredentialSource   string   `json:"credential_source,omitempty"`
 	DefaultBranch      string   `json:"default_branch,omitempty"`
 	Cause              string   `json:"cause,omitempty"`
-}
-
-type ForgePRCreateRequest struct {
-	RemoteURLs []string `json:"remote_urls"`
-	Head       string   `json:"head"`
-	Base       string   `json:"base"`
-	Title      string   `json:"title"`
-	Body       string   `json:"body,omitempty"`
-	Draft      bool     `json:"draft,omitempty"`
-}
-
-type ForgePRCreateResponse struct {
-	Status string `json:"status"`
-	Number int    `json:"number,omitempty"`
-	URL    string `json:"url,omitempty"`
-	Cause  string `json:"cause,omitempty"`
-}
-
-type ForgeStatusRequest struct {
-	RemoteURLs []string `json:"remote_urls"`
-	Branch     string   `json:"branch"`
-}
-
-type ForgeStatusResponse struct {
-	Provider  string    `json:"provider"`
-	PRNumber  *int      `json:"pr_number,omitempty"`
-	PRState   *string   `json:"pr_state,omitempty"`
-	PRURL     string    `json:"pr_url,omitempty"`
-	Merged    *bool     `json:"merged,omitempty"`
-	FetchedAt time.Time `json:"fetched_at"`
-	Cause     string    `json:"cause,omitempty"`
-}
-
-type FormBody struct {
-	Fields   []FormField `json:"fields"`
-	Submit   *RowAction  `json:"submit,omitempty"`
-	OnSubmit string      `json:"on_submit,omitempty"`
 }

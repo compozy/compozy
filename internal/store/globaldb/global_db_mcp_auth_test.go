@@ -45,7 +45,7 @@ func TestMCPAuthTokenStorePersistsAcrossReopenWithPrivatePermissions(t *testing.
 
 		expiresAt := time.Date(2026, 4, 25, 14, 0, 0, 0, time.UTC)
 		if err := db.SaveMCPAuthToken(ctx, mcpauth.TokenRecord{
-			Target:                globalMCPAuthTarget("linear"),
+			Target:                userMCPAuthTarget("linear"),
 			DefinitionFingerprint: testMCPDefinitionFingerprint,
 			Issuer:                "https://issuer.example",
 			ClientID:              "client",
@@ -64,7 +64,7 @@ func TestMCPAuthTokenStorePersistsAcrossReopenWithPrivatePermissions(t *testing.
 			ctx,
 			`SELECT access_token_ref, refresh_token_ref FROM mcp_auth_tokens
 		 WHERE scope = ? AND workspace_id = ? AND server_name = ?`,
-			"global",
+			"user",
 			"",
 			"linear",
 		).Scan(&rawAccessToken, &rawRefreshToken); err != nil {
@@ -79,10 +79,10 @@ func TestMCPAuthTokenStorePersistsAcrossReopenWithPrivatePermissions(t *testing.
 				t.Fatalf("raw %s token = %q, want vault:mcp ref", label, raw)
 			}
 		}
-		if got, want := rawAccessToken, "vault:mcp/global/linear/oauth/access-token"; got != want {
+		if got, want := rawAccessToken, "vault:mcp/user/linear/oauth/access-token"; got != want {
 			t.Fatalf("raw access token ref = %q, want %q", got, want)
 		}
-		if got, want := rawRefreshToken, "vault:mcp/global/linear/oauth/refresh-token"; got != want {
+		if got, want := rawRefreshToken, "vault:mcp/user/linear/oauth/refresh-token"; got != want {
 			t.Fatalf("raw refresh token ref = %q, want %q", got, want)
 		}
 		var encryptedValue string
@@ -113,7 +113,7 @@ func TestMCPAuthTokenStorePersistsAcrossReopenWithPrivatePermissions(t *testing.
 			}
 		})
 
-		token, err := reopened.GetMCPAuthToken(ctx, globalMCPAuthTarget("linear"))
+		token, err := reopened.GetMCPAuthToken(ctx, userMCPAuthTarget("linear"))
 		if err != nil {
 			t.Fatalf("GetMCPAuthToken() error = %v", err)
 		}
@@ -127,7 +127,7 @@ func TestMCPAuthTokenStorePersistsAcrossReopenWithPrivatePermissions(t *testing.
 			t.Fatalf("token expires_at = %s, want %s", token.ExpiresAt, expiresAt)
 		}
 		replacement := mcpauth.TokenRecord{
-			Target: globalMCPAuthTarget("linear"), DefinitionFingerprint: testMCPDefinitionFingerprint,
+			Target: userMCPAuthTarget("linear"), DefinitionFingerprint: testMCPDefinitionFingerprint,
 			ClientID:    "client",
 			AccessToken: "replacement-access-token",
 			ObtainedAt:  expiresAt,
@@ -165,12 +165,12 @@ func TestMCPAuthTokenStorePersistsAcrossReopenWithPrivatePermissions(t *testing.
 		}
 		assertVaultRefPresence(ctx, t, reopenedAfterRotation.db, rawRefreshToken, false)
 
-		if err := reopenedAfterRotation.DeleteMCPAuthToken(ctx, globalMCPAuthTarget("linear")); err != nil {
+		if err := reopenedAfterRotation.DeleteMCPAuthToken(ctx, userMCPAuthTarget("linear")); err != nil {
 			t.Fatalf("DeleteMCPAuthToken() error = %v", err)
 		}
 		if _, err := reopenedAfterRotation.GetMCPAuthToken(
 			ctx,
-			globalMCPAuthTarget("linear"),
+			userMCPAuthTarget("linear"),
 		); !errors.Is(
 			err,
 			mcpauth.ErrTokenNotFound,
@@ -190,28 +190,28 @@ func TestMCPAuthTokenStoreRejectsInvalidInput(t *testing.T) {
 		{
 			name: "Should reject a missing access token",
 			token: mcpauth.TokenRecord{
-				Target: globalMCPAuthTarget("linear"), DefinitionFingerprint: testMCPDefinitionFingerprint,
+				Target: userMCPAuthTarget("linear"), DefinitionFingerprint: testMCPDefinitionFingerprint,
 				ClientID: "client",
 			},
 		},
 		{
 			name: "Should reject a missing client ID",
 			token: mcpauth.TokenRecord{
-				Target: globalMCPAuthTarget("linear"), DefinitionFingerprint: testMCPDefinitionFingerprint,
+				Target: userMCPAuthTarget("linear"), DefinitionFingerprint: testMCPDefinitionFingerprint,
 				AccessToken: "access-token",
 			},
 		},
 		{
 			name: "Should reject a missing definition fingerprint",
 			token: mcpauth.TokenRecord{
-				Target: globalMCPAuthTarget("linear"), ClientID: "client", AccessToken: "access-token",
+				Target: userMCPAuthTarget("linear"), ClientID: "client", AccessToken: "access-token",
 			},
 		},
 		{
 			name: "Should reject an ambiguous target",
 			token: mcpauth.TokenRecord{
 				Target: mcpauth.Target{
-					Scope: mcpauth.ScopeGlobal, WorkspaceID: "workspace-a", ServerName: "linear",
+					Scope: mcpauth.ScopeUser, WorkspaceID: "workspace-a", ServerName: "linear",
 				},
 				DefinitionFingerprint: testMCPDefinitionFingerprint,
 				ClientID:              "client",
@@ -242,7 +242,7 @@ func TestMCPAuthTokenStoreRejectsInvalidInput(t *testing.T) {
 		if err := db.DeleteMCPAuthToken(ctx, invalid); err == nil {
 			t.Fatal("DeleteMCPAuthToken(invalid target) error = nil, want validation failure")
 		}
-		if err := db.DeleteMCPAuthToken(ctx, globalMCPAuthTarget("missing")); err != nil {
+		if err := db.DeleteMCPAuthToken(ctx, userMCPAuthTarget("missing")); err != nil {
 			t.Fatalf("DeleteMCPAuthToken(missing target) error = %v, want idempotent success", err)
 		}
 	})
@@ -251,14 +251,14 @@ func TestMCPAuthTokenStoreRejectsInvalidInput(t *testing.T) {
 func TestMCPAuthTokenStoreIsolatesSameNamedScopedCredentials(t *testing.T) {
 	t.Parallel()
 
-	t.Run("Should isolate same-named credentials across global and workspace scopes", func(t *testing.T) {
+	t.Run("Should isolate same-named credentials across user and workspace scopes", func(t *testing.T) {
 		t.Parallel()
 
 		ctx := testutil.Context(t)
 		db := openTestGlobalDB(t)
 		issuedAt := time.Date(2026, 7, 13, 15, 0, 0, 0, time.UTC)
 		targets := []mcpauth.Target{
-			globalMCPAuthTarget("linear"),
+			userMCPAuthTarget("linear"),
 			{Scope: mcpauth.ScopeWorkspace, WorkspaceID: "workspace-a", ServerName: "linear"},
 			{Scope: mcpauth.ScopeWorkspace, WorkspaceID: "workspace/b", ServerName: "linear"},
 			{Scope: mcpauth.ScopeWorkspace, WorkspaceID: "workspace-a", ServerName: "QA OAuth MCP"},
@@ -407,7 +407,7 @@ func TestMCPOAuthRegistrationStorePersistsTargetScopedDCRState(t *testing.T) {
 		db := openTestGlobalDB(t)
 		registration := mcpOAuthRegistrationRecord(
 			t,
-			globalMCPAuthTarget("empty-scopes"),
+			userMCPAuthTarget("empty-scopes"),
 			time.Date(2026, 7, 30, 15, 15, 0, 0, time.UTC),
 		)
 		registration.Scopes = nil
@@ -441,7 +441,7 @@ func TestMCPOAuthRegistrationStorePersistsTargetScopedDCRState(t *testing.T) {
 		db := openTestGlobalDB(t)
 		registration := mcpOAuthRegistrationRecord(
 			t,
-			globalMCPAuthTarget("linear"),
+			userMCPAuthTarget("linear"),
 			time.Date(2026, 7, 30, 15, 30, 0, 0, time.UTC),
 		)
 		registration.RegistrationClientURI = ""
@@ -460,7 +460,7 @@ func TestMCPOAuthRegistrationStorePersistsTargetScopedDCRState(t *testing.T) {
 		db := openTestGlobalDB(t)
 		issuedAt := time.Date(2026, 7, 30, 16, 0, 0, 0, time.UTC)
 		targets := []mcpauth.Target{
-			globalMCPAuthTarget("linear"),
+			userMCPAuthTarget("linear"),
 			{Scope: mcpauth.ScopeWorkspace, WorkspaceID: "workspace-authorization", ServerName: "linear"},
 		}
 		registrations := make([]mcpauth.ClientRegistration, 0, len(targets))
@@ -480,16 +480,16 @@ func TestMCPOAuthRegistrationStorePersistsTargetScopedDCRState(t *testing.T) {
 		}
 
 		if err := db.DeleteMCPAuthorizationState(ctx, targets[0]); err != nil {
-			t.Fatalf("DeleteMCPAuthorizationState(global) error = %v", err)
+			t.Fatalf("DeleteMCPAuthorizationState(user) error = %v", err)
 		}
 		if err := db.DeleteMCPAuthorizationState(ctx, targets[0]); err != nil {
-			t.Fatalf("DeleteMCPAuthorizationState(global retry) error = %v", err)
+			t.Fatalf("DeleteMCPAuthorizationState(user retry) error = %v", err)
 		}
 		if _, err := db.GetMCPAuthToken(ctx, targets[0]); !errors.Is(err, mcpauth.ErrTokenNotFound) {
-			t.Fatalf("GetMCPAuthToken(deleted global) error = %v, want ErrTokenNotFound", err)
+			t.Fatalf("GetMCPAuthToken(deleted user) error = %v, want ErrTokenNotFound", err)
 		}
 		if _, err := db.GetMCPAuthRegistration(ctx, targets[0]); !errors.Is(err, mcpauth.ErrRegistrationNotFound) {
-			t.Fatalf("GetMCPAuthRegistration(deleted global) error = %v, want ErrRegistrationNotFound", err)
+			t.Fatalf("GetMCPAuthRegistration(deleted user) error = %v, want ErrRegistrationNotFound", err)
 		}
 		for _, ref := range mcpAuthorizationSecretRefs(t, targets[0], registrations[0]) {
 			assertVaultRefPresence(ctx, t, db.db, ref, false)
@@ -539,9 +539,14 @@ func TestMCPAuthTokenScopeMigration(t *testing.T) {
 		legacyRefreshRef := "vault:mcp/linear/oauth/refresh-token"
 		nestedLegacyAccessRef := "vault:mcp/team/linear/oauth/access-token"
 		nestedLegacyRefreshRef := "vault:mcp/team/linear/oauth/refresh-token"
-		preservedRefs := []string{
+		preservedSeedRefs := []string{
 			"vault:mcp/linear/env/api-token",
 			"vault:mcp/global/linear/oauth/client-secret",
+			"vault:mcp/ws/workspace-a/linear/oauth/client-secret",
+		}
+		preservedRefs := []string{
+			"vault:mcp/linear/env/api-token",
+			"vault:mcp/user/linear/oauth/client-secret",
 			"vault:mcp/ws/workspace-a/linear/oauth/client-secret",
 		}
 		if _, err := legacyDB.ExecContext(
@@ -574,7 +579,7 @@ func TestMCPAuthTokenScopeMigration(t *testing.T) {
 			nestedLegacyAccessRef,
 			nestedLegacyRefreshRef,
 		}
-		for _, ref := range append(legacyTokenRefs, preservedRefs...) {
+		for _, ref := range append(legacyTokenRefs, preservedSeedRefs...) {
 			if _, err := legacyDB.ExecContext(
 				ctx,
 				`INSERT INTO vault_secrets (ref, kind, encrypted_value, created_at, updated_at)
@@ -765,7 +770,7 @@ func TestMCPAuthTokenScopeMigration(t *testing.T) {
 			t.Fatalf("OpenGlobalDB(migrate v33) error = %v", err)
 		}
 		ctx = testutil.Context(t)
-		stored, err := migrated.GetMCPAuthRegistration(ctx, globalMCPAuthTarget("linear"))
+		stored, err := migrated.GetMCPAuthRegistration(ctx, userMCPAuthTarget("linear"))
 		if err != nil {
 			closeErr := migrated.Close(ctx)
 			t.Fatalf("GetMCPAuthRegistration(migrated) error = %v; close error = %v", err, closeErr)
@@ -792,7 +797,7 @@ func TestMCPAuthTokenScopeMigration(t *testing.T) {
 			}
 		})
 		ctx = testutil.Context(t)
-		stored, err = reopened.GetMCPAuthRegistration(ctx, globalMCPAuthTarget("linear"))
+		stored, err = reopened.GetMCPAuthRegistration(ctx, userMCPAuthTarget("linear"))
 		if err != nil {
 			t.Fatalf("GetMCPAuthRegistration(reopened) error = %v", err)
 		}
@@ -809,15 +814,15 @@ func assertUnboundMCPAuthMigrationRow(ctx context.Context, t *testing.T, db *sql
 		ctx,
 		`SELECT definition_fingerprint, access_token_ref
 		 FROM mcp_auth_tokens
-		 WHERE scope = 'global' AND workspace_id = '' AND server_name = 'linear'`,
+		 WHERE scope = 'user' AND workspace_id = '' AND server_name = 'linear'`,
 	).Scan(&fingerprint, &accessRef); err != nil {
 		t.Fatalf("query migrated MCP auth token error = %v", err)
 	}
 	if fingerprint != "" {
 		t.Fatalf("migrated definition fingerprint = %q, want unbound empty value", fingerprint)
 	}
-	if accessRef != "vault:mcp/global/linear/oauth/access-token" {
-		t.Fatalf("migrated access token ref = %q, want preserved ref", accessRef)
+	if accessRef != "vault:mcp/user/linear/oauth/access-token" {
+		t.Fatalf("migrated access token ref = %q, want user-owned ref", accessRef)
 	}
 	assertVaultRefPresence(ctx, t, db, accessRef, true)
 }
@@ -890,8 +895,8 @@ func assertVaultRefPresence(ctx context.Context, t *testing.T, db *sql.DB, ref s
 	}
 }
 
-func globalMCPAuthTarget(serverName string) mcpauth.Target {
-	return mcpauth.Target{Scope: mcpauth.ScopeGlobal, ServerName: serverName}
+func userMCPAuthTarget(serverName string) mcpauth.Target {
+	return mcpauth.Target{Scope: mcpauth.ScopeUser, ServerName: serverName}
 }
 
 func mcpOAuthRegistrationRecord(

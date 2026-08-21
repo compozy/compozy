@@ -9,6 +9,7 @@ import (
 
 // NetworkDirectRoomEntry is the write DTO for a direct-room row.
 type NetworkDirectRoomEntry struct {
+	ProfileID      string
 	WorkspaceID    string
 	Channel        string
 	DirectID       string
@@ -20,6 +21,9 @@ type NetworkDirectRoomEntry struct {
 
 // Validate ensures direct-room membership is stable and ordered.
 func (e NetworkDirectRoomEntry) Validate() error {
+	if err := requireField(e.ProfileID, "network direct room profile_id"); err != nil {
+		return err
+	}
 	if err := validateNetworkDirectRoom(e.WorkspaceID, e.Channel, e.DirectID, e.SessionA, e.SessionB); err != nil {
 		return err
 	}
@@ -35,6 +39,12 @@ func (e NetworkDirectRoomEntry) Validate() error {
 // NetworkWorkEntry stores lifecycle metadata for work inside one conversation.
 type NetworkWorkEntry struct {
 	WorkID            string
+	ProfileID         string
+	ProfileName       string
+	ProfileColor      string
+	ProfileIcon       string
+	ProfileEmoji      string
+	ProfileArchived   bool
 	WorkspaceID       string
 	Channel           string
 	Surface           string
@@ -50,6 +60,9 @@ type NetworkWorkEntry struct {
 
 // Validate ensures a work row is bound to exactly one conversation container.
 func (e NetworkWorkEntry) Validate() error {
+	if err := requireField(e.ProfileID, "network work profile_id"); err != nil {
+		return err
+	}
 	if err := validateNetworkConversationID(e.WorkID, "work_id"); err != nil {
 		return err
 	}
@@ -83,30 +96,36 @@ func (e NetworkWorkEntry) Validate() error {
 
 // NetworkConversationMessage is one persisted network conversation or presence message.
 type NetworkConversationMessage struct {
-	Sequence    int64
-	MessageID   string
-	SessionID   string
-	WorkspaceID string
-	Channel     string
-	Surface     string
-	ThreadID    string
-	DirectID    string
-	Direction   string
-	PeerFrom    string
-	PeerTo      string
-	Kind        string
-	WorkID      string
-	ReplyTo     string
-	TraceID     string
-	CausationID string
-	Intent      string
-	Text        string
-	PreviewText string
-	Mentions    []string
-	ExtJSON     json.RawMessage
-	Body        json.RawMessage
-	SizeBytes   int64
-	Timestamp   time.Time
+	Sequence        int64
+	ProfileID       string
+	ProfileName     string
+	ProfileColor    string
+	ProfileIcon     string
+	ProfileEmoji    string
+	ProfileArchived bool
+	MessageID       string
+	SessionID       string
+	WorkspaceID     string
+	Channel         string
+	Surface         string
+	ThreadID        string
+	DirectID        string
+	Direction       string
+	PeerFrom        string
+	PeerTo          string
+	Kind            string
+	WorkID          string
+	ReplyTo         string
+	TraceID         string
+	CausationID     string
+	Intent          string
+	Text            string
+	PreviewText     string
+	Mentions        []string
+	ExtJSON         json.RawMessage
+	Body            json.RawMessage
+	SizeBytes       int64
+	Timestamp       time.Time
 }
 
 // NetworkMessageEntry is the persisted network timeline row used by existing store interfaces.
@@ -114,6 +133,9 @@ type NetworkMessageEntry = NetworkConversationMessage
 
 // Validate ensures the persisted network message is complete and internally consistent.
 func (e NetworkConversationMessage) Validate() error {
+	if err := requireField(e.ProfileID, "network message profile_id"); err != nil {
+		return err
+	}
 	if e.Sequence < 0 {
 		return fmt.Errorf("store: network message sequence must be zero or positive")
 	}

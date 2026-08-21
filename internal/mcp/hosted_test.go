@@ -830,7 +830,7 @@ func TestHostedServiceReleaseAndFailureBranches(t *testing.T) {
 	t.Run("Should reject disabled service and invalid construction", func(t *testing.T) {
 		t.Parallel()
 
-		disabled, err := NewHostedService(HostedConfig{ExpectedBinary: executable})
+		disabled, err := NewHostedService(&HostedConfig{ExpectedBinary: executable})
 		if err != nil {
 			t.Fatalf("NewHostedService(disabled) error = %v", err)
 		}
@@ -843,7 +843,7 @@ func TestHostedServiceReleaseAndFailureBranches(t *testing.T) {
 		) {
 			t.Fatalf("Launch(disabled) error = %v, want ErrHostedDisabled", err)
 		}
-		if _, err := NewHostedService(HostedConfig{Enabled: true}); err == nil {
+		if _, err := NewHostedService(&HostedConfig{Enabled: true}); err == nil {
 			t.Fatal("NewHostedService(blank expected binary) error = nil, want error")
 		}
 	})
@@ -1005,7 +1005,7 @@ func newHostedTestService(
 	t.Helper()
 
 	counter := byte(1)
-	service, err := NewHostedService(HostedConfig{
+	service, err := NewHostedService(&HostedConfig{
 		Enabled:        true,
 		BindNonceTTL:   2 * time.Second,
 		ExpectedBinary: executable,
@@ -1035,7 +1035,7 @@ func newHostedTestServiceWithProjectionGeneration(
 ) *HostedService {
 	t.Helper()
 
-	service, err := NewHostedService(HostedConfig{
+	service, err := NewHostedService(&HostedConfig{
 		Enabled:              true,
 		ExpectedBinary:       executable,
 		Registry:             func() tools.Registry { return registry },
@@ -1119,10 +1119,10 @@ func hostedToolIDs(views []tools.ToolView) []string {
 func hostedToolView(id tools.ToolID) tools.ToolView {
 	return tools.ToolView{
 		Descriptor: tools.Descriptor{
-			ID:           id,
-			Backend:      tools.BackendRef{Kind: tools.BackendNativeGo, NativeName: id.String()},
-			DisplayTitle: "Hosted " + id.String(),
-			Description:  "Hosted test tool",
+			ID:               id,
+			Backend:          tools.BackendRef{Kind: tools.BackendNativeGo, NativeName: id.String()},
+			ToolPresentation: tools.NewToolPresentation("Hosted "+id.String(), "", ""),
+			Description:      "Hosted test tool",
 			InputSchema: json.RawMessage(
 				`{"type":"object","properties":{"message":{"type":"string"}},"additionalProperties":false}`,
 			),
@@ -1177,19 +1177,19 @@ func hostedRuntimeRegistry(
 func hostedRuntimeNativeTool(id tools.ToolID, risk tools.RiskClass, readOnly bool) tools.NativeTool {
 	return tools.NativeTool{
 		Descriptor: tools.Descriptor{
-			ID:              id,
-			Backend:         tools.BackendRef{Kind: tools.BackendNativeGo, NativeName: id.String()},
-			DisplayTitle:    "Hosted " + id.String(),
-			Description:     "Hosted runtime test tool",
-			InputSchema:     json.RawMessage(`{"type":"object"}`),
-			OutputSchema:    json.RawMessage(`{"type":"object"}`),
-			Source:          tools.BuiltinSource(),
-			Visibility:      tools.VisibilityModel,
-			Risk:            risk,
-			ReadOnly:        readOnly,
-			Destructive:     risk == tools.RiskDestructive,
-			OpenWorld:       risk == tools.RiskOpenWorld,
-			ConcurrencySafe: readOnly,
+			ID:               id,
+			Backend:          tools.BackendRef{Kind: tools.BackendNativeGo, NativeName: id.String()},
+			ToolPresentation: tools.NewToolPresentation("Hosted "+id.String(), "", ""),
+			Description:      "Hosted runtime test tool",
+			InputSchema:      json.RawMessage(`{"type":"object"}`),
+			OutputSchema:     json.RawMessage(`{"type":"object"}`),
+			Source:           tools.BuiltinSource(),
+			Visibility:       tools.VisibilityModel,
+			Risk:             risk,
+			ReadOnly:         readOnly,
+			Destructive:      risk == tools.RiskDestructive,
+			OpenWorld:        risk == tools.RiskOpenWorld,
+			ConcurrencySafe:  readOnly,
 		},
 		Call: func(context.Context, tools.Scope, tools.CallRequest) (tools.ToolResult, error) {
 			return tools.ToolResult{

@@ -3,6 +3,7 @@ import { useRouter } from "@tanstack/react-router";
 import { useAtom } from "@xstate/store-react";
 import { useEffect, useState } from "react";
 
+import { useProfileReadScope } from "@/systems/profiles";
 import { useSession } from "@/systems/session";
 import { useWorkspaceScopeMode } from "@/systems/workspace";
 
@@ -67,8 +68,12 @@ export function useDesktopChrome(activeWorkspaceId: string | null): DesktopChrom
   const queryClient = useQueryClient();
   const scope = useWorkspaceScopeMode();
   const paletteIntent = useWindowPaletteIntent();
-  const query = useQuery(windowManagerSnapshotOptions(activeWorkspaceId ?? ""));
-  const client = useWindowManagerClient(activeWorkspaceId);
+  // Desks belong to the profile this client acts as. Under the aggregate that is
+  // the destination profile, so the desk and the work opened on it stay in the
+  // same partition rather than drifting apart (ADR-005, US-026).
+  const profileId = useProfileReadScope().destination;
+  const query = useQuery(windowManagerSnapshotOptions(activeWorkspaceId ?? "", profileId));
+  const client = useWindowManagerClient(activeWorkspaceId, profileId);
   // Scoped to the active workspace: a rebind stored in the workspace overlay has
   // to reach the shell's own keymap, or the chord would not dispatch until a
   // reload (US-022.AC-3).
@@ -93,7 +98,7 @@ export function useDesktopChrome(activeWorkspaceId: string | null): DesktopChrom
   const destinationRoute = useAtom(manager.projectionAtom, state =>
     selectPaletteDestinationRoute(state, paletteIntent?.windowId)
   );
-  const focusedSession = useSession(focusedSessionId ?? "", activeWorkspaceId);
+  const focusedSession = useSession(focusedSessionId ?? "");
 
   useEffect(() => {
     manager.start();
@@ -107,10 +112,10 @@ export function useDesktopChrome(activeWorkspaceId: string | null): DesktopChrom
       manager.unbind();
       return undefined;
     }
-    manager.bind({ workspaceId: activeWorkspaceId, clientId: client.clientId });
+    manager.bind({ workspaceId: activeWorkspaceId, profileId, clientId: client.clientId });
     shell.coordinator.beginWorkspaceSwitch();
     return () => manager.unbind();
-  }, [activeWorkspaceId, client.clientId, manager, shell]);
+  }, [activeWorkspaceId, client.clientId, manager, profileId, shell]);
 
   // Bind first: workspace selection and registration can settle in the same
   // commit, and setClient intentionally rejects a client for an unbound runtime.
@@ -118,7 +123,7 @@ export function useDesktopChrome(activeWorkspaceId: string | null): DesktopChrom
     manager.setClient(client.client);
     manager.setLoadError(client.error);
     shell.coordinator.reportAuthoritativeState();
-  }, [activeWorkspaceId, client.client, client.error, manager, shell]);
+  }, [activeWorkspaceId, client.client, client.error, manager, profileId, shell]);
 
   useEffect(() => {
     if (client.status === "registered" && query.data && configQuery.data) {
@@ -128,6 +133,7 @@ export function useDesktopChrome(activeWorkspaceId: string | null): DesktopChrom
 
   useWindowManagerStream({
     workspaceId: activeWorkspaceId,
+    profileId,
     clientId: client.clientId,
     registrationEpoch: client.registrationEpoch,
     currentClient: client.client,

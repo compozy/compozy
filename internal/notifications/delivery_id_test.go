@@ -8,6 +8,7 @@ import (
 	"unicode/utf8"
 
 	"github.com/compozy/compozy/internal/diagnostics"
+	"github.com/compozy/compozy/internal/store"
 )
 
 func TestEncodeDeliveryID(t *testing.T) {
@@ -33,6 +34,13 @@ func TestEncodeDeliveryID(t *testing.T) {
 		}
 		if strings.Contains(first, ":") {
 			t.Fatalf("delivery ID = %q, want opaque non-delimited encoding", first)
+		}
+		decoded, err := DecodeDeliveryID(first)
+		if err != nil {
+			t.Fatalf("DecodeDeliveryID() error = %v", err)
+		}
+		if decoded != identity {
+			t.Fatalf("DecodeDeliveryID() = %#v, want %#v", decoded, identity)
 		}
 	})
 
@@ -299,6 +307,7 @@ func notificationDeliveryIdentityForTest() DeliveryIdentity {
 
 func notificationCursorKeyForDeliveryTest() CursorKey {
 	return CursorKey{
+		ProfileID:  store.DefaultProfileID,
 		Scope:      ScopeRef{Kind: ScopeKindWorkspace, WorkspaceID: "global"},
 		ConsumerID: "consumer:terminal",
 		StreamName: "task.run_completed",

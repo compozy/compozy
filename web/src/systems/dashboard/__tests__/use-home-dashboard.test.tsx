@@ -36,6 +36,22 @@ const getHomeActivity = vi.fn();
 const fetchStatus = vi.fn();
 const useHomeLive = vi.fn();
 const useHomeWorkingNow = vi.fn();
+const profileScope = vi.hoisted(() => ({
+  aggregate: false,
+  params: { profile: "default" } as { profile: string } | { all_profiles: true },
+}));
+
+vi.mock("@/systems/profiles", async importOriginal => {
+  const actual = await importOriginal<typeof import("@/systems/profiles")>();
+  return {
+    ...actual,
+    useProfileReadScope: () => ({
+      aggregate: profileScope.aggregate,
+      destination: "default",
+      params: profileScope.params,
+    }),
+  };
+});
 
 vi.mock("../hooks/use-home-live", () => ({
   useHomeLive: (options: unknown) => useHomeLive(options),
@@ -119,6 +135,8 @@ describe("useHomeDashboard", () => {
     activeWorkspaceState.runtimeWorkspaceId = "ws-home";
     activeWorkspaceState.scope = "global";
     activeWorkspaceState.isLoading = false;
+    profileScope.aggregate = false;
+    profileScope.params = { profile: "default" };
   });
 
   it("Should resolve Global menubar scope to the empty workspace param", async () => {
@@ -149,13 +167,43 @@ describe("useHomeDashboard", () => {
       });
       await waitFor(() => expect(result.current.overviewStatus).toBe("ready"));
 
-      expect(useHomeLive).toHaveBeenLastCalledWith({ workspaceId: "", enabled: liveEnabled });
+      // The stream carries the same lens as the reads beside it, so the feed and
+      // the list can never disagree about which owners are in view.
+      expect(useHomeLive).toHaveBeenLastCalledWith({
+        workspaceId: "",
+        scope: { profile: "default" },
+        enabled: liveEnabled,
+      });
       expect(useHomeWorkingNow).toHaveBeenLastCalledWith(
         expect.objectContaining({ workspaceParam: "" }),
         liveEnabled
       );
     }
   );
+
+  it("Should carry the aggregate profile lens through every dashboard read", async () => {
+    profileScope.aggregate = true;
+    profileScope.params = { all_profiles: true };
+    getHomeOverview.mockResolvedValue(makeHomeOverview());
+
+    const { result } = renderHook(() => useHomeDashboard(), { wrapper: wrapper() });
+    await waitFor(() => expect(result.current.overviewStatus).toBe("ready"));
+
+    expect(getHomeOverview).toHaveBeenCalledWith(
+      expect.objectContaining({ allProfiles: true }),
+      expect.anything()
+    );
+    expect(getHomeActivity).toHaveBeenCalledWith(
+      expect.objectContaining({ all_profiles: true }),
+      expect.anything()
+    );
+    expect(useHomeLive).toHaveBeenLastCalledWith({
+      workspaceId: "",
+      scope: { all_profiles: true },
+      enabled: true,
+    });
+    expect(result.current.profileAggregate).toBe(true);
+  });
 
   it("Should scope the overview to a project workspace", async () => {
     activeWorkspaceState.activeWorkspace = {
@@ -202,7 +250,9 @@ describe("useHomeDashboard", () => {
       expect(filter).toMatchObject({ workspace: "ws-proj" });
     }
     for (const [filter] of getHomeActivity.mock.calls) {
-      expect(filter).toMatchObject({ workspace_id: "ws-proj" });
+      // The lens rides the same filter as the workspace, so activity is never
+      // read unscoped on either axis.
+      expect(filter).toMatchObject({ workspace_id: "ws-proj", profile: "default" });
     }
     expect(getHomeOverview).not.toHaveBeenCalledWith(
       expect.objectContaining({ workspace: undefined }),

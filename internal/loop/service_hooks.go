@@ -3,6 +3,7 @@ package loop
 import (
 	"context"
 	"log/slog"
+	"strings"
 	"time"
 
 	hookspkg "github.com/compozy/compozy/internal/hooks"
@@ -72,6 +73,7 @@ func (s *service) reportTerminalHookFailure(
 
 func serviceLoopContext(run Run, actor task.ActorContext) hookspkg.LoopContext {
 	return hookspkg.LoopContext{
+		ProfileID:       strings.TrimSpace(run.ProfileID),
 		LoopRunID:       string(run.ID),
 		ParentLoopRunID: string(run.ParentLoopRunID),
 		WorkspaceID:     string(run.WorkspaceID),

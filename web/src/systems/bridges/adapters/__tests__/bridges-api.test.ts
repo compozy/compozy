@@ -1,6 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { expectFetchRequest, mockJsonResponse } from "@/test/fetch-test-utils";
+import type { ProfileScopeParams } from "@/systems/profiles";
 import {
   BridgesApiError,
   createBridge,
@@ -25,6 +26,9 @@ import {
   sendBridgeTest,
   verifyBridge,
 } from "@/systems/bridges/adapters/bridge-setup-api";
+
+const SCOPED: ProfileScopeParams = { profile: "default" };
+const AGGREGATE: ProfileScopeParams = { all_profiles: true };
 
 const bridgeFixture = {
   created_at: "2026-04-13T12:00:00Z",
@@ -116,6 +120,7 @@ describe("listBridges", () => {
       cursor: " cursor-2 ",
       limit: 25,
       platform: " slack ",
+      profile: " marketing ",
       q: " ops ",
       scope: "all",
       sort: "name",
@@ -124,8 +129,33 @@ describe("listBridges", () => {
     });
 
     await expectFetchRequest({
-      path: "/api/bridges?scope=all&workspace_id=%20ws_alpha%20&q=ops&platform=slack&status=ready&sort=name&cursor=%20cursor-2%20&limit=25",
+      path: "/api/bridges?scope=all&workspace_id=%20ws_alpha%20&q=ops&platform=slack&status=ready&sort=name&cursor=%20cursor-2%20&limit=25&profile=marketing",
     });
+  });
+
+  it("Should widen the bridge listing to the labeled aggregate when asked", async () => {
+    mockJsonResponse({
+      bridge_health: {},
+      bridges: [],
+      facets: {
+        platforms: {},
+        statuses: {
+          auth_required: 0,
+          degraded: 0,
+          disabled: 0,
+          error: 0,
+          ready: 0,
+          starting: 0,
+        },
+      },
+      page: { has_more: false, limit: 50, total: 0 },
+    });
+
+    await listBridges({ all_profiles: true });
+
+    // Omitting the selector resolves to `default` server-side, so the aggregate
+    // has to say so or the listing silently narrows to one profile.
+    await expectFetchRequest({ path: "/api/bridges?all_profiles=true" });
   });
 
   it("passes abort signal through to fetch", async () => {
@@ -215,22 +245,43 @@ describe("getBridge", () => {
       },
     });
 
-    const result = await getBridge("brg_support");
+    const result = await getBridge("brg_support", SCOPED);
 
     expect(result.bridge).toEqual(bridgeFixture);
-    await expectFetchRequest({ path: "/api/bridges/brg_support" });
+    // A bridge belongs to a profile, so the read states which one is asking —
+    // that is what makes its 404 mean "not yours" rather than "gone".
+    await expectFetchRequest({ path: "/api/bridges/brg_support?profile=default" });
+  });
+
+  it("Should widen the bridge read to the labeled aggregate when asked", async () => {
+    mockJsonResponse({
+      bridge: bridgeFixture,
+      health: {
+        auth_failures_total: 0,
+        bridge_instance_id: "brg_support",
+        delivery_backlog: 0,
+        delivery_dropped_total: 0,
+        delivery_failures_total: 0,
+        route_count: 1,
+        status: "ready",
+      },
+    });
+
+    await getBridge("brg_support", AGGREGATE);
+
+    await expectFetchRequest({ path: "/api/bridges/brg_support?all_profiles=true" });
   });
 
   it("throws a not found error for unknown bridges", async () => {
     vi.mocked(globalThis.fetch).mockResolvedValue(new Response(null, { status: 404 }));
 
-    await expect(getBridge("missing")).rejects.toThrow("Bridge not found: missing");
+    await expect(getBridge("missing", SCOPED)).rejects.toThrow("Bridge not found: missing");
   });
 
   it("throws a typed error for non-404 bridge fetch failures", async () => {
     vi.mocked(globalThis.fetch).mockResolvedValue(new Response(null, { status: 500 }));
 
-    await expect(getBridge("brg_support")).rejects.toThrow(
+    await expect(getBridge("brg_support", SCOPED)).rejects.toThrow(
       'Failed to load bridge "brg_support": 500'
     );
   });
@@ -255,16 +306,16 @@ describe("listBridgeRoutes", () => {
       ],
     });
 
-    const result = await listBridgeRoutes("brg_support");
+    const result = await listBridgeRoutes("brg_support", SCOPED);
 
     expect(result).toHaveLength(1);
-    await expectFetchRequest({ path: "/api/bridges/brg_support/routes" });
+    await expectFetchRequest({ path: "/api/bridges/brg_support/routes?profile=default" });
   });
 
   it("throws a not found error for missing route sets", async () => {
     vi.mocked(globalThis.fetch).mockResolvedValue(new Response(null, { status: 404 }));
 
-    await expect(listBridgeRoutes("missing")).rejects.toThrow("Bridge not found: missing");
+    await expect(listBridgeRoutes("missing", SCOPED)).rejects.toThrow("Bridge not found: missing");
   });
 });
 
@@ -291,11 +342,17 @@ describe("listBridgeTargets", () => {
       total: 1,
     });
 
-    const result = await listBridgeTargets("brg_support", { limit: 25, q: " launch " });
+    const result = await listBridgeTargets("brg_support", {
+      limit: 25,
+      q: " launch ",
+      profile: "default",
+    });
 
     expect(result.targets).toHaveLength(1);
     expect(result.targets[0]?.canonical_route).toBe("slack://T123/C456");
-    await expectFetchRequest({ path: "/api/bridges/brg_support/targets?q=launch&limit=25" });
+    await expectFetchRequest({
+      path: "/api/bridges/brg_support/targets?q=launch&limit=25&profile=default",
+    });
   });
 });
 
@@ -319,13 +376,13 @@ describe("resolveBridgeTarget", () => {
     });
 
     const payload = { name: "Launch Room" };
-    const result = await resolveBridgeTarget("brg_support", payload);
+    const result = await resolveBridgeTarget("brg_support", payload, SCOPED);
 
     expect(result.result.match?.canonical_route).toBe("slack://T123/C456");
     await expectFetchRequest({
       body: payload,
       method: "POST",
-      path: "/api/bridges/brg_support/resolve",
+      path: "/api/bridges/brg_support/resolve?profile=default",
     });
   });
 
@@ -361,7 +418,7 @@ describe("resolveBridgeTarget", () => {
       { status: 422 }
     );
 
-    const result = await resolveBridgeTarget("brg_support", { name: "launch" });
+    const result = await resolveBridgeTarget("brg_support", { name: "launch" }, AGGREGATE);
 
     expect(result.result.ambiguous).toBe(true);
     expect(result.diagnostic?.code).toBe("target_ambiguous");
@@ -405,13 +462,15 @@ describe("createBridge", () => {
       workspace_id: "ws_test",
     };
 
-    const result = await createBridge(payload);
+    const result = await createBridge(payload, "marketing");
 
     expect(result.bridge).toEqual(bridgeFixture);
+    // The acting profile owns what it creates; an omitted selector would file
+    // the bridge under `default` instead.
     await expectFetchRequest({
       body: payload,
       method: "POST",
-      path: "/api/bridges",
+      path: "/api/bridges?profile=marketing",
     });
   });
 
@@ -471,13 +530,13 @@ describe("updateBridge", () => {
       },
     };
 
-    const result = await updateBridge("brg_support", payload);
+    const result = await updateBridge("brg_support", payload, SCOPED);
 
     expect(result.bridge.display_name).toBe("Support Ops");
     await expectFetchRequest({
       body: payload,
       method: "PATCH",
-      path: "/api/bridges/brg_support",
+      path: "/api/bridges/brg_support?profile=default",
     });
   });
 });
@@ -497,10 +556,12 @@ describe("listBridgeSecretBindings", () => {
       ],
     });
 
-    const result = await listBridgeSecretBindings("brg_support");
+    const result = await listBridgeSecretBindings("brg_support", AGGREGATE);
 
     expect(result).toHaveLength(1);
-    await expectFetchRequest({ path: "/api/bridges/brg_support/secret-bindings" });
+    await expectFetchRequest({
+      path: "/api/bridges/brg_support/secret-bindings?all_profiles=true",
+    });
   });
 });
 
@@ -523,13 +584,13 @@ describe("putBridgeSecretBinding", () => {
       secret_value: "telegram-token",
     };
 
-    const result = await putBridgeSecretBinding("brg_support", "bot_token", payload);
+    const result = await putBridgeSecretBinding("brg_support", "bot_token", payload, SCOPED);
 
     expect(result.secret_ref).toBe("vault:bridges/brg_support/bot_token");
     await expectFetchRequest({
       body: payload,
       method: "PUT",
-      path: "/api/bridges/brg_support/secret-bindings/bot_token",
+      path: "/api/bridges/brg_support/secret-bindings/bot_token?profile=default",
     });
   });
 });
@@ -538,11 +599,11 @@ describe("deleteBridgeSecretBinding", () => {
   it("calls DELETE /api/bridges/:id/secret-bindings/:binding_name", async () => {
     vi.mocked(globalThis.fetch).mockResolvedValue(new Response(null, { status: 204 }));
 
-    await deleteBridgeSecretBinding("brg_support", "bot_token");
+    await deleteBridgeSecretBinding("brg_support", "bot_token", SCOPED);
 
     await expectFetchRequest({
       method: "DELETE",
-      path: "/api/bridges/brg_support/secret-bindings/bot_token",
+      path: "/api/bridges/brg_support/secret-bindings/bot_token?profile=default",
     });
   });
 });
@@ -561,11 +622,11 @@ describe("bridge lifecycle", () => {
         status: "starting",
       },
     });
-    await enableBridge("brg_support");
+    await enableBridge("brg_support", SCOPED);
     await expectFetchRequest({
       callIndex: 0,
       method: "POST",
-      path: "/api/bridges/brg_support/enable",
+      path: "/api/bridges/brg_support/enable?profile=default",
     });
 
     mockJsonResponse({
@@ -580,11 +641,11 @@ describe("bridge lifecycle", () => {
         status: "disabled",
       },
     });
-    await disableBridge("brg_support");
+    await disableBridge("brg_support", SCOPED);
     await expectFetchRequest({
       callIndex: 1,
       method: "POST",
-      path: "/api/bridges/brg_support/disable",
+      path: "/api/bridges/brg_support/disable?profile=default",
     });
 
     mockJsonResponse({
@@ -599,11 +660,11 @@ describe("bridge lifecycle", () => {
         status: "starting",
       },
     });
-    await restartBridge("brg_support");
+    await restartBridge("brg_support", SCOPED);
     await expectFetchRequest({
       callIndex: 2,
       method: "POST",
-      path: "/api/bridges/brg_support/restart",
+      path: "/api/bridges/brg_support/restart?profile=default",
     });
   });
 });
@@ -629,13 +690,13 @@ describe("testBridgeDelivery", () => {
       },
     };
 
-    const result = await testBridgeDelivery("brg_support", payload);
+    const result = await testBridgeDelivery("brg_support", payload, AGGREGATE);
 
     expect(result.status).toBe("resolved");
     await expectFetchRequest({
       body: payload,
       method: "POST",
-      path: "/api/bridges/brg_support/test-delivery",
+      path: "/api/bridges/brg_support/test-delivery?all_profiles=true",
     });
   });
 
@@ -643,12 +704,16 @@ describe("testBridgeDelivery", () => {
     vi.mocked(globalThis.fetch).mockResolvedValue(new Response(null, { status: 409 }));
 
     await expect(
-      testBridgeDelivery("brg_support", {
-        target: {
-          bridge_instance_id: "brg_support",
-          peer_id: "peer_123",
+      testBridgeDelivery(
+        "brg_support",
+        {
+          target: {
+            bridge_instance_id: "brg_support",
+            peer_id: "peer_123",
+          },
         },
-      })
+        SCOPED
+      )
     ).rejects.toThrow('Bridge "brg_support" is unavailable: 409');
   });
 
@@ -656,11 +721,15 @@ describe("testBridgeDelivery", () => {
     vi.mocked(globalThis.fetch).mockResolvedValue(new Response(null, { status: 500 }));
 
     await expect(
-      testBridgeDelivery("brg_support", {
-        target: {
-          bridge_instance_id: "brg_support",
+      testBridgeDelivery(
+        "brg_support",
+        {
+          target: {
+            bridge_instance_id: "brg_support",
+          },
         },
-      })
+        SCOPED
+      )
     ).rejects.toThrow('Failed to test delivery for bridge "brg_support": 500');
   });
 });
@@ -705,11 +774,11 @@ describe("getSlackBridgeManifest", () => {
     });
     const controller = new AbortController();
 
-    const result = await getSlackBridgeManifest(" brg_slack ", controller.signal);
+    const result = await getSlackBridgeManifest(" brg_slack ", AGGREGATE, controller.signal);
 
     expect(result.manifest.display_information.name).toBe("CompozyOS");
     await expectFetchRequest({
-      path: "/api/bridges/providers/slack/manifest?instance=%20brg_slack%20",
+      path: "/api/bridges/providers/slack/manifest?instance=%20brg_slack%20&all_profiles=true",
       signal: controller.signal,
     });
   });
@@ -717,7 +786,7 @@ describe("getSlackBridgeManifest", () => {
   it("throws a typed error when the persisted Slack instance is unavailable", async () => {
     vi.mocked(globalThis.fetch).mockResolvedValue(new Response(null, { status: 404 }));
 
-    await expect(getSlackBridgeManifest("missing")).rejects.toMatchObject({
+    await expect(getSlackBridgeManifest("missing", SCOPED)).rejects.toMatchObject({
       message: 'Failed to load Slack manifest for bridge "missing": 404',
       name: "BridgesApiError",
       status: 404,
@@ -740,12 +809,12 @@ describe("verifyBridge", () => {
     });
     const controller = new AbortController();
 
-    const result = await verifyBridge(" brg_support ", controller.signal);
+    const result = await verifyBridge(" brg_support ", AGGREGATE, controller.signal);
 
     expect(result.checks.map(check => check.status)).toEqual(["pass", "skipped"]);
     await expectFetchRequest({
       method: "POST",
-      path: "/api/bridges/%20brg_support%20/verify",
+      path: "/api/bridges/%20brg_support%20/verify?all_profiles=true",
       signal: controller.signal,
     });
   });
@@ -753,7 +822,7 @@ describe("verifyBridge", () => {
   it("throws a typed error when provider verification is unavailable", async () => {
     vi.mocked(globalThis.fetch).mockResolvedValue(new Response(null, { status: 503 }));
 
-    await expect(verifyBridge("brg_support")).rejects.toMatchObject({
+    await expect(verifyBridge("brg_support", SCOPED)).rejects.toMatchObject({
       message: 'Failed to verify bridge "brg_support": 503',
       name: "BridgesApiError",
       status: 503,
@@ -784,13 +853,13 @@ describe("sendBridgeTest", () => {
     };
     const controller = new AbortController();
 
-    const result = await sendBridgeTest(" brg_support ", payload, controller.signal);
+    const result = await sendBridgeTest(" brg_support ", payload, SCOPED, controller.signal);
 
     expect(result.delivery_id).toBe("delivery_123");
     await expectFetchRequest({
       body: payload,
       method: "POST",
-      path: "/api/bridges/%20brg_support%20/send-test",
+      path: "/api/bridges/%20brg_support%20/send-test?profile=default",
       signal: controller.signal,
     });
   });
@@ -799,10 +868,14 @@ describe("sendBridgeTest", () => {
     vi.mocked(globalThis.fetch).mockResolvedValue(new Response(null, { status: 409 }));
 
     await expect(
-      sendBridgeTest("brg_support", {
-        message: "Operator test",
-        target: { bridge_instance_id: "brg_support" },
-      })
+      sendBridgeTest(
+        "brg_support",
+        {
+          message: "Operator test",
+          target: { bridge_instance_id: "brg_support" },
+        },
+        SCOPED
+      )
     ).rejects.toMatchObject({
       message: 'Failed to send a test through bridge "brg_support": 409',
       name: "BridgesApiError",
@@ -820,12 +893,12 @@ describe("registerBridgeWebhook", () => {
     });
     const controller = new AbortController();
 
-    const result = await registerBridgeWebhook(" brg_telegram ", controller.signal);
+    const result = await registerBridgeWebhook(" brg_telegram ", SCOPED, controller.signal);
 
     expect(result.status).toBe("pass");
     await expectFetchRequest({
       method: "POST",
-      path: "/api/bridges/%20brg_telegram%20/webhook/register",
+      path: "/api/bridges/%20brg_telegram%20/webhook/register?profile=default",
       signal: controller.signal,
     });
   });
@@ -833,7 +906,7 @@ describe("registerBridgeWebhook", () => {
   it("throws a typed error when webhook registration fails at the API boundary", async () => {
     vi.mocked(globalThis.fetch).mockResolvedValue(new Response(null, { status: 500 }));
 
-    await expect(registerBridgeWebhook("brg_telegram")).rejects.toMatchObject({
+    await expect(registerBridgeWebhook("brg_telegram", SCOPED)).rejects.toMatchObject({
       message: 'Failed to register the webhook for bridge "brg_telegram": 500',
       name: "BridgesApiError",
       status: 500,

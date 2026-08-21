@@ -8,12 +8,14 @@ import (
 	"strings"
 
 	automation "github.com/compozy/compozy/internal/automation/model"
+	"github.com/compozy/compozy/internal/store"
 	"github.com/compozy/compozy/internal/store/globaldb/sqlcgen"
 )
 
 const automationTriggerCatalogWorkspaceIndex = "idx_automation_trigger_catalog_workspace_order"
 
 const automationTriggerCatalogBaseSQL = ` FROM automation_trigger_catalog_entries AS c
+	JOIN automation_triggers AS t ON t.id = c.trigger_id
 	LEFT JOIN automation_trigger_overlays AS o ON o.trigger_id = c.trigger_id`
 
 func listAutomationTriggerCatalog(
@@ -89,6 +91,9 @@ func listAutomationTriggerCatalog(
 func automationTriggerCatalogWhere(query automation.TriggerListQuery) (string, []any) {
 	clauses := make([]string, 0, 7)
 	args := make([]any, 0, 18)
+	profileClauses, profileArgs := store.BuildClauses(store.ReadScopeClause("t.profile_id", query.ReadScope))
+	clauses = append(clauses, profileClauses...)
+	args = append(args, profileArgs...)
 	if query.Scope != "" {
 		clauses = append(clauses, "c.scope = ?")
 		args = append(args, query.Scope)
@@ -153,7 +158,7 @@ func readAutomationTriggerCatalogCandidates(
 	// dynamic-sql: optional filters and keyset cursor terms change the candidate query shape.
 	rows, err := executor.QueryContext(
 		ctx,
-		`SELECT c.trigger_id, c.source, c.name`+automationTriggerCatalogBaseSQL+where+
+		`SELECT c.trigger_id, t.profile_id, c.source, c.name`+automationTriggerCatalogBaseSQL+where+
 			` ORDER BY c.source_rank, c.name, c.trigger_id LIMIT ?`,
 		args...,
 	)
@@ -167,7 +172,12 @@ func readAutomationTriggerCatalogCandidates(
 	}()
 	for rows.Next() {
 		var candidate automationCatalogCandidate
-		if scanErr := rows.Scan(&candidate.ID, &candidate.Source, &candidate.Name); scanErr != nil {
+		if scanErr := rows.Scan(
+			&candidate.ID,
+			&candidate.ProfileID,
+			&candidate.Source,
+			&candidate.Name,
+		); scanErr != nil {
 			return nil, fmt.Errorf("store: scan automation trigger catalog candidate: %w", scanErr)
 		}
 		candidates = append(candidates, candidate)
@@ -211,6 +221,9 @@ func hydrateAutomationTriggerCatalogPage(
 			len(triggers),
 			len(candidates),
 		)
+	}
+	for index := range triggers {
+		triggers[index].ProfileID = candidates[index].ProfileID
 	}
 	return triggers, nil
 }

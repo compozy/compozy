@@ -26,6 +26,11 @@ function sessionRuntime(provider: string) {
   };
 }
 
+const DEFAULT_SESSION_PROFILE = {
+  profile_id: "00000000000000000000000000",
+  profile_name: "default",
+} as const;
+
 export const workspaceFixtures: WorkspacePayload[] = [
   {
     id: storyWorkspaceIds.hq,
@@ -244,6 +249,7 @@ export const workspaceDetailFixture: WorkspaceDetailPayload = {
   ],
   sessions: [
     {
+      ...DEFAULT_SESSION_PROFILE,
       id: storySessionIds.product,
       name: "Launch room command brief",
       agent_name: storyAgentNames.product,
@@ -264,6 +270,7 @@ export const workspaceDetailFixture: WorkspaceDetailPayload = {
       updated_at: "2026-04-17T18:14:00Z",
     },
     {
+      ...DEFAULT_SESSION_PROFILE,
       id: storySessionIds.frontend,
       name: "Landing page launch QA",
       agent_name: storyAgentNames.frontend,
@@ -284,6 +291,7 @@ export const workspaceDetailFixture: WorkspaceDetailPayload = {
       updated_at: "2026-04-17T18:09:00Z",
     },
     {
+      ...DEFAULT_SESSION_PROFILE,
       id: storySessionIds.cto,
       name: "Executive launch review",
       agent_name: storyAgentNames.cto,
@@ -304,6 +312,7 @@ export const workspaceDetailFixture: WorkspaceDetailPayload = {
       updated_at: "2026-04-17T18:11:00Z",
     },
     {
+      ...DEFAULT_SESSION_PROFILE,
       id: storySessionIds.cfo,
       name: "Launch revenue watch",
       agent_name: storyAgentNames.cfo,
@@ -324,6 +333,7 @@ export const workspaceDetailFixture: WorkspaceDetailPayload = {
       updated_at: "2026-04-17T18:13:00Z",
     },
     {
+      ...DEFAULT_SESSION_PROFILE,
       id: storySessionIds.marketing,
       name: "CRM launch timing",
       agent_name: storyAgentNames.marketing,
@@ -344,6 +354,7 @@ export const workspaceDetailFixture: WorkspaceDetailPayload = {
       updated_at: "2026-04-17T17:58:00Z",
     },
     {
+      ...DEFAULT_SESSION_PROFILE,
       id: storySessionIds.copywriter,
       name: "Headline claim polish",
       agent_name: storyAgentNames.copywriter,
@@ -364,6 +375,7 @@ export const workspaceDetailFixture: WorkspaceDetailPayload = {
       updated_at: "2026-04-17T18:06:00Z",
     },
     {
+      ...DEFAULT_SESSION_PROFILE,
       id: storySessionIds.release,
       name: "Release control canary",
       agent_name: storyAgentNames.release,

@@ -59,6 +59,7 @@ func applySessionLifecyclePatch(payload SessionLifecyclePayload, patch SessionCr
 	return payload
 }
 
+//nolint:gocritic // The generic hook pipeline applies patches with value semantics.
 func applySandboxPreparePatch(
 	payload SandboxPreparePayload,
 	patch SandboxPreparePatch,

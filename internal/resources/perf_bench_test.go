@@ -90,7 +90,7 @@ func BenchmarkValidateAndCanonicalizeIfRegistered(b *testing.B) {
 		b.Fatalf("RegisterCodec() error = %v", err)
 	}
 
-	scope := ResourceScope{Kind: ResourceScopeKindGlobal}
+	scope := ResourceScope{Kind: ResourceScopeKindUser}
 	raw := []byte(`{"name":" bench-name "}`)
 
 	var (
@@ -200,7 +200,7 @@ func BenchmarkKernelListRaw(b *testing.B) {
 		if _, err := kernel.PutRaw(ctx, actor, RawDraft{
 			Kind:            testResourceKind,
 			ID:              fmt.Sprintf("tool-%03d", idx),
-			Scope:           ResourceScope{Kind: ResourceScopeKindGlobal},
+			Scope:           ResourceScope{Kind: ResourceScopeKindUser},
 			ExpectedVersion: 0,
 			SpecJSON:        fmt.Appendf(nil, `{"name":"tool-%03d"}`, idx),
 		}); err != nil {
@@ -287,7 +287,7 @@ func benchmarkRawRecords(kind ResourceKind, count int) []RawRecord {
 			Kind:      kind,
 			ID:        fmt.Sprintf("%s-%03d", kind, idx),
 			Version:   int64(idx + 1),
-			Scope:     ResourceScope{Kind: ResourceScopeKindGlobal},
+			Scope:     ResourceScope{Kind: ResourceScopeKindUser},
 			Owner:     ResourceOwner{Kind: ResourceOwnerKind("daemon"), ID: "daemon-control"},
 			Source:    ResourceSource{Kind: ResourceSourceKind("daemon"), ID: "system"},
 			SpecJSON:  fmt.Appendf(nil, `{"name":"%s-%03d"}`, kind, idx),
@@ -304,7 +304,7 @@ func makeBenchmarkSnapshotDrafts(count int) []RawDraft {
 		drafts = append(drafts, RawDraft{
 			Kind:            testResourceKind,
 			ID:              fmt.Sprintf("tool-%03d", idx),
-			Scope:           ResourceScope{Kind: ResourceScopeKindGlobal},
+			Scope:           ResourceScope{Kind: ResourceScopeKindUser},
 			ExpectedVersion: 0,
 			SpecJSON:        fmt.Appendf(nil, `{"name":"tool-%03d"}`, idx),
 		})

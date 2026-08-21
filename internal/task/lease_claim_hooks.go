@@ -68,6 +68,7 @@ func (m *Service) dispatchTaskRunPreClaimCriteria(
 	actor ActorContext,
 ) (ClaimCriteria, error) {
 	taskContext := hookspkg.TaskRunContext{
+		ProfileID:       strings.TrimSpace(actor.ReadScope.ProfileID),
 		RunID:           strings.TrimSpace(criteria.RunID),
 		WorkspaceID:     strings.TrimSpace(criteria.WorkspaceID),
 		TargetSessionID: strings.TrimSpace(criteria.TargetSessionID),

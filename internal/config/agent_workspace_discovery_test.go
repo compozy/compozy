@@ -39,7 +39,7 @@ func TestLoadWorkspaceAgentDefsRejectsMismatchedDirectoryNameContract(t *testing
 			"global-review",
 		)
 
-		_, err = LoadWorkspaceAgentDefs(root, nil, homePaths)
+		_, err = LoadWorkspaceAgentDefs(root, nil, homePaths, "")
 		if err == nil {
 			t.Fatal("LoadWorkspaceAgentDefs() error = nil, want mismatched name failure")
 		}
@@ -85,7 +85,7 @@ func TestLoadWorkspaceAgentDefsSkipsReservedNames(t *testing.T) {
 			"worker-model",
 		)
 
-		agents, err := LoadWorkspaceAgentDefs(root, nil, homePaths)
+		agents, err := LoadWorkspaceAgentDefs(root, nil, homePaths, "")
 		if err != nil {
 			t.Fatalf("LoadWorkspaceAgentDefs() error = %v", err)
 		}
@@ -125,7 +125,7 @@ func TestLoadWorkspaceAgentDefsReturnsLexicalDirectoryOrder(t *testing.T) {
 			"lexical-first",
 		)
 
-		agents, err := LoadWorkspaceAgentDefs(root, nil, homePaths)
+		agents, err := LoadWorkspaceAgentDefs(root, nil, homePaths, "")
 		if err != nil {
 			t.Fatalf("LoadWorkspaceAgentDefs() error = %v", err)
 		}

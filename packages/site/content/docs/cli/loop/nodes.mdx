@@ -15,6 +15,7 @@ compozy loop nodes [flags]
 
 ```
       --all                Show the complete run roster; requires --run and excludes --cursor
+      --all-profiles       Read across every profile and include owner labels
       --cursor string      Opaque continuation cursor
       --generation int     Filter roster by generation; requires --run
   -h, --help               help for nodes
@@ -29,8 +30,9 @@ compozy loop nodes [flags]
 ### Options inherited from parent commands
 
 ```
-      --json            Emit JSON output
-  -o, --output string   Output format: human, json, jsonl, or toon (default "human")
+      --json             Emit JSON output
+  -o, --output string    Output format: human, json, jsonl, or toon (default "human")
+      --profile string   Act as a profile for this command
 ```
 
 ## Output Formats

@@ -96,23 +96,26 @@ func (h *BaseHandlers) sessionPayloadWithOptionalHealth(
 	includeHealth bool,
 ) (contract.SessionPayload, error) {
 	payload := SessionPayloadFromInfo(info)
-	if !includeHealth {
-		return payload, nil
+	if includeHealth {
+		if h.SessionHealth == nil {
+			return contract.SessionPayload{}, errSessionHealthMissing
+		}
+		health, err := h.SessionHealth.GetSessionHealth(ctx, payload.ID)
+		if err != nil {
+			return contract.SessionPayload{}, err
+		}
+		payload.Badge = session.BadgeForHealth(info, health)
+		converted, err := contract.SessionHealthPayloadFromDomain(health)
+		if err != nil {
+			return contract.SessionPayload{}, err
+		}
+		payload.Health = &converted
 	}
-	if h.SessionHealth == nil {
-		return contract.SessionPayload{}, errSessionHealthMissing
-	}
-	health, err := h.SessionHealth.GetSessionHealth(ctx, payload.ID)
+	payloads, err := h.decorateSessionOwners(ctx, []contract.SessionPayload{payload})
 	if err != nil {
 		return contract.SessionPayload{}, err
 	}
-	payload.Badge = session.BadgeForHealth(info, health)
-	converted, err := contract.SessionHealthPayloadFromDomain(health)
-	if err != nil {
-		return contract.SessionPayload{}, err
-	}
-	payload.Health = &converted
-	return payload, nil
+	return payloads[0], nil
 }
 
 func (h *BaseHandlers) heartbeatWakeEvents(

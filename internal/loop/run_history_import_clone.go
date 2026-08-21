@@ -35,7 +35,10 @@ func cloneRunHistoryGoalTurns(turns []RunHistoryGoalTurn) []RunHistoryGoalTurn {
 func cloneRunHistoryRun(run Run) Run {
 	cloned := run
 	cloned.DefinitionSnapshot = cloneRawMessage(run.DefinitionSnapshot)
-	cloned.ActiveHumanCriteria = cloneRawMessage(run.ActiveHumanCriteria)
+	if run.ActiveHumanCriteria != nil {
+		activeHumanCriteria := run.ActiveHumanCriteriaValue()
+		cloned.ActiveHumanCriteria = &activeHumanCriteria
+	}
 	cloned.Inputs = cloneRunHistoryValues(run.Inputs)
 	cloned.StartMetadata = cloneRunHistoryValues(run.StartMetadata)
 	if run.Origin != nil {

@@ -3,6 +3,7 @@ package session
 import (
 	"context"
 	"errors"
+	"strings"
 	"testing"
 	"time"
 
@@ -178,7 +179,10 @@ func TestSessionCatalogBroadcaster(t *testing.T) {
 			t.Fatalf("NewManager() error = %v", err)
 		}
 		cleanupTestManager(t, manager)
-		events, cancel, err := manager.SubscribeSessionCatalogEvents(testutil.Context(t))
+		events, cancel, err := manager.SubscribeSessionCatalogEvents(
+			testutil.Context(t),
+			CatalogScope{ReadScope: store.ReadScope{AllProfiles: true}, AllWorkspaces: true},
+		)
 		if err != nil {
 			t.Fatalf("SubscribeSessionCatalogEvents() error = %v", err)
 		}
@@ -214,14 +218,17 @@ func TestSessionCatalogBroadcaster(t *testing.T) {
 			t.Fatalf("NewManager() error = %v", err)
 		}
 		cleanupTestManager(t, manager)
-		events, cancel, err := manager.SubscribeSessionCatalogEvents(testutil.Context(t))
+		events, cancel, err := manager.SubscribeSessionCatalogEvents(
+			testutil.Context(t),
+			CatalogScope{ReadScope: store.ReadScope{AllProfiles: true}, WorkspaceID: "ws-attention"},
+		)
 		if err != nil {
 			t.Fatalf("SubscribeSessionCatalogEvents() error = %v", err)
 		}
 		defer cancel()
 
-		session := &Session{ID: "sess-attention", WorkspaceID: "ws-attention"}
-		for _, eventType := range []string{
+		session := &Session{ID: "sess-attention", ProfileID: store.DefaultProfileID, WorkspaceID: "ws-attention"}
+		for index, eventType := range []string{
 			acp.EventTypePermission,
 			acp.EventTypeClarify,
 			acp.EventTypeDone,
@@ -230,7 +237,8 @@ func TestSessionCatalogBroadcaster(t *testing.T) {
 			manager.publishSessionCatalogWakeForEvent(session, acp.AgentEvent{Type: eventType})
 			select {
 			case event := <-events:
-				want := CatalogEvent{
+				want := CatalogEvent{ProfileID: store.DefaultProfileID,
+					Sequence:    int64(index + 1),
 					Name:        CatalogEventNameChanged,
 					Kind:        CatalogEventUpserted,
 					WorkspaceID: "ws-attention",
@@ -260,25 +268,28 @@ func TestSessionCatalogBroadcaster(t *testing.T) {
 			t.Fatalf("NewManager() error = %v", err)
 		}
 		cleanupTestManager(t, manager)
-		events, cancel, err := manager.SubscribeSessionCatalogEvents(testutil.Context(t))
+		events, cancel, err := manager.SubscribeSessionCatalogEvents(
+			testutil.Context(t),
+			CatalogScope{ReadScope: store.ReadScope{AllProfiles: true}, AllWorkspaces: true},
+		)
 		if err != nil {
 			t.Fatalf("SubscribeSessionCatalogEvents() error = %v", err)
 		}
 
-		manager.publishSessionCatalogEvent(CatalogEvent{
+		manager.publishSessionCatalogEvent(CatalogEvent{ProfileID: store.DefaultProfileID,
 			Kind:        CatalogEventUpserted,
 			WorkspaceID: "ws-beta",
 			SessionID:   "sess-beta",
 		})
-		manager.publishSessionCatalogEvent(CatalogEvent{
+		manager.publishSessionCatalogEvent(CatalogEvent{ProfileID: store.DefaultProfileID,
 			Kind:        CatalogEventUpserted,
 			WorkspaceID: "ws-alpha",
 			SessionID:   "sess-alpha",
 		})
 
 		for _, want := range []CatalogEvent{
-			{Kind: CatalogEventUpserted, WorkspaceID: "ws-beta", SessionID: "sess-beta"},
-			{Kind: CatalogEventUpserted, WorkspaceID: "ws-alpha", SessionID: "sess-alpha"},
+			{Sequence: 1, Kind: CatalogEventUpserted, ProfileID: store.DefaultProfileID, WorkspaceID: "ws-beta", SessionID: "sess-beta"},
+			{Sequence: 2, Kind: CatalogEventUpserted, ProfileID: store.DefaultProfileID, WorkspaceID: "ws-alpha", SessionID: "sess-alpha"},
 		} {
 			select {
 			case event := <-events:
@@ -296,6 +307,174 @@ func TestSessionCatalogBroadcaster(t *testing.T) {
 		}
 	})
 
+	t.Run("Should apply the requested workspace scope to live delivery and replay", func(t *testing.T) {
+		t.Parallel()
+
+		manager, err := NewManager(WithHomePaths(testHomePaths(t)))
+		if err != nil {
+			t.Fatalf("NewManager() error = %v", err)
+		}
+		cleanupTestManager(t, manager)
+		alphaLive, cancelAlpha, err := manager.SubscribeSessionCatalogEvents(
+			testutil.Context(t),
+			CatalogScope{ReadScope: store.ReadScope{AllProfiles: true}, WorkspaceID: "ws-alpha"},
+		)
+		if err != nil {
+			t.Fatalf("SubscribeSessionCatalogEvents(alpha) error = %v", err)
+		}
+		defer cancelAlpha()
+		aggregateLive, cancelAggregate, err := manager.SubscribeSessionCatalogEvents(
+			testutil.Context(t),
+			CatalogScope{ReadScope: store.ReadScope{AllProfiles: true}, AllWorkspaces: true},
+		)
+		if err != nil {
+			t.Fatalf("SubscribeSessionCatalogEvents(aggregate) error = %v", err)
+		}
+		defer cancelAggregate()
+
+		published := []CatalogEvent{
+			{
+				Kind:        CatalogEventUpserted,
+				ProfileID:   store.DefaultProfileID,
+				WorkspaceID: "ws-beta",
+				SessionID:   "sess-beta",
+			},
+			{
+				Kind:        CatalogEventUpserted,
+				ProfileID:   store.DefaultProfileID,
+				WorkspaceID: "ws-alpha",
+				SessionID:   "sess-alpha",
+			},
+			{Kind: CatalogEventUpserted, ProfileID: store.DefaultProfileID, SessionID: "sess-global"},
+		}
+		for _, event := range published {
+			manager.publishSessionCatalogEvent(event)
+		}
+
+		select {
+		case event := <-alphaLive:
+			if event.Sequence != 2 || event.WorkspaceID != "ws-alpha" || event.SessionID != "sess-alpha" {
+				t.Fatalf("alpha live event = %#v, want only sequence 2", event)
+			}
+		default:
+			t.Fatal("alpha live stream did not receive its workspace event")
+		}
+		select {
+		case event := <-alphaLive:
+			t.Fatalf("alpha live stream leaked another scope: %#v", event)
+		default:
+		}
+		for sequence := int64(1); sequence <= 3; sequence++ {
+			select {
+			case event := <-aggregateLive:
+				if event.Sequence != sequence {
+					t.Fatalf("aggregate live sequence = %d, want %d", event.Sequence, sequence)
+				}
+			default:
+				t.Fatalf("aggregate live stream missed sequence %d", sequence)
+			}
+		}
+
+		alphaReplay, cancelAlphaReplay, err := manager.SubscribeSessionCatalogEvents(
+			testutil.Context(t),
+			CatalogScope{
+				ReadScope:   store.ReadScope{AllProfiles: true},
+				WorkspaceID: "ws-alpha",
+				Replay:      true,
+				ReplayAfter: 1,
+			},
+		)
+		if err != nil {
+			t.Fatalf("SubscribeSessionCatalogEvents(alpha replay) error = %v", err)
+		}
+		defer cancelAlphaReplay()
+		select {
+		case event := <-alphaReplay:
+			if event.Sequence != 2 || event.WorkspaceID != "ws-alpha" {
+				t.Fatalf("alpha replay event = %#v, want sequence 2", event)
+			}
+		default:
+			t.Fatal("alpha replay did not include its retained event")
+		}
+		select {
+		case event := <-alphaReplay:
+			t.Fatalf("alpha replay leaked another scope: %#v", event)
+		default:
+		}
+
+		aggregateReplay, cancelAggregateReplay, err := manager.SubscribeSessionCatalogEvents(
+			testutil.Context(t),
+			CatalogScope{
+				ReadScope:     store.ReadScope{AllProfiles: true},
+				AllWorkspaces: true,
+				Replay:        true,
+				ReplayAfter:   1,
+			},
+		)
+		if err != nil {
+			t.Fatalf("SubscribeSessionCatalogEvents(aggregate replay) error = %v", err)
+		}
+		defer cancelAggregateReplay()
+		for _, want := range []CatalogEvent{
+			{Sequence: 2, ProfileID: store.DefaultProfileID, WorkspaceID: "ws-alpha", SessionID: "sess-alpha"},
+			{Sequence: 3, ProfileID: store.DefaultProfileID, WorkspaceID: "", SessionID: "sess-global"},
+		} {
+			select {
+			case event := <-aggregateReplay:
+				if event.Sequence != want.Sequence || event.WorkspaceID != want.WorkspaceID ||
+					event.SessionID != want.SessionID {
+					t.Fatalf("aggregate replay event = %#v, want %#v", event, want)
+				}
+			default:
+				t.Fatalf("aggregate replay missed %#v", want)
+			}
+		}
+	})
+
+	t.Run("Should reject an invalid scope before registering a subscriber", func(t *testing.T) {
+		t.Parallel()
+
+		manager, err := NewManager(WithHomePaths(testHomePaths(t)))
+		if err != nil {
+			t.Fatalf("NewManager() error = %v", err)
+		}
+		cleanupTestManager(t, manager)
+		for _, test := range []struct {
+			name  string
+			scope CatalogScope
+			want  string
+		}{
+			{name: "Should reject a missing profile lens", scope: CatalogScope{}, want: "scoped read requires profile id"},
+			{name: "Should reject a missing workspace lens", scope: CatalogScope{ReadScope: store.ReadScope{ProfileID: store.DefaultProfileID}}, want: "choose exactly one workspace or all workspaces"},
+			{name: "Should reject a conflicting profile lens", scope: CatalogScope{ReadScope: store.ReadScope{ProfileID: store.DefaultProfileID, AllProfiles: true}, AllWorkspaces: true}, want: "aggregate read forbids profile id"},
+			{name: "Should reject a conflicting workspace lens", scope: CatalogScope{ReadScope: store.ReadScope{AllProfiles: true}, WorkspaceID: "ws-alpha", AllWorkspaces: true}, want: "choose exactly one workspace or all workspaces"},
+			{name: "Should reject a replay cursor without replay", scope: CatalogScope{ReadScope: store.ReadScope{AllProfiles: true}, WorkspaceID: "ws-alpha", ReplayAfter: 1}, want: "replay cursor must be a supplied non-negative sequence"},
+		} {
+			t.Run(test.name, func(t *testing.T) {
+				t.Parallel()
+
+				events, cancel, err := manager.SubscribeSessionCatalogEvents(testutil.Context(t), test.scope)
+				if !errors.Is(err, ErrCatalogScopeInvalid) {
+					t.Fatalf(
+						"SubscribeSessionCatalogEvents(%#v) error = %v, want %v",
+						test.scope,
+						err,
+						ErrCatalogScopeInvalid,
+					)
+				}
+				if !strings.Contains(err.Error(), test.want) {
+					t.Fatalf("SubscribeSessionCatalogEvents(%#v) error = %v, want %q", test.scope, err, test.want)
+				}
+				if events != nil {
+					t.Fatalf("invalid scope returned a non-nil event channel")
+				}
+				if cancel != nil {
+					t.Fatal("invalid scope returned a non-nil cancel function")
+				}
+			})
+		}
+	})
+
 	t.Run("Should publish one complete attention edge only when the badge changes", func(t *testing.T) {
 		t.Parallel()
 
@@ -303,7 +482,8 @@ func TestSessionCatalogBroadcaster(t *testing.T) {
 		at := time.Date(2026, 8, 15, 18, 2, 41, 0, time.UTC)
 		catalog := newRecordingSessionCatalog()
 		if err := catalog.RegisterSession(ctx, store.SessionInfo{
-			ID: "sess-attention", AgentName: "coder", WorkspaceID: "ws-attention",
+			ID: "sess-attention", ProfileID: store.DefaultProfileID,
+			AgentName: "coder", WorkspaceID: "ws-attention",
 			SessionType: string(SessionTypeUser), State: string(StateActive),
 			CreatedAt: at.Add(-time.Hour), UpdatedAt: at.Add(-time.Minute),
 		}); err != nil {
@@ -318,7 +498,10 @@ func TestSessionCatalogBroadcaster(t *testing.T) {
 			t.Fatalf("NewManager() error = %v", err)
 		}
 		cleanupTestManager(t, manager)
-		events, cancel, err := manager.SubscribeSessionCatalogEvents(ctx)
+		events, cancel, err := manager.SubscribeSessionCatalogEvents(
+			ctx,
+			CatalogScope{ReadScope: store.ReadScope{AllProfiles: true}, WorkspaceID: "ws-attention"},
+		)
 		if err != nil {
 			t.Fatalf("SubscribeSessionCatalogEvents() error = %v", err)
 		}
@@ -380,7 +563,7 @@ func assertCatalogEventName(
 		return event
 	case <-time.After(time.Second):
 		t.Fatalf("timed out waiting for catalog event %q", want)
-		return CatalogEvent{}
+		return CatalogEvent{ProfileID: store.DefaultProfileID}
 	}
 }
 

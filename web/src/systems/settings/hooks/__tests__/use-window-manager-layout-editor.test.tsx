@@ -64,16 +64,20 @@ function stateAt(revision: number, desktopName: string): WindowManagerLayoutStat
   return { revision, document: documentWith(desktopName) };
 }
 
-function renderEditor(initial: WindowManagerLayoutState) {
+function renderEditor(initial: WindowManagerLayoutState, profile = "marketing") {
   const queryClient = new QueryClient({
     defaultOptions: { mutations: { retry: false }, queries: { retry: false } },
   });
   const wrapper = ({ children }: { children: ReactNode }) =>
     createElement(QueryClientProvider, { client: queryClient }, children);
-  return renderHook(({ state }) => useWindowManagerLayoutEditor("workspace-a", state), {
-    initialProps: { state: initial },
-    wrapper,
-  });
+  return renderHook(
+    ({ state, profile: currentProfile }) =>
+      useWindowManagerLayoutEditor("workspace-a", currentProfile, state),
+    {
+      initialProps: { state: initial, profile },
+      wrapper,
+    }
+  );
 }
 
 function renameDesktop(document: WindowManagerLayoutDocument, name: string) {
@@ -86,7 +90,7 @@ function renameDesktop(document: WindowManagerLayoutDocument, name: string) {
 describe("useWindowManagerLayoutEditor", () => {
   it("Should fence a stale daemon baseline during render-time reconciliation", () => {
     const { result, rerender } = renderEditor(stateAt(42, "Ship"));
-    rerender({ state: stateAt(41, "Build") });
+    rerender({ state: stateAt(41, "Build"), profile: "marketing" });
 
     expect(result.current.revision).toBe(42);
     expect(result.current.draft.desktops[0]?.name).toBe("Ship");
@@ -119,7 +123,7 @@ describe("useWindowManagerLayoutEditor", () => {
     const { result, rerender } = renderEditor(stateAt(41, "Build"));
     expect(result.current.dirty).toBe(false);
 
-    rerender({ state: stateAt(42, "Ship") });
+    rerender({ state: stateAt(42, "Ship"), profile: "marketing" });
 
     expect(result.current.revision).toBe(42);
     expect(result.current.draft.desktops[0]?.name).toBe("Ship");
@@ -133,7 +137,7 @@ describe("useWindowManagerLayoutEditor", () => {
     });
     expect(result.current.dirty).toBe(true);
 
-    rerender({ state: stateAt(42, "Theirs") });
+    rerender({ state: stateAt(42, "Theirs"), profile: "marketing" });
 
     expect(result.current.draft.desktops[0]?.name).toBe("Mine");
     expect(result.current.dirty).toBe(true);
@@ -146,7 +150,7 @@ describe("useWindowManagerLayoutEditor", () => {
       result.current.updateDraft(renameDesktop(result.current.draft, "Mine"));
     });
 
-    rerender({ state: stateAt(42, "Theirs") });
+    rerender({ state: stateAt(42, "Theirs"), profile: "marketing" });
 
     expect(result.current.reviewCurrent).toBe(false);
     expect(result.current.reviewed).toBe(null);
@@ -157,13 +161,24 @@ describe("useWindowManagerLayoutEditor", () => {
     act(() => {
       result.current.updateDraft(renameDesktop(result.current.draft, "Mine"));
     });
-    rerender({ state: stateAt(42, "Theirs") });
+    rerender({ state: stateAt(42, "Theirs"), profile: "marketing" });
 
     act(() => {
       result.current.reset();
     });
 
     expect(result.current.draft.desktops[0]?.name).toBe("Theirs");
+    expect(result.current.dirty).toBe(false);
+  });
+
+  it("Should isolate drafts when only the profile changes in one workspace", () => {
+    const { result, rerender } = renderEditor(stateAt(41, "Marketing"));
+    act(() => result.current.updateDraft(renameDesktop(result.current.draft, "Mine")));
+
+    rerender({ state: stateAt(9, "Sales"), profile: "sales" });
+
+    expect(result.current.draft.desktops[0]?.name).toBe("Sales");
+    expect(result.current.revision).toBe(9);
     expect(result.current.dirty).toBe(false);
   });
 });

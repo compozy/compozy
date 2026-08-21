@@ -34,7 +34,12 @@ func (h *BaseHandlers) NetworkThread(c *gin.Context) {
 		return
 	}
 
-	thread, err := h.NetworkStore.GetThread(c.Request.Context(), scope.NetworkChannelRef(channel), threadID)
+	readScope, err := h.resolveProfileReadScope(c)
+	if err != nil {
+		h.respondProfileReadScopeError(c, err)
+		return
+	}
+	thread, err := h.NetworkStore.GetThread(c.Request.Context(), readScope, scope.NetworkChannelRef(channel), threadID)
 	if err != nil {
 		h.respondError(c, StatusForNetworkError(err), err)
 		return
@@ -62,6 +67,11 @@ func (h *BaseHandlers) PromoteNetworkThreadTask(c *gin.Context) {
 	if !ok {
 		return
 	}
+	mutationScope, err := h.resolveProfileMutationScope(c)
+	if err != nil {
+		h.respondProfileReadScopeError(c, err)
+		return
+	}
 	if _, ok := h.requireNetworkReadDependencies(c); !ok {
 		return
 	}
@@ -79,22 +89,15 @@ func (h *BaseHandlers) PromoteNetworkThreadTask(c *gin.Context) {
 		h.respondError(c, http.StatusBadRequest, NewNetworkValidationError(err))
 		return
 	}
-	var req contract.PromoteNetworkThreadTaskRequest
-	if err := decodeStrictJSONBody(c, &req); err != nil {
-		h.respondError(
-			c,
-			http.StatusBadRequest,
-			fmt.Errorf("%s: decode promote network thread task request: %w", h.transportName(), err),
-		)
+	req, err := h.decodePromoteNetworkThreadTaskRequest(c)
+	if err != nil {
+		h.respondError(c, http.StatusBadRequest, err)
 		return
 	}
 	originMessageID := strings.TrimSpace(req.OriginMessageID)
-	if originMessageID == "" {
-		h.respondError(c, http.StatusBadRequest, NewNetworkValidationError(errors.New("origin_message_id is required")))
-		return
-	}
 	source, err := h.networkThreadPromotionSource(
 		c.Request.Context(),
+		store.ReadScope{ProfileID: mutationScope.ProfileID},
 		scope.NetworkWorkspaceID(),
 		channel,
 		threadID,
@@ -109,7 +112,9 @@ func (h *BaseHandlers) PromoteNetworkThreadTask(c *gin.Context) {
 		h.respondError(c, StatusForTaskError(err), err)
 		return
 	}
-	taskRecord, err := h.createPromotedNetworkThreadTask(c.Request.Context(), manager, actor, source, req)
+	taskRecord, err := h.createPromotedNetworkThreadTask(
+		c.Request.Context(), manager, actor, mutationScope.ProfileID, source, req,
+	)
 	if err != nil {
 		h.respondError(c, StatusForTaskError(err), err)
 		return
@@ -122,10 +127,28 @@ func (h *BaseHandlers) PromoteNetworkThreadTask(c *gin.Context) {
 		h.respondError(c, StatusForNetworkError(err), err)
 		return
 	}
+	payload := TaskPayloadFromTask(taskRecord)
+	if err := h.decorateTaskOwner(c.Request.Context(), &payload); err != nil {
+		h.respondError(c, StatusForTaskError(err), err)
+		return
+	}
 	c.JSON(http.StatusCreated, contract.PromoteNetworkThreadTaskResponse{
-		Task:   TaskPayloadFromTask(taskRecord),
+		Task:   payload,
 		Origin: NetworkTaskThreadOriginPayloadFromStore(origin),
 	})
+}
+
+func (h *BaseHandlers) decodePromoteNetworkThreadTaskRequest(
+	c *gin.Context,
+) (contract.PromoteNetworkThreadTaskRequest, error) {
+	var req contract.PromoteNetworkThreadTaskRequest
+	if err := decodeStrictJSONBody(c, &req); err != nil {
+		return req, fmt.Errorf("%s: decode promote network thread task request: %w", h.transportName(), err)
+	}
+	if strings.TrimSpace(req.OriginMessageID) == "" {
+		return req, NewNetworkValidationError(errors.New("origin_message_id is required"))
+	}
+	return req, nil
 }
 
 type networkThreadPromotionSource struct {
@@ -140,6 +163,7 @@ type networkThreadPromotionSource struct {
 
 func (h *BaseHandlers) networkThreadPromotionSource(
 	ctx context.Context,
+	readScope store.ReadScope,
 	workspaceID string,
 	channel string,
 	threadID string,
@@ -154,7 +178,7 @@ func (h *BaseHandlers) networkThreadPromotionSource(
 	messages, err := h.NetworkStore.ListConversationMessages(
 		ctx,
 		ref,
-		store.NetworkConversationMessageQuery{Limit: 200},
+		store.NetworkConversationMessageQuery{ReadScope: readScope, Limit: 200},
 	)
 	if err != nil {
 		return networkThreadPromotionSource{}, err
@@ -166,7 +190,7 @@ func (h *BaseHandlers) networkThreadPromotionSource(
 		)
 	}
 	channelRef := store.NetworkChannelRef{WorkspaceID: workspaceID, Channel: channel}
-	thread, err := h.NetworkStore.GetThread(ctx, channelRef, threadID)
+	thread, err := h.NetworkStore.GetThread(ctx, readScope, channelRef, threadID)
 	if err != nil {
 		return networkThreadPromotionSource{}, err
 	}
@@ -185,10 +209,12 @@ func (h *BaseHandlers) createPromotedNetworkThreadTask(
 	ctx context.Context,
 	manager TaskService,
 	actor taskpkg.ActorContext,
+	profileID string,
 	source networkThreadPromotionSource,
 	req contract.PromoteNetworkThreadTaskRequest,
 ) (*taskpkg.Task, error) {
 	spec := taskpkg.CreateTask{
+		ProfileID:   strings.TrimSpace(profileID),
 		Scope:       taskpkg.ScopeWorkspace,
 		WorkspaceID: source.workspaceID,
 		Title:       promotedNetworkThreadTaskTitle(req, source),

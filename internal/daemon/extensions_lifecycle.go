@@ -36,26 +36,17 @@ func (s *daemonExtensionService) Install(
 		)
 	}
 	event.ExtensionName = prepared.name
+	confirmation, err := s.prepareInstallNetworkConfirmation(
+		prepared.manifest,
+		strings.TrimSpace(req.ConfirmNetworkDigest),
+		actor,
+	)
+	if err != nil {
+		return contract.ExtensionPayload{}, errors.Join(err, prepared.Close())
+	}
 	var item contract.ExtensionPayload
 	mutation := func() error {
-		if err := prepared.commit(); err != nil {
-			return err
-		}
-		if err := s.reload(ctx); err != nil {
-			return s.rollbackFailedInstall(ctx, prepared.name, err)
-		}
-		item, err = s.Status(ctx, prepared.name)
-		if err != nil {
-			return s.rollbackFailedInstall(ctx, prepared.name, err)
-		}
-		completedEvent := event
-		completedEvent.Type = eventspkg.ExtensionInstallCompleted
-		completedEvent.ExtensionName = item.Name
-		completedEvent.DigestMatched = item.DigestMatched
-		if err := s.recordCanonicalExtensionLifecycleEvent(ctx, actor, completedEvent); err != nil {
-			return s.rollbackFailedInstall(ctx, prepared.name, err)
-		}
-		return nil
+		return s.commitPreparedInstall(ctx, prepared, confirmation, actor, event, &item)
 	}
 	err = s.lifecycle.withInstance(ctx, extensionpkg.GlobalInstanceKey(prepared.name), mutation)
 	if err = s.finishPreparedInstall(prepared, err); err != nil {
@@ -65,6 +56,62 @@ func (s *daemonExtensionService) Install(
 		)
 	}
 	return item, nil
+}
+
+func (s *daemonExtensionService) commitPreparedInstall(
+	ctx context.Context,
+	prepared preparedDaemonExtensionInstall,
+	confirmation *extensionpkg.NetworkConfirmation,
+	actor taskpkg.ActorContext,
+	event extensionpkg.LifecycleEvent,
+	item *contract.ExtensionPayload,
+) error {
+	if err := prepared.commit(); err != nil {
+		return err
+	}
+	if confirmation != nil {
+		if err := s.registry.ConfirmNetworkRequirement(
+			extensionpkg.GlobalInstanceKey(prepared.name), confirmation.Digest,
+			confirmation.ConfirmedBy, confirmation.ConfirmedAt,
+		); err != nil {
+			return s.rollbackFailedInstall(ctx, prepared.name, err)
+		}
+		if err := s.recordExtensionNetworkConfirmedEvent(
+			ctx, actor, extensionpkg.GlobalInstanceKey(prepared.name), *confirmation,
+		); err != nil {
+			return s.rollbackFailedInstall(ctx, prepared.name, err)
+		}
+	}
+	if prepared.manifest != nil && len(prepared.manifest.Profiles) > 0 {
+		if s.profiles == nil {
+			return s.rollbackFailedInstall(
+				ctx, prepared.name, errors.New("daemon: profile manager is required for declared profiles"),
+			)
+		}
+		results, err := extensionpkg.ApplyDeclaredProfiles(ctx, s.profiles, prepared.manifest)
+		if err != nil {
+			return s.rollbackFailedInstall(ctx, prepared.name, err)
+		}
+		if err := s.recordDeclaredProfileCreatedEvents(ctx, actor, prepared.name, results); err != nil {
+			return s.rollbackFailedInstall(ctx, prepared.name, err)
+		}
+	}
+	if err := s.reload(ctx); err != nil {
+		return s.rollbackFailedInstall(ctx, prepared.name, err)
+	}
+	var err error
+	*item, err = s.Status(ctx, prepared.name)
+	if err != nil {
+		return s.rollbackFailedInstall(ctx, prepared.name, err)
+	}
+	completedEvent := event
+	completedEvent.Type = eventspkg.ExtensionInstallCompleted
+	completedEvent.ExtensionName = item.Name
+	completedEvent.DigestMatched = item.DigestMatched
+	if err := s.recordCanonicalExtensionLifecycleEvent(ctx, actor, completedEvent); err != nil {
+		return s.rollbackFailedInstall(ctx, prepared.name, err)
+	}
+	return nil
 }
 
 func (s *daemonExtensionService) finishPreparedInstall(
@@ -167,6 +214,28 @@ func (s *daemonExtensionService) updateBatchUnlocked(
 		s.observeExtensionDigestVerification(ctx, actor, trust, verificationErr)
 	}
 	confirmed := s.configureUpdateNetworkGate(&domainReq, confirmNetworkDigest, actor)
+	previousCommitCandidate := domainReq.CommitCandidate
+	domainReq.CommitCandidate = func(
+		info extensionpkg.ExtensionInfo,
+		manifest *extensionpkg.Manifest,
+	) error {
+		if previousCommitCandidate != nil {
+			if err := previousCommitCandidate(info, manifest); err != nil {
+				return err
+			}
+		}
+		if manifest == nil || len(manifest.Profiles) == 0 {
+			return nil
+		}
+		if s.profiles == nil {
+			return errors.New("daemon: profile manager is required for declared profiles")
+		}
+		results, err := extensionpkg.ApplyDeclaredProfiles(ctx, s.profiles, manifest)
+		if err != nil {
+			return err
+		}
+		return s.recordDeclaredProfileCreatedEvents(ctx, actor, info.Name, results)
+	}
 	items, updateErr := extensionpkg.UpdateMarketplaceManaged(
 		ctx,
 		s.homePaths,
@@ -303,7 +372,7 @@ func (s *daemonExtensionService) Enable(
 			actor,
 			extensionpkg.GlobalInstanceKey(name),
 			confirmation,
-			result,
+			&result,
 		); eventErr != nil {
 			return s.rollbackGlobalExtensionLifecycle(ctx, name, snapshot, eventErr)
 		}
@@ -342,7 +411,7 @@ func (s *daemonExtensionService) Disable(
 		if statusErr != nil {
 			return s.rollbackGlobalExtensionLifecycle(ctx, name, snapshot, statusErr)
 		}
-		if eventErr := s.recordExtensionEvent(ctx, eventspkg.ExtensionDisabled, actor, item); eventErr != nil {
+		if eventErr := s.recordExtensionEvent(ctx, eventspkg.ExtensionDisabled, actor, &item); eventErr != nil {
 			return s.rollbackGlobalExtensionLifecycle(ctx, name, snapshot, eventErr)
 		}
 		return nil

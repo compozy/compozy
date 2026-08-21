@@ -1,6 +1,9 @@
 package hooks
 
-import "context"
+import (
+	"context"
+	"errors"
+)
 
 type dispatchConfig[P any, R any] struct {
 	match   matcherFunc[P]
@@ -132,15 +135,20 @@ func (h *Hooks) DispatchSessionPostStop(
 // DispatchSandboxPrepare runs the sandbox.prepare hook pipeline.
 func (h *Hooks) DispatchSandboxPrepare(
 	ctx context.Context,
-	payload SandboxPreparePayload,
-) (SandboxPreparePayload, error) {
-	return executeDispatch(
+	payload *SandboxPreparePayload,
+) (*SandboxPreparePayload, error) {
+	if payload == nil {
+		return nil, errors.New("hooks: sandbox prepare payload is required")
+	}
+	result, err := executeDispatch(
 		ctx,
 		h,
 		HookSandboxPrepare,
-		payload,
+		*payload,
 		dispatchConfig[SandboxPreparePayload, SandboxPreparePatch]{
-			match:  matchSandboxPrepare,
+			match: func(matcher HookMatcher, current SandboxPreparePayload) bool {
+				return matchSandboxPrepare(matcher, &current)
+			},
 			apply:  applySandboxPreparePatch,
 			denied: sandboxPreparePatchDenied,
 			denyErr: func(_ SandboxPreparePayload, report dispatchReport) error {
@@ -148,6 +156,8 @@ func (h *Hooks) DispatchSandboxPrepare(
 			},
 		},
 	)
+	*payload = result
+	return payload, err
 }
 
 // DispatchSandboxReady runs the sandbox.ready hook dispatch.

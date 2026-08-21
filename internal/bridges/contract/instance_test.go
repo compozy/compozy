@@ -100,6 +100,11 @@ func TestBridgeInstanceContractValidation(t *testing.T) {
 				want:   "instance id is required",
 			},
 			{
+				name:   "Should reject a missing profile owner",
+				mutate: func(v *BridgeInstance) { v.ProfileID = "" },
+				want:   "profile id",
+			},
+			{
 				name:   "Should reject a missing workspace",
 				mutate: func(v *BridgeInstance) { v.WorkspaceID = "" },
 				want:   "requires workspace",
@@ -572,7 +577,9 @@ func TestRoutingContractBuildSerializeAndHash(t *testing.T) {
 
 func validContractBridgeInstance() BridgeInstance {
 	return BridgeInstance{
-		ID: "brg-1", Scope: ScopeWorkspace, WorkspaceID: "ws-1", Platform: "slack",
+		ID:        "brg-1",
+		ProfileID: "profile-test",
+		Scope:     ScopeWorkspace, WorkspaceID: "ws-1", Platform: "slack",
 		ExtensionName: "slack-adapter", DisplayName: "Support", Source: BridgeInstanceSourcePackage,
 		Enabled: true, Status: BridgeStatusDegraded, DMPolicy: BridgeDMPolicyPairing,
 		RoutingPolicy:    RoutingPolicy{IncludePeer: true, IncludeThread: true, IncludeGroup: true},

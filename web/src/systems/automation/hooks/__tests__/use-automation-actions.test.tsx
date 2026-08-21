@@ -17,6 +17,27 @@ import {
   useDismissAutomationSuggestion,
 } from "@/systems/automation/hooks/use-automation-suggestion-actions";
 
+const actionMocks = vi.hoisted(() => ({
+  notifyUser: vi.fn(),
+  profileScope: { aggregate: false, destination: "default" },
+}));
+
+vi.mock("@/lib/user-feedback", () => ({ notifyUser: actionMocks.notifyUser }));
+
+vi.mock("@/systems/profiles", async importOriginal => {
+  const actual = await importOriginal<typeof import("@/systems/profiles")>();
+  return {
+    ...actual,
+    useProfileReadScope: () => ({
+      aggregate: actionMocks.profileScope.aggregate,
+      destination: actionMocks.profileScope.destination,
+      params: actionMocks.profileScope.aggregate
+        ? { all_profiles: true as const }
+        : { profile: actionMocks.profileScope.destination },
+    }),
+  };
+});
+
 vi.mock("@/systems/automation/adapters/automation-api", () => ({
   createAutomationJob: vi.fn(),
   updateAutomationJob: vi.fn(),
@@ -54,6 +75,8 @@ function createWrapper(queryClient: QueryClient) {
 describe("automation mutation hooks", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    actionMocks.profileScope.aggregate = false;
+    actionMocks.profileScope.destination = "default";
   });
 
   afterEach(() => {
@@ -62,6 +85,8 @@ describe("automation mutation hooks", () => {
 
   it("invalidates job and run queries after triggering a job", async () => {
     vi.mocked(triggerAutomationJob).mockResolvedValue({
+      profile_id: "00000000000000000000000000",
+      profile_name: "default",
       id: "run_queued",
       attempt: 1,
       status: "running",
@@ -77,21 +102,21 @@ describe("automation mutation hooks", () => {
     });
 
     act(() => {
-      result.current.mutate({ id: "job_1" });
+      result.current.mutate({ id: "job_1", profile: "marketing" });
     });
 
     await waitFor(() => {
       expect(result.current.isSuccess).toBe(true);
     });
 
-    expect(triggerAutomationJob).toHaveBeenCalledWith("job_1");
+    expect(triggerAutomationJob).toHaveBeenCalledWith("job_1", "marketing");
     expect(invalidateSpy).toHaveBeenNthCalledWith(1, { queryKey: ["automation", "jobs"] });
     expect(invalidateSpy).toHaveBeenNthCalledWith(2, { queryKey: ["automation", "runs"] });
     expect(invalidateSpy).toHaveBeenNthCalledWith(3, {
       queryKey: ["automation", "jobs", "detail", "job_1"],
     });
     expect(invalidateSpy).toHaveBeenNthCalledWith(4, {
-      queryKey: ["automation", "jobs", "runs", "job_1", "", "", "", ""],
+      queryKey: ["automation", "jobs", "runs", "job_1"],
     });
   });
 
@@ -128,8 +153,11 @@ describe("automation mutation hooks", () => {
       expect(result.current.isSuccess).toBe(true);
     });
 
+    // The acting profile rides the create call; omitting it would file every
+    // web-created job into `default` whatever profile the operator is in.
     expect(createAutomationJob).toHaveBeenCalledWith(
-      expect.objectContaining({ name: "nightly-docs" })
+      expect.objectContaining({ name: "nightly-docs" }),
+      "default"
     );
     expect(invalidateSpy).toHaveBeenNthCalledWith(1, { queryKey: ["automation", "jobs"] });
     expect(invalidateSpy).toHaveBeenNthCalledWith(2, { queryKey: ["automation", "runs"] });
@@ -148,19 +176,19 @@ describe("automation mutation hooks", () => {
     });
 
     act(() => {
-      result.current.mutate({ id: "job_1", data: { enabled: false } });
+      result.current.mutate({ id: "job_1", data: { enabled: false }, profile: "marketing" });
     });
 
     await waitFor(() => {
       expect(result.current.isSuccess).toBe(true);
     });
 
-    expect(updateAutomationJob).toHaveBeenCalledWith("job_1", { enabled: false });
+    expect(updateAutomationJob).toHaveBeenCalledWith("job_1", { enabled: false }, "marketing");
     expect(invalidateSpy).toHaveBeenNthCalledWith(3, {
       queryKey: ["automation", "jobs", "detail", "job_1"],
     });
     expect(invalidateSpy).toHaveBeenNthCalledWith(4, {
-      queryKey: ["automation", "jobs", "runs", "job_1", "", "", "", ""],
+      queryKey: ["automation", "jobs", "runs", "job_1"],
     });
   });
 
@@ -177,19 +205,19 @@ describe("automation mutation hooks", () => {
     });
 
     act(() => {
-      result.current.mutate({ id: "job_1" });
+      result.current.mutate({ id: "job_1", profile: "marketing" });
     });
 
     await waitFor(() => {
       expect(result.current.isSuccess).toBe(true);
     });
 
-    expect(deleteAutomationJob).toHaveBeenCalledWith("job_1");
+    expect(deleteAutomationJob).toHaveBeenCalledWith("job_1", "marketing");
     expect(invalidateSpy).toHaveBeenNthCalledWith(3, {
       queryKey: ["automation", "jobs", "detail", "job_1"],
     });
     expect(invalidateSpy).toHaveBeenNthCalledWith(4, {
-      queryKey: ["automation", "jobs", "runs", "job_1", "", "", "", ""],
+      queryKey: ["automation", "jobs", "runs", "job_1"],
     });
   });
 
@@ -206,14 +234,14 @@ describe("automation mutation hooks", () => {
     });
 
     act(() => {
-      result.current.mutate({ id: "trg_1" });
+      result.current.mutate({ id: "trg_1", profile: "marketing" });
     });
 
     await waitFor(() => {
       expect(result.current.isSuccess).toBe(true);
     });
 
-    expect(deleteAutomationTrigger).toHaveBeenCalledWith("trg_1");
+    expect(deleteAutomationTrigger).toHaveBeenCalledWith("trg_1", "marketing");
     expect(invalidateSpy).toHaveBeenNthCalledWith(1, {
       queryKey: ["automation", "triggers"],
     });
@@ -222,7 +250,7 @@ describe("automation mutation hooks", () => {
       queryKey: ["automation", "triggers", "detail", "trg_1"],
     });
     expect(invalidateSpy).toHaveBeenNthCalledWith(4, {
-      queryKey: ["automation", "triggers", "runs", "trg_1", "", "", "", ""],
+      queryKey: ["automation", "triggers", "runs", "trg_1"],
     });
   });
 
@@ -258,12 +286,49 @@ describe("automation mutation hooks", () => {
     });
 
     expect(createAutomationTrigger).toHaveBeenCalledWith(
-      expect.objectContaining({ name: "push-review" })
+      expect.objectContaining({ name: "push-review" }),
+      "default"
     );
     expect(invalidateSpy).toHaveBeenNthCalledWith(1, {
       queryKey: ["automation", "triggers"],
     });
     expect(invalidateSpy).toHaveBeenNthCalledWith(2, { queryKey: ["automation", "runs"] });
+  });
+
+  it("Should name the returned owner after aggregate job and trigger creation", async () => {
+    actionMocks.profileScope.aggregate = true;
+    vi.mocked(createAutomationJob).mockResolvedValue({
+      id: "job_created",
+      profile_name: "default",
+    } as never);
+    vi.mocked(createAutomationTrigger).mockResolvedValue({
+      id: "trigger_created",
+      profile_name: "marketing",
+    } as never);
+    const queryClient = new QueryClient({
+      defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
+    });
+    const wrapper = createWrapper(queryClient);
+    const job = renderHook(() => useCreateAutomationJob(), { wrapper });
+    const trigger = renderHook(() => useCreateAutomationTrigger(), { wrapper });
+
+    act(() => {
+      job.result.current.mutate({ name: "job" } as never);
+      trigger.result.current.mutate({ name: "trigger" } as never);
+    });
+
+    await waitFor(() => {
+      expect(job.result.current.isSuccess).toBe(true);
+      expect(trigger.result.current.isSuccess).toBe(true);
+    });
+    expect(actionMocks.notifyUser).toHaveBeenCalledWith({
+      message: "Created in default.",
+      tone: "success",
+    });
+    expect(actionMocks.notifyUser).toHaveBeenCalledWith({
+      message: "Created in marketing.",
+      tone: "success",
+    });
   });
 
   it("invalidates trigger detail and run queries after updating a trigger", async () => {
@@ -279,19 +344,19 @@ describe("automation mutation hooks", () => {
     });
 
     act(() => {
-      result.current.mutate({ id: "trg_1", data: { enabled: false } });
+      result.current.mutate({ id: "trg_1", data: { enabled: false }, profile: "marketing" });
     });
 
     await waitFor(() => {
       expect(result.current.isSuccess).toBe(true);
     });
 
-    expect(updateAutomationTrigger).toHaveBeenCalledWith("trg_1", { enabled: false });
+    expect(updateAutomationTrigger).toHaveBeenCalledWith("trg_1", { enabled: false }, "marketing");
     expect(invalidateSpy).toHaveBeenNthCalledWith(3, {
       queryKey: ["automation", "triggers", "detail", "trg_1"],
     });
     expect(invalidateSpy).toHaveBeenNthCalledWith(4, {
-      queryKey: ["automation", "triggers", "runs", "trg_1", "", "", "", ""],
+      queryKey: ["automation", "triggers", "runs", "trg_1"],
     });
   });
 

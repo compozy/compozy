@@ -8,6 +8,7 @@ import (
 	"testing"
 	"time"
 
+	storepkg "github.com/compozy/compozy/internal/store"
 	"github.com/compozy/compozy/internal/testutil"
 )
 
@@ -442,7 +443,9 @@ func TestBrokerRouteLifecycleContract(t *testing.T) {
 			t.Fatalf("ReconcileDelivery(after close) error = %v, want ErrBrokerClosed", err)
 		}
 		if err := broker.LoadDeliveryMetrics(
-			ctx, DeliveryLedgerQuery{Scope: ScopeGlobal},
+			ctx, DeliveryLedgerQuery{
+				ReadScope: storepkg.ReadScope{AllProfiles: true}, Scope: ScopeGlobal,
+			},
 		); !errors.Is(err, ErrBrokerClosed) {
 			t.Fatalf("LoadDeliveryMetrics(after close) error = %v, want ErrBrokerClosed", err)
 		}

@@ -27,6 +27,11 @@ func (h *BaseHandlers) ObserveOverview(c *gin.Context) {
 		h.respondError(c, StatusForTaskError(err), err)
 		return
 	}
+	readScope, err := h.resolveProfileReadScope(c)
+	if err != nil {
+		h.respondProfileReadScopeError(c, err)
+		return
+	}
 
 	usageWindow, err := parseOverviewUsageWindow(c.Query("usage_window"))
 	if err != nil {
@@ -35,6 +40,7 @@ func (h *BaseHandlers) ObserveOverview(c *gin.Context) {
 	}
 
 	query := observe.OverviewQuery{
+		ReadScope:       readScope,
 		TaskScope:       taskpkg.CatalogScopeGlobal,
 		UsageWindowDays: usageWindow,
 		Actor:           actor.Actor,

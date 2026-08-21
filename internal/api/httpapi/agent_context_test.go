@@ -11,6 +11,7 @@ import (
 	"github.com/compozy/compozy/internal/api/contract"
 	apitestutil "github.com/compozy/compozy/internal/api/testutil"
 	"github.com/compozy/compozy/internal/session"
+	"github.com/compozy/compozy/internal/store"
 	taskpkg "github.com/compozy/compozy/internal/task"
 	workspacepkg "github.com/compozy/compozy/internal/workspace"
 	"github.com/compozy/compozy/internal/workspaceaccess"
@@ -187,6 +188,7 @@ func TestAgentCrossWorkspaceHTTPIdentityMapping(t *testing.T) {
 				}
 				return &session.Info{
 					ID:          id,
+					ProfileID:   store.DefaultProfileID,
 					AgentName:   "coder",
 					WorkspaceID: sourceWorkspaceID,
 					Workspace:   "/workspace/source",

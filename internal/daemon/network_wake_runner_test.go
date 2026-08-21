@@ -597,7 +597,7 @@ type networkWakeStoreStub struct {
 
 func (*networkWakeStoreStub) AcceptNetworkMessage(
 	context.Context,
-	store.AcceptNetworkMessageRequest,
+	*store.AcceptNetworkMessageRequest,
 ) (store.AcceptNetworkMessageResult, error) {
 	return store.AcceptNetworkMessageResult{}, errors.New("unexpected AcceptNetworkMessage call")
 }

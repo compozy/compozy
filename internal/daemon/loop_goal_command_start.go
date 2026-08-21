@@ -41,7 +41,7 @@ func (s *daemonLoopAPIService) startSessionGoal(
 		ctx,
 		looppkg.WorkspaceID(strings.TrimSpace(workspaceID)),
 		definition,
-		looppkg.Inputs{},
+		looppkg.Inputs{ProfileID: prepared.profileID},
 		prepared.origin,
 		actor,
 	)
@@ -86,7 +86,7 @@ func (s *daemonLoopAPIService) replaceSessionGoal(
 		looppkg.RunID(strings.TrimSpace(expectedRunID)),
 		looppkg.WorkspaceID(strings.TrimSpace(workspaceID)),
 		definition,
-		looppkg.Inputs{},
+		looppkg.Inputs{ProfileID: prepared.profileID},
 		prepared.origin,
 		actor,
 	)
@@ -106,6 +106,7 @@ func (s *daemonLoopAPIService) replaceSessionGoal(
 
 type sessionGoalDefinitionInput struct {
 	origin     looppkg.RunOrigin
+	profileID  string
 	agentName  string
 	judgeModel string
 	maxTurns   int
@@ -148,6 +149,7 @@ func (s *daemonLoopAPIService) prepareSessionGoalDefinition(
 	}
 	return sessionGoalDefinitionInput{
 		origin:     details.origin,
+		profileID:  details.profile.ProfileID,
 		agentName:  details.profile.AgentName,
 		judgeModel: judgeModel,
 		maxTurns:   cfg.Goals.MaxTurns,

@@ -3,13 +3,13 @@ package cmdpalette
 import "context"
 
 type Provider interface {
-	ProvideCommands(context.Context, WorkspaceID) ([]Descriptor, error)
+	ProvideCommands(context.Context, CatalogRequest) ([]Descriptor, error)
 }
 
 // ContributionProvider returns a complete multi-source extension projection.
 type ContributionProvider interface {
 	Provider
-	ProvideContribution(context.Context, WorkspaceID) (Contribution, error)
+	ProvideContribution(context.Context, CatalogRequest) (Contribution, error)
 }
 
 type StaticProvider interface {
@@ -37,13 +37,14 @@ type ClientDirectory interface {
 }
 
 type BindingsResolver interface {
-	Bindings(context.Context, WorkspaceID) (map[CommandID][]string, map[CommandID]string, error)
+	Bindings(context.Context, ProfileLens, WorkspaceID) (map[CommandID][]string, map[CommandID]string, error)
 }
 
 // SnapshotBindingsResolver resolves bindings from the exact contribution snapshot used by Catalog.
 type SnapshotBindingsResolver interface {
 	BindingsForCatalogSnapshot(
 		context.Context,
+		ProfileLens,
 		WorkspaceID,
 		[]CommandID,
 		[]ExtensionDefaultShortcut,
@@ -54,6 +55,7 @@ type SnapshotBindingsResolver interface {
 type SnapshotGlobalBindingsResolver interface {
 	GlobalBindingsForCatalogSnapshot(
 		context.Context,
+		ProfileLens,
 		WorkspaceID,
 		[]CommandID,
 	) (map[CommandID]string, error)
@@ -63,28 +65,29 @@ type SnapshotGlobalBindingsResolver interface {
 type GlobalShortcutStatusDirectory interface {
 	GlobalShortcutStatuses(
 		context.Context,
+		ProfileLens,
 		WorkspaceID,
 		ClientID,
 	) (map[CommandID]GlobalShortcut, error)
 }
 
 type Registry interface {
-	Catalog(context.Context, WorkspaceID, ClientID) (Catalog, error)
+	Catalog(context.Context, CatalogRequest) (Catalog, error)
 	Clients(context.Context, WorkspaceID) ([]Client, error)
 	Invoke(context.Context, InvokeRequest) (InvokeResult, error)
 	RecordUsage(context.Context, Usage) error
-	Personalization(context.Context, WorkspaceID) (Snapshot, error)
-	PersonalizationSummary(context.Context, WorkspaceID) (PersonalizationSummary, error)
-	ResetPersonalization(context.Context, WorkspaceID) error
-	Pin(context.Context, WorkspaceID, CommandID) error
-	Unpin(context.Context, WorkspaceID, CommandID) error
+	Personalization(context.Context, ProfileLens, WorkspaceID) (Snapshot, error)
+	PersonalizationSummary(context.Context, ProfileLens, WorkspaceID) (PersonalizationSummary, error)
+	ResetPersonalization(context.Context, ProfileLens, WorkspaceID) error
+	Pin(context.Context, ProfileLens, WorkspaceID, CommandID) error
+	Unpin(context.Context, ProfileLens, WorkspaceID, CommandID) error
 }
 
 type BindableCatalog interface {
-	BindableIDs(context.Context, WorkspaceID) ([]CommandID, error)
+	BindableIDs(context.Context, ProfileLens, WorkspaceID) ([]CommandID, error)
 }
 
 // ExtensionDefaultCatalog exposes ordered extension shortcut claims without resolving bindings.
 type ExtensionDefaultCatalog interface {
-	ExtensionDefaults(context.Context, WorkspaceID) ([]ExtensionDefaultShortcut, error)
+	ExtensionDefaults(context.Context, ProfileLens, WorkspaceID) ([]ExtensionDefaultShortcut, error)
 }

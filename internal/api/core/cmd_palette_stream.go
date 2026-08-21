@@ -10,6 +10,10 @@ import (
 )
 
 func (h *BaseHandlers) StreamCmdPalette(c *gin.Context) {
+	profileLens, ok := h.resolveCmdPaletteProfileLens(c, false)
+	if !ok {
+		return
+	}
 	workspaceID, ok := h.resolveCmdPaletteWorkspace(c, c.Query("workspace"))
 	if !ok {
 		return
@@ -23,13 +27,18 @@ func (h *BaseHandlers) StreamCmdPalette(c *gin.Context) {
 		h.respondCmdPaletteError(c, workspaceID, errors.New("cmd palette event stream is unavailable"))
 		return
 	}
-	updates, cancel, err := subscriber.SubscribeCmdPaletteEvents(c.Request.Context(), workspaceID)
+	updates, cancel, err := subscriber.SubscribeCmdPaletteEvents(
+		c.Request.Context(), profileLens, workspaceID,
+	)
 	if err != nil {
 		h.respondCmdPaletteError(c, workspaceID, err)
 		return
 	}
 	defer cancel()
-	catalog, err := h.CmdPalette.Catalog(c.Request.Context(), workspaceID, "")
+	catalog, err := h.CmdPalette.Catalog(c.Request.Context(), cmdpalette.CatalogRequest{
+		ProfileLens: profileLens,
+		WorkspaceID: workspaceID,
+	})
 	if err != nil {
 		h.respondCmdPaletteError(c, workspaceID, err)
 		return
@@ -39,7 +48,7 @@ func (h *BaseHandlers) StreamCmdPalette(c *gin.Context) {
 		h.respondError(c, http.StatusInternalServerError, err)
 		return
 	}
-	if err := writeCmdPaletteCatalogChanged(writer, workspaceID, catalog.Revision); err != nil {
+	if err := writeCmdPaletteCatalogChanged(writer, profileLens, workspaceID, catalog.Revision); err != nil {
 		h.logSSEWriteFailure(string(cmdpalette.EventCatalogChanged), err)
 		return
 	}
@@ -56,7 +65,9 @@ func (h *BaseHandlers) StreamCmdPalette(c *gin.Context) {
 			if event.Name != cmdpalette.EventCatalogChanged {
 				continue
 			}
-			if err := writeCmdPaletteCatalogChanged(writer, event.WorkspaceID, event.CatalogRevision); err != nil {
+			if err := writeCmdPaletteCatalogChanged(
+				writer, event.ProfileLens, event.WorkspaceID, event.CatalogRevision,
+			); err != nil {
 				h.logSSEWriteFailure(string(event.Name), err)
 				return
 			}
@@ -66,13 +77,14 @@ func (h *BaseHandlers) StreamCmdPalette(c *gin.Context) {
 
 func writeCmdPaletteCatalogChanged(
 	writer FlushWriter,
+	profileLens cmdpalette.ProfileLens,
 	workspaceID cmdpalette.WorkspaceID,
 	revision string,
 ) error {
 	return WriteSSE(writer, SSEMessage{
 		Name: string(cmdpalette.EventCatalogChanged),
 		Data: contract.CmdPaletteCatalogChangedEvent{
-			Workspace: workspaceID, CatalogRevision: revision,
+			ProfileLens: profileLens, Workspace: workspaceID, CatalogRevision: revision,
 		},
 	})
 }

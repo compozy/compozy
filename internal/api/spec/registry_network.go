@@ -69,10 +69,10 @@ func getNetworkPeerOperationSpec() OperationSpec {
 		Summary:     "Get one visible network peer detail",
 		Tags:        []string{specNetworkKey},
 		Transports:  []Transport{TransportHTTP, TransportUDS},
-		Parameters: []ParameterSpec{
+		Parameters: withProfileScope(
 			pathParam("workspace_id", "Workspace id"),
 			pathParam("peer_id", "Network peer id"),
-		},
+		),
 		Responses: []ResponseSpec{
 			{Status: 200, Description: "OK", Body: contract.NetworkPeerResponse{}},
 			{Status: 404, Description: "Network peer not found", Body: contract.ErrorPayload{}},
@@ -84,15 +84,15 @@ func getNetworkPeerOperationSpec() OperationSpec {
 func listNetworkChannelsOperationSpec() OperationSpec {
 	return OperationSpec{
 		Method:      httpMethodGet,
-		Path:        "/api/workspaces/{workspace_id}/network/channels",
+		Path:        specNetworkChannelsPath,
 		OperationID: "listNetworkChannels",
 		Summary:     "List materialized network channels",
 		Tags:        []string{specNetworkKey},
 		Transports:  []Transport{TransportHTTP, TransportUDS},
-		Parameters: []ParameterSpec{
+		Parameters: withProfileScope(
 			pathParam("workspace_id", "Workspace id"),
 			intQueryParam("recent_limit", "Maximum cross-channel recent conversations to include"),
-		},
+		),
 		Responses: []ResponseSpec{
 			{Status: 200, Description: "OK", Body: contract.NetworkChannelsResponse{}},
 			{Status: 503, Description: specNetworkRuntimeIsNotConfiguredDescription, Body: contract.ErrorPayload{}},
@@ -103,14 +103,14 @@ func listNetworkChannelsOperationSpec() OperationSpec {
 func createNetworkChannelOperationSpec() OperationSpec {
 	return OperationSpec{
 		Method:      httpMethodPost,
-		Path:        "/api/workspaces/{workspace_id}/network/channels",
+		Path:        specNetworkChannelsPath,
 		OperationID: "createNetworkChannel",
 		Summary:     "Create a network channel by spawning agent sessions",
 		Tags:        []string{specNetworkKey},
 		Transports:  []Transport{TransportHTTP, TransportUDS},
-		Parameters: []ParameterSpec{
+		Parameters: withProfileSelector(
 			pathParam("workspace_id", "Workspace id"),
-		},
+		),
 		RequestBody: contract.CreateNetworkChannelRequest{},
 		Responses: []ResponseSpec{
 			{Status: 201, Description: specCreatedDescription, Body: contract.CreateNetworkChannelResponse{}},
@@ -124,15 +124,15 @@ func createNetworkChannelOperationSpec() OperationSpec {
 func getNetworkChannelOperationSpec() OperationSpec {
 	return OperationSpec{
 		Method:      httpMethodGet,
-		Path:        "/api/workspaces/{workspace_id}/network/channels/{channel}",
+		Path:        specNetworkChannelPath,
 		OperationID: "getNetworkChannel",
 		Summary:     "Get one network channel detail",
 		Tags:        []string{specNetworkKey},
 		Transports:  []Transport{TransportHTTP, TransportUDS},
-		Parameters: []ParameterSpec{
+		Parameters: withProfileScope(
 			pathParam("workspace_id", "Workspace id"),
 			pathParam("channel", "Network channel"),
-		},
+		),
 		Responses: []ResponseSpec{
 			{Status: 200, Description: "OK", Body: contract.NetworkChannelResponse{}},
 			{Status: 400, Description: "Invalid network channel", Body: contract.ErrorPayload{}},
@@ -145,15 +145,15 @@ func getNetworkChannelOperationSpec() OperationSpec {
 func updateNetworkChannelOperationSpec() OperationSpec {
 	return OperationSpec{
 		Method:      httpMethodPatch,
-		Path:        "/api/workspaces/{workspace_id}/network/channels/{channel}",
+		Path:        specNetworkChannelPath,
 		OperationID: "updateNetworkChannel",
 		Summary:     "Update mutable delivery policy for one network channel",
 		Tags:        []string{specNetworkKey},
 		Transports:  []Transport{TransportHTTP, TransportUDS},
-		Parameters: []ParameterSpec{
+		Parameters: withProfileSelector(
 			pathParam("workspace_id", "Workspace id"),
 			pathParam("channel", "Network channel"),
-		},
+		),
 		RequestBody: contract.UpdateNetworkChannelRequest{},
 		Responses: []ResponseSpec{
 			{Status: 200, Description: "OK", Body: contract.NetworkChannelResponse{}},
@@ -167,18 +167,18 @@ func updateNetworkChannelOperationSpec() OperationSpec {
 func listNetworkSubscriptionsOperationSpec() OperationSpec {
 	return OperationSpec{
 		Method:      httpMethodGet,
-		Path:        "/api/workspaces/{workspace_id}/network/channels/{channel}/subscriptions",
+		Path:        specNetworkChannelSubscriptionsPath,
 		OperationID: "listNetworkSubscriptions",
 		Summary:     "List delivery subscriptions for one network channel",
 		Tags:        []string{specNetworkKey},
 		Transports:  []Transport{TransportHTTP, TransportUDS},
-		Parameters: []ParameterSpec{
+		Parameters: withProfileScope(
 			pathParam("workspace_id", "Workspace id"),
 			pathParam("channel", "Network channel"),
 			queryParam("session_id", "Filter subscriptions by session id", false),
 			queryParam("thread_id", "Filter subscriptions by thread id", false),
 			intQueryParam("limit", "Maximum number of subscriptions to return"),
-		},
+		),
 		Responses: []ResponseSpec{
 			{Status: 200, Description: "OK", Body: contract.NetworkSubscriptionsResponse{}},
 			{Status: 400, Description: "Invalid network subscription filter", Body: contract.ErrorPayload{}},
@@ -190,15 +190,15 @@ func listNetworkSubscriptionsOperationSpec() OperationSpec {
 func upsertNetworkSubscriptionOperationSpec() OperationSpec {
 	return OperationSpec{
 		Method:      httpMethodPut,
-		Path:        "/api/workspaces/{workspace_id}/network/channels/{channel}/subscriptions",
+		Path:        specNetworkChannelSubscriptionsPath,
 		OperationID: "upsertNetworkSubscription",
 		Summary:     "Create or update one network delivery subscription",
 		Tags:        []string{specNetworkKey},
 		Transports:  []Transport{TransportHTTP, TransportUDS},
-		Parameters: []ParameterSpec{
+		Parameters: withProfileSelector(
 			pathParam("workspace_id", "Workspace id"),
 			pathParam("channel", "Network channel"),
-		},
+		),
 		RequestBody: contract.NetworkSubscriptionRequest{},
 		Responses: []ResponseSpec{
 			{Status: 200, Description: "OK", Body: contract.NetworkSubscriptionResponse{}},
@@ -216,12 +216,12 @@ func deleteNetworkSubscriptionOperationSpec() OperationSpec {
 		Summary:     "Delete one network delivery subscription",
 		Tags:        []string{specNetworkKey},
 		Transports:  []Transport{TransportHTTP, TransportUDS},
-		Parameters: []ParameterSpec{
+		Parameters: withProfileSelector(
 			pathParam("workspace_id", "Workspace id"),
 			pathParam("channel", "Network channel"),
 			pathParam("session_id", "Network session id"),
 			queryParam("thread_id", "Delete the thread-scoped subscription for this session", false),
-		},
+		),
 		Responses: []ResponseSpec{
 			{Status: 204, Description: specNoContentDescription},
 			{Status: 400, Description: "Invalid network subscription", Body: contract.ErrorPayload{}},
@@ -238,10 +238,10 @@ func listNetworkThreadsOperationSpec() OperationSpec {
 		Summary:     "List public threads in one network channel",
 		Tags:        []string{specNetworkKey},
 		Transports:  []Transport{TransportHTTP, TransportUDS},
-		Parameters: append([]ParameterSpec{
+		Parameters: withProfileScope(append([]ParameterSpec{
 			pathParam("workspace_id", "Workspace id"),
 			pathParam("channel", "Network channel"),
-		}, networkConversationListQueryParams("threads", true)...),
+		}, networkConversationListQueryParams("threads", true)...)...),
 		Responses: []ResponseSpec{
 			{Status: 200, Description: "OK", Body: contract.NetworkThreadsResponse{}},
 			{Status: 400, Description: "Invalid public-thread request", Body: contract.ErrorPayload{}},
@@ -258,11 +258,11 @@ func getNetworkThreadOperationSpec() OperationSpec {
 		Summary:     "Get one public-thread summary",
 		Tags:        []string{specNetworkKey},
 		Transports:  []Transport{TransportHTTP, TransportUDS},
-		Parameters: []ParameterSpec{
+		Parameters: withProfileScope(
 			pathParam("workspace_id", "Workspace id"),
 			pathParam("channel", "Network channel"),
 			pathParam("thread_id", "Public thread id"),
-		},
+		),
 		Responses: []ResponseSpec{
 			{Status: 200, Description: "OK", Body: contract.NetworkThreadResponse{}},
 			{Status: 400, Description: "Invalid public thread", Body: contract.ErrorPayload{}},
@@ -280,11 +280,11 @@ func promoteNetworkThreadTaskOperationSpec() OperationSpec {
 		Summary:     "Promote one network thread message into a durable task",
 		Tags:        []string{specNetworkKey, specTasksKey},
 		Transports:  []Transport{TransportHTTP, TransportUDS},
-		Parameters: []ParameterSpec{
+		Parameters: withProfileSelector(
 			pathParam("workspace_id", "Workspace id"),
 			pathParam("channel", "Network channel"),
 			pathParam("thread_id", "Public thread id"),
-		},
+		),
 		RequestBody: contract.PromoteNetworkThreadTaskRequest{},
 		Responses: []ResponseSpec{
 			{Status: 201, Description: specCreatedDescription, Body: contract.PromoteNetworkThreadTaskResponse{}},
@@ -307,11 +307,11 @@ func listNetworkThreadMessagesOperationSpec() OperationSpec {
 		Summary:     "List messages in one public thread",
 		Tags:        []string{specNetworkKey},
 		Transports:  []Transport{TransportHTTP, TransportUDS},
-		Parameters: append([]ParameterSpec{
+		Parameters: withProfileScope(append([]ParameterSpec{
 			pathParam("workspace_id", "Workspace id"),
 			pathParam("channel", "Network channel"),
 			pathParam("thread_id", "Public thread id"),
-		}, networkConversationMessageQueryParams()...),
+		}, networkConversationMessageQueryParams()...)...),
 		Responses: []ResponseSpec{
 			{Status: 200, Description: "OK", Body: contract.NetworkThreadMessagesResponse{}},
 			{Status: 400, Description: "Invalid public-thread messages request", Body: contract.ErrorPayload{}},
@@ -329,10 +329,10 @@ func listNetworkDirectRoomsOperationSpec() OperationSpec {
 		Summary:     "List direct rooms in one network channel",
 		Tags:        []string{specNetworkKey},
 		Transports:  []Transport{TransportHTTP, TransportUDS},
-		Parameters: append([]ParameterSpec{
+		Parameters: withProfileScope(append([]ParameterSpec{
 			pathParam("workspace_id", "Workspace id"),
 			pathParam("channel", "Network channel"),
-		}, networkConversationListQueryParams("direct rooms", true)...),
+		}, networkConversationListQueryParams("direct rooms", true)...)...),
 		Responses: []ResponseSpec{
 			{Status: 200, Description: "OK", Body: contract.NetworkDirectRoomsResponse{}},
 			{Status: 400, Description: "Invalid direct-room request", Body: contract.ErrorPayload{}},
@@ -349,10 +349,10 @@ func resolveNetworkDirectRoomOperationSpec() OperationSpec {
 		Summary:     "Create or return a deterministic direct room",
 		Tags:        []string{specNetworkKey},
 		Transports:  []Transport{TransportHTTP, TransportUDS},
-		Parameters: []ParameterSpec{
+		Parameters: withProfileSelector(
 			pathParam("workspace_id", "Workspace id"),
 			pathParam("channel", "Network channel"),
-		},
+		),
 		RequestBody: contract.NetworkDirectResolveRequest{},
 		Responses: []ResponseSpec{
 			{Status: 200, Description: "OK", Body: contract.NetworkDirectRoomResponse{}},
@@ -372,11 +372,11 @@ func getNetworkDirectRoomOperationSpec() OperationSpec {
 		Summary:     "Get one direct-room summary",
 		Tags:        []string{specNetworkKey},
 		Transports:  []Transport{TransportHTTP, TransportUDS},
-		Parameters: []ParameterSpec{
+		Parameters: withProfileScope(
 			pathParam("workspace_id", "Workspace id"),
 			pathParam("channel", "Network channel"),
 			pathParam("direct_id", "Direct-room id"),
-		},
+		),
 		Responses: []ResponseSpec{
 			{Status: 200, Description: "OK", Body: contract.NetworkDirectRoomResponse{}},
 			{Status: 400, Description: "Invalid direct room", Body: contract.ErrorPayload{}},
@@ -394,11 +394,11 @@ func listNetworkDirectRoomMessagesOperationSpec() OperationSpec {
 		Summary:     "List messages in one direct room",
 		Tags:        []string{specNetworkKey},
 		Transports:  []Transport{TransportHTTP, TransportUDS},
-		Parameters: append([]ParameterSpec{
+		Parameters: withProfileScope(append([]ParameterSpec{
 			pathParam("workspace_id", "Workspace id"),
 			pathParam("channel", "Network channel"),
 			pathParam("direct_id", "Direct-room id"),
-		}, networkConversationMessageQueryParams()...),
+		}, networkConversationMessageQueryParams()...)...),
 		Responses: []ResponseSpec{
 			{Status: 200, Description: "OK", Body: contract.NetworkDirectRoomMessagesResponse{}},
 			{Status: 400, Description: "Invalid direct-room messages request", Body: contract.ErrorPayload{}},
@@ -416,10 +416,10 @@ func getNetworkWorkOperationSpec() OperationSpec {
 		Summary:     "Get one network work item",
 		Tags:        []string{specNetworkKey},
 		Transports:  []Transport{TransportHTTP, TransportUDS},
-		Parameters: []ParameterSpec{
+		Parameters: withProfileScope(
 			pathParam("workspace_id", "Workspace id"),
 			pathParam("work_id", "Network work id"),
-		},
+		),
 		Responses: []ResponseSpec{
 			{Status: 200, Description: "OK", Body: contract.NetworkWorkResponse{}},
 			{Status: 400, Description: "Invalid network work id", Body: contract.ErrorPayload{}},

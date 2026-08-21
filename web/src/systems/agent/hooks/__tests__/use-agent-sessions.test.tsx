@@ -57,7 +57,7 @@ describe("useAgentSessions", () => {
       expect(result.current.archivedTotal).toBe(4);
     });
     for (const [filters] of vi.mocked(fetchSessions).mock.calls) {
-      expect(filters?.workspace).toBe("ws_alpha");
+      expect(filters?.workspace_id).toBe("ws_alpha");
       expect(filters?.agent).toBe("claude-agent");
       expect(filters?.sort).toBe("last_activity");
       expect(filters?.type).toBeUndefined();

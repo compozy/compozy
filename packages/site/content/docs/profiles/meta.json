@@ -1,0 +1,5 @@
+{
+    "title": "Profiles",
+    "icon": "Users",
+    "pages": ["quickstart", "selection", "reads", "credentials", "lifecycle", "errors"]
+}

@@ -46,7 +46,11 @@ func (n *daemonNativeTools) memoryAdminDreamList(
 	if err != nil {
 		return toolspkg.ToolResult{}, nativeMemoryAdminToolError(req.ToolID, err)
 	}
-	records, err := n.deps.MemoryStore.ListDreamRunRecords(ctx, memorypkg.DreamRunListQuery{
+	profileStore, err := n.profileMemoryStore(ctx, scope)
+	if err != nil {
+		return toolspkg.ToolResult{}, nativeMemoryAdminToolError(req.ToolID, err)
+	}
+	records, err := profileStore.ListDreamRunRecords(ctx, memorypkg.DreamRunListQuery{
 		Scope:       selector.Scope,
 		WorkspaceID: selector.WorkspaceID,
 		AgentName:   selector.AgentName,
@@ -68,7 +72,7 @@ func (n *daemonNativeTools) memoryAdminDreamList(
 
 func (n *daemonNativeTools) memoryAdminDreamShow(
 	ctx context.Context,
-	_ toolspkg.Scope,
+	scope toolspkg.Scope,
 	req toolspkg.CallRequest,
 ) (toolspkg.ToolResult, error) {
 	var input memoryAdminDreamIDInput
@@ -79,7 +83,11 @@ func (n *daemonNativeTools) memoryAdminDreamShow(
 	if err != nil {
 		return toolspkg.ToolResult{}, err
 	}
-	record, err := n.deps.MemoryStore.LoadDreamRunRecord(ctx, dreamID)
+	profileStore, err := n.profileMemoryStore(ctx, scope)
+	if err != nil {
+		return toolspkg.ToolResult{}, nativeMemoryAdminToolError(req.ToolID, err)
+	}
+	record, err := profileStore.LoadDreamRunRecord(ctx, dreamID)
 	if err != nil {
 		return toolspkg.ToolResult{}, nativeMemoryAdminToolError(req.ToolID, err)
 	}

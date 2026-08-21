@@ -1,9 +1,9 @@
 -- name: InsertNetworkAudit :exec
 INSERT INTO network_audit_log (
-  id, session_id, workspace_id, direction, kind, channel, surface, thread_id, direct_id, work_id,
+  id, profile_id, session_id, workspace_id, direction, kind, channel, surface, thread_id, direct_id, work_id,
   peer_from, peer_to, message_id, reason, size, timestamp
 ) VALUES (
-  sqlc.arg(id), sqlc.arg(session_id), sqlc.arg(workspace_id), sqlc.arg(direction), sqlc.arg(kind),
+  sqlc.arg(id), sqlc.arg(profile_id), sqlc.arg(session_id), sqlc.arg(workspace_id), sqlc.arg(direction), sqlc.arg(kind),
   sqlc.arg(channel), sqlc.narg(surface), sqlc.narg(thread_id), sqlc.narg(direct_id), sqlc.narg(work_id),
   sqlc.arg(peer_from), sqlc.narg(peer_to), sqlc.arg(message_id), sqlc.narg(reason), sqlc.arg(size),
   sqlc.arg(timestamp)

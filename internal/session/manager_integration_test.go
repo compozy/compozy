@@ -306,6 +306,7 @@ func TestManagerIntegrationWorktreeRemovalBindingRace(t *testing.T) {
 			t.Fatalf("driver start calls after rejected binding = %d, want 0", got)
 		}
 		sessions, listErr := fixture.database.ListSessions(testutil.Context(t), store.SessionListQuery{
+			ReadScope:   store.ReadScope{ProfileID: store.DefaultProfileID},
 			WorkspaceID: fixture.h.workspaceID,
 			WorktreeID:  fixture.item.ID,
 		})
@@ -384,7 +385,10 @@ func newSessionWorktreeRaceFixture(
 		worktreepkg.WithHooks(hooks),
 		worktreepkg.WithIDGenerator(func(string) (string, error) { return "wt-session-race", nil }),
 	)
-	item, err := service.Create(ctx, h.workspaceID, worktreepkg.CreateOptions{Name: "Session Race"})
+	item, err := service.Create(ctx, h.workspaceID, worktreepkg.CreateOptions{
+		ProfileID: store.DefaultProfileID,
+		Name:      "Session Race",
+	})
 	if err != nil {
 		t.Fatalf("worktree Create() error = %v", err)
 	}

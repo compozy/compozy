@@ -12,6 +12,7 @@ import (
 	"github.com/compozy/compozy/internal/api/contract"
 	"github.com/compozy/compozy/internal/network"
 	"github.com/compozy/compozy/internal/session"
+	"github.com/compozy/compozy/internal/store"
 	"github.com/gin-gonic/gin"
 )
 
@@ -151,15 +152,22 @@ func (h *BaseHandlers) NetworkSend(c *gin.Context) {
 		h.respondError(c, http.StatusBadRequest, NewNetworkValidationError(errors.New("session_id is required")))
 		return
 	}
-	if _, err := h.requireSessionInWorkspace(
+	senderSession, err := h.requireSessionInWorkspace(
 		c.Request.Context(),
 		scope.SessionWorkspaceID(),
 		req.SessionID,
-	); err != nil {
+	)
+	if err != nil {
 		h.respondError(c, statusForWorkspaceScopedResourceError(err), err)
 		return
 	}
-	if err := h.populateNetworkDirectSendTarget(c.Request.Context(), service, &scope, &req); err != nil {
+	if err := h.populateNetworkDirectSendTarget(
+		c.Request.Context(),
+		service,
+		store.ReadScope{ProfileID: senderSession.ProfileID},
+		&scope,
+		&req,
+	); err != nil {
 		h.respondError(c, StatusForNetworkError(err), err)
 		return
 	}
@@ -181,6 +189,7 @@ func (h *BaseHandlers) NetworkSend(c *gin.Context) {
 func (h *BaseHandlers) populateNetworkDirectSendTarget(
 	ctx context.Context,
 	service NetworkService,
+	readScope store.ReadScope,
 	scope *workspaceScope,
 	req *contract.NetworkSendRequest,
 ) error {
@@ -201,7 +210,7 @@ func (h *BaseHandlers) populateNetworkDirectSendTarget(
 	if err := network.ValidateConversationID(directID, "direct_id"); err != nil {
 		return err
 	}
-	direct, err := h.NetworkStore.GetDirectRoom(ctx, scope.NetworkChannelRef(channel), directID)
+	direct, err := h.NetworkStore.GetDirectRoom(ctx, readScope, scope.NetworkChannelRef(channel), directID)
 	if err != nil {
 		return err
 	}

@@ -8,6 +8,7 @@ import (
 	"github.com/compozy/compozy/internal/api/contract"
 	bridgepkg "github.com/compozy/compozy/internal/bridges"
 	"github.com/compozy/compozy/internal/gateway"
+	"github.com/compozy/compozy/internal/store"
 	workspacepkg "github.com/compozy/compozy/internal/workspace"
 	"github.com/gin-gonic/gin"
 )
@@ -24,6 +25,10 @@ func (h *BaseHandlers) ListBridges(c *gin.Context) {
 	}
 	query, err := h.parseBridgeCatalogQuery(c)
 	if err != nil {
+		if isProfileDomainError(err) {
+			h.respondProfileReadScopeError(c, err)
+			return
+		}
 		h.respondError(c, bridgeCatalogQueryErrorStatus(err), err)
 		return
 	}
@@ -57,7 +62,7 @@ func (h *BaseHandlers) ListBridges(c *gin.Context) {
 		h.respondError(c, status, err)
 		return
 	}
-	instances, err := bridgeCatalogHydration(c.Request.Context(), bridges, selection.Items)
+	instances, err := bridgeCatalogHydration(c.Request.Context(), bridges, query.ReadScope, selection.Items)
 	if err != nil {
 		h.respondError(c, StatusForBridgeError(err), err)
 		return
@@ -108,6 +113,10 @@ func bridgeCatalogReadErrorStatus(err error) int {
 }
 
 func (h *BaseHandlers) parseBridgeCatalogQuery(c *gin.Context) (bridgepkg.BridgeCatalogQuery, error) {
+	readScope, err := h.resolveProfileReadScope(c)
+	if err != nil {
+		return bridgepkg.BridgeCatalogQuery{}, err
+	}
 	scope, err := h.parseBridgeScopeQuery(c.Request.Context(), c)
 	if err != nil {
 		return bridgepkg.BridgeCatalogQuery{}, err
@@ -117,6 +126,7 @@ func (h *BaseHandlers) parseBridgeCatalogQuery(c *gin.Context) (bridgepkg.Bridge
 		return bridgepkg.BridgeCatalogQuery{}, err
 	}
 	return bridgepkg.BridgeCatalogQuery{
+		ReadScope:   readScope,
 		Scope:       scope.scope,
 		WorkspaceID: scope.workspaceID,
 		Search:      c.Query("q"),
@@ -145,6 +155,7 @@ func (h *BaseHandlers) bridgeCatalogObserver() (BridgeCatalogObserver, error) {
 func bridgeCatalogHydration(
 	ctx context.Context,
 	bridges BridgeService,
+	readScope store.ReadScope,
 	items []bridgepkg.BridgeCatalogRecordItem,
 ) ([]bridgepkg.BridgeInstance, error) {
 	if len(items) == 0 {
@@ -154,7 +165,7 @@ func bridgeCatalogHydration(
 	for _, item := range items {
 		ids = append(ids, item.Record.ID)
 	}
-	return bridges.ListInstancesByIDs(ctx, ids)
+	return bridges.ListInstancesByIDsScoped(ctx, readScope, ids)
 }
 
 func bridgeCatalogHealthFromObserver(

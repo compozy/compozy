@@ -280,6 +280,28 @@ describe("TasksKanbanBoard", () => {
 });
 
 describe("TaskKanbanCard", () => {
+  it("Should label each task owner in the aggregate profile view", () => {
+    const tasks = [buildTask({ id: "profile-owned" })];
+
+    render(
+      <TasksKanbanBoard
+        columns={groupTasksForKanban(tasks)}
+        onSelectTask={vi.fn()}
+        profile={{
+          aggregate: true,
+          destination: "default",
+          ownerOf: () => ({ archived: false, id: "profile-marketing", name: "marketing" }),
+          scopeLabel: null,
+        }}
+        selectedTaskId={null}
+      />
+    );
+
+    expect(screen.getByTestId("tasks-kanban-card-profile-profile-owned")).toHaveTextContent(
+      "marketing"
+    );
+  });
+
   it("Should render the OwnerAvatar primitive (no plain text owner fallback alone)", () => {
     const tasks = [
       buildTask({

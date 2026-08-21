@@ -33,6 +33,7 @@ func (payload EventRecordPayload) cloneForAsync() EventRecordPayload {
 	return cloneEventRecordPayload(payload)
 }
 
+//nolint:gocritic // Native hook executors require the public payload's value semantics.
 func (payload SandboxPreparePayload) cloneForAsync() SandboxPreparePayload {
 	return cloneSandboxPreparePayload(payload)
 }

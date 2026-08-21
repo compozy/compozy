@@ -666,6 +666,7 @@ func TestManagedSoulAuthoringServiceSafetyBoundaries(t *testing.T) {
 			ID:             "sess-authoring",
 			AgentName:      "coder",
 			WorkspaceID:    fixture.workspaceID,
+			ProfileID:      store.DefaultProfileID,
 			RuntimeStatus:  store.SessionRuntimeUnbound,
 			State:          "active",
 			SoulSnapshotID: first.Snapshot.ID,
@@ -678,6 +679,7 @@ func TestManagedSoulAuthoringServiceSafetyBoundaries(t *testing.T) {
 		origin := taskpkg.Origin{Kind: taskpkg.OriginKindCLI, Ref: "test"}
 		taskRecord := taskpkg.Task{
 			ID:          "task-authoring",
+			ProfileID:   store.DefaultProfileID,
 			Scope:       taskpkg.ScopeWorkspace,
 			WorkspaceID: fixture.workspaceID,
 			Title:       "Authoring safety",
@@ -712,7 +714,10 @@ func TestManagedSoulAuthoringServiceSafetyBoundaries(t *testing.T) {
 			t.Fatalf("Put(second).Soul.Digest = %q, want changed digest", second.Soul.Digest)
 		}
 
-		sessions, err := fixture.db.ListSessions(fixture.ctx, store.SessionListQuery{AgentName: "coder"})
+		sessions, err := fixture.db.ListSessions(fixture.ctx, store.SessionListQuery{
+			ReadScope: store.ReadScope{ProfileID: store.DefaultProfileID},
+			AgentName: "coder",
+		})
 		if err != nil {
 			t.Fatalf("ListSessions() error = %v", err)
 		}

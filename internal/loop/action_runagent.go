@@ -188,6 +188,7 @@ func runAgentSessionBindRequest(
 	}
 	runtimeRequest := resolvedRuntime.Runtime
 	return ActionSessionBindRequest{
+		ProfileID: in.ToolScope.ProfileID,
 		WorkspaceID: in.WorkspaceID, LoopRunID: in.LoopRunID, Generation: in.Generation,
 		NodeID: in.NodeID, Agent: strings.TrimSpace(input.spec.Agent),
 		Environment: cloneEnvironmentSpec(environment), Handle: handle, SharedKey: sharedKey,

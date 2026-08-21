@@ -40,6 +40,7 @@ func settingsMCPServerItemPayloads(values []settingspkg.MCPServerItem) []contrac
 			RuntimeStatus:  settingsMCPServerRuntimeStatusPayload(value.RuntimeStatus),
 			Scope:          contract.SettingsScopeKind(value.Scope),
 			WorkspaceID:    strings.TrimSpace(value.WorkspaceID),
+			Profile:        strings.TrimSpace(value.ProfileName),
 			CatalogEntry:   strings.TrimSpace(value.CatalogEntry),
 			CatalogVersion: strings.TrimSpace(value.CatalogVersion),
 			SourceMetadata: settingsSourceMetadataPayload(value.SourceMetadata),

@@ -193,6 +193,7 @@ func (r *taskRoleRuntime) Recover(ctx context.Context) {
 		if err != nil {
 			r.logTaskRoleError("daemon: load task for role recovery", err, hookspkg.TaskRunEnqueuedPayload{
 				TaskRunContext: hookspkg.TaskRunContext{
+					ProfileID:                    strings.TrimSpace(run.ProfileID),
 					RunID:                        run.ID,
 					TaskID:                       run.TaskID,
 					ResolvedNetworkParticipation: new(run.NetworkSpecSnapshot()),
@@ -206,6 +207,7 @@ func (r *taskRoleRuntime) Recover(ctx context.Context) {
 				err,
 				hookspkg.TaskRunEnqueuedPayload{
 					TaskRunContext: hookspkg.TaskRunContext{
+						ProfileID:                    strings.TrimSpace(run.ProfileID),
 						RunID:                        run.ID,
 						TaskID:                       run.TaskID,
 						WorkspaceID:                  taskRecord.WorkspaceID,

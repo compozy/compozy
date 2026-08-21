@@ -7,9 +7,9 @@ describe("MCP install dialog store", () => {
     const store = mcpInstallDialogLogic.createStore({ bindings: {} });
     const install = vi.fn().mockResolvedValue(undefined);
 
-    store.trigger.installationRequested({ scope: "global", install });
+    store.trigger.installationRequested({ scope: "user", install });
 
-    expect(install).toHaveBeenCalledWith({}, "global");
+    expect(install).toHaveBeenCalledWith({}, "user");
     await vi.waitFor(() => expect(store.getSnapshot().context.phase).toBe("editing"));
   });
 
@@ -20,7 +20,7 @@ describe("MCP install dialog store", () => {
 
     [snapshot] = store.transition(snapshot, {
       type: "installationRequested",
-      scope: "global",
+      scope: "user",
       install,
     });
     const firstRequestId = snapshot.context.requestId;
@@ -31,7 +31,7 @@ describe("MCP install dialog store", () => {
     });
     [snapshot] = store.transition(snapshot, {
       type: "installationRequested",
-      scope: "global",
+      scope: "user",
       install,
     });
     [snapshot] = store.transition(snapshot, {

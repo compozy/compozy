@@ -22,10 +22,10 @@ type Story = StoryObj<typeof meta>;
 const defaultMemories: KnowledgeMemoryItem[] = [
   {
     filename: "operator-style.md",
-    key: "global:operator-style.md",
+    key: "profile:operator-style.md",
     mod_time: "2026-04-17T17:30:00Z",
     name: "Operator Style",
-    scope: "global",
+    scope: "profile",
     type: "user",
     recall_count: 0,
     injection: true,
@@ -34,10 +34,10 @@ const defaultMemories: KnowledgeMemoryItem[] = [
   },
   {
     filename: "launch-week-brief.md",
-    key: "global:launch-week-brief.md",
+    key: "profile:launch-week-brief.md",
     mod_time: "2026-04-17T09:00:00Z",
     name: "Launch Week Brief",
-    scope: "global",
+    scope: "profile",
     type: "project",
     recall_count: 4,
     injection: true,

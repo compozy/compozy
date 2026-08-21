@@ -309,20 +309,27 @@ func TestViewService(t *testing.T) {
 				Provider: provider,
 			}},
 		}
-		_, err := service.OpenSource(t.Context(), "workspace-a", "ext.notes.recent")
+		_, err := service.OpenSource(t.Context(), testProfileLens, "workspace-a", "ext.notes.recent")
 		requireViewValidationPath(t, err, "source.tool")
 		if provider.calls != 0 {
 			t.Fatalf("provider calls = %d, want zero before policy validation", provider.calls)
 		}
 
 		service.viewProviders[0].Descriptor.Source.ReadOnly = true
-		snapshot, err := service.OpenSource(t.Context(), "workspace-a", "ext.notes.recent")
+		snapshot, err := service.OpenSource(t.Context(), testProfileLens, "workspace-a", "ext.notes.recent")
 		if err != nil {
 			t.Fatalf("OpenSource() error = %v", err)
 		}
 		if provider.workspaceID != "workspace-a" || snapshot.Revision == "" ||
-			snapshot.StreamEpoch != "vse_test" {
+			snapshot.StreamEpoch != "vse_test" || snapshot.ProfileLens != testProfileLens {
 			t.Fatalf("OpenSource() snapshot/provider = %#v / %#v", snapshot, provider)
+		}
+		aggregate, err := service.OpenSource(t.Context(), AggregateProfileLens(), "workspace-a", "ext.notes.recent")
+		if err != nil {
+			t.Fatalf("OpenSource(aggregate) error = %v", err)
+		}
+		if aggregate.ProfileLens != AggregateProfileLens() || aggregate.Revision == snapshot.Revision {
+			t.Fatalf("aggregate snapshot = %#v, want aggregate lens and distinct revision", aggregate)
 		}
 	})
 
@@ -336,7 +343,7 @@ func TestViewService(t *testing.T) {
 			},
 			Provider: provider,
 		}}}
-		_, err := service.OpenSource(t.Context(), "workspace-a", "ext.notes.form")
+		_, err := service.OpenSource(t.Context(), testProfileLens, "workspace-a", "ext.notes.form")
 		requireViewValidationPath(t, err, "form")
 	})
 
@@ -359,23 +366,39 @@ func TestViewService(t *testing.T) {
 			}},
 		}
 
-		_, _, _, err := service.SubscribeViewPatches(t.Context(), ViewPatchSubscribeRequest{
-			Workspace: "workspace-a", ViewID: "ext.notes.recent", After: -1,
-		})
+		_, _, _, err := service.SubscribeViewPatches(
+			t.Context(),
+			ViewPatchSubscribeRequest{
+				ProfileLens: testProfileLens,
+				Workspace:   "workspace-a",
+				ViewID:      "ext.notes.recent",
+				After:       -1,
+			},
+		)
 		if !errors.Is(err, ErrViewInvalidSequence) {
 			t.Fatalf("SubscribeViewPatches(after=-1) error = %v, want ErrViewInvalidSequence", err)
 		}
 
-		_, _, _, err = service.SubscribeViewPatches(t.Context(), ViewPatchSubscribeRequest{
-			Workspace: "workspace-a", ViewID: "ext.notes.recent", After: 4,
-		})
+		_, _, _, err = service.SubscribeViewPatches(
+			t.Context(),
+			ViewPatchSubscribeRequest{
+				ProfileLens: testProfileLens,
+				Workspace:   "workspace-a",
+				ViewID:      "ext.notes.recent",
+				After:       4,
+			},
+		)
 		if !errors.Is(err, ErrViewStreamEpochRequired) {
 			t.Fatalf("SubscribeViewPatches(missing epoch) error = %v, want ErrViewStreamEpochRequired", err)
 		}
 
 		initialSnapshot, _, initialCancel, err := service.SubscribeViewPatches(
 			t.Context(),
-			ViewPatchSubscribeRequest{Workspace: "workspace-a", ViewID: "ext.notes.recent"},
+			ViewPatchSubscribeRequest{
+				ProfileLens: testProfileLens,
+				Workspace:   "workspace-a",
+				ViewID:      "ext.notes.recent",
+			},
 		)
 		if err != nil {
 			t.Fatalf("SubscribeViewPatches(initial) error = %v", err)
@@ -389,9 +412,16 @@ func TestViewService(t *testing.T) {
 			)
 		}
 
-		snapshot, stream, cancel, err := service.SubscribeViewPatches(t.Context(), ViewPatchSubscribeRequest{
-			Workspace: "workspace-a", ViewID: "ext.notes.recent", After: 4, StreamEpoch: "vse_prior",
-		})
+		snapshot, stream, cancel, err := service.SubscribeViewPatches(
+			t.Context(),
+			ViewPatchSubscribeRequest{
+				ProfileLens: testProfileLens,
+				Workspace:   "workspace-a",
+				ViewID:      "ext.notes.recent",
+				After:       4,
+				StreamEpoch: "vse_prior",
+			},
+		)
 		if err != nil {
 			t.Fatalf("SubscribeViewPatches() error = %v", err)
 		}
@@ -417,9 +447,14 @@ func TestViewService(t *testing.T) {
 			},
 			Provider: &viewSourceProviderStub{payload: validListViewPayload()},
 		}}}
-		_, _, _, err = missing.SubscribeViewPatches(t.Context(), ViewPatchSubscribeRequest{
-			Workspace: "workspace-a", ViewID: "ext.notes.recent",
-		})
+		_, _, _, err = missing.SubscribeViewPatches(
+			t.Context(),
+			ViewPatchSubscribeRequest{
+				ProfileLens: testProfileLens,
+				Workspace:   "workspace-a",
+				ViewID:      "ext.notes.recent",
+			},
+		)
 		if !errors.Is(err, ErrViewPatchStreamUnavailable) {
 			t.Fatalf(
 				"SubscribeViewPatches(no subscriber) error = %v, want ErrViewPatchStreamUnavailable",
@@ -438,9 +473,14 @@ func TestViewService(t *testing.T) {
 			},
 			Provider: failing,
 		}}}
-		_, _, _, err = broken.SubscribeViewPatches(t.Context(), ViewPatchSubscribeRequest{
-			Workspace: "workspace-a", ViewID: "ext.notes.form",
-		})
+		_, _, _, err = broken.SubscribeViewPatches(
+			t.Context(),
+			ViewPatchSubscribeRequest{
+				ProfileLens: testProfileLens,
+				Workspace:   "workspace-a",
+				ViewID:      "ext.notes.form",
+			},
+		)
 		if err == nil {
 			t.Fatal("SubscribeViewPatches(invalid snapshot) error = nil")
 		}
@@ -462,7 +502,7 @@ func TestViewProgramSessions(t *testing.T) {
 		recorder := &recordingEventRecorder{wake: make(chan struct{}, 16)}
 		service := testProgramViewService(t, testProgramViewClients("client-a"), program, WithEventRecorder(recorder))
 		service.viewAckBudget = 10 * time.Millisecond
-		opened, err := service.OpenSession(t.Context(), ViewSessionOpenRequest{
+		opened, err := service.OpenSession(t.Context(), ViewSessionOpenRequest{ProfileLens: testProfileLens,
 			Workspace: "workspace-a", Client: "client-a", AttachmentToken: "token-a",
 			View: "ext.notes.browser",
 		})
@@ -514,7 +554,7 @@ func TestViewProgramSessions(t *testing.T) {
 		program := newViewProgramProviderStub()
 		recorder := &recordingEventRecorder{}
 		service := testProgramViewService(t, testProgramViewClients("client-a"), program, WithEventRecorder(recorder))
-		opened, err := service.OpenSession(t.Context(), ViewSessionOpenRequest{
+		opened, err := service.OpenSession(t.Context(), ViewSessionOpenRequest{ProfileLens: testProfileLens,
 			Workspace: "workspace-a", Client: "client-a", AttachmentToken: "token-a",
 			View: "ext.notes.browser",
 		})
@@ -549,7 +589,7 @@ func TestViewProgramSessions(t *testing.T) {
 		t.Parallel()
 		program := newViewProgramProviderStub()
 		service := testProgramViewService(t, testProgramViewClients("client-a"), program)
-		opened, err := service.OpenSession(t.Context(), ViewSessionOpenRequest{
+		opened, err := service.OpenSession(t.Context(), ViewSessionOpenRequest{ProfileLens: testProfileLens,
 			Workspace: "workspace-a", AttachmentToken: "token-a", View: "ext.notes.browser",
 		})
 		if err != nil {
@@ -579,7 +619,7 @@ func TestViewProgramSessions(t *testing.T) {
 		t.Parallel()
 		program := newViewProgramProviderStub()
 		service := testProgramViewService(t, testProgramViewClients("client-a"), program)
-		opened, err := service.OpenSession(t.Context(), ViewSessionOpenRequest{
+		opened, err := service.OpenSession(t.Context(), ViewSessionOpenRequest{ProfileLens: testProfileLens,
 			Workspace: "workspace-a", AttachmentToken: "token-a", View: "ext.notes.browser",
 		})
 		if err != nil {
@@ -601,7 +641,7 @@ func TestViewProgramSessions(t *testing.T) {
 		program := newViewProgramProviderStub()
 		service := testProgramViewService(t, testProgramViewClients("client-a", "client-b"), program)
 
-		opened, err := service.OpenSession(t.Context(), ViewSessionOpenRequest{
+		opened, err := service.OpenSession(t.Context(), ViewSessionOpenRequest{ProfileLens: testProfileLens,
 			Workspace: "workspace-a", AttachmentToken: "token-a", View: "ext.notes.browser",
 		})
 		if err != nil {
@@ -610,7 +650,8 @@ func TestViewProgramSessions(t *testing.T) {
 		if opened.FirstFrame.ViewSession != opened.Token.ViewSession || opened.Token.StreamToken == "" {
 			t.Fatalf("OpenSession() = %#v, want bound session and stream token", opened)
 		}
-		if program.lastOpen.Client != "client-a" || program.lastOpen.Workspace != "workspace-a" {
+		if program.lastOpen.Client != "client-a" || program.lastOpen.Workspace != "workspace-a" ||
+			program.lastOpen.ProfileLens != testProfileLens {
 			t.Fatalf("view/open request = %#v, want token-resolved client", program.lastOpen)
 		}
 
@@ -629,7 +670,7 @@ func TestViewProgramSessions(t *testing.T) {
 			t.Fatalf("AdmitEvent(seq=1) error = %v", err)
 		}
 		first := <-program.events
-		if first.event.Generation != 1 {
+		if first.event.Generation != 1 || first.profileLens != testProfileLens || first.workspaceID != "workspace-a" {
 			t.Fatalf("first generation = %d, want 1", first.event.Generation)
 		}
 		if err := service.AdmitEvent(t.Context(), clientToken, ViewEvent{
@@ -673,19 +714,24 @@ func TestViewProgramSessions(t *testing.T) {
 
 		for seq := int64(3); seq <= 6; seq++ {
 			if err := service.AdmitEvent(t.Context(), clientToken, ViewEvent{
-				Handler: "h_action", Args: []any{"row", seq}, Revision: "vr_2", Seq: seq,
+				Handler:  "h_action",
+				Args:     []any{"row", seq},
+				Revision: "vr_2",
+				Seq:      seq,
 			}); err != nil {
 				t.Fatalf("AdmitEvent(action seq=%d) error = %v", seq, err)
 			}
 		}
-		if err := service.AdmitEvent(t.Context(), clientToken, ViewEvent{
-			Handler: "h_action", Args: []any{"row", 7}, Revision: "vr_2", Seq: 7,
-		}); !errors.Is(err, ErrViewBusy) {
+		busyEvent := ViewEvent{
+			Handler:  "h_action",
+			Args:     []any{"row", 7},
+			Revision: "vr_2",
+			Seq:      7,
+		}
+		if err := service.AdmitEvent(t.Context(), clientToken, busyEvent); !errors.Is(err, ErrViewBusy) {
 			t.Fatalf("AdmitEvent(over cap) error = %v, want ErrViewBusy", err)
 		}
-		if err := service.AdmitEvent(t.Context(), clientToken, ViewEvent{
-			Handler: "h_action", Args: []any{"row", 7}, Revision: "vr_2", Seq: 7,
-		}); !errors.Is(err, ErrViewBusy) {
+		if err := service.AdmitEvent(t.Context(), clientToken, busyEvent); !errors.Is(err, ErrViewBusy) {
 			t.Fatalf("AdmitEvent(retry busy seq) error = %v, want ErrViewBusy", err)
 		}
 
@@ -707,7 +753,7 @@ func TestViewProgramSessions(t *testing.T) {
 		t.Parallel()
 		program := newViewProgramProviderStub()
 		service := testProgramViewService(t, testProgramViewClients("client-a"), program)
-		opened, err := service.OpenSession(t.Context(), ViewSessionOpenRequest{
+		opened, err := service.OpenSession(t.Context(), ViewSessionOpenRequest{ProfileLens: testProfileLens,
 			Workspace: "workspace-a", Client: "client-a", AttachmentToken: "token-a",
 			View: "ext.notes.browser",
 		})
@@ -716,23 +762,30 @@ func TestViewProgramSessions(t *testing.T) {
 		}
 		token := SessionToken{ViewSession: opened.Token.ViewSession, AttachmentToken: "token-a"}
 		if err := service.AdmitEvent(t.Context(), token, ViewEvent{
-			Handler: "", Revision: "vr_1", Seq: 1,
+			Revision: "vr_1",
+			Seq:      1,
 		}); !errors.Is(err, ErrViewEventInvalid) {
 			t.Fatalf("AdmitEvent(missing handler) error = %v, want ErrViewEventInvalid", err)
 		}
-		if err := service.AdmitEvent(t.Context(), token, ViewEvent{
-			Handler: "h_action", Args: []any{"row"}, Revision: "vr_1", Seq: 1,
-		}); err != nil {
+		firstEvent := ViewEvent{
+			Handler:  "h_action",
+			Args:     []any{"row"},
+			Revision: "vr_1",
+			Seq:      1,
+		}
+		if err := service.AdmitEvent(t.Context(), token, firstEvent); err != nil {
 			t.Fatalf("AdmitEvent(seq=1) error = %v", err)
 		}
-		if err := service.AdmitEvent(t.Context(), token, ViewEvent{
-			Handler: "h_action", Args: []any{"row"}, Revision: "vr_1", Seq: 1,
-		}); !errors.Is(err, ErrViewEventSeqNotIncreasing) {
+		if err := service.AdmitEvent(t.Context(), token, firstEvent); !errors.Is(err, ErrViewEventSeqNotIncreasing) {
 			t.Fatalf("AdmitEvent(non-increasing) error = %v, want ErrViewEventSeqNotIncreasing", err)
 		}
-		if err := service.AdmitEvent(t.Context(), token, ViewEvent{
-			Handler: "h_action", Args: []any{"row"}, Revision: "vr_stale", Seq: 2,
-		}); !errors.Is(err, ErrViewEventRevisionStale) {
+		staleEvent := ViewEvent{
+			Handler:  "h_action",
+			Args:     []any{"row"},
+			Revision: "vr_stale",
+			Seq:      2,
+		}
+		if err := service.AdmitEvent(t.Context(), token, staleEvent); !errors.Is(err, ErrViewEventRevisionStale) {
 			t.Fatalf("AdmitEvent(stale revision) error = %v, want ErrViewEventRevisionStale", err)
 		}
 	})
@@ -741,14 +794,14 @@ func TestViewProgramSessions(t *testing.T) {
 		t.Parallel()
 		program := newViewProgramProviderStub()
 		service := testProgramViewService(t, testProgramViewClients("client-a", "client-b"), program)
-		first, err := service.OpenSession(t.Context(), ViewSessionOpenRequest{
+		first, err := service.OpenSession(t.Context(), ViewSessionOpenRequest{ProfileLens: testProfileLens,
 			Workspace: "workspace-a", Client: "client-a", AttachmentToken: "token-a",
 			View: "ext.notes.browser",
 		})
 		if err != nil {
 			t.Fatalf("OpenSession(client-a) error = %v", err)
 		}
-		second, err := service.OpenSession(t.Context(), ViewSessionOpenRequest{
+		second, err := service.OpenSession(t.Context(), ViewSessionOpenRequest{ProfileLens: testProfileLens,
 			Workspace: "workspace-a", Client: "client-b", AttachmentToken: "token-b",
 			View: "ext.notes.browser",
 		})
@@ -758,12 +811,20 @@ func TestViewProgramSessions(t *testing.T) {
 		if first.Token.ViewSession == second.Token.ViewSession || first.Token.StreamToken == second.Token.StreamToken {
 			t.Fatalf("client sessions share identity: %#v / %#v", first.Token, second.Token)
 		}
+		profileB := ScopedProfileLens("01ARZ3NDEKTSV4RRFFQ69G5FAV", "profile-b")
+		third, err := service.OpenSession(t.Context(), ViewSessionOpenRequest{ProfileLens: profileB,
+			Workspace: "workspace-a", Client: "client-a", AttachmentToken: "token-a",
+			View: "ext.notes.browser",
+		})
+		if err != nil {
+			t.Fatalf("OpenSession(profile-b) error = %v", err)
+		}
 		if err := service.AckEffects(t.Context(), SessionToken{
 			ViewSession: first.Token.ViewSession, AttachmentToken: "token-b",
 		}, nil); !errors.Is(err, ErrViewSessionForbidden) {
 			t.Fatalf("foreign client access error = %v, want ErrViewSessionForbidden", err)
 		}
-		if err := service.CloseClientSessions(t.Context(), "workspace-a", "client-a"); err != nil {
+		if err := service.CloseClientSessions(t.Context(), testProfileLens, "workspace-a", "client-a"); err != nil {
 			t.Fatalf("CloseClientSessions(client-a) error = %v", err)
 		}
 		if _, _, _, err := service.SubscribeSessionFrames(
@@ -783,7 +844,12 @@ func TestViewProgramSessions(t *testing.T) {
 		if program.closeCount() != 1 {
 			t.Fatalf("view/close calls after client detach = %d, want 1", program.closeCount())
 		}
-		if err := service.InvalidateInstance(t.Context(), "workspace-a", "notes", 8); err != nil {
+		if _, _, cancel, err := service.SubscribeSessionFrames(t.Context(), third.Token); err != nil {
+			t.Fatalf("SubscribeSessionFrames(other profile) error = %v, want surviving session", err)
+		} else {
+			cancel()
+		}
+		if err := service.InvalidateInstance(t.Context(), testProfileLens, "workspace-a", "notes", 8); err != nil {
 			t.Fatalf("InvalidateInstance() error = %v", err)
 		}
 		if _, _, _, err := service.SubscribeSessionFrames(
@@ -791,6 +857,21 @@ func TestViewProgramSessions(t *testing.T) {
 			second.Token,
 		); !errors.Is(err, ErrViewSessionGone) {
 			t.Fatalf("SubscribeSessionFrames(second invalidated) error = %v, want ErrViewSessionGone", err)
+		}
+		if err := service.CloseClientSessions(t.Context(), profileB, "workspace-a", "client-a"); err != nil {
+			t.Fatalf("CloseClientSessions(other profile) error = %v", err)
+		}
+		if _, _, _, err := service.SubscribeSessionFrames(
+			t.Context(),
+			third.Token,
+		); !errors.Is(
+			err,
+			ErrViewSessionGone,
+		) {
+			t.Fatalf("SubscribeSessionFrames(other profile after close) error = %v, want ErrViewSessionGone", err)
+		}
+		if program.closeCount() != 2 {
+			t.Fatalf("view/close calls after profile isolation = %d, want 2", program.closeCount())
 		}
 	})
 }
@@ -819,6 +900,7 @@ type viewCapabilityReporterStub struct {
 
 type viewSourceProviderStub struct {
 	payload     ViewPayload
+	profileLens ProfileLens
 	workspaceID WorkspaceID
 	calls       int
 }
@@ -840,13 +922,14 @@ var (
 
 func (s *viewPatchSubscriberStub) OpenSource(
 	ctx context.Context,
+	profileLens ProfileLens,
 	workspaceID WorkspaceID,
 	viewID string,
 ) (ViewPayload, error) {
 	s.mu.Lock()
 	s.recordedOps = append(s.recordedOps, "open")
 	s.mu.Unlock()
-	return s.viewSourceProviderStub.OpenSource(ctx, workspaceID, viewID)
+	return s.viewSourceProviderStub.OpenSource(ctx, profileLens, workspaceID, viewID)
 }
 
 func (s *viewPatchSubscriberStub) SubscribeViewPatches(
@@ -908,8 +991,10 @@ func (s *viewPatchSubscriberStub) cancelCount() int {
 }
 
 type viewProgramEventCall struct {
-	ctx   context.Context
-	event ViewEvent
+	ctx         context.Context
+	profileLens ProfileLens
+	workspaceID WorkspaceID
+	event       ViewEvent
 }
 
 type viewProgramProviderStub struct {
@@ -937,17 +1022,19 @@ func (s *viewProgramProviderStub) OpenProgram(
 
 func (s *viewProgramProviderStub) HandleProgramEvent(
 	ctx context.Context,
-	_ WorkspaceID,
+	profileLens ProfileLens,
+	workspaceID WorkspaceID,
 	_ string,
 	event ViewEvent,
 ) (*ViewFrame, error) {
-	s.events <- viewProgramEventCall{ctx: ctx, event: event}
+	s.events <- viewProgramEventCall{ctx: ctx, profileLens: profileLens, workspaceID: workspaceID, event: event}
 	<-ctx.Done()
 	return nil, ctx.Err()
 }
 
 func (s *viewProgramProviderStub) CloseProgram(
 	_ context.Context,
+	_ ProfileLens,
 	_ WorkspaceID,
 	_ string,
 	request ViewCloseRequest,
@@ -1042,10 +1129,12 @@ func waitForRecordedEvents(t *testing.T, recorder *recordingEventRecorder, count
 
 func (s *viewSourceProviderStub) OpenSource(
 	_ context.Context,
+	profileLens ProfileLens,
 	workspaceID WorkspaceID,
 	_ string,
 ) (ViewPayload, error) {
 	s.calls++
+	s.profileLens = profileLens
 	s.workspaceID = workspaceID
 	return s.payload, nil
 }

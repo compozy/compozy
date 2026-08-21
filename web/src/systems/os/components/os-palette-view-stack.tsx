@@ -15,6 +15,8 @@ import {
 } from "../lib/palette-view-registry";
 import type { PaletteBreadcrumb } from "../lib/palette-view-stack";
 import type { WindowManagerRegisteredClientView } from "../lib/window-manager-types";
+import { useProfileLens, useProfilesPaletteView } from "@/systems/profiles";
+
 import { OsPaletteViewShell } from "./os-palette-view-shell";
 
 interface PaletteViewFrameProps {
@@ -41,6 +43,24 @@ function SessionsPaletteViewFrame({
 }: PaletteViewFrameProps) {
   const content = useOsPaletteSessionsView({ query: shell.query, onDismiss });
   const definition = paletteViewDefinition("sessions");
+  if (definition === null) return null;
+  return <OsPaletteViewShell definition={definition} content={content} {...shell} />;
+}
+
+/**
+ * Profiles renders identities, not catalog entries, so it names its own
+ * controller. Switching happens inline; every mutation hands off to the shared
+ * lifecycle dialogs, which is why nothing here touches a plan.
+ */
+function ProfilesPaletteViewFrame({
+  client: _client,
+  dispatch: _dispatch,
+  onDismiss,
+  ...shell
+}: PaletteViewFrameProps) {
+  const lens = useProfileLens();
+  const content = useProfilesPaletteView({ query: shell.query, lens, onDismiss });
+  const definition = paletteViewDefinition("profiles");
   if (definition === null) return null;
   return <OsPaletteViewShell definition={definition} content={content} {...shell} />;
 }
@@ -161,6 +181,9 @@ export function OsPaletteViewStack({
   };
   if (viewId === "sessions") {
     return <SessionsPaletteViewFrame {...shell} />;
+  }
+  if (viewId === "profiles") {
+    return <ProfilesPaletteViewFrame {...shell} />;
   }
   if (definition?.domainTitle) {
     return <DomainPaletteViewFrame key={viewId} {...shell} viewId={viewId} />;

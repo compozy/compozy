@@ -49,6 +49,60 @@ func TestResolveOrRegisterDiscoversBeforeRegistration(t *testing.T) {
 			t.Fatalf("InsertWorkspace() calls = %d, want 0", len(store.insertCalls))
 		}
 	})
+
+	t.Run("Should reject the operator home before explicit or automatic persistence", func(t *testing.T) {
+		t.Parallel()
+
+		operatorHome := t.TempDir()
+		canonicalOperatorHome := mustCanonicalRoot(t, operatorHome)
+		aliasParent := t.TempDir()
+		operatorHomeAlias := filepath.Join(aliasParent, "home-alias")
+		if err := os.Symlink(operatorHome, operatorHomeAlias); err != nil {
+			t.Fatalf("Symlink(operator home) error = %v", err)
+		}
+
+		for _, test := range []struct {
+			name string
+			call func(*Resolver) error
+		}{
+			{
+				name: "Should reject explicit registration",
+				call: func(resolver *Resolver) error {
+					_, err := resolver.Register(t.Context(), RegisterOptions{RootDir: operatorHome})
+					return err
+				},
+			},
+			{
+				name: "Should reject automatic registration through a symlink",
+				call: func(resolver *Resolver) error {
+					_, err := resolver.ResolveOrRegister(t.Context(), operatorHomeAlias)
+					return err
+				},
+			},
+		} {
+			t.Run(test.name, func(t *testing.T) {
+				t.Parallel()
+
+				homePaths := newTestHomePaths(t)
+				store := newMockWorkspaceStore()
+				resolver := newTestResolver(
+					t,
+					store,
+					WithHomePaths(homePaths),
+					WithOperatorHomeDir(canonicalOperatorHome),
+					WithConfigLoader((&countingConfigLoader{cfg: validConfig(homePaths)}).Load),
+				)
+
+				err := test.call(resolver)
+				if !errors.Is(err, ErrOperatorHomeWorkspace) {
+					t.Fatalf("registration error = %v, want %v", err, ErrOperatorHomeWorkspace)
+				}
+				if got := len(store.insertCalls); got != 0 {
+					t.Fatalf("InsertWorkspace() calls = %d, want 0", got)
+				}
+			})
+		}
+	})
 }
 
 func TestResolveOrRegisterExistingWorkspace(t *testing.T) {

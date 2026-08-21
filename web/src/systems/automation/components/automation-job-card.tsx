@@ -11,16 +11,25 @@ import {
   formatRelativeTime,
 } from "../lib/automation-formatters";
 import type { AutomationJob } from "../types";
+import { ProfileOwnerTag, type ProfileOwner } from "@/systems/profiles";
 
 export interface AutomationJobCardProps {
   job: AutomationJob;
   isRunPending: boolean;
   onRun: (id: string) => void;
   runDisabled: boolean;
+  /** The job's profile, supplied only in aggregate mode. */
+  owner?: ProfileOwner;
 }
 
 /** Card presentation for a job in the Jobs catalog (cards view). */
-function AutomationJobCard({ job, isRunPending, onRun, runDisabled }: AutomationJobCardProps) {
+function AutomationJobCard({
+  job,
+  owner,
+  isRunPending,
+  onRun,
+  runDisabled,
+}: AutomationJobCardProps) {
   const enabledTone = automationStatusTone(job.enabled ? "enabled" : "disabled");
   const nextRun = job.scheduler?.next_run_at ?? job.next_run;
 
@@ -41,6 +50,9 @@ function AutomationJobCard({ job, isRunPending, onRun, runDisabled }: Automation
             <CatalogCard.Meta>
               <span>{describeSchedule(job.schedule)}</span>
               <span>{`Next ${formatRelativeTime(nextRun)}`}</span>
+              {owner ? (
+                <ProfileOwnerTag data-testid={`automation-profile-${job.id}`} owner={owner} />
+              ) : null}
             </CatalogCard.Meta>
           </div>
         </div>

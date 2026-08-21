@@ -1334,6 +1334,23 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
+  "/api/extensions/preview-install": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /** Preview an extension install without changing state */
+    post: operations["previewExtensionInstall"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
   "/api/extensions/{name}": {
     parameters: {
       query?: never;
@@ -1353,34 +1370,18 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
-  "/api/extensions/{name}/disable": {
+  "/api/extensions/{name}/enablement": {
     parameters: {
       query?: never;
       header?: never;
       path?: never;
       cookie?: never;
     };
-    get?: never;
-    put?: never;
-    /** Disable an installed extension */
-    post: operations["disableExtension"];
-    delete?: never;
-    options?: never;
-    head?: never;
-    patch?: never;
-    trace?: never;
-  };
-  "/api/extensions/{name}/enable": {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
-    };
-    get?: never;
-    put?: never;
-    /** Enable an installed extension */
-    post: operations["enableExtension"];
+    /** List one extension's effective state for every profile */
+    get: operations["listExtensionEnablement"];
+    /** Set one extension's effective state for a profile */
+    put: operations["setExtensionEnablement"];
+    post?: never;
     delete?: never;
     options?: never;
     head?: never;
@@ -1428,7 +1429,7 @@ export interface paths {
       path?: never;
       cookie?: never;
     };
-    /** Preview enabling one extension without changing state */
+    /** Preview one extension enablement change */
     get: operations["previewExtensionEnable"];
     put?: never;
     post?: never;
@@ -2619,6 +2620,23 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
+  "/api/notifications/presets/{name}/enablement": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    /** Set one notification preset's effective state for a profile */
+    put: operations["setNotificationPresetEnablement"];
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
   "/api/observe/overview": {
     parameters: {
       query?: never;
@@ -2716,6 +2734,197 @@ export interface paths {
     get: operations["listOpenAIModels"];
     put?: never;
     post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/profiles": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** List profiles */
+    get: operations["listProfiles"];
+    put?: never;
+    /** Create a profile */
+    post: operations["createProfile"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/profiles/ops": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** List profile lifecycle operations */
+    get: operations["listProfileOperations"];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/profiles/ops/{op_id}/retry": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /** Retry a profile lifecycle operation */
+    post: operations["retryProfileOperation"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/profiles/selection": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** Read profile selections */
+    get: operations["getProfileSelections"];
+    /** Remember a profile selection */
+    put: operations["putProfileSelection"];
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/profiles/{name}": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** Get a profile */
+    get: operations["getProfile"];
+    put?: never;
+    post?: never;
+    /** Delete a profile */
+    delete: operations["deleteProfile"];
+    options?: never;
+    head?: never;
+    /** Update profile identity */
+    patch: operations["updateProfile"];
+    trace?: never;
+  };
+  "/api/profiles/{name}/archive": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /** Archive a profile */
+    post: operations["archiveProfile"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/profiles/{name}/archive-plan": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** Preview profile archival */
+    get: operations["prepareProfileArchive"];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/profiles/{name}/delete-plan": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** Preview profile deletion */
+    get: operations["prepareProfileDelete"];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/profiles/{name}/rename": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /** Rename a profile */
+    post: operations["renameProfile"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/profiles/{name}/rename-plan": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** Preview a profile rename */
+    get: operations["prepareProfileRename"];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/profiles/{name}/unarchive": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /** Unarchive a profile */
+    post: operations["unarchiveProfile"];
     delete?: never;
     options?: never;
     head?: never;
@@ -3515,6 +3724,24 @@ export interface paths {
     options?: never;
     head?: never;
     patch?: never;
+    trace?: never;
+  };
+  "/api/settings/persona": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** Read profile-layerable persona defaults */
+    get: operations["getSettingsPersona"];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    /** Update profile-layerable persona defaults */
+    patch: operations["updateSettingsPersona"];
     trace?: never;
   };
   "/api/settings/providers": {
@@ -13484,6 +13711,12 @@ export interface operations {
                   title?: string;
                   turn_id?: string;
                 }[];
+                profile_archived?: boolean;
+                profile_color?: string;
+                profile_emoji?: string;
+                profile_icon?: string;
+                profile_id: string;
+                profile_name: string;
                 resolved_network_participation?:
                   | (
                       | {
@@ -14050,6 +14283,10 @@ export interface operations {
                   ref: string;
                 };
                 previous_run_id?: string;
+                profile_color?: string;
+                profile_icon?: string;
+                profile_id?: string;
+                profile_name?: string;
                 /** Format: date-time */
                 queued_at: string;
                 recovery_count: number;
@@ -15793,6 +16030,10 @@ export interface operations {
                 ref: string;
               };
               previous_run_id?: string;
+              profile_color?: string;
+              profile_icon?: string;
+              profile_id?: string;
+              profile_name?: string;
               /** Format: date-time */
               queued_at: string;
               recovery_count: number;
@@ -16111,6 +16352,7 @@ export interface operations {
                   reasoning_effort?: string;
                 };
               } | null;
+              layer?: string;
               mcp_servers?: {
                 args?: string[];
                 auth?: {
@@ -16140,6 +16382,10 @@ export interface operations {
               provider: string;
               /** @enum {string} */
               reasoning_effort?: "none" | "minimal" | "low" | "medium" | "high" | "xhigh" | "max";
+              shadows?: {
+                layer: string;
+                path: string;
+              }[];
               skills?: {
                 disabled?: string[];
               } | null;
@@ -16245,6 +16491,7 @@ export interface operations {
                   reasoning_effort?: string;
                 };
               } | null;
+              layer?: string;
               mcp_servers?: {
                 args?: string[];
                 auth?: {
@@ -16274,6 +16521,10 @@ export interface operations {
               provider: string;
               /** @enum {string} */
               reasoning_effort?: "none" | "minimal" | "low" | "medium" | "high" | "xhigh" | "max";
+              shadows?: {
+                layer: string;
+                path: string;
+              }[];
               skills?: {
                 disabled?: string[];
               } | null;
@@ -16549,6 +16800,7 @@ export interface operations {
                     reasoning_effort?: string;
                   };
                 } | null;
+                layer?: string;
                 mcp_servers?: {
                   args?: string[];
                   auth?: {
@@ -16578,6 +16830,10 @@ export interface operations {
                 provider: string;
                 /** @enum {string} */
                 reasoning_effort?: "none" | "minimal" | "low" | "medium" | "high" | "xhigh" | "max";
+                shadows?: {
+                  layer: string;
+                  path: string;
+                }[];
                 skills?: {
                   disabled?: string[];
                 } | null;
@@ -16801,6 +17057,7 @@ export interface operations {
                   reasoning_effort?: string;
                 };
               } | null;
+              layer?: string;
               mcp_servers?: {
                 args?: string[];
                 auth?: {
@@ -16830,6 +17087,10 @@ export interface operations {
               provider: string;
               /** @enum {string} */
               reasoning_effort?: "none" | "minimal" | "low" | "medium" | "high" | "xhigh" | "max";
+              shadows?: {
+                layer: string;
+                path: string;
+              }[];
               skills?: {
                 disabled?: string[];
               } | null;
@@ -16966,6 +17227,7 @@ export interface operations {
                   reasoning_effort?: string;
                 };
               } | null;
+              layer?: string;
               mcp_servers?: {
                 args?: string[];
                 auth?: {
@@ -16995,6 +17257,10 @@ export interface operations {
               provider: string;
               /** @enum {string} */
               reasoning_effort?: "none" | "minimal" | "low" | "medium" | "high" | "xhigh" | "max";
+              shadows?: {
+                layer: string;
+                path: string;
+              }[];
               skills?: {
                 disabled?: string[];
               } | null;
@@ -17425,6 +17691,7 @@ export interface operations {
                   reasoning_effort?: string;
                 };
               } | null;
+              layer?: string;
               mcp_servers?: {
                 args?: string[];
                 auth?: {
@@ -17454,6 +17721,10 @@ export interface operations {
               provider: string;
               /** @enum {string} */
               reasoning_effort?: "none" | "minimal" | "low" | "medium" | "high" | "xhigh" | "max";
+              shadows?: {
+                layer: string;
+                path: string;
+              }[];
               skills?: {
                 disabled?: string[];
               } | null;
@@ -21883,6 +22154,10 @@ export interface operations {
         cursor?: string;
         /** @description Maximum number of records to return */
         limit?: number;
+        /** @description Read one profile's rows by name */
+        profile?: string;
+        /** @description Read the owner-labeled all-profiles aggregate */
+        all_profiles?: boolean;
         /** @description Filter by Loop target name */
         loop?: string;
       };
@@ -21982,6 +22257,10 @@ export interface operations {
               name: string;
               /** Format: date-time */
               next_run?: string | null;
+              profile_color?: string;
+              profile_icon?: string;
+              profile_id: string;
+              profile_name: string;
               prompt: string;
               retry: {
                 base_delay: string;
@@ -22203,7 +22482,10 @@ export interface operations {
   };
   createAutomationJob: {
     parameters: {
-      query?: never;
+      query?: {
+        /** @description Act as this profile by name */
+        profile?: string;
+      };
       header?: never;
       path?: never;
       cookie?: never;
@@ -22479,6 +22761,10 @@ export interface operations {
               name: string;
               /** Format: date-time */
               next_run?: string | null;
+              profile_color?: string;
+              profile_icon?: string;
+              profile_id: string;
+              profile_name: string;
               prompt: string;
               retry: {
                 base_delay: string;
@@ -22752,7 +23038,12 @@ export interface operations {
   };
   getAutomationJob: {
     parameters: {
-      query?: never;
+      query?: {
+        /** @description Read one profile's rows by name */
+        profile?: string;
+        /** @description Read the owner-labeled all-profiles aggregate */
+        all_profiles?: boolean;
+      };
       header?: never;
       path: {
         /** @description Automation job id */
@@ -22852,6 +23143,10 @@ export interface operations {
               name: string;
               /** Format: date-time */
               next_run?: string | null;
+              profile_color?: string;
+              profile_icon?: string;
+              profile_id: string;
+              profile_name: string;
               prompt: string;
               retry: {
                 base_delay: string;
@@ -23067,7 +23362,10 @@ export interface operations {
   };
   deleteAutomationJob: {
     parameters: {
-      query?: never;
+      query?: {
+        /** @description Act as this profile by name */
+        profile?: string;
+      };
       header?: never;
       path: {
         /** @description Automation job id */
@@ -23204,7 +23502,10 @@ export interface operations {
   };
   updateAutomationJob: {
     parameters: {
-      query?: never;
+      query?: {
+        /** @description Act as this profile by name */
+        profile?: string;
+      };
       header?: never;
       path: {
         /** @description Automation job id */
@@ -23478,6 +23779,10 @@ export interface operations {
               name: string;
               /** Format: date-time */
               next_run?: string | null;
+              profile_color?: string;
+              profile_icon?: string;
+              profile_id: string;
+              profile_name: string;
               prompt: string;
               retry: {
                 base_delay: string;
@@ -23789,6 +24094,10 @@ export interface operations {
         until?: string;
         /** @description Maximum number of records to return */
         limit?: number;
+        /** @description Read one profile's rows by name */
+        profile?: string;
+        /** @description Read the owner-labeled all-profiles aggregate */
+        all_profiles?: boolean;
       };
       header?: never;
       path: {
@@ -23881,6 +24190,10 @@ export interface operations {
                       }
                   )
                 | null;
+              profile_color?: string;
+              profile_icon?: string;
+              profile_id: string;
+              profile_name: string;
               /** Format: date-time */
               scheduled_at?: string | null;
               session_id?: string;
@@ -24015,7 +24328,10 @@ export interface operations {
   };
   triggerAutomationJob: {
     parameters: {
-      query?: never;
+      query?: {
+        /** @description Act as this profile by name */
+        profile?: string;
+      };
       header?: never;
       path: {
         /** @description Automation job id */
@@ -24107,6 +24423,10 @@ export interface operations {
                       }
                   )
                 | null;
+              profile_color?: string;
+              profile_icon?: string;
+              profile_id: string;
+              profile_name: string;
               /** Format: date-time */
               scheduled_at?: string | null;
               session_id?: string;
@@ -24254,6 +24574,10 @@ export interface operations {
         until?: string;
         /** @description Maximum number of records to return */
         limit?: number;
+        /** @description Read one profile's rows by name */
+        profile?: string;
+        /** @description Read the owner-labeled all-profiles aggregate */
+        all_profiles?: boolean;
       };
       header?: never;
       path?: never;
@@ -24343,6 +24667,10 @@ export interface operations {
                       }
                   )
                 | null;
+              profile_color?: string;
+              profile_icon?: string;
+              profile_id: string;
+              profile_name: string;
               /** Format: date-time */
               scheduled_at?: string | null;
               session_id?: string;
@@ -24448,7 +24776,12 @@ export interface operations {
   };
   getAutomationRun: {
     parameters: {
-      query?: never;
+      query?: {
+        /** @description Read one profile's rows by name */
+        profile?: string;
+        /** @description Read the owner-labeled all-profiles aggregate */
+        all_profiles?: boolean;
+      };
       header?: never;
       path: {
         /** @description Automation run id */
@@ -24540,6 +24873,10 @@ export interface operations {
                       }
                   )
                 | null;
+              profile_color?: string;
+              profile_icon?: string;
+              profile_id: string;
+              profile_name: string;
               /** Format: date-time */
               scheduled_at?: string | null;
               session_id?: string;
@@ -24662,6 +24999,10 @@ export interface operations {
         cursor?: string;
         /** @description Maximum number of records to return */
         limit?: number;
+        /** @description Read one profile's rows by name */
+        profile?: string;
+        /** @description Read the owner-labeled all-profiles aggregate */
+        all_profiles?: boolean;
         /** @description Filter by Loop target name */
         loop?: string;
       };
@@ -24783,6 +25124,10 @@ export interface operations {
                 workspace_id: string;
               } | null;
               name: string;
+              profile_color?: string;
+              profile_icon?: string;
+              profile_id: string;
+              profile_name: string;
               prompt: string;
               retry: {
                 base_delay: string;
@@ -24896,7 +25241,10 @@ export interface operations {
   };
   createAutomationTrigger: {
     parameters: {
-      query?: never;
+      query?: {
+        /** @description Act as this profile by name */
+        profile?: string;
+      };
       header?: never;
       path?: never;
       cookie?: never;
@@ -25110,6 +25458,10 @@ export interface operations {
                 workspace_id: string;
               } | null;
               name: string;
+              profile_color?: string;
+              profile_icon?: string;
+              profile_id: string;
+              profile_name: string;
               prompt: string;
               retry: {
                 base_delay: string;
@@ -25281,7 +25633,12 @@ export interface operations {
   };
   getAutomationTrigger: {
     parameters: {
-      query?: never;
+      query?: {
+        /** @description Read one profile's rows by name */
+        profile?: string;
+        /** @description Read the owner-labeled all-profiles aggregate */
+        all_profiles?: boolean;
+      };
       header?: never;
       path: {
         /** @description Automation trigger id */
@@ -25397,6 +25754,10 @@ export interface operations {
                 workspace_id: string;
               } | null;
               name: string;
+              profile_color?: string;
+              profile_icon?: string;
+              profile_id: string;
+              profile_name: string;
               prompt: string;
               retry: {
                 base_delay: string;
@@ -25510,7 +25871,10 @@ export interface operations {
   };
   deleteAutomationTrigger: {
     parameters: {
-      query?: never;
+      query?: {
+        /** @description Act as this profile by name */
+        profile?: string;
+      };
       header?: never;
       path: {
         /** @description Automation trigger id */
@@ -25647,7 +26011,10 @@ export interface operations {
   };
   updateAutomationTrigger: {
     parameters: {
-      query?: never;
+      query?: {
+        /** @description Act as this profile by name */
+        profile?: string;
+      };
       header?: never;
       path: {
         /** @description Automation trigger id */
@@ -25859,6 +26226,10 @@ export interface operations {
                 workspace_id: string;
               } | null;
               name: string;
+              profile_color?: string;
+              profile_icon?: string;
+              profile_id: string;
+              profile_name: string;
               prompt: string;
               retry: {
                 base_delay: string;
@@ -26068,6 +26439,10 @@ export interface operations {
         until?: string;
         /** @description Maximum number of records to return */
         limit?: number;
+        /** @description Read one profile's rows by name */
+        profile?: string;
+        /** @description Read the owner-labeled all-profiles aggregate */
+        all_profiles?: boolean;
       };
       header?: never;
       path: {
@@ -26160,6 +26535,10 @@ export interface operations {
                       }
                   )
                 | null;
+              profile_color?: string;
+              profile_icon?: string;
+              profile_id: string;
+              profile_name: string;
               /** Format: date-time */
               scheduled_at?: string | null;
               session_id?: string;
@@ -26959,6 +27338,10 @@ export interface operations {
         cursor?: string;
         /** @description Maximum number of bridges to return; defaults to 50 and is capped at 200 */
         limit?: number;
+        /** @description Read one profile's rows by name */
+        profile?: string;
+        /** @description Read the owner-labeled all-profiles aggregate */
+        all_profiles?: boolean;
       };
       header?: never;
       path?: never;
@@ -27111,6 +27494,12 @@ export interface operations {
               id: string;
               notification_suppress: boolean;
               platform: string;
+              profile_archived?: boolean;
+              profile_color?: string;
+              profile_emoji?: string;
+              profile_icon?: string;
+              profile_id: string;
+              profile_name: string;
               provider_config?: {
                 [key: string]: unknown;
               } | null;
@@ -27301,7 +27690,10 @@ export interface operations {
   };
   createBridge: {
     parameters: {
-      query?: never;
+      query?: {
+        /** @description Act as this profile by name */
+        profile?: string;
+      };
       header?: never;
       path?: never;
       cookie?: never;
@@ -27433,6 +27825,12 @@ export interface operations {
               id: string;
               notification_suppress: boolean;
               platform: string;
+              profile_archived?: boolean;
+              profile_color?: string;
+              profile_emoji?: string;
+              profile_icon?: string;
+              profile_id: string;
+              profile_name: string;
               provider_config?: {
                 [key: string]: unknown;
               } | null;
@@ -27650,6 +28048,10 @@ export interface operations {
         workspace_id?: string;
         /** @description Filter by workspace id, name, or path */
         workspace?: string;
+        /** @description Read one profile's rows by name */
+        profile?: string;
+        /** @description Read the owner-labeled all-profiles aggregate */
+        all_profiles?: boolean;
       };
       header?: never;
       path?: never;
@@ -27993,6 +28395,10 @@ export interface operations {
       query: {
         /** @description Slack bridge instance id */
         instance: string;
+        /** @description Read one profile's rows by name */
+        profile?: string;
+        /** @description Read the owner-labeled all-profiles aggregate */
+        all_profiles?: boolean;
       };
       header?: never;
       path?: never;
@@ -28172,7 +28578,12 @@ export interface operations {
   };
   getBridge: {
     parameters: {
-      query?: never;
+      query?: {
+        /** @description Read one profile's rows by name */
+        profile?: string;
+        /** @description Read the owner-labeled all-profiles aggregate */
+        all_profiles?: boolean;
+      };
       header?: never;
       path: {
         /** @description Bridge instance id */
@@ -28253,6 +28664,12 @@ export interface operations {
               id: string;
               notification_suppress: boolean;
               platform: string;
+              profile_archived?: boolean;
+              profile_color?: string;
+              profile_emoji?: string;
+              profile_icon?: string;
+              profile_id: string;
+              profile_name: string;
               provider_config?: {
                 [key: string]: unknown;
               } | null;
@@ -28432,7 +28849,10 @@ export interface operations {
   };
   updateBridge: {
     parameters: {
-      query?: never;
+      query?: {
+        /** @description Act as this profile by name */
+        profile?: string;
+      };
       header?: never;
       path: {
         /** @description Bridge instance id */
@@ -28572,6 +28992,12 @@ export interface operations {
               id: string;
               notification_suppress: boolean;
               platform: string;
+              profile_archived?: boolean;
+              profile_color?: string;
+              profile_emoji?: string;
+              profile_icon?: string;
+              profile_id: string;
+              profile_name: string;
               provider_config?: {
                 [key: string]: unknown;
               } | null;
@@ -28780,7 +29206,10 @@ export interface operations {
   };
   disableBridge: {
     parameters: {
-      query?: never;
+      query?: {
+        /** @description Act as this profile by name */
+        profile?: string;
+      };
       header?: never;
       path: {
         /** @description Bridge instance id */
@@ -28861,6 +29290,12 @@ export interface operations {
               id: string;
               notification_suppress: boolean;
               platform: string;
+              profile_archived?: boolean;
+              profile_color?: string;
+              profile_emoji?: string;
+              profile_icon?: string;
+              profile_id: string;
+              profile_name: string;
               provider_config?: {
                 [key: string]: unknown;
               } | null;
@@ -29069,7 +29504,10 @@ export interface operations {
   };
   enableBridge: {
     parameters: {
-      query?: never;
+      query?: {
+        /** @description Act as this profile by name */
+        profile?: string;
+      };
       header?: never;
       path: {
         /** @description Bridge instance id */
@@ -29150,6 +29588,12 @@ export interface operations {
               id: string;
               notification_suppress: boolean;
               platform: string;
+              profile_archived?: boolean;
+              profile_color?: string;
+              profile_emoji?: string;
+              profile_icon?: string;
+              profile_id: string;
+              profile_name: string;
               provider_config?: {
                 [key: string]: unknown;
               } | null;
@@ -29358,7 +29802,12 @@ export interface operations {
   };
   resolveBridgeTarget: {
     parameters: {
-      query?: never;
+      query?: {
+        /** @description Read one profile's rows by name */
+        profile?: string;
+        /** @description Read the owner-labeled all-profiles aggregate */
+        all_profiles?: boolean;
+      };
       header?: never;
       path: {
         /** @description Bridge instance id */
@@ -29628,7 +30077,10 @@ export interface operations {
   };
   restartBridge: {
     parameters: {
-      query?: never;
+      query?: {
+        /** @description Act as this profile by name */
+        profile?: string;
+      };
       header?: never;
       path: {
         /** @description Bridge instance id */
@@ -29709,6 +30161,12 @@ export interface operations {
               id: string;
               notification_suppress: boolean;
               platform: string;
+              profile_archived?: boolean;
+              profile_color?: string;
+              profile_emoji?: string;
+              profile_icon?: string;
+              profile_id: string;
+              profile_name: string;
               provider_config?: {
                 [key: string]: unknown;
               } | null;
@@ -29917,7 +30375,12 @@ export interface operations {
   };
   listBridgeRoutes: {
     parameters: {
-      query?: never;
+      query?: {
+        /** @description Read one profile's rows by name */
+        profile?: string;
+        /** @description Read the owner-labeled all-profiles aggregate */
+        all_profiles?: boolean;
+      };
       header?: never;
       path: {
         /** @description Bridge instance id */
@@ -30046,7 +30509,12 @@ export interface operations {
   };
   listBridgeSecretBindings: {
     parameters: {
-      query?: never;
+      query?: {
+        /** @description Read one profile's rows by name */
+        profile?: string;
+        /** @description Read the owner-labeled all-profiles aggregate */
+        all_profiles?: boolean;
+      };
       header?: never;
       path: {
         /** @description Bridge instance id */
@@ -30167,7 +30635,10 @@ export interface operations {
   };
   putBridgeSecretBinding: {
     parameters: {
-      query?: never;
+      query?: {
+        /** @description Act as this profile by name */
+        profile?: string;
+      };
       header?: never;
       path: {
         /** @description Bridge instance id */
@@ -30357,7 +30828,10 @@ export interface operations {
   };
   deleteBridgeSecretBinding: {
     parameters: {
-      query?: never;
+      query?: {
+        /** @description Act as this profile by name */
+        profile?: string;
+      };
       header?: never;
       path: {
         /** @description Bridge instance id */
@@ -30467,7 +30941,10 @@ export interface operations {
   };
   sendBridgeTest: {
     parameters: {
-      query?: never;
+      query?: {
+        /** @description Act as this profile by name */
+        profile?: string;
+      };
       header?: never;
       path: {
         /** @description Bridge instance id */
@@ -30672,6 +31149,10 @@ export interface operations {
         q?: string;
         /** @description Maximum targets to return */
         limit?: number;
+        /** @description Read one profile's rows by name */
+        profile?: string;
+        /** @description Read the owner-labeled all-profiles aggregate */
+        all_profiles?: boolean;
       };
       header?: never;
       path: {
@@ -30803,7 +31284,12 @@ export interface operations {
   };
   testBridgeDelivery: {
     parameters: {
-      query?: never;
+      query?: {
+        /** @description Read one profile's rows by name */
+        profile?: string;
+        /** @description Read the owner-labeled all-profiles aggregate */
+        all_profiles?: boolean;
+      };
       header?: never;
       path: {
         /** @description Bridge instance id */
@@ -30997,7 +31483,12 @@ export interface operations {
   };
   verifyBridge: {
     parameters: {
-      query?: never;
+      query?: {
+        /** @description Read one profile's rows by name */
+        profile?: string;
+        /** @description Read the owner-labeled all-profiles aggregate */
+        all_profiles?: boolean;
+      };
       header?: never;
       path: {
         /** @description Bridge instance id */
@@ -31115,7 +31606,10 @@ export interface operations {
   };
   registerBridgeWebhook: {
     parameters: {
-      query?: never;
+      query?: {
+        /** @description Act as this profile by name */
+        profile?: string;
+      };
       header?: never;
       path: {
         /** @description Bridge instance id */
@@ -31298,6 +31792,10 @@ export interface operations {
         workspace: string;
         /** @description Attached client whose context resolves availability */
         client?: string;
+        /** @description Read one profile's rows by name */
+        profile?: string;
+        /** @description Read the owner-labeled all-profiles aggregate */
+        all_profiles?: boolean;
       };
       header?: never;
       path?: never;
@@ -31368,6 +31866,10 @@ export interface operations {
               }[];
             }[];
             context_revision?: string;
+            profile_lens: {
+              profile_lens_id: string;
+              profile_name: string;
+            };
             sources: {
               reason?: string;
               source: string;
@@ -31414,7 +31916,10 @@ export interface operations {
   };
   invokeCmdPaletteCommand: {
     parameters: {
-      query?: never;
+      query?: {
+        /** @description Act as this profile by name */
+        profile?: string;
+      };
       header: {
         /** @description Attached client identity token */
         "X-Compozy-Client-Token": string;
@@ -31447,6 +31952,10 @@ export interface operations {
           "application/json": {
             approval_id?: string;
             invocation_id: string;
+            profile_lens: {
+              profile_lens_id: string;
+              profile_name: string;
+            };
             result?: unknown;
             status: string;
           };
@@ -31461,6 +31970,10 @@ export interface operations {
           "application/json": {
             approval_id?: string;
             invocation_id: string;
+            profile_lens: {
+              profile_lens_id: string;
+              profile_name: string;
+            };
             result?: unknown;
             status: string;
           };
@@ -31592,6 +32105,10 @@ export interface operations {
       query: {
         /** @description Workspace id, name, or path */
         workspace: string;
+        /** @description Read one profile's rows by name */
+        profile?: string;
+        /** @description Read the owner-labeled all-profiles aggregate */
+        all_profiles?: boolean;
       };
       header?: never;
       path?: never;
@@ -31608,6 +32125,10 @@ export interface operations {
           "application/json": {
             frecency_entries: number;
             pins: string[];
+            profile_lens: {
+              profile_lens_id: string;
+              profile_name: string;
+            };
             query_associations: number;
             recents: number;
             workspace: string;
@@ -31655,6 +32176,8 @@ export interface operations {
       query: {
         /** @description Workspace id, name, or path */
         workspace: string;
+        /** @description Act as this profile by name */
+        profile?: string;
       };
       header?: never;
       path?: never;
@@ -31714,6 +32237,8 @@ export interface operations {
       query: {
         /** @description Workspace id, name, or path */
         workspace: string;
+        /** @description Act as this profile by name */
+        profile?: string;
       };
       header?: never;
       path: {
@@ -31793,6 +32318,8 @@ export interface operations {
       query: {
         /** @description Workspace id, name, or path */
         workspace: string;
+        /** @description Act as this profile by name */
+        profile?: string;
       };
       header?: never;
       path: {
@@ -31872,6 +32399,10 @@ export interface operations {
       query: {
         /** @description Workspace id, name, or path */
         workspace: string;
+        /** @description Read one profile's rows by name */
+        profile?: string;
+        /** @description Read the owner-labeled all-profiles aggregate */
+        all_profiles?: boolean;
       };
       header?: never;
       path?: never;
@@ -31887,6 +32418,10 @@ export interface operations {
         content: {
           "application/json": {
             pins: string[];
+            profile_lens: {
+              profile_lens_id: string;
+              profile_name: string;
+            };
             query_hits: {
               command_id: string;
               query: string;
@@ -32004,6 +32539,10 @@ export interface operations {
       query: {
         /** @description Workspace id, name, or path */
         workspace: string;
+        /** @description Read one profile's rows by name */
+        profile?: string;
+        /** @description Read the owner-labeled all-profiles aggregate */
+        all_profiles?: boolean;
       };
       header?: never;
       path?: never;
@@ -32019,6 +32558,10 @@ export interface operations {
         content: {
           "text/event-stream": {
             catalog_revision: string;
+            profile_lens: {
+              profile_lens_id: string;
+              profile_name: string;
+            };
             workspace: string;
           };
         };
@@ -32061,7 +32604,12 @@ export interface operations {
   };
   recordCmdPaletteUsage: {
     parameters: {
-      query?: never;
+      query?: {
+        /** @description Read one profile's rows by name */
+        profile?: string;
+        /** @description Read the owner-labeled all-profiles aggregate */
+        all_profiles?: boolean;
+      };
       header?: never;
       path?: never;
       cookie?: never;
@@ -32670,6 +33218,10 @@ export interface operations {
       query: {
         /** @description Workspace id, name, or path */
         workspace: string;
+        /** @description Read one profile's rows by name */
+        profile?: string;
+        /** @description Read the owner-labeled all-profiles aggregate */
+        all_profiles?: boolean;
       };
       header?: never;
       path: {
@@ -32963,6 +33515,10 @@ export interface operations {
               }[];
               view: string;
             };
+            profile_lens: {
+              profile_lens_id: string;
+              profile_name: string;
+            };
             revision: string;
             stream_epoch: string;
             title: string;
@@ -33042,7 +33598,10 @@ export interface operations {
   };
   openCmdPaletteViewSession: {
     parameters: {
-      query?: never;
+      query?: {
+        /** @description Act as this profile by name */
+        profile?: string;
+      };
       header: {
         /** @description Attached client identity token */
         "X-Compozy-Client-Token": string;
@@ -33384,6 +33943,10 @@ export interface operations {
               revision: string;
               view_session: string;
             };
+            profile_lens: {
+              profile_lens_id: string;
+              profile_name: string;
+            };
             stream_token: string;
             view_session: string;
           };
@@ -33485,6 +34048,10 @@ export interface operations {
         after?: string;
         /** @description Stream epoch required when after is greater than zero */
         stream_epoch?: string;
+        /** @description Read one profile's rows by name */
+        profile?: string;
+        /** @description Read the owner-labeled all-profiles aggregate */
+        all_profiles?: boolean;
       };
       header?: never;
       path: {
@@ -34040,6 +34607,8 @@ export interface operations {
       query?: {
         /** @description Operator workspace reference; omit for the global instance */
         workspace?: string;
+        /** @description Profile whose effective extension state is returned */
+        profile?: string;
       };
       header?: never;
       path?: never;
@@ -34059,6 +34628,18 @@ export interface operations {
               capabilities?: string[];
               consecutive_failures: number;
               daemon_running: boolean;
+              declared_profiles?: {
+                created_by_extension: boolean;
+                credential_requirements?: {
+                  missing: boolean;
+                  provider: string;
+                  slot: string;
+                  source_extension: string;
+                }[];
+                exists: boolean;
+                name: string;
+                needs_setup: boolean;
+              }[];
               dev?: boolean;
               diagnostics?: {
                 category: string;
@@ -34075,6 +34656,13 @@ export interface operations {
                 title: string;
               }[];
               digest_matched: boolean;
+              dormant_placements?: {
+                create_action?: string;
+                dormant: boolean;
+                kind: string;
+                profile?: string;
+                resource: string;
+              }[];
               enabled: boolean;
               failure_code?: string;
               format: string;
@@ -34134,6 +34722,14 @@ export interface operations {
               overrides_published?: boolean;
               permissions?: string[];
               pid?: number;
+              placements?: {
+                create_action?: string;
+                dormant: boolean;
+                kind: string;
+                profile?: string;
+                resource: string;
+              }[];
+              profile: string;
               provenance?: {
                 allow_unverified: boolean;
                 archive_digest_sha256?: string;
@@ -34282,7 +34878,10 @@ export interface operations {
   };
   installExtension: {
     parameters: {
-      query?: never;
+      query?: {
+        /** @description Act as this profile by name */
+        profile?: string;
+      };
       header?: never;
       path?: never;
       cookie?: never;
@@ -34293,6 +34892,7 @@ export interface operations {
         "application/json": {
           allow_unverified?: boolean;
           asset?: string;
+          confirm_network_digest?: string;
           ref: string;
           source: string;
           version?: string;
@@ -34312,6 +34912,18 @@ export interface operations {
               capabilities?: string[];
               consecutive_failures: number;
               daemon_running: boolean;
+              declared_profiles?: {
+                created_by_extension: boolean;
+                credential_requirements?: {
+                  missing: boolean;
+                  provider: string;
+                  slot: string;
+                  source_extension: string;
+                }[];
+                exists: boolean;
+                name: string;
+                needs_setup: boolean;
+              }[];
               dev?: boolean;
               diagnostics?: {
                 category: string;
@@ -34328,6 +34940,13 @@ export interface operations {
                 title: string;
               }[];
               digest_matched: boolean;
+              dormant_placements?: {
+                create_action?: string;
+                dormant: boolean;
+                kind: string;
+                profile?: string;
+                resource: string;
+              }[];
               enabled: boolean;
               failure_code?: string;
               format: string;
@@ -34387,6 +35006,14 @@ export interface operations {
               overrides_published?: boolean;
               permissions?: string[];
               pid?: number;
+              placements?: {
+                create_action?: string;
+                dormant: boolean;
+                kind: string;
+                profile?: string;
+                resource: string;
+              }[];
+              profile: string;
               provenance?: {
                 allow_unverified: boolean;
                 archive_digest_sha256?: string;
@@ -34677,6 +35304,10 @@ export interface operations {
         extension?: string;
         /** @description Operator workspace reference; agent callers use trusted session scope */
         workspace?: string;
+        /** @description Read one profile's rows by name */
+        profile?: string;
+        /** @description Read the owner-labeled all-profiles aggregate */
+        all_profiles?: boolean;
       };
       header?: never;
       path?: never;
@@ -34788,6 +35419,8 @@ export interface operations {
       query?: {
         /** @description Operator workspace reference; agent callers use trusted session scope */
         workspace?: string;
+        /** @description Act as this profile by name */
+        profile?: string;
       };
       header?: never;
       path?: never;
@@ -34816,6 +35449,18 @@ export interface operations {
               capabilities?: string[];
               consecutive_failures: number;
               daemon_running: boolean;
+              declared_profiles?: {
+                created_by_extension: boolean;
+                credential_requirements?: {
+                  missing: boolean;
+                  provider: string;
+                  slot: string;
+                  source_extension: string;
+                }[];
+                exists: boolean;
+                name: string;
+                needs_setup: boolean;
+              }[];
               dev?: boolean;
               diagnostics?: {
                 category: string;
@@ -34832,6 +35477,13 @@ export interface operations {
                 title: string;
               }[];
               digest_matched: boolean;
+              dormant_placements?: {
+                create_action?: string;
+                dormant: boolean;
+                kind: string;
+                profile?: string;
+                resource: string;
+              }[];
               enabled: boolean;
               failure_code?: string;
               format: string;
@@ -34891,6 +35543,14 @@ export interface operations {
               overrides_published?: boolean;
               permissions?: string[];
               pid?: number;
+              placements?: {
+                create_action?: string;
+                dormant: boolean;
+                kind: string;
+                profile?: string;
+                resource: string;
+              }[];
+              profile: string;
               provenance?: {
                 allow_unverified: boolean;
                 archive_digest_sha256?: string;
@@ -35066,11 +35726,190 @@ export interface operations {
       };
     };
   };
+  previewExtensionInstall: {
+    parameters: {
+      query?: {
+        /** @description Act as this profile by name */
+        profile?: string;
+      };
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** @description JSON request body */
+    requestBody: {
+      content: {
+        "application/json": {
+          allow_unverified?: boolean;
+          asset?: string;
+          confirm_network_digest?: string;
+          ref: string;
+          source: string;
+          version?: string;
+        };
+      };
+    };
+    responses: {
+      /** @description OK */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            declared_profiles: {
+              create: boolean;
+              credentials?: {
+                missing: boolean;
+                provider: string;
+                slot: string;
+                source_extension: string;
+              }[];
+              name: string;
+            }[];
+            name: string;
+            network_requirement_digest?: string;
+            placements: {
+              create_action?: string;
+              dormant: boolean;
+              kind: string;
+              profile?: string;
+              resource: string;
+            }[];
+          };
+        };
+      };
+      /** @description Invalid install request */
+      400: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+      /** @description Forbidden */
+      403: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+      /** @description Package validation failure */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+            issues: {
+              column?: number;
+              field?: string;
+              line?: number;
+              message: string;
+              path: string;
+              scope?: string;
+              /** @enum {string} */
+              severity: "error" | "warning" | "warn";
+            }[];
+          };
+        };
+      };
+      /** @description Extension service is not configured */
+      503: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+    };
+  };
   getExtension: {
     parameters: {
       query?: {
         /** @description Operator workspace reference; omit for the global instance */
         workspace?: string;
+        /** @description Profile whose effective extension state is returned */
+        profile?: string;
       };
       header?: never;
       path: {
@@ -35093,6 +35932,18 @@ export interface operations {
               capabilities?: string[];
               consecutive_failures: number;
               daemon_running: boolean;
+              declared_profiles?: {
+                created_by_extension: boolean;
+                credential_requirements?: {
+                  missing: boolean;
+                  provider: string;
+                  slot: string;
+                  source_extension: string;
+                }[];
+                exists: boolean;
+                name: string;
+                needs_setup: boolean;
+              }[];
               dev?: boolean;
               diagnostics?: {
                 category: string;
@@ -35109,6 +35960,13 @@ export interface operations {
                 title: string;
               }[];
               digest_matched: boolean;
+              dormant_placements?: {
+                create_action?: string;
+                dormant: boolean;
+                kind: string;
+                profile?: string;
+                resource: string;
+              }[];
               enabled: boolean;
               failure_code?: string;
               format: string;
@@ -35168,6 +36026,14 @@ export interface operations {
               overrides_published?: boolean;
               permissions?: string[];
               pid?: number;
+              placements?: {
+                create_action?: string;
+                dormant: boolean;
+                kind: string;
+                profile?: string;
+                resource: string;
+              }[];
+              profile: string;
               provenance?: {
                 allow_unverified: boolean;
                 archive_digest_sha256?: string;
@@ -35345,7 +36211,10 @@ export interface operations {
   };
   updateExtension: {
     parameters: {
-      query?: never;
+      query?: {
+        /** @description Act as this profile by name */
+        profile?: string;
+      };
       header?: never;
       path: {
         /** @description Extension name */
@@ -35623,6 +36492,8 @@ export interface operations {
       query?: {
         /** @description Operator workspace reference; omit for the global instance */
         workspace?: string;
+        /** @description Act as this profile by name */
+        profile?: string;
       };
       header?: never;
       path: {
@@ -35811,9 +36682,14 @@ export interface operations {
       };
     };
   };
-  disableExtension: {
+  listExtensionEnablement: {
     parameters: {
-      query?: never;
+      query?: {
+        /** @description Read one profile's rows by name */
+        profile?: string;
+        /** @description Read the owner-labeled all-profiles aggregate */
+        all_profiles?: boolean;
+      };
       header?: never;
       path: {
         /** @description Extension name */
@@ -35830,232 +36706,13 @@ export interface operations {
         };
         content: {
           "application/json": {
-            extension: {
-              bound_env_keys?: string[];
-              capabilities?: string[];
-              consecutive_failures: number;
-              daemon_running: boolean;
-              dev?: boolean;
-              diagnostics?: {
-                category: string;
-                code: string;
-                data_freshness: string;
-                doc_url?: string;
-                evidence?: {
-                  [key: string]: unknown;
-                };
-                id: string;
-                message: string;
-                severity: string;
-                suggested_command?: string;
-                title: string;
-              }[];
-              digest_matched: boolean;
-              enabled: boolean;
-              failure_code?: string;
-              format: string;
-              generation_hash?: string;
-              health?: string;
-              health_message?: string;
-              last_error?: string;
-              marketplace?: {
-                author?: string;
-                description: string;
-                downloads?: number | null;
-                entry_id: string;
-                format?: string;
-                install_slug?: string;
-                installed: boolean;
-                installed_name?: string;
-                installed_version?: string;
-                /** @enum {string} */
-                kind: "mcp" | "extension" | "skill";
-                manage_path?: string;
-                name: string;
-                /** Format: date-time */
-                published_at?: string | null;
-                source: string;
-                tier?: string;
-                transport?: string;
-                trust?: {
-                  allow_unverified: boolean;
-                  checksum_verified: boolean;
-                  decision: string;
-                  registry_tier: string;
-                  warnings?: {
-                    category: string;
-                    code: string;
-                    data_freshness: string;
-                    doc_url?: string;
-                    evidence?: {
-                      [key: string]: unknown;
-                    };
-                    id: string;
-                    message: string;
-                    severity: string;
-                    suggested_command?: string;
-                    title: string;
-                  }[];
-                } | null;
-                update_available: boolean;
-                /** Format: date-time */
-                updated_at?: string | null;
-                version?: string;
-              } | null;
-              missing_env?: string[];
-              name: string;
-              network_confirmation_required: boolean;
-              network_requirement_digest?: string;
-              origin_path?: string;
-              overrides_published?: boolean;
-              permissions?: string[];
-              pid?: number;
-              provenance?: {
-                allow_unverified: boolean;
-                archive_digest_sha256?: string;
-                catalog_entry_id?: string;
-                checksum_sha256: string;
-                checksum_verified: boolean;
-                digest_matched: boolean;
-                /** Format: date-time */
-                installed_at: string;
-                installed_by: string;
-                installed_from: string;
-                permissions?: string[];
-                registry_tier: string;
-                slug?: string;
-                source_url?: string;
-                trust?: {
-                  allow_unverified: boolean;
-                  checksum_verified: boolean;
-                  decision: string;
-                  registry_tier: string;
-                  warnings?: {
-                    category: string;
-                    code: string;
-                    data_freshness: string;
-                    doc_url?: string;
-                    evidence?: {
-                      [key: string]: unknown;
-                    };
-                    id: string;
-                    message: string;
-                    severity: string;
-                    suggested_command?: string;
-                    title: string;
-                  }[];
-                } | null;
-                warnings?: {
-                  category: string;
-                  code: string;
-                  data_freshness: string;
-                  doc_url?: string;
-                  evidence?: {
-                    [key: string]: unknown;
-                  };
-                  id: string;
-                  message: string;
-                  severity: string;
-                  suggested_command?: string;
-                  title: string;
-                }[];
-              } | null;
-              remote_version?: string;
-              requires_env?: string[];
-              /** Format: int64 */
-              restart_backoff_ms: number;
-              source: string;
-              state: string;
-              trust?: {
-                allow_unverified: boolean;
-                checksum_verified: boolean;
-                decision: string;
-                registry_tier: string;
-                warnings?: {
-                  category: string;
-                  code: string;
-                  data_freshness: string;
-                  doc_url?: string;
-                  evidence?: {
-                    [key: string]: unknown;
-                  };
-                  id: string;
-                  message: string;
-                  severity: string;
-                  suggested_command?: string;
-                  title: string;
-                }[];
-              } | null;
-              type: string;
-              update_available: boolean;
-              /** Format: int64 */
-              uptime_seconds?: number;
-              version: string;
-              workspace_id?: string;
-            };
-          };
-        };
-      };
-      /** @description Forbidden */
-      403: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/json": {
-            code?: string;
-            details?: {
-              [key: string]: string;
-            };
-            diagnostic?: {
-              category: string;
-              code: string;
-              data_freshness: string;
-              doc_url?: string;
-              evidence?: {
-                [key: string]: unknown;
-              };
-              id: string;
-              message: string;
-              severity: string;
-              suggested_command?: string;
-              title: string;
-            } | null;
-            error: string;
-          };
+            enabled: boolean;
+            profile: string;
+          }[];
         };
       };
       /** @description Extension not found */
       404: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/json": {
-            code?: string;
-            details?: {
-              [key: string]: string;
-            };
-            diagnostic?: {
-              category: string;
-              code: string;
-              data_freshness: string;
-              doc_url?: string;
-              evidence?: {
-                [key: string]: unknown;
-              };
-              id: string;
-              message: string;
-              severity: string;
-              suggested_command?: string;
-              title: string;
-            } | null;
-            error: string;
-          };
-        };
-      };
-      /** @description Internal server error */
-      500: {
         headers: {
           [name: string]: unknown;
         };
@@ -36114,9 +36771,12 @@ export interface operations {
       };
     };
   };
-  enableExtension: {
+  setExtensionEnablement: {
     parameters: {
-      query?: never;
+      query?: {
+        /** @description Act as this profile by name */
+        profile?: string;
+      };
       header?: never;
       path: {
         /** @description Extension name */
@@ -36128,7 +36788,8 @@ export interface operations {
     requestBody: {
       content: {
         "application/json": {
-          confirm_network_digest?: string;
+          enabled: boolean;
+          profile: string;
         };
       };
     };
@@ -36140,170 +36801,37 @@ export interface operations {
         };
         content: {
           "application/json": {
-            automation_started: string[];
-            extension: {
-              bound_env_keys?: string[];
-              capabilities?: string[];
-              consecutive_failures: number;
-              daemon_running: boolean;
-              dev?: boolean;
-              diagnostics?: {
-                category: string;
-                code: string;
-                data_freshness: string;
-                doc_url?: string;
-                evidence?: {
-                  [key: string]: unknown;
-                };
-                id: string;
-                message: string;
-                severity: string;
-                suggested_command?: string;
-                title: string;
-              }[];
-              digest_matched: boolean;
-              enabled: boolean;
-              failure_code?: string;
-              format: string;
-              generation_hash?: string;
-              health?: string;
-              health_message?: string;
-              last_error?: string;
-              marketplace?: {
-                author?: string;
-                description: string;
-                downloads?: number | null;
-                entry_id: string;
-                format?: string;
-                install_slug?: string;
-                installed: boolean;
-                installed_name?: string;
-                installed_version?: string;
-                /** @enum {string} */
-                kind: "mcp" | "extension" | "skill";
-                manage_path?: string;
-                name: string;
-                /** Format: date-time */
-                published_at?: string | null;
-                source: string;
-                tier?: string;
-                transport?: string;
-                trust?: {
-                  allow_unverified: boolean;
-                  checksum_verified: boolean;
-                  decision: string;
-                  registry_tier: string;
-                  warnings?: {
-                    category: string;
-                    code: string;
-                    data_freshness: string;
-                    doc_url?: string;
-                    evidence?: {
-                      [key: string]: unknown;
-                    };
-                    id: string;
-                    message: string;
-                    severity: string;
-                    suggested_command?: string;
-                    title: string;
-                  }[];
-                } | null;
-                update_available: boolean;
-                /** Format: date-time */
-                updated_at?: string | null;
-                version?: string;
-              } | null;
-              missing_env?: string[];
-              name: string;
-              network_confirmation_required: boolean;
-              network_requirement_digest?: string;
-              origin_path?: string;
-              overrides_published?: boolean;
-              permissions?: string[];
-              pid?: number;
-              provenance?: {
-                allow_unverified: boolean;
-                archive_digest_sha256?: string;
-                catalog_entry_id?: string;
-                checksum_sha256: string;
-                checksum_verified: boolean;
-                digest_matched: boolean;
-                /** Format: date-time */
-                installed_at: string;
-                installed_by: string;
-                installed_from: string;
-                permissions?: string[];
-                registry_tier: string;
-                slug?: string;
-                source_url?: string;
-                trust?: {
-                  allow_unverified: boolean;
-                  checksum_verified: boolean;
-                  decision: string;
-                  registry_tier: string;
-                  warnings?: {
-                    category: string;
-                    code: string;
-                    data_freshness: string;
-                    doc_url?: string;
-                    evidence?: {
-                      [key: string]: unknown;
-                    };
-                    id: string;
-                    message: string;
-                    severity: string;
-                    suggested_command?: string;
-                    title: string;
-                  }[];
-                } | null;
-                warnings?: {
-                  category: string;
-                  code: string;
-                  data_freshness: string;
-                  doc_url?: string;
-                  evidence?: {
-                    [key: string]: unknown;
-                  };
-                  id: string;
-                  message: string;
-                  severity: string;
-                  suggested_command?: string;
-                  title: string;
-                }[];
-              } | null;
-              remote_version?: string;
-              requires_env?: string[];
-              /** Format: int64 */
-              restart_backoff_ms: number;
-              source: string;
-              state: string;
-              trust?: {
-                allow_unverified: boolean;
-                checksum_verified: boolean;
-                decision: string;
-                registry_tier: string;
-                warnings?: {
-                  category: string;
-                  code: string;
-                  data_freshness: string;
-                  doc_url?: string;
-                  evidence?: {
-                    [key: string]: unknown;
-                  };
-                  id: string;
-                  message: string;
-                  severity: string;
-                  suggested_command?: string;
-                  title: string;
-                }[];
-              } | null;
-              type: string;
-              update_available: boolean;
-              /** Format: int64 */
-              uptime_seconds?: number;
-              version: string;
-              workspace_id?: string;
+            enabled: boolean;
+            profile: string;
+          };
+        };
+      };
+      /** @description Invalid profile or enablement state */
+      400: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
             };
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
           };
         };
       };
@@ -36338,65 +36866,6 @@ export interface operations {
       };
       /** @description Extension not found */
       404: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/json": {
-            code?: string;
-            details?: {
-              [key: string]: string;
-            };
-            diagnostic?: {
-              category: string;
-              code: string;
-              data_freshness: string;
-              doc_url?: string;
-              evidence?: {
-                [key: string]: unknown;
-              };
-              id: string;
-              message: string;
-              severity: string;
-              suggested_command?: string;
-              title: string;
-            } | null;
-            error: string;
-          };
-        };
-      };
-      /** @description Network confirmation required or shipped agent conflict */
-      409: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/json": {
-            agents?: string[];
-            code: string;
-            current_digest?: string;
-            declared_env?: string[];
-            diagnostic?: {
-              category: string;
-              code: string;
-              data_freshness: string;
-              doc_url?: string;
-              evidence?: {
-                [key: string]: unknown;
-              };
-              id: string;
-              message: string;
-              severity: string;
-              suggested_command?: string;
-              title: string;
-            } | null;
-            env_name?: string;
-            error: string;
-          };
-        };
-      };
-      /** @description Internal server error */
-      500: {
         headers: {
           [name: string]: unknown;
         };
@@ -36457,7 +36926,12 @@ export interface operations {
   };
   getExtensionInventory: {
     parameters: {
-      query?: never;
+      query?: {
+        /** @description Read one profile's rows by name */
+        profile?: string;
+        /** @description Read the owner-labeled all-profiles aggregate */
+        all_profiles?: boolean;
+      };
       header?: never;
       path: {
         /** @description Extension name */
@@ -36571,6 +37045,10 @@ export interface operations {
         after?: string;
         /** @description Opaque ring identity; required when after is greater than zero */
         stream_epoch?: string;
+        /** @description Read one profile's rows by name */
+        profile?: string;
+        /** @description Read the owner-labeled all-profiles aggregate */
+        all_profiles?: boolean;
       };
       header?: never;
       path: {
@@ -36721,7 +37199,12 @@ export interface operations {
   };
   previewExtensionEnable: {
     parameters: {
-      query?: never;
+      query?: {
+        /** @description Read one profile's rows by name */
+        profile?: string;
+        /** @description Read the owner-labeled all-profiles aggregate */
+        all_profiles?: boolean;
+      };
       header?: never;
       path: {
         /** @description Extension name */
@@ -36750,6 +37233,35 @@ export interface operations {
             missing_env: string[];
             network_confirmation_required: boolean;
             network_requirement_digest: string;
+          };
+        };
+      };
+      /** @description Invalid extension profile selection */
+      400: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
           };
         };
       };
@@ -36815,7 +37327,12 @@ export interface operations {
   };
   getExtensionProvenance: {
     parameters: {
-      query?: never;
+      query?: {
+        /** @description Read one profile's rows by name */
+        profile?: string;
+        /** @description Read the owner-labeled all-profiles aggregate */
+        all_profiles?: boolean;
+      };
       header?: never;
       path: {
         /** @description Extension name */
@@ -36979,6 +37496,8 @@ export interface operations {
       query?: {
         /** @description Operator workspace reference; agent callers use trusted session scope */
         workspace?: string;
+        /** @description Act as this profile by name */
+        profile?: string;
       };
       header?: never;
       path: {
@@ -37009,6 +37528,18 @@ export interface operations {
               capabilities?: string[];
               consecutive_failures: number;
               daemon_running: boolean;
+              declared_profiles?: {
+                created_by_extension: boolean;
+                credential_requirements?: {
+                  missing: boolean;
+                  provider: string;
+                  slot: string;
+                  source_extension: string;
+                }[];
+                exists: boolean;
+                name: string;
+                needs_setup: boolean;
+              }[];
               dev?: boolean;
               diagnostics?: {
                 category: string;
@@ -37025,6 +37556,13 @@ export interface operations {
                 title: string;
               }[];
               digest_matched: boolean;
+              dormant_placements?: {
+                create_action?: string;
+                dormant: boolean;
+                kind: string;
+                profile?: string;
+                resource: string;
+              }[];
               enabled: boolean;
               failure_code?: string;
               format: string;
@@ -37084,6 +37622,14 @@ export interface operations {
               overrides_published?: boolean;
               permissions?: string[];
               pid?: number;
+              placements?: {
+                create_action?: string;
+                dormant: boolean;
+                kind: string;
+                profile?: string;
+                resource: string;
+              }[];
+              profile: string;
               provenance?: {
                 allow_unverified: boolean;
                 archive_digest_sha256?: string;
@@ -37294,6 +37840,10 @@ export interface operations {
       query?: {
         /** @description Operator workspace reference; omit for the global instance */
         workspace?: string;
+        /** @description Read one profile's rows by name */
+        profile?: string;
+        /** @description Read the owner-labeled all-profiles aggregate */
+        all_profiles?: boolean;
       };
       header?: never;
       path: {
@@ -37387,6 +37937,8 @@ export interface operations {
       query?: {
         /** @description Operator workspace reference; omit for the global instance */
         workspace?: string;
+        /** @description Act as this profile by name */
+        profile?: string;
       };
       header?: never;
       path: {
@@ -37523,6 +38075,8 @@ export interface operations {
       query?: {
         /** @description Operator workspace reference; omit for the global instance */
         workspace?: string;
+        /** @description Act as this profile by name */
+        profile?: string;
       };
       header?: never;
       path: {
@@ -40157,6 +40711,10 @@ export interface operations {
         since?: string;
         /** @description Maximum number of records to return */
         limit?: number;
+        /** @description Read one profile's rows by name */
+        profile?: string;
+        /** @description Read the owner-labeled all-profiles aggregate */
+        all_profiles?: boolean;
       };
       header?: never;
       path?: never;
@@ -40186,6 +40744,12 @@ export interface operations {
               lease_until?: string | null;
               outcome?: string;
               parent_session_id?: string;
+              profile_archived: boolean;
+              profile_color: string;
+              profile_emoji?: string;
+              profile_icon?: string;
+              profile_id: string;
+              profile_name: string;
               provider?: string;
               release_reason?: string;
               root_session_id?: string;
@@ -40300,6 +40864,10 @@ export interface operations {
         limit?: number;
         /** @description Replay bounded retained logs before live polling */
         replay?: boolean;
+        /** @description Read one profile's rows by name */
+        profile?: string;
+        /** @description Read the owner-labeled all-profiles aggregate */
+        all_profiles?: boolean;
       };
       header?: never;
       path?: never;
@@ -40328,6 +40896,12 @@ export interface operations {
             lease_until?: string | null;
             outcome?: string;
             parent_session_id?: string;
+            profile_archived: boolean;
+            profile_color: string;
+            profile_emoji?: string;
+            profile_icon?: string;
+            profile_id: string;
+            profile_name: string;
             provider?: string;
             release_reason?: string;
             root_session_id?: string;
@@ -40561,7 +41135,9 @@ export interface operations {
         /** @description Maximum results per kind from 1 to 100 */
         limit?: number;
         /** @description Installed-state projection scope */
-        scope?: "global" | "workspace";
+        scope?: "global" | "profile" | "workspace";
+        /** @description Required for profile installed-state projection */
+        profile?: string;
         /** @description Required for workspace installed-state projection */
         workspace_id?: string;
       };
@@ -40734,7 +41310,9 @@ export interface operations {
         /** @description Opaque next_cursor from the previous page */
         cursor?: string;
         /** @description Installed-state projection scope */
-        scope?: "global" | "workspace";
+        scope?: "global" | "profile" | "workspace";
+        /** @description Required for profile installed-state projection */
+        profile?: string;
         /** @description Required for workspace installed-state projection */
         workspace_id?: string;
       };
@@ -40932,7 +41510,9 @@ export interface operations {
         /** @description Exact installed MCP, extension, or skill identity */
         installed_name?: string;
         /** @description Installed-state projection scope */
-        scope?: "global" | "workspace";
+        scope?: "global" | "profile" | "workspace";
+        /** @description Required for profile installed-state projection */
+        profile?: string;
         /** @description Required for workspace installed-state projection */
         workspace_id?: string;
       };
@@ -41240,7 +41820,7 @@ export interface operations {
     parameters: {
       query?: {
         /** @description Memory scope */
-        scope?: "global" | "workspace" | "agent";
+        scope?: "profile" | "workspace" | "agent";
         /** @description Durable workspace id */
         workspace_id?: string;
         /** @description Agent name for agent-scoped memory */
@@ -41257,6 +41837,8 @@ export interface operations {
         limit?: number;
         /** @description Include system-managed memory entries */
         include_system?: boolean;
+        /** @description Act as this profile by name */
+        profile?: string;
       };
       header?: never;
       path?: never;
@@ -41288,7 +41870,7 @@ export interface operations {
               name: string;
               recall_count: number;
               /** @enum {string} */
-              scope: "global" | "workspace" | "agent";
+              scope: "profile" | "workspace" | "agent";
               staleness_banner?: string;
               superseded_by?: string;
               system_managed: boolean;
@@ -41356,7 +41938,10 @@ export interface operations {
   };
   writeMemory: {
     parameters: {
-      query?: never;
+      query?: {
+        /** @description Act as this profile by name */
+        profile?: string;
+      };
       header?: never;
       path?: never;
       cookie?: never;
@@ -41381,7 +41966,7 @@ export interface operations {
           /** @enum {string} */
           origin?: "cli" | "http" | "uds" | "tool" | "extractor" | "dreaming" | "file" | "provider";
           /** @enum {string} */
-          scope: "global" | "workspace" | "agent";
+          scope: "profile" | "workspace" | "agent";
           /** @enum {string} */
           type: "user" | "feedback" | "project" | "reference";
           workspace_id?: string;
@@ -41437,7 +42022,7 @@ export interface operations {
                   updated_at: string;
                 } | null;
                 /** @enum {string} */
-                scope?: "global" | "workspace" | "agent";
+                scope?: "profile" | "workspace" | "agent";
                 /** @enum {string} */
                 type: "user" | "feedback" | "project" | "reference";
                 workspace_id?: string;
@@ -41464,7 +42049,7 @@ export interface operations {
                 target?: string;
               }[];
               /** @enum {string} */
-              scope: "global" | "workspace" | "agent";
+              scope: "profile" | "workspace" | "agent";
               /** @enum {string} */
               source: "rule" | "llm";
               target_filename?: string;
@@ -41539,7 +42124,10 @@ export interface operations {
   };
   createMemoryAdhocNote: {
     parameters: {
-      query?: never;
+      query?: {
+        /** @description Act as this profile by name */
+        profile?: string;
+      };
       header?: never;
       path?: never;
       cookie?: never;
@@ -41553,7 +42141,7 @@ export interface operations {
           agent_tier?: "workspace" | "global";
           content: string;
           /** @enum {string} */
-          scope: "global" | "workspace" | "agent";
+          scope: "profile" | "workspace" | "agent";
           slug?: string;
           workspace_id?: string;
         };
@@ -41623,7 +42211,10 @@ export interface operations {
   };
   getMemoryConfigMetadata: {
     parameters: {
-      query?: never;
+      query?: {
+        /** @description Act as this profile by name */
+        profile?: string;
+      };
       header?: never;
       path?: never;
       cookie?: never;
@@ -41796,7 +42387,7 @@ export interface operations {
     parameters: {
       query?: {
         /** @description Memory scope */
-        scope?: "global" | "workspace" | "agent";
+        scope?: "profile" | "workspace" | "agent";
         /** @description Durable workspace id */
         workspace_id?: string;
         /** @description Agent name for agent-scoped memory */
@@ -41807,6 +42398,8 @@ export interface operations {
         date?: string;
         /** @description Maximum number of daily logs to return */
         limit?: number;
+        /** @description Act as this profile by name */
+        profile?: string;
       };
       header?: never;
       path?: never;
@@ -41829,7 +42422,7 @@ export interface operations {
               operation_count: number;
               path: string;
               /** @enum {string} */
-              scope: "global" | "workspace" | "agent";
+              scope: "profile" | "workspace" | "agent";
               workspace_id?: string;
             }[];
           };
@@ -41871,7 +42464,7 @@ export interface operations {
     parameters: {
       query?: {
         /** @description Memory scope */
-        scope?: "global" | "workspace" | "agent";
+        scope?: "profile" | "workspace" | "agent";
         /** @description Durable workspace id */
         workspace_id?: string;
         /** @description Agent name for agent-scoped memory */
@@ -41886,6 +42479,8 @@ export interface operations {
         since?: string;
         /** @description Maximum number of decisions to return */
         limit?: number;
+        /** @description Act as this profile by name */
+        profile?: string;
       };
       header?: never;
       path?: never;
@@ -41940,7 +42535,7 @@ export interface operations {
                   updated_at: string;
                 } | null;
                 /** @enum {string} */
-                scope?: "global" | "workspace" | "agent";
+                scope?: "profile" | "workspace" | "agent";
                 /** @enum {string} */
                 type: "user" | "feedback" | "project" | "reference";
                 workspace_id?: string;
@@ -41967,7 +42562,7 @@ export interface operations {
                 target?: string;
               }[];
               /** @enum {string} */
-              scope: "global" | "workspace" | "agent";
+              scope: "profile" | "workspace" | "agent";
               /** @enum {string} */
               source: "rule" | "llm";
               target_filename?: string;
@@ -42011,7 +42606,10 @@ export interface operations {
   };
   getMemoryDecision: {
     parameters: {
-      query?: never;
+      query?: {
+        /** @description Act as this profile by name */
+        profile?: string;
+      };
       header?: never;
       path: {
         /** @description Controller decision id */
@@ -42068,7 +42666,7 @@ export interface operations {
                   updated_at: string;
                 } | null;
                 /** @enum {string} */
-                scope?: "global" | "workspace" | "agent";
+                scope?: "profile" | "workspace" | "agent";
                 /** @enum {string} */
                 type: "user" | "feedback" | "project" | "reference";
                 workspace_id?: string;
@@ -42095,7 +42693,7 @@ export interface operations {
                 target?: string;
               }[];
               /** @enum {string} */
-              scope: "global" | "workspace" | "agent";
+              scope: "profile" | "workspace" | "agent";
               /** @enum {string} */
               source: "rule" | "llm";
               target_filename?: string;
@@ -42139,7 +42737,10 @@ export interface operations {
   };
   revertMemoryDecision: {
     parameters: {
-      query?: never;
+      query?: {
+        /** @description Act as this profile by name */
+        profile?: string;
+      };
       header?: never;
       path: {
         /** @description Controller decision id */
@@ -42204,7 +42805,7 @@ export interface operations {
                   updated_at: string;
                 } | null;
                 /** @enum {string} */
-                scope?: "global" | "workspace" | "agent";
+                scope?: "profile" | "workspace" | "agent";
                 /** @enum {string} */
                 type: "user" | "feedback" | "project" | "reference";
                 workspace_id?: string;
@@ -42231,7 +42832,7 @@ export interface operations {
                 target?: string;
               }[];
               /** @enum {string} */
-              scope: "global" | "workspace" | "agent";
+              scope: "profile" | "workspace" | "agent";
               /** @enum {string} */
               source: "rule" | "llm";
               target_filename?: string;
@@ -42309,7 +42910,7 @@ export interface operations {
     parameters: {
       query?: {
         /** @description Memory scope */
-        scope?: "global" | "workspace" | "agent";
+        scope?: "profile" | "workspace" | "agent";
         /** @description Durable workspace id */
         workspace_id?: string;
         /** @description Agent name for agent-scoped memory */
@@ -42320,6 +42921,8 @@ export interface operations {
         status?: string;
         /** @description Maximum number of dreaming runs to return */
         limit?: number;
+        /** @description Act as this profile by name */
+        profile?: string;
       };
       header?: never;
       path?: never;
@@ -42349,7 +42952,7 @@ export interface operations {
               lock_until?: string | null;
               promoted_count: number;
               /** @enum {string} */
-              scope: "global" | "workspace" | "agent";
+              scope: "profile" | "workspace" | "agent";
               /** Format: date-time */
               started_at: string;
               /** @enum {string} */
@@ -42393,7 +42996,10 @@ export interface operations {
   };
   getMemoryDreamStatus: {
     parameters: {
-      query?: never;
+      query?: {
+        /** @description Act as this profile by name */
+        profile?: string;
+      };
       header?: never;
       path?: never;
       cookie?: never;
@@ -42422,7 +43028,7 @@ export interface operations {
               lock_until?: string | null;
               promoted_count: number;
               /** @enum {string} */
-              scope: "global" | "workspace" | "agent";
+              scope: "profile" | "workspace" | "agent";
               /** Format: date-time */
               started_at: string;
               /** @enum {string} */
@@ -42451,7 +43057,10 @@ export interface operations {
   };
   triggerMemoryDream: {
     parameters: {
-      query?: never;
+      query?: {
+        /** @description Act as this profile by name */
+        profile?: string;
+      };
       header?: never;
       path?: never;
       cookie?: never;
@@ -42465,7 +43074,7 @@ export interface operations {
           agent_tier?: "workspace" | "global";
           force?: boolean;
           /** @enum {string} */
-          scope?: "global" | "workspace" | "agent";
+          scope?: "profile" | "workspace" | "agent";
           workspace_id?: string;
         };
       };
@@ -42493,7 +43102,7 @@ export interface operations {
               lock_until?: string | null;
               promoted_count: number;
               /** @enum {string} */
-              scope: "global" | "workspace" | "agent";
+              scope: "profile" | "workspace" | "agent";
               /** Format: date-time */
               started_at: string;
               /** @enum {string} */
@@ -42554,7 +43163,10 @@ export interface operations {
   };
   getMemoryDream: {
     parameters: {
-      query?: never;
+      query?: {
+        /** @description Act as this profile by name */
+        profile?: string;
+      };
       header?: never;
       path: {
         /** @description Dreaming run id */
@@ -42586,7 +43198,7 @@ export interface operations {
               lock_until?: string | null;
               promoted_count: number;
               /** @enum {string} */
-              scope: "global" | "workspace" | "agent";
+              scope: "profile" | "workspace" | "agent";
               /** Format: date-time */
               started_at: string;
               /** @enum {string} */
@@ -42630,7 +43242,10 @@ export interface operations {
   };
   retryMemoryDream: {
     parameters: {
-      query?: never;
+      query?: {
+        /** @description Act as this profile by name */
+        profile?: string;
+      };
       header?: never;
       path: {
         /** @description Dreaming run id */
@@ -42670,7 +43285,7 @@ export interface operations {
               lock_until?: string | null;
               promoted_count: number;
               /** @enum {string} */
-              scope: "global" | "workspace" | "agent";
+              scope: "profile" | "workspace" | "agent";
               /** Format: date-time */
               started_at: string;
               /** @enum {string} */
@@ -42730,7 +43345,10 @@ export interface operations {
   };
   drainMemoryExtractor: {
     parameters: {
-      query?: never;
+      query?: {
+        /** @description Act as this profile by name */
+        profile?: string;
+      };
       header?: never;
       path?: never;
       cookie?: never;
@@ -42774,6 +43392,8 @@ export interface operations {
         session_id?: string;
         /** @description Maximum number of failures to return */
         limit?: number;
+        /** @description Act as this profile by name */
+        profile?: string;
       };
       header?: never;
       path?: never;
@@ -42835,7 +43455,10 @@ export interface operations {
   };
   retryMemoryExtractor: {
     parameters: {
-      query?: never;
+      query?: {
+        /** @description Act as this profile by name */
+        profile?: string;
+      };
       header?: never;
       path?: never;
       cookie?: never;
@@ -42896,7 +43519,10 @@ export interface operations {
   };
   getMemoryExtractorStatus: {
     parameters: {
-      query?: never;
+      query?: {
+        /** @description Act as this profile by name */
+        profile?: string;
+      };
       header?: never;
       path?: never;
       cookie?: never;
@@ -42946,13 +43572,15 @@ export interface operations {
     parameters: {
       query?: {
         /** @description Memory scope */
-        scope?: "global" | "workspace" | "agent";
+        scope?: "profile" | "workspace" | "agent";
         /** @description Durable workspace id */
         workspace_id?: string;
         /** @description Agent name for agent-scoped memory */
         agent_name?: string;
         /** @description Agent memory tier */
         agent_tier?: "workspace" | "global";
+        /** @description Act as this profile by name */
+        profile?: string;
       };
       header?: never;
       path?: never;
@@ -43029,7 +43657,7 @@ export interface operations {
     parameters: {
       query?: {
         /** @description Memory scope */
-        scope?: "global" | "workspace" | "agent";
+        scope?: "profile" | "workspace" | "agent";
         /** @description Durable workspace id */
         workspace_id?: string;
         /** @description Agent name for agent-scoped memory */
@@ -43042,6 +43670,8 @@ export interface operations {
         since?: string;
         /** @description Maximum number of operations to return */
         limit?: number;
+        /** @description Act as this profile by name */
+        profile?: string;
       };
       header?: never;
       path?: never;
@@ -43065,7 +43695,7 @@ export interface operations {
               /** @enum {string} */
               operation: "memory.write" | "memory.delete" | "memory.search" | "memory.reindex";
               /** @enum {string} */
-              scope?: "global" | "workspace" | "agent";
+              scope?: "profile" | "workspace" | "agent";
               summary?: string;
               /** Format: date-time */
               timestamp: string;
@@ -43108,7 +43738,10 @@ export interface operations {
   };
   promoteMemory: {
     parameters: {
-      query?: never;
+      query?: {
+        /** @description Act as this profile by name */
+        profile?: string;
+      };
       header?: never;
       path?: never;
       cookie?: never;
@@ -43124,7 +43757,7 @@ export interface operations {
             /** @enum {string} */
             agent_tier?: "workspace" | "global";
             /** @enum {string} */
-            scope: "global" | "workspace" | "agent";
+            scope: "profile" | "workspace" | "agent";
             workspace_id?: string;
           };
           idempotency_key?: string;
@@ -43133,7 +43766,7 @@ export interface operations {
             /** @enum {string} */
             agent_tier?: "workspace" | "global";
             /** @enum {string} */
-            scope: "global" | "workspace" | "agent";
+            scope: "profile" | "workspace" | "agent";
             workspace_id?: string;
           };
         };
@@ -43188,7 +43821,7 @@ export interface operations {
                   updated_at: string;
                 } | null;
                 /** @enum {string} */
-                scope?: "global" | "workspace" | "agent";
+                scope?: "profile" | "workspace" | "agent";
                 /** @enum {string} */
                 type: "user" | "feedback" | "project" | "reference";
                 workspace_id?: string;
@@ -43215,7 +43848,7 @@ export interface operations {
                 target?: string;
               }[];
               /** @enum {string} */
-              scope: "global" | "workspace" | "agent";
+              scope: "profile" | "workspace" | "agent";
               /** @enum {string} */
               source: "rule" | "llm";
               target_filename?: string;
@@ -43290,7 +43923,10 @@ export interface operations {
   };
   listMemoryProviders: {
     parameters: {
-      query?: never;
+      query?: {
+        /** @description Act as this profile by name */
+        profile?: string;
+      };
       header?: never;
       path?: never;
       cookie?: never;
@@ -43338,7 +43974,10 @@ export interface operations {
   };
   selectMemoryProvider: {
     parameters: {
-      query?: never;
+      query?: {
+        /** @description Act as this profile by name */
+        profile?: string;
+      };
       header?: never;
       path?: never;
       cookie?: never;
@@ -43438,7 +44077,10 @@ export interface operations {
   };
   getMemoryProvider: {
     parameters: {
-      query?: never;
+      query?: {
+        /** @description Act as this profile by name */
+        profile?: string;
+      };
       header?: never;
       path: {
         /** @description Memory provider name */
@@ -43504,7 +44146,10 @@ export interface operations {
   };
   disableMemoryProvider: {
     parameters: {
-      query?: never;
+      query?: {
+        /** @description Act as this profile by name */
+        profile?: string;
+      };
       header?: never;
       path: {
         /** @description Memory provider name */
@@ -43593,7 +44238,10 @@ export interface operations {
   };
   enableMemoryProvider: {
     parameters: {
-      query?: never;
+      query?: {
+        /** @description Act as this profile by name */
+        profile?: string;
+      };
       header?: never;
       path: {
         /** @description Memory provider name */
@@ -43697,7 +44345,10 @@ export interface operations {
   };
   getMemoryRecallTrace: {
     parameters: {
-      query?: never;
+      query?: {
+        /** @description Act as this profile by name */
+        profile?: string;
+      };
       header?: never;
       path: {
         /** @description Session id */
@@ -43752,7 +44403,7 @@ export interface operations {
                     workspace_id?: string;
                   }[];
                   /** @enum {string} */
-                  scope: "global" | "workspace" | "agent";
+                  scope: "profile" | "workspace" | "agent";
                 }[];
                 header: {
                   content_hash: string;
@@ -43801,7 +44452,10 @@ export interface operations {
   };
   reindexMemory: {
     parameters: {
-      query?: never;
+      query?: {
+        /** @description Act as this profile by name */
+        profile?: string;
+      };
       header?: never;
       path?: never;
       cookie?: never;
@@ -43815,7 +44469,7 @@ export interface operations {
           agent_tier?: "workspace" | "global";
           include_system?: boolean;
           /** @enum {string} */
-          scope?: "global" | "workspace" | "agent";
+          scope?: "profile" | "workspace" | "agent";
           workspace_id?: string;
         };
       };
@@ -43835,7 +44489,7 @@ export interface operations {
             completed_at: string;
             indexed_files: number;
             /** @enum {string} */
-            scope?: "global" | "workspace" | "agent";
+            scope?: "profile" | "workspace" | "agent";
             workspace_id?: string;
           };
         };
@@ -43874,7 +44528,10 @@ export interface operations {
   };
   reloadMemory: {
     parameters: {
-      query?: never;
+      query?: {
+        /** @description Act as this profile by name */
+        profile?: string;
+      };
       header?: never;
       path?: never;
       cookie?: never;
@@ -43914,7 +44571,10 @@ export interface operations {
   };
   resetMemory: {
     parameters: {
-      query?: never;
+      query?: {
+        /** @description Act as this profile by name */
+        profile?: string;
+      };
       header?: never;
       path?: never;
       cookie?: never;
@@ -43929,7 +44589,7 @@ export interface operations {
           confirm: boolean;
           derived_only: boolean;
           /** @enum {string} */
-          scope?: "global" | "workspace" | "agent";
+          scope?: "profile" | "workspace" | "agent";
           workspace_id?: string;
         };
       };
@@ -44016,13 +44676,15 @@ export interface operations {
     parameters: {
       query?: {
         /** @description Memory scope */
-        scope?: "global" | "workspace" | "agent";
+        scope?: "profile" | "workspace" | "agent";
         /** @description Durable workspace id */
         workspace_id?: string;
         /** @description Agent name for agent-scoped memory */
         agent_name?: string;
         /** @description Agent memory tier */
         agent_tier?: "workspace" | "global";
+        /** @description Act as this profile by name */
+        profile?: string;
       };
       header?: never;
       path?: never;
@@ -44042,7 +44704,7 @@ export interface operations {
               /** @enum {string} */
               agent_tier?: "workspace" | "global";
               /** @enum {string} */
-              scope: "global" | "workspace" | "agent";
+              scope: "profile" | "workspace" | "agent";
               workspace_id?: string;
             }[];
             roots: {
@@ -44053,7 +44715,7 @@ export interface operations {
               /** @enum {string} */
               agent_tier?: "workspace" | "global";
               /** @enum {string} */
-              scope: "global" | "workspace" | "agent";
+              scope: "profile" | "workspace" | "agent";
               workspace_id?: string;
             };
           };
@@ -44108,7 +44770,10 @@ export interface operations {
   };
   searchMemory: {
     parameters: {
-      query?: never;
+      query?: {
+        /** @description Act as this profile by name */
+        profile?: string;
+      };
       header?: never;
       path?: never;
       cookie?: never;
@@ -44128,7 +44793,7 @@ export interface operations {
           query_text: string;
           raw_candidates?: number;
           /** @enum {string} */
-          scope?: "global" | "workspace" | "agent";
+          scope?: "profile" | "workspace" | "agent";
           top_k?: number;
           workspace_id?: string;
         };
@@ -44161,7 +44826,7 @@ export interface operations {
                   workspace_id?: string;
                 }[];
                 /** @enum {string} */
-                scope: "global" | "workspace" | "agent";
+                scope: "profile" | "workspace" | "agent";
               }[];
               header: {
                 content_hash: string;
@@ -44187,7 +44852,7 @@ export interface operations {
                 name: string;
                 recall_count: number;
                 /** @enum {string} */
-                scope: "global" | "workspace" | "agent";
+                scope: "profile" | "workspace" | "agent";
                 staleness_banner?: string;
                 superseded_by?: string;
                 system_managed: boolean;
@@ -44240,7 +44905,10 @@ export interface operations {
   };
   pruneMemorySessions: {
     parameters: {
-      query?: never;
+      query?: {
+        /** @description Act as this profile by name */
+        profile?: string;
+      };
       header?: never;
       path?: never;
       cookie?: never;
@@ -44302,7 +44970,10 @@ export interface operations {
   };
   repairMemorySessions: {
     parameters: {
-      query?: never;
+      query?: {
+        /** @description Act as this profile by name */
+        profile?: string;
+      };
       header?: never;
       path?: never;
       cookie?: never;
@@ -44344,13 +45015,15 @@ export interface operations {
     parameters: {
       query?: {
         /** @description Memory scope */
-        scope?: "global" | "workspace" | "agent";
+        scope?: "profile" | "workspace" | "agent";
         /** @description Durable workspace id */
         workspace_id?: string;
         /** @description Agent name for agent-scoped memory */
         agent_name?: string;
         /** @description Agent memory tier */
         agent_tier?: "workspace" | "global";
+        /** @description Act as this profile by name */
+        profile?: string;
       };
       header?: never;
       path: {
@@ -44387,7 +45060,7 @@ export interface operations {
                 name: string;
                 recall_count: number;
                 /** @enum {string} */
-                scope: "global" | "workspace" | "agent";
+                scope: "profile" | "workspace" | "agent";
                 staleness_banner?: string;
                 superseded_by?: string;
                 system_managed: boolean;
@@ -44452,13 +45125,15 @@ export interface operations {
     parameters: {
       query?: {
         /** @description Memory scope */
-        scope?: "global" | "workspace" | "agent";
+        scope?: "profile" | "workspace" | "agent";
         /** @description Durable workspace id */
         workspace_id?: string;
         /** @description Agent name for agent-scoped memory */
         agent_name?: string;
         /** @description Agent memory tier */
         agent_tier?: "workspace" | "global";
+        /** @description Act as this profile by name */
+        profile?: string;
       };
       header?: never;
       path: {
@@ -44517,7 +45192,7 @@ export interface operations {
                   updated_at: string;
                 } | null;
                 /** @enum {string} */
-                scope?: "global" | "workspace" | "agent";
+                scope?: "profile" | "workspace" | "agent";
                 /** @enum {string} */
                 type: "user" | "feedback" | "project" | "reference";
                 workspace_id?: string;
@@ -44544,7 +45219,7 @@ export interface operations {
                 target?: string;
               }[];
               /** @enum {string} */
-              scope: "global" | "workspace" | "agent";
+              scope: "profile" | "workspace" | "agent";
               /** @enum {string} */
               source: "rule" | "llm";
               target_filename?: string;
@@ -44618,7 +45293,10 @@ export interface operations {
   };
   editMemory: {
     parameters: {
-      query?: never;
+      query?: {
+        /** @description Act as this profile by name */
+        profile?: string;
+      };
       header?: never;
       path: {
         /** @description Memory filename */
@@ -44642,7 +45320,7 @@ export interface operations {
           };
           name?: string;
           /** @enum {string} */
-          scope?: "global" | "workspace" | "agent";
+          scope?: "profile" | "workspace" | "agent";
           /** @enum {string} */
           type?: "user" | "feedback" | "project" | "reference";
           workspace_id?: string;
@@ -44698,7 +45376,7 @@ export interface operations {
                   updated_at: string;
                 } | null;
                 /** @enum {string} */
-                scope?: "global" | "workspace" | "agent";
+                scope?: "profile" | "workspace" | "agent";
                 /** @enum {string} */
                 type: "user" | "feedback" | "project" | "reference";
                 workspace_id?: string;
@@ -44725,7 +45403,7 @@ export interface operations {
                 target?: string;
               }[];
               /** @enum {string} */
-              scope: "global" | "workspace" | "agent";
+              scope: "profile" | "workspace" | "agent";
               /** @enum {string} */
               source: "rule" | "llm";
               target_filename?: string;
@@ -45457,13 +46135,15 @@ export interface operations {
                 };
                 subsystem: string;
               }[];
+              profile?: string;
               restart_required?: boolean;
               restart_scope?: string;
               /** @enum {string} */
-              scope?: "global" | "workspace" | "agent";
+              scope?: "user" | "profile" | "workspace" | "agent";
               /** @enum {string} */
               section?:
                 | "general"
+                | "persona"
                 | "memory"
                 | "roles"
                 | "skills"
@@ -45486,8 +46166,10 @@ export interface operations {
               /** @enum {string} */
               write_target?:
                 | "global-config"
+                | "profile-config"
                 | "workspace-config"
                 | "global-mcp-sidecar"
+                | "profile-mcp-sidecar"
                 | "workspace-mcp-sidecar"
                 | "global-agent-file"
                 | "workspace-agent-file";
@@ -46232,6 +46914,8 @@ export interface operations {
   listNotificationPresets: {
     parameters: {
       query?: {
+        /** @description Profile whose effective enablement state is returned */
+        profile?: string;
         /** @description Filter by enabled state */
         enabled?: boolean;
         /** @description Filter by built-in state */
@@ -46267,6 +46951,7 @@ export interface operations {
               events: string[];
               filter?: string;
               name: string;
+              profile: string;
               targets: {
                 bridge_id: string;
                 canonical_route?: string;
@@ -46372,7 +47057,10 @@ export interface operations {
   };
   createNotificationPreset: {
     parameters: {
-      query?: never;
+      query?: {
+        /** @description Profile whose effective state is returned */
+        profile?: string;
+      };
       header?: never;
       path?: never;
       cookie?: never;
@@ -46381,7 +47069,6 @@ export interface operations {
     requestBody: {
       content: {
         "application/json": {
-          enabled: boolean;
           events: string[];
           filter?: string;
           name: string;
@@ -46413,6 +47100,7 @@ export interface operations {
               events: string[];
               filter?: string;
               name: string;
+              profile: string;
               targets: {
                 bridge_id: string;
                 canonical_route?: string;
@@ -46546,7 +47234,10 @@ export interface operations {
   };
   getNotificationPreset: {
     parameters: {
-      query?: never;
+      query?: {
+        /** @description Profile whose effective state is returned */
+        profile?: string;
+      };
       header?: never;
       path: {
         /** @description Notification preset name */
@@ -46574,6 +47265,7 @@ export interface operations {
               events: string[];
               filter?: string;
               name: string;
+              profile: string;
               targets: {
                 bridge_id: string;
                 canonical_route?: string;
@@ -46678,7 +47370,10 @@ export interface operations {
   };
   updateNotificationPreset: {
     parameters: {
-      query?: never;
+      query?: {
+        /** @description Profile whose effective state is returned */
+        profile?: string;
+      };
       header?: never;
       path: {
         /** @description Notification preset name */
@@ -46690,7 +47385,6 @@ export interface operations {
     requestBody: {
       content: {
         "application/json": {
-          enabled?: boolean | null;
           events?: string[] | null;
           filter?: string | null;
           targets?:
@@ -46723,6 +47417,7 @@ export interface operations {
               events: string[];
               filter?: string;
               name: string;
+              profile: string;
               targets: {
                 bridge_id: string;
                 canonical_route?: string;
@@ -47020,6 +47715,157 @@ export interface operations {
       };
     };
   };
+  setNotificationPresetEnablement: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        /** @description Notification preset name */
+        name: string;
+      };
+      cookie?: never;
+    };
+    /** @description JSON request body */
+    requestBody: {
+      content: {
+        "application/json": {
+          enabled: boolean;
+          profile: string;
+        };
+      };
+    };
+    responses: {
+      /** @description OK */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            enabled: boolean;
+            name: string;
+            profile: string;
+          };
+        };
+      };
+      /** @description Invalid profile or enablement state */
+      400: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+      /** @description Notification preset not found */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+      /** @description Internal server error */
+      500: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+      /** @description Notification preset service is not configured */
+      503: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+    };
+  };
   getObserveOverview: {
     parameters: {
       query?: {
@@ -47027,6 +47873,10 @@ export interface operations {
         workspace?: string;
         /** @description Usage window in days (default 30) */
         usage_window?: "7" | "30" | "90";
+        /** @description Read one profile's rows by name */
+        profile?: string;
+        /** @description Read the owner-labeled all-profiles aggregate */
+        all_profiles?: boolean;
       };
       header?: never;
       path?: never;
@@ -47139,6 +47989,16 @@ export interface operations {
                 }[];
                 /** Format: double */
                 estimated_cost?: number | null;
+                profiles: {
+                  profile_archived: boolean;
+                  profile_color: string;
+                  profile_emoji?: string;
+                  profile_icon?: string;
+                  profile_id: string;
+                  profile_name: string;
+                  /** Format: int64 */
+                  tokens: number;
+                }[];
                 retention_days: number;
                 /** Format: int64 */
                 total_tokens: number;
@@ -47299,6 +48159,10 @@ export interface operations {
           | "network"
           | "agent_session"
           | "daemon";
+        /** @description Read one profile's rows by name */
+        profile?: string;
+        /** @description Read the owner-labeled all-profiles aggregate */
+        all_profiles?: boolean;
       };
       header?: never;
       path?: never;
@@ -47701,6 +48565,10 @@ export interface operations {
         cursor?: string;
         /** @description Page size from 1 to 200 (default 50) */
         limit?: number;
+        /** @description Read one profile's rows by name */
+        profile?: string;
+        /** @description Read the owner-labeled all-profiles aggregate */
+        all_profiles?: boolean;
       };
       header?: never;
       path?: never;
@@ -48445,6 +49313,1601 @@ export interface operations {
       };
     };
   };
+  listProfiles: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description OK */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            /** Format: date-time */
+            archived_at?: string | null;
+            color: string;
+            /** Format: date-time */
+            created_at: string;
+            credential_requirements?: {
+              missing: boolean;
+              provider: string;
+              slot: string;
+              source_extension: string;
+            }[];
+            emoji: string | null;
+            icon: string | null;
+            id: string;
+            name: string;
+            needs_setup?: boolean;
+            state: string;
+            work_items?: number;
+          }[];
+        };
+      };
+      /** @description Invalid profile request */
+      400: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: {
+              action: string;
+              code: string;
+              message: string;
+            };
+          };
+        };
+      };
+      /** @description Profile not found */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: {
+              action: string;
+              code: string;
+              message: string;
+            };
+          };
+        };
+      };
+      /** @description Profile conflict */
+      409: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: {
+              action: string;
+              code: string;
+              message: string;
+            };
+          };
+        };
+      };
+      /** @description Internal server error */
+      500: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: {
+              action: string;
+              code: string;
+              message: string;
+            };
+          };
+        };
+      };
+    };
+  };
+  createProfile: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** @description JSON request body */
+    requestBody: {
+      content: {
+        "application/json": {
+          activate?: {
+            profile: string;
+            scope: string;
+            workspace_id?: string;
+          } | null;
+          color?: string;
+          emoji?: string;
+          icon?: string;
+          name: string;
+        };
+      };
+    };
+    responses: {
+      /** @description OK */
+      201: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            /** Format: date-time */
+            archived_at?: string | null;
+            color: string;
+            /** Format: date-time */
+            created_at: string;
+            credential_requirements?: {
+              missing: boolean;
+              provider: string;
+              slot: string;
+              source_extension: string;
+            }[];
+            emoji: string | null;
+            icon: string | null;
+            id: string;
+            name: string;
+            needs_setup?: boolean;
+            state: string;
+            work_items?: number;
+          };
+        };
+      };
+      /** @description Invalid profile request */
+      400: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: {
+              action: string;
+              code: string;
+              message: string;
+            };
+          };
+        };
+      };
+      /** @description Remote profile management is forbidden */
+      403: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: {
+              action: string;
+              code: string;
+              message: string;
+            };
+          };
+        };
+      };
+      /** @description Profile not found */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: {
+              action: string;
+              code: string;
+              message: string;
+            };
+          };
+        };
+      };
+      /** @description Profile conflict */
+      409: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: {
+              action: string;
+              code: string;
+              message: string;
+            };
+          };
+        };
+      };
+      /** @description Internal server error */
+      500: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: {
+              action: string;
+              code: string;
+              message: string;
+            };
+          };
+        };
+      };
+    };
+  };
+  listProfileOperations: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description OK */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error?: string;
+            id: string;
+            kind: string;
+            profile: string;
+            status: string;
+            step: string;
+          }[];
+        };
+      };
+      /** @description Invalid profile request */
+      400: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: {
+              action: string;
+              code: string;
+              message: string;
+            };
+          };
+        };
+      };
+      /** @description Profile not found */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: {
+              action: string;
+              code: string;
+              message: string;
+            };
+          };
+        };
+      };
+      /** @description Profile conflict */
+      409: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: {
+              action: string;
+              code: string;
+              message: string;
+            };
+          };
+        };
+      };
+      /** @description Internal server error */
+      500: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: {
+              action: string;
+              code: string;
+              message: string;
+            };
+          };
+        };
+      };
+    };
+  };
+  retryProfileOperation: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        /** @description Lifecycle operation id */
+        op_id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description OK */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error?: string;
+            id: string;
+            kind: string;
+            profile: string;
+            status: string;
+            step: string;
+          };
+        };
+      };
+      /** @description Invalid profile request */
+      400: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: {
+              action: string;
+              code: string;
+              message: string;
+            };
+          };
+        };
+      };
+      /** @description Remote profile management is forbidden */
+      403: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: {
+              action: string;
+              code: string;
+              message: string;
+            };
+          };
+        };
+      };
+      /** @description Profile not found */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: {
+              action: string;
+              code: string;
+              message: string;
+            };
+          };
+        };
+      };
+      /** @description Profile conflict */
+      409: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: {
+              action: string;
+              code: string;
+              message: string;
+            };
+          };
+        };
+      };
+      /** @description Internal server error */
+      500: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: {
+              action: string;
+              code: string;
+              message: string;
+            };
+          };
+        };
+      };
+    };
+  };
+  getProfileSelections: {
+    parameters: {
+      query?: {
+        /** @description Selection scope */
+        scope?: "global" | "workspace";
+        /** @description Workspace selection lens */
+        workspace_id?: string;
+      };
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description OK */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json":
+            | {
+                profile: string;
+                scope: string;
+                workspace_id?: string;
+              }[]
+            | {
+                profile: string;
+                scope: string;
+                workspace_id?: string;
+              };
+        };
+      };
+      /** @description Invalid profile request */
+      400: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: {
+              action: string;
+              code: string;
+              message: string;
+            };
+          };
+        };
+      };
+      /** @description Profile not found */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: {
+              action: string;
+              code: string;
+              message: string;
+            };
+          };
+        };
+      };
+      /** @description Profile conflict */
+      409: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: {
+              action: string;
+              code: string;
+              message: string;
+            };
+          };
+        };
+      };
+      /** @description Internal server error */
+      500: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: {
+              action: string;
+              code: string;
+              message: string;
+            };
+          };
+        };
+      };
+    };
+  };
+  putProfileSelection: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** @description JSON request body */
+    requestBody: {
+      content: {
+        "application/json": {
+          profile: string;
+          scope: string;
+          workspace_id?: string;
+        };
+      };
+    };
+    responses: {
+      /** @description OK */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            profile: string;
+            scope: string;
+            workspace_id?: string;
+          };
+        };
+      };
+      /** @description Invalid profile request */
+      400: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: {
+              action: string;
+              code: string;
+              message: string;
+            };
+          };
+        };
+      };
+      /** @description Remote profile management is forbidden */
+      403: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: {
+              action: string;
+              code: string;
+              message: string;
+            };
+          };
+        };
+      };
+      /** @description Profile not found */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: {
+              action: string;
+              code: string;
+              message: string;
+            };
+          };
+        };
+      };
+      /** @description Profile conflict */
+      409: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: {
+              action: string;
+              code: string;
+              message: string;
+            };
+          };
+        };
+      };
+      /** @description Internal server error */
+      500: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: {
+              action: string;
+              code: string;
+              message: string;
+            };
+          };
+        };
+      };
+    };
+  };
+  getProfile: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        /** @description Profile name */
+        name: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description OK */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            /** Format: date-time */
+            archived_at?: string | null;
+            color: string;
+            /** Format: date-time */
+            created_at: string;
+            credential_requirements?: {
+              missing: boolean;
+              provider: string;
+              slot: string;
+              source_extension: string;
+            }[];
+            emoji: string | null;
+            icon: string | null;
+            id: string;
+            name: string;
+            needs_setup?: boolean;
+            state: string;
+            work_items?: number;
+          };
+        };
+      };
+      /** @description Invalid profile request */
+      400: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: {
+              action: string;
+              code: string;
+              message: string;
+            };
+          };
+        };
+      };
+      /** @description Profile not found */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: {
+              action: string;
+              code: string;
+              message: string;
+            };
+          };
+        };
+      };
+      /** @description Profile conflict */
+      409: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: {
+              action: string;
+              code: string;
+              message: string;
+            };
+          };
+        };
+      };
+      /** @description Internal server error */
+      500: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: {
+              action: string;
+              code: string;
+              message: string;
+            };
+          };
+        };
+      };
+    };
+  };
+  deleteProfile: {
+    parameters: {
+      query: {
+        /** @description Revision returned by the delete plan */
+        plan_revision: string;
+      };
+      header?: never;
+      path: {
+        /** @description Profile name */
+        name: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description OK */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            deleted: boolean;
+            removed: {
+              agents: number;
+              config_keys: number;
+              credential_overrides: number;
+              desktop_partitions: number;
+              event_summaries: number;
+              loops: number;
+              mcp_servers: number;
+              memory_entries: number;
+              palette_pins: number;
+              palette_query_hits: number;
+              palette_usage: number;
+              skills: number;
+              terminal_approvals: number;
+            };
+          };
+        };
+      };
+      /** @description Invalid profile request */
+      400: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: {
+              action: string;
+              code: string;
+              message: string;
+            };
+          };
+        };
+      };
+      /** @description Remote profile management is forbidden */
+      403: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: {
+              action: string;
+              code: string;
+              message: string;
+            };
+          };
+        };
+      };
+      /** @description Profile not found */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: {
+              action: string;
+              code: string;
+              message: string;
+            };
+          };
+        };
+      };
+      /** @description Profile conflict */
+      409: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: {
+              action: string;
+              code: string;
+              message: string;
+            };
+          };
+        };
+      };
+      /** @description Internal server error */
+      500: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: {
+              action: string;
+              code: string;
+              message: string;
+            };
+          };
+        };
+      };
+    };
+  };
+  updateProfile: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        /** @description Profile name */
+        name: string;
+      };
+      cookie?: never;
+    };
+    /** @description JSON request body */
+    requestBody: {
+      content: {
+        "application/json": {
+          color?: string | null;
+          emoji?: string | null;
+          icon?: string | null;
+        };
+      };
+    };
+    responses: {
+      /** @description OK */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            /** Format: date-time */
+            archived_at?: string | null;
+            color: string;
+            /** Format: date-time */
+            created_at: string;
+            credential_requirements?: {
+              missing: boolean;
+              provider: string;
+              slot: string;
+              source_extension: string;
+            }[];
+            emoji: string | null;
+            icon: string | null;
+            id: string;
+            name: string;
+            needs_setup?: boolean;
+            state: string;
+            work_items?: number;
+          };
+        };
+      };
+      /** @description Invalid profile request */
+      400: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: {
+              action: string;
+              code: string;
+              message: string;
+            };
+          };
+        };
+      };
+      /** @description Remote profile management is forbidden */
+      403: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: {
+              action: string;
+              code: string;
+              message: string;
+            };
+          };
+        };
+      };
+      /** @description Profile not found */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: {
+              action: string;
+              code: string;
+              message: string;
+            };
+          };
+        };
+      };
+      /** @description Profile conflict */
+      409: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: {
+              action: string;
+              code: string;
+              message: string;
+            };
+          };
+        };
+      };
+      /** @description Internal server error */
+      500: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: {
+              action: string;
+              code: string;
+              message: string;
+            };
+          };
+        };
+      };
+    };
+  };
+  archiveProfile: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        /** @description Profile name */
+        name: string;
+      };
+      cookie?: never;
+    };
+    /** @description JSON request body */
+    requestBody: {
+      content: {
+        "application/json": {
+          plan_revision: string;
+        };
+      };
+    };
+    responses: {
+      /** @description OK */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            frozen_queued_runs: number;
+            paused_automations: string[];
+            state: string;
+          };
+        };
+      };
+      /** @description Invalid profile request */
+      400: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: {
+              action: string;
+              code: string;
+              message: string;
+            };
+          };
+        };
+      };
+      /** @description Remote profile management is forbidden */
+      403: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: {
+              action: string;
+              code: string;
+              message: string;
+            };
+          };
+        };
+      };
+      /** @description Profile not found */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: {
+              action: string;
+              code: string;
+              message: string;
+            };
+          };
+        };
+      };
+      /** @description Profile conflict */
+      409: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: {
+              action: string;
+              code: string;
+              message: string;
+            };
+          };
+        };
+      };
+      /** @description Internal server error */
+      500: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: {
+              action: string;
+              code: string;
+              message: string;
+            };
+          };
+        };
+      };
+    };
+  };
+  prepareProfileArchive: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        /** @description Profile name */
+        name: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description OK */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            approval_blockers: string[];
+            automations_to_pause: string[];
+            leased_runs: number;
+            queued_runs_to_freeze: number;
+            revision: string;
+            running_sessions: string[];
+          };
+        };
+      };
+      /** @description Invalid profile request */
+      400: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: {
+              action: string;
+              code: string;
+              message: string;
+            };
+          };
+        };
+      };
+      /** @description Profile not found */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: {
+              action: string;
+              code: string;
+              message: string;
+            };
+          };
+        };
+      };
+      /** @description Profile conflict */
+      409: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: {
+              action: string;
+              code: string;
+              message: string;
+            };
+          };
+        };
+      };
+      /** @description Internal server error */
+      500: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: {
+              action: string;
+              code: string;
+              message: string;
+            };
+          };
+        };
+      };
+    };
+  };
+  prepareProfileDelete: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        /** @description Profile name */
+        name: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description OK */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            approval_blockers: string[];
+            removed: {
+              agents: number;
+              config_keys: number;
+              credential_overrides: number;
+              desktop_partitions: number;
+              event_summaries: number;
+              loops: number;
+              mcp_servers: number;
+              memory_entries: number;
+              palette_pins: number;
+              palette_query_hits: number;
+              palette_usage: number;
+              skills: number;
+              terminal_approvals: number;
+            };
+            revision: string;
+            selections_to_sweep: number;
+          };
+        };
+      };
+      /** @description Invalid profile request */
+      400: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: {
+              action: string;
+              code: string;
+              message: string;
+            };
+          };
+        };
+      };
+      /** @description Profile not found */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: {
+              action: string;
+              code: string;
+              message: string;
+            };
+          };
+        };
+      };
+      /** @description Profile conflict */
+      409: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: {
+              action: string;
+              code: string;
+              message: string;
+            };
+          };
+        };
+      };
+      /** @description Internal server error */
+      500: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: {
+              action: string;
+              code: string;
+              message: string;
+            };
+          };
+        };
+      };
+    };
+  };
+  renameProfile: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        /** @description Profile name */
+        name: string;
+      };
+      cookie?: never;
+    };
+    /** @description JSON request body */
+    requestBody: {
+      content: {
+        "application/json": {
+          new_name: string;
+          plan_revision: string;
+          repos?: string[];
+        };
+      };
+    };
+    responses: {
+      /** @description OK */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            dormant_placements: {
+              extension: string;
+              profile: string;
+              resource: string;
+            }[];
+            renamed: boolean;
+            repo_results: {
+              reason?: string;
+              renamed: boolean;
+              workspace_id: string;
+            }[];
+          };
+        };
+      };
+      /** @description Invalid profile request */
+      400: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: {
+              action: string;
+              code: string;
+              message: string;
+            };
+          };
+        };
+      };
+      /** @description Remote profile management is forbidden */
+      403: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: {
+              action: string;
+              code: string;
+              message: string;
+            };
+          };
+        };
+      };
+      /** @description Profile not found */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: {
+              action: string;
+              code: string;
+              message: string;
+            };
+          };
+        };
+      };
+      /** @description Profile conflict */
+      409: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: {
+              action: string;
+              code: string;
+              message: string;
+            };
+          };
+        };
+      };
+      /** @description Internal server error */
+      500: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: {
+              action: string;
+              code: string;
+              message: string;
+            };
+          };
+        };
+      };
+    };
+  };
+  prepareProfileRename: {
+    parameters: {
+      query: {
+        /** @description New profile name */
+        new_name: string;
+      };
+      header?: never;
+      path: {
+        /** @description Profile name */
+        name: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description OK */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            dormant_placements: {
+              extension: string;
+              profile: string;
+              resource: string;
+            }[];
+            machine_folders: string[];
+            repo_candidates: {
+              path: string;
+              workspace: string;
+              workspace_id: string;
+            }[];
+            revision: string;
+            vault_ref_rewrites: number;
+          };
+        };
+      };
+      /** @description Invalid profile request */
+      400: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: {
+              action: string;
+              code: string;
+              message: string;
+            };
+          };
+        };
+      };
+      /** @description Profile not found */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: {
+              action: string;
+              code: string;
+              message: string;
+            };
+          };
+        };
+      };
+      /** @description Profile conflict */
+      409: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: {
+              action: string;
+              code: string;
+              message: string;
+            };
+          };
+        };
+      };
+      /** @description Internal server error */
+      500: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: {
+              action: string;
+              code: string;
+              message: string;
+            };
+          };
+        };
+      };
+    };
+  };
+  unarchiveProfile: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        /** @description Profile name */
+        name: string;
+      };
+      cookie?: never;
+    };
+    /** @description JSON request body */
+    requestBody?: {
+      content: {
+        "application/json": unknown;
+      };
+    };
+    responses: {
+      /** @description OK */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            paused_automations: string[];
+            state: string;
+          };
+        };
+      };
+      /** @description Invalid profile request */
+      400: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: {
+              action: string;
+              code: string;
+              message: string;
+            };
+          };
+        };
+      };
+      /** @description Remote profile management is forbidden */
+      403: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: {
+              action: string;
+              code: string;
+              message: string;
+            };
+          };
+        };
+      };
+      /** @description Profile not found */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: {
+              action: string;
+              code: string;
+              message: string;
+            };
+          };
+        };
+      };
+      /** @description Profile conflict */
+      409: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: {
+              action: string;
+              code: string;
+              message: string;
+            };
+          };
+        };
+      };
+      /** @description Internal server error */
+      500: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: {
+              action: string;
+              code: string;
+              message: string;
+            };
+          };
+        };
+      };
+    };
+  };
   listProviders: {
     parameters: {
       query?: never;
@@ -48791,7 +51254,7 @@ export interface operations {
         /** @description Filter by resource kind */
         kind?: string;
         /** @description Filter by resource scope kind */
-        scope_kind?: "global" | "workspace";
+        scope_kind?: "user" | "workspace";
         /** @description Filter by workspace scope id */
         scope_id?: string;
         /** @description Filter by stamped owner kind */
@@ -48830,7 +51293,7 @@ export interface operations {
               scope: {
                 id?: string;
                 /** @enum {string} */
-                kind: "global" | "workspace";
+                kind: "user" | "workspace";
               };
               source: {
                 id: string;
@@ -48938,7 +51401,7 @@ export interface operations {
     parameters: {
       query?: {
         /** @description Filter by resource scope kind */
-        scope_kind?: "global" | "workspace";
+        scope_kind?: "user" | "workspace";
         /** @description Filter by workspace scope id */
         scope_id?: string;
         /** @description Filter by stamped owner kind */
@@ -48980,7 +51443,7 @@ export interface operations {
               scope: {
                 id?: string;
                 /** @enum {string} */
-                kind: "global" | "workspace";
+                kind: "user" | "workspace";
               };
               source: {
                 id: string;
@@ -49117,7 +51580,7 @@ export interface operations {
               scope: {
                 id?: string;
                 /** @enum {string} */
-                kind: "global" | "workspace";
+                kind: "user" | "workspace";
               };
               source: {
                 id: string;
@@ -49271,7 +51734,7 @@ export interface operations {
           scope: {
             id?: string;
             /** @enum {string} */
-            kind: "global" | "workspace";
+            kind: "user" | "workspace";
           };
           spec: unknown;
         };
@@ -49297,7 +51760,7 @@ export interface operations {
               scope: {
                 id?: string;
                 /** @enum {string} */
-                kind: "global" | "workspace";
+                kind: "user" | "workspace";
               };
               source: {
                 id: string;
@@ -49331,7 +51794,7 @@ export interface operations {
               scope: {
                 id?: string;
                 /** @enum {string} */
-                kind: "global" | "workspace";
+                kind: "user" | "workspace";
               };
               source: {
                 id: string;
@@ -50173,6 +52636,10 @@ export interface operations {
                   ref: string;
                 };
                 previous_run_id?: string;
+                profile_color?: string;
+                profile_icon?: string;
+                profile_id?: string;
+                profile_name?: string;
                 /** Format: date-time */
                 queued_at: string;
                 recovery_count: number;
@@ -50510,6 +52977,10 @@ export interface operations {
                   ref: string;
                 };
                 previous_run_id?: string;
+                profile_color?: string;
+                profile_icon?: string;
+                profile_id?: string;
+                profile_name?: string;
                 /** Format: date-time */
                 queued_at: string;
                 recovery_count: number;
@@ -50826,6 +53297,10 @@ export interface operations {
                 ref: string;
               };
               previous_run_id?: string;
+              profile_color?: string;
+              profile_icon?: string;
+              profile_id?: string;
+              profile_name?: string;
               /** Format: date-time */
               queued_at: string;
               recovery_count: number;
@@ -51499,6 +53974,10 @@ export interface operations {
                 paused_reason?: string;
                 /** @enum {string} */
                 priority?: "low" | "medium" | "high" | "urgent";
+                profile_color?: string;
+                profile_icon?: string;
+                profile_id: string;
+                profile_name: string;
                 resolved_network_participation?:
                   | (
                       | {
@@ -51781,6 +54260,10 @@ export interface operations {
                 ref: string;
               };
               previous_run_id?: string;
+              profile_color?: string;
+              profile_icon?: string;
+              profile_id?: string;
+              profile_name?: string;
               /** Format: date-time */
               queued_at: string;
               recovery_count: number;
@@ -51918,6 +54401,10 @@ export interface operations {
                 ref: string;
               };
               previous_run_id?: string;
+              profile_color?: string;
+              profile_icon?: string;
+              profile_id?: string;
+              profile_name?: string;
               /** Format: date-time */
               queued_at: string;
               recovery_count: number;
@@ -52290,6 +54777,10 @@ export interface operations {
                 ref: string;
               };
               previous_run_id?: string;
+              profile_color?: string;
+              profile_icon?: string;
+              profile_id?: string;
+              profile_name?: string;
               /** Format: date-time */
               queued_at: string;
               recovery_count: number;
@@ -52661,6 +55152,10 @@ export interface operations {
                 ref: string;
               };
               previous_run_id?: string;
+              profile_color?: string;
+              profile_icon?: string;
+              profile_id?: string;
+              profile_name?: string;
               /** Format: date-time */
               queued_at: string;
               recovery_count: number;
@@ -52798,6 +55293,10 @@ export interface operations {
                 ref: string;
               };
               previous_run_id?: string;
+              profile_color?: string;
+              profile_icon?: string;
+              profile_id?: string;
+              profile_name?: string;
               /** Format: date-time */
               queued_at: string;
               recovery_count: number;
@@ -53292,6 +55791,10 @@ export interface operations {
                     ref: string;
                   };
                   previous_run_id?: string;
+                  profile_color?: string;
+                  profile_icon?: string;
+                  profile_id?: string;
+                  profile_name?: string;
                   /** Format: date-time */
                   queued_at: string;
                   recovery_count: number;
@@ -53620,6 +56123,10 @@ export interface operations {
                   paused_reason?: string;
                   /** @enum {string} */
                   priority?: "low" | "medium" | "high" | "urgent";
+                  profile_color?: string;
+                  profile_icon?: string;
+                  profile_id: string;
+                  profile_name: string;
                   resolved_network_participation?:
                     | (
                         | {
@@ -54326,7 +56833,9 @@ export interface operations {
     parameters: {
       query?: {
         /** @description Workspace id or path */
-        workspace?: string;
+        workspace_id?: string;
+        /** @description Use the explicit all-workspaces aggregate */
+        all_workspaces?: boolean;
         /** @description Include metadata-only health for returned sessions */
         include_health?: boolean;
         /** @description Filter by exact session state */
@@ -54357,6 +56866,10 @@ export interface operations {
         cursor?: string;
         /** @description Sessions per page (1-100) */
         limit?: number;
+        /** @description Read one profile's rows by name */
+        profile?: string;
+        /** @description Read the owner-labeled all-profiles aggregate */
+        all_profiles?: boolean;
       };
       header?: never;
       path?: never;
@@ -54497,6 +57010,12 @@ export interface operations {
                 title?: string;
                 turn_id?: string;
               }[];
+              profile_archived?: boolean;
+              profile_color?: string;
+              profile_emoji?: string;
+              profile_icon?: string;
+              profile_id: string;
+              profile_name: string;
               resolved_network_participation?:
                 | (
                     | {
@@ -54814,7 +57333,10 @@ export interface operations {
   };
   createSession: {
     parameters: {
-      query?: never;
+      query?: {
+        /** @description Act as this profile by name */
+        profile?: string;
+      };
       header?: never;
       path?: never;
       cookie?: never;
@@ -55023,6 +57545,12 @@ export interface operations {
                 title?: string;
                 turn_id?: string;
               }[];
+              profile_archived?: boolean;
+              profile_color?: string;
+              profile_emoji?: string;
+              profile_icon?: string;
+              profile_id: string;
+              profile_name: string;
               resolved_network_participation?:
                 | (
                     | {
@@ -55455,14 +57983,26 @@ export interface operations {
   };
   streamSessionCatalog: {
     parameters: {
-      query?: never;
-      header?: never;
+      query?: {
+        /** @description Workspace id or path */
+        workspace_id?: string;
+        /** @description Subscribe to the explicit all-workspaces aggregate */
+        all_workspaces?: boolean;
+        /** @description Read one profile's rows by name */
+        profile?: string;
+        /** @description Read the owner-labeled all-profiles aggregate */
+        all_profiles?: boolean;
+      };
+      header?: {
+        /** @description Resume after this catalog sequence */
+        "Last-Event-ID"?: string;
+      };
       path?: never;
       cookie?: never;
     };
     requestBody?: never;
     responses: {
-      /** @description Workspace-identified session catalog event stream */
+      /** @description Profile-scoped session catalog event stream for the selected workspace or explicit owner-labeled all-workspaces aggregate */
       200: {
         headers: {
           [name: string]: unknown;
@@ -55471,6 +58011,8 @@ export interface operations {
           "text/event-stream":
             | {
                 kind: string;
+                profile_id: string;
+                profile_name: string;
                 session_id: string;
                 workspace_id: string;
               }
@@ -55479,6 +58021,8 @@ export interface operations {
                 at: string;
                 class: string;
                 from: string;
+                profile_id: string;
+                profile_name: string;
                 session_id: string;
                 to: string;
                 workspace_id: string;
@@ -55488,6 +58032,8 @@ export interface operations {
                 at: string;
                 body: string;
                 notification_id: string;
+                profile_id: string;
+                profile_name: string;
                 session_id: string;
                 title: string;
                 workspace_id: string;
@@ -55559,6 +58105,10 @@ export interface operations {
       query?: {
         /** @description Include metadata-only session health when available */
         include_health?: boolean;
+        /** @description Read one profile's rows by name */
+        profile?: string;
+        /** @description Read the owner-labeled all-profiles aggregate */
+        all_profiles?: boolean;
       };
       header?: never;
       path: {
@@ -55696,6 +58246,12 @@ export interface operations {
                 title?: string;
                 turn_id?: string;
               }[];
+              profile_archived?: boolean;
+              profile_color?: string;
+              profile_emoji?: string;
+              profile_icon?: string;
+              profile_id: string;
+              profile_name: string;
               resolved_network_participation?:
                 | (
                     | {
@@ -56259,6 +58815,17 @@ export interface operations {
               status: "pending_apply" | "applied" | "blocked" | "failed";
               /** Format: date-time */
               updated_at: string;
+              write_path?: string;
+              /** @enum {string} */
+              write_target?:
+                | "global-config"
+                | "profile-config"
+                | "workspace-config"
+                | "global-mcp-sidecar"
+                | "profile-mcp-sidecar"
+                | "workspace-mcp-sidecar"
+                | "global-agent-file"
+                | "workspace-agent-file";
             }[];
           };
         };
@@ -56325,7 +58892,12 @@ export interface operations {
   };
   getSettingsAttention: {
     parameters: {
-      query?: never;
+      query?: {
+        /** @description Select user or profile attention mutes */
+        scope?: "user" | "profile";
+        /** @description Select the profile whose workspace mutes are returned */
+        profile?: string;
+      };
       header?: never;
       path?: never;
       cookie?: never;
@@ -56339,18 +58911,20 @@ export interface operations {
         };
         content: {
           "application/json": {
-            available_scopes: "global"[];
+            available_scopes: ("user" | "profile" | "workspace")[];
             config: {
               muted_workspaces: string[];
               sound: boolean;
               system: boolean;
               toasts: boolean;
             };
+            profile?: string;
             /** @enum {string} */
-            scope: "global";
+            scope: "user" | "profile" | "workspace";
             /** @enum {string} */
             section:
               | "general"
+              | "persona"
               | "memory"
               | "roles"
               | "skills"
@@ -56362,6 +58936,94 @@ export interface operations {
               | "shell"
               | "observability"
               | "hooks-extensions";
+            workspace_id?: string;
+          };
+        };
+      };
+      /** @description Invalid settings scope */
+      400: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+      /** @description Profile not found */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+      /** @description Profile unavailable */
+      409: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
           };
         };
       };
@@ -56398,7 +59060,12 @@ export interface operations {
   };
   updateSettingsAttention: {
     parameters: {
-      query?: never;
+      query?: {
+        /** @description Select user or profile attention mutes */
+        scope?: "user" | "profile";
+        /** @description Select the profile whose workspace mutes are returned */
+        profile?: string;
+      };
       header?: never;
       path?: never;
       cookie?: never;
@@ -56408,7 +59075,7 @@ export interface operations {
       content: {
         "application/json": {
           config: {
-            muted_workspaces: string[];
+            muted_workspaces?: string[] | null;
             sound: boolean;
             system: boolean;
             toasts: boolean;
@@ -56456,13 +59123,15 @@ export interface operations {
               };
               subsystem: string;
             }[];
+            profile?: string;
             restart_required?: boolean;
             restart_scope?: string;
             /** @enum {string} */
-            scope?: "global" | "workspace" | "agent";
+            scope?: "user" | "profile" | "workspace" | "agent";
             /** @enum {string} */
             section?:
               | "general"
+              | "persona"
               | "memory"
               | "roles"
               | "skills"
@@ -56485,8 +59154,10 @@ export interface operations {
             /** @enum {string} */
             write_target?:
               | "global-config"
+              | "profile-config"
               | "workspace-config"
               | "global-mcp-sidecar"
+              | "profile-mcp-sidecar"
               | "workspace-mcp-sidecar"
               | "global-agent-file"
               | "workspace-agent-file";
@@ -56524,6 +59195,35 @@ export interface operations {
       };
       /** @description Forbidden */
       403: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+      /** @description Profile not found */
+      404: {
         headers: {
           [name: string]: unknown;
         };
@@ -56627,7 +59327,7 @@ export interface operations {
         };
         content: {
           "application/json": {
-            available_scopes: "global"[];
+            available_scopes: "user"[];
             config: {
               default_fire_limit: {
                 max: number;
@@ -56655,10 +59355,11 @@ export interface operations {
               trigger_total: number;
             };
             /** @enum {string} */
-            scope: "global";
+            scope: "user";
             /** @enum {string} */
             section:
               | "general"
+              | "persona"
               | "memory"
               | "roles"
               | "skills"
@@ -56767,13 +59468,15 @@ export interface operations {
               };
               subsystem: string;
             }[];
+            profile?: string;
             restart_required?: boolean;
             restart_scope?: string;
             /** @enum {string} */
-            scope?: "global" | "workspace" | "agent";
+            scope?: "user" | "profile" | "workspace" | "agent";
             /** @enum {string} */
             section?:
               | "general"
+              | "persona"
               | "memory"
               | "roles"
               | "skills"
@@ -56796,8 +59499,10 @@ export interface operations {
             /** @enum {string} */
             write_target?:
               | "global-config"
+              | "profile-config"
               | "workspace-config"
               | "global-mcp-sidecar"
+              | "profile-mcp-sidecar"
               | "workspace-mcp-sidecar"
               | "global-agent-file"
               | "workspace-agent-file";
@@ -56926,9 +59631,11 @@ export interface operations {
     parameters: {
       query?: {
         /** @description Select the settings scope */
-        scope?: "global" | "workspace";
-        /** @description Select the workspace id for workspace scope */
+        scope?: "user" | "profile" | "workspace";
+        /** @description Select the workspace context */
         workspace_id?: string;
+        /** @description Select the profile layer */
+        profile?: string;
       };
       header?: never;
       path?: never;
@@ -56943,14 +59650,19 @@ export interface operations {
         };
         content: {
           "application/json": {
-            available_scopes: ("global" | "workspace")[];
+            aliases: {
+              [key: string]: string;
+            };
+            available_scopes: ("user" | "profile" | "workspace")[];
             fallback_agent_enabled: boolean;
             personalization: boolean;
+            profile?: string;
             /** @enum {string} */
-            scope: "global" | "workspace";
+            scope: "user" | "profile" | "workspace";
             /** @enum {string} */
             section:
               | "general"
+              | "persona"
               | "memory"
               | "roles"
               | "skills"
@@ -57059,9 +59771,11 @@ export interface operations {
     parameters: {
       query?: {
         /** @description Select the settings scope */
-        scope?: "global" | "workspace";
-        /** @description Select the workspace id for workspace scope */
+        scope?: "user" | "profile" | "workspace";
+        /** @description Select the workspace context */
         workspace_id?: string;
+        /** @description Select the profile layer */
+        profile?: string;
       };
       header?: never;
       path?: never;
@@ -57071,6 +59785,9 @@ export interface operations {
     requestBody: {
       content: {
         "application/json": {
+          aliases?: {
+            [key: string]: string;
+          } | null;
           fallback_agent_enabled?: boolean | null;
           personalization?: boolean | null;
         };
@@ -57084,14 +59801,19 @@ export interface operations {
         };
         content: {
           "application/json": {
-            available_scopes: ("global" | "workspace")[];
+            aliases: {
+              [key: string]: string;
+            };
+            available_scopes: ("user" | "profile" | "workspace")[];
             fallback_agent_enabled: boolean;
             personalization: boolean;
+            profile?: string;
             /** @enum {string} */
-            scope: "global" | "workspace";
+            scope: "user" | "profile" | "workspace";
             /** @enum {string} */
             section:
               | "general"
+              | "persona"
               | "memory"
               | "roles"
               | "skills"
@@ -57278,7 +60000,7 @@ export interface operations {
                 name: string;
               };
             };
-            available_scopes: "global"[];
+            available_scopes: "user"[];
             config: {
               daemon: {
                 memory_report_interval: string;
@@ -57288,11 +60010,6 @@ export interface operations {
                   providers: string;
                 };
                 socket: string;
-              };
-              defaults: {
-                agent: string;
-                provider?: string;
-                sandbox?: string;
               };
               http: {
                 host: string;
@@ -57334,10 +60051,11 @@ export interface operations {
               version?: string;
             };
             /** @enum {string} */
-            scope: "global";
+            scope: "user";
             /** @enum {string} */
             section:
               | "general"
+              | "persona"
               | "memory"
               | "roles"
               | "skills"
@@ -57404,11 +60122,6 @@ export interface operations {
               };
               socket: string;
             };
-            defaults: {
-              agent: string;
-              provider?: string;
-              sandbox?: string;
-            };
             http: {
               host: string;
               port: number;
@@ -57468,13 +60181,15 @@ export interface operations {
               };
               subsystem: string;
             }[];
+            profile?: string;
             restart_required?: boolean;
             restart_scope?: string;
             /** @enum {string} */
-            scope?: "global" | "workspace" | "agent";
+            scope?: "user" | "profile" | "workspace" | "agent";
             /** @enum {string} */
             section?:
               | "general"
+              | "persona"
               | "memory"
               | "roles"
               | "skills"
@@ -57497,8 +60212,10 @@ export interface operations {
             /** @enum {string} */
             write_target?:
               | "global-config"
+              | "profile-config"
               | "workspace-config"
               | "global-mcp-sidecar"
+              | "profile-mcp-sidecar"
               | "workspace-mcp-sidecar"
               | "global-agent-file"
               | "workspace-agent-file";
@@ -57625,7 +60342,14 @@ export interface operations {
   };
   listSettingsHooks: {
     parameters: {
-      query?: never;
+      query?: {
+        /** @description Select the settings scope */
+        scope?: "user" | "profile" | "workspace";
+        /** @description Select the workspace context */
+        workspace_id?: string;
+        /** @description Select the profile layer */
+        profile?: string;
+      };
       header?: never;
       path?: never;
       cookie?: never;
@@ -57639,7 +60363,7 @@ export interface operations {
         };
         content: {
           "application/json": {
-            available_scopes: "global"[];
+            available_scopes: ("user" | "profile" | "workspace")[];
             /** @enum {string} */
             collection: "providers" | "mcp-servers" | "sandboxes" | "hooks";
             hooks: {
@@ -57820,8 +60544,10 @@ export interface operations {
               source_metadata: {
                 available_targets: (
                   | "global-config"
+                  | "profile-config"
                   | "workspace-config"
                   | "global-mcp-sidecar"
+                  | "profile-mcp-sidecar"
                   | "workspace-mcp-sidecar"
                   | "global-agent-file"
                   | "workspace-agent-file"
@@ -57832,13 +60558,18 @@ export interface operations {
                   kind:
                     | "builtin-provider"
                     | "global-config"
+                    | "profile-config"
                     | "workspace-config"
+                    | "workspace-profile-config"
                     | "global-mcp-sidecar"
+                    | "profile-mcp-sidecar"
                     | "workspace-mcp-sidecar"
+                    | "workspace-profile-mcp-sidecar"
                     | "global-agent-file"
                     | "workspace-agent-file";
+                  profile?: string;
                   /** @enum {string} */
-                  scope: "global" | "workspace" | "agent";
+                  scope: "user" | "profile" | "workspace" | "agent";
                   workspace_id?: string;
                 };
                 shadowed_sources?: {
@@ -57847,19 +60578,26 @@ export interface operations {
                   kind:
                     | "builtin-provider"
                     | "global-config"
+                    | "profile-config"
                     | "workspace-config"
+                    | "workspace-profile-config"
                     | "global-mcp-sidecar"
+                    | "profile-mcp-sidecar"
                     | "workspace-mcp-sidecar"
+                    | "workspace-profile-mcp-sidecar"
                     | "global-agent-file"
                     | "workspace-agent-file";
+                  profile?: string;
                   /** @enum {string} */
-                  scope: "global" | "workspace" | "agent";
+                  scope: "user" | "profile" | "workspace" | "agent";
                   workspace_id?: string;
                 }[];
               };
             }[];
+            profile?: string;
             /** @enum {string} */
-            scope: "global";
+            scope: "user" | "profile" | "workspace";
+            workspace_id?: string;
           };
         };
       };
@@ -57910,7 +60648,7 @@ export interface operations {
         };
         content: {
           "application/json": {
-            available_scopes: "global"[];
+            available_scopes: "user"[];
             config: {
               dev: {
                 watch_interval: string;
@@ -57918,7 +60656,7 @@ export interface operations {
               resources: {
                 allowed_kinds?: string[];
                 /** @enum {string} */
-                max_scope?: "global" | "workspace";
+                max_scope?: "user" | "workspace";
                 operator_write_rate_limit: {
                   queue: number;
                   requests: number;
@@ -58121,8 +60859,10 @@ export interface operations {
               source_metadata: {
                 available_targets: (
                   | "global-config"
+                  | "profile-config"
                   | "workspace-config"
                   | "global-mcp-sidecar"
+                  | "profile-mcp-sidecar"
                   | "workspace-mcp-sidecar"
                   | "global-agent-file"
                   | "workspace-agent-file"
@@ -58133,13 +60873,18 @@ export interface operations {
                   kind:
                     | "builtin-provider"
                     | "global-config"
+                    | "profile-config"
                     | "workspace-config"
+                    | "workspace-profile-config"
                     | "global-mcp-sidecar"
+                    | "profile-mcp-sidecar"
                     | "workspace-mcp-sidecar"
+                    | "workspace-profile-mcp-sidecar"
                     | "global-agent-file"
                     | "workspace-agent-file";
+                  profile?: string;
                   /** @enum {string} */
-                  scope: "global" | "workspace" | "agent";
+                  scope: "user" | "profile" | "workspace" | "agent";
                   workspace_id?: string;
                 };
                 shadowed_sources?: {
@@ -58148,13 +60893,18 @@ export interface operations {
                   kind:
                     | "builtin-provider"
                     | "global-config"
+                    | "profile-config"
                     | "workspace-config"
+                    | "workspace-profile-config"
                     | "global-mcp-sidecar"
+                    | "profile-mcp-sidecar"
                     | "workspace-mcp-sidecar"
+                    | "workspace-profile-mcp-sidecar"
                     | "global-agent-file"
                     | "workspace-agent-file";
+                  profile?: string;
                   /** @enum {string} */
-                  scope: "global" | "workspace" | "agent";
+                  scope: "user" | "profile" | "workspace" | "agent";
                   workspace_id?: string;
                 }[];
               };
@@ -58189,10 +60939,11 @@ export interface operations {
               version?: string;
             }[];
             /** @enum {string} */
-            scope: "global";
+            scope: "user";
             /** @enum {string} */
             section:
               | "general"
+              | "persona"
               | "memory"
               | "roles"
               | "skills"
@@ -58263,7 +61014,7 @@ export interface operations {
             resources: {
               allowed_kinds?: string[];
               /** @enum {string} */
-              max_scope?: "global" | "workspace";
+              max_scope?: "user" | "workspace";
               operator_write_rate_limit: {
                 queue: number;
                 requests: number;
@@ -58331,13 +61082,15 @@ export interface operations {
               };
               subsystem: string;
             }[];
+            profile?: string;
             restart_required?: boolean;
             restart_scope?: string;
             /** @enum {string} */
-            scope?: "global" | "workspace" | "agent";
+            scope?: "user" | "profile" | "workspace" | "agent";
             /** @enum {string} */
             section?:
               | "general"
+              | "persona"
               | "memory"
               | "roles"
               | "skills"
@@ -58360,8 +61113,10 @@ export interface operations {
             /** @enum {string} */
             write_target?:
               | "global-config"
+              | "profile-config"
               | "workspace-config"
               | "global-mcp-sidecar"
+              | "profile-mcp-sidecar"
               | "workspace-mcp-sidecar"
               | "global-agent-file"
               | "workspace-agent-file";
@@ -58488,7 +61243,14 @@ export interface operations {
   };
   putSettingsHook: {
     parameters: {
-      query?: never;
+      query?: {
+        /** @description Select the settings scope */
+        scope?: "user" | "profile" | "workspace";
+        /** @description Select the workspace context */
+        workspace_id?: string;
+        /** @description Select the profile layer */
+        profile?: string;
+      };
       header?: never;
       path: {
         /** @description Hook name */
@@ -58716,13 +61478,15 @@ export interface operations {
               };
               subsystem: string;
             }[];
+            profile?: string;
             restart_required?: boolean;
             restart_scope?: string;
             /** @enum {string} */
-            scope?: "global" | "workspace" | "agent";
+            scope?: "user" | "profile" | "workspace" | "agent";
             /** @enum {string} */
             section?:
               | "general"
+              | "persona"
               | "memory"
               | "roles"
               | "skills"
@@ -58745,8 +61509,10 @@ export interface operations {
             /** @enum {string} */
             write_target?:
               | "global-config"
+              | "profile-config"
               | "workspace-config"
               | "global-mcp-sidecar"
+              | "profile-mcp-sidecar"
               | "workspace-mcp-sidecar"
               | "global-agent-file"
               | "workspace-agent-file";
@@ -58873,7 +61639,14 @@ export interface operations {
   };
   deleteSettingsHook: {
     parameters: {
-      query?: never;
+      query?: {
+        /** @description Select the settings scope */
+        scope?: "user" | "profile" | "workspace";
+        /** @description Select the workspace context */
+        workspace_id?: string;
+        /** @description Select the profile layer */
+        profile?: string;
+      };
       header?: never;
       path: {
         /** @description Hook name */
@@ -58922,13 +61695,15 @@ export interface operations {
               };
               subsystem: string;
             }[];
+            profile?: string;
             restart_required?: boolean;
             restart_scope?: string;
             /** @enum {string} */
-            scope?: "global" | "workspace" | "agent";
+            scope?: "user" | "profile" | "workspace" | "agent";
             /** @enum {string} */
             section?:
               | "general"
+              | "persona"
               | "memory"
               | "roles"
               | "skills"
@@ -58951,8 +61726,10 @@ export interface operations {
             /** @enum {string} */
             write_target?:
               | "global-config"
+              | "profile-config"
               | "workspace-config"
               | "global-mcp-sidecar"
+              | "profile-mcp-sidecar"
               | "workspace-mcp-sidecar"
               | "global-agent-file"
               | "workspace-agent-file";
@@ -59052,9 +61829,11 @@ export interface operations {
     parameters: {
       query?: {
         /** @description Select the settings scope */
-        scope?: "global" | "workspace";
-        /** @description Select the workspace id for workspace scope */
+        scope?: "user" | "profile" | "workspace";
+        /** @description Select the workspace context */
         workspace_id?: string;
+        /** @description Select the profile layer */
+        profile?: string;
       };
       header?: never;
       path?: never;
@@ -59069,7 +61848,7 @@ export interface operations {
         };
         content: {
           "application/json": {
-            available_scopes: ("global" | "workspace")[];
+            available_scopes: ("user" | "profile" | "workspace")[];
             /** @enum {string} */
             collection: "providers" | "mcp-servers" | "sandboxes" | "hooks";
             mcp_servers: {
@@ -59088,6 +61867,7 @@ export interface operations {
                 /** Format: date-time */
                 expires_at?: string | null;
                 issuer?: string;
+                profile?: string;
                 refreshable: boolean;
                 remote_url?: string;
                 scope: string;
@@ -59104,6 +61884,7 @@ export interface operations {
               command?: string;
               env_keys?: string[];
               name: string;
+              profile?: string;
               runtime_status?: {
                 configured: boolean;
                 diagnostic?: string;
@@ -59115,13 +61896,15 @@ export interface operations {
                 tool_count: number;
               } | null;
               /** @enum {string} */
-              scope: "global" | "workspace" | "agent";
+              scope: "user" | "profile" | "workspace" | "agent";
               secret_env_keys?: string[];
               source_metadata: {
                 available_targets: (
                   | "global-config"
+                  | "profile-config"
                   | "workspace-config"
                   | "global-mcp-sidecar"
+                  | "profile-mcp-sidecar"
                   | "workspace-mcp-sidecar"
                   | "global-agent-file"
                   | "workspace-agent-file"
@@ -59132,13 +61915,18 @@ export interface operations {
                   kind:
                     | "builtin-provider"
                     | "global-config"
+                    | "profile-config"
                     | "workspace-config"
+                    | "workspace-profile-config"
                     | "global-mcp-sidecar"
+                    | "profile-mcp-sidecar"
                     | "workspace-mcp-sidecar"
+                    | "workspace-profile-mcp-sidecar"
                     | "global-agent-file"
                     | "workspace-agent-file";
+                  profile?: string;
                   /** @enum {string} */
-                  scope: "global" | "workspace" | "agent";
+                  scope: "user" | "profile" | "workspace" | "agent";
                   workspace_id?: string;
                 };
                 shadowed_sources?: {
@@ -59147,13 +61935,18 @@ export interface operations {
                   kind:
                     | "builtin-provider"
                     | "global-config"
+                    | "profile-config"
                     | "workspace-config"
+                    | "workspace-profile-config"
                     | "global-mcp-sidecar"
+                    | "profile-mcp-sidecar"
                     | "workspace-mcp-sidecar"
+                    | "workspace-profile-mcp-sidecar"
                     | "global-agent-file"
                     | "workspace-agent-file";
+                  profile?: string;
                   /** @enum {string} */
-                  scope: "global" | "workspace" | "agent";
+                  scope: "user" | "profile" | "workspace" | "agent";
                   workspace_id?: string;
                 }[];
               };
@@ -59161,8 +61954,9 @@ export interface operations {
               url?: string;
               workspace_id?: string;
             }[];
+            profile?: string;
             /** @enum {string} */
-            scope: "global" | "workspace";
+            scope: "user" | "profile" | "workspace";
             workspace_id?: string;
           };
         };
@@ -59269,8 +62063,9 @@ export interface operations {
         "application/json": {
           entry_id: string;
           name?: string;
+          profile?: string;
           /** @enum {string} */
-          scope?: "global" | "workspace";
+          scope?: "user" | "profile" | "workspace";
           values: {
             inputs?: {
               [key: string]:
@@ -59327,13 +62122,15 @@ export interface operations {
                 };
                 subsystem: string;
               }[];
+              profile?: string;
               restart_required?: boolean;
               restart_scope?: string;
               /** @enum {string} */
-              scope?: "global" | "workspace" | "agent";
+              scope?: "user" | "profile" | "workspace" | "agent";
               /** @enum {string} */
               section?:
                 | "general"
+                | "persona"
                 | "memory"
                 | "roles"
                 | "skills"
@@ -59356,8 +62153,10 @@ export interface operations {
               /** @enum {string} */
               write_target?:
                 | "global-config"
+                | "profile-config"
                 | "workspace-config"
                 | "global-mcp-sidecar"
+                | "profile-mcp-sidecar"
                 | "workspace-mcp-sidecar"
                 | "global-agent-file"
                 | "workspace-agent-file";
@@ -59378,6 +62177,7 @@ export interface operations {
                 /** Format: date-time */
                 expires_at?: string | null;
                 issuer?: string;
+                profile?: string;
                 refreshable: boolean;
                 remote_url?: string;
                 scope: string;
@@ -59394,6 +62194,7 @@ export interface operations {
               command?: string;
               env_keys?: string[];
               name: string;
+              profile?: string;
               runtime_status?: {
                 configured: boolean;
                 diagnostic?: string;
@@ -59405,13 +62206,15 @@ export interface operations {
                 tool_count: number;
               } | null;
               /** @enum {string} */
-              scope: "global" | "workspace" | "agent";
+              scope: "user" | "profile" | "workspace" | "agent";
               secret_env_keys?: string[];
               source_metadata: {
                 available_targets: (
                   | "global-config"
+                  | "profile-config"
                   | "workspace-config"
                   | "global-mcp-sidecar"
+                  | "profile-mcp-sidecar"
                   | "workspace-mcp-sidecar"
                   | "global-agent-file"
                   | "workspace-agent-file"
@@ -59422,13 +62225,18 @@ export interface operations {
                   kind:
                     | "builtin-provider"
                     | "global-config"
+                    | "profile-config"
                     | "workspace-config"
+                    | "workspace-profile-config"
                     | "global-mcp-sidecar"
+                    | "profile-mcp-sidecar"
                     | "workspace-mcp-sidecar"
+                    | "workspace-profile-mcp-sidecar"
                     | "global-agent-file"
                     | "workspace-agent-file";
+                  profile?: string;
                   /** @enum {string} */
-                  scope: "global" | "workspace" | "agent";
+                  scope: "user" | "profile" | "workspace" | "agent";
                   workspace_id?: string;
                 };
                 shadowed_sources?: {
@@ -59437,13 +62245,18 @@ export interface operations {
                   kind:
                     | "builtin-provider"
                     | "global-config"
+                    | "profile-config"
                     | "workspace-config"
+                    | "workspace-profile-config"
                     | "global-mcp-sidecar"
+                    | "profile-mcp-sidecar"
                     | "workspace-mcp-sidecar"
+                    | "workspace-profile-mcp-sidecar"
                     | "global-agent-file"
                     | "workspace-agent-file";
+                  profile?: string;
                   /** @enum {string} */
-                  scope: "global" | "workspace" | "agent";
+                  scope: "user" | "profile" | "workspace" | "agent";
                   workspace_id?: string;
                 }[];
               };
@@ -59679,9 +62492,11 @@ export interface operations {
     parameters: {
       query?: {
         /** @description Select the settings scope */
-        scope?: "global" | "workspace";
-        /** @description Select the workspace id for workspace scope */
+        scope?: "user" | "profile" | "workspace";
+        /** @description Select the workspace context */
         workspace_id?: string;
+        /** @description Select the profile layer */
+        profile?: string;
         /** @description Select the persistence target */
         target?: "auto" | "config" | "sidecar";
       };
@@ -59770,13 +62585,15 @@ export interface operations {
               };
               subsystem: string;
             }[];
+            profile?: string;
             restart_required?: boolean;
             restart_scope?: string;
             /** @enum {string} */
-            scope?: "global" | "workspace" | "agent";
+            scope?: "user" | "profile" | "workspace" | "agent";
             /** @enum {string} */
             section?:
               | "general"
+              | "persona"
               | "memory"
               | "roles"
               | "skills"
@@ -59799,8 +62616,10 @@ export interface operations {
             /** @enum {string} */
             write_target?:
               | "global-config"
+              | "profile-config"
               | "workspace-config"
               | "global-mcp-sidecar"
+              | "profile-mcp-sidecar"
               | "workspace-mcp-sidecar"
               | "global-agent-file"
               | "workspace-agent-file";
@@ -59958,9 +62777,11 @@ export interface operations {
     parameters: {
       query?: {
         /** @description Select the settings scope */
-        scope?: "global" | "workspace";
-        /** @description Select the workspace id for workspace scope */
+        scope?: "user" | "profile" | "workspace";
+        /** @description Select the workspace context */
         workspace_id?: string;
+        /** @description Select the profile layer */
+        profile?: string;
         /** @description Select the persistence target */
         target?: "auto" | "config" | "sidecar";
       };
@@ -60012,13 +62833,15 @@ export interface operations {
               };
               subsystem: string;
             }[];
+            profile?: string;
             restart_required?: boolean;
             restart_scope?: string;
             /** @enum {string} */
-            scope?: "global" | "workspace" | "agent";
+            scope?: "user" | "profile" | "workspace" | "agent";
             /** @enum {string} */
             section?:
               | "general"
+              | "persona"
               | "memory"
               | "roles"
               | "skills"
@@ -60041,8 +62864,10 @@ export interface operations {
             /** @enum {string} */
             write_target?:
               | "global-config"
+              | "profile-config"
               | "workspace-config"
               | "global-mcp-sidecar"
+              | "profile-mcp-sidecar"
               | "workspace-mcp-sidecar"
               | "global-agent-file"
               | "workspace-agent-file";
@@ -60200,9 +63025,11 @@ export interface operations {
     parameters: {
       query: {
         /** @description Exact MCP settings scope */
-        scope: "global" | "workspace";
+        scope: "user" | "profile" | "workspace";
         /** @description Required when scope is workspace */
         workspace_id?: string;
+        /** @description Required when scope is profile */
+        profile?: string;
       };
       header?: never;
       path: {
@@ -60390,9 +63217,11 @@ export interface operations {
     parameters: {
       query: {
         /** @description Exact MCP settings scope */
-        scope: "global" | "workspace";
+        scope: "user" | "profile" | "workspace";
         /** @description Required when scope is workspace */
         workspace_id?: string;
+        /** @description Required when scope is profile */
+        profile?: string;
       };
       header?: never;
       path: {
@@ -60423,6 +63252,7 @@ export interface operations {
             /** Format: date-time */
             expires_at?: string | null;
             issuer?: string;
+            profile?: string;
             refreshable: boolean;
             remote_url?: string;
             scope: string;
@@ -60587,9 +63417,11 @@ export interface operations {
     parameters: {
       query: {
         /** @description Exact MCP settings scope */
-        scope: "global" | "workspace";
+        scope: "user" | "profile" | "workspace";
         /** @description Required when scope is workspace */
         workspace_id?: string;
+        /** @description Required when scope is profile */
+        profile?: string;
       };
       header?: never;
       path: {
@@ -60613,6 +63445,7 @@ export interface operations {
             /** Format: date-time */
             expires_at?: string | null;
             issuer?: string;
+            profile?: string;
             refreshable: boolean;
             remote_url?: string;
             scope: string;
@@ -60777,9 +63610,11 @@ export interface operations {
     parameters: {
       query: {
         /** @description Exact MCP settings scope */
-        scope: "global" | "workspace";
+        scope: "user" | "profile" | "workspace";
         /** @description Required when scope is workspace */
         workspace_id?: string;
+        /** @description Required when scope is profile */
+        profile?: string;
       };
       header?: never;
       path: {
@@ -60803,6 +63638,7 @@ export interface operations {
             /** Format: date-time */
             expires_at?: string | null;
             issuer?: string;
+            profile?: string;
             refreshable: boolean;
             remote_url?: string;
             scope: string;
@@ -60987,7 +63823,7 @@ export interface operations {
                 name: string;
               };
             };
-            available_scopes: "global"[];
+            available_scopes: "user"[];
             config: {
               controller: {
                 default_op_on_fail: string;
@@ -61117,10 +63953,11 @@ export interface operations {
               last_consolidated_at?: string | null;
             };
             /** @enum {string} */
-            scope: "global";
+            scope: "user";
             /** @enum {string} */
             section:
               | "general"
+              | "persona"
               | "memory"
               | "roles"
               | "skills"
@@ -61341,13 +64178,15 @@ export interface operations {
               };
               subsystem: string;
             }[];
+            profile?: string;
             restart_required?: boolean;
             restart_scope?: string;
             /** @enum {string} */
-            scope?: "global" | "workspace" | "agent";
+            scope?: "user" | "profile" | "workspace" | "agent";
             /** @enum {string} */
             section?:
               | "general"
+              | "persona"
               | "memory"
               | "roles"
               | "skills"
@@ -61370,8 +64209,10 @@ export interface operations {
             /** @enum {string} */
             write_target?:
               | "global-config"
+              | "profile-config"
               | "workspace-config"
               | "global-mcp-sidecar"
+              | "profile-mcp-sidecar"
               | "workspace-mcp-sidecar"
               | "global-agent-file"
               | "workspace-agent-file";
@@ -61512,7 +64353,7 @@ export interface operations {
         };
         content: {
           "application/json": {
-            available_scopes: "global"[];
+            available_scopes: "user"[];
             config: {
               enabled: boolean;
               live: {
@@ -61560,10 +64401,11 @@ export interface operations {
               status?: string;
             };
             /** @enum {string} */
-            scope: "global";
+            scope: "user";
             /** @enum {string} */
             section:
               | "general"
+              | "persona"
               | "memory"
               | "roles"
               | "skills"
@@ -61692,13 +64534,15 @@ export interface operations {
               };
               subsystem: string;
             }[];
+            profile?: string;
             restart_required?: boolean;
             restart_scope?: string;
             /** @enum {string} */
-            scope?: "global" | "workspace" | "agent";
+            scope?: "user" | "profile" | "workspace" | "agent";
             /** @enum {string} */
             section?:
               | "general"
+              | "persona"
               | "memory"
               | "roles"
               | "skills"
@@ -61721,8 +64565,10 @@ export interface operations {
             /** @enum {string} */
             write_target?:
               | "global-config"
+              | "profile-config"
               | "workspace-config"
               | "global-mcp-sidecar"
+              | "profile-mcp-sidecar"
               | "workspace-mcp-sidecar"
               | "global-agent-file"
               | "workspace-agent-file";
@@ -61863,7 +64709,7 @@ export interface operations {
         };
         content: {
           "application/json": {
-            available_scopes: "global"[];
+            available_scopes: "user"[];
             config: {
               enabled: boolean;
               /** Format: int64 */
@@ -61895,10 +64741,11 @@ export interface operations {
               uptime_seconds: number;
             };
             /** @enum {string} */
-            scope: "global";
+            scope: "user";
             /** @enum {string} */
             section:
               | "general"
+              | "persona"
               | "memory"
               | "roles"
               | "skills"
@@ -62010,13 +64857,15 @@ export interface operations {
               };
               subsystem: string;
             }[];
+            profile?: string;
             restart_required?: boolean;
             restart_scope?: string;
             /** @enum {string} */
-            scope?: "global" | "workspace" | "agent";
+            scope?: "user" | "profile" | "workspace" | "agent";
             /** @enum {string} */
             section?:
               | "general"
+              | "persona"
               | "memory"
               | "roles"
               | "skills"
@@ -62039,8 +64888,10 @@ export interface operations {
             /** @enum {string} */
             write_target?:
               | "global-config"
+              | "profile-config"
               | "workspace-config"
               | "global-mcp-sidecar"
+              | "profile-mcp-sidecar"
               | "workspace-mcp-sidecar"
               | "global-agent-file"
               | "workspace-agent-file";
@@ -62212,6 +65063,400 @@ export interface operations {
       };
     };
   };
+  getSettingsPersona: {
+    parameters: {
+      query?: {
+        /** @description Select the settings scope */
+        scope?: "user" | "profile" | "workspace";
+        /** @description Select the workspace context */
+        workspace_id?: string;
+        /** @description Select the profile layer */
+        profile?: string;
+      };
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description OK */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            available_scopes: ("user" | "profile" | "workspace")[];
+            config: {
+              agent: string;
+              provider?: string;
+              sandbox?: string;
+            };
+            profile?: string;
+            /** @enum {string} */
+            scope: "user" | "profile" | "workspace";
+            /** @enum {string} */
+            section:
+              | "general"
+              | "persona"
+              | "memory"
+              | "roles"
+              | "skills"
+              | "automation"
+              | "network"
+              | "window-manager"
+              | "cmd-palette"
+              | "attention"
+              | "shell"
+              | "observability"
+              | "hooks-extensions";
+            workspace_id?: string;
+          };
+        };
+      };
+      /** @description Invalid settings scope */
+      400: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+      /** @description Workspace not found */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+      /** @description Internal server error */
+      500: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+    };
+  };
+  updateSettingsPersona: {
+    parameters: {
+      query?: {
+        /** @description Select the settings scope */
+        scope?: "user" | "profile" | "workspace";
+        /** @description Select the workspace context */
+        workspace_id?: string;
+        /** @description Select the profile layer */
+        profile?: string;
+      };
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** @description JSON request body */
+    requestBody: {
+      content: {
+        "application/json": {
+          config: {
+            agent: string;
+            provider?: string;
+            sandbox?: string;
+          };
+        };
+      };
+    };
+    responses: {
+      /** @description OK */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            active_config_hash: string;
+            /** Format: int64 */
+            active_generation: number;
+            agent_name?: string;
+            applied: boolean;
+            apply_record_id: string;
+            /** @enum {string} */
+            lifecycle:
+              | "live"
+              | "live-add"
+              | "live-remove-if-unused"
+              | "restart-required"
+              | "session-rebind";
+            /** @enum {string} */
+            next_action: "none" | "restart-daemon" | "new-session" | "retry";
+            partial_failures?: {
+              diagnostic: {
+                category: string;
+                code: string;
+                data_freshness: string;
+                doc_url?: string;
+                evidence?: {
+                  [key: string]: unknown;
+                };
+                id: string;
+                message: string;
+                severity: string;
+                suggested_command?: string;
+                title: string;
+              };
+              subsystem: string;
+            }[];
+            profile?: string;
+            restart_required?: boolean;
+            restart_scope?: string;
+            /** @enum {string} */
+            scope?: "user" | "profile" | "workspace" | "agent";
+            /** @enum {string} */
+            section?:
+              | "general"
+              | "persona"
+              | "memory"
+              | "roles"
+              | "skills"
+              | "automation"
+              | "network"
+              | "window-manager"
+              | "cmd-palette"
+              | "attention"
+              | "shell"
+              | "observability"
+              | "hooks-extensions"
+              | "providers"
+              | "mcp-servers"
+              | "sandboxes"
+              | "hooks";
+            skipped?: boolean;
+            skipped_reason?: string;
+            warnings?: string[];
+            workspace_id?: string;
+            /** @enum {string} */
+            write_target?:
+              | "global-config"
+              | "profile-config"
+              | "workspace-config"
+              | "global-mcp-sidecar"
+              | "profile-mcp-sidecar"
+              | "workspace-mcp-sidecar"
+              | "global-agent-file"
+              | "workspace-agent-file";
+          };
+        };
+      };
+      /** @description Invalid settings payload */
+      400: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+      /** @description Forbidden */
+      403: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+      /** @description Workspace not found */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+      /** @description Conflicting settings change */
+      409: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+      /** @description Internal server error */
+      500: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+    };
+  };
   listSettingsProviders: {
     parameters: {
       query?: never;
@@ -62228,7 +65473,7 @@ export interface operations {
         };
         content: {
           "application/json": {
-            available_scopes: "global"[];
+            available_scopes: "user"[];
             /** @enum {string} */
             collection: "providers" | "mcp-servers" | "sandboxes" | "hooks";
             providers: {
@@ -62350,13 +65595,18 @@ export interface operations {
                   kind:
                     | "builtin-provider"
                     | "global-config"
+                    | "profile-config"
                     | "workspace-config"
+                    | "workspace-profile-config"
                     | "global-mcp-sidecar"
+                    | "profile-mcp-sidecar"
                     | "workspace-mcp-sidecar"
+                    | "workspace-profile-mcp-sidecar"
                     | "global-agent-file"
                     | "workspace-agent-file";
+                  profile?: string;
                   /** @enum {string} */
-                  scope: "global" | "workspace" | "agent";
+                  scope: "user" | "profile" | "workspace" | "agent";
                   workspace_id?: string;
                 };
               } | null;
@@ -62439,8 +65689,10 @@ export interface operations {
               source_metadata: {
                 available_targets: (
                   | "global-config"
+                  | "profile-config"
                   | "workspace-config"
                   | "global-mcp-sidecar"
+                  | "profile-mcp-sidecar"
                   | "workspace-mcp-sidecar"
                   | "global-agent-file"
                   | "workspace-agent-file"
@@ -62451,13 +65703,18 @@ export interface operations {
                   kind:
                     | "builtin-provider"
                     | "global-config"
+                    | "profile-config"
                     | "workspace-config"
+                    | "workspace-profile-config"
                     | "global-mcp-sidecar"
+                    | "profile-mcp-sidecar"
                     | "workspace-mcp-sidecar"
+                    | "workspace-profile-mcp-sidecar"
                     | "global-agent-file"
                     | "workspace-agent-file";
+                  profile?: string;
                   /** @enum {string} */
-                  scope: "global" | "workspace" | "agent";
+                  scope: "user" | "profile" | "workspace" | "agent";
                   workspace_id?: string;
                 };
                 shadowed_sources?: {
@@ -62466,19 +65723,24 @@ export interface operations {
                   kind:
                     | "builtin-provider"
                     | "global-config"
+                    | "profile-config"
                     | "workspace-config"
+                    | "workspace-profile-config"
                     | "global-mcp-sidecar"
+                    | "profile-mcp-sidecar"
                     | "workspace-mcp-sidecar"
+                    | "workspace-profile-mcp-sidecar"
                     | "global-agent-file"
                     | "workspace-agent-file";
+                  profile?: string;
                   /** @enum {string} */
-                  scope: "global" | "workspace" | "agent";
+                  scope: "user" | "profile" | "workspace" | "agent";
                   workspace_id?: string;
                 }[];
               };
             }[];
             /** @enum {string} */
-            scope: "global";
+            scope: "user";
           };
         };
       };
@@ -62651,13 +65913,18 @@ export interface operations {
                   kind:
                     | "builtin-provider"
                     | "global-config"
+                    | "profile-config"
                     | "workspace-config"
+                    | "workspace-profile-config"
                     | "global-mcp-sidecar"
+                    | "profile-mcp-sidecar"
                     | "workspace-mcp-sidecar"
+                    | "workspace-profile-mcp-sidecar"
                     | "global-agent-file"
                     | "workspace-agent-file";
+                  profile?: string;
                   /** @enum {string} */
-                  scope: "global" | "workspace" | "agent";
+                  scope: "user" | "profile" | "workspace" | "agent";
                   workspace_id?: string;
                 };
               } | null;
@@ -62740,8 +66007,10 @@ export interface operations {
               source_metadata: {
                 available_targets: (
                   | "global-config"
+                  | "profile-config"
                   | "workspace-config"
                   | "global-mcp-sidecar"
+                  | "profile-mcp-sidecar"
                   | "workspace-mcp-sidecar"
                   | "global-agent-file"
                   | "workspace-agent-file"
@@ -62752,13 +66021,18 @@ export interface operations {
                   kind:
                     | "builtin-provider"
                     | "global-config"
+                    | "profile-config"
                     | "workspace-config"
+                    | "workspace-profile-config"
                     | "global-mcp-sidecar"
+                    | "profile-mcp-sidecar"
                     | "workspace-mcp-sidecar"
+                    | "workspace-profile-mcp-sidecar"
                     | "global-agent-file"
                     | "workspace-agent-file";
+                  profile?: string;
                   /** @enum {string} */
-                  scope: "global" | "workspace" | "agent";
+                  scope: "user" | "profile" | "workspace" | "agent";
                   workspace_id?: string;
                 };
                 shadowed_sources?: {
@@ -62767,13 +66041,18 @@ export interface operations {
                   kind:
                     | "builtin-provider"
                     | "global-config"
+                    | "profile-config"
                     | "workspace-config"
+                    | "workspace-profile-config"
                     | "global-mcp-sidecar"
+                    | "profile-mcp-sidecar"
                     | "workspace-mcp-sidecar"
+                    | "workspace-profile-mcp-sidecar"
                     | "global-agent-file"
                     | "workspace-agent-file";
+                  profile?: string;
                   /** @enum {string} */
-                  scope: "global" | "workspace" | "agent";
+                  scope: "user" | "profile" | "workspace" | "agent";
                   workspace_id?: string;
                 }[];
               };
@@ -62996,13 +66275,15 @@ export interface operations {
               };
               subsystem: string;
             }[];
+            profile?: string;
             restart_required?: boolean;
             restart_scope?: string;
             /** @enum {string} */
-            scope?: "global" | "workspace" | "agent";
+            scope?: "user" | "profile" | "workspace" | "agent";
             /** @enum {string} */
             section?:
               | "general"
+              | "persona"
               | "memory"
               | "roles"
               | "skills"
@@ -63025,8 +66306,10 @@ export interface operations {
             /** @enum {string} */
             write_target?:
               | "global-config"
+              | "profile-config"
               | "workspace-config"
               | "global-mcp-sidecar"
+              | "profile-mcp-sidecar"
               | "workspace-mcp-sidecar"
               | "global-agent-file"
               | "workspace-agent-file";
@@ -63202,13 +66485,15 @@ export interface operations {
               };
               subsystem: string;
             }[];
+            profile?: string;
             restart_required?: boolean;
             restart_scope?: string;
             /** @enum {string} */
-            scope?: "global" | "workspace" | "agent";
+            scope?: "user" | "profile" | "workspace" | "agent";
             /** @enum {string} */
             section?:
               | "general"
+              | "persona"
               | "memory"
               | "roles"
               | "skills"
@@ -63231,8 +66516,10 @@ export interface operations {
             /** @enum {string} */
             write_target?:
               | "global-config"
+              | "profile-config"
               | "workspace-config"
               | "global-mcp-sidecar"
+              | "profile-mcp-sidecar"
               | "workspace-mcp-sidecar"
               | "global-agent-file"
               | "workspace-agent-file";
@@ -63376,13 +66663,15 @@ export interface operations {
               };
               subsystem: string;
             }[];
+            profile?: string;
             restart_required?: boolean;
             restart_scope?: string;
             /** @enum {string} */
-            scope?: "global" | "workspace" | "agent";
+            scope?: "user" | "profile" | "workspace" | "agent";
             /** @enum {string} */
             section?:
               | "general"
+              | "persona"
               | "memory"
               | "roles"
               | "skills"
@@ -63405,8 +66694,10 @@ export interface operations {
             /** @enum {string} */
             write_target?:
               | "global-config"
+              | "profile-config"
               | "workspace-config"
               | "global-mcp-sidecar"
+              | "profile-mcp-sidecar"
               | "workspace-mcp-sidecar"
               | "global-agent-file"
               | "workspace-agent-file";
@@ -63518,7 +66809,7 @@ export interface operations {
         };
         content: {
           "application/json": {
-            available_scopes: "global"[];
+            available_scopes: ("user" | "workspace")[];
             config: {
               auto_title: {
                 agent: string;
@@ -63600,10 +66891,11 @@ export interface operations {
               };
             };
             /** @enum {string} */
-            scope: "global";
+            scope: "user" | "workspace";
             /** @enum {string} */
             section:
               | "general"
+              | "persona"
               | "memory"
               | "roles"
               | "skills"
@@ -63615,6 +66907,7 @@ export interface operations {
               | "shell"
               | "observability"
               | "hooks-extensions";
+            workspace_id?: string;
           };
         };
       };
@@ -63783,13 +67076,15 @@ export interface operations {
               };
               subsystem: string;
             }[];
+            profile?: string;
             restart_required?: boolean;
             restart_scope?: string;
             /** @enum {string} */
-            scope?: "global" | "workspace" | "agent";
+            scope?: "user" | "profile" | "workspace" | "agent";
             /** @enum {string} */
             section?:
               | "general"
+              | "persona"
               | "memory"
               | "roles"
               | "skills"
@@ -63812,8 +67107,10 @@ export interface operations {
             /** @enum {string} */
             write_target?:
               | "global-config"
+              | "profile-config"
               | "workspace-config"
               | "global-mcp-sidecar"
+              | "profile-mcp-sidecar"
               | "workspace-mcp-sidecar"
               | "global-agent-file"
               | "workspace-agent-file";
@@ -63954,7 +67251,7 @@ export interface operations {
         };
         content: {
           "application/json": {
-            available_scopes: "global"[];
+            available_scopes: "user"[];
             /** @enum {string} */
             collection: "providers" | "mcp-servers" | "sandboxes" | "hooks";
             sandboxes: {
@@ -63990,8 +67287,10 @@ export interface operations {
               source_metadata: {
                 available_targets: (
                   | "global-config"
+                  | "profile-config"
                   | "workspace-config"
                   | "global-mcp-sidecar"
+                  | "profile-mcp-sidecar"
                   | "workspace-mcp-sidecar"
                   | "global-agent-file"
                   | "workspace-agent-file"
@@ -64002,13 +67301,18 @@ export interface operations {
                   kind:
                     | "builtin-provider"
                     | "global-config"
+                    | "profile-config"
                     | "workspace-config"
+                    | "workspace-profile-config"
                     | "global-mcp-sidecar"
+                    | "profile-mcp-sidecar"
                     | "workspace-mcp-sidecar"
+                    | "workspace-profile-mcp-sidecar"
                     | "global-agent-file"
                     | "workspace-agent-file";
+                  profile?: string;
                   /** @enum {string} */
-                  scope: "global" | "workspace" | "agent";
+                  scope: "user" | "profile" | "workspace" | "agent";
                   workspace_id?: string;
                 };
                 shadowed_sources?: {
@@ -64017,20 +67321,25 @@ export interface operations {
                   kind:
                     | "builtin-provider"
                     | "global-config"
+                    | "profile-config"
                     | "workspace-config"
+                    | "workspace-profile-config"
                     | "global-mcp-sidecar"
+                    | "profile-mcp-sidecar"
                     | "workspace-mcp-sidecar"
+                    | "workspace-profile-mcp-sidecar"
                     | "global-agent-file"
                     | "workspace-agent-file";
+                  profile?: string;
                   /** @enum {string} */
-                  scope: "global" | "workspace" | "agent";
+                  scope: "user" | "profile" | "workspace" | "agent";
                   workspace_id?: string;
                 }[];
               };
               workspace_usage_count: number;
             }[];
             /** @enum {string} */
-            scope: "global";
+            scope: "user";
           };
         };
       };
@@ -64117,8 +67426,10 @@ export interface operations {
               source_metadata: {
                 available_targets: (
                   | "global-config"
+                  | "profile-config"
                   | "workspace-config"
                   | "global-mcp-sidecar"
+                  | "profile-mcp-sidecar"
                   | "workspace-mcp-sidecar"
                   | "global-agent-file"
                   | "workspace-agent-file"
@@ -64129,13 +67440,18 @@ export interface operations {
                   kind:
                     | "builtin-provider"
                     | "global-config"
+                    | "profile-config"
                     | "workspace-config"
+                    | "workspace-profile-config"
                     | "global-mcp-sidecar"
+                    | "profile-mcp-sidecar"
                     | "workspace-mcp-sidecar"
+                    | "workspace-profile-mcp-sidecar"
                     | "global-agent-file"
                     | "workspace-agent-file";
+                  profile?: string;
                   /** @enum {string} */
-                  scope: "global" | "workspace" | "agent";
+                  scope: "user" | "profile" | "workspace" | "agent";
                   workspace_id?: string;
                 };
                 shadowed_sources?: {
@@ -64144,13 +67460,18 @@ export interface operations {
                   kind:
                     | "builtin-provider"
                     | "global-config"
+                    | "profile-config"
                     | "workspace-config"
+                    | "workspace-profile-config"
                     | "global-mcp-sidecar"
+                    | "profile-mcp-sidecar"
                     | "workspace-mcp-sidecar"
+                    | "workspace-profile-mcp-sidecar"
                     | "global-agent-file"
                     | "workspace-agent-file";
+                  profile?: string;
                   /** @enum {string} */
-                  scope: "global" | "workspace" | "agent";
+                  scope: "user" | "profile" | "workspace" | "agent";
                   workspace_id?: string;
                 }[];
               };
@@ -64304,13 +67625,15 @@ export interface operations {
               };
               subsystem: string;
             }[];
+            profile?: string;
             restart_required?: boolean;
             restart_scope?: string;
             /** @enum {string} */
-            scope?: "global" | "workspace" | "agent";
+            scope?: "user" | "profile" | "workspace" | "agent";
             /** @enum {string} */
             section?:
               | "general"
+              | "persona"
               | "memory"
               | "roles"
               | "skills"
@@ -64333,8 +67656,10 @@ export interface operations {
             /** @enum {string} */
             write_target?:
               | "global-config"
+              | "profile-config"
               | "workspace-config"
               | "global-mcp-sidecar"
+              | "profile-mcp-sidecar"
               | "workspace-mcp-sidecar"
               | "global-agent-file"
               | "workspace-agent-file";
@@ -64510,13 +67835,15 @@ export interface operations {
               };
               subsystem: string;
             }[];
+            profile?: string;
             restart_required?: boolean;
             restart_scope?: string;
             /** @enum {string} */
-            scope?: "global" | "workspace" | "agent";
+            scope?: "user" | "profile" | "workspace" | "agent";
             /** @enum {string} */
             section?:
               | "general"
+              | "persona"
               | "memory"
               | "roles"
               | "skills"
@@ -64539,8 +67866,10 @@ export interface operations {
             /** @enum {string} */
             write_target?:
               | "global-config"
+              | "profile-config"
               | "workspace-config"
               | "global-mcp-sidecar"
+              | "profile-mcp-sidecar"
               | "workspace-mcp-sidecar"
               | "global-agent-file"
               | "workspace-agent-file";
@@ -64652,7 +67981,7 @@ export interface operations {
         };
         content: {
           "application/json": {
-            available_scopes: "global"[];
+            available_scopes: "user"[];
             config: {
               sessions: {
                 /** @enum {string} */
@@ -64662,10 +67991,11 @@ export interface operations {
               };
             };
             /** @enum {string} */
-            scope: "global";
+            scope: "user";
             /** @enum {string} */
             section:
               | "general"
+              | "persona"
               | "memory"
               | "roles"
               | "skills"
@@ -64773,13 +68103,15 @@ export interface operations {
               };
               subsystem: string;
             }[];
+            profile?: string;
             restart_required?: boolean;
             restart_scope?: string;
             /** @enum {string} */
-            scope?: "global" | "workspace" | "agent";
+            scope?: "user" | "profile" | "workspace" | "agent";
             /** @enum {string} */
             section?:
               | "general"
+              | "persona"
               | "memory"
               | "roles"
               | "skills"
@@ -64802,8 +68134,10 @@ export interface operations {
             /** @enum {string} */
             write_target?:
               | "global-config"
+              | "profile-config"
               | "workspace-config"
               | "global-mcp-sidecar"
+              | "profile-mcp-sidecar"
               | "workspace-mcp-sidecar"
               | "global-agent-file"
               | "workspace-agent-file";
@@ -64932,7 +68266,7 @@ export interface operations {
     parameters: {
       query?: {
         /** @description Select the settings scope */
-        scope?: "global" | "agent";
+        scope?: "user" | "agent";
         /** @description Optional workspace id for agent resolution context */
         workspace_id?: string;
         /** @description Agent name when scope=agent */
@@ -64952,7 +68286,7 @@ export interface operations {
         content: {
           "application/json": {
             agent_name?: string;
-            available_scopes: ("global" | "agent")[];
+            available_scopes: ("user" | "agent")[];
             config: {
               allowed_marketplace_hooks?: string[];
               allowed_marketplace_mcp?: string[];
@@ -65008,10 +68342,11 @@ export interface operations {
             }[];
             runtime_available: boolean;
             /** @enum {string} */
-            scope: "global" | "agent";
+            scope: "user" | "agent";
             /** @enum {string} */
             section:
               | "general"
+              | "persona"
               | "memory"
               | "roles"
               | "skills"
@@ -65149,7 +68484,7 @@ export interface operations {
     parameters: {
       query?: {
         /** @description Select the settings scope */
-        scope?: "global" | "agent";
+        scope?: "user" | "agent";
         /** @description Optional workspace id for agent resolution context */
         workspace_id?: string;
         /** @description Agent name when scope=agent */
@@ -65217,13 +68552,15 @@ export interface operations {
               };
               subsystem: string;
             }[];
+            profile?: string;
             restart_required?: boolean;
             restart_scope?: string;
             /** @enum {string} */
-            scope?: "global" | "workspace" | "agent";
+            scope?: "user" | "profile" | "workspace" | "agent";
             /** @enum {string} */
             section?:
               | "general"
+              | "persona"
               | "memory"
               | "roles"
               | "skills"
@@ -65246,8 +68583,10 @@ export interface operations {
             /** @enum {string} */
             write_target?:
               | "global-config"
+              | "profile-config"
               | "workspace-config"
               | "global-mcp-sidecar"
+              | "profile-mcp-sidecar"
               | "workspace-mcp-sidecar"
               | "global-agent-file"
               | "workspace-agent-file";
@@ -65914,7 +69253,7 @@ export interface operations {
     parameters: {
       query?: {
         /** @description Select the settings scope */
-        scope?: "global" | "workspace";
+        scope?: "user" | "workspace";
         /** @description Select the workspace id for workspace scope */
         workspace_id?: string;
       };
@@ -65934,7 +69273,7 @@ export interface operations {
             aliases: {
               [key: string]: string;
             };
-            available_scopes: ("global" | "workspace")[];
+            available_scopes: ("user" | "workspace")[];
             commands: {
               id: string;
               section: string;
@@ -66013,10 +69352,11 @@ export interface operations {
               status?: string;
             }[];
             /** @enum {string} */
-            scope: "global" | "workspace";
+            scope: "user" | "workspace";
             /** @enum {string} */
             section:
               | "general"
+              | "persona"
               | "memory"
               | "roles"
               | "skills"
@@ -66125,7 +69465,7 @@ export interface operations {
     parameters: {
       query?: {
         /** @description Select the settings scope */
-        scope?: "global" | "workspace";
+        scope?: "user" | "workspace";
         /** @description Select the workspace id for workspace scope */
         workspace_id?: string;
       };
@@ -66208,7 +69548,7 @@ export interface operations {
             aliases: {
               [key: string]: string;
             };
-            available_scopes: ("global" | "workspace")[];
+            available_scopes: ("user" | "workspace")[];
             commands: {
               id: string;
               section: string;
@@ -66287,10 +69627,11 @@ export interface operations {
               status?: string;
             }[];
             /** @enum {string} */
-            scope: "global" | "workspace";
+            scope: "user" | "workspace";
             /** @enum {string} */
             section:
               | "general"
+              | "persona"
               | "memory"
               | "roles"
               | "skills"
@@ -68260,6 +71601,13 @@ export interface operations {
             config: {
               apply_state: string;
               config_file?: string;
+              diagnostics?: {
+                code: string;
+                layer: string;
+                message: string;
+                path: string;
+                profile: string;
+              }[];
               home_dir?: string;
               restart_required: boolean;
               status: string;
@@ -69251,6 +72599,12 @@ export interface operations {
               parent_review_id?: string;
               /** @enum {string} */
               policy: "none" | "always" | "on_success" | "on_failure";
+              profile_archived?: boolean;
+              profile_color?: string;
+              profile_emoji?: string;
+              profile_icon?: string;
+              profile_id: string;
+              profile_name: string;
               reason?: string;
               /** Format: date-time */
               requested_at: string;
@@ -69488,6 +72842,10 @@ export interface operations {
                 ref: string;
               };
               previous_run_id?: string;
+              profile_color?: string;
+              profile_icon?: string;
+              profile_id?: string;
+              profile_name?: string;
               /** Format: date-time */
               queued_at: string;
               recovery_count: number;
@@ -69580,6 +72938,12 @@ export interface operations {
               parent_review_id?: string;
               /** @enum {string} */
               policy: "none" | "always" | "on_success" | "on_failure";
+              profile_archived?: boolean;
+              profile_color?: string;
+              profile_emoji?: string;
+              profile_icon?: string;
+              profile_id: string;
+              profile_name: string;
               reason?: string;
               /** Format: date-time */
               requested_at: string;
@@ -69934,6 +73298,10 @@ export interface operations {
                   ref: string;
                 };
                 previous_run_id?: string;
+                profile_color?: string;
+                profile_icon?: string;
+                profile_id?: string;
+                profile_name?: string;
                 /** Format: date-time */
                 queued_at: string;
                 recovery_count: number;
@@ -70294,6 +73662,10 @@ export interface operations {
                 ref: string;
               };
               previous_run_id?: string;
+              profile_color?: string;
+              profile_icon?: string;
+              profile_id?: string;
+              profile_name?: string;
               /** Format: date-time */
               queued_at: string;
               recovery_count: number;
@@ -70608,6 +73980,10 @@ export interface operations {
                 ref: string;
               };
               previous_run_id?: string;
+              profile_color?: string;
+              profile_icon?: string;
+              profile_id?: string;
+              profile_name?: string;
               /** Format: date-time */
               queued_at: string;
               recovery_count: number;
@@ -70922,6 +74298,10 @@ export interface operations {
                 ref: string;
               };
               previous_run_id?: string;
+              profile_color?: string;
+              profile_icon?: string;
+              profile_id?: string;
+              profile_name?: string;
               /** Format: date-time */
               queued_at: string;
               recovery_count: number;
@@ -71179,6 +74559,12 @@ export interface operations {
               peer_from: string;
               peer_to?: string;
               preview_text?: string;
+              profile_archived?: boolean;
+              profile_color?: string;
+              profile_emoji?: string;
+              profile_icon?: string;
+              profile_id: string;
+              profile_name: string;
               reply_to?: string;
               session_id?: string;
               /** Format: int64 */
@@ -71504,6 +74890,10 @@ export interface operations {
                 ref: string;
               };
               previous_run_id?: string;
+              profile_color?: string;
+              profile_icon?: string;
+              profile_id?: string;
+              profile_name?: string;
               /** Format: date-time */
               queued_at: string;
               recovery_count: number;
@@ -71772,6 +75162,12 @@ export interface operations {
               parent_review_id?: string;
               /** @enum {string} */
               policy: "none" | "always" | "on_success" | "on_failure";
+              profile_archived?: boolean;
+              profile_color?: string;
+              profile_emoji?: string;
+              profile_icon?: string;
+              profile_id: string;
+              profile_name: string;
               reason?: string;
               /** Format: date-time */
               requested_at: string;
@@ -71991,6 +75387,12 @@ export interface operations {
               parent_review_id?: string;
               /** @enum {string} */
               policy: "none" | "always" | "on_success" | "on_failure";
+              profile_archived?: boolean;
+              profile_color?: string;
+              profile_emoji?: string;
+              profile_icon?: string;
+              profile_id: string;
+              profile_name: string;
               reason?: string;
               /** Format: date-time */
               requested_at: string;
@@ -72064,6 +75466,12 @@ export interface operations {
               parent_review_id?: string;
               /** @enum {string} */
               policy: "none" | "always" | "on_success" | "on_failure";
+              profile_archived?: boolean;
+              profile_color?: string;
+              profile_emoji?: string;
+              profile_icon?: string;
+              profile_id: string;
+              profile_name: string;
               reason?: string;
               /** Format: date-time */
               requested_at: string;
@@ -72347,6 +75755,10 @@ export interface operations {
                 ref: string;
               };
               previous_run_id?: string;
+              profile_color?: string;
+              profile_icon?: string;
+              profile_id?: string;
+              profile_name?: string;
               /** Format: date-time */
               queued_at: string;
               recovery_count: number;
@@ -72619,6 +76031,10 @@ export interface operations {
         cursor?: string;
         /** @description Page size from 1 to 200 (default 50) */
         limit?: number;
+        /** @description Read one profile's rows by name */
+        profile?: string;
+        /** @description Read the owner-labeled all-profiles aggregate */
+        all_profiles?: boolean;
       };
       header?: never;
       path?: never;
@@ -72848,6 +76264,10 @@ export interface operations {
               parent_task_id?: string;
               /** @enum {string} */
               priority?: "low" | "medium" | "high" | "urgent";
+              profile_color?: string;
+              profile_icon?: string;
+              profile_id: string;
+              profile_name: string;
               resolved_network_participation?:
                 | (
                     | {
@@ -73067,7 +76487,10 @@ export interface operations {
   };
   createTask: {
     parameters: {
-      query?: never;
+      query?: {
+        /** @description Act as this profile by name */
+        profile?: string;
+      };
       header?: never;
       path?: never;
       cookie?: never;
@@ -73267,6 +76690,10 @@ export interface operations {
               paused_reason?: string;
               /** @enum {string} */
               priority?: "low" | "medium" | "high" | "urgent";
+              profile_color?: string;
+              profile_icon?: string;
+              profile_id: string;
+              profile_name: string;
               resolved_network_participation?:
                 | (
                     | {
@@ -73514,7 +76941,12 @@ export interface operations {
   };
   getTask: {
     parameters: {
-      query?: never;
+      query?: {
+        /** @description Read one profile's rows by name */
+        profile?: string;
+        /** @description Read the owner-labeled all-profiles aggregate */
+        all_profiles?: boolean;
+      };
       header?: never;
       path: {
         /** @description Task id */
@@ -73790,6 +77222,10 @@ export interface operations {
                 paused_reason?: string;
                 /** @enum {string} */
                 priority?: "low" | "medium" | "high" | "urgent";
+                profile_color?: string;
+                profile_icon?: string;
+                profile_id: string;
+                profile_name: string;
                 resolved_network_participation?:
                   | (
                       | {
@@ -74017,6 +77453,10 @@ export interface operations {
                   ref: string;
                 };
                 previous_run_id?: string;
+                profile_color?: string;
+                profile_icon?: string;
+                profile_id?: string;
+                profile_name?: string;
                 /** Format: date-time */
                 queued_at: string;
                 recovery_count: number;
@@ -74345,6 +77785,10 @@ export interface operations {
                 paused_reason?: string;
                 /** @enum {string} */
                 priority?: "low" | "medium" | "high" | "urgent";
+                profile_color?: string;
+                profile_icon?: string;
+                profile_id: string;
+                profile_name: string;
                 resolved_network_participation?:
                   | (
                       | {
@@ -74510,6 +77954,10 @@ export interface operations {
                 paused_reason?: string;
                 /** @enum {string} */
                 priority?: "low" | "medium" | "high" | "urgent";
+                profile_color?: string;
+                profile_icon?: string;
+                profile_id: string;
+                profile_name: string;
                 resolved_network_participation?:
                   | (
                       | {
@@ -74700,7 +78148,10 @@ export interface operations {
   };
   deleteTask: {
     parameters: {
-      query?: never;
+      query?: {
+        /** @description Act as this profile by name */
+        profile?: string;
+      };
       header?: never;
       path: {
         /** @description Task id */
@@ -74837,7 +78288,10 @@ export interface operations {
   };
   updateTask: {
     parameters: {
-      query?: never;
+      query?: {
+        /** @description Act as this profile by name */
+        profile?: string;
+      };
       header?: never;
       path: {
         /** @description Task id */
@@ -75034,6 +78488,10 @@ export interface operations {
               paused_reason?: string;
               /** @enum {string} */
               priority?: "low" | "medium" | "high" | "urgent";
+              profile_color?: string;
+              profile_icon?: string;
+              profile_id: string;
+              profile_name: string;
               resolved_network_participation?:
                 | (
                     | {
@@ -75404,6 +78862,10 @@ export interface operations {
                 ref: string;
               };
               previous_run_id?: string;
+              profile_color?: string;
+              profile_icon?: string;
+              profile_id?: string;
+              profile_name?: string;
               /** Format: date-time */
               queued_at: string;
               recovery_count: number;
@@ -75573,6 +79035,10 @@ export interface operations {
               paused_reason?: string;
               /** @enum {string} */
               priority?: "low" | "medium" | "high" | "urgent";
+              profile_color?: string;
+              profile_icon?: string;
+              profile_id: string;
+              profile_name: string;
               resolved_network_participation?:
                 | (
                     | {
@@ -75794,6 +79260,10 @@ export interface operations {
       query?: {
         /** @description Include cleared task blocks */
         include_cleared?: boolean;
+        /** @description Read one profile's rows by name */
+        profile?: string;
+        /** @description Read the owner-labeled all-profiles aggregate */
+        all_profiles?: boolean;
       };
       header?: never;
       path: {
@@ -76001,7 +79471,10 @@ export interface operations {
   };
   blockTask: {
     parameters: {
-      query?: never;
+      query?: {
+        /** @description Act as this profile by name */
+        profile?: string;
+      };
       header?: never;
       path: {
         /** @description Task id */
@@ -76221,7 +79694,10 @@ export interface operations {
   };
   clearTaskBlock: {
     parameters: {
-      query?: never;
+      query?: {
+        /** @description Act as this profile by name */
+        profile?: string;
+      };
       header?: never;
       path: {
         /** @description Task id */
@@ -76561,6 +80037,10 @@ export interface operations {
               paused_reason?: string;
               /** @enum {string} */
               priority?: "low" | "medium" | "high" | "urgent";
+              profile_color?: string;
+              profile_icon?: string;
+              profile_id: string;
+              profile_name: string;
               resolved_network_participation?:
                 | (
                     | {
@@ -76982,6 +80462,10 @@ export interface operations {
               paused_reason?: string;
               /** @enum {string} */
               priority?: "low" | "medium" | "high" | "urgent";
+              profile_color?: string;
+              profile_icon?: string;
+              profile_id: string;
+              profile_name: string;
               resolved_network_participation?:
                 | (
                     | {
@@ -77514,6 +80998,10 @@ export interface operations {
                 paused_reason?: string;
                 /** @enum {string} */
                 priority?: "low" | "medium" | "high" | "urgent";
+                profile_color?: string;
+                profile_icon?: string;
+                profile_id: string;
+                profile_name: string;
                 resolved_network_participation?:
                   | (
                       | {
@@ -77741,6 +81229,10 @@ export interface operations {
                   ref: string;
                 };
                 previous_run_id?: string;
+                profile_color?: string;
+                profile_icon?: string;
+                profile_id?: string;
+                profile_name?: string;
                 /** Format: date-time */
                 queued_at: string;
                 recovery_count: number;
@@ -78069,6 +81561,10 @@ export interface operations {
                 paused_reason?: string;
                 /** @enum {string} */
                 priority?: "low" | "medium" | "high" | "urgent";
+                profile_color?: string;
+                profile_icon?: string;
+                profile_id: string;
+                profile_name: string;
                 resolved_network_participation?:
                   | (
                       | {
@@ -78234,6 +81730,10 @@ export interface operations {
                 paused_reason?: string;
                 /** @enum {string} */
                 priority?: "low" | "medium" | "high" | "urgent";
+                profile_color?: string;
+                profile_icon?: string;
+                profile_id: string;
+                profile_name: string;
                 resolved_network_participation?:
                   | (
                       | {
@@ -78731,6 +82231,10 @@ export interface operations {
                 paused_reason?: string;
                 /** @enum {string} */
                 priority?: "low" | "medium" | "high" | "urgent";
+                profile_color?: string;
+                profile_icon?: string;
+                profile_id: string;
+                profile_name: string;
                 resolved_network_participation?:
                   | (
                       | {
@@ -78958,6 +82462,10 @@ export interface operations {
                   ref: string;
                 };
                 previous_run_id?: string;
+                profile_color?: string;
+                profile_icon?: string;
+                profile_id?: string;
+                profile_name?: string;
                 /** Format: date-time */
                 queued_at: string;
                 recovery_count: number;
@@ -79286,6 +82794,10 @@ export interface operations {
                 paused_reason?: string;
                 /** @enum {string} */
                 priority?: "low" | "medium" | "high" | "urgent";
+                profile_color?: string;
+                profile_icon?: string;
+                profile_id: string;
+                profile_name: string;
                 resolved_network_participation?:
                   | (
                       | {
@@ -79451,6 +82963,10 @@ export interface operations {
                 paused_reason?: string;
                 /** @enum {string} */
                 priority?: "low" | "medium" | "high" | "urgent";
+                profile_color?: string;
+                profile_icon?: string;
+                profile_id: string;
+                profile_name: string;
                 resolved_network_participation?:
                   | (
                       | {
@@ -79641,7 +83157,12 @@ export interface operations {
   };
   getTaskExecutionProfile: {
     parameters: {
-      query?: never;
+      query?: {
+        /** @description Read one profile's rows by name */
+        profile?: string;
+        /** @description Read the owner-labeled all-profiles aggregate */
+        all_profiles?: boolean;
+      };
       header?: never;
       path: {
         /** @description Task id */
@@ -79904,7 +83425,10 @@ export interface operations {
   };
   setTaskExecutionProfile: {
     parameters: {
-      query?: never;
+      query?: {
+        /** @description Act as this profile by name */
+        profile?: string;
+      };
       header?: never;
       path: {
         /** @description Task id */
@@ -80323,7 +83847,10 @@ export interface operations {
   };
   deleteTaskExecutionProfile: {
     parameters: {
-      query?: never;
+      query?: {
+        /** @description Act as this profile by name */
+        profile?: string;
+      };
       header?: never;
       path: {
         /** @description Task id */
@@ -80460,7 +83987,10 @@ export interface operations {
   };
   setTaskWorktreePolicy: {
     parameters: {
-      query?: never;
+      query?: {
+        /** @description Act as this profile by name */
+        profile?: string;
+      };
       header?: never;
       path: {
         /** @description Task id */
@@ -80761,7 +84291,12 @@ export interface operations {
   };
   inspectTask: {
     parameters: {
-      query?: never;
+      query?: {
+        /** @description Read one profile's rows by name */
+        profile?: string;
+        /** @description Read the owner-labeled all-profiles aggregate */
+        all_profiles?: boolean;
+      };
       header?: never;
       path: {
         /** @description Task id */
@@ -81154,6 +84689,10 @@ export interface operations {
                 paused_reason?: string;
                 /** @enum {string} */
                 priority?: "low" | "medium" | "high" | "urgent";
+                profile_color?: string;
+                profile_icon?: string;
+                profile_id: string;
+                profile_name: string;
                 resolved_network_participation?:
                   | (
                       | {
@@ -81353,6 +84892,10 @@ export interface operations {
         workspace_id?: string;
         /** @description Maximum number of records to return */
         limit?: number;
+        /** @description Read one profile's rows by name */
+        profile?: string;
+        /** @description Read the owner-labeled all-profiles aggregate */
+        all_profiles?: boolean;
       };
       header?: never;
       path: {
@@ -81407,6 +84950,12 @@ export interface operations {
               delivery_mode: "direct-send" | "reply";
               group_id?: string;
               peer_id?: string;
+              profile_archived?: boolean;
+              profile_color?: string;
+              profile_emoji?: string;
+              profile_icon?: string;
+              profile_id: string;
+              profile_name: string;
               /** @enum {string} */
               scope: "global" | "workspace";
               subscription_id: string;
@@ -81539,7 +85088,10 @@ export interface operations {
   };
   createTaskBridgeNotificationSubscription: {
     parameters: {
-      query?: never;
+      query?: {
+        /** @description Act as this profile by name */
+        profile?: string;
+      };
       header?: never;
       path: {
         /** @description Task id */
@@ -81609,6 +85161,12 @@ export interface operations {
               delivery_mode: "direct-send" | "reply";
               group_id?: string;
               peer_id?: string;
+              profile_archived?: boolean;
+              profile_color?: string;
+              profile_emoji?: string;
+              profile_icon?: string;
+              profile_id: string;
+              profile_name: string;
               /** @enum {string} */
               scope: "global" | "workspace";
               subscription_id: string;
@@ -81741,7 +85299,12 @@ export interface operations {
   };
   getTaskBridgeNotificationSubscription: {
     parameters: {
-      query?: never;
+      query?: {
+        /** @description Read one profile's rows by name */
+        profile?: string;
+        /** @description Read the owner-labeled all-profiles aggregate */
+        all_profiles?: boolean;
+      };
       header?: never;
       path: {
         /** @description Task id */
@@ -81797,6 +85360,12 @@ export interface operations {
               delivery_mode: "direct-send" | "reply";
               group_id?: string;
               peer_id?: string;
+              profile_archived?: boolean;
+              profile_color?: string;
+              profile_emoji?: string;
+              profile_icon?: string;
+              profile_id: string;
+              profile_name: string;
               /** @enum {string} */
               scope: "global" | "workspace";
               subscription_id: string;
@@ -81900,7 +85469,10 @@ export interface operations {
   };
   deleteTaskBridgeNotificationSubscription: {
     parameters: {
-      query?: never;
+      query?: {
+        /** @description Act as this profile by name */
+        profile?: string;
+      };
       header?: never;
       path: {
         /** @description Task id */
@@ -82134,6 +85706,10 @@ export interface operations {
               paused_reason?: string;
               /** @enum {string} */
               priority?: "low" | "medium" | "high" | "urgent";
+              profile_color?: string;
+              profile_icon?: string;
+              profile_id: string;
+              profile_name: string;
               resolved_network_participation?:
                 | (
                     | {
@@ -82562,6 +86138,10 @@ export interface operations {
                 ref: string;
               };
               previous_run_id?: string;
+              profile_color?: string;
+              profile_icon?: string;
+              profile_id?: string;
+              profile_name?: string;
               /** Format: date-time */
               queued_at: string;
               recovery_count: number;
@@ -82731,6 +86311,10 @@ export interface operations {
               paused_reason?: string;
               /** @enum {string} */
               priority?: "low" | "medium" | "high" | "urgent";
+              profile_color?: string;
+              profile_icon?: string;
+              profile_id: string;
+              profile_name: string;
               resolved_network_participation?:
                 | (
                     | {
@@ -82949,7 +86533,10 @@ export interface operations {
   };
   recoverTask: {
     parameters: {
-      query?: never;
+      query?: {
+        /** @description Act as this profile by name */
+        profile?: string;
+      };
       header?: never;
       path: {
         /** @description Task id */
@@ -83072,6 +86659,10 @@ export interface operations {
               paused_reason?: string;
               /** @enum {string} */
               priority?: "low" | "medium" | "high" | "urgent";
+              profile_color?: string;
+              profile_icon?: string;
+              profile_id: string;
+              profile_name: string;
               resolved_network_participation?:
                 | (
                     | {
@@ -83406,6 +86997,10 @@ export interface operations {
               paused_reason?: string;
               /** @enum {string} */
               priority?: "low" | "medium" | "high" | "urgent";
+              profile_color?: string;
+              profile_icon?: string;
+              profile_id: string;
+              profile_name: string;
               resolved_network_participation?:
                 | (
                     | {
@@ -83747,6 +87342,10 @@ export interface operations {
               paused_reason?: string;
               /** @enum {string} */
               priority?: "low" | "medium" | "high" | "urgent";
+              profile_color?: string;
+              profile_icon?: string;
+              profile_id: string;
+              profile_name: string;
               resolved_network_participation?:
                 | (
                     | {
@@ -84030,6 +87629,10 @@ export interface operations {
         reviewer_session_id?: string;
         /** @description Maximum number of records to return */
         limit?: number;
+        /** @description Read one profile's rows by name */
+        profile?: string;
+        /** @description Read the owner-labeled all-profiles aggregate */
+        all_profiles?: boolean;
       };
       header?: never;
       path: {
@@ -84069,6 +87672,12 @@ export interface operations {
               parent_review_id?: string;
               /** @enum {string} */
               policy: "none" | "always" | "on_success" | "on_failure";
+              profile_archived?: boolean;
+              profile_color?: string;
+              profile_emoji?: string;
+              profile_icon?: string;
+              profile_id: string;
+              profile_name: string;
               reason?: string;
               /** Format: date-time */
               requested_at: string;
@@ -84333,6 +87942,10 @@ export interface operations {
                 ref: string;
               };
               previous_run_id?: string;
+              profile_color?: string;
+              profile_icon?: string;
+              profile_id?: string;
+              profile_name?: string;
               /** Format: date-time */
               queued_at: string;
               recovery_count: number;
@@ -84678,6 +88291,10 @@ export interface operations {
                 ref: string;
               };
               previous_run_id?: string;
+              profile_color?: string;
+              profile_icon?: string;
+              profile_id?: string;
+              profile_name?: string;
               /** Format: date-time */
               queued_at: string;
               recovery_count: number;
@@ -85058,6 +88675,10 @@ export interface operations {
                 ref: string;
               };
               previous_run_id?: string;
+              profile_color?: string;
+              profile_icon?: string;
+              profile_id?: string;
+              profile_name?: string;
               /** Format: date-time */
               queued_at: string;
               recovery_count: number;
@@ -85432,6 +89053,10 @@ export interface operations {
                 ref: string;
               };
               previous_run_id?: string;
+              profile_color?: string;
+              profile_icon?: string;
+              profile_id?: string;
+              profile_name?: string;
               /** Format: date-time */
               queued_at: string;
               recovery_count: number;
@@ -85601,6 +89226,10 @@ export interface operations {
               paused_reason?: string;
               /** @enum {string} */
               priority?: "low" | "medium" | "high" | "urgent";
+              profile_color?: string;
+              profile_icon?: string;
+              profile_id: string;
+              profile_name: string;
               resolved_network_participation?:
                 | (
                     | {
@@ -87478,6 +91107,12 @@ export interface operations {
               input_digest?: string;
               /** Format: date-time */
               last_used_at: string;
+              profile_archived: boolean;
+              profile_color: string;
+              profile_emoji?: string;
+              profile_icon?: string;
+              profile_id: string;
+              profile_name: string;
               tool_id: string;
               workspace_id: string;
             }[];
@@ -87644,6 +91279,12 @@ export interface operations {
               input_digest?: string;
               /** Format: date-time */
               last_used_at: string;
+              profile_archived: boolean;
+              profile_color: string;
+              profile_emoji?: string;
+              profile_icon?: string;
+              profile_id: string;
+              profile_name: string;
               tool_id: string;
               workspace_id: string;
             };
@@ -93999,7 +97640,10 @@ export interface operations {
   };
   deliverGlobalWebhook: {
     parameters: {
-      query?: never;
+      query?: {
+        /** @description Act as this profile by name */
+        profile?: string;
+      };
       header: {
         /** @description Unique webhook delivery id */
         "X-Compozy-Webhook-Delivery-ID": string;
@@ -94107,6 +97751,10 @@ export interface operations {
                         }
                     )
                   | null;
+                profile_color?: string;
+                profile_icon?: string;
+                profile_id: string;
+                profile_name: string;
                 /** Format: date-time */
                 scheduled_at?: string | null;
                 session_id?: string;
@@ -94358,7 +98006,10 @@ export interface operations {
   };
   deliverWorkspaceWebhook: {
     parameters: {
-      query?: never;
+      query?: {
+        /** @description Act as this profile by name */
+        profile?: string;
+      };
       header: {
         /** @description Unique webhook delivery id */
         "X-Compozy-Webhook-Delivery-ID": string;
@@ -94468,6 +98119,10 @@ export interface operations {
                         }
                     )
                   | null;
+                profile_color?: string;
+                profile_icon?: string;
+                profile_id: string;
+                profile_name: string;
                 /** Format: date-time */
                 scheduled_at?: string | null;
                 session_id?: string;
@@ -95077,6 +98732,7 @@ export interface operations {
                   reasoning_effort?: string;
                 };
               } | null;
+              layer?: string;
               mcp_servers?: {
                 args?: string[];
                 auth?: {
@@ -95106,12 +98762,22 @@ export interface operations {
               provider: string;
               /** @enum {string} */
               reasoning_effort?: "none" | "minimal" | "low" | "medium" | "high" | "xhigh" | "max";
+              shadows?: {
+                layer: string;
+                path: string;
+              }[];
               skills?: {
                 disabled?: string[];
               } | null;
               tools?: string[];
               toolsets?: string[];
               workspace_id?: string;
+            }[];
+            profile_hints?: {
+              action: string;
+              message: string;
+              name: string;
+              path: string;
             }[];
             providers?: {
               auth_mode?: string;
@@ -95242,6 +98908,12 @@ export interface operations {
                 title?: string;
                 turn_id?: string;
               }[];
+              profile_archived?: boolean;
+              profile_color?: string;
+              profile_emoji?: string;
+              profile_icon?: string;
+              profile_id: string;
+              profile_name: string;
               resolved_network_participation?:
                 | (
                     | {
@@ -95809,6 +99481,10 @@ export interface operations {
                 name: string;
                 /** Format: date-time */
                 next_run?: string | null;
+                profile_color?: string;
+                profile_icon?: string;
+                profile_id: string;
+                profile_name: string;
                 prompt: string;
                 retry: {
                   base_delay: string;
@@ -95930,6 +99606,7 @@ export interface operations {
                 updated_at: string;
                 workspace_id?: string;
               };
+              profile_id: string;
               /** Format: date-time */
               resolved_at?: string | null;
               source: string;
@@ -96161,6 +99838,10 @@ export interface operations {
               name: string;
               /** Format: date-time */
               next_run?: string | null;
+              profile_color?: string;
+              profile_icon?: string;
+              profile_id: string;
+              profile_name: string;
               prompt: string;
               retry: {
                 base_delay: string;
@@ -96370,6 +100051,10 @@ export interface operations {
                 name: string;
                 /** Format: date-time */
                 next_run?: string | null;
+                profile_color?: string;
+                profile_icon?: string;
+                profile_id: string;
+                profile_name: string;
                 prompt: string;
                 retry: {
                   base_delay: string;
@@ -96491,6 +100176,7 @@ export interface operations {
                 updated_at: string;
                 workspace_id?: string;
               };
+              profile_id: string;
               /** Format: date-time */
               resolved_at?: string | null;
               source: string;
@@ -96756,6 +100442,10 @@ export interface operations {
                 name: string;
                 /** Format: date-time */
                 next_run?: string | null;
+                profile_color?: string;
+                profile_icon?: string;
+                profile_id: string;
+                profile_name: string;
                 prompt: string;
                 retry: {
                   base_delay: string;
@@ -96877,6 +100567,7 @@ export interface operations {
                 updated_at: string;
                 workspace_id?: string;
               };
+              profile_id: string;
               /** Format: date-time */
               resolved_at?: string | null;
               source: string;
@@ -97258,6 +100949,10 @@ export interface operations {
         cursor?: string;
         /** @description Maximum number of records to return */
         limit?: number;
+        /** @description Read one profile's rows by name */
+        profile?: string;
+        /** @description Read the owner-labeled all-profiles aggregate */
+        all_profiles?: boolean;
       };
       header?: never;
       path: {
@@ -97492,6 +101187,10 @@ export interface operations {
         cursor?: string;
         /** @description Maximum number of records to return */
         limit?: number;
+        /** @description Read one profile's rows by name */
+        profile?: string;
+        /** @description Read the owner-labeled all-profiles aggregate */
+        all_profiles?: boolean;
       };
       header?: never;
       path: {
@@ -97650,6 +101349,10 @@ export interface operations {
         cursor?: string;
         /** @description Maximum number of records to return */
         limit?: number;
+        /** @description Read one profile's rows by name */
+        profile?: string;
+        /** @description Read the owner-labeled all-profiles aggregate */
+        all_profiles?: boolean;
       };
       header?: never;
       path: {
@@ -97722,6 +101425,10 @@ export interface operations {
               loop_name: string;
               parent_loop_run_id?: string;
               pause_requested: boolean;
+              profile_color?: string;
+              profile_icon?: string;
+              profile_id: string;
+              profile_name: string;
               progress: {
                 round: number;
                 steps_done: number;
@@ -97897,7 +101604,12 @@ export interface operations {
   };
   getLoopRun: {
     parameters: {
-      query?: never;
+      query?: {
+        /** @description Read one profile's rows by name */
+        profile?: string;
+        /** @description Read the owner-labeled all-profiles aggregate */
+        all_profiles?: boolean;
+      };
       header?: never;
       path: {
         /** @description Workspace id */
@@ -98972,6 +102684,10 @@ export interface operations {
               loop_name: string;
               parent_loop_run_id?: string;
               pause_requested: boolean;
+              profile_color?: string;
+              profile_icon?: string;
+              profile_id: string;
+              profile_name: string;
               progress: {
                 round: number;
                 steps_done: number;
@@ -99235,7 +102951,10 @@ export interface operations {
   };
   approveLoopRun: {
     parameters: {
-      query?: never;
+      query?: {
+        /** @description Act as this profile by name */
+        profile?: string;
+      };
       header?: never;
       path: {
         /** @description Workspace id */
@@ -99603,7 +103322,10 @@ export interface operations {
   };
   cancelLoopRun: {
     parameters: {
-      query?: never;
+      query?: {
+        /** @description Act as this profile by name */
+        profile?: string;
+      };
       header?: never;
       path: {
         /** @description Workspace id */
@@ -99866,6 +103588,10 @@ export interface operations {
         against_generation?: number;
         /** @description Run to compare */
         against_run?: string;
+        /** @description Read one profile's rows by name */
+        profile?: string;
+        /** @description Read the owner-labeled all-profiles aggregate */
+        all_profiles?: boolean;
       };
       header?: never;
       path: {
@@ -100141,6 +103867,10 @@ export interface operations {
       query?: {
         /** @description Resume after this sequence */
         after_sequence?: string;
+        /** @description Read one profile's rows by name */
+        profile?: string;
+        /** @description Read the owner-labeled all-profiles aggregate */
+        all_profiles?: boolean;
       };
       header?: {
         /** @description Last received event sequence */
@@ -100403,7 +104133,10 @@ export interface operations {
   };
   forkLoopRun: {
     parameters: {
-      query?: never;
+      query?: {
+        /** @description Act as this profile by name */
+        profile?: string;
+      };
       header?: never;
       path: {
         /** @description Workspace id */
@@ -100482,6 +104215,10 @@ export interface operations {
               loop_name: string;
               parent_loop_run_id?: string;
               pause_requested: boolean;
+              profile_color?: string;
+              profile_icon?: string;
+              profile_id: string;
+              profile_name: string;
               progress: {
                 round: number;
                 steps_done: number;
@@ -100768,7 +104505,10 @@ export interface operations {
   };
   killLoopRun: {
     parameters: {
-      query?: never;
+      query?: {
+        /** @description Act as this profile by name */
+        profile?: string;
+      };
       header?: never;
       path: {
         /** @description Workspace id */
@@ -101233,7 +104973,10 @@ export interface operations {
   };
   amendLoopNode: {
     parameters: {
-      query?: never;
+      query?: {
+        /** @description Act as this profile by name */
+        profile?: string;
+      };
       header?: never;
       path: {
         /** @description Workspace id */
@@ -101492,7 +105235,10 @@ export interface operations {
   };
   cancelLoopNode: {
     parameters: {
-      query?: never;
+      query?: {
+        /** @description Act as this profile by name */
+        profile?: string;
+      };
       header?: never;
       path: {
         /** @description Workspace id */
@@ -101751,7 +105497,10 @@ export interface operations {
   };
   killLoopNode: {
     parameters: {
-      query?: never;
+      query?: {
+        /** @description Act as this profile by name */
+        profile?: string;
+      };
       header?: never;
       path: {
         /** @description Workspace id */
@@ -102010,7 +105759,10 @@ export interface operations {
   };
   pauseLoopNode: {
     parameters: {
-      query?: never;
+      query?: {
+        /** @description Act as this profile by name */
+        profile?: string;
+      };
       header?: never;
       path: {
         /** @description Workspace id */
@@ -102275,6 +106027,10 @@ export interface operations {
         generation: number;
         /** @description Fan-out lane index */
         item_index?: number;
+        /** @description Read one profile's rows by name */
+        profile?: string;
+        /** @description Read the owner-labeled all-profiles aggregate */
+        all_profiles?: boolean;
       };
       header?: never;
       path: {
@@ -102445,7 +106201,10 @@ export interface operations {
   };
   requeueLoopNode: {
     parameters: {
-      query?: never;
+      query?: {
+        /** @description Act as this profile by name */
+        profile?: string;
+      };
       header?: never;
       path: {
         /** @description Workspace id */
@@ -102704,7 +106463,10 @@ export interface operations {
   };
   respondLoopRequest: {
     parameters: {
-      query?: never;
+      query?: {
+        /** @description Act as this profile by name */
+        profile?: string;
+      };
       header?: never;
       path: {
         /** @description Workspace id */
@@ -102981,7 +106743,10 @@ export interface operations {
   };
   resumeLoopNode: {
     parameters: {
-      query?: never;
+      query?: {
+        /** @description Act as this profile by name */
+        profile?: string;
+      };
       header?: never;
       path: {
         /** @description Workspace id */
@@ -103241,7 +107006,10 @@ export interface operations {
   };
   pauseLoopRun: {
     parameters: {
-      query?: never;
+      query?: {
+        /** @description Act as this profile by name */
+        profile?: string;
+      };
       header?: never;
       path: {
         /** @description Workspace id */
@@ -103449,7 +107217,10 @@ export interface operations {
   };
   rerunLoopRun: {
     parameters: {
-      query?: never;
+      query?: {
+        /** @description Act as this profile by name */
+        profile?: string;
+      };
       header?: never;
       path: {
         /** @description Workspace id */
@@ -103696,7 +107467,10 @@ export interface operations {
   };
   resumeLoopRun: {
     parameters: {
-      query?: never;
+      query?: {
+        /** @description Act as this profile by name */
+        profile?: string;
+      };
       header?: never;
       path: {
         /** @description Workspace id */
@@ -104588,6 +108362,10 @@ export interface operations {
         cursor?: string;
         /** @description Maximum number of Loops to return; defaults to 50 and is capped at 200 */
         limit?: number;
+        /** @description Read one profile's rows by name */
+        profile?: string;
+        /** @description Read the owner-labeled all-profiles aggregate */
+        all_profiles?: boolean;
       };
       header?: never;
       path: {
@@ -105032,7 +108810,10 @@ export interface operations {
   };
   createLoop: {
     parameters: {
-      query?: never;
+      query?: {
+        /** @description Act as this profile by name */
+        profile?: string;
+      };
       header?: never;
       path: {
         /** @description Workspace id */
@@ -106492,7 +110273,12 @@ export interface operations {
   };
   getLoop: {
     parameters: {
-      query?: never;
+      query?: {
+        /** @description Read one profile's rows by name */
+        profile?: string;
+        /** @description Read the owner-labeled all-profiles aggregate */
+        all_profiles?: boolean;
+      };
       header?: never;
       path: {
         /** @description Workspace id */
@@ -107273,7 +111059,10 @@ export interface operations {
   };
   deleteLoop: {
     parameters: {
-      query?: never;
+      query?: {
+        /** @description Act as this profile by name */
+        profile?: string;
+      };
       header?: never;
       path: {
         /** @description Workspace id */
@@ -107441,7 +111230,10 @@ export interface operations {
   };
   patchLoop: {
     parameters: {
-      query?: never;
+      query?: {
+        /** @description Act as this profile by name */
+        profile?: string;
+      };
       header?: never;
       path: {
         /** @description Workspace id */
@@ -108915,7 +112707,12 @@ export interface operations {
   };
   getLoopAnnotations: {
     parameters: {
-      query?: never;
+      query?: {
+        /** @description Read one profile's rows by name */
+        profile?: string;
+        /** @description Read the owner-labeled all-profiles aggregate */
+        all_profiles?: boolean;
+      };
       header?: never;
       path: {
         /** @description Workspace id */
@@ -109064,7 +112861,10 @@ export interface operations {
   };
   putLoopAnnotations: {
     parameters: {
-      query?: never;
+      query?: {
+        /** @description Act as this profile by name */
+        profile?: string;
+      };
       header?: never;
       path: {
         /** @description Workspace id */
@@ -109226,7 +113026,12 @@ export interface operations {
   };
   getLoopConfig: {
     parameters: {
-      query?: never;
+      query?: {
+        /** @description Read one profile's rows by name */
+        profile?: string;
+        /** @description Read the owner-labeled all-profiles aggregate */
+        all_profiles?: boolean;
+      };
       header?: never;
       path: {
         /** @description Workspace id */
@@ -109482,7 +113287,10 @@ export interface operations {
   };
   putLoopConfig: {
     parameters: {
-      query?: never;
+      query?: {
+        /** @description Act as this profile by name */
+        profile?: string;
+      };
       header?: never;
       path: {
         /** @description Workspace id */
@@ -109795,8 +113603,8 @@ export interface operations {
   getLoopInputDefaults: {
     parameters: {
       query: {
-        /** @description Config scope: global or workspace */
-        scope: string;
+        /** @description Config scope: user or workspace */
+        scope: "user" | "workspace";
       };
       header?: never;
       path: {
@@ -110184,8 +113992,8 @@ export interface operations {
   getLoopInputDefault: {
     parameters: {
       query: {
-        /** @description Config scope: global or workspace */
-        scope: string;
+        /** @description Config scope: user or workspace */
+        scope: "user" | "workspace";
       };
       header?: never;
       path: {
@@ -110575,8 +114383,8 @@ export interface operations {
   deleteLoopInputDefault: {
     parameters: {
       query: {
-        /** @description Config scope: global or workspace */
-        scope: string;
+        /** @description Config scope: user or workspace */
+        scope: "user" | "workspace";
       };
       header?: never;
       path: {
@@ -110757,6 +114565,8 @@ export interface operations {
       query?: {
         /** @description Preview the run without creating durable state */
         dry?: boolean;
+        /** @description Act as this profile by name */
+        profile?: string;
       };
       header?: never;
       path: {
@@ -111456,6 +115266,10 @@ export interface operations {
               loop_name: string;
               parent_loop_run_id?: string;
               pause_requested: boolean;
+              profile_color?: string;
+              profile_icon?: string;
+              profile_id: string;
+              profile_name: string;
               progress: {
                 round: number;
                 steps_done: number;
@@ -112108,6 +115922,10 @@ export interface operations {
               loop_name: string;
               parent_loop_run_id?: string;
               pause_requested: boolean;
+              profile_color?: string;
+              profile_icon?: string;
+              profile_id: string;
+              profile_name: string;
               progress: {
                 round: number;
                 steps_done: number;
@@ -112395,7 +116213,10 @@ export interface operations {
   };
   validateLoop: {
     parameters: {
-      query?: never;
+      query?: {
+        /** @description Act as this profile by name */
+        profile?: string;
+      };
       header?: never;
       path: {
         /** @description Workspace id */
@@ -113182,7 +117003,10 @@ export interface operations {
   };
   getMemorySessionLedger: {
     parameters: {
-      query?: never;
+      query?: {
+        /** @description Act as this profile by name */
+        profile?: string;
+      };
       header?: never;
       path: {
         /** @description Workspace id */
@@ -113262,7 +117086,10 @@ export interface operations {
   };
   replayMemorySession: {
     parameters: {
-      query?: never;
+      query?: {
+        /** @description Act as this profile by name */
+        profile?: string;
+      };
       header?: never;
       path: {
         /** @description Workspace id */
@@ -114049,6 +117876,10 @@ export interface operations {
       query?: {
         /** @description Maximum cross-channel recent conversations to include */
         recent_limit?: number;
+        /** @description Read one profile's rows by name */
+        profile?: string;
+        /** @description Read the owner-labeled all-profiles aggregate */
+        all_profiles?: boolean;
       };
       header?: never;
       path: {
@@ -114083,6 +117914,12 @@ export interface operations {
               message_count?: number;
               peer_count: number;
               presence_count?: number;
+              profile_archived?: boolean;
+              profile_color?: string;
+              profile_emoji?: string;
+              profile_icon?: string;
+              profile_id: string;
+              profile_name: string;
               purpose?: string;
               session_count?: number;
               workspace_id?: string;
@@ -114094,6 +117931,12 @@ export interface operations {
               last_activity_at?: string | null;
               last_message_preview?: string;
               participant_count?: number;
+              profile_archived?: boolean;
+              profile_color?: string;
+              profile_emoji?: string;
+              profile_icon?: string;
+              profile_id: string;
+              profile_name: string;
               session_a?: string;
               session_b?: string;
               surface: string;
@@ -114164,7 +118007,10 @@ export interface operations {
   };
   createNetworkChannel: {
     parameters: {
-      query?: never;
+      query?: {
+        /** @description Act as this profile by name */
+        profile?: string;
+      };
       header?: never;
       path: {
         /** @description Workspace id */
@@ -114239,6 +118085,12 @@ export interface operations {
                 workspace_id?: string;
               }[];
               presence_count?: number;
+              profile_archived?: boolean;
+              profile_color?: string;
+              profile_emoji?: string;
+              profile_icon?: string;
+              profile_id: string;
+              profile_name: string;
               purpose?: string;
               session_count?: number;
               sessions?: {
@@ -114361,6 +118213,12 @@ export interface operations {
                   title?: string;
                   turn_id?: string;
                 }[];
+                profile_archived?: boolean;
+                profile_color?: string;
+                profile_emoji?: string;
+                profile_icon?: string;
+                profile_id: string;
+                profile_name: string;
                 resolved_network_participation?:
                   | (
                       | {
@@ -114651,7 +118509,12 @@ export interface operations {
   };
   getNetworkChannel: {
     parameters: {
-      query?: never;
+      query?: {
+        /** @description Read one profile's rows by name */
+        profile?: string;
+        /** @description Read the owner-labeled all-profiles aggregate */
+        all_profiles?: boolean;
+      };
       header?: never;
       path: {
         /** @description Workspace id */
@@ -114716,6 +118579,12 @@ export interface operations {
                 workspace_id?: string;
               }[];
               presence_count?: number;
+              profile_archived?: boolean;
+              profile_color?: string;
+              profile_emoji?: string;
+              profile_icon?: string;
+              profile_id: string;
+              profile_name: string;
               purpose?: string;
               session_count?: number;
               sessions?: {
@@ -114838,6 +118707,12 @@ export interface operations {
                   title?: string;
                   turn_id?: string;
                 }[];
+                profile_archived?: boolean;
+                profile_color?: string;
+                profile_emoji?: string;
+                profile_icon?: string;
+                profile_id: string;
+                profile_name: string;
                 resolved_network_participation?:
                   | (
                       | {
@@ -115128,7 +119003,10 @@ export interface operations {
   };
   updateNetworkChannel: {
     parameters: {
-      query?: never;
+      query?: {
+        /** @description Act as this profile by name */
+        profile?: string;
+      };
       header?: never;
       path: {
         /** @description Workspace id */
@@ -115202,6 +119080,12 @@ export interface operations {
                 workspace_id?: string;
               }[];
               presence_count?: number;
+              profile_archived?: boolean;
+              profile_color?: string;
+              profile_emoji?: string;
+              profile_icon?: string;
+              profile_id: string;
+              profile_name: string;
               purpose?: string;
               session_count?: number;
               sessions?: {
@@ -115324,6 +119208,12 @@ export interface operations {
                   title?: string;
                   turn_id?: string;
                 }[];
+                profile_archived?: boolean;
+                profile_color?: string;
+                profile_emoji?: string;
+                profile_icon?: string;
+                profile_id: string;
+                profile_name: string;
                 resolved_network_participation?:
                   | (
                       | {
@@ -115627,6 +119517,10 @@ export interface operations {
         after?: string;
         /** @description Maximum number of direct rooms to return */
         limit?: number;
+        /** @description Read one profile's rows by name */
+        profile?: string;
+        /** @description Read the owner-labeled all-profiles aggregate */
+        all_profiles?: boolean;
       };
       header?: never;
       path: {
@@ -115656,6 +119550,12 @@ export interface operations {
               open_work_count: number;
               /** Format: date-time */
               opened_at?: string | null;
+              profile_archived?: boolean;
+              profile_color?: string;
+              profile_emoji?: string;
+              profile_icon?: string;
+              profile_id: string;
+              profile_name: string;
               session_a: string;
               session_b: string;
               workspace_id?: string;
@@ -115760,7 +119660,10 @@ export interface operations {
   };
   resolveNetworkDirectRoom: {
     parameters: {
-      query?: never;
+      query?: {
+        /** @description Act as this profile by name */
+        profile?: string;
+      };
       header?: never;
       path: {
         /** @description Workspace id */
@@ -115797,6 +119700,12 @@ export interface operations {
               open_work_count: number;
               /** Format: date-time */
               opened_at?: string | null;
+              profile_archived?: boolean;
+              profile_color?: string;
+              profile_emoji?: string;
+              profile_icon?: string;
+              profile_id: string;
+              profile_name: string;
               session_a: string;
               session_b: string;
               workspace_id?: string;
@@ -115953,7 +119862,12 @@ export interface operations {
   };
   getNetworkDirectRoom: {
     parameters: {
-      query?: never;
+      query?: {
+        /** @description Read one profile's rows by name */
+        profile?: string;
+        /** @description Read the owner-labeled all-profiles aggregate */
+        all_profiles?: boolean;
+      };
       header?: never;
       path: {
         /** @description Workspace id */
@@ -115984,6 +119898,12 @@ export interface operations {
               open_work_count: number;
               /** Format: date-time */
               opened_at?: string | null;
+              profile_archived?: boolean;
+              profile_color?: string;
+              profile_emoji?: string;
+              profile_icon?: string;
+              profile_id: string;
+              profile_name: string;
               session_a: string;
               session_b: string;
               workspace_id?: string;
@@ -116122,6 +120042,10 @@ export interface operations {
         work_id?: string;
         /** @description Maximum number of messages to return */
         limit?: number;
+        /** @description Read one profile's rows by name */
+        profile?: string;
+        /** @description Read the owner-labeled all-profiles aggregate */
+        all_profiles?: boolean;
       };
       header?: never;
       path: {
@@ -116158,6 +120082,12 @@ export interface operations {
               peer_from: string;
               peer_to?: string;
               preview_text?: string;
+              profile_archived?: boolean;
+              profile_color?: string;
+              profile_emoji?: string;
+              profile_icon?: string;
+              profile_id: string;
+              profile_name: string;
               reply_to?: string;
               session_id?: string;
               /** Format: int64 */
@@ -116306,6 +120236,10 @@ export interface operations {
         thread_id?: string;
         /** @description Maximum number of subscriptions to return */
         limit?: number;
+        /** @description Read one profile's rows by name */
+        profile?: string;
+        /** @description Read the owner-labeled all-profiles aggregate */
+        all_profiles?: boolean;
       };
       header?: never;
       path: {
@@ -116330,6 +120264,12 @@ export interface operations {
               /** Format: date-time */
               created_at?: string | null;
               mode: string;
+              profile_archived?: boolean;
+              profile_color?: string;
+              profile_emoji?: string;
+              profile_icon?: string;
+              profile_id: string;
+              profile_name: string;
               session_id: string;
               thread_id?: string;
               /** Format: date-time */
@@ -116430,7 +120370,10 @@ export interface operations {
   };
   upsertNetworkSubscription: {
     parameters: {
-      query?: never;
+      query?: {
+        /** @description Act as this profile by name */
+        profile?: string;
+      };
       header?: never;
       path: {
         /** @description Workspace id */
@@ -116463,6 +120406,12 @@ export interface operations {
               /** Format: date-time */
               created_at?: string | null;
               mode: string;
+              profile_archived?: boolean;
+              profile_color?: string;
+              profile_emoji?: string;
+              profile_icon?: string;
+              profile_id: string;
+              profile_name: string;
               session_id: string;
               thread_id?: string;
               /** Format: date-time */
@@ -116566,6 +120515,8 @@ export interface operations {
       query?: {
         /** @description Delete the thread-scoped subscription for this session */
         thread_id?: string;
+        /** @description Act as this profile by name */
+        profile?: string;
       };
       header?: never;
       path: {
@@ -116691,6 +120642,10 @@ export interface operations {
         after?: string;
         /** @description Maximum number of threads to return */
         limit?: number;
+        /** @description Read one profile's rows by name */
+        profile?: string;
+        /** @description Read the owner-labeled all-profiles aggregate */
+        all_profiles?: boolean;
       };
       header?: never;
       path: {
@@ -116736,6 +120691,12 @@ export interface operations {
               opened_by_peer_id?: string;
               opened_session_id?: string;
               participant_count: number;
+              profile_archived?: boolean;
+              profile_color?: string;
+              profile_emoji?: string;
+              profile_icon?: string;
+              profile_id: string;
+              profile_name: string;
               root_message_id: string;
               thread_id: string;
               title?: string;
@@ -116835,7 +120796,12 @@ export interface operations {
   };
   getNetworkThread: {
     parameters: {
-      query?: never;
+      query?: {
+        /** @description Read one profile's rows by name */
+        profile?: string;
+        /** @description Read the owner-labeled all-profiles aggregate */
+        all_profiles?: boolean;
+      };
       header?: never;
       path: {
         /** @description Workspace id */
@@ -116902,6 +120868,12 @@ export interface operations {
               opened_by_peer_id?: string;
               opened_session_id?: string;
               participant_count: number;
+              profile_archived?: boolean;
+              profile_color?: string;
+              profile_emoji?: string;
+              profile_icon?: string;
+              profile_id: string;
+              profile_name: string;
               root_message_id: string;
               thread_id: string;
               title?: string;
@@ -117041,6 +121013,10 @@ export interface operations {
         work_id?: string;
         /** @description Maximum number of messages to return */
         limit?: number;
+        /** @description Read one profile's rows by name */
+        profile?: string;
+        /** @description Read the owner-labeled all-profiles aggregate */
+        all_profiles?: boolean;
       };
       header?: never;
       path: {
@@ -117077,6 +121053,12 @@ export interface operations {
               peer_from: string;
               peer_to?: string;
               preview_text?: string;
+              profile_archived?: boolean;
+              profile_color?: string;
+              profile_emoji?: string;
+              profile_icon?: string;
+              profile_id: string;
+              profile_name: string;
               reply_to?: string;
               session_id?: string;
               /** Format: int64 */
@@ -117218,7 +121200,10 @@ export interface operations {
   };
   promoteNetworkThreadTask: {
     parameters: {
-      query?: never;
+      query?: {
+        /** @description Act as this profile by name */
+        profile?: string;
+      };
       header?: never;
       path: {
         /** @description Workspace id */
@@ -117362,6 +121347,10 @@ export interface operations {
               paused_reason?: string;
               /** @enum {string} */
               priority?: "low" | "medium" | "high" | "urgent";
+              profile_color?: string;
+              profile_icon?: string;
+              profile_id: string;
+              profile_name: string;
               resolved_network_participation?:
                 | (
                     | {
@@ -117861,7 +121850,12 @@ export interface operations {
   };
   getNetworkPeer: {
     parameters: {
-      query?: never;
+      query?: {
+        /** @description Read one profile's rows by name */
+        profile?: string;
+        /** @description Read the owner-labeled all-profiles aggregate */
+        all_profiles?: boolean;
+      };
       header?: never;
       path: {
         /** @description Workspace id */
@@ -118451,7 +122445,12 @@ export interface operations {
   };
   getNetworkWork: {
     parameters: {
-      query?: never;
+      query?: {
+        /** @description Read one profile's rows by name */
+        profile?: string;
+        /** @description Read the owner-labeled all-profiles aggregate */
+        all_profiles?: boolean;
+      };
       header?: never;
       path: {
         /** @description Workspace id */
@@ -118478,6 +122477,12 @@ export interface operations {
               /** Format: date-time */
               opened_at?: string | null;
               opened_session_id?: string;
+              profile_archived?: boolean;
+              profile_color?: string;
+              profile_emoji?: string;
+              profile_icon?: string;
+              profile_id: string;
+              profile_name: string;
               state: string;
               surface: string;
               target_session_id?: string;
@@ -118613,6 +122618,10 @@ export interface operations {
       query?: {
         /** @description Include metadata-only session health when available */
         include_health?: boolean;
+        /** @description Read one profile's rows by name */
+        profile?: string;
+        /** @description Read the owner-labeled all-profiles aggregate */
+        all_profiles?: boolean;
       };
       header?: never;
       path: {
@@ -118752,6 +122761,12 @@ export interface operations {
                 title?: string;
                 turn_id?: string;
               }[];
+              profile_archived?: boolean;
+              profile_color?: string;
+              profile_emoji?: string;
+              profile_icon?: string;
+              profile_id: string;
+              profile_name: string;
               resolved_network_participation?:
                 | (
                     | {
@@ -119209,6 +123224,12 @@ export interface operations {
                 title?: string;
                 turn_id?: string;
               }[];
+              profile_archived?: boolean;
+              profile_color?: string;
+              profile_emoji?: string;
+              profile_icon?: string;
+              profile_id: string;
+              profile_name: string;
               resolved_network_participation?:
                 | (
                     | {
@@ -119763,6 +123784,12 @@ export interface operations {
                 title?: string;
                 turn_id?: string;
               }[];
+              profile_archived?: boolean;
+              profile_color?: string;
+              profile_emoji?: string;
+              profile_icon?: string;
+              profile_id: string;
+              profile_name: string;
               resolved_network_participation?:
                 | (
                     | {
@@ -120206,6 +124233,12 @@ export interface operations {
                 title?: string;
                 turn_id?: string;
               }[];
+              profile_archived?: boolean;
+              profile_color?: string;
+              profile_emoji?: string;
+              profile_icon?: string;
+              profile_id: string;
+              profile_name: string;
               resolved_network_participation?:
                 | (
                     | {
@@ -121417,6 +125450,12 @@ export interface operations {
                 title?: string;
                 turn_id?: string;
               }[];
+              profile_archived?: boolean;
+              profile_color?: string;
+              profile_emoji?: string;
+              profile_icon?: string;
+              profile_id: string;
+              profile_name: string;
               resolved_network_participation?:
                 | (
                     | {
@@ -125384,6 +129423,10 @@ export interface operations {
                   ref: string;
                 };
                 previous_run_id?: string;
+                profile_color?: string;
+                profile_icon?: string;
+                profile_id?: string;
+                profile_name?: string;
                 /** Format: date-time */
                 queued_at: string;
                 recovery_count: number;
@@ -125609,6 +129652,12 @@ export interface operations {
                   title?: string;
                   turn_id?: string;
                 }[];
+                profile_archived?: boolean;
+                profile_color?: string;
+                profile_emoji?: string;
+                profile_icon?: string;
+                profile_id: string;
+                profile_name: string;
                 resolved_network_participation?:
                   | (
                       | {
@@ -126187,6 +130236,12 @@ export interface operations {
                 title?: string;
                 turn_id?: string;
               }[];
+              profile_archived?: boolean;
+              profile_color?: string;
+              profile_emoji?: string;
+              profile_icon?: string;
+              profile_id: string;
+              profile_name: string;
               resolved_network_participation?:
                 | (
                     | {
@@ -126659,6 +130714,12 @@ export interface operations {
                 title?: string;
                 turn_id?: string;
               }[];
+              profile_archived?: boolean;
+              profile_color?: string;
+              profile_emoji?: string;
+              profile_icon?: string;
+              profile_id: string;
+              profile_name: string;
               resolved_network_participation?:
                 | (
                     | {
@@ -127089,6 +131150,12 @@ export interface operations {
                 title?: string;
                 turn_id?: string;
               }[];
+              profile_archived?: boolean;
+              profile_color?: string;
+              profile_emoji?: string;
+              profile_icon?: string;
+              profile_id: string;
+              profile_name: string;
               resolved_network_participation?:
                 | (
                     | {
@@ -129912,6 +133979,12 @@ export interface operations {
                 title?: string;
                 turn_id?: string;
               }[];
+              profile_archived?: boolean;
+              profile_color?: string;
+              profile_emoji?: string;
+              profile_icon?: string;
+              profile_id: string;
+              profile_name: string;
               resolved_network_participation?:
                 | (
                     | {
@@ -130672,6 +134745,12 @@ export interface operations {
                 title?: string;
                 turn_id?: string;
               }[];
+              profile_archived?: boolean;
+              profile_color?: string;
+              profile_emoji?: string;
+              profile_icon?: string;
+              profile_id: string;
+              profile_name: string;
               resolved_network_participation?:
                 | (
                     | {
@@ -131580,7 +135659,10 @@ export interface operations {
   };
   getWindowManagerSnapshot: {
     parameters: {
-      query?: never;
+      query?: {
+        /** @description Act as this profile by name */
+        profile?: string;
+      };
       header?: never;
       path: {
         /** @description Workspace id */
@@ -131852,7 +135934,10 @@ export interface operations {
   };
   listWindowManagerClients: {
     parameters: {
-      query?: never;
+      query?: {
+        /** @description Act as this profile by name */
+        profile?: string;
+      };
       header?: never;
       path: {
         /** @description Workspace id */
@@ -131997,7 +136082,10 @@ export interface operations {
   };
   registerWindowManagerClient: {
     parameters: {
-      query?: never;
+      query?: {
+        /** @description Act as this profile by name */
+        profile?: string;
+      };
       header?: never;
       path: {
         /** @description Workspace id */
@@ -132248,7 +136336,10 @@ export interface operations {
   };
   unregisterWindowManagerClient: {
     parameters: {
-      query?: never;
+      query?: {
+        /** @description Act as this profile by name */
+        profile?: string;
+      };
       header?: never;
       path: {
         /** @description Workspace id */
@@ -132431,7 +136522,10 @@ export interface operations {
   };
   executeWindowManagerCommand: {
     parameters: {
-      query?: never;
+      query?: {
+        /** @description Act as this profile by name */
+        profile?: string;
+      };
       header?: never;
       path: {
         /** @description Workspace id */
@@ -132891,7 +136985,10 @@ export interface operations {
   };
   exportWindowManagerLayout: {
     parameters: {
-      query?: never;
+      query?: {
+        /** @description Act as this profile by name */
+        profile?: string;
+      };
       header?: never;
       path: {
         /** @description Workspace id */
@@ -133159,7 +137256,10 @@ export interface operations {
   };
   replaceWindowManagerLayout: {
     parameters: {
-      query?: never;
+      query?: {
+        /** @description Act as this profile by name */
+        profile?: string;
+      };
       header?: never;
       path: {
         /** @description Workspace id */
@@ -133749,7 +137849,10 @@ export interface operations {
   };
   listWindowManagerLayoutProfiles: {
     parameters: {
-      query?: never;
+      query?: {
+        /** @description Act as this profile by name */
+        profile?: string;
+      };
       header?: never;
       path: {
         /** @description Workspace id */
@@ -133778,7 +137881,7 @@ export interface operations {
               scope: {
                 id?: string;
                 /** @enum {string} */
-                kind: "global" | "workspace";
+                kind: "user" | "workspace";
               };
               source: {
                 id: string;
@@ -133950,7 +138053,10 @@ export interface operations {
   };
   putWindowManagerLayoutProfile: {
     parameters: {
-      query?: never;
+      query?: {
+        /** @description Act as this profile by name */
+        profile?: string;
+      };
       header?: never;
       path: {
         /** @description Workspace id */
@@ -133969,7 +138075,7 @@ export interface operations {
           scope: {
             id?: string;
             /** @enum {string} */
-            kind: "global" | "workspace";
+            kind: "user" | "workspace";
           };
           spec: unknown;
         };
@@ -133995,7 +138101,7 @@ export interface operations {
               scope: {
                 id?: string;
                 /** @enum {string} */
-                kind: "global" | "workspace";
+                kind: "user" | "workspace";
               };
               source: {
                 id: string;
@@ -134029,7 +138135,7 @@ export interface operations {
               scope: {
                 id?: string;
                 /** @enum {string} */
-                kind: "global" | "workspace";
+                kind: "user" | "workspace";
               };
               source: {
                 id: string;
@@ -134375,7 +138481,10 @@ export interface operations {
   };
   deleteWindowManagerLayoutProfile: {
     parameters: {
-      query?: never;
+      query?: {
+        /** @description Act as this profile by name */
+        profile?: string;
+      };
       header?: never;
       path: {
         /** @description Workspace id */
@@ -134704,7 +138813,10 @@ export interface operations {
   };
   validateWindowManagerLayout: {
     parameters: {
-      query?: never;
+      query?: {
+        /** @description Act as this profile by name */
+        profile?: string;
+      };
       header?: never;
       path: {
         /** @description Workspace id */
@@ -135068,7 +139180,10 @@ export interface operations {
   };
   previewWindowManagerCommand: {
     parameters: {
-      query?: never;
+      query?: {
+        /** @description Act as this profile by name */
+        profile?: string;
+      };
       header?: never;
       path: {
         /** @description Workspace id */
@@ -135532,6 +139647,8 @@ export interface operations {
         after_revision?: number;
         /** @description Optional connected client bound to presentation updates */
         client_id?: string;
+        /** @description Act as this profile by name */
+        profile?: string;
       };
       header?: never;
       path: {
@@ -136118,6 +140235,12 @@ export interface operations {
               origin: string;
               path: string;
               pending_phase?: string;
+              profile_archived: boolean;
+              profile_color?: string;
+              profile_emoji?: string;
+              profile_icon?: string;
+              profile_id: string;
+              profile_name: string;
               run_id?: string;
               run_namespace?: string;
               setup_error?: string;
@@ -136250,7 +140373,10 @@ export interface operations {
   };
   createWorktree: {
     parameters: {
-      query?: never;
+      query?: {
+        /** @description Act as this profile by name */
+        profile?: string;
+      };
       header?: never;
       path: {
         /** @description Workspace id or path */
@@ -136294,6 +140420,12 @@ export interface operations {
               origin: string;
               path: string;
               pending_phase?: string;
+              profile_archived: boolean;
+              profile_color?: string;
+              profile_emoji?: string;
+              profile_icon?: string;
+              profile_id: string;
+              profile_name: string;
               run_id?: string;
               run_namespace?: string;
               setup_error?: string;
@@ -136513,7 +140645,10 @@ export interface operations {
   };
   adoptWorktree: {
     parameters: {
-      query?: never;
+      query?: {
+        /** @description Act as this profile by name */
+        profile?: string;
+      };
       header?: never;
       path: {
         /** @description Workspace id or path */
@@ -136553,6 +140688,12 @@ export interface operations {
               origin: string;
               path: string;
               pending_phase?: string;
+              profile_archived: boolean;
+              profile_color?: string;
+              profile_emoji?: string;
+              profile_icon?: string;
+              profile_id: string;
+              profile_name: string;
               run_id?: string;
               run_namespace?: string;
               setup_error?: string;
@@ -136839,6 +140980,12 @@ export interface operations {
               origin: string;
               path: string;
               pending_phase?: string;
+              profile_archived: boolean;
+              profile_color?: string;
+              profile_emoji?: string;
+              profile_icon?: string;
+              profile_id: string;
+              profile_name: string;
               run_id?: string;
               run_namespace?: string;
               setup_error?: string;

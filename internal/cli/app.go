@@ -227,7 +227,7 @@ func appControlBundle(action string, result any) outputBundle {
 			return "Desktop app action completed: " + action, nil
 		},
 		toon: func() (string, error) {
-			return renderToonObject("app", []string{"action"}, []string{action}), nil
+			return renderToonObject("app", []string{authoredContextActionKey}, []string{action}), nil
 		},
 	}
 }

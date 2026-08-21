@@ -23,6 +23,7 @@ func (s *Session) metaLocked() store.SessionMeta {
 	identity := cloneCreationIdentity(s.creationIdentity)
 	meta := store.SessionMeta{
 		ID:                s.ID,
+		ProfileID:         s.ProfileID,
 		Name:              s.Name,
 		AgentName:         s.AgentName,
 		Provider:          s.Provider,

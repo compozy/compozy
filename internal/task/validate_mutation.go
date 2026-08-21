@@ -2,7 +2,6 @@ package task
 
 import (
 	"fmt"
-
 	"strings"
 
 	"github.com/compozy/compozy/internal/network/participation"
@@ -10,6 +9,9 @@ import (
 
 // Validate reports whether the create-task request is internally consistent.
 func (r CreateTask) Validate(path string) error {
+	if strings.TrimSpace(r.ProfileID) == "" {
+		return fmt.Errorf("%w: %s is required", ErrValidation, nestedPath(path, "profile_id"))
+	}
 	if err := ValidateScopeBinding(r.Scope, r.WorkspaceID, path, "workspace_id"); err != nil {
 		return err
 	}

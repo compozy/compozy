@@ -64,7 +64,7 @@ func extensionListBundle(items []ExtensionRecord) outputBundle {
 	)
 }
 
-func extensionBundle(item ExtensionRecord) outputBundle {
+func extensionBundle(item *ExtensionRecord) outputBundle {
 	return outputBundle{
 		jsonValue: item,
 		jsonl: func(cmd *cobra.Command) error {
@@ -125,7 +125,7 @@ func extensionBundle(item ExtensionRecord) outputBundle {
 	}
 }
 
-func extensionHumanDetail(item ExtensionRecord, includeFormat bool) string {
+func extensionHumanDetail(item *ExtensionRecord, includeFormat bool) string {
 	rows := []keyValue{
 		{Label: automationNameValue, Value: stringOrDash(item.Name)},
 		{Label: versionValue, Value: stringOrDash(item.Version)},
@@ -162,14 +162,14 @@ func extensionHumanDetail(item ExtensionRecord, includeFormat bool) string {
 	return renderHumanBlocks(blocks...)
 }
 
-func extensionEnableBundle(result ExtensionEnableRecord) outputBundle {
+func extensionEnableBundle(result *ExtensionEnableRecord) outputBundle {
 	return outputBundle{
 		jsonValue: result,
 		jsonl: func(cmd *cobra.Command) error {
 			return writeJSONLine(cmd, result)
 		},
 		human: func() (string, error) {
-			detail, err := extensionBundle(result.Extension).human()
+			detail, err := extensionBundle(&result.Extension).human()
 			if err != nil {
 				return "", err
 			}
@@ -180,7 +180,7 @@ func extensionEnableBundle(result ExtensionEnableRecord) outputBundle {
 				})
 				blocks = append(blocks, automation)
 			}
-			blocks = append(blocks, extensionEnableNextStep(result.Extension), detail)
+			blocks = append(blocks, extensionEnableNextStep(&result.Extension), detail)
 			return renderHumanBlocks(blocks...), nil
 		},
 		toon: func() (string, error) {
@@ -197,7 +197,7 @@ func extensionEnableBundle(result ExtensionEnableRecord) outputBundle {
 	}
 }
 
-func extensionEnableNextStep(item ExtensionRecord) string {
+func extensionEnableNextStep(item *ExtensionRecord) string {
 	if len(item.MissingEnv) > 0 {
 		return "next: compozy extension secrets set " + strings.TrimSpace(item.Name) +
 			" --env " + strings.TrimSpace(item.MissingEnv[0])
@@ -205,7 +205,7 @@ func extensionEnableNextStep(item ExtensionRecord) string {
 	return "next: compozy extension status " + strings.TrimSpace(item.Name)
 }
 
-func extensionSuccessBundle(verb string, item ExtensionRecord) outputBundle {
+func extensionSuccessBundle(verb string, item *ExtensionRecord) outputBundle {
 	bundle := extensionBundle(item)
 	baseHuman := bundle.human
 	bundle.human = func() (string, error) {
@@ -252,7 +252,7 @@ func formatExtensionBackoff(milliseconds int64) string {
 	return (time.Duration(milliseconds) * time.Millisecond).String()
 }
 
-func extensionRuntimeSummary(item ExtensionRecord) string {
+func extensionRuntimeSummary(item *ExtensionRecord) string {
 	if item.ConsecutiveFailures > 0 {
 		return fmt.Sprintf(
 			"crash-looping (%d failures, backoff %s)",

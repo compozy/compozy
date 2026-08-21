@@ -39,7 +39,7 @@ func (h *BaseHandlers) StreamTaskRunConversation(c *gin.Context) {
 		h.respondError(c, http.StatusServiceUnavailable, errors.New("api: network usage store is unavailable"))
 		return
 	}
-	run, conversation, ok := h.requireTaskRunConversation(c)
+	run, conversation, readScope, ok := h.requireTaskRunConversation(c)
 	if !ok {
 		return
 	}
@@ -56,7 +56,7 @@ func (h *BaseHandlers) StreamTaskRunConversation(c *gin.Context) {
 		Surface:     conversation.Surface,
 		ThreadID:    conversation.ThreadID,
 	}
-	snapshot, err := h.loadTaskRunConversationSnapshot(c.Request.Context(), run, ref, cursor)
+	snapshot, err := h.loadTaskRunConversationSnapshot(c.Request.Context(), run, readScope, ref, cursor)
 	if err != nil {
 		status := http.StatusInternalServerError
 		if errors.Is(err, store.ErrNetworkCursorInvalid) {
@@ -92,7 +92,7 @@ func (h *BaseHandlers) StreamTaskRunConversation(c *gin.Context) {
 		case <-h.StreamDoneChannel():
 			return
 		case <-ticker.C:
-			if !h.emitTaskRunConversation(c.Request.Context(), writer, run, ref, &cursor) {
+			if !h.emitTaskRunConversation(c.Request.Context(), writer, run, readScope, ref, &cursor) {
 				return
 			}
 		}
@@ -101,50 +101,51 @@ func (h *BaseHandlers) StreamTaskRunConversation(c *gin.Context) {
 
 func (h *BaseHandlers) requireTaskRunConversation(
 	c *gin.Context,
-) (taskpkg.Run, *contract.TaskRunConversationRefPayload, bool) {
+) (taskpkg.Run, *contract.TaskRunConversationRefPayload, store.ReadScope, bool) {
 	manager, ok := h.requireTaskManager(c)
 	if !ok {
-		return taskpkg.Run{}, nil, false
+		return taskpkg.Run{}, nil, store.ReadScope{}, false
 	}
 	runID, err := requiredPathID(c.Param("id"), "run id")
 	if err != nil {
 		h.respondError(c, StatusForTaskError(err), err)
-		return taskpkg.Run{}, nil, false
+		return taskpkg.Run{}, nil, store.ReadScope{}, false
 	}
 	actor, err := h.taskActorContext(c, taskActionStream)
 	if err != nil {
 		h.respondError(c, StatusForTaskError(err), err)
-		return taskpkg.Run{}, nil, false
+		return taskpkg.Run{}, nil, store.ReadScope{}, false
 	}
 	view, err := manager.RunDetail(c.Request.Context(), runID, actor)
 	if err != nil {
 		h.respondError(c, StatusForTaskError(err), err)
-		return taskpkg.Run{}, nil, false
+		return taskpkg.Run{}, nil, store.ReadScope{}, false
 	}
 	if view == nil {
 		h.respondError(c, http.StatusInternalServerError, errors.New("api: task run detail is required"))
-		return taskpkg.Run{}, nil, false
+		return taskpkg.Run{}, nil, store.ReadScope{}, false
 	}
 	conversation, err := taskRunConversationRefPayload(view.Run)
 	if err != nil {
 		h.respondError(c, http.StatusInternalServerError, err)
-		return taskpkg.Run{}, nil, false
+		return taskpkg.Run{}, nil, store.ReadScope{}, false
 	}
 	if conversation == nil {
 		h.respondError(c, http.StatusConflict, errors.New("api: local task run has no coordination conversation"))
-		return taskpkg.Run{}, nil, false
+		return taskpkg.Run{}, nil, store.ReadScope{}, false
 	}
-	return view.Run, conversation, true
+	return view.Run, conversation, actor.ReadScope, true
 }
 
 func (h *BaseHandlers) emitTaskRunConversation(
 	ctx context.Context,
 	writer FlushWriter,
 	run taskpkg.Run,
+	readScope store.ReadScope,
 	ref store.NetworkConversationRef,
 	cursor *taskRunConversationCursor,
 ) bool {
-	snapshot, err := h.loadTaskRunConversationSnapshot(ctx, run, ref, *cursor)
+	snapshot, err := h.loadTaskRunConversationSnapshot(ctx, run, readScope, ref, *cursor)
 	if err != nil {
 		h.logSSEWriteFailure(taskRunConversationMessageEvent, err)
 		return false
@@ -155,10 +156,12 @@ func (h *BaseHandlers) emitTaskRunConversation(
 func (h *BaseHandlers) loadTaskRunConversationSnapshot(
 	ctx context.Context,
 	run taskpkg.Run,
+	readScope store.ReadScope,
 	ref store.NetworkConversationRef,
 	cursor taskRunConversationCursor,
 ) (taskRunConversationSnapshot, error) {
 	messages, err := h.NetworkStore.ListConversationMessages(ctx, ref, store.NetworkConversationMessageQuery{
+		ReadScope:      readScope,
 		AfterMessageID: cursor.messageID,
 		Limit:          200,
 	})

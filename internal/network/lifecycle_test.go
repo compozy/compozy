@@ -6,6 +6,8 @@ import (
 	"time"
 )
 
+const testWorkProfileID = "01ARZ3NDEKTSV4RRFFQ69G5FAV"
+
 func TestOpenWork(t *testing.T) {
 	t.Parallel()
 
@@ -55,7 +57,7 @@ func TestOpenWork(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
-			work, err := OpenWork(withDirectSurface(tc.env), at)
+			work, err := OpenWork(testWorkProfileID, withDirectSurface(tc.env), at)
 			if err != nil {
 				t.Fatalf("OpenWork() error = %v", err)
 			}
@@ -84,6 +86,7 @@ func TestApplyWorkEnvelope(t *testing.T) {
 	at := time.Date(2026, 4, 10, 12, 0, 0, 0, time.UTC)
 	work := Work{
 		ID:        "work_patch_42",
+		ProfileID: testWorkProfileID,
 		Ref:       testDirectRef(),
 		Initiator: "coder.sess-abc",
 		Target:    "reviewer.sess-xyz",
@@ -166,6 +169,7 @@ func TestApplyWorkEnvelope(t *testing.T) {
 			name: "direct resumes work from needs_input",
 			current: &Work{
 				ID:        "work_patch_42",
+				ProfileID: testWorkProfileID,
 				Ref:       testDirectRef(),
 				Initiator: "coder.sess-abc",
 				Target:    "reviewer.sess-xyz",
@@ -254,6 +258,7 @@ func TestApplyWorkEnvelope(t *testing.T) {
 			name: "post terminal trace is rejected",
 			current: &Work{
 				ID:        "work_patch_42",
+				ProfileID: testWorkProfileID,
 				Ref:       testDirectRef(),
 				Initiator: "coder.sess-abc",
 				Target:    "reviewer.sess-xyz",
@@ -281,6 +286,7 @@ func TestApplyWorkEnvelope(t *testing.T) {
 			name: "post terminal direct is rejected",
 			current: &Work{
 				ID:        "work_patch_42",
+				ProfileID: testWorkProfileID,
 				Ref:       testDirectRef(),
 				Initiator: "coder.sess-abc",
 				Target:    "reviewer.sess-xyz",
@@ -363,7 +369,7 @@ func TestApplyWorkEnvelope(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
-			got, err := ApplyWorkEnvelope(tc.current, withDirectSurface(tc.env), at.Add(time.Second))
+			got, err := ApplyWorkEnvelope(tc.current, testWorkProfileID, withDirectSurface(tc.env), at.Add(time.Second))
 			if tc.wantErr != nil {
 				if !errors.Is(err, tc.wantErr) {
 					t.Fatalf("ApplyWorkEnvelope() error = %v, want %v", err, tc.wantErr)
@@ -397,6 +403,7 @@ func TestCancellationRaceHonorsFirstTerminalMessage(t *testing.T) {
 	at := time.Date(2026, 4, 10, 12, 0, 0, 0, time.UTC)
 	current := &Work{
 		ID:        "work_patch_42",
+		ProfileID: testWorkProfileID,
 		Ref:       testDirectRef(),
 		Initiator: "coder.sess-abc",
 		Target:    "reviewer.sess-xyz",
@@ -421,7 +428,7 @@ func TestCancellationRaceHonorsFirstTerminalMessage(t *testing.T) {
 		}),
 	}
 
-	first, err := ApplyWorkEnvelope(current, withDirectSurface(receiptCanceled), at.Add(time.Second))
+	first, err := ApplyWorkEnvelope(current, testWorkProfileID, withDirectSurface(receiptCanceled), at.Add(time.Second))
 	if err != nil {
 		t.Fatalf("ApplyWorkEnvelope(first) error = %v", err)
 	}
@@ -445,7 +452,12 @@ func TestCancellationRaceHonorsFirstTerminalMessage(t *testing.T) {
 		Body:        mustRawJSON(t, map[string]any{"state": "canceled"}),
 	}
 
-	second, err := ApplyWorkEnvelope(&first.Work, withDirectSurface(traceCanceled), at.Add(2*time.Second))
+	second, err := ApplyWorkEnvelope(
+		&first.Work,
+		testWorkProfileID,
+		withDirectSurface(traceCanceled),
+		at.Add(2*time.Second),
+	)
 	if err != nil {
 		t.Fatalf("ApplyWorkEnvelope(second) error = %v", err)
 	}

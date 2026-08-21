@@ -15,6 +15,7 @@ import (
 	"github.com/compozy/compozy/internal/api/testutil"
 	"github.com/compozy/compozy/internal/network/participation"
 	"github.com/compozy/compozy/internal/session"
+	"github.com/compozy/compozy/internal/store"
 	taskpkg "github.com/compozy/compozy/internal/task"
 	workspacepkg "github.com/compozy/compozy/internal/workspace"
 	"github.com/compozy/compozy/internal/workspaceaccess"
@@ -370,6 +371,7 @@ func TestNetworkWorkspaceAccessMiddleware(t *testing.T) {
 			StatusFn: func(_ context.Context, id string) (*session.Info, error) {
 				return &session.Info{
 					ID:          id,
+					ProfileID:   store.DefaultProfileID,
 					AgentName:   "coder",
 					WorkspaceID: sourceWorkspaceID,
 					State:       session.StateActive,

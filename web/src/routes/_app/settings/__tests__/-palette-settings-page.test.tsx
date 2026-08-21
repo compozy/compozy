@@ -47,6 +47,7 @@ vi.mock("@/systems/settings", () => ({
     setFallbackAgentEnabled: state.setFallbackAgentEnabled,
     setPersonalization: state.setPersonalization,
     resetPersonalization: state.resetPersonalization,
+    canResetPersonalization: true,
     isResetting: false,
     resetError: state.resetError,
     handleRetry: state.handleRetry,

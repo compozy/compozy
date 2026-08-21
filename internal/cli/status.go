@@ -59,6 +59,7 @@ func newDoctorCommand(deps commandDeps) *cobra.Command {
 
   # Run only provider and MCP diagnostics
   compozy doctor --only provider --only mcp`,
+		PreRunE: func(cmd *cobra.Command, _ []string) error { return rejectMachineProfileFlag(cmd) },
 		RunE: func(cmd *cobra.Command, _ []string) error {
 			client, err := clientFromDeps(deps)
 			if err != nil {
@@ -75,6 +76,7 @@ func newDoctorCommand(deps commandDeps) *cobra.Command {
 			return writeCommandOutput(cmd, doctorBundle(result))
 		},
 	}
+	configureMachineProfileFlag(cmd, false)
 	cmd.Flags().StringSliceVar(&only, "only", nil, "Run only the named probe ids or categories")
 	cmd.Flags().StringSliceVar(&exclude, "exclude", nil, "Exclude the named probe ids or categories")
 	cmd.Flags().BoolVar(&quiet, "quiet", false, "Omit OK diagnostics")

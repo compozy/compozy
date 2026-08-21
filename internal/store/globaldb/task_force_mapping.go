@@ -54,7 +54,7 @@ func completeParentRollupTaskRunParams(
 	completed taskpkg.Run,
 ) sqlcgen.CompleteParentRollupTaskRunParams {
 	return sqlcgen.CompleteParentRollupTaskRunParams{
-		ResultJson:             nullableTaskRawJSON(completed.Result),
+		ResultJson:             nullableTaskRawJSON(completed.ResultValue()),
 		EndedAt:                nullableTaskTime(completed.EndedAt),
 		ID:                     previous.ID,
 		ExpectedTaskID:         nullableTaskString(previous.TaskID),

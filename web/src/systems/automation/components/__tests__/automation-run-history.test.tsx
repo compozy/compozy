@@ -36,6 +36,8 @@ import { AutomationRunHistory } from "../automation-run-history";
 import type { AutomationRun } from "../../types";
 
 const completedRun: AutomationRun = {
+  profile_id: "00000000000000000000000000",
+  profile_name: "default",
   id: "run_001",
   status: "completed",
   attempt: 1,
@@ -48,6 +50,8 @@ const completedRun: AutomationRun = {
 };
 
 const failedRun: AutomationRun = {
+  profile_id: "00000000000000000000000000",
+  profile_name: "default",
   id: "run_002",
   status: "failed",
   attempt: 2,
@@ -60,6 +64,8 @@ const failedRun: AutomationRun = {
 };
 
 const pendingRun: AutomationRun = {
+  profile_id: "00000000000000000000000000",
+  profile_name: "default",
   id: "run_003",
   status: "scheduled",
   attempt: 1,
@@ -124,6 +130,8 @@ describe("AutomationRunHistory", () => {
 
   it("Should surface a durable skip reason on a canceled run without inventing a new status", () => {
     const overlapSkip: AutomationRun = {
+      profile_id: "00000000000000000000000000",
+      profile_name: "default",
       id: "run_skip",
       status: "canceled",
       attempt: 1,

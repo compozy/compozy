@@ -11,12 +11,15 @@ import (
 	"github.com/compozy/compozy/internal/store"
 	"github.com/compozy/compozy/internal/testutil"
 	"github.com/compozy/compozy/internal/testutil/storeseed"
+	"github.com/compozy/compozy/internal/version"
 )
 
 var (
 	extensionTestGlobalSeed *storeseed.Seed
 	extensionTestMemorySeed *storeseed.Seed
 )
+
+const extensionTestDaemonVersion = "0.6.0"
 
 func TestMain(m *testing.M) {
 	os.Exit(runExtensionTests(m))
@@ -27,6 +30,12 @@ func runExtensionTests(m *testing.M) (code int) {
 		os.Getenv("COMPOZY_TEST_REFERENCE_ACP_HELPER") == "1" {
 		return m.Run()
 	}
+	// Establish the suite baseline before m.Run starts parallel tests. Holding
+	// OverrideVersionForTesting for the whole suite would block the few serial
+	// compatibility tests that intentionally need an exact older version.
+	originalVersion := version.Version
+	version.Version = extensionTestDaemonVersion
+	defer func() { version.Version = originalVersion }()
 	globalSeed, err := storeseed.NewGlobal(context.Background())
 	if err != nil {
 		reportExtensionTestMainError("create global seed: %v", err)

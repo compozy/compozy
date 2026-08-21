@@ -9,6 +9,8 @@ import (
 	"sync"
 	"testing"
 	"time"
+
+	storepkg "github.com/compozy/compozy/internal/store"
 )
 
 func (s *inMemoryManagerStore) RequestRunReview(
@@ -682,6 +684,7 @@ func TestTaskManagerRunReviews(t *testing.T) {
 		actor := validActorContext()
 
 		taskRecord, err := manager.CreateTask(context.Background(), CreateTask{
+			ProfileID:   storepkg.DefaultProfileID,
 			Scope:       ScopeGlobal,
 			Title:       "Review exhaustion",
 			MaxAttempts: new(1),

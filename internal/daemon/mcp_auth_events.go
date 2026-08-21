@@ -64,13 +64,13 @@ func (n *daemonMCPAuthNotifier) NotifyMCPAuth(ctx context.Context, lifecycle mcp
 	if lifecycle.Outcome != "success" {
 		eventOutcome = eventspkg.OutcomeFailure
 	}
-	summary := store.EventSummary{
+	summary := daemonEventSummary(store.EventSummary{
+		ProfileID: store.DefaultProfileID,
 		Type:      eventType,
 		Outcome:   string(eventOutcome),
-		Content:   content,
 		Summary:   fmt.Sprintf("MCP auth %s %s", lifecycle.Action, lifecycle.Outcome),
 		Timestamp: n.timestamp(),
-	}
+	}, content)
 	writeCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), defaultMCPAuthEventWriteTimeout)
 	defer cancel()
 	if err := n.writer.WriteEventSummary(writeCtx, summary); err != nil {

@@ -21,6 +21,8 @@ import { WorkInspectorRow } from "../work/work-inspector-row";
 
 const channel = "launch-war-room";
 const channelSummary: NetworkChannelSummary = {
+  profile_id: "00000000000000000000000000",
+  profile_name: "default",
   channel,
   peer_count: 3,
   purpose: "Coordinate the v0.16 launch across agents and humans.",

@@ -161,7 +161,10 @@ func (s *service) buildHooksExtensionsSection(
 	ctx context.Context,
 	cfg *compozyconfig.Config,
 ) (HooksExtensionsSection, error) {
-	hooks := buildHookItems(cfg.Hooks.Declarations)
+	hooks, err := s.buildHookItems(ScopeUser, "", "", "")
+	if err != nil {
+		return HooksExtensionsSection{}, err
+	}
 
 	installed := []InstalledExtension{}
 	if s.extensions != nil {

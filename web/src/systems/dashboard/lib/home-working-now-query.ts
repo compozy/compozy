@@ -12,7 +12,10 @@ export const WORKING_NOW_SESSION_LIMIT = 6;
  * while the hook read `limit: 6`, so a mounted dashboard refetched instead of
  * reusing the warmed page.
  */
-export function homeWorkingNowSessionFilters(): Omit<SessionListFilters, "workspace"> {
+export function homeWorkingNowSessionFilters(): Omit<
+  SessionListFilters,
+  "workspace_id" | "all_workspaces"
+> {
   return {
     state: "active",
     type: "user",

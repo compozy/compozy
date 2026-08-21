@@ -10,6 +10,7 @@ import (
 
 	"github.com/compozy/compozy/internal/api/contract"
 	bridgepkg "github.com/compozy/compozy/internal/bridges"
+	"github.com/compozy/compozy/internal/store"
 	"github.com/gin-gonic/gin"
 )
 
@@ -145,6 +146,7 @@ func TestBridgeHandlersShouldHandleBridgeRoutes(t *testing.T) {
 			bridges: stubBridgeService{
 				CreateInstanceFn: func(_ context.Context, req bridgepkg.CreateInstanceRequest) (*bridgepkg.BridgeInstance, error) {
 					if req.Scope != bridgepkg.ScopeWorkspace || req.WorkspaceID != "ws-alpha" ||
+						req.ProfileID != store.DefaultProfileID ||
 						req.Platform != "telegram" ||
 						req.ExtensionName != "ext-telegram" ||
 						req.DisplayName != "Support" {
@@ -170,6 +172,7 @@ func TestBridgeHandlersShouldHandleBridgeRoutes(t *testing.T) {
 					}
 					return &bridgepkg.BridgeInstance{
 						ID:               "brg-1",
+						ProfileID:        req.ProfileID,
 						Scope:            req.Scope,
 						WorkspaceID:      req.WorkspaceID,
 						Platform:         req.Platform,
@@ -184,6 +187,23 @@ func TestBridgeHandlersShouldHandleBridgeRoutes(t *testing.T) {
 						Degradation:      req.Degradation,
 						CreatedAt:        time.Date(2026, 4, 11, 12, 0, 0, 0, time.UTC),
 						UpdatedAt:        time.Date(2026, 4, 11, 12, 0, 0, 0, time.UTC),
+					}, nil
+				},
+				GetInstanceFn: func(_ context.Context, id string) (*bridgepkg.BridgeInstance, error) {
+					if id != "brg-1" {
+						t.Fatalf("GetInstance() id = %q, want brg-1", id)
+					}
+					return &bridgepkg.BridgeInstance{
+						ID:             "brg-1",
+						ProfileID:      store.DefaultProfileID,
+						Scope:          bridgepkg.ScopeWorkspace,
+						WorkspaceID:    "ws-alpha",
+						Platform:       "telegram",
+						ExtensionName:  "ext-telegram",
+						DisplayName:    "Support",
+						Enabled:        true,
+						Status:         bridgepkg.BridgeStatusStarting,
+						ProviderConfig: []byte(`{"mode":"bot","tenant":"acme"}`),
 					}, nil
 				},
 			},
@@ -253,6 +273,9 @@ func TestBridgeHandlersShouldHandleBridgeRoutes(t *testing.T) {
 				`{"message":"hello","target":{"peer_id":"peer-1","thread_id":"thread-1","group_id":"group-1","mode":"reply"}}`,
 			),
 			bridges: stubBridgeService{
+				GetInstanceFn: func(_ context.Context, id string) (*bridgepkg.BridgeInstance, error) {
+					return &bridgepkg.BridgeInstance{ID: id, ProfileID: store.DefaultProfileID}, nil
+				},
 				ResolveDeliveryTargetFn: func(_ context.Context, req bridgepkg.ResolveDeliveryTargetRequest) (*bridgepkg.DeliveryTarget, error) {
 					if req.BridgeInstanceID != "brg-1" || req.PeerID != "peer-1" || req.ThreadID != "thread-1" ||
 						req.GroupID != "group-1" ||
@@ -364,6 +387,7 @@ func TestBridgeHandlersShouldHandleBridgeRoutes(t *testing.T) {
 					now := time.Date(2026, 7, 12, 12, 0, 0, 0, time.UTC)
 					return &bridgepkg.BridgeInstance{
 						ID:            "brg-telegram",
+						ProfileID:     store.DefaultProfileID,
 						Scope:         bridgepkg.ScopeGlobal,
 						Platform:      "telegram",
 						ExtensionName: "telegram",

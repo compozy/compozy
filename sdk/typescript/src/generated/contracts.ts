@@ -217,6 +217,7 @@ export type HookEvent =
 export interface AgentCrashedPayload {
   event: HookEvent;
   timestamp: ISODateTime;
+  profile_id?: string;
   session_id?: string;
   session_name?: string;
   session_type?: string;
@@ -307,6 +308,7 @@ export interface AgentHeartbeatValidateParams {
 export interface AgentHeartbeatWakeAfterPayload {
   event: HookEvent;
   timestamp: ISODateTime;
+  profile_id?: string;
   session_id?: string;
   session_name?: string;
   session_type?: string;
@@ -333,6 +335,7 @@ export interface AgentHeartbeatWakeAfterPayload {
 export interface AgentHeartbeatWakeBeforePayload {
   event: HookEvent;
   timestamp: ISODateTime;
+  profile_id?: string;
   session_id?: string;
   session_name?: string;
   session_type?: string;
@@ -371,6 +374,7 @@ export interface AgentLifecyclePatch {
 export interface AgentLifecyclePayload {
   event: HookEvent;
   timestamp: ISODateTime;
+  profile_id?: string;
   session_id?: string;
   session_name?: string;
   session_type?: string;
@@ -396,6 +400,7 @@ export interface AgentLifecyclePayload {
 export interface AgentPreStartPayload {
   event: HookEvent;
   timestamp: ISODateTime;
+  profile_id?: string;
   session_id?: string;
   session_name?: string;
   session_type?: string;
@@ -645,6 +650,7 @@ export interface AgentSpawnedPatch {
 export interface AgentSpawnedPayload {
   event: HookEvent;
   timestamp: ISODateTime;
+  profile_id?: string;
   session_id?: string;
   session_name?: string;
   session_type?: string;
@@ -682,6 +688,7 @@ export interface AgentStoppedPatch {
 export interface AgentStoppedPayload {
   event: HookEvent;
   timestamp: ISODateTime;
+  profile_id?: string;
   session_id?: string;
   session_name?: string;
   session_type?: string;
@@ -835,6 +842,7 @@ export interface AutomationJobCreateParams {
 }
 
 export interface AutomationJobPostFirePayload {
+  profile_id?: string;
   job_id: string;
   job_name?: string;
   agent_name?: string;
@@ -851,6 +859,7 @@ export interface AutomationSchedulePayload {
 }
 
 export interface AutomationJobPreFirePayload {
+  profile_id?: string;
   job_id: string;
   job_name?: string;
   agent_name?: string;
@@ -899,6 +908,7 @@ export type JobSource = string;
 
 export interface Job {
   id: string;
+  profile_id: string;
   scope: Scope;
   name: string;
   target_kind: TargetKind;
@@ -931,6 +941,7 @@ export interface AutomationJobsResult {
 export type AutomationObservationPatch = Record<string, never>;
 
 export interface AutomationRunCompletedPayload {
+  profile_id?: string;
   run_id: string;
   job_id?: string;
   trigger_id?: string;
@@ -942,6 +953,7 @@ export interface AutomationRunCompletedPayload {
 }
 
 export interface AutomationRunFailedPayload {
+  profile_id?: string;
   run_id: string;
   job_id?: string;
   trigger_id?: string;
@@ -990,6 +1002,7 @@ export interface AutomationTriggerFireParams {
 }
 
 export interface AutomationTriggerPostFirePayload {
+  profile_id?: string;
   trigger_id: string;
   trigger_name?: string;
   event?: string;
@@ -1000,6 +1013,7 @@ export interface AutomationTriggerPostFirePayload {
 }
 
 export interface AutomationTriggerPreFirePayload {
+  profile_id?: string;
   trigger_id: string;
   trigger_name?: string;
   event?: string;
@@ -1056,6 +1070,10 @@ export interface GatewayIngressPayload {
 
 export interface Trigger {
   id: string;
+  profile_id: string;
+  profile_name: string;
+  profile_color?: string;
+  profile_icon?: string;
   scope: Scope;
   name: string;
   target_kind: TargetKind;
@@ -1142,6 +1160,12 @@ export interface BridgeDegradation {
 
 export interface BridgeInstance {
   id: string;
+  profile_id: string;
+  profile_name?: string;
+  profile_color?: string;
+  profile_icon?: string;
+  profile_emoji?: string;
+  profile_archived?: boolean;
   scope: BridgeScope;
   workspace_id?: string;
   platform: string;
@@ -1262,6 +1286,7 @@ export interface CmdPaletteCommand {
   title: string;
   section?: string;
   icon: string;
+  profile?: string;
   keywords?: string[];
   arguments?: CmdPaletteArgument[];
   action: CmdPaletteAction;
@@ -1279,6 +1304,7 @@ export interface CmdPaletteView {
   id: string;
   title: string;
   kind: string;
+  profile?: string;
   source?: CmdPaletteViewSource;
   program?: boolean;
 }
@@ -1356,6 +1382,7 @@ export interface ContextBlock {
 export interface ContextCompactPayload {
   event: HookEvent;
   timestamp: ISODateTime;
+  profile_id?: string;
   session_id?: string;
   session_name?: string;
   session_type?: string;
@@ -1395,6 +1422,7 @@ export interface ContextPostCompactPatch {
 export interface ContextPostCompactPayload {
   event: HookEvent;
   timestamp: ISODateTime;
+  profile_id?: string;
   session_id?: string;
   session_name?: string;
   session_type?: string;
@@ -1426,6 +1454,7 @@ export interface ContextPreCompactPatch {
 export interface ContextPreCompactPayload {
   event: HookEvent;
   timestamp: ISODateTime;
+  profile_id?: string;
   session_id?: string;
   session_name?: string;
   session_type?: string;
@@ -1474,6 +1503,7 @@ export type NetworkParticipationSpec =
     };
 
 export interface CoordinatorContext {
+  profile_id?: string;
   workspace_id?: string;
   workspace?: string;
   agent_name?: string;
@@ -1489,6 +1519,7 @@ export interface CoordinatorContext {
 export interface CoordinatorDecisionPayload {
   event: HookEvent;
   timestamp: ISODateTime;
+  profile_id?: string;
   workspace_id?: string;
   workspace?: string;
   agent_name?: string;
@@ -1508,6 +1539,7 @@ export interface CoordinatorDecisionPayload {
 export interface CoordinatorFailedPayload {
   event: HookEvent;
   timestamp: ISODateTime;
+  profile_id?: string;
   workspace_id?: string;
   workspace?: string;
   agent_name?: string;
@@ -1527,6 +1559,7 @@ export interface CoordinatorFailedPayload {
 export interface CoordinatorLifecyclePayload {
   event: HookEvent;
   timestamp: ISODateTime;
+  profile_id?: string;
   workspace_id?: string;
   workspace?: string;
   agent_name?: string;
@@ -1550,6 +1583,7 @@ export interface CoordinatorObservationPatch {
 export interface CoordinatorPreSpawnPayload {
   event: HookEvent;
   timestamp: ISODateTime;
+  profile_id?: string;
   workspace_id?: string;
   workspace?: string;
   agent_name?: string;
@@ -1576,6 +1610,7 @@ export interface CoordinatorSpawnPatch {
 export interface CoordinatorSpawnedPayload {
   event: HookEvent;
   timestamp: ISODateTime;
+  profile_id?: string;
   workspace_id?: string;
   workspace?: string;
   agent_name?: string;
@@ -1595,6 +1630,7 @@ export interface CoordinatorSpawnedPayload {
 export interface CoordinatorStoppedPayload {
   event: HookEvent;
   timestamp: ISODateTime;
+  profile_id?: string;
   workspace_id?: string;
   workspace?: string;
   agent_name?: string;
@@ -1724,12 +1760,37 @@ export interface DescribeNetworkParticipation {
   channel_scopes?: string[];
 }
 
+export interface DescribeProfileDefaults {
+  agent?: string;
+  provider?: string;
+  sandbox?: string;
+}
+
+export interface DescribeProfileCredential {
+  provider: string;
+  slot: string;
+}
+
+export interface DescribeProfile {
+  name: string;
+  color?: string;
+  icon?: string;
+  emoji?: string;
+  defaults?: DescribeProfileDefaults;
+  credentials?: DescribeProfileCredential[];
+}
+
+export interface DescribeResourcePath {
+  path: string;
+  profile?: string;
+}
+
 export interface DescribeResources {
-  skills?: string[];
-  loops?: string[];
-  agents?: string[];
-  automation?: string[];
-  layouts?: string[];
+  skills?: DescribeResourcePath[];
+  loops?: DescribeResourcePath[];
+  agents?: DescribeResourcePath[];
+  automation?: DescribeResourcePath[];
+  layouts?: DescribeResourcePath[];
   cmd_palette?: CmdPaletteConfig;
 }
 
@@ -1751,6 +1812,7 @@ export interface ExtensionCommandSpec {
 }
 
 export interface ExtensionToolRuntimeDescriptor {
+  profile?: string;
   id: ToolID;
   handler: string;
   description?: string;
@@ -1767,9 +1829,15 @@ export interface ExtensionToolRuntimeDescriptor {
   command?: ExtensionCommandSpec;
 }
 
+export interface DescribeHookEvent {
+  event: HookEvent;
+  profile?: string;
+}
+
 export interface ExtensionCommandGroupSpec {
   path: string;
   summary: string;
+  profile?: string;
 }
 
 export interface DescribeSDKInfo {
@@ -1786,11 +1854,12 @@ export interface DescribePayload {
   provides: string[];
   permissions: string[];
   requires_env?: string[];
+  profiles?: DescribeProfile[];
   resources: DescribeResources;
   subprocess: DescribeSubprocess;
   network_participation?: DescribeNetworkParticipation;
   tools?: ExtensionToolRuntimeDescriptor[];
-  hook_events?: string[];
+  hook_events?: DescribeHookEvent[];
   watch_source_kinds?: string[];
   cmd_palette_views?: string[];
   command_groups?: ExtensionCommandGroupSpec[];
@@ -1811,6 +1880,7 @@ export interface EventPostRecordPatch {
 export interface EventPostRecordPayload {
   event: HookEvent;
   timestamp: ISODateTime;
+  profile_id?: string;
   session_id?: string;
   session_name?: string;
   session_type?: string;
@@ -1837,6 +1907,7 @@ export interface EventPreRecordPatch {
 export interface EventPreRecordPayload {
   event: HookEvent;
   timestamp: ISODateTime;
+  profile_id?: string;
   session_id?: string;
   session_name?: string;
   session_type?: string;
@@ -1863,6 +1934,7 @@ export interface EventRecordPatch {
 export interface EventRecordPayload {
   event: HookEvent;
   timestamp: ISODateTime;
+  profile_id?: string;
   session_id?: string;
   session_name?: string;
   session_type?: string;
@@ -2345,6 +2417,7 @@ export type HookSource = "native" | "config" | "extension" | "agent_definition" 
 
 export interface HookDecl {
   name: string;
+  profile_id?: string;
   event: HookEvent;
   mode?: HookMode;
   matcher: HookMatcher;
@@ -2385,7 +2458,14 @@ export type HookEventFamily =
 
 export type HookRunOutcome = "applied" | "denied" | "failed" | "skipped" | "dropped" | "rejected";
 
-export type HookSkillSource = "bundled" | "marketplace" | "user" | "additional" | "workspace";
+export type HookSkillSource =
+  | "bundled"
+  | "marketplace"
+  | "user"
+  | "profile"
+  | "additional"
+  | "workspace"
+  | "workspace_profile";
 
 export interface InboundAction {
   action_id: string;
@@ -2567,6 +2647,7 @@ export interface InputAttachmentMetadata {
 export interface InputPreSubmitPayload {
   event: HookEvent;
   timestamp: ISODateTime;
+  profile_id?: string;
   session_id?: string;
   session_name?: string;
   session_type?: string;
@@ -2605,6 +2686,7 @@ export interface ListLogsParams {
 }
 
 export interface LoopContext {
+  profile_id?: string;
   loop_run_id?: string;
   parent_loop_run_id?: string;
   workspace_id?: string;
@@ -2632,6 +2714,7 @@ export interface LoopControlPatch {
 export interface LoopGatePostPayload {
   event: HookEvent;
   timestamp: ISODateTime;
+  profile_id?: string;
   loop_run_id?: string;
   parent_loop_run_id?: string;
   workspace_id?: string;
@@ -2668,6 +2751,7 @@ export interface LoopGatePrePatch {
 export interface LoopGatePrePayload {
   event: HookEvent;
   timestamp: ISODateTime;
+  profile_id?: string;
   loop_run_id?: string;
   parent_loop_run_id?: string;
   workspace_id?: string;
@@ -2708,6 +2792,7 @@ export type LoopGenerationOrigin =
 export interface LoopGenerationPostPayload {
   event: HookEvent;
   timestamp: ISODateTime;
+  profile_id?: string;
   loop_run_id?: string;
   parent_loop_run_id?: string;
   workspace_id?: string;
@@ -2742,6 +2827,7 @@ export interface LoopGenerationPrePatch {
 export interface LoopGenerationPrePayload {
   event: HookEvent;
   timestamp: ISODateTime;
+  profile_id?: string;
   loop_run_id?: string;
   parent_loop_run_id?: string;
   workspace_id?: string;
@@ -2771,6 +2857,7 @@ export interface LoopGenerationPrePayload {
 export interface LoopLifecyclePayload {
   event: HookEvent;
   timestamp: ISODateTime;
+  profile_id?: string;
   loop_run_id?: string;
   parent_loop_run_id?: string;
   workspace_id?: string;
@@ -2797,6 +2884,7 @@ export interface LoopLifecyclePayload {
 export interface LoopNodeTerminalPayload {
   event: HookEvent;
   timestamp: ISODateTime;
+  profile_id?: string;
   loop_run_id?: string;
   parent_loop_run_id?: string;
   workspace_id?: string;
@@ -2831,6 +2919,7 @@ export interface LoopObservationPatch {
 export interface LoopStartedPayload {
   event: HookEvent;
   timestamp: ISODateTime;
+  profile_id?: string;
   loop_run_id?: string;
   parent_loop_run_id?: string;
   workspace_id?: string;
@@ -2857,6 +2946,7 @@ export interface LoopStartedPayload {
 export interface LoopTerminalPayload {
   event: HookEvent;
   timestamp: ISODateTime;
+  profile_id?: string;
   loop_run_id?: string;
   parent_loop_run_id?: string;
   workspace_id?: string;
@@ -2880,7 +2970,7 @@ export interface LoopTerminalPayload {
   details?: JSONValue;
 }
 
-export type MemoryScope = "global" | "workspace" | "agent";
+export type MemoryScope = "profile" | "workspace" | "agent";
 
 export interface MemoryForgetParams {
   key: string;
@@ -2920,6 +3010,7 @@ export interface MessageDeltaPatch {
 export interface MessageDeltaPayload {
   event: HookEvent;
   timestamp: ISODateTime;
+  profile_id?: string;
   session_id?: string;
   session_name?: string;
   session_type?: string;
@@ -2952,6 +3043,7 @@ export interface MessageEndPatch {
 export interface MessageEndPayload {
   event: HookEvent;
   timestamp: ISODateTime;
+  profile_id?: string;
   session_id?: string;
   session_name?: string;
   session_type?: string;
@@ -2984,6 +3076,7 @@ export interface MessagePatch {
 export interface MessagePayload {
   event: HookEvent;
   timestamp: ISODateTime;
+  profile_id?: string;
   session_id?: string;
   session_name?: string;
   session_type?: string;
@@ -3016,6 +3109,7 @@ export interface MessageStartPatch {
 export interface MessageStartPayload {
   event: HookEvent;
   timestamp: ISODateTime;
+  profile_id?: string;
   session_id?: string;
   session_name?: string;
   session_type?: string;
@@ -3101,6 +3195,12 @@ export interface ModelsStatusParams {
 }
 
 export interface NetworkChannelPayload {
+  profile_id: string;
+  profile_name: string;
+  profile_color?: string;
+  profile_icon?: string;
+  profile_emoji?: string;
+  profile_archived?: boolean;
   channel: string;
   workspace_id?: string;
   purpose?: string;
@@ -3142,6 +3242,12 @@ export interface NetworkDirectResolveParams {
 }
 
 export interface NetworkConversationMessagePayload {
+  profile_id: string;
+  profile_name: string;
+  profile_color?: string;
+  profile_icon?: string;
+  profile_emoji?: string;
+  profile_archived?: boolean;
   message_id: string;
   workspace_id?: string;
   channel: string;
@@ -3202,6 +3308,12 @@ export interface NetworkDirectRoomOpenedPayload {
 }
 
 export interface NetworkDirectRoomPayload {
+  profile_id: string;
+  profile_name: string;
+  profile_color?: string;
+  profile_icon?: string;
+  profile_emoji?: string;
+  profile_archived?: boolean;
   workspace_id?: string;
   channel: string;
   direct_id: string;
@@ -3539,6 +3651,12 @@ export interface NetworkCoordinationCostPayload {
 }
 
 export interface NetworkThreadSummaryPayload {
+  profile_id: string;
+  profile_name: string;
+  profile_color?: string;
+  profile_icon?: string;
+  profile_emoji?: string;
+  profile_archived?: boolean;
   workspace_id?: string;
   channel: string;
   thread_id: string;
@@ -3690,6 +3808,12 @@ export interface NetworkWorkOpenedPayload {
 }
 
 export interface NetworkWorkPayload {
+  profile_id: string;
+  profile_name: string;
+  profile_color?: string;
+  profile_icon?: string;
+  profile_emoji?: string;
+  profile_archived?: boolean;
   work_id: string;
   workspace_id?: string;
   channel: string;
@@ -3922,6 +4046,7 @@ export interface PermissionToolCall {
 export interface PermissionDeniedPayload {
   event: HookEvent;
   timestamp: ISODateTime;
+  profile_id?: string;
   session_id?: string;
   session_name?: string;
   session_type?: string;
@@ -3962,6 +4087,7 @@ export interface PermissionRequestPatch {
 export interface PermissionRequestPayload {
   event: HookEvent;
   timestamp: ISODateTime;
+  profile_id?: string;
   session_id?: string;
   session_name?: string;
   session_type?: string;
@@ -3989,6 +4115,7 @@ export interface PermissionRequestPayload {
 export interface PermissionResolutionPayload {
   event: HookEvent;
   timestamp: ISODateTime;
+  profile_id?: string;
   session_id?: string;
   session_name?: string;
   session_type?: string;
@@ -4017,6 +4144,7 @@ export type PermissionResolvedPatch = Record<string, never>;
 export interface PermissionResolvedPayload {
   event: HookEvent;
   timestamp: ISODateTime;
+  profile_id?: string;
   session_id?: string;
   session_name?: string;
   session_type?: string;
@@ -4059,6 +4187,7 @@ export interface PromptPatch {
 export interface PromptPayload {
   event: HookEvent;
   timestamp: ISODateTime;
+  profile_id?: string;
   session_id?: string;
   session_name?: string;
   session_type?: string;
@@ -4202,6 +4331,7 @@ export interface ResourcesSnapshotParams {
 
 export interface Run {
   id: string;
+  profile_id?: string;
   job_id?: string;
   trigger_id?: string;
   session_id?: string;
@@ -4290,6 +4420,7 @@ export interface SandboxProfilePayload {
 export interface SandboxPreparePayload {
   event: HookEvent;
   timestamp: ISODateTime;
+  profile_id?: string;
   session_id?: string;
   session_name?: string;
   session_type?: string;
@@ -4322,6 +4453,7 @@ export type SandboxReadyPatch = Record<string, never>;
 export interface SandboxReadyPayload {
   event: HookEvent;
   timestamp: ISODateTime;
+  profile_id?: string;
   session_id?: string;
   session_name?: string;
   session_type?: string;
@@ -4351,6 +4483,7 @@ export interface SandboxStopPatch {
 export interface SandboxStopPayload {
   event: HookEvent;
   timestamp: ISODateTime;
+  profile_id?: string;
   session_id?: string;
   session_name?: string;
   session_type?: string;
@@ -4380,6 +4513,7 @@ export type SandboxSyncAfterPatch = Record<string, never>;
 export interface SandboxSyncAfterPayload {
   event: HookEvent;
   timestamp: ISODateTime;
+  profile_id?: string;
   session_id?: string;
   session_name?: string;
   session_type?: string;
@@ -4415,6 +4549,7 @@ export interface SandboxSyncBeforePatch {
 export interface SandboxSyncBeforePayload {
   event: HookEvent;
   timestamp: ISODateTime;
+  profile_id?: string;
   session_id?: string;
   session_name?: string;
   session_type?: string;
@@ -4443,6 +4578,7 @@ export interface SandboxSyncBeforePayload {
 export interface SessionAttentionChangedPayload {
   event: HookEvent;
   timestamp: ISODateTime;
+  profile_id?: string;
   session_id?: string;
   session_name?: string;
   session_type?: string;
@@ -4465,6 +4601,7 @@ export interface SessionAttentionChangedPayload {
 export type SessionAttentionObservationPatch = Record<string, never>;
 
 export interface SessionContext {
+  profile_id?: string;
   session_id?: string;
   session_name?: string;
   session_type?: string;
@@ -4523,6 +4660,7 @@ export interface SessionHealthResponse {
 export interface SessionHealthUpdateAfterPayload {
   event: HookEvent;
   timestamp: ISODateTime;
+  profile_id?: string;
   session_id?: string;
   session_name?: string;
   session_type?: string;
@@ -4625,6 +4763,7 @@ export interface SessionInspectResponse {
 export interface SessionLifecyclePayload {
   event: HookEvent;
   timestamp: ISODateTime;
+  profile_id?: string;
   session_id?: string;
   session_name?: string;
   session_type?: string;
@@ -4643,6 +4782,7 @@ export interface SessionLifecyclePayload {
 export interface SessionMessagePersistedPayload {
   event: HookEvent;
   timestamp: ISODateTime;
+  profile_id?: string;
   session_id?: string;
   session_name?: string;
   session_type?: string;
@@ -4682,6 +4822,7 @@ export interface SessionPostCreatePatch {
 export interface SessionPostCreatePayload {
   event: HookEvent;
   timestamp: ISODateTime;
+  profile_id?: string;
   session_id?: string;
   session_name?: string;
   session_type?: string;
@@ -4710,6 +4851,7 @@ export interface SessionPostResumePatch {
 export interface SessionPostResumePayload {
   event: HookEvent;
   timestamp: ISODateTime;
+  profile_id?: string;
   session_id?: string;
   session_name?: string;
   session_type?: string;
@@ -4738,6 +4880,7 @@ export interface SessionPostStopPatch {
 export interface SessionPostStopPayload {
   event: HookEvent;
   timestamp: ISODateTime;
+  profile_id?: string;
   session_id?: string;
   session_name?: string;
   session_type?: string;
@@ -4756,6 +4899,7 @@ export interface SessionPostStopPayload {
 export interface SessionPreCreatePayload {
   event: HookEvent;
   timestamp: ISODateTime;
+  profile_id?: string;
   session_id?: string;
   session_name?: string;
   session_type?: string;
@@ -4784,6 +4928,7 @@ export interface SessionPreResumePatch {
 export interface SessionPreResumePayload {
   event: HookEvent;
   timestamp: ISODateTime;
+  profile_id?: string;
   session_id?: string;
   session_name?: string;
   session_type?: string;
@@ -4812,6 +4957,7 @@ export interface SessionPreStopPatch {
 export interface SessionPreStopPayload {
   event: HookEvent;
   timestamp: ISODateTime;
+  profile_id?: string;
   session_id?: string;
   session_name?: string;
   session_type?: string;
@@ -4852,6 +4998,7 @@ export interface SessionRuntimeClearParams {
 export interface SessionRuntimeRecoveryExhaustedPayload {
   event: HookEvent;
   timestamp: ISODateTime;
+  profile_id?: string;
   session_id?: string;
   session_name?: string;
   session_type?: string;
@@ -4876,6 +5023,7 @@ export interface SessionRuntimeRecoveryExhaustedPayload {
 export interface SessionRuntimeRecoveryStartedPayload {
   event: HookEvent;
   timestamp: ISODateTime;
+  profile_id?: string;
   session_id?: string;
   session_name?: string;
   session_type?: string;
@@ -4900,6 +5048,7 @@ export interface SessionRuntimeRecoveryStartedPayload {
 export interface SessionRuntimeRecoverySucceededPayload {
   event: HookEvent;
   timestamp: ISODateTime;
+  profile_id?: string;
   session_id?: string;
   session_name?: string;
   session_type?: string;
@@ -5158,6 +5307,7 @@ export interface SkillsListParams {
 }
 
 export interface SpawnContext {
+  profile_id?: string;
   parent_session_id?: string;
   root_session_id?: string;
   child_session_id?: string;
@@ -5189,6 +5339,7 @@ export interface SpawnCreatePatch {
 export interface SpawnCreatedPayload {
   event: HookEvent;
   timestamp: ISODateTime;
+  profile_id?: string;
   parent_session_id?: string;
   root_session_id?: string;
   child_session_id?: string;
@@ -5216,6 +5367,7 @@ export interface SpawnCreatedPayload {
 export interface SpawnLifecyclePayload {
   event: HookEvent;
   timestamp: ISODateTime;
+  profile_id?: string;
   parent_session_id?: string;
   root_session_id?: string;
   child_session_id?: string;
@@ -5247,6 +5399,7 @@ export interface SpawnObservationPatch {
 export interface SpawnParentStoppedPayload {
   event: HookEvent;
   timestamp: ISODateTime;
+  profile_id?: string;
   parent_session_id?: string;
   root_session_id?: string;
   child_session_id?: string;
@@ -5274,6 +5427,7 @@ export interface SpawnParentStoppedPayload {
 export interface SpawnPreCreatePayload {
   event: HookEvent;
   timestamp: ISODateTime;
+  profile_id?: string;
   parent_session_id?: string;
   root_session_id?: string;
   child_session_id?: string;
@@ -5300,6 +5454,7 @@ export interface SpawnPreCreatePayload {
 export interface SpawnReapedPayload {
   event: HookEvent;
   timestamp: ISODateTime;
+  profile_id?: string;
   parent_session_id?: string;
   root_session_id?: string;
   child_session_id?: string;
@@ -5327,6 +5482,7 @@ export interface SpawnReapedPayload {
 export interface SpawnTTLExpiredPayload {
   event: HookEvent;
   timestamp: ISODateTime;
+  profile_id?: string;
   parent_session_id?: string;
   root_session_id?: string;
   child_session_id?: string;
@@ -5394,6 +5550,10 @@ export interface LoopProvenance {
 
 export interface Task {
   id: string;
+  profile_id: string;
+  profile_name: string;
+  profile_color?: string;
+  profile_icon?: string;
   identifier?: string;
   scope: Scope;
   workspace_id?: string;
@@ -5435,6 +5595,7 @@ export interface Task {
 export interface TaskBlockedPayload {
   event: HookEvent;
   timestamp: ISODateTime;
+  profile_id?: string;
   task_id?: string;
   parent_task_id?: string;
   workspace_id?: string;
@@ -5464,6 +5625,7 @@ export interface TaskCancelParams {
 }
 
 export interface TaskContext {
+  profile_id?: string;
   task_id?: string;
   parent_task_id?: string;
   workspace_id?: string;
@@ -5731,6 +5893,10 @@ export interface TaskRunSummaryPayload {
 
 export interface TaskSummaryPayload {
   id: string;
+  profile_id: string;
+  profile_name: string;
+  profile_color?: string;
+  profile_icon?: string;
   identifier?: string;
   scope: Scope;
   workspace_id?: string;
@@ -5780,6 +5946,10 @@ export interface TaskDependencyPayload {
 
 export interface TaskRun {
   id: string;
+  profile_id?: string;
+  profile_name?: string;
+  profile_color?: string;
+  profile_icon?: string;
   task_id: string;
   status: RunStatus;
   attempt: number;
@@ -5947,6 +6117,7 @@ export interface TaskInboxParams {
 export interface TaskNeedsAttentionPayload {
   event: HookEvent;
   timestamp: ISODateTime;
+  profile_id?: string;
   task_id?: string;
   parent_task_id?: string;
   workspace_id?: string;
@@ -5973,6 +6144,7 @@ export interface TaskObservationPatch {
 export interface TaskRecoveredPayload {
   event: HookEvent;
   timestamp: ISODateTime;
+  profile_id?: string;
   task_id?: string;
   parent_task_id?: string;
   workspace_id?: string;
@@ -6023,6 +6195,7 @@ export interface TaskRunCompleteParams {
 export interface TaskRunCompletedPayload {
   event: HookEvent;
   timestamp: ISODateTime;
+  profile_id?: string;
   task_id?: string;
   run_id?: string;
   run_kind?: string;
@@ -6054,6 +6227,7 @@ export interface TaskRunCompletedPayload {
 }
 
 export interface TaskRunContext {
+  profile_id?: string;
   task_id?: string;
   run_id?: string;
   run_kind?: string;
@@ -6139,6 +6313,7 @@ export interface TaskRunEnqueueParams {
 export interface TaskRunEnqueuedPayload {
   event: HookEvent;
   timestamp: ISODateTime;
+  profile_id?: string;
   task_id?: string;
   run_id?: string;
   run_kind?: string;
@@ -6175,6 +6350,7 @@ export interface TaskRunFailParams {
 export interface TaskRunFailedPayload {
   event: HookEvent;
   timestamp: ISODateTime;
+  profile_id?: string;
   task_id?: string;
   run_id?: string;
   run_kind?: string;
@@ -6212,6 +6388,7 @@ export interface TaskRunGetParams {
 export interface TaskRunLeaseExpiredPayload {
   event: HookEvent;
   timestamp: ISODateTime;
+  profile_id?: string;
   task_id?: string;
   run_id?: string;
   run_kind?: string;
@@ -6245,6 +6422,7 @@ export interface TaskRunLeaseExpiredPayload {
 export interface TaskRunLeaseExtendedPayload {
   event: HookEvent;
   timestamp: ISODateTime;
+  profile_id?: string;
   task_id?: string;
   run_id?: string;
   run_kind?: string;
@@ -6278,6 +6456,7 @@ export interface TaskRunLeaseExtendedPayload {
 export interface TaskRunLeasePayload {
   event: HookEvent;
   timestamp: ISODateTime;
+  profile_id?: string;
   task_id?: string;
   run_id?: string;
   run_kind?: string;
@@ -6311,6 +6490,7 @@ export interface TaskRunLeasePayload {
 export interface TaskRunLeaseRecoveredPayload {
   event: HookEvent;
   timestamp: ISODateTime;
+  profile_id?: string;
   task_id?: string;
   run_id?: string;
   run_kind?: string;
@@ -6348,6 +6528,7 @@ export interface TaskRunObservationPatch {
 export interface TaskRunPostClaimPayload {
   event: HookEvent;
   timestamp: ISODateTime;
+  profile_id?: string;
   task_id?: string;
   run_id?: string;
   run_kind?: string;
@@ -6385,6 +6566,7 @@ export interface TaskRunPreClaimPatch {
 export interface TaskRunPreClaimPayload {
   event: HookEvent;
   timestamp: ISODateTime;
+  profile_id?: string;
   task_id?: string;
   run_id?: string;
   run_kind?: string;
@@ -6417,6 +6599,7 @@ export interface TaskRunPreClaimPayload {
 export interface TaskRunReleasedPayload {
   event: HookEvent;
   timestamp: ISODateTime;
+  profile_id?: string;
   task_id?: string;
   run_id?: string;
   run_kind?: string;
@@ -6463,6 +6646,7 @@ export interface TaskRunsParams {
 export interface TaskStatusChangedPayload {
   event: HookEvent;
   timestamp: ISODateTime;
+  profile_id?: string;
   task_id?: string;
   parent_task_id?: string;
   workspace_id?: string;
@@ -6525,6 +6709,7 @@ export interface TaskTreeParams {
 export interface TaskUnblockedPayload {
   event: HookEvent;
   timestamp: ISODateTime;
+  profile_id?: string;
   task_id?: string;
   parent_task_id?: string;
   workspace_id?: string;
@@ -6585,6 +6770,10 @@ export interface TasksParams {
 
 export interface TaskCatalogItemPayload {
   id: string;
+  profile_id: string;
+  profile_name: string;
+  profile_color?: string;
+  profile_icon?: string;
   identifier?: string;
   scope: Scope;
   workspace_id?: string;
@@ -6660,6 +6849,7 @@ export interface SourceRef {
   raw_tool_name?: string;
   resource_id?: string;
   resource_version?: string;
+  profile_id?: string;
   workspace_id?: string;
   scope?: string;
 }
@@ -6710,6 +6900,7 @@ export interface ToolCallRef {
 export interface ToolPostCallPayload {
   event: HookEvent;
   timestamp: ISODateTime;
+  profile_id?: string;
   session_id?: string;
   session_name?: string;
   session_type?: string;
@@ -6743,6 +6934,7 @@ export interface ToolPostErrorPatch {
 export interface ToolPostErrorPayload {
   event: HookEvent;
   timestamp: ISODateTime;
+  profile_id?: string;
   session_id?: string;
   session_name?: string;
   session_type?: string;
@@ -6768,6 +6960,7 @@ export interface ToolPostErrorPayload {
 export interface ToolPreCallPayload {
   event: HookEvent;
   timestamp: ISODateTime;
+  profile_id?: string;
   session_id?: string;
   session_name?: string;
   session_type?: string;
@@ -6814,6 +7007,7 @@ export interface TurnEndPatch {
 export interface TurnEndPayload {
   event: HookEvent;
   timestamp: ISODateTime;
+  profile_id?: string;
   session_id?: string;
   session_name?: string;
   session_type?: string;
@@ -6841,6 +7035,7 @@ export interface TurnPatch {
 export interface TurnPayload {
   event: HookEvent;
   timestamp: ISODateTime;
+  profile_id?: string;
   session_id?: string;
   session_name?: string;
   session_type?: string;
@@ -6868,6 +7063,7 @@ export interface TurnStartPatch {
 export interface TurnStartPayload {
   event: HookEvent;
   timestamp: ISODateTime;
+  profile_id?: string;
   session_id?: string;
   session_name?: string;
   session_type?: string;
@@ -6886,8 +7082,16 @@ export interface TurnStartPayload {
   user_message?: string;
 }
 
+export type ProfileLensID = string;
+
+export interface ProfileLens {
+  profile_lens_id: ProfileLensID;
+  profile_name: string;
+}
+
 export interface ViewCloseRequest {
   view_session: string;
+  profile_lens: ProfileLens;
   reason?: string;
 }
 
@@ -7130,6 +7334,7 @@ export type ClientID = string;
 export interface ViewOpenRequest {
   view_session: string;
   view: string;
+  profile_lens: ProfileLens;
   workspace: WorkspaceID;
   client: ClientID;
   args?: Record<string, JSONValue>;
@@ -7261,6 +7466,7 @@ export type WorktreeObservationPatch = Record<string, never>;
 export interface WorktreeObservationPayload {
   event: HookEvent;
   timestamp: ISODateTime;
+  profile_id?: string;
   worktree_id: string;
   workspace_id: string;
   workspace_root?: string;
@@ -7274,6 +7480,7 @@ export interface WorktreeObservationPayload {
 export interface WorktreePreCreatePayload {
   event: HookEvent;
   timestamp: ISODateTime;
+  profile_id?: string;
   worktree_id: string;
   workspace_id: string;
   workspace_root?: string;
@@ -7287,6 +7494,7 @@ export interface WorktreePreCreatePayload {
 }
 
 export interface WorktreeContext {
+  profile_id?: string;
   worktree_id: string;
   workspace_id: string;
   workspace_root?: string;

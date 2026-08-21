@@ -8,26 +8,35 @@ import (
 )
 
 type NetworkAuditEntry struct {
-	ID          string
-	SessionID   string
-	Direction   string
-	Kind        string
-	WorkspaceID string
-	Channel     string
-	Surface     string
-	ThreadID    string
-	DirectID    string
-	WorkID      string
-	PeerFrom    string
-	PeerTo      string
-	MessageID   string
-	Reason      string
-	Size        int
-	Timestamp   time.Time
+	ID              string
+	ProfileID       string
+	ProfileName     string
+	ProfileColor    string
+	ProfileIcon     string
+	ProfileEmoji    string
+	ProfileArchived bool
+	SessionID       string
+	Direction       string
+	Kind            string
+	WorkspaceID     string
+	Channel         string
+	Surface         string
+	ThreadID        string
+	DirectID        string
+	WorkID          string
+	PeerFrom        string
+	PeerTo          string
+	MessageID       string
+	Reason          string
+	Size            int
+	Timestamp       time.Time
 }
 
 // Validate ensures the network audit entry is complete and internally consistent.
 func (e NetworkAuditEntry) Validate() error {
+	if err := requireField(e.ProfileID, "network audit profile id"); err != nil {
+		return err
+	}
 	if err := requireField(e.SessionID, "network audit session id"); err != nil {
 		return err
 	}
@@ -89,8 +98,10 @@ func (e NetworkAuditEntry) Validate() error {
 	return nil
 }
 
-// NetworkAuditQuery filters network audit lookups.
+// NetworkAuditQuery filters network audit lookups through one explicit profile
+// or the AllProfiles aggregate.
 type NetworkAuditQuery struct {
+	ReadScope   ReadScope
 	SessionID   string
 	WorkspaceID string
 	// Global explicitly allows daemon-admin aggregate callers to scan audit rows
@@ -108,8 +119,11 @@ type NetworkAuditQuery struct {
 	Limit     int
 }
 
-// Validate ensures the query uses sane bounds.
+// Validate rejects an implicit profile lens before checking query bounds.
 func (q NetworkAuditQuery) Validate() error {
+	if err := q.ReadScope.Validate(); err != nil {
+		return fmt.Errorf("store: invalid network audit read scope: %w", err)
+	}
 	workspaceID := strings.TrimSpace(q.WorkspaceID)
 	if q.Global && workspaceID != "" {
 		return errors.New("store: network audit query cannot combine global scan with workspace_id")

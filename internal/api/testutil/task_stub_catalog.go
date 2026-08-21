@@ -36,6 +36,7 @@ func (s *StubTaskManager) ListTaskCatalog(
 		limit = 0
 	}
 	tasks, err := s.ListTasksFn(ctx, taskpkg.Query{
+		ReadScope:     query.ReadScope,
 		Scope:         taskpkg.Scope(query.Scope),
 		WorkspaceID:   query.WorkspaceID,
 		Status:        query.Status,

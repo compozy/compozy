@@ -21,7 +21,7 @@ const defaultMemory: MemoryHeader = {
   filename: "operator-style.md",
   mod_time: "2026-04-17T17:30:00Z",
   name: "Operator Style",
-  scope: "global",
+  scope: "profile",
   type: "user",
   recall_count: 4,
   last_recalled_at: "2026-04-17T17:25:00Z",
@@ -67,7 +67,7 @@ const sampleDecision: MemoryDecision = {
   id: "dec_demo",
   candidate_hash: "h",
   op: "update",
-  scope: "global",
+  scope: "profile",
   source: "rule",
   confidence: 0.93,
   decided_at: "2026-04-17T17:31:00Z",
@@ -102,7 +102,7 @@ export const Default: Story = {
         memory={defaultMemory}
         onDelete={async () => {}}
         onEdit={async () => {}}
-        scope="global"
+        scope="profile"
       />
     </PanelSurface>
   ),
@@ -154,7 +154,7 @@ export const Superseded: Story = {
         memory={supersededMemory}
         onDelete={async () => {}}
         onEdit={async () => {}}
-        scope="global"
+        scope="profile"
       />
     </PanelSurface>
   ),
@@ -171,7 +171,7 @@ export const Loading: Story = {
         status={{ isDeletePending: false, isLoading: true }}
         memory={defaultMemory}
         onDelete={async () => {}}
-        scope="global"
+        scope="profile"
       />
     </PanelSurface>
   ),
@@ -188,7 +188,7 @@ export const ErrorState: Story = {
         status={{ isDeletePending: false, isLoading: false }}
         memory={defaultMemory}
         onDelete={async () => {}}
-        scope="global"
+        scope="profile"
       />
     </PanelSurface>
   ),
@@ -223,7 +223,7 @@ export const DecisionsLoading: Story = {
         status={{ isDecisionsLoading: true, isDeletePending: false, isLoading: false }}
         memory={defaultMemory}
         onDelete={async () => {}}
-        scope="global"
+        scope="profile"
       />
     </PanelSurface>
   ),
@@ -242,7 +242,7 @@ export const DecisionsError: Story = {
         status={{ isDecisionsLoading: false, isDeletePending: false, isLoading: false }}
         memory={defaultMemory}
         onDelete={async () => {}}
-        scope="global"
+        scope="profile"
       />
     </PanelSurface>
   ),

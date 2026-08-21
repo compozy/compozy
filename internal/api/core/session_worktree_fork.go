@@ -48,21 +48,9 @@ func (h *BaseHandlers) ForkSessionToWorktree(c *gin.Context) {
 		h.respondError(c, http.StatusServiceUnavailable, errors.New("api: session prompt state is unavailable"))
 		return
 	}
-	if h.SessionAcceptance == nil {
-		h.respondError(
-			c,
-			http.StatusServiceUnavailable,
-			errors.New("api: asynchronous session acceptance is unavailable"),
-		)
-		return
-	}
-	forkAcceptance, ok := h.SessionAcceptance.(SessionWorktreeForkAcceptanceManager)
-	if !ok {
-		h.respondError(
-			c,
-			http.StatusServiceUnavailable,
-			errors.New("api: atomic worktree fork acceptance is unavailable"),
-		)
+	forkAcceptance, err := h.sessionWorktreeForkAcceptanceManager()
+	if err != nil {
+		h.respondError(c, http.StatusServiceUnavailable, err)
 		return
 	}
 	if err := validateWorktreeForkAvailability(origin, sessionID, promptState); err != nil {
@@ -70,7 +58,12 @@ func (h *BaseHandlers) ForkSessionToWorktree(c *gin.Context) {
 		return
 	}
 
-	worktreeTarget, err := h.resolveWorktreeForkTarget(c.Request.Context(), scope.RegistryID, req)
+	worktreeTarget, err := h.resolveWorktreeForkTarget(
+		c.Request.Context(),
+		origin.ProfileID,
+		scope.RegistryID,
+		req,
+	)
 	if err != nil {
 		h.respondError(c, StatusForSessionError(err), err)
 		return
@@ -87,6 +80,7 @@ func (h *BaseHandlers) ForkSessionToWorktree(c *gin.Context) {
 		origin.ID,
 		session.CreateAcceptedOpts{
 			Session: session.CreateOpts{
+				ProfileID: origin.ProfileID,
 				AgentName: origin.AgentName,
 				Workspace: scope.SessionWorkspaceID(),
 				Worktree:  worktreeTarget.ID,
@@ -104,7 +98,23 @@ func (h *BaseHandlers) ForkSessionToWorktree(c *gin.Context) {
 		h.respondError(c, status, err)
 		return
 	}
-	c.JSON(http.StatusCreated, contract.SessionResponse{Session: SessionPayloadFromInfo(created)})
+	payload, err := h.sessionPayloadWithOptionalHealth(c.Request.Context(), created, false)
+	if err != nil {
+		h.respondError(c, StatusForSessionError(err), err)
+		return
+	}
+	c.JSON(http.StatusCreated, contract.SessionResponse{Session: payload})
+}
+
+func (h *BaseHandlers) sessionWorktreeForkAcceptanceManager() (SessionWorktreeForkAcceptanceManager, error) {
+	if h.SessionAcceptance == nil {
+		return nil, errors.New("api: asynchronous session acceptance is unavailable")
+	}
+	forkAcceptance, ok := h.SessionAcceptance.(SessionWorktreeForkAcceptanceManager)
+	if !ok {
+		return nil, errors.New("api: atomic worktree fork acceptance is unavailable")
+	}
+	return forkAcceptance, nil
 }
 
 func validateWorktreeForkRequest(req contract.ForkSessionWorktreeRequest) error {
@@ -135,6 +145,7 @@ func validateWorktreeForkAvailability(
 
 func (h *BaseHandlers) resolveWorktreeForkTarget(
 	ctx context.Context,
+	profileID string,
 	workspaceID string,
 	req contract.ForkSessionWorktreeRequest,
 ) (materializedSessionWorktree, error) {
@@ -145,8 +156,9 @@ func (h *BaseHandlers) resolveWorktreeForkTarget(
 		return materializedSessionWorktree{}, errors.New("api: worktree creation is unavailable")
 	}
 	created, err := h.Worktrees.CreateReady(ctx, workspaceID, worktree.CreateOptions{
-		Name:   strings.TrimSpace(req.NewWorktree.Name),
-		Origin: worktree.OriginManual,
+		ProfileID: profileID,
+		Name:      strings.TrimSpace(req.NewWorktree.Name),
+		Origin:    worktree.OriginManual,
 	})
 	if err != nil {
 		return materializedSessionWorktree{}, err

@@ -51,7 +51,7 @@ func newDaemonAppTransitionCommand(deps commandDeps) *cobra.Command {
 			return runDaemonAppTransition(cmd, deps, options)
 		},
 	}
-	cmd.Flags().StringVar(&options.action, "action", "", "Transition action")
+	cmd.Flags().StringVar(&options.action, authoredContextActionKey, "", "Transition action")
 	cmd.Flags().StringVar(&options.operationID, "operation-id", "", "Update operation id")
 	cmd.Flags().StringVar(&options.executorGeneration, "executor-generation", "", "Update executor generation")
 	cmd.Flags().Int64Var(&options.expectedRevision, "expected-revision", 0, "Expected operation revision")
@@ -64,7 +64,7 @@ func newDaemonAppTransitionCommand(deps commandDeps) *cobra.Command {
 	cmd.Flags().StringVar(&options.watchdogDeadline, "watchdog-deadline", "", "App update watchdog deadline")
 	cmd.Flags().BoolVar(&options.incrementFailures, "increment-failures", false, "Increment app update failures")
 	cmd.Flags().BoolVar(&options.resetFailures, "reset-failures", false, "Reset app update failures")
-	for _, name := range []string{"action", "operation-id", "expected-revision"} {
+	for _, name := range []string{authoredContextActionKey, "operation-id", "expected-revision"} {
 		mustMarkFlagRequired(cmd, name)
 	}
 	return cmd

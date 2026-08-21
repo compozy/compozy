@@ -4,7 +4,6 @@ import (
 	"errors"
 
 	"github.com/compozy/compozy/internal/api/contract"
-	compozyconfig "github.com/compozy/compozy/internal/config"
 	settingspkg "github.com/compozy/compozy/internal/settings"
 )
 
@@ -13,12 +12,12 @@ func settingsAttentionSectionResponse(envelope settingspkg.SectionEnvelope) (any
 		return nil, errors.New("settings attention section is required")
 	}
 	return contract.SettingsAttentionResponse{
-		SettingsGlobalSectionResponseMetaPayload: settingsGlobalSectionMetaPayload(envelope),
-		Config:                                   settingsAttentionPayload(envelope.Attention.Config),
+		SettingsLayeredSectionResponseMetaPayload: settingsLayeredSectionMetaPayload(envelope),
+		Config: settingsAttentionPayload(envelope.Attention.Config),
 	}, nil
 }
 
-func settingsAttentionPayload(cfg compozyconfig.AttentionConfig) contract.SettingsAttentionPayload {
+func settingsAttentionPayload(cfg settingspkg.AttentionSettings) contract.SettingsAttentionPayload {
 	return contract.SettingsAttentionPayload{
 		Toasts:          cfg.Toasts,
 		Sound:           cfg.Sound,
@@ -28,16 +27,18 @@ func settingsAttentionPayload(cfg compozyconfig.AttentionConfig) contract.Settin
 }
 
 func attentionConfigFromPayload(
-	payload contract.SettingsAttentionPayload,
-) (compozyconfig.AttentionConfig, error) {
-	value := compozyconfig.AttentionConfig{
-		Toasts:          payload.Toasts,
-		Sound:           payload.Sound,
-		System:          payload.System,
-		MutedWorkspaces: append([]string{}, payload.MutedWorkspaces...),
+	payload contract.UpdateSettingsAttentionPayload,
+) (settingspkg.AttentionSettings, error) {
+	value := settingspkg.AttentionSettings{
+		Toasts: payload.Toasts,
+		Sound:  payload.Sound,
+		System: payload.System,
+	}
+	if payload.MutedWorkspaces != nil {
+		value.MutedWorkspaces = append([]string{}, (*payload.MutedWorkspaces)...)
 	}
 	if err := value.Validate(); err != nil {
-		return compozyconfig.AttentionConfig{}, NewSettingsValidationError(err)
+		return settingspkg.AttentionSettings{}, NewSettingsValidationError(err)
 	}
 	return value, nil
 }

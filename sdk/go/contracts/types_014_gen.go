@@ -7,6 +7,58 @@ import (
 	"time"
 )
 
+type MemoryStoreParams struct {
+	Key       string      `json:"key"`
+	Content   string      `json:"content"`
+	Scope     MemoryScope `json:"scope,omitempty"`
+	Workspace string      `json:"workspace,omitempty"`
+	Tags      []string    `json:"tags,omitempty"`
+}
+
+type MessageAttachment struct {
+	ID       string `json:"id,omitempty"`
+	Name     string `json:"name,omitempty"`
+	MIMEType string `json:"mime_type,omitempty"`
+	URL      string `json:"url,omitempty"`
+}
+
+type MessageContent struct {
+	Text string `json:"text,omitempty"`
+}
+
+type MessageDeltaPatch struct {
+	Deny       bool    `json:"deny,omitempty"`
+	DenyReason string  `json:"deny_reason,omitempty"`
+	Role       *string `json:"role,omitempty"`
+	DeltaType  *string `json:"delta_type,omitempty"`
+	Text       *string `json:"text,omitempty"`
+}
+
+type MessageDeltaPayload struct {
+	Event          HookEvent       `json:"event"`
+	Timestamp      time.Time       `json:"timestamp"`
+	ProfileID      string          `json:"profile_id,omitempty"`
+	SessionID      string          `json:"session_id,omitempty"`
+	SessionName    string          `json:"session_name,omitempty"`
+	SessionType    string          `json:"session_type,omitempty"`
+	AgentName      string          `json:"agent_name,omitempty"`
+	WorkspaceID    string          `json:"workspace_id,omitempty"`
+	Workspace      string          `json:"workspace,omitempty"`
+	WorktreeID     string          `json:"worktree_id,omitempty"`
+	ACPSessionID   string          `json:"acp_session_id,omitempty"`
+	State          string          `json:"state,omitempty"`
+	SoulSnapshotID string          `json:"soul_snapshot_id,omitempty"`
+	SoulDigest     string          `json:"soul_digest,omitempty"`
+	CreatedAt      time.Time       `json:"created_at"`
+	UpdatedAt      time.Time       `json:"updated_at"`
+	TurnID         string          `json:"turn_id,omitempty"`
+	MessageID      string          `json:"message_id,omitempty"`
+	Role           string          `json:"role,omitempty"`
+	DeltaType      string          `json:"delta_type,omitempty"`
+	Text           string          `json:"text,omitempty"`
+	Raw            json.RawMessage `json:"raw,omitempty"`
+}
+
 type MessageEndPatch struct {
 	Deny       bool    `json:"deny,omitempty"`
 	DenyReason string  `json:"deny_reason,omitempty"`
@@ -18,6 +70,7 @@ type MessageEndPatch struct {
 type MessageEndPayload struct {
 	Event          HookEvent       `json:"event"`
 	Timestamp      time.Time       `json:"timestamp"`
+	ProfileID      string          `json:"profile_id,omitempty"`
 	SessionID      string          `json:"session_id,omitempty"`
 	SessionName    string          `json:"session_name,omitempty"`
 	SessionType    string          `json:"session_type,omitempty"`
@@ -50,6 +103,7 @@ type MessagePatch struct {
 type MessagePayload struct {
 	Event          HookEvent       `json:"event"`
 	Timestamp      time.Time       `json:"timestamp"`
+	ProfileID      string          `json:"profile_id,omitempty"`
 	SessionID      string          `json:"session_id,omitempty"`
 	SessionName    string          `json:"session_name,omitempty"`
 	SessionType    string          `json:"session_type,omitempty"`
@@ -88,6 +142,7 @@ type MessageStartPatch struct {
 type MessageStartPayload struct {
 	Event          HookEvent       `json:"event"`
 	Timestamp      time.Time       `json:"timestamp"`
+	ProfileID      string          `json:"profile_id,omitempty"`
 	SessionID      string          `json:"session_id,omitempty"`
 	SessionName    string          `json:"session_name,omitempty"`
 	SessionType    string          `json:"session_type,omitempty"`
@@ -210,70 +265,4 @@ type NetworkBudgetUsagePayload struct {
 	OutputTokensUsed    int64               `json:"output_tokens_used"`
 	ExhaustedReason     string              `json:"exhausted_reason,omitempty"`
 	UpdatedAt           time.Time           `json:"updated_at"`
-}
-
-type NetworkCapabilityBriefPayload struct {
-	ID      string `json:"id"`
-	Summary string `json:"summary"`
-}
-
-type NetworkChannelPayload struct {
-	Channel                    string     `json:"channel"`
-	WorkspaceID                string     `json:"workspace_id,omitempty"`
-	Purpose                    string     `json:"purpose,omitempty"`
-	FanoutPolicy               string     `json:"fanout_policy,omitempty"`
-	CoordinatorPeerID          string     `json:"coordinator_peer_id,omitempty"`
-	CreatedBy                  string     `json:"created_by,omitempty"`
-	CreatedAt                  *time.Time `json:"created_at,omitempty"`
-	PeerCount                  int        `json:"peer_count"`
-	LocalPeerCount             int        `json:"local_peer_count,omitempty"`
-	SessionCount               int        `json:"session_count,omitempty"`
-	MessageCount               int        `json:"message_count,omitempty"`
-	PresenceCount              int        `json:"presence_count,omitempty"`
-	HistoricalParticipantCount int        `json:"historical_participant_count,omitempty"`
-	LastActivityAt             *time.Time `json:"last_activity_at,omitempty"`
-	LastPresenceAt             *time.Time `json:"last_presence_at,omitempty"`
-	LastMessagePreview         string     `json:"last_message_preview,omitempty"`
-}
-
-type NetworkChannelsParams struct {
-	WorkspaceID string `json:"workspace_id"`
-}
-
-type NetworkConversationMessagePayload struct {
-	MessageID   string          `json:"message_id"`
-	WorkspaceID string          `json:"workspace_id,omitempty"`
-	Channel     string          `json:"channel"`
-	Surface     string          `json:"surface,omitempty"`
-	ThreadID    string          `json:"thread_id,omitempty"`
-	DirectID    string          `json:"direct_id,omitempty"`
-	Kind        string          `json:"kind"`
-	Direction   string          `json:"direction"`
-	PeerFrom    string          `json:"peer_from"`
-	PeerTo      string          `json:"peer_to,omitempty"`
-	Mentions    []string        `json:"mentions,omitempty"`
-	DisplayName string          `json:"display_name,omitempty"`
-	SessionID   string          `json:"session_id,omitempty"`
-	Local       bool            `json:"local,omitempty"`
-	WorkID      string          `json:"work_id,omitempty"`
-	ReplyTo     string          `json:"reply_to,omitempty"`
-	TraceID     string          `json:"trace_id,omitempty"`
-	CausationID string          `json:"causation_id,omitempty"`
-	Intent      string          `json:"intent,omitempty"`
-	Text        string          `json:"text,omitempty"`
-	PreviewText string          `json:"preview_text,omitempty"`
-	SizeBytes   int64           `json:"size_bytes,omitempty"`
-	Body        json.RawMessage `json:"body"`
-	Timestamp   time.Time       `json:"timestamp"`
-}
-
-type NetworkConversationRef struct {
-	Channel     string                     `json:"channel"`
-	Surface     NetworkConversationSurface `json:"surface"`
-	ThreadID    string                     `json:"thread_id,omitempty"`
-	DirectID    string                     `json:"direct_id,omitempty"`
-	WorkID      string                     `json:"work_id,omitempty"`
-	ReplyTo     string                     `json:"reply_to,omitempty"`
-	TraceID     string                     `json:"trace_id,omitempty"`
-	CausationID string                     `json:"causation_id,omitempty"`
 }

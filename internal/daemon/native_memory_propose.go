@@ -13,6 +13,8 @@ import (
 	"github.com/goccy/go-yaml"
 )
 
+const nativeMemoryOperationsKey = "operations"
+
 type memoryProposeInput struct {
 	Operation      string                      `json:"operation,omitempty"`
 	Operations     []memoryBatchOperationInput `json:"operations,omitempty"`
@@ -306,7 +308,7 @@ func nativeMemoryBatchResult(result memorypkg.BatchApplyResult) (toolspkg.ToolRe
 	return structuredResult(map[string]any{
 		watchEventsPayloadDecisionKey: decision,
 		nativeAppliedValue:            result.Applied,
-		"operations":                  result.Operations,
+		nativeMemoryOperationsKey:     result.Operations,
 	}, fmt.Sprintf("memory batch decision %s", decision.Op.String()))
 }
 

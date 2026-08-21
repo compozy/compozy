@@ -106,7 +106,8 @@ func (h *BaseHandlers) SessionAttentionSummary(c *gin.Context) {
 		h.respondError(c, http.StatusServiceUnavailable, errors.New("api: session attention is required"))
 		return
 	}
-	summary, err := manager.AttentionSummary(c.Request.Context())
+	readScope := store.ReadScope{AllProfiles: true}
+	summary, err := manager.AttentionSummary(c.Request.Context(), readScope)
 	if err != nil {
 		h.respondError(c, http.StatusInternalServerError, err)
 		return

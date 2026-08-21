@@ -10,6 +10,7 @@ import (
 // CreateTask captures the mutable inputs accepted when creating a new task.
 type CreateTask struct {
 	ID                   string                 `json:"id,omitempty"`
+	ProfileID            string                 `json:"profile_id"`
 	Identifier           string                 `json:"identifier,omitempty"`
 	Scope                Scope                  `json:"scope"`
 	WorkspaceID          string                 `json:"workspace_id,omitempty"`

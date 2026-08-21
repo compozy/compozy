@@ -15,6 +15,7 @@ import (
 	looppkg "github.com/compozy/compozy/internal/loop"
 	"github.com/compozy/compozy/internal/loop/dsl"
 	"github.com/compozy/compozy/internal/session"
+	"github.com/compozy/compozy/internal/store"
 	"github.com/compozy/compozy/internal/store/globaldb"
 	workspacepkg "github.com/compozy/compozy/internal/workspace"
 	worktreepkg "github.com/compozy/compozy/internal/worktree"
@@ -69,7 +70,10 @@ func TestLoopActionEnvironmentRealGitIntegration(t *testing.T) {
 		}}),
 		worktreepkg.WithConfig(settings, worktreesRoot),
 	)
-	manual, err := worktrees.Create(ctx, workspaceID, worktreepkg.CreateOptions{Name: "Loop Ref"})
+	manual, err := worktrees.Create(ctx, workspaceID, worktreepkg.CreateOptions{
+		ProfileID: store.DefaultProfileID,
+		Name:      "Loop Ref",
+	})
 	if err != nil {
 		t.Fatalf("Create(manual loop worktree) error = %v", err)
 	}
@@ -84,6 +88,7 @@ func TestLoopActionEnvironmentRealGitIntegration(t *testing.T) {
 			ID: workspaceID, RootDir: repository, SandboxRef: "evidence-lab",
 		},
 		WorkspaceID: workspaceID,
+		ProfileID:   store.DefaultProfileID,
 		Config:      resolvedConfig,
 		Agents: []compozyconfig.AgentDef{{
 			Name: "task-worker", Provider: "mock", Prompt: "Handle the loop node.",
@@ -101,6 +106,7 @@ func TestLoopActionEnvironmentRealGitIntegration(t *testing.T) {
 	bind := func(environment dsl.EnvironmentSpec, itemIndex int) {
 		t.Helper()
 		if _, err := binder.BindActionSession(ctx, looppkg.ActionSessionBindRequest{
+			ProfileID:   store.DefaultProfileID,
 			WorkspaceID: workspaceID,
 			LoopRunID:   "loop-real-environment",
 			Generation:  2,

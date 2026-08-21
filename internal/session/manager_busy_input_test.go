@@ -3011,6 +3011,7 @@ func registerManagerInputQueueSession(
 	t.Helper()
 
 	if err := queueStore.RegisterSession(testutil.Context(t), store.SessionInfo{
+		ProfileID:     store.DefaultProfileID,
 		ID:            sess.ID,
 		Name:          "Input Queue",
 		AgentName:     "coder",

@@ -213,6 +213,41 @@ func TestRegistryMetadata(t *testing.T) {
 		}
 	})
 
+	t.Run("Should IT-079 expose every profile lifecycle and related capability event", func(t *testing.T) {
+		t.Parallel()
+
+		for _, test := range []struct {
+			name      string
+			family    string
+			component string
+			outcome   Outcome
+		}{
+			{name: ProfileCreated, family: "profile.lifecycle", component: ComponentProfile, outcome: OutcomeSuccess},
+			{name: ProfileRenamed, family: "profile.lifecycle", component: ComponentProfile, outcome: OutcomeSuccess},
+			{name: ProfileIdentityUpdated, family: "profile.identity", component: ComponentProfile, outcome: OutcomeInfo},
+			{name: ProfileArchived, family: "profile.lifecycle", component: ComponentProfile, outcome: OutcomeSuccess},
+			{name: ProfileUnarchived, family: "profile.lifecycle", component: ComponentProfile, outcome: OutcomeSuccess},
+			{name: ProfileDeleted, family: "profile.lifecycle", component: ComponentProfile, outcome: OutcomeSuccess},
+			{name: ProfileSelectionChanged, family: "profile.selection", component: ComponentProfile, outcome: OutcomeInfo},
+			{name: ExtensionProfileCreated, family: "extension.profile", component: ComponentExtension, outcome: OutcomeSuccess},
+			{name: ExtensionEnablementChanged, family: "extension.enablement", component: ComponentExtension, outcome: OutcomeInfo},
+			{name: NotificationPresetEnablementChanged, family: "notification.preset.enablement", component: ComponentNotification, outcome: OutcomeInfo},
+			{name: ProfileLifecycleOpRecovered, family: "profile.lifecycle_op", component: ComponentProfile, outcome: OutcomeSuccess},
+			{name: ProfileLifecycleOpFailed, family: "profile.lifecycle_op", component: ComponentProfile, outcome: OutcomeFailure},
+			{name: ProfilePlanStale, family: "profile.lifecycle", component: ComponentProfile, outcome: OutcomeFailure},
+		} {
+			metadata, ok := Lookup(test.name)
+			if !ok {
+				t.Fatalf("Lookup(%q) = false", test.name)
+			}
+			if metadata.Family != test.family || metadata.Component != test.component ||
+				metadata.Outcome != test.outcome || !metadata.GlobalScope || !metadata.EmitsToLogs ||
+				metadata.NotificationEligible {
+				t.Fatalf("profile capability metadata for %q = %#v", test.name, metadata)
+			}
+		}
+	})
+
 	t.Run("Should UT-150 expose every canonical gateway lifecycle event", func(t *testing.T) {
 		t.Parallel()
 

@@ -73,8 +73,9 @@ func sessionCatalogListOperation() OperationSpec {
 		Summary:     "List sessions",
 		Tags:        []string{specSessionsKey},
 		Transports:  []Transport{TransportHTTP, TransportUDS},
-		Parameters: []ParameterSpec{
-			queryParam(specWorkspaceKey, "Workspace id or path", false),
+		Parameters: withProfileScope(
+			queryParam("workspace_id", "Workspace id or path", false),
+			boolQueryParam("all_workspaces", "Use the explicit all-workspaces aggregate"),
 			boolQueryParam("include_health", "Include metadata-only health for returned sessions"),
 			enumQueryParam(
 				"state",
@@ -98,7 +99,7 @@ func sessionCatalogListOperation() OperationSpec {
 			enumQueryParam("sort", "Stable session ordering", []string{"recent", "last_activity", "attention"}),
 			queryParam("cursor", "Opaque next_cursor from the previous page", false),
 			intQueryParam("limit", "Sessions per page (1-100)"),
-		},
+		),
 		Responses: []ResponseSpec{
 			{Status: 200, Description: "OK", Body: contract.SessionCatalogResponse{}},
 			{Status: 400, Description: "Invalid session list query or cursor", Body: contract.ErrorPayload{}},
@@ -186,7 +187,7 @@ func sessionAttentionSummaryOperation() OperationSpec {
 }
 
 func sessionCatalogTypeValues() []string {
-	return []string{"user", "system", "coordinator", "spawned"}
+	return []string{specUserKey, "system", "coordinator", "spawned"}
 }
 
 func sessionCatalogStreamOperation() OperationSpec {
@@ -197,10 +198,16 @@ func sessionCatalogStreamOperation() OperationSpec {
 		Summary:     "Stream session catalog changes across workspaces",
 		Tags:        []string{specSessionsKey},
 		Transports:  []Transport{TransportHTTP, TransportUDS},
+		Parameters: withProfileScope(
+			queryParam("workspace_id", "Workspace id or path", false),
+			boolQueryParam("all_workspaces", "Subscribe to the explicit all-workspaces aggregate"),
+			optionalLastEventIDHeaderParam("Resume after this catalog sequence"),
+		),
 		Responses: []ResponseSpec{
 			{
-				Status:      200,
-				Description: "Workspace-identified session catalog event stream",
+				Status: 200,
+				Description: "Profile-scoped session catalog event stream for the selected workspace " +
+					"or explicit owner-labeled all-workspaces aggregate",
 				Bodies: responseBodiesOf(
 					responseBodyOf[contract.SessionCatalogEventPayload](),
 					responseBodyOf[contract.SessionAttentionEventPayload](),

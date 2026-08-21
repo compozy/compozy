@@ -128,7 +128,12 @@ func (h *BaseHandlers) CreateBridge(c *gin.Context) {
 		return
 	}
 
-	createReq, err := req.ToCreateInstanceRequest()
+	mutationScope, err := h.resolveProfileMutationScope(c)
+	if err != nil {
+		h.respondProfileReadScopeError(c, err)
+		return
+	}
+	createReq, err := req.ToCreateInstanceRequest(mutationScope.ProfileID)
 	if err != nil {
 		h.respondError(c, http.StatusBadRequest, err)
 		return
@@ -139,7 +144,12 @@ func (h *BaseHandlers) CreateBridge(c *gin.Context) {
 		h.respondError(c, StatusForBridgeError(err), err)
 		return
 	}
-	h.respondBridge(c, http.StatusCreated, *instance)
+	created, err := bridges.GetInstanceScoped(c.Request.Context(), mutationScope, instance.ID)
+	if err != nil {
+		h.respondError(c, StatusForBridgeError(err), err)
+		return
+	}
+	h.respondBridge(c, http.StatusCreated, *created)
 }
 
 func decodeStrictBridgeJSON(c *gin.Context, dest any) error {
@@ -165,7 +175,12 @@ func (h *BaseHandlers) GetBridge(c *gin.Context) {
 		return
 	}
 
-	instance, err := bridges.GetInstance(c.Request.Context(), c.Param("id"))
+	readScope, err := h.resolveProfileReadScope(c)
+	if err != nil {
+		h.respondProfileReadScopeError(c, err)
+		return
+	}
+	instance, err := bridges.GetInstanceScoped(c.Request.Context(), readScope, c.Param("id"))
 	if err != nil {
 		h.respondError(c, StatusForBridgeError(err), err)
 		return
@@ -196,6 +211,9 @@ func (h *BaseHandlers) UpdateBridge(c *gin.Context) {
 		h.respondError(c, http.StatusBadRequest, err)
 		return
 	}
+	if !h.requireBridgeMutationOwner(c, bridges) {
+		return
+	}
 
 	instance, err := bridges.UpdateInstance(c.Request.Context(), updateReq)
 	if err != nil {
@@ -203,6 +221,45 @@ func (h *BaseHandlers) UpdateBridge(c *gin.Context) {
 		return
 	}
 	h.respondBridge(c, http.StatusOK, *instance)
+}
+
+func (h *BaseHandlers) requireBridgeMutationOwner(c *gin.Context, bridges BridgeService) bool {
+	_, ok := h.bridgeMutationInstance(c, bridges)
+	return ok
+}
+
+func (h *BaseHandlers) bridgeReadInstance(
+	c *gin.Context,
+	bridges BridgeService,
+) (*bridgepkg.BridgeInstance, bool) {
+	readScope, err := h.resolveProfileReadScope(c)
+	if err != nil {
+		h.respondProfileReadScopeError(c, err)
+		return nil, false
+	}
+	instance, err := bridges.GetInstanceScoped(c.Request.Context(), readScope, c.Param("id"))
+	if err != nil {
+		h.respondError(c, StatusForBridgeError(err), err)
+		return nil, false
+	}
+	return instance, true
+}
+
+func (h *BaseHandlers) bridgeMutationInstance(
+	c *gin.Context,
+	bridges BridgeService,
+) (*bridgepkg.BridgeInstance, bool) {
+	mutationScope, err := h.resolveProfileMutationScope(c)
+	if err != nil {
+		h.respondProfileReadScopeError(c, err)
+		return nil, false
+	}
+	instance, err := bridges.GetInstanceScoped(c.Request.Context(), mutationScope, c.Param("id"))
+	if err != nil {
+		h.respondError(c, StatusForBridgeError(err), err)
+		return nil, false
+	}
+	return instance, true
 }
 
 // EnableBridge moves one bridge instance into the starting lifecycle state.
@@ -228,7 +285,12 @@ func (h *BaseHandlers) ListBridgeRoutes(c *gin.Context) {
 		return
 	}
 
-	routes, err := bridges.ListRoutes(c.Request.Context(), c.Param("id"))
+	readScope, err := h.resolveProfileReadScope(c)
+	if err != nil {
+		h.respondProfileReadScopeError(c, err)
+		return
+	}
+	routes, err := bridges.ListRoutesScoped(c.Request.Context(), readScope, c.Param("id"))
 	if err != nil {
 		h.respondError(c, StatusForBridgeError(err), err)
 		return

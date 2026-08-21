@@ -44,48 +44,7 @@ func (g *BridgeRepo) ListBridgeDeliveryMetrics(
 		return nil, errors.New("store: bridge delivery metrics query cannot filter by delivery state")
 	}
 
-	metricWhere, metricArgs := bridgeDeliveryMetricQueryClauses(normalized)
-	deliveryWhere, deliveryArgs := bridgeDeliveryMetricQueryClauses(normalized)
-	backlogWhere, backlogArgs := store.BuildClauses(
-		store.StringClause("scope", string(normalized.Scope)),
-		store.OpaqueStringClause("workspace_id", normalized.WorkspaceID),
-		store.OpaqueStringClause("bridge_instance_id", normalized.BridgeInstanceID),
-		store.StringClause("state", string(bridges.DeliveryLedgerStateActive)),
-	)
-	metricIDs := store.AppendWhere(
-		`SELECT bridge_instance_id FROM bridge_delivery_metrics`,
-		metricWhere,
-	)
-	deliveryIDs := store.AppendWhere(
-		`SELECT bridge_instance_id FROM bridge_deliveries`,
-		deliveryWhere,
-	)
-	backlog := store.AppendWhere(
-		`SELECT bridge_instance_id, COUNT(*) AS delivery_backlog FROM bridge_deliveries`,
-		backlogWhere,
-	) + ` GROUP BY bridge_instance_id`
-	// dynamic-sql: optional scope/workspace/instance filters and caller limit change all three CTE branches.
-	// #nosec G202 -- predicates are fixed package SQL; all caller values remain parameterized.
-	statement := `WITH scoped_instances AS (` + metricIDs + ` UNION ` + deliveryIDs + `),
-		active_backlog AS (` + backlog + `)
-		SELECT
-			i.bridge_instance_id,
-			COALESCE(m.delivery_dropped_total, 0),
-			COALESCE(m.delivery_dropped_by_reason_json, '{}'),
-			COALESCE(m.delivery_failures_total, 0),
-			m.last_error,
-			m.last_error_at,
-			m.last_success_at,
-			COALESCE(b.delivery_backlog, 0)
-		FROM scoped_instances i
-		LEFT JOIN bridge_delivery_metrics m ON m.bridge_instance_id = i.bridge_instance_id
-		LEFT JOIN active_backlog b ON b.bridge_instance_id = i.bridge_instance_id
-		ORDER BY i.bridge_instance_id ASC`
-	args := make([]any, 0, len(metricArgs)+len(deliveryArgs)+len(backlogArgs))
-	args = append(args, metricArgs...)
-	args = append(args, deliveryArgs...)
-	args = append(args, backlogArgs...)
-	statement, args = store.AppendLimit(statement, args, normalized.Limit)
+	statement, args := bridgeDeliveryMetricsQuery(normalized)
 
 	rows, err := g.db.QueryContext(ctx, statement, args...)
 	if err != nil {
@@ -111,12 +70,44 @@ func (g *BridgeRepo) ListBridgeDeliveryMetrics(
 	return metrics, nil
 }
 
-func bridgeDeliveryMetricQueryClauses(query bridges.DeliveryLedgerQuery) ([]string, []any) {
-	return store.BuildClauses(
-		store.StringClause("scope", string(query.Scope)),
-		store.OpaqueStringClause("workspace_id", query.WorkspaceID),
-		store.OpaqueStringClause("bridge_instance_id", query.BridgeInstanceID),
+func bridgeDeliveryMetricsQuery(query bridges.DeliveryLedgerQuery) (string, []any) {
+	metricWhere, metricArgs := bridgeDeliveryQueryClausesForAlias(query, "bm")
+	deliveryWhere, deliveryArgs := bridgeDeliveryQueryClausesForAlias(query, "bd")
+	backlogWhere, backlogArgs := bridgeDeliveryQueryClausesForAlias(query, "bd")
+	stateWhere, stateArgs := store.BuildClauses(
+		store.StringClause("bd.state", string(bridges.DeliveryLedgerStateActive)),
 	)
+	backlogWhere = append(backlogWhere, stateWhere...)
+	backlogArgs = append(backlogArgs, stateArgs...)
+	metricIDs := store.AppendWhere(
+		`SELECT bm.bridge_instance_id FROM bridge_delivery_metrics bm
+		 JOIN bridge_instances bi ON bi.id = bm.bridge_instance_id`, metricWhere,
+	)
+	deliveryIDs := store.AppendWhere(
+		`SELECT bd.bridge_instance_id FROM bridge_deliveries bd
+		 JOIN bridge_instances bi ON bi.id = bd.bridge_instance_id`, deliveryWhere,
+	)
+	backlog := store.AppendWhere(
+		`SELECT bd.bridge_instance_id, COUNT(*) AS delivery_backlog FROM bridge_deliveries bd
+		 JOIN bridge_instances bi ON bi.id = bd.bridge_instance_id`, backlogWhere,
+	) + ` GROUP BY bd.bridge_instance_id`
+	// dynamic-sql: optional scope/workspace/instance filters and caller limit change all three CTE branches.
+	// #nosec G202 -- predicates are fixed package SQL; all caller values remain parameterized.
+	statement := `WITH scoped_instances AS (` + metricIDs + ` UNION ` + deliveryIDs + `),
+		active_backlog AS (` + backlog + `)
+		SELECT i.bridge_instance_id, bi.profile_id, p.name, p.color,
+			COALESCE(p.icon, ''), COALESCE(p.emoji, ''), p.archived_at IS NOT NULL,
+			COALESCE(m.delivery_dropped_total, 0), COALESCE(m.delivery_dropped_by_reason_json, '{}'),
+			COALESCE(m.delivery_failures_total, 0), m.last_error, m.last_error_at, m.last_success_at,
+			COALESCE(b.delivery_backlog, 0)
+		FROM scoped_instances i
+		JOIN bridge_instances bi ON bi.id = i.bridge_instance_id
+		JOIN profiles p ON p.id = bi.profile_id
+		LEFT JOIN bridge_delivery_metrics m ON m.bridge_instance_id = i.bridge_instance_id
+		LEFT JOIN active_backlog b ON b.bridge_instance_id = i.bridge_instance_id
+		ORDER BY i.bridge_instance_id ASC`
+	args := append(append(append(make([]any, 0), metricArgs...), deliveryArgs...), backlogArgs...)
+	return store.AppendLimit(statement, args, query.Limit)
 }
 
 func putBridgeDeliveryMetricsExec(

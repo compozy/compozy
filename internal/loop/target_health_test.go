@@ -12,6 +12,7 @@ import (
 	"github.com/compozy/compozy/internal/store"
 	"github.com/compozy/compozy/internal/task"
 	"github.com/compozy/compozy/internal/testutil"
+	"github.com/compozy/compozy/internal/tools"
 )
 
 func TestTargetHealthShouldFailFastThroughTheNormalFailureChain(t *testing.T) {
@@ -29,6 +30,7 @@ func TestTargetHealthShouldFailFastThroughTheNormalFailureChain(t *testing.T) {
 
 	err := runner.admitActionTarget(ctx, "taskrun-open-target", node, ActionExecutionInput{
 		WorkspaceID: "ws-target",
+		ToolScope:   tools.Scope{ProfileID: store.DefaultProfileID},
 	})
 	if err == nil {
 		t.Fatal("admitActionTarget() error = nil, want fail-fast denial")
@@ -58,6 +60,7 @@ func TestTargetHealthShouldFailFastThroughTheNormalFailureChain(t *testing.T) {
 		t.Fatalf("target-unavailable terminal = %#v, want normal failed precedence", terminal)
 	}
 	if got, want := health.probedKeys(), []store.DeadEntityKey{{
+		ProfileID:   store.DefaultProfileID,
 		WorkspaceID: "ws-target",
 		Kind:        store.DeadEntityKindLoopTarget,
 		EntityID:    "toolcall:compozy__search",
@@ -71,7 +74,7 @@ func TestTargetHealthShouldCountOnlyUnhandledTransportFailures(t *testing.T) {
 
 	ctx := testutil.Context(t)
 	node := dsl.Node{ID: "search", Class: dsl.NodeClassAction, Kind: "compozy__search"}
-	run := Run{ID: "looprun-target-accounting", WorkspaceID: "ws-target"}
+	run := Run{ID: "looprun-target-accounting", ProfileID: "profile-marketing", WorkspaceID: "ws-target"}
 
 	t.Run("Should record transport escalation as failure", func(t *testing.T) {
 		t.Parallel()
@@ -80,7 +83,9 @@ func TestTargetHealthShouldCountOnlyUnhandledTransportFailures(t *testing.T) {
 		runner := &CoordinatorRunner{targetHealth: health}
 		failure := &ClassifiedFailure{Class: FailureTransport, Cause: "backend unavailable"}
 		events, err := runner.accountActionTarget(
-			ctx, run, node, ActionExecutionInput{WorkspaceID: run.WorkspaceID},
+			ctx, run, node, ActionExecutionInput{
+				WorkspaceID: run.WorkspaceID, ToolScope: tools.Scope{ProfileID: run.ProfileID},
+			},
 			task.Run{ID: "taskrun-transport"}, failure, AttemptEscalated,
 		)
 		if err != nil {
@@ -124,7 +129,9 @@ func TestTargetHealthShouldCountOnlyUnhandledTransportFailures(t *testing.T) {
 			health := newRecordingTargetHealth()
 			runner := &CoordinatorRunner{targetHealth: health}
 			if _, err := runner.accountActionTarget(
-				ctx, run, node, ActionExecutionInput{WorkspaceID: run.WorkspaceID},
+				ctx, run, node, ActionExecutionInput{
+					WorkspaceID: run.WorkspaceID, ToolScope: tools.Scope{ProfileID: run.ProfileID},
+				},
 				task.Run{ID: tc.name}, tc.failure, tc.disposition,
 			); err != nil {
 				t.Fatalf("accountActionTarget() error = %v", err)
@@ -151,6 +158,7 @@ func TestTargetHealthShouldRetainOnlyAllowedBoundProbes(t *testing.T) {
 		node := dsl.Node{ID: "search", Class: dsl.NodeClassAction, Kind: "compozy__search"}
 		if err := runner.admitActionTarget(t.Context(), "taskrun-denied", node, ActionExecutionInput{
 			WorkspaceID: "ws-target",
+			ToolScope:   tools.Scope{ProfileID: store.DefaultProfileID},
 		}); err == nil {
 			t.Fatal("admitActionTarget() error = nil, want denied target")
 		}
@@ -167,6 +175,7 @@ func TestTargetHealthShouldRetainOnlyAllowedBoundProbes(t *testing.T) {
 		node := dsl.Node{ID: "search", Class: dsl.NodeClassAction, Kind: "compozy__search"}
 		if err := runner.admitActionTarget(t.Context(), " ", node, ActionExecutionInput{
 			WorkspaceID: "ws-target",
+			ToolScope:   tools.Scope{ProfileID: store.DefaultProfileID},
 		}); !errors.Is(err, ErrValidation) {
 			t.Fatalf("admitActionTarget(blank id) error = %v, want ErrValidation", err)
 		}
@@ -184,13 +193,14 @@ func TestTargetHealthShouldReuseRenderedIdentityWithoutProbeMemory(t *testing.T)
 
 		health := newRecordingTargetHealth()
 		runner := &CoordinatorRunner{targetHealth: health}
-		run := Run{ID: "looprun-rendered-target", WorkspaceID: "ws-target"}
+		run := Run{ID: "looprun-rendered-target", ProfileID: "profile-marketing", WorkspaceID: "ws-target"}
 		node := dsl.Node{
 			ID: "agent", Class: dsl.NodeClassAction, Kind: string(dsl.ActionRunAgent),
 			Params: dsl.NodeParams{"agent": "{{ .inputs.agent }}", "prompt": "work"},
 		}
 		input := ActionExecutionInput{
 			WorkspaceID: run.WorkspaceID,
+			ToolScope:   tools.Scope{ProfileID: run.ProfileID},
 			Namespace:   map[string]any{"inputs": map[string]any{"agent": "planner"}},
 		}
 		const taskRunID = "taskrun-rendered-target"
@@ -225,7 +235,7 @@ func TestTargetHealthShouldEmitHalfOpenOutcomeTransitions(t *testing.T) {
 
 	ctx := testutil.Context(t)
 	node := dsl.Node{ID: "search", Class: dsl.NodeClassAction, Kind: "compozy__search"}
-	run := Run{ID: "looprun-target-probe", WorkspaceID: "ws-target"}
+	run := Run{ID: "looprun-target-probe", ProfileID: "profile-marketing", WorkspaceID: "ws-target"}
 
 	for _, tc := range []struct {
 		name        string
@@ -256,11 +266,14 @@ func TestTargetHealthShouldEmitHalfOpenOutcomeTransitions(t *testing.T) {
 			taskRunID := "taskrun-" + tc.name
 			if err := runner.admitActionTarget(ctx, taskRunID, node, ActionExecutionInput{
 				WorkspaceID: run.WorkspaceID,
+				ToolScope:   tools.Scope{ProfileID: run.ProfileID},
 			}); err != nil {
 				t.Fatalf("admitActionTarget() error = %v", err)
 			}
 			events, err := runner.accountActionTarget(
-				ctx, run, node, ActionExecutionInput{WorkspaceID: run.WorkspaceID},
+				ctx, run, node, ActionExecutionInput{
+					WorkspaceID: run.WorkspaceID, ToolScope: tools.Scope{ProfileID: run.ProfileID},
+				},
 				task.Run{ID: taskRunID}, tc.failure, tc.disposition,
 			)
 			if err != nil {

@@ -14,6 +14,7 @@ import (
 	"github.com/compozy/compozy/internal/diagnostics"
 	"github.com/compozy/compozy/internal/network/participation"
 	"github.com/compozy/compozy/internal/session"
+	"github.com/compozy/compozy/internal/store"
 	taskpkg "github.com/compozy/compozy/internal/task"
 	"github.com/compozy/compozy/internal/workspaceaccess"
 )
@@ -24,6 +25,7 @@ func TestResolveValidatesAgentCallerIdentity(t *testing.T) {
 	now := time.Date(2026, 4, 26, 10, 0, 0, 0, time.UTC)
 	active := SessionSnapshot{
 		ID:            "sess-1",
+		ProfileID:     "01ARZ3NDEKTSV4RRFFQ69G5FAV",
 		Name:          "worker",
 		AgentName:     "coder",
 		Provider:      "test-provider",
@@ -167,6 +169,9 @@ func TestResolveValidatesAgentCallerIdentity(t *testing.T) {
 			if caller.Session.ID != "sess-1" || caller.Session.AgentName != "coder" {
 				t.Fatalf("caller.Session = %#v, want validated session", caller.Session)
 			}
+			if caller.Session.ProfileID != active.ProfileID {
+				t.Fatalf("caller.Session.ProfileID = %q, want %q", caller.Session.ProfileID, active.ProfileID)
+			}
 			if caller.Actor.Actor.Kind != taskpkg.ActorKindAgentSession || caller.Actor.Actor.Ref != "sess-1" {
 				t.Fatalf("caller.Actor.Actor = %#v, want agent session sess-1", caller.Actor.Actor)
 			}
@@ -188,6 +193,7 @@ func TestResolveAuthorizesWorkspaceAccess(t *testing.T) {
 
 	snapshot := SessionSnapshot{
 		ID:          "sess-1",
+		ProfileID:   store.DefaultProfileID,
 		AgentName:   "coder",
 		WorkspaceID: "ws-home",
 		State:       session.StateActive,
@@ -385,6 +391,7 @@ func TestResolveRejectsUnavailableAndMalformedLookupResults(t *testing.T) {
 			lookup: func(_ context.Context, _ string) (SessionSnapshot, error) {
 				return SessionSnapshot{
 					ID:        "sess-1",
+					ProfileID: store.DefaultProfileID,
 					AgentName: "coder",
 					State:     session.StateActive,
 				}, nil
@@ -401,6 +408,7 @@ func TestResolveRejectsUnavailableAndMalformedLookupResults(t *testing.T) {
 			ctx:  context.Background(),
 			lookup: func(_ context.Context, _ string) (SessionSnapshot, error) {
 				return SessionSnapshot{
+					ProfileID: store.DefaultProfileID,
 					AgentName: "coder",
 					State:     session.StateActive,
 				}, nil
@@ -413,11 +421,24 @@ func TestResolveRejectsUnavailableAndMalformedLookupResults(t *testing.T) {
 			lookup: func(_ context.Context, _ string) (SessionSnapshot, error) {
 				return SessionSnapshot{
 					ID:        "sess-2",
+					ProfileID: store.DefaultProfileID,
 					AgentName: "coder",
 					State:     session.StateActive,
 				}, nil
 			},
 			wantErr: ErrIdentityMismatch,
+		},
+		{
+			name: "Should reject empty returned profile id",
+			ctx:  context.Background(),
+			lookup: func(_ context.Context, _ string) (SessionSnapshot, error) {
+				return SessionSnapshot{
+					ID:        "sess-1",
+					AgentName: "coder",
+					State:     session.StateActive,
+				}, nil
+			},
+			wantErr: ErrIdentityStale,
 		},
 		{
 			name: "Should classify backend lookup failures as unavailable",
@@ -464,6 +485,7 @@ func TestResolveDefaultsAgentSessionOrigin(t *testing.T) {
 			Lookup: func(_ context.Context, _ string) (SessionSnapshot, error) {
 				return SessionSnapshot{
 					ID:          " sess-1 ",
+					ProfileID:   store.DefaultProfileID,
 					AgentName:   " coder ",
 					WorkspaceID: " ws-1 ",
 					State:       session.StateActive,
@@ -513,6 +535,7 @@ func TestSessionSnapshotFromInfo(t *testing.T) {
 		}
 		info := &session.Info{
 			ID:                   "sess-1",
+			ProfileID:            "01ARZ3NDEKTSV4RRFFQ69G5FAV",
 			Name:                 "worker",
 			AgentName:            "coder",
 			Provider:             "provider",
@@ -532,6 +555,7 @@ func TestSessionSnapshotFromInfo(t *testing.T) {
 		got := SessionSnapshotFromInfo(info)
 		info.NetworkParticipation.ChannelID = "mutated-after-conversion"
 		if got.ID != info.ID ||
+			got.ProfileID != info.ProfileID ||
 			got.Name != info.Name ||
 			got.AgentName != info.AgentName ||
 			got.Provider != info.Provider ||

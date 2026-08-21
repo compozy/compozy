@@ -6,7 +6,7 @@ persona: Théo
 journey: J-respond-to-agent-attention
 expected: The Sessions catalog offers one globe toggle — this workspace or every workspace. Narrow lists the active workspace's complete catalog as provenance threads; pressed loads every cursor page per live workspace, labels and collapses groups, isolates one workspace's failure, joins and removes workspaces live, persists globally through `shell.sessions.scope`, and opens a foreign session in its owner workspace.
 entry_points: web Sessions dock item; web session-window sidebar
-qa_status: blocked-verify
+qa_status: untested
 bug_ids:
 fix_status:
 retest_status:
@@ -35,3 +35,12 @@ Walk this cycle: blocked-verify — the web unit suites (5211 passing) and the r
 legs cover the globe's pressed states, the daemon round trip, and workspace-group isolation, but an
 isolated QA lab with a live daemon was not started, so a persona walk through public entry points
 could not meet the qa-execution evidence standard.
+
+2026-08-23 qa-impact (Profiles): **reset from `blocked-verify` to `untested`** — phase 0 deleted the
+client-side catalog filtering this row's cross-workspace behavior was built on
+(`web/src/systems/session/hooks/use-session-catalog-streams.ts`) and moved narrowing into the
+daemon, and the catalog payload gained the profile field. Re-walk workspace breadth with a live
+daemon, confirming the browser never receives rows it then hides, that a failing workspace group
+still isolates, and that widening workspaces does not widen profiles. The profile axis of the same
+stream is owned by `ET-profile-stream-isolation`; what Global means for the data is owned by
+`MS-global-scope-no-workspace-work`.

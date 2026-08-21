@@ -7,6 +7,7 @@ import (
 	"fmt"
 
 	automation "github.com/compozy/compozy/internal/automation/model"
+	"github.com/compozy/compozy/internal/store"
 )
 
 type automationCatalogExecutor interface {
@@ -14,6 +15,13 @@ type automationCatalogExecutor interface {
 	PrepareContext(context.Context, string) (*sql.Stmt, error)
 	QueryContext(context.Context, string, ...any) (*sql.Rows, error)
 	QueryRowContext(context.Context, string, ...any) *sql.Row
+}
+
+func validateAutomationCatalogReadScope(scope store.ReadScope, resource string) error {
+	if err := scope.Validate(); err != nil {
+		return fmt.Errorf("store: invalid %s read scope: %w", resource, err)
+	}
+	return nil
 }
 
 // ListJobs returns one stable page of effective persisted automation jobs.
@@ -25,6 +33,9 @@ func (g *AutomationRepo) ListJobs(
 		return automation.JobListPage{}, err
 	}
 	normalized := automation.JobListQueryWithDefaultLimit(query)
+	if err := validateAutomationCatalogReadScope(normalized.ReadScope, "automation job"); err != nil {
+		return automation.JobListPage{}, err
+	}
 	if err := automation.ValidateJobListQuery(normalized); err != nil {
 		return automation.JobListPage{}, err
 	}
@@ -52,6 +63,9 @@ func (g *AutomationRepo) ListTriggers(
 		return automation.TriggerListPage{}, err
 	}
 	normalized := automation.TriggerListQueryWithDefaultLimit(query)
+	if err := validateAutomationCatalogReadScope(normalized.ReadScope, "automation trigger"); err != nil {
+		return automation.TriggerListPage{}, err
+	}
 	if err := automation.ValidateTriggerListQuery(normalized); err != nil {
 		return automation.TriggerListPage{}, err
 	}

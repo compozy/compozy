@@ -22,7 +22,7 @@ func TestMCPServerResourceCodecRejectsInvalidSpec(t *testing.T) {
 
 	_, err = codec.DecodeAndValidate(
 		testutil.Context(t),
-		resources.ResourceScope{Kind: resources.ResourceScopeKindGlobal},
+		resources.ResourceScope{Kind: resources.ResourceScopeKindUser},
 		[]byte(`{"name":"git"}`),
 	)
 	if err == nil {
@@ -80,13 +80,13 @@ func TestMCPServerResourceStoreRoundTripReturnsTypedRecords(t *testing.T) {
 			Kind: resources.ResourceSourceKind("daemon"),
 			ID:   "config-tests",
 		},
-		MaxScope: resources.ResourceScope{Kind: resources.ResourceScopeKindGlobal},
+		MaxScope: resources.ResourceScope{Kind: resources.ResourceScopeKindUser},
 	}
 
 	expectedCWD := filepath.Join(t.TempDir(), "work")
 	record, err := store.Put(testutil.Context(t), actor, resources.Draft[compozyconfig.MCPServer]{
 		ID:    "git",
-		Scope: resources.ResourceScope{Kind: resources.ResourceScopeKindGlobal},
+		Scope: resources.ResourceScope{Kind: resources.ResourceScopeKindUser},
 		Spec: compozyconfig.MCPServer{
 			Name:    " git ",
 			Command: " npx ",
@@ -145,7 +145,7 @@ func TestMCPServerResourceCodecCanonicalizesCollidingEnvKeysDeterministically(t 
 
 	record, err := codec.DecodeAndValidate(
 		testutil.Context(t),
-		resources.ResourceScope{Kind: resources.ResourceScopeKindGlobal},
+		resources.ResourceScope{Kind: resources.ResourceScopeKindUser},
 		[]byte(`{
 			"name":"git",
 			"command":"npx",

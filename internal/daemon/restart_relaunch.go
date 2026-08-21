@@ -39,32 +39,33 @@ type relaunchHelper struct {
 
 // RunRelaunchHelper runs the detached helper that waits for daemon shutdown resources to release
 // and then launches the replacement daemon.
-func RunRelaunchHelper(ctx context.Context, cfg RelaunchHelperConfig) error {
+func RunRelaunchHelper(ctx context.Context, cfg *RelaunchHelperConfig) error {
 	return newRelaunchHelper(cfg).run(ctx)
 }
 
-func newRelaunchHelper(cfg RelaunchHelperConfig) *relaunchHelper {
-	if cfg.Executable == nil {
-		cfg.Executable = os.Executable
+func newRelaunchHelper(cfg *RelaunchHelperConfig) *relaunchHelper {
+	normalized := *cfg
+	if normalized.Executable == nil {
+		normalized.Executable = os.Executable
 	}
-	if len(cfg.Sandbox) == 0 {
-		cfg.Sandbox = os.Environ()
+	if len(normalized.Sandbox) == 0 {
+		normalized.Sandbox = os.Environ()
 	}
-	if cfg.PollInterval <= 0 {
-		cfg.PollInterval = defaultRestartPollInterval
+	if normalized.PollInterval <= 0 {
+		normalized.PollInterval = defaultRestartPollInterval
 	}
-	if cfg.ReleaseTimeout <= 0 {
-		cfg.ReleaseTimeout = defaultRestartReleaseWait
+	if normalized.ReleaseTimeout <= 0 {
+		normalized.ReleaseTimeout = defaultRestartReleaseWait
 	}
-	if cfg.ReadyTimeout <= 0 {
-		cfg.ReadyTimeout = defaultRestartReadyWait
+	if normalized.ReadyTimeout <= 0 {
+		normalized.ReadyTimeout = defaultRestartReadyWait
 	}
-	if cfg.ExitDrainWait <= 0 {
-		cfg.ExitDrainWait = defaultRestartExitDrainWait
+	if normalized.ExitDrainWait <= 0 {
+		normalized.ExitDrainWait = defaultRestartExitDrainWait
 	}
 
 	return &relaunchHelper{
-		cfg:           cfg,
+		cfg:           normalized,
 		now:           func() time.Time { return time.Now().UTC() },
 		processAlive:  procutil.Alive,
 		acquireLock:   AcquireLock,

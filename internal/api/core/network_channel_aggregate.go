@@ -18,11 +18,10 @@ import (
 )
 
 func (h *BaseHandlers) resolveCreateNetworkChannelRequest(
-	ctx context.Context,
+	_ context.Context,
 	req contract.CreateNetworkChannelRequest,
 	resolved *workspacepkg.ResolvedWorkspace,
 ) (string, string, []string, error) {
-	_ = ctx
 	if resolved == nil {
 		return "", "", nil, NewNetworkValidationError(
 			errors.New("workspace is required"),
@@ -109,12 +108,13 @@ func normalizeNetworkChannelPurpose(purpose string) (string, error) {
 func (h *BaseHandlers) networkChannelPayloads(
 	ctx context.Context,
 	service NetworkService,
+	readScope store.ReadScope,
 	workspaceID string,
 ) ([]contract.NetworkChannelPayload, error) {
 	if h == nil {
 		return nil, errors.New("api: handlers are required")
 	}
-	return NetworkChannelPayloads(ctx, service, h.Sessions, h.NetworkStore, workspaceID)
+	return NetworkChannelPayloads(ctx, service, h.Sessions, h.NetworkStore, readScope, workspaceID)
 }
 
 // NetworkChannelPayloads builds the shared runtime channel projection used by transports and tools.
@@ -123,9 +123,10 @@ func NetworkChannelPayloads(
 	service NetworkService,
 	sessionsManager SessionManager,
 	networkStore NetworkStore,
+	readScope store.ReadScope,
 	workspaceID string,
 ) ([]contract.NetworkChannelPayload, error) {
-	aggregates, err := networkChannelAggregates(ctx, service, sessionsManager, networkStore, workspaceID)
+	aggregates, err := networkChannelAggregates(ctx, service, sessionsManager, networkStore, readScope, workspaceID)
 	if err != nil {
 		return nil, fmt.Errorf("api: build network channel aggregates: %w", err)
 	}
@@ -138,6 +139,7 @@ func networkChannelAggregates(
 	service NetworkService,
 	sessionsManager SessionManager,
 	networkStore NetworkStore,
+	readScope store.ReadScope,
 	workspaceID string,
 ) (map[string]*networkChannelAggregate, error) {
 	if service == nil {
@@ -163,7 +165,7 @@ func networkChannelAggregates(
 	}
 	channelMetadata, err := networkStore.ListNetworkChannels(
 		ctx,
-		store.NetworkChannelQuery{WorkspaceID: trimmedWorkspaceID},
+		store.NetworkChannelQuery{ReadScope: readScope, WorkspaceID: trimmedWorkspaceID},
 	)
 	if err != nil {
 		return nil, fmt.Errorf("api: list network channels: %w", err)
@@ -178,6 +180,11 @@ func networkChannelAggregates(
 	applyNetworkChannelSessions(aggregates, trimmedWorkspaceID, sessions)
 	applyNetworkChannelPeers(aggregates, runtimePeers)
 	applyNetworkChannelProjections(aggregates, projections)
+	for channel, aggregate := range aggregates {
+		if aggregate.metadata == nil {
+			delete(aggregates, channel)
+		}
+	}
 	return aggregates, nil
 }
 

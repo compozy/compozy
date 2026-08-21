@@ -218,6 +218,7 @@ func auditEntryForConversationMessage(entry store.NetworkConversationMessage) (s
 	}
 	return store.NetworkAuditEntry{
 		ID:          auditID,
+		ProfileID:   entry.ProfileID,
 		SessionID:   entry.SessionID,
 		WorkspaceID: entry.WorkspaceID,
 		Direction:   entry.Direction,

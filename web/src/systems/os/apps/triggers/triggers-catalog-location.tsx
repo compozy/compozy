@@ -20,8 +20,10 @@ import {
   AutomationListFilters,
   AutomationTriggersCatalog,
 } from "@/systems/automation";
+import { useProfileReadScope } from "@/systems/profiles";
 
 export function TriggersCatalogLocation({ search }: { search: AutomationRouteSearch }) {
+  const profile = useProfileReadScope();
   const page = useAutomationTriggersPage(
     search.create === "loop" && search.loop ? { loop: search.loop } : {},
     search
@@ -101,6 +103,7 @@ export function TriggersCatalogLocation({ search }: { search: AutomationRouteSea
         data-testid="triggers-shell"
       >
         <AutomationTriggersCatalog
+          profileScope={profile}
           errorMessage={page.errorMessage}
           hasActiveFilters={page.hasActiveFilters}
           isLoading={page.isLoading}

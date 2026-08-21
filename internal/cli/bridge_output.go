@@ -14,6 +14,7 @@ func bridgeBundle(item BridgeRecord) outputBundle {
 		human: func() (string, error) {
 			return renderHumanSection(bridgeBridgeValue, []keyValue{
 				{Label: "ID", Value: stringOrDash(item.ID)},
+				{Label: sessionProfileValue, Value: stringOrDash(item.ProfileName)},
 				{Label: automationNameValue, Value: stringOrDash(item.DisplayName)},
 				{Label: bundlePlatformValue, Value: stringOrDash(item.Platform)},
 				{Label: bridgeExtensionValue, Value: stringOrDash(item.ExtensionName)},
@@ -43,6 +44,7 @@ func bridgeBundle(item BridgeRecord) outputBundle {
 		toon: func() (string, error) {
 			return renderToonObject(bridgeBridgeKey, []string{
 				"id",
+				profileNameOutputKey,
 				bridgeDisplayNameKey,
 				bridgePlatformKey,
 				bridgeSetupExtensionNameKey,
@@ -60,6 +62,7 @@ func bridgeBundle(item BridgeRecord) outputBundle {
 				bridgeUpdatedAtKey,
 			}, []string{
 				item.ID,
+				item.ProfileName,
 				item.DisplayName,
 				item.Platform,
 				item.ExtensionName,

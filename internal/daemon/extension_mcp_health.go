@@ -20,7 +20,9 @@ func extensionMCPHealthKey(
 	if state == nil || state.extensions == nil || owner.Kind != extensionResourceOwnerKind {
 		return mcppkg.RuntimeHealthKey{}
 	}
-	key := extensionpkg.InstanceKey{Name: owner.ID, WorkspaceID: record.Scope.ID}.Normalize()
+	key := extensionpkg.InstanceKey{
+		Name: owner.ID, WorkspaceID: extensionMCPInstanceWorkspaceID(record.Scope),
+	}.Normalize()
 	var ext *extensionpkg.Extension
 	var err error
 	if key.WorkspaceID != "" {
@@ -38,6 +40,19 @@ func extensionMCPHealthKey(
 		WorkspaceID:      key.WorkspaceID,
 		BundleGeneration: extensionMCPHealthGeneration(ext),
 		ServerName:       record.Spec.Name,
+	}
+}
+
+func extensionMCPInstanceWorkspaceID(scope resources.ResourceScope) string {
+	normalized := scope.Normalize()
+	switch normalized.Kind {
+	case resources.ResourceScopeKindWorkspace:
+		return normalized.ID
+	case resources.ResourceScopeKindWorkspaceProfile:
+		workspaceID, _, _ := strings.Cut(normalized.ID, "@pf:")
+		return strings.TrimSpace(workspaceID)
+	default:
+		return ""
 	}
 }
 

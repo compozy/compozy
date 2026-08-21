@@ -12,9 +12,9 @@
         "requires": []
     },
     "resources": {
-        "skills": ["skills"],
-        "loops": ["loops"],
-        "agents": ["agents"],
+        "skills": [{ "path": "skills" }],
+        "loops": [{ "path": "loops" }],
+        "agents": [{ "path": "agents" }],
         "tools": {
             "import_tasks": {
                 "display_title": "Import CompozyOS task files",

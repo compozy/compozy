@@ -41,7 +41,7 @@ describe("useCreateNetworkChannel", () => {
 
     for (const workspaceId of ["ws_explicit", "ws_payload"]) {
       queryClient.setQueryData(networkKeys.channelsRoot(workspaceId), []);
-      queryClient.setQueryData(sessionKeys.list({ workspace: workspaceId }), []);
+      queryClient.setQueryData(sessionKeys.list({ workspace_id: workspaceId }), []);
     }
 
     const { result } = renderHook(() => useCreateNetworkChannel({ workspaceId: "ws_explicit" }), {
@@ -57,13 +57,13 @@ describe("useCreateNetworkChannel", () => {
       true
     );
     expect(
-      queryClient.getQueryState(sessionKeys.list({ workspace: "ws_explicit" }))?.isInvalidated
+      queryClient.getQueryState(sessionKeys.list({ workspace_id: "ws_explicit" }))?.isInvalidated
     ).toBe(true);
     expect(queryClient.getQueryState(networkKeys.channelsRoot("ws_payload"))?.isInvalidated).toBe(
       false
     );
     expect(
-      queryClient.getQueryState(sessionKeys.list({ workspace: "ws_payload" }))?.isInvalidated
+      queryClient.getQueryState(sessionKeys.list({ workspace_id: "ws_payload" }))?.isInvalidated
     ).toBe(false);
   });
 });

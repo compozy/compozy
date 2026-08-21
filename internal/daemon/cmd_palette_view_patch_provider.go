@@ -17,29 +17,31 @@ func (p *extensionCmdPaletteProvider) SubscribeViewPatches(
 	request cmdpalette.ViewPatchSubscribeRequest,
 ) (<-chan cmdpalette.ViewPatchEvent, func(), error) {
 	return p.SubscribeViewPatchesAfter(
-		ctx, request.Workspace, request.ViewID, request.After, request.StreamEpoch,
+		ctx, request.ProfileLens, request.Workspace, request.ViewID, request.After, request.StreamEpoch,
 	)
 }
 
 // SubscribeViewPatchesAfter replays retained patches with Sequence > after when epoch matches.
 func (p *extensionCmdPaletteProvider) SubscribeViewPatchesAfter(
 	ctx context.Context,
+	profileLens cmdpalette.ProfileLens,
 	workspaceID cmdpalette.WorkspaceID,
 	viewID string,
 	after int64,
 	streamEpoch string,
 ) (<-chan cmdpalette.ViewPatchEvent, func(), error) {
-	if err := p.requireDeclarativeView(ctx, workspaceID, viewID, ""); err != nil {
+	if err := p.requireDeclarativeView(ctx, profileLens, workspaceID, viewID, ""); err != nil {
 		return nil, nil, err
 	}
 	if p.patches == nil {
 		return nil, nil, errors.New("daemon: extension palette view patch hub is unavailable")
 	}
-	return p.patches.subscribe(ctx, workspaceID, viewID, after, streamEpoch)
+	return p.patches.subscribe(ctx, profileLens, workspaceID, viewID, after, streamEpoch)
 }
 
 func (p *extensionCmdPaletteProvider) PublishViewPatch(
 	ctx context.Context,
+	profileLens cmdpalette.ProfileLens,
 	workspaceID cmdpalette.WorkspaceID,
 	extension string,
 	patch cmdpalette.ViewPatch,
@@ -47,13 +49,13 @@ func (p *extensionCmdPaletteProvider) PublishViewPatch(
 	if err := cmdpalette.ValidateViewPatch(patch); err != nil {
 		return err
 	}
-	if err := p.requireDeclarativeView(ctx, workspaceID, patch.ViewID, extension); err != nil {
+	if err := p.requireDeclarativeView(ctx, profileLens, workspaceID, patch.ViewID, extension); err != nil {
 		return err
 	}
 	if p.patches == nil {
 		return errors.New("daemon: extension palette view patch hub is unavailable")
 	}
-	if _, err := p.patches.publish(workspaceID, patch, ""); err != nil {
+	if _, err := p.patches.publish(profileLens, workspaceID, patch, ""); err != nil {
 		return fmt.Errorf("daemon: publish extension palette view patch: %w", err)
 	}
 	return nil
@@ -69,11 +71,15 @@ func (p *extensionCmdPaletteProvider) CloseViewPatches() {
 
 func (p *extensionCmdPaletteProvider) requireDeclarativeView(
 	ctx context.Context,
+	profileLens cmdpalette.ProfileLens,
 	workspaceID cmdpalette.WorkspaceID,
 	viewID string,
 	extension string,
 ) error {
-	projection, err := p.projection(ctx, workspaceID)
+	projection, err := p.projection(ctx, cmdpalette.CatalogRequest{
+		ProfileLens: profileLens,
+		WorkspaceID: workspaceID,
+	})
 	if err != nil {
 		return err
 	}

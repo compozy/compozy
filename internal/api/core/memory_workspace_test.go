@@ -23,7 +23,9 @@ import (
 	"github.com/compozy/compozy/internal/memory"
 	"github.com/compozy/compozy/internal/observe"
 	"github.com/compozy/compozy/internal/session"
+	"github.com/compozy/compozy/internal/store"
 	workspacepkg "github.com/compozy/compozy/internal/workspace"
+	"github.com/gin-gonic/gin"
 	"github.com/goccy/go-yaml"
 )
 
@@ -54,7 +56,7 @@ func TestMemoryHandlersAndHelpers(t *testing.T) {
 			t.Fatalf("MkdirAll(workspace) error = %v", err)
 		}
 		if err := store.Write(t.Context(),
-			memcontract.ScopeGlobal,
+			memcontract.ScopeProfile,
 			"global.md",
 			[]byte(memoryDocument(t, "Global", memcontract.TypeUser, "hello"))); err != nil {
 			t.Fatalf("Write(global) error = %v", err)
@@ -92,6 +94,194 @@ func TestMemoryHandlersAndHelpers(t *testing.T) {
 			trigger,
 		), workspace, trigger
 	}
+
+	t.Run("Should project profile memory through the selected API lens", func(t *testing.T) {
+		t.Parallel()
+
+		homePaths := testutil.NewTestHomePaths(t)
+		memoryStore := memory.NewStore(
+			homePaths.MemoryDir,
+			memory.WithCatalogDatabasePath(homePaths.DatabaseFile),
+		)
+		openCoreTestMemoryCatalog(t, memoryStore)
+		marketingStore := memoryStore.ForProfile(
+			"profile-marketing",
+			filepath.Join(homePaths.ProfilesDir, "marketing", compozyconfig.MemoryDirName),
+		)
+		for _, profileStore := range []*memory.Store{memoryStore, marketingStore} {
+			if err := profileStore.EnsureDirs(); err != nil {
+				t.Fatalf("Store.EnsureDirs() error = %v", err)
+			}
+		}
+		writeProfileEntry := func(profileStore *memory.Store, name string) {
+			t.Helper()
+			if err := profileStore.Write(
+				t.Context(),
+				memcontract.ScopeProfile,
+				"preference.md",
+				[]byte(memoryDocument(t, name, memcontract.TypeUser, "profile-specific memory")),
+			); err != nil {
+				t.Fatalf("Store.Write() error = %v", err)
+			}
+		}
+		writeProfileEntry(memoryStore, "Default preference")
+		writeProfileEntry(marketingStore, "Marketing preference")
+		if err := memoryStore.Write(
+			t.Context(),
+			memcontract.ScopeProfile,
+			"default-only.md",
+			[]byte(memoryDocument(t, "Default only", memcontract.TypeUser, "default profile sentinel")),
+		); err != nil {
+			t.Fatalf("Store.Write(default-only.md) error = %v", err)
+		}
+
+		handlers := core.NewBaseHandlers(&core.BaseHandlerConfig{
+			Profiles:    sessionProfileServiceStub{},
+			MemoryStore: memoryStore,
+			HomePaths:   homePaths,
+			Logger:      testutil.DiscardLogger(),
+			Sessions: testutil.StubSessionManager{ListAllFn: func(context.Context) ([]*session.Info, error) {
+				return nil, nil
+			}},
+		})
+		handlers.Config.Memory.Enabled = true
+		handlers.Config.Memory.GlobalDir = homePaths.MemoryDir
+		engine := gin.New()
+		group := engine.Group("/memory")
+		group.Use(handlers.BindMemoryProfile)
+		group.GET("", handlers.ListMemory)
+		group.GET("/health", handlers.MemoryHealth)
+		group.GET("/history", handlers.MemoryHistory)
+		group.GET("/decisions", handlers.ListMemoryDecisions)
+		group.GET("/daily", handlers.ListMemoryDailyLogs)
+		group.POST("", handlers.WriteMemory)
+
+		for _, test := range []struct {
+			path      string
+			wantName  string
+			wantCount int
+		}{
+			{path: "/memory", wantName: "Default preference", wantCount: 2},
+			{path: "/memory?profile=marketing", wantName: "Marketing preference", wantCount: 1},
+		} {
+			t.Run("Should list "+test.wantName+" for its profile lens", func(t *testing.T) {
+				response := performRequest(t, engine, http.MethodGet, test.path, nil)
+				if response.Code != http.StatusOK {
+					t.Fatalf("GET %s status = %d; body=%s", test.path, response.Code, response.Body.String())
+				}
+				var payload contract.MemoryListResponse
+				testutil.DecodeJSONResponse(t, response, &payload)
+				if len(payload.Memories) != test.wantCount {
+					t.Fatalf("GET %s memories = %#v, want %d entries", test.path, payload.Memories, test.wantCount)
+				}
+				found := false
+				for _, item := range payload.Memories {
+					found = found || item.Name == test.wantName
+				}
+				if !found {
+					t.Fatalf("GET %s memories = %#v, want %q", test.path, payload.Memories, test.wantName)
+				}
+			})
+		}
+
+		for _, test := range []struct {
+			profile             string
+			wantFiles           int
+			wantOperations      int
+			wantDailyOperations int
+		}{
+			{profile: "default", wantFiles: 2, wantOperations: 2, wantDailyOperations: 2},
+			{profile: "marketing", wantFiles: 1, wantOperations: 1, wantDailyOperations: 1},
+		} {
+			t.Run("Should isolate health and audit reads for "+test.profile, func(t *testing.T) {
+				query := "?profile=" + url.QueryEscape(test.profile)
+				healthResponse := performRequest(t, engine, http.MethodGet, "/memory/health"+query, nil)
+				if healthResponse.Code != http.StatusOK {
+					t.Fatalf("health status = %d; body=%s", healthResponse.Code, healthResponse.Body.String())
+				}
+				var health contract.MemoryHealthPayload
+				testutil.DecodeJSONResponse(t, healthResponse, &health)
+				if health.GlobalFiles != test.wantFiles {
+					t.Fatalf("%s health global_files = %d, want %d", test.profile, health.GlobalFiles, test.wantFiles)
+				}
+
+				historyResponse := performRequest(t, engine, http.MethodGet, "/memory/history"+query, nil)
+				if historyResponse.Code != http.StatusOK {
+					t.Fatalf("history status = %d; body=%s", historyResponse.Code, historyResponse.Body.String())
+				}
+				var history contract.MemoryOperationHistoryResponse
+				testutil.DecodeJSONResponse(t, historyResponse, &history)
+				if len(history.Operations) != test.wantOperations {
+					t.Fatalf(
+						"%s history operations = %d, want %d",
+						test.profile,
+						len(history.Operations),
+						test.wantOperations,
+					)
+				}
+
+				dailyResponse := performRequest(t, engine, http.MethodGet, "/memory/daily"+query, nil)
+				if dailyResponse.Code != http.StatusOK {
+					t.Fatalf("daily status = %d; body=%s", dailyResponse.Code, dailyResponse.Body.String())
+				}
+				var daily contract.MemoryDailyLogListResponse
+				testutil.DecodeJSONResponse(t, dailyResponse, &daily)
+				if len(daily.Logs) != 1 || daily.Logs[0].OperationCount != test.wantDailyOperations {
+					t.Fatalf(
+						"%s daily logs = %#v, want one log with %d operations",
+						test.profile,
+						daily.Logs,
+						test.wantDailyOperations,
+					)
+				}
+			})
+		}
+
+		decisionIDs := make(map[string]string, 2)
+		for _, profileName := range []string{"default", "marketing"} {
+			body := mustJSON(t, contract.MemoryCreateRequest{
+				Scope:   memcontract.ScopeProfile,
+				Type:    memcontract.TypeUser,
+				Name:    "Decision for " + profileName,
+				Content: profileName + " decision sentinel",
+			})
+			response := performRequest(
+				t,
+				engine,
+				http.MethodPost,
+				"/memory?profile="+url.QueryEscape(profileName),
+				body,
+			)
+			if response.Code != http.StatusOK {
+				t.Fatalf("write %s decision status = %d; body=%s", profileName, response.Code, response.Body.String())
+			}
+			var payload contract.MemoryMutationDecisionResponse
+			testutil.DecodeJSONResponse(t, response, &payload)
+			decisionIDs[profileName] = payload.Decision.ID
+		}
+		for _, profileName := range []string{"default", "marketing"} {
+			response := performRequest(
+				t,
+				engine,
+				http.MethodGet,
+				"/memory/decisions?profile="+url.QueryEscape(profileName),
+				nil,
+			)
+			if response.Code != http.StatusOK {
+				t.Fatalf("list %s decisions status = %d; body=%s", profileName, response.Code, response.Body.String())
+			}
+			var payload contract.MemoryDecisionListResponse
+			testutil.DecodeJSONResponse(t, response, &payload)
+			if len(payload.Decisions) != 1 || payload.Decisions[0].ID != decisionIDs[profileName] {
+				t.Fatalf(
+					"%s decisions = %#v, want only %q",
+					profileName,
+					payload.Decisions,
+					decisionIDs[profileName],
+				)
+			}
+		}
+	})
 
 	t.Run("Should list memory for a workspace", func(t *testing.T) {
 		t.Parallel()
@@ -162,7 +352,7 @@ func TestMemoryHandlersAndHelpers(t *testing.T) {
 		)
 
 		query := url.Values{}
-		query.Set("scope", string(memcontract.ScopeGlobal))
+		query.Set("scope", string(memcontract.ScopeProfile))
 		query.Set("type", string(memcontract.TypeReference))
 		query.Set("limit", "1")
 		response := performRequest(t, fixture.Engine, http.MethodGet, "/memory?"+query.Encode(), nil)
@@ -307,11 +497,11 @@ func TestMemoryHandlersAndHelpers(t *testing.T) {
 		}
 	})
 
-	t.Run("Should read global memory", func(t *testing.T) {
+	t.Run("Should read profile memory", func(t *testing.T) {
 		t.Parallel()
 
 		fixture, _, _ := setup(t)
-		readResp := performRequest(t, fixture.Engine, http.MethodGet, "/memory/global.md?scope=global", nil)
+		readResp := performRequest(t, fixture.Engine, http.MethodGet, "/memory/global.md?scope=profile", nil)
 		if readResp.Code != http.StatusOK {
 			t.Fatalf("read memory status = %d, want %d", readResp.Code, http.StatusOK)
 		}
@@ -700,7 +890,7 @@ func TestMemoryHandlersAndHelpers(t *testing.T) {
 		body, err := json.Marshal(contract.MemoryPromoteRequest{
 			Filename: "global.md",
 			From: contract.MemoryScopeSelectorPayload{
-				Scope: memcontract.ScopeGlobal,
+				Scope: memcontract.ScopeProfile,
 			},
 			To: contract.MemoryScopeSelectorPayload{
 				Scope:       memcontract.ScopeWorkspace,
@@ -748,7 +938,7 @@ func TestMemoryHandlersAndHelpers(t *testing.T) {
 
 		fixture, _, _ := setup(t)
 		writeBody, err := json.Marshal(contract.MemoryCreateRequest{
-			Scope:   memcontract.ScopeGlobal,
+			Scope:   memcontract.ScopeProfile,
 			Type:    memcontract.TypeUser,
 			Name:    "Decision API",
 			Content: "Decision API body for revert.",
@@ -769,7 +959,7 @@ func TestMemoryHandlersAndHelpers(t *testing.T) {
 		testutil.DecodeJSONResponse(t, writeResp, &writePayload)
 
 		newerBody, err := json.Marshal(contract.MemoryCreateRequest{
-			Scope:   memcontract.ScopeGlobal,
+			Scope:   memcontract.ScopeProfile,
 			Type:    memcontract.TypeProject,
 			Name:    "Newer Decision API",
 			Content: "A different decision that must not consume the filtered limit.",
@@ -791,7 +981,7 @@ func TestMemoryHandlersAndHelpers(t *testing.T) {
 			t,
 			fixture.Engine,
 			http.MethodGet,
-			"/memory/decisions?scope=global&filename="+
+			"/memory/decisions?scope=profile&filename="+
 				url.QueryEscape(writePayload.Decision.TargetFilename)+"&limit=1",
 			nil,
 		)
@@ -843,7 +1033,7 @@ func TestMemoryHandlersAndHelpers(t *testing.T) {
 			t,
 			fixture.Engine,
 			http.MethodGet,
-			"/memory/"+writePayload.Decision.TargetFilename+"?scope=global",
+			"/memory/"+writePayload.Decision.TargetFilename+"?scope=profile",
 			nil,
 		)
 		if readResp.Code != http.StatusNotFound {
@@ -1146,7 +1336,7 @@ func TestMemoryHandlersAndHelpers(t *testing.T) {
 
 		fixture, _, _ := setup(t)
 		writeBody, err := json.Marshal(contract.MemoryCreateRequest{
-			Scope:   memcontract.ScopeGlobal,
+			Scope:   memcontract.ScopeProfile,
 			Type:    memcontract.TypeUser,
 			Name:    "Daily Event",
 			Content: "Daily API event body.",
@@ -1179,7 +1369,7 @@ func TestMemoryHandlersAndHelpers(t *testing.T) {
 			fixture.Engine,
 			http.MethodPost,
 			"/memory/reset",
-			[]byte(`{"scope":"global","derived_only":false,"confirm":true}`),
+			[]byte(`{"scope":"profile","derived_only":false,"confirm":true}`),
 		)
 		if rejectedResetResp.Code != http.StatusUnprocessableEntity {
 			t.Fatalf(
@@ -1200,7 +1390,7 @@ func TestMemoryHandlersAndHelpers(t *testing.T) {
 			fixture.Engine,
 			http.MethodPost,
 			"/memory/reset",
-			[]byte(`{"scope":"global","derived_only":true,"confirm":true}`),
+			[]byte(`{"scope":"profile","derived_only":true,"confirm":true}`),
 		)
 		if resetResp.Code != http.StatusOK {
 			t.Fatalf("reset status = %d, want %d; body=%s", resetResp.Code, http.StatusOK, resetResp.Body.String())
@@ -1211,7 +1401,7 @@ func TestMemoryHandlersAndHelpers(t *testing.T) {
 			t.Fatalf("reset payload = %#v, want derived reset timestamp", resetPayload)
 		}
 
-		reloadResp := performRequest(t, fixture.Engine, http.MethodPost, "/memory/reload?scope=global", nil)
+		reloadResp := performRequest(t, fixture.Engine, http.MethodPost, "/memory/reload?scope=profile", nil)
 		if reloadResp.Code != http.StatusOK {
 			t.Fatalf("reload status = %d, want %d; body=%s", reloadResp.Code, http.StatusOK, reloadResp.Body.String())
 		}
@@ -1226,7 +1416,7 @@ func TestMemoryHandlersAndHelpers(t *testing.T) {
 			fixture.Engine,
 			http.MethodPost,
 			"/memory/ad-hoc",
-			[]byte(`{"scope":"global","content":"Remember ad-hoc API notes.","slug":"api-note"}`),
+			[]byte(`{"scope":"profile","content":"Remember ad-hoc API notes.","slug":"api-note"}`),
 		)
 		if adhocResp.Code != http.StatusOK {
 			t.Fatalf("ad-hoc status = %d, want %d; body=%s", adhocResp.Code, http.StatusOK, adhocResp.Body.String())
@@ -1493,6 +1683,10 @@ func TestWorkspaceHandlersDelegateToService(t *testing.T) {
 		testutil.DecodeJSONResponse(t, getResp, &getPayload)
 		if len(getPayload.Sessions) != 1 || getPayload.Sessions[0].WorkspaceID != workspace.ID {
 			t.Fatalf("sessions payload = %#v", getPayload.Sessions)
+		}
+		if sessionPayload := getPayload.Sessions[0]; sessionPayload.ProfileID != store.DefaultProfileID ||
+			sessionPayload.ProfileName != "default" {
+			t.Fatalf("workspace session profile owner = %#v, want default identity", sessionPayload)
 		}
 		expectedProviders := core.SessionProviderOptionPayloadsFromConfig(&resolved.Config)
 		if got, want := len(getPayload.Providers), len(expectedProviders); got != want {

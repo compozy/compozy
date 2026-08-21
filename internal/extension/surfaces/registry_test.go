@@ -21,17 +21,19 @@ func TestLookupReturnsFirstWaveSurfaceMetadata(t *testing.T) {
 		t.Fatalf("Lookup(tool).ManifestFamily = %q, want %q", surface.ManifestFamily, FamilyTools)
 	}
 	if !slices.Equal(surface.LegalScopes, []resources.ResourceScopeKind{
-		resources.ResourceScopeKindGlobal,
+		resources.ResourceScopeKindUser,
 		resources.ResourceScopeKindWorkspace,
+		resources.ResourceScopeKindProfile,
+		resources.ResourceScopeKindWorkspaceProfile,
 	}) {
-		t.Fatalf("Lookup(tool).LegalScopes = %#v, want global+workspace", surface.LegalScopes)
+		t.Fatalf("Lookup(tool).LegalScopes = %#v, want every resource scope", surface.LegalScopes)
 	}
 }
 
 func TestResolveManifestRequestRejectsIllegalFamilyBeforeHandshake(t *testing.T) {
 	t.Parallel()
 
-	_, err := ResolveManifestRequest([]string{string(FamilyBridgeInstances)}, resources.ResourceScopeKindGlobal)
+	_, err := ResolveManifestRequest([]string{string(FamilyBridgeInstances)}, resources.ResourceScopeKindUser)
 	if err == nil {
 		t.Fatal("ResolveManifestRequest() error = nil, want daemon-only family rejection")
 	}
@@ -58,12 +60,12 @@ func TestNormalizeAllowedKindsRejectsDaemonOnlyKinds(t *testing.T) {
 	}
 }
 
-func TestResolveManifestRequestExpandsGlobalScopeToGrantedScopeSet(t *testing.T) {
+func TestResolveManifestRequestExpandsUserScopeToGrantedScopeSet(t *testing.T) {
 	t.Parallel()
 
 	request, err := ResolveManifestRequest(
 		[]string{string(FamilyTools), string(FamilyMCPServers), string(FamilyWindowLayouts)},
-		resources.ResourceScopeKindGlobal,
+		resources.ResourceScopeKindUser,
 	)
 	if err != nil {
 		t.Fatalf("ResolveManifestRequest() error = %v", err)
@@ -76,10 +78,12 @@ func TestResolveManifestRequestExpandsGlobalScopeToGrantedScopeSet(t *testing.T)
 		t.Fatalf("ResolveManifestRequest().Kinds = %#v, want tool+mcp_server+window_layout", request.Kinds)
 	}
 	if !slices.Equal(request.Scopes, []resources.ResourceScopeKind{
-		resources.ResourceScopeKindGlobal,
+		resources.ResourceScopeKindUser,
 		resources.ResourceScopeKindWorkspace,
+		resources.ResourceScopeKindProfile,
+		resources.ResourceScopeKindWorkspaceProfile,
 	}) {
-		t.Fatalf("ResolveManifestRequest().Scopes = %#v, want global+workspace", request.Scopes)
+		t.Fatalf("ResolveManifestRequest().Scopes = %#v, want every resource scope", request.Scopes)
 	}
 }
 

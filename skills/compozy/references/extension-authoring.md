@@ -248,7 +248,7 @@ What `build` writes, for reading rather than editing: `[extension]` (`name`, `ve
 `[permissions] requires`, `[subprocess]` (`command`, `args`, `env`, `secret_env`,
 `health_check_interval`, `shutdown_timeout`), `[resources.tools.<handler>]` (id, handler, backend
 kind `extension_host`, canonical `input_schema`/`output_schema`, risk metadata, optional `command`),
-`[resources.cmd_palette]`, `[[resources.hooks]]`, `[[resources.command_groups]]`, and
+`[resources.cmd_palette]`, `[[resources.hooks]]`, `[[resources.command_groups]]`, `[[profiles]]`, and
 `[network_participation]`.
 
 Resource-only extensions hand-write only `resources.skills|agents|loops|automation|layouts`.
@@ -256,11 +256,21 @@ Resource paths resolve inside the extension root; `{{config_dir}}` is that root 
 `{{env:NAME}}` reads the daemon process environment. Hooks, tools, command groups, MCP servers,
 dynamic resource publication, bridge metadata, and subprocess behavior require a supported code toolchain.
 
-Static kit resources stay inert after install. Enable publishes the instance-owned resources; disable
-removes them. Use extension inventory to compare shipped and live resources, and preview to inspect
-added, changed, or removed resources before enable. Required environment variables are names in the manifest; bind them
-to Vault references through the extension secrets surface, which never returns values or references.
-When enable or update returns a Network confirmation digest, retry only with that exact digest.
+Every static resource accepts an optional `profile` placement. Omit it for every profile; name a
+profile to publish only when that profile exists and the extension is enabled there. An absent named
+profile leaves the placement dormant.
+
+`[[profiles]]` declares `name`, optional `color` plus one of `icon` or `emoji`, optional
+`[profiles.defaults]` (`agent`, `provider`, `sandbox`), and optional `[[profiles.credentials]]`
+(`provider`, `slot`). Install preview reports create versus bind and credential needs. Installation
+creates a missing declaration once without activating it; an existing name binds without seeding;
+updates never mutate an existing profile; removal leaves the profile and credential requirements.
+
+Install enables kit resources by default. `compozy --profile <profile> extension enable|disable
+<name>` changes only that profile. Required environment variables are names in the manifest; bind
+them to Vault references through the extension secrets surface, which never returns values or
+references. When install or update returns a Network confirmation digest, retry only with that exact
+digest.
 
 ## Structured Workflows
 

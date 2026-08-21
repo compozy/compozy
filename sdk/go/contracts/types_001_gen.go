@@ -44,6 +44,7 @@ type AgentCrashedPatch struct {
 type AgentCrashedPayload struct {
 	Event          HookEvent `json:"event"`
 	Timestamp      time.Time `json:"timestamp"`
+	ProfileID      string    `json:"profile_id,omitempty"`
 	SessionID      string    `json:"session_id,omitempty"`
 	SessionName    string    `json:"session_name,omitempty"`
 	SessionType    string    `json:"session_type,omitempty"`
@@ -134,6 +135,7 @@ type AgentHeartbeatValidateParams struct {
 type AgentHeartbeatWakeAfterPayload struct {
 	Event             HookEvent `json:"event"`
 	Timestamp         time.Time `json:"timestamp"`
+	ProfileID         string    `json:"profile_id,omitempty"`
 	SessionID         string    `json:"session_id,omitempty"`
 	SessionName       string    `json:"session_name,omitempty"`
 	SessionType       string    `json:"session_type,omitempty"`
@@ -160,6 +162,7 @@ type AgentHeartbeatWakeAfterPayload struct {
 type AgentHeartbeatWakeBeforePayload struct {
 	Event            HookEvent `json:"event"`
 	Timestamp        time.Time `json:"timestamp"`
+	ProfileID        string    `json:"profile_id,omitempty"`
 	SessionID        string    `json:"session_id,omitempty"`
 	SessionName      string    `json:"session_name,omitempty"`
 	SessionType      string    `json:"session_type,omitempty"`
@@ -196,6 +199,7 @@ type AgentLifecyclePatch struct {
 type AgentLifecyclePayload struct {
 	Event          HookEvent `json:"event"`
 	Timestamp      time.Time `json:"timestamp"`
+	ProfileID      string    `json:"profile_id,omitempty"`
 	SessionID      string    `json:"session_id,omitempty"`
 	SessionName    string    `json:"session_name,omitempty"`
 	SessionType    string    `json:"session_type,omitempty"`
@@ -221,6 +225,7 @@ type AgentLifecyclePayload struct {
 type AgentPreStartPayload struct {
 	Event          HookEvent `json:"event"`
 	Timestamp      time.Time `json:"timestamp"`
+	ProfileID      string    `json:"profile_id,omitempty"`
 	SessionID      string    `json:"session_id,omitempty"`
 	SessionName    string    `json:"session_name,omitempty"`
 	SessionType    string    `json:"session_type,omitempty"`

@@ -156,6 +156,7 @@ func recoveredSessionFromMeta(meta *store.SessionMeta) recoveredSession {
 	}
 	recovered := recoveredSession{SessionInfo: store.SessionInfo{
 		ID:                meta.ID,
+		ProfileID:         meta.ProfileID,
 		Name:              meta.Name,
 		AgentName:         meta.AgentName,
 		Provider:          meta.Provider,

@@ -79,19 +79,18 @@ func TestCoordinatorRunnerShouldPreserveMixedGenerationAtGoalControlBoundary(t *
 		resolved := compileCoordinatorControlDefinition(t, definition)
 		loopRun := controlLoopRun("looprun-goal-mixed-generation", map[string]any{})
 		coordinatorRun := controlCoordinatorRun(loopRun, 1)
-		goalRun := task.Run{
+		goalRun := taskRunWithResult(task.Run{
 			ID:        GoalSegmentRunID(loopRun.ID, 1, "converge", 0, 1),
 			TaskID:    GoalNodeTaskID(loopRun.ID, 1, "converge", 0),
 			RunKind:   task.RunKindWorker,
 			LoopRunID: string(loopRun.ID),
 			Status:    task.TaskRunStatusCompleted,
-			Result: goalControlRunResult(t, ActionControl{
-				Disposition:  ActionDispositionPaused,
-				GoalStatus:   "paused",
-				Cause:        "operator_pause",
-				CheckpointID: "checkpoint-mixed-generation",
-			}),
-		}
+		}, goalControlRunResult(t, ActionControl{
+			Disposition:  ActionDispositionPaused,
+			GoalStatus:   "paused",
+			Cause:        "operator_pause",
+			CheckpointID: "checkpoint-mixed-generation",
+		}))
 		liveRun := controlWorkerRun(loopRun, "summarize", 0, task.TaskRunStatusRunning)
 		watchRef := watchEventsPendingRefForTest(t, 7, "")
 		ledger := &watchEventsLedgerForTest{
@@ -246,19 +245,18 @@ func TestCoordinatorRunnerShouldPreserveDeferredGoalTerminals(t *testing.T) {
 			resolved := compileCoordinatorControlDefinition(t, definition)
 			loopRun := controlLoopRun("looprun-goal-deferred-"+tc.name, map[string]any{})
 			coordinatorRun := controlCoordinatorRun(loopRun, 1)
-			goalRun := task.Run{
+			goalRun := taskRunWithResult(task.Run{
 				ID:        GoalSegmentRunID(loopRun.ID, 1, "converge", 0, 1),
 				TaskID:    GoalNodeTaskID(loopRun.ID, 1, "converge", 0),
 				RunKind:   task.RunKindWorker,
 				LoopRunID: string(loopRun.ID),
 				Status:    task.TaskRunStatusCompleted,
-				Result: goalControlRunResult(t, ActionControl{
-					Disposition:  tc.disposition,
-					GoalStatus:   tc.goalStatus,
-					Cause:        tc.cause,
-					CheckpointID: "checkpoint-deferred-" + tc.name,
-				}),
-			}
+			}, goalControlRunResult(t, ActionControl{
+				Disposition:  tc.disposition,
+				GoalStatus:   tc.goalStatus,
+				Cause:        tc.cause,
+				CheckpointID: "checkpoint-deferred-" + tc.name,
+			}))
 			liveRun := controlWorkerRun(loopRun, "summarize", 0, task.TaskRunStatusRunning)
 			runs := map[string]task.Run{
 				coordinatorRun.ID: coordinatorRun,
@@ -411,7 +409,7 @@ func TestResolveGoalActionControlShouldMapEveryDisposition(t *testing.T) {
 			refreshed, terminal, err := resolveGoalActionControl(
 				Run{Status: StatusRunning},
 				output,
-				task.Run{Result: goalControlRunResult(t, tc.control)},
+				taskRunWithResult(task.Run{}, goalControlRunResult(t, tc.control)),
 			)
 			if err != nil {
 				t.Fatalf("resolveGoalActionControl() error = %v", err)

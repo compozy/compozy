@@ -65,7 +65,7 @@ Unknown TOML keys are errors. Sandbox profiles are implemented under `[sandboxes
 | `[observability.transcripts]`        | Transcript segment sizing and per-session cap.                                       | enabled, 1 MiB segments, 256 MiB per session                                                          |
 | `[log]`                              | Structured log level and daemon-owned rotation.                                      | `level = "info"`, 10 MiB, 5 backups, 30 days, compression off                                         |
 | `[redact]`                           | Additive secret heuristics for agent-visible content, logs, and persisted events.    | `enabled = true`                                                                                      |
-| `[memory]`                           | Persistent memory runtime and global memory directory.                               | enabled, `$COMPOZY_HOME/memory`                                                                       |
+| `[memory]`                           | Persistent memory runtime and profile memory directory.                              | enabled, `$COMPOZY_HOME/profiles/default/memory`                                                      |
 | `[memory.controller]`                | Hybrid write controller mode, latency, and fallback op.                              | hybrid, 300 ms, noop                                                                                  |
 | `[memory.controller.policy]`         | Content/rate caps and allowed write origins.                                         | 4096 chars, 60 writes/min, all canonical origins                                                      |
 | `[memory.recall]`                    | Deterministic recall: top-K, weights, freshness, signal queue.                       | top-K 5, raw 50, weighted fusion                                                                      |
@@ -156,7 +156,6 @@ update_check_interval = "6h"
 toasts = true
 sound = true
 system = false
-muted_workspaces = []
 
 [shell.sessions]
 # Session ordering: "last_activity" or "attention".
@@ -485,7 +484,7 @@ enabled = true
 
 [memory]
 enabled = true
-global_dir = "~/.compozy/memory"
+global_dir = "~/.compozy/profiles/default/memory"
 
 [memory.controller]
 mode = "hybrid"                              # hybrid | rules | llm
@@ -527,8 +526,8 @@ mode = "post_message"
 throttle_turns = 1
 deadline = "60s"
 sandbox_inbox_only = true
-inbox_path = "$COMPOZY_HOME/memory/_inbox"
-dlq_path = "$COMPOZY_HOME/memory/_system/extractor/failures"
+inbox_path = "$COMPOZY_HOME/profiles/default/memory/_inbox"
+dlq_path = "$COMPOZY_HOME/profiles/default/memory/_system/extractor/failures"
 
 [memory.extractor.queue]
 capacity = 1
@@ -953,19 +952,20 @@ update operation when an app apply is staged.
 
 ## `[attention]`
 
-Attention settings are global and live-applied as one validated candidate. Operators can use the
-Settings attention controls; agents can use `compozy config get|set attention.<key>` or the typed
-`GET/PATCH /api/settings/attention` surface. The title count is always on and has no config key.
+Attention delivery settings are global and live-applied as one validated candidate. Operators can
+use Settings → Notifications; agents can use `compozy config get|set
+attention.toasts|sound|system`. The title count is always on and has no config key.
 
-| Field              | Type         | Default | Validation                                                   | Description                                                                |
-| ------------------ | ------------ | ------- | ------------------------------------------------------------ | -------------------------------------------------------------------------- |
-| `toasts`           | boolean      | `true`  | `true` or `false`                                            | Allows in-app notification toasts.                                         |
-| `sound`            | boolean      | `true`  | `true` or `false`                                            | Allows the built-in notification sound.                                    |
-| `system`           | boolean      | `false` | `true` or `false`                                            | Allows supported clients to use system notifications while not in view.    |
-| `muted_workspaces` | string array | `[]`    | Unique registration IDs returned by workspace list surfaces. | Suppresses delivery for listed workspaces without hiding rows or counters. |
+| Field    | Type    | Default | Validation        | Description                                                             |
+| -------- | ------- | ------- | ----------------- | ----------------------------------------------------------------------- |
+| `toasts` | boolean | `true`  | `true` or `false` | Allows in-app notification toasts.                                      |
+| `sound`  | boolean | `true`  | `true` or `false` | Allows the built-in notification sound.                                 |
+| `system` | boolean | `false` | `true` or `false` | Allows supported clients to use system notifications while not in view. |
 
-All four fields have the `live` lifecycle. Removing a workspace also removes its ID from
-`muted_workspaces`; unmuting never replays notifications that were suppressed.
+Workspace mutes are profile-owned rows, not `config.toml` fields. Read or replace the default
+profile's set with `GET/PATCH /api/settings/attention?scope=user`; use
+`scope=profile&profile=<name>` for another profile. Removing a workspace deletes its mute rows from
+every profile. Unmuting never replays notifications that were suppressed.
 
 ## `[shell.sessions]`
 
@@ -1796,10 +1796,10 @@ there is no `[memory.v2] enabled` flag and no parallel compatibility namespace. 
 `[memory] enabled` short-circuits prompt assembly, the controller, recall, dreaming, the extractor,
 and the bundled local provider.
 
-| Field        | Type        | Default                | Valid values                              | Description                                                                      |
-| ------------ | ----------- | ---------------------- | ----------------------------------------- | -------------------------------------------------------------------------------- |
-| `enabled`    | boolean     | `true`                 | `true` or `false`                         | Master switch for the Memory v2 runtime.                                         |
-| `global_dir` | string path | `$COMPOZY_HOME/memory` | Non-empty path when set. `~` is expanded. | Global memory directory. Blank overlays are ignored and keep the previous value. |
+| Field        | Type        | Default                                 | Valid values                              | Description                                                                                       |
+| ------------ | ----------- | --------------------------------------- | ----------------------------------------- | ------------------------------------------------------------------------------------------------- |
+| `enabled`    | boolean     | `true`                                  | `true` or `false`                         | Master switch for the Memory v2 runtime.                                                          |
+| `global_dir` | string path | `$COMPOZY_HOME/profiles/default/memory` | Non-empty path when set. `~` is expanded. | The `default` profile's memory directory. Blank overlays are ignored and keep the previous value. |
 
 ## `[memory.controller]`
 
@@ -1868,14 +1868,14 @@ The extractor consumes the `session.message_persisted` hook and writes structure
 controller. `inbox_path` and `dlq_path` are validation-locked to the canonical CompozyOS-managed
 locations.
 
-| Field                | Type     | Default                                           | Valid values          | Description                                                                                                       |
-| -------------------- | -------- | ------------------------------------------------- | --------------------- | ----------------------------------------------------------------------------------------------------------------- |
-| `mode`               | string   | `post_message`                                    | `post_message`        | Extraction mode. CompozyOS currently supports only post-message extraction.                                       |
-| `throttle_turns`     | integer  | `1`                                               | Positive integer.     | Minimum same-session queued turns to coalesce before launching another extraction; drain flushes pending content. |
-| `deadline`           | duration | `60s`                                             | Positive Go duration. | Per-extraction deadline before the runtime drops the candidate.                                                   |
-| `sandbox_inbox_only` | boolean  | `true`                                            | `true` or `false`     | Restricts extractor writes to `_inbox/` until the controller accepts them.                                        |
-| `inbox_path`         | string   | `$COMPOZY_HOME/memory/_inbox`                     | Daemon-managed.       | Read-only display field; the daemon manages the inbox path.                                                       |
-| `dlq_path`           | string   | `$COMPOZY_HOME/memory/_system/extractor/failures` | Daemon-managed.       | Read-only display field; the daemon manages the DLQ path.                                                         |
+| Field                | Type     | Default                                                            | Valid values          | Description                                                                                                       |
+| -------------------- | -------- | ------------------------------------------------------------------ | --------------------- | ----------------------------------------------------------------------------------------------------------------- |
+| `mode`               | string   | `post_message`                                                     | `post_message`        | Extraction mode. CompozyOS currently supports only post-message extraction.                                       |
+| `throttle_turns`     | integer  | `1`                                                                | Positive integer.     | Minimum same-session queued turns to coalesce before launching another extraction; drain flushes pending content. |
+| `deadline`           | duration | `60s`                                                              | Positive Go duration. | Per-extraction deadline before the runtime drops the candidate.                                                   |
+| `sandbox_inbox_only` | boolean  | `true`                                                             | `true` or `false`     | Restricts extractor writes to `_inbox/` until the controller accepts them.                                        |
+| `inbox_path`         | string   | `$COMPOZY_HOME/profiles/default/memory/_inbox`                     | Daemon-managed.       | Read-only display field; the daemon manages the inbox path.                                                       |
+| `dlq_path`           | string   | `$COMPOZY_HOME/profiles/default/memory/_system/extractor/failures` | Daemon-managed.       | Read-only display field; the daemon manages the DLQ path.                                                         |
 
 ## `[memory.extractor.queue]`
 

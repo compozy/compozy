@@ -67,6 +67,7 @@ func (m *Manager) dispatchSessionPreCreate(ctx context.Context, opts CreateOpts)
 			Timestamp: m.now(),
 		},
 		SessionContext: hookspkg.SessionContext{
+			ProfileID:   normalizeCreateProfileID(opts.ProfileID),
 			SessionName: strings.TrimSpace(opts.Name),
 			SessionType: string(normalizeSessionType(opts.Type)),
 			AgentName:   strings.TrimSpace(opts.AgentName),
@@ -118,6 +119,7 @@ func (m *Manager) dispatchSessionPreResume(ctx context.Context, meta store.Sessi
 			Timestamp: m.now(),
 		},
 		SessionContext: hookspkg.SessionContext{
+			ProfileID:   strings.TrimSpace(meta.ProfileID),
 			SessionID:   strings.TrimSpace(meta.ID),
 			SessionName: strings.TrimSpace(meta.Name),
 			SessionType: string(normalizeSessionType(Type(meta.SessionType))),

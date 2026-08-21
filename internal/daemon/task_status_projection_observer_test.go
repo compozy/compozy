@@ -536,7 +536,9 @@ func (f *taskStatusProjectionFixture) messages(t *testing.T) []store.NetworkConv
 	messages, err := f.db.ListConversationMessages(f.ctx, store.NetworkConversationRef{
 		WorkspaceID: "wks_status", Channel: "builders", Surface: store.NetworkSurfaceThread,
 		ThreadID: "thread_status",
-	}, store.NetworkConversationMessageQuery{Limit: 20})
+	}, store.NetworkConversationMessageQuery{
+		ReadScope: store.ReadScope{ProfileID: store.DefaultProfileID}, Limit: 20,
+	})
 	if err != nil {
 		t.Fatalf("ListConversationMessages() error = %v", err)
 	}
@@ -546,7 +548,8 @@ func (f *taskStatusProjectionFixture) messages(t *testing.T) []store.NetworkConv
 func (f *taskStatusProjectionFixture) writePostTerminalMessage(t *testing.T) {
 	t.Helper()
 	_, err := f.db.WriteConversationMessage(f.ctx, store.NetworkConversationMessage{
-		MessageID: "msg-after-terminal", SessionID: "sess-origin", WorkspaceID: "wks_status",
+		ProfileID: store.DefaultProfileID, MessageID: "msg-after-terminal",
+		SessionID: "sess-origin", WorkspaceID: "wks_status",
 		Channel: "builders", Surface: store.NetworkSurfaceThread, ThreadID: "thread_status",
 		Direction: "received", PeerFrom: "reviewer.sess-origin", Kind: store.NetworkKindSay,
 		Body: json.RawMessage(`{"text":"post-terminal note"}`), Text: "post-terminal note",
@@ -611,7 +614,8 @@ func taskStatusProjectionTask(
 	origin taskpkg.Origin,
 ) taskpkg.Task {
 	return taskpkg.Task{
-		ID: id, Scope: taskpkg.ScopeWorkspace, WorkspaceID: "wks_status",
+		ID: id, ProfileID: store.DefaultProfileID,
+		Scope: taskpkg.ScopeWorkspace, WorkspaceID: "wks_status",
 		Title: "Investigate latency", MaxAttempts: 3, Status: taskpkg.TaskStatusReady,
 		CreatedBy: actor, Origin: origin, CreatedAt: now, UpdatedAt: now,
 	}
@@ -747,7 +751,8 @@ func seedTaskStatusProjectionThread(
 		t.Fatalf("InsertWorkspace() error = %v", err)
 	}
 	if err := db.RegisterSession(ctx, store.SessionInfo{
-		ID: "sess-origin", AgentName: "reviewer", WorkspaceID: "wks_status",
+		ID: "sess-origin", ProfileID: store.DefaultProfileID,
+		AgentName: "reviewer", WorkspaceID: "wks_status",
 		SessionNetworkState: &store.SessionNetworkState{NetworkSpec: participation.LocalSpec()},
 		SessionType:         "system", State: "stopped", CreatedAt: now, UpdatedAt: now,
 		RuntimeStatus: store.SessionRuntimeUnbound,
@@ -755,14 +760,16 @@ func seedTaskStatusProjectionThread(
 		t.Fatalf("RegisterSession() error = %v", err)
 	}
 	if err := db.WriteNetworkChannel(ctx, store.NetworkChannelEntry{
-		WorkspaceID: "wks_status", Channel: "builders", Purpose: "Coordination",
+		ProfileID: store.DefaultProfileID, WorkspaceID: "wks_status",
+		Channel: "builders", Purpose: "Coordination",
 		FanoutPolicy: store.NetworkFanoutPolicyCapabilityMatch, CreatedBy: "daemon.test",
 		CreatedAt: now, UpdatedAt: now,
 	}); err != nil {
 		t.Fatalf("WriteNetworkChannel() error = %v", err)
 	}
 	_, err := db.WriteConversationMessage(ctx, store.NetworkConversationMessage{
-		MessageID: "msg-origin", SessionID: "sess-origin", WorkspaceID: "wks_status",
+		ProfileID: store.DefaultProfileID, MessageID: "msg-origin",
+		SessionID: "sess-origin", WorkspaceID: "wks_status",
 		Channel: "builders", Surface: store.NetworkSurfaceThread, ThreadID: "thread_status",
 		Direction: "received", PeerFrom: "reviewer.sess-origin", Kind: store.NetworkKindSay,
 		Body: json.RawMessage(`{"text":"please investigate latency"}`),

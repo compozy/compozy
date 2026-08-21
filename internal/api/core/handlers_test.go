@@ -26,6 +26,7 @@ import (
 	"github.com/compozy/compozy/internal/heartbeat"
 	"github.com/compozy/compozy/internal/network"
 	"github.com/compozy/compozy/internal/observe"
+	profilepkg "github.com/compozy/compozy/internal/profile"
 	"github.com/compozy/compozy/internal/session"
 	settingspkg "github.com/compozy/compozy/internal/settings"
 	"github.com/compozy/compozy/internal/skills"
@@ -41,6 +42,60 @@ type sessionCommandCatalogManagerStub struct {
 	testutil.StubSessionManager
 	catalog commandpkg.Catalog
 	calls   *atomic.Int32
+}
+
+type sessionProfileServiceStub struct {
+	core.ProfileService
+}
+
+type workspaceHintProfileServiceStub struct {
+	core.ProfileService
+	profiles []profilepkg.WithCounts
+}
+
+func (s *workspaceHintProfileServiceStub) List(context.Context) ([]profilepkg.WithCounts, error) {
+	return append([]profilepkg.WithCounts(nil), s.profiles...), nil
+}
+
+func (s *workspaceHintProfileServiceStub) ListNames(context.Context) ([]string, error) {
+	names := make([]string, 0, len(s.profiles))
+	for _, profile := range s.profiles {
+		names = append(names, profile.Name)
+	}
+	return names, nil
+}
+
+func (sessionProfileServiceStub) Resolve(
+	_ context.Context,
+	in profilepkg.ResolveInput,
+) (profilepkg.Resolution, error) {
+	if in.Flag == "marketing" {
+		return profilepkg.Resolution{
+			Profile: profilepkg.Profile{
+				ID: "profile-marketing", Name: "marketing", Color: "#E8572A", Icon: "megaphone",
+				State: profilepkg.StateActive,
+			},
+			Source: profilepkg.ResolutionSourceFlag,
+		}, nil
+	}
+	return profilepkg.Resolution{
+		Profile: profilepkg.Profile{
+			ID: store.DefaultProfileID, Name: "default", State: profilepkg.StateActive,
+		},
+		Source: profilepkg.ResolutionSourceDefault,
+	}, nil
+}
+
+func (sessionProfileServiceStub) List(context.Context) ([]profilepkg.WithCounts, error) {
+	return []profilepkg.WithCounts{
+		{Profile: profilepkg.Profile{
+			ID: store.DefaultProfileID, Name: "default", State: profilepkg.StateActive,
+		}},
+		{Profile: profilepkg.Profile{
+			ID: "profile-marketing", Name: "marketing", Color: "#E8572A", Emoji: "📣",
+			State: profilepkg.StateArchived,
+		}},
+	}, nil
 }
 
 func TestBaseHandlersStreamDoneBridge(t *testing.T) {
@@ -185,7 +240,11 @@ func TestBaseHandlersSessionEndpoints(t *testing.T) {
 	var repairSeen session.RepairOpts
 	manager := testutil.StubSessionManager{
 		ListAllFn: func(context.Context) ([]*session.Info, error) {
-			return []*session.Info{testutil.NewSessionInfo("sess-a")}, nil
+			defaultSession := testutil.NewSessionInfo("sess-a")
+			defaultSession.ProfileID = store.DefaultProfileID
+			marketingSession := testutil.NewSessionInfo("sess-marketing")
+			marketingSession.ProfileID = "profile-marketing"
+			return []*session.Info{defaultSession, marketingSession}, nil
 		},
 		CreateAcceptedFn: func(_ context.Context, acceptedOpts session.CreateAcceptedOpts) (*session.Info, error) {
 			createCalled.Store(true)
@@ -198,6 +257,7 @@ func TestBaseHandlersSessionEndpoints(t *testing.T) {
 			}
 			created := testutil.NewSessionInfo("sess-created")
 			created.AgentName = opts.AgentName
+			created.ProfileID = opts.ProfileID
 			created.State = session.StateActive
 			created.RuntimeStatus = session.RuntimeStatusUnbound
 			return created, nil
@@ -210,6 +270,10 @@ func TestBaseHandlersSessionEndpoints(t *testing.T) {
 			info.CreatedAt = now
 			info.UpdatedAt = now
 			info.TranscriptEpoch = 1
+			info.ProfileID = store.DefaultProfileID
+			if id == "sess-marketing" {
+				info.ProfileID = "profile-marketing"
+			}
 			if attachResult.SessionID == id {
 				info.AttachedTo = attachResult.AttachedTo
 				info.AttachExpiresAt = &attachResult.AttachExpiresAt
@@ -234,6 +298,7 @@ func TestBaseHandlersSessionEndpoints(t *testing.T) {
 				t.Fatalf("Archive target = %q/%q, want ws-workspace/sess-a", workspaceID, id)
 			}
 			info := testutil.NewSessionInfo(id)
+			info.ProfileID = store.DefaultProfileID
 			info.State = session.StateStopped
 			archivedAt := now.Add(time.Minute)
 			info.ArchivedAt = &archivedAt
@@ -244,6 +309,7 @@ func TestBaseHandlersSessionEndpoints(t *testing.T) {
 				t.Fatalf("Unarchive target = %q/%q, want ws-workspace/sess-a", workspaceID, id)
 			}
 			info := testutil.NewSessionInfo(id)
+			info.ProfileID = store.DefaultProfileID
 			info.State = session.StateStopped
 			return info, nil
 		},
@@ -331,11 +397,44 @@ func TestBaseHandlersSessionEndpoints(t *testing.T) {
 			return workspacepkg.Workspace{ID: "ws-workspace", Name: "Primary workspace"}, nil
 		},
 	}, nil, nil)
+	fixture.Handlers.Profiles = sessionProfileServiceStub{}
 
 	t.Run("Should list sessions", func(t *testing.T) {
-		listResp := performRequest(t, fixture.Engine, http.MethodGet, "/sessions", nil)
+		listResp := performRequest(
+			t,
+			fixture.Engine,
+			http.MethodGet,
+			"/sessions?all_workspaces=true&all_profiles=true",
+			nil,
+		)
 		if listResp.Code != http.StatusOK {
-			t.Fatalf("list status = %d, want %d", listResp.Code, http.StatusOK)
+			t.Fatalf(
+				"list status = %d, want %d; body=%s",
+				listResp.Code,
+				http.StatusOK,
+				listResp.Body.String(),
+			)
+		}
+		var payload contract.SessionsResponse
+		if err := json.Unmarshal(listResp.Body.Bytes(), &payload); err != nil {
+			t.Fatalf("json.Unmarshal(list sessions) error = %v", err)
+		}
+		if len(payload.Sessions) != 2 {
+			t.Fatalf("list sessions count = %d, want 2", len(payload.Sessions))
+		}
+		marketingIndex := slices.IndexFunc(payload.Sessions, func(session contract.SessionPayload) bool {
+			return session.ProfileID == "profile-marketing"
+		})
+		if marketingIndex < 0 {
+			t.Fatalf("list sessions = %#v, want marketing owner", payload.Sessions)
+		}
+		marketing := payload.Sessions[marketingIndex]
+		if marketing.ProfileID != "profile-marketing" ||
+			marketing.ProfileName != "marketing" ||
+			marketing.ProfileColor != "#E8572A" ||
+			marketing.ProfileEmoji != "📣" ||
+			!marketing.ProfileArchived {
+			t.Fatalf("marketing session owner = %#v, want archived marketing identity", marketing)
 		}
 	})
 
@@ -367,6 +466,36 @@ func TestBaseHandlersSessionEndpoints(t *testing.T) {
 		}
 		if payload.Session.State != session.StateActive {
 			t.Fatalf("created session state = %q, want %q", payload.Session.State, session.StateActive)
+		}
+		if payload.Session.ProfileID != store.DefaultProfileID || payload.Session.ProfileName != "default" {
+			t.Fatalf(
+				"created session profile owner = %q/%q, want %q/default",
+				payload.Session.ProfileID,
+				payload.Session.ProfileName,
+				store.DefaultProfileID,
+			)
+		}
+	})
+
+	t.Run("Should reject a parent session owned by another profile", func(t *testing.T) {
+		createCalled.Store(false)
+		response := performRequest(
+			t,
+			fixture.Engine,
+			http.MethodPost,
+			"/sessions?profile=marketing",
+			[]byte(`{"agent_name":"coder","workspace":"alpha","parent_session_id":"sess-a"}`),
+		)
+		if response.Code != http.StatusNotFound {
+			t.Fatalf(
+				"cross-profile parent status = %d, want %d; body=%s",
+				response.Code,
+				http.StatusNotFound,
+				response.Body.String(),
+			)
+		}
+		if createCalled.Load() {
+			t.Fatal("CreateAccepted() called for a cross-profile parent")
 		}
 	})
 
@@ -440,6 +569,34 @@ func TestBaseHandlersSessionEndpoints(t *testing.T) {
 		getResp := performRequest(t, fixture.Engine, http.MethodGet, "/workspaces/ws-workspace/sessions/sess-a", nil)
 		if getResp.Code != http.StatusOK {
 			t.Fatalf("get status = %d, want %d", getResp.Code, http.StatusOK)
+		}
+	})
+
+	t.Run("Should scope workspace session details by profile", func(t *testing.T) {
+		fixture.Handlers.Profiles = sessionProfileServiceStub{}
+		foreignResp := performRequest(
+			t,
+			fixture.Engine,
+			http.MethodGet,
+			"/workspaces/ws-workspace/sessions/sess-marketing",
+			nil,
+		)
+		assertAPIErrorResponse(t, foreignResp, http.StatusNotFound, "session not found")
+
+		aggregateResp := performRequest(
+			t,
+			fixture.Engine,
+			http.MethodGet,
+			"/workspaces/ws-workspace/sessions/sess-marketing?all_profiles=true",
+			nil,
+		)
+		if aggregateResp.Code != http.StatusOK {
+			t.Fatalf(
+				"aggregate get status = %d, want %d; body=%s",
+				aggregateResp.Code,
+				http.StatusOK,
+				aggregateResp.Body.String(),
+			)
 		}
 	})
 
@@ -1007,6 +1164,7 @@ func TestRenameSessionHandler(t *testing.T) {
 	t.Parallel()
 
 	base := testutil.NewSessionInfo("sess-rename")
+	base.ProfileID = store.DefaultProfileID
 	base.WorkspaceID = "ws-rename"
 	base.Type = session.SessionTypeUser
 	renameCalls := 0
@@ -2164,7 +2322,7 @@ func TestBaseHandlersStreamingAndObserveEndpoints(t *testing.T) {
 func TestBaseHandlersAgentEndpoints(t *testing.T) {
 	t.Parallel()
 
-	t.Run("Should serve agent read endpoints and surface loader failures", func(t *testing.T) {
+	t.Run("Should serve profile-scoped agent reads and report missing definitions", func(t *testing.T) {
 		t.Parallel()
 
 		fixture := newHandlerFixture(
@@ -2177,6 +2335,19 @@ func TestBaseHandlersAgentEndpoints(t *testing.T) {
 		)
 		testutil.WriteAgentDef(t, fixture.HomePaths, "coder")
 		testutil.WriteAgentDef(t, fixture.HomePaths, "onboarding")
+		fixture.Handlers.Profiles = sessionProfileServiceStub{}
+		marketingCoderPath := filepath.Join(
+			fixture.HomePaths.ProfilesDir,
+			"marketing",
+			compozyconfig.AgentsDirName,
+			"coder",
+			compozyconfig.AgentDefinitionFileName,
+		)
+		if _, err := compozyconfig.CreateAgentDefFile(marketingCoderPath, compozyconfig.AgentDefinitionDraft{
+			Name: "coder", Provider: "codex", Prompt: "Own marketing automation.",
+		}, false); err != nil {
+			t.Fatalf("CreateAgentDefFile(marketing coder) error = %v", err)
+		}
 
 		getResp := performRequest(t, fixture.Engine, http.MethodGet, "/agents/coder", nil)
 		if getResp.Code != http.StatusOK {
@@ -2198,13 +2369,27 @@ func TestBaseHandlersAgentEndpoints(t *testing.T) {
 		if onboardingResp.Code != http.StatusOK {
 			t.Fatalf("get onboarding status = %d, want %d", onboardingResp.Code, http.StatusOK)
 		}
-
-		fixture.Handlers.AgentLoader = func(string, compozyconfig.HomePaths) (compozyconfig.AgentDef, error) {
-			return compozyconfig.AgentDef{}, errors.New("boom")
+		marketingResp := performRequest(t, fixture.Engine, http.MethodGet, "/agents/coder?profile=marketing", nil)
+		if marketingResp.Code != http.StatusOK {
+			t.Fatalf(
+				"get marketing coder status = %d, want %d; body=%s",
+				marketingResp.Code,
+				http.StatusOK,
+				marketingResp.Body.String(),
+			)
 		}
+		var marketingPayload contract.AgentResponse
+		decodeJSON(t, marketingResp.Body.Bytes(), &marketingPayload)
+		if marketingPayload.Agent.Provider != "codex" || marketingPayload.Agent.Layer != "profile" {
+			t.Fatalf(
+				"marketing coder = %#v, want profile-owned codex definition",
+				marketingPayload.Agent,
+			)
+		}
+
 		missingResp := performRequest(t, fixture.Engine, http.MethodGet, "/agents/missing", nil)
-		if missingResp.Code != http.StatusInternalServerError {
-			t.Fatalf("missing agent status = %d, want %d", missingResp.Code, http.StatusInternalServerError)
+		if missingResp.Code != http.StatusNotFound {
+			t.Fatalf("missing agent status = %d, want %d", missingResp.Code, http.StatusNotFound)
 		}
 	})
 }
@@ -2281,7 +2466,7 @@ func TestBaseHandlersCreateAgentEndpoint(t *testing.T) {
 		}
 	})
 
-	t.Run("Should create a workspace AGENT.md definition", func(t *testing.T) {
+	t.Run("Should create an AGENT.md in the selected workspace profile layer", func(t *testing.T) {
 		t.Parallel()
 
 		workspaceRoot := t.TempDir()
@@ -2290,9 +2475,16 @@ func TestBaseHandlersCreateAgentEndpoint(t *testing.T) {
 			testutil.StubSessionManager{},
 			testutil.StubObserver{},
 			testutil.StubWorkspaceService{
-				ResolveFn: func(_ context.Context, ref string) (workspacepkg.ResolvedWorkspace, error) {
+				ResolveForProfileFn: func(
+					_ context.Context,
+					ref string,
+					profileName string,
+				) (workspacepkg.ResolvedWorkspace, error) {
 					if ref != "alpha" {
-						t.Fatalf("Resolve() ref = %q, want alpha", ref)
+						t.Fatalf("ResolveForProfile() ref = %q, want alpha", ref)
+					}
+					if profileName != "marketing" {
+						t.Fatalf("ResolveForProfile() profile = %q, want marketing", profileName)
 					}
 					return workspacepkg.ResolvedWorkspace{
 						Workspace: workspacepkg.Workspace{
@@ -2301,6 +2493,7 @@ func TestBaseHandlersCreateAgentEndpoint(t *testing.T) {
 							RootDir: workspaceRoot,
 						},
 						WorkspaceID: "01DURABLEWORKSPACEIDENTITY",
+						ProfileName: profileName,
 						Config: compozyconfig.Config{
 							Defaults: compozyconfig.DefaultsConfig{Provider: "codex"},
 						},
@@ -2319,7 +2512,8 @@ func TestBaseHandlersCreateAgentEndpoint(t *testing.T) {
 			},
 		})
 
-		resp := performRequest(t, fixture.Engine, http.MethodPost, "/agents", body)
+		fixture.Handlers.Profiles = sessionProfileServiceStub{}
+		resp := performRequest(t, fixture.Engine, http.MethodPost, "/agents?profile=marketing", body)
 		if resp.Code != http.StatusCreated {
 			t.Fatalf(
 				"create workspace agent status = %d, want %d; body=%s",
@@ -2331,6 +2525,8 @@ func TestBaseHandlersCreateAgentEndpoint(t *testing.T) {
 		path := filepath.Join(
 			workspaceRoot,
 			compozyconfig.DirName,
+			compozyconfig.ProfilesDirName,
+			"marketing",
 			compozyconfig.AgentsDirName,
 			"qa_operator",
 			compozyconfig.AgentDefinitionFileName,
@@ -3694,30 +3890,18 @@ func TestBaseHandlersAgentCatalogEndpoints(t *testing.T) {
 			nil,
 			nil,
 		)
-		fixture.Handlers.AgentCatalog = stubAgentCatalog{
-			agents: []compozyconfig.AgentDef{
-				{Name: "zeta", Provider: "codex", Prompt: "Zeta prompt"},
-				{
-					Name:     "alpha",
-					Provider: "codex",
-					Skills:   compozyconfig.AgentSkillsConfig{Disabled: []string{"legacy"}},
-					Prompt:   "Alpha prompt",
-				},
-				{Name: "onboarding", Provider: "codex", Prompt: "Onboarding prompt"},
+		for _, draft := range []compozyconfig.AgentDefinitionDraft{
+			{Name: "zeta", Provider: "codex", Prompt: "Zeta prompt"},
+			{
+				Name: "alpha", Provider: "codex", Prompt: "Alpha prompt",
+				Skills: compozyconfig.AgentSkillsConfig{Disabled: []string{"legacy"}},
 			},
-			get: map[string]compozyconfig.AgentDef{
-				"alpha": {
-					Name:     "alpha",
-					Provider: "codex",
-					Skills:   compozyconfig.AgentSkillsConfig{Disabled: []string{"legacy"}},
-					Prompt:   "Alpha prompt",
-				},
-				"onboarding": {
-					Name:     "onboarding",
-					Provider: "codex",
-					Prompt:   "Onboarding prompt",
-				},
-			},
+			{Name: "onboarding", Provider: "codex", Prompt: "Onboarding prompt"},
+		} {
+			path := filepath.Join(fixture.HomePaths.AgentsDir, draft.Name, compozyconfig.AgentDefinitionFileName)
+			if _, err := compozyconfig.CreateAgentDefFile(path, draft, false); err != nil {
+				t.Fatalf("CreateAgentDefFile(%s) error = %v", draft.Name, err)
+			}
 		}
 
 		listResp := performRequest(t, fixture.Engine, http.MethodGet, "/agents", nil)
@@ -3746,7 +3930,6 @@ func TestBaseHandlersAgentCatalogEndpoints(t *testing.T) {
 			t.Fatalf("get onboarding catalog status = %d, want %d", onboardingResp.Code, http.StatusOK)
 		}
 
-		fixture.Handlers.AgentCatalog = stubAgentCatalog{getErr: os.ErrNotExist}
 		missingResp := performRequest(t, fixture.Engine, http.MethodGet, "/agents/missing", nil)
 		if missingResp.Code != http.StatusNotFound {
 			t.Fatalf("get missing catalog agent status = %d, want %d", missingResp.Code, http.StatusNotFound)
@@ -3757,25 +3940,6 @@ func TestBaseHandlersAgentCatalogEndpoints(t *testing.T) {
 		}
 		if !strings.Contains(missingPayload.Error, "file does not exist") {
 			t.Fatalf("missing catalog error = %q, want file-missing message", missingPayload.Error)
-		}
-
-		fixture.Handlers.AgentCatalog = stubAgentCatalog{listErr: os.ErrNotExist}
-		missingListResp := performRequest(t, fixture.Engine, http.MethodGet, "/agents", nil)
-		if missingListResp.Code != http.StatusOK {
-			t.Fatalf("list missing catalog status = %d, want %d", missingListResp.Code, http.StatusOK)
-		}
-		var missingList contract.AgentsResponse
-		if err := json.Unmarshal(missingListResp.Body.Bytes(), &missingList); err != nil {
-			t.Fatalf("json.Unmarshal(missing list agents) error = %v", err)
-		}
-		if len(missingList.Agents) != 0 {
-			t.Fatalf("missing catalog agents = %#v, want empty list", missingList.Agents)
-		}
-
-		fixture.Handlers.AgentCatalog = stubAgentCatalog{listErr: errors.New("catalog unavailable")}
-		errorResp := performRequest(t, fixture.Engine, http.MethodGet, "/agents", nil)
-		if errorResp.Code != http.StatusInternalServerError {
-			t.Fatalf("list catalog error status = %d, want %d", errorResp.Code, http.StatusInternalServerError)
 		}
 	})
 }
@@ -3952,8 +4116,12 @@ func TestBaseHandlersWorkspaceAgentEndpoints(t *testing.T) {
 		manager := testutil.StubSessionManager{
 			MetricsByAgentFn: func(
 				_ context.Context,
+				readScope store.ReadScope,
 				workspaceID string,
 			) (map[string]session.AgentSessionMetrics, error) {
+				if readScope.ProfileID != store.DefaultProfileID || readScope.AllProfiles {
+					t.Fatalf("AggregateSessionsByAgent() read scope = %#v, want default profile", readScope)
+				}
 				if workspaceID != "ws-1" {
 					t.Fatalf("AggregateSessionsByAgent() workspace = %q, want ws-1", workspaceID)
 				}
@@ -4068,7 +4236,11 @@ func TestBaseHandlersWorkspaceAgentEndpoints(t *testing.T) {
 		}
 
 		fixture.Handlers.Sessions = testutil.StubSessionManager{
-			MetricsByAgentFn: func(context.Context, string) (map[string]session.AgentSessionMetrics, error) {
+			MetricsByAgentFn: func(
+				context.Context,
+				store.ReadScope,
+				string,
+			) (map[string]session.AgentSessionMetrics, error) {
 				return nil, errors.New("session catalog unavailable")
 			},
 		}
@@ -4091,6 +4263,66 @@ func TestBaseHandlersWorkspaceAgentEndpoints(t *testing.T) {
 		}
 		if partial.Facets.Active != 0 || partial.Facets.Idle != 0 {
 			t.Fatalf("partial agent catalog facets = %#v, want no invented session status", partial.Facets)
+		}
+	})
+}
+
+func TestBaseHandlersWorkspaceProfileHintsTrackTeamAdoptionIT042(t *testing.T) {
+	t.Parallel()
+	t.Run("Should expose only unadopted workspace profile hints", func(t *testing.T) {
+		t.Parallel()
+
+		profiles := &workspaceHintProfileServiceStub{profiles: []profilepkg.WithCounts{
+			{Profile: profilepkg.Profile{ID: store.DefaultProfileID, Name: "default", State: profilepkg.StateActive}},
+			{Profile: profilepkg.Profile{ID: "profile-marketing", Name: "marketing", State: profilepkg.StateActive}},
+		}}
+		fixture := newHandlerFixture(
+			t,
+			testutil.StubSessionManager{},
+			testutil.StubObserver{},
+			testutil.StubWorkspaceService{
+				ResolveFn: func(context.Context, string) (workspacepkg.ResolvedWorkspace, error) {
+					return workspacepkg.ResolvedWorkspace{
+						Workspace: workspacepkg.Workspace{ID: "ws-team", Name: "team", RootDir: "/workspace/team"},
+						ProfileDeclarations: []workspacepkg.ProfileDeclaration{
+							{Name: "dev", Path: "/workspace/team/.compozy/profiles/dev"},
+							{Name: "marketing", Path: "/workspace/team/.compozy/profiles/marketing"},
+						},
+						Config: compozyconfig.Config{},
+					}, nil
+				},
+			},
+			nil,
+			nil,
+		)
+		fixture.Handlers.Profiles = profiles
+
+		response := performRequest(t, fixture.Engine, http.MethodGet, "/workspaces/ws-team", nil)
+		if response.Code != http.StatusOK {
+			t.Fatalf("workspace hints status = %d, want 200; body=%s", response.Code, response.Body.String())
+		}
+		var detail contract.WorkspaceDetailPayload
+		if err := json.Unmarshal(response.Body.Bytes(), &detail); err != nil {
+			t.Fatalf("decode workspace hints: %v", err)
+		}
+		if len(detail.ProfileHints) != 1 || detail.ProfileHints[0].Name != "dev" ||
+			detail.ProfileHints[0].Action != "compozy profile create dev" {
+			t.Fatalf("workspace profile hints = %#v, want dev create hint only", detail.ProfileHints)
+		}
+
+		profiles.profiles = append(profiles.profiles, profilepkg.WithCounts{Profile: profilepkg.Profile{
+			ID: "profile-dev", Name: "dev", State: profilepkg.StateActive,
+		}})
+		response = performRequest(t, fixture.Engine, http.MethodGet, "/workspaces/ws-team", nil)
+		if response.Code != http.StatusOK {
+			t.Fatalf("workspace hints after adoption status = %d, want 200", response.Code)
+		}
+		detail = contract.WorkspaceDetailPayload{}
+		if err := json.Unmarshal(response.Body.Bytes(), &detail); err != nil {
+			t.Fatalf("decode workspace hints after adoption: %v", err)
+		}
+		if len(detail.ProfileHints) != 0 {
+			t.Fatalf("workspace profile hints after adoption = %#v, want none", detail.ProfileHints)
 		}
 	})
 }
@@ -4276,6 +4508,53 @@ func TestDaemonStatusIncludesNetworkDiagnosticsWithoutCredentials(t *testing.T) 
 	})
 }
 
+func TestDoctorProjectsProfileLayerDiagnostics(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should expose orphaned profile layers with evidence and recovery command", func(t *testing.T) {
+		t.Parallel()
+		fixture := newHandlerFixture(
+			t,
+			testutil.StubSessionManager{},
+			testutil.StubObserver{},
+			testutil.StubWorkspaceService{},
+			nil,
+			nil,
+		)
+		fixture.Handlers.Profiles = &workspaceHintProfileServiceStub{profiles: []profilepkg.WithCounts{{
+			Profile: profilepkg.Profile{ID: store.DefaultProfileID, Name: "default", State: profilepkg.StateActive},
+		}}}
+		orphanDir := filepath.Join(fixture.HomePaths.ProfilesDir, "ghost")
+		if err := os.MkdirAll(orphanDir, 0o755); err != nil {
+			t.Fatalf("MkdirAll(%q) error = %v", orphanDir, err)
+		}
+		if err := os.WriteFile(
+			filepath.Join(orphanDir, compozyconfig.ConfigName),
+			[]byte("[defaults]\nprovider = \"orphan\"\n"),
+			0o600,
+		); err != nil {
+			t.Fatalf("WriteFile(orphan profile layer) error = %v", err)
+		}
+
+		response := performRequest(t, fixture.Engine, http.MethodGet, "/doctor", nil)
+		if response.Code != http.StatusOK {
+			t.Fatalf("doctor status = %d, want %d; body=%s", response.Code, http.StatusOK, response.Body.String())
+		}
+		var payload contract.DoctorPayload
+		decodeJSON(t, response.Body.Bytes(), &payload)
+		index := slices.IndexFunc(payload.Items, func(item contract.DiagnosticItem) bool {
+			return item.Code == contract.CodeConfigProfileLayerOrphaned
+		})
+		if index < 0 {
+			t.Fatalf("doctor items = %#v, want profile-layer diagnostic", payload.Items)
+		}
+		item := payload.Items[index]
+		if item.Evidence["profile"] != "ghost" || item.SuggestedCommand != "compozy profile create ghost" {
+			t.Fatalf("profile-layer diagnostic = %#v, want ghost evidence and recovery command", item)
+		}
+	})
+}
+
 func TestDoctorLogTailDiagnosticIncludesCapabilityEvidence(t *testing.T) {
 	t.Parallel()
 
@@ -4295,8 +4574,8 @@ func TestDoctorLogTailDiagnosticIncludesCapabilityEvidence(t *testing.T) {
 				_ context.Context,
 				req settingspkg.SectionRequest,
 			) (settingspkg.SectionEnvelope, error) {
-				if req.Section != settingspkg.SectionObservability || req.Scope != settingspkg.ScopeGlobal {
-					t.Fatalf("GetSection() request = %#v, want global observability", req)
+				if req.Section != settingspkg.SectionObservability || req.Scope != settingspkg.ScopeUser {
+					t.Fatalf("GetSection() request = %#v, want user observability", req)
 				}
 				return settingspkg.SectionEnvelope{
 					Observability: &settingspkg.ObservabilitySection{

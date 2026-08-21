@@ -9,6 +9,7 @@ import {
   type CmdPaletteEventSourceFactory,
   type CmdPaletteStreamStatus,
 } from "../lib/cmd-palette-stream";
+import { useProfileReadScope } from "@/systems/profiles";
 
 export interface UseCmdPaletteStreamOptions {
   readonly workspaceId: string | null;
@@ -30,6 +31,7 @@ export function useCmdPaletteStream({
 }: UseCmdPaletteStreamOptions): CmdPaletteStreamStatus | "disabled" {
   const queryClient = useQueryClient();
   const workspace = workspaceId?.trim() ?? "";
+  const { key: profileKey } = useProfileReadScope();
   const [status, setStatus] = useState<CmdPaletteStreamStatus | "disabled">("disabled");
   // The factory is a seam for tests and for the desktop shell, not a reason to
   // reconnect: a caller passing an inline function would otherwise tear the
@@ -41,10 +43,11 @@ export function useCmdPaletteStream({
   useEffect(() => {
     if (!enabled || workspace === "") return undefined;
     const reconcile = () => {
-      // Every client key under this workspace: the catalog is keyed by the
-      // attachment whose context resolved it, and all of them just went stale.
+      // Every client key under this workspace, across every profile lens: the
+      // catalog is keyed by the attachment whose context resolved it and by the
+      // lens it was projected under, and all of them just went stale.
       const catalogPrefix = cmdPaletteKeys.workspaceCatalogs(workspace);
-      const rankSignalsKey = cmdPaletteKeys.rankSignals(workspace);
+      const rankSignalsKey = cmdPaletteKeys.rankSignals(workspace, profileKey);
       void queryClient.invalidateQueries({
         predicate: query => {
           const key = query.queryKey;
@@ -59,13 +62,14 @@ export function useCmdPaletteStream({
     };
     const close = openCmdPaletteStream(
       workspace,
+      profileKey,
       { onCatalogChanged: reconcile, onReconcile: reconcile, onStatusChange: setStatus },
       createSource
     );
     return () => {
       close();
     };
-  }, [enabled, queryClient, workspace]);
+  }, [enabled, profileKey, queryClient, workspace]);
 
   return enabled && workspace !== "" ? status : "disabled";
 }

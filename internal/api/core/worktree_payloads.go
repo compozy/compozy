@@ -8,7 +8,10 @@ import (
 func WorktreePayloadFromInspection(inspection worktree.Inspection) contract.WorktreePayload {
 	item := inspection.Worktree
 	payload := contract.WorktreePayload{
-		ID: item.ID, WorkspaceID: item.WorkspaceID, Name: item.Name, Branch: item.Branch,
+		ID: item.ID, ProfileID: item.ProfileID, ProfileName: item.ProfileName,
+		ProfileColor: item.ProfileColor, ProfileIcon: item.ProfileIcon,
+		ProfileEmoji: item.ProfileEmoji, ProfileArchived: item.ProfileArchived,
+		WorkspaceID: item.WorkspaceID, Name: item.Name, Branch: item.Branch,
 		Path: item.Path, State: string(item.State), PendingPhase: string(item.PendingPhase),
 		Origin: string(item.Origin), SetupState: string(item.SetupState), SetupError: item.SetupError,
 		BaseRef: item.BaseRef, CreatedBranch: item.CreatedBranch, RunNamespace: item.RunNamespace,

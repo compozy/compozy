@@ -34,9 +34,11 @@ import { ScheduleEvery } from "./job-form/schedule-every";
 import { TaskRunStep } from "./job-form/task-run-step";
 import type { AgentPayload } from "@/systems/agent";
 import { LoopTargetFields } from "@/systems/loops";
-import { WorkspaceScopeStatement, destinationLabel } from "@/systems/workspace";
+import { CreateDestinationStatement, destinationLabel } from "@/systems/workspace";
 
 interface AutomationJobFormProps {
+  /** The profile a creation lands in while the aggregate is on (ADR-005). */
+  profileDestination?: string | null;
   activeWorkspaceId?: string | null;
   draft: CreateAutomationJobRequest;
   isPending: boolean;
@@ -137,6 +139,7 @@ function reliabilityBadge(
 }
 
 export function AutomationJobForm({
+  profileDestination,
   activeWorkspaceId,
   draft,
   isPending,
@@ -332,7 +335,8 @@ export function AutomationJobForm({
 
       <EntityDialogFooter
         hint={
-          <WorkspaceScopeStatement
+          <CreateDestinationStatement
+            profileDestination={profileDestination}
             destination={destination}
             kind={mode === "edit" ? "edit" : "create"}
             scope={draft.scope}

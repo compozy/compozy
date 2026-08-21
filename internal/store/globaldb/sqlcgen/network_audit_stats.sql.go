@@ -12,18 +12,19 @@ import (
 
 const insertNetworkAudit = `-- name: InsertNetworkAudit :exec
 INSERT INTO network_audit_log (
-  id, session_id, workspace_id, direction, kind, channel, surface, thread_id, direct_id, work_id,
+  id, profile_id, session_id, workspace_id, direction, kind, channel, surface, thread_id, direct_id, work_id,
   peer_from, peer_to, message_id, reason, size, timestamp
 ) VALUES (
-  ?1, ?2, ?3, ?4, ?5,
-  ?6, ?7, ?8, ?9, ?10,
-  ?11, ?12, ?13, ?14, ?15,
-  ?16
+  ?1, ?2, ?3, ?4, ?5, ?6,
+  ?7, ?8, ?9, ?10, ?11,
+  ?12, ?13, ?14, ?15, ?16,
+  ?17
 )
 `
 
 type InsertNetworkAuditParams struct {
 	ID          string         `json:"id"`
+	ProfileID   string         `json:"profile_id"`
 	SessionID   string         `json:"session_id"`
 	WorkspaceID string         `json:"workspace_id"`
 	Direction   string         `json:"direction"`
@@ -44,6 +45,7 @@ type InsertNetworkAuditParams struct {
 func (q *Queries) InsertNetworkAudit(ctx context.Context, arg InsertNetworkAuditParams) error {
 	_, err := q.db.ExecContext(ctx, insertNetworkAudit,
 		arg.ID,
+		arg.ProfileID,
 		arg.SessionID,
 		arg.WorkspaceID,
 		arg.Direction,

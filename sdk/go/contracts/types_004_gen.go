@@ -39,6 +39,7 @@ type AutomationTriggerFireParams struct {
 }
 
 type AutomationTriggerPostFirePayload struct {
+	ProfileID   string `json:"profile_id,omitempty"`
 	TriggerID   string `json:"trigger_id"`
 	TriggerName string `json:"trigger_name,omitempty"`
 	Event       string `json:"event,omitempty"`
@@ -49,6 +50,7 @@ type AutomationTriggerPostFirePayload struct {
 }
 
 type AutomationTriggerPreFirePayload struct {
+	ProfileID   string         `json:"profile_id,omitempty"`
 	TriggerID   string         `json:"trigger_id"`
 	TriggerName string         `json:"trigger_name,omitempty"`
 	Event       string         `json:"event,omitempty"`

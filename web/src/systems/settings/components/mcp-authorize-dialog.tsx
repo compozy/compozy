@@ -23,11 +23,11 @@ import type { UseMCPAuthorizeReturn } from "../hooks/use-mcp-authorize";
 
 import { isAbsoluteMCPRedirectURL } from "../lib/mcp-authorize-model";
 import { authTone, formatStatusLabel } from "../lib/mcp-status-view-model";
-import type { SettingsMCPServerEntry } from "../types";
+import type { SettingsLayeredScope, SettingsMCPServerEntry } from "../types";
 
 export interface MCPAuthorizeDialogProps {
   authorize: UseMCPAuthorizeReturn;
-  scope: "workspace" | "global";
+  scope: SettingsLayeredScope;
   /** The live entry for the authorizing server; drives the status snapshot. */
   server: SettingsMCPServerEntry | null;
 }

@@ -84,6 +84,7 @@ const skippedStdioServer: ExtensionInventoryDiagnostic = {
 
 export const extensionFixtures: ExtensionEntry[] = [
   {
+    profile: "default",
     capabilities: ["loop.watch_source", "tool.provider"],
     consecutive_failures: 0,
     daemon_running: true,
@@ -117,6 +118,7 @@ export const extensionFixtures: ExtensionEntry[] = [
     version: "0.5.2",
   },
   {
+    profile: "default",
     capabilities: ["tool.provider"],
     consecutive_failures: 0,
     daemon_running: false,
@@ -160,6 +162,7 @@ export const extensionFixtures: ExtensionEntry[] = [
   },
   /** Ships a static kit and declares Live network participation the operator has not ratified. */
   {
+    profile: "default",
     bound_env_keys: ["DEP_KIT_TOKEN"],
     capabilities: ["tool.provider"],
     consecutive_failures: 0,
@@ -183,6 +186,7 @@ export const extensionFixtures: ExtensionEntry[] = [
   },
   /** Portable package ingested from the Agent Plugins format, with one recorded component skip. */
   {
+    profile: "default",
     capabilities: [],
     consecutive_failures: 0,
     daemon_running: false,
@@ -204,6 +208,7 @@ export const extensionFixtures: ExtensionEntry[] = [
   },
   /** Fully degraded: every declared component was skipped, so nothing was ingested. */
   {
+    profile: "default",
     capabilities: [],
     consecutive_failures: 0,
     daemon_running: false,
@@ -259,6 +264,7 @@ export const extensionInventoryDiagnosticsFixtures: Record<string, ExtensionInve
 export const DEV_EXTENSION_WORKSPACE_ID = "ws_northstar";
 
 export const devExtensionFixture: ExtensionEntry = {
+  profile: "default",
   capabilities: ["tool.provider"],
   consecutive_failures: 2,
   daemon_running: true,

@@ -71,7 +71,7 @@ const CONFIG: WindowManagerConfig = {
 const TEST_CONFIG_KEY = windowManagerKeys.config("workspace:test", "client:web");
 const SETTINGS_SECTION: WindowManagerSettingsSection = {
   scope: "workspace",
-  availableScopes: ["global", "workspace"],
+  availableScopes: ["user", "workspace"],
   workspaceId: "workspace:test",
   config: CONFIG,
   commands: [],
@@ -211,10 +211,10 @@ describe("WindowManagerRuntime", () => {
 
   it("Should project the Query-owned config without a React effect mirror", () => {
     const queryClient = new QueryClient();
-    queryClient.setQueryData(windowManagerKeys.snapshot("workspace:test"), SNAPSHOT);
+    queryClient.setQueryData(windowManagerKeys.snapshot("workspace:test", "marketing"), SNAPSHOT);
     const runtime = new WindowManagerRuntime(queryClient);
     runtime.start();
-    runtime.bind({ workspaceId: "workspace:test", clientId: "client:web" });
+    runtime.bind({ workspaceId: "workspace:test", profileId: "marketing", clientId: "client:web" });
 
     expect(runtime.getState().hydration).toBe("pending");
 
@@ -229,7 +229,7 @@ describe("WindowManagerRuntime", () => {
     const queryClient = new QueryClient();
     queryClient.setQueryData(TEST_CONFIG_KEY, SETTINGS_SECTION);
     const runtime = new WindowManagerRuntime(queryClient);
-    runtime.bind({ workspaceId: "workspace:test", clientId: "client:web" });
+    runtime.bind({ workspaceId: "workspace:test", profileId: "marketing", clientId: "client:web" });
     runtime.start();
     const onProjection = vi.fn();
     const unsubscribe = runtime.subscribe(onProjection);
@@ -288,10 +288,10 @@ describe("WindowManagerRuntime", () => {
 
   it("Should discard the optimistic transition when a queued switch cannot begin", async () => {
     const queryClient = new QueryClient();
-    queryClient.setQueryData(windowManagerKeys.snapshot("workspace:test"), SNAPSHOT);
+    queryClient.setQueryData(windowManagerKeys.snapshot("workspace:test", "marketing"), SNAPSHOT);
     queryClient.setQueryData(TEST_CONFIG_KEY, SETTINGS_SECTION);
     const runtime = new WindowManagerRuntime(queryClient);
-    runtime.bind({ workspaceId: "workspace:test", clientId: "client:web" });
+    runtime.bind({ workspaceId: "workspace:test", profileId: "marketing", clientId: "client:web" });
     runtime.setClient({
       ...CLIENT_VIEW_DEFAULTS,
       workspaceId: "workspace:test",
@@ -320,7 +320,7 @@ describe("WindowManagerRuntime", () => {
 
   it("Should run queued commands in order instead of dropping rapid interactions", async () => {
     const queryClient = new QueryClient();
-    queryClient.setQueryData(windowManagerKeys.snapshot("workspace:test"), SNAPSHOT);
+    queryClient.setQueryData(windowManagerKeys.snapshot("workspace:test", "marketing"), SNAPSHOT);
     queryClient.setQueryData(TEST_CONFIG_KEY, SETTINGS_SECTION);
     vi.mocked(executeWindowManagerCommand).mockResolvedValue({
       snapshot: SNAPSHOT,
@@ -331,7 +331,7 @@ describe("WindowManagerRuntime", () => {
       rebasedFrom: null,
     });
     const runtime = new WindowManagerRuntime(queryClient);
-    runtime.bind({ workspaceId: "workspace:test", clientId: "client:web" });
+    runtime.bind({ workspaceId: "workspace:test", profileId: "marketing", clientId: "client:web" });
     runtime.setClient({
       ...CLIENT_VIEW_DEFAULTS,
       workspaceId: "workspace:test",
@@ -352,14 +352,14 @@ describe("WindowManagerRuntime", () => {
     expect(executeWindowManagerCommand).toHaveBeenCalledTimes(2);
     const windowIds = vi
       .mocked(executeWindowManagerCommand)
-      .mock.calls.map(call => (call[3].payload as { window_id: string }).window_id);
+      .mock.calls.map(call => (call[4].payload as { window_id: string }).window_id);
     expect(windowIds).toEqual(["app:first", "app:second"]);
     runtime.stop();
   });
 
   it("Should dispatch frame resizes as wire rects for windows and islands", async () => {
     const queryClient = new QueryClient();
-    queryClient.setQueryData(windowManagerKeys.snapshot("workspace:test"), SNAPSHOT);
+    queryClient.setQueryData(windowManagerKeys.snapshot("workspace:test", "marketing"), SNAPSHOT);
     queryClient.setQueryData(TEST_CONFIG_KEY, SETTINGS_SECTION);
     vi.mocked(executeWindowManagerCommand).mockResolvedValue({
       snapshot: SNAPSHOT,
@@ -370,7 +370,7 @@ describe("WindowManagerRuntime", () => {
       rebasedFrom: null,
     });
     const runtime = new WindowManagerRuntime(queryClient);
-    runtime.bind({ workspaceId: "workspace:test", clientId: "client:web" });
+    runtime.bind({ workspaceId: "workspace:test", profileId: "marketing", clientId: "client:web" });
     runtime.setClient({
       ...CLIENT_VIEW_DEFAULTS,
       workspaceId: "workspace:test",
@@ -391,7 +391,7 @@ describe("WindowManagerRuntime", () => {
     expect(frameResize.accepted).toBe(true);
     await Promise.all([windowResize.completion, frameResize.completion]);
 
-    const bodies = vi.mocked(executeWindowManagerCommand).mock.calls.map(call => call[3]);
+    const bodies = vi.mocked(executeWindowManagerCommand).mock.calls.map(call => call[4]);
     expect(bodies[0]).toMatchObject({
       commandId: "window.resize",
       payload: {
@@ -422,7 +422,7 @@ describe("WindowManagerRuntime", () => {
     };
     const queryClient = new QueryClient();
     queryClient.setQueryData(
-      windowManagerKeys.snapshot("workspace:test"),
+      windowManagerKeys.snapshot("workspace:test", "marketing"),
       snapshotWithAgentsRoute(initialRoute)
     );
     queryClient.setQueryData(TEST_CONFIG_KEY, SETTINGS_SECTION);
@@ -432,7 +432,7 @@ describe("WindowManagerRuntime", () => {
       .mockReturnValueOnce(new Promise(resolve => (resolveFirst = resolve)))
       .mockReturnValueOnce(new Promise(resolve => (resolveSecond = resolve)));
     const runtime = new WindowManagerRuntime(queryClient);
-    runtime.bind({ workspaceId: "workspace:test", clientId: "client:web" });
+    runtime.bind({ workspaceId: "workspace:test", profileId: "marketing", clientId: "client:web" });
     runtime.setClient({
       ...CLIENT_VIEW_DEFAULTS,
       workspaceId: "workspace:test",
@@ -488,13 +488,13 @@ describe("WindowManagerRuntime", () => {
     const rejectedRoute = { pathname: "/agents", search: { q: "ops" } };
     const queryClient = new QueryClient();
     queryClient.setQueryData(
-      windowManagerKeys.snapshot("workspace:test"),
+      windowManagerKeys.snapshot("workspace:test", "marketing"),
       snapshotWithAgentsRoute(initialRoute)
     );
     queryClient.setQueryData(TEST_CONFIG_KEY, SETTINGS_SECTION);
     vi.mocked(executeWindowManagerCommand).mockRejectedValueOnce(new Error("navigation rejected"));
     const runtime = new WindowManagerRuntime(queryClient);
-    runtime.bind({ workspaceId: "workspace:test", clientId: "client:web" });
+    runtime.bind({ workspaceId: "workspace:test", profileId: "marketing", clientId: "client:web" });
     runtime.setClient({
       ...CLIENT_VIEW_DEFAULTS,
       workspaceId: "workspace:test",
@@ -517,7 +517,7 @@ describe("WindowManagerRuntime", () => {
 
   it("Should reject a queued command after the runtime binding changes", async () => {
     const queryClient = new QueryClient();
-    queryClient.setQueryData(windowManagerKeys.snapshot("workspace:test"), SNAPSHOT);
+    queryClient.setQueryData(windowManagerKeys.snapshot("workspace:test", "marketing"), SNAPSHOT);
     queryClient.setQueryData(TEST_CONFIG_KEY, SETTINGS_SECTION);
     let resolveFirst!: (result: {
       snapshot: WindowManagerSnapshot;
@@ -533,7 +533,7 @@ describe("WindowManagerRuntime", () => {
       })
     );
     const runtime = new WindowManagerRuntime(queryClient);
-    runtime.bind({ workspaceId: "workspace:test", clientId: "client:web" });
+    runtime.bind({ workspaceId: "workspace:test", profileId: "marketing", clientId: "client:web" });
     runtime.setClient({
       ...CLIENT_VIEW_DEFAULTS,
       workspaceId: "workspace:test",
@@ -550,8 +550,15 @@ describe("WindowManagerRuntime", () => {
     await flushCommandQueue();
 
     const nextSnapshot = { ...SNAPSHOT, workspaceId: "workspace:next" };
-    queryClient.setQueryData(windowManagerKeys.snapshot("workspace:next"), nextSnapshot);
-    runtime.bind({ workspaceId: "workspace:next", clientId: "client:next" });
+    queryClient.setQueryData(
+      windowManagerKeys.snapshot("workspace:next", "marketing"),
+      nextSnapshot
+    );
+    runtime.bind({
+      workspaceId: "workspace:next",
+      profileId: "marketing",
+      clientId: "client:next",
+    });
     runtime.setClient({
       ...CLIENT_VIEW_DEFAULTS,
       workspaceId: "workspace:next",
@@ -579,10 +586,10 @@ describe("WindowManagerRuntime", () => {
 
   it("Should synthesize a slide transition when reconciliation changes the active desktop", () => {
     const queryClient = new QueryClient();
-    queryClient.setQueryData(windowManagerKeys.snapshot("workspace:test"), SNAPSHOT);
+    queryClient.setQueryData(windowManagerKeys.snapshot("workspace:test", "marketing"), SNAPSHOT);
     queryClient.setQueryData(TEST_CONFIG_KEY, SETTINGS_SECTION);
     const runtime = new WindowManagerRuntime(queryClient);
-    runtime.bind({ workspaceId: "workspace:test", clientId: "client:web" });
+    runtime.bind({ workspaceId: "workspace:test", profileId: "marketing", clientId: "client:web" });
     runtime.setClient({
       ...CLIENT_VIEW_DEFAULTS,
       workspaceId: "workspace:test",
@@ -619,10 +626,10 @@ describe("WindowManagerRuntime", () => {
 
   it("Should keep a staged optimistic transition when an intermediate client result lands", () => {
     const queryClient = new QueryClient();
-    queryClient.setQueryData(windowManagerKeys.snapshot("workspace:test"), SNAPSHOT);
+    queryClient.setQueryData(windowManagerKeys.snapshot("workspace:test", "marketing"), SNAPSHOT);
     queryClient.setQueryData(TEST_CONFIG_KEY, SETTINGS_SECTION);
     const runtime = new WindowManagerRuntime(queryClient);
-    runtime.bind({ workspaceId: "workspace:test", clientId: "client:web" });
+    runtime.bind({ workspaceId: "workspace:test", profileId: "marketing", clientId: "client:web" });
     runtime.setClient({
       ...CLIENT_VIEW_DEFAULTS,
       workspaceId: "workspace:test",
@@ -660,10 +667,10 @@ describe("WindowManagerRuntime", () => {
 
   it("Should not clear a new binding transition when an old desktop switch rejects", async () => {
     const queryClient = new QueryClient();
-    queryClient.setQueryData(windowManagerKeys.snapshot("workspace:test"), SNAPSHOT);
+    queryClient.setQueryData(windowManagerKeys.snapshot("workspace:test", "marketing"), SNAPSHOT);
     queryClient.setQueryData(TEST_CONFIG_KEY, SETTINGS_SECTION);
     const runtime = new WindowManagerRuntime(queryClient);
-    runtime.bind({ workspaceId: "workspace:test", clientId: "client:web" });
+    runtime.bind({ workspaceId: "workspace:test", profileId: "marketing", clientId: "client:web" });
     runtime.setClient({
       ...CLIENT_VIEW_DEFAULTS,
       workspaceId: "workspace:test",
@@ -684,7 +691,11 @@ describe("WindowManagerRuntime", () => {
     runtime.switchDesktop("desktop:two");
     await flushCommandQueue();
     expect(executeWindowManagerCommand).toHaveBeenCalledOnce();
-    runtime.bind({ workspaceId: "workspace:next", clientId: "client:next" });
+    runtime.bind({
+      workspaceId: "workspace:next",
+      profileId: "marketing",
+      clientId: "client:next",
+    });
     windowManagerStore.trigger.transitionIntentChanged({
       intent: {
         fromDesktopId: "desktop:next-one",
@@ -707,13 +718,14 @@ describe("WindowManagerRuntime", () => {
 
   it("Should accept a reset presentation revision after explicit client invalidation", () => {
     const queryClient = new QueryClient();
-    queryClient.setQueryData(windowManagerKeys.snapshot("workspace:test"), SNAPSHOT);
+    queryClient.setQueryData(windowManagerKeys.snapshot("workspace:test", "marketing"), SNAPSHOT);
     queryClient.setQueryData(TEST_CONFIG_KEY, SETTINGS_SECTION);
     const runtime = new WindowManagerRuntime(queryClient);
-    runtime.bind({ workspaceId: "workspace:test", clientId: "client:web" });
+    runtime.bind({ workspaceId: "workspace:test", profileId: "marketing", clientId: "client:web" });
     const view = {
       ...CLIENT_VIEW_DEFAULTS,
       workspaceId: "workspace:test",
+      profileId: "marketing",
       clientId: "client:web",
       activeDesktopId: "desktop:one",
       focusedWindowId: null,
@@ -757,7 +769,7 @@ describe("WindowManagerRuntime", () => {
       },
     };
     const queryClient = new QueryClient();
-    queryClient.setQueryData(windowManagerKeys.snapshot("workspace:test"), snapshot);
+    queryClient.setQueryData(windowManagerKeys.snapshot("workspace:test", "marketing"), snapshot);
     queryClient.setQueryData(TEST_CONFIG_KEY, SETTINGS_SECTION);
     vi.mocked(executeWindowManagerCommand).mockResolvedValue({
       snapshot,
@@ -768,7 +780,7 @@ describe("WindowManagerRuntime", () => {
       rebasedFrom: null,
     });
     const runtime = new WindowManagerRuntime(queryClient);
-    runtime.bind({ workspaceId: "workspace:test", clientId: "client:web" });
+    runtime.bind({ workspaceId: "workspace:test", profileId: "marketing", clientId: "client:web" });
     runtime.setClient({
       ...CLIENT_VIEW_DEFAULTS,
       workspaceId: "workspace:test",
@@ -791,6 +803,7 @@ describe("WindowManagerRuntime", () => {
     expect(executeWindowManagerCommand).toHaveBeenCalledOnce();
     expect(executeWindowManagerCommand).toHaveBeenCalledWith(
       "workspace:test",
+      "marketing",
       "client:web",
       snapshot.revision,
       expect.objectContaining({
@@ -804,7 +817,7 @@ describe("WindowManagerRuntime", () => {
         }),
       })
     );
-    const command = vi.mocked(executeWindowManagerCommand).mock.calls[0]?.[3];
+    const command = vi.mocked(executeWindowManagerCommand).mock.calls[0]?.[4];
     if (command === undefined) {
       throw new Error("Expected the forced instance request to dispatch a window command.");
     }
@@ -862,7 +875,7 @@ describe("WindowManagerRuntime", () => {
       },
     };
     const queryClient = new QueryClient();
-    queryClient.setQueryData(windowManagerKeys.snapshot("workspace:test"), snapshot);
+    queryClient.setQueryData(windowManagerKeys.snapshot("workspace:test", "marketing"), snapshot);
     queryClient.setQueryData(TEST_CONFIG_KEY, SETTINGS_SECTION);
     vi.mocked(executeWindowManagerCommand).mockResolvedValue({
       snapshot: closedSnapshot,
@@ -873,7 +886,7 @@ describe("WindowManagerRuntime", () => {
       rebasedFrom: null,
     });
     const runtime = new WindowManagerRuntime(queryClient);
-    runtime.bind({ workspaceId: "workspace:test", clientId: "client:web" });
+    runtime.bind({ workspaceId: "workspace:test", profileId: "marketing", clientId: "client:web" });
     runtime.setClient({
       ...CLIENT_VIEW_DEFAULTS,
       workspaceId: "workspace:test",
@@ -927,13 +940,13 @@ describe("WindowManagerRuntime", () => {
         },
       },
     };
-    queryClient.setQueryData(windowManagerKeys.snapshot("workspace:test"), snapshot);
+    queryClient.setQueryData(windowManagerKeys.snapshot("workspace:test", "marketing"), snapshot);
     queryClient.setQueryData(TEST_CONFIG_KEY, SETTINGS_SECTION);
     vi.mocked(executeWindowManagerCommand).mockReturnValue(
       new Promise<Awaited<ReturnType<typeof executeWindowManagerCommand>>>(() => {})
     );
     const runtime = new WindowManagerRuntime(queryClient);
-    runtime.bind({ workspaceId: "workspace:test", clientId: "client:web" });
+    runtime.bind({ workspaceId: "workspace:test", profileId: "marketing", clientId: "client:web" });
     runtime.setClient({
       ...CLIENT_VIEW_DEFAULTS,
       workspaceId: "workspace:test",
@@ -953,11 +966,17 @@ describe("WindowManagerRuntime", () => {
       },
     });
     await vi.waitFor(() => expect(executeWindowManagerCommand).toHaveBeenCalledOnce());
-    expect(executeWindowManagerCommand).toHaveBeenCalledWith("workspace:test", "client:web", 7, {
-      commandId: "window.focus",
-      payload: { window_id: "app:tasks", direction: "" },
-      rebase: { windowId: "app:tasks" },
-    });
+    expect(executeWindowManagerCommand).toHaveBeenCalledWith(
+      "workspace:test",
+      "marketing",
+      "client:web",
+      7,
+      {
+        commandId: "window.focus",
+        payload: { window_id: "app:tasks", direction: "" },
+        rebase: { windowId: "app:tasks" },
+      }
+    );
     runtime.stop();
   });
 
@@ -986,6 +1005,7 @@ describe("WindowManagerRuntime", () => {
     const focusedClient = {
       ...CLIENT_VIEW_DEFAULTS,
       workspaceId: "workspace:test",
+      profileId: "marketing",
       clientId: "client:web",
       presentationRevision: 2,
       activeDesktopId: "desktop:one",
@@ -993,7 +1013,7 @@ describe("WindowManagerRuntime", () => {
       focusOrder: [sessionId, "app:agents"],
       connectedAt: "2026-07-22T00:00:00Z",
     };
-    queryClient.setQueryData(windowManagerKeys.snapshot("workspace:test"), agents);
+    queryClient.setQueryData(windowManagerKeys.snapshot("workspace:test", "marketing"), agents);
     queryClient.setQueryData(TEST_CONFIG_KEY, SETTINGS_SECTION);
     vi.mocked(executeWindowManagerCommand).mockResolvedValue({
       snapshot: resultSnapshot,
@@ -1005,7 +1025,7 @@ describe("WindowManagerRuntime", () => {
     });
     const runtime = new WindowManagerRuntime(queryClient);
     runtime.start();
-    runtime.bind({ workspaceId: "workspace:test", clientId: "client:web" });
+    runtime.bind({ workspaceId: "workspace:test", profileId: "marketing", clientId: "client:web" });
     runtime.setClient({ ...focusedClient, presentationRevision: 1, focusedWindowId: "app:agents" });
     const observed = [runtime.getState()];
     const unsubscribe = runtime.subscribe(state => observed.push(state));
@@ -1068,6 +1088,7 @@ describe("WindowManagerRuntime", () => {
     const focusedClient = {
       ...CLIENT_VIEW_DEFAULTS,
       workspaceId: "workspace:test",
+      profileId: "marketing",
       clientId: "client:web",
       presentationRevision: 2,
       activeDesktopId: "desktop:one",
@@ -1075,7 +1096,7 @@ describe("WindowManagerRuntime", () => {
       focusOrder: [session.id, marketplace.id],
       connectedAt: "2026-07-22T00:00:00Z",
     };
-    queryClient.setQueryData(windowManagerKeys.snapshot("workspace:test"), initial);
+    queryClient.setQueryData(windowManagerKeys.snapshot("workspace:test", "marketing"), initial);
     queryClient.setQueryData(TEST_CONFIG_KEY, SETTINGS_SECTION);
     vi.mocked(executeWindowManagerCommand)
       .mockRejectedValueOnce(
@@ -1103,7 +1124,7 @@ describe("WindowManagerRuntime", () => {
       });
     vi.mocked(fetchWindowManagerSnapshot).mockResolvedValue(refreshed);
     const runtime = new WindowManagerRuntime(queryClient);
-    runtime.bind({ workspaceId: "workspace:test", clientId: "client:web" });
+    runtime.bind({ workspaceId: "workspace:test", profileId: "marketing", clientId: "client:web" });
     runtime.setClient({
       ...CLIENT_VIEW_DEFAULTS,
       ...focusedClient,
@@ -1123,6 +1144,7 @@ describe("WindowManagerRuntime", () => {
     expect(executeWindowManagerCommand).toHaveBeenNthCalledWith(
       1,
       "workspace:test",
+      "marketing",
       "client:web",
       7,
       expect.objectContaining({ commandId: "window.open" })
@@ -1130,6 +1152,7 @@ describe("WindowManagerRuntime", () => {
     expect(executeWindowManagerCommand).toHaveBeenNthCalledWith(
       2,
       "workspace:test",
+      "marketing",
       "client:web",
       8,
       {
@@ -1145,7 +1168,7 @@ describe("WindowManagerRuntime", () => {
   it("Should stop after one retry when concurrent topology changes twice", async () => {
     const queryClient = new QueryClient();
     const refreshed = { ...SNAPSHOT, revision: 8 };
-    queryClient.setQueryData(windowManagerKeys.snapshot("workspace:test"), SNAPSHOT);
+    queryClient.setQueryData(windowManagerKeys.snapshot("workspace:test", "marketing"), SNAPSHOT);
     queryClient.setQueryData(TEST_CONFIG_KEY, SETTINGS_SECTION);
     vi.mocked(executeWindowManagerCommand)
       .mockRejectedValueOnce(
@@ -1174,7 +1197,7 @@ describe("WindowManagerRuntime", () => {
       );
     vi.mocked(fetchWindowManagerSnapshot).mockResolvedValue(refreshed);
     const runtime = new WindowManagerRuntime(queryClient);
-    runtime.bind({ workspaceId: "workspace:test", clientId: "client:web" });
+    runtime.bind({ workspaceId: "workspace:test", profileId: "marketing", clientId: "client:web" });
     runtime.setClient({
       ...CLIENT_VIEW_DEFAULTS,
       workspaceId: "workspace:test",
@@ -1205,21 +1228,31 @@ describe("WindowManagerRuntime", () => {
       signal: AbortSignal | undefined;
     }> = [];
     vi.mocked(fetchWindowManagerSnapshot).mockImplementation(
-      (_workspaceId, signal) =>
+      (_workspaceId, _profileId, signal) =>
         new Promise(resolve => {
           requests.push({ resolve, signal });
         })
     );
     const runtime = new WindowManagerRuntime(queryClient);
-    runtime.bind({ workspaceId: "workspace:first", clientId: "client:first" });
+    runtime.bind({
+      workspaceId: "workspace:first",
+      profileId: "marketing",
+      clientId: "client:first",
+    });
 
     const reboundRefresh = runtime.refreshSnapshot();
     expect(requests).toHaveLength(1);
-    runtime.bind({ workspaceId: "workspace:second", clientId: "client:second" });
+    runtime.bind({
+      workspaceId: "workspace:second",
+      profileId: "marketing",
+      clientId: "client:second",
+    });
     expect(requests[0]?.signal?.aborted).toBe(true);
     requests[0]?.resolve({ ...SNAPSHOT, workspaceId: "workspace:first", revision: 20 });
     await expect(reboundRefresh).resolves.toBe(false);
-    expect(queryClient.getQueryData(windowManagerKeys.snapshot("workspace:first"))).toBeUndefined();
+    expect(
+      queryClient.getQueryData(windowManagerKeys.snapshot("workspace:first", "marketing"))
+    ).toBeUndefined();
 
     const unboundRefresh = runtime.refreshSnapshot();
     expect(requests).toHaveLength(2);
@@ -1228,17 +1261,17 @@ describe("WindowManagerRuntime", () => {
     requests[1]?.resolve({ ...SNAPSHOT, workspaceId: "workspace:second", revision: 21 });
     await expect(unboundRefresh).resolves.toBe(false);
     expect(
-      queryClient.getQueryData(windowManagerKeys.snapshot("workspace:second"))
+      queryClient.getQueryData(windowManagerKeys.snapshot("workspace:second", "marketing"))
     ).toBeUndefined();
     runtime.stop();
   });
 
   it("Should preserve an unrelated conflict when semantic open admission is blocked", async () => {
     const queryClient = new QueryClient();
-    queryClient.setQueryData(windowManagerKeys.snapshot("workspace:test"), SNAPSHOT);
+    queryClient.setQueryData(windowManagerKeys.snapshot("workspace:test", "marketing"), SNAPSHOT);
     queryClient.setQueryData(TEST_CONFIG_KEY, SETTINGS_SECTION);
     const runtime = new WindowManagerRuntime(queryClient);
-    runtime.bind({ workspaceId: "workspace:test", clientId: "client:web" });
+    runtime.bind({ workspaceId: "workspace:test", profileId: "marketing", clientId: "client:web" });
     runtime.setClient({
       ...CLIENT_VIEW_DEFAULTS,
       workspaceId: "workspace:test",
@@ -1264,7 +1297,7 @@ describe("WindowManagerRuntime", () => {
         severity: "error",
         field: null,
       },
-      binding: { workspaceId: "workspace:test", clientId: "client:web" },
+      binding: { workspaceId: "workspace:test", profileId: "marketing", clientId: "client:web" },
     });
 
     const outcome = runtime.openOrFocus({
@@ -1308,7 +1341,7 @@ describe("WindowManagerRuntime", () => {
       ...CONFIG,
       gaps: { inner: 8, top: 7, right: 10, bottom: 13, left: 10 },
     };
-    queryClient.setQueryData(windowManagerKeys.snapshot("workspace:test"), snapshot);
+    queryClient.setQueryData(windowManagerKeys.snapshot("workspace:test", "marketing"), snapshot);
     queryClient.setQueryData(TEST_CONFIG_KEY, { ...SETTINGS_SECTION, config });
     windowManagerStore.trigger.workAreaMeasured({
       workArea: {
@@ -1320,7 +1353,7 @@ describe("WindowManagerRuntime", () => {
       new Promise<Awaited<ReturnType<typeof executeWindowManagerCommand>>>(() => {})
     );
     const runtime = new WindowManagerRuntime(queryClient);
-    runtime.bind({ workspaceId: "workspace:test", clientId: "client:web" });
+    runtime.bind({ workspaceId: "workspace:test", profileId: "marketing", clientId: "client:web" });
     runtime.setClient({
       ...CLIENT_VIEW_DEFAULTS,
       workspaceId: "workspace:test",
@@ -1337,6 +1370,7 @@ describe("WindowManagerRuntime", () => {
 
     expect(executeWindowManagerCommand).toHaveBeenCalledWith(
       "workspace:test",
+      "marketing",
       "client:web",
       7,
       expect.objectContaining({
@@ -1352,7 +1386,7 @@ describe("WindowManagerRuntime", () => {
   it("Should return the exact completion outcomes for gesture commands", async () => {
     const queryClient = new QueryClient();
     const snapshot = snapshotWithAgentsRoute({ pathname: "/agents", search: {} });
-    queryClient.setQueryData(windowManagerKeys.snapshot("workspace:test"), snapshot);
+    queryClient.setQueryData(windowManagerKeys.snapshot("workspace:test", "marketing"), snapshot);
     queryClient.setQueryData(TEST_CONFIG_KEY, SETTINGS_SECTION);
     vi.mocked(executeWindowManagerCommand).mockResolvedValue({
       snapshot: { ...snapshot, revision: 8 },
@@ -1365,7 +1399,7 @@ describe("WindowManagerRuntime", () => {
       rebasedFrom: null,
     });
     const runtime = new WindowManagerRuntime(queryClient);
-    runtime.bind({ workspaceId: "workspace:test", clientId: "client:web" });
+    runtime.bind({ workspaceId: "workspace:test", profileId: "marketing", clientId: "client:web" });
     runtime.setClient({
       ...CLIENT_VIEW_DEFAULTS,
       workspaceId: "workspace:test",
@@ -1394,7 +1428,7 @@ describe("WindowManagerRuntime", () => {
   it("Should arrange a floating tab frame as one tiled stack and reactivate its active tab", async () => {
     const queryClient = new QueryClient();
     const snapshot = snapshotWithFloatingStack();
-    queryClient.setQueryData(windowManagerKeys.snapshot("workspace:test"), snapshot);
+    queryClient.setQueryData(windowManagerKeys.snapshot("workspace:test", "marketing"), snapshot);
     queryClient.setQueryData(TEST_CONFIG_KEY, SETTINGS_SECTION);
     windowManagerStore.trigger.workAreaMeasured({
       workArea: { rect: { x: 0, y: 0, w: 1280, h: 800 }, origin: { x: 0, y: 0 } },
@@ -1408,7 +1442,7 @@ describe("WindowManagerRuntime", () => {
       rebasedFrom: null,
     });
     const runtime = new WindowManagerRuntime(queryClient);
-    runtime.bind({ workspaceId: "workspace:test", clientId: "client:web" });
+    runtime.bind({ workspaceId: "workspace:test", profileId: "marketing", clientId: "client:web" });
     runtime.setClient({
       ...CLIENT_VIEW_DEFAULTS,
       workspaceId: "workspace:test",
@@ -1429,11 +1463,11 @@ describe("WindowManagerRuntime", () => {
     expect(outcome.accepted).toBe(true);
     await expect(outcome.completion).resolves.toBe(true);
     await vi.waitFor(() => expect(executeWindowManagerCommand).toHaveBeenCalledTimes(2));
-    expect(vi.mocked(executeWindowManagerCommand).mock.calls[0]?.[3]).toMatchObject({
+    expect(vi.mocked(executeWindowManagerCommand).mock.calls[0]?.[4]).toMatchObject({
       commandId: "layout.arrange",
       payload: { window_ids: ["app:tasks", "app:agents"], arrangement: "stack" },
     });
-    expect(vi.mocked(executeWindowManagerCommand).mock.calls[1]?.[3]).toMatchObject({
+    expect(vi.mocked(executeWindowManagerCommand).mock.calls[1]?.[4]).toMatchObject({
       commandId: "window.stack.set_active",
       payload: { window_id: "app:agents" },
       rebase: { windowId: "app:agents" },
@@ -1472,7 +1506,7 @@ describe("WindowManagerRuntime", () => {
         },
       },
     };
-    queryClient.setQueryData(windowManagerKeys.snapshot("workspace:test"), snapshot);
+    queryClient.setQueryData(windowManagerKeys.snapshot("workspace:test", "marketing"), snapshot);
     queryClient.setQueryData(TEST_CONFIG_KEY, SETTINGS_SECTION);
     windowManagerStore.trigger.workAreaMeasured({
       workArea: { rect: { x: 0, y: 0, w: 1280, h: 800 }, origin: { x: 0, y: 0 } },
@@ -1486,7 +1520,7 @@ describe("WindowManagerRuntime", () => {
       rebasedFrom: null,
     });
     const runtime = new WindowManagerRuntime(queryClient);
-    runtime.bind({ workspaceId: "workspace:test", clientId: "client:web" });
+    runtime.bind({ workspaceId: "workspace:test", profileId: "marketing", clientId: "client:web" });
     runtime.setClient({
       ...CLIENT_VIEW_DEFAULTS,
       workspaceId: "workspace:test",
@@ -1515,7 +1549,7 @@ describe("WindowManagerRuntime", () => {
     expect(outcome.accepted).toBe(true);
     await expect(outcome.completion).resolves.toBe(true);
     expect(executeWindowManagerCommand).toHaveBeenCalledOnce();
-    expect(vi.mocked(executeWindowManagerCommand).mock.calls[0]?.[3]).toMatchObject({
+    expect(vi.mocked(executeWindowManagerCommand).mock.calls[0]?.[4]).toMatchObject({
       commandId: "window.move",
       payload: {
         window_id: "app:agents",

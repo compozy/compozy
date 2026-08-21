@@ -12,7 +12,7 @@ function renderDialog(props: Partial<React.ComponentProps<typeof KnowledgeEditDi
     filename: "user.md",
     name: "operator-style",
     type: "user",
-    scope: "global",
+    scope: "profile",
     initialContent: "# Initial content",
     initialDescription: "initial description",
     isPending: false,

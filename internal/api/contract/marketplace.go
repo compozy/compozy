@@ -11,6 +11,7 @@ const (
 	MarketplaceKindSkill     MarketplaceKind = "skill"
 
 	MarketplaceScopeGlobal    = "global"
+	MarketplaceScopeProfile   = "profile"
 	MarketplaceScopeWorkspace = "workspace"
 )
 

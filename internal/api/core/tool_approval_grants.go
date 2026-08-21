@@ -25,6 +25,11 @@ func (h *BaseHandlers) SetToolApprovalGrant(c *gin.Context) {
 	if !ok {
 		return
 	}
+	readScope, err := h.resolveProfileMutationScope(c)
+	if err != nil {
+		h.respondProfileReadScopeError(c, err)
+		return
+	}
 	var req contract.ToolApprovalGrantSetRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
 		h.respondError(
@@ -34,7 +39,7 @@ func (h *BaseHandlers) SetToolApprovalGrant(c *gin.Context) {
 		)
 		return
 	}
-	grant, err := req.Domain().BuildGrant(workspaceID)
+	grant, err := req.Domain().BuildGrant(readScope.ProfileID, workspaceID)
 	if err != nil {
 		h.respondError(c, statusForToolApprovalGrantError(err), err)
 		return
@@ -60,7 +65,12 @@ func (h *BaseHandlers) ListToolApprovalGrants(c *gin.Context) {
 	if !ok {
 		return
 	}
-	grants, err := service.ListApprovalGrants(c.Request.Context(), workspaceID)
+	readScope, err := h.resolveProfileReadScope(c)
+	if err != nil {
+		h.respondProfileReadScopeError(c, err)
+		return
+	}
+	grants, err := service.ListApprovalGrants(c.Request.Context(), readScope, workspaceID)
 	if err != nil {
 		h.respondError(c, statusForToolApprovalGrantError(err), err)
 		return
@@ -83,12 +93,17 @@ func (h *BaseHandlers) RevokeToolApprovalGrant(c *gin.Context) {
 	if !ok {
 		return
 	}
+	readScope, err := h.resolveProfileMutationScope(c)
+	if err != nil {
+		h.respondProfileReadScopeError(c, err)
+		return
+	}
 	id := strings.TrimSpace(c.Param("id"))
 	if id == "" {
 		h.respondError(c, http.StatusBadRequest, errors.New("tool approval grant id is required"))
 		return
 	}
-	if err := service.RevokeApprovalGrant(c.Request.Context(), workspaceID, id); err != nil {
+	if err := service.RevokeApprovalGrant(c.Request.Context(), readScope.ProfileID, workspaceID, id); err != nil {
 		h.respondError(c, statusForToolApprovalGrantError(err), err)
 		return
 	}

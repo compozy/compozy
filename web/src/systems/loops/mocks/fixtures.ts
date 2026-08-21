@@ -82,6 +82,8 @@ function buildRun(
 ): LoopRun {
   const definitionVersion = overrides.loop_name === "quality-gate-demo" ? 4 : 0;
   return {
+    profile_name: "default",
+    profile_id: "00000000000000000000000000",
     workspace_id: MOCK_WORKSPACE_ID,
     historical: false,
     completion_state: "complete",

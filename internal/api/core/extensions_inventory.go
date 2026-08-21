@@ -12,7 +12,11 @@ func (h *BaseHandlers) ExtensionInventory(c *gin.Context) {
 	if !ok {
 		return
 	}
-	payload, err := service.Inventory(c.Request.Context(), name)
+	actor, ok := h.extensionScopedActorContext(c, "inventory", false)
+	if !ok {
+		return
+	}
+	payload, err := service.InventoryScoped(c.Request.Context(), name, actor)
 	if err != nil {
 		h.respondExtensionError(c, ExtensionStatusCode(err), err)
 		return

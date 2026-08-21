@@ -4,6 +4,74 @@ package contracts
 
 import "time"
 
+type WindowManagerDesktopDeletedPayload struct {
+	Event       HookEvent            `json:"event"`
+	Timestamp   time.Time            `json:"timestamp"`
+	WorkspaceID string               `json:"workspace_id"`
+	Revision    uint64               `json:"revision"`
+	CommandID   string               `json:"command_id"`
+	Changes     WindowManagerChanges `json:"changes"`
+	Actor       WindowManagerActor   `json:"actor"`
+	Origin      string               `json:"origin,omitempty"`
+}
+
+type WindowManagerLayoutAppliedPayload struct {
+	Event       HookEvent            `json:"event"`
+	Timestamp   time.Time            `json:"timestamp"`
+	WorkspaceID string               `json:"workspace_id"`
+	Revision    uint64               `json:"revision"`
+	CommandID   string               `json:"command_id"`
+	Changes     WindowManagerChanges `json:"changes"`
+	Actor       WindowManagerActor   `json:"actor"`
+	Origin      string               `json:"origin,omitempty"`
+}
+
+type WindowManagerObservationPatch struct{}
+
+type WindowManagerStackActivatedPayload struct {
+	Event       HookEvent            `json:"event"`
+	Timestamp   time.Time            `json:"timestamp"`
+	WorkspaceID string               `json:"workspace_id"`
+	Revision    uint64               `json:"revision"`
+	CommandID   string               `json:"command_id"`
+	Changes     WindowManagerChanges `json:"changes"`
+	Actor       WindowManagerActor   `json:"actor"`
+	Origin      string               `json:"origin,omitempty"`
+}
+
+type WindowManagerStackGroupedPayload struct {
+	Event       HookEvent            `json:"event"`
+	Timestamp   time.Time            `json:"timestamp"`
+	WorkspaceID string               `json:"workspace_id"`
+	Revision    uint64               `json:"revision"`
+	CommandID   string               `json:"command_id"`
+	Changes     WindowManagerChanges `json:"changes"`
+	Actor       WindowManagerActor   `json:"actor"`
+	Origin      string               `json:"origin,omitempty"`
+}
+
+type WindowManagerStackUngroupedPayload struct {
+	Event       HookEvent            `json:"event"`
+	Timestamp   time.Time            `json:"timestamp"`
+	WorkspaceID string               `json:"workspace_id"`
+	Revision    uint64               `json:"revision"`
+	CommandID   string               `json:"command_id"`
+	Changes     WindowManagerChanges `json:"changes"`
+	Actor       WindowManagerActor   `json:"actor"`
+	Origin      string               `json:"origin,omitempty"`
+}
+
+type WindowManagerWindowClosedPayload struct {
+	Event       HookEvent            `json:"event"`
+	Timestamp   time.Time            `json:"timestamp"`
+	WorkspaceID string               `json:"workspace_id"`
+	Revision    uint64               `json:"revision"`
+	CommandID   string               `json:"command_id"`
+	Changes     WindowManagerChanges `json:"changes"`
+	Actor       WindowManagerActor   `json:"actor"`
+	Origin      string               `json:"origin,omitempty"`
+}
+
 type WindowManagerWindowMovedPayload struct {
 	Event       HookEvent            `json:"event"`
 	Timestamp   time.Time            `json:"timestamp"`
@@ -29,6 +97,7 @@ type WindowManagerWindowOpenedPayload struct {
 type WorkspaceID string
 
 type WorktreeContext struct {
+	ProfileID     string `json:"profile_id,omitempty"`
 	WorktreeID    string `json:"worktree_id"`
 	WorkspaceID   string `json:"workspace_id"`
 	WorkspaceRoot string `json:"workspace_root,omitempty"`
@@ -49,6 +118,7 @@ type WorktreeObservationPatch struct{}
 type WorktreeObservationPayload struct {
 	Event         HookEvent `json:"event"`
 	Timestamp     time.Time `json:"timestamp"`
+	ProfileID     string    `json:"profile_id,omitempty"`
 	WorktreeID    string    `json:"worktree_id"`
 	WorkspaceID   string    `json:"workspace_id"`
 	WorkspaceRoot string    `json:"workspace_root,omitempty"`
@@ -62,6 +132,7 @@ type WorktreeObservationPayload struct {
 type WorktreePreCreatePayload struct {
 	Event         HookEvent `json:"event"`
 	Timestamp     time.Time `json:"timestamp"`
+	ProfileID     string    `json:"profile_id,omitempty"`
 	WorktreeID    string    `json:"worktree_id"`
 	WorkspaceID   string    `json:"workspace_id"`
 	WorkspaceRoot string    `json:"workspace_root,omitempty"`

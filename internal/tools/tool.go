@@ -130,6 +130,7 @@ type SourceRef struct {
 	RawToolName     string     `json:"raw_tool_name,omitempty"`
 	ResourceID      string     `json:"resource_id,omitempty"`
 	ResourceVersion string     `json:"resource_version,omitempty"`
+	ProfileID       string     `json:"profile_id,omitempty"`
 	WorkspaceID     string     `json:"workspace_id,omitempty"`
 	Scope           string     `json:"scope,omitempty"`
 }
@@ -283,6 +284,7 @@ type CallInputAuthorizer interface {
 
 // Scope identifies the caller context used for projections and dispatch.
 type Scope struct {
+	ProfileID   string `json:"profile_id,omitempty"`
 	WorkspaceID string `json:"workspace_id,omitempty"`
 	SessionID   string `json:"session_id,omitempty"`
 	AgentName   string `json:"agent_name,omitempty"`

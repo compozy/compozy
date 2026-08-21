@@ -45,6 +45,8 @@ const members: ReadonlyArray<ChannelMember> = [
 
 function summary(overrides: Partial<NetworkChannelSummary> = {}): NetworkChannelSummary {
   return {
+    profile_name: "default",
+    profile_id: "00000000000000000000000000",
     channel: storyChannels.merchantEscalations,
     coordinator_peer_id: "",
     created_at: "2026-07-17T14:00:00Z",

@@ -65,7 +65,15 @@ func loopInputDefaultsParameters(includeKey bool) []ParameterSpec {
 	if includeKey {
 		parameters = append(parameters, loopInputDefaultKeyParam())
 	}
-	return append(parameters, queryParam("scope", "Config scope: global or workspace", true))
+	scope := requiredEnumQueryParam(
+		"scope",
+		"Config scope: user or workspace",
+		[]string{
+			string(contract.LoopInputDefaultsScopeUser),
+			string(contract.LoopInputDefaultsScopeWorkspace),
+		},
+	)
+	return append(parameters, scope)
 }
 
 func loopInputDefaultKeyParam() ParameterSpec {

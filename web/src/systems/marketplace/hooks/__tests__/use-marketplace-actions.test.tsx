@@ -64,16 +64,16 @@ describe("useInstallMarketplaceMCP", () => {
         lifecycle: "live-add",
         next_action: "none",
         restart_required: false,
-        scope: "global",
+        scope: "user",
         warnings: [],
         write_target: "global-mcp-sidecar",
       },
       mcp_server: {
         name: "github",
-        scope: "global",
+        scope: "user",
         source_metadata: {
           available_targets: [],
-          effective_source: { kind: "global-config", scope: "global" },
+          effective_source: { kind: "global-config", scope: "user" },
           shadowed_sources: [],
         },
         transport: "stdio",
@@ -82,7 +82,7 @@ describe("useInstallMarketplaceMCP", () => {
     });
     const { invalidateQueries, wrapper } = setup();
     const { result } = renderHook(() => useInstallMarketplaceMCP(), { wrapper });
-    const body = { entry_id: "github-mcp", scope: "global" as const, values: null };
+    const body = { entry_id: "github-mcp", scope: "user" as const, values: null };
 
     act(() => result.current.mutate(body));
 
@@ -99,7 +99,7 @@ describe("useInstallMarketplaceMCP", () => {
       | undefined;
     authorizeAction?.action?.onClick?.();
     expect(locationAssign).toHaveBeenCalledWith(
-      "/marketplace/mcp/github-mcp?scope=global&installed_name=github"
+      "/marketplace/mcp/github-mcp?scope=user&installed_name=github"
     );
     expect(invalidateQueries).toHaveBeenCalledWith({ queryKey: ["marketplace"] });
     expect(invalidateQueries).toHaveBeenCalledWith({
@@ -117,16 +117,16 @@ describe("useInstallMarketplaceMCP", () => {
         lifecycle: "live-add",
         next_action: "none",
         restart_required: false,
-        scope: "global",
+        scope: "user",
         warnings: [],
         write_target: "global-mcp-sidecar",
       },
       mcp_server: {
         name: "filesystem",
-        scope: "global",
+        scope: "user",
         source_metadata: {
           available_targets: [],
-          effective_source: { kind: "global-config", scope: "global" },
+          effective_source: { kind: "global-config", scope: "user" },
           shadowed_sources: [],
         },
         transport: "stdio",
@@ -136,7 +136,7 @@ describe("useInstallMarketplaceMCP", () => {
     const { wrapper } = setup();
     const { result } = renderHook(() => useInstallMarketplaceMCP(), { wrapper });
 
-    act(() => result.current.mutate({ entry_id: "filesystem", scope: "global", values: null }));
+    act(() => result.current.mutate({ entry_id: "filesystem", scope: "user", values: null }));
 
     await waitFor(() => expect(result.current.isSuccess).toBe(true));
     expect(toast.success).toHaveBeenCalledWith("filesystem installed", {
@@ -148,7 +148,7 @@ describe("useInstallMarketplaceMCP", () => {
     const manageAction = manageToast?.[1] as { action?: { onClick?: () => void } } | undefined;
     manageAction?.action?.onClick?.();
     expect(locationAssign).toHaveBeenCalledWith(
-      "/marketplace/mcp/filesystem?scope=global&installed_name=filesystem"
+      "/marketplace/mcp/filesystem?scope=user&installed_name=filesystem"
     );
   });
 
@@ -208,6 +208,41 @@ describe("useInstallMarketplaceMCP", () => {
       "/marketplace/mcp/github-mcp?scope=workspace&installed_name=github&workspace_id=ws-polybot"
     );
   });
+
+  it("Should retain profile and workspace identity in a profile management deep link", async () => {
+    vi.mocked(installMarketplaceMCP).mockResolvedValue({
+      apply: {} as never,
+      mcp_server: {
+        name: "github",
+        profile: "marketing",
+        scope: "profile",
+        workspace_id: "ws-polybot",
+      } as never,
+      next_step: "none",
+    } as never);
+    const { wrapper } = setup();
+    const { result } = renderHook(() => useInstallMarketplaceMCP(), { wrapper });
+
+    act(() =>
+      result.current.mutate({
+        entry_id: "github-mcp",
+        profile: "marketing",
+        scope: "profile",
+        values: null,
+        workspace_id: "ws-polybot",
+      } as never)
+    );
+
+    await waitFor(() => expect(result.current.isSuccess).toBe(true));
+    const manageToast = vi
+      .mocked(toast.success)
+      .mock.calls.find(call => call[0] === "github installed");
+    const manageAction = manageToast?.[1] as { action?: { onClick?: () => void } } | undefined;
+    manageAction?.action?.onClick?.();
+    expect(locationAssign).toHaveBeenCalledWith(
+      "/marketplace/mcp/github-mcp?scope=profile&installed_name=github&workspace_id=ws-polybot&profile=marketing"
+    );
+  });
 });
 
 describe("marketplace acquisition cache boundaries", () => {
@@ -247,6 +282,7 @@ describe("marketplace acquisition cache boundaries", () => {
         format: "compozy",
         name: "review-pack",
         network_confirmation_required: false,
+        profile: "default",
         restart_backoff_ms: 0,
         source: "marketplace",
         state: "installed",

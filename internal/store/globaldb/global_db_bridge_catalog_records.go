@@ -50,25 +50,32 @@ func (g *BridgeRepo) ListBridgeCatalogRecords(
 }
 
 func bridgeCatalogRecordQuery(query bridges.BridgeCatalogQuery) (string, []any) {
-	statement := `SELECT id, scope, workspace_id, platform, extension_name, display_name, enabled, status
-		FROM bridge_instances`
-	conditions := make([]string, 0, 2)
-	args := make([]any, 0, 2)
+	statement := `SELECT bi.id, bi.profile_id, p.name, p.color, COALESCE(p.icon, ''), COALESCE(p.emoji, ''),
+		p.archived_at IS NOT NULL,
+		bi.scope, bi.workspace_id, bi.platform, bi.extension_name, bi.display_name, bi.enabled, bi.status
+		FROM bridge_instances bi
+		JOIN profiles p ON p.id = bi.profile_id`
+	conditions := make([]string, 0, 3)
+	args := make([]any, 0, 3)
+	if !query.ReadScope.AllProfiles {
+		conditions = append(conditions, "bi.profile_id = ?")
+		args = append(args, query.ReadScope.ProfileID)
+	}
 	switch query.Scope {
 	case string(bridges.ScopeGlobal):
-		conditions = append(conditions, "scope = ?")
+		conditions = append(conditions, "bi.scope = ?")
 		args = append(args, string(bridges.ScopeGlobal))
 	case string(bridges.ScopeWorkspace):
-		conditions = append(conditions, "scope = ? AND workspace_id = ?")
+		conditions = append(conditions, "bi.scope = ? AND bi.workspace_id = ?")
 		args = append(args, string(bridges.ScopeWorkspace), query.WorkspaceID)
 	default:
 		if query.WorkspaceID != "" {
-			conditions = append(conditions, "(scope = ? OR (scope = ? AND workspace_id = ?))")
+			conditions = append(conditions, "(bi.scope = ? OR (bi.scope = ? AND bi.workspace_id = ?))")
 			args = append(args, string(bridges.ScopeGlobal), string(bridges.ScopeWorkspace), query.WorkspaceID)
 		}
 	}
 	if query.Platform != "" {
-		conditions = append(conditions, "LOWER(TRIM(platform)) = ?")
+		conditions = append(conditions, "LOWER(TRIM(bi.platform)) = ?")
 		args = append(args, query.Platform)
 	}
 	if len(conditions) > 0 {
@@ -84,6 +91,12 @@ func scanBridgeCatalogRecord(scanner rowScanner) (bridges.BridgeCatalogRecord, e
 	var statusRaw string
 	if err := scanner.Scan(
 		&record.ID,
+		&record.ProfileID,
+		&record.ProfileName,
+		&record.ProfileColor,
+		&record.ProfileIcon,
+		&record.ProfileEmoji,
+		&record.ProfileArchived,
 		&scopeRaw,
 		&workspaceID,
 		&record.Platform,

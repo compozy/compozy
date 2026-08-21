@@ -129,6 +129,7 @@ func TestManagerStartSyncsConfigDefinitionsAndPreservesDynamicEntries(t *testing
 	}
 	dynamicTrigger := Trigger{
 		ID:        "trigger-dynamic-session-stopped",
+		ProfileID: store.DefaultProfileID,
 		Scope:     AutomationScopeGlobal,
 		Name:      "dynamic-trigger",
 		AgentName: "reviewer",
@@ -675,7 +676,7 @@ func TestManagerObserversAndRunsRouteTriggerEvents(t *testing.T) {
 		t.Fatalf("Prompt() call count = %d, want %d", got, want)
 	}
 
-	runs, err := manager.Runs(h.ctx, RunQuery{})
+	runs, err := manager.Runs(h.ctx, RunQuery{ReadScope: store.ReadScope{AllProfiles: true}})
 	if err != nil {
 		t.Fatalf("manager.Runs() error = %v", err)
 	}
@@ -970,6 +971,7 @@ func TestManagerSetEnabledForDynamicDefinitionsUpdatesStoredStateAndRuntime(t *t
 	}
 	dynamicTrigger, err := h.db.CreateTrigger(h.ctx, Trigger{
 		ID:          "trigger-dynamic-runtime",
+		ProfileID:   store.DefaultProfileID,
 		Scope:       AutomationScopeWorkspace,
 		Name:        "dynamic-runtime-trigger",
 		AgentName:   "reviewer",
@@ -1050,12 +1052,16 @@ func TestManagerDynamicJobCRUDAndRunHistory(t *testing.T) {
 	})
 
 	job := testJob(AutomationScopeWorkspace, "crud-job", h.workspace.ID)
+	job.ProfileID = "  "
 	created, err := manager.CreateJob(h.ctx, job)
 	if err != nil {
 		t.Fatalf("manager.CreateJob() error = %v", err)
 	}
 	if created.ID == "" {
 		t.Fatal("manager.CreateJob() id = empty, want non-empty")
+	}
+	if created.ProfileID != store.DefaultProfileID {
+		t.Fatalf("manager.CreateJob() profile_id = %q, want %q", created.ProfileID, store.DefaultProfileID)
 	}
 	if got, want := created.Scope, job.Scope; got != want {
 		t.Fatalf("created job scope = %q, want %q", got, want)
@@ -1081,6 +1087,7 @@ func TestManagerDynamicJobCRUDAndRunHistory(t *testing.T) {
 	jobs, err := manager.ListJobs(h.ctx, JobListQuery{
 		Scope:       AutomationScopeWorkspace,
 		WorkspaceID: h.workspace.ID,
+		ReadScope:   store.ReadScope{AllProfiles: true},
 	})
 	if err != nil {
 		t.Fatalf("manager.ListJobs() error = %v", err)
@@ -1126,7 +1133,9 @@ func TestManagerDynamicJobCRUDAndRunHistory(t *testing.T) {
 		t.Fatalf("manager.GetRun() id = %q, want %q", got, want)
 	}
 
-	runs, err := manager.ListRuns(h.ctx, RunQuery{JobID: updated.ID})
+	runs, err := manager.ListRuns(h.ctx, RunQuery{
+		ReadScope: store.ReadScope{AllProfiles: true}, JobID: updated.ID,
+	})
 	if err != nil {
 		t.Fatalf("manager.ListRuns() error = %v", err)
 	}
@@ -1228,6 +1237,7 @@ func TestManagerCreateJobRejectsDaemonLifecycleCommands(t *testing.T) {
 			page, err := manager.ListJobs(h.ctx, JobListQuery{
 				Scope:       AutomationScopeWorkspace,
 				WorkspaceID: h.workspace.ID,
+				ReadScope:   store.ReadScope{AllProfiles: true},
 			})
 			if err != nil {
 				t.Fatalf("manager.ListJobs() error = %v", err)
@@ -1473,6 +1483,7 @@ func TestManagerDynamicTriggerCRUDWebhookAndExtensionFire(t *testing.T) {
 		Scope:       AutomationScopeWorkspace,
 		WorkspaceID: h.workspace.ID,
 		Event:       "webhook",
+		ReadScope:   store.ReadScope{AllProfiles: true},
 	})
 	if err != nil {
 		t.Fatalf("manager.ListTriggers(webhook) error = %v", err)
@@ -1581,7 +1592,9 @@ func TestManagerDynamicTriggerCRUDWebhookAndExtensionFire(t *testing.T) {
 		t.Fatalf("len(extension fire result.Runs) = %d, want %d", got, want)
 	}
 
-	extensionRuns, err := manager.ListRuns(h.ctx, RunQuery{TriggerID: createdExtension.ID})
+	extensionRuns, err := manager.ListRuns(h.ctx, RunQuery{
+		ReadScope: store.ReadScope{AllProfiles: true}, TriggerID: createdExtension.ID,
+	})
 	if err != nil {
 		t.Fatalf("manager.ListRuns(extension) error = %v", err)
 	}
@@ -1617,6 +1630,7 @@ func TestManagerCRUDRejectsNilContextAndReadOnlyDefinitions(t *testing.T) {
 
 	configTrigger := Trigger{
 		ID:          "trigger-readonly",
+		ProfileID:   store.DefaultProfileID,
 		Scope:       AutomationScopeWorkspace,
 		Name:        "readonly-trigger",
 		AgentName:   "reviewer",
@@ -1744,6 +1758,7 @@ func TestManagerWebhookSecretHelpers(t *testing.T) {
 
 	webhookTrigger := Trigger{
 		ID:               "trigger-secret-helpers",
+		ProfileID:        store.DefaultProfileID,
 		Scope:            AutomationScopeWorkspace,
 		Name:             "secret-helpers",
 		AgentName:        "reviewer",
@@ -2308,6 +2323,7 @@ func TestManagerHelperRollbackAndComparisonCoverage(t *testing.T) {
 
 	dynamicTrigger, err := h.db.CreateTrigger(h.ctx, Trigger{
 		ID:          "trigger-rollback-dynamic",
+		ProfileID:   store.DefaultProfileID,
 		Scope:       AutomationScopeWorkspace,
 		Name:        "rollback-dynamic-trigger",
 		AgentName:   "reviewer",

@@ -38,7 +38,10 @@ func (s *Store) observabilitySources(ctx context.Context, workspaces []string) (
 			path:    path,
 			store:   s,
 			catalog: s.catalog,
-			filters: []catalogFilter{{scope: memcontract.ScopeGlobal}},
+			filters: []catalogFilter{{
+				profileID: s.profileIDForScope(memcontract.ScopeProfile),
+				scope:     memcontract.ScopeProfile,
+			}},
 		})
 		seenPaths[path] = struct{}{}
 	}

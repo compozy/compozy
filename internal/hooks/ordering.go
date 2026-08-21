@@ -101,11 +101,15 @@ func hookSkillSourceRank(source HookSkillSource) int {
 		return 1
 	case HookSkillSourceUser:
 		return 2
-	case HookSkillSourceAdditional:
+	case HookSkillSourceProfile:
 		return 3
-	case HookSkillSourceWorkspace:
+	case HookSkillSourceAdditional:
 		return 4
-	default:
+	case HookSkillSourceWorkspace:
 		return 5
+	case HookSkillSourceWorkspaceProfile:
+		return 6
+	default:
+		return 7
 	}
 }

@@ -76,7 +76,7 @@ export const settingsWindowManagerSectionFixture: SettingsWindowManagerSection =
   section: "window-manager",
   scope: "workspace",
   workspace_id: storyDefaultWorkspaceId,
-  available_scopes: ["global", "workspace"],
+  available_scopes: ["user", "workspace"],
   commands: storyRegistryCommands,
   aliases: storyAliases,
   extension_defaults: [],

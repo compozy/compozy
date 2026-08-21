@@ -28,10 +28,10 @@ func validateToolSpec(_ context.Context, scope resources.ResourceScope, spec Too
 	presentation := spec.Presentation()
 
 	normalized := Tool{
-		ID:           ToolID(strings.TrimSpace(spec.ID.String())),
-		Backend:      normalizeBackendRef(spec.Backend),
-		DisplayTitle: strings.TrimSpace(spec.DisplayTitle),
+		ID:      ToolID(strings.TrimSpace(spec.ID.String())),
+		Backend: normalizeBackendRef(spec.Backend),
 		ToolPresentation: NewToolPresentation(
+			strings.TrimSpace(presentation.DisplayTitle),
 			strings.TrimSpace(presentation.FriendlyVerb),
 			strings.TrimSpace(presentation.Preview),
 		),

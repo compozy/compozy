@@ -156,7 +156,16 @@ describe("SessionCreateDialog", () => {
     expect(screen.getByTestId("workspace-scope-statement")).toHaveTextContent(
       "Runs in alpha — /workspace/alpha"
     );
+    // The destination chip rides the same statement and appears only under the
+    // aggregate; a scoped draft already shows whose session it will be.
+    expect(screen.queryByTestId("profile-destination-chip")).not.toBeInTheDocument();
     expect(screen.queryByTestId("session-create-workspace-select")).not.toBeInTheDocument();
+  });
+
+  it("Should show the aggregate destination profile in the launch statement", () => {
+    renderDialog({ mode: "advanced", profileDestination: "marketing" });
+
+    expect(screen.getByTestId("profile-destination-chip")).toHaveTextContent("marketing");
   });
 
   it("Should report the typed first message to the owner", async () => {

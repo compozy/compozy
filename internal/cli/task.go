@@ -80,7 +80,7 @@ const (
 	taskOriginKey                 = "origin"
 	taskOutcomeKey                = "outcome"
 	taskPeerIDKey                 = "peer_id"
-	taskProfileKey                = "profile"
+	taskProfileKey                = profileFlagName
 	taskQueuedAtKey               = "queued_at"
 	taskReasonKey                 = "reason"
 	taskReviewKey                 = "review"

@@ -5,8 +5,10 @@ import {
   systemNotificationState,
   type SystemNotificationState,
 } from "@/systems/os";
+import { useProfileReadScope } from "@/systems/profiles";
 
 import { SettingsApiError } from "../adapters/settings-api";
+import { settingsAttentionFilterForProfile } from "../lib/query-options";
 import type { SettingsAttentionSection, SettingsUpdateAttentionRequest } from "../types";
 import { useSettingsPage } from "./use-settings-page";
 import { useSettingsAttention } from "./use-settings-sections";
@@ -32,16 +34,18 @@ export interface SettingsAttentionPageModel {
 
 /**
  * Attention settings apply live, so this page has no save bar: every control is
- * the commit. `[attention]` is a `Live` config section end to end, and a
- * pending "Save" would be a second source of truth for a value the CLI can
- * change underneath it.
+ * the commit. Delivery channels are global config; workspace mutes are rows
+ * owned by the active profile. The typed Settings route returns both as one
+ * candidate, so a pending "Save" would create a second source of truth.
  *
  * Enabling the system channel walks the platform permission flow first and
  * writes the setting only if permission was actually granted — the toggle must
  * never claim to be armed when the platform refused.
  */
 export function useSettingsAttentionPage(): SettingsAttentionPageModel {
-  const query = useSettingsAttention();
+  const profile = useProfileReadScope();
+  const filter = settingsAttentionFilterForProfile(profile.destination);
+  const query = useSettingsAttention(filter);
   const mutation = useUpdateSettingsAttention();
   const page = useSettingsPage({ currentSlug: "attention" });
   const [systemState, setSystemState] = useState<SystemNotificationState>(() =>
@@ -49,14 +53,28 @@ export function useSettingsAttentionPage(): SettingsAttentionPageModel {
   );
   const [requestingSystemPermission, setRequestingSystemPermission] = useState(false);
   const permissionRequestRef = useRef(false);
-  const config =
-    (mutation.isPending ? mutation.variables?.config : undefined) ?? query.data?.config ?? null;
+  const pendingFilter = mutation.variables?.filter;
+  const pendingConfig =
+    mutation.isPending &&
+    pendingFilter?.scope === filter.scope &&
+    (pendingFilter?.profile ?? "") === (filter.profile ?? "")
+      ? mutation.variables?.body.config
+      : undefined;
+  const config: AttentionConfig | null = pendingConfig
+    ? {
+        toasts: pendingConfig.toasts,
+        sound: pendingConfig.sound,
+        system: pendingConfig.system,
+        muted_workspaces:
+          pendingConfig.muted_workspaces ?? query.data?.config.muted_workspaces ?? [],
+      }
+    : (query.data?.config ?? null);
   const isSaving = mutation.isPending || requestingSystemPermission;
 
   const apply = (next: AttentionConfig) => {
     if (isSaving) return;
     const body: SettingsUpdateAttentionRequest = { config: next };
-    mutation.mutate(body);
+    mutation.mutate({ body, filter });
   };
 
   const setSystem = (enabled: boolean) => {
@@ -74,7 +92,7 @@ export function useSettingsAttentionPage(): SettingsAttentionPageModel {
         setSystemState(state);
         // A refused permission leaves the setting off; the chip explains why.
         if (state === "granted") {
-          mutation.mutate({ config: { ...config, system: true } });
+          mutation.mutate({ body: { config: { ...config, system: true } }, filter });
         }
       })
       .finally(() => {

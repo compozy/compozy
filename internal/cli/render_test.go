@@ -66,7 +66,7 @@ func TestBundlesRenderHumanAndToon(t *testing.T) {
 				AgentRecord{Name: "coder", Provider: "fake", Prompt: "You are coder.", Tools: []string{"shell"}},
 			),
 		},
-		{name: "session", bundle: sessionBundle(sessionInfo, func() time.Time { return fixedTestNow })},
+		{name: "session", bundle: sessionBundle(&sessionInfo, func() time.Time { return fixedTestNow })},
 		{name: "sessionEvents", bundle: sessionEventsBundle(sessionEvents)},
 		{name: "sessionHistory", bundle: sessionHistoryBundle(history)},
 		{name: "agentEvents", bundle: agentEventsBundle(agentEvents)},

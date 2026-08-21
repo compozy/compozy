@@ -357,6 +357,7 @@ func (p daemonExtensionWatchPoller) Poll(
 type daemonLoopDefinitionResolver struct {
 	catalog         *resourceCatalog[looppkg.ResourceSpec]
 	compilerFactory func(context.Context) *looppkg.Compiler
+	profiles        loopProfileNameResolver
 }
 
 var _ looppkg.DefinitionResolver = (*daemonLoopDefinitionResolver)(nil)
@@ -364,6 +365,7 @@ var _ looppkg.DefinitionResolver = (*daemonLoopDefinitionResolver)(nil)
 func (r *daemonLoopDefinitionResolver) ResolveLoop(
 	ctx context.Context,
 	ws looppkg.WorkspaceID,
+	profileID string,
 	name string,
 ) (*looppkg.ResolvedDefinition, error) {
 	if r == nil || r.catalog == nil || r.compilerFactory == nil {
@@ -376,7 +378,11 @@ func (r *daemonLoopDefinitionResolver) ResolveLoop(
 	if trimmedName == "" {
 		return nil, fmt.Errorf("%w: loop name is required", looppkg.ErrValidation)
 	}
-	records := looppkg.ResolveEffectiveResources(r.catalog.Snapshot(), string(ws))
+	lens, err := resolveLoopResourceLens(ctx, r.profiles, string(ws), profileID)
+	if err != nil {
+		return nil, err
+	}
+	records := looppkg.ResolveEffectiveResources(r.catalog.Snapshot(), lens)
 	for _, record := range records {
 		if strings.TrimSpace(record.Spec.Name) != trimmedName {
 			continue

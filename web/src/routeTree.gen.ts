@@ -42,6 +42,7 @@ import { Route as AppSettingsIndexRouteImport } from './routes/_app/settings/ind
 import { Route as AppSettingsAppearanceRouteImport } from './routes/_app/settings/appearance'
 import { Route as AppSettingsAttentionRouteImport } from './routes/_app/settings/attention'
 import { Route as AppSettingsAutomationRouteImport } from './routes/_app/settings/automation'
+import { Route as AppSettingsDefaultsRouteImport } from './routes/_app/settings/defaults'
 import { Route as AppSettingsExtensionsRouteImport } from './routes/_app/settings/extensions'
 import { Route as AppSettingsGatewayRouteImport } from './routes/_app/settings/gateway'
 import { Route as AppSettingsGeneralRouteImport } from './routes/_app/settings/general'
@@ -51,6 +52,7 @@ import { Route as AppSettingsMemoryRouteImport } from './routes/_app/settings/me
 import { Route as AppSettingsNetworkRouteImport } from './routes/_app/settings/network'
 import { Route as AppSettingsObservabilityRouteImport } from './routes/_app/settings/observability'
 import { Route as AppSettingsPaletteRouteImport } from './routes/_app/settings/palette'
+import { Route as AppSettingsProfilesRouteImport } from './routes/_app/settings/profiles'
 import { Route as AppSettingsProvidersRouteImport } from './routes/_app/settings/providers'
 import { Route as AppSettingsRolesRouteImport } from './routes/_app/settings/roles'
 import { Route as AppSettingsSkillsRouteImport } from './routes/_app/settings/skills'
@@ -238,6 +240,11 @@ const AppSettingsAutomationRoute = AppSettingsAutomationRouteImport.update({
   path: '/automation',
   getParentRoute: () => AppSettingsRoute,
 } as any)
+const AppSettingsDefaultsRoute = AppSettingsDefaultsRouteImport.update({
+  id: '/defaults',
+  path: '/defaults',
+  getParentRoute: () => AppSettingsRoute,
+} as any)
 const AppSettingsExtensionsRoute = AppSettingsExtensionsRouteImport.update({
   id: '/extensions',
   path: '/extensions',
@@ -282,6 +289,11 @@ const AppSettingsObservabilityRoute =
 const AppSettingsPaletteRoute = AppSettingsPaletteRouteImport.update({
   id: '/palette',
   path: '/palette',
+  getParentRoute: () => AppSettingsRoute,
+} as any)
+const AppSettingsProfilesRoute = AppSettingsProfilesRouteImport.update({
+  id: '/profiles',
+  path: '/profiles',
   getParentRoute: () => AppSettingsRoute,
 } as any)
 const AppSettingsProvidersRoute = AppSettingsProvidersRouteImport.update({
@@ -426,6 +438,7 @@ export interface FileRoutesByFullPath {
   '/settings/appearance': typeof AppSettingsAppearanceRoute
   '/settings/attention': typeof AppSettingsAttentionRoute
   '/settings/automation': typeof AppSettingsAutomationRoute
+  '/settings/defaults': typeof AppSettingsDefaultsRoute
   '/settings/extensions': typeof AppSettingsExtensionsRoute
   '/settings/gateway': typeof AppSettingsGatewayRoute
   '/settings/general': typeof AppSettingsGeneralRoute
@@ -435,6 +448,7 @@ export interface FileRoutesByFullPath {
   '/settings/network': typeof AppSettingsNetworkRoute
   '/settings/observability': typeof AppSettingsObservabilityRoute
   '/settings/palette': typeof AppSettingsPaletteRoute
+  '/settings/profiles': typeof AppSettingsProfilesRoute
   '/settings/providers': typeof AppSettingsProvidersRoute
   '/settings/roles': typeof AppSettingsRolesRoute
   '/settings/skills': typeof AppSettingsSkillsRoute
@@ -486,6 +500,7 @@ export interface FileRoutesByTo {
   '/settings/appearance': typeof AppSettingsAppearanceRoute
   '/settings/attention': typeof AppSettingsAttentionRoute
   '/settings/automation': typeof AppSettingsAutomationRoute
+  '/settings/defaults': typeof AppSettingsDefaultsRoute
   '/settings/extensions': typeof AppSettingsExtensionsRoute
   '/settings/gateway': typeof AppSettingsGatewayRoute
   '/settings/general': typeof AppSettingsGeneralRoute
@@ -495,6 +510,7 @@ export interface FileRoutesByTo {
   '/settings/network': typeof AppSettingsNetworkRoute
   '/settings/observability': typeof AppSettingsObservabilityRoute
   '/settings/palette': typeof AppSettingsPaletteRoute
+  '/settings/profiles': typeof AppSettingsProfilesRoute
   '/settings/providers': typeof AppSettingsProvidersRoute
   '/settings/roles': typeof AppSettingsRolesRoute
   '/settings/skills': typeof AppSettingsSkillsRoute
@@ -552,6 +568,7 @@ export interface FileRoutesById {
   '/_app/settings/appearance': typeof AppSettingsAppearanceRoute
   '/_app/settings/attention': typeof AppSettingsAttentionRoute
   '/_app/settings/automation': typeof AppSettingsAutomationRoute
+  '/_app/settings/defaults': typeof AppSettingsDefaultsRoute
   '/_app/settings/extensions': typeof AppSettingsExtensionsRoute
   '/_app/settings/gateway': typeof AppSettingsGatewayRoute
   '/_app/settings/general': typeof AppSettingsGeneralRoute
@@ -561,6 +578,7 @@ export interface FileRoutesById {
   '/_app/settings/network': typeof AppSettingsNetworkRoute
   '/_app/settings/observability': typeof AppSettingsObservabilityRoute
   '/_app/settings/palette': typeof AppSettingsPaletteRoute
+  '/_app/settings/profiles': typeof AppSettingsProfilesRoute
   '/_app/settings/providers': typeof AppSettingsProvidersRoute
   '/_app/settings/roles': typeof AppSettingsRolesRoute
   '/_app/settings/skills': typeof AppSettingsSkillsRoute
@@ -618,6 +636,7 @@ export interface FileRouteTypes {
     | '/settings/appearance'
     | '/settings/attention'
     | '/settings/automation'
+    | '/settings/defaults'
     | '/settings/extensions'
     | '/settings/gateway'
     | '/settings/general'
@@ -627,6 +646,7 @@ export interface FileRouteTypes {
     | '/settings/network'
     | '/settings/observability'
     | '/settings/palette'
+    | '/settings/profiles'
     | '/settings/providers'
     | '/settings/roles'
     | '/settings/skills'
@@ -678,6 +698,7 @@ export interface FileRouteTypes {
     | '/settings/appearance'
     | '/settings/attention'
     | '/settings/automation'
+    | '/settings/defaults'
     | '/settings/extensions'
     | '/settings/gateway'
     | '/settings/general'
@@ -687,6 +708,7 @@ export interface FileRouteTypes {
     | '/settings/network'
     | '/settings/observability'
     | '/settings/palette'
+    | '/settings/profiles'
     | '/settings/providers'
     | '/settings/roles'
     | '/settings/skills'
@@ -743,6 +765,7 @@ export interface FileRouteTypes {
     | '/_app/settings/appearance'
     | '/_app/settings/attention'
     | '/_app/settings/automation'
+    | '/_app/settings/defaults'
     | '/_app/settings/extensions'
     | '/_app/settings/gateway'
     | '/_app/settings/general'
@@ -752,6 +775,7 @@ export interface FileRouteTypes {
     | '/_app/settings/network'
     | '/_app/settings/observability'
     | '/_app/settings/palette'
+    | '/_app/settings/profiles'
     | '/_app/settings/providers'
     | '/_app/settings/roles'
     | '/_app/settings/skills'
@@ -1016,6 +1040,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AppSettingsAutomationRouteImport
       parentRoute: typeof AppSettingsRoute
     }
+    '/_app/settings/defaults': {
+      id: '/_app/settings/defaults'
+      path: '/defaults'
+      fullPath: '/settings/defaults'
+      preLoaderRoute: typeof AppSettingsDefaultsRouteImport
+      parentRoute: typeof AppSettingsRoute
+    }
     '/_app/settings/extensions': {
       id: '/_app/settings/extensions'
       path: '/extensions'
@@ -1077,6 +1108,13 @@ declare module '@tanstack/react-router' {
       path: '/palette'
       fullPath: '/settings/palette'
       preLoaderRoute: typeof AppSettingsPaletteRouteImport
+      parentRoute: typeof AppSettingsRoute
+    }
+    '/_app/settings/profiles': {
+      id: '/_app/settings/profiles'
+      path: '/profiles'
+      fullPath: '/settings/profiles'
+      preLoaderRoute: typeof AppSettingsProfilesRouteImport
       parentRoute: typeof AppSettingsRoute
     }
     '/_app/settings/providers': {
@@ -1408,6 +1446,7 @@ interface AppSettingsRouteChildren {
   AppSettingsAppearanceRoute: typeof AppSettingsAppearanceRoute
   AppSettingsAttentionRoute: typeof AppSettingsAttentionRoute
   AppSettingsAutomationRoute: typeof AppSettingsAutomationRoute
+  AppSettingsDefaultsRoute: typeof AppSettingsDefaultsRoute
   AppSettingsExtensionsRoute: typeof AppSettingsExtensionsRoute
   AppSettingsGatewayRoute: typeof AppSettingsGatewayRoute
   AppSettingsGeneralRoute: typeof AppSettingsGeneralRoute
@@ -1417,6 +1456,7 @@ interface AppSettingsRouteChildren {
   AppSettingsNetworkRoute: typeof AppSettingsNetworkRoute
   AppSettingsObservabilityRoute: typeof AppSettingsObservabilityRoute
   AppSettingsPaletteRoute: typeof AppSettingsPaletteRoute
+  AppSettingsProfilesRoute: typeof AppSettingsProfilesRoute
   AppSettingsProvidersRoute: typeof AppSettingsProvidersRoute
   AppSettingsRolesRoute: typeof AppSettingsRolesRoute
   AppSettingsSkillsRoute: typeof AppSettingsSkillsRoute
@@ -1427,6 +1467,7 @@ const AppSettingsRouteChildren: AppSettingsRouteChildren = {
   AppSettingsAppearanceRoute: AppSettingsAppearanceRoute,
   AppSettingsAttentionRoute: AppSettingsAttentionRoute,
   AppSettingsAutomationRoute: AppSettingsAutomationRoute,
+  AppSettingsDefaultsRoute: AppSettingsDefaultsRoute,
   AppSettingsExtensionsRoute: AppSettingsExtensionsRoute,
   AppSettingsGatewayRoute: AppSettingsGatewayRoute,
   AppSettingsGeneralRoute: AppSettingsGeneralRoute,
@@ -1436,6 +1477,7 @@ const AppSettingsRouteChildren: AppSettingsRouteChildren = {
   AppSettingsNetworkRoute: AppSettingsNetworkRoute,
   AppSettingsObservabilityRoute: AppSettingsObservabilityRoute,
   AppSettingsPaletteRoute: AppSettingsPaletteRoute,
+  AppSettingsProfilesRoute: AppSettingsProfilesRoute,
   AppSettingsProvidersRoute: AppSettingsProvidersRoute,
   AppSettingsRolesRoute: AppSettingsRolesRoute,
   AppSettingsSkillsRoute: AppSettingsSkillsRoute,

@@ -12,6 +12,8 @@ import (
 	registrypkg "github.com/compozy/compozy/internal/registry"
 	registrygithub "github.com/compozy/compozy/internal/registry/github"
 	registrygit "github.com/compozy/compozy/internal/registry/gitsrc"
+	"github.com/compozy/compozy/internal/store"
+	taskpkg "github.com/compozy/compozy/internal/task"
 	toolspkg "github.com/compozy/compozy/internal/tools"
 )
 
@@ -34,17 +36,13 @@ type extensionNameInput struct {
 	Name string `json:"name"`
 }
 
-type extensionEnableInput struct {
-	Name                 string `json:"name"`
-	ConfirmNetworkDigest string `json:"confirm_network_digest"`
-}
-
 type extensionInstallInput struct {
-	Source          contract.InstallExtensionSource `json:"source"`
-	Ref             string                          `json:"ref"`
-	Version         string                          `json:"version"`
-	Asset           string                          `json:"asset"`
-	AllowUnverified bool                            `json:"allow_unverified"`
+	Source               contract.InstallExtensionSource `json:"source"`
+	Ref                  string                          `json:"ref"`
+	Version              string                          `json:"version"`
+	Asset                string                          `json:"asset"`
+	AllowUnverified      bool                            `json:"allow_unverified"`
+	ConfirmNetworkDigest string                          `json:"confirm_network_digest"`
 }
 
 type extensionUpdateInput struct {
@@ -106,10 +104,6 @@ func (n *daemonNativeTools) extensionToolBindings(
 		},
 		toolspkg.ToolIDExtensionsInventory: {
 			call:         n.extensionInventory,
-			availability: availability,
-		},
-		toolspkg.ToolIDExtensionsPreview: {
-			call:         n.extensionPreview,
 			availability: availability,
 		},
 		toolspkg.ToolIDExtensionsInstall: {
@@ -304,7 +298,7 @@ func (n *daemonNativeTools) extensionEnable(
 	scope toolspkg.Scope,
 	req toolspkg.CallRequest,
 ) (toolspkg.ToolResult, error) {
-	var input extensionEnableInput
+	var input extensionNameInput
 	if err := decodeNativeInput(req, &input); err != nil {
 		return toolspkg.ToolResult{}, err
 	}
@@ -316,13 +310,11 @@ func (n *daemonNativeTools) extensionEnable(
 	if err != nil {
 		return toolspkg.ToolResult{}, nativeExtensionToolError(req.ToolID, err)
 	}
-	item, err := n.extensionService().Enable(ctx, name, contract.EnableExtensionRequest{
-		ConfirmNetworkDigest: strings.TrimSpace(input.ConfirmNetworkDigest),
-	}, actor)
+	item, err := n.setNativeExtensionEnablement(ctx, scope, name, true, actor)
 	if err != nil {
 		return toolspkg.ToolResult{}, nativeExtensionToolError(req.ToolID, err)
 	}
-	return structuredResult(item, item.Extension.Name)
+	return structuredResult(item, name)
 }
 
 func (n *daemonNativeTools) extensionDisable(
@@ -342,11 +334,42 @@ func (n *daemonNativeTools) extensionDisable(
 	if err != nil {
 		return toolspkg.ToolResult{}, nativeExtensionToolError(req.ToolID, err)
 	}
-	item, err := n.extensionService().Disable(ctx, name, actor)
+	item, err := n.setNativeExtensionEnablement(ctx, scope, name, false, actor)
 	if err != nil {
 		return toolspkg.ToolResult{}, nativeExtensionToolError(req.ToolID, err)
 	}
-	return structuredResult(map[string]any{nativeExtensionToolsExtensionKey: item}, item.Name)
+	return structuredResult(item, name)
+}
+
+func (n *daemonNativeTools) setNativeExtensionEnablement(
+	ctx context.Context,
+	scope toolspkg.Scope,
+	name string,
+	enabled bool,
+	actor taskpkg.ActorContext,
+) (contract.ExtensionEnablementPayload, error) {
+	service := n.extensionService()
+	if service == nil || service.profiles == nil {
+		return contract.ExtensionEnablementPayload{}, errors.New(
+			"daemon: profile manager is required for extension enablement",
+		)
+	}
+	profileID, _, _, err := n.nativeCurrentProfileIdentity(ctx, scope)
+	if err != nil {
+		return contract.ExtensionEnablementPayload{}, err
+	}
+	profileName, err := service.profiles.ProfileName(ctx, profileID)
+	if err != nil {
+		return contract.ExtensionEnablementPayload{}, err
+	}
+	actor.ReadScope = store.ReadScope{ProfileID: profileID}
+	if err := actor.Validate(); err != nil {
+		return contract.ExtensionEnablementPayload{}, err
+	}
+	return service.SetEnablement(ctx, name, contract.SetExtensionEnablementRequest{
+		Profile: profileName,
+		Enabled: enabled,
+	}, actor)
 }
 
 func (n *daemonNativeTools) extensionService() *daemonExtensionService {
@@ -368,6 +391,7 @@ func (n *daemonNativeTools) extensionService() *daemonExtensionService {
 		AgentSkill:   n.deps.agentSkills(),
 		ToolMCP:      n.deps.ToolMCP,
 		Loops:        n.deps.LoopResources,
+		Profiles:     n.deps.ProfileManager,
 		HomePaths:    n.deps.HomePaths,
 	},
 		withDaemonExtensionMarketplace(n.deps.ExtensionConfig, n.deps.ExtensionSources),

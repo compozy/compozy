@@ -109,7 +109,7 @@ func (b *clarifyBridge) publish(
 	if b.summaries == nil {
 		return nil
 	}
-	if err := b.writeSummary(ctx, event); err != nil {
+	if err := b.writeSummary(ctx, handle, event); err != nil {
 		b.logger.WarnContext(
 			ctx,
 			"clarification lifecycle summary failed",
@@ -122,22 +122,39 @@ func (b *clarifyBridge) publish(
 	return nil
 }
 
-func (b *clarifyBridge) writeSummary(ctx context.Context, event toolspkg.ClarifyEvent) error {
+func (b *clarifyBridge) writeSummary(
+	ctx context.Context,
+	handle *clarifyHandle,
+	event toolspkg.ClarifyEvent,
+) error {
 	payload, err := json.Marshal(event)
 	if err != nil {
 		return fmt.Errorf("marshal clarification summary: %w", err)
 	}
-	return b.summaries.WriteEventSummary(ctx, store.EventSummary{
+	profileID := ""
+	if handle != nil {
+		profileID = strings.TrimSpace(handle.profileID)
+	}
+	if profileID == "" && b.profileForSession != nil {
+		profileID, err = b.profileForSession(ctx, event.Request.SessionID)
+		if err != nil {
+			return fmt.Errorf("resolve clarification session profile: %w", err)
+		}
+	}
+	if profileID == "" {
+		return errors.New("daemon: clarification summary profile is required")
+	}
+	return b.summaries.WriteEventSummary(ctx, daemonEventSummary(store.EventSummary{
+		ProfileID:   profileID,
 		ID:          event.Request.RequestID + "-" + string(event.Status),
 		SessionID:   event.Request.SessionID,
 		WorkspaceID: event.Request.WorkspaceID,
 		Type:        "clarify." + clarifySummarySuffix(event.Status),
 		AgentName:   event.Request.AgentName,
 		Outcome:     clarifySummaryOutcome(event.Status),
-		Content:     payload,
 		Summary:     clarifySummaryText(event.Status, event.Request.RequestID),
 		Timestamp:   event.At,
-	})
+	}, payload))
 }
 
 func clarifySummarySuffix(status toolspkg.ClarifyStatus) string {

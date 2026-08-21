@@ -11,9 +11,9 @@ func bridgeManifestOperations() []OperationSpec {
 			Summary:     "Generate a Slack app manifest for one bridge instance",
 			Tags:        []string{specBridgesKey},
 			Transports:  []Transport{TransportHTTP, TransportUDS},
-			Parameters: []ParameterSpec{
+			Parameters: withProfileScope(
 				queryParam("instance", "Slack bridge instance id", true),
-			},
+			),
 			Responses: []ResponseSpec{
 				{Status: 200, Description: "OK", Body: contract.SlackAppManifestResponse{}},
 				{Status: 400, Description: "Invalid Slack bridge manifest request", Body: contract.ErrorPayload{}},

@@ -36,6 +36,20 @@ A durable managed agent run: saved history, resumable state, and the same view f
 
 ---
 
+### Profile
+
+An operator-owned partition of work on one CompozyOS installation. Each work root — session, task, loop run, automation, automation run, bridge instance, worktree, network conversation, notification cursor, tool approval grant, usage row — is stamped with exactly one profile at creation and never moves. Children inherit their parent's owner. Profile-aware owned-work reads run in one of exactly two modes — scoped to one profile, or the explicit owner-labeled aggregate — and the daemon enforces both, fail-closed. Ruled exceptions are documented, not implicit: worktrees are visible in every profile with an owner tag, and Compozy Network delivery stays profile-blind so peers in different profiles can converse.
+
+Every installation has the permanent `default` profile, structurally identical to any other, which cannot be archived, deleted, or renamed. Names match `^[a-z][a-z0-9-]{0,31}$`, are unique across active and archived profiles, and reserve `default`, `all`, and `global`. The name doubles as a repository folder name and as the binding key extensions place resources into; the stamp itself is a stable ULID, so a rename never touches work.
+
+**Organization, not access control.** Profiles carry no permission, grant, lock, or hidden-from vocabulary. Any active profile is selectable at any time; archived profiles remain visible in aggregate reads and must be unarchived before selection. Do not reintroduce the closed [Cross-workspace access](#cross-workspace-access) vocabulary. Access control for more than one operator is a separate future program.
+
+**Bare "Profile" names only this concept.** The pre-existing compounds keep their own meaning and are unrelated: [Task Execution Profile](#task-execution-profile), sandbox profile (see [Sandbox](#sandbox)), layout profile, [Trust Profile](#trust-profile), gateway connection profile, and session creation profile. Renaming them was considered and rejected; this entry is the arbitration line for any future collision.
+
+**UI label:** "Profile" — keep. It has no alias, so it has no row in [Surface Names](#surface-names).
+
+---
+
 ### Control surface
 
 A human/agent-operable surface — CLI, HTTP/SSE, UDS, or web UI — over the same daemon-owned state. The term names the class, not any one surface.
@@ -313,9 +327,11 @@ Per RFC 002 / Claude Code AutoDream / CompozyOS `internal/memory/consolidation/`
 
 ### Memory Scopes
 
-- `agent` — local to a specific agent definition.
-- `workspace` — shared across agents within a workspace.
-- `global` — shared across workspaces in the CompozyOS installation.
+- `agent` — local to a specific agent definition; only this scope accepts `agent_tier = workspace | global`.
+- `workspace` — shared across agents and across profiles within a workspace; repository-committed.
+- `profile` — shared across workspaces, owned by one [Profile](#profile). Stored under `$COMPOZY_HOME/profiles/<name>/memory/`.
+
+The scope value `global` was hard-cut to `profile`; no dual value is accepted. `global` survives only as an **agent tier**, which is a different axis (how far one agent's memory reaches, not who owns it).
 
 Default write scope is declared per agent in `memory.scope`.
 

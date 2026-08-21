@@ -94,7 +94,7 @@ func (m *Service) settleCompletedTerminalRunCommand(
 		completedRunPayload{
 			Status:     completed.Run.Status,
 			TaskStatus: completed.Task.Status,
-			Result:     cloneRawJSON(completed.Run.Result),
+			Result:     cloneRawJSON(rawJSONValue(completed.Run.Result)),
 		},
 	)
 	if err != nil {

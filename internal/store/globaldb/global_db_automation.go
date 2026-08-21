@@ -131,15 +131,19 @@ func (g *AutomationRepo) GetRun(ctx context.Context, id string) (automation.Run,
 		return automation.Run{}, err
 	}
 
-	row, err := g.queries.GetAutomationRun(ctx, trimmedID)
+	row := g.db.QueryRowContext(ctx, `SELECT
+		id, `+automationRunProfileIDSQL+`, job_id, trigger_id, session_id, task_id, task_run_id, fire_id,
+		status, attempt, scheduled_at, started_at, ended_at, error,
+		delivery_error, delivery_error_at, loop_run_id, network_participation, metadata_json
+		FROM automation_runs WHERE id = ?`, trimmedID)
+	run, err := scanAutomationRun(row)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return automation.Run{}, automation.ErrRunNotFound
 		}
 		return automation.Run{}, err
 	}
-
-	return automationRunFromGetGenerated(row)
+	return run, nil
 }
 
 // ListRuns returns filtered automation run history rows.
@@ -156,7 +160,7 @@ func (g *AutomationRepo) ListRuns(
 
 	// dynamic-sql: optional run dimensions, time bounds, and caller limit change the statement shape.
 	sqlQuery := `SELECT
-		id, job_id, trigger_id, session_id, task_id, task_run_id, fire_id,
+		id, ` + automationRunProfileIDSQL + `, job_id, trigger_id, session_id, task_id, task_run_id, fire_id,
 		status, attempt, scheduled_at, started_at, ended_at, error,
 		delivery_error, delivery_error_at, loop_run_id, network_participation, metadata_json
 		FROM automation_runs`

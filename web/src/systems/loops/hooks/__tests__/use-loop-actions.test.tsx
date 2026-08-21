@@ -166,6 +166,7 @@ describe("loop mutation hooks", () => {
       workspaceId: WS,
       name: "implement-tasks",
       data: { inputs: { slug: "hook-run" } },
+      profile: "default",
     });
     await waitFor(() => {
       expect(invalidate).toHaveBeenCalledWith({ queryKey: ["loops", "runs", WS] });
@@ -178,6 +179,7 @@ describe("loop mutation hooks", () => {
       name: "implement-tasks",
       data: { inputs: { slug: "hook-run" } },
       dry: true,
+      profile: "default",
     });
     await waitFor(() => {
       expect(result.current.isSuccess).toBe(true);

@@ -48,3 +48,4 @@ export {
   taskTriageStateFixture,
 } from "./fixtures";
 export type { CoordinatorEnabledWorkspaceFixture } from "./fixtures";
+export { aggregateProfileTaskFixture } from "./profile-fixtures";

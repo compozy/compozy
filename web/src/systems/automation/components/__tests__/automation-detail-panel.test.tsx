@@ -41,6 +41,8 @@ vi.mock("@tanstack/react-router", () => ({
 import { AutomationDetailPanel } from "../automation-detail-panel";
 
 const jobFixture = {
+  profile_id: "00000000000000000000000000",
+  profile_name: "default",
   id: "job_daily_review",
   name: "daily-review",
   agent_name: "reviewer",
@@ -72,6 +74,8 @@ const jobFixture = {
 };
 
 const runFixture = {
+  profile_id: "00000000000000000000000000",
+  profile_name: "default",
   id: "run_001",
   status: "completed" as const,
   attempt: 1,
@@ -314,8 +318,16 @@ describe("AutomationDetailPanel", () => {
       item: jobFixture,
       runs: [
         runFixture,
-        { ...runFixture, id: "run_002", status: "completed" as const },
-        { ...runFixture, id: "run_003", status: "failed" as const },
+        {
+          ...runFixture,
+          id: "run_002",
+          status: "completed" as const,
+        },
+        {
+          ...runFixture,
+          id: "run_003",
+          status: "failed" as const,
+        },
       ],
     });
 

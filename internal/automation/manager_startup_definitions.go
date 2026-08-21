@@ -3,6 +3,8 @@ package automation
 import (
 	"context"
 	"fmt"
+
+	"github.com/compozy/compozy/internal/store"
 )
 
 func (m *Manager) loadStartupDefinitionsLocked(ctx context.Context) ([]Job, []Trigger, error) {
@@ -31,11 +33,11 @@ func (m *Manager) loadStartupDefinitionsLocked(ctx context.Context) ([]Job, []Tr
 		return jobs, triggers, nil
 	}
 
-	jobs, err := m.loadEffectiveJobs(ctx, JobListQuery{})
+	jobs, err := m.loadEffectiveJobs(ctx, JobListQuery{ReadScope: store.ReadScope{AllProfiles: true}})
 	if err != nil {
 		return nil, nil, fmt.Errorf("automation: load effective jobs: %w", err)
 	}
-	triggers, err := m.loadEffectiveTriggers(ctx, TriggerListQuery{})
+	triggers, err := m.loadEffectiveTriggers(ctx, TriggerListQuery{ReadScope: store.ReadScope{AllProfiles: true}})
 	if err != nil {
 		return nil, nil, fmt.Errorf("automation: load effective triggers: %w", err)
 	}

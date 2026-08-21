@@ -25,7 +25,7 @@ func (s *Service) OpenSession(
 		return ViewSessionOpenResult{}, err
 	}
 	request.Client = client
-	descriptor, err := s.ResolveView(ctx, request.Workspace, request.View)
+	descriptor, err := s.ResolveView(ctx, request.ProfileLens, request.Workspace, request.View)
 	if err != nil {
 		return ViewSessionOpenResult{}, err
 	}
@@ -50,6 +50,7 @@ func (s *Service) OpenSession(
 	s.emitViewSessionEvent(ctx, EventViewSessionOpened, session)
 
 	return ViewSessionOpenResult{
+		ProfileLens: request.ProfileLens,
 		Token: SessionToken{
 			ViewSession: session.id,
 			StreamToken: session.streamToken,
@@ -71,6 +72,9 @@ func (s *Service) validateViewSessionOpen(ctx context.Context, request ViewSessi
 	if request.Workspace == "" {
 		return errors.New("cmd palette view: workspace is required")
 	}
+	if err := request.ProfileLens.Validate(); err != nil {
+		return err
+	}
 	if s.clients == nil || strings.TrimSpace(request.AttachmentToken) == "" {
 		return ErrClientUnauthorized
 	}
@@ -85,7 +89,8 @@ func newViewSession(
 	sessionCtx, cancel := context.WithCancel(context.WithoutCancel(ctx))
 	return &viewSession{
 		id: "vs_" + uuid.NewString(), streamToken: "vst_" + uuid.NewString(),
-		workspace: request.Workspace, client: request.Client, view: descriptor.ID,
+		profileLens: request.ProfileLens,
+		workspace:   request.Workspace, client: request.Client, view: descriptor.ID,
 		extension: descriptor.Extension,
 		kind:      descriptor.Kind, ctx: sessionCtx, cancel: cancel,
 		handlers: make(map[string]uint64), coalescibleHandlers: make(map[string]struct{}),
@@ -107,6 +112,7 @@ func (s *Service) openInitialViewFrame(
 	frame, generation, err := s.viewPrograms.OpenProgram(openCtx, descriptor.Extension, ViewOpenRequest{
 		ViewSession: session.id,
 		View:        descriptor.ID,
+		ProfileLens: request.ProfileLens,
 		Workspace:   request.Workspace,
 		Client:      request.Client,
 		Args:        cloneAnyMap(request.Args),
@@ -133,10 +139,13 @@ func (s *Service) failViewSessionOpen(
 	cause error,
 ) error {
 	session.cancel()
-	cleanupErr := s.closeViewProgram(ctx, session.workspace, session.extension, ViewCloseRequest{
-		ViewSession: session.id,
-		Reason:      reason,
-	})
+	cleanupErr := s.closeViewProgram(
+		ctx, session.profileLens, session.workspace, session.extension, ViewCloseRequest{
+			ViewSession: session.id,
+			ProfileLens: session.profileLens,
+			Reason:      reason,
+		},
+	)
 	return errors.Join(cause, cleanupErr)
 }
 

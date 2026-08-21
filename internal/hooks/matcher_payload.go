@@ -13,7 +13,7 @@ func (m HookMatcher) MatchesSession(payload SessionContext) bool {
 }
 
 // MatchesSandboxPrepare matches sandbox prepare hooks.
-func (m HookMatcher) MatchesSandboxPrepare(payload SandboxPreparePayload) bool {
+func (m HookMatcher) MatchesSandboxPrepare(payload *SandboxPreparePayload) bool {
 	return m.matchSandbox(
 		payload.SessionContext,
 		payload.SandboxID,

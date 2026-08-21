@@ -136,7 +136,7 @@ func (m *Service) Tree(ctx context.Context, taskID string, actor ActorContext) (
 	if trimmedTaskID == "" {
 		return nil, ErrValidation
 	}
-	tree, err := m.collectTaskTree(ctx, trimmedTaskID)
+	tree, err := m.collectTaskTree(ctx, trimmedTaskID, actor)
 	if err != nil {
 		return nil, err
 	}

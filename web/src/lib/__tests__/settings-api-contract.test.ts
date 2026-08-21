@@ -30,6 +30,7 @@ describe("settings openapi contract", () => {
 
     expectTypeOf<GetSettingsGeneralResponse["section"]>().toEqualTypeOf<
       | "general"
+      | "persona"
       | "memory"
       | "roles"
       | "skills"
@@ -42,10 +43,8 @@ describe("settings openapi contract", () => {
       | "observability"
       | "hooks-extensions"
     >();
-    expectTypeOf<GetSettingsGeneralResponse["scope"]>().toEqualTypeOf<"global">();
-    expectTypeOf<
-      GetSettingsGeneralResponse["available_scopes"][number]
-    >().toEqualTypeOf<"global">();
+    expectTypeOf<GetSettingsGeneralResponse["scope"]>().toEqualTypeOf<"user">();
+    expectTypeOf<GetSettingsGeneralResponse["available_scopes"][number]>().toEqualTypeOf<"user">();
     expectTypeOf<GetSettingsGeneralResponse["config_paths"]["log_file"]>().toEqualTypeOf<string>();
     expectTypeOf<GetSettingsGeneralResponse["config"]["session_timeout"]>().toEqualTypeOf<string>();
     expectTypeOf<GetSettingsGeneralResponse["runtime"]["available"]>().toEqualTypeOf<boolean>();
@@ -62,7 +61,7 @@ describe("settings openapi contract", () => {
       "action_trigger" | "applied_now" | "restart_required"
     >();
 
-    expectTypeOf<GetSettingsRolesResponse["scope"]>().toEqualTypeOf<"global">();
+    expectTypeOf<GetSettingsRolesResponse["scope"]>().toEqualTypeOf<"user" | "workspace">();
     expectTypeOf<keyof NonNullable<UpdateSettingsRolesBody["config"]>>().toEqualTypeOf<
       | "auto_title"
       | "checkpoint_summary"
@@ -73,7 +72,7 @@ describe("settings openapi contract", () => {
     >();
 
     expectTypeOf<PutSettingsMCPServerQuery["scope"]>().toEqualTypeOf<
-      "global" | "workspace" | undefined
+      "user" | "profile" | "workspace" | undefined
     >();
     expectTypeOf<PutSettingsMCPServerQuery["workspace_id"]>().toEqualTypeOf<string | undefined>();
     expectTypeOf<PutSettingsMCPServerQuery["target"]>().toEqualTypeOf<
@@ -108,7 +107,9 @@ describe("settings openapi contract", () => {
     expectTypeOf<ListSettingsMCPServersResponse["collection"]>().toEqualTypeOf<
       "providers" | "mcp-servers" | "sandboxes" | "hooks"
     >();
-    expectTypeOf<ListSettingsMCPServersResponse["scope"]>().toEqualTypeOf<"global" | "workspace">();
+    expectTypeOf<ListSettingsMCPServersResponse["scope"]>().toEqualTypeOf<
+      "user" | "profile" | "workspace"
+    >();
     expectTypeOf<ListSettingsMCPServersResponse["workspace_id"]>().toEqualTypeOf<
       string | undefined
     >();
@@ -127,6 +128,7 @@ describe("settings openapi contract", () => {
           diagnostic?: string;
           expires_at?: string | null;
           issuer?: string;
+          profile?: string;
           refreshable: boolean;
           remote_url?: string;
           scope: string;
@@ -141,16 +143,20 @@ describe("settings openapi contract", () => {
       | undefined
     >();
     expectTypeOf<ListSettingsMCPServersResponse["mcp_servers"][number]["scope"]>().toEqualTypeOf<
-      "global" | "workspace" | "agent"
+      "user" | "profile" | "workspace" | "agent"
     >();
     expectTypeOf<
       ListSettingsMCPServersResponse["mcp_servers"][number]["source_metadata"]["effective_source"]["kind"]
     >().toEqualTypeOf<
       | "builtin-provider"
       | "global-config"
+      | "profile-config"
       | "workspace-config"
+      | "workspace-profile-config"
       | "global-mcp-sidecar"
+      | "profile-mcp-sidecar"
       | "workspace-mcp-sidecar"
+      | "workspace-profile-mcp-sidecar"
       | "global-agent-file"
       | "workspace-agent-file"
     >();
@@ -158,8 +164,10 @@ describe("settings openapi contract", () => {
       ListSettingsMCPServersResponse["mcp_servers"][number]["source_metadata"]["available_targets"][number]
     >().toEqualTypeOf<
       | "global-config"
+      | "profile-config"
       | "workspace-config"
       | "global-mcp-sidecar"
+      | "profile-mcp-sidecar"
       | "workspace-mcp-sidecar"
       | "global-agent-file"
       | "workspace-agent-file"
@@ -172,12 +180,17 @@ describe("settings openapi contract", () => {
           kind:
             | "builtin-provider"
             | "global-config"
+            | "profile-config"
             | "workspace-config"
+            | "workspace-profile-config"
             | "global-mcp-sidecar"
+            | "profile-mcp-sidecar"
             | "workspace-mcp-sidecar"
+            | "workspace-profile-mcp-sidecar"
             | "global-agent-file"
             | "workspace-agent-file";
-          scope: "global" | "workspace" | "agent";
+          profile?: string;
+          scope: "user" | "profile" | "workspace" | "agent";
           workspace_id?: string;
         }[]
       | undefined

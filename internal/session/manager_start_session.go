@@ -20,7 +20,7 @@ func (s *sessionStartSpec) newStartingSession(
 	}
 
 	return &Session{
-		ID: s.sessionID, Name: s.sessionName, AgentName: resolved.Name,
+		ID: s.sessionID, ProfileID: s.profileID, Name: s.sessionName, AgentName: resolved.Name,
 		Provider: strings.TrimSpace(resolved.Provider), Model: strings.TrimSpace(resolved.Model),
 		ReasoningEffort: strings.TrimSpace(s.reasoningEffort), Speed: s.speed, WorkspaceID: s.workspace.ID,
 		RuntimeStatus:             RuntimeStatusBinding,

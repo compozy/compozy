@@ -31,6 +31,7 @@ import type {
   SessionPayload,
   SessionsResponse,
 } from "../../types";
+import { PROFILE_AGGREGATE, resetProfileViews, setProfileView } from "@/systems/profiles";
 
 vi.mock("../../adapters/session-api", async importOriginal => ({
   ...(await importOriginal<typeof import("../../adapters/session-api")>()),
@@ -56,6 +57,7 @@ vi.mock("@/systems/workspace/hooks/use-active-workspace", () => ({
 }));
 
 vi.mock("sonner", () => ({ toast: { error: vi.fn() } }));
+vi.mock("@/lib/user-feedback", () => ({ notifyUser: vi.fn() }));
 
 import {
   cancelQueuedSessionPrompt,
@@ -73,6 +75,7 @@ import {
   unarchiveSession,
 } from "../../adapters/session-api";
 import { toast } from "sonner";
+import { notifyUser } from "@/lib/user-feedback";
 import { useSessionLifecycleActions } from "../use-session-lifecycle-actions";
 const WORKSPACE_ID = "ws_alpha";
 
@@ -93,6 +96,8 @@ function createWrapper(queryClient: QueryClient) {
 }
 
 const createdSession: SessionPayload = {
+  profile_id: "00000000000000000000000000",
+  profile_name: "default",
   id: "sess-created",
   name: "Created session",
   agent_name: "claude-agent",
@@ -176,6 +181,7 @@ describe("session actions", () => {
   });
 
   afterEach(() => {
+    act(() => resetProfileViews());
     vi.restoreAllMocks();
   });
 
@@ -189,8 +195,8 @@ describe("session actions", () => {
     const workspaceSessions = sessionListCache([existingSession]);
     const otherWorkspaceSessions = sessionListCache([otherWorkspaceSession]);
     queryClient.setQueryData(sessionKeys.list(), allSessions);
-    queryClient.setQueryData(sessionKeys.list({ workspace: "ws_alpha" }), workspaceSessions);
-    queryClient.setQueryData(sessionKeys.list({ workspace: "ws_beta" }), otherWorkspaceSessions);
+    queryClient.setQueryData(sessionKeys.list({ workspace_id: "ws_alpha" }), workspaceSessions);
+    queryClient.setQueryData(sessionKeys.list({ workspace_id: "ws_beta" }), otherWorkspaceSessions);
     const invalidateSpy = vi.spyOn(queryClient, "invalidateQueries");
 
     const { result } = renderHook(() => useCreateSession(), {
@@ -204,31 +210,57 @@ describe("session actions", () => {
       });
     });
 
-    expect(createSession).toHaveBeenCalledWith({
-      agent_name: createdSession.agent_name,
-      workspace: createdSession.workspace_id,
-    });
+    // The acting profile rides the create call: omitting it would file every
+    // web-created session into `default` regardless of the active profile.
+    expect(createSession).toHaveBeenCalledWith(
+      {
+        agent_name: createdSession.agent_name,
+        workspace: createdSession.workspace_id,
+      },
+      "default"
+    );
     expect(queryClient.getQueryData(sessionKeys.detail(WORKSPACE_ID, createdSession.id))).toEqual(
       createdSession
     );
     expect(queryClient.getQueryData(sessionKeys.list())).toEqual(allSessions);
-    expect(queryClient.getQueryData(sessionKeys.list({ workspace: "ws_alpha" }))).toEqual(
+    expect(queryClient.getQueryData(sessionKeys.list({ workspace_id: "ws_alpha" }))).toEqual(
       workspaceSessions
     );
-    expect(queryClient.getQueryData(sessionKeys.list({ workspace: "ws_beta" }))).toEqual(
+    expect(queryClient.getQueryData(sessionKeys.list({ workspace_id: "ws_beta" }))).toEqual(
       otherWorkspaceSessions
     );
     expect(
-      queryClient.getQueryState(sessionKeys.list({ workspace: WORKSPACE_ID }))?.isInvalidated
+      queryClient.getQueryState(sessionKeys.list({ workspace_id: WORKSPACE_ID }))?.isInvalidated
     ).toBe(true);
     expect(
-      queryClient.getQueryState(sessionKeys.list({ workspace: "ws_beta" }))?.isInvalidated
+      queryClient.getQueryState(sessionKeys.list({ workspace_id: "ws_beta" }))?.isInvalidated
     ).toBe(false);
     expect(invalidateSpy).toHaveBeenNthCalledWith(1, {
       queryKey: sessionKeys.detail(WORKSPACE_ID, createdSession.id),
     });
     expect(invalidateSpy).toHaveBeenNthCalledWith(2, {
       queryKey: sessionKeys.workspaceLists(WORKSPACE_ID),
+    });
+  });
+
+  it("Should announce the acting profile after aggregate session creation", async () => {
+    act(() => setProfileView({ scope: "global" }, { kind: "aggregate" }));
+    vi.mocked(createSession).mockResolvedValue(createdSession);
+    const queryClient = new QueryClient({
+      defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
+    });
+    const { result } = renderHook(() => useCreateSession(), {
+      wrapper: createWrapper(queryClient),
+    });
+
+    await act(async () => {
+      await result.current.mutateAsync({ workspace: WORKSPACE_ID });
+    });
+
+    expect(createSession).toHaveBeenCalledWith({ workspace: WORKSPACE_ID }, "default");
+    expect(notifyUser).toHaveBeenCalledExactlyOnceWith({
+      message: "Created in default.",
+      tone: "success",
     });
   });
 
@@ -385,6 +417,11 @@ describe("session actions", () => {
     queryClient.setQueryData(sessionKeys.events(WORKSPACE_ID, createdSession.id), [
       { id: "event-1" },
     ]);
+    queryClient.setQueryData(sessionKeys.byId(createdSession.id, "default"), createdSession);
+    queryClient.setQueryData(
+      sessionKeys.byId(createdSession.id, PROFILE_AGGREGATE),
+      createdSession
+    );
     sessionStore.trigger.composerDraftChanged({ sessionId: createdSession.id, text: "remove me" });
 
     const { result } = renderHook(() => useDeleteSession(), {
@@ -407,6 +444,12 @@ describe("session actions", () => {
     ).toBeUndefined();
     expect(
       queryClient.getQueryData(sessionKeys.events(WORKSPACE_ID, createdSession.id))
+    ).toBeUndefined();
+    expect(
+      queryClient.getQueryData(sessionKeys.byId(createdSession.id, "default"))
+    ).toBeUndefined();
+    expect(
+      queryClient.getQueryData(sessionKeys.byId(createdSession.id, PROFILE_AGGREGATE))
     ).toBeUndefined();
     expect(sessionStore.getSnapshot().context.drafts[createdSession.id]).toBeUndefined();
     expect(invalidateSpy).toHaveBeenCalledWith({

@@ -18,9 +18,15 @@ import (
 // ListAgents returns all readable agent definitions in home paths.
 func (h *BaseHandlers) ListAgents(c *gin.Context) {
 	if workspaceRef := strings.TrimSpace(c.Query("workspace")); workspaceRef != "" {
+		profileName, err := h.agentResourceProfileName(c)
+		if err != nil {
+			h.respondProfileReadScopeError(c, err)
+			return
+		}
 		resolved, err := h.workspaceAgentEntriesWithDiagnostics(
 			c.Request.Context(),
 			workspaceRef,
+			profileName,
 		)
 		if err != nil {
 			h.respondError(c, statusForAgentWorkspaceError(err), err)
@@ -35,61 +41,16 @@ func (h *BaseHandlers) ListAgents(c *gin.Context) {
 		)
 		return
 	}
-
-	if h.AgentCatalog != nil {
-		entries, err := h.AgentCatalog.ListAgents(c.Request.Context())
-		if err != nil {
-			if errors.Is(err, os.ErrNotExist) {
-				c.JSON(http.StatusOK, contract.AgentsResponse{Agents: []contract.AgentPayload{}})
-				return
-			}
-			h.respondError(c, http.StatusInternalServerError, err)
-			return
-		}
-		h.respondAgentEntries(c, entries, &h.Config, "")
+	profileName, err := h.agentResourceProfileName(c)
+	if err != nil {
+		h.respondProfileReadScopeError(c, err)
 		return
 	}
-
-	entries, err := os.ReadDir(h.HomePaths.AgentsDir)
-	switch {
-	case err == nil:
-	case errors.Is(err, os.ErrNotExist):
-		c.JSON(http.StatusOK, contract.AgentsResponse{Agents: []contract.AgentPayload{}})
-		return
-	default:
-		h.respondError(
-			c,
-			http.StatusInternalServerError,
-			fmt.Errorf("%s: read agents directory %q: %w", h.transportName(), h.HomePaths.AgentsDir, err),
-		)
+	agentDefs, err := compozyconfig.LoadWorkspaceAgentDefs("", nil, h.HomePaths, profileName)
+	if err != nil {
+		h.respondError(c, http.StatusInternalServerError, err)
 		return
 	}
-
-	agentDefs := make([]compozyconfig.AgentDef, 0, len(entries))
-	for _, entry := range entries {
-		if !entry.IsDir() {
-			continue
-		}
-
-		name := strings.TrimSpace(entry.Name())
-		if name == "" {
-			continue
-		}
-
-		agent, loadErr := h.AgentLoader(name, h.HomePaths)
-		if loadErr != nil {
-			h.Logger.Warn(
-				h.transportName()+": skip unreadable agent definition",
-				"agent_name",
-				name,
-				handlersErrorKey,
-				loadErr,
-			)
-			continue
-		}
-		agentDefs = append(agentDefs, agent)
-	}
-
 	h.respondAgentDefs(c, agentDefs, &h.Config, "")
 }
 
@@ -106,7 +67,16 @@ func (h *BaseHandlers) CreateAgent(c *gin.Context) {
 		return
 	}
 
-	draft, path, workspaceID, runtimeConfig, err := h.createAgentDraftAndPath(c.Request.Context(), req)
+	profileName := ""
+	var err error
+	if req.Scope == contract.AgentCreateScopeWorkspace {
+		profileName, err = h.agentResourceProfileName(c)
+		if err != nil {
+			h.respondProfileReadScopeError(c, err)
+			return
+		}
+	}
+	draft, path, workspaceID, runtimeConfig, err := h.createAgentDraftAndPath(c.Request.Context(), req, profileName)
 	if err != nil {
 		h.respondError(c, statusForCreateAgentError(err), err)
 		return
@@ -152,7 +122,17 @@ func (h *BaseHandlers) rollbackCreatedAgentDefinition(ctx context.Context, sourc
 // GetAgent returns one agent definition by name.
 func (h *BaseHandlers) GetAgent(c *gin.Context) {
 	if workspaceRef := strings.TrimSpace(c.Query("workspace")); workspaceRef != "" {
-		entry, cfg, err := h.workspaceAgentDef(c.Request.Context(), workspaceRef, c.Param("name"))
+		profileName, err := h.agentResourceProfileName(c)
+		if err != nil {
+			h.respondProfileReadScopeError(c, err)
+			return
+		}
+		entry, cfg, err := h.workspaceAgentDef(
+			c.Request.Context(),
+			workspaceRef,
+			c.Param("name"),
+			profileName,
+		)
 		if err != nil {
 			h.respondError(c, statusForAgentWorkspaceError(err), err)
 			return
@@ -160,32 +140,24 @@ func (h *BaseHandlers) GetAgent(c *gin.Context) {
 		c.JSON(http.StatusOK, contract.AgentResponse{Agent: AgentPayloadFromEntryWithConfig(entry, &cfg)})
 		return
 	}
-
-	if h.AgentCatalog != nil {
-		entry, err := h.AgentCatalog.GetAgent(c.Request.Context(), c.Param("name"))
-		if err != nil {
-			status := http.StatusInternalServerError
-			if errors.Is(err, os.ErrNotExist) {
-				status = http.StatusNotFound
-			}
-			h.respondError(c, status, err)
-			return
-		}
-		c.JSON(http.StatusOK, contract.AgentResponse{Agent: AgentPayloadFromEntryWithConfig(entry, &h.Config)})
-		return
-	}
-
-	agent, err := h.AgentLoader(c.Param("name"), h.HomePaths)
+	profileName, err := h.agentResourceProfileName(c)
 	if err != nil {
-		status := http.StatusInternalServerError
-		if errors.Is(err, os.ErrNotExist) {
-			status = http.StatusNotFound
-		}
-		h.respondError(c, status, err)
+		h.respondProfileReadScopeError(c, err)
 		return
 	}
-
-	c.JSON(http.StatusOK, contract.AgentResponse{
-		Agent: AgentPayloadFromEntryWithConfig(h.agentCatalogEntryFromDef(agent, ""), &h.Config),
-	})
+	agentDefs, err := compozyconfig.LoadWorkspaceAgentDefs("", nil, h.HomePaths, profileName)
+	if err != nil {
+		h.respondError(c, http.StatusInternalServerError, err)
+		return
+	}
+	for _, agent := range agentDefs {
+		if strings.TrimSpace(agent.Name) != strings.TrimSpace(c.Param("name")) {
+			continue
+		}
+		c.JSON(http.StatusOK, contract.AgentResponse{
+			Agent: AgentPayloadFromEntryWithConfig(h.agentCatalogEntryFromDef(agent, ""), &h.Config),
+		})
+		return
+	}
+	h.respondError(c, http.StatusNotFound, os.ErrNotExist)
 }

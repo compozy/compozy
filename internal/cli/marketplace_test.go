@@ -24,7 +24,7 @@ func TestMarketplaceCommands(t *testing.T) {
 				Installed: true, Source: "curated",
 			}},
 		}}}
-		deps := newWorkspaceTestDeps(t, &stubClient{
+		deps := newDefaultProfileWorkspaceTestDeps(t, &stubClient{
 			searchMarketplaceFn: func(
 				_ context.Context,
 				query string,
@@ -37,7 +37,7 @@ func TestMarketplaceCommands(t *testing.T) {
 				if limit != 7 {
 					t.Fatalf("limit = %d, want 7", limit)
 				}
-				if scope.Scope != contract.SettingsWorkspaceScopeWorkspace || scope.WorkspaceID != "ws-alpha" {
+				if scope.Scope != contract.SettingsLayeredScopeWorkspace || scope.WorkspaceID != "ws-alpha" {
 					t.Fatalf("read scope = %#v, want workspace ws-alpha", scope)
 				}
 				return want, nil
@@ -75,6 +75,36 @@ func TestMarketplaceCommands(t *testing.T) {
 		}
 		if !reflect.DeepEqual(got, want) {
 			t.Fatalf("marketplace search = %#v, want %#v", got, want)
+		}
+	})
+
+	t.Run("Should isolate installed state by the active profile", func(t *testing.T) {
+		t.Parallel()
+
+		client := &profileAwareStubClient{
+			stubClient: withWorkspaceResolution(&stubClient{searchMarketplaceFn: func(
+				_ context.Context,
+				_ string,
+				_ int,
+				scope MarketplaceReadScope,
+			) (MarketplaceSearchRecord, error) {
+				if scope.Scope != contract.SettingsLayeredScopeProfile || scope.Profile != "marketing" ||
+					scope.WorkspaceID != "" {
+					t.Fatalf("profile marketplace scope = %#v", scope)
+				}
+				return MarketplaceSearchRecord{}, nil
+			}}),
+			profileClientStub: &profileClientStub{profiles: []contract.Profile{
+				{Name: "default", State: "active"},
+				{Name: "marketing", State: "active"},
+			}},
+		}
+		_, _, err := executeRootCommand(
+			t, newTestDeps(t, client),
+			"--profile", "marketing", "marketplace", "search", "--scope", "profile", "-o", "json",
+		)
+		if err != nil {
+			t.Fatalf("profile marketplace search error = %v", err)
 		}
 	})
 
@@ -158,8 +188,8 @@ func TestMarketplaceCommands(t *testing.T) {
 				if cursor != "page-two" {
 					t.Fatalf("cursor = %q, want page-two", cursor)
 				}
-				if scope.Scope != contract.SettingsWorkspaceScopeGlobal || scope.WorkspaceID != "" {
-					t.Fatalf("read scope = %#v, want global", scope)
+				if scope.Scope != contract.SettingsLayeredScopeUser || scope.WorkspaceID != "" {
+					t.Fatalf("read scope = %#v, want user", scope)
 				}
 				return want, nil
 			},
@@ -242,7 +272,7 @@ func TestMarketplaceCommands(t *testing.T) {
 		want := MarketplaceEntryRecord{Entry: MarketplaceListingRecord{
 			Kind: "mcp", EntryID: "github-mcp", Name: "GitHub", Source: "curated",
 		}}
-		deps := newWorkspaceTestDeps(t, &stubClient{
+		deps := newDefaultProfileWorkspaceTestDeps(t, &stubClient{
 			marketplaceInfoFn: func(
 				_ context.Context,
 				kind string,
@@ -259,7 +289,7 @@ func TestMarketplaceCommands(t *testing.T) {
 				if installedName != "custom-github" {
 					t.Fatalf("installedName = %q, want custom-github", installedName)
 				}
-				if scope.Scope != contract.SettingsWorkspaceScopeWorkspace || scope.WorkspaceID != "ws-alpha" {
+				if scope.Scope != contract.SettingsLayeredScopeWorkspace || scope.WorkspaceID != "ws-alpha" {
 					t.Fatalf("read scope = %#v, want workspace ws-alpha", scope)
 				}
 				return want, nil
@@ -341,9 +371,9 @@ func TestMarketplaceCommands(t *testing.T) {
 			wantErr string
 		}{
 			{
-				name: "Should reject a workspace ID for global scope",
+				name: "Should reject a workspace ID for user scope",
 				args: []string{
-					"marketplace", "info", "mcp", "github-mcp", "--scope", "global", "--workspace", "ws-alpha",
+					"marketplace", "info", "mcp", "github-mcp", "--scope", "user", "--workspace", "ws-alpha",
 				},
 				wantErr: "--workspace requires --scope workspace",
 			},
@@ -363,7 +393,7 @@ func TestMarketplaceCommands(t *testing.T) {
 	t.Run("Should infer workspace read scope from cwd", func(t *testing.T) {
 		t.Parallel()
 
-		deps := newWorkspaceTestDeps(t, &stubClient{
+		deps := newDefaultProfileWorkspaceTestDeps(t, &stubClient{
 			getWorkspaceFn: func(_ context.Context, ref string) (WorkspaceDetailRecord, error) {
 				if ref != "/workspace/project/nested" {
 					t.Fatalf("GetWorkspace() ref = %q, want nested cwd", ref)
@@ -378,7 +408,7 @@ func TestMarketplaceCommands(t *testing.T) {
 				_ int,
 				scope MarketplaceReadScope,
 			) (MarketplaceSearchRecord, error) {
-				if scope.Scope != contract.SettingsWorkspaceScopeWorkspace ||
+				if scope.Scope != contract.SettingsLayeredScopeWorkspace ||
 					scope.WorkspaceID != "ws-project" {
 					t.Fatalf("marketplace scope = %#v, want workspace ws-project", scope)
 				}

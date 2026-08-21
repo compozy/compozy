@@ -162,8 +162,8 @@ func newResourcePutCommand(deps commandDeps) *cobra.Command {
 		StringVar(
 			&input.scopeKind,
 			automationScopeKey,
-			string(resources.ResourceScopeKindGlobal),
-			"Scope kind: global or workspace",
+			string(resources.ResourceScopeKindUser),
+			"Scope kind: user, workspace, profile, or workspace_profile",
 		)
 	cmd.Flags().
 		StringVar(&input.workspaceRef, "workspace", "", "Override workspace binding (ID, name, or path)")
@@ -220,8 +220,8 @@ func resolveResourceListWorkspace(
 		}
 		return resolution.ID, nil
 	}
-	if scope == resources.ResourceScopeKindGlobal && strings.TrimSpace(workspaceRef) != "" {
-		return "", fmt.Errorf("cli: --workspace cannot be combined with --scope-kind global")
+	if scope == resources.ResourceScopeKindUser && strings.TrimSpace(workspaceRef) != "" {
+		return "", fmt.Errorf("cli: --workspace cannot be combined with --scope-kind user")
 	}
 	return resolveOptionalWorkspaceOverride(
 		cmd.Context(),

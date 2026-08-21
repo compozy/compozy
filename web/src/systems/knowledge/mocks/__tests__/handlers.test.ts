@@ -13,7 +13,7 @@ afterAll(() => server.close());
 describe("knowledge MSW handlers", () => {
   it("Should apply decision selectors and filters before the response limit", async () => {
     const response = await listMemoryDecisions({
-      scope: "global",
+      scope: "profile",
       filename: "operator-style.md",
       op: "update",
       since: "2026-04-17T17:00:00Z",

@@ -2,8 +2,10 @@ package cli
 
 import (
 	"context"
+	"errors"
 	"strings"
 
+	"github.com/compozy/compozy/internal/store"
 	toolspkg "github.com/compozy/compozy/internal/tools"
 	"github.com/spf13/cobra"
 )
@@ -30,6 +32,14 @@ func newToolApprovalsSetCommand(deps commandDeps) *cobra.Command {
 		Args:  exactOneNonBlankArg(),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			return runToolApprovalCommand(cmd, deps, func(client toolApprovalClient) error {
+				resolution, ok := commandProfileResolution(cmd)
+				if !ok {
+					return errors.New("cli: profile resolution is required")
+				}
+				profileID := strings.TrimSpace(resolution.Profile.ID)
+				if profileID == "" && resolution.Profile.Name == configDefaultKey {
+					profileID = store.DefaultProfileID
+				}
 				resolvedWorkspaceID, err := resolveToolApprovalWorkspace(
 					cmd.Context(),
 					cmd,
@@ -46,7 +56,7 @@ func newToolApprovalsSetCommand(deps commandDeps) *cobra.Command {
 					Scope:     toolspkg.ApprovalGrantManagementScope(scope),
 					AgentName: agentName,
 				}.Normalize()
-				if _, err := request.BuildGrant(resolvedWorkspaceID); err != nil {
+				if _, err := request.BuildGrant(profileID, resolvedWorkspaceID); err != nil {
 					return err
 				}
 				grant, err := client.SetToolApprovalGrant(
@@ -70,6 +80,7 @@ func newToolApprovalsSetCommand(deps commandDeps) *cobra.Command {
 	cmd.Flags().StringVar(&decision, "decision", "", "Remembered decision: allow or reject")
 	cmd.Flags().StringVar(&scope, "scope", "", "Wider scope: agent or tool")
 	cmd.Flags().StringVar(&agentName, "agent", "", "Agent name required by agent scope")
+	configureProfileMutationCommand(cmd, deps)
 	return cmd
 }
 
@@ -100,6 +111,7 @@ func newToolApprovalsListCommand(deps commandDeps) *cobra.Command {
 		},
 	}
 	cmd.Flags().StringVar(&workspaceID, "workspace", "", "Override workspace (ID, name, or path)")
+	configureProfileReadCommand(cmd, deps)
 	return cmd
 }
 
@@ -130,6 +142,7 @@ func newToolApprovalsRevokeCommand(deps commandDeps) *cobra.Command {
 		},
 	}
 	cmd.Flags().StringVar(&workspaceID, "workspace", "", "Override workspace (ID, name, or path)")
+	configureProfileMutationCommand(cmd, deps)
 	return cmd
 }
 
@@ -158,12 +171,21 @@ func toolApprovalGrantListBundle(response ToolApprovalGrantListRecord) outputBun
 		response,
 		response.Grants,
 		"Remembered Tool Approvals",
-		[]string{"ID", toolOperatorToolIDHeader, "AGENT", "DECISION", "INPUT DIGEST", "LAST USED"},
+		[]string{"ID", cliProfileHeader, toolOperatorToolIDHeader, "AGENT", "DECISION", "INPUT DIGEST", "LAST USED"},
 		"tool_approval_grants",
-		[]string{"id", toolOperatorToolIDKey, installAgentNameKey, "decision", "input_digest", "last_used_at"},
+		[]string{
+			"id",
+			profileNameOutputKey,
+			toolOperatorToolIDKey,
+			installAgentNameKey,
+			"decision",
+			"input_digest",
+			"last_used_at",
+		},
 		func(grant ToolApprovalGrantRecord) []string {
 			return []string{
 				grant.ID,
+				grant.ProfileName,
 				grant.ToolID.String(),
 				stringOrDash(grant.AgentName),
 				string(grant.Decision),
@@ -174,6 +196,7 @@ func toolApprovalGrantListBundle(response ToolApprovalGrantListRecord) outputBun
 		func(grant ToolApprovalGrantRecord) []string {
 			return []string{
 				grant.ID,
+				grant.ProfileName,
 				grant.ToolID.String(),
 				grant.AgentName,
 				string(grant.Decision),

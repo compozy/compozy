@@ -273,8 +273,21 @@ func workspaceSkillRoots(resolved *workspacepkg.ResolvedWorkspace) []workspaceSk
 		return nil
 	}
 
-	roots := make([]workspaceSkillRoot, 0, len(resolved.AdditionalDirs)+1)
+	profileName := strings.TrimSpace(resolved.ProfileName)
+	roots := make([]workspaceSkillRoot, 0, len(resolved.AdditionalDirs)+3)
 	if root := strings.TrimSpace(resolved.RootDir); root != "" {
+		if profileName != "" {
+			roots = append(roots, workspaceSkillRoot{
+				dir: filepath.Join(
+					root,
+					compozyconfig.DirName,
+					compozyconfig.ProfilesDirName,
+					profileName,
+					compozyconfig.SkillsDirName,
+				),
+				source: SourceWorkspaceProfile,
+			})
+		}
 		roots = append(roots, workspaceSkillRoot{
 			dir:    filepath.Join(root, compozyconfig.DirName, compozyconfig.SkillsDirName),
 			source: SourceWorkspace,
@@ -287,6 +300,12 @@ func workspaceSkillRoots(resolved *workspacepkg.ResolvedWorkspace) []workspaceSk
 				source: SourceAdditional,
 			})
 		}
+	}
+	if profileRoot := strings.TrimSpace(resolved.ProfileRoot); profileRoot != "" {
+		roots = append(roots, workspaceSkillRoot{
+			dir:    filepath.Join(profileRoot, compozyconfig.SkillsDirName),
+			source: SourceProfile,
+		})
 	}
 
 	return roots
@@ -392,11 +411,15 @@ func workspaceCacheKey(resolved *workspacepkg.ResolvedWorkspace, paths []workspa
 	if resolved == nil {
 		return ""
 	}
+	profileSuffix := ""
+	if profileName := strings.TrimSpace(resolved.ProfileName); profileName != "" {
+		profileSuffix = "@pf:" + profileName
+	}
 	if id := strings.TrimSpace(resolved.ID); id != "" {
-		return "id:" + id
+		return "id:" + id + profileSuffix
 	}
 	if root := strings.TrimSpace(resolved.RootDir); root != "" {
-		return "root:" + root
+		return "root:" + root + profileSuffix
 	}
 	if len(paths) == 0 {
 		return ""

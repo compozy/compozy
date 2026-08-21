@@ -398,7 +398,7 @@ func TestEmbeddedSkillsShouldKeepBundleContract(t *testing.T) {
 				t.Fatalf("embedded skills = %#v, want %q", paths, path)
 			}
 		}
-		if !slices.Equal(manifest.Resources.Skills, []string{"skills"}) {
+		if !slices.Equal(extensionpkg.ResourcePaths(manifest.Resources.Skills), []string{"skills"}) {
 			t.Fatalf("manifest.Resources.Skills = %#v, want [skills]", manifest.Resources.Skills)
 		}
 	})

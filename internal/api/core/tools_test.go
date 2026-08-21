@@ -1177,17 +1177,17 @@ func testToolDescriptor(
 	visibility toolspkg.Visibility,
 ) toolspkg.Descriptor {
 	return toolspkg.Descriptor{
-		ID:           id,
-		Backend:      toolspkg.BackendRef{Kind: toolspkg.BackendNativeGo, NativeName: id.String()},
-		DisplayTitle: id.String(),
-		Description:  "Test tool " + id.String(),
-		InputSchema:  json.RawMessage(`{"type":"object"}`),
-		Source:       source,
-		Visibility:   visibility,
-		Risk:         toolspkg.RiskRead,
-		ReadOnly:     true,
-		Toolsets:     []toolspkg.ToolsetID{"compozy__catalog"},
-		Tags:         []string{"skill", "test"},
+		ID:               id,
+		Backend:          toolspkg.BackendRef{Kind: toolspkg.BackendNativeGo, NativeName: id.String()},
+		ToolPresentation: toolspkg.NewToolPresentation(id.String(), "", ""),
+		Description:      "Test tool " + id.String(),
+		InputSchema:      json.RawMessage(`{"type":"object"}`),
+		Source:           source,
+		Visibility:       visibility,
+		Risk:             toolspkg.RiskRead,
+		ReadOnly:         true,
+		Toolsets:         []toolspkg.ToolsetID{"compozy__catalog"},
+		Tags:             []string{"skill", "test"},
 	}
 }
 

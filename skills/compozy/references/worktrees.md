@@ -7,6 +7,11 @@ HTTP, UDS, and CLI reads. Resolve it by id, name, or contained path. A ready wor
 session through `compozy session new --worktree <ref>`; create and bind one atomically with
 `--new-worktree [name]`. These selectors are mutually exclusive with `--cwd`.
 
+Worktree catalog reads are the profile-model exception: `compozy worktree list` always lists the
+workspace catalog across profiles, does not accept `--profile` or `--all-profiles`, and labels every
+row with its owning profile in human and structured output. Use that owner when choosing a worktree;
+mutations still resolve one active profile and cannot change a worktree owned by another profile.
+
 Use structured output for reads and mutations:
 
     compozy worktree list --refresh -o json

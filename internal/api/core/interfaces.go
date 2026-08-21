@@ -83,11 +83,20 @@ type Observer interface {
 
 // NotificationPresetService is the daemon-owned notification preset runtime.
 type NotificationPresetService interface {
-	List(ctx context.Context, query presetspkg.Query) ([]presetspkg.Preset, error)
 	Get(ctx context.Context, name string) (presetspkg.Preset, error)
 	Create(ctx context.Context, req presetspkg.CreateRequest) (presetspkg.Preset, error)
 	Update(ctx context.Context, name string, req presetspkg.UpdateRequest) (presetspkg.Preset, error)
 	Delete(ctx context.Context, name string) error
+}
+
+// NotificationPresetEnablementService exposes profile-specific preset state.
+type NotificationPresetEnablementService interface {
+	ListForProfile(ctx context.Context, query presetspkg.Query, profileID string) ([]presetspkg.Preset, error)
+	GetForProfile(ctx context.Context, name string, profileID string) (presetspkg.Preset, error)
+	SetEnablement(
+		ctx context.Context,
+		change presetspkg.EnablementChange,
+	) (presetspkg.Preset, error)
 }
 
 // NetworkService is the runtime network surface exposed to daemon transports.
@@ -240,6 +249,11 @@ type SkillsRegistry interface {
 	SetEnabledForAgent(name string, resolved *workspacepkg.ResolvedWorkspace, agentName string, enabled bool) error
 }
 
+// ProfileSkillsRegistry exposes personal-profile skill projections when supported.
+type ProfileSkillsRegistry interface {
+	ForProfile(ctx context.Context, profileName string, profileRoot string) ([]*skills.Skill, error)
+}
+
 // SkillsRegistryRefresher refreshes the daemon global skill catalog after on-disk mutations.
 type SkillsRegistryRefresher interface {
 	RefreshGlobal(ctx context.Context) error
@@ -319,16 +333,19 @@ type ToolApprovalGrantService interface {
 type AutomationManager interface {
 	ListSuggestions(
 		ctx context.Context,
+		readScope store.ReadScope,
 		workspaceRef string,
 		status automationpkg.SuggestionStatus,
 	) ([]automationpkg.Suggestion, error)
 	AcceptSuggestion(
 		ctx context.Context,
+		profileID string,
 		workspaceRef string,
 		suggestionID string,
 	) (automationpkg.SuggestionAcceptance, error)
 	DismissSuggestion(
 		ctx context.Context,
+		profileID string,
 		workspaceRef string,
 		suggestionID string,
 	) (automationpkg.Suggestion, error)

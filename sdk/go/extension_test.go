@@ -141,11 +141,11 @@ func TestToolRegistrationValidation(t *testing.T) {
 				Name:    "describe-fixture",
 				Version: "0.1.0",
 				Resources: compozysdk.DescribeResources{
-					Skills:     []string{" skills/zeta ", "skills/alpha", "skills/zeta"},
-					Loops:      []string{" loops/zeta ", "loops/alpha", "loops/zeta"},
-					Agents:     []string{" agents/zeta ", "agents/alpha", "agents/zeta"},
-					Automation: []string{" automation/zeta ", "automation/alpha", "automation/zeta"},
-					Layouts:    []string{" layouts/zeta ", "layouts/alpha", "layouts/zeta"},
+					Skills:     describedPaths(" skills/zeta ", "skills/alpha", "skills/zeta"),
+					Loops:      describedPaths(" loops/zeta ", "loops/alpha", "loops/zeta"),
+					Agents:     describedPaths(" agents/zeta ", "agents/alpha", "agents/zeta"),
+					Automation: describedPaths(" automation/zeta ", "automation/alpha", "automation/zeta"),
+					Layouts:    describedPaths(" layouts/zeta ", "layouts/alpha", "layouts/zeta"),
 					CmdPalette: contracts.CmdPaletteConfig{
 						Commands: []contracts.CmdPaletteCommand{{
 							ID: "search", Title: "Search reviews", Icon: "search",
@@ -223,11 +223,11 @@ func TestToolRegistrationValidation(t *testing.T) {
 			t.Fatalf("Describe().CommandGroups = %#v", payload.CommandGroups)
 		}
 		wantResources := compozysdk.DescribeResources{
-			Skills:     []string{"skills/alpha", "skills/zeta"},
-			Loops:      []string{"loops/alpha", "loops/zeta"},
-			Agents:     []string{"agents/alpha", "agents/zeta"},
-			Automation: []string{"automation/alpha", "automation/zeta"},
-			Layouts:    []string{"layouts/alpha", "layouts/zeta"},
+			Skills:     describedPaths("skills/alpha", "skills/zeta"),
+			Loops:      describedPaths("loops/alpha", "loops/zeta"),
+			Agents:     describedPaths("agents/alpha", "agents/zeta"),
+			Automation: describedPaths("automation/alpha", "automation/zeta"),
+			Layouts:    describedPaths("layouts/alpha", "layouts/zeta"),
 			CmdPalette: contracts.CmdPaletteConfig{
 				Commands: []contracts.CmdPaletteCommand{{
 					ID: "search", Title: "Search reviews", Icon: "search",
@@ -1251,6 +1251,14 @@ func decodeResult(t *testing.T, raw json.RawMessage, target any) {
 	if err := json.Unmarshal(raw, target); err != nil {
 		t.Fatalf("json.Unmarshal(result %s) error = %v", string(raw), err)
 	}
+}
+
+func describedPaths(paths ...string) []compozysdk.DescribeResourcePath {
+	resources := make([]compozysdk.DescribeResourcePath, 0, len(paths))
+	for _, path := range paths {
+		resources = append(resources, compozysdk.DescribeResourcePath{Path: path})
+	}
+	return resources
 }
 
 func contains(values []string, want string) bool {

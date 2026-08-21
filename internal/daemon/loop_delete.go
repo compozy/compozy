@@ -14,11 +14,16 @@ import (
 
 const loopDeleteRollbackTimeout = 5 * time.Second
 
-func (s *daemonLoopAPIService) DeleteLoop(ctx context.Context, workspaceID string, name string) error {
+func (s *daemonLoopAPIService) DeleteLoop(
+	ctx context.Context,
+	workspaceID string,
+	profileID string,
+	name string,
+) error {
 	s.publishMu.Lock()
 	defer s.publishMu.Unlock()
 
-	ws, record, err := s.findLoopRecord(workspaceID, name)
+	ws, record, err := s.findLoopRecord(ctx, workspaceID, profileID, name)
 	if err != nil {
 		return err
 	}

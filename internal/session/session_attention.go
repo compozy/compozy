@@ -14,6 +14,7 @@ const (
 // AttentionEvent is the post-commit edge emitted by the canonical attention store.
 type AttentionEvent struct {
 	SessionID   string
+	ProfileID   string
 	WorkspaceID string
 	From        Badge
 	To          Badge

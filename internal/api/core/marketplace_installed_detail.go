@@ -9,7 +9,6 @@ import (
 	"github.com/compozy/compozy/internal/api/contract"
 	marketplacepkg "github.com/compozy/compozy/internal/marketplace"
 	settingspkg "github.com/compozy/compozy/internal/settings"
-	"github.com/compozy/compozy/internal/skills"
 )
 
 func (h *BaseHandlers) marketplaceCuratedOrInstalledEntry(
@@ -61,7 +60,8 @@ func (h *BaseHandlers) installedExtensionMarketplaceEntry(
 	if err != nil {
 		return contract.MarketplaceEntryResponse{}, err
 	}
-	for _, item := range items {
+	for index := range items {
+		item := &items[index]
 		catalogEntryID := ""
 		if item.Provenance != nil {
 			catalogEntryID = strings.TrimSpace(item.Provenance.CatalogEntryID)
@@ -112,6 +112,7 @@ func (h *BaseHandlers) installedMCPMarketplaceEntry(
 		Collection:  settingspkg.CollectionMCPServers,
 		Scope:       scope.scope,
 		WorkspaceID: scope.workspaceID,
+		ProfileName: scope.profileName,
 	})
 	if err != nil {
 		return contract.MarketplaceEntryResponse{}, err
@@ -157,24 +158,9 @@ func (h *BaseHandlers) installedSkillMarketplaceEntry(
 			entryID,
 		)
 	}
-	var skillList []*skills.Skill
-	if scope.scope == settingspkg.ScopeWorkspace {
-		if h.Workspaces == nil {
-			return contract.MarketplaceEntryResponse{}, errors.Join(
-				ErrMarketplaceUnavailable,
-				errors.New("workspace resolver is not configured"),
-			)
-		}
-		resolved, err := h.Workspaces.Resolve(ctx, scope.workspaceID)
-		if err != nil {
-			return contract.MarketplaceEntryResponse{}, err
-		}
-		skillList, err = h.SkillsRegistry.ForWorkspace(ctx, &resolved)
-		if err != nil {
-			return contract.MarketplaceEntryResponse{}, err
-		}
-	} else {
-		skillList = h.SkillsRegistry.List()
+	skillList, err := h.marketplaceScopedSkills(ctx, scope)
+	if err != nil {
+		return contract.MarketplaceEntryResponse{}, err
 	}
 	for _, item := range skillList {
 		if item == nil || strings.TrimSpace(item.Meta.Name) != entryID {

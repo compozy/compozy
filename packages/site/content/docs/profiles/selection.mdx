@@ -1,0 +1,48 @@
+---
+title: Select a profile
+description: Resolve one profile for a command, remember a workspace choice, and understand immutable session binding.
+---
+
+CompozyOS resolves a profile in this order:
+
+1. the root `--profile <name>` flag;
+2. `COMPOZY_PROFILE`;
+3. the remembered choice for the resolved workspace, or the Global lens when no workspace resolves;
+4. `default`.
+
+The flag changes one command and does not persist. The environment variable changes commands in that
+process environment. `compozy profile use <name>` persists the current workspace's choice:
+
+```bash
+COMPOZY_WORKSPACE=my-saas compozy profile use marketing
+COMPOZY_PROFILE=marketing compozy session list
+compozy task list --profile dev
+```
+
+Use `compozy profile current -o json` when automation needs provenance. Its `source` is `flag`, `env`,
+`remembered`, `session`, or `default`; `note` explains a safe fallback such as an archived remembered
+profile. JSONL commands emit a `profile_resolution` frame even when the result list is empty.
+
+An archived profile cannot be selected. If a remembered choice is archived, resolution falls back to
+`default` and reports `archived_remembered_fallback`. The `daemon`, `doctor`, and `update` command groups
+ignore profile selection because they manage the machine rather than profile-owned work.
+
+## Session binding
+
+A session stores the resolved profile when it is created. Changing the remembered choice affects later
+sessions and commands; it does not move running or historical sessions. Inside a bound session,
+`compozy__profile_current` reports `source: "session"`, and `compozy__profile_list` marks that bound profile
+as current.
+
+## Command palette
+
+The stable `profile.use` action delegates selection to the shell client. `profile.create`,
+`profile.update`, `profile.rename`, `profile.archive`, `profile.unarchive`, and `profile.delete` open the
+Profiles settings flow. Those flows use the same local API plans and mutations as the CLI; the palette
+does not own a separate lifecycle implementation.
+
+## Related
+
+[Create your first profile](/docs/profiles/quickstart) shows resolution in a running example.
+[Scoped and aggregate reads](/docs/profiles/reads) covers what the resolved profile then filters,
+and [`compozy profile`](/docs/cli/profile) carries the exact flags.

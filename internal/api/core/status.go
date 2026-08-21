@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/compozy/compozy/internal/api/contract"
+	compozyconfig "github.com/compozy/compozy/internal/config"
 	"github.com/compozy/compozy/internal/diagnostics"
 	"github.com/compozy/compozy/internal/doctor"
 
@@ -57,14 +58,8 @@ func (h *BaseHandlers) statusPayload(
 	ctx context.Context,
 	workspaceID string,
 ) (contract.StatusPayload, error) {
-	if ctx == nil {
-		return contract.StatusPayload{}, errors.New("api: status context is required")
-	}
-	if h.Observer == nil {
-		return contract.StatusPayload{}, errors.New("api: observer is required for status")
-	}
-	if h.Sessions == nil {
-		return contract.StatusPayload{}, errors.New("api: session manager is required for status")
+	if err := h.validateStatusDependencies(ctx); err != nil {
+		return contract.StatusPayload{}, err
 	}
 
 	health, err := h.Observer.Health(ctx)
@@ -107,7 +102,10 @@ func (h *BaseHandlers) statusPayload(
 	if err != nil {
 		return contract.StatusPayload{}, fmt.Errorf("api: collect skill runtime status: %w", err)
 	}
-	configStatus := h.configRuntimeStatusPayload(ctx)
+	configStatus, err := h.configRuntimeStatusPayload(ctx, workspaceID)
+	if err != nil {
+		return contract.StatusPayload{}, fmt.Errorf("api: collect config status: %w", err)
+	}
 
 	return contract.StatusPayload{
 		SchemaVersion: contract.StatusSchemaVersion,
@@ -132,6 +130,19 @@ func (h *BaseHandlers) statusPayload(
 		Config:           configStatus,
 		LogTail:          h.logTailStatusPayload(ctx),
 	}, nil
+}
+
+func (h *BaseHandlers) validateStatusDependencies(ctx context.Context) error {
+	if ctx == nil {
+		return errors.New("api: status context is required")
+	}
+	if h.Observer == nil {
+		return errors.New("api: observer is required for status")
+	}
+	if h.Sessions == nil {
+		return errors.New("api: session manager is required for status")
+	}
+	return nil
 }
 
 func (h *BaseHandlers) runtimeGatewayStatusPayload(ctx context.Context) (*contract.GatewayStatusPayload, error) {
@@ -230,7 +241,10 @@ func (h *BaseHandlers) providerStatusPayloads(ctx context.Context) ([]contract.P
 	return payloads, nil
 }
 
-func (h *BaseHandlers) configRuntimeStatusPayload(ctx context.Context) contract.ConfigRuntimeStatusPayload {
+func (h *BaseHandlers) configRuntimeStatusPayload(
+	ctx context.Context,
+	workspaceID string,
+) (contract.ConfigRuntimeStatusPayload, error) {
 	cfg := h.Config
 	payload := contract.ConfigRuntimeStatusPayload{
 		Status:          statusStateOK,
@@ -240,28 +254,65 @@ func (h *BaseHandlers) configRuntimeStatusPayload(ctx context.Context) contract.
 		RestartRequired: false,
 		ApplyState:      statusApplyStateCurrent,
 	}
+	profileDiagnostics, err := h.profileLayerDiagnostics(ctx, workspaceID)
+	if err != nil {
+		return contract.ConfigRuntimeStatusPayload{}, err
+	}
+	payload.Diagnostics = profileDiagnostics
 	if err := cfg.Validate(); err != nil {
 		payload.Status = statusStateError
 		payload.Validated = false
 		payload.ValidationError = diagnostics.RedactAndBound(err.Error(), maxDiagnosticPayloadBytes)
-		return payload
+		return payload, nil
 	}
 	reader, ok := h.Settings.(pendingConfigRestartReader)
 	if !ok {
-		return payload
+		return payload, nil
 	}
 	pendingRestart, err := reader.HasPendingConfigRestart(ctx)
 	if err != nil {
 		payload.Status = statusStateError
 		payload.ApplyState = statusApplyStateUnavailable
-		return payload
+		return payload, nil
 	}
 	if pendingRestart {
 		payload.Status = statusStateWarn
 		payload.RestartRequired = true
 		payload.ApplyState = statusApplyStatePendingRestart
 	}
-	return payload
+	return payload, nil
+}
+
+func (h *BaseHandlers) profileLayerDiagnostics(
+	ctx context.Context,
+	workspaceID string,
+) ([]contract.ConfigLayerDiagnosticPayload, error) {
+	if h.Profiles == nil {
+		return nil, nil
+	}
+	profileNames, err := h.Profiles.ListNames(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("list profile names for config diagnostics: %w", err)
+	}
+	workspaceRoot := ""
+	if trimmedID := strings.TrimSpace(workspaceID); trimmedID != "" && h.Workspaces != nil {
+		workspace, getErr := h.Workspaces.Get(ctx, trimmedID)
+		if getErr != nil {
+			return nil, fmt.Errorf("resolve workspace for config diagnostics: %w", getErr)
+		}
+		workspaceRoot = workspace.RootDir
+	}
+	items, err := compozyconfig.InspectProfileLayerFiles(h.HomePaths, workspaceRoot, profileNames)
+	if err != nil {
+		return nil, err
+	}
+	payloads := make([]contract.ConfigLayerDiagnosticPayload, 0, len(items))
+	for _, item := range items {
+		payloads = append(payloads, contract.ConfigLayerDiagnosticPayload{
+			Code: item.Code, Layer: item.Layer, Profile: item.Profile, Path: item.Path, Message: item.Message,
+		})
+	}
+	return payloads, nil
 }
 
 func (h *BaseHandlers) logTailStatusPayload(ctx context.Context) contract.LogTailStatusPayload {
@@ -273,7 +324,7 @@ func (h *BaseHandlers) logTailStatusPayload(ctx context.Context) contract.LogTai
 	}
 	envelope, err := h.Settings.GetSection(ctx, settingspkg.SectionRequest{
 		Section: settingspkg.SectionObservability,
-		Scope:   settingspkg.ScopeGlobal,
+		Scope:   settingspkg.ScopeUser,
 	})
 	if err != nil || envelope.Observability == nil {
 		return contract.LogTailStatusPayload{

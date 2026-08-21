@@ -1,6 +1,7 @@
 package cli
 
 import (
+	"errors"
 	"io/fs"
 	"os"
 	"path/filepath"
@@ -121,6 +122,84 @@ func TestDocOutputProfilesReflectCommandBehavior(t *testing.T) {
 			}
 		})
 	}
+
+	t.Run("Should hide profile selection from profile-independent command help", func(t *testing.T) {
+		t.Parallel()
+		root := newRootCommand(commandDeps{})
+		for _, commandPath := range []string{
+			"completion",
+			"completion bash",
+			"daemon",
+			"daemon bootstrap",
+			"daemon start",
+			"daemon stop",
+			"doctor",
+			"install",
+			"network",
+			"network directs",
+			"network inbox",
+			"network invitation",
+			"network invitation dismiss",
+			"network invitation reset",
+			"network peers",
+			"network send",
+			"network status",
+			"network subscriptions",
+			"network threads",
+			"update",
+		} {
+			command, _, err := root.Find(strings.Fields(commandPath))
+			if err != nil {
+				t.Fatalf("find %q: %v", commandPath, err)
+			}
+			if usage := command.UsageString(); strings.Contains(usage, "--profile") {
+				t.Fatalf("help for %q advertises profile selection:\n%s", commandPath, usage)
+			}
+		}
+		sessionList, _, err := root.Find([]string{"session", "list"})
+		if err != nil {
+			t.Fatalf("find session list: %v", err)
+		}
+		if usage := sessionList.UsageString(); !strings.Contains(usage, "--profile") {
+			t.Fatalf("session list help omits profile selection:\n%s", usage)
+		}
+		for _, commandPath := range []string{"network threads list"} {
+			command, _, err := root.Find(strings.Fields(commandPath))
+			if err != nil {
+				t.Fatalf("find %q: %v", commandPath, err)
+			}
+			usage := command.UsageString()
+			if !strings.Contains(usage, "--profile") || !strings.Contains(usage, "--all-profiles") {
+				t.Fatalf("profile-aware help for %q omits a selector:\n%s", commandPath, usage)
+			}
+		}
+	})
+
+	t.Run("Should reject profile selection before running profile-independent commands", func(t *testing.T) {
+		t.Parallel()
+
+		for _, args := range [][]string{
+			{"--profile", "marketing", "completion", "bash"},
+			{"completion", "bash", "--profile", "marketing"},
+			{"--profile", "marketing", "install"},
+			{"install", "--profile", "marketing"},
+			{"--profile", "marketing", "network", "status"},
+			{"network", "status", "--profile", "marketing"},
+			{"--profile", "marketing", "network", "peers"},
+			{"network", "peers", "--profile", "marketing"},
+		} {
+			_, _, err := executeRootCommand(t, commandDeps{}, args...)
+			var profileErr *profileCommandError
+			if !errors.As(err, &profileErr) || profileErr.payload.Error.Code != profileSelectionUnsupportedCode {
+				t.Fatalf(
+					"executeRootCommand(%v) error = %v, want %s payload",
+					args,
+					err,
+					profileSelectionUnsupportedCode,
+				)
+			}
+		}
+	})
 }
 
 // findMDX walks outputDir and returns a set of relative mdx paths (using /).

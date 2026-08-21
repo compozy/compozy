@@ -10,6 +10,7 @@ import type {
   LoopStreamFilter,
   LoopTimelineStableFilter,
 } from "../types";
+import { PROFILE_AGGREGATE } from "@/systems/profiles";
 
 /** Inventory filter minus the continuation cursor, which lives in `pageParam`. */
 export type LoopNodeInventoryStableFilter = Omit<LoopNodeInventoryFilter, "cursor">;
@@ -33,6 +34,10 @@ function normalizeNumber(value?: number): string {
 
 function normalizeBoolean(value?: boolean): boolean | "" {
   return value === undefined ? "" : value;
+}
+
+function profileLens(profile?: string, allProfiles?: boolean): string {
+  return allProfiles === true ? PROFILE_AGGREGATE : normalizeText(profile);
 }
 
 /**
@@ -85,6 +90,7 @@ export const loopsKeys = {
       normalizeText(filters.origin_session),
       normalizeBoolean(filters.live),
       normalizeNumber(filters.limit),
+      profileLens(filters.profile, filters.all_profiles),
     ] as const,
 
   runDetails: () => [...loopsKeys.all, "run-detail"] as const,

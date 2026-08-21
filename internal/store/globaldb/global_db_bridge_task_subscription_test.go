@@ -7,12 +7,106 @@ import (
 
 	"github.com/compozy/compozy/internal/bridges"
 	"github.com/compozy/compozy/internal/notifications"
+	"github.com/compozy/compozy/internal/store"
 	taskpkg "github.com/compozy/compozy/internal/task"
 	"github.com/compozy/compozy/internal/testutil"
 )
 
 func TestGlobalDBBridgeTaskSubscriptionStore(t *testing.T) {
 	t.Parallel()
+
+	t.Run("Should isolate profile-scoped reads and label aggregate owners", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t)
+		globalDB := openTestGlobalDB(t)
+		now := bridgeTaskSubscriptionTestTime()
+		foreignProfileID := "ffffffffffffffffffffffffff"
+		if _, err := globalDB.db.ExecContext(ctx, `
+			INSERT INTO profiles (id, name, color, emoji, state, created_at)
+			VALUES (?, 'subscription-foreign', '#E8572A', '🧪', 'active', ?)`,
+			foreignProfileID,
+			store.FormatTimestamp(now),
+		); err != nil {
+			t.Fatalf("insert foreign subscription profile error = %v", err)
+		}
+
+		ownedTask := taskRecordForTest("task-subscription-owned")
+		foreignTask := taskRecordForTest("task-subscription-foreign")
+		foreignTask.ProfileID = foreignProfileID
+		ownedInstance := bridgeInstanceForSubscriptionTest("brg-subscription-owned")
+		foreignInstance := bridgeInstanceForSubscriptionTest("brg-subscription-foreign")
+		foreignInstance.ProfileID = foreignProfileID
+		for _, taskRecord := range []taskpkg.Task{ownedTask, foreignTask} {
+			if err := globalDB.CreateTask(ctx, taskRecord); err != nil {
+				t.Fatalf("CreateTask(%s) error = %v", taskRecord.ID, err)
+			}
+		}
+		for _, instance := range []bridges.BridgeInstance{ownedInstance, foreignInstance} {
+			if err := globalDB.InsertBridgeInstance(ctx, instance); err != nil {
+				t.Fatalf("InsertBridgeInstance(%s) error = %v", instance.ID, err)
+			}
+		}
+
+		owned := bridgeTaskSubscriptionForGlobalDBTest("sub-profile-owned", ownedTask.ID, ownedInstance.ID)
+		foreign := bridgeTaskSubscriptionForGlobalDBTest(
+			"sub-profile-foreign",
+			foreignTask.ID,
+			foreignInstance.ID,
+		)
+		foreign.ProfileID = foreignProfileID
+		for _, subscription := range []bridges.BridgeTaskSubscription{owned, foreign} {
+			if err := globalDB.PutBridgeTaskSubscription(ctx, subscription); err != nil {
+				t.Fatalf("PutBridgeTaskSubscription(%s) error = %v", subscription.SubscriptionID, err)
+			}
+		}
+
+		if _, err := globalDB.GetBridgeTaskSubscription(
+			ctx,
+			store.ReadScope{ProfileID: store.DefaultProfileID},
+			foreign.SubscriptionID,
+		); !errors.Is(err, bridges.ErrBridgeTaskSubscriptionNotFound) {
+			t.Fatalf("GetBridgeTaskSubscription(foreign) error = %v, want not found", err)
+		}
+		scoped, err := globalDB.ListBridgeTaskSubscriptions(ctx, bridges.BridgeTaskSubscriptionQuery{
+			ReadScope: store.ReadScope{ProfileID: store.DefaultProfileID},
+		})
+		if err != nil {
+			t.Fatalf("ListBridgeTaskSubscriptions(scoped) error = %v", err)
+		}
+		if len(scoped) != 1 || scoped[0].SubscriptionID != owned.SubscriptionID {
+			t.Fatalf("ListBridgeTaskSubscriptions(scoped) = %#v, want owned row", scoped)
+		}
+
+		if _, err := globalDB.db.ExecContext(ctx, `
+			UPDATE profiles SET state = 'archived', archived_at = ? WHERE id = ?`,
+			store.FormatTimestamp(now.Add(time.Minute)),
+			foreignProfileID,
+		); err != nil {
+			t.Fatalf("archive foreign subscription profile error = %v", err)
+		}
+		aggregate, err := globalDB.ListBridgeTaskSubscriptions(ctx, bridges.BridgeTaskSubscriptionQuery{
+			ReadScope: store.ReadScope{AllProfiles: true},
+		})
+		if err != nil {
+			t.Fatalf("ListBridgeTaskSubscriptions(aggregate) error = %v", err)
+		}
+		if len(aggregate) != 2 {
+			t.Fatalf("ListBridgeTaskSubscriptions(aggregate) = %#v, want two rows", aggregate)
+		}
+		var foreignAggregate bridges.BridgeTaskSubscription
+		for _, subscription := range aggregate {
+			if subscription.ProfileID == foreignProfileID {
+				foreignAggregate = subscription
+			}
+		}
+		if foreignAggregate.ProfileName != "subscription-foreign" ||
+			foreignAggregate.ProfileColor != "#E8572A" ||
+			foreignAggregate.ProfileEmoji != "🧪" ||
+			!foreignAggregate.ProfileArchived {
+			t.Fatalf("foreign aggregate owner = %#v, want archived profile labels", foreignAggregate)
+		}
+	})
 
 	t.Run("Should create, update, list, and delete bridge task subscriptions", func(t *testing.T) {
 		t.Parallel()
@@ -39,14 +133,19 @@ func TestGlobalDBBridgeTaskSubscriptionStore(t *testing.T) {
 			t.Fatalf("PutBridgeTaskSubscription() error = %v", err)
 		}
 
-		loaded, err := globalDB.GetBridgeTaskSubscription(ctx, subscription.SubscriptionID)
+		loaded, err := globalDB.GetBridgeTaskSubscription(
+			ctx,
+			store.ReadScope{AllProfiles: true},
+			subscription.SubscriptionID,
+		)
 		if err != nil {
 			t.Fatalf("GetBridgeTaskSubscription() error = %v", err)
 		}
 		assertBridgeTaskSubscriptionEqual(t, loaded, subscription)
 
 		byTask, err := globalDB.ListBridgeTaskSubscriptions(ctx, bridges.BridgeTaskSubscriptionQuery{
-			TaskID: taskRecord.ID,
+			ReadScope: store.ReadScope{AllProfiles: true},
+			TaskID:    taskRecord.ID,
 		})
 		if err != nil {
 			t.Fatalf("ListBridgeTaskSubscriptions(by task) error = %v", err)
@@ -56,6 +155,7 @@ func TestGlobalDBBridgeTaskSubscriptionStore(t *testing.T) {
 		}
 
 		byBridge, err := globalDB.ListBridgeTaskSubscriptions(ctx, bridges.BridgeTaskSubscriptionQuery{
+			ReadScope:        store.ReadScope{AllProfiles: true},
 			BridgeInstanceID: instance.ID,
 			Scope:            bridges.ScopeGlobal,
 			Limit:            1,
@@ -74,7 +174,11 @@ func TestGlobalDBBridgeTaskSubscriptionStore(t *testing.T) {
 		if err := globalDB.PutBridgeTaskSubscription(ctx, updated); err != nil {
 			t.Fatalf("PutBridgeTaskSubscription(update) error = %v", err)
 		}
-		loaded, err = globalDB.GetBridgeTaskSubscription(ctx, subscription.SubscriptionID)
+		loaded, err = globalDB.GetBridgeTaskSubscription(
+			ctx,
+			store.ReadScope{AllProfiles: true},
+			subscription.SubscriptionID,
+		)
 		if err != nil {
 			t.Fatalf("GetBridgeTaskSubscription(updated) error = %v", err)
 		}
@@ -83,7 +187,11 @@ func TestGlobalDBBridgeTaskSubscriptionStore(t *testing.T) {
 		if err := globalDB.DeleteBridgeTaskSubscription(ctx, subscription.SubscriptionID); err != nil {
 			t.Fatalf("DeleteBridgeTaskSubscription() error = %v", err)
 		}
-		if _, err := globalDB.GetBridgeTaskSubscription(ctx, subscription.SubscriptionID); !errors.Is(
+		if _, err := globalDB.GetBridgeTaskSubscription(
+			ctx,
+			store.ReadScope{AllProfiles: true},
+			subscription.SubscriptionID,
+		); !errors.Is(
 			err,
 			bridges.ErrBridgeTaskSubscriptionNotFound,
 		) {
@@ -132,7 +240,11 @@ func TestGlobalDBBridgeTaskSubscriptionStore(t *testing.T) {
 		if err := globalDB.DeleteBridgeTaskSubscription(ctx, subscription.SubscriptionID); err != nil {
 			t.Fatalf("DeleteBridgeTaskSubscription() error = %v", err)
 		}
-		if _, err := globalDB.GetBridgeTaskSubscription(ctx, subscription.SubscriptionID); !errors.Is(
+		if _, err := globalDB.GetBridgeTaskSubscription(
+			ctx,
+			store.ReadScope{AllProfiles: true},
+			subscription.SubscriptionID,
+		); !errors.Is(
 			err,
 			bridges.ErrBridgeTaskSubscriptionNotFound,
 		) {
@@ -140,7 +252,9 @@ func TestGlobalDBBridgeTaskSubscriptionStore(t *testing.T) {
 		}
 		active, err := globalDB.ListBridgeTaskSubscriptions(
 			ctx,
-			bridges.BridgeTaskSubscriptionQuery{TaskID: taskRecord.ID},
+			bridges.BridgeTaskSubscriptionQuery{
+				ReadScope: store.ReadScope{AllProfiles: true}, TaskID: taskRecord.ID,
+			},
 		)
 		if err != nil {
 			t.Fatalf("ListBridgeTaskSubscriptions(after delete) error = %v", err)
@@ -197,13 +311,18 @@ func TestGlobalDBBridgeTaskSubscriptionStore(t *testing.T) {
 		if err := globalDB.PutBridgeTaskSubscription(ctx, subscription); err != nil {
 			t.Fatalf("PutBridgeTaskSubscription() error = %v", err)
 		}
-		loaded, err := globalDB.GetBridgeTaskSubscription(ctx, subscription.SubscriptionID)
+		loaded, err := globalDB.GetBridgeTaskSubscription(
+			ctx,
+			store.ReadScope{AllProfiles: true},
+			subscription.SubscriptionID,
+		)
 		if err != nil {
 			t.Fatalf("GetBridgeTaskSubscription() error = %v", err)
 		}
 		assertBridgeTaskSubscriptionEqual(t, loaded, subscription)
 
 		listed, err := globalDB.ListBridgeTaskSubscriptions(ctx, bridges.BridgeTaskSubscriptionQuery{
+			ReadScope:        store.ReadScope{AllProfiles: true},
 			TaskID:           taskRecord.ID,
 			BridgeInstanceID: instance.ID,
 			Scope:            bridges.ScopeGlobal,
@@ -222,6 +341,7 @@ func bridgeInstanceForSubscriptionTest(id string) bridges.BridgeInstance {
 	now := bridgeTaskSubscriptionTestTime()
 	return bridges.BridgeInstance{
 		ID:            id,
+		ProfileID:     store.DefaultProfileID,
 		Scope:         bridges.ScopeGlobal,
 		Platform:      "telegram",
 		ExtensionName: "telegram-extension",
@@ -244,6 +364,10 @@ func bridgeTaskSubscriptionForGlobalDBTest(
 	now := bridgeTaskSubscriptionTestTime()
 	return bridges.BridgeTaskSubscription{
 		SubscriptionID:   subscriptionID,
+		ProfileID:        store.DefaultProfileID,
+		ProfileName:      "default",
+		ProfileColor:     "#8E8EB5",
+		ProfileIcon:      "circle",
 		TaskID:           taskID,
 		BridgeInstanceID: bridgeInstanceID,
 		Scope:            bridges.ScopeGlobal,
@@ -273,6 +397,12 @@ func assertBridgeTaskSubscriptionEqual(
 	got = got.Normalize()
 	want = want.Normalize()
 	if got.SubscriptionID != want.SubscriptionID ||
+		got.ProfileID != want.ProfileID ||
+		got.ProfileName != want.ProfileName ||
+		got.ProfileColor != want.ProfileColor ||
+		got.ProfileIcon != want.ProfileIcon ||
+		got.ProfileEmoji != want.ProfileEmoji ||
+		got.ProfileArchived != want.ProfileArchived ||
 		got.TaskID != want.TaskID ||
 		got.BridgeInstanceID != want.BridgeInstanceID ||
 		got.Scope != want.Scope ||

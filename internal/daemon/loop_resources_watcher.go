@@ -87,6 +87,7 @@ func workspaceLoopWatcherRoots(
 				workspace.RootDir,
 				workspace.AdditionalDirs,
 				homePaths,
+				"",
 			) {
 				if root.Source == compozyconfig.WorkspaceDiscoverySourceGlobal {
 					continue

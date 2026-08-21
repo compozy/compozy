@@ -5,6 +5,7 @@ import { CatalogEmptyState } from "@/components/catalog-empty-state";
 import { Button, Empty, Skeleton, SkeletonRows, type ListingViewMode } from "@compozy/ui";
 
 import type { AutomationKind } from "../types";
+import { emptyForScope, type ProfileListingScope } from "@/systems/profiles";
 
 /** Load-more state for the catalog shell, grouped to avoid boolean-prop sprawl. */
 export interface AutomationCatalogPagination {
@@ -14,6 +15,8 @@ export interface AutomationCatalogPagination {
 }
 
 export interface AutomationCatalogShellProps {
+  /** Names the selected listing scope in the zero-inventory state (US-009.EC-3). */
+  profileScope: ProfileListingScope;
   kind: AutomationKind;
   view: ListingViewMode;
   itemCount: number;
@@ -42,6 +45,7 @@ export function AutomationCatalogShell({
   pagination,
   onClearFilters,
   onCreate,
+  profileScope,
   unfilteredEmptyPanel,
   children,
 }: AutomationCatalogShellProps) {
@@ -119,7 +123,7 @@ export function AutomationCatalogShell({
             ? "A job runs an agent or a loop on a schedule."
             : "A trigger reacts to a runtime event and runs its target."
         }
-        title={`No ${noun} yet`}
+        title={emptyForScope(noun, profileScope.scopeLabel)}
       />
     );
   }

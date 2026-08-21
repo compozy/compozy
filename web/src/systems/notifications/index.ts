@@ -5,6 +5,8 @@ export type {
   NotificationPresetEntry,
   NotificationPresetFilter,
   NotificationPresetTarget,
+  NotificationPresetEnablement,
+  SetNotificationPresetEnablementRequest,
   UpdateNotificationPresetRequest,
 } from "./types";
 
@@ -16,6 +18,7 @@ export {
   listNotificationPresets,
   notificationsApi,
   updateNotificationPreset,
+  setNotificationPresetEnablement,
 } from "./adapters/notifications-api";
 
 // Query infrastructure
@@ -28,6 +31,7 @@ export {
   useCreateNotificationPreset,
   useDeleteNotificationPreset,
   useUpdateNotificationPreset,
+  useSetNotificationPresetEnablement,
 } from "./hooks/use-notification-preset-mutations";
 
 // Components

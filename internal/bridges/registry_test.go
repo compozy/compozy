@@ -12,6 +12,7 @@ import (
 	"time"
 
 	bridgepkg "github.com/compozy/compozy/internal/bridges"
+	"github.com/compozy/compozy/internal/store"
 	"github.com/compozy/compozy/internal/testutil"
 )
 
@@ -20,13 +21,14 @@ type stubRegistryStore struct {
 	updateBridgeInstanceFn     func(context.Context, bridgepkg.BridgeInstance) error
 	deleteBridgeInstanceFn     func(context.Context, string) error
 	getBridgeInstanceFn        func(context.Context, string) (bridgepkg.BridgeInstance, error)
-	listBridgeInstancesFn      func(context.Context) ([]bridgepkg.BridgeInstance, error)
+	listBridgeInstancesFn      func(context.Context, store.ReadScope) ([]bridgepkg.BridgeInstance, error)
 	listBridgeCatalogRecordsFn func(
 		context.Context,
 		bridgepkg.BridgeCatalogQuery,
 	) ([]bridgepkg.BridgeCatalogRecord, error)
 	listBridgeInstancesByIDsFn func(
 		context.Context,
+		store.ReadScope,
 		[]string,
 	) ([]bridgepkg.BridgeInstance, error)
 	putBridgeRouteFn     func(context.Context, bridgepkg.BridgeRoute) error
@@ -55,16 +57,23 @@ func (s stubRegistryStore) DeleteBridgeInstance(ctx context.Context, id string) 
 	return nil
 }
 
-func (s stubRegistryStore) GetBridgeInstance(ctx context.Context, id string) (bridgepkg.BridgeInstance, error) {
+func (s stubRegistryStore) GetBridgeInstance(
+	ctx context.Context,
+	_ store.ReadScope,
+	id string,
+) (bridgepkg.BridgeInstance, error) {
 	if s.getBridgeInstanceFn != nil {
 		return s.getBridgeInstanceFn(ctx, id)
 	}
 	return bridgepkg.BridgeInstance{}, bridgepkg.ErrBridgeInstanceNotFound
 }
 
-func (s stubRegistryStore) ListBridgeInstances(ctx context.Context) ([]bridgepkg.BridgeInstance, error) {
+func (s stubRegistryStore) ListBridgeInstances(
+	ctx context.Context,
+	readScope store.ReadScope,
+) ([]bridgepkg.BridgeInstance, error) {
 	if s.listBridgeInstancesFn != nil {
-		return s.listBridgeInstancesFn(ctx)
+		return s.listBridgeInstancesFn(ctx, readScope)
 	}
 	return nil, nil
 }
@@ -81,10 +90,11 @@ func (s stubRegistryStore) ListBridgeCatalogRecords(
 
 func (s stubRegistryStore) ListBridgeInstancesByIDs(
 	ctx context.Context,
+	readScope store.ReadScope,
 	bridgeInstanceIDs []string,
 ) ([]bridgepkg.BridgeInstance, error) {
 	if s.listBridgeInstancesByIDsFn != nil {
-		return s.listBridgeInstancesByIDsFn(ctx, bridgeInstanceIDs)
+		return s.listBridgeInstancesByIDsFn(ctx, readScope, bridgeInstanceIDs)
 	}
 	return nil, nil
 }
@@ -108,6 +118,7 @@ func (s stubRegistryStore) ResolveBridgeRoute(
 
 func (s stubRegistryStore) ListBridgeRoutes(
 	ctx context.Context,
+	_ store.ReadScope,
 	bridgeInstanceID string,
 ) ([]bridgepkg.BridgeRoute, error) {
 	if s.listBridgeRoutesFn != nil {
@@ -156,23 +167,33 @@ func (s *memoryRegistryStore) UpdateBridgeInstance(_ context.Context, instance b
 	return nil
 }
 
-func (s *memoryRegistryStore) GetBridgeInstance(_ context.Context, id string) (bridgepkg.BridgeInstance, error) {
+func (s *memoryRegistryStore) GetBridgeInstance(
+	_ context.Context,
+	readScope store.ReadScope,
+	id string,
+) (bridgepkg.BridgeInstance, error) {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 
 	instance, ok := s.instances[id]
-	if !ok {
+	if !ok || !readScope.Matches(instance.ProfileID) {
 		return bridgepkg.BridgeInstance{}, bridgepkg.ErrBridgeInstanceNotFound
 	}
 	return cloneBridgeInstanceForTest(instance), nil
 }
 
-func (s *memoryRegistryStore) ListBridgeInstances(_ context.Context) ([]bridgepkg.BridgeInstance, error) {
+func (s *memoryRegistryStore) ListBridgeInstances(
+	_ context.Context,
+	readScope store.ReadScope,
+) ([]bridgepkg.BridgeInstance, error) {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 
 	instances := make([]bridgepkg.BridgeInstance, 0, len(s.instances))
 	for _, instance := range s.instances {
+		if !readScope.Matches(instance.ProfileID) {
+			continue
+		}
 		instances = append(instances, cloneBridgeInstanceForTest(instance))
 	}
 	return instances, nil
@@ -180,13 +201,16 @@ func (s *memoryRegistryStore) ListBridgeInstances(_ context.Context) ([]bridgepk
 
 func (s *memoryRegistryStore) ListBridgeCatalogRecords(
 	_ context.Context,
-	_ bridgepkg.BridgeCatalogQuery,
+	query bridgepkg.BridgeCatalogQuery,
 ) ([]bridgepkg.BridgeCatalogRecord, error) {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 
 	records := make([]bridgepkg.BridgeCatalogRecord, 0, len(s.instances))
 	for _, instance := range s.instances {
+		if !query.ReadScope.Matches(instance.ProfileID) {
+			continue
+		}
 		records = append(records, bridgepkg.BridgeCatalogRecordFromInstance(instance))
 	}
 	return records, nil
@@ -194,6 +218,7 @@ func (s *memoryRegistryStore) ListBridgeCatalogRecords(
 
 func (s *memoryRegistryStore) ListBridgeInstancesByIDs(
 	_ context.Context,
+	readScope store.ReadScope,
 	bridgeInstanceIDs []string,
 ) ([]bridgepkg.BridgeInstance, error) {
 	s.mu.RLock()
@@ -201,7 +226,7 @@ func (s *memoryRegistryStore) ListBridgeInstancesByIDs(
 
 	instances := make([]bridgepkg.BridgeInstance, 0, len(bridgeInstanceIDs))
 	for _, id := range bridgeInstanceIDs {
-		if instance, ok := s.instances[id]; ok {
+		if instance, ok := s.instances[id]; ok && readScope.Matches(instance.ProfileID) {
 			instances = append(instances, cloneBridgeInstanceForTest(instance))
 		}
 	}
@@ -237,12 +262,17 @@ func (s *memoryRegistryStore) ResolveBridgeRoute(
 
 func (s *memoryRegistryStore) ListBridgeRoutes(
 	_ context.Context,
+	readScope store.ReadScope,
 	bridgeInstanceID string,
 ) ([]bridgepkg.BridgeRoute, error) {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 
 	routes := make([]bridgepkg.BridgeRoute, 0, len(s.routes))
+	instance, ok := s.instances[bridgeInstanceID]
+	if !ok || !readScope.Matches(instance.ProfileID) {
+		return routes, nil
+	}
 	for _, route := range s.routes {
 		if route.BridgeInstanceID == bridgeInstanceID {
 			routes = append(routes, cloneBridgeRouteForTest(route))
@@ -286,6 +316,7 @@ func TestValidateInstanceStateTransitionRejectsReadyFromDisabledWithoutEnablePat
 	t.Parallel()
 
 	current := bridgepkg.BridgeInstance{
+		ProfileID:     store.DefaultProfileID,
 		ID:            "brg-disabled",
 		Scope:         bridgepkg.ScopeGlobal,
 		Platform:      "telegram",
@@ -451,6 +482,7 @@ func TestValidateInstanceStateTransitionAllowedPaths(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
+			tt.current.ProfileID = store.DefaultProfileID
 			if err := bridgepkg.ValidateInstanceStateTransition(tt.current, tt.nextEnabled, tt.nextStatus); err != nil {
 				t.Fatalf("ValidateInstanceStateTransition() error = %v", err)
 			}
@@ -462,6 +494,7 @@ func TestCreateInstanceRequestValidate(t *testing.T) {
 	t.Parallel()
 
 	req := bridgepkg.CreateInstanceRequest{
+		ProfileID:      store.DefaultProfileID,
 		Scope:          bridgepkg.ScopeGlobal,
 		Platform:       "telegram",
 		ExtensionName:  "telegram-adapter",
@@ -513,6 +546,7 @@ func TestRegistryCreateGetAndUpdateInstanceState(t *testing.T) {
 
 	registry, _ := newRegistryTestHarness(t)
 	created, err := registry.CreateInstance(testutil.Context(t), bridgepkg.CreateInstanceRequest{
+		ProfileID:     store.DefaultProfileID,
 		ID:            "brg-state",
 		Scope:         bridgepkg.ScopeGlobal,
 		Platform:      "telegram",
@@ -558,11 +592,70 @@ func TestRegistryCreateGetAndUpdateInstanceState(t *testing.T) {
 	}
 }
 
+func TestRegistryScopedReadsForwardProfileScope(t *testing.T) {
+	t.Parallel()
+
+	readScope := store.ReadScope{ProfileID: "profile-marketing"}
+	var capturedList store.ReadScope
+	var capturedIDs store.ReadScope
+	registry := bridgepkg.NewRegistry(stubRegistryStore{
+		listBridgeInstancesFn: func(_ context.Context, scope store.ReadScope) ([]bridgepkg.BridgeInstance, error) {
+			capturedList = scope
+			return []bridgepkg.BridgeInstance{{ID: "brg-list"}}, nil
+		},
+		listBridgeInstancesByIDsFn: func(
+			_ context.Context,
+			scope store.ReadScope,
+			_ []string,
+		) ([]bridgepkg.BridgeInstance, error) {
+			capturedIDs = scope
+			return []bridgepkg.BridgeInstance{{ID: "brg-by-id"}}, nil
+		},
+	})
+
+	if _, err := registry.ListInstancesScoped(testutil.Context(t), readScope); err != nil {
+		t.Fatalf("ListInstancesScoped() error = %v", err)
+	}
+	if capturedList != readScope {
+		t.Fatalf("ListInstancesScoped() scope = %#v, want %#v", capturedList, readScope)
+	}
+	if _, err := registry.ListInstancesByIDsScoped(testutil.Context(t), readScope, []string{"brg-by-id"}); err != nil {
+		t.Fatalf("ListInstancesByIDsScoped() error = %v", err)
+	}
+	if capturedIDs != readScope {
+		t.Fatalf("ListInstancesByIDsScoped() scope = %#v, want %#v", capturedIDs, readScope)
+	}
+}
+
+func TestMemoryRegistryStoreCatalogHonorsProfileScope(t *testing.T) {
+	t.Parallel()
+
+	registryStore := newMemoryRegistryStore()
+	for _, instance := range []bridgepkg.BridgeInstance{
+		{ID: "brg-default", ProfileID: store.DefaultProfileID, Scope: bridgepkg.ScopeGlobal},
+		{ID: "brg-marketing", ProfileID: "profile-marketing", Scope: bridgepkg.ScopeGlobal},
+	} {
+		if err := registryStore.InsertBridgeInstance(testutil.Context(t), instance); err != nil {
+			t.Fatalf("InsertBridgeInstance(%q) error = %v", instance.ID, err)
+		}
+	}
+	records, err := registryStore.ListBridgeCatalogRecords(testutil.Context(t), bridgepkg.BridgeCatalogQuery{
+		ReadScope: store.ReadScope{ProfileID: "profile-marketing"},
+	})
+	if err != nil {
+		t.Fatalf("ListBridgeCatalogRecords() error = %v", err)
+	}
+	if len(records) != 1 || records[0].ProfileID != "profile-marketing" {
+		t.Fatalf("profile-scoped records = %#v, want marketing record only", records)
+	}
+}
+
 func TestRegistryUpdateInstanceStateAppliesAndClearsDegradation(t *testing.T) {
 	t.Parallel()
 
 	registry, _ := newRegistryTestHarness(t)
 	created := createTestBridgeInstance(t, registry, bridgepkg.CreateInstanceRequest{
+		ProfileID:     store.DefaultProfileID,
 		ID:            "brg-state-degradation",
 		Scope:         bridgepkg.ScopeGlobal,
 		Platform:      "telegram",
@@ -627,6 +720,7 @@ func TestRegistryCreateInstanceAutoGeneratedIDUsesBridgePrefix(t *testing.T) {
 
 	registry, _ := newRegistryTestHarness(t)
 	created, err := registry.CreateInstance(testutil.Context(t), bridgepkg.CreateInstanceRequest{
+		ProfileID:     store.DefaultProfileID,
 		Scope:         bridgepkg.ScopeGlobal,
 		Platform:      "telegram",
 		ExtensionName: "telegram-adapter",
@@ -648,6 +742,7 @@ func TestRegistryUpdateInstanceMutatesBridgeConfigAndDefaults(t *testing.T) {
 
 	registry, _ := newRegistryTestHarness(t)
 	instance := createTestBridgeInstance(t, registry, bridgepkg.CreateInstanceRequest{
+		ProfileID:     store.DefaultProfileID,
 		ID:            "brg-update",
 		Scope:         bridgepkg.ScopeGlobal,
 		Platform:      "telegram",
@@ -701,6 +796,7 @@ func TestRegistryCreateInstanceWrapsInsertErrors(t *testing.T) {
 	})
 
 	_, err := registry.CreateInstance(testutil.Context(t), bridgepkg.CreateInstanceRequest{
+		ProfileID:     store.DefaultProfileID,
 		ID:            "brg-wrap-create",
 		Scope:         bridgepkg.ScopeGlobal,
 		Platform:      "telegram",
@@ -733,7 +829,7 @@ func TestRegistryListInstancesReturnsClonedDeliveryDefaults(t *testing.T) {
 		DeliveryDefaults: json.RawMessage(`{"mode":"reply"}`),
 	}}
 	registry := bridgepkg.NewRegistry(stubRegistryStore{
-		listBridgeInstancesFn: func(context.Context) ([]bridgepkg.BridgeInstance, error) {
+		listBridgeInstancesFn: func(context.Context, store.ReadScope) ([]bridgepkg.BridgeInstance, error) {
 			return stored, nil
 		},
 	})
@@ -770,12 +866,13 @@ func TestRegistryListInstancesByIDsIsBoundedAndOrdered(t *testing.T) {
 		registry := bridgepkg.NewRegistry(stubRegistryStore{
 			listBridgeInstancesByIDsFn: func(
 				_ context.Context,
+				_ store.ReadScope,
 				ids []string,
 			) ([]bridgepkg.BridgeInstance, error) {
 				capturedIDs = append([]string(nil), ids...)
 				return stored, nil
 			},
-			listBridgeInstancesFn: func(context.Context) ([]bridgepkg.BridgeInstance, error) {
+			listBridgeInstancesFn: func(context.Context, store.ReadScope) ([]bridgepkg.BridgeInstance, error) {
 				t.Fatal("ListBridgeInstances() must not back a bounded lookup")
 				return nil, nil
 			},
@@ -804,7 +901,7 @@ func TestRegistryListInstancesByIDsIsBoundedAndOrdered(t *testing.T) {
 		t.Parallel()
 
 		registry := bridgepkg.NewRegistry(stubRegistryStore{
-			listBridgeInstancesByIDsFn: func(context.Context, []string) ([]bridgepkg.BridgeInstance, error) {
+			listBridgeInstancesByIDsFn: func(context.Context, store.ReadScope, []string) ([]bridgepkg.BridgeInstance, error) {
 				t.Fatal("ListBridgeInstancesByIDs() should not run for invalid cardinality")
 				return nil, nil
 			},
@@ -873,6 +970,7 @@ func TestRegistryResolveOrCreateRouteReusesStoredSession(t *testing.T) {
 
 	registry, _ := newRegistryTestHarness(t)
 	instance := createTestBridgeInstance(t, registry, bridgepkg.CreateInstanceRequest{
+		ProfileID:     store.DefaultProfileID,
 		ID:            "brg-route-reuse",
 		Scope:         bridgepkg.ScopeGlobal,
 		Platform:      "telegram",
@@ -929,6 +1027,7 @@ func TestRegistryBuildResolveAndUpsertRoute(t *testing.T) {
 	registry, db := newRegistryTestHarness(t)
 	workspaceID := registerWorkspaceForBridgesTests(t, db, "ws-build-route", "build-route")
 	instance := createTestBridgeInstance(t, registry, bridgepkg.CreateInstanceRequest{
+		ProfileID:     store.DefaultProfileID,
 		ID:            "brg-build-route",
 		Scope:         bridgepkg.ScopeWorkspace,
 		WorkspaceID:   workspaceID,
@@ -1003,6 +1102,7 @@ func TestRegistryResolveRouteRejectsDisabledInstance(t *testing.T) {
 
 	registry, _ := newRegistryTestHarness(t)
 	instance := createTestBridgeInstance(t, registry, bridgepkg.CreateInstanceRequest{
+		ProfileID:     store.DefaultProfileID,
 		ID:            "brg-disabled-route",
 		Scope:         bridgepkg.ScopeGlobal,
 		Platform:      "telegram",
@@ -1075,6 +1175,7 @@ func TestBuildBridgeCatalogPage(t *testing.T) {
 			"brg-needle-b": bridgepkg.BridgeStatusError,
 			"brg-needle-c": bridgepkg.BridgeStatusError,
 		}, bridgepkg.BridgeCatalogQuery{
+			ReadScope:   store.ReadScope{AllProfiles: true},
 			Scope:       "all",
 			WorkspaceID: "ws-alpha",
 			Search:      "  NEEDLE  ",
@@ -1123,7 +1224,9 @@ func TestBuildBridgeCatalogPage(t *testing.T) {
 				bridgepkg.BridgeStatusReady,
 			))
 		}
-		query := bridgepkg.BridgeCatalogQuery{Sort: bridgepkg.BridgeCatalogSortName, Limit: 50}
+		query := bridgepkg.BridgeCatalogQuery{
+			ReadScope: store.ReadScope{AllProfiles: true}, Sort: bridgepkg.BridgeCatalogSortName, Limit: 50,
+		}
 		first, err := bridgepkg.BuildBridgeCatalogPage(instances, nil, query)
 		if err != nil {
 			t.Fatalf("BuildBridgeCatalogPage(first) error = %v", err)
@@ -1164,6 +1267,7 @@ func TestBuildBridgeCatalogPage(t *testing.T) {
 			bridgeCatalogTestInstance("brg-b", bridgepkg.ScopeGlobal, "", "telegram", "B", bridgepkg.BridgeStatusReady),
 		}
 		page, err := bridgepkg.BuildBridgeCatalogPage(instances, nil, bridgepkg.BridgeCatalogQuery{
+			ReadScope:   store.ReadScope{AllProfiles: true},
 			Scope:       "all",
 			WorkspaceID: "ws-alpha",
 			Limit:       1,
@@ -1172,9 +1276,17 @@ func TestBuildBridgeCatalogPage(t *testing.T) {
 			t.Fatalf("BuildBridgeCatalogPage() error = %v", err)
 		}
 		cases := []bridgepkg.BridgeCatalogQuery{
-			{Scope: "all", WorkspaceID: "ws-beta", Cursor: page.NextCursor, Limit: 1},
 			{
-				Scope: "all", WorkspaceID: "ws-alpha", Search: "different", Cursor: page.NextCursor, Limit: 1,
+				ReadScope: store.ReadScope{ProfileID: "profile-marketing"}, Scope: "all", WorkspaceID: "ws-alpha",
+				Cursor: page.NextCursor, Limit: 1,
+			},
+			{
+				ReadScope: store.ReadScope{AllProfiles: true}, Scope: "all", WorkspaceID: "ws-beta",
+				Cursor: page.NextCursor, Limit: 1,
+			},
+			{
+				ReadScope: store.ReadScope{AllProfiles: true}, Scope: "all", WorkspaceID: "ws-alpha",
+				Search: "different", Cursor: page.NextCursor, Limit: 1,
 			},
 		}
 		for _, query := range cases {
@@ -1193,6 +1305,7 @@ func TestBuildBridgeCatalogPage(t *testing.T) {
 				instances,
 				nil,
 				bridgepkg.BridgeCatalogQuery{
+					ReadScope:   store.ReadScope{AllProfiles: true},
 					Scope:       "all",
 					WorkspaceID: "ws-alpha",
 					Cursor:      forged,
@@ -1206,6 +1319,60 @@ func TestBuildBridgeCatalogPage(t *testing.T) {
 					cursorErr,
 				)
 			}
+		}
+	})
+
+	t.Run("Should bind cursor continuation to the selected profile", func(t *testing.T) {
+		t.Parallel()
+
+		first := bridgeCatalogTestInstance(
+			"brg-profile-a-1",
+			bridgepkg.ScopeGlobal,
+			"",
+			"telegram",
+			"A",
+			bridgepkg.BridgeStatusReady,
+		)
+		first.ProfileID = "profile-a"
+		second := bridgeCatalogTestInstance(
+			"brg-profile-a-2",
+			bridgepkg.ScopeGlobal,
+			"",
+			"telegram",
+			"B",
+			bridgepkg.BridgeStatusReady,
+		)
+		second.ProfileID = "profile-a"
+		profileAInstances := []bridgepkg.BridgeInstance{first, second}
+		query := bridgepkg.BridgeCatalogQuery{
+			ReadScope: store.ReadScope{ProfileID: "profile-a"},
+			Limit:     1,
+		}
+		page, err := bridgepkg.BuildBridgeCatalogPage(profileAInstances, nil, query)
+		if err != nil {
+			t.Fatalf("BuildBridgeCatalogPage(first profile) error = %v", err)
+		}
+		if len(page.Items) != 1 || page.Items[0].Instance.ProfileID != "profile-a" || page.NextCursor == "" {
+			t.Fatalf("first profile page = %#v, want one profile-a item and cursor", page)
+		}
+		query.Cursor = page.NextCursor
+		continued, err := bridgepkg.BuildBridgeCatalogPage(profileAInstances, nil, query)
+		if err != nil {
+			t.Fatalf("BuildBridgeCatalogPage(continued profile) error = %v", err)
+		}
+		if len(continued.Items) != 1 || continued.Items[0].Instance.ID != second.ID {
+			t.Fatalf("continued profile page = %#v, want %q", continued, second.ID)
+		}
+		query.ReadScope = store.ReadScope{ProfileID: "profile-b"}
+		if _, err := bridgepkg.BuildBridgeCatalogPage(
+			profileAInstances,
+			nil,
+			query,
+		); !errors.Is(
+			err,
+			bridgepkg.ErrBridgeCatalogCursorInvalid,
+		) {
+			t.Fatalf("BuildBridgeCatalogPage(other profile) error = %v, want cursor mismatch", err)
 		}
 	})
 
@@ -1233,7 +1400,7 @@ func TestBuildBridgeCatalogPage(t *testing.T) {
 		page, err := bridgepkg.BuildBridgeCatalogPage(instances, map[string]bridgepkg.BridgeStatus{
 			"brg-disabled": bridgepkg.BridgeStatusReady,
 			"brg-auth":     bridgepkg.BridgeStatusReady,
-		}, bridgepkg.BridgeCatalogQuery{})
+		}, bridgepkg.BridgeCatalogQuery{ReadScope: store.ReadScope{AllProfiles: true}})
 		if err != nil {
 			t.Fatalf("BuildBridgeCatalogPage() error = %v", err)
 		}
@@ -1250,14 +1417,20 @@ func TestBuildBridgeCatalogPage(t *testing.T) {
 	t.Run("Should return explicit zero counts and reject unsupported sorts", func(t *testing.T) {
 		t.Parallel()
 
-		page, err := bridgepkg.BuildBridgeCatalogPage(nil, nil, bridgepkg.BridgeCatalogQuery{})
+		page, err := bridgepkg.BuildBridgeCatalogPage(
+			nil,
+			nil,
+			bridgepkg.BridgeCatalogQuery{ReadScope: store.ReadScope{AllProfiles: true}},
+		)
 		if err != nil {
 			t.Fatalf("BuildBridgeCatalogPage(empty) error = %v", err)
 		}
 		if page.Total != 0 || len(page.Items) != 0 || page.Limit != bridgepkg.DefaultBridgeCatalogLimit {
 			t.Fatalf("empty page = %#v, want explicit zero total and default limit", page)
 		}
-		_, err = bridgepkg.BuildBridgeCatalogPage(nil, nil, bridgepkg.BridgeCatalogQuery{Sort: "recent"})
+		_, err = bridgepkg.BuildBridgeCatalogPage(nil, nil, bridgepkg.BridgeCatalogQuery{
+			ReadScope: store.ReadScope{AllProfiles: true}, Sort: "recent",
+		})
 		if err == nil {
 			t.Fatal("BuildBridgeCatalogPage(recent) error = nil, want unsupported sort error")
 		}
@@ -1274,6 +1447,7 @@ func bridgeCatalogTestInstance(
 ) bridgepkg.BridgeInstance {
 	return bridgepkg.BridgeInstance{
 		ID:            id,
+		ProfileID:     store.DefaultProfileID,
 		Scope:         scope,
 		WorkspaceID:   workspaceID,
 		Platform:      platform,

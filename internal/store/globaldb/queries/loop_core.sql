@@ -1,5 +1,6 @@
 -- name: InsertLoopRun :exec
 INSERT INTO loop_runs (
+  profile_id,
   id, workspace_id, loop_name, status, historical, generation, reattempt_strategy, created_at, started_at,
   last_progress_at, definition_version, definition_digest, active_gate_id,
   active_human_criteria_json, budget_approval_seq, start_metadata_json,
@@ -10,6 +11,7 @@ INSERT INTO loop_runs (
   origin_creation_profile_ref, origin_policy_spec_digest, origin_creation_digest,
   network_spec_json, network_mode, network_channel, network_source
 ) VALUES (
+  sqlc.arg(profile_id),
   sqlc.arg(id), sqlc.arg(workspace_id), sqlc.arg(loop_name), sqlc.arg(status), sqlc.arg(historical),
   sqlc.arg(generation), sqlc.arg(reattempt_strategy), sqlc.arg(created_at), sqlc.arg(started_at),
   sqlc.arg(last_progress_at), sqlc.arg(definition_version), sqlc.arg(definition_digest),

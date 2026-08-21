@@ -18,6 +18,9 @@ func (h *BaseHandlers) ListBridgeSecretBindings(c *gin.Context) {
 		h.respondError(c, http.StatusServiceUnavailable, errBridgeServiceUnavailable)
 		return
 	}
+	if _, ok := h.bridgeReadInstance(c, bridges); !ok {
+		return
+	}
 
 	bindings, err := bridges.ListSecretBindings(c.Request.Context(), c.Param("id"))
 	if err != nil {
@@ -50,6 +53,9 @@ func (h *BaseHandlers) PutBridgeSecretBinding(c *gin.Context) {
 		h.respondError(c, http.StatusBadRequest, err)
 		return
 	}
+	if _, ok := h.bridgeMutationInstance(c, bridges); !ok {
+		return
+	}
 	if err := bridges.PutSecretBinding(c.Request.Context(), binding, req.SecretValue); err != nil {
 		h.respondError(c, StatusForBridgeError(err), err)
 		return
@@ -62,6 +68,9 @@ func (h *BaseHandlers) DeleteBridgeSecretBinding(c *gin.Context) {
 	bridges, ok := h.bridgeService()
 	if !ok {
 		h.respondError(c, http.StatusServiceUnavailable, errBridgeServiceUnavailable)
+		return
+	}
+	if _, ok := h.bridgeMutationInstance(c, bridges); !ok {
 		return
 	}
 
@@ -94,6 +103,9 @@ func (h *BaseHandlers) TestBridgeDelivery(c *gin.Context) {
 	targetReq, err := req.ToResolveDeliveryTargetRequest(c.Param("id"))
 	if err != nil {
 		h.respondError(c, http.StatusBadRequest, err)
+		return
+	}
+	if _, ok := h.bridgeReadInstance(c, bridges); !ok {
 		return
 	}
 

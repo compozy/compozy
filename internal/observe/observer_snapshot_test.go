@@ -31,18 +31,21 @@ func TestOnAgentEventPersistsTranscriptSnapshotServedContent(t *testing.T) {
 			Raw:  raw,
 		})
 
-		events, err := h.observer.QueryEvents(testutil.Context(t), store.EventSummaryQuery{
-			SessionID: sess.ID,
-			Type:      eventspkg.SessionStreamSnapshotServed,
-		})
+		events, err := h.observer.QueryEvents(
+			testutil.Context(t),
+			store.EventSummaryQuery{ReadScope: store.ReadScope{AllProfiles: true},
+				SessionID: sess.ID,
+				Type:      eventspkg.SessionStreamSnapshotServed,
+			},
+		)
 		if err != nil {
 			t.Fatalf("QueryEvents() error = %v", err)
 		}
 		if got, want := len(events), 1; got != want {
 			t.Fatalf("len(events) = %d, want %d", got, want)
 		}
-		if string(events[0].Content) != string(raw) {
-			t.Fatalf("events[0].Content = %s, want %s", string(events[0].Content), string(raw))
+		if string(events[0].ContentValue()) != string(raw) {
+			t.Fatalf("events[0].Content = %s, want %s", string(events[0].ContentValue()), string(raw))
 		}
 		if events[0].WorkspaceID != h.workspaceID {
 			t.Fatalf("events[0].WorkspaceID = %q, want %q", events[0].WorkspaceID, h.workspaceID)
@@ -56,7 +59,7 @@ func TestOnAgentEventPersistsTranscriptSnapshotServedContent(t *testing.T) {
 			HasOlder           bool   `json:"has_older"`
 			NextBeforeSequence int64  `json:"next_before_sequence"`
 		}
-		if err := json.Unmarshal(events[0].Content, &content); err != nil {
+		if err := json.Unmarshal(events[0].ContentValue(), &content); err != nil {
 			t.Fatalf("json.Unmarshal(events[0].Content) error = %v", err)
 		}
 		if content.Epoch != 2 ||

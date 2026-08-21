@@ -25,6 +25,12 @@ func (s *daemonLoopAPIService) ListLoops(
 		return contract.LoopsResponse{}, err
 	}
 	query.WorkspaceID = string(ws)
+	profileLens, err := resolveLoopResourceLens(ctx, s.profiles, string(ws), query.ProfileID)
+	if err != nil {
+		return contract.LoopsResponse{}, err
+	}
+	query.ProfileID = profileLens.ProfileID
+	query.ProfileName = profileLens.ProfileName
 	normalized, err := looppkg.NormalizeCatalogQuery(query)
 	if err != nil {
 		return contract.LoopsResponse{}, err
@@ -35,7 +41,7 @@ func (s *daemonLoopAPIService) ListLoops(
 	if s == nil || s.catalog == nil || s.catalogRuns == nil {
 		return contract.LoopsResponse{}, looppkg.ErrCatalogUnavailable
 	}
-	records := looppkg.ResolveEffectiveResources(s.catalog.Snapshot(), string(ws))
+	records := looppkg.ResolveEffectiveResources(s.catalog.Snapshot(), profileLens)
 	names := make([]string, 0, len(records))
 	for _, record := range records {
 		names = append(names, record.Spec.Name)

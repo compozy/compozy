@@ -36,6 +36,8 @@ const WORKSPACE_ID = "ws_alpha";
 
 const threads: NetworkThreadSummary[] = [
   {
+    profile_id: "00000000000000000000000000",
+    profile_name: "default",
     channel: "ops",
     last_activity_at: "2026-04-17T18:00:00Z",
     last_message_preview: "Pricing decision pending.",

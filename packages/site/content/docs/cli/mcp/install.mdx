@@ -16,7 +16,7 @@ compozy mcp install <entry> [flags]
 ```
   -h, --help                    help for install
       --name string             Override the installed MCP server name
-      --scope string            Install scope override: global or workspace (defaults to the catalog entry)
+      --scope string            Install scope override: user, profile, or workspace (defaults to the catalog entry)
       --secret stringArray      Read one secret catalog input from stdin or a hidden terminal prompt (repeatable)
       --set stringArray         Set one catalog input as ID=VALUE (repeatable)
       --vault-ref stringArray   Bind a feed field as KEY=vault:mcp/...
@@ -26,8 +26,9 @@ compozy mcp install <entry> [flags]
 ### Options inherited from parent commands
 
 ```
-      --json            Emit JSON output
-  -o, --output string   Output format: human, json, jsonl, or toon (default "human")
+      --json             Emit JSON output
+  -o, --output string    Output format: human, json, jsonl, or toon (default "human")
+      --profile string   Act as a profile for this command
 ```
 
 ## Output Formats

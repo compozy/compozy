@@ -25,6 +25,11 @@ func (s *service) classifySectionApplyRequest(
 			return lifecycle.RestartRequired
 		}
 		return s.classifyGeneralRequest(ctx, req)
+	case SectionPersona:
+		if req.Persona == nil {
+			return lifecycle.Live
+		}
+		return s.classifyPersonaRequest(ctx, req)
 	case SectionRoles:
 		if req.Roles == nil {
 			return lifecycle.Live

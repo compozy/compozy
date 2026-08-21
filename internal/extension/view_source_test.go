@@ -40,6 +40,7 @@ func TestManagerViewProgramForwarding(t *testing.T) {
 		manager := newViewProgramManagerForTest("notes", 7, 50*time.Millisecond, process)
 		frame, generation, err := manager.OpenProgram(testutil.Context(t), "notes", cmdpalette.ViewOpenRequest{
 			ViewSession: "vs_test", View: "browser", Workspace: "workspace-a",
+			ProfileLens: testExtensionProfileLens(),
 		})
 		if err != nil {
 			t.Fatalf("OpenProgram() error = %v", err)
@@ -78,6 +79,7 @@ func TestManagerViewProgramForwarding(t *testing.T) {
 				manager := newViewProgramManagerForTest("notes", 1, time.Second, process)
 				frame, err := manager.HandleProgramEvent(
 					testutil.Context(t),
+					testExtensionProfileLens(),
 					"workspace-a",
 					"notes",
 					cmdpalette.ViewEvent{
@@ -110,9 +112,11 @@ func TestManagerViewProgramForwarding(t *testing.T) {
 			return nil
 		}
 		manager := newViewProgramManagerForTest("notes", 1, time.Second, process)
-		if err := manager.CloseProgram(testutil.Context(t), "workspace-a", "notes", cmdpalette.ViewCloseRequest{
-			ViewSession: "vs_test",
-		}); err != nil {
+		if err := manager.CloseProgram(
+			testutil.Context(t), testExtensionProfileLens(), "workspace-a", "notes", cmdpalette.ViewCloseRequest{
+				ViewSession: "vs_test",
+				ProfileLens: testExtensionProfileLens(),
+			}); err != nil {
 			t.Fatalf("CloseProgram() error = %v", err)
 		}
 		if !called {
@@ -161,12 +165,18 @@ func TestManagerViewProgramForwarding(t *testing.T) {
 	t.Run("Should treat close as idempotent when the process is gone", func(t *testing.T) {
 		t.Parallel()
 		manager := newViewProgramManagerForTest("notes", 1, time.Second, nil)
-		if err := manager.CloseProgram(testutil.Context(t), "workspace-a", "notes", cmdpalette.ViewCloseRequest{
-			ViewSession: "vs_test",
-		}); err != nil {
+		if err := manager.CloseProgram(
+			testutil.Context(t), testExtensionProfileLens(), "workspace-a", "notes", cmdpalette.ViewCloseRequest{
+				ViewSession: "vs_test",
+				ProfileLens: testExtensionProfileLens(),
+			}); err != nil {
 			t.Fatalf("CloseProgram() error = %v, want nil for unavailable process", err)
 		}
 	})
+}
+
+func testExtensionProfileLens() cmdpalette.ProfileLens {
+	return cmdpalette.ScopedProfileLens(cmdpalette.DefaultProfileLensID, "default")
 }
 
 func newViewProgramManagerForTest(

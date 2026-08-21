@@ -223,7 +223,7 @@ func layoutProfileScope(scope string, workspaceID string) (resources.ResourceSco
 			ID:   workspaceID,
 		}, nil
 	case layoutProfileScopeGlobal:
-		return resources.ResourceScope{Kind: resources.ResourceScopeKindGlobal}, nil
+		return resources.ResourceScope{Kind: resources.ResourceScopeKindUser}, nil
 	default:
 		return resources.ResourceScope{}, newWindowManagerCLIValidationError(
 			windowManagerCLIValidationUnsupported,

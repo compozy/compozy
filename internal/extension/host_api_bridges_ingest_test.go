@@ -14,6 +14,7 @@ import (
 	"github.com/compozy/compozy/internal/acp"
 	bridgepkg "github.com/compozy/compozy/internal/bridges"
 	"github.com/compozy/compozy/internal/session"
+	storepkg "github.com/compozy/compozy/internal/store"
 	taskpkg "github.com/compozy/compozy/internal/task"
 	"github.com/compozy/compozy/internal/testutil"
 )
@@ -31,6 +32,7 @@ func TestHostAPIHandlerBridgesMessagesIngestContract(t *testing.T) {
 		t.Cleanup(broker.Close)
 		env.useContractBridgePromptDriver(t, driver, broker)
 		instance := env.createBridgeInstance(t, bridgepkg.CreateInstanceRequest{
+			ProfileID:     storepkg.DefaultProfileID,
 			ID:            "brg-ingest-reconcile-gate",
 			RoutingPolicy: bridgepkg.RoutingPolicy{IncludePeer: true},
 		})
@@ -94,6 +96,7 @@ func TestHostAPIHandlerBridgesMessagesIngestContract(t *testing.T) {
 		env.useContractBridgePromptDriver(t, driver, broker)
 
 		instance := env.createBridgeInstance(t, bridgepkg.CreateInstanceRequest{
+			ProfileID:     storepkg.DefaultProfileID,
 			ID:            "brg-ingest-edit-reply",
 			RoutingPolicy: bridgepkg.RoutingPolicy{IncludePeer: true},
 		})
@@ -194,6 +197,7 @@ func TestHostAPIHandlerBridgesMessagesIngestContract(t *testing.T) {
 		env.useContractBridgePromptDriver(t, driver, broker)
 
 		instance := env.createBridgeInstance(t, bridgepkg.CreateInstanceRequest{
+			ProfileID:     storepkg.DefaultProfileID,
 			ID:            "brg-ingest-cancel-dedup",
 			RoutingPolicy: bridgepkg.RoutingPolicy{IncludePeer: true},
 		})

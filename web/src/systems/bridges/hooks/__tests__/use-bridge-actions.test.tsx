@@ -44,6 +44,21 @@ vi.mock("@/systems/bridges/adapters/bridge-setup-api", () => ({
   verifyBridge: vi.fn(),
 }));
 
+const notifyUser = vi.hoisted(() => vi.fn());
+vi.mock("@/lib/user-feedback", () => ({ notifyUser }));
+
+// Which lens the shell is on is the shell's business; only the acting scope it
+// hands down matters here, so that is the single seam this suite drives.
+const profileScope = vi.hoisted(() => ({
+  aggregate: false,
+  destination: "default",
+  params: { profile: "default" },
+}));
+vi.mock("@/systems/profiles", async importOriginal => ({
+  ...(await importOriginal<typeof import("@/systems/profiles")>()),
+  useProfileReadScope: () => profileScope,
+}));
+
 import {
   createBridge,
   deleteBridgeSecretBinding,
@@ -75,6 +90,8 @@ function createWrapperAndClient() {
 describe("useCreateBridge", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    profileScope.aggregate = false;
+    profileScope.destination = "default";
   });
 
   afterEach(() => {
@@ -84,6 +101,8 @@ describe("useCreateBridge", () => {
   it("creates a bridge and invalidates the bridge root query", async () => {
     vi.mocked(createBridge).mockResolvedValue({
       bridge: {
+        profile_id: "00000000000000000000000000",
+        profile_name: "default",
         created_at: "2026-04-13T12:00:00Z",
         display_name: "Support",
         enabled: true,
@@ -134,23 +153,59 @@ describe("useCreateBridge", () => {
       expect(result.current.isSuccess).toBe(true);
     });
 
-    expect(createBridge).toHaveBeenCalledWith({
-      dm_policy: "allowlist",
-      display_name: "Support",
-      enabled: true,
-      extension_name: "ext-telegram",
-      notification_suppress: false,
-      platform: "telegram",
-      provider_config: {
-        mode: "bot",
+    // The acting profile rides the create: a bridge belongs to whoever made it,
+    // and an omitted selector would file it under `default` instead.
+    expect(createBridge).toHaveBeenCalledWith(
+      {
+        dm_policy: "allowlist",
+        display_name: "Support",
+        enabled: true,
+        extension_name: "ext-telegram",
+        notification_suppress: false,
+        platform: "telegram",
+        provider_config: {
+          mode: "bot",
+        },
+        routing_policy: { include_group: true, include_peer: true, include_thread: true },
+        scope: "workspace",
+        workspace_id: "ws_test",
       },
-      routing_policy: { include_group: true, include_peer: true, include_thread: true },
-      scope: "workspace",
-      workspace_id: "ws_test",
-    });
+      "default"
+    );
     expect(invalidateSpy).toHaveBeenCalledWith({
       queryKey: ["bridges"],
     });
+    // A scoped view already shows whose bridges these are, so naming the owner
+    // there would be noise.
+    expect(notifyUser).not.toHaveBeenCalled();
+  });
+
+  it("Should leave committed bridge success feedback to the create flow", async () => {
+    profileScope.aggregate = true;
+    // The daemon answers with `marketing` even though the request said
+    // `default` — echoing the request would hide exactly this misfile.
+    vi.mocked(createBridge).mockResolvedValue({
+      bridge: { id: "brg_ads", profile_name: "marketing" },
+    } as Awaited<ReturnType<typeof createBridge>>);
+
+    const { wrapper } = createWrapperAndClient();
+    const { result } = renderHook(() => useCreateBridge(), { wrapper });
+
+    act(() => {
+      result.current.mutate({
+        display_name: "Ads",
+        enabled: true,
+        extension_name: "ext-slack",
+        notification_suppress: false,
+        platform: "slack",
+        routing_policy: { include_group: true, include_peer: true, include_thread: true },
+        scope: "global",
+      });
+    });
+    await waitFor(() => expect(result.current.isSuccess).toBe(true));
+
+    expect(createBridge).toHaveBeenCalledWith(expect.anything(), "default");
+    expect(notifyUser).not.toHaveBeenCalled();
   });
 });
 
@@ -187,6 +242,7 @@ describe("useTestBridgeDelivery", () => {
           },
         },
         id: "brg_support",
+        profile: "marketing",
       });
     });
 
@@ -194,12 +250,16 @@ describe("useTestBridgeDelivery", () => {
       expect(result.current.isSuccess).toBe(true);
     });
 
-    expect(testBridgeDelivery).toHaveBeenCalledWith("brg_support", {
-      target: {
-        bridge_instance_id: "brg_support",
-        peer_id: "peer_123",
+    expect(testBridgeDelivery).toHaveBeenCalledWith(
+      "brg_support",
+      {
+        target: {
+          bridge_instance_id: "brg_support",
+          peer_id: "peer_123",
+        },
       },
-    });
+      { profile: "marketing" }
+    );
     expect(invalidateSpy).toHaveBeenCalledWith({
       queryKey: ["bridges"],
     });
@@ -224,6 +284,8 @@ describe("bridge mutations", () => {
   it("updates a bridge and invalidates detail plus routes", async () => {
     vi.mocked(updateBridge).mockResolvedValue({
       bridge: {
+        profile_id: "00000000000000000000000000",
+        profile_name: "default",
         created_at: "2026-04-13T12:00:00Z",
         display_name: "Support Ops",
         enabled: true,
@@ -258,6 +320,7 @@ describe("bridge mutations", () => {
           display_name: "Support Ops",
         },
         id: "brg_support",
+        profile: "marketing",
       });
     });
 
@@ -265,9 +328,11 @@ describe("bridge mutations", () => {
       expect(result.current.isSuccess).toBe(true);
     });
 
-    expect(updateBridge).toHaveBeenCalledWith("brg_support", {
-      display_name: "Support Ops",
-    });
+    expect(updateBridge).toHaveBeenCalledWith(
+      "brg_support",
+      { display_name: "Support Ops" },
+      { profile: "marketing" }
+    );
     expect(invalidateSpy).toHaveBeenCalledWith({
       queryKey: ["bridges", "routes", "brg_support"],
     });
@@ -297,6 +362,7 @@ describe("bridge mutations", () => {
           secret_value: "telegram-token",
         },
         id: "brg_support",
+        profile: "marketing",
       });
     });
     await waitFor(() => {
@@ -310,18 +376,26 @@ describe("bridge mutations", () => {
       deleteResult.current.mutate({
         bindingName: "bot_token",
         id: "brg_support",
+        profile: "marketing",
       });
     });
     await waitFor(() => {
       expect(deleteResult.current.isSuccess).toBe(true);
     });
 
-    expect(putBridgeSecretBinding).toHaveBeenCalledWith("brg_support", "bot_token", {
-      kind: "bot_token",
-      secret_ref: "vault:bridges/brg_support/bot_token",
-      secret_value: "telegram-token",
+    expect(putBridgeSecretBinding).toHaveBeenCalledWith(
+      "brg_support",
+      "bot_token",
+      {
+        kind: "bot_token",
+        secret_ref: "vault:bridges/brg_support/bot_token",
+        secret_value: "telegram-token",
+      },
+      { profile: "marketing" }
+    );
+    expect(deleteBridgeSecretBinding).toHaveBeenCalledWith("brg_support", "bot_token", {
+      profile: "marketing",
     });
-    expect(deleteBridgeSecretBinding).toHaveBeenCalledWith("brg_support", "bot_token");
     expect(invalidateSpy).toHaveBeenCalledWith({
       queryKey: ["bridges", "secret-bindings", "brg_support"],
     });
@@ -337,7 +411,7 @@ describe("bridge mutations", () => {
 
     const { result: enableResult } = renderHook(() => useEnableBridge(), { wrapper });
     act(() => {
-      enableResult.current.mutate({ id: "brg_support" });
+      enableResult.current.mutate({ id: "brg_support", profile: "marketing" });
     });
     await waitFor(() => {
       expect(enableResult.current.isSuccess).toBe(true);
@@ -345,7 +419,7 @@ describe("bridge mutations", () => {
 
     const { result: disableResult } = renderHook(() => useDisableBridge(), { wrapper });
     act(() => {
-      disableResult.current.mutate({ id: "brg_support" });
+      disableResult.current.mutate({ id: "brg_support", profile: "marketing" });
     });
     await waitFor(() => {
       expect(disableResult.current.isSuccess).toBe(true);
@@ -353,15 +427,15 @@ describe("bridge mutations", () => {
 
     const { result: restartResult } = renderHook(() => useRestartBridge(), { wrapper });
     act(() => {
-      restartResult.current.mutate({ id: "brg_support" });
+      restartResult.current.mutate({ id: "brg_support", profile: "marketing" });
     });
     await waitFor(() => {
       expect(restartResult.current.isSuccess).toBe(true);
     });
 
-    expect(enableBridge).toHaveBeenCalledWith("brg_support");
-    expect(disableBridge).toHaveBeenCalledWith("brg_support");
-    expect(restartBridge).toHaveBeenCalledWith("brg_support");
+    expect(enableBridge).toHaveBeenCalledWith("brg_support", { profile: "marketing" });
+    expect(disableBridge).toHaveBeenCalledWith("brg_support", { profile: "marketing" });
+    expect(restartBridge).toHaveBeenCalledWith("brg_support", { profile: "marketing" });
     expect(invalidateSpy).toHaveBeenCalledWith({
       queryKey: ["bridges", "routes", "brg_support"],
     });
@@ -394,11 +468,11 @@ describe("bridge setup control mutations", () => {
     const invalidateSpy = vi.spyOn(queryClient, "invalidateQueries");
 
     const { result: verifyResult } = renderHook(() => useVerifyBridge(), { wrapper });
-    act(() => verifyResult.current.mutate({ id: "brg_support" }));
+    act(() => verifyResult.current.mutate({ id: "brg_support", profile: "marketing" }));
     await waitFor(() => expect(verifyResult.current.isSuccess).toBe(true));
 
     const { result: registerResult } = renderHook(() => useRegisterBridgeWebhook(), { wrapper });
-    act(() => registerResult.current.mutate({ id: "brg_support" }));
+    act(() => registerResult.current.mutate({ id: "brg_support", profile: "marketing" }));
     await waitFor(() => expect(registerResult.current.isSuccess).toBe(true));
 
     expect(verifyResult.current.data?.checks[0]?.status).toBe("pass");
@@ -431,17 +505,17 @@ describe("bridge setup control mutations", () => {
       },
     };
 
-    act(() => result.current.mutate({ data, id: "brg_support" }));
+    act(() => result.current.mutate({ data, id: "brg_support", profile: "marketing" }));
     await waitFor(() => expect(result.current.isSuccess).toBe(true));
 
-    expect(sendBridgeTest).toHaveBeenCalledWith("brg_support", data);
+    expect(sendBridgeTest).toHaveBeenCalledWith("brg_support", data, { profile: "marketing" });
     expect(invalidateSpy).toHaveBeenCalledWith({ queryKey: ["bridges", "list"] });
+    // Bounded to this bridge but blind to lens: the delivery change is the same
+    // fact under every one of them, so each lens holding it must reread.
     expect(invalidateSpy).toHaveBeenCalledWith({
-      exact: true,
       queryKey: ["bridges", "detail", "brg_support"],
     });
     expect(invalidateSpy).toHaveBeenCalledWith({
-      exact: true,
       queryKey: ["bridges", "routes", "brg_support"],
     });
     expect(invalidateSpy).toHaveBeenCalledTimes(3);
@@ -469,6 +543,11 @@ describe("useResolveBridgeTarget", () => {
       await result.current.mutateAsync({ id: "brg_support", data: { name: "launch" } });
     });
 
+    expect(resolveBridgeTarget).toHaveBeenCalledWith(
+      "brg_support",
+      { name: "launch" },
+      { profile: "default" }
+    );
     expect(invalidateSpy).toHaveBeenCalledWith({
       queryKey: bridgeKeys.targetsForBridge("brg_support"),
     });

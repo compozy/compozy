@@ -27,7 +27,7 @@ const validHeader = {
   filename: "user_role.md",
   mod_time: "2026-04-01T12:00:00Z",
   name: "User Role",
-  scope: "global",
+  scope: "profile",
   type: "user",
   recall_count: 0,
   injection: true,
@@ -54,6 +54,7 @@ describe("listMemories", () => {
 
     const result = await listMemories({
       scope: "agent",
+      profile: "marketing",
       workspaceId: "ws_launch",
       agentName: "cto",
       agentTier: "workspace",
@@ -66,7 +67,7 @@ describe("listMemories", () => {
 
     expect(result).toEqual(memoryListPageFixture);
     await expectFetchRequest({
-      path: "/api/memory?scope=agent&workspace_id=ws_launch&agent_name=cto&agent_tier=workspace&type=reference&sort=recent&cursor=memory-cursor&limit=25&include_system=true",
+      path: "/api/memory?profile=marketing&scope=agent&workspace_id=ws_launch&agent_name=cto&agent_tier=workspace&type=reference&sort=recent&cursor=memory-cursor&limit=25&include_system=true",
     });
   });
 
@@ -89,10 +90,10 @@ describe("listMemories", () => {
     mockJsonResponse({ memories: [], page: { has_more: false, limit: 50, total: 0 } });
     const controller = new AbortController();
 
-    await listMemories({ scope: "global" }, controller.signal);
+    await listMemories({ scope: "profile" }, controller.signal);
 
     await expectFetchRequest({
-      path: "/api/memory?scope=global",
+      path: "/api/memory?scope=profile",
       signal: controller.signal,
     });
   });
@@ -109,10 +110,10 @@ describe("readMemory", () => {
   it("Should call GET /api/memory/:filename with the selector and return summary + content", async () => {
     mockJsonResponse({ memory: { summary: validHeader, content: "# Memory content" } });
 
-    const result = await readMemory({ scope: "global" }, "user_role.md");
+    const result = await readMemory({ scope: "profile" }, "user_role.md");
 
     expect(result).toMatchObject({ filename: "user_role.md", content: "# Memory content" });
-    await expectFetchRequest({ path: "/api/memory/user_role.md?scope=global" });
+    await expectFetchRequest({ path: "/api/memory/user_role.md?scope=profile" });
   });
 
   it("Should pass agent and workspace selectors to the query string", async () => {
@@ -120,6 +121,7 @@ describe("readMemory", () => {
 
     await readMemory(
       {
+        profile: "marketing",
         scope: "agent",
         workspaceId: "ws_launch",
         agentName: "cto",
@@ -129,19 +131,19 @@ describe("readMemory", () => {
     );
 
     await expectFetchRequest({
-      path: "/api/memory/project_ctx.md?scope=agent&workspace_id=ws_launch&agent_name=cto&agent_tier=workspace",
+      path: "/api/memory/project_ctx.md?profile=marketing&scope=agent&workspace_id=ws_launch&agent_name=cto&agent_tier=workspace",
     });
   });
 
   it("Should throw KnowledgeApiError with 404 for unknown memory", async () => {
     vi.mocked(globalThis.fetch).mockResolvedValue(new Response(null, { status: 404 }));
 
-    await expect(readMemory({ scope: "global" }, "missing.md")).rejects.toThrow(
+    await expect(readMemory({ scope: "profile" }, "missing.md")).rejects.toThrow(
       "Memory not found: missing.md"
     );
 
     try {
-      await readMemory({ scope: "global" }, "missing.md");
+      await readMemory({ scope: "profile" }, "missing.md");
     } catch (error) {
       expect(error).toBeInstanceOf(KnowledgeApiError);
       expect((error as KnowledgeApiError).status).toBe(404);
@@ -151,7 +153,7 @@ describe("readMemory", () => {
   it("Should throw KnowledgeApiError on other failures", async () => {
     vi.mocked(globalThis.fetch).mockResolvedValue(new Response(null, { status: 503 }));
 
-    await expect(readMemory({ scope: "global" }, "test.md")).rejects.toThrow(
+    await expect(readMemory({ scope: "profile" }, "test.md")).rejects.toThrow(
       'Failed to read memory "test.md": 503'
     );
   });
@@ -159,9 +161,9 @@ describe("readMemory", () => {
   it("Should encode filename in the URL", async () => {
     mockJsonResponse({ memory: { summary: validHeader, content: "" } });
 
-    await readMemory({ scope: "global" }, "my file.md");
+    await readMemory({ scope: "profile" }, "my file.md");
 
-    await expectFetchRequest({ path: "/api/memory/my%20file.md?scope=global" });
+    await expectFetchRequest({ path: "/api/memory/my%20file.md?scope=profile" });
   });
 });
 
@@ -169,25 +171,28 @@ describe("writeMemory", () => {
   it("Should call POST /api/memory with the controller proposal body", async () => {
     mockJsonResponse(memoryWriteFixture);
 
-    const result = await writeMemory({
-      scope: "global",
-      type: "reference",
-      name: "Test memory",
-      content: "content here",
-      workspace_id: "ws_launch",
-    });
+    const result = await writeMemory(
+      {
+        scope: "profile",
+        type: "reference",
+        name: "Test memory",
+        content: "content here",
+        workspace_id: "ws_launch",
+      },
+      "marketing"
+    );
 
     expect(result).toEqual(memoryWriteFixture);
     await expectFetchRequest({
       body: {
         content: "content here",
         name: "Test memory",
-        scope: "global",
+        scope: "profile",
         type: "reference",
         workspace_id: "ws_launch",
       },
       method: "POST",
-      path: "/api/memory",
+      path: "/api/memory?profile=marketing",
     });
   });
 
@@ -195,7 +200,7 @@ describe("writeMemory", () => {
     vi.mocked(globalThis.fetch).mockResolvedValue(new Response(null, { status: 400 }));
 
     const body = {
-      scope: "global",
+      scope: "profile",
       type: "reference",
       name: "Test memory",
       content: "bad",
@@ -209,25 +214,29 @@ describe("editMemory", () => {
   it("Should call PATCH /api/memory/:filename with the controller edit body", async () => {
     mockJsonResponse(memoryEditFixture);
 
-    const result = await editMemory("operator-style.md", {
-      content: "updated body",
-      description: "tightened tone",
-      scope: "global",
-      type: "user",
-      name: "Operator Style",
-    });
+    const result = await editMemory(
+      "operator-style.md",
+      {
+        content: "updated body",
+        description: "tightened tone",
+        scope: "profile",
+        type: "user",
+        name: "Operator Style",
+      },
+      "marketing"
+    );
 
     expect(result).toEqual(memoryEditFixture);
     await expectFetchRequest({
       body: {
         content: "updated body",
         description: "tightened tone",
-        scope: "global",
+        scope: "profile",
         type: "user",
         name: "Operator Style",
       },
       method: "PATCH",
-      path: "/api/memory/operator-style.md",
+      path: "/api/memory/operator-style.md?profile=marketing",
     });
   });
 
@@ -252,12 +261,12 @@ describe("deleteMemory", () => {
   it("Should call DELETE /api/memory/:filename with the selector", async () => {
     mockJsonResponse(memoryDeleteFixture);
 
-    const result = await deleteMemory({ scope: "global" }, "old.md");
+    const result = await deleteMemory({ scope: "profile" }, "old.md");
 
     expect(result).toEqual(memoryDeleteFixture);
     await expectFetchRequest({
       method: "DELETE",
-      path: "/api/memory/old.md?scope=global",
+      path: "/api/memory/old.md?scope=profile",
     });
   });
 
@@ -266,6 +275,7 @@ describe("deleteMemory", () => {
 
     await deleteMemory(
       {
+        profile: "marketing",
         scope: "agent",
         workspaceId: "ws_launch",
         agentName: "cto",
@@ -276,14 +286,14 @@ describe("deleteMemory", () => {
 
     await expectFetchRequest({
       method: "DELETE",
-      path: "/api/memory/project.md?scope=agent&workspace_id=ws_launch&agent_name=cto&agent_tier=workspace",
+      path: "/api/memory/project.md?profile=marketing&scope=agent&workspace_id=ws_launch&agent_name=cto&agent_tier=workspace",
     });
   });
 
   it("Should throw KnowledgeApiError with 404 for unknown memory", async () => {
     vi.mocked(globalThis.fetch).mockResolvedValue(new Response(null, { status: 404 }));
 
-    await expect(deleteMemory({ scope: "global" }, "missing.md")).rejects.toThrow(
+    await expect(deleteMemory({ scope: "profile" }, "missing.md")).rejects.toThrow(
       "Memory not found: missing.md"
     );
   });
@@ -293,12 +303,15 @@ describe("searchMemory", () => {
   it("Should POST /api/memory/search with the selector body and return results", async () => {
     mockJsonResponse(memorySearchFixture);
 
-    const result = await searchMemory({
-      query_text: "launch",
-      scope: "workspace",
-      workspace_id: "ws_launch",
-      top_k: 3,
-    });
+    const result = await searchMemory(
+      {
+        query_text: "launch",
+        scope: "workspace",
+        workspace_id: "ws_launch",
+        top_k: 3,
+      },
+      "marketing"
+    );
 
     expect(result).toEqual(memorySearchFixture);
     await expectFetchRequest({
@@ -309,7 +322,7 @@ describe("searchMemory", () => {
         top_k: 3,
       },
       method: "POST",
-      path: "/api/memory/search",
+      path: "/api/memory/search?profile=marketing",
     });
   });
 
@@ -325,6 +338,7 @@ describe("listMemoryDecisions", () => {
     mockJsonResponse(memoryDecisionsFixture);
 
     const result = await listMemoryDecisions({
+      profile: "marketing",
       scope: "agent",
       agentName: "cto",
       agentTier: "workspace",
@@ -337,14 +351,14 @@ describe("listMemoryDecisions", () => {
 
     expect(result).toEqual(memoryDecisionsFixture);
     await expectFetchRequest({
-      path: "/api/memory/decisions?scope=agent&workspace_id=ws_launch&agent_name=cto&agent_tier=workspace&op=update&filename=launch.md&since=2026-04-25T21%3A00%3A00Z&limit=5",
+      path: "/api/memory/decisions?profile=marketing&scope=agent&workspace_id=ws_launch&agent_name=cto&agent_tier=workspace&op=update&filename=launch.md&since=2026-04-25T21%3A00%3A00Z&limit=5",
     });
   });
 
   it("Should surface daemon errors as KnowledgeApiError", async () => {
     vi.mocked(globalThis.fetch).mockResolvedValue(new Response(null, { status: 500 }));
 
-    await expect(listMemoryDecisions({ scope: "global" })).rejects.toThrow(KnowledgeApiError);
+    await expect(listMemoryDecisions({ scope: "profile" })).rejects.toThrow(KnowledgeApiError);
   });
 });
 
@@ -352,15 +366,17 @@ describe("revertMemoryDecision", () => {
   it("Should POST the revert body to the decision-specific endpoint", async () => {
     mockJsonResponse(memoryDecisionRevertFixture);
 
-    const result = await revertMemoryDecision("dec_edit_fixture", {
-      reason: "operator reverted from Knowledge",
-    });
+    const result = await revertMemoryDecision(
+      "dec_edit_fixture",
+      { reason: "operator reverted from Knowledge" },
+      "marketing"
+    );
 
     expect(result).toEqual(memoryDecisionRevertFixture);
     await expectFetchRequest({
       body: { reason: "operator reverted from Knowledge" },
       method: "POST",
-      path: "/api/memory/decisions/dec_edit_fixture/revert",
+      path: "/api/memory/decisions/dec_edit_fixture/revert?profile=marketing",
     });
   });
 
@@ -377,13 +393,13 @@ describe("triggerMemoryDream", () => {
   it("Should POST /api/memory/dreams/trigger with the workspace id", async () => {
     mockJsonResponse(memoryDreamTriggerFixture);
 
-    const result = await triggerMemoryDream("ws_launch");
+    const result = await triggerMemoryDream("ws_launch", "marketing");
 
     expect(result).toEqual(memoryDreamTriggerFixture);
     await expectFetchRequest({
       body: { workspace_id: "ws_launch" },
       method: "POST",
-      path: "/api/memory/dreams/trigger",
+      path: "/api/memory/dreams/trigger?profile=marketing",
     });
   });
 

@@ -20,6 +20,11 @@ import (
 	"github.com/compozy/compozy/internal/task"
 )
 
+func taskRunWithResult(run task.Run, result json.RawMessage) task.Run {
+	run.SetResult(result)
+	return run
+}
+
 func TestCoordinatorOperatorRerunPlanner(t *testing.T) {
 	t.Parallel()
 
@@ -1781,16 +1786,15 @@ func TestCoordinatorRunnerShouldRestoreAwaitedChildFromCompletedActionResult(t *
 			LoopRunID: string(parent.ID),
 			Status:    task.TaskRunStatusClaimed,
 		}
-		completedRun := task.Run{
+		completedRun := taskRunWithResult(task.Run{
 			ID:        coordinatorNodeRunID(parent.ID, 1, "first_child", 0),
 			TaskID:    coordinatorNodeTaskID(parent.ID, 1, "first_child", 0),
 			RunKind:   task.RunKindWorker,
 			LoopRunID: string(parent.ID),
 			Status:    task.TaskRunStatusCompleted,
-			Result: json.RawMessage(
-				`{"loop_run_id":"looprun-await-result-child","status":"awaiting_child"}`,
-			),
-		}
+		}, json.RawMessage(
+			`{"loop_run_id":"looprun-await-result-child","status":"awaiting_child"}`,
+		))
 		graph := dsl.Graph{
 			Nodes: []dsl.Node{
 				{
@@ -1910,7 +1914,7 @@ func TestRefreshCompletedTaskRunOutputShouldValidateRunLoopAwaitResult(t *testin
 				Run{ID: "looprun-parent", WorkspaceID: "ws-1"},
 				graph,
 				GenerationOutput{NodeID: "child", Status: generationOutputEnqueued},
-				task.Run{Status: task.TaskRunStatusCompleted, Result: testCase.result},
+				taskRunWithResult(task.Run{Status: task.TaskRunStatusCompleted}, testCase.result),
 			)
 			if err != nil {
 				t.Fatalf("refreshCompletedTaskRunOutput() error = %v", err)
@@ -1954,7 +1958,10 @@ func TestRefreshCompletedTaskRunOutputShouldRevalidateRunAgentSchema(t *testing.
 			Run{ID: "looprun-parent", WorkspaceID: "ws-1"},
 			graph,
 			GenerationOutput{NodeID: "worker", Status: generationOutputEnqueued},
-			task.Run{Status: task.TaskRunStatusCompleted, Result: json.RawMessage(`{"status":"done"}`)},
+			taskRunWithResult(
+				task.Run{Status: task.TaskRunStatusCompleted},
+				json.RawMessage(`{"status":"done"}`),
+			),
 		)
 		if err != nil {
 			t.Fatalf("refreshCompletedTaskRunOutput() error = %v", err)
@@ -2010,10 +2017,9 @@ func TestRefreshCompletedTaskRunOutputShouldPreserveRunLoopDetachSuccess(t *test
 			Run{ID: "looprun-parent", WorkspaceID: "ws-1"},
 			graph,
 			GenerationOutput{NodeID: "child", Status: generationOutputEnqueued},
-			task.Run{
+			taskRunWithResult(task.Run{
 				Status: task.TaskRunStatusCompleted,
-				Result: json.RawMessage(`{"loop_run_id":"looprun-detached-child"}`),
-			},
+			}, json.RawMessage(`{"loop_run_id":"looprun-detached-child"}`)),
 		)
 		if err != nil {
 			t.Fatalf("refreshCompletedTaskRunOutput() error = %v", err)
@@ -2054,13 +2060,12 @@ func TestCoordinatorRunnerShouldResolveCompletedAwaitedChildTerminal(t *testing.
 				ID: "looprun-completed-child", WorkspaceID: parent.WorkspaceID, LoopName: "child",
 				Status: testCase.status, Generation: 1, ParentLoopRunID: parent.ID,
 			}
-			completedRun := task.Run{
+			completedRun := taskRunWithResult(task.Run{
 				ID: "run-completed-child", RunKind: task.RunKindWorker,
 				LoopRunID: string(parent.ID), Status: task.TaskRunStatusCompleted,
-				Result: json.RawMessage(
-					`{"loop_run_id":"looprun-completed-child","status":"awaiting_child"}`,
-				),
-			}
+			}, json.RawMessage(
+				`{"loop_run_id":"looprun-completed-child","status":"awaiting_child"}`,
+			))
 			graph := dsl.Graph{Nodes: []dsl.Node{{
 				ID:    "child",
 				Class: dsl.NodeClassAction,
@@ -4433,6 +4438,7 @@ func TestCoordinatorRunnerShouldPlanRequeueThroughSuccession(t *testing.T) {
 	now := time.Date(2026, time.August, 2, 12, 30, 0, 0, time.UTC)
 	loopRun := Run{
 		ID:           "looprun-requeue-succession",
+		ProfileID:    "profile-default",
 		WorkspaceID:  "ws-1",
 		LoopName:     "delivery",
 		Status:       StatusRunning,

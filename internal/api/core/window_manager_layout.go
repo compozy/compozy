@@ -13,11 +13,11 @@ import (
 // ExportWindowManagerLayout returns a history-free declarative document.
 func (h *BaseHandlers) ExportWindowManagerLayout(c *gin.Context) {
 	workspaceID := windowManagerWorkspace(c)
-	if h.WindowManager == nil {
-		h.respondWindowManagerError(c, workspaceID, windowmanager.ErrClosed)
+	service, ok := h.windowManagerService(c, workspaceID)
+	if !ok {
 		return
 	}
-	document, err := h.WindowManager.ExportLayout(c.Request.Context(), workspaceID)
+	document, err := service.ExportLayout(c.Request.Context(), workspaceID)
 	if err != nil {
 		h.respondWindowManagerError(c, workspaceID, err)
 		return
@@ -33,8 +33,8 @@ func (h *BaseHandlers) ExportWindowManagerLayout(c *gin.Context) {
 // ValidateWindowManagerLayout validates a raw layout without normalization or writes.
 func (h *BaseHandlers) ValidateWindowManagerLayout(c *gin.Context) {
 	workspaceID := windowManagerWorkspace(c)
-	if h.WindowManager == nil {
-		h.respondWindowManagerError(c, workspaceID, windowmanager.ErrClosed)
+	service, ok := h.windowManagerService(c, workspaceID)
+	if !ok {
 		return
 	}
 	var request contract.WindowManagerLayoutValidationRequest
@@ -54,7 +54,7 @@ func (h *BaseHandlers) ValidateWindowManagerLayout(c *gin.Context) {
 		h.respondWindowManagerError(c, workspaceID, err)
 		return
 	}
-	validation, err := h.WindowManager.ValidateLayout(
+	validation, err := service.ValidateLayout(
 		c.Request.Context(),
 		workspaceID,
 		request.Document.Domain(),
@@ -71,8 +71,8 @@ func (h *BaseHandlers) ValidateWindowManagerLayout(c *gin.Context) {
 // ReplaceWindowManagerLayout applies a declarative document through revision CAS.
 func (h *BaseHandlers) ReplaceWindowManagerLayout(c *gin.Context) {
 	workspaceID := windowManagerWorkspace(c)
-	if h.WindowManager == nil {
-		h.respondWindowManagerError(c, workspaceID, windowmanager.ErrClosed)
+	service, ok := h.windowManagerService(c, workspaceID)
+	if !ok {
 		return
 	}
 	var request contract.WindowManagerLayoutReplaceRequest
@@ -108,7 +108,7 @@ func (h *BaseHandlers) ReplaceWindowManagerLayout(c *gin.Context) {
 		)
 		return
 	}
-	result, err := h.WindowManager.ReplaceLayout(c.Request.Context(), windowmanager.ReplaceLayoutRequest{
+	result, err := service.ReplaceLayout(c.Request.Context(), windowmanager.ReplaceLayoutRequest{
 		WorkspaceID:      workspaceID,
 		ExpectedRevision: windowmanager.Revision(*request.ExpectedRevision),
 		ClientID:         request.ClientID,

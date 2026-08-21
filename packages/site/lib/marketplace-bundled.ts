@@ -33,6 +33,15 @@ const toolSchema = z.object({
   visibility: z.enum(["model", "operator", "hidden"]),
 });
 
+const resourcePathSchema = z.object({
+  path: z.string().min(1),
+  profile: z.string().min(1).optional(),
+});
+
+const resourcePathsSchema = z
+  .array(resourcePathSchema)
+  .transform(resources => resources.map(resource => resource.path));
+
 const specCycleManifestSchema = z.object({
   extension: z.object({
     name: z.string().min(1),
@@ -42,9 +51,9 @@ const specCycleManifestSchema = z.object({
   }),
   capabilities: z.object({ provides: z.array(z.string().min(1)).min(1) }),
   resources: z.object({
-    skills: z.array(z.string().min(1)),
-    loops: z.array(z.string().min(1)),
-    agents: z.array(z.string().min(1)),
+    skills: resourcePathsSchema,
+    loops: resourcePathsSchema,
+    agents: resourcePathsSchema,
     tools: z.record(z.string(), toolSchema),
   }),
 });

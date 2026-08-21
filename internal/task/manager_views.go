@@ -13,6 +13,7 @@ import (
 func summaryFromTaskRecord(record Task) Summary {
 	return Summary{
 		ID:                 record.ID,
+		ProfileID:          record.ProfileID,
 		Identifier:         record.Identifier,
 		Scope:              record.Scope,
 		WorkspaceID:        record.WorkspaceID,
@@ -53,6 +54,7 @@ func summaryFromTaskRecord(record Task) Summary {
 func taskRecordFromSummary(summary *Summary) Task {
 	return Task{
 		ID:                 summary.ID,
+		ProfileID:          summary.ProfileID,
 		Identifier:         summary.Identifier,
 		Scope:              summary.Scope,
 		WorkspaceID:        summary.WorkspaceID,
@@ -343,6 +345,25 @@ func cloneRawJSON(raw json.RawMessage) json.RawMessage {
 	cloned := make(json.RawMessage, len(raw))
 	copy(cloned, raw)
 	return cloned
+}
+
+func rawJSONValue(raw *json.RawMessage) json.RawMessage {
+	if raw == nil {
+		return nil
+	}
+	return *raw
+}
+
+func rawJSONPointer(raw json.RawMessage) *json.RawMessage {
+	cloned := cloneRawJSON(raw)
+	if len(cloned) == 0 {
+		return nil
+	}
+	return &cloned
+}
+
+func cloneRawJSONPointer(raw *json.RawMessage) *json.RawMessage {
+	return rawJSONPointer(rawJSONValue(raw))
 }
 
 func sameRawJSON(left json.RawMessage, right json.RawMessage) bool {

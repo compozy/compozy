@@ -262,6 +262,7 @@ func watchEventsGapQuery(
 	}
 	return looppkg.WatchEventsQuery{
 		WorkspaceID: strings.TrimSpace(subscription.WorkspaceID),
+		ReadScope:   store.ReadScope{ProfileID: strings.TrimSpace(subscription.ProfileID)},
 		Streams:     streams,
 		Kinds:       kinds,
 		Limit:       looppkg.LoopWatchEventPageLimit,
@@ -277,6 +278,10 @@ func (g *LoopRepo) writeWatchEventsGapEvent(
 	now time.Time,
 	cause error,
 ) error {
+	profileID := strings.TrimSpace(subscription.ProfileID)
+	if profileID == "" {
+		return fmt.Errorf("store: watch-events loop owner %q has no profile", subscription.LoopRunID)
+	}
 	content, err := json.Marshal(map[string]any{
 		columnLoopRunID:                  strings.TrimSpace(subscription.LoopRunID),
 		columnLoopName:                   strings.TrimSpace(subscription.LoopName),
@@ -290,13 +295,13 @@ func (g *LoopRepo) writeWatchEventsGapEvent(
 	if err != nil {
 		return fmt.Errorf("store: marshal watch-events gap event: %w", err)
 	}
-	return g.observe.WriteEventSummary(ctx, store.EventSummary{
+	summary := store.EventSummary{
+		ProfileID:   profileID,
 		SessionID:   watchEventsRecoverySessionID,
 		WorkspaceID: strings.TrimSpace(subscription.WorkspaceID),
 		Type:        eventType,
 		AgentName:   watchEventsDaemonAgentName,
 		Outcome:     outcome,
-		Content:     content,
 		EventCorrelation: store.EventCorrelation{
 			RunID:           strings.TrimSpace(run.ID),
 			SchedulerReason: watchEventsGapReason,
@@ -305,7 +310,9 @@ func (g *LoopRepo) writeWatchEventsGapEvent(
 		},
 		Summary:   watchEventsGapSummary(eventType, subscription),
 		Timestamp: now.UTC(),
-	})
+	}
+	summary.SetContent(content)
+	return g.observe.WriteEventSummary(ctx, summary)
 }
 
 func watchEventsGapSummary(eventType string, subscription looppkg.ParkedWatchEventSubscription) string {

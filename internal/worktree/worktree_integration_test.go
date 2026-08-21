@@ -25,7 +25,9 @@ func TestWorktreeLifecycleIntegration(t *testing.T) {
 
 	t.Run("Should materialize bootstrap inspect and safely remove a real linked worktree", func(t *testing.T) {
 		item, err := fixture.service.Create(
-			context.Background(), fixture.workspace.ID, CreateOptions{Name: "Feature A"},
+			context.Background(),
+			fixture.workspace.ID,
+			CreateOptions{ProfileID: testWorktreeProfileID, Name: "Feature A"},
 		)
 		if err != nil {
 			t.Fatalf("Create() error = %v", err)
@@ -116,14 +118,24 @@ func TestWorktreeLifecycleIntegration(t *testing.T) {
 			!listing.Discovered[0].Selectable {
 			t.Fatalf("discovered = %#v, want selectable external worktree", listing.Discovered)
 		}
-		item, err := fixture.service.Adopt(context.Background(), fixture.workspace.ID, externalPath)
+		item, err := fixture.service.Adopt(
+			context.Background(),
+			testWorktreeProfileID,
+			fixture.workspace.ID,
+			externalPath,
+		)
 		if err != nil {
 			t.Fatalf("Adopt() error = %v", err)
 		}
 		if item.Origin != OriginAdopted || item.GitDir == "" || item.State != StateReady {
 			t.Fatalf("adopted item = %#v, want ready identity", item)
 		}
-		again, err := fixture.service.Adopt(context.Background(), fixture.workspace.ID, externalPath)
+		again, err := fixture.service.Adopt(
+			context.Background(),
+			testWorktreeProfileID,
+			fixture.workspace.ID,
+			externalPath,
+		)
 		if err != nil || again.ID != item.ID {
 			t.Fatalf("Adopt(retry) = (%#v, %v), want idempotent %q", again, err, item.ID)
 		}
@@ -152,6 +164,7 @@ func TestWorktreeLifecycleIntegration(t *testing.T) {
 		}
 		if _, err := fixture.service.Adopt(
 			context.Background(),
+			testWorktreeProfileID,
 			fixture.workspace.ID,
 			fixture.workspace.Root,
 		); !errors.Is(
@@ -254,27 +267,29 @@ func TestWorktreeLifecycleIntegration(t *testing.T) {
 		existing, err := branchFixture.service.Create(
 			context.Background(),
 			branchFixture.workspace.ID,
-			CreateOptions{Name: "Existing Real", ExistingBranch: "feature/existing"},
+			CreateOptions{ProfileID: testWorktreeProfileID, Name: "Existing Real", ExistingBranch: "feature/existing"},
 		)
 		if err != nil || existing.CreatedBranch {
 			t.Fatalf("Create(existing) = (%#v, %v), want non-created branch", existing, err)
 		}
 		if _, err := branchFixture.service.Create(
-			context.Background(), branchFixture.workspace.ID, CreateOptions{Name: "Root Held", Branch: "main"},
+			context.Background(),
+			branchFixture.workspace.ID,
+			CreateOptions{ProfileID: testWorktreeProfileID, Name: "Root Held", Branch: "main"},
 		); !errors.Is(err, ErrBranchCheckedOutAtRoot) {
 			t.Fatalf("Create(root-held) error = %v, want ErrBranchCheckedOutAtRoot", err)
 		}
 		if _, err := branchFixture.service.Create(
 			context.Background(),
 			branchFixture.workspace.ID,
-			CreateOptions{Name: "Linked Held", Branch: "feature/existing"},
+			CreateOptions{ProfileID: testWorktreeProfileID, Name: "Linked Held", Branch: "feature/existing"},
 		); !errors.Is(err, ErrBranchHeld) || !strings.Contains(err.Error(), existing.Path) {
 			t.Fatalf("Create(linked-held) error = %v, want holder path", err)
 		}
 
 		unborn := newRealGitFixtureWithCommit(t, false)
 		if _, err := unborn.service.Create(
-			context.Background(), unborn.workspace.ID, CreateOptions{Name: "Unborn"},
+			context.Background(), unborn.workspace.ID, CreateOptions{ProfileID: testWorktreeProfileID, Name: "Unborn"},
 		); !errors.Is(err, ErrRepoHasNoCommits) {
 			t.Fatalf("Create(unborn) error = %v, want ErrRepoHasNoCommits", err)
 		}
@@ -293,7 +308,9 @@ func TestWorktreeLifecycleIntegration(t *testing.T) {
 		}
 		service := rollback.newService(injected)
 		_, err := service.Create(
-			context.Background(), rollback.workspace.ID, CreateOptions{Name: "Retry Real"},
+			context.Background(),
+			rollback.workspace.ID,
+			CreateOptions{ProfileID: testWorktreeProfileID, Name: "Retry Real"},
 		)
 		if err == nil || !strings.Contains(err.Error(), "injected add failure") {
 			t.Fatalf("Create(injected failure) error = %v", err)
@@ -309,7 +326,9 @@ func TestWorktreeLifecycleIntegration(t *testing.T) {
 			t.Fatalf("failed branch still exists; stderr=%q", strings.TrimSpace(string(stderr)))
 		}
 		item, err := rollback.service.Create(
-			context.Background(), rollback.workspace.ID, CreateOptions{Name: "Retry Real"},
+			context.Background(),
+			rollback.workspace.ID,
+			CreateOptions{ProfileID: testWorktreeProfileID, Name: "Retry Real"},
 		)
 		if err != nil || item.State != StateReady {
 			t.Fatalf("Create(retry) = (%#v, %v), want ready", item, err)
@@ -324,7 +343,9 @@ func TestWorktreeLifecycleIntegration(t *testing.T) {
 			go func() {
 				<-start
 				item, err := concurrent.service.Create(
-					context.Background(), concurrent.workspace.ID, CreateOptions{Name: "Concurrent Real"},
+					context.Background(),
+					concurrent.workspace.ID,
+					CreateOptions{ProfileID: testWorktreeProfileID, Name: "Concurrent Real"},
 				)
 				createResults <- createIntegrationResult{item: item, err: err}
 			}()
@@ -354,7 +375,9 @@ func TestWorktreeLifecycleIntegration(t *testing.T) {
 		for range 2 {
 			go func() {
 				<-start
-				item, err := concurrent.service.Adopt(context.Background(), concurrent.workspace.ID, adoptPath)
+				item, err := concurrent.service.Adopt(
+					context.Background(), testWorktreeProfileID, concurrent.workspace.ID, adoptPath,
+				)
 				adoptResults <- createIntegrationResult{item: item, err: err}
 			}()
 		}
@@ -388,7 +411,7 @@ func TestWorktreeLifecycleIntegration(t *testing.T) {
 			t.Fatalf("Stat(sentinel before) error = %v", err)
 		}
 		if _, err := owner.service.Adopt(
-			context.Background(), owner.workspace.ID, foreignPath,
+			context.Background(), testWorktreeProfileID, owner.workspace.ID, foreignPath,
 		); !errors.Is(err, ErrAdoptionForeignRepo) {
 			t.Fatalf("Adopt(foreign) error = %v, want ErrAdoptionForeignRepo", err)
 		}
@@ -405,7 +428,9 @@ func TestWorktreeLifecycleIntegration(t *testing.T) {
 	t.Run("Should refuse dirty and unpushed real loss then honor explicit evidence", func(t *testing.T) {
 		risk := newRealGitFixture(t)
 		dirty, err := risk.service.Create(
-			context.Background(), risk.workspace.ID, CreateOptions{Name: "Dirty Force"},
+			context.Background(),
+			risk.workspace.ID,
+			CreateOptions{ProfileID: testWorktreeProfileID, Name: "Dirty Force"},
 		)
 		if err != nil {
 			t.Fatalf("Create(dirty force) error = %v", err)
@@ -435,7 +460,9 @@ func TestWorktreeLifecycleIntegration(t *testing.T) {
 		risk.git(risk.workspace.Root, "remote", "add", "origin", bare)
 		risk.git(risk.workspace.Root, "push", "-u", "origin", "main")
 		unpushed, err := risk.service.Create(
-			context.Background(), risk.workspace.ID, CreateOptions{Name: "Unpushed Real"},
+			context.Background(),
+			risk.workspace.ID,
+			CreateOptions{ProfileID: testWorktreeProfileID, Name: "Unpushed Real"},
 		)
 		if err != nil {
 			t.Fatalf("Create(unpushed) error = %v", err)
@@ -460,7 +487,11 @@ func TestWorktreeLifecycleIntegration(t *testing.T) {
 	t.Run("Should reclaim only unchanged real runtime branches", func(t *testing.T) {
 		reclaim := newRealGitFixture(t)
 		unchanged, err := reclaim.service.Create(context.Background(), reclaim.workspace.ID, CreateOptions{
-			Name: "Run Clean", Branch: "run/clean", Origin: OriginPerRun, RunNamespace: "run/",
+			ProfileID:    testWorktreeProfileID,
+			Name:         "Run Clean",
+			Branch:       "run/clean",
+			Origin:       OriginPerRun,
+			RunNamespace: "run/",
 		})
 		if err != nil {
 			t.Fatalf("Create(run clean) error = %v", err)
@@ -477,7 +508,11 @@ func TestWorktreeLifecycleIntegration(t *testing.T) {
 		}
 
 		changed, err := reclaim.service.Create(context.Background(), reclaim.workspace.ID, CreateOptions{
-			Name: "Run Changed", Branch: "run/changed", Origin: OriginPerRun, RunNamespace: "run/",
+			ProfileID:    testWorktreeProfileID,
+			Name:         "Run Changed",
+			Branch:       "run/changed",
+			Origin:       OriginPerRun,
+			RunNamespace: "run/",
 		})
 		if err != nil {
 			t.Fatalf("Create(run changed) error = %v", err)
@@ -500,7 +535,9 @@ func TestWorktreeLifecycleIntegration(t *testing.T) {
 	t.Run("Should record real status corruption and recover truthful reads", func(t *testing.T) {
 		statusFixture := newRealGitFixture(t)
 		item, err := statusFixture.service.Create(
-			context.Background(), statusFixture.workspace.ID, CreateOptions{Name: "Status Corrupt"},
+			context.Background(),
+			statusFixture.workspace.ID,
+			CreateOptions{ProfileID: testWorktreeProfileID, Name: "Status Corrupt"},
 		)
 		if err != nil {
 			t.Fatalf("Create(status corrupt) error = %v", err)
@@ -541,7 +578,9 @@ func TestWorktreeLifecycleIntegration(t *testing.T) {
 		statusFixture.git(statusFixture.workspace.Root, "remote", "add", "origin", bare)
 		statusFixture.git(statusFixture.workspace.Root, "push", "-u", "origin", "main")
 		item, err := statusFixture.service.Create(
-			context.Background(), statusFixture.workspace.ID, CreateOptions{Name: "Status Matrix"},
+			context.Background(),
+			statusFixture.workspace.ID,
+			CreateOptions{ProfileID: testWorktreeProfileID, Name: "Status Matrix"},
 		)
 		if err != nil {
 			t.Fatalf("Create(status matrix) error = %v", err)
@@ -652,7 +691,9 @@ func TestWorktreeLifecycleIntegration(t *testing.T) {
 			t.Fatalf("refreshed worktree list calls = %d, want two", got)
 		}
 		if _, err := service.Create(
-			context.Background(), cached.workspace.ID, CreateOptions{Name: "Cache Invalidate"},
+			context.Background(),
+			cached.workspace.ID,
+			CreateOptions{ProfileID: testWorktreeProfileID, Name: "Cache Invalidate"},
 		); err != nil {
 			t.Fatalf("Create(cache invalidate) error = %v", err)
 		}
@@ -668,7 +709,9 @@ func TestWorktreeLifecycleIntegration(t *testing.T) {
 	t.Run("Should restore dismiss and preserve unrelated replacements for missing rows", func(t *testing.T) {
 		reconcile := newRealGitFixture(t)
 		item, err := reconcile.service.Create(
-			context.Background(), reconcile.workspace.ID, CreateOptions{Name: "Missing Restore"},
+			context.Background(),
+			reconcile.workspace.ID,
+			CreateOptions{ProfileID: testWorktreeProfileID, Name: "Missing Restore"},
 		)
 		if err != nil {
 			t.Fatalf("Create(missing restore) error = %v", err)
@@ -700,7 +743,9 @@ func TestWorktreeLifecycleIntegration(t *testing.T) {
 		}
 
 		unrelated, err := reconcile.service.Create(
-			context.Background(), reconcile.workspace.ID, CreateOptions{Name: "Unrelated Replacement"},
+			context.Background(),
+			reconcile.workspace.ID,
+			CreateOptions{ProfileID: testWorktreeProfileID, Name: "Unrelated Replacement"},
 		)
 		if err != nil {
 			t.Fatalf("Create(unrelated replacement) error = %v", err)
@@ -724,7 +769,9 @@ func TestWorktreeLifecycleIntegration(t *testing.T) {
 	t.Run("Should clean only a Git-identity-matching forced leftover", func(t *testing.T) {
 		leftover := newRealGitFixture(t)
 		item, err := leftover.service.Create(
-			context.Background(), leftover.workspace.ID, CreateOptions{Name: "Matching Leftover"},
+			context.Background(),
+			leftover.workspace.ID,
+			CreateOptions{ProfileID: testWorktreeProfileID, Name: "Matching Leftover"},
 		)
 		if err != nil {
 			t.Fatalf("Create(matching leftover) error = %v", err)
@@ -750,7 +797,9 @@ func TestWorktreeLifecycleIntegration(t *testing.T) {
 
 		foreign := newRealGitFixture(t)
 		foreignItem, err := foreign.service.Create(
-			context.Background(), foreign.workspace.ID, CreateOptions{Name: "Foreign Leftover"},
+			context.Background(),
+			foreign.workspace.ID,
+			CreateOptions{ProfileID: testWorktreeProfileID, Name: "Foreign Leftover"},
 		)
 		if err != nil {
 			t.Fatalf("Create(foreign leftover) error = %v", err)
@@ -777,7 +826,9 @@ func TestWorktreeLifecycleIntegration(t *testing.T) {
 		settings.SetupTimeout = 50 * time.Millisecond
 		fixture.service.Reconfigure(settings, fixture.worktreesRoot)
 		item, err := fixture.service.Create(
-			context.Background(), fixture.workspace.ID, CreateOptions{Name: "Timeout Setup"},
+			context.Background(),
+			fixture.workspace.ID,
+			CreateOptions{ProfileID: testWorktreeProfileID, Name: "Timeout Setup"},
 		)
 		if err != nil {
 			t.Fatalf("Create(timeout setup) error = %v", err)
@@ -796,13 +847,17 @@ func TestWorktreeLifecycleIntegration(t *testing.T) {
 	t.Run("Should serialize eight mixed operations and isolate repository contention", func(t *testing.T) {
 		concurrent := newRealGitFixture(t)
 		first, err := concurrent.service.Create(
-			context.Background(), concurrent.workspace.ID, CreateOptions{Name: "Mixed Remove One"},
+			context.Background(),
+			concurrent.workspace.ID,
+			CreateOptions{ProfileID: testWorktreeProfileID, Name: "Mixed Remove One"},
 		)
 		if err != nil {
 			t.Fatalf("Create(first removal target) error = %v", err)
 		}
 		second, err := concurrent.service.Create(
-			context.Background(), concurrent.workspace.ID, CreateOptions{Name: "Mixed Remove Two"},
+			context.Background(),
+			concurrent.workspace.ID,
+			CreateOptions{ProfileID: testWorktreeProfileID, Name: "Mixed Remove Two"},
 		)
 		if err != nil {
 			t.Fatalf("Create(second removal target) error = %v", err)
@@ -813,19 +868,25 @@ func TestWorktreeLifecycleIntegration(t *testing.T) {
 		operations := []func() error{
 			func() error {
 				_, createErr := concurrent.service.Create(
-					context.Background(), concurrent.workspace.ID, CreateOptions{Name: "Mixed Create A"},
+					context.Background(),
+					concurrent.workspace.ID,
+					CreateOptions{ProfileID: testWorktreeProfileID, Name: "Mixed Create A"},
 				)
 				return createErr
 			},
 			func() error {
 				_, createErr := concurrent.service.Create(
-					context.Background(), concurrent.workspace.ID, CreateOptions{Name: "Mixed Create B"},
+					context.Background(),
+					concurrent.workspace.ID,
+					CreateOptions{ProfileID: testWorktreeProfileID, Name: "Mixed Create B"},
 				)
 				return createErr
 			},
 			func() error {
 				_, createErr := concurrent.service.Create(
-					context.Background(), concurrent.workspace.ID, CreateOptions{Name: "Mixed Create C"},
+					context.Background(),
+					concurrent.workspace.ID,
+					CreateOptions{ProfileID: testWorktreeProfileID, Name: "Mixed Create C"},
 				)
 				return createErr
 			},
@@ -904,13 +965,17 @@ func TestWorktreeLifecycleIntegration(t *testing.T) {
 		holderDone := make(chan error, 1)
 		go func() {
 			_, createErr := holderService.Create(
-				context.Background(), holder.workspace.ID, CreateOptions{Name: "Lock Holder"},
+				context.Background(),
+				holder.workspace.ID,
+				CreateOptions{ProfileID: testWorktreeProfileID, Name: "Lock Holder"},
 			)
 			holderDone <- createErr
 		}()
 		<-entered
 		if _, err := holderService.Create(
-			context.Background(), holder.workspace.ID, CreateOptions{Name: "Overflow"},
+			context.Background(),
+			holder.workspace.ID,
+			CreateOptions{ProfileID: testWorktreeProfileID, Name: "Overflow"},
 		); !errors.Is(err, ErrOperationInProgress) {
 			t.Fatalf("Create(queue overflow) error = %v, want ErrOperationInProgress", err)
 		}
@@ -918,7 +983,9 @@ func TestWorktreeLifecycleIntegration(t *testing.T) {
 		otherDone := make(chan error, 1)
 		go func() {
 			_, createErr := otherRepo.service.Create(
-				context.Background(), otherRepo.workspace.ID, CreateOptions{Name: "Independent Repo"},
+				context.Background(),
+				otherRepo.workspace.ID,
+				CreateOptions{ProfileID: testWorktreeProfileID, Name: "Independent Repo"},
 			)
 			otherDone <- createErr
 		}()
@@ -939,7 +1006,9 @@ func TestWorktreeLifecycleIntegration(t *testing.T) {
 	t.Run("Should make racing removal and same-branch creation deterministic", func(t *testing.T) {
 		racing := newRealGitFixture(t)
 		item, err := racing.service.Create(
-			context.Background(), racing.workspace.ID, CreateOptions{Name: "Racing Removal"},
+			context.Background(),
+			racing.workspace.ID,
+			CreateOptions{ProfileID: testWorktreeProfileID, Name: "Racing Removal"},
 		)
 		if err != nil {
 			t.Fatalf("Create(racing removal) error = %v", err)
@@ -969,7 +1038,7 @@ func TestWorktreeLifecycleIntegration(t *testing.T) {
 			t.Fatalf("Remove(racing loser) error = %v, want ErrNotReady", err)
 		}
 		if _, err := service.Create(context.Background(), racing.workspace.ID, CreateOptions{
-			Name: "Same Branch Race", ExistingBranch: item.Branch,
+			ProfileID: testWorktreeProfileID, Name: "Same Branch Race", ExistingBranch: item.Branch,
 		}); !errors.Is(err, ErrBranchHeld) {
 			t.Fatalf("Create(same branch while removing) error = %v, want ErrBranchHeld", err)
 		}
@@ -990,7 +1059,9 @@ func TestWorktreeLifecycleIntegration(t *testing.T) {
 	t.Run("Should re-read real Git evidence after an external commit during removal", func(t *testing.T) {
 		racing := newRealGitFixture(t)
 		item, err := racing.service.Create(
-			context.Background(), racing.workspace.ID, CreateOptions{Name: "External Commit Race"},
+			context.Background(),
+			racing.workspace.ID,
+			CreateOptions{ProfileID: testWorktreeProfileID, Name: "External Commit Race"},
 		)
 		if err != nil {
 			t.Fatalf("Create(external commit race) error = %v", err)
@@ -1048,13 +1119,17 @@ func TestWorktreeLifecycleIntegration(t *testing.T) {
 		}}
 
 		if _, err := denied.service.Create(
-			context.Background(), denied.workspace.ID, CreateOptions{Name: "Denied Manual"},
+			context.Background(),
+			denied.workspace.ID,
+			CreateOptions{ProfileID: testWorktreeProfileID, Name: "Denied Manual"},
 		); !errors.Is(err, ErrDeniedByHook) {
 			t.Fatalf("Create(denied) error = %v, want ErrDeniedByHook", err)
 		}
 		if _, err := denied.service.MaterializeForRun(
 			context.Background(), denied.workspace.ID,
-			RunWorktreeRequest{TaskSlug: "Denied Task", RunID: "run-denied"},
+			RunWorktreeRequest{
+				ProfileID: testWorktreeProfileID, TaskSlug: "Denied Task", RunID: "run-denied",
+			},
 		); !errors.Is(err, ErrDeniedByHook) || errors.Is(err, ErrPerRunMaterialization) {
 			t.Fatalf("MaterializeForRun(denied) error = %v, want only ErrDeniedByHook", err)
 		}
@@ -1081,7 +1156,9 @@ func TestWorktreeLifecycleIntegration(t *testing.T) {
 	t.Run("Should emit every core lifecycle event with canonical correlation", func(t *testing.T) {
 		eventFixture := newRealGitFixture(t)
 		created, err := eventFixture.service.Create(
-			context.Background(), eventFixture.workspace.ID, CreateOptions{Name: "Event Created"},
+			context.Background(),
+			eventFixture.workspace.ID,
+			CreateOptions{ProfileID: testWorktreeProfileID, Name: "Event Created"},
 		)
 		if err != nil {
 			t.Fatalf("Create(event matrix) error = %v", err)
@@ -1096,13 +1173,15 @@ func TestWorktreeLifecycleIntegration(t *testing.T) {
 		adoptPath := filepath.Join(t.TempDir(), "event-adopted")
 		eventFixture.git(eventFixture.workspace.Root, "worktree", "add", adoptPath, "event-adopted")
 		if _, err := eventFixture.service.Adopt(
-			context.Background(), eventFixture.workspace.ID, adoptPath,
+			context.Background(), testWorktreeProfileID, eventFixture.workspace.ID, adoptPath,
 		); err != nil {
 			t.Fatalf("Adopt(event matrix) error = %v", err)
 		}
 
 		missing, err := eventFixture.service.Create(
-			context.Background(), eventFixture.workspace.ID, CreateOptions{Name: "Event Missing"},
+			context.Background(),
+			eventFixture.workspace.ID,
+			CreateOptions{ProfileID: testWorktreeProfileID, Name: "Event Missing"},
 		)
 		if err != nil {
 			t.Fatalf("Create(missing event) error = %v", err)
@@ -1136,7 +1215,9 @@ func TestWorktreeLifecycleIntegration(t *testing.T) {
 		failedSettings.SetupCommand = "exit 9"
 		eventFixture.service.Reconfigure(failedSettings, eventFixture.worktreesRoot)
 		if _, err := eventFixture.service.Create(
-			context.Background(), eventFixture.workspace.ID, CreateOptions{Name: "Event Setup Failed"},
+			context.Background(),
+			eventFixture.workspace.ID,
+			CreateOptions{ProfileID: testWorktreeProfileID, Name: "Event Setup Failed"},
 		); err != nil {
 			t.Fatalf("Create(setup-failed event) error = %v", err)
 		}
@@ -1144,7 +1225,9 @@ func TestWorktreeLifecycleIntegration(t *testing.T) {
 
 		runItem, err := eventFixture.service.MaterializeForRun(
 			context.Background(), eventFixture.workspace.ID,
-			RunWorktreeRequest{TaskSlug: "Event Reclaim", RunID: "run-event-reclaim"},
+			RunWorktreeRequest{
+				ProfileID: testWorktreeProfileID, TaskSlug: "Event Reclaim", RunID: "run-event-reclaim",
+			},
 		)
 		if err != nil {
 			t.Fatalf("MaterializeForRun(event matrix) error = %v", err)

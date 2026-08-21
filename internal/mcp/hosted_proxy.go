@@ -217,12 +217,12 @@ func hostedMCPTool(descriptor tools.Descriptor) sdkmcp.Tool {
 	openWorld := descriptor.OpenWorld
 	return sdkmcp.Tool{
 		Name:         name,
-		Title:        descriptor.DisplayTitle,
+		Title:        descriptor.Presentation().DisplayTitle,
 		Description:  hostedToolDescription(descriptor),
 		InputSchema:  cloneRaw(descriptor.InputSchema),
 		OutputSchema: hostedOptionalSchema(descriptor.OutputSchema),
 		Annotations: &sdkmcp.ToolAnnotations{
-			Title:           descriptor.DisplayTitle,
+			Title:           descriptor.Presentation().DisplayTitle,
 			ReadOnlyHint:    readOnly,
 			DestructiveHint: &destructive,
 			OpenWorldHint:   &openWorld,
@@ -292,7 +292,7 @@ func callHostedTool(
 
 func hostedToolDescription(descriptor tools.Descriptor) string {
 	sections := make([]string, 0, 6)
-	if title := strings.TrimSpace(descriptor.DisplayTitle); title != "" {
+	if title := strings.TrimSpace(descriptor.Presentation().DisplayTitle); title != "" {
 		if description := strings.TrimSpace(descriptor.Description); description != "" {
 			sections = append(sections, title+"\n\n"+description)
 		} else {
@@ -334,7 +334,7 @@ func hostedSearchHint(descriptor tools.Descriptor) string {
 	if id := strings.TrimSpace(descriptor.ID.String()); id != "" {
 		values = append(values, id)
 	}
-	if title := strings.TrimSpace(descriptor.DisplayTitle); title != "" {
+	if title := strings.TrimSpace(descriptor.Presentation().DisplayTitle); title != "" {
 		values = append(values, title)
 	}
 	if description := strings.TrimSpace(descriptor.Description); description != "" {

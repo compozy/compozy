@@ -51,7 +51,8 @@ func createWorktreeOperationSpec() OperationSpec {
 	return OperationSpec{
 		Method: httpMethodPost, Path: specAPIWorktreesPath, OperationID: "createWorktree",
 		Summary: "Accept a worktree creation", Tags: []string{specWorktreesKey},
-		Transports: []Transport{TransportHTTP, TransportUDS}, Parameters: worktreeWorkspaceParams(),
+		Transports:  []Transport{TransportHTTP, TransportUDS},
+		Parameters:  withProfileSelector(worktreeWorkspaceParams()...),
 		RequestBody: contract.CreateWorktreeRequest{},
 		Responses: append(worktreeMutationResponses(),
 			ResponseSpec{Status: 202, Description: specAcceptedDescription, Body: contract.WorktreeResponse{}},
@@ -63,7 +64,8 @@ func adoptWorktreeOperationSpec() OperationSpec {
 	return OperationSpec{
 		Method: httpMethodPost, Path: specAPIWorktreesPath + "/adopt", OperationID: "adoptWorktree",
 		Summary: "Adopt an existing linked worktree", Tags: []string{specWorktreesKey},
-		Transports: []Transport{TransportHTTP, TransportUDS}, Parameters: worktreeWorkspaceParams(),
+		Transports:  []Transport{TransportHTTP, TransportUDS},
+		Parameters:  withProfileSelector(worktreeWorkspaceParams()...),
 		RequestBody: contract.AdoptWorktreeRequest{},
 		Responses: append(worktreeMutationResponses(),
 			ResponseSpec{Status: 200, Description: "OK", Body: contract.WorktreeResponse{}},
@@ -201,7 +203,7 @@ func streamWorktreeOperationSpec() OperationSpec {
 		Transports: []Transport{TransportHTTP, TransportUDS},
 		Parameters: append(worktreeRouteParams(),
 			afterSequenceQueryParam("Replay events after this durable sequence"),
-			optionalHeaderParam("Last-Event-ID", "Resume after this durable sequence"),
+			optionalLastEventIDHeaderParam("Resume after this durable sequence"),
 		),
 		Responses: []ResponseSpec{
 			{

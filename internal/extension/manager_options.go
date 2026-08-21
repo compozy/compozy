@@ -25,6 +25,11 @@ type SecretRefResolver interface {
 	ResolveRef(context.Context, string) (string, error)
 }
 
+// ProfileNameResolver resolves an active profile identity for runtime scope binding.
+type ProfileNameResolver interface {
+	ProfileName(context.Context, string) (string, error)
+}
+
 // WithCapabilityChecker injects the grant evaluator used for Host API authorization.
 func WithCapabilityChecker(checker *CapabilityChecker) Option {
 	return func(manager *Manager) {
@@ -117,6 +122,13 @@ func WithSecretResolver(resolver SecretRefResolver) Option {
 func WithEnvBindingStore(store EnvBindingStore) Option {
 	return func(manager *Manager) {
 		manager.envBindings = store
+	}
+}
+
+// WithProfileNameResolver binds profile-scoped subprocesses to canonical profile names.
+func WithProfileNameResolver(resolver ProfileNameResolver) Option {
+	return func(manager *Manager) {
+		manager.profileNames = resolver
 	}
 }
 

@@ -52,6 +52,7 @@ func (e *Evaluator) evaluateAgentJudge(
 		CriterionID:          criterion.ID,
 		Attempt:              attempt,
 		CorrelationID:        agentJudgeCorrelationID(in, gate.ID, criterion.ID, attempt),
+		ProfileID:            in.ToolScope.ProfileID,
 		WorkspaceID:          in.ToolScope.WorkspaceID,
 		Agent:                criterion.Agent,
 		Runtime:              runtime,

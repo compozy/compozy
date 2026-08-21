@@ -86,7 +86,7 @@ func memoryDescriptors() []toolspkg.Descriptor {
 const memoryListInputSchema = `{
 	"type":"object",
 	"properties":{
-		"scope":{"type":"string","enum":["global","workspace","agent"]},
+		"scope":{"type":"string","enum":["profile","workspace","agent"]},
 		"workspace":{"type":"string"},
 		"agent_name":{"type":"string"},
 		"agent_tier":{"type":"string","enum":["workspace","global"]},
@@ -104,7 +104,7 @@ const memoryShowInputSchema = `{
 	"required":["filename"],
 	"properties":{
 		"filename":{"type":"string"},
-		"scope":{"type":"string","enum":["global","workspace","agent"]},
+		"scope":{"type":"string","enum":["profile","workspace","agent"]},
 		"workspace":{"type":"string"},
 		"agent_name":{"type":"string"},
 		"agent_tier":{"type":"string","enum":["workspace","global"]}
@@ -117,7 +117,7 @@ const memorySearchInputSchema = `{
 	"properties":{
 		"query":{"type":"string"},
 		"q":{"type":"string"},
-		"scope":{"type":"string","enum":["global","workspace","agent"]},
+		"scope":{"type":"string","enum":["profile","workspace","agent"]},
 		"workspace":{"type":"string"},
 		"agent_name":{"type":"string"},
 		"agent_tier":{"type":"string","enum":["workspace","global"]},
@@ -151,7 +151,7 @@ const memoryProposeInputSchema = `{
 		"name":{"type":"string"},
 		"description":{"type":"string"},
 		"type":{"type":"string","enum":["user","feedback","project","reference"]},
-		"scope":{"type":"string","enum":["global","workspace","agent"]},
+		"scope":{"type":"string","enum":["profile","workspace","agent"]},
 		"workspace":{"type":"string"},
 		"agent_name":{"type":"string"},
 		"agent_tier":{"type":"string","enum":["workspace","global"]},
@@ -167,7 +167,7 @@ const memoryNoteInputSchema = `{
 	"properties":{
 		"content":{"type":"string"},
 		"slug":{"type":"string"},
-		"scope":{"type":"string","enum":["global","workspace","agent"]},
+		"scope":{"type":"string","enum":["profile","workspace","agent"]},
 		"workspace":{"type":"string"},
 		"agent_name":{"type":"string"},
 		"agent_tier":{"type":"string","enum":["workspace","global"]},

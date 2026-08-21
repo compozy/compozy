@@ -18,14 +18,13 @@ import (
 type windowManagerBootState struct {
 	windowManagerStoreResolver *windowManagerStoreWorkspaceResolver
 	windowManagerStore         *clientstate.Engine
-	windowManagerRepository    *windowManagerRepository
 	windowLayoutCatalog        *resourceCatalog[windowmanager.LayoutResource]
-	windowManager              *windowmanager.Manager
+	windowManagers             *windowManagerRegistry
 }
 
 type windowManagerRuntime struct {
 	windowManagerStore *clientstate.Engine
-	windowManager      *windowmanager.Manager
+	windowManagers     *windowManagerRegistry
 }
 
 type windowManagerWorkspaceRecord struct {

@@ -161,7 +161,11 @@ describe("useAutomation query hooks", () => {
       expect(result.current.data?.id).toBe("job_daily_review");
     });
 
-    expect(getAutomationJob).toHaveBeenCalledWith("job_daily_review", expect.any(AbortSignal));
+    expect(getAutomationJob).toHaveBeenCalledWith(
+      "job_daily_review",
+      { profile: "default" },
+      expect.any(AbortSignal)
+    );
 
     renderHook(() => useAutomationJob(""), { wrapper: createWrapper() });
     expect(getAutomationJob).toHaveBeenCalledTimes(1);
@@ -181,7 +185,7 @@ describe("useAutomation query hooks", () => {
 
     expect(listAutomationJobRuns).toHaveBeenCalledWith(
       "job_daily_review",
-      { status: "running" },
+      { status: "running", profile: "default" },
       expect.any(AbortSignal)
     );
 
@@ -220,10 +224,14 @@ describe("useAutomation query hooks", () => {
       expect.objectContaining({ event: "ext.github.push" }),
       expect.any(AbortSignal)
     );
-    expect(getAutomationTrigger).toHaveBeenCalledWith("trg_push_review", expect.any(AbortSignal));
+    expect(getAutomationTrigger).toHaveBeenCalledWith(
+      "trg_push_review",
+      { profile: "default" },
+      expect.any(AbortSignal)
+    );
     expect(listAutomationTriggerRuns).toHaveBeenCalledWith(
       "trg_push_review",
-      { limit: 5 },
+      { limit: 5, profile: "default" },
       expect.any(AbortSignal)
     );
   });
@@ -241,7 +249,7 @@ describe("useAutomation query hooks", () => {
     });
 
     expect(listAutomationRuns).toHaveBeenCalledWith(
-      { job_id: "job_daily_review", status: "running" },
+      { job_id: "job_daily_review", status: "running", profile: "default" },
       expect.any(AbortSignal)
     );
 

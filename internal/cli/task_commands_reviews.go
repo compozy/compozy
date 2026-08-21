@@ -129,11 +129,12 @@ func newTaskReviewListCommand(deps commandDeps) *cobra.Command {
 	cmd.Flags().
 		StringVar(&reviewerSessionID, "reviewer-session", "", "Filter by reviewer session ID")
 	cmd.Flags().IntVar(&last, "last", 0, "Show only the most recent N reviews")
+	configureProfileReadCommand(cmd, deps)
 	return cmd
 }
 
 func newTaskReviewShowCommand(deps commandDeps) *cobra.Command {
-	return &cobra.Command{
+	cmd := &cobra.Command{
 		Use:   "show <review-id>",
 		Short: "Show one task-run review",
 		Args:  exactOneNonBlankArg(),
@@ -149,6 +150,8 @@ func newTaskReviewShowCommand(deps commandDeps) *cobra.Command {
 			return writeCommandOutput(cmd, taskRunReviewBundle(&review))
 		},
 	}
+	configureProfileReadCommand(cmd, deps)
+	return cmd
 }
 
 func newTaskReviewSubmitCommand(deps commandDeps) *cobra.Command {

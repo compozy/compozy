@@ -991,6 +991,7 @@ func registerHeartbeatWorkspaceAndSession(
 	workspaceID := registerWorkspaceForGlobalTests(t, globalDB, workspaceName, t.TempDir())
 	now := time.Date(2026, 5, 2, 11, 0, 0, 0, time.UTC)
 	if err := globalDB.RegisterSession(testutil.Context(t), store.SessionInfo{
+		ProfileID:     store.DefaultProfileID,
 		ID:            sessionID,
 		AgentName:     "coder",
 		Provider:      "claude",

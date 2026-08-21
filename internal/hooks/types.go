@@ -12,6 +12,7 @@ const (
 	typesConfigKey    = "config"
 	typesExtensionKey = "extension"
 	typesSkillKey     = "skill"
+	typesUserKey      = "user"
 )
 
 // HookSource identifies where a hook was declared.
@@ -35,15 +36,57 @@ var hookSourceNames = map[HookSource]string{
 
 // HookSkillSource captures the existing skill-registry precedence without
 // importing internal/skills into the hooks base package.
-type HookSkillSource string
+type HookSkillSource uint8
 
 const (
-	HookSkillSourceBundled     HookSkillSource = "bundled"
-	HookSkillSourceMarketplace HookSkillSource = "marketplace"
-	HookSkillSourceUser        HookSkillSource = "user"
-	HookSkillSourceAdditional  HookSkillSource = "additional"
-	HookSkillSourceWorkspace   HookSkillSource = "workspace"
+	HookSkillSourceUnset HookSkillSource = iota
+	HookSkillSourceBundled
+	HookSkillSourceMarketplace
+	HookSkillSourceUser
+	HookSkillSourceProfile
+	HookSkillSourceAdditional
+	HookSkillSourceWorkspace
+	HookSkillSourceWorkspaceProfile
 )
+
+var hookSkillSourceNames = map[HookSkillSource]string{
+	HookSkillSourceBundled:          "bundled",
+	HookSkillSourceMarketplace:      "marketplace",
+	HookSkillSourceUser:             typesUserKey,
+	HookSkillSourceProfile:          "profile",
+	HookSkillSourceAdditional:       "additional",
+	HookSkillSourceWorkspace:        "workspace",
+	HookSkillSourceWorkspaceProfile: "workspace_profile",
+}
+
+// String returns the stable text form for the skill source.
+func (s HookSkillSource) String() string {
+	return hookSkillSourceNames[s]
+}
+
+// MarshalText encodes the skill source as its stable string value.
+func (s HookSkillSource) MarshalText() ([]byte, error) {
+	if err := s.Validate(); err != nil {
+		return nil, err
+	}
+	return []byte(s.String()), nil
+}
+
+// UnmarshalText decodes a stable skill-source string.
+func (s *HookSkillSource) UnmarshalText(text []byte) error {
+	value := strings.TrimSpace(string(text))
+	if value == "" {
+		*s = HookSkillSourceUnset
+		return nil
+	}
+	for source, name := range hookSkillSourceNames {
+		if value == name {
+			*s = source
+			return nil
+		}
+	}
+	return fmt.Errorf("hooks: invalid hook skill source %q", value)
+}
 
 // String returns the stable text form for the hook source.
 func (s HookSource) String() string {
@@ -85,16 +128,18 @@ func (s HookSource) Validate() error {
 // Validate ensures the skill source is one of the documented values when set.
 func (s HookSkillSource) Validate() error {
 	switch s {
-	case "":
+	case HookSkillSourceUnset:
 		return nil
 	case HookSkillSourceBundled,
 		HookSkillSourceMarketplace,
 		HookSkillSourceUser,
+		HookSkillSourceProfile,
 		HookSkillSourceAdditional,
-		HookSkillSourceWorkspace:
+		HookSkillSourceWorkspace,
+		HookSkillSourceWorkspaceProfile:
 		return nil
 	default:
-		return fmt.Errorf("hooks: invalid hook skill source %q", s)
+		return fmt.Errorf("hooks: invalid hook skill source %d", s)
 	}
 }
 
@@ -206,6 +251,7 @@ type AutonomyMatcher struct {
 // HookDecl is the declarative record supplied by config, agent definitions, or skills.
 type HookDecl struct {
 	Name         string            `json:"name"                    yaml:"name"`
+	ProfileID    string            `json:"profile_id,omitempty"    yaml:"profile_id,omitempty"`
 	Event        HookEvent         `json:"event"                   yaml:"event"`
 	Mode         HookMode          `json:"mode,omitempty"          yaml:"mode,omitempty"`
 	Matcher      HookMatcher       `json:"matcher"                 yaml:"matcher,omitempty"`
@@ -216,10 +262,10 @@ type HookDecl struct {
 	Env          map[string]string `json:"env,omitempty"           yaml:"env,omitempty"`
 	SecretEnv    map[string]string `json:"secret_env,omitempty"    yaml:"secret_env,omitempty"`
 	Metadata     map[string]string `json:"metadata,omitempty"      yaml:"metadata,omitempty"`
-	SkillSource  HookSkillSource   `json:"-"                       yaml:"-"`
 	Timeout      time.Duration     `json:"timeout,omitempty"       yaml:"timeout,omitempty"`
 	Enabled      *bool             `json:"enabled,omitempty"       yaml:"enabled,omitempty"`
 	Priority     int32             `json:"priority,omitempty"      yaml:"priority,omitempty"`
+	SkillSource  HookSkillSource   `json:"-"                       yaml:"-"`
 	Source       HookSource        `json:"source"                  yaml:"source"`
 	Required     bool              `json:"required,omitempty"      yaml:"required,omitempty"`
 	PrioritySet  bool              `json:"-"                       yaml:"-"`
@@ -246,16 +292,17 @@ func (d HookDecl) EnabledValue() bool {
 
 // RegisteredHook is the normalized hook ready for dispatch.
 type RegisteredHook struct {
-	Name     string
-	Event    HookEvent
-	Source   HookSource
-	Mode     HookMode
-	Required bool
-	Priority int32
-	Timeout  time.Duration
-	Matcher  HookMatcher
-	Executor Executor
-	Metadata map[string]string
+	Name      string
+	ProfileID string
+	Event     HookEvent
+	Source    HookSource
+	Mode      HookMode
+	Required  bool
+	Priority  int32
+	Timeout   time.Duration
+	Matcher   HookMatcher
+	Executor  Executor
+	Metadata  map[string]string
 }
 
 // Validate ensures the registered hook satisfies the task-01 invariants.

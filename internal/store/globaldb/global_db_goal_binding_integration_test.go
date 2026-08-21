@@ -120,7 +120,10 @@ func TestGoalSessionCreationIdentityIntegration(t *testing.T) {
 			t.Fatalf("recovered registration = %#v, want existing exact identity", registration)
 		}
 
-		indexed, err := globalDB.ListSessions(testutil.Context(t), store.SessionListQuery{ID: recovered.ID})
+		indexed, err := globalDB.ListSessions(testutil.Context(t), store.SessionListQuery{
+			ReadScope: store.ReadScope{ProfileID: store.DefaultProfileID},
+			ID:        recovered.ID,
+		})
 		if err != nil {
 			t.Fatalf("ListSessions(recovered) error = %v", err)
 		}
@@ -1815,6 +1818,7 @@ func seedOriginBindingOwnerForTest(
 
 func goalSessionInfoForTest(id string, workspaceID string, now time.Time) store.SessionInfo {
 	return store.SessionInfo{
+		ProfileID:     store.DefaultProfileID,
 		ID:            id,
 		AgentName:     "codex",
 		RuntimeStatus: store.SessionRuntimeUnbound,

@@ -20,7 +20,10 @@ func (s *service) windowManagerBindableIDs(
 	if s.cmdPalette == nil || workspaceID == "" {
 		return windowmanager.DefaultBindableIDs(), nil
 	}
-	catalog, err := s.cmdPalette.Catalog(ctx, cmdpalette.WorkspaceID(workspaceID), "")
+	catalog, err := s.cmdPalette.Catalog(ctx, cmdpalette.CatalogRequest{
+		ProfileLens: cmdpalette.ScopedProfileLens(cmdpalette.DefaultProfileLensID, "default"),
+		WorkspaceID: cmdpalette.WorkspaceID(workspaceID),
+	})
 	if err != nil {
 		return nil, fmt.Errorf("settings: load command catalog for shortcut validation: %w", err)
 	}

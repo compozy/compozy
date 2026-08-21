@@ -164,10 +164,16 @@ export function RemoveExtensionDialog({
               extension. Files under the origin path are left untouched.
             </p>
           ) : (
-            <p>
-              This deletes local extension files known to provenance and unregisters{" "}
-              {capabilityCount} capabilities.
-            </p>
+            <>
+              <p>
+                This deletes local extension files known to provenance and unregisters{" "}
+                {capabilityCount} capabilities.
+              </p>
+              {(extension?.declared_profiles?.length ?? 0) > 0 ||
+              extension?.placements?.some(placement => Boolean(placement.profile?.trim())) ? (
+                <p>Declared profiles and their work stay.</p>
+              ) : null}
+            </>
           )}
           <p>
             Revoked permissions: {permissions.length ? permissions.join(", ") : "none declared"}.
@@ -196,7 +202,6 @@ export function RemoveExtensionDialog({
  * the exact digest it returned, so the digest is shown rather than summarised.
  */
 export function ExtensionNetworkConfirmDialog({
-  action,
   digest,
   error,
   extensionName,
@@ -205,7 +210,6 @@ export function ExtensionNetworkConfirmDialog({
   open,
   pending,
 }: {
-  action: "enable" | "update";
   digest: string;
   error?: string;
   extensionName: string;
@@ -214,7 +218,6 @@ export function ExtensionNetworkConfirmDialog({
   open: boolean;
   pending: boolean;
 }) {
-  const verb = action === "enable" ? "Enabling" : "Updating";
   return (
     <ConfirmDialog
       cancelLabel="Cancel"
@@ -222,7 +225,7 @@ export function ExtensionNetworkConfirmDialog({
       confirmIcon={Radio}
       confirmLabel="Confirm and continue"
       contentProps={{ "data-testid": "extension-network-confirm-dialog" }}
-      description={`${verb} ${extensionName} applies the Live Compozy Network participation it declares. CompozyOS records this decision against the digest below.`}
+      description={`Updating ${extensionName} applies the Live Compozy Network participation it declares. CompozyOS records this decision against the digest below.`}
       error={error}
       isPending={pending}
       note={

@@ -15,6 +15,7 @@ import {
   type BridgeProvider,
 } from "@/systems/bridges";
 import { getBridgeSetupProfile } from "@/systems/bridges/lib/bridge-setup";
+import { useProfileReadScope } from "@/systems/profiles";
 
 import {
   createBridgeCreateFlowLogic,
@@ -36,6 +37,9 @@ export function useBridgeCreateFlow({
   providers,
 }: BridgeCreateFlowInput) {
   const navigate = useNavigate({ from: "/bridges" });
+  // The connected edge reads the destination; the dialog stays presentational.
+  const { aggregate, destination } = useProfileReadScope();
+  const profileDestination = aggregate ? destination : null;
   const createMutation = useCreateBridge();
   const putSecretBinding = usePutBridgeSecretBinding();
   const store = useStore(bridgeCreateFlowLogic);
@@ -65,8 +69,10 @@ export function useBridgeCreateFlow({
     provider,
     submittedDraft,
     alreadyBound = [],
-    expectedSlotNames
+    expectedSlotNames,
+    profileName
   ) => {
+    if (!profileName) throw new Error("Bridge profile name is required for secret binding.");
     const expectedNames = expectedSlotNames ? new Set(expectedSlotNames) : null;
     const slots = expectedNames
       ? provider.secret_slots?.filter(slot => expectedNames.has(slot.name))
@@ -77,7 +83,12 @@ export function useBridgeCreateFlow({
     const outcome = await submitBridgeSecretSlots(bridgeId, filled, async ({ name, value }) => {
       const request = buildBridgeSecretBindingRequest(bridgeId, name, value, name);
       if (!request.ok) throw new Error(request.error);
-      await putSecretBinding.mutateAsync({ bindingName: name, data: request.data, id: bridgeId });
+      await putSecretBinding.mutateAsync({
+        bindingName: name,
+        data: request.data,
+        id: bridgeId,
+        profile: profileName,
+      });
     });
 
     return {
@@ -103,6 +114,7 @@ export function useBridgeCreateFlow({
       create: createMutation.mutateAsync,
       navigate: navigateToBridge,
       provider: findBridgeProviderByKey(providers, draft.selectedProviderKey),
+      aggregate,
     });
   };
 
@@ -126,6 +138,7 @@ export function useBridgeCreateFlow({
           }
         : null,
       mode,
+      profileDestination,
       onDraftChange: (nextDraft: BridgeCreateDraft) =>
         store.trigger.draftChanged({ draft: nextDraft }),
       onModeChange: (nextMode: "advanced" | "simple") =>

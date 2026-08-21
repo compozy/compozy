@@ -15,6 +15,7 @@ const (
 	ComponentNetwork      = "network"
 	ComponentNotification = "notification"
 	ComponentProvider     = "provider"
+	ComponentProfile      = "profile"
 	ComponentReliability  = "reliability"
 	ComponentRole         = "role"
 	ComponentScheduler    = "scheduler"

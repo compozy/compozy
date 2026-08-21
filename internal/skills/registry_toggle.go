@@ -8,6 +8,7 @@ import (
 	"strings"
 
 	"github.com/compozy/compozy/internal/filesnap"
+	"github.com/compozy/compozy/internal/store"
 
 	workspacepkg "github.com/compozy/compozy/internal/workspace"
 )
@@ -28,6 +29,14 @@ func (r *Registry) SetEnabled(name string, resolved *workspacepkg.ResolvedWorksp
 		if skill != nil {
 			skill.Enabled = enabled
 			switch scope {
+			case skillToggleScopeProfile:
+				r.profileDisabled[cacheKey] = setDisabledSkill(r.profileDisabled[cacheKey], trimmedName, enabled)
+			case skillToggleScopeWorkspaceProfile:
+				r.workspaceProfileDisabled[cacheKey] = setDisabledSkill(
+					r.workspaceProfileDisabled[cacheKey],
+					trimmedName,
+					enabled,
+				)
 			case skillToggleScopeWorkspace:
 				r.workspaceDisabled[cacheKey] = setDisabledSkill(r.workspaceDisabled[cacheKey], trimmedName, enabled)
 			default:
@@ -90,7 +99,9 @@ func (r *Registry) reloadGlobal(ctx context.Context) error {
 	r.globalLoaded = true
 	r.globalSkills = loaded
 	r.globalVersion.Add(1)
-	shadowEvents := r.buildSkillShadowSummariesFromResolved(mergedSkillList(loaded, nil), "global", "", "")
+	shadowEvents := r.buildSkillShadowSummariesFromResolved(
+		mergedSkillList(loaded, nil), "global", store.DefaultProfileID, "", "",
+	)
 	r.mu.Unlock()
 	r.emitEventSummaries(ctx, shadowEvents)
 

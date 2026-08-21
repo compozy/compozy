@@ -34,6 +34,7 @@ export type WindowManagerLayoutEditorPhase =
 
 export interface WindowManagerLayoutEditorStoreInput {
   initial: WindowManagerLayoutState;
+  ownerKey?: string;
   previous?: WindowManagerLayoutEditorStoreContext;
 }
 
@@ -43,6 +44,7 @@ interface WindowManagerLayoutEditorStoreContext {
   draft: WindowManagerLayoutDocument;
   error: Error | null;
   operation: number;
+  ownerKey: string;
   phase: WindowManagerLayoutEditorPhase;
   revision: number;
 }
@@ -58,7 +60,10 @@ type WindowManagerLayoutEditorStoreEvents = {
   resetRequested: {};
 };
 
-function baselineContext(initial: WindowManagerLayoutState): WindowManagerLayoutEditorStoreContext {
+function baselineContext(
+  initial: WindowManagerLayoutState,
+  ownerKey: string
+): WindowManagerLayoutEditorStoreContext {
   const baseline = structuredClone(initial.document);
   return {
     baseline,
@@ -66,6 +71,7 @@ function baselineContext(initial: WindowManagerLayoutState): WindowManagerLayout
     draft: structuredClone(baseline),
     error: null,
     operation: 0,
+    ownerKey,
     phase: "baseline",
     revision: initial.revision,
   };
@@ -73,8 +79,10 @@ function baselineContext(initial: WindowManagerLayoutState): WindowManagerLayout
 
 function reconcileLayoutEditorContext(
   previous: WindowManagerLayoutEditorStoreContext,
-  initial: WindowManagerLayoutState
+  initial: WindowManagerLayoutState,
+  ownerKey: string
 ): WindowManagerLayoutEditorStoreContext {
+  if (previous.ownerKey !== ownerKey) return baselineContext(initial, ownerKey);
   if (initial.revision < previous.revision) return previous;
   const baseline = structuredClone(initial.document);
   const baselineFingerprint = windowManagerLayoutFingerprint(baseline);
@@ -119,8 +127,8 @@ export const windowManagerLayoutEditorLogic = createStoreLogic<
 >({
   context: input =>
     input.previous
-      ? reconcileLayoutEditorContext(input.previous, input.initial)
-      : baselineContext(input.initial),
+      ? reconcileLayoutEditorContext(input.previous, input.initial, input.ownerKey ?? "")
+      : baselineContext(input.initial, input.ownerKey ?? ""),
   on: {
     applyFailed: (
       context,
@@ -189,19 +197,22 @@ export const windowManagerLayoutEditorLogic = createStoreLogic<
 
 export function useWindowManagerLayoutEditor(
   workspaceId: string,
+  profileId: string,
   initial: WindowManagerLayoutState
 ) {
   const initialFingerprint = windowManagerLayoutFingerprint(initial.document);
+  const bindingKey = `${workspaceId}\u0000${profileId}`;
   const { store } = useStoreBinding(
-    workspaceId,
-    () => windowManagerLayoutEditorLogic.createStore({ initial }),
+    bindingKey,
+    () => windowManagerLayoutEditorLogic.createStore({ initial, ownerKey: bindingKey }),
     previous =>
       windowManagerLayoutEditorLogic.createStore({
         initial,
+        ownerKey: bindingKey,
         previous: previous.getSnapshot().context,
       }),
-    (current, nextWorkspaceId) => {
-      if (current.key !== nextWorkspaceId) return true;
+    (current, nextBindingKey) => {
+      if (current.key !== nextBindingKey) return true;
       const previousContext = current.store.getSnapshot().context;
       const baselineChanged =
         initial.revision > previousContext.revision ||
@@ -216,7 +227,7 @@ export function useWindowManagerLayoutEditor(
   const fingerprint = windowManagerLayoutFingerprint(context.draft);
   const dirty = fingerprint !== context.baselineFingerprint;
   const review = useQuery(
-    windowManagerLayoutReviewOptions(workspaceId, context.revision, context.draft)
+    windowManagerLayoutReviewOptions(workspaceId, profileId, context.revision, context.draft)
   );
 
   const applyMutation = useMutation({
@@ -227,10 +238,12 @@ export function useWindowManagerLayoutEditor(
       candidate: WindowManagerLayoutDocument;
       revision: number;
     }) => {
-      await applyWindowManagerLayout(workspaceId, revision, candidate);
+      await applyWindowManagerLayout(workspaceId, profileId, revision, candidate);
     },
     onSuccess: async () => {
-      await queryClient.invalidateQueries({ queryKey: windowManagerKeys.snapshot(workspaceId) });
+      await queryClient.invalidateQueries({
+        queryKey: windowManagerKeys.snapshot(workspaceId, profileId),
+      });
     },
   });
   const requestApply = () =>

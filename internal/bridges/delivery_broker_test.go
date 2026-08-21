@@ -11,6 +11,7 @@ import (
 	"testing"
 	"time"
 
+	storepkg "github.com/compozy/compozy/internal/store"
 	"github.com/compozy/compozy/internal/testutil"
 )
 
@@ -1064,6 +1065,7 @@ func TestBrokerDurableMetricsSurviveRehydration(t *testing.T) {
 		restarted := NewBroker(nil, WithDeliveryLedgerStore(store))
 		t.Cleanup(restarted.Close)
 		if err := restarted.LoadDeliveryMetrics(ctx, DeliveryLedgerQuery{
+			ReadScope:   storepkg.ReadScope{AllProfiles: true},
 			Scope:       ScopeWorkspace,
 			WorkspaceID: "ws-1",
 		}); err != nil {
@@ -1149,6 +1151,7 @@ func TestBrokerDurableMetricsSurviveRehydration(t *testing.T) {
 		restarted := NewBroker(nil, WithDeliveryLedgerStore(store))
 		t.Cleanup(restarted.Close)
 		if err := restarted.LoadDeliveryMetrics(ctx, DeliveryLedgerQuery{
+			ReadScope:   storepkg.ReadScope{AllProfiles: true},
 			Scope:       ScopeWorkspace,
 			WorkspaceID: "ws-1",
 		}); err != nil {
@@ -1714,6 +1717,7 @@ func TestBrokerHandlesCommittedResultUnavailableWithoutRedelivery(t *testing.T) 
 			t.Fatalf("Snapshot(terminalized) error = %v, want ErrDeliveryNotFound", err)
 		}
 		active, err := store.ListBridgeDeliveries(testutil.Context(t), DeliveryLedgerQuery{
+			ReadScope:   storepkg.ReadScope{AllProfiles: true},
 			Scope:       ScopeWorkspace,
 			WorkspaceID: "ws-1",
 			State:       DeliveryLedgerStateActive,

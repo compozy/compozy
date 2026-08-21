@@ -121,6 +121,7 @@ func (b *loopActionSessionBinder) baseCreateOptions(
 ) session.CreateOpts {
 	runtime := req.RuntimeValue()
 	opts := session.CreateOpts{
+		ProfileID:                    strings.TrimSpace(req.ProfileID),
 		AgentName:                    strings.TrimSpace(agent),
 		Provider:                     strings.TrimSpace(runtime.Provider),
 		Model:                        strings.TrimSpace(runtime.Model),
@@ -178,6 +179,7 @@ func createOptionsFromProfile(
 	profile store.SessionCreationProfile,
 ) session.CreateOpts {
 	return session.CreateOpts{
+		ProfileID:                    profile.ProfileID,
 		AgentName:                    profile.AgentName,
 		Provider:                     profile.Provider,
 		Model:                        profile.Model,
@@ -224,6 +226,7 @@ func profileFromPolicyResolution(
 		Model:           resolution.agent.Model,
 		ReasoningEffort: opts.ReasoningEffort,
 		Speed:           opts.Speed,
+		ProfileID:       opts.ProfileID,
 		WorkspaceID:     resolution.workspace.ID,
 		CWD:             opts.CWD,
 		WorktreeRef:     opts.Worktree,

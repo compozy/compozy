@@ -120,7 +120,7 @@ func (n *daemonNativeTools) memoryAdminReset(
 		scope,
 		req.ToolID,
 		input.memoryAdminSelectorInput,
-		memcontract.ScopeGlobal,
+		memcontract.ScopeProfile,
 	)
 	if err != nil {
 		return toolspkg.ToolResult{}, nativeMemoryAdminToolError(req.ToolID, err)

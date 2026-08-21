@@ -1,10 +1,10 @@
-import { mkdtemp, readFile, writeFile } from "node:fs/promises";
+import { mkdir, mkdtemp, readFile, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
-import { appWindow, switchWorkspace } from "../fixtures/os-navigation";
-import { marketplaceOperatorSelectors } from "../fixtures/selectors";
+import { appWindow, openCommandPalette, switchWorkspace } from "../fixtures/os-navigation";
+import { marketplaceOperatorSelectors, profilesOperatorSelectors } from "../fixtures/selectors";
 import type { BrowserRuntime, RuntimePaths } from "../fixtures/runtime";
 import { runBrowserRuntimeCLIJSON } from "../fixtures/scenario-contracts";
 import { expect, test } from "../fixtures/test";
@@ -182,5 +182,213 @@ test.describe("Extension dev overlay and source-union install", () => {
       );
     }
     return sourceDir;
+  }
+});
+
+// Invariant: the extension detail projects one profile's effective state while
+// declared-profile setup and absent name-bound placements remain visible.
+// Owner: extension browser management journey.
+// Canonical suite: extension Playwright tests.
+test.describe("Profile-aware extension management", () => {
+  const extensionName = "browser-profile-kit";
+
+  test.use({ runtimeOptions: { extensionsAllowUnverified: true } });
+
+  test("E2E-023: placement, setup, dormancy, and enablement follow the active profile", async ({
+    appPage,
+    runtime,
+  }) => {
+    const sourceDir = await scaffoldProfileKitExtension();
+    await runBrowserRuntimeCLIJSON(runtime, [
+      "extension",
+      "install",
+      sourceDir,
+      "--allow-unverified",
+      "--yes",
+    ]);
+
+    await completeOnboardingIfPrompted(appPage);
+    await appPage.goto(runtime.url(`/marketplace/extension/${extensionName}`), {
+      waitUntil: "domcontentloaded",
+    });
+
+    const marketplaceWin = appWindow(appPage, "marketplace");
+    await expect(marketplaceWin).toBeVisible();
+    const marketplace = marketplaceOperatorSelectors(marketplaceWin);
+    await expect(marketplace.detail).toBeVisible({ timeout: 20_000 });
+
+    const declaredProfiles = marketplaceWin.getByTestId("extension-declared-profiles");
+    await expect(declaredProfiles).toContainText("growth");
+    await expect(declaredProfiles).toContainText("Needs setup");
+    await expect(declaredProfiles).toContainText("finance");
+    await expect(marketplaceWin.getByTestId("extension-dormant-finance")).toContainText(
+      "finance-only"
+    );
+    await declaredProfiles.getByText("Placement matrix").click();
+    await expect(declaredProfiles).toContainText("shared");
+    await expect(declaredProfiles).toContainText("growth-only");
+
+    const defaultToggle = marketplaceWin.getByTestId("extension-enabled-switch");
+    await expect(defaultToggle).toBeChecked();
+    const disabledResponse = appPage.waitForResponse(
+      response =>
+        response.request().method() === "PUT" &&
+        new URL(response.url()).pathname === `/api/extensions/${extensionName}/enablement`
+    );
+    await defaultToggle.click();
+    expect((await disabledResponse).ok()).toBe(true);
+    await expect(defaultToggle).not.toBeChecked();
+    await expect
+      .poll(async () => {
+        return await runtime.requestJSON<{ enabled: boolean }>(
+          `/api/extensions/${extensionName}/enablement?profile=default`
+        );
+      })
+      .toMatchObject({ enabled: false });
+
+    const profiles = profilesOperatorSelectors(appPage);
+    await profiles.switcher.click();
+    await profiles.switcherOption("growth").click();
+    await expect(profiles.switcher).toContainText("growth");
+    await expect(marketplaceWin.getByTestId("extension-enabled-switch")).toBeChecked();
+    await expect(marketplaceWin.getByText("growth", { exact: true }).last()).toBeVisible();
+
+    await runtime.requestJSON("/api/vault/secrets", {
+      body: JSON.stringify({
+        kind: "api_key",
+        ref: "vault:profiles/growth/providers/openai/api_key",
+        secret_value: "browser-growth-secret",
+      }),
+      method: "PUT",
+    });
+    await appPage.reload({ waitUntil: "domcontentloaded" });
+    const refreshedMarketplace = appWindow(appPage, "marketplace");
+    await expect(refreshedMarketplace.getByTestId("extension-declared-profiles")).toBeVisible({
+      timeout: 20_000,
+    });
+    await expect(
+      refreshedMarketplace.getByTestId("extension-declared-profiles").getByText("Needs setup")
+    ).toHaveCount(0);
+  });
+
+  test("E2E-030: a placed palette command follows profile enablement and catalog revision", async ({
+    appPage,
+    runtime,
+  }) => {
+    const sourceDir = await scaffoldProfileKitExtension();
+    const workspace = await runtime.resolveWorkspace(sourceDir);
+    await runBrowserRuntimeCLIJSON(runtime, [
+      "extension",
+      "install",
+      sourceDir,
+      "--allow-unverified",
+      "--yes",
+    ]);
+
+    await completeOnboardingIfPrompted(appPage);
+    await switchWorkspace(appPage, workspace.id, workspace.name);
+    const profiles = profilesOperatorSelectors(appPage);
+    await profiles.switcher.click();
+    await profiles.switcherOption("growth").click();
+
+    const commandID = `ext.${extensionName}.open-growth`;
+    const query = `/api/cmd-palette/commands?workspace=${encodeURIComponent(workspace.id)}&profile=growth`;
+    const before = await runtime.requestJSON<{
+      catalog_revision: string;
+      commands: Array<{ id: string }>;
+    }>(query);
+    expect(before.commands.map(command => command.id)).toContain(commandID);
+
+    let palette = await openCommandPalette(appPage);
+    await palette.getByRole("combobox").fill("Open Growth Dashboard");
+    await expect(palette.getByTestId(`os-palette-command-${commandID}`)).toBeVisible();
+    await appPage.keyboard.press("Escape");
+
+    await runtime.requestJSON(`/api/extensions/${extensionName}/enablement`, {
+      body: JSON.stringify({ enabled: false, profile: "growth" }),
+      method: "PUT",
+    });
+    const disabled = await runtime.requestJSON<{
+      catalog_revision: string;
+      commands: Array<{ id: string }>;
+    }>(query);
+    expect(disabled.catalog_revision).not.toBe(before.catalog_revision);
+    expect(disabled.commands.map(command => command.id)).not.toContain(commandID);
+
+    palette = await openCommandPalette(appPage);
+    await palette.getByRole("combobox").fill("Open Growth Dashboard");
+    await expect(palette.getByTestId(`os-palette-command-${commandID}`)).toHaveCount(0);
+    await appPage.keyboard.press("Escape");
+
+    await runtime.requestJSON(`/api/extensions/${extensionName}/enablement`, {
+      body: JSON.stringify({ enabled: true, profile: "growth" }),
+      method: "PUT",
+    });
+    const restored = await runtime.requestJSON<{
+      catalog_revision: string;
+      commands: Array<{ id: string }>;
+    }>(query);
+    expect(restored.catalog_revision).not.toBe(disabled.catalog_revision);
+    expect(restored.commands.map(command => command.id)).toContain(commandID);
+
+    palette = await openCommandPalette(appPage);
+    await palette.getByRole("combobox").fill("Open Growth Dashboard");
+    await expect(palette.getByTestId(`os-palette-command-${commandID}`)).toBeVisible();
+  });
+
+  async function scaffoldProfileKitExtension(): Promise<string> {
+    const rootDir = await mkdtemp(path.join(os.tmpdir(), "compozy-browser-profile-kit-"));
+    for (const name of ["shared", "growth-only", "finance-only"]) {
+      const skillDir = path.join(rootDir, "skills", name);
+      await mkdir(skillDir, { recursive: true });
+      await writeFile(
+        path.join(skillDir, "SKILL.md"),
+        `---\nname: ${name}\ndescription: Browser profile fixture\n---\n`,
+        "utf8"
+      );
+    }
+    await writeFile(
+      path.join(rootDir, "extension.json"),
+      JSON.stringify(
+        {
+          extension: {
+            description: "Browser profile-aware extension fixture",
+            min_compozy_version: "0.0.0",
+            name: extensionName,
+            version: "1.0.0",
+          },
+          profiles: [
+            {
+              color: "#5fbf85",
+              credentials: [{ provider: "openai", slot: "api_key" }],
+              icon: "chart-line",
+              name: "growth",
+            },
+          ],
+          resources: {
+            cmd_palette: {
+              commands: [
+                {
+                  action: { app: "dashboard", kind: "navigate" },
+                  icon: "chart-line",
+                  id: "open-growth",
+                  profile: "growth",
+                  title: "Open Growth Dashboard",
+                },
+              ],
+            },
+            skills: [
+              { path: "skills/shared" },
+              { path: "skills/growth-only", profile: "growth" },
+              { path: "skills/finance-only", profile: "finance" },
+            ],
+          },
+        },
+        null,
+        2
+      ),
+      "utf8"
+    );
+    return rootDir;
   }
 });

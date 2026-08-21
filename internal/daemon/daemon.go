@@ -27,6 +27,7 @@ import (
 	"github.com/compozy/compozy/internal/memory/consolidation"
 	"github.com/compozy/compozy/internal/network"
 	"github.com/compozy/compozy/internal/observe"
+	profilepkg "github.com/compozy/compozy/internal/profile"
 	"github.com/compozy/compozy/internal/providers"
 
 	"github.com/compozy/compozy/internal/resources"
@@ -93,15 +94,23 @@ type daemonWorkspaceRegistry interface {
 	workspacepkg.CoordinationCommandStore
 }
 
+type daemonAttentionWorkspaceMuteRegistry interface {
+	session.AttentionWorkspaceMuteReader
+	ListAttentionWorkspaceMutes(ctx context.Context, profileID string) ([]string, error)
+	ReplaceAttentionWorkspaceMutes(ctx context.Context, profileID string, workspaceIDs []string) error
+}
+
 // Registry is the composition-root database surface grouped by owning domain.
 // Consumers depend on their local narrow interfaces instead of this aggregate.
 type Registry interface {
 	daemonObserveRegistry
 	daemonNetworkRegistry
 	daemonWorkspaceRegistry
+	daemonAttentionWorkspaceMuteRegistry
 	gateway.Store
 	store.OnboardingStore
 	looppkg.ReconciliationStore
+	VerifyDefaultProfile(context.Context) error
 }
 
 // Server is a daemon-owned runtime component with explicit start and shutdown phases.
@@ -196,7 +205,6 @@ type extensionRuntime interface {
 	Stop(context.Context) error
 	Reload(context.Context) error
 	Get(string) (*extensionpkg.Extension, error)
-	HookDeclarations(context.Context) ([]hookspkg.HookDecl, error)
 	InspectPackageResources(context.Context, string) (*extensionpkg.Extension, error)
 }
 
@@ -224,10 +232,12 @@ type extensionManagerDeps struct {
 	NetworkStore           store.NetworkConversationStore
 	ModelCatalog           core.ModelCatalogService
 	MemoryStore            *memory.Store
+	MemoryStoreResolver    memory.RecallStoreResolver
 	MemoryProviderRegistry *extensionpkg.MemoryProviderRegistry
 	Observer               Observer
 	SkillsRegistry         *skills.Registry
 	WorkspaceResolver      workspacepkg.RuntimeResolver
+	Profiles               *profilepkg.Manager
 	Logger                 *slog.Logger
 	BridgeRegistry         bridgepkg.Registry
 	BridgeDedupStore       bridgeDedupStore

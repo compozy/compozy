@@ -25,6 +25,7 @@ import {
 
 import { taskScopeForActiveWorkspace } from "../lib/workspace-scope";
 import { toWorkspaceCommandSelectOptions, useActiveWorkspace } from "@/systems/workspace";
+import { createdInProfileToast, useProfileReadScope } from "@/systems/profiles";
 
 interface TaskCreateLocation {
   pathname: string;
@@ -49,6 +50,7 @@ export function useTaskCreateState(
   const { activeWorkspaceId, scope, workspaces } = useActiveWorkspace({
     enabled: liveDataEnabled,
   });
+  const profile = useProfileReadScope();
   const createMutation = useCreateTask();
   const createChildMutation = useCreateChildTask();
   const enqueueMutation = useEnqueueTaskRun();
@@ -144,8 +146,19 @@ export function useTaskCreateState(
             }
           }
 
+          // Under the aggregate the destination is not the context on screen, so
+          // the confirmation names the owner. It names the one the daemon
+          // returned rather than the one we asked for: a toast that echoed the
+          // request would keep saying "default" even if the filing went
+          // elsewhere, which is exactly the misfile it exists to surface
+          // (US-012.AC-2, US-012.EC-1).
+          const createdLine = created.draft
+            ? `Saved draft "${trimmedTitle}".`
+            : `Created task "${trimmedTitle}".`;
           toast.success(
-            created.draft ? `Saved draft "${trimmedTitle}".` : `Created task "${trimmedTitle}".`
+            profile.aggregate
+              ? `${createdLine} ${createdInProfileToast(created.profile_name)}`
+              : createdLine
           );
 
           if (created.id) {
@@ -176,6 +189,7 @@ export function useTaskCreateState(
       createMutation.isPending ||
       createChildMutation.isPending ||
       enqueueMutation.isPending,
+    profileDestination: profile.aggregate ? profile.destination : null,
     setDraft,
     template: getTaskTemplate(templateId),
     templateId,

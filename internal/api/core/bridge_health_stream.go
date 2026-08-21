@@ -14,6 +14,7 @@ import (
 	"github.com/compozy/compozy/internal/api/contract"
 	bridgepkg "github.com/compozy/compozy/internal/bridges"
 	"github.com/compozy/compozy/internal/gateway"
+	"github.com/compozy/compozy/internal/store"
 	"github.com/gin-gonic/gin"
 )
 
@@ -21,6 +22,7 @@ const bridgeHealthStreamIDsQueryKey = "bridge_ids"
 
 type bridgeHealthStreamQuery struct {
 	scope     bridgeScopeQuery
+	readScope store.ReadScope
 	bridgeIDs []string
 }
 
@@ -33,6 +35,10 @@ func (h *BaseHandlers) StreamBridgeHealth(c *gin.Context) {
 	}
 	query, err := h.parseBridgeHealthStreamQuery(c)
 	if err != nil {
+		if isProfileDomainError(err) {
+			h.respondProfileReadScopeError(c, err)
+			return
+		}
 		h.respondError(c, bridgeCatalogQueryErrorStatus(err), err)
 		return
 	}
@@ -66,12 +72,22 @@ func (h *BaseHandlers) StreamBridgeHealth(c *gin.Context) {
 		}
 		return
 	}
-	lastSnapshot := snapshot.BridgeHealth
 	streamDone := h.StreamDoneChannel()
 	if bridgeHealthStreamStopped(c.Request.Context(), streamDone) {
 		return
 	}
+	h.streamBridgeHealthUpdates(projectionCtx, writer, bridges, observer, query, snapshot.BridgeHealth, streamDone)
+}
 
+func (h *BaseHandlers) streamBridgeHealthUpdates(
+	projectionCtx context.Context,
+	writer FlushWriter,
+	bridges BridgeService,
+	observer BridgeCatalogObserver,
+	query bridgeHealthStreamQuery,
+	lastSnapshot map[string]contract.BridgeHealthPayload,
+	streamDone <-chan struct{},
+) {
 	ticker := time.NewTicker(h.PollInterval)
 	defer ticker.Stop()
 	for {
@@ -81,7 +97,7 @@ func (h *BaseHandlers) StreamBridgeHealth(c *gin.Context) {
 		case <-streamDone:
 			return
 		case <-ticker.C:
-			if bridgeHealthStreamStopped(c.Request.Context(), streamDone) {
+			if bridgeHealthStreamStopped(projectionCtx, streamDone) {
 				return
 			}
 			nextSnapshot, pollErr := h.bridgeHealthStreamSnapshot(projectionCtx, bridges, observer, query)
@@ -107,6 +123,10 @@ func (h *BaseHandlers) StreamBridgeHealth(c *gin.Context) {
 }
 
 func (h *BaseHandlers) parseBridgeHealthStreamQuery(c *gin.Context) (bridgeHealthStreamQuery, error) {
+	readScope, err := h.resolveProfileReadScope(c)
+	if err != nil {
+		return bridgeHealthStreamQuery{}, err
+	}
 	scope, err := h.parseBridgeScopeQuery(c.Request.Context(), c)
 	if err != nil {
 		return bridgeHealthStreamQuery{}, err
@@ -115,7 +135,7 @@ func (h *BaseHandlers) parseBridgeHealthStreamQuery(c *gin.Context) (bridgeHealt
 	if err != nil {
 		return bridgeHealthStreamQuery{}, fmt.Errorf("%s: %w", h.transportName(), err)
 	}
-	return bridgeHealthStreamQuery{scope: scope, bridgeIDs: bridgeIDs}, nil
+	return bridgeHealthStreamQuery{scope: scope, readScope: readScope, bridgeIDs: bridgeIDs}, nil
 }
 
 func normalizeBridgeHealthStreamIDs(raw []string) ([]string, error) {
@@ -153,7 +173,7 @@ func (h *BaseHandlers) bridgeHealthStreamSnapshot(
 	observer BridgeCatalogObserver,
 	query bridgeHealthStreamQuery,
 ) (contract.BridgeHealthStreamPayload, error) {
-	instances, err := bridges.ListInstancesByIDs(ctx, query.bridgeIDs)
+	instances, err := bridges.ListInstancesByIDsScoped(ctx, query.readScope, query.bridgeIDs)
 	if err != nil {
 		return contract.BridgeHealthStreamPayload{}, err
 	}

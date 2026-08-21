@@ -2,31 +2,35 @@ package situation
 
 import (
 	"context"
-
 	"errors"
 	"log/slog"
-
 	"strings"
 
 	"github.com/compozy/compozy/internal/api/contract"
-
 	"github.com/compozy/compozy/internal/network/participation"
-
+	"github.com/compozy/compozy/internal/store"
 	taskpkg "github.com/compozy/compozy/internal/task"
 	workspacepkg "github.com/compozy/compozy/internal/workspace"
 )
 
 func (s *Service) taskAndChannelContext(
 	ctx context.Context,
+	profileID string,
 	sessionID string,
 	workspaceSnapshot *workspacepkg.ResolvedWorkspace,
 ) (contract.AgentTaskContextPayload, contract.AgentCoordinationChannelContextPayload, string, error) {
-	store := s.taskStoreValue()
-	if store == nil || strings.TrimSpace(sessionID) == "" {
+	taskStore := s.taskStoreValue()
+	readScope := profileReadScope(profileID)
+	if taskStore == nil || strings.TrimSpace(sessionID) == "" {
 		return contract.AgentTaskContextPayload{}, contract.AgentCoordinationChannelContextPayload{}, "", nil
 	}
+	if err := readScope.Validate(); err != nil {
+		return contract.AgentTaskContextPayload{}, contract.AgentCoordinationChannelContextPayload{}, "", err
+	}
 
-	runs, err := store.ListTaskRuns(ctx, taskpkg.RunQuery{SessionID: strings.TrimSpace(sessionID)})
+	runs, err := taskStore.ListTaskRuns(ctx, taskpkg.RunQuery{
+		ReadScope: readScope, SessionID: strings.TrimSpace(sessionID),
+	})
 	if err != nil {
 		if isContextError(err) {
 			return contract.AgentTaskContextPayload{}, contract.AgentCoordinationChannelContextPayload{}, "", err
@@ -35,14 +39,16 @@ func (s *Service) taskAndChannelContext(
 	}
 	run, ok := selectActiveRun(runs)
 	if !ok {
-		return s.reviewBindingTaskAndChannelContext(ctx, store, sessionID, workspaceSnapshot)
+		return s.reviewBindingTaskAndChannelContext(ctx, taskStore, readScope, sessionID, workspaceSnapshot)
 	}
-
-	taskRecord, err := store.GetTask(ctx, run.TaskID)
+	taskRecord, err := taskStore.GetTask(ctx, run.TaskID)
 	if err != nil {
 		if isContextError(err) {
 			return contract.AgentTaskContextPayload{}, contract.AgentCoordinationChannelContextPayload{}, "", err
 		}
+		return contract.AgentTaskContextPayload{}, contract.AgentCoordinationChannelContextPayload{}, "", nil
+	}
+	if !readScope.Matches(taskRecord.ProfileID) {
 		return contract.AgentTaskContextPayload{}, contract.AgentCoordinationChannelContextPayload{}, "", nil
 	}
 
@@ -85,11 +91,12 @@ func (s *Service) taskAndChannelContext(
 
 func (s *Service) reviewBindingTaskAndChannelContext(
 	ctx context.Context,
-	store TaskStore,
+	taskStore TaskStore,
+	readScope store.ReadScope,
 	sessionID string,
 	workspaceSnapshot *workspacepkg.ResolvedWorkspace,
 ) (contract.AgentTaskContextPayload, contract.AgentCoordinationChannelContextPayload, string, error) {
-	review, err := store.LookupRunReviewBySession(ctx, strings.TrimSpace(sessionID))
+	review, err := taskStore.LookupRunReviewBySession(ctx, strings.TrimSpace(sessionID))
 	if err != nil {
 		if errors.Is(err, taskpkg.ErrRunReviewNotFound) {
 			return contract.AgentTaskContextPayload{}, contract.AgentCoordinationChannelContextPayload{}, "", nil
@@ -99,14 +106,17 @@ func (s *Service) reviewBindingTaskAndChannelContext(
 		}
 		return contract.AgentTaskContextPayload{}, contract.AgentCoordinationChannelContextPayload{}, "", nil
 	}
-	taskRecord, err := store.GetTask(ctx, review.TaskID)
+	taskRecord, err := taskStore.GetTask(ctx, review.TaskID)
 	if err != nil {
 		if isContextError(err) {
 			return contract.AgentTaskContextPayload{}, contract.AgentCoordinationChannelContextPayload{}, "", err
 		}
 		return contract.AgentTaskContextPayload{}, contract.AgentCoordinationChannelContextPayload{}, "", nil
 	}
-	run, err := store.GetTaskRun(ctx, review.RunID)
+	if !readScope.Matches(taskRecord.ProfileID) {
+		return contract.AgentTaskContextPayload{}, contract.AgentCoordinationChannelContextPayload{}, "", nil
+	}
+	run, err := taskStore.GetTaskRun(ctx, review.RunID)
 	if err != nil {
 		if isContextError(err) {
 			return contract.AgentTaskContextPayload{}, contract.AgentCoordinationChannelContextPayload{}, "", err

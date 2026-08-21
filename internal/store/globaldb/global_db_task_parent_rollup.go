@@ -227,7 +227,7 @@ func (g *TaskRepo) settleParentRollupRunsWithExecutor(
 			settledAt,
 			taskRunCompletedWatchEventPayload{
 				Status: taskpkg.TaskRunStatusCompleted,
-				Result: updated.Result,
+				Result: updated.ResultValue(),
 			},
 		); err != nil {
 			return nil, false, err
@@ -244,7 +244,7 @@ func completedParentRollupRun(run taskpkg.Run, settledAt time.Time) (taskpkg.Run
 	}
 	updated := run
 	updated.Status = taskpkg.TaskRunStatusCompleted
-	updated.Result = result
+	updated.SetResult(result)
 	updated.Error = ""
 	updated.EndedAt = settledAt.UTC()
 	updated.LeaseUntil = time.Time{}

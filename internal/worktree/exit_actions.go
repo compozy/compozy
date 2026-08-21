@@ -96,7 +96,7 @@ func (s *Service) RunExitAction(
 		return "", fmt.Errorf("worktree: generate exit operation id: %w", err)
 	}
 	operation := ExitOperation{
-		ID: opID, WorkspaceID: workspaceID, WorktreeID: item.ID,
+		ID: opID, ProfileID: item.ProfileID, WorkspaceID: workspaceID, WorktreeID: item.ID,
 		Action: string(request.Action), State: exitOperationRunning, StartedAt: s.now().UTC(),
 	}
 	if err := s.store.InsertExitOperation(ctx, operation); err != nil {
@@ -142,7 +142,10 @@ func (s *Service) CancelExitAction(ctx context.Context, workspaceID, ref, opID s
 			return ctx.Err()
 		}
 	}
-	operation := ExitOperation{ID: opID, WorkspaceID: workspaceID, WorktreeID: worktreeID, State: exitOperationCanceled}
+	operation := ExitOperation{
+		ID: opID, ProfileID: item.ProfileID, WorkspaceID: workspaceID,
+		WorktreeID: worktreeID, State: exitOperationCanceled,
+	}
 	_, err = s.finishExitOperation(ctx, operation, exitOperationCanceled, EventExitActionCanceled, ExitEventPayload{
 		OperationID: opID, State: exitOperationCanceled, Message: "Exit action canceled.",
 	})

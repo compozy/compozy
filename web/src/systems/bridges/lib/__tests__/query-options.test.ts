@@ -15,6 +15,7 @@ describe("bridgesListOptions", () => {
     const options = bridgesListOptions({
       limit: 25,
       platform: "slack",
+      profile: "default",
       q: "support",
       scope: "all",
       sort: "name",
@@ -33,6 +34,7 @@ describe("bridgesListOptions", () => {
       "ready",
       "name",
       "25",
+      "default",
     ]);
     expect(options.initialPageParam).toBeUndefined();
     expect(
@@ -59,30 +61,36 @@ describe("bridgeProvidersOptions", () => {
 
 describe("slackBridgeManifestOptions", () => {
   it("preserves the persisted instance id and disables only empty requests", () => {
-    const enabledOptions = slackBridgeManifestOptions(" brg_slack ");
-    const whitespaceOptions = slackBridgeManifestOptions("   ");
-    const disabledOptions = slackBridgeManifestOptions("");
+    const enabledOptions = slackBridgeManifestOptions(" brg_slack ", { all_profiles: true });
+    const whitespaceOptions = slackBridgeManifestOptions("   ", { profile: "default" });
+    const disabledOptions = slackBridgeManifestOptions("", { profile: "default" });
 
-    expect(enabledOptions.queryKey).toEqual(["bridges", "manifest", "slack", " brg_slack "]);
+    expect(enabledOptions.queryKey).toEqual([
+      "bridges",
+      "manifest",
+      "slack",
+      " brg_slack ",
+      "@all",
+    ]);
     expect(enabledOptions.enabled).toBe(true);
     expect(enabledOptions.staleTime).toBe(15_000);
-    expect(whitespaceOptions.queryKey).toEqual(["bridges", "manifest", "slack", "   "]);
+    expect(whitespaceOptions.queryKey).toEqual(["bridges", "manifest", "slack", "   ", "default"]);
     expect(whitespaceOptions.enabled).toBe(true);
-    expect(disabledOptions.queryKey).toEqual(["bridges", "manifest", "slack", ""]);
+    expect(disabledOptions.queryKey).toEqual(["bridges", "manifest", "slack", "", "default"]);
     expect(disabledOptions.enabled).toBe(false);
   });
 });
 
 describe("bridgeDetailOptions", () => {
   it("is disabled when the bridge id is missing", () => {
-    const options = bridgeDetailOptions("");
+    const options = bridgeDetailOptions("", { profile: "default" });
 
-    expect(options.queryKey).toEqual(["bridges", "detail", ""]);
+    expect(options.queryKey).toEqual(["bridges", "detail", "", "default"]);
     expect(options.enabled).toBe(false);
   });
 
   it("is enabled for real bridge ids", () => {
-    const options = bridgeDetailOptions("brg_support");
+    const options = bridgeDetailOptions("brg_support", { profile: "default" });
 
     expect(options.enabled).toBe(true);
   });
@@ -90,18 +98,29 @@ describe("bridgeDetailOptions", () => {
 
 describe("bridgeRoutesOptions", () => {
   it("uses the expected routes key and is gated by id", () => {
-    const options = bridgeRoutesOptions("brg_support");
+    const options = bridgeRoutesOptions("brg_support", { profile: "default" });
 
-    expect(options.queryKey).toEqual(["bridges", "routes", "brg_support"]);
+    expect(options.queryKey).toEqual(["bridges", "routes", "brg_support", "default"]);
     expect(options.enabled).toBe(true);
   });
 });
 
 describe("bridgeTargetsOptions", () => {
   it("uses the target directory key and is gated by id", () => {
-    const options = bridgeTargetsOptions("brg_support", { limit: 50, q: "support" });
+    const options = bridgeTargetsOptions("brg_support", {
+      limit: 50,
+      q: "support",
+      profile: "default",
+    });
 
-    expect(options.queryKey).toEqual(["bridges", "targets", "brg_support", "support", "50"]);
+    expect(options.queryKey).toEqual([
+      "bridges",
+      "targets",
+      "brg_support",
+      "support",
+      "50",
+      "default",
+    ]);
     expect(options.enabled).toBe(true);
     expect(options.refetchInterval).toBe(30_000);
   });
@@ -109,9 +128,9 @@ describe("bridgeTargetsOptions", () => {
 
 describe("bridgeSecretBindingsOptions", () => {
   it("uses the secret bindings key and is gated by id", () => {
-    const options = bridgeSecretBindingsOptions("brg_support");
+    const options = bridgeSecretBindingsOptions("brg_support", { all_profiles: true });
 
-    expect(options.queryKey).toEqual(["bridges", "secret-bindings", "brg_support"]);
+    expect(options.queryKey).toEqual(["bridges", "secret-bindings", "brg_support", "@all"]);
     expect(options.enabled).toBe(true);
     expect(options.refetchInterval).toBe(30_000);
   });

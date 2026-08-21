@@ -22,6 +22,8 @@ export function marketplaceKindScopeFromSearch(
   return search.tab === "market" ? "market" : "installed";
 }
 
-export function marketplaceKindPath(routeKind: string): `/marketplace/${string}` {
+export function marketplaceKindPath(
+  routeKind: "extensions" | "mcps" | "skills"
+): "/marketplace/extensions" | "/marketplace/mcps" | "/marketplace/skills" {
   return `/marketplace/${routeKind}`;
 }

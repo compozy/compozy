@@ -24,6 +24,9 @@ export const LONG_WORKTREE_PATH =
 export function buildWorktreeFixture(overrides: Partial<WorktreePayload> = {}): WorktreePayload {
   const name = overrides.name ?? "payments-retry";
   return {
+    profile_id: "00000000000000000000000000",
+    profile_name: "default",
+    profile_archived: false,
     id: `wt_${name.replace(/-/g, "_")}`,
     workspace_id: WORKSPACE_ID,
     name,

@@ -2,6 +2,7 @@ import { useQuery } from "@tanstack/react-query";
 
 import { cmdPaletteRankSignalsOptions } from "../lib/cmd-palette-query-options";
 import type { CmdPaletteRankSignals } from "../lib/cmd-palette-types";
+import { useProfileReadScope } from "@/systems/profiles";
 
 export interface CmdPaletteRankSignalsState {
   readonly data: CmdPaletteRankSignals | null;
@@ -17,7 +18,10 @@ export function useCmdPaletteRankSignals(
   workspaceId: string | null,
   enabled: boolean
 ): CmdPaletteRankSignalsState {
-  const query = useQuery(cmdPaletteRankSignalsOptions(workspaceId, enabled));
+  // Ranking is personalization, and personalization is partitioned by profile:
+  // the aggregate keeps its own history and never reads a real profile's.
+  const { key: profileKey } = useProfileReadScope();
+  const query = useQuery(cmdPaletteRankSignalsOptions(workspaceId, profileKey, enabled));
   return {
     data: query.data ?? null,
     loading: query.isPending && enabled,

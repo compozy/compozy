@@ -17,10 +17,10 @@ func TestSortResolvedHooks(t *testing.T) {
 			assert: func(t *testing.T) {
 				hooks := []*ResolvedHook{
 					testResolvedHook("skill", HookSourceSkill, 0, HookSkillSourceUser),
-					testResolvedHook("agent", HookSourceAgentDefinition, 100, ""),
-					testResolvedHook("extension", HookSourceExtension, 300, ""),
-					testResolvedHook("config", HookSourceConfig, 500, ""),
-					testResolvedHook("native", HookSourceNative, 1000, ""),
+					testResolvedHook("agent", HookSourceAgentDefinition, 100, HookSkillSourceUnset),
+					testResolvedHook("extension", HookSourceExtension, 300, HookSkillSourceUnset),
+					testResolvedHook("config", HookSourceConfig, 500, HookSkillSourceUnset),
+					testResolvedHook("native", HookSourceNative, 1000, HookSkillSourceUnset),
 				}
 
 				SortResolvedHooks(hooks)
@@ -32,9 +32,9 @@ func TestSortResolvedHooks(t *testing.T) {
 			name: "Should order hooks by priority then name",
 			assert: func(t *testing.T) {
 				hooks := []*ResolvedHook{
-					testResolvedHook("charlie", HookSourceConfig, 500, ""),
-					testResolvedHook("bravo", HookSourceConfig, 900, ""),
-					testResolvedHook("alpha", HookSourceConfig, 500, ""),
+					testResolvedHook("charlie", HookSourceConfig, 500, HookSkillSourceUnset),
+					testResolvedHook("bravo", HookSourceConfig, 900, HookSkillSourceUnset),
+					testResolvedHook("alpha", HookSourceConfig, 500, HookSkillSourceUnset),
 				}
 
 				SortResolvedHooks(hooks)
@@ -49,8 +49,10 @@ func TestSortResolvedHooks(t *testing.T) {
 					testResolvedHook("workspace-skill", HookSourceSkill, 0, HookSkillSourceWorkspace),
 					testResolvedHook("additional-skill", HookSourceSkill, 0, HookSkillSourceAdditional),
 					testResolvedHook("user-skill", HookSourceSkill, 0, HookSkillSourceUser),
+					testResolvedHook("profile-skill", HookSourceSkill, 0, HookSkillSourceProfile),
 					testResolvedHook("marketplace-skill", HookSourceSkill, 0, HookSkillSourceMarketplace),
 					testResolvedHook("bundled-skill", HookSourceSkill, 0, HookSkillSourceBundled),
+					testResolvedHook("workspace-profile-skill", HookSourceSkill, 0, HookSkillSourceWorkspaceProfile),
 				}
 
 				SortResolvedHooks(hooks)
@@ -59,16 +61,18 @@ func TestSortResolvedHooks(t *testing.T) {
 					"bundled-skill",
 					"marketplace-skill",
 					"user-skill",
+					"profile-skill",
 					"additional-skill",
 					"workspace-skill",
+					"workspace-profile-skill",
 				})
 			},
 		},
 		{
 			name: "Should remain stable across repeated sorts",
 			assert: func(t *testing.T) {
-				first := testResolvedHook("same", HookSourceConfig, 500, "")
-				second := testResolvedHook("same", HookSourceConfig, 500, "")
+				first := testResolvedHook("same", HookSourceConfig, 500, HookSkillSourceUnset)
+				second := testResolvedHook("same", HookSourceConfig, 500, HookSkillSourceUnset)
 				hooks := []*ResolvedHook{first, second}
 
 				SortResolvedHooks(hooks)
@@ -84,7 +88,7 @@ func TestSortResolvedHooks(t *testing.T) {
 			assert: func(t *testing.T) {
 				original := []*ResolvedHook{
 					testResolvedHook("skill", HookSourceSkill, 0, HookSkillSourceUser),
-					testResolvedHook("native", HookSourceNative, 1000, ""),
+					testResolvedHook("native", HookSourceNative, 1000, HookSkillSourceUnset),
 				}
 
 				ordered := OrderedResolvedHooks(original)

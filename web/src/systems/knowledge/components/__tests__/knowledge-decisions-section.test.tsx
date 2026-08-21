@@ -10,7 +10,7 @@ const SAMPLE: MemoryDecision = {
   id: "dec_alpha",
   candidate_hash: "h",
   op: "update",
-  scope: "global",
+  scope: "profile",
   source: "rule",
   confidence: 0.91,
   decided_at: "2026-04-09T10:00:00Z",

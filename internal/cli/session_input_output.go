@@ -13,7 +13,7 @@ func sessionInputListBundle(response SessionInputListRecord) outputBundle {
 		response,
 		response.Inputs,
 		"Pending Session Input",
-		[]string{"ID", "MODE", "STATUS", "DELIVERY", "TARGET TURN", "TEXT", "QUEUED AT"},
+		[]string{"ID", "MODE", cliStatusHeader, "DELIVERY", "TARGET TURN", "TEXT", "QUEUED AT"},
 		"session_inputs",
 		[]string{
 			"id", bridgeModeKey, automationStatusKey, cliDeliveryKey, "target_turn_id", sessionClarifyTextFlag,

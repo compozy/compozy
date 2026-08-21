@@ -232,6 +232,36 @@ func TestMarketplaceSearchPreservesKindIsolationAndInstalledTruth(t *testing.T) 
 		}
 	})
 
+	t.Run("Should project MCP installed state from the requested profile layer", func(t *testing.T) {
+		t.Parallel()
+
+		var captured settingspkg.CollectionRequest
+		handlers := marketplaceHandlersForTest(t, marketplaceHandlerFixture{
+			settingsList: func(
+				_ context.Context,
+				request settingspkg.CollectionRequest,
+			) (settingspkg.CollectionEnvelope, error) {
+				captured = request
+				return settingspkg.CollectionEnvelope{MCPServers: []settingspkg.MCPServerItem{{
+					Name: "github", CatalogEntry: "mcp-entry", CatalogVersion: "1.0.0",
+				}}}, nil
+			},
+		})
+		response, err := handlers.MarketplaceKind(t.Context(), core.MarketplaceKindRequest{
+			Kind: "mcp", Scope: "profile", ProfileName: "marketing",
+		})
+		if err != nil {
+			t.Fatalf("MarketplaceKind(profile) error = %v", err)
+		}
+		if captured.Scope != settingspkg.ScopeProfile || captured.ProfileName != "marketing" ||
+			captured.WorkspaceID != "" {
+			t.Fatalf("profile marketplace collection request = %#v", captured)
+		}
+		if len(response.Items) != 1 || !response.Items[0].Installed {
+			t.Fatalf("profile marketplace items = %#v, want installed MCP", response.Items)
+		}
+	})
+
 	t.Run("Should omit continuation cursors from grouped search", func(t *testing.T) {
 		t.Parallel()
 

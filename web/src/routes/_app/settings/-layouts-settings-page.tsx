@@ -58,18 +58,21 @@ function ErrorState({ error, onRetry }: { error: Error; onRetry: () => void }) {
 function LayoutSections({
   config,
   initial,
+  profileName,
   profiles,
   workspaceId,
 }: {
   config: WindowManagerConfig;
   initial: WindowManagerLayoutState;
+  profileName: string;
   profiles: readonly WindowManagerLayoutResourceRecord[];
   workspaceId: string;
 }) {
   const fileInput = useRef<HTMLInputElement>(null);
-  const editor = useWindowManagerLayoutEditor(workspaceId, initial);
+  const editor = useWindowManagerLayoutEditor(workspaceId, profileName, initial);
   const savedLayouts = useWindowManagerLayoutProfiles({
     workspaceId,
+    profileId: profileName,
     document: editor.draft,
     profiles,
     draftDirty: editor.dirty,
@@ -159,6 +162,7 @@ function LayoutsSettingsView({
   focusCommandId,
   layout,
   meta,
+  profileName,
   profiles,
   section,
   workspaceId,
@@ -168,6 +172,7 @@ function LayoutsSettingsView({
   focusCommandId?: string;
   layout: WindowManagerLayoutState | null;
   meta: ReadonlyArray<{ key: string; content: ReactNode }>;
+  profileName: string;
   profiles: readonly WindowManagerLayoutResourceRecord[];
   section: WindowManagerSettingsSection;
   workspaceId: string;
@@ -212,7 +217,8 @@ function LayoutsSettingsView({
         <LayoutSections
           config={config}
           initial={layout}
-          key={workspaceId}
+          key={`${workspaceId}:${profileName}`}
+          profileName={profileName}
           profiles={profiles}
           workspaceId={workspaceId}
         />
@@ -258,6 +264,7 @@ export function LayoutsSettingsPage({ focusCommandId }: { focusCommandId?: strin
       focusCommandId={focusCommandId}
       layout={data.layout}
       meta={meta}
+      profileName={data.profileName}
       profiles={data.profiles}
       section={data.keyboard}
       workspaceId={data.workspaceId}

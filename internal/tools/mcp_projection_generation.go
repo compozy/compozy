@@ -39,7 +39,7 @@ func (p *MCPProvider) ProjectionGeneration(ctx context.Context, scope Scope) (st
 	var generation strings.Builder
 	appendProjectionGenerationPart(&generation, "descriptors", descriptorGeneration)
 	for i := range sources {
-		availability, known := p.mcpSourceAvailabilityGeneration(ctx, sources[i])
+		availability, known := p.mcpSourceAvailabilityGeneration(ctx, sources[i], scope.ProfileID)
 		if !known {
 			return "", false
 		}
@@ -51,8 +51,9 @@ func (p *MCPProvider) ProjectionGeneration(ctx context.Context, scope Scope) (st
 func (p *MCPProvider) mcpSourceAvailabilityGeneration(
 	ctx context.Context,
 	source SourceRef,
+	profileID string,
 ) (string, bool) {
-	if p.reliability != nil && p.reliability.dead(ctx, source) {
+	if p.reliability != nil && p.reliability.dead(ctx, source, profileID) {
 		return string(ReasonBackendDead), true
 	}
 	if isNilInterface(p.auth) {

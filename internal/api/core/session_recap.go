@@ -42,8 +42,13 @@ func (h *BaseHandlers) SessionRecap(c *gin.Context) {
 	}
 	pendingMarkers := pendingTranscriptMarkerCountFromEntries(entries)
 	eventCursor := page.MaxSequence
+	sessionPayload, err := h.sessionPayloadWithOptionalHealth(c.Request.Context(), info, false)
+	if err != nil {
+		h.respondError(c, StatusForSessionError(err), err)
+		return
+	}
 	payload := contract.RecapPayload{
-		Session:        SessionPayloadFromInfo(info),
+		Session:        sessionPayload,
 		RecentMarkers:  markers,
 		RecentMessages: transcript.MessagesFromEntries(recentEntries),
 		PendingInputs:  queueSummary.PendingInputs,

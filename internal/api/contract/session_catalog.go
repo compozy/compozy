@@ -16,6 +16,8 @@ type SessionCatalogResponse struct {
 // reconcile the authoritative catalog snapshot instead of counting events.
 type SessionCatalogEventPayload struct {
 	Kind        string `json:"kind"`
+	ProfileID   string `json:"profile_id"`
+	ProfileName string `json:"profile_name"`
 	WorkspaceID string `json:"workspace_id"`
 	SessionID   string `json:"session_id"`
 }
@@ -23,6 +25,8 @@ type SessionCatalogEventPayload struct {
 // SessionAttentionEventPayload is the post-commit attention edge carried by the catalog stream.
 type SessionAttentionEventPayload struct {
 	SessionID   string                 `json:"session_id"`
+	ProfileID   string                 `json:"profile_id"`
+	ProfileName string                 `json:"profile_name"`
 	WorkspaceID string                 `json:"workspace_id"`
 	From        session.Badge          `json:"from"`
 	To          session.Badge          `json:"to"`

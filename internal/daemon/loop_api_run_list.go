@@ -106,6 +106,7 @@ func prepareLoopRunListRequest(workspaceID string, query core.LoopRunListQuery) 
 		)
 	}
 	storeQuery := looppkg.RunListQuery{
+		ReadScope:        query.ReadScope,
 		WorkspaceID:      ws,
 		LoopName:         strings.TrimSpace(query.LoopName),
 		Status:           looppkg.Status(strings.TrimSpace(query.Status)),

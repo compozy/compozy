@@ -82,9 +82,10 @@ func (g *ObserveRepo) prepareEventSummary(ctx context.Context, summary *store.Ev
 
 func insertEventSummary(ctx context.Context, queries *sqlcgen.Queries, summary store.EventSummary) error {
 	if err := queries.InsertEventSummary(ctx, sqlcgen.InsertEventSummaryParams{
-		ID: summary.ID, SessionID: summary.SessionID, WorkspaceID: summary.WorkspaceID,
+		ProfileID: summary.ProfileID,
+		ID:        summary.ID, SessionID: summary.SessionID, WorkspaceID: summary.WorkspaceID,
 		WorktreeID: summary.WorktreeID,
-		Type:       summary.Type, AgentName: summary.AgentName, ContentJson: string(summary.Content),
+		Type:       summary.Type, AgentName: summary.AgentName, ContentJson: string(summary.ContentValue()),
 		TaskID: summary.TaskID, RunID: summary.RunID, WorkflowID: summary.WorkflowID,
 		ClaimTokenHash: summary.ClaimTokenHash, LeaseUntil: formatEventSummaryLeaseUntil(summary.LeaseUntil),
 		CoordinatorSessionID: summary.CoordinatorSessionID, SchedulerReason: summary.SchedulerReason,
@@ -104,15 +105,16 @@ func redactEventSummary(summary *store.EventSummary) {
 		return
 	}
 	summary.Summary = redact.String(summary.Summary)
-	if len(summary.Content) == 0 {
+	content := summary.ContentValue()
+	if len(content) == 0 {
 		return
 	}
 	engine := redact.New(redact.Options{Disabled: !redact.Enabled()})
-	summary.Content = engine.RedactJSON(summary.Content, []string{
+	summary.SetContent(engine.RedactJSON(content, []string{
 		"body", "command", "content", "description", "detail", watchEventsContentErrorKey,
 		"message", "output", eventSummaryContentPayloadKey, loopRunEventPayloadKeyReason, "result", "stderr", "stdout",
 		loopRunEventPayloadKeySummary, loopRunEventPayloadKeyText, loopRunEventPayloadKeyTitle,
-	})
+	}))
 }
 
 // ListEventSummaries returns global event summaries filtered by the supplied options.
@@ -125,12 +127,22 @@ func (g *ObserveRepo) ListEventSummaries(
 	}
 
 	// dynamic-sql: optional event/memory filters, registry-derived IN lists, UNION inclusion, and limit shape the query.
-	eventQuery := `SELECT 0 AS source_rank, rowid AS source_rowid, id, session_id, workspace_id, worktree_id,` +
+	eventQuery := `SELECT 0 AS source_rank, event_summaries.rowid AS source_rowid,
+		event_summaries.id, event_summaries.profile_id,
+		event_profile.name AS profile_name,
+		event_profile.color AS profile_color,
+		COALESCE(event_profile.icon, '') AS profile_icon,
+		COALESCE(event_profile.emoji, '') AS profile_emoji,
+		event_profile.state = 'archived' AS profile_archived,
+		session_id, workspace_id, worktree_id,` +
 		` type, agent_name, provider, outcome, content_json, task_id, run_id, workflow_id, claim_token_hash,` +
 		` lease_until, coordinator_session_id,
 		scheduler_reason, hook_event, hook_name, actor_kind, actor_id, release_reason,
-		parent_session_id, root_session_id, spawn_depth, summary, timestamp FROM event_summaries`
+		parent_session_id, root_session_id, spawn_depth, summary, timestamp
+		FROM event_summaries
+		JOIN profiles AS event_profile ON event_profile.id = event_summaries.profile_id`
 	eventWhere, args := store.BuildClauses(
+		store.ReadScopeClause("profile_id", query.ReadScope),
 		store.StringClause("workspace_id", query.WorkspaceID),
 		store.StringClause("worktree_id", query.WorktreeID),
 		store.StringClause("session_id", query.SessionID),
@@ -142,7 +154,7 @@ func (g *ObserveRepo) ListEventSummaries(
 		store.StringClause("actor_id", query.ActorID),
 		store.StringClause("provider", query.Provider),
 		store.StringClause("outcome", query.Outcome),
-		store.Int64Clause("rowid", ">", query.AfterSequence),
+		store.Int64Clause("event_summaries.rowid", ">", query.AfterSequence),
 		store.TimeClause("timestamp", ">=", query.Since),
 	)
 	eventWhere, args = appendEventRegistryClauses(eventWhere, args, "type", query)
@@ -290,7 +302,8 @@ func confirmEventSummaryProjection(field, supplied, projected string) error {
 }
 
 func eventSummaryListQuery(combinedQuery string, limit int) string {
-	baseSelect := `SELECT source_rowid, id, session_id, workspace_id, worktree_id, type, agent_name, provider, outcome, content_json,` +
+	baseSelect := `SELECT source_rowid, id, profile_id, profile_name, profile_color, profile_icon, profile_emoji,
+		profile_archived, session_id, workspace_id, worktree_id, type, agent_name, provider, outcome, content_json,` +
 		` task_id, run_id, workflow_id, claim_token_hash, lease_until, coordinator_session_id,` +
 		` scheduler_reason, hook_event,
 		hook_name, actor_kind, actor_id, release_reason, parent_session_id, root_session_id,

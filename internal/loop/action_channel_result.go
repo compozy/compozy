@@ -126,6 +126,7 @@ func (h *StoreChannelResultHarvester) scanChannelResult(
 	req *ChannelResultHarvestRequest,
 ) (ChannelResultHarvestResult, string, error) {
 	messages, err := h.conversations.ListConversationMessages(ctx, ref, storepkg.NetworkConversationMessageQuery{
+		ReadScope:      storepkg.ReadScope{AllProfiles: true},
 		AfterMessageID: cursor,
 		WorkID:         send.WorkID,
 		Limit:          h.queryLimit(),

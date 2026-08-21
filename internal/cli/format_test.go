@@ -94,7 +94,7 @@ func TestToonOutputProducesToonDocument(t *testing.T) {
 		}
 		if !strings.Contains(
 			stdout,
-			"agents[1]{name,provider,model,category,origin,workspace_id,disabled_skills,definition_digest,tool_count,permissions}:",
+			"agents[1]{name,provider,model,category,origin,workspace_id,disabled_skills,layer,shadows,definition_digest,tool_count,permissions}:",
 		) {
 			t.Fatalf("toon output = %q, want TOON header", stdout)
 		}

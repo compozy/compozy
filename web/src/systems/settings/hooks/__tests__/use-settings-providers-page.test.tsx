@@ -66,15 +66,15 @@ const claudeEntry: SettingsProviderCollection["providers"][number] = {
   },
   source_metadata: {
     available_targets: ["global-config"],
-    effective_source: { kind: "global-config", scope: "global" },
-    shadowed_sources: [{ kind: "builtin-provider", scope: "global" }],
+    effective_source: { kind: "global-config", scope: "user" },
+    shadowed_sources: [{ kind: "builtin-provider", scope: "user" }],
   },
   fallback: {
     settings: {
       command: "npx -y @agentclientprotocol/claude-agent-acp@latest",
       models: { default: "claude-sonnet-5" },
     },
-    source: { kind: "builtin-provider", scope: "global" },
+    source: { kind: "builtin-provider", scope: "user" },
   },
 };
 
@@ -128,14 +128,14 @@ const codexEntry: SettingsProviderCollection["providers"][number] = {
   },
   source_metadata: {
     available_targets: ["global-config"],
-    effective_source: { kind: "builtin-provider", scope: "global" },
+    effective_source: { kind: "builtin-provider", scope: "user" },
   },
 };
 
 const collection: SettingsProviderCollection = {
   collection: "providers",
-  scope: "global",
-  available_scopes: ["global"],
+  scope: "user",
+  available_scopes: ["user"],
   providers: [claudeEntry, codexEntry],
 };
 
@@ -248,7 +248,7 @@ describe("useSettingsProvidersPage", () => {
   it("submits a full replacement on save and records the last action", async () => {
     vi.mocked(putSettingsProvider).mockResolvedValue({
       section: "general",
-      scope: "global",
+      scope: "user",
       applied: true,
       active_config_hash: "sha256:test-active",
       active_generation: 1,
@@ -305,7 +305,7 @@ describe("useSettingsProvidersPage", () => {
   it("preserves additional credential slots when editing provider metadata", async () => {
     vi.mocked(putSettingsProvider).mockResolvedValue({
       section: "general",
-      scope: "global",
+      scope: "user",
       applied: true,
       active_config_hash: "sha256:test-active",
       active_generation: 1,
@@ -440,7 +440,7 @@ describe("useSettingsProvidersPage", () => {
   it("submits vault-backed provider secrets without reading them back", async () => {
     vi.mocked(putSettingsProvider).mockResolvedValue({
       section: "general",
-      scope: "global",
+      scope: "user",
       applied: true,
       active_config_hash: "sha256:test-active",
       active_generation: 1,
@@ -570,7 +570,7 @@ describe("useSettingsProvidersPage", () => {
   it("Should drop credential slots from the request when auth ownership is not bound_secret", async () => {
     vi.mocked(putSettingsProvider).mockResolvedValue({
       section: "general",
-      scope: "global",
+      scope: "user",
       applied: true,
       active_config_hash: "sha256:test-active",
       active_generation: 1,
@@ -724,7 +724,7 @@ describe("useSettingsProvidersPage", () => {
   it("Should send membership ids without copying merged catalog metadata", async () => {
     vi.mocked(putSettingsProvider).mockResolvedValue({
       section: "general",
-      scope: "global",
+      scope: "user",
       applied: true,
       active_config_hash: "sha256:test-active",
       active_generation: 1,
@@ -800,7 +800,7 @@ describe("useSettingsProvidersPage", () => {
   it("marks a delete action with fallback metadata for overlaid providers", async () => {
     vi.mocked(deleteSettingsProvider).mockResolvedValue({
       section: "general",
-      scope: "global",
+      scope: "user",
       applied: true,
       active_config_hash: "sha256:test-active",
       active_generation: 1,

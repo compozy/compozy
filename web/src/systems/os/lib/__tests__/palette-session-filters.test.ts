@@ -19,6 +19,8 @@ import {
 
 function session(overrides: Partial<SessionPayload> = {}): SessionPayload {
   return {
+    profile_name: "default",
+    profile_id: "00000000000000000000000000",
     id: "session-1",
     name: "Refactor session store",
     agent_name: "claude",

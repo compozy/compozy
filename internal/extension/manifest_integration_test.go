@@ -8,11 +8,10 @@ import (
 
 	bridgepkg "github.com/compozy/compozy/internal/bridges"
 	extensionprotocol "github.com/compozy/compozy/internal/extensionprotocol"
-	"github.com/compozy/compozy/internal/version"
 )
 
 func TestLoadManifestBridgeMetadataRoundTrip(t *testing.T) {
-	t.Cleanup(version.OverrideVersionForTesting("0.6.0"))
+	withDaemonVersion(t, "0.6.0")
 
 	dir := t.TempDir()
 	writeFile(t, filepath.Join(dir, manifestTOMLFileName), `[extension]

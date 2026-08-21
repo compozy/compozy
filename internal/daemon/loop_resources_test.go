@@ -17,6 +17,7 @@ import (
 	looppkg "github.com/compozy/compozy/internal/loop"
 	"github.com/compozy/compozy/internal/loop/dsl"
 	"github.com/compozy/compozy/internal/resources"
+	"github.com/compozy/compozy/internal/store"
 	"github.com/compozy/compozy/internal/testutil"
 	toolspkg "github.com/compozy/compozy/internal/tools"
 	workspacepkg "github.com/compozy/compozy/internal/workspace"
@@ -38,7 +39,7 @@ func TestLoopProjectorShouldBuildAndApplyCatalogSnapshot(t *testing.T) {
 			{
 				ID:      "loop-a",
 				Version: 7,
-				Scope:   resources.ResourceScope{Kind: resources.ResourceScopeKindGlobal},
+				Scope:   resources.ResourceScope{Kind: resources.ResourceScopeKindUser},
 				Spec:    testLoopSpec(t, "loop-a", looppkg.SourceUser),
 			},
 		}
@@ -117,7 +118,7 @@ func TestDaemonLoopAPIServiceShouldPublishWithServerManagedCASVersion(t *testing
 		}
 
 		expected := 1
-		response, err := service.PatchLoop(ctx, "ws-1", "alpha", contract.PatchLoopRequest{
+		response, err := service.PatchLoop(ctx, "ws-1", store.DefaultProfileID, "alpha", contract.PatchLoopRequest{
 			ExpectedVersion: &expected,
 			Definition:      loopAPITestDocument(t, "alpha", 1, "first publish"),
 		})
@@ -132,7 +133,7 @@ func TestDaemonLoopAPIServiceShouldPublishWithServerManagedCASVersion(t *testing
 			t.Fatalf("published meta.version = %d, want 2", published.Meta.Version)
 		}
 
-		_, err = service.PatchLoop(ctx, "ws-1", "alpha", contract.PatchLoopRequest{
+		_, err = service.PatchLoop(ctx, "ws-1", store.DefaultProfileID, "alpha", contract.PatchLoopRequest{
 			ExpectedVersion: &expected,
 			Definition:      loopAPITestDocument(t, "alpha", 1, "stale publish"),
 		})
@@ -146,7 +147,7 @@ func TestDaemonLoopAPIServiceShouldPublishWithServerManagedCASVersion(t *testing
 		}
 
 		expected = 2
-		_, err = service.PatchLoop(ctx, "ws-1", "alpha", contract.PatchLoopRequest{
+		_, err = service.PatchLoop(ctx, "ws-1", store.DefaultProfileID, "alpha", contract.PatchLoopRequest{
 			ExpectedVersion: &expected,
 			Definition:      loopAPITestDocument(t, "alpha", 1, "mismatched client version"),
 		})
@@ -164,7 +165,9 @@ func TestDaemonLoopAPIServiceShouldPublishWithServerManagedCASVersion(t *testing
 			t.Fatalf("ReadFile(source before delete) error = %v", err)
 		}
 
-		err = fixture.service.DeleteLoop(fixture.ctx, fixture.workspaceID, "implement-tasks")
+		err = fixture.service.DeleteLoop(
+			fixture.ctx, fixture.workspaceID, store.DefaultProfileID, "implement-tasks",
+		)
 		if !errors.Is(err, looppkg.ErrDefinitionReadOnly) {
 			t.Fatalf("DeleteLoop(read-only) error = %v, want ErrDefinitionReadOnly", err)
 		}
@@ -178,6 +181,7 @@ func TestDaemonLoopAPIServiceShouldPublishWithServerManagedCASVersion(t *testing
 		if _, err := fixture.service.GetLoop(
 			fixture.ctx,
 			fixture.workspaceID,
+			store.DefaultProfileID,
 			"implement-tasks",
 		); err != nil {
 			t.Fatalf("GetLoop(after rejected delete) error = %v", err)
@@ -222,7 +226,9 @@ func TestDaemonLoopAPIServiceShouldPublishWithServerManagedCASVersion(t *testing
 		}
 		def := loopAPITestDocument(t, "alpha", 999, "created publish")
 
-		response, err := service.CreateLoop(ctx, "ws-create", contract.CreateLoopRequest{Definition: &def})
+		response, err := service.CreateLoop(
+			ctx, "ws-create", store.DefaultProfileID, contract.CreateLoopRequest{Definition: &def},
+		)
 		if err != nil {
 			t.Fatalf("CreateLoop() error = %v", err)
 		}
@@ -230,7 +236,7 @@ func TestDaemonLoopAPIServiceShouldPublishWithServerManagedCASVersion(t *testing
 			t.Fatalf("CreateLoop() payload = %#v, want alpha version 1", response.Loop)
 		}
 
-		getResponse, err := service.GetLoop(ctx, "ws-create", "alpha")
+		getResponse, err := service.GetLoop(ctx, "ws-create", store.DefaultProfileID, "alpha")
 		if err != nil {
 			t.Fatalf("GetLoop(created) error = %v", err)
 		}
@@ -238,7 +244,9 @@ func TestDaemonLoopAPIServiceShouldPublishWithServerManagedCASVersion(t *testing
 			t.Fatalf("GetLoop(created) payload = %#v, want alpha version 1", getResponse.Loop)
 		}
 
-		_, err = service.CreateLoop(ctx, "ws-create", contract.CreateLoopRequest{Definition: &def})
+		_, err = service.CreateLoop(
+			ctx, "ws-create", store.DefaultProfileID, contract.CreateLoopRequest{Definition: &def},
+		)
 		if !errors.Is(err, looppkg.ErrDefinitionExists) {
 			t.Fatalf("CreateLoop(duplicate) error = %v, want ErrDefinitionExists", err)
 		}
@@ -249,9 +257,10 @@ func TestDaemonLoopAPIServiceShouldPublishWithServerManagedCASVersion(t *testing
 
 		fixture := newLoopAPIForkFixture(t)
 
-		response, err := fixture.service.CreateLoop(fixture.ctx, fixture.workspaceID, contract.CreateLoopRequest{
-			ForkFromName: "implement-tasks",
-		})
+		response, err := fixture.service.CreateLoop(
+			fixture.ctx, fixture.workspaceID, store.DefaultProfileID, contract.CreateLoopRequest{
+				ForkFromName: "implement-tasks",
+			})
 		if err != nil {
 			t.Fatalf("CreateLoop(fork extension) error = %v", err)
 		}
@@ -274,6 +283,7 @@ func TestDaemonLoopAPIServiceShouldPublishWithServerManagedCASVersion(t *testing
 		_, err = fixture.service.PatchLoop(
 			fixture.ctx,
 			fixture.workspaceID,
+			store.DefaultProfileID,
 			response.Loop.Name,
 			contract.PatchLoopRequest{Definition: definition},
 		)
@@ -285,6 +295,7 @@ func TestDaemonLoopAPIServiceShouldPublishWithServerManagedCASVersion(t *testing
 		published, err := fixture.service.PatchLoop(
 			fixture.ctx,
 			fixture.workspaceID,
+			store.DefaultProfileID,
 			response.Loop.Name,
 			contract.PatchLoopRequest{
 				ExpectedVersion: &expectedVersion,
@@ -315,6 +326,7 @@ func TestDaemonLoopAPIServiceShouldPublishWithServerManagedCASVersion(t *testing
 		created, err := fixture.service.CreateLoop(
 			fixture.ctx,
 			fixture.workspaceID,
+			store.DefaultProfileID,
 			contract.CreateLoopRequest{ForkFromName: "implement-tasks"},
 		)
 		if err != nil {
@@ -331,6 +343,7 @@ func TestDaemonLoopAPIServiceShouldPublishWithServerManagedCASVersion(t *testing
 		if _, err := fixture.service.PutLoopAnnotations(
 			fixture.ctx,
 			fixture.workspaceID,
+			store.DefaultProfileID,
 			created.Loop.Name,
 			contract.PutLoopAnnotationsRequest{Annotations: []contract.LoopAnnotationPayload{{
 				NodeID: "target_input",
@@ -341,12 +354,15 @@ func TestDaemonLoopAPIServiceShouldPublishWithServerManagedCASVersion(t *testing
 			t.Fatalf("PutLoopAnnotations() error = %v", err)
 		}
 
-		if err := fixture.service.DeleteLoop(fixture.ctx, fixture.workspaceID, created.Loop.Name); err != nil {
+		if err := fixture.service.DeleteLoop(
+			fixture.ctx, fixture.workspaceID, store.DefaultProfileID, created.Loop.Name,
+		); err != nil {
 			t.Fatalf("DeleteLoop() error = %v", err)
 		}
 		if _, err := fixture.service.CreateLoop(
 			fixture.ctx,
 			fixture.workspaceID,
+			store.DefaultProfileID,
 			contract.CreateLoopRequest{ForkFromName: "implement-tasks"},
 		); err != nil {
 			t.Fatalf("CreateLoop(recreate) error = %v", err)
@@ -378,6 +394,7 @@ func TestDaemonLoopAPIServiceShouldPublishWithServerManagedCASVersion(t *testing
 		created, err := fixture.service.CreateLoop(
 			fixture.ctx,
 			fixture.workspaceID,
+			store.DefaultProfileID,
 			contract.CreateLoopRequest{ForkFromName: "implement-tasks"},
 		)
 		if err != nil {
@@ -394,6 +411,7 @@ func TestDaemonLoopAPIServiceShouldPublishWithServerManagedCASVersion(t *testing
 		if _, err := fixture.service.PutLoopAnnotations(
 			fixture.ctx,
 			fixture.workspaceID,
+			store.DefaultProfileID,
 			created.Loop.Name,
 			contract.PutLoopAnnotationsRequest{Annotations: []contract.LoopAnnotationPayload{{
 				NodeID: "target_input",
@@ -418,7 +436,9 @@ func TestDaemonLoopAPIServiceShouldPublishWithServerManagedCASVersion(t *testing
 		}}
 		fixture.service.publisher = publisher
 
-		err = fixture.service.DeleteLoop(requestCtx, fixture.workspaceID, created.Loop.Name)
+		err = fixture.service.DeleteLoop(
+			requestCtx, fixture.workspaceID, store.DefaultProfileID, created.Loop.Name,
+		)
 		if !errors.Is(err, syncErr) {
 			t.Fatalf("DeleteLoop(sync failure) error = %v, want injected sync error", err)
 		}
@@ -519,6 +539,7 @@ func TestDaemonLoopAPIServiceShouldPublishWithServerManagedCASVersion(t *testing
 				_, err := fixture.service.CreateLoop(
 					fixture.ctx,
 					fixture.workspaceID,
+					store.DefaultProfileID,
 					contract.CreateLoopRequest{ForkFromName: "implement-tasks"},
 				)
 				if !tt.matches(err) {
@@ -536,7 +557,11 @@ func TestDaemonLoopAPIServiceShouldPublishWithServerManagedCASVersion(t *testing
 				}
 				resolved := looppkg.ResolveEffectiveResources(
 					fixture.service.catalog.Snapshot(),
-					fixture.workspaceID,
+					looppkg.ResourceLens{
+						WorkspaceID: fixture.workspaceID,
+						ProfileID:   store.DefaultProfileID,
+						ProfileName: "default",
+					},
 				)
 				if got, want := len(resolved), 1; got != want {
 					t.Fatalf("len(resolved loops after rollback) = %d, want %d", got, want)
@@ -623,7 +648,9 @@ func TestDaemonLoopAPIServiceShouldPublishWithServerManagedCASVersion(t *testing
 			now:               func() time.Time { return now },
 		}
 
-		_, err = service.CreateLoop(ctx, "ws-fork", contract.CreateLoopRequest{ForkFromName: "missing-loop"})
+		_, err = service.CreateLoop(
+			ctx, "ws-fork", store.DefaultProfileID, contract.CreateLoopRequest{ForkFromName: "missing-loop"},
+		)
 		if !errors.Is(err, looppkg.ErrDefinitionNotFound) {
 			t.Fatalf("CreateLoop(fork missing) error = %v, want ErrDefinitionNotFound", err)
 		}
@@ -636,6 +663,7 @@ func TestDaemonLoopAPIServiceShouldPublishWithServerManagedCASVersion(t *testing
 		if _, err := service.GetLoop(
 			testutil.Context(t),
 			"ws-1",
+			store.DefaultProfileID,
 			"missing",
 		); !errors.Is(err, looppkg.ErrDefinitionNotFound) {
 			t.Fatalf("GetLoop(missing) error = %v, want ErrDefinitionNotFound", err)
@@ -643,6 +671,7 @@ func TestDaemonLoopAPIServiceShouldPublishWithServerManagedCASVersion(t *testing
 		if _, err := service.GetLoop(
 			testutil.Context(t),
 			"ws-1",
+			store.DefaultProfileID,
 			"MyLoop",
 		); !errors.Is(err, looppkg.ErrValidation) {
 			t.Fatalf("GetLoop(malformed name) error = %v, want ErrValidation", err)
@@ -673,7 +702,7 @@ func TestLoopSourceSyncerShouldProjectAndDeleteManagedRecords(t *testing.T) {
 		providerItems := []loopPublicationInput{
 			{
 				sourceKey: "test/global/loop-a",
-				scope:     resources.ResourceScope{Kind: resources.ResourceScopeKindGlobal},
+				scope:     resources.ResourceScope{Kind: resources.ResourceScopeKindUser},
 				spec:      testLoopSpec(t, "loop-a", looppkg.SourceUser),
 			},
 		}
@@ -872,7 +901,7 @@ func newLoopAPIForkFixture(t *testing.T) loopAPIForkFixture {
 		{
 			ID:      "loop:extension:implement-tasks",
 			Version: 1,
-			Scope:   resources.ResourceScope{Kind: resources.ResourceScopeKindGlobal},
+			Scope:   resources.ResourceScope{Kind: resources.ResourceScopeKindUser},
 			Spec:    sourceSpec,
 		},
 	})

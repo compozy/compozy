@@ -47,7 +47,7 @@ const localEnv: SettingsSandboxCollection["sandboxes"][number] = {
   },
   source_metadata: {
     available_targets: ["global-config"],
-    effective_source: { kind: "global-config", scope: "global" },
+    effective_source: { kind: "global-config", scope: "user" },
   },
 };
 
@@ -69,14 +69,14 @@ const daytonaEnv: SettingsSandboxCollection["sandboxes"][number] = {
       scope: "workspace",
       workspace_id: "ws_alpha",
     },
-    shadowed_sources: [{ kind: "global-config", scope: "global" }],
+    shadowed_sources: [{ kind: "global-config", scope: "user" }],
   },
 };
 
 const collection: SettingsSandboxCollection = {
   collection: "sandboxes",
-  scope: "global",
-  available_scopes: ["global"],
+  scope: "user",
+  available_scopes: ["user"],
   sandboxes: [localEnv, daytonaEnv],
 };
 
@@ -189,7 +189,7 @@ describe("useSandboxPage", () => {
   it("submits the replace request preserving unedited nested profile keys", async () => {
     vi.mocked(putSettingsSandbox).mockResolvedValue({
       section: "general",
-      scope: "global",
+      scope: "user",
       applied: true,
       active_config_hash: "sha256:test-active",
       active_generation: 1,
@@ -271,7 +271,7 @@ describe("useSandboxPage", () => {
   it("records delete actions with the workspace usage count", async () => {
     vi.mocked(deleteSettingsSandbox).mockResolvedValue({
       section: "general",
-      scope: "global",
+      scope: "user",
       applied: true,
       active_config_hash: "sha256:test-active",
       active_generation: 1,
@@ -358,7 +358,7 @@ describe("useSandboxPage", () => {
         lifecycle: "live",
         next_action: "none",
         restart_required: true,
-        scope: "global",
+        scope: "user",
         section: "general",
         write_target: "global-config",
       });
