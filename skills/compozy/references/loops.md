@@ -416,9 +416,9 @@ settles the task and again before node success is published. A mismatch fails wi
 session may call `compozy__task_run_heartbeat`, but only the owning daemon may call the terminal
 complete or fail operations for that task.
 Each managed `run-agent` cell owns a system session. A session-started Loop records the nearest
-origin session as informational parent lineage without borrowing it. Successful cell settlement
-closes the binding and queues a durable stop; retries keep the binding active until a terminal
-boundary.
+origin session as informational parent lineage without borrowing it. Terminal cell settlement
+closes the binding and queues a durable stop. A failure scheduled for retry keeps the binding active
+until the cell reaches a terminal boundary.
 A gate's
 `verdict_policy: revise_until_clean` requires an `agent-judge` or `human` criterion. For a command
 criterion with `expect: stdout_contains`, set the typed `contains` field to the required stdout

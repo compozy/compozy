@@ -604,7 +604,7 @@ esac
 			"test: seed beta resolver",
 		)
 		for _, tag := range []string{"v0.3.0-beta.13", "v0.3.0-beta.14", "v0.3.0-beta.preview"} {
-			runReleasePreflightFixtureCommand(t, repo, "git", "tag", tag)
+			runReleasePreflightFixtureCommand(t, repo, "git", "-c", "tag.gpgsign=false", "tag", tag)
 		}
 
 		cmd := exec.CommandContext(t.Context(), "bash", filepath.Join(root, "scripts", "resolve-auto-beta-version.sh"))
@@ -644,7 +644,15 @@ esac
 			"-m",
 			"test: seed release body",
 		)
-		runReleasePreflightFixtureCommand(t, repo, "git", "tag", "v0.3.0-beta.14")
+		runReleasePreflightFixtureCommand(
+			t,
+			repo,
+			"git",
+			"-c",
+			"tag.gpgsign=false",
+			"tag",
+			"v0.3.0-beta.14",
+		)
 		if err := os.WriteFile(seed, []byte("beta 15\n"), 0o600); err != nil {
 			t.Fatalf("os.WriteFile(candidate) error = %v", err)
 		}

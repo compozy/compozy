@@ -27,6 +27,9 @@ func applyCoordinatorGenerationSnapshotIntentsWithExecutor(
 	if snapshot.Generation <= 0 {
 		return fmt.Errorf("%w: generation snapshot generation must be positive", looppkg.ErrValidation)
 	}
+	if err := closeSettledRunAgentBindings(ctx, exec, payload, at); err != nil {
+		return err
+	}
 	var provenance looppkg.GenerationIntent
 	if generationSnapshotRequiresProvenance(payload, snapshot.Generation, run.Generation) {
 		provenance, err = persistGenerationProvenanceWithExecutor(ctx, exec, run, snapshot, payload, at)
