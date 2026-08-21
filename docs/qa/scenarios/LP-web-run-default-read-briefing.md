@@ -18,6 +18,10 @@ overlaps: LP-run-detail-story-redesign;LP-web-run-page-section-grammar;LP-fanout
 
 story: As a supervisor I open any run and understand what is running, what needs me, how far along it is, what it has spent, and what it produced — in under thirty seconds, in plain words, without runtime literacy and without opening a single disclosure.
 
+QA dependency update 2026-08-21: BUG-20260719-autonomous-progress-unobservable is verified through
+a fresh public-read observer replay. This Web row remains `untested` because the focused closure did
+not walk its rendered briefing, needs-you, progress, story, Usage, or About contracts.
+
 steps:
 1. Start a loop run that reaches a human approval gate and open `/loop-runs/<run-id>` with every disclosure collapsed.
 2. Read the briefing strip, the needs-you card, the progress line and the story without expanding anything.

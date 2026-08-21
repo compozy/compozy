@@ -33,8 +33,8 @@
 |---|---|---|---|---|
 | 1 | Settlement / LP-terminal-loop-settlement | Fixed | Two boot blockers reproduced; terminal sweep and second boot passed | `0a4fe2d`, `69c2d74` |
 | 2 | Settlement / LP-loop-lifecycle-config-cli | Pass | Default, valid, invalid-preserves-prior, and unset walked | — |
-| 3 | Headless / LP-run-read-agent-journey | Blocked decision | Required-schema unblocker fixed and re-walked; autonomous-progress closure did not use the promised runtime reads | `a53f470`, `b0eaf22`, `37c101d`, remediation batch |
-| 4 | Headless / LP-runs-roster-server-ordering | Blocked decision | Roster passed; release observer still derives progress from the incomplete journey log | — |
+| 3 | Headless / LP-run-read-agent-journey | Pass | Required-schema unblocker and runtime-owned observer fixed and re-walked | `a53f470`, `b0eaf22`, `37c101d`, observer batch |
+| 4 | Headless / LP-runs-roster-server-ordering | Pass | Roster passed; public-read observer matched the independent catalog through terminal state | observer batch |
 | 5 | Catalog parity / TA-task-list-calm-loop-default | Pass | Four transports matched semantically | — |
 | 6–9 | Run default-read visual rows | Pending external dependency | Visual Contract bundles owned by concurrent agents | — |
 | 10–15 | Tasks/operator-register visual rows | Pending external dependency | Visual Contract bundles owned by concurrent agents | — |
@@ -114,6 +114,28 @@ remediation was explicitly prohibited from running `make verify` or any gate. Au
 remediation lab `qa/qa-audit-report.json` and `qa/qa-audit-report.md`. This focused re-walk is not a
 release-grade PASS claim.
 
+### Autonomous-progress observer closure
+
+A fresh `consumer-saas-growth` lab used isolated workspace `ws_a988176b3f8fc9d5`, HTTP
+`http://127.0.0.1:53317`, and a unique `COMPOZY_HOME`. One operator kickoff was posted at
+`2026-08-21T13:10:19.761407+00:00`; no follow-up prompt was sent. The fixed observer read public
+Task catalog/detail state and the Loop runs API, with explicit scenario/runtime workspace, workspace
+id, API, home, and binary inputs. This replay listed no Loop runs, so the conditional `loop why` and
+`loop events` branch was not exercised.
+
+Independent Task catalog captures advanced from 4 completed / 7 in progress to 11/0 while the
+observer recorded eight durable transitions and no stall. Its final account matched all 11 ids and
+statuses from an independent public catalog read. The observer neither read nor wrote
+`journey-log.jsonl`, and no prompt followed kickoff.
+
+Manifest:
+`/Users/pedronauck/dev/qa-labs/compozy-loop-legibility-observer-closure-20260821-130214-633585-lab/qa-artifacts/qa/bootstrap-manifest.json`.
+Evidence: `qa/observation-summary.json`, `qa/task-catalog-independent-before.json` through
+`qa/task-catalog-independent-after.json`, `qa/observer-catalog-comparison.json`, and the itemized
+`qa/skill-audit.md` in that lab.
+This satisfies the exact closure condition for BUG-20260719-autonomous-progress-unobservable; it
+does not change task 07 or upgrade the broader release-grade playbook verdict.
+
 ### CH-loop-legibility-calm-catalog-parity
 
 The default CLI, HTTP, UDS, and session-scoped `compozy__task_list` responses normalized to the
@@ -144,16 +166,15 @@ Evidence: `qa/headless/authoring-human.txt`, `qa/headless/authoring-toon.txt`, a
 | BUG-20260821-loop-timeline-head-omitted | API mapper discarded `TimelinePositionError` fields | `37c101d` | `TestLoopReadHandlersMapping` and live CLI/HTTP/UDS re-walk |
 | BUG-20260821-sessionless-lease-recovery | Nullable session ownership fence used non-null-safe equality | `0a4fe2d` | `TestGlobalDBRecoverExpiredRunLeasesThenClaim` |
 | BUG-20260821-coordinator-lease-exhausted | Coordinator lease used ordinary task attempt exhaustion | `69c2d74` | Expired coordinator plus network-wake/reconcile focused suites |
+| BUG-20260719-autonomous-progress-unobservable | Observer used a lab-owned journey log instead of runtime-owned public state | observer batch | Four focused behavior cases plus fresh one-kickoff public-read replay |
 
 No test was weakened. No `make gate`, `make gate-full`, or `make test-e2e-*` command was run.
 
 ## Runtime errors and paper cuts
 
-- The one-kickoff playbook observer stalled even though later catalog reads showed seven completed
-  tasks. Root review confirmed that `observe-runtime.py` only tails `journey-log.jsonl` and never
-  reads the new daemon surfaces. `BUG-20260719-autonomous-progress-unobservable` remains open with a
-  blocked product/QA decision; the recommended path is a public-read observer followed by a fresh
-  one-kickoff replay.
+- The original one-kickoff playbook observer stalled even though later catalog reads showed seven
+  completed tasks. The focused closure replaced that lab-log dependency with public Task/Loop reads
+  and verified the new account against an independent catalog; the bug is now verified.
 - `compozy task timeline` named by the charter is not a current verb; the public structured detail
   is available through `compozy task get`. This report used `task get` and did not invent a command.
 - The test-convention checker reports eight pre-existing inline-case violations elsewhere in
@@ -166,8 +187,8 @@ No test was weakened. No `make gate`, `make gate-full`, or `make test-e2e-*` com
   `compozy__loop_nodes` against the isolated daemon; task-list normalized output matched CLI,
   HTTP, and UDS.
 - **Extensibility and hooks:** No extension, hook event, registry, bridge SDK, MCP sidecar, or Loop
-  configuration key changed. Checked Loop tool registration and config lifecycle; only error detail
-  preservation and internal lease recovery changed.
+  configuration key changed. Checked Loop tool registration and config lifecycle; the observer skill
+  invocation now carries explicit isolated runtime inputs and consumes existing public reads.
 - **Workspace data isolation:** Changed data remains task-run/Loop-run scoped inside workspace
   `ws_bafc88d97a58b5f5`. HTTP and CLI foreign-workspace run reads returned 404, and all task catalog
   comparisons carried the same workspace ID. No cache, SSE, event, or list path exposed foreign
@@ -180,7 +201,8 @@ No test was weakened. No `make gate`, `make gate-full`, or `make test-e2e-*` com
 - 42 Visual Contract reference/implementation bundles and their structural mismatch decisions.
 - Concurrent `make test-e2e-runtime` and `make test-e2e-web` results.
 - Nested fan-out progress naming across runtime plus rendered web.
-- The open autonomous-progress observation bug above.
+- RT-073's unrelated scheduler, review, disagreement, disruption-recovery, and knowledge-refresh
+  findings.
 - Task 07 remains in progress until those owners finish; this report does not mark it complete.
 
 ## Strict audit and teardown
@@ -200,13 +222,16 @@ No test was weakened. No `make gate`, `make gate-full`, or `make test-e2e-*` com
 - **Remediation teardown:** the fresh targeted lab's exact manifest command completed at
   `2026-08-21T12:46:03Z`. Its `qa/teardown.json` says `"clean": true`, killed registered daemon PID
   `69040`, and reports no survivors.
+- **Observer-closure teardown:** the fresh one-kickoff lab's exact manifest command completed after
+  the terminal catalog comparison. Its `qa/teardown.json` says `"clean": true`, killed registered
+  daemon PID `72878`, and reports no survivors.
 
 ## Final status
 
-- **Runtime execution:** BLOCKED. Settlement, catalog, timeline, and the corrected required-schema
-  unblocker passed, but requirement 6's autonomous-progress closure was not performed against the
-  runtime-owned reads and the old divergence reproduced.
+- **Runtime execution:** BLOCKED overall. Settlement, catalog, timeline, corrected required-schema
+  unblocker, and the focused autonomous-progress closure passed; the broader playbook remains blocked
+  by the independently recorded evidence gaps.
 - **Release-grade playbook audit:** BLOCKED by the 12 honest evidence gaps above.
-- **Owned scenario rows:** settlement/config/catalog/deep-link pass; run-read and roster are
-  `blocked-decision`; nested fan-out remains pending.
+- **Owned scenario rows:** settlement/config/catalog/deep-link/run-read/roster pass; nested fan-out
+  remains pending.
 - **Full task:** not complete — visual and E2E dependencies remain external.

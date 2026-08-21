@@ -18,6 +18,10 @@ overlaps: LP-web-detail-inventory-contract;LP-web-timeline-graph-rows;LP-quarant
 
 story: As an operator diagnosing a run I open one disclosure and see the executing graph, locate the hot or failed node, read its attempts and error class, and jump to its session or execution record without leaving the page.
 
+QA dependency update 2026-08-21: BUG-20260719-autonomous-progress-unobservable is verified through
+a fresh public-read observer replay. This Web row remains `untested` because the focused closure did
+not walk Inspect, Graph, Nodes, Generations, Events, retention, paging, or reduced-motion behavior.
+
 steps:
 1. Open a live run with a fan-out and an open approval, then open Inspect.
 2. Confirm the Graph lane is default, the fan-out is one entity with a rollup, and the lane centred on the gate.

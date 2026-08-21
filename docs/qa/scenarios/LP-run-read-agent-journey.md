@@ -6,10 +6,10 @@ persona: Ada
 journey: J-operate-loop-run-headless
 expected: The briefing, complete node roster, and durable timeline agree on current run truth over HTTP, UDS, and CLI; unblocker commands execute verbatim, attempt history survives recovery, timeline resume has no gaps or duplicates, and foreign positions fail deterministically.
 entry_points: compozy loop why <run-id>; compozy loop nodes --run <run-id> --all; compozy loop events <run-id> --after <seq> --follow --view <notable|all>; GET /api/workspaces/:workspace_id/loop-runs/:run_id/{briefing,nodes,timeline}; skills/compozy/references/loops.md; /docs/cli/loop/why; /docs/cli/loop/nodes; /docs/cli/loop/events
-qa_status: blocked-decision
+qa_status: pass
 bug_ids: BUG-20260719-autonomous-progress-unobservable; BUG-20260821-loop-unblocker-invalid-json; BUG-20260821-loop-timeline-head-omitted
-fix_status: deferred
-retest_status:
+fix_status: fixed
+retest_status: pass — public-read observer matched the independent Task catalog through eight durable transitions and 11 terminal Tasks
 fix_commits: a53f470; b0eaf22; 37c101d
 evidence: /Users/pedronauck/dev/qa-labs/compozy-loop-unblocker-operator-input-20260821-20260821-124157-149087-lab/qa-artifacts/qa/request-unblocker-required-schema-rewalk.md; /Users/pedronauck/dev/qa-labs/compozy-loop-task-legibility-runtime-20260821-1126-20260821-112711-004724-lab/qa-artifacts/qa/headless/read-parity.sha256; /Users/pedronauck/dev/qa-labs/compozy-loop-task-legibility-runtime-20260821-1126-20260821-112711-004724-lab/qa-artifacts/qa/observation-summary.json
 last_report: docs/qa/reports/2026-08-21-loop-task-legibility.md
@@ -29,3 +29,10 @@ The required-schema unblocker re-walk passed in the fresh remediation lab: the p
 waited for explicit operator JSON and never supplied a default. The row is `blocked-decision`
 because `BUG-20260719-autonomous-progress-unobservable` remains open and its observer contract
 requires the product/QA decision recorded in that bug.
+
+QA closure 2026-08-21: the shared observer now derives its account from public Task catalog/detail
+and conditional Loop run reads. In a fresh one-kickoff replay it followed eight durable transitions,
+ended with 11 terminal Tasks, reported no false stall, and matched an independent catalog capture.
+Combined with the already passing CLI/HTTP/UDS briefing, roster, timeline, resume, and corrected
+unblocker walks, this row now passes. Evidence:
+`/Users/pedronauck/dev/qa-labs/compozy-loop-legibility-observer-closure-20260821-130214-633585-lab/qa-artifacts/qa/observer-catalog-comparison.json`.
