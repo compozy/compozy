@@ -21,7 +21,6 @@ import {
   type WindowManagerLayoutResourceRecord,
   type WindowManagerLayoutState,
 } from "@/systems/settings";
-import { Route } from "./layouts";
 
 function LoadingState() {
   return (
@@ -231,9 +230,8 @@ function LayoutsSettingsView({
 }
 
 /** Global window-manager defaults plus the active workspace's authoritative layout. */
-export function LayoutsSettingsPage() {
+export function LayoutsSettingsPage({ focusCommandId }: { focusCommandId?: string }) {
   useSettingsTopbar("layouts");
-  const { command: focusCommandId } = Route.useSearch();
   const data = useLayoutsSettingsData();
 
   if (data.isPending) return <LoadingState />;

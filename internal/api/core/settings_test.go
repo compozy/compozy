@@ -3354,10 +3354,14 @@ func TestSettingsRemainingReadAndDeleteHandlers(t *testing.T) {
 		}
 
 		var wire struct {
-			Defaults  map[string]json.RawMessage `json:"defaults"`
-			Effective map[string]json.RawMessage `json:"effective_shortcuts"`
+			Defaults    map[string]json.RawMessage `json:"defaults"`
+			Diagnostics json.RawMessage            `json:"diagnostics"`
+			Effective   map[string]json.RawMessage `json:"effective_shortcuts"`
 		}
 		decodeJSON(t, resp.Body.Bytes(), &wire)
+		if got, want := string(wire.Diagnostics), "[]"; got != want {
+			t.Errorf("diagnostics = %s, want %s", got, want)
+		}
 		for field, shortcuts := range map[string]map[string]json.RawMessage{
 			"defaults":  wire.Defaults,
 			"effective": wire.Effective,

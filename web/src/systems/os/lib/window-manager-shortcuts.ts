@@ -64,6 +64,18 @@ export const SHORTCUT_RANGE_FAMILIES: readonly ShortcutRangeFamily[] = [
   { action: "window.tab.jump", max: 8 },
 ];
 
+function indexedShortcutFamily(commandId: string): ShortcutRangeFamily | null {
+  for (const family of SHORTCUT_RANGE_FAMILIES) {
+    const prefix = `${family.action}.`;
+    if (!commandId.startsWith(prefix)) continue;
+    const slotText = commandId.slice(prefix.length);
+    if (!/^\d+$/.test(slotText)) continue;
+    const slot = Number(slotText);
+    if (Number.isInteger(slot) && slot >= 1 && slot <= family.max) return family;
+  }
+  return null;
+}
+
 export function coveringShortcutFamily(
   commandId: string,
   overrides: ShortcutMap
@@ -284,13 +296,18 @@ export function deriveShortcutCheatsheet(
   actionDefinitions: readonly ShortcutActionDefinition[]
 ): readonly ShortcutCheatsheetRow[] {
   const actions = resolveWindowManagerActions(effective, actionDefinitions);
+  const indexedFamilies = new Set<string>(
+    actions.flatMap(action => {
+      const family = indexedShortcutFamily(action.id);
+      return family === null ? [] : [family.action];
+    })
+  );
   const rows: ShortcutCheatsheetRow[] = [];
   for (const action of actions) {
-    const family = action.id.startsWith("window.tab.jump.")
-      ? ({ action: "window.tab.jump", max: 8 } as const)
-      : /^desktop\.switch\.\d$/.test(action.id)
-        ? ({ action: "desktop.switch", max: 9 } as const)
-        : null;
+    const family = indexedShortcutFamily(action.id);
+    if (family === null && indexedFamilies.has(action.id)) {
+      continue;
+    }
     if (family) {
       if (!action.id.endsWith(".1")) continue;
       const actionIds = Array.from(

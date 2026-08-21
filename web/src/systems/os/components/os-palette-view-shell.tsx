@@ -11,10 +11,9 @@ import {
 import { cn } from "@/lib/utils";
 
 import {
-  paletteViewFieldClass,
-  paletteViewFrameClass,
-  paletteViewItemClass,
-  paletteViewLeadClass,
+  paletteHeadClass,
+  paletteInputRailClass,
+  paletteItemClass,
   paletteViewListClass,
 } from "../lib/palette-view-inset";
 import type { PaletteViewContent, PaletteViewDefinition } from "../lib/palette-view-registry";
@@ -126,7 +125,7 @@ export function OsPaletteViewShell({
                 data-testid={row.testId}
                 disabled={row.disabled}
                 onSelect={row.onSelect}
-                className={paletteViewItemClass}
+                className={paletteItemClass(row.twoLine)}
               >
                 {row.node}
               </CommandItem>
@@ -146,17 +145,19 @@ export function OsPaletteViewShell({
         shouldFilter={false}
         value={selected}
         onValueChange={onSelectionChange}
-        className={cn(paletteViewFrameClass, paletteViewFieldClass)}
+        className={paletteInputRailClass}
       >
-        <OsPaletteBreadcrumb breadcrumb={breadcrumb} />
-        <CommandInput
-          ref={inputRef}
-          autoFocus
-          value={query}
-          onValueChange={onQueryChange}
-          onKeyDown={onInputKeyDown}
-          placeholder={definition.placeholder}
-        />
+        <div className={paletteHeadClass}>
+          <OsPaletteBreadcrumb breadcrumb={breadcrumb} />
+          <CommandInput
+            ref={inputRef}
+            autoFocus
+            value={query}
+            onValueChange={onQueryChange}
+            onKeyDown={onInputKeyDown}
+            placeholder={definition.placeholder}
+          />
+        </div>
         {content.header}
         {content.body === undefined ? (
           <div className={cn("flex min-h-0", content.aside && "divide-x divide-line")}>
@@ -172,7 +173,6 @@ export function OsPaletteViewShell({
           enterHint={definition.enterHint}
           backHint={content.backHint}
           hasFilters={content.header !== null}
-          className={cn(paletteViewLeadClass, "py-3")}
         />
       </Command>
     </div>

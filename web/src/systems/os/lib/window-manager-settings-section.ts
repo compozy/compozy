@@ -14,7 +14,7 @@ import {
   toWindowManagerConfig,
   windowManagerWireConfigSchema,
 } from "./window-manager-config-schema";
-import { globalShortcutRegistrationSchema } from "./window-manager-global-shortcut-schema";
+import { globalShortcutProjectionSchema } from "./window-manager-global-shortcut-schema";
 import type { ShortcutBinding } from "./window-manager-shortcuts";
 import type { WindowManagerConfig } from "./window-manager-types";
 import type { WindowManagerGlobalShortcutRegistration } from "./window-manager-shortcut-types";
@@ -99,7 +99,7 @@ const settingsWindowManagerSectionSchema = z.strictObject({
   commands: z.array(commandSchema),
   extension_defaults: z.array(extensionDefaultSchema),
   diagnostics: z.array(diagnosticSchema).optional(),
-  global_shortcuts: z.array(globalShortcutRegistrationSchema),
+  global_shortcuts: z.array(globalShortcutProjectionSchema),
 });
 
 /**
@@ -136,7 +136,7 @@ export function parseSettingsWindowManagerSection(payload: unknown): WindowManag
       commandId: entry.command_id,
       intendedChord: entry.intended_chord,
       activeChord: entry.active_chord ?? null,
-      status: entry.status,
+      status: entry.status ?? "pending",
       reason: entry.reason ?? null,
       settingsUrl: entry.settings_url ?? null,
     })),

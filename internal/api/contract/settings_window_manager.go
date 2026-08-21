@@ -113,7 +113,7 @@ type SettingsWindowManagerResponse struct {
 	Aliases            map[string]string                        `json:"aliases"`
 	Commands           []SettingsWindowManagerCommandPayload    `json:"commands"`
 	ExtensionDefaults  []SettingsWindowManagerDefaultPayload    `json:"extension_defaults"`
-	Diagnostics        []SettingsWindowManagerDiagnosticPayload `json:"diagnostics,omitempty"`
+	Diagnostics        []SettingsWindowManagerDiagnosticPayload `json:"diagnostics"`
 	GlobalShortcuts    []SettingsGlobalShortcutPayload          `json:"global_shortcuts"`
 }
 

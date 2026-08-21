@@ -6,6 +6,7 @@ import {
   isEmojiIcon,
 } from "../lib/cmd-palette-icons";
 import type { ResolvedPaletteCommand } from "../lib/cmd-palette-types";
+import { paletteRowClass } from "../lib/palette-view-inset";
 import { parseExtensionName } from "../lib/palette-view-registry";
 
 export interface OsPaletteCommandRowProps {
@@ -37,7 +38,7 @@ export function OsPaletteCommandRow({ command, pending, onSelect }: OsPaletteCom
       forceMount
       aria-busy={pending === true ? true : undefined}
       aria-disabled={command.available ? undefined : true}
-      className={cn("h-10 gap-3 px-3", !command.available && "text-muted")}
+      className={cn(paletteRowClass, !command.available && "text-muted")}
       data-palette-row={command.id}
       data-testid={`os-palette-command-${command.id}`}
       key={command.id}
@@ -62,7 +63,7 @@ export function OsPaletteCommandRow({ command, pending, onSelect }: OsPaletteCom
           />
         )}
       </span>
-      <span className="min-w-0 truncate">
+      <span className="min-w-0 truncate leading-none">
         {command.title}
         {command.alias ? <span className="text-muted"> ({command.alias})</span> : null}
       </span>
@@ -73,7 +74,7 @@ export function OsPaletteCommandRow({ command, pending, onSelect }: OsPaletteCom
       ) : null}
       {command.available ? null : (
         <span
-          className="min-w-0 truncate text-small-body text-subtle"
+          className="min-w-0 truncate text-small-body leading-none text-subtle"
           data-slot="os-palette-reason"
         >
           {command.reason}
@@ -83,7 +84,7 @@ export function OsPaletteCommandRow({ command, pending, onSelect }: OsPaletteCom
         // Indeterminate by construction: the runtime reports that it is running,
         // not how far along it is, so neither does this (SD-007).
         <span
-          className="ms-auto flex shrink-0 items-center gap-1.5 text-small-body text-subtle"
+          className="ms-auto flex shrink-0 items-center gap-1.5 text-small-body leading-none text-subtle"
           data-testid={`os-palette-pending-${command.id}`}
         >
           <StatusDot className="motion-safe:animate-pulse" label="Running" tone="accent" />

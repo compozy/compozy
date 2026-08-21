@@ -3,10 +3,9 @@ import { useLayoutEffect, useRef } from "react";
 import { CommandItem, CommandList } from "@compozy/ui";
 
 import type { PaletteViewRow } from "../lib/palette-view-registry";
-import { paletteViewItemClass } from "../lib/palette-view-inset";
+import { paletteItemClass, paletteRowEstimate } from "../lib/palette-view-inset";
 
 export const PALETTE_VIEW_VIRTUAL_THRESHOLD = 150;
-const ROW_ESTIMATE = 48;
 
 export function OsPaletteVirtualRows({
   className,
@@ -46,11 +45,11 @@ export function OsPaletteVirtualRows({
           key={row.value}
           style={{
             contentVisibility: "auto",
-            containIntrinsicSize: `0 ${ROW_ESTIMATE}px`,
+            containIntrinsicSize: `0 ${paletteRowEstimate(row.twoLine)}px`,
           }}
         >
           <CommandItem
-            className={paletteViewItemClass}
+            className={paletteItemClass(row.twoLine)}
             forceMount
             value={row.value}
             data-testid={row.testId}

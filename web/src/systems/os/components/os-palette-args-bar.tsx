@@ -12,7 +12,7 @@ import { PaletteArgDropdown } from "./os-palette-arg-dropdown";
 
 /** The query box's own grammar — entering arguments is the same surface, narrowed. */
 const FIELD_CLASS =
-  "h-10 rounded-md border border-line bg-canvas-tint px-2.5 text-small-body text-fg placeholder:text-subtle focus-visible:border-line-strong focus-visible:shadow-focus-ring";
+  "h-control-compact rounded-md border border-line bg-canvas-tint px-2.5 text-small-body text-fg placeholder:text-subtle focus-visible:border-line-strong focus-visible:shadow-focus-ring";
 
 interface PaletteArgFieldRowProps {
   field: PaletteArgField;

@@ -4,6 +4,15 @@ import { describe, expect, it, vi } from "vitest";
 
 import { settingsHooksExtensionsSectionFixture } from "@/systems/settings/mocks/fixtures";
 
+vi.mock("@/systems/settings", async importOriginal => {
+  const original = await importOriginal<typeof import("@/systems/settings")>();
+  return {
+    ...original,
+    useLayoutsSettingsData: vi.fn(() => ({ isPending: true })),
+    useSettingsTopbar: vi.fn(),
+  };
+});
+
 vi.mock("@tanstack/react-router", async importOriginal => {
   const original = await importOriginal<typeof import("@tanstack/react-router")>();
   return {
@@ -27,6 +36,7 @@ vi.mock("@tanstack/react-router", async importOriginal => {
 import { PolicySection } from "../-extensions-policy-section";
 import { ExtensionPalettePanel, ExtensionPalettePanels } from "../-extension-palette-panel";
 import { HooksSection } from "../-hooks-section";
+import { LayoutsSettingsPage } from "../-layouts-settings-page";
 
 function notesExtension() {
   const extension = settingsHooksExtensionsSectionFixture.installed?.find(
@@ -42,6 +52,12 @@ function PolicyHarness() {
 }
 
 describe("Settings route split", () => {
+  it("Should render the rehosted layouts page without an active layouts router match", () => {
+    render(<LayoutsSettingsPage />);
+
+    expect(screen.getByTestId("settings-page-layouts-loading")).toBeInTheDocument();
+  });
+
   it("Should show effective, dormant, and view palette contributions", () => {
     render(<ExtensionPalettePanel extension={notesExtension()} />);
 

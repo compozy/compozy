@@ -518,10 +518,13 @@ func TestSettingsRoutesAndSchemas(t *testing.T) {
 			"scope",
 			"available_scopes",
 			"config",
+			"defaults",
 			"effective_shortcuts",
 			"aliases",
 			"commands",
 			"extension_defaults",
+			"diagnostics",
+			"global_shortcuts",
 		)
 		assertNotRequired(t, windowManagerResponseSchema, "workspace_id", "agent_name")
 		assertEnumValues(t, propertySchema(t, windowManagerResponseSchema, "scope"), "global", "workspace")

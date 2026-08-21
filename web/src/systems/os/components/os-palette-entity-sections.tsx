@@ -1,13 +1,16 @@
 import { ArrowRightLeft, FolderGit2 } from "lucide-react";
 
-import { CommandGroup, CommandItem, MonoId, cn } from "@compozy/ui";
+import { CommandGroup, CommandItem, MonoId } from "@compozy/ui";
 
-import { OS_APP_DESCRIPTORS } from "../lib/app-catalog";
 import type { OsPaletteEntities, OsPaletteWorktreeResult } from "../hooks/use-os-palette-entities";
+import { OS_APP_DESCRIPTORS } from "../lib/app-catalog";
+import {
+  paletteGroupClass,
+  paletteGroupFollowClass,
+  paletteRowClass,
+} from "../lib/palette-view-inset";
 
-const GROUP_CLASS = "mt-2 border-t border-line-soft px-2 pt-2 pb-0.5";
-const HEADING_CLASS = "**:[[cmdk-group-heading]]:text-faint";
-const ROW_CLASS = "h-12 gap-3 px-3";
+const GROUP_CLASS = `${paletteGroupClass} ${paletteGroupFollowClass}`;
 
 function EntityOverflow({ shown, total }: { shown: number; total: number }) {
   if (total <= shown) return null;
@@ -42,13 +45,13 @@ export function OsPaletteEntitySections({
     <>
       {entities.sessions.length > 0 ? (
         <CommandGroup
-          className={cn(GROUP_CLASS, HEADING_CLASS)}
+          className={GROUP_CLASS}
           data-testid="os-palette-section-sessions"
           heading="Sessions"
         >
           {entities.sessions.map(session => (
             <CommandItem
-              className={ROW_CLASS}
+              className={paletteRowClass}
               data-palette-row={`session:${session.sessionId}`}
               data-testid={`os-palette-session-${session.sessionId}`}
               forceMount
@@ -57,7 +60,7 @@ export function OsPaletteEntitySections({
               onSelect={() => onOpenSession(session)}
             >
               <OS_APP_DESCRIPTORS.session.icon className="size-3.5 text-muted" />
-              <span className="min-w-0 truncate">{session.title}</span>
+              <span className="min-w-0 truncate leading-none">{session.title}</span>
               <span className="ml-auto shrink-0 text-micro text-subtle">
                 {session.agentName}
                 {session.workspaceLabel ? ` · ${session.workspaceLabel}` : ""}
@@ -70,13 +73,13 @@ export function OsPaletteEntitySections({
 
       {destination || entities.tabs.length === 0 ? null : (
         <CommandGroup
-          className={cn(GROUP_CLASS, HEADING_CLASS)}
+          className={GROUP_CLASS}
           data-testid="os-palette-section-tabs"
           heading="Go to tab"
         >
           {entities.tabs.map(tab => (
             <CommandItem
-              className={ROW_CLASS}
+              className={paletteRowClass}
               data-palette-row={`tab:${tab.windowId}`}
               data-testid={`os-palette-tab-${tab.windowId}`}
               forceMount
@@ -85,7 +88,7 @@ export function OsPaletteEntitySections({
               onSelect={() => onGoToTab(tab.windowId)}
             >
               <ArrowRightLeft className="size-3.5 text-muted" />
-              <span className="min-w-0 truncate">{tab.label}</span>
+              <span className="min-w-0 truncate leading-none">{tab.label}</span>
               {tab.needsInput ? (
                 <span
                   className="inline-flex h-3.5 min-w-deck-badge shrink-0 items-center justify-center rounded-full bg-accent px-1 font-mono text-pill-group-badge leading-none font-bold text-accent-ink"
@@ -106,13 +109,13 @@ export function OsPaletteEntitySections({
 
       {destination || entities.worktrees.length === 0 ? null : (
         <CommandGroup
-          className={cn(GROUP_CLASS, HEADING_CLASS)}
+          className={GROUP_CLASS}
           data-testid="os-palette-section-worktrees"
           heading="Worktrees"
         >
           {entities.worktrees.map(entry => (
             <CommandItem
-              className={ROW_CLASS}
+              className={paletteRowClass}
               data-palette-row={`worktree:${entry.key}`}
               data-testid={`os-palette-worktree-${entry.key}`}
               forceMount
@@ -121,7 +124,7 @@ export function OsPaletteEntitySections({
               onSelect={() => onSelectWorktree(entry)}
             >
               <FolderGit2 className="size-3.5 text-muted" />
-              <span className="min-w-0 truncate">{entry.name}</span>
+              <span className="min-w-0 truncate leading-none">{entry.name}</span>
               <MonoId className="ml-auto" preserveCase size="sm" value={entry.branch} />
               {entry.workspaceLabel ? (
                 <span className="shrink-0 text-micro text-faint">{entry.workspaceLabel}</span>

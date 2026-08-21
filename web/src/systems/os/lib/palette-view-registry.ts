@@ -95,6 +95,8 @@ export interface PaletteViewRow {
   readonly testId: string;
   readonly node: ReactNode;
   readonly disabled?: boolean;
+  /** True when the row body has a title plus a sub-line. */
+  readonly twoLine?: boolean;
   onSelect(): void;
 }
 

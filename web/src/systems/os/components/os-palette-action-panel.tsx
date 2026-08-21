@@ -24,6 +24,13 @@ import {
   type PaletteRowAction,
   type PaletteRowActionModel,
 } from "../lib/cmd-palette-row-actions";
+import {
+  paletteGroupClass,
+  paletteGroupFollowClass,
+  paletteHeadClass,
+  paletteInputRailClass,
+  paletteRowClass,
+} from "../lib/palette-view-inset";
 
 interface PaletteActionPanelItemProps {
   action: PaletteRowAction;
@@ -42,7 +49,7 @@ function PaletteActionPanelItem({ action, onRun }: PaletteActionPanelItemProps) 
   const emoji = isEmojiIcon(action.icon);
   return (
     <CommandItem
-      className={cn("h-9 gap-2.5 px-2.5", action.destructive && "text-danger")}
+      className={cn(paletteRowClass, action.destructive && "text-danger")}
       data-palette-action={action.id}
       data-testid={`os-palette-action-${action.id}`}
       forceMount
@@ -61,7 +68,7 @@ function PaletteActionPanelItem({ action, onRun }: PaletteActionPanelItemProps) 
           registry={cmdPaletteIconRegistry}
         />
       )}
-      <span className="min-w-0 truncate">{action.title}</span>
+      <span className="min-w-0 truncate leading-none">{action.title}</span>
       {action.primary ? (
         <CommandShortcut aria-label="Runs on Enter">↩</CommandShortcut>
       ) : action.chords.length > 0 ? (
@@ -113,16 +120,18 @@ export function PaletteActionPanel({
         side="bottom"
         {...(anchor ? { anchor } : {})}
       >
-        <Command shouldFilter={false}>
-          <CommandInput
-            aria-label="Filter actions"
-            autoFocus
-            data-testid="os-palette-action-filter"
-            placeholder="Filter actions…"
-            value={filter}
-            onValueChange={onFilterChange}
-          />
-          <CommandList className="max-h-64 px-1 pb-1">
+        <Command className={paletteInputRailClass} shouldFilter={false}>
+          <div className={paletteHeadClass}>
+            <CommandInput
+              aria-label="Filter actions"
+              autoFocus
+              data-testid="os-palette-action-filter"
+              placeholder="Filter actions…"
+              value={filter}
+              onValueChange={onFilterChange}
+            />
+          </div>
+          <CommandList className="max-h-64 px-1 pt-2 pb-1">
             {visible.length === 0 ? (
               <CommandEmpty data-testid="os-palette-action-empty">
                 {PALETTE_PANEL_EMPTY_COPY}
@@ -130,11 +139,7 @@ export function PaletteActionPanel({
             ) : null}
             {sections.map((section, index) => (
               <CommandGroup
-                className={cn(
-                  "px-1 pb-0.5",
-                  index > 0 && "mt-1.5 border-t border-line-soft pt-1.5",
-                  "**:[[cmdk-group-heading]]:text-faint"
-                )}
+                className={cn(paletteGroupClass, index > 0 && paletteGroupFollowClass)}
                 heading={section.title}
                 key={`${section.title}:${section.actions.map(action => action.id).join(",")}`}
               >

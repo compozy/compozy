@@ -16,6 +16,8 @@ type GlobalRegistration = WindowManagerSettingsSection["globalShortcuts"][number
 function statusText(shell: boolean, status: GlobalRegistration["status"]): string {
   if (!shell) return "desktop only";
   switch (status) {
+    case "pending":
+      return "checking";
     case "registered":
       return "active";
     case "failed_in_use":

@@ -209,6 +209,22 @@ describe("daemon-fed registry", () => {
     expect(rows.some(row => row.id.startsWith("window.tab.jump."))).toBe(false);
   });
 
+  it("Should collapse an aggregate registry command with its indexed family into one row", () => {
+    const catalog = [
+      coreAction({
+        id: "desktop.switch",
+        label: "Switch desktop",
+        section: "Desktops",
+      }),
+      ...ACTIONS,
+    ];
+
+    const rows = deriveShortcutCheatsheet(DEFAULTS, {}, catalog);
+
+    expect(rows.filter(row => row.id === "desktop.switch")).toHaveLength(1);
+    expect(new Set(rows.map(row => row.id)).size).toBe(rows.length);
+  });
+
   it("Should preserve caller-supplied extension source and alias", () => {
     const effective = effectiveShortcutMap(DEFAULTS, {
       "ext.notes.capture": ["alt+shift+KeyN"],

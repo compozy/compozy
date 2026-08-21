@@ -24,6 +24,8 @@ invariants the projection exists to hold.
 2026-08-19 qa-impact: Ranking, personalization, ghost completion, and asynchronous entity sections
 changed this root journey. It remains `untested` for the task_12 tail QA walk.
 
+2026-08-20 qa-impact: Palette density/alignment polish — 32px compact rows and a shared 20px left rail. Visual language of the root list changed; keep `untested` until the next QA walk confirms scanability and keyboard row-step.
+
 Walk (task_11 plan):
 
 1. Open ⌘K at rest — Pinned, Recents, and curated groups render instantly; first-run state is never

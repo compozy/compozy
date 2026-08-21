@@ -2,7 +2,10 @@ import { Bot } from "lucide-react";
 
 import { CommandItem, CommandShortcut } from "@compozy/ui";
 
+import { cn } from "@/lib/utils";
+
 import type { PaletteAgentFallback } from "../lib/cmd-palette-sections";
+import { paletteRowClass } from "../lib/palette-view-inset";
 
 export interface OsPaletteFallbackRowProps {
   fallback: PaletteAgentFallback;
@@ -16,7 +19,7 @@ export function OsPaletteFallbackRow({ fallback, pending, onSelect }: OsPaletteF
     <CommandItem
       forceMount
       aria-busy={pending || undefined}
-      className="mt-2 h-10 gap-3 border-t border-line-soft px-3 pt-2 text-info"
+      className={cn(paletteRowClass, "mt-1.5 border-t border-line-soft text-info")}
       data-palette-row={fallback.value}
       data-testid="os-palette-agent-fallback"
       value={fallback.value}
@@ -25,7 +28,7 @@ export function OsPaletteFallbackRow({ fallback, pending, onSelect }: OsPaletteF
       <span className="flex size-[18px] shrink-0 items-center justify-center rounded-full bg-info-tint text-info">
         <Bot aria-hidden="true" className="size-3" />
       </span>
-      <span className="min-w-0 truncate text-fg">
+      <span className="min-w-0 truncate leading-none text-fg">
         Ask agent: <span className="text-info">&apos;{fallback.query}&apos;</span>
       </span>
       <CommandShortcut>{pending ? "starting…" : "↵"}</CommandShortcut>

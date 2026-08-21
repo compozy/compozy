@@ -7,12 +7,12 @@ import type { CmdPaletteViewRow } from "../lib/cmd-palette-types";
 
 export function PaletteListRow({ row }: { row: CmdPaletteViewRow }) {
   return (
-    <div className="flex min-w-0 flex-1 items-center gap-3">
+    <div className="flex min-w-0 flex-1 items-center gap-2">
       <RowIcon icon={row.icon} />
-      <div className="min-w-0 flex-1">
-        <div className="truncate text-card-title text-fg">{row.title}</div>
+      <div className="flex min-w-0 flex-1 flex-col gap-1">
+        <div className="truncate text-small-body leading-none font-medium text-fg">{row.title}</div>
         {row.subtitle ? (
-          <div className="truncate text-small-body text-muted">{row.subtitle}</div>
+          <div className="truncate text-micro leading-snug text-muted">{row.subtitle}</div>
         ) : null}
       </div>
       {row.accessories?.map(accessory => (

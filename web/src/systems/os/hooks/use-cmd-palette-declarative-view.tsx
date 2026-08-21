@@ -241,6 +241,7 @@ function listContent(input: {
       return {
         value: row.id,
         testId: `palette-view-row-${row.id}`,
+        twoLine: Boolean(row.subtitle),
         node: <PaletteListRow row={row} />,
         disabled: action === undefined,
         onSelect: () => {

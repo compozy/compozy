@@ -2,7 +2,14 @@ import type { RefObject } from "react";
 
 import { Command, CommandEmpty, CommandInput, CommandList } from "@compozy/ui";
 
+import { cn } from "@/lib/utils";
+
 import type { OsPaletteRootModel } from "../hooks/use-os-palette-root";
+import {
+  paletteHeadClass,
+  paletteInputRailClass,
+  paletteListClass,
+} from "../lib/palette-view-inset";
 import { acceptGhostCompletion } from "../lib/ranking/ghost";
 import { OsPaletteDomainSections } from "./os-palette-domain-sections";
 import { OsPaletteEntitySections } from "./os-palette-entity-sections";
@@ -56,6 +63,7 @@ export function OsPaletteRootFrame({
       : paletteToggleChords.join(" / ");
   return (
     <Command
+      className={paletteInputRailClass}
       data-destination={model.destination ? "" : undefined}
       data-stale={model.registry.stale ? "" : undefined}
       data-testid="os-command-palette"
@@ -64,7 +72,7 @@ export function OsPaletteRootFrame({
       value={selected}
       onValueChange={onSelectionChange}
     >
-      <div className="relative">
+      <div className={cn("relative", paletteHeadClass)}>
         <CommandInput
           autoFocus
           placeholder={
@@ -96,7 +104,7 @@ export function OsPaletteRootFrame({
           </div>
         )}
       </div>
-      <CommandList className="max-h-[46vh] px-2 pb-3">
+      <CommandList className={paletteListClass}>
         {empty ? (
           <CommandEmpty data-testid="os-palette-empty">
             {model.destinationEmpty

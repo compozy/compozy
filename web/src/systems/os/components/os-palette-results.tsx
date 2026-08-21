@@ -6,6 +6,7 @@ import {
   type PaletteSection,
 } from "../lib/cmd-palette-sections";
 import type { ResolvedPaletteCommand } from "../lib/cmd-palette-types";
+import { paletteGroupClass, paletteGroupFollowClass } from "../lib/palette-view-inset";
 import { OsPaletteCommandRow } from "./os-palette-command-row";
 import { OsPaletteFallbackRow } from "./os-palette-fallback-row";
 
@@ -42,11 +43,7 @@ export function OsPaletteResults({
         const note = overflowNote(section);
         return (
           <CommandGroup
-            className={cn(
-              "px-2 pb-0.5",
-              index > 0 && "mt-2 border-t border-line-soft pt-2",
-              "**:[[cmdk-group-heading]]:text-faint"
-            )}
+            className={cn(paletteGroupClass, index > 0 && paletteGroupFollowClass)}
             data-testid={`os-palette-section-${section.title.toLowerCase()}`}
             heading={section.title}
             key={section.title}

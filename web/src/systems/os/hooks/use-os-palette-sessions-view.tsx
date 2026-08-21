@@ -98,6 +98,7 @@ export function useOsPaletteSessionsView({
     rows: visible.map(session => ({
       value: `session:${session.id}`,
       testId: `os-palette-session-view-${session.id}`,
+      twoLine: true,
       node: (
         <OsPaletteSessionRow
           session={session}

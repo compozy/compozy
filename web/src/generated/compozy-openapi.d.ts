@@ -65867,7 +65867,7 @@ export interface operations {
             defaults: {
               [key: string]: string[] | string;
             };
-            diagnostics?: {
+            diagnostics: {
               command_id: string;
               message: string;
             }[];
@@ -66141,7 +66141,7 @@ export interface operations {
             defaults: {
               [key: string]: string[] | string;
             };
-            diagnostics?: {
+            diagnostics: {
               command_id: string;
               message: string;
             }[];

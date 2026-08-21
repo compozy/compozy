@@ -229,6 +229,7 @@ export class WindowManagerRuntime extends WindowManagerTabRuntime implements OsD
     this.dispatch({
       commandId: "window.focus",
       payload: { window_id: target, direction: "" },
+      rebase: { windowId: target },
     });
   }
 
@@ -343,6 +344,7 @@ export class WindowManagerRuntime extends WindowManagerTabRuntime implements OsD
     return this.dispatch({
       commandId: "window.focus",
       payload: { window_id: id, direction: "" },
+      rebase: { windowId: id },
     });
   };
 

@@ -84,6 +84,7 @@ function listContent(options?: {
     rows: rows.map(row => ({
       value: row.id,
       testId: `contract-row-${row.id}`,
+      twoLine: Boolean(row.subtitle),
       node: (
         <PaletteListRow
           row={{

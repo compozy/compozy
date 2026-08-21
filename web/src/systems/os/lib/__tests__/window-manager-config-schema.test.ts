@@ -134,6 +134,27 @@ describe("parseSettingsWindowManagerSection", () => {
     ]);
   });
 
+  it("Should preserve configured global shortcut intent before the shell reports a status", () => {
+    const response = settingsResponse();
+    const { status: _status, ...globalShortcut } = response.global_shortcuts[0];
+
+    expect(
+      parseSettingsWindowManagerSection({
+        ...response,
+        global_shortcuts: [globalShortcut],
+      }).globalShortcuts
+    ).toEqual([
+      {
+        commandId: "palette.summon.global",
+        intendedChord: "meta+shift+Space",
+        activeChord: "meta+shift+Space",
+        status: "pending",
+        reason: null,
+        settingsUrl: null,
+      },
+    ]);
+  });
+
   it("Should reject an envelope from another settings section", () => {
     const response = { ...settingsResponse(), section: "attention" as const };
 

@@ -31,6 +31,7 @@ order, Escape dismissal, and reopen-at-root behavior.
 
 2026-08-20 qa-impact: Programmable-view lifecycle events and effect-failure correlation now close
 the shared stack's observability contract. Keep this scenario `untested`; task 12 owns the re-walk.
+2026-08-20 qa-impact: Palette density/alignment polish tightened pushed-view rows (32px single-line / 40px two-line) and the shared left rail. Keep `untested`; re-walk Sessions and other nested views for scanability.
 
 Walk (task_11 plan — stack semantics across all four kinds):
 

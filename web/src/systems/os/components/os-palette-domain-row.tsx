@@ -8,12 +8,12 @@ import { getOsAppDescriptor } from "../lib/app-catalog";
 export function OsPaletteDomainRow({ row }: { row: OsPaletteDomainRow }) {
   const descriptor = getOsAppDescriptor(row.app);
   return (
-    <div className="flex min-w-0 flex-1 items-center gap-3">
+    <div className="flex min-w-0 flex-1 items-center gap-2">
       <KindIcon fallback={descriptor.icon} kind={row.app} size="sm" />
-      <div className="min-w-0 flex-1">
-        <div className="truncate text-card-title text-fg">{row.label}</div>
+      <div className="flex min-w-0 flex-1 flex-col gap-1">
+        <div className="truncate text-small-body leading-none font-medium text-fg">{row.label}</div>
         {row.detail || row.workspaceLabel ? (
-          <div className="truncate text-small-body text-muted">
+          <div className="truncate text-micro leading-snug text-muted">
             {[row.detail, row.workspaceLabel].filter(Boolean).join(" · ")}
           </div>
         ) : null}

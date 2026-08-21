@@ -6,7 +6,7 @@ export interface WindowManagerGlobalShortcutRegistration {
   commandId: string;
   intendedChord: string;
   activeChord: string | null;
-  status: "registered" | "failed_in_use" | "failed_permission" | "unsupported";
+  status: "pending" | "registered" | "failed_in_use" | "failed_permission" | "unsupported";
   reason: string | null;
   settingsUrl: string | null;
 }

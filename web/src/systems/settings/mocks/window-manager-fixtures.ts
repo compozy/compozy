@@ -80,6 +80,7 @@ export const settingsWindowManagerSectionFixture: SettingsWindowManagerSection =
   commands: storyRegistryCommands,
   aliases: storyAliases,
   extension_defaults: [],
+  diagnostics: [],
   config: {
     new_window_policy: "floating",
     small_viewport_policy: "stack",

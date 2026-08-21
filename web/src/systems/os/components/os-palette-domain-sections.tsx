@@ -1,16 +1,19 @@
 import { AlertCircle, LoaderCircle } from "lucide-react";
 
-import { CommandGroup, CommandItem, cn } from "@compozy/ui";
+import { CommandGroup, CommandItem } from "@compozy/ui";
 
 import type {
   OsPaletteDomainRow,
   OsPaletteDomainSection,
 } from "../hooks/use-os-palette-domain-search";
 import { getOsAppDescriptor } from "../lib/app-catalog";
+import {
+  paletteGroupClass,
+  paletteGroupFollowClass,
+  paletteRowClass,
+} from "../lib/palette-view-inset";
 
-const GROUP_CLASS = "mt-2 border-t border-line-soft px-2 pt-2 pb-0.5";
-const HEADING_CLASS = "**:[[cmdk-group-heading]]:text-faint";
-const ROW_CLASS = "h-12 gap-3 px-3";
+const GROUP_CLASS = `${paletteGroupClass} ${paletteGroupFollowClass}`;
 
 export interface OsPaletteDomainSectionsProps {
   readonly sections: readonly OsPaletteDomainSection[];
@@ -22,14 +25,14 @@ export function OsPaletteDomainSections({ sections, onOpen }: OsPaletteDomainSec
     if (!section.loading && section.error === null && section.rows.length === 0) return null;
     return (
       <CommandGroup
-        className={cn(GROUP_CLASS, HEADING_CLASS)}
+        className={GROUP_CLASS}
         data-testid={`os-palette-domain-${section.title.toLowerCase().replaceAll(" ", "-")}`}
         heading={section.title}
         key={section.title}
       >
         {section.loading ? (
           <CommandItem
-            className="h-10 gap-2 px-3 text-micro text-subtle"
+            className={`${paletteRowClass} text-micro text-subtle`}
             disabled
             forceMount
             value={`${section.title}:loading`}
@@ -40,7 +43,7 @@ export function OsPaletteDomainSections({ sections, onOpen }: OsPaletteDomainSec
         ) : null}
         {section.error === null ? null : (
           <CommandItem
-            className="min-h-10 gap-2 px-3 text-micro text-danger"
+            className={`${paletteRowClass} text-micro text-danger`}
             data-testid={`os-palette-domain-error-${section.title.toLowerCase().replaceAll(" ", "-")}`}
             disabled
             forceMount
@@ -54,7 +57,7 @@ export function OsPaletteDomainSections({ sections, onOpen }: OsPaletteDomainSec
           const Icon = getOsAppDescriptor(row.app).icon;
           return (
             <CommandItem
-              className={ROW_CLASS}
+              className={paletteRowClass}
               data-palette-row={row.key}
               data-testid={`os-palette-domain-row-${row.key}`}
               forceMount
@@ -63,7 +66,7 @@ export function OsPaletteDomainSections({ sections, onOpen }: OsPaletteDomainSec
               onSelect={() => onOpen(row)}
             >
               <Icon className="size-3.5 shrink-0 text-muted" />
-              <span className="min-w-0 truncate">{row.label}</span>
+              <span className="min-w-0 truncate leading-none">{row.label}</span>
               {row.detail ? (
                 <span className="ml-auto max-w-48 shrink truncate text-micro text-subtle">
                   {row.detail}

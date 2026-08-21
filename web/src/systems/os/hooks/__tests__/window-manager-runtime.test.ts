@@ -956,6 +956,7 @@ describe("WindowManagerRuntime", () => {
     expect(executeWindowManagerCommand).toHaveBeenCalledWith("workspace:test", "client:web", 7, {
       commandId: "window.focus",
       payload: { window_id: "app:tasks", direction: "" },
+      rebase: { windowId: "app:tasks" },
     });
     runtime.stop();
   });
@@ -1134,6 +1135,7 @@ describe("WindowManagerRuntime", () => {
       {
         commandId: "window.focus",
         payload: { window_id: session.id, direction: "" },
+        rebase: { windowId: session.id },
       }
     );
     expect(runtime.getState().focusedId).toBe(session.id);
@@ -1434,6 +1436,7 @@ describe("WindowManagerRuntime", () => {
     expect(vi.mocked(executeWindowManagerCommand).mock.calls[1]?.[3]).toMatchObject({
       commandId: "window.stack.set_active",
       payload: { window_id: "app:agents" },
+      rebase: { windowId: "app:agents" },
     });
     runtime.stop();
   });

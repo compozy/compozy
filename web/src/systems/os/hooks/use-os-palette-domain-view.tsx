@@ -94,6 +94,7 @@ export function useOsPaletteDomainView(
     rows: visible.map(row => ({
       value: row.key,
       testId: `os-palette-domain-${row.key.replaceAll(":", "-")}`,
+      twoLine: Boolean(row.detail || row.workspaceLabel),
       node: <OsPaletteDomainRow row={row} />,
       onSelect: () => {
         onDismiss();

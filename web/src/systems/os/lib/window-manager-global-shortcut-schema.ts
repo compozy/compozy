@@ -19,3 +19,8 @@ export const globalShortcutRegistrationSchema = z.strictObject({
   reason: z.string().optional(),
   settings_url: z.string().optional(),
 });
+
+/** Configured intent may precede the desktop shell's first registration result. */
+export const globalShortcutProjectionSchema = globalShortcutRegistrationSchema.extend({
+  status: globalShortcutRegistrationStatusSchema.optional(),
+});
