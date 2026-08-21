@@ -597,14 +597,12 @@ esac
 			t,
 			repo,
 			"git",
-			"-c",
-			"commit.gpgsign=false",
 			"commit",
 			"-m",
 			"test: seed beta resolver",
 		)
 		for _, tag := range []string{"v0.3.0-beta.13", "v0.3.0-beta.14", "v0.3.0-beta.preview"} {
-			runReleasePreflightFixtureCommand(t, repo, "git", "-c", "tag.gpgsign=false", "tag", tag)
+			runReleasePreflightFixtureCommand(t, repo, "git", "tag", tag)
 		}
 
 		cmd := exec.CommandContext(t.Context(), "bash", filepath.Join(root, "scripts", "resolve-auto-beta-version.sh"))
@@ -638,8 +636,6 @@ esac
 			t,
 			repo,
 			"git",
-			"-c",
-			"commit.gpgsign=false",
 			"commit",
 			"-m",
 			"test: seed release body",
@@ -648,8 +644,6 @@ esac
 			t,
 			repo,
 			"git",
-			"-c",
-			"tag.gpgsign=false",
 			"tag",
 			"v0.3.0-beta.14",
 		)
@@ -661,8 +655,6 @@ esac
 			t,
 			repo,
 			"git",
-			"-c",
-			"commit.gpgsign=false",
 			"commit",
 			"-m",
 			"fix: validate release body",
@@ -1765,8 +1757,6 @@ func newReleasePreflightFixture(t *testing.T) (string, string) {
 		t,
 		repo,
 		"git",
-		"-c",
-		"commit.gpgsign=false",
 		"commit",
 		"-m",
 		"test: seed release preflight",
@@ -1779,6 +1769,11 @@ func runReleasePreflightFixtureCommand(t *testing.T, dir string, name string, ar
 
 	cmd := exec.CommandContext(t.Context(), name, args...)
 	cmd.Dir = dir
+	cmd.Env = append(
+		os.Environ(),
+		"GIT_CONFIG_GLOBAL="+os.DevNull,
+		"GIT_CONFIG_SYSTEM="+os.DevNull,
+	)
 	if output, err := cmd.CombinedOutput(); err != nil {
 		t.Fatalf("%s %s error = %v, output = %s", name, strings.Join(args, " "), err, output)
 	}

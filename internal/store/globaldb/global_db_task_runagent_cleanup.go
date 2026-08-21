@@ -61,7 +61,7 @@ func closeTerminalRunAgentBinding(
 		return nil
 	}
 	if binding.Ownership != goal.BindingOwnershipRunOwned {
-		return fmt.Errorf("%w: run-agent binding is not run-owned", looppkg.ErrTransitionConflict)
+		return nil
 	}
 	return closeGoalBindingWithCleanup(
 		ctx,
@@ -74,42 +74,55 @@ func closeTerminalRunAgentBinding(
 	)
 }
 
-func closeSettledRunAgentBindings(
+type runAgentSnapshotSettlement struct {
+	Payload    looppkg.GenerationSnapshotPayload
+	Generation int
+	TerminalAt time.Time
+}
+
+func (g *TaskRepo) closeSettledRunAgentBindings(
 	ctx context.Context,
 	exec taskSQLExecutor,
-	payload looppkg.GenerationSnapshotPayload,
-	terminalAt time.Time,
+	settlement runAgentSnapshotSettlement,
 ) error {
-	for _, attempt := range payload.Attempts {
+	for _, attempt := range settlement.Payload.Attempts {
 		if attempt.Disposition == looppkg.AttemptRetried || attempt.Disposition == looppkg.AttemptResumed {
 			continue
 		}
-		taskRunID := settledAttemptTaskRunID(payload.Outputs, attempt)
+		taskRunID := settledAttemptTaskRunID(settlement.Payload.Outputs, attempt, settlement.Generation)
 		if taskRunID == "" {
 			continue
 		}
-		run, err := (&TaskRepo{}).getTaskRunWithExecutor(ctx, exec, taskRunID)
+		run, err := g.getTaskRunWithExecutor(ctx, exec, taskRunID)
 		if err != nil {
 			return err
 		}
-		if err := closeTerminalRunAgentBinding(ctx, exec, run, terminalAt); err != nil {
+		if err := closeTerminalRunAgentBinding(ctx, exec, run, settlement.TerminalAt); err != nil {
 			return err
 		}
 	}
 	return nil
 }
 
-func settledAttemptTaskRunID(outputs []looppkg.GenerationOutput, attempt looppkg.NodeAttempt) string {
+func settledAttemptTaskRunID(
+	outputs []looppkg.GenerationOutput,
+	attempt looppkg.NodeAttempt,
+	snapshotGeneration int,
+) string {
 	for _, output := range outputs {
-		if output.NodeID == string(attempt.NodeID) && output.ItemIndex == attempt.ItemIndex &&
-			output.Attempt == attempt.Attempt {
+		outputGeneration := output.Generation
+		if outputGeneration == 0 {
+			outputGeneration = snapshotGeneration
+		}
+		if outputGeneration == attempt.Generation && output.NodeID == string(attempt.NodeID) &&
+			output.ItemIndex == attempt.ItemIndex && output.Attempt == attempt.Attempt {
 			return strings.TrimSpace(output.TaskRunID)
 		}
 	}
 	return ""
 }
 
-func closeCanceledRunAgentLaneBinding(
+func (g *TaskRepo) closeCanceledRunAgentLaneBinding(
 	ctx context.Context,
 	exec taskSQLExecutor,
 	mutation looppkg.CancellationMutation,
@@ -137,7 +150,7 @@ func closeCanceledRunAgentLaneBinding(
 	if !taskRunID.Valid {
 		return nil
 	}
-	run, err := (&TaskRepo{}).getTaskRunWithExecutor(ctx, exec, taskRunID.String)
+	run, err := g.getTaskRunWithExecutor(ctx, exec, taskRunID.String)
 	if err != nil {
 		return err
 	}
