@@ -8,8 +8,8 @@
 - **Environment:** Fresh isolated `northstar-pay` lab, HTTP `http://127.0.0.1:57105`, UDS
   `/var/folders/7x/xg204hnd04b81fczcxvjlhzr0000gn/T/compozyqa-d30b46c8d45d/runtime/compozyd.sock`.
 - **Manifest:** `/Users/pedronauck/dev/qa-labs/compozy-loop-task-legibility-runtime-20260821-1126-20260821-112711-004724-lab/qa-artifacts/qa/bootstrap-manifest.json`
-- **Started:** 2026-08-21T11:26:16Z · **Status:** runtime phase complete; strict audit and teardown
-  are recorded below after they run.
+- **Started:** 2026-08-21T11:26:16Z · **Status:** runtime execution complete; strict audit
+  `BLOCKED`; teardown clean.
 
 ## Isolation and kickoff
 
@@ -163,13 +163,24 @@ No test was weakened. No `make gate`, `make gate-full`, or `make test-e2e-*` com
 
 ## Strict audit and teardown
 
-- **Strict audit:** pending final invocation.
-- **Teardown:** pending exact manifest command; completion requires `qa/teardown.json` with
-  `"clean": true`.
+- **Strict audit:** `BLOCKED` (exit 2), report `qa/qa-audit-report.md`. The 12 blockers are: missing
+  provider/web journey surfaces; fewer than three cross-surface objects recognized by the playbook
+  auditor; zero live provider-backed sessions; zero later-used playbook artifacts; zero completed
+  disruption probes; no explicit verdict before this final update; no `make verify` evidence by
+  explicit phase restriction; one of two required `ts_test` deliverables; zero of 14 peer messages;
+  zero of two review cycles; zero disagreement resolutions; and no duplicate lab-local `qa/issues`
+  file for the already registered observer-stall bug. The audit also emitted one warning that API
+  deep equality is not implemented by the auditor. None of these results was hidden or filled with
+  synthetic activity.
+- **Teardown:** exact manifest command completed at `2026-08-21T12:31:15Z`.
+  `qa/teardown.json` says `"clean": true`, killed registered daemon PID `65799`, and reports no
+  survivors.
 
 ## Final status
 
-- **Runtime phase:** complete after strict audit and clean teardown.
+- **Runtime execution:** PASS for the bounded settlement/headless work, with all reproduced
+  runtime bugs fixed and re-walked.
+- **Release-grade playbook audit:** BLOCKED by the 12 honest evidence gaps above.
 - **Owned scenario rows:** settlement/config/catalog/deep-link pass; headless fixes verified;
   run-read/roster retain the pre-existing observer bug; nested fan-out remains pending.
 - **Full task:** not complete — visual and E2E dependencies remain external.
