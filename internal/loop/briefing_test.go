@@ -100,6 +100,9 @@ func TestBriefingContract(t *testing.T) {
 			"--payload", `{}`,
 		}
 		assertBlockerCommand(t, got.Blockers, 0, wantArguments)
+		if !strings.Contains(got.Blockers[0].Unblocker, "--payload '{}'") {
+			t.Fatalf("request unblocker = %q, want a shell-safe JSON payload", got.Blockers[0].Unblocker)
+		}
 	})
 	t.Run("Should preserve an explicit decision placeholder for multi-decision reviews", func(t *testing.T) {
 		t.Parallel()
