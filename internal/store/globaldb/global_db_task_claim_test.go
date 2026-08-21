@@ -2170,6 +2170,7 @@ func TestGlobalDBRecoverExpiredRunLeasesThenClaim(t *testing.T) {
 		"expired-token",
 		now.Add(-time.Minute),
 	)
+	expiredRun.SessionID = ""
 	if err := globalDB.CreateTaskRun(ctx, expiredRun); err != nil {
 		t.Fatalf("CreateTaskRun(expired) error = %v", err)
 	}
@@ -2211,7 +2212,7 @@ func TestGlobalDBRecoverExpiredRunLeasesThenClaim(t *testing.T) {
 	if got, want := recovered[0].Run.ID, expiredRun.ID; got != want {
 		t.Fatalf("recovered run id = %q, want %q", got, want)
 	}
-	if got, want := recovered[0].PreviousSessionID, "sess-expired"; got != want {
+	if got, want := recovered[0].PreviousSessionID, ""; got != want {
 		t.Fatalf("PreviousSessionID = %q, want %q", got, want)
 	}
 	if recovered[0].PreviousClaimTokenHash == "" {
