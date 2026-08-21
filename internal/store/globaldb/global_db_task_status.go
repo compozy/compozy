@@ -17,13 +17,11 @@ import (
 
 type taskStatusChangedEventPayload struct {
 	hookspkg.TaskContext
-	FromStatus    string `json:"from_status"`
-	ToStatus      string `json:"to_status"`
-	Reason        string `json:"reason,omitempty"`
-	Detail        string `json:"detail,omitempty"`
-	RunID         string `json:"run_id,omitempty"`
-	LoopRunID     string `json:"loop_run_id,omitempty"`
-	ReleaseReason string `json:"release_reason,omitempty"`
+	FromStatus string `json:"from_status"`
+	ToStatus   string `json:"to_status"`
+	Reason     string `json:"reason,omitempty"`
+	Detail     string `json:"detail,omitempty"`
+	LoopRunID  string `json:"loop_run_id,omitempty"`
 }
 
 type taskStatusEventContext struct {
@@ -60,16 +58,8 @@ func setTaskStatusWithEventContext(
 	if err != nil {
 		return err
 	}
-	if err := actor.Validate(); err != nil {
-		return err
-	}
-
-	fromStatus := from.Normalize()
-	if err := fromStatus.Validate("task.status.from"); err != nil {
-		return err
-	}
-	toStatus := to.Normalize()
-	if err := toStatus.Validate("task.status.to"); err != nil {
+	fromStatus, toStatus, err := normalizeTaskStatusEvent(actor, from, to)
+	if err != nil {
 		return err
 	}
 	if fromStatus == toStatus {
@@ -102,15 +92,8 @@ func appendTaskStatusChangedAuditEvent(
 	timestamp time.Time,
 	eventContext taskStatusEventContext,
 ) error {
-	if err := actor.Validate(); err != nil {
-		return err
-	}
-	fromStatus := from.Normalize()
-	if err := fromStatus.Validate("task.status.from"); err != nil {
-		return err
-	}
-	toStatus := to.Normalize()
-	if err := toStatus.Validate("task.status.to"); err != nil {
+	fromStatus, toStatus, err := normalizeTaskStatusEvent(actor, from, to)
+	if err != nil {
 		return err
 	}
 	committedTask, err := taskRecordAfterStatusChange(ctx, exec, taskID, toStatus)
@@ -134,15 +117,16 @@ func appendTaskStatusChangedEvent(
 	if err != nil {
 		return fmt.Errorf("store: generate task status event id: %w", err)
 	}
+	taskContext := immutableTaskStatusContext(committedTask, actor)
+	taskContext.RunID = strings.TrimSpace(eventContext.runID)
+	taskContext.ReleaseReason = strings.TrimSpace(eventContext.releaseReason)
 	payload, err := json.Marshal(taskStatusChangedEventPayload{
-		TaskContext:   immutableTaskStatusContext(committedTask, actor),
-		FromStatus:    string(fromStatus),
-		ToStatus:      string(toStatus),
-		Reason:        strings.TrimSpace(eventContext.reason),
-		Detail:        strings.TrimSpace(eventContext.detail),
-		RunID:         strings.TrimSpace(eventContext.runID),
-		LoopRunID:     strings.TrimSpace(eventContext.loopRunID),
-		ReleaseReason: strings.TrimSpace(eventContext.releaseReason),
+		TaskContext: taskContext,
+		FromStatus:  string(fromStatus),
+		ToStatus:    string(toStatus),
+		Reason:      strings.TrimSpace(eventContext.reason),
+		Detail:      strings.TrimSpace(eventContext.detail),
+		LoopRunID:   strings.TrimSpace(eventContext.loopRunID),
 	})
 	if err != nil {
 		return fmt.Errorf("store: marshal task %q status_changed event: %w", committedTask.ID, err)
@@ -161,6 +145,25 @@ func appendTaskStatusChangedEvent(
 	}
 
 	return nil
+}
+
+func normalizeTaskStatusEvent(
+	actor taskpkg.ActorContext,
+	from taskpkg.Status,
+	to taskpkg.Status,
+) (taskpkg.Status, taskpkg.Status, error) {
+	if err := actor.Validate(); err != nil {
+		return "", "", err
+	}
+	fromStatus := from.Normalize()
+	if err := fromStatus.Validate("task.status.from"); err != nil {
+		return "", "", err
+	}
+	toStatus := to.Normalize()
+	if err := toStatus.Validate("task.status.to"); err != nil {
+		return "", "", err
+	}
+	return fromStatus, toStatus, nil
 }
 
 func taskRecordAfterStatusChange(

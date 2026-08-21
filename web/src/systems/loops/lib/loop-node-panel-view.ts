@@ -1,7 +1,11 @@
 import type { LoopRosterAttempt, LoopRosterNode } from "../types";
 import { type LoopGraph, type LoopGraphNode } from "./loop-graph";
-import { loopDagKindLabel } from "./loop-run-dag-view";
-import { type LoopStateChip, loopRosterStateChip } from "./loop-run-state-copy";
+import { loopDagKindLabel } from "./loop-node-labels";
+import {
+  type LoopStateChip,
+  isNeverMaterializedRosterState,
+  loopRosterStateChip,
+} from "./loop-run-state-copy";
 
 /**
  * One node, opened.
@@ -111,12 +115,6 @@ function cancellationView(node: LoopRosterNode): LoopNodeCancellationView | null
   };
 }
 
-/**
- * States in which the node provably never ran. Nothing downstream of this is
- * safe to link: there is no session, no execution record, and no timing.
- */
-const NEVER_MATERIALIZED = new Set(["not_taken", "pending"]);
-
 function attemptRows(node: LoopRosterNode): LoopNodeAttemptRow[] {
   return [...node.attempts]
     .sort((left, right) => right.attempt - left.attempt)
@@ -153,7 +151,7 @@ export function buildNodePanel({
   prunedSessionIds,
 }: BuildNodePanelInput): LoopNodePanelModel {
   const authored = graph?.nodes.find(entry => entry.id === node.node_id);
-  const neverMaterialized = NEVER_MATERIALIZED.has(node.state);
+  const neverMaterialized = isNeverMaterializedRosterState(node.state);
   const links: LoopNodeLink[] = [];
   const degradedLinks: LoopNodeDegradedLink[] = [];
 

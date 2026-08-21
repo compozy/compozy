@@ -78,6 +78,8 @@ CREATE TABLE loop_generation_outputs (
 			generation        INTEGER NOT NULL,
 			node_id           TEXT NOT NULL,
 			item_index        INTEGER NOT NULL DEFAULT 0,
+			output_id         TEXT,
+			artifact_name     TEXT,
 			status            TEXT NOT NULL CHECK (status IN (
 				'pending','enqueued','running','retrying','waiting','paused','awaiting_child',
 				'control_pending','awaiting_goal','succeeded','partial','failed','canceled','quarantined'

@@ -122,14 +122,19 @@ type RosterSource struct {
 	Waits       []NodeWait
 	RouteCauses []RouteCause
 	PrunedNodes map[string]bool
+	Outcome     *RunOutcome
 }
 
-// MarkPrunedNode adds durable branch-pruning evidence to a roster source.
-func (s *RosterSource) MarkPrunedNode(generation int, nodeID NodeID) {
+// MarkPrunedNodeItem adds exact durable branch-pruning evidence to a roster source.
+func (s *RosterSource) MarkPrunedNodeItem(generation int, nodeID NodeID, itemIndex int) error {
+	if itemIndex < 0 {
+		return fmt.Errorf("%w: pruned node item index must be zero or positive", ErrValidation)
+	}
 	if s.PrunedNodes == nil {
 		s.PrunedNodes = make(map[string]bool)
 	}
-	s.PrunedNodes[rosterKey(generation, nodeID, 0)] = true
+	s.PrunedNodes[rosterKey(generation, nodeID, itemIndex)] = true
+	return nil
 }
 
 type rosterCursor struct {
@@ -172,23 +177,27 @@ func ProjectRoster(source *RosterSource, query RosterQuery) (RosterPage, error) 
 		}
 	}
 	generations := rosterGenerations(source)
-	outputs := indexOutputs(source.Outputs)
+	outputs, maxOutputItems := indexOutputs(source.Outputs)
 	attempts := indexAttempts(source.Attempts)
 	controls := indexControls(source.Controls)
 	waits := indexWaits(source.Waits)
+	graphNodes := flattenGraphNodes(source.Graph)
 	for _, generation := range generations {
 		if query.Generation > 0 && query.Generation != generation {
 			continue
 		}
 		routeExcluded := excludedRoutes(
-			source.Graph,
+			graphNodes,
 			source.RouteCauses,
 			source.PrunedNodes,
 			generation,
 		)
-		for _, node := range flattenGraphNodes(source.Graph) {
+		for _, node := range graphNodes {
 			key := rosterKey(generation, node.ID, 0)
-			items := rosterItems(source.Run.ID, generation, node, outputs, attempts, controls, waits, routeExcluded)
+			items := rosterItems(
+				source.Run.ID, generation, node, outputs, maxOutputItems,
+				attempts, controls, waits, routeExcluded,
+			)
 			if len(items) == 0 {
 				items = []RosterNode{newRosterNode(
 					source.Run.ID,
@@ -199,7 +208,7 @@ func ProjectRoster(source *RosterSource, query RosterQuery) (RosterPage, error) 
 					attempts[key],
 					controls[node.ID],
 					waits[key],
-					routeExcluded[node.ID],
+					routeExcluded[key],
 				)}
 			}
 			page.Nodes = append(page.Nodes, items...)
@@ -217,10 +226,7 @@ func ProjectRoster(source *RosterSource, query RosterQuery) (RosterPage, error) 
 	end := min(offset+query.Limit, len(filtered))
 	page.Nodes = filtered[offset:end]
 	if end < len(filtered) {
-		page.NextCursor, err = encodeRosterCursor(rosterCursor{Offset: end})
-		if err != nil {
-			return RosterPage{}, err
-		}
+		page.NextCursor = encodeRosterCursor(rosterCursor{Offset: end})
 	}
 	return page, nil
 }

@@ -2,6 +2,7 @@ package globaldb
 
 import (
 	"context"
+	"database/sql"
 	"encoding/json"
 	"fmt"
 	"strings"
@@ -10,7 +11,8 @@ import (
 )
 
 const loopRunSummaryOutputsSQL = `
-SELECT output.loop_run_id, output.generation, output.node_id, output.item_index, output.status
+SELECT output.loop_run_id, output.generation, output.node_id, output.item_index,
+       output.output_id, output.artifact_name, output.status
 FROM loop_generation_outputs AS output
 JOIN loop_runs AS run ON run.id = output.loop_run_id
 WHERE run.workspace_id = ?
@@ -54,7 +56,6 @@ func newLoopRunSummaryProjection(
 
 func (g *LoopRepo) projectLoopRunSummaryProgress(
 	ctx context.Context,
-	workspaceID looppkg.WorkspaceID,
 	projections map[looppkg.RunID]*loopRunSummaryProjection,
 	placeholders []string,
 	args []any,
@@ -62,7 +63,7 @@ func (g *LoopRepo) projectLoopRunSummaryProgress(
 	if err := g.loadLoopRunSummaryOutputs(ctx, projections, placeholders, args); err != nil {
 		return err
 	}
-	if err := g.loadLoopRunSummaryRouteEvidence(ctx, workspaceID, projections, placeholders, args); err != nil {
+	if err := g.loadLoopRunSummaryRouteEvidence(ctx, projections, placeholders, args); err != nil {
 		return err
 	}
 	return nil
@@ -85,8 +86,11 @@ func (g *LoopRepo) loadLoopRunSummaryOutputs(
 	}()
 	for rows.Next() {
 		var runID, nodeID, status string
+		var outputID, artifactName sql.NullString
 		var generation, itemIndex int
-		if scanErr := rows.Scan(&runID, &generation, &nodeID, &itemIndex, &status); scanErr != nil {
+		if scanErr := rows.Scan(
+			&runID, &generation, &nodeID, &itemIndex, &outputID, &artifactName, &status,
+		); scanErr != nil {
 			return fmt.Errorf("store: scan Loop run summary output: %w", scanErr)
 		}
 		projection, ok := projections[looppkg.RunID(runID)]
@@ -94,10 +98,12 @@ func (g *LoopRepo) loadLoopRunSummaryOutputs(
 			return fmt.Errorf("store: Loop run summary output has unknown run %q", runID)
 		}
 		projection.source.Outputs = append(projection.source.Outputs, looppkg.GenerationOutput{
-			Generation: generation,
-			NodeID:     nodeID,
-			ItemIndex:  itemIndex,
-			Status:     status,
+			Generation:   generation,
+			NodeID:       nodeID,
+			ItemIndex:    itemIndex,
+			OutputID:     outputID.String,
+			ArtifactName: artifactName.String,
+			Status:       status,
 		})
 	}
 	if err := rows.Err(); err != nil {
@@ -108,7 +114,6 @@ func (g *LoopRepo) loadLoopRunSummaryOutputs(
 
 func (g *LoopRepo) loadLoopRunSummaryRouteEvidence(
 	ctx context.Context,
-	_ looppkg.WorkspaceID,
 	projections map[looppkg.RunID]*loopRunSummaryProjection,
 	placeholders []string,
 	args []any,
@@ -142,26 +147,27 @@ func (g *LoopRepo) loadLoopRunSummaryRouteEvidence(
 }
 
 func applyLoopRunSummaryRouteEvidence(source *looppkg.RosterSource, kind, payloadJSON string) error {
-	var payload struct {
-		Generation  int64  `json:"generation"`
-		NodeID      string `json:"node_id"`
-		ItemIndex   int    `json:"item_index"`
-		Route       string `json:"route"`
-		Cause       string `json:"cause"`
-		MatchedWhen string `json:"matched_when"`
-		Default     bool   `json:"default"`
-	}
-	if err := json.Unmarshal([]byte(payloadJSON), &payload); err != nil {
-		return err
-	}
-	if payload.Generation < 1 || strings.TrimSpace(payload.NodeID) == "" {
-		return fmt.Errorf("invalid %s payload", kind)
-	}
 	if kind == string(looppkg.RunEventBranchPruned) {
-		source.MarkPrunedNode(int(payload.Generation), looppkg.NodeID(payload.NodeID))
+		payload, err := decodeStoredBranchPrunedEvidence(payloadJSON)
+		if err != nil {
+			return err
+		}
+		for _, itemIndex := range payload.ItemIndexes {
+			if err := source.MarkPrunedNodeItem(
+				int(payload.Generation),
+				looppkg.NodeID(payload.NodeID),
+				itemIndex,
+			); err != nil {
+				return fmt.Errorf("store: mark pruned Loop node item: %w", err)
+			}
+		}
 		return nil
 	}
-	if strings.TrimSpace(payload.Route) == "" || strings.TrimSpace(payload.Cause) == "" || payload.ItemIndex < 0 {
+	payload, err := decodeStoredRouteEvidence(payloadJSON, 0)
+	if err != nil {
+		return err
+	}
+	if payload.Route == "" || payload.Cause == "" || payload.ItemIndex < 0 {
 		return fmt.Errorf("invalid route_taken payload")
 	}
 	source.RouteCauses = append(source.RouteCauses, looppkg.RouteCause{
@@ -174,4 +180,33 @@ func applyLoopRunSummaryRouteEvidence(source *looppkg.RosterSource, kind, payloa
 		Default:     payload.Default,
 	})
 	return nil
+}
+
+type storedBranchPrunedEvidence struct {
+	Generation  int64  `json:"generation"`
+	NodeID      string `json:"node_id"`
+	ItemIndexes []int  `json:"item_indexes"`
+}
+
+func decodeStoredBranchPrunedEvidence(raw string) (storedBranchPrunedEvidence, error) {
+	var payload storedBranchPrunedEvidence
+	if err := json.Unmarshal([]byte(raw), &payload); err != nil {
+		return storedBranchPrunedEvidence{}, fmt.Errorf("store: decode branch_pruned evidence: %w", err)
+	}
+	payload.NodeID = strings.TrimSpace(payload.NodeID)
+	if payload.Generation < 1 || payload.NodeID == "" || len(payload.ItemIndexes) == 0 {
+		return storedBranchPrunedEvidence{}, fmt.Errorf(
+			"%w: persisted branch_pruned identity and item indexes are required",
+			looppkg.ErrValidation,
+		)
+	}
+	for _, itemIndex := range payload.ItemIndexes {
+		if itemIndex < 0 {
+			return storedBranchPrunedEvidence{}, fmt.Errorf(
+				"%w: persisted branch_pruned item index must be zero or positive",
+				looppkg.ErrValidation,
+			)
+		}
+	}
+	return payload, nil
 }

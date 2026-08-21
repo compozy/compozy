@@ -1,4 +1,4 @@
-import { ArrowUpRight, FileText } from "lucide-react";
+import { FileText } from "lucide-react";
 
 import { Pill } from "@compozy/ui";
 
@@ -49,10 +49,18 @@ export function LoopRunArtifactList({ outcome }: LoopRunArtifactListProps) {
               {artifact.note}
             </Pill>
           ) : null}
+          {/* The ref is a content digest, and nothing in the product resolves
+              one — there is no read operation that takes it. It is evidence the
+              bytes existed under that name, so it is printed as evidence. An
+              arrowed "Open" here promised a destination the runtime does not
+              have, which is exactly the control this page must not render. */}
           {artifact.ref ? (
-            <span className="ml-auto inline-flex items-center gap-1 text-form-hint text-subtle">
-              Open
-              <ArrowUpRight aria-hidden="true" className="size-3" />
+            <span
+              className="ml-auto truncate font-mono text-mono-id text-faint"
+              data-testid={`loop-run-artifact-ref-${artifact.name}`}
+              title={artifact.ref}
+            >
+              {artifact.ref}
             </span>
           ) : null}
         </li>

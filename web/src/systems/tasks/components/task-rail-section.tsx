@@ -1,8 +1,8 @@
-import type { ComponentPropsWithoutRef, ReactNode } from "react";
+import type { ComponentProps, ReactNode } from "react";
 
 import { cn } from "@compozy/ui";
 
-export interface TaskRailSectionProps extends ComponentPropsWithoutRef<"section"> {
+export interface TaskRailSectionProps extends ComponentProps<"section"> {
   label: string;
   action?: ReactNode;
   children: ReactNode;

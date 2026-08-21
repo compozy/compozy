@@ -72517,9 +72517,9 @@ export interface operations {
         priority?: "low" | "medium" | "high" | "urgent";
         /** @description Include draft tasks in list results */
         include_drafts?: boolean;
-        /** @description Include Loop execution records */
+        /** @description Include Loop execution records; omitted means false */
         include_loop?: boolean;
-        /** @description Filter by Loop run ID and include Loop records */
+        /** @description Filter by Loop run ID; also includes Loop execution records */
         loop_run_id?: string;
         /** @description Filter by task approval state */
         approval_state?: "not_required" | "pending" | "approved" | "rejected";
@@ -99412,8 +99412,7 @@ export interface operations {
               budget_used_pct?: number;
               /** Format: double */
               cost_usd?: number;
-              /** Format: int64 */
-              duration_ms?: number;
+              duration?: string;
               /** Format: int64 */
               tokens: number;
             };
@@ -100933,7 +100932,18 @@ export interface operations {
     parameters: {
       query?: {
         /** @description Filter by roster state */
-        state?: string;
+        state?:
+          | "all"
+          | "running"
+          | "queued"
+          | "waiting"
+          | "retrying"
+          | "paused"
+          | "quarantined"
+          | "succeeded"
+          | "failed"
+          | "canceled"
+          | "not_taken";
         /** @description Filter by generation */
         generation?: number;
         /** @description Opaque roster cursor */
@@ -103802,7 +103812,7 @@ export interface operations {
     parameters: {
       query?: {
         /** @description Timeline view: notable or all */
-        view?: string;
+        view?: "notable" | "all";
         /** @description Opaque snapshot-fenced cursor */
         cursor?: string;
         /** @description Maximum entries to return */

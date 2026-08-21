@@ -1,6 +1,10 @@
 import type { LoopFanoutRollup, LoopRosterNode } from "../types";
 import type { LoopGraph } from "./loop-graph";
-import { type LoopStateChip, loopRosterStateChip } from "./loop-run-state-copy";
+import {
+  type LoopRosterState,
+  type LoopStateChip,
+  loopRosterStateChip,
+} from "./loop-run-state-copy";
 
 /**
  * Fan-out, drawn once and read twice.
@@ -85,10 +89,15 @@ export interface LoopFanOutBand {
   countLabel: string;
 }
 
-function attemptLabel(node: LoopRosterNode): string | null {
-  // "attempt 2" is metadata on the step, never a sibling step. A first attempt
-  // is the unremarkable case and says nothing.
-  return node.attempt > 1 ? `attempt ${node.attempt}` : null;
+/**
+ * "attempt 2" is metadata on the step, never a sibling step. A first attempt is
+ * the unremarkable case and says nothing.
+ *
+ * One owner for the wording and the threshold: branch metadata and ordinary-step
+ * metadata cannot disagree about when an attempt is worth mentioning.
+ */
+export function loopAttemptLabel(attempt: number): string | null {
+  return attempt > 1 ? `attempt ${attempt}` : null;
 }
 
 /**
@@ -131,16 +140,71 @@ function branchLabel(node: LoopRosterNode, fanOutNodeId: string): string {
   return node.node_id === fanOutNodeId ? `item ${node.item_index}` : node.node_id;
 }
 
+/**
+ * The rollup in words, for a fan too wide to name its branches.
+ *
+ * Once the branch chips fold away this sentence is the only place a partial or a
+ * parked worker can still be read, so every state that carries meaning has to
+ * appear here — a fan that quietly reads "10 done" when one of them came back
+ * partial is the calm-but-false rollup Safety Invariant 12 forbids.
+ */
 function summarySentence(rollup: LoopFanoutRollup, branches: LoopFanOutBranch[]): string {
+  const partial = branches.filter(branch => branch.chip.state === "partial").length;
   const parts: string[] = [`${rollup.done} done`];
   if (rollup.failed > 0) parts.push(`${rollup.failed} failed`);
+  if (partial > 0) parts.push(`${partial} partial`);
   const running = branches.filter(branch => branch.segment === "active").length;
   if (running > 0) parts.push(`${running} still running`);
   const parked = branches.filter(branch => branch.segment === "parked").length;
   if (parked > 0) parts.push(`${parked} waiting`);
+  const canceled = branches.filter(branch => branch.segment === "canceled").length;
+  if (canceled > 0) parts.push(`${canceled} canceled`);
   const skipped = branches.filter(branch => branch.segment === "never").length;
   if (skipped > 0) parts.push(`${skipped} skipped`);
   return parts.join(" · ");
+}
+
+/**
+ * The state a fan-out container wears, derived from the fate of its branches.
+ *
+ * One owner for a question three surfaces used to answer three ways. Trouble
+ * outranks waiting, waiting outranks activity, and calm comes last — so a fan
+ * never hides a failed or partial worker behind a healthy-looking chip. The
+ * order is exhaustive over the roster vocabulary: a state missing from it would
+ * fall through to the rollup arithmetic and read as calm.
+ *
+ * The calm tail matters as much as the head. `canceled` and `not_taken` count as
+ * done in the server's rollup and are not work anyone is still owed, so a fan of
+ * one success and one skipped branch reads succeeded rather than skipped.
+ */
+const CONTAINER_PRECEDENCE = [
+  "failed",
+  "quarantined",
+  "partial",
+  "control_pending",
+  "awaiting_goal",
+  "awaiting_child",
+  "waiting",
+  "retrying",
+  "paused",
+  "running",
+  "queued",
+  "pending",
+  "succeeded",
+  "canceled",
+  "not_taken",
+] as const satisfies readonly LoopRosterState[];
+
+export function loopFanOutContainerState(
+  states: readonly string[],
+  rollup: Pick<LoopFanoutRollup, "done" | "total">
+): string {
+  for (const candidate of CONTAINER_PRECEDENCE) {
+    if (states.includes(candidate)) return candidate;
+  }
+  // No branch state we recognise: fall back on the served arithmetic rather than
+  // inventing a state the roster never reported.
+  return rollup.total > 0 && rollup.done === rollup.total ? "succeeded" : "pending";
 }
 
 function countLabel(rollup: LoopFanoutRollup): string {
@@ -177,7 +241,7 @@ export function buildFanOutBand({
     label: branchLabel(node, rollup.node_id),
     chip: loopRosterStateChip(node.state),
     segment: progressSegmentForState(node.state),
-    attemptLabel: attemptLabel(node),
+    attemptLabel: loopAttemptLabel(node.attempt),
     nodeId: node.node_id,
     itemIndex: node.item_index,
   }));

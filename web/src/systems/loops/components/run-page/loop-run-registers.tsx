@@ -26,6 +26,8 @@ import type { LoopInspectLane } from "./inspect/loop-run-inspect-register";
 import { LoopRunInspectRegister } from "./inspect/loop-run-inspect-register";
 import { LoopGenerationHistory } from "./inspect/loop-generation-history";
 import { LoopRunEventsLane } from "./inspect/loop-run-events-lane";
+import type { LoopRunEventsRead } from "./inspect/loop-run-events-lane";
+import type { LoopRunRosterRead } from "./loop-run-page-body";
 import type { LoopRunGeneration } from "../../types";
 
 interface LoopRunRegistersProps {
@@ -62,6 +64,19 @@ interface LoopRunRegistersProps {
   renderNodeActions?: (node: LoopNodeLifecycle) => ReactNode;
   onCompareGeneration?: (generation: number) => void;
   onForkGeneration?: (generation: number) => void;
+  /**
+   * Whether the roster read has answered. Without it the lanes cannot tell a run
+   * that reached no steps from one whose steps have not been read yet.
+   */
+  rosterRead?: LoopRunRosterRead;
+  /**
+   * The raw activity stream for the Events lane, read at `view=all`.
+   *
+   * Optional because the page can mount before that second read is wired; the
+   * lane then borrows Story's notable projection and labels itself as such,
+   * rather than presenting a filtered subset as the whole event log.
+   */
+  events?: Omit<LoopRunEventsRead, "view">;
 }
 
 /**
@@ -94,6 +109,8 @@ export function LoopRunRegisters({
   renderNodeActions,
   onCompareGeneration,
   onForkGeneration,
+  rosterRead,
+  events,
 }: LoopRunRegistersProps) {
   const [lane, setLane] = useState<LoopInspectLane>("graph");
   // `null` means "whatever round the run is on"; `"all"` is an explicit choice.
@@ -107,7 +124,14 @@ export function LoopRunRegisters({
   // pauses, waits or quarantine, and dropping them would offer verbs the daemon
   // refuses. A healthy node gets a stand-in built only from roster truth.
   const verbTarget = resolveNodeVerbTarget(selection, nodeLifecycles, nodes);
-  const roster = buildRosterTable({ nodes, rollups, graph, round, nowMs });
+  const roster = buildRosterTable({
+    nodes,
+    rollups,
+    graph,
+    round,
+    nowMs,
+    isComplete: registers.reach.isComplete,
+  });
   const generationRows = buildGenerationHistory({ generations, nodes, runStatus });
   const reachNote = loopRosterReachNote(registers.reach);
 
@@ -118,55 +142,68 @@ export function LoopRunRegisters({
       generation: row.generation,
     });
 
+  const focusNote =
+    lane === "graph" && registers.dag.focusReason ? registers.dag.focusReason : null;
+  // Collected rather than nested, so "no notes at all" is a value the register
+  // can act on. A fragment is always truthy, and passing one unconditionally
+  // gave every uneventful read an empty bordered strip to explain.
+  const footNotes: ReactNode[] = [];
+  if (focusNote) {
+    footNotes.push(
+      <span data-testid="loop-run-inspect-focus" key="focus">
+        {focusNote}
+      </span>
+    );
+  }
+  // A partial roster must never read as the whole run: the daemon returns oldest
+  // round first, so a truncated read can be missing the round these views are
+  // about. Saying so is not enough on its own — the reader also gets a way
+  // through, here and at the command line.
+  if (reachNote) {
+    footNotes.push(
+      <span
+        data-testid={
+          registers.reach.isTruncated ? "loop-run-inspect-truncated" : "loop-run-inspect-loading"
+        }
+        key="reach"
+      >
+        {reachNote}
+      </span>
+    );
+  }
+  if (registers.reach.isTruncated) {
+    if (onLoadMoreRoster) {
+      footNotes.push(
+        <Button
+          data-testid="loop-run-inspect-load-more"
+          disabled={isLoadingMoreRoster}
+          key="load-more"
+          onClick={onLoadMoreRoster}
+          size="sm"
+          type="button"
+          variant="ghost"
+        >
+          {isLoadingMoreRoster ? "Reading…" : "Read the rest"}
+        </Button>
+      );
+    }
+    footNotes.push(
+      <span className="font-mono text-mono-id text-faint" key="continuation">
+        {LOOP_ROSTER_CONTINUATION_COMMAND}
+      </span>
+    );
+  }
+
   return (
     <LoopRunInspectRegister
-      eventCount={registers.eventCount}
-      foot={
-        <>
-          {lane === "graph" && registers.dag.focusReason ? (
-            <span data-testid="loop-run-inspect-focus">{registers.dag.focusReason}</span>
-          ) : null}
-          {/* A partial roster must never read as the whole run: the daemon
-              returns oldest round first, so a truncated read can be missing the
-              round these views are about. Saying so is not enough on its own —
-              the reader also gets a way through, here and at the command line. */}
-          {reachNote ? (
-            <span
-              data-testid={
-                registers.reach.isTruncated
-                  ? "loop-run-inspect-truncated"
-                  : "loop-run-inspect-loading"
-              }
-            >
-              {reachNote}
-            </span>
-          ) : null}
-          {registers.reach.isTruncated ? (
-            <>
-              {onLoadMoreRoster ? (
-                <Button
-                  data-testid="loop-run-inspect-load-more"
-                  disabled={isLoadingMoreRoster}
-                  onClick={onLoadMoreRoster}
-                  size="sm"
-                  type="button"
-                  variant="ghost"
-                >
-                  {isLoadingMoreRoster ? "Reading…" : "Read the rest"}
-                </Button>
-              ) : null}
-              <span className="font-mono text-mono-id text-faint">
-                {LOOP_ROSTER_CONTINUATION_COMMAND}
-              </span>
-            </>
-          ) : null}
-        </>
-      }
+      loadedEventCount={registers.loadedEventCount}
+      foot={footNotes.length > 0 ? footNotes : undefined}
       generationCount={generations.length}
       isLive={isLive}
       isReconnecting={isReconnecting}
       lane={lane}
-      nodeCount={registers.nodeCount}
+      loadedNodeCount={registers.reach.loadedCount}
+      reach={registers.reach}
       onLaneChange={setLane}
       onOpenChange={onOpenChange}
       open={open}
@@ -175,13 +212,15 @@ export function LoopRunRegisters({
         <LoopRunDag
           dag={registers.dag}
           onSelect={onSelectionChange}
-          selectedNodeId={selection?.nodeId ?? null}
+          read={rosterRead}
+          selection={selection}
         />
       ) : null}
       {lane === "nodes" ? (
         <LoopNodeRoster
           onRoundChange={next => setRoundChoice(next === null ? "all" : next)}
           onSelect={selectRosterRow}
+          read={rosterRead}
           round={round}
           roster={roster}
           selectedKey={
@@ -202,7 +241,22 @@ export function LoopRunRegisters({
           rows={generationRows}
         />
       ) : null}
-      {lane === "events" ? <LoopRunEventsLane beats={registers.beats} /> : null}
+      {lane === "events" ? (
+        <LoopRunEventsLane
+          read={
+            events
+              ? { ...events, view: "all" }
+              : {
+                  beats: registers.beats,
+                  view: "notable",
+                  hasOlder: false,
+                  isLoading: false,
+                  isError: false,
+                  isLoadingOlder: false,
+                }
+          }
+        />
+      ) : null}
       {panel && lane !== "events" ? (
         <div className="border-t border-line-soft p-4">
           <LoopNodePanel

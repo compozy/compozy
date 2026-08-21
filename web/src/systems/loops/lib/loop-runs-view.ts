@@ -42,7 +42,8 @@ export interface LoopRunRow {
 export interface LoopRunGroup {
   id: LoopRunGroupId;
   label: string;
-  rows: LoopRunRow[];
+  /** The daemon's ranking, restated. Readonly so no consumer can re-sort it. */
+  rows: readonly LoopRunRow[];
 }
 
 export interface LoopRunsEmptyState {
@@ -53,8 +54,16 @@ export interface LoopRunsEmptyState {
 
 export interface LoopRunsRosterModel {
   /** Only groups with rows, in server order: needs-you, then active, then recent. */
-  groups: LoopRunGroup[];
-  total: number;
+  groups: readonly LoopRunGroup[];
+  /**
+   * Rows on screen after filtering — not the workspace's run count.
+   *
+   * The list read is paged and carries its own `next_cursor`, so this slice has
+   * no standing to be called a total. A real aggregate has to come from the
+   * server's `aggregates` envelope, which is the only thing that counts rows
+   * nobody has loaded.
+   */
+  loadedCount: number;
   needsYouCount: number;
   /** Set only when there is genuinely nothing — never when a read is in flight. */
   emptyState: LoopRunsEmptyState | null;
@@ -67,7 +76,7 @@ const GROUP_LABELS: Record<LoopRunGroupId, string> = {
 };
 
 /** Group order is the server's ranking, restated so the page cannot drift from it. */
-const GROUP_ORDER: LoopRunGroupId[] = ["needs-you", "active", "recent"];
+const GROUP_ORDER: readonly LoopRunGroupId[] = ["needs-you", "active", "recent"];
 
 function groupOf(run: LoopRun): LoopRunGroupId {
   // Attention is a served summary, not something the page infers from status.
@@ -154,7 +163,7 @@ export function buildRunsRoster(
   }));
   return {
     groups,
-    total: filtered.length,
+    loadedCount: filtered.length,
     needsYouCount: buckets.get("needs-you")?.length ?? 0,
     emptyState:
       filtered.length === 0

@@ -100,6 +100,10 @@ function invalidateLoopRequestQueries(
   void queryClient.invalidateQueries({ queryKey: loopsKeys.runDetail(workspaceId, runId) });
   void queryClient.invalidateQueries({ queryKey: loopsKeys.nodeInventoryByWorkspace(workspaceId) });
   void queryClient.invalidateQueries({ queryKey: loopsKeys.requestsByWorkspace(workspaceId) });
+  // The workspace roster carries a server-owned needs-you marker, and a request
+  // can be opened or answered from another surface entirely. Without this the
+  // run list keeps advertising a decision that has already been made.
+  void queryClient.invalidateQueries({ queryKey: loopsKeys.runsByWorkspace(workspaceId) });
   // A request opening or closing changes the served verdict, so the briefing has
   // to be re-read rather than inferred from the frame.
   void queryClient.invalidateQueries({ queryKey: loopsKeys.runReads(workspaceId, runId) });

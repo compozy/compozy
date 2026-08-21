@@ -71,6 +71,12 @@ const reviewContract: LoopContract = {
   no_progress: { window: 2 },
 };
 
+/** A round the run has actually reached, with a step count that fits inside it. */
+function defaultProgress(generation: number): LoopRun["progress"] {
+  if (generation <= 0) return { round: 0, steps_done: 0, steps_total: 4 };
+  return { round: generation, steps_done: 2, steps_total: 4 };
+}
+
 function buildRun(
   overrides: Partial<LoopRun> & Pick<LoopRun, "id" | "loop_name" | "status">
 ): LoopRun {
@@ -93,9 +99,13 @@ function buildRun(
     definition_version: definitionVersion,
     definition_digest: "sha256:mock-loop-definition",
     start_metadata: {},
-    // Server-owned step/round progress (B-001): the roster reads it, never derives it.
-    progress: { round: 3, steps_done: 2, steps_total: 4 },
     ...overrides,
+    // Server-owned step/round progress (B-001): the roster reads it, never
+    // derives it — which is exactly why the fixture cannot leave it behind when
+    // a caller moves the run to another round. A fixed `round: 3` under a
+    // `generation: 1` run is a row the daemon could never emit, and the roster
+    // renders `run.progress` verbatim, so it would ship as a visible lie.
+    progress: overrides.progress ?? defaultProgress(overrides.generation ?? 3),
     forks: overrides.forks ?? [],
   };
 }

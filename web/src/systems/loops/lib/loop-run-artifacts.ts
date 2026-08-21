@@ -1,6 +1,7 @@
 import type { PillTone } from "@compozy/ui";
 
 import type { LoopBriefing, LoopRunArtifact, LoopRunOutcome } from "../types";
+import { loopOutcomeLabel } from "./loop-formatters";
 
 /**
  * What a finished run produced, and what became of it.
@@ -62,20 +63,6 @@ function readAvailability(value: string): LoopArtifactAvailability {
   return value === "partial" || value === "pruned" ? value : "available";
 }
 
-const OUTCOME_LABELS: Record<string, string> = {
-  done: "Done",
-  "no-op": "Nothing to do",
-  blocked: "Blocked",
-  failed: "Failed",
-  exhausted: "Exhausted",
-  stalled: "Stalled",
-  canceled: "Canceled",
-};
-
-function outcomeLabel(status: string): string {
-  return OUTCOME_LABELS[status] ?? "Finished";
-}
-
 function actorLabel(outcome: LoopRunOutcome): string | null {
   const ref = outcome.actor_ref?.trim();
   if (ref) return ref;
@@ -106,7 +93,7 @@ export function buildRunOutcome(briefing: LoopBriefing): LoopRunOutcomeModel {
     outcome: outcome
       ? {
           status: outcome.status,
-          label: outcomeLabel(outcome.status),
+          label: loopOutcomeLabel(outcome.status),
           cause: outcome.cause?.trim() ? outcome.cause : null,
           at: outcome.at,
           actorLabel: actorLabel(outcome),

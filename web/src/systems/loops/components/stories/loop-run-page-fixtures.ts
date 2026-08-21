@@ -134,11 +134,6 @@ export function watchingScenario(): LoopRunStoryScenario {
         ],
       },
     ],
-    watchEvents: {
-      subscriptions: [{ kind: "event.post_record", filter: "payload.inbox == input.inbox" }],
-      cursors: { workspace_events: 4_182 },
-      last_wake_at: minutesAgo(16),
-    },
   };
 }
 

@@ -10,9 +10,12 @@ import {
 } from "../loop-run-live-seam";
 import type { LoopTimelineEntry, LoopTimelinePage } from "../../types";
 
+/** One fixed epoch plus the sequence, so a sequence maps to exactly one instant. */
+const EPOCH = Date.parse("2026-08-21T12:00:00.000Z");
+
 function entry(seq: number, overrides: Partial<LoopTimelineEntry> = {}): LoopTimelineEntry {
   return {
-    at: `2026-08-21T12:00:${String(seq % 60).padStart(2, "0")}.000Z`,
+    at: new Date(EPOCH + seq * 1_000).toISOString(),
     kind: "node_succeeded",
     seq,
     title: `Step ${seq} finished`,

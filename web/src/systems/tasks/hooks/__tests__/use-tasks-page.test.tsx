@@ -143,6 +143,7 @@ import {
   type TaskListPage,
   tasksKeys,
   type TasksRouteSearch,
+  type TaskViewMode,
   validateTasksSearch,
 } from "@/systems/tasks";
 
@@ -162,6 +163,21 @@ function useControlledTasksPage(initialSearch: TasksRouteSearch = {}) {
   return useTasksPage({
     search,
     onSearchChange: update => setSearch(current => update(current)),
+  });
+}
+
+/**
+ * The same hook, with the surface owned from outside the way the route owns it.
+ * Switching surfaces is a navigation, not a hook call — so exercising the reset
+ * means rerendering one hook across modes, never mounting a fresh one.
+ */
+function useRouteControlledTasksPage(mode: TaskViewMode) {
+  const [search, setSearch] = useState<TasksRouteSearch>({});
+  // `list` is the absence of a mode in the route, exactly as the router spells it.
+  const modeSearch: TasksRouteSearch = mode === "list" ? {} : { mode };
+  return useTasksPage({
+    search: { ...search, ...modeSearch },
+    onSearchChange: update => setSearch(current => update({ ...current, ...modeSearch })),
   });
 }
 
@@ -342,7 +358,10 @@ describe("useTasksPage", () => {
   });
 
   it("resets the reveal when the surface changes so the board stays work-items only", async () => {
-    const { result } = renderHook(() => useControlledTasksPage(), { wrapper: createWrapper() });
+    const { result, rerender } = renderHook(({ mode }) => useRouteControlledTasksPage(mode), {
+      initialProps: { mode: "list" as TaskViewMode },
+      wrapper: createWrapper(),
+    });
 
     await waitFor(() => {
       expect(result.current.visibleTasks).toHaveLength(3);
@@ -363,18 +382,23 @@ describe("useTasksPage", () => {
       expect(result.current.recordsFilter).toBe("loop");
     });
 
-    const { result: kanban } = renderHook(() => useControlledTasksPage({ mode: "kanban" }), {
-      wrapper: createWrapper(),
-    });
+    // The surface changes under the same hook — the only way the reset branch
+    // runs at all. A freshly mounted kanban hook starts calm by construction and
+    // would pass this even with the reset deleted.
+    rerender({ mode: "kanban" as TaskViewMode });
     await waitFor(() => {
-      expect(kanban.current.visibleTasks).toHaveLength(3);
-    });
-    act(() => {
-      kanban.current.handleRecordsFilterChange("loop");
+      expect(result.current.recordsFilter).toBe("work");
     });
     await waitFor(() => {
       const [boardFilters] = vi.mocked(listTasks).mock.calls.at(-1) ?? [];
       expect(boardFilters?.include_loop).toBeUndefined();
+    });
+
+    // And coming back is a fresh context too: a reveal must never survive a
+    // round trip through another surface.
+    rerender({ mode: "list" as TaskViewMode });
+    await waitFor(() => {
+      expect(result.current.recordsFilter).toBe("work");
     });
   });
 

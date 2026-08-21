@@ -6,6 +6,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"slices"
 	"sync"
 	"testing"
 	"time"
@@ -190,6 +191,7 @@ func TestGlobalDBLoopReadServiceIntegration(t *testing.T) {
 				readerSequences[index], readerErrors[index] = drainTimelineSequencesForReadTest(
 					ctx,
 					reads,
+					"ws-events",
 					createdA.ID,
 					page,
 					looppkg.TimelineQuery{View: looppkg.TimelineViewAll, AfterSeq: 1, Limit: 2},
@@ -198,8 +200,8 @@ func TestGlobalDBLoopReadServiceIntegration(t *testing.T) {
 		}
 		waitGroup.Wait()
 		if readerErrors[0] != nil || readerErrors[1] != nil ||
-			fmt.Sprint(readerSequences[0]) != fmt.Sprint(readerSequences[1]) ||
-			fmt.Sprint(readerSequences[0]) != "[5 4 3 2]" {
+			!slices.Equal(readerSequences[0], readerSequences[1]) ||
+			!slices.Equal(readerSequences[0], []int64{5, 4, 3, 2}) {
 			t.Fatalf("timeline readers = %v/%v errors=%v/%v", readerSequences[0], readerSequences[1], readerErrors[0], readerErrors[1])
 		}
 		if first.HeadSeq != 4 {
@@ -396,6 +398,7 @@ func insertReadEvent(
 func drainTimelineSequencesForReadTest(
 	ctx context.Context,
 	reads looppkg.RunReadService,
+	workspaceID string,
 	runID looppkg.RunID,
 	page looppkg.TimelinePage,
 	query looppkg.TimelineQuery,
@@ -410,7 +413,7 @@ func drainTimelineSequencesForReadTest(
 		}
 		query.Cursor = page.NextCursor
 		var err error
-		page, err = reads.Timeline(ctx, "ws-events", runID, query)
+		page, err = reads.Timeline(ctx, workspaceID, runID, query)
 		if err != nil {
 			return nil, fmt.Errorf("read timeline continuation: %w", err)
 		}

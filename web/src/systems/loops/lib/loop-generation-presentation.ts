@@ -1,5 +1,6 @@
 import type { LoopRosterNode, LoopRun, LoopRunGeneration } from "../types";
 import { isTerminalLoopStatus } from "./loop-formatters";
+import { isFailedRosterState, isUnsettledRosterState } from "./loop-run-state-copy";
 import { deriveCostEstimate } from "./loop-run-usage";
 
 const ORIGIN_LABELS: Record<LoopRunGeneration["origin"], string> = {
@@ -108,20 +109,6 @@ export interface LoopGenerationRow {
   endedAt: string | null;
 }
 
-const UNSETTLED_ROSTER_STATES = new Set([
-  "pending",
-  "queued",
-  "running",
-  "retrying",
-  "waiting",
-  "paused",
-  "awaiting_child",
-  "control_pending",
-  "awaiting_goal",
-]);
-
-const FAILED_ROSTER_STATES = new Set(["failed", "canceled", "quarantined", "partial"]);
-
 function outcomeOf(generation: LoopRunGeneration): { label: string; tone: LoopGenerationTone } {
   const verdicts = generation.verdicts;
   if (verdicts.length === 0) return { label: "no verdict recorded", tone: "neutral" };
@@ -134,14 +121,23 @@ function outcomeOf(generation: LoopRunGeneration): { label: string; tone: LoopGe
   return { label: `partly accepted — ${approved} of ${verdicts.length}`, tone: "warning" };
 }
 
+/**
+ * How far a round got, from the fate of its rows.
+ *
+ * A round with no rows at all is the case worth being careful about. On a live
+ * run that is almost never "this round finished with nothing in it" — it is a
+ * round whose rows have not been read yet, and calling it settled hands the
+ * operator a conclusion the page has no evidence for. Only once the run itself
+ * has stopped can an empty round be reported as over.
+ */
 function progressOf(
   nodes: readonly LoopRosterNode[],
   runStatus: string | undefined
 ): LoopGenerationProgressState {
-  if (nodes.length === 0) return "settled";
-  const unsettled = nodes.some(node => UNSETTLED_ROSTER_STATES.has(node.state));
+  if (nodes.length === 0) return isTerminalLoopStatus(runStatus) ? "settled" : "in-progress";
+  const unsettled = nodes.some(node => isUnsettledRosterState(node.state));
   if (unsettled) return isTerminalLoopStatus(runStatus) ? "interrupted" : "in-progress";
-  const failed = nodes.some(node => FAILED_ROSTER_STATES.has(node.state));
+  const failed = nodes.some(node => isFailedRosterState(node.state));
   const succeeded = nodes.some(node => node.state === "succeeded");
   return failed && succeeded ? "partial" : "settled";
 }
@@ -178,14 +174,22 @@ export function buildGenerationHistory({
   nodes,
   runStatus,
 }: BuildGenerationHistoryInput): LoopGenerationRow[] {
+  // Indexed once: a run with many rounds and a large roster would otherwise
+  // rescan every loaded row for every round it draws.
+  const byRound = new Map<number, LoopRosterNode[]>();
+  for (const node of nodes) {
+    const bucket = byRound.get(node.generation);
+    if (bucket) bucket.push(node);
+    else byRound.set(node.generation, [node]);
+  }
   return [...generations]
     .sort((left, right) => right.generation - left.generation)
     .map(generation => {
-      const roundNodes = nodes.filter(node => node.generation === generation.generation);
+      const roundNodes = byRound.get(generation.generation) ?? [];
       const outcome = outcomeOf(generation);
       const progressState = progressOf(roundNodes, runStatus);
       const tokens = roundNodes.reduce((total, node) => total + (node.usage?.tokens ?? 0), 0);
-      const hasUsage = roundNodes.length > 0 && tokens > 0;
+      const hasUsage = tokens > 0;
       return {
         generation: generation.generation,
         outcomeLabel: outcome.label,

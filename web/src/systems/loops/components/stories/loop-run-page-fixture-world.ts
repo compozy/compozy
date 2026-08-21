@@ -15,7 +15,18 @@ import type {
 
 /** Shared story data for the bundled agent-authored review Loop. */
 
-export const STORY_NOW = Date.now();
+/**
+ * The story clock, pinned.
+ *
+ * `Date.now()` here made every fixture with a fixed timestamp drift a little
+ * further from the run it belonged to on each passing day, and turned every
+ * elapsed reading in a visual-contract capture into a value that changes
+ * between runs. One fixed instant is what makes two captures comparable.
+ */
+export const STORY_NOW = Date.UTC(2026, 7, 19, 18, 45, 0);
+
+/** The one run every register and visual-contract fixture stages. */
+export const STORY_RUN_ID = "r-7c4e19";
 
 export function minutesAgo(minutes: number): string {
   return new Date(STORY_NOW - minutes * 60_000).toISOString();
@@ -183,7 +194,7 @@ export const metricRatchetDefinition: LoopDefinition = {
 
 export function reviewAndFixRun(overrides: Partial<LoopRunRecord> = {}): LoopRunRecord {
   return {
-    id: "r-7c4e19",
+    id: STORY_RUN_ID,
     workspace_id: "ws_default",
     loop_name: "review-and-fix",
     status: "running",
@@ -253,7 +264,7 @@ type FrameBuilder = (
   payload: Record<string, unknown>
 ) => LoopRunEventFrame;
 
-export function createFrameFactory(runID = "r-7c4e19"): FrameBuilder {
+export function createFrameFactory(runID = STORY_RUN_ID): FrameBuilder {
   let seq = 0;
   return (kind, minutes, payload) => {
     seq += 1;

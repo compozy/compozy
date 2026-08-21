@@ -3,6 +3,7 @@ import { PlugZap, Search } from "lucide-react";
 
 import { LaneTabs, Pill, PillDot } from "@compozy/ui";
 
+import type { LoopRosterReach } from "../../../lib/loop-run-registers-view";
 import { LoopSection } from "../../loop-section";
 
 export type LoopInspectLane = "graph" | "nodes" | "generations" | "events";
@@ -10,15 +11,28 @@ export type LoopInspectLane = "graph" | "nodes" | "generations" | "events";
 interface LoopRunInspectRegisterProps {
   lane: LoopInspectLane;
   onLaneChange: (lane: LoopInspectLane) => void;
-  nodeCount: number;
+  /**
+   * Rows and entries actually read, not the run's totals — the roster and the
+   * timeline are both paged, so neither number can claim to be a denominator.
+   * `reach` is what says whether the roster number is the whole story.
+   */
+  loadedNodeCount: number;
+  loadedEventCount: number;
+  /** Generations arrive whole with the run detail, so this one is a total. */
   generationCount: number;
-  eventCount: number;
+  /** How much of the roster these counts were drawn from. */
+  reach: LoopRosterReach;
   /** True while the run is live and the stream is attached. */
   isLive: boolean;
   /** True when the stream dropped; the lane keeps its last reconciled read. */
   isReconnecting: boolean;
-  open?: boolean;
-  onOpenChange?: (open: boolean) => void;
+  /**
+   * Required, not optional: the page owns whether Inspect is open, and an
+   * uncontrolled fallback would let the register's disclosure drift away from
+   * the page state that decides which node the reads are about.
+   */
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
   children: ReactNode;
   /** The lane's own foot: what it centred on, how old the read is. */
   foot?: ReactNode;
@@ -37,9 +51,10 @@ interface LoopRunInspectRegisterProps {
 export function LoopRunInspectRegister({
   lane,
   onLaneChange,
-  nodeCount,
+  loadedNodeCount,
   generationCount,
-  eventCount,
+  loadedEventCount,
+  reach,
   isLive,
   isReconnecting,
   open,
@@ -47,11 +62,20 @@ export function LoopRunInspectRegister({
   children,
   foot,
 }: LoopRunInspectRegisterProps) {
+  // The gist is the only line a reader sees before deciding whether to open
+  // this, so it is where the loaded counts have to admit what they are. A
+  // truncated roster reads `200+ steps`; one still arriving says so in words.
+  // The lane tabs keep the bare numbers — they label what is in the lane below.
+  const steps = reach.isTruncated
+    ? `${loadedNodeCount}+ steps`
+    : reach.isComplete
+      ? `${loadedNodeCount} ${loadedNodeCount === 1 ? "step" : "steps"}`
+      : `reading steps…`;
   const gist = [
     "graph",
-    `${nodeCount} ${nodeCount === 1 ? "step" : "steps"}`,
+    steps,
     `${generationCount} ${generationCount === 1 ? "round" : "rounds"}`,
-    `${eventCount} events`,
+    `${loadedEventCount} events`,
   ].join(" · ");
   return (
     <LoopSection
@@ -88,14 +112,19 @@ export function LoopRunInspectRegister({
           ariaLabel="Operator register"
           items={[
             { value: "graph", label: "Graph", testId: "loop-lane-graph" },
-            { value: "nodes", label: "Nodes", count: nodeCount, testId: "loop-lane-nodes" },
+            { value: "nodes", label: "Nodes", count: loadedNodeCount, testId: "loop-lane-nodes" },
             {
               value: "generations",
               label: "Generations",
               count: generationCount,
               testId: "loop-lane-generations",
             },
-            { value: "events", label: "Events", count: eventCount, testId: "loop-lane-events" },
+            {
+              value: "events",
+              label: "Events",
+              count: loadedEventCount,
+              testId: "loop-lane-events",
+            },
           ]}
           listClassName="border-b border-line-soft px-2"
           onChange={onLaneChange}

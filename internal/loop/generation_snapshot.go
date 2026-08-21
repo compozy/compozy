@@ -34,6 +34,8 @@ type GenerationOutput struct {
 	Generation       int              `json:"generation,omitempty"`
 	NodeID           string           `json:"node_id"`
 	ItemIndex        int              `json:"item_index,omitempty"`
+	OutputID         string           `json:"output_id,omitempty"`
+	ArtifactName     string           `json:"artifact_name,omitempty"`
 	Status           string           `json:"status"`
 	OutputRef        string           `json:"output_ref,omitempty"`
 	TaskRunID        string           `json:"task_run_id,omitempty"`
@@ -267,12 +269,14 @@ func writeGenerationOutput(
 	result, err := tx.ExecContext(
 		ctx,
 		`INSERT INTO loop_generation_outputs (
-			loop_run_id, generation, node_id, item_index, status, output_ref, task_run_id,
-			child_loop_run_id, resolved_runtime_json, attempt, next_attempt_at,
+			loop_run_id, generation, node_id, item_index, status, output_id, artifact_name,
+			output_ref, task_run_id, child_loop_run_id, resolved_runtime_json, attempt, next_attempt_at,
 			first_scheduled_at, epoch
-		) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+		) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 		ON CONFLICT(loop_run_id, generation, node_id, item_index) DO UPDATE SET
 			status = excluded.status,
+			output_id = excluded.output_id,
+			artifact_name = excluded.artifact_name,
 			output_ref = excluded.output_ref,
 			task_run_id = excluded.task_run_id,
 			child_loop_run_id = excluded.child_loop_run_id,
@@ -293,6 +297,8 @@ func writeGenerationOutput(
 		output.NodeID,
 		output.ItemIndex,
 		output.Status,
+		sqlNullString(output.OutputID),
+		sqlNullString(output.ArtifactName),
 		sqlNullString(output.OutputRef),
 		sqlNullString(output.TaskRunID),
 		sqlNullString(output.ChildLoopRunID),
@@ -352,6 +358,8 @@ func writeGenerationOutputBlob(ctx context.Context, tx task.Tx, blob GenerationO
 
 func (o GenerationOutput) normalized() GenerationOutput {
 	o.NodeID = strings.TrimSpace(o.NodeID)
+	o.OutputID = strings.TrimSpace(o.OutputID)
+	o.ArtifactName = strings.TrimSpace(o.ArtifactName)
 	o.Status = strings.TrimSpace(o.Status)
 	if o.ResolvedRuntime != nil {
 		normalized := normalizeResolvedRuntime(*o.ResolvedRuntime)

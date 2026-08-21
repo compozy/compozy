@@ -37,6 +37,18 @@ func TestOpenGlobalDBBootstrapsLoopSchemaIntegration(t *testing.T) {
 		); err != nil {
 			t.Fatalf("UpsertLoopConfig(environment) error = %v", err)
 		}
+		now := time.Date(2026, time.August, 21, 10, 0, 0, 0, time.UTC)
+		run := testLoopRun("looprun-artifact-identity-reopen", now, looppkg.StatusRunning)
+		run.WorkspaceID = "ws-loop-environment"
+		created, err := first.CreateLoopRunForStart(testutil.Context(t), run, dsl.ConcurrencyAllow)
+		if err != nil {
+			t.Fatalf("CreateLoopRunForStart() error = %v", err)
+		}
+		if _, err := first.db.ExecContext(testutil.Context(t), `INSERT INTO loop_generation_outputs (
+			loop_run_id, generation, node_id, item_index, output_id, artifact_name, status
+		) VALUES (?, 1, 'writer', 2, 'report', 'report-final.md', 'succeeded')`, created.ID); err != nil {
+			t.Fatalf("insert artifact identity output error = %v", err)
+		}
 		assertLoopRunStateSchema(t, first)
 		if err := first.Close(testutil.Context(t)); err != nil {
 			t.Fatalf("Close(first) error = %v", err)
@@ -59,6 +71,20 @@ func TestOpenGlobalDBBootstrapsLoopSchemaIntegration(t *testing.T) {
 		if stored.Environment == nil || stored.Environment.Mode != dsl.EnvironmentPerRun {
 			t.Fatalf("reopened Environment = %#v, want per_run", stored.Environment)
 		}
+		generationOutputs, err := second.ListGenerationOutputs(
+			testutil.Context(t), "ws-loop-environment", created.ID, 1,
+		)
+		if err != nil {
+			t.Fatalf("ListGenerationOutputs(reopened) error = %v", err)
+		}
+		assertStoredArtifactIdentity(t, generationOutputs)
+		rosterOutputs, err := second.ListLoopRosterOutputs(
+			testutil.Context(t), "ws-loop-environment", created.ID,
+		)
+		if err != nil {
+			t.Fatalf("ListLoopRosterOutputs(reopened) error = %v", err)
+		}
+		assertStoredArtifactIdentity(t, rosterOutputs)
 	})
 
 	t.Run("Should enforce immutable lineage and paired best-state constraints", func(t *testing.T) {
@@ -614,6 +640,69 @@ func TestOpenGlobalDBBootstrapsLoopSchemaIntegration(t *testing.T) {
 		}
 		assertLoopLifecycleRowCount(t, globalDB.db, "loop_admission_claims", string(created.ID), 0)
 	})
+
+	t.Run("Should add artifact identity columns without inventing legacy values", func(t *testing.T) {
+		t.Parallel()
+
+		path := filepath.Join(t.TempDir(), GlobalDatabaseName)
+		prefixDB, err := openGlobalMigrationPrefixDatabase(
+			t, path, globalMigrationPrefixBefore(t, "00081_schema.sql"),
+		)
+		if err != nil {
+			t.Fatalf("open v80 global database error = %v", err)
+		}
+		ctx := testutil.Context(t)
+		now := time.Date(2026, time.August, 21, 10, 30, 0, 0, time.UTC)
+		if _, err := prefixDB.ExecContext(ctx, `INSERT INTO workspaces (
+			id, root_dir, name, created_at, updated_at
+		) VALUES ('ws-artifact-migration', ?, 'artifact-migration', ?, ?)`, t.TempDir(), now, now); err != nil {
+			t.Fatalf("insert v80 workspace error = %v", err)
+		}
+		if _, err := prefixDB.ExecContext(ctx, `INSERT INTO loop_runs (
+			id, workspace_id, loop_name, status, reattempt_strategy, last_progress_at, inputs_json, created_at
+		) VALUES ('run-artifact-migration', 'ws-artifact-migration', 'writer', 'running',
+			'failed_only', ?, '{}', ?)`, now, now); err != nil {
+			t.Fatalf("insert v80 loop run error = %v", err)
+		}
+		if _, err := prefixDB.ExecContext(ctx, `INSERT INTO loop_generation_outputs (
+			loop_run_id, generation, node_id, item_index, status
+		) VALUES ('run-artifact-migration', 1, 'writer', 0, 'succeeded')`); err != nil {
+			t.Fatalf("insert v80 generation output error = %v", err)
+		}
+		if err := prefixDB.Close(); err != nil {
+			t.Fatalf("close v80 global database error = %v", err)
+		}
+
+		upgraded, err := openGlobalMigrationUpgrade(t, path)
+		if err != nil {
+			t.Fatalf("open v81 global database error = %v", err)
+		}
+		t.Cleanup(func() {
+			if closeErr := upgraded.Close(testutil.Context(t)); closeErr != nil {
+				t.Errorf("Close(upgraded cleanup) error = %v", closeErr)
+			}
+		})
+		var outputID, artifactName sql.NullString
+		if err := upgraded.db.QueryRowContext(testutil.Context(t), `SELECT output_id, artifact_name
+			FROM loop_generation_outputs WHERE loop_run_id = 'run-artifact-migration'`).
+			Scan(&outputID, &artifactName); err != nil {
+			t.Fatalf("read upgraded artifact identity error = %v", err)
+		}
+		if outputID.Valid || artifactName.Valid {
+			t.Fatalf("upgraded legacy identity = %#v/%#v, want NULL/NULL", outputID, artifactName)
+		}
+	})
+}
+
+func assertStoredArtifactIdentity(t *testing.T, outputs []looppkg.GenerationOutput) {
+	t.Helper()
+	if len(outputs) != 1 {
+		t.Fatalf("generation outputs = %#v, want one output", outputs)
+	}
+	if outputs[0].OutputID != "report" || outputs[0].ArtifactName != "report-final.md" {
+		t.Fatalf("artifact identity = %q/%q, want report/report-final.md",
+			outputs[0].OutputID, outputs[0].ArtifactName)
+	}
 }
 
 func assertMigratedLoopLifecycleRows(t *testing.T, db *sql.DB, workspaceID string) {
@@ -785,6 +874,8 @@ func assertLoopRunStateSchema(t *testing.T, globalDB *GlobalDB) {
 		"generation",
 		"node_id",
 		"item_index",
+		"output_id",
+		"artifact_name",
 		"status",
 		"output_ref",
 		"task_run_id",

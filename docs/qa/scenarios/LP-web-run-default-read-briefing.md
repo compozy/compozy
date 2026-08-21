@@ -8,7 +8,7 @@ expected: The run page's default read is exactly four elements in order — brie
 entry_points: web /loop-runs/:id; GET /loop-runs/:id/briefing; GET /loop-runs/:id/nodes; GET /loop-runs/:id/timeline
 qa_status: untested
 bug_ids: BUG-20260719-autonomous-progress-unobservable
-fix_status:
+fix_status: pending
 retest_status:
 fix_commits:
 evidence:

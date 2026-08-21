@@ -102,6 +102,17 @@ type timelineCursor struct {
 	BeforeSeq    int64        `json:"before_seq"`
 }
 
+type timelinePayload struct {
+	Generation   int64  `json:"generation"`
+	NodeID       NodeID `json:"node_id"`
+	Attempt      int    `json:"attempt"`
+	GateID       string `json:"gate_id"`
+	Status       string `json:"status"`
+	Verdict      string `json:"verdict"`
+	RelatedRunID string `json:"related_run_id"`
+	ForkRunID    string `json:"fork_run_id"`
+}
+
 type TimelinePositionError struct {
 	Position int64
 	Head     int64
@@ -117,16 +128,22 @@ func (e *TimelinePositionError) Unwrap() error {
 
 func TimelineTierFor(kind RunEventKind) (TimelineTier, bool) {
 	tier, ok := timelineTiers[kind]
-	return tier, ok
+	if !ok {
+		return "", false
+	}
+	switch tier {
+	case TimelineNotable, TimelineActivity, TimelineChatter:
+		return tier, true
+	default:
+		return "", false
+	}
 }
 
 // ProjectTimelineEvent applies the server-owned tier and meaning projection to one live event.
 func ProjectTimelineEvent(event RunEvent, view TimelineView) (*TimelineEntry, error) {
-	if view == "" {
-		view = TimelineViewNotable
-	}
-	if view != TimelineViewNotable && view != TimelineViewAll {
-		return nil, fmt.Errorf("%w: invalid timeline view %q", ErrValidation, view)
+	view, err := normalizeTimelineView(view)
+	if err != nil {
+		return nil, err
 	}
 	tier, ok := TimelineTierFor(RunEventKind(event.Kind))
 	if !ok {
@@ -177,7 +194,7 @@ func projectTimelineWithHead(runID RunID, head int64, events []RunEvent, query T
 	}
 	filtered := make([]RunEvent, 0, len(events))
 	for _, event := range events {
-		tier, ok := timelineTiers[RunEventKind(event.Kind)]
+		tier, ok := TimelineTierFor(RunEventKind(event.Kind))
 		if !ok {
 			return TimelinePage{}, fmt.Errorf("%w: unclassified event kind %q", ErrValidation, event.Kind)
 		}
@@ -215,12 +232,11 @@ func projectTimelineWithHead(runID RunID, head int64, events []RunEvent, query T
 }
 
 func normalizeTimelineQuery(query TimelineQuery) (TimelineQuery, error) {
-	if query.View == "" {
-		query.View = TimelineViewNotable
+	view, err := normalizeTimelineView(query.View)
+	if err != nil {
+		return TimelineQuery{}, err
 	}
-	if query.View != TimelineViewNotable && query.View != TimelineViewAll {
-		return TimelineQuery{}, fmt.Errorf("%w: invalid timeline view %q", ErrValidation, query.View)
-	}
+	query.View = view
 	if query.Limit == 0 {
 		query.Limit = 50
 	}
@@ -231,6 +247,16 @@ func normalizeTimelineQuery(query TimelineQuery) (TimelineQuery, error) {
 		return TimelineQuery{}, fmt.Errorf("%w: timeline position must not be negative", ErrValidation)
 	}
 	return query, nil
+}
+
+func normalizeTimelineView(view TimelineView) (TimelineView, error) {
+	if view == "" {
+		return TimelineViewNotable, nil
+	}
+	if view != TimelineViewNotable && view != TimelineViewAll {
+		return "", fmt.Errorf("%w: invalid timeline view %q", ErrValidation, view)
+	}
+	return view, nil
 }
 
 func coalesceTimeline(events []RunEvent) ([]TimelineEntry, error) {
@@ -260,64 +286,118 @@ func heartbeatKind(kind RunEventKind) bool {
 }
 
 func timelineEntry(event RunEvent) (TimelineEntry, error) {
-	var payload struct {
-		Generation   int64  `json:"generation"`
-		NodeID       NodeID `json:"node_id"`
-		Attempt      int    `json:"attempt"`
-		GateID       string `json:"gate_id"`
-		Status       string `json:"status"`
-		Verdict      string `json:"verdict"`
-		RelatedRunID string `json:"related_run_id"`
-		ForkRunID    string `json:"fork_run_id"`
-	}
+	var payload timelinePayload
 	if len(event.Payload) > 0 {
 		if err := json.Unmarshal(event.Payload, &payload); err != nil {
 			return TimelineEntry{}, fmt.Errorf("decode timeline event %d payload: %w", event.Seq, err)
 		}
 	}
-	title := strings.ReplaceAll(event.Kind, "_", " ")
-	switch RunEventKind(event.Kind) {
-	case RunEventNodeRunning, RunEventNodeSucceeded, RunEventNodeFailed, RunEventNodePaused,
-		RunEventNodeResumed, RunEventNodeCanceled, RunEventNodeKilled, RunEventNodeQuarantined,
-		RunEventNodeRequeued:
-		state := strings.TrimPrefix(event.Kind, "node_")
-		if payload.NodeID != "" {
-			title = fmt.Sprintf("step %s %s", payload.NodeID, strings.ReplaceAll(state, "_", " "))
-		}
-	case RunEventNodeRetryScheduled:
-		if payload.NodeID != "" {
-			title = fmt.Sprintf("step %s retry scheduled", payload.NodeID)
-		}
-	case RunEventNeedsApproval:
-		if payload.GateID != "" {
-			title = fmt.Sprintf("approval %q opened", payload.GateID)
-		}
-	case RunEventGateVerdict:
-		if payload.GateID != "" {
-			title = fmt.Sprintf("gate %q %s", payload.GateID, strings.TrimSpace(payload.Verdict))
-		}
-	case RunEventStatusChanged:
-		if payload.Status != "" {
-			title = "run status: " + payload.Status
-		}
-	case RunEventGenerationStarted:
-		if payload.Generation > 0 {
-			title = fmt.Sprintf("round %d started", payload.Generation)
-		}
-	case RunEventRunForked:
-		related := payload.RelatedRunID
-		if related == "" {
-			related = payload.ForkRunID
-		}
-		if related != "" {
-			title = fmt.Sprintf("Run forked to %s", related)
-		}
+	title, err := timelineTitle(RunEventKind(event.Kind), payload)
+	if err != nil {
+		return TimelineEntry{}, err
 	}
 	return TimelineEntry{
 		Seq: event.Seq, FirstSeq: event.Seq, Kind: RunEventKind(event.Kind),
 		Generation: payload.Generation, NodeID: payload.NodeID, Attempt: payload.Attempt,
 		Title: title, At: event.At.UTC(),
 	}, nil
+}
+
+func timelineTitle(kind RunEventKind, payload timelinePayload) (string, error) {
+	switch kind {
+	case RunEventNodeRunning, RunEventNodeSucceeded, RunEventNodeFailed, RunEventNodePaused,
+		RunEventNodeResumed, RunEventNodeCanceled, RunEventNodeKilled, RunEventNodeQuarantined,
+		RunEventNodeRequeued:
+		state := strings.TrimPrefix(string(kind), "node_")
+		if payload.NodeID != "" {
+			return fmt.Sprintf("Step %s %s", payload.NodeID, strings.ReplaceAll(state, "_", " ")), nil
+		}
+		return "A step changed state", nil
+	case RunEventNodeRetryScheduled:
+		if payload.NodeID != "" {
+			return fmt.Sprintf("Step %s will retry", payload.NodeID), nil
+		}
+		return "A step will retry", nil
+	case RunEventNeedsApproval:
+		if payload.GateID != "" {
+			return fmt.Sprintf("Approval %q is waiting", payload.GateID), nil
+		}
+		return "An approval is waiting", nil
+	case RunEventGateVerdict:
+		if payload.GateID != "" {
+			return fmt.Sprintf("Approval %q: %s", payload.GateID, strings.TrimSpace(payload.Verdict)), nil
+		}
+		return "An approval was decided", nil
+	case RunEventStatusChanged:
+		if payload.Status != "" {
+			return "Run is now " + payload.Status, nil
+		}
+		return "Run status changed", nil
+	case RunEventGenerationStarted:
+		if payload.Generation > 0 {
+			return fmt.Sprintf("Round %d started", payload.Generation), nil
+		}
+		return "A new round started", nil
+	case RunEventRunForked:
+		related := payload.RelatedRunID
+		if related == "" {
+			related = payload.ForkRunID
+		}
+		if related != "" {
+			return fmt.Sprintf("Run forked to %s", related), nil
+		}
+		return "A forked run started", nil
+	case RunEventChannelMsg:
+		return "An agent message was recorded", nil
+	case RunEventTokenTick:
+		return "Token usage increased", nil
+	case RunEventGoalTurnStarted:
+		return "A goal turn started", nil
+	case RunEventGoalTurnCompleted:
+		return "A goal turn finished", nil
+	case RunEventGoalStatusChanged:
+		return "The goal changed state", nil
+	case RunEventRuntimeApplied:
+		return "Runtime settings were applied", nil
+	case RunEventPredicateDiagnostic:
+		return "A route condition was evaluated", nil
+	case RunEventRouteTaken:
+		return "The run chose a route", nil
+	case RunEventNodeWaitStarted:
+		return "A step started waiting", nil
+	case RunEventNodeWaitResumed:
+		return "A waiting step resumed", nil
+	case RunEventNodeAttentionFlagged:
+		return "A step needs attention", nil
+	case RunEventNodeAttentionCleared:
+		return "A step no longer needs attention", nil
+	case RunEventEffectResults:
+		return "Run effects finished", nil
+	case RunEventCustomEvent:
+		return "Loop activity was recorded", nil
+	case RunEventDuplicateSuppressed:
+		return "A duplicate update was ignored", nil
+	case RunEventTargetBreaker:
+		return "A target safety limit changed", nil
+	case RunEventStaleScheduleDropped:
+		return "A stale schedule was ignored", nil
+	case RunEventLateArrival:
+		return "A late result arrived", nil
+	case RunEventRequestOpened:
+		return "A request is waiting", nil
+	case RunEventRequestAnswered:
+		return "A request was answered", nil
+	case RunEventRequestExpired:
+		return "A request expired", nil
+	case RunEventRequestCanceled:
+		return "A request was canceled", nil
+	case RunEventNodeAmended:
+		return "A step result was amended", nil
+	case RunEventBranchPruned:
+		return "An unused branch was skipped", nil
+	default:
+		return "", fmt.Errorf("%w: event kind %q has no timeline title", ErrValidation, kind)
+	}
 }
 
 func encodeTimelineCursor(cursor timelineCursor) (string, error) {

@@ -21,7 +21,8 @@ func TestBriefingContract(t *testing.T) {
 		source := healthyBriefing(now)
 		got := ProjectBriefing(&source)
 		if got.Tone != BriefingToneOK || got.Progress.StepsDone != 1 || got.Progress.StepsTotal != 2 ||
-			got.Usage.Tokens != 25 || !strings.Contains(got.Headline, "live") {
+			got.Usage.Tokens != 25 || got.Usage.Duration != "1h0m0s" || got.Detail == "" ||
+			!strings.Contains(got.Headline, "live") {
 			t.Fatalf("briefing = %#v", got)
 		}
 	})
@@ -30,11 +31,14 @@ func TestBriefingContract(t *testing.T) {
 		source := healthyBriefing(now)
 		source.Run.Status = StatusNeedsApproval
 		source.Run.ActiveGateID = "release"
+		source.Run.LastProgressAt = now.Add(-time.Minute)
+		source.ApprovalWaitingSince = now.Add(-5 * time.Minute)
 		got := ProjectBriefing(&source)
-		if got.Tone != BriefingToneNeedsYou ||
-			got.Blockers[0].Unblocker != "compozy loop approve run-a --gate release --workspace ws-a" {
+		if got.Tone != BriefingToneNeedsYou || got.Detail == "" ||
+			!got.Blockers[0].WaitingSince.Equal(source.ApprovalWaitingSince) {
 			t.Fatalf("briefing = %#v", got)
 		}
+		assertBlockerCommand(t, got.Blockers, 0, []string{"compozy", "loop", "approve", "run-a", "--gate", "release"})
 	})
 	t.Run("Should satisfy UT-003 with approval quarantine request ordering", func(t *testing.T) {
 		t.Parallel()
@@ -55,19 +59,13 @@ func TestBriefingContract(t *testing.T) {
 			got.Blockers[2].Kind != NodeWaitKindRequest {
 			t.Fatalf("blockers = %#v", got.Blockers)
 		}
-		arguments, err := shellquote.Split(got.Blockers[1].Unblocker)
-		if err != nil {
-			t.Fatalf("shellquote.Split(quarantine unblocker) error = %v", err)
-		}
 		wantArguments := []string{
 			"compozy", "loop", "node", "requeue",
 			"--workspace", "ws-a",
 			"--run-id", "run-a",
 			"--node", "q",
 		}
-		if !slices.Equal(arguments, wantArguments) {
-			t.Fatalf("quarantine unblocker arguments = %#v, want %#v", arguments, wantArguments)
-		}
+		assertBlockerCommand(t, got.Blockers, 1, wantArguments)
 	})
 	t.Run("Should satisfy UT-004 with expired request truth and no retry field", func(t *testing.T) {
 		t.Parallel()
@@ -90,10 +88,6 @@ func TestBriefingContract(t *testing.T) {
 		if !got.Blockers[0].Expired || got.Blockers[0].ExpiresAt == nil {
 			t.Fatalf("blocker = %#v", got.Blockers[0])
 		}
-		arguments, err := shellquote.Split(got.Blockers[0].Unblocker)
-		if err != nil {
-			t.Fatalf("shellquote.Split(unblocker) error = %v", err)
-		}
 		wantArguments := []string{
 			"compozy", "loop", "respond",
 			"--workspace", "workspace with spaces",
@@ -104,9 +98,7 @@ func TestBriefingContract(t *testing.T) {
 			"--decision", "respond",
 			"--payload", "<json>",
 		}
-		if !slices.Equal(arguments, wantArguments) {
-			t.Fatalf("unblocker arguments = %#v, want %#v", arguments, wantArguments)
-		}
+		assertBlockerCommand(t, got.Blockers, 0, wantArguments)
 	})
 	t.Run("Should preserve an explicit decision placeholder for multi-decision reviews", func(t *testing.T) {
 		t.Parallel()
@@ -123,10 +115,7 @@ func TestBriefingContract(t *testing.T) {
 			},
 		}
 		got := ProjectBriefing(&source)
-		arguments, err := shellquote.Split(got.Blockers[0].Unblocker)
-		if err != nil {
-			t.Fatalf("shellquote.Split(review unblocker) error = %v", err)
-		}
+		arguments := assertBlockerCommand(t, got.Blockers, 0, nil)
 		if !slices.Contains(arguments, "<decision>") || !slices.Contains(arguments, "<json>") {
 			t.Fatalf("review unblocker arguments = %#v, want explicit decision and payload placeholders", arguments)
 		}
@@ -137,8 +126,10 @@ func TestBriefingContract(t *testing.T) {
 		source.Run.Status = StatusCanceled
 		source.Run.LastProgressAt = now
 		source.Run.ControlActor = task.ActorIdentity{Kind: task.ActorKindHuman, Ref: "pedro"}
+		source.Outcome = &RunOutcome{Status: StatusCanceled, Cause: "operator_kill", At: now}
 		got := ProjectBriefing(&source)
 		if got.Tone != BriefingToneOK || got.Outcome == nil || got.Outcome.ActorKind != "human" ||
+			got.Outcome.Cause != "operator_kill" || !got.Outcome.At.Equal(now) ||
 			!strings.Contains(got.Headline, "pedro") {
 			t.Fatalf("briefing = %#v", got)
 		}
@@ -182,6 +173,44 @@ func TestBriefingContract(t *testing.T) {
 			t.Fatalf("Briefing() error = %v", err)
 		}
 	})
+	t.Run("Should load the exact approval opening from the durable run summary", func(t *testing.T) {
+		t.Parallel()
+		openedAt := now.Add(-7 * time.Minute)
+		store := &approvalSummaryStore{summaries: map[RunID]RunListSummary{
+			"run-a": {
+				RunID: "run-a",
+				Attention: &RunListAttention{
+					Kind: gateResultApprovalKey, Count: 1, Since: openedAt,
+				},
+			},
+		}}
+		service := &computedRunReadService{store: store}
+		got, err := service.loadApprovalWaitingSince(
+			t.Context(),
+			"ws-a",
+			Run{ID: "run-a", Status: StatusNeedsApproval, LastProgressAt: now},
+		)
+		if err != nil {
+			t.Fatalf("loadApprovalWaitingSince() error = %v", err)
+		}
+		if !got.Equal(openedAt) {
+			t.Fatalf("approval opening = %s, want %s", got, openedAt)
+		}
+	})
+	t.Run("Should reject approval state without durable opening evidence", func(t *testing.T) {
+		t.Parallel()
+		service := &computedRunReadService{store: &approvalSummaryStore{
+			summaries: map[RunID]RunListSummary{"run-a": {RunID: "run-a"}},
+		}}
+		_, err := service.loadApprovalWaitingSince(
+			t.Context(),
+			"ws-a",
+			Run{ID: "run-a", Status: StatusNeedsApproval, LastProgressAt: now},
+		)
+		if err == nil || !strings.Contains(err.Error(), "durable approval attention is unavailable") {
+			t.Fatalf("loadApprovalWaitingSince() error = %v", err)
+		}
+	})
 	t.Run("Should satisfy UT-049 because an absorbed failure cannot replace current activity", func(t *testing.T) {
 		t.Parallel()
 		source := healthyBriefing(now)
@@ -200,6 +229,7 @@ func TestBriefingContract(t *testing.T) {
 		source := healthyBriefing(now)
 		source.Run.Status = StatusDone
 		source.Run.LastProgressAt = now
+		source.Outcome = &RunOutcome{Status: StatusDone, Cause: "verified", At: now}
 		source.Artifacts = []RunArtifact{
 			{
 				Name:         "report",
@@ -212,9 +242,55 @@ func TestBriefingContract(t *testing.T) {
 		}
 		got := ProjectBriefing(&source)
 		if got.Outcome == nil || len(got.Artifacts) != 3 ||
+			got.Outcome.Cause != "verified" || got.Detail == "" ||
 			got.Artifacts[2].Availability != ArtifactPruned ||
 			!strings.Contains(got.Headline, "Produced: report, summary, archive") {
 			t.Fatalf("briefing = %#v", got)
+		}
+	})
+	t.Run("Should keep terminal failure outcome when failed nodes remain in the roster", func(t *testing.T) {
+		t.Parallel()
+		source := healthyBriefing(now)
+		source.Run.Status = StatusFailed
+		source.Roster.Nodes[1].State = NodeStateFailed
+		source.Outcome = &RunOutcome{Status: StatusFailed, Cause: "coordinator_failure", At: now}
+		got := ProjectBriefing(&source)
+		if got.Outcome == nil || got.Outcome.Cause != "coordinator_failure" || len(got.Blockers) != 1 ||
+			got.Tone != BriefingToneFailed {
+			t.Fatalf("briefing = %#v", got)
+		}
+	})
+	t.Run("Should preserve durable logical artifact identity in UT-051", func(t *testing.T) {
+		t.Parallel()
+		artifacts := artifactsFromOutputs([]GenerationOutput{{
+			NodeID:       "writer-node",
+			ItemIndex:    3,
+			TaskRunID:    "task-run-internal",
+			OutputID:     "saida",
+			ArtifactName: "post-final.md",
+			OutputRef:    "sha256:retained",
+		}}, map[string]bool{"sha256:retained": true})
+		if len(artifacts) != 1 || artifacts[0].Name != "post-final.md" ||
+			artifacts[0].Output != "saida" || artifacts[0].Ref != "sha256:retained" {
+			t.Fatalf("artifacts = %#v", artifacts)
+		}
+	})
+	t.Run("Should derive the terminal outcome from durable status evidence", func(t *testing.T) {
+		t.Parallel()
+		source := RosterSource{Run: Run{ID: "run-a", Status: StatusDone}}
+		eventAt := now.Add(2 * time.Minute)
+		err := applyRunReadEvidence(&source, []RunEvent{{
+			LoopRunID: "run-a",
+			Kind:      string(RunEventStatusChanged),
+			Payload:   []byte(`{"status":"done","cause":"contract"}`),
+			At:        eventAt,
+		}})
+		if err != nil {
+			t.Fatalf("applyRunReadEvidence() error = %v", err)
+		}
+		if source.Outcome == nil || source.Outcome.Status != StatusDone ||
+			source.Outcome.Cause != "verified" || !source.Outcome.At.Equal(eventAt) {
+			t.Fatalf("terminal outcome = %#v", source.Outcome)
 		}
 	})
 	t.Run("Should project a complete briefing roster beyond the maximum page size", func(t *testing.T) {
@@ -231,7 +307,7 @@ func TestBriefingContract(t *testing.T) {
 				Status:     "succeeded",
 			})
 		}
-		roster, err := projectCompleteRoster(&source, RosterQuery{State: NodeStateFilterAll})
+		roster, err := projectCompleteRoster(&source, NodeStateFilterAll, 0)
 		if err != nil {
 			t.Fatalf("projectCompleteRoster() error = %v", err)
 		}
@@ -243,10 +319,43 @@ func TestBriefingContract(t *testing.T) {
 	})
 }
 
+func assertBlockerCommand(
+	t testing.TB,
+	blockers []Blocker,
+	index int,
+	want []string,
+) []string {
+	t.Helper()
+	if index < 0 || index >= len(blockers) {
+		t.Fatalf("blocker index %d is outside %d blockers", index, len(blockers))
+	}
+	arguments, err := shellquote.Split(blockers[index].Unblocker)
+	if err != nil {
+		t.Fatalf("shellquote.Split(blocker %d) error = %v", index, err)
+	}
+	if want != nil && !slices.Equal(arguments, want) {
+		t.Fatalf("blocker %d arguments = %#v, want %#v", index, arguments, want)
+	}
+	return arguments
+}
+
 type missingRunReadStore struct{ RunReadStore }
 
 func (missingRunReadStore) GetLoopRun(context.Context, WorkspaceID, RunID) (Run, error) {
 	return Run{}, ErrRunNotFound
+}
+
+type approvalSummaryStore struct {
+	RunReadStore
+	summaries map[RunID]RunListSummary
+}
+
+func (s *approvalSummaryStore) ListLoopRunSummaries(
+	context.Context,
+	WorkspaceID,
+	[]RunID,
+) (map[RunID]RunListSummary, error) {
+	return s.summaries, nil
 }
 
 func healthyBriefing(now time.Time) BriefingSource {

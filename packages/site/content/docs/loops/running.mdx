@@ -178,9 +178,22 @@ Use the workspace inventories to find durable work before acting:
 | `attention`   | Silence, exhausted resume, or quarantined-dependency attention. |
 | `retrying`    | Attempts with a durable `next_attempt_at`.                      |
 
-`compozy loop nodes --state <state>` is workspace-scoped, cursor-paginated, defaults to 50 rows,
-and caps at 200. Filter with `--loop` or `--run-id`; structured rows carry the exact run,
-generation, node, and item identity needed by the node verbs. See
+`compozy loop nodes` reads in two modes, and `--run` selects which one:
+
+| Mode                | Command                                     | `--state` accepts                                                                                             | Page size            |
+| ------------------- | ------------------------------------------- | ------------------------------------------------------------------------------------------------------------- | -------------------- |
+| Workspace inventory | `compozy loop nodes --state <state>`        | `waiting`, `quarantined`, `attention`, `retrying`                                                             | 50 default, 200 max  |
+| Run roster          | `compozy loop nodes --run <run id> [--all]` | `all`, `running`, `queued`, `waiting`, `retrying`, `paused`, `quarantined`, `succeeded`, `failed`, `canceled`, `not_taken` | 50 default, 500 max  |
+
+The inventory is workspace-scoped and requires `--state`, because it tracks exception states only —
+`--state running` is valid only in roster mode. Narrow the inventory with `--loop` or `--run-id`.
+
+The roster covers one run's nodes across generations. `--generation` narrows it to one round, and
+`--all` pages the whole roster in a single call, which is why `--all` and `--cursor` are mutually
+exclusive. Both `--all` and `--generation` require `--run`.
+
+Structured rows in either mode carry the exact run, generation, node, and item identity needed by
+the node verbs. See
 [Failure handling](/docs/loops/failure-handling#inspect-and-recover-nodes) for the command forms.
 
 ## Runs across the workspace

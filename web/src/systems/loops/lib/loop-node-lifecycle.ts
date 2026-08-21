@@ -1,5 +1,5 @@
 import { type LoopQuarantineEntry, readQuarantineEntry } from "./loop-quarantine-entry";
-import { humanizeLoopNodeId } from "./loop-run-story-rows";
+import { humanizeLoopNodeId } from "./loop-node-labels";
 import type {
   LoopControlProvenance,
   LoopNodeControl,

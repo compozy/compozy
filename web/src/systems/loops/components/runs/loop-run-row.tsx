@@ -16,7 +16,7 @@ interface LoopRunRowProps {
  * A run that has not moved yet has no span to state, so it reads `—` rather than
  * a `0m 00s` that would imply it ran and finished instantly.
  */
-function durationLabel(run: LoopRun): string {
+function durationLabel(run: Pick<LoopRun, "created_at" | "last_progress_at">): string {
   const created = Date.parse(run.created_at);
   const last = Date.parse(run.last_progress_at);
   if (Number.isNaN(created) || Number.isNaN(last) || last <= created) return "—";
@@ -30,8 +30,8 @@ const META_CELL = "font-mono text-mono-id tabular-nums text-muted";
  *
  * Everything the row says comes from the server-owned row model — it never
  * re-derives a status, an attention marker, or a step count from the raw run.
- * Spend (generations, best score, budget) is deliberately absent: it demoted to
- * the run page, where there is room to say what it means.
+ * Spend (generations, best score, budget) is deliberately absent: it is demoted
+ * to the run page, where there is room to say what it means.
  */
 export function LoopRunRow({ row }: LoopRunRowProps) {
   const { run } = row;

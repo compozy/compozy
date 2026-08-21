@@ -112,6 +112,17 @@ vi.mock("@/systems/loops", () => ({
   LoopRunOverflowMenu: () => null,
   LoopRunPageBody: (props: Record<string, unknown>) => loopRunPageBodySpy(props),
   LoopStatusPill: () => null,
+  // The Events lane's `view=all` read. Composed in `useLoopRunDetail` because the
+  // disclosure that gates it is owned there; stubbed idle so these route cases
+  // keep asserting what they own — workspace naming and the drill-in trail.
+  useLoopRunEventsRead: () => ({
+    beats: [],
+    hasOlder: false,
+    isLoading: false,
+    isError: false,
+    isLoadingOlder: false,
+    onLoadOlder: () => undefined,
+  }),
 }));
 
 const { LoopRunDetailLocation } = await import("../loop-run-detail-location");

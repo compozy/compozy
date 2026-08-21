@@ -3,6 +3,7 @@ package daemon
 import (
 	"context"
 	"errors"
+	"strings"
 
 	"github.com/compozy/compozy/internal/api/contract"
 	looppkg "github.com/compozy/compozy/internal/loop"
@@ -17,7 +18,11 @@ func (s *daemonLoopAPIService) GetLoopRunNodes(
 	if s == nil || s.runReads == nil {
 		return contract.LoopRunNodesResponse{}, errors.New("daemon: loop read service is unavailable")
 	}
-	return s.runReads.NodeRoster(ctx, workspaceID, looppkg.RunID(runID), query)
+	ws, err := normalizeLoopWorkspaceID(workspaceID)
+	if err != nil {
+		return contract.LoopRunNodesResponse{}, err
+	}
+	return s.runReads.NodeRoster(ctx, string(ws), looppkg.RunID(strings.TrimSpace(runID)), query)
 }
 
 func (s *daemonLoopAPIService) GetLoopRunBriefing(
@@ -28,7 +33,11 @@ func (s *daemonLoopAPIService) GetLoopRunBriefing(
 	if s == nil || s.runReads == nil {
 		return contract.LoopBriefingResponse{}, errors.New("daemon: loop read service is unavailable")
 	}
-	return s.runReads.Briefing(ctx, workspaceID, looppkg.RunID(runID))
+	ws, err := normalizeLoopWorkspaceID(workspaceID)
+	if err != nil {
+		return contract.LoopBriefingResponse{}, err
+	}
+	return s.runReads.Briefing(ctx, string(ws), looppkg.RunID(strings.TrimSpace(runID)))
 }
 
 func (s *daemonLoopAPIService) GetLoopRunTimeline(
@@ -40,5 +49,9 @@ func (s *daemonLoopAPIService) GetLoopRunTimeline(
 	if s == nil || s.runReads == nil {
 		return contract.LoopTimelineResponse{}, errors.New("daemon: loop read service is unavailable")
 	}
-	return s.runReads.Timeline(ctx, workspaceID, looppkg.RunID(runID), query)
+	ws, err := normalizeLoopWorkspaceID(workspaceID)
+	if err != nil {
+		return contract.LoopTimelineResponse{}, err
+	}
+	return s.runReads.Timeline(ctx, string(ws), looppkg.RunID(strings.TrimSpace(runID)), query)
 }

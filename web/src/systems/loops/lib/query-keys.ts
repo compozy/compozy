@@ -1,3 +1,4 @@
+import { normalizeOptionalText } from "../adapters/loops-api-errors";
 import { normalizeLoopCatalogFilter } from "./loops-list-query";
 import type {
   LoopCatalogStableFilter,
@@ -13,10 +14,17 @@ import type {
 /** Inventory filter minus the continuation cursor, which lives in `pageParam`. */
 export type LoopNodeInventoryStableFilter = Omit<LoopNodeInventoryFilter, "cursor">;
 
+/**
+ * A key segment, trimmed exactly as the request will be.
+ *
+ * Derived from the canonical normalizer rather than re-implementing its trim:
+ * a whitespace-padded filter must never key a cache entry separate from the
+ * identical request it produces, and two hand-written trims are two chances for
+ * that to stop being true. Keys need a string, so an absent value collapses to
+ * empty here instead of `undefined`.
+ */
 function normalizeText(value?: string | null): string {
-  // Trim to match the adapter's `normalizeOptionalText`, so a whitespace-padded
-  // filter never keys a duplicate cache entry for an identical request.
-  return typeof value === "string" ? value.trim() : "";
+  return normalizeOptionalText(value) ?? "";
 }
 
 function normalizeNumber(value?: number): string {

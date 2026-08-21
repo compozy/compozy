@@ -14,15 +14,15 @@ compozy loop nodes [flags]
 ### Options
 
 ```
-      --all                Show the complete run roster
+      --all                Show the complete run roster; requires --run and excludes --cursor
       --cursor string      Opaque continuation cursor
-      --generation int     Filter by generation
+      --generation int     Filter roster by generation; requires --run
   -h, --help               help for nodes
-      --limit int          Page size from 1 to 500; defaults to 50
+      --limit int          Page size: inventory 1 to 200; roster (--run) 1 to 500; defaults to 50
       --loop string        Filter by Loop name
       --run string         Loop run ID
       --run-id string      Filter workspace inventory by Loop run ID
-      --state string       Roster state filter
+      --state string       State filter: inventory waiting|quarantined|attention|retrying; roster (--run) all|running|queued|waiting|retrying|paused|quarantined|succeeded|failed|canceled|not_taken
       --workspace string   Override workspace (ID, name, or path)
 ```
 

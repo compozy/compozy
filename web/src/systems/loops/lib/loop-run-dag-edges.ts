@@ -36,11 +36,18 @@ export interface LoopDagEdge {
 export function rankNodes(graph: LoopGraph, order: readonly string[]): Map<string, number> {
   const ranks = new Map<string, number>();
   for (const nodeId of order) ranks.set(nodeId, 0);
+  // Predecessors indexed once. Rescanning every edge per node made the layout of
+  // a wide authored graph quadratic in a projection that runs on every read.
+  const incoming = new Map<string, string[]>();
+  for (const edge of graph.edges) {
+    const bucket = incoming.get(edge.to);
+    if (bucket) bucket.push(edge.from);
+    else incoming.set(edge.to, [edge.from]);
+  }
   // `order` is topological, so every predecessor is already ranked on arrival.
   for (const nodeId of order) {
-    for (const edge of graph.edges) {
-      if (edge.to !== nodeId) continue;
-      const fromRank = ranks.get(edge.from);
+    for (const from of incoming.get(nodeId) ?? []) {
+      const fromRank = ranks.get(from);
       if (fromRank === undefined) continue;
       ranks.set(nodeId, Math.max(ranks.get(nodeId) ?? 0, fromRank + 1));
     }

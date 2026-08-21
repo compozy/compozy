@@ -23,20 +23,35 @@ import type { LoopFanoutRollup, LoopRosterNode } from "../../types";
 import { LoopRunAboutRail } from "./loop-run-about-rail";
 import { LOOP_NEEDS_YOU_ANCHOR_ID, LoopRunBriefing } from "./loop-run-briefing";
 import { LoopRunRegisters } from "./loop-run-registers";
+import type { LoopRunEventsRead } from "./inspect/loop-run-events-lane";
 import { LoopRunStepsProgress } from "./loop-run-steps-progress";
 import { LoopRunStory } from "./loop-run-story";
+export type { LoopRunStoryPaging } from "./loop-run-story";
+import { LoopRunLineageSection } from "./loop-run-lineage-section";
 import { LoopRunNeedsYouCard } from "./loop-run-needs-you-card";
+import type { LoopRunStoryPaging } from "./loop-run-story";
 import type { LoopRunRequestState } from "./requests/loop-request-questionnaire";
 import { LoopRunUsageRail } from "./loop-run-usage-rail";
 
 const NO_REQUESTS: readonly LoopRequestView[] = [];
+/** One stable identity, so an absent paging read is not a new object each render. */
+const NO_PAGING: LoopRunStoryPaging = {
+  hasOlder: false,
+  isLoading: false,
+  isError: false,
+  isLoadingOlder: false,
+  onLoadOlder: () => {},
+};
 
-/** Backward paging over the durable story; the live tail arrives by stream. */
-export interface LoopRunStoryPaging {
-  hasOlder: boolean;
+/**
+ * Whether the roster read has actually answered yet.
+ *
+ * Without this the Inspect lanes cannot tell "this run reached no steps" from
+ * "we have not read its steps", and both render as `No steps ran`.
+ */
+export interface LoopRunRosterRead {
   isLoading: boolean;
-  isLoadingOlder: boolean;
-  onLoadOlder: () => void;
+  isError: boolean;
 }
 
 export interface LoopRunGoalTurnsPaging {
@@ -50,8 +65,13 @@ export interface LoopRunInspectState {
   onOpenChange: (open: boolean) => void;
 }
 
-/** The one in-flight page action; the matching control disables while set. */
-export type LoopRunPendingAction = "approve" | "start-new-run";
+/**
+ * The one in-flight page action; the matching control disables while set.
+ *
+ * Only `approve` — the redesigned body has no start-a-new-run control, so a
+ * pending state for it would be a value no element could ever spend.
+ */
+export type LoopRunPendingAction = "approve";
 
 export interface LoopRunPageBodyProps extends Omit<ComponentProps<"div">, "children"> {
   run: LoopRunRecord;
@@ -69,6 +89,15 @@ export interface LoopRunPageBodyProps extends Omit<ComponentProps<"div">, "child
   isLoadingMoreRoster?: boolean;
   /** The durable story's backward paging; the live tail arrives by stream. */
   storyPaging?: LoopRunStoryPaging;
+  /** Read state for the roster, so Inspect never calls a pending read empty. */
+  rosterRead?: LoopRunRosterRead;
+  /**
+   * The Events lane's raw activity read (`view=all`), when the page has one.
+   *
+   * Absent means the lane borrows Story's notable projection and says so; it
+   * never presents a filtered subset as the whole event log.
+   */
+  events?: Omit<LoopRunEventsRead, "view">;
   /** True when the stream dropped: the page keeps its last reconciled read. */
   isReconnecting?: boolean;
   usageRows: LoopRunUsageRow[];
@@ -124,6 +153,8 @@ export function LoopRunPageBody({
   onLoadMoreRoster,
   isLoadingMoreRoster = false,
   storyPaging,
+  rosterRead,
+  events,
   isReconnecting = false,
   usageRows,
   usageNote,
@@ -176,12 +207,11 @@ export function LoopRunPageBody({
               />
             ) : null}
             {status === "needs-approval" || quarantinedNodes.length > 0 || requests.length > 0 ? (
-              <section
-                aria-label="Needs you"
-                data-testid="loop-run-needs-you"
-                id={LOOP_NEEDS_YOU_ANCHOR_ID}
-                tabIndex={-1}
-              >
+              // The anchor, and only the anchor. `LoopRunNeedsYouCard` owns the
+              // `loop-run-needs-you` test id and the labelled region; repeating
+              // either here would give strict selectors two matching nodes and
+              // screen readers two regions with one name.
+              <section id={LOOP_NEEDS_YOU_ANCHOR_ID} tabIndex={-1}>
                 <LoopRunNeedsYouCard
                   fallbackFacts={approvalFallbackFacts}
                   isPending={pendingAction === "approve"}
@@ -208,11 +238,13 @@ export function LoopRunPageBody({
             ) : null}
             <LoopRunStory
               beats={registers.beats}
-              hasOlder={storyPaging?.hasOlder ?? false}
-              isLoading={storyPaging?.isLoading ?? false}
-              isLoadingOlder={storyPaging?.isLoadingOlder ?? false}
-              onLoadOlder={storyPaging?.onLoadOlder ?? (() => {})}
+              isReconnecting={isReconnecting}
+              paging={storyPaging ?? NO_PAGING}
             />
+            {/* A forked or time-travelled run is part of the story: the point
+                it branched at is recorded here, and it links the related run so
+                the reader can follow it (US-009.EC-3). */}
+            <LoopRunLineageSection forkedFrom={run.forked_from ?? null} forks={run.forks} />
             {/* Everything the default read demoted lives one disclosure down. */}
             <LoopRunRegisters
               generations={generations}
@@ -234,6 +266,8 @@ export function LoopRunPageBody({
               prunedSessionIds={prunedSessionIds}
               registers={registers}
               rollups={rosterRollups}
+              events={events}
+              rosterRead={rosterRead}
               selection={nodeSelection}
             />
           </main>

@@ -2,7 +2,6 @@ import { describe, expect, it } from "vitest";
 
 import { loopNodeLifecycleFixture } from "../../testing/loop-node-lifecycle-fixture";
 import type { LoopRosterNode } from "../../types";
-import { loopNodeVerbs } from "../loop-node-controls";
 import { resolveNodeVerbTarget } from "../loop-node-verb-target";
 
 function rosterNode(overrides: Partial<LoopRosterNode> = {}): LoopRosterNode {
@@ -40,12 +39,9 @@ describe("resolveNodeVerbTarget", () => {
     // would strip it and offer pause/cancel/kill on a node the daemon has held
     // back — verbs it would refuse.
     expect(target).toBe(quarantined);
-    expect(loopNodeVerbs(target!, "running")).toEqual([
-      "open-quarantine",
-      "requeue",
-      "cancel",
-      "kill",
-    ]);
+    // The quarantine reaches the verb rules; which verbs it then permits is
+    // `loopNodeVerbs`' own contract, asserted where that policy lives.
+    expect(target?.quarantined).toBe(true);
   });
 
   it("Should build a faithful stand-in for a healthy node the projection skipped", () => {
@@ -91,8 +87,10 @@ describe("resolveNodeVerbTarget", () => {
     expect(target?.paused).toBe(false);
     expect(target?.quarantined).toBe(false);
     expect(target?.waits).toEqual([]);
-    // The daemon still decides what that state permits.
-    expect(loopNodeVerbs(target!, "running")).toEqual(["pause", "cancel", "kill"]);
+    // A stand-in asserts nothing the roster did not already say: every
+    // control-shaped field is empty, which is why the node was skipped at all.
+    expect(target?.state).toBeNull();
+    expect(target?.parked).toBe(false);
   });
 
   it("Should carry the failure class of an attempt that is actually the current one", () => {
@@ -170,7 +168,6 @@ describe("resolveNodeVerbTarget identity", () => {
     expect(target).not.toBe(pausedSibling);
     expect(target?.itemIndex).toBe(1);
     expect(target?.paused).toBe(false);
-    expect(loopNodeVerbs(target!, "running")).toEqual(["pause", "cancel", "kill"]);
   });
 
   it("Should not carry a previous round's durable state into this one", () => {

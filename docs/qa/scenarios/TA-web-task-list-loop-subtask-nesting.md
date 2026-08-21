@@ -13,7 +13,7 @@ retest_status:
 fix_commits:
 evidence:
 last_report:
-overlaps: LP-web-run-attention-quarantine-routing; LP-web-run-session-one-click; TA-web-tasks-calm-default-reveal
+overlaps: TA-web-tasks-calm-default-reveal; TA-web-task-detail-loop-provenance; LP-web-run-attention-quarantine-routing; LP-web-run-session-one-click
 ---
 
 retired — superseded by the server-owned exclusion contract (ADR-001, task_04). Loop execution records now leave every Tasks listing by default, so there is no coordinator row to nest cells behind and no client-side `buildTaskListTree`/`task-subtask-list` machinery left to walk; both were deleted with the id-regex identity they depended on. The behavior this scenario guarded is replaced by `TA-web-tasks-calm-default-reveal` (calm default, reveal filter, revealed-row grammar) and `TA-web-task-detail-loop-provenance` (structured provenance on the record's own page). The `blocked-decision` note below is frozen history — the dogfood run it waited on is no longer the way to walk this behavior.
@@ -25,6 +25,6 @@ The nesting is client-side (`buildTaskListTree`): a child nests only when its pa
 
 blocked-decision: walking this requires a fresh implement-tasks dogfood run (spawns real ACP agent sessions on the operator's account); pending the operator starting one.
 
-src: web/src/systems/tasks/lib/task-hierarchy.ts; web/src/systems/tasks/components/task-subtask-list.tsx; web/src/systems/tasks/components/task-card.tsx; web/src/systems/tasks/lib/task-formatters.ts; internal/loop/generation_snapshot_controls.go
+src: web/src/systems/tasks/components/task-card.tsx; web/src/systems/tasks/lib/task-formatters.ts; internal/loop/generation_snapshot_controls.go
 
 inventory: Needs QA

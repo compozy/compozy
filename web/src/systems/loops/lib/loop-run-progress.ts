@@ -1,17 +1,17 @@
 import type { LoopFanoutRollup, LoopRosterNode, LoopStepProgress } from "../types";
-import type { LoopGateVerdict } from "./loop-events";
 import { type LoopGraph, topoOrder } from "./loop-graph";
 import {
   type LoopFanOutBand,
   type LoopProgressSegment,
   buildFanOutBand,
+  loopAttemptLabel,
+  loopFanOutContainerState,
   progressSegmentForState,
   resolveFanOutBranches,
 } from "./loop-run-fanout-band";
 import {
   type LoopStateChip,
   isParkedRosterState,
-  isSettledRosterState,
   loopParkReason,
   loopRosterStateChip,
 } from "./loop-run-state-copy";
@@ -33,17 +33,6 @@ import {
 
 /** How many fan-out branches a step row may name before it folds to lanes. */
 const STEP_ROW_NAMED_BRANCH_LIMIT = 6;
-
-/** The most recent verdict across gate nodes (highest generation wins). */
-export function latestGateVerdict(
-  gateVerdicts: Record<string, LoopGateVerdict>
-): LoopGateVerdict | null {
-  let latest: LoopGateVerdict | null = null;
-  for (const verdict of Object.values(gateVerdicts)) {
-    if (!latest || verdict.generation > latest.generation) latest = verdict;
-  }
-  return latest;
-}
 
 export interface LoopStepRow {
   key: string;
@@ -88,10 +77,6 @@ function rowKey(node: LoopRosterNode): string {
   return `${node.node_id}:${node.item_index}`;
 }
 
-function attemptLabel(node: LoopRosterNode): string | null {
-  return node.attempt > 1 ? `attempt ${node.attempt}` : null;
-}
-
 function indexRoster(
   nodes: readonly LoopRosterNode[],
   rollups: readonly LoopFanoutRollup[],
@@ -113,29 +98,6 @@ function indexRoster(
     }
   }
   return { byNode, rollups: roundRollups, claimed };
-}
-
-/**
- * The state a fan-out container wears, derived from the fate of its branches.
- * Trouble outranks calm so a fan whose worker failed never reads as healthy.
- */
-const CONTAINER_PRECEDENCE: LoopProgressSegment[] = [
-  "failed",
-  "parked",
-  "active",
-  "pending",
-  "canceled",
-  "never",
-  "clean",
-];
-
-function containerState(band: LoopFanOutBand, rows: readonly LoopRosterNode[]): string {
-  const segments = new Set(band.segments);
-  const winner = CONTAINER_PRECEDENCE.find(segment => segments.has(segment));
-  if (!winner) return band.total > 0 && band.done === band.total ? "succeeded" : "pending";
-  const match = rows.find(row => progressSegmentForState(row.state) === winner);
-  if (match) return match.state;
-  return winner === "clean" ? "succeeded" : "pending";
 }
 
 function isControlNode(graph: LoopGraph | null, nodeId: string): boolean {
@@ -180,11 +142,15 @@ function buildSteps(
         graph,
         namedLimit: STEP_ROW_NAMED_BRANCH_LIMIT,
       });
-      const rows = resolveFanOutBranches(rollup, nodesInRound, graph);
       steps.push({
         key: nodeId,
         nodeId,
-        chip: loopRosterStateChip(containerState(band, rows)),
+        chip: loopRosterStateChip(
+          loopFanOutContainerState(
+            band.branches.map(branch => branch.chip.state),
+            rollup
+          )
+        ),
         attemptLabel: null,
         fanOut: band,
         isControl: false,
@@ -198,7 +164,7 @@ function buildSteps(
         key: rowKey(node),
         nodeId,
         chip: loopRosterStateChip(node.state),
-        attemptLabel: attemptLabel(node),
+        attemptLabel: loopAttemptLabel(node.attempt),
         fanOut: null,
         isControl: isControlNode(graph, nodeId),
       });
@@ -254,6 +220,12 @@ function dominantParkReason(
   return loopParkReason(dominant);
 }
 
+/**
+ * The summary under the bar. `settled` is the served count, never a recount of
+ * the rows this page happens to hold: the roster stops at a page budget, so a
+ * client tally would describe the loaded prefix while the headline beside it
+ * describes the whole round.
+ */
 function leftMeta(
   segments: readonly LoopProgressSegment[],
   settled: number,
@@ -271,6 +243,8 @@ export interface BuildStepsProgressInput {
   nodes: readonly LoopRosterNode[];
   rollups: readonly LoopFanoutRollup[];
   graph: LoopGraph | null;
+  /** False while roster pages are still arriving — the bar says so out loud. */
+  rosterIsComplete: boolean;
 }
 
 export function buildStepsProgress({
@@ -278,6 +252,7 @@ export function buildStepsProgress({
   nodes,
   rollups,
   graph,
+  rosterIsComplete,
 }: BuildStepsProgressInput): LoopStepsProgressModel {
   const round = progress.round;
   const index = indexRoster(nodes, rollups, graph, round);
@@ -287,9 +262,6 @@ export function buildStepsProgress({
   const parkedReason = dominantParkReason(nodesInRound, graph);
   // Past round 1 the counter earns its place; on a single-pass run it is noise.
   const showRound = round > 1;
-  const settled = nodesInRound.filter(
-    node => !isControlNode(graph, node.node_id) && isSettledRosterState(node.state)
-  ).length;
   const remaining = Math.max(progress.steps_total - progress.steps_done, 0);
   return {
     label: stepsLabel(progress, showRound),
@@ -298,11 +270,11 @@ export function buildStepsProgress({
     stepsDone: progress.steps_done,
     stepsTotal: progress.steps_total,
     segments,
-    leftMeta: leftMeta(segments, settled, parkedReason),
+    leftMeta: leftMeta(segments, progress.steps_done, parkedReason),
     rightMeta: remaining > 0 ? `${remaining} to go` : "",
     parkedReason,
     steps,
-    ariaLabel: ariaLabel(progress, segments),
+    ariaLabel: ariaLabel(progress, segments, rosterIsComplete),
   };
 }
 
@@ -314,8 +286,22 @@ function stepsLabel(progress: LoopStepProgress, showRound: boolean): string {
   return showRound ? `${base} · round ${progress.round}` : base;
 }
 
-function ariaLabel(progress: LoopStepProgress, segments: readonly LoopProgressSegment[]): string {
-  if (segments.length === 0) return stepsLabel(progress, progress.round > 1);
+/**
+ * The bar's only accessible name.
+ *
+ * It opens on the same served counts the sighted label carries, because a
+ * screen-reader user hearing the number of drawn segments while the visible
+ * label reads "Step 3 of 6" is being told about a smaller run than the one on
+ * screen. The lane breakdown follows, and it says when it describes only what
+ * has been read so far.
+ */
+function ariaLabel(
+  progress: LoopStepProgress,
+  segments: readonly LoopProgressSegment[],
+  rosterIsComplete: boolean
+): string {
+  const heading = stepsLabel(progress, progress.round > 1);
+  if (segments.length === 0) return heading;
   const counts = new Map<LoopProgressSegment, number>();
   for (const segment of segments) counts.set(segment, (counts.get(segment) ?? 0) + 1);
   const spoken: Record<LoopProgressSegment, string> = {
@@ -328,5 +314,6 @@ function ariaLabel(progress: LoopStepProgress, segments: readonly LoopProgressSe
     pending: "not started",
   };
   const parts = [...counts.entries()].map(([segment, count]) => `${count} ${spoken[segment]}`);
-  return `${segments.length} steps: ${parts.join(", ")}`;
+  const breakdown = rosterIsComplete ? parts.join(", ") : `${parts.join(", ")}, still reading`;
+  return `${heading}: ${breakdown}`;
 }

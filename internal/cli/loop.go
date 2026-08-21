@@ -17,7 +17,6 @@ const (
 	loopNameKey       = "name"
 	loopFileKey       = "file"
 	loopRunIDKey      = "run-id"
-	loopGateIDKey     = "gate-id"
 	loopDecisionKey   = "decision"
 	loopDryRunKey     = "dry-run"
 	loopInputKey      = "input"

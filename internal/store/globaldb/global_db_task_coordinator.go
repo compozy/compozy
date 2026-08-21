@@ -116,13 +116,13 @@ func (g *TaskRepo) completeCoordinatorAndEnqueueNextWithExecutor(
 	if err != nil {
 		return taskpkg.CoordinatorCompletionResult{}, err
 	}
-	if len(state.loopSettlementTransitions) > 0 {
+	if len(state.runStopTransitions) > 0 {
 		if result.Settlement == nil {
 			result.Settlement = &taskpkg.CompletedRunSettlement{}
 		}
 		transitions := make([]taskpkg.StatusTransition, 0,
-			len(state.loopSettlementTransitions)+len(result.Settlement.StatusTransitions))
-		transitions = append(transitions, state.loopSettlementTransitions...)
+			len(state.runStopTransitions)+len(result.Settlement.StatusTransitions))
+		transitions = append(transitions, state.runStopTransitions...)
 		transitions = append(transitions, result.Settlement.StatusTransitions...)
 		result.Settlement.StatusTransitions = transitions
 	}
@@ -159,11 +159,11 @@ func (g *TaskRepo) completeCoordinatorAndEnqueueNextWithExecutor(
 }
 
 type coordinatorBoundaryState struct {
-	snapshot                  taskpkg.GenerationSnapshot
-	postReserveSnapshot       *taskpkg.GenerationSnapshot
-	loopRun                   loop.Run
-	tokensUsed                int64
-	loopSettlementTransitions []taskpkg.StatusTransition
+	snapshot            taskpkg.GenerationSnapshot
+	postReserveSnapshot *taskpkg.GenerationSnapshot
+	loopRun             loop.Run
+	tokensUsed          int64
+	runStopTransitions  []taskpkg.StatusTransition
 }
 
 func (g *TaskRepo) finalizeCoordinatorGenerationWithExecutor(
@@ -203,11 +203,11 @@ func (g *TaskRepo) finalizeCoordinatorGenerationWithExecutor(
 	}
 	postReserve := normalizePostReserveSnapshot(completion.Plan.PostReserveSnapshot, snapshot, loopRunID)
 	if err := writeCoordinatorGenerationSnapshotWithExecutor(
-		ctx, exec, snapshot, finalizer, completion.Actor,
+		ctx, exec, snapshot, postReserve, completion.Plan.NodeTasks, finalizer, completion.Actor,
 	); err != nil {
 		return coordinatorBoundaryState{}, err
 	}
-	loopSettlementTransitions, err := applyCoordinatorRunStopsWithExecutor(
+	runStopTransitions, err := applyCoordinatorRunStopsWithExecutor(
 		ctx, exec, completion.Plan.RunStops, completion.Now,
 	)
 	if err != nil {
@@ -241,11 +241,11 @@ func (g *TaskRepo) finalizeCoordinatorGenerationWithExecutor(
 		return coordinatorBoundaryState{}, err
 	}
 	return coordinatorBoundaryState{
-		snapshot:                  snapshot,
-		postReserveSnapshot:       postReserve,
-		loopRun:                   loopRun,
-		tokensUsed:                tokensUsed,
-		loopSettlementTransitions: loopSettlementTransitions,
+		snapshot:            snapshot,
+		postReserveSnapshot: postReserve,
+		loopRun:             loopRun,
+		tokensUsed:          tokensUsed,
+		runStopTransitions:  runStopTransitions,
 	}, nil
 }
 
@@ -415,49 +415,6 @@ func applyCoordinatorPauseBoundary(
 	}
 	result.Paused = true
 	return nil
-}
-
-func (g *TaskRepo) applyCoordinatorContinueBoundaryWithExecutor(
-	ctx context.Context,
-	exec taskSQLExecutor,
-	completion *taskpkg.CoordinatorCompletion,
-	current *taskpkg.Run,
-	snapshot taskpkg.GenerationSnapshot,
-	postReserveSnapshot *taskpkg.GenerationSnapshot,
-	finalizer taskpkg.GenerationStateFinalizer,
-	loopRun loop.Run,
-	result *taskpkg.CoordinatorCompletionResult,
-) error {
-	enqueued, err := g.reserveCoordinatorPlanRunsWithExecutor(
-		ctx,
-		exec,
-		completion.Plan,
-		*current,
-		completion.Actor.Origin,
-		completion.Now,
-	)
-	if err != nil {
-		return err
-	}
-	if postReserveSnapshot != nil {
-		if err := writeCoordinatorGenerationSnapshotWithExecutor(
-			ctx, exec, *postReserveSnapshot, finalizer, completion.Actor,
-		); err != nil {
-			return err
-		}
-		if err := g.applyCoordinatorGenerationSnapshotIntentsWithExecutor(
-			ctx,
-			exec,
-			loopRun,
-			*postReserveSnapshot,
-			completion.Now,
-		); err != nil {
-			return err
-		}
-		snapshot = *postReserveSnapshot
-	}
-	result.EnqueuedRuns = enqueued
-	return applyCoordinatorYieldBoundary(ctx, exec, snapshot, result)
 }
 
 func (g *TaskRepo) applyCoordinatorWatchReadyBoundaryWithExecutor(

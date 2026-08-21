@@ -11,6 +11,7 @@ import {
   loopRunRosterOptions,
   loopRunTimelineOptions,
 } from "../lib/query-options";
+import { LoopReadError } from "../adapters/loops-api-errors";
 import type { LoopBriefing, LoopFanoutRollup, LoopRosterNode, LoopTimelineEntry } from "../types";
 
 /**
@@ -19,14 +20,28 @@ import type { LoopBriefing, LoopFanoutRollup, LoopRosterNode, LoopTimelineEntry 
  * Each is a separate cache entry because each has its own cadence: the briefing
  * and the roster poll while the run is live and stop when it settles, while the
  * timeline is driven by the stream instead of a timer. Flattening happens here,
- * at the view-model boundary — the envelopes, cursors and the `head_seq` fence
- * stay in the query cache where they belong.
+ * at the view-model boundary — the page envelopes and their cursors stay in the
+ * query cache where they belong.
+ *
+ * The `head_seq` fence is the one deliberate exception, and it is not a second
+ * copy of server state. The pages in the cache each carry the head they were
+ * read at; what lives here is the *latch* over them, because a re-read at a
+ * higher head must not move the sequence an open subscription resumes from
+ * (`latchLoopStreamSeam`). It is keyed, so a new run, workspace or view starts
+ * the latch over rather than inheriting a fence from a different history.
  */
+
+/** The daemon's structured refusal, when it gave one rather than bare prose. */
+function asLoopReadError(error: unknown): LoopReadError | null {
+  return error instanceof LoopReadError ? error : null;
+}
 
 export interface LoopRunBriefingView {
   briefing: LoopBriefing | null;
   isLoading: boolean;
   isError: boolean;
+  /** Structured refusal metadata — `allowed` states, stale-cursor guidance. */
+  readError: LoopReadError | null;
 }
 
 export function useLoopRunBriefing(
@@ -39,6 +54,7 @@ export function useLoopRunBriefing(
     briefing: query.data ?? null,
     isLoading: query.isPending,
     isError: query.isError,
+    readError: asLoopReadError(query.error),
   };
 }
 
@@ -66,6 +82,8 @@ export interface LoopRunRosterView {
   runStatus: string;
   isLoading: boolean;
   isError: boolean;
+  /** Structured refusal metadata — `allowed` states, stale-cursor guidance. */
+  readError: LoopReadError | null;
   /** False while pages are still arriving — the views must not claim complete. */
   isComplete: boolean;
   /** True when the run is larger than the page pulled. Stated, never hidden. */
@@ -80,7 +98,7 @@ export function useLoopRunRoster(
   runId: string,
   enabled = true
 ): LoopRunRosterView {
-  const { data, hasNextPage, isFetchingNextPage, fetchNextPage, isPending, isError } =
+  const { data, hasNextPage, isFetchingNextPage, fetchNextPage, isPending, isError, error } =
     useInfiniteQuery(loopRunRosterOptions(workspaceId, runId, {}, enabled));
   const pages = data?.pages ?? [];
   const [allowance, setAllowance] = useState<RosterPageAllowance>(() => ({
@@ -124,7 +142,11 @@ export function useLoopRunRoster(
     runStatus: pages.at(-1)?.run_status ?? "",
     isLoading: isPending,
     isError,
-    isComplete: !isPending && !hasNextPage,
+    readError: asLoopReadError(error),
+    // A failed first page also has no next page, which would otherwise read as
+    // "the whole roster, and it is empty" — the register would then drop its
+    // "still reading" note and present a transport failure as a finished run.
+    isComplete: !isPending && !isError && !hasNextPage,
     isTruncated: atPageCap && hasNextPage,
     loadMore: () =>
       setAllowance(current => ({
@@ -143,6 +165,8 @@ export interface LoopRunTimelineView {
   hasOlder: boolean;
   isLoading: boolean;
   isError: boolean;
+  /** Structured refusal metadata — `allowed` states, stale-cursor guidance. */
+  readError: LoopReadError | null;
   loadOlder: () => void;
   isLoadingOlder: boolean;
 }
@@ -153,7 +177,7 @@ export function useLoopRunTimeline(
   view: "notable" | "all" = "notable",
   enabled = true
 ): LoopRunTimelineView {
-  const { data, hasNextPage, isFetchingNextPage, fetchNextPage, isPending, isError } =
+  const { data, hasNextPage, isFetchingNextPage, fetchNextPage, isPending, isError, error } =
     useInfiniteQuery(loopRunTimelineOptions(workspaceId, runId, { view }, enabled));
   const snapshotKey = loopTimelineSnapshotKey(workspaceId, runId, view);
   const [snapshot, setSnapshot] = useState(() => emptyTimelineSnapshot(snapshotKey));
@@ -171,6 +195,7 @@ export function useLoopRunTimeline(
     hasOlder: hasNextPage,
     isLoading: isPending,
     isError,
+    readError: asLoopReadError(error),
     loadOlder: () => {
       if (hasNextPage && !isFetchingNextPage) void fetchNextPage();
     },

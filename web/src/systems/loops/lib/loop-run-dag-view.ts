@@ -1,7 +1,7 @@
 import type { LucideIcon } from "lucide-react";
 
 import type { LoopFanoutRollup, LoopRosterNode } from "../types";
-import { type LoopGraph, type LoopGraphNode, nodeClassLabel, topoOrder } from "./loop-graph";
+import { type LoopGraph, topoOrder } from "./loop-graph";
 import { loopNodeClassIcon } from "./loop-node-kind-icons";
 import {
   type LoopDagEdge,
@@ -11,7 +11,12 @@ import {
   rankNodes,
   resolveDagEdges,
 } from "./loop-run-dag-edges";
-import { type LoopFanOutBand, buildFanOutBand } from "./loop-run-fanout-band";
+import {
+  type LoopFanOutBand,
+  buildFanOutBand,
+  loopAttemptLabel,
+  loopFanOutContainerState,
+} from "./loop-run-fanout-band";
 import { type LoopStateChip, loopRosterStateChip } from "./loop-run-state-copy";
 
 /**
@@ -33,14 +38,23 @@ export interface LoopDagNode {
   nodeId: string;
   /** Structure channel: what kind of node this is. Never carries status. */
   kindIcon: LucideIcon | null;
-  kindLabel: string;
   /** Status channel: tone + glyph + the literal state word, always together. */
   chip: LoopStateChip;
   /** One plain sentence when the state needs explaining; null when it does not. */
   note: string | null;
   attemptLabel: string | null;
   fanOut: LoopFanOutBand | null;
-  isFocus: boolean;
+  /**
+   * The roster item this card opens — a server-owned `item_index`, never a
+   * guess.
+   *
+   * A fan-out draws one card for many workers, so "the card" has to name which
+   * worker the panel should open. Assuming item 0 targeted a row that need not
+   * exist: fan-out item indexes come from the daemon and are not guaranteed to
+   * start at zero or be contiguous. `null` means no roster row exists for this
+   * node yet, which is the one case where there is nothing to target.
+   */
+  itemIndex: number | null;
 }
 
 /** One column of the layered lane, plus the gutter drawn to its right. */
@@ -68,30 +82,6 @@ export interface LoopRunDagModel {
 /** How many branches a DAG card names before it folds to lanes plus a sentence. */
 const DAG_NAMED_BRANCH_LIMIT = 4;
 
-/** Plain words for the authored kind. The DSL spelling stays in the definition. */
-const KIND_LABELS: Record<string, string> = {
-  "run-agent": "agent",
-  "fan-out": "fan-out",
-  gate: "gate",
-  collect: "collect",
-  route: "route",
-  ask: "ask",
-  wait: "wait",
-  goal: "goal",
-  transform: "transform",
-  "run-loop": "child run",
-  "sub-loop": "sub-loop",
-  "watch-source": "watch",
-  "watch-events": "watch",
-  "file-import": "file import",
-  input: "input",
-};
-
-export function loopDagKindLabel(node: LoopGraphNode | undefined): string {
-  if (!node) return "step";
-  return KIND_LABELS[node.kind] ?? nodeClassLabel(node);
-}
-
 /**
  * The distinction this view exists to make.
  *
@@ -108,27 +98,6 @@ const STATE_NOTES: Record<string, string> = {
 
 function stateNote(state: string): string | null {
   return STATE_NOTES[state] ?? null;
-}
-
-/** Trouble first, then activity, then calm — a fan never hides a failed worker. */
-const CONTAINER_PRECEDENCE = [
-  "failed",
-  "quarantined",
-  "control_pending",
-  "waiting",
-  "retrying",
-  "paused",
-  "running",
-  "pending",
-  "canceled",
-  "succeeded",
-];
-
-function containerState(rows: readonly LoopRosterNode[], rollup: LoopFanoutRollup): string {
-  for (const candidate of CONTAINER_PRECEDENCE) {
-    if (rows.some(row => row.state === candidate)) return candidate;
-  }
-  return rollup.total > 0 && rollup.done === rollup.total ? "succeeded" : "pending";
 }
 
 /**
@@ -170,8 +139,20 @@ function edgeState(from: LoopDagNode | undefined, to: LoopDagNode | undefined): 
   // pulled toward the front of the run rather than to a node that has stopped.
   if (to.chip.state === "running") return "live";
   if (SETTLED_FOR_FLOW.has(from.chip.state) && to.chip.state !== "pending") return "taken";
-  if (SETTLED_FOR_FLOW.has(from.chip.state) && SETTLED_FOR_FLOW.has(to.chip.state)) return "taken";
   return "idle";
+}
+
+/**
+ * The branches a fan-out card stands in for — never the card itself.
+ *
+ * A fan-out reaches the roster in one of two authored shapes. It may fan into
+ * separately named downstream nodes, in which case those nodes must leave the
+ * lane because the card now represents them. Or it may spread one node across
+ * item slots, in which case every branch carries the fan-out's own id and there
+ * is no sibling to hide — the card *is* the fan.
+ */
+function branchesOutside(node: LoopDagNode) {
+  return (node.fanOut?.branches ?? []).filter(branch => branch.nodeId !== node.nodeId);
 }
 
 export interface BuildRunDagInput {
@@ -203,6 +184,25 @@ export function buildRunDag({ graph, nodes, rollups, round }: BuildRunDagInput):
     else byNode.set(node.node_id, [node]);
   }
 
+  /**
+   * Which worker a collapsed fan-out card opens.
+   *
+   * The one a person would have gone looking for: the worst-off worker first —
+   * a failure or a hold is why anybody opens a fan-out — and otherwise the
+   * lowest item the daemon actually recorded. Tone comes from the shared state
+   * model, so this ranking cannot drift from what the chips already say.
+   */
+  const representativeItem = (rows: readonly LoopRosterNode[]): number | null => {
+    if (rows.length === 0) return null;
+    const rank = (state: string): number => {
+      const tone = loopRosterStateChip(state).tone;
+      return tone === "danger" ? 0 : tone === "warning" ? 1 : 2;
+    };
+    return [...rows].sort(
+      (left, right) => rank(left.state) - rank(right.state) || left.item_index - right.item_index
+    )[0].item_index;
+  };
+
   const dagNodes: LoopDagNode[] = [];
   for (const nodeId of topoOrder(graph)) {
     const authored = graph.nodes.find(entry => entry.id === nodeId);
@@ -225,18 +225,20 @@ export function buildRunDag({ graph, nodes, rollups, round }: BuildRunDagInput):
         graph,
         namedLimit: DAG_NAMED_BRANCH_LIMIT,
       });
-      const branchKeys = new Set(band.branches.map(branch => branch.key));
-      const branchRows = inRound.filter(row => branchKeys.has(`${row.node_id}:${row.item_index}`));
       dagNodes.push({
         key: nodeId,
         nodeId,
         kindIcon,
-        kindLabel: loopDagKindLabel(authored),
-        chip: loopRosterStateChip(containerState(branchRows, rollup)),
+        chip: loopRosterStateChip(
+          loopFanOutContainerState(
+            band.branches.map(branch => branch.chip.state),
+            rollup
+          )
+        ),
         note: band.wide ? band.summary : null,
         attemptLabel: null,
         fanOut: band,
-        isFocus: false,
+        itemIndex: representativeItem(rows),
       });
       continue;
     }
@@ -249,31 +251,33 @@ export function buildRunDag({ graph, nodes, rollups, round }: BuildRunDagInput):
       key: nodeId,
       nodeId,
       kindIcon,
-      kindLabel: loopDagKindLabel(authored),
       chip: loopRosterStateChip(state),
       note: stateNote(state),
-      attemptLabel: row && row.attempt > 1 ? `attempt ${row.attempt}` : null,
+      attemptLabel: row ? loopAttemptLabel(row.attempt) : null,
       fanOut: null,
-      isFocus: false,
+      itemIndex: row?.item_index ?? null,
     });
   }
 
-  // Branches drawn inside a fan-out never reappear as siblings in the lane.
+  // Branches drawn inside a fan-out never reappear as siblings in the lane —
+  // except the fan-out's own card. A fan-out that spreads one node across item
+  // slots gives every branch that node's id, so claiming by bare id would make
+  // the container claim itself and delete the only card the fan has.
   const claimed = new Set(
-    dagNodes.flatMap(node => node.fanOut?.branches.map(branch => branch.nodeId) ?? [])
+    dagNodes.flatMap(node => branchesOutside(node).map(branch => branch.nodeId))
   );
   const laneNodes = dagNodes.filter(node => !claimed.has(node.nodeId));
 
   const { focusNodeId, focusReason } = resolveFocus(laneNodes);
-  const focused = laneNodes.map(node => ({ ...node, isFocus: node.nodeId === focusNodeId }));
 
-  const byId = new Map(focused.map(node => [node.nodeId, node]));
-  const visible = new Set(focused.map(node => node.nodeId));
+  const byId = new Map(laneNodes.map(node => [node.nodeId, node]));
+  const visible = new Set(laneNodes.map(node => node.nodeId));
   // Every hidden worker points at the band that now stands for it, so an
-  // authored path running through it survives the collapse.
+  // authored path running through it survives the collapse. A same-node fan-out
+  // hides no sibling, so it maps nothing.
   const collapsedInto = new Map<string, string>();
   for (const node of dagNodes) {
-    for (const branch of node.fanOut?.branches ?? []) {
+    for (const branch of branchesOutside(node)) {
       collapsedInto.set(branch.nodeId, node.nodeId);
     }
   }
@@ -288,7 +292,7 @@ export function buildRunDag({ graph, nodes, rollups, round }: BuildRunDagInput):
   });
 
   const byRank = new Map<number, LoopDagNode[]>();
-  for (const node of focused) {
+  for (const node of laneNodes) {
     const rank = ranks.get(node.nodeId) ?? 0;
     const bucket = byRank.get(rank);
     if (bucket) bucket.push(node);
@@ -301,11 +305,11 @@ export function buildRunDag({ graph, nodes, rollups, round }: BuildRunDagInput):
   });
 
   return {
-    nodes: focused,
+    nodes: laneNodes,
     columns,
     edges,
     focusNodeId,
-    focusReason: focusReason ?? (focused.length > 0 ? "Nothing needs you now." : null),
+    focusReason: focusReason ?? (laneNodes.length > 0 ? "Nothing needs you now." : null),
     round,
     empty: false,
   };

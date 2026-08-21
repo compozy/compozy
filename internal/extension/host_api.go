@@ -101,7 +101,11 @@ const hostAPIResourceSessionContextKey hostAPIContextKey = "extension.host_api.r
 type HostAPIOption func(*HostAPIHandler)
 
 // HostAPITaskCatalogFilterMapper applies API-owned task catalog filter semantics.
-type HostAPITaskCatalogFilterMapper func(*taskpkg.CatalogQuery, bool, string)
+type HostAPITaskCatalogFilterMapper func(
+	query *taskpkg.CatalogQuery,
+	includeLoop bool,
+	loopRunID string,
+)
 
 // HostAPIHandler handles extension -> Compozy Host API JSON-RPC requests.
 type HostAPIHandler struct {

@@ -79,12 +79,14 @@ type LoopRunPayload struct {
 	Progress                     LoopRunProgress       `json:"progress"`
 }
 
+// LoopRunAttention summarizes operator action required by one run.
 type LoopRunAttention struct {
 	Kind  string    `json:"kind"`
 	Count int       `json:"count"`
 	Since time.Time `json:"since"`
 }
 
+// LoopRunProgress summarizes the current round's completed steps.
 type LoopRunProgress struct {
 	Round      int `json:"round"`
 	StepsDone  int `json:"steps_done"`

@@ -41,7 +41,7 @@ func applyCoordinatorBudgetBoundary(
 		return err
 	}
 	if budgetStatus.Terminal() {
-		result.Settlement = &taskpkg.CompletedRunSettlement{StatusTransitions: transitions}
+		setCoordinatorTerminalSettlement(result, transitions)
 	}
 	if budgetStatus == looppkg.StatusNeedsApproval {
 		if err := activateLoopApprovalWithExecutor(
@@ -122,7 +122,7 @@ func applyCoordinatorTerminalBoundary(
 		return err
 	}
 	if terminalStatus.Terminal() {
-		result.Settlement = &taskpkg.CompletedRunSettlement{StatusTransitions: transitions}
+		setCoordinatorTerminalSettlement(result, transitions)
 	}
 	if terminalStatus == looppkg.StatusNeedsApproval {
 		gateID := looppkg.NodeID(strings.TrimSpace(completion.Plan.Terminal.GateID))
@@ -162,4 +162,11 @@ func applyCoordinatorTerminalBoundary(
 	}
 	result.Terminal = loopStatusIsTerminalOrApproval(terminalStatus)
 	return nil
+}
+
+func setCoordinatorTerminalSettlement(
+	result *taskpkg.CoordinatorCompletionResult,
+	transitions []taskpkg.StatusTransition,
+) {
+	result.Settlement = &taskpkg.CompletedRunSettlement{StatusTransitions: transitions}
 }

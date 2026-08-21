@@ -10,6 +10,7 @@ import (
 	"github.com/kballard/go-shellquote"
 )
 
+// BriefingTone classifies the run verdict for public read surfaces.
 type BriefingTone string
 
 const (
@@ -19,6 +20,7 @@ const (
 	BriefingToneFailed   BriefingTone = "failed"
 )
 
+// Blocker describes one ordered condition preventing progress and its exact unblocker.
 type Blocker struct {
 	Kind         string     `json:"kind"`
 	NodeID       NodeID     `json:"node_id,omitempty"`
@@ -30,6 +32,7 @@ type Blocker struct {
 	Unblocker    string     `json:"unblocker"`
 }
 
+// RunOutcome carries the cause-aware terminal settlement and its durable timestamp.
 type RunOutcome struct {
 	Status    Status    `json:"status"`
 	Cause     string    `json:"cause"`
@@ -38,6 +41,7 @@ type RunOutcome struct {
 	At        time.Time `json:"at"`
 }
 
+// ArtifactAvailability states whether produced content can still be read.
 type ArtifactAvailability string
 
 const (
@@ -46,6 +50,7 @@ const (
 	ArtifactPruned    ArtifactAvailability = "pruned"
 )
 
+// RunArtifact identifies one logical output and its content reference.
 type RunArtifact struct {
 	Name         string               `json:"name"`
 	Output       string               `json:"output,omitempty"`
@@ -53,19 +58,22 @@ type RunArtifact struct {
 	Availability ArtifactAvailability `json:"availability"`
 }
 
+// StepProgress summarizes current-round action completion.
 type StepProgress struct {
 	Round      int `json:"round"`
 	StepsDone  int `json:"steps_done"`
 	StepsTotal int `json:"steps_total"`
 }
 
+// RunUsage summarizes token, cost, budget, and elapsed-time usage.
 type RunUsage struct {
 	Tokens        int64   `json:"tokens"`
 	CostUSD       float64 `json:"cost_usd,omitempty"`
 	BudgetUsedPct float64 `json:"budget_used_pct,omitempty"`
-	DurationMS    int64   `json:"duration_ms,omitempty"`
+	Duration      string  `json:"duration,omitempty"`
 }
 
+// Briefing is the server-owned verdict shared by UI, CLI, HTTP, UDS, and tools.
 type Briefing struct {
 	RunID     RunID         `json:"run_id"`
 	Status    Status        `json:"status"`
@@ -79,12 +87,15 @@ type Briefing struct {
 	Usage     RunUsage      `json:"usage"`
 }
 
+// BriefingSource contains the durable facts required to project one briefing.
 type BriefingSource struct {
-	Run       Run
-	Roster    RosterPage
-	Requests  []Request
-	Artifacts []RunArtifact
-	Now       time.Time
+	Run                  Run
+	Roster               RosterPage
+	Requests             []Request
+	Artifacts            []RunArtifact
+	Outcome              *RunOutcome
+	ApprovalWaitingSince time.Time
+	Now                  time.Time
 }
 
 // ProjectBriefing is the deterministic server-owned verdict projection.
@@ -97,21 +108,25 @@ func ProjectBriefing(source *BriefingSource) Briefing {
 		Usage:    usageFromRun(source.Run, now),
 	}
 	result.Blockers = briefingBlockers(source, now)
+	if isTerminalStatus(source.Run.Status) {
+		return terminalBriefing(result, source)
+	}
 	if len(result.Blockers) > 0 {
 		result.Tone = blockerTone(result.Blockers[0].Kind)
 		result.Headline = blockerHeadline(result.Blockers[0], len(result.Blockers))
+		result.Detail = progressDetail(result.Progress)
 		return result
-	}
-	if isTerminalStatus(source.Run.Status) {
-		return terminalBriefing(result, source.Run)
 	}
 	switch source.Run.Status {
 	case StatusQueued:
 		result.Headline = "Waiting to start because the concurrency cap is full."
+		result.Detail = "The run will start when an execution slot is available."
 	case StatusWatching:
 		result.Headline = "Waiting for the configured watch source."
+		result.Detail = "No new matching input has arrived."
 	default:
 		result.Headline = runningHeadline(source.Roster, source.Run.Generation)
+		result.Detail = progressDetail(result.Progress)
 	}
 	return result
 }
@@ -133,7 +148,7 @@ func ProgressFromRoster(roster RosterPage, generation int) StepProgress {
 
 // ProgressFromRosterSource projects progress from the complete current-round roster.
 func ProgressFromRosterSource(source *RosterSource) (StepProgress, error) {
-	roster, err := projectCompleteRoster(source, RosterQuery{State: NodeStateFilterAll})
+	roster, err := projectCompleteRoster(source, NodeStateFilterAll, 0)
 	if err != nil {
 		return StepProgress{}, err
 	}
@@ -145,11 +160,10 @@ func briefingBlockers(source *BriefingSource, now time.Time) []Blocker {
 	if source.Run.Status == StatusNeedsApproval || source.Run.ActiveGateID != "" {
 		items = append(items, Blocker{
 			Kind: gateResultApprovalKey, GateID: source.Run.ActiveGateID,
-			WaitingSince: source.Run.LastProgressAt.UTC(),
+			WaitingSince: source.ApprovalWaitingSince.UTC(),
 			Unblocker: shellquote.Join(
 				"compozy", "loop", "approve", string(source.Run.ID),
 				"--gate", string(source.Run.ActiveGateID),
-				"--workspace", string(source.Run.WorkspaceID),
 			),
 		})
 	}
@@ -255,11 +269,15 @@ func runningHeadline(roster RosterPage, generation int) string {
 	return fmt.Sprintf("Run is active in round %d.", generation)
 }
 
-func terminalBriefing(result Briefing, run Run) Briefing {
-	cause := string(run.Status)
-	at := run.LastProgressAt.UTC()
-	result.Outcome = &RunOutcome{Status: run.Status, Cause: cause, At: at}
-	if run.Status == StatusCanceled {
+func terminalBriefing(result Briefing, source *BriefingSource) Briefing {
+	run := source.Run
+	if source.Outcome != nil {
+		outcome := *source.Outcome
+		result.Outcome = &outcome
+	} else {
+		result.Outcome = &RunOutcome{Status: run.Status, Cause: "unknown"}
+	}
+	if run.Status == StatusCanceled && result.Outcome.ActorKind == "" {
 		result.Outcome.ActorKind = string(run.ControlActor.Kind)
 		result.Outcome.ActorRef = run.ControlActor.Ref
 	}
@@ -275,6 +293,7 @@ func terminalBriefing(result Briefing, run Run) Briefing {
 	} else {
 		result.Headline = terminalHeadline(*result.Outcome, result.Artifacts)
 	}
+	result.Detail = progressDetail(result.Progress)
 	return result
 }
 
@@ -313,9 +332,25 @@ func usageFromRun(run Run, now time.Time) RunUsage {
 		if isTerminalStatus(run.Status) && !run.LastProgressAt.IsZero() {
 			end = run.LastProgressAt
 		}
-		usage.DurationMS = end.Sub(start).Milliseconds()
+		usage.Duration = formatBriefingDuration(end.Sub(start))
 	}
 	return usage
+}
+
+func formatBriefingDuration(duration time.Duration) string {
+	if duration < 0 {
+		duration = 0
+	}
+	return duration.Round(time.Second).String()
+}
+
+func progressDetail(progress StepProgress) string {
+	return fmt.Sprintf(
+		"%d of %d steps are complete in round %d.",
+		progress.StepsDone,
+		progress.StepsTotal,
+		progress.Round,
+	)
 }
 
 func isTerminalStatus(status Status) bool {

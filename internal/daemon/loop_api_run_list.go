@@ -40,13 +40,16 @@ func (s *daemonLoopAPIService) ListLoopRuns(
 		return contract.LoopRunsResponse{}, err
 	}
 	if query.Limit < 0 || query.Limit > 500 {
-		return contract.LoopRunsResponse{}, fmt.Errorf("%w: limit must be between 1 and 500", looppkg.ErrValidation)
+		return contract.LoopRunsResponse{}, fmt.Errorf(
+			"%w: limit must be 0 or between 1 and 500",
+			looppkg.ErrValidation,
+		)
 	}
 	limit := query.Limit
 	if limit == 0 {
 		limit = 100
 	}
-	if cursor != nil && !cursor.matches(workspaceID, query) {
+	if cursor != nil && !cursor.matches(string(ws), query) {
 		return contract.LoopRunsResponse{}, fmt.Errorf(
 			"%w: Loop run list cursor scope changed",
 			looppkg.ErrInvalidRunListCursor,
@@ -90,12 +93,12 @@ func (s *daemonLoopAPIService) ListLoopRuns(
 		payloads = append(payloads, payload)
 	}
 	sortLoopRunList(payloads)
-	response := contract.LoopRunsResponse{Aggregates: loopRunsAggregate(runs)}
+	response := contract.LoopRunsResponse{}
 	if len(payloads) > limit {
 		response.Runs = payloads[:limit]
 		response.NextCursor, err = encodeLoopRunListCursor(
 			response.Runs[len(response.Runs)-1],
-			workspaceID,
+			string(ws),
 			query,
 		)
 		if err != nil {
@@ -104,6 +107,7 @@ func (s *daemonLoopAPIService) ListLoopRuns(
 	} else {
 		response.Runs = payloads
 	}
+	response.Aggregates = loopRunsAggregate(runs[:len(response.Runs)])
 	return response, nil
 }
 

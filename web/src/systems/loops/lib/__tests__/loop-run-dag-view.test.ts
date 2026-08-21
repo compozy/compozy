@@ -110,6 +110,56 @@ describe("buildRunDag", () => {
     expect(model.nodes.map(entry => entry.chip.state)).not.toContain("not_taken");
   });
 
+  // A fan-out draws one card for many workers, and the node panel looks a row up
+  // by exact item and round. Assuming item 0 targeted a row that need not exist:
+  // the daemon owns these indexes and does not promise they start at zero.
+  it("Should target a real server-owned item for a collapsed fan-out, never item 0", () => {
+    const model = buildRunDag({
+      graph: CHAIN,
+      nodes: [
+        node("implementar", "succeeded", { item_index: 4 }),
+        node("implementar", "succeeded", { item_index: 5 }),
+      ],
+      rollups: [{ generation: 1, node_id: "implementar", done: 2, total: 2, failed: 0 }],
+      round: 1,
+    });
+
+    const card = model.nodes.find(entry => entry.nodeId === "implementar");
+    expect(card?.fanOut).not.toBeNull();
+    // The lowest index the daemon actually recorded — not the absent slot 0.
+    expect(card?.itemIndex).toBe(4);
+  });
+
+  it("Should open the fan-out worker that needs a person before its healthy siblings", () => {
+    const model = buildRunDag({
+      graph: CHAIN,
+      nodes: [
+        node("implementar", "succeeded", { item_index: 0 }),
+        node("implementar", "failed", { item_index: 7 }),
+        node("implementar", "waiting", { item_index: 3 }),
+      ],
+      rollups: [{ generation: 1, node_id: "implementar", done: 1, total: 3, failed: 1 }],
+      round: 1,
+    });
+
+    // Failure outranks a hold, which outranks a healthy worker — the ranking the
+    // state chips already publish, so the card cannot disagree with them.
+    expect(model.nodes.find(entry => entry.nodeId === "implementar")?.itemIndex).toBe(7);
+  });
+
+  it("Should carry the node's own item for a plain card and none when unreached", () => {
+    const model = buildRunDag({
+      graph: CHAIN,
+      nodes: [node("implementar", "running", { item_index: 2 })],
+      rollups: [],
+      round: 1,
+    });
+
+    expect(model.nodes.find(entry => entry.nodeId === "implementar")?.itemIndex).toBe(2);
+    // Nothing has been reached, so there is no roster row to target.
+    expect(model.nodes.find(entry => entry.nodeId === "saida")?.itemIndex).toBeNull();
+  });
+
   it("Should keep the kind glyph neutral while the state chip carries the signal", () => {
     const model = buildRunDag({
       graph: CHAIN,
@@ -122,7 +172,6 @@ describe("buildRunDag", () => {
     expect(failed.chip.tone).toBe("danger");
     expect(failed.chip.label).toBe("failed");
     // A failed agent is still an agent: structure and status never share a channel.
-    expect(failed.kindLabel).toBe("agent");
     expect(failed.kindIcon).not.toBeNull();
   });
 
@@ -182,7 +231,7 @@ describe("buildRunDag", () => {
     // A running node is interesting; a node waiting on a person is urgent.
     expect(model.focusNodeId).toBe("aplicar-correcoes");
     expect(model.focusReason).toContain("waiting on you");
-    expect(model.nodes.find(entry => entry.isFocus)?.nodeId).toBe("aplicar-correcoes");
+    expect(model.nodes.some(entry => entry.nodeId === model.focusNodeId)).toBe(true);
   });
 
   it("Should say plainly when nothing needs a human", () => {
@@ -250,7 +299,57 @@ describe("buildRunDag", () => {
     expect(fan.chip.tone).toBe("danger");
   });
 
-  it("Should fall back to the roster when the definition cannot be read", () => {
+  it("Should keep the card for a fan-out that spreads one node across item slots", () => {
+    // The runtime's ordinary fan-out: several roster rows carrying one node id,
+    // told apart by item index, plus a rollup under that same id. The card is
+    // the fan, so nothing here may be claimed away as a hidden sibling.
+    const fanGraph: LoopGraph = {
+      nodes: [
+        graphNode("implementar", "run-agent", "action"),
+        graphNode("revisar", "fan-out", "control"),
+        graphNode("saida", "run-agent", "action"),
+      ],
+      edges: [
+        { from: "implementar", to: "revisar" },
+        { from: "revisar", to: "saida" },
+      ],
+    };
+    const rollup: LoopFanoutRollup = {
+      generation: 1,
+      node_id: "revisar",
+      done: 1,
+      total: 3,
+      failed: 0,
+    };
+    const model = buildRunDag({
+      graph: fanGraph,
+      nodes: [
+        node("implementar", "succeeded"),
+        node("revisar", "succeeded", { item_index: 0 }),
+        node("revisar", "running", { item_index: 1 }),
+        node("revisar", "running", { item_index: 2 }),
+      ],
+      rollups: [rollup],
+      round: 1,
+    });
+
+    expect(model.nodes.map(entry => entry.nodeId)).toEqual(["implementar", "revisar", "saida"]);
+    const fan = model.nodes[1];
+    expect(fan.fanOut?.branches.map(branch => branch.label)).toEqual([
+      "item 0",
+      "item 1",
+      "item 2",
+    ]);
+    // Two workers are still going, so the card is not allowed to read succeeded.
+    expect(fan.chip.state).toBe("running");
+    // The authored path still runs through it.
+    expect(model.edges.map(edge => `${edge.from}->${edge.to}`)).toEqual([
+      "implementar->revisar",
+      "revisar->saida",
+    ]);
+  });
+
+  it("Should return an empty model when the definition cannot be read", () => {
     const model = buildRunDag({ graph: null, nodes: [], rollups: [], round: 1 });
     expect(model.empty).toBe(true);
     expect(model.nodes).toEqual([]);

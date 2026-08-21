@@ -1,11 +1,12 @@
 import { describe, expect, it } from "vitest";
 
 import type { LoopFanoutRollup, LoopRosterNode, LoopStepProgress } from "../../types";
-import type { LoopGateVerdict } from "../loop-events";
 import type { LoopGraph, LoopGraphNode } from "../loop-graph";
-import { buildStepsProgress, latestGateVerdict } from "../loop-run-progress";
+import { buildStepsProgress } from "../loop-run-progress";
 
-function graphNode(id: string, nodeClass: "action" | "control" | "source"): LoopGraphNode {
+type TestGraphNodeClass = "action" | "control" | "source";
+
+function graphNode(id: string, nodeClass: TestGraphNodeClass): LoopGraphNode {
   return {
     id,
     nodeClass,
@@ -17,7 +18,7 @@ function graphNode(id: string, nodeClass: "action" | "control" | "source"): Loop
   };
 }
 
-function graph(ids: [string, "action" | "control" | "source"][]): LoopGraph {
+function graph(ids: [string, TestGraphNodeClass][]): LoopGraph {
   const nodes = ids.map(([id, nodeClass]) => graphNode(id, nodeClass));
   const edges = ids.slice(1).map(([id], index) => ({ from: ids[index][0], to: id }));
   return { nodes, edges };
@@ -60,6 +61,7 @@ describe("buildStepsProgress", () => {
         node("saida", "pending"),
       ],
       rollups: [],
+      rosterIsComplete: true,
       graph: graph([
         ["implementar", "action"],
         ["revisor-a", "action"],
@@ -95,6 +97,7 @@ describe("buildStepsProgress", () => {
       progress: progress({ round: 1, steps_done: 1, steps_total: 2 }),
       nodes,
       rollups: [],
+      rosterIsComplete: true,
       graph: definition,
     });
     expect(firstRound.showRound).toBe(false);
@@ -105,6 +108,7 @@ describe("buildStepsProgress", () => {
       progress: progress({ round: 2, steps_done: 1, steps_total: 2 }),
       nodes: nodes.map(entry => ({ ...entry, generation: 2 })),
       rollups: [],
+      rosterIsComplete: true,
       graph: definition,
     });
     expect(secondRound.showRound).toBe(true);
@@ -121,6 +125,7 @@ describe("buildStepsProgress", () => {
         node("saida", "pending"),
       ],
       rollups: [],
+      rosterIsComplete: true,
       graph: graph([
         ["implementar", "action"],
         ["rota-manual", "action"],
@@ -151,6 +156,7 @@ describe("buildStepsProgress", () => {
         node("aplicar-correcoes", "control_pending", { generation: 2 }),
       ],
       rollups: [],
+      rosterIsComplete: true,
       graph: graph([
         ["revisor-a", "action"],
         ["revisor-b", "action"],
@@ -164,7 +170,9 @@ describe("buildStepsProgress", () => {
     // No percentage: a frozen bar reads as progress that has stalled rather than
     // as work that is suspended, which is the misreading US-006.EC-3 is about.
     expect(model.leftMeta).not.toMatch(/%/);
-    expect(model.segments.every(segment => segment === "parked")).toBe(true);
+    // Compared whole: `every` is vacuously true on an empty array, so it would
+    // still pass if segment construction disappeared.
+    expect(model.segments).toEqual(["parked", "parked", "parked"]);
   });
 
   it("Should draw a fan-out as one step whose branches are its lanes", () => {
@@ -184,6 +192,7 @@ describe("buildStepsProgress", () => {
         node("revisor-perf", "waiting"),
       ],
       rollups: [rollup],
+      rosterIsComplete: true,
       graph: {
         nodes: [
           graphNode("implementar", "action"),
@@ -223,35 +232,11 @@ describe("buildStepsProgress", () => {
       progress: progress({ round: 1, steps_done: 0, steps_total: 0 }),
       nodes: [],
       rollups: [],
+      rosterIsComplete: true,
       graph: null,
     });
     expect(model.label).toBe("No steps in this round yet");
     expect(model.segments).toEqual([]);
     expect(model.rightMeta).toBe("");
-  });
-});
-
-describe("latestGateVerdict", () => {
-  it("Should pick the verdict from the highest generation", () => {
-    const verdicts: Record<string, LoopGateVerdict> = {
-      check_all: {
-        nodeId: "check_all",
-        gateId: "check_all",
-        generation: 2,
-        verdict: "revise",
-        criteria: [],
-        blockingIssues: [{ id: "issue_022" }],
-      },
-      final_gate: {
-        nodeId: "final_gate",
-        gateId: "final_gate",
-        generation: 3,
-        verdict: "pass",
-        criteria: [],
-        blockingIssues: [],
-      },
-    };
-    expect(latestGateVerdict(verdicts)?.nodeId).toBe("final_gate");
-    expect(latestGateVerdict({})).toBeNull();
   });
 });

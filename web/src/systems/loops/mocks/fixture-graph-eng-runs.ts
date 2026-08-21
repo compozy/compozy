@@ -42,9 +42,15 @@ function buildReleaseTrainRun(
     definition_digest: "sha256:release-train-v3",
     start_metadata: {},
     inputs: { services: "api,web,worker", severity: "p1" },
-    // Server-owned step/round progress (B-001): the roster reads it, never derives it.
-    progress: { round: 3, steps_done: 4, steps_total: 6 },
     ...overrides,
+    // Server-owned step/round progress (B-001): the roster reads it, never
+    // derives it, so the round has to follow the generation the caller set. The
+    // fork runs at generation 2 and must say round 2.
+    progress: overrides.progress ?? {
+      round: overrides.generation ?? 3,
+      steps_done: 4,
+      steps_total: 6,
+    },
     forks: overrides.forks ?? [],
   };
 }

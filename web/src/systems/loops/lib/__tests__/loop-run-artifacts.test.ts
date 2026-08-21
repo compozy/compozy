@@ -8,7 +8,7 @@ function briefing(overrides: Partial<LoopBriefing> = {}): LoopBriefing {
     run_id: "looprun-77aa01b2c3d4e5f6",
     status: "done",
     tone: "ok",
-    headline: "The run finished and wrote post-final.md",
+    headline: "The run finished",
     blockers: [],
     artifacts: [],
     progress: { round: 2, steps_done: 6, steps_total: 6 },
@@ -71,6 +71,7 @@ describe("buildRunOutcome", () => {
     const model = buildRunOutcome(
       briefing({
         status: "canceled",
+        headline: "The run was canceled before it wrote anything",
         outcome: {
           status: "canceled",
           cause: "operator stopped the run",
@@ -89,7 +90,9 @@ describe("buildRunOutcome", () => {
   });
 
   it("Should not claim a live run produced nothing", () => {
-    const model = buildRunOutcome(briefing({ status: "running", outcome: null }));
+    const model = buildRunOutcome(
+      briefing({ status: "running", headline: "The run is working on it", outcome: null })
+    );
     expect(model.outcome).toBeNull();
     // "Produced nothing" is a terminal statement. A running run has simply not
     // produced anything *yet*, which is a different sentence entirely.

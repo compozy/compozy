@@ -657,6 +657,8 @@ type LoopGenerationOutput struct {
 	Generation          int64          `json:"generation"`
 	NodeID              string         `json:"node_id"`
 	ItemIndex           int64          `json:"item_index"`
+	OutputID            sql.NullString `json:"output_id"`
+	ArtifactName        sql.NullString `json:"artifact_name"`
 	Status              string         `json:"status"`
 	OutputRef           sql.NullString `json:"output_ref"`
 	TaskRunID           sql.NullString `json:"task_run_id"`

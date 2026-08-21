@@ -123,8 +123,12 @@ func updateLoopBoundaryStatusWithEffects(
 		if err != nil {
 			return nil, err
 		}
-		if _, err := settleLoopRunTerminal(
-			ctx, exec, string(current.ID), terminalCauseForLoopStatus(to, cause),
+		terminalCause, err := terminalCauseForLoopStatus(to, cause)
+		if err != nil {
+			return nil, err
+		}
+		if _, err := settleLoopRunTerminalWithRecords(
+			ctx, exec, string(current.ID), terminalCause, records,
 		); err != nil {
 			return nil, err
 		}

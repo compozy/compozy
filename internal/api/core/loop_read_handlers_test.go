@@ -99,7 +99,7 @@ func TestLoopReadHandlersMapping(t *testing.T) {
 		assertLoopStatus(t, response.Code, http.StatusBadRequest, response.Body.String())
 		var body map[string]string
 		testutil.DecodeJSONResponse(t, response, &body)
-		if body["error"] != "position 3 is beyond this run's history (head: 2)" {
+		if body["error"] != "timeline_position_beyond_head" || body["code"] != "timeline_position_beyond_head" {
 			t.Fatalf("body = %#v", body)
 		}
 	})
@@ -115,7 +115,7 @@ func TestLoopReadHandlersMapping(t *testing.T) {
 		assertLoopStatus(t, response.Code, http.StatusConflict, response.Body.String())
 		var body map[string]string
 		testutil.DecodeJSONResponse(t, response, &body)
-		if body["error"] != "timeline_branch_changed" {
+		if body["error"] != "timeline_branch_changed" || body["code"] != "timeline_branch_changed" {
 			t.Fatalf("body = %#v", body)
 		}
 	})
@@ -146,7 +146,7 @@ func TestLoopReadHandlersShouldMapMalformedCursorsExactly(t *testing.T) {
 		assertLoopStatus(t, response.Code, http.StatusBadRequest, response.Body.String())
 		var body map[string]string
 		testutil.DecodeJSONResponse(t, response, &body)
-		if body["error"] != "invalid_cursor" {
+		if body["error"] != "invalid_cursor" || body["code"] != "invalid_cursor" {
 			t.Fatalf("body = %#v", body)
 		}
 	})
@@ -173,6 +173,35 @@ func TestLoopReadHandlersShouldMapMalformedCursorsExactly(t *testing.T) {
 		var body map[string]string
 		testutil.DecodeJSONResponse(t, response, &body)
 		if body["error"] != "invalid_cursor" {
+			t.Fatalf("body = %#v", body)
+		}
+	})
+}
+
+func TestLoopReadHandlersShouldMapInvalidRosterStateDetails(t *testing.T) {
+	t.Parallel()
+	t.Run("Should return the shared code and details envelope", func(t *testing.T) {
+		t.Parallel()
+		service := happyLoopService(t)
+		service.getLoopRunNodesFn = func(
+			context.Context,
+			string,
+			string,
+			looppkg.RosterQuery,
+		) (contract.LoopRunNodesResponse, error) {
+			return contract.LoopRunNodesResponse{}, &looppkg.InvalidNodeStateError{
+				State: "unknown", Allowed: []string{"all", "running"},
+			}
+		}
+		_, engine := newLoopHandlerFixture(t, "httpapi", service)
+		response := performRequest(
+			t, engine, http.MethodGet, "/workspaces/ws-1/loop-runs/run-1/nodes?state=unknown", nil,
+		)
+		assertLoopStatus(t, response.Code, http.StatusBadRequest, response.Body.String())
+		var body contract.ErrorPayload
+		testutil.DecodeJSONResponse(t, response, &body)
+		if body.Error != "invalid_node_state" || body.Code != "invalid_node_state" ||
+			body.Details["allowed"] != "all,running" {
 			t.Fatalf("body = %#v", body)
 		}
 	})

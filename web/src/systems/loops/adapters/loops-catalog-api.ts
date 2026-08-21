@@ -5,7 +5,7 @@ import {
   requireResponseData,
 } from "@/lib/api-client";
 
-import { LoopsApiError, LoopValidationError } from "./loops-api-errors";
+import { LoopsApiError, LoopValidationError, normalizeOptionalText } from "./loops-api-errors";
 import type {
   CreateLoopRequest,
   LoopCatalogFilter,
@@ -15,12 +15,6 @@ import type {
   ValidateLoopRequest,
   ValidateLoopResult,
 } from "../types";
-
-function normalizeOptionalText(value?: string | null): string | undefined {
-  if (typeof value !== "string") return undefined;
-  const normalized = value.trim();
-  return normalized === "" ? undefined : normalized;
-}
 
 function normalizeLoopCatalogFilter(filters: LoopCatalogFilter = {}): LoopCatalogFilter {
   return {

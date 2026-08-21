@@ -43,8 +43,12 @@ func newLoopRunsCommand(deps commandDeps) *cobra.Command {
 		Short: "List workspace Loop runs",
 		Args:  cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, _ []string) error {
-			if cmd.Flags().Changed("limit") && (limit < 1 || limit > 500) {
-				return withCommandExitCode(2, fmt.Errorf("--limit must be between 1 and 500"))
+			if err := validateLoopPageLimit(
+				limit,
+				cmd.Flags().Changed("limit"),
+				loopRunReadPageLimitMax,
+			); err != nil {
+				return err
 			}
 			client, workspaceID, err := loopClientAndWorkspace(cmd, deps, workspaceRef)
 			if err != nil {
@@ -61,7 +65,7 @@ func newLoopRunsCommand(deps commandDeps) *cobra.Command {
 			if err != nil {
 				return err
 			}
-			return writeCommandOutput(cmd, loopRunsOutputBundle(response))
+			return writeCommandOutput(cmd, loopRunsOutputBundle(response, deps.now))
 		},
 	}
 	cmd.Flags().StringVar(&workspaceRef, loopWorkspaceKey, "", "Override workspace (ID, name, or path)")
@@ -70,7 +74,7 @@ func newLoopRunsCommand(deps commandDeps) *cobra.Command {
 	cmd.Flags().StringVar(&origin, "origin", "", "Filter by run origin: catalog or session")
 	cmd.Flags().StringVar(&originSession, "origin-session", "", "Filter by origin session ID")
 	cmd.Flags().StringVar(&cursor, "cursor", "", "Resume after an opaque server-order cursor")
-	cmd.Flags().IntVar(&limit, "limit", 0, "Page size from 1 to 500; defaults to 50")
+	cmd.Flags().IntVar(&limit, "limit", 50, "Page size from 1 to 500")
 	return cmd
 }
 

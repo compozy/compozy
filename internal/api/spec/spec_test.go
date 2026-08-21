@@ -2283,6 +2283,8 @@ func TestDocumentTracksRequiredFieldsAndEnums(t *testing.T) {
 				listTasks := operationFor(t, doc, "/api/tasks", "GET")
 				assertParameter(t, listTasks, "priority", openapi3.ParameterInQuery, false)
 				assertParameter(t, listTasks, "include_drafts", openapi3.ParameterInQuery, false)
+				assertParameter(t, listTasks, "include_loop", openapi3.ParameterInQuery, false)
+				assertParameter(t, listTasks, "loop_run_id", openapi3.ParameterInQuery, false)
 				assertParameter(t, listTasks, "approval_state", openapi3.ParameterInQuery, false)
 				assertParameter(t, listTasks, "worktree", openapi3.ParameterInQuery, false)
 				assertParameter(t, listTasks, "query", openapi3.ParameterInQuery, false)
@@ -2295,6 +2297,8 @@ func TestDocumentTracksRequiredFieldsAndEnums(t *testing.T) {
 				)
 				listTasksSchema := jsonResponseSchema(t, listTasks, 200)
 				assertRequired(t, listTasksSchema, "tasks", "page", "facets")
+				taskQueryErrorSchema := jsonResponseSchema(t, listTasks, 400)
+				assertRequired(t, taskQueryErrorSchema, "error", "field")
 				listItemsSchema := propertySchema(t, listTasksSchema, "tasks")
 				if listItemsSchema.Items == nil || listItemsSchema.Items.Value == nil {
 					t.Fatal("expected task catalog to define an items schema")
@@ -2861,7 +2865,7 @@ func TestSchemaCustomizerCoversAdditionalEnums(t *testing.T) {
 		{name: "LoopEnvironmentMode", typ: contract.LoopEnvironmentModePerRun},
 		{name: "AutomationSchedulerCatchUpPolicy", typ: automationpkg.SchedulerCatchUpPolicySkipMissed},
 		{name: "TaskInboxLane", typ: contract.TaskInboxLaneApprovals},
-		{name: "LoopProvenanceRole", typ: contract.LoopProvenanceRoleCoordinator},
+		{name: "Should cover LoopProvenanceRole", typ: contract.LoopProvenanceRoleCoordinator},
 		{name: "IssueSeverity", typ: contract.IssueSeverityError},
 		{name: "HookSkillSource", typ: hooks.HookSkillSourceBundled},
 		{name: "HookExecutorKind", typ: hooks.HookExecutorNative},

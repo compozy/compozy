@@ -1,7 +1,8 @@
 import type { LoopRosterNode } from "../types";
 // Straight from the module that owns it; the story projection only re-exported it.
-import { humanizeLoopNodeId } from "./loop-run-story-rows";
+import { humanizeLoopNodeId } from "./loop-node-labels";
 import type { LoopNodeLifecycle } from "./loop-node-lifecycle";
+import { isNeverMaterializedRosterState } from "./loop-run-state-copy";
 
 /**
  * Bridges a roster selection to the row the verb rules read.
@@ -21,9 +22,6 @@ import type { LoopNodeLifecycle } from "./loop-node-lifecycle";
  * the runtime has not already said. It is still the daemon, through
  * `loopNodeVerbs`, that decides which verbs that state permits.
  */
-
-/** States in which a node provably never ran; there is nothing to act on. */
-const NEVER_MATERIALIZED = new Set(["not_taken", "pending"]);
 
 function latestAttempt(node: LoopRosterNode) {
   return node.attempts.reduce<LoopRosterNode["attempts"][number] | null>(
@@ -90,7 +88,7 @@ export function resolveNodeVerbTarget(
   // A node the run never reached has no session, no record and nothing to
   // intervene on. Offering verbs here would invent a control over work that
   // does not exist (US-015.EC-2).
-  if (rosterNode && NEVER_MATERIALIZED.has(rosterNode.state)) return null;
+  if (rosterNode && isNeverMaterializedRosterState(rosterNode.state)) return null;
 
   // Identity is node + round + item, never the node id alone: a fan-out worker
   // and its sibling share an id, and so does the same step in a later round.

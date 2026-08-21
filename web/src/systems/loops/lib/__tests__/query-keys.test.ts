@@ -158,4 +158,54 @@ describe("loopsKeys", () => {
     );
     expect(loopsKeys.runDiff("ws_a", "run_1").slice(0, 2)).toEqual(loopsKeys.runDiffRoot());
   });
+  // ADR-005: three projections of one source. They share a root so a node verb
+  // or a stream reconnect invalidates all three together, and each carries the
+  // filters that make it a distinct population rather than a filtered copy.
+  it("Should root the three run reads together and key each by its own population", () => {
+    expect(loopsKeys.runBriefing("ws_a", "run_1")).toEqual([
+      "loops",
+      "run-reads",
+      "ws_a",
+      "run_1",
+      "briefing",
+    ]);
+    expect(loopsKeys.runBriefing("ws_a", "run_1").slice(0, 4)).toEqual(
+      loopsKeys.runReads("ws_a", "run_1")
+    );
+    expect(loopsKeys.runReads("ws_a", "run_1").slice(0, 2)).toEqual(loopsKeys.runReadsRoot());
+    expect(loopsKeys.runReads("ws_a", "run_1")).not.toEqual(loopsKeys.runReads("ws_b", "run_1"));
+
+    expect(loopsKeys.runRoster("ws_a", "run_1", { state: "failed", generation: 2 })).toEqual([
+      "loops",
+      "run-reads",
+      "ws_a",
+      "run_1",
+      "roster",
+      "failed",
+      "2",
+      "",
+    ]);
+    // A filtered roster is its own population with its own cursor.
+    expect(loopsKeys.runRoster("ws_a", "run_1", { state: "failed" })).not.toEqual(
+      loopsKeys.runRoster("ws_a", "run_1", { state: "running" })
+    );
+    expect(loopsKeys.runRoster("ws_a", "run_1", { generation: 1 })).not.toEqual(
+      loopsKeys.runRoster("ws_a", "run_1", { generation: 2 })
+    );
+
+    // `notable` and `all` are two fenced histories, never one list filtered down.
+    expect(loopsKeys.runTimeline("ws_a", "run_1", { view: "all", limit: 50 })).toEqual([
+      "loops",
+      "run-reads",
+      "ws_a",
+      "run_1",
+      "timeline",
+      "all",
+      "50",
+      "",
+    ]);
+    expect(loopsKeys.runTimeline("ws_a", "run_1", { view: "all" })).not.toEqual(
+      loopsKeys.runTimeline("ws_a", "run_1", { view: "notable" })
+    );
+  });
 });

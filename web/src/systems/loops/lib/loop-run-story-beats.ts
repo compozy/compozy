@@ -1,7 +1,8 @@
 import type { PillTone } from "@compozy/ui";
 
 import type { LoopTimelineEntry } from "../types";
-import type { LoopStoryIcon } from "./loop-run-story-types";
+import { loopAttemptLabel } from "./loop-run-fanout-band";
+import type { LoopStoryIcon } from "./loop-story-icons";
 
 /**
  * The story, told as beats.
@@ -11,14 +12,20 @@ import type { LoopStoryIcon } from "./loop-run-story-types";
  * an agent. What this model adds is register — a tone and a glyph per kind — and
  * the arithmetic of coalescing.
  *
- * The one hard rule: an event kind is never user-visible text. `node_failed` is
- * a wire value; "the style reviewer failed" is a beat. If a title ever arrives
- * empty, the fallback below writes a sentence rather than printing the enum.
+ * The one hard rule, in the narrated default register: an event kind is never
+ * user-visible text. `node_failed` is a wire value; "the style reviewer failed"
+ * is a beat. If a title ever arrives empty, the fallback below writes a sentence
+ * rather than printing the enum. The disclosed raw-events lane is the documented
+ * exception — it renders `kind` on purpose, so an operator can line the timeline
+ * up against the CLI or the logs (`_uiux.md` S5).
  */
 
 export interface LoopStoryBeat {
   key: string;
-  /** The wire kind. Addressable in tests and filters; never rendered as text. */
+  /**
+   * The wire kind. Never rendered as text in the narrated register; the
+   * disclosed raw-events lane shows it deliberately, for CLI/log correlation.
+   */
   kind: string;
   seq: number;
   /** Earliest raw sequence this beat covers; equals `seq` unless coalesced. */
@@ -33,6 +40,22 @@ export interface LoopStoryBeat {
   generation: number | null;
   /** Attempts are metadata on the beat, never a beat of their own. */
   attemptLabel: string | null;
+  /**
+   * The run on the other side of a fork, when this beat is one (US-009.EC-3).
+   *
+   * The timeline entry does not carry it — the daemon records the branch on the
+   * run itself — so it is resolved from the run's own `forked_from` / `forks`
+   * lineage by matching the round the beat happened in. Null whenever that match
+   * cannot be made, because a fork beat pointing at a guessed run is worse than
+   * one that only names the fork.
+   */
+  relatedRunId: string | null;
+}
+
+/** A run's fork lineage, exactly as the run projection carries it. */
+export interface LoopRunLineage {
+  forkedFrom: { run_id: string; generation: number } | null;
+  forks: readonly { run_id: string; generation: number }[];
 }
 
 interface BeatRegister {
@@ -43,11 +66,13 @@ interface BeatRegister {
 /**
  * Every kind the timeline can carry, classified once.
  *
- * Exhaustive by construction over the event-kind union: an unclassified kind
- * falls to the neutral default rather than leaking, and `beatRegister` is the
- * only place that decision is made.
+ * Exhaustive over the generated event-kind union, and typed to stay that way: a
+ * kind added to the contract fails typecheck here until its tone and glyph have
+ * been chosen. The runtime fallback below stays regardless, for a daemon newer
+ * than the client — that is a forward-compatibility question, not a licence to
+ * leave a known kind unclassified.
  */
-const BEAT_REGISTER: Record<string, BeatRegister> = {
+const BEAT_REGISTER: Record<LoopTimelineEntry["kind"], BeatRegister> = {
   // Lifecycle
   generation_started: { tone: "neutral", icon: "round" },
   status_changed: { tone: "neutral", icon: "started" },
@@ -97,7 +122,7 @@ const BEAT_REGISTER: Record<string, BeatRegister> = {
 const DEFAULT_REGISTER: BeatRegister = { tone: "neutral", icon: "started" };
 
 function beatRegister(kind: string): BeatRegister {
-  return BEAT_REGISTER[kind] ?? DEFAULT_REGISTER;
+  return (BEAT_REGISTER as Record<string, BeatRegister>)[kind] ?? DEFAULT_REGISTER;
 }
 
 /**
@@ -149,7 +174,27 @@ function beatCount(entry: LoopTimelineEntry): number {
   return entry.seq - first + 1;
 }
 
-export function buildStoryBeat(entry: LoopTimelineEntry): LoopStoryBeat {
+/**
+ * Which run a fork beat points at, from the run's own lineage.
+ *
+ * A fork beat in round R is either the point this run was forked *from* — the
+ * parent recorded that same round — or the point a child was forked *to*. Both
+ * sides are server-owned; the round is the only thing that ties a beat to one of
+ * them, so an unmatched beat resolves to nothing rather than to the first fork
+ * in the list.
+ */
+function relatedForkRunId(
+  entry: LoopTimelineEntry,
+  lineage: LoopRunLineage | undefined
+): string | null {
+  if (entry.kind !== "run_forked" || !lineage) return null;
+  const generation = typeof entry.generation === "number" ? entry.generation : null;
+  if (generation === null) return null;
+  if (lineage.forkedFrom?.generation === generation) return lineage.forkedFrom.run_id;
+  return lineage.forks.find(fork => fork.generation === generation)?.run_id ?? null;
+}
+
+export function buildStoryBeat(entry: LoopTimelineEntry, lineage?: LoopRunLineage): LoopStoryBeat {
   const register = beatRegister(entry.kind);
   const title = entry.title?.trim();
   const attempt = entry.attempt;
@@ -165,7 +210,8 @@ export function buildStoryBeat(entry: LoopTimelineEntry): LoopStoryBeat {
     count: beatCount(entry),
     nodeId: entry.node_id ?? null,
     generation: typeof entry.generation === "number" ? entry.generation : null,
-    attemptLabel: typeof attempt === "number" && attempt > 1 ? `attempt ${attempt}` : null,
+    attemptLabel: typeof attempt === "number" ? loopAttemptLabel(attempt) : null,
+    relatedRunId: relatedForkRunId(entry, lineage),
   };
 }
 
@@ -176,10 +222,13 @@ export function buildStoryBeat(entry: LoopTimelineEntry): LoopStoryBeat {
  * guarantees: the durable pages and the live stream overlap by design at the
  * seam, and the same event must not appear twice because it arrived twice.
  */
-export function buildStoryBeats(entries: readonly LoopTimelineEntry[]): LoopStoryBeat[] {
+export function buildStoryBeats(
+  entries: readonly LoopTimelineEntry[],
+  lineage?: LoopRunLineage
+): LoopStoryBeat[] {
   const bySeq = new Map<number, LoopStoryBeat>();
   for (const entry of entries) {
-    const beat = buildStoryBeat(entry);
+    const beat = buildStoryBeat(entry, lineage);
     // Later writers win: a live frame is fresher than the page that preceded it.
     bySeq.set(beat.seq, beat);
   }

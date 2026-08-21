@@ -28,8 +28,8 @@ const RECORDS_FILTER_ITEMS: ReadonlyArray<PillGroupItem<TaskRecordsFilter>> = [
 
 /**
  * The quiet reveal control (US-002). Loop execution records leave the listing by
- * default (ADR-001); this puts them back for one context and one context only —
- * it resets on every navigation and is deliberately not a persisted setting.
+ * default (ADR-001); this puts them back for the current context only — it
+ * resets when the surface changes and is deliberately not a persisted setting.
  */
 export function TasksListRecordsFilter({ value, onChange }: TasksListRecordsFilterProps) {
   return (

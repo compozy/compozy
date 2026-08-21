@@ -8,7 +8,7 @@ expected: "Inspect" is a single in-column disclosure — never a sheet and never
 entry_points: web /loop-runs/:id Inspect; GET /loop-runs/:id/nodes; GET /loop-runs/:id/timeline
 qa_status: untested
 bug_ids: BUG-20260719-autonomous-progress-unobservable
-fix_status:
+fix_status: pending
 retest_status:
 fix_commits:
 evidence:

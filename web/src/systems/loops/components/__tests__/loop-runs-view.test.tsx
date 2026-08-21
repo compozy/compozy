@@ -134,10 +134,26 @@ describe("LoopRunsView", () => {
     render(<LoopRunsView isError outcome="all" runs={[]} />);
 
     expect(screen.getByTestId("loop-runs-degraded")).toHaveTextContent(
-      "Reconnecting to the daemon. No runs have been read yet."
+      "This workspace's runs could not be read."
     );
     expect(screen.getByTestId("loop-runs-skeleton")).toBeInTheDocument();
     // "No runs yet" here would blame the workspace for a transport failure.
     expect(screen.queryByTestId("loop-runs-empty")).not.toBeInTheDocument();
+  });
+
+  // A failed request and a dropped stream recover differently, so telling a
+  // reader to wait for a reconnect that is not happening is its own failure.
+  it("Should name a failed read separately from a dropped stream", () => {
+    const { unmount } = render(<LoopRunsView isReconnecting outcome="all" runs={[NEEDS_YOU]} />);
+    const reconnecting = screen.getByTestId("loop-runs-degraded");
+    expect(reconnecting).toHaveAttribute("data-cause", "reconnecting");
+    expect(reconnecting).toHaveTextContent("Reconnecting to the daemon.");
+    unmount();
+
+    render(<LoopRunsView isError outcome="all" runs={[NEEDS_YOU]} />);
+    const failed = screen.getByTestId("loop-runs-degraded");
+    expect(failed).toHaveAttribute("data-cause", "read-failed");
+    expect(failed).toHaveTextContent("This workspace's runs could not be read.");
+    expect(failed).not.toHaveTextContent("Reconnecting to the daemon.");
   });
 });

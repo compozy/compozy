@@ -67,12 +67,47 @@ func settleLoopRunTerminalWithReason(
 	if err != nil {
 		return loopSettlementOutcome{}, err
 	}
+	return settleLoopRunTerminalRecordsWithReason(
+		ctx, exec, trimmedRunID, coordinatorStatus, detail, reason, records,
+	)
+}
+
+func settleLoopRunTerminalWithRecords(
+	ctx context.Context,
+	exec taskSQLExecutor,
+	runID string,
+	cause looppkg.TerminalCause,
+	records []loopSettlementRecord,
+) (looppkg.SettleResult, error) {
+	trimmedRunID := strings.TrimSpace(runID)
+	if trimmedRunID == "" {
+		return looppkg.SettleResult{}, fmt.Errorf("%w: loop run id is required", looppkg.ErrValidation)
+	}
+	coordinatorStatus, detail, err := loopSettlementTarget(cause)
+	if err != nil {
+		return looppkg.SettleResult{}, err
+	}
+	outcome, err := settleLoopRunTerminalRecordsWithReason(
+		ctx, exec, trimmedRunID, coordinatorStatus, detail, loopRunTerminalReason, records,
+	)
+	return outcome.result, err
+}
+
+func settleLoopRunTerminalRecordsWithReason(
+	ctx context.Context,
+	exec taskSQLExecutor,
+	runID string,
+	coordinatorStatus taskpkg.Status,
+	detail string,
+	reason string,
+	records []loopSettlementRecord,
+) (loopSettlementOutcome, error) {
 	actor, err := taskpkg.DeriveDaemonActorContext(loopSettlementActorRef, loopSettlementActorRef)
 	if err != nil {
 		return loopSettlementOutcome{}, fmt.Errorf("store: derive Loop settlement actor: %w", err)
 	}
 	now := time.Now().UTC()
-	runRepairs, err := cancelLoopSettlementRuns(ctx, exec, trimmedRunID, now)
+	runRepairs, err := cancelLoopSettlementRuns(ctx, exec, runID, now)
 	if err != nil {
 		return loopSettlementOutcome{}, err
 	}
@@ -91,7 +126,7 @@ func settleLoopRunTerminalWithReason(
 		if err := appendTaskStatusChangedAuditEvent(ctx, exec, repair.taskID, status, status, actor, now,
 			taskStatusEventContext{
 				reason: reason, detail: detail, runID: repair.runID,
-				loopRunID: trimmedRunID, releaseReason: reason,
+				loopRunID: runID, releaseReason: reason,
 			}); err != nil {
 			return loopSettlementOutcome{}, err
 		}
@@ -106,7 +141,7 @@ func settleLoopRunTerminalWithReason(
 			continue
 		}
 		if err := settleLoopTaskRecord(
-			ctx, exec, record, target, actor, now, trimmedRunID, reason, detail,
+			ctx, exec, record, target, actor, now, runID, reason, detail,
 		); err != nil {
 			return loopSettlementOutcome{}, err
 		}
@@ -129,9 +164,7 @@ func loopTaskStatusTerminal(status taskpkg.Status) bool {
 
 func loopSettlementTarget(cause looppkg.TerminalCause) (taskpkg.Status, string, error) {
 	switch cause {
-	case looppkg.TerminalCauseDone:
-		return taskpkg.TaskStatusCompleted, "run done; node no longer needed", nil
-	case looppkg.TerminalCauseNoOp:
+	case looppkg.TerminalCauseDone, looppkg.TerminalCauseNoOp:
 		return taskpkg.TaskStatusCompleted, "run done; node no longer needed", nil
 	case looppkg.TerminalCauseFailed, looppkg.TerminalCauseExhausted, looppkg.TerminalCauseStalled:
 		return taskpkg.TaskStatusFailed, "run " + string(cause) + "; node no longer needed", nil
@@ -199,7 +232,8 @@ func cancelLoopSettlementRuns(
 	}
 
 	result, err := exec.ExecContext(ctx, `UPDATE task_runs
-		SET status = 'canceled', ended_at = ?, error = 'Loop run reached a terminal state'
+		SET status = 'canceled', ended_at = ?, error = 'Loop run reached a terminal state',
+			claim_token = NULL, lease_until = NULL, heartbeat_at = NULL
 		WHERE loop_run_id = ? AND status IN ('queued','claimed','starting','running','needs_attention')`,
 		store.FormatTimestamp(now), loopRunID)
 	if err != nil {
@@ -313,12 +347,27 @@ func loopSettlementTransitionsForRecords(
 	return transitions, nil
 }
 
-func terminalCauseForLoopStatus(status looppkg.Status, cause looppkg.TransitionCause) looppkg.TerminalCause {
+func terminalCauseForLoopStatus(
+	status looppkg.Status,
+	cause looppkg.TransitionCause,
+) (looppkg.TerminalCause, error) {
 	if status == looppkg.StatusCanceled && cause == looppkg.TransitionCauseOperatorKill {
-		return looppkg.TerminalCauseKilled
+		return looppkg.TerminalCauseKilled, nil
 	}
-	if status == looppkg.StatusBlocked {
-		return looppkg.TerminalCauseFailed
+	switch status {
+	case looppkg.StatusDone:
+		return looppkg.TerminalCauseDone, nil
+	case looppkg.StatusNoOp:
+		return looppkg.TerminalCauseNoOp, nil
+	case looppkg.StatusBlocked, looppkg.StatusFailed:
+		return looppkg.TerminalCauseFailed, nil
+	case looppkg.StatusExhausted:
+		return looppkg.TerminalCauseExhausted, nil
+	case looppkg.StatusStalled:
+		return looppkg.TerminalCauseStalled, nil
+	case looppkg.StatusCanceled:
+		return looppkg.TerminalCauseCanceled, nil
+	default:
+		return "", fmt.Errorf("%w: unsupported terminal loop status %q", looppkg.ErrValidation, status)
 	}
-	return looppkg.TerminalCause(status)
 }

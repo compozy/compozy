@@ -1,11 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
-
-const listLoopRequestsMock = vi.hoisted(() => vi.fn());
-
-vi.mock("../../adapters/loop-requests-api", async importOriginal => {
-  const actual = await importOriginal<typeof import("../../adapters/loop-requests-api")>();
-  return { ...actual, listLoopRequests: listLoopRequestsMock };
-});
+import { describe, expect, it } from "vitest";
 
 import {
   loopConfigOptions,
@@ -15,14 +8,14 @@ import {
   loopRequestsOptions,
   loopRunDetailOptions,
   loopRunDiffOptions,
+  loopRunBriefingOptions,
+  loopRunRosterOptions,
   loopRunTimelineOptions,
   loopRunsOptions,
   loopsCatalogOptions,
 } from "../query-options";
 
 describe("loop query-options", () => {
-  beforeEach(() => listLoopRequestsMock.mockReset());
-
   it("Should key each option by its workspace-scoped query key", () => {
     expect(loopsCatalogOptions("ws_a").queryKey).toEqual([
       "loops",
@@ -155,5 +148,72 @@ describe("loop query-options", () => {
       asFn({ state: { data: { base: { status: "done" }, against: { status: "canceled" } } } })
     ).toBe(false);
     expect(asFn({ state: { data: undefined } })).toBe(15_000);
+  });
+  it("Should stop polling the briefing once the run is terminal", () => {
+    const options = loopRunBriefingOptions("ws_a", "run_1");
+    expect(options.queryKey).toEqual(["loops", "run-reads", "ws_a", "run_1", "briefing"]);
+    const asFn = options.refetchInterval as (query: {
+      state: { data?: { status: string } };
+    }) => number | false;
+    // A terminal run's briefing is immutable; polling it forever is pure noise.
+    expect(asFn({ state: { data: { status: "done" } } })).toBe(false);
+    expect(asFn({ state: { data: { status: "running" } } })).toBeGreaterThan(0);
+    expect(asFn({ state: { data: undefined } })).toBeGreaterThan(0);
+
+    expect(loopRunBriefingOptions("", "run_1").enabled).toBe(false);
+    expect(loopRunBriefingOptions("ws_a", "").enabled).toBe(false);
+    expect(loopRunBriefingOptions("ws_a", "run_1", false).enabled).toBe(false);
+  });
+
+  it("Should page the roster on its served cursor and stop polling a terminal run", () => {
+    const options = loopRunRosterOptions("ws_a", "run_1", { state: "failed" });
+    // The page size is normalized into the key, so two page sizes are two caches.
+    expect(options.queryKey).toEqual([
+      "loops",
+      "run-reads",
+      "ws_a",
+      "run_1",
+      "roster",
+      "failed",
+      "",
+      "200",
+    ]);
+    expect(options.initialPageParam).toBeUndefined();
+    // Continuation is the daemon's opaque cursor, never a client-computed offset.
+    expect(options.getNextPageParam({ next_cursor: "cur_2" } as never, [], undefined, [])).toBe(
+      "cur_2"
+    );
+    expect(
+      options.getNextPageParam({ next_cursor: "" } as never, [], undefined, [])
+    ).toBeUndefined();
+
+    const asFn = options.refetchInterval as (query: {
+      state: { data?: { pages: { run_status: string }[] } };
+    }) => number | false;
+    expect(asFn({ state: { data: { pages: [{ run_status: "done" }] } } })).toBe(false);
+    expect(asFn({ state: { data: { pages: [{ run_status: "running" }] } } })).toBeGreaterThan(0);
+
+    expect(loopRunRosterOptions("", "run_1").enabled).toBe(false);
+    expect(loopRunRosterOptions("ws_a", "").enabled).toBe(false);
+    expect(loopRunRosterOptions("ws_a", "run_1", {}, false).enabled).toBe(false);
+  });
+
+  it("Should default the story to the notable view and page it backward on a cursor", () => {
+    const options = loopRunTimelineOptions("ws_a", "run_1");
+    expect(options.initialPageParam).toBeUndefined();
+    expect(options.getNextPageParam({ next_cursor: "cur_9" } as never, [], undefined, [])).toBe(
+      "cur_9"
+    );
+    expect(
+      options.getNextPageParam({ next_cursor: undefined } as never, [], undefined, [])
+    ).toBeUndefined();
+    // `all` is a separate fenced history, so it must not share the cache.
+    expect(loopRunTimelineOptions("ws_a", "run_1", { view: "all" }).queryKey).not.toEqual(
+      options.queryKey
+    );
+
+    expect(loopRunTimelineOptions("", "run_1").enabled).toBe(false);
+    expect(loopRunTimelineOptions("ws_a", "").enabled).toBe(false);
+    expect(loopRunTimelineOptions("ws_a", "run_1", {}, false).enabled).toBe(false);
   });
 });

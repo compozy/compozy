@@ -18,24 +18,31 @@ SELECT
 	snapshot.definition_json,
 	CASE
 		WHEN lr.status = 'needs-approval' THEN 'approval'
-		WHEN EXISTS (
+		WHEN lr.status NOT IN ('done','no-op','blocked','failed','exhausted','stalled','canceled') AND EXISTS (
 			SELECT 1 FROM loop_node_controls AS control
 			WHERE control.loop_run_id = lr.id AND control.quarantined = 1
 		) THEN 'quarantine'
-		WHEN EXISTS (
+		WHEN lr.status NOT IN ('done','no-op','blocked','failed','exhausted','stalled','canceled') AND EXISTS (
 			SELECT 1 FROM loop_requests AS request
 			WHERE request.loop_run_id = lr.id AND request.state = 'pending'
 		) THEN 'request'
 		ELSE ''
 	END AS attention_kind,
+	CASE WHEN lr.status IN ('done','no-op','blocked','failed','exhausted','stalled','canceled') THEN 0 ELSE
 	(CASE WHEN lr.status = 'needs-approval' THEN 1 ELSE 0 END) +
 	(SELECT COUNT(*) FROM loop_node_controls AS control
 	 WHERE control.loop_run_id = lr.id AND control.quarantined = 1) +
 	(SELECT COUNT(*) FROM loop_requests AS request
-	 WHERE request.loop_run_id = lr.id AND request.state = 'pending') AS attention_count,
+	 WHERE request.loop_run_id = lr.id AND request.state = 'pending') END AS attention_count,
 	CASE
-		WHEN lr.status = 'needs-approval' THEN CAST(lr.last_progress_at AS TEXT)
-		WHEN EXISTS (
+		WHEN lr.status = 'needs-approval' THEN COALESCE((
+			SELECT CAST(event.at AS TEXT)
+			FROM loop_run_events AS event
+			WHERE event.loop_run_id = lr.id AND event.kind = 'needs_approval'
+			ORDER BY event.seq DESC
+			LIMIT 1
+		), '')
+		WHEN lr.status NOT IN ('done','no-op','blocked','failed','exhausted','stalled','canceled') AND EXISTS (
 			SELECT 1 FROM loop_node_controls AS control
 			WHERE control.loop_run_id = lr.id AND control.quarantined = 1
 		) THEN COALESCE((
@@ -43,7 +50,7 @@ SELECT
 			FROM loop_node_controls AS control
 			WHERE control.loop_run_id = lr.id AND control.quarantined = 1
 		), '')
-		WHEN EXISTS (
+		WHEN lr.status NOT IN ('done','no-op','blocked','failed','exhausted','stalled','canceled') AND EXISTS (
 			SELECT 1 FROM loop_requests AS request
 			WHERE request.loop_run_id = lr.id AND request.state = 'pending'
 		) THEN COALESCE((
@@ -83,7 +90,7 @@ func (g *LoopRepo) ListLoopRunSummaries(
 	if err != nil {
 		return nil, err
 	}
-	if err := g.projectLoopRunSummaryProgress(ctx, workspaceID, projections, placeholders, args); err != nil {
+	if err := g.projectLoopRunSummaryProgress(ctx, projections, placeholders, args); err != nil {
 		return nil, err
 	}
 	for runID, projection := range projections {

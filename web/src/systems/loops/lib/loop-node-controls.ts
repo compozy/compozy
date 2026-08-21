@@ -68,8 +68,9 @@ export function loopNodeVerbs(
   runStatus: string | null | undefined,
   timetravel?: LoopNodeTimetravelCapability
 ): LoopNodeVerb[] {
-  // A terminal run has no live work to act on; the daemon answers every verb with
-
+  // A terminal run has no live work to act on; the daemon answers every verb
+  // with a refusal. What survives is time travel — amend and rerun read history
+  // rather than steer a run — so a settled run offers those and nothing else.
   const timeTravelVerbs = loopNodeTimetravelVerbs(node, runStatus, timetravel);
   if (isTerminalLoopStatus(runStatus)) return timeTravelVerbs;
   if (node.quarantined) return ["open-quarantine", "requeue", "cancel", "kill"];

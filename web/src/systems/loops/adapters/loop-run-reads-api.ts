@@ -1,11 +1,12 @@
-import {
-  apiClient,
-  apiRequestFailed,
-  defaultApiErrorMessage,
-  requireResponseData,
-} from "@/lib/api-client";
+import { apiClient, apiRequestFailed, defaultApiErrorMessage } from "@/lib/api-client";
 
-import { LoopReadError, LoopsApiError, reasonEnvelope } from "./loops-api-errors";
+import {
+  LoopReadError,
+  LoopsApiError,
+  normalizeOptionalText,
+  reasonEnvelope,
+} from "./loops-api-errors";
+import { LOOP_ROSTER_STATE_FILTERS, isLoopRosterStateFilter } from "./loop-roster-filters";
 import type {
   LoopBriefing,
   LoopRosterFilter,
@@ -24,26 +25,68 @@ import type {
  * the fence the live SSE stream resumes from.
  */
 
-function normalizeOptionalText(value?: string | null): string | undefined {
-  if (typeof value !== "string") return undefined;
-  const normalized = value.trim();
-  return normalized === "" ? undefined : normalized;
-}
-
-function readError(fallback: string, response: Response, error: unknown): LoopsApiError {
-  if (response.status === 404) {
-    return new LoopsApiError("Loop run not found", 404);
-  }
-  const { code, details } = reasonEnvelope(error);
-  if (code !== "") {
-    return new LoopReadError(
-      defaultApiErrorMessage(fallback, response, error),
-      response.status,
-      code,
-      details
+/**
+ * The one allowlist, applied rather than merely cited.
+ *
+ * `pending` is an output state, never a filter value, so asking for it earns a
+ * `400 invalid_node_state` (peer review B-007, UT-050). The daemon stays the
+ * authority — its refusal carries the allowed set and reaches the UI as
+ * `LoopReadError.allowedStates` — but sending a value we already know it
+ * rejects spends a round trip to learn something this list already knows.
+ * `LOOP_ROSTER_STATE_FILTERS` is that list, and it is the same one the MSW
+ * resolvers validate against, so the two cannot drift.
+ */
+function rosterStateFilter(value?: string | null): string | undefined {
+  const state = normalizeOptionalText(value);
+  if (state === undefined) return undefined;
+  if (!isLoopRosterStateFilter(state)) {
+    throw new LoopReadError(
+      `Unsupported roster state filter: ${state}`,
+      400,
+      "invalid_node_state",
+      {
+        allowed: LOOP_ROSTER_STATE_FILTERS.join(","),
+      }
     );
   }
-  return new LoopsApiError(defaultApiErrorMessage(fallback, response, error), response.status);
+  return state;
+}
+
+const BRIEFING_FAILED = "Failed to read this run's status";
+const ROSTER_FAILED = "Failed to read this run's steps";
+const TIMELINE_FAILED = "Failed to read this run's story";
+
+/**
+ * Every read rejection the daemon can structure, kept structured.
+ *
+ * `respondLoopRunReadError` answers with `{error, code, details}` for all four
+ * of its named refusals — including the 404, whose `details.run_id` names the
+ * run that was missed. Collapsing that into a prose-only error would throw away
+ * the `allowed` state list and the stale-cursor signal the story recovers from,
+ * so the code path is the same for every status: parse once, keep the type.
+ */
+function readError(fallback: string, response: Response, error: unknown): LoopsApiError {
+  const message =
+    response.status === 404
+      ? "Loop run not found"
+      : defaultApiErrorMessage(fallback, response, error);
+  const { code, details } = reasonEnvelope(error);
+  if (code !== "") {
+    return new LoopReadError(message, response.status, code, details);
+  }
+  return new LoopsApiError(message, response.status);
+}
+
+/**
+ * A read that answered 2xx with no body is still a failed read, and it has to
+ * arrive as a `LoopsApiError` like every other one — a bare `Error` would escape
+ * the adapters' typed-error boundary and reach the hooks unclassifiable.
+ */
+function readData<T>(data: T | undefined, response: Response, fallback: string): T {
+  if (data === undefined) {
+    throw new LoopsApiError(`${fallback}: empty response (${response.status})`, response.status);
+  }
+  return data;
 }
 
 export async function getLoopRunBriefing(
@@ -60,10 +103,10 @@ export async function getLoopRunBriefing(
   );
 
   if (apiRequestFailed(response, error)) {
-    throw readError("Failed to read this run's status", response, error);
+    throw readError(BRIEFING_FAILED, response, error);
   }
 
-  return requireResponseData(data, response, "Failed to read this run's status");
+  return readData(data, response, BRIEFING_FAILED);
 }
 
 export async function getLoopRunRoster(
@@ -78,9 +121,7 @@ export async function getLoopRunRoster(
       params: {
         path: { workspace_id: workspaceId, run_id: runId },
         query: {
-          // `pending` is an output state, never a filter value — the allowlist
-          // the daemon accepts lives in `LOOP_ROSTER_STATE_FILTERS`.
-          state: normalizeOptionalText(filters.state),
+          state: rosterStateFilter(filters.state),
           generation: filters.generation,
           cursor: normalizeOptionalText(filters.cursor),
           limit: filters.limit,
@@ -91,10 +132,10 @@ export async function getLoopRunRoster(
   );
 
   if (apiRequestFailed(response, error)) {
-    throw readError("Failed to read this run's steps", response, error);
+    throw readError(ROSTER_FAILED, response, error);
   }
 
-  return requireResponseData(data, response, "Failed to read this run's steps");
+  return readData(data, response, ROSTER_FAILED);
 }
 
 export async function getLoopRunTimeline(
@@ -122,8 +163,8 @@ export async function getLoopRunTimeline(
   );
 
   if (apiRequestFailed(response, error)) {
-    throw readError("Failed to read this run's story", response, error);
+    throw readError(TIMELINE_FAILED, response, error);
   }
 
-  return requireResponseData(data, response, "Failed to read this run's story");
+  return readData(data, response, TIMELINE_FAILED);
 }

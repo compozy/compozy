@@ -56,7 +56,7 @@ func LoopProvenanceFromRun(record *taskpkg.RunProvenance) *LoopProvenance {
 		RunID: strings.TrimSpace(record.LoopRunID),
 		Role:  role,
 	}
-	metadata, ok := decodeTaskLoopMetadata(record.Metadata, provenance.RunID)
+	metadata, ok := decodeTaskLoopMetadata(taskpkg.RedactClaimTokenJSON(record.Metadata), provenance.RunID)
 	if !ok {
 		return provenance
 	}

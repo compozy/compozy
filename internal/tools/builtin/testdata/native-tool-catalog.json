@@ -1535,8 +1535,8 @@
     "read_only": true,
     "destructive": false,
     "open_world": false,
-    "input_schema_digest": "26b94ba69a874b6d5c0b8be8618e2212be83a13ca0c6e0926831195341b48eea",
-    "output_schema_digest": "877c572beeea0d2c75db70dc7db884e4b9f9ec8e67e8cd5332520a0e70ef20c0"
+    "input_schema_digest": "1f98ba6b3a795be5839b0ad92d0a5870c22eefcca066e49d90d23ccd4903c38e",
+    "output_schema_digest": "9a2e5457070fc9788d755717c7bb28dc6082fe389c47f4f8a4a18c3e18ca5d87"
   },
   {
     "tool_id": "compozy__loop_status",
@@ -2926,7 +2926,7 @@
     "read_only": true,
     "destructive": false,
     "open_world": false,
-    "input_schema_digest": "b11ca330b176ddbfa323f01e818f0e304a7bc9f760abde31e035a7f81d0b4ac5",
+    "input_schema_digest": "8e3ea4db1a94508cda90afd707bfd37c58b1b5d3d797e90cde396d3e888ca912",
     "output_schema_digest": "a2c799262a3ce3c19ef5cdd983bf3d12b43ab3c426227091b909dcb7054738c0"
   },
   {

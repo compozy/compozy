@@ -8,9 +8,10 @@ import (
 )
 
 type RunReadStore interface {
+	GenerationLineageReader
+	RunListSummaryReader
 	GetLoopRun(context.Context, WorkspaceID, RunID) (Run, error)
 	GetLoopDefinitionSnapshot(context.Context, WorkspaceID, string) (DefinitionSnapshot, error)
-	ListGenerations(context.Context, string, string) ([]LoopGeneration, error)
 	ListGenerationOutputs(context.Context, WorkspaceID, RunID, int) ([]GenerationOutput, error)
 	ListNodeAttempts(context.Context, WorkspaceID, RunID) ([]NodeAttempt, error)
 	ListNodeControls(context.Context, WorkspaceID, RunID) ([]NodeControl, error)
@@ -22,7 +23,7 @@ type RunReadStore interface {
 
 type TimelineEventReader interface {
 	GetLoopRunEventHead(context.Context, WorkspaceID, RunID) (int64, error)
-	ListLoopRunEventsBackward(context.Context, WorkspaceID, RunID, int64, int64, int) ([]RunEvent, error)
+	ListLoopRunEventsBackward(context.Context, RunEventBackwardQuery) ([]RunEvent, error)
 }
 
 type OutputBlobAvailabilityReader interface {
@@ -63,101 +64,6 @@ func (s *computedRunReadService) NodeRoster(
 		return RosterPage{}, err
 	}
 	return ProjectRoster(&source, query)
-}
-
-func (s *computedRunReadService) Briefing(
-	ctx context.Context,
-	workspaceID string,
-	runID RunID,
-) (Briefing, error) {
-	ws := WorkspaceID(workspaceID)
-	source, err := s.loadRosterSource(ctx, ws, runID)
-	if err != nil {
-		return Briefing{}, err
-	}
-	roster, err := projectCompleteRoster(&source, RosterQuery{State: NodeStateFilterAll})
-	if err != nil {
-		return Briefing{}, err
-	}
-	requests, err := s.loadAllPendingRequests(ctx, ws, runID)
-	if err != nil {
-		return Briefing{}, fmt.Errorf("read loop briefing requests: %w", err)
-	}
-	artifacts, err := s.loadArtifacts(ctx, ws, runID, source.Outputs)
-	if err != nil {
-		return Briefing{}, err
-	}
-	return ProjectBriefing(&BriefingSource{
-		Run:       source.Run,
-		Roster:    roster,
-		Requests:  requests,
-		Artifacts: artifacts,
-		Now:       s.now(),
-	}), nil
-}
-
-func projectCompleteRoster(source *RosterSource, query RosterQuery) (RosterPage, error) {
-	query.Limit = 500
-	query.Cursor = ""
-	complete := RosterPage{}
-	for {
-		page, err := ProjectRoster(source, query)
-		if err != nil {
-			return RosterPage{}, err
-		}
-		if complete.RunID == "" {
-			complete = page
-			complete.Nodes = nil
-		}
-		complete.Nodes = append(complete.Nodes, page.Nodes...)
-		if page.NextCursor == "" {
-			complete.NextCursor = ""
-			return complete, nil
-		}
-		query.Cursor = page.NextCursor
-	}
-}
-
-func (s *computedRunReadService) loadAllPendingRequests(
-	ctx context.Context,
-	workspaceID WorkspaceID,
-	runID RunID,
-) ([]Request, error) {
-	query := RequestQuery{RunID: runID, Limit: 200}
-	requests := make([]Request, 0)
-	for {
-		page, err := s.store.ListRequests(ctx, workspaceID, query)
-		if err != nil {
-			return nil, err
-		}
-		requests = append(requests, page.Items...)
-		if page.NextCursor == "" {
-			return requests, nil
-		}
-		query.Cursor = page.NextCursor
-	}
-}
-
-func (s *computedRunReadService) loadArtifacts(
-	ctx context.Context,
-	workspaceID WorkspaceID,
-	runID RunID,
-	outputs []GenerationOutput,
-) ([]RunArtifact, error) {
-	refs := outputRefs(outputs)
-	available := make(map[string]bool, len(refs))
-	if reader, ok := s.store.(OutputBlobAvailabilityReader); ok && len(refs) > 0 {
-		var err error
-		available, err = reader.ListAvailableLoopOutputRefs(ctx, workspaceID, runID)
-		if err != nil {
-			return nil, fmt.Errorf("read loop output availability: %w", err)
-		}
-	} else {
-		for _, ref := range refs {
-			available[ref] = true
-		}
-	}
-	return artifactsFromOutputs(outputs, available), nil
 }
 
 func (s *computedRunReadService) Timeline(
@@ -217,9 +123,10 @@ func (s *computedRunReadService) timelineFromReader(
 	const batchSize = 500
 	events := make([]RunEvent, 0, batchSize)
 	for {
-		batch, readErr := reader.ListLoopRunEventsBackward(
-			ctx, workspaceID, runID, fixedHead, before, batchSize,
-		)
+		batch, readErr := reader.ListLoopRunEventsBackward(ctx, RunEventBackwardQuery{
+			WorkspaceID: workspaceID, RunID: runID, FixedHeadSeq: fixedHead,
+			BeforeSeq: before, Limit: batchSize,
+		})
 		if readErr != nil {
 			return TimelinePage{}, fmt.Errorf("read loop timeline events: %w", readErr)
 		}
@@ -321,26 +228,72 @@ func (s *computedRunReadService) loadRosterSource(
 	if err != nil {
 		return RosterSource{}, fmt.Errorf("read loop route evidence: %w", err)
 	}
-	if err := applyPrunedNodeEvidence(&source, events); err != nil {
+	if err := applyRunReadEvidence(&source, events); err != nil {
 		return RosterSource{}, err
 	}
 	return source, nil
 }
 
-func applyPrunedNodeEvidence(source *RosterSource, events []RunEvent) error {
+func applyRunReadEvidence(source *RosterSource, events []RunEvent) error {
 	for _, event := range events {
-		if event.Kind != string(RunEventBranchPruned) {
-			continue
-		}
-		generation, nodeID, decodeErr := prunedNodeFromEvent(event)
-		if decodeErr != nil {
-			return decodeErr
-		}
-		if generation > 0 && nodeID != "" {
-			source.PrunedNodes[rosterKey(generation, nodeID, 0)] = true
+		switch event.Kind {
+		case string(RunEventBranchPruned):
+			generation, nodeID, itemIndexes, decodeErr := prunedNodeFromEvent(event)
+			if decodeErr != nil {
+				return decodeErr
+			}
+			if generation < 1 || nodeID == "" {
+				continue
+			}
+			for _, itemIndex := range itemIndexes {
+				if err := source.MarkPrunedNodeItem(generation, nodeID, itemIndex); err != nil {
+					return err
+				}
+			}
+		case string(RunEventStatusChanged):
+			if err := applyTerminalOutcomeEvidence(source, event); err != nil {
+				return err
+			}
 		}
 	}
 	return nil
+}
+
+func applyTerminalOutcomeEvidence(source *RosterSource, event RunEvent) error {
+	var payload struct {
+		Status Status          `json:"status"`
+		Cause  TransitionCause `json:"cause"`
+	}
+	if err := json.Unmarshal(event.Payload, &payload); err != nil {
+		return fmt.Errorf("decode terminal status event payload: %w", err)
+	}
+	if payload.Status != source.Run.Status || !isTerminalStatus(payload.Status) {
+		return nil
+	}
+	if source.Outcome != nil && !event.At.After(source.Outcome.At) {
+		return nil
+	}
+	actorKind := ""
+	actorRef := ""
+	if payload.Status == StatusCanceled {
+		actorKind = string(source.Run.ControlActor.Kind)
+		actorRef = source.Run.ControlActor.Ref
+	}
+	source.Outcome = &RunOutcome{
+		Status: payload.Status, Cause: terminalOutcomeCause(payload.Status, payload.Cause),
+		ActorKind: actorKind, ActorRef: actorRef, At: event.At.UTC(),
+	}
+	return nil
+}
+
+func terminalOutcomeCause(status Status, cause TransitionCause) string {
+	if status == StatusDone && cause == TransitionCauseContract {
+		return "verified"
+	}
+	if cause != "" {
+		return string(cause)
+	}
+	return "unknown"
 }
 
 func (s *computedRunReadService) loadRouteEvidence(
@@ -369,14 +322,10 @@ func (s *computedRunReadService) loadRouteEvidence(
 	events := make([]RunEvent, 0, batchSize)
 	before := head + 1
 	for {
-		batch, readErr := reader.ListLoopRunEventsBackward(
-			ctx,
-			workspaceID,
-			runID,
-			head,
-			before,
-			batchSize,
-		)
+		batch, readErr := reader.ListLoopRunEventsBackward(ctx, RunEventBackwardQuery{
+			WorkspaceID: workspaceID, RunID: runID, FixedHeadSeq: head,
+			BeforeSeq: before, Limit: batchSize,
+		})
 		if readErr != nil {
 			return nil, readErr
 		}
@@ -388,49 +337,19 @@ func (s *computedRunReadService) loadRouteEvidence(
 	}
 }
 
-func outputRefs(outputs []GenerationOutput) []string {
-	seen := make(map[string]bool)
-	refs := make([]string, 0, len(outputs))
-	for _, output := range outputs {
-		if output.OutputRef == "" || seen[output.OutputRef] {
-			continue
-		}
-		seen[output.OutputRef] = true
-		refs = append(refs, output.OutputRef)
-	}
-	return refs
-}
-
-func artifactsFromOutputs(outputs []GenerationOutput, available map[string]bool) []RunArtifact {
-	items := make([]RunArtifact, 0)
-	for _, output := range outputs {
-		if output.OutputRef == "" {
-			continue
-		}
-		availability := ArtifactPruned
-		if available[output.OutputRef] {
-			availability = ArtifactAvailable
-		}
-		if available[output.OutputRef] && output.Status == string(NodeStatePartial) {
-			availability = ArtifactPartial
-		}
-		items = append(items, RunArtifact{
-			Name:         fmt.Sprintf("%s[%d]", output.NodeID, output.ItemIndex),
-			Output:       output.TaskRunID,
-			Ref:          output.OutputRef,
-			Availability: availability,
-		})
-	}
-	return items
-}
-
-func prunedNodeFromEvent(event RunEvent) (int, NodeID, error) {
+func prunedNodeFromEvent(event RunEvent) (int, NodeID, []int, error) {
 	var payload struct {
-		Generation int    `json:"generation"`
-		NodeID     NodeID `json:"node_id"`
+		Generation  int    `json:"generation"`
+		NodeID      NodeID `json:"node_id"`
+		ItemIndexes []int  `json:"item_indexes"`
 	}
 	if err := json.Unmarshal(event.Payload, &payload); err != nil {
-		return 0, "", fmt.Errorf("decode branch_pruned event payload: %w", err)
+		return 0, "", nil, fmt.Errorf("decode branch_pruned event payload: %w", err)
 	}
-	return payload.Generation, payload.NodeID, nil
+	for _, itemIndex := range payload.ItemIndexes {
+		if itemIndex < 0 {
+			return 0, "", nil, fmt.Errorf("%w: branch_pruned item index is negative", ErrValidation)
+		}
+	}
+	return payload.Generation, payload.NodeID, payload.ItemIndexes, nil
 }

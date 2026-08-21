@@ -1,11 +1,17 @@
-import type { LoopBriefing, LoopRosterNode, LoopRunGeneration } from "../../types";
+import type { LoopBriefing, LoopRequest } from "../../types";
 import {
   registerDoneScenario,
   registerFailedScenario,
   registerNeedsYouScenario,
   registerRunningScenario,
 } from "./loop-run-register-fixtures";
-import { reviewAndFixRun } from "./loop-run-page-fixture-world";
+import { STORY_RUN_ID, reviewAndFixRun } from "./loop-run-page-fixture-world";
+import {
+  asRunStatus,
+  makeGeneration as generation,
+  makeRosterNode as rosterNode,
+  storyAt,
+} from "./loop-run-read-builders";
 import type { LoopRunStoryScenario } from "./loop-run-scenario-types";
 
 /**
@@ -17,85 +23,90 @@ import type { LoopRunStoryScenario } from "./loop-run-scenario-types";
  * same reads, paused at a moment that is hard to catch on purpose.
  */
 
-const RUN_ID = "r-7c4e19";
-
+/**
+ * A briefing override that keeps the run beside it honest.
+ *
+ * `LoopRunPageBody` reads `run.status` for the live/terminal split, so a
+ * scenario that changes only the briefing stages a contradiction: a "done"
+ * verdict over a run the page still paints as running.
+ */
 function withBriefing(
   scenario: LoopRunStoryScenario,
-  overrides: Partial<LoopBriefing>
+  overrides: Partial<LoopBriefing>,
+  runOverrides: Partial<Parameters<typeof reviewAndFixRun>[0]> = {}
 ): LoopRunStoryScenario {
-  return { ...scenario, briefing: { ...scenario.briefing, ...overrides } as LoopBriefing };
-}
-
-function rosterNode(
-  nodeId: string,
-  state: string,
-  overrides: Partial<LoopRosterNode> = {}
-): LoopRosterNode {
+  const briefing = { ...scenario.briefing, ...overrides } as LoopBriefing;
   return {
-    generation: 2,
-    node_id: nodeId,
-    item_index: 0,
-    state,
-    attempt: 1,
-    attempts: [],
-    ...overrides,
-  } as LoopRosterNode;
-}
-
-function generation(round: number, overrides: Partial<LoopRunGeneration> = {}): LoopRunGeneration {
-  return {
-    generation: round,
-    origin: round === 1 ? "initial" : "gate_revise",
-    parent_generation: round === 1 ? 0 : round - 1,
-    outputs: [],
-    route_causes: [],
-    verdicts: [],
-    ...overrides,
-  } as LoopRunGeneration;
+    ...scenario,
+    briefing,
+    run: reviewAndFixRun({
+      ...scenario.run,
+      status: asRunStatus(briefing.status, scenario.run.status),
+      generation: briefing.progress.round,
+      progress: briefing.progress,
+      ...runOverrides,
+    }),
+  };
 }
 
 /** VC-02: admitted but not started — the cap is the reason, and it says so. */
 export function vcQueuedScenario(): LoopRunStoryScenario {
-  return withBriefing(
-    { ...registerRunningScenario(), run: reviewAndFixRun({ status: "queued" }) },
-    {
-      status: "queued",
-      tone: "ok",
-      headline: "Waiting to start — one other run of this loop is already going",
-      detail: "This loop admits one run at a time.",
-      progress: { round: 1, steps_done: 0, steps_total: 4 },
-    }
-  );
+  return withBriefing(registerRunningScenario(), {
+    status: "queued",
+    tone: "ok",
+    headline: "Waiting to start — one other run of this loop is already going",
+    detail: "This loop admits one run at a time.",
+    progress: { round: 1, steps_done: 0, steps_total: 4 },
+  });
 }
 
 /** VC-12: the budget is nearly spent, and the rail warns before it stops. */
 export function vcBudgetWarningScenario(): LoopRunStoryScenario {
   const scenario = registerRunningScenario();
   return withBriefing(
-    { ...scenario, run: reviewAndFixRun({ tokens_used: 468_000, budget_tokens: 500_000 }) },
-    {
-      usage: { tokens: 468_000, cost_usd: 2.34, budget_used_pct: 93.6, duration_ms: 1_180_000 },
-    }
+    scenario,
+    { usage: { tokens: 468_000, cost_usd: 2.34, budget_used_pct: 93.6, duration_ms: 1_180_000 } },
+    { tokens_used: 468_000, budget_tokens: 500_000 }
   );
 }
 
 /** VC-15: the request states its expiry plainly, and never retries itself. */
 export function vcRequestExpiryScenario(): LoopRunStoryScenario {
   const scenario = registerNeedsYouScenario();
-  return withBriefing(scenario, {
-    headline: 'The question on "fix_batch" expires in 4m',
-    detail: "Nothing is retried automatically; an expired question simply closes.",
-    blockers: [
-      {
-        kind: "request",
-        node_id: "fix_batch",
-        item_index: 0,
-        waiting_since: "2026-08-19T18:41:00Z",
-        expires_at: "2026-08-19T18:49:00Z",
-        unblocker: `compozy loop respond ${RUN_ID} --node fix_batch`,
-      },
-    ],
-  });
+  // The blocker describes the question; it is not the question. `LoopRunNeedsYouCard`
+  // renders the questionnaire from `requests`, so a scenario with a request-shaped
+  // blocker and no request staged an expiry notice with nothing expiring under it.
+  const request: LoopRequest = {
+    loop_run_id: STORY_RUN_ID,
+    node_id: "fix_batch",
+    item_index: 0,
+    generation: 2,
+    kind: "question",
+    state: "pending",
+    agents: "review_fixer",
+    prompt: "The two review notes disagree about the retry window. Which one should win?",
+    decisions: ["reviewer", "fixer"],
+    context: null,
+    opened_at: storyAt(3),
+    expires_at: storyAt(-4),
+  };
+  return {
+    ...withBriefing(scenario, {
+      headline: 'The question on "fix_batch" expires in 4m',
+      detail: "Nothing is retried automatically; an expired question simply closes.",
+      blockers: [
+        {
+          kind: "request",
+          node_id: "fix_batch",
+          item_index: 0,
+          waiting_since: storyAt(3),
+          expires_at: storyAt(-4),
+          unblocker: `compozy loop respond ${STORY_RUN_ID} --node fix_batch`,
+        },
+      ],
+    }),
+    requests: [request],
+  };
 }
 
 /** VC-19: a failed step beside a quarantined one — the two read differently. */
@@ -108,32 +119,32 @@ export function vcFailedAndQuarantinedScenario(): LoopRunStoryScenario {
       rosterNode("fix_batch", "failed", {
         attempt: 3,
         session_id: "ses-5d871c99",
-        started_at: "2026-08-19T18:41:07Z",
-        ended_at: "2026-08-19T18:43:38Z",
+        started_at: storyAt(4),
+        ended_at: storyAt(1),
         attempts: [
           {
             attempt: 1,
             state: "failed",
             disposition: "retried",
             failure_class: "tool_error",
-            started_at: "2026-08-19T18:38:00Z",
-            ended_at: "2026-08-19T18:39:10Z",
+            started_at: storyAt(7),
+            ended_at: storyAt(6),
           },
           {
             attempt: 2,
             state: "failed",
             disposition: "retried",
             failure_class: "timeout",
-            started_at: "2026-08-19T18:39:20Z",
-            ended_at: "2026-08-19T18:41:00Z",
+            started_at: storyAt(6),
+            ended_at: storyAt(3),
           },
           {
             attempt: 3,
             state: "failed",
             disposition: "settled",
             failure_class: "tool_error",
-            started_at: "2026-08-19T18:41:07Z",
-            ended_at: "2026-08-19T18:43:38Z",
+            started_at: storyAt(4),
+            ended_at: storyAt(1),
           },
         ],
       }),
@@ -152,16 +163,16 @@ export function vcCancelDispositionsScenario(): LoopRunStoryScenario {
     rosterNodes: [
       rosterNode("review", "succeeded", { session_id: "ses-77120a3f" }),
       rosterNode("fix_batch", "canceled", {
-        started_at: "2026-08-19T18:41:07Z",
-        ended_at: "2026-08-19T18:42:00Z",
+        started_at: storyAt(4),
+        ended_at: storyAt(3),
         cancellation: {
           disposition: "strategy",
           cause: "Its siblings already satisfied the gate.",
         },
       }),
       rosterNode("collect_fixes", "canceled", {
-        started_at: "2026-08-19T18:41:07Z",
-        ended_at: "2026-08-19T18:42:10Z",
+        started_at: storyAt(4),
+        ended_at: storyAt(3),
         cancellation: {
           disposition: "operator",
           actor_kind: "operator",
@@ -190,7 +201,7 @@ export function vcGenerationHistoryScenario(): LoopRunStoryScenario {
             score: 0.42,
           },
         ],
-      } as Partial<LoopRunGeneration>),
+      }),
       generation(2, {
         verdicts: [
           {
@@ -202,7 +213,7 @@ export function vcGenerationHistoryScenario(): LoopRunStoryScenario {
             score: 0.91,
           },
         ],
-      } as Partial<LoopRunGeneration>),
+      }),
       // No verdict at all: a loop that defines no scoring gets no score column.
       generation(3),
     ],
@@ -225,7 +236,7 @@ export function vcCrashInterruptedScenario(): LoopRunStoryScenario {
       // Started, never ended, on a run that is over: interrupted, not settled.
       rosterNode("fix_batch", "running", {
         generation: 2,
-        started_at: "2026-08-19T18:41:07Z",
+        started_at: storyAt(4),
         usage: { tokens: 12_000 },
       }),
     ],
@@ -241,15 +252,15 @@ export function vcPrunedSessionScenario(): LoopRunStoryScenario {
       rosterNode("review", "succeeded", {
         session_id: "ses-77120a3f",
         cell_task_id: "task_review",
-        started_at: "2026-08-19T18:30:00Z",
-        ended_at: "2026-08-19T18:33:00Z",
+        started_at: storyAt(15),
+        ended_at: storyAt(12),
         attempts: [
           {
             attempt: 1,
             state: "succeeded",
             disposition: "settled",
-            started_at: "2026-08-19T18:30:00Z",
-            ended_at: "2026-08-19T18:33:00Z",
+            started_at: storyAt(15),
+            ended_at: storyAt(12),
           },
         ],
       }),

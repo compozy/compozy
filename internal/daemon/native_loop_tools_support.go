@@ -350,6 +350,7 @@ type nativeLoopRunsInput struct {
 	WorkspaceID string `json:"workspace,omitempty"`
 	LoopName    string `json:"loop_name,omitempty"`
 	Status      string `json:"status,omitempty"`
+	Cursor      string `json:"cursor,omitempty"`
 	Limit       int    `json:"limit,omitempty"`
 }
 

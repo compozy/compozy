@@ -1,4 +1,6 @@
+import type { ComponentProps } from "react";
 import { ArrowUpRight, CornerDownRight } from "lucide-react";
+import { Link } from "@tanstack/react-router";
 
 import {
   Empty,
@@ -17,17 +19,20 @@ import { formatClockDuration } from "../../../lib/loop-run-usage";
 import type { LoopRosterRow, LoopRosterTableModel } from "../../../lib/loop-run-roster-table";
 import { formatTokenCount } from "../../../lib/loop-runs-view";
 import { LoopNodeStateChip } from "../loop-node-state-chip";
+import type { LoopRunRosterRead } from "../loop-run-page-body";
 
 /** Sentinel for the "every round" option; rounds themselves are numbers. */
 const ALL_ROUNDS = "all";
 
-interface LoopNodeRosterProps {
+interface LoopNodeRosterProps extends Omit<ComponentProps<"div">, "children" | "onSelect"> {
   roster: LoopRosterTableModel;
   /** The round in view; `null` is every round, and then the round is shown per row. */
   round: number | null;
   onRoundChange: (round: number | null) => void;
   onSelect: (row: LoopRosterRow) => void;
   selectedKey: string | null;
+  /** Whether the roster read has answered; absent means the caller cannot say. */
+  read?: LoopRunRosterRead;
 }
 
 /**
@@ -84,8 +89,32 @@ export function LoopNodeRoster({
   onRoundChange,
   onSelect,
   selectedKey,
+  read,
+  className,
+  ...props
 }: LoopNodeRosterProps) {
   if (roster.reachedNothing) {
+    // "No steps ran" is a statement about the run. Making it while the read is
+    // still in flight — or after it failed — says something about the daemon we
+    // have no evidence for, so those two get their own sentences.
+    if (read?.isError) {
+      return (
+        <Empty
+          data-testid="loop-node-roster-error"
+          description="This run's steps could not be read. The run itself is unaffected."
+          title="Steps unavailable"
+        />
+      );
+    }
+    if (read?.isLoading) {
+      return (
+        <Empty
+          data-testid="loop-node-roster-loading"
+          description="Reading this run's steps…"
+          title="Still reading"
+        />
+      );
+    }
     return (
       <Empty
         data-testid="loop-node-roster-empty"
@@ -98,7 +127,7 @@ export function LoopNodeRoster({
   // rounds it is the only thing telling two rows of the same step apart.
   const showsRound = round === null && roster.rounds.length > 1;
   return (
-    <div data-testid="loop-node-roster">
+    <div className={cn(className)} data-testid="loop-node-roster" {...props}>
       {roster.rounds.length > 1 ? (
         <div className="flex items-center gap-2 border-b border-line-soft px-4 py-2.5">
           <PillGroup
@@ -134,6 +163,7 @@ export function LoopNodeRoster({
               data-generation={row.generation}
               data-item-index={row.itemIndex}
               data-node-id={row.nodeId}
+              data-selected={selectedKey === row.key ? "true" : undefined}
               data-state={row.chip.state}
               // Round, step and item: the same step id exists once per round and
               // once per fan-out worker, so anything shorter names several rows.
@@ -146,9 +176,22 @@ export function LoopNodeRoster({
                   {row.isBranch ? (
                     <CornerDownRight aria-hidden="true" className="size-3 shrink-0 text-faint" />
                   ) : null}
-                  <span className="min-w-0 truncate text-small-body font-medium text-fg-strong">
+                  {/* The row is a selection control, so one real control has to
+                      carry it. A pointer-only `tr` leaves keyboard users with no
+                      way into the node panel and no way to perceive which row is
+                      open; `aria-pressed` states that, which `aria-selected`
+                      could not do inside a plain table. */}
+                  <button
+                    aria-pressed={selectedKey === row.key}
+                    className="min-w-0 truncate rounded-sm text-left text-small-body font-medium text-fg-strong focus-visible:shadow-focus-ring focus-visible:outline-none"
+                    onClick={event => {
+                      event.stopPropagation();
+                      onSelect(row);
+                    }}
+                    type="button"
+                  >
                     {row.nodeId}
-                  </span>
+                  </button>
                 </span>
                 {row.kindLabel ? (
                   <span className="mt-0.5 block font-mono text-mono-id text-faint">
@@ -180,11 +223,20 @@ export function LoopNodeRoster({
                 <LoopRosterUsageCell row={row} />
               </TableCell>
               <TableCell>
+                {/* An arrowed "Open" that opens nothing is a promise the cell
+                    cannot keep — this one navigates, and stops the click short
+                    of the row so leaving is not also a selection. */}
                 {row.sessionId ? (
-                  <span className="inline-flex items-center gap-1 text-form-hint text-subtle">
+                  <Link
+                    className="inline-flex items-center gap-1 text-form-hint text-subtle hover:text-fg-strong"
+                    data-testid={`loop-roster-session-${row.key}`}
+                    onClick={event => event.stopPropagation()}
+                    params={{ id: row.sessionId }}
+                    to="/session/$id"
+                  >
                     Open
                     <ArrowUpRight aria-hidden="true" className="size-3" />
-                  </span>
+                  </Link>
                 ) : (
                   <span className="font-mono text-mono-id text-faint">—</span>
                 )}

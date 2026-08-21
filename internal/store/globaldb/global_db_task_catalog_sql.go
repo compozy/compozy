@@ -361,7 +361,7 @@ func taskCatalogBaseFilter(query taskpkg.CatalogQuery) ([]string, []any) {
 	}
 	if query.ParentTaskID == "" {
 		for _, actor := range query.ExcludeCreatedBy {
-			where = append(where, `id NOT IN (
+			where = append(where, `tasks.id NOT IN (
 				SELECT excluded_task.id
 				FROM tasks AS excluded_task INDEXED BY idx_tasks_created_by
 				WHERE excluded_task.created_by_kind = ?

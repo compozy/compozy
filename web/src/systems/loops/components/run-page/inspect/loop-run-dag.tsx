@@ -1,3 +1,4 @@
+import type { ComponentProps } from "react";
 import { createElement, useEffect, useRef } from "react";
 import { useReducedMotionConfig } from "motion/react";
 
@@ -10,12 +11,21 @@ import type { LoopDagColumn, LoopDagNode, LoopRunDagModel } from "../../../lib/l
 import type { LoopNodeSelection } from "../../../lib/loop-run-registers-view";
 import { LOOP_PROGRESS_SEGMENT_CLASS } from "../loop-progress-segment-class";
 import { LoopNodeStateChip } from "../loop-node-state-chip";
+import type { LoopRunRosterRead } from "../loop-run-page-body";
 
-interface LoopRunDagProps {
+interface LoopRunDagProps extends Omit<ComponentProps<"div">, "children" | "onSelect"> {
   dag: LoopRunDagModel;
-  selectedNodeId: string | null;
+  /**
+   * The open node as the roster identifies it: node, item and round.
+   *
+   * Matching on the node id alone highlighted the same card for a selection made
+   * in a different round, because one authored node has one card but many rows.
+   */
+  selection: LoopNodeSelection | null;
   /** Node, item and round together — the identity the roster reads by. */
   onSelect: (selection: LoopNodeSelection) => void;
+  /** Whether the reads behind the graph have answered yet. */
+  read?: LoopRunRosterRead;
 }
 
 /**
@@ -79,21 +89,38 @@ function LoopDagCard({
 }: {
   node: LoopDagNode;
   selected: boolean;
-  onSelect: () => void;
+  /** Called only with a real, server-owned item index — never a stand-in. */
+  onSelect: (itemIndex: number) => void;
 }) {
+  // A node with no roster row has nothing to open. The card stays on screen —
+  // the graph is the run's shape, and an unreached step is part of that shape —
+  // but it is genuinely inert rather than opening a panel for a row that does
+  // not exist. `disabled` is what makes that true for pointer, keyboard and
+  // assistive tech at once, and it drops the card out of the tab order, which
+  // is right: there is nowhere for that focus to go.
+  const itemIndex = node.itemIndex;
+  const selectable = itemIndex !== null;
   return (
     <button
-      aria-pressed={selected}
+      // A card that can never be opened is not an unpressed toggle; it has no
+      // pressed state to report at all.
+      aria-pressed={selectable ? selected : undefined}
       className={cn(
         "flex w-40 shrink-0 flex-col gap-1.5 rounded-md border bg-canvas-tint px-3 py-2.5 text-left",
         "focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent",
         node.chip.state === "pending" ? "border-dashed border-line" : "border-line",
-        selected && "border-accent"
+        selected && "border-accent",
+        // No opacity: the card still has to be read, and dimming it would push
+        // its text under the contrast floor to say something the cursor and the
+        // disabled state already say.
+        !selectable && "cursor-default"
       )}
       data-node-id={node.nodeId}
+      data-selectable={selectable ? "true" : "false"}
       data-state={node.chip.state}
       data-testid={`loop-dag-node-${node.nodeId}`}
-      onClick={onSelect}
+      disabled={!selectable}
+      onClick={selectable ? () => onSelect(itemIndex) : undefined}
       type="button"
     >
       <span className="flex min-w-0 items-center gap-1.5">
@@ -141,7 +168,14 @@ function LoopDagCard({
   );
 }
 
-export function LoopRunDag({ dag, selectedNodeId, onSelect }: LoopRunDagProps) {
+export function LoopRunDag({
+  dag,
+  selection,
+  onSelect,
+  read,
+  className,
+  ...props
+}: LoopRunDagProps) {
   const reduced = useReducedMotionConfig() === true;
   const laneRef = useRef<HTMLDivElement>(null);
 
@@ -159,10 +193,32 @@ export function LoopRunDag({ dag, selectedNodeId, onSelect }: LoopRunDagProps) {
   }, [dag.focusNodeId, reduced]);
 
   if (dag.empty) {
+    if (read?.isError) {
+      return (
+        <Empty
+          data-testid="loop-dag-error"
+          description="This run's shape could not be read. The run itself is unaffected."
+          title="Graph unavailable"
+        />
+      );
+    }
+    if (read?.isLoading) {
+      return (
+        <Empty
+          data-testid="loop-dag-loading"
+          description="Reading this run's shape…"
+          title="Still reading"
+        />
+      );
+    }
     return (
       <Empty
         data-testid="loop-dag-empty"
-        description="This run's definition could not be read, so its shape cannot be drawn. The Nodes lane still lists every step."
+        // The Nodes lane lists what has been read, which is not the same as
+        // every step: the roster read is paged and can stop at its budget with
+        // a continuation still open. Promising completeness here would have the
+        // fallback contradict the truncation note the register prints.
+        description="This run's definition could not be read, so its shape cannot be drawn. The Nodes lane still lists the steps read so far."
         title="No readable graph"
       />
     );
@@ -170,9 +226,10 @@ export function LoopRunDag({ dag, selectedNodeId, onSelect }: LoopRunDagProps) {
 
   return (
     <div
-      className="flex items-stretch gap-0 overflow-x-auto px-4 py-4"
+      className={cn("flex items-stretch gap-0 overflow-x-auto px-4 py-4", className)}
       data-testid="loop-run-dag"
       ref={laneRef}
+      {...props}
     >
       {dag.columns.map((column, index) => (
         <div className="flex items-stretch" key={column.rank}>
@@ -182,10 +239,17 @@ export function LoopRunDag({ dag, selectedNodeId, onSelect }: LoopRunDagProps) {
               <LoopDagCard
                 key={node.key}
                 node={node}
-                onSelect={() =>
-                  onSelect({ nodeId: node.nodeId, itemIndex: 0, generation: dag.round })
+                // One card stands for one authored node in the round on screen.
+                // A fan-out card stands for many workers, so the model resolves
+                // which roster item it opens from the daemon's own item indexes
+                // — fan-out items are not guaranteed to start at zero, and the
+                // panel looks a node up by exact item and round. The index
+                // arrives from the card, which only offers one when the model
+                // resolved a real row; there is no fallback to substitute.
+                onSelect={itemIndex =>
+                  onSelect({ nodeId: node.nodeId, itemIndex, generation: dag.round })
                 }
-                selected={selectedNodeId === node.nodeId}
+                selected={selection?.nodeId === node.nodeId && selection.generation === dag.round}
               />
             ))}
           </div>

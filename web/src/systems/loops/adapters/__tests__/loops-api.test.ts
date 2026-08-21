@@ -7,6 +7,7 @@ import { loopEffectiveConfigFixture } from "@/systems/loops/mocks/fixtures";
 import { SPEC_CYCLE_IMPORT_TASKS_KIND } from "@/systems/loops/mocks/fixture-action-kinds";
 import {
   LoopInputValidationError,
+  LoopReadError,
   LoopRequestError,
   LoopsApiError,
   LoopTimetravelError,
@@ -22,6 +23,9 @@ import {
   getLoopConfig,
   getLoopRequest,
   getLoopRun,
+  getLoopRunBriefing,
+  getLoopRunRoster,
+  getLoopRunTimeline,
   listLoopRequests,
   listLoopRuns,
   listLoops,
@@ -346,6 +350,102 @@ describe("loops-api (request construction + error mapping)", () => {
         }),
       })
     );
+  });
+
+  // The three run reads (ADR-005). Their filters are normalised the same way the
+  // rest of the adapters normalise theirs, and their refusals carry structure —
+  // an allowed-state list, a stale-cursor code — that the UI acts on rather than
+  // prints. Both halves are locked here, in the adapters' canonical suite.
+  it("Should GET the run briefing and keep a 404's reason envelope typed", async () => {
+    mockJsonResponse({ run_id: "r-1", status: "running" });
+    await getLoopRunBriefing(WS, "r-1");
+    await expectFetchRequest({
+      path: "/api/workspaces/ws_1/loop-runs/r-1/briefing",
+      method: "GET",
+    });
+
+    mockJsonResponse(
+      { error: "loop_run_not_found", code: "loop_run_not_found", details: { run_id: "r-1" } },
+      { status: 404 }
+    );
+    // A 404 that drops `code` and `details` cannot say which run was missed.
+    await expect(getLoopRunBriefing(WS, "r-1")).rejects.toMatchObject({
+      name: "LoopReadError",
+      status: 404,
+      code: "loop_run_not_found",
+      message: "Loop run not found",
+      details: { run_id: "r-1" },
+    });
+  });
+
+  it("Should GET the roster with trimmed filters and expose the allowed states on a refusal", async () => {
+    mockJsonResponse({ run_id: "r-1", nodes: [], fanout_rollups: [] });
+    await getLoopRunRoster(WS, "r-1", {
+      state: " running ",
+      generation: 2,
+      cursor: "  ",
+      limit: 200,
+    });
+    // A blank cursor is an absent cursor, exactly as elsewhere in the adapters.
+    await expectFetchRequest({
+      path: "/api/workspaces/ws_1/loop-runs/r-1/nodes?state=running&generation=2&limit=200",
+      method: "GET",
+    });
+
+    mockJsonResponse(
+      {
+        error: "invalid_node_state",
+        code: "invalid_node_state",
+        details: { allowed: "all,running,failed" },
+      },
+      { status: 400 }
+    );
+    // A state the client allows, refused by the daemon anyway: this asserts the
+    // envelope mapping, not the local allowlist (which the next case owns).
+    const refusal = await getLoopRunRoster(WS, "r-1", { state: "running" }).catch(
+      (error: unknown) => error
+    );
+    expect(refusal).toBeInstanceOf(LoopReadError);
+    expect((refusal as InstanceType<typeof LoopReadError>).allowedStates).toEqual([
+      "all",
+      "running",
+      "failed",
+    ]);
+  });
+
+  it("Should refuse a state outside the allowlist without spending a request", async () => {
+    const fetchMock = vi.mocked(fetch);
+    fetchMock.mockClear();
+    // `pending` is an output state, never a filter value. The daemon would
+    // answer 400; knowing that already, the adapter does not ask.
+    const refusal = await getLoopRunRoster(WS, "r-1", { state: "pending" }).catch(
+      (error: unknown) => error
+    );
+    expect(refusal).toBeInstanceOf(LoopReadError);
+    expect((refusal as InstanceType<typeof LoopReadError>).code).toBe("invalid_node_state");
+    expect((refusal as InstanceType<typeof LoopReadError>).allowedStates).toContain("all");
+    expect((refusal as InstanceType<typeof LoopReadError>).allowedStates).not.toContain("pending");
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it("Should GET the timeline and mark a branch-changed cursor as stale", async () => {
+    mockJsonResponse({ run_id: "r-1", head_seq: 12, entries: [] });
+    await getLoopRunTimeline(WS, "r-1", { view: " all ", cursor: " tok-1 ", after_sequence: 0 });
+    await expectFetchRequest({
+      path: "/api/workspaces/ws_1/loop-runs/r-1/timeline?view=all&cursor=tok-1&after_sequence=0",
+      method: "GET",
+    });
+
+    mockJsonResponse(
+      { error: "timeline_branch_changed", code: "timeline_branch_changed" },
+      { status: 409 }
+    );
+    const refusal = await getLoopRunTimeline(WS, "r-1", { cursor: "tok-1" }).catch(
+      (error: unknown) => error
+    );
+    expect(refusal).toBeInstanceOf(LoopReadError);
+    // The story restarts from the newest window; it never splices two histories.
+    expect((refusal as InstanceType<typeof LoopReadError>).isStaleCursor).toBe(true);
   });
 });
 

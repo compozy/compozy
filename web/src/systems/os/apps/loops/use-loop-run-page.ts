@@ -1,5 +1,4 @@
 import { useState } from "react";
-import { useNavigate } from "@tanstack/react-router";
 import { useSelector } from "@xstate/store-react";
 
 import { toast } from "@compozy/ui";
@@ -35,7 +34,6 @@ import {
   useNowTick,
   usePauseLoopRun,
   useResumeLoopRun,
-  useRunLoop,
 } from "@/systems/loops";
 
 const SETTLED_OUTPUT_STATUSES = new Set(["succeeded", "failed", "partial", "canceled"]);
@@ -95,7 +93,6 @@ export function useLoopRunPage(
   runId: string,
   { liveDataEnabled = true }: { liveDataEnabled?: boolean } = {}
 ) {
-  const navigate = useNavigate();
   const bindingKey = `${workspaceId}\u0000${runId}`;
   const { store: runPageStore } = useStoreBinding(bindingKey, () =>
     loopRunPageLogic.createStore({ workspaceId, runId })
@@ -158,7 +155,6 @@ export function useLoopRunPage(
   const cancelMutation = useCancelLoopRun();
   const killMutation = useKillLoopRun();
   const approveMutation = useApproveLoopRun();
-  const runLoopMutation = useRunLoop();
 
   const nowMs = useNowTick(run?.status === "running" && liveDataEnabled);
   const view = run
@@ -249,26 +245,6 @@ export function useLoopRunPage(
     );
   };
 
-  const handleStartNewRun = () => {
-    if (!run) return;
-    runLoopMutation.mutate(
-      { workspaceId, name: run.loop_name, data: { inputs: run.inputs } },
-      {
-        onSuccess: result => {
-          const newRunId = result.run?.id;
-          if (newRunId) {
-            toast.success("New run started");
-            void navigate({ to: "/loop-runs/$runId", params: { runId: newRunId } });
-            return;
-          }
-          toast.error("The request was accepted, but no run came back.");
-        },
-        onError: error =>
-          toast.error(error instanceof Error ? error.message : "Failed to start a new run"),
-      }
-    );
-  };
-
   const version = run?.definition_version ?? loopQuery.data?.version;
   const versionLabel =
     version !== undefined
@@ -276,11 +252,7 @@ export function useLoopRunPage(
         ? `v${version} · pinned`
         : `v${version}`
       : undefined;
-  const pendingAction = approveMutation.isPending
-    ? ("approve" as const)
-    : runLoopMutation.isPending
-      ? ("start-new-run" as const)
-      : undefined;
+  const pendingAction = approveMutation.isPending ? ("approve" as const) : undefined;
 
   return {
     runQuery,
@@ -305,6 +277,12 @@ export function useLoopRunPage(
       nodes: rosterRead.nodes,
       rollups: rosterRead.rollups,
       timeline: timelineRead.entries,
+      // The fork point in the story links the related run, and the run record is
+      // the only place that branch is recorded (US-009.EC-3).
+      lineage: {
+        forkedFrom: effectiveRun?.forked_from ?? null,
+        forks: effectiveRun?.forks ?? [],
+      },
       graph: view?.graph ?? null,
       rosterIsComplete: rosterRead.isComplete,
       rosterIsTruncated: rosterRead.isTruncated,
@@ -313,18 +291,29 @@ export function useLoopRunPage(
     rosterRollups: rosterRead.rollups,
     onLoadMoreRoster: rosterRead.loadMore,
     isLoadingMoreRoster: rosterRead.isLoadingMore,
+    // Whether the roster read has answered at all. The Inspect lanes need this
+    // to tell "this run reached no step" from "we have not read its steps yet";
+    // without it a pending or failed read renders as `No steps ran`.
+    rosterRead: { isLoading: rosterRead.isLoading, isError: rosterRead.isError },
     nodeSelection,
     onNodeSelectionChange: setNodeSelection,
     prunedSessionIds: loopPrunedSessionIds(selectedSessionId, sessionAvailability),
     storyPaging: {
       hasOlder: timelineRead.hasOlder,
       isLoading: timelineRead.isLoading,
+      // Folding this only into `isReconnecting` told the reader the transport is
+      // degraded but still let the story print "Nothing has happened in this run
+      // yet." The story owns that sentence, so it needs the flag itself.
+      isError: timelineRead.isError,
       isLoadingOlder: timelineRead.isLoadingOlder,
       onLoadOlder: timelineRead.loadOlder,
     },
-    // A read that errored while the run is live means the page is showing the
-    // last thing it successfully reconciled, and it has to say so.
-    isReconnecting: isLive && (briefingRead.isError || rosterRead.isError),
+    // A read that errored means the page is showing the last thing it
+    // successfully reconciled, and it has to say so. All three durable reads
+    // count — a failed timeline read is degraded transport, not evidence that
+    // nothing happened — and a settled run says it too: an unreadable terminal
+    // run is still unread, however finished it is.
+    isReconnecting: briefingRead.isError || rosterRead.isError || timelineRead.isError,
     isLive,
     // The same clock the page's own derivations run on, so the roster's elapsed
     // readings and the Usage rail never disagree by a tick.
@@ -344,7 +333,6 @@ export function useLoopRunPage(
     handleCancel,
     handleKill,
     handleDecision,
-    handleStartNewRun,
     pendingAction,
     isPausePending: pauseMutation.isPending,
     isResumePending: resumeMutation.isPending,

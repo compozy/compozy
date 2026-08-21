@@ -62,7 +62,11 @@ func (g *TaskRepo) ensureCoordinatorPlanTasksWithExecutor(
 	origin taskpkg.Origin,
 	now time.Time,
 ) error {
-	if len(plan.NodeTasks) == 0 && len(plan.Dependencies) == 0 {
+	quarantinedContinuations, err := quarantinedLoopContinuationOutputs(plan.PostReserveSnapshot)
+	if err != nil {
+		return err
+	}
+	if len(plan.NodeTasks) == 0 && len(plan.Dependencies) == 0 && len(quarantinedContinuations) == 0 {
 		return nil
 	}
 	parentTask, err := g.getTaskWithExecutor(ctx, exec, current.TaskID)
@@ -73,6 +77,18 @@ func (g *TaskRepo) ensureCoordinatorPlanTasksWithExecutor(
 		if err := g.createCoordinatorTaskIfMissingWithExecutor(ctx, exec, spec, parentTask, origin, now); err != nil {
 			return err
 		}
+	}
+	if err := g.ensureQuarantinedLoopContinuationTasksWithExecutor(
+		ctx,
+		exec,
+		plan.Snapshot,
+		plan.PostReserveSnapshot,
+		quarantinedContinuations,
+		parentTask,
+		origin,
+		now,
+	); err != nil {
+		return err
 	}
 	for _, spec := range plan.Dependencies {
 		if err := g.createCoordinatorDependencyIfMissingWithExecutor(ctx, exec, spec, now); err != nil {

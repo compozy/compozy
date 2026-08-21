@@ -1,6 +1,6 @@
 ---
-id: LR-7f4c2a-run-read-agent-journey
-area: LR
+id: LP-run-read-agent-journey
+area: LP
 title: Explain and inspect one Loop run through agent-readable projections
 persona: Ada
 journey: J-configure-and-run-loop

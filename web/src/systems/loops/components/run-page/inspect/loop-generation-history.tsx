@@ -1,4 +1,6 @@
-import { Button, Empty, Pill, Time } from "@compozy/ui";
+import type { ComponentProps } from "react";
+
+import { Button, cn, Empty, Pill, Time } from "@compozy/ui";
 
 import type {
   LoopGenerationProgressState,
@@ -6,7 +8,7 @@ import type {
 } from "../../../lib/loop-generation-presentation";
 import { formatTokenCount } from "../../../lib/loop-runs-view";
 
-interface LoopGenerationHistoryProps {
+interface LoopGenerationHistoryProps extends Omit<ComponentProps<"ul">, "children"> {
   rows: readonly LoopGenerationRow[];
   onCompare?: (generation: number) => void;
   onFork?: (generation: number) => void;
@@ -30,7 +32,13 @@ const PROGRESS_LABELS: Record<LoopGenerationProgressState, string | null> = {
   interrupted: "interrupted before it finished",
 };
 
-export function LoopGenerationHistory({ rows, onCompare, onFork }: LoopGenerationHistoryProps) {
+export function LoopGenerationHistory({
+  rows,
+  onCompare,
+  onFork,
+  className,
+  ...props
+}: LoopGenerationHistoryProps) {
   if (rows.length === 0) {
     return (
       <Empty
@@ -41,7 +49,11 @@ export function LoopGenerationHistory({ rows, onCompare, onFork }: LoopGeneratio
     );
   }
   return (
-    <ul className="flex flex-col divide-y divide-line-soft" data-testid="loop-generation-history">
+    <ul
+      className={cn("flex flex-col divide-y divide-line-soft", className)}
+      data-testid="loop-generation-history"
+      {...props}
+    >
       {rows.map(row => {
         const progressLabel = PROGRESS_LABELS[row.progressState];
         return (

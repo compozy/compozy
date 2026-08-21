@@ -5,7 +5,10 @@ import { cn, Pill, PillDot } from "@compozy/ui";
 
 import type { LoopStateChip } from "../../lib/loop-run-state-copy";
 
-interface LoopNodeStateChipProps extends Omit<ComponentProps<typeof Pill>, "tone" | "children"> {
+interface LoopNodeStateChipProps extends Omit<
+  ComponentProps<typeof Pill>,
+  "tone" | "children" | "pulse"
+> {
   chip: LoopStateChip;
 }
 
@@ -38,11 +41,13 @@ export function LoopNodeStateChip({ chip, className, ...props }: LoopNodeStateCh
       {...props}
     >
       {/* The live accent is a pulsing dot rather than a glyph, so motion marks
-          the one running thing and nothing else on the page competes with it. */}
+          the one running thing and nothing else on the page competes with it.
+          Which state that is belongs to the state model, not to this render: a
+          hardcoded `pulse` would animate every future icon-less state too. */}
       {chip.icon ? (
         createElement(chip.icon, { "aria-hidden": true, className: "size-3 shrink-0" })
       ) : (
-        <PillDot pulse tone={chip.tone} />
+        <PillDot pulse={chip.pulse} tone={chip.tone} />
       )}
       {chip.label}
     </Pill>

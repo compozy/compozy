@@ -206,7 +206,7 @@ func TestCoordinatorRunnerShouldApplyNodeFailurePrecedence(t *testing.T) {
 		if got, want := len(duePlan.NodeRuns), 1; got != want {
 			t.Fatalf("due node runs = %d, want %d", got, want)
 		}
-		wantRetryRunID := coordinatorNodeAttemptRunID(loopRun.ID, 1, "work", 0, 2)
+		wantRetryRunID := NodeCellAttemptRunID(loopRun.ID, 1, "work", 0, 2)
 		if got, want := duePlan.NodeRuns[0].RunID, wantRetryRunID; got != want {
 			t.Fatalf("retry run id = %q, want %q", got, want)
 		}

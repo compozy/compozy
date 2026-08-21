@@ -17,6 +17,7 @@ func TestLoopRunReadCommands(t *testing.T) {
 	now := time.Date(2026, 8, 20, 18, 52, 0, 0, time.UTC)
 	client := loopReadCommandClient(t, now)
 	deps := newTestDeps(t, client)
+	deps.now = func() time.Time { return now }
 
 	t.Run("Should render the documented why transcript and executable unblocker", func(t *testing.T) {
 		stdout, _, err := executeRootCommand(t, deps, "loop", "why", "run-a", "--workspace", "alpha")
@@ -31,6 +32,21 @@ func TestLoopRunReadCommands(t *testing.T) {
 		}, "\n")
 		if strings.TrimSpace(stdout) != want {
 			t.Fatalf("loop why output = %q, want %q", strings.TrimSpace(stdout), want)
+		}
+	})
+
+	t.Run("Should render terminal usage outcome and produced artifacts", func(t *testing.T) {
+		stdout, _, err := executeRootCommand(t, deps, "loop", "why", "run-terminal", "--workspace", "alpha")
+		if err != nil {
+			t.Fatalf("loop why terminal error = %v", err)
+		}
+		want := strings.Join([]string{
+			"DONE · finished " + now.Local().Format("2006-01-02 15:04") + " after 2 rounds (18m12s)",
+			"Spent 214k tokens · $0.87 · 38% of budget",
+			`Produced: post-final.md (output "saida")`,
+		}, "\n")
+		if strings.TrimSpace(stdout) != want {
+			t.Fatalf("loop why terminal output = %q, want %q", strings.TrimSpace(stdout), want)
 		}
 	})
 
@@ -90,6 +106,23 @@ func TestLoopRunReadCommands(t *testing.T) {
 		}
 	})
 
+	t.Run("Should describe inventory and roster flag contracts in nodes help", func(t *testing.T) {
+		stdout, _, err := executeRootCommand(t, deps, "loop", "nodes", "--help")
+		if err != nil {
+			t.Fatalf("loop nodes --help error = %v", err)
+		}
+		for _, phrase := range []string{
+			"Show the complete run roster; requires --run and excludes --cursor",
+			"Filter roster by generation; requires --run",
+			"State filter: inventory waiting|quarantined|attention|retrying; roster (--run) all|running|queued|waiting|retrying|paused|quarantined|succeeded|failed|canceled|not_taken",
+			"Page size: inventory 1 to 200; roster (--run) 1 to 500; defaults to 50",
+		} {
+			if !strings.Contains(stdout, phrase) {
+				t.Fatalf("loop nodes --help omitted %q:\n%s", phrase, stdout)
+			}
+		}
+	})
+
 	t.Run("Should render the documented timeline transcript", func(t *testing.T) {
 		stdout, _, err := executeRootCommand(
 			t,
@@ -139,12 +172,20 @@ func TestLoopRunReadCommands(t *testing.T) {
 		}
 		want := strings.Join([]string{
 			"STATUS     LOOP      PROGRESS       STARTED  DURATION",
-			"NEEDS YOU  review    step 4/6 · r1  18:32    22m   approval (1)",
+			"NEEDS YOU  review    step 4/6 · r1  18:32    22m   approval (1) · 3m",
 			"running    assisted  step 2/9 · r1  18:41    13m",
 			"done       review    —              17:40    18m",
 		}, "\n")
 		if strings.TrimSpace(stdout) != want {
 			t.Fatalf("loop runs output = %q, want %q", strings.TrimSpace(stdout), want)
+		}
+	})
+
+	t.Run("Should render an unknown run start time as an em dash", func(t *testing.T) {
+		t.Parallel()
+		row := loopRunSummaryRow(contract.LoopRunPayload{Status: contract.LoopRunStatusQueued}, deps.now)
+		if row[3] != "—" {
+			t.Fatalf("queued run STARTED = %q, want em dash", row[3])
 		}
 	})
 
@@ -174,18 +215,19 @@ func TestLoopRunReadCommands(t *testing.T) {
 		if len(lines) != 5 {
 			t.Fatalf("timeline lines = %d: %q", len(lines), stdout)
 		}
+		wantSequences := []int64{2, 3, 4, 6, 7}
 		for index, line := range lines {
 			var entry looppkg.TimelineEntry
 			if err := json.Unmarshal([]byte(line), &entry); err != nil {
 				t.Fatalf("decode timeline line %d error = %v", index, err)
 			}
-			wantSequence := int64(index + 2)
+			wantSequence := wantSequences[index]
 			if entry.Seq != wantSequence {
 				t.Fatalf("timeline line %d sequence = %d, want %d", index, entry.Seq, wantSequence)
 			}
-			if entry.Seq == 5 && (entry.Generation != 1 || entry.NodeID != "ship" ||
-				entry.Attempt != 2 || entry.Title != "step ship running") {
-				t.Fatalf("live entry = %#v", entry)
+			if entry.Seq == 6 && (entry.Kind != looppkg.RunEventTokenTick || entry.FirstSeq != 5 ||
+				entry.Title != "Token usage increased ×2") {
+				t.Fatalf("coalesced live entry = %#v", entry)
 			}
 		}
 	})
@@ -223,6 +265,39 @@ func TestLoopRunReadCommands(t *testing.T) {
 		if exitCode != 2 || stderr != wantError {
 			t.Fatalf("loop nodes exact guard = %q", stderr)
 		}
+		for _, testCase := range []struct {
+			name string
+			args []string
+			want string
+		}{
+			{
+				name: "Should reject all without a run",
+				args: []string{"loop", "nodes", "--all", "--state", "waiting", "--workspace", "alpha"},
+				want: "error: cli: --all and --generation require --run",
+			},
+			{
+				name: "Should reject generation without a run",
+				args: []string{"loop", "nodes", "--generation", "1", "--state", "waiting", "--workspace", "alpha"},
+				want: "error: cli: --all and --generation require --run",
+			},
+			{
+				name: "Should require an inventory state",
+				args: []string{"loop", "nodes", "--workspace", "alpha"},
+				want: "error: cli: --state requires --run or an inventory state",
+			},
+			{
+				name: "Should reject a cursor with complete roster mode",
+				args: []string{"loop", "nodes", "--run", "run-a", "--all", "--cursor", "next", "--workspace", "alpha"},
+				want: "error: --cursor cannot be combined with --all",
+			},
+		} {
+			t.Run(testCase.name, func(t *testing.T) {
+				exitCode, _, stderr := executeRootCommandWithExit(t, deps, testCase.args...)
+				if exitCode != 2 || strings.TrimSpace(stderr) != testCase.want {
+					t.Fatalf("%v = exit %d stderr %q, want exit 2 %q", testCase.args, exitCode, stderr, testCase.want)
+				}
+			})
+		}
 
 		exitCode, _, stderr = executeRootCommandWithExit(
 			t,
@@ -248,21 +323,57 @@ func TestLoopRunReadCommands(t *testing.T) {
 		}
 
 		for _, testCase := range []struct {
+			name string
 			args []string
 			want string
 		}{
-			{args: []string{"loop", "nodes", "--run", "run-a", "--limit", "0", "--workspace", "alpha"}, want: "error: --limit must be between 1 and 500"},
-			{args: []string{"loop", "nodes", "--run", "run-a", "--limit", "501", "--workspace", "alpha"}, want: "error: --limit must be between 1 and 500"},
-			{args: []string{"loop", "events", "run-a", "--limit", "0", "--workspace", "alpha"}, want: "error: --limit must be between 1 and 500"},
-			{args: []string{"loop", "events", "run-a", "--limit", "501", "--workspace", "alpha"}, want: "error: --limit must be between 1 and 500"},
-			{args: []string{"loop", "runs", "--limit", "0", "--workspace", "alpha"}, want: "error: --limit must be between 1 and 500"},
-			{args: []string{"loop", "runs", "--limit", "501", "--workspace", "alpha"}, want: "error: --limit must be between 1 and 500"},
+			{name: "Should reject inventory limit zero", args: []string{"loop", "nodes", "--state", "waiting", "--limit", "0", "--workspace", "alpha"}, want: "error: --limit must be between 1 and 200"},
+			{name: "Should reject inventory limit above maximum", args: []string{"loop", "nodes", "--state", "waiting", "--limit", "201", "--workspace", "alpha"}, want: "error: --limit must be between 1 and 200"},
+			{name: "Should reject nodes limit zero", args: []string{"loop", "nodes", "--run", "run-a", "--limit", "0", "--workspace", "alpha"}, want: "error: --limit must be between 1 and 500"},
+			{name: "Should reject nodes limit above maximum", args: []string{"loop", "nodes", "--run", "run-a", "--limit", "501", "--workspace", "alpha"}, want: "error: --limit must be between 1 and 500"},
+			{name: "Should reject events limit zero", args: []string{"loop", "events", "run-a", "--limit", "0", "--workspace", "alpha"}, want: "error: --limit must be between 1 and 500"},
+			{name: "Should reject events limit above maximum", args: []string{"loop", "events", "run-a", "--limit", "501", "--workspace", "alpha"}, want: "error: --limit must be between 1 and 500"},
+			{name: "Should reject runs limit zero", args: []string{"loop", "runs", "--limit", "0", "--workspace", "alpha"}, want: "error: --limit must be between 1 and 500"},
+			{name: "Should reject runs limit above maximum", args: []string{"loop", "runs", "--limit", "501", "--workspace", "alpha"}, want: "error: --limit must be between 1 and 500"},
 		} {
-			exitCode, _, stderr = executeRootCommandWithExit(t, deps, testCase.args...)
-			if exitCode != 2 || strings.TrimSpace(stderr) != testCase.want {
-				t.Fatalf("%v = exit %d stderr %q, want exit 2 %q", testCase.args, exitCode, stderr, testCase.want)
-			}
+			t.Run(testCase.name, func(t *testing.T) {
+				exitCode, _, stderr := executeRootCommandWithExit(t, deps, testCase.args...)
+				if exitCode != 2 || strings.TrimSpace(stderr) != testCase.want {
+					t.Fatalf("%v = exit %d stderr %q, want exit 2 %q", testCase.args, exitCode, stderr, testCase.want)
+				}
+			})
 		}
+
+		t.Run("Should accept the inventory limit maximum", func(t *testing.T) {
+			inventoryClient := &stubClient{
+				getWorkspaceFn: resolveTestLoopWorkspace(t),
+				listLoopNodesFn: func(
+					_ context.Context,
+					_ string,
+					query LoopNodeListQuery,
+				) (contract.LoopNodeInventoryResponse, error) {
+					if query.State != "waiting" || query.Limit != 200 {
+						t.Fatalf("inventory query = %#v", query)
+					}
+					return contract.LoopNodeInventoryResponse{}, nil
+				},
+			}
+			inventoryDeps := newTestDeps(t, inventoryClient)
+			if _, _, err := executeRootCommand(
+				t,
+				inventoryDeps,
+				"loop",
+				"nodes",
+				"--state",
+				"waiting",
+				"--limit",
+				"200",
+				"--workspace",
+				"alpha",
+			); err != nil {
+				t.Fatalf("loop nodes inventory limit 200 error = %v", err)
+			}
+		})
 
 		exitCode, _, stderr = executeRootCommandWithExit(
 			t,
@@ -286,6 +397,15 @@ func loopReadCommandClient(t *testing.T, now time.Time) *stubClient {
 		getLoopBriefingFn: func(_ context.Context, _ string, runID string) (contract.LoopBriefingResponse, error) {
 			if runID == "run-missing" {
 				return contract.LoopBriefingResponse{}, fmt.Errorf("loop run %q not found", runID)
+			}
+			if runID == "run-terminal" {
+				return looppkg.Briefing{
+					RunID: "run-terminal", Status: looppkg.StatusDone, Tone: looppkg.BriefingToneOK,
+					Headline: "Finished", Outcome: &looppkg.RunOutcome{Status: looppkg.StatusDone, Cause: "verified", At: now},
+					Artifacts: []looppkg.RunArtifact{{Name: "post-final.md", Output: "saida", Availability: looppkg.ArtifactAvailable}},
+					Progress:  looppkg.StepProgress{Round: 2, StepsDone: 6, StepsTotal: 6},
+					Usage:     looppkg.RunUsage{Tokens: 214500, CostUSD: 0.87, BudgetUsedPct: 38, Duration: "18m12s"},
+				}, nil
 			}
 			return looppkg.Briefing{
 				RunID:    "run-a",
@@ -320,7 +440,7 @@ func loopReadRunsFixture(now time.Time) func(
 				Status:         contract.LoopRunStatusRunning,
 				StartedAt:      time.Date(2026, 8, 20, 18, 32, 0, 0, time.Local),
 				LastProgressAt: time.Date(2026, 8, 20, 18, 54, 0, 0, time.Local),
-				Attention:      &contract.LoopRunAttention{Kind: "approval", Count: 1, Since: now},
+				Attention:      &contract.LoopRunAttention{Kind: "approval", Count: 1, Since: now.Add(-3 * time.Minute)},
 				Progress:       contract.LoopRunProgress{Round: 1, StepsDone: 4, StepsTotal: 6},
 			},
 			{
@@ -496,8 +616,7 @@ func loopReadStreamFixture(t *testing.T, now time.Time) func(
 				LoopRunID:   "run-a",
 				WorkspaceID: "ws-test",
 				Seq:         5,
-				Kind:        contract.LoopRunEventNodeRunning,
-				Payload:     json.RawMessage(`{"generation":1,"node_id":"ship","attempt":2}`),
+				Kind:        contract.LoopRunEventTokenTick,
 				At:          now.Add(5 * time.Second),
 			},
 			{
@@ -505,9 +624,13 @@ func loopReadStreamFixture(t *testing.T, now time.Time) func(
 				LoopRunID:   "run-a",
 				WorkspaceID: "ws-test",
 				Seq:         6,
-				Kind:        contract.LoopRunEventStatusChanged,
-				Payload:     json.RawMessage(`{"status":"done"}`),
+				Kind:        contract.LoopRunEventTokenTick,
 				At:          now.Add(6 * time.Second),
+			},
+			{
+				ID: "event-7", LoopRunID: "run-a", WorkspaceID: "ws-test", Seq: 7,
+				Kind: contract.LoopRunEventStatusChanged, Payload: json.RawMessage(`{"status":"done"}`),
+				At: now.Add(7 * time.Second),
 			},
 		}
 		for _, payload := range payloads {

@@ -3,8 +3,8 @@ package loop
 import (
 	"encoding/json"
 	"errors"
+	"strings"
 	"testing"
-	"time"
 )
 
 func TestTimelineViewContract(t *testing.T) {
@@ -12,8 +12,20 @@ func TestTimelineViewContract(t *testing.T) {
 	t.Run("Should satisfy UT-011 with an exhaustive event tier map and ordered all view", func(t *testing.T) {
 		t.Parallel()
 		for _, value := range RunEventKindValues() {
-			if _, ok := TimelineTierFor(RunEventKind(value)); !ok {
+			tier, ok := TimelineTierFor(RunEventKind(value))
+			if !ok {
 				t.Fatalf("event kind %q is not classified", value)
+			}
+			if tier != TimelineNotable && tier != TimelineActivity && tier != TimelineChatter {
+				t.Fatalf("event kind %q tier = %q", value, tier)
+			}
+			entry, err := ProjectTimelineEvent(
+				RunEvent{LoopRunID: "run-a", Seq: 1, Kind: value},
+				TimelineViewAll,
+			)
+			if err != nil || entry == nil || entry.Title == "" || strings.Contains(entry.Title, "_") ||
+				strings.EqualFold(entry.Title, strings.ReplaceAll(value, "_", " ")) {
+				t.Fatalf("event kind %q entry = %#v, error = %v", value, entry, err)
 			}
 		}
 		if len(timelineTiers) != len(RunEventKindValues()) {
@@ -21,13 +33,15 @@ func TestTimelineViewContract(t *testing.T) {
 		}
 		events := []RunEvent{
 			{LoopRunID: "run-a", Seq: 1, Kind: string(RunEventTokenTick)},
-			{LoopRunID: "run-a", Seq: 2, Kind: string(RunEventNodeSucceeded)},
+			{LoopRunID: "run-a", Seq: 2, Kind: string(RunEventChannelMsg)},
+			{LoopRunID: "run-a", Seq: 3, Kind: string(RunEventNodeSucceeded)},
 		}
 		page, err := ProjectTimeline("run-a", events, TimelineQuery{View: TimelineViewAll})
 		if err != nil {
 			t.Fatalf("ProjectTimeline() error = %v", err)
 		}
-		if len(page.Entries) != 2 || page.Entries[0].Seq != 2 || page.Entries[1].Seq != 1 {
+		if len(page.Entries) != 3 || page.Entries[0].Seq != 3 || page.Entries[1].Seq != 2 ||
+			page.Entries[2].Seq != 1 {
 			t.Fatalf("entries = %#v", page.Entries)
 		}
 	})
@@ -61,7 +75,7 @@ func TestTimelineViewContract(t *testing.T) {
 	t.Run("Should satisfy UT-013 with typed cursor and beyond-head errors", func(t *testing.T) {
 		t.Parallel()
 		events := []RunEvent{
-			{LoopRunID: "run-a", Seq: 1, Kind: string(RunEventNodeRunning), At: time.Now()},
+			{LoopRunID: "run-a", Seq: 1, Kind: string(RunEventNodeRunning)},
 		}
 		cursor, err := encodeTimelineCursor(timelineCursor{
 			RunID:        "run-b",
@@ -83,6 +97,23 @@ func TestTimelineViewContract(t *testing.T) {
 		_, err = ProjectTimeline("run-a", events, TimelineQuery{View: TimelineViewAll, AfterSeq: 2})
 		if !errors.Is(err, ErrTimelinePositionBeyondHead) {
 			t.Fatalf("beyond-head error = %v", err)
+		}
+	})
+	t.Run("Should pass a named snapshot fence to backward timeline reads", func(t *testing.T) {
+		t.Parallel()
+		store := &pagedRouteEvidenceStore{events: []RunEvent{{
+			LoopRunID: "run-a", WorkspaceID: "ws-a", Seq: 1, Kind: string(RunEventNodeSucceeded),
+		}}}
+		service := &computedRunReadService{store: store}
+		page, err := service.Timeline(t.Context(), "ws-a", "run-a", TimelineQuery{View: TimelineViewAll})
+		if err != nil {
+			t.Fatalf("Timeline() error = %v", err)
+		}
+		want := RunEventBackwardQuery{
+			WorkspaceID: "ws-a", RunID: "run-a", FixedHeadSeq: 1, BeforeSeq: 2, Limit: 500,
+		}
+		if len(page.Entries) != 1 || len(store.queries) != 1 || store.queries[0] != want {
+			t.Fatalf("timeline page/queries = %#v/%#v, want one entry and %#v", page, store.queries, want)
 		}
 	})
 }

@@ -49,15 +49,20 @@ func newLoopNodesCommand(deps commandDeps) *cobra.Command {
 				return writeCommandOutput(cmd, loopRunNodesOutputBundle(response))
 			}
 			if err := validateInventoryNodeState(state); err != nil {
-				return withCommandExitCode(2, errors.New(
-					err.Error(),
-				))
+				return withCommandExitCode(2, err)
 			}
 			if all || generation != 0 {
-				return errors.New("cli: --all and --generation require --run")
+				return withCommandExitCode(2, errors.New("cli: --all and --generation require --run"))
 			}
 			if strings.TrimSpace(state) == "" {
-				return errors.New("cli: --state requires --run or an inventory state")
+				return withCommandExitCode(2, errors.New("cli: --state requires --run or an inventory state"))
+			}
+			if err := validateLoopPageLimit(
+				limit,
+				cmd.Flags().Changed("limit"),
+				loopInventoryPageLimitMax,
+			); err != nil {
+				return err
 			}
 			client, workspaceID, err := loopClientAndWorkspace(cmd, deps, workspaceRef)
 			if err != nil {
@@ -77,14 +82,24 @@ func newLoopNodesCommand(deps commandDeps) *cobra.Command {
 		},
 	}
 	cmd.Flags().StringVar(&workspaceRef, loopWorkspaceKey, "", "Override workspace (ID, name, or path)")
-	cmd.Flags().StringVar(&state, loopStateKey, "", "Roster state filter")
+	cmd.Flags().StringVar(
+		&state,
+		loopStateKey,
+		"",
+		"State filter: inventory waiting|quarantined|attention|retrying; roster (--run) all|running|queued|waiting|retrying|paused|quarantined|succeeded|failed|canceled|not_taken",
+	)
 	cmd.Flags().StringVar(&loopName, loopLoopKey, "", "Filter by Loop name")
 	cmd.Flags().StringVar(&runID, "run", "", "Loop run ID")
 	cmd.Flags().StringVar(&inventoryRunID, loopRunIDKey, "", "Filter workspace inventory by Loop run ID")
-	cmd.Flags().BoolVar(&all, "all", false, "Show the complete run roster")
-	cmd.Flags().IntVar(&generation, loopGenerationKey, 0, "Filter by generation")
+	cmd.Flags().BoolVar(&all, "all", false, "Show the complete run roster; requires --run and excludes --cursor")
+	cmd.Flags().IntVar(&generation, loopGenerationKey, 0, "Filter roster by generation; requires --run")
 	cmd.Flags().StringVar(&cursor, "cursor", "", "Opaque continuation cursor")
-	cmd.Flags().IntVar(&limit, "limit", 0, "Page size from 1 to 500; defaults to 50")
+	cmd.Flags().IntVar(
+		&limit,
+		"limit",
+		0,
+		"Page size: inventory 1 to 200; roster (--run) 1 to 500; defaults to 50",
+	)
 	return cmd
 }
 
@@ -104,8 +119,8 @@ func validateRunRosterFlags(
 			strings.Join(looppkg.NodeStateFilterValues(), "|"),
 		))
 	}
-	if (limitSet && limit < 1) || limit > 500 {
-		return withCommandExitCode(2, errors.New("--limit must be between 1 and 500"))
+	if err := validateLoopPageLimit(limit, limitSet, loopRunReadPageLimitMax); err != nil {
+		return err
 	}
 	if generation < 0 {
 		return withCommandExitCode(2, errors.New("--generation must be nonnegative"))

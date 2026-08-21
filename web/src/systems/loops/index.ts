@@ -39,6 +39,7 @@ export {
 export {
   LoopInputValidationError,
   LoopLifecycleConflictError,
+  LoopReadError,
   LoopRequestError,
   LoopsApiError,
   LoopTimetravelError,
@@ -55,6 +56,9 @@ export {
   getLoopConfig,
   getLoopRequest,
   getLoopRun,
+  getLoopRunBriefing,
+  getLoopRunRoster,
+  getLoopRunTimeline,
   listLoopRequests,
   listLoopRuns,
   listLoops,
@@ -344,6 +348,10 @@ export {
   useLoopRunRoster,
   useLoopRunTimeline,
 } from "./hooks/use-loop-run-reads";
+export {
+  type LoopRunEventsReadState,
+  useLoopRunEventsRead,
+} from "./hooks/use-loop-run-events-read";
 export {
   type LoopNodeSessionAvailability,
   loopPrunedSessionIds,

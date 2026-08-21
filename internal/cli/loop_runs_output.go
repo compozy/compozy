@@ -46,7 +46,7 @@ func loopStatusOutputBundle(response *contract.LoopRunResponse) outputBundle {
 	return bundle
 }
 
-func loopRunsOutputBundle(response contract.LoopRunsResponse) outputBundle {
+func loopRunsOutputBundle(response contract.LoopRunsResponse, now func() time.Time) outputBundle {
 	items := loopRunCLIJSONItems(response.Runs)
 	jsonResponse := struct {
 		Items      []loopRunCLIJSONItem `json:"items"`
@@ -69,7 +69,7 @@ func loopRunsOutputBundle(response contract.LoopRunsResponse) outputBundle {
 			"best_generation",
 			"best_score",
 		},
-		loopRunSummaryRow,
+		func(run contract.LoopRunPayload) []string { return loopRunSummaryRow(run, now) },
 		loopRunSummaryTOONRow,
 	)
 	bundle.jsonValue = jsonResponse
@@ -79,7 +79,7 @@ func loopRunsOutputBundle(response contract.LoopRunsResponse) outputBundle {
 	bundle.human = func() (string, error) {
 		rows := make([][]string, 0, len(response.Runs))
 		for _, run := range response.Runs {
-			rows = append(rows, loopRunSummaryRow(run))
+			rows = append(rows, loopRunSummaryRow(run, now))
 		}
 		return renderLoopReadTable(
 			[]string{cliStatusHeader, taskLoopColumn, "PROGRESS", "STARTED", loopDurationHeader},
@@ -119,7 +119,7 @@ func (item loopRunCLIJSONItem) MarshalJSON() ([]byte, error) {
 	return encoded, nil
 }
 
-func loopRunSummaryRow(run contract.LoopRunPayload) []string {
+func loopRunSummaryRow(run contract.LoopRunPayload, now func() time.Time) []string {
 	status := string(run.Status)
 	if run.Attention != nil {
 		status = loopNeedsYouLabel
@@ -137,14 +137,18 @@ func loopRunSummaryRow(run contract.LoopRunPayload) []string {
 	if !run.StartedAt.IsZero() && !run.LastProgressAt.Before(run.StartedAt) {
 		duration = formatLoopReadDuration(run.LastProgressAt.Sub(run.StartedAt))
 	}
-	if attention := loopRunAttentionText(run.Attention); attention != "—" {
+	if attention := loopRunAttentionText(run.Attention, now); attention != "—" {
 		duration += "   " + attention
+	}
+	started := "—"
+	if !run.StartedAt.IsZero() {
+		started = run.StartedAt.Local().Format("15:04")
 	}
 	return []string{
 		status,
 		stringOrDash(run.LoopName),
 		progress,
-		run.StartedAt.Local().Format("15:04"),
+		started,
 		duration,
 	}
 }
@@ -162,7 +166,7 @@ func loopRunSummaryTOONRow(run contract.LoopRunPayload) []string {
 		stringOrDash(run.ID),
 		stringOrDash(run.LoopName),
 		stringOrDash(string(run.Status)),
-		loopRunAttentionText(run.Attention),
+		loopRunAttentionLabel(run.Attention),
 		fmt.Sprintf("%d/%d", run.Progress.StepsDone, run.Progress.StepsTotal),
 		stringOrDash(string(run.CompletionState)),
 		strconv.FormatInt(run.Generation, 10),
@@ -171,7 +175,18 @@ func loopRunSummaryTOONRow(run contract.LoopRunPayload) []string {
 	}
 }
 
-func loopRunAttentionText(attention *contract.LoopRunAttention) string {
+func loopRunAttentionText(attention *contract.LoopRunAttention, now func() time.Time) string {
+	value := loopRunAttentionLabel(attention)
+	if attention == nil {
+		return value
+	}
+	if age := formatAge(now, attention.Since); age != "" {
+		value += " · " + age
+	}
+	return value
+}
+
+func loopRunAttentionLabel(attention *contract.LoopRunAttention) string {
 	if attention == nil {
 		return "—"
 	}

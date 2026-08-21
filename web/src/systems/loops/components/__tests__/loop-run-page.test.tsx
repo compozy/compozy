@@ -3,6 +3,7 @@ import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
 
 import { loopNodeLifecycleFixture } from "../../testing/loop-node-lifecycle-fixture";
+import type { LoopRosterTableModel } from "../../lib/loop-run-roster-table";
 
 vi.mock("@tanstack/react-router", async importOriginal => {
   const actual = await importOriginal<typeof import("@tanstack/react-router")>();
@@ -21,6 +22,14 @@ vi.mock("@tanstack/react-router", async importOriginal => {
   };
 });
 
+const { makeBriefing, makeGeneration, makeRosterNode, makeTimelineEntry } =
+  await import("../stories/loop-run-read-builders");
+const { buildStoryBeats } = await import("../../lib/loop-run-story-beats");
+const { buildRunDag } = await import("../../lib/loop-run-dag-view");
+const { LoopRunDag } = await import("../run-page/inspect/loop-run-dag");
+const { LoopRunStory } = await import("../run-page/loop-run-story");
+const { LoopNodeRoster } = await import("../run-page/inspect/loop-node-roster");
+const { LoopRunArtifactList } = await import("../run-page/loop-run-artifact-list");
 const { LoopRunNeedsYouCard } = await import("../run-page/loop-run-needs-you-card");
 const { LOOP_NEEDS_YOU_ANCHOR_ID, LoopRunBriefing } = await import("../run-page/loop-run-briefing");
 const { buildBriefingView } = await import("../../lib/loop-run-briefing-view");
@@ -35,8 +44,7 @@ const { LoopRunControlDialog } = await import("../run-page/loop-run-control-dial
 const { LoopNodeControlDialog } = await import("../run-page/loop-node-control-dialog");
 const { LoopNodeAmendDialog } = await import("../run-page/loop-node-amend-dialog");
 const { LoopQuarantineSheet } = await import("../run-page/loop-quarantine-sheet");
-const { LOOP_NODE_VERB_PRESENTATION, loopNodeVerbs, loopNodeWaitResumeItemIndex } =
-  await import("../../lib/loop-node-controls");
+const { LOOP_NODE_VERB_PRESENTATION } = await import("../../lib/loop-node-controls");
 const { quarantineChainRows } = await import("../../lib/loop-quarantine-entry");
 const { loopNodeStateStrip, loopNodeVerbConfirmCopy, loopRunStateStrip } =
   await import("../../lib/loop-node-verb-copy");
@@ -460,85 +468,6 @@ describe("LoopRunOverflowMenu kill", () => {
     expect(await screen.findByTestId("loop-run-view-definition")).toBeInTheDocument();
     expect(screen.queryByTestId("loop-run-inspect")).not.toBeInTheDocument();
     expect(screen.queryByTestId("loop-run-kill")).not.toBeInTheDocument();
-  });
-});
-
-// WT-004: node verbs are a pure function of daemon-declared state. Testing the
-// gate directly (rather than only through a rendered menu) is what makes "no
-// verb for a state the payload doesn't declare" checkable for every state.
-describe("loopNodeVerbs", () => {
-  const node = (overrides: Partial<LoopNodeLifecycle> = {}): LoopNodeLifecycle =>
-    loopNodeLifecycleFixture(overrides);
-
-  const wait = (claimState: string, itemIndex = 0) => ({
-    nodeId: "task_03",
-    generation: 2,
-    itemIndex,
-    kind: "event",
-    claimState,
-    escalationCursor: 0,
-    admissionFailures: 0,
-    ageSeconds: 120,
-    createdAt: "2026-08-03T14:00:00Z",
-    expect: undefined,
-  });
-
-  it("Should offer pause/cancel/kill on a running node and never resume or requeue", () => {
-    expect(loopNodeVerbs(node(), "running")).toEqual(["pause", "cancel", "kill"]);
-  });
-
-  it("Should offer the three resume modes on a paused node and no requeue", () => {
-    expect(loopNodeVerbs(node({ paused: true, state: "paused" }), "running")).toEqual([
-      "resume",
-      "resume-reset-attempts",
-      "resume-immediate",
-      "cancel",
-      "kill",
-    ]);
-  });
-
-  it("Should offer requeue only on a quarantined node, and never resume", () => {
-    const verbs = loopNodeVerbs(node({ quarantined: true, state: "quarantined" }), "running");
-    expect(verbs).toEqual(["open-quarantine", "requeue", "cancel", "kill"]);
-    expect(verbs).not.toContain("resume");
-  });
-
-  it("Should offer a payload resume only while a wait is genuinely open", () => {
-    expect(loopNodeVerbs(node({ state: "waiting", waits: [wait("waiting")] }), "running")).toEqual([
-      "resume-wait",
-      "cancel",
-      "kill",
-    ]);
-    // A resumed cell no longer holds the node, so the wait verb disappears.
-    expect(loopNodeVerbs(node({ waits: [wait("resumed")] }), "running")).toEqual([
-      "pause",
-      "cancel",
-      "kill",
-    ]);
-  });
-
-  it("Should target the open wait instead of an earlier historical cell", () => {
-    const lifecycle = node({
-      state: "waiting",
-      waits: [wait("resumed", 2), wait("waiting", 7)],
-    });
-
-    expect(loopNodeWaitResumeItemIndex(lifecycle)).toBe(7);
-  });
-
-  it("Should narrow to kill while canceling and offer nothing once canceled", () => {
-    expect(loopNodeVerbs(node({ cancelState: "draining", state: "canceling" }), "running")).toEqual(
-      ["kill"]
-    );
-    expect(loopNodeVerbs(node({ cancelState: "canceled", state: "canceled" }), "running")).toEqual(
-      []
-    );
-  });
-
-  it("Should offer no verb at all once the run is terminal", () => {
-    for (const status of ["done", "failed", "canceled", "exhausted"]) {
-      expect(loopNodeVerbs(node({ paused: true, state: "paused" }), status)).toEqual([]);
-    }
   });
 });
 
@@ -1020,23 +949,25 @@ describe("LoopRunAboutRail", () => {
 // an action that only looks like an action is worse than no action at all.
 describe("LoopRunBriefing needs-you action", () => {
   function needsYouBriefing() {
-    return buildBriefingView({
-      run_id: "looprun-1",
-      status: "needs-approval",
-      tone: "needs_you",
-      headline: "The gate has been waiting for your decision",
-      blockers: [
-        {
-          kind: "approval",
-          gate_id: "aplicar-correcoes",
-          waiting_since: "2026-08-19T18:41:00Z",
-          unblocker: "compozy loop approve looprun-1 --gate aplicar-correcoes",
-        },
-      ],
-      artifacts: [],
-      progress: { round: 1, steps_done: 4, steps_total: 6 },
-      usage: { tokens: 82_400 },
-    } as never);
+    return buildBriefingView(
+      makeBriefing({
+        run_id: "looprun-1",
+        status: "needs-approval",
+        tone: "needs_you",
+        headline: "The gate has been waiting for your decision",
+        blockers: [
+          {
+            kind: "approval",
+            gate_id: "aplicar-correcoes",
+            waiting_since: "2026-08-19T18:41:00Z",
+            unblocker: "compozy loop approve looprun-1 --gate aplicar-correcoes",
+          },
+        ],
+        artifacts: [],
+        progress: { round: 1, steps_done: 4, steps_total: 6 },
+        usage: { tokens: 82_400 },
+      })
+    );
   }
 
   it("Should move focus to the needs-you region rather than merely scrolling", async () => {
@@ -1074,13 +1005,271 @@ describe("LoopRunBriefing needs-you action", () => {
 // register ever hands it the truth to degrade on. Wiring is exactly where this
 // went wrong before: the projection took a pruned set the page never passed, so
 // the sentence existed and was unreachable.
+// The page shows several kinds of silence, and they are not interchangeable: a
+// run that did nothing, a read still arriving, and a read that failed all render
+// an empty list. Only the last one means the history is unknown, and saying
+// "nothing happened" for it is the page asserting something it cannot know.
+describe("run-page reads that failed", () => {
+  it("Should say the story could not be read instead of claiming an eventless run", () => {
+    const { rerender } = render(
+      <LoopRunStory
+        beats={[]}
+        paging={{
+          hasOlder: false,
+          isLoading: false,
+          isLoadingOlder: false,
+          onLoadOlder: () => undefined,
+        }}
+      />
+    );
+    expect(screen.getByTestId("loop-run-story-empty")).toHaveTextContent(
+      "Nothing has happened in this run yet."
+    );
+
+    rerender(
+      <LoopRunStory
+        beats={[]}
+        paging={{
+          hasOlder: false,
+          isError: true,
+          isLoading: false,
+          isLoadingOlder: false,
+          onLoadOlder: () => undefined,
+        }}
+      />
+    );
+    const failed = screen.getByTestId("loop-run-story-empty");
+    expect(failed).toHaveAttribute("data-state", "error");
+    expect(failed).not.toHaveTextContent("Nothing has happened in this run yet.");
+    expect(failed).toHaveTextContent("could not be read");
+  });
+
+  it("Should mark stale story beats instead of passing them off as current", () => {
+    // Built through the production projection rather than hand-assembled: a beat
+    // that the real timeline could not produce would prove nothing about it.
+    const beats = buildStoryBeats([
+      makeTimelineEntry(12, "node_succeeded", "step review succeeded"),
+    ]);
+    const paging = {
+      hasOlder: false,
+      isLoading: false,
+      isLoadingOlder: false,
+      onLoadOlder: () => undefined,
+    };
+    const { rerender } = render(<LoopRunStory beats={beats} isReconnecting paging={paging} />);
+    // Beats survive a dropped stream; what changes is whether they are current.
+    expect(screen.getByTestId("loop-run-beat-12")).toBeInTheDocument();
+    expect(screen.getByTestId("loop-run-story-reconnecting")).toBeInTheDocument();
+
+    // A failed read is the more specific fact and outranks a reconnect.
+    rerender(<LoopRunStory beats={beats} isReconnecting paging={{ ...paging, isError: true }} />);
+    expect(screen.getByTestId("loop-run-story-degraded")).toBeInTheDocument();
+    expect(screen.queryByTestId("loop-run-story-reconnecting")).toBeNull();
+  });
+
+  // The Events lane is the escape hatch onto raw activity. Until the page wires
+  // the `view=all` read it is borrowing Story's notable projection, and a
+  // filtered subset presented as the whole event log is the exact lie this lane
+  // exists to prevent.
+  it("Should admit when the Events lane is showing only the notable projection", async () => {
+    const timeline = [makeTimelineEntry(12, "node_succeeded", "step review succeeded")];
+    const registers = projectLoopRunRegisters({
+      briefing: null,
+      nodes: [],
+      rollups: [],
+      timeline,
+      graph: null,
+    });
+    const props = {
+      generations: [],
+      graph: null,
+      isLive: true,
+      isReconnecting: false,
+      nodeLifecycles: [],
+      nodes: [],
+      nowMs: Date.parse("2026-08-19T18:50:00Z"),
+      onOpenChange: () => undefined,
+      onSelectionChange: () => undefined,
+      open: true,
+      registers,
+      rollups: [],
+      runStatus: "running",
+      selection: null,
+    };
+    const { rerender } = render(<LoopRunRegisters {...props} />);
+    await userEvent.click(screen.getByTestId("loop-lane-events"));
+    expect(screen.getByTestId("loop-run-events-notable-only")).toBeInTheDocument();
+
+    // With the raw read wired the lane stops qualifying itself, and its backward
+    // paging becomes reachable.
+    rerender(
+      <LoopRunRegisters
+        {...props}
+        events={{
+          beats: registers.beats,
+          hasOlder: true,
+          isLoading: false,
+          isError: false,
+          isLoadingOlder: false,
+          onLoadOlder: () => undefined,
+        }}
+      />
+    );
+    expect(screen.queryByTestId("loop-run-events-notable-only")).toBeNull();
+    expect(screen.getByTestId("loop-run-events-load-older")).toBeInTheDocument();
+  });
+
+  // The node panel looks a row up by exact node, item and round. A card with no
+  // roster row behind it has no item to name, and substituting 0 would open
+  // either the wrong worker or nothing at all — the sentinel this model exists
+  // to remove. The card has to be honestly unavailable instead.
+  it("Should make a DAG card with no roster row inert rather than selecting item 0", async () => {
+    const graph = {
+      nodes: [
+        {
+          id: "implementar",
+          nodeClass: "action" as const,
+          kind: "run-agent",
+          isGate: false,
+          eventsCount: 0,
+          routes: [],
+          hasAskExpect: false,
+        },
+        {
+          id: "saida",
+          nodeClass: "action" as const,
+          kind: "run-agent",
+          isGate: false,
+          eventsCount: 0,
+          routes: [],
+          hasAskExpect: false,
+        },
+      ],
+      edges: [{ from: "implementar", to: "saida" }],
+    };
+    const onSelect = vi.fn();
+    // `implementar` ran at a non-zero item; `saida` was never reached.
+    const dag = buildRunDag({
+      graph,
+      nodes: [makeRosterNode("implementar", "running", { generation: 1, item_index: 3 })],
+      rollups: [],
+      round: 1,
+    });
+    render(<LoopRunDag dag={dag} onSelect={onSelect} selection={null} />);
+
+    const unreached = screen.getByTestId("loop-dag-node-saida");
+    expect(unreached).toBeDisabled();
+    expect(unreached).toHaveAttribute("data-selectable", "false");
+    // Not an unpressed toggle — it has no pressed state to report at all.
+    expect(unreached).not.toHaveAttribute("aria-pressed");
+    await userEvent.click(unreached);
+    expect(onSelect).not.toHaveBeenCalled();
+
+    // A card with a real server-owned item stays selectable and passes it through
+    // exactly — never normalised to 0.
+    const reached = screen.getByTestId("loop-dag-node-implementar");
+    expect(reached).toBeEnabled();
+    expect(reached).toHaveAttribute("aria-pressed", "false");
+    await userEvent.click(reached);
+    expect(onSelect).toHaveBeenCalledTimes(1);
+    expect(onSelect).toHaveBeenCalledWith({
+      nodeId: "implementar",
+      itemIndex: 3,
+      generation: 1,
+    });
+  });
+
+  it("Should not call a roster that has not answered a run without steps", () => {
+    const empty: LoopRosterTableModel = { rows: [], rounds: [], reachedNothing: true };
+    const { rerender } = render(
+      <LoopNodeRoster
+        onRoundChange={() => undefined}
+        onSelect={() => undefined}
+        round={null}
+        roster={empty}
+        selectedKey={null}
+      />
+    );
+    expect(screen.getByTestId("loop-node-roster-empty")).toBeInTheDocument();
+
+    rerender(
+      <LoopNodeRoster
+        onRoundChange={() => undefined}
+        onSelect={() => undefined}
+        read={{ isLoading: false, isError: true }}
+        round={null}
+        roster={empty}
+        selectedKey={null}
+      />
+    );
+    expect(screen.queryByTestId("loop-node-roster-empty")).toBeNull();
+    expect(screen.getByTestId("loop-node-roster-error")).toHaveTextContent("could not be read");
+  });
+});
+
+// Truthful UI: the page must not offer a control the runtime cannot honour, and
+// must not paint a deliberate cancellation as a success.
+describe("run-page affordances that have to be real", () => {
+  it("Should print a produced artifact's ref as evidence, never as an Open link", () => {
+    render(
+      <LoopRunArtifactList
+        outcome={{
+          outcome: null,
+          producedNothing: false,
+          artifacts: [
+            {
+              key: "post.md:0",
+              name: "post.md",
+              output: "write_artifacts",
+              availability: "available",
+              note: null,
+              ref: "sha256:2f81c4a9",
+              toneForNote: null,
+            },
+          ],
+        }}
+      />
+    );
+    // No API operation resolves a content digest, so an "Open" affordance here
+    // would promise a destination the product does not have.
+    expect(screen.queryByRole("link")).toBeNull();
+    expect(screen.queryByText("Open")).toBeNull();
+    expect(screen.getByTestId("loop-run-artifact-ref-post.md")).toHaveTextContent(
+      "sha256:2f81c4a9"
+    );
+  });
+
+  it("Should not tone a canceled outcome as a success", () => {
+    const briefing = buildBriefingView(makeBriefing({ status: "canceled", tone: "ok" }));
+    render(
+      <LoopRunBriefing
+        briefing={briefing}
+        outcome={{
+          outcome: {
+            status: "canceled",
+            label: "Canceled",
+            cause: null,
+            at: "2026-08-19T18:44:00Z",
+            actorLabel: "pedro",
+          },
+          artifacts: [],
+          producedNothing: true,
+        }}
+      />
+    );
+    const pill = screen.getByTestId("loop-run-briefing-outcome");
+    expect(pill).toHaveAttribute("data-outcome", "canceled");
+    expect(pill).toHaveAttribute("data-tone", "neutral");
+  });
+});
+
+// The fixture's identity and the condition under test have to be the same fact:
+// two matching literals are a coincidence a refactor can quietly break.
+const PRUNED_SESSION_ID = "ses-5d871c99";
+
 describe("LoopRunRegisters pruned session", () => {
-  const rosterNode = {
+  const rosterNode = makeRosterNode("revisor-estilo", "succeeded", {
     generation: 1,
-    node_id: "revisor-estilo",
-    item_index: 0,
-    state: "succeeded",
-    attempt: 1,
     attempts: [
       {
         attempt: 1,
@@ -1090,11 +1279,11 @@ describe("LoopRunRegisters pruned session", () => {
         ended_at: "2026-08-19T18:43:38Z",
       },
     ],
-    session_id: "ses-5d871c99",
+    session_id: PRUNED_SESSION_ID,
     cell_task_id: "loop.looprun-1.g1.node.revisor-estilo.0",
     started_at: "2026-08-19T18:41:07Z",
     ended_at: "2026-08-19T18:43:38Z",
-  } as never;
+  });
 
   function renderRegisters(prunedSessionIds?: ReadonlySet<string>) {
     const nodes = [rosterNode];
@@ -1132,7 +1321,7 @@ describe("LoopRunRegisters pruned session", () => {
   });
 
   it("Should say the session is gone instead of offering a link that 404s", () => {
-    renderRegisters(new Set(["ses-5d871c99"]));
+    renderRegisters(new Set([PRUNED_SESSION_ID]));
 
     expect(screen.queryByTestId("loop-node-panel-link-session")).toBeNull();
     expect(screen.getByTestId("loop-node-panel-degraded-session")).toHaveTextContent(
@@ -1146,26 +1335,17 @@ describe("LoopRunRegisters pruned session", () => {
 // What the lib models and what the reader actually sees are two different
 // assertions. These own the second one: the words that reach the DOM.
 describe("LoopRunRegisters roster and generation lanes", () => {
-  const runningNode = {
-    generation: 2,
-    node_id: "implementar",
-    item_index: 0,
-    state: "running",
-    attempt: 1,
+  const runningNode = makeRosterNode("implementar", "running", {
     attempts: [
       { attempt: 1, state: "running", disposition: "open", started_at: "2026-08-19T18:40:00Z" },
     ],
     started_at: "2026-08-19T18:40:00Z",
     ended_at: null,
     usage: { tokens: 14_800 },
-  } as never;
+  });
 
-  const generation = {
-    generation: 2,
+  const generation = makeGeneration(2, {
     origin: "gate_revise",
-    parent_generation: 1,
-    outputs: [],
-    route_causes: [],
     verdicts: [
       {
         blocking_issues: [],
@@ -1175,7 +1355,7 @@ describe("LoopRunRegisters roster and generation lanes", () => {
         outcome: "invalid_output",
       },
     ],
-  } as never;
+  });
 
   async function openLane(lane: "nodes" | "generations") {
     const nodes = [runningNode];
@@ -1230,7 +1410,7 @@ describe("LoopRunRegisters roster and generation lanes", () => {
     // The same step id exists once per round. A locator that names only the step
     // matches several rows at once, so a test asserting on "the retrying row"
     // silently asserts on whichever one it happened to find first.
-    const nodes = [runningNode, { ...(runningNode as object), generation: 3 } as never];
+    const nodes = [runningNode, { ...runningNode, generation: 3 }];
     render(
       <LoopRunRegisters
         generations={[]}

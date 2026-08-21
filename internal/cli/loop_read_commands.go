@@ -73,12 +73,7 @@ func loopWhyOutputBundle(response contract.LoopBriefingResponse) outputBundle {
 			if response.Tone == looppkg.BriefingToneNeedsYou {
 				label = loopNeedsYouLabel
 			}
-			lines := []string{fmt.Sprintf(
-				"%s · round %d — %s",
-				label,
-				response.Progress.Round,
-				response.Headline,
-			)}
+			lines := loopWhyHeadline(response, label)
 			if response.Detail != "" {
 				lines = append(lines, response.Detail)
 			}
@@ -112,6 +107,45 @@ func loopWhyOutputBundle(response contract.LoopBriefingResponse) outputBundle {
 	}
 }
 
+func loopWhyHeadline(response contract.LoopBriefingResponse, label string) []string {
+	if response.Outcome == nil {
+		return []string{fmt.Sprintf("%s · round %d — %s", label, response.Progress.Round, response.Headline)}
+	}
+	rounds := "rounds"
+	if response.Progress.Round == 1 {
+		rounds = "round"
+	}
+	lines := []string{fmt.Sprintf(
+		"%s · finished %s after %d %s (%s)",
+		label,
+		response.Outcome.At.Local().Format("2006-01-02 15:04"),
+		response.Progress.Round,
+		rounds,
+		stringOrDash(response.Usage.Duration),
+	)}
+	lines = append(lines, fmt.Sprintf(
+		"Spent %s tokens · $%.2f · %.0f%% of budget",
+		formatLoopTokenCount(response.Usage.Tokens),
+		response.Usage.CostUSD,
+		response.Usage.BudgetUsedPct,
+	))
+	for _, artifact := range response.Artifacts {
+		produced := artifact.Name
+		if artifact.Output != "" {
+			produced += fmt.Sprintf(" (output %q)", artifact.Output)
+		}
+		lines = append(lines, "Produced: "+produced)
+	}
+	return lines
+}
+
+func formatLoopTokenCount(tokens int64) string {
+	if tokens < 1000 {
+		return strconv.FormatInt(tokens, 10)
+	}
+	return strconv.FormatInt(tokens/1000, 10) + "k"
+}
+
 func newLoopEventsCommand(deps commandDeps) *cobra.Command {
 	var workspaceRef, view string
 	var after int64
@@ -125,8 +159,12 @@ func newLoopEventsCommand(deps commandDeps) *cobra.Command {
 			if after < 0 {
 				return withCommandExitCode(2, errors.New("--after must be nonnegative"))
 			}
-			if (cmd.Flags().Changed("limit") && limit < 1) || limit > 500 {
-				return withCommandExitCode(2, errors.New("--limit must be between 1 and 500"))
+			if err := validateLoopPageLimit(
+				limit,
+				cmd.Flags().Changed("limit"),
+				loopRunReadPageLimitMax,
+			); err != nil {
+				return err
 			}
 			if view != string(looppkg.TimelineViewNotable) && view != string(looppkg.TimelineViewAll) {
 				return withCommandExitCode(2, errors.New("--view must be notable or all"))
@@ -306,6 +344,7 @@ func streamLoopEventsOnce(
 	lastSequence *int64,
 ) error {
 	var callbackErr error
+	buffer := loopFollowTimelineBuffer{}
 	streamErr := client.StreamLoopRunEvents(
 		cmd.Context(),
 		workspaceID,
@@ -337,8 +376,10 @@ func streamLoopEventsOnce(
 				return err
 			}
 			if entry != nil {
-				if err := writeFollowTimelineEntry(cmd, *entry); err != nil {
-					return err
+				for _, ready := range buffer.Push(*entry) {
+					if err := writeFollowTimelineEntry(cmd, ready); err != nil {
+						return err
+					}
 				}
 			}
 			*lastSequence = payload.Seq
@@ -356,6 +397,11 @@ func streamLoopEventsOnce(
 			return nil
 		},
 	)
+	if pending, ok := buffer.Flush(); ok && callbackErr == nil {
+		if err := writeFollowTimelineEntry(cmd, pending); err != nil {
+			callbackErr = err
+		}
+	}
 	if callbackErr != nil {
 		return &loopFollowPayloadError{cause: callbackErr}
 	}
@@ -375,13 +421,13 @@ func writeFollowTimelineEntry(cmd *cobra.Command, entry looppkg.TimelineEntry) e
 
 func terminalLoopStatus(status string) bool {
 	switch status {
-	case promptDoneEventName,
-		"no-op",
-		"blocked",
-		string(bootstrapPhaseFailed),
-		"exhausted",
-		"stalled",
-		updateOutcomeCanceled:
+	case string(looppkg.StatusDone),
+		string(looppkg.StatusNoOp),
+		string(looppkg.StatusBlocked),
+		string(looppkg.StatusFailed),
+		string(looppkg.StatusExhausted),
+		string(looppkg.StatusStalled),
+		string(looppkg.StatusCanceled):
 		return true
 	default:
 		return false

@@ -1,10 +1,19 @@
 import { isTerminalLoopStatus } from "../lib/loop-formatters";
 import type {
   LoopBriefing,
+  LoopRun,
   LoopRunRosterPage,
   LoopTimelineEntry,
   LoopTimelinePage,
 } from "../types";
+import type { LoopReadResult } from "./fixture-run-reads-contract";
+import {
+  encodeRosterCursor,
+  encodeTimelineCursor,
+  loopRunNotFound,
+  normalizeRosterQuery,
+  normalizeTimelineQuery,
+} from "./fixture-run-reads-contract";
 import {
   DONE_RUN_ID,
   NEEDS_APPROVAL_RUN_ID,
@@ -297,58 +306,89 @@ function fallbackTimeline(runId: string): LoopTimelinePage {
 
 // Resolvers -----------------------------------------------------------------
 
-function numberParam(params: URLSearchParams, name: string): number | null {
-  const raw = params.get(name);
-  if (raw === null || raw.trim() === "") return null;
-  const value = Number(raw);
-  return Number.isFinite(value) ? value : null;
+/**
+ * Every read is scoped to a workspace before it is answered.
+ *
+ * `_dx.md` is explicit that a cross-workspace run id is a 404 and never a leak,
+ * so resolving by run id alone would let a test pass while the boundary it is
+ * meant to prove is wide open.
+ */
+function scopedRun(workspaceId: string, runId: string): LoopRun | null {
+  const run = runsById.get(runId);
+  if (!run) return null;
+  return run.workspace_id === workspaceId ? run : null;
 }
 
-export function resolveLoopRunBriefing(runId: string): LoopBriefing {
-  return loopRunBriefingByRunId.get(runId) ?? fallbackBriefing(runId);
+export function resolveLoopRunBriefing(
+  workspaceId: string,
+  runId: string
+): LoopReadResult<LoopBriefing, 404> {
+  if (!scopedRun(workspaceId, runId)) return { ok: false, refusal: loopRunNotFound(runId) };
+  return { ok: true, page: loopRunBriefingByRunId.get(runId) ?? fallbackBriefing(runId) };
 }
 
-export function resolveLoopRunRoster(runId: string, params: URLSearchParams): LoopRunRosterPage {
+export function resolveLoopRunRoster(
+  workspaceId: string,
+  runId: string,
+  params: URLSearchParams
+): LoopReadResult<LoopRunRosterPage, 400 | 404> {
+  if (!scopedRun(workspaceId, runId)) return { ok: false, refusal: loopRunNotFound(runId) };
+  const query = normalizeRosterQuery(runId, params);
+  if (!query.ok) return query;
+  const { state, generation, limit, cursor } = query.page;
   const page = loopRunRosterByRunId.get(runId) ?? fallbackRoster(runId);
-  const state = params.get("state");
-  const generation = numberParam(params, "generation");
   const matched = page.nodes.filter(node => {
-    if (state && state !== "all" && node.state !== state) return false;
+    if (state !== "all" && node.state !== state) return false;
     if (generation !== null && node.generation !== generation) return false;
     return true;
   });
   // The rollups are the daemon's whole-roster counts, so filtering a page never
   // shrinks them.
-  const offset = numberParam(params, "cursor") ?? 0;
-  const limit = numberParam(params, "limit") ?? matched.length;
+  const offset = cursor?.offset ?? 0;
   const end = Math.min(offset + limit, matched.length);
   return {
-    ...page,
-    nodes: matched.slice(offset, end),
-    next_cursor: end < matched.length ? String(end) : "",
+    ok: true,
+    page: {
+      ...page,
+      nodes: matched.slice(offset, end),
+      next_cursor: end < matched.length ? encodeRosterCursor({ runId, offset: end }) : "",
+    },
   };
 }
 
-export function resolveLoopRunTimeline(runId: string, params: URLSearchParams): LoopTimelinePage {
+export function resolveLoopRunTimeline(
+  workspaceId: string,
+  runId: string,
+  params: URLSearchParams
+): LoopReadResult<LoopTimelinePage, 400 | 404 | 409> {
+  if (!scopedRun(workspaceId, runId)) return { ok: false, refusal: loopRunNotFound(runId) };
   const page = loopRunTimelineByRunId.get(runId) ?? fallbackTimeline(runId);
-  const view = params.get("view") ?? "notable";
-  const afterSequence = numberParam(params, "after_sequence") ?? 0;
-  // The cursor is opaque to the client; the daemon fences it to the page's head,
-  // and the mock keeps the same "everything older than this" meaning.
-  const before = numberParam(params, "cursor") ?? Number.POSITIVE_INFINITY;
+  const query = normalizeTimelineQuery(runId, params, page.head_seq);
+  if (!query.ok) return query;
+  const { view, afterSequence, limit, cursor } = query.page;
+  const before = cursor?.beforeSeq ?? Number.POSITIVE_INFINITY;
   const matched = page.entries.filter((entry: LoopTimelineEntry) => {
     if (view !== "all" && TIMELINE_NOISE_KINDS.has(entry.kind)) return false;
     return entry.seq > afterSequence && entry.seq < before;
   });
-  const limit = numberParam(params, "limit") ?? matched.length;
   const entries = matched.slice(0, limit);
   const last = entries.at(-1);
   // Paging resumes below the beat's first sequence, so a coalesced run of
   // chatter is never served twice.
   const exhausted = entries.length === matched.length || last === undefined;
   return {
-    ...page,
-    entries,
-    next_cursor: exhausted ? "" : String(last.first_seq ?? last.seq),
+    ok: true,
+    page: {
+      ...page,
+      entries,
+      next_cursor: exhausted
+        ? ""
+        : encodeTimelineCursor({
+            runId,
+            view,
+            fixedHeadSeq: page.head_seq,
+            beforeSeq: last.first_seq ?? last.seq,
+          }),
+    },
   };
 }

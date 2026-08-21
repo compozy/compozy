@@ -343,14 +343,15 @@ func coordinatorNodeRunID(
 	return fmt.Sprintf("run.loop.%s.g%d.node.%s.%d", loopRunID, generation, nodeID, itemIndex)
 }
 
-func coordinatorNodeAttemptRunID(
+// NodeCellAttemptRunID is the canonical task-run id for one loop node cell attempt.
+func NodeCellAttemptRunID(
 	loopRunID RunID,
 	generation int,
-	nodeID dsl.NodeID,
+	nodeID string,
 	itemIndex int,
 	attempt int,
 ) string {
-	base := coordinatorNodeRunID(loopRunID, generation, nodeID, itemIndex)
+	base := coordinatorNodeRunID(loopRunID, generation, dsl.NodeID(nodeID), itemIndex)
 	if attempt <= 1 {
 		return base
 	}
@@ -366,14 +367,15 @@ func coordinatorNodeIdempotencyKey(
 	return fmt.Sprintf("loop.node.%s.%d.%s.%d", loopRunID, generation, nodeID, itemIndex)
 }
 
-func coordinatorNodeAttemptIdempotencyKey(
+// NodeCellAttemptIdempotencyKey is the canonical reservation key for one loop node cell attempt.
+func NodeCellAttemptIdempotencyKey(
 	loopRunID RunID,
 	generation int,
-	nodeID dsl.NodeID,
+	nodeID string,
 	itemIndex int,
 	attempt int,
 ) string {
-	base := coordinatorNodeIdempotencyKey(loopRunID, generation, nodeID, itemIndex)
+	base := coordinatorNodeIdempotencyKey(loopRunID, generation, dsl.NodeID(nodeID), itemIndex)
 	if attempt <= 1 {
 		return base
 	}

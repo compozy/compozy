@@ -1,18 +1,29 @@
-import { Eyebrow, Table, TableBody, TableHead, TableHeader, TableRow } from "@compozy/ui";
+import type { ComponentProps } from "react";
+
+import { cn, Eyebrow, Table, TableBody, TableHead, TableHeader, TableRow } from "@compozy/ui";
 
 import type { LoopRunGroup } from "../../lib/loop-runs-view";
 import { LoopRunRow } from "./loop-run-row";
 
-interface LoopRunsTableProps {
+interface LoopRunsTableProps extends Omit<ComponentProps<"section">, "children"> {
   group: LoopRunGroup;
+}
+
+/** The roster's closed column set; a sixth column is a design decision, not a typo. */
+type LoopRunColumnKey = "loop" | "status" | "progress" | "started" | "duration";
+
+interface LoopRunColumn {
+  key: LoopRunColumnKey;
+  label: string;
+  className?: string;
 }
 
 /**
  * The run projection exposes `created_at` and `last_progress_at`, so the roster
  * can state when a run started and how long it has been going — never an "Ended"
- * it does not know. Gens / Best / Budget demoted to the run page.
+ * it does not know. Gens / Best / Budget are demoted to the run page.
  */
-const COLUMNS: readonly { key: string; label: string; className?: string }[] = [
+const COLUMNS: readonly LoopRunColumn[] = [
   { key: "loop", label: "Loop", className: "w-full" },
   { key: "status", label: "Status" },
   { key: "progress", label: "Progress" },
@@ -27,13 +38,15 @@ const COLUMNS: readonly { key: string; label: string; className?: string }[] = [
  * every group heading is decoration rather than wayfinding. Groups arrive
  * already ranked by the daemon, so this renders the order it is handed.
  */
-export function LoopRunsTable({ group }: LoopRunsTableProps) {
+export function LoopRunsTable({ group, className, ...props }: LoopRunsTableProps) {
   const headingId = `loop-runs-group-${group.id}-heading`;
   return (
     <section
       aria-labelledby={headingId}
+      className={cn(className)}
       data-group={group.id}
       data-testid={`loop-runs-group-${group.id}`}
+      {...props}
     >
       <div className="flex min-h-6 items-center gap-2 px-0.5 pb-2.5">
         <h2 className="min-w-0" id={headingId}>

@@ -1,6 +1,9 @@
 package spec
 
-import "github.com/compozy/compozy/internal/api/contract"
+import (
+	"github.com/compozy/compozy/internal/api/contract"
+	looppkg "github.com/compozy/compozy/internal/loop"
+)
 
 func loopRunNodesOperation() OperationSpec {
 	return loopOperation(
@@ -12,7 +15,7 @@ func loopRunNodesOperation() OperationSpec {
 		[]ParameterSpec{
 			workspaceIDParam(),
 			loopRunIDParam(),
-			queryParam("state", "Filter by roster state", false),
+			enumQueryParam("state", "Filter by roster state", looppkg.NodeStateFilterValues()),
 			intQueryParam("generation", "Filter by generation"),
 			queryParam("cursor", "Opaque roster cursor", false),
 			intQueryParam("limit", "Maximum rows to return"),
@@ -54,10 +57,12 @@ func loopRunTimelineOperation() OperationSpec {
 		[]ParameterSpec{
 			workspaceIDParam(),
 			loopRunIDParam(),
-			queryParam("view", "Timeline view: notable or all", false),
+			enumQueryParam("view", "Timeline view: notable or all", []string{
+				string(looppkg.TimelineViewNotable), string(looppkg.TimelineViewAll),
+			}),
 			queryParam("cursor", "Opaque snapshot-fenced cursor", false),
 			intQueryParam("limit", "Maximum entries to return"),
-			intQueryParam("after_sequence", "Return entries after this per-run sequence"),
+			afterSequenceQueryParam("Return entries after this per-run sequence"),
 		},
 		[]ResponseSpec{
 			ok(contract.LoopTimelineResponse{}),

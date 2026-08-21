@@ -4,6 +4,20 @@ function asRecord(value: unknown): Record<string, unknown> | null {
   return typeof value === "object" && value !== null ? (value as Record<string, unknown>) : null;
 }
 
+/**
+ * The one trim-or-omit rule every Loops adapter builds its query with.
+ *
+ * A blank filter and an absent filter mean the same thing to the daemon, so they
+ * have to serialize the same way here — and they have to do it from a single
+ * implementation, because `normalizeText` in the query keys is written to match
+ * this behaviour and a private copy per adapter lets the two drift apart.
+ */
+export function normalizeOptionalText(value?: string | null): string | undefined {
+  if (typeof value !== "string") return undefined;
+  const normalized = value.trim();
+  return normalized === "" ? undefined : normalized;
+}
+
 /** Reads the daemon's `{code, details}` reason envelope off a rejected response. */
 export function reasonEnvelope(error: unknown): { code: string; details: Record<string, string> } {
   const body = asRecord(error);

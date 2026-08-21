@@ -123,6 +123,12 @@ func generationOutputFromGenerated(row sqlcgen.ListLoopGenerationOutputsRow) (lo
 		ItemIndex: int(row.ItemIndex), Status: row.Status,
 		Attempt: int(row.Attempt), Epoch: row.Epoch,
 	}
+	if row.OutputID.Valid {
+		output.OutputID = row.OutputID.String
+	}
+	if row.ArtifactName.Valid {
+		output.ArtifactName = row.ArtifactName.String
+	}
 	if row.OutputRef.Valid {
 		output.OutputRef = row.OutputRef.String
 	}

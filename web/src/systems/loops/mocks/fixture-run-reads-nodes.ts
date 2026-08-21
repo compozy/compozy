@@ -1,3 +1,4 @@
+import { isNeverMaterializedRosterState } from "../lib/loop-run-state-copy";
 import type { LoopRosterNode, LoopRun } from "../types";
 import { graphEngRunFixtures } from "./fixture-graph-eng-runs";
 import { loopRunFixtures } from "./fixtures";
@@ -35,9 +36,6 @@ export const TIMELINE_NOISE_KINDS: ReadonlySet<string> = new Set([
   "late_arrival",
 ]);
 
-/** States in which the run never reached the node, so nothing was recorded. */
-const NEVER_MATERIALIZED: ReadonlySet<string> = new Set(["not_taken", "pending"]);
-
 export type RosterNodeSeed = Partial<LoopRosterNode> & Pick<LoopRosterNode, "node_id" | "state">;
 
 export function rosterNode(
@@ -46,7 +44,9 @@ export function rosterNode(
   seed: RosterNodeSeed
 ): LoopRosterNode {
   const itemIndex = seed.item_index ?? 0;
-  const materialized = !NEVER_MATERIALIZED.has(seed.state);
+  // The same predicate the node panel and the verb resolver read, so a fixture
+  // can never disagree with the UI about whether a node was ever reached.
+  const materialized = !isNeverMaterializedRosterState(seed.state);
   return {
     generation,
     item_index: itemIndex,

@@ -3,7 +3,6 @@ import type {
   LoopNodeControl,
   LoopNodeWait,
   LoopRequest,
-  LoopRunEventFrame,
   LoopRunGeneration,
   LoopRunRecord,
 } from "../types";
@@ -34,8 +33,6 @@ export interface LoopRunPageViewInput {
   waits?: readonly LoopNodeWait[];
 
   requests?: readonly LoopRequest[];
-
-  frames?: readonly LoopRunEventFrame[];
 }
 
 /**

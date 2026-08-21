@@ -8,6 +8,7 @@ import { type LoopNodeSelection, LoopRunPageBody } from "../../index";
 import { buildScenarioProps } from "./loop-run-scenario-props";
 import type { LoopRunStoryScenario } from "./loop-run-scenario-types";
 import {
+  LONG_STORY_PAGE_SIZE,
   registerLongStoryScenario,
   registerNoStepsScenario,
   registerRetryingScenario,
@@ -190,7 +191,49 @@ export const NodePanelPrunedSession: Story = {
   },
 };
 
-// VC-10 · a long run whose story pages back on demand.
+/**
+ * VC-10 · a long run whose story pages back on demand.
+ *
+ * The scenario stages more than 500 events behind a one-page window, and this
+ * wrapper owns the backfill the way the page's query does: each click widens
+ * the window rather than re-anchoring it, so paging back never costs the beats
+ * already on screen.
+ */
+function LongStoryPage() {
+  const scenario = registerLongStoryScenario();
+  const [pageSize, setPageSize] = useState(LONG_STORY_PAGE_SIZE);
+  const [inspectOpen, setInspectOpen] = useState(false);
+  const [nodeSelection, setNodeSelection] = useState<LoopNodeSelection | null>(null);
+  const props = buildScenarioProps({ ...scenario, timelinePageSize: pageSize });
+  return (
+    <div className="flex h-dvh flex-col bg-canvas">
+      <StoryTopbarHost title="Loops">
+        <div className="flex min-h-0 flex-1 flex-col bg-canvas">
+          <LoopRunPageBody
+            {...props}
+            inspect={{ open: inspectOpen, onOpenChange: setInspectOpen }}
+            nodeSelection={nodeSelection}
+            onNodeSelectionChange={setNodeSelection}
+            storyPaging={{
+              ...props.storyPaging,
+              hasOlder: props.storyPaging?.hasOlder ?? false,
+              isLoading: false,
+              isLoadingOlder: false,
+              onLoadOlder: () => setPageSize(current => current + LONG_STORY_PAGE_SIZE),
+            }}
+          />
+        </div>
+      </StoryTopbarHost>
+    </div>
+  );
+}
+
 export const StoryPaging: Story = {
-  render: () => <RegisterPage scenario={registerLongStoryScenario()} />,
+  render: () => <LongStoryPage />,
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    const before = canvas.getAllByTestId(/^loop-run-beat-\d+$/).length;
+    await userEvent.click(canvas.getByTestId("loop-run-story-load-older"));
+    await expect(canvas.getAllByTestId(/^loop-run-beat-\d+$/).length).toBeGreaterThan(before);
+  },
 };

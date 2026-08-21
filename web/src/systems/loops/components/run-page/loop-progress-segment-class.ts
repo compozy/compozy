@@ -14,7 +14,9 @@ export const LOOP_PROGRESS_SEGMENT_CLASS: Record<LoopProgressSegment, string> = 
   parked: "bg-info-tint ring-1 ring-inset ring-info",
   failed: "bg-danger",
   canceled: "bg-badge-fill",
-  // A branch a filter skipped: it left the denominator and reads as absence.
+  // A branch the route did not take: durable `not_taken` evidence marks it
+  // absent from the denominator, so it reads as absence rather than as pending.
+  // No client filter produces this state, and none can change the denominator.
   never: "bg-canvas-tint ring-1 ring-inset ring-line",
   pending: "bg-badge-fill",
 };

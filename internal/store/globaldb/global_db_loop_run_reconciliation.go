@@ -46,7 +46,10 @@ func (g *LoopRepo) reconcileLoopRunOrphans(
 			cause := looppkg.TerminalCauseRunMissing
 			reason := runMissingReason
 			if candidate.status.Valid {
-				cause = terminalCauseForLoopStatus(looppkg.Status(candidate.status.String), "")
+				cause, err = terminalCauseForLoopStatus(looppkg.Status(candidate.status.String), "")
+				if err != nil {
+					return err
+				}
 				reason = reconciledRunTerminalReason
 			}
 			outcome, err := settleLoopRunTerminalWithReason(ctx, exec, candidate.runID, cause, reason)
@@ -106,8 +109,9 @@ func (g *LoopRepo) BackfillLoopProvenance(ctx context.Context) (int, error) {
 	err := g.withTaskImmediateTransaction(ctx, "backfill Loop provenance", func(exec taskSQLExecutor) error {
 		rows, err := exec.QueryContext(ctx, `SELECT DISTINCT t.id, t.workspace_id, t.metadata_json,
 		tr.loop_run_id, lr.loop_name FROM tasks t
-		JOIN task_runs tr ON tr.task_id = t.id AND tr.run_kind = 'coordinator'
-		LEFT JOIN loop_runs lr ON lr.id = tr.loop_run_id
+		JOIN task_runs tr ON tr.task_id = t.id AND tr.workspace_id = t.workspace_id
+			AND tr.run_kind = 'coordinator'
+		LEFT JOIN loop_runs lr ON lr.id = tr.loop_run_id AND lr.workspace_id = t.workspace_id
 		WHERE tr.loop_run_id IS NOT NULL AND trim(tr.loop_run_id) <> ''`)
 		if err != nil {
 			return fmt.Errorf("store: list Loop provenance rows: %w", err)

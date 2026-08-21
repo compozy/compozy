@@ -675,17 +675,42 @@ func TestLoopCommandShouldMapCLIVerbsToClient(t *testing.T) {
 			"--workspace", "alpha",
 			"--origin", "session",
 			"--origin-session", "session-origin",
+			"--cursor", "cursor-next",
 			"--limit", "7",
 			"-o", "json",
 		); err != nil {
 			t.Fatalf("executeRootCommand(loop runs origin) error = %v", err)
 		}
-		if captured.Origin != "session" || captured.OriginSession != "session-origin" || captured.Limit != 7 {
+		if captured.Origin != "session" || captured.OriginSession != "session-origin" ||
+			captured.Cursor != "cursor-next" || captured.Limit != 7 {
 			t.Fatalf("ListLoopRuns query = %#v", captured)
 		}
 		values := loopRunValues(captured)
-		if values.Get("origin") != "session" || values.Get("origin_session") != "session-origin" {
+		if values.Get("origin") != "session" || values.Get("origin_session") != "session-origin" ||
+			values.Get("cursor") != "cursor-next" {
 			t.Fatalf("loopRunValues() = %v", values)
+		}
+	})
+
+	t.Run("Should send the documented default Loop run page size", func(t *testing.T) {
+		t.Parallel()
+		var captured LoopRunListQuery
+		deps := newTestDeps(t, &stubClient{
+			getWorkspaceFn: resolveTestLoopWorkspace(t),
+			listLoopRunsFn: func(
+				_ context.Context,
+				_ string,
+				query LoopRunListQuery,
+			) (contract.LoopRunsResponse, error) {
+				captured = query
+				return contract.LoopRunsResponse{}, nil
+			},
+		})
+		if _, _, err := executeRootCommand(t, deps, "loop", "runs", "--workspace", "alpha", "-o", "json"); err != nil {
+			t.Fatalf("executeRootCommand(loop runs default limit) error = %v", err)
+		}
+		if captured.Limit != 50 || loopRunValues(captured).Get("limit") != "50" {
+			t.Fatalf("default Loop run query = %#v, want limit 50", captured)
 		}
 	})
 

@@ -3,6 +3,7 @@ package globaldb
 import (
 	"context"
 	"database/sql"
+	"errors"
 	"fmt"
 	"strconv"
 	"strings"
@@ -14,17 +15,19 @@ import (
 
 const defaultLoopAPIListLimit = 100
 const maxLoopAPIListLimit = 500
+const loopRunOperationalFetchLimit = maxLoopAPIListLimit + 1
 const loopRunAPIListSelectSQL = `SELECT ` + loopRunSelectColumnsSQL + ` FROM loop_runs`
 const loopRunOperationalRankSQL = `(CASE
 	WHEN loop_runs.status = 'needs-approval'
-		OR EXISTS (
+		OR (loop_runs.status NOT IN ('done','no-op','blocked','failed','exhausted','stalled','canceled') AND (
+		EXISTS (
 			SELECT 1 FROM loop_node_controls AS control
 			WHERE control.loop_run_id = loop_runs.id AND control.quarantined = 1
 		)
 		OR EXISTS (
 			SELECT 1 FROM loop_requests AS request
 			WHERE request.loop_run_id = loop_runs.id AND request.state = 'pending'
-		)
+		)))
 	THEN 0
 	WHEN loop_runs.status IN ('queued', 'running', 'watching', 'paused') THEN 1
 	ELSE 2
@@ -127,7 +130,7 @@ func (g *LoopRepo) validateLoopRunListPosition(
 	var createdAtRaw string
 	var rank int
 	if err := g.db.QueryRowContext(ctx, statement, args...).Scan(&createdAtRaw, &rank); err != nil {
-		if err == sql.ErrNoRows {
+		if errors.Is(err, sql.ErrNoRows) {
 			return fmt.Errorf(
 				"%w: Loop run list cursor no longer identifies its boundary",
 				looppkg.ErrInvalidRunListCursor,
@@ -171,6 +174,7 @@ func (g *LoopRepo) ListLoopRunEvents(
 	return events, nil
 }
 
+// GetLoopRunEventHead returns the durable sequence head for one workspace-owned run.
 func (g *LoopRepo) GetLoopRunEventHead(
 	ctx context.Context,
 	workspaceID looppkg.WorkspaceID,
@@ -188,23 +192,20 @@ func (g *LoopRepo) GetLoopRunEventHead(
 	return head, nil
 }
 
+// ListLoopRunEventsBackward returns one snapshot-fenced page in descending sequence order.
 func (g *LoopRepo) ListLoopRunEventsBackward(
 	ctx context.Context,
-	workspaceID looppkg.WorkspaceID,
-	runID looppkg.RunID,
-	fixedHeadSeq int64,
-	beforeSeq int64,
-	limit int,
+	query looppkg.RunEventBackwardQuery,
 ) ([]looppkg.RunEvent, error) {
 	if err := g.checkReady(ctx, "list loop run events backward"); err != nil {
 		return nil, err
 	}
-	if limit < 1 || limit > 500 || fixedHeadSeq < 0 || beforeSeq < 1 {
+	if query.Limit < 1 || query.Limit > maxLoopAPIListLimit || query.FixedHeadSeq < 0 || query.BeforeSeq < 1 {
 		return nil, fmt.Errorf("%w: backward loop event query is invalid", looppkg.ErrValidation)
 	}
 	rows, err := g.queries.ListLoopRunEventsBackward(ctx, sqlcgen.ListLoopRunEventsBackwardParams{
-		WorkspaceID: string(workspaceID), LoopRunID: string(runID), FixedHeadSeq: fixedHeadSeq,
-		BeforeSeq: beforeSeq, RowLimit: int64(limit),
+		WorkspaceID: string(query.WorkspaceID), LoopRunID: string(query.RunID), FixedHeadSeq: query.FixedHeadSeq,
+		BeforeSeq: query.BeforeSeq, RowLimit: int64(query.Limit),
 	})
 	if err != nil {
 		return nil, fmt.Errorf("store: list loop run events backward: %w", err)
@@ -341,15 +342,17 @@ func normalizeLoopRunListQuery(query looppkg.RunListQuery) (looppkg.RunListQuery
 		normalized.OriginKind = string(looppkg.RunOriginSession)
 	}
 	if normalized.After != nil {
-		normalized.After.ID = looppkg.RunID(strings.TrimSpace(string(normalized.After.ID)))
-		normalized.After.CreatedAt = normalized.After.CreatedAt.UTC()
+		after := *normalized.After
+		normalized.After = &after
+		normalized.After.ID = looppkg.RunID(strings.TrimSpace(string(after.ID)))
+		normalized.After.CreatedAt = after.CreatedAt.UTC()
 		if !normalized.OperationalOrder || normalized.After.Rank < 0 || normalized.After.Rank > 2 ||
 			normalized.After.CreatedAt.IsZero() || normalized.After.ID == "" {
 			return looppkg.RunListQuery{}, fmt.Errorf("%w: loop run list position is invalid", looppkg.ErrValidation)
 		}
 	}
-	if normalized.OperationalOrder && normalized.Limit == maxLoopAPIListLimit+1 {
-		normalized.Limit = maxLoopAPIListLimit + 1
+	if normalized.OperationalOrder && normalized.Limit == loopRunOperationalFetchLimit {
+		normalized.Limit = loopRunOperationalFetchLimit
 	} else {
 		normalized.Limit = normalizeLoopAPILimit(normalized.Limit)
 	}
@@ -360,7 +363,7 @@ func loopRunLiveFilterSQL(live bool) string {
 	if live {
 		return "status IN ('queued','running','watching','needs-approval','paused')"
 	}
-	return "status IN ('done','no-op','blocked','failed','exhausted','stalled')"
+	return "status IN ('done','no-op','blocked','failed','exhausted','stalled','canceled')"
 }
 
 func normalizeLoopRunEventQuery(query looppkg.RunEventQuery) (looppkg.RunEventQuery, error) {
@@ -428,4 +431,5 @@ func normalizeLoopAnnotations(annotations []looppkg.UIAnnotation) ([]looppkg.UIA
 }
 
 var _ looppkg.RunReader = (*LoopRepo)(nil)
+var _ looppkg.TimelineEventReader = (*LoopRepo)(nil)
 var _ looppkg.AnnotationStore = (*LoopRepo)(nil)

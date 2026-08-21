@@ -136,7 +136,11 @@ describe("TaskCard", () => {
       />
     );
 
-    expect(container.querySelector('[data-slot="task-loop-row"]')).not.toBeNull();
+    // Asserted through what an operator sees rather than through slot names: the
+    // record reads as its Loop provenance and links to the run, which is the
+    // routing decision this case owns.
+    expect(screen.getByRole("link")).toHaveAttribute("href", "/loop-runs/$runId");
+    expect(container).toHaveTextContent("revisao-paralela · round 1 · step revisor-perf");
     expect(container.querySelector('[data-slot="tasks-list-row"]')).toBeNull();
   });
 });

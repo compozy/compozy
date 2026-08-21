@@ -30,6 +30,14 @@ export function taskLoopRoleLabel(loop: TaskLoopProvenance): string {
  * is unrecoverable, so its absence is the run-availability signal — the record
  * still renders, but it carries no link (US-002.EC-2).
  */
+/**
+ * What the list and the detail both say when retention removed the run.
+ *
+ * One constant, because these two renderers describe the same fact and an
+ * operator reading both should not meet two wordings for it.
+ */
+export const RUN_GONE_LABEL = "Run no longer available";
+
 export function taskLoopRunAvailable(loop: TaskLoopProvenance): boolean {
   return Boolean(loop.loop_name?.trim());
 }

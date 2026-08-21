@@ -4,7 +4,7 @@ import { formatRelativeTime, type PillTone } from "@compozy/ui";
 
 import type { LoopNodeInventoryItem, LoopNodeInventoryState } from "../types";
 import { readQuarantineEntry } from "./loop-quarantine-entry";
-import { humanizeLoopNodeId } from "./loop-run-story-rows";
+import { humanizeLoopNodeId } from "./loop-node-labels";
 
 /**
  * Inventory presentation model (US-024 AC-2, VC-R5). The daemon owns the page,

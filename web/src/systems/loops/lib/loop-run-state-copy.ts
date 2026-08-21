@@ -45,25 +45,13 @@ export const LOOP_ROSTER_STATES = [
 export type LoopRosterState = (typeof LOOP_ROSTER_STATES)[number];
 
 /**
- * The `state` values the roster route accepts as a FILTER, which is deliberately
- * narrower than the projection above: `pending` is an output state only, so
- * asking for it is a `400 invalid_node_state` (peer review B-007, UT-050).
+ * The `state` values the roster route accepts as a FILTER — wire vocabulary, so
+ * it is declared once in the adapter layer and re-exported here for the UI.
  */
-export const LOOP_ROSTER_STATE_FILTERS = [
-  "all",
-  "running",
-  "queued",
-  "waiting",
-  "retrying",
-  "paused",
-  "quarantined",
-  "succeeded",
-  "failed",
-  "canceled",
-  "not_taken",
-] as const;
-
-export type LoopRosterStateFilter = (typeof LOOP_ROSTER_STATE_FILTERS)[number];
+export {
+  LOOP_ROSTER_STATE_FILTERS,
+  type LoopRosterStateFilter,
+} from "../adapters/loop-roster-filters";
 
 /**
  * How a state occupies its chip.
@@ -157,14 +145,9 @@ const LOOP_ROSTER_STATE_FORMS = {
 } as const satisfies Partial<Record<LoopRosterState, LoopStateChipForm>>;
 
 const LOOP_ROSTER_STATE_SET = new Set<string>(LOOP_ROSTER_STATES);
-const LOOP_ROSTER_STATE_FILTER_SET = new Set<string>(LOOP_ROSTER_STATE_FILTERS);
 
 export function isLoopRosterState(value: unknown): value is LoopRosterState {
   return typeof value === "string" && LOOP_ROSTER_STATE_SET.has(value);
-}
-
-export function isLoopRosterStateFilter(value: unknown): value is LoopRosterStateFilter {
-  return typeof value === "string" && LOOP_ROSTER_STATE_FILTER_SET.has(value);
 }
 
 /**
@@ -208,37 +191,79 @@ export function isSettledRosterState(state: string): boolean {
   return isLoopRosterState(state) && LOOP_SETTLED_STATES.has(state);
 }
 
+/**
+ * Still owed work this round: neither settled nor durable route evidence.
+ *
+ * `not_taken` is deliberately excluded. A branch the run provably declined is
+ * not unfinished business — it is a decision, and counting it as outstanding
+ * would keep a completed round reading as in flight.
+ */
+export function isUnsettledRosterState(state: string): boolean {
+  return isLoopRosterState(state) && !LOOP_SETTLED_STATES.has(state) && state !== "not_taken";
+}
+
+/** Settled, but not cleanly: the states a round has to answer for. */
+const LOOP_FAILED_STATES = new Set<LoopRosterState>([
+  "failed",
+  "canceled",
+  "quarantined",
+  "partial",
+]);
+
+export function isFailedRosterState(state: string): boolean {
+  return isLoopRosterState(state) && LOOP_FAILED_STATES.has(state);
+}
+
+/**
+ * States in which a node provably never ran.
+ *
+ * There is no session, no execution record and no timing behind one of these, so
+ * nothing downstream is safe to link and no verb is safe to offer. Both the node
+ * panel and the verb bridge read this, and they must never disagree about
+ * whether a cell exists.
+ */
+const LOOP_NEVER_MATERIALIZED_STATES = new Set<LoopRosterState>(["not_taken", "pending"]);
+
+export function isNeverMaterializedRosterState(state: string): boolean {
+  return isLoopRosterState(state) && LOOP_NEVER_MATERIALIZED_STATES.has(state);
+}
+
 /** Parked on something a human or another node owes it. */
-const LOOP_PARKED_STATES = new Set<LoopRosterState>([
+export const LOOP_PARKED_STATES = [
   "retrying",
   "waiting",
   "paused",
   "awaiting_child",
   "control_pending",
   "awaiting_goal",
-]);
+] as const satisfies readonly LoopRosterState[];
 
-export function isParkedRosterState(state: string): boolean {
-  return isLoopRosterState(state) && LOOP_PARKED_STATES.has(state);
+export type LoopParkedState = (typeof LOOP_PARKED_STATES)[number];
+
+const LOOP_PARKED_STATE_SET = new Set<string>(LOOP_PARKED_STATES);
+
+export function isParkedRosterState(state: string): state is LoopParkedState {
+  return LOOP_PARKED_STATE_SET.has(state);
 }
 
 /**
  * Why a round is parked, in plain words. The progress label states the dominant
  * reason rather than freezing a percentage that has stopped meaning anything.
+ *
+ * Keyed by the parked union, so a new parked state cannot reach the page without
+ * its explanation — the compiler asks for the sentence before the state ships.
  */
-const LOOP_PARK_REASONS = {
+const LOOP_PARK_REASONS: Record<LoopParkedState, string> = {
   retrying: "waiting to retry",
   waiting: "waiting on something",
   paused: "paused",
   awaiting_child: "waiting on a child run",
   control_pending: "waiting for your decision",
   awaiting_goal: "waiting on its goal",
-} as const satisfies Record<string, string>;
+};
 
 export function loopParkReason(state: string): string | null {
-  return isParkedRosterState(state)
-    ? ((LOOP_PARK_REASONS as Record<string, string>)[state] ?? null)
-    : null;
+  return isParkedRosterState(state) ? LOOP_PARK_REASONS[state] : null;
 }
 
 export { LOOP_ROSTER_STATE_LABELS, LOOP_ROSTER_STATE_TONES };

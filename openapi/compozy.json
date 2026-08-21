@@ -177629,7 +177629,7 @@
             }
           },
           {
-            "description": "Include Loop execution records",
+            "description": "Include Loop execution records; omitted means false",
             "in": "query",
             "name": "include_loop",
             "schema": {
@@ -177637,7 +177637,7 @@
             }
           },
           {
-            "description": "Filter by Loop run ID and include Loop records",
+            "description": "Filter by Loop run ID; also includes Loop execution records",
             "in": "query",
             "name": "loop_run_id",
             "schema": {
@@ -244683,9 +244683,8 @@
                           "format": "double",
                           "type": "number"
                         },
-                        "duration_ms": {
-                          "format": "int64",
-                          "type": "integer"
+                        "duration": {
+                          "type": "string"
                         },
                         "tokens": {
                           "format": "int64",
@@ -248535,6 +248534,19 @@
             "in": "query",
             "name": "state",
             "schema": {
+              "enum": [
+                "all",
+                "running",
+                "queued",
+                "waiting",
+                "retrying",
+                "paused",
+                "quarantined",
+                "succeeded",
+                "failed",
+                "canceled",
+                "not_taken"
+              ],
               "type": "string"
             }
           },
@@ -255888,6 +255900,10 @@
             "in": "query",
             "name": "view",
             "schema": {
+              "enum": [
+                "notable",
+                "all"
+              ],
               "type": "string"
             }
           },
@@ -255913,7 +255929,7 @@
             "in": "query",
             "name": "after_sequence",
             "schema": {
-              "format": "int32",
+              "format": "int64",
               "type": "integer"
             }
           }

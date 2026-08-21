@@ -461,6 +461,27 @@ func TestExpandedTaskPayloadBuildersPreserveLiveAndAggregateFields(t *testing.T)
 			})
 		}
 	})
+
+	t.Run("Should redact claim tokens from public Loop provenance", func(t *testing.T) {
+		t.Parallel()
+		metadata := json.RawMessage(
+			`{"loop_run_id":"looprun-secret","loop_name":"release-compozy_claim_secret","generation":1,"node_id":"compozy_claim_node"}`,
+		)
+		payload := core.TaskCatalogResponseFromPage(taskpkg.CatalogPage{Tasks: []taskpkg.Summary{{
+			ID: "task-secret", Title: "Secret-bearing metadata", Status: taskpkg.TaskStatusReady,
+			RunProvenance: &taskpkg.RunProvenance{
+				LoopRunID: "looprun-secret", RunKind: taskpkg.RunKindWorker, Metadata: metadata,
+			},
+		}}}).Tasks[0]
+		encoded, err := json.Marshal(payload.Loop)
+		if err != nil {
+			t.Fatalf("json.Marshal(Loop provenance) error = %v", err)
+		}
+		if strings.Contains(string(encoded), "compozy_claim_secret") ||
+			strings.Contains(string(encoded), "compozy_claim_node") {
+			t.Fatalf("public Loop provenance contains a raw claim token: %s", encoded)
+		}
+	})
 }
 
 func TestTaskRunConversationStreamSurface(t *testing.T) {

@@ -66,13 +66,20 @@ The response is `loops`, exact self-filtered `facets` (`kinds`, `categories`, `s
 
 Opaque cursors bind workspace, search, kind, category, status, and sort; limit may change. Stable order is read-only before workspace, then normalized name and ID. CompozyOS computes the cut from lean records and loads definition YAML only for selected rows. `last_run` is the all-time latest run and includes `best_generation`/`best_score` when the run has a scored best candidate; only `aggregate_30d` and `success_rate_30d` use the 30-day window.
 
-`compozy loop runs` / `compozy__loop_runs` returns `runs` plus aggregates. Each summary includes
-`attention` when a person must act and current-round `progress`; the server orders needs-you runs,
-then active runs, then terminal runs. It never embeds generation history.
+The native/API `compozy__loop_runs` response returns `runs` plus `aggregates`; `compozy loop runs -o json`
+emits an `items` array with `next_cursor` and no aggregates. Each summary includes `attention` when a
+person must act and current-round `progress`; the server orders needs-you runs, then active runs, then
+terminal runs. It never embeds generation history. `compozy loop runs` pages 50 rows by default; an
+omitted native/API `limit` pages 100. Both cap at 500 and resume through `--cursor`/`next_cursor`, an
+opaque token bound to that server order rather than a client-computed offset.
 
 For a single run, use `compozy loop why <run> -o json` for the server-owned verdict and executable
 unblocker, `compozy loop nodes --run <run> --all -o json` for the complete node-generation roster and
 attempt ledger, and `compozy loop events <run> --view notable|all -o jsonl` for durable history.
+`--all` and `--generation` require `--run`, and `--all` excludes `--cursor`. Roster `--state` is closed to
+`all|running|queued|waiting|retrying|paused|quarantined|succeeded|failed|canceled|not_taken` and pages 50
+by default up to 500; without `--run` the same verb reads the workspace exception inventory, where
+`--state` is required, closed to `waiting|quarantined|attention|retrying`, and pages 50 by default up to 200.
 `events --after <seq> --follow` resumes at a plain per-run sequence; HTTP timeline pagination instead
 uses an opaque run-bound cursor. Follow attaches after the first page's `head_seq`, so the durable/live
 handoff does not duplicate or skip events.
@@ -306,7 +313,7 @@ once with a stable `delivery_id`. Templates can read `inputs` and
 `effect.identity|failure|quarantine|attempt|links`.
 
 Use `compozy__loop_nodes` or `compozy loop nodes --state waiting|quarantined|attention|retrying` to
-find workspace-scoped cells. Pages default to 50 and cap at 200; narrow with Loop or run ID. Then use
+find workspace-scoped cells; narrow with Loop or run ID. Then use
 the exact run/node/item identity with node pause (`drain|cancel`), resume
 (`plain|reset_attempts|immediate`, optional manual-wait payload), cancel, kill, or requeue. Requeue is
 quarantine-only and creates a bounded successor generation. Cancel is cooperative; Kill fences

@@ -1,8 +1,12 @@
 import type { LoopFanoutRollup, LoopRosterNode } from "../types";
 import type { LoopGraph } from "./loop-graph";
-import { loopDagKindLabel } from "./loop-run-dag-view";
-import { resolveFanOutBranches } from "./loop-run-fanout-band";
-import { type LoopStateChip, loopRosterStateChip } from "./loop-run-state-copy";
+import { loopDagKindLabel } from "./loop-node-labels";
+import { loopFanOutContainerState, resolveFanOutBranches } from "./loop-run-fanout-band";
+import {
+  type LoopStateChip,
+  isUnsettledRosterState,
+  loopRosterStateChip,
+} from "./loop-run-state-copy";
 import { deriveCostEstimate } from "./loop-run-usage";
 
 /**
@@ -54,7 +58,8 @@ export interface LoopRosterRow {
 }
 
 export interface LoopRosterTableModel {
-  rows: LoopRosterRow[];
+  /** Built once and never mutated after: the table reads, it does not reorder. */
+  rows: readonly LoopRosterRow[];
   rounds: number[];
   /** True when the run reached no action node at all — stated, not blank. */
   reachedNothing: boolean;
@@ -107,7 +112,14 @@ export function rosterRowKey(node: Pick<LoopRosterNode, "generation" | "node_id"
   return `${node.generation}:${node.node_id}:${node.item_index}`;
 }
 
-/** Earliest start and latest end across a fan-out's workers. */
+/**
+ * Earliest start and latest end across a fan-out's workers.
+ *
+ * Settlement is a question about state, not about timestamps. A branch the run
+ * declined at a route carries no clock at all, and a branch canceled before it
+ * started carries none either — both are finished, and treating a missing
+ * `ended_at` as unfinished kept completed fan-outs reading as still running.
+ */
 function branchSpan(branches: readonly LoopRosterNode[]): {
   startedAt: string | null;
   endedAt: string | null;
@@ -123,17 +135,15 @@ function branchSpan(branches: readonly LoopRosterNode[]): {
       earliest = start;
       startedAt = branch.started_at ?? null;
     }
+    if (isUnsettledRosterState(branch.state)) allSettled = false;
     const end = parseTime(branch.ended_at);
-    if (end === null) {
-      allSettled = false;
-      continue;
-    }
+    if (end === null) continue;
     if (end > latest) {
       latest = end;
       endedAt = branch.ended_at ?? null;
     }
   }
-  // One worker still running means the fan-out is still running, whatever its
+  // One worker still owed work means the fan-out is still running, whatever its
   // finished siblings say.
   return { startedAt, endedAt: allSettled ? endedAt : null };
 }
@@ -146,6 +156,12 @@ export interface BuildRosterTableInput {
   round: number | null;
   /** The clock in-progress rows measure against; stories pin it for capture. */
   nowMs: number;
+  /**
+   * Whether the roster read has finished. Required, because "this run reached no
+   * step" is a claim about the run, and a table built from a partial or failed
+   * read has no standing to make it.
+   */
+  isComplete: boolean;
 }
 
 export function buildRosterTable({
@@ -154,16 +170,20 @@ export function buildRosterTable({
   graph,
   round,
   nowMs,
+  isComplete,
 }: BuildRosterTableInput): LoopRosterTableModel {
   const scoped = round === null ? nodes : nodes.filter(node => node.generation === round);
   const rounds = [...new Set(nodes.map(node => node.generation))].sort((a, b) => b - a);
 
-  const branchesByContainer = new Map<string, LoopRosterNode[]>();
+  // Each container keeps the rollup it was resolved from. The association is
+  // known at this point, and reconstructing it later from a composite string key
+  // both rescanned the rollups and broke on any node id containing a colon.
+  const containers: { rollup: LoopFanoutRollup; branches: LoopRosterNode[] }[] = [];
   const claimed = new Set<string>();
   for (const rollup of rollups) {
     if (round !== null && rollup.generation !== round) continue;
     const branches = resolveFanOutBranches(rollup, scoped, graph);
-    branchesByContainer.set(`${rollup.generation}:${rollup.node_id}`, branches);
+    containers.push({ rollup, branches });
     // Claim identity carries the round. Without it, round 2's fan-out claims the
     // identically-named worker in round 1, and that row vanishes from "All
     // rounds" — grouped under a container that never spread it.
@@ -201,13 +221,8 @@ export function buildRosterTable({
     if (claimed.has(rosterRowKey(node))) continue;
     rows.push(rowFor(node, false));
   }
-  for (const [containerKey, branches] of branchesByContainer) {
-    const [generationText, nodeId] = containerKey.split(":");
-    const generation = Number(generationText);
-    const rollup = rollups.find(
-      entry => entry.node_id === nodeId && entry.generation === generation
-    );
-    if (!rollup) continue;
+  for (const { rollup, branches } of containers) {
+    const { generation, node_id: nodeId } = rollup;
     // The container has no roster row of its own — only a rollup — so its state
     // and its span are the ones its workers put it in.
     const span = branchSpan(branches);
@@ -220,9 +235,10 @@ export function buildRosterTable({
       kindLabel: loopDagKindLabel(graph?.nodes.find(entry => entry.id === nodeId)),
       fanOutLabel: `${rollup.total} ${rollup.total === 1 ? "worker" : "workers"}`,
       chip: loopRosterStateChip(
-        branches.find(branch => branch.state === "failed")?.state ??
-          branches.find(branch => branch.state !== "succeeded")?.state ??
-          "succeeded"
+        loopFanOutContainerState(
+          branches.map(branch => branch.state),
+          rollup
+        )
       ),
       generation,
       itemIndex: 0,
@@ -244,15 +260,18 @@ export function buildRosterTable({
   // and computed after the fan-out containers exist, since a container's span
   // covers its workers and is usually the longest thing on the table.
   const longest = rows.reduce((max, row) => Math.max(max, row.durationMs ?? 0), 0);
-  for (const row of rows) {
-    row.durationRatio = row.durationMs !== null && longest > 0 ? row.durationMs / longest : null;
-  }
+  const measured = rows.map(row => ({
+    ...row,
+    durationRatio: row.durationMs !== null && longest > 0 ? row.durationMs / longest : null,
+  }));
 
   return {
-    rows,
+    rows: measured,
     rounds,
     // A run that ended before round 1 has no action nodes at all. Saying so
-    // beats an empty table, which reads as a loading failure.
-    reachedNothing: nodes.length === 0,
+    // beats an empty table, which reads as a loading failure — but only once the
+    // read is complete. An in-flight or failed roster is also rowless, and it
+    // means "we cannot say yet", which is the opposite sentence.
+    reachedNothing: measured.length === 0 && isComplete,
   };
 }

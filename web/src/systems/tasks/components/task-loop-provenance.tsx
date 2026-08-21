@@ -4,6 +4,7 @@ import { ArrowUpRight } from "lucide-react";
 import { MonoId, PropertyRow } from "@compozy/ui";
 
 import {
+  RUN_GONE_LABEL,
   taskLoopRoleLabel,
   taskLoopRunLink,
   type TaskLoopProvenance as TaskLoopProvenanceData,
@@ -13,8 +14,6 @@ import { TaskRailSection } from "./task-rail-section";
 export interface TaskLoopProvenanceProps {
   loop: TaskLoopProvenanceData;
 }
-
-const RUN_GONE_LABEL = "Run no longer available";
 
 /**
  * Loop provenance for a revealed execution record's detail page (S3, US-015.AC-2).

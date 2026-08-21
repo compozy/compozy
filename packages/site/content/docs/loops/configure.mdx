@@ -92,9 +92,17 @@ override. JSON files use the same field names.
 
 ## Lifecycle defaults
 
-Set `loops.reconcile_interval` to control how often the daemon repairs execution records left live
-after a Loop has ended. It defaults to `1m`, must be a positive duration, and requires a daemon
-restart. The daemon always runs the same repair once during startup before task recovery begins.
+`reconcile_interval` sits in the top-level `[loops]` table, above the `[loops.defaults.*]` tables
+described below. It controls how often the daemon repairs execution records left live after a Loop
+has ended:
+
+```toml
+[loops]
+reconcile_interval = "1m"
+```
+
+It defaults to `1m`, must be a positive duration, and requires a daemon restart. The daemon always
+runs the same repair once during startup before task recovery begins.
 
 The current Configure sheet does not edit lifecycle policy. Set these operator defaults under both
 `[loops.defaults.delivery]` and `[loops.defaults.watch]` in `config.toml`:

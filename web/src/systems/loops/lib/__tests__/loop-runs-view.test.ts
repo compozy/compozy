@@ -56,7 +56,7 @@ describe("buildRunsRoster", () => {
     expect(model.groups.map(group => group.id)).toEqual(["needs-you", "active", "recent"]);
     expect(model.groups.map(group => group.label)).toEqual(["Needs you", "Active", "Recent"]);
     expect(model.needsYouCount).toBe(1);
-    expect(model.total).toBe(3);
+    expect(model.loadedCount).toBe(3);
   });
 
   it("Should preserve the server's order inside a group rather than sorting it", () => {

@@ -372,22 +372,39 @@ export const handlers: HttpHandler[] = [
     return HttpResponse.json(detail);
   }),
   // The run read layer: three computed projections over one source (ADR-005).
-  compozyApiMock.get("/api/workspaces/{workspace_id}/loop-runs/{run_id}/briefing", ({ params }) =>
-    HttpResponse.json(resolveLoopRunBriefing(String(params.run_id)))
-  ),
+  // Each is scoped by workspace before it resolves, so a cross-workspace run id
+  // is the contract's 404 rather than another workspace's projection.
+  compozyApiMock.get("/api/workspaces/{workspace_id}/loop-runs/{run_id}/briefing", ({ params }) => {
+    const result = resolveLoopRunBriefing(String(params.workspace_id), String(params.run_id));
+    return result.ok
+      ? HttpResponse.json(result.page)
+      : HttpResponse.json(result.refusal.body, { status: result.refusal.status });
+  }),
   compozyApiMock.get(
     "/api/workspaces/{workspace_id}/loop-runs/{run_id}/nodes",
-    ({ params, request }) =>
-      HttpResponse.json(
-        resolveLoopRunRoster(String(params.run_id), new URL(request.url).searchParams)
-      )
+    ({ params, request }) => {
+      const result = resolveLoopRunRoster(
+        String(params.workspace_id),
+        String(params.run_id),
+        new URL(request.url).searchParams
+      );
+      return result.ok
+        ? HttpResponse.json(result.page)
+        : HttpResponse.json(result.refusal.body, { status: result.refusal.status });
+    }
   ),
   compozyApiMock.get(
     "/api/workspaces/{workspace_id}/loop-runs/{run_id}/timeline",
-    ({ params, request }) =>
-      HttpResponse.json(
-        resolveLoopRunTimeline(String(params.run_id), new URL(request.url).searchParams)
-      )
+    ({ params, request }) => {
+      const result = resolveLoopRunTimeline(
+        String(params.workspace_id),
+        String(params.run_id),
+        new URL(request.url).searchParams
+      );
+      return result.ok
+        ? HttpResponse.json(result.page)
+        : HttpResponse.json(result.refusal.body, { status: result.refusal.status });
+    }
   ),
   compozyApiMock.get("/api/workspaces/{workspace_id}/loop-runs/{run_id}/turns", ({ params }) => {
     const runId = String(params.run_id);

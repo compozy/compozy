@@ -2,6 +2,8 @@ package loop
 
 import (
 	"context"
+	"encoding/json"
+	"errors"
 	"slices"
 	"strings"
 	"testing"
@@ -106,6 +108,37 @@ func TestRosterContract(t *testing.T) {
 		if !found {
 			t.Fatal("skipped node missing")
 		}
+
+		fanout := RosterSource{
+			Run: Run{ID: "run-fanout", Generation: 1},
+			Graph: dsl.Graph{Nodes: []dsl.Node{
+				{ID: "route", Class: dsl.NodeClassControl, Kind: string(dsl.ControlRoute), Routes: []dsl.RouteSpec{{To: "a"}, {To: "b"}}},
+				{ID: "a", Class: dsl.NodeClassAction},
+				{ID: "b", Class: dsl.NodeClassAction},
+			}},
+			RouteCauses: []RouteCause{
+				{Generation: 1, NodeID: "route", ItemIndex: 0, Route: "a", Cause: "predicate"},
+				{Generation: 1, NodeID: "route", ItemIndex: 1, Route: "b", Cause: "predicate"},
+			},
+		}
+		for _, nodeID := range []string{"a", "b"} {
+			for itemIndex := range 2 {
+				fanout.Outputs = append(fanout.Outputs, GenerationOutput{
+					Generation: 1, NodeID: nodeID, ItemIndex: itemIndex, Status: generationOutputSucceeded,
+				})
+			}
+		}
+		fanoutPage, err := ProjectRoster(&fanout, RosterQuery{})
+		if err != nil {
+			t.Fatalf("ProjectRoster(fanout) error = %v", err)
+		}
+		fanoutNodes := rosterNodesByIdentity(fanoutPage.Nodes)
+		if fanoutNodes[rosterKey(1, "a", 0)].State != NodeStateSucceeded ||
+			fanoutNodes[rosterKey(1, "a", 1)].State != NodeStateNotTaken ||
+			fanoutNodes[rosterKey(1, "b", 0)].State != NodeStateNotTaken ||
+			fanoutNodes[rosterKey(1, "b", 1)].State != NodeStateSucceeded {
+			t.Fatalf("fanout route states = %#v", fanoutNodes)
+		}
 	})
 	t.Run("Should satisfy UT-017 with fanout rollups and stable pagination", func(t *testing.T) {
 		t.Parallel()
@@ -169,20 +202,47 @@ func TestRosterContract(t *testing.T) {
 		if len(page.Nodes) != 3 {
 			t.Fatalf("nodes = %d, want 3", len(page.Nodes))
 		}
-		operator := page.Nodes[0].Cancellation
+		nodes := rosterNodesByIdentity(page.Nodes)
+		operator := nodes[rosterKey(1, "op", 0)].Cancellation
 		if operator == nil || operator.Disposition != nodeCancellationOperator ||
 			operator.ActorKind != "human" || operator.ActorRef != "pedro" || operator.Cause != "stop" {
 			t.Fatalf("operator cancellation = %#v", operator)
 		}
-		strategy := page.Nodes[1].Cancellation
+		strategy := nodes[rosterKey(1, "strategy", 0)].Cancellation
 		if strategy == nil || strategy.Disposition != nodeCancellationStrategy ||
 			strategy.Cause != strategyCanceledReasonCode {
 			t.Fatalf("strategy cancellation = %#v", strategy)
 		}
-		neverStarted := page.Nodes[2].Cancellation
+		neverStarted := nodes[rosterKey(1, "never-started", 0)].Cancellation
 		if neverStarted == nil || neverStarted.Disposition != nodeCancellationStrategy ||
 			neverStarted.Cause != strategyNeverStartedReasonCode {
 			t.Fatalf("never-started cancellation = %#v", neverStarted)
+		}
+	})
+	t.Run("Should preserve item indexes from branch-pruned evidence", func(t *testing.T) {
+		t.Parallel()
+		payload := json.RawMessage(`{"generation":1,"node_id":"fan","item_indexes":[1,3]}`)
+		source := RosterSource{Run: Run{Status: StatusRunning}}
+		err := applyRunReadEvidence(&source, []RunEvent{{Kind: string(RunEventBranchPruned), Payload: payload}})
+		if err != nil {
+			t.Fatalf("applyRunReadEvidence() error = %v", err)
+		}
+		if source.PrunedNodes[rosterKey(1, "fan", 0)] ||
+			!source.PrunedNodes[rosterKey(1, "fan", 1)] ||
+			!source.PrunedNodes[rosterKey(1, "fan", 3)] {
+			t.Fatalf("pruned nodes = %#v", source.PrunedNodes)
+		}
+	})
+	t.Run("Should reject a negative branch-pruned item identity without mutation", func(t *testing.T) {
+		t.Parallel()
+
+		source := RosterSource{}
+		err := source.MarkPrunedNodeItem(1, "fan", -1)
+		if !errors.Is(err, ErrValidation) {
+			t.Fatalf("MarkPrunedNodeItem() error = %v, want ErrValidation", err)
+		}
+		if len(source.PrunedNodes) != 0 {
+			t.Fatalf("pruned nodes = %#v, want no mutation", source.PrunedNodes)
 		}
 	})
 	t.Run("Should satisfy UT-019 with every durable generation and no invented score", func(t *testing.T) {
@@ -247,12 +307,36 @@ func TestRosterContract(t *testing.T) {
 		if len(got) != 501 || got[len(got)-1].Kind != string(RunEventBranchPruned) {
 			t.Fatalf("route evidence = %#v", got)
 		}
+		wantQueries := []RunEventBackwardQuery{
+			{WorkspaceID: "ws", RunID: "run-a", FixedHeadSeq: 501, BeforeSeq: 502, Limit: 500},
+			{WorkspaceID: "ws", RunID: "run-a", FixedHeadSeq: 501, BeforeSeq: 2, Limit: 500},
+		}
+		if !slices.Equal(store.queries, wantQueries) {
+			t.Fatalf("backward queries = %#v, want %#v", store.queries, wantQueries)
+		}
 	})
+}
+
+func rosterNodesByIdentity(nodes []RosterNode) map[string]RosterNode {
+	indexed := make(map[string]RosterNode, len(nodes))
+	for _, node := range nodes {
+		indexed[rosterKey(node.Generation, node.NodeID, node.ItemIndex)] = node
+	}
+	return indexed
 }
 
 type pagedRouteEvidenceStore struct {
 	RunReadStore
-	events []RunEvent
+	events  []RunEvent
+	queries []RunEventBackwardQuery
+}
+
+func (s *pagedRouteEvidenceStore) GetLoopRun(
+	_ context.Context,
+	workspaceID WorkspaceID,
+	runID RunID,
+) (Run, error) {
+	return Run{ID: runID, WorkspaceID: workspaceID}, nil
 }
 
 func (s *pagedRouteEvidenceStore) GetLoopRunEventHead(
@@ -265,19 +349,16 @@ func (s *pagedRouteEvidenceStore) GetLoopRunEventHead(
 
 func (s *pagedRouteEvidenceStore) ListLoopRunEventsBackward(
 	_ context.Context,
-	_ WorkspaceID,
-	_ RunID,
-	head int64,
-	before int64,
-	limit int,
+	query RunEventBackwardQuery,
 ) ([]RunEvent, error) {
-	page := make([]RunEvent, 0, limit)
+	s.queries = append(s.queries, query)
+	page := make([]RunEvent, 0, query.Limit)
 	for _, event := range slices.Backward(s.events) {
-		if event.Seq > head || event.Seq >= before {
+		if event.Seq > query.FixedHeadSeq || event.Seq >= query.BeforeSeq {
 			continue
 		}
 		page = append(page, event)
-		if len(page) == limit {
+		if len(page) == query.Limit {
 			break
 		}
 	}

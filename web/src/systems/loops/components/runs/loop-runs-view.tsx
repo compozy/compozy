@@ -1,11 +1,12 @@
-import type { ReactNode } from "react";
-import { GitBranch, PlugZap, RotateCcw } from "lucide-react";
+import type { ComponentProps, ReactNode } from "react";
+import { GitBranch, PlugZap, RotateCcw, TriangleAlert } from "lucide-react";
 
 import {
   Alert,
   AlertActions,
   AlertDescription,
   Button,
+  cn,
   Empty,
   Skeleton,
   SkeletonRows,
@@ -15,7 +16,7 @@ import { buildRunsRoster, type LoopOutcomeValue } from "../../lib/loop-runs-view
 import type { LoopRun } from "../../types";
 import { LoopRunsTable } from "./loop-runs-table";
 
-export interface LoopRunsViewProps {
+export interface LoopRunsViewProps extends Omit<ComponentProps<"div">, "children"> {
   runs: readonly LoopRun[];
   /** Outcome filter driven by the toolbar chip bar. */
   outcome: LoopOutcomeValue;
@@ -29,20 +30,46 @@ export interface LoopRunsViewProps {
   onEmptyAction?: () => void;
 }
 
+/** Which transport failed. They are told apart because they recover differently. */
+type DegradedCause = "read-failed" | "reconnecting";
+
 /**
  * A degraded transport is not an empty workspace, so it never borrows the empty
  * state's words. It names the cause, says what the rows below actually are, and
  * offers a re-read. Polite live region: the daemon reconnecting is not an alarm.
+ *
+ * A failed list read and a dropped stream are different sentences: the first is
+ * a request that came back an error and `Retry now` re-issues it; the second is
+ * a subscription the client is already re-opening on its own. Printing
+ * "reconnecting" over a failed read tells the reader to wait for something that
+ * is not going to happen.
  */
-function DegradedNotice({ hasRows, onRetry }: { hasRows: boolean; onRetry?: () => void }) {
+function DegradedNotice({
+  cause,
+  hasRows,
+  onRetry,
+}: {
+  cause: DegradedCause;
+  hasRows: boolean;
+  onRetry?: () => void;
+}) {
+  const failed = cause === "read-failed";
+  const body = failed
+    ? hasRows
+      ? "This workspace's runs could not be read. The list below is the last read that worked."
+      : "This workspace's runs could not be read."
+    : hasRows
+      ? "Reconnecting to the daemon. The list below is the last read."
+      : "Reconnecting to the daemon. No runs have been read yet.";
   return (
-    <Alert data-testid="loop-runs-degraded" role="status" variant="neutral">
-      <PlugZap aria-hidden="true" />
-      <AlertDescription>
-        {hasRows
-          ? "Reconnecting to the daemon. The list below is the last read."
-          : "Reconnecting to the daemon. No runs have been read yet."}
-      </AlertDescription>
+    <Alert
+      data-cause={cause}
+      data-testid="loop-runs-degraded"
+      role="status"
+      variant={failed ? "danger" : "neutral"}
+    >
+      {failed ? <TriangleAlert aria-hidden="true" /> : <PlugZap aria-hidden="true" />}
+      <AlertDescription>{body}</AlertDescription>
       {onRetry ? (
         <AlertActions>
           <Button
@@ -77,18 +104,28 @@ export function LoopRunsView({
   isReconnecting = false,
   onRetry,
   onEmptyAction,
+  className,
+  ...props
 }: LoopRunsViewProps) {
   const roster = buildRunsRoster(runs, outcome);
-  const degraded = isError || isReconnecting;
+  // A failed read outranks a reconnect: it is the more specific fact, and it is
+  // the one the reader can act on.
+  const cause: DegradedCause | null = isError
+    ? "read-failed"
+    : isReconnecting
+      ? "reconnecting"
+      : null;
+  const degraded = cause !== null;
   const hasRows = roster.groups.length > 0;
   return (
     <div
-      className="flex flex-col gap-2.5"
+      className={cn("flex flex-col gap-2.5", className)}
       data-needs-you-count={roster.needsYouCount}
       data-testid="loop-runs-view"
-      data-total={roster.total}
+      data-loaded-count={roster.loadedCount}
+      {...props}
     >
-      {degraded ? <DegradedNotice hasRows={hasRows} onRetry={onRetry} /> : null}
+      {cause ? <DegradedNotice cause={cause} hasRows={hasRows} onRetry={onRetry} /> : null}
       <RosterBody
         degraded={degraded}
         onEmptyAction={onEmptyAction}

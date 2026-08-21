@@ -5986,18 +5986,24 @@ func TestHostAPITaskRequestHelpersRejectInvalidPayloads(t *testing.T) {
 			t.Fatalf("default ExcludeCreatedBy = %#v, want %#v", got, want)
 		}
 
-		for _, params := range []hostAPITasksParams{
-			{IncludeLoop: true},
-			{LoopRunID: " looprun-host "},
-			{ParentTaskID: " task-parent "},
+		for _, testCase := range []struct {
+			name   string
+			params hostAPITasksParams
+		}{
+			{name: "Should include Loop records", params: hostAPITasksParams{IncludeLoop: true}},
+			{name: "Should select a Loop run", params: hostAPITasksParams{LoopRunID: " looprun-host "}},
+			{name: "Should select a parent task", params: hostAPITasksParams{ParentTaskID: " task-parent "}},
 		} {
-			mapped, mapErr := env.handler.taskQueryFromParams(ctx, params)
-			if mapErr != nil {
-				t.Fatalf("taskQueryFromParams(%#v) error = %v", params, mapErr)
-			}
-			if len(mapped.ExcludeCreatedBy) != 0 {
-				t.Fatalf("taskQueryFromParams(%#v).ExcludeCreatedBy = %#v, want empty", params, mapped.ExcludeCreatedBy)
-			}
+			t.Run(testCase.name, func(t *testing.T) {
+				t.Parallel()
+				mapped, mapErr := env.handler.taskQueryFromParams(ctx, testCase.params)
+				if mapErr != nil {
+					t.Fatalf("taskQueryFromParams(%#v) error = %v", testCase.params, mapErr)
+				}
+				if len(mapped.ExcludeCreatedBy) != 0 {
+					t.Fatalf("taskQueryFromParams(%#v).ExcludeCreatedBy = %#v, want empty", testCase.params, mapped.ExcludeCreatedBy)
+				}
+			})
 		}
 		runQuery, queryErr := env.handler.taskQueryFromParams(ctx, hostAPITasksParams{
 			LoopRunID: " looprun-host ",

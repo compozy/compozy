@@ -8,17 +8,14 @@ import (
 
 	"github.com/gin-gonic/gin"
 
+	"github.com/compozy/compozy/internal/api/contract"
 	looppkg "github.com/compozy/compozy/internal/loop"
 )
 
+// GetLoopRunNodes returns the computed roster for one Loop run.
 func (h *BaseHandlers) GetLoopRunNodes(c *gin.Context) {
-	service, ok := h.requireLoopService(c)
+	readService, ok := h.requireLoopRunReadService(c)
 	if !ok {
-		return
-	}
-	readService, ok := service.(LoopRunReadService)
-	if !ok {
-		h.respondLoopError(c, errors.New("loop run read service is unavailable"))
 		return
 	}
 	generation, err := ParseOptionalInt(c.Query("generation"))
@@ -49,14 +46,10 @@ func (h *BaseHandlers) GetLoopRunNodes(c *gin.Context) {
 	c.JSON(http.StatusOK, response)
 }
 
+// GetLoopRunBriefing returns the server-owned verdict for one Loop run.
 func (h *BaseHandlers) GetLoopRunBriefing(c *gin.Context) {
-	service, ok := h.requireLoopService(c)
+	readService, ok := h.requireLoopRunReadService(c)
 	if !ok {
-		return
-	}
-	readService, ok := service.(LoopRunReadService)
-	if !ok {
-		h.respondLoopError(c, errors.New("loop run read service is unavailable"))
 		return
 	}
 	response, err := readService.GetLoopRunBriefing(
@@ -71,14 +64,10 @@ func (h *BaseHandlers) GetLoopRunBriefing(c *gin.Context) {
 	c.JSON(http.StatusOK, response)
 }
 
+// GetLoopRunTimeline returns one durable timeline page for a Loop run.
 func (h *BaseHandlers) GetLoopRunTimeline(c *gin.Context) {
-	service, ok := h.requireLoopService(c)
+	readService, ok := h.requireLoopRunReadService(c)
 	if !ok {
-		return
-	}
-	readService, ok := service.(LoopRunReadService)
-	if !ok {
-		h.respondLoopError(c, errors.New("loop run read service is unavailable"))
 		return
 	}
 	limit, err := ParseOptionalInt(c.Query("limit"))
@@ -109,21 +98,46 @@ func (h *BaseHandlers) GetLoopRunTimeline(c *gin.Context) {
 	c.JSON(http.StatusOK, response)
 }
 
+func (h *BaseHandlers) requireLoopRunReadService(c *gin.Context) (LoopRunReadService, bool) {
+	service, ok := h.requireLoopService(c)
+	if !ok {
+		return nil, false
+	}
+	readService, ok := service.(LoopRunReadService)
+	if !ok {
+		h.respondLoopError(c, errors.New("loop run read service is unavailable"))
+		return nil, false
+	}
+	return readService, true
+}
+
 func (h *BaseHandlers) respondLoopRunReadError(c *gin.Context, runID string, err error) {
 	var invalidState *looppkg.InvalidNodeStateError
 	switch {
 	case errors.Is(err, looppkg.ErrRunNotFound):
-		c.JSON(http.StatusNotFound, gin.H{bridgesErrorKey: "loop_run_not_found", "run_id": runID})
+		c.JSON(http.StatusNotFound, contract.ErrorPayload{
+			Error: "loop_run_not_found", Code: "loop_run_not_found", Details: map[string]string{"run_id": runID},
+		})
 	case errors.Is(err, looppkg.ErrTimelineBranchChanged):
-		c.JSON(http.StatusConflict, gin.H{bridgesErrorKey: "timeline_branch_changed"})
+		c.JSON(http.StatusConflict, contract.ErrorPayload{
+			Error: "timeline_branch_changed",
+			Code:  "timeline_branch_changed",
+		})
 	case errors.Is(err, looppkg.ErrInvalidTimelineCursor), errors.Is(err, looppkg.ErrInvalidRosterCursor):
-		c.JSON(http.StatusBadRequest, gin.H{bridgesErrorKey: "invalid_cursor"})
+		c.JSON(http.StatusBadRequest, contract.ErrorPayload{
+			Error: "invalid_cursor",
+			Code:  "invalid_cursor",
+		})
 	case errors.Is(err, looppkg.ErrTimelinePositionBeyondHead):
-		c.JSON(http.StatusBadRequest, gin.H{bridgesErrorKey: err.Error()})
+		c.JSON(http.StatusBadRequest, contract.ErrorPayload{
+			Error: looppkg.ErrTimelinePositionBeyondHead.Error(),
+			Code:  looppkg.ErrTimelinePositionBeyondHead.Error(),
+		})
 	case errors.As(err, &invalidState):
-		c.JSON(http.StatusBadRequest, gin.H{
-			"error":   "invalid_node_state",
-			"allowed": invalidState.Allowed,
+		c.JSON(http.StatusBadRequest, contract.ErrorPayload{
+			Error:   "invalid_node_state",
+			Code:    "invalid_node_state",
+			Details: map[string]string{"allowed": strings.Join(invalidState.Allowed, ",")},
 		})
 	default:
 		h.respondLoopError(c, err)

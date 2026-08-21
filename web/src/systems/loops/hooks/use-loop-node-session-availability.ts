@@ -25,8 +25,8 @@ export function useLoopNodeSessionAvailability(
   const query = useQuery({
     ...options,
     enabled: Boolean(workspaceId) && Boolean(sessionId) && enabled,
-    // A pruned session is a settled answer, not a transport failure: retrying it
-    // three times only delays the sentence the panel is going to print anyway.
+    // A pruned session is a settled answer, not a transport failure: two retries
+    // only delay the sentence the panel is going to print anyway.
     retry: (failureCount, error) => !(error instanceof SessionNotFoundError) && failureCount < 2,
   });
   if (query.error instanceof SessionNotFoundError) return "pruned";

@@ -38,7 +38,7 @@ func TestDaemonE2ELoopRunReadCLIJourneys(t *testing.T) {
 	acpmock.RequireDriver(t)
 	workspaceRoot := t.TempDir()
 	seedLoopNodeLifecycleDefinitions(t, workspaceRoot)
-	seedLoopReadApprovalDefinition(t, workspaceRoot)
+	seedLoopReadDefinitions(t, workspaceRoot)
 	loopEventsFixture := mockFixturePath(t, "loop_events_fixture.json")
 	lifecycleFixture := mockFixturePath(t, "loop_node_lifecycle_fixture.json")
 	harness := e2etest.StartRuntimeHarness(t, &e2etest.RuntimeHarnessOptions{
@@ -61,16 +61,18 @@ func TestDaemonE2ELoopRunReadCLIJourneys(t *testing.T) {
 			},
 		},
 	})
-	ctx, cancel := context.WithTimeout(context.Background(), 45*time.Second)
-	defer cancel()
-	createLoopViaHTTP(t, ctx, harness, loopEventsDefinition())
-	waitForLoopCatalogEntry(t, ctx, harness, loopReadApprovalLoopName)
-	waitForLoopCatalogEntry(t, ctx, harness, loopReadQuarantineLoopName)
-	waitForLoopCatalogEntry(t, ctx, harness, loopReadWaitingLoopName)
-	run := runLoopViaHTTP(t, ctx, harness, "loop-events-probe")
-	waitForLoopRunStatus(t, ctx, harness, run.ID, compozycontract.LoopRunStatusDone)
+	setupCtx, setupCancel := context.WithTimeout(context.Background(), 45*time.Second)
+	defer setupCancel()
+	createLoopViaHTTP(t, setupCtx, harness, loopEventsDefinition())
+	waitForLoopCatalogEntry(t, setupCtx, harness, loopReadApprovalLoopName)
+	waitForLoopCatalogEntry(t, setupCtx, harness, loopReadQuarantineLoopName)
+	waitForLoopCatalogEntry(t, setupCtx, harness, loopReadWaitingLoopName)
+	run := runLoopViaHTTP(t, setupCtx, harness, "loop-events-probe")
+	waitForLoopRunStatus(t, setupCtx, harness, run.ID, compozycontract.LoopRunStatusDone)
+	setupCancel()
 	workspace := harness.WorkspaceRoot
 	t.Run("Should execute the golden run-read path E2E-001", func(t *testing.T) {
+		ctx := loopReadJourneyContext(t)
 		if _, stderr, err := harness.CLI.Run(
 			ctx,
 			"loop",
@@ -247,6 +249,7 @@ func TestDaemonE2ELoopRunReadCLIJourneys(t *testing.T) {
 		assertSettledLoopTaskList(t, settledJSON, approvalRunID)
 	})
 	t.Run("Should disconnect resume and wait for the first event E2E-003", func(t *testing.T) {
+		ctx := loopReadJourneyContext(t)
 		quietRun := runLoopWithHumanGate(t, ctx, harness)
 		waitForLoopRunStatus(t, ctx, harness, quietRun.ID, compozycontract.LoopRunStatusNeedsApproval)
 		var initial compozycontract.LoopTimelineResponse
@@ -321,7 +324,7 @@ func TestDaemonE2ELoopRunReadCLIJourneys(t *testing.T) {
 		followRun := runLoopWithHumanGate(t, ctx, harness)
 		waitForLoopRunStatus(t, ctx, harness, followRun.ID, compozycontract.LoopRunStatusNeedsApproval)
 		disconnectCtx, disconnectCancel := context.WithTimeout(ctx, 300*time.Millisecond)
-		beforeDisconnect, _, disconnectErr := harness.CLI.Run(
+		beforeDisconnect, disconnectStderr, disconnectErr := harness.CLI.Run(
 			disconnectCtx,
 			"loop",
 			"events",
@@ -334,9 +337,18 @@ func TestDaemonE2ELoopRunReadCLIJourneys(t *testing.T) {
 			"-o",
 			"jsonl",
 		)
+		disconnectCause := disconnectCtx.Err()
 		disconnectCancel()
 		if disconnectErr == nil {
 			t.Fatal("mid-run follow returned before the forced disconnect")
+		}
+		if ctx.Err() != nil || !errors.Is(disconnectCause, context.DeadlineExceeded) {
+			t.Fatalf(
+				"mid-run follow disconnect cause = %v parent=%v stderr=%s, want local deadline",
+				disconnectCause,
+				ctx.Err(),
+				disconnectStderr,
+			)
 		}
 		beforeSequences := timelineJSONLSequences(t, beforeDisconnect)
 		if len(beforeSequences) == 0 {
@@ -397,6 +409,7 @@ func TestDaemonE2ELoopRunReadCLIJourneys(t *testing.T) {
 		assertTimelineResumeParity(t, combined, complete.Entries)
 	})
 	t.Run("Should execute the returned unblocker and clear the blocker E2E-004", func(t *testing.T) {
+		ctx := loopReadJourneyContext(t)
 		blockedRun := runLoopWithHumanGate(t, ctx, harness)
 		waitForLoopRunStatus(t, ctx, harness, blockedRun.ID, compozycontract.LoopRunStatusNeedsApproval)
 		var briefing compozycontract.LoopBriefingResponse
@@ -443,6 +456,7 @@ func TestDaemonE2ELoopRunReadCLIJourneys(t *testing.T) {
 		}
 	})
 	t.Run("Should expose settled attempts through the roster E2E-005", func(t *testing.T) {
+		ctx := loopReadJourneyContext(t)
 		retryRun := runLoopViaHTTP(t, ctx, harness, lifecycleRetryLoopName)
 		waitForLoopRunStatus(t, ctx, harness, retryRun.ID, compozycontract.LoopRunStatusDone)
 		var roster compozycontract.LoopRunNodesResponse
@@ -470,6 +484,7 @@ func TestDaemonE2ELoopRunReadCLIJourneys(t *testing.T) {
 		}
 	})
 	t.Run("Should reject deterministic invalid positions E2E-006", func(t *testing.T) {
+		ctx := loopReadJourneyContext(t)
 		_, unknownStderr, unknownErr := harness.CLI.Run(
 			ctx,
 			"loop",
@@ -544,6 +559,7 @@ func TestDaemonE2ELoopRunReadCLIJourneys(t *testing.T) {
 		)
 	})
 	t.Run("Should return the exact timeline branch conflict over real SQL IT-022", func(t *testing.T) {
+		ctx := loopReadJourneyContext(t)
 		first := runLoopWithHumanGate(t, ctx, harness)
 		second := runLoopWithHumanGate(t, ctx, harness)
 		waitForLoopRunStatus(t, ctx, harness, first.ID, compozycontract.LoopRunStatusNeedsApproval)
@@ -565,6 +581,7 @@ func TestDaemonE2ELoopRunReadCLIJourneys(t *testing.T) {
 		}
 	})
 	t.Run("Should reflect a real node verb in the roster and reject its stale replay IT-027", func(t *testing.T) {
+		ctx := loopReadJourneyContext(t)
 		quarantinedRun := runLoopViaHTTP(t, ctx, harness, loopReadQuarantineLoopName)
 		waitForLoopRosterNodeState(
 			t,
@@ -631,6 +648,7 @@ func TestDaemonE2ELoopRunReadCLIJourneys(t *testing.T) {
 		assertStaleRequeueConflict(t, status, body, conflict, "primary", request.Reason)
 	})
 	t.Run("Should preserve ordered run summaries across HTTP UDS and CLI pages IT-032", func(t *testing.T) {
+		ctx := loopReadJourneyContext(t)
 		needsYou := runLoopWithHumanGate(t, ctx, harness)
 		waitForLoopRunStatus(t, ctx, harness, needsYou.ID, compozycontract.LoopRunStatusNeedsApproval)
 		activeIDs := make([]string, 0, 3)
@@ -655,11 +673,18 @@ func TestDaemonE2ELoopRunReadCLIJourneys(t *testing.T) {
 			t.Fatalf("repeated HTTP cursor walk = %#v, want %#v", repeated, want)
 		}
 		assertLoopRunReadOrdering(t, httpRuns)
-		assertLoopRunReadSummary(t, httpRuns, needsYou.ID, true, 1, 2)
+		assertLoopRunReadSummary(t, httpRuns, needsYou.ID, "approval", 1, 1, 2)
 		for _, activeID := range activeIDs {
-			assertLoopRunReadSummary(t, httpRuns, activeID, false, 0, 1)
+			assertLoopRunReadSummary(t, httpRuns, activeID, "", 0, 0, 1)
 		}
 	})
+}
+
+func loopReadJourneyContext(t testing.TB) context.Context {
+	t.Helper()
+	ctx, cancel := context.WithTimeout(context.Background(), 45*time.Second)
+	t.Cleanup(cancel)
+	return ctx
 }
 
 func assertLoopReadCLIError(
@@ -756,7 +781,7 @@ func assertLoopReadRequeueSSE(
 		if event.Event != string(compozycontract.LoopRunEventNodeRequeued) ||
 			event.WorkspaceID != workspaceID || event.LoopRunID != runID || event.Seq < 1 ||
 			payload.Generation != 3 || payload.NodeID != "primary" ||
-			payload.ActorKind == "" || payload.Reason != "operator repaired the target" {
+			payload.ActorKind != "human" || payload.Reason != "operator repaired the target" {
 			t.Fatalf("node_requeued SSE = %#v payload=%#v", event, payload)
 		}
 		return
@@ -794,6 +819,9 @@ func assertStaleRequeueConflict(
 	t.Helper()
 	details := conflict.Details
 	winnerAt := details[looppkg.ReasonMetaWinnerRequestedAt]
+	if _, err := time.Parse(time.RFC3339Nano, winnerAt); err != nil {
+		t.Fatalf("winner_requested_at = %q, want RFC3339Nano: %v", winnerAt, err)
+	}
 	wantError := fmt.Sprintf(
 		"already_decided: loop: transition conflict: node %q was already requeued "+
 			"(actual_state=active, allowed_transitions=pause,cancel,kill, winner_actor_id=local-user, "+
@@ -815,6 +843,7 @@ func assertStaleRequeueConflict(
 
 type loopRunReadProjection struct {
 	ID        string
+	LoopName  string
 	Status    compozycontract.LoopRunStatus
 	Attention *compozycontract.LoopRunAttention
 	Progress  compozycontract.LoopRunProgress
@@ -961,6 +990,7 @@ func loopRunReadProjections(runs []compozycontract.LoopRunPayload) []loopRunRead
 	for _, run := range runs {
 		projections = append(projections, loopRunReadProjection{
 			ID:        run.ID,
+			LoopName:  run.LoopName,
 			Status:    run.Status,
 			Attention: run.Attention,
 			Progress:  run.Progress,
@@ -997,7 +1027,10 @@ func loopRunReadRank(run compozycontract.LoopRunPayload) int {
 	case compozycontract.LoopRunStatusDone,
 		compozycontract.LoopRunStatusFailed,
 		compozycontract.LoopRunStatusCanceled,
-		compozycontract.LoopRunStatusExhausted:
+		compozycontract.LoopRunStatusExhausted,
+		compozycontract.LoopRunStatusNoOp,
+		compozycontract.LoopRunStatusBlocked,
+		compozycontract.LoopRunStatusStalled:
 		return 3
 	default:
 		return 2
@@ -1008,7 +1041,8 @@ func assertLoopRunReadSummary(
 	t testing.TB,
 	runs []compozycontract.LoopRunPayload,
 	runID string,
-	wantAttention bool,
+	wantAttentionKind string,
+	wantAttentionCount int,
 	wantDone int,
 	wantTotal int,
 ) {
@@ -1017,7 +1051,21 @@ func assertLoopRunReadSummary(
 		if run.ID != runID {
 			continue
 		}
-		if (run.Attention != nil) != wantAttention || run.Progress.StepsDone != wantDone ||
+		if wantAttentionKind == "" && run.Attention != nil {
+			t.Fatalf("loop run summary %q = unexpected attention %#v", runID, run.Attention)
+		}
+		if wantAttentionKind != "" && (run.Attention == nil ||
+			run.Attention.Kind != wantAttentionKind || run.Attention.Count != wantAttentionCount ||
+			run.Attention.Since.IsZero()) {
+			t.Fatalf(
+				"loop run summary %q = attention %#v, want kind=%q count=%d with timestamp",
+				runID,
+				run.Attention,
+				wantAttentionKind,
+				wantAttentionCount,
+			)
+		}
+		if run.Progress.StepsDone != wantDone ||
 			run.Progress.StepsTotal != wantTotal {
 			t.Fatalf("loop run summary %q = attention %#v progress %#v", runID, run.Attention, run.Progress)
 		}
@@ -1026,7 +1074,7 @@ func assertLoopRunReadSummary(
 	t.Fatalf("loop run %q missing from paged roster", runID)
 }
 
-func seedLoopReadApprovalDefinition(t testing.TB, workspaceRoot string) {
+func seedLoopReadDefinitions(t testing.TB, workspaceRoot string) {
 	t.Helper()
 	root := filepath.Join(workspaceRoot, compozyconfig.DirName, compozyconfig.LoopsDirName)
 	definitions := map[string]string{
@@ -1110,11 +1158,10 @@ contract:
 graph:
   nodes:
     - id: wait_for_test
-      class: control
-      kind: wait
-      params:
-        event: { kind: loop.read.integration.release }
-        expect: { type: object }
+      class: source
+      kind: watch-events
+      events:
+        - { kind: automation.run.failed }
     - id: finish
       class: action
       kind: transform

@@ -4,6 +4,7 @@ import { CircleSlash, GitBranch } from "lucide-react";
 import { ListingRow, MonoId, Pill } from "@compozy/ui";
 
 import {
+  RUN_GONE_LABEL,
   taskLoopIdentityLabel,
   taskLoopRoleLabel,
   taskLoopRunLink,
@@ -19,7 +20,6 @@ export interface TaskLoopRowProps {
 
 /** The runtime models a record's state, not a per-step narrative — that lives on the run page. */
 const LOOP_RECORD_DESCRIPTION = "Loop execution record — open the run to act on it.";
-const RUN_GONE_LABEL = "Run no longer available";
 
 /**
  * A revealed Loop execution record in the Tasks listing (US-002.AC-1).

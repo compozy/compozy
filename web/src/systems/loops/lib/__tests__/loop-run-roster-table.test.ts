@@ -68,9 +68,10 @@ function node(overrides: Partial<LoopRosterNode> = {}): LoopRosterNode {
 function build(
   nodes: LoopRosterNode[],
   rollups: LoopFanoutRollup[] = [],
-  round: number | null = 1
+  round: number | null = 1,
+  isComplete = true
 ) {
-  return buildRosterTable({ nodes, rollups, graph: GRAPH, round, nowMs: NOW });
+  return buildRosterTable({ nodes, rollups, graph: GRAPH, round, nowMs: NOW, isComplete });
 }
 
 describe("buildRosterTable", () => {
@@ -81,9 +82,7 @@ describe("buildRosterTable", () => {
     const [row] = build([node({ state: "running", ended_at: null })]).rows;
 
     expect(row.progressState).toBe("in-progress");
-    expect(row.durationMs).toBe(
-      Date.parse("2026-08-19T18:50:00Z") - Date.parse("2026-08-19T18:40:00Z")
-    );
+    expect(row.durationMs).toBe(NOW - Date.parse("2026-08-19T18:40:00Z"));
   });
 
   it("Should keep not-started for a step that genuinely never began", () => {
@@ -201,5 +200,13 @@ describe("buildRosterTable", () => {
 
   it("Should say a run reached nothing rather than render an empty table", () => {
     expect(build([]).reachedNothing).toBe(true);
+  });
+
+  it("Should not claim a run reached nothing while the roster read is unfinished", () => {
+    // A rowless partial read and a rowless run look identical here; only the
+    // read's own completeness tells them apart, and "No steps ran" is a claim
+    // about the run that an incomplete read cannot support.
+    expect(build([], [], 1, false).reachedNothing).toBe(false);
+    expect(build([], [], 1, false).rows).toHaveLength(0);
   });
 });

@@ -37,8 +37,8 @@ func TestStoreFinalizerShouldNormalizeGenerationOutputs(t *testing.T) {
 			t.Fatalf("WriteGenerationSnapshot() error = %v", err)
 		}
 		args := tx.calls[0].args
-		if len(args) != 14 {
-			t.Fatalf("ExecContext args len = %d, want 14: %#v", len(args), args)
+		if len(args) != 16 {
+			t.Fatalf("ExecContext args len = %d, want 16: %#v", len(args), args)
 		}
 		if got, want := args[0], "loop-run-1"; got != want {
 			t.Fatalf("ExecContext loop_run_id arg = %#v, want %q", got, want)
@@ -49,12 +49,83 @@ func TestStoreFinalizerShouldNormalizeGenerationOutputs(t *testing.T) {
 		if got, want := args[4], generationOutputSucceeded; got != want {
 			t.Fatalf("ExecContext status arg = %#v, want %q", got, want)
 		}
-		if got := args[8]; got != nil {
+		if got := args[10]; got != nil {
 			t.Fatalf("ExecContext resolved_runtime arg = %#v, want nil", got)
 		}
-		if got, want := args[9], 1; got != want {
+		if got, want := args[11], 1; got != want {
 			t.Fatalf("ExecContext attempt arg = %#v, want %d", got, want)
 		}
+	})
+
+	t.Run("Should replace and clear exact artifact identity through the snapshot upsert", func(t *testing.T) {
+		t.Parallel()
+
+		tx := &generationSnapshotTx{rowsAffected: 1}
+		finalizer := NewStoreFinalizer()
+		write := func(epoch int64, outputID, artifactName string) {
+			t.Helper()
+
+			expectedEpoch := epoch - 1
+			output := GenerationOutput{
+				NodeID:       "worker",
+				Status:       generationOutputSucceeded,
+				OutputID:     outputID,
+				ArtifactName: artifactName,
+				Epoch:        epoch,
+			}
+			if epoch > 0 {
+				output.ExpectedEpoch = &expectedEpoch
+			}
+			err := finalizer.WriteGenerationSnapshot(
+				context.Background(),
+				tx,
+				task.GenerationSnapshot{
+					LoopRunID:  "loop-run-1",
+					Generation: 1,
+					Payload:    GenerationSnapshotPayload{Outputs: []GenerationOutput{output}},
+				},
+			)
+			if err != nil {
+				t.Fatalf("WriteGenerationSnapshot() error = %v", err)
+			}
+		}
+
+		write(0, " output-original ", " original.md ")
+		write(1, " output-replacement ", " replacement.md ")
+		write(2, "   ", "\t")
+
+		if got, want := len(tx.calls), 3; got != want {
+			t.Fatalf("ExecContext call count = %d, want %d", got, want)
+		}
+		if !strings.Contains(tx.calls[0].query, "output_id, artifact_name") ||
+			!strings.Contains(tx.calls[0].query, "output_id = excluded.output_id") ||
+			!strings.Contains(tx.calls[0].query, "artifact_name = excluded.artifact_name") {
+			t.Fatalf("generation output SQL does not preserve exact artifact identity: %q", tx.calls[0].query)
+		}
+		assertSQLIdentity := func(call int, wantOutputID, wantArtifactName sql.NullString) {
+			t.Helper()
+
+			gotOutputID, ok := tx.calls[call].args[5].(sql.NullString)
+			if !ok || gotOutputID != wantOutputID {
+				t.Fatalf("call %d output_id arg = %#v, want %#v", call, tx.calls[call].args[5], wantOutputID)
+			}
+			gotArtifactName, ok := tx.calls[call].args[6].(sql.NullString)
+			if !ok || gotArtifactName != wantArtifactName {
+				t.Fatalf(
+					"call %d artifact_name arg = %#v, want %#v",
+					call,
+					tx.calls[call].args[6],
+					wantArtifactName,
+				)
+			}
+		}
+		assertSQLIdentity(0, sql.NullString{String: "output-original", Valid: true}, sql.NullString{
+			String: "original.md", Valid: true,
+		})
+		assertSQLIdentity(1, sql.NullString{String: "output-replacement", Valid: true}, sql.NullString{
+			String: "replacement.md", Valid: true,
+		})
+		assertSQLIdentity(2, sql.NullString{}, sql.NullString{})
 	})
 
 	t.Run("Should persist lifecycle fields behind the observed epoch", func(t *testing.T) {
@@ -85,21 +156,21 @@ func TestStoreFinalizerShouldNormalizeGenerationOutputs(t *testing.T) {
 			t.Fatalf("WriteGenerationSnapshot() error = %v", err)
 		}
 		args := tx.calls[0].args
-		if got, want := args[9], 3; got != want {
+		if got, want := args[11], 3; got != want {
 			t.Fatalf("attempt arg = %#v, want %d", got, want)
 		}
-		gotNextAttemptAt, ok := args[10].(*time.Time)
+		gotNextAttemptAt, ok := args[12].(*time.Time)
 		if !ok || !gotNextAttemptAt.Equal(nextAttemptAt.UTC()) {
-			t.Fatalf("next_attempt_at arg = %#v, want %v", args[10], nextAttemptAt.UTC())
+			t.Fatalf("next_attempt_at arg = %#v, want %v", args[12], nextAttemptAt.UTC())
 		}
-		gotFirstScheduledAt, ok := args[11].(*time.Time)
+		gotFirstScheduledAt, ok := args[13].(*time.Time)
 		if !ok || !gotFirstScheduledAt.Equal(firstScheduledAt.UTC()) {
-			t.Fatalf("first_scheduled_at arg = %#v, want %v", args[11], firstScheduledAt.UTC())
+			t.Fatalf("first_scheduled_at arg = %#v, want %v", args[13], firstScheduledAt.UTC())
 		}
-		if got, want := args[12], int64(8); got != want {
+		if got, want := args[14], int64(8); got != want {
 			t.Fatalf("epoch arg = %#v, want %d", got, want)
 		}
-		if got, want := args[13], expectedEpoch; got != want {
+		if got, want := args[15], expectedEpoch; got != want {
 			t.Fatalf("expected epoch arg = %#v, want %d", got, want)
 		}
 	})

@@ -286,7 +286,7 @@ func formatTaskLoopProvenance(provenance *contract.LoopProvenance) string {
 	if identity == "" {
 		identity = strings.TrimSpace(provenance.RunID)
 	}
-	suffix := loopRunKey
+	suffix := taskLoopCoordinatorLabel
 	if provenance.Role == contract.LoopProvenanceRoleCell {
 		suffix = "cell"
 		if provenance.Generation != nil {
@@ -295,3 +295,5 @@ func formatTaskLoopProvenance(provenance *contract.LoopProvenance) string {
 	}
 	return identity + " · " + suffix
 }
+
+const taskLoopCoordinatorLabel = "run"
