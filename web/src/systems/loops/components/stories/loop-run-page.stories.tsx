@@ -16,7 +16,6 @@ import {
 import {
   forkedRunScenario,
   laneRequestsScenario,
-  partialCompletionScenario,
   pendingEnumRequestScenario,
   pendingRequestsScenario,
   redactedRequestScenario,
@@ -28,6 +27,7 @@ import {
   registerLongStoryScenario,
   registerNeedsYouScenario,
   registerNoStepsScenario,
+  registerPartialOutputsScenario,
   registerPrunedArtifactScenario,
   registerRetryingScenario,
   registerRoutedScenario,
@@ -47,15 +47,17 @@ import {
 } from "./loop-run-lifecycle-fixtures";
 import { pendingReviewRequest } from "../../mocks";
 import {
-  buildScenarioProps,
   exhaustedScenario,
+  ratchetRestoreScenario,
+  scoredBestScenario,
+} from "./loop-run-metric-fixtures";
+import {
+  buildScenarioProps,
   failedScenario,
   needsApprovalScenario,
   noOpScenario,
   pausedScenario,
-  ratchetRestoreScenario,
   runningScenario,
-  scoredBestScenario,
   watchingScenario,
   type LoopRunStoryScenario,
 } from "./loop-run-page-fixtures";
@@ -282,9 +284,10 @@ export const LaneRequests: Story = {
   render: () => <LoopRunPageStory scenario={laneRequestsScenario()} />,
 };
 
+/** VC-08: a terminal failure whose partial output is labelled as partial. */
 export const PartialCompletion: Story = {
   args: {},
-  render: () => <LoopRunPageStory scenario={partialCompletionScenario()} />,
+  render: () => <LoopRunPageStory scenario={registerPartialOutputsScenario()} />,
 };
 
 export const ForkLineage: Story = {

@@ -91,6 +91,41 @@ export function makeTimelineEntry(
   };
 }
 
+/**
+ * What a scenario has to state for itself, and what it never gets to invent.
+ *
+ * The tone, the sentence, the settled outcome and what the run produced are
+ * written by the daemon and have no source in the run record. A story that
+ * cannot say them has not staged a verdict.
+ */
+export type StoryVerdict = Pick<LoopBriefing, "tone" | "headline"> & Partial<LoopBriefing>;
+
+/**
+ * The briefing the daemon would serve for a staged run.
+ *
+ * `run_id`, `status`, `progress` and usage are server-owned fields the run
+ * record already carries, so they are copied here rather than re-decided: a
+ * scenario cannot end up with a briefing that contradicts the run beside it.
+ * Everything else is the caller's to state, which is why `tone` and `headline`
+ * are required — the placeholder verdict this replaced let a story render a
+ * plausible strip for a state it had never staged.
+ */
+export function briefingFor(run: LoopRunRecord, verdict: StoryVerdict): LoopBriefing {
+  const usage: LoopBriefing["usage"] = { tokens: run.tokens_used };
+  if (run.budget_tokens > 0) {
+    usage.budget_used_pct = (run.tokens_used / run.budget_tokens) * 100;
+  }
+  return {
+    run_id: run.id,
+    status: run.status,
+    blockers: [],
+    artifacts: [],
+    progress: run.progress,
+    usage,
+    ...verdict,
+  };
+}
+
 export function makeBriefing(overrides: Partial<LoopBriefing> = {}): LoopBriefing {
   return {
     run_id: STORY_RUN_ID,

@@ -3,22 +3,25 @@ import {
   generationsFor,
   genericWatchDefinition,
   genericWatchRun,
-  metricRatchetDefinition,
-  metricRatchetRun,
   minutesAgo,
   nodePayload,
   reviewAndFixDefinition,
   reviewAndFixRun,
   roundOneFrames,
 } from "./loop-run-page-fixture-world";
+import { briefingFor } from "./loop-run-read-builders";
 import type { LoopRunStoryScenario } from "./loop-run-scenario-types";
-import type { LoopRunGeneration } from "../../types";
 
 /**
  * Production-derived run-page scenarios. Review states use the bundled
  * agent-authored Loop; watch-only states use a separate generic watch Loop.
+ * The scored `quality-ratchet` states live in `loop-run-metric-fixtures`.
  * The scenario shape lives in `loop-run-scenario-types`, and the projection into
  * page props in `loop-run-scenario-props`.
+ *
+ * Every scenario states its own served verdict through `briefingFor`, which
+ * copies the run's server-owned status, progress and usage so the two reads
+ * cannot disagree. Nothing fills in a missing one.
  */
 
 export type { LoopRunStoryScenario } from "./loop-run-scenario-types";
@@ -44,8 +47,14 @@ export function runningScenario(): LoopRunStoryScenario {
     ),
     frame("token_tick", 3, { tokens_used: 68_000 }),
   ];
+  const run = reviewAndFixRun();
   return {
-    run: reviewAndFixRun(),
+    run,
+    briefing: briefingFor(run, {
+      tone: "ok",
+      headline: "Fixing the third finding of round 2",
+      detail: "Nothing needs you. One of two steps is done in round 2.",
+    }),
     definition: reviewAndFixDefinition,
     frames,
     generations: generationsFor("running"),
@@ -79,15 +88,32 @@ export function needsApprovalScenario(): LoopRunStoryScenario {
       cause: "tool_policy",
     }),
   ];
+  const run = reviewAndFixRun({
+    status: "needs-approval",
+    generation: 3,
+    progress: { round: 3, steps_done: 1, steps_total: 2 },
+    tokens_used: 92_000,
+    created_at: minutesAgo(46),
+    started_at: minutesAgo(46),
+    last_progress_at: minutesAgo(1),
+    active_gate_id: "tool_policy",
+  });
   return {
-    run: reviewAndFixRun({
-      status: "needs-approval",
-      generation: 3,
-      tokens_used: 92_000,
-      created_at: minutesAgo(46),
-      started_at: minutesAgo(46),
-      last_progress_at: minutesAgo(1),
-      active_gate_id: "tool_policy",
+    run,
+    // An open gate is a blocker the daemon always emits alongside the status,
+    // so the strip leads on it and points down at the card that owns the answer.
+    briefing: briefingFor(run, {
+      tone: "needs_you",
+      headline: 'The gate "tool_policy" is waiting for your decision',
+      detail: "Nothing else moves until you approve or reject writing the review artifacts.",
+      blockers: [
+        {
+          kind: "approval",
+          gate_id: "tool_policy",
+          waiting_since: minutesAgo(2),
+          unblocker: `compozy loop approve ${run.id} --gate tool_policy`,
+        },
+      ],
     }),
     definition: reviewAndFixDefinition,
     frames,
@@ -113,11 +139,22 @@ export function watchingScenario(): LoopRunStoryScenario {
       cause: "contract",
     }),
   ];
+  const run = genericWatchRun({
+    created_at: minutesAgo(38),
+    started_at: minutesAgo(38),
+    last_progress_at: minutesAgo(16),
+    // `watch_inbox` is a source node, so the round holds exactly one action step.
+    progress: { round: 4, steps_done: 1, steps_total: 1 },
+  });
   return {
-    run: genericWatchRun({
-      created_at: minutesAgo(38),
-      started_at: minutesAgo(38),
-      last_progress_at: minutesAgo(16),
+    run,
+    // Dormant is the resting state of a watch loop, not a stall: calm tone, and
+    // the sentence says which of the two it is (US-005.EC-2).
+    briefing: briefingFor(run, {
+      tone: "ok",
+      headline: "Watching for the next inbox event",
+      detail:
+        "Nothing has arrived for 16m. This is the resting state, not a stall — the run wakes when the next event lands.",
     }),
     definition: genericWatchDefinition,
     frames,
@@ -154,13 +191,20 @@ export function pausedScenario(): LoopRunStoryScenario {
       cause: "pause_boundary",
     }),
   ];
+  const run = reviewAndFixRun({
+    status: "paused",
+    tokens_used: 74_000,
+    created_at: minutesAgo(29),
+    started_at: minutesAgo(29),
+    last_progress_at: minutesAgo(3),
+  });
   return {
-    run: reviewAndFixRun({
-      status: "paused",
-      tokens_used: 74_000,
-      created_at: minutesAgo(29),
-      started_at: minutesAgo(29),
-      last_progress_at: minutesAgo(3),
+    run,
+    // A pause someone asked for is calm. Nothing is wrong, and nothing is owed.
+    briefing: briefingFor(run, {
+      tone: "ok",
+      headline: "Paused at a round boundary",
+      detail: "Round 2 is held where it stands and resumes exactly there.",
     }),
     definition: reviewAndFixDefinition,
     frames,
@@ -196,197 +240,24 @@ export function failedScenario(): LoopRunStoryScenario {
       },
     }),
   ];
+  const run = reviewAndFixRun({
+    status: "failed",
+    tokens_used: 81_000,
+    created_at: minutesAgo(87),
+    started_at: minutesAgo(87),
+    last_progress_at: minutesAgo(60),
+  });
   return {
-    run: reviewAndFixRun({
-      status: "failed",
-      tokens_used: 81_000,
-      created_at: minutesAgo(87),
-      started_at: minutesAgo(87),
-      last_progress_at: minutesAgo(60),
+    run,
+    briefing: briefingFor(run, {
+      tone: "failed",
+      headline: "The fixer's result did not cover every issue file",
+      detail: "Round 2 stopped there, and nothing downstream started.",
+      outcome: { status: "failed", cause: "invalid_output", at: minutesAgo(60) },
     }),
     definition: reviewAndFixDefinition,
     frames,
     generations: generationsFor("failed"),
-  };
-}
-
-function metricGeneration(
-  generation: number,
-  parentGeneration: number,
-  origin: LoopRunGeneration["origin"],
-  score?: number
-): LoopRunGeneration {
-  return {
-    generation,
-    parent_generation: parentGeneration,
-    origin,
-    route_causes: [],
-    verdicts:
-      score === undefined
-        ? []
-        : [
-            {
-              gate_id: "quality",
-              item_index: 0,
-              outcome: "approved",
-              score,
-              route_cause_rank: 0,
-              criteria: [],
-              blocking_issues: [],
-            },
-          ],
-    outputs: [{ node_id: "draft", status: "succeeded", generation }],
-  };
-}
-
-function metricVerdictPayload(generation: number, score: number, bestGeneration: number) {
-  return {
-    node_id: "quality",
-    gate_id: "quality",
-    generation,
-    verdict: "pass",
-    score,
-    best_generation: bestGeneration,
-    criteria: [{ id: "quality_score", type: "agent-judge", status: "pass", score }],
-    blocking_issues: [],
-    route: "next_generation",
-  };
-}
-
-export function scoredBestScenario(): LoopRunStoryScenario {
-  const frame = createFrameFactory("r-score-best");
-  const frames = [
-    frame("generation_started", 12, {
-      generation: 1,
-      parent_generation: 0,
-      origin: "initial",
-      reattempt_strategy: "full_body",
-    }),
-    frame("gate_verdict", 10, metricVerdictPayload(1, 0.72, 1)),
-    frame("generation_started", 8, {
-      generation: 2,
-      parent_generation: 1,
-      origin: "gate_next_generation",
-      reattempt_strategy: "full_body",
-    }),
-    frame("gate_verdict", 5, metricVerdictPayload(2, 0.96, 2)),
-    frame("status_changed", 4, {
-      from: "running",
-      to: "done",
-      status: "done",
-      cause: "stop_when",
-    }),
-  ];
-  return {
-    run: metricRatchetRun({
-      id: "r-score-best",
-      status: "done",
-      generation: 2,
-      best_generation: 2,
-      best_score: 0.96,
-    }),
-    definition: metricRatchetDefinition,
-    frames,
-    generations: [
-      metricGeneration(1, 0, "initial", 0.72),
-      metricGeneration(2, 1, "gate_next_generation", 0.96),
-    ],
-  };
-}
-
-export function ratchetRestoreScenario(): LoopRunStoryScenario {
-  const frame = createFrameFactory("r-ratchet-restore");
-  const frames = [
-    frame("generation_started", 18, {
-      generation: 1,
-      parent_generation: 0,
-      origin: "initial",
-      reattempt_strategy: "full_body",
-    }),
-    frame("gate_verdict", 16, metricVerdictPayload(1, 0.8, 1)),
-    frame("generation_started", 13, {
-      generation: 2,
-      parent_generation: 1,
-      origin: "gate_next_generation",
-      reattempt_strategy: "full_body",
-    }),
-    frame("gate_verdict", 10, metricVerdictPayload(2, 0.6, 1)),
-    frame("generation_started", 7, {
-      generation: 3,
-      parent_generation: 1,
-      origin: "ratchet_restore",
-      reattempt_strategy: "full_body",
-    }),
-    frame("node_running", 6, nodePayload("draft", 3)),
-  ];
-  return {
-    run: metricRatchetRun({
-      id: "r-ratchet-restore",
-      status: "running",
-      generation: 3,
-      best_generation: 1,
-      best_score: 0.8,
-    }),
-    definition: metricRatchetDefinition,
-    frames,
-    generations: [
-      metricGeneration(1, 0, "initial", 0.8),
-      metricGeneration(2, 1, "gate_next_generation", 0.6),
-      metricGeneration(3, 1, "ratchet_restore"),
-    ],
-  };
-}
-
-export function exhaustedScenario(): LoopRunStoryScenario {
-  const frame = createFrameFactory();
-  const frames = [
-    frame("generation_started", 50, {
-      generation: 1,
-      parent_generation: 0,
-      origin: "initial",
-      reattempt_strategy: "full_body",
-    }),
-    frame("gate_verdict", 44, metricVerdictPayload(1, 0.7, 1)),
-    frame("generation_started", 40, {
-      generation: 2,
-      parent_generation: 1,
-      origin: "gate_next_generation",
-      reattempt_strategy: "full_body",
-    }),
-    frame("gate_verdict", 36, metricVerdictPayload(2, 0.6, 1)),
-    frame("generation_started", 34, {
-      generation: 3,
-      parent_generation: 1,
-      origin: "ratchet_restore",
-      reattempt_strategy: "full_body",
-    }),
-    frame("gate_verdict", 31, metricVerdictPayload(3, 0.5, 1)),
-    frame("status_changed", 30, {
-      from: "running",
-      to: "exhausted",
-      status: "exhausted",
-      cause: "iteration_cap",
-    }),
-  ];
-  return {
-    run: metricRatchetRun({
-      id: "r-best-exhausted",
-      status: "exhausted",
-      generation: 3,
-      best_generation: 1,
-      best_score: 0.7,
-      tokens_used: 144_000,
-      created_at: minutesAgo(80),
-      started_at: minutesAgo(80),
-      last_progress_at: minutesAgo(30),
-    }),
-    definition: metricRatchetDefinition,
-    frames,
-    generations: [
-      metricGeneration(1, 0, "initial", 0.7),
-      metricGeneration(2, 1, "gate_next_generation", 0.6),
-      metricGeneration(3, 1, "ratchet_restore", 0.5),
-    ],
   };
 }
 
@@ -407,14 +278,26 @@ export function noOpScenario(): LoopRunStoryScenario {
       cause: "contract",
     }),
   ];
+  const run = genericWatchRun({
+    status: "no-op",
+    generation: 5,
+    tokens_used: 21_000,
+    created_at: minutesAgo(51),
+    started_at: minutesAgo(51),
+    last_progress_at: minutesAgo(49),
+    // It woke, found nothing to act on, and settled without executing a step.
+    progress: { round: 5, steps_done: 0, steps_total: 0 },
+  });
   return {
-    run: genericWatchRun({
-      status: "no-op",
-      generation: 5,
-      tokens_used: 21_000,
-      created_at: minutesAgo(51),
-      started_at: minutesAgo(51),
-      last_progress_at: minutesAgo(49),
+    run,
+    // No artifacts, and none implied: the empty list is the truthful statement
+    // that this run produced nothing (US-008.EC-1).
+    briefing: briefingFor(run, {
+      tone: "ok",
+      headline: "Nothing to do — no matching event arrived",
+      detail: "The run woke on the poll, found no ready inbox event and settled.",
+      outcome: { status: "no-op", cause: "no_work", at: minutesAgo(49) },
+      artifacts: [],
     }),
     definition: genericWatchDefinition,
     frames,

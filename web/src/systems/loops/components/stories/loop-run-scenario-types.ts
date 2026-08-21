@@ -31,11 +31,19 @@ export interface LoopRunStoryScenario {
   requests?: LoopRequest[];
 
   /**
-   * The three run reads (ADR-005). Optional so a scenario can stage only the
-   * default read; a scenario that omits them renders the registers empty rather
-   * than inventing a roster the fixture never described.
+   * The served verdict (ADR-005), and the one read no scenario may skip.
+   *
+   * It was optional, and the projection filled the gap with a manufactured
+   * briefing. That made a story with no staged verdict render a plausible strip
+   * anyway — which is how a visual-contract row came to photograph a state
+   * nobody had staged and pass. Build it with `briefingFor`, which copies the
+   * run's own server-owned fields so the two reads cannot disagree.
    */
-  briefing?: LoopBriefing;
+  briefing: LoopBriefing;
+  /**
+   * The roster and timeline reads stay optional: a scenario that omits them
+   * renders those registers empty rather than inventing rows it never described.
+   */
   rosterNodes?: LoopRosterNode[];
   rosterRollups?: LoopFanoutRollup[];
   timeline?: LoopTimelineEntry[];

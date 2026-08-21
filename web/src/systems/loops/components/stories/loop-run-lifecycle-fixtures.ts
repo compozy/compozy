@@ -1,3 +1,10 @@
+import {
+  QUARANTINE_ENTRY,
+  control,
+  retryingGenerations,
+  wait,
+} from "./loop-run-lifecycle-payloads";
+import { briefingFor } from "./loop-run-read-builders";
 import type { LoopRunStoryScenario } from "./loop-run-scenario-types";
 import {
   createFrameFactory,
@@ -8,61 +15,20 @@ import {
   reviewAndFixRun,
   roundOneFrames,
 } from "./loop-run-page-fixture-world";
-import type { LoopNodeControl, LoopNodeWait, LoopRunGeneration } from "../../types";
 
 /**
  * Node-lifecycle run-page scenarios (Spec 1). Each one carries the durable
  * payloads the daemon actually returns — `node_controls[]`, `waits[]`, and the
  * generation outputs — alongside the SSE frames, so the stories exercise the
- * same projection the live page does instead of hand-built view models.
+ * same projection the live page does instead of hand-built view models. The
+ * payloads themselves live in `loop-run-lifecycle-payloads`.
+ *
+ * Every scenario states its own served verdict through `briefingFor`; a parked
+ * lane is a blocker the daemon reports, so these strips lead on it rather than
+ * reading as a calm run with a quiet note somewhere below.
  *
  * These are the Visual Contract capture targets for VC-R1..VC-R4.
  */
-
-function control(overrides: Partial<LoopNodeControl> & { node_id: string }): LoopNodeControl {
-  return {
-    loop_run_id: "r-7c4e19",
-    paused: false,
-    quarantined: false,
-    death_resume_streak: 0,
-    revision: 1,
-    updated_at: minutesAgo(2),
-    ...overrides,
-  };
-}
-
-function wait(overrides: Partial<LoopNodeWait> & { node_id: string }): LoopNodeWait {
-  return {
-    loop_run_id: "r-7c4e19",
-    generation: 2,
-    item_index: 0,
-    kind: "timer",
-    escalation_cursor: 0,
-    claim_state: "waiting",
-    admission_failures: 0,
-    issued_epoch: 4,
-    created_at: minutesAgo(18),
-    age_seconds: 18 * 60,
-    ...overrides,
-  };
-}
-
-/** Adds the retry columns the daemon writes on a node inside its backoff. */
-function retryingGenerations(): LoopRunGeneration[] {
-  const generations = generationsFor("failed");
-  const outputs = generations[0].outputs.map(output =>
-    output.node_id === "fix_batch" && output.item_index === 3
-      ? {
-          ...output,
-          attempt: 2,
-          next_attempt_at: minutesAgo(-1),
-          failure_class: "transport",
-          disposition: "retried",
-        }
-      : output
-  );
-  return [{ ...generations[0], outputs }];
-}
 
 /** VC-R1 — the canonical live mid-retry timeline. */
 export function retryingScenario(): LoopRunStoryScenario {
@@ -93,8 +59,25 @@ export function retryingScenario(): LoopRunStoryScenario {
       })
     ),
   ];
+  const run = reviewAndFixRun({ tokens_used: 71_000, created_at: minutesAgo(14) });
   return {
-    run: reviewAndFixRun({ tokens_used: 71_000, created_at: minutesAgo(14) }),
+    run,
+    // A backoff is a blocker nobody can answer, so it inks degraded rather than
+    // needs-you: the run is worse off, but there is no decision waiting.
+    briefing: briefingFor(run, {
+      tone: "degraded",
+      headline: "The fix step is waiting to retry after a transport failure",
+      detail: "Attempt 2 of the third finding starts in about a minute.",
+      blockers: [
+        {
+          kind: "backoff",
+          node_id: "fix_batch",
+          item_index: 3,
+          waiting_since: minutesAgo(2),
+          unblocker: "",
+        },
+      ],
+    }),
     definition: reviewAndFixDefinition,
     frames,
     generations: retryingGenerations(),
@@ -119,8 +102,14 @@ export function pausedNodeScenario(): LoopRunStoryScenario {
       })
     ),
   ];
+  const run = reviewAndFixRun({ tokens_used: 66_000, created_at: minutesAgo(26) });
   return {
-    run: reviewAndFixRun({ tokens_used: 66_000, created_at: minutesAgo(26) }),
+    run,
+    briefing: briefingFor(run, {
+      tone: "ok",
+      headline: "Pedro held one lane; the rest of round 2 is still moving",
+      detail: "The third finding waits for the schema. Nothing else is affected.",
+    }),
     definition: reviewAndFixDefinition,
     frames,
     generations: generationsFor("running"),
@@ -158,8 +147,17 @@ export function pausedByRuleScenario(): LoopRunStoryScenario {
       })
     ),
   ];
+  const run = reviewAndFixRun({ tokens_used: 64_000, created_at: minutesAgo(31) });
   return {
-    run: reviewAndFixRun({ tokens_used: 64_000, created_at: minutesAgo(31) }),
+    run,
+    // A rule parked it, so the sentence names the rule. "Paused" without a
+    // reason would read as somebody's choice, which is the wrong story.
+    briefing: briefingFor(run, {
+      tone: "degraded",
+      headline: "A retry-storm rule parked the fix step",
+      detail:
+        "Five transport failures in ten minutes. The lane stays held until someone clears it.",
+    }),
     definition: reviewAndFixDefinition,
     frames,
     generations: generationsFor("running"),
@@ -197,8 +195,14 @@ export function waitingScenario(): LoopRunStoryScenario {
       })
     ),
   ];
+  const run = reviewAndFixRun({ tokens_used: 62_000, created_at: minutesAgo(28) });
   return {
-    run: reviewAndFixRun({ tokens_used: 62_000, created_at: minutesAgo(28) }),
+    run,
+    briefing: briefingFor(run, {
+      tone: "degraded",
+      headline: "Three steps of round 2 are waiting on something outside the run",
+      detail: "A timer, a staging event, and an approval that has already escalated once.",
+    }),
     definition: reviewAndFixDefinition,
     frames,
     generations: generationsFor("reused"),
@@ -230,67 +234,6 @@ export function waitingScenario(): LoopRunStoryScenario {
   };
 }
 
-const QUARANTINE_ENTRY = {
-  node_id: "fix_batch",
-  input_ref: ".compozy/tasks/loops-paper/task_03.md",
-  target: "toolcall:github-mcp",
-  episodes: [
-    {
-      generation: 1,
-      quarantined_at: minutesAgo(21),
-      attempts: [
-        {
-          attempt: 1,
-          failure_class: "transport",
-          cause: "Push to GitHub timed out",
-          hint: "The fix landed locally but the push never completed.",
-          disposition: "retried",
-          ended_at: minutesAgo(24),
-        },
-        {
-          attempt: 2,
-          failure_class: "attempt_timeout",
-          cause: "Attempt ran past its 5-minute deadline",
-          hint: "The retry hung on the same push and was cut at the node's own time limit.",
-          disposition: "retried",
-          ended_at: minutesAgo(22),
-        },
-        {
-          attempt: 3,
-          failure_class: "payload_declared",
-          cause: "GitHub rejected the credential",
-          hint: "Authentication failed — this class never auto-retries, so the failure routed to on_failed.",
-          disposition: "routed",
-          ended_at: minutesAgo(21),
-        },
-      ],
-    },
-    {
-      generation: 2,
-      quarantined_at: minutesAgo(9),
-      attempts: [
-        {
-          attempt: 4,
-          failure_class: "payload_declared",
-          cause: "Same rejection — set aside again",
-          hint: "Rotate the github-mcp credential in Vault, then requeue this lane.",
-          disposition: "quarantined",
-          ended_at: minutesAgo(9),
-        },
-      ],
-    },
-  ],
-  requeues: [
-    {
-      actor_kind: "user",
-      actor_id: "pedro",
-      reason: "rotated the token",
-      requested_at: minutesAgo(12),
-      generation: 2,
-    },
-  ],
-};
-
 /** VC-R2 + VC-R4 — a set-aside lane with a two-episode repair record. */
 export function quarantinedScenario(): LoopRunStoryScenario {
   const frame = createFrameFactory();
@@ -316,8 +259,25 @@ export function quarantinedScenario(): LoopRunStoryScenario {
       })
     ),
   ];
+  const run = reviewAndFixRun({ tokens_used: 78_000, created_at: minutesAgo(31) });
   return {
-    run: reviewAndFixRun({ tokens_used: 78_000, created_at: minutesAgo(31) }),
+    run,
+    // Quarantine is a decision waiting for a person, so it inks needs-you and
+    // the blocker carries the exact command that clears it.
+    briefing: briefingFor(run, {
+      tone: "needs_you",
+      headline: "The fix step is set aside and needs your decision",
+      detail: "GitHub rejected the credential twice. The join downstream cannot start without it.",
+      blockers: [
+        {
+          kind: "quarantine",
+          node_id: "fix_batch",
+          item_index: 3,
+          waiting_since: minutesAgo(9),
+          unblocker: `compozy loop node requeue --run-id ${run.id} --node fix_batch`,
+        },
+      ],
+    }),
     definition: reviewAndFixDefinition,
     frames,
     generations: generationsFor("failed"),
@@ -348,8 +308,16 @@ export function attentionScenario(): LoopRunStoryScenario {
     frame("node_running", 8, nodePayload("fix_batch", 2, { item_index: 3 })),
     frame("node_attention_flagged", 3, nodePayload("fix_batch", 2, { reason: "silence" })),
   ];
+  const run = reviewAndFixRun({ tokens_used: 69_000, created_at: minutesAgo(38) });
   return {
-    run: reviewAndFixRun({ tokens_used: 69_000, created_at: minutesAgo(38) }),
+    run,
+    // A silence flag is evidence, not a verdict: the step is still running and
+    // nothing is owed, so the strip reports the quiet without raising an alarm.
+    briefing: briefingFor(run, {
+      tone: "degraded",
+      headline: "The fix step has been quiet for 31 minutes",
+      detail: "No output, tool call or heartbeat since then. It has not failed.",
+    }),
     definition: reviewAndFixDefinition,
     frames,
     generations: generationsFor("running"),
@@ -383,12 +351,36 @@ export function canceledScenario(): LoopRunStoryScenario {
       cause: "operator_cancel",
     }),
   ];
+  const run = reviewAndFixRun({
+    status: "canceled",
+    tokens_used: 70_000,
+    created_at: minutesAgo(29),
+    last_progress_at: minutesAgo(1),
+  });
   return {
-    run: reviewAndFixRun({
-      status: "canceled",
-      tokens_used: 70_000,
-      created_at: minutesAgo(29),
-      last_progress_at: minutesAgo(1),
+    run,
+    // Who stopped it and when are half the answer each, and the outcome row
+    // carries both (US-008.EC-2). What survived is the other half: round 1's
+    // artifact is listed, so the page never implies the work was thrown away.
+    briefing: briefingFor(run, {
+      tone: "ok",
+      headline: "Pedro stopped this run partway through round 2",
+      detail: "The step that had already finished is kept and readable; nothing after it started.",
+      outcome: {
+        status: "canceled",
+        cause: "operator_cancel",
+        actor_kind: "user",
+        actor_ref: "pedro",
+        at: minutesAgo(1),
+      },
+      artifacts: [
+        {
+          name: "review-findings.md",
+          output: "write_artifacts",
+          availability: "available",
+          ref: "sha256:6b41d7c2",
+        },
+      ],
     }),
     definition: reviewAndFixDefinition,
     frames,
@@ -428,8 +420,26 @@ export function parkedProgressScenario(): LoopRunStoryScenario {
       })
     ),
   ];
+  const run = reviewAndFixRun({ tokens_used: 80_000, created_at: minutesAgo(40) });
   return {
-    run: reviewAndFixRun({ tokens_used: 80_000, created_at: minutesAgo(40) }),
+    run,
+    // Three lanes parked three different ways. The daemon orders blockers
+    // quarantine before request before backoff, so the quarantine leads and the
+    // headline counts the rest rather than listing them twice.
+    briefing: briefingFor(run, {
+      tone: "needs_you",
+      headline: "Nothing in round 2 is moving: three steps are parked",
+      detail: "One set aside for a credential, one held by Pedro, one waiting on a staging event.",
+      blockers: [
+        {
+          kind: "quarantine",
+          node_id: "fix_batch",
+          item_index: 3,
+          waiting_since: minutesAgo(9),
+          unblocker: `compozy loop node requeue --run-id ${run.id} --node fix_batch`,
+        },
+      ],
+    }),
     definition: reviewAndFixDefinition,
     frames,
     generations: generationsFor("failed"),
@@ -463,6 +473,20 @@ export function killedScenario(): LoopRunStoryScenario {
   const frame = createFrameFactory();
   return {
     ...scenario,
+    // Same terminal, different cause — and a kill does not drain, so the
+    // sentence cannot promise the finished step's result the way a cancel does.
+    briefing: briefingFor(scenario.run, {
+      ...scenario.briefing,
+      headline: "Pedro killed this run in the middle of round 2",
+      detail: "The step that had already finished is kept; the one in flight was cut where it was.",
+      outcome: {
+        status: "canceled",
+        cause: "operator_kill",
+        actor_kind: "user",
+        actor_ref: "pedro",
+        at: minutesAgo(1),
+      },
+    }),
     frames: [
       ...scenario.frames.slice(0, -1),
       frame("status_changed", 1, {

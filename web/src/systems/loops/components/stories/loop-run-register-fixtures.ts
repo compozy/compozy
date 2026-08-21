@@ -152,6 +152,61 @@ export function registerPrunedArtifactScenario(): LoopRunStoryScenario {
   };
 }
 
+/**
+ * VC-08: the run failed after part of the join came back, and says so.
+ *
+ * `US-008.AC-3` is about outputs, not about the failure: some steps succeeded
+ * before a terminal failure, so what they produced has to be labelled partial
+ * rather than presented as the finished thing. Three signals carry it, all in
+ * the default register — the artifact's warning `Partial` note under the
+ * outcome, the join's warning `partial` chip, and the fan's `partial 7 of 10`
+ * coverage. Each is a server-owned read: the artifact's `availability` comes
+ * from the daemon's own output status (`run_read_briefing.go`), the join's state
+ * from the roster, the coverage from the rollup. Nothing is computed here.
+ */
+export function registerPartialOutputsScenario(): LoopRunStoryScenario {
+  const rollup: LoopFanoutRollup = {
+    generation: 2,
+    node_id: "fix_batches",
+    done: 7,
+    total: 10,
+    failed: 3,
+  };
+  return base({
+    ...readState(
+      // Every action step settled — seven succeeded, three failed — which is
+      // what the daemon counts as done. The run is over; the join is short.
+      { status: "failed", progress: { round: 2, steps_done: 12, steps_total: 12 } },
+      {
+        tone: "failed",
+        headline: "The join settled short and the run stopped there",
+        detail:
+          "Seven of ten fix workers came back before the join; three failed. The notes carry only what returned.",
+        outcome: { status: "failed", cause: "join_incomplete", at: storyAt(2) },
+        artifacts: [
+          {
+            name: "round-2-fixes.md",
+            output: "collect_fixes",
+            availability: "partial",
+            ref: "sha256:9c02be41",
+          },
+        ],
+      }
+    ),
+    rosterNodes: [
+      node("review", "succeeded", { session_id: "ses-77120a3f" }),
+      node("write_artifacts", "succeeded"),
+      ...Array.from({ length: 10 }, (_unused, index) =>
+        node("fix_batch", index < 7 ? "succeeded" : "failed", { item_index: index })
+      ),
+      // The join itself is what `partial` describes: it produced an output, and
+      // the output is short of what the round asked for.
+      node("collect_fixes", "partial"),
+    ],
+    rosterRollups: [rollup],
+  });
+}
+
 /** VC-05: a failure that stays visible with everything collapsed. */
 export function registerFailedScenario(): LoopRunStoryScenario {
   return base({

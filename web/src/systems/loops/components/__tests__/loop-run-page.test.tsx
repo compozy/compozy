@@ -30,6 +30,8 @@ const { LoopRunDag } = await import("../run-page/inspect/loop-run-dag");
 const { LoopRunStory } = await import("../run-page/loop-run-story");
 const { LoopNodeRoster } = await import("../run-page/inspect/loop-node-roster");
 const { LoopRunArtifactList } = await import("../run-page/loop-run-artifact-list");
+const { registerPartialOutputsScenario } = await import("../stories/loop-run-register-fixtures");
+const { buildScenarioProps } = await import("../stories/loop-run-scenario-props");
 const { LoopRunNeedsYouCard } = await import("../run-page/loop-run-needs-you-card");
 const { LOOP_NEEDS_YOU_ANCHOR_ID, LoopRunBriefing } = await import("../run-page/loop-run-briefing");
 const { buildBriefingView } = await import("../../lib/loop-run-briefing-view");
@@ -1237,6 +1239,28 @@ describe("run-page affordances that have to be real", () => {
     expect(screen.getByTestId("loop-run-artifact-ref-post.md")).toHaveTextContent(
       "sha256:2f81c4a9"
     );
+  });
+
+  // US-008.AC-3, staged as Visual Contract row VC-08. The state used to render
+  // from a manufactured briefing, so the contract capture photographed a plain
+  // "Done" run with no partial signal at all — and passed. This walks the
+  // fixture through the same projection the story does, so a scenario that stops
+  // staging the partial read fails here instead of inside a capture run.
+  it("Should label a partial output and its coverage in the default register", () => {
+    const props = buildScenarioProps(registerPartialOutputsScenario());
+    render(<LoopRunArtifactList outcome={props.registers.outcome!} />);
+
+    const note = screen.getByTestId("loop-run-artifact-note-partial");
+    expect(note).toHaveTextContent("Partial");
+    // Tone never travels alone, and warning is the lock's tone for partial.
+    expect(note).toHaveAttribute("data-tone", "warning");
+    // Retention took nothing, so the entry keeps what it can be opened against.
+    expect(screen.getByTestId("loop-run-artifact-round-2-fixes.md")).toBeInTheDocument();
+
+    // The coverage numbers live on the fan-out, spelled out as the graph-eng
+    // lock requires — and in the default register, not behind Inspect.
+    const fanOut = props.registers.progress?.steps.find(step => step.fanOut);
+    expect(fanOut?.fanOut?.countLabel).toBe("partial 7 of 10");
   });
 
   it("Should not tone a canceled outcome as a success", () => {
