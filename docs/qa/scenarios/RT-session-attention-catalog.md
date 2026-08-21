@@ -6,7 +6,7 @@ persona: Ada
 journey: J-15
 expected: CLI, HTTP, and UDS return the same workspace-scoped attention catalog, exact badge filters, stable attention ordering, and 100-plus-session summary totals; operator-only cross-workspace and summary reads succeed while agent identity is confined to same-workspace interaction discovery.
 entry_points: compozy session list --attention/--badge/--all-workspaces/--summary; compozy session interactions <session-id>; GET /api/sessions/attention-summary over HTTP and UDS; GET /api/workspaces/{workspace_id}/sessions/{session_id}/interactions over HTTP and UDS
-qa_status: pass
+qa_status: untested
 bug_ids:
 fix_status:
 retest_status:
@@ -26,3 +26,7 @@ QA impact 2026-08-16: Task 01 added the canonical attention catalog, cross-works
 exact summary, status badge, and interaction discovery surfaces. Flag only; task_08 owns execution.
 
 QA 2026-08-16 Herdr parity: The full runtime E2E exercised the public HTTP, UDS, CLI, and native-tool paths, including matching persisted projections, restart recovery, scoped denials, bounded wait/notify/cancel/stop races, and stable negative outcomes (65/66/69/75/78, agent_scope_denied, and queue-full).
+
+QA impact 2026-08-21: The profiles rebase made global session-catalog scope explicit. The attention
+summary now declares its all-workspaces scope, and the canonical scenario is reset for a targeted
+CLI/API/UDS walk.

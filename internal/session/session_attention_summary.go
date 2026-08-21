@@ -22,9 +22,10 @@ func (m *Manager) AttentionSummary(ctx context.Context) (store.SessionAttentionS
 		return store.SessionAttentionSummary{}, errors.New("session: paged session catalog is required")
 	}
 	query, err := normalizeListQuery(ListQuery{
-		Archive: ArchiveExclude,
-		Sort:    ListSortAttention,
-		Limit:   MaxListLimit,
+		AllWorkspaces: true,
+		Archive:       ArchiveExclude,
+		Sort:          ListSortAttention,
+		Limit:         MaxListLimit,
 	})
 	if err != nil {
 		return store.SessionAttentionSummary{}, err

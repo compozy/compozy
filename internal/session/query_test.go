@@ -757,7 +757,7 @@ func TestManagerAttentionCatalogUsesCanonicalBadgesAcrossPages(t *testing.T) {
 		}
 		h := newHarness(t, WithSessionCatalog(catalog))
 		ctx := testutil.Context(t)
-		query := ListQuery{Badges: []Badge{BadgeDone}, Limit: 13}
+		query := ListQuery{AllWorkspaces: true, Badges: []Badge{BadgeDone}, Limit: 13}
 		first, err := h.manager.ListPage(ctx, query)
 		if err != nil {
 			t.Fatalf("ListPage(first) error = %v", err)
@@ -886,7 +886,7 @@ func TestManagerAttentionCatalogUsesCanonicalBadgesAcrossPages(t *testing.T) {
 			},
 		}
 		h := newHarness(t, WithSessionCatalog(catalog))
-		query := ListQuery{Sort: ListSortAttention, Limit: 3}
+		query := ListQuery{AllWorkspaces: true, Sort: ListSortAttention, Limit: 3}
 		ids := func(infos []*Info) []string {
 			result := make([]string, 0, len(infos))
 			for _, info := range infos {
