@@ -101,7 +101,7 @@ export function makeBriefing(overrides: Partial<LoopBriefing> = {}): LoopBriefin
     blockers: [],
     artifacts: [],
     progress: { round: 2, steps_done: 2, steps_total: 4 },
-    usage: { tokens: 82_400, cost_usd: 0.31, budget_used_pct: 12, duration_ms: 580_000 },
+    usage: { tokens: 82_400, cost_usd: 0.31, budget_used_pct: 12, duration: "9m40s" },
     ...overrides,
   };
 }

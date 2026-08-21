@@ -65,7 +65,7 @@ export function vcBudgetWarningScenario(): LoopRunStoryScenario {
   const scenario = registerRunningScenario();
   return withBriefing(
     scenario,
-    { usage: { tokens: 468_000, cost_usd: 2.34, budget_used_pct: 93.6, duration_ms: 1_180_000 } },
+    { usage: { tokens: 468_000, cost_usd: 2.34, budget_used_pct: 93.6, duration: "19m40s" } },
     { tokens_used: 468_000, budget_tokens: 500_000 }
   );
 }

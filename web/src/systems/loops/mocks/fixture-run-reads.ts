@@ -152,7 +152,7 @@ const runningBriefing: LoopBriefing = {
   // Action nodes of round 1: load_tasks plus the three execute_task branches,
   // two of them settled.
   progress: { round: 1, steps_done: 2, steps_total: 4 },
-  usage: { tokens: 412_000, cost_usd: 4.12, budget_used_pct: 20.6, duration_ms: 1_080_000 },
+  usage: { tokens: 412_000, cost_usd: 4.12, budget_used_pct: 20.6, duration: "18m0s" },
 };
 
 const runningTimeline: LoopTimelinePage = {

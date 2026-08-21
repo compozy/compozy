@@ -128,7 +128,7 @@ export const needsApprovalBriefing: LoopBriefing = {
   // quality-gate-demo authors every gate as a control node, so execute_task's
   // two branches are the round's whole action population.
   progress: { round: 3, steps_done: 2, steps_total: 2 },
-  usage: { tokens: 1_100_000, cost_usd: 11.4, budget_used_pct: 55, duration_ms: 1_080_000 },
+  usage: { tokens: 1_100_000, cost_usd: 11.4, budget_used_pct: 55, duration: "18m0s" },
 };
 
 export const needsApprovalTimeline: LoopTimelinePage = {
@@ -270,7 +270,7 @@ export const doneBriefing: LoopBriefing = {
     },
   ],
   progress: { round: 1, steps_done: 4, steps_total: 4 },
-  usage: { tokens: 520_000, cost_usd: 5.2, budget_used_pct: 26, duration_ms: 13_260_000 },
+  usage: { tokens: 520_000, cost_usd: 5.2, budget_used_pct: 26, duration: "3h41m0s" },
 };
 
 export const doneTimeline: LoopTimelinePage = {
