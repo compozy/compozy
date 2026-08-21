@@ -2,8 +2,8 @@
 
 Suite: runtime-owned real-scenario progress observer
 Invariant: durable public Task and Loop transitions are the only progress clock.
-Boundary IN: observer polling, terminal detection, stall diagnosis, and read errors.
-Boundary OUT: real Compozy CLI/API transport, covered by the isolated one-kickoff re-walk.
+Boundary IN: polling plus PublicRuntimeReader CLI/API shapes at mocked subprocess/urlopen I/O.
+Boundary OUT: live Compozy process/network transport, covered by the isolated one-kickoff re-walk.
 """
 
 from __future__ import annotations
@@ -427,6 +427,36 @@ class ObserveRuntimeTest(unittest.TestCase):
         )
 
         self.assertTrue(result["stall_detected"])
+        self.assertEqual(result["progress_transitions"], 0)
+
+    def test_loop_heartbeat_events_do_not_reset_the_progress_clock(self) -> None:
+        snapshots = []
+        heartbeat_kinds = ("token_tick", "runtime_applied", "predicate_diagnostic")
+        for index, kind in enumerate(heartbeat_kinds, start=1):
+            state = snapshot("completed", 9)
+            state["loop_runs"]["loop-1"] = {
+                "status": "running",
+                "progress": {"round": 1, "steps_done": 1, "steps_total": 3},
+                "attention": {"kind": "none", "count": 0},
+                "events": {
+                    "head_seq": index,
+                    "entries": [{"seq": index, "kind": kind}],
+                },
+            }
+            snapshots.append(state)
+        clock = FakeClock()
+
+        result = OBSERVER.run_observation(
+            SequenceReader(snapshots),
+            duration_sec=10,
+            stall_threshold_sec=2,
+            poll_interval_sec=1,
+            monotonic=clock.monotonic,
+            sleep=clock.sleep,
+        )
+
+        self.assertTrue(result["stall_detected"])
+        self.assertEqual(result["outcome"], "stall")
         self.assertEqual(result["progress_transitions"], 0)
 
     def test_all_terminal_public_tasks_finish_cleanly(self) -> None:

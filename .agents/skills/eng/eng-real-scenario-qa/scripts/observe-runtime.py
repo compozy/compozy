@@ -70,12 +70,10 @@ def durable_progress_fingerprint(snapshot: dict[str, Any]) -> str:
         if run.get("attention") is not None:
             record = require_object(run["attention"], f"observer Loop attention {run_id}")
             attention = {"kind": record.get("kind"), "count": record.get("count")}
-        events = require_object(run.get("events", {}), f"observer Loop events {run_id}")
         loop_progress[run_id] = {
             "status": run.get("status"),
             "progress": {key: progress.get(key) for key in ("round", "steps_done", "steps_total")},
             "attention": attention,
-            "event_head_seq": events.get("head_seq"),
         }
     return canonical_fingerprint(
         {
