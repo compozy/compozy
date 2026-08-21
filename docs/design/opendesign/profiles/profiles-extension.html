@@ -1,0 +1,191 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="dark">
+<title>Extension placements · Profiles · CompozyOS</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Geist:wght@100..900&family=JetBrains+Mono:wght@400..700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../design-system/ds-core.css">
+<link rel="stylesheet" href="../design-system/ds-shell.css">
+<link rel="stylesheet" href="../graph-eng/graph-eng.css">
+<link rel="stylesheet" href="profiles.css">
+<!--
+  profiles-extension · S8 — extension install & detail.
+  Spec: .compozy/tasks/profiles/_uiux.md S8 · US-022–024.
+  Contract: DESIGN-NOTES.md.
+  Provenance:
+    production — extension install confirmation + detail page;
+                 ExtensionDeclaredProfiles section (web/src/systems/profiles/)
+    spec — install summary lists declared profiles; needs-setup = warning until
+           credential asks are filled; dormant placements stay calm info with a
+           create hint; detail answers "what does it add, where, is it on here"
+    authorized delta — ds-core tokens rebound by the profiles.css post-#440
+                       parity lane (ds-core is pre-#440 drift)
+-->
+</head>
+<body>
+<div class="shell"><div class="main">
+  <header class="w2head" data-od-id="ex-head">
+    <a class="w2-back" href="index.html" aria-label="Back to set"><svg data-lucide="chevron-left"></svg></a>
+    <nav class="w2-crumbs">
+      <a class="w2-crumb" href="index.html">Profiles</a>
+      <span class="w2-sep">/</span>
+      <h1 class="w2-title">Extension placements</h1>
+    </nav>
+    <div class="w2-flex"></div>
+    <div class="w2-actions">
+      <a class="btn btn--sm" href="profiles-hints.html">Project hints →</a>
+    </div>
+  </header>
+  <div class="scroll"><div class="page">
+
+    <!-- ===== 01 · INSTALL SUMMARY ===== -->
+    <section class="lab-sec" data-od-id="ex-install">
+      <div class="lab-sec__head"><span class="lab-sec__num">01</span><h2 class="lab-sec__t">Install summary — declared profiles up front</h2>
+        <span class="lab-sec__gist">US-023.AC-2</span></div>
+      <div class="spec">
+        <div class="spec__note"><b>Consent covers the profile too</b>The confirmation says what the extension adds and that it will create a profile — including what that profile still needs. No surprise identity appears after install. <span class="mono">US-023.AC-2</span></div>
+        <div class="spec__demo">
+          <div class="stage stage--center" data-od-id="ex-install-stage">
+            <div class="pf-modal" data-od-id="ex-install-modal">
+              <div class="pf-modal__head"><span class="pf-modal__t">Install growth-kit</span></div>
+              <div class="pf-modal__body">
+                <div class="pf-enum" data-od-id="ex-install-list">
+                  <div class="pf-enum__row"><svg data-lucide="wrench"></svg>2 skills, 1 automation preset</div>
+                  <div class="pf-enum__row" data-od-id="ex-install-profile"><span class="pf-glyph pf-glyph--sm" style="--id:#4CB782"><svg data-lucide="trending-up"></svg></span>Creates profile growth — needs 1 credential (Ads API key)</div>
+                </div>
+              </div>
+              <div class="pf-modal__foot">
+                <button class="btn btn--ghost" type="button">Cancel</button>
+                <button class="btn btn--primary" type="button">Install</button>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ===== 02 · POST-INSTALL — NEEDS SETUP ===== -->
+    <section class="lab-sec" data-od-id="ex-needs">
+      <div class="lab-sec__head"><span class="lab-sec__num">02</span><h2 class="lab-sec__t">After install — needs setup until the ask is filled</h2>
+        <span class="lab-sec__gist">US-023.AC-3</span></div>
+      <div class="spec">
+        <div class="spec__note"><b>Warning + the words + the way out</b>The created profile exists immediately but wears needs-setup wherever it renders — switcher, Settings, palette — until the credential ask is filled. The row offers the finish action, not a mystery badge. <span class="mono">US-023.AC-3</span></div>
+        <div class="spec__demo">
+          <div class="stage stage--auto stage--pad" data-od-id="ex-needs-stage">
+            <div class="plain">
+              <div class="panelbox">
+                <div class="srow" data-od-id="ex-needs-row">
+                  <div class="pf-lead"><span class="pf-glyph pf-glyph--lg" style="--id:#4CB782"><svg data-lucide="trending-up"></svg><span class="pf-dot"></span></span><span class="srow__label">growth</span><span class="pill" data-tone="warning"><svg data-lucide="triangle-alert"></svg>Needs setup</span></div>
+                  <div class="srow__ctl"><span class="pf-count">Add the Ads API key</span><button class="btn btn--sm" type="button">Finish setup</button></div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ===== 03 · DETAIL — PLACEMENTS + ENABLEMENT ===== -->
+    <section class="lab-sec" data-od-id="ex-detail">
+      <div class="lab-sec__head"><span class="lab-sec__num">03</span><h2 class="lab-sec__t">Extension detail — what it adds, where, is it on here</h2>
+        <span class="lab-sec__gist">US-022.EC-1 · US-024</span></div>
+
+      <div class="spec">
+        <div class="spec__note"><b>Placement per resource</b>Each resource names where it lives: machine-wide or a profile. A placement whose profile doesn't exist is dormant — calm info with the one useful action. The full placement matrix stays behind disclosure. <span class="mono">US-022.EC-1</span></div>
+        <div class="spec__demo">
+          <div class="stage stage--auto stage--pad" data-od-id="ex-detail-stage">
+            <div class="plain">
+              <div class="list-shell" data-od-id="ex-placements">
+                <div class="pf-place-row">
+                  <svg data-lucide="wrench"></svg>
+                  <span class="pf-res">Funnel audit<span class="mono">skill</span></span>
+                  <span class="pf-owner"><span class="pf-glyph" style="--id:#4CB782"><svg data-lucide="trending-up"></svg></span>growth</span>
+                </div>
+                <div class="pf-place-row">
+                  <svg data-lucide="clock"></svg>
+                  <span class="pf-res">Weekly spend report<span class="mono">automation preset</span></span>
+                  <span class="pf-owner"><span class="pf-glyph" style="--id:#4CB782"><svg data-lucide="trending-up"></svg></span>growth</span>
+                </div>
+                <div class="pf-place-row" data-od-id="ex-place-machine">
+                  <svg data-lucide="hard-drive"></svg>
+                  <span class="pf-res">Ads CLI bridge<span class="mono">tool</span></span>
+                  <span class="tag">Machine-level</span>
+                </div>
+              </div>
+              <div class="pf-hint" data-od-id="ex-dormant">
+                <svg data-lucide="moon"></svg>
+                <div class="pf-hint__main">
+                  <span>Content for <b>analytics</b> is asleep — no profile uses that name.</span>
+                  <div class="pf-hint__acts"><button class="btn btn--sm" type="button">Create analytics</button></div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="spec">
+        <div class="spec__note"><b>Per-profile enablement</b>The extension can be on for one profile and off for another; each row is the effective state, actionable in place. Absent is absent: profiles the extension never targeted don't get a row. <span class="mono">US-024</span></div>
+        <div class="spec__demo">
+          <div class="stage stage--auto stage--pad" data-od-id="ex-enable-stage">
+            <div class="plain">
+              <div class="panelbox" data-od-id="ex-enable-list">
+                <div class="srow">
+                  <div class="pf-lead"><span class="pf-glyph" style="--id:#4CB782"><svg data-lucide="trending-up"></svg></span><span class="srow__label">growth</span></div>
+                  <div class="srow__ctl"><button class="switch is-on" role="switch" aria-checked="true" aria-label="Enabled for growth"><span class="knob"></span></button></div>
+                </div>
+                <div class="srow">
+                  <div class="pf-lead"><span class="pf-glyph" style="--id:#C26AD6"><svg data-lucide="megaphone"></svg></span><span class="srow__label">Marketing</span></div>
+                  <div class="srow__ctl"><button class="switch is-on" role="switch" aria-checked="true" aria-label="Enabled for Marketing"><span class="knob"></span></button></div>
+                </div>
+                <div class="srow" data-od-id="ex-enable-off">
+                  <div class="pf-lead"><span class="pf-glyph" style="--id:#4EA7FC"><svg data-lucide="briefcase"></svg></span><span class="srow__label">Consulting</span></div>
+                  <div class="srow__ctl"><button class="switch" role="switch" aria-checked="false" aria-label="Enabled for Consulting"><span class="knob"></span></button></div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ===== 04 · UNINSTALL ===== -->
+    <section class="lab-sec" data-od-id="ex-uninstall">
+      <div class="lab-sec__head"><span class="lab-sec__num">04</span><h2 class="lab-sec__t">Uninstall — the profile stays</h2>
+        <span class="lab-sec__gist">US-023.EC-4</span></div>
+      <div class="spec">
+        <div class="spec__note"><b>Removing the extension never removes your work</b>The confirmation draws the line explicitly: extension resources go, the profile and everything created in it stay. Profile removal remains a Settings decision. <span class="mono">US-023.EC-4</span></div>
+        <div class="spec__demo">
+          <div class="stage stage--center" data-od-id="ex-uninstall-stage">
+            <div class="pf-modal" data-od-id="ex-uninstall-modal">
+              <div class="pf-modal__head"><span class="pf-modal__t">Uninstall growth-kit</span></div>
+              <div class="pf-modal__body">
+                <div class="pf-enum">
+                  <div class="pf-enum__row"><svg data-lucide="wrench"></svg>Removes 2 skills, 1 automation preset, 1 tool</div>
+                </div>
+                <p class="pf-sep-line" data-od-id="ex-uninstall-line">The growth profile and its work stay.</p>
+              </div>
+              <div class="pf-modal__foot">
+                <button class="btn btn--ghost" type="button">Cancel</button>
+                <button class="btn btn--destructive" type="button">Uninstall</button>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <p class="lab-foot" data-od-id="ex-foot">Spec <code>_uiux.md</code> S8 · contract <code>DESIGN-NOTES.md</code> · production seams extension install confirmation + detail page, <code>ExtensionDeclaredProfiles</code> in <code>web/src/systems/profiles/</code>. Content illustrative; runtime truth owns final values.</p>
+
+  </div></div>
+</div></div>
+<script src="https://unpkg.com/lucide@latest/dist/umd/lucide.min.js"></script>
+<script>
+(function () { if (window.lucide) window.lucide.createIcons(); })();
+</script>
+</body>
+</html>

@@ -1,0 +1,19 @@
+{
+  "version": 1,
+  "kind": "html",
+  "title": "profiles/profiles-hints.html",
+  "entry": "profiles/profiles-hints.html",
+  "renderer": "html",
+  "status": "complete",
+  "exports": [
+    "html",
+    "pdf",
+    "zip"
+  ],
+  "createdAt": "2026-08-21T04:00:03.844Z",
+  "updatedAt": "2026-08-21T04:00:03.844Z",
+  "metadata": {
+    "inferred": true,
+    "reconciled": true
+  }
+}

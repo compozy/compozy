@@ -1,0 +1,322 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="dark">
+<title>Switcher · Profiles · CompozyOS</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Geist:wght@100..900&family=JetBrains+Mono:wght@400..700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../design-system/ds-core.css">
+<link rel="stylesheet" href="../design-system/ds-shell.css">
+<link rel="stylesheet" href="../graph-eng/graph-eng.css">
+<link rel="stylesheet" href="profiles.css">
+<!--
+  profiles-switcher · S1 — menubar profile switcher · S11 — globe interplay.
+  Spec: .compozy/tasks/profiles/_uiux.md S1 + S11 · US-007, US-010, US-011,
+  US-014, US-030. Contract: DESIGN-NOTES.md.
+  Provenance:
+    production — desktop-menubar.tsx right cluster (bell → palette → Settings);
+                 CommandSelect* + Avatar composition, never a GlobalScopeToggle fork
+    spec — switcher sits immediately before Settings (operator ruling, grill Q7);
+           quiet until plural; the menu carries the one-sentence boundary answer
+    authorized delta — ds-core tokens rebound by the profiles.css post-#440
+                       parity lane (ds-core is pre-#440 drift)
+-->
+</head>
+<body>
+<div class="shell"><div class="main">
+  <header class="w2head" data-od-id="sw-head">
+    <a class="w2-back" href="index.html" aria-label="Back to set"><svg data-lucide="chevron-left"></svg></a>
+    <nav class="w2-crumbs">
+      <a class="w2-crumb" href="index.html">Profiles</a>
+      <span class="w2-sep">/</span>
+      <h1 class="w2-title">Switcher</h1>
+    </nav>
+    <div class="w2-flex"></div>
+    <div class="w2-actions">
+      <a class="btn btn--sm" href="profiles-aggregate.html">Aggregate →</a>
+    </div>
+  </header>
+  <div class="scroll"><div class="page">
+
+    <!-- ===== 01 · FINAL — PLURAL MENUBAR + OPEN MENU ===== -->
+    <section class="lab-sec" data-od-id="sw-final">
+      <div class="lab-sec__head"><span class="lab-sec__num">01</span><h2 class="lab-sec__t">The switcher, plural — menu open</h2>
+        <span class="lab-sec__gist">US-010.AC-1 · US-007.AC-1 · US-014</span></div>
+      <div class="spec">
+        <div class="spec__note"><b>Right cluster, before Settings</b>The left identity cluster (mark → globe → project chip) is untouched. The trigger is glyph + name; the menu lists every active profile with its identity, the All state, create, the boundary answer, and the archived count. growth carries its needs-setup state as warning + the literal words. <span class="mono">US-010.AC-1 · US-023.AC-3 · ADR-005</span></div>
+        <div class="spec__demo">
+          <div class="stage stage--pad" data-od-id="sw-final-stage">
+            <div class="pf-menubar-demo">
+              <div class="menubar" data-od-id="sw-final-menubar">
+                <div class="mb-side">
+                  <button class="mb-logo" aria-label="CompozyOS"><svg data-lucide="hexagon"></svg></button>
+                  <button class="mb-icon" aria-label="Across projects" aria-pressed="false"><svg data-lucide="globe"></svg></button>
+                  <button class="ws-trigger"><span class="ws-avatar">AC</span><span class="ws-name">acme-site</span><svg class="chevrons" data-lucide="chevrons-up-down"></svg></button>
+                </div>
+                <div class="mb-side mb-right">
+                  <button class="mb-icon" aria-label="Notifications"><svg data-lucide="bell"></svg><span class="badge">2</span></button>
+                  <button class="mb-icon" aria-label="Command palette"><svg data-lucide="command"></svg></button>
+                  <button class="pf-trigger" aria-expanded="true" data-od-id="sw-final-trigger">
+                    <span class="pf-glyph pf-glyph--sm" style="--id:#C26AD6"><svg data-lucide="megaphone"></svg></span>
+                    <span class="pf-name">Marketing</span>
+                    <svg class="chevrons" data-lucide="chevrons-up-down"></svg>
+                  </button>
+                  <button class="mb-icon" aria-label="Settings"><svg data-lucide="settings"></svg></button>
+                </div>
+              </div>
+              <div class="pf-under">
+                <div class="popover pf-menu pf-menupop" role="menu" data-od-id="sw-final-menu">
+                  <button class="pop-item" role="menuitem"><span class="pf-glyph pf-glyph--sm" style="--id:#8A8F98"><svg data-lucide="user-round"></svg></span>default</button>
+                  <button class="pop-item" role="menuitem" aria-current="true"><span class="pf-glyph pf-glyph--sm is-current" style="--id:#C26AD6"><svg data-lucide="megaphone"></svg></span>Marketing<span class="pi-check"><svg data-lucide="check"></svg></span></button>
+                  <button class="pop-item" role="menuitem"><span class="pf-glyph pf-glyph--sm" style="--id:#4EA7FC"><svg data-lucide="briefcase"></svg></span>Consulting</button>
+                  <button class="pop-item" role="menuitem" data-od-id="sw-final-growth"><span class="pf-glyph pf-glyph--sm" style="--id:#4CB782"><svg data-lucide="trending-up"></svg><span class="pf-dot"></span></span>growth<span class="pf-state">needs setup</span></button>
+                  <div class="pop-sep"></div>
+                  <button class="pop-item" role="menuitemcheckbox" aria-pressed="false"><span class="pf-glyph pf-glyph--sm pf-glyph--all"><svg data-lucide="layers"></svg></span>All profiles</button>
+                  <button class="pop-item" role="menuitem"><svg data-lucide="plus"></svg>Create profile…</button>
+                  <div class="pf-menu__meta"><span>2 archived</span><span>·</span><a href="profiles-settings.html">Settings</a></div>
+                  <div class="pf-menu__foot" data-od-id="sw-final-boundary">Work is separate per profile. Project folders and machine tools are shared.</div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ===== 02 · QUIET SINGLE ===== -->
+    <section class="lab-sec" data-od-id="sw-quiet">
+      <div class="lab-sec__head"><span class="lab-sec__num">02</span><h2 class="lab-sec__t">Quiet until plural</h2>
+        <span class="lab-sec__gist">US-007.EC-2 · US-010.EC-1</span></div>
+      <div class="spec">
+        <div class="spec__note"><b>No ceremony before a second profile</b>With only <code>default</code>, the trigger is a neutral icon button — no name, no color, indistinguishable in weight from its neighbors. The menu holds the current state, create, and the boundary answer. Nothing else in the product mentions profiles. <span class="mono">US-007.EC-2</span></div>
+        <div class="spec__demo">
+          <div class="stage stage--auto stage--pad" data-od-id="sw-quiet-stage">
+            <div class="pf-menubar-demo">
+              <div class="menubar">
+                <div class="mb-side">
+                  <button class="mb-logo" aria-label="CompozyOS"><svg data-lucide="hexagon"></svg></button>
+                  <button class="mb-icon" aria-label="Across projects" aria-pressed="false"><svg data-lucide="globe"></svg></button>
+                  <button class="ws-trigger"><span class="ws-avatar">DH</span><span class="ws-name">docs-hub</span><svg class="chevrons" data-lucide="chevrons-up-down"></svg></button>
+                </div>
+                <div class="mb-side mb-right">
+                  <button class="mb-icon" aria-label="Notifications"><svg data-lucide="bell"></svg></button>
+                  <button class="mb-icon" aria-label="Command palette"><svg data-lucide="command"></svg></button>
+                  <button class="mb-icon" aria-label="Profile" aria-expanded="true" data-od-id="sw-quiet-trigger"><svg data-lucide="user-round"></svg></button>
+                  <button class="mb-icon" aria-label="Settings"><svg data-lucide="settings"></svg></button>
+                </div>
+              </div>
+              <div class="pf-under">
+                <div class="popover pf-menu pf-menupop" role="menu" data-od-id="sw-quiet-menu">
+                  <button class="pop-item" role="menuitem" aria-current="true"><span class="pf-glyph pf-glyph--sm" style="--id:#8A8F98"><svg data-lucide="user-round"></svg></span>default<span class="pi-check"><svg data-lucide="check"></svg></span></button>
+                  <div class="pop-sep"></div>
+                  <button class="pop-item" role="menuitem"><svg data-lucide="plus"></svg>Create profile…</button>
+                  <div class="pf-menu__foot">Work is separate per profile. Project folders and machine tools are shared.</div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ===== 03 · ALL PROFILES ON ===== -->
+    <section class="lab-sec" data-od-id="sw-all">
+      <div class="lab-sec__head"><span class="lab-sec__num">03</span><h2 class="lab-sec__t">All profiles — the aggregate lens</h2>
+        <span class="lab-sec__gist">US-011.AC-1</span></div>
+      <div class="spec">
+        <div class="spec__note"><b>An aggregate is not an identity</b>The All state renders the neutral layered glyph — never a profile color. The scoped rows lose their check; the All row is pressed. Listings switch to owner-labeled aggregate rows (see the aggregate board). <span class="mono">US-011.AC-1 · US-011.AC-2</span></div>
+        <div class="spec__demo">
+          <div class="stage stage--auto stage--pad" data-od-id="sw-all-stage">
+            <div class="pf-menubar-demo">
+              <div class="menubar">
+                <div class="mb-side">
+                  <button class="mb-logo" aria-label="CompozyOS"><svg data-lucide="hexagon"></svg></button>
+                  <button class="mb-icon" aria-label="Across projects" aria-pressed="false"><svg data-lucide="globe"></svg></button>
+                  <button class="ws-trigger"><span class="ws-avatar">AC</span><span class="ws-name">acme-site</span><svg class="chevrons" data-lucide="chevrons-up-down"></svg></button>
+                </div>
+                <div class="mb-side mb-right">
+                  <button class="mb-icon" aria-label="Notifications"><svg data-lucide="bell"></svg><span class="badge">2</span></button>
+                  <button class="mb-icon" aria-label="Command palette"><svg data-lucide="command"></svg></button>
+                  <button class="pf-trigger" aria-expanded="true" data-od-id="sw-all-trigger">
+                    <span class="pf-glyph pf-glyph--sm pf-glyph--all"><svg data-lucide="layers"></svg></span>
+                    <span class="pf-name">All profiles</span>
+                    <svg class="chevrons" data-lucide="chevrons-up-down"></svg>
+                  </button>
+                  <button class="mb-icon" aria-label="Settings"><svg data-lucide="settings"></svg></button>
+                </div>
+              </div>
+              <div class="pf-under">
+                <div class="popover pf-menu pf-menupop" role="menu" data-od-id="sw-all-menu">
+                  <button class="pop-item" role="menuitem"><span class="pf-glyph pf-glyph--sm" style="--id:#8A8F98"><svg data-lucide="user-round"></svg></span>default</button>
+                  <button class="pop-item" role="menuitem"><span class="pf-glyph pf-glyph--sm" style="--id:#C26AD6"><svg data-lucide="megaphone"></svg></span>Marketing</button>
+                  <button class="pop-item" role="menuitem"><span class="pf-glyph pf-glyph--sm" style="--id:#4EA7FC"><svg data-lucide="briefcase"></svg></span>Consulting</button>
+                  <button class="pop-item" role="menuitem"><span class="pf-glyph pf-glyph--sm" style="--id:#4CB782"><svg data-lucide="trending-up"></svg><span class="pf-dot"></span></span>growth<span class="pf-state">needs setup</span></button>
+                  <div class="pop-sep"></div>
+                  <button class="pop-item" role="menuitemcheckbox" aria-pressed="true"><span class="pf-glyph pf-glyph--sm pf-glyph--all"><svg data-lucide="layers"></svg></span>All profiles<span class="pi-check"><svg data-lucide="check"></svg></span></button>
+                  <button class="pop-item" role="menuitem"><svg data-lucide="plus"></svg>Create profile…</button>
+                  <div class="pf-menu__meta"><span>2 archived</span><span>·</span><a href="profiles-settings.html">Settings</a></div>
+                  <div class="pf-menu__foot">Work is separate per profile. Project folders and machine tools are shared.</div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ===== 04 · REMEMBERED PER PROJECT ===== -->
+    <section class="lab-sec" data-od-id="sw-memory">
+      <div class="lab-sec__head"><span class="lab-sec__num">04</span><h2 class="lab-sec__t">Remembered per project</h2>
+        <span class="lab-sec__gist">US-010.AC-3 · US-014.AC-1 · US-014.AC-3</span></div>
+      <div class="spec">
+        <div class="spec__note"><b>Switching projects restores the choice</b>Each project remembers its last profile; the Global lens keeps its own remembered slot. Switching also restores that profile's desktops and windows for the project — behavior, not new chrome (S12). <span class="mono">US-014.AC-1 · US-026.AC-1</span></div>
+        <div class="spec__demo">
+          <div class="stage stage--auto stage--pad" data-od-id="sw-memory-stage">
+            <div class="pf-minis">
+              <div>
+                <div class="pf-mini-cap">acme-site — remembers Marketing</div>
+                <div class="menubar">
+                  <div class="mb-side">
+                    <button class="mb-logo" aria-label="CompozyOS"><svg data-lucide="hexagon"></svg></button>
+                    <button class="mb-icon" aria-label="Across projects" aria-pressed="false"><svg data-lucide="globe"></svg></button>
+                    <button class="ws-trigger"><span class="ws-avatar">AC</span><span class="ws-name">acme-site</span><svg class="chevrons" data-lucide="chevrons-up-down"></svg></button>
+                  </div>
+                  <div class="mb-side mb-right">
+                    <button class="mb-icon" aria-label="Notifications"><svg data-lucide="bell"></svg></button>
+                    <button class="mb-icon" aria-label="Command palette"><svg data-lucide="command"></svg></button>
+                    <button class="pf-trigger"><span class="pf-glyph pf-glyph--sm" style="--id:#C26AD6"><svg data-lucide="megaphone"></svg></span><span class="pf-name">Marketing</span><svg class="chevrons" data-lucide="chevrons-up-down"></svg></button>
+                    <button class="mb-icon" aria-label="Settings"><svg data-lucide="settings"></svg></button>
+                  </div>
+                </div>
+              </div>
+              <div>
+                <div class="pf-mini-cap">client-alpha — remembers Consulting</div>
+                <div class="menubar">
+                  <div class="mb-side">
+                    <button class="mb-logo" aria-label="CompozyOS"><svg data-lucide="hexagon"></svg></button>
+                    <button class="mb-icon" aria-label="Across projects" aria-pressed="false"><svg data-lucide="globe"></svg></button>
+                    <button class="ws-trigger"><span class="ws-avatar">CA</span><span class="ws-name">client-alpha</span><svg class="chevrons" data-lucide="chevrons-up-down"></svg></button>
+                  </div>
+                  <div class="mb-side mb-right">
+                    <button class="mb-icon" aria-label="Notifications"><svg data-lucide="bell"></svg></button>
+                    <button class="mb-icon" aria-label="Command palette"><svg data-lucide="command"></svg></button>
+                    <button class="pf-trigger"><span class="pf-glyph pf-glyph--sm" style="--id:#4EA7FC"><svg data-lucide="briefcase"></svg></span><span class="pf-name">Consulting</span><svg class="chevrons" data-lucide="chevrons-up-down"></svg></button>
+                    <button class="mb-icon" aria-label="Settings"><svg data-lucide="settings"></svg></button>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ===== 05 · ARCHIVED MID-OPEN FALLBACK ===== -->
+    <section class="lab-sec" data-od-id="sw-fallback">
+      <div class="lab-sec__head"><span class="lab-sec__num">05</span><h2 class="lab-sec__t">Active profile archived elsewhere</h2>
+        <span class="lab-sec__gist">US-010.EC-3</span></div>
+      <div class="spec">
+        <div class="spec__note"><b>Fall back, and say so</b>Archiving the active profile from another surface lands you on <code>default</code> with a toast naming both sides. Info, not danger — nothing failed. <span class="mono">US-010.EC-3</span></div>
+        <div class="spec__demo">
+          <div class="stage stage--auto stage--pad" data-od-id="sw-fallback-stage">
+            <div class="pf-menubar-demo">
+              <div class="menubar">
+                <div class="mb-side">
+                  <button class="mb-logo" aria-label="CompozyOS"><svg data-lucide="hexagon"></svg></button>
+                  <button class="mb-icon" aria-label="Across projects" aria-pressed="false"><svg data-lucide="globe"></svg></button>
+                  <button class="ws-trigger"><span class="ws-avatar">AC</span><span class="ws-name">acme-site</span><svg class="chevrons" data-lucide="chevrons-up-down"></svg></button>
+                </div>
+                <div class="mb-side mb-right">
+                  <button class="mb-icon" aria-label="Notifications"><svg data-lucide="bell"></svg></button>
+                  <button class="mb-icon" aria-label="Command palette"><svg data-lucide="command"></svg></button>
+                  <button class="pf-trigger"><span class="pf-glyph pf-glyph--sm" style="--id:#8A8F98"><svg data-lucide="user-round"></svg></span><span class="pf-name">default</span><svg class="chevrons" data-lucide="chevrons-up-down"></svg></button>
+                  <button class="mb-icon" aria-label="Settings"><svg data-lucide="settings"></svg></button>
+                </div>
+              </div>
+              <div class="pf-under">
+                <div class="toast" data-od-id="sw-fallback-toast">
+                  <div class="toast-head"><svg data-lucide="info" width="13" height="13"></svg><strong>Profiles</strong></div>
+                  <div class="toast-body">Old agency was archived. You're back on default.</div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ===== 06 · GLOBE × PROFILE (S11) ===== -->
+    <section class="lab-sec" data-od-id="sw-globe">
+      <div class="lab-sec__head"><span class="lab-sec__num">06</span><h2 class="lab-sec__t">Globe × profile — two axes, visible composition</h2>
+        <span class="lab-sec__gist">US-011.AC-2 · US-030.AC-2 · US-030.EC-3</span></div>
+
+      <div class="spec">
+        <div class="spec__note"><b>The globe is across projects, the switcher is whose work</b>Globe on + Marketing reads Marketing's work in every project. Globe on + All reads everything. The project list itself is identical in every profile — profiles never hide projects. <span class="mono">US-010.AC-4 · US-011.AC-2</span></div>
+        <div class="spec__demo">
+          <div class="stage stage--auto stage--pad" data-od-id="sw-globe-stage">
+            <div class="pf-minis">
+              <div>
+                <div class="pf-mini-cap">globe on × Marketing — her work, every project</div>
+                <div class="menubar">
+                  <div class="mb-side">
+                    <button class="mb-logo" aria-label="CompozyOS"><svg data-lucide="hexagon"></svg></button>
+                    <button class="mb-icon is-on" aria-label="Across projects" aria-pressed="true"><svg data-lucide="globe"></svg></button>
+                    <button class="ws-trigger"><span class="ws-name">Across projects</span><svg class="chevrons" data-lucide="chevrons-up-down"></svg></button>
+                  </div>
+                  <div class="mb-side mb-right">
+                    <button class="mb-icon" aria-label="Notifications"><svg data-lucide="bell"></svg></button>
+                    <button class="mb-icon" aria-label="Command palette"><svg data-lucide="command"></svg></button>
+                    <button class="pf-trigger"><span class="pf-glyph pf-glyph--sm" style="--id:#C26AD6"><svg data-lucide="megaphone"></svg></span><span class="pf-name">Marketing</span><svg class="chevrons" data-lucide="chevrons-up-down"></svg></button>
+                    <button class="mb-icon" aria-label="Settings"><svg data-lucide="settings"></svg></button>
+                  </div>
+                </div>
+              </div>
+              <div>
+                <div class="pf-mini-cap">globe on × All profiles — everything on this machine</div>
+                <div class="menubar">
+                  <div class="mb-side">
+                    <button class="mb-logo" aria-label="CompozyOS"><svg data-lucide="hexagon"></svg></button>
+                    <button class="mb-icon is-on" aria-label="Across projects" aria-pressed="true"><svg data-lucide="globe"></svg></button>
+                    <button class="ws-trigger"><span class="ws-name">Across projects</span><svg class="chevrons" data-lucide="chevrons-up-down"></svg></button>
+                  </div>
+                  <div class="mb-side mb-right">
+                    <button class="mb-icon" aria-label="Notifications"><svg data-lucide="bell"></svg></button>
+                    <button class="mb-icon" aria-label="Command palette"><svg data-lucide="command"></svg></button>
+                    <button class="pf-trigger"><span class="pf-glyph pf-glyph--sm pf-glyph--all"><svg data-lucide="layers"></svg></span><span class="pf-name">All profiles</span><svg class="chevrons" data-lucide="chevrons-up-down"></svg></button>
+                    <button class="mb-icon" aria-label="Settings"><svg data-lucide="settings"></svg></button>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="spec">
+        <div class="spec__note"><b>Fresh start, zero projects</b>The globe view with no projects registered states the empty condition and the next action. No <code>~/</code> pseudo-project anywhere — it left the project list in phase 0. <span class="mono">US-030.EC-1 · US-030.EC-3</span></div>
+        <div class="spec__demo">
+          <div class="stage stage--short stage--center" data-od-id="sw-globe-empty">
+            <div class="empty">
+              <svg data-lucide="globe"></svg>
+              <b>No projects yet</b>
+              <p>Add a project folder to start working. Sessions you create here run without a project.</p>
+              <button class="btn btn--primary" type="button"><svg data-lucide="plus"></svg>Add project</button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <p class="lab-foot" data-od-id="sw-foot">Spec <code>_uiux.md</code> S1 + S11 · contract <code>DESIGN-NOTES.md</code> · production seams <code>desktop-menubar.tsx</code>, <code>global-scope-toggle.tsx</code>, <code>os-menubar.tsx</code>. Window/desktop restoration on switch (S12) is behavior verified in runtime E2E — no board. Content illustrative; runtime truth owns final values.</p>
+
+  </div></div>
+</div></div>
+<script src="https://unpkg.com/lucide@latest/dist/umd/lucide.min.js"></script>
+<script>
+(function () { if (window.lucide) window.lucide.createIcons(); })();
+</script>
+</body>
+</html>

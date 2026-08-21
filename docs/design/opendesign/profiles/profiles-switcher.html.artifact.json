@@ -1,0 +1,19 @@
+{
+  "version": 1,
+  "kind": "html",
+  "title": "profiles/profiles-switcher.html",
+  "entry": "profiles/profiles-switcher.html",
+  "renderer": "html",
+  "status": "complete",
+  "exports": [
+    "html",
+    "pdf",
+    "zip"
+  ],
+  "createdAt": "2026-08-21T03:53:55.504Z",
+  "updatedAt": "2026-08-21T03:53:55.504Z",
+  "metadata": {
+    "inferred": true,
+    "reconciled": true
+  }
+}

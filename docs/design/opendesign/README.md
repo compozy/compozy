@@ -17,6 +17,7 @@ HTML prototypes and design handoffs for Compozy web surfaces. Organized by produ
 | Loops (active) | [`loops/`](loops/) | [`loops/index.html`](loops/index.html) · final pages + labs |
 | Loop graph | [`graph-eng/`](graph-eng/) | [`graph-eng/index.html`](graph-eng/index.html) |
 | Command palette | [`command-palette/`](command-palette/) | [`command-palette/index.html`](command-palette/index.html) |
+| Profiles | [`profiles/`](profiles/) | [`profiles/index.html`](profiles/index.html) · contract [`DESIGN-NOTES.md`](profiles/DESIGN-NOTES.md) |
 | Session | [`session/`](session/) | [`session/index.html`](session/index.html) · spec [`SESSION-REDESIGN-SPEC.md`](session/SESSION-REDESIGN-SPEC.md) |
 | Systems (vault/sandbox) | [`systems/`](systems/) | [`systems/vault.html`](systems/vault.html) |
 | Shipped archives | [`_done/`](_done/) | agents · loops · marketplace · shell |

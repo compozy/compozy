@@ -1,0 +1,251 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="dark">
+<title>Identity picker · Profiles · CompozyOS</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Geist:wght@100..900&family=JetBrains+Mono:wght@400..700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../design-system/ds-core.css">
+<link rel="stylesheet" href="../design-system/ds-shell.css">
+<link rel="stylesheet" href="../graph-eng/graph-eng.css">
+<link rel="stylesheet" href="profiles.css">
+<!--
+  profiles-picker · S5 — identity picker (icons / emojis / color).
+  Spec: .compozy/tasks/profiles/_uiux.md S5 · US-001, US-002.
+  Contract: DESIGN-NOTES.md.
+  Provenance:
+    production — new @compozy/ui SymbolPicker primitive (no picker exists in
+                 any barrel; Avatar only in foundation.ts) — ships story + test
+    spec — Linear-style reference (operator ruling): tabs Icons | Emojis,
+           search, grid tinted by the chosen color, suggested palette + free hex
+    authorized delta — ds-core tokens rebound by the profiles.css post-#440
+                       parity lane (ds-core is pre-#440 drift)
+-->
+</head>
+<body>
+<div class="shell"><div class="main">
+  <header class="w2head" data-od-id="pk-head">
+    <a class="w2-back" href="index.html" aria-label="Back to set"><svg data-lucide="chevron-left"></svg></a>
+    <nav class="w2-crumbs">
+      <a class="w2-crumb" href="index.html">Profiles</a>
+      <span class="w2-sep">/</span>
+      <h1 class="w2-title">Identity picker</h1>
+    </nav>
+    <div class="w2-flex"></div>
+    <div class="w2-actions">
+      <a class="btn btn--sm" href="profiles-lifecycle.html">Lifecycle →</a>
+    </div>
+  </header>
+  <div class="scroll"><div class="page">
+
+    <!-- ===== 01 · FINAL — ICONS TAB, COLOR CHOSEN ===== -->
+    <section class="lab-sec" data-od-id="pk-final">
+      <div class="lab-sec__head"><span class="lab-sec__num">01</span><h2 class="lab-sec__t">The picker — icons tab, violet chosen</h2>
+        <span class="lab-sec__gist">US-002.AC-1</span></div>
+      <div class="spec">
+        <div class="spec__note"><b>The color tints the whole grid</b>Choosing a color re-inks every symbol so the pairing is judged live, not imagined. Identity is user data: the color rides a per-element value, never a token. Ink mixes toward white for AA on the dark ramp. The selected cell earns the only filled plate. <span class="mono">US-002.AC-1 · design constraint 1</span></div>
+        <div class="spec__demo">
+          <div class="stage stage--center" data-od-id="pk-final-stage">
+            <div class="pf-modal" data-od-id="pk-final-modal">
+              <div class="pf-modal__head"><span class="pf-modal__t">Edit Marketing</span></div>
+              <div class="pf-modal__body">
+                <div class="pf-picker" style="--id:#C26AD6" data-od-id="pk-final-picker">
+                  <div class="pf-picker__row">
+                    <span class="pf-glyph pf-glyph--lg" style="--id:#C26AD6"><svg data-lucide="megaphone"></svg></span>
+                    <input class="input" type="text" value="Marketing" aria-label="Profile name">
+                  </div>
+                  <div class="pf-picker__row">
+                    <div class="pill-group pill-group--sm" role="tablist" aria-label="Symbol kind">
+                      <button class="pill-group__item is-on" role="tab" aria-selected="true">Icons</button>
+                      <button class="pill-group__item" role="tab" aria-selected="false">Emojis</button>
+                    </div>
+                    <label class="field field-search"><svg data-lucide="search"></svg><input type="search" placeholder="Search icons" aria-label="Search icons"></label>
+                  </div>
+                  <div class="pf-grid" role="listbox" aria-label="Icons">
+                    <button class="pf-cell is-on" role="option" aria-selected="true" aria-label="megaphone"><svg data-lucide="megaphone"></svg></button>
+                    <button class="pf-cell" role="option" aria-label="briefcase"><svg data-lucide="briefcase"></svg></button>
+                    <button class="pf-cell" role="option" aria-label="rocket"><svg data-lucide="rocket"></svg></button>
+                    <button class="pf-cell" role="option" aria-label="palette"><svg data-lucide="palette"></svg></button>
+                    <button class="pf-cell" role="option" aria-label="camera"><svg data-lucide="camera"></svg></button>
+                    <button class="pf-cell" role="option" aria-label="music"><svg data-lucide="music"></svg></button>
+                    <button class="pf-cell" role="option" aria-label="heart"><svg data-lucide="heart"></svg></button>
+                    <button class="pf-cell" role="option" aria-label="star"><svg data-lucide="star"></svg></button>
+                    <button class="pf-cell" role="option" aria-label="zap"><svg data-lucide="zap"></svg></button>
+                    <button class="pf-cell" role="option" aria-label="globe"><svg data-lucide="globe"></svg></button>
+                    <button class="pf-cell" role="option" aria-label="book"><svg data-lucide="book"></svg></button>
+                    <button class="pf-cell" role="option" aria-label="coffee"><svg data-lucide="coffee"></svg></button>
+                    <button class="pf-cell" role="option" aria-label="flame"><svg data-lucide="flame"></svg></button>
+                    <button class="pf-cell" role="option" aria-label="leaf"><svg data-lucide="leaf"></svg></button>
+                    <button class="pf-cell" role="option" aria-label="cloud"><svg data-lucide="cloud"></svg></button>
+                    <button class="pf-cell" role="option" aria-label="moon"><svg data-lucide="moon"></svg></button>
+                    <button class="pf-cell" role="option" aria-label="sun"><svg data-lucide="sun"></svg></button>
+                    <button class="pf-cell" role="option" aria-label="anchor"><svg data-lucide="anchor"></svg></button>
+                    <button class="pf-cell" role="option" aria-label="award"><svg data-lucide="award"></svg></button>
+                    <button class="pf-cell" role="option" aria-label="bike"><svg data-lucide="bike"></svg></button>
+                    <button class="pf-cell" role="option" aria-label="brush"><svg data-lucide="brush"></svg></button>
+                    <button class="pf-cell" role="option" aria-label="compass"><svg data-lucide="compass"></svg></button>
+                    <button class="pf-cell" role="option" aria-label="cpu"><svg data-lucide="cpu"></svg></button>
+                    <button class="pf-cell" role="option" aria-label="crown"><svg data-lucide="crown"></svg></button>
+                    <button class="pf-cell" role="option" aria-label="gem"><svg data-lucide="gem"></svg></button>
+                    <button class="pf-cell" role="option" aria-label="graduation-cap"><svg data-lucide="graduation-cap"></svg></button>
+                    <button class="pf-cell" role="option" aria-label="trending-up"><svg data-lucide="trending-up"></svg></button>
+                    <button class="pf-cell" role="option" aria-label="wrench"><svg data-lucide="wrench"></svg></button>
+                    <button class="pf-cell" role="option" aria-label="target"><svg data-lucide="target"></svg></button>
+                    <button class="pf-cell" role="option" aria-label="lightbulb"><svg data-lucide="lightbulb"></svg></button>
+                    <button class="pf-cell" role="option" aria-label="map"><svg data-lucide="map"></svg></button>
+                    <button class="pf-cell" role="option" aria-label="mic"><svg data-lucide="mic"></svg></button>
+                    <button class="pf-cell" role="option" aria-label="pen-tool"><svg data-lucide="pen-tool"></svg></button>
+                    <button class="pf-cell" role="option" aria-label="shield"><svg data-lucide="shield"></svg></button>
+                    <button class="pf-cell" role="option" aria-label="sparkles"><svg data-lucide="sparkles"></svg></button>
+                    <button class="pf-cell" role="option" aria-label="users"><svg data-lucide="users"></svg></button>
+                  </div>
+                  <div class="pf-picker__row" data-od-id="pk-final-colors">
+                    <div class="pf-swatches" role="listbox" aria-label="Suggested colors">
+                      <button class="pf-swatch" style="--id:#8A8F98" role="option" aria-label="Gray"></button>
+                      <button class="pf-swatch" style="--id:#4EA7FC" role="option" aria-label="Blue"></button>
+                      <button class="pf-swatch" style="--id:#2AA8A8" role="option" aria-label="Teal"></button>
+                      <button class="pf-swatch" style="--id:#4CB782" role="option" aria-label="Green"></button>
+                      <button class="pf-swatch is-on" style="--id:#C26AD6" role="option" aria-selected="true" aria-label="Violet"></button>
+                      <button class="pf-swatch" style="--id:#E56AA2" role="option" aria-label="Pink"></button>
+                      <button class="pf-swatch" style="--id:#E8B04A" role="option" aria-label="Amber"></button>
+                      <button class="pf-swatch" style="--id:#B58E5F" role="option" aria-label="Brown"></button>
+                    </div>
+                    <span class="w2-flex" aria-hidden="true"></span>
+                    <label class="field pf-hex"><svg data-lucide="hash"></svg><input type="text" value="C26AD6" aria-label="Custom color"></label>
+                  </div>
+                </div>
+              </div>
+              <div class="pf-modal__foot">
+                <button class="btn btn--ghost" type="button">Cancel</button>
+                <button class="btn btn--primary" type="button">Save</button>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ===== 02 · EMOJIS TAB ===== -->
+    <section class="lab-sec" data-od-id="pk-emoji">
+      <div class="lab-sec__head"><span class="lab-sec__num">02</span><h2 class="lab-sec__t">Emojis tab</h2>
+        <span class="lab-sec__gist">US-002.AC-1</span></div>
+      <div class="spec">
+        <div class="spec__note"><b>Emoji keep their own ink</b>Emoji render in native color — the chosen color still owns the selection plate and the preview glyph tint, so the identity stays coherent across both tabs. <span class="mono">US-002</span></div>
+        <div class="spec__demo">
+          <div class="stage stage--auto stage--pad" data-od-id="pk-emoji-stage">
+            <div class="plain pf-picker" style="--id:#4CB782" data-od-id="pk-emoji-picker">
+              <div class="pf-picker__row">
+                <div class="pill-group pill-group--sm" role="tablist" aria-label="Symbol kind">
+                  <button class="pill-group__item" role="tab" aria-selected="false">Icons</button>
+                  <button class="pill-group__item is-on" role="tab" aria-selected="true">Emojis</button>
+                </div>
+                <label class="field field-search"><svg data-lucide="search"></svg><input type="search" placeholder="Search emojis" aria-label="Search emojis"></label>
+              </div>
+              <div class="pf-grid" role="listbox" aria-label="Emojis">
+                <button class="pf-cell pf-cell--em" role="option">🚀</button>
+                <button class="pf-cell pf-cell--em is-on" role="option" aria-selected="true">🌱</button>
+                <button class="pf-cell pf-cell--em" role="option">🎨</button>
+                <button class="pf-cell pf-cell--em" role="option">📣</button>
+                <button class="pf-cell pf-cell--em" role="option">💼</button>
+                <button class="pf-cell pf-cell--em" role="option">📈</button>
+                <button class="pf-cell pf-cell--em" role="option">✍️</button>
+                <button class="pf-cell pf-cell--em" role="option">☕</button>
+                <button class="pf-cell pf-cell--em" role="option">🎯</button>
+                <button class="pf-cell pf-cell--em" role="option">🧪</button>
+                <button class="pf-cell pf-cell--em" role="option">📚</button>
+                <button class="pf-cell pf-cell--em" role="option">🛠️</button>
+                <button class="pf-cell pf-cell--em" role="option">🧭</button>
+                <button class="pf-cell pf-cell--em" role="option">🏔️</button>
+                <button class="pf-cell pf-cell--em" role="option">🌊</button>
+                <button class="pf-cell pf-cell--em" role="option">🔬</button>
+                <button class="pf-cell pf-cell--em" role="option">🎬</button>
+                <button class="pf-cell pf-cell--em" role="option">🧵</button>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ===== 03 · SEARCH EMPTY ===== -->
+    <section class="lab-sec" data-od-id="pk-empty">
+      <div class="lab-sec__head"><span class="lab-sec__num">03</span><h2 class="lab-sec__t">Search finds nothing</h2>
+        <span class="lab-sec__gist">US-002</span></div>
+      <div class="spec">
+        <div class="spec__note"><b>Name the query, offer the way out</b>Scoped empty, not the generic one — the copy names the search term and the alternative tab. <span class="mono">US-002.EC</span></div>
+        <div class="spec__demo">
+          <div class="stage stage--auto stage--pad" data-od-id="pk-empty-stage">
+            <div class="plain pf-picker" style="--id:#C26AD6">
+              <div class="pf-picker__row">
+                <div class="pill-group pill-group--sm" role="tablist" aria-label="Symbol kind">
+                  <button class="pill-group__item is-on" role="tab" aria-selected="true">Icons</button>
+                  <button class="pill-group__item" role="tab" aria-selected="false">Emojis</button>
+                </div>
+                <label class="field field-search"><svg data-lucide="search"></svg><input type="search" value="dragon" aria-label="Search icons"></label>
+              </div>
+              <div class="pal-none" data-od-id="pk-empty-msg">No icons match "dragon". Try the Emojis tab.</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ===== 04 · INVALID HEX ===== -->
+    <section class="lab-sec" data-od-id="pk-hex">
+      <div class="lab-sec__head"><span class="lab-sec__num">04</span><h2 class="lab-sec__t">Custom color, invalid value</h2>
+        <span class="lab-sec__gist">US-002.EC-1</span></div>
+      <div class="spec">
+        <div class="spec__note"><b>Keep the last good color</b>An invalid value inks the field border and says what a color looks like; the identity keeps the previous valid color — nothing flashes or resets. <span class="mono">US-002.EC-1</span></div>
+        <div class="spec__demo">
+          <div class="stage stage--auto stage--pad" data-od-id="pk-hex-stage">
+            <div class="plain pf-picker" style="--id:#C26AD6">
+              <div class="pf-picker__row">
+                <div class="pf-swatches" role="listbox" aria-label="Suggested colors">
+                  <button class="pf-swatch" style="--id:#8A8F98" role="option" aria-label="Gray"></button>
+                  <button class="pf-swatch" style="--id:#4EA7FC" role="option" aria-label="Blue"></button>
+                  <button class="pf-swatch is-on" style="--id:#C26AD6" role="option" aria-selected="true" aria-label="Violet"></button>
+                  <button class="pf-swatch" style="--id:#E56AA2" role="option" aria-label="Pink"></button>
+                </div>
+                <span class="w2-flex" aria-hidden="true"></span>
+                <label class="field pf-hex" data-invalid><svg data-lucide="hash"></svg><input type="text" value="12ZZ" aria-invalid="true" aria-label="Custom color"></label>
+              </div>
+              <span class="pf-err" data-od-id="pk-hex-err">Enter a color like #4EA7FC.</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ===== 05 · AUTO-ASSIGNED STARTER ===== -->
+    <section class="lab-sec" data-od-id="pk-starter">
+      <div class="lab-sec__head"><span class="lab-sec__num">05</span><h2 class="lab-sec__t">Auto-assigned starter identity</h2>
+        <span class="lab-sec__gist">US-001.AC-3</span></div>
+      <div class="spec">
+        <div class="spec__note"><b>Never a blank identity</b>Creation pre-picks a distinct color + symbol so a profile is recognizable from its first second. The picker opens already valid; customizing is optional. <span class="mono">US-001.AC-3</span></div>
+        <div class="spec__demo">
+          <div class="stage stage--auto stage--pad" data-od-id="pk-starter-stage">
+            <div class="plain">
+              <div class="pf-picker__row" data-od-id="pk-starter-row">
+                <span class="pf-glyph pf-glyph--lg" style="--id:#2AA8A8"><svg data-lucide="compass"></svg></span>
+                <input class="input" type="text" placeholder="Profile name" aria-label="Profile name">
+                <button class="btn btn--sm btn--ghost" type="button">Change symbol</button>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <p class="lab-foot" data-od-id="pk-foot">Spec <code>_uiux.md</code> S5 · contract <code>DESIGN-NOTES.md</code> · production seam: new <code>SymbolPicker</code> primitive in <code>packages/ui</code> (story + test), composed by the create/edit dialogs. Content illustrative; runtime truth owns final values.</p>
+
+  </div></div>
+</div></div>
+<script src="https://unpkg.com/lucide@latest/dist/umd/lucide.min.js"></script>
+<script>
+(function () { if (window.lucide) window.lucide.createIcons(); })();
+</script>
+</body>
+</html>

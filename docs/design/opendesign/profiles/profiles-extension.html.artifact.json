@@ -1,0 +1,19 @@
+{
+  "version": 1,
+  "kind": "html",
+  "title": "profiles/profiles-extension.html",
+  "entry": "profiles/profiles-extension.html",
+  "renderer": "html",
+  "status": "complete",
+  "exports": [
+    "html",
+    "pdf",
+    "zip"
+  ],
+  "createdAt": "2026-08-21T03:59:33.821Z",
+  "updatedAt": "2026-08-21T03:59:33.821Z",
+  "metadata": {
+    "inferred": true,
+    "reconciled": true
+  }
+}

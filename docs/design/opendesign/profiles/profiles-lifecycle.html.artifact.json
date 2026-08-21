@@ -1,0 +1,19 @@
+{
+  "version": 1,
+  "kind": "html",
+  "title": "profiles/profiles-lifecycle.html",
+  "entry": "profiles/profiles-lifecycle.html",
+  "renderer": "html",
+  "status": "complete",
+  "exports": [
+    "html",
+    "pdf",
+    "zip"
+  ],
+  "createdAt": "2026-08-21T03:58:50.449Z",
+  "updatedAt": "2026-08-21T03:58:50.449Z",
+  "metadata": {
+    "inferred": true,
+    "reconciled": true
+  }
+}

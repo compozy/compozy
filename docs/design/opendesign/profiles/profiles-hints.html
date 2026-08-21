@@ -1,0 +1,145 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="dark">
+<title>Project hints · Profiles · CompozyOS</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Geist:wght@100..900&family=JetBrains+Mono:wght@400..700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../design-system/ds-core.css">
+<link rel="stylesheet" href="../design-system/ds-shell.css">
+<link rel="stylesheet" href="../graph-eng/graph-eng.css">
+<link rel="stylesheet" href="profiles.css">
+<!--
+  profiles-hints · S9 — workspace registration & project views.
+  Spec: .compozy/tasks/profiles/_uiux.md S9 · US-018, US-019.
+  Contract: DESIGN-NOTES.md.
+  Provenance:
+    production — workspace registration flow + project views;
+                 WorkspaceProfilesHint (web/src/systems/profiles/)
+    spec — repo-declared profile folders surface one hint with one action per
+           name; adopted names drop out; ignoring is dormant, never nagging;
+           renamed repo folders re-point the hint
+    authorized delta — ds-core tokens rebound by the profiles.css post-#440
+                       parity lane (ds-core is pre-#440 drift)
+-->
+</head>
+<body>
+<div class="shell"><div class="main">
+  <header class="w2head" data-od-id="hi-head">
+    <a class="w2-back" href="index.html" aria-label="Back to set"><svg data-lucide="chevron-left"></svg></a>
+    <nav class="w2-crumbs">
+      <a class="w2-crumb" href="index.html">Profiles</a>
+      <span class="w2-sep">/</span>
+      <h1 class="w2-title">Project hints</h1>
+    </nav>
+    <div class="w2-flex"></div>
+    <div class="w2-actions">
+      <a class="btn btn--sm" href="profiles-command-palette.html">Command palette →</a>
+    </div>
+  </header>
+  <div class="scroll"><div class="page">
+
+    <!-- ===== 01 · FINAL — THE HINT ===== -->
+    <section class="lab-sec" data-od-id="hi-final">
+      <div class="lab-sec__head"><span class="lab-sec__num">01</span><h2 class="lab-sec__t">The project declares profiles — one hint, one action per name</h2>
+        <span class="lab-sec__gist">US-019.AC-1 · US-019.AC-2</span></div>
+      <div class="spec">
+        <div class="spec__note"><b>An offer, not a wizard</b>Opening a project whose repo declares profile folders surfaces one calm info hint naming every declared profile, with a create action each. It never blocks the project and never repeats itself into a flow. <span class="mono">US-019.AC-1</span></div>
+        <div class="spec__demo">
+          <div class="stage stage--auto stage--pad" data-od-id="hi-final-stage">
+            <div class="plain">
+              <div class="pf-hint" data-od-id="hi-final-hint">
+                <svg data-lucide="info"></svg>
+                <div class="pf-hint__main">
+                  <span>This project declares content for profiles <b>dev</b> and <b>marketing</b>.</span>
+                  <div class="pf-hint__acts">
+                    <button class="btn btn--sm" type="button">Create dev</button>
+                    <button class="btn btn--sm" type="button">Create marketing</button>
+                    <button class="btn btn--sm btn--ghost" type="button">Not now</button>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ===== 02 · PARTIALLY ADOPTED ===== -->
+    <section class="lab-sec" data-od-id="hi-partial">
+      <div class="lab-sec__head"><span class="lab-sec__num">02</span><h2 class="lab-sec__t">Partially adopted — adopted names drop out</h2>
+        <span class="lab-sec__gist">US-019.AC-2</span></div>
+      <div class="spec">
+        <div class="spec__note"><b>The hint shrinks as you adopt</b>marketing was created, so the hint now names only dev. A fully adopted project shows no hint at all — absence is the success state. <span class="mono">US-019.AC-2</span></div>
+        <div class="spec__demo">
+          <div class="stage stage--auto stage--pad" data-od-id="hi-partial-stage">
+            <div class="plain">
+              <div class="pf-hint" data-od-id="hi-partial-hint">
+                <svg data-lucide="info"></svg>
+                <div class="pf-hint__main">
+                  <span>This project declares content for profile <b>dev</b>.</span>
+                  <div class="pf-hint__acts">
+                    <button class="btn btn--sm" type="button">Create dev</button>
+                    <button class="btn btn--sm btn--ghost" type="button">Not now</button>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ===== 03 · DORMANT + RE-POINT ===== -->
+    <section class="lab-sec" data-od-id="hi-dormant">
+      <div class="lab-sec__head"><span class="lab-sec__num">03</span><h2 class="lab-sec__t">Ignored stays quiet · renamed folders re-point</h2>
+        <span class="lab-sec__gist">US-019 · US-019.EC-2</span></div>
+
+      <div class="spec">
+        <div class="spec__note"><b>Dismissed means dormant</b>After "Not now" the offer folds into one line in the project's detail — findable, never a banner again. No badge, no counter, no nagging. <span class="mono">US-019</span></div>
+        <div class="spec__demo">
+          <div class="stage stage--auto stage--pad" data-od-id="hi-dormant-stage">
+            <div class="plain">
+              <div class="prow" data-od-id="hi-dormant-row">
+                <span class="prow__k">Declared profiles</span>
+                <span class="prow__v"><span class="pf-count">dev, marketing — not created</span><button class="btn btn--sm btn--ghost" type="button">Review</button></span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="spec">
+        <div class="spec__note"><b>Rename in the repo, hint follows</b>The repo folder moved from <code>dev</code> to <code>devops</code>; the hint re-points to the new name instead of remembering a ghost. <span class="mono">US-019.EC-2</span></div>
+        <div class="spec__demo">
+          <div class="stage stage--auto stage--pad" data-od-id="hi-repoint-stage">
+            <div class="plain">
+              <div class="pf-hint" data-od-id="hi-repoint-hint">
+                <svg data-lucide="info"></svg>
+                <div class="pf-hint__main">
+                  <span>This project declares content for profile <b>devops</b>.</span>
+                  <div class="pf-hint__acts">
+                    <button class="btn btn--sm" type="button">Create devops</button>
+                    <button class="btn btn--sm btn--ghost" type="button">Not now</button>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <p class="lab-foot" data-od-id="hi-foot">Spec <code>_uiux.md</code> S9 · contract <code>DESIGN-NOTES.md</code> · production seam <code>WorkspaceProfilesHint</code> in <code>web/src/systems/profiles/</code>, surfaced at workspace registration and project open. Content illustrative; runtime truth owns final values.</p>
+
+  </div></div>
+</div></div>
+<script src="https://unpkg.com/lucide@latest/dist/umd/lucide.min.js"></script>
+<script>
+(function () { if (window.lucide) window.lucide.createIcons(); })();
+</script>
+</body>
+</html>

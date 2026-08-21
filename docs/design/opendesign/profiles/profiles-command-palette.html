@@ -1,0 +1,198 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="dark">
+<title>Command palette · Profiles · CompozyOS</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Geist:wght@100..900&family=JetBrains+Mono:wght@400..700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../design-system/ds-core.css">
+<link rel="stylesheet" href="../design-system/ds-shell.css">
+<link rel="stylesheet" href="../graph-eng/graph-eng.css">
+<link rel="stylesheet" href="profiles.css">
+<!--
+  profiles-command-palette · S14 — palette Profiles view + actions.
+  Spec: .compozy/tasks/profiles/_uiux.md S14 · US-034.
+  Contract: DESIGN-NOTES.md.
+  Provenance:
+    production — registry-driven palette (root, domain views, catalog/search/
+                 invoke routes); ProfilePaletteView composes existing palette
+                 rows and delegates lifecycle to the S4–S7 dialogs
+    spec — palette.view.profiles + stable profile.* actions; profile.use
+           switches directly; disabled rows carry typed reasons in a structured
+           slot; selection-map detail and removal enumeration stay in dialogs
+    authorized delta — ds-core tokens rebound by the profiles.css post-#440
+                       parity lane (ds-core is pre-#440 drift)
+-->
+</head>
+<body>
+<div class="shell"><div class="main">
+  <header class="w2head" data-od-id="cp-head">
+    <a class="w2-back" href="index.html" aria-label="Back to set"><svg data-lucide="chevron-left"></svg></a>
+    <nav class="w2-crumbs">
+      <a class="w2-crumb" href="index.html">Profiles</a>
+      <span class="w2-sep">/</span>
+      <h1 class="w2-title">Command palette</h1>
+    </nav>
+    <div class="w2-flex"></div>
+    <div class="w2-actions">
+      <a class="btn btn--sm" href="profiles-switcher.html">← Switcher</a>
+    </div>
+  </header>
+  <div class="scroll"><div class="page">
+
+    <!-- ===== 01 · FINAL — PROFILES VIEW ===== -->
+    <section class="lab-sec" data-od-id="cp-final">
+      <div class="lab-sec__head"><span class="lab-sec__num">01</span><h2 class="lab-sec__t">The Profiles view — switch is the default read</h2>
+        <span class="lab-sec__gist">US-034 · SD-012</span></div>
+      <div class="spec">
+        <div class="spec__note"><b>Which exist, which is current, switch where</b>Rows are identities: glyph + name + state word. Selection is the elevated plate, never a rim. growth is unavailable with its typed reason in the structured slot — full-contrast text, truthful about why. Archived rows keep their one useful action. <span class="mono">US-034 · US-023.AC-3</span></div>
+        <div class="spec__demo">
+          <div class="stage stage--tall stage--pad" data-od-id="cp-final-stage">
+            <div class="palette" data-od-id="cp-final-palette">
+              <div class="palette-head"><svg data-lucide="search"></svg><input type="text" placeholder="Switch profile…" aria-label="Search profiles"></div>
+              <div class="palette-results">
+                <div class="pal-group">Profiles</div>
+                <button class="pal-item" role="option"><span class="pf-glyph pf-glyph--sm" style="--id:#8A8F98"><svg data-lucide="user-round"></svg></span>default</button>
+                <button class="pal-item is-active" role="option" aria-selected="true" data-od-id="cp-final-current"><span class="pf-glyph pf-glyph--sm is-current" style="--id:#C26AD6"><svg data-lucide="megaphone"></svg></span>Marketing<span class="pal-meta">current</span></button>
+                <button class="pal-item" role="option"><span class="pf-glyph pf-glyph--sm" style="--id:#4EA7FC"><svg data-lucide="briefcase"></svg></span>Consulting</button>
+                <button class="pal-item" role="option" aria-disabled="true" data-od-id="cp-final-growth"><span class="pf-glyph pf-glyph--sm" style="--id:#4CB782"><svg data-lucide="trending-up"></svg><span class="pf-dot"></span></span>growth<span class="pal-reason">needs setup — add the Ads API key</span></button>
+                <div class="pal-group">Archived</div>
+                <button class="pal-item" role="option"><span class="pf-glyph pf-glyph--sm" style="--id:#B58E5F"><svg data-lucide="folder"></svg></span>Old agency<span class="pal-meta">unarchive</span></button>
+                <button class="pal-item" role="option"><span class="pf-glyph pf-glyph--sm" style="--id:#8A8F98"><svg data-lucide="pencil"></svg></span>scratch<span class="pal-meta">unarchive</span></button>
+                <div class="pal-group">Actions</div>
+                <button class="pal-item" role="option"><svg data-lucide="plus"></svg>Create profile…</button>
+                <button class="pal-item" role="option"><svg data-lucide="layers"></svg>Show all profiles</button>
+              </div>
+              <div class="pal-foot" data-od-id="cp-final-foot">
+                <span class="keys"><span class="key">↑↓</span></span>move
+                <span class="keys"><span class="key">⏎</span></span>switch
+                <span class="keys"><span class="key">esc</span></span>close
+                <span class="pal-view">Profiles</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ===== 02 · ROOT SEARCH ===== -->
+    <section class="lab-sec" data-od-id="cp-root">
+      <div class="lab-sec__head"><span class="lab-sec__num">02</span><h2 class="lab-sec__t">Root search — the same actions, one query away</h2>
+        <span class="lab-sec__gist">US-034</span></div>
+      <div class="spec">
+        <div class="spec__note"><b>Verbs first</b>Typing at the root surfaces the switch verbs and the view. The current profile doesn't offer "switch to itself" — absent, not disabled. <span class="mono">US-034</span></div>
+        <div class="spec__demo">
+          <div class="stage stage--auto stage--pad" data-od-id="cp-root-stage">
+            <div class="palette">
+              <div class="palette-head"><svg data-lucide="search"></svg><input type="text" value="prof" aria-label="Search"></div>
+              <div class="palette-results">
+                <div class="pal-group">Profiles</div>
+                <button class="pal-item is-active" role="option" aria-selected="true"><span class="pf-glyph pf-glyph--sm" style="--id:#4EA7FC"><svg data-lucide="briefcase"></svg></span>Switch to Consulting</button>
+                <button class="pal-item" role="option"><span class="pf-glyph pf-glyph--sm" style="--id:#8A8F98"><svg data-lucide="user-round"></svg></span>Switch to default</button>
+                <button class="pal-item" role="option"><svg data-lucide="layers"></svg>Profiles<span class="pal-meta">view</span></button>
+                <button class="pal-item" role="option"><svg data-lucide="plus"></svg>Create profile…</button>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ===== 03 · ALL × GLOBAL — OWNER-LABELED RESULTS ===== -->
+    <section class="lab-sec" data-od-id="cp-aggregate">
+      <div class="lab-sec__head"><span class="lab-sec__num">03</span><h2 class="lab-sec__t">All profiles × across projects — labeled results</h2>
+        <span class="lab-sec__gist">US-011.AC-2 · US-034</span></div>
+      <div class="spec">
+        <div class="spec__note"><b>The aggregate lens follows you into the palette</b>Session results under All × Global carry the same owner tag as listing rows — one vocabulary everywhere. Scoped search stays tag-free. <span class="mono">US-011.AC-1</span></div>
+        <div class="spec__demo">
+          <div class="stage stage--auto stage--pad" data-od-id="cp-aggregate-stage">
+            <div class="palette">
+              <div class="palette-head"><svg data-lucide="search"></svg><input type="text" value="email" aria-label="Search"></div>
+              <div class="palette-results">
+                <div class="pal-group">Sessions</div>
+                <button class="pal-item is-active" role="option" aria-selected="true"><svg data-lucide="messages-square"></svg>Draft launch email<span class="pal-meta"></span><span class="pf-owner"><span class="pf-glyph" style="--id:#C26AD6"><svg data-lucide="megaphone"></svg></span>Marketing</span></button>
+                <button class="pal-item" role="option"><svg data-lucide="messages-square"></svg>Email triage rules<span class="pal-meta"></span><span class="pf-owner"><span class="pf-glyph" style="--id:#8A8F98"><svg data-lucide="user-round"></svg></span>default</span></button>
+                <button class="pal-item" role="option"><svg data-lucide="messages-square"></svg>Retire old campaign<span class="pal-meta"></span><span class="pf-owner" data-archived><span class="pf-glyph" style="--id:#B58E5F"><svg data-lucide="folder"></svg></span>Old agency · archived</span></button>
+              </div>
+              <div class="pal-foot">
+                <span class="keys"><span class="key">↑↓</span></span>move
+                <span class="keys"><span class="key">⏎</span></span>open
+                <span class="pal-view">All profiles · Across projects</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ===== 04 · LIFECYCLE HANDOFF ===== -->
+    <section class="lab-sec" data-od-id="cp-handoff">
+      <div class="lab-sec__head"><span class="lab-sec__num">04</span><h2 class="lab-sec__t">Lifecycle actions hand off to the canonical dialogs</h2>
+        <span class="lab-sec__gist">US-034</span></div>
+      <div class="spec">
+        <div class="spec__note"><b>The palette starts it, the dialog owns it</b>Archive, rename, and delete open the S6/S7 dialogs and execute through their current plan revision. If the plan changed while the palette was open, the row says so and refreshes before handing off — never a stale execution. <span class="mono">US-034 · US-003</span></div>
+        <div class="spec__demo">
+          <div class="stage stage--auto stage--pad" data-od-id="cp-handoff-stage">
+            <div class="palette">
+              <div class="palette-head"><svg data-lucide="search"></svg><input type="text" value="archive mark" aria-label="Search"></div>
+              <div class="palette-results">
+                <div class="pal-group">Actions</div>
+                <button class="pal-item is-active" role="option" aria-selected="true"><svg data-lucide="archive"></svg>Archive Marketing…<span class="pal-meta">opens dialog</span></button>
+              </div>
+              <div class="pal-foot" data-od-id="cp-handoff-refresh">
+                <svg data-lucide="refresh-cw" width="11" height="11"></svg>
+                <span>Plan updated just now — the dialog opens with the current revision.</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ===== 05 · EXTENSION COMMANDS FOLLOW ENABLEMENT ===== -->
+    <section class="lab-sec" data-od-id="cp-extension">
+      <div class="lab-sec__head"><span class="lab-sec__num">05</span><h2 class="lab-sec__t">Extension commands exist only where enabled</h2>
+        <span class="lab-sec__gist">US-024 · US-034</span></div>
+      <div class="spec">
+        <div class="spec__note"><b>Absent, not disabled — again</b>The same query in two profiles: growth has the growth-kit command; Consulting, where the extension is off, gets a plain zero-match. No grayed rows for things this profile cannot run. <span class="mono">US-024</span></div>
+        <div class="spec__demo">
+          <div class="stage stage--auto stage--pad" data-od-id="cp-extension-stage">
+            <div class="pf-minis">
+              <div>
+                <div class="pf-mini-cap">in growth — command present</div>
+                <div class="palette">
+                  <div class="palette-head"><svg data-lucide="search"></svg><input type="text" value="funnel" aria-label="Search"></div>
+                  <div class="palette-results">
+                    <div class="pal-group">growth-kit</div>
+                    <button class="pal-item is-active" role="option" aria-selected="true"><svg data-lucide="filter"></svg>Audit funnels<span class="pal-meta">extension</span></button>
+                  </div>
+                </div>
+              </div>
+              <div>
+                <div class="pf-mini-cap">in Consulting — absent</div>
+                <div class="palette">
+                  <div class="palette-head"><svg data-lucide="search"></svg><input type="text" value="funnel" aria-label="Search"></div>
+                  <div class="palette-results">
+                    <div class="pal-none">No results for "funnel".</div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <p class="lab-foot" data-od-id="cp-foot">Spec <code>_uiux.md</code> S14 · contract <code>DESIGN-NOTES.md</code> · production seams palette registry (<code>palette.view.profiles</code>, <code>profile.use|create|update|rename|archive|unarchive|delete</code>), <code>ProfilePaletteView</code>. The switcher stays in the menubar between the palette trigger and Settings. Content illustrative; runtime truth owns final values.</p>
+
+  </div></div>
+</div></div>
+<script src="https://unpkg.com/lucide@latest/dist/umd/lucide.min.js"></script>
+<script>
+(function () { if (window.lucide) window.lucide.createIcons(); })();
+</script>
+</body>
+</html>

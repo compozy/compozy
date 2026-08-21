@@ -1,0 +1,123 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="dark">
+<title>Profiles · CompozyOS design</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Geist:wght@100..900&family=JetBrains+Mono:wght@400..700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../design-system/ds-core.css">
+<link rel="stylesheet" href="profiles.css">
+<!--
+  profiles-index · set map — identity, switching, aggregate labels, lifecycle.
+  Spec: .compozy/tasks/profiles/_uiux.md (S1–S14) · contract: DESIGN-NOTES.md.
+  Provenance:
+    production — opendesign index pattern (loop-legibility / command-palette)
+    spec — `_uiux.md` surface map
+    authorized delta — ds-core tokens rebound by the profiles.css post-#440
+                       parity lane (ds-core is pre-#440 drift)
+-->
+<style>
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{background:var(--canvas);color:var(--fg);font-family:var(--font-sans);font-size:15px;line-height:1.55;letter-spacing:-.006em;-webkit-font-smoothing:antialiased}
+  a{color:inherit;text-decoration:none}
+  .mono{font-family:var(--font-mono);font-variant-numeric:tabular-nums}
+  .page{max-width:880px;margin:0 auto;padding:52px 36px 80px}
+  h1{font-size:20px;font-weight:560;letter-spacing:-.025em;color:var(--fg-strong)}
+  .lede{margin-top:8px;font-size:13px;line-height:1.6;color:var(--muted);max-width:66ch}
+  .lede code{font-family:var(--font-mono);font-size:11.5px;color:var(--subtle)}
+  .grp{margin-top:36px}
+  .grp__t{font-size:12px;font-weight:510;letter-spacing:-.005em;color:var(--subtle);padding-bottom:10px}
+  .cards{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+  .card{display:flex;flex-direction:column;gap:5px;padding:14px 16px;border:1px solid var(--line);border-radius:var(--radius-lg);
+    background:var(--canvas-soft);transition:border-color var(--dur) var(--ease),background var(--dur) var(--ease)}
+  a.card:hover{border-color:var(--line-strong);background:var(--elevated)}
+  .card__top{display:flex;align-items:center;gap:8px}
+  .card__name{font-size:13.5px;font-weight:560;color:var(--fg-strong)}
+  .card__file{margin-left:auto;font-family:var(--font-mono);font-size:9.5px;color:var(--faint)}
+  .card__sub{font-size:12px;line-height:1.5;color:var(--muted)}
+  .tag{font-family:var(--font-mono);font-size:8.5px;font-weight:600;letter-spacing:.05em;text-transform:uppercase;
+    padding:2px 6px;border-radius:var(--radius-xs);background:var(--badge-fill);color:var(--subtle);flex:none}
+  .tag--final{background:var(--success-tint);color:var(--success)}
+  .tag--none{background:var(--neutral-tint);color:var(--subtle)}
+  .foot{margin-top:40px;padding-top:16px;border-top:1px solid var(--line);font-size:11.5px;line-height:1.6;color:var(--faint);max-width:70ch}
+  @media (max-width:760px){.cards{grid-template-columns:1fr}.page{padding:36px 20px 64px}}
+</style>
+</head>
+<body>
+<div class="page" data-od-id="pf-index">
+  <h1>Profiles</h1>
+  <p class="lede">Eight boards from <code>.compozy/tasks/profiles/_uiux.md</code>. Work is separate per profile; project folders and machine tools are shared. Identity color is user data, never a signal, and everything stays quiet until a second profile exists. The semantic contract is in <a href="DESIGN-NOTES.md" style="text-decoration:underline;color:var(--muted)"><span class="mono">DESIGN-NOTES.md</span></a>.</p>
+
+  <div class="grp" data-od-id="pf-index-identity">
+    <div class="grp__t">Identity &amp; switching</div>
+    <div class="cards">
+      <a class="card" href="profiles-switcher.html" data-od-id="card-switcher">
+        <span class="card__top"><span class="card__name">Switcher</span><span class="tag tag--final">final + lab</span><span class="card__file">profiles-switcher.html</span></span>
+        <span class="card__sub">S1 + S11 — menubar trigger before Settings, quiet single, All state, per-project memory, archived fallback, globe composition.</span>
+      </a>
+      <a class="card" href="profiles-picker.html" data-od-id="card-picker">
+        <span class="card__top"><span class="card__name">Identity picker</span><span class="tag tag--final">final + lab</span><span class="card__file">profiles-picker.html</span></span>
+        <span class="card__sub">S5 — icons and emojis tabs, search, color-tinted grid, suggested palette plus free hex, auto-assigned starter.</span>
+      </a>
+    </div>
+  </div>
+
+  <div class="grp" data-od-id="pf-index-work">
+    <div class="grp__t">Work &amp; listings</div>
+    <div class="cards">
+      <a class="card" href="profiles-aggregate.html" data-od-id="card-aggregate">
+        <span class="card__top"><span class="card__name">Aggregate &amp; listings</span><span class="tag tag--final">final + lab</span><span class="card__file">profiles-aggregate.html</span></span>
+        <span class="card__sub">S2 + S3 + S10 — owner tags only in aggregate, "→ default" creation chip, deep-link owner banner, tagged worktrees, usage breakdown.</span>
+      </a>
+      <a class="card" href="profiles-command-palette.html" data-od-id="card-palette">
+        <span class="card__top"><span class="card__name">Command palette</span><span class="tag tag--final">final + lab</span><span class="card__file">profiles-command-palette.html</span></span>
+        <span class="card__sub">S14 — Profiles view, root search verbs, labeled aggregate results, dialog handoff, extension commands following enablement.</span>
+      </a>
+    </div>
+  </div>
+
+  <div class="grp" data-od-id="pf-index-manage">
+    <div class="grp__t">Management</div>
+    <div class="cards">
+      <a class="card" href="profiles-settings.html" data-od-id="card-settings">
+        <span class="card__top"><span class="card__name">Settings page</span><span class="tag tag--final">final + lab</span><span class="card__file">profiles-settings.html</span></span>
+        <span class="card__sub">S4 + S13 — list and create, validation, archived disclosure, selection map, remote absence, per-profile notification presets.</span>
+      </a>
+      <a class="card" href="profiles-lifecycle.html" data-od-id="card-lifecycle">
+        <span class="card__top"><span class="card__name">Lifecycle dialogs</span><span class="tag tag--final">final + lab</span><span class="card__file">profiles-lifecycle.html</span></span>
+        <span class="card__sub">S6 + S7 — tiered rename plan, archive with paused automations, blocked states, explicit unarchive, delete enumeration or route to archive.</span>
+      </a>
+    </div>
+  </div>
+
+  <div class="grp" data-od-id="pf-index-ecosystem">
+    <div class="grp__t">Ecosystem</div>
+    <div class="cards">
+      <a class="card" href="profiles-extension.html" data-od-id="card-extension">
+        <span class="card__top"><span class="card__name">Extension placements</span><span class="tag tag--final">final + lab</span><span class="card__file">profiles-extension.html</span></span>
+        <span class="card__sub">S8 — declared-profiles install summary, needs-setup, placement per resource, dormant hints, per-profile enablement, uninstall truth.</span>
+      </a>
+      <a class="card" href="profiles-hints.html" data-od-id="card-hints">
+        <span class="card__top"><span class="card__name">Project hints</span><span class="tag tag--final">final + lab</span><span class="card__file">profiles-hints.html</span></span>
+        <span class="card__sub">S9 — repo-declared profile folders, one action per name, partial adoption, dormant quiet, rename re-pointing.</span>
+      </a>
+    </div>
+  </div>
+
+  <div class="grp" data-od-id="pf-index-none">
+    <div class="grp__t">No dedicated board</div>
+    <div class="cards">
+      <div class="card" data-od-id="card-s12">
+        <span class="card__top"><span class="card__name">Window &amp; desktop restoration</span><span class="tag tag--none">S12</span></span>
+        <span class="card__sub">Switching restores that profile's desktops per project; a new profile starts clean. Behavior, not visual language — noted on the switcher board, verified in runtime E2E.</span>
+      </div>
+    </div>
+  </div>
+
+  <p class="foot">Tokens from <span class="mono">packages/ui/src/tokens.css</span> post-#440, applied through the parity lane in <span class="mono">profiles.css</span> over <span class="mono">ds-core.css</span> + <span class="mono">ds-shell.css</span>; lab scaffold from <span class="mono">graph-eng.css</span>. Content illustrative; runtime truth owns values. Fixture: <span class="mono">default · Marketing · Consulting · growth · Old agency · scratch</span>.</p>
+</div>
+</body>
+</html>

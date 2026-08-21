@@ -1,0 +1,19 @@
+{
+  "version": 1,
+  "kind": "html",
+  "title": "profiles/profiles-aggregate.html",
+  "entry": "profiles/profiles-aggregate.html",
+  "renderer": "html",
+  "status": "complete",
+  "exports": [
+    "html",
+    "pdf",
+    "zip"
+  ],
+  "createdAt": "2026-08-21T03:55:19.376Z",
+  "updatedAt": "2026-08-21T03:55:19.376Z",
+  "metadata": {
+    "inferred": true,
+    "reconciled": true
+  }
+}

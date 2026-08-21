@@ -1,0 +1,19 @@
+{
+  "version": 1,
+  "kind": "html",
+  "title": "profiles/profiles-command-palette.html",
+  "entry": "profiles/profiles-command-palette.html",
+  "renderer": "html",
+  "status": "complete",
+  "exports": [
+    "html",
+    "pdf",
+    "zip"
+  ],
+  "createdAt": "2026-08-21T04:00:59.444Z",
+  "updatedAt": "2026-08-21T04:00:59.444Z",
+  "metadata": {
+    "inferred": true,
+    "reconciled": true
+  }
+}

@@ -1,0 +1,277 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="dark">
+<title>Settings page · Profiles · CompozyOS</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Geist:wght@100..900&family=JetBrains+Mono:wght@400..700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../design-system/ds-core.css">
+<link rel="stylesheet" href="../design-system/ds-shell.css">
+<link rel="stylesheet" href="../graph-eng/graph-eng.css">
+<link rel="stylesheet" href="profiles.css">
+<!--
+  profiles-settings · S4 — Settings → Profiles page · S13 — notification
+  preset enablement.
+  Spec: .compozy/tasks/profiles/_uiux.md S4 + S13 · US-001–007, US-025,
+  US-032. Contract: DESIGN-NOTES.md.
+  Provenance:
+    production — settings route-partial convention (-profiles-settings-page.tsx);
+                 .panelbox/.srow settings vocabulary; Switch 32×18
+    spec — default read answers "which profiles exist · create one · which is
+           active where"; archived list, selection map, identity editing demote
+           to disclosure; remote renders management absent, not disabled
+    authorized delta — ds-core tokens rebound by the profiles.css post-#440
+                       parity lane (ds-core is pre-#440 drift)
+-->
+</head>
+<body>
+<div class="shell"><div class="main">
+  <header class="w2head" data-od-id="st-head">
+    <a class="w2-back" href="index.html" aria-label="Back to set"><svg data-lucide="chevron-left"></svg></a>
+    <nav class="w2-crumbs">
+      <a class="w2-crumb" href="index.html">Profiles</a>
+      <span class="w2-sep">/</span>
+      <h1 class="w2-title">Settings page</h1>
+    </nav>
+    <div class="w2-flex"></div>
+    <div class="w2-actions">
+      <a class="btn btn--sm" href="profiles-picker.html">Identity picker →</a>
+    </div>
+  </header>
+  <div class="scroll"><div class="page">
+
+    <!-- ===== 01 · FINAL — THE PROFILES PAGE ===== -->
+    <section class="lab-sec" data-od-id="st-final">
+      <div class="lab-sec__head"><span class="lab-sec__num">01</span><h2 class="lab-sec__t">Settings → Profiles — default read</h2>
+        <span class="lab-sec__gist">US-007 · US-023.AC-3 · SD-012</span></div>
+      <div class="spec">
+        <div class="spec__note"><b>List, create, and the honest sentence</b>Active profiles with identity and work counts; growth wears its needs-setup state as warning + words. Archived list and the selection map sit closed below — demoted, not gone. The separation line is the page's only prose. <span class="mono">US-007 · US-032.AC-1</span></div>
+        <div class="spec__demo">
+          <div class="stage stage--tall stage--pad" data-od-id="st-final-stage">
+            <section class="win is-focused win--pfset" data-od-id="st-final-win">
+              <header class="win-head">
+                <div class="win-controls">
+                  <button class="wc wc-close" tabindex="-1" aria-label="Close"></button>
+                  <button class="wc wc-min" tabindex="-1" aria-label="Minimize"></button>
+                  <button class="wc wc-zoom" tabindex="-1" aria-label="Zoom"></button>
+                </div>
+                <div class="w2-id"><span class="w2-glyph"><svg data-lucide="settings"></svg></span><span class="w2-title">Settings</span></div>
+                <span class="w2-flex" aria-hidden="true"></span>
+              </header>
+              <div class="win-body"><div class="app">
+                <div class="app-toolbar">
+                  <span class="eyebrow">Profiles</span>
+                  <span class="w2-flex" aria-hidden="true"></span>
+                  <button class="btn btn--primary" type="button" data-od-id="st-create-btn"><svg data-lucide="plus"></svg>Create profile</button>
+                </div>
+                <p class="pf-sep-line" data-od-id="st-sep-line">Profiles keep work separate. They are not a security boundary.</p>
+                <div class="panelbox" data-od-id="st-active-list">
+                  <div class="srow">
+                    <div class="pf-lead"><span class="pf-glyph pf-glyph--lg" style="--id:#8A8F98"><svg data-lucide="user-round"></svg></span><span class="srow__label">default</span><span class="tag">Permanent</span></div>
+                    <div class="srow__ctl"><span class="pf-count">8 sessions · 2 loops</span><button class="btn btn--sm btn--ghost btn--icon" aria-label="Edit default"><svg data-lucide="pencil"></svg></button></div>
+                  </div>
+                  <div class="srow">
+                    <div class="pf-lead"><span class="pf-glyph pf-glyph--lg is-current" style="--id:#C26AD6"><svg data-lucide="megaphone"></svg></span><span class="srow__label">Marketing</span></div>
+                    <div class="srow__ctl"><span class="pf-count">3 sessions · 1 automation</span><button class="btn btn--sm btn--ghost btn--icon" aria-label="Edit Marketing"><svg data-lucide="pencil"></svg></button></div>
+                  </div>
+                  <div class="srow">
+                    <div class="pf-lead"><span class="pf-glyph pf-glyph--lg" style="--id:#4EA7FC"><svg data-lucide="briefcase"></svg></span><span class="srow__label">Consulting</span></div>
+                    <div class="srow__ctl"><span class="pf-count">5 sessions · 2 worktrees</span><button class="btn btn--sm btn--ghost btn--icon" aria-label="Edit Consulting"><svg data-lucide="pencil"></svg></button></div>
+                  </div>
+                  <div class="srow" data-od-id="st-row-growth">
+                    <div class="pf-lead"><span class="pf-glyph pf-glyph--lg" style="--id:#4CB782"><svg data-lucide="trending-up"></svg><span class="pf-dot"></span></span><span class="srow__label">growth</span><span class="pill" data-tone="warning"><svg data-lucide="triangle-alert"></svg>Needs setup</span></div>
+                    <div class="srow__ctl"><span class="pf-count">Add the Ads API key</span><button class="btn btn--sm" type="button">Finish setup</button></div>
+                  </div>
+                </div>
+                <button class="adv-toggle" aria-expanded="false" data-od-id="st-archived-closed"><svg class="chev" data-lucide="chevron-right"></svg>Archived<span class="count-chip">2</span></button>
+                <button class="adv-toggle" aria-expanded="false" data-od-id="st-map-closed"><svg class="chev" data-lucide="chevron-right"></svg>Where each profile is active</button>
+              </div></div>
+            </section>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ===== 02 · CREATE DIALOG + VALIDATION ===== -->
+    <section class="lab-sec" data-od-id="st-create">
+      <div class="lab-sec__head"><span class="lab-sec__num">02</span><h2 class="lab-sec__t">Create — name first, identity attached</h2>
+        <span class="lab-sec__gist">US-001.AC-1 · US-001.EC-1–3</span></div>
+
+      <div class="spec">
+        <div class="spec__note"><b>One field, one sentence, one action</b>Name plus the auto-assigned starter identity (full picker on its own board). The separation line repeats here — creation is where the boundary question is asked. Exactly one primary button. <span class="mono">US-001.AC-1 · US-001.AC-3</span></div>
+        <div class="spec__demo">
+          <div class="stage stage--center" data-od-id="st-create-stage">
+            <div class="pf-modal" data-od-id="st-create-modal">
+              <div class="pf-modal__head"><span class="pf-modal__t">Create profile</span></div>
+              <div class="pf-modal__body">
+                <div class="req-field">
+                  <label class="req-field__lab" for="st-name">Name</label>
+                  <div class="pf-picker__row">
+                    <span class="pf-glyph pf-glyph--lg" style="--id:#2AA8A8"><svg data-lucide="compass"></svg></span>
+                    <input class="input" id="st-name" type="text" value="Marketing" aria-label="Profile name">
+                  </div>
+                </div>
+                <p class="pf-sep-line">Profiles keep work separate. They are not a security boundary.</p>
+              </div>
+              <div class="pf-modal__foot">
+                <button class="btn btn--ghost" type="button">Cancel</button>
+                <button class="btn btn--primary" type="button">Create</button>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="spec">
+        <div class="spec__note"><b>Validation, inline and plain</b>Invalid input inks the field border — never a focus ring. The message says what to change, not what failed internally. <span class="mono">US-001.EC-1 · US-001.EC-2 · US-003.EC-1</span></div>
+        <div class="spec__demo">
+          <div class="stage stage--auto stage--pad" data-od-id="st-validation">
+            <div class="pf-minis">
+              <div class="plain">
+                <div class="req-field" data-invalid data-od-id="st-err-taken">
+                  <label class="req-field__lab" for="st-name-taken">Name</label>
+                  <input class="input" id="st-name-taken" type="text" value="Consulting" aria-invalid="true">
+                  <span class="req-field__err">A profile named Consulting already exists.</span>
+                </div>
+              </div>
+              <div class="plain">
+                <div class="req-field" data-invalid data-od-id="st-err-empty">
+                  <label class="req-field__lab" for="st-name-empty">Name</label>
+                  <input class="input" id="st-name-empty" type="text" value="" placeholder="Profile name" aria-invalid="true">
+                  <span class="req-field__err">Give the profile a name.</span>
+                </div>
+              </div>
+              <div class="plain">
+                <div class="req-field" data-invalid data-od-id="st-err-chars">
+                  <label class="req-field__lab" for="st-name-chars">Name</label>
+                  <input class="input" id="st-name-chars" type="text" value="ops/2026" aria-invalid="true">
+                  <span class="req-field__err">Use letters, numbers, spaces, or dashes.</span>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ===== 03 · ARCHIVED OPEN ===== -->
+    <section class="lab-sec" data-od-id="st-archived">
+      <div class="lab-sec__head"><span class="lab-sec__num">03</span><h2 class="lab-sec__t">Archived — unarchive always, delete only when empty</h2>
+        <span class="lab-sec__gist">US-005 · US-006.AC-2</span></div>
+      <div class="spec">
+        <div class="spec__note"><b>Truthful affordances</b>Old agency still holds work, so delete simply is not in its row. scratch is empty — delete appears. Archived identity mutes to the info register but keeps glyph + name. <span class="mono">US-005.AC-1 · US-006.AC-2</span></div>
+        <div class="spec__demo">
+          <div class="stage stage--auto stage--pad" data-od-id="st-archived-stage">
+            <div class="plain">
+              <button class="adv-toggle" aria-expanded="true"><svg class="chev" data-lucide="chevron-right"></svg>Archived<span class="count-chip">2</span></button>
+              <div class="panelbox">
+                <div class="srow" data-od-id="st-arch-oldagency">
+                  <div class="pf-lead"><span class="pf-glyph pf-glyph--lg" style="--id:#B58E5F"><svg data-lucide="folder"></svg></span><span class="srow__label">Old agency</span><span class="pill" data-tone="info"><svg data-lucide="archive"></svg>Archived</span></div>
+                  <div class="srow__ctl"><span class="pf-count">Holds 4 sessions</span><button class="btn btn--sm" type="button">Unarchive</button></div>
+                </div>
+                <div class="srow" data-od-id="st-arch-scratch">
+                  <div class="pf-lead"><span class="pf-glyph pf-glyph--lg" style="--id:#8A8F98"><svg data-lucide="pencil"></svg></span><span class="srow__label">scratch</span><span class="pill" data-tone="info"><svg data-lucide="archive"></svg>Archived</span></div>
+                  <div class="srow__ctl"><span class="pf-count">Empty</span><button class="btn btn--sm" type="button">Unarchive</button><button class="btn btn--sm btn--destructive" type="button">Delete</button></div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ===== 04 · SELECTION MAP OPEN ===== -->
+    <section class="lab-sec" data-od-id="st-map">
+      <div class="lab-sec__head"><span class="lab-sec__num">04</span><h2 class="lab-sec__t">Where each profile is active</h2>
+        <span class="lab-sec__gist">US-014.AC-1 · US-007.AC-2</span></div>
+      <div class="spec">
+        <div class="spec__note"><b>Read-only facts</b>The remembered project → profile map, inspectable but not a control surface — switching happens in the menubar. The Global lens keeps its own row. <span class="mono">US-014</span></div>
+        <div class="spec__demo">
+          <div class="stage stage--auto stage--pad" data-od-id="st-map-stage">
+            <div class="plain pf-map" data-od-id="st-map-open">
+              <button class="adv-toggle" aria-expanded="true"><svg class="chev" data-lucide="chevron-right"></svg>Where each profile is active</button>
+              <div class="prow"><span class="prow__k">acme-site</span><span class="prow__v"><span class="pf-owner"><span class="pf-glyph" style="--id:#C26AD6"><svg data-lucide="megaphone"></svg></span>Marketing</span></span></div>
+              <div class="prow"><span class="prow__k">client-alpha</span><span class="prow__v"><span class="pf-owner"><span class="pf-glyph" style="--id:#4EA7FC"><svg data-lucide="briefcase"></svg></span>Consulting</span></span></div>
+              <div class="prow"><span class="prow__k">docs-hub</span><span class="prow__v"><span class="pf-owner"><span class="pf-glyph" style="--id:#8A8F98"><svg data-lucide="user-round"></svg></span>default</span></span></div>
+              <div class="prow"><span class="prow__k">Across projects</span><span class="prow__v"><span class="pf-owner"><span class="pf-glyph" style="--id:#C26AD6"><svg data-lucide="megaphone"></svg></span>Marketing</span></span></div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ===== 05 · REMOTE — MANAGEMENT ABSENT ===== -->
+    <section class="lab-sec" data-od-id="st-remote">
+      <div class="lab-sec__head"><span class="lab-sec__num">05</span><h2 class="lab-sec__t">Remote surface — absent, not disabled</h2>
+        <span class="lab-sec__gist">US-032.AC-2</span></div>
+      <div class="spec">
+        <div class="spec__note"><b>No ghost controls</b>Viewed from a remote surface the list is readable, but create, edit, archive, and delete are not in the DOM — a grayed button would promise something the runtime won't do here. One sentence says where management lives. <span class="mono">US-032.AC-2</span></div>
+        <div class="spec__demo">
+          <div class="stage stage--auto stage--pad" data-od-id="st-remote-stage">
+            <div class="plain">
+              <div class="app-toolbar"><span class="eyebrow">Profiles</span></div>
+              <p class="pf-sep-line">Profiles are managed on the machine that owns them.</p>
+              <div class="panelbox">
+                <div class="srow">
+                  <div class="pf-lead"><span class="pf-glyph pf-glyph--lg" style="--id:#8A8F98"><svg data-lucide="user-round"></svg></span><span class="srow__label">default</span><span class="tag">Permanent</span></div>
+                  <div class="srow__ctl"><span class="pf-count">8 sessions · 2 loops</span></div>
+                </div>
+                <div class="srow">
+                  <div class="pf-lead"><span class="pf-glyph pf-glyph--lg" style="--id:#C26AD6"><svg data-lucide="megaphone"></svg></span><span class="srow__label">Marketing</span></div>
+                  <div class="srow__ctl"><span class="pf-count">3 sessions · 1 automation</span></div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ===== 06 · NOTIFICATION PRESETS (S13) ===== -->
+    <section class="lab-sec" data-od-id="st-presets">
+      <div class="lab-sec__head"><span class="lab-sec__num">06</span><h2 class="lab-sec__t">Notification presets — per-profile enablement</h2>
+        <span class="lab-sec__gist">US-025.AC-2 · US-025.EC-1</span></div>
+      <div class="spec">
+        <div class="spec__note"><b>The rows act on the active profile</b>The preset library stays machine-wide; each row shows and edits the effective state for Marketing. A fresh profile starts with every preset on. Archived owners' deliveries pause — stated as a fact, not a warning. <span class="mono">US-025.AC-2 · US-025.EC-1</span></div>
+        <div class="spec__demo">
+          <div class="stage stage--auto stage--pad" data-od-id="st-presets-stage">
+            <div class="plain">
+              <div class="app-toolbar">
+                <span class="eyebrow">Notifications</span>
+                <span class="w2-flex" aria-hidden="true"></span>
+                <span class="pf-owner"><span class="pf-glyph" style="--id:#C26AD6"><svg data-lucide="megaphone"></svg></span>Marketing</span>
+              </div>
+              <div class="panelbox" data-od-id="st-presets-list">
+                <div class="srow">
+                  <div class="srow__main"><div class="srow__label">Session finished</div></div>
+                  <div class="srow__ctl"><button class="switch is-on" role="switch" aria-checked="true" aria-label="Session finished"><span class="knob"></span></button></div>
+                </div>
+                <div class="srow">
+                  <div class="srow__main"><div class="srow__label">Needs your approval</div></div>
+                  <div class="srow__ctl"><button class="switch is-on" role="switch" aria-checked="true" aria-label="Needs your approval"><span class="knob"></span></button></div>
+                </div>
+                <div class="srow" data-od-id="st-preset-off">
+                  <div class="srow__main"><div class="srow__label">Daily digest</div></div>
+                  <div class="srow__ctl"><button class="switch" role="switch" aria-checked="false" aria-label="Daily digest"><span class="knob"></span></button></div>
+                </div>
+              </div>
+              <p class="pf-sep-line" data-od-id="st-presets-paused">Deliveries for archived profiles are paused.</p>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <p class="lab-foot" data-od-id="st-foot">Spec <code>_uiux.md</code> S4 + S13 · contract <code>DESIGN-NOTES.md</code> · production seams settings route partials (<code>-profiles-settings-page.tsx</code>), preset-enablement routes per <code>_dx.md</code> with CLI parity. Content illustrative; runtime truth owns final values.</p>
+
+  </div></div>
+</div></div>
+<script src="https://unpkg.com/lucide@latest/dist/umd/lucide.min.js"></script>
+<script>
+(function () { if (window.lucide) window.lucide.createIcons(); })();
+</script>
+</body>
+</html>

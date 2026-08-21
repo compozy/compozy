@@ -1,0 +1,352 @@
+/* ============================================================
+   PROFILES — profiles.css
+   Who-is-working contexts: switcher, aggregate labels, Settings
+   page, identity picker, lifecycle dialogs, placements, hints,
+   palette view.
+
+   Companion boards: profiles-*.html · contract: DESIGN-NOTES.md.
+   Link order (own file LAST):
+     ds-core.css → ds-shell.css → ../graph-eng/graph-eng.css → profiles.css
+
+   Authority chain (highest first):
+     1. packages/ui/src/tokens.css POST-#440 (636bc823, the
+        normie-friendly pass) + production seams (desktop-menubar.tsx,
+        CommandSelect*, Avatar, query-keys.ts)
+     2. .compozy/tasks/profiles/_uiux.md (+ _user_stories.md ACs/ECs)
+     3. design-system/ds-core.css + ds-shell.css + graph-eng.css
+     4. This file (identity + lifecycle vocabulary)
+
+   CHAPTER 20 IS A SANCTIONED REBIND. ds-core.css predates PR #440
+   and drifted: ramp one step darker, cool-violet text, half-strength
+   glazes, tighter radii, faster motion, uppercase eyebrows, 13.5px
+   body. The parity lane below rebinds those token NAMES to current
+   tokens.css values, set-scoped (siblings do not link this file).
+   The root fix belongs in ds-core.css. THESE ARE THE ONLY RAW
+   LITERALS IN THIS FILE except identity fixtures; every rule below
+   references tokens.
+
+   Reuse before create:
+     menubar / trigger ......... .menubar .mb-icon .ws-trigger   ds-shell
+     menu ...................... .popover .pop-item .pop-sep     ds-shell
+     window / rows ............. .win .list-shell .listing-row   ds-shell/core
+     chips / notices / empty ... .pill .notice .empty            ds-core
+     settings .................. .panelbox .srow .switch         ds-core
+     palette ................... .palette .pal-item              ds-shell
+     toasts .................... .toasts .toast                  ds-shell
+
+   Deleted with reason:
+     .pf-badge  — needs-setup is .pill[data-tone="warning"], not bespoke
+     .pf-check  — active mark is .pop-item .pi-check, not bespoke
+     per-key chord caps — one .key carries the chord (command-palette lock)
+
+   Artboard CSS is a contract — never imported into production.
+   ============================================================ */
+
+/* ---- domain widths (lab only) ---- */
+:root{
+  --pf-menu-w:280px;   /* switcher menu */
+  --pf-modal-w:560px;  /* lifecycle dialogs (production modal sm) */
+  --pf-win-w:960px;    /* listing window */
+  --pf-set-w:820px;    /* settings window */
+}
+
+/* ============================================================
+   20 · POST-#440 PARITY LANE — token rebind + base patches
+   ============================================================ */
+:root{
+  /* surface ramp — lifted one step, warm */
+  --canvas:#171615; --canvas-soft:#1f1e1c; --canvas-tint:#232220; --elevated:#2a2927;
+  /* text ladder — warm-neutral (hue ≈ 75), subtle/faint much lighter */
+  --fg:#eeedeb; --fg-strong:#f7f6f4; --muted:#a4a29e;
+  --subtle:oklch(0.663 0.004 75); --faint:oklch(0.638 0.003 75);
+  /* glaze ladder — doubled; under .045 reads as no affordance */
+  --row-hover:rgba(255,255,255,.045); --row-selected:rgba(255,255,255,.06);
+  --input-fill:rgba(255,255,255,.05); --badge-fill:rgba(255,255,255,.05);
+  --btn-fill:rgba(255,255,255,.07); --btn-hover:rgba(255,255,255,.1);
+  --surface-glaze:rgba(255,255,255,.06); --bar-fill:rgba(255,255,255,.085);
+  /* new post-#440 names used by this set */
+  --line-focus:rgba(255,255,255,.14); --disabled:#4a4847; --neutral-ink:#8a8a90;
+  /* radius — soft ladder 3/6/7/8/10/14/18/pill */
+  --radius-xs:6px; --radius-sm:7px; --radius:8px; --radius-md:10px;
+  --radius-lg:14px; --radius-xl:18px;
+  /* motion — slower, one decisive ease; fixes the malformed ease-in-out */
+  --dur-fast:120ms; --dur:180ms; --dur-slow:260ms;
+  --ease:cubic-bezier(.22,1,.36,1); --ease-in-out:cubic-bezier(.4,0,.2,1);
+  /* key caps are never mono */
+  --font-keys:-apple-system,"BlinkMacSystemFont","Segoe UI","Geist",sans-serif;
+}
+
+/* base — 15px/1.55 body, sentence-case eyebrow (12/510), caps opt-in only */
+body{font-size:15px;line-height:1.55}
+.eyebrow{font-size:12px;font-weight:510;letter-spacing:-.005em;text-transform:none;color:var(--subtle)}
+.eyebrow-caps{font-size:11px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;color:var(--subtle)}
+kbd{font-family:var(--font-keys);font-size:10.5px;font-weight:510;letter-spacing:.03em;color:var(--subtle)}
+
+/* control geometry — one tier up (#440): btn 30/26, pill 20 + full round */
+.btn{height:30px;font-weight:510}
+.btn--sm{height:26px;font-size:12px}
+.btn--icon{width:30px}
+.btn--sm.btn--icon{width:26px}
+.pill{height:20px;padding:0 9px;border-radius:var(--radius-pill)}
+.pill svg{width:11px;height:11px}
+
+/* shell micro-labels demoted from uppercase (normie pass) */
+.pop-eyebrow,.pal-group{font-size:11.5px;font-weight:510;letter-spacing:-.005em;text-transform:none;color:var(--subtle)}
+
+/* key caps — system sans, one cap per chord */
+.keys{display:inline-flex;align-items:center;gap:4px}
+.key{
+  display:inline-grid;place-items:center;min-width:20px;height:20px;padding:0 6px;
+  border:1px solid var(--line-strong);border-radius:var(--radius-xs);
+  background:var(--badge-fill);
+  font-family:var(--font-keys);font-size:10.5px;font-weight:510;letter-spacing:.03em;color:var(--fg);
+}
+
+/* static depiction of keyboard focus — this file's helper, NOT ds-core */
+.focus-ring{box-shadow:var(--focus-ring)}
+
+/* ============================================================
+   21 · IDENTITY — glyph, owner tag, destination chip
+   Identity color is USER DATA: per-element --id (the sanctioned
+   inline style), never a token. Ink is mixed toward white for AA.
+   Name + symbol always accompany the color.
+   ============================================================ */
+.pf-glyph{
+  --id:#8a8f98;
+  position:relative;display:inline-grid;place-items:center;flex:none;
+  width:22px;height:22px;border-radius:var(--radius-sm);
+  background:color-mix(in oklab,var(--id) 20%,transparent);
+  color:color-mix(in oklab,var(--id) 72%,#fff);
+  font-size:12px;line-height:1;
+}
+/* color:inherit guards the identity ink against shell rules that paint
+   nested svgs gray (.pop-item svg / .pal-item svg in ds-shell) */
+.pf-glyph svg{width:12px;height:12px;color:inherit}
+.pf-glyph--sm{width:18px;height:18px;border-radius:var(--radius-xs);font-size:10px}
+.pf-glyph--sm svg{width:10px;height:10px}
+.pf-glyph--lg{width:28px;height:28px;border-radius:var(--radius);font-size:15px}
+.pf-glyph--lg svg{width:15px;height:15px}
+/* active marker — ring in the identity color (data, not signal) */
+.pf-glyph.is-current{box-shadow:0 0 0 1.5px color-mix(in oklab,var(--id) 60%,transparent)}
+/* the All-profiles glyph is neutral — an aggregate is not an identity */
+.pf-glyph--all{background:var(--badge-fill);border:1px solid var(--line-strong);color:var(--muted)}
+/* needs-setup dot on a glyph — warning, paired with the words "needs setup" */
+.pf-glyph .pf-dot{
+  position:absolute;top:-2.5px;right:-2.5px;width:8px;height:8px;flex:none;
+  border-radius:var(--radius-pill);background:var(--warning);
+  box-shadow:0 0 0 1.5px var(--canvas-soft);
+}
+
+/* owner tag — aggregate rows only; scoped views stay tag-free */
+.pf-owner{
+  display:inline-flex;align-items:center;gap:5px;flex:none;
+  height:20px;padding:0 8px 0 3px;border-radius:var(--radius-pill);
+  background:var(--badge-fill);
+  font-size:11px;font-weight:510;letter-spacing:-.005em;color:var(--muted);
+}
+.pf-owner .pf-glyph{width:14px;height:14px;border-radius:4px}
+.pf-owner .pf-glyph svg{width:8px;height:8px}
+.pf-owner[data-archived]{background:var(--info-tint);color:var(--info)}
+
+/* destination chip — fixed text "→ default"; a label, never a picker */
+.pf-dest{
+  display:inline-flex;align-items:center;gap:5px;flex:none;
+  height:20px;padding:0 8px;border-radius:var(--radius-xs);
+  background:var(--badge-fill);
+  font-size:11px;font-weight:510;color:var(--muted);
+}
+.pf-dest b{font-weight:510;color:var(--fg)}
+.composer .pf-dest{align-self:center}
+
+/* ============================================================
+   22 · MENUBAR SWITCHER — trigger + menu
+   Right cluster, immediately before Settings. Quiet until plural:
+   single-default renders the neutral icon button only.
+   ============================================================ */
+.mb-icon.is-on,.mb-icon[aria-pressed="true"]{background:var(--btn-fill);color:var(--fg-strong)}
+.pf-trigger{display:flex;align-items:center;gap:6px;height:28px;padding:0 8px;border-radius:var(--radius-sm)}
+.pf-trigger:hover,.pf-trigger[aria-expanded="true"]{background:var(--btn-fill)}
+.pf-trigger .pf-name{font-size:12.5px;font-weight:600;color:var(--fg-strong);white-space:nowrap}
+.pf-trigger .chevrons{width:12px;height:12px;color:var(--subtle)}
+
+.pf-menu{width:var(--pf-menu-w);padding:6px}
+.pf-menu .pop-item{height:32px}
+.pf-menu .pop-item .pi-check{color:var(--fg-strong)}
+.pf-menu .pop-item .pi-check svg{color:var(--fg-strong)}
+.pf-menu .pop-item[aria-pressed="true"]{background:var(--row-selected);box-shadow:var(--highlight)}
+.pf-menu .pop-item .pf-state{margin-left:auto;font-size:10.5px;font-weight:510;color:var(--warning);flex:none}
+/* boundary answer — the menu's one sentence, verbatim from COPY */
+.pf-menu__foot{margin-top:5px;padding:8px 10px 4px;border-top:1px solid var(--line);font-size:11px;line-height:1.5;color:var(--subtle)}
+.pf-menu__meta{display:flex;align-items:center;gap:5px;padding:4px 10px 5px;font-size:11px;color:var(--faint)}
+.pf-menu__meta a{color:var(--muted);text-decoration:underline;text-underline-offset:2px}
+.pf-menu__meta a:hover{color:var(--fg)}
+
+/* ============================================================
+   23 · OWNER BANNER — deep link into another profile's item
+   Info tint (nothing is wrong); one-tap switch on the right.
+   Backed by the labeled aggregate-by-id read, never a client hack.
+   ============================================================ */
+.pf-banner{
+  display:flex;align-items:center;gap:10px;
+  padding:10px 14px;border-radius:var(--radius-md);
+  background:var(--info-tint);font-size:12.5px;line-height:1.5;color:var(--fg);
+}
+.pf-banner b{font-weight:600;color:var(--fg-strong)}
+.pf-banner__act{display:flex;gap:7px;margin-left:auto;flex:none}
+
+/* ============================================================
+   24 · SETTINGS PAGE — rows, selection map
+   Rows compose .srow; identity leads, counts are data not prose.
+   ============================================================ */
+.pf-lead{display:flex;align-items:center;gap:10px;min-width:0}
+.pf-count{font-size:12px;color:var(--subtle);font-variant-numeric:tabular-nums;flex:none}
+.pf-sep-line{font-size:12px;line-height:1.5;color:var(--subtle);padding:2px 2px 0}
+/* selection map — project → active profile, read-only facts */
+.pf-map .prow__v{display:flex;align-items:center;justify-content:flex-end;gap:6px;overflow:visible}
+
+/* ============================================================
+   25 · IDENTITY PICKER — tabs, search, grid, color row
+   The chosen color tints the whole grid (--id on .pf-picker).
+   ============================================================ */
+.pf-picker{--id:#8a8f98;display:flex;flex-direction:column;gap:12px}
+.pf-picker__row{display:flex;align-items:center;gap:10px}
+/* compact cells (~28px) — the box hugs the glyph; width decides columns */
+.pf-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(26px,1fr));gap:3px}
+.pf-cell{
+  aspect-ratio:1;display:grid;place-items:center;border-radius:var(--radius-xs);
+  color:color-mix(in oklab,var(--id) 62%,#fff);font-size:14px;line-height:1;
+  transition:background var(--dur-fast) var(--ease);
+}
+.pf-cell svg{width:14px;height:14px;color:inherit}
+.pf-cell:hover{background:var(--row-hover)}
+.pf-cell.is-on{
+  background:color-mix(in oklab,var(--id) 20%,transparent);
+  box-shadow:inset 0 0 0 1.5px color-mix(in oklab,var(--id) 55%,transparent);
+}
+.pf-cell--em{color:inherit}
+.pf-swatches{display:flex;align-items:center;gap:7px}
+.pf-swatch{
+  --id:#8a8f98;width:20px;height:20px;flex:none;border-radius:var(--radius-pill);
+  background:var(--id);
+  transition:transform var(--dur-fast) var(--ease);
+}
+.pf-swatch:hover{transform:scale(1.12)}
+.pf-swatch.is-on{box-shadow:0 0 0 2px var(--canvas-soft),0 0 0 3.5px color-mix(in oklab,var(--id) 70%,#fff)}
+.pf-hex{width:118px}
+.pf-hex input{font-family:var(--font-mono);font-size:11.5px}
+.pf-hex[data-invalid]{border-color:color-mix(in oklab,var(--danger) 50%,var(--line))}
+.pf-err{font-size:11px;color:var(--danger)}
+
+/* ============================================================
+   26 · DIALOGS — modal frame, rename plan tiers, enumeration
+   Danger inks the destructive confirm button ONLY.
+   ============================================================ */
+.pf-modal{
+  width:min(var(--pf-modal-w),100%);text-align:left;
+  background:var(--canvas-soft);border:1px solid var(--line-strong);
+  border-radius:var(--radius-lg);box-shadow:var(--shadow-overlay);overflow:hidden;
+}
+.pf-modal__head{display:flex;align-items:center;gap:10px;padding:14px 16px 0}
+.pf-modal__t{font-size:14px;font-weight:600;letter-spacing:-.012em;color:var(--fg-strong)}
+.pf-modal__body{display:flex;flex-direction:column;gap:12px;padding:14px 16px 16px}
+.pf-modal__foot{display:flex;align-items:center;justify-content:flex-end;gap:8px;padding:12px 16px;border-top:1px solid var(--line)}
+.pf-modal__foot .pf-note{margin-right:auto;font-size:11.5px;color:var(--subtle)}
+
+/* rename result plan — three tiers, each labeled by what it will do */
+.pf-plan{border:1px solid var(--line);border-radius:var(--radius-md);overflow:hidden}
+.pf-plan__tier{padding:10px 12px 11px;border-top:1px solid var(--line-soft)}
+.pf-plan__tier:first-child{border-top:0}
+.pf-plan__t{display:flex;align-items:baseline;gap:7px;font-size:12.5px;font-weight:510;color:var(--fg)}
+.pf-plan__tag{margin-left:auto;font-size:11px;font-weight:510;color:var(--faint);flex:none}
+.pf-plan__row{display:flex;align-items:center;gap:8px;min-height:28px;font-size:12.5px;color:var(--muted)}
+.pf-plan__row code{font-family:var(--font-mono);font-size:11px;color:var(--muted);background:var(--badge-fill);border-radius:var(--radius-xxs);padding:1px 4px}
+.pf-plan__row[data-skipped]{color:var(--faint)}
+.pf-cbx{
+  width:15px;height:15px;flex:none;display:grid;place-items:center;
+  border:1px solid var(--line-strong);border-radius:4px;color:transparent;
+}
+.pf-cbx svg{width:10px;height:10px}
+.pf-cbx.is-on{background:var(--accent);border-color:var(--accent);color:var(--accent-ink)}
+
+/* enumeration — what delete removes; facts, calm until the button */
+.pf-enum{display:flex;flex-direction:column;border:1px solid var(--line);border-radius:var(--radius-md);overflow:hidden}
+.pf-enum__row{display:flex;align-items:center;gap:9px;min-height:32px;padding:0 12px;font-size:12.5px;color:var(--fg);border-top:1px solid var(--line-soft)}
+.pf-enum__row:first-child{border-top:0}
+.pf-enum__row svg{width:13px;height:13px;color:var(--subtle);flex:none}
+.pf-enum__row .mono{font-size:11px;color:var(--subtle);margin-left:auto}
+
+/* ============================================================
+   27 · EXTENSION PLACEMENTS — declared profiles, per-resource rows
+   machine-wide vs profile placement; dormant stays calm info.
+   ============================================================ */
+.pf-place-row{
+  display:flex;align-items:center;gap:10px;
+  min-height:40px;padding:8px 12px;border-top:1px solid var(--line-soft);
+}
+.pf-place-row:first-child{border-top:0}
+.pf-place-row svg{width:14px;height:14px;color:var(--muted);flex:none}
+.pf-place-row .pf-res{min-width:0;flex:1;font-size:12.5px;font-weight:510;color:var(--fg)}
+.pf-place-row .pf-res .mono{font-size:10.5px;color:var(--faint);margin-left:6px}
+.pf-place-row .tag{flex:none}
+
+/* ============================================================
+   28 · PROJECT HINT — repo declares profile folders
+   Info tint like .notice; one create action per name; never nags.
+   ============================================================ */
+.pf-hint{
+  display:flex;align-items:flex-start;gap:10px;
+  padding:12px 14px;border-radius:var(--radius-md);
+  background:var(--info-tint);font-size:12.5px;line-height:1.5;color:var(--fg);
+}
+.pf-hint>svg{width:14px;height:14px;color:var(--info);flex:none;margin-top:2px}
+.pf-hint b{font-weight:600;color:var(--fg-strong)}
+.pf-hint__main{min-width:0;flex:1;display:flex;flex-direction:column;gap:8px}
+.pf-hint__acts{display:flex;flex-wrap:wrap;gap:7px}
+
+/* ============================================================
+   29 · PALETTE PROFILES VIEW — rows, disabled reasons, handoff
+   Selection = elevated raise (production CommandItem recipe).
+   Unavailable rows keep full-contrast text; the typed reason is a
+   structured slot, never a grayed label (truthful UI).
+   ============================================================ */
+.pal-item .pf-glyph--sm{margin:0}
+.pal-item.is-active{background:var(--row-selected);box-shadow:var(--highlight);color:var(--fg-strong)}
+.pal-item[aria-disabled="true"]{cursor:default}
+.pal-item[aria-disabled="true"]:hover{background:transparent}
+.pal-item .pal-reason{margin-left:auto;flex:none;font-size:11px;font-weight:510;color:var(--warning)}
+.pal-item .pal-chord{margin-left:auto;flex:none;font-size:11px;color:var(--subtle);font-family:var(--font-keys);letter-spacing:.03em}
+.pal-foot{
+  display:flex;align-items:center;gap:12px;
+  padding:8px 12px;border-top:1px solid var(--line);
+  font-size:11px;color:var(--subtle);
+}
+.pal-foot .keys{gap:3px}
+.pal-foot .key{min-width:18px;height:18px;font-size:10px}
+.pal-foot .pal-view{margin-left:auto;font-weight:510;color:var(--muted)}
+
+/* ============================================================
+   30 · LAB FIT — staged widths; boards carry no inline style
+   ============================================================ */
+/* standalone picker demos need a definite width or auto-fill collapses */
+.plain.pf-picker{width:min(520px,100%)}
+.win--pf{width:min(var(--pf-win-w),100%);min-height:0;resize:none}
+.win--pfset{width:min(var(--pf-set-w),100%);min-height:0;resize:none}
+.stage--auto{min-height:0}
+.stage--stack{display:flex;flex-direction:column;align-items:center;gap:18px;padding:26px 20px 30px}
+.stage .pf-menupop{position:static;animation:none}
+.stage .toast{animation:none}
+.pf-menubar-demo{width:100%}
+.pf-menubar-demo .menubar{border-bottom:1px solid var(--line)}
+/* lab anchor: menu rendered in flow under the trigger's screen position */
+.pf-under{display:flex;justify-content:flex-end;padding:10px 88px 0 0}
+.pf-under--left{justify-content:flex-start;padding:10px 0 0 88px}
+.pf-minis{display:flex;flex-direction:column;gap:16px;width:100%}
+.pf-mini-cap{font-family:var(--font-mono);font-size:10px;letter-spacing:.04em;text-transform:uppercase;color:var(--faint);padding:0 2px 4px}
+.lab-foot{margin-top:8px;font-size:11px;line-height:1.6;color:var(--faint);max-width:78ch}
+.lab-foot code{font-family:var(--font-mono);font-size:10px;color:var(--subtle)}
+
+@media (prefers-reduced-motion:reduce){
+  .pf-swatch:hover{transform:none}
+}
+
+/* ==== APPEND POINT — later runs add chapters after this line ==== */

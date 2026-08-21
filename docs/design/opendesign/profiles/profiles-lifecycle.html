@@ -1,0 +1,258 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="dark">
+<title>Lifecycle dialogs · Profiles · CompozyOS</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Geist:wght@100..900&family=JetBrains+Mono:wght@400..700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../design-system/ds-core.css">
+<link rel="stylesheet" href="../design-system/ds-shell.css">
+<link rel="stylesheet" href="../graph-eng/graph-eng.css">
+<link rel="stylesheet" href="profiles.css">
+<!--
+  profiles-lifecycle · S6 — rename dialog · S7 — archive / delete
+  confirmations.
+  Spec: .compozy/tasks/profiles/_uiux.md S6 + S7 · US-003–006.
+  Contract: DESIGN-NOTES.md.
+  Provenance:
+    production — ProfileRenameDialog / ProfileArchiveDialog /
+                 ProfileDeleteDialog domain components (web/src/systems/profiles/)
+    spec — tiered rename plan: machine automatic · repo offers pre-checked ·
+           extension placements informational; archive pauses automations
+           (ADR-001); delete enumerates or routes to archive; danger inks the
+           destructive confirm only
+    authorized delta — ds-core tokens rebound by the profiles.css post-#440
+                       parity lane (ds-core is pre-#440 drift)
+-->
+</head>
+<body>
+<div class="shell"><div class="main">
+  <header class="w2head" data-od-id="lc-head">
+    <a class="w2-back" href="index.html" aria-label="Back to set"><svg data-lucide="chevron-left"></svg></a>
+    <nav class="w2-crumbs">
+      <a class="w2-crumb" href="index.html">Profiles</a>
+      <span class="w2-sep">/</span>
+      <h1 class="w2-title">Lifecycle dialogs</h1>
+    </nav>
+    <div class="w2-flex"></div>
+    <div class="w2-actions">
+      <a class="btn btn--sm" href="profiles-extension.html">Extensions →</a>
+    </div>
+  </header>
+  <div class="scroll"><div class="page">
+
+    <!-- ===== 01 · RENAME — THE TIERED PLAN ===== -->
+    <section class="lab-sec" data-od-id="lc-rename">
+      <div class="lab-sec__head"><span class="lab-sec__num">01</span><h2 class="lab-sec__t">Rename — one dialog, three tiers of consequence</h2>
+        <span class="lab-sec__gist">US-003.AC-1–4 · US-003.EC-3</span></div>
+      <div class="spec">
+        <div class="spec__note"><b>Say what will happen, grouped by who decides</b>Machine folders move automatically — informational. Repo folders are offers, pre-checked, becoming pending changes to commit. Extension placements that target the old name will sleep — stated, not asked. Unreachable projects are listed as skipped, calm. <span class="mono">US-003.AC-3 · US-003.AC-4 · US-003.EC-3</span></div>
+        <div class="spec__demo">
+          <div class="stage stage--center" data-od-id="lc-rename-stage">
+            <div class="pf-modal" data-od-id="lc-rename-modal">
+              <div class="pf-modal__head"><span class="pf-modal__t">Rename Marketing</span></div>
+              <div class="pf-modal__body">
+                <div class="req-field">
+                  <label class="req-field__lab" for="lc-newname">New name</label>
+                  <div class="pf-picker__row">
+                    <span class="pf-glyph pf-glyph--lg" style="--id:#C26AD6"><svg data-lucide="megaphone"></svg></span>
+                    <input class="input" id="lc-newname" type="text" value="Brand studio">
+                  </div>
+                </div>
+                <div class="pf-plan" data-od-id="lc-rename-plan">
+                  <div class="pf-plan__tier">
+                    <div class="pf-plan__t">Machine folders<span class="pf-plan__tag">automatic</span></div>
+                    <div class="pf-plan__row"><svg data-lucide="hard-drive" width="13" height="13"></svg><code>profiles/marketing</code><svg data-lucide="arrow-right" width="11" height="11"></svg><code>profiles/brand-studio</code></div>
+                  </div>
+                  <div class="pf-plan__tier" data-od-id="lc-rename-repo">
+                    <div class="pf-plan__t">Repo folders<span class="pf-plan__tag">your choice — pending changes to commit</span></div>
+                    <div class="pf-plan__row"><span class="pf-cbx is-on"><svg data-lucide="check"></svg></span>acme-site · <code>.compozy/profiles/marketing/</code></div>
+                    <div class="pf-plan__row"><span class="pf-cbx"></span>client-alpha · <code>.compozy/profiles/marketing/</code></div>
+                    <div class="pf-plan__row" data-skipped><svg data-lucide="circle-slash" width="12" height="12"></svg>docs-hub is not reachable right now — skipped</div>
+                  </div>
+                  <div class="pf-plan__tier" data-od-id="lc-rename-ext">
+                    <div class="pf-plan__t">Extension placements<span class="pf-plan__tag">informational</span></div>
+                    <div class="pf-plan__row"><svg data-lucide="moon" width="12" height="12"></svg>growth-kit content for <code>marketing</code> will sleep until a profile uses that name again</div>
+                  </div>
+                </div>
+              </div>
+              <div class="pf-modal__foot">
+                <button class="btn btn--ghost" type="button">Cancel</button>
+                <button class="btn btn--primary" type="button">Rename</button>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ===== 02 · RENAME EDGES ===== -->
+    <section class="lab-sec" data-od-id="lc-rename-edges">
+      <div class="lab-sec__head"><span class="lab-sec__num">02</span><h2 class="lab-sec__t">Rename edges</h2>
+        <span class="lab-sec__gist">US-003.EC-1 · US-003.EC-2</span></div>
+
+      <div class="spec">
+        <div class="spec__note"><b>No matches, smaller dialog</b>When no repo declares the old name, the repo tier simply is not rendered — an empty tier would be a ghost. The plan is one line. <span class="mono">US-003.AC-2</span></div>
+        <div class="spec__demo">
+          <div class="stage stage--auto stage--pad" data-od-id="lc-nomatch-stage">
+            <div class="plain">
+              <div class="pf-plan">
+                <div class="pf-plan__tier">
+                  <div class="pf-plan__t">Machine folders<span class="pf-plan__tag">automatic</span></div>
+                  <div class="pf-plan__row"><svg data-lucide="hard-drive" width="13" height="13"></svg><code>profiles/consulting</code><svg data-lucide="arrow-right" width="11" height="11"></svg><code>profiles/client-work</code></div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="spec">
+        <div class="spec__note"><b>default cannot be renamed</b>The permanent profile refuses with a plain sentence — the field is absent, not disabled with a mystery. <span class="mono">US-003.EC-2</span></div>
+        <div class="spec__demo">
+          <div class="stage stage--auto stage--pad" data-od-id="lc-refusal-stage">
+            <div class="plain">
+              <div class="notice" data-od-id="lc-refusal">
+                <svg data-lucide="info"></svg>
+                <div><b>default is permanent.</b> It cannot be renamed or archived. Create a profile for work you want to label.</div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ===== 03 · ARCHIVE ===== -->
+    <section class="lab-sec" data-od-id="lc-archive">
+      <div class="lab-sec__head"><span class="lab-sec__num">03</span><h2 class="lab-sec__t">Archive — pause, don't destroy</h2>
+        <span class="lab-sec__gist">US-004.AC-4 · US-004.EC-1</span></div>
+
+      <div class="spec">
+        <div class="spec__note"><b>Names what pauses</b>Archive is calm — nothing is deleted, so no danger anywhere. The dialog lists the automations that will pause. <span class="mono">US-004.AC-4 · ADR-001</span></div>
+        <div class="spec__demo">
+          <div class="stage stage--center" data-od-id="lc-archive-stage">
+            <div class="pf-modal" data-od-id="lc-archive-modal">
+              <div class="pf-modal__head"><span class="pf-modal__t">Archive Marketing</span></div>
+              <div class="pf-modal__body">
+                <p class="pf-sep-line">Its work leaves scoped views and its automations pause. Nothing is deleted.</p>
+                <div class="pf-enum">
+                  <div class="pf-enum__row"><svg data-lucide="clock"></svg>Weekly digest — pauses<span class="mono">automation</span></div>
+                </div>
+              </div>
+              <div class="pf-modal__foot">
+                <button class="btn btn--ghost" type="button">Cancel</button>
+                <button class="btn btn--primary" type="button">Archive</button>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="spec">
+        <div class="spec__note"><b>Blocked while sessions run</b>Warning names the sessions — something is in use, nothing is broken. The way forward is to stop them, offered as the action. <span class="mono">US-004.EC-1</span></div>
+        <div class="spec__demo">
+          <div class="stage stage--auto stage--pad" data-od-id="lc-blocked-stage">
+            <div class="plain">
+              <div class="notice" data-od-id="lc-blocked">
+                <svg data-lucide="triangle-alert"></svg>
+                <div><b>2 sessions are still running in Marketing.</b> Stop "Draft launch email" and "Plan spring campaign" to archive this profile.</div>
+                <div class="notice__actions"><button class="btn btn--sm" type="button">View sessions</button></div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ===== 04 · UNARCHIVE ===== -->
+    <section class="lab-sec" data-od-id="lc-unarchive">
+      <div class="lab-sec__head"><span class="lab-sec__num">04</span><h2 class="lab-sec__t">Unarchive — automations stay off until you say</h2>
+        <span class="lab-sec__gist">US-005.AC-2</span></div>
+      <div class="spec">
+        <div class="spec__note"><b>Explicit reactivation</b>The profile returns immediately; each paused automation is its own decision, off by default. No bulk "resume all" — waking a year-old digest silently is the failure mode. <span class="mono">US-005.AC-2</span></div>
+        <div class="spec__demo">
+          <div class="stage stage--center" data-od-id="lc-unarchive-stage">
+            <div class="pf-modal" data-od-id="lc-unarchive-modal">
+              <div class="pf-modal__head"><span class="pf-modal__t">Unarchive Old agency</span></div>
+              <div class="pf-modal__body">
+                <div class="panelbox">
+                  <div class="srow">
+                    <div class="srow__main"><div class="srow__label">Client report weekly</div></div>
+                    <div class="srow__ctl"><span class="pf-count">paused</span><button class="switch" role="switch" aria-checked="false" aria-label="Reactivate Client report weekly"><span class="knob"></span></button></div>
+                  </div>
+                  <div class="srow">
+                    <div class="srow__main"><div class="srow__label">Invoice reminder</div></div>
+                    <div class="srow__ctl"><span class="pf-count">paused</span><button class="switch" role="switch" aria-checked="false" aria-label="Reactivate Invoice reminder"><span class="knob"></span></button></div>
+                  </div>
+                </div>
+              </div>
+              <div class="pf-modal__foot">
+                <button class="btn btn--ghost" type="button">Cancel</button>
+                <button class="btn btn--primary" type="button">Unarchive</button>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ===== 05 · DELETE ===== -->
+    <section class="lab-sec" data-od-id="lc-delete">
+      <div class="lab-sec__head"><span class="lab-sec__num">05</span><h2 class="lab-sec__t">Delete — enumerate, or route to archive</h2>
+        <span class="lab-sec__gist">US-006.AC-2 · US-006.AC-3</span></div>
+
+      <div class="spec">
+        <div class="spec__note"><b>Danger inks one button</b>Delete is available only for an empty archived profile and lists exactly what goes. The dialog frame stays neutral — the red lives on the confirm, nowhere else. <span class="mono">US-006.AC-3</span></div>
+        <div class="spec__demo">
+          <div class="stage stage--center" data-od-id="lc-delete-stage">
+            <div class="pf-modal" data-od-id="lc-delete-modal">
+              <div class="pf-modal__head"><span class="pf-modal__t">Delete scratch</span></div>
+              <div class="pf-modal__body">
+                <div class="pf-enum" data-od-id="lc-delete-enum">
+                  <div class="pf-enum__row"><svg data-lucide="user-round"></svg>Profile identity and settings</div>
+                  <div class="pf-enum__row"><svg data-lucide="app-window"></svg>Saved desktops<span class="mono">2</span></div>
+                  <div class="pf-enum__row"><svg data-lucide="bell"></svg>Notification preferences</div>
+                </div>
+                <p class="pf-sep-line">This cannot be undone.</p>
+              </div>
+              <div class="pf-modal__foot">
+                <button class="btn btn--ghost" type="button">Cancel</button>
+                <button class="btn btn--destructive" type="button">Delete profile</button>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="spec">
+        <div class="spec__note"><b>Work exists — the road bends to archive</b>Deleting a profile that holds work is not offered with a scarier confirm; the dialog states the fact and the primary action becomes archive. <span class="mono">US-006.AC-2</span></div>
+        <div class="spec__demo">
+          <div class="stage stage--center" data-od-id="lc-route-stage">
+            <div class="pf-modal" data-od-id="lc-route-modal">
+              <div class="pf-modal__head"><span class="pf-modal__t">Delete Old agency</span></div>
+              <div class="pf-modal__body">
+                <p class="pf-sep-line">Old agency holds 4 sessions. Archive keeps them; delete is available once the profile is empty.</p>
+              </div>
+              <div class="pf-modal__foot">
+                <button class="btn btn--ghost" type="button">Cancel</button>
+                <button class="btn btn--primary" type="button">Archive instead</button>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <p class="lab-foot" data-od-id="lc-foot">Spec <code>_uiux.md</code> S6 + S7 · contract <code>DESIGN-NOTES.md</code> · production seams <code>ProfileRenameDialog</code>, <code>ProfileArchiveDialog</code>, <code>ProfileDeleteDialog</code> in <code>web/src/systems/profiles/</code>. The palette lifecycle actions open these same dialogs (S14). Content illustrative; runtime truth owns final values.</p>
+
+  </div></div>
+</div></div>
+<script src="https://unpkg.com/lucide@latest/dist/umd/lucide.min.js"></script>
+<script>
+(function () { if (window.lucide) window.lucide.createIcons(); })();
+</script>
+</body>
+</html>

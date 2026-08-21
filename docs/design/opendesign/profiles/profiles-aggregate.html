@@ -1,0 +1,309 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="dark">
+<title>Aggregate &amp; listings · Profiles · CompozyOS</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Geist:wght@100..900&family=JetBrains+Mono:wght@400..700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../design-system/ds-core.css">
+<link rel="stylesheet" href="../design-system/ds-shell.css">
+<link rel="stylesheet" href="../graph-eng/graph-eng.css">
+<link rel="stylesheet" href="profiles.css">
+<!--
+  profiles-aggregate · S3 — work listings & live views · S2 — creation under
+  All · S10 — usage surfaces.
+  Spec: .compozy/tasks/profiles/_uiux.md S2 + S3 + S10 · US-008, US-009,
+  US-011, US-012, US-013, US-031. Contract: DESIGN-NOTES.md.
+  Provenance:
+    production — use-session-catalog-streams.ts server-scoped reads;
+                 ListingRow parts; query-keys.ts workspace-qualified pattern
+    spec — owner tags only in aggregate mode (calm scoped default); the
+           destination chip is a fixed label, never a picker (ADR-005);
+           deep links resolve via the labeled aggregate-by-id read
+    authorized delta — ds-core tokens rebound by the profiles.css post-#440
+                       parity lane (ds-core is pre-#440 drift)
+-->
+</head>
+<body>
+<div class="shell"><div class="main">
+  <header class="w2head" data-od-id="ag-head">
+    <a class="w2-back" href="index.html" aria-label="Back to set"><svg data-lucide="chevron-left"></svg></a>
+    <nav class="w2-crumbs">
+      <a class="w2-crumb" href="index.html">Profiles</a>
+      <span class="w2-sep">/</span>
+      <h1 class="w2-title">Aggregate &amp; listings</h1>
+    </nav>
+    <div class="w2-flex"></div>
+    <div class="w2-actions">
+      <a class="btn btn--sm" href="profiles-switcher.html">← Switcher</a>
+      <a class="btn btn--sm" href="profiles-settings.html">Settings →</a>
+    </div>
+  </header>
+  <div class="scroll"><div class="page">
+
+    <!-- ===== 01 · FINAL — AGGREGATE LISTING, OWNER-LABELED ===== -->
+    <section class="lab-sec" data-od-id="ag-final">
+      <div class="lab-sec__head"><span class="lab-sec__num">01</span><h2 class="lab-sec__t">All profiles on — every row names its owner</h2>
+        <span class="lab-sec__gist">US-011.AC-1 · US-004.AC-2</span></div>
+      <div class="spec">
+        <div class="spec__note"><b>Owner is a tag, not a color</b>Aggregate rows carry glyph + name; the archived owner keeps its identity but the tag mutes to info plus the word "archived". Rows come server-scoped — the client never filters. Status pills keep their own channel. <span class="mono">US-011.AC-1 · SD-012</span></div>
+        <div class="spec__demo">
+          <div class="stage stage--tall stage--pad" data-od-id="ag-final-stage">
+            <section class="win is-focused win--pf" data-od-id="ag-final-win">
+              <header class="win-head">
+                <div class="win-controls">
+                  <button class="wc wc-close" tabindex="-1" aria-label="Close"></button>
+                  <button class="wc wc-min" tabindex="-1" aria-label="Minimize"></button>
+                  <button class="wc wc-zoom" tabindex="-1" aria-label="Zoom"></button>
+                </div>
+                <div class="w2-id"><span class="w2-glyph"><svg data-lucide="messages-square"></svg></span><span class="w2-title">Sessions</span><span class="w2-count">4</span></div>
+                <span class="w2-flex" aria-hidden="true"></span>
+                <div class="win-trail">
+                  <span class="pf-owner" data-od-id="ag-final-lens"><span class="pf-glyph pf-glyph--all"><svg data-lucide="layers"></svg></span>All profiles</span>
+                  <span class="w2-vsep"></span>
+                  <div class="w2-actions"><button class="btn btn--sm btn--primary" type="button"><svg data-lucide="plus"></svg>New session</button></div>
+                </div>
+              </header>
+              <div class="win-toolbar">
+                <div class="app-toolbar listing-toolbar">
+                  <div class="listing-toolbar__leading">
+                    <label class="field field-search"><svg data-lucide="search"></svg><input type="search" placeholder="Search sessions" aria-label="Search sessions"></label>
+                  </div>
+                </div>
+              </div>
+              <div class="win-body"><div class="app">
+                <div class="list-shell">
+                  <a class="listing-row" href="#" data-od-id="ag-row-marketing">
+                    <span class="listing-row__icon"><svg data-lucide="messages-square"></svg></span>
+                    <div class="listing-row__main">
+                      <div class="listing-row__name"><b class="sans">Draft launch email</b></div>
+                      <div class="listing-row__meta"><span class="k">ses-4f2a91</span><span class="dotsep"></span><span>acme-site</span><span class="dotsep"></span><span>started 6m ago</span></div>
+                    </div>
+                    <div class="listing-row__trail">
+                      <span class="pf-owner"><span class="pf-glyph" style="--id:#C26AD6"><svg data-lucide="megaphone"></svg></span>Marketing</span>
+                      <span class="pill" data-tone="accent"><span class="d d--run d--pulse"></span>Running</span>
+                    </div>
+                  </a>
+                  <a class="listing-row" href="#" data-od-id="ag-row-consulting">
+                    <span class="listing-row__icon"><svg data-lucide="messages-square"></svg></span>
+                    <div class="listing-row__main">
+                      <div class="listing-row__name"><b class="sans">Refresh pricing page</b></div>
+                      <div class="listing-row__meta"><span class="k">ses-88b1c0</span><span class="dotsep"></span><span>client-alpha</span><span class="dotsep"></span><span>waiting 18m</span></div>
+                    </div>
+                    <div class="listing-row__trail">
+                      <span class="pf-owner"><span class="pf-glyph" style="--id:#4EA7FC"><svg data-lucide="briefcase"></svg></span>Consulting</span>
+                      <span class="pill" data-tone="warning"><svg data-lucide="triangle-alert"></svg>Needs you</span>
+                    </div>
+                  </a>
+                  <a class="listing-row" href="#" data-od-id="ag-row-default">
+                    <span class="listing-row__icon"><svg data-lucide="messages-square"></svg></span>
+                    <div class="listing-row__main">
+                      <div class="listing-row__name"><b class="sans">Q3 report outline</b></div>
+                      <div class="listing-row__meta"><span class="k">ses-c71d38</span><span class="dotsep"></span><span>docs-hub</span><span class="dotsep"></span><span>idle 2h</span></div>
+                    </div>
+                    <div class="listing-row__trail">
+                      <span class="pf-owner"><span class="pf-glyph" style="--id:#8A8F98"><svg data-lucide="user-round"></svg></span>default</span>
+                      <span class="pill" data-tone="success"><span class="d d--ok"></span>Idle</span>
+                    </div>
+                  </a>
+                  <a class="listing-row" href="#" data-od-id="ag-row-archived">
+                    <span class="listing-row__icon"><svg data-lucide="messages-square"></svg></span>
+                    <div class="listing-row__main">
+                      <div class="listing-row__name"><b class="sans">Retire old campaign</b></div>
+                      <div class="listing-row__meta"><span class="k">ses-19ee52</span><span class="dotsep"></span><span>acme-site</span><span class="dotsep"></span><span>stopped 3w ago</span></div>
+                    </div>
+                    <div class="listing-row__trail">
+                      <span class="pf-owner" data-archived><span class="pf-glyph" style="--id:#B58E5F"><svg data-lucide="folder"></svg></span>Old agency · archived</span>
+                      <span class="pill"><svg data-lucide="circle-slash"></svg>Stopped</span>
+                    </div>
+                  </a>
+                </div>
+              </div></div>
+            </section>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ===== 02 · SCOPED — CALM DEFAULT + EMPTY ===== -->
+    <section class="lab-sec" data-od-id="ag-scoped">
+      <div class="lab-sec__head"><span class="lab-sec__num">02</span><h2 class="lab-sec__t">Scoped to one profile — no tags, no noise</h2>
+        <span class="lab-sec__gist">US-009.AC-1 · US-009.EC-3</span></div>
+
+      <div class="spec">
+        <div class="spec__note"><b>Calm default</b>Scoped to Marketing the rows are exactly today's rows — the owner tag exists only in aggregate mode. The profile switch bumps the stream generation and the query-key namespace; nothing is filtered client-side. <span class="mono">US-009.AC-1</span></div>
+        <div class="spec__demo">
+          <div class="stage stage--short stage--pad" data-od-id="ag-scoped-stage">
+            <div class="list-shell">
+              <a class="listing-row" href="#">
+                <span class="listing-row__icon"><svg data-lucide="messages-square"></svg></span>
+                <div class="listing-row__main">
+                  <div class="listing-row__name"><b class="sans">Draft launch email</b></div>
+                  <div class="listing-row__meta"><span class="k">ses-4f2a91</span><span class="dotsep"></span><span>started 6m ago</span></div>
+                </div>
+                <div class="listing-row__trail"><span class="pill" data-tone="accent"><span class="d d--run d--pulse"></span>Running</span></div>
+              </a>
+              <a class="listing-row" href="#">
+                <span class="listing-row__icon"><svg data-lucide="messages-square"></svg></span>
+                <div class="listing-row__main">
+                  <div class="listing-row__name"><b class="sans">Plan spring campaign</b></div>
+                  <div class="listing-row__meta"><span class="k">ses-2ab7e4</span><span class="dotsep"></span><span>idle 1d</span></div>
+                </div>
+                <div class="listing-row__trail"><span class="pill" data-tone="success"><span class="d d--ok"></span>Idle</span></div>
+              </a>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="spec">
+        <div class="spec__note"><b>Empty names the profile</b>The empty state answers "empty for whom" — then the next action. <span class="mono">US-009.EC-3</span></div>
+        <div class="spec__demo">
+          <div class="stage stage--short stage--center" data-od-id="ag-empty">
+            <div class="empty">
+              <svg data-lucide="messages-square"></svg>
+              <b>No sessions in Marketing yet</b>
+              <p>Start a session and it will belong to Marketing.</p>
+              <button class="btn btn--primary" type="button"><svg data-lucide="plus"></svg>New session</button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ===== 03 · CREATION UNDER ALL (S2) ===== -->
+    <section class="lab-sec" data-od-id="ag-create">
+      <div class="lab-sec__head"><span class="lab-sec__num">03</span><h2 class="lab-sec__t">Creating while All is on — destination is a label</h2>
+        <span class="lab-sec__gist">US-012.AC-1 · US-012.AC-2 · US-012.EC-2</span></div>
+      <div class="spec">
+        <div class="spec__note"><b>"→ default", never a picker</b>Every shared creation primitive shows the fixed destination chip before commit — part of the default read, never a tooltip. The success toast names the owner. Palette and deep-link creation show the same chip and toast. <span class="mono">ADR-005 · US-012.EC-2</span></div>
+        <div class="spec__demo">
+          <div class="stage stage--auto stage--pad" data-od-id="ag-create-stage">
+            <div class="pf-minis">
+              <div>
+                <div class="pf-mini-cap">composer, pre-commit — chip in the default read</div>
+                <div class="plain" data-od-id="ag-create-composer">
+                  <div class="composer" data-od-id="ag-composer">
+                    <input type="text" value="Summarize this week's support threads" aria-label="New session prompt">
+                    <span class="pf-dest" data-od-id="ag-dest-chip"><svg data-lucide="corner-down-right" width="11" height="11"></svg><b>default</b></span>
+                    <button class="btn btn--primary composer-send" aria-label="Start session"><svg data-lucide="arrow-up"></svg></button>
+                  </div>
+                </div>
+              </div>
+              <div>
+                <div class="pf-mini-cap">after commit — the owner toast</div>
+                <div class="toast" data-od-id="ag-create-toast">
+                  <div class="toast-head"><svg data-lucide="check" width="13" height="13"></svg><strong>Session started</strong></div>
+                  <div class="toast-body">Created in default.</div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ===== 04 · DEEP LINK — OWNER BANNER ===== -->
+    <section class="lab-sec" data-od-id="ag-banner">
+      <div class="lab-sec__head"><span class="lab-sec__num">04</span><h2 class="lab-sec__t">Deep link into another profile's session</h2>
+        <span class="lab-sec__gist">US-009.EC-2</span></div>
+      <div class="spec">
+        <div class="spec__note"><b>Inform, offer the switch, don't block</b>The item renders read-only through the labeled aggregate-by-id read — never a client-side exception. Info tint: nothing is wrong, it's just not your context. One tap switches. <span class="mono">US-009.EC-2 · US-031</span></div>
+        <div class="spec__demo">
+          <div class="stage stage--auto stage--pad" data-od-id="ag-banner-stage">
+            <div class="plain">
+              <div class="pf-banner" data-od-id="ag-banner-strip">
+                <span class="pf-glyph pf-glyph--sm" style="--id:#4EA7FC"><svg data-lucide="briefcase"></svg></span>
+                <span>This session belongs to <b>Consulting</b>.</span>
+                <span class="pf-banner__act"><button class="btn btn--sm" type="button">Switch to Consulting</button></span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ===== 05 · WORKTREES — ALWAYS TAGGED ===== -->
+    <section class="lab-sec" data-od-id="ag-worktrees">
+      <div class="lab-sec__head"><span class="lab-sec__num">05</span><h2 class="lab-sec__t">Worktrees — visible to everyone, always owner-tagged</h2>
+        <span class="lab-sec__gist">US-009.EC-1</span></div>
+      <div class="spec">
+        <div class="spec__note"><b>A machine fact wears its owner</b>Worktrees are disk state shared by every profile, so they never leave a scoped list — instead every row carries the owner tag even when scoped. Truthful UI: hiding them would misstate the repo. <span class="mono">US-009.EC-1 · US-021.EC-3</span></div>
+        <div class="spec__demo">
+          <div class="stage stage--short stage--pad" data-od-id="ag-worktrees-stage">
+            <div class="list-shell">
+              <a class="listing-row" href="#" data-od-id="ag-wt-row1">
+                <span class="listing-row__icon"><svg data-lucide="git-branch"></svg></span>
+                <div class="listing-row__main">
+                  <div class="listing-row__name"><b class="sans">cmd-palette</b></div>
+                  <div class="listing-row__meta"><span class="k">_worktrees/cmd-palette</span><span class="dotsep"></span><span>2 commits ahead</span></div>
+                </div>
+                <div class="listing-row__trail">
+                  <span class="pf-owner"><span class="pf-glyph" style="--id:#4EA7FC"><svg data-lucide="briefcase"></svg></span>Consulting</span>
+                  <span class="pill" data-tone="accent"><span class="d d--run"></span>In use</span>
+                </div>
+              </a>
+              <a class="listing-row" href="#" data-od-id="ag-wt-row2">
+                <span class="listing-row__icon"><svg data-lucide="git-branch"></svg></span>
+                <div class="listing-row__main">
+                  <div class="listing-row__name"><b class="sans">hotfix-nav</b></div>
+                  <div class="listing-row__meta"><span class="k">_worktrees/hotfix-nav</span><span class="dotsep"></span><span>clean</span></div>
+                </div>
+                <div class="listing-row__trail">
+                  <span class="pf-owner"><span class="pf-glyph" style="--id:#C26AD6"><svg data-lucide="megaphone"></svg></span>Marketing</span>
+                  <span class="pill">Clean</span>
+                </div>
+              </a>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ===== 06 · USAGE (S10) — LABELED AGGREGATE BREAKDOWN ===== -->
+    <section class="lab-sec" data-od-id="ag-usage">
+      <div class="lab-sec__head"><span class="lab-sec__num">06</span><h2 class="lab-sec__t">Machine usage — per-profile breakdown</h2>
+        <span class="lab-sec__gist">US-013.AC-2 · US-013.EC-1 · US-013.EC-2</span></div>
+      <div class="spec">
+        <div class="spec__note"><b>One breakdown row per owner, archived included</b>Scoped surfaces inherit scoping and render nothing new; only the machine dashboard adopts the labeled aggregate read. Bars are magnitude in neutral viz ink — signal colors never enter data viz. History from before profiles lives under <code>default</code>. <span class="mono">US-013.AC-2 · US-013.EC-2</span></div>
+        <div class="spec__demo">
+          <div class="stage stage--auto stage--pad" data-od-id="ag-usage-stage">
+            <div class="panel" data-od-id="ag-usage-panel">
+              <div class="panel-h"><h3>Usage this week</h3><span class="prov">all profiles · machine</span></div>
+              <div class="pf-minis">
+                <div>
+                  <div class="prow"><span class="prow__k"><span class="pf-owner"><span class="pf-glyph" style="--id:#8A8F98"><svg data-lucide="user-round"></svg></span>default</span></span><span class="prow__v mono">$18.20</span></div>
+                  <div class="meter"><span class="meter-fill" style="width:62%"></span></div>
+                </div>
+                <div>
+                  <div class="prow"><span class="prow__k"><span class="pf-owner"><span class="pf-glyph" style="--id:#4EA7FC"><svg data-lucide="briefcase"></svg></span>Consulting</span></span><span class="prow__v mono">$7.90</span></div>
+                  <div class="meter"><span class="meter-fill" style="width:27%"></span></div>
+                </div>
+                <div>
+                  <div class="prow"><span class="prow__k"><span class="pf-owner"><span class="pf-glyph" style="--id:#C26AD6"><svg data-lucide="megaphone"></svg></span>Marketing</span></span><span class="prow__v mono">$2.60</span></div>
+                  <div class="meter"><span class="meter-fill" style="width:9%"></span></div>
+                </div>
+                <div>
+                  <div class="prow"><span class="prow__k"><span class="pf-owner" data-archived><span class="pf-glyph" style="--id:#B58E5F"><svg data-lucide="folder"></svg></span>Old agency · archived</span></span><span class="prow__v mono">$0.60</span></div>
+                  <div class="meter"><span class="meter-fill" style="width:2%"></span></div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <p class="lab-foot" data-od-id="ag-foot">Spec <code>_uiux.md</code> S2 + S3 + S10 · contract <code>DESIGN-NOTES.md</code> · production seams <code>use-session-catalog-streams.ts</code>, <code>session-catalog-streams-store.ts</code>, <code>query-keys.ts</code>, <code>session-inspector-sections.tsx</code>. Content illustrative; runtime truth owns final values.</p>
+
+  </div></div>
+</div></div>
+<script src="https://unpkg.com/lucide@latest/dist/umd/lucide.min.js"></script>
+<script>
+(function () { if (window.lucide) window.lucide.createIcons(); })();
+</script>
+</body>
+</html>
