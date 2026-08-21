@@ -81,8 +81,11 @@ func TestBriefingContract(t *testing.T) {
 				ItemIndex:  3,
 				Kind:       RequestKindAsk,
 				State:      "pending",
-				OpenedAt:   now.Add(-time.Hour),
-				ExpiresAt:  &expired,
+				Expect: json.RawMessage(
+					`{"type":"object","required":["environment"],"properties":{"environment":{"type":"string"}}}`,
+				),
+				OpenedAt:  now.Add(-time.Hour),
+				ExpiresAt: &expired,
 			},
 		}
 		got := ProjectBriefing(&source)
@@ -97,11 +100,12 @@ func TestBriefingContract(t *testing.T) {
 			"--node", "ask;echo",
 			"--item", "3",
 			"--decision", "respond",
-			"--payload", `{}`,
+			"--payload-stdin",
 		}
 		assertBlockerCommand(t, got.Blockers, 0, wantArguments)
-		if !strings.Contains(got.Blockers[0].Unblocker, "--payload '{}'") {
-			t.Fatalf("request unblocker = %q, want a shell-safe JSON payload", got.Blockers[0].Unblocker)
+		if strings.Contains(got.Blockers[0].Unblocker, "--payload") &&
+			!strings.Contains(got.Blockers[0].Unblocker, "--payload-stdin") {
+			t.Fatalf("request unblocker = %q, want explicit operator input without a fabricated payload", got.Blockers[0].Unblocker)
 		}
 	})
 	t.Run("Should preserve an explicit decision placeholder for multi-decision reviews", func(t *testing.T) {
@@ -120,10 +124,11 @@ func TestBriefingContract(t *testing.T) {
 		}
 		got := ProjectBriefing(&source)
 		arguments := assertBlockerCommand(t, got.Blockers, 0, nil)
-		payloadIndex := slices.Index(arguments, "--payload")
-		if !slices.Contains(arguments, "<decision>") || payloadIndex < 0 || payloadIndex+1 >= len(arguments) ||
-			!json.Valid([]byte(arguments[payloadIndex+1])) {
-			t.Fatalf("review unblocker arguments = %#v, want an explicit decision placeholder and valid JSON payload", arguments)
+		if !slices.Contains(arguments, "<decision>") || !slices.Contains(arguments, "--payload-stdin") {
+			t.Fatalf(
+				"review unblocker arguments = %#v, want explicit decision and operator-provided payload",
+				arguments,
+			)
 		}
 	})
 	t.Run("Should satisfy UT-005 with neutral canceled actor outcome", func(t *testing.T) {

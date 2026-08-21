@@ -53,6 +53,10 @@ operator-focused `edit`, `why`, `events`, and run-scoped `nodes` reads without n
 | `compozy__goal_report`       | mutating · prompt-scoped        | —                           | Record one current-prompt `complete` or evidenced `blocked` boundary intent. |
 | `compozy__loop_turns`        | read                            | `compozy loop turns`        | Read a Run's total-order Goal turn audit with cursor and node/item filters.  |
 
+When `loop why` publishes a request unblocker, execute it and enter the response JSON at the
+`Response JSON:` prompt. The command uses `--payload-stdin`; it never invents an empty response for
+a request whose schema may require fields or entity identifiers.
+
 There is **no `compozy__loop_edit` native tool**. Agents edit a definition through the authoring loop
 (validate → dry-run → `compozy__loop_create` with `expected_version`) or by a filesystem write. The CLI
 `compozy loop edit` is a `$EDITOR` convenience for operators and publishes through the same

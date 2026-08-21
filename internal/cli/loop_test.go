@@ -80,6 +80,68 @@ func TestLoopCommandShouldMapCLIVerbsToClient(t *testing.T) {
 		}
 	})
 
+	t.Run("Should read a required-schema response explicitly from stdin", func(t *testing.T) {
+		t.Parallel()
+
+		var capturedRequest contract.RespondLoopRequest
+		deps := newTestDeps(t, &stubClient{
+			getWorkspaceFn: resolveTestLoopWorkspace(t),
+			respondLoopRequestFn: func(
+				_ context.Context,
+				_, _, _ string,
+				request contract.RespondLoopRequest,
+				_ agentidentity.Credentials,
+			) (contract.RespondLoopRequestResponse, error) {
+				capturedRequest = request
+				return contract.RespondLoopRequestResponse{
+					OK: true, RunID: "run-request", NodeID: "ask", State: "answered",
+				}, nil
+			},
+		})
+
+		_, _, err := executeRootCommandWithInput(
+			t,
+			deps,
+			`{"environment":"production"}`+"\n",
+			"loop", "respond",
+			"--workspace", "alpha",
+			"--run-id", "run-request",
+			"--generation", "7",
+			"--node", "ask",
+			"--decision", "respond",
+			"--payload-stdin",
+		)
+		if err != nil {
+			t.Fatalf("executeRootCommand(loop respond --payload-stdin) error = %v", err)
+		}
+		if got, want := string(capturedRequest.Payload), `{"environment":"production"}`; got != want {
+			t.Fatalf("RespondLoopRequest payload = %s, want %s", got, want)
+		}
+	})
+
+	t.Run("Should reject empty payload stdin without submitting a response", func(t *testing.T) {
+		t.Parallel()
+
+		deps := newTestDeps(t, &stubClient{
+			getWorkspaceFn: resolveTestLoopWorkspace(t),
+		})
+		_, _, err := executeRootCommandWithInput(
+			t,
+			deps,
+			"",
+			"loop", "respond",
+			"--workspace", "alpha",
+			"--run-id", "run-request",
+			"--generation", "7",
+			"--node", "ask",
+			"--decision", "respond",
+			"--payload-stdin",
+		)
+		if err == nil || !strings.Contains(err.Error(), "--payload must be valid JSON") {
+			t.Fatalf("executeRootCommand(empty --payload-stdin) error = %v, want payload validation", err)
+		}
+	})
+
 	t.Run("Should reject a positional run argument for request responses", func(t *testing.T) {
 		t.Parallel()
 

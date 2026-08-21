@@ -2158,7 +2158,6 @@ func TestGlobalDBRecoverExpiredRunLeasesThenClaim(t *testing.T) {
 	now := time.Date(2026, 4, 26, 12, 0, 0, 0, time.UTC)
 	taskRecord := taskRecordForTest("task-expired-lease-recovery")
 	taskRecord.Status = taskpkg.TaskStatusReady
-	taskRecord.MaxAttempts = 1
 	if err := globalDB.CreateTask(ctx, taskRecord); err != nil {
 		t.Fatalf("CreateTask() error = %v", err)
 	}
@@ -2171,9 +2170,6 @@ func TestGlobalDBRecoverExpiredRunLeasesThenClaim(t *testing.T) {
 		"expired-token",
 		now.Add(-time.Minute),
 	)
-	expiredRun.SessionID = ""
-	expiredRun.RunKind = taskpkg.RunKindCoordinator
-	expiredRun.LoopRunID = "looprun-expired-lease-recovery"
 	if err := globalDB.CreateTaskRun(ctx, expiredRun); err != nil {
 		t.Fatalf("CreateTaskRun(expired) error = %v", err)
 	}
@@ -2215,7 +2211,7 @@ func TestGlobalDBRecoverExpiredRunLeasesThenClaim(t *testing.T) {
 	if got, want := recovered[0].Run.ID, expiredRun.ID; got != want {
 		t.Fatalf("recovered run id = %q, want %q", got, want)
 	}
-	if got, want := recovered[0].PreviousSessionID, ""; got != want {
+	if got, want := recovered[0].PreviousSessionID, "sess-expired"; got != want {
 		t.Fatalf("PreviousSessionID = %q, want %q", got, want)
 	}
 	if recovered[0].PreviousClaimTokenHash == "" {
@@ -2267,6 +2263,57 @@ func TestGlobalDBRecoverExpiredRunLeasesThenClaim(t *testing.T) {
 	if got, want := active.SessionID, "sess-active"; got != want {
 		t.Fatalf("unexpired session id = %q, want %q", got, want)
 	}
+
+	t.Run("Should requeue a sessionless coordinator at the task attempt limit", func(t *testing.T) {
+		t.Parallel()
+
+		globalDB := openTestGlobalDB(t)
+		ctx := testutil.Context(t)
+		now := time.Date(2026, 8, 21, 12, 0, 0, 0, time.UTC)
+		taskRecord := taskRecordForTest("task-sessionless-coordinator-recovery")
+		taskRecord.Status = taskpkg.TaskStatusReady
+		taskRecord.MaxAttempts = 1
+		if err := globalDB.CreateTask(ctx, taskRecord); err != nil {
+			t.Fatalf("CreateTask() error = %v", err)
+		}
+
+		run := leasedRunForGlobalTest(
+			t,
+			"run-sessionless-coordinator-recovery",
+			taskRecord.ID,
+			"sess-expired-coordinator",
+			"expired-token",
+			now.Add(-time.Minute),
+		)
+		run.SessionID = ""
+		run.RunKind = taskpkg.RunKindCoordinator
+		run.LoopRunID = "looprun-sessionless-coordinator-recovery"
+		if err := globalDB.CreateTaskRun(ctx, run); err != nil {
+			t.Fatalf("CreateTaskRun() error = %v", err)
+		}
+
+		recovered, err := globalDB.RecoverExpiredRunLeases(ctx, taskpkg.ExpiredLeaseRecovery{
+			Now: now, Reason: "orphaned_on_boot",
+		})
+		if err != nil {
+			t.Fatalf("RecoverExpiredRunLeases() error = %v", err)
+		}
+		if len(recovered) != 1 || recovered[0].PreviousSessionID != "" ||
+			recovered[0].Run.Status != taskpkg.TaskRunStatusQueued {
+			t.Fatalf("recovered coordinator = %#v, want one sessionless queued run", recovered)
+		}
+
+		claim, err := globalDB.ClaimNextRun(ctx, taskpkg.ClaimCriteria{
+			Scope: taskpkg.ScopeGlobal, ClaimerSessionID: "sess-reclaimer",
+			LeaseDuration: time.Minute, Now: now.Add(time.Second),
+		})
+		if err != nil {
+			t.Fatalf("ClaimNextRun() error = %v", err)
+		}
+		if claim.Run.ID != run.ID {
+			t.Fatalf("ClaimNextRun() run id = %q, want %q", claim.Run.ID, run.ID)
+		}
+	})
 
 	t.Run("Should exhaust the shared attempt budget after bounded same-row recoveries", func(t *testing.T) {
 		t.Parallel()

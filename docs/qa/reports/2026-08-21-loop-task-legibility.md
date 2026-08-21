@@ -8,8 +8,8 @@
 - **Environment:** Fresh isolated `northstar-pay` lab, HTTP `http://127.0.0.1:57105`, UDS
   `/var/folders/7x/xg204hnd04b81fczcxvjlhzr0000gn/T/compozyqa-d30b46c8d45d/runtime/compozyd.sock`.
 - **Manifest:** `/Users/pedronauck/dev/qa-labs/compozy-loop-task-legibility-runtime-20260821-1126-20260821-112711-004724-lab/qa-artifacts/qa/bootstrap-manifest.json`
-- **Started:** 2026-08-21T11:26:16Z · **Status:** runtime execution complete; strict audit
-  `BLOCKED`; teardown clean.
+- **Started:** 2026-08-21T11:26:16Z · **Status:** runtime execution `BLOCKED`; strict audit
+  `BLOCKED`; original teardown clean.
 
 ## Isolation and kickoff
 
@@ -33,8 +33,8 @@
 |---|---|---|---|---|
 | 1 | Settlement / LP-terminal-loop-settlement | Fixed | Two boot blockers reproduced; terminal sweep and second boot passed | `0a4fe2d`, `69c2d74` |
 | 2 | Settlement / LP-loop-lifecycle-config-cli | Pass | Default, valid, invalid-preserves-prior, and unset walked | — |
-| 3 | Headless / LP-run-read-agent-journey | Fixed, prior bug open | Unblocker and beyond-head diagnostics fixed; `BUG-20260719-autonomous-progress-unobservable` remains open | `a53f470`, `b0eaf22`, `37c101d` |
-| 4 | Headless / LP-runs-roster-server-ordering | Pass for roster; playbook stall remains | Needs-you ranked before pagination; prior observer bug remains open | — |
+| 3 | Headless / LP-run-read-agent-journey | Blocked decision | Required-schema unblocker fixed and re-walked; autonomous-progress closure did not use the promised runtime reads | `a53f470`, `b0eaf22`, `37c101d`, remediation batch |
+| 4 | Headless / LP-runs-roster-server-ordering | Blocked decision | Roster passed; release observer still derives progress from the incomplete journey log | — |
 | 5 | Catalog parity / TA-task-list-calm-loop-default | Pass | Four transports matched semantically | — |
 | 6–9 | Run default-read visual rows | Pending external dependency | Visual Contract bundles owned by concurrent agents | — |
 | 10–15 | Tasks/operator-register visual rows | Pending external dependency | Visual Contract bundles owned by concurrent agents | — |
@@ -86,14 +86,33 @@ sequence 5 returned exactly 6–10 once; follow at head 10 exited cleanly. A for
 workspace returned 404 `loop_run_not_found`. Payload scans found no claim token, secret, credential,
 or session token.
 
-The runtime-published request unblocker was executed verbatim after its two-part fix. A second
-finding showed that beyond-head errors discarded the real head; after `37c101d`, the CLI printed
+The first request-unblocker re-walk only proved that `{}` passed a permissive schema. Root review
+corrected that unsafe claim in a fresh targeted lab: a request requiring `environment` published
+`--payload-stdin`, prompted for explicit JSON, and resolved only after the operator entered
+`{"environment":"production"}`. A second finding showed that beyond-head errors discarded the real head; after `37c101d`, the CLI printed
 `position 999 ... (head: 10)` and structured transports returned stable code plus position/head
 details.
 
 Evidence: `qa/headless/read-parity.sha256`, `qa/headless/timeline-semantic-parity.sha256`,
-`qa/headless/timeline-resume-after5.json`, `qa/request-unblocker-rewalk-execution.txt`, and
-`qa/headless/after-beyond-head-fixed.json`.
+`qa/headless/timeline-resume-after5.json`, `qa/headless/after-beyond-head-fixed.json`, and remediation
+lab `qa/request-unblocker-required-schema-rewalk.md`.
+
+### Root-review remediation re-walk
+
+A fresh targeted lab used isolated HTTP `63979`, UDS
+`/var/folders/7x/xg204hnd04b81fczcxvjlhzr0000gn/T/compozyqa-315af9a19c7c/runtime/compozyd.sock`,
+and workspace `ws_d0de16f57018e715`. The required-schema command printed by `loop why` was executed
+verbatim with the remediation binary on `PATH`; it waited at `Response JSON:` and accepted the
+operator's explicit response. CLI and HTTP independently reported the same terminal progress.
+
+Manifest:
+`/Users/pedronauck/dev/qa-labs/compozy-loop-unblocker-operator-input-20260821-20260821-124157-149087-lab/qa-artifacts/qa/bootstrap-manifest.json`.
+Evidence: `qa/request-unblocker-required-schema-rewalk.md`.
+
+The targeted strict audit inspected the CLI/API/runtime journey and failed only C14 because this
+remediation was explicitly prohibited from running `make verify` or any gate. Audit evidence:
+remediation lab `qa/qa-audit-report.json` and `qa/qa-audit-report.md`. This focused re-walk is not a
+release-grade PASS claim.
 
 ### CH-loop-legibility-calm-catalog-parity
 
@@ -121,7 +140,7 @@ Evidence: `qa/headless/authoring-human.txt`, `qa/headless/authoring-toon.txt`, a
 
 | Bug | Root cause | Commit | Focused verification |
 |---|---|---|---|
-| BUG-20260821-loop-unblocker-invalid-json | Prose placeholder, then shell-unsafe braces | `a53f470`, `b0eaf22` | Canonical `TestBriefingContract` plus verbatim live execution |
+| BUG-20260821-loop-unblocker-invalid-json | The projector fabricated `{}` despite request-owned schemas | remediation batch | Canonical required-schema briefing + CLI stdin regressions and verbatim live execution |
 | BUG-20260821-loop-timeline-head-omitted | API mapper discarded `TimelinePositionError` fields | `37c101d` | `TestLoopReadHandlersMapping` and live CLI/HTTP/UDS re-walk |
 | BUG-20260821-sessionless-lease-recovery | Nullable session ownership fence used non-null-safe equality | `0a4fe2d` | `TestGlobalDBRecoverExpiredRunLeasesThenClaim` |
 | BUG-20260821-coordinator-lease-exhausted | Coordinator lease used ordinary task attempt exhaustion | `69c2d74` | Expired coordinator plus network-wake/reconcile focused suites |
@@ -131,7 +150,10 @@ No test was weakened. No `make gate`, `make gate-full`, or `make test-e2e-*` com
 ## Runtime errors and paper cuts
 
 - The one-kickoff playbook observer stalled even though later catalog reads showed seven completed
-  tasks. `BUG-20260719-autonomous-progress-unobservable` remains open.
+  tasks. Root review confirmed that `observe-runtime.py` only tails `journey-log.jsonl` and never
+  reads the new daemon surfaces. `BUG-20260719-autonomous-progress-unobservable` remains open with a
+  blocked product/QA decision; the recommended path is a public-read observer followed by a fresh
+  one-kickoff replay.
 - `compozy task timeline` named by the charter is not a current verb; the public structured detail
   is available through `compozy task get`. This report used `task get` and did not invent a command.
 - The test-convention checker reports eight pre-existing inline-case violations elsewhere in
@@ -175,12 +197,16 @@ No test was weakened. No `make gate`, `make gate-full`, or `make test-e2e-*` com
 - **Teardown:** exact manifest command completed at `2026-08-21T12:31:15Z`.
   `qa/teardown.json` says `"clean": true`, killed registered daemon PID `65799`, and reports no
   survivors.
+- **Remediation teardown:** the fresh targeted lab's exact manifest command completed at
+  `2026-08-21T12:46:03Z`. Its `qa/teardown.json` says `"clean": true`, killed registered daemon PID
+  `69040`, and reports no survivors.
 
 ## Final status
 
-- **Runtime execution:** PASS for the bounded settlement/headless work, with all reproduced
-  runtime bugs fixed and re-walked.
+- **Runtime execution:** BLOCKED. Settlement, catalog, timeline, and the corrected required-schema
+  unblocker passed, but requirement 6's autonomous-progress closure was not performed against the
+  runtime-owned reads and the old divergence reproduced.
 - **Release-grade playbook audit:** BLOCKED by the 12 honest evidence gaps above.
-- **Owned scenario rows:** settlement/config/catalog/deep-link pass; headless fixes verified;
-  run-read/roster retain the pre-existing observer bug; nested fan-out remains pending.
+- **Owned scenario rows:** settlement/config/catalog/deep-link pass; run-read and roster are
+  `blocked-decision`; nested fan-out remains pending.
 - **Full task:** not complete — visual and E2E dependencies remain external.

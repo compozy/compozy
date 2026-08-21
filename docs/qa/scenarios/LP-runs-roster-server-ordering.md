@@ -6,9 +6,9 @@ persona: Ada
 journey: J-operate-loop-run-headless
 expected: Every runs-list read returns needs-you runs first, then active, then terminal, with the ordering applied before pagination so a run that needs a human never falls off page one; each item carries progress (round, steps done, steps total) always and an attention object (kind, count, since) only when something is actually waiting; CLI columns, HTTP and UDS responses agree on the same persisted state, a malformed cursor is a field-addressed 400 invalid_cursor, and a run id from another workspace resolves to 404 rather than an empty success.
 entry_points: compozy loop runs; compozy loop runs --loop <loop-name> --status <status> -o json; GET /api/workspaces/:workspace_id/loop-runs over HTTP and UDS; /docs/cli/loop/runs
-qa_status: fail
+qa_status: blocked-decision
 bug_ids: BUG-20260719-autonomous-progress-unobservable
-fix_status: pending
+fix_status: deferred
 retest_status:
 fix_commits:
 evidence: /Users/pedronauck/dev/qa-labs/compozy-loop-task-legibility-runtime-20260821-1126-20260821-112711-004724-lab/qa-artifacts/qa/headless/roster-limit1.json; /Users/pedronauck/dev/qa-labs/compozy-loop-task-legibility-runtime-20260821-1126-20260821-112711-004724-lab/qa-artifacts/qa/headless/roster-page2.json; /Users/pedronauck/dev/qa-labs/compozy-loop-task-legibility-runtime-20260821-1126-20260821-112711-004724-lab/qa-artifacts/qa/observation-summary.json
@@ -28,5 +28,6 @@ QA impact 2026-08-21: Task 03 extended the runs list with server-owned ordering,
 
 QA result 2026-08-21: a needs-you run created last ranked first before the `limit=1` cut; every
 row carried progress and terminal rows omitted attention. Cursor paging returned each run once.
-The scenario remains `fail` because the one-kickoff observer still detected the pre-existing
-autonomous progress gap tracked by `BUG-20260719-autonomous-progress-unobservable`.
+The roster assertions passed, but the scenario is `blocked-decision`: the one-kickoff observer still
+uses a lab-local journey log instead of the public runtime reads and therefore cannot satisfy the
+closure contract for `BUG-20260719-autonomous-progress-unobservable`.

@@ -11,9 +11,10 @@
 
 ## Summary
 
-Ada cannot resume a Loop request by executing the command printed by `compozy loop why`. The
-command supplies `<json>` as the payload, so the public CLI rejects its own runtime-published
-unblocker before the request can be answered.
+Ada could not safely resume every Loop request by executing the command printed by
+`compozy loop why`. The original command supplied `<json>` and a first correction replaced it with
+`{}`. That empty object happened to satisfy a permissive request but fabricated operator data and
+failed any `expect` or `respond_schema` that required fields or entity identifiers.
 
 ## Reproduction
 
@@ -25,9 +26,9 @@ unblocker before the request can be answered.
 3. Read `compozy loop why looprun-f2a20f63a3f26eba -o json`.
 4. Execute the returned `blockers[0].unblocker` verbatim.
 
-**Expected:** The printed command carries valid JSON and resolves the pending request.
-**Actual:** The printed command carries `--payload \\<json\\>` and fails with
-`cli: --payload must be valid JSON`.
+**Expected:** The printed command collects explicit operator JSON and submits exactly that value.
+**Actual:** The original command carried `--payload \\<json\\>` and failed locally; the first fix
+carried `--payload '{}'` and could auto-submit a schema-invalid or unsafe synthetic answer.
 
 ## Evidence
 
@@ -36,13 +37,17 @@ unblocker before the request can be answered.
 
 ## Fix
 
-- **Root cause:** The briefing projector published a prose placeholder, then the first replacement
-  used shell escaping that zsh parsed as syntax instead of one JSON argument.
-- **Fix commits:** `a53f470`, `b0eaf22`
+- **Root cause:** The briefing projector treated “valid JSON syntax” as equivalent to a valid human
+  response. It owned no response value and therefore had no safe default to publish.
+- **Fix commits:** `a53f470`, `b0eaf22`, plus the 2026-08-21 root-review remediation batch
 - **Regression test:** `TestBriefingContract/Should_satisfy_UT-004_with_expired_request_truth_and_no_retry_field`
+  and `TestLoopCommandShouldMapCLIVerbsToClient/Should_read_a_required-schema_response_explicitly_from_stdin`
 
 ## Verification
 
-- **Retested:** 2026-08-21 in the isolated runtime lab
-- **Result:** `qa/request-unblocker-rewalk-execution.txt` shows the runtime-published command with
-  `--payload '{}'` executing verbatim and resuming the request.
+- **Retested:** 2026-08-21 in fresh targeted lab
+  `compozy-loop-unblocker-operator-input-20260821-20260821-124157-149087-lab`.
+- **Result:** A request whose schema required `environment` published an executable
+  `--payload-stdin` command. The command prompted for JSON, waited for Ada's explicit
+  `{"environment":"production"}` input, resumed the run, and produced matching terminal CLI and
+  HTTP reads. Evidence: `qa/request-unblocker-required-schema-rewalk.md`.

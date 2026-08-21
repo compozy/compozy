@@ -1,9 +1,11 @@
 package cli
 
 import (
+	"bufio"
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"strings"
 
 	"github.com/compozy/compozy/internal/api/contract"
@@ -64,6 +66,7 @@ func newLoopRequestCommand(deps commandDeps) *cobra.Command {
 
 func newLoopRespondCommand(deps commandDeps) *cobra.Command {
 	var workspaceRef, runID, nodeID, decision, payload, note string
+	var payloadFromStdin bool
 	var generation, itemIndex int
 	cmd := &cobra.Command{
 		Use: loopRespondKey, Short: "Answer or decide one human request", Args: cobra.NoArgs,
@@ -73,7 +76,7 @@ func newLoopRespondCommand(deps commandDeps) *cobra.Command {
 				return err
 			}
 			normalizedDecision := strings.TrimSpace(decision)
-			raw, err := loopRespondPayload(normalizedDecision, payload)
+			raw, err := loopRespondPayloadInput(cmd, normalizedDecision, payload, payloadFromStdin)
 			if err != nil {
 				return err
 			}
@@ -92,8 +95,29 @@ func newLoopRespondCommand(deps commandDeps) *cobra.Command {
 	addLoopRequestFlags(cmd, &workspaceRef, &runID, &generation, &nodeID, &itemIndex)
 	cmd.Flags().StringVar(&decision, loopDecisionKey, "", "Request decision")
 	cmd.Flags().StringVar(&payload, loopPayloadKey, "", "JSON response payload")
+	cmd.Flags().BoolVar(&payloadFromStdin, "payload-stdin", false, "Read the JSON response payload from stdin")
+	cmd.MarkFlagsMutuallyExclusive(loopPayloadKey, "payload-stdin")
 	cmd.Flags().StringVar(&note, "note", "", "Resolution note")
 	return cmd
+}
+
+func loopRespondPayloadInput(
+	cmd *cobra.Command,
+	decision string,
+	payload string,
+	fromStdin bool,
+) (json.RawMessage, error) {
+	if !fromStdin {
+		return loopRespondPayload(decision, payload)
+	}
+	if _, err := fmt.Fprint(cmd.ErrOrStderr(), "Response JSON: "); err != nil {
+		return nil, fmt.Errorf("cli: write Loop response prompt: %w", err)
+	}
+	line, err := bufio.NewReader(cmd.InOrStdin()).ReadString('\n')
+	if err != nil && !errors.Is(err, io.EOF) {
+		return nil, fmt.Errorf("cli: read Loop response payload from stdin: %w", err)
+	}
+	return loopRespondPayload(decision, line)
 }
 
 func loopRespondPayload(decision string, payload string) (json.RawMessage, error) {

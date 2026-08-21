@@ -183,3 +183,20 @@ executed by that program's QA tail (task_07). Status stays `open` until that run
   supersedes the root-cause statement above.
 - **Regression debt.** Recorded at `docs/qa/automation-backlog/runtime-owned-progress-observer.md` —
   the fix has no regression test yet, and a sixth-plus reproduction is what earns one.
+
+## Blocked decision — 2026-08-21 root review
+
+The scheduled closure did not run against the promised observation contract. The fresh
+`northstar-pay` lab continued to execute `observe-runtime.py`, whose module contract and
+implementation only tail `qa/journey-log.jsonl`; it explicitly does not read the daemon, SSE, or
+Network. That run again declared a stall while an independent public Task catalog later showed
+seven completed tasks. Exercising `loop why`, `loop runs`, and `loop events` separately proves those
+reads exist, but it does not prove that the release observer derives its account from them.
+
+This is outside the bounded fix governor because closure requires a product/QA architecture choice,
+changes to the shared real-scenario observer and audit contract, and a fresh one-kickoff playbook
+run. The recommended decision is to make the observer poll the daemon's public structured reads
+and compare them with an independent catalog read. Making the production daemon write into a
+lab-owned QA file would invert ownership and is not recommended. Status remains `open`; task 07 and
+the runtime phase cannot be reported as PASS until that decision is implemented and the stated pass
+condition is re-walked.
