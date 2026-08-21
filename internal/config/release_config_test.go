@@ -597,8 +597,6 @@ esac
 			t,
 			repo,
 			"git",
-			"-c",
-			"commit.gpgsign=false",
 			"commit",
 			"-m",
 			"test: seed beta resolver",
@@ -638,13 +636,17 @@ esac
 			t,
 			repo,
 			"git",
-			"-c",
-			"commit.gpgsign=false",
 			"commit",
 			"-m",
 			"test: seed release body",
 		)
-		runReleasePreflightFixtureCommand(t, repo, "git", "tag", "v0.3.0-beta.14")
+		runReleasePreflightFixtureCommand(
+			t,
+			repo,
+			"git",
+			"tag",
+			"v0.3.0-beta.14",
+		)
 		if err := os.WriteFile(seed, []byte("beta 15\n"), 0o600); err != nil {
 			t.Fatalf("os.WriteFile(candidate) error = %v", err)
 		}
@@ -653,8 +655,6 @@ esac
 			t,
 			repo,
 			"git",
-			"-c",
-			"commit.gpgsign=false",
 			"commit",
 			"-m",
 			"fix: validate release body",
@@ -1757,8 +1757,6 @@ func newReleasePreflightFixture(t *testing.T) (string, string) {
 		t,
 		repo,
 		"git",
-		"-c",
-		"commit.gpgsign=false",
 		"commit",
 		"-m",
 		"test: seed release preflight",
@@ -1771,6 +1769,11 @@ func runReleasePreflightFixtureCommand(t *testing.T, dir string, name string, ar
 
 	cmd := exec.CommandContext(t.Context(), name, args...)
 	cmd.Dir = dir
+	cmd.Env = append(
+		os.Environ(),
+		"GIT_CONFIG_GLOBAL="+os.DevNull,
+		"GIT_CONFIG_SYSTEM="+os.DevNull,
+	)
 	if output, err := cmd.CombinedOutput(); err != nil {
 		t.Fatalf("%s %s error = %v, output = %s", name, strings.Join(args, " "), err, output)
 	}

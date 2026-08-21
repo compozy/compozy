@@ -144,18 +144,24 @@ func (g *TaskRepo) terminalizeLoopTaskRunWithExecutor(
 		if err != nil {
 			return err
 		}
-		return updateTaskCurrentRunProjectionForRunUpdate(ctx, exec, current, updated)
+		if err := updateTaskCurrentRunProjectionForRunUpdate(ctx, exec, current, updated); err != nil {
+			return err
+		}
+		return closeTerminalRunAgentBinding(ctx, exec, updated, terminalAt)
 	}
 	next := current
 	next.Status = taskpkg.TaskRunStatusCanceled
 	next.EndedAt = terminalAt.UTC()
 	next.Error = terminalReason
-	_, err := g.transitionTerminalRunWithExecutor(
+	updated, err := g.transitionTerminalRunWithExecutor(
 		ctx,
 		exec,
 		taskpkg.NewTerminalRunMutation(current, next),
 	)
-	return err
+	if err != nil {
+		return err
+	}
+	return closeTerminalRunAgentBinding(ctx, exec, updated, terminalAt)
 }
 
 func (g *TaskRepo) cancelLiveLoopTaskWithExecutor(

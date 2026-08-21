@@ -4,6 +4,7 @@ package globaldb
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"reflect"
 	"strconv"
@@ -12,8 +13,10 @@ import (
 	"time"
 
 	looppkg "github.com/compozy/compozy/internal/loop"
+	"github.com/compozy/compozy/internal/loop/dsl"
 	"github.com/compozy/compozy/internal/loop/goal"
 	"github.com/compozy/compozy/internal/store"
+	taskpkg "github.com/compozy/compozy/internal/task"
 	"github.com/compozy/compozy/internal/testutil"
 )
 
@@ -144,6 +147,670 @@ func TestGoalSessionCreationIdentityIntegration(t *testing.T) {
 
 func TestGoalSessionBindingLifecycleIntegration(t *testing.T) {
 	t.Parallel()
+
+	t.Run("Should close a completed run-agent binding and publish durable cleanup", func(t *testing.T) {
+		t.Parallel()
+
+		const (
+			workspaceID = "ws-run-agent-completion"
+			loopRunID   = "run-agent-completion"
+			taskID      = "task-run-agent-completion"
+			taskRunID   = "taskrun-run-agent-completion"
+			handle      = "action:run-agent-completion"
+			sessionID   = "session-run-agent-completion"
+		)
+		globalDB := openLoopTestGlobalDB(t, workspaceID)
+		ctx := testutil.Context(t)
+		now := time.Date(2026, 8, 20, 19, 52, 11, 0, time.UTC)
+		insertGoalSchemaLoopRun(t, globalDB, loopRunID, workspaceID, "catalog", nil)
+		if _, err := globalDB.db.ExecContext(
+			ctx,
+			`INSERT INTO loop_generations (loop_run_id, generation, parent_generation, origin, created_at)
+			 VALUES (?, 1, 0, 'initial', ?)`,
+			loopRunID,
+			store.FormatTimestamp(now),
+		); err != nil {
+			t.Fatalf("insert run-agent generation error = %v", err)
+		}
+		seedRunAgentCellForTest(t, globalDB, runAgentCellFixture{
+			WorkspaceID:  workspaceID,
+			LoopRunID:    loopRunID,
+			TaskID:       taskID,
+			TaskRunID:    taskRunID,
+			Handle:       handle,
+			Generation:   1,
+			Attempt:      1,
+			Epoch:        4,
+			InsertOutput: true,
+		})
+		seedActiveGoalBindingForTest(t, globalDB, loopRunID, workspaceID, handle, 5, sessionID, now)
+
+		leaseOwner := taskpkg.ActorIdentity{Kind: taskpkg.ActorKindDaemon, Ref: "loop-action-runtime"}
+		claim, err := globalDB.ClaimNextRun(ctx, taskpkg.ClaimCriteria{
+			RunID: taskRunID, Scope: taskpkg.ScopeWorkspace, WorkspaceID: workspaceID,
+			RunKind: taskpkg.RunKindWorker, ClaimedBy: &leaseOwner,
+			LeaseDuration: time.Minute, Now: now.Add(time.Second),
+		})
+		if err != nil {
+			t.Fatalf("ClaimNextRun() error = %v", err)
+		}
+		actor := taskpkg.ActorContext{
+			Actor:     leaseOwner,
+			Origin:    taskpkg.Origin{Kind: taskpkg.OriginKindDaemon, Ref: "daemon.loop-action"},
+			Authority: taskpkg.Authority{Read: true, Write: true},
+		}
+		if _, err := globalDB.CompleteRunLease(ctx, taskpkg.LeaseCompletion{
+			Actor: actor, RunID: claim.Run.ID, ClaimToken: claim.ClaimToken,
+			Result: taskpkg.RunResult{Value: json.RawMessage(`{"summary":"done"}`)},
+			Now:    now.Add(2 * time.Second),
+		}); err != nil {
+			t.Fatalf("CompleteRunLease() error = %v", err)
+		}
+
+		binding, err := globalDB.GetSessionBindingAttempt(ctx, goal.BindingKey{
+			WorkspaceID: workspaceID,
+			LoopRunID:   loopRunID,
+			Handle:      handle,
+		}, 5)
+		if err != nil {
+			t.Fatalf("GetSessionBindingAttempt() error = %v", err)
+		}
+		if binding.State != goal.BindingStateClosed {
+			t.Fatalf("binding state = %q, want %q", binding.State, goal.BindingStateClosed)
+		}
+		cleanups, err := globalDB.ClaimGoalSessionCleanup(ctx, 10)
+		if err != nil {
+			t.Fatalf("ClaimGoalSessionCleanup() error = %v", err)
+		}
+		if len(cleanups) != 1 || cleanups[0].SessionID != sessionID ||
+			cleanups[0].Cause != goal.SessionCleanupCauseTerminal {
+			t.Fatalf("run-agent cleanups = %#v, want one terminal session cleanup", cleanups)
+		}
+	})
+
+	t.Run("Should settle a run-agent without closing an origin-borrowed binding", func(t *testing.T) {
+		t.Parallel()
+
+		const (
+			workspaceID = "ws-run-agent-borrowed"
+			loopRunID   = "run-agent-borrowed"
+			taskID      = "task-run-agent-borrowed"
+			taskRunID   = "taskrun-run-agent-borrowed"
+			handle      = "action:run-agent-borrowed"
+			sessionID   = "session-run-agent-borrowed"
+		)
+		globalDB := openLoopTestGlobalDB(t, workspaceID)
+		ctx := testutil.Context(t)
+		now := time.Date(2026, 8, 21, 0, 15, 0, 0, time.UTC)
+		insertGoalSchemaLoopRun(t, globalDB, loopRunID, workspaceID, "catalog", nil)
+		if _, err := globalDB.db.ExecContext(
+			ctx,
+			`INSERT INTO loop_generations (loop_run_id, generation, parent_generation, origin, created_at)
+			 VALUES (?, 1, 0, 'initial', ?)`,
+			loopRunID,
+			store.FormatTimestamp(now),
+		); err != nil {
+			t.Fatalf("insert run-agent generation error = %v", err)
+		}
+		seedRunAgentCellForTest(t, globalDB, runAgentCellFixture{
+			WorkspaceID:  workspaceID,
+			LoopRunID:    loopRunID,
+			TaskID:       taskID,
+			TaskRunID:    taskRunID,
+			Handle:       handle,
+			Generation:   1,
+			Attempt:      1,
+			Epoch:        0,
+			InsertOutput: true,
+		})
+		seedActiveGoalBindingWithOwnershipForTest(
+			t,
+			globalDB,
+			loopRunID,
+			workspaceID,
+			handle,
+			1,
+			sessionID,
+			goal.BindingOwnershipOriginBorrowed,
+			now,
+		)
+
+		leaseOwner := taskpkg.ActorIdentity{Kind: taskpkg.ActorKindDaemon, Ref: "loop-action-runtime"}
+		claim, err := globalDB.ClaimNextRun(ctx, taskpkg.ClaimCriteria{
+			RunID: taskRunID, Scope: taskpkg.ScopeWorkspace, WorkspaceID: workspaceID,
+			RunKind: taskpkg.RunKindWorker, ClaimedBy: &leaseOwner,
+			LeaseDuration: time.Minute, Now: now.Add(time.Second),
+		})
+		if err != nil {
+			t.Fatalf("ClaimNextRun() error = %v", err)
+		}
+		actor := taskpkg.ActorContext{
+			Actor:     leaseOwner,
+			Origin:    taskpkg.Origin{Kind: taskpkg.OriginKindDaemon, Ref: "daemon.loop-action"},
+			Authority: taskpkg.Authority{Read: true, Write: true},
+		}
+		if _, err := globalDB.CompleteRunLease(ctx, taskpkg.LeaseCompletion{
+			Actor: actor, RunID: claim.Run.ID, ClaimToken: claim.ClaimToken,
+			Result: taskpkg.RunResult{Value: json.RawMessage(`{"summary":"done"}`)},
+			Now:    now.Add(2 * time.Second),
+		}); err != nil {
+			t.Fatalf("CompleteRunLease() error = %v", err)
+		}
+
+		settled, err := globalDB.GetTaskRun(ctx, taskRunID)
+		if err != nil {
+			t.Fatalf("GetTaskRun() error = %v", err)
+		}
+		if settled.Status != taskpkg.TaskRunStatusCompleted {
+			t.Fatalf("task run status = %q, want %q", settled.Status, taskpkg.TaskRunStatusCompleted)
+		}
+		binding, err := globalDB.GetSessionBindingAttempt(ctx, goal.BindingKey{
+			WorkspaceID: workspaceID,
+			LoopRunID:   loopRunID,
+			Handle:      handle,
+		}, 1)
+		if err != nil {
+			t.Fatalf("GetSessionBindingAttempt() error = %v", err)
+		}
+		if binding.State != goal.BindingStateActive {
+			t.Fatalf("borrowed binding state = %q, want %q", binding.State, goal.BindingStateActive)
+		}
+		cleanups, err := globalDB.ClaimGoalSessionCleanup(ctx, 10)
+		if err != nil {
+			t.Fatalf("ClaimGoalSessionCleanup() error = %v", err)
+		}
+		if len(cleanups) != 0 {
+			t.Fatalf("borrowed binding cleanups = %#v, want none", cleanups)
+		}
+	})
+
+	t.Run("Should keep a retried run-agent binding and close it after final failure", func(t *testing.T) {
+		t.Parallel()
+
+		const (
+			workspaceID = "ws-run-agent-failure"
+			loopRunID   = "run-agent-failure"
+			taskID      = "task-run-agent-failure"
+			taskRunID   = "taskrun-run-agent-failure"
+			handle      = "action:run-agent-failure"
+			sessionID   = "session-run-agent-failure"
+		)
+		globalDB := openLoopTestGlobalDB(t, workspaceID)
+		ctx := testutil.Context(t)
+		now := time.Date(2026, 8, 20, 20, 35, 0, 0, time.UTC)
+		loopRun := testLoopRun(loopRunID, now, looppkg.StatusRunning)
+		loopRun.WorkspaceID = workspaceID
+		created, err := globalDB.CreateLoopRunForStart(ctx, loopRun, dsl.ConcurrencyAllow)
+		if err != nil {
+			t.Fatalf("CreateLoopRunForStart() error = %v", err)
+		}
+
+		seedRunAgentCellForTest(t, globalDB, runAgentCellFixture{
+			WorkspaceID:  workspaceID,
+			LoopRunID:    loopRunID,
+			TaskID:       taskID,
+			TaskRunID:    taskRunID,
+			Handle:       handle,
+			Generation:   1,
+			Attempt:      1,
+			Epoch:        4,
+			InsertOutput: true,
+		})
+		bindingKey := goal.BindingKey{
+			WorkspaceID: workspaceID,
+			LoopRunID:   loopRunID,
+			Handle:      handle,
+		}
+		seedActiveGoalBindingForTest(t, globalDB, loopRunID, workspaceID, handle, 5, sessionID, now)
+
+		leaseOwner := taskpkg.ActorIdentity{Kind: taskpkg.ActorKindDaemon, Ref: "loop-action-runtime"}
+		claim, err := globalDB.ClaimNextRun(ctx, taskpkg.ClaimCriteria{
+			RunID: taskRunID, Scope: taskpkg.ScopeWorkspace, WorkspaceID: workspaceID,
+			RunKind: taskpkg.RunKindWorker, ClaimedBy: &leaseOwner,
+			LeaseDuration: time.Minute, Now: now.Add(time.Second),
+		})
+		if err != nil {
+			t.Fatalf("ClaimNextRun() error = %v", err)
+		}
+		actor := taskpkg.ActorContext{
+			Actor:     leaseOwner,
+			Origin:    taskpkg.Origin{Kind: taskpkg.OriginKindDaemon, Ref: "daemon.loop-action"},
+			Authority: taskpkg.Authority{Read: true, Write: true},
+		}
+		failedAt := now.Add(2 * time.Second)
+		if _, err := globalDB.FailRunLease(ctx, taskpkg.LeaseFailure{
+			Actor: actor, RunID: claim.Run.ID, ClaimToken: claim.ClaimToken,
+			Failure: taskpkg.RunFailure{Error: "provider transport failed"},
+			Now:     failedAt,
+		}); err != nil {
+			t.Fatalf("FailRunLease() error = %v", err)
+		}
+
+		binding, err := globalDB.GetSessionBindingAttempt(ctx, bindingKey, 5)
+		if err != nil {
+			t.Fatalf("GetSessionBindingAttempt(after failure) error = %v", err)
+		}
+		if binding.State != goal.BindingStateActive {
+			t.Fatalf("binding state after unsettled failure = %q, want %q", binding.State, goal.BindingStateActive)
+		}
+
+		nextAttemptAt := now.Add(time.Minute)
+		expectedEpoch := int64(4)
+		failureClass := looppkg.FailureTransport
+		coordinatorClaim := claimCoordinatorRunForTest(
+			ctx,
+			t,
+			globalDB,
+			created.ID,
+			"run-agent-retry",
+			now.Add(3*time.Second),
+		)
+		if _, err := globalDB.CompleteCoordinatorAndEnqueueNext(
+			ctx,
+			taskpkg.CoordinatorCompletion{
+				RunID: coordinatorClaim.Run.ID, ClaimToken: coordinatorClaim.ClaimToken,
+				Actor: coordinatorActorContextForTest(), Now: now.Add(4 * time.Second),
+				Plan: taskpkg.CoordinatorCompletionPlan{
+					Yield: true,
+					Snapshot: taskpkg.GenerationSnapshot{
+						LoopRunID: loopRunID, Generation: 1,
+						Payload: looppkg.GenerationSnapshotPayload{
+							Outputs: []looppkg.GenerationOutput{{
+								Generation: 1, NodeID: "execute", Status: "retrying", TaskRunID: taskRunID,
+								Attempt: 1, NextAttemptAt: &nextAttemptAt, Epoch: 5, ExpectedEpoch: &expectedEpoch,
+							}},
+							Attempts: []looppkg.NodeAttempt{{
+								LoopRunID: created.ID, Generation: 1, NodeID: "execute", Attempt: 1,
+								FailureClass: &failureClass, FailureCode: "provider_transport",
+								Cause: "provider transport failed", Disposition: looppkg.AttemptRetried,
+								StartedAt: now.Add(time.Second), EndedAt: &failedAt, NextAttemptAt: &nextAttemptAt,
+							}},
+						},
+					},
+				},
+			},
+			looppkg.NewStoreFinalizer(),
+		); err != nil {
+			t.Fatalf("CompleteCoordinatorAndEnqueueNext(retry) error = %v", err)
+		}
+		binding, err = globalDB.GetSessionBindingAttempt(ctx, bindingKey, 5)
+		if err != nil {
+			t.Fatalf("GetSessionBindingAttempt(after retry) error = %v", err)
+		}
+		if binding.State != goal.BindingStateActive {
+			t.Fatalf("binding state after retry = %q, want %q", binding.State, goal.BindingStateActive)
+		}
+		cleanups, err := globalDB.ClaimGoalSessionCleanup(ctx, 10)
+		if err != nil {
+			t.Fatalf("ClaimGoalSessionCleanup(after retry) error = %v", err)
+		}
+		if len(cleanups) != 0 {
+			t.Fatalf("run-agent retry cleanups = %#v, want none", cleanups)
+		}
+
+		finalSnapshot := taskpkg.GenerationSnapshot{
+			LoopRunID:  loopRunID,
+			Generation: 1,
+			Payload: looppkg.GenerationSnapshotPayload{
+				Outputs: []looppkg.GenerationOutput{{
+					Generation: 1, NodeID: "execute", Status: "failed", TaskRunID: taskRunID,
+					Attempt: 1, Epoch: 5,
+				}},
+				Attempts: []looppkg.NodeAttempt{{
+					LoopRunID: created.ID, Generation: 1, NodeID: "execute", Attempt: 1,
+					FailureClass: &failureClass, FailureCode: "provider_transport",
+					Cause: "provider transport failed", Disposition: looppkg.AttemptEscalated,
+					StartedAt: now.Add(time.Second), EndedAt: &failedAt,
+				}},
+			},
+		}
+		wake, added, err := globalDB.EnqueueLoopCoordinatorWake(
+			ctx,
+			string(created.ID),
+			"run-agent-final-failure",
+			taskpkg.Origin{Kind: taskpkg.OriginKindDaemon, Ref: "loop"},
+			now.Add(5*time.Second),
+		)
+		if err != nil || !added {
+			t.Fatalf("EnqueueLoopCoordinatorWake(final failure) added = %t, error = %v", added, err)
+		}
+		finalCoordinatorClaim := claimExactLoopTaskRunForTest(
+			ctx,
+			t,
+			globalDB,
+			created,
+			wake.ID,
+			taskpkg.RunKindCoordinator,
+			now.Add(5*time.Second),
+		)
+		if _, err := globalDB.CompleteCoordinatorAndEnqueueNext(
+			ctx,
+			taskpkg.CoordinatorCompletion{
+				RunID:      finalCoordinatorClaim.Run.ID,
+				ClaimToken: finalCoordinatorClaim.ClaimToken,
+				Actor:      coordinatorActorContextForTest(),
+				Now:        now.Add(6 * time.Second),
+				Plan: taskpkg.CoordinatorCompletionPlan{
+					Snapshot: finalSnapshot,
+					Terminal: &taskpkg.CoordinatorTerminal{
+						Status: string(looppkg.StatusFailed),
+						Cause:  "provider transport failed",
+					},
+				},
+			},
+			looppkg.NewStoreFinalizer(),
+		); err != nil {
+			t.Fatalf("CompleteCoordinatorAndEnqueueNext(final failure) error = %v", err)
+		}
+		binding, err = globalDB.GetSessionBindingAttempt(ctx, bindingKey, 5)
+		if err != nil {
+			t.Fatalf("GetSessionBindingAttempt(after final failure) error = %v", err)
+		}
+		if binding.State != goal.BindingStateClosed {
+			t.Fatalf("binding state after final failure = %q, want %q", binding.State, goal.BindingStateClosed)
+		}
+		cleanups, err = globalDB.ClaimGoalSessionCleanup(ctx, 10)
+		if err != nil {
+			t.Fatalf("ClaimGoalSessionCleanup(after final failure) error = %v", err)
+		}
+		if len(cleanups) != 1 || cleanups[0].SessionID != sessionID ||
+			cleanups[0].Cause != goal.SessionCleanupCauseTerminal {
+			t.Fatalf("run-agent final failure cleanups = %#v, want one terminal session cleanup", cleanups)
+		}
+	})
+
+	t.Run("Should match a settled run-agent output by snapshot generation", func(t *testing.T) {
+		t.Parallel()
+
+		const (
+			workspaceID      = "ws-run-agent-generation"
+			loopRunID        = "run-agent-generation"
+			staleTaskID      = "task-run-agent-generation-stale"
+			staleTaskRunID   = "taskrun-run-agent-generation-stale"
+			staleHandle      = "action:run-agent-generation-stale"
+			staleSessionID   = "session-run-agent-generation-stale"
+			currentTaskID    = "task-run-agent-generation-current"
+			currentTaskRunID = "taskrun-run-agent-generation-current"
+			currentHandle    = "action:run-agent-generation-current"
+			currentSessionID = "session-run-agent-generation-current"
+		)
+		globalDB := openLoopTestGlobalDB(t, workspaceID)
+		ctx := testutil.Context(t)
+		now := time.Date(2026, 8, 21, 0, 30, 0, 0, time.UTC)
+		loopRun := testLoopRun(loopRunID, now, looppkg.StatusRunning)
+		loopRun.WorkspaceID = workspaceID
+		created, err := globalDB.CreateLoopRunForStart(ctx, loopRun, dsl.ConcurrencyAllow)
+		if err != nil {
+			t.Fatalf("CreateLoopRunForStart() error = %v", err)
+		}
+		seedRunAgentCellForTest(t, globalDB, runAgentCellFixture{
+			WorkspaceID: workspaceID,
+			LoopRunID:   loopRunID,
+			TaskID:      staleTaskID,
+			TaskRunID:   staleTaskRunID,
+			Handle:      staleHandle,
+			Generation:  2,
+			Attempt:     1,
+			Epoch:       4,
+		})
+		seedRunAgentCellForTest(t, globalDB, runAgentCellFixture{
+			WorkspaceID:  workspaceID,
+			LoopRunID:    loopRunID,
+			TaskID:       currentTaskID,
+			TaskRunID:    currentTaskRunID,
+			Handle:       currentHandle,
+			Generation:   1,
+			Attempt:      1,
+			Epoch:        4,
+			InsertOutput: true,
+		})
+		seedActiveGoalBindingForTest(
+			t, globalDB, loopRunID, workspaceID, staleHandle, 5, staleSessionID, now,
+		)
+		seedActiveGoalBindingForTest(
+			t, globalDB, loopRunID, workspaceID, currentHandle, 5, currentSessionID, now,
+		)
+
+		endedAt := now.Add(time.Second)
+		coordinatorClaim := claimCoordinatorRunForTest(
+			ctx,
+			t,
+			globalDB,
+			created.ID,
+			"run-agent-generation",
+			now.Add(2*time.Second),
+		)
+		if _, err := globalDB.CompleteCoordinatorAndEnqueueNext(
+			ctx,
+			taskpkg.CoordinatorCompletion{
+				RunID:      coordinatorClaim.Run.ID,
+				ClaimToken: coordinatorClaim.ClaimToken,
+				Actor:      coordinatorActorContextForTest(),
+				Now:        now.Add(3 * time.Second),
+				Plan: taskpkg.CoordinatorCompletionPlan{
+					Yield: true,
+					Snapshot: taskpkg.GenerationSnapshot{
+						LoopRunID:  loopRunID,
+						Generation: 1,
+						Payload: looppkg.GenerationSnapshotPayload{
+							Outputs: []looppkg.GenerationOutput{
+								{
+									Generation: 2, NodeID: "execute", Status: "failed",
+									TaskRunID: staleTaskRunID, Attempt: 1, Epoch: 4,
+								},
+								{
+									NodeID: "execute", Status: "failed", TaskRunID: currentTaskRunID,
+									Attempt: 1, Epoch: 4,
+								},
+							},
+							Attempts: []looppkg.NodeAttempt{{
+								LoopRunID: created.ID, Generation: 1, NodeID: "execute", Attempt: 1,
+								FailureCode: "provider_failure", Cause: "provider failed",
+								Disposition: looppkg.AttemptEscalated,
+								StartedAt:   now, EndedAt: &endedAt,
+							}},
+						},
+					},
+				},
+			},
+			looppkg.NewStoreFinalizer(),
+		); err != nil {
+			t.Fatalf("CompleteCoordinatorAndEnqueueNext() error = %v", err)
+		}
+
+		staleBinding, err := globalDB.GetSessionBindingAttempt(ctx, goal.BindingKey{
+			WorkspaceID: workspaceID,
+			LoopRunID:   loopRunID,
+			Handle:      staleHandle,
+		}, 5)
+		if err != nil {
+			t.Fatalf("GetSessionBindingAttempt(stale) error = %v", err)
+		}
+		if staleBinding.State != goal.BindingStateActive {
+			t.Fatalf("stale generation binding state = %q, want %q", staleBinding.State, goal.BindingStateActive)
+		}
+		currentBinding, err := globalDB.GetSessionBindingAttempt(ctx, goal.BindingKey{
+			WorkspaceID: workspaceID,
+			LoopRunID:   loopRunID,
+			Handle:      currentHandle,
+		}, 5)
+		if err != nil {
+			t.Fatalf("GetSessionBindingAttempt(current) error = %v", err)
+		}
+		if currentBinding.State != goal.BindingStateClosed {
+			t.Fatalf("current generation binding state = %q, want %q", currentBinding.State, goal.BindingStateClosed)
+		}
+		cleanups, err := globalDB.ClaimGoalSessionCleanup(ctx, 10)
+		if err != nil {
+			t.Fatalf("ClaimGoalSessionCleanup() error = %v", err)
+		}
+		if len(cleanups) != 1 || cleanups[0].SessionID != currentSessionID {
+			t.Fatalf("generation cleanups = %#v, want current session only", cleanups)
+		}
+	})
+
+	t.Run("Should close a live run-agent binding when its loop reaches a terminal boundary", func(t *testing.T) {
+		t.Parallel()
+
+		const (
+			workspaceID = "ws-run-agent-loop-terminal"
+			loopRunID   = "run-agent-loop-terminal"
+			taskID      = "task-run-agent-loop-terminal"
+			taskRunID   = "taskrun-run-agent-loop-terminal"
+			handle      = "action:run-agent-loop-terminal"
+			sessionID   = "session-run-agent-loop-terminal"
+		)
+		globalDB := openLoopTestGlobalDB(t, workspaceID)
+		ctx := testutil.Context(t)
+		now := time.Date(2026, 8, 20, 20, 50, 0, 0, time.UTC)
+		loopRun := testLoopRun(loopRunID, now, looppkg.StatusRunning)
+		loopRun.WorkspaceID = workspaceID
+		created, err := globalDB.CreateLoopRunForStart(ctx, loopRun, dsl.ConcurrencyAllow)
+		if err != nil {
+			t.Fatalf("CreateLoopRunForStart() error = %v", err)
+		}
+
+		seedRunAgentCellForTest(t, globalDB, runAgentCellFixture{
+			WorkspaceID: workspaceID,
+			LoopRunID:   loopRunID,
+			TaskID:      taskID,
+			TaskRunID:   taskRunID,
+			Handle:      handle,
+			Generation:  1,
+			Attempt:     1,
+			Epoch:       4,
+		})
+		seedActiveGoalBindingForTest(t, globalDB, loopRunID, workspaceID, handle, 5, sessionID, now)
+
+		coordinatorClaim := claimCoordinatorRunForTest(
+			ctx,
+			t,
+			globalDB,
+			created.ID,
+			"run-agent-loop-terminal",
+			now.Add(time.Second),
+		)
+		if _, err := globalDB.CompleteCoordinatorAndEnqueueNext(
+			ctx,
+			taskpkg.CoordinatorCompletion{
+				RunID: coordinatorClaim.Run.ID, ClaimToken: coordinatorClaim.ClaimToken,
+				Actor: coordinatorActorContextForTest(), Now: now.Add(2 * time.Second),
+				Plan: taskpkg.CoordinatorCompletionPlan{
+					Snapshot: taskpkg.GenerationSnapshot{LoopRunID: loopRunID, Generation: 1},
+					Terminal: &taskpkg.CoordinatorTerminal{
+						Status: string(looppkg.StatusFailed), Cause: "terminal worker failure",
+					},
+				},
+			},
+			looppkg.NewStoreFinalizer(),
+		); err != nil {
+			t.Fatalf("CompleteCoordinatorAndEnqueueNext(terminal) error = %v", err)
+		}
+
+		binding, err := globalDB.GetSessionBindingAttempt(ctx, goal.BindingKey{
+			WorkspaceID: workspaceID,
+			LoopRunID:   loopRunID,
+			Handle:      handle,
+		}, 5)
+		if err != nil {
+			t.Fatalf("GetSessionBindingAttempt() error = %v", err)
+		}
+		if binding.State != goal.BindingStateClosed {
+			t.Fatalf("binding state after Loop terminal boundary = %q, want %q", binding.State, goal.BindingStateClosed)
+		}
+		cleanups, err := globalDB.ClaimGoalSessionCleanup(ctx, 10)
+		if err != nil {
+			t.Fatalf("ClaimGoalSessionCleanup() error = %v", err)
+		}
+		if len(cleanups) != 1 || cleanups[0].SessionID != sessionID ||
+			cleanups[0].Cause != goal.SessionCleanupCauseTerminal {
+			t.Fatalf("run-agent Loop terminal cleanups = %#v, want one terminal session cleanup", cleanups)
+		}
+	})
+
+	t.Run("Should close the exact run-agent binding when its node lane is canceled", func(t *testing.T) {
+		t.Parallel()
+
+		const (
+			workspaceID = "ws-run-agent-lane-cancel"
+			loopRunID   = "run-agent-lane-cancel"
+			taskID      = "task-run-agent-lane-cancel"
+			taskRunID   = "taskrun-run-agent-lane-cancel"
+			handle      = "action:run-agent-lane-cancel"
+			sessionID   = "session-run-agent-lane-cancel"
+		)
+		globalDB := openLoopTestGlobalDB(t, workspaceID)
+		ctx := testutil.Context(t)
+		now := time.Date(2026, 8, 20, 21, 0, 0, 0, time.UTC)
+		insertGoalSchemaLoopRun(t, globalDB, loopRunID, workspaceID, "catalog", nil)
+		if _, err := globalDB.db.ExecContext(
+			ctx,
+			`INSERT INTO loop_generations (loop_run_id, generation, parent_generation, origin, created_at)
+			 VALUES (?, 1, 0, 'initial', ?)`,
+			loopRunID,
+			store.FormatTimestamp(now),
+		); err != nil {
+			t.Fatalf("insert run-agent generation error = %v", err)
+		}
+		if _, err := globalDB.db.ExecContext(
+			ctx,
+			`UPDATE loop_runs SET generation = 1 WHERE id = ?`,
+			loopRunID,
+		); err != nil {
+			t.Fatalf("advance run-agent generation error = %v", err)
+		}
+
+		seedRunAgentCellForTest(t, globalDB, runAgentCellFixture{
+			WorkspaceID:  workspaceID,
+			LoopRunID:    loopRunID,
+			TaskID:       taskID,
+			TaskRunID:    taskRunID,
+			Handle:       handle,
+			Generation:   1,
+			Attempt:      1,
+			Epoch:        4,
+			InsertOutput: true,
+		})
+		seedActiveGoalBindingForTest(t, globalDB, loopRunID, workspaceID, handle, 5, sessionID, now)
+
+		itemIndex := 0
+		result, err := globalDB.RequestNodeCancellation(ctx, looppkg.CancellationMutation{
+			WorkspaceID: workspaceID,
+			RunID:       loopRunID,
+			NodeID:      "execute",
+			ItemIndex:   &itemIndex,
+			Kind:        looppkg.RunCancelCancel,
+			Reason:      "operator canceled lane",
+			Actor:       operatorActorContextForTest("operator:lane-cancel"),
+			RequestedAt: now.Add(time.Second),
+		})
+		if err != nil {
+			t.Fatalf("RequestNodeCancellation() error = %v", err)
+		}
+		if !result.Applied {
+			t.Fatalf("RequestNodeCancellation() = %#v, want applied", result)
+		}
+
+		binding, err := globalDB.GetSessionBindingAttempt(ctx, goal.BindingKey{
+			WorkspaceID: workspaceID,
+			LoopRunID:   loopRunID,
+			Handle:      handle,
+		}, 5)
+		if err != nil {
+			t.Fatalf("GetSessionBindingAttempt() error = %v", err)
+		}
+		if binding.State != goal.BindingStateClosed {
+			t.Fatalf("binding state after node lane cancellation = %q, want %q", binding.State, goal.BindingStateClosed)
+		}
+		cleanups, err := globalDB.ClaimGoalSessionCleanup(ctx, 10)
+		if err != nil {
+			t.Fatalf("ClaimGoalSessionCleanup() error = %v", err)
+		}
+		if len(cleanups) != 1 || cleanups[0].SessionID != sessionID ||
+			cleanups[0].Cause != goal.SessionCleanupCauseTerminal {
+			t.Fatalf("run-agent lane cancellation cleanups = %#v, want one terminal session cleanup", cleanups)
+		}
+	})
 
 	t.Run(
 		"Should fence ordinary action activation by cell owner and publish cleanup for stale creation",
@@ -1158,6 +1825,69 @@ func goalSessionInfoForTest(id string, workspaceID string, now time.Time) store.
 	}
 }
 
+type runAgentCellFixture struct {
+	WorkspaceID  string
+	LoopRunID    string
+	TaskID       string
+	TaskRunID    string
+	Handle       string
+	Generation   int
+	Attempt      int
+	Epoch        int64
+	InsertOutput bool
+}
+
+func seedRunAgentCellForTest(
+	t *testing.T,
+	globalDB *GlobalDB,
+	fixture runAgentCellFixture,
+) taskpkg.Run {
+	t.Helper()
+
+	ctx := testutil.Context(t)
+	taskRecord := workspaceTaskRecordForTest(fixture.TaskID, fixture.WorkspaceID)
+	taskRecord.Status = taskpkg.TaskStatusReady
+	if err := globalDB.CreateTask(ctx, taskRecord); err != nil {
+		t.Fatalf("CreateTask() error = %v", err)
+	}
+	metadata, err := json.Marshal(map[string]any{
+		"generation":     fixture.Generation,
+		"node_id":        "execute",
+		"item_index":     0,
+		"attempt":        fixture.Attempt,
+		"epoch":          fixture.Epoch,
+		"node_kind":      string(dsl.ActionRunAgent),
+		"session_handle": fixture.Handle,
+	})
+	if err != nil {
+		t.Fatalf("json.Marshal(run-agent metadata) error = %v", err)
+	}
+	run := taskRunForTest(fixture.TaskRunID, fixture.TaskID)
+	run.RunKind = taskpkg.RunKindWorker
+	run.LoopRunID = fixture.LoopRunID
+	run.Metadata = metadata
+	if err := globalDB.CreateTaskRun(ctx, run); err != nil {
+		t.Fatalf("CreateTaskRun() error = %v", err)
+	}
+	if !fixture.InsertOutput {
+		return run
+	}
+	if _, err := globalDB.db.ExecContext(
+		ctx,
+		`INSERT INTO loop_generation_outputs (
+			loop_run_id, generation, node_id, item_index, status, task_run_id, attempt, epoch
+		 ) VALUES (?, ?, 'execute', 0, 'enqueued', ?, ?, ?)`,
+		fixture.LoopRunID,
+		fixture.Generation,
+		fixture.TaskRunID,
+		fixture.Attempt,
+		fixture.Epoch,
+	); err != nil {
+		t.Fatalf("insert run-agent cell error = %v", err)
+	}
+	return run
+}
+
 func seedActiveGoalBindingForTest(
 	t *testing.T,
 	globalDB *GlobalDB,
@@ -1166,6 +1896,31 @@ func seedActiveGoalBindingForTest(
 	handle string,
 	bindingEpoch int64,
 	sessionID string,
+	now time.Time,
+) {
+	t.Helper()
+	seedActiveGoalBindingWithOwnershipForTest(
+		t,
+		globalDB,
+		runID,
+		workspaceID,
+		handle,
+		bindingEpoch,
+		sessionID,
+		goal.BindingOwnershipRunOwned,
+		now,
+	)
+}
+
+func seedActiveGoalBindingWithOwnershipForTest(
+	t *testing.T,
+	globalDB *GlobalDB,
+	runID string,
+	workspaceID string,
+	handle string,
+	bindingEpoch int64,
+	sessionID string,
+	ownership goal.BindingOwnership,
 	now time.Time,
 ) {
 	t.Helper()
@@ -1189,16 +1944,17 @@ func seedActiveGoalBindingForTest(
 			loop_run_id, handle, binding_epoch, binding_attempt_id, session_id, workspace_id,
 			creation_profile_ref, policy_spec_digest, creation_digest, ownership, state,
 			created_at, activated_at
-		) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'run-owned', 'active', ?, ?)`,
+		) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'active', ?, ?)`,
 		runID,
 		handle,
 		bindingEpoch,
-		"binding-attempt:"+runID,
+		"binding-attempt:"+runID+":"+handle,
 		sessionID,
 		workspaceID,
 		profileRef,
 		policyDigest,
 		creationDigest,
+		ownership,
 		store.FormatTimestamp(now),
 		store.FormatTimestamp(now),
 	); err != nil {

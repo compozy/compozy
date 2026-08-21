@@ -27,7 +27,7 @@ func (g *LoopRepo) requestNodeLaneCancellation(
 	if err != nil {
 		return err
 	}
-	if err := claimCancellationWaits(ctx, exec, mutation, run); err != nil {
+	if err := g.prepareNodeLaneCancellation(ctx, exec, mutation, run); err != nil {
 		return err
 	}
 	failureCode := string(looppkg.TransitionCauseOperatorCancel)
@@ -88,6 +88,18 @@ func (g *LoopRepo) requestNodeLaneCancellation(
 	result.Coordinator = coordinator
 	result.Applied = true
 	return nil
+}
+
+func (g *LoopRepo) prepareNodeLaneCancellation(
+	ctx context.Context,
+	exec taskSQLExecutor,
+	mutation looppkg.CancellationMutation,
+	run looppkg.Run,
+) error {
+	if err := claimCancellationWaits(ctx, exec, mutation, run); err != nil {
+		return err
+	}
+	return g.tasks.closeCanceledRunAgentLaneBinding(ctx, exec, mutation, run.Generation)
 }
 
 func nodeLaneLive(

@@ -7,14 +7,16 @@ flowchart TD
     C -->|lint error| D[Repair the exact field without losing draft state]
     D --> C
     C -->|valid| E[Run a wide fan-out through a bounded active window]
-    E --> F{Settlement strategy}
+    E --> E1[Inspect run-agent child-session lineage]
+    E1 --> F{Settlement strategy}
     F -->|fail_fast| G[Keep completed lanes and cancel unfinished siblings]
     F -->|best_effort threshold met| H[Settle collect partial and continue downstream]
     F -->|wait_all| I[Wait for every materialized lane]
     G --> J[Read route, prune, progress, and lane-control history]
     H --> J
     I --> J
-    J --> K[Fresh CLI, HTTP/UDS, native, SSE, and Web reads agree]
+    J --> J1[Confirm settled run-agent sessions are stopped]
+    J1 --> K[Fresh CLI, HTTP/UDS, native, SSE, and Web reads agree]
     K --> L[True end: terminal status and completion_state tell the same truth]
     B -.->|author closes editor| X1[Abandon: chrome and draft state restore without publishing]
     E -.->|daemon restarts mid-window| X2[Resume: no lane duplicates and active width remains bounded]
@@ -44,7 +46,7 @@ journey:
       expected_observable: "At most the declared width is active, restart does not duplicate a lane, and per-lane controls affect only the addressed item."
     - step: 3
       verb: "Let fail_fast or best_effort settle the collect"
-      expected_observable: "Completed work is preserved, unfinished work is canceled by cause, oversized action results fail without leaking their lease, progress is truthful, and partial coverage remains first-class."
+      expected_observable: "Completed work is preserved, unfinished work is canceled by cause, oversized action results fail without leaking their lease, progress is truthful, run-agent child sessions stop at terminal settlement, and partial coverage remains first-class."
     - step: 4
       verb: "Refresh and compare terminal projections"
       expected_observable: "Run status, completion_state, collect counts, route causes, and bounded history agree across all public surfaces."

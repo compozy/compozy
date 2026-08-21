@@ -61,7 +61,8 @@ func (r *CoordinatorRunner) ExecuteActionRun(
 		return task.RunResult{}, err
 	}
 	provenanceParentSessionID := ""
-	if dsl.ActionKind(actionCtx.node.Kind) == dsl.ActionGoal {
+	actionKind := dsl.ActionKind(actionCtx.node.Kind)
+	if actionKind == dsl.ActionGoal || actionKind == dsl.ActionRunAgent {
 		provenanceParentSessionID, err = r.provenanceParentSessionID(ctx, actionCtx.loopRun)
 		if err != nil {
 			return task.RunResult{}, err

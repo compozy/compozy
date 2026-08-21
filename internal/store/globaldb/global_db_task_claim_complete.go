@@ -107,6 +107,9 @@ func (g *TaskRunRepo) completeRunLeaseWithExecutor(
 	if err := recordCompletedRunLoopOutput(ctx, exec, current, normalized, outputRef, resultPayload); err != nil {
 		return taskpkg.Run{}, err
 	}
+	if err := closeTerminalRunAgentBinding(ctx, exec, current, normalized.Now); err != nil {
+		return taskpkg.Run{}, err
+	}
 	if current.IsTaskAnchored() {
 		if err := clearTaskCurrentRunProjection(ctx, exec, current.TaskID, current.ID); err != nil {
 			return taskpkg.Run{}, err

@@ -166,6 +166,10 @@ The daemon validates the agent's exact structured result against that schema bef
 task and revalidates it before publishing node success. A mismatch fails with `invalid_output`.
 Large results keep the same structured value when stored by content reference. The bound agent
 session may heartbeat its task, but only the owning daemon can complete or fail it.
+Each managed `run-agent` cell owns a system session. A session-started Loop records the nearest
+origin session as informational parent lineage without borrowing it. Terminal cell settlement
+closes the binding and queues a durable stop. A failure scheduled for retry keeps the binding active
+until the cell reaches a terminal boundary.
 Cross-generation references keep the same authored shape on every pass. On generation 1,
 `previous.generation` is `0`; before a best candidate exists, `best.generation` is `0`. Authored
 node outputs use zero values from their declared schemas and verdict lists are empty, so a valid

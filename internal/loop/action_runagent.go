@@ -141,6 +141,9 @@ func (e *RunAgentActionExecutor) bindRunAgentSession(
 		SharedKey:          actionSessionSharedKey(in.Generation, in.NodeID, in.ItemIndex, handle),
 		ItemIndex:          in.ItemIndex,
 		TargetBindingEpoch: in.CellEpoch + 1,
+		ProvenanceParentSessionID: strings.TrimSpace(
+			in.ProvenanceParentSessionID,
+		),
 		CellFence: &ActionSessionCellFence{
 			Epoch:     in.CellEpoch,
 			TaskRunID: strings.TrimSpace(in.CorrelationID),

@@ -215,7 +215,7 @@ func (g *TaskRepo) finalizeCoordinatorGenerationWithExecutor(
 			return coordinatorBoundaryState{}, err
 		}
 	}
-	if err := applyCoordinatorGenerationSnapshotIntentsWithExecutor(
+	if err := g.applyCoordinatorGenerationSnapshotIntentsWithExecutor(
 		ctx,
 		exec,
 		loopRun,
@@ -426,7 +426,7 @@ func (g *TaskRepo) applyCoordinatorContinueBoundaryWithExecutor(
 		if err := finalizer.WriteGenerationSnapshot(ctx, exec, *postReserveSnapshot); err != nil {
 			return err
 		}
-		if err := applyCoordinatorGenerationSnapshotIntentsWithExecutor(
+		if err := g.applyCoordinatorGenerationSnapshotIntentsWithExecutor(
 			ctx,
 			exec,
 			loopRun,

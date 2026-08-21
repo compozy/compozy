@@ -199,7 +199,7 @@ func TestLoopActionSessionBinderShouldApplyPolicyGate(t *testing.T) {
 		}
 	})
 
-	t.Run("Should carry provenance only in run-owned Goal creation options", func(t *testing.T) {
+	t.Run("Should carry provenance in run-owned managed creation options", func(t *testing.T) {
 		t.Parallel()
 
 		resolved := loopActionBinderWorkspace(t, []compozyconfig.AgentDef{{

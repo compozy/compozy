@@ -13,7 +13,7 @@ import (
 	taskpkg "github.com/compozy/compozy/internal/task"
 )
 
-func applyCoordinatorGenerationSnapshotIntentsWithExecutor(
+func (g *TaskRepo) applyCoordinatorGenerationSnapshotIntentsWithExecutor(
 	ctx context.Context,
 	exec taskSQLExecutor,
 	run looppkg.Run,
@@ -26,6 +26,13 @@ func applyCoordinatorGenerationSnapshotIntentsWithExecutor(
 	}
 	if snapshot.Generation <= 0 {
 		return fmt.Errorf("%w: generation snapshot generation must be positive", looppkg.ErrValidation)
+	}
+	if err := g.closeSettledRunAgentBindings(ctx, exec, runAgentSnapshotSettlement{
+		Payload:    payload,
+		Generation: snapshot.Generation,
+		TerminalAt: at,
+	}); err != nil {
+		return err
 	}
 	var provenance looppkg.GenerationIntent
 	if generationSnapshotRequiresProvenance(payload, snapshot.Generation, run.Generation) {
