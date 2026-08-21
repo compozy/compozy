@@ -15,12 +15,6 @@ The skill rejects any prompt that frames the work as QA. See `references/forbidd
 
 - **playbook-ref** (optional): Slug of the playbook to run (e.g., `northstar-pay`, `devtool-oss-launch`, `consumer-saas-growth`). When omitted, rotate from the previous run's `PLAYBOOK_REF` recorded in `bootstrap-manifest.json`.
 
-When playbook materialization or activation validation fails, use this bundled support map:
-
-- Bootstrap: `.agents/skills/eng/eng-real-scenario-qa/scripts/init-scenario-workspace.sh` and `.agents/skills/eng/eng-real-scenario-qa/scripts/seed-playbook-workspace.py`.
-- Read-only validation: `.agents/skills/eng/eng-real-scenario-qa/scripts/validate-playbook.py`, `.agents/skills/eng/eng-real-scenario-qa/scripts/playbook_loader.py`, and `.agents/skills/eng/eng-real-scenario-qa/scripts/test_activate_playbook_tasks.py`.
-- Contracts and payload source: `.agents/skills/eng/eng-real-scenario-qa/references/charter.schema.json`, `.agents/skills/eng/eng-real-scenario-qa/references/scenario-contract.schema.json`, and `.agents/skills/eng/eng-real-scenario-qa/assets/operator-kickoff-template.md`.
-
 ## Procedures
 
 **Step 1: Select the Playbook**
@@ -71,7 +65,7 @@ When playbook materialization or activation validation fails, use this bundled s
 
 1. Run the observer (read-only) for the configured window:
    `python3 .agents/skills/eng/eng-real-scenario-qa/scripts/observe-runtime.py --scenario-workspace "$WORKSPACE_PATH" --runtime-workspace "$RUNTIME_WORKSPACE_PATH" --workspace-id "$RUNTIME_WORKSPACE_ID" --api-base-url "$COMPOZY_WEB_API_PROXY_TARGET" --compozy-home "$COMPOZY_HOME" --compozy-bin "${COMPOZY_BIN:-compozy}" --qa-output-path "$QA_OUTPUT_PATH" --duration-sec 1800 --stall-threshold-sec 300`
-2. The observer derives progress only from public structured reads: Task catalog/detail, the Loop runs API, and `loop why` / `loop events` for runs that exist. It records only durable state transitions in `observation-summary.json`; `journey-log.jsonl` remains supporting evidence and never controls the stall clock.
+2. Before polling, the observer requires `workspace info "$RUNTIME_WORKSPACE_ID"` to resolve to `RUNTIME_WORKSPACE_PATH`. It then derives progress only from public Task catalog/detail, Loop runs, `loop why`, and `loop events` reads. It records only durable state transitions in `observation-summary.json`; `journey-log.jsonl` remains supporting evidence and never controls the stall clock.
 3. While the observer polls, capture cross-surface evidence without directing agents:
    - CLI: independently capture `compozy task list --workspace "$RUNTIME_WORKSPACE_ID" -o json`, plus agent, channel, and session lists against the same isolated `COMPOZY_HOME`.
    - API: read endpoints that intersect the playbook's primary domain.

@@ -1,11 +1,5 @@
 #!/usr/bin/env python3
-"""Observe isolated Compozy progress through runtime-owned public reads.
-
-The observer polls the public Task catalog and detail commands plus the Loop runs API.
-For each new or changed Loop run it also reads ``compozy loop why`` and ``loop events``.
-It never writes the journey log or sends an agent prompt. The journey log can be cited by
-the surrounding QA run as supporting evidence, but it is not a progress source.
-"""
+"""Observe isolated Compozy progress through runtime-owned public reads."""
 
 from __future__ import annotations
 
@@ -17,26 +11,18 @@ from pathlib import Path
 import subprocess
 import sys
 import time
-from typing import Any, Callable, Protocol
+from typing import Any, Callable
 from urllib import error as urlerror
 from urllib import parse as urlparse
 from urllib import request as urlrequest
 
 
 TASK_TERMINAL = {"completed", "failed", "canceled"}
-LOOP_TERMINAL = {"done", "no_op", "blocked", "failed", "exhausted", "stalled", "canceled"}
+LOOP_TERMINAL = {"done", "no-op", "blocked", "failed", "exhausted", "stalled", "canceled"}
 
 
 class PublicReadError(RuntimeError):
     """A public CLI or API read failed or returned an invalid contract."""
-
-
-class SnapshotReader(Protocol):
-    def read(self) -> dict[str, Any]: ...
-
-
-def now_iso() -> str:
-    return datetime.now(timezone.utc).isoformat()
 
 
 def require_object(value: Any, source: str) -> dict[str, Any]:
@@ -51,8 +37,53 @@ def require_list(value: Any, source: str) -> list[Any]:
     return value
 
 
+def require_matching_field(record: dict[str, Any], field: str, expected: str, source: str) -> str:
+    actual = str(record.get(field, "")).strip()
+    if actual != expected:
+        raise PublicReadError(f"{source} {field} mismatch: got {actual or '<empty>'}, want {expected}")
+    return actual
+
+
 def canonical_fingerprint(snapshot: dict[str, Any]) -> str:
     return json.dumps(snapshot, sort_keys=True, separators=(",", ":"), ensure_ascii=True)
+
+
+def durable_progress_fingerprint(snapshot: dict[str, Any]) -> str:
+    tasks = require_object(snapshot.get("tasks"), "observer task snapshot")
+    loops = require_object(snapshot.get("loop_runs", {}), "observer Loop snapshot")
+    task_fields = (
+        "status",
+        "catalog_status",
+        "catalog_matches_detail",
+        "current_run_id",
+        "latest_event_seq",
+    )
+    task_progress = {
+        task_id: {key: require_object(value, f"observer task {task_id}").get(key) for key in task_fields}
+        for task_id, value in tasks.items()
+    }
+    loop_progress: dict[str, dict[str, Any]] = {}
+    for run_id, value in loops.items():
+        run = require_object(value, f"observer Loop run {run_id}")
+        progress = require_object(run.get("progress", {}), f"observer Loop progress {run_id}")
+        attention = None
+        if run.get("attention") is not None:
+            record = require_object(run["attention"], f"observer Loop attention {run_id}")
+            attention = {"kind": record.get("kind"), "count": record.get("count")}
+        events = require_object(run.get("events", {}), f"observer Loop events {run_id}")
+        loop_progress[run_id] = {
+            "status": run.get("status"),
+            "progress": {key: progress.get(key) for key in ("round", "steps_done", "steps_total")},
+            "attention": attention,
+            "event_head_seq": events.get("head_seq"),
+        }
+    return canonical_fingerprint(
+        {
+            "tasks": task_progress,
+            "loop_runs": loop_progress,
+            "catalog_comparison": snapshot.get("catalog_comparison"),
+        }
+    )
 
 
 def task_status(task: dict[str, Any]) -> str:
@@ -93,8 +124,30 @@ def diagnose_unchanged(snapshot: dict[str, Any]) -> dict[str, Any]:
     }
 
 
+def observation_result(
+    outcome: str,
+    latest: dict[str, Any],
+    transitions: list[dict[str, Any]],
+    progress_transitions: int,
+    *,
+    error: str | None = None,
+    diagnose: dict[str, Any] | None = None,
+) -> dict[str, Any]:
+    result = {
+        "outcome": outcome,
+        "stall_detected": outcome == "stall",
+        "error": error,
+        "progress_transitions": progress_transitions,
+        "transitions": transitions,
+        "final_snapshot": latest,
+    }
+    if diagnose is not None:
+        result["diagnose"] = diagnose
+    return result
+
+
 def run_observation(
-    reader: SnapshotReader,
+    reader: Any,
     *,
     duration_sec: float,
     stall_threshold_sec: float,
@@ -112,18 +165,11 @@ def run_observation(
     while True:
         try:
             latest = require_object(reader.read(), "public runtime reader")
-            fingerprint = canonical_fingerprint(latest)
+            fingerprint = durable_progress_fingerprint(latest)
         except (PublicReadError, OSError, ValueError) as exc:
-            return {
-                "outcome": "error",
-                "stall_detected": False,
-                "error": str(exc),
-                "progress_transitions": progress_transitions,
-                "transitions": transitions,
-                "final_snapshot": latest,
-            }
+            return observation_result("error", latest, transitions, progress_transitions, error=str(exc))
 
-        observed_at = now_iso()
+        observed_at = datetime.now(timezone.utc).isoformat()
         if not previous_fingerprint:
             previous_fingerprint = fingerprint
             transitions.append({"observed_at": observed_at, "snapshot": latest})
@@ -134,35 +180,15 @@ def run_observation(
             transitions.append({"observed_at": observed_at, "snapshot": latest})
 
         if all_terminal(latest):
-            return {
-                "outcome": "all_terminal",
-                "stall_detected": False,
-                "error": None,
-                "progress_transitions": progress_transitions,
-                "transitions": transitions,
-                "final_snapshot": latest,
-            }
+            return observation_result("all_terminal", latest, transitions, progress_transitions)
 
         current = monotonic()
         if current - last_progress >= stall_threshold_sec:
-            return {
-                "outcome": "stall",
-                "stall_detected": True,
-                "error": None,
-                "progress_transitions": progress_transitions,
-                "transitions": transitions,
-                "diagnose": diagnose_unchanged(latest),
-                "final_snapshot": latest,
-            }
+            return observation_result(
+                "stall", latest, transitions, progress_transitions, diagnose=diagnose_unchanged(latest)
+            )
         if current - started >= duration_sec:
-            return {
-                "outcome": "window_complete",
-                "stall_detected": False,
-                "error": None,
-                "progress_transitions": progress_transitions,
-                "transitions": transitions,
-                "final_snapshot": latest,
-            }
+            return observation_result("window_complete", latest, transitions, progress_transitions)
         sleep(max(0.05, poll_interval_sec))
 
 
@@ -188,6 +214,7 @@ class PublicRuntimeReader:
         self.declared_task_ids = self._load_declared_task_ids()
         self.task_detail_cache: dict[str, tuple[str, dict[str, Any]]] = {}
         self.loop_detail_cache: dict[str, tuple[str, dict[str, Any]]] = {}
+        self._validate_workspace_registration()
 
     def _load_declared_task_ids(self) -> list[str]:
         path = self.scenario_workspace / ".compozy" / "tasks" / "open-tasks.json"
@@ -245,6 +272,20 @@ class PublicRuntimeReader:
             raise PublicReadError(f"{source} returned malformed JSON: {exc}") from exc
         return require_object(payload, source)
 
+    def _validate_workspace_registration(self) -> None:
+        response = self._run_cli(
+            ["workspace", "info", self.workspace_id],
+            "public workspace registration",
+        )
+        workspace = require_object(response.get("workspace"), "public workspace registration workspace")
+        require_matching_field(workspace, "id", self.workspace_id, "public workspace registration")
+        root_dir = str(workspace.get("root_dir", "")).strip()
+        if not root_dir:
+            raise PublicReadError("public workspace registration root_dir is empty")
+        registered_root = Path(root_dir).expanduser().resolve()
+        if registered_root != self.runtime_workspace:
+            raise PublicReadError(f"public workspace root mismatch: got {registered_root}, want {self.runtime_workspace}")
+
     def _task_catalog(self) -> dict[str, dict[str, Any]]:
         response = self._run_cli(
             ["task", "list", "--workspace", self.workspace_id, "--limit", "200"],
@@ -255,8 +296,12 @@ class PublicRuntimeReader:
         for index, row in enumerate(rows):
             item = require_object(row, f"public Task catalog row {index}")
             task_id = str(item.get("id", "")).strip()
-            if task_id:
-                catalog[task_id] = item
+            if not task_id:
+                raise PublicReadError(f"public Task catalog row {index} has no id")
+            require_matching_field(item, "workspace_id", self.workspace_id, f"public Task catalog row {task_id}")
+            if task_id in catalog:
+                raise PublicReadError(f"public Task catalog contains duplicate task {task_id}")
+            catalog[task_id] = item
         return catalog
 
     def _task_account(self, catalog: dict[str, dict[str, Any]]) -> dict[str, dict[str, Any]]:
@@ -268,7 +313,7 @@ class PublicRuntimeReader:
             catalog_key = canonical_fingerprint(
                 {
                     key: item.get(key)
-                    for key in ("status", "current_run_id", "latest_event_seq", "updated_at", "closed_at")
+                    for key in ("status", "current_run_id", "latest_event_seq")
                 }
             )
             cached = self.task_detail_cache.get(task_id)
@@ -278,18 +323,25 @@ class PublicRuntimeReader:
             else:
                 detail = cached[1]
             summary = require_object(detail.get("summary"), f"public Task detail summary {task_id}")
-            expanded = require_object(detail.get("task"), f"public Task detail task {task_id}")
+            task = require_object(detail.get("task"), f"public Task detail task {task_id}")
+            for source, record in (("summary", summary), ("task", task)):
+                prefix = f"public Task detail {source} for {task_id}"
+                require_matching_field(record, "id", task_id, prefix)
+                require_matching_field(record, "workspace_id", self.workspace_id, prefix)
             detail_status = str(summary.get("status", "")).strip().lower()
+            task_detail_status = str(task.get("status", "")).strip().lower()
+            if not detail_status or task_detail_status != detail_status:
+                raise PublicReadError(
+                    f"public Task detail status mismatch for {task_id}: "
+                    f"summary={detail_status or '<empty>'}, task={task_detail_status or '<empty>'}"
+                )
             catalog_status = str(item.get("status", "")).strip().lower()
             account[task_id] = {
-                "id": task_id,
                 "status": detail_status,
                 "catalog_status": catalog_status,
                 "catalog_matches_detail": detail_status == catalog_status,
                 "current_run_id": summary.get("current_run_id"),
                 "latest_event_seq": summary.get("latest_event_seq"),
-                "updated_at": item.get("updated_at"),
-                "closed_at": item.get("closed_at"),
                 "runs": detail.get("runs", []),
                 "events": detail.get("events", []),
             }
@@ -305,6 +357,7 @@ class PublicRuntimeReader:
             run_id = str(item.get("id", "")).strip()
             if not run_id:
                 raise PublicReadError(f"public Loop runs row {index} has no id")
+            require_matching_field(item, "workspace_id", self.workspace_id, f"public Loop runs row {run_id}")
             run_key = canonical_fingerprint(
                 {
                     key: item.get(key)
@@ -326,9 +379,7 @@ class PublicRuntimeReader:
             else:
                 detail = cached[1]
             account[run_id] = {
-                "id": run_id,
                 "status": item.get("status"),
-                "last_progress_at": item.get("last_progress_at"),
                 "progress": item.get("progress"),
                 "attention": item.get("attention"),
                 **detail,
@@ -411,14 +462,9 @@ def main() -> int:
             poll_interval_sec=args.poll_interval_sec,
         )
     except PublicReadError as exc:
-        summary = {
-            "outcome": "error",
-            "stall_detected": False,
-            "error": str(exc),
-            "progress_transitions": 0,
-            "transitions": [],
-            "final_snapshot": {"tasks": {}, "loop_runs": {}},
-        }
+        summary = observation_result(
+            "error", {"tasks": {}, "loop_runs": {}}, [], 0, error=str(exc)
+        )
     summary.update(
         {
             "scenario_workspace": str(Path(args.scenario_workspace).resolve()),
