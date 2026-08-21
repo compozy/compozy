@@ -1,6 +1,6 @@
 CREATE TABLE tool_approval_grants (
 	id           TEXT NOT NULL PRIMARY KEY CHECK (trim(id) <> ''),
-	workspace_id TEXT NOT NULL REFERENCES workspaces(id) ON DELETE CASCADE,
+	workspace_id TEXT NOT NULL,
 	agent_name   TEXT NOT NULL DEFAULT '',
 	tool_id      TEXT NOT NULL CHECK (trim(tool_id) <> ''),
 	input_digest TEXT NOT NULL DEFAULT '' CHECK (input_digest = '' OR input_digest LIKE 'sha256:%'),

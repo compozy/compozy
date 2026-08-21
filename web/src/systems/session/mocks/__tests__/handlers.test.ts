@@ -196,7 +196,7 @@ describe("session MSW handlers", () => {
     const agent = sample.agent_name!;
 
     const filtered = await fetch(
-      `${API}/api/sessions?workspace=${encodeURIComponent(workspace)}&agent=${encodeURIComponent(agent)}`
+      `${API}/api/sessions?workspace_id=${encodeURIComponent(workspace)}&agent=${encodeURIComponent(agent)}`
     );
     expect(filtered.status).toBe(200);
     const body = (await filtered.json()) as {
@@ -207,7 +207,7 @@ describe("session MSW handlers", () => {
     expect(body.sessions.every(session => session.agent_name === agent)).toBe(true);
 
     const workspaceOnly = await fetch(
-      `${API}/api/sessions?workspace=${encodeURIComponent(workspace)}`
+      `${API}/api/sessions?workspace_id=${encodeURIComponent(workspace)}`
     );
     const workspaceBody = (await workspaceOnly.json()) as {
       sessions: Array<{ workspace_id: string }>;

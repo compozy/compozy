@@ -83,8 +83,19 @@ func (h *BaseHandlers) parseSessionListQuery(c *gin.Context) (session.ListQuery,
 	if err != nil {
 		return session.ListQuery{}, false, err
 	}
+	allWorkspaces, err := parseBoolQuery(c, "all_workspaces")
+	if err != nil {
+		return session.ListQuery{}, false, err
+	}
+	workspaceRef := strings.TrimSpace(c.Query("workspace_id"))
+	if (workspaceRef != "") == allWorkspaces {
+		return session.ListQuery{}, false, fmt.Errorf(
+			"%w: choose exactly one workspace_id or all_workspaces=true",
+			session.ErrListQueryInvalid,
+		)
+	}
 	workspaceID := ""
-	if workspaceRef := strings.TrimSpace(c.Query("workspace")); workspaceRef != "" {
+	if workspaceRef != "" {
 		workspaceID, err = h.lookupWorkspaceID(c.Request.Context(), workspaceRef)
 		if err != nil {
 			return session.ListQuery{}, false, fmt.Errorf("%w: %w", errSessionListWorkspaceResolution, err)
@@ -96,6 +107,7 @@ func (h *BaseHandlers) parseSessionListQuery(c *gin.Context) (session.ListQuery,
 	}
 	query := session.ListQuery{
 		WorkspaceID:     workspaceID,
+		AllWorkspaces:   allWorkspaces,
 		WorktreeID:      strings.TrimSpace(c.Query("worktree")),
 		State:           strings.TrimSpace(c.Query("state")),
 		SessionType:     sessionType,

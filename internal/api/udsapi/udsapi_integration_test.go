@@ -1445,7 +1445,7 @@ func TestUDSShutdownCancelsPersistentStreams(t *testing.T) {
 			WithSocketPath(socketPath),
 			WithLogger(discardLogger()),
 			WithSessionManager(stubSessionManager{
-				SubscribeCatalogFn: func(context.Context) (<-chan session.CatalogEvent, func(), error) {
+				SubscribeCatalogFn: func(context.Context, session.CatalogScope) (<-chan session.CatalogEvent, func(), error) {
 					return events, func() {}, nil
 				},
 			}),
@@ -1471,7 +1471,7 @@ func TestUDSShutdownCancelsPersistentStreams(t *testing.T) {
 			t,
 			newUnixClient(t, socketPath),
 			http.MethodGet,
-			"http://unix/api/sessions/catalog-stream",
+			"http://unix/api/sessions/catalog-stream?all_workspaces=true",
 			nil,
 			nil,
 		)
@@ -3573,7 +3573,10 @@ func waitForIntegrationSessionActive(t *testing.T, manager *session.Manager, ses
 		return
 	}
 
-	catalogEvents, cancel, err := manager.SubscribeSessionCatalogEvents(t.Context())
+	catalogEvents, cancel, err := manager.SubscribeSessionCatalogEvents(
+		t.Context(),
+		session.CatalogScope{AllWorkspaces: true},
+	)
 	if err != nil {
 		t.Fatalf("SubscribeSessionCatalogEvents() error = %v", err)
 	}

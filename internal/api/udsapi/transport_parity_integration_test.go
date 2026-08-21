@@ -1611,8 +1611,8 @@ func assertTransportSessionProvenanceParity(
 
 	childIDs := []string{explicitChild.Session.ID, inferredChild.Session.ID}
 	slices.Sort(childIDs)
-	parentQuery := "/api/sessions?parent=" + url.QueryEscape(parent.ID)
-	rootQuery := "/api/sessions?root=" + url.QueryEscape(parent.ID)
+	parentQuery := "/api/sessions?all_workspaces=true&parent=" + url.QueryEscape(parent.ID)
+	rootQuery := "/api/sessions?all_workspaces=true&root=" + url.QueryEscape(parent.ID)
 
 	var udsChildren compozycontract.SessionCatalogResponse
 	if err := runtimeHarness.UDSJSON(ctx, http.MethodGet, parentQuery, nil, &udsChildren); err != nil {
@@ -2925,7 +2925,7 @@ func waitForTransportSessionTitle(
 	defer cancel()
 	ticker := time.NewTicker(25 * time.Millisecond)
 	defer ticker.Stop()
-	path := "/api/sessions?workspace=" + url.QueryEscape(harness.WorkspaceID)
+	path := "/api/sessions?workspace_id=" + url.QueryEscape(harness.WorkspaceID)
 
 	var (
 		httpCatalog compozycontract.SessionsResponse

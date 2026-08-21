@@ -664,7 +664,7 @@ func TestBaseHandlersWorkspaceFilteringAndDefaults(t *testing.T) {
 		PendingRestartFn: func(context.Context) (bool, error) { return true, nil },
 	}
 
-	resp := performRequest(t, fixture.Engine, http.MethodGet, "/sessions?workspace=alpha&worktree=wt-bound", nil)
+	resp := performRequest(t, fixture.Engine, http.MethodGet, "/sessions?workspace_id=alpha&worktree=wt-bound", nil)
 	if resp.Code != http.StatusOK {
 		t.Fatalf("filtered list status = %d, want %d", resp.Code, http.StatusOK)
 	}
@@ -1271,7 +1271,7 @@ func TestBaseHandlersListSessionsPageContract(t *testing.T) {
 		}
 		fixture := newHandlerFixture(t, manager, testutil.StubObserver{}, testutil.StubWorkspaceService{}, nil, nil)
 
-		resp := performRequest(t, fixture.Engine, http.MethodGet, "/sessions", nil)
+		resp := performRequest(t, fixture.Engine, http.MethodGet, "/sessions?all_workspaces=true", nil)
 		if resp.Code != http.StatusOK {
 			t.Fatalf("list sessions status = %d, want %d; body=%s", resp.Code, http.StatusOK, resp.Body.String())
 		}
@@ -1337,7 +1337,7 @@ func TestBaseHandlersListSessionsPageContract(t *testing.T) {
 			t,
 			fixture.Engine,
 			http.MethodGet,
-			"/sessions?resumable=true&agent=coder&type=user",
+			"/sessions?all_workspaces=true&resumable=true&agent=coder&type=user",
 			nil,
 		)
 		if resp.Code != http.StatusOK {
@@ -1410,7 +1410,7 @@ func TestBaseHandlersListSessionsPageContract(t *testing.T) {
 			},
 		}
 
-		resp := performRequest(t, fixture.Engine, http.MethodGet, "/sessions?include_health=true&limit=1", nil)
+		resp := performRequest(t, fixture.Engine, http.MethodGet, "/sessions?all_workspaces=true&include_health=true&limit=1", nil)
 		if resp.Code != http.StatusOK {
 			t.Fatalf("list sessions status = %d, want %d; body=%s", resp.Code, http.StatusOK, resp.Body.String())
 		}
@@ -1447,7 +1447,7 @@ func TestBaseHandlersListSessionsErrorBranches(t *testing.T) {
 			nil,
 		)
 
-		resp := performRequest(t, fixture.Engine, http.MethodGet, "/sessions", nil)
+		resp := performRequest(t, fixture.Engine, http.MethodGet, "/sessions?all_workspaces=true", nil)
 		if resp.Code != http.StatusInternalServerError {
 			t.Fatalf(
 				"list sessions status = %d, want %d; body=%s",
@@ -1475,7 +1475,7 @@ func TestBaseHandlersListSessionsErrorBranches(t *testing.T) {
 			nil,
 		)
 
-		resp := performRequest(t, fixture.Engine, http.MethodGet, "/sessions?type=temporary", nil)
+		resp := performRequest(t, fixture.Engine, http.MethodGet, "/sessions?all_workspaces=true&type=temporary", nil)
 		if resp.Code != http.StatusBadRequest {
 			t.Fatalf(
 				"list sessions status = %d, want %d; body=%s",
@@ -1503,7 +1503,7 @@ func TestBaseHandlersListSessionsErrorBranches(t *testing.T) {
 			nil,
 		)
 
-		resp := performRequest(t, fixture.Engine, http.MethodGet, "/sessions?type=dream", nil)
+		resp := performRequest(t, fixture.Engine, http.MethodGet, "/sessions?all_workspaces=true&type=dream", nil)
 		if resp.Code != http.StatusBadRequest {
 			t.Fatalf(
 				"list sessions status = %d, want %d; body=%s",
@@ -1525,7 +1525,7 @@ func TestBaseHandlersListSessionsErrorBranches(t *testing.T) {
 		})
 		engine := gin.New()
 		engine.GET("/sessions", handlers.ListSessions)
-		resp := performRequest(t, engine, http.MethodGet, "/sessions", nil)
+		resp := performRequest(t, engine, http.MethodGet, "/sessions?all_workspaces=true", nil)
 		if resp.Code != http.StatusServiceUnavailable {
 			t.Fatalf(
 				"list sessions status = %d, want %d; body=%s",
@@ -1553,7 +1553,7 @@ func TestBaseHandlersListSessionsErrorBranches(t *testing.T) {
 			singleCalls++
 			return heartbeat.SessionHealth{}, nil
 		})
-		resp := performRequest(t, fixture.Engine, http.MethodGet, "/sessions?include_health=true", nil)
+		resp := performRequest(t, fixture.Engine, http.MethodGet, "/sessions?all_workspaces=true&include_health=true", nil)
 		if resp.Code != http.StatusServiceUnavailable || singleCalls != 0 {
 			t.Fatalf(
 				"list sessions status = %d single calls = %d, want 503 with no per-session fallback; body=%s",
@@ -1584,7 +1584,7 @@ func TestBaseHandlersListSessionsErrorBranches(t *testing.T) {
 			nil,
 		)
 
-		resp := performRequest(t, fixture.Engine, http.MethodGet, "/sessions?workspace=alpha", nil)
+		resp := performRequest(t, fixture.Engine, http.MethodGet, "/sessions?workspace_id=alpha", nil)
 		if resp.Code != http.StatusNotFound {
 			t.Fatalf("list sessions status = %d, want %d; body=%s", resp.Code, http.StatusNotFound, resp.Body.String())
 		}
@@ -1605,16 +1605,16 @@ func TestBaseHandlersListSessionsErrorBranches(t *testing.T) {
 			nil,
 			nil,
 		)
-		resp := performRequest(t, fixture.Engine, http.MethodGet, "/sessions?workspace=missing-root", nil)
+		resp := performRequest(t, fixture.Engine, http.MethodGet, "/sessions?workspace_id=missing-root", nil)
 		if resp.Code != http.StatusGone {
 			t.Fatalf("list sessions status = %d, want %d; body=%s", resp.Code, http.StatusGone, resp.Body.String())
 		}
 	})
 
 	for _, path := range []string{
-		"/sessions?resumable=not-a-bool",
-		"/sessions?include_health=not-a-bool",
-		"/sessions?limit=not-an-int",
+		"/sessions?all_workspaces=true&resumable=not-a-bool",
+		"/sessions?all_workspaces=true&include_health=not-a-bool",
+		"/sessions?all_workspaces=true&limit=not-an-int",
 	} {
 		t.Run("Should reject invalid query "+path, func(t *testing.T) {
 			t.Parallel()
@@ -1659,10 +1659,13 @@ func TestBaseHandlersStreamSessionCatalog(t *testing.T) {
 		}
 		close(events)
 		canceled := false
+		var subscribedScope session.CatalogScope
 		manager := testutil.StubSessionManager{
 			SubscribeCatalogFn: func(
 				_ context.Context,
+				scope session.CatalogScope,
 			) (<-chan session.CatalogEvent, func(), error) {
+				subscribedScope = scope
 				return events, func() { canceled = true }, nil
 			},
 		}
@@ -1679,7 +1682,7 @@ func TestBaseHandlersStreamSessionCatalog(t *testing.T) {
 			t,
 			fixture.Engine,
 			http.MethodGet,
-			"/sessions/catalog-stream",
+			"/sessions/catalog-stream?all_workspaces=true",
 			nil,
 		)
 		if resp.Code != http.StatusOK {
@@ -1696,6 +1699,9 @@ func TestBaseHandlersStreamSessionCatalog(t *testing.T) {
 		if !canceled {
 			t.Fatal("session catalog subscription was not canceled")
 		}
+		if !subscribedScope.AllWorkspaces || subscribedScope.WorkspaceID != "" || subscribedScope.Replay {
+			t.Fatalf("subscribed scope = %#v, want non-replay aggregate", subscribedScope)
+		}
 		body := resp.Body.String()
 		for _, want := range []string{
 			"event: session_catalog_changed",
@@ -1709,6 +1715,94 @@ func TestBaseHandlersStreamSessionCatalog(t *testing.T) {
 			if !strings.Contains(body, want) {
 				t.Fatalf("session catalog stream body = %q, want %q", body, want)
 			}
+		}
+	})
+
+	t.Run("Should resolve a workspace replay scope before subscribing", func(t *testing.T) {
+		t.Parallel()
+
+		events := make(chan session.CatalogEvent)
+		close(events)
+		var subscribedScope session.CatalogScope
+		manager := testutil.StubSessionManager{
+			SubscribeCatalogFn: func(
+				_ context.Context,
+				scope session.CatalogScope,
+			) (<-chan session.CatalogEvent, func(), error) {
+				subscribedScope = scope
+				return events, func() {}, nil
+			},
+		}
+		workspaces := testutil.StubWorkspaceService{
+			GetFn: func(_ context.Context, ref string) (workspacepkg.Workspace, error) {
+				if ref != "repo" {
+					t.Fatalf("workspace ref = %q, want repo", ref)
+				}
+				return workspacepkg.Workspace{ID: "ws-resolved"}, nil
+			},
+		}
+		fixture := newHandlerFixture(t, manager, testutil.StubObserver{}, workspaces, nil, nil)
+
+		resp := testutil.PerformRequestWithHeaders(
+			t,
+			fixture.Engine,
+			http.MethodGet,
+			"/sessions/catalog-stream?workspace_id=repo",
+			nil,
+			map[string]string{"Last-Event-ID": "17"},
+		)
+		if resp.Code != http.StatusOK {
+			t.Fatalf("session catalog replay status = %d, want %d; body=%s", resp.Code, http.StatusOK, resp.Body.String())
+		}
+		want := session.CatalogScope{WorkspaceID: "ws-resolved", Replay: true, ReplayAfter: 17}
+		if subscribedScope != want {
+			t.Fatalf("subscribed scope = %#v, want %#v", subscribedScope, want)
+		}
+	})
+
+	t.Run("Should reject missing, conflicting, or malformed scopes before subscribing", func(t *testing.T) {
+		t.Parallel()
+
+		subscribeCalls := 0
+		manager := testutil.StubSessionManager{
+			SubscribeCatalogFn: func(
+				context.Context,
+				session.CatalogScope,
+			) (<-chan session.CatalogEvent, func(), error) {
+				subscribeCalls++
+				return nil, nil, errors.New("unexpected subscription")
+			},
+		}
+		fixture := newHandlerFixture(
+			t,
+			manager,
+			testutil.StubObserver{},
+			testutil.StubWorkspaceService{},
+			nil,
+			nil,
+		)
+		for _, test := range []struct {
+			path    string
+			headers map[string]string
+		}{
+			{path: "/sessions/catalog-stream"},
+			{path: "/sessions/catalog-stream?workspace_id=repo&all_workspaces=true"},
+			{path: "/sessions/catalog-stream?all_workspaces=true", headers: map[string]string{"Last-Event-ID": "invalid"}},
+		} {
+			resp := testutil.PerformRequestWithHeaders(
+				t,
+				fixture.Engine,
+				http.MethodGet,
+				test.path,
+				nil,
+				test.headers,
+			)
+			if resp.Code != http.StatusBadRequest {
+				t.Fatalf("GET %s status = %d, want %d; body=%s", test.path, resp.Code, http.StatusBadRequest, resp.Body.String())
+			}
+		}
+		if subscribeCalls != 0 {
+			t.Fatalf("SubscribeSessionCatalogEvents() calls = %d, want 0", subscribeCalls)
 		}
 	})
 }

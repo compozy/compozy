@@ -4,9 +4,9 @@ area: MS
 title: Workspace lists hide the operator home row
 persona: Bruno
 journey: J-operate-workspace-context
-expected: The workspace menu, command palette workspace list, workspaces overview, and workspace command select show project folders only. `$HOME` never appears as a named row, pin, or Home badge. While Global is on the chip reads Global (`~`); the daemon may still register operator home for session binding. Overview does not mark a Current pill when Global is on (`activeWorkspaceId` is null).
+expected: The workspace menu, command palette workspace list, workspaces overview, and workspace command select show project folders only. `$HOME` cannot be registered and never appears as a named row, pin, or Home badge. While Global is on the chip reads Global (`~`). Overview does not mark a Current pill when Global is on (`activeWorkspaceId` is null).
 entry_points: web workspace menu; ⌘K workspace rows; web Workspaces overview; Add workspace / command select
-qa_status: blocked-verify
+qa_status: untested
 bug_ids:
 fix_status:
 retest_status:
@@ -16,9 +16,11 @@ last_report:
 overlaps: MS-web-menubar-global-scope-toggle; MS-web-workspace-add-directory-browser
 ---
 
-story: As a builder I pick among project folders. Home is how Global sessions bind, not a workspace I switch to.
+story: As a builder I pick among project folders. My home directory holds user-wide resources, not a workspace I switch to.
 
 Introduced 2026-08-12. `useActiveWorkspace().workspaces` is the project list; `registeredWorkspaces` remains the full catalog for session streams.
+
+2026-08-21 qa-impact: daemon boot no longer creates an operator-home workspace, and explicit or automatic registration of `$HOME` is refused. Reset to untested; task 13 owns the live walk.
 
 src: web/src/systems/workspace/lib/project-workspaces.ts; web/src/systems/workspace/lib/active-workspace.ts; web/src/systems/os/components/menubar/workspace-menu.tsx; web/src/systems/workspace/components/workspace-command-select.tsx
 

@@ -178,7 +178,7 @@ func TestSessionCatalogBroadcaster(t *testing.T) {
 			t.Fatalf("NewManager() error = %v", err)
 		}
 		cleanupTestManager(t, manager)
-		events, cancel, err := manager.SubscribeSessionCatalogEvents(testutil.Context(t))
+		events, cancel, err := manager.SubscribeSessionCatalogEvents(testutil.Context(t), CatalogScope{AllWorkspaces: true})
 		if err != nil {
 			t.Fatalf("SubscribeSessionCatalogEvents() error = %v", err)
 		}
@@ -214,14 +214,14 @@ func TestSessionCatalogBroadcaster(t *testing.T) {
 			t.Fatalf("NewManager() error = %v", err)
 		}
 		cleanupTestManager(t, manager)
-		events, cancel, err := manager.SubscribeSessionCatalogEvents(testutil.Context(t))
+		events, cancel, err := manager.SubscribeSessionCatalogEvents(testutil.Context(t), CatalogScope{WorkspaceID: "ws-attention"})
 		if err != nil {
 			t.Fatalf("SubscribeSessionCatalogEvents() error = %v", err)
 		}
 		defer cancel()
 
 		session := &Session{ID: "sess-attention", WorkspaceID: "ws-attention"}
-		for _, eventType := range []string{
+		for index, eventType := range []string{
 			acp.EventTypePermission,
 			acp.EventTypeClarify,
 			acp.EventTypeDone,
@@ -231,6 +231,7 @@ func TestSessionCatalogBroadcaster(t *testing.T) {
 			select {
 			case event := <-events:
 				want := CatalogEvent{
+					Sequence:    int64(index + 1),
 					Name:        CatalogEventNameChanged,
 					Kind:        CatalogEventUpserted,
 					WorkspaceID: "ws-attention",
@@ -260,7 +261,7 @@ func TestSessionCatalogBroadcaster(t *testing.T) {
 			t.Fatalf("NewManager() error = %v", err)
 		}
 		cleanupTestManager(t, manager)
-		events, cancel, err := manager.SubscribeSessionCatalogEvents(testutil.Context(t))
+		events, cancel, err := manager.SubscribeSessionCatalogEvents(testutil.Context(t), CatalogScope{AllWorkspaces: true})
 		if err != nil {
 			t.Fatalf("SubscribeSessionCatalogEvents() error = %v", err)
 		}
@@ -277,8 +278,8 @@ func TestSessionCatalogBroadcaster(t *testing.T) {
 		})
 
 		for _, want := range []CatalogEvent{
-			{Kind: CatalogEventUpserted, WorkspaceID: "ws-beta", SessionID: "sess-beta"},
-			{Kind: CatalogEventUpserted, WorkspaceID: "ws-alpha", SessionID: "sess-alpha"},
+			{Sequence: 1, Kind: CatalogEventUpserted, WorkspaceID: "ws-beta", SessionID: "sess-beta"},
+			{Sequence: 2, Kind: CatalogEventUpserted, WorkspaceID: "ws-alpha", SessionID: "sess-alpha"},
 		} {
 			select {
 			case event := <-events:
@@ -293,6 +294,135 @@ func TestSessionCatalogBroadcaster(t *testing.T) {
 		cancel()
 		if _, ok := <-events; ok {
 			t.Fatal("catalog event channel remains open after cancel")
+		}
+	})
+
+	t.Run("Should apply the requested workspace scope to live delivery and replay", func(t *testing.T) {
+		t.Parallel()
+
+		manager, err := NewManager(WithHomePaths(testHomePaths(t)))
+		if err != nil {
+			t.Fatalf("NewManager() error = %v", err)
+		}
+		cleanupTestManager(t, manager)
+		alphaLive, cancelAlpha, err := manager.SubscribeSessionCatalogEvents(
+			testutil.Context(t),
+			CatalogScope{WorkspaceID: "ws-alpha"},
+		)
+		if err != nil {
+			t.Fatalf("SubscribeSessionCatalogEvents(alpha) error = %v", err)
+		}
+		defer cancelAlpha()
+		aggregateLive, cancelAggregate, err := manager.SubscribeSessionCatalogEvents(
+			testutil.Context(t),
+			CatalogScope{AllWorkspaces: true},
+		)
+		if err != nil {
+			t.Fatalf("SubscribeSessionCatalogEvents(aggregate) error = %v", err)
+		}
+		defer cancelAggregate()
+
+		published := []CatalogEvent{
+			{Kind: CatalogEventUpserted, WorkspaceID: "ws-beta", SessionID: "sess-beta"},
+			{Kind: CatalogEventUpserted, WorkspaceID: "ws-alpha", SessionID: "sess-alpha"},
+			{Kind: CatalogEventUpserted, SessionID: "sess-global"},
+		}
+		for _, event := range published {
+			manager.publishSessionCatalogEvent(event)
+		}
+
+		select {
+		case event := <-alphaLive:
+			if event.Sequence != 2 || event.WorkspaceID != "ws-alpha" || event.SessionID != "sess-alpha" {
+				t.Fatalf("alpha live event = %#v, want only sequence 2", event)
+			}
+		default:
+			t.Fatal("alpha live stream did not receive its workspace event")
+		}
+		select {
+		case event := <-alphaLive:
+			t.Fatalf("alpha live stream leaked another scope: %#v", event)
+		default:
+		}
+		for sequence := int64(1); sequence <= 3; sequence++ {
+			select {
+			case event := <-aggregateLive:
+				if event.Sequence != sequence {
+					t.Fatalf("aggregate live sequence = %d, want %d", event.Sequence, sequence)
+				}
+			default:
+				t.Fatalf("aggregate live stream missed sequence %d", sequence)
+			}
+		}
+
+		alphaReplay, cancelAlphaReplay, err := manager.SubscribeSessionCatalogEvents(
+			testutil.Context(t),
+			CatalogScope{WorkspaceID: "ws-alpha", Replay: true, ReplayAfter: 1},
+		)
+		if err != nil {
+			t.Fatalf("SubscribeSessionCatalogEvents(alpha replay) error = %v", err)
+		}
+		defer cancelAlphaReplay()
+		select {
+		case event := <-alphaReplay:
+			if event.Sequence != 2 || event.WorkspaceID != "ws-alpha" {
+				t.Fatalf("alpha replay event = %#v, want sequence 2", event)
+			}
+		default:
+			t.Fatal("alpha replay did not include its retained event")
+		}
+		select {
+		case event := <-alphaReplay:
+			t.Fatalf("alpha replay leaked another scope: %#v", event)
+		default:
+		}
+
+		aggregateReplay, cancelAggregateReplay, err := manager.SubscribeSessionCatalogEvents(
+			testutil.Context(t),
+			CatalogScope{AllWorkspaces: true, Replay: true, ReplayAfter: 1},
+		)
+		if err != nil {
+			t.Fatalf("SubscribeSessionCatalogEvents(aggregate replay) error = %v", err)
+		}
+		defer cancelAggregateReplay()
+		for _, want := range []CatalogEvent{
+			{Sequence: 2, WorkspaceID: "ws-alpha", SessionID: "sess-alpha"},
+			{Sequence: 3, WorkspaceID: "", SessionID: "sess-global"},
+		} {
+			select {
+			case event := <-aggregateReplay:
+				if event.Sequence != want.Sequence || event.WorkspaceID != want.WorkspaceID || event.SessionID != want.SessionID {
+					t.Fatalf("aggregate replay event = %#v, want %#v", event, want)
+				}
+			default:
+				t.Fatalf("aggregate replay missed %#v", want)
+			}
+		}
+	})
+
+	t.Run("Should reject an invalid scope before registering a subscriber", func(t *testing.T) {
+		t.Parallel()
+
+		manager, err := NewManager(WithHomePaths(testHomePaths(t)))
+		if err != nil {
+			t.Fatalf("NewManager() error = %v", err)
+		}
+		cleanupTestManager(t, manager)
+		for _, scope := range []CatalogScope{
+			{},
+			{WorkspaceID: "ws-alpha", AllWorkspaces: true},
+			{WorkspaceID: "ws-alpha", ReplayAfter: 1},
+		} {
+			events, cancel, err := manager.SubscribeSessionCatalogEvents(testutil.Context(t), scope)
+			if !errors.Is(err, ErrCatalogScopeInvalid) {
+				t.Fatalf("SubscribeSessionCatalogEvents(%#v) error = %v, want %v", scope, err, ErrCatalogScopeInvalid)
+			}
+			if events != nil {
+				t.Fatalf("invalid scope returned a non-nil event channel")
+			}
+			if cancel != nil {
+				t.Fatal("invalid scope returned a non-nil cancel function")
+			}
 		}
 	})
 
@@ -318,7 +448,7 @@ func TestSessionCatalogBroadcaster(t *testing.T) {
 			t.Fatalf("NewManager() error = %v", err)
 		}
 		cleanupTestManager(t, manager)
-		events, cancel, err := manager.SubscribeSessionCatalogEvents(ctx)
+		events, cancel, err := manager.SubscribeSessionCatalogEvents(ctx, CatalogScope{WorkspaceID: "ws-attention"})
 		if err != nil {
 			t.Fatalf("SubscribeSessionCatalogEvents() error = %v", err)
 		}

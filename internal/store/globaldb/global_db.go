@@ -25,7 +25,8 @@ func OpenGlobalDB(ctx context.Context, path string, options ...OpenOption) (*Glo
 		return nil, errors.New("store: open global database context is required")
 	}
 
-	db, err := openGlobalSQLite(ctx, path)
+	config := newOpenConfig(options)
+	db, err := openGlobalSQLite(ctx, path, config.operatorHomeDir)
 	if err != nil {
 		return nil, err
 	}
@@ -41,7 +42,7 @@ func OpenGlobalDB(ctx context.Context, path string, options ...OpenOption) (*Glo
 			return time.Now().UTC()
 		},
 	}
-	globalDB.initializeRepositories(newOpenConfig(options))
+	globalDB.initializeRepositories(config)
 	if err := globalDB.EnsureBuiltInPresets(ctx, presetspkg.BuiltInPresets(globalDB.now())); err != nil {
 		closeErr := db.Close()
 		return nil, errors.Join(fmt.Errorf("store: initialize built-in notification presets: %w", err), closeErr)
@@ -110,9 +111,12 @@ func (g *GlobalDB) Close(ctx context.Context) error {
 	return errors.Join(checkpointErr, closeErr)
 }
 
-func openGlobalSQLite(ctx context.Context, path string) (*sql.DB, error) {
+func openGlobalSQLite(ctx context.Context, path string, operatorHomeDir string) (*sql.DB, error) {
 	return store.OpenSQLiteDatabase(ctx, path, func(ctx context.Context, db *sql.DB) error {
 		if err := rejectSessionMetadataWithoutRuntime(ctx, path); err != nil {
+			return err
+		}
+		if err := prepareOperatorHomeMigrationContext(ctx, db, operatorHomeDir); err != nil {
 			return err
 		}
 		return store.Apply(ctx, db, MigrationStream())

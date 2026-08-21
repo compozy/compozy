@@ -188,7 +188,7 @@ type AutomationSchedulerState struct {
 
 type AutomationSuggestion struct {
 	ID          string         `json:"id"`
-	WorkspaceID string         `json:"workspace_id"`
+	WorkspaceID sql.NullString `json:"workspace_id"`
 	Source      string         `json:"source"`
 	DedupKey    string         `json:"dedup_key"`
 	Status      string         `json:"status"`
@@ -1520,6 +1520,7 @@ type Session struct {
 	SelectedSpeed            string         `json:"selected_speed"`
 	RuntimeSelectionRevision int64          `json:"runtime_selection_revision"`
 	WorkspaceID              string         `json:"workspace_id"`
+	Scope                    string         `json:"scope"`
 	WorktreeID               sql.NullString `json:"worktree_id"`
 	SessionType              string         `json:"session_type"`
 	State                    string         `json:"state"`
@@ -2053,7 +2054,7 @@ type ToolApprovalGrant struct {
 
 type ToolApprovalPending struct {
 	ApprovalID      string         `json:"approval_id"`
-	WorkspaceID     string         `json:"workspace_id"`
+	WorkspaceID     sql.NullString `json:"workspace_id"`
 	InvocationID    string         `json:"invocation_id"`
 	TargetKind      string         `json:"target_kind"`
 	ToolID          sql.NullString `json:"tool_id"`

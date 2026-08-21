@@ -3,7 +3,9 @@ package workspace
 import (
 	"context"
 	"errors"
+	"fmt"
 	"log/slog"
+	"strings"
 	"time"
 
 	compozyconfig "github.com/compozy/compozy/internal/config"
@@ -23,19 +25,27 @@ type Option func(*resolverOptions)
 type idGenerator func(prefix string) (string, error)
 
 type resolverOptions struct {
-	homePaths   compozyconfig.HomePaths
-	loadConfig  ConfigLoader
-	logger      *slog.Logger
-	now         func() time.Time
-	cacheTTL    time.Duration
-	idGenerator idGenerator
-	changeHook  ChangeHook
+	homePaths       compozyconfig.HomePaths
+	loadConfig      ConfigLoader
+	logger          *slog.Logger
+	now             func() time.Time
+	cacheTTL        time.Duration
+	idGenerator     idGenerator
+	changeHook      ChangeHook
+	operatorHomeDir string
 }
 
 // WithHomePaths overrides the global Compozy home layout used for agent and skill discovery.
 func WithHomePaths(homePaths compozyconfig.HomePaths) Option {
 	return func(opts *resolverOptions) {
 		opts.homePaths = homePaths
+	}
+}
+
+// WithOperatorHomeDir overrides the canonical operator home rejected by workspace registration.
+func WithOperatorHomeDir(operatorHomeDir string) Option {
+	return func(opts *resolverOptions) {
+		opts.operatorHomeDir = strings.TrimSpace(operatorHomeDir)
 	}
 }
 
@@ -96,6 +106,11 @@ func resolveOptions(opts []Option) (resolverOptions, error) {
 		cacheTTL:    defaultCacheTTL,
 		idGenerator: generateID,
 	}
+	operatorHomeDir, err := compozyconfig.ResolveOperatorHomeDir(homePaths)
+	if err != nil {
+		return resolverOptions{}, fmt.Errorf("workspace: resolve operator home: %w", err)
+	}
+	resolved.operatorHomeDir = operatorHomeDir
 
 	for _, opt := range opts {
 		if opt != nil {

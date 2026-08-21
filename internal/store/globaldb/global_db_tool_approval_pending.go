@@ -29,7 +29,7 @@ func (g *ApprovalPendingRepo) CreateApproval(
 	}
 	row, err := g.queries.CreatePendingToolApproval(ctx, sqlcgen.CreatePendingToolApprovalParams{
 		ApprovalID:   approvalID,
-		WorkspaceID:  request.WorkspaceID,
+		WorkspaceID:  nullableApprovalString(request.WorkspaceID),
 		InvocationID: request.InvocationID,
 		TargetKind:   string(request.Target.Kind),
 		ToolID:       nullableApprovalString(string(request.Target.ToolID)),
@@ -181,7 +181,7 @@ func toolApprovalStatusesFromRows(rows []sqlcgen.ToolApprovalPending) ([]toolspk
 
 func toolApprovalStatusFromRow(row sqlcgen.ToolApprovalPending) (toolspkg.ApprovalStatus, error) {
 	status := toolspkg.ApprovalStatus{
-		ApprovalID: row.ApprovalID, WorkspaceID: row.WorkspaceID, InvocationID: row.InvocationID,
+		ApprovalID: row.ApprovalID, WorkspaceID: row.WorkspaceID.String, InvocationID: row.InvocationID,
 		CommandID: row.CommandID.String, ApprovalStatus: toolspkg.ApprovalOutcome(row.ApprovalStatus),
 		ExecutionStatus: toolspkg.ApprovalExecutionStatus(row.ExecutionStatus.String),
 		Target: toolspkg.ApprovalTarget{

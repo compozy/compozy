@@ -4907,7 +4907,7 @@ func TestReadAPIErrorAndHelpers(t *testing.T) {
 			Sort:          "last_activity",
 			Cursor:        "cursor-1",
 			Limit:         2,
-		}); got.Get("workspace") != "ws-1" || got.Get("state") != "active" || got.Get("type") != "user" ||
+		}); got.Get("workspace_id") != "ws-1" || got.Get("state") != "active" || got.Get("type") != "user" ||
 			got.Get("agent") != "coder" ||
 			got.Get("parent") != "sess-parent" || got.Get("root") != "sess-root" ||
 			got.Get("q") != "needle" || got.Get("resumable") != "true" || got.Get("archive") != "only" ||

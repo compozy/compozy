@@ -3,13 +3,42 @@ package session
 import (
 	"context"
 	"errors"
+	"fmt"
 	"strings"
 	"sync"
 
 	"github.com/compozy/compozy/internal/acp"
 )
 
-const sessionCatalogSubscriberBuffer = 64
+const (
+	sessionCatalogSubscriberBuffer = 64
+	sessionCatalogReplayLimit      = 32
+)
+
+var ErrCatalogScopeInvalid = errors.New("session: catalog scope is invalid")
+
+// CatalogScope selects one explicit workspace or the labeled aggregate stream.
+type CatalogScope struct {
+	WorkspaceID   string
+	AllWorkspaces bool
+	Replay        bool
+	ReplayAfter   int64
+}
+
+func (s CatalogScope) Validate() error {
+	hasWorkspace := strings.TrimSpace(s.WorkspaceID) != ""
+	if hasWorkspace == s.AllWorkspaces {
+		return fmt.Errorf("%w: choose exactly one workspace or all workspaces", ErrCatalogScopeInvalid)
+	}
+	if s.ReplayAfter < 0 || (!s.Replay && s.ReplayAfter != 0) {
+		return fmt.Errorf("%w: replay cursor must be a supplied non-negative sequence", ErrCatalogScopeInvalid)
+	}
+	return nil
+}
+
+func (s CatalogScope) matches(event CatalogEvent) bool {
+	return s.AllWorkspaces || strings.TrimSpace(event.WorkspaceID) == strings.TrimSpace(s.WorkspaceID)
+}
 
 // CatalogEventName identifies one named SSE delivery on the catalog stream.
 type CatalogEventName string
@@ -32,6 +61,7 @@ const (
 
 // CatalogEvent identifies the workspace-scoped catalog snapshot to reconcile.
 type CatalogEvent struct {
+	Sequence             int64
 	Name                 CatalogEventName
 	Kind                 CatalogEventKind
 	WorkspaceID          string
@@ -41,12 +71,15 @@ type CatalogEvent struct {
 }
 
 type sessionCatalogBroadcaster struct {
-	mu          sync.Mutex
-	subscribers map[*sessionCatalogSubscriber]struct{}
+	mu           sync.Mutex
+	subscribers  map[*sessionCatalogSubscriber]struct{}
+	nextSequence int64
+	replay       []CatalogEvent
 }
 
 type sessionCatalogSubscriber struct {
 	ch        chan CatalogEvent
+	scope     CatalogScope
 	closeOnce sync.Once
 }
 
@@ -56,14 +89,26 @@ func newSessionCatalogBroadcaster() *sessionCatalogBroadcaster {
 
 func (b *sessionCatalogBroadcaster) subscribe(
 	ctx context.Context,
+	scope CatalogScope,
 ) (<-chan CatalogEvent, func(), error) {
 	if ctx == nil {
 		return nil, nil, errors.New("session: catalog stream context is required")
 	}
+	if err := scope.Validate(); err != nil {
+		return nil, nil, err
+	}
 	subscriber := &sessionCatalogSubscriber{
-		ch: make(chan CatalogEvent, sessionCatalogSubscriberBuffer),
+		ch:    make(chan CatalogEvent, sessionCatalogSubscriberBuffer),
+		scope: scope,
 	}
 	b.mu.Lock()
+	if scope.Replay {
+		for _, event := range b.replay {
+			if event.Sequence > scope.ReplayAfter && scope.matches(event) {
+				subscriber.ch <- event
+			}
+		}
+	}
 	b.subscribers[subscriber] = struct{}{}
 	b.mu.Unlock()
 
@@ -77,13 +122,22 @@ func (b *sessionCatalogBroadcaster) subscribe(
 }
 
 func (b *sessionCatalogBroadcaster) publish(event CatalogEvent) int {
-	if strings.TrimSpace(event.WorkspaceID) == "" || strings.TrimSpace(event.SessionID) == "" {
+	if strings.TrimSpace(event.SessionID) == "" {
 		return 0
 	}
 	b.mu.Lock()
 	defer b.mu.Unlock()
+	b.nextSequence++
+	event.Sequence = b.nextSequence
+	b.replay = append(b.replay, event)
+	if len(b.replay) > sessionCatalogReplayLimit {
+		b.replay = append([]CatalogEvent(nil), b.replay[len(b.replay)-sessionCatalogReplayLimit:]...)
+	}
 	delivered := 0
 	for subscriber := range b.subscribers {
+		if !subscriber.scope.matches(event) {
+			continue
+		}
 		select {
 		case subscriber.ch <- event:
 			delivered++
@@ -106,6 +160,7 @@ func (s *sessionCatalogSubscriber) close() {
 // The caller must invoke the returned cancel function on every exit.
 func (m *Manager) SubscribeSessionCatalogEvents(
 	ctx context.Context,
+	scope CatalogScope,
 ) (<-chan CatalogEvent, func(), error) {
 	if m == nil {
 		return nil, nil, errors.New("session: manager is required")
@@ -116,7 +171,7 @@ func (m *Manager) SubscribeSessionCatalogEvents(
 	}
 	broadcaster := m.catalogEvents
 	m.catalogEventsMu.Unlock()
-	return broadcaster.subscribe(ctx)
+	return broadcaster.subscribe(ctx, scope)
 }
 
 func (m *Manager) publishSessionCatalogEvent(event CatalogEvent) {

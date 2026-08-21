@@ -333,7 +333,7 @@ func TestBaseHandlersSessionEndpoints(t *testing.T) {
 	}, nil, nil)
 
 	t.Run("Should list sessions", func(t *testing.T) {
-		listResp := performRequest(t, fixture.Engine, http.MethodGet, "/sessions", nil)
+		listResp := performRequest(t, fixture.Engine, http.MethodGet, "/sessions?all_workspaces=true", nil)
 		if listResp.Code != http.StatusOK {
 			t.Fatalf("list status = %d, want %d", listResp.Code, http.StatusOK)
 		}

@@ -54256,7 +54256,9 @@ export interface operations {
     parameters: {
       query?: {
         /** @description Workspace id or path */
-        workspace?: string;
+        workspace_id?: string;
+        /** @description Use the explicit all-workspaces aggregate */
+        all_workspaces?: boolean;
         /** @description Include metadata-only health for returned sessions */
         include_health?: boolean;
         /** @description Filter by exact session state */
@@ -55355,8 +55357,16 @@ export interface operations {
   };
   streamSessionCatalog: {
     parameters: {
-      query?: never;
-      header?: never;
+      query?: {
+        /** @description Workspace id or path */
+        workspace_id?: string;
+        /** @description Subscribe to the explicit all-workspaces aggregate */
+        all_workspaces?: boolean;
+      };
+      header?: {
+        /** @description Resume after this catalog sequence */
+        "Last-Event-ID"?: string;
+      };
       path?: never;
       cookie?: never;
     };

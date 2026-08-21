@@ -118,7 +118,10 @@ func TestManagerAttentionHookRunsAfterCanonicalCommitAndFailsOpen(t *testing.T) 
 		manager.mu.Lock()
 		manager.sessions[target.ID] = target
 		manager.mu.Unlock()
-		events, cancel, err := manager.SubscribeSessionCatalogEvents(ctx)
+		events, cancel, err := manager.SubscribeSessionCatalogEvents(
+			ctx,
+			CatalogScope{AllWorkspaces: true},
+		)
 		if err != nil {
 			t.Fatalf("SubscribeSessionCatalogEvents() error = %v", err)
 		}

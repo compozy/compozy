@@ -300,7 +300,7 @@ async function prepareHomeRuntime(runtime: BrowserRuntime): Promise<WorkspacePay
 
   const workspace = await runtime.resolveWorkspace(runtime.paths.homeDir);
   const sessions = await runtime.requestJSON<{ sessions: SessionSummary[] }>(
-    `/api/sessions?workspace=${encodeURIComponent(workspace.id)}`
+    `/api/sessions?workspace_id=${encodeURIComponent(workspace.id)}`
   );
   const pending = sessions.sessions.find(
     session =>

@@ -116,7 +116,7 @@ function createSessionCatalogStreamResponse(): Response {
 export const handlers: HttpHandler[] = [
   compozyApiMock.get("/api/sessions", ({ request }) => {
     const url = new URL(request.url);
-    const workspace = url.searchParams.get("workspace")?.trim();
+    const workspace = url.searchParams.get("workspace_id")?.trim();
     const agent = url.searchParams.get("agent")?.trim();
     const state = url.searchParams.get("state")?.trim();
     const resumable = url.searchParams.get("resumable");

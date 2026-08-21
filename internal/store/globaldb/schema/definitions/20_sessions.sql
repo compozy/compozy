@@ -6,7 +6,7 @@ CREATE TABLE session_creation_profiles (
 
 CREATE TABLE session_health (
 			session_id TEXT PRIMARY KEY REFERENCES sessions(id) ON DELETE CASCADE,
-			workspace_id TEXT NOT NULL REFERENCES workspaces(id) ON DELETE CASCADE,
+			workspace_id TEXT NOT NULL,
 			agent_name TEXT NOT NULL,
 			state TEXT NOT NULL CHECK (state IN ('idle', 'prompting', 'stopped', 'detached')),
 			health TEXT NOT NULL CHECK (health IN ('healthy', 'degraded', 'stale', 'dead', 'unknown')),
@@ -103,7 +103,8 @@ CREATE TABLE sessions (
 		selected_reasoning_effort TEXT NOT NULL DEFAULT '',
 		selected_speed TEXT NOT NULL DEFAULT '',
 		runtime_selection_revision INTEGER NOT NULL DEFAULT 0,
-		workspace_id   TEXT NOT NULL REFERENCES workspaces(id),
+		workspace_id   TEXT NOT NULL,
+		scope          TEXT NOT NULL DEFAULT 'workspace' CHECK (scope IN ('global', 'workspace')),
 		worktree_id    TEXT,
 		session_type   TEXT NOT NULL DEFAULT 'user',
 		state          TEXT NOT NULL,
@@ -150,6 +151,7 @@ CREATE TABLE sessions (
 				)),
 		FOREIGN KEY (workspace_id, worktree_id)
 			REFERENCES worktrees(workspace_id, id),
+		CHECK ((scope = 'workspace') = (workspace_id <> '')),
 		UNIQUE (workspace_id, id));
 
 CREATE TABLE session_pending_interactions (

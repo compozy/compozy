@@ -1462,7 +1462,7 @@ func TestListSessionsHandlerReturnsAllSessions(t *testing.T) {
 	handlers := newTestHandlers(t, manager, stubObserver{}, homePaths)
 	engine := newTestRouter(t, handlers)
 
-	recorder := performRequest(t, engine, http.MethodGet, "/api/sessions", nil)
+	recorder := performRequest(t, engine, http.MethodGet, "/api/sessions?all_workspaces=true", nil)
 	if recorder.Code != http.StatusOK {
 		t.Fatalf("status = %d, want %d", recorder.Code, http.StatusOK)
 	}
@@ -1502,7 +1502,7 @@ func TestListSessionsHandlerFiltersByWorkspace(t *testing.T) {
 	}
 	engine := newTestRouter(t, newTestHandlersWithWorkspace(t, manager, stubObserver{}, workspaces, homePaths))
 
-	recorder := performRequest(t, engine, http.MethodGet, "/api/sessions?workspace=alpha", nil)
+	recorder := performRequest(t, engine, http.MethodGet, "/api/sessions?workspace_id=alpha", nil)
 	if recorder.Code != http.StatusOK {
 		t.Fatalf("status = %d, want %d; body=%s", recorder.Code, http.StatusOK, recorder.Body.String())
 	}

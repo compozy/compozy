@@ -8,15 +8,16 @@ function normalizedText(value: string | undefined): string | undefined {
 }
 
 export function normalizeSessionListFilters(filters: SessionListFilters = {}): SessionListFilters {
-  const normalized: SessionListFilters = {};
-  const workspace = normalizedText(filters.workspace);
+  const workspaceId = normalizedText(filters.workspace_id);
+  const normalized: SessionListFilters = workspaceId
+    ? { workspace_id: workspaceId }
+    : { all_workspaces: true };
   const agent = normalizedText(filters.agent);
   const search = normalizedText(filters.q);
   // Server-side scoping: a worktree selection filters on the bound worktree id
   // rather than trimming a loaded page client-side.
   const worktree = normalizedText(filters.worktree);
 
-  if (workspace) normalized.workspace = workspace;
   if (worktree) normalized.worktree = worktree;
   if (filters.include_health !== undefined) {
     normalized.include_health = filters.include_health;

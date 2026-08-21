@@ -19,7 +19,7 @@ type StubSessionManager struct {
 	ListFn                       func() []*session.Info
 	ListAllFn                    func(context.Context) ([]*session.Info, error)
 	ListPageFn                   func(context.Context, session.ListQuery) (session.ListPage, error)
-	SubscribeCatalogFn           func(context.Context) (<-chan session.CatalogEvent, func(), error)
+	SubscribeCatalogFn           func(context.Context, session.CatalogScope) (<-chan session.CatalogEvent, func(), error)
 	MetricsByAgentFn             func(context.Context, string) (map[string]session.AgentSessionMetrics, error)
 	ListSessionsFn               func(context.Context, store.SessionListQuery) ([]store.SessionInfo, error)
 	StatusFn                     func(context.Context, string) (*session.Info, error)
@@ -133,9 +133,10 @@ func (s StubSessionManager) ListPage(ctx context.Context, query session.ListQuer
 
 func (s StubSessionManager) SubscribeSessionCatalogEvents(
 	ctx context.Context,
+	scope session.CatalogScope,
 ) (<-chan session.CatalogEvent, func(), error) {
 	if s.SubscribeCatalogFn != nil {
-		return s.SubscribeCatalogFn(ctx)
+		return s.SubscribeCatalogFn(ctx, scope)
 	}
 	events := make(chan session.CatalogEvent)
 	close(events)

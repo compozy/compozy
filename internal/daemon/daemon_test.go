@@ -991,10 +991,10 @@ func TestShutdownClosesResourceReconcileDriver(t *testing.T) {
 	}
 }
 
-func TestBootRegistersOperatorHomeAsDefaultWorkspace(t *testing.T) {
+func TestBootDoesNotRegisterOperatorHomeAsWorkspace(t *testing.T) {
 	t.Parallel()
 
-	t.Run("Should register operator home before serving workspaces", func(t *testing.T) {
+	t.Run("Should serve with no workspaces and refuse operator home registration", func(t *testing.T) {
 		t.Parallel()
 
 		operatorHome := filepath.Join(t.TempDir(), "operator-home")
@@ -1040,45 +1040,26 @@ func TestBootRegistersOperatorHomeAsDefaultWorkspace(t *testing.T) {
 			}
 		})
 
-		wantRoot := canonicalDaemonRoot(t, operatorHome)
 		workspaces, err := d.registry.ListWorkspaces(testutil.Context(t))
 		if err != nil {
 			t.Fatalf("ListWorkspaces() error = %v", err)
 		}
-		if len(workspaces) != 1 {
-			t.Fatalf("ListWorkspaces() = %#v, want one default workspace", workspaces)
-		}
-		if got := workspaces[0].RootDir; got != wantRoot {
-			t.Fatalf("default workspace root = %q, want operator home %q", got, wantRoot)
-		}
-		if got := workspaces[0].RootDir; got == homePaths.HomeDir {
-			t.Fatalf("default workspace root = Compozy home %q, want operator home %q", got, wantRoot)
+		if len(workspaces) != 0 {
+			t.Fatalf("ListWorkspaces() = %#v, want no synthetic workspace", workspaces)
 		}
 
-		resolved, err := d.workspaceResolver.Resolve(testutil.Context(t), operatorHome)
-		if err != nil {
-			t.Fatalf("Resolve(operator home) error = %v", err)
-		}
-		if resolved.ID != workspaces[0].ID {
-			t.Fatalf("Resolve(operator home) ID = %q, want %q", resolved.ID, workspaces[0].ID)
-		}
-		if got, want := resolved.Config.Gateway.PrivatePort, 4242; got != want {
-			t.Fatalf("Resolve(operator home) Gateway.PrivatePort = %d, want isolated global %d", got, want)
-		}
-
-		again, err := d.workspaceResolver.ResolveOrRegister(testutil.Context(t), operatorHome)
-		if err != nil {
-			t.Fatalf("ResolveOrRegister(operator home) error = %v", err)
-		}
-		if again.ID != workspaces[0].ID {
-			t.Fatalf("ResolveOrRegister(operator home) ID = %q, want %q", again.ID, workspaces[0].ID)
+		if _, err := d.workspaceResolver.ResolveOrRegister(testutil.Context(t), operatorHome); !errors.Is(
+			err,
+			workspacepkg.ErrOperatorHomeWorkspace,
+		) {
+			t.Fatalf("ResolveOrRegister(operator home) error = %v, want ErrOperatorHomeWorkspace", err)
 		}
 		after, err := d.registry.ListWorkspaces(testutil.Context(t))
 		if err != nil {
-			t.Fatalf("ListWorkspaces(after idempotent resolve) error = %v", err)
+			t.Fatalf("ListWorkspaces(after refused registration) error = %v", err)
 		}
-		if len(after) != 1 {
-			t.Fatalf("ListWorkspaces(after idempotent resolve) = %#v, want one workspace", after)
+		if len(after) != 0 {
+			t.Fatalf("ListWorkspaces(after refused registration) = %#v, want none", after)
 		}
 	})
 }

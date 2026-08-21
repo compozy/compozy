@@ -138,7 +138,7 @@ func TestHTTPFullRoundTripWithRealSessionManager(t *testing.T) {
 		t,
 		runtime.client,
 		http.MethodGet,
-		mustURL(runtime.host, runtime.port, "/api/sessions"),
+		mustURL(runtime.host, runtime.port, "/api/sessions?all_workspaces=true"),
 		nil,
 		nil,
 	)
@@ -186,7 +186,7 @@ func TestHTTPFullRoundTripWithRealSessionManager(t *testing.T) {
 		t,
 		runtime.client,
 		http.MethodGet,
-		mustURL(runtime.host, runtime.port, "/api/sessions?workspace="+created.Session.WorkspaceID),
+		mustURL(runtime.host, runtime.port, "/api/sessions?workspace_id="+created.Session.WorkspaceID),
 		nil,
 		nil,
 	)
@@ -1073,7 +1073,7 @@ func exerciseHTTPSessionStopReasonPropagatesToGlobalDBAndAPI(t *testing.T) {
 		t,
 		runtime.client,
 		http.MethodGet,
-		mustURL(runtime.host, runtime.port, "/api/sessions"),
+		mustURL(runtime.host, runtime.port, "/api/sessions?all_workspaces=true"),
 		nil,
 		nil,
 	)
@@ -1156,7 +1156,7 @@ func TestHTTPSessionParticipationRoundTrip(t *testing.T) {
 		t,
 		runtime.client,
 		http.MethodGet,
-		mustURL(runtime.host, runtime.port, "/api/sessions"),
+		mustURL(runtime.host, runtime.port, "/api/sessions?all_workspaces=true"),
 		nil,
 		nil,
 	)
@@ -1283,7 +1283,7 @@ func exerciseHTTPSessionCrashStopReasonPropagatesToGlobalDBAndAPI(t *testing.T) 
 		t,
 		runtime.client,
 		http.MethodGet,
-		mustURL(runtime.host, runtime.port, "/api/sessions"),
+		mustURL(runtime.host, runtime.port, "/api/sessions?all_workspaces=true"),
 		nil,
 		nil,
 	)
@@ -2100,7 +2100,7 @@ func TestHTTPShutdownWaitsForInflightRequests(t *testing.T) {
 	respCh := make(chan *http.Response, 1)
 	errCh := make(chan error, 1)
 	go func() {
-		resp, err := client.Get(mustURL(cfg.HTTP.Host, server.Port(), "/api/sessions"))
+		resp, err := client.Get(mustURL(cfg.HTTP.Host, server.Port(), "/api/sessions?all_workspaces=true"))
 		if err != nil {
 			errCh <- err
 			return
@@ -2170,7 +2170,7 @@ func TestHTTPShutdownCancelsPersistentStreams(t *testing.T) {
 			WithPort(cfg.HTTP.Port),
 			WithLogger(discardLogger()),
 			WithSessionManager(stubSessionManager{
-				SubscribeCatalogFn: func(context.Context) (<-chan session.CatalogEvent, func(), error) {
+				SubscribeCatalogFn: func(context.Context, session.CatalogScope) (<-chan session.CatalogEvent, func(), error) {
 					return events, func() {}, nil
 				},
 			}),
@@ -2196,7 +2196,7 @@ func TestHTTPShutdownCancelsPersistentStreams(t *testing.T) {
 			t,
 			&http.Client{},
 			http.MethodGet,
-			mustURL(cfg.HTTP.Host, server.Port(), "/api/sessions/catalog-stream"),
+			mustURL(cfg.HTTP.Host, server.Port(), "/api/sessions/catalog-stream?all_workspaces=true"),
 			nil,
 			nil,
 		)
@@ -4215,7 +4215,10 @@ func waitForIntegrationSessionActive(t *testing.T, manager *session.Manager, ses
 		return
 	}
 
-	catalogEvents, cancel, err := manager.SubscribeSessionCatalogEvents(t.Context())
+	catalogEvents, cancel, err := manager.SubscribeSessionCatalogEvents(
+		t.Context(),
+		session.CatalogScope{AllWorkspaces: true},
+	)
 	if err != nil {
 		t.Fatalf("SubscribeSessionCatalogEvents() error = %v", err)
 	}
@@ -4509,7 +4512,10 @@ func waitForRegistryStopReason(t *testing.T, runtime integrationRuntime, session
 		return
 	}
 
-	catalogEvents, cancel, err := runtime.manager.SubscribeSessionCatalogEvents(t.Context())
+	catalogEvents, cancel, err := runtime.manager.SubscribeSessionCatalogEvents(
+		t.Context(),
+		session.CatalogScope{AllWorkspaces: true},
+	)
 	if err != nil {
 		t.Fatalf("SubscribeSessionCatalogEvents() error = %v", err)
 	}

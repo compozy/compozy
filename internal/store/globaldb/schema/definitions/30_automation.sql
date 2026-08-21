@@ -55,7 +55,7 @@ CREATE TABLE automation_jobs (
 
 CREATE TABLE automation_suggestions (
 		id           TEXT PRIMARY KEY,
-		workspace_id TEXT NOT NULL REFERENCES workspaces(id) ON DELETE CASCADE,
+		workspace_id TEXT REFERENCES workspaces(id) ON DELETE CASCADE,
 		source       TEXT NOT NULL CHECK (source IN ('catalog', 'usage', 'integration')),
 		dedup_key    TEXT NOT NULL,
 		status       TEXT NOT NULL CHECK (status IN ('pending', 'accepted', 'dismissed')),

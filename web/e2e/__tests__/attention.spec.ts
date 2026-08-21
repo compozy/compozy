@@ -516,7 +516,7 @@ async function reloadShell(page: Page): Promise<void> {
 async function failWorkspaceSessionCatalog(page: Page, workspaceID: string): Promise<void> {
   await page.route("**/api/sessions?*", async route => {
     const url = new URL(route.request().url());
-    if (url.searchParams.get("workspace") === workspaceID) {
+    if (url.searchParams.get("workspace_id") === workspaceID) {
       await route.fulfill({ status: 500, json: { error: "workspace unreachable" } });
       return;
     }
@@ -533,7 +533,7 @@ async function overrideSessionBadge(
   await page.route("**/api/sessions?*", async route => {
     const url = new URL(route.request().url());
     if (
-      url.searchParams.get("workspace") !== workspaceID ||
+      url.searchParams.get("workspace_id") !== workspaceID ||
       url.searchParams.has("attention") ||
       url.searchParams.has("archive") ||
       url.searchParams.has("badge")

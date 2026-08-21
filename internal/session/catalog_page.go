@@ -41,6 +41,7 @@ var (
 // ListQuery describes one public session catalog page.
 type ListQuery struct {
 	WorkspaceID     string
+	AllWorkspaces   bool
 	WorktreeID      string
 	State           string
 	SessionType     Type
@@ -68,6 +69,7 @@ type ListPage struct {
 
 type sessionListFingerprint struct {
 	WorkspaceID     string                     `json:"workspace_id"`
+	AllWorkspaces   bool                       `json:"all_workspaces"`
 	WorktreeID      string                     `json:"worktree_id"`
 	State           string                     `json:"state"`
 	SessionType     Type                       `json:"type"`
@@ -191,6 +193,12 @@ func (m *Manager) activeSessionCatalogRows(
 
 func normalizeListQuery(query ListQuery) (ListQuery, error) {
 	query.WorkspaceID = strings.TrimSpace(query.WorkspaceID)
+	if (query.WorkspaceID != "") == query.AllWorkspaces {
+		return ListQuery{}, fmt.Errorf(
+			"%w: choose exactly one workspace or all workspaces",
+			ErrListQueryInvalid,
+		)
+	}
 	query.WorktreeID = strings.TrimSpace(query.WorktreeID)
 	query.State = strings.TrimSpace(query.State)
 	query.SessionType = Type(strings.TrimSpace(string(query.SessionType)))
@@ -319,6 +327,7 @@ func sessionMatchesArchiveFilter(info *Info, filter store.SessionArchiveFilter) 
 func sessionListFingerprintForQuery(query ListQuery) (string, error) {
 	fingerprint, err := listcursor.Fingerprint(sessionListFingerprint{
 		WorkspaceID:     query.WorkspaceID,
+		AllWorkspaces:   query.AllWorkspaces,
 		WorktreeID:      query.WorktreeID,
 		State:           query.State,
 		SessionType:     query.SessionType,

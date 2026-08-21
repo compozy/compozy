@@ -800,7 +800,10 @@ func TestManagerLifecycleCatalogTransitions(t *testing.T) {
 		h := newHarness(t, WithSessionCatalog(catalog))
 		active := createSession(t, h)
 		t.Cleanup(func() { reportSessionStop(t, h, active.ID) })
-		events, cancel, err := h.manager.SubscribeSessionCatalogEvents(testutil.Context(t))
+		events, cancel, err := h.manager.SubscribeSessionCatalogEvents(
+			testutil.Context(t),
+			CatalogScope{AllWorkspaces: true},
+		)
 		if err != nil {
 			t.Fatalf("SubscribeSessionCatalogEvents() error = %v", err)
 		}

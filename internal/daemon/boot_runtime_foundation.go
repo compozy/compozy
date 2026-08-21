@@ -121,22 +121,31 @@ func (d *Daemon) bootRegistryState(
 	if err := d.bootMemoryCatalog(ctx, state, cleanup); err != nil {
 		return err
 	}
-	operatorHome, err := d.operatorHomeDir()
+	getenv := d.getenv
+	if getenv == nil {
+		getenv = os.Getenv
+	}
+	operatorHome, err := compozyconfig.ResolveOperatorHomeDirWithLookup(
+		d.homePaths,
+		func(key string) (string, bool) {
+			value := getenv(key)
+			return value, strings.TrimSpace(value) != ""
+		},
+	)
 	if err != nil {
-		return fmt.Errorf("daemon: resolve default workspace root: %w", err)
+		return fmt.Errorf("daemon: resolve operator home: %w", err)
 	}
 
 	workspaceResolver, err := workspacepkg.NewResolver(
 		registry,
 		workspacepkg.WithHomePaths(d.homePaths),
+		workspacepkg.WithOperatorHomeDir(operatorHome),
 		workspacepkg.WithLogger(state.logger),
 		workspacepkg.WithConfigLoader(func(rootDir string) (compozyconfig.Config, error) {
-			loadOptions := []compozyconfig.LoadOption{compozyconfig.WithWorkspaceRoot(rootDir)}
-			// The synthetic operator-home workspace keeps its environment but has no project overlays.
-			if rootDir == operatorHome {
-				loadOptions = append(loadOptions, compozyconfig.WithoutWorkspaceOverlayFiles())
-			}
-			return compozyconfig.LoadForHome(d.homePaths, loadOptions...)
+			return compozyconfig.LoadForHome(
+				d.homePaths,
+				compozyconfig.WithWorkspaceRoot(rootDir),
+			)
 		}),
 		workspacepkg.WithChangeHook(func(changeCtx context.Context) error {
 			return syncWorkspaceDerivedResources(changeCtx, state)
@@ -162,7 +171,7 @@ func (d *Daemon) bootRegistryState(
 	if state.harnessRecorder != nil {
 		state.harnessRecorder.SetStore(registry)
 	}
-	if err := d.bootDefaultWorkspaceAndWindowManager(ctx, state, cleanup, operatorHome); err != nil {
+	if err := d.bootWindowManager(ctx, state, cleanup); err != nil {
 		return err
 	}
 	memoryProviders, err := newDaemonMemoryProviderRegistry(ctx, state)
@@ -171,43 +180,6 @@ func (d *Daemon) bootRegistryState(
 	}
 	state.memoryProviderRegistry = memoryProviders
 	return nil
-}
-
-func (d *Daemon) ensureDefaultWorkspace(
-	ctx context.Context,
-	state *bootState,
-	operatorHome string,
-) error {
-	if state == nil || state.workspaceResolver == nil {
-		return errors.New("daemon: workspace resolver is required before default workspace registration")
-	}
-	resolved, err := state.workspaceResolver.ResolveOrRegister(ctx, operatorHome)
-	if err != nil {
-		return fmt.Errorf("daemon: register default workspace %q: %w", operatorHome, err)
-	}
-	if state.logger != nil {
-		state.logger.Info(
-			"daemon: default workspace ready",
-			"workspace_id",
-			resolved.ID,
-			"root_dir",
-			resolved.RootDir,
-			"name",
-			resolved.Name,
-		)
-	}
-	return nil
-}
-
-func (d *Daemon) operatorHomeDir() (string, error) {
-	getenv := d.getenv
-	if getenv == nil {
-		getenv = os.Getenv
-	}
-	return compozyconfig.ResolveOperatorHomeDirWithLookup(d.homePaths, func(key string) (string, bool) {
-		value := getenv(key)
-		return value, strings.TrimSpace(value) != ""
-	})
 }
 
 func (d *Daemon) bootRuntimeResourceGraph(state *bootState) error {

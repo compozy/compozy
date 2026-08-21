@@ -168,38 +168,60 @@ func TestRegisterUpdateAndLoadWorkspaceSandboxRef(t *testing.T) {
 	}
 }
 
-func TestResolveLocalAgentOverridesGlobalByName(t *testing.T) {
+func TestResolveWorkspaceLensesComposeUserResourcesAndLocalOverrides(t *testing.T) {
 	t.Parallel()
 
 	ctx := context.Background()
 	homePaths := newTestHomePaths(t)
-	root := t.TempDir()
+	firstRoot := t.TempDir()
+	secondRoot := t.TempDir()
 
 	writeAgentDef(t, filepath.Join(homePaths.AgentsDir, "coder", agentDefinitionFile), "coder", "global")
 	writeAgentDef(
 		t,
-		filepath.Join(root, compozyconfig.DirName, compozyconfig.AgentsDirName, "coder", agentDefinitionFile),
+		filepath.Join(firstRoot, compozyconfig.DirName, compozyconfig.AgentsDirName, "coder", agentDefinitionFile),
 		"coder",
 		"local",
 	)
 	writeAgentDef(t, filepath.Join(homePaths.AgentsDir, "reviewer", agentDefinitionFile), "reviewer", "review")
+	writeSkill(t, filepath.Join(homePaths.SkillsDir, "user-skill"))
 
-	store := newMockWorkspaceStore(Workspace{ID: "ws_agents", RootDir: root, Name: "repo"})
+	store := newMockWorkspaceStore(
+		Workspace{ID: "ws_agents", RootDir: firstRoot, Name: "repo"},
+		Workspace{ID: "ws_other", RootDir: secondRoot, Name: "other"},
+	)
 	loader := &countingConfigLoader{cfg: validConfig(homePaths)}
 	resolver := newTestResolver(t, store,
 		WithHomePaths(homePaths),
 		WithConfigLoader(loader.Load),
 	)
 
-	resolved, err := resolver.Resolve(ctx, "ws_agents")
+	first, err := resolver.Resolve(ctx, "ws_agents")
 	if err != nil {
-		t.Fatalf("Resolve() error = %v", err)
+		t.Fatalf("Resolve(first workspace) error = %v", err)
 	}
-	if got := agentModel(resolved.Agents, "coder"); got != "local" {
+	if got := agentModel(first.Agents, "coder"); got != "local" {
 		t.Fatalf("coder model = %q, want %q", got, "local")
 	}
-	if got := agentModel(resolved.Agents, "reviewer"); got != "review" {
+	if got := agentModel(first.Agents, "reviewer"); got != "review" {
 		t.Fatalf("reviewer model = %q, want %q", got, "review")
+	}
+	if got, want := first.Skills, []SkillPath{{Name: "user-skill", Dir: filepath.Join(homePaths.SkillsDir, "user-skill"), Source: "global"}}; !slices.Equal(got, want) {
+		t.Fatalf("first workspace user skills = %#v, want %#v", got, want)
+	}
+
+	second, err := resolver.Resolve(ctx, "ws_other")
+	if err != nil {
+		t.Fatalf("Resolve(second workspace) error = %v", err)
+	}
+	if got := agentModel(second.Agents, "coder"); got != "global" {
+		t.Fatalf("second workspace coder model = %q, want global", got)
+	}
+	if got := agentModel(second.Agents, "reviewer"); got != "review" {
+		t.Fatalf("second workspace reviewer model = %q, want review", got)
+	}
+	if got, want := second.Skills, first.Skills; !slices.Equal(got, want) {
+		t.Fatalf("second workspace user skills = %#v, want %#v", got, want)
 	}
 }
 

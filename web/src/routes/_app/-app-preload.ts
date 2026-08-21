@@ -27,7 +27,7 @@ export async function preloadAppRoute(queryClient: QueryClient): Promise<void> {
     queryClient.ensureInfiniteQueryData(agentCatalogOptions(workspaceId, { limit: 1 })),
     queryClient.ensureQueryData(workspaceDetailOptions(workspaceId)),
     queryClient.ensureInfiniteQueryData(
-      sessionsListOptions({ workspace: workspaceId, state: "active", limit: 1 })
+      sessionsListOptions({ workspace_id: workspaceId, state: "active", limit: 1 })
     ),
   ]);
 }

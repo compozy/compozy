@@ -591,6 +591,349 @@ func TestOpenGlobalDBReopenPreservesRowsAndStatus(t *testing.T) {
 	})
 }
 
+func TestGlobalDBPhase0HomeWorkspaceMigration(t *testing.T) {
+	t.Run("Should re-home synthetic workspace data without cascade loss", func(t *testing.T) {
+		t.Parallel()
+
+		path := filepath.Join(t.TempDir(), GlobalDatabaseName)
+		homeDir := t.TempDir()
+		prefixDB, err := openGlobalMigrationPrefixDatabase(
+			t,
+			path,
+			globalMigrationPrefixBefore(t, "00081_schema.sql"),
+		)
+		if err != nil {
+			t.Fatalf("open migration 00080 fixture error = %v", err)
+		}
+		prefixClosed := false
+		t.Cleanup(func() {
+			if prefixClosed {
+				return
+			}
+			if closeErr := prefixDB.Close(); closeErr != nil {
+				t.Errorf("Close(phase0 fixture cleanup) error = %v", closeErr)
+			}
+		})
+		ctx := globalMigrationTestContext(t)
+		seedPhase0HomeWorkspaceFixture(ctx, t, prefixDB, homeDir)
+		if err := prefixDB.Close(); err != nil {
+			t.Fatalf("Close(phase0 fixture) error = %v", err)
+		}
+		prefixClosed = true
+
+		upgraded, err := openGlobalMigrationUpgradeWithOptions(
+			t,
+			path,
+			WithOperatorHomeDir(homeDir),
+		)
+		if err != nil {
+			t.Fatalf("OpenGlobalDB(phase0 upgrade) error = %v", err)
+		}
+		upgradedClosed := false
+		t.Cleanup(func() {
+			if upgradedClosed {
+				return
+			}
+			if closeErr := upgraded.Close(testutil.Context(t)); closeErr != nil {
+				t.Errorf("Close(phase0 upgrade cleanup) error = %v", closeErr)
+			}
+		})
+
+		assertPhase0HomeWorkspaceDisposition(ctx, t, upgraded.db)
+		if err := upgraded.Close(ctx); err != nil {
+			t.Fatalf("Close(phase0 upgrade) error = %v", err)
+		}
+		upgradedClosed = true
+
+		reopened, err := OpenGlobalDB(ctx, path)
+		if err != nil {
+			t.Fatalf("OpenGlobalDB(phase0 reopen) error = %v", err)
+		}
+		t.Cleanup(func() {
+			if closeErr := reopened.Close(testutil.Context(t)); closeErr != nil {
+				t.Errorf("Close(phase0 reopen) error = %v", closeErr)
+			}
+		})
+		assertPhase0HomeWorkspaceDisposition(ctx, t, reopened.db)
+	})
+
+	t.Run("Should abort atomically when the home workspace owns a worktree", func(t *testing.T) {
+		t.Parallel()
+
+		path := filepath.Join(t.TempDir(), GlobalDatabaseName)
+		homeDir := t.TempDir()
+		prefixDB, err := openGlobalMigrationPrefixDatabase(
+			t,
+			path,
+			globalMigrationPrefixBefore(t, "00081_schema.sql"),
+		)
+		if err != nil {
+			t.Fatalf("open migration 00080 worktree fixture error = %v", err)
+		}
+		ctx := globalMigrationTestContext(t)
+		if _, err := prefixDB.ExecContext(ctx, `INSERT INTO workspaces (
+			id, root_dir, add_dirs, name, created_at, updated_at
+		) VALUES ('home-workspace', ?, '[]', 'home', ?, ?)`, homeDir, phase0FixtureTime, phase0FixtureTime); err != nil {
+			t.Fatalf("seed home workspace error = %v", err)
+		}
+		if _, err := prefixDB.ExecContext(ctx, `INSERT INTO worktrees (
+			id, workspace_id, name, branch, path, state, origin, setup_state, created_at, updated_at
+		) VALUES (
+			'home-worktree', 'home-workspace', 'home', 'main', ?, 'ready', 'manual', 'none', ?, ?
+		)`, filepath.Join(homeDir, "worktree"), phase0FixtureTime, phase0FixtureTime); err != nil {
+			t.Fatalf("seed home worktree error = %v", err)
+		}
+		if err := prefixDB.Close(); err != nil {
+			t.Fatalf("Close(worktree fixture) error = %v", err)
+		}
+
+		_, err = openGlobalMigrationUpgradeWithOptions(t, path, WithOperatorHomeDir(homeDir))
+		if err == nil || !strings.Contains(err.Error(), "worktrees") {
+			t.Fatalf("OpenGlobalDB(worktree fixture) error = %v, want worktrees assertion", err)
+		}
+
+		inspection, err := sql.Open(sqliteDriverName, path)
+		if err != nil {
+			t.Fatalf("sql.Open(worktree inspection) error = %v", err)
+		}
+		t.Cleanup(func() {
+			if closeErr := inspection.Close(); closeErr != nil {
+				t.Errorf("Close(worktree inspection) error = %v", closeErr)
+			}
+		})
+		assertSQLInt64(ctx, t, inspection, `SELECT COUNT(*) FROM workspaces WHERE id = 'home-workspace'`, 1)
+		assertSQLInt64(ctx, t, inspection, `SELECT COUNT(*) FROM worktrees WHERE id = 'home-worktree'`, 1)
+		status, err := store.Status(ctx, inspection, MigrationStream())
+		if err != nil {
+			t.Fatalf("Status(worktree assertion) error = %v", err)
+		}
+		if status.Version != 80 {
+			t.Fatalf("Status(worktree assertion).Version = %d, want 80", status.Version)
+		}
+	})
+}
+
+const phase0FixtureTime = "2026-08-21T12:00:00Z"
+
+func seedPhase0HomeWorkspaceFixture(ctx context.Context, t *testing.T, db *sql.DB, homeDir string) {
+	t.Helper()
+
+	statements := []struct {
+		query string
+		args  []any
+	}{
+		{query: `INSERT INTO workspaces (
+			id, root_dir, add_dirs, name, created_at, updated_at
+		) VALUES ('home-workspace', ?, '[]', 'home', ?, ?)`, args: []any{homeDir, phase0FixtureTime, phase0FixtureTime}},
+		{query: `INSERT INTO sessions (
+			id, agent_name, workspace_id, state, created_at, updated_at
+		) VALUES ('home-session', 'default', 'home-workspace', 'idle', ?, ?)`, args: []any{phase0FixtureTime, phase0FixtureTime}},
+		{query: `INSERT INTO session_health (
+			session_id, workspace_id, agent_name, state, health, active_prompt,
+			attachable, eligible_for_wake, updated_at
+		) VALUES ('home-session', 'home-workspace', 'default', 'idle', 'healthy', 0, 1, 1, ?)`, args: []any{phase0FixtureTime}},
+		{query: `INSERT INTO session_prompt_admissions (
+			id, workspace_id, session_id, message_id, idempotency_key, operation,
+			fingerprint_version, request_fingerprint, state, turn_id, event_id, created_at, updated_at
+		) VALUES (
+			'home-admission', 'home-workspace', 'home-session', 'message-1', 'key-1', 'prompt',
+			'v1', 'digest-1', 'reserved', 'turn-1', 'event-1', ?, ?
+		)`, args: []any{phase0FixtureTime, phase0FixtureTime}},
+		{query: `INSERT INTO tasks (
+			id, scope, workspace_id, title, status, created_by_kind, created_by_ref,
+			origin_kind, origin_ref, created_at, updated_at
+		) VALUES (
+			'home-task', 'workspace', 'home-workspace', 'Home task', 'ready',
+			'daemon', 'phase0', 'daemon', 'phase0', ?, ?
+		)`, args: []any{phase0FixtureTime, phase0FixtureTime}},
+		{query: `INSERT INTO task_runs (
+			id, task_id, workspace_id, status, attempt, origin_kind, origin_ref, queued_at
+		) VALUES ('home-run', 'home-task', 'home-workspace', 'queued', 1, 'daemon', 'phase0', ?)`, args: []any{phase0FixtureTime}},
+		{query: `INSERT INTO task_blocks (
+			id, workspace_id, task_id, kind, reason, created_by_kind, created_by_ref, created_at
+		) VALUES ('home-block', 'home-workspace', 'home-task', 'needs_input', 'input', 'daemon', 'phase0', ?)`, args: []any{phase0FixtureTime}},
+		{query: `INSERT INTO automation_jobs (
+			id, scope, name, agent_name, workspace_id, prompt, enabled, retry, fire_limit, created_at, updated_at
+		) VALUES ('home-job', 'workspace', 'home-job', 'default', 'home-workspace', 'run', 1, '{}', '{}', ?, ?)`, args: []any{phase0FixtureTime, phase0FixtureTime}},
+		{query: `INSERT INTO automation_triggers (
+			id, scope, name, agent_name, workspace_id, prompt, event, enabled, retry, fire_limit, created_at, updated_at
+		) VALUES ('home-trigger', 'workspace', 'home-trigger', 'default', 'home-workspace', 'run', 'push', 1, '{}', '{}', ?, ?)`, args: []any{phase0FixtureTime, phase0FixtureTime}},
+		{query: `INSERT INTO automation_suggestions (
+			id, workspace_id, source, dedup_key, status, payload, created_at
+		) VALUES ('home-suggestion', 'home-workspace', 'catalog', 'daily', 'pending', '{}', ?)`, args: []any{phase0FixtureTime}},
+		{query: `INSERT INTO automation_runs (id, job_id, session_id, task_id, task_run_id, status, attempt)
+		VALUES ('home-automation-run', 'home-job', 'home-session', 'home-task', 'home-run', 'completed', 1)`},
+		{query: `INSERT INTO bridge_instances (
+			id, scope, workspace_id, platform, extension_name, display_name, status,
+			routing_policy, created_at, updated_at
+		) VALUES (
+			'home-bridge', 'workspace', 'home-workspace', 'test', 'test.extension',
+			'Home bridge', 'active', '{}', ?, ?
+		)`, args: []any{phase0FixtureTime, phase0FixtureTime}},
+		{query: `INSERT INTO bridge_routes (
+			routing_key_hash, scope, workspace_id, bridge_instance_id, session_id,
+			agent_name, last_activity_at, created_at, updated_at
+		) VALUES (
+			'home-route', 'workspace', 'home-workspace', 'home-bridge', 'home-session',
+			'default', ?, ?, ?
+		)`, args: []any{phase0FixtureTime, phase0FixtureTime, phase0FixtureTime}},
+		{query: `INSERT INTO loop_config (
+			workspace_id, loop_name, human_gate_enabled, enabled_checks_json, iteration_cap
+		) VALUES ('home-workspace', 'home-loop', 0, '{}', 3)`},
+		{query: `INSERT INTO agent_soul_snapshots (
+			id, workspace_id, agent_name, source_path, digest, created_at
+		) VALUES ('home-soul-snapshot', 'home-workspace', 'default', 'SOUL.md', 'soul-digest', ?)`, args: []any{phase0FixtureTime}},
+		{query: `INSERT INTO agent_soul_revisions (
+			id, workspace_id, agent_name, source_path, action, created_at
+		) VALUES ('home-soul-revision', 'home-workspace', 'default', 'SOUL.md', 'put', ?)`, args: []any{phase0FixtureTime}},
+		{query: `INSERT INTO agent_heartbeat_snapshots (
+			id, workspace_id, agent_name, source_path, digest, config_digest, body,
+			frontmatter_json, resolved_json, diagnostics_json, created_at
+		) VALUES (
+			'home-heartbeat-snapshot', 'home-workspace', 'default', 'HEARTBEAT.md',
+			'heartbeat-digest', 'config-digest', '', '{}', '{}', '[]', ?
+		)`, args: []any{phase0FixtureTime}},
+		{query: `INSERT INTO agent_heartbeat_revisions (
+			id, workspace_id, agent_name, source_path, operation, new_snapshot_id,
+			actor_kind, actor_id, created_at
+		) VALUES (
+			'home-heartbeat-revision', 'home-workspace', 'default', 'HEARTBEAT.md',
+			'write', 'home-heartbeat-snapshot', 'system', 'phase0', ?
+		)`, args: []any{phase0FixtureTime}},
+		{query: `INSERT INTO agent_heartbeat_wake_events (
+			id, workspace_id, agent_name, session_id, policy_snapshot_id, source,
+			result, reason, created_at, expires_at
+		) VALUES (
+			'home-heartbeat-event', 'home-workspace', 'default', 'home-session',
+			'home-heartbeat-snapshot', 'manual', 'sent', 'wake_sent', ?, ?
+		)`, args: []any{phase0FixtureTime, "2026-08-22T12:00:00Z"}},
+		{query: `INSERT INTO agent_heartbeat_wake_state (
+			workspace_id, agent_name, session_id, policy_snapshot_id, last_result, updated_at
+		) VALUES (
+			'home-workspace', 'default', 'home-session', 'home-heartbeat-snapshot', 'sent', ?
+		)`, args: []any{phase0FixtureTime}},
+		{query: `INSERT INTO tool_approval_grants (
+			id, workspace_id, agent_name, tool_id, decision, created_at, last_used_at
+		) VALUES ('home-grant', 'home-workspace', 'default', 'test_tool', 'allow', ?, ?)`, args: []any{phase0FixtureTime, phase0FixtureTime}},
+		{query: `INSERT INTO dead_entities (workspace_id, kind, entity_id, reason, marked_at)
+		VALUES ('home-workspace', 'extension', 'dead-extension', 'removed', ?)`, args: []any{phase0FixtureTime}},
+		{query: `INSERT INTO tool_approval_pending (
+			approval_id, workspace_id, invocation_id, target_kind, tool_id, args_json,
+			approval_status, requested_at, expires_at
+		) VALUES (
+			'apr_home', 'home-workspace', 'invocation-home', 'tool', 'test_tool', '{}',
+			'pending', 1, 2
+		)`},
+		{query: `INSERT INTO cmd_palette_usage (
+			workspace_id, command_id, use_count, frecency_weight, last_used_at, updated_at
+		) VALUES ('home-workspace', 'home.command', 3, 2.5, 10, 10)`},
+		{query: `INSERT INTO cmd_palette_query_hits (
+			workspace_id, query, command_id, weight, last_used_at
+		) VALUES ('home-workspace', 'home', 'home.command', 4.5, 10)`},
+		{query: `INSERT INTO cmd_palette_pins (workspace_id, command_id, pinned_at)
+		VALUES ('home-workspace', 'home.command', 10)`},
+		{query: `INSERT INTO event_summaries (id, workspace_id, type, timestamp)
+		VALUES ('home-summary', 'home-workspace', 'phase0', ?)`, args: []any{phase0FixtureTime}},
+		{query: `INSERT INTO token_usage_daily (
+			day, workspace_id, agent_name, input_tokens, output_tokens, total_tokens, turn_count, updated_at
+		) VALUES ('2026-08-21', 'home-workspace', 'default', 2, 3, 5, 1, ?)`, args: []any{phase0FixtureTime}},
+		{query: `INSERT INTO network_channels (
+			workspace_id, channel, purpose, created_at, updated_at
+		) VALUES ('home-workspace', 'general', 'coordination', ?, ?)`, args: []any{phase0FixtureTime, phase0FixtureTime}},
+		{query: `INSERT INTO network_channel_stats (workspace_id, channel)
+		VALUES ('home-workspace', 'general')`},
+		{query: `INSERT INTO network_channel_kind_counts (workspace_id, channel, kind, message_count)
+		VALUES ('home-workspace', 'general', 'say', 2)`},
+		{query: `INSERT INTO network_audit_log (
+			id, session_id, workspace_id, direction, kind, channel, peer_from,
+			message_id, size, timestamp
+		) VALUES (
+			'home-audit', 'home-session', 'home-workspace', 'outbound', 'say', 'general',
+			'peer-a', 'message-home', 5, ?
+		)`, args: []any{phase0FixtureTime}},
+		{query: `INSERT INTO workspace_network_coordination (
+			workspace_id, enabled, revision, updated_at, updated_by
+		) VALUES ('home-workspace', 1, 1, ?, 'phase0')`, args: []any{phase0FixtureTime}},
+		{query: `INSERT INTO task_network_coordination (
+			task_id, workspace_id, enabled, revision, updated_at, updated_by
+		) VALUES ('home-task', 'home-workspace', 1, 1, ?, 'phase0')`, args: []any{phase0FixtureTime}},
+		{query: `INSERT INTO notification_cursors (
+			scope_kind, workspace_id, consumer_id, stream_name, last_sequence, updated_at
+		) VALUES ('workspace', 'home-workspace', 'consumer', 'events', 7, ?)`, args: []any{phase0FixtureTime}},
+		{query: `INSERT INTO extension_env_bindings (
+			extension_name, workspace_id, env_name, secret_ref, kind, created_at, updated_at
+		) VALUES ('test.extension', 'home-workspace', 'TOKEN', 'vault:extensions/test/token', 'extension_env', ?, ?)`, args: []any{phase0FixtureTime, phase0FixtureTime}},
+		{query: `INSERT INTO extension_dev_links (
+			extension_name, workspace_id, origin_path, bundle_generation, linked_at
+		) VALUES ('test.extension', 'home-workspace', '/tmp/test-extension', '1', ?)`, args: []any{phase0FixtureTime}},
+	}
+	for index, statement := range statements {
+		if _, err := db.ExecContext(ctx, statement.query, statement.args...); err != nil {
+			t.Fatalf("seed phase0 fixture statement %d error = %v", index+1, err)
+		}
+	}
+}
+
+func assertPhase0HomeWorkspaceDisposition(ctx context.Context, t *testing.T, db *sql.DB) {
+	t.Helper()
+
+	stringCases := []struct {
+		name  string
+		query string
+		want  string
+	}{
+		{name: "session scope", query: `SELECT scope || ':' || workspace_id FROM sessions WHERE id = 'home-session'`, want: "global:"},
+		{name: "prompt admission", query: `SELECT workspace_id FROM session_prompt_admissions WHERE id = 'home-admission'`, want: ""},
+		{name: "session health", query: `SELECT workspace_id FROM session_health WHERE session_id = 'home-session'`, want: ""},
+		{name: "task scope", query: `SELECT scope || ':' || coalesce(workspace_id, '') FROM tasks WHERE id = 'home-task'`, want: "global:"},
+		{name: "task run", query: `SELECT coalesce(workspace_id, '') FROM task_runs WHERE id = 'home-run'`, want: ""},
+		{name: "automation job", query: `SELECT scope || ':' || coalesce(workspace_id, '') FROM automation_jobs WHERE id = 'home-job'`, want: "global:"},
+		{name: "automation trigger", query: `SELECT scope || ':' || coalesce(workspace_id, '') FROM automation_triggers WHERE id = 'home-trigger'`, want: "global:"},
+		{name: "automation suggestion", query: `SELECT coalesce(workspace_id, '') FROM automation_suggestions WHERE id = 'home-suggestion'`, want: ""},
+		{name: "bridge instance", query: `SELECT scope || ':' || coalesce(workspace_id, '') FROM bridge_instances WHERE id = 'home-bridge'`, want: "global:"},
+		{name: "loop config", query: `SELECT workspace_id FROM loop_config WHERE loop_name = 'home-loop'`, want: ""},
+		{name: "soul snapshot", query: `SELECT workspace_id FROM agent_soul_snapshots WHERE id = 'home-soul-snapshot'`, want: ""},
+		{name: "heartbeat snapshot", query: `SELECT workspace_id FROM agent_heartbeat_snapshots WHERE id = 'home-heartbeat-snapshot'`, want: ""},
+		{name: "tool grant", query: `SELECT workspace_id FROM tool_approval_grants WHERE id = 'home-grant'`, want: ""},
+		{name: "dead entity", query: `SELECT workspace_id FROM dead_entities WHERE entity_id = 'dead-extension'`, want: ""},
+		{name: "pending approval", query: `SELECT coalesce(workspace_id, '') FROM tool_approval_pending WHERE approval_id = 'apr_home'`, want: ""},
+		{name: "palette usage", query: `SELECT workspace_id FROM cmd_palette_usage WHERE command_id = 'home.command'`, want: ""},
+		{name: "event summary", query: `SELECT workspace_id FROM event_summaries WHERE id = 'home-summary'`, want: ""},
+		{name: "token usage", query: `SELECT workspace_id FROM token_usage_daily WHERE day = '2026-08-21'`, want: ""},
+		{name: "network channel", query: `SELECT workspace_id FROM network_channels WHERE channel = 'general'`, want: ""},
+		{name: "network audit", query: `SELECT workspace_id FROM network_audit_log WHERE id = 'home-audit'`, want: ""},
+		{name: "task coordination", query: `SELECT workspace_id FROM task_network_coordination WHERE task_id = 'home-task'`, want: ""},
+		{name: "notification cursor", query: `SELECT scope_kind || ':' || workspace_id FROM notification_cursors WHERE consumer_id = 'consumer'`, want: "global:"},
+	}
+	for _, testCase := range stringCases {
+		var got string
+		if err := db.QueryRowContext(ctx, testCase.query).Scan(&got); err != nil {
+			t.Fatalf("query %s error = %v", testCase.name, err)
+		}
+		if got != testCase.want {
+			t.Fatalf("%s = %q, want %q", testCase.name, got, testCase.want)
+		}
+	}
+
+	assertSQLInt64(ctx, t, db, `SELECT COUNT(*) FROM workspaces WHERE id = 'home-workspace'`, 0)
+	assertSQLInt64(ctx, t, db, `SELECT COUNT(*) FROM workspace_network_coordination WHERE workspace_id = 'home-workspace'`, 0)
+	assertSQLInt64(ctx, t, db, `SELECT COUNT(*) FROM extension_env_bindings WHERE workspace_id = 'home-workspace'`, 0)
+	assertSQLInt64(ctx, t, db, `SELECT COUNT(*) FROM extension_dev_links WHERE workspace_id = 'home-workspace'`, 0)
+	assertSQLInt64(ctx, t, db, `SELECT COUNT(*) FROM pragma_foreign_key_check`, 0)
+}
+
+func assertSQLInt64(ctx context.Context, t *testing.T, db *sql.DB, query string, want int64) {
+	t.Helper()
+
+	var got int64
+	if err := db.QueryRowContext(ctx, query).Scan(&got); err != nil {
+		t.Fatalf("query %q error = %v", query, err)
+	}
+	if got != want {
+		t.Fatalf("query %q = %d, want %d", query, got, want)
+	}
+}
+
 func TestGlobalDBTerminalRunCommandMigrationPreservesRowsAcrossReopen(t *testing.T) {
 	t.Parallel()
 	t.Run("Should preserve task runs and terminal-command guards across migration reopen", func(t *testing.T) {

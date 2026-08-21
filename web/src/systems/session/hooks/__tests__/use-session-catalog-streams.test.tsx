@@ -3,8 +3,6 @@ import { act, renderHook } from "@testing-library/react";
 import type { ReactNode } from "react";
 import { describe, expect, it, vi } from "vitest";
 
-import type { WorkspacePayload } from "@/systems/workspace";
-
 import { sessionKeys } from "../../lib/query-keys";
 import {
   useSessionCatalogStreams,
@@ -44,17 +42,6 @@ class FakeCatalogEventSource implements SessionCatalogEventSource {
   }
 }
 
-function workspace(id: string): WorkspacePayload {
-  return {
-    id,
-    name: id,
-    root_dir: `/tmp/${id}`,
-    add_dirs: [],
-    created_at: "2026-07-13T12:00:00Z",
-    updated_at: "2026-07-13T12:00:00Z",
-  };
-}
-
 function wrapper(queryClient: QueryClient) {
   return ({ children }: { children: ReactNode }) => (
     <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
@@ -80,7 +67,7 @@ describe("useSessionCatalogStreams", () => {
     expect(afterLateFailure.context.status).toBe("connecting");
   });
 
-  it("Should own one global source and scope every reconciliation by workspace", () => {
+  it("Should own one server-scoped aggregate source and reconcile global sessions", () => {
     const queryClient = new QueryClient();
     const invalidate = vi.spyOn(queryClient, "invalidateQueries");
     const sources: FakeCatalogEventSource[] = [];
@@ -89,61 +76,50 @@ describe("useSessionCatalogStreams", () => {
       sources.push(source);
       return source;
     };
-    const alpha = workspace("ws_alpha");
-    const beta = workspace("ws_beta");
-    const { rerender, unmount } = renderHook(
-      ({ workspaces }) => useSessionCatalogStreams(workspaces, { eventSourceFactory: factory }),
-      {
-        initialProps: { workspaces: [alpha, beta, alpha] },
-        wrapper: wrapper(queryClient),
-      }
+    const { unmount } = renderHook(
+      () => useSessionCatalogStreams({ eventSourceFactory: factory }),
+      { wrapper: wrapper(queryClient) }
     );
 
-    expect(sources.map(source => source.url)).toEqual(["/api/sessions/catalog-stream"]);
+    expect(sources.map(source => source.url)).toEqual([
+      "/api/sessions/catalog-stream?all_workspaces=true",
+    ]);
 
     act(() => {
       sources[0]?.emit("session_catalog_changed", {
         kind: "deleted",
-        workspace_id: beta.id,
+        workspace_id: "ws_beta",
         session_id: "sess_beta",
       });
     });
-    expect(invalidate).toHaveBeenCalledWith({ queryKey: sessionKeys.workspaceLists(beta.id) });
+    expect(invalidate).toHaveBeenCalledWith({ queryKey: sessionKeys.workspaceLists("ws_beta") });
     expect(invalidate).toHaveBeenCalledWith({ queryKey: sessionKeys.workspaceLists("") });
     expect(invalidate).toHaveBeenCalledWith({ queryKey: sessionKeys.attentionSummary() });
     expect(invalidate).toHaveBeenCalledWith({
-      queryKey: sessionKeys.detail(beta.id, "sess_beta"),
+      queryKey: sessionKeys.detail("ws_beta", "sess_beta"),
       exact: true,
     });
-    expect(invalidate).not.toHaveBeenCalledWith({
-      queryKey: sessionKeys.workspaceLists(alpha.id),
-    });
-
     invalidate.mockClear();
     act(() => {
       sources[0]?.emit("session_catalog_changed", {
         kind: "upserted",
-        workspace_id: "ws_unknown",
-        session_id: "sess_unknown",
+        workspace_id: "",
+        session_id: "sess_global",
       });
     });
-    expect(invalidate).not.toHaveBeenCalled();
+    expect(invalidate).toHaveBeenCalledWith({ queryKey: sessionKeys.workspaceLists("") });
+    expect(invalidate).toHaveBeenCalledWith({
+      queryKey: sessionKeys.detail("", "sess_global"),
+      exact: true,
+    });
 
     act(() => sources[0]?.emit("open"));
-    expect(invalidate).toHaveBeenCalledWith({ queryKey: sessionKeys.workspaceLists(alpha.id) });
-    expect(invalidate).toHaveBeenCalledWith({ queryKey: sessionKeys.workspaceLists(beta.id) });
     expect(invalidate).toHaveBeenCalledWith({ queryKey: sessionKeys.workspaceLists("") });
     expect(invalidate).toHaveBeenCalledWith({ queryKey: sessionKeys.attentionSummary() });
 
-    rerender({ workspaces: [alpha] });
+    unmount();
     expect(sources[0]?.closed).toBe(true);
     expect([...sources[0]!.listeners.values()].every(listeners => listeners.size === 0)).toBe(true);
-
-    const remaining = sources[1];
-    expect(remaining?.url).toBe("/api/sessions/catalog-stream");
-    unmount();
-    expect(remaining?.closed).toBe(true);
-    expect([...remaining!.listeners.values()].every(listeners => listeners.size === 0)).toBe(true);
   });
 
   it("Should route each named attention event to its handler exactly once (UT-078, UT-083)", () => {
@@ -157,10 +133,10 @@ describe("useSessionCatalogStreams", () => {
     };
     const onAttentionEdge = vi.fn();
     const onOperatorNotification = vi.fn();
-    const alpha = workspace("ws_alpha");
+    const alpha = { id: "ws_alpha" };
     const { unmount } = renderHook(
       () =>
-        useSessionCatalogStreams([alpha], {
+        useSessionCatalogStreams({
           eventSourceFactory: factory,
           onAttentionEdge,
           onOperatorNotification,
@@ -196,21 +172,21 @@ describe("useSessionCatalogStreams", () => {
     expect(invalidate).toHaveBeenCalledWith({ queryKey: sessionKeys.workspaceLists("") });
     expect(invalidate).toHaveBeenCalledWith({ queryKey: sessionKeys.attentionSummary() });
 
-    // A workspace this client does not hold must not reach the notifier.
+    // The server owns authorization; the client routes every valid frame it receives.
     act(() => {
       sources[0]?.emit("session_attention_changed", { ...edge, workspace_id: "ws_foreign" });
       sources[0]?.emit("operator_notification", { ...notification, workspace_id: "ws_foreign" });
     });
-    expect(onAttentionEdge).toHaveBeenCalledTimes(1);
-    expect(onOperatorNotification).toHaveBeenCalledTimes(1);
+    expect(onAttentionEdge).toHaveBeenCalledTimes(2);
+    expect(onOperatorNotification).toHaveBeenCalledTimes(2);
 
     // A malformed frame is dropped rather than delivered half-populated.
     act(() => {
       sources[0]?.emit("session_attention_changed", { session_id: "sess_alpha" });
       sources[0]?.emit("operator_notification", { notification_id: "ntf_2" });
     });
-    expect(onAttentionEdge).toHaveBeenCalledTimes(1);
-    expect(onOperatorNotification).toHaveBeenCalledTimes(1);
+    expect(onAttentionEdge).toHaveBeenCalledTimes(2);
+    expect(onOperatorNotification).toHaveBeenCalledTimes(2);
 
     unmount();
     expect(sources[0]?.listeners.get("session_attention_changed")?.size ?? 0).toBe(0);
@@ -227,12 +203,12 @@ describe("useSessionCatalogStreams", () => {
       sources.push(source);
       return source;
     };
-    const alpha = workspace("ws_alpha");
+    const alpha = { id: "ws_alpha" };
     const first = vi.fn();
     const second = vi.fn();
     const { rerender } = renderHook(
       ({ handler }: { handler: () => void }) =>
-        useSessionCatalogStreams([alpha], {
+        useSessionCatalogStreams({
           eventSourceFactory: factory,
           onAttentionEdge: handler,
         }),
@@ -264,7 +240,7 @@ describe("useSessionCatalogStreams", () => {
 
     renderHook(
       () =>
-        useSessionCatalogStreams([workspace("ws_alpha"), workspace("ws_beta")], {
+        useSessionCatalogStreams({
           eventSourceFactory: factory,
         }),
       { wrapper: wrapper(queryClient) }

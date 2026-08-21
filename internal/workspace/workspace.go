@@ -34,6 +34,8 @@ var (
 	ErrWorkspaceIdentityPermissionDenied = errors.New("workspace identity permission denied")
 	// ErrWorkspaceValidation reports an invalid mutable workspace field.
 	ErrWorkspaceValidation = errors.New("workspace validation failed")
+	// ErrOperatorHomeWorkspace reports that the operator home cannot be registered as a workspace.
+	ErrOperatorHomeWorkspace = errors.New("the home folder cannot be registered as a workspace")
 )
 
 // Workspace is the persisted workspace registration stored in the global database.

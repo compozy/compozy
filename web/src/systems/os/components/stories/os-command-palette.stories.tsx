@@ -47,7 +47,7 @@ function paletteHandlers(sessions: SessionFixture[], scope: SessionListScope = "
     ],
     session: [
       compozyApiMock.get("/api/sessions", ({ request }) => {
-        const workspace = new URL(request.url).searchParams.get("workspace")?.trim();
+        const workspace = new URL(request.url).searchParams.get("workspace_id")?.trim();
         const scoped =
           workspace === undefined
             ? sessions

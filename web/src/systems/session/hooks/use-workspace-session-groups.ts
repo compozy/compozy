@@ -47,7 +47,7 @@ export function useWorkspaceSessionGroups({
   const results = useQueries({
     queries: workspaces.map(workspace => ({
       ...sessionsCompleteListOptions({
-        workspace: workspace.id,
+        workspace_id: workspace.id,
         include_health: true,
         limit: WORKSPACE_GROUP_PAGE_SIZE,
         sort: sessionListSortParam(sort),

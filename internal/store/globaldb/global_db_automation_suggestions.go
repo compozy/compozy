@@ -47,7 +47,7 @@ func (g *AutomationRepo) CreateSuggestion(
 		existing, lookupErr := queries.GetAutomationSuggestionByDedupKey(
 			ctx,
 			sqlcgen.GetAutomationSuggestionByDedupKeyParams{
-				WorkspaceID: normalized.WorkspaceID,
+				WorkspaceID: nullableAutomationString(normalized.WorkspaceID),
 				DedupKey:    normalized.DedupKey,
 			},
 		)
@@ -63,7 +63,10 @@ func (g *AutomationRepo) CreateSuggestion(
 			return fmt.Errorf("store: find automation suggestion dedup latch: %w", lookupErr)
 		}
 
-		pending, countErr := queries.CountPendingAutomationSuggestions(ctx, normalized.WorkspaceID)
+		pending, countErr := queries.CountPendingAutomationSuggestions(
+			ctx,
+			nullableAutomationString(normalized.WorkspaceID),
+		)
 		if countErr != nil {
 			return fmt.Errorf("store: count pending automation suggestions: %w", countErr)
 		}
@@ -71,7 +74,8 @@ func (g *AutomationRepo) CreateSuggestion(
 			return automation.ErrSuggestionPendingCap
 		}
 		if insertErr := queries.InsertAutomationSuggestion(ctx, sqlcgen.InsertAutomationSuggestionParams{
-			ID: normalized.ID, WorkspaceID: normalized.WorkspaceID, Source: string(normalized.Source),
+			ID: normalized.ID, WorkspaceID: nullableAutomationString(normalized.WorkspaceID),
+			Source:   string(normalized.Source),
 			DedupKey: normalized.DedupKey, Status: string(normalized.Status), Payload: payloadJSON,
 			CreatedAt: store.FormatTimestamp(normalized.CreatedAt), ResolvedAt: nullableAutomationTime(nil),
 		}); insertErr != nil {
@@ -99,7 +103,7 @@ func (g *AutomationRepo) GetSuggestion(
 		return automation.Suggestion{}, err
 	}
 	row, err := g.queries.GetAutomationSuggestion(ctx, sqlcgen.GetAutomationSuggestionParams{
-		WorkspaceID: workspaceID,
+		WorkspaceID: nullableAutomationString(workspaceID),
 		ID:          id,
 	})
 	if errors.Is(err, sql.ErrNoRows) {
@@ -120,16 +124,13 @@ func (g *AutomationRepo) ListSuggestions(
 		return nil, err
 	}
 	workspaceID = strings.TrimSpace(workspaceID)
-	if workspaceID == "" {
-		return nil, errors.New("store: automation suggestion workspace id is required")
-	}
 	if status != "" {
 		if err := status.Validate("suggestion.status"); err != nil {
 			return nil, err
 		}
 	}
 	rows, err := g.queries.ListAutomationSuggestions(ctx, sqlcgen.ListAutomationSuggestionsParams{
-		WorkspaceID: workspaceID,
+		WorkspaceID: nullableAutomationString(workspaceID),
 		Status:      string(status),
 	})
 	if err != nil {
@@ -173,14 +174,14 @@ func (g *AutomationRepo) ResolveSuggestion(
 		queries := sqlcgen.New(tx)
 		affected, updateErr := queries.ResolveAutomationSuggestion(ctx, sqlcgen.ResolveAutomationSuggestionParams{
 			Status: string(to), ResolvedAt: nullableAutomationTime(&resolvedAt),
-			WorkspaceID: workspaceID, ID: id,
+			WorkspaceID: nullableAutomationString(workspaceID), ID: id,
 		})
 		if updateErr != nil {
 			return fmt.Errorf("store: resolve automation suggestion %q: %w", id, updateErr)
 		}
 		if affected == 0 {
 			_, lookupErr := queries.GetAutomationSuggestion(ctx, sqlcgen.GetAutomationSuggestionParams{
-				WorkspaceID: workspaceID,
+				WorkspaceID: nullableAutomationString(workspaceID),
 				ID:          id,
 			})
 			if errors.Is(lookupErr, sql.ErrNoRows) {
@@ -192,7 +193,7 @@ func (g *AutomationRepo) ResolveSuggestion(
 			return automation.ErrSuggestionResolved
 		}
 		row, lookupErr := queries.GetAutomationSuggestion(ctx, sqlcgen.GetAutomationSuggestionParams{
-			WorkspaceID: workspaceID,
+			WorkspaceID: nullableAutomationString(workspaceID),
 			ID:          id,
 		})
 		if lookupErr != nil {
@@ -230,7 +231,7 @@ func (g *AutomationRepo) RollbackSuggestionAcceptance(
 	affected, err := g.queries.RollbackAutomationSuggestionAcceptance(
 		ctx,
 		sqlcgen.RollbackAutomationSuggestionAcceptanceParams{
-			WorkspaceID: workspaceID,
+			WorkspaceID: nullableAutomationString(workspaceID),
 			ID:          id,
 			ResolvedAt:  nullableAutomationTime(&resolvedAt),
 		},
@@ -351,7 +352,7 @@ func automationSuggestionFromGenerated(row sqlcgen.AutomationSuggestion) (automa
 		return automation.Suggestion{}, fmt.Errorf("store: decode automation suggestion payload: %w", err)
 	}
 	suggestion := automation.Suggestion{
-		ID: row.ID, WorkspaceID: row.WorkspaceID, Source: automation.SuggestionSource(row.Source),
+		ID: row.ID, WorkspaceID: row.WorkspaceID.String, Source: automation.SuggestionSource(row.Source),
 		DedupKey: row.DedupKey, Status: automation.SuggestionStatus(row.Status), Payload: payload,
 		CreatedAt: createdAt, ResolvedAt: resolvedAt,
 	}
@@ -376,9 +377,6 @@ func automationSuggestionsFromGenerated(rows []sqlcgen.AutomationSuggestion) ([]
 func requireSuggestionIdentity(workspaceID string, id string) (string, string, error) {
 	workspaceID = strings.TrimSpace(workspaceID)
 	id = strings.TrimSpace(id)
-	if workspaceID == "" {
-		return "", "", errors.New("store: automation suggestion workspace id is required")
-	}
 	if id == "" {
 		return "", "", errors.New("store: automation suggestion id is required")
 	}

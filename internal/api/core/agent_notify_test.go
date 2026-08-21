@@ -59,7 +59,10 @@ func TestBaseHandlersAgentNotify(t *testing.T) {
 		assertAgentNotifyOutcome(t, noClient, session.NotifyOutcomeNoClient)
 
 		deliveredRuntime := newNotifyRuntimeManager(t)
-		events, cancel, err := deliveredRuntime.SubscribeSessionCatalogEvents(context.Background())
+		events, cancel, err := deliveredRuntime.SubscribeSessionCatalogEvents(
+			context.Background(),
+			session.CatalogScope{AllWorkspaces: true},
+		)
 		if err != nil {
 			t.Fatalf("SubscribeSessionCatalogEvents() error = %v", err)
 		}

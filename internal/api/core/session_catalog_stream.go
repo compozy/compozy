@@ -2,7 +2,10 @@ package core
 
 import (
 	"errors"
+	"fmt"
 	"net/http"
+	"strconv"
+	"strings"
 
 	"github.com/compozy/compozy/internal/api/contract"
 	"github.com/compozy/compozy/internal/session"
@@ -21,7 +24,12 @@ func (h *BaseHandlers) StreamSessionCatalog(c *gin.Context) {
 		h.respondError(c, http.StatusServiceUnavailable, errors.New("api: session catalog stream is required"))
 		return
 	}
-	events, cancel, err := subscriber.SubscribeSessionCatalogEvents(c.Request.Context())
+	scope, err := h.parseSessionCatalogScope(c)
+	if err != nil {
+		h.respondError(c, http.StatusBadRequest, err)
+		return
+	}
+	events, cancel, err := subscriber.SubscribeSessionCatalogEvents(c.Request.Context(), scope)
 	if err != nil {
 		h.respondError(c, http.StatusInternalServerError, err)
 		return
@@ -50,6 +58,7 @@ func (h *BaseHandlers) StreamSessionCatalog(c *gin.Context) {
 			}
 			name, data := sessionCatalogSSEMessage(event)
 			if err := WriteSSE(writer, SSEMessage{
+				ID:   strconv.FormatInt(event.Sequence, 10),
 				Name: name,
 				Data: data,
 			}); err != nil {
@@ -58,6 +67,41 @@ func (h *BaseHandlers) StreamSessionCatalog(c *gin.Context) {
 			}
 		}
 	}
+}
+
+func (h *BaseHandlers) parseSessionCatalogScope(c *gin.Context) (session.CatalogScope, error) {
+	allWorkspaces, err := parseBoolQuery(c, "all_workspaces")
+	if err != nil {
+		return session.CatalogScope{}, err
+	}
+	workspaceRef := strings.TrimSpace(c.Query("workspace_id"))
+	if (workspaceRef != "") == allWorkspaces {
+		return session.CatalogScope{}, fmt.Errorf(
+			"%w: choose exactly one workspace_id or all_workspaces=true",
+			session.ErrCatalogScopeInvalid,
+		)
+	}
+	afterSequence, err := parseLastEventID(c.GetHeader("Last-Event-ID"), h.transportName())
+	if err != nil {
+		return session.CatalogScope{}, err
+	}
+	replay := strings.TrimSpace(c.GetHeader("Last-Event-ID")) != ""
+	if allWorkspaces {
+		return session.CatalogScope{
+			AllWorkspaces: true,
+			Replay:        replay,
+			ReplayAfter:   afterSequence,
+		}, nil
+	}
+	workspaceID, err := h.lookupWorkspaceID(c.Request.Context(), workspaceRef)
+	if err != nil {
+		return session.CatalogScope{}, fmt.Errorf("api: resolve session catalog workspace: %w", err)
+	}
+	return session.CatalogScope{
+		WorkspaceID: workspaceID,
+		Replay:      replay,
+		ReplayAfter: afterSequence,
+	}, nil
 }
 
 func sessionCatalogSSEMessage(event session.CatalogEvent) (string, any) {

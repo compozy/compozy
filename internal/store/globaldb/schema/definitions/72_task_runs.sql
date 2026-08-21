@@ -148,7 +148,7 @@ CREATE TABLE "task_runs" (
 		loop_run_id TEXT,
 		tokens_used INTEGER NOT NULL DEFAULT 0 CHECK (tokens_used >= 0),
 		network_wake_id TEXT,
-		network_target_session_id TEXT,
+		network_target_session_id TEXT REFERENCES sessions(id) ON DELETE CASCADE,
 		network_owner_key TEXT,
 		CHECK (
 			(claimed_by_kind IS NULL AND claimed_by_ref IS NULL) OR
@@ -157,7 +157,6 @@ CREATE TABLE "task_runs" (
 		CHECK (status <> 'queued' OR session_id IS NULL),
 		CHECK (run_kind = 'network_wake' OR task_id IS NOT NULL),
 		CHECK (run_kind <> 'network_wake' OR task_id IS NULL),
-		CHECK (run_kind <> 'network_wake' OR workspace_id IS NOT NULL),
 		CHECK (
 			(resolved_worktree_mode = 'ref') = (resolved_worktree_ref <> '')
 		),
@@ -167,8 +166,6 @@ CREATE TABLE "task_runs" (
 			(run_kind <> 'network_wake' AND network_wake_id IS NULL
 				AND network_target_session_id IS NULL AND network_owner_key IS NULL)
 		),
-		FOREIGN KEY (workspace_id, network_target_session_id)
-			REFERENCES sessions(workspace_id, id) ON DELETE CASCADE,
 		FOREIGN KEY (workspace_id, worktree_id)
 			REFERENCES worktrees(workspace_id, id),
 		UNIQUE (workspace_id, id)

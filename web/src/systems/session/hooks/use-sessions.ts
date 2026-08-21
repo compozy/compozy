@@ -19,7 +19,7 @@ import { useActiveWorkspace } from "@/systems/workspace";
 
 interface UseSessionsOptions {
   enabled?: boolean;
-  filters?: Omit<SessionListFilters, "workspace">;
+  filters?: Omit<SessionListFilters, "workspace_id" | "all_workspaces">;
   /** Follow the cursor chain until this filtered catalog is complete. */
   loadAll?: boolean;
 }
@@ -27,7 +27,7 @@ interface UseSessionsOptions {
 export function useSessions(workspace: string | null = null, options?: UseSessionsOptions) {
   const filters = normalizeSessionListFilters({
     ...options?.filters,
-    ...(workspace ? { workspace } : {}),
+    ...(workspace ? { workspace_id: workspace } : { all_workspaces: true }),
   });
   const query = useInfiniteQuery({
     ...sessionsListOptions(filters),

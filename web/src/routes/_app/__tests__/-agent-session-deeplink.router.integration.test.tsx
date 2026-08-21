@@ -408,7 +408,7 @@ describe("cross-workspace session deep-link router integration", () => {
       queryClient.getQueryData(sessionKeys.detail(PRIMARY_WORKSPACE_ID, PRIMARY_SESSION_ID))
     ).toBeUndefined();
     expect(
-      queryClient.getQueryData(sessionKeys.list({ workspace: PRIMARY_WORKSPACE_ID }))
+      queryClient.getQueryData(sessionKeys.list({ workspace_id: PRIMARY_WORKSPACE_ID }))
     ).toBeUndefined();
   });
 

@@ -944,7 +944,7 @@ func assertDreamHiddenFromFleet(
 ) {
 	t.Helper()
 	var response compozycontract.SessionCatalogResponse
-	path := "/api/sessions?workspace=" + url.QueryEscape(harness.WorkspaceID) + "&limit=100"
+	path := "/api/sessions?workspace_id=" + url.QueryEscape(harness.WorkspaceID) + "&limit=100"
 	if err := harness.UDSJSON(ctx, http.MethodGet, path, nil, &response); err != nil {
 		t.Fatalf("list fleet sessions error = %v", err)
 	}

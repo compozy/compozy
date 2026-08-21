@@ -36,7 +36,9 @@ export async function preloadHomeWorkspace(queryClient: QueryClient): Promise<vo
     queryClient.ensureInfiniteQueryData(
       sessionsListOptions({
         ...homeWorkingNowSessionFilters(),
-        ...(scope.workspaceParam ? { workspace: scope.workspaceParam } : {}),
+        ...(scope.workspaceParam
+          ? { workspace_id: scope.workspaceParam }
+          : { all_workspaces: true }),
       })
     ),
     queryClient.ensureQueryData(

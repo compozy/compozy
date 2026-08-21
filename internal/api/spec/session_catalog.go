@@ -74,7 +74,8 @@ func sessionCatalogListOperation() OperationSpec {
 		Tags:        []string{specSessionsKey},
 		Transports:  []Transport{TransportHTTP, TransportUDS},
 		Parameters: []ParameterSpec{
-			queryParam(specWorkspaceKey, "Workspace id or path", false),
+			queryParam("workspace_id", "Workspace id or path", false),
+			boolQueryParam("all_workspaces", "Use the explicit all-workspaces aggregate"),
 			boolQueryParam("include_health", "Include metadata-only health for returned sessions"),
 			enumQueryParam(
 				"state",
@@ -197,6 +198,11 @@ func sessionCatalogStreamOperation() OperationSpec {
 		Summary:     "Stream session catalog changes across workspaces",
 		Tags:        []string{specSessionsKey},
 		Transports:  []Transport{TransportHTTP, TransportUDS},
+		Parameters: []ParameterSpec{
+			queryParam("workspace_id", "Workspace id or path", false),
+			boolQueryParam("all_workspaces", "Subscribe to the explicit all-workspaces aggregate"),
+			optionalHeaderParam("Last-Event-ID", "Resume after this catalog sequence"),
+		},
 		Responses: []ResponseSpec{
 			{
 				Status:      200,

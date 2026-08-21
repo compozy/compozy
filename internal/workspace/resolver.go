@@ -34,14 +34,15 @@ type UpdateOptions struct {
 
 // Resolver resolves persisted workspaces into runtime workspace snapshots.
 type Resolver struct {
-	store       Store
-	homePaths   compozyconfig.HomePaths
-	loadConfig  ConfigLoader
-	logger      *slog.Logger
-	now         func() time.Time
-	cacheTTL    time.Duration
-	idGenerator idGenerator
-	changeHook  ChangeHook
+	store           Store
+	homePaths       compozyconfig.HomePaths
+	loadConfig      ConfigLoader
+	logger          *slog.Logger
+	now             func() time.Time
+	cacheTTL        time.Duration
+	idGenerator     idGenerator
+	changeHook      ChangeHook
+	operatorHomeDir string
 
 	registrationMu     sync.Mutex
 	reconcileMu        sync.Mutex
@@ -74,15 +75,16 @@ func NewResolver(store Store, opts ...Option) (*Resolver, error) {
 	}
 
 	return &Resolver{
-		store:       store,
-		homePaths:   resolvedOpts.homePaths,
-		loadConfig:  resolvedOpts.loadConfig,
-		logger:      resolvedOpts.logger,
-		now:         resolvedOpts.now,
-		cacheTTL:    resolvedOpts.cacheTTL,
-		idGenerator: resolvedOpts.idGenerator,
-		changeHook:  resolvedOpts.changeHook,
-		cache:       make(map[string]*cachedEntry),
+		store:           store,
+		homePaths:       resolvedOpts.homePaths,
+		loadConfig:      resolvedOpts.loadConfig,
+		logger:          resolvedOpts.logger,
+		now:             resolvedOpts.now,
+		cacheTTL:        resolvedOpts.cacheTTL,
+		idGenerator:     resolvedOpts.idGenerator,
+		changeHook:      resolvedOpts.changeHook,
+		operatorHomeDir: resolvedOpts.operatorHomeDir,
+		cache:           make(map[string]*cachedEntry),
 	}, nil
 }
 
@@ -187,6 +189,9 @@ func (r *Resolver) ResolveOrRegister(ctx context.Context, path string) (Resolved
 
 	canonicalRoot, err := canonicalRoot(path)
 	if err != nil {
+		return ResolvedWorkspace{}, err
+	}
+	if err := r.rejectOperatorHomeRegistration(canonicalRoot); err != nil {
 		return ResolvedWorkspace{}, err
 	}
 

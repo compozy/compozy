@@ -16,7 +16,7 @@ func TestPublishOperatorNotification(t *testing.T) {
 	t.Run("Should sanitize and deliver to a live catalog subscriber", func(t *testing.T) {
 		t.Parallel()
 		manager, _ := newNotifyTestManager()
-		events, cancel, err := manager.SubscribeSessionCatalogEvents(testutil.Context(t))
+		events, cancel, err := manager.SubscribeSessionCatalogEvents(testutil.Context(t), CatalogScope{AllWorkspaces: true})
 		if err != nil {
 			t.Fatalf("SubscribeSessionCatalogEvents() error = %v", err)
 		}
@@ -46,7 +46,7 @@ func TestPublishOperatorNotification(t *testing.T) {
 	t.Run("Should reject a title above the post-sanitize cap without publishing", func(t *testing.T) {
 		t.Parallel()
 		manager, _ := newNotifyTestManager()
-		events, cancel, err := manager.SubscribeSessionCatalogEvents(testutil.Context(t))
+		events, cancel, err := manager.SubscribeSessionCatalogEvents(testutil.Context(t), CatalogScope{AllWorkspaces: true})
 		if err != nil {
 			t.Fatalf("SubscribeSessionCatalogEvents() error = %v", err)
 		}
@@ -105,7 +105,7 @@ func TestPublishOperatorNotification(t *testing.T) {
 		}); err != nil {
 			t.Fatalf("SetAttentionConfig() error = %v", err)
 		}
-		events, cancel, err := manager.SubscribeSessionCatalogEvents(testutil.Context(t))
+		events, cancel, err := manager.SubscribeSessionCatalogEvents(testutil.Context(t), CatalogScope{AllWorkspaces: true})
 		if err != nil {
 			t.Fatalf("SubscribeSessionCatalogEvents() error = %v", err)
 		}

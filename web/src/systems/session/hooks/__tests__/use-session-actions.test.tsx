@@ -189,8 +189,8 @@ describe("session actions", () => {
     const workspaceSessions = sessionListCache([existingSession]);
     const otherWorkspaceSessions = sessionListCache([otherWorkspaceSession]);
     queryClient.setQueryData(sessionKeys.list(), allSessions);
-    queryClient.setQueryData(sessionKeys.list({ workspace: "ws_alpha" }), workspaceSessions);
-    queryClient.setQueryData(sessionKeys.list({ workspace: "ws_beta" }), otherWorkspaceSessions);
+    queryClient.setQueryData(sessionKeys.list({ workspace_id: "ws_alpha" }), workspaceSessions);
+    queryClient.setQueryData(sessionKeys.list({ workspace_id: "ws_beta" }), otherWorkspaceSessions);
     const invalidateSpy = vi.spyOn(queryClient, "invalidateQueries");
 
     const { result } = renderHook(() => useCreateSession(), {
@@ -212,17 +212,17 @@ describe("session actions", () => {
       createdSession
     );
     expect(queryClient.getQueryData(sessionKeys.list())).toEqual(allSessions);
-    expect(queryClient.getQueryData(sessionKeys.list({ workspace: "ws_alpha" }))).toEqual(
+    expect(queryClient.getQueryData(sessionKeys.list({ workspace_id: "ws_alpha" }))).toEqual(
       workspaceSessions
     );
-    expect(queryClient.getQueryData(sessionKeys.list({ workspace: "ws_beta" }))).toEqual(
+    expect(queryClient.getQueryData(sessionKeys.list({ workspace_id: "ws_beta" }))).toEqual(
       otherWorkspaceSessions
     );
     expect(
-      queryClient.getQueryState(sessionKeys.list({ workspace: WORKSPACE_ID }))?.isInvalidated
+      queryClient.getQueryState(sessionKeys.list({ workspace_id: WORKSPACE_ID }))?.isInvalidated
     ).toBe(true);
     expect(
-      queryClient.getQueryState(sessionKeys.list({ workspace: "ws_beta" }))?.isInvalidated
+      queryClient.getQueryState(sessionKeys.list({ workspace_id: "ws_beta" }))?.isInvalidated
     ).toBe(false);
     expect(invalidateSpy).toHaveBeenNthCalledWith(1, {
       queryKey: sessionKeys.detail(WORKSPACE_ID, createdSession.id),

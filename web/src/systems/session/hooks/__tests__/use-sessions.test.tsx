@@ -96,7 +96,10 @@ describe("useSessions", () => {
 
     expect(result.current.data?.[0]?.runtime.effective?.provider).toBe("claude");
     expect(result.current.total).toBe(1);
-    expect(fetchSessions).toHaveBeenCalledWith({ workspace: "ws_alpha" }, expect.any(AbortSignal));
+    expect(fetchSessions).toHaveBeenCalledWith(
+      { workspace_id: "ws_alpha" },
+      expect.any(AbortSignal)
+    );
   });
 
   it("appends cursor pages while keeping stable filters in the base query key", async () => {
@@ -139,7 +142,7 @@ describe("useSessions", () => {
         agent: "claude-agent",
         limit: 1,
         sort: "last_activity",
-        workspace: "ws_alpha",
+        workspace_id: "ws_alpha",
       },
       expect.any(AbortSignal)
     );
@@ -150,7 +153,7 @@ describe("useSessions", () => {
         cursor: "cursor-1",
         limit: 1,
         sort: "last_activity",
-        workspace: "ws_alpha",
+        workspace_id: "ws_alpha",
       },
       expect.any(AbortSignal)
     );
@@ -164,7 +167,7 @@ describe("useSessions", () => {
         agent: "claude-agent",
         limit: 1,
         sort: "last_activity",
-        workspace: "ws_alpha",
+        workspace_id: "ws_alpha",
       })
     );
   });

@@ -13,7 +13,7 @@ var (
 	ErrSuggestionPendingCap = errors.New("automation: suggestion pending cap reached")
 )
 
-// DefaultSuggestionPendingCap bounds unresolved suggestions per workspace.
+// DefaultSuggestionPendingCap bounds unresolved suggestions per scope.
 const DefaultSuggestionPendingCap = 5
 
 // SuggestionSource identifies the emitter that proposed a Job.
@@ -62,7 +62,7 @@ func (s SuggestionStatus) Validate(path string) error {
 	}
 }
 
-// Suggestion is a workspace-scoped proposal for a prefilled Job.
+// Suggestion is a scoped proposal for a prefilled Job.
 type Suggestion struct {
 	ID          string           `json:"id"`
 	WorkspaceID string           `json:"workspace_id"`
@@ -79,9 +79,6 @@ func (s Suggestion) Validate(path string) error {
 	if strings.TrimSpace(s.ID) == "" {
 		return errors.New(nestedPath(path, "id") + " is required")
 	}
-	if strings.TrimSpace(s.WorkspaceID) == "" {
-		return errors.New(nestedPath(path, "workspace_id") + " is required")
-	}
 	if err := s.Source.Validate(nestedPath(path, "source")); err != nil {
 		return err
 	}
@@ -94,11 +91,15 @@ func (s Suggestion) Validate(path string) error {
 	if strings.TrimSpace(s.Payload.ID) == "" {
 		return errors.New(nestedPath(path, "payload.id") + " is required")
 	}
-	if s.Payload.Scope != AutomationScopeWorkspace {
+	expectedScope := AutomationScopeGlobal
+	if strings.TrimSpace(s.WorkspaceID) != "" {
+		expectedScope = AutomationScopeWorkspace
+	}
+	if s.Payload.Scope != expectedScope {
 		return fmt.Errorf(
 			"%s must be %q: %q",
 			nestedPath(path, "payload.scope"),
-			AutomationScopeWorkspace,
+			expectedScope,
 			s.Payload.Scope,
 		)
 	}

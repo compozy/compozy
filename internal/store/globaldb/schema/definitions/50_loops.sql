@@ -429,7 +429,7 @@ CREATE TABLE loop_goal_judge_attempts (
 CREATE TABLE loop_goal_session_cleanup (
 			id            INTEGER PRIMARY KEY AUTOINCREMENT,
 			cleanup_id    TEXT NOT NULL UNIQUE CHECK (length(trim(cleanup_id)) > 0),
-			workspace_id  TEXT NOT NULL CHECK (length(trim(workspace_id)) > 0),
+			workspace_id  TEXT NOT NULL,
 			loop_run_id   TEXT NOT NULL REFERENCES loop_runs(id) ON DELETE CASCADE,
 			handle        TEXT NOT NULL CHECK (length(trim(handle)) > 0),
 			binding_epoch INTEGER NOT NULL CHECK (binding_epoch >= 1),
@@ -443,7 +443,7 @@ CREATE TABLE loop_goal_session_cleanup (
 CREATE TABLE loop_goal_session_outbox (
 	id                INTEGER PRIMARY KEY AUTOINCREMENT,
 	event_id          TEXT NOT NULL UNIQUE CHECK (length(trim(event_id)) > 0),
-	workspace_id      TEXT NOT NULL CHECK (length(trim(workspace_id)) > 0),
+	workspace_id      TEXT NOT NULL,
 	origin_session_id TEXT NOT NULL CHECK (length(trim(origin_session_id)) > 0),
 	loop_run_id       TEXT NOT NULL REFERENCES loop_runs(id) ON DELETE CASCADE,
 	bound_session_id  TEXT,
@@ -589,7 +589,7 @@ CREATE TABLE loop_session_bindings (
 	binding_epoch     INTEGER NOT NULL CHECK (binding_epoch >= 1),
 	binding_attempt_id TEXT NOT NULL UNIQUE CHECK (length(trim(binding_attempt_id)) > 0),
 	session_id        TEXT NOT NULL CHECK (length(trim(session_id)) > 0),
-	workspace_id      TEXT NOT NULL CHECK (length(trim(workspace_id)) > 0),
+	workspace_id      TEXT NOT NULL,
 	creation_profile_ref TEXT NOT NULL CHECK (length(trim(creation_profile_ref)) > 0),
 	policy_spec_digest TEXT NOT NULL CHECK (length(trim(policy_spec_digest)) > 0),
 	creation_digest   TEXT NOT NULL CHECK (length(trim(creation_digest)) > 0),

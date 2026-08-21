@@ -77,7 +77,7 @@ RETURNING approval_id, workspace_id, invocation_id, target_kind, tool_id, target
 
 type CreatePendingToolApprovalParams struct {
 	ApprovalID   string         `json:"approval_id"`
-	WorkspaceID  string         `json:"workspace_id"`
+	WorkspaceID  sql.NullString `json:"workspace_id"`
 	InvocationID string         `json:"invocation_id"`
 	TargetKind   string         `json:"target_kind"`
 	ToolID       sql.NullString `json:"tool_id"`

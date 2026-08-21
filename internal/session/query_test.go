@@ -274,9 +274,10 @@ func TestManagerListPageOverlaysActiveAndBindsCursor(t *testing.T) {
 		}
 
 		userPage, err := h.manager.ListPage(ctx, ListQuery{
-			State:       string(StateActive),
-			SessionType: SessionTypeUser,
-			Sort:        ListSortRecent,
+			AllWorkspaces: true,
+			State:         string(StateActive),
+			SessionType:   SessionTypeUser,
+			Sort:          ListSortRecent,
 		})
 		if err != nil {
 			t.Fatalf("ListPage(user) error = %v", err)
@@ -286,8 +287,9 @@ func TestManagerListPageOverlaysActiveAndBindsCursor(t *testing.T) {
 		}
 
 		allPage, err := h.manager.ListPage(ctx, ListQuery{
-			State: string(StateActive),
-			Sort:  ListSortRecent,
+			AllWorkspaces: true,
+			State:         string(StateActive),
+			Sort:          ListSortRecent,
 		})
 		if err != nil {
 			t.Fatalf("ListPage(all) error = %v", err)
@@ -677,7 +679,7 @@ func TestNormalizeListQuery(t *testing.T) {
 	t.Run("Should normalize defaults and case-insensitive search", func(t *testing.T) {
 		t.Parallel()
 
-		query, err := normalizeListQuery(ListQuery{Search: "  Review  "})
+		query, err := normalizeListQuery(ListQuery{AllWorkspaces: true, Search: "  Review  "})
 		if err != nil {
 			t.Fatalf("normalizeListQuery() error = %v", err)
 		}
@@ -690,12 +692,14 @@ func TestNormalizeListQuery(t *testing.T) {
 		name  string
 		query ListQuery
 	}{
-		{name: "state", query: ListQuery{State: "unknown"}},
-		{name: "type", query: ListQuery{SessionType: "unknown"}},
-		{name: "dream type", query: ListQuery{SessionType: SessionTypeDream}},
-		{name: "sort", query: ListQuery{Sort: "oldest"}},
-		{name: "negative limit", query: ListQuery{Limit: -1}},
-		{name: "oversized limit", query: ListQuery{Limit: MaxListLimit + 1}},
+		{name: "state", query: ListQuery{AllWorkspaces: true, State: "unknown"}},
+		{name: "type", query: ListQuery{AllWorkspaces: true, SessionType: "unknown"}},
+		{name: "dream type", query: ListQuery{AllWorkspaces: true, SessionType: SessionTypeDream}},
+		{name: "sort", query: ListQuery{AllWorkspaces: true, Sort: "oldest"}},
+		{name: "negative limit", query: ListQuery{AllWorkspaces: true, Limit: -1}},
+		{name: "oversized limit", query: ListQuery{AllWorkspaces: true, Limit: MaxListLimit + 1}},
+		{name: "missing scope", query: ListQuery{}},
+		{name: "conflicting scope", query: ListQuery{WorkspaceID: "ws-alpha", AllWorkspaces: true}},
 	} {
 		t.Run("Should reject invalid "+testCase.name, func(t *testing.T) {
 			t.Parallel()

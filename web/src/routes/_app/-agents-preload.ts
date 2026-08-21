@@ -46,7 +46,7 @@ export async function preloadAgentDetailRoute(
     queryClient.ensureQueryData(agentDetailOptions(name, workspaceId)),
     queryClient.ensureInfiniteQueryData(
       sessionsListOptions({
-        workspace: workspaceId,
+        workspace_id: workspaceId,
         agent: name,
         type: "user",
         sort: "last_activity",
@@ -54,7 +54,7 @@ export async function preloadAgentDetailRoute(
     ),
     queryClient.ensureInfiniteQueryData(
       sessionsListOptions({
-        workspace: workspaceId,
+        workspace_id: workspaceId,
         agent: name,
         state: "active",
         type: "user",
@@ -63,7 +63,7 @@ export async function preloadAgentDetailRoute(
     ),
     queryClient.ensureInfiniteQueryData(
       sessionsListOptions({
-        workspace: workspaceId,
+        workspace_id: workspaceId,
         agent: name,
         type: "user",
         resumable: true,

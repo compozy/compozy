@@ -1,6 +1,6 @@
 CREATE TABLE agent_soul_revisions (
 			id               TEXT PRIMARY KEY,
-			workspace_id     TEXT NOT NULL REFERENCES workspaces(id) ON DELETE CASCADE,
+			workspace_id     TEXT NOT NULL,
 			agent_name       TEXT NOT NULL,
 			source_path      TEXT NOT NULL,
 			action           TEXT NOT NULL CHECK (action IN ('put', 'delete', 'rollback')),
@@ -17,7 +17,7 @@ CREATE TABLE agent_soul_revisions (
 
 CREATE TABLE agent_soul_snapshots (
 			id            TEXT PRIMARY KEY,
-			workspace_id  TEXT NOT NULL REFERENCES workspaces(id) ON DELETE CASCADE,
+			workspace_id  TEXT NOT NULL,
 			agent_name    TEXT NOT NULL,
 			source_path   TEXT NOT NULL,
 			digest        TEXT NOT NULL,

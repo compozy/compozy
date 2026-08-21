@@ -571,7 +571,7 @@ async function pollForBoundSession(runtime: BrowserRuntime, workspaceId: string)
     .poll(async () => {
       const sessions = await runtime.requestJSON<{
         sessions: Array<{ id: string; worktree_id?: string }>;
-      }>(`/api/sessions?workspace=${workspaceId}`);
+      }>(`/api/sessions?workspace_id=${workspaceId}`);
       bound = sessions.sessions.find(session => Boolean(session.worktree_id));
       return bound?.worktree_id;
     })
@@ -594,7 +594,7 @@ test("operator forks a live session into a worktree", async ({ appPage, runtime 
 
   const sessionsBefore = await runtime.requestJSON<{
     sessions: Array<{ id: string; worktree_id?: string }>;
-  }>(`/api/sessions?workspace=${workspace.id}`);
+  }>(`/api/sessions?workspace_id=${workspace.id}`);
   expect(sessionsBefore.sessions).toHaveLength(1);
   const originSession = sessionsBefore.sessions[0];
 
@@ -623,7 +623,7 @@ test("operator forks a live session into a worktree", async ({ appPage, runtime 
     .poll(async () => {
       const sessions = await runtime.requestJSON<{
         sessions: Array<{ id: string; worktree_id?: string }>;
-      }>(`/api/sessions?workspace=${workspace.id}`);
+      }>(`/api/sessions?workspace_id=${workspace.id}`);
       return {
         originWorktree: sessions.sessions.find(session => session.id === originSession.id)
           ?.worktree_id,

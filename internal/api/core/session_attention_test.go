@@ -363,7 +363,7 @@ func TestBaseHandlersAttentionOperatorScope(t *testing.T) {
 			path   string
 			body   []byte
 		}{
-			{method: http.MethodGet, path: "/sessions"},
+			{method: http.MethodGet, path: "/sessions?all_workspaces=true"},
 			{method: http.MethodGet, path: "/sessions/attention-summary"},
 			{
 				method: http.MethodPost,

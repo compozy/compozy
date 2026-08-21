@@ -29,15 +29,11 @@ type globalHotkeyFailureNotifier interface {
 
 var _ globalHotkeyFailureNotifier = (*cmdpalette.Service)(nil)
 
-func (d *Daemon) bootDefaultWorkspaceAndWindowManager(
+func (d *Daemon) bootWindowManager(
 	ctx context.Context,
 	state *bootState,
 	cleanup *bootCleanup,
-	operatorHome string,
 ) error {
-	if err := d.ensureDefaultWorkspace(ctx, state, operatorHome); err != nil {
-		return err
-	}
 	resolver, err := newWindowManagerStoreWorkspaceResolver(state.workspaceResolver, state.logger)
 	if err != nil {
 		return err
