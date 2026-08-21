@@ -77,6 +77,8 @@ var baseRegistryEntries = []Metadata{
 	global(info(SettingsChanged, "settings", ComponentConfig)),
 	global(info(RoleFallbackUsed, "role", ComponentRole)),
 	global(failure(RoleResolveError, "role", ComponentRole)),
+	global(success(ProfileLifecycleOpRecovered, "profile.lifecycle_op", ComponentProfile)),
+	global(failure(ProfileLifecycleOpFailed, "profile.lifecycle_op", ComponentProfile)),
 	global(warning(SkillShadowed, "skill", ComponentSkill)),
 	global(failure(SkillLoadFailed, "skills", ComponentSkill)),
 	global(info(HookDispatchStart, "hook.dispatch", ComponentHook)),

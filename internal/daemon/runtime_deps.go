@@ -13,6 +13,7 @@ import (
 	"github.com/compozy/compozy/internal/gateway"
 	mcppkg "github.com/compozy/compozy/internal/mcp"
 	"github.com/compozy/compozy/internal/memory"
+	"github.com/compozy/compozy/internal/profile"
 	"github.com/compozy/compozy/internal/session"
 	"github.com/compozy/compozy/internal/situation"
 	taskpkg "github.com/compozy/compozy/internal/task"
@@ -50,6 +51,7 @@ type RuntimeDeps struct {
 	Bridges             core.BridgeService
 	Notifications       core.NotificationPresetService
 	Registry            Registry
+	Profiles            *profile.Manager
 	MemoryStore         *memory.Store
 	MemoryExtractor     core.MemoryExtractorService
 	MemoryProviders     core.MemoryProviderService

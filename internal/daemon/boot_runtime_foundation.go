@@ -15,6 +15,7 @@ import (
 	mcppkg "github.com/compozy/compozy/internal/mcp"
 
 	"github.com/compozy/compozy/internal/resources"
+	"github.com/compozy/compozy/internal/store/globaldb"
 	"github.com/compozy/compozy/internal/windowmanager"
 
 	workspacepkg "github.com/compozy/compozy/internal/workspace"
@@ -158,6 +159,13 @@ func (d *Daemon) bootRegistryState(
 		return fmt.Errorf("daemon: create workspace resolver: %w", err)
 	}
 	state.registry = registry
+	if profileStore, ok := registry.(*globaldb.GlobalDB); ok {
+		profiles, err := d.bootProfiles(ctx, state, profileStore)
+		if err != nil {
+			return err
+		}
+		state.profiles = profiles
+	}
 	if bindings, ok := any(registry).(extensionpkg.EnvBindingStore); ok {
 		state.extensionEnvBindings = bindings
 	}

@@ -11,6 +11,7 @@ import (
 	looppkg "github.com/compozy/compozy/internal/loop"
 	"github.com/compozy/compozy/internal/memory"
 	"github.com/compozy/compozy/internal/memory/consolidation"
+	"github.com/compozy/compozy/internal/profile"
 	"github.com/compozy/compozy/internal/resources"
 	"github.com/compozy/compozy/internal/sandbox"
 	"github.com/compozy/compozy/internal/situation"
@@ -27,6 +28,7 @@ type daemonRuntimeState struct {
 	lock                   *Lock
 	harnessResolver        *HarnessContextResolver
 	registry               Registry
+	profiles               *profile.Manager
 	memoryStore            *memory.Store
 	memoryProviderRegistry *extensionpkg.MemoryProviderRegistry
 	memoryExtractor        *daemonMemoryExtractor

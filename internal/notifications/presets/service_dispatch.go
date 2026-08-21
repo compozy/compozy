@@ -72,7 +72,7 @@ func (s *Service) dispatchPresetTargets(
 			joined = errors.Join(joined, deliveryIDErr)
 			continue
 		}
-		err := s.deliverTarget(ctx, preset, event, target, deliveryID)
+		err := s.deliverTarget(ctx, preset, event, target, deliveryID, cursorKey)
 		switch {
 		case err == nil:
 			result.Delivered++
@@ -185,6 +185,7 @@ func (s *Service) deliverTarget(
 	event Event,
 	target Target,
 	deliveryID string,
+	cursorKey notifications.CursorKey,
 ) error {
 	normalizedTarget, instance, err := s.deliverableBridge(ctx, preset, target)
 	if err != nil {
@@ -192,6 +193,11 @@ func (s *Service) deliverTarget(
 	}
 	delivery, err := s.deliveryForTarget(ctx, preset, event, normalizedTarget, instance, deliveryID)
 	if err != nil {
+		return err
+	}
+	if err := s.cursors.AcquireDeliveryPermit(ctx, notifications.DeliveryPermit{
+		Key: cursorKey, DeliveryID: deliveryID, AcquiredAt: s.now(),
+	}); err != nil {
 		return err
 	}
 	return s.deliverBridgeEvent(ctx, preset, event, instance, delivery)

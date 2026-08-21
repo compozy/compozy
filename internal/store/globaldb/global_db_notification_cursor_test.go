@@ -3,6 +3,7 @@ package globaldb
 import (
 	"errors"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 
@@ -13,6 +14,62 @@ import (
 
 func TestGlobalDBNotificationCursorStore(t *testing.T) {
 	t.Parallel()
+
+	t.Run("Should hold an owner-active permit until cursor advancement", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t)
+		globalDB := openTestGlobalDB(t)
+		service := notifications.NewService(globalDB)
+		key := notificationCursorTestKey()
+		now := notificationCursorTestTime()
+		permit := notifications.DeliveryPermit{Key: key, DeliveryID: "delivery-permitted", AcquiredAt: now}
+		if err := service.AcquireDeliveryPermit(ctx, permit); err != nil {
+			t.Fatalf("AcquireDeliveryPermit() error = %v", err)
+		}
+		if err := service.AcquireDeliveryPermit(ctx, permit); err != nil {
+			t.Fatalf("AcquireDeliveryPermit(idempotent) error = %v", err)
+		}
+		var held int
+		if err := globalDB.DB().QueryRowContext(ctx, `SELECT COUNT(*) FROM notification_delivery_permits WHERE delivery_id = ?`, permit.DeliveryID).Scan(&held); err != nil {
+			t.Fatalf("count held permits error = %v", err)
+		}
+		if held != 1 {
+			t.Fatalf("held permits = %d, want 1", held)
+		}
+		if _, err := service.Advance(ctx, notifications.AdvanceCursor{
+			Key: key, LastSequence: 7, DeliveryID: permit.DeliveryID, Now: now.Add(time.Second),
+		}); err != nil {
+			t.Fatalf("Advance() error = %v", err)
+		}
+		if err := globalDB.DB().QueryRowContext(ctx, `SELECT COUNT(*) FROM notification_delivery_permits WHERE delivery_id = ?`, permit.DeliveryID).Scan(&held); err != nil {
+			t.Fatalf("count cleared permits error = %v", err)
+		}
+		if held != 0 {
+			t.Fatalf("held permits after cursor advance = %d, want 0", held)
+		}
+	})
+
+	t.Run("Should refuse a permit when its profile owner is archived", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t)
+		globalDB := openTestGlobalDB(t)
+		service := notifications.NewService(globalDB)
+		now := notificationCursorTestTime()
+		if _, err := globalDB.DB().ExecContext(ctx, `
+			UPDATE profiles SET state = 'archived', archived_at = ? WHERE id = ?`,
+			store.FormatTimestamp(now), store.DefaultProfileID,
+		); err != nil {
+			t.Fatalf("archive permit owner error = %v", err)
+		}
+		err := service.AcquireDeliveryPermit(ctx, notifications.DeliveryPermit{
+			Key: notificationCursorTestKey(), DeliveryID: "delivery-archived", AcquiredAt: now,
+		})
+		if err == nil || !strings.Contains(err.Error(), "profile_unavailable") {
+			t.Fatalf("AcquireDeliveryPermit(archived) error = %v, want profile_unavailable", err)
+		}
+	})
 
 	t.Run("Should advance and read a cursor", func(t *testing.T) {
 		t.Parallel()

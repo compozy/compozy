@@ -19,6 +19,7 @@ func (d *Daemon) publishBootState(state *bootState) {
 		lock:                   state.lock,
 		harnessResolver:        state.harnessResolver,
 		registry:               state.registry,
+		profiles:               state.profiles,
 		memoryStore:            state.memoryStore,
 		memoryProviderRegistry: state.memoryProviderRegistry,
 		memoryExtractor:        state.memoryExtractor,

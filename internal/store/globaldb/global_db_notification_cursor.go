@@ -115,7 +115,10 @@ func (n *NotificationRepo) AdvanceCursor(
 		} else {
 			cursor, loadErr = insertNotificationCursor(writeCtx, queries, normalized)
 		}
-		return loadErr
+		if loadErr != nil {
+			return loadErr
+		}
+		return clearNotificationDeliveryPermit(writeCtx, tx, normalized)
 	})
 	if err != nil {
 		return notifications.Cursor{}, fmt.Errorf("store: advance notification cursor: %w", err)

@@ -111,6 +111,61 @@ func TestGlobalDBClaimNextRunConcurrentSingleWinner(t *testing.T) {
 	)
 }
 
+func TestGlobalDBClaimNextRunProfileEligibility(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should skip archived owners and admit them after unarchive", func(t *testing.T) {
+		t.Parallel()
+
+		globalDB := openTestGlobalDB(t)
+		ctx := testutil.Context(t)
+		now := time.Date(2026, 8, 21, 12, 0, 0, 0, time.UTC)
+		profileID := strings.Repeat("P", 26)
+		if _, err := globalDB.DB().ExecContext(ctx, `
+			INSERT INTO profiles (id, name, color, icon, state, created_at)
+			VALUES (?, 'claim-owner', '#8e8eb5', 'circle', 'active', ?)`,
+			profileID, store.FormatTimestamp(now),
+		); err != nil {
+			t.Fatalf("insert claim profile error = %v", err)
+		}
+		taskRecord := taskRecordForTest("task-profile-eligibility")
+		taskRecord.ProfileID = profileID
+		taskRecord.Status = taskpkg.TaskStatusReady
+		if err := globalDB.CreateTask(ctx, taskRecord); err != nil {
+			t.Fatalf("CreateTask() error = %v", err)
+		}
+		run := taskRunForTest("run-profile-eligibility", taskRecord.ID)
+		if err := globalDB.CreateTaskRun(ctx, run); err != nil {
+			t.Fatalf("CreateTaskRun() error = %v", err)
+		}
+		if _, err := globalDB.DB().ExecContext(ctx, `
+			UPDATE profiles SET state = 'archived', archived_at = ? WHERE id = ?`,
+			store.FormatTimestamp(now), profileID,
+		); err != nil {
+			t.Fatalf("archive profile error = %v", err)
+		}
+		if _, err := globalDB.ClaimNextRun(ctx, taskpkg.ClaimCriteria{
+			Scope: taskpkg.ScopeGlobal, ClaimerSessionID: "sess-archived", Now: now,
+		}); !errors.Is(err, taskpkg.ErrNoClaimableRun) {
+			t.Fatalf("ClaimNextRun(archived) error = %v, want ErrNoClaimableRun", err)
+		}
+		if _, err := globalDB.DB().ExecContext(ctx, `
+			UPDATE profiles SET state = 'active', archived_at = NULL WHERE id = ?`, profileID,
+		); err != nil {
+			t.Fatalf("unarchive profile error = %v", err)
+		}
+		claim, err := globalDB.ClaimNextRun(ctx, taskpkg.ClaimCriteria{
+			Scope: taskpkg.ScopeGlobal, ClaimerSessionID: "sess-active", Now: now.Add(time.Minute),
+		})
+		if err != nil {
+			t.Fatalf("ClaimNextRun(active) error = %v", err)
+		}
+		if claim.Run.ID != run.ID {
+			t.Fatalf("ClaimNextRun(active).Run.ID = %q, want %q", claim.Run.ID, run.ID)
+		}
+	})
+}
+
 func TestGlobalDBClaimNextRunExactRunID(t *testing.T) {
 	t.Parallel()
 

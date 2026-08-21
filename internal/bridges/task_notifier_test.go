@@ -1025,10 +1025,28 @@ func (r *fakeBridgeInstanceReader) GetBridgeInstance(_ context.Context, id strin
 type memoryCursorStore struct {
 	mu      sync.Mutex
 	cursors map[notifications.CursorKey]notifications.Cursor
+	permits map[string]struct{}
 }
 
 func newMemoryCursorStore() *memoryCursorStore {
-	return &memoryCursorStore{cursors: make(map[notifications.CursorKey]notifications.Cursor)}
+	return &memoryCursorStore{
+		cursors: make(map[notifications.CursorKey]notifications.Cursor),
+		permits: make(map[string]struct{}),
+	}
+}
+
+func (s *memoryCursorStore) AcquireDeliveryPermit(
+	_ context.Context,
+	permit notifications.DeliveryPermit,
+) error {
+	normalized, err := permit.Normalize(terminalTaskNotifierTestTime())
+	if err != nil {
+		return err
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.permits[normalized.DeliveryID] = struct{}{}
+	return nil
 }
 
 func (s *memoryCursorStore) GetCursor(
@@ -1118,6 +1136,7 @@ func (s *memoryCursorStore) AdvanceCursor(
 		UpdatedAt:       normalized.Now,
 	}
 	s.cursors[key] = cursor
+	delete(s.permits, normalized.DeliveryID)
 	return cursor, nil
 }
 

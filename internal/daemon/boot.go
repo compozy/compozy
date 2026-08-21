@@ -28,6 +28,7 @@ import (
 	memcontract "github.com/compozy/compozy/internal/memory/contract"
 	localprovider "github.com/compozy/compozy/internal/memory/provider/local"
 	"github.com/compozy/compozy/internal/memory/provider/local/memstore"
+	"github.com/compozy/compozy/internal/profile"
 
 	"github.com/compozy/compozy/internal/network/participation"
 
@@ -81,6 +82,7 @@ type bootState struct {
 	commandService         session.CommandService
 	notifier               *hooksNotifier
 	registry               Registry
+	profiles               *profile.Manager
 	deadEntities           *deadentity.Service
 	loopTargetHealth       *loopTargetHealthSlot
 	processRegistry        *toolruntime.Registry

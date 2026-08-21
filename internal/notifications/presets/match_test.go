@@ -903,10 +903,28 @@ func (s *presetMemoryEventSummaryStore) ListEventSummaries(
 type presetMemoryCursorStore struct {
 	mu      sync.Mutex
 	cursors map[notifications.CursorKey]notifications.Cursor
+	permits map[string]struct{}
 }
 
 func newPresetMemoryCursorStore() *presetMemoryCursorStore {
-	return &presetMemoryCursorStore{cursors: make(map[notifications.CursorKey]notifications.Cursor)}
+	return &presetMemoryCursorStore{
+		cursors: make(map[notifications.CursorKey]notifications.Cursor),
+		permits: make(map[string]struct{}),
+	}
+}
+
+func (s *presetMemoryCursorStore) AcquireDeliveryPermit(
+	_ context.Context,
+	permit notifications.DeliveryPermit,
+) error {
+	normalized, err := permit.Normalize(presetTestNow())
+	if err != nil {
+		return err
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.permits[normalized.DeliveryID] = struct{}{}
+	return nil
 }
 
 func (s *presetMemoryCursorStore) GetCursor(
@@ -984,6 +1002,7 @@ func (s *presetMemoryCursorStore) AdvanceCursor(
 		UpdatedAt:       normalized.Now,
 	}
 	s.cursors[key] = cursor
+	delete(s.permits, normalized.DeliveryID)
 	return cursor, nil
 }
 

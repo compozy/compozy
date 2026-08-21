@@ -79,6 +79,9 @@ const (
 	RoleFallbackUsed = "role.fallback.used"
 	RoleResolveError = "role.resolve.error"
 
+	ProfileLifecycleOpRecovered = "profile.lifecycle_op_recovered"
+	ProfileLifecycleOpFailed    = "profile.lifecycle_op_failed"
+
 	SkillShadowed   = "skill.shadowed"
 	SkillLoadFailed = "skills.load_failed"
 

@@ -286,6 +286,7 @@ type daemonBridgeNotificationStore struct {
 	bridge        bridgepkg.BridgeInstance
 	records       []taskpkg.EventRecord
 	cursors       map[notifications.CursorKey]notifications.Cursor
+	permits       map[string]struct{}
 	deliveries    []bridgepkg.DeliveryRequest
 	deliverFn     func(context.Context, bridgepkg.DeliveryRequest) (bridgepkg.DeliveryAck, error)
 	deliveryReady chan struct{}
@@ -297,6 +298,7 @@ var _ bridgepkg.BridgeTaskSubscriptionStore = (*daemonBridgeNotificationStore)(n
 var _ bridgepkg.TerminalTaskEventReader = (*daemonBridgeNotificationStore)(nil)
 var _ bridgepkg.BridgeInstanceReader = (*daemonBridgeNotificationStore)(nil)
 var _ notifications.CursorStore = (*daemonBridgeNotificationStore)(nil)
+var _ notifications.DeliveryPermitStore = (*daemonBridgeNotificationStore)(nil)
 var _ bridgepkg.DeliveryTransport = (*daemonBridgeNotificationStore)(nil)
 
 func newDaemonBridgeNotificationStore(now time.Time) *daemonBridgeNotificationStore {
@@ -352,10 +354,25 @@ func newDaemonBridgeNotificationStore(now time.Time) *daemonBridgeNotificationSt
 			},
 		}},
 		cursors:       make(map[notifications.CursorKey]notifications.Cursor),
+		permits:       make(map[string]struct{}),
 		deliveryReady: make(chan struct{}, 1),
 		cursorReady:   make(chan struct{}, 1),
 		now:           now,
 	}
+}
+
+func (s *daemonBridgeNotificationStore) AcquireDeliveryPermit(
+	_ context.Context,
+	permit notifications.DeliveryPermit,
+) error {
+	normalized, err := permit.Normalize(s.now)
+	if err != nil {
+		return err
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.permits[normalized.DeliveryID] = struct{}{}
+	return nil
 }
 
 func (s *daemonBridgeNotificationStore) PutBridgeTaskSubscription(
@@ -454,6 +471,7 @@ func (s *daemonBridgeNotificationStore) AdvanceCursor(
 		UpdatedAt:       update.Now,
 	}
 	s.cursors[update.Key] = cursor
+	delete(s.permits, update.DeliveryID)
 	select {
 	case s.cursorReady <- struct{}{}:
 	default:

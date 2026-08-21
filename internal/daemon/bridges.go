@@ -157,6 +157,20 @@ func (r *bridgeRuntime) AdvanceCursor(
 	return cursorStore.AdvanceCursor(ctx, update)
 }
 
+func (r *bridgeRuntime) AcquireDeliveryPermit(
+	ctx context.Context,
+	permit notifications.DeliveryPermit,
+) error {
+	if r == nil || r.store == nil {
+		return notifications.ErrCursorNotFound
+	}
+	permitStore, ok := r.store.(notifications.DeliveryPermitStore)
+	if !ok {
+		return notifications.ErrCursorNotFound
+	}
+	return permitStore.AcquireDeliveryPermit(ctx, permit)
+}
+
 func (r *bridgeRuntime) ResetCursor(
 	ctx context.Context,
 	reset notifications.ResetCursor,

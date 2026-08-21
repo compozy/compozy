@@ -125,6 +125,7 @@ func terminalTaskNotificationRunMismatchError(
 
 func (n *TerminalTaskNotifier) deliverNotification(
 	ctx context.Context,
+	cursorKey notifications.CursorKey,
 	subscription BridgeTaskSubscription,
 	notification TerminalTaskNotification,
 ) error {
@@ -166,6 +167,11 @@ func (n *TerminalTaskNotifier) deliverNotification(
 		ProviderMetadata: metadata,
 	}
 	if err := event.Validate(); err != nil {
+		return err
+	}
+	if err := n.cursors.AcquireDeliveryPermit(ctx, notifications.DeliveryPermit{
+		Key: cursorKey, DeliveryID: notification.DeliveryID, AcquiredAt: n.now(),
+	}); err != nil {
 		return err
 	}
 
