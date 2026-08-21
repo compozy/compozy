@@ -81,11 +81,29 @@ func buildBundle(ctx context.Context, req BuildRequest, runner buildCommandRunne
 	if err != nil {
 		return nil, err
 	}
-	manifest, err := manifestFromDescribe(payload)
+	manifest, err := manifestFromDescribe(&payload)
 	if err != nil {
 		return nil, err
 	}
+	if err := validateViewProgramToolchain(manifest, toolchain); err != nil {
+		return nil, err
+	}
 	return publishBuildGeneration(ctx, normalized.OutputDir, normalized.SourceDir, manifest)
+}
+
+func validateViewProgramToolchain(manifest *Manifest, toolchain buildToolchain) error {
+	if manifest == nil || !toolchain.Go {
+		return nil
+	}
+	for index, view := range manifest.Resources.CmdPalette.Views {
+		if view.Program {
+			return fmt.Errorf(
+				"views[%d].program: view programs require a TypeScript extension this release",
+				index,
+			)
+		}
+	}
+	return nil
 }
 
 func normalizeBuildRequest(req BuildRequest) (BuildRequest, error) {

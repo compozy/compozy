@@ -36,6 +36,7 @@ import (
 	attachmentspkg "github.com/compozy/compozy/internal/attachments"
 	automationpkg "github.com/compozy/compozy/internal/automation"
 	bridgepkg "github.com/compozy/compozy/internal/bridges"
+	"github.com/compozy/compozy/internal/cmdpalette"
 	compozyconfig "github.com/compozy/compozy/internal/config"
 	"github.com/compozy/compozy/internal/diagnosticcontract"
 	"github.com/compozy/compozy/internal/doctor"
@@ -8559,6 +8560,122 @@ func (r *recordingRegistry) RevokeApprovalGrant(_ context.Context, workspaceID, 
 		}
 	}
 	return toolspkg.ErrApprovalGrantNotFound
+}
+
+func (r *recordingRegistry) CreateApproval(
+	_ context.Context,
+	approvalID string,
+	request toolspkg.ApprovalRequest,
+	now time.Time,
+) (toolspkg.ApprovalStatus, error) {
+	return toolspkg.ApprovalStatus{
+		ApprovalID: approvalID, WorkspaceID: request.WorkspaceID, InvocationID: request.InvocationID,
+		CommandID: request.CommandID, Target: request.Target, Args: request.Args,
+		ApprovalStatus: toolspkg.ApprovalPending, RequestedAt: now, ExpiresAt: request.ExpiresAt,
+	}, nil
+}
+
+func (r *recordingRegistry) GetApproval(context.Context, string) (toolspkg.ApprovalStatus, error) {
+	return toolspkg.ApprovalStatus{}, toolspkg.ErrApprovalNotFound
+}
+
+func (r *recordingRegistry) ResolveApproval(
+	context.Context,
+	string,
+	toolspkg.ApprovalOutcome,
+	time.Time,
+) (toolspkg.ApprovalStatus, error) {
+	return toolspkg.ApprovalStatus{}, toolspkg.ErrApprovalNotFound
+}
+
+func (r *recordingRegistry) CompleteApprovalExecution(
+	context.Context,
+	string,
+	toolspkg.ApprovalExecutionStatus,
+	json.RawMessage,
+	json.RawMessage,
+	time.Time,
+) (toolspkg.ApprovalStatus, error) {
+	return toolspkg.ApprovalStatus{}, toolspkg.ErrApprovalNotFound
+}
+
+func (r *recordingRegistry) ExpireApprovals(context.Context, time.Time) ([]toolspkg.ApprovalStatus, error) {
+	return nil, nil
+}
+
+func (r *recordingRegistry) RecoverDispatchingApprovals(
+	context.Context,
+	time.Time,
+) ([]toolspkg.ApprovalStatus, error) {
+	return nil, nil
+}
+
+func (r *recordingRegistry) ListPendingApprovals(context.Context) ([]toolspkg.ApprovalStatus, error) {
+	return nil, nil
+}
+
+func (r *recordingRegistry) RecordCmdPaletteUsage(
+	context.Context,
+	cmdpalette.Usage,
+	cmdpalette.Weights,
+) error {
+	return nil
+}
+
+func (r *recordingRegistry) CmdPalettePersonalization(
+	context.Context,
+	cmdpalette.WorkspaceID,
+) (cmdpalette.PersonalizationRows, error) {
+	return cmdpalette.PersonalizationRows{}, nil
+}
+
+func (r *recordingRegistry) PutCmdPalettePin(
+	context.Context,
+	cmdpalette.WorkspaceID,
+	cmdpalette.CommandID,
+	time.Time,
+) error {
+	return nil
+}
+
+func (r *recordingRegistry) DeleteCmdPalettePin(
+	context.Context,
+	cmdpalette.WorkspaceID,
+	cmdpalette.CommandID,
+) error {
+	return nil
+}
+
+func (r *recordingRegistry) PruneCmdPaletteCommand(
+	context.Context,
+	cmdpalette.WorkspaceID,
+	cmdpalette.CommandID,
+) error {
+	return nil
+}
+
+func (r *recordingRegistry) PruneCmdPaletteUsage(
+	context.Context,
+	cmdpalette.WorkspaceID,
+	cmdpalette.CommandID,
+) error {
+	return nil
+}
+
+func (r *recordingRegistry) PruneCmdPaletteQueryHit(
+	context.Context,
+	cmdpalette.WorkspaceID,
+	string,
+	cmdpalette.CommandID,
+) error {
+	return nil
+}
+
+func (r *recordingRegistry) ResetCmdPalettePersonalization(
+	context.Context,
+	cmdpalette.WorkspaceID,
+) error {
+	return nil
 }
 
 func (r *recordingRegistry) MarkDeadEntity(_ context.Context, entity store.DeadEntity) error {

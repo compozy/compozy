@@ -122,6 +122,7 @@ export const API_TAG_ICONS: Record<string, string> = {
   automation: "Activity",
   bridges: "Layers",
   bundles: "Package",
+  "cmd-palette": "Search",
   daemon: "Activity",
   diagnostics: "Gauge",
   extensions: "Puzzle",

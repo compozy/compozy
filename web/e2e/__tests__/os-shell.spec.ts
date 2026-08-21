@@ -9,6 +9,13 @@ import type { Browser, Locator, Page } from "@playwright/test";
 import type { BrowserRuntime, WorkspacePayload } from "../fixtures/runtime";
 import {
   appWindow,
+  destinationPalette,
+  menubarCommandItem,
+  openAppWindow as openDockApp,
+  openCommandPalette,
+  paletteEmptyState,
+  paletteRow,
+  paletteRowReason,
   sessionWindow,
   switchWorkspace,
   windowFrame,
@@ -559,7 +566,7 @@ test("E2E-008: palette stays global while RuntimeSelector owns scoped ⌘J", asy
   await expect(palette).toBeVisible();
   const search = palette.getByPlaceholder("Search apps, sessions, and actions…");
   await search.fill("tasks");
-  await search.press("Enter");
+  await paletteRow(palette, "app.open.tasks").click();
   await expect(appWindow(appPage, "tasks")).toBeVisible();
 
   await appPage.keyboard.press("ControlOrMeta+K");
@@ -675,10 +682,10 @@ test("Herdr E2E-019: palette views push, pop, and always reopen at the root", as
   await expect(palette.getByTestId("os-palette-breadcrumb")).toHaveCount(0);
 
   // A root view entry pushes the view instead of closing the palette.
-  await palette.getByTestId("os-palette-view-sessions").click();
+  await paletteRow(palette, "palette.view.sessions").click();
   await expect(palette).toHaveAttribute("data-palette-view", "sessions");
   await expect(palette.getByTestId("os-palette-breadcrumb")).toContainText("Sessions");
-  await expect(palette.getByTestId("os-palette-view-sessions")).toHaveCount(0);
+  await expect(paletteRow(palette, "palette.view.sessions")).toHaveCount(0);
 
   // ⌫ edits the query while it has text, and pops only once it is empty.
   const search = palette.getByPlaceholder("Search sessions…");
@@ -689,10 +696,10 @@ test("Herdr E2E-019: palette views push, pop, and always reopen at the root", as
   await search.fill("");
   await search.press("Backspace");
   await expect(palette.getByTestId("os-palette-breadcrumb")).toHaveCount(0);
-  await expect(palette.getByTestId("os-palette-view-sessions")).toBeVisible();
+  await expect(paletteRow(palette, "palette.view.sessions")).toBeVisible();
 
   // Dismiss closes the whole stack, and reopening starts at the root.
-  await palette.getByTestId("os-palette-view-sessions").click();
+  await paletteRow(palette, "palette.view.sessions").click();
   await expect(palette).toHaveAttribute("data-palette-view", "sessions");
   await appPage.keyboard.press("Escape");
   await expect(palette).toHaveCount(0);
@@ -700,7 +707,33 @@ test("Herdr E2E-019: palette views push, pop, and always reopen at the root", as
   await appPage.keyboard.press("ControlOrMeta+K");
   await expect(palette).toBeVisible();
   await expect(palette.getByTestId("os-palette-breadcrumb")).toHaveCount(0);
-  await expect(palette.getByTestId("os-palette-view-sessions")).toBeVisible();
+  await expect(paletteRow(palette, "palette.view.sessions")).toBeVisible();
+});
+
+test("Command palette E2E-009: Tasks reports truthful zero counts and clears one filter", async ({
+  appPage,
+  runtime,
+}) => {
+  await prepareShell(appPage, runtime);
+  const task = await createTask(runtime, "Palette filter target");
+
+  const palette = await openCommandPalette(appPage);
+  await paletteRow(palette, "palette.view.tasks").click();
+  await expect(palette).toHaveAttribute("data-palette-view", "tasks");
+  await expect(palette.getByTestId(`os-palette-domain-task-${task.id}`)).toBeVisible();
+
+  const failed = palette.getByTestId("os-palette-domain-filter-failed");
+  await expect(failed).toHaveAccessibleName("Failed, 0");
+  await failed.click();
+  await expect(palette.getByText("No tasks are failed.")).toBeVisible();
+
+  const search = palette.getByPlaceholder("Search tasks…");
+  await search.press("Backspace");
+  await expect(palette.getByTestId(`os-palette-domain-task-${task.id}`)).toBeVisible();
+  await expect(palette.getByTestId("os-palette-domain-filter-all")).toHaveAttribute(
+    "aria-pressed",
+    "true"
+  );
 });
 
 test("E2E-010 and E2E-018: peers converge topology while presentation stays client-local", async ({
@@ -3041,13 +3074,6 @@ async function waitForLongTaskQuiet(page: Page): Promise<void> {
   });
 }
 
-async function openDockApp(page: Page, name: string, app: string) {
-  await page.getByRole("button", { name }).click();
-  const win = appWindow(page, app);
-  await expect(win).toBeVisible();
-  return win;
-}
-
 async function dragWindowBy(page: Page, win: ReturnType<Page["locator"]>, dx: number, dy: number) {
   const { x, y } = await windowGrip(win);
   await page.mouse.move(x, y);
@@ -3897,4 +3923,80 @@ test("E2E-022: a keyboard-only operator reaches the indicator, opens Updates, an
   await expect(apply).toBeFocused();
   await appPage.keyboard.press("Enter");
   await expect.poll(() => applyTargets).toEqual(["runtime"]);
+});
+
+test("E2E-015: destination mode offers only eligible targets and exits clean when none are", async ({
+  appPage,
+  runtime,
+}) => {
+  await prepareShell(appPage, runtime);
+
+  // ⌘T opens an empty tab and hands the palette its destination intent.
+  await appPage.keyboard.press("ControlOrMeta+KeyT");
+  const destination = destinationPalette(appPage);
+  await expect(destination).toBeVisible();
+  await expect(destination.getByPlaceholder("Open in this tab…")).toBeVisible();
+
+  // Only navigable targets are offered; shell operations are absent, not disabled.
+  await expect(paletteRow(destination, "app.open.tasks")).toBeVisible();
+  await expect(paletteRow(destination, "window.close")).toHaveCount(0);
+
+  await paletteRow(destination, "app.open.tasks").click();
+  await expect(appWindow(appPage, "tasks")).toBeVisible();
+  await expect(destination).toHaveCount(0);
+
+  // Zero-eligible variant: an impossible query says so and Esc leaves cleanly.
+  await appPage.keyboard.press("ControlOrMeta+KeyT");
+  const reopened = destinationPalette(appPage);
+  await expect(reopened).toBeVisible();
+  await reopened.getByPlaceholder("Open in this tab…").fill("zzzzzzzz");
+  await expect(paletteEmptyState(reopened)).toBeVisible();
+  await appPage.keyboard.press("Escape");
+  await expect(reopened).toHaveCount(0);
+});
+
+test("E2E-018: a cold daemon disables rows with a reason while exempt commands keep working", async ({
+  appPage,
+  runtime,
+}) => {
+  await prepareShell(appPage, runtime);
+  const palette = await openCommandPalette(appPage);
+  await expect(paletteRow(palette, "window.close")).toBeEnabled();
+
+  // The runtime fixture exposes no lifecycle control, so the daemon is taken
+  // away at the transport: the catalog route stops answering.
+  await appPage.route("**/api/cmd-palette/commands*", route => route.abort());
+  await appPage.evaluate(() => window.dispatchEvent(new Event("offline")));
+
+  // The palette stays open and honest: the row is disabled and says why.
+  await expect(paletteRow(palette, "window.close")).toBeDisabled();
+  await expect(paletteRowReason(palette, "window.close")).toHaveText("runtime unavailable");
+  // Availability-exempt commands survive the reconnect (US-001.EC-1).
+  await paletteRow(palette, "shortcuts.cheatsheet").click();
+  await expect(appPage.getByTestId("os-shortcuts-dialog")).toBeVisible();
+  await appPage.keyboard.press("Escape");
+
+  await appPage.unroute("**/api/cmd-palette/commands*");
+
+  // Recovery re-enables the row.
+  const reopened = await openCommandPalette(appPage);
+  await expect(paletteRow(reopened, "window.close")).toBeEnabled();
+  await expect(paletteRowReason(reopened, "window.close")).toHaveCount(0);
+});
+
+test("E2E-019: menubar items project the same id, label, chord and reason as the palette row", async ({
+  appPage,
+  runtime,
+}) => {
+  await prepareShell(appPage, runtime);
+  const palette = await openCommandPalette(appPage);
+  const paletteLabel = await paletteRow(palette, "window.close").innerText();
+  await appPage.keyboard.press("Escape");
+
+  await appPage.getByRole("menuitem", { name: "Window" }).click();
+  const menuItem = menubarCommandItem(appPage, "window.close");
+  await expect(menuItem).toBeVisible();
+  // Same registry row, same words: BR-17 curates order only.
+  expect(paletteLabel).toContain(await menuItem.innerText());
+  await appPage.keyboard.press("Escape");
 });

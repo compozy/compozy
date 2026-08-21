@@ -72,11 +72,16 @@ func (m *Manager) Close() error {
 	for _, hub := range m.hubs {
 		hubs = append(hubs, hub)
 	}
+	endpoints := make([]*clientCommandEndpoint, 0)
+	for workspaceID := range m.commandEndpoints {
+		endpoints = append(endpoints, m.takeCommandEndpointsLocked(workspaceID)...)
+	}
 	m.mu.Unlock()
 	coalescerErr := m.coalescer.close()
 	for _, hub := range hubs {
 		hub.closeAll(nil)
 	}
+	closeClientCommandEndpoints(endpoints, ErrClosed)
 	return coalescerErr
 }
 

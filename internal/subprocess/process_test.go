@@ -15,6 +15,7 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -519,6 +520,79 @@ func TestHandleMethodRedactsClaimBearerFromSerializedErrors(t *testing.T) {
 				t.Fatalf("serialized rpc error data = %s, want valid JSON", response.Error.Data)
 			}
 		})
+	}
+}
+
+func TestTransportInboundCancelHandleReuse(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should keep the newer cancel handle when request IDs are reused", func(t *testing.T) {
+		t.Parallel()
+		lifecycleCtx, cancel := context.WithCancel(t.Context())
+		t.Cleanup(cancel)
+		process := &Process{
+			stdin:           discardWriteCloser{Writer: io.Discard},
+			lifecycleCtx:    lifecycleCtx,
+			cancelLifecycle: cancel,
+			done:            make(chan struct{}),
+			state:           processStateReady,
+		}
+		process.transport = newTransport(process, defaultMaxMessageBytes)
+		firstStarted := make(chan struct{})
+		secondStarted := make(chan struct{})
+		firstDone := make(chan struct{})
+		secondDone := make(chan struct{})
+		var started atomic.Int32
+		if err := process.HandleMethod("host/hold", func(ctx context.Context, _ json.RawMessage) (any, error) {
+			id := started.Add(1)
+			if id == 1 {
+				close(firstStarted)
+			} else {
+				close(secondStarted)
+			}
+			<-ctx.Done()
+			if id == 1 {
+				close(firstDone)
+			} else {
+				close(secondDone)
+			}
+			return nil, ctx.Err()
+		}); err != nil {
+			t.Fatalf("HandleMethod() error = %v", err)
+		}
+
+		envelope := rpcEnvelope{JSONRPC: jsonRPCVersion, ID: json.RawMessage("1"), Method: "host/hold"}
+		process.transport.handleRequest(envelope)
+		select {
+		case <-firstStarted:
+		case <-t.Context().Done():
+			t.Fatal("first inbound handler did not start")
+		}
+		process.transport.handleRequest(envelope)
+		select {
+		case <-secondStarted:
+		case <-t.Context().Done():
+			t.Fatal("second inbound handler did not start")
+		}
+		select {
+		case <-firstDone:
+		case <-t.Context().Done():
+			t.Fatal("replaced inbound handler did not cancel")
+		}
+		process.transport.handleCancel(json.RawMessage(`{"id":1}`))
+		select {
+		case <-secondDone:
+		case <-t.Context().Done():
+			t.Fatal("newer inbound handler lost its cancel handle")
+		}
+		process.transport.handlerWG.Wait()
+	})
+}
+
+func assertErrorContains(t *testing.T, err error, substr string) {
+	t.Helper()
+	if err == nil || !strings.Contains(err.Error(), substr) {
+		t.Fatalf("error = %v, want substring %q", err, substr)
 	}
 }
 
@@ -1065,6 +1139,28 @@ func TestValidateInitializeResponseRejectsInvalidContracts(t *testing.T) {
 			},
 			wantSub: "watch/poll",
 		},
+		{
+			name: "Should reject missing view-provider close service",
+			setup: func(request *InitializeRequest) {
+				request.Capabilities.Provides = []string{extensionprotocol.CapabilityProvideViewProvider}
+				request.Methods.ExtensionServices = extensionprotocol.CapabilityServiceMethods(
+					request.Capabilities.Provides,
+				)
+				request.Runtime.DefaultViewTimeoutMS = 3_000
+			},
+			mutate: func(response *InitializeResponse) {
+				response.AcceptedCapabilities.Provides = []string{
+					extensionprotocol.CapabilityProvideViewProvider,
+				}
+				response.ImplementedMethods = []string{
+					"health_check",
+					"shutdown",
+					string(extensionprotocol.ExtensionServiceMethodViewOpen),
+					string(extensionprotocol.ExtensionServiceMethodViewEvent),
+				}
+			},
+			wantSub: "view/close",
+		},
 	}
 
 	for _, tc := range testCases {
@@ -1090,12 +1186,7 @@ func TestValidateInitializeResponseRejectsInvalidContracts(t *testing.T) {
 			tc.mutate(&response)
 
 			err := validateInitializeResponse(req, response)
-			if err == nil {
-				t.Fatal("validateInitializeResponse() error = nil, want non-nil")
-			}
-			if !strings.Contains(err.Error(), tc.wantSub) {
-				t.Fatalf("validateInitializeResponse() error = %v, want substring %q", err, tc.wantSub)
-			}
+			assertErrorContains(t, err, tc.wantSub)
 		})
 	}
 }

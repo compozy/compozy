@@ -18,6 +18,7 @@ export default defineConfig({
       "packages/ui/vitest.config.ts",
       "packages/site/vitest.config.ts",
       "sdk/typescript/vitest.config.ts",
+      "sdk/react/vitest.config.ts",
       "sdk/create-extension/vitest.config.ts",
     ],
   },

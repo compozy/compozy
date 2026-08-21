@@ -19,6 +19,8 @@ const (
 // DefaultMaxMessageBytes is the default JSON-RPC line size limit.
 const DefaultMaxMessageBytes = 10 * 1024 * 1024
 
+const jsonRPCCancelMethod = "$/cancelRequest"
+
 // JSONRPCVersion is the JSON-RPC protocol version used by the subprocess runtime.
 const JSONRPCVersion = "2.0"
 
@@ -60,6 +62,10 @@ type responseFrame struct {
 	Error   *JSONRPCErrorObject `json:"error,omitempty"`
 }
 
+type cancelRequestParams struct {
+	ID json.RawMessage `json:"id"`
+}
+
 // StdioTransport is a newline-delimited JSON-RPC 2.0 transport over stdio.
 type StdioTransport struct {
 	input           io.Reader
@@ -69,6 +75,7 @@ type StdioTransport struct {
 	mu       sync.Mutex
 	handlers map[string]TransportHandler
 	pending  map[string]pendingCall
+	inbound  map[string]*inboundCancel
 	nextID   int64
 	started  bool
 	closed   bool
@@ -106,6 +113,7 @@ func NewStdioTransport(options StdioTransportOptions) *StdioTransport {
 		maxMessageBytes: maxBytes,
 		handlers:        make(map[string]TransportHandler),
 		pending:         make(map[string]pendingCall),
+		inbound:         make(map[string]*inboundCancel),
 		done:            make(chan struct{}),
 	}
 }
@@ -204,6 +212,7 @@ func (t *StdioTransport) Call(ctx context.Context, method string, params any, re
 		return err
 	case <-ctx.Done():
 		t.removePending(key)
+		t.sendCancel(id)
 		return ctx.Err()
 	case <-t.done:
 		t.removePending(key)
@@ -299,6 +308,10 @@ func (t *StdioTransport) processLine(ctx context.Context, line []byte) {
 		return
 	}
 	if envelope.Method != "" {
+		if envelope.Method == jsonRPCCancelMethod {
+			t.cancelInbound(envelope.Params)
+			return
+		}
 		if len(envelope.ID) == 0 || bytes.Equal(envelope.ID, []byte("null")) {
 			return
 		}
@@ -308,7 +321,7 @@ func (t *StdioTransport) processLine(ctx context.Context, line []byte) {
 			Method:  envelope.Method,
 			Params:  cloneRawMessage(envelope.Params),
 		}
-		go t.dispatchRequest(ctx, request)
+		t.startRequest(ctx, request)
 		return
 	}
 	if len(envelope.ID) > 0 {
@@ -318,22 +331,6 @@ func (t *StdioTransport) processLine(ctx context.Context, line []byte) {
 		return
 	}
 	t.fail(NewInvalidRequestError("invalid json-rpc envelope"))
-}
-
-func (t *StdioTransport) dispatchRequest(ctx context.Context, request JSONRPCRequestEnvelope) {
-	t.mu.Lock()
-	handler := t.handlers[strings.TrimSpace(request.Method)]
-	t.mu.Unlock()
-	if handler == nil {
-		t.sendError(request.ID, NewMethodNotFoundError(request.Method))
-		return
-	}
-	result, err := handler(ctx, cloneRawMessage(request.Params), request)
-	if err != nil {
-		t.sendError(request.ID, ensureRPCError(err))
-		return
-	}
-	t.sendResult(request.ID, result)
 }
 
 func (t *StdioTransport) dispatchResponse(
@@ -425,6 +422,8 @@ func (t *StdioTransport) fail(err error) {
 		t.cancel = nil
 		pending := t.pending
 		t.pending = make(map[string]pendingCall)
+		inbound := t.inbound
+		t.inbound = make(map[string]*inboundCancel)
 		close(t.done)
 		t.mu.Unlock()
 		if cancel != nil {
@@ -432,6 +431,11 @@ func (t *StdioTransport) fail(err error) {
 		}
 		for _, call := range pending {
 			call.err <- err
+		}
+		for _, entry := range inbound {
+			if entry != nil {
+				entry.cancel()
+			}
 		}
 	})
 }

@@ -14,6 +14,7 @@ var errBuildToolchainNotFound = errors.New("extension: build toolchain not found
 type buildToolchain struct {
 	BuildArgv    []string
 	DescribeArgv []string
+	Go           bool
 }
 
 const (
@@ -101,6 +102,7 @@ func detectGoToolchain(req BuildRequest) (buildToolchain, error) {
 	return buildToolchain{
 		BuildArgv:    []string{"go", buildScriptBuildKey, "-o", strings.TrimPrefix(relativeBinary, "./"), "."},
 		DescribeArgv: []string{relativeBinary, buildDescribeArgument},
+		Go:           true,
 	}, nil
 }
 

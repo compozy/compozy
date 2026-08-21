@@ -30,6 +30,8 @@ var nativeEntries = map[string]Entry{
 	"compozy__bridges_list":                   nativeEntry("Reading", " ", false, "🌉", "auto"),
 	"compozy__bridges_status":                 nativeEntry("Reading", " ", false, "🌉", "auto"),
 	"compozy__clarify":                        nativeEntry("Asking", " ", false, "💬", "auto"),
+	"compozy__cmd_palette_invoke":             nativeEntry("Running", " ", false, "💬", "auto"),
+	"compozy__cmd_palette_list":               nativeEntry("Reading", " ", false, "💬", "auto"),
 	"compozy__command_list":                   nativeEntry("Reading", " ", false, "💬", "auto"),
 	"compozy__config_diff":                    nativeEntry("Reading", " ", false, "⚙️", "auto"),
 	"compozy__config_get":                     nativeEntry("Reading", " ", false, "⚙️", "auto"),

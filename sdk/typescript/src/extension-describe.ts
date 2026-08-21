@@ -5,6 +5,7 @@ import {
 } from "./extension-contract.js";
 import { normalizeHostMethodList, normalizeStringList } from "./extension-runtime.js";
 import type {
+  CmdPaletteConfig,
   DescribePayload,
   ExtensionDefinition,
   ExtensionCommandGroupSpec,
@@ -60,11 +61,16 @@ export function cloneExtensionToolDescriptors(
   }));
 }
 
+export function cmdPaletteViewIDs(config: CmdPaletteConfig | undefined): string[] {
+  return (config?.views ?? []).map(view => view.id.trim()).filter(id => id.length > 0);
+}
+
 export function buildExtensionDescribePayload(input: ExtensionDescribeInput): DescribePayload {
   const command = input.definition.subprocess?.command.trim() ?? "";
   if (!command) {
     throw new Error("subprocess command is required");
   }
+  const viewIDs = cmdPaletteViewIDs(input.definition.resources?.cmd_palette);
 
   return {
     name: input.definition.name.trim(),
@@ -81,6 +87,9 @@ export function buildExtensionDescribePayload(input: ExtensionDescribeInput): De
       agents: normalizeStringList(input.definition.resources?.agents),
       automation: normalizeStringList(input.definition.resources?.automation),
       layouts: normalizeStringList(input.definition.resources?.layouts),
+      ...(input.definition.resources?.cmd_palette === undefined
+        ? {}
+        : { cmd_palette: structuredClone(input.definition.resources.cmd_palette) }),
     },
     subprocess: {
       command,
@@ -102,6 +111,7 @@ export function buildExtensionDescribePayload(input: ExtensionDescribeInput): De
     command_groups: input.commandGroups.map(group => ({ ...group })),
     hook_events: normalizeStringList(input.definition.supported_hook_events),
     watch_source_kinds: input.watchSourceKinds,
+    ...(viewIDs.length === 0 ? {} : { cmd_palette_views: viewIDs }),
     sdk: {
       name: SDK_NAME,
       version: input.sdkVersion,

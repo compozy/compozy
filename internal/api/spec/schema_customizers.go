@@ -51,13 +51,19 @@ var schemaCustomizers = map[reflect.Type]func(*openapi3.Schema){
 	reflect.TypeFor[contract.WindowManagerErrorFrame](): func(schema *openapi3.Schema) {
 		customizeWindowManagerFrameSchema(schema, contract.WindowManagerFrameError)
 	},
-	reflect.TypeFor[contract.WindowManagerLayoutNode]():             customizeClosedObjectSchema,
-	reflect.TypeFor[contract.UpdateSettingsWindowManagerRequest]():  customizeClosedObjectSchema,
-	reflect.TypeFor[contract.SettingsWindowManagerResponse]():       customizeClosedObjectSchema,
-	reflect.TypeFor[contract.SettingsWindowManagerConfigPayload]():  customizeClosedObjectSchema,
-	reflect.TypeFor[contract.SettingsWindowManagerGapsPayload]():    customizeClosedObjectSchema,
-	reflect.TypeFor[contract.SettingsWindowManagerSnapPayload]():    customizeClosedObjectSchema,
-	reflect.TypeFor[contract.SettingsWindowManagerBindingPayload](): customizeClosedObjectSchema,
+	reflect.TypeFor[contract.WindowManagerLayoutNode]():                customizeClosedObjectSchema,
+	reflect.TypeFor[contract.UpdateSettingsWindowManagerRequest]():     customizeClosedObjectSchema,
+	reflect.TypeFor[contract.SettingsWindowManagerResponse]():          customizeClosedObjectSchema,
+	reflect.TypeFor[contract.SettingsWindowManagerConfigPayload]():     customizeClosedObjectSchema,
+	reflect.TypeFor[contract.SettingsWindowManagerGapsPayload]():       customizeClosedObjectSchema,
+	reflect.TypeFor[contract.SettingsWindowManagerSnapPayload]():       customizeClosedObjectSchema,
+	reflect.TypeFor[contract.SettingsWindowManagerBindingPayload]():    customizeClosedObjectSchema,
+	reflect.TypeFor[contract.SettingsWindowManagerCommandPayload]():    customizeClosedObjectSchema,
+	reflect.TypeFor[contract.SettingsWindowManagerDefaultPayload]():    customizeClosedObjectSchema,
+	reflect.TypeFor[contract.SettingsWindowManagerDiagnosticPayload](): customizeClosedObjectSchema,
+	reflect.TypeFor[contract.SettingsWindowManagerMutationError]():     customizeClosedObjectSchema,
+	reflect.TypeFor[contract.UpdateSettingsCmdPaletteRequest]():        customizeClosedObjectSchema,
+	reflect.TypeFor[contract.SettingsCmdPaletteResponse]():             customizeClosedObjectSchema,
 	reflect.TypeFor[windowmanager.ShortcutBinding](): func(schema *openapi3.Schema) {
 		schema.Type = &openapi3.Types{openapi3.TypeArray, openapi3.TypeString}
 	},

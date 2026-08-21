@@ -26,6 +26,12 @@ export interface OsPaletteFooterProps {
   backHint?: string;
   /** True when the active view renders filter controls ⇥ can reach. */
   hasFilters?: boolean;
+  /**
+   * The effective chord that opens the selected row's actions. It arrives as a
+   * formatted label from the daemon keymap — the footer never spells a chord
+   * itself (BR-6) — and is omitted when nothing is selected to act on.
+   */
+  actionsChord?: string;
   className?: string;
 }
 
@@ -41,18 +47,20 @@ export function OsPaletteFooter({
   enterHint,
   backHint,
   hasFilters,
+  actionsChord,
   className,
 }: OsPaletteFooterProps) {
   return (
     <div
       data-testid="os-palette-footer"
       className={cn(
-        "flex flex-wrap items-center gap-x-5 gap-y-2 border-t border-line px-3.5 py-2.5 text-micro text-subtle",
+        "flex flex-wrap items-center gap-x-5 gap-y-2 border-t border-line px-4 py-2 text-micro text-subtle",
         className
       )}
     >
       <Hint keys="↑↓">move</Hint>
       <Hint keys="⏎">{enterHint}</Hint>
+      {actionsChord === undefined ? null : <Hint keys={actionsChord}>actions</Hint>}
       {hasFilters === true ? <Hint keys="⇥">filters</Hint> : null}
       {backHint === undefined ? null : <Hint keys="⌫">{backHint}</Hint>}
       <Hint keys="esc" className="ml-auto">

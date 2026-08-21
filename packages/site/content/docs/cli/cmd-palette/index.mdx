@@ -1,0 +1,48 @@
+---
+title: "compozy cmd-palette"
+description: "List, inspect, and invoke command palette commands"
+---
+
+## compozy cmd-palette
+
+List, inspect, and invoke command palette commands
+
+### Options
+
+```
+  -h, --help   help for cmd-palette
+```
+
+### Options inherited from parent commands
+
+```
+      --json            Emit JSON output
+  -o, --output string   Output format: human, json, jsonl, or toon (default "human")
+```
+
+## Output Formats
+
+This command displays human-readable help and its subcommand list. The inherited `-o, --output` and `--json` flags do not serialize help output.
+
+| Format  | Output                   |
+| ------- | ------------------------ |
+| `human` | Help and subcommand list |
+| `json`  | Not emitted for help     |
+| `jsonl` | Not emitted for help     |
+| `toon`  | Not emitted for help     |
+
+## Subcommands
+
+| Command                                                                      | Description                                  |
+| ---------------------------------------------------------------------------- | -------------------------------------------- |
+| [compozy cmd-palette alias](/docs/cli/cmd-palette/alias)                     | Manage command aliases                       |
+| [compozy cmd-palette bind](/docs/cli/cmd-palette/bind)                       | Bind a command to a keyboard chord           |
+| [compozy cmd-palette bindings](/docs/cli/cmd-palette/bindings)               | List effective command bindings and aliases  |
+| [compozy cmd-palette clients](/docs/cli/cmd-palette/clients)                 | List clients attached to the workspace       |
+| [compozy cmd-palette inspect](/docs/cli/cmd-palette/inspect)                 | Inspect one command descriptor               |
+| [compozy cmd-palette invoke](/docs/cli/cmd-palette/invoke)                   | Invoke one command                           |
+| [compozy cmd-palette list](/docs/cli/cmd-palette/list)                       | List commands and their current availability |
+| [compozy cmd-palette personalization](/docs/cli/cmd-palette/personalization) | Inspect or reset palette personalization     |
+| [compozy cmd-palette pin](/docs/cli/cmd-palette/pin)                         | Pin a command                                |
+| [compozy cmd-palette unbind](/docs/cli/cmd-palette/unbind)                   | Remove every binding from a command          |
+| [compozy cmd-palette unpin](/docs/cli/cmd-palette/unpin)                     | Remove a command pin                         |

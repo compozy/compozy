@@ -29,6 +29,7 @@ async function showCrashLoopDialog(window: BrowserWindow): Promise<void> {
 export class ProductWindow {
   readonly #origin: string;
   readonly #windowStatePath: string;
+  readonly #preloadPath: string;
   readonly #presentation: WindowPresentation;
   readonly #links: DeepLinkQueue;
   readonly #onReady: () => Promise<void>;
@@ -43,6 +44,7 @@ export class ProductWindow {
   constructor(options: {
     origin: string;
     windowStatePath: string;
+    preloadPath: string;
     presentation: WindowPresentation;
     links: DeepLinkQueue;
     onReady: () => Promise<void>;
@@ -51,6 +53,7 @@ export class ProductWindow {
   }) {
     this.#origin = options.origin;
     this.#windowStatePath = options.windowStatePath;
+    this.#preloadPath = options.preloadPath;
     this.#presentation = options.presentation;
     this.#links = options.links;
     this.#onReady = options.onReady;
@@ -75,6 +78,7 @@ export class ProductWindow {
       backgroundColor: "#131211",
       autoHideMenuBar: true,
       webPreferences: {
+        preload: this.#preloadPath,
         contextIsolation: true,
         sandbox: true,
         nodeIntegration: false,
@@ -105,6 +109,12 @@ export class ProductWindow {
     if (window.isMinimized()) window.restore();
     presentWindow(window, this.#presentation);
     this.#navigatePending();
+  }
+
+  send(event: "shell:summon", payload: { command_id: string }): void {
+    const window = this.#window;
+    if (!window || window.isDestroyed()) return;
+    window.webContents.send(event, payload);
   }
 
   navigate(path: string): void {

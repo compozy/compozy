@@ -84,13 +84,6 @@ func applyDaemonManagedConfigValue(
 		return client.UpdateSettingsSkills(ctx, UpdateSettingsSkillsRequest{
 			Config: settingsSkillsPayloadFromConfig(cfg.Skills),
 		})
-	case configWindowManagerKey:
-		if applyErr := applyWindowManagerConfigValue(&cfg.WindowManager, path, value); applyErr != nil {
-			return SettingsMutationRecord{}, applyErr
-		}
-		return client.UpdateSettingsWindowManager(ctx, UpdateSettingsWindowManagerRequest{
-			Config: settingsWindowManagerPayloadFromConfig(cfg.WindowManager),
-		})
 	case configAttentionKey:
 		if applyErr := applyAttentionConfigValue(&cfg.Attention, path, value); applyErr != nil {
 			return SettingsMutationRecord{}, applyErr
@@ -151,8 +144,7 @@ func supportsDaemonManagedConfigSet(path []string, target compozyconfig.WriteTar
 	if len(path) == 2 && path[0] == configSkillsKey && path[1] == agentDisabledSkillsKey {
 		return true
 	}
-	return len(path) >= 2 &&
-		(path[0] == configWindowManagerKey || path[0] == configAttentionKey || path[0] == configShellKey)
+	return len(path) >= 2 && (path[0] == configAttentionKey || path[0] == configShellKey)
 }
 
 func settingsSkillsPayloadFromConfig(cfg compozyconfig.SkillsConfig) contract.SettingsSkillsConfigPayload {
@@ -175,7 +167,8 @@ func configMutationPath(raw string) ([]string, configSetValueKind, bool, error) 
 		return nil, configSetString, false, err
 	}
 	if len(segments) > 3 && segments[0] == configWindowManagerKey &&
-		segments[1] == configWindowManagerShortcutsKey {
+		(segments[1] == configWindowManagerShortcutsKey ||
+			segments[1] == configWindowManagerGlobalShortcutsKey) {
 		segments = []string{segments[0], segments[1], strings.Join(segments[2:], ".")}
 	}
 	kind, redacted, err := classifyConfigMutationPath(segments)

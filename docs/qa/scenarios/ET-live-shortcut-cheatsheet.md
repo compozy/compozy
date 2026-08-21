@@ -9,10 +9,10 @@ entry_points: Help › Keyboard shortcuts; question mark; Command slash
 qa_status: pass
 bug_ids:
 fix_status:
-retest_status:
+retest_status: pass
 fix_commits:
-evidence: docs/qa/reports/2026-08-16-herdr-parity.md; .compozy/tasks/herdr-parity/evidence/visual/task_05
-last_report: docs/qa/reports/2026-08-16-herdr-parity.md
+evidence: docs/qa/reports/2026-08-16-herdr-parity.md; .compozy/tasks/herdr-parity/evidence/visual/task_05; /Users/pedronauck/dev/qa-labs/compozy-window-management-regressions-20260821-020852-370190-lab/qa-artifacts/evidence/keyboard-shortcuts-unique.png
+last_report: docs/qa/reports/2026-08-20-window-management-regressions.md
 overlaps: ET-web-shell-shortcuts-about-dialogs; ET-layout-editor-shortcut-recorder
 ---
 
@@ -20,3 +20,6 @@ Flagged 2026-08-16 for the Herdr parity QA tail. The true end state is a fresh c
 a saved rebind without reloading the shell.
 
 QA 2026-08-16 Herdr parity: The full Web E2E, daemon settings contract suites, and inspected visual bundles covered editable shortcuts, array/range persistence, blocked and shadowed diagnostics, Terminal preset preview/apply/revert, live cheatsheet freshness, and editable-context routing.
+
+QA impact 2026-08-20: aggregate daemon commands and their numbered families now collapse into one
+cheatsheet row. Reset to verify unique rows against the live command catalog.

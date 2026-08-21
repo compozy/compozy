@@ -5,6 +5,7 @@ import (
 
 	core "github.com/compozy/compozy/internal/api/core"
 	attachmentspkg "github.com/compozy/compozy/internal/attachments"
+	"github.com/compozy/compozy/internal/cmdpalette"
 	compozyconfig "github.com/compozy/compozy/internal/config"
 	extensionpkg "github.com/compozy/compozy/internal/extension"
 	memorypkg "github.com/compozy/compozy/internal/memory"
@@ -39,6 +40,7 @@ type extensionPublishSecretResolver interface {
 
 type daemonNativeToolsDeps struct {
 	Registry                   func() toolspkg.Registry
+	CmdPalette                 func() cmdpalette.Registry
 	ToolArtifacts              toolspkg.ToolArtifactStore
 	Config                     compozyconfig.Config
 	Skills                     daemonNativeSkillsRegistry

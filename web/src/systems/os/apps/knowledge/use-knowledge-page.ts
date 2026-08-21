@@ -27,6 +27,8 @@ import {
 } from "@/systems/knowledge";
 import { useActiveWorkspace, useCreateDestination } from "@/systems/workspace";
 
+import { resolveKnowledgeSelectedKey } from "./knowledge-route-selection";
+
 interface DecorateOptions {
   scope: KnowledgeScope;
   agentTier?: KnowledgeAgentTier;
@@ -67,11 +69,15 @@ function describeError(error: unknown, fallback: string): string {
   return fallback;
 }
 
-function useKnowledgePage() {
+function useKnowledgePage(options?: {
+  routeMemory?: string | null;
+  routeScope?: KnowledgeScope | null;
+  routeWorkspaceId?: string | null;
+}) {
   const { activeWorkspaceId } = useActiveWorkspace();
   const destination = useCreateDestination();
 
-  const [activeScope, setActiveScope] = useState<KnowledgeScope>("global");
+  const [activeScope, setActiveScope] = useState<KnowledgeScope>(options?.routeScope ?? "global");
   const [agentName, setAgentName] = useState("");
   const [agentTier, setAgentTier] = useState<KnowledgeAgentTier>("workspace");
   const searchInput = useDebouncedInput({
@@ -79,7 +85,26 @@ function useKnowledgePage() {
     onCommit: () => undefined,
   });
   const searchQuery = searchInput.draftValue;
+  const routeMemory = options?.routeMemory?.trim() || null;
+  const routeScope = options?.routeScope ?? null;
+  const routeWorkspaceId = options?.routeWorkspaceId?.trim() || null;
+  const [appliedRoute, setAppliedRoute] = useState({
+    memory: routeMemory,
+    scope: routeScope,
+    workspace: routeWorkspaceId,
+  });
   const [selectedMemoryKey, setSelectedMemoryKey] = useState<string | null>(null);
+  if (
+    routeMemory !== appliedRoute.memory ||
+    routeScope !== appliedRoute.scope ||
+    routeWorkspaceId !== appliedRoute.workspace
+  ) {
+    setAppliedRoute({ memory: routeMemory, scope: routeScope, workspace: routeWorkspaceId });
+    setSelectedMemoryKey(null);
+    if (routeScope !== null) {
+      setActiveScope(routeScope);
+    }
+  }
   const [actionTargetKey, setActionTargetKey] = useState<string | null>(null);
   const [createOpen, setCreateOpen] = useState(false);
   const [revertingDecisionId, setRevertingDecisionId] = useState<string | null>(null);
@@ -87,9 +112,10 @@ function useKnowledgePage() {
   const trimmedAgentName = agentName.trim();
   const trimmedSearchQuery = searchInput.committedValue.trim();
 
+  const listWorkspaceId = routeWorkspaceId || activeWorkspaceId;
   let selector: KnowledgeSelector | null = { scope: "global" };
   if (activeScope === "workspace") {
-    selector = activeWorkspaceId ? { scope: "workspace", workspaceId: activeWorkspaceId } : null;
+    selector = listWorkspaceId ? { scope: "workspace", workspaceId: listWorkspaceId } : null;
   } else if (activeScope === "agent") {
     selector = trimmedAgentName
       ? {
@@ -175,14 +201,11 @@ function useKnowledgePage() {
 
   const visibleMemories = listMemories;
 
-  const selectedMemoryStillVisible =
-    selectedMemoryKey !== null &&
-    visibleMemories.some(memory => knowledgeMemoryKey(memory) === selectedMemoryKey);
-  const effectiveSelectedMemoryKey = selectedMemoryStillVisible
-    ? selectedMemoryKey
-    : visibleMemories[0]
-      ? knowledgeMemoryKey(visibleMemories[0])
-      : null;
+  const effectiveSelectedMemoryKey = resolveKnowledgeSelectedKey(
+    routeMemory,
+    selectedMemoryKey,
+    visibleMemories
+  );
 
   const selectedMemory = visibleMemories.find(
     memory => knowledgeMemoryKey(memory) === effectiveSelectedMemoryKey
@@ -375,7 +398,7 @@ function useKnowledgePage() {
     ? describeError(revertMutationError, "Failed to revert memory decision")
     : null;
 
-  const requiresWorkspace = activeScope === "workspace" && !activeWorkspaceId;
+  const requiresWorkspace = activeScope === "workspace" && !listWorkspaceId;
   const requiresAgentName = activeScope === "agent" && trimmedAgentName === "";
   const guardMessage = requiresWorkspace
     ? "Select an active workspace to view workspace memories."

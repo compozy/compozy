@@ -82,7 +82,7 @@ A capability is **interpretive**, not deterministic — it tells an agent what i
 
 The closed set of **runtime interfaces an extension implements**, declared as `capabilities.provides` in the extension manifest and generated from the SDK declaration by `compozy extension build`.
 
-Public set: `tool.provider`, `memory.backend`, `model.source`, `loop.watch_source`, `connectivity.provider`. `bridge.adapter` exists in the daemon but is excluded from the public surface (ADR-006) — an installed third-party manifest declaring it is rejected.
+Public set: `tool.provider`, `memory.backend`, `model.source`, `loop.watch_source`, `view.provider`, `connectivity.provider`, `forge.provider`. `view.provider` is the TypeScript-only programmable command-palette interface (`view/open`, `view/event`, `view/close`). `bridge.adapter` exists in the daemon but is excluded from the public surface (ADR-006) — an installed third-party manifest declaring it is rejected.
 
 Each provide binds the extension to the CompozyOS → extension service methods the daemon will call (for example `memory.backend` → `memory/store`, `memory/recall`, `memory/forget`). Validation is closed-set membership, not shape: an unknown value fails manifest load rather than loading as a silent no-op.
 
@@ -139,6 +139,15 @@ A **bundled procedural instruction** that a CompozyOS session can activate befor
 **Skills vs. Capabilities:** Skills live inside a CompozyOS instance and govern an agent's behavior locally. Capabilities cross CompozyOS instances over the network and describe what an agent offers to peers. A skill could be exposed as a capability, but they are not the same artifact.
 
 **UI label:** "Skill" — keep the word; it already reads plainly. Gloss it on first use.
+
+---
+
+### Command palette identifiers
+
+**Command palette** is the prose name for the daemon-canonical command catalog and invocation surface.
+Use `cmd_palette` for Go packages, config and event families; `cmd-palette` for CLI verbs and URL-facing
+slugs; and `compozy__cmd_palette_*` for native tool IDs. These spellings name one registry, not separate
+features.
 
 ---
 

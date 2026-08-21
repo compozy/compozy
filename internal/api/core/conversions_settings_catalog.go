@@ -33,9 +33,38 @@ func settingsInstalledExtensionPayloads(
 			LastError:     strings.TrimSpace(value.LastError),
 			RequiresEnv:   append([]string(nil), value.RequiresEnv...),
 			MissingEnv:    append([]string(nil), value.MissingEnv...),
+			Palette:       settingsInstalledExtensionPalettePayload(value.Palette),
 		})
 	}
 	return payloads
+}
+
+func settingsInstalledExtensionPalettePayload(
+	value *settingspkg.InstalledExtensionPalette,
+) *contract.SettingsInstalledExtensionPalettePayload {
+	if value == nil {
+		return nil
+	}
+	payload := &contract.SettingsInstalledExtensionPalettePayload{
+		Commands: make([]contract.SettingsInstalledExtensionPaletteCommandPayload, 0, len(value.Commands)),
+		Views:    make([]contract.SettingsInstalledExtensionPaletteViewPayload, 0, len(value.Views)),
+	}
+	for _, command := range value.Commands {
+		payload.Commands = append(payload.Commands, contract.SettingsInstalledExtensionPaletteCommandPayload{
+			ID: strings.TrimSpace(command.ID), Title: strings.TrimSpace(command.Title),
+			Bindings:       append([]string{}, command.Bindings...),
+			DefaultBinding: strings.TrimSpace(command.DefaultBinding),
+			DefaultDormant: command.DefaultDormant, ConflictWith: strings.TrimSpace(command.ConflictWith),
+			Available: command.Available, Reason: strings.TrimSpace(command.Reason),
+		})
+	}
+	for _, view := range value.Views {
+		payload.Views = append(payload.Views, contract.SettingsInstalledExtensionPaletteViewPayload{
+			ID: strings.TrimSpace(view.ID), Title: strings.TrimSpace(view.Title),
+			Available: view.Available, Reason: strings.TrimSpace(view.Reason),
+		})
+	}
+	return payload
 }
 
 func settingsProviderItemPayloads(values []settingspkg.ProviderItem) []contract.SettingsProviderItemPayload {

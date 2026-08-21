@@ -26,6 +26,7 @@ import type {
 } from "../../lib/window-manager-types";
 import {
   useWindowManagerStream,
+  type WindowManagerClientContextInput,
   type WindowManagerSocket,
   type WindowManagerSocketFactory,
 } from "../use-window-manager-stream";
@@ -48,6 +49,11 @@ class FakeSocket implements WindowManagerSocket {
   onclose: ((event: CloseEvent) => void) | null = null;
   onerror: ((event: Event) => void) | null = null;
   close = vi.fn();
+  send = vi.fn();
+
+  open() {
+    this.onopen?.({} as Event);
+  }
 
   message(frame: unknown) {
     this.onmessage?.({ data: JSON.stringify(frame) } as MessageEvent<string>);
@@ -118,11 +124,23 @@ function rawClientFrame(presentationRevision: number, clientId = "client:web") {
     client: {
       workspace_id: "workspace:test",
       client_id: clientId,
+      kind: "browser",
       presentation_revision: presentationRevision,
+      context_revision: 1,
       active_desktop_id: "desktop:main",
       focus_order: [],
       stack_active: {},
+      palette_context: {
+        window_focused: false,
+        window_floating: false,
+        window_stacked: false,
+        desktop_window_count: 0,
+        scope_global: false,
+        shell_desktop: false,
+        workspace_trusted: true,
+      },
       connected_at: "2026-07-22T00:00:00Z",
+      global_shortcuts: [],
     },
   };
 }
@@ -410,7 +428,7 @@ describe("useWindowManagerStream", () => {
       sockets[0]?.message(rawClientFrame(3));
     });
     expect(onClient).toHaveBeenCalledOnce();
-    expect(onClient).toHaveBeenCalledWith(client(3));
+    expect(onClient).toHaveBeenCalledWith(expect.objectContaining(client(3)));
 
     act(() => sockets[0]?.fail());
     expect(onClientInvalidated).not.toHaveBeenCalled();
@@ -440,7 +458,7 @@ describe("useWindowManagerStream", () => {
     rerender({ currentClient: client(1), registrationEpoch: 1 });
     act(() => sockets[1]?.message(rawClientFrame(2)));
     expect(onClient).toHaveBeenCalledOnce();
-    expect(onClient).toHaveBeenCalledWith(client(2));
+    expect(onClient).toHaveBeenCalledWith(expect.objectContaining(client(2)));
   });
 
   it("Should retry a failed snapshot refresh until Query reaches the announced revision", async () => {
@@ -521,5 +539,212 @@ describe("useWindowManagerStream", () => {
     unmount();
 
     expect(signal?.aborted).toBe(true);
+  });
+
+  it("Should acknowledge client commands before returning their terminal result", async () => {
+    const queryClient = new QueryClient();
+    const { factory, sockets } = createSocketFactory();
+    const onClientCommand = vi.fn().mockResolvedValue({ opened: true });
+
+    renderHook(
+      () =>
+        useWindowManagerStream({
+          workspaceId: "workspace:test",
+          clientId: "client:web",
+          registrationEpoch: 0,
+          currentClient: client(1),
+          enabled: true,
+          afterRevision: 1,
+          socketFactory: factory,
+          onStatusChange: vi.fn(),
+          onSnapshot: vi.fn(),
+          onClient: vi.fn(),
+          onClientCommand,
+          onClientInvalidated: vi.fn(),
+          onError: vi.fn(),
+        }),
+      { wrapper: wrapper(queryClient) }
+    );
+
+    act(() =>
+      sockets[0]?.message({
+        type: "client_command",
+        workspace_id: "workspace:test",
+        command_id: "invocation-a",
+        op: "palette.open",
+        payload: { args: {} },
+      })
+    );
+
+    expect(sockets[0]?.send).toHaveBeenNthCalledWith(
+      1,
+      JSON.stringify({ type: "client_command_ack", command_id: "invocation-a" })
+    );
+    await waitFor(() => expect(sockets[0]?.send).toHaveBeenCalledTimes(2));
+    expect(sockets[0]?.send).toHaveBeenNthCalledWith(
+      2,
+      JSON.stringify({
+        type: "client_command_result",
+        command_id: "invocation-a",
+        result: { opened: true },
+      })
+    );
+    expect(onClientCommand).toHaveBeenCalledWith({
+      commandId: "invocation-a",
+      op: "palette.open",
+      payload: { args: {} },
+    });
+  });
+
+  it("Should acknowledge a rejected client command and write its error result", async () => {
+    const queryClient = new QueryClient();
+    const { factory, sockets } = createSocketFactory();
+    const onClientCommand = vi.fn().mockRejectedValueOnce(new Error("palette is busy"));
+
+    renderHook(
+      () =>
+        useWindowManagerStream({
+          workspaceId: "workspace:test",
+          clientId: "client:web",
+          registrationEpoch: 0,
+          currentClient: client(1),
+          enabled: true,
+          afterRevision: 1,
+          socketFactory: factory,
+          onStatusChange: vi.fn(),
+          onSnapshot: vi.fn(),
+          onClient: vi.fn(),
+          onClientCommand,
+          onClientInvalidated: vi.fn(),
+          onError: vi.fn(),
+        }),
+      { wrapper: wrapper(queryClient) }
+    );
+
+    act(() =>
+      sockets[0]?.message({
+        type: "client_command",
+        workspace_id: "workspace:test",
+        command_id: "invocation-b",
+        op: "palette.open",
+        payload: { args: {} },
+      })
+    );
+
+    expect(sockets[0]?.send).toHaveBeenNthCalledWith(
+      1,
+      JSON.stringify({ type: "client_command_ack", command_id: "invocation-b" })
+    );
+    await waitFor(() => expect(sockets[0]?.send).toHaveBeenCalledTimes(2));
+    expect(sockets[0]?.send).toHaveBeenNthCalledWith(
+      2,
+      JSON.stringify({
+        type: "client_command_result",
+        command_id: "invocation-b",
+        error: "palette is busy",
+      })
+    );
+  });
+
+  it("Should ignore client commands whose frame workspace does not match the bound workspace", () => {
+    const queryClient = new QueryClient();
+    const { factory, sockets } = createSocketFactory();
+    const onClientCommand = vi.fn();
+
+    renderHook(
+      () =>
+        useWindowManagerStream({
+          workspaceId: "workspace:test",
+          clientId: "client:web",
+          registrationEpoch: 0,
+          currentClient: client(1),
+          enabled: true,
+          afterRevision: 1,
+          socketFactory: factory,
+          onStatusChange: vi.fn(),
+          onSnapshot: vi.fn(),
+          onClient: vi.fn(),
+          onClientCommand,
+          onClientInvalidated: vi.fn(),
+          onError: vi.fn(),
+        }),
+      { wrapper: wrapper(queryClient) }
+    );
+
+    act(() =>
+      sockets[0]?.message({
+        type: "client_command",
+        workspace_id: "workspace:other",
+        command_id: "invocation-foreign",
+        op: "palette.open",
+        payload: { args: {} },
+      })
+    );
+
+    expect(onClientCommand).not.toHaveBeenCalled();
+    expect(sockets[0]?.send).not.toHaveBeenCalled();
+  });
+
+  it("Should debounce client context refreshes over the bound socket", async () => {
+    vi.useFakeTimers();
+    const queryClient = new QueryClient();
+    const { factory, sockets } = createSocketFactory();
+    const initialContext: WindowManagerClientContextInput = {
+      scopeGlobal: false,
+      focusedSessionState: null,
+      workspaceTrusted: true,
+      destinationIntent: null,
+      globalShortcuts: [],
+    };
+
+    const { rerender } = renderHook(
+      ({ clientContext }: { clientContext: WindowManagerClientContextInput }) =>
+        useWindowManagerStream({
+          workspaceId: "workspace:test",
+          clientId: "client:web",
+          registrationEpoch: 0,
+          currentClient: client(1),
+          clientContext,
+          enabled: true,
+          afterRevision: 1,
+          socketFactory: factory,
+          onStatusChange: vi.fn(),
+          onSnapshot: vi.fn(),
+          onClient: vi.fn(),
+          onClientInvalidated: vi.fn(),
+          onError: vi.fn(),
+        }),
+      { initialProps: { clientContext: initialContext }, wrapper: wrapper(queryClient) }
+    );
+
+    act(() => sockets[0]?.open());
+    rerender({
+      clientContext: { ...initialContext, focusedSessionState: "waiting" },
+    });
+    rerender({
+      clientContext: {
+        ...initialContext,
+        scopeGlobal: true,
+        focusedSessionState: "running",
+        destinationIntent: { pathname: "/sessions/session-a", search: {} },
+      },
+    });
+
+    await act(() => vi.advanceTimersByTimeAsync(74));
+    expect(sockets[0]?.send).not.toHaveBeenCalled();
+    await act(() => vi.advanceTimersByTimeAsync(1));
+    expect(sockets[0]?.send).toHaveBeenCalledOnce();
+    expect(sockets[0]?.send).toHaveBeenCalledWith(
+      JSON.stringify({
+        type: "client_context",
+        context: {
+          scope_global: true,
+          focused_session_state: "running",
+          workspace_trusted: true,
+          destination_intent: { pathname: "/sessions/session-a", search: {} },
+          global_shortcuts: [],
+        },
+      })
+    );
   });
 });

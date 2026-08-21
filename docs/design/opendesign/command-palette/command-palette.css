@@ -58,10 +58,15 @@
      round 3 (2026-08-18) — production-parity pass: token parity lane,
      flat depth grammar (glass retired), type ramp (all font-size
      literals killed), chord tiers, Pill/Alert/Skeleton/Kbd recipes.
+     round 6 (2026-08-20) — density correction: 32px command /
+     single-line rows matching --height-control-compact, 40px
+     two-line rows only when a sub-line exists, 8px/4px group
+     heading rhythm. 20px rail unchanged. Production compact
+     control height wins over the round-4 40px ladder.
      round 5 (2026-08-18) — reference-approved block dividers
      (full-bleed --line-soft between groups + panel sections),
      group labels receded to --faint, args fields on the query-box
-     grammar (40px, quiet labels), args nav on the crumb recipe,
+     grammar (quiet labels), args nav on the crumb recipe,
      search stroke pinned to the 20px rail.
      round 4 (2026-08-18) — spatial & tonal grammar (operator
      direction, anti-cockpit): zone model (head/results/footer with
@@ -128,16 +133,13 @@
      --cp-tile-emoji is the emoji medium in a grid tile — a glyph slot,
      not a type-ramp step, so it is declared here rather than inlined. */
   --cp-pal-w:min(560px,92vw); --cp-detail-w:208px; --cp-act-w:260px;
-  --cp-input-h:40px; --cp-arg-h:40px; --cp-band-h:28px;
-  /* round-4 spatial grammar (operator direction 2026-08-18):
+  --cp-input-h:32px; --cp-arg-h:32px; --cp-band-h:28px;
+  /* round 6 spatial grammar (2026-08-20):
      ONE 20px leading rail — every leading glyph, group label, and
-     footer key lands its left edge at 20px from the panel edge
-     (zone pad-x 8 + element pad-x 12, or 12+8 on the crumb row).
-     Panel ground sits BELOW the window chrome ramp so the palette
-     separates tonally from the OS behind it (mix of two ramp
-     tokens — no new hue). Forward contract: implementation adopts
-     these values; production's current 30px/32px density is the
-     anatomy source, not the spatial source. */
+     footer key lands its left edge at 20px from the panel edge.
+     Command / single-line rows are 32px (--height-control-compact);
+     two-line entity rows are 40px only when a sub-line is present.
+     Authorized delta vs round 4's 40px one-line ladder. */
   --cp-panel:color-mix(in oklab,var(--canvas) 55%,var(--canvas-soft));
   --cp-tile-emoji:22px;
 }
@@ -282,7 +284,7 @@
   height:auto;padding:12px 8px 10px;border:0;
   border-bottom:1px solid var(--line-soft);
 }
-/* CommandInput group anatomy at the round-4 scale: a 40px field,
+/* CommandInput group anatomy at the round-6 scale: a 32px field,
    --canvas-tint fill, --line border, radius-md; focus-within →
    --line-strong + focus ring. pad-x 12 lands the search glyph on
    the 20px rail. Input voice steps up to 13px (--text-ws-name) —
@@ -307,12 +309,12 @@
 /* Results zone = CommandList. pad-x 8 + the row's own 12 = the 20px
    rail every other palette lane lands on; top pad is quiet because
    the first group heading carries its own headroom. */
-.palette-results{max-height:46vh;overflow:auto;padding:4px 8px 12px}
+.palette-results{max-height:46vh;overflow:auto;padding:12px 8px 12px}
 
 /* ---- eyebrow lane (CommandGroup heading = the `eyebrow` utility:
    sans · --text-eyebrow 11 · 600 · uppercase · --tracking-eyebrow).
    ONE type recipe for every micro-heading in the set. Sans, NOT mono.
-   Rhythm: groups separate by SPACE, never rules — 18px of headroom
+   Rhythm: groups separate by SPACE, never rules — 8px of headroom
    over a heading vs the 2px between sibling rows keeps the ≥2×
    inter/intra ratio that makes blocks read as blocks. Settings
    chapters override the padding for their own containers. */
@@ -325,7 +327,7 @@
   font-size:var(--text-eyebrow);line-height:16px;font-weight:600;
   text-transform:uppercase;letter-spacing:var(--tracking-eyebrow);
   color:var(--faint);
-  padding:18px 12px 8px;
+  padding:8px 12px 4px;
 }
 /* Full-bleed block dividers (round 5, reference-approved): the rule
    runs edge to edge by cancelling the well's inline pad; the label
@@ -336,7 +338,7 @@
 .palette-results .pal-group,
 .pal-kind--list .pal-group{
   border-top:1px solid var(--line-soft);
-  margin:8px -8px 0;padding:16px 20px 8px;
+  margin:8px -8px 0;padding:8px 20px 4px;
 }
 .palette-results > .pal-group:first-child,
 .pal-kind--list > .pal-group:first-child{
@@ -354,10 +356,10 @@
    (pointer selection sets data-selected); the quiet --row-hover is a
    lab affordance so a static board still reads as pointable. */
 .pal-item{
-  display:flex;align-items:center;gap:10px;width:100%;
-  height:auto;min-height:40px;padding:9px 12px;
+  display:flex;align-items:center;gap:8px;width:100%;
+  height:auto;min-height:32px;padding:6px 12px;
   border-radius:var(--radius-md);
-  font-size:var(--text-ws-name);color:var(--fg);text-align:left;
+  font-size:var(--text-ws-name);line-height:1;color:var(--fg);text-align:left;
 }
 .pal-item + .pal-item{margin-top:2px}
 .pal-item svg{width:16px;height:16px;flex:none;color:var(--muted)}
@@ -390,7 +392,7 @@
    hint carrying the whole chord. Footer = OsPaletteFooter. */
 .pal-foot{
   display:flex;flex-wrap:wrap;align-items:center;gap:12px 24px;
-  min-height:0;padding:12px 20px;border-top:1px solid var(--line-soft);
+  min-height:0;padding:8px 20px;border-top:1px solid var(--line-soft);
   font-family:var(--font-sans);font-size:var(--text-eyebrow);
   color:var(--subtle);
 }
@@ -542,14 +544,14 @@
 .palette-head .pal-back svg{width:16px;height:16px}
 
 /* Stacked command row — workspace sub-line suffix (herdr pal-srow
-   precedent). Two-line variant of the 30px CommandItem. */
+   precedent). Two-line variant; 40px only when a sub-line is present. */
 .pal-item--sub{
-  height:auto;min-height:48px;align-items:flex-start;padding-top:8px;padding-bottom:8px;
+  height:auto;min-height:44px;align-items:flex-start;padding-top:6px;padding-bottom:6px;
 }
 /* align-items:flex-start top-aligns the 16px leading glyph against
    a 20px first line — nudge it back onto the line's optical centre. */
 .pal-item--sub > svg{margin-top:2px}
-.pal-item__main{min-width:0;flex:1;display:flex;flex-direction:column;gap:0}
+.pal-item__main{min-width:0;flex:1;display:flex;flex-direction:column;gap:4px}
 .pal-item__sub{
   font-size:var(--text-micro);color:var(--subtle);
   overflow:hidden;text-overflow:ellipsis;white-space:nowrap;
@@ -614,7 +616,7 @@
    The 1.6s loop is a shimmer cadence, not a state-feedback step, so
    it stays off the --dur-* ramp (which tops out at 200ms). */
 .pal-skel{
-  display:flex;align-items:center;gap:10px;min-height:40px;padding:10px 12px;
+  display:flex;align-items:center;gap:8px;min-height:32px;padding:6px 12px;
 }
 .pal-skel__ic,.pal-skel__bar{
   border-radius:var(--radius-md);
@@ -628,8 +630,8 @@
 .pal-skel__bar--lg{width:42%}
 .pal-skel__bar--sm{width:22%;margin-left:auto}
 /* srow-ladder variant — a cold-cache placeholder stands in for a
-   40px .pal-srow entity row; a 30px skeleton would jump on load. */
-.pal-skel--srow{min-height:48px}
+   40px .pal-srow entity row; a 32px skeleton would jump on load. */
+.pal-skel--srow{min-height:40px}
 
 /* In-palette pending — StatusDot accent + pulse. Motion token only,
    never fake progress. */
@@ -846,14 +848,15 @@
 /* Entity rows = os-palette-session-row. Same selection grammar as the
    command row: --elevated raise, no rim. */
 .pal-srow{
-  min-height:48px;padding:7px 12px;border-radius:var(--radius-md);
-  font-size:var(--text-small-body);
+  min-height:44px;padding:6px 12px;border-radius:var(--radius-md);
+  font-size:var(--text-small-body);line-height:1;
 }
 .pal-srow + .pal-srow{margin-top:2px}
 .pal-srow:hover{background:var(--row-hover)}
 .pal-srow.is-active{background:var(--elevated);color:var(--fg-strong);box-shadow:none}
+.pal-srow__main{min-width:0;flex:1;display:flex;flex-direction:column;gap:4px}
 .pal-srow__title{font-size:var(--text-small-body);font-weight:510;color:var(--fg-strong)}
-.pal-srow__sub{font-size:var(--text-micro);color:var(--subtle)}
+.pal-srow__sub{font-size:var(--text-micro);line-height:1.3;color:var(--subtle)}
 .pal-srow__meta{font-family:var(--font-mono);font-size:var(--text-micro);color:var(--subtle)}
 
 /* Sanitized rich text → plain-text degrade. Both variants fully
@@ -1008,9 +1011,9 @@
 /* Action rows are CommandItem/DropdownMenuItem — the same tier as the
    list they act on. */
 .pal-act__row{
-  display:flex;align-items:center;gap:10px;width:100%;
-  min-height:36px;padding:8px 12px;border-radius:var(--radius-md);
-  font-size:var(--text-ws-name);color:var(--fg);text-align:left;
+  display:flex;align-items:center;gap:8px;width:100%;
+  min-height:32px;padding:6px 12px;border-radius:var(--radius-md);
+  font-size:var(--text-ws-name);line-height:1;color:var(--fg);text-align:left;
 }
 .pal-act__row + .pal-act__row{margin-top:2px}
 .pal-act__row:hover{background:var(--row-hover);color:var(--fg-strong)}

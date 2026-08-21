@@ -214,6 +214,11 @@ func NewHostAPIHandler(
 
 	normalizeHostAPIHandlerDefaults(handler)
 	handler.limiter = newHostAPIRateLimiter(handler.rateLimit, handler.rateBurst, handler.now)
+	handler.viewLimiter = newHostAPIRateLimiter(
+		defaultViewHostAPIRateLimit,
+		defaultViewHostAPIBurst,
+		handler.now,
+	)
 	handler.methods = hostAPIMethodHandlers(handler)
 
 	return handler

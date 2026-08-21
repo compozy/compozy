@@ -1,9 +1,12 @@
 package extensiontest_test
 
 import (
+	"reflect"
+	"slices"
 	"strings"
 	"testing"
 
+	"github.com/compozy/compozy/sdk/go/contracts"
 	"github.com/compozy/compozy/sdk/go/extensiontest"
 )
 
@@ -14,8 +17,11 @@ func TestPublicProvideConformance(t *testing.T) {
 	t.Run("Should expose every public provide fixture", func(t *testing.T) {
 		t.Parallel()
 
-		if got, want := len(fixtures), 6; got != want {
-			t.Fatalf("PublicProvideFixtures() count = %d, want %d", got, want)
+		generated := contracts.PublicProvideConformanceFixtures()
+		got := normalizeProvideFixtures(fixtures)
+		want := normalizeGeneratedProvideFixtures(generated)
+		if !reflect.DeepEqual(got, want) {
+			t.Fatalf("PublicProvideFixtures() = %#v, want %#v", got, want)
 		}
 	})
 	for _, fixture := range fixtures {
@@ -46,4 +52,42 @@ func TestPublicProvideConformance(t *testing.T) {
 			t.Fatal("ValidateProvide(bridge.adapter) error = nil, want private-fixture rejection")
 		}
 	})
+}
+
+type provideFixtureIdentity struct {
+	Provide         string
+	RequiredMethods []string
+}
+
+func normalizeProvideFixtures(fixtures []extensiontest.ProvideFixture) []provideFixtureIdentity {
+	normalized := make([]provideFixtureIdentity, 0, len(fixtures))
+	for _, fixture := range fixtures {
+		normalized = append(normalized, provideFixtureIdentity{
+			Provide:         fixture.Provide,
+			RequiredMethods: slices.Clone(fixture.RequiredMethods),
+		})
+	}
+	slices.SortFunc(normalized, compareProvideFixtureIdentity)
+	return normalized
+}
+
+func normalizeGeneratedProvideFixtures(
+	fixtures []contracts.ProvideConformanceFixture,
+) []provideFixtureIdentity {
+	normalized := make([]provideFixtureIdentity, 0, len(fixtures))
+	for _, fixture := range fixtures {
+		normalized = append(normalized, provideFixtureIdentity{
+			Provide:         fixture.Provide,
+			RequiredMethods: slices.Clone(fixture.RequiredMethods),
+		})
+	}
+	slices.SortFunc(normalized, compareProvideFixtureIdentity)
+	return normalized
+}
+
+func compareProvideFixtureIdentity(left, right provideFixtureIdentity) int {
+	if left.Provide != right.Provide {
+		return strings.Compare(left.Provide, right.Provide)
+	}
+	return slices.Compare(left.RequiredMethods, right.RequiredMethods)
 }

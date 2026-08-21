@@ -14,11 +14,13 @@ Use the Settings API when you need the typed contract:
 curl http://localhost:2123/api/settings/window-manager
 ```
 
-The response includes three distinct values:
+The response separates stored and effective state:
 
 - `config.shortcuts`: only stored overrides.
-- `defaults`: the daemon-owned default map.
-- `effective`: the complete map used by the shell now.
+- `effective_shortcuts`: the complete map used by the shell now.
+- `aliases`: workspace aliases keyed by command ID.
+- `commands`: registry metadata used to group every bindable command by source.
+- `extension_defaults`: extension-provided defaults, including dormant conflicts.
 
 The CLI exposes the same discovery data under `value`:
 
@@ -53,6 +55,51 @@ Use `config set` with a JSON array for alternates:
 ```bash
 compozy config set 'window_manager.shortcuts.window.focus.left' \
   '["control+ArrowLeft","alt+KeyH"]'
+```
+
+For workspace-scoped changes, use the command-palette verbs. They update the complete keymap
+atomically through the daemon:
+
+```bash
+compozy cmd-palette bind window.focus.left control+ArrowLeft --workspace acme
+compozy cmd-palette unbind window.focus.left --workspace acme
+compozy cmd-palette bindings --workspace acme -o json
+```
+
+When a chord belongs to another command, the daemon names that owner and stores nothing. Add
+`--overwrite` to transfer the chord from the named owner.
+
+## Configure a global hotkey
+
+The desktop shell can register a global chord for each command from anywhere outside CompozyOS. The daemon owns the intended map under
+`[window_manager.global_shortcuts]`; each desktop shell reports whether its chord is active, captured
+by another application, blocked by permission, or unsupported.
+
+```bash
+compozy cmd-palette bind palette.summon.global meta+shift+Space --global
+compozy cmd-palette unbind palette.summon.global --global
+```
+
+A plain browser cannot register these chords and shows **requires desktop shell** without changing
+the in-app keymap. Read [Global hotkeys](/docs/desktop/global-hotkeys/) for registration states,
+Accessibility recovery, and platform behavior.
+
+## Configure an alias
+
+Aliases are workspace vocabulary for command search. They contain 1–32 characters with no
+whitespace and are unique within the workspace.
+
+```bash
+compozy cmd-palette alias set session.new new --workspace acme
+compozy cmd-palette alias clear session.new --workspace acme
+```
+
+Use `--overwrite` to transfer an alias already owned by another command. You can also declare
+aliases in a workspace overlay:
+
+```toml
+[cmd_palette.aliases]
+"session.new" = "new"
 ```
 
 ## Default keymap

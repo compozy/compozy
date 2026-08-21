@@ -1,93 +1,171 @@
-import { Command, CommandDialog, CommandEmpty, CommandInput, CommandList } from "@compozy/ui";
+import { useLayoutEffect, useRef } from "react";
 
-import { useOsCommandPalette } from "../hooks/use-os-command-palette";
-import { useOsPaletteViewStack } from "../hooks/use-os-palette-view-stack";
+import { CommandDialog } from "@compozy/ui";
+
+import type { useCmdPaletteDispatch } from "../hooks/use-cmd-palette-dispatch";
+import { useOsPaletteSurface } from "../hooks/use-os-palette-surface";
 import { paletteViewDefinition } from "../lib/palette-view-registry";
-import { OsCommandPaletteResults } from "./os-command-palette-results";
-import { OsCommandPaletteShellActions } from "./os-command-palette-shell-actions";
-import { OsCommandPaletteViews } from "./os-command-palette-views";
-import { OsCommandPaletteWindowActions } from "./os-command-palette-window-actions";
+import { paletteBreadcrumb } from "../lib/palette-view-stack";
+import type { WindowManagerRegisteredClientView } from "../lib/window-manager-types";
+import { PaletteActionPanel } from "./os-palette-action-panel";
+import { PaletteArgsBar } from "./os-palette-args-bar";
+import { PaletteConfirmation } from "./os-palette-confirmation";
+import { focusActivePaletteFrame } from "./os-command-palette-focus";
 import { OsPaletteFooter } from "./os-palette-footer";
+import { OsPaletteRootFrame } from "./os-palette-root-frame";
 import { OsPaletteViewStack } from "./os-palette-view-stack";
+
+export { focusActivePaletteFrame } from "./os-command-palette-focus";
 
 export interface OsCommandPaletteProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  /** Opens the daemon-backed Desktops overview. */
-  onOpenDesktops?: () => void;
-  /** Toggles the global Sessions catalog modal. */
-  onToggleSessions?: () => void;
+  /** The bound dispatch seam; the shell owns the coordinators it closes over. */
+  dispatch: ReturnType<typeof useCmdPaletteDispatch>;
+  /** The authenticated desktop attachment that owns programmable view sessions. */
+  client?: WindowManagerRegisteredClientView | null;
+}
+
+/** Base UI reports the dismissal with its reason and lets a listener cancel it. */
+interface DismissDetails {
+  reason?: string;
+  cancel?: () => void;
 }
 
 /**
- * The global ⌘K palette (ADR-005): a desktop-level overlay above the win-layer
- * that delegates each independently-owned result group to a focused component.
+ * The global ⌘K palette: a desktop-level overlay above the win-layer.
  *
- * The root is one level of a stack (ADR-003). A pushed view replaces the root's
- * results with its own — a scoped picker inside the surface the operator
- * already reaches for, rather than another window to learn.
+ * Every row is a projection of the one client registry (ADR-001), so this
+ * component owns presentation and nothing else — no command lists, no
+ * availability rules, no dispatch branches.
+ *
+ * It does own one piece of behavior, because nothing else can: the Escape
+ * ladder. Escape means "leave the innermost thing", and only this level knows
+ * what that currently is — the action panel, then an argument or confirmation
+ * step, then the whole surface. Cancelling the dismissal keeps a click outside
+ * closing everything, which is what an operator means by clicking away.
  */
 export function OsCommandPalette({
+  client = null,
   open,
   onOpenChange,
-  onOpenDesktops,
-  onToggleSessions,
+  dispatch,
 }: OsCommandPaletteProps) {
-  const model = useOsCommandPalette(open, onOpenChange, {
-    onOpenDesktops,
-    onToggleSessions,
-  });
-  const viewStack = useOsPaletteViewStack();
-  const destination = model.destinationWindowId !== null;
+  const surface = useOsPaletteSurface({ open, onOpenChange, dispatch });
+  const { root, execution, viewStack } = surface;
+  const activeFrameRef = useRef<HTMLDivElement | null>(null);
   const activeView =
     viewStack.activeViewId === null ? null : paletteViewDefinition(viewStack.activeViewId);
 
+  useLayoutEffect(() => {
+    if (viewStack.activeViewId === null) return;
+    focusActivePaletteFrame(activeFrameRef.current);
+  }, [viewStack.activeViewId, viewStack.stack.length]);
+
+  const handleOpenChange = (next: boolean, details?: DismissDetails) => {
+    if (!next && details?.reason === "escape-key" && execution.escape()) {
+      details.cancel?.();
+      return;
+    }
+    onOpenChange(next);
+  };
+
+  const body = () => {
+    if (execution.mode === "confirm" && execution.confirm !== null) {
+      return (
+        <PaletteConfirmation
+          confirmation={execution.confirm.confirmation}
+          destructive={execution.confirm.destructive}
+          invalidatedReason={execution.confirm.invalidatedReason}
+          onCancel={execution.cancel}
+          onConfirm={execution.confirmNow}
+        />
+      );
+    }
+    if (execution.mode === "args" && execution.args !== null) {
+      return (
+        <>
+          <PaletteArgsBar
+            state={execution.args}
+            onChange={execution.changeArg}
+            onSubmit={execution.submit}
+          />
+          <OsPaletteFooter enterHint="run" />
+        </>
+      );
+    }
+    if (viewStack.activeViewId !== null) {
+      const activeFrame = viewStack.stack.at(-1);
+      let framePath = "";
+      const mountedFrames = viewStack.stack.map(frame => {
+        framePath = `${framePath}/${frame.viewId}`;
+        return { frame, key: framePath };
+      });
+      return (
+        <>
+          {mountedFrames.map(({ frame, key }) => (
+            <div
+              key={key}
+              hidden={frame !== activeFrame}
+              ref={node => {
+                if (frame === activeFrame) activeFrameRef.current = node;
+              }}
+            >
+              <OsPaletteViewStack
+                breadcrumb={paletteBreadcrumb(
+                  key
+                    .slice(1)
+                    .split("/")
+                    .map(id => paletteViewDefinition(id)?.title ?? id)
+                )}
+                client={client}
+                dispatch={dispatch}
+                viewId={frame.viewId}
+                onDismiss={() => onOpenChange(false)}
+                onPop={viewStack.pop}
+              />
+            </div>
+          ))}
+        </>
+      );
+    }
+    return (
+      <>
+        <OsPaletteRootFrame
+          contentRef={surface.contentRef}
+          model={root}
+          pending={surface.pending}
+          selected={surface.selected}
+          values={surface.values}
+          onSelectionChange={surface.onSelectionChange}
+        />
+        <PaletteActionPanel
+          anchor={execution.panel.anchor}
+          filter={execution.panel.filter}
+          model={execution.panel.model}
+          open={execution.panel.open}
+          onFilterChange={execution.setPanelFilter}
+          onOpenChange={execution.setPanelOpen}
+          onRun={execution.runAction}
+        />
+      </>
+    );
+  };
+
   return (
     <CommandDialog
-      open={open}
-      onOpenChange={onOpenChange}
-      title={activeView?.title ?? (destination ? "Choose a destination" : "Command palette")}
+      className="top-[9vh] min-[960px]:top-[16vh] sm:max-w-(--width-modal-sm)"
       description={
         activeView?.description ??
-        (destination ? "Pick the surface this tab becomes" : "Search apps, sessions, and actions")
+        (root.destination
+          ? "Pick the surface this tab becomes"
+          : "Search apps, sessions, and actions")
       }
-      // Compact clamps to the phone canvas (os-v2.css `.palette-overlay{padding-top:9vh}`).
-      className="top-[9vh] min-[960px]:top-[16vh] sm:max-w-(--width-modal-sm)"
+      open={open}
+      title={activeView?.title ?? (root.destination ? "Choose a destination" : "Command palette")}
+      onOpenChange={handleOpenChange}
     >
-      {viewStack.activeViewId === null ? (
-        <Command
-          data-testid="os-command-palette"
-          data-destination={destination ? "" : undefined}
-          shouldFilter
-        >
-          <CommandInput
-            autoFocus
-            placeholder={destination ? "Open in this tab…" : "Search apps, sessions, and actions…"}
-          />
-          <CommandList className="max-h-[46vh]">
-            <CommandEmpty>
-              {destination
-                ? "No matches — try an app or a session title."
-                : "No matches — try an app, a session title, or an action."}
-            </CommandEmpty>
-            {destination ? null : <OsCommandPaletteViews onPushView={viewStack.push} />}
-            <OsCommandPaletteResults destination={destination} model={model} />
-            <OsCommandPaletteWindowActions destination={destination} model={model} />
-            <OsCommandPaletteShellActions destination={destination} model={model} />
-          </CommandList>
-          <OsPaletteFooter enterHint={destination ? "open here" : "open"} />
-        </Command>
-      ) : (
-        <OsPaletteViewStack
-          // Each level is its own instance: pushing or popping starts the new
-          // level's search and selection clean instead of inheriting them.
-          key={`${viewStack.stack.length}:${viewStack.activeViewId}`}
-          viewId={viewStack.activeViewId}
-          breadcrumb={viewStack.breadcrumb}
-          onPop={viewStack.pop}
-          onDismiss={() => onOpenChange(false)}
-        />
-      )}
+      {body()}
     </CommandDialog>
   );
 }

@@ -52,7 +52,7 @@ compozy extension init my-ext --template tool-provider-go
 | -------------------------- | ---------- | ------------------------------------------------ |
 | `tool-provider-ts`         | TypeScript | One tool with a typed handler. Default template. |
 | `tool-provider-go`         | Go         | The same tool with Go generics.                  |
-| `hook-ts`                  | TypeScript | A `prompt.post_assemble` hook returning a patch. |
+| `view-provider-ts`         | TypeScript | A programmable command-palette view with React.  |
 | `memory-backend-ts`        | TypeScript | The `memory.backend` provide surface.            |
 | `loop-watch-source-go`     | Go         | The `loop.watch_source` provide surface.         |
 | `connectivity-provider-go` | Go         | A Gateway connectivity provider.                 |
@@ -273,12 +273,30 @@ and validated at build, install, and load.
 | `memory.backend`        | `memory/store`, `memory/recall`, `memory/forget`                         | yes    |
 | `model.source`          | `models/list`                                                            | yes    |
 | `loop.watch_source`     | `watch/poll`                                                             | yes    |
+| `view.provider`         | `view/open`, `view/event`, `view/close`                                  | yes    |
 | `connectivity.provider` | `connectivity/establish`, `connectivity/status`, `connectivity/teardown` | yes    |
 | `forge.provider`        | `forge/capabilities`, `forge/status`, `forge/pr_create`                  | yes    |
 | `bridge.adapter`        | `bridges/deliver`, `bridges/targets/snapshot`                            | no     |
 
 Missing a required service method for a declared provide fails the build. Declaring a value outside
 this set fails manifest load with the valid set in the error.
+
+### View providers
+
+A view provider owns the behavior behind a programmable command-palette view. Start from
+`view-provider-ts`, declare the view with `program: true`, and register its React component with
+`registerReactViews`. The helper implements `view/open`, `view/event`, and `view/close` and adds
+`view.provider` to the generated manifest.
+
+Programmable views are TypeScript-only in this release. Building one with the Go SDK fails with
+`views[<index>].program: view programs require a TypeScript extension this release`.
+
+Each attached client gets an isolated session. CompozyOS cancels superseded work through the
+handler's `AbortSignal`, closes the session when the palette, client, extension, or workspace goes
+away, and keeps the last safe frame visible during a short provider failure. Declare `view/patch`
+only when the provider needs to push a frame between user events. See
+[Command Palette Contributions](/docs/extensions/cmd-palette#programmable-views) for the React
+component and lifecycle contract.
 
 ### Model source extensions
 

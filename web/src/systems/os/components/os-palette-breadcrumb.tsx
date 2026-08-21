@@ -25,7 +25,7 @@ export function OsPaletteBreadcrumb({ breadcrumb }: OsPaletteBreadcrumbProps) {
       aria-label="Palette path"
       data-testid="os-palette-breadcrumb"
       className={cn(
-        "flex items-center gap-1.5 pt-2.5 pb-2 text-micro text-muted",
+        "flex items-center gap-1.5 pt-2 pb-1.5 text-micro text-muted",
         paletteViewLeadClass
       )}
     >

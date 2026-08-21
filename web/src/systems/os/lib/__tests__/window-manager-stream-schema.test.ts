@@ -4,6 +4,7 @@
 // Owning layer: the Web window-manager wire decoder.
 import { describe, expect, it } from "vitest";
 
+import { parseWindowManagerRegisteredClientView } from "../window-manager-schemas";
 import { parseWindowManagerStreamFrame } from "../window-manager-stream-schema";
 
 function eventFrame(commandId: string) {
@@ -31,11 +32,23 @@ function clientFrame(frameRevision: number, presentationRevision: number) {
     client: {
       workspace_id: "workspace:test",
       client_id: "client:web",
+      kind: "browser",
       presentation_revision: presentationRevision,
+      context_revision: 1,
       active_desktop_id: "desktop:main",
       focus_order: [],
       stack_active: {},
+      palette_context: {
+        window_focused: false,
+        window_floating: false,
+        window_stacked: false,
+        desktop_window_count: 0,
+        scope_global: false,
+        shell_desktop: false,
+        workspace_trusted: true,
+      },
       connected_at: "2026-07-22T00:00:00Z",
+      global_shortcuts: [],
     },
   };
 }
@@ -123,5 +136,59 @@ describe("parseWindowManagerStreamFrame", () => {
     expect(() => parseWindowManagerStreamFrame(clientFrame(4, 3))).toThrow(
       "Client frame revision must match presentation_revision."
     );
+  });
+
+  it("Should omit attachment tokens from stream client projections", () => {
+    const frame = clientFrame(3, 3);
+    const parsed = parseWindowManagerStreamFrame({
+      ...frame,
+      client: { ...frame.client, attachment_token: "tok-1" },
+    });
+    expect(parsed.type).toBe("client");
+    expect(parsed.type === "client" ? parsed.client : undefined).not.toHaveProperty(
+      "attachmentToken"
+    );
+  });
+
+  it("Should accept only strict daemon-to-client command envelopes", () => {
+    expect(
+      parseWindowManagerStreamFrame({
+        type: "client_command",
+        workspace_id: "workspace:test",
+        command_id: "invocation-a",
+        op: "palette.open",
+        payload: { args: {} },
+      })
+    ).toEqual({
+      type: "client_command",
+      workspaceId: "workspace:test",
+      command: {
+        commandId: "invocation-a",
+        op: "palette.open",
+        payload: { args: {} },
+      },
+    });
+    expect(() =>
+      parseWindowManagerStreamFrame({
+        type: "client_command",
+        workspace_id: "workspace:test",
+        command_id: "invocation-a",
+        op: "palette.open",
+        unexpected: true,
+      })
+    ).toThrow();
+  });
+});
+
+describe("parseWindowManagerRegisteredClientView", () => {
+  it("Should require a non-empty attachment token on registration", () => {
+    const client = clientFrame(1, 1).client;
+    expect(() => parseWindowManagerRegisteredClientView(client)).toThrow(
+      "Window-manager registration omitted attachment_token."
+    );
+    expect(
+      parseWindowManagerRegisteredClientView({ ...client, attachment_token: "tok-1" })
+        .attachmentToken
+    ).toBe("tok-1");
   });
 });

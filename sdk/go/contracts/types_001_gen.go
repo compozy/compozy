@@ -18,6 +18,18 @@ type AcceptedCapabilities struct {
 	Permissions []HostAPIMethod `json:"permissions"`
 }
 
+type Action struct {
+	Kind ActionKind     `json:"kind"`
+	Op   string         `json:"op,omitempty"`
+	Tool string         `json:"tool,omitempty"`
+	View string         `json:"view,omitempty"`
+	App  string         `json:"app,omitempty"`
+	URL  string         `json:"url,omitempty"`
+	Args map[string]any `json:"args,omitempty"`
+}
+
+type ActionKind string
+
 type ActorIdentity struct {
 	Kind ActorKind `json:"kind"`
 	Ref  string    `json:"ref"`
@@ -241,21 +253,4 @@ type AgentSoulDeleteParams struct {
 	WorkspaceID    string `json:"workspace_id,omitempty"`
 	AgentName      string `json:"agent_name"`
 	ExpectedDigest string `json:"expected_digest"`
-}
-
-type AgentSoulDeleteRequest struct {
-	WorkspaceID    string `json:"workspace_id,omitempty"`
-	AgentName      string `json:"agent_name"`
-	ExpectedDigest string `json:"expected_digest"`
-}
-
-type AgentSoulFrontmatterPayload struct {
-	Version       string   `json:"version,omitempty"`
-	Role          string   `json:"role,omitempty"`
-	Tone          []string `json:"tone,omitempty"`
-	Principles    []string `json:"principles,omitempty"`
-	Constraints   []string `json:"constraints,omitempty"`
-	Collaboration []string `json:"collaboration,omitempty"`
-	MemoryPolicy  []string `json:"memory_policy,omitempty"`
-	Tags          []string `json:"tags,omitempty"`
 }

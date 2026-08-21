@@ -74,6 +74,7 @@ var HostAPIAgentsHeartbeatHistoryContract = HostAPIMethodContract[AgentHeartbeat
 var HostAPIAgentsHeartbeatRollbackContract = HostAPIMethodContract[AgentHeartbeatRollbackParams, HeartbeatMutationResponse]{Method: HostAPIMethodAgentsHeartbeatRollback}
 var HostAPIAgentsHeartbeatStatusContract = HostAPIMethodContract[AgentHeartbeatStatusParams, HeartbeatStatusResponse]{Method: HostAPIMethodAgentsHeartbeatStatus}
 var HostAPIAgentsHeartbeatWakeContract = HostAPIMethodContract[AgentHeartbeatWakeParams, HeartbeatWakeResponse]{Method: HostAPIMethodAgentsHeartbeatWake}
+var HostAPIViewPatchContract = HostAPIMethodContract[ViewFrame, EmptyResult]{Method: HostAPIMethodViewPatch}
 var HostAPIAutomationJobsContract = HostAPIMethodContract[AutomationJobsParams, AutomationJobsResult]{
 	Method:         HostAPIMethodAutomationJobs,
 	OptionalParams: true,

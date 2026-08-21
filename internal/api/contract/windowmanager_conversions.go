@@ -53,14 +53,43 @@ func WindowManagerClientFromDomain(client windowmanager.ClientView) (WindowManag
 	if err != nil {
 		return WindowManagerClientView{}, err
 	}
+	contextRevision, err := windowManagerRevision(windowmanager.Revision(client.ContextRevision))
+	if err != nil {
+		return WindowManagerClientView{}, err
+	}
 	return WindowManagerClientView{
-		WorkspaceID: client.WorkspaceID, ClientID: client.ClientID, ActiveDesktopID: client.ActiveDesktopID,
-		PresentationRevision: revision,
-		FocusedWindowID:      cloneWindowManagerPointer(client.FocusedWindowID),
-		FocusOrder:           append([]windowmanager.WindowID{}, client.FocusOrder...),
-		StackActive:          windowManagerStackActiveFromDomain(client.StackActive),
-		ConnectedAt:          client.ConnectedAt,
+		WorkspaceID: client.WorkspaceID, ClientID: client.ClientID, Kind: client.Kind,
+		ActiveDesktopID: client.ActiveDesktopID, PresentationRevision: revision,
+		ContextRevision: contextRevision,
+		FocusedWindowID: cloneWindowManagerPointer(client.FocusedWindowID),
+		FocusOrder:      append([]windowmanager.WindowID{}, client.FocusOrder...),
+		StackActive:     windowManagerStackActiveFromDomain(client.StackActive),
+		PaletteContext: WindowManagerPaletteContext{
+			WindowFocused:       client.PaletteContext.WindowFocused,
+			WindowFloating:      client.PaletteContext.WindowFloating,
+			WindowStacked:       client.PaletteContext.WindowStacked,
+			DesktopWindowCount:  client.PaletteContext.DesktopWindowCount,
+			ScopeGlobal:         client.PaletteContext.ScopeGlobal,
+			ShellDesktop:        client.PaletteContext.ShellDesktop,
+			FocusedSessionState: client.PaletteContext.FocusedSessionState,
+			WorkspaceTrusted:    client.PaletteContext.WorkspaceTrusted,
+			DestinationIntent:   cloneWindowManagerRoutePointer(client.PaletteContext.DestinationIntent),
+		},
+		GlobalShortcuts: append(
+			[]windowmanager.GlobalShortcutRegistration{},
+			client.GlobalShortcuts...,
+		),
+		ConnectedAt:     client.ConnectedAt,
+		AttachmentToken: client.AttachmentToken,
 	}, nil
+}
+
+func cloneWindowManagerRoutePointer(route *windowmanager.RouteIntent) *windowmanager.RouteIntent {
+	if route == nil {
+		return nil
+	}
+	cloned := cloneWindowManagerRoute(*route)
+	return &cloned
 }
 
 func windowManagerStackActiveFromDomain(values map[windowmanager.NodeID]windowmanager.WindowID) map[string]string {

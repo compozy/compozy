@@ -9,6 +9,7 @@ import (
 	"sync/atomic"
 	"time"
 
+	"github.com/compozy/compozy/internal/cmdpalette"
 	compozyconfig "github.com/compozy/compozy/internal/config"
 	"github.com/compozy/compozy/internal/doctor"
 	"github.com/compozy/compozy/internal/memory"
@@ -46,7 +47,9 @@ type BaseHandlerConfig struct {
 	SessionAttachments           SessionAttachmentStore
 	Toolsets                     ToolsetRegistry
 	ToolApprovals                ToolApprovalIssuer
+	ApprovalCoordinator          toolspkg.ApprovalCoordinator
 	ApprovalGrants               ToolApprovalGrantService
+	CmdPalette                   cmdpalette.Registry
 	Clarify                      toolspkg.ClarifyBroker
 	Automation                   AutomationManager
 	Loops                        LoopService
@@ -129,7 +132,9 @@ type BaseHandlers struct {
 	SessionAttachments           SessionAttachmentStore
 	Toolsets                     ToolsetRegistry
 	ToolApprovals                ToolApprovalIssuer
+	ApprovalCoordinator          toolspkg.ApprovalCoordinator
 	ApprovalGrants               ToolApprovalGrantService
+	CmdPalette                   cmdpalette.Registry
 	Clarify                      toolspkg.ClarifyBroker
 	Automation                   AutomationManager
 	Loops                        LoopService
@@ -230,7 +235,9 @@ func baseHandlersFromConfig(cfg *BaseHandlerConfig, defaults baseHandlerDefaults
 		SessionAttachments:           cfg.SessionAttachments,
 		Toolsets:                     cfg.Toolsets,
 		ToolApprovals:                cfg.ToolApprovals,
+		ApprovalCoordinator:          cfg.ApprovalCoordinator,
 		ApprovalGrants:               cfg.ApprovalGrants,
+		CmdPalette:                   cfg.CmdPalette,
 		Clarify:                      cfg.Clarify,
 		Automation:                   cfg.Automation,
 		Loops:                        cfg.Loops,

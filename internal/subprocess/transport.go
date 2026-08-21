@@ -24,6 +24,7 @@ const (
 
 const (
 	jsonRPCVersion = "2.0"
+	jsonRPCCancel  = "$/cancelRequest"
 
 	codeParseError       = -32700
 	codeInvalidRequest   = -32600
@@ -105,8 +106,11 @@ type transport struct {
 	handlersMu sync.RWMutex
 	handlers   map[string]HandlerFunc
 
-	pendingMu sync.Mutex
-	pending   map[string]chan callResult
+	pendingMu  sync.Mutex
+	pending    map[string]chan callResult
+	inboundMu  sync.Mutex
+	inbound    map[string]inboundCancel
+	inboundSeq atomic.Uint64
 
 	writeMu   sync.Mutex
 	handlerWG sync.WaitGroup
@@ -143,6 +147,10 @@ type rpcResponse struct {
 	Error   *RPCError       `json:"error,omitempty"`
 }
 
+type rpcCancelParams struct {
+	ID json.RawMessage `json:"id"`
+}
+
 type rpcID struct {
 	raw json.RawMessage
 	key string
@@ -154,6 +162,7 @@ func newTransport(process *Process, maxMessageBytes int) *transport {
 		maxMessageBytes: maxMessageBytes,
 		handlers:        make(map[string]HandlerFunc),
 		pending:         make(map[string]chan callResult),
+		inbound:         make(map[string]inboundCancel),
 		readerDone:      make(chan struct{}),
 	}
 }
@@ -164,6 +173,7 @@ func (t *transport) start() {
 
 func (t *transport) shutdown(waitErr error) {
 	<-t.readerDone
+	t.cancelInbound()
 	t.handlerWG.Wait()
 	if waitErr == nil {
 		waitErr = t.process.currentTransportError()
@@ -228,10 +238,31 @@ func (t *transport) call(ctx context.Context, method string, params, result any)
 		t.pendingMu.Lock()
 		delete(t.pending, requestID.key)
 		t.pendingMu.Unlock()
-		return fmt.Errorf("subprocess: call %q: %w", method, ctx.Err())
+		callErr := fmt.Errorf("subprocess: call %q: %w", method, ctx.Err())
+		if err := t.sendCancel(method, requestID.raw); err != nil {
+			t.process.logger.Debug(
+				"subprocess cancellation notification failed",
+				transportMethodKey,
+				method,
+				transportErrorKey,
+				err,
+			)
+		}
+		return callErr
 	case <-t.process.Done():
 		return t.process.Wait()
 	}
+}
+
+func (t *transport) sendCancel(method string, id json.RawMessage) error {
+	if err := t.writeJSON(rpcRequest{
+		JSONRPC: jsonRPCVersion,
+		Method:  jsonRPCCancel,
+		Params:  rpcCancelParams{ID: id},
+	}); err != nil {
+		return fmt.Errorf("subprocess: cancel %q: %w", method, err)
+	}
+	return nil
 }
 
 func (t *transport) nextRequestID() rpcID {
@@ -341,72 +372,6 @@ func redactedRPCError(rpcErr *RPCError) *RPCError {
 	}
 	redacted.Data = data
 	return redacted
-}
-
-func (t *transport) handleRequest(envelope rpcEnvelope) {
-	if len(envelope.ID) == 0 {
-		return
-	}
-
-	id, err := parseRPCID(envelope.ID)
-	if err != nil {
-		t.sendErrorOrFail(
-			envelope.ID,
-			NewRPCError(codeInvalidRequest, "Invalid request", map[string]string{"reason": err.Error()}),
-			"subprocess: send invalid request error",
-		)
-		return
-	}
-
-	switch t.process.currentState() {
-	case processStateStarting:
-		t.sendErrorOrFail(
-			id.raw,
-			NewRPCError(codeNotInitialized, "Not initialized", nil),
-			"subprocess: send not initialized error",
-		)
-		return
-	case processStateDraining:
-		t.sendErrorOrFail(
-			id.raw,
-			NewRPCError(codeShutdownProgress, "Shutdown in progress", nil),
-			"subprocess: send shutdown-in-progress error",
-		)
-		return
-	case processStateStopped:
-		return
-	}
-
-	t.handlersMu.RLock()
-	handler, ok := t.handlers[envelope.Method]
-	t.handlersMu.RUnlock()
-	if !ok {
-		t.sendErrorOrFail(
-			id.raw,
-			NewRPCError(codeMethodNotFound, "Method not found", map[string]string{transportMethodKey: envelope.Method}),
-			"subprocess: send method-not-found error",
-		)
-		return
-	}
-
-	t.handlerWG.Go(func() {
-		result, callErr := handler(t.process.lifecycleCtx, envelope.Params)
-		if callErr != nil {
-			if rpcErr, ok := errors.AsType[*RPCError](callErr); ok {
-				t.sendErrorOrFail(id.raw, rpcErr, "subprocess: send handler rpc error")
-				return
-			}
-			t.sendErrorOrFail(
-				id.raw,
-				NewRPCError(codeInternalError, "Internal error", map[string]string{
-					transportErrorKey: redact.ClaimTokens(callErr.Error()),
-				}),
-				"subprocess: send internal error",
-			)
-			return
-		}
-		t.sendResultOrFail(id.raw, result, "subprocess: send result")
-	})
 }
 
 func (t *transport) sendResult(id json.RawMessage, result any) error {

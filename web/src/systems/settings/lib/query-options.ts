@@ -3,6 +3,7 @@ import { queryOptions } from "@tanstack/react-query";
 import {
   SettingsApiError,
   getSettingsAttention,
+  getSettingsCmdPalette,
   getSettingsAutomation,
   getSettingsSandbox,
   getSettingsGeneral,
@@ -30,6 +31,7 @@ import type {
   SettingsApplyRecordsFilter,
   SettingsMCPServerListFilter,
   SettingsNotificationPresetFilter,
+  SettingsCmdPaletteFilter,
   SettingsSkillsFilter,
 } from "../types";
 
@@ -134,6 +136,16 @@ export function settingsNetworkOptions() {
   return queryOptions({
     queryKey: settingsKeys.section("network"),
     queryFn: ({ signal }) => getSettingsNetwork(signal),
+    staleTime: SECTION_STALE_TIME,
+    refetchInterval: SECTION_REFETCH_INTERVAL,
+    retry: shouldRetrySettingsQuery,
+  });
+}
+
+export function settingsCmdPaletteOptions(filter: SettingsCmdPaletteFilter = {}) {
+  return queryOptions({
+    queryKey: settingsKeys.cmdPaletteSection(filter),
+    queryFn: ({ signal }) => getSettingsCmdPalette(filter, signal),
     staleTime: SECTION_STALE_TIME,
     refetchInterval: SECTION_REFETCH_INTERVAL,
     retry: shouldRetrySettingsQuery,

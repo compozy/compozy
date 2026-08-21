@@ -262,7 +262,7 @@ func fanOutDesignationRollupJSON(runs []taskpkg.Run, now time.Time) json.RawMess
 		taskDesignationRollupCompleted: completed,
 		"failed":                       failed,
 		taskDesignationRollupCanceled:  canceled,
-		"running":                      running,
+		statusStateRunning:             running,
 		"queued":                       queued,
 		"needs_attention":              needsAttention,
 		"statuses":                     statuses,

@@ -2,6 +2,7 @@ export {
   settingsAppliedMutationFixture,
   settingsAutomationSectionFixture,
   settingsAttentionSectionFixture,
+  settingsCmdPaletteSectionFixture,
   settingsSandboxesCollectionFixture,
   settingsSandboxFixtures,
   settingsGeneralSectionFixture,

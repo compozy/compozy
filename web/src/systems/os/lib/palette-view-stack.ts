@@ -55,25 +55,3 @@ export function paletteBreadcrumb(labels: readonly string[]): PaletteBreadcrumb 
     visible: labels.slice(-PALETTE_BREADCRUMB_VISIBLE),
   };
 }
-
-/**
- * Where the keyboard selection lands after the rows underneath it changed
- * (US-029.EC-4, US-030.EC-2).
- *
- * A session that survives the refresh keeps the selection — that is the whole
- * point, since a list that re-sorts itself around live attention would
- * otherwise move the operator's target out from under ⏎. Only a selection whose
- * row actually disappeared moves, and then to whatever now occupies its place,
- * which is the nearest neighbour in both directions.
- */
-export function resolvePaletteSelection(
-  previous: readonly string[],
-  next: readonly string[],
-  selected: string
-): string {
-  if (next.includes(selected)) return selected;
-  if (next.length === 0) return "";
-  const index = previous.indexOf(selected);
-  if (index < 0) return next[0] ?? "";
-  return next[Math.min(index, next.length - 1)] ?? "";
-}

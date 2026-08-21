@@ -20,6 +20,7 @@ const (
 	manifestBackendKey                  = "backend"
 	manifestCommandKey                  = "command"
 	manifestCommandGroupsKey            = "command_groups"
+	manifestCmdPaletteKey               = "cmd_palette"
 	manifestCapabilitiesKey             = "capabilities"
 	manifestDescriptionKey              = "description"
 	manifestEnvKey                      = "env"
@@ -66,6 +67,14 @@ const (
 
 type manifestCommandSpec = toolspkg.ExtensionCommandSpec
 type manifestCommandGroupSpec = extensioncontract.ExtensionCommandGroupSpec
+type CmdPaletteConfig = extensioncontract.CmdPaletteConfig
+type CmdPaletteCommand = extensioncontract.CmdPaletteCommand
+type CmdPaletteArgument = extensioncontract.CmdPaletteArgument
+type CmdPaletteAction = extensioncontract.CmdPaletteAction
+type CmdPaletteConfirmation = extensioncontract.CmdPaletteConfirmation
+type CmdPaletteExecutionPolicy = extensioncontract.CmdPaletteExecutionPolicy
+type CmdPaletteView = extensioncontract.CmdPaletteView
+type CmdPaletteViewSource = extensioncontract.CmdPaletteViewSource
 
 const (
 	manifestTOMLFileName        = "extension.toml"
@@ -114,6 +123,7 @@ type ResourcesConfig struct {
 	Hooks         []HookConfig               `toml:"hooks,omitempty"          json:"hooks,omitempty"`
 	Tools         map[string]ToolConfig      `toml:"tools,omitempty"          json:"tools,omitempty"`
 	CommandGroups []manifestCommandGroupSpec `toml:"command_groups,omitempty" json:"command_groups,omitempty"`
+	CmdPalette    CmdPaletteConfig           `toml:"cmd_palette,omitempty"    json:"cmd_palette,omitzero"`
 	MCPServers    map[string]MCPServerConfig `toml:"mcp_servers,omitempty"    json:"mcp_servers,omitempty"`
 	Publish       ResourceGrantRequest       `toml:"publish,omitempty"        json:"publish"`
 }

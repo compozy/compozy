@@ -34,6 +34,7 @@ func (d *Daemon) bootSettings(ctx context.Context, state *bootState) error {
 		ObservabilityRuntime:     surface,
 		Extensions:               surface,
 		TransportParity:          surface,
+		CmdPalette:               state.cmdPalette,
 		MCPAuth:                  surface,
 		MCPRuntime:               surface,
 		MCPCatalog:               settingsMarketplaceCatalogDependency(state.marketplace),

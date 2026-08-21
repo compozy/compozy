@@ -13,6 +13,7 @@ import {
 import type { OsWindowRoute } from "../../lib/os-types";
 import { createTileSnapTarget } from "../../lib/snap-targets";
 import { windowManagerKeys } from "../../lib/window-manager-query";
+import type { WindowManagerSettingsSection } from "../../lib/window-manager-settings-section";
 import type {
   WindowManagerChangeSet,
   WindowManagerConfig,
@@ -62,8 +63,22 @@ const CONFIG: WindowManagerConfig = {
   },
   bindings: { topCenter: "zoom", bottomCenter: "reserved" },
   shortcuts: {},
+  globalShortcuts: {},
   shortcutDefaults: {},
   effectiveShortcuts: {},
+};
+
+const TEST_CONFIG_KEY = windowManagerKeys.config("workspace:test", "client:web");
+const SETTINGS_SECTION: WindowManagerSettingsSection = {
+  scope: "workspace",
+  availableScopes: ["global", "workspace"],
+  workspaceId: "workspace:test",
+  config: CONFIG,
+  commands: [],
+  aliases: {},
+  extensionDefaults: [],
+  diagnostics: [],
+  globalShortcuts: [],
 };
 
 const SNAPSHOT: WindowManagerSnapshot = {
@@ -203,7 +218,7 @@ describe("WindowManagerRuntime", () => {
 
     expect(runtime.getState().hydration).toBe("pending");
 
-    queryClient.setQueryData(windowManagerKeys.config(), CONFIG);
+    queryClient.setQueryData(TEST_CONFIG_KEY, SETTINGS_SECTION);
 
     expect(runtime.getState().hydration).toBe("live");
     expect(runtime.getState().windowManagerConfig?.historyLimit).toBe(50);
@@ -212,20 +227,21 @@ describe("WindowManagerRuntime", () => {
 
   it("Should publish only when Query cache data changes", () => {
     const queryClient = new QueryClient();
-    queryClient.setQueryData(windowManagerKeys.config(), CONFIG);
+    queryClient.setQueryData(TEST_CONFIG_KEY, SETTINGS_SECTION);
     const runtime = new WindowManagerRuntime(queryClient);
+    runtime.bind({ workspaceId: "workspace:test", clientId: "client:web" });
     runtime.start();
     const onProjection = vi.fn();
     const unsubscribe = runtime.subscribe(onProjection);
 
     new QueryObserver(queryClient, {
-      queryKey: windowManagerKeys.config(),
-      queryFn: () => Promise.resolve(CONFIG),
+      queryKey: TEST_CONFIG_KEY,
+      queryFn: () => Promise.resolve(SETTINGS_SECTION),
     });
 
     expect(onProjection).not.toHaveBeenCalled();
 
-    queryClient.removeQueries({ queryKey: windowManagerKeys.config(), exact: true });
+    queryClient.removeQueries({ queryKey: TEST_CONFIG_KEY, exact: true });
 
     expect(onProjection).toHaveBeenCalledOnce();
     expect(runtime.getState().windowManagerConfig).toBeNull();
@@ -273,7 +289,7 @@ describe("WindowManagerRuntime", () => {
   it("Should discard the optimistic transition when a queued switch cannot begin", async () => {
     const queryClient = new QueryClient();
     queryClient.setQueryData(windowManagerKeys.snapshot("workspace:test"), SNAPSHOT);
-    queryClient.setQueryData(windowManagerKeys.config(), CONFIG);
+    queryClient.setQueryData(TEST_CONFIG_KEY, SETTINGS_SECTION);
     const runtime = new WindowManagerRuntime(queryClient);
     runtime.bind({ workspaceId: "workspace:test", clientId: "client:web" });
     runtime.setClient({
@@ -305,7 +321,7 @@ describe("WindowManagerRuntime", () => {
   it("Should run queued commands in order instead of dropping rapid interactions", async () => {
     const queryClient = new QueryClient();
     queryClient.setQueryData(windowManagerKeys.snapshot("workspace:test"), SNAPSHOT);
-    queryClient.setQueryData(windowManagerKeys.config(), CONFIG);
+    queryClient.setQueryData(TEST_CONFIG_KEY, SETTINGS_SECTION);
     vi.mocked(executeWindowManagerCommand).mockResolvedValue({
       snapshot: SNAPSHOT,
       applied: true,
@@ -344,7 +360,7 @@ describe("WindowManagerRuntime", () => {
   it("Should dispatch frame resizes as wire rects for windows and islands", async () => {
     const queryClient = new QueryClient();
     queryClient.setQueryData(windowManagerKeys.snapshot("workspace:test"), SNAPSHOT);
-    queryClient.setQueryData(windowManagerKeys.config(), CONFIG);
+    queryClient.setQueryData(TEST_CONFIG_KEY, SETTINGS_SECTION);
     vi.mocked(executeWindowManagerCommand).mockResolvedValue({
       snapshot: SNAPSHOT,
       applied: true,
@@ -409,7 +425,7 @@ describe("WindowManagerRuntime", () => {
       windowManagerKeys.snapshot("workspace:test"),
       snapshotWithAgentsRoute(initialRoute)
     );
-    queryClient.setQueryData(windowManagerKeys.config(), CONFIG);
+    queryClient.setQueryData(TEST_CONFIG_KEY, SETTINGS_SECTION);
     let resolveFirst!: (result: Awaited<ReturnType<typeof executeWindowManagerCommand>>) => void;
     let resolveSecond!: (result: Awaited<ReturnType<typeof executeWindowManagerCommand>>) => void;
     vi.mocked(executeWindowManagerCommand)
@@ -475,7 +491,7 @@ describe("WindowManagerRuntime", () => {
       windowManagerKeys.snapshot("workspace:test"),
       snapshotWithAgentsRoute(initialRoute)
     );
-    queryClient.setQueryData(windowManagerKeys.config(), CONFIG);
+    queryClient.setQueryData(TEST_CONFIG_KEY, SETTINGS_SECTION);
     vi.mocked(executeWindowManagerCommand).mockRejectedValueOnce(new Error("navigation rejected"));
     const runtime = new WindowManagerRuntime(queryClient);
     runtime.bind({ workspaceId: "workspace:test", clientId: "client:web" });
@@ -502,7 +518,7 @@ describe("WindowManagerRuntime", () => {
   it("Should reject a queued command after the runtime binding changes", async () => {
     const queryClient = new QueryClient();
     queryClient.setQueryData(windowManagerKeys.snapshot("workspace:test"), SNAPSHOT);
-    queryClient.setQueryData(windowManagerKeys.config(), CONFIG);
+    queryClient.setQueryData(TEST_CONFIG_KEY, SETTINGS_SECTION);
     let resolveFirst!: (result: {
       snapshot: WindowManagerSnapshot;
       applied: boolean;
@@ -564,7 +580,7 @@ describe("WindowManagerRuntime", () => {
   it("Should synthesize a slide transition when reconciliation changes the active desktop", () => {
     const queryClient = new QueryClient();
     queryClient.setQueryData(windowManagerKeys.snapshot("workspace:test"), SNAPSHOT);
-    queryClient.setQueryData(windowManagerKeys.config(), CONFIG);
+    queryClient.setQueryData(TEST_CONFIG_KEY, SETTINGS_SECTION);
     const runtime = new WindowManagerRuntime(queryClient);
     runtime.bind({ workspaceId: "workspace:test", clientId: "client:web" });
     runtime.setClient({
@@ -604,7 +620,7 @@ describe("WindowManagerRuntime", () => {
   it("Should keep a staged optimistic transition when an intermediate client result lands", () => {
     const queryClient = new QueryClient();
     queryClient.setQueryData(windowManagerKeys.snapshot("workspace:test"), SNAPSHOT);
-    queryClient.setQueryData(windowManagerKeys.config(), CONFIG);
+    queryClient.setQueryData(TEST_CONFIG_KEY, SETTINGS_SECTION);
     const runtime = new WindowManagerRuntime(queryClient);
     runtime.bind({ workspaceId: "workspace:test", clientId: "client:web" });
     runtime.setClient({
@@ -645,7 +661,7 @@ describe("WindowManagerRuntime", () => {
   it("Should not clear a new binding transition when an old desktop switch rejects", async () => {
     const queryClient = new QueryClient();
     queryClient.setQueryData(windowManagerKeys.snapshot("workspace:test"), SNAPSHOT);
-    queryClient.setQueryData(windowManagerKeys.config(), CONFIG);
+    queryClient.setQueryData(TEST_CONFIG_KEY, SETTINGS_SECTION);
     const runtime = new WindowManagerRuntime(queryClient);
     runtime.bind({ workspaceId: "workspace:test", clientId: "client:web" });
     runtime.setClient({
@@ -692,7 +708,7 @@ describe("WindowManagerRuntime", () => {
   it("Should accept a reset presentation revision after explicit client invalidation", () => {
     const queryClient = new QueryClient();
     queryClient.setQueryData(windowManagerKeys.snapshot("workspace:test"), SNAPSHOT);
-    queryClient.setQueryData(windowManagerKeys.config(), CONFIG);
+    queryClient.setQueryData(TEST_CONFIG_KEY, SETTINGS_SECTION);
     const runtime = new WindowManagerRuntime(queryClient);
     runtime.bind({ workspaceId: "workspace:test", clientId: "client:web" });
     const view = {
@@ -742,7 +758,7 @@ describe("WindowManagerRuntime", () => {
     };
     const queryClient = new QueryClient();
     queryClient.setQueryData(windowManagerKeys.snapshot("workspace:test"), snapshot);
-    queryClient.setQueryData(windowManagerKeys.config(), CONFIG);
+    queryClient.setQueryData(TEST_CONFIG_KEY, SETTINGS_SECTION);
     vi.mocked(executeWindowManagerCommand).mockResolvedValue({
       snapshot,
       applied: true,
@@ -847,7 +863,7 @@ describe("WindowManagerRuntime", () => {
     };
     const queryClient = new QueryClient();
     queryClient.setQueryData(windowManagerKeys.snapshot("workspace:test"), snapshot);
-    queryClient.setQueryData(windowManagerKeys.config(), CONFIG);
+    queryClient.setQueryData(TEST_CONFIG_KEY, SETTINGS_SECTION);
     vi.mocked(executeWindowManagerCommand).mockResolvedValue({
       snapshot: closedSnapshot,
       applied: true,
@@ -912,7 +928,7 @@ describe("WindowManagerRuntime", () => {
       },
     };
     queryClient.setQueryData(windowManagerKeys.snapshot("workspace:test"), snapshot);
-    queryClient.setQueryData(windowManagerKeys.config(), CONFIG);
+    queryClient.setQueryData(TEST_CONFIG_KEY, SETTINGS_SECTION);
     vi.mocked(executeWindowManagerCommand).mockReturnValue(
       new Promise<Awaited<ReturnType<typeof executeWindowManagerCommand>>>(() => {})
     );
@@ -940,6 +956,7 @@ describe("WindowManagerRuntime", () => {
     expect(executeWindowManagerCommand).toHaveBeenCalledWith("workspace:test", "client:web", 7, {
       commandId: "window.focus",
       payload: { window_id: "app:tasks", direction: "" },
+      rebase: { windowId: "app:tasks" },
     });
     runtime.stop();
   });
@@ -977,7 +994,7 @@ describe("WindowManagerRuntime", () => {
       connectedAt: "2026-07-22T00:00:00Z",
     };
     queryClient.setQueryData(windowManagerKeys.snapshot("workspace:test"), agents);
-    queryClient.setQueryData(windowManagerKeys.config(), CONFIG);
+    queryClient.setQueryData(TEST_CONFIG_KEY, SETTINGS_SECTION);
     vi.mocked(executeWindowManagerCommand).mockResolvedValue({
       snapshot: resultSnapshot,
       applied: true,
@@ -1059,7 +1076,7 @@ describe("WindowManagerRuntime", () => {
       connectedAt: "2026-07-22T00:00:00Z",
     };
     queryClient.setQueryData(windowManagerKeys.snapshot("workspace:test"), initial);
-    queryClient.setQueryData(windowManagerKeys.config(), CONFIG);
+    queryClient.setQueryData(TEST_CONFIG_KEY, SETTINGS_SECTION);
     vi.mocked(executeWindowManagerCommand)
       .mockRejectedValueOnce(
         new WindowManagerApiError("Window layout changed.", 409, {
@@ -1118,6 +1135,7 @@ describe("WindowManagerRuntime", () => {
       {
         commandId: "window.focus",
         payload: { window_id: session.id, direction: "" },
+        rebase: { windowId: session.id },
       }
     );
     expect(runtime.getState().focusedId).toBe(session.id);
@@ -1128,7 +1146,7 @@ describe("WindowManagerRuntime", () => {
     const queryClient = new QueryClient();
     const refreshed = { ...SNAPSHOT, revision: 8 };
     queryClient.setQueryData(windowManagerKeys.snapshot("workspace:test"), SNAPSHOT);
-    queryClient.setQueryData(windowManagerKeys.config(), CONFIG);
+    queryClient.setQueryData(TEST_CONFIG_KEY, SETTINGS_SECTION);
     vi.mocked(executeWindowManagerCommand)
       .mockRejectedValueOnce(
         new WindowManagerApiError("Window layout changed.", 409, {
@@ -1181,7 +1199,7 @@ describe("WindowManagerRuntime", () => {
 
   it("Should abort and ignore snapshot refreshes after binding lifecycle changes", async () => {
     const queryClient = new QueryClient();
-    queryClient.setQueryData(windowManagerKeys.config(), CONFIG);
+    queryClient.setQueryData(TEST_CONFIG_KEY, SETTINGS_SECTION);
     const requests: Array<{
       resolve: (snapshot: WindowManagerSnapshot) => void;
       signal: AbortSignal | undefined;
@@ -1218,7 +1236,7 @@ describe("WindowManagerRuntime", () => {
   it("Should preserve an unrelated conflict when semantic open admission is blocked", async () => {
     const queryClient = new QueryClient();
     queryClient.setQueryData(windowManagerKeys.snapshot("workspace:test"), SNAPSHOT);
-    queryClient.setQueryData(windowManagerKeys.config(), CONFIG);
+    queryClient.setQueryData(TEST_CONFIG_KEY, SETTINGS_SECTION);
     const runtime = new WindowManagerRuntime(queryClient);
     runtime.bind({ workspaceId: "workspace:test", clientId: "client:web" });
     runtime.setClient({
@@ -1291,7 +1309,7 @@ describe("WindowManagerRuntime", () => {
       gaps: { inner: 8, top: 7, right: 10, bottom: 13, left: 10 },
     };
     queryClient.setQueryData(windowManagerKeys.snapshot("workspace:test"), snapshot);
-    queryClient.setQueryData(windowManagerKeys.config(), config);
+    queryClient.setQueryData(TEST_CONFIG_KEY, { ...SETTINGS_SECTION, config });
     windowManagerStore.trigger.workAreaMeasured({
       workArea: {
         rect: { x: 10, y: 20, w: 1200, h: 800 },
@@ -1335,7 +1353,7 @@ describe("WindowManagerRuntime", () => {
     const queryClient = new QueryClient();
     const snapshot = snapshotWithAgentsRoute({ pathname: "/agents", search: {} });
     queryClient.setQueryData(windowManagerKeys.snapshot("workspace:test"), snapshot);
-    queryClient.setQueryData(windowManagerKeys.config(), CONFIG);
+    queryClient.setQueryData(TEST_CONFIG_KEY, SETTINGS_SECTION);
     vi.mocked(executeWindowManagerCommand).mockResolvedValue({
       snapshot: { ...snapshot, revision: 8 },
       applied: false,
@@ -1377,7 +1395,7 @@ describe("WindowManagerRuntime", () => {
     const queryClient = new QueryClient();
     const snapshot = snapshotWithFloatingStack();
     queryClient.setQueryData(windowManagerKeys.snapshot("workspace:test"), snapshot);
-    queryClient.setQueryData(windowManagerKeys.config(), CONFIG);
+    queryClient.setQueryData(TEST_CONFIG_KEY, SETTINGS_SECTION);
     windowManagerStore.trigger.workAreaMeasured({
       workArea: { rect: { x: 0, y: 0, w: 1280, h: 800 }, origin: { x: 0, y: 0 } },
     });
@@ -1418,6 +1436,7 @@ describe("WindowManagerRuntime", () => {
     expect(vi.mocked(executeWindowManagerCommand).mock.calls[1]?.[3]).toMatchObject({
       commandId: "window.stack.set_active",
       payload: { window_id: "app:agents" },
+      rebase: { windowId: "app:agents" },
     });
     runtime.stop();
   });
@@ -1454,7 +1473,7 @@ describe("WindowManagerRuntime", () => {
       },
     };
     queryClient.setQueryData(windowManagerKeys.snapshot("workspace:test"), snapshot);
-    queryClient.setQueryData(windowManagerKeys.config(), CONFIG);
+    queryClient.setQueryData(TEST_CONFIG_KEY, SETTINGS_SECTION);
     windowManagerStore.trigger.workAreaMeasured({
       workArea: { rect: { x: 0, y: 0, w: 1280, h: 800 }, origin: { x: 0, y: 0 } },
     });

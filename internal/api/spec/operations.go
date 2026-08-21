@@ -22,6 +22,7 @@ func Operations() []OperationSpec {
 	ops = append(ops, providerOperations()...)
 	ops = append(ops, networkCoordinationOperations()...)
 	ops = append(ops, windowManagerOperations()...)
+	ops = append(ops, cmdPaletteOperations()...)
 	ops = applyToolArtifactContract(ops)
 	ops = applyAgentIdentityContract(ops)
 	sort.SliceStable(ops, func(i, j int) bool {

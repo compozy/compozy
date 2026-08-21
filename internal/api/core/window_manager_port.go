@@ -13,6 +13,19 @@ type WindowManagerService interface {
 	Execute(context.Context, windowmanager.CommandRequest) (windowmanager.Result, error)
 	Clients(context.Context, windowmanager.WorkspaceID) ([]windowmanager.ClientView, error)
 	RegisterClient(context.Context, windowmanager.ClientRegistration) (windowmanager.ClientView, error)
+	UpdateClientContext(context.Context, windowmanager.ClientContextUpdate) (windowmanager.ClientView, error)
+	AuthorizeClient(context.Context, windowmanager.WorkspaceID, windowmanager.ClientID, string) error
+	AttachClientCommands(
+		context.Context,
+		windowmanager.WorkspaceID,
+		windowmanager.ClientID,
+	) (windowmanager.ClientCommandConnection, error)
+	DispatchClientCommand(
+		context.Context,
+		windowmanager.WorkspaceID,
+		windowmanager.ClientID,
+		windowmanager.ClientCommand,
+	) (windowmanager.ClientCommandResponse, error)
 	UnregisterClient(context.Context, windowmanager.WorkspaceID, windowmanager.ClientID) error
 	ExportLayout(context.Context, windowmanager.WorkspaceID) (windowmanager.LayoutDocument, error)
 	ValidateLayout(

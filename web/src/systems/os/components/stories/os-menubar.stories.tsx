@@ -24,7 +24,9 @@ import {
   worktreeReadyDirtyRunningFixture,
 } from "@/systems/workspace/mocks";
 
+import { CmdPaletteRegistryProvider } from "../../contexts/cmd-palette-registry-context";
 import { OsShellContext } from "../../contexts/os-shell-context";
+import { cmdPaletteStoryRegistry } from "../../mocks/cmd-palette-fixtures";
 import type { OsAttentionModel } from "../../hooks/use-os-attention";
 import type { DesktopOverlay } from "../../hooks/use-desktop-overlays";
 import { shortcutLabel } from "../../lib/window-manager-shortcuts";
@@ -108,36 +110,34 @@ function MenubarFixture({
   const [active, setActive] = useState<DesktopOverlay | null>(overlay);
   return (
     <OsShellContext.Provider value={shell}>
-      <AgentCreateHostProvider openDialog={fn()} openForDuplicate={fn()}>
-        <DesktopShell menubar={false} wallpaper="carbon" deskHint>
-          <DesktopMenubar
-            workspaces={WORKSPACES}
-            activeWorkspace={WORKSPACES[0]}
-            chip={chip}
-            scope={scope}
-            toggleLocked={toggleLocked}
-            onToggleGlobalScope={onToggleGlobalScope}
-            onSelectWorkspace={fn()}
-            onAddWorkspace={fn()}
-            onNewSession={fn()}
-            onOpenPalette={fn()}
-            onOpenDesktops={fn()}
-            onOpenWorkspaces={fn()}
-            onToggleSessions={fn()}
-            activeOverlay={active}
-            onOverlayOpenChange={(id, open) =>
-              setActive(current => (open ? id : current === id ? null : current))
-            }
-            attention={ATTENTION}
-            updateAvailable={updateAvailable}
-            worktreesByWorkspace={{ [WORKSPACES[0].id]: listing }}
-            userHomeDir="/Users/ada"
-            worktreeSelection={worktreeSelection}
-            onSelectWorktree={fn()}
-            onCreateWorktree={fn()}
-          />
-        </DesktopShell>
-      </AgentCreateHostProvider>
+      <CmdPaletteRegistryProvider registry={cmdPaletteStoryRegistry}>
+        <AgentCreateHostProvider openDialog={fn()} openForDuplicate={fn()}>
+          <DesktopShell menubar={false} wallpaper="carbon" deskHint>
+            <DesktopMenubar
+              workspaces={WORKSPACES}
+              activeWorkspace={WORKSPACES[0]}
+              chip={chip}
+              scope={scope}
+              toggleLocked={toggleLocked}
+              onToggleGlobalScope={onToggleGlobalScope}
+              onSelectWorkspace={fn()}
+              onAddWorkspace={fn()}
+              onRunCommand={fn()}
+              activeOverlay={active}
+              onOverlayOpenChange={(id, open) =>
+                setActive(current => (open ? id : current === id ? null : current))
+              }
+              attention={ATTENTION}
+              updateAvailable={updateAvailable}
+              worktreesByWorkspace={{ [WORKSPACES[0].id]: listing }}
+              userHomeDir="/Users/ada"
+              worktreeSelection={worktreeSelection}
+              onSelectWorktree={fn()}
+              onCreateWorktree={fn()}
+            />
+          </DesktopShell>
+        </AgentCreateHostProvider>
+      </CmdPaletteRegistryProvider>
     </OsShellContext.Provider>
   );
 }

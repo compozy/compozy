@@ -99,6 +99,8 @@ type WatchEventsRepo struct {
 }
 type DeadEntityRepo struct{ *repoBase }
 type ApprovalGrantRepo struct{ *repoBase }
+type ApprovalPendingRepo struct{ *repoBase }
+type CmdPaletteRepo struct{ *repoBase }
 type WorktreeRepo struct{ *repoBase }
 
 func (g *GlobalDB) initializeRepositories(config openConfig) {
@@ -141,6 +143,8 @@ func (g *GlobalDB) initializeRepositories(config openConfig) {
 	}
 	g.DeadEntityRepo = &DeadEntityRepo{repoBase: base}
 	g.ApprovalGrantRepo = &ApprovalGrantRepo{repoBase: base}
+	g.ApprovalPendingRepo = &ApprovalPendingRepo{repoBase: base}
+	g.CmdPaletteRepo = &CmdPaletteRepo{repoBase: base}
 	g.Worktrees = &WorktreeRepo{repoBase: base}
 	loopRepo.watchEvents = g.WatchEventsRepo
 	loopRepo.observe = g.ObserveRepo

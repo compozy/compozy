@@ -47,9 +47,10 @@ const DEFAULT_RUNTIME: InitializeRuntime = {
   health_check_timeout_ms: 5_000,
   shutdown_timeout_ms: 10_000,
   default_hook_timeout_ms: 5_000,
+  default_view_timeout_ms: 3_000,
 };
 
-const DAEMON_METHODS = new Set(["execute_hook", "health_check", "shutdown"]);
+const DAEMON_METHODS = new Set(["health_check", "shutdown"]);
 
 export class TestHarness {
   private readonly mockedHostHandlers = new Map<
@@ -111,11 +112,15 @@ export class TestHarness {
     return extension;
   }
 
-  public async call<TResult = unknown>(method: string, params?: unknown): Promise<TResult> {
+  public async call<TResult = unknown>(
+    method: string,
+    params?: unknown,
+    signal?: AbortSignal
+  ): Promise<TResult> {
     if (!this.hostTransport) {
       throw new Error("extension is not loaded");
     }
-    return await this.hostTransport.call<TResult>(method, params);
+    return await this.hostTransport.call<TResult>(method, params, signal);
   }
 
   public getLastInitializeRequest(): InitializeRequest | undefined {

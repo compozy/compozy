@@ -4,6 +4,7 @@
     "pages": [
         "develop",
         "manifest",
+        "cmd-palette",
         "permissions",
         "commands",
         "publish",

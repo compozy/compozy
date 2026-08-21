@@ -32,6 +32,8 @@ type GlobalDB struct {
 	*WatchEventsRepo
 	*DeadEntityRepo
 	*ApprovalGrantRepo
+	*ApprovalPendingRepo
+	*CmdPaletteRepo
 	Worktrees *WorktreeRepo
 
 	db     *sql.DB

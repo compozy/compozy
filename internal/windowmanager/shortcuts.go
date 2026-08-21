@@ -9,6 +9,7 @@ import (
 )
 
 const (
+	shortcutPaletteOpenChord             = "meta+KeyK"
 	shortcutPaletteOpenAction            = "palette.open"
 	shortcutPaletteViewSessionsAction    = "palette.view.sessions"
 	shortcutSessionNewAction             = "session.new"
@@ -47,13 +48,79 @@ var shortcutModifierOrder = []string{
 	dragModifierShift,
 }
 
+// BindableIDs is the command-catalog snapshot accepted by keymap mutations.
+type BindableIDs map[string]struct{}
+
+// ShortcutDiagnostic reports a stored keymap entry omitted from the effective map.
+type ShortcutDiagnostic struct {
+	CommandID string `json:"command_id"`
+	Message   string `json:"message"`
+}
+
+// ShortcutConflictError identifies both owners of one chord.
+type ShortcutConflictError struct {
+	Chord   string
+	Owner   string
+	Command string
+}
+
+func (e *ShortcutConflictError) Error() string {
+	return fmt.Sprintf(
+		"shortcut %q conflicts between %q and %q: %v",
+		e.Chord,
+		e.Owner,
+		e.Command,
+		ErrInvalidCommand,
+	)
+}
+
+func (e *ShortcutConflictError) Unwrap() error { return ErrInvalidCommand }
+
+// UnknownShortcutIDError reports an attempted binding outside the catalog.
+type UnknownShortcutIDError struct {
+	CommandID string
+}
+
+func (e *UnknownShortcutIDError) Error() string {
+	return fmt.Sprintf("shortcut action %q is unsupported", e.CommandID)
+}
+
+func (e *UnknownShortcutIDError) Unwrap() error { return ErrInvalidCommand }
+
+// NewBindableIDs builds an ownership-safe command-id set.
+func NewBindableIDs(ids []string) BindableIDs {
+	result := make(BindableIDs, len(ids))
+	for _, id := range ids {
+		trimmed := strings.TrimSpace(id)
+		if trimmed != "" {
+			result[trimmed] = struct{}{}
+		}
+	}
+	return result
+}
+
+// DefaultBindableIDs returns the ids carried by the daemon's shipped keymap.
+func DefaultBindableIDs() BindableIDs {
+	ids := make([]string, 0, len(defaultKeymap))
+	for id := range defaultKeymap {
+		ids = append(ids, id)
+	}
+	result := NewBindableIDs(ids)
+	result[DefaultGlobalSummonCommandID] = struct{}{}
+	return result
+}
+
 // CanonicalShortcutsV2 validates overrides, expands range families, and rejects
 // collisions against both other overrides and daemon-owned defaults.
 func CanonicalShortcutsV2(
 	overrides map[string]ShortcutBinding,
+	bindableIDs BindableIDs,
 ) (map[string]ShortcutBinding, error) {
-	canonical, touchedFamilies, err := canonicalShortcutOverrides(overrides)
+	canonical, touchedFamilies, err := canonicalStoredShortcutOverrides(overrides)
 	if err != nil {
+		return nil, err
+	}
+	if err := validateBindableShortcutIDs(canonical, bindableIDs); err != nil {
 		return nil, err
 	}
 	if _, err := effectiveKeymap(canonical, touchedFamilies); err != nil {
@@ -62,18 +129,52 @@ func CanonicalShortcutsV2(
 	return canonical, nil
 }
 
+// CanonicalStoredShortcutsV2 validates grammar and stored collisions without a live catalog.
+func CanonicalStoredShortcutsV2(
+	overrides map[string]ShortcutBinding,
+) (map[string]ShortcutBinding, error) {
+	canonical, _, err := canonicalStoredShortcutOverrides(overrides)
+	if err != nil {
+		return nil, err
+	}
+	if err := validateShortcutConflicts(canonical); err != nil {
+		return nil, err
+	}
+	return canonical, nil
+}
+
+// CanonicalShortcutChord validates one manifest or config chord with the daemon grammar.
+func CanonicalShortcutChord(chord string) (string, error) {
+	return canonicalShortcutChord(chord)
+}
+
 // EffectiveKeymap merges override-wins bindings into daemon defaults and validates the whole map.
 func EffectiveKeymap(
 	overrides map[string]ShortcutBinding,
+	bindableIDs BindableIDs,
 ) (map[string]ShortcutBinding, error) {
-	canonical, touchedFamilies, err := canonicalShortcutOverrides(overrides)
+	canonical, touchedFamilies, err := canonicalStoredShortcutOverrides(overrides)
+	if err != nil {
+		return nil, err
+	}
+	if err := validateBindableShortcutIDs(canonical, bindableIDs); err != nil {
+		return nil, err
+	}
+	return effectiveKeymap(canonical, touchedFamilies)
+}
+
+// EffectiveStoredKeymap resolves a trusted stored map without catalog membership checks.
+func EffectiveStoredKeymap(
+	overrides map[string]ShortcutBinding,
+) (map[string]ShortcutBinding, error) {
+	canonical, touchedFamilies, err := canonicalStoredShortcutOverrides(overrides)
 	if err != nil {
 		return nil, err
 	}
 	return effectiveKeymap(canonical, touchedFamilies)
 }
 
-func canonicalShortcutOverrides(
+func canonicalStoredShortcutOverrides(
 	overrides map[string]ShortcutBinding,
 ) (map[string]ShortcutBinding, map[string]struct{}, error) {
 	if overrides == nil {
@@ -96,19 +197,22 @@ func canonicalShortcutOverrides(
 			}
 			continue
 		}
-		if !validShortcutAction(action) {
-			return nil, nil, fmt.Errorf("shortcut action %q is unsupported: %w", action, ErrInvalidCommand)
-		}
 		binding, err := canonicalShortcutBinding(action, overrides[action])
 		if err != nil {
 			return nil, nil, fmt.Errorf("shortcut %q: %w", action, err)
 		}
 		canonical[action] = binding
 	}
-	if err := validateShortcutConflicts(canonical); err != nil {
-		return nil, nil, err
-	}
 	return canonical, touchedFamilies, nil
+}
+
+func validateBindableShortcutIDs(shortcuts map[string]ShortcutBinding, bindableIDs BindableIDs) error {
+	for commandID := range shortcuts {
+		if _, exists := bindableIDs[commandID]; !exists {
+			return &UnknownShortcutIDError{CommandID: commandID}
+		}
+	}
+	return nil
 }
 
 func canonicalShortcutBinding(action string, binding ShortcutBinding) (ShortcutBinding, error) {
@@ -251,13 +355,7 @@ func validateShortcutConflicts(shortcuts map[string]ShortcutBinding) error {
 	for _, action := range actions {
 		for _, chord := range shortcuts[action] {
 			if owner, exists := owners[chord]; exists {
-				return fmt.Errorf(
-					"shortcut %q conflicts between %q and %q: %w",
-					chord,
-					owner,
-					action,
-					ErrInvalidCommand,
-				)
+				return &ShortcutConflictError{Chord: chord, Owner: owner, Command: action}
 			}
 			owners[chord] = action
 		}
@@ -309,62 +407,6 @@ func canonicalShortcutChord(chord string) (string, error) {
 func isShortcutModifier(token string) bool {
 	switch token {
 	case dragModifierMeta, dragModifierControl, dragModifierAlt, dragModifierShift:
-		return true
-	default:
-		return false
-	}
-}
-
-func validShortcutAction(action string) bool {
-	if family, ok := shortcutFamily(action); ok {
-		return action == family.action || validShortcutRangeMember(action, family)
-	}
-	switch action {
-	case string(CommandWindowClose),
-		shortcutWindowMinimizeAction,
-		string(CommandWindowZoom),
-		string(CommandWindowToggleFloating),
-		"window.tile.left",
-		"window.tile.right",
-		shortcutWindowTileTopAction,
-		shortcutWindowTileBottomAction,
-		"window.tile.top-left",
-		"window.tile.top-right",
-		"window.tile.bottom-left",
-		"window.tile.bottom-right",
-		"window.focus.left",
-		"window.focus.right",
-		"window.focus.up",
-		"window.focus.down",
-		shortcutWindowFocusLastAction,
-		shortcutWindowNavBackAction,
-		string(CommandDesktopCreate),
-		"desktop.switch.previous",
-		"desktop.switch.next",
-		"desktop.overview",
-		shortcutWorkspacePickerAction,
-		shortcutWorkspaceCyclePreviousAction,
-		shortcutWorkspaceCycleNextAction,
-		shortcutSessionCyclePreviousAction,
-		shortcutSessionCycleNextAction,
-		shortcutSessionFocusAttentionAction,
-		shortcutSidebarToggleAction,
-		shortcutPaletteOpenAction,
-		shortcutPaletteViewSessionsAction,
-		shortcutSessionNewAction,
-		shortcutScopeGlobalToggleAction,
-		shortcutCheatsheetAction,
-		"layout.arrange.two-up",
-		"layout.arrange.grid",
-		string(CommandLayoutBalance),
-		string(CommandLayoutUndo),
-		string(CommandLayoutRedo):
-		return true
-	case shortcutWindowTabNewAction,
-		"window.tab.next",
-		"window.tab.previous",
-		"window.tab.last",
-		shortcutWindowTabReopenAction:
 		return true
 	default:
 		return false

@@ -23,7 +23,7 @@ func TestApprovalTokenStore(t *testing.T) {
 		)
 		scope := Scope{Operator: true, SessionID: "sess-1", WorkspaceID: "ws-1"}
 
-		grant, err := store.CreateToolApproval(t.Context(), scope, ApprovalRequest{
+		grant, err := store.CreateToolApproval(t.Context(), scope, ApprovalTokenRequest{
 			ToolID: ToolIDSkillView,
 			Input:  []byte(`{"message":"hello"}`),
 		})
@@ -61,7 +61,7 @@ func TestApprovalTokenStoreRejectsMismatchedAndExpiredTokens(t *testing.T) {
 			WithApprovalTokenRandom(strings.NewReader(strings.Repeat("b", approvalTokenBytes*4))),
 		)
 		scope := Scope{Operator: true, SessionID: "sess-1", WorkspaceID: "ws-1"}
-		grant, err := store.CreateToolApproval(t.Context(), scope, ApprovalRequest{
+		grant, err := store.CreateToolApproval(t.Context(), scope, ApprovalTokenRequest{
 			ToolID: ToolIDSkillView,
 			Input:  []byte(`{"message":"hello"}`),
 		})
@@ -93,7 +93,7 @@ func TestApprovalTokenStoreRejectsMismatchedAndExpiredTokens(t *testing.T) {
 		)
 
 		spoofedScope := Scope{Operator: true, SessionID: "sess-b", WorkspaceID: "ws-b", AgentName: "agent-b"}
-		spoofedGrant, err := store.CreateToolApproval(t.Context(), spoofedScope, ApprovalRequest{
+		spoofedGrant, err := store.CreateToolApproval(t.Context(), spoofedScope, ApprovalTokenRequest{
 			ToolID: ToolIDSkillView,
 			Input:  []byte(`{"message":"scoped"}`),
 		})
@@ -110,7 +110,7 @@ func TestApprovalTokenStoreRejectsMismatchedAndExpiredTokens(t *testing.T) {
 		}
 		requireToolReason(t, store.ConsumeToolApproval(t.Context(), scope, spoofedCall), ReasonScopeMismatch)
 
-		_, err = store.CreateToolApproval(t.Context(), Scope{SessionID: "sess-1"}, ApprovalRequest{
+		_, err = store.CreateToolApproval(t.Context(), Scope{SessionID: "sess-1"}, ApprovalTokenRequest{
 			ToolID:    ToolIDSkillView,
 			SessionID: "sess-2",
 			Input:     []byte(`{"message":"hello"}`),

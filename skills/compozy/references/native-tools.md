@@ -4,6 +4,7 @@
 
 - Operating rule
 - Discovery and catalog toolsets
+- Command palette tools
 - Runtime and workspace tools
 - Workspace boundary
 - Window management tools
@@ -37,6 +38,34 @@ does not add an automatic bootstrap/catalog allowlist over the hosted projection
 apply.
 
 The discovery loop and denial-handling rules live in the preceding tools-and-skills prompt section; this reference supplies the stable tool map.
+
+## Command Palette Tools
+
+Use `compozy__cmd_palette_list` to read the daemon-canonical command catalog for the bound workspace.
+Optional `source` filters one provider and optional `client` resolves client-context availability.
+
+Use `compozy__cmd_palette_invoke` with `id`, optional `args`, and optional `client`. The command's own
+availability, targeting, single-flight, and approval rules still apply. An `approval_pending` result
+returns `approval_id`; operators inspect or cancel it with `compozy approvals show|cancel <id>`.
+CLI catalog fallback is `compozy cmd-palette list|inspect|invoke|clients`.
+
+Manage workspace command bindings with `compozy cmd-palette bind|unbind|bindings` and aliases with
+`compozy cmd-palette alias set|clear`. Conflicts name the current owner; `--overwrite` transfers the
+chord or alias atomically. Pin state uses `compozy cmd-palette pin|unpin`. HTTP/UDS clients read and
+patch bindings and aliases through `/api/settings/window-manager`.
+
+Add `--global` to `bind|unbind` for desktop-global hotkeys. Read the complete
+`window_manager.global_shortcuts` map before mutation because the Settings PATCH replaces it. Pass a
+shell `client_id` when reading `/api/settings/window-manager` to receive that shell's confirmed
+registration state; an intended chord without `active_chord` is not active.
+
+Palette personalization is workspace-scoped and management-only. Inspect or reset it with
+`compozy cmd-palette personalization show|reset --workspace <workspace>`. HTTP/UDS clients use
+`GET /api/cmd-palette/rank-signals`, `POST /api/cmd-palette/usage`, `PUT|DELETE
+/api/cmd-palette/pins/{id}`, and `GET|DELETE /api/cmd-palette/personalization`; keep rank signals in
+session memory and report only the normalized pre-selection query.
+Observe cross-client changes through `cmd_palette.pin.changed`,
+`cmd_palette.personalization.reset`, and the following `cmd_palette.catalog.changed` invalidation.
 
 ## Runtime And Workspace Tools
 

@@ -59,6 +59,7 @@ const (
 	specAPISettingsRolesPath                                 = "/api/settings/roles"
 	specAPISettingsNetworkPath                               = "/api/settings/network"
 	specAPISettingsWindowManagerPath                         = "/api/settings/window-manager"
+	specAPISettingsCmdPalettePath                            = "/api/settings/cmd-palette"
 	specAPISettingsAttentionPath                             = "/api/settings/attention"
 	specAPISettingsShellPath                                 = "/api/settings/shell"
 	specAPISettingsObservabilityPath                         = "/api/settings/observability"
@@ -178,6 +179,7 @@ const (
 	specSupportKey                                           = "support"
 	specTasksKey                                             = "tasks"
 	specToolsKey                                             = "tools"
+	specCmdPaletteKey                                        = "cmd-palette"
 	specToolsetsKey                                          = "toolsets"
 	specVaultKey                                             = "vault"
 	specWorkspacesKey                                        = "workspaces"
@@ -295,6 +297,7 @@ func Document() (*openapi3.T, error) {
 			{Name: specSkillsKey},
 			{Name: specTasksKey},
 			{Name: specToolsKey},
+			{Name: specCmdPaletteKey},
 			{Name: specToolsetsKey},
 			{Name: specVaultKey},
 			{Name: specWorkspacesKey},

@@ -11,8 +11,8 @@ bug_ids:
 fix_status:
 retest_status: pass
 fix_commits:
-evidence: docs/qa/evidence/2026-08-10-local-stream-auth-clean/software-factory-web.png; docs/qa/evidence/2026-08-10-local-stream-auth-clean/software-factory-desktop.png
-last_report: docs/qa/reports/2026-08-10-local-stream-auth-clean.md
+evidence: docs/qa/evidence/2026-08-10-local-stream-auth-clean/software-factory-web.png; docs/qa/evidence/2026-08-10-local-stream-auth-clean/software-factory-desktop.png; /Users/pedronauck/dev/qa-labs/compozy-window-management-regressions-20260821-020852-370190-lab/qa-artifacts/evidence/settings-knowledge-background-route.png; /Users/pedronauck/dev/qa-labs/compozy-window-management-regressions-20260821-020852-370190-lab/qa-artifacts/evidence/grouped-tabs-knowledge-active.png
+last_report: docs/qa/reports/2026-08-20-window-management-regressions.md
 overlaps: ET-web-desktop-shell-lifecycle; ET-window-manager-public-parity; ET-window-manager-layout-gestures; ET-web-route-chrome-topbar
 ---
 
@@ -22,3 +22,7 @@ qa-impact: 2026-07-22 window-management hard cut replaced independent window doc
 
 qa-impact: 2026-07-31 semantic app/instance identity, per-tab route stacks, and active-member routing
 replaced singleton window lookup. Reset for tabbed routing and reload continuity.
+
+qa-impact: 2026-08-20 rehosted Settings sections now read route intent from their owning window,
+and Knowledge subscriptions preserve stable external-store snapshots. Reset for focused-route and
+background-window rendering verification.

@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/compozy/compozy/internal/acp"
+	"github.com/compozy/compozy/internal/cmdpalette"
 
 	automationpkg "github.com/compozy/compozy/internal/automation"
 
@@ -122,11 +123,14 @@ type HostAPIHandler struct {
 	heartbeatAuthor  hostAPIHeartbeatAuthoringService
 	heartbeatStatus  hostAPIHeartbeatStatusService
 	heartbeatWake    hostAPIHeartbeatWakeService
+	views            cmdpalette.ViewService
+	viewPatches      ViewPatchPublisher
 	sessionHealth    hostAPISessionHealthReader
 	wakeEvents       hostAPIHeartbeatWakeEventReader
 	memoryProviders  *MemoryProviderRegistry
 	capChecker       *CapabilityChecker
 	limiter          *hostAPIRateLimiter
+	viewLimiter      *hostAPIRateLimiter
 	automationGetter func() HostAPIAutomationManager
 	resourceTrigger  func(context.Context, resources.ResourceKind, resources.ReconcileReason) error
 	now              func() time.Time

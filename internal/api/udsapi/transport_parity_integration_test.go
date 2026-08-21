@@ -221,6 +221,107 @@ func TestUDSTransportSessionCommandsProjectionMatchesHTTP(t *testing.T) {
 	})
 }
 
+func TestUDSTransportCmdPaletteViewRoutesMatchHTTP(t *testing.T) {
+	acpmock.RequireDriver(t)
+	t.Parallel()
+
+	runtimeHarness := e2etest.StartRuntimeHarness(t, &e2etest.RuntimeHarnessOptions{})
+	clients, err := runtimeHarness.TransportClients()
+	if err != nil {
+		t.Fatalf("TransportClients() error = %v", err)
+	}
+	workspace := url.QueryEscape(runtimeHarness.WorkspaceID)
+	testCases := []struct {
+		name       string
+		method     string
+		path       string
+		body       []byte
+		wantStatus int
+		wantError  string
+	}{
+		{
+			name:       "reject a missing declarative view",
+			method:     http.MethodGet,
+			path:       "/api/cmd-palette/views/ext.missing.recent?workspace=" + workspace,
+			wantStatus: http.StatusNotFound,
+			wantError:  "view_error",
+		},
+		{
+			name:       "reject a stream cursor without an epoch",
+			method:     http.MethodGet,
+			path:       "/api/cmd-palette/views/ext.missing.recent/stream?workspace=" + workspace + "&after=1",
+			wantStatus: http.StatusBadRequest,
+			wantError:  "view_error",
+		},
+		{
+			name:       "reject a program open without client identity",
+			method:     http.MethodPost,
+			path:       "/api/cmd-palette/views/ext.missing.browser/open",
+			body:       []byte(`{"workspace":"` + runtimeHarness.WorkspaceID + `"}`),
+			wantStatus: http.StatusUnauthorized,
+			wantError:  "client_unauthorized",
+		},
+		{
+			name:       "reject a missing program stream",
+			method:     http.MethodGet,
+			path:       "/api/cmd-palette/view-sessions/vs_missing/stream?token=vst_missing",
+			wantStatus: http.StatusGone,
+			wantError:  "session_gone",
+		},
+		{
+			name:       "reject a missing program event",
+			method:     http.MethodPost,
+			path:       "/api/cmd-palette/view-sessions/vs_missing/events",
+			body:       []byte(`{"handler":"h","revision":"vr_1","seq":1}`),
+			wantStatus: http.StatusGone,
+			wantError:  "session_gone",
+		},
+		{
+			name:       "close a missing program session idempotently",
+			method:     http.MethodDelete,
+			path:       "/api/cmd-palette/view-sessions/vs_missing",
+			wantStatus: http.StatusOK,
+		},
+	}
+	for _, testCase := range testCases {
+		t.Run("Should "+testCase.name, func(t *testing.T) {
+			t.Parallel()
+			httpResponse := mustUnixRequest(
+				t, clients.HTTPClient, testCase.method, runtimeHarness.HTTPURL(testCase.path), testCase.body, nil,
+			)
+			udsResponse := mustUnixRequest(
+				t, clients.UDSClient, testCase.method, runtimeHarness.UDSURL(testCase.path), testCase.body, nil,
+			)
+			httpBody := readAndCloseHTTPBody(t, httpResponse)
+			udsBody := readAndCloseHTTPBody(t, udsResponse)
+			if httpResponse.StatusCode != testCase.wantStatus || udsResponse.StatusCode != testCase.wantStatus {
+				t.Fatalf(
+					"status parity = HTTP %d / UDS %d, want %d; bodies=%s / %s",
+					httpResponse.StatusCode, udsResponse.StatusCode, testCase.wantStatus, httpBody, udsBody,
+				)
+			}
+			if testCase.wantError != "" {
+				var httpErr, udsErr compozycontract.CmdPaletteError
+				if err := json.Unmarshal(httpBody, &httpErr); err != nil {
+					t.Fatalf("json.Unmarshal(HTTP error) error = %v body=%s", err, httpBody)
+				}
+				if err := json.Unmarshal(udsBody, &udsErr); err != nil {
+					t.Fatalf("json.Unmarshal(UDS error) error = %v body=%s", err, udsBody)
+				}
+				if httpErr.Error != testCase.wantError || udsErr.Error != testCase.wantError {
+					t.Fatalf(
+						"error code = HTTP %q / UDS %q, want %q",
+						httpErr.Error, udsErr.Error, testCase.wantError,
+					)
+				}
+			}
+			if !jsonEqual(httpBody, udsBody) {
+				t.Fatalf("payload parity differs: HTTP=%s UDS=%s", httpBody, udsBody)
+			}
+		})
+	}
+}
+
 func TestUDSTransportDaemonDrainMatchesHTTPAndCLI(t *testing.T) {
 	t.Run("Should expose identical safe-to-stop readouts", func(t *testing.T) {
 		t.Parallel()
@@ -770,8 +871,18 @@ func TestUDSTransportWindowManagerMatchesHTTP(t *testing.T) {
 			); err != nil {
 				t.Fatalf("UDS window manager client registration error = %v", err)
 			}
-			if !reflect.DeepEqual(httpClient, udsClient) {
-				t.Fatalf("window manager client parity mismatch: HTTP=%#v UDS=%#v", httpClient, udsClient)
+			if httpClient.AttachmentToken == "" || udsClient.AttachmentToken == "" {
+				t.Fatalf("window manager registration tokens must be present: HTTP=%q UDS=%q", httpClient.AttachmentToken, udsClient.AttachmentToken)
+			}
+			if httpClient.AttachmentToken == udsClient.AttachmentToken {
+				t.Fatal("window manager client re-registration did not rotate the attachment token")
+			}
+			httpStableClient := httpClient
+			udsStableClient := udsClient
+			httpStableClient.AttachmentToken = ""
+			udsStableClient.AttachmentToken = ""
+			if !reflect.DeepEqual(httpStableClient, udsStableClient) {
+				t.Fatalf("window manager client parity mismatch: HTTP=%#v UDS=%#v", httpStableClient, udsStableClient)
 			}
 
 			var httpLayout compozycontract.WindowManagerLayoutDocument

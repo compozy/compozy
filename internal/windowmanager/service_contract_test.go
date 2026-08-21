@@ -447,7 +447,20 @@ func TestClientLifecycle(t *testing.T) {
 		"Should keep preview local, order clients deterministically, and unregister transient state",
 		func(t *testing.T) {
 			t.Parallel()
-			environment := newTestEnvironment(t, DefaultConfig(), "workspace-a")
+			var observedWorkspace WorkspaceID
+			var observedClient ClientID
+			environment := newTestEnvironmentWithOptions(
+				t,
+				DefaultConfig(),
+				[]WorkspaceID{"workspace-a"},
+				WithClientUnregisteredObserver(
+					func(_ context.Context, workspaceID WorkspaceID, clientID ClientID) error {
+						observedWorkspace = workspaceID
+						observedClient = clientID
+						return nil
+					},
+				),
+			)
 			created := executeTestCommand(
 				t,
 				environment.manager,
@@ -582,6 +595,15 @@ func TestClientLifecycle(t *testing.T) {
 			if err := environment.manager.UnregisterClient(t.Context(), "workspace-a", clientID); err != nil {
 				t.Fatalf("UnregisterClient() error = %v", err)
 			}
+			if observedWorkspace != "workspace-a" || observedClient != clientID {
+				t.Fatalf(
+					"client unregister observer = (%q, %q), want (%q, %q)",
+					observedWorkspace,
+					observedClient,
+					WorkspaceID("workspace-a"),
+					clientID,
+				)
+			}
 			if _, open := <-subscription.Updates(); open ||
 				!errors.Is(subscription.Err(), ErrClientNotFound) {
 				t.Fatalf("unregistered subscription open = %v, error = %v", open, subscription.Err())
@@ -598,6 +620,383 @@ func TestClientLifecycle(t *testing.T) {
 			}
 		},
 	)
+
+	t.Run("Should bind attachment tokens and palette context to one workspace client", func(t *testing.T) {
+		t.Parallel()
+		environment := newTestEnvironment(t, DefaultConfig(), "workspace-a")
+		registered, err := environment.manager.RegisterClient(t.Context(), ClientRegistration{
+			WorkspaceID: "workspace-a",
+			ClientID:    "client-shell",
+			Kind:        ClientKindShell,
+			Context: ClientContextInput{
+				WorkspaceTrusted:    true,
+				FocusedSessionState: "waiting",
+			},
+		})
+		if err != nil {
+			t.Fatalf("RegisterClient() error = %v", err)
+		}
+		if registered.AttachmentToken == "" || registered.Kind != ClientKindShell ||
+			registered.ContextRevision != 1 || !registered.PaletteContext.ShellDesktop ||
+			!registered.PaletteContext.WorkspaceTrusted {
+			t.Fatalf("registered client = %+v", registered)
+		}
+		if err := environment.manager.AuthorizeClient(
+			t.Context(), "workspace-a", "client-shell", registered.AttachmentToken,
+		); err != nil {
+			t.Fatalf("AuthorizeClient(valid) error = %v", err)
+		}
+		if err := environment.manager.AuthorizeClient(
+			t.Context(), "workspace-a", "client-shell", "forged",
+		); !errors.Is(err, ErrClientUnauthorized) {
+			t.Fatalf("AuthorizeClient(forged) error = %v", err)
+		}
+		clients, err := environment.manager.Clients(t.Context(), "workspace-a")
+		if err != nil {
+			t.Fatalf("Clients() error = %v", err)
+		}
+		if len(clients) != 1 || clients[0].AttachmentToken != "" {
+			t.Fatalf("listed clients = %+v, want token-free projection", clients)
+		}
+		updated, err := environment.manager.UpdateClientContext(t.Context(), ClientContextUpdate{
+			WorkspaceID: "workspace-a",
+			ClientID:    "client-shell",
+			Context: ClientContextInput{
+				ScopeGlobal:         true,
+				WorkspaceTrusted:    true,
+				FocusedSessionState: "running",
+			},
+		})
+		if err != nil {
+			t.Fatalf("UpdateClientContext() error = %v", err)
+		}
+		if updated.ContextRevision != 2 || updated.PresentationRevision != 2 ||
+			!updated.PaletteContext.ScopeGlobal || updated.PaletteContext.FocusedSessionState != "running" {
+			t.Fatalf("updated context = %+v", updated)
+		}
+		rotated, err := environment.manager.RegisterClient(t.Context(), ClientRegistration{
+			WorkspaceID: "workspace-a", ClientID: "client-shell", Kind: ClientKindShell,
+			Context: ClientContextInput{ScopeGlobal: true, WorkspaceTrusted: true, FocusedSessionState: "running"},
+		})
+		if err != nil {
+			t.Fatalf("RegisterClient(rotation) error = %v", err)
+		}
+		if rotated.AttachmentToken == registered.AttachmentToken {
+			t.Fatal("registration did not rotate the attachment token")
+		}
+		if err := environment.manager.AuthorizeClient(
+			t.Context(), "workspace-a", "client-shell", registered.AttachmentToken,
+		); !errors.Is(err, ErrClientUnauthorized) {
+			t.Fatalf("AuthorizeClient(rotated old token) error = %v", err)
+		}
+	})
+
+	t.Run("Should isolate shell-owned global shortcut truth and reject browser reports", func(t *testing.T) {
+		t.Parallel()
+		environment := newTestEnvironment(t, DefaultConfig(), "workspace-a")
+		for _, registration := range []ClientRegistration{
+			{WorkspaceID: "workspace-a", ClientID: "shell-a", Kind: ClientKindShell},
+			{WorkspaceID: "workspace-a", ClientID: "shell-b", Kind: ClientKindShell},
+			{WorkspaceID: "workspace-a", ClientID: "browser-a", Kind: ClientKindBrowser},
+		} {
+			if _, err := environment.manager.RegisterClient(t.Context(), registration); err != nil {
+				t.Fatalf("RegisterClient(%s) error = %v", registration.ClientID, err)
+			}
+		}
+		reported := []GlobalShortcutRegistration{{
+			CommandID:     DefaultGlobalSummonCommandID,
+			IntendedChord: DefaultGlobalSummonChord,
+			ActiveChord:   DefaultGlobalSummonChord,
+			Status:        GlobalShortcutRegistered,
+		}}
+		updated, err := environment.manager.UpdateClientContext(t.Context(), ClientContextUpdate{
+			WorkspaceID: "workspace-a",
+			ClientID:    "shell-a",
+			Context:     ClientContextInput{GlobalShortcuts: reported},
+		})
+		if err != nil {
+			t.Fatalf("UpdateClientContext(shell-a) error = %v", err)
+		}
+		if !reflect.DeepEqual(updated.GlobalShortcuts, reported) || updated.ContextRevision != 2 {
+			t.Fatalf("shell-a update = %+v", updated)
+		}
+		_, err = environment.manager.UpdateClientContext(t.Context(), ClientContextUpdate{
+			WorkspaceID: "workspace-a",
+			ClientID:    "shell-b",
+			Context: ClientContextInput{GlobalShortcuts: []GlobalShortcutRegistration{{
+				CommandID:     DefaultGlobalSummonCommandID,
+				IntendedChord: DefaultGlobalSummonChord,
+				ActiveChord:   "meta+alt+Space",
+				Status:        GlobalShortcutRegistered,
+			}}},
+		})
+		if !errors.Is(err, ErrInvalidCommand) {
+			t.Fatalf("UpdateClientContext(mismatched registered chord) error = %v", err)
+		}
+		clients, err := environment.manager.Clients(t.Context(), "workspace-a")
+		if err != nil {
+			t.Fatalf("Clients() error = %v", err)
+		}
+		for _, client := range clients {
+			if client.ClientID != "shell-a" && len(client.GlobalShortcuts) != 0 {
+				t.Fatalf("client %q leaked registrations = %+v", client.ClientID, client.GlobalShortcuts)
+			}
+		}
+		_, err = environment.manager.UpdateClientContext(t.Context(), ClientContextUpdate{
+			WorkspaceID: "workspace-a",
+			ClientID:    "browser-a",
+			Context:     ClientContextInput{GlobalShortcuts: reported},
+		})
+		if !errors.Is(err, ErrInvalidCommand) {
+			t.Fatalf("UpdateClientContext(browser-a) error = %v, want ErrInvalidCommand", err)
+		}
+	})
+
+	t.Run("Should persist global shortcuts supplied at RegisterClient", func(t *testing.T) {
+		t.Parallel()
+		environment := newTestEnvironment(t, DefaultConfig(), "workspace-a")
+		reported := []GlobalShortcutRegistration{{
+			CommandID:     DefaultGlobalSummonCommandID,
+			IntendedChord: DefaultGlobalSummonChord,
+			ActiveChord:   DefaultGlobalSummonChord,
+			Status:        GlobalShortcutRegistered,
+		}}
+		registered, err := environment.manager.RegisterClient(t.Context(), ClientRegistration{
+			WorkspaceID: "workspace-a",
+			ClientID:    "shell-a",
+			Kind:        ClientKindShell,
+			Context:     ClientContextInput{GlobalShortcuts: reported},
+		})
+		if err != nil {
+			t.Fatalf("RegisterClient() error = %v", err)
+		}
+		if !reflect.DeepEqual(registered.GlobalShortcuts, reported) {
+			t.Fatalf("registered GlobalShortcuts = %+v, want %+v", registered.GlobalShortcuts, reported)
+		}
+		clients, err := environment.manager.Clients(t.Context(), "workspace-a")
+		if err != nil {
+			t.Fatalf("Clients() error = %v", err)
+		}
+		if len(clients) != 1 || !reflect.DeepEqual(clients[0].GlobalShortcuts, reported) {
+			t.Fatalf("listed clients = %+v", clients)
+		}
+		clientID := registered.ClientID
+		subscription, err := environment.manager.Subscribe(t.Context(), SubscriptionRequest{
+			WorkspaceID: "workspace-a",
+			ClientID:    &clientID,
+		})
+		if err != nil {
+			t.Fatalf("Subscribe() error = %v", err)
+		}
+		subscription = trackSubscription(t, subscription)
+		fence := subscription.Fence()
+		if fence.Client == nil || !reflect.DeepEqual(fence.Client.GlobalShortcuts, reported) {
+			t.Fatalf("fence GlobalShortcuts = %+v, want %+v", fence.Client, reported)
+		}
+		if _, err := environment.manager.RegisterClient(t.Context(), ClientRegistration{
+			WorkspaceID: "workspace-a",
+			ClientID:    "shell-a",
+			Kind:        ClientKindShell,
+			Context:     ClientContextInput{GlobalShortcuts: reported},
+		}); err != nil {
+			t.Fatalf("RegisterClient(no-op shortcuts) error = %v", err)
+		}
+		select {
+		case update := <-subscription.Updates():
+			t.Fatalf("no-op shortcut refresh update = %+v", update)
+		default:
+		}
+		changed := []GlobalShortcutRegistration{{
+			CommandID:     DefaultGlobalSummonCommandID,
+			IntendedChord: DefaultGlobalSummonChord,
+			Status:        GlobalShortcutFailedInUse,
+			Reason:        "unavailable — in use by another application",
+		}}
+		refreshed, err := environment.manager.RegisterClient(t.Context(), ClientRegistration{
+			WorkspaceID: "workspace-a",
+			ClientID:    "shell-a",
+			Kind:        ClientKindShell,
+			Context:     ClientContextInput{GlobalShortcuts: changed},
+		})
+		if err != nil {
+			t.Fatalf("RegisterClient(changed shortcuts) error = %v", err)
+		}
+		if !reflect.DeepEqual(refreshed.GlobalShortcuts, changed) {
+			t.Fatalf("refreshed GlobalShortcuts = %+v, want %+v", refreshed.GlobalShortcuts, changed)
+		}
+		update := <-subscription.Updates()
+		if update.Client == nil || update.Event != nil ||
+			!reflect.DeepEqual(update.Client.GlobalShortcuts, changed) {
+			t.Fatalf("shortcut refresh update = %+v", update)
+		}
+		if _, err := environment.manager.RegisterClient(t.Context(), ClientRegistration{
+			WorkspaceID: "workspace-a",
+			ClientID:    "browser-a",
+			Kind:        ClientKindBrowser,
+			Context:     ClientContextInput{GlobalShortcuts: reported},
+		}); !errors.Is(err, ErrInvalidCommand) {
+			t.Fatalf("RegisterClient(browser) error = %v, want ErrInvalidCommand", err)
+		}
+	})
+
+	t.Run("Should reject context changes once a context revision reaches the wire maximum", func(t *testing.T) {
+		t.Parallel()
+		environment := newTestEnvironment(t, DefaultConfig(), "workspace-a")
+		if _, err := environment.manager.RegisterClient(t.Context(), ClientRegistration{
+			WorkspaceID: "workspace-a", ClientID: "shell-a", Kind: ClientKindShell,
+		}); err != nil {
+			t.Fatalf("RegisterClient() error = %v", err)
+		}
+		environment.manager.mu.Lock()
+		view := environment.manager.clients["workspace-a"]["shell-a"]
+		view.ContextRevision = MaxWireRevision
+		environment.manager.clients["workspace-a"]["shell-a"] = view
+		environment.manager.mu.Unlock()
+		_, err := environment.manager.UpdateClientContext(t.Context(), ClientContextUpdate{
+			WorkspaceID: "workspace-a",
+			ClientID:    "shell-a",
+			Context: ClientContextInput{GlobalShortcuts: []GlobalShortcutRegistration{{
+				CommandID:     DefaultGlobalSummonCommandID,
+				IntendedChord: DefaultGlobalSummonChord,
+				ActiveChord:   DefaultGlobalSummonChord,
+				Status:        GlobalShortcutRegistered,
+			}}},
+		})
+		if !errors.Is(err, ErrContextRevisionExhausted) {
+			t.Fatalf("UpdateClientContext(exhausted) error = %v, want ErrContextRevisionExhausted", err)
+		}
+	})
+
+	t.Run("Should observe only changed global shortcut failures with their client scope", func(t *testing.T) {
+		t.Parallel()
+		type observedFailure struct {
+			workspaceID  WorkspaceID
+			clientID     ClientID
+			registration GlobalShortcutRegistration
+		}
+		observed := make([]observedFailure, 0, 2)
+		environment := newTestEnvironmentWithOptions(
+			t,
+			DefaultConfig(),
+			[]WorkspaceID{"workspace-a"},
+			WithGlobalShortcutFailureObserver(func(
+				_ context.Context,
+				workspaceID WorkspaceID,
+				clientID ClientID,
+				registration GlobalShortcutRegistration,
+			) {
+				observed = append(observed, observedFailure{
+					workspaceID: workspaceID, clientID: clientID, registration: registration,
+				})
+			}),
+		)
+		failure := GlobalShortcutRegistration{
+			CommandID:     DefaultGlobalSummonCommandID,
+			IntendedChord: DefaultGlobalSummonChord,
+			Status:        GlobalShortcutFailedInUse,
+			Reason:        "unavailable — in use by another application",
+		}
+		if _, err := environment.manager.RegisterClient(t.Context(), ClientRegistration{
+			WorkspaceID: "workspace-a",
+			ClientID:    "shell-a",
+			Kind:        ClientKindShell,
+			Context:     ClientContextInput{GlobalShortcuts: []GlobalShortcutRegistration{failure}},
+		}); err != nil {
+			t.Fatalf("RegisterClient() error = %v", err)
+		}
+		for attempt := range 2 {
+			if _, err := environment.manager.UpdateClientContext(t.Context(), ClientContextUpdate{
+				WorkspaceID: "workspace-a",
+				ClientID:    "shell-a",
+				Context:     ClientContextInput{GlobalShortcuts: []GlobalShortcutRegistration{failure}},
+			}); err != nil {
+				t.Fatalf("UpdateClientContext(attempt %d) error = %v", attempt+1, err)
+			}
+		}
+		if len(observed) != 1 || observed[0].workspaceID != "workspace-a" ||
+			observed[0].clientID != "shell-a" || !reflect.DeepEqual(observed[0].registration, failure) {
+			t.Fatalf("observed failures = %+v", observed)
+		}
+
+		failure.Reason = "accelerator reserved by the operating system"
+		if _, err := environment.manager.UpdateClientContext(t.Context(), ClientContextUpdate{
+			WorkspaceID: "workspace-a",
+			ClientID:    "shell-a",
+			Context:     ClientContextInput{GlobalShortcuts: []GlobalShortcutRegistration{failure}},
+		}); err != nil {
+			t.Fatalf("UpdateClientContext(changed reason) error = %v", err)
+		}
+		if len(observed) != 2 || !reflect.DeepEqual(observed[1].registration, failure) {
+			t.Fatalf("observed changed failure = %+v", observed)
+		}
+	})
+
+	t.Run("Should correlate one client command channel and fail pending work on disconnect", func(t *testing.T) {
+		t.Parallel()
+		environment := newTestEnvironment(t, DefaultConfig(), "workspace-a")
+		if _, err := environment.manager.RegisterClient(t.Context(), ClientRegistration{
+			WorkspaceID: "workspace-a", ClientID: "client-shell", Kind: ClientKindShell,
+		}); err != nil {
+			t.Fatalf("RegisterClient() error = %v", err)
+		}
+		connection, err := environment.manager.AttachClientCommands(
+			t.Context(), "workspace-a", "client-shell",
+		)
+		if err != nil {
+			t.Fatalf("AttachClientCommands() error = %v", err)
+		}
+		t.Cleanup(func() {
+			if err := connection.Close(); err != nil {
+				t.Errorf("ClientCommandConnection.Close() error = %v", err)
+			}
+		})
+		terminal := make(chan ClientCommandResponse, 1)
+		dispatchErrors := make(chan error, 1)
+		go func() {
+			response, dispatchErr := environment.manager.DispatchClientCommand(
+				t.Context(), "workspace-a", "client-shell",
+				ClientCommand{CommandID: "inv-1", Op: "palette.open", Payload: json.RawMessage(`{"query":"go"}`)},
+			)
+			terminal <- response
+			dispatchErrors <- dispatchErr
+		}()
+		command := <-connection.Commands()
+		if command.CommandID != "inv-1" || command.Op != "palette.open" {
+			t.Fatalf("client command = %+v", command)
+		}
+		if err := connection.Resolve(ClientCommandResponse{
+			CommandID: "inv-1", Status: ClientCommandAcknowledged,
+		}); err != nil {
+			t.Fatalf("Resolve(ack) error = %v", err)
+		}
+		if err := connection.Resolve(ClientCommandResponse{
+			CommandID: "inv-1", Status: ClientCommandCompleted, Result: json.RawMessage(`{"opened":true}`),
+		}); err != nil {
+			t.Fatalf("Resolve(result) error = %v", err)
+		}
+		if err := <-dispatchErrors; err != nil {
+			t.Fatalf("DispatchClientCommand() error = %v", err)
+		}
+		if response := <-terminal; string(response.Result) != `{"opened":true}` {
+			t.Fatalf("terminal response = %+v", response)
+		}
+
+		pendingErrors := make(chan error, 1)
+		go func() {
+			_, dispatchErr := environment.manager.DispatchClientCommand(
+				t.Context(), "workspace-a", "client-shell",
+				ClientCommand{CommandID: "inv-2", Op: "window.close"},
+			)
+			pendingErrors <- dispatchErr
+		}()
+		<-connection.Commands()
+		if err := connection.Close(); err != nil {
+			t.Fatalf("ClientCommandConnection.Close() error = %v", err)
+		}
+		if err := <-pendingErrors; !errors.Is(err, ErrClientDisconnected) {
+			t.Fatalf("pending dispatch error = %v, want ErrClientDisconnected", err)
+		}
+	})
 
 	t.Run("Should reject changes once a presentation revision reaches the wire maximum", func(t *testing.T) {
 		t.Parallel()

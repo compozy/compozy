@@ -29,6 +29,7 @@ const (
 func NativeDescriptors() []toolspkg.Descriptor {
 	groups := [][]toolspkg.Descriptor{
 		catalogDescriptors(),
+		cmdPaletteDescriptors(),
 		toolArtifactDescriptors(),
 		toolApprovalDescriptors(),
 		clarifyDescriptors(),

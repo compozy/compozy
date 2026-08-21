@@ -77,11 +77,43 @@ func (s *service) classifyWindowManagerRequest(
 	ctx context.Context,
 	req SectionUpdateRequest,
 ) lifecycle.Lifecycle {
-	cfg, _, err := s.loadGlobalSectionUpdate(ctx, req.Section, req.Scope, req.WorkspaceID)
+	loaded, err := s.loadScopedSectionUpdate(
+		ctx, req.Section, req.Scope, req.WorkspaceID, ScopeGlobal, ScopeWorkspace,
+	)
 	if err != nil {
 		return lifecycle.Live
 	}
-	changed := diffWindowManagerSettings(cfg.WindowManager, *req.WindowManager)
+	desired, desiredAliases := mergeWindowManagerRequest(
+		loaded.config.WindowManager,
+		loaded.config.CmdPalette.Aliases,
+		req,
+	)
+	changed := diffWindowManagerSettings(
+		loaded.config.WindowManager,
+		loaded.config.CmdPalette.Aliases,
+		desired,
+		desiredAliases,
+	)
+	return lifecycleForChangedPaths(changed, lifecycle.Live)
+}
+
+func (s *service) classifyCmdPaletteRequest(
+	ctx context.Context,
+	req SectionUpdateRequest,
+) lifecycle.Lifecycle {
+	loaded, err := s.loadScopedSectionUpdate(
+		ctx,
+		req.Section,
+		req.Scope,
+		req.WorkspaceID,
+		ScopeGlobal,
+		ScopeWorkspace,
+	)
+	if err != nil {
+		return lifecycle.Live
+	}
+	desired := desiredCmdPaletteSection(loaded.config.CmdPalette, *req.CmdPalette)
+	changed := diffCmdPaletteSettings(loaded.config.CmdPalette, desired)
 	return lifecycleForChangedPaths(changed, lifecycle.Live)
 }
 

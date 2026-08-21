@@ -1,13 +1,15 @@
 // Suite: window-manager shortcut grammar
-// Invariant: the web mirror normalizes arrays/ranges exactly once, resolves only daemon-fed
-// bindings, and reports every expanded collision before Settings can save it.
-// Owning layer: OS shortcut grammar and registry projection.
+// Invariant: the chord layer normalizes arrays/ranges exactly once, binds only
+// the actions its caller supplies against daemon-fed chords, and reports every
+// expanded collision before Settings can save it.
+// Owning layer: OS chord grammar. The command inventory itself is the daemon's
+// and reaches this layer as a parameter (cmd-palette registry suites own it).
 // Boundary OUT: recorder state, React rendering, and transport parsing.
 import { describe, expect, it } from "vitest";
 
-import { WINDOW_MANAGER_ACTIONS } from "../window-manager-command-registry";
 import {
   chordFromKeyboardEvent,
+  coveringShortcutFamily,
   deriveShortcutCheatsheet,
   effectiveShortcutMap,
   findShortcutConflicts,
@@ -18,8 +20,47 @@ import {
   shortcutKeyGlyphs,
   shortcutMatches,
   shortcutLabel,
+  SHORTCUT_RANGE_FAMILIES,
+  type ShortcutActionDefinition,
   type ShortcutMap,
 } from "../window-manager-shortcuts";
+
+function coreAction(
+  action: Omit<ShortcutActionDefinition, "source" | "alias">
+): ShortcutActionDefinition {
+  return { source: "core", alias: null, ...action };
+}
+
+/** The catalog the daemon would project; this layer only ever receives it. */
+const ACTIONS: readonly ShortcutActionDefinition[] = [
+  coreAction({ id: "window.close", label: "Close window", section: "Window" }),
+  coreAction({ id: "window.tile.left", label: "Tile left half", section: "Tiling" }),
+  coreAction({ id: "window.focus.up", label: "Focus up", section: "Window" }),
+  coreAction({ id: "window.focus.down", label: "Focus down", section: "Window" }),
+  coreAction({ id: "sidebar.toggle", label: "Toggle sidebar", section: "Shell" }),
+  ...Array.from({ length: 9 }, (_, index) =>
+    coreAction({
+      id: `desktop.switch.${index + 1}`,
+      label: `Switch to desktop ${index + 1}`,
+      section: "Desktops",
+    })
+  ),
+  ...Array.from({ length: 8 }, (_, index) =>
+    coreAction({
+      id: `window.tab.jump.${index + 1}`,
+      label: `Go to tab ${index + 1}`,
+      section: "Tabs",
+    })
+  ),
+  coreAction({ id: "layout.arrange.grid", label: "Arrange in grid", section: "Layout" }),
+  {
+    id: "ext.notes.capture",
+    label: "Capture note",
+    section: "Notes",
+    source: "ext.notes",
+    alias: "cap",
+  },
+];
 
 const DEFAULTS: ShortcutMap = {
   "window.close": ["meta+KeyW"],
@@ -130,12 +171,22 @@ describe("effective conflicts", () => {
 });
 
 describe("daemon-fed registry", () => {
-  it("Should keep chord literals out of action metadata [IT-015 parity]", () => {
-    expect(WINDOW_MANAGER_ACTIONS.every(action => !("defaultChord" in action))).toBe(true);
-    expect(JSON.stringify(WINDOW_MANAGER_ACTIONS)).not.toMatch(
-      /(?:meta|control|alt|shift)\+(?:Key|Digit|Arrow|Bracket|Slash|Tab|Enter|Space|Backspace|Delete)/
-    );
-    expect(resolveWindowManagerActions({}).every(action => action.chords.length === 0)).toBe(true);
+  it("Should bind no chord when the daemon keymap is empty [IT-015 parity]", () => {
+    // The chord layer holds no defaults of its own: with an empty effective
+    // keymap every action resolves unbound, whatever the catalog says.
+    expect(
+      resolveWindowManagerActions({}, ACTIONS).every(action => action.chords.length === 0)
+    ).toBe(true);
+  });
+
+  it("Should name the indexed family that covers a member when that family is overridden", () => {
+    const overrides: ShortcutMap = { "window.tab.jump": ["control+alt+Digit1..8"] };
+    expect(coveringShortcutFamily("window.tab.jump.3", overrides)).toBe("window.tab.jump");
+    expect(coveringShortcutFamily("desktop.switch.2", overrides)).toBeNull();
+    expect(SHORTCUT_RANGE_FAMILIES.map(family => family.action)).toEqual([
+      "desktop.switch",
+      "window.tab.jump",
+    ]);
   });
 
   it("Should surface arrays once and collapse numeric families in the cheatsheet [UT-075]", () => {
@@ -143,15 +194,72 @@ describe("daemon-fed registry", () => {
       "window.focus.up": ["control+ArrowUp", "alt+KeyK"],
       "window.tab.jump": ["control+alt+Digit1..2"],
     });
-    const rows = deriveShortcutCheatsheet(effective, {
-      "window.focus.up": ["control+ArrowUp", "alt+KeyK"],
-      "window.tab.jump": ["control+alt+Digit1..2"],
-    });
+    const rows = deriveShortcutCheatsheet(
+      effective,
+      {
+        "window.focus.up": ["control+ArrowUp", "alt+KeyK"],
+        "window.tab.jump": ["control+alt+Digit1..2"],
+      },
+      ACTIONS
+    );
     expect(rows.filter(row => row.id === "window.focus.up")).toEqual([
       expect.objectContaining({ bindings: ["control+ArrowUp", "alt+KeyK"], overridden: true }),
     ]);
     expect(rows.filter(row => row.id === "window.tab.jump")).toHaveLength(1);
     expect(rows.some(row => row.id.startsWith("window.tab.jump."))).toBe(false);
+  });
+
+  it("Should collapse an aggregate registry command with its indexed family into one row", () => {
+    const catalog = [
+      coreAction({
+        id: "desktop.switch",
+        label: "Switch desktop",
+        section: "Desktops",
+      }),
+      ...ACTIONS,
+    ];
+
+    const rows = deriveShortcutCheatsheet(DEFAULTS, {}, catalog);
+
+    expect(rows.filter(row => row.id === "desktop.switch")).toHaveLength(1);
+    expect(new Set(rows.map(row => row.id)).size).toBe(rows.length);
+  });
+
+  it("Should preserve caller-supplied extension source and alias", () => {
+    const effective = effectiveShortcutMap(DEFAULTS, {
+      "ext.notes.capture": ["alt+shift+KeyN"],
+    });
+    const resolved = resolveWindowManagerActions(effective, ACTIONS);
+    expect(resolved.find(action => action.id === "ext.notes.capture")).toEqual(
+      expect.objectContaining({
+        id: "ext.notes.capture",
+        source: "ext.notes",
+        alias: "cap",
+        shortcutLabels: ["⌥⇧N"],
+      })
+    );
+    expect(
+      deriveShortcutCheatsheet(
+        effective,
+        { "ext.notes.capture": ["alt+shift+KeyN"] },
+        ACTIONS
+      ).find(row => row.id === "ext.notes.capture")
+    ).toEqual(
+      expect.objectContaining({
+        source: "ext.notes",
+        alias: "cap",
+        bindings: ["alt+shift+KeyN"],
+        overridden: true,
+      })
+    );
+  });
+
+  it("Should report a collision that includes an unhydrated action id", () => {
+    expect(findShortcutConflicts({ "ext.unknown.open": ["meta+KeyW"] }, DEFAULTS)).toContainEqual({
+      chord: "meta+KeyW",
+      kind: "blocked",
+      actionIds: ["window.close", "ext.unknown.open"],
+    });
   });
 });
 

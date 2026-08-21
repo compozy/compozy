@@ -7,6 +7,7 @@ import (
 	"math"
 
 	"github.com/compozy/compozy/internal/clientstate"
+	"github.com/compozy/compozy/internal/cmdpalette"
 	compozyconfig "github.com/compozy/compozy/internal/config"
 	"github.com/compozy/compozy/internal/deadentity"
 	"github.com/compozy/compozy/internal/windowmanager"
@@ -14,6 +15,19 @@ import (
 )
 
 const windowManagerMaxSnapshotBytes = 16 * 1024 * 1024
+
+type globalHotkeyFailureNotifier interface {
+	NotifyGlobalHotkeyRegistrationFailed(
+		context.Context,
+		cmdpalette.WorkspaceID,
+		cmdpalette.ClientID,
+		cmdpalette.CommandID,
+		string,
+		string,
+	)
+}
+
+var _ globalHotkeyFailureNotifier = (*cmdpalette.Service)(nil)
 
 func (d *Daemon) bootDefaultWorkspaceAndWindowManager(
 	ctx context.Context,
@@ -56,6 +70,8 @@ func (d *Daemon) bootDefaultWorkspaceAndWindowManager(
 		windowManagerDefaults(state.cfg.WindowManager),
 		windowmanager.WithLifecycleContext(ctx),
 		windowmanager.WithEventObserver(newWindowManagerHookObserver(state)),
+		windowmanager.WithClientUnregisteredObserver(closeCmdPaletteClientViews(state)),
+		windowmanager.WithGlobalShortcutFailureObserver(notifyGlobalHotkeyRegistrationFailure(state)),
 		windowmanager.WithWorkspaceConfigResolver(
 			windowManagerWorkspaceConfigResolver{resolver: state.workspaceResolver},
 		),
@@ -69,6 +85,51 @@ func (d *Daemon) bootDefaultWorkspaceAndWindowManager(
 	state.windowManagerRepository = repository
 	state.windowManager = manager
 	return nil
+}
+
+func closeCmdPaletteClientViews(state *bootState) func(
+	context.Context,
+	windowmanager.WorkspaceID,
+	windowmanager.ClientID,
+) error {
+	return func(ctx context.Context, workspaceID windowmanager.WorkspaceID, clientID windowmanager.ClientID) error {
+		views, ok := state.cmdPalette.(cmdpalette.ViewSessionService)
+		if !ok || views == nil {
+			return nil
+		}
+		return views.CloseClientSessions(
+			ctx,
+			cmdpalette.WorkspaceID(workspaceID),
+			cmdpalette.ClientID(clientID),
+		)
+	}
+}
+
+func notifyGlobalHotkeyRegistrationFailure(state *bootState) func(
+	context.Context,
+	windowmanager.WorkspaceID,
+	windowmanager.ClientID,
+	windowmanager.GlobalShortcutRegistration,
+) {
+	return func(
+		ctx context.Context,
+		workspaceID windowmanager.WorkspaceID,
+		clientID windowmanager.ClientID,
+		registration windowmanager.GlobalShortcutRegistration,
+	) {
+		notifier, ok := state.cmdPalette.(globalHotkeyFailureNotifier)
+		if !ok || notifier == nil {
+			return
+		}
+		notifier.NotifyGlobalHotkeyRegistrationFailed(
+			ctx,
+			cmdpalette.WorkspaceID(workspaceID),
+			cmdpalette.ClientID(clientID),
+			cmdpalette.CommandID(registration.CommandID),
+			registration.IntendedChord,
+			registration.Reason,
+		)
+	}
 }
 
 func installWorkspaceRemovalPreparer(state *bootState, sessions SessionManager) error {

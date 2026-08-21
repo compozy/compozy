@@ -4,6 +4,8 @@ import {
   RUN_STATUS_TONE,
   TASK_LANE_TONE,
   TASK_STATUS_TONE,
+  compareStatusAttentionFirst,
+  statusTone,
   type TaskLane,
   type TaskRunStatus,
   type TaskStatus,
@@ -125,5 +127,18 @@ describe("TASK_LANE_TONE", () => {
     expect(TASK_LANE_TONE.recent).toBe("neutral");
     expect(TASK_LANE_TONE.my_work).toBe("neutral");
     expect(TASK_LANE_TONE.updates).toBe("neutral");
+  });
+});
+
+describe("statusTone", () => {
+  it("Should keep the canonical task tone for ready", () => {
+    expect(statusTone("ready")).toBe(TASK_STATUS_TONE.ready);
+    expect(statusTone("ready")).toBe("neutral");
+  });
+});
+
+describe("compareStatusAttentionFirst", () => {
+  it("Should order failed before completed", () => {
+    expect(compareStatusAttentionFirst("failed", "completed")).toBeLessThan(0);
   });
 });

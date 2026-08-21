@@ -22,7 +22,20 @@ import {
   worktreeReadyDirtyRunningFixture,
 } from "@/systems/workspace/mocks";
 
+import { CmdPaletteRegistryProvider } from "../../../contexts/cmd-palette-registry-context";
+import {
+  paletteRegistryFixture,
+  resolvedPaletteCommand,
+} from "../../../mocks/cmd-palette-fixtures";
 import { WorkspaceMenu } from "../workspace-menu";
+
+const WORKSPACE_REGISTRY = paletteRegistryFixture([
+  resolvedPaletteCommand({
+    id: "workspace.picker",
+    title: "Workspace picker",
+    availability_exempt: true,
+  }),
+]);
 
 function makeWorkspace(id: string, name: string): WorkspacePayload {
   return {
@@ -49,33 +62,35 @@ function renderMenu(overrides: Partial<ComponentProps<typeof WorkspaceMenu>> = {
   const onResolveMissingWorktree = vi.fn();
   const onOpenWorktreeContext = vi.fn();
   const onRemoveWorktree = vi.fn();
-  const onOpenWorkspaces = vi.fn();
+  const onRun = vi.fn();
   render(
     <UIProvider reducedMotion="never" skipAnimations>
-      <Menubar>
-        <WorkspaceMenu
-          trigger={<MenubarTrigger data-testid="workspace-trigger">Workspaces</MenubarTrigger>}
-          open
-          onOpenChange={onOpenChange}
-          workspaces={[gitAlpha, gitBeta, plainNotes]}
-          activeWorkspaceId={gitAlpha.id}
-          monogram={name => name.slice(0, 2).toUpperCase()}
-          onSelectWorkspace={onSelectWorkspace}
-          onOpenWorkspaces={onOpenWorkspaces}
-          onAddWorkspace={vi.fn()}
-          worktreesByWorkspace={{
-            [gitAlpha.id]: worktreeListingFixture,
-            [gitBeta.id]: emptyWorktreeListingFixture,
-            [plainNotes.id]: nonGitWorktreeListingFixture,
-          }}
-          onSelectWorktree={onSelectWorktree}
-          onCreateWorktree={onCreateWorktree}
-          onResolveMissingWorktree={onResolveMissingWorktree}
-          onOpenWorktreeContext={onOpenWorktreeContext}
-          onRemoveWorktree={onRemoveWorktree}
-          {...overrides}
-        />
-      </Menubar>
+      <CmdPaletteRegistryProvider registry={WORKSPACE_REGISTRY}>
+        <Menubar>
+          <WorkspaceMenu
+            trigger={<MenubarTrigger data-testid="workspace-trigger">Workspaces</MenubarTrigger>}
+            open
+            onOpenChange={onOpenChange}
+            workspaces={[gitAlpha, gitBeta, plainNotes]}
+            activeWorkspaceId={gitAlpha.id}
+            monogram={name => name.slice(0, 2).toUpperCase()}
+            onSelectWorkspace={onSelectWorkspace}
+            onRun={onRun}
+            onAddWorkspace={vi.fn()}
+            worktreesByWorkspace={{
+              [gitAlpha.id]: worktreeListingFixture,
+              [gitBeta.id]: emptyWorktreeListingFixture,
+              [plainNotes.id]: nonGitWorktreeListingFixture,
+            }}
+            onSelectWorktree={onSelectWorktree}
+            onCreateWorktree={onCreateWorktree}
+            onResolveMissingWorktree={onResolveMissingWorktree}
+            onOpenWorktreeContext={onOpenWorktreeContext}
+            onRemoveWorktree={onRemoveWorktree}
+            {...overrides}
+          />
+        </Menubar>
+      </CmdPaletteRegistryProvider>
     </UIProvider>
   );
   return {
@@ -86,7 +101,7 @@ function renderMenu(overrides: Partial<ComponentProps<typeof WorkspaceMenu>> = {
     onResolveMissingWorktree,
     onOpenWorktreeContext,
     onRemoveWorktree,
-    onOpenWorkspaces,
+    onRun,
   };
 }
 
@@ -130,7 +145,7 @@ describe("WorkspaceMenu", () => {
 
   it("Should open the worktree submenu from the keyboard without selecting anything", async () => {
     const user = userEvent.setup();
-    const { onOpenChange, onSelectWorkspace, onOpenWorkspaces } = renderMenu();
+    const { onOpenChange, onSelectWorkspace, onRun } = renderMenu();
 
     await openSubmenuByKeyboard(user, `os-workspace-option-${gitAlpha.id}`);
 
@@ -153,7 +168,7 @@ describe("WorkspaceMenu", () => {
     // Traversal alone neither selects nor closes.
     expect(onSelectWorkspace).not.toHaveBeenCalled();
     expect(openChangeFlags(onOpenChange)).not.toContain(false);
-    expect(onOpenWorkspaces).not.toHaveBeenCalled();
+    expect(onRun).not.toHaveBeenCalled();
   });
 
   it("Should contract home-rooted nest paths when the host supplies userHomeDir", async () => {
@@ -294,6 +309,15 @@ describe("WorkspaceMenu", () => {
     expect(screen.queryByTestId("os-workspace-deletion-notice")).not.toBeInTheDocument();
     expect(screen.queryByRole("note")).not.toBeInTheDocument();
     expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+  });
+
+  it("Should run workspace.picker from the registry row", async () => {
+    const user = userEvent.setup();
+    const { onRun } = renderMenu();
+
+    await user.click(screen.getByTestId("os-menubar-command-workspace.picker"));
+
+    expect(onRun).toHaveBeenCalledExactlyOnceWith("workspace.picker");
   });
 
   it("Should omit Remove while a worktree is not ready", async () => {

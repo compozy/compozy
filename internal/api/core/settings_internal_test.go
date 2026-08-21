@@ -244,6 +244,11 @@ func TestSettingsSectionResponseFromEnvelopeRequiresConcreteSectionPayload(t *te
 			envelope: settingspkg.SectionEnvelope{Section: settingspkg.SectionHooksExtensions},
 			want:     "settings hooks-extensions section is required",
 		},
+		{
+			name:     "Should reject a missing cmd-palette payload",
+			envelope: settingspkg.SectionEnvelope{Section: settingspkg.SectionCmdPalette},
+			want:     "settings cmd-palette section is required",
+		},
 	}
 
 	for _, tc := range tests {

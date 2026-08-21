@@ -1,10 +1,10 @@
 import { z } from "zod";
 
 import { shortcutBindingProblem, type ShortcutBinding } from "./window-manager-shortcuts";
+import type { WindowManagerShortcutMap } from "./window-manager-shortcut-types";
 import type {
   WindowManagerBindingsConfig,
   WindowManagerConfig,
-  WindowManagerShortcutMap,
   WindowManagerSnapConfig,
   WindowManagerWorkspaceConfig,
 } from "./window-manager-types";
@@ -52,7 +52,7 @@ const shortcutBindingSchema = z
     return binding;
   });
 
-const shortcutsSchema = z
+export const shortcutsSchema = z
   .record(z.string(), shortcutBindingSchema)
   .superRefine((shortcuts, context) => {
     for (const [actionId, binding] of Object.entries(shortcuts)) {
@@ -81,6 +81,7 @@ export const windowManagerWorkspaceConfigSchema = z
     snap: snapSchema.optional(),
     bindings: bindingsSchema.optional(),
     shortcuts: shortcutsSchema.optional(),
+    global_shortcuts: z.record(z.string(), z.string()).optional(),
   })
   .transform(
     (config): WindowManagerWorkspaceConfig => ({
@@ -101,10 +102,11 @@ export const windowManagerWorkspaceConfigSchema = z
       snap: config.snap,
       bindings: config.bindings,
       shortcuts: config.shortcuts,
+      globalShortcuts: config.global_shortcuts,
     })
   );
 
-const windowManagerWireConfigSchema = z.strictObject({
+export const windowManagerWireConfigSchema = z.strictObject({
   new_window_policy: z.enum(["floating", "beside_focus"]),
   small_viewport_policy: z.enum(["stack", "reject"]),
   focus_policy: z.enum(["click_directional", "directional"]),
@@ -122,9 +124,10 @@ const windowManagerWireConfigSchema = z.strictObject({
   snap: snapSchema,
   bindings: bindingsSchema,
   shortcuts: shortcutsSchema,
+  global_shortcuts: z.record(z.string(), z.string()),
 });
 
-function toWindowManagerConfig(
+export function toWindowManagerConfig(
   config: z.output<typeof windowManagerWireConfigSchema>,
   defaults: WindowManagerShortcutMap,
   effective: WindowManagerShortcutMap
@@ -149,19 +152,6 @@ function toWindowManagerConfig(
     shortcuts: config.shortcuts,
     shortcutDefaults: defaults,
     effectiveShortcuts: effective,
+    globalShortcuts: config.global_shortcuts,
   };
-}
-
-const settingsWindowManagerResponseSchema = z.strictObject({
-  section: z.literal("window-manager"),
-  scope: z.literal("global"),
-  available_scopes: z.tuple([z.literal("global")]),
-  config: windowManagerWireConfigSchema,
-  defaults: shortcutsSchema,
-  effective: shortcutsSchema,
-});
-
-export function parseSettingsWindowManagerConfig(value: unknown): WindowManagerConfig {
-  const response = settingsWindowManagerResponseSchema.parse(value);
-  return toWindowManagerConfig(response.config, response.defaults, response.effective);
 }

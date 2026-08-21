@@ -123,6 +123,7 @@ var hostAPIWorkspaceBindings = map[extensionprotocol.HostAPIMethod]HostAPIWorksp
 	extensionprotocol.HostAPIMethodBridgesInstancesGet:         HostAPIWorkspaceBindingNone,
 	extensionprotocol.HostAPIMethodBridgesInstancesReportState: HostAPIWorkspaceBindingNone,
 	extensionprotocol.HostAPIMethodClarifyAsk:                  HostAPIWorkspaceBindingNone,
+	extensionprotocol.HostAPIMethodViewPatch:                   HostAPIWorkspaceBindingNone,
 }
 
 // HostAPIWorkspaceBindingFor returns the canonical workspace-binding decision for one Host API method.

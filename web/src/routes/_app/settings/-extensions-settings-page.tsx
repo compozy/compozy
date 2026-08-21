@@ -10,6 +10,7 @@ import {
 import { Button, Spinner } from "@compozy/ui";
 
 import { PolicySection } from "./-extensions-policy-section";
+import { ExtensionPalettePanels } from "./-extension-palette-panel";
 
 export function ExtensionsSettingsPage() {
   const page = useSettingsExtensionsPage();
@@ -80,6 +81,7 @@ export function ExtensionsSettingsPage() {
       }
       slug="extensions"
     >
+      <ExtensionPalettePanels extensions={page.envelope.installed ?? []} />
       <PolicySection
         canMutate={page.canMutatePolicy}
         draft={page.draft}

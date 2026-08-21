@@ -96,7 +96,8 @@ export type HostAPIMethod =
   | "tasks/runs/start"
   | "tasks/timeline"
   | "tasks/tree"
-  | "tasks/update";
+  | "tasks/update"
+  | "view/patch";
 
 export interface AcceptedCapabilities {
   provides: string[];
@@ -1225,6 +1226,65 @@ export interface ClarifyAskParams {
   choices?: string[];
 }
 
+export interface CmdPaletteArgument {
+  name: string;
+  type: string;
+  placeholder?: string;
+  required?: boolean;
+  options?: string[];
+}
+
+export interface CmdPaletteAction {
+  kind: string;
+  tool?: string;
+  view?: string;
+  app?: string;
+  url?: string;
+  args?: Record<string, JSONValue>;
+}
+
+export interface CmdPaletteConfirmation {
+  title: string;
+  body?: string;
+  confirm: string;
+}
+
+export interface CmdPaletteExecutionPolicy {
+  single_flight?: boolean;
+  retry_safe?: boolean;
+}
+
+export interface CmdPaletteCommand {
+  id: string;
+  title: string;
+  section?: string;
+  icon: string;
+  keywords?: string[];
+  arguments?: CmdPaletteArgument[];
+  action: CmdPaletteAction;
+  destructive?: boolean;
+  confirmation?: CmdPaletteConfirmation;
+  default_shortcut?: string;
+  execution?: CmdPaletteExecutionPolicy;
+}
+
+export interface CmdPaletteViewSource {
+  tool: string;
+}
+
+export interface CmdPaletteView {
+  id: string;
+  title: string;
+  kind: string;
+  source?: CmdPaletteViewSource;
+  program?: boolean;
+}
+
+export interface CmdPaletteConfig {
+  commands?: CmdPaletteCommand[];
+  views?: CmdPaletteView[];
+}
+
 export type CommandFlagType = "string" | "boolean" | "integer" | "number";
 
 export interface CommandFlag {
@@ -1667,6 +1727,7 @@ export interface DescribeResources {
   agents?: string[];
   automation?: string[];
   layouts?: string[];
+  cmd_palette?: CmdPaletteConfig;
 }
 
 export interface DescribeSubprocess {
@@ -1728,8 +1789,14 @@ export interface DescribePayload {
   tools?: ExtensionToolRuntimeDescriptor[];
   hook_events?: string[];
   watch_source_kinds?: string[];
+  cmd_palette_views?: string[];
   command_groups?: ExtensionCommandGroupSpec[];
   sdk: DescribeSDKInfo;
+}
+
+export interface EffectResult {
+  effect_id: string;
+  payload?: JSONValue;
 }
 
 export type EmptyResult = Record<string, never>;
@@ -2449,6 +2516,7 @@ export interface InitializeRuntime {
   health_check_timeout_ms: number;
   shutdown_timeout_ms: number;
   default_hook_timeout_ms: number;
+  default_view_timeout_ms?: number;
   bridge?: InitializeBridgeRuntime;
 }
 
@@ -2474,6 +2542,7 @@ export interface InitializeResponse {
   implemented_methods: string[];
   supported_hook_events: string[];
   watch_source_kinds?: string[];
+  cmd_palette_views?: string[];
   supports: InitializeSupports;
 }
 
@@ -6714,6 +6783,255 @@ export interface TurnStartPayload {
   user_message?: string;
 }
 
+export interface ViewCloseRequest {
+  view_session: string;
+  reason?: string;
+}
+
+export interface ViewEvent {
+  view_session: string;
+  handler: string;
+  args?: JSONValue[];
+  revision: string;
+  seq: number;
+  generation: number;
+  ack_effects?: string[];
+  effect_result?: EffectResult;
+}
+
+export interface Pagination {
+  has_more: boolean;
+  page_size?: number;
+}
+
+export interface ViewChrome {
+  is_loading?: boolean;
+  search_text?: string;
+  event_count?: number;
+  search_placeholder?: string;
+  throttle_ms?: number;
+  filtering?: boolean;
+  complete?: boolean;
+  active_chip?: string;
+  columns?: number;
+  pagination?: Pagination;
+  on_search?: string;
+  on_chip?: string;
+  on_selection?: string;
+  on_load_more?: string;
+}
+
+export interface ViewBadge {
+  label: string;
+  tone: string;
+}
+
+export interface MetaField {
+  label: string;
+  value: string;
+  requires?: Record<string, string>;
+  fallback?: string;
+}
+
+export interface Confirmation {
+  title: string;
+  body?: string;
+  confirm: string;
+}
+
+export type ActionKind = string;
+
+export interface Action {
+  kind: ActionKind;
+  op?: string;
+  tool?: string;
+  view?: string;
+  app?: string;
+  url?: string;
+  args?: Record<string, JSONValue>;
+}
+
+export interface RowAction {
+  title: string;
+  icon?: string;
+  section?: string;
+  primary?: boolean;
+  destructive?: boolean;
+  confirmation?: Confirmation;
+  shortcut?: string;
+  action?: Action;
+  handler?: string;
+  submit_form?: boolean;
+  requires?: Record<string, string>;
+  fallback?: string;
+}
+
+export interface DetailBody {
+  is_loading?: boolean;
+  markdown?: string;
+  metadata?: MetaField[];
+  actions?: RowAction[];
+}
+
+export interface Row {
+  id: string;
+  title: string;
+  subtitle?: string;
+  icon?: string;
+  badge?: ViewBadge;
+  keywords?: string[];
+  accessories?: string[];
+  detail?: DetailBody;
+  actions?: RowAction[];
+  requires?: Record<string, string>;
+  fallback?: string;
+}
+
+export interface Section {
+  title?: string;
+  rows: Row[];
+}
+
+export interface Chip {
+  id: string;
+  label: string;
+  count?: number;
+  requires?: Record<string, string>;
+  fallback?: string;
+}
+
+export interface EmptyState {
+  title: string;
+  hint?: string;
+  icon?: string;
+}
+
+export interface FormField {
+  id: string;
+  type: string;
+  label: string;
+  placeholder?: string;
+  required?: boolean;
+  options?: string[];
+  directories?: boolean;
+  default?: JSONValue;
+  error?: string;
+  empty_hint?: string;
+  on_change?: string;
+  on_blur?: string;
+  event_count?: number;
+  requires?: Record<string, string>;
+  fallback?: string;
+}
+
+export interface FormBody {
+  fields: FormField[];
+  submit?: RowAction;
+  on_submit?: string;
+}
+
+export interface Image {
+  url?: string;
+  token?: string;
+  emoji?: string;
+}
+
+export interface GridTile {
+  id: string;
+  title: string;
+  image: Image;
+  badge?: ViewBadge;
+  actions?: RowAction[];
+  requires?: Record<string, string>;
+  fallback?: string;
+}
+
+export interface GridSection {
+  title?: string;
+  tiles: GridTile[];
+}
+
+export interface GridBody {
+  sections: GridSection[];
+}
+
+export interface ViewPayload {
+  view: string;
+  chrome?: ViewChrome;
+  sections?: Section[];
+  chips?: Chip[];
+  empty?: EmptyState;
+  detail?: DetailBody;
+  form?: FormBody;
+  grid?: GridBody;
+}
+
+export interface PatchOp {
+  op: string;
+  path: string;
+  value?: JSONValue;
+}
+
+export interface ViewPatch {
+  view_id: string;
+  from: string;
+  to: string;
+  ops: PatchOp[];
+}
+
+export interface ToastEffect {
+  tone: string;
+  message: string;
+}
+
+export interface CopyEffect {
+  content: string;
+}
+
+export interface OpenURLEffect {
+  url: string;
+}
+
+export interface OpenAppEffect {
+  app: string;
+}
+
+export interface PickFilesEffect {
+  directories?: boolean;
+}
+
+export interface Effect {
+  id: string;
+  toast?: ToastEffect;
+  copy?: CopyEffect;
+  open_url?: OpenURLEffect;
+  open_app?: OpenAppEffect;
+  pick_files?: PickFilesEffect;
+}
+
+export interface ViewFrame {
+  view_session: string;
+  revision: string;
+  in_reply_to?: number;
+  generation: number;
+  payload?: ViewPayload;
+  patch?: ViewPatch;
+  effects?: Effect[];
+  handlers: string[];
+}
+
+export type WorkspaceID = string;
+
+export type ClientID = string;
+
+export interface ViewOpenRequest {
+  view_session: string;
+  view: string;
+  workspace: WorkspaceID;
+  client: ClientID;
+  args?: Record<string, JSONValue>;
+}
+
 export interface WindowManagerChanges {
   desktop_ids?: string[];
   window_ids?: string[];
@@ -7275,6 +7593,10 @@ export interface HostAPIMethodMap {
     params: AgentHeartbeatWakeParams;
     result: HeartbeatWakeResponse;
   };
+  "view/patch": {
+    params: ViewFrame;
+    result: EmptyResult;
+  };
   "automation/jobs": {
     params: AutomationJobsParams | undefined;
     result: AutomationJobsResult;
@@ -7497,6 +7819,7 @@ export const REQUIRED_METHODS_BY_PROVIDE = {
   "memory.backend": ["memory/forget", "memory/recall", "memory/store"],
   "model.source": ["models/list"],
   "tool.provider": ["provide_tools", "tools/call"],
+  "view.provider": ["view/close", "view/event", "view/open"],
 } as const satisfies Readonly<Record<string, readonly string[]>>;
 
 export interface ProvideConformanceFixture {
@@ -7517,4 +7840,5 @@ export const PUBLIC_PROVIDE_CONFORMANCE_FIXTURES: readonly ProvideConformanceFix
   { provide: "memory.backend", required_methods: REQUIRED_METHODS_BY_PROVIDE["memory.backend"] },
   { provide: "model.source", required_methods: REQUIRED_METHODS_BY_PROVIDE["model.source"] },
   { provide: "tool.provider", required_methods: REQUIRED_METHODS_BY_PROVIDE["tool.provider"] },
+  { provide: "view.provider", required_methods: REQUIRED_METHODS_BY_PROVIDE["view.provider"] },
 ];

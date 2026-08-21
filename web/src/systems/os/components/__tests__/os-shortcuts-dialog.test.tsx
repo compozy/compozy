@@ -12,7 +12,35 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { OsShellContext, type OsShellHandle } from "../../contexts/os-shell-context";
 import { RoutingCoordinator, type OsRouterPort } from "../../lib/routing-coordinator";
 import { WindowManagerRuntime } from "../../runtime/window-manager-runtime";
+import { CmdPaletteRegistryProvider } from "../../contexts/cmd-palette-registry-context";
+import { paletteRegistryFixture, resolvedPaletteCommand } from "../../mocks/cmd-palette-fixtures";
 import { OsShortcutsDialog } from "../os-shortcuts-dialog";
+
+/**
+ * The cheatsheet is a projection of the registry: a row exists because the
+ * catalog carries the command, and its chords come from the daemon keymap.
+ */
+const CHEATSHEET_REGISTRY = paletteRegistryFixture([
+  resolvedPaletteCommand({
+    id: "workspace.picker",
+    title: "Workspace picker",
+    section: "Workspaces",
+    availability_exempt: true,
+  }),
+  resolvedPaletteCommand({
+    id: "shortcuts.cheatsheet",
+    title: "This sheet",
+    availability_exempt: true,
+  }),
+  resolvedPaletteCommand({
+    id: "ext.notes.capture",
+    title: "Capture note",
+    section: "Notes",
+    source: "ext.notes",
+    alias: "cap",
+    availability_exempt: true,
+  }),
+]);
 
 const { desktopState } = vi.hoisted(() => ({
   desktopState: {
@@ -25,6 +53,7 @@ const { desktopState } = vi.hoisted(() => ({
       effectiveShortcuts: {
         "workspace.picker": ["meta+control+KeyO", "meta+shift+KeyO"],
         "shortcuts.cheatsheet": ["shift+Slash", "meta+Slash"],
+        "ext.notes.capture": ["alt+shift+KeyN", "meta+alt+KeyN"],
       },
     },
   },
@@ -58,7 +87,9 @@ describe("OsShortcutsDialog", () => {
     const shell = createShell();
     render(
       <OsShellContext.Provider value={shell}>
-        <OsShortcutsDialog open onOpenChange={onOpenChange} />
+        <CmdPaletteRegistryProvider registry={CHEATSHEET_REGISTRY}>
+          <OsShortcutsDialog open onOpenChange={onOpenChange} />
+        </CmdPaletteRegistryProvider>
       </OsShellContext.Provider>
     );
 
@@ -72,7 +103,9 @@ describe("OsShortcutsDialog", () => {
     const shell = createShell();
     render(
       <OsShellContext.Provider value={shell}>
-        <OsShortcutsDialog open onOpenChange={vi.fn()} />
+        <CmdPaletteRegistryProvider registry={CHEATSHEET_REGISTRY}>
+          <OsShortcutsDialog open onOpenChange={vi.fn()} />
+        </CmdPaletteRegistryProvider>
       </OsShellContext.Provider>
     );
 
@@ -84,5 +117,26 @@ describe("OsShortcutsDialog", () => {
     expect(screen.getByTestId("os-shortcut-local-composer.focus")).toHaveTextContent(
       "Focus composer"
     );
+  });
+
+  it("Should group rows by contributing source and carry each alias [UT-151]", () => {
+    const shell = createShell();
+    render(
+      <OsShellContext.Provider value={shell}>
+        <CmdPaletteRegistryProvider registry={CHEATSHEET_REGISTRY}>
+          <OsShortcutsDialog open onOpenChange={vi.fn()} />
+        </CmdPaletteRegistryProvider>
+      </OsShellContext.Provider>
+    );
+
+    // Core first, then whatever contributed — a band exists because something
+    // is under it, so an extension's rows can never be silently folded in.
+    expect(screen.getByTestId("os-shortcut-source-core")).toHaveTextContent("Core areas");
+    expect(screen.getByTestId("os-shortcut-source-ext.notes")).toHaveTextContent("notes");
+    expect(screen.getByTestId("os-shortcut-row-ext.notes.capture")).toHaveTextContent(
+      "Capture note (cap)"
+    );
+    expect(screen.getByTestId("os-shortcut-row-ext.notes.capture")).toHaveTextContent("⌥⇧N");
+    expect(screen.getByTestId("os-shortcut-row-ext.notes.capture")).toHaveTextContent("⌘⌥N");
   });
 });

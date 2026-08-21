@@ -2,7 +2,10 @@ package spec
 
 import "github.com/compozy/compozy/internal/api/contract"
 
-const settingsUpdateUnavailableDescription = "Update surface unavailable"
+const (
+	settingsUpdateUnavailableDescription = "Update surface unavailable"
+	specInvalidSettingsScopeDescription  = "Invalid settings scope"
+)
 
 func registrySettingsOperations() []OperationSpec {
 	return []OperationSpec{
@@ -395,7 +398,7 @@ func listSettingsMCPServersOperationSpec() OperationSpec {
 		},
 		Responses: []ResponseSpec{
 			{Status: 200, Description: "OK", Body: contract.SettingsMCPServersResponse{}},
-			{Status: 400, Description: "Invalid settings scope", Body: contract.ErrorPayload{}},
+			{Status: 400, Description: specInvalidSettingsScopeDescription, Body: contract.ErrorPayload{}},
 			{Status: 404, Description: specWorkspaceNotFoundDescription, Body: contract.ErrorPayload{}},
 			{Status: 500, Description: specInternalServerErrorDescription, Body: contract.ErrorPayload{}},
 		},

@@ -10,7 +10,7 @@ import (
 
 func newToolApprovalsCommand(deps commandDeps) *cobra.Command {
 	cmd := &cobra.Command{
-		Use:   "approvals",
+		Use:   observeApprovalsLabel,
 		Short: "Manage remembered native-tool approval decisions",
 	}
 	cmd.AddCommand(newToolApprovalsSetCommand(deps))
@@ -194,7 +194,7 @@ func toolApprovalGrantSetBundle(grant ToolApprovalGrantRecord) outputBundle {
 		human: func() (string, error) {
 			return renderHumanSection("Remembered Tool Approval Set", []keyValue{
 				{Label: "Grant ID", Value: grant.ID},
-				{Label: "Workspace", Value: grant.WorkspaceID},
+				{Label: authoredContextWorkspaceValue, Value: grant.WorkspaceID},
 				{Label: "Tool ID", Value: grant.ToolID.String()},
 				{Label: "Decision", Value: string(grant.Decision)},
 				{Label: automationScopeValue, Value: scope},

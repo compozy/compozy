@@ -1,20 +1,16 @@
 import { ArrowUpRight } from "lucide-react";
 
-import {
-  MenubarContent,
-  MenubarItem,
-  MenubarMenu,
-  MenubarSeparator,
-  MenubarTrigger,
-} from "@compozy/ui";
+import { MenubarContent, MenubarItem, MenubarMenu, MenubarTrigger } from "@compozy/ui";
+
+import { usePaletteRegistry } from "../../hooks/use-palette-registry";
+import { MenubarCommandGroups } from "./menubar-command-groups";
+import { MenubarCommandItem } from "./menubar-command-item";
 
 export interface HelpMenuProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  /** Opening the observability settings surface needs a live client. */
-  canOpenApps: boolean;
-  onOpenShortcuts: () => void;
-  onOpenSupport: () => void;
+  /** Runs a registry command through the one dispatch seam. */
+  onRun: (commandId: string) => void;
 }
 
 const EXTERNAL_LINKS = [
@@ -31,34 +27,46 @@ const ISSUES_URL = "https://github.com/compozy/compozy/issues";
  * app" is shape, not color; support routes to Settings → Observability, where
  * the two-step support-bundle consent already lives.
  */
-export function HelpMenu({
-  open,
-  onOpenChange,
-  canOpenApps,
-  onOpenShortcuts,
-  onOpenSupport,
-}: HelpMenuProps) {
+export function HelpMenu({ open, onOpenChange, onRun }: HelpMenuProps) {
+  const registry = usePaletteRegistry();
   return (
     <MenubarMenu open={open} onOpenChange={onOpenChange}>
       <MenubarTrigger>Help</MenubarTrigger>
       <MenubarContent align="start" data-testid="os-menu-help">
-        <MenubarItem data-testid="os-menu-shortcuts" onClick={onOpenShortcuts}>
-          Keyboard shortcuts…
-        </MenubarItem>
-        <MenubarSeparator />
-        {EXTERNAL_LINKS.map(link => (
-          <ExternalMenuItem
-            key={link.id}
-            testId={`os-menu-${link.id}`}
-            href={link.href}
-            label={link.label}
-          />
-        ))}
-        <MenubarSeparator />
-        <ExternalMenuItem testId="os-menu-report-issue" href={ISSUES_URL} label="Report an issue" />
-        <MenubarItem data-testid="os-menu-support" disabled={!canOpenApps} onClick={onOpenSupport}>
-          Get support…
-        </MenubarItem>
+        <MenubarCommandGroups
+          groups={[
+            {
+              id: "shortcuts",
+              content: registry.byId.has("shortcuts.cheatsheet") ? (
+                <MenubarCommandItem commandId="shortcuts.cheatsheet" onRun={onRun} />
+              ) : null,
+            },
+            {
+              id: "links",
+              content: EXTERNAL_LINKS.map(link => (
+                <ExternalMenuItem
+                  key={link.id}
+                  testId={`os-menu-${link.id}`}
+                  href={link.href}
+                  label={link.label}
+                />
+              )),
+            },
+            {
+              id: "support",
+              content: (
+                <>
+                  <ExternalMenuItem
+                    testId="os-menu-report-issue"
+                    href={ISSUES_URL}
+                    label="Report an issue"
+                  />
+                  <MenubarCommandItem commandId="settings.observability" onRun={onRun} />
+                </>
+              ),
+            },
+          ]}
+        />
       </MenubarContent>
     </MenubarMenu>
   );

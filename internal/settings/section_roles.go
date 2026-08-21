@@ -158,7 +158,7 @@ func applyRolesSettings(editor *compozyconfig.OverlayEditor, roles *compozyconfi
 func roleTable(role compozyconfig.RoleConfig) map[string]any {
 	return map[string]any{
 		sectionsEnabledKey:         role.Enabled,
-		"agent":                    role.Agent,
+		string(ScopeAgent):         role.Agent,
 		sectionsProviderKey:        role.Provider,
 		sectionsModelKey:           role.Model,
 		sectionsReasoningEffortKey: role.ReasoningEffort,

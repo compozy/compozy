@@ -170,7 +170,7 @@ func taskBlockToonFields() []string {
 		taskReasonKey,
 		createdByKey,
 		taskCreatedAtKey,
-		"expires_at",
+		mcpAuthExpiresAtKey,
 		"cleared_at",
 		"cleared_by",
 		"clear_note",

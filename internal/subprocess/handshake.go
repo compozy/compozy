@@ -71,6 +71,7 @@ type InitializeRuntime struct {
 	HealthCheckTimeoutMS  int64                    `json:"health_check_timeout_ms"`
 	ShutdownTimeoutMS     int64                    `json:"shutdown_timeout_ms"`
 	DefaultHookTimeoutMS  int64                    `json:"default_hook_timeout_ms"`
+	DefaultViewTimeoutMS  int64                    `json:"default_view_timeout_ms,omitempty"`
 	Bridge                *InitializeBridgeRuntime `json:"bridge,omitempty"`
 }
 
@@ -126,6 +127,7 @@ type InitializeResponse struct {
 	ImplementedMethods   []string                `json:"implemented_methods"`
 	SupportedHookEvents  []string                `json:"supported_hook_events"`
 	WatchSourceKinds     []string                `json:"watch_source_kinds,omitempty"`
+	CmdPaletteViews      []string                `json:"cmd_palette_views,omitempty"`
 	Supports             InitializeSupports      `json:"supports"`
 }
 
@@ -214,6 +216,10 @@ func (r InitializeRequest) Validate() error {
 	}
 	if r.Runtime.DefaultHookTimeoutMS <= 0 {
 		return errors.New("subprocess: initialize default_hook_timeout_ms must be > 0")
+	}
+	if slices.Contains(r.Capabilities.Provides, extensionprotocol.CapabilityProvideViewProvider) &&
+		r.Runtime.DefaultViewTimeoutMS <= 0 {
+		return errors.New("subprocess: initialize default_view_timeout_ms must be > 0 for view.provider")
 	}
 	if r.Runtime.Bridge != nil {
 		if err := r.Runtime.Bridge.Validate(); err != nil {

@@ -1,0 +1,17 @@
+{
+    "title": "Cmd Palette",
+    "pages": [
+        "index",
+        "bind",
+        "bindings",
+        "clients",
+        "inspect",
+        "invoke",
+        "list",
+        "pin",
+        "unbind",
+        "unpin",
+        "alias",
+        "personalization"
+    ]
+}

@@ -71,7 +71,11 @@ export function reorderStackCommand(windowId: string, index: number): WindowMana
 
 /** Public noun is "activate"; `window.stack.set_active` stays the internal command ID. */
 export function activateStackMemberCommand(windowId: string): WindowManagerCommandInput {
-  return { commandId: "window.stack.set_active", payload: { window_id: windowId } };
+  return {
+    commandId: "window.stack.set_active",
+    payload: { window_id: windowId },
+    rebase: { windowId },
+  };
 }
 
 export function pinWindowCommand(windowId: string, pinned: boolean): WindowManagerCommandInput {

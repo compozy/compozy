@@ -101,9 +101,10 @@ func classifyWindowManagerMutationPath(path []string) (configSetValueKind, bool)
 }
 
 const (
-	configPathSandboxes             = "sandboxes"
-	configWindowManagerKey          = "window_manager"
-	configWindowManagerShortcutsKey = "shortcuts"
+	configPathSandboxes                   = "sandboxes"
+	configWindowManagerKey                = "window_manager"
+	configWindowManagerShortcutsKey       = "shortcuts"
+	configWindowManagerGlobalShortcutsKey = "global_shortcuts"
 )
 
 func isProviderMutationPath(path []string) bool {

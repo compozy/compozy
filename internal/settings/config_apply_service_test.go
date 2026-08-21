@@ -688,6 +688,82 @@ muted_workspaces = ["%s", "%s"]
 		}
 	})
 
+	t.Run("Should keep concurrent window-manager shortcuts and aliases atomic (IT013)", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := WithMutationSource(context.Background(), "http")
+		homePaths := testHomePaths(t)
+		writeFile(t, homePaths.ConfigFile, baseSettingsConfig())
+		db, err := globaldb.OpenGlobalDB(ctx, homePaths.DatabaseFile)
+		if err != nil {
+			t.Fatalf("OpenGlobalDB() error = %v", err)
+		}
+		t.Cleanup(func() {
+			if err := db.Close(ctx); err != nil {
+				t.Errorf("Close() error = %v", err)
+			}
+		})
+		service := testService(t, homePaths, Dependencies{
+			RuntimeApplier: &fakeConfigRuntimeApplier{},
+			ApplyRecords:   NewConfigApplyRecordRepository(db.DB(), nil),
+		})
+		type candidate struct {
+			windowManager compozyconfig.WindowManagerConfig
+			aliases       map[string]string
+		}
+		candidates := make([]candidate, 3)
+		for index := range candidates {
+			windowManagerConfig := testWindowManagerConfig()
+			windowManagerConfig.HistoryLimit += index
+			windowManagerConfig.Shortcuts = map[string]windowmanager.ShortcutBinding{
+				"desktop.switch.next": {fmt.Sprintf("Meta+Alt+Shift+Digit%d", index+1)},
+			}
+			candidates[index] = candidate{
+				windowManager: windowManagerConfig,
+				aliases: map[string]string{
+					"desktop.switch.next": fmt.Sprintf("next%d", index+1),
+				},
+			}
+		}
+
+		errorsByWriter := make(chan error, len(candidates))
+		var writers sync.WaitGroup
+		for index := range candidates {
+			windowManagerConfig := cloneWindowManagerConfig(candidates[index].windowManager)
+			aliases := cloneAliases(candidates[index].aliases)
+			writers.Go(func() {
+				_, applyErr := service.ApplySection(ctx, SectionUpdateRequest{
+					SectionRequest:       SectionRequest{Section: SectionWindowManager},
+					WindowManager:        &windowManagerConfig,
+					WindowManagerAliases: &aliases,
+				})
+				errorsByWriter <- applyErr
+			})
+		}
+		writers.Wait()
+		close(errorsByWriter)
+		for writerErr := range errorsByWriter {
+			if writerErr != nil {
+				t.Fatalf("ApplySection(concurrent window-manager) error = %v", writerErr)
+			}
+		}
+
+		loaded, err := compozyconfig.LoadForHome(homePaths)
+		if err != nil {
+			t.Fatalf("LoadForHome(concurrent window-manager) error = %v", err)
+		}
+		if !slices.ContainsFunc(candidates, func(candidate candidate) bool {
+			return reflect.DeepEqual(candidate.windowManager, loaded.WindowManager) &&
+				reflect.DeepEqual(candidate.aliases, loaded.CmdPalette.Aliases)
+		}) {
+			t.Fatalf(
+				"concurrent window-manager = %#v aliases = %#v, want one complete candidate",
+				loaded.WindowManager,
+				loaded.CmdPalette.Aliases,
+			)
+		}
+	})
+
 	t.Run(
 		"Should preserve pending gateway ports while applying the ceiling live",
 		func(t *testing.T) {

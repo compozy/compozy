@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/compozy/compozy/internal/api/core"
+	"github.com/compozy/compozy/internal/cmdpalette"
 	compozyconfig "github.com/compozy/compozy/internal/config"
 	"github.com/compozy/compozy/internal/doctor"
 	"github.com/compozy/compozy/internal/gateway"
@@ -25,81 +26,83 @@ const (
 )
 
 type handlerConfig struct {
-	sessions           core.SessionManager
-	drainController    core.DaemonDrainController
-	sessionCatalog     core.SessionCatalog
-	tasks              core.TaskService
-	network            core.NetworkService
-	networkStore       core.NetworkStore
-	networkUsage       store.NetworkUsageStore
-	coordination       workspacepkg.CoordinationCommands
-	observer           core.Observer
-	schemaStreams      core.SchemaStreamStatusReader
-	resources          core.ResourceService
-	windowManager      windowmanager.Service
-	automation         core.AutomationManager
-	loops              core.LoopService
-	bridges            core.BridgeService
-	notifications      core.NotificationPresetService
-	supportBundles     core.SupportBundleService
-	tools              core.ToolRegistry
-	toolArtifacts      toolspkg.ToolArtifactStore
-	sessionAttachments core.SessionAttachmentStore
-	toolsets           core.ToolsetRegistry
-	toolApprovals      core.ToolApprovalIssuer
-	approvalGrants     core.ToolApprovalGrantService
-	clarify            toolspkg.ClarifyBroker
-	settings           core.SettingsService
-	settingsRestart    core.SettingsRestartController
-	settingsUpdate     core.SettingsUpdateController
-	vault              core.VaultService
-	workspaces         core.WorkspaceService
-	worktrees          core.WorktreeService
-	workspaceAccess    workspaceaccess.Policy
-	onboarding         core.OnboardingStore
-	agentCatalog       core.AgentCatalog
-	agentSync          core.AgentDefinitionSync
-	modelCatalog       core.ModelCatalogService
-	marketplaceCatalog core.MarketplaceCatalogService
-	agentContext       core.AgentContextService
-	coordinatorRole    core.CoordinatorRoleResolver
-	roles              core.RolesStatusProvider
-	soulAuthoring      core.SoulAuthoringService
-	soulHistoryPurger  core.SoulHistoryPurger
-	soulRefresher      core.SoulRefresher
-	heartbeatAuthor    core.HeartbeatAuthoringService
-	heartbeatPurger    core.HeartbeatHistoryPurger
-	heartbeatStatus    core.HeartbeatStatusService
-	heartbeatWake      core.HeartbeatWakeService
-	sessionHealth      core.SessionHealthReader
-	wakeEvents         core.HeartbeatWakeEventReader
-	skillsRegistry     core.SkillsRegistry
-	skillResources     core.SkillResourceSyncer
-	memoryStore        *memory.Store
-	dreamTrigger       core.DreamTrigger
-	memoryExtractor    core.MemoryExtractorService
-	memoryProviders    core.MemoryProviderService
-	memoryLedger       core.MemorySessionLedgerService
-	runtimeMemory      doctor.RuntimeMemorySnapshotSource
-	deadEntities       doctor.DeadEntitySource
-	gateway            core.GatewayService
-	gatewayAdmission   gateway.AdmissionController
-	deviceAuth         gateway.DeviceAuthenticator
-	authLimiter        *gateway.AuthFailureLimiter
-	ingressLimiter     *gateway.IngressRateLimiter
-	surfaceSet         SurfaceSet
-	staticFS           fs.FS
-	homePaths          compozyconfig.HomePaths
-	config             compozyconfig.Config
-	boundHost          string
-	logger             *slog.Logger
-	startedAt          time.Time
-	now                func() time.Time
-	pollInterval       time.Duration
-	agentLoader        core.AgentLoader
-	httpPort           int
-	resourceAuth       []gin.HandlerFunc
-	extensions         ExtensionService
+	sessions            core.SessionManager
+	drainController     core.DaemonDrainController
+	sessionCatalog      core.SessionCatalog
+	tasks               core.TaskService
+	network             core.NetworkService
+	networkStore        core.NetworkStore
+	networkUsage        store.NetworkUsageStore
+	coordination        workspacepkg.CoordinationCommands
+	observer            core.Observer
+	schemaStreams       core.SchemaStreamStatusReader
+	resources           core.ResourceService
+	windowManager       windowmanager.Service
+	automation          core.AutomationManager
+	loops               core.LoopService
+	bridges             core.BridgeService
+	notifications       core.NotificationPresetService
+	supportBundles      core.SupportBundleService
+	tools               core.ToolRegistry
+	toolArtifacts       toolspkg.ToolArtifactStore
+	sessionAttachments  core.SessionAttachmentStore
+	toolsets            core.ToolsetRegistry
+	toolApprovals       core.ToolApprovalIssuer
+	approvalGrants      core.ToolApprovalGrantService
+	approvalCoordinator toolspkg.ApprovalCoordinator
+	cmdPalette          cmdpalette.Registry
+	clarify             toolspkg.ClarifyBroker
+	settings            core.SettingsService
+	settingsRestart     core.SettingsRestartController
+	settingsUpdate      core.SettingsUpdateController
+	vault               core.VaultService
+	workspaces          core.WorkspaceService
+	worktrees           core.WorktreeService
+	workspaceAccess     workspaceaccess.Policy
+	onboarding          core.OnboardingStore
+	agentCatalog        core.AgentCatalog
+	agentSync           core.AgentDefinitionSync
+	modelCatalog        core.ModelCatalogService
+	marketplaceCatalog  core.MarketplaceCatalogService
+	agentContext        core.AgentContextService
+	coordinatorRole     core.CoordinatorRoleResolver
+	roles               core.RolesStatusProvider
+	soulAuthoring       core.SoulAuthoringService
+	soulHistoryPurger   core.SoulHistoryPurger
+	soulRefresher       core.SoulRefresher
+	heartbeatAuthor     core.HeartbeatAuthoringService
+	heartbeatPurger     core.HeartbeatHistoryPurger
+	heartbeatStatus     core.HeartbeatStatusService
+	heartbeatWake       core.HeartbeatWakeService
+	sessionHealth       core.SessionHealthReader
+	wakeEvents          core.HeartbeatWakeEventReader
+	skillsRegistry      core.SkillsRegistry
+	skillResources      core.SkillResourceSyncer
+	memoryStore         *memory.Store
+	dreamTrigger        core.DreamTrigger
+	memoryExtractor     core.MemoryExtractorService
+	memoryProviders     core.MemoryProviderService
+	memoryLedger        core.MemorySessionLedgerService
+	runtimeMemory       doctor.RuntimeMemorySnapshotSource
+	deadEntities        doctor.DeadEntitySource
+	gateway             core.GatewayService
+	gatewayAdmission    gateway.AdmissionController
+	deviceAuth          gateway.DeviceAuthenticator
+	authLimiter         *gateway.AuthFailureLimiter
+	ingressLimiter      *gateway.IngressRateLimiter
+	surfaceSet          SurfaceSet
+	staticFS            fs.FS
+	homePaths           compozyconfig.HomePaths
+	config              compozyconfig.Config
+	boundHost           string
+	logger              *slog.Logger
+	startedAt           time.Time
+	now                 func() time.Time
+	pollInterval        time.Duration
+	agentLoader         core.AgentLoader
+	httpPort            int
+	resourceAuth        []gin.HandlerFunc
+	extensions          ExtensionService
 }
 
 // Handlers expose request/response and SSE endpoints for the Compozy API.
@@ -204,6 +207,8 @@ func coreHandlerConfig(cfg *handlerConfig, boundHost string) *core.BaseHandlerCo
 		Toolsets:                     cfg.toolsets,
 		ToolApprovals:                cfg.toolApprovals,
 		ApprovalGrants:               cfg.approvalGrants,
+		ApprovalCoordinator:          cfg.approvalCoordinator,
+		CmdPalette:                   cfg.cmdPalette,
 		Clarify:                      cfg.clarify,
 		Settings:                     cfg.settings,
 		SettingsRestart:              cfg.settingsRestart,

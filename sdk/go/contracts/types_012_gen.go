@@ -7,380 +7,232 @@ import (
 	"time"
 )
 
-type LoopGatePostPayload struct {
-	Event                        HookEvent `json:"event"`
-	Timestamp                    time.Time `json:"timestamp"`
-	LoopRunID                    string    `json:"loop_run_id,omitempty"`
-	ParentLoopRunID              string    `json:"parent_loop_run_id,omitempty"`
-	WorkspaceID                  string    `json:"workspace_id,omitempty"`
-	LoopName                     string    `json:"loop_name,omitempty"`
-	Generation                   int       `json:"generation,omitempty"`
-	TaskID                       string    `json:"task_id,omitempty"`
-	RunID                        string    `json:"run_id,omitempty"`
-	RunKind                      string    `json:"run_kind,omitempty"`
-	NodeID                       string    `json:"node_id,omitempty"`
-	WorkflowID                   string    `json:"workflow_id,omitempty"`
-	ResolvedNetworkParticipation *Spec     `json:"resolved_network_participation,omitempty"`
-	AgentName                    string    `json:"agent_name,omitempty"`
-	SessionID                    string    `json:"session_id,omitempty"`
-	ActorKind                    string    `json:"actor_kind,omitempty"`
-	ActorID                      string    `json:"actor_id,omitempty"`
-	OriginKind                   string    `json:"origin_kind,omitempty"`
-	OriginRef                    string    `json:"origin_ref,omitempty"`
-	GateID                       string    `json:"gate_id,omitempty"`
-	// Outcome is the machine result already computed when the hook observes the gate.
-	Outcome string `json:"outcome,omitempty"`
-	// Score is the computed metric score, when the observed gate has a metric criterion.
-	Score *float64 `json:"score,omitempty"`
-	// BestGeneration is the durable best generation known when the hook observes the result.
-	BestGeneration *int64          `json:"best_generation,omitempty"`
-	Status         string          `json:"status,omitempty"`
-	ReasonCode     string          `json:"reason_code,omitempty"`
-	Details        json.RawMessage `json:"details,omitempty"`
-	Denied         bool            `json:"denied,omitempty"`
-	DenyReason     string          `json:"deny_reason,omitempty"`
+type InboundEventFamily string
+
+type InboundMessageEnvelope struct {
+	BridgeInstanceID  string                  `json:"bridge_instance_id"`
+	Scope             BridgeScope             `json:"scope"`
+	WorkspaceID       string                  `json:"workspace_id,omitempty"`
+	PeerID            string                  `json:"peer_id,omitempty"`
+	ThreadID          string                  `json:"thread_id,omitempty"`
+	GroupID           string                  `json:"group_id,omitempty"`
+	PlatformMessageID string                  `json:"platform_message_id,omitempty"`
+	ReceivedAt        time.Time               `json:"received_at"`
+	Sender            MessageSender           `json:"sender"`
+	Content           MessageContent          `json:"content,omitzero"`
+	Attachments       []MessageAttachment     `json:"attachments,omitempty"`
+	EventFamily       InboundEventFamily      `json:"event_family"`
+	Command           *InboundCommand         `json:"command,omitempty"`
+	Action            *InboundAction          `json:"action,omitempty"`
+	Reaction          *InboundReaction        `json:"reaction,omitempty"`
+	Edit              *InboundEdit            `json:"edit,omitempty"`
+	ReplyToText       string                  `json:"reply_to_text,omitempty"`
+	ReplyToAuthorID   string                  `json:"reply_to_author_id,omitempty"`
+	ReplyToAuthorName string                  `json:"reply_to_author_name,omitempty"`
+	Conversation      *NetworkConversationRef `json:"conversation,omitempty"`
+	ProviderMetadata  json.RawMessage         `json:"provider_metadata,omitempty"`
+	IdempotencyKey    string                  `json:"idempotency_key"`
 }
 
-type LoopGatePrePatch struct {
-	Deny       bool   `json:"deny,omitempty"`
-	DenyReason string `json:"deny_reason,omitempty"`
+type InboundReaction struct {
+	MessageID string `json:"message_id"`
+	Emoji     string `json:"emoji"`
+	RawEmoji  string `json:"raw_emoji,omitempty"`
+	Added     bool   `json:"added"`
 }
 
-type LoopGatePrePayload struct {
-	Event                        HookEvent `json:"event"`
-	Timestamp                    time.Time `json:"timestamp"`
-	LoopRunID                    string    `json:"loop_run_id,omitempty"`
-	ParentLoopRunID              string    `json:"parent_loop_run_id,omitempty"`
-	WorkspaceID                  string    `json:"workspace_id,omitempty"`
-	LoopName                     string    `json:"loop_name,omitempty"`
-	Generation                   int       `json:"generation,omitempty"`
-	TaskID                       string    `json:"task_id,omitempty"`
-	RunID                        string    `json:"run_id,omitempty"`
-	RunKind                      string    `json:"run_kind,omitempty"`
-	NodeID                       string    `json:"node_id,omitempty"`
-	WorkflowID                   string    `json:"workflow_id,omitempty"`
-	ResolvedNetworkParticipation *Spec     `json:"resolved_network_participation,omitempty"`
-	AgentName                    string    `json:"agent_name,omitempty"`
-	SessionID                    string    `json:"session_id,omitempty"`
-	ActorKind                    string    `json:"actor_kind,omitempty"`
-	ActorID                      string    `json:"actor_id,omitempty"`
-	OriginKind                   string    `json:"origin_kind,omitempty"`
-	OriginRef                    string    `json:"origin_ref,omitempty"`
-	GateID                       string    `json:"gate_id,omitempty"`
-	// Outcome is the machine result already computed when the hook observes the gate.
-	Outcome string `json:"outcome,omitempty"`
-	// Score is the computed metric score, when the observed gate has a metric criterion.
-	Score *float64 `json:"score,omitempty"`
-	// BestGeneration is the durable best generation known when the hook observes the result.
-	BestGeneration *int64          `json:"best_generation,omitempty"`
-	Status         string          `json:"status,omitempty"`
-	ReasonCode     string          `json:"reason_code,omitempty"`
-	Details        json.RawMessage `json:"details,omitempty"`
-	Denied         bool            `json:"denied,omitempty"`
-	DenyReason     string          `json:"deny_reason,omitempty"`
+type InitializeBridgeBoundSecret struct {
+	BindingName string `json:"binding_name"`
+	Kind        string `json:"kind"`
+	Value       string `json:"value"`
 }
 
-type LoopGenerationOrigin string
+type InitializeBridgeManagedInstance struct {
+	Instance     BridgeInstance                `json:"instance"`
+	BoundSecrets []InitializeBridgeBoundSecret `json:"bound_secrets,omitempty"`
+}
+
+type InitializeBridgeRuntime struct {
+	RuntimeVersion   string                            `json:"runtime_version"`
+	Purpose          BridgeRuntimePurpose              `json:"purpose"`
+	Provider         string                            `json:"provider"`
+	Platform         string                            `json:"platform"`
+	AllowedMethods   []string                          `json:"allowed_methods,omitempty"`
+	ManagedInstances []InitializeBridgeManagedInstance `json:"managed_instances,omitempty"`
+}
+
+type InitializeCapabilities struct {
+	Provides              []string        `json:"provides"`
+	GrantedPermissions    []HostAPIMethod `json:"granted_permissions"`
+	GrantedResourceKinds  []string        `json:"granted_resource_kinds"`
+	GrantedResourceScopes []string        `json:"granted_resource_scopes"`
+}
+
+type InitializeExtension struct {
+	Name       string `json:"name"`
+	Version    string `json:"version"`
+	SourceTier string `json:"source_tier"`
+}
+
+type InitializeExtensionInfo struct {
+	Name       string `json:"name"`
+	Version    string `json:"version"`
+	SDKName    string `json:"sdk_name,omitempty"`
+	SDKVersion string `json:"sdk_version,omitempty"`
+}
+
+type InitializeMethods struct {
+	DaemonRequests    []string `json:"daemon_requests"`
+	ExtensionServices []string `json:"extension_services"`
+}
+
+type InitializeRequest struct {
+	ProtocolVersion          string                 `json:"protocol_version"`
+	SupportedProtocolVersion []string               `json:"supported_protocol_versions"`
+	CompozyVersion           string                 `json:"compozy_version"`
+	SessionNonce             string                 `json:"session_nonce"`
+	Extension                InitializeExtension    `json:"extension"`
+	Capabilities             InitializeCapabilities `json:"capabilities"`
+	Methods                  InitializeMethods      `json:"methods"`
+	Runtime                  InitializeRuntime      `json:"runtime"`
+}
+
+type InitializeResponse struct {
+	ProtocolVersion      string                  `json:"protocol_version"`
+	ExtensionInfo        InitializeExtensionInfo `json:"extension_info"`
+	AcceptedCapabilities AcceptedCapabilities    `json:"accepted_capabilities"`
+	ImplementedMethods   []string                `json:"implemented_methods"`
+	SupportedHookEvents  []string                `json:"supported_hook_events"`
+	WatchSourceKinds     []string                `json:"watch_source_kinds,omitempty"`
+	CmdPaletteViews      []string                `json:"cmd_palette_views,omitempty"`
+	Supports             InitializeSupports      `json:"supports"`
+}
+
+type InitializeRuntime struct {
+	HealthCheckIntervalMS int64                    `json:"health_check_interval_ms"`
+	HealthCheckTimeoutMS  int64                    `json:"health_check_timeout_ms"`
+	ShutdownTimeoutMS     int64                    `json:"shutdown_timeout_ms"`
+	DefaultHookTimeoutMS  int64                    `json:"default_hook_timeout_ms"`
+	DefaultViewTimeoutMS  int64                    `json:"default_view_timeout_ms,omitempty"`
+	Bridge                *InitializeBridgeRuntime `json:"bridge,omitempty"`
+}
+
+type InitializeSupports struct {
+	HealthCheck bool `json:"health_check"`
+}
+
+type InputAttachmentMetadata struct {
+	ID    string `json:"id"`
+	Name  string `json:"name"`
+	MIME  string `json:"mime"`
+	Bytes int64  `json:"bytes"`
+	Kind  string `json:"kind"`
+}
+
+type InputPreSubmitPatch struct {
+	Deny          bool           `json:"deny,omitempty"`
+	DenyReason    string         `json:"deny_reason,omitempty"`
+	Message       *string        `json:"message,omitempty"`
+	ContextBlocks []ContextBlock `json:"context_blocks,omitempty"`
+}
+
+type InputPreSubmitPayload struct {
+	Event          HookEvent                 `json:"event"`
+	Timestamp      time.Time                 `json:"timestamp"`
+	SessionID      string                    `json:"session_id,omitempty"`
+	SessionName    string                    `json:"session_name,omitempty"`
+	SessionType    string                    `json:"session_type,omitempty"`
+	AgentName      string                    `json:"agent_name,omitempty"`
+	WorkspaceID    string                    `json:"workspace_id,omitempty"`
+	Workspace      string                    `json:"workspace,omitempty"`
+	WorktreeID     string                    `json:"worktree_id,omitempty"`
+	ACPSessionID   string                    `json:"acp_session_id,omitempty"`
+	State          string                    `json:"state,omitempty"`
+	SoulSnapshotID string                    `json:"soul_snapshot_id,omitempty"`
+	SoulDigest     string                    `json:"soul_digest,omitempty"`
+	CreatedAt      time.Time                 `json:"created_at"`
+	UpdatedAt      time.Time                 `json:"updated_at"`
+	TurnID         string                    `json:"turn_id,omitempty"`
+	InputClass     string                    `json:"input_class,omitempty"`
+	Message        string                    `json:"message,omitempty"`
+	ContextBlocks  []ContextBlock            `json:"context_blocks,omitempty"`
+	Attachments    []InputAttachmentMetadata `json:"attachments,omitempty"`
+}
+
+type IssueSeverity string
 
 const (
-	LoopGenerationOriginInitial            LoopGenerationOrigin = "initial"
-	LoopGenerationOriginStopWhen           LoopGenerationOrigin = "stop_when"
-	LoopGenerationOriginReattempt          LoopGenerationOrigin = "reattempt"
-	LoopGenerationOriginGateRevise         LoopGenerationOrigin = "gate_revise"
-	LoopGenerationOriginGateNextGeneration LoopGenerationOrigin = "gate_next_generation"
-	LoopGenerationOriginDodRetry           LoopGenerationOrigin = "dod_retry"
-	LoopGenerationOriginRatchetRestore     LoopGenerationOrigin = "ratchet_restore"
+	IssueSeverityError   IssueSeverity = "error"
+	IssueSeverityWarning IssueSeverity = "warning"
+	IssueSeverityWarn    IssueSeverity = "warn"
 )
 
-type LoopGenerationPostPayload struct {
-	Event                        HookEvent `json:"event"`
-	Timestamp                    time.Time `json:"timestamp"`
-	LoopRunID                    string    `json:"loop_run_id,omitempty"`
-	ParentLoopRunID              string    `json:"parent_loop_run_id,omitempty"`
-	WorkspaceID                  string    `json:"workspace_id,omitempty"`
-	LoopName                     string    `json:"loop_name,omitempty"`
-	Generation                   int       `json:"generation,omitempty"`
-	TaskID                       string    `json:"task_id,omitempty"`
-	RunID                        string    `json:"run_id,omitempty"`
-	RunKind                      string    `json:"run_kind,omitempty"`
-	NodeID                       string    `json:"node_id,omitempty"`
-	WorkflowID                   string    `json:"workflow_id,omitempty"`
-	ResolvedNetworkParticipation *Spec     `json:"resolved_network_participation,omitempty"`
-	AgentName                    string    `json:"agent_name,omitempty"`
-	SessionID                    string    `json:"session_id,omitempty"`
-	ActorKind                    string    `json:"actor_kind,omitempty"`
-	ActorID                      string    `json:"actor_id,omitempty"`
-	// OriginKind identifies the actor or task source kind that started the loop.
-	OriginKind string `json:"origin_kind,omitempty"`
-	// OriginRef identifies the actor or task source reference that started the loop.
-	OriginRef string `json:"origin_ref,omitempty"`
-	// Origin is the closed loop-generation provenance value that explains why this generation exists.
-	Origin           LoopGenerationOrigin `json:"origin"`
-	ParentGeneration int64                `json:"parent_generation"`
-	Status           string               `json:"status,omitempty"`
-	ReasonCode       string               `json:"reason_code,omitempty"`
-	Details          json.RawMessage      `json:"details,omitempty"`
-	Denied           bool                 `json:"denied,omitempty"`
-	DenyReason       string               `json:"deny_reason,omitempty"`
+type Job struct {
+	ID          string          `json:"id"`
+	Scope       Scope           `json:"scope"`
+	Name        string          `json:"name"`
+	TargetKind  TargetKind      `json:"target_kind"`
+	AgentName   string          `json:"agent_name"`
+	WorkspaceID string          `json:"workspace_id,omitempty"`
+	Prompt      string          `json:"prompt"`
+	Schedule    *ScheduleSpec   `json:"schedule,omitempty"`
+	Task        *JobTaskConfig  `json:"task,omitempty"`
+	LoopTarget  *LoopTarget     `json:"loop_target,omitempty"`
+	Enabled     bool            `json:"enabled"`
+	Retry       RetryConfig     `json:"retry"`
+	FireLimit   FireLimitConfig `json:"fire_limit"`
+	Source      JobSource       `json:"source"`
+	CreatedAt   time.Time       `json:"created_at"`
+	UpdatedAt   time.Time       `json:"updated_at"`
 }
 
-type LoopGenerationPrePatch struct {
+type JobSource string
+
+type JobTaskConfig struct {
+	Title                string     `json:"title,omitempty"`
+	Description          string     `json:"description,omitempty"`
+	Owner                *Ownership `json:"owner,omitempty"`
+	NetworkParticipation *Request   `json:"network_participation,omitempty"`
+}
+
+type ListLogsParams struct {
+	WorkspaceID   string    `json:"workspace_id"`
+	SessionID     string    `json:"session_id,omitempty"`
+	AgentName     string    `json:"agent_name,omitempty"`
+	Type          string    `json:"type,omitempty"`
+	RunID         string    `json:"run,omitempty"`
+	ActorKind     string    `json:"actor_kind,omitempty"`
+	ActorID       string    `json:"actor_id,omitempty"`
+	Provider      string    `json:"provider,omitempty"`
+	Outcome       string    `json:"outcome,omitempty"`
+	Component     string    `json:"component,omitempty"`
+	ErrorOnly     bool      `json:"error_only,omitempty"`
+	AfterSequence int64     `json:"after_seq,omitempty"`
+	Since         time.Time `json:"since,omitzero"`
+	Limit         int       `json:"limit,omitempty"`
+}
+
+type LoopContext struct {
+	LoopRunID                    string `json:"loop_run_id,omitempty"`
+	ParentLoopRunID              string `json:"parent_loop_run_id,omitempty"`
+	WorkspaceID                  string `json:"workspace_id,omitempty"`
+	LoopName                     string `json:"loop_name,omitempty"`
+	Generation                   int    `json:"generation,omitempty"`
+	TaskID                       string `json:"task_id,omitempty"`
+	RunID                        string `json:"run_id,omitempty"`
+	RunKind                      string `json:"run_kind,omitempty"`
+	NodeID                       string `json:"node_id,omitempty"`
+	WorkflowID                   string `json:"workflow_id,omitempty"`
+	ResolvedNetworkParticipation *Spec  `json:"resolved_network_participation,omitempty"`
+	AgentName                    string `json:"agent_name,omitempty"`
+	SessionID                    string `json:"session_id,omitempty"`
+	ActorKind                    string `json:"actor_kind,omitempty"`
+	ActorID                      string `json:"actor_id,omitempty"`
+	OriginKind                   string `json:"origin_kind,omitempty"`
+	OriginRef                    string `json:"origin_ref,omitempty"`
+}
+
+type LoopControlPatch struct {
 	Deny       bool   `json:"deny,omitempty"`
 	DenyReason string `json:"deny_reason,omitempty"`
-}
-
-type LoopGenerationPrePayload struct {
-	Event                        HookEvent `json:"event"`
-	Timestamp                    time.Time `json:"timestamp"`
-	LoopRunID                    string    `json:"loop_run_id,omitempty"`
-	ParentLoopRunID              string    `json:"parent_loop_run_id,omitempty"`
-	WorkspaceID                  string    `json:"workspace_id,omitempty"`
-	LoopName                     string    `json:"loop_name,omitempty"`
-	Generation                   int       `json:"generation,omitempty"`
-	TaskID                       string    `json:"task_id,omitempty"`
-	RunID                        string    `json:"run_id,omitempty"`
-	RunKind                      string    `json:"run_kind,omitempty"`
-	NodeID                       string    `json:"node_id,omitempty"`
-	WorkflowID                   string    `json:"workflow_id,omitempty"`
-	ResolvedNetworkParticipation *Spec     `json:"resolved_network_participation,omitempty"`
-	AgentName                    string    `json:"agent_name,omitempty"`
-	SessionID                    string    `json:"session_id,omitempty"`
-	ActorKind                    string    `json:"actor_kind,omitempty"`
-	ActorID                      string    `json:"actor_id,omitempty"`
-	// OriginKind identifies the actor or task source kind that started the loop.
-	OriginKind string `json:"origin_kind,omitempty"`
-	// OriginRef identifies the actor or task source reference that started the loop.
-	OriginRef string `json:"origin_ref,omitempty"`
-	// Origin is the closed loop-generation provenance value that explains why this generation exists.
-	Origin           LoopGenerationOrigin `json:"origin"`
-	ParentGeneration int64                `json:"parent_generation"`
-	Status           string               `json:"status,omitempty"`
-	ReasonCode       string               `json:"reason_code,omitempty"`
-	Details          json.RawMessage      `json:"details,omitempty"`
-	Denied           bool                 `json:"denied,omitempty"`
-	DenyReason       string               `json:"deny_reason,omitempty"`
-}
-
-type LoopLifecyclePayload struct {
-	Event                        HookEvent       `json:"event"`
-	Timestamp                    time.Time       `json:"timestamp"`
-	LoopRunID                    string          `json:"loop_run_id,omitempty"`
-	ParentLoopRunID              string          `json:"parent_loop_run_id,omitempty"`
-	WorkspaceID                  string          `json:"workspace_id,omitempty"`
-	LoopName                     string          `json:"loop_name,omitempty"`
-	Generation                   int             `json:"generation,omitempty"`
-	TaskID                       string          `json:"task_id,omitempty"`
-	RunID                        string          `json:"run_id,omitempty"`
-	RunKind                      string          `json:"run_kind,omitempty"`
-	NodeID                       string          `json:"node_id,omitempty"`
-	WorkflowID                   string          `json:"workflow_id,omitempty"`
-	ResolvedNetworkParticipation *Spec           `json:"resolved_network_participation,omitempty"`
-	AgentName                    string          `json:"agent_name,omitempty"`
-	SessionID                    string          `json:"session_id,omitempty"`
-	ActorKind                    string          `json:"actor_kind,omitempty"`
-	ActorID                      string          `json:"actor_id,omitempty"`
-	OriginKind                   string          `json:"origin_kind,omitempty"`
-	OriginRef                    string          `json:"origin_ref,omitempty"`
-	Status                       string          `json:"status,omitempty"`
-	Cause                        string          `json:"cause,omitempty"`
-	ReasonCode                   string          `json:"reason_code,omitempty"`
-	Details                      json.RawMessage `json:"details,omitempty"`
-}
-
-type LoopNodeTerminalPayload struct {
-	Event                        HookEvent       `json:"event"`
-	Timestamp                    time.Time       `json:"timestamp"`
-	LoopRunID                    string          `json:"loop_run_id,omitempty"`
-	ParentLoopRunID              string          `json:"parent_loop_run_id,omitempty"`
-	WorkspaceID                  string          `json:"workspace_id,omitempty"`
-	LoopName                     string          `json:"loop_name,omitempty"`
-	Generation                   int             `json:"generation,omitempty"`
-	TaskID                       string          `json:"task_id,omitempty"`
-	RunID                        string          `json:"run_id,omitempty"`
-	RunKind                      string          `json:"run_kind,omitempty"`
-	NodeID                       string          `json:"node_id,omitempty"`
-	WorkflowID                   string          `json:"workflow_id,omitempty"`
-	ResolvedNetworkParticipation *Spec           `json:"resolved_network_participation,omitempty"`
-	AgentName                    string          `json:"agent_name,omitempty"`
-	SessionID                    string          `json:"session_id,omitempty"`
-	ActorKind                    string          `json:"actor_kind,omitempty"`
-	ActorID                      string          `json:"actor_id,omitempty"`
-	OriginKind                   string          `json:"origin_kind,omitempty"`
-	OriginRef                    string          `json:"origin_ref,omitempty"`
-	TaskStatus                   string          `json:"task_status,omitempty"`
-	RunStatus                    string          `json:"run_status,omitempty"`
-	FailureClass                 string          `json:"failure_class,omitempty"`
-	Disposition                  string          `json:"disposition,omitempty"`
-	Attempt                      int             `json:"attempt,omitempty"`
-	Target                       string          `json:"target,omitempty"`
-	Error                        string          `json:"error,omitempty"`
-	Details                      json.RawMessage `json:"details,omitempty"`
-}
-
-type LoopObservationPatch struct {
-	Labels map[string]string `json:"labels,omitempty"`
-}
-
-type LoopStartedPayload struct {
-	Event                        HookEvent       `json:"event"`
-	Timestamp                    time.Time       `json:"timestamp"`
-	LoopRunID                    string          `json:"loop_run_id,omitempty"`
-	ParentLoopRunID              string          `json:"parent_loop_run_id,omitempty"`
-	WorkspaceID                  string          `json:"workspace_id,omitempty"`
-	LoopName                     string          `json:"loop_name,omitempty"`
-	Generation                   int             `json:"generation,omitempty"`
-	TaskID                       string          `json:"task_id,omitempty"`
-	RunID                        string          `json:"run_id,omitempty"`
-	RunKind                      string          `json:"run_kind,omitempty"`
-	NodeID                       string          `json:"node_id,omitempty"`
-	WorkflowID                   string          `json:"workflow_id,omitempty"`
-	ResolvedNetworkParticipation *Spec           `json:"resolved_network_participation,omitempty"`
-	AgentName                    string          `json:"agent_name,omitempty"`
-	SessionID                    string          `json:"session_id,omitempty"`
-	ActorKind                    string          `json:"actor_kind,omitempty"`
-	ActorID                      string          `json:"actor_id,omitempty"`
-	OriginKind                   string          `json:"origin_kind,omitempty"`
-	OriginRef                    string          `json:"origin_ref,omitempty"`
-	Status                       string          `json:"status,omitempty"`
-	Cause                        string          `json:"cause,omitempty"`
-	ReasonCode                   string          `json:"reason_code,omitempty"`
-	Details                      json.RawMessage `json:"details,omitempty"`
-}
-
-type LoopTarget struct {
-	WorkspaceID          string            `json:"workspace_id"`
-	LoopName             string            `json:"loop_name"`
-	Inputs               map[string]any    `json:"inputs,omitempty"`
-	InputMapping         map[string]string `json:"input_mapping,omitempty"`
-	NetworkParticipation *Request          `json:"network_participation,omitempty"`
-}
-
-type LoopTerminalPayload struct {
-	Event                        HookEvent       `json:"event"`
-	Timestamp                    time.Time       `json:"timestamp"`
-	LoopRunID                    string          `json:"loop_run_id,omitempty"`
-	ParentLoopRunID              string          `json:"parent_loop_run_id,omitempty"`
-	WorkspaceID                  string          `json:"workspace_id,omitempty"`
-	LoopName                     string          `json:"loop_name,omitempty"`
-	Generation                   int             `json:"generation,omitempty"`
-	TaskID                       string          `json:"task_id,omitempty"`
-	RunID                        string          `json:"run_id,omitempty"`
-	RunKind                      string          `json:"run_kind,omitempty"`
-	NodeID                       string          `json:"node_id,omitempty"`
-	WorkflowID                   string          `json:"workflow_id,omitempty"`
-	ResolvedNetworkParticipation *Spec           `json:"resolved_network_participation,omitempty"`
-	AgentName                    string          `json:"agent_name,omitempty"`
-	SessionID                    string          `json:"session_id,omitempty"`
-	ActorKind                    string          `json:"actor_kind,omitempty"`
-	ActorID                      string          `json:"actor_id,omitempty"`
-	OriginKind                   string          `json:"origin_kind,omitempty"`
-	OriginRef                    string          `json:"origin_ref,omitempty"`
-	Status                       string          `json:"status,omitempty"`
-	Cause                        string          `json:"cause,omitempty"`
-	ReasonCode                   string          `json:"reason_code,omitempty"`
-	Details                      json.RawMessage `json:"details,omitempty"`
-}
-
-type MemoryForgetParams struct {
-	Key       string      `json:"key"`
-	Scope     MemoryScope `json:"scope,omitempty"`
-	Workspace string      `json:"workspace,omitempty"`
-}
-
-type MemoryRecallEntry struct {
-	Key     string  `json:"key"`
-	Content string  `json:"content"`
-	Score   float64 `json:"score"`
-}
-
-type MemoryRecallParams struct {
-	Query     string      `json:"query"`
-	Limit     int         `json:"limit,omitempty"`
-	Scope     MemoryScope `json:"scope,omitempty"`
-	Workspace string      `json:"workspace,omitempty"`
-}
-
-type MemoryScope string
-
-type MemoryStoreParams struct {
-	Key       string      `json:"key"`
-	Content   string      `json:"content"`
-	Scope     MemoryScope `json:"scope,omitempty"`
-	Workspace string      `json:"workspace,omitempty"`
-	Tags      []string    `json:"tags,omitempty"`
-}
-
-type MessageAttachment struct {
-	ID       string `json:"id,omitempty"`
-	Name     string `json:"name,omitempty"`
-	MIMEType string `json:"mime_type,omitempty"`
-	URL      string `json:"url,omitempty"`
-}
-
-type MessageContent struct {
-	Text string `json:"text,omitempty"`
-}
-
-type MessageDeltaPatch struct {
-	Deny       bool    `json:"deny,omitempty"`
-	DenyReason string  `json:"deny_reason,omitempty"`
-	Role       *string `json:"role,omitempty"`
-	DeltaType  *string `json:"delta_type,omitempty"`
-	Text       *string `json:"text,omitempty"`
-}
-
-type MessageDeltaPayload struct {
-	Event          HookEvent       `json:"event"`
-	Timestamp      time.Time       `json:"timestamp"`
-	SessionID      string          `json:"session_id,omitempty"`
-	SessionName    string          `json:"session_name,omitempty"`
-	SessionType    string          `json:"session_type,omitempty"`
-	AgentName      string          `json:"agent_name,omitempty"`
-	WorkspaceID    string          `json:"workspace_id,omitempty"`
-	Workspace      string          `json:"workspace,omitempty"`
-	WorktreeID     string          `json:"worktree_id,omitempty"`
-	ACPSessionID   string          `json:"acp_session_id,omitempty"`
-	State          string          `json:"state,omitempty"`
-	SoulSnapshotID string          `json:"soul_snapshot_id,omitempty"`
-	SoulDigest     string          `json:"soul_digest,omitempty"`
-	CreatedAt      time.Time       `json:"created_at"`
-	UpdatedAt      time.Time       `json:"updated_at"`
-	TurnID         string          `json:"turn_id,omitempty"`
-	MessageID      string          `json:"message_id,omitempty"`
-	Role           string          `json:"role,omitempty"`
-	DeltaType      string          `json:"delta_type,omitempty"`
-	Text           string          `json:"text,omitempty"`
-	Raw            json.RawMessage `json:"raw,omitempty"`
-}
-
-type MessageEndPatch struct {
-	Deny       bool    `json:"deny,omitempty"`
-	DenyReason string  `json:"deny_reason,omitempty"`
-	Role       *string `json:"role,omitempty"`
-	DeltaType  *string `json:"delta_type,omitempty"`
-	Text       *string `json:"text,omitempty"`
-}
-
-type MessageEndPayload struct {
-	Event          HookEvent       `json:"event"`
-	Timestamp      time.Time       `json:"timestamp"`
-	SessionID      string          `json:"session_id,omitempty"`
-	SessionName    string          `json:"session_name,omitempty"`
-	SessionType    string          `json:"session_type,omitempty"`
-	AgentName      string          `json:"agent_name,omitempty"`
-	WorkspaceID    string          `json:"workspace_id,omitempty"`
-	Workspace      string          `json:"workspace,omitempty"`
-	WorktreeID     string          `json:"worktree_id,omitempty"`
-	ACPSessionID   string          `json:"acp_session_id,omitempty"`
-	State          string          `json:"state,omitempty"`
-	SoulSnapshotID string          `json:"soul_snapshot_id,omitempty"`
-	SoulDigest     string          `json:"soul_digest,omitempty"`
-	CreatedAt      time.Time       `json:"created_at"`
-	UpdatedAt      time.Time       `json:"updated_at"`
-	TurnID         string          `json:"turn_id,omitempty"`
-	MessageID      string          `json:"message_id,omitempty"`
-	Role           string          `json:"role,omitempty"`
-	DeltaType      string          `json:"delta_type,omitempty"`
-	Text           string          `json:"text,omitempty"`
-	Raw            json.RawMessage `json:"raw,omitempty"`
 }

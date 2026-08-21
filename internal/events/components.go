@@ -3,6 +3,7 @@ package events
 const (
 	ComponentAutomation   = "automation"
 	ComponentBridge       = "bridge"
+	ComponentCmdPalette   = "cmd_palette"
 	ComponentConfig       = "config"
 	ComponentExtension    = "extension"
 	ComponentGateway      = "gateway"

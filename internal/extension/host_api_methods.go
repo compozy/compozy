@@ -73,6 +73,7 @@ func hostAPIMethodHandlers(handler *HostAPIHandler) map[string]hostAPIMethodFunc
 	registerHostAPISessionMethodHandlers(handler, handlers)
 	registerHostAPINetworkMethodHandlers(handler, handlers)
 	registerHostAPIClarifyMethodHandler(handler, handlers)
+	registerHostAPIViewMethodHandler(handler, handlers)
 	return handlers
 }
 

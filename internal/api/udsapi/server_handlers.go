@@ -52,6 +52,8 @@ func udsCoreHandlerConfig(cfg *handlerConfig) *core.BaseHandlerConfig {
 		Toolsets:                     cfg.toolsets,
 		ToolApprovals:                cfg.toolApprovals,
 		ApprovalGrants:               cfg.approvalGrants,
+		ApprovalCoordinator:          cfg.approvalCoordinator,
+		CmdPalette:                   cfg.cmdPalette,
 		Clarify:                      cfg.clarify,
 		Settings:                     cfg.settings,
 		SettingsRestart:              cfg.settingsRestart,

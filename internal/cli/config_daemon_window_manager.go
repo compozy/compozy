@@ -9,27 +9,6 @@ import (
 	"github.com/compozy/compozy/internal/windowmanager"
 )
 
-func applyWindowManagerConfigValue(
-	cfg *compozyconfig.WindowManagerConfig,
-	path []string,
-	value any,
-) error {
-	if cfg == nil || len(path) < 2 || path[0] != configWindowManagerKey {
-		return fmt.Errorf("cli: invalid window-manager config path %q", strings.Join(path, "."))
-	}
-	spec, ok := lookupWindowManagerMutationSpec(path)
-	if !ok {
-		return fmt.Errorf("cli: unsupported window-manager config path %q", strings.Join(path, "."))
-	}
-	if err := spec.apply(cfg, path, value); err != nil {
-		return err
-	}
-	if err := cfg.Validate(); err != nil {
-		return fmt.Errorf("cli: validate window-manager config: %w", err)
-	}
-	return nil
-}
-
 func assignWindowManagerValue[T any](path []string, value any, target *T, want string) error {
 	typed, err := requireWindowManagerValue[T](path, value, want)
 	if err != nil {
@@ -86,7 +65,8 @@ func settingsWindowManagerPayloadFromConfig(
 			TopCenter:    contract.SettingsWindowBindingAction(cfg.Bindings.TopCenter),
 			BottomCenter: contract.SettingsWindowBindingAction(cfg.Bindings.BottomCenter),
 		},
-		Shortcuts: windowmanager.CloneShortcutMap(cfg.Shortcuts),
+		Shortcuts:       windowmanager.CloneShortcutMap(cfg.Shortcuts),
+		GlobalShortcuts: windowmanager.CloneGlobalShortcutMap(cfg.GlobalShortcuts),
 	}
 }
 
@@ -99,7 +79,7 @@ type configWindowManagerDiscovery struct {
 func windowManagerConfigDiscovery(
 	cfg compozyconfig.WindowManagerConfig,
 ) (configWindowManagerDiscovery, error) {
-	effective, err := windowmanager.EffectiveKeymap(cfg.Shortcuts)
+	effective, err := windowmanager.EffectiveStoredKeymap(cfg.Shortcuts)
 	if err != nil {
 		return configWindowManagerDiscovery{}, fmt.Errorf("cli: resolve effective window-manager keymap: %w", err)
 	}

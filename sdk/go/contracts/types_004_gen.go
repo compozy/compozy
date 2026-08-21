@@ -2,6 +2,17 @@
 
 package contracts
 
+type AutomationSchedulePayload struct {
+	Mode     string `json:"mode,omitempty"`
+	Expr     string `json:"expr,omitempty"`
+	Interval string `json:"interval,omitempty"`
+	Time     string `json:"time,omitempty"`
+}
+
+type AutomationTargetParams struct {
+	ID string `json:"id"`
+}
+
 type AutomationTriggerCreateParams struct {
 	Scope              Scope             `json:"scope"`
 	Name               string            `json:"name"`
@@ -173,7 +184,3 @@ type BridgeCheckRequest struct {
 type BridgeCheckResponse struct {
 	Checks []BridgeCheckRecord `json:"checks"`
 }
-
-type BridgeCheckStatus string
-
-type BridgeDMPolicy string

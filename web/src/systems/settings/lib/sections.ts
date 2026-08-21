@@ -2,6 +2,7 @@ import {
   Activity,
   Bell,
   Brain,
+  Command,
   Cpu,
   Network,
   Palette,
@@ -47,7 +48,14 @@ export const SETTINGS_SECTIONS: readonly SettingsSectionDescriptor[] = [
     label: "Layouts",
     icon: PanelTop,
     group: "workspace",
-    keywords: "window manager desktops profiles split stack geometry snap focus",
+    keywords: "window manager desktops profiles split stack geometry snap focus shortcuts alias",
+  },
+  {
+    slug: "palette",
+    label: "Palette",
+    icon: Command,
+    group: "workspace",
+    keywords: "command palette personalization recents pinned ranking",
   },
   {
     slug: "providers",

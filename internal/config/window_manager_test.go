@@ -38,6 +38,10 @@ func TestWindowManagerConfig(t *testing.T) {
 		if !slices.Equal(got.Snap.RepeatRatios, wantRatios) {
 			t.Fatalf("RepeatRatios = %v, want %v", got.Snap.RepeatRatios, wantRatios)
 		}
+		if got.GlobalShortcuts[windowmanager.DefaultGlobalSummonCommandID] !=
+			windowmanager.DefaultGlobalSummonChord {
+			t.Fatalf("GlobalShortcuts = %#v, want summon default", got.GlobalShortcuts)
+		}
 	})
 
 	t.Run("Should merge global and workspace behavior without losing defaults", func(t *testing.T) {
@@ -103,6 +107,9 @@ top_center = "none"
 		base.ClosedEntryLimit = 30
 		base.Snap.RepeatRatios = []float64{0.5, 0.75, 0.25}
 		base.Shortcuts = map[string]windowmanager.ShortcutBinding{"window.focus.left": {"alt+KeyH"}}
+		base.GlobalShortcuts = map[string]string{
+			windowmanager.DefaultGlobalSummonCommandID: windowmanager.DefaultGlobalSummonChord,
+		}
 		path := filepath.Join(t.TempDir(), ConfigName)
 		writeFile(t, path, `
 [window_manager]
@@ -116,6 +123,9 @@ right = 14
 [window_manager.shortcuts]
 "desktop.switch.next" = ["alt+ArrowRight", "alt+KeyL"]
 "window.focus.left" = "alt+KeyH"
+
+[window_manager.global_shortcuts]
+"palette.summon.global" = "meta+alt+Space"
 `)
 
 		got, err := ApplyWindowManagerOverlayFile(path, base)
@@ -137,11 +147,19 @@ right = 14
 			!slices.Equal(got.Shortcuts["window.focus.left"], windowmanager.ShortcutBinding{"alt+KeyH"}) {
 			t.Fatalf("window manager shortcuts = %#v, want workspace replacement", got.Shortcuts)
 		}
+		if got.GlobalShortcuts[windowmanager.DefaultGlobalSummonCommandID] != "meta+alt+Space" {
+			t.Fatalf("window manager global shortcuts = %#v", got.GlobalShortcuts)
+		}
 
 		got.Snap.RepeatRatios[0] = 0.4
 		got.Shortcuts["desktop.switch.next"][0] = "meta+ArrowRight"
+		got.GlobalShortcuts[windowmanager.DefaultGlobalSummonCommandID] = "meta+KeyK"
 		if base.Snap.RepeatRatios[0] != 0.5 || base.Shortcuts["window.focus.left"][0] != "alt+KeyH" {
 			t.Fatalf("ApplyWindowManagerOverlayFile() aliased active defaults: %#v", base)
+		}
+		if base.GlobalShortcuts[windowmanager.DefaultGlobalSummonCommandID] !=
+			windowmanager.DefaultGlobalSummonChord {
+			t.Fatalf("ApplyWindowManagerOverlayFile() aliased global shortcuts: %#v", base)
 		}
 	})
 
@@ -202,6 +220,17 @@ right = 14
 
 		err := cfg.Validate()
 		assertWindowManagerValidationPath(t, err, "window_manager.shortcuts")
+	})
+
+	t.Run("Should reject duplicate desktop-global shortcut chords", func(t *testing.T) {
+		t.Parallel()
+		cfg := DefaultWindowManagerConfig()
+		cfg.GlobalShortcuts = map[string]string{
+			windowmanager.DefaultGlobalSummonCommandID: "meta+shift+Space",
+			"session.new": "shift+meta+Space",
+		}
+
+		assertWindowManagerValidationPath(t, cfg.Validate(), "window_manager.global_shortcuts")
 	})
 
 	t.Run("Should reject a non-finite or duplicate repeat ratio", func(t *testing.T) {

@@ -14,7 +14,7 @@ var marketplaceTools = []toolspkg.Descriptor{
 		false,
 		false,
 		[]toolspkg.ToolsetID{toolspkg.ToolsetIDMarketplace},
-		[]string{"marketplace", "catalog", "mcp", "extensions", "skills"},
+		[]string{"marketplace", descriptorKeywordCatalog, "mcp", "extensions", "skills"},
 		[]string{"marketplace search", "discover capabilities", "find extensions", "find skills"},
 	),
 }

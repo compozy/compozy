@@ -202,6 +202,7 @@ func (m *Manager) launchConfigFor(
 		HealthCheckTimeoutMS:  m.healthCheckTimeout.Milliseconds(),
 		ShutdownTimeoutMS:     shutdownTimeout.Milliseconds(),
 		DefaultHookTimeoutMS:  m.defaultHookTimeout.Milliseconds(),
+		DefaultViewTimeoutMS:  m.defaultViewTimeout.Milliseconds(),
 		Bridge:                bridgeRuntime,
 	}
 

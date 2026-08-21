@@ -1,3 +1,5 @@
+import { MACOS_ACCESSIBILITY_SETTINGS_URL } from "../shortcuts/accessibility";
+
 export type NavigationDecision = "allow" | "external" | "deny";
 
 function parsed(raw: string): URL | null {
@@ -14,7 +16,11 @@ export function safeExternalURL(raw: string): string | null {
 }
 
 function isExternalURL(target: URL): boolean {
-  return target.protocol === "http:" || target.protocol === "https:";
+  return (
+    target.protocol === "http:" ||
+    target.protocol === "https:" ||
+    target.toString() === MACOS_ACCESSIBILITY_SETTINGS_URL
+  );
 }
 
 export function classifyNavigation(raw: string, daemonOrigin: string): NavigationDecision {

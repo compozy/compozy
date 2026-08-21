@@ -13,6 +13,7 @@ import (
 	"github.com/compozy/compozy/internal/api/contract"
 	"github.com/compozy/compozy/internal/api/core"
 	automationpkg "github.com/compozy/compozy/internal/automation"
+	"github.com/compozy/compozy/internal/cmdpalette"
 	"github.com/compozy/compozy/internal/loop/dsl"
 	memcontract "github.com/compozy/compozy/internal/memory/contract"
 	"github.com/compozy/compozy/internal/network/participation"
@@ -22,6 +23,76 @@ import (
 	taskpkg "github.com/compozy/compozy/internal/task"
 	"github.com/compozy/compozy/internal/windowmanager"
 )
+
+func TestCmdPalettePayloadJSONShape(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should encode required catalog collections as arrays when empty", func(t *testing.T) {
+		t.Parallel()
+
+		payload := contract.CmdPaletteCommandsFromDomain(cmdpalette.Catalog{
+			Commands: []cmdpalette.ResolvedCommand{{
+				Descriptor: cmdpalette.Descriptor{
+					ID:     "core.test",
+					Source: cmdpalette.Source{Kind: cmdpalette.SourceKindCore},
+				},
+			}},
+		})
+		var got map[string]any
+		marshalJSON(t, payload, &got)
+
+		commands, ok := got["commands"].([]any)
+		if !ok || len(commands) != 1 {
+			t.Fatalf("commands = %#v, want one-element JSON array", got["commands"])
+		}
+		command, ok := commands[0].(map[string]any)
+		if !ok {
+			t.Fatalf("commands[0] = %#v, want JSON object", commands[0])
+		}
+		for _, field := range []string{"bindings", "arguments"} {
+			value, isArray := command[field].([]any)
+			if !isArray || len(value) != 0 {
+				t.Fatalf("commands[0].%s = %#v, want empty JSON array", field, command[field])
+			}
+		}
+		sources, ok := got["sources"].([]any)
+		if !ok || len(sources) != 0 {
+			t.Fatalf("sources = %#v, want empty JSON array", got["sources"])
+		}
+	})
+
+	t.Run("Should encode required personalization collections as arrays when empty", func(t *testing.T) {
+		t.Parallel()
+
+		var signals map[string]any
+		marshalJSON(t, contract.CmdPaletteRankSignalsFromDomain(cmdpalette.Snapshot{}), &signals)
+		for _, field := range []string{"usage", "query_hits", "pins"} {
+			value, ok := signals[field].([]any)
+			if !ok || len(value) != 0 {
+				t.Fatalf("rank signals %s = %#v, want empty JSON array", field, signals[field])
+			}
+		}
+		weights, ok := signals["weights"].(map[string]any)
+		if !ok {
+			t.Fatalf("weights = %#v, want JSON object", signals["weights"])
+		}
+		groupOrder, ok := weights["group_order"].([]any)
+		if !ok || len(groupOrder) != 0 {
+			t.Fatalf("weights.group_order = %#v, want empty JSON array", weights["group_order"])
+		}
+
+		var summary map[string]any
+		marshalJSON(
+			t,
+			contract.CmdPalettePersonalizationFromDomain(cmdpalette.PersonalizationSummary{}),
+			&summary,
+		)
+		pins, ok := summary["pins"].([]any)
+		if !ok || len(pins) != 0 {
+			t.Fatalf("personalization pins = %#v, want empty JSON array", summary["pins"])
+		}
+	})
+}
 
 func TestWindowManagerReturnAnchorContract(t *testing.T) {
 	t.Run("Should preserve an exact source group through the public layout round trip", func(t *testing.T) {
@@ -367,6 +438,26 @@ func TestWindowManagerV3WireContract(t *testing.T) {
 		client.StackActive["stack:main"] = "window:a"
 		if got := domainStackActive["stack:main"]; got != "window:b" {
 			t.Fatalf("domain stack_active unexpectedly changed: %q", got)
+		}
+	})
+
+	t.Run("Should encode the required global-shortcut collection as an array when empty", func(t *testing.T) {
+		t.Parallel()
+
+		client, err := contract.WindowManagerClientFromDomain(windowmanager.ClientView{
+			WorkspaceID: "workspace:test",
+			ClientID:    "client:a",
+		})
+		if err != nil {
+			t.Fatalf("WindowManagerClientFromDomain() error = %v", err)
+		}
+		var got map[string]any
+		marshalJSON(t, client, &got)
+		for _, field := range []string{"global_shortcuts"} {
+			value, ok := got[field].([]any)
+			if !ok || len(value) != 0 {
+				t.Fatalf("client %s = %#v, want empty JSON array", field, got[field])
+			}
 		}
 	})
 }

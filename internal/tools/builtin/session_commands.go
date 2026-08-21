@@ -14,7 +14,7 @@ func commandListDescriptor() toolspkg.Descriptor {
 		false,
 		false,
 		[]toolspkg.ToolsetID{toolspkg.ToolsetIDSessions},
-		[]string{sessionsSessionsKey, "commands", sessionsListKey},
+		[]string{sessionsSessionsKey, sessionsCommandsKey, sessionsListKey},
 		[]string{"session commands", "slash commands", "available skills"},
 	)
 }

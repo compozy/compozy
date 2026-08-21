@@ -5,7 +5,6 @@ import { pathToFileURL } from "node:url";
 import {
   Extension,
   isRPCError,
-  type ExecuteHookParams,
   type ExtensionOptions,
   type PromptPatch,
   type ShutdownRequest,
@@ -95,18 +94,6 @@ export function createExtension(options: ExtensionOptions = {}): Extension {
       supported_hook_events: ["prompt.post_assemble"],
     },
     options
-  );
-
-  extension.handle(
-    "execute_hook",
-    async (_ctx, params: ExecuteHookParams<"prompt.post_assemble">) => {
-      const prompt = params.payload.prompt ?? "";
-      return applyPromptEnhancement(
-        prompt,
-        params.payload.workspace,
-        params.payload.workspace_id
-      ) satisfies PromptPatch;
-    }
   );
 
   extension.handle("shutdown", async (_ctx, params: ShutdownRequest) => {

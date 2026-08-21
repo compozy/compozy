@@ -20,6 +20,7 @@ type windowManagerOverlay struct {
 	Snap                windowManagerSnapOverlay                 `toml:"snap"`
 	Bindings            windowManagerBindingOverlay              `toml:"bindings"`
 	Shortcuts           map[string]windowmanager.ShortcutBinding `toml:"shortcuts,omitempty"`
+	GlobalShortcuts     map[string]string                        `toml:"global_shortcuts,omitempty"`
 }
 
 type windowManagerGapsOverlay struct {
@@ -61,6 +62,9 @@ func (o windowManagerOverlay) Apply(dst *WindowManagerConfig) {
 	o.Bindings.Apply(&dst.Bindings)
 	if o.Shortcuts != nil {
 		dst.Shortcuts = windowmanager.CloneShortcutMap(o.Shortcuts)
+	}
+	if o.GlobalShortcuts != nil {
+		dst.GlobalShortcuts = windowmanager.CloneGlobalShortcutMap(o.GlobalShortcuts)
 	}
 }
 

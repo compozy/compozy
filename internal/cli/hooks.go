@@ -228,7 +228,7 @@ func hookListBundle(hooks []HookCatalogRecord) outputBundle {
 			automationSourceKey,
 			"skill_source",
 			hooksModeKey,
-			"required",
+			configRequiredKey,
 			"priority",
 		},
 		func(item HookCatalogRecord) []string {
@@ -319,7 +319,7 @@ func hookInfoToonColumns() []string {
 		automationSourceKey,
 		"skill_source",
 		hooksModeKey,
-		"required",
+		configRequiredKey,
 		"priority",
 		"timeout_ms",
 		"executor_kind",

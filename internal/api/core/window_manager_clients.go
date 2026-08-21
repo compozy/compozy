@@ -67,7 +67,9 @@ func (h *BaseHandlers) RegisterWindowManagerClient(c *gin.Context) {
 		return
 	}
 	client, err := h.WindowManager.RegisterClient(c.Request.Context(), windowmanager.ClientRegistration{
-		WorkspaceID: workspaceID, ClientID: canonicalClientID, ActiveDesktopID: request.ActiveDesktopID,
+		WorkspaceID: workspaceID, ClientID: canonicalClientID, Kind: request.Kind,
+		ActiveDesktopID: request.ActiveDesktopID,
+		Context:         windowManagerRegistrationContext(request.Context),
 	})
 	if err != nil {
 		h.respondWindowManagerError(c, workspaceID, err)
@@ -98,4 +100,16 @@ func (h *BaseHandlers) UnregisterWindowManagerClient(c *gin.Context) {
 		return
 	}
 	c.Status(http.StatusNoContent)
+}
+
+func windowManagerRegistrationContext(
+	input contract.WindowManagerClientContextInput,
+) windowmanager.ClientContextInput {
+	return windowmanager.ClientContextInput{
+		ScopeGlobal:         input.ScopeGlobal,
+		FocusedSessionState: input.FocusedSessionState,
+		WorkspaceTrusted:    input.WorkspaceTrusted,
+		DestinationIntent:   input.DestinationIntent,
+		GlobalShortcuts:     windowmanager.CloneGlobalShortcutRegistrations(input.GlobalShortcuts),
+	}
 }

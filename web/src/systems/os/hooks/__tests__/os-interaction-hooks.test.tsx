@@ -1,7 +1,7 @@
 // Suite: OS interaction hooks
 // Invariant: OS hooks translate keyboard, pointer, and viewport changes into current shell actions and geometry.
 // Owning layer: the browser-to-OS-hook interaction boundary.
-import { act, fireEvent, render, renderHook, screen } from "@testing-library/react";
+import { act, fireEvent, render, renderHook, screen, waitFor } from "@testing-library/react";
 import {
   type PointerEvent as ReactPointerEvent,
   type ReactNode,
@@ -23,6 +23,7 @@ import type {
   WindowManagerCommandOutcome,
 } from "../../lib/os-types";
 import type { WindowManagerConfig, WindowManagerSnapshot } from "../../lib/window-manager-types";
+import type { WindowManagerGlobalShortcutMap } from "../../lib/window-manager-shortcut-types";
 import {
   OS_ZOOM_MENU_CLOSE_GRACE_MS,
   OS_ZOOM_MENU_OPEN_DELAY_MS,
@@ -37,11 +38,15 @@ import {
   useWindowLiveDataEnabled,
 } from "../use-window-live-data-enabled";
 import { useOsWinLayer } from "../use-os-win-layer";
-import { useOsShortcuts, type OsShortcutHandlers } from "../use-os-shortcuts";
+import { useOsShortcuts } from "../use-os-shortcuts";
+import { useOsPaletteExecution } from "../use-os-palette-execution";
+import type { PaletteRowSubject } from "../../lib/cmd-palette-row-actions";
+import type { PaletteRegistry, ResolvedPaletteCommand } from "../../lib/cmd-palette-types";
 import { adjacentShortcutItem, shortcutAttentionTarget } from "../use-desktop-shell-body";
 import { useWorkspacesStripScroll } from "../use-workspaces-strip-scroll";
 import { windowManagerStore } from "../../stores/window-manager-store";
 import { createWindowManagerProjectionAtom } from "../../lib/window-manager-projection";
+import { useGlobalShortcutReconciliation } from "../use-global-shortcut-reconciliation";
 
 const TEST_KEYMAP = {
   "palette.open": ["meta+KeyK", "meta+shift+KeyP"],
@@ -90,24 +95,56 @@ const CONFIG: WindowManagerConfig = {
   },
   bindings: { topCenter: "zoom", bottomCenter: "reserved" },
   shortcuts: {},
+  globalShortcuts: {},
   shortcutDefaults: TEST_KEYMAP,
   effectiveShortcuts: TEST_KEYMAP,
 };
 
-function shortcutHandlers(): OsShortcutHandlers {
+/**
+ * A registry projection carrying the test keymap. The keyboard listener reads
+ * chords, availability and ids from here exactly as it does in the shell — no
+ * TypeScript keymap of its own remains.
+ */
+function shortcutCommand(
+  id: string,
+  chords: readonly string[],
+  available: boolean
+): ResolvedPaletteCommand {
   return {
-    onPalette: vi.fn(),
-    onPaletteSessions: vi.fn(),
-    onNewSession: vi.fn(),
-    onDesktops: vi.fn(),
-    onWorkspaces: vi.fn(),
-    onCycleWorkspace: vi.fn(),
-    onCycleSession: vi.fn(),
-    onFocusAttention: vi.fn(),
-    onToggleSidebar: vi.fn(),
-    onCheatsheet: vi.fn(),
-    onEscape: vi.fn(),
-    onToggleGlobalScope: vi.fn(),
+    id,
+    title: id,
+    section: "Shell",
+    icon: "command",
+    source: "core",
+    bindings: [...chords],
+    alias: null,
+    destructive: false,
+    availability_exempt: id === "shortcuts.cheatsheet",
+    arguments: [],
+    action: { kind: "client_op", op: id },
+    execution: { retry_safe: true, single_flight: false },
+    visible: true,
+    available,
+    reason: available ? "" : "runtime unavailable",
+    chords: [],
+  } as ResolvedPaletteCommand;
+}
+
+function shortcutRegistry(
+  overrides: Record<string, readonly string[]> = {},
+  availability: Record<string, boolean> = {}
+): PaletteRegistry {
+  const bindings: Record<string, readonly string[]> = { ...TEST_KEYMAP, ...overrides };
+  const commands = Object.entries(bindings).map(([id, chords]) =>
+    shortcutCommand(id, chords, availability[id] ?? true)
+  );
+  return {
+    commands,
+    byId: new Map(commands.map(command => [command.id, command])),
+    sources: [{ source: "core", status: "healthy" }],
+    catalogRevision: "sha256:test",
+    stale: false,
+    daemonReachable: true,
   };
 }
 
@@ -270,6 +307,59 @@ afterEach(() => {
   vi.useRealTimers();
   vi.restoreAllMocks();
   vi.unstubAllGlobals();
+  delete window.compozyShell;
+});
+
+describe("useGlobalShortcutReconciliation", () => {
+  it("Should replace stale confirmations with explicit unsupported results after a bridge failure", async () => {
+    const initial: WindowManagerGlobalShortcutMap = {
+      "palette.summon.global": "meta+shift+Space",
+    };
+    const changed: WindowManagerGlobalShortcutMap = {
+      "palette.summon.global": "meta+alt+Space",
+    };
+    const sync = vi
+      .fn()
+      .mockResolvedValueOnce([
+        {
+          command_id: "palette.summon.global",
+          intended_chord: "meta+shift+Space",
+          active_chord: "meta+shift+Space",
+          status: "registered",
+        },
+      ])
+      .mockRejectedValueOnce(new Error("IPC connection closed"));
+    window.compozyShell = {
+      platform: "darwin",
+      on: vi.fn(() => () => undefined),
+      globalShortcuts: { sync, status: vi.fn() },
+    };
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => undefined);
+
+    const { result, rerender } = renderHook(
+      ({ intended }: { intended: WindowManagerGlobalShortcutMap }) =>
+        useGlobalShortcutReconciliation(intended),
+      { initialProps: { intended: initial } }
+    );
+    await waitFor(() => expect(result.current.registrations[0]?.status).toBe("registered"));
+
+    rerender({ intended: changed });
+
+    await waitFor(() =>
+      expect(result.current.registrations).toEqual([
+        {
+          command_id: "palette.summon.global",
+          intended_chord: "meta+alt+Space",
+          status: "unsupported",
+          reason: "desktop shell synchronization failed",
+        },
+      ])
+    );
+    expect(warn).toHaveBeenCalledWith(
+      "Desktop shell global hotkey synchronization failed",
+      expect.any(Error)
+    );
+  });
 });
 
 function beginPrimarySnapGesture(moveMode: "window" | "group" = "window"): void {
@@ -1144,53 +1234,36 @@ describe("useOsShortcuts", () => {
     expect(shortcutAttentionTarget({ needsYou: [], finished: [] })).toBeNull();
   });
 
-  it("Should route shell shortcuts independently of window-manager availability", () => {
-    const { wrapper } = createShell({ live: false });
-    const handlers = shortcutHandlers();
-    renderHook(() => useOsShortcuts(handlers), { wrapper });
+  it("Should dispatch the registry command id a chord is bound to", () => {
+    const run = vi.fn();
+    renderHook(() => useOsShortcuts(shortcutRegistry(), run, { onEscape: vi.fn() }));
 
     fireEvent.keyDown(document, { key: "k", code: "KeyK", metaKey: true });
     fireEvent.keyDown(document, { key: "n", code: "KeyN", metaKey: true });
-    fireEvent.keyDown(document, { key: "Escape", code: "Escape" });
-
-    expect(handlers.onPalette).toHaveBeenCalledOnce();
-    expect(handlers.onNewSession).toHaveBeenCalledOnce();
-    expect(handlers.onEscape).toHaveBeenCalledOnce();
-  });
-
-  it("Should toggle Global scope on ⇧⌘G and skip editable targets", () => {
-    const { wrapper } = createShell({ live: false });
-    const handlers = shortcutHandlers();
-    renderHook(() => useOsShortcuts(handlers), { wrapper });
-
-    fireEvent.keyDown(document, { key: "g", code: "KeyG", metaKey: true, shiftKey: true });
-    expect(handlers.onToggleGlobalScope).toHaveBeenCalledOnce();
-
-    const input = document.createElement("input");
-    document.body.append(input);
-    fireEvent.keyDown(input, { key: "g", code: "KeyG", metaKey: true, shiftKey: true });
-    expect(handlers.onToggleGlobalScope).toHaveBeenCalledOnce();
-    input.remove();
-  });
-
-  it("Should open the workspace picker on ⇧⌘O through the action registry", () => {
-    const shell = createShell();
-    const handlers = shortcutHandlers();
-    renderHook(() => useOsShortcuts(handlers), { wrapper: shell.wrapper });
-
     fireEvent.keyDown(document, { key: "o", code: "KeyO", metaKey: true, shiftKey: true });
 
-    expect(handlers.onWorkspaces).toHaveBeenCalledOnce();
-    expect(shell.controller.closeWindow).not.toHaveBeenCalled();
-
-    fireEvent.keyDown(document, { key: "w", code: "KeyW", metaKey: true });
-    expect(shell.controller.closeWindow).toHaveBeenCalledExactlyOnceWith("window:primary");
+    expect(run.mock.calls.map(([id]) => id)).toEqual([
+      "palette.open",
+      "session.new",
+      "workspace.picker",
+    ]);
   });
 
-  it("Should leave a prevented Escape to the nested control", () => {
-    const { wrapper } = createShell({ live: false });
-    const handlers = shortcutHandlers();
-    renderHook(() => useOsShortcuts(handlers), { wrapper });
+  it("Should honour an alternate chord bound to the same command", () => {
+    const run = vi.fn();
+    renderHook(() => useOsShortcuts(shortcutRegistry(), run, { onEscape: vi.fn() }));
+
+    fireEvent.keyDown(document, { key: "p", code: "KeyP", metaKey: true, shiftKey: true });
+
+    expect(run).toHaveBeenCalledExactlyOnceWith("palette.open");
+  });
+
+  it("Should route Escape to the shell and leave a prevented Escape to the nested control", () => {
+    const onEscape = vi.fn();
+    renderHook(() => useOsShortcuts(shortcutRegistry(), vi.fn(), { onEscape }));
+
+    fireEvent.keyDown(document, { key: "Escape", code: "Escape" });
+    expect(onEscape).toHaveBeenCalledOnce();
 
     const event = new KeyboardEvent("keydown", {
       key: "Escape",
@@ -1200,152 +1273,97 @@ describe("useOsShortcuts", () => {
     });
     event.preventDefault();
     document.dispatchEvent(event);
-
-    expect(handlers.onEscape).not.toHaveBeenCalled();
+    expect(onEscape).toHaveBeenCalledOnce();
   });
 
   it("Should protect editor-owned chords while keeping tab lifecycle shortcuts global", () => {
-    const liveShell = createShell();
-    const unavailableShell = createShell({ live: false });
-    const handlers = shortcutHandlers();
-    const unavailable = renderHook(() => useOsShortcuts(handlers), {
-      wrapper: unavailableShell.wrapper,
-    });
-
-    fireEvent.keyDown(document, { key: "z", code: "KeyZ", metaKey: true });
-    expect(unavailableShell.controller.undoLayout).not.toHaveBeenCalled();
-    unavailable.unmount();
-
-    renderHook(() => useOsShortcuts(handlers), { wrapper: liveShell.wrapper });
+    const run = vi.fn();
+    renderHook(() => useOsShortcuts(shortcutRegistry(), run, { onEscape: vi.fn() }));
     const input = document.createElement("input");
     document.body.append(input);
+
+    // Layout undo belongs to the editor while it has focus (WCAG 2.1.4).
     fireEvent.keyDown(input, { key: "z", code: "KeyZ", metaKey: true });
-    expect(liveShell.controller.undoLayout).not.toHaveBeenCalled();
+    expect(run).not.toHaveBeenCalled();
+    // Window and tab lifecycle stay global — the operator expects ⌘W mid-typing.
     fireEvent.keyDown(input, { key: "w", code: "KeyW", metaKey: true });
-    expect(liveShell.controller.closeWindow).toHaveBeenCalledWith("window:primary");
     fireEvent.keyDown(input, { key: "k", code: "KeyK", metaKey: true });
     fireEvent.keyDown(input, { key: "n", code: "KeyN", metaKey: true });
-    expect(handlers.onPalette).toHaveBeenCalledOnce();
-    expect(handlers.onNewSession).toHaveBeenCalledOnce();
+    expect(run.mock.calls.map(([id]) => id)).toEqual([
+      "window.close",
+      "palette.open",
+      "session.new",
+    ]);
 
+    // The bare `?` cheatsheet chord yields to typing; the ⌘ one does not.
+    run.mockClear();
     fireEvent.keyDown(input, { key: "?", code: "Slash", shiftKey: true });
-    expect(handlers.onCheatsheet).not.toHaveBeenCalled();
+    expect(run).not.toHaveBeenCalled();
     fireEvent.keyDown(input, { key: "/", code: "Slash", metaKey: true });
-    expect(handlers.onCheatsheet).toHaveBeenCalledOnce();
+    expect(run).toHaveBeenCalledExactlyOnceWith("shortcuts.cheatsheet");
 
+    run.mockClear();
     fireEvent.keyDown(document, { key: "z", code: "KeyZ", metaKey: true });
-    expect(liveShell.controller.undoLayout).toHaveBeenCalledOnce();
+    expect(run).toHaveBeenCalledExactlyOnceWith("layout.undo");
     input.remove();
   });
 
-  it("Should honor live tab overrides and ignore the shipped chord [UT-051]", () => {
-    const shell = createShell();
-    const handlers = shortcutHandlers();
-    act(() => {
-      shell.setRuntimeState({
-        frames: { "desktop:main": [stackedFrame()] },
-        windowManagerConfig: {
-          ...CONFIG,
-          shortcuts: { "window.tab.next": ["meta+KeyL"] },
-          effectiveShortcuts: { ...TEST_KEYMAP, "window.tab.next": ["meta+KeyL"] },
-        },
-      });
-    });
-    renderHook(() => useOsShortcuts(handlers), { wrapper: shell.wrapper });
+  it("Should honor live keymap overrides and ignore the shipped chord [UT-051]", () => {
+    const run = vi.fn();
+    const rebound = shortcutRegistry({ "window.tab.next": ["meta+KeyL"] });
+    renderHook(() => useOsShortcuts(rebound, run, { onEscape: vi.fn() }));
 
     fireEvent.keyDown(document, { key: "Tab", code: "Tab", ctrlKey: true });
-    expect(shell.controller.focusWindow).not.toHaveBeenCalled();
+    expect(run).not.toHaveBeenCalled();
 
     fireEvent.keyDown(document, { key: "l", code: "KeyL", metaKey: true });
-    expect(shell.controller.focusWindow).toHaveBeenCalledWith("window:peer");
+    expect(run).toHaveBeenCalledExactlyOnceWith("window.tab.next");
   });
 
-  it("Should dispatch the shipped tab lifecycle chords through the live shell", () => {
-    const shell = createShell();
-    const handlers = shortcutHandlers();
-    act(() => {
-      shell.setRuntimeState({ frames: { "desktop:main": [stackedFrame()] } });
-    });
-    renderHook(() => useOsShortcuts(handlers), { wrapper: shell.wrapper });
+  it("Should swallow the chord of an unavailable command instead of acting on it", () => {
+    const run = vi.fn();
+    const registry = shortcutRegistry({}, { "window.close": false });
+    renderHook(() => useOsShortcuts(registry, run, { onEscape: vi.fn() }));
 
-    fireEvent.keyDown(document, { key: "t", code: "KeyT", metaKey: true });
-    expect(shell.controller.openOrFocus).toHaveBeenCalledWith({
-      app: "new-tab",
-      stackTargetWindowId: "window:primary",
-    });
-
-    fireEvent.keyDown(document, {
-      key: "t",
-      code: "KeyT",
+    const event = new KeyboardEvent("keydown", {
+      key: "w",
+      code: "KeyW",
       metaKey: true,
-      shiftKey: true,
+      bubbles: true,
+      cancelable: true,
     });
-    expect(shell.controller.reopenWindow).toHaveBeenCalledOnce();
+    document.dispatchEvent(event);
 
-    fireEvent.keyDown(document, { key: "9", code: "Digit9", metaKey: true });
-    expect(shell.controller.focusWindow).toHaveBeenCalledWith("window:peer");
+    // Bound but unavailable: the keystroke must not fall through to the browser,
+    // and the seam must not run a command the runtime just refused.
+    expect(event.defaultPrevented).toBe(true);
+    expect(run).not.toHaveBeenCalled();
+  });
 
-    const jumpTargets = Array.from({ length: 8 }, (_, index) =>
-      index === 0 ? "window:primary" : `window:slot-${index + 1}`
-    );
-    const activeWindowId = "window:active";
-    const jumpWindows = Object.fromEntries(
-      [...jumpTargets, activeWindowId].map((id, index) => [id, windowFixture(id, index + 1)])
-    );
-    act(() => {
-      shell.setRuntimeState({
-        frames: {
-          "desktop:main": [
-            {
-              ...stackedFrame(),
-              members: [...jumpTargets, activeWindowId],
-              activeWindowId,
-            },
-          ],
-        },
-        windows: jumpWindows,
-        focusedId: activeWindowId,
-      });
-    });
-    vi.mocked(shell.controller.focusWindow).mockClear();
+  it("Should keep an availability-exempt command working while the daemon is away", () => {
+    const run = vi.fn();
+    const registry = shortcutRegistry({}, { "shortcuts.cheatsheet": false });
+    renderHook(() => useOsShortcuts(registry, run, { onEscape: vi.fn() }));
 
-    jumpTargets.forEach((target, index) => {
-      const slot = index + 1;
-      fireEvent.keyDown(document, {
-        key: String(slot),
-        code: `Digit${slot}`,
-        metaKey: true,
-      });
-      expect(shell.controller.focusWindow).toHaveBeenCalledTimes(slot);
-      expect(shell.controller.focusWindow).toHaveBeenNthCalledWith(slot, target);
-    });
+    fireEvent.keyDown(document, { key: "/", code: "Slash", metaKey: true });
+
+    expect(run).toHaveBeenCalledExactlyOnceWith("shortcuts.cheatsheet");
   });
 
   it("Should dispatch the primary shortcut with Control on non-Apple platforms", () => {
     vi.spyOn(window.navigator, "platform", "get").mockReturnValue("Linux x86_64");
-    const shell = createShell();
-    const handlers = shortcutHandlers();
-    act(() => {
-      shell.setRuntimeState({ frames: { "desktop:main": [stackedFrame()] } });
-    });
-    renderHook(() => useOsShortcuts(handlers), { wrapper: shell.wrapper });
+    const run = vi.fn();
+    renderHook(() => useOsShortcuts(shortcutRegistry(), run, { onEscape: vi.fn() }));
 
     fireEvent.keyDown(document, { key: "t", code: "KeyT", ctrlKey: true });
-
-    expect(shell.controller.openOrFocus).toHaveBeenCalledWith({
-      app: "new-tab",
-      stackTargetWindowId: "window:primary",
-    });
-
     fireEvent.keyDown(document, { key: "[", code: "BracketLeft", ctrlKey: true });
 
-    expect(shell.controller.popWindowRoute).toHaveBeenCalledWith("window:primary");
+    expect(run.mock.calls.map(([id]) => id)).toEqual(["window.tab.new", "window.nav.back"]);
   });
 
   it("Should leave editable descendants and repeated chords untouched [UT-099]", () => {
-    const shell = createShell();
-    const handlers = shortcutHandlers();
-    renderHook(() => useOsShortcuts(handlers), { wrapper: shell.wrapper });
+    const run = vi.fn();
+    renderHook(() => useOsShortcuts(shortcutRegistry(), run, { onEscape: vi.fn() }));
     const editable = document.createElement("div");
     editable.setAttribute("contenteditable", "true");
     const nestedTarget = document.createElement("span");
@@ -1353,29 +1371,135 @@ describe("useOsShortcuts", () => {
     document.body.append(editable);
 
     fireEvent.keyDown(nestedTarget, { key: "z", code: "KeyZ", metaKey: true });
-    expect(shell.controller.undoLayout).not.toHaveBeenCalled();
-
     fireEvent.keyDown(document, { key: "z", code: "KeyZ", metaKey: true, repeat: true });
 
-    expect(shell.controller.undoLayout).not.toHaveBeenCalled();
+    expect(run).not.toHaveBeenCalled();
     editable.remove();
   });
 
   it("Should dispatch nothing while disabled, so first-run setup blocks the whole set", () => {
-    const { wrapper, controller } = createShell();
-    const handlers = shortcutHandlers();
-    renderHook(() => useOsShortcuts(handlers, { enabled: false }), { wrapper });
+    const run = vi.fn();
+    const onEscape = vi.fn();
+    renderHook(() => useOsShortcuts(shortcutRegistry(), run, { enabled: false, onEscape }));
 
     fireEvent.keyDown(document, { key: "k", code: "KeyK", metaKey: true });
-    fireEvent.keyDown(document, { key: "n", code: "KeyN", metaKey: true });
     fireEvent.keyDown(document, { key: "z", code: "KeyZ", metaKey: true });
     fireEvent.keyDown(document, { key: "Escape", code: "Escape" });
 
-    expect(handlers.onPalette).not.toHaveBeenCalled();
-    expect(handlers.onNewSession).not.toHaveBeenCalled();
-    expect(handlers.onDesktops).not.toHaveBeenCalled();
-    expect(handlers.onEscape).not.toHaveBeenCalled();
-    expect(controller.undoLayout).not.toHaveBeenCalled();
+    expect(run).not.toHaveBeenCalled();
+    expect(onEscape).not.toHaveBeenCalled();
+  });
+});
+
+describe("useOsPaletteExecution keyboard dispatch [UT-129]", () => {
+  const contentRef = { current: null } as RefObject<HTMLElement | null>;
+
+  function renderExecution(
+    options: {
+      registry?: PaletteRegistry;
+      selected?: PaletteRowSubject | null;
+      open?: boolean;
+    } = {}
+  ) {
+    const runAction = vi.fn();
+    const runCommand = vi.fn();
+    const registry = options.registry ?? shortcutRegistry();
+    const selected =
+      options.selected === undefined
+        ? ({
+            kind: "command",
+            command: registry.byId.get("window.tab.new") as ResolvedPaletteCommand,
+          } as PaletteRowSubject)
+        : options.selected;
+    const view = renderHook(() =>
+      useOsPaletteExecution({
+        open: options.open ?? true,
+        registry,
+        pins: [],
+        selected,
+        contentRef,
+        runAction,
+        runCommand,
+      })
+    );
+    return { ...view, runAction, runCommand };
+  }
+
+  function press(init: KeyboardEventInit): KeyboardEvent {
+    const event = new KeyboardEvent("keydown", { bubbles: true, cancelable: true, ...init });
+    // The listener drives React state, so the dispatch has to be flushed before
+    // the assertion reads the hook back.
+    act(() => {
+      document.dispatchEvent(event);
+    });
+    return event;
+  }
+
+  it("Should toggle the action panel on the palette chord instead of letting it close the palette", () => {
+    const { result } = renderExecution();
+
+    const opened = press({ key: "k", code: "KeyK", metaKey: true });
+    expect(result.current.panel.open).toBe(true);
+    expect(opened.defaultPrevented).toBe(true);
+
+    press({ key: "k", code: "KeyK", metaKey: true });
+    expect(result.current.panel.open).toBe(false);
+  });
+
+  it("Should fire the selected row's action chord wherever focus drifted in the palette", () => {
+    // The selected row is `window.tab.new`, whose primary action carries that
+    // command's own chord — pressing it acts on the row, not on the shell.
+    const { result, runAction } = renderExecution();
+    const fired = press({ key: "t", code: "KeyT", metaKey: true });
+
+    expect(runAction).toHaveBeenCalledOnce();
+    expect(runAction.mock.calls[0]?.[0]).toMatchObject({
+      primary: true,
+      intent: { kind: "run-command", commandId: "window.tab.new" },
+    });
+    expect(fired.defaultPrevented).toBe(true);
+    expect(result.current.panel.open).toBe(false);
+  });
+
+  it("Should ignore a held chord so one press cannot fire an action twice", () => {
+    const { runAction } = renderExecution();
+
+    press({ key: "t", code: "KeyT", metaKey: true, repeat: true });
+    expect(runAction).not.toHaveBeenCalled();
+
+    press({ key: "k", code: "KeyK", metaKey: true, repeat: true });
+    expect(runAction).not.toHaveBeenCalled();
+  });
+
+  it("Should leave a chord that belongs to no action on the selected row alone", () => {
+    // `window.nav.back` is bound in the keymap but is not one of this row's
+    // actions, so the shell's own listener must still get the keystroke.
+    const { runAction } = renderExecution();
+    const untouched = press({ key: "[", code: "BracketLeft", metaKey: true });
+
+    expect(runAction).not.toHaveBeenCalled();
+    expect(untouched.defaultPrevented).toBe(false);
+  });
+
+  it("Should listen only while the palette is open", () => {
+    const { result, runAction } = renderExecution({ open: false });
+
+    press({ key: "k", code: "KeyK", metaKey: true });
+    press({ key: "t", code: "KeyT", metaKey: true });
+
+    expect(result.current.panel.open).toBe(false);
+    expect(runAction).not.toHaveBeenCalled();
+  });
+
+  it("Should have nothing to act on when no row is selected", () => {
+    const { result, runAction } = renderExecution({ selected: null });
+
+    press({ key: "k", code: "KeyK", metaKey: true });
+    press({ key: "t", code: "KeyT", metaKey: true });
+
+    expect(result.current.panel.open).toBe(false);
+    expect(result.current.panel.model).toBeNull();
+    expect(runAction).not.toHaveBeenCalled();
   });
 });
 
@@ -1422,9 +1546,7 @@ describe("useOsZoomMenu", () => {
     act(() => live.result.current.onOpenChange(true));
     act(() =>
       live.result.current.dispatchPlacement({
-        id: "window.tile.left",
         placement: "left",
-        label: "Tile left half",
       })
     );
     expect(liveShell.controller.tileWindow).toHaveBeenCalledWith("window:primary", "left");
@@ -1499,24 +1621,11 @@ describe("useOsWindowCommands", () => {
 
     expect(result.current.commandsAvailable).toBe(false);
     expect(result.current.focusedWindowActions).toBeNull();
-    expect(result.current.placementCommands).toHaveLength(0);
-    expect(result.current.arrangeCommands).toHaveLength(0);
     expect(result.current.canToggleFloating).toBe(false);
     expect(result.current.canBalanceLayout).toBe(false);
     expect(result.current.canEditLayoutHistory).toBe(false);
     expect(result.current.canFocusDirection).toBe(false);
     expect(result.current.canSwitchDesktop).toBe(false);
-  });
-
-  it("Should offer arrange presets only while a visible peer exists", () => {
-    const withPeer = renderHook(() => useOsWindowCommands(), { wrapper: createShell().wrapper });
-    expect(withPeer.result.current.arrangeCommands.length).toBeGreaterThan(0);
-
-    const alone = renderHook(() => useOsWindowCommands(), {
-      wrapper: createShell({ withPeer: false }).wrapper,
-    });
-    expect(alone.result.current.arrangeCommands).toHaveLength(0);
-    expect(alone.result.current.placementCommands.length).toBeGreaterThan(0);
   });
 
   it("Should enable desktop switching only past a second desktop", () => {
@@ -1553,22 +1662,5 @@ describe("useOsWindowCommands", () => {
     expect(result.current.canSwitchDesktop).toBe(true);
     act(() => result.current.switchDesktop("next"));
     expect(shell.controller.switchDesktopDirection).toHaveBeenCalledWith("next");
-  });
-
-  it("Should resolve shortcut glyphs from the live window-manager config", () => {
-    const shell = createShell();
-    const { result } = renderHook(() => useOsWindowCommands(), { wrapper: shell.wrapper });
-    expect(result.current.shortcutLabels["window.close"]).toBe("⌘W");
-
-    act(() =>
-      shell.setRuntimeState({
-        windowManagerConfig: {
-          ...CONFIG,
-          shortcuts: { "window.close": ["control+shift+KeyW"] },
-          effectiveShortcuts: { ...TEST_KEYMAP, "window.close": ["control+shift+KeyW"] },
-        },
-      })
-    );
-    expect(result.current.shortcutLabels["window.close"]).toBe("⌃⇧W");
   });
 });

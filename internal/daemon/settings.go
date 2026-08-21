@@ -42,10 +42,11 @@ type settingsRuntimeSurface struct {
 	extensions   interface {
 		List(context.Context) ([]contract.ExtensionPayload, error)
 	}
-	deadEntities *deadentity.Service
-	now          func() time.Time
-	pid          func() int
-	info         func() Info
+	extensionRuntime func() extensionRuntime
+	deadEntities     *deadentity.Service
+	now              func() time.Time
+	pid              func() int
+	info             func() Info
 }
 
 var _ settingspkg.GeneralRuntimeProvider = (*settingsRuntimeSurface)(nil)
@@ -101,6 +102,7 @@ func newSettingsRuntimeSurface(d *Daemon, state *bootState) (*settingsRuntimeSur
 		secretRefs:        secretRefs,
 		lookupSecret:      lookupSecret,
 		extensions:        state.deps.Extensions,
+		extensionRuntime:  state.currentExtensionRuntime,
 		deadEntities:      state.deadEntities,
 		now:               now,
 		pid:               pid,
@@ -303,6 +305,9 @@ func (s *settingsRuntimeSurface) InstalledExtensions(
 			RequiresEnv:   append([]string(nil), item.RequiresEnv...),
 			MissingEnv:    append([]string(nil), item.MissingEnv...),
 		})
+	}
+	if err := s.attachExtensionPaletteSettings(installed); err != nil {
+		return nil, err
 	}
 	return installed, nil
 }

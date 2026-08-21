@@ -107,3 +107,71 @@ export async function setGlobalScope(page: Page, on: boolean): Promise<void> {
 export function windowTitle(win: Locator): Locator {
   return win.locator('[data-slot="topbar-title"]');
 }
+
+/* ── Command palette ──────────────────────────────────────────────────────
+ * Every row is a projection of the daemon registry, so specs address rows by
+ * command id rather than by the component that used to hand-write them. These
+ * helpers are the one place that knows the palette's DOM contract.
+ */
+
+export function commandPalette(page: Page): Locator {
+  return page.getByTestId("os-command-palette");
+}
+
+/** Opens ⌘K and waits for the overlay; the palette must not block on the daemon. */
+export async function openCommandPalette(page: Page): Promise<Locator> {
+  await page.keyboard.press("ControlOrMeta+KeyK");
+  const palette = commandPalette(page);
+  await expect(palette).toBeVisible();
+  return palette;
+}
+
+/** One command row, addressed by its registry id. */
+export function paletteRow(palette: Locator, commandId: string): Locator {
+  return palette.getByTestId(`os-palette-command-${commandId}`);
+}
+
+/** The verbatim runtime reason a disabled row carries (BR-8). */
+export function paletteRowReason(palette: Locator, commandId: string): Locator {
+  return paletteRow(palette, commandId).locator('[data-slot="os-palette-reason"]');
+}
+
+/** A capped group's exact "showing N of M" note; silent truncation is forbidden. */
+export function paletteOverflowNote(palette: Locator, section: string): Locator {
+  return palette.getByTestId(`os-palette-overflow-${section.toLowerCase()}`);
+}
+
+/** The palette while it is picking the surface a new tab becomes (US-036). */
+export function destinationPalette(page: Page): Locator {
+  return page.locator('[data-testid="os-command-palette"][data-destination]');
+}
+
+/** The palette's own empty state — including the zero-eligible destination copy. */
+export function paletteEmptyState(palette: Locator): Locator {
+  return palette.getByTestId("os-palette-empty");
+}
+
+/** The active pushed palette view, regardless of its List/Detail/Form/Grid body. */
+export function paletteView(page: Page, viewId: string): Locator {
+  return page.locator(`[data-testid="os-command-palette"][data-palette-view="${viewId}"]`);
+}
+
+/** One built-in domain row addressed by the normalized domain key. */
+export function paletteDomainRow(palette: Locator, key: string): Locator {
+  return palette.getByTestId(`os-palette-domain-${key.replaceAll(":", "-")}`);
+}
+
+/** One truthful domain filter, including filters whose current count is zero. */
+export function paletteDomainFilter(palette: Locator, filter: string): Locator {
+  return palette.getByTestId(`os-palette-domain-filter-${filter}`);
+}
+
+/** One tile in a Grid view. */
+export function paletteGridTile(palette: Locator, tileId: string): Locator {
+  return palette.getByTestId(`palette-grid-tile-${tileId}`);
+}
+
+/** A menubar item projected from the registry, addressed by command id. */
+export function menubarCommandItem(page: Page, commandId: string): Locator {
+  return page.getByTestId(`os-menubar-command-${commandId}`);
+}

@@ -45,6 +45,7 @@ type daemonExtensionService struct {
 	resourceActor      resources.MutationActor
 	resourceCodecs     *resources.CodecRegistry
 	mcpRuntimeHealth   *mcppkg.RuntimeHealthRegistry
+	paletteNotifier    *extensionPaletteNotifier
 }
 
 var _ udsapi.ExtensionService = (*daemonExtensionService)(nil)
@@ -131,6 +132,12 @@ func withDaemonExtensionResources(
 func withDaemonExtensionMCPRuntimeHealth(registry *mcppkg.RuntimeHealthRegistry) daemonExtensionServiceOption {
 	return func(service *daemonExtensionService) {
 		service.mcpRuntimeHealth = registry
+	}
+}
+
+func withDaemonExtensionPaletteNotifier(notifier *extensionPaletteNotifier) daemonExtensionServiceOption {
+	return func(service *daemonExtensionService) {
+		service.paletteNotifier = notifier
 	}
 }
 

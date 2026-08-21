@@ -577,6 +577,8 @@ func registerSettingsRoutes(engine *gin.Engine, handlers *core.BaseHandlers) {
 	settings.PATCH("/network", handlers.UpdateSettingsNetwork)
 	settings.GET("/window-manager", handlers.GetSettingsWindowManager)
 	settings.PATCH("/window-manager", handlers.UpdateSettingsWindowManager)
+	settings.GET("/cmd-palette", handlers.GetSettingsCmdPalette)
+	settings.PATCH("/cmd-palette", handlers.UpdateSettingsCmdPalette)
 	settings.GET("/observability", handlers.GetSettingsObservability)
 	settings.PATCH("/observability", handlers.UpdateSettingsObservability)
 	settings.GET("/hooks-extensions", handlers.GetSettingsHooksExtensions)
@@ -1482,7 +1484,20 @@ func TestSettingsSectionAndCollectionConversions(t *testing.T) {
 						TopCenter: "none", BottomCenter: "zoom",
 					},
 					Shortcuts: map[string]windowmanager.ShortcutBinding{"desktop.switch.next": {"Meta+ArrowRight"}},
+					GlobalShortcuts: map[string]string{
+						windowmanager.DefaultGlobalSummonCommandID: windowmanager.DefaultGlobalSummonChord,
+					},
 				},
+			},
+		},
+		{
+			Section:         settingspkg.SectionCmdPalette,
+			Scope:           settingspkg.ScopeWorkspace,
+			WorkspaceID:     "ws-test",
+			AvailableScopes: []settingspkg.ScopeKind{settingspkg.ScopeGlobal, settingspkg.ScopeWorkspace},
+			CmdPalette: &settingspkg.CmdPaletteSection{
+				FallbackAgentEnabled: true,
+				Personalization:      true,
 			},
 		},
 		{
@@ -1575,6 +1590,14 @@ func TestSettingsSectionAndCollectionConversions(t *testing.T) {
 					State:         "active",
 					Health:        "ok",
 					HealthMessage: "healthy",
+					Palette: &settingspkg.InstalledExtensionPalette{
+						Commands: []settingspkg.InstalledExtensionPaletteCommand{{
+							ID: "ext-a.jump", Title: "Jump",
+						}},
+						Views: []settingspkg.InstalledExtensionPaletteView{{
+							ID: "ext-a.recent", Title: "Recent", Available: true,
+						}},
+					},
 				}},
 				TransportParity: settingspkg.TransportParityStatus{
 					Known:          true,
@@ -1611,7 +1634,42 @@ func TestSettingsSectionAndCollectionConversions(t *testing.T) {
 					t.Fatalf("attention response JSON = %s, want muted_workspaces as []", data)
 				}
 				return
+			case settingspkg.SectionHooksExtensions:
+				payload, ok := response.(contract.SettingsHooksExtensionsResponse)
+				if !ok {
+					t.Fatalf("hooks-extensions response = %T, want SettingsHooksExtensionsResponse", response)
+				}
+				if len(payload.Installed) != 1 || payload.Installed[0].Palette == nil {
+					t.Fatalf("installed palette = %#v, want one extension palette", payload.Installed)
+				}
+				palette := payload.Installed[0].Palette
+				if len(palette.Commands) != 1 || palette.Commands[0].ID != "ext-a.jump" ||
+					palette.Commands[0].Bindings == nil || len(palette.Commands[0].Bindings) != 0 {
+					t.Fatalf("palette commands = %#v, want non-null empty bindings", palette.Commands)
+				}
+				if len(palette.Views) != 1 || palette.Views[0].ID != "ext-a.recent" {
+					t.Fatalf("palette views = %#v, want ext-a.recent", palette.Views)
+				}
+				data, err := json.Marshal(palette)
+				if err != nil {
+					t.Fatalf("json.Marshal(palette) error = %v", err)
+				}
+				if !bytes.Contains(data, []byte(`"bindings":[]`)) {
+					t.Fatalf("palette JSON = %s, want bindings as []", data)
+				}
+				return
 			case settingspkg.SectionWindowManager:
+			case settingspkg.SectionCmdPalette:
+				payload, ok := response.(contract.SettingsCmdPaletteResponse)
+				if !ok {
+					t.Fatalf("cmd-palette response = %T, want SettingsCmdPaletteResponse", response)
+				}
+				if !payload.Personalization || !payload.FallbackAgentEnabled ||
+					payload.WorkspaceID != "ws-test" ||
+					payload.Scope != contract.SettingsWorkspaceScopeWorkspace {
+					t.Fatalf("cmd-palette response = %#v, want workspace personalization", payload)
+				}
+				return
 			default:
 				return
 			}
@@ -1645,6 +1703,9 @@ func TestSettingsSectionAndCollectionConversions(t *testing.T) {
 					BottomCenter: contract.SettingsWindowBindingActionZoom,
 				},
 				Shortcuts: map[string]windowmanager.ShortcutBinding{"desktop.switch.next": {"Meta+ArrowRight"}},
+				GlobalShortcuts: map[string]string{
+					windowmanager.DefaultGlobalSummonCommandID: windowmanager.DefaultGlobalSummonChord,
+				},
 			}
 			if !reflect.DeepEqual(payload.Config, want) {
 				t.Fatalf("window-manager response config = %#v, want complete conversion", payload.Config)
@@ -1656,10 +1717,10 @@ func TestSettingsSectionAndCollectionConversions(t *testing.T) {
 				t.Fatalf("window-manager defaults = %#v, want daemon keymap", payload.Defaults)
 			}
 			if !reflect.DeepEqual(
-				payload.Effective["desktop.switch.next"],
+				payload.EffectiveShortcuts["desktop.switch.next"],
 				windowmanager.ShortcutBinding{"meta+ArrowRight"},
 			) {
-				t.Fatalf("window-manager effective keymap = %#v, want canonical override", payload.Effective)
+				t.Fatalf("window-manager effective keymap = %#v, want canonical override", payload.EffectiveShortcuts)
 			}
 		})
 	}
@@ -1927,7 +1988,12 @@ func TestUpdateSettingsSectionHandlersRejectInvalidPayloads(t *testing.T) {
 		{
 			name: "Should require window-manager config",
 			path: "/api/settings/window-manager",
-			want: "window-manager.config is required",
+			want: "window-manager config, shortcuts, or aliases are required",
+		},
+		{
+			name: "Should require a command-palette control",
+			path: "/api/settings/cmd-palette",
+			want: "cmd-palette fallback_agent_enabled or personalization is required",
 		},
 		{name: "observability", path: "/api/settings/observability", want: "observability.config is required"},
 		{name: "hooks extensions", path: "/api/settings/hooks-extensions", want: "hooks-extensions.config is required"},
@@ -2014,7 +2080,7 @@ func TestUpdateSettingsSectionHandlersRejectInvalidPayloads(t *testing.T) {
 			fixture.Engine,
 			http.MethodPatch,
 			"/api/settings/window-manager",
-			mustJSON(t, contract.UpdateSettingsWindowManagerRequest{Config: config}),
+			mustJSON(t, contract.UpdateSettingsWindowManagerRequest{Config: &config}),
 		)
 		if got, want := resp.Code, http.StatusBadRequest; got != want {
 			t.Fatalf("status = %d, want %d; body=%s", got, want, resp.Body.String())
@@ -2029,31 +2095,108 @@ func TestUpdateSettingsSectionHandlersRejectInvalidPayloads(t *testing.T) {
 		}
 	})
 
-	t.Run("Should reject window-manager effective shortcut conflicts [IT-015 PATCH]", func(t *testing.T) {
+	t.Run("Should return a structured window-manager shortcut conflict [IT-013 PATCH]", func(t *testing.T) {
 		t.Parallel()
 
-		service := &stubSettingsService{}
+		service := &stubSettingsService{ApplySectionFn: func(
+			context.Context,
+			settingspkg.SectionUpdateRequest,
+		) (settingspkg.ApplyResult, error) {
+			return settingspkg.ApplyResult{}, fmt.Errorf(
+				"wrapped: %w",
+				&windowmanager.ShortcutConflictError{
+					Owner: "session.new", Command: "window.focus.left", Chord: "meta+KeyN",
+				},
+			)
+		}}
 		fixture := newSettingsHandlerFixture(t, "api-core-http", service, nil)
-		config := validSettingsWindowManagerConfigPayload()
-		config.Shortcuts["window.focus.left"] = windowmanager.ShortcutBinding{"meta+KeyW"}
+		shortcuts := map[string]windowmanager.ShortcutBinding{
+			"window.focus.left": {"meta+KeyN"},
+		}
 
 		resp := performRequest(
 			t,
 			fixture.Engine,
 			http.MethodPatch,
 			"/api/settings/window-manager",
-			mustJSON(t, contract.UpdateSettingsWindowManagerRequest{Config: config}),
+			mustJSON(t, contract.UpdateSettingsWindowManagerRequest{Shortcuts: &shortcuts}),
 		)
-		if got, want := resp.Code, http.StatusBadRequest; got != want {
+		if got, want := resp.Code, http.StatusConflict; got != want {
 			t.Fatalf("status = %d, want %d; body=%s", got, want, resp.Body.String())
 		}
-		if service.UpdateSectionCalls != 0 {
-			t.Fatalf("UpdateSectionCalls = %d, want 0", service.UpdateSectionCalls)
+		if service.ApplySectionCalls != 1 {
+			t.Fatalf("ApplySectionCalls = %d, want 1", service.ApplySectionCalls)
 		}
-		var payload contract.ErrorPayload
+		var payload contract.SettingsWindowManagerMutationError
 		decodeJSON(t, resp.Body.Bytes(), &payload)
-		if !strings.Contains(payload.Error, "conflicts between") {
-			t.Fatalf("payload.Error = %q, want shortcut conflict", payload.Error)
+		if payload.Error != "shortcut_conflict" || payload.Owner != "session.new" || payload.Chord != "meta+KeyN" {
+			t.Fatalf("payload = %#v, want structured session.new conflict", payload)
+		}
+	})
+
+	t.Run("Should return a structured window-manager alias conflict", func(t *testing.T) {
+		t.Parallel()
+
+		service := &stubSettingsService{ApplySectionFn: func(
+			context.Context,
+			settingspkg.SectionUpdateRequest,
+		) (settingspkg.ApplyResult, error) {
+			return settingspkg.ApplyResult{}, fmt.Errorf(
+				"wrapped: %w",
+				&settingspkg.AliasConflictError{
+					Alias: "focus-left", Owner: "session.new", Command: "window.focus.left",
+				},
+			)
+		}}
+		fixture := newSettingsHandlerFixture(t, "api-core-http", service, nil)
+		aliases := map[string]string{"window.focus.left": "focus-left"}
+
+		resp := performRequest(
+			t,
+			fixture.Engine,
+			http.MethodPatch,
+			"/api/settings/window-manager",
+			mustJSON(t, contract.UpdateSettingsWindowManagerRequest{Aliases: &aliases}),
+		)
+		if got, want := resp.Code, http.StatusConflict; got != want {
+			t.Fatalf("status = %d, want %d; body=%s", got, want, resp.Body.String())
+		}
+		var payload contract.SettingsWindowManagerMutationError
+		decodeJSON(t, resp.Body.Bytes(), &payload)
+		if payload.Error != "alias_conflict" || payload.Owner != "session.new" || payload.Alias != "focus-left" {
+			t.Fatalf("payload = %#v, want structured session.new alias conflict", payload)
+		}
+	})
+
+	t.Run("Should return the public alias grammar for invalid aliases", func(t *testing.T) {
+		t.Parallel()
+
+		service := &stubSettingsService{ApplySectionFn: func(
+			context.Context,
+			settingspkg.SectionUpdateRequest,
+		) (settingspkg.ApplyResult, error) {
+			return settingspkg.ApplyResult{}, fmt.Errorf(
+				"wrapped: %w",
+				&settingspkg.InvalidAliasError{CommandID: "window.focus.left"},
+			)
+		}}
+		fixture := newSettingsHandlerFixture(t, "api-core-http", service, nil)
+		aliases := map[string]string{"window.focus.left": "focus left"}
+
+		resp := performRequest(
+			t,
+			fixture.Engine,
+			http.MethodPatch,
+			"/api/settings/window-manager",
+			mustJSON(t, contract.UpdateSettingsWindowManagerRequest{Aliases: &aliases}),
+		)
+		if got, want := resp.Code, http.StatusUnprocessableEntity; got != want {
+			t.Fatalf("status = %d, want %d; body=%s", got, want, resp.Body.String())
+		}
+		var payload contract.SettingsWindowManagerMutationError
+		decodeJSON(t, resp.Body.Bytes(), &payload)
+		if payload.Error != "invalid_alias" || payload.Message != "aliases are 1-32 chars, no whitespace" {
+			t.Fatalf("payload = %#v, want public alias grammar", payload)
 		}
 	})
 }
@@ -2267,7 +2410,7 @@ func TestUpdateSettingsSectionHandlersDelegateValidPayloads(t *testing.T) {
 			name: "Should delegate window-manager config",
 			path: "/api/settings/window-manager",
 			body: contract.UpdateSettingsWindowManagerRequest{
-				Config: validSettingsWindowManagerConfigPayload(),
+				Config: new(validSettingsWindowManagerConfigPayload()),
 			},
 			assert: func(t *testing.T, req settingspkg.SectionUpdateRequest) {
 				t.Helper()
@@ -2281,6 +2424,20 @@ func TestUpdateSettingsSectionHandlersDelegateValidPayloads(t *testing.T) {
 						windowmanager.ShortcutBinding{"Meta+ArrowRight"},
 					) {
 					t.Fatalf("req.WindowManager = %#v, want complete window-manager config", req.WindowManager)
+				}
+			},
+		},
+		{
+			name: "Should delegate partial command-palette controls",
+			path: "/api/settings/cmd-palette",
+			body: contract.UpdateSettingsCmdPaletteRequest{
+				FallbackAgentEnabled: new(false),
+			},
+			assert: func(t *testing.T, req settingspkg.SectionUpdateRequest) {
+				t.Helper()
+				if req.CmdPalette == nil || req.CmdPalette.FallbackAgentEnabled == nil ||
+					*req.CmdPalette.FallbackAgentEnabled || req.CmdPalette.Personalization != nil {
+					t.Fatalf("req.CmdPalette = %#v, want fallback false only", req.CmdPalette)
 				}
 			},
 		},
@@ -2360,6 +2517,37 @@ func TestUpdateSettingsSectionHandlersDelegateValidPayloads(t *testing.T) {
 						Applied:  true,
 					}, nil
 				},
+				GetSectionFn: func(_ context.Context, req settingspkg.SectionRequest) (settingspkg.SectionEnvelope, error) {
+					switch req.Section {
+					case settingspkg.SectionWindowManager:
+						return settingspkg.SectionEnvelope{
+							Section: req.Section,
+							Scope:   settingspkg.ScopeGlobal,
+							AvailableScopes: []settingspkg.ScopeKind{
+								settingspkg.ScopeGlobal,
+								settingspkg.ScopeWorkspace,
+							},
+							WindowManager: &settingspkg.WindowManagerSection{
+								Config: compozyconfig.DefaultWindowManagerConfig(),
+							},
+						}, nil
+					case settingspkg.SectionCmdPalette:
+						return settingspkg.SectionEnvelope{
+							Section: req.Section,
+							Scope:   settingspkg.ScopeGlobal,
+							AvailableScopes: []settingspkg.ScopeKind{
+								settingspkg.ScopeGlobal,
+								settingspkg.ScopeWorkspace,
+							},
+							CmdPalette: &settingspkg.CmdPaletteSection{
+								FallbackAgentEnabled: false,
+								Personalization:      false,
+							},
+						}, nil
+					default:
+						return settingspkg.SectionEnvelope{}, nil
+					}
+				},
 			}
 			fixture := newSettingsHandlerFixture(t, "api-core-http", service, nil)
 
@@ -2407,6 +2595,9 @@ func validSettingsWindowManagerConfigPayload() contract.SettingsWindowManagerCon
 		Shortcuts: map[string]windowmanager.ShortcutBinding{
 			"desktop.switch.next": {"Meta+ArrowRight"},
 			"window.focus.left":   {"Alt+ArrowLeft"},
+		},
+		GlobalShortcuts: map[string]string{
+			windowmanager.DefaultGlobalSummonCommandID: windowmanager.DefaultGlobalSummonChord,
 		},
 	}
 }
@@ -3153,16 +3344,24 @@ func TestSettingsRemainingReadAndDeleteHandlers(t *testing.T) {
 		if got := len(payload.Config.Shortcuts); got != 0 {
 			t.Fatalf("len(config.shortcuts) = %d, want 0", got)
 		}
-		if payload.Defaults == nil || payload.Effective == nil ||
-			!reflect.DeepEqual(payload.Defaults, payload.Effective) {
-			t.Fatalf("defaults/effective = %#v/%#v, want equal daemon keymaps", payload.Defaults, payload.Effective)
+		if payload.Defaults == nil || payload.EffectiveShortcuts == nil ||
+			!reflect.DeepEqual(payload.Defaults, payload.EffectiveShortcuts) {
+			t.Fatalf(
+				"defaults/effective = %#v/%#v, want equal daemon keymaps",
+				payload.Defaults,
+				payload.EffectiveShortcuts,
+			)
 		}
 
 		var wire struct {
-			Defaults  map[string]json.RawMessage `json:"defaults"`
-			Effective map[string]json.RawMessage `json:"effective"`
+			Defaults    map[string]json.RawMessage `json:"defaults"`
+			Diagnostics json.RawMessage            `json:"diagnostics"`
+			Effective   map[string]json.RawMessage `json:"effective_shortcuts"`
 		}
 		decodeJSON(t, resp.Body.Bytes(), &wire)
+		if got, want := string(wire.Diagnostics), "[]"; got != want {
+			t.Errorf("diagnostics = %s, want %s", got, want)
+		}
 		for field, shortcuts := range map[string]map[string]json.RawMessage{
 			"defaults":  wire.Defaults,
 			"effective": wire.Effective,

@@ -58,6 +58,36 @@ func TestNewDocCommand_RejectsUnexpectedArgs(t *testing.T) {
 	}
 }
 
+func TestCmdPaletteAvailableFlagDocContract(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should publish opt-in --available help without a default-true annotation", func(t *testing.T) {
+		t.Parallel()
+
+		cmd := newCmdPaletteListCommand(commandDeps{})
+		flag := cmd.Flags().Lookup(cmdPaletteAvailableFlag)
+		if flag == nil {
+			t.Fatal("list command is missing --available")
+		}
+		if flag.Usage != cmdPaletteAvailableFlagHelp {
+			t.Fatalf("usage = %q, want %q", flag.Usage, cmdPaletteAvailableFlagHelp)
+		}
+		if flag.DefValue != "false" {
+			t.Fatalf("DefValue = %q, want false so cli-docs omit (default true)", flag.DefValue)
+		}
+		usages := cmd.NonInheritedFlags().FlagUsages()
+		if !strings.Contains(usages, cmdPaletteAvailableFlagHelp) {
+			t.Fatalf("FlagUsages = %q, want the opt-in help", usages)
+		}
+		if strings.Contains(usages, "(default true)") {
+			t.Fatalf("FlagUsages = %q, must not emit (default true)", usages)
+		}
+		if !strings.Contains(cmd.Example, "--available=false") {
+			t.Fatalf("Example = %q, want an explicit --available=false invocation", cmd.Example)
+		}
+	})
+}
+
 func TestDocOutputProfilesReflectCommandBehavior(t *testing.T) {
 	t.Parallel()
 
@@ -65,9 +95,13 @@ func TestDocOutputProfilesReflectCommandBehavior(t *testing.T) {
 	tests := map[string]struct {
 		want docpost.OutputProfile
 	}{
-		"compozy agent":      {want: docpost.OutputProfileHelp},
-		"compozy agent list": {want: docpost.OutputProfileResult},
-		"compozy task":       {want: docpost.OutputProfileHelp},
+		"compozy agent":                       {want: docpost.OutputProfileHelp},
+		"compozy agent list":                  {want: docpost.OutputProfileResult},
+		"compozy approvals":                   {want: docpost.OutputProfileHelp},
+		"compozy cmd-palette":                 {want: docpost.OutputProfileHelp},
+		"compozy cmd-palette alias":           {want: docpost.OutputProfileHelp},
+		"compozy cmd-palette personalization": {want: docpost.OutputProfileHelp},
+		"compozy task":                        {want: docpost.OutputProfileHelp},
 		"compozy task review": {
 			want: docpost.OutputProfileHelp,
 		},
@@ -203,6 +237,26 @@ func TestNewDocCommand_GeneratesDocs(t *testing.T) {
 	}
 	if !strings.Contains(string(agentUpdate), "Update an agent definition for future sessions") {
 		t.Error("agent update docs should describe future-session mutability")
+	}
+
+	listPage, err := os.ReadFile(filepath.Join(outputDir, "cmd-palette", "list.mdx"))
+	if err != nil {
+		t.Fatalf("cmd-palette/list.mdx should exist: %v", err)
+	}
+	listBody := string(listPage)
+	if !strings.Contains(listBody, cmdPaletteAvailableFlagHelp) {
+		t.Error("cmd-palette list docs should say --available filtering is opt-in")
+	}
+	if !strings.Contains(listBody, "--available=false") {
+		t.Error("cmd-palette list docs should keep an explicit --available=false example")
+	}
+	for line := range strings.SplitSeq(listBody, "\n") {
+		if !strings.Contains(line, "--available") || !strings.Contains(line, cmdPaletteAvailableFlagHelp) {
+			continue
+		}
+		if strings.Contains(line, "(default true)") {
+			t.Errorf("cmd-palette list --available line %q must not advertise default true", line)
+		}
 	}
 
 	generated := findMDX(t, outputDir)

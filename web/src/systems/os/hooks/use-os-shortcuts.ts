@@ -1,34 +1,14 @@
 import { useEffect, useEffectEvent } from "react";
 
-import { dispatchWindowManagerAction } from "../lib/window-manager-action-dispatch";
-import { windowManagerCommandsAvailable } from "../lib/window-manager-command-availability";
-import type { ResolvedWindowManagerAction } from "../lib/window-manager-shortcuts";
-import {
-  primaryShortcutModifier,
-  resolveWindowManagerActions,
-  shortcutMatches,
-} from "../lib/window-manager-shortcuts";
-import { windowManagerStore } from "../stores/window-manager-store";
-import { useOsShell } from "./use-os-shell";
-
-export interface OsShortcutHandlers {
-  onPalette: () => void;
-  onPaletteSessions: () => void;
-  onNewSession: () => void;
-  onDesktops: () => void;
-  onWorkspaces: () => void;
-  onCycleWorkspace: (direction: "previous" | "next") => void;
-  onCycleSession: (direction: "previous" | "next") => void;
-  onFocusAttention: () => void;
-  onToggleSidebar: () => void;
-  onCheatsheet: () => void;
-  onEscape: () => void;
-  onToggleGlobalScope: () => void;
-}
+import { paletteKeyBindings, type PaletteKeyBinding } from "../lib/cmd-palette-keymap";
+import type { PaletteRegistry } from "../lib/cmd-palette-types";
+import { primaryShortcutModifier, shortcutMatches } from "../lib/window-manager-shortcuts";
 
 export interface OsShortcutOptions {
   /** Off while a blocking surface owns the shell (first-run setup). */
   enabled?: boolean;
+  /** Escape stays the one hardcoded shell key; the registry owns every other chord. */
+  onEscape: () => void;
 }
 
 /** AltGr aliases ⌃⌥ on some layouts — never steal keystrokes from text entry. */
@@ -46,73 +26,47 @@ function isEditableTarget(target: EventTarget | null): boolean {
   );
 }
 
-function allowedInEditable(action: ResolvedWindowManagerAction, chordIndex: number): boolean {
-  if (action.allowInEditable) return true;
-  if (action.id !== "shortcuts.cheatsheet") return false;
-  return action.chords[chordIndex]?.modifiers.has("meta") ?? false;
+function allowedInEditable(binding: PaletteKeyBinding, chordIndex: number): boolean {
+  if (binding.allowInEditable) return true;
+  if (binding.commandId !== "shortcuts.cheatsheet") return false;
+  return binding.chords[chordIndex]?.modifiers.has("meta") ?? false;
 }
 
 /**
- * One registry-driven listener. Config is read at event time, so Settings
- * changes apply without reload; Escape remains the sole hardcoded shell key.
+ * One registry-driven keydown listener.
+ *
+ * The chord grammar still lives in `window-manager-shortcuts`, but which
+ * commands exist, what they are called, whether they are currently available
+ * and what they do now all come from the daemon catalog — so a chord and its
+ * palette row cannot disagree, and pressing one runs exactly what clicking the
+ * other runs (ADR-006).
  */
 export function useOsShortcuts(
-  handlers: OsShortcutHandlers,
-  options: OsShortcutOptions = {}
+  registry: PaletteRegistry,
+  run: (commandId: string) => void,
+  { enabled = true, onEscape }: OsShortcutOptions
 ): void {
-  const enabled = options.enabled ?? true;
-  const { projection, manager, coordinator } = useOsShell();
   const handleKeyDown = useEffectEvent((event: KeyboardEvent) => {
     if (event.repeat) return;
     if (event.key === "Escape") {
       if (event.defaultPrevented) return;
-      handlers.onEscape();
+      onEscape();
       return;
     }
-    const state = projection.get();
-    const config = state.windowManagerConfig;
-    if (config === null) return;
     const editableTarget = isEditableTarget(event.target);
     const primaryModifier = primaryShortcutModifier(navigator.platform);
-    const commandsAvailable = windowManagerCommandsAvailable(state);
-    for (const action of resolveWindowManagerActions(config.effectiveShortcuts)) {
-      const chordIndex = action.chords.findIndex(chord =>
+    for (const binding of paletteKeyBindings(registry)) {
+      const chordIndex = binding.chords.findIndex(chord =>
         shortcutMatches(event, chord, primaryModifier)
       );
       if (chordIndex < 0) continue;
-      if (editableTarget && !allowedInEditable(action, chordIndex)) return;
-      if (!commandsAvailable && !action.availabilityExempt) return;
-      if (action.needsFocusedWindow && state.focusedId === null) return;
+      if (editableTarget && !allowedInEditable(binding, chordIndex)) return;
+      // A chord whose command is unavailable is still *bound* — swallowing the
+      // keystroke is what keeps it from falling through to the browser, and the
+      // seam reports the runtime's reason rather than acting.
       event.preventDefault();
-      dispatchWindowManagerAction(action.id, {
-        manager,
-        state,
-        openPalette: handlers.onPalette,
-        openPaletteSessions: handlers.onPaletteSessions,
-        openNewSession: handlers.onNewSession,
-        toggleGlobalScope: handlers.onToggleGlobalScope,
-        openCheatsheet: handlers.onCheatsheet,
-        openDesktops: handlers.onDesktops,
-        openWorkspaces: handlers.onWorkspaces,
-        cycleWorkspace: handlers.onCycleWorkspace,
-        cycleSession: handlers.onCycleSession,
-        focusAttention: handlers.onFocusAttention,
-        toggleSidebar: handlers.onToggleSidebar,
-        activateWindow: windowId => void coordinator.userFocus(windowId),
-        openNewTab: stackTargetWindowId =>
-          void coordinator
-            .userOpen({
-              app: "new-tab",
-              ...(stackTargetWindowId ? { stackTargetWindowId } : {}),
-            })
-            .then(windowId => {
-              if (windowId !== null) {
-                windowManagerStore.trigger.paletteIntentRequested({
-                  intent: { kind: "destination", windowId },
-                });
-              }
-            }),
-      });
+      if (!binding.available && !binding.availabilityExempt) return;
+      run(binding.commandId);
       return;
     }
   });

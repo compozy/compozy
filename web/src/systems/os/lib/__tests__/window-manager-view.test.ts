@@ -100,6 +100,7 @@ const CONFIG: WindowManagerConfig = {
   },
   bindings: { topCenter: "zoom", bottomCenter: "reserved" },
   shortcuts: {},
+  globalShortcuts: {},
   shortcutDefaults: {},
   effectiveShortcuts: {},
 };

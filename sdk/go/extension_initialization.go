@@ -2,7 +2,6 @@ package compozysdk
 
 import (
 	"encoding/json"
-
 	"slices"
 )
 
@@ -63,6 +62,7 @@ func (e *Extension) handleInitialize(params json.RawMessage) (InitializeResponse
 		ImplementedMethods:  implemented,
 		SupportedHookEvents: normalizeStrings(e.definition.SupportedHookEvents),
 		WatchSourceKinds:    e.watchSourceKindsLocked(),
+		CmdPaletteViews:     cmdPaletteViewIDs(e.definition.Resources.CmdPalette),
 		Supports:            InitializeSupports{HealthCheck: true},
 	}
 	session := ExtensionSession{

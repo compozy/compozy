@@ -385,6 +385,29 @@ type BridgeTaskSubscription struct {
 	UpdatedAt        string         `json:"updated_at"`
 }
 
+type CmdPalettePin struct {
+	WorkspaceID string `json:"workspace_id"`
+	CommandID   string `json:"command_id"`
+	PinnedAt    int64  `json:"pinned_at"`
+}
+
+type CmdPaletteQueryHit struct {
+	WorkspaceID string  `json:"workspace_id"`
+	Query       string  `json:"query"`
+	CommandID   string  `json:"command_id"`
+	Weight      float64 `json:"weight"`
+	LastUsedAt  int64   `json:"last_used_at"`
+}
+
+type CmdPaletteUsage struct {
+	WorkspaceID    string  `json:"workspace_id"`
+	CommandID      string  `json:"command_id"`
+	UseCount       int64   `json:"use_count"`
+	FrecencyWeight float64 `json:"frecency_weight"`
+	LastUsedAt     int64   `json:"last_used_at"`
+	UpdatedAt      int64   `json:"updated_at"`
+}
+
 type ConfigApplyRecord struct {
 	ID                string         `json:"id"`
 	DesiredConfigHash string         `json:"desired_config_hash"`
@@ -2026,6 +2049,26 @@ type ToolApprovalGrant struct {
 	Decision    string `json:"decision"`
 	CreatedAt   string `json:"created_at"`
 	LastUsedAt  string `json:"last_used_at"`
+}
+
+type ToolApprovalPending struct {
+	ApprovalID      string         `json:"approval_id"`
+	WorkspaceID     string         `json:"workspace_id"`
+	InvocationID    string         `json:"invocation_id"`
+	TargetKind      string         `json:"target_kind"`
+	ToolID          sql.NullString `json:"tool_id"`
+	TargetJson      string         `json:"target_json"`
+	CommandID       sql.NullString `json:"command_id"`
+	ArgsJson        string         `json:"args_json"`
+	ApprovalStatus  string         `json:"approval_status"`
+	ExecutionStatus sql.NullString `json:"execution_status"`
+	ResultJson      sql.NullString `json:"result_json"`
+	ErrorJson       sql.NullString `json:"error_json"`
+	RequestedAt     int64          `json:"requested_at"`
+	ExpiresAt       int64          `json:"expires_at"`
+	ResolvedAt      sql.NullInt64  `json:"resolved_at"`
+	ExecutedAt      sql.NullInt64  `json:"executed_at"`
+	ResumeFence     int64          `json:"resume_fence"`
 }
 
 type ToolProcess struct {

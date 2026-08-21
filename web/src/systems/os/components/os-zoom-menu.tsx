@@ -13,11 +13,14 @@ import {
 import { cn } from "@/lib/utils";
 
 import { useOsZoomMenu } from "../hooks/use-os-zoom-menu";
+import { usePaletteRegistry } from "../hooks/use-palette-registry";
 import {
-  WINDOW_ARRANGE_COMMANDS,
-  WINDOW_PLACEMENT_COMMANDS,
+  WINDOW_ARRANGE_PRESETS,
+  WINDOW_PLACEMENT_PRESETS,
+  windowArrangeCommandId,
+  windowPlacementCommandId,
   type WindowPlacementId,
-} from "../lib/window-manager-command-registry";
+} from "../lib/window-placement-presets";
 
 /**
  * macOS-style zoom-button menu (Sequoia green-button posture): hovering the
@@ -88,6 +91,8 @@ export interface OsZoomMenuProps {
 
 export function OsZoomMenu({ windowId, children }: OsZoomMenuProps) {
   const menu = useOsZoomMenu(windowId);
+  const registry = usePaletteRegistry();
+  const fillCommand = registry.byId.get("window.zoom");
   return (
     <DropdownMenu open={menu.open} onOpenChange={menu.onOpenChange} modal={false}>
       <span
@@ -118,17 +123,19 @@ export function OsZoomMenu({ windowId, children }: OsZoomMenuProps) {
         <DropdownMenuGroup>
           <DropdownMenuLabel>Move &amp; Resize</DropdownMenuLabel>
           <div className="grid grid-cols-4">
-            {WINDOW_PLACEMENT_COMMANDS.map(command => {
-              const zoneId = command.placement;
+            {WINDOW_PLACEMENT_PRESETS.map(preset => {
+              const zoneId = preset.placement;
+              const command = registry.byId.get(windowPlacementCommandId(zoneId));
+              if (command === undefined) return null;
               return (
                 <DropdownMenuItem
                   key={command.id}
-                  aria-label={command.label}
-                  title={command.label}
+                  aria-label={command.title}
+                  title={command.title}
                   data-testid={`os-zoom-menu-${zoneId}`}
                   className="size-11 justify-center p-0"
                   disabled={!menu.placementEnabled}
-                  onClick={() => menu.dispatchPlacement(command)}
+                  onClick={() => menu.dispatchPlacement(preset)}
                 >
                   <ZoneGlyph zones={[GLYPH_ZONES[zoneId]]} />
                 </DropdownMenuItem>
@@ -149,39 +156,45 @@ export function OsZoomMenu({ windowId, children }: OsZoomMenuProps) {
         <DropdownMenuGroup>
           <DropdownMenuLabel>Fill &amp; Arrange</DropdownMenuLabel>
           <div className="grid grid-cols-4">
-            <DropdownMenuItem
-              aria-label="Fill window"
-              title="Fill window"
-              data-testid="os-zoom-menu-fill"
-              className="size-11 justify-center p-0"
-              onClick={() => menu.dispatchFill()}
-            >
-              <ZoneGlyph zones={[{ x: 0, y: 0, w: 1, h: 1 }]} />
-            </DropdownMenuItem>
-            {WINDOW_ARRANGE_COMMANDS.map(command => (
+            {fillCommand === undefined ? null : (
               <DropdownMenuItem
-                key={command.preset}
-                aria-label={command.label}
-                title={command.label}
-                data-testid={`os-zoom-menu-${command.preset}`}
+                aria-label={fillCommand.title}
+                title={fillCommand.title}
+                data-testid="os-zoom-menu-fill"
                 className="size-11 justify-center p-0"
-                disabled={!menu.arrangeEnabled}
-                onClick={() => menu.dispatchArrange(command.preset)}
+                onClick={() => menu.dispatchFill()}
               >
-                <ZoneGlyph
-                  zones={
-                    command.preset === "two-up"
-                      ? [GLYPH_ZONES.left, GLYPH_ZONES.right]
-                      : [
-                          GLYPH_ZONES["top-left"],
-                          GLYPH_ZONES["top-right"],
-                          GLYPH_ZONES["bottom-left"],
-                          GLYPH_ZONES["bottom-right"],
-                        ]
-                  }
-                />
+                <ZoneGlyph zones={[{ x: 0, y: 0, w: 1, h: 1 }]} />
               </DropdownMenuItem>
-            ))}
+            )}
+            {WINDOW_ARRANGE_PRESETS.map(entry => {
+              const command = registry.byId.get(windowArrangeCommandId(entry.preset));
+              if (command === undefined) return null;
+              return (
+                <DropdownMenuItem
+                  key={entry.preset}
+                  aria-label={command.title}
+                  title={command.title}
+                  data-testid={`os-zoom-menu-${entry.preset}`}
+                  className="size-11 justify-center p-0"
+                  disabled={!menu.arrangeEnabled}
+                  onClick={() => menu.dispatchArrange(entry.preset)}
+                >
+                  <ZoneGlyph
+                    zones={
+                      entry.preset === "two-up"
+                        ? [GLYPH_ZONES.left, GLYPH_ZONES.right]
+                        : [
+                            GLYPH_ZONES["top-left"],
+                            GLYPH_ZONES["top-right"],
+                            GLYPH_ZONES["bottom-left"],
+                            GLYPH_ZONES["bottom-right"],
+                          ]
+                    }
+                  />
+                </DropdownMenuItem>
+              );
+            })}
           </div>
         </DropdownMenuGroup>
       </DropdownMenuContent>

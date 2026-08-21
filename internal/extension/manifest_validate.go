@@ -53,7 +53,11 @@ func validateManifestResources(manifest *Manifest) error {
 	if err := validateManifestMCPServerEnv(manifest.Resources.MCPServers); err != nil {
 		return err
 	}
-	return validateManifestCommandResources(manifest)
+	if err := validateManifestCommandResources(manifest); err != nil {
+		return err
+	}
+	_, err := validateManifestCmdPalette(manifest)
+	return err
 }
 
 func validateManifestCapabilities(manifest *Manifest) error {

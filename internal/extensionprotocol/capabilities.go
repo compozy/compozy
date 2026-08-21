@@ -20,6 +20,8 @@ const (
 	CapabilityProvideConnectivityProvider = "connectivity.provider"
 	// CapabilityProvideForgeProvider is the provide surface for remote code-forge operations.
 	CapabilityProvideForgeProvider = "forge.provider"
+	// CapabilityProvideViewProvider is the provide surface for programmable command-palette views.
+	CapabilityProvideViewProvider = "view.provider"
 )
 
 // ExtensionServiceMethod identifies one Compozy -> extension capability service request.
@@ -41,6 +43,9 @@ const (
 	ExtensionServiceMethodForgeCapabilities     ExtensionServiceMethod = "forge/capabilities"
 	ExtensionServiceMethodForgeStatus           ExtensionServiceMethod = "forge/status"
 	ExtensionServiceMethodForgePRCreate         ExtensionServiceMethod = "forge/pr_create"
+	ExtensionServiceMethodViewOpen              ExtensionServiceMethod = "view/open"
+	ExtensionServiceMethodViewEvent             ExtensionServiceMethod = "view/event"
+	ExtensionServiceMethodViewClose             ExtensionServiceMethod = "view/close"
 )
 
 var capabilityServiceMethods = map[string][]ExtensionServiceMethod{
@@ -72,6 +77,11 @@ var capabilityServiceMethods = map[string][]ExtensionServiceMethod{
 		ExtensionServiceMethodForgeCapabilities,
 		ExtensionServiceMethodForgeStatus,
 		ExtensionServiceMethodForgePRCreate,
+	},
+	CapabilityProvideViewProvider: {
+		ExtensionServiceMethodViewOpen,
+		ExtensionServiceMethodViewEvent,
+		ExtensionServiceMethodViewClose,
 	},
 }
 

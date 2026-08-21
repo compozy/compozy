@@ -70,6 +70,7 @@ type WindowManagerConfig struct {
 	Snap                WindowManagerSnapConfig                  `toml:"snap"`
 	Bindings            WindowManagerBindingConfig               `toml:"bindings"`
 	Shortcuts           map[string]windowmanager.ShortcutBinding `toml:"shortcuts,omitempty"`
+	GlobalShortcuts     map[string]string                        `toml:"global_shortcuts,omitempty"`
 }
 
 // WindowManagerGapsConfig controls the shared inner gap and work-area insets.
@@ -123,11 +124,47 @@ func DefaultWindowManagerConfig() WindowManagerConfig {
 			TopCenter: WindowBindingZoom, BottomCenter: WindowBindingReserved,
 		},
 		Shortcuts: map[string]windowmanager.ShortcutBinding{},
+		GlobalShortcuts: map[string]string{
+			windowmanager.DefaultGlobalSummonCommandID: windowmanager.DefaultGlobalSummonChord,
+		},
 	}
 }
 
 // Validate rejects incomplete or internally conflicting window-manager behavior.
 func (c WindowManagerConfig) Validate() error {
+	if err := c.validateEnums(); err != nil {
+		return err
+	}
+	if c.HistoryLimit < 1 || c.HistoryLimit > 500 {
+		return ValidationError{
+			Path: "window_manager.history_limit", Message: "must be between 1 and 500",
+		}
+	}
+	if c.NavStackLimit < 1 || c.NavStackLimit > 200 {
+		return ValidationError{Path: windowManagerNavStackLimitPath, Message: "must be between 1 and 200"}
+	}
+	if c.ClosedEntryLimit < 1 || c.ClosedEntryLimit > 100 {
+		return ValidationError{Path: windowManagerClosedEntryLimitPath, Message: "must be between 1 and 100"}
+	}
+	if err := c.Gaps.Validate(); err != nil {
+		return err
+	}
+	if err := c.Snap.Validate(); err != nil {
+		return err
+	}
+	if err := c.Bindings.Validate(); err != nil {
+		return err
+	}
+	if err := validateWindowManagerShortcuts(c.Shortcuts); err != nil {
+		return err
+	}
+	if _, err := windowmanager.CanonicalStoredGlobalShortcuts(c.GlobalShortcuts); err != nil {
+		return ValidationError{Path: "window_manager.global_shortcuts", Message: err.Error()}
+	}
+	return nil
+}
+
+func (c WindowManagerConfig) validateEnums() error {
 	if err := validateWindowManagerEnum(
 		"window_manager.new_window_policy",
 		c.NewWindowPolicy,
@@ -183,27 +220,7 @@ func (c WindowManagerConfig) Validate() error {
 	); err != nil {
 		return err
 	}
-	if c.HistoryLimit < 1 || c.HistoryLimit > 500 {
-		return ValidationError{
-			Path: "window_manager.history_limit", Message: "must be between 1 and 500",
-		}
-	}
-	if c.NavStackLimit < 1 || c.NavStackLimit > 200 {
-		return ValidationError{Path: windowManagerNavStackLimitPath, Message: "must be between 1 and 200"}
-	}
-	if c.ClosedEntryLimit < 1 || c.ClosedEntryLimit > 100 {
-		return ValidationError{Path: windowManagerClosedEntryLimitPath, Message: "must be between 1 and 100"}
-	}
-	if err := c.Gaps.Validate(); err != nil {
-		return err
-	}
-	if err := c.Snap.Validate(); err != nil {
-		return err
-	}
-	if err := c.Bindings.Validate(); err != nil {
-		return err
-	}
-	return validateWindowManagerShortcuts(c.Shortcuts)
+	return nil
 }
 
 // Validate ensures projection gaps stay within a practical viewport-safe range.
@@ -298,7 +315,7 @@ func validateWindowManagerEnum(path string, value string, allowed ...string) err
 }
 
 func validateWindowManagerShortcuts(shortcuts map[string]windowmanager.ShortcutBinding) error {
-	if _, err := windowmanager.CanonicalShortcutsV2(shortcuts); err != nil {
+	if _, err := windowmanager.CanonicalStoredShortcutsV2(shortcuts); err != nil {
 		return ValidationError{Path: "window_manager.shortcuts", Message: err.Error()}
 	}
 	return nil

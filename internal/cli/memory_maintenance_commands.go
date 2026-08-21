@@ -174,7 +174,7 @@ func newMemoryResetCommand(deps commandDeps) *cobra.Command {
 	var dryRun bool
 
 	cmd := &cobra.Command{
-		Use:   "reset",
+		Use:   cliResetVerb,
 		Short: "Reset derived Memory v2 state through the daemon",
 		Args:  cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, _ []string) error {

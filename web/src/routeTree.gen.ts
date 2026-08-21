@@ -50,6 +50,7 @@ import { Route as AppSettingsLayoutsRouteImport } from './routes/_app/settings/l
 import { Route as AppSettingsMemoryRouteImport } from './routes/_app/settings/memory'
 import { Route as AppSettingsNetworkRouteImport } from './routes/_app/settings/network'
 import { Route as AppSettingsObservabilityRouteImport } from './routes/_app/settings/observability'
+import { Route as AppSettingsPaletteRouteImport } from './routes/_app/settings/palette'
 import { Route as AppSettingsProvidersRouteImport } from './routes/_app/settings/providers'
 import { Route as AppSettingsRolesRouteImport } from './routes/_app/settings/roles'
 import { Route as AppSettingsSkillsRouteImport } from './routes/_app/settings/skills'
@@ -278,6 +279,11 @@ const AppSettingsObservabilityRoute =
     path: '/observability',
     getParentRoute: () => AppSettingsRoute,
   } as any)
+const AppSettingsPaletteRoute = AppSettingsPaletteRouteImport.update({
+  id: '/palette',
+  path: '/palette',
+  getParentRoute: () => AppSettingsRoute,
+} as any)
 const AppSettingsProvidersRoute = AppSettingsProvidersRouteImport.update({
   id: '/providers',
   path: '/providers',
@@ -428,6 +434,7 @@ export interface FileRoutesByFullPath {
   '/settings/memory': typeof AppSettingsMemoryRoute
   '/settings/network': typeof AppSettingsNetworkRoute
   '/settings/observability': typeof AppSettingsObservabilityRoute
+  '/settings/palette': typeof AppSettingsPaletteRoute
   '/settings/providers': typeof AppSettingsProvidersRoute
   '/settings/roles': typeof AppSettingsRolesRoute
   '/settings/skills': typeof AppSettingsSkillsRoute
@@ -487,6 +494,7 @@ export interface FileRoutesByTo {
   '/settings/memory': typeof AppSettingsMemoryRoute
   '/settings/network': typeof AppSettingsNetworkRoute
   '/settings/observability': typeof AppSettingsObservabilityRoute
+  '/settings/palette': typeof AppSettingsPaletteRoute
   '/settings/providers': typeof AppSettingsProvidersRoute
   '/settings/roles': typeof AppSettingsRolesRoute
   '/settings/skills': typeof AppSettingsSkillsRoute
@@ -552,6 +560,7 @@ export interface FileRoutesById {
   '/_app/settings/memory': typeof AppSettingsMemoryRoute
   '/_app/settings/network': typeof AppSettingsNetworkRoute
   '/_app/settings/observability': typeof AppSettingsObservabilityRoute
+  '/_app/settings/palette': typeof AppSettingsPaletteRoute
   '/_app/settings/providers': typeof AppSettingsProvidersRoute
   '/_app/settings/roles': typeof AppSettingsRolesRoute
   '/_app/settings/skills': typeof AppSettingsSkillsRoute
@@ -617,6 +626,7 @@ export interface FileRouteTypes {
     | '/settings/memory'
     | '/settings/network'
     | '/settings/observability'
+    | '/settings/palette'
     | '/settings/providers'
     | '/settings/roles'
     | '/settings/skills'
@@ -676,6 +686,7 @@ export interface FileRouteTypes {
     | '/settings/memory'
     | '/settings/network'
     | '/settings/observability'
+    | '/settings/palette'
     | '/settings/providers'
     | '/settings/roles'
     | '/settings/skills'
@@ -740,6 +751,7 @@ export interface FileRouteTypes {
     | '/_app/settings/memory'
     | '/_app/settings/network'
     | '/_app/settings/observability'
+    | '/_app/settings/palette'
     | '/_app/settings/providers'
     | '/_app/settings/roles'
     | '/_app/settings/skills'
@@ -1058,6 +1070,13 @@ declare module '@tanstack/react-router' {
       path: '/observability'
       fullPath: '/settings/observability'
       preLoaderRoute: typeof AppSettingsObservabilityRouteImport
+      parentRoute: typeof AppSettingsRoute
+    }
+    '/_app/settings/palette': {
+      id: '/_app/settings/palette'
+      path: '/palette'
+      fullPath: '/settings/palette'
+      preLoaderRoute: typeof AppSettingsPaletteRouteImport
       parentRoute: typeof AppSettingsRoute
     }
     '/_app/settings/providers': {
@@ -1397,6 +1416,7 @@ interface AppSettingsRouteChildren {
   AppSettingsMemoryRoute: typeof AppSettingsMemoryRoute
   AppSettingsNetworkRoute: typeof AppSettingsNetworkRoute
   AppSettingsObservabilityRoute: typeof AppSettingsObservabilityRoute
+  AppSettingsPaletteRoute: typeof AppSettingsPaletteRoute
   AppSettingsProvidersRoute: typeof AppSettingsProvidersRoute
   AppSettingsRolesRoute: typeof AppSettingsRolesRoute
   AppSettingsSkillsRoute: typeof AppSettingsSkillsRoute
@@ -1415,6 +1435,7 @@ const AppSettingsRouteChildren: AppSettingsRouteChildren = {
   AppSettingsMemoryRoute: AppSettingsMemoryRoute,
   AppSettingsNetworkRoute: AppSettingsNetworkRoute,
   AppSettingsObservabilityRoute: AppSettingsObservabilityRoute,
+  AppSettingsPaletteRoute: AppSettingsPaletteRoute,
   AppSettingsProvidersRoute: AppSettingsProvidersRoute,
   AppSettingsRolesRoute: AppSettingsRolesRoute,
   AppSettingsSkillsRoute: AppSettingsSkillsRoute,

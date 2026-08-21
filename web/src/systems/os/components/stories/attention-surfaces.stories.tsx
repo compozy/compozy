@@ -10,7 +10,9 @@ import type {
 } from "@/systems/session";
 import type { WorkspacePayload } from "@/systems/workspace";
 
+import { CmdPaletteRegistryProvider } from "../../contexts/cmd-palette-registry-context";
 import { OsShellContext } from "../../contexts/os-shell-context";
+import { cmdPaletteStoryRegistry } from "../../mocks/cmd-palette-fixtures";
 import type { OsAttentionModel } from "../../hooks/use-os-attention";
 import { DesktopMenubar } from "../desktop-menubar";
 import { OsSessionsModal } from "../sessions-modal";
@@ -197,8 +199,8 @@ function SessionsModalFixture() {
           sessions={CATALOG}
           disconnected={false}
           view={SESSION_LIST_VIEW}
-          onNewSession={fn()}
           sessionActions={SESSION_ACTIONS}
+          onNewSession={fn()}
         />
         <OsDockZone items={dockItems} onSelect={fn()} onNewSession={fn()} />
       </DesktopShell>
@@ -210,28 +212,26 @@ function BellFixture() {
   const [shell] = useState(() => createStoryShell());
   return (
     <OsShellContext.Provider value={shell}>
-      <AgentCreateHostProvider openDialog={fn()} openForDuplicate={fn()}>
-        <DesktopShell
-          menubar={false}
-          dockItems={buildDeskItems({ badges: { sessions: 1, tasks: 1 } })}
-        >
-          <DesktopMenubar
-            workspaces={[WORKSPACE]}
-            activeWorkspace={WORKSPACE}
-            onOpenWorkspaces={fn()}
-            onSelectWorkspace={fn()}
-            onAddWorkspace={fn()}
-            onNewSession={fn()}
-            onOpenPalette={fn()}
-            onOpenDesktops={fn()}
-            onToggleSessions={fn()}
-            activeOverlay="bell"
-            onOverlayOpenChange={fn()}
-            attention={ATTENTION}
-            updateAvailable={false}
-          />
-        </DesktopShell>
-      </AgentCreateHostProvider>
+      <CmdPaletteRegistryProvider registry={cmdPaletteStoryRegistry}>
+        <AgentCreateHostProvider openDialog={fn()} openForDuplicate={fn()}>
+          <DesktopShell
+            menubar={false}
+            dockItems={buildDeskItems({ badges: { sessions: 1, tasks: 1 } })}
+          >
+            <DesktopMenubar
+              workspaces={[WORKSPACE]}
+              activeWorkspace={WORKSPACE}
+              onSelectWorkspace={fn()}
+              onAddWorkspace={fn()}
+              onRunCommand={fn()}
+              activeOverlay="bell"
+              onOverlayOpenChange={fn()}
+              attention={ATTENTION}
+              updateAvailable={false}
+            />
+          </DesktopShell>
+        </AgentCreateHostProvider>
+      </CmdPaletteRegistryProvider>
     </OsShellContext.Provider>
   );
 }

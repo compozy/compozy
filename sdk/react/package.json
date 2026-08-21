@@ -1,0 +1,50 @@
+{
+    "name": "@compozy/extension-react",
+    "version": "0.1.0",
+    "private": false,
+    "description": "React component kit for CompozyOS extension views",
+    "homepage": "https://compozy.com",
+    "bugs": "https://github.com/compozy/compozy/issues",
+    "license": "MIT",
+    "repository": {
+        "type": "git",
+        "url": "git+https://github.com/compozy/compozy.git",
+        "directory": "sdk/react"
+    },
+    "files": [
+        "dist/**/*"
+    ],
+    "sideEffects": false,
+    "main": "./dist/cjs/index.js",
+    "module": "./dist/esm/index.js",
+    "types": "./dist/types/index.d.ts",
+    "exports": {
+        ".": {
+            "types": "./dist/types/index.d.ts",
+            "require": "./dist/cjs/index.js",
+            "import": "./dist/esm/index.js"
+        },
+        "./package.json": "./package.json"
+    },
+    "scripts": {
+        "build": "rm -rf dist && tsc -p tsconfig.types.json && tsc -p tsconfig.esm.json && tsc -p tsconfig.cjs.json && node ./scripts/postbuild.mjs",
+        "typecheck": "node ../../node_modules/@typescript/native/bin/tsc -p tsconfig.json --noEmit",
+        "test": "vitest run --config vitest.config.ts",
+        "coverage": "vitest run --config vitest.config.ts --coverage"
+    },
+    "dependencies": {
+        "@compozy/extension-sdk": "workspace:*",
+        "react": "^19.2.8",
+        "react-reconciler": "^0.33.0"
+    },
+    "devDependencies": {
+        "@types/node": "^26.0.0",
+        "@types/react": "^19.2.18",
+        "@types/react-reconciler": "^0.32.0",
+        "typescript": "^5.9.3",
+        "vitest": "^4.1.10"
+    },
+    "engines": {
+        "node": ">=18"
+    }
+}

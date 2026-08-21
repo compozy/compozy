@@ -16,6 +16,7 @@ import (
 	core "github.com/compozy/compozy/internal/api/core"
 
 	bridgepkg "github.com/compozy/compozy/internal/bridges"
+	"github.com/compozy/compozy/internal/cmdpalette"
 	compozyconfig "github.com/compozy/compozy/internal/config"
 	extensionpkg "github.com/compozy/compozy/internal/extension"
 	"github.com/compozy/compozy/internal/gateway"
@@ -242,6 +243,8 @@ type extensionManagerDeps struct {
 	HeartbeatWake          core.HeartbeatWakeService
 	SessionHealth          core.SessionHealthReader
 	WakeEvents             core.HeartbeatWakeEventReader
+	CmdPalette             cmdpalette.ViewService
+	ViewPatches            extensionpkg.ViewPatchPublisher
 	ProcessRegistry        *toolruntime.Registry
 	SecretResolver         extensionpkg.SecretRefResolver
 	EnvBindings            extensionpkg.EnvBindingStore

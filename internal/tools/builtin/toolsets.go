@@ -27,6 +27,8 @@ var builtinToolsets = []toolspkg.Toolset{
 			"compozy__skill_*",
 			toolspkg.ToolIDAgentList.String(),
 			toolspkg.ToolIDVaultList.String(),
+			toolspkg.ToolIDCmdPaletteList.String(),
+			toolspkg.ToolIDCmdPaletteInvoke.String(),
 		},
 		Toolsets: []toolspkg.ToolsetID{toolspkg.ToolsetIDBootstrap},
 	},

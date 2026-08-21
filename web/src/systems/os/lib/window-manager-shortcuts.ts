@@ -1,12 +1,23 @@
-import {
-  WINDOW_MANAGER_ACTIONS,
-  isWindowManagerActionId,
-  type WindowManagerActionDefinition,
-  type WindowManagerActionId,
-  type WindowManagerActionSection,
-} from "./window-manager-command-registry";
-
+/**
+ * Chord grammar: parsing, labelling, matching and conflict detection.
+ *
+ * This module knows how chords are written and compared, and nothing about
+ * which commands exist — that inventory is the daemon's, projected through the
+ * registry. Callers pass the action list in, which is what let the TS mirror of
+ * the keymap be deleted (ADR-006).
+ */
 type ShortcutModifier = "meta" | "control" | "alt" | "shift";
+
+/** A bindable command as the chord layer needs to see it. */
+export interface ShortcutActionDefinition {
+  id: string;
+  label: string;
+  section: string;
+  /** `core` or `ext.<name>` — what the cheatsheet groups by. */
+  source: string;
+  /** Operator-typed keyword, rendered as "Title (alias)" (US-023.AC-1). */
+  alias: string | null;
+}
 export type PrimaryShortcutModifier = "meta" | "control";
 export type ShortcutBinding = readonly string[];
 export type ShortcutMap = Readonly<Record<string, ShortcutBinding>>;
@@ -17,16 +28,18 @@ export interface ParsedShortcutChord {
   canonical: string;
 }
 
-export interface ResolvedWindowManagerAction extends WindowManagerActionDefinition {
+export interface ResolvedWindowManagerAction extends ShortcutActionDefinition {
   chords: readonly ParsedShortcutChord[];
   shortcutLabels: readonly string[];
 }
 
 export interface ShortcutCheatsheetRow {
   id: string;
-  actionIds: readonly WindowManagerActionId[];
+  actionIds: readonly string[];
   label: string;
-  section: WindowManagerActionSection;
+  section: string;
+  source: string;
+  alias: string | null;
   bindings: ShortcutBinding;
   overridden: boolean;
 }
@@ -36,19 +49,44 @@ export type ShortcutConflictKind = "blocked" | "shadowed";
 export interface ShortcutConflict {
   chord: string;
   kind: ShortcutConflictKind;
-  actionIds: readonly WindowManagerActionId[];
+  actionIds: readonly string[];
   winner?: { label: string; surface: string };
 }
 
-interface ShortcutRangeFamily {
-  action: "desktop.switch" | "window.tab.jump";
-  max: 8 | 9;
+export interface ShortcutRangeFamily {
+  readonly action: "desktop.switch" | "window.tab.jump";
+  readonly max: 8 | 9;
 }
 
-const RANGE_FAMILIES: readonly ShortcutRangeFamily[] = [
+/** Indexed families the keymap expands. Settings reset/override indicators must use this list. */
+export const SHORTCUT_RANGE_FAMILIES: readonly ShortcutRangeFamily[] = [
   { action: "desktop.switch", max: 9 },
   { action: "window.tab.jump", max: 8 },
 ];
+
+function indexedShortcutFamily(commandId: string): ShortcutRangeFamily | null {
+  for (const family of SHORTCUT_RANGE_FAMILIES) {
+    const prefix = `${family.action}.`;
+    if (!commandId.startsWith(prefix)) continue;
+    const slotText = commandId.slice(prefix.length);
+    if (!/^\d+$/.test(slotText)) continue;
+    const slot = Number(slotText);
+    if (Number.isInteger(slot) && slot >= 1 && slot <= family.max) return family;
+  }
+  return null;
+}
+
+export function coveringShortcutFamily(
+  commandId: string,
+  overrides: ShortcutMap
+): ShortcutRangeFamily["action"] | null {
+  return (
+    SHORTCUT_RANGE_FAMILIES.find(
+      family => commandId.startsWith(`${family.action}.`) && overrides[family.action] !== undefined
+    )?.action ?? null
+  );
+}
+
 const MODIFIER_ORDER = ["meta", "control", "alt", "shift"] as const;
 const MODIFIER_KEYS = new Set(["Meta", "Control", "Alt", "Shift"]);
 const KEY_CODE_PATTERN =
@@ -126,14 +164,23 @@ export function shortcutLabel(
   return shortcutKeyGlyphs(chord, primaryModifier).join("");
 }
 
-export function isShortcutOverrideActionId(value: string): boolean {
-  return isWindowManagerActionId(value) || RANGE_FAMILIES.some(family => family.action === value);
+/**
+ * Whether an override may name this id. The known-id set is supplied by the
+ * caller from the registry — the id space is open (core plus `ext.*`), so no
+ * closed list in TypeScript can answer this any more.
+ */
+export function isShortcutOverrideActionId(value: string, knownIds: ReadonlySet<string>): boolean {
+  return knownIds.has(value) || SHORTCUT_RANGE_FAMILIES.some(family => family.action === value);
 }
 
+/**
+ * Chord-grammar problems only. Id membership is deliberately not checked here:
+ * the bindable id space is open (core plus `ext.*`), so only a caller holding
+ * the registry can judge it — see `isShortcutOverrideActionId`.
+ */
 export function shortcutBindingProblem(actionId: string, binding: ShortcutBinding): string | null {
-  if (!isShortcutOverrideActionId(actionId)) return `Unknown window-manager action ${actionId}.`;
   if (binding.length === 0 || (binding.length === 1 && binding[0]?.trim() === "")) return null;
-  const family = RANGE_FAMILIES.find(candidate => candidate.action === actionId);
+  const family = SHORTCUT_RANGE_FAMILIES.find(candidate => candidate.action === actionId);
   for (const member of binding) {
     if (member.trim() === "") return "Empty array members are not shortcuts; use an empty array.";
     const range = parseShortcutRange(member);
@@ -170,7 +217,7 @@ function parseShortcutRange(value: string): { prefix: string; start: number; end
 export function expandShortcutOverrides(overrides: ShortcutMap): Record<string, ShortcutBinding> {
   const expanded: Record<string, ShortcutBinding> = {};
   for (const [actionId, binding] of Object.entries(overrides)) {
-    const family = RANGE_FAMILIES.find(candidate => candidate.action === actionId);
+    const family = SHORTCUT_RANGE_FAMILIES.find(candidate => candidate.action === actionId);
     if (!family) {
       expanded[actionId] = binding.flatMap(member => {
         const parsed = parseShortcutChord(member);
@@ -194,7 +241,7 @@ export function effectiveShortcutMap(base: ShortcutMap, overrides: ShortcutMap):
   const effective: Record<string, ShortcutBinding> = Object.fromEntries(
     Object.entries(base).map(([actionId, binding]) => [actionId, [...binding]])
   );
-  for (const family of RANGE_FAMILIES) {
+  for (const family of SHORTCUT_RANGE_FAMILIES) {
     if (!(family.action in overrides)) continue;
     for (let slot = 1; slot <= family.max; slot += 1) delete effective[`${family.action}.${slot}`];
   }
@@ -204,15 +251,21 @@ export function effectiveShortcutMap(base: ShortcutMap, overrides: ShortcutMap):
   return effective;
 }
 
+function parseEffectiveChords(bindings: ShortcutBinding): ParsedShortcutChord[] {
+  return bindings.flatMap(raw => {
+    const parsed = parseShortcutChord(raw);
+    return parsed ? [parsed] : [];
+  });
+}
+
+/** Binds each supplied action to its effective chords. The action list is the caller's. */
 export function resolveWindowManagerActions(
   effective: ShortcutMap,
+  actions: readonly ShortcutActionDefinition[],
   primaryModifier: PrimaryShortcutModifier = "meta"
 ): readonly ResolvedWindowManagerAction[] {
-  return WINDOW_MANAGER_ACTIONS.map(action => {
-    const chords = (effective[action.id] ?? []).flatMap(raw => {
-      const parsed = parseShortcutChord(raw);
-      return parsed ? [parsed] : [];
-    });
+  return actions.map(action => {
+    const chords = parseEffectiveChords(effective[action.id] ?? []);
     return {
       ...action,
       chords,
@@ -223,7 +276,7 @@ export function resolveWindowManagerActions(
 
 export function shortcutActionLabel(
   effective: ShortcutMap | undefined,
-  actionId: WindowManagerActionId,
+  actionId: string,
   platform: string
 ): string | null {
   const bindings = effective?.[actionId] ?? [];
@@ -239,27 +292,35 @@ export function shortcutActionLabel(
 /** Collapses indexed families while keeping each effective chord visible once. */
 export function deriveShortcutCheatsheet(
   effective: ShortcutMap,
-  overrides: ShortcutMap
+  overrides: ShortcutMap,
+  actionDefinitions: readonly ShortcutActionDefinition[]
 ): readonly ShortcutCheatsheetRow[] {
-  const actions = resolveWindowManagerActions(effective);
+  const actions = resolveWindowManagerActions(effective, actionDefinitions);
+  const indexedFamilies = new Set<string>(
+    actions.flatMap(action => {
+      const family = indexedShortcutFamily(action.id);
+      return family === null ? [] : [family.action];
+    })
+  );
   const rows: ShortcutCheatsheetRow[] = [];
   for (const action of actions) {
-    const family = action.id.startsWith("window.tab.jump.")
-      ? ({ action: "window.tab.jump", max: 8 } as const)
-      : /^desktop\.switch\.\d$/.test(action.id)
-        ? ({ action: "desktop.switch", max: 9 } as const)
-        : null;
+    const family = indexedShortcutFamily(action.id);
+    if (family === null && indexedFamilies.has(action.id)) {
+      continue;
+    }
     if (family) {
       if (!action.id.endsWith(".1")) continue;
       const actionIds = Array.from(
         { length: family.max },
-        (_, index) => `${family.action}.${index + 1}` as WindowManagerActionId
+        (_, index) => `${family.action}.${index + 1}`
       );
       rows.push({
         id: family.action,
         actionIds,
         label: family.action === "window.tab.jump" ? "Jump to tab" : "Switch to desktop",
         section: action.section,
+        source: action.source,
+        alias: null,
         bindings: compactIndexedBindings(actionIds, effective),
         overridden:
           overrides[family.action] !== undefined ||
@@ -272,6 +333,8 @@ export function deriveShortcutCheatsheet(
       actionIds: [action.id],
       label: action.label,
       section: action.section,
+      source: action.source,
+      alias: action.alias,
       bindings: action.chords.map(chord => chord.canonical),
       overridden: overrides[action.id] !== undefined,
     });
@@ -280,7 +343,7 @@ export function deriveShortcutCheatsheet(
 }
 
 function compactIndexedBindings(
-  actionIds: readonly WindowManagerActionId[],
+  actionIds: readonly string[],
   effective: ShortcutMap
 ): ShortcutBinding {
   const maxAlternates = Math.max(0, ...actionIds.map(id => effective[id]?.length ?? 0));
@@ -312,17 +375,24 @@ function compactIndexedBindings(
   return compact;
 }
 
+/**
+ * Two commands claiming one chord, or a chord a focused surface wins locally.
+ *
+ * Candidates come from the effective keymap itself rather than a catalog: only
+ * a bound id can conflict, and an override naming an id the registry has not
+ * hydrated yet still has to be reported rather than silently ignored.
+ */
 export function findShortcutConflicts(
   overrides: ShortcutMap,
   defaults: ShortcutMap
 ): readonly ShortcutConflict[] {
   const effective = effectiveShortcutMap(defaults, overrides);
-  const byChord = new Map<string, WindowManagerActionId[]>();
-  for (const action of resolveWindowManagerActions(effective)) {
-    for (const chord of action.chords) {
+  const byChord = new Map<string, string[]>();
+  for (const [actionId, bindings] of Object.entries(effective)) {
+    for (const chord of parseEffectiveChords(bindings)) {
       const holders = byChord.get(chord.canonical);
-      if (holders) holders.push(action.id);
-      else byChord.set(chord.canonical, [action.id]);
+      if (holders) holders.push(actionId);
+      else byChord.set(chord.canonical, [actionId]);
     }
   }
   const conflicts: ShortcutConflict[] = [];

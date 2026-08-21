@@ -5,7 +5,12 @@ package daemon
 import (
 	"context"
 	"encoding/json"
+	"errors"
+	"io"
+	"net/http"
+	"net/url"
 	"path/filepath"
+	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -22,11 +27,161 @@ import (
 
 const commandFixtureExtensionName = "cmd-fixture"
 
+const paletteFixtureExtensionName = "notes"
+
 func TestDaemonE2EExtensionContributedCommandsPreserveToolPolicy(t *testing.T) {
 	t.Run(
 		"Should preserve tool policy for contributed commands",
 		testDaemonE2EExtensionContributedCommandsPreserveToolPolicy,
 	)
+}
+
+// Invariant: the Go SDK fixture survives build, install, enable, catalog projection,
+// declarative view invocation, and disable through the public runtime surfaces.
+// Owner: daemon extension-to-command-palette integration.
+// Canonical suite: extension command end-to-end integration tests.
+func TestDaemonE2EExtensionCommandPaletteFixture(t *testing.T) {
+	t.Run("Should project and remove the Go fixture atomically [IT-016,IT-019]", func(t *testing.T) {
+		t.Parallel()
+
+		ctx, cancel := context.WithTimeout(context.Background(), 180*time.Second)
+		defer cancel()
+		repoRoot := extensionAuthoringE2ERepoRoot(t)
+		binaryPath := buildStampedExtensionAuthoringBinary(t, ctx, repoRoot)
+		harness := e2etest.StartRuntimeHarness(t, &e2etest.RuntimeHarnessOptions{
+			BinaryPath: binaryPath,
+			ConfigSeed: e2etest.ConfigSeedOptions{Mutate: func(cfg *compozyconfig.Config) {
+				cfg.Extensions.Trust.AllowUnverified = true
+				cfg.Tools.Policy.TrustedSources = append(
+					cfg.Tools.Policy.TrustedSources,
+					"extension:"+paletteFixtureExtensionName,
+				)
+			}},
+			StartTimeout: 30 * time.Second,
+		})
+
+		sourceDir := filepath.Join(harness.WorkspaceRoot, "palette-fixture-go")
+		fixtureDir := filepath.Join(repoRoot, "internal", "extension", "testdata", "palette-fixture-go")
+		if err := copyDirectory(fixtureDir, sourceDir); err != nil {
+			t.Fatalf("copy palette fixture error = %v", err)
+		}
+		configureExtensionAuthoringSDKReplaceWithoutShell(t, sourceDir, repoRoot)
+		var build extensionpkg.BuildResult
+		runExtensionAuthoringCLI(t, ctx, harness, &build, "extension", "build", sourceDir, "-o", "json")
+		if len(build.Manifest.Resources.CmdPalette.Commands) != 3 ||
+			len(build.Manifest.Resources.CmdPalette.Views) != 1 {
+			t.Fatalf("built palette fixture = %#v, want three commands and one view", build.Manifest.Resources.CmdPalette)
+		}
+
+		var installed compozycontract.ExtensionPayload
+		runExtensionAuthoringCLI(
+			t, ctx, harness, &installed,
+			"extension", "install", build.GenerationDir, "--allow-unverified", "--yes", "-o", "json",
+		)
+		var enabled compozycontract.ExtensionEnableResult
+		runExtensionAuthoringCLI(
+			t, ctx, harness, &enabled,
+			"extension", "enable", paletteFixtureExtensionName, "-o", "json",
+		)
+		if !enabled.Extension.Enabled {
+			t.Fatalf("enabled palette fixture = %#v, want active extension", enabled)
+		}
+
+		catalog := getPaletteFixtureCatalog(t, ctx, harness)
+		ids := make([]string, 0, 3)
+		for _, command := range catalog.Commands {
+			if command.Source == "ext.notes" {
+				ids = append(ids, string(command.ID))
+			}
+		}
+		wantIDs := []string{"ext.notes.capture", "ext.notes.purge", "ext.notes.recent"}
+		if !slices.Equal(ids, wantIDs) || !catalogHasPaletteFixtureSource(catalog) {
+			t.Fatalf("enabled palette catalog = %#v, want ids %v and ext.notes source", catalog, wantIDs)
+		}
+		view := getPaletteFixtureView(t, ctx, harness)
+		if view.ViewID != "ext.notes.recent" || view.Kind != "list" || len(view.Payload.Sections) != 1 {
+			t.Fatalf("palette fixture view = %#v, want validated recent list", view)
+		}
+
+		var disabled compozycontract.ExtensionPayload
+		runExtensionAuthoringCLI(
+			t, ctx, harness, &disabled,
+			"extension", "disable", paletteFixtureExtensionName, "-o", "json",
+		)
+		if disabled.Enabled {
+			t.Fatalf("disabled palette fixture = %#v, want inactive extension", disabled)
+		}
+		after := getPaletteFixtureCatalog(t, ctx, harness)
+		for _, command := range after.Commands {
+			if command.Source == "ext.notes" {
+				t.Fatalf("disabled palette catalog retained command %#v", command)
+			}
+		}
+		if catalogHasPaletteFixtureSource(after) || after.CatalogRevision == catalog.CatalogRevision {
+			t.Fatalf("disabled palette catalog = %#v, want removed source under a new revision", after)
+		}
+	})
+}
+
+func getPaletteFixtureJSON[T any](
+	t *testing.T,
+	ctx context.Context,
+	harness *e2etest.RuntimeHarness,
+	path string,
+) T {
+	t.Helper()
+	request, err := http.NewRequestWithContext(ctx, http.MethodGet, harness.HTTPURL(path), nil)
+	if err != nil {
+		t.Fatalf("create palette fixture request error = %v", err)
+	}
+	response, err := harness.HTTPClient.Do(request)
+	if err != nil {
+		t.Fatalf("get palette fixture error = %v", err)
+	}
+	body, readErr := io.ReadAll(response.Body)
+	closeErr := response.Body.Close()
+	if err := errors.Join(readErr, closeErr); err != nil {
+		t.Fatalf("read palette fixture response error = %v", err)
+	}
+	if response.StatusCode != http.StatusOK {
+		t.Fatalf("palette fixture status = %d, want %d; body=%s", response.StatusCode, http.StatusOK, body)
+	}
+	var result T
+	if err := json.Unmarshal(body, &result); err != nil {
+		t.Fatalf("decode palette fixture error = %v; body=%s", err, body)
+	}
+	return result
+}
+
+func getPaletteFixtureCatalog(
+	t *testing.T,
+	ctx context.Context,
+	harness *e2etest.RuntimeHarness,
+) compozycontract.CmdPaletteCommandsResponse {
+	t.Helper()
+	query := url.Values{"workspace": []string{harness.WorkspaceID}}
+	path := "/api/cmd-palette/commands?" + query.Encode()
+	return getPaletteFixtureJSON[compozycontract.CmdPaletteCommandsResponse](t, ctx, harness, path)
+}
+
+func catalogHasPaletteFixtureSource(catalog compozycontract.CmdPaletteCommandsResponse) bool {
+	for _, source := range catalog.Sources {
+		if source.Source == "ext.notes" {
+			return true
+		}
+	}
+	return false
+}
+
+func getPaletteFixtureView(
+	t *testing.T,
+	ctx context.Context,
+	harness *e2etest.RuntimeHarness,
+) compozycontract.CmdPaletteViewEnvelope {
+	t.Helper()
+	query := url.Values{"workspace": []string{harness.WorkspaceID}}
+	path := "/api/cmd-palette/views/" + url.PathEscape("ext.notes.recent") + "?" + query.Encode()
+	return getPaletteFixtureJSON[compozycontract.CmdPaletteViewEnvelope](t, ctx, harness, path)
 }
 
 func testDaemonE2EExtensionContributedCommandsPreserveToolPolicy(t *testing.T) {

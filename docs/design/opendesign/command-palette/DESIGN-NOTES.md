@@ -206,32 +206,45 @@ Prototype-local note: board footers push the esc cluster right with the
 herdr `.pal-foot-flex` spacer; production `OsPaletteFooter` uses
 `ml-auto` on the esc hint — same read, implementation uses `ml-auto`.
 
-## Spatial & tonal grammar (round 4 — binding)
+## Spatial & tonal grammar (round 6 — binding)
 
 Anti-cockpit direction (PRODUCT.md): calm and legible for people who
-are not terminal operators. Values are the FORWARD contract —
-implementation adopts them; production's current 30/32px density is
-anatomy precedent only.
+are not terminal operators. Round 4's 40px command-row ladder made the
+root list too tall to scan; round 6 adopts production
+`--height-control-compact` (32px) so the query field and a one-line
+row share a height. The 20px rail was always right — production had
+not implemented it.
+
+Authorized delta vs round 4: 32px command / single-line rows, 44px
+two-line entity rows only when a sub-line is present (4px between
+title and sub-line), 8px/4px group heading rhythm. Do not restate
+40px one-line rows.
 
 - **Zones.** Head (nav row + field) · results · footer, separated by
-  `--line-soft` hairlines. Head pads `12px 8px 10px`; results
-  `4px 8px 12px`; footer `12px 20px`.
+  `--line` hairlines. Head pads `12px 8px 10px`; results
+  `12px 8px 12px`; footer `8px 16px` inside Command `p-1` so keys hit
+  the 20px rail.
 - **One 20px rail.** Every leading glyph, group label, banner glyph,
   and footer key lands its left edge 20px from the panel edge
-  (zone pad-x 8 + element pad-x 12; crumb row 8 + back control 8).
-- **Ladder.** Input box 40px (query voice 13px) · command rows 40px ·
-  entity/two-line rows 48px · panel rows 36px · args pills 32px ·
-  leading icons 16px · roundels 18px.
+  (Command `p-1` 4 + list `px-1` 4 + item `px-3` 12; input wrapper
+  `p-1` 4 + group `px-3` 12).
+- **Ladder.** Input box 32px (query voice 13px) · command / single-line
+  rows 32px · two-line entity rows 44px · panel rows 32px · args pills
+  32px · leading icons 16px · roundels 18px. Row labels use tight
+  leading so `--text-small-body`'s 20px body leading does not size
+  the row.
 - **Blocks separated by full-bleed rules (round 5, reference-
-  approved).** Each group after the first opens with an edge-to-edge
-  `--line-soft` divider (the results well cancels its inline pad);
-  16px headroom above the label, 8px below, 2px between sibling
-  rows. Group labels recede to `--faint` — a step darker than row
-  text, never the same tone as the menus. The action panel's
-  sections carry the same dividers. Bands render as inset chips
+  approved; density tightened in round 6).** Each group after the
+  first opens with an edge-to-edge `--line` divider (the same hairline
+  as the query/results and results/footer splits, so the cut still
+  reads at compact density; `--line-soft` vanished on 32px rows);
+  8px headroom above the label, 4px below, 2px between sibling rows.
+  Group labels recede to `--faint`. The action panel's sections
+  carry the same dividers. Bands render as inset chips
   (`margin 10px 8px 0`, radius-md), never full-bleed dams.
-- **Args fields = the query-box grammar (round 5).** 40px
-  `--canvas-tint` boxes on the same border/radius as the input box;
+- **Args fields = the query-box grammar (round 5, height aligned in
+  round 6).** 32px `--canvas-tint` boxes on the same border/radius
+  as the input box;
   inline labels are quiet normal-case `--text-form-label` `--subtle`
   (the uppercase inline chip read as cockpit texture), values 13px.
   The args nav row (command glyph + name) rides the crumb-row

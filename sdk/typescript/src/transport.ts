@@ -13,14 +13,16 @@ import type { JSONRPCID, JSONRPCRequestEnvelope, JSONRPCResponseEnvelope } from 
 
 export const DEFAULT_MAX_MESSAGE_BYTES = 10 * 1024 * 1024;
 export const JSON_RPC_VERSION = "2.0";
+export const JSON_RPC_CANCEL_METHOD = "$/cancelRequest";
 
 export type TransportHandler = (
   params: unknown,
-  request: JSONRPCRequestEnvelope
+  request: JSONRPCRequestEnvelope,
+  signal: AbortSignal
 ) => Promise<unknown> | unknown;
 
 export interface TransportLike {
-  call<TResult = unknown>(method: string, params?: unknown): Promise<TResult>;
+  call<TResult = unknown>(method: string, params?: unknown, signal?: AbortSignal): Promise<TResult>;
   handle(method: string, handler: TransportHandler): void;
   unhandle(method: string): void;
   onTransportError(listener: (error: Error) => void): () => void;
@@ -71,6 +73,7 @@ export class StdioTransport implements TransportLike {
   private readonly maxMessageBytes: number;
   private readonly handlers = new Map<string, TransportHandler>();
   private readonly pending = new Map<string, PendingCall>();
+  private readonly inbound = new Map<string, AbortController>();
   private readonly errorListeners = new Set<(error: Error) => void>();
   private readBuffer = Buffer.alloc(0);
   private nextID = 0;
@@ -128,7 +131,11 @@ export class StdioTransport implements TransportLike {
     this.fail(new Error("transport closed"));
   }
 
-  public async call<TResult = unknown>(method: string, params?: unknown): Promise<TResult> {
+  public async call<TResult = unknown>(
+    method: string,
+    params?: unknown,
+    signal?: AbortSignal
+  ): Promise<TResult> {
     if (this.closed) {
       throw new Error("transport closed");
     }
@@ -143,11 +150,43 @@ export class StdioTransport implements TransportLike {
     };
 
     return await new Promise<TResult>((resolve, reject) => {
-      this.pending.set(keyOfID(id), { resolve, reject });
+      const key = keyOfID(id);
+      const onAbort = (): void => {
+        if (!this.pending.delete(key)) {
+          return;
+        }
+        try {
+          this.writeFrame({
+            jsonrpc: JSON_RPC_VERSION,
+            method: JSON_RPC_CANCEL_METHOD,
+            params: { id },
+          });
+        } catch (error) {
+          reject(error);
+          return;
+        }
+        reject(signal?.reason ?? new DOMException("The operation was aborted", "AbortError"));
+      };
+      this.pending.set(key, {
+        resolve: value => {
+          signal?.removeEventListener("abort", onAbort);
+          resolve(value);
+        },
+        reject: reason => {
+          signal?.removeEventListener("abort", onAbort);
+          reject(reason);
+        },
+      });
+      if (signal?.aborted) {
+        onAbort();
+        return;
+      }
+      signal?.addEventListener("abort", onAbort, { once: true });
       try {
         this.writeFrame(frame);
       } catch (error) {
-        this.pending.delete(keyOfID(id));
+        this.pending.delete(key);
+        signal?.removeEventListener("abort", onAbort);
         reject(error);
       }
     });
@@ -207,10 +246,14 @@ export class StdioTransport implements TransportLike {
       return;
     }
     if (isRequestFrame(parsed)) {
+      if (parsed.method === JSON_RPC_CANCEL_METHOD) {
+        this.cancelInbound(parsed.params);
+        return;
+      }
       if (!("id" in parsed) || parsed.id === undefined || parsed.id === null) {
         return;
       }
-      void this.dispatchRequest(parsed);
+      this.startRequest(parsed);
       return;
     }
     if (isResponseFrame(parsed)) {
@@ -221,19 +264,50 @@ export class StdioTransport implements TransportLike {
     this.fail(new InvalidRequestError("invalid json-rpc envelope"));
   }
 
-  private async dispatchRequest(request: RequestFrame): Promise<void> {
+  private startRequest(request: RequestFrame): void {
+    const key = keyOfID(request.id as JSONRPCID);
+    this.inbound.get(key)?.abort();
+    const controller = new AbortController();
+    this.inbound.set(key, controller);
+    void this.dispatchRequest(request, controller);
+  }
+
+  private async dispatchRequest(request: RequestFrame, controller: AbortController): Promise<void> {
+    const key = keyOfID(request.id as JSONRPCID);
     const handler = this.handlers.get(request.method.trim());
     if (!handler) {
       await this.sendError(request.id as JSONRPCID, new MethodNotFoundError(request.method));
+      this.inbound.delete(key);
       return;
     }
 
     try {
-      const result = await handler(request.params, request);
+      const result = await handler(request.params, request, controller.signal);
+      if (controller.signal.aborted) {
+        return;
+      }
       await this.sendResult(request.id as JSONRPCID, result ?? null);
     } catch (error) {
+      if (controller.signal.aborted) {
+        return;
+      }
       await this.sendError(request.id as JSONRPCID, ensureRPCError(error));
+    } finally {
+      if (this.inbound.get(key) === controller) {
+        this.inbound.delete(key);
+      }
     }
+  }
+
+  private cancelInbound(params: unknown): void {
+    if (!isRecord(params) || !("id" in params)) {
+      return;
+    }
+    const id = params.id;
+    if (typeof id !== "string" && typeof id !== "number") {
+      return;
+    }
+    this.inbound.get(keyOfID(id))?.abort();
   }
 
   private dispatchResponse(response: ResponseFrame): void {
@@ -292,6 +366,11 @@ export class StdioTransport implements TransportLike {
     }
     this.pending.clear();
 
+    for (const controller of this.inbound.values()) {
+      controller.abort(error);
+    }
+    this.inbound.clear();
+
     for (const listener of this.errorListeners) {
       listener(error);
     }
@@ -306,7 +385,7 @@ export class NotReadyTransport implements TransportLike {
   }
   public start(): void {}
   public async close(): Promise<void> {}
-  public async call(_method?: string, _params?: unknown): Promise<never> {
+  public async call(_method?: string, _params?: unknown, _signal?: AbortSignal): Promise<never> {
     throw new NotInitializedError();
   }
 }

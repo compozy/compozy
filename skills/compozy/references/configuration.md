@@ -160,6 +160,17 @@ or failed generation leaves the session unnamed.
 
 Other `[roles]` routing keys and the fallback-chain rules live in `references/runtime-operations.md` (Background roles).
 
+## Command Palette
+
+`[cmd_palette]` owns `fallback_targets`, the live `personalization` flag, and the
+`[cmd_palette.aliases]` command-to-alias map. `fallback_targets = ["agent"]` enables the agent row for
+a non-empty query without a strong result; `[]` disables it. Enter creates a new default-agent
+session with the query as its opening prompt, and no query is sent before Enter. Aliases are
+workspace-scoped vocabulary: 1–32 characters, no whitespace, and unique per workspace. Read or
+write scalar settings with `compozy config get|set cmd_palette.<key>`. Use the typed
+`GET|PATCH /api/settings/cmd-palette` surface for live fallback and personalization controls, and
+`compozy cmd-palette alias set|clear` for atomic alias changes through the daemon.
+
 ## Window Manager
 
 `[window_manager]` controls global behavior defaults for new-window placement, small-viewport
@@ -174,6 +185,16 @@ Shortcut entries accept a string, a string array, an empty binding, or an indexe
 `compozy config get window_manager -o json` to inspect daemon defaults and the effective map before
 writing an override. The daemon expands
 ranges and validates the full map atomically; a collision stores nothing.
+
+Use `compozy cmd-palette bindings` to read the workspace effective keymap, aliases, dormant
+extension defaults, and conflicts. `bind|unbind` mutate workspace bindings; `--overwrite` transfers
+a conflicting chord from the owner named by the daemon.
+
+`[window_manager.global_shortcuts]` maps any registry command ID to one desktop-global chord. It
+defaults `palette.summon.global = "meta+shift+Space"`. Use `compozy cmd-palette bind <id> <chord>
+--global` or `unbind <id> --global`; `--overwrite` transfers a collision atomically. The daemon owns
+intended bindings, while each Electron shell reports its own `registered`, `failed_in_use`,
+`failed_permission`, or `unsupported` state. A plain browser cannot register these chords.
 
 ## Attention
 

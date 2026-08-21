@@ -10,6 +10,7 @@ var requiredMethodsByProvide = map[string][]string{
 	"memory.backend":        []string{"memory/forget", "memory/recall", "memory/store"},
 	"model.source":          []string{"models/list"},
 	"tool.provider":         []string{"provide_tools", "tools/call"},
+	"view.provider":         []string{"view/close", "view/event", "view/open"},
 }
 
 func RequiredMethods(provide string) []string {
@@ -43,6 +44,9 @@ var publicProvideConformanceFixtures = []ProvideConformanceFixture{{
 }, {
 	Provide:         "tool.provider",
 	RequiredMethods: RequiredMethods("tool.provider"),
+}, {
+	Provide:         "view.provider",
+	RequiredMethods: RequiredMethods("view.provider"),
 }}
 
 func PublicProvideConformanceFixtures() []ProvideConformanceFixture {

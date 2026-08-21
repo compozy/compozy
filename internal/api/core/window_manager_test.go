@@ -968,6 +968,31 @@ func decodeWindowManagerTestBody(t *testing.T, response *httptest.ResponseRecord
 	}
 }
 
+func TestWindowManagerRegistrationContext(t *testing.T) {
+	t.Parallel()
+	t.Run("Should clone global shortcuts into the registration context", func(t *testing.T) {
+		t.Parallel()
+		input := contract.WindowManagerClientContextInput{
+			ScopeGlobal: true,
+			GlobalShortcuts: []windowmanager.GlobalShortcutRegistration{{
+				CommandID:     windowmanager.DefaultGlobalSummonCommandID,
+				IntendedChord: windowmanager.DefaultGlobalSummonChord,
+				Status:        windowmanager.GlobalShortcutRegistered,
+			}},
+		}
+		got := windowManagerRegistrationContext(input)
+		if !got.ScopeGlobal || len(got.GlobalShortcuts) != 1 ||
+			got.GlobalShortcuts[0].CommandID != windowmanager.DefaultGlobalSummonCommandID ||
+			got.GlobalShortcuts[0].IntendedChord != windowmanager.DefaultGlobalSummonChord {
+			t.Fatalf("registration context = %#v, want cloned global shortcuts", got)
+		}
+		input.GlobalShortcuts[0].IntendedChord = "mutated"
+		if got.GlobalShortcuts[0].IntendedChord != windowmanager.DefaultGlobalSummonChord {
+			t.Fatal("registration context aliased the caller shortcut slice")
+		}
+	})
+}
+
 func marshalWindowManagerTestJSON(t *testing.T, value any) string {
 	t.Helper()
 	payload, err := json.Marshal(value)

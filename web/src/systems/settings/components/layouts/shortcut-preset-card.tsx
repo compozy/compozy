@@ -4,7 +4,12 @@ import { useState } from "react";
 import { Button, Pill } from "@compozy/ui";
 
 import { notifyUser } from "@/lib/user-feedback";
-import { ShortcutBindingKeys, type ShortcutMap } from "@/systems/os";
+import {
+  ShortcutBindingKeys,
+  registryShortcutActions,
+  usePaletteRegistry,
+  type ShortcutMap,
+} from "@/systems/os";
 import {
   applyTerminalShortcutPreset,
   previewTerminalShortcutPreset,
@@ -44,7 +49,12 @@ export function ShortcutPresetCard({
 }) {
   const [previewOpen, setPreviewOpen] = useState(false);
   const [revertToken, setRevertToken] = useState<ShortcutPresetRevertToken | null>(null);
-  const preview = previewTerminalShortcutPreset(overrides, defaults);
+  const paletteRegistry = usePaletteRegistry();
+  const preview = previewTerminalShortcutPreset(
+    overrides,
+    defaults,
+    registryShortcutActions(paletteRegistry)
+  );
   const applied = Object.entries(TERMINAL_SHORTCUT_PRESET).every(
     ([actionId, binding]) => JSON.stringify(overrides[actionId] ?? []) === JSON.stringify(binding)
   );

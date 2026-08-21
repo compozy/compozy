@@ -1,20 +1,29 @@
 /**
- * The command palette's built-in view registry (ADR-003).
+ * The command palette's built-in view renderers (ADR-003).
  *
  * A view is a scoped, list-shaped level the root palette can push. The generic
  * shell owns the input, the keyboard contract, selection, the empty state and
  * the footer, so a view supplies only data — that is what keeps the mechanism
  * generic instead of one view's shape hardened into the palette.
  *
- * v1 registers built-in views only; extension-contributed views are an explicit
- * non-goal and no manifest surface ships. Addressing views by id and resolving
- * them through a map is what leaves that door open without building for it.
+ * View *membership* is the daemon's: the registry serves a `view` action per
+ * available view and the palette offers exactly those. This module owns only
+ * the render side, so an id the daemon serves without a renderer here resolves
+ * to null and degrades honestly rather than crashing (BR-2).
  */
 import type { ReactNode } from "react";
 
+import { Blocks, GitBranch } from "lucide-react";
+
 import { OS_APP_DESCRIPTORS, type OsAppDescriptor } from "./app-catalog";
 
-export type PaletteViewId = "sessions";
+/** Open id space: the daemon (and, from P6, extensions) name the views. */
+export type PaletteViewId = string;
+
+/** First segment of an `ext.<name>` source or `ext.<name>.*` view/command id. */
+export function parseExtensionName(id: string): string | null {
+  return /^ext\.([^.]+)(?:\.|$)/.exec(id)?.[1] ?? null;
+}
 
 export interface PaletteViewDefinition {
   readonly id: PaletteViewId;
@@ -27,9 +36,11 @@ export interface PaletteViewDefinition {
   readonly enterHint: string;
   /** Dialog description for assistive technology. */
   readonly description: string;
+  /** Query adapter title for built-in list views; sessions owns a dedicated controller. */
+  readonly domainTitle?: string;
 }
 
-export const PALETTE_VIEWS = {
+export const PALETTE_VIEWS: Readonly<Record<string, PaletteViewDefinition>> = {
   sessions: {
     id: "sessions",
     title: "Sessions",
@@ -38,13 +49,44 @@ export const PALETTE_VIEWS = {
     enterHint: "open session",
     description: "Filter sessions by state and open one",
   },
-} as const satisfies Record<PaletteViewId, PaletteViewDefinition>;
+  worktrees: domainView("worktrees", "Worktrees", GitBranch),
+  tasks: domainView("tasks", "Tasks", OS_APP_DESCRIPTORS.tasks.icon),
+  loops: domainView("loops", "Loops", OS_APP_DESCRIPTORS.loops.icon),
+  jobs: domainView("jobs", "Jobs", OS_APP_DESCRIPTORS.jobs.icon),
+  triggers: domainView("triggers", "Triggers", OS_APP_DESCRIPTORS.triggers.icon),
+  agents: domainView("agents", "Agents", OS_APP_DESCRIPTORS.agents.icon),
+  bridges: domainView("bridges", "Bridges", OS_APP_DESCRIPTORS.bridges.icon),
+  knowledge: domainView("knowledge", "Knowledge", OS_APP_DESCRIPTORS.knowledge.icon),
+  vault: domainView("vault", "Vault", OS_APP_DESCRIPTORS.vault.icon),
+  "network-channels": domainView(
+    "network-channels",
+    "Network channels",
+    OS_APP_DESCRIPTORS.network.icon
+  ),
+  marketplace: domainView("marketplace", "Marketplace", OS_APP_DESCRIPTORS.marketplace.icon),
+  extensions: domainView("extensions", "Extensions", Blocks),
+};
 
-/** Registration order — the order the root palette lists views in. */
-export const PALETTE_VIEW_LIST: readonly PaletteViewDefinition[] = Object.values(PALETTE_VIEWS);
+function domainView(
+  id: string,
+  title: string,
+  icon: OsAppDescriptor["icon"]
+): PaletteViewDefinition {
+  const lowerTitle = title.toLocaleLowerCase();
+  return {
+    id,
+    title,
+    icon,
+    placeholder: `Search ${lowerTitle}…`,
+    enterHint: "open",
+    description: `Search and open ${lowerTitle}`,
+    domainTitle: title,
+  };
+}
 
-export function paletteViewDefinition(id: PaletteViewId): PaletteViewDefinition {
-  return PALETTE_VIEWS[id];
+/** Null for a view id this client has no renderer for — the caller degrades. */
+export function paletteViewDefinition(id: PaletteViewId): PaletteViewDefinition | null {
+  return PALETTE_VIEWS[id] ?? null;
 }
 
 /** One activatable result. `value` is the row's stable identity, not a search string. */
@@ -53,11 +95,19 @@ export interface PaletteViewRow {
   readonly testId: string;
   readonly node: ReactNode;
   readonly disabled?: boolean;
+  /** True when the row body has a title plus a sub-line. */
+  readonly twoLine?: boolean;
   onSelect(): void;
 }
 
 export interface PaletteViewContent {
+  readonly kind?: "list" | "detail" | "form" | "grid";
   readonly rows: readonly PaletteViewRow[];
+  /** Kind-specific body rendered in place of list rows. */
+  readonly body?: ReactNode;
+  /** Selection-driven detail that stays beside the list without owning focus. */
+  readonly aside?: ReactNode;
+  onSelectionChange?(value: string): void;
   /** Filter chrome rendered between the input and the results. */
   readonly header: ReactNode | null;
   /** Shown in place of the results when `rows` is empty — names why. */

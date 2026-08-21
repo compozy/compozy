@@ -2,262 +2,258 @@
 
 package contracts
 
-import (
-	"encoding/json"
-	"time"
-)
+import "time"
 
-type PendingInteractionPayload struct {
-	InteractionID     string     `json:"interaction_id"`
-	Kind              string     `json:"kind"`
-	ProviderRequestID string     `json:"provider_request_id"`
-	TurnID            string     `json:"turn_id,omitempty"`
-	Title             string     `json:"title,omitempty"`
-	Choices           []string   `json:"choices,omitempty"`
-	Decisions         []string   `json:"decisions,omitempty"`
-	Status            string     `json:"status"`
-	CreatedAt         time.Time  `json:"created_at"`
-	ResolvedAt        *time.Time `json:"resolved_at,omitempty"`
-	Resolution        string     `json:"resolution,omitempty"`
-	ResolvedBy        string     `json:"resolved_by,omitempty"`
+type NetworkThreadMessagesParams struct {
+	WorkspaceID string `json:"workspace_id"`
+	Channel     string `json:"channel"`
+	ThreadID    string `json:"thread_id"`
+	Before      string `json:"before,omitempty"`
+	After       string `json:"after,omitempty"`
+	Kind        string `json:"kind,omitempty"`
+	WorkID      string `json:"work_id,omitempty"`
+	Limit       int    `json:"limit,omitempty"`
 }
 
-type PermissionDeniedPatch struct{}
-
-type PermissionDeniedPayload struct {
-	Event          HookEvent          `json:"event"`
-	Timestamp      time.Time          `json:"timestamp"`
-	SessionID      string             `json:"session_id,omitempty"`
-	SessionName    string             `json:"session_name,omitempty"`
-	SessionType    string             `json:"session_type,omitempty"`
-	AgentName      string             `json:"agent_name,omitempty"`
-	WorkspaceID    string             `json:"workspace_id,omitempty"`
-	Workspace      string             `json:"workspace,omitempty"`
-	WorktreeID     string             `json:"worktree_id,omitempty"`
-	ACPSessionID   string             `json:"acp_session_id,omitempty"`
-	State          string             `json:"state,omitempty"`
-	SoulSnapshotID string             `json:"soul_snapshot_id,omitempty"`
-	SoulDigest     string             `json:"soul_digest,omitempty"`
-	CreatedAt      time.Time          `json:"created_at"`
-	UpdatedAt      time.Time          `json:"updated_at"`
-	TurnID         string             `json:"turn_id,omitempty"`
-	RequestID      string             `json:"request_id,omitempty"`
-	Action         string             `json:"action,omitempty"`
-	Resource       string             `json:"resource,omitempty"`
-	Decision       string             `json:"decision,omitempty"`
-	DecisionClass  string             `json:"decision_class,omitempty"`
-	ToolCall       PermissionToolCall `json:"tool_call"`
+type NetworkThreadMessagesResponse struct {
+	Messages []NetworkConversationMessagePayload `json:"messages"`
+	Page     CursorPagePayload                   `json:"page"`
 }
 
-type PermissionOption struct {
-	Decision string `json:"decision,omitempty"`
-	OptionID string `json:"option_id,omitempty"`
-	Kind     string `json:"kind,omitempty"`
-	Label    string `json:"label,omitempty"`
+type NetworkThreadOpenedPayload struct {
+	Event       HookEvent  `json:"event"`
+	Timestamp   time.Time  `json:"timestamp"`
+	WorkspaceID string     `json:"workspace_id,omitempty"`
+	SessionID   string     `json:"session_id,omitempty"`
+	Channel     string     `json:"channel,omitempty"`
+	Surface     string     `json:"surface,omitempty"`
+	ThreadID    string     `json:"thread_id,omitempty"`
+	DirectID    string     `json:"direct_id,omitempty"`
+	MessageID   string     `json:"message_id,omitempty"`
+	Kind        string     `json:"kind,omitempty"`
+	Direction   string     `json:"direction,omitempty"`
+	WorkID      string     `json:"work_id,omitempty"`
+	WorkState   string     `json:"work_state,omitempty"`
+	PeerID      string     `json:"peer_id,omitempty"`
+	PeerFrom    string     `json:"peer_from,omitempty"`
+	PeerTo      string     `json:"peer_to,omitempty"`
+	LastSeenAt  *time.Time `json:"last_seen_at,omitempty"`
+	TraceID     string     `json:"trace_id,omitempty"`
+	CausationID string     `json:"causation_id,omitempty"`
 }
 
-type PermissionRequestPatch struct {
-	Deny          bool    `json:"deny,omitempty"`
-	DenyReason    string  `json:"deny_reason,omitempty"`
-	Decision      *string `json:"decision,omitempty"`
-	DecisionClass *string `json:"decision_class,omitempty"`
-	Reason        *string `json:"reason,omitempty"`
+type NetworkThreadSummaryPayload struct {
+	WorkspaceID        string                          `json:"workspace_id,omitempty"`
+	Channel            string                          `json:"channel"`
+	ThreadID           string                          `json:"thread_id"`
+	RootMessageID      string                          `json:"root_message_id"`
+	Title              string                          `json:"title,omitempty"`
+	OpenedByPeerID     string                          `json:"opened_by_peer_id,omitempty"`
+	OpenedSessionID    string                          `json:"opened_session_id,omitempty"`
+	OpenedAt           *time.Time                      `json:"opened_at,omitempty"`
+	LastActivityAt     *time.Time                      `json:"last_activity_at,omitempty"`
+	MessageCount       int                             `json:"message_count"`
+	ParticipantCount   int                             `json:"participant_count"`
+	OpenWorkCount      int                             `json:"open_work_count"`
+	CoordinationCost   *NetworkCoordinationCostPayload `json:"coordination_cost,omitempty"`
+	LastMessagePreview string                          `json:"last_message_preview,omitempty"`
 }
 
-type PermissionRequestPayload struct {
-	Event          HookEvent          `json:"event"`
-	Timestamp      time.Time          `json:"timestamp"`
-	SessionID      string             `json:"session_id,omitempty"`
-	SessionName    string             `json:"session_name,omitempty"`
-	SessionType    string             `json:"session_type,omitempty"`
-	AgentName      string             `json:"agent_name,omitempty"`
-	WorkspaceID    string             `json:"workspace_id,omitempty"`
-	Workspace      string             `json:"workspace,omitempty"`
-	WorktreeID     string             `json:"worktree_id,omitempty"`
-	ACPSessionID   string             `json:"acp_session_id,omitempty"`
-	State          string             `json:"state,omitempty"`
-	SoulSnapshotID string             `json:"soul_snapshot_id,omitempty"`
-	SoulDigest     string             `json:"soul_digest,omitempty"`
-	CreatedAt      time.Time          `json:"created_at"`
-	UpdatedAt      time.Time          `json:"updated_at"`
-	TurnID         string             `json:"turn_id,omitempty"`
-	RequestID      string             `json:"request_id,omitempty"`
-	Action         string             `json:"action,omitempty"`
-	Resource       string             `json:"resource,omitempty"`
-	Decision       string             `json:"decision,omitempty"`
-	DecisionClass  string             `json:"decision_class,omitempty"`
-	ToolInput      json.RawMessage    `json:"tool_input,omitempty"`
-	ToolCall       PermissionToolCall `json:"tool_call"`
-	Options        []PermissionOption `json:"options,omitempty"`
+type NetworkThreadTargetParams struct {
+	WorkspaceID string `json:"workspace_id"`
+	Channel     string `json:"channel"`
+	ThreadID    string `json:"thread_id"`
 }
 
-type PermissionResolutionPayload struct {
-	Event          HookEvent          `json:"event"`
-	Timestamp      time.Time          `json:"timestamp"`
-	SessionID      string             `json:"session_id,omitempty"`
-	SessionName    string             `json:"session_name,omitempty"`
-	SessionType    string             `json:"session_type,omitempty"`
-	AgentName      string             `json:"agent_name,omitempty"`
-	WorkspaceID    string             `json:"workspace_id,omitempty"`
-	Workspace      string             `json:"workspace,omitempty"`
-	WorktreeID     string             `json:"worktree_id,omitempty"`
-	ACPSessionID   string             `json:"acp_session_id,omitempty"`
-	State          string             `json:"state,omitempty"`
-	SoulSnapshotID string             `json:"soul_snapshot_id,omitempty"`
-	SoulDigest     string             `json:"soul_digest,omitempty"`
-	CreatedAt      time.Time          `json:"created_at"`
-	UpdatedAt      time.Time          `json:"updated_at"`
-	TurnID         string             `json:"turn_id,omitempty"`
-	RequestID      string             `json:"request_id,omitempty"`
-	Action         string             `json:"action,omitempty"`
-	Resource       string             `json:"resource,omitempty"`
-	Decision       string             `json:"decision,omitempty"`
-	DecisionClass  string             `json:"decision_class,omitempty"`
-	ToolInput      json.RawMessage    `json:"tool_input,omitempty"`
-	ToolCall       PermissionToolCall `json:"tool_call"`
+type NetworkThreadsParams struct {
+	WorkspaceID string `json:"workspace_id"`
+	Channel     string `json:"channel"`
+	Query       string `json:"query,omitempty"`
+	PeerID      string `json:"peer_id,omitempty"`
+	Sort        string `json:"sort,omitempty"`
+	HasWork     *bool  `json:"has_work,omitempty"`
+	Limit       int    `json:"limit,omitempty"`
+	After       string `json:"after,omitempty"`
 }
 
-type PermissionResolvedPatch struct{}
-
-type PermissionResolvedPayload struct {
-	Event          HookEvent          `json:"event"`
-	Timestamp      time.Time          `json:"timestamp"`
-	SessionID      string             `json:"session_id,omitempty"`
-	SessionName    string             `json:"session_name,omitempty"`
-	SessionType    string             `json:"session_type,omitempty"`
-	AgentName      string             `json:"agent_name,omitempty"`
-	WorkspaceID    string             `json:"workspace_id,omitempty"`
-	Workspace      string             `json:"workspace,omitempty"`
-	WorktreeID     string             `json:"worktree_id,omitempty"`
-	ACPSessionID   string             `json:"acp_session_id,omitempty"`
-	State          string             `json:"state,omitempty"`
-	SoulSnapshotID string             `json:"soul_snapshot_id,omitempty"`
-	SoulDigest     string             `json:"soul_digest,omitempty"`
-	CreatedAt      time.Time          `json:"created_at"`
-	UpdatedAt      time.Time          `json:"updated_at"`
-	TurnID         string             `json:"turn_id,omitempty"`
-	RequestID      string             `json:"request_id,omitempty"`
-	Action         string             `json:"action,omitempty"`
-	Resource       string             `json:"resource,omitempty"`
-	Decision       string             `json:"decision,omitempty"`
-	DecisionClass  string             `json:"decision_class,omitempty"`
-	ToolInput      json.RawMessage    `json:"tool_input,omitempty"`
-	ToolCall       PermissionToolCall `json:"tool_call"`
+type NetworkThreadsResponse struct {
+	Threads []NetworkThreadSummaryPayload `json:"threads"`
+	Page    CountedCursorPagePayload      `json:"page"`
 }
 
-type PermissionSet struct {
-	Tools           []string `json:"tools,omitempty"`
-	Skills          []string `json:"skills,omitempty"`
-	MCPServers      []string `json:"mcp_servers,omitempty"`
-	WorkspacePaths  []string `json:"workspace_paths,omitempty"`
-	NetworkChannels []string `json:"network_channels,omitempty"`
-	SandboxProfiles []string `json:"sandbox_profiles,omitempty"`
+type NetworkUsageDetailPayload struct {
+	WakeID              string              `json:"wake_id"`
+	TaskRunID           string              `json:"task_run_id"`
+	ParticipationStatus ParticipationStatus `json:"participation_status"`
+	WorkspaceID         string              `json:"workspace_id"`
+	Channel             string              `json:"channel"`
+	RootID              string              `json:"root_id"`
+	Depth               int                 `json:"depth"`
+	State               string              `json:"state"`
+	UsageState          string              `json:"usage_state"`
+	ChargedWallTime     string              `json:"charged_wall_time"`
+	InputTokens         int64               `json:"input_tokens"`
+	OutputTokens        int64               `json:"output_tokens"`
+	ReservedAt          time.Time           `json:"reserved_at"`
+	SettledAt           *time.Time          `json:"settled_at,omitempty"`
+	Reason              string              `json:"reason,omitempty"`
 }
 
-type PermissionToolCall struct {
-	ID        string         `json:"id,omitempty"`
-	Kind      string         `json:"kind,omitempty"`
-	Title     string         `json:"title,omitempty"`
-	Status    string         `json:"status,omitempty"`
-	Locations []ToolLocation `json:"locations,omitempty"`
+type NetworkUsageParams struct {
+	WorkspaceID string `json:"workspace_id"`
+	OwnerKind   string `json:"owner_kind,omitempty"`
+	OwnerID     string `json:"owner_id,omitempty"`
+	RunID       string `json:"run_id,omitempty"`
+	Channel     string `json:"channel,omitempty"`
+	Cursor      string `json:"cursor,omitempty"`
+	Limit       *int   `json:"limit,omitempty"`
 }
 
-type PersistenceHealth struct {
-	Status             string `json:"status"`
-	GlobalDBSizeBytes  int64  `json:"global_db_size_bytes"`
-	SessionDBSizeBytes int64  `json:"session_db_size_bytes"`
+type NetworkUsageResponse struct {
+	WorkspaceID string                      `json:"workspace_id"`
+	Details     []NetworkUsageDetailPayload `json:"details"`
+	Total       NetworkUsageSummaryPayload  `json:"total"`
+	Budget      *NetworkBudgetUsagePayload  `json:"budget,omitempty"`
+	NextCursor  string                      `json:"next_cursor,omitempty"`
 }
 
-type Priority string
-
-type ProbeResult struct {
-	AgentName  string    `json:"agent_name,omitempty"`
-	Provider   string    `json:"provider,omitempty"`
-	Command    string    `json:"command,omitempty"`
-	Executable string    `json:"executable,omitempty"`
-	Status     string    `json:"status"`
-	Error      string    `json:"error,omitempty"`
-	CheckedAt  time.Time `json:"checked_at"`
-	DurationMS int64     `json:"duration_ms"`
+type NetworkUsageSummaryPayload struct {
+	WakeCount            int    `json:"wake_count"`
+	ReservedWakeCount    int    `json:"reserved_wake_count"`
+	ActualWakeCount      int    `json:"actual_wake_count"`
+	UnavailableWakeCount int    `json:"unavailable_wake_count"`
+	ChargedWallTime      string `json:"charged_wall_time"`
+	InputTokens          int64  `json:"input_tokens"`
+	OutputTokens         int64  `json:"output_tokens"`
 }
 
-type PromptDelivery string
-
-type PromptMode string
-
-type PromptPatch struct {
-	Deny          bool           `json:"deny,omitempty"`
-	DenyReason    string         `json:"deny_reason,omitempty"`
-	Prompt        *string        `json:"prompt,omitempty"`
-	ContextBlocks []ContextBlock `json:"context_blocks,omitempty"`
+type NetworkWorkClosedPayload struct {
+	Event       HookEvent  `json:"event"`
+	Timestamp   time.Time  `json:"timestamp"`
+	WorkspaceID string     `json:"workspace_id,omitempty"`
+	SessionID   string     `json:"session_id,omitempty"`
+	Channel     string     `json:"channel,omitempty"`
+	Surface     string     `json:"surface,omitempty"`
+	ThreadID    string     `json:"thread_id,omitempty"`
+	DirectID    string     `json:"direct_id,omitempty"`
+	MessageID   string     `json:"message_id,omitempty"`
+	Kind        string     `json:"kind,omitempty"`
+	Direction   string     `json:"direction,omitempty"`
+	WorkID      string     `json:"work_id,omitempty"`
+	WorkState   string     `json:"work_state,omitempty"`
+	PeerID      string     `json:"peer_id,omitempty"`
+	PeerFrom    string     `json:"peer_from,omitempty"`
+	PeerTo      string     `json:"peer_to,omitempty"`
+	LastSeenAt  *time.Time `json:"last_seen_at,omitempty"`
+	TraceID     string     `json:"trace_id,omitempty"`
+	CausationID string     `json:"causation_id,omitempty"`
 }
 
-type PromptPayload struct {
-	Event          HookEvent      `json:"event"`
-	Timestamp      time.Time      `json:"timestamp"`
-	SessionID      string         `json:"session_id,omitempty"`
-	SessionName    string         `json:"session_name,omitempty"`
-	SessionType    string         `json:"session_type,omitempty"`
-	AgentName      string         `json:"agent_name,omitempty"`
-	WorkspaceID    string         `json:"workspace_id,omitempty"`
-	Workspace      string         `json:"workspace,omitempty"`
-	WorktreeID     string         `json:"worktree_id,omitempty"`
-	ACPSessionID   string         `json:"acp_session_id,omitempty"`
-	State          string         `json:"state,omitempty"`
-	SoulSnapshotID string         `json:"soul_snapshot_id,omitempty"`
-	SoulDigest     string         `json:"soul_digest,omitempty"`
-	CreatedAt      time.Time      `json:"created_at"`
-	UpdatedAt      time.Time      `json:"updated_at"`
-	TurnID         string         `json:"turn_id,omitempty"`
-	InputClass     string         `json:"input_class,omitempty"`
-	Prompt         string         `json:"prompt,omitempty"`
-	ContextBlocks  []ContextBlock `json:"context_blocks,omitempty"`
+type NetworkWorkGetParams struct {
+	WorkspaceID string `json:"workspace_id"`
+	WorkID      string `json:"work_id"`
 }
 
-type PromptRuntimeSelectionPayload struct {
-	Provider        string `json:"provider"`
-	Model           string `json:"model,omitempty"`
-	ReasoningEffort Effort `json:"reasoning_effort,omitempty"`
-	Speed           Speed  `json:"speed,omitempty"`
+type NetworkWorkOpenedPayload struct {
+	Event       HookEvent  `json:"event"`
+	Timestamp   time.Time  `json:"timestamp"`
+	WorkspaceID string     `json:"workspace_id,omitempty"`
+	SessionID   string     `json:"session_id,omitempty"`
+	Channel     string     `json:"channel,omitempty"`
+	Surface     string     `json:"surface,omitempty"`
+	ThreadID    string     `json:"thread_id,omitempty"`
+	DirectID    string     `json:"direct_id,omitempty"`
+	MessageID   string     `json:"message_id,omitempty"`
+	Kind        string     `json:"kind,omitempty"`
+	Direction   string     `json:"direction,omitempty"`
+	WorkID      string     `json:"work_id,omitempty"`
+	WorkState   string     `json:"work_state,omitempty"`
+	PeerID      string     `json:"peer_id,omitempty"`
+	PeerFrom    string     `json:"peer_from,omitempty"`
+	PeerTo      string     `json:"peer_to,omitempty"`
+	LastSeenAt  *time.Time `json:"last_seen_at,omitempty"`
+	TraceID     string     `json:"trace_id,omitempty"`
+	CausationID string     `json:"causation_id,omitempty"`
 }
 
-type ProviderModelListResponse struct {
-	Models []ProviderModelPayload `json:"models"`
+type NetworkWorkPayload struct {
+	WorkID          string     `json:"work_id"`
+	WorkspaceID     string     `json:"workspace_id,omitempty"`
+	Channel         string     `json:"channel"`
+	Surface         string     `json:"surface"`
+	ThreadID        string     `json:"thread_id,omitempty"`
+	DirectID        string     `json:"direct_id,omitempty"`
+	OpenedSessionID string     `json:"opened_session_id,omitempty"`
+	TargetSessionID string     `json:"target_session_id,omitempty"`
+	State           string     `json:"state"`
+	OpenedAt        *time.Time `json:"opened_at,omitempty"`
+	LastActivityAt  *time.Time `json:"last_activity_at,omitempty"`
+	TerminalAt      *time.Time `json:"terminal_at,omitempty"`
 }
 
-type ProviderModelPayload struct {
-	ProviderID             string                         `json:"provider_id"`
-	ModelID                string                         `json:"model_id"`
-	DisplayName            string                         `json:"display_name,omitempty"`
-	Sources                []ModelCatalogSourceRefPayload `json:"sources"`
-	Available              *bool                          `json:"available"`
-	AvailabilityState      string                         `json:"availability_state"`
-	Stale                  bool                           `json:"stale"`
-	RefreshedAt            string                         `json:"refreshed_at,omitempty"`
-	ContextWindow          *int64                         `json:"context_window,omitempty"`
-	MaxInputTokens         *int64                         `json:"max_input_tokens,omitempty"`
-	MaxOutputTokens        *int64                         `json:"max_output_tokens,omitempty"`
-	SupportsTools          *bool                          `json:"supports_tools,omitempty"`
-	SupportsReasoning      *bool                          `json:"supports_reasoning,omitempty"`
-	ReasoningEfforts       []Effort                       `json:"reasoning_efforts,omitempty"`
-	DefaultReasoningEffort *Effort                        `json:"default_reasoning_effort,omitempty"`
-	Cost                   *ModelCatalogCostPayload       `json:"cost,omitempty"`
-	Curated                bool                           `json:"curated"`
-	Deprecated             bool                           `json:"deprecated"`
-	Hidden                 bool                           `json:"hidden"`
-	Featured               bool                           `json:"featured"`
-	ReleaseDate            string                         `json:"release_date,omitempty"`
-	ReasoningSource        ReasoningSource                `json:"reasoning_source,omitempty"`
-	LastError              string                         `json:"last_error,omitempty"`
+type NetworkWorkTransitionedPayload struct {
+	Event       HookEvent  `json:"event"`
+	Timestamp   time.Time  `json:"timestamp"`
+	WorkspaceID string     `json:"workspace_id,omitempty"`
+	SessionID   string     `json:"session_id,omitempty"`
+	Channel     string     `json:"channel,omitempty"`
+	Surface     string     `json:"surface,omitempty"`
+	ThreadID    string     `json:"thread_id,omitempty"`
+	DirectID    string     `json:"direct_id,omitempty"`
+	MessageID   string     `json:"message_id,omitempty"`
+	Kind        string     `json:"kind,omitempty"`
+	Direction   string     `json:"direction,omitempty"`
+	WorkID      string     `json:"work_id,omitempty"`
+	WorkState   string     `json:"work_state,omitempty"`
+	PeerID      string     `json:"peer_id,omitempty"`
+	PeerFrom    string     `json:"peer_from,omitempty"`
+	PeerTo      string     `json:"peer_to,omitempty"`
+	LastSeenAt  *time.Time `json:"last_seen_at,omitempty"`
+	TraceID     string     `json:"trace_id,omitempty"`
+	CausationID string     `json:"causation_id,omitempty"`
 }
 
-type ProviderModelRefreshResponse struct {
-	Sources []ModelCatalogSourceStatusPayload `json:"sources"`
-	Error   string                            `json:"error,omitempty"`
+type ObserveHealth struct {
+	Status             string                  `json:"status"`
+	UptimeSeconds      int64                   `json:"uptime_seconds"`
+	ActiveSessions     int                     `json:"active_sessions"`
+	ActiveAgents       int                     `json:"active_agents"`
+	GlobalDBSizeBytes  int64                   `json:"global_db_size_bytes"`
+	SessionDBSizeBytes int64                   `json:"session_db_size_bytes"`
+	Persistence        PersistenceHealth       `json:"persistence"`
+	Retention          RetentionHealth         `json:"retention"`
+	Failures           FailureHealth           `json:"failures"`
+	AgentProbes        []ProbeResult           `json:"agent_probes,omitempty"`
+	Bridges            BridgeAggregateHealth   `json:"bridges"`
+	Tasks              TaskHealth              `json:"tasks"`
+	Activities         []SessionActivityHealth `json:"activities,omitempty"`
+	Version            string                  `json:"version"`
 }
 
-type ProviderModelStatusResponse struct {
-	Sources []ModelCatalogSourceStatusPayload `json:"sources"`
+type OpenAppEffect struct {
+	App string `json:"app"`
 }
 
-type ReasonCode string
+type OpenURLEffect struct {
+	URL string `json:"url"`
+}
+
+type Origin struct {
+	Kind OriginKind `json:"kind"`
+	Ref  string     `json:"ref"`
+}
+
+type OriginKind string
+
+type OwnerKind string
+
+type OwnerRef struct {
+	WorkspaceID string                 `json:"workspace_id"`
+	Kind        ParticipationOwnerKind `json:"kind"`
+	ID          string                 `json:"id"`
+}
+
+type Ownership struct {
+	Kind OwnerKind `json:"kind"`
+	Ref  string    `json:"ref"`
+}

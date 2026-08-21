@@ -105,7 +105,7 @@ func (h *BaseHandlers) CreateToolApproval(c *gin.Context) {
 		h.respondToolError(c, err)
 		return
 	}
-	grant, err := h.ToolApprovals.CreateToolApproval(c.Request.Context(), scope, toolspkg.ApprovalRequest{
+	grant, err := h.ToolApprovals.CreateToolApproval(c.Request.Context(), scope, toolspkg.ApprovalTokenRequest{
 		ToolID:      id,
 		SessionID:   scope.SessionID,
 		WorkspaceID: scope.WorkspaceID,

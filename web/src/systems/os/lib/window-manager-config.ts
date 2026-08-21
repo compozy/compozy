@@ -27,6 +27,7 @@ export function effectiveWindowManagerConfig(
     },
     bindings: { ...(workspace.bindings ?? global.bindings) },
     shortcuts: { ...global.shortcuts, ...workspace.shortcuts },
+    globalShortcuts: { ...global.globalShortcuts, ...workspace.globalShortcuts },
     shortcutDefaults: global.shortcutDefaults,
     effectiveShortcuts: workspace.shortcuts
       ? effectiveShortcutMap(global.effectiveShortcuts, workspace.shortcuts)

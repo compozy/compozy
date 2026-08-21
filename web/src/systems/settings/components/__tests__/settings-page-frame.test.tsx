@@ -56,6 +56,34 @@ describe("SettingsPageFrame", () => {
     expect(screen.queryByTestId("settings-page-general-save-bar")).not.toBeInTheDocument();
   });
 
+  it("draws no subhead band for a page whose controls speak for themselves", () => {
+    // A page that supplies neither a sentence nor meta gets no band at all — an
+    // empty one would leave a rule under the heading with nothing above it.
+    render(
+      <SettingsPageFrame slug="palette">
+        <div data-testid="frame-body-content">content</div>
+      </SettingsPageFrame>
+    );
+
+    expect(screen.queryByTestId("settings-page-palette-subhead")).not.toBeInTheDocument();
+    expect(screen.getByTestId("frame-body-content")).toBeVisible();
+  });
+
+  it("keeps the band for meta alone and drops the leading separator", () => {
+    render(
+      <SettingsPageFrame
+        meta={[{ key: "count", content: <span>2 saved layouts</span> }]}
+        slug="palette"
+      >
+        <div>content</div>
+      </SettingsPageFrame>
+    );
+
+    const subhead = screen.getByTestId("settings-page-palette-subhead");
+    expect(subhead).toHaveTextContent("2 saved layouts");
+    expect(subhead.querySelectorAll('[aria-hidden="true"]')).toHaveLength(0);
+  });
+
   it("does not own the route title or publish topbar state", () => {
     renderFrame(null);
 

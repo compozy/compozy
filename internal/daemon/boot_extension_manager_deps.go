@@ -3,6 +3,7 @@ package daemon
 import (
 	"context"
 
+	"github.com/compozy/compozy/internal/cmdpalette"
 	extensionpkg "github.com/compozy/compozy/internal/extension"
 	"github.com/compozy/compozy/internal/resources"
 )
@@ -11,6 +12,10 @@ func (d *Daemon) extensionManagerDeps(
 	state *bootState,
 	extRegistry *extensionpkg.Registry,
 ) extensionManagerDeps {
+	var cmdPaletteViews cmdpalette.ViewService
+	if service, ok := state.cmdPalette.(cmdpalette.ViewService); ok {
+		cmdPaletteViews = service
+	}
 	envBindings := state.extensionEnvBindings
 	if envBindings == nil {
 		if store, ok := any(state.registry).(extensionpkg.EnvBindingStore); ok {
@@ -61,12 +66,17 @@ func (d *Daemon) extensionManagerDeps(
 		HeartbeatWake:   state.deps.HeartbeatWake,
 		SessionHealth:   state.deps.SessionHealth,
 		WakeEvents:      state.deps.WakeEvents,
+		CmdPalette:      cmdPaletteViews,
+		ViewPatches:     state.viewPatches,
 		ProcessRegistry: state.processRegistry,
 		SecretResolver:  state.providerVault,
 		EnvBindings:     envBindings,
-		LifecycleEvents: extensionLifecycleEventStoreSink{
-			writer: extensionEventSummaryStore(state.registry),
-			now:    d.now,
+		LifecycleEvents: extensionPaletteLifecycleEventSink{
+			primary: extensionLifecycleEventStoreSink{
+				writer: extensionEventSummaryStore(state.registry),
+				now:    d.now,
+			},
+			notifier: newExtensionPaletteNotifier(state),
 		},
 		CompozyExecutable: d.executable,
 	}

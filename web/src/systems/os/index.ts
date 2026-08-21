@@ -18,8 +18,46 @@ export { fetchWindowManagerSnapshot } from "./adapters/window-manager-api";
 export {
   windowManagerConfigOptions,
   windowManagerKeys,
+  windowManagerScopeKey,
+  windowManagerSettingsOptions,
   windowManagerSnapshotOptions,
 } from "./lib/window-manager-query";
+export { isDesktopShell } from "./lib/desktop-shell-bridge";
+export { stableWindowManagerClientId } from "./lib/window-manager-client-identity";
+
+// Bindings and aliases: one daemon-owned settings section, mutated through one
+// path. The daemon decides conflicts and echoes the section it produced, so no
+// surface predicts the outcome of an overwrite (ADR-006).
+export {
+  fetchWindowManagerSettings,
+  updateWindowManagerBindings,
+  WindowManagerSettingsError,
+  type WindowManagerBindingUpdate,
+  type WindowManagerMutationCode,
+} from "./adapters/window-manager-settings-api";
+export {
+  parseSettingsWindowManagerSection,
+  type WindowManagerAliasMap,
+  type WindowManagerExtensionDefault,
+  type WindowManagerSettingsScope,
+  type WindowManagerSettingsSection,
+  type WindowManagerSettingsWire,
+  type WindowManagerShortcutCommand,
+  type WindowManagerShortcutDiagnostic,
+} from "./lib/window-manager-settings-section";
+export {
+  globalShortcutRegistrationSchema,
+  globalShortcutRegistrationStatusSchema,
+  type GlobalShortcutRegistrationStatus,
+} from "./lib/window-manager-global-shortcut-schema";
+export {
+  CORE_SHORTCUT_SOURCE,
+  groupShortcutRowsBySource,
+  orderShortcutSections,
+  orderShortcutSources,
+  shortcutSourceLabel,
+  type ShortcutSourceGroup,
+} from "./lib/shortcut-source-groups";
 export {
   type WindowManagerSocket,
   type WindowManagerSocketFactory,
@@ -38,10 +76,15 @@ export type {
   WindowManagerClientView,
   WindowManagerConfig,
   WindowManagerDragModifier,
-  WindowManagerShortcutBinding,
-  WindowManagerShortcutMap,
+  WindowManagerRegisteredClientView,
   WindowManagerSnapshot,
 } from "./lib/window-manager-types";
+export type {
+  WindowManagerGlobalShortcutMap,
+  WindowManagerGlobalShortcutRegistration,
+  WindowManagerShortcutBinding,
+  WindowManagerShortcutMap,
+} from "./lib/window-manager-shortcut-types";
 
 // Window geometry. The projector, the seam math and the floating clamp are the
 // runtime's own — Settings renders the same rects the shell renders instead of
@@ -70,19 +113,39 @@ export type {
   WindowMinimums,
 } from "./lib/window-manager-types";
 
-// Keyboard grammar. The action registry is the shipped default keymap; Settings
-// edits overrides against it rather than restating the list.
+// The one command-palette registry projection. Every surface that renders a
+// command — palette, menubar, cheatsheet, settings shortcut table — reads it,
+// which is what makes their ids, labels and chords identical by construction.
+export { CmdPaletteRegistryProvider } from "./contexts/cmd-palette-registry-context";
+export { usePaletteCommand, usePaletteRegistry } from "./hooks/use-palette-registry";
+export { registryShortcutActions } from "./lib/cmd-palette-shortcut-actions";
+export { cmdPaletteKeys } from "./lib/cmd-palette-query-keys";
+export { resetCmdPalettePersonalization } from "./adapters/cmd-palette-api";
+export type {
+  CmdPaletteCommand,
+  PaletteRegistry,
+  ResolvedPaletteCommand,
+} from "./lib/cmd-palette-types";
+
+// Window geometry presets for direct manipulation (the zoom menu, the tiling
+// diagrams in Settings). Not a command catalog — invocation goes through the
+// registry projection above.
 export {
-  WINDOW_MANAGER_ACTIONS,
-  WINDOW_PLACEMENT_COMMANDS,
-  isWindowManagerActionId,
-  type WindowManagerActionDefinition,
-  type WindowManagerActionId,
-  type WindowManagerActionSection,
+  WINDOW_ARRANGE_PRESETS,
+  WINDOW_PLACEMENT_PRESETS,
+  windowArrangeCommandId,
+  windowPlacementCommandId,
+  type WindowArrangePreset,
   type WindowPlacementId,
-} from "./lib/window-manager-command-registry";
+  type WindowPlacementPreset,
+} from "./lib/window-placement-presets";
+
+// Keyboard grammar. Chord parsing and conflict detection live here; which
+// commands exist comes from the registry above.
 export {
+  type ShortcutActionDefinition,
   chordFromKeyboardEvent,
+  coveringShortcutFamily,
   deriveShortcutCheatsheet,
   effectiveShortcutMap,
   expandShortcutOverrides,
@@ -94,6 +157,7 @@ export {
   shortcutBindingProblem,
   shortcutKeyGlyphs,
   shortcutLabel,
+  SHORTCUT_RANGE_FAMILIES,
   type ParsedShortcutChord,
   type ResolvedWindowManagerAction,
   type ShortcutBinding,
@@ -101,6 +165,7 @@ export {
   type ShortcutConflict,
   type ShortcutConflictKind,
   type ShortcutMap,
+  type ShortcutRangeFamily,
 } from "./lib/window-manager-shortcuts";
 
 // Attention: the system notification channel's truthful platform state, read by

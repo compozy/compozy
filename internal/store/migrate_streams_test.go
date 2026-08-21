@@ -258,6 +258,136 @@ func TestProductionMigrationStreamsFreshReopenAndAhead(t *testing.T) {
 	}
 }
 
+// Suite: command-palette migration tail.
+// Invariant: 00078 remains the approval boundary, 00079 adds the three
+// workspace-scoped personalization tables plus their deletion trigger, and
+// 00080 rebuilds the recovery index so resume_fence precedes expires_at.
+// Owning layer: global migration stream. Canonical suite: this file.
+func TestGlobalCommandPaletteMigrationTail(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should upgrade 00078 to 00079 and cascade workspace personalization [IT-020]", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t)
+		db := openStreamTestDB(t, "global-command-palette-tail.db")
+		stream := globaldb.MigrationStream()
+		stream.Bootstrap = nil
+		if err := store.Apply(ctx, db, migrationPrefixStream(t, stream, 78)); err != nil {
+			t.Fatalf("Apply(global through 00078) error = %v", err)
+		}
+		if !sqliteTableExists(t, db, "tool_approval_pending") {
+			t.Fatal("tool_approval_pending missing at 00078")
+		}
+		for _, table := range []string{"cmd_palette_usage", "cmd_palette_query_hits", "cmd_palette_pins"} {
+			if sqliteTableExists(t, db, table) {
+				t.Fatalf("table %q exists before 00079", table)
+			}
+		}
+
+		if err := store.Apply(ctx, db, stream); err != nil {
+			t.Fatalf("Apply(global through 00079) error = %v", err)
+		}
+		for _, table := range []string{"cmd_palette_usage", "cmd_palette_query_hits", "cmd_palette_pins"} {
+			if !sqliteTableExists(t, db, table) {
+				t.Fatalf("table %q missing after 00079", table)
+			}
+		}
+		var triggerCount int
+		if err := db.QueryRowContext(
+			ctx,
+			`SELECT COUNT(*) FROM sqlite_master WHERE type = 'trigger' AND name = ?`,
+			"cmd_palette_workspace_delete",
+		).Scan(&triggerCount); err != nil {
+			t.Fatalf("query command palette delete trigger: %v", err)
+		}
+		if triggerCount != 1 {
+			t.Fatalf("command palette delete trigger count = %d, want 1", triggerCount)
+		}
+
+		workspaceID := "workspace-migration-tail"
+		if _, err := db.ExecContext(ctx, `INSERT INTO workspaces (
+			id, root_dir, add_dirs, name, default_agent, sandbox_ref, created_at, updated_at
+		) VALUES (?, ?, '[]', ?, '', '', ?, ?)`,
+			workspaceID,
+			"/tmp/workspace-migration-tail",
+			"migration-tail",
+			"2026-08-19T12:00:00Z",
+			"2026-08-19T12:00:00Z",
+		); err != nil {
+			t.Fatalf("insert migration-tail workspace: %v", err)
+		}
+		if _, err := db.ExecContext(ctx,
+			`INSERT INTO cmd_palette_usage (
+				workspace_id, command_id, use_count, frecency_weight, last_used_at, updated_at
+			) VALUES (?, 'session.new', 1, 1, 1, 1)`, workspaceID,
+		); err != nil {
+			t.Fatalf("insert command palette usage: %v", err)
+		}
+		if _, err := db.ExecContext(ctx,
+			`INSERT INTO cmd_palette_query_hits (
+				workspace_id, query, command_id, weight, last_used_at
+			) VALUES (?, 'new', 'session.new', 1, 1)`, workspaceID,
+		); err != nil {
+			t.Fatalf("insert command palette query hit: %v", err)
+		}
+		if _, err := db.ExecContext(ctx,
+			`INSERT INTO cmd_palette_pins (workspace_id, command_id, pinned_at)
+			 VALUES (?, 'session.new', 1)`, workspaceID,
+		); err != nil {
+			t.Fatalf("insert command palette pin: %v", err)
+		}
+		if _, err := db.ExecContext(ctx, `DELETE FROM workspaces WHERE id = ?`, workspaceID); err != nil {
+			t.Fatalf("delete migration-tail workspace: %v", err)
+		}
+		var remainingRows int
+		if err := db.QueryRowContext(ctx, `SELECT
+			(SELECT COUNT(*) FROM cmd_palette_usage WHERE workspace_id = ?) +
+			(SELECT COUNT(*) FROM cmd_palette_query_hits WHERE workspace_id = ?) +
+			(SELECT COUNT(*) FROM cmd_palette_pins WHERE workspace_id = ?)`,
+			workspaceID,
+			workspaceID,
+			workspaceID,
+		).Scan(&remainingRows); err != nil {
+			t.Fatalf("query command palette cascade count: %v", err)
+		}
+		if remainingRows != 0 {
+			t.Fatalf("command palette cascade count = %d, want 0", remainingRows)
+		}
+		if sqlText := sqliteIndexSQL(t, db, "idx_tool_approval_pending_recovery"); !strings.Contains(
+			sqlText,
+			"resume_fence",
+		) || strings.Index(sqlText, "resume_fence") > strings.Index(sqlText, "expires_at") {
+			t.Fatalf("recovery index after tail = %q, want resume_fence before expires_at", sqlText)
+		}
+		assertSQLiteIntegrity(t, "global command palette migration tail", db)
+	})
+
+	t.Run("Should rebuild the approval recovery index with resume_fence before expires_at", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t)
+		db := openStreamTestDB(t, "global-approval-recovery-index.db")
+		stream := globaldb.MigrationStream()
+		stream.Bootstrap = nil
+		if err := store.Apply(ctx, db, migrationPrefixStream(t, stream, 79)); err != nil {
+			t.Fatalf("Apply(global through 00079) error = %v", err)
+		}
+		before := sqliteIndexSQL(t, db, "idx_tool_approval_pending_recovery")
+		if !strings.Contains(before, "expires_at") ||
+			strings.Index(before, "expires_at") > strings.Index(before, "resume_fence") {
+			t.Fatalf("recovery index at 00079 = %q, want expires_at before resume_fence", before)
+		}
+		if err := store.Apply(ctx, db, stream); err != nil {
+			t.Fatalf("Apply(global through 00080) error = %v", err)
+		}
+		after := sqliteIndexSQL(t, db, "idx_tool_approval_pending_recovery")
+		if !strings.Contains(after, "resume_fence") ||
+			strings.Index(after, "resume_fence") > strings.Index(after, "expires_at") {
+			t.Fatalf("recovery index at 00080 = %q, want resume_fence before expires_at", after)
+		}
+		assertSQLiteIntegrity(t, "global approval recovery index", db)
+	})
+}
+
 func TestGlobalExtensionManifestV2Migration(t *testing.T) {
 	t.Run("Should migrate extension manifests to the v2 contract", func(t *testing.T) {
 		t.Parallel()
@@ -731,6 +861,19 @@ func normalizedSQLiteObjects(t *testing.T, db *sql.DB, objectTypes ...string) st
 		t.Fatalf("iterate sqlite_master objects: %v", err)
 	}
 	return strings.Join(objects, "\n")
+}
+
+func sqliteIndexSQL(t *testing.T, db *sql.DB, name string) string {
+	t.Helper()
+	var sqlText string
+	if err := db.QueryRowContext(
+		testutil.Context(t),
+		`SELECT sql FROM sqlite_master WHERE type = 'index' AND name = ?`,
+		name,
+	).Scan(&sqlText); err != nil {
+		t.Fatalf("query index %s sql: %v", name, err)
+	}
+	return sqlText
 }
 
 func sqliteTableExists(t *testing.T, db *sql.DB, table string) bool {

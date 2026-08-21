@@ -12,6 +12,8 @@ func registrySettingsFeatureOperations() []OperationSpec {
 		updateSettingsNetworkOperationSpec(),
 		getSettingsWindowManagerOperationSpec(),
 		updateSettingsWindowManagerOperationSpec(),
+		getSettingsCmdPaletteOperationSpec(),
+		updateSettingsCmdPaletteOperationSpec(),
 		getSettingsAttentionOperationSpec(),
 		updateSettingsAttentionOperationSpec(),
 		getSettingsShellOperationSpec(),
@@ -258,7 +260,7 @@ func getSettingsSkillsOperationSpec() OperationSpec {
 		},
 		Responses: []ResponseSpec{
 			{Status: 200, Description: "OK", Body: contract.SettingsSkillsResponse{}},
-			{Status: 400, Description: "Invalid settings scope", Body: contract.ErrorPayload{}},
+			{Status: 400, Description: specInvalidSettingsScopeDescription, Body: contract.ErrorPayload{}},
 			{Status: 404, Description: specAgentNotFoundDescription, Body: contract.ErrorPayload{}},
 			{Status: 422, Description: specInvalidAgentLocalLayerDescription, Body: contract.ErrorPayload{}},
 			{Status: 500, Description: specInternalServerErrorDescription, Body: contract.ErrorPayload{}},

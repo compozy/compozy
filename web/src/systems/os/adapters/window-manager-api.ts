@@ -1,19 +1,18 @@
 import { apiBaseUrl, runtimeFetch } from "@/lib/api-client";
 
-import { parseSettingsWindowManagerConfig } from "../lib/window-manager-config-schema";
 import {
-  parseWindowManagerClientView,
   parseWindowManagerCommandResult,
   parseWindowManagerError,
+  parseWindowManagerRegisteredClientView,
   parseWindowManagerSnapshot,
 } from "../lib/window-manager-schemas";
 import type {
   LayoutRevision,
-  WindowManagerClientView,
+  WindowManagerClientKind,
   WindowManagerCommandInput,
   WindowManagerCommandResult,
-  WindowManagerConfig,
   WindowManagerErrorPayload,
+  WindowManagerRegisteredClientView,
   WindowManagerSnapshot,
 } from "../lib/window-manager-types";
 
@@ -26,19 +25,6 @@ export class WindowManagerApiError extends Error {
     super(message);
     this.name = "WindowManagerApiError";
   }
-}
-
-export async function fetchWindowManagerConfig(signal?: AbortSignal): Promise<WindowManagerConfig> {
-  const response = await runtimeFetch(`${apiBaseUrl}/api/settings/window-manager`, { signal });
-  const body = await responseJson(response);
-  if (!response.ok) {
-    throw new WindowManagerApiError(
-      "Unable to load window-management settings.",
-      response.status,
-      null
-    );
-  }
-  return parseSettingsWindowManagerConfig(body);
 }
 
 function managerPath(workspaceId: string): string {
@@ -89,20 +75,23 @@ export async function registerWindowManagerClient(
   workspaceId: string,
   clientId: string,
   activeDesktopId?: string,
+  kind: WindowManagerClientKind = "browser",
   signal?: AbortSignal
-): Promise<WindowManagerClientView> {
+): Promise<WindowManagerRegisteredClientView> {
   const response = await runtimeFetch(`${apiBaseUrl}${managerPath(workspaceId)}/clients`, {
     ...jsonRequest(
       {
         workspace_id: workspaceId,
         client_id: clientId,
+        kind,
         ...(activeDesktopId ? { active_desktop_id: activeDesktopId } : {}),
+        context: { workspace_trusted: true },
       },
       signal
     ),
     method: "POST",
   });
-  return parseWindowManagerClientView(await requireSuccess(response));
+  return parseWindowManagerRegisteredClientView(await requireSuccess(response));
 }
 
 export async function unregisterWindowManagerClient(

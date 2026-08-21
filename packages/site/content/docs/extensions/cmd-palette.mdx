@@ -1,0 +1,221 @@
+---
+title: Command Palette Contributions
+description: Add validated commands, views, and default shortcuts to the CompozyOS command palette.
+---
+
+Extensions can add commands and views to the daemon-owned command palette. The declaration lives in
+`resources.cmd_palette`, beside the extension's tools. CompozyOS validates it during `extension build`,
+`extension validate`, install, and development reload.
+
+The runtime prefixes every local ID with the extension name. A command declared as `capture` by the
+`notes` extension becomes `ext.notes.capture`. A view declared as `recent` becomes
+`ext.notes.recent`.
+
+## Declare the contribution
+
+Both extension SDKs expose `CmdPaletteConfig` through their generated contracts. Code-backed
+extensions put it in the definition's `resources` field; the generated manifest carries the same
+shape.
+
+```go
+Resources: compozysdk.DescribeResources{
+  CmdPalette: contracts.CmdPaletteConfig{
+    Commands: []contracts.CmdPaletteCommand{
+      {
+        ID: "capture", Title: "Capture note", Section: "Notes", Icon: "pencil",
+        Arguments: []contracts.CmdPaletteArgument{
+          {Name: "title", Type: "text", Placeholder: "Note title", Required: true},
+        },
+        Action: contracts.CmdPaletteAction{Kind: "tool", Tool: "capture_note"},
+        DefaultShortcut: "alt+shift+KeyN",
+      },
+      {
+        ID: "recent", Title: "Recent notes", Section: "Notes", Icon: "clock",
+        Action: contracts.CmdPaletteAction{Kind: "view", View: "recent"},
+      },
+    },
+    Views: []contracts.CmdPaletteView{
+      {
+        ID: "recent", Title: "Recent notes", Kind: "list",
+        Source: &contracts.CmdPaletteViewSource{Tool: "list_recent"},
+      },
+    },
+  },
+},
+```
+
+TypeScript uses the same wire names:
+
+```ts
+resources: {
+  cmd_palette: {
+    commands: [{
+      id: "capture",
+      title: "Capture note",
+      section: "Notes",
+      icon: "pencil",
+      action: { kind: "tool", tool: "capture_note" },
+      default_shortcut: "alt+shift+KeyN",
+    }],
+    views: [{
+      id: "recent",
+      title: "Recent notes",
+      kind: "list",
+      source: { tool: "list_recent" },
+    }],
+  },
+},
+```
+
+## Commands
+
+Each command needs a local `id`, `title`, icon token, and one action. The action union is closed:
+
+| Action     | Required field | Result                                      |
+| ---------- | -------------- | ------------------------------------------- |
+| `tool`     | `tool`         | Calls one tool owned by the same extension. |
+| `view`     | `view`         | Opens one view owned by the same extension. |
+| `navigate` | `app`          | Opens a CompozyOS app.                      |
+| `url`      | `url`          | Opens an external URL.                      |
+
+Extension commands cannot declare `client_op`. Tool and view references must name entries from the
+same manifest. A destructive command must set `destructive: true` and provide a confirmation with a
+title and confirm verb.
+
+Arguments are optional. Supported types are `text`, `password`, `dropdown`, and `checkbox`.
+Dropdown arguments require a non-empty `options` list.
+
+`execution.single_flight` and `execution.retry_safe` can override the action defaults. Tool and
+destructive actions default to single-flight and not retry-safe.
+
+## Declarative views
+
+A declarative view names a read-only extension tool as its source. The tool returns the shared `v1`
+view payload; CompozyOS validates that payload before rendering it.
+
+```json
+{
+  "view": "v1",
+  "sections": [
+    {
+      "title": "Recent",
+      "rows": [{ "id": "note-1", "title": "Standup follow-ups", "icon": "file-text" }]
+    }
+  ]
+}
+```
+
+The source tool must be read-only. A mutating, destructive, interactive, or open-world tool is
+rejected at validation time, so opening a declarative view never starts an approval flow.
+
+## Programmable views
+
+A programmable view sets `program: true` instead of `source`. It is backed by the public
+`view.provider` provide surface and is TypeScript-only in this release. Start from the complete
+template:
+
+```bash
+compozy extension init notes --template view-provider-ts
+```
+
+Declare `view.provider`, request `view/patch` only if the provider pushes frames between user events,
+then map each declared view ID to a React component:
+
+```tsx
+import { Extension } from "@compozy/extension-sdk";
+import { Action, ActionPanel, List, registerReactViews } from "@compozy/extension-react";
+
+function NotesView() {
+  return (
+    <List searchBarPlaceholder="Search notes…" complete>
+      <List.Section title="Notes">
+        <List.Item
+          id="welcome"
+          title="Welcome"
+          actions={
+            <ActionPanel>
+              <Action title="Open" onAction={() => undefined} />
+            </ActionPanel>
+          }
+        />
+      </List.Section>
+    </List>
+  );
+}
+
+const extension = new Extension({
+  name: "notes",
+  version: "0.1.0",
+  description: "Browse notes",
+  subprocess: { command: "node", args: ["index.js"] },
+  capabilities: { provides: ["view.provider"] },
+  resources: {
+    cmd_palette: {
+      commands: [
+        {
+          id: "browse",
+          title: "Browse notes",
+          icon: "search",
+          action: { kind: "view", view: "browser" },
+        },
+      ],
+      views: [{ id: "browser", title: "Notes", kind: "list", program: true }],
+    },
+  },
+});
+
+registerReactViews(extension, { browser: NotesView });
+```
+
+`@compozy/extension-react` provides `List`, `Grid`, `Detail`, `Form`, `ActionPanel`, navigation,
+cached state and promise hooks, and toast effects. Components render into a serializable frame; no
+extension code runs in the browser.
+
+CompozyOS opens one isolated provider session per attached client. User interactions call
+`view/event`; leaving the view calls `view/close`. The SDK passes an `AbortSignal` to handlers, so
+superseded or closed work can stop promptly. Navigation keeps parent frames mounted, which preserves
+their component state while a child frame is open.
+
+Frames carry a revision, generation, handler table, and either a full payload or an RFC 6902 patch.
+The runtime rejects stale generations, duplicate effects, oversized frames, and handlers that keep
+failing. A short failure keeps the last safe frame visible with a retry state; repeated failures
+open the circuit instead of replaying unsafe work.
+
+Building a programmable view with the Go SDK fails with
+`views[<index>].program: view programs require a TypeScript extension this release`.
+
+## Default shortcuts
+
+`default_shortcut` is a suggestion, not an override. CompozyOS binds it only when the chord is free
+after core defaults, operator overrides, and earlier enabled extension claims. A conflict stays
+dormant and reports its owner in Settings. Disabling an extension removes its active default but does
+not delete an operator override.
+
+Use the canonical chord grammar, such as `alt+shift+KeyN` or `meta+KeyK`. Invalid key names and
+unmodified typing keys fail validation with the command field path.
+
+## Runtime behavior
+
+Only enabled instances belong to the live catalog. A workspace development link shadows the
+published instance in that workspace. When an enabled instance becomes unhealthy, its commands and
+views remain visible but unavailable with the health reason. This keeps the catalog honest without
+changing membership during a crash loop.
+
+Inspect the result through the public surfaces:
+
+```bash
+compozy extension validate ./dist/gen-<hash> -o json
+compozy cmd-palette list --source ext.notes --workspace <workspace> -o json
+compozy cmd-palette inspect ext.notes.capture --workspace <workspace> -o json
+```
+
+`extension dev --watch` rebuilds and reloads a valid contribution. A broken edit leaves the last
+good generation active and reports the validation error in development diagnostics. Settings →
+Extensions shows each extension's commands, effective bindings, dormant defaults, views, and health
+reason.
+
+## Related
+
+- [Extension Manifest](/docs/extensions/manifest)
+- [Extension Commands](/docs/extensions/commands)
+- [Keyboard Shortcuts](/docs/configuration/shortcuts)

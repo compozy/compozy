@@ -52,6 +52,7 @@ func TestAllHostAPIMethodsReturnsCanonicalWireOrder(t *testing.T) {
 			HostAPIMethodAgentsHeartbeatRollback,
 			HostAPIMethodAgentsHeartbeatStatus,
 			HostAPIMethodAgentsHeartbeatWake,
+			HostAPIMethodViewPatch,
 			HostAPIMethodAutomationJobs,
 			HostAPIMethodAutomationJobsGet,
 			HostAPIMethodAutomationJobsCreate,

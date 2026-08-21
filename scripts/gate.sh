@@ -129,6 +129,7 @@ classify() {
     tests/*) GO_SCOPES="${GO_SCOPES}./tests/..."$'\n' ;;
     sdk/go/*) SDK_GO=1 ;;
     sdk/typescript/*) JS_FILTERS="${JS_FILTERS}./sdk/typescript"$'\n' ;;
+    sdk/react/*) JS_FILTERS="${JS_FILTERS}./sdk/react"$'\n' ;;
     sdk/examples/*/*)
       pkg="${path#sdk/examples/}"
       JS_FILTERS="${JS_FILTERS}./sdk/examples/${pkg%%/*}"$'\n'

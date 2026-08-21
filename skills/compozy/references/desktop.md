@@ -89,6 +89,12 @@ daemons and Windows keep their launcher environment.
 The product UI is developed and release-verified against Chromium, the engine embedded by Electron.
 Other browsers can open the daemon-served UI on a best-effort basis.
 
+The packaged shell registers daemon-owned `[window_manager.global_shortcuts]`; the default
+`meta+shift+Space` summons and focuses the command palette. Registration truth belongs to each shell,
+so Settings can report a chord in use, unsupported, or blocked by macOS Accessibility permission.
+Plain browsers show these controls as requiring the desktop shell while in-app shortcuts continue to
+work.
+
 ## Recovery
 
 When an update reports `failed`, do not start another mutation. Run `compozy app diagnose -o json`,

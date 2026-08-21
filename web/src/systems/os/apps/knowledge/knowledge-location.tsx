@@ -20,8 +20,20 @@ import {
   type KnowledgeScope,
 } from "@/systems/knowledge";
 
-export function KnowledgeLocation() {
-  const page = useKnowledgePage();
+import { useDesktop } from "../../hooks/use-desktop";
+
+const EMPTY_SEARCH: Record<string, unknown> = {};
+
+export function KnowledgeLocation({ windowId }: { windowId: string }) {
+  const search = useDesktop(state => state.windows[windowId]?.route.search ?? EMPTY_SEARCH);
+  const scope = search.scope;
+  const routeScope: KnowledgeScope | null =
+    scope === "global" || scope === "workspace" || scope === "agent" ? scope : null;
+  const page = useKnowledgePage({
+    routeMemory: typeof search.memory === "string" ? search.memory : null,
+    routeScope,
+    routeWorkspaceId: typeof search.workspace === "string" ? search.workspace : null,
+  });
 
   const scopePills = (
     <PillGroup<KnowledgeScope>

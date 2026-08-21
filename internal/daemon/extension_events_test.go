@@ -10,11 +10,13 @@ import (
 	"time"
 
 	"github.com/compozy/compozy/internal/api/contract"
+	"github.com/compozy/compozy/internal/cmdpalette"
 	eventspkg "github.com/compozy/compozy/internal/events"
 	extensionpkg "github.com/compozy/compozy/internal/extension"
 	"github.com/compozy/compozy/internal/store"
 	taskpkg "github.com/compozy/compozy/internal/task"
 	"github.com/compozy/compozy/internal/testutil"
+	workspacepkg "github.com/compozy/compozy/internal/workspace"
 )
 
 func TestExtensionEventCallSitesUseCanonicalSafePayloads(t *testing.T) {
@@ -184,6 +186,102 @@ func TestExtensionEventCallSitesUseCanonicalSafePayloads(t *testing.T) {
 			t.Fatalf("event batch = %#v, want network confirmation then enable completion", got)
 		}
 	})
+
+	t.Run("Should invalidate every workspace catalog after a global enable", func(t *testing.T) {
+		t.Parallel()
+
+		catalog := &recordingExtensionPaletteCatalog{}
+		views := &recordingExtensionViewSessions{}
+		service := &daemonExtensionService{
+			eventWriter: &extensionEventRecorder{},
+			paletteNotifier: &extensionPaletteNotifier{
+				catalog: func() cmdpalette.Registry { return catalog },
+				views:   func() cmdpalette.ViewSessionService { return views },
+				workspaces: func(context.Context) ([]workspacepkg.Workspace, error) {
+					return []workspacepkg.Workspace{{ID: "ws-a"}, {ID: "ws-b"}}, nil
+				},
+			},
+		}
+		actor, err := taskpkg.DeriveHumanActorContext("operator-1", taskpkg.OriginKindCLI, "cli")
+		if err != nil {
+			t.Fatalf("DeriveHumanActorContext() error = %v", err)
+		}
+		if err := service.recordExtensionEnableEvents(
+			t.Context(), actor, extensionpkg.GlobalInstanceKey("notes"), nil,
+			contract.ExtensionEnableResult{Extension: contract.ExtensionPayload{Name: "notes"}},
+		); err != nil {
+			t.Fatalf("recordExtensionEnableEvents() error = %v", err)
+		}
+		if !reflect.DeepEqual(catalog.workspaces, []cmdpalette.WorkspaceID{"ws-a", "ws-b"}) {
+			t.Fatalf("notified workspaces = %#v, want ws-a and ws-b", catalog.workspaces)
+		}
+		if !reflect.DeepEqual(views.invalidations, []viewSessionInvalidation{
+			{workspace: "ws-a", extension: "notes"},
+			{workspace: "ws-b", extension: "notes"},
+		}) {
+			t.Fatalf("view invalidations = %#v, want notes in both workspaces", views.invalidations)
+		}
+	})
+
+	t.Run("Should invalidate workspace view sessions on extension crash", func(t *testing.T) {
+		t.Parallel()
+
+		catalog := &recordingExtensionPaletteCatalog{}
+		views := &recordingExtensionViewSessions{}
+		sink := extensionPaletteLifecycleEventSink{notifier: &extensionPaletteNotifier{
+			catalog: func() cmdpalette.Registry { return catalog },
+			views:   func() cmdpalette.ViewSessionService { return views },
+		}}
+		if err := sink.RecordExtensionLifecycleEvent(t.Context(), extensionpkg.LifecycleEvent{
+			Type: eventspkg.ExtensionCrashLoopBackoff, ExtensionName: "notes", WorkspaceID: "ws-a",
+		}); err != nil {
+			t.Fatalf("RecordExtensionLifecycleEvent(crash) error = %v", err)
+		}
+		if !reflect.DeepEqual(catalog.workspaces, []cmdpalette.WorkspaceID{"ws-a"}) {
+			t.Fatalf("notified workspaces = %#v, want ws-a", catalog.workspaces)
+		}
+		if !reflect.DeepEqual(views.invalidations, []viewSessionInvalidation{{
+			workspace: "ws-a", extension: "notes",
+		}}) {
+			t.Fatalf("view invalidations = %#v, want notes in ws-a", views.invalidations)
+		}
+	})
+}
+
+type recordingExtensionPaletteCatalog struct {
+	cmdpalette.Registry
+	workspaces []cmdpalette.WorkspaceID
+}
+
+type viewSessionInvalidation struct {
+	workspace cmdpalette.WorkspaceID
+	extension string
+}
+
+type recordingExtensionViewSessions struct {
+	cmdpalette.ViewSessionService
+	invalidations []viewSessionInvalidation
+}
+
+func (s *recordingExtensionViewSessions) InvalidateInstance(
+	_ context.Context,
+	workspace cmdpalette.WorkspaceID,
+	extension string,
+	_ uint64,
+) error {
+	s.invalidations = append(s.invalidations, viewSessionInvalidation{
+		workspace: workspace,
+		extension: extension,
+	})
+	return nil
+}
+
+func (c *recordingExtensionPaletteCatalog) NotifyCatalogChanged(
+	_ context.Context,
+	workspaceID cmdpalette.WorkspaceID,
+) error {
+	c.workspaces = append(c.workspaces, workspaceID)
+	return nil
 }
 
 type extensionEventRecorder struct {

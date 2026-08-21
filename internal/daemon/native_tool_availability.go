@@ -12,6 +12,7 @@ import (
 
 type nativeToolAvailabilitySet struct {
 	registry             toolspkg.NativeAvailabilityFunc
+	cmdPalette           toolspkg.NativeAvailabilityFunc
 	toolArtifacts        toolspkg.NativeAvailabilityFunc
 	toolApprovals        toolspkg.NativeAvailabilityFunc
 	clarify              toolspkg.NativeAvailabilityFunc
@@ -76,6 +77,9 @@ func (n *daemonNativeTools) baseNativeToolAvailability() nativeToolAvailabilityS
 func (n *daemonNativeTools) coreNativeToolAvailability() nativeToolAvailabilitySet {
 	return nativeToolAvailabilitySet{
 		registry: n.registryAvailability(),
+		cmdPalette: n.dependencyAvailability(func() bool {
+			return n.cmdPaletteRegistry() != nil
+		}),
 		toolArtifacts: n.dependencyAvailability(func() bool {
 			return n.deps.ToolArtifacts != nil
 		}),

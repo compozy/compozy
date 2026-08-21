@@ -67,6 +67,18 @@ describe("marketplace query hooks", () => {
     expect(client.getQueryCache().getAll()).toHaveLength(2);
   });
 
+  it("Should keep the search enabled flag inside the query-options factory", () => {
+    const { wrapper } = setup();
+
+    const { result } = renderHook(
+      () => useMarketplaceSearch({ q: "audit", workspaceId: "ws-a" }, false),
+      { wrapper }
+    );
+
+    expect(result.current.fetchStatus).toBe("idle");
+    expect(mocks.search).not.toHaveBeenCalled();
+  });
+
   it("Should suspend kind browsing when its retained window is inactive", () => {
     const { wrapper } = setup();
 

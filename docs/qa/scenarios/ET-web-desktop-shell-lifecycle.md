@@ -7,12 +7,12 @@ journey: J-operate-desktop-shell
 expected: A fresh workspace renders one persistent desktop with menubar, dock, wallpaper, and command hint; local streams attach without requesting remote gateway tickets or logging product errors; workspace switching isolates complete window topologies; stream loss exposes an honest disconnected state, blocks unsafe mutations, and reconnect replaces the query cache from a new snapshot fence without regressing revision.
 entry_points: web desktop root; workspace trigger; window-manager WebSocket stream
 qa_status: pass
-bug_ids:
+bug_ids: BUG-0017; BUG-20260813-desktop-shell-context-order; BUG-20260729-session-window-cross-tab-focus
 fix_status: fixed
 retest_status: pass
-fix_commits:
-evidence: docs/qa/evidence/2026-08-10-local-stream-auth-clean/browser-web-evidence.json; docs/qa/evidence/2026-08-10-local-stream-auth-clean/desktop-network-summary.json; docs/qa/evidence/2026-08-10-local-stream-auth-clean/software-factory-desktop.png
-last_report: docs/qa/reports/2026-08-10-local-stream-auth-clean.md
+fix_commits: c3c50b6; 531b9f5; 538777e
+evidence: docs/qa/evidence/2026-08-20-window-render-recovery/agents-window-after-reload.png; /Users/pedronauck/dev/qa-labs/compozy-window-management-regressions-20260821-020852-370190-lab/qa-artifacts/evidence/settings-knowledge-background-route.png; /Users/pedronauck/dev/qa-labs/compozy-window-management-regressions-20260821-020852-370190-lab/qa-artifacts/evidence/grouped-tabs-knowledge-active.png
+last_report: docs/qa/reports/2026-08-20-window-management-regressions.md
 overlaps: ET-window-manager-public-parity; ET-window-manager-multi-client; ET-web-window-routing-lifecycle; ET-web-menubar-menu-set
 ---
 
@@ -25,3 +25,32 @@ members changed shell projection and activation. Reset for the tabbed shell.
 
 qa-impact: 2026-08-10 local stream authorization stopped probing the remote-only ticket endpoint and
 now reads the listener tier explicitly. Reset for a clean-console Web and desktop-app re-walk.
+
+qa-impact: 2026-08-20 command-palette QA repaired shell provider order, required empty wire arrays,
+and the scoped settings-cache projection after each defect blocked desktop boot or window rendering.
+Reset for the Task 12 shell-adjacent re-walk under `CH-untested-068-operate-desktop-shell-bruno`.
+
+qa-impact: 2026-08-20 the palette delivery reintroduced `useDesktop` inside `useDesktopChrome`,
+above the provider that hook feeds. Restored owner-atom reads. Flag only; this scenario was
+already `untested`.
+
+Walk (Task 12 re-walk):
+
+1. Boot the daemon-served desktop — the palette registry consumer mounts under the shell provider
+   and the desktop renders instead of the root error boundary.
+2. Inspect the command catalog and Window Manager client payloads — command collections, client
+   collections, and `global_shortcuts` are `[]`, never JSON `null`.
+3. Confirm `global_shortcuts` registers the intended map and the shell reports each chord's state.
+4. Confirm settings reads use the workspace/client-scoped Query-cache envelope, not a global bare
+   config, so a window renders after `/agents`.
+
+Expected evidence: boot screenshot without the root boundary; wire excerpts showing empty arrays
+and `global_shortcuts`; the scoped-settings window render after `/agents`.
+
+Walk result (2026-08-20): PASS. The workspace-scoped settings response returned required empty
+arrays and an intended global shortcut without premature registration status. Agents opened in a
+real desktop window with no sync warning and remained rendered after a full page reload.
+
+qa-impact: 2026-08-20 Knowledge route projection stopped allocating a new selector result on each
+external-store read. Reset to verify that opening Knowledge does not enter a render loop or break
+the desktop shell.

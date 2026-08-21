@@ -2,6 +2,7 @@ import type {
   ConfigApplyRecordsResponse,
   SettingsAutomationSection,
   SettingsAttentionSection,
+  SettingsCmdPaletteSection,
   SettingsSandboxCollection,
   SettingsSandboxEntry,
   SettingsApplyResponse,
@@ -115,6 +116,14 @@ export const settingsAttentionSectionFixture: SettingsAttentionSection = {
     system: false,
     muted_workspaces: [],
   },
+};
+
+export const settingsCmdPaletteSectionFixture: SettingsCmdPaletteSection = {
+  section: "cmd-palette",
+  scope: "global",
+  available_scopes: ["global", "workspace"],
+  fallback_agent_enabled: true,
+  personalization: true,
 };
 
 export const settingsNotificationPresetCollectionFixture: SettingsNotificationPresetCollection = {
@@ -439,6 +448,45 @@ export const settingsHooksExtensionsSectionFixture: SettingsHooksExtensionsSecti
     },
   ],
   installed: [
+    {
+      name: "notes",
+      enabled: true,
+      version: "0.1.0",
+      state: "running",
+      health: "healthy",
+      palette: {
+        commands: [
+          {
+            id: "ext.notes.capture",
+            title: "Capture note",
+            bindings: ["alt+shift+KeyN"],
+            default_binding: "alt+shift+KeyN",
+            default_dormant: false,
+            available: true,
+          },
+          {
+            id: "ext.notes.recent",
+            title: "Recent notes",
+            bindings: [],
+            default_binding: "meta+KeyN",
+            default_dormant: true,
+            conflict_with: "session.new",
+            available: true,
+          },
+          {
+            id: "ext.notes.purge",
+            title: "Purge archived notes",
+            bindings: [],
+            default_dormant: false,
+            available: true,
+          },
+        ],
+        views: [
+          { id: "ext.notes.recent", title: "Recent notes", available: true },
+          { id: "ext.notes.browse", title: "Browse notes", available: true },
+        ],
+      },
+    },
     {
       name: "daytona",
       enabled: true,

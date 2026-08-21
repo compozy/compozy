@@ -82,7 +82,12 @@ vi.mock("@/systems/knowledge/hooks/use-knowledge-actions", () => ({
   }),
 }));
 
+import {
+  knowledgeKeyForRouteMemory,
+  resolveKnowledgeSelectedKey,
+} from "@/systems/os/apps/knowledge/knowledge-route-selection";
 import { useKnowledgePage } from "@/systems/os/apps/knowledge/use-knowledge-page";
+import { knowledgeMemoryKey, type KnowledgeMemoryItem } from "@/systems/knowledge";
 
 const GLOBAL_MEMORY: MemoryHeader = {
   filename: "operator-playbook-0425.md",
@@ -566,6 +571,48 @@ describe("useKnowledgePage", () => {
     expect(result.current.deleteError).toBeNull();
   });
 
+  it("Should select the memory named in the window route", async () => {
+    const { result } = renderHook(() =>
+      useKnowledgePage({ routeMemory: "operator-playbook-0425.md" })
+    );
+
+    await waitFor(() => {
+      expect(result.current.effectiveSelectedMemoryKey).toBe("global:operator-playbook-0425.md");
+    });
+    expect(result.current.selectedMemory?.filename).toBe("operator-playbook-0425.md");
+  });
+
+  it("Should apply a workspace route scope and list that workspace's memories", async () => {
+    const { result } = renderHook(() =>
+      useKnowledgePage({
+        routeMemory: "launch-brief-0425.md",
+        routeScope: "workspace",
+        routeWorkspaceId: "ws_signalforge",
+      })
+    );
+
+    await waitFor(() => {
+      expect(result.current.activeScope).toBe("workspace");
+      expect(result.current.selectedMemory?.filename).toBe("launch-brief-0425.md");
+    });
+    expect(useMemoriesMock).toHaveBeenLastCalledWith(
+      expect.objectContaining({ scope: "workspace", workspaceId: "ws_signalforge" }),
+      expect.objectContaining({ enabled: true })
+    );
+  });
+
+  it("Should not select the first memory when the route name is absent from the list", async () => {
+    const { result } = renderHook(() =>
+      useKnowledgePage({ routeMemory: "missing.md", routeScope: "global" })
+    );
+
+    await waitFor(() => {
+      expect(result.current.memories).toHaveLength(1);
+    });
+    expect(result.current.effectiveSelectedMemoryKey).toBeNull();
+    expect(result.current.selectedMemory).toBeUndefined();
+  });
+
   it("Should expose the search guard when search is empty", async () => {
     const { result } = renderHook(() => useKnowledgePage());
 
@@ -573,6 +620,46 @@ describe("useKnowledgePage", () => {
       expect(result.current.searchActive).toBe(false);
       expect(result.current.searchInfo).toBeNull();
     });
+  });
+});
+
+describe("knowledge-route-selection", () => {
+  const memories: KnowledgeMemoryItem[] = [
+    { ...GLOBAL_MEMORY, key: knowledgeMemoryKey(GLOBAL_MEMORY) },
+    { ...WORKSPACE_MEMORY, key: knowledgeMemoryKey(WORKSPACE_MEMORY) },
+  ];
+
+  it("Should map a route filename to the matching catalog key", () => {
+    expect(knowledgeKeyForRouteMemory("operator-playbook-0425.md", memories)).toBe(
+      "global:operator-playbook-0425.md"
+    );
+    expect(knowledgeKeyForRouteMemory("missing.md", memories)).toBeNull();
+  });
+
+  it("Should prefer a live local selection over the window route", () => {
+    expect(
+      resolveKnowledgeSelectedKey(
+        "operator-playbook-0425.md",
+        "workspace:launch-brief-0425.md",
+        memories
+      )
+    ).toBe("workspace:launch-brief-0425.md");
+  });
+
+  it("Should fall back to the route key when local selection is gone", () => {
+    expect(resolveKnowledgeSelectedKey("operator-playbook-0425.md", null, memories)).toBe(
+      "global:operator-playbook-0425.md"
+    );
+  });
+
+  it("Should keep no selection while the route memory is missing from the list", () => {
+    expect(resolveKnowledgeSelectedKey("missing.md", null, memories)).toBeNull();
+  });
+
+  it("Should select the first memory when the route names none", () => {
+    expect(resolveKnowledgeSelectedKey(null, null, memories)).toBe(
+      "global:operator-playbook-0425.md"
+    );
   });
 });
 

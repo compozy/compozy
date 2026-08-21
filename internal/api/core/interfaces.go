@@ -306,7 +306,7 @@ type ToolApprovalIssuer interface {
 	CreateToolApproval(
 		ctx context.Context,
 		scope toolspkg.Scope,
-		req toolspkg.ApprovalRequest,
+		req toolspkg.ApprovalTokenRequest,
 	) (toolspkg.ApprovalTokenGrant, error)
 }
 

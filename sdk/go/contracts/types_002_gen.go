@@ -4,6 +4,23 @@ package contracts
 
 import "time"
 
+type AgentSoulDeleteRequest struct {
+	WorkspaceID    string `json:"workspace_id,omitempty"`
+	AgentName      string `json:"agent_name"`
+	ExpectedDigest string `json:"expected_digest"`
+}
+
+type AgentSoulFrontmatterPayload struct {
+	Version       string   `json:"version,omitempty"`
+	Role          string   `json:"role,omitempty"`
+	Tone          []string `json:"tone,omitempty"`
+	Principles    []string `json:"principles,omitempty"`
+	Constraints   []string `json:"constraints,omitempty"`
+	Collaboration []string `json:"collaboration,omitempty"`
+	MemoryPolicy  []string `json:"memory_policy,omitempty"`
+	Tags          []string `json:"tags,omitempty"`
+}
+
 type AgentSoulGetParams struct {
 	WorkspaceID string `json:"workspace_id,omitempty"`
 	AgentName   string `json:"agent_name"`
@@ -233,7 +250,3 @@ type AgentStoppedPayload struct {
 	Model          string    `json:"model,omitempty"`
 	Error          string    `json:"error,omitempty"`
 }
-
-type ApprovalPolicy string
-
-type ApprovalState string

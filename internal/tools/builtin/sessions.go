@@ -8,6 +8,7 @@ import (
 
 const (
 	sessionsSessionsKey = "sessions"
+	sessionsCommandsKey = "commands"
 )
 
 const (

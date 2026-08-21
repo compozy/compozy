@@ -6,7 +6,7 @@ persona: Bruno
 journey: J-operate-desktop-shell
 expected: ⌘E opens the palette already inside the Sessions view, and the root Views entry pushes the same view. Sessions list attention-first with their exact state word; typing narrows by title or agent; the needs-you / working / finished / idle chips narrow by state class with truthful counts, and a chip that matches nothing names its filter and clears with one Backspace. The globe toggle widens the list through the operator's persisted session-list breadth — the sessions sidebar follows, and `compozy config get shell.sessions.scope` reports the same value. Enter focuses the session window, restoring it when it was closed and switching workspace first when the session is foreign; landing on a done session clears its finished marker.
 entry_points: web desktop keyboard; ⌘E; command palette Views group; sessions sidebar globe; compozy config get/set shell.sessions.scope
-qa_status: blocked-verify
+qa_status: untested
 bug_ids:
 fix_status:
 retest_status:
@@ -34,3 +34,34 @@ Walk this cycle: blocked-verify — the web unit suites (5211 passing) and the r
 legs cover the globe's pressed states, the daemon round trip, and workspace-group isolation, but an
 isolated QA lab with a live daemon was not started, so a persona walk through public entry points
 could not meet the qa-execution evidence standard.
+
+2026-08-19 qa-impact: Sessions was re-registered through the generalized domain-view registry, and
+the same grammar now serves every list-bearing domain. Re-walk Sessions selection survival,
+attention order, state filters, truthful counts, zero-match clearing, and scope persistence.
+
+2026-08-20 qa-impact: Root fallback assembly and default-agent session creation now share the
+session landing path. Keep this scenario `untested`; task 12 owns the isolated re-walk.
+
+Historical (2026-08-16): that run stayed `blocked-verify` because an isolated QA lab with a live
+daemon was not started. The current Task 12 walk is `untested` and is scheduled in
+`CH-palette-sessions-landing-canary` (BR-20 adjacent canary). It must run in an isolated QA lab
+with a live daemon so the persona walk meets the qa-execution evidence standard.
+
+Walk (task_11 plan):
+
+1. ⌘E opens the palette already inside the Sessions view; the root Views entry pushes the same
+   view.
+2. Sessions list attention-first with exact state words; type to narrow by title or agent; the
+   needs-you / working / finished / idle chips narrow with truthful counts; a zero-match chip names
+   its filter and clears with one ⌫.
+3. Toggle the globe — the list widens through the persisted session-list breadth; the sessions
+   sidebar follows; `compozy config get shell.sessions.scope` reports the same value; the
+   preference survives reopening in another tab.
+4. ⏎ on a local session — the window focuses, restoring it if closed; ⏎ on a foreign session —
+   the workspace switches first, then the session lands; landing on a done session clears its
+   finished marker (BR-20 single-path landing).
+5. Confirm the "showing N of M" note appears only when matches exceed the bound.
+
+Expected evidence: screenshots of the attention-first list, chip states with counts, the globe
+round-trip beside the sidebar and CLI value, and the foreign-session landing (workspace switch
+named); the config-get transcript.

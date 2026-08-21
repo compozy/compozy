@@ -6,6 +6,7 @@ import type { OsDesktopRuntimeStore, OsWallpaper } from "../lib/os-types";
 import type { WindowManagerCommandOutcome } from "../lib/os-types";
 import { effectiveWindowManagerConfig } from "../lib/window-manager-config";
 import { reconcileWindowManagerSnapshot, windowManagerKeys } from "../lib/window-manager-query";
+import type { WindowManagerSettingsSection } from "../lib/window-manager-settings-section";
 import {
   createWindowManagerProjectionAtom,
   type WindowManagerProjectionAtom,
@@ -94,7 +95,7 @@ export abstract class WindowManagerRuntimeCore {
     this.unsubscribeQuery = this.queryClient.getQueryCache().subscribe(event => {
       if (!queryCacheEventChangesData(event)) return;
       const key = event.query.queryKey;
-      const configKey = windowManagerKeys.config();
+      const configKey = this.configKey();
       if (
         key.length === configKey.length &&
         key.every((part: unknown, index: number) => part === configKey[index])
@@ -305,15 +306,24 @@ export abstract class WindowManagerRuntimeCore {
     );
   }
 
+  private configKey() {
+    const binding = this.binding;
+    return binding === null
+      ? windowManagerKeys.config()
+      : windowManagerKeys.config(binding.workspaceId, binding.clientId);
+  }
+
   protected config(): WindowManagerConfig | null {
-    return this.queryClient.getQueryData<WindowManagerConfig>(windowManagerKeys.config()) ?? null;
+    return (
+      this.queryClient.getQueryData<WindowManagerSettingsSection>(this.configKey())?.config ?? null
+    );
   }
 
   protected currentLoadError(): Error | null {
     const snapshotError = this.binding
       ? this.queryClient.getQueryState(windowManagerKeys.snapshot(this.binding.workspaceId))?.error
       : null;
-    const configError = this.queryClient.getQueryState(windowManagerKeys.config())?.error;
+    const configError = this.queryClient.getQueryState(this.configKey())?.error;
     if (snapshotError instanceof Error) return snapshotError;
     if (configError instanceof Error) return configError;
     return this.loadError;

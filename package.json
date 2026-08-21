@@ -8,7 +8,9 @@
         "web",
         "desktop",
         "sdk/typescript",
-        "sdk/examples/prompt-enhancer"
+        "sdk/react",
+        "sdk/examples/prompt-enhancer",
+        "internal/extension/testdata/view-program-ts"
     ],
     "scripts": {
         "build": "turbo run build",

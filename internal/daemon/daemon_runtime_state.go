@@ -76,6 +76,7 @@ type daemonRuntimeState struct {
 	goalOutboxDone    chan struct{}
 	effectRelayCancel context.CancelFunc
 	effectRelayDone   chan struct{}
+	viewPatches       *extensionCmdPaletteProvider
 	startedAt         time.Time
 	info              Info
 }

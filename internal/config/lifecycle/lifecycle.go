@@ -128,6 +128,7 @@ var Matrix = []Rule{
 	{Pattern: pathWindowManagerNavStackLimit, Lifecycle: Live, DiffClass: DiffClassLive},
 	{Pattern: pathWindowManagerClosedEntryLimit, Lifecycle: Live, DiffClass: DiffClassLive},
 	{Pattern: "window_manager.*", Lifecycle: Live, DiffClass: DiffClassLive},
+	{Pattern: "cmd_palette.*", Lifecycle: Live, DiffClass: DiffClassLive},
 	{Pattern: "observability.*", Lifecycle: RestartRequired, DiffClass: DiffClassRestartRequired},
 	{Pattern: "log.*", Lifecycle: RestartRequired, DiffClass: DiffClassRestartRequired},
 	{Pattern: "redact.*", Lifecycle: RestartRequired, DiffClass: DiffClassRestartRequired},
@@ -178,7 +179,7 @@ func ClassifyPaths(paths []string) (Lifecycle, DiffClass, error) {
 // DiffClassForRoot maps a settings section or collection name onto a diff class.
 func DiffClassForRoot(root string) DiffClass {
 	switch strings.TrimSpace(root) {
-	case "skills", pathRoles, "window-manager", "gateway", "attention", "shell":
+	case "skills", pathRoles, "window-manager", "cmd-palette", "gateway", "attention", "shell":
 		return DiffClassLive
 	case "sandboxes":
 		return DiffClassSessionRebind

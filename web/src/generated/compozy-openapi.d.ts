@@ -1008,6 +1008,246 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
+  "/api/cmd-palette/clients": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** List attached command palette clients */
+    get: operations["listCmdPaletteClients"];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/cmd-palette/commands": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** List command palette commands */
+    get: operations["listCmdPaletteCommands"];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/cmd-palette/commands/{id}/invoke": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /** Invoke one command palette command */
+    post: operations["invokeCmdPaletteCommand"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/cmd-palette/personalization": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** Get command palette personalization summary */
+    get: operations["getCmdPalettePersonalization"];
+    put?: never;
+    post?: never;
+    /** Reset command palette personalization */
+    delete: operations["resetCmdPalettePersonalization"];
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/cmd-palette/pins/{id}": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    /** Pin one command palette command */
+    put: operations["pinCmdPaletteCommand"];
+    post?: never;
+    /** Unpin one command palette command */
+    delete: operations["unpinCmdPaletteCommand"];
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/cmd-palette/rank-signals": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** Get command palette rank signals */
+    get: operations["getCmdPaletteRankSignals"];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/cmd-palette/stream": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** Stream command palette catalog invalidations */
+    get: operations["streamCmdPalette"];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/cmd-palette/usage": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /** Record command palette usage */
+    post: operations["recordCmdPaletteUsage"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/cmd-palette/view-sessions/{session}": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    post?: never;
+    /** Close one programmable command palette view */
+    delete: operations["closeCmdPaletteViewSession"];
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/cmd-palette/view-sessions/{session}/events": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /** Send one programmable view event */
+    post: operations["admitCmdPaletteViewSessionEvent"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/cmd-palette/view-sessions/{session}/stream": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** Stream one programmable command palette view */
+    get: operations["streamCmdPaletteViewSession"];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/cmd-palette/views/{id}": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** Get one declarative command palette view */
+    get: operations["getCmdPaletteView"];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/cmd-palette/views/{id}/open": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /** Open one programmable command palette view */
+    post: operations["openCmdPaletteViewSession"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/cmd-palette/views/{id}/stream": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** Stream declarative command palette view patches */
+    get: operations["streamCmdPaletteView"];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
   "/api/doctor": {
     parameters: {
       query?: never;
@@ -2997,6 +3237,24 @@ export interface paths {
     patch: operations["updateSettingsAutomation"];
     trace?: never;
   };
+  "/api/settings/cmd-palette": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** Read command-palette settings */
+    get: operations["getSettingsCmdPalette"];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    /** Update command-palette settings */
+    patch: operations["updateSettingsCmdPalette"];
+    trace?: never;
+  };
   "/api/settings/general": {
     parameters: {
       query?: never;
@@ -4428,6 +4686,40 @@ export interface paths {
     get: operations["listTools"];
     put?: never;
     post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/tools/approvals/{id}": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** Get one pending tool approval lifecycle */
+    get: operations["getPendingToolApproval"];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/tools/approvals/{id}/cancel": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /** Cancel one pending tool approval */
+    post: operations["cancelPendingToolApproval"];
     delete?: never;
     options?: never;
     head?: never;
@@ -7092,11 +7384,38 @@ export interface components {
     WindowManagerClientFrame: {
       client: {
         active_desktop_id: string;
+        attachment_token?: string;
         client_id: string;
         /** Format: date-time */
         connected_at: string;
+        context_revision: number;
         focus_order: string[];
         focused_window_id?: string | null;
+        global_shortcuts: {
+          active_chord?: string;
+          command_id: string;
+          intended_chord: string;
+          reason?: string;
+          settings_url?: string;
+          status: string;
+        }[];
+        kind: string;
+        palette_context: {
+          desktop_window_count: number;
+          destination_intent?: {
+            pathname: string;
+            search: {
+              [key: string]: unknown;
+            };
+          } | null;
+          focused_session_state?: string;
+          scope_global: boolean;
+          shell_desktop: boolean;
+          window_floating: boolean;
+          window_focused: boolean;
+          window_stacked: boolean;
+          workspace_trusted: boolean;
+        };
         presentation_revision: number;
         stack_active: {
           [key: string]: string;
@@ -7111,15 +7430,62 @@ export interface components {
     WindowManagerClientRegistration: {
       active_desktop_id?: string;
       client_id?: string;
+      context: {
+        destination_intent?: {
+          pathname: string;
+          search: {
+            [key: string]: unknown;
+          };
+        } | null;
+        focused_session_state?: string;
+        global_shortcuts: {
+          active_chord?: string;
+          command_id: string;
+          intended_chord: string;
+          reason?: string;
+          settings_url?: string;
+          status: string;
+        }[];
+        scope_global: boolean;
+        workspace_trusted: boolean;
+      };
+      kind?: string;
       workspace_id: string;
     };
     WindowManagerClientView: {
       active_desktop_id: string;
+      attachment_token?: string;
       client_id: string;
       /** Format: date-time */
       connected_at: string;
+      context_revision: number;
       focus_order: string[];
       focused_window_id?: string | null;
+      global_shortcuts: {
+        active_chord?: string;
+        command_id: string;
+        intended_chord: string;
+        reason?: string;
+        settings_url?: string;
+        status: string;
+      }[];
+      kind: string;
+      palette_context: {
+        desktop_window_count: number;
+        destination_intent?: {
+          pathname: string;
+          search: {
+            [key: string]: unknown;
+          };
+        } | null;
+        focused_session_state?: string;
+        scope_global: boolean;
+        shell_desktop: boolean;
+        window_floating: boolean;
+        window_focused: boolean;
+        window_stacked: boolean;
+        workspace_trusted: boolean;
+      };
       presentation_revision: number;
       stack_active: {
         [key: string]: string;
@@ -7129,11 +7495,38 @@ export interface components {
     WindowManagerClientsResponse: {
       clients: {
         active_desktop_id: string;
+        attachment_token?: string;
         client_id: string;
         /** Format: date-time */
         connected_at: string;
+        context_revision: number;
         focus_order: string[];
         focused_window_id?: string | null;
+        global_shortcuts: {
+          active_chord?: string;
+          command_id: string;
+          intended_chord: string;
+          reason?: string;
+          settings_url?: string;
+          status: string;
+        }[];
+        kind: string;
+        palette_context: {
+          desktop_window_count: number;
+          destination_intent?: {
+            pathname: string;
+            search: {
+              [key: string]: unknown;
+            };
+          } | null;
+          focused_session_state?: string;
+          scope_global: boolean;
+          shell_desktop: boolean;
+          window_floating: boolean;
+          window_focused: boolean;
+          window_stacked: boolean;
+          workspace_trusted: boolean;
+        };
         presentation_revision: number;
         stack_active: {
           [key: string]: string;
@@ -8464,11 +8857,38 @@ export interface components {
       };
       client?: {
         active_desktop_id: string;
+        attachment_token?: string;
         client_id: string;
         /** Format: date-time */
         connected_at: string;
+        context_revision: number;
         focus_order: string[];
         focused_window_id?: string | null;
+        global_shortcuts: {
+          active_chord?: string;
+          command_id: string;
+          intended_chord: string;
+          reason?: string;
+          settings_url?: string;
+          status: string;
+        }[];
+        kind: string;
+        palette_context: {
+          desktop_window_count: number;
+          destination_intent?: {
+            pathname: string;
+            search: {
+              [key: string]: unknown;
+            };
+          } | null;
+          focused_session_state?: string;
+          scope_global: boolean;
+          shell_desktop: boolean;
+          window_floating: boolean;
+          window_focused: boolean;
+          window_stacked: boolean;
+          workspace_trusted: boolean;
+        };
         presentation_revision: number;
         stack_active: {
           [key: string]: string;
@@ -8848,11 +9268,38 @@ export interface components {
       };
       client?: {
         active_desktop_id: string;
+        attachment_token?: string;
         client_id: string;
         /** Format: date-time */
         connected_at: string;
+        context_revision: number;
         focus_order: string[];
         focused_window_id?: string | null;
+        global_shortcuts: {
+          active_chord?: string;
+          command_id: string;
+          intended_chord: string;
+          reason?: string;
+          settings_url?: string;
+          status: string;
+        }[];
+        kind: string;
+        palette_context: {
+          desktop_window_count: number;
+          destination_intent?: {
+            pathname: string;
+            search: {
+              [key: string]: unknown;
+            };
+          } | null;
+          focused_session_state?: string;
+          scope_global: boolean;
+          shell_desktop: boolean;
+          window_floating: boolean;
+          window_focused: boolean;
+          window_stacked: boolean;
+          workspace_trusted: boolean;
+        };
         presentation_revision: number;
         stack_active: {
           [key: string]: string;
@@ -9212,11 +9659,38 @@ export interface components {
     WindowManagerSnapshotFrame: {
       client?: {
         active_desktop_id: string;
+        attachment_token?: string;
         client_id: string;
         /** Format: date-time */
         connected_at: string;
+        context_revision: number;
         focus_order: string[];
         focused_window_id?: string | null;
+        global_shortcuts: {
+          active_chord?: string;
+          command_id: string;
+          intended_chord: string;
+          reason?: string;
+          settings_url?: string;
+          status: string;
+        }[];
+        kind: string;
+        palette_context: {
+          desktop_window_count: number;
+          destination_intent?: {
+            pathname: string;
+            search: {
+              [key: string]: unknown;
+            };
+          } | null;
+          focused_session_state?: string;
+          scope_global: boolean;
+          shell_desktop: boolean;
+          window_floating: boolean;
+          window_focused: boolean;
+          window_stacked: boolean;
+          workspace_trusted: boolean;
+        };
         presentation_revision: number;
         stack_active: {
           [key: string]: string;
@@ -30687,6 +31161,2643 @@ export interface operations {
       };
     };
   };
+  listCmdPaletteClients: {
+    parameters: {
+      query: {
+        /** @description Workspace id, name, or path */
+        workspace: string;
+      };
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description OK */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            /** Format: date-time */
+            attached_at: string;
+            client_id: string;
+            kind: string;
+            workspace: string;
+          }[];
+        };
+      };
+      /** @description Invalid workspace */
+      400: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            clients?: string[];
+            error: string;
+            fields?: {
+              [key: string]: string;
+            };
+            message?: string;
+            reason?: string;
+          };
+        };
+      };
+      /** @description Command palette unavailable */
+      503: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            clients?: string[];
+            error: string;
+            fields?: {
+              [key: string]: string;
+            };
+            message?: string;
+            reason?: string;
+          };
+        };
+      };
+    };
+  };
+  listCmdPaletteCommands: {
+    parameters: {
+      query: {
+        /** @description Workspace id, name, or path */
+        workspace: string;
+        /** @description Attached client whose context resolves availability */
+        client?: string;
+      };
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description OK */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            catalog_revision: string;
+            commands: {
+              action: {
+                app?: string;
+                args?: {
+                  [key: string]: unknown;
+                };
+                kind: string;
+                op?: string;
+                tool?: string;
+                url?: string;
+                view?: string;
+              };
+              alias: string | null;
+              arguments: {
+                name: string;
+                options?: string[];
+                placeholder?: string;
+                required: boolean;
+                type: string;
+              }[];
+              availability_exempt: boolean;
+              available: boolean;
+              bindings: string[];
+              confirmation?: {
+                body?: string;
+                confirm: string;
+                title: string;
+              } | null;
+              destructive: boolean;
+              execution: {
+                retry_safe: boolean;
+                single_flight: boolean;
+              };
+              global_shortcut?: {
+                active_chord?: string;
+                intended_chord: string;
+                reason?: string;
+                settings_url?: string;
+                status?: string;
+              } | null;
+              icon: string;
+              id: string;
+              keywords?: string[];
+              reason?: string;
+              section: string;
+              source: string;
+              title: string;
+              when?: {
+                key: string;
+                operator?: string;
+                reason?: string;
+                value: unknown;
+              }[];
+            }[];
+            context_revision?: string;
+            sources: {
+              reason?: string;
+              source: string;
+              status: string;
+            }[];
+          };
+        };
+      };
+      /** @description Invalid workspace */
+      400: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            clients?: string[];
+            error: string;
+            fields?: {
+              [key: string]: string;
+            };
+            message?: string;
+            reason?: string;
+          };
+        };
+      };
+      /** @description Command palette unavailable */
+      503: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            clients?: string[];
+            error: string;
+            fields?: {
+              [key: string]: string;
+            };
+            message?: string;
+            reason?: string;
+          };
+        };
+      };
+    };
+  };
+  invokeCmdPaletteCommand: {
+    parameters: {
+      query?: never;
+      header: {
+        /** @description Attached client identity token */
+        "X-Compozy-Client-Token": string;
+      };
+      path: {
+        /** @description Canonical command id */
+        id: string;
+      };
+      cookie?: never;
+    };
+    /** @description JSON request body */
+    requestBody: {
+      content: {
+        "application/json": {
+          args: {
+            [key: string]: unknown;
+          };
+          client?: string;
+          workspace: string;
+        };
+      };
+    };
+    responses: {
+      /** @description Completed */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            approval_id?: string;
+            invocation_id: string;
+            result?: unknown;
+            status: string;
+          };
+        };
+      };
+      /** @description Approval pending */
+      202: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            approval_id?: string;
+            invocation_id: string;
+            result?: unknown;
+            status: string;
+          };
+        };
+      };
+      /** @description Invalid request */
+      400: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            clients?: string[];
+            error: string;
+            fields?: {
+              [key: string]: string;
+            };
+            message?: string;
+            reason?: string;
+          };
+        };
+      };
+      /** @description Invalid client attachment */
+      401: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            clients?: string[];
+            error: string;
+            fields?: {
+              [key: string]: string;
+            };
+            message?: string;
+            reason?: string;
+          };
+        };
+      };
+      /** @description Command not found */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            clients?: string[];
+            error: string;
+            fields?: {
+              [key: string]: string;
+            };
+            message?: string;
+            reason?: string;
+          };
+        };
+      };
+      /** @description Invocation conflict */
+      409: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            clients?: string[];
+            error: string;
+            fields?: {
+              [key: string]: string;
+            };
+            message?: string;
+            reason?: string;
+          };
+        };
+      };
+      /** @description Command unavailable */
+      412: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            clients?: string[];
+            error: string;
+            fields?: {
+              [key: string]: string;
+            };
+            message?: string;
+            reason?: string;
+          };
+        };
+      };
+      /** @description Invalid command arguments */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            clients?: string[];
+            error: string;
+            fields?: {
+              [key: string]: string;
+            };
+            message?: string;
+            reason?: string;
+          };
+        };
+      };
+      /** @description Command palette unavailable */
+      503: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            clients?: string[];
+            error: string;
+            fields?: {
+              [key: string]: string;
+            };
+            message?: string;
+            reason?: string;
+          };
+        };
+      };
+    };
+  };
+  getCmdPalettePersonalization: {
+    parameters: {
+      query: {
+        /** @description Workspace id, name, or path */
+        workspace: string;
+      };
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description OK */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            frecency_entries: number;
+            pins: string[];
+            query_associations: number;
+            recents: number;
+            workspace: string;
+          };
+        };
+      };
+      /** @description Invalid workspace */
+      400: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            clients?: string[];
+            error: string;
+            fields?: {
+              [key: string]: string;
+            };
+            message?: string;
+            reason?: string;
+          };
+        };
+      };
+      /** @description Command palette unavailable */
+      503: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            clients?: string[];
+            error: string;
+            fields?: {
+              [key: string]: string;
+            };
+            message?: string;
+            reason?: string;
+          };
+        };
+      };
+    };
+  };
+  resetCmdPalettePersonalization: {
+    parameters: {
+      query: {
+        /** @description Workspace id, name, or path */
+        workspace: string;
+      };
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Reset */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            status: string;
+          };
+        };
+      };
+      /** @description Invalid workspace */
+      400: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            clients?: string[];
+            error: string;
+            fields?: {
+              [key: string]: string;
+            };
+            message?: string;
+            reason?: string;
+          };
+        };
+      };
+      /** @description Command palette unavailable */
+      503: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            clients?: string[];
+            error: string;
+            fields?: {
+              [key: string]: string;
+            };
+            message?: string;
+            reason?: string;
+          };
+        };
+      };
+    };
+  };
+  pinCmdPaletteCommand: {
+    parameters: {
+      query: {
+        /** @description Workspace id, name, or path */
+        workspace: string;
+      };
+      header?: never;
+      path: {
+        /** @description Canonical command id */
+        id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Pinned */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            pinned: boolean;
+          };
+        };
+      };
+      /** @description Invalid workspace */
+      400: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            clients?: string[];
+            error: string;
+            fields?: {
+              [key: string]: string;
+            };
+            message?: string;
+            reason?: string;
+          };
+        };
+      };
+      /** @description Command not found */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            clients?: string[];
+            error: string;
+            fields?: {
+              [key: string]: string;
+            };
+            message?: string;
+            reason?: string;
+          };
+        };
+      };
+      /** @description Command palette unavailable */
+      503: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            clients?: string[];
+            error: string;
+            fields?: {
+              [key: string]: string;
+            };
+            message?: string;
+            reason?: string;
+          };
+        };
+      };
+    };
+  };
+  unpinCmdPaletteCommand: {
+    parameters: {
+      query: {
+        /** @description Workspace id, name, or path */
+        workspace: string;
+      };
+      header?: never;
+      path: {
+        /** @description Canonical command id */
+        id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Unpinned */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            pinned: boolean;
+          };
+        };
+      };
+      /** @description Invalid workspace */
+      400: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            clients?: string[];
+            error: string;
+            fields?: {
+              [key: string]: string;
+            };
+            message?: string;
+            reason?: string;
+          };
+        };
+      };
+      /** @description Command not found */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            clients?: string[];
+            error: string;
+            fields?: {
+              [key: string]: string;
+            };
+            message?: string;
+            reason?: string;
+          };
+        };
+      };
+      /** @description Command palette unavailable */
+      503: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            clients?: string[];
+            error: string;
+            fields?: {
+              [key: string]: string;
+            };
+            message?: string;
+            reason?: string;
+          };
+        };
+      };
+    };
+  };
+  getCmdPaletteRankSignals: {
+    parameters: {
+      query: {
+        /** @description Workspace id, name, or path */
+        workspace: string;
+      };
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description OK */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            pins: string[];
+            query_hits: {
+              command_id: string;
+              query: string;
+              /** Format: double */
+              weight: number;
+            }[];
+            revision: string;
+            usage: {
+              command_id: string;
+              /** Format: int64 */
+              last_used_at: number;
+              /** Format: double */
+              weight: number;
+            }[];
+            weights: {
+              /** Format: double */
+              context_boost: number;
+              /** Format: double */
+              deadband: number;
+              domain_view_mount_cap: number;
+              entity_section_visible_cap: number;
+              /** Format: double */
+              fallback_weak_match_threshold: number;
+              /** Format: double */
+              frecency_cap: number;
+              frecency_half_life_days: number;
+              /** Format: double */
+              frecency_scale: number;
+              /** Format: double */
+              ghost_min_score: number;
+              group_order: string[];
+              /** Format: double */
+              match_alias_exact: number;
+              /** Format: double */
+              match_compact_prefix: number;
+              /** Format: double */
+              match_contains: number;
+              /** Format: double */
+              match_exact: number;
+              /** Format: double */
+              match_prefix: number;
+              /** Format: double */
+              match_subsequence_max: number;
+              /** Format: double */
+              match_subsequence_min: number;
+              /** Format: double */
+              match_token_prefix: number;
+              /** Format: double */
+              match_word_boundary_max: number;
+              /** Format: double */
+              match_word_boundary_min: number;
+              max_query_length: number;
+              min_entity_query_length: number;
+              /** Format: double */
+              promotion_command_floor: number;
+              /** Format: double */
+              promotion_default_floor: number;
+              /** Format: double */
+              promotion_path_floor: number;
+              /** Format: double */
+              promotion_tab_floor: number;
+              prune_after_days: number;
+              /** Format: double */
+              prune_threshold: number;
+              query_half_life_days: number;
+              /** Format: double */
+              query_learning_cap: number;
+              /** Format: double */
+              secondary_field_cap: number;
+              /** Format: double */
+              secondary_field_multiplier: number;
+              version: number;
+            };
+          };
+        };
+      };
+      /** @description Invalid workspace */
+      400: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            clients?: string[];
+            error: string;
+            fields?: {
+              [key: string]: string;
+            };
+            message?: string;
+            reason?: string;
+          };
+        };
+      };
+      /** @description Command palette unavailable */
+      503: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            clients?: string[];
+            error: string;
+            fields?: {
+              [key: string]: string;
+            };
+            message?: string;
+            reason?: string;
+          };
+        };
+      };
+    };
+  };
+  streamCmdPalette: {
+    parameters: {
+      query: {
+        /** @description Workspace id, name, or path */
+        workspace: string;
+      };
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Catalog invalidation stream */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "text/event-stream": {
+            catalog_revision: string;
+            workspace: string;
+          };
+        };
+      };
+      /** @description Invalid workspace */
+      400: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            clients?: string[];
+            error: string;
+            fields?: {
+              [key: string]: string;
+            };
+            message?: string;
+            reason?: string;
+          };
+        };
+      };
+      /** @description Command palette unavailable */
+      503: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            clients?: string[];
+            error: string;
+            fields?: {
+              [key: string]: string;
+            };
+            message?: string;
+            reason?: string;
+          };
+        };
+      };
+    };
+  };
+  recordCmdPaletteUsage: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** @description JSON request body */
+    requestBody: {
+      content: {
+        "application/json": {
+          command_id: string;
+          query: string;
+          workspace: string;
+        };
+      };
+    };
+    responses: {
+      /** @description Recorded */
+      204: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+      /** @description Invalid request */
+      400: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            clients?: string[];
+            error: string;
+            fields?: {
+              [key: string]: string;
+            };
+            message?: string;
+            reason?: string;
+          };
+        };
+      };
+      /** @description Command not found */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            clients?: string[];
+            error: string;
+            fields?: {
+              [key: string]: string;
+            };
+            message?: string;
+            reason?: string;
+          };
+        };
+      };
+      /** @description Command palette unavailable */
+      503: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            clients?: string[];
+            error: string;
+            fields?: {
+              [key: string]: string;
+            };
+            message?: string;
+            reason?: string;
+          };
+        };
+      };
+    };
+  };
+  closeCmdPaletteViewSession: {
+    parameters: {
+      query?: never;
+      header: {
+        /** @description Attached client identity token */
+        "X-Compozy-Client-Token": string;
+      };
+      path: {
+        /** @description Opaque view session id */
+        session: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Closed */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            closed: boolean;
+          };
+        };
+      };
+      /** @description Session ownership mismatch */
+      403: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            clients?: string[];
+            error: string;
+            fields?: {
+              [key: string]: string;
+            };
+            message?: string;
+            reason?: string;
+          };
+        };
+      };
+    };
+  };
+  admitCmdPaletteViewSessionEvent: {
+    parameters: {
+      query?: never;
+      header: {
+        /** @description Attached client identity token */
+        "X-Compozy-Client-Token": string;
+      };
+      path: {
+        /** @description Opaque view session id */
+        session: string;
+      };
+      cookie?: never;
+    };
+    /** @description JSON request body */
+    requestBody: {
+      content: {
+        "application/json": {
+          ack_effects?: string[];
+          args?: unknown[];
+          effect_result?: {
+            effect_id: string;
+            payload?: unknown;
+          } | null;
+          handler: string;
+          revision: string;
+          /** Format: int64 */
+          seq: number;
+        };
+      };
+    };
+    responses: {
+      /** @description Accepted */
+      202: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            accepted: boolean;
+          };
+        };
+      };
+      /** @description Invalid request */
+      400: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            clients?: string[];
+            error: string;
+            fields?: {
+              [key: string]: string;
+            };
+            message?: string;
+            reason?: string;
+          };
+        };
+      };
+      /** @description Session ownership mismatch */
+      403: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            clients?: string[];
+            error: string;
+            fields?: {
+              [key: string]: string;
+            };
+            message?: string;
+            reason?: string;
+          };
+        };
+      };
+      /** @description View event cap reached */
+      409: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            clients?: string[];
+            error: string;
+            fields?: {
+              [key: string]: string;
+            };
+            message?: string;
+            reason?: string;
+          };
+        };
+      };
+      /** @description View session is gone */
+      410: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            clients?: string[];
+            error: string;
+            fields?: {
+              [key: string]: string;
+            };
+            message?: string;
+            reason?: string;
+          };
+        };
+      };
+    };
+  };
+  streamCmdPaletteViewSession: {
+    parameters: {
+      query: {
+        /** @description Opaque session stream token */
+        token: string;
+      };
+      header?: never;
+      path: {
+        /** @description Opaque view session id */
+        session: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Session-scoped view frames */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "text/event-stream": {
+            effects?: {
+              copy?: {
+                content: string;
+              } | null;
+              id: string;
+              open_app?: {
+                app: string;
+              } | null;
+              open_url?: {
+                url: string;
+              } | null;
+              pick_files?: {
+                directories?: boolean;
+              } | null;
+              toast?: {
+                message: string;
+                tone: string;
+              } | null;
+            }[];
+            generation: number;
+            handlers: string[];
+            /** Format: int64 */
+            in_reply_to?: number;
+            patch?: {
+              from: string;
+              ops: {
+                op: string;
+                path: string;
+                value?: unknown;
+              }[];
+              to: string;
+              view_id: string;
+            } | null;
+            payload?: {
+              chips?: {
+                count?: number | null;
+                fallback?: string;
+                id: string;
+                label: string;
+                requires?: {
+                  [key: string]: string;
+                };
+              }[];
+              chrome?: {
+                active_chip?: string;
+                columns?: number;
+                complete?: boolean;
+                /** Format: int64 */
+                event_count?: number;
+                filtering?: boolean | null;
+                is_loading?: boolean;
+                on_chip?: string;
+                on_load_more?: string;
+                on_search?: string;
+                on_selection?: string;
+                pagination?: {
+                  has_more: boolean;
+                  page_size?: number;
+                } | null;
+                search_placeholder?: string;
+                search_text?: string | null;
+                throttle_ms?: number;
+              } | null;
+              detail?: {
+                actions?: {
+                  action?: {
+                    app?: string;
+                    args?: {
+                      [key: string]: unknown;
+                    };
+                    kind: string;
+                    op?: string;
+                    tool?: string;
+                    url?: string;
+                    view?: string;
+                  } | null;
+                  confirmation?: {
+                    body?: string;
+                    confirm: string;
+                    title: string;
+                  } | null;
+                  destructive?: boolean;
+                  fallback?: string;
+                  handler?: string;
+                  icon?: string;
+                  primary?: boolean;
+                  requires?: {
+                    [key: string]: string;
+                  };
+                  section?: string;
+                  shortcut?: string;
+                  submit_form?: boolean;
+                  title: string;
+                }[];
+                is_loading?: boolean;
+                markdown?: string;
+                metadata?: {
+                  fallback?: string;
+                  label: string;
+                  requires?: {
+                    [key: string]: string;
+                  };
+                  value: string;
+                }[];
+              } | null;
+              empty?: {
+                hint?: string;
+                icon?: string;
+                title: string;
+              } | null;
+              form?: {
+                fields: {
+                  default?: unknown;
+                  directories?: boolean;
+                  empty_hint?: string;
+                  error?: string;
+                  /** Format: int64 */
+                  event_count?: number;
+                  fallback?: string;
+                  id: string;
+                  label: string;
+                  on_blur?: string;
+                  on_change?: string;
+                  options?: string[];
+                  placeholder?: string;
+                  required?: boolean;
+                  requires?: {
+                    [key: string]: string;
+                  };
+                  type: string;
+                }[];
+                on_submit?: string;
+                submit?: {
+                  action?: {
+                    app?: string;
+                    args?: {
+                      [key: string]: unknown;
+                    };
+                    kind: string;
+                    op?: string;
+                    tool?: string;
+                    url?: string;
+                    view?: string;
+                  } | null;
+                  confirmation?: {
+                    body?: string;
+                    confirm: string;
+                    title: string;
+                  } | null;
+                  destructive?: boolean;
+                  fallback?: string;
+                  handler?: string;
+                  icon?: string;
+                  primary?: boolean;
+                  requires?: {
+                    [key: string]: string;
+                  };
+                  section?: string;
+                  shortcut?: string;
+                  submit_form?: boolean;
+                  title: string;
+                } | null;
+              } | null;
+              grid?: {
+                sections: {
+                  tiles: {
+                    actions?: {
+                      action?: {
+                        app?: string;
+                        args?: {
+                          [key: string]: unknown;
+                        };
+                        kind: string;
+                        op?: string;
+                        tool?: string;
+                        url?: string;
+                        view?: string;
+                      } | null;
+                      confirmation?: {
+                        body?: string;
+                        confirm: string;
+                        title: string;
+                      } | null;
+                      destructive?: boolean;
+                      fallback?: string;
+                      handler?: string;
+                      icon?: string;
+                      primary?: boolean;
+                      requires?: {
+                        [key: string]: string;
+                      };
+                      section?: string;
+                      shortcut?: string;
+                      submit_form?: boolean;
+                      title: string;
+                    }[];
+                    badge?: {
+                      label: string;
+                      tone: string;
+                    } | null;
+                    fallback?: string;
+                    id: string;
+                    image: {
+                      emoji?: string;
+                      token?: string;
+                      url?: string;
+                    };
+                    requires?: {
+                      [key: string]: string;
+                    };
+                    title: string;
+                  }[];
+                  title?: string;
+                }[];
+              } | null;
+              sections?: {
+                rows: {
+                  accessories?: string[];
+                  actions?: {
+                    action?: {
+                      app?: string;
+                      args?: {
+                        [key: string]: unknown;
+                      };
+                      kind: string;
+                      op?: string;
+                      tool?: string;
+                      url?: string;
+                      view?: string;
+                    } | null;
+                    confirmation?: {
+                      body?: string;
+                      confirm: string;
+                      title: string;
+                    } | null;
+                    destructive?: boolean;
+                    fallback?: string;
+                    handler?: string;
+                    icon?: string;
+                    primary?: boolean;
+                    requires?: {
+                      [key: string]: string;
+                    };
+                    section?: string;
+                    shortcut?: string;
+                    submit_form?: boolean;
+                    title: string;
+                  }[];
+                  badge?: {
+                    label: string;
+                    tone: string;
+                  } | null;
+                  detail?: {
+                    actions?: {
+                      action?: {
+                        app?: string;
+                        args?: {
+                          [key: string]: unknown;
+                        };
+                        kind: string;
+                        op?: string;
+                        tool?: string;
+                        url?: string;
+                        view?: string;
+                      } | null;
+                      confirmation?: {
+                        body?: string;
+                        confirm: string;
+                        title: string;
+                      } | null;
+                      destructive?: boolean;
+                      fallback?: string;
+                      handler?: string;
+                      icon?: string;
+                      primary?: boolean;
+                      requires?: {
+                        [key: string]: string;
+                      };
+                      section?: string;
+                      shortcut?: string;
+                      submit_form?: boolean;
+                      title: string;
+                    }[];
+                    is_loading?: boolean;
+                    markdown?: string;
+                    metadata?: {
+                      fallback?: string;
+                      label: string;
+                      requires?: {
+                        [key: string]: string;
+                      };
+                      value: string;
+                    }[];
+                  } | null;
+                  fallback?: string;
+                  icon?: string;
+                  id: string;
+                  keywords?: string[];
+                  requires?: {
+                    [key: string]: string;
+                  };
+                  subtitle?: string;
+                  title: string;
+                }[];
+                title?: string;
+              }[];
+              view: string;
+            } | null;
+            revision: string;
+            view_session: string;
+          };
+        };
+      };
+      /** @description Invalid stream token */
+      403: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            clients?: string[];
+            error: string;
+            fields?: {
+              [key: string]: string;
+            };
+            message?: string;
+            reason?: string;
+          };
+        };
+      };
+      /** @description View session is gone */
+      410: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            clients?: string[];
+            error: string;
+            fields?: {
+              [key: string]: string;
+            };
+            message?: string;
+            reason?: string;
+          };
+        };
+      };
+    };
+  };
+  getCmdPaletteView: {
+    parameters: {
+      query: {
+        /** @description Workspace id, name, or path */
+        workspace: string;
+      };
+      header?: never;
+      path: {
+        /** @description Canonical view id */
+        id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description OK */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            kind: string;
+            payload: {
+              chips?: {
+                count?: number | null;
+                fallback?: string;
+                id: string;
+                label: string;
+                requires?: {
+                  [key: string]: string;
+                };
+              }[];
+              chrome?: {
+                active_chip?: string;
+                columns?: number;
+                complete?: boolean;
+                /** Format: int64 */
+                event_count?: number;
+                filtering?: boolean | null;
+                is_loading?: boolean;
+                on_chip?: string;
+                on_load_more?: string;
+                on_search?: string;
+                on_selection?: string;
+                pagination?: {
+                  has_more: boolean;
+                  page_size?: number;
+                } | null;
+                search_placeholder?: string;
+                search_text?: string | null;
+                throttle_ms?: number;
+              } | null;
+              detail?: {
+                actions?: {
+                  action?: {
+                    app?: string;
+                    args?: {
+                      [key: string]: unknown;
+                    };
+                    kind: string;
+                    op?: string;
+                    tool?: string;
+                    url?: string;
+                    view?: string;
+                  } | null;
+                  confirmation?: {
+                    body?: string;
+                    confirm: string;
+                    title: string;
+                  } | null;
+                  destructive?: boolean;
+                  fallback?: string;
+                  handler?: string;
+                  icon?: string;
+                  primary?: boolean;
+                  requires?: {
+                    [key: string]: string;
+                  };
+                  section?: string;
+                  shortcut?: string;
+                  submit_form?: boolean;
+                  title: string;
+                }[];
+                is_loading?: boolean;
+                markdown?: string;
+                metadata?: {
+                  fallback?: string;
+                  label: string;
+                  requires?: {
+                    [key: string]: string;
+                  };
+                  value: string;
+                }[];
+              } | null;
+              empty?: {
+                hint?: string;
+                icon?: string;
+                title: string;
+              } | null;
+              form?: {
+                fields: {
+                  default?: unknown;
+                  directories?: boolean;
+                  empty_hint?: string;
+                  error?: string;
+                  /** Format: int64 */
+                  event_count?: number;
+                  fallback?: string;
+                  id: string;
+                  label: string;
+                  on_blur?: string;
+                  on_change?: string;
+                  options?: string[];
+                  placeholder?: string;
+                  required?: boolean;
+                  requires?: {
+                    [key: string]: string;
+                  };
+                  type: string;
+                }[];
+                on_submit?: string;
+                submit?: {
+                  action?: {
+                    app?: string;
+                    args?: {
+                      [key: string]: unknown;
+                    };
+                    kind: string;
+                    op?: string;
+                    tool?: string;
+                    url?: string;
+                    view?: string;
+                  } | null;
+                  confirmation?: {
+                    body?: string;
+                    confirm: string;
+                    title: string;
+                  } | null;
+                  destructive?: boolean;
+                  fallback?: string;
+                  handler?: string;
+                  icon?: string;
+                  primary?: boolean;
+                  requires?: {
+                    [key: string]: string;
+                  };
+                  section?: string;
+                  shortcut?: string;
+                  submit_form?: boolean;
+                  title: string;
+                } | null;
+              } | null;
+              grid?: {
+                sections: {
+                  tiles: {
+                    actions?: {
+                      action?: {
+                        app?: string;
+                        args?: {
+                          [key: string]: unknown;
+                        };
+                        kind: string;
+                        op?: string;
+                        tool?: string;
+                        url?: string;
+                        view?: string;
+                      } | null;
+                      confirmation?: {
+                        body?: string;
+                        confirm: string;
+                        title: string;
+                      } | null;
+                      destructive?: boolean;
+                      fallback?: string;
+                      handler?: string;
+                      icon?: string;
+                      primary?: boolean;
+                      requires?: {
+                        [key: string]: string;
+                      };
+                      section?: string;
+                      shortcut?: string;
+                      submit_form?: boolean;
+                      title: string;
+                    }[];
+                    badge?: {
+                      label: string;
+                      tone: string;
+                    } | null;
+                    fallback?: string;
+                    id: string;
+                    image: {
+                      emoji?: string;
+                      token?: string;
+                      url?: string;
+                    };
+                    requires?: {
+                      [key: string]: string;
+                    };
+                    title: string;
+                  }[];
+                  title?: string;
+                }[];
+              } | null;
+              sections?: {
+                rows: {
+                  accessories?: string[];
+                  actions?: {
+                    action?: {
+                      app?: string;
+                      args?: {
+                        [key: string]: unknown;
+                      };
+                      kind: string;
+                      op?: string;
+                      tool?: string;
+                      url?: string;
+                      view?: string;
+                    } | null;
+                    confirmation?: {
+                      body?: string;
+                      confirm: string;
+                      title: string;
+                    } | null;
+                    destructive?: boolean;
+                    fallback?: string;
+                    handler?: string;
+                    icon?: string;
+                    primary?: boolean;
+                    requires?: {
+                      [key: string]: string;
+                    };
+                    section?: string;
+                    shortcut?: string;
+                    submit_form?: boolean;
+                    title: string;
+                  }[];
+                  badge?: {
+                    label: string;
+                    tone: string;
+                  } | null;
+                  detail?: {
+                    actions?: {
+                      action?: {
+                        app?: string;
+                        args?: {
+                          [key: string]: unknown;
+                        };
+                        kind: string;
+                        op?: string;
+                        tool?: string;
+                        url?: string;
+                        view?: string;
+                      } | null;
+                      confirmation?: {
+                        body?: string;
+                        confirm: string;
+                        title: string;
+                      } | null;
+                      destructive?: boolean;
+                      fallback?: string;
+                      handler?: string;
+                      icon?: string;
+                      primary?: boolean;
+                      requires?: {
+                        [key: string]: string;
+                      };
+                      section?: string;
+                      shortcut?: string;
+                      submit_form?: boolean;
+                      title: string;
+                    }[];
+                    is_loading?: boolean;
+                    markdown?: string;
+                    metadata?: {
+                      fallback?: string;
+                      label: string;
+                      requires?: {
+                        [key: string]: string;
+                      };
+                      value: string;
+                    }[];
+                  } | null;
+                  fallback?: string;
+                  icon?: string;
+                  id: string;
+                  keywords?: string[];
+                  requires?: {
+                    [key: string]: string;
+                  };
+                  subtitle?: string;
+                  title: string;
+                }[];
+                title?: string;
+              }[];
+              view: string;
+            };
+            revision: string;
+            stream_epoch: string;
+            title: string;
+            view_id: string;
+          };
+        };
+      };
+      /** @description Invalid workspace */
+      400: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            clients?: string[];
+            error: string;
+            fields?: {
+              [key: string]: string;
+            };
+            message?: string;
+            reason?: string;
+          };
+        };
+      };
+      /** @description View not found */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            clients?: string[];
+            error: string;
+            fields?: {
+              [key: string]: string;
+            };
+            message?: string;
+            reason?: string;
+          };
+        };
+      };
+      /** @description Invalid view payload */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            clients?: string[];
+            error: string;
+            fields?: {
+              [key: string]: string;
+            };
+            message?: string;
+            reason?: string;
+          };
+        };
+      };
+      /** @description Command palette unavailable */
+      503: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            clients?: string[];
+            error: string;
+            fields?: {
+              [key: string]: string;
+            };
+            message?: string;
+            reason?: string;
+          };
+        };
+      };
+    };
+  };
+  openCmdPaletteViewSession: {
+    parameters: {
+      query?: never;
+      header: {
+        /** @description Attached client identity token */
+        "X-Compozy-Client-Token": string;
+      };
+      path: {
+        /** @description Canonical view id */
+        id: string;
+      };
+      cookie?: never;
+    };
+    /** @description JSON request body */
+    requestBody: {
+      content: {
+        "application/json": {
+          args?: {
+            [key: string]: unknown;
+          };
+          workspace: string;
+        };
+      };
+    };
+    responses: {
+      /** @description Opened */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            first_frame: {
+              effects?: {
+                copy?: {
+                  content: string;
+                } | null;
+                id: string;
+                open_app?: {
+                  app: string;
+                } | null;
+                open_url?: {
+                  url: string;
+                } | null;
+                pick_files?: {
+                  directories?: boolean;
+                } | null;
+                toast?: {
+                  message: string;
+                  tone: string;
+                } | null;
+              }[];
+              generation: number;
+              handlers: string[];
+              /** Format: int64 */
+              in_reply_to?: number;
+              patch?: {
+                from: string;
+                ops: {
+                  op: string;
+                  path: string;
+                  value?: unknown;
+                }[];
+                to: string;
+                view_id: string;
+              } | null;
+              payload?: {
+                chips?: {
+                  count?: number | null;
+                  fallback?: string;
+                  id: string;
+                  label: string;
+                  requires?: {
+                    [key: string]: string;
+                  };
+                }[];
+                chrome?: {
+                  active_chip?: string;
+                  columns?: number;
+                  complete?: boolean;
+                  /** Format: int64 */
+                  event_count?: number;
+                  filtering?: boolean | null;
+                  is_loading?: boolean;
+                  on_chip?: string;
+                  on_load_more?: string;
+                  on_search?: string;
+                  on_selection?: string;
+                  pagination?: {
+                    has_more: boolean;
+                    page_size?: number;
+                  } | null;
+                  search_placeholder?: string;
+                  search_text?: string | null;
+                  throttle_ms?: number;
+                } | null;
+                detail?: {
+                  actions?: {
+                    action?: {
+                      app?: string;
+                      args?: {
+                        [key: string]: unknown;
+                      };
+                      kind: string;
+                      op?: string;
+                      tool?: string;
+                      url?: string;
+                      view?: string;
+                    } | null;
+                    confirmation?: {
+                      body?: string;
+                      confirm: string;
+                      title: string;
+                    } | null;
+                    destructive?: boolean;
+                    fallback?: string;
+                    handler?: string;
+                    icon?: string;
+                    primary?: boolean;
+                    requires?: {
+                      [key: string]: string;
+                    };
+                    section?: string;
+                    shortcut?: string;
+                    submit_form?: boolean;
+                    title: string;
+                  }[];
+                  is_loading?: boolean;
+                  markdown?: string;
+                  metadata?: {
+                    fallback?: string;
+                    label: string;
+                    requires?: {
+                      [key: string]: string;
+                    };
+                    value: string;
+                  }[];
+                } | null;
+                empty?: {
+                  hint?: string;
+                  icon?: string;
+                  title: string;
+                } | null;
+                form?: {
+                  fields: {
+                    default?: unknown;
+                    directories?: boolean;
+                    empty_hint?: string;
+                    error?: string;
+                    /** Format: int64 */
+                    event_count?: number;
+                    fallback?: string;
+                    id: string;
+                    label: string;
+                    on_blur?: string;
+                    on_change?: string;
+                    options?: string[];
+                    placeholder?: string;
+                    required?: boolean;
+                    requires?: {
+                      [key: string]: string;
+                    };
+                    type: string;
+                  }[];
+                  on_submit?: string;
+                  submit?: {
+                    action?: {
+                      app?: string;
+                      args?: {
+                        [key: string]: unknown;
+                      };
+                      kind: string;
+                      op?: string;
+                      tool?: string;
+                      url?: string;
+                      view?: string;
+                    } | null;
+                    confirmation?: {
+                      body?: string;
+                      confirm: string;
+                      title: string;
+                    } | null;
+                    destructive?: boolean;
+                    fallback?: string;
+                    handler?: string;
+                    icon?: string;
+                    primary?: boolean;
+                    requires?: {
+                      [key: string]: string;
+                    };
+                    section?: string;
+                    shortcut?: string;
+                    submit_form?: boolean;
+                    title: string;
+                  } | null;
+                } | null;
+                grid?: {
+                  sections: {
+                    tiles: {
+                      actions?: {
+                        action?: {
+                          app?: string;
+                          args?: {
+                            [key: string]: unknown;
+                          };
+                          kind: string;
+                          op?: string;
+                          tool?: string;
+                          url?: string;
+                          view?: string;
+                        } | null;
+                        confirmation?: {
+                          body?: string;
+                          confirm: string;
+                          title: string;
+                        } | null;
+                        destructive?: boolean;
+                        fallback?: string;
+                        handler?: string;
+                        icon?: string;
+                        primary?: boolean;
+                        requires?: {
+                          [key: string]: string;
+                        };
+                        section?: string;
+                        shortcut?: string;
+                        submit_form?: boolean;
+                        title: string;
+                      }[];
+                      badge?: {
+                        label: string;
+                        tone: string;
+                      } | null;
+                      fallback?: string;
+                      id: string;
+                      image: {
+                        emoji?: string;
+                        token?: string;
+                        url?: string;
+                      };
+                      requires?: {
+                        [key: string]: string;
+                      };
+                      title: string;
+                    }[];
+                    title?: string;
+                  }[];
+                } | null;
+                sections?: {
+                  rows: {
+                    accessories?: string[];
+                    actions?: {
+                      action?: {
+                        app?: string;
+                        args?: {
+                          [key: string]: unknown;
+                        };
+                        kind: string;
+                        op?: string;
+                        tool?: string;
+                        url?: string;
+                        view?: string;
+                      } | null;
+                      confirmation?: {
+                        body?: string;
+                        confirm: string;
+                        title: string;
+                      } | null;
+                      destructive?: boolean;
+                      fallback?: string;
+                      handler?: string;
+                      icon?: string;
+                      primary?: boolean;
+                      requires?: {
+                        [key: string]: string;
+                      };
+                      section?: string;
+                      shortcut?: string;
+                      submit_form?: boolean;
+                      title: string;
+                    }[];
+                    badge?: {
+                      label: string;
+                      tone: string;
+                    } | null;
+                    detail?: {
+                      actions?: {
+                        action?: {
+                          app?: string;
+                          args?: {
+                            [key: string]: unknown;
+                          };
+                          kind: string;
+                          op?: string;
+                          tool?: string;
+                          url?: string;
+                          view?: string;
+                        } | null;
+                        confirmation?: {
+                          body?: string;
+                          confirm: string;
+                          title: string;
+                        } | null;
+                        destructive?: boolean;
+                        fallback?: string;
+                        handler?: string;
+                        icon?: string;
+                        primary?: boolean;
+                        requires?: {
+                          [key: string]: string;
+                        };
+                        section?: string;
+                        shortcut?: string;
+                        submit_form?: boolean;
+                        title: string;
+                      }[];
+                      is_loading?: boolean;
+                      markdown?: string;
+                      metadata?: {
+                        fallback?: string;
+                        label: string;
+                        requires?: {
+                          [key: string]: string;
+                        };
+                        value: string;
+                      }[];
+                    } | null;
+                    fallback?: string;
+                    icon?: string;
+                    id: string;
+                    keywords?: string[];
+                    requires?: {
+                      [key: string]: string;
+                    };
+                    subtitle?: string;
+                    title: string;
+                  }[];
+                  title?: string;
+                }[];
+                view: string;
+              } | null;
+              revision: string;
+              view_session: string;
+            };
+            stream_token: string;
+            view_session: string;
+          };
+        };
+      };
+      /** @description Invalid request */
+      400: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            clients?: string[];
+            error: string;
+            fields?: {
+              [key: string]: string;
+            };
+            message?: string;
+            reason?: string;
+          };
+        };
+      };
+      /** @description Invalid client attachment */
+      401: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            clients?: string[];
+            error: string;
+            fields?: {
+              [key: string]: string;
+            };
+            message?: string;
+            reason?: string;
+          };
+        };
+      };
+      /** @description View not found */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            clients?: string[];
+            error: string;
+            fields?: {
+              [key: string]: string;
+            };
+            message?: string;
+            reason?: string;
+          };
+        };
+      };
+      /** @description View is not programmable */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            clients?: string[];
+            error: string;
+            fields?: {
+              [key: string]: string;
+            };
+            message?: string;
+            reason?: string;
+          };
+        };
+      };
+      /** @description Command palette unavailable */
+      503: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            clients?: string[];
+            error: string;
+            fields?: {
+              [key: string]: string;
+            };
+            message?: string;
+            reason?: string;
+          };
+        };
+      };
+    };
+  };
+  streamCmdPaletteView: {
+    parameters: {
+      query: {
+        /** @description Workspace id, name, or path */
+        workspace: string;
+        /** @description Last applied patch sequence */
+        after?: string;
+        /** @description Stream epoch required when after is greater than zero */
+        stream_epoch?: string;
+      };
+      header?: never;
+      path: {
+        /** @description Canonical view id */
+        id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Revision-fenced view patch stream */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "text/event-stream": {
+            patch?: {
+              from: string;
+              ops: {
+                op: string;
+                path: string;
+                value?: unknown;
+              }[];
+              to: string;
+              view_id: string;
+            } | null;
+            payload?: {
+              chips?: {
+                count?: number | null;
+                fallback?: string;
+                id: string;
+                label: string;
+                requires?: {
+                  [key: string]: string;
+                };
+              }[];
+              chrome?: {
+                active_chip?: string;
+                columns?: number;
+                complete?: boolean;
+                /** Format: int64 */
+                event_count?: number;
+                filtering?: boolean | null;
+                is_loading?: boolean;
+                on_chip?: string;
+                on_load_more?: string;
+                on_search?: string;
+                on_selection?: string;
+                pagination?: {
+                  has_more: boolean;
+                  page_size?: number;
+                } | null;
+                search_placeholder?: string;
+                search_text?: string | null;
+                throttle_ms?: number;
+              } | null;
+              detail?: {
+                actions?: {
+                  action?: {
+                    app?: string;
+                    args?: {
+                      [key: string]: unknown;
+                    };
+                    kind: string;
+                    op?: string;
+                    tool?: string;
+                    url?: string;
+                    view?: string;
+                  } | null;
+                  confirmation?: {
+                    body?: string;
+                    confirm: string;
+                    title: string;
+                  } | null;
+                  destructive?: boolean;
+                  fallback?: string;
+                  handler?: string;
+                  icon?: string;
+                  primary?: boolean;
+                  requires?: {
+                    [key: string]: string;
+                  };
+                  section?: string;
+                  shortcut?: string;
+                  submit_form?: boolean;
+                  title: string;
+                }[];
+                is_loading?: boolean;
+                markdown?: string;
+                metadata?: {
+                  fallback?: string;
+                  label: string;
+                  requires?: {
+                    [key: string]: string;
+                  };
+                  value: string;
+                }[];
+              } | null;
+              empty?: {
+                hint?: string;
+                icon?: string;
+                title: string;
+              } | null;
+              form?: {
+                fields: {
+                  default?: unknown;
+                  directories?: boolean;
+                  empty_hint?: string;
+                  error?: string;
+                  /** Format: int64 */
+                  event_count?: number;
+                  fallback?: string;
+                  id: string;
+                  label: string;
+                  on_blur?: string;
+                  on_change?: string;
+                  options?: string[];
+                  placeholder?: string;
+                  required?: boolean;
+                  requires?: {
+                    [key: string]: string;
+                  };
+                  type: string;
+                }[];
+                on_submit?: string;
+                submit?: {
+                  action?: {
+                    app?: string;
+                    args?: {
+                      [key: string]: unknown;
+                    };
+                    kind: string;
+                    op?: string;
+                    tool?: string;
+                    url?: string;
+                    view?: string;
+                  } | null;
+                  confirmation?: {
+                    body?: string;
+                    confirm: string;
+                    title: string;
+                  } | null;
+                  destructive?: boolean;
+                  fallback?: string;
+                  handler?: string;
+                  icon?: string;
+                  primary?: boolean;
+                  requires?: {
+                    [key: string]: string;
+                  };
+                  section?: string;
+                  shortcut?: string;
+                  submit_form?: boolean;
+                  title: string;
+                } | null;
+              } | null;
+              grid?: {
+                sections: {
+                  tiles: {
+                    actions?: {
+                      action?: {
+                        app?: string;
+                        args?: {
+                          [key: string]: unknown;
+                        };
+                        kind: string;
+                        op?: string;
+                        tool?: string;
+                        url?: string;
+                        view?: string;
+                      } | null;
+                      confirmation?: {
+                        body?: string;
+                        confirm: string;
+                        title: string;
+                      } | null;
+                      destructive?: boolean;
+                      fallback?: string;
+                      handler?: string;
+                      icon?: string;
+                      primary?: boolean;
+                      requires?: {
+                        [key: string]: string;
+                      };
+                      section?: string;
+                      shortcut?: string;
+                      submit_form?: boolean;
+                      title: string;
+                    }[];
+                    badge?: {
+                      label: string;
+                      tone: string;
+                    } | null;
+                    fallback?: string;
+                    id: string;
+                    image: {
+                      emoji?: string;
+                      token?: string;
+                      url?: string;
+                    };
+                    requires?: {
+                      [key: string]: string;
+                    };
+                    title: string;
+                  }[];
+                  title?: string;
+                }[];
+              } | null;
+              sections?: {
+                rows: {
+                  accessories?: string[];
+                  actions?: {
+                    action?: {
+                      app?: string;
+                      args?: {
+                        [key: string]: unknown;
+                      };
+                      kind: string;
+                      op?: string;
+                      tool?: string;
+                      url?: string;
+                      view?: string;
+                    } | null;
+                    confirmation?: {
+                      body?: string;
+                      confirm: string;
+                      title: string;
+                    } | null;
+                    destructive?: boolean;
+                    fallback?: string;
+                    handler?: string;
+                    icon?: string;
+                    primary?: boolean;
+                    requires?: {
+                      [key: string]: string;
+                    };
+                    section?: string;
+                    shortcut?: string;
+                    submit_form?: boolean;
+                    title: string;
+                  }[];
+                  badge?: {
+                    label: string;
+                    tone: string;
+                  } | null;
+                  detail?: {
+                    actions?: {
+                      action?: {
+                        app?: string;
+                        args?: {
+                          [key: string]: unknown;
+                        };
+                        kind: string;
+                        op?: string;
+                        tool?: string;
+                        url?: string;
+                        view?: string;
+                      } | null;
+                      confirmation?: {
+                        body?: string;
+                        confirm: string;
+                        title: string;
+                      } | null;
+                      destructive?: boolean;
+                      fallback?: string;
+                      handler?: string;
+                      icon?: string;
+                      primary?: boolean;
+                      requires?: {
+                        [key: string]: string;
+                      };
+                      section?: string;
+                      shortcut?: string;
+                      submit_form?: boolean;
+                      title: string;
+                    }[];
+                    is_loading?: boolean;
+                    markdown?: string;
+                    metadata?: {
+                      fallback?: string;
+                      label: string;
+                      requires?: {
+                        [key: string]: string;
+                      };
+                      value: string;
+                    }[];
+                  } | null;
+                  fallback?: string;
+                  icon?: string;
+                  id: string;
+                  keywords?: string[];
+                  requires?: {
+                    [key: string]: string;
+                  };
+                  subtitle?: string;
+                  title: string;
+                }[];
+                title?: string;
+              }[];
+              view: string;
+            } | null;
+            reset?: boolean;
+            revision: string;
+            /** Format: int64 */
+            sequence: number;
+            stream_epoch: string;
+          };
+        };
+      };
+      /** @description Invalid stream cursor */
+      400: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            clients?: string[];
+            error: string;
+            fields?: {
+              [key: string]: string;
+            };
+            message?: string;
+            reason?: string;
+          };
+        };
+      };
+      /** @description View not found */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            clients?: string[];
+            error: string;
+            fields?: {
+              [key: string]: string;
+            };
+            message?: string;
+            reason?: string;
+          };
+        };
+      };
+      /** @description Invalid view payload */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            clients?: string[];
+            error: string;
+            fields?: {
+              [key: string]: string;
+            };
+            message?: string;
+            reason?: string;
+          };
+        };
+      };
+      /** @description Command palette unavailable */
+      503: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            clients?: string[];
+            error: string;
+            fields?: {
+              [key: string]: string;
+            };
+            message?: string;
+            reason?: string;
+          };
+        };
+      };
+    };
+  };
   getDoctor: {
     parameters: {
       query?: {
@@ -42289,6 +45400,7 @@ export interface operations {
                 | "automation"
                 | "network"
                 | "window-manager"
+                | "cmd-palette"
                 | "attention"
                 | "shell"
                 | "observability"
@@ -53130,6 +56242,7 @@ export interface operations {
               | "automation"
               | "network"
               | "window-manager"
+              | "cmd-palette"
               | "attention"
               | "shell"
               | "observability"
@@ -53241,6 +56354,7 @@ export interface operations {
               | "automation"
               | "network"
               | "window-manager"
+              | "cmd-palette"
               | "attention"
               | "shell"
               | "observability"
@@ -53436,6 +56550,7 @@ export interface operations {
               | "automation"
               | "network"
               | "window-manager"
+              | "cmd-palette"
               | "attention"
               | "shell"
               | "observability"
@@ -53550,6 +56665,7 @@ export interface operations {
               | "automation"
               | "network"
               | "window-manager"
+              | "cmd-palette"
               | "attention"
               | "shell"
               | "observability"
@@ -53633,6 +56749,338 @@ export interface operations {
       };
       /** @description Conflicting settings change */
       409: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+      /** @description Internal server error */
+      500: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+    };
+  };
+  getSettingsCmdPalette: {
+    parameters: {
+      query?: {
+        /** @description Select the settings scope */
+        scope?: "global" | "workspace";
+        /** @description Select the workspace id for workspace scope */
+        workspace_id?: string;
+      };
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description OK */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            available_scopes: ("global" | "workspace")[];
+            fallback_agent_enabled: boolean;
+            personalization: boolean;
+            /** @enum {string} */
+            scope: "global" | "workspace";
+            /** @enum {string} */
+            section:
+              | "general"
+              | "memory"
+              | "roles"
+              | "skills"
+              | "automation"
+              | "network"
+              | "window-manager"
+              | "cmd-palette"
+              | "attention"
+              | "shell"
+              | "observability"
+              | "hooks-extensions";
+            workspace_id?: string;
+          };
+        };
+      };
+      /** @description Invalid settings scope */
+      400: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+      /** @description Workspace not found */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+      /** @description Internal server error */
+      500: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+    };
+  };
+  updateSettingsCmdPalette: {
+    parameters: {
+      query?: {
+        /** @description Select the settings scope */
+        scope?: "global" | "workspace";
+        /** @description Select the workspace id for workspace scope */
+        workspace_id?: string;
+      };
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** @description JSON request body */
+    requestBody: {
+      content: {
+        "application/json": {
+          fallback_agent_enabled?: boolean | null;
+          personalization?: boolean | null;
+        };
+      };
+    };
+    responses: {
+      /** @description OK */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            available_scopes: ("global" | "workspace")[];
+            fallback_agent_enabled: boolean;
+            personalization: boolean;
+            /** @enum {string} */
+            scope: "global" | "workspace";
+            /** @enum {string} */
+            section:
+              | "general"
+              | "memory"
+              | "roles"
+              | "skills"
+              | "automation"
+              | "network"
+              | "window-manager"
+              | "cmd-palette"
+              | "attention"
+              | "shell"
+              | "observability"
+              | "hooks-extensions";
+            workspace_id?: string;
+          };
+        };
+      };
+      /** @description Invalid settings payload */
+      400: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+      /** @description Forbidden */
+      403: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+      /** @description Workspace not found */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+      /** @description Invalid settings payload */
+      422: {
         headers: {
           [name: string]: unknown;
         };
@@ -53781,6 +57229,7 @@ export interface operations {
               | "automation"
               | "network"
               | "window-manager"
+              | "cmd-palette"
               | "attention"
               | "shell"
               | "observability"
@@ -53917,6 +57366,7 @@ export interface operations {
               | "automation"
               | "network"
               | "window-manager"
+              | "cmd-palette"
               | "attention"
               | "shell"
               | "observability"
@@ -54595,6 +58045,24 @@ export interface operations {
               last_error?: string;
               missing_env?: string[];
               name: string;
+              palette?: {
+                commands: {
+                  available: boolean;
+                  bindings: string[];
+                  conflict_with?: string;
+                  default_binding?: string;
+                  default_dormant: boolean;
+                  id: string;
+                  reason?: string;
+                  title: string;
+                }[];
+                views: {
+                  available: boolean;
+                  id: string;
+                  reason?: string;
+                  title: string;
+                }[];
+              } | null;
               requires_env?: string[];
               state?: string;
               version?: string;
@@ -54610,6 +58078,7 @@ export interface operations {
               | "automation"
               | "network"
               | "window-manager"
+              | "cmd-palette"
               | "attention"
               | "shell"
               | "observability"
@@ -54754,6 +58223,7 @@ export interface operations {
               | "automation"
               | "network"
               | "window-manager"
+              | "cmd-palette"
               | "attention"
               | "shell"
               | "observability"
@@ -55135,6 +58605,7 @@ export interface operations {
               | "automation"
               | "network"
               | "window-manager"
+              | "cmd-palette"
               | "attention"
               | "shell"
               | "observability"
@@ -55340,6 +58811,7 @@ export interface operations {
               | "automation"
               | "network"
               | "window-manager"
+              | "cmd-palette"
               | "attention"
               | "shell"
               | "observability"
@@ -55744,6 +59216,7 @@ export interface operations {
                 | "automation"
                 | "network"
                 | "window-manager"
+                | "cmd-palette"
                 | "attention"
                 | "shell"
                 | "observability"
@@ -56186,6 +59659,7 @@ export interface operations {
               | "automation"
               | "network"
               | "window-manager"
+              | "cmd-palette"
               | "attention"
               | "shell"
               | "observability"
@@ -56427,6 +59901,7 @@ export interface operations {
               | "automation"
               | "network"
               | "window-manager"
+              | "cmd-palette"
               | "attention"
               | "shell"
               | "observability"
@@ -57528,6 +61003,7 @@ export interface operations {
               | "automation"
               | "network"
               | "window-manager"
+              | "cmd-palette"
               | "attention"
               | "shell"
               | "observability"
@@ -57754,6 +61230,7 @@ export interface operations {
               | "automation"
               | "network"
               | "window-manager"
+              | "cmd-palette"
               | "attention"
               | "shell"
               | "observability"
@@ -57969,6 +61446,7 @@ export interface operations {
               | "automation"
               | "network"
               | "window-manager"
+              | "cmd-palette"
               | "attention"
               | "shell"
               | "observability"
@@ -58103,6 +61581,7 @@ export interface operations {
               | "automation"
               | "network"
               | "window-manager"
+              | "cmd-palette"
               | "attention"
               | "shell"
               | "observability"
@@ -58302,6 +61781,7 @@ export interface operations {
               | "automation"
               | "network"
               | "window-manager"
+              | "cmd-palette"
               | "attention"
               | "shell"
               | "observability"
@@ -58419,6 +61899,7 @@ export interface operations {
               | "automation"
               | "network"
               | "window-manager"
+              | "cmd-palette"
               | "attention"
               | "shell"
               | "observability"
@@ -59404,6 +62885,7 @@ export interface operations {
               | "automation"
               | "network"
               | "window-manager"
+              | "cmd-palette"
               | "attention"
               | "shell"
               | "observability"
@@ -59609,6 +63091,7 @@ export interface operations {
               | "automation"
               | "network"
               | "window-manager"
+              | "cmd-palette"
               | "attention"
               | "shell"
               | "observability"
@@ -59782,6 +63265,7 @@ export interface operations {
               | "automation"
               | "network"
               | "window-manager"
+              | "cmd-palette"
               | "attention"
               | "shell"
               | "observability"
@@ -60002,6 +63486,7 @@ export interface operations {
               | "automation"
               | "network"
               | "window-manager"
+              | "cmd-palette"
               | "attention"
               | "shell"
               | "observability"
@@ -60187,6 +63672,7 @@ export interface operations {
               | "automation"
               | "network"
               | "window-manager"
+              | "cmd-palette"
               | "attention"
               | "shell"
               | "observability"
@@ -60707,6 +64193,7 @@ export interface operations {
               | "automation"
               | "network"
               | "window-manager"
+              | "cmd-palette"
               | "attention"
               | "shell"
               | "observability"
@@ -60912,6 +64399,7 @@ export interface operations {
               | "automation"
               | "network"
               | "window-manager"
+              | "cmd-palette"
               | "attention"
               | "shell"
               | "observability"
@@ -61060,6 +64548,7 @@ export interface operations {
               | "automation"
               | "network"
               | "window-manager"
+              | "cmd-palette"
               | "attention"
               | "shell"
               | "observability"
@@ -61173,6 +64662,7 @@ export interface operations {
               | "automation"
               | "network"
               | "window-manager"
+              | "cmd-palette"
               | "attention"
               | "shell"
               | "observability"
@@ -61404,6 +64894,7 @@ export interface operations {
               | "automation"
               | "network"
               | "window-manager"
+              | "cmd-palette"
               | "attention"
               | "shell"
               | "observability"
@@ -61615,6 +65106,7 @@ export interface operations {
               | "automation"
               | "network"
               | "window-manager"
+              | "cmd-palette"
               | "attention"
               | "shell"
               | "observability"
@@ -62296,7 +65788,12 @@ export interface operations {
   };
   getSettingsWindowManager: {
     parameters: {
-      query?: never;
+      query?: {
+        /** @description Select the settings scope */
+        scope?: "global" | "workspace";
+        /** @description Select the workspace id for workspace scope */
+        workspace_id?: string;
+      };
       header?: never;
       path?: never;
       cookie?: never;
@@ -62310,7 +65807,16 @@ export interface operations {
         };
         content: {
           "application/json": {
-            available_scopes: "global"[];
+            aliases: {
+              [key: string]: string;
+            };
+            available_scopes: ("global" | "workspace")[];
+            commands: {
+              id: string;
+              section: string;
+              source: string;
+              title: string;
+            }[];
             config: {
               bindings: {
                 /** @enum {string} */
@@ -62333,6 +65839,9 @@ export interface operations {
                 left: number;
                 right: number;
                 top: number;
+              };
+              global_shortcuts: {
+                [key: string]: string;
               };
               /** @enum {string} */
               group_move_modifier: "alt" | "control" | "meta" | "shift" | "none";
@@ -62358,11 +65867,29 @@ export interface operations {
             defaults: {
               [key: string]: string[] | string;
             };
-            effective: {
+            diagnostics: {
+              command_id: string;
+              message: string;
+            }[];
+            effective_shortcuts: {
               [key: string]: string[] | string;
             };
+            extension_defaults: {
+              binding: string[] | string;
+              command: string;
+              conflict_with?: string;
+              dormant: boolean;
+            }[];
+            global_shortcuts: {
+              active_chord?: string;
+              command_id: string;
+              intended_chord: string;
+              reason?: string;
+              settings_url?: string;
+              status?: string;
+            }[];
             /** @enum {string} */
-            scope: "global";
+            scope: "global" | "workspace";
             /** @enum {string} */
             section:
               | "general"
@@ -62372,10 +65899,70 @@ export interface operations {
               | "automation"
               | "network"
               | "window-manager"
+              | "cmd-palette"
               | "attention"
               | "shell"
               | "observability"
               | "hooks-extensions";
+            workspace_id?: string;
+          };
+        };
+      };
+      /** @description Invalid settings scope */
+      400: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+      /** @description Workspace not found */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
           };
         };
       };
@@ -62412,7 +65999,12 @@ export interface operations {
   };
   updateSettingsWindowManager: {
     parameters: {
-      query?: never;
+      query?: {
+        /** @description Select the settings scope */
+        scope?: "global" | "workspace";
+        /** @description Select the workspace id for workspace scope */
+        workspace_id?: string;
+      };
       header?: never;
       path?: never;
       cookie?: never;
@@ -62421,7 +66013,10 @@ export interface operations {
     requestBody: {
       content: {
         "application/json": {
-          config: {
+          aliases?: {
+            [key: string]: string;
+          } | null;
+          config?: {
             bindings: {
               /** @enum {string} */
               bottom_center: "none" | "reserved" | "zoom";
@@ -62444,6 +66039,9 @@ export interface operations {
               right: number;
               top: number;
             };
+            global_shortcuts: {
+              [key: string]: string;
+            };
             /** @enum {string} */
             group_move_modifier: "alt" | "control" | "meta" | "shift" | "none";
             history_limit: number;
@@ -62464,7 +66062,14 @@ export interface operations {
             };
             /** @enum {string} */
             swap_modifier: "alt" | "control" | "meta" | "shift" | "none";
-          };
+          } | null;
+          global_shortcuts?: {
+            [key: string]: string;
+          } | null;
+          overwrite?: boolean;
+          shortcuts?: {
+            [key: string]: string[] | string;
+          } | null;
         };
       };
     };
@@ -62476,44 +66081,91 @@ export interface operations {
         };
         content: {
           "application/json": {
-            active_config_hash: string;
-            /** Format: int64 */
-            active_generation: number;
-            agent_name?: string;
-            applied: boolean;
-            apply_record_id: string;
-            /** @enum {string} */
-            lifecycle:
-              | "live"
-              | "live-add"
-              | "live-remove-if-unused"
-              | "restart-required"
-              | "session-rebind";
-            /** @enum {string} */
-            next_action: "none" | "restart-daemon" | "new-session" | "retry";
-            partial_failures?: {
-              diagnostic: {
-                category: string;
-                code: string;
-                data_freshness: string;
-                doc_url?: string;
-                evidence?: {
-                  [key: string]: unknown;
-                };
-                id: string;
-                message: string;
-                severity: string;
-                suggested_command?: string;
-                title: string;
-              };
-              subsystem: string;
+            aliases: {
+              [key: string]: string;
+            };
+            available_scopes: ("global" | "workspace")[];
+            commands: {
+              id: string;
+              section: string;
+              source: string;
+              title: string;
             }[];
-            restart_required?: boolean;
-            restart_scope?: string;
+            config: {
+              bindings: {
+                /** @enum {string} */
+                bottom_center: "none" | "reserved" | "zoom";
+                /** @enum {string} */
+                top_center: "none" | "reserved" | "zoom";
+              };
+              closed_entry_limit: number;
+              /** @enum {string} */
+              desktop_transition: "slide" | "crossfade" | "instant";
+              /** @enum {string} */
+              drag_away_policy: "window" | "group";
+              focus_follows_pointer: boolean;
+              /** @enum {string} */
+              focus_policy: "click_directional" | "directional";
+              focus_wrap: boolean;
+              gaps: {
+                bottom: number;
+                inner: number;
+                left: number;
+                right: number;
+                top: number;
+              };
+              global_shortcuts: {
+                [key: string]: string;
+              };
+              /** @enum {string} */
+              group_move_modifier: "alt" | "control" | "meta" | "shift" | "none";
+              history_limit: number;
+              nav_stack_limit: number;
+              /** @enum {string} */
+              new_window_policy: "floating" | "beside_focus";
+              raise_on_focus: boolean;
+              shortcuts: {
+                [key: string]: string[] | string;
+              };
+              /** @enum {string} */
+              small_viewport_policy: "stack" | "reject";
+              snap: {
+                corner_reach: number;
+                edge_band: number;
+                exit_slack: number;
+                repeat_ratios: number[];
+              };
+              /** @enum {string} */
+              swap_modifier: "alt" | "control" | "meta" | "shift" | "none";
+            };
+            defaults: {
+              [key: string]: string[] | string;
+            };
+            diagnostics: {
+              command_id: string;
+              message: string;
+            }[];
+            effective_shortcuts: {
+              [key: string]: string[] | string;
+            };
+            extension_defaults: {
+              binding: string[] | string;
+              command: string;
+              conflict_with?: string;
+              dormant: boolean;
+            }[];
+            global_shortcuts: {
+              active_chord?: string;
+              command_id: string;
+              intended_chord: string;
+              reason?: string;
+              settings_url?: string;
+              status?: string;
+            }[];
             /** @enum {string} */
-            scope?: "global" | "workspace" | "agent";
+            scope: "global" | "workspace";
             /** @enum {string} */
-            section?:
+            section:
               | "general"
               | "memory"
               | "roles"
@@ -62521,26 +66173,12 @@ export interface operations {
               | "automation"
               | "network"
               | "window-manager"
+              | "cmd-palette"
               | "attention"
               | "shell"
               | "observability"
-              | "hooks-extensions"
-              | "providers"
-              | "mcp-servers"
-              | "sandboxes"
-              | "hooks";
-            skipped?: boolean;
-            skipped_reason?: string;
-            warnings?: string[];
+              | "hooks-extensions";
             workspace_id?: string;
-            /** @enum {string} */
-            write_target?:
-              | "global-config"
-              | "workspace-config"
-              | "global-mcp-sidecar"
-              | "workspace-mcp-sidecar"
-              | "global-agent-file"
-              | "workspace-agent-file";
           };
         };
       };
@@ -62602,8 +66240,8 @@ export interface operations {
           };
         };
       };
-      /** @description Conflicting settings change */
-      409: {
+      /** @description Workspace not found */
+      404: {
         headers: {
           [name: string]: unknown;
         };
@@ -62628,6 +66266,36 @@ export interface operations {
               title: string;
             } | null;
             error: string;
+          };
+        };
+      };
+      /** @description Conflicting settings change */
+      409: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            alias?: string;
+            chord?: string;
+            error: string;
+            message?: string;
+            owner?: string;
+          };
+        };
+      };
+      /** @description Invalid settings payload */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            alias?: string;
+            chord?: string;
+            error: string;
+            message?: string;
+            owner?: string;
           };
         };
       };
@@ -84372,6 +88040,151 @@ export interface operations {
               title: string;
             } | null;
             error: string;
+          };
+        };
+      };
+    };
+  };
+  getPendingToolApproval: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        /** @description Stable approval id */
+        id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description OK */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            approval_status: string;
+            error?: unknown;
+            execution_status?: string;
+            /** Format: date-time */
+            expires_at?: string | null;
+            result?: unknown;
+          };
+        };
+      };
+      /** @description Approval not found */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            clients?: string[];
+            error: string;
+            fields?: {
+              [key: string]: string;
+            };
+            message?: string;
+            reason?: string;
+          };
+        };
+      };
+      /** @description Tool approval unavailable */
+      503: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            clients?: string[];
+            error: string;
+            fields?: {
+              [key: string]: string;
+            };
+            message?: string;
+            reason?: string;
+          };
+        };
+      };
+    };
+  };
+  cancelPendingToolApproval: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        /** @description Stable approval id */
+        id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Canceled */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            approval_status: string;
+            error?: unknown;
+            execution_status?: string;
+            /** Format: date-time */
+            expires_at?: string | null;
+            result?: unknown;
+          };
+        };
+      };
+      /** @description Approval not found */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            clients?: string[];
+            error: string;
+            fields?: {
+              [key: string]: string;
+            };
+            message?: string;
+            reason?: string;
+          };
+        };
+      };
+      /** @description Approval already terminal */
+      409: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            clients?: string[];
+            error: string;
+            fields?: {
+              [key: string]: string;
+            };
+            message?: string;
+            reason?: string;
+          };
+        };
+      };
+      /** @description Tool approval unavailable */
+      503: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            clients?: string[];
+            error: string;
+            fields?: {
+              [key: string]: string;
+            };
+            message?: string;
+            reason?: string;
           };
         };
       };
@@ -126886,11 +130699,38 @@ export interface operations {
           "application/json": {
             clients: {
               active_desktop_id: string;
+              attachment_token?: string;
               client_id: string;
               /** Format: date-time */
               connected_at: string;
+              context_revision: number;
               focus_order: string[];
               focused_window_id?: string | null;
+              global_shortcuts: {
+                active_chord?: string;
+                command_id: string;
+                intended_chord: string;
+                reason?: string;
+                settings_url?: string;
+                status: string;
+              }[];
+              kind: string;
+              palette_context: {
+                desktop_window_count: number;
+                destination_intent?: {
+                  pathname: string;
+                  search: {
+                    [key: string]: unknown;
+                  };
+                } | null;
+                focused_session_state?: string;
+                scope_global: boolean;
+                shell_desktop: boolean;
+                window_floating: boolean;
+                window_focused: boolean;
+                window_stacked: boolean;
+                workspace_trusted: boolean;
+              };
               presentation_revision: number;
               stack_active: {
                 [key: string]: string;
@@ -126999,6 +130839,26 @@ export interface operations {
         "application/json": {
           active_desktop_id?: string;
           client_id?: string;
+          context: {
+            destination_intent?: {
+              pathname: string;
+              search: {
+                [key: string]: unknown;
+              };
+            } | null;
+            focused_session_state?: string;
+            global_shortcuts: {
+              active_chord?: string;
+              command_id: string;
+              intended_chord: string;
+              reason?: string;
+              settings_url?: string;
+              status: string;
+            }[];
+            scope_global: boolean;
+            workspace_trusted: boolean;
+          };
+          kind?: string;
           workspace_id: string;
         };
       };
@@ -127012,11 +130872,38 @@ export interface operations {
         content: {
           "application/json": {
             active_desktop_id: string;
+            attachment_token?: string;
             client_id: string;
             /** Format: date-time */
             connected_at: string;
+            context_revision: number;
             focus_order: string[];
             focused_window_id?: string | null;
+            global_shortcuts: {
+              active_chord?: string;
+              command_id: string;
+              intended_chord: string;
+              reason?: string;
+              settings_url?: string;
+              status: string;
+            }[];
+            kind: string;
+            palette_context: {
+              desktop_window_count: number;
+              destination_intent?: {
+                pathname: string;
+                search: {
+                  [key: string]: unknown;
+                };
+              } | null;
+              focused_session_state?: string;
+              scope_global: boolean;
+              shell_desktop: boolean;
+              window_floating: boolean;
+              window_focused: boolean;
+              window_stacked: boolean;
+              workspace_trusted: boolean;
+            };
             presentation_revision: number;
             stack_active: {
               [key: string]: string;
@@ -127451,11 +131338,38 @@ export interface operations {
             };
             client?: {
               active_desktop_id: string;
+              attachment_token?: string;
               client_id: string;
               /** Format: date-time */
               connected_at: string;
+              context_revision: number;
               focus_order: string[];
               focused_window_id?: string | null;
+              global_shortcuts: {
+                active_chord?: string;
+                command_id: string;
+                intended_chord: string;
+                reason?: string;
+                settings_url?: string;
+                status: string;
+              }[];
+              kind: string;
+              palette_context: {
+                desktop_window_count: number;
+                destination_intent?: {
+                  pathname: string;
+                  search: {
+                    [key: string]: unknown;
+                  };
+                } | null;
+                focused_session_state?: string;
+                scope_global: boolean;
+                shell_desktop: boolean;
+                window_floating: boolean;
+                window_focused: boolean;
+                window_stacked: boolean;
+                workspace_trusted: boolean;
+              };
               presentation_revision: number;
               stack_active: {
                 [key: string]: string;
@@ -128282,11 +132196,38 @@ export interface operations {
             };
             client?: {
               active_desktop_id: string;
+              attachment_token?: string;
               client_id: string;
               /** Format: date-time */
               connected_at: string;
+              context_revision: number;
               focus_order: string[];
               focused_window_id?: string | null;
+              global_shortcuts: {
+                active_chord?: string;
+                command_id: string;
+                intended_chord: string;
+                reason?: string;
+                settings_url?: string;
+                status: string;
+              }[];
+              kind: string;
+              palette_context: {
+                desktop_window_count: number;
+                destination_intent?: {
+                  pathname: string;
+                  search: {
+                    [key: string]: unknown;
+                  };
+                } | null;
+                focused_session_state?: string;
+                scope_global: boolean;
+                shell_desktop: boolean;
+                window_floating: boolean;
+                window_focused: boolean;
+                window_stacked: boolean;
+                workspace_trusted: boolean;
+              };
               presentation_revision: number;
               stack_active: {
                 [key: string]: string;
@@ -130034,11 +133975,38 @@ export interface operations {
             };
             client?: {
               active_desktop_id: string;
+              attachment_token?: string;
               client_id: string;
               /** Format: date-time */
               connected_at: string;
+              context_revision: number;
               focus_order: string[];
               focused_window_id?: string | null;
+              global_shortcuts: {
+                active_chord?: string;
+                command_id: string;
+                intended_chord: string;
+                reason?: string;
+                settings_url?: string;
+                status: string;
+              }[];
+              kind: string;
+              palette_context: {
+                desktop_window_count: number;
+                destination_intent?: {
+                  pathname: string;
+                  search: {
+                    [key: string]: unknown;
+                  };
+                } | null;
+                focused_session_state?: string;
+                scope_global: boolean;
+                shell_desktop: boolean;
+                window_floating: boolean;
+                window_focused: boolean;
+                window_stacked: boolean;
+                workspace_trusted: boolean;
+              };
               presentation_revision: number;
               stack_active: {
                 [key: string]: string;
@@ -130412,11 +134380,38 @@ export interface operations {
             | {
                 client?: {
                   active_desktop_id: string;
+                  attachment_token?: string;
                   client_id: string;
                   /** Format: date-time */
                   connected_at: string;
+                  context_revision: number;
                   focus_order: string[];
                   focused_window_id?: string | null;
+                  global_shortcuts: {
+                    active_chord?: string;
+                    command_id: string;
+                    intended_chord: string;
+                    reason?: string;
+                    settings_url?: string;
+                    status: string;
+                  }[];
+                  kind: string;
+                  palette_context: {
+                    desktop_window_count: number;
+                    destination_intent?: {
+                      pathname: string;
+                      search: {
+                        [key: string]: unknown;
+                      };
+                    } | null;
+                    focused_session_state?: string;
+                    scope_global: boolean;
+                    shell_desktop: boolean;
+                    window_floating: boolean;
+                    window_focused: boolean;
+                    window_stacked: boolean;
+                    workspace_trusted: boolean;
+                  };
                   presentation_revision: number;
                   stack_active: {
                     [key: string]: string;
@@ -130655,11 +134650,38 @@ export interface operations {
             | {
                 client: {
                   active_desktop_id: string;
+                  attachment_token?: string;
                   client_id: string;
                   /** Format: date-time */
                   connected_at: string;
+                  context_revision: number;
                   focus_order: string[];
                   focused_window_id?: string | null;
+                  global_shortcuts: {
+                    active_chord?: string;
+                    command_id: string;
+                    intended_chord: string;
+                    reason?: string;
+                    settings_url?: string;
+                    status: string;
+                  }[];
+                  kind: string;
+                  palette_context: {
+                    desktop_window_count: number;
+                    destination_intent?: {
+                      pathname: string;
+                      search: {
+                        [key: string]: unknown;
+                      };
+                    } | null;
+                    focused_session_state?: string;
+                    scope_global: boolean;
+                    shell_desktop: boolean;
+                    window_floating: boolean;
+                    window_focused: boolean;
+                    window_stacked: boolean;
+                    workspace_trusted: boolean;
+                  };
                   presentation_revision: number;
                   stack_active: {
                     [key: string]: string;

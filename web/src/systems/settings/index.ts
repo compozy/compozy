@@ -23,6 +23,10 @@ export type {
   SettingsHooksExtensionsInstalled,
   SettingsHooksExtensionsSection,
   SettingsWindowManagerSection,
+  SettingsCmdPaletteFilter,
+  SettingsCmdPaletteSection,
+  SettingsUpdateCmdPaletteFilter,
+  SettingsUpdateCmdPaletteRequest,
   SettingsMCPAuthBeginResponse,
   SettingsMCPAuthBeginRequest,
   SettingsMCPAuthBeginMode,
@@ -173,6 +177,7 @@ export {
   deleteSettingsProvider,
   getSettingsAutomation,
   getSettingsSandbox,
+  getSettingsCmdPalette,
   getSettingsGeneral,
   getSettingsHooksExtensions,
   getSettingsMemory,
@@ -207,6 +212,7 @@ export {
   settingsObservabilityLogTailPath,
   triggerSettingsRestart,
   updateSettingsAutomation,
+  updateSettingsCmdPalette,
   updateSettingsGeneral,
   updateSettingsHooksExtensions,
   updateSettingsMemory,
@@ -249,6 +255,43 @@ export {
   useWindowManagerConfigEditor,
   type WindowManagerConfigEditorModel,
 } from "./hooks/use-window-manager-config-editor";
+
+// The keyboard surface: one write path, the daemon arbitrating every claim.
+export { useSettingsPalettePage } from "./hooks/use-settings-palette-page";
+export {
+  useLayoutsSettingsData,
+  type LayoutsSettingsData,
+} from "./hooks/use-layouts-settings-data";
+export { settingsCmdPaletteOptions } from "./lib/query-options";
+export {
+  useWindowManagerBindingMutations,
+  type WindowManagerBindingCommit,
+  type WindowManagerBindingMutations,
+} from "./hooks/use-window-manager-binding-mutations";
+export {
+  useWindowManagerShortcutRecorder,
+  type ShortcutRecorderConflict,
+  type ShortcutRecorderModel,
+} from "./hooks/use-window-manager-shortcut-recorder";
+export {
+  useGlobalShortcutRecorder,
+  type GlobalShortcutRecorderModel,
+} from "./hooks/use-global-shortcut-recorder";
+export { useWindowManagerKeyboardEditors } from "./hooks/use-window-manager-keyboard-editors";
+export {
+  ALIAS_RULE_HINT,
+  useWindowManagerAliasEditor,
+  type AliasCellState,
+  type AliasConflict,
+  type AliasEditorModel,
+} from "./hooks/use-window-manager-alias-editor";
+export {
+  buildShortcutTableRows,
+  isCommandOverridden,
+  shortcutSourceCounts,
+  withCommandReset,
+  type ShortcutTableRow,
+} from "./lib/window-manager-shortcut-rows";
 export {
   useWindowManagerLayoutEditor,
   type WindowManagerLayoutEditorModel,

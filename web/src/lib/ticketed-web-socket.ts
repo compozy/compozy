@@ -3,6 +3,7 @@ import { acquireStreamTicket, appendStreamTicket } from "./gateway-stream-auth";
 /** The `WebSocket` surface the window-manager stream consumes. */
 export interface StreamWebSocket {
   close: () => void;
+  send: (data: string) => void;
   onopen: ((event: Event) => void) | null;
   onmessage: ((event: MessageEvent<unknown>) => void) | null;
   onclose: ((event: CloseEvent) => void) | null;
@@ -47,6 +48,13 @@ class TicketedWebSocket implements StreamWebSocket {
     native.onclose = null;
     native.onerror = null;
     native.close();
+  }
+
+  send(data: string): void {
+    if (this.closed || this.native?.readyState !== WebSocket.OPEN) {
+      throw new Error("The stream WebSocket is not open.");
+    }
+    this.native.send(data);
   }
 
   private async connect(): Promise<void> {

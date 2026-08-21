@@ -62,7 +62,7 @@ func TestBuildBundle(t *testing.T) {
 
 				dir := t.TempDir()
 				testCase.prepare(t, dir)
-				runner := newBuildTestRunner(validDescribePayload())
+				runner := newBuildTestRunner(validDescribePayloadPointer())
 				if _, err := buildBundle(testutil.Context(t), testCase.request(dir), runner); err != nil {
 					t.Fatalf("buildBundle() error = %v", err)
 				}
@@ -77,6 +77,30 @@ func TestBuildBundle(t *testing.T) {
 					t.Fatalf("describe command = %#v, want %#v", calls[1], testCase.wantDescribe)
 				}
 			})
+		}
+	})
+
+	t.Run("Should reject programmable views built with the Go toolchain [UT-167]", func(t *testing.T) {
+		t.Parallel()
+
+		dir := t.TempDir()
+		writeGoBuildFixture(t, dir)
+		payload := validDescribePayload()
+		payload.Provides = []string{"view.provider"}
+		payload.Permissions = []string{"view/patch"}
+		payload.Resources.CmdPalette = extensioncontract.CmdPaletteConfig{
+			Views: []extensioncontract.CmdPaletteView{{
+				ID: "browser", Title: "Browser", Kind: "list", Program: true,
+			}},
+		}
+		result, err := buildBundle(
+			testutil.Context(t),
+			BuildRequest{SourceDir: dir},
+			newBuildTestRunner(&payload),
+		)
+		const want = "views[0].program: view programs require a TypeScript extension this release"
+		if result != nil || err == nil || err.Error() != want {
+			t.Fatalf("buildBundle(program Go) = %#v, %v; want exact %q", result, err, want)
 		}
 	})
 
@@ -108,7 +132,7 @@ channel_scopes = ["builders"]
 [resources]
 skills = ["skills"]
 `)
-		runner := newBuildTestRunner(validDescribePayload())
+		runner := newBuildTestRunner(validDescribePayloadPointer())
 
 		result, err := buildBundle(testutil.Context(t), BuildRequest{SourceDir: dir}, runner)
 		if err != nil {
@@ -346,7 +370,7 @@ skills = ["skills"]
 				result, err := buildBundle(testutil.Context(t), BuildRequest{
 					SourceDir: dir,
 					BuildCmd:  testCase.buildCmd,
-				}, newBuildTestRunner(validDescribePayload()))
+				}, newBuildTestRunner(validDescribePayloadPointer()))
 				if err == nil || result != nil {
 					t.Fatalf("buildBundle() = %#v, %v; want rejection", result, err)
 				}
@@ -375,7 +399,7 @@ skills = ["skills"]
 
 		dir := t.TempDir()
 		writeGoBuildFixture(t, dir)
-		runner := newBuildTestRunner(validDescribePayload())
+		runner := newBuildTestRunner(validDescribePayloadPointer())
 		first, err := buildBundle(testutil.Context(t), BuildRequest{SourceDir: dir}, runner)
 		if err != nil {
 			t.Fatalf("buildBundle(first) error = %v", err)
@@ -430,7 +454,7 @@ expr = "0 * * * *"
 		payload.Resources.Automation = []string{"automation"}
 		payload.Resources.Layouts = []string{"layouts/two-up.json"}
 
-		first, err := buildBundle(testutil.Context(t), BuildRequest{SourceDir: dir}, newBuildTestRunner(payload))
+		first, err := buildBundle(testutil.Context(t), BuildRequest{SourceDir: dir}, newBuildTestRunner(&payload))
 		if err != nil {
 			t.Fatalf("buildBundle(first) error = %v", err)
 		}
@@ -466,7 +490,7 @@ expr = "0 * * * *"
 				t.Fatalf("manifest = %s, want declaration %q", firstManifest, declaration)
 			}
 		}
-		second, err := buildBundle(testutil.Context(t), BuildRequest{SourceDir: dir}, newBuildTestRunner(payload))
+		second, err := buildBundle(testutil.Context(t), BuildRequest{SourceDir: dir}, newBuildTestRunner(&payload))
 		if err != nil {
 			t.Fatalf("buildBundle(second) error = %v", err)
 		}
@@ -494,7 +518,7 @@ expr = "not-a-cron"
 `)
 		payload := validDescribePayload()
 		payload.Resources.Automation = []string{"automation"}
-		_, err := buildBundle(testutil.Context(t), BuildRequest{SourceDir: dir}, newBuildTestRunner(payload))
+		_, err := buildBundle(testutil.Context(t), BuildRequest{SourceDir: dir}, newBuildTestRunner(&payload))
 		if err == nil || !strings.Contains(err.Error(), "automation/jobs.toml") ||
 			!strings.Contains(err.Error(), "expr is invalid") {
 			t.Fatalf("buildBundle() error = %v, want positioned automation validation", err)
@@ -522,7 +546,7 @@ expr = "not-a-cron"
 			payload := validDescribePayload()
 			payload.Resources.Skills = []string{"resources"}
 			payload.Resources.Loops = []string{"resources/nested"}
-			_, err := buildBundle(testutil.Context(t), BuildRequest{SourceDir: dir}, newBuildTestRunner(payload))
+			_, err := buildBundle(testutil.Context(t), BuildRequest{SourceDir: dir}, newBuildTestRunner(&payload))
 			if !errors.Is(err, ErrManifestInvalid) || !strings.Contains(err.Error(), "overlap") {
 				t.Fatalf("buildBundle() error = %v, want overlap rejection", err)
 			}
@@ -544,7 +568,7 @@ expr = "not-a-cron"
 			}
 			payload := validDescribePayload()
 			payload.Resources.Skills = []string{"skills"}
-			_, err := buildBundle(testutil.Context(t), BuildRequest{SourceDir: dir}, newBuildTestRunner(payload))
+			_, err := buildBundle(testutil.Context(t), BuildRequest{SourceDir: dir}, newBuildTestRunner(&payload))
 			if !errors.Is(err, ErrManifestInvalid) || !strings.Contains(err.Error(), "symlink") {
 				t.Fatalf("buildBundle() error = %v, want symlink rejection", err)
 			}
@@ -556,7 +580,7 @@ expr = "not-a-cron"
 
 		dir := t.TempDir()
 		writeGoBuildFixture(t, dir)
-		runner := newBuildTestRunner(validDescribePayload())
+		runner := newBuildTestRunner(validDescribePayloadPointer())
 		runner.blockDescribe = true
 		_, err := buildBundle(testutil.Context(t), BuildRequest{
 			SourceDir: dir,
@@ -584,7 +608,7 @@ expr = "not-a-cron"
 		_, err := buildBundle(
 			testutil.Context(t),
 			BuildRequest{SourceDir: dir},
-			newBuildTestRunner(payload),
+			newBuildTestRunner(&payload),
 		)
 		if err == nil || !strings.Contains(err.Error(), "prompt.provider") {
 			t.Fatalf("buildBundle() error = %v, want unknown provide", err)
@@ -609,7 +633,7 @@ min_compozy_version = "9.9.9"
 		result, err := buildBundle(
 			testutil.Context(t),
 			BuildRequest{SourceDir: dir},
-			newBuildTestRunner(payload),
+			newBuildTestRunner(&payload),
 		)
 		if err != nil {
 			t.Fatalf("buildBundle() error = %v", err)
@@ -638,7 +662,7 @@ min_compozy_version = "9.9.9"
 		_, err := buildBundle(testutil.Context(t), BuildRequest{
 			SourceDir: sourceDir,
 			OutputDir: root,
-		}, newBuildTestRunner(validDescribePayload()))
+		}, newBuildTestRunner(validDescribePayloadPointer()))
 		if err == nil || !strings.Contains(err.Error(), "must not contain the source") {
 			t.Fatalf("buildBundle() error = %v, want overlapping output rejection", err)
 		}
@@ -665,8 +689,14 @@ func TestManifestFromDescribeResources(t *testing.T) {
 			Agents:     []string{"agents"},
 			Automation: []string{"automation/z.toml", "automation/a.toml"},
 			Layouts:    []string{"layouts"},
+			CmdPalette: extensioncontract.CmdPaletteConfig{
+				Commands: []extensioncontract.CmdPaletteCommand{{
+					ID: "open", Title: "Open fixture", Icon: "terminal",
+					Action: extensioncontract.CmdPaletteAction{Kind: "navigate", App: "sessions"},
+				}},
+			},
 		}
-		manifest, err := manifestFromDescribe(payload)
+		manifest, err := manifestFromDescribe(&payload)
 		if err != nil {
 			t.Fatalf("manifestFromDescribe() error = %v", err)
 		}
@@ -676,6 +706,12 @@ func TestManifestFromDescribeResources(t *testing.T) {
 			Agents:     []string{"agents"},
 			Automation: []string{"automation/a.toml", "automation/z.toml"},
 			Layouts:    []string{"layouts"},
+			CmdPalette: extensioncontract.CmdPaletteConfig{
+				Commands: []extensioncontract.CmdPaletteCommand{{
+					ID: "open", Title: "Open fixture", Icon: "terminal",
+					Action: extensioncontract.CmdPaletteAction{Kind: "navigate", App: "sessions"},
+				}},
+			},
 		}
 		if !reflect.DeepEqual(manifest.Resources, want) {
 			t.Fatalf("manifest.Resources = %#v, want %#v", manifest.Resources, want)
@@ -695,7 +731,7 @@ func TestManifestFromDescribeResources(t *testing.T) {
 				"gateway.public",
 			},
 		}
-		manifest, err := manifestFromDescribe(payload)
+		manifest, err := manifestFromDescribe(&payload)
 		if err != nil {
 			t.Fatalf("manifestFromDescribe() error = %v", err)
 		}
@@ -872,13 +908,13 @@ func TestScaffoldExtension(t *testing.T) {
 	t.Parallel()
 
 	expectedTemplates := []ScaffoldTemplate{
-		ScaffoldTemplateHookTS,
 		ScaffoldTemplateConnectivityProviderGo,
 		ScaffoldTemplateConnectivityProviderTS,
 		ScaffoldTemplateLoopWatchSourceGo,
 		ScaffoldTemplateMemoryBackendTS,
 		ScaffoldTemplateToolProviderGo,
 		ScaffoldTemplateToolProviderTS,
+		ScaffoldTemplateViewProviderTS,
 	}
 	if templates := ScaffoldTemplates(); !slices.Equal(templates, expectedTemplates) {
 		t.Fatalf("ScaffoldTemplates() = %v, want %v", templates, expectedTemplates)
@@ -988,8 +1024,13 @@ type buildTestRunner struct {
 	blockDescribe bool
 }
 
-func newBuildTestRunner(payload extensioncontract.DescribePayload) *buildTestRunner {
-	return &buildTestRunner{payload: payload}
+func newBuildTestRunner(payload *extensioncontract.DescribePayload) *buildTestRunner {
+	return &buildTestRunner{payload: *payload}
+}
+
+func validDescribePayloadPointer() *extensioncontract.DescribePayload {
+	payload := validDescribePayload()
+	return &payload
 }
 
 func (r *buildTestRunner) LookPath(file string) (string, error) {

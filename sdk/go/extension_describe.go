@@ -69,6 +69,7 @@ func (e *Extension) Describe() (contracts.DescribePayload, error) {
 			Agents:     normalizeStrings(e.definition.Resources.Agents),
 			Automation: normalizeStrings(e.definition.Resources.Automation),
 			Layouts:    normalizeStrings(e.definition.Resources.Layouts),
+			CmdPalette: cloneCmdPaletteConfig(e.definition.Resources.CmdPalette),
 		},
 		Subprocess: contracts.DescribeSubprocess{
 			Command: strings.TrimSpace(e.definition.Subprocess.Command),
@@ -80,6 +81,7 @@ func (e *Extension) Describe() (contracts.DescribePayload, error) {
 		CommandGroups:        e.commandGroupsLocked(),
 		HookEvents:           normalizeStrings(e.definition.SupportedHookEvents),
 		WatchSourceKinds:     e.watchSourceKindsLocked(),
+		CmdPaletteViews:      cmdPaletteViewIDs(e.definition.Resources.CmdPalette),
 		SDK: contracts.DescribeSDKInfo{
 			Name:              SDKName,
 			Version:           e.sdkVersion,
@@ -87,6 +89,107 @@ func (e *Extension) Describe() (contracts.DescribePayload, error) {
 			MinCompozyVersion: MinCompozyVersion,
 		},
 	}, nil
+}
+
+func cmdPaletteViewIDs(config contracts.CmdPaletteConfig) []string {
+	ids := make([]string, 0, len(config.Views))
+	for _, view := range config.Views {
+		id := strings.TrimSpace(view.ID)
+		if id == "" {
+			continue
+		}
+		ids = append(ids, id)
+	}
+	return ids
+}
+
+func cloneCmdPaletteConfig(value contracts.CmdPaletteConfig) contracts.CmdPaletteConfig {
+	cloned := contracts.CmdPaletteConfig{
+		Commands: slices.Clone(value.Commands),
+		Views:    slices.Clone(value.Views),
+	}
+	for index := range cloned.Commands {
+		command := &cloned.Commands[index]
+		command.Keywords = slices.Clone(value.Commands[index].Keywords)
+		command.Arguments = slices.Clone(value.Commands[index].Arguments)
+		for argumentIndex := range command.Arguments {
+			command.Arguments[argumentIndex].Options = slices.Clone(
+				value.Commands[index].Arguments[argumentIndex].Options,
+			)
+		}
+		command.Action.Args = cloneJSONMap(value.Commands[index].Action.Args)
+		if value.Commands[index].Confirmation != nil {
+			confirmation := *value.Commands[index].Confirmation
+			command.Confirmation = &confirmation
+		}
+		if value.Commands[index].Execution != nil {
+			execution := *value.Commands[index].Execution
+			execution.SingleFlight = cloneOptionalBool(value.Commands[index].Execution.SingleFlight)
+			execution.RetrySafe = cloneOptionalBool(value.Commands[index].Execution.RetrySafe)
+			command.Execution = &execution
+		}
+	}
+	for index := range cloned.Views {
+		if value.Views[index].Source != nil {
+			source := *value.Views[index].Source
+			cloned.Views[index].Source = &source
+		}
+	}
+	return cloned
+}
+
+func cloneJSONMap(values map[string]any) map[string]any {
+	if values == nil {
+		return nil
+	}
+	cloned := make(map[string]any, len(values))
+	for key, item := range values {
+		cloned[key] = cloneJSONValue(item)
+	}
+	return cloned
+}
+
+func cloneJSONValue(value any) any {
+	switch typed := value.(type) {
+	case nil:
+		return nil
+	case json.RawMessage:
+		return slices.Clone(typed)
+	case map[string]any:
+		return cloneJSONMap(typed)
+	case map[string]string:
+		return maps.Clone(typed)
+	case []any:
+		cloned := make([]any, len(typed))
+		for index, item := range typed {
+			cloned[index] = cloneJSONValue(item)
+		}
+		return cloned
+	case []string:
+		return slices.Clone(typed)
+	case []map[string]any:
+		cloned := make([]map[string]any, len(typed))
+		for index, item := range typed {
+			cloned[index] = cloneJSONMap(item)
+		}
+		return cloned
+	case []map[string]string:
+		cloned := make([]map[string]string, len(typed))
+		for index, item := range typed {
+			cloned[index] = maps.Clone(item)
+		}
+		return cloned
+	default:
+		return typed
+	}
+}
+
+func cloneOptionalBool(value *bool) *bool {
+	if value == nil {
+		return nil
+	}
+	cloned := *value
+	return &cloned
 }
 
 func normalizeDescribeNetworkParticipation(

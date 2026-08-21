@@ -38,6 +38,16 @@ func TestSettingsRoutesAndSchemas(t *testing.T) {
 			{path: "/api/settings/network", method: "GET", transports: []Transport{TransportHTTP, TransportUDS}},
 			{path: "/api/settings/network", method: "PATCH", transports: []Transport{TransportHTTP, TransportUDS}},
 			{
+				path:       "/api/settings/cmd-palette",
+				method:     "GET",
+				transports: []Transport{TransportHTTP, TransportUDS},
+			},
+			{
+				path:       "/api/settings/cmd-palette",
+				method:     "PATCH",
+				transports: []Transport{TransportHTTP, TransportUDS},
+			},
+			{
 				path:       "/api/settings/window-manager",
 				method:     "GET",
 				transports: []Transport{TransportHTTP, TransportUDS},
@@ -186,6 +196,22 @@ func TestSettingsRoutesAndSchemas(t *testing.T) {
 				op := operationFor(t, doc, operation.path, operation.method)
 				assertOperationTransports(t, op, operation.transports...)
 			})
+		}
+	})
+
+	t.Run("Should expose workspace scope for window-manager and command-palette settings", func(t *testing.T) {
+		t.Parallel()
+
+		for _, path := range []string{
+			"/api/settings/window-manager",
+			"/api/settings/cmd-palette",
+		} {
+			for _, method := range []string{"GET", "PATCH"} {
+				operation := operationFor(t, doc, path, method)
+				assertParameter(t, operation, "scope", openapi3.ParameterInQuery, false)
+				assertParameter(t, operation, "workspace_id", openapi3.ParameterInQuery, false)
+				assertParameterEnumValues(t, operation, "scope", "global", "workspace")
+			}
 		}
 	})
 
@@ -372,8 +398,10 @@ func TestSettingsRoutesAndSchemas(t *testing.T) {
 
 		updateWindowManager := operationFor(t, doc, "/api/settings/window-manager", "PATCH")
 		windowManagerRequestSchema := jsonRequestSchema(t, updateWindowManager)
-		assertRequired(t, windowManagerRequestSchema, "config")
 		assertSchemaHasAdditionalProperties(t, windowManagerRequestSchema, false)
+		propertySchema(t, windowManagerRequestSchema, "shortcuts")
+		propertySchema(t, windowManagerRequestSchema, "aliases")
+		propertySchema(t, windowManagerRequestSchema, "overwrite")
 		windowManagerConfigSchema := propertySchema(t, windowManagerRequestSchema, "config")
 		assertSchemaHasAdditionalProperties(t, windowManagerConfigSchema, false)
 		assertRequired(
@@ -476,7 +504,7 @@ func TestSettingsRoutesAndSchemas(t *testing.T) {
 		}
 		assertSchemaHasAdditionalProperties(t, shortcutsSchema, true)
 		assertAdditionalPropertiesSchemaIncludesType(t, shortcutsSchema, openapi3.TypeString)
-		for _, status := range []int{200, 400, 403, 409, 500} {
+		for _, status := range []int{200, 400, 403, 409, 422, 500} {
 			assertResponseStatus(t, updateWindowManager, status)
 		}
 
@@ -490,9 +518,44 @@ func TestSettingsRoutesAndSchemas(t *testing.T) {
 			"scope",
 			"available_scopes",
 			"config",
+			"defaults",
+			"effective_shortcuts",
+			"aliases",
+			"commands",
+			"extension_defaults",
+			"diagnostics",
+			"global_shortcuts",
 		)
 		assertNotRequired(t, windowManagerResponseSchema, "workspace_id", "agent_name")
-		assertEnumValues(t, propertySchema(t, windowManagerResponseSchema, "scope"), "global")
+		assertEnumValues(t, propertySchema(t, windowManagerResponseSchema, "scope"), "global", "workspace")
+
+		updateCmdPalette := operationFor(t, doc, "/api/settings/cmd-palette", "PATCH")
+		cmdPaletteRequestSchema := jsonRequestSchema(t, updateCmdPalette)
+		assertSchemaHasAdditionalProperties(t, cmdPaletteRequestSchema, false)
+		assertNotRequired(
+			t,
+			cmdPaletteRequestSchema,
+			"fallback_agent_enabled",
+			"personalization",
+		)
+		for _, status := range []int{200, 400, 403, 422, 500} {
+			assertResponseStatus(t, updateCmdPalette, status)
+		}
+
+		getCmdPalette := operationFor(t, doc, "/api/settings/cmd-palette", "GET")
+		cmdPaletteResponseSchema := jsonResponseSchema(t, getCmdPalette, 200)
+		assertSchemaHasAdditionalProperties(t, cmdPaletteResponseSchema, false)
+		assertRequired(
+			t,
+			cmdPaletteResponseSchema,
+			"section",
+			"scope",
+			"available_scopes",
+			"fallback_agent_enabled",
+			"personalization",
+		)
+		assertNotRequired(t, cmdPaletteResponseSchema, "workspace_id", "agent_name")
+		assertEnumValues(t, propertySchema(t, cmdPaletteResponseSchema, "scope"), "global", "workspace")
 
 		reloadSettings := operationFor(t, doc, "/api/settings/reload", "POST")
 		assertOperationTransports(t, reloadSettings, TransportHTTP, TransportUDS)

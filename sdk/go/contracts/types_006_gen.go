@@ -2,11 +2,109 @@
 
 package contracts
 
-import "time"
+import (
+	"encoding/json"
+	"time"
+)
+
+type ClarifyAskParams struct {
+	InvocationID string   `json:"invocation_id"`
+	Question     string   `json:"question"`
+	Choices      []string `json:"choices,omitempty"`
+}
+
+type ClientID string
+
+type CmdPaletteAction struct {
+	Kind string         `json:"kind"`
+	Tool string         `json:"tool,omitempty"`
+	View string         `json:"view,omitempty"`
+	App  string         `json:"app,omitempty"`
+	URL  string         `json:"url,omitempty"`
+	Args map[string]any `json:"args,omitempty"`
+}
+
+type CmdPaletteArgument struct {
+	Name        string   `json:"name"`
+	Type        string   `json:"type"`
+	Placeholder string   `json:"placeholder,omitempty"`
+	Required    bool     `json:"required,omitempty"`
+	Options     []string `json:"options,omitempty"`
+}
+
+type CmdPaletteCommand struct {
+	ID              string                     `json:"id"`
+	Title           string                     `json:"title"`
+	Section         string                     `json:"section,omitempty"`
+	Icon            string                     `json:"icon"`
+	Keywords        []string                   `json:"keywords,omitempty"`
+	Arguments       []CmdPaletteArgument       `json:"arguments,omitempty"`
+	Action          CmdPaletteAction           `json:"action"`
+	Destructive     bool                       `json:"destructive,omitempty"`
+	Confirmation    *CmdPaletteConfirmation    `json:"confirmation,omitempty"`
+	DefaultShortcut string                     `json:"default_shortcut,omitempty"`
+	Execution       *CmdPaletteExecutionPolicy `json:"execution,omitempty"`
+}
+
+type CmdPaletteConfig struct {
+	Commands []CmdPaletteCommand `json:"commands,omitempty"`
+	Views    []CmdPaletteView    `json:"views,omitempty"`
+}
+
+type CmdPaletteConfirmation struct {
+	Title   string `json:"title"`
+	Body    string `json:"body,omitempty"`
+	Confirm string `json:"confirm"`
+}
+
+type CmdPaletteExecutionPolicy struct {
+	SingleFlight *bool `json:"single_flight,omitempty"`
+	RetrySafe    *bool `json:"retry_safe,omitempty"`
+}
+
+type CmdPaletteView struct {
+	ID      string                `json:"id"`
+	Title   string                `json:"title"`
+	Kind    string                `json:"kind"`
+	Source  *CmdPaletteViewSource `json:"source,omitempty"`
+	Program bool                  `json:"program,omitempty"`
+}
+
+type CmdPaletteViewSource struct {
+	Tool string `json:"tool"`
+}
+
+type CommandFlag struct {
+	Name       string          `json:"name"`
+	Field      string          `json:"field"`
+	Type       CommandFlagType `json:"type"`
+	Repeatable bool            `json:"repeatable"`
+	Required   bool            `json:"required"`
+	Nullable   bool            `json:"nullable"`
+	Enum       []string        `json:"enum,omitempty"`
+	Default    json.RawMessage `json:"default,omitempty"`
+	Minimum    *float64        `json:"minimum,omitempty"`
+	Maximum    *float64        `json:"maximum,omitempty"`
+}
+
+type CommandFlagType string
+
+const (
+	CommandFlagTypeString  CommandFlagType = "string"
+	CommandFlagTypeBoolean CommandFlagType = "boolean"
+	CommandFlagTypeInteger CommandFlagType = "integer"
+	CommandFlagTypeNumber  CommandFlagType = "number"
+)
 
 type CompactionMatcher struct {
 	Reason   string `json:"compaction_reason,omitempty"`
 	Strategy string `json:"compaction_strategy,omitempty"`
+}
+
+type Confirmation struct {
+	Title   string `json:"title"`
+	Body    string `json:"body,omitempty"`
+	Confirm string `json:"confirm"`
 }
 
 type ConnectivityAdvertisedEndpoint struct {
@@ -83,161 +181,4 @@ type ContextCompactionPatch struct {
 	Reason        *string        `json:"reason,omitempty"`
 	Strategy      *string        `json:"strategy,omitempty"`
 	ContextBlocks []ContextBlock `json:"context_blocks,omitempty"`
-}
-
-type ContextPostCompactPatch struct {
-	Deny          bool           `json:"deny,omitempty"`
-	DenyReason    string         `json:"deny_reason,omitempty"`
-	Reason        *string        `json:"reason,omitempty"`
-	Strategy      *string        `json:"strategy,omitempty"`
-	ContextBlocks []ContextBlock `json:"context_blocks,omitempty"`
-}
-
-type ContextPostCompactPayload struct {
-	Event          HookEvent      `json:"event"`
-	Timestamp      time.Time      `json:"timestamp"`
-	SessionID      string         `json:"session_id,omitempty"`
-	SessionName    string         `json:"session_name,omitempty"`
-	SessionType    string         `json:"session_type,omitempty"`
-	AgentName      string         `json:"agent_name,omitempty"`
-	WorkspaceID    string         `json:"workspace_id,omitempty"`
-	Workspace      string         `json:"workspace,omitempty"`
-	WorktreeID     string         `json:"worktree_id,omitempty"`
-	ACPSessionID   string         `json:"acp_session_id,omitempty"`
-	State          string         `json:"state,omitempty"`
-	SoulSnapshotID string         `json:"soul_snapshot_id,omitempty"`
-	SoulDigest     string         `json:"soul_digest,omitempty"`
-	CreatedAt      time.Time      `json:"created_at"`
-	UpdatedAt      time.Time      `json:"updated_at"`
-	TurnID         string         `json:"turn_id,omitempty"`
-	Reason         string         `json:"reason,omitempty"`
-	Strategy       string         `json:"strategy,omitempty"`
-	Summary        string         `json:"summary,omitempty"`
-	ContextBlocks  []ContextBlock `json:"context_blocks,omitempty"`
-}
-
-type ContextPreCompactPatch struct {
-	Deny          bool           `json:"deny,omitempty"`
-	DenyReason    string         `json:"deny_reason,omitempty"`
-	Reason        *string        `json:"reason,omitempty"`
-	Strategy      *string        `json:"strategy,omitempty"`
-	ContextBlocks []ContextBlock `json:"context_blocks,omitempty"`
-}
-
-type ContextPreCompactPayload struct {
-	Event          HookEvent      `json:"event"`
-	Timestamp      time.Time      `json:"timestamp"`
-	SessionID      string         `json:"session_id,omitempty"`
-	SessionName    string         `json:"session_name,omitempty"`
-	SessionType    string         `json:"session_type,omitempty"`
-	AgentName      string         `json:"agent_name,omitempty"`
-	WorkspaceID    string         `json:"workspace_id,omitempty"`
-	Workspace      string         `json:"workspace,omitempty"`
-	WorktreeID     string         `json:"worktree_id,omitempty"`
-	ACPSessionID   string         `json:"acp_session_id,omitempty"`
-	State          string         `json:"state,omitempty"`
-	SoulSnapshotID string         `json:"soul_snapshot_id,omitempty"`
-	SoulDigest     string         `json:"soul_digest,omitempty"`
-	CreatedAt      time.Time      `json:"created_at"`
-	UpdatedAt      time.Time      `json:"updated_at"`
-	TurnID         string         `json:"turn_id,omitempty"`
-	Reason         string         `json:"reason,omitempty"`
-	Strategy       string         `json:"strategy,omitempty"`
-	Summary        string         `json:"summary,omitempty"`
-	ContextBlocks  []ContextBlock `json:"context_blocks,omitempty"`
-}
-
-type ControlMethod string
-
-type ControlPatch struct {
-	Deny       bool   `json:"deny,omitempty"`
-	DenyReason string `json:"deny_reason,omitempty"`
-}
-
-type CoordinationChannelPayload struct {
-	ID                  string                    `json:"id"`
-	DisplayName         string                    `json:"display_name"`
-	Purpose             string                    `json:"purpose,omitempty"`
-	WorkspaceID         string                    `json:"workspace_id,omitempty"`
-	TaskID              string                    `json:"task_id,omitempty"`
-	RunID               string                    `json:"run_id,omitempty"`
-	WorkflowID          string                    `json:"workflow_id,omitempty"`
-	AllowedMessageKinds []CoordinationMessageKind `json:"allowed_message_kinds"`
-	LastActivityAt      *time.Time                `json:"last_activity_at,omitempty"`
-}
-
-type CoordinationMessageKind string
-
-type CoordinatorContext struct {
-	WorkspaceID                  string `json:"workspace_id,omitempty"`
-	Workspace                    string `json:"workspace,omitempty"`
-	AgentName                    string `json:"agent_name,omitempty"`
-	CoordinatorSessionID         string `json:"coordinator_session_id,omitempty"`
-	TaskID                       string `json:"task_id,omitempty"`
-	RunID                        string `json:"run_id,omitempty"`
-	WorkflowID                   string `json:"workflow_id,omitempty"`
-	ResolvedNetworkParticipation *Spec  `json:"resolved_network_participation,omitempty"`
-	Provider                     string `json:"provider,omitempty"`
-	Model                        string `json:"model,omitempty"`
-}
-
-type CoordinatorDecisionPayload struct {
-	Event                        HookEvent `json:"event"`
-	Timestamp                    time.Time `json:"timestamp"`
-	WorkspaceID                  string    `json:"workspace_id,omitempty"`
-	Workspace                    string    `json:"workspace,omitempty"`
-	AgentName                    string    `json:"agent_name,omitempty"`
-	CoordinatorSessionID         string    `json:"coordinator_session_id,omitempty"`
-	TaskID                       string    `json:"task_id,omitempty"`
-	RunID                        string    `json:"run_id,omitempty"`
-	WorkflowID                   string    `json:"workflow_id,omitempty"`
-	ResolvedNetworkParticipation *Spec     `json:"resolved_network_participation,omitempty"`
-	Provider                     string    `json:"provider,omitempty"`
-	Model                        string    `json:"model,omitempty"`
-	DecisionKind                 string    `json:"decision_kind,omitempty"`
-	Decision                     string    `json:"decision,omitempty"`
-	StopReason                   string    `json:"stop_reason,omitempty"`
-	Error                        string    `json:"error,omitempty"`
-}
-
-type CoordinatorFailedPayload struct {
-	Event                        HookEvent `json:"event"`
-	Timestamp                    time.Time `json:"timestamp"`
-	WorkspaceID                  string    `json:"workspace_id,omitempty"`
-	Workspace                    string    `json:"workspace,omitempty"`
-	AgentName                    string    `json:"agent_name,omitempty"`
-	CoordinatorSessionID         string    `json:"coordinator_session_id,omitempty"`
-	TaskID                       string    `json:"task_id,omitempty"`
-	RunID                        string    `json:"run_id,omitempty"`
-	WorkflowID                   string    `json:"workflow_id,omitempty"`
-	ResolvedNetworkParticipation *Spec     `json:"resolved_network_participation,omitempty"`
-	Provider                     string    `json:"provider,omitempty"`
-	Model                        string    `json:"model,omitempty"`
-	DecisionKind                 string    `json:"decision_kind,omitempty"`
-	Decision                     string    `json:"decision,omitempty"`
-	StopReason                   string    `json:"stop_reason,omitempty"`
-	Error                        string    `json:"error,omitempty"`
-}
-
-type CoordinatorLifecyclePayload struct {
-	Event                        HookEvent `json:"event"`
-	Timestamp                    time.Time `json:"timestamp"`
-	WorkspaceID                  string    `json:"workspace_id,omitempty"`
-	Workspace                    string    `json:"workspace,omitempty"`
-	AgentName                    string    `json:"agent_name,omitempty"`
-	CoordinatorSessionID         string    `json:"coordinator_session_id,omitempty"`
-	TaskID                       string    `json:"task_id,omitempty"`
-	RunID                        string    `json:"run_id,omitempty"`
-	WorkflowID                   string    `json:"workflow_id,omitempty"`
-	ResolvedNetworkParticipation *Spec     `json:"resolved_network_participation,omitempty"`
-	Provider                     string    `json:"provider,omitempty"`
-	Model                        string    `json:"model,omitempty"`
-	DecisionKind                 string    `json:"decision_kind,omitempty"`
-	Decision                     string    `json:"decision,omitempty"`
-	StopReason                   string    `json:"stop_reason,omitempty"`
-	Error                        string    `json:"error,omitempty"`
-}
-
-type CoordinatorObservationPatch struct {
-	Labels map[string]string `json:"labels,omitempty"`
 }

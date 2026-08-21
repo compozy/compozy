@@ -193,12 +193,30 @@ var windowManagerShortcutMutationSpec = windowManagerMutationSpec{
 	},
 }
 
+var windowManagerGlobalShortcutMutationSpec = windowManagerMutationSpec{
+	kind: configSetString,
+	apply: func(cfg *compozyconfig.WindowManagerConfig, path []string, value any) error {
+		chord, err := requireWindowManagerValue[string](path, value, "string")
+		if err != nil {
+			return err
+		}
+		if cfg.GlobalShortcuts == nil {
+			cfg.GlobalShortcuts = make(map[string]string)
+		}
+		cfg.GlobalShortcuts[path[2]] = chord
+		return nil
+	},
+}
+
 func lookupWindowManagerMutationSpec(path []string) (windowManagerMutationSpec, bool) {
 	if len(path) < 2 || len(path) > 3 || path[0] != configWindowManagerKey {
 		return windowManagerMutationSpec{}, false
 	}
 	if len(path) == 3 && path[1] == configWindowManagerShortcutsKey {
 		return windowManagerShortcutMutationSpec, true
+	}
+	if len(path) == 3 && path[1] == configWindowManagerGlobalShortcutsKey {
+		return windowManagerGlobalShortcutMutationSpec, true
 	}
 	spec, ok := windowManagerMutationSpecs[strings.Join(path[1:], ".")]
 	return spec, ok

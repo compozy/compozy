@@ -172,17 +172,6 @@ func (c *daemonClient) UpdateSettingsSkills(
 	return response, nil
 }
 
-func (c *daemonClient) UpdateSettingsWindowManager(
-	ctx context.Context,
-	request UpdateSettingsWindowManagerRequest,
-) (SettingsMutationRecord, error) {
-	var response SettingsMutationRecord
-	if err := c.doJSON(ctx, http.MethodPatch, "/api/settings/window-manager", nil, request, &response); err != nil {
-		return SettingsMutationRecord{}, err
-	}
-	return response, nil
-}
-
 func (c *daemonClient) UpdateSettingsAttention(
 	ctx context.Context,
 	request UpdateSettingsAttentionRequest,

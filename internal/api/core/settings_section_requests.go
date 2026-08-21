@@ -42,6 +42,7 @@ func parseSettingsSectionRequest(
 		Scope:       scope,
 		WorkspaceID: workspaceID,
 		AgentName:   agentName,
+		ClientID:    strings.TrimSpace(c.Query("client_id")),
 	}, nil
 }
 
@@ -274,28 +275,62 @@ func parseUpdateSettingsNetworkRequest(c *gin.Context) (settingspkg.SectionUpdat
 }
 
 func parseUpdateSettingsWindowManagerRequest(c *gin.Context) (settingspkg.SectionUpdateRequest, error) {
-	var body struct {
-		Config *contract.SettingsWindowManagerConfigPayload `json:"config"`
-	}
+	var body contract.UpdateSettingsWindowManagerRequest
 	if err := decodeStrictJSONBody(c, &body); err != nil {
 		return settingspkg.SectionUpdateRequest{}, NewSettingsValidationError(
 			fmt.Errorf("decode window-manager settings request: %w", err),
 		)
 	}
-	if body.Config == nil {
+	if body.Config == nil && body.Shortcuts == nil && body.GlobalShortcuts == nil && body.Aliases == nil {
 		return settingspkg.SectionUpdateRequest{}, NewSettingsValidationError(
-			errors.New("window-manager.config is required"),
+			errors.New("window-manager config, shortcuts, or aliases are required"),
 		)
 	}
 	req, err := parseSettingsSectionRequest(c, settingspkg.SectionWindowManager)
 	if err != nil {
 		return settingspkg.SectionUpdateRequest{}, err
 	}
-	config, err := windowManagerConfigFromPayload(*body.Config)
+	var config *compozyconfig.WindowManagerConfig
+	if body.Config != nil {
+		parsed, parseErr := windowManagerConfigFromPayload(*body.Config)
+		if parseErr != nil {
+			return settingspkg.SectionUpdateRequest{}, parseErr
+		}
+		config = &parsed
+	}
+	return settingspkg.SectionUpdateRequest{
+		SectionRequest:               req,
+		WindowManager:                config,
+		WindowManagerShortcuts:       body.Shortcuts,
+		WindowManagerGlobalShortcuts: body.GlobalShortcuts,
+		WindowManagerAliases:         body.Aliases,
+		Overwrite:                    body.Overwrite,
+	}, nil
+}
+
+func parseUpdateSettingsCmdPaletteRequest(c *gin.Context) (settingspkg.SectionUpdateRequest, error) {
+	var body contract.UpdateSettingsCmdPaletteRequest
+	if err := decodeStrictJSONBody(c, &body); err != nil {
+		return settingspkg.SectionUpdateRequest{}, NewSettingsValidationError(
+			fmt.Errorf("decode cmd-palette settings request: %w", err),
+		)
+	}
+	if body.FallbackAgentEnabled == nil && body.Personalization == nil {
+		return settingspkg.SectionUpdateRequest{}, NewSettingsValidationError(
+			errors.New("cmd-palette fallback_agent_enabled or personalization is required"),
+		)
+	}
+	req, err := parseSettingsSectionRequest(c, settingspkg.SectionCmdPalette)
 	if err != nil {
 		return settingspkg.SectionUpdateRequest{}, err
 	}
-	return settingspkg.SectionUpdateRequest{SectionRequest: req, WindowManager: &config}, nil
+	return settingspkg.SectionUpdateRequest{
+		SectionRequest: req,
+		CmdPalette: &settingspkg.CmdPaletteUpdate{
+			FallbackAgentEnabled: body.FallbackAgentEnabled,
+			Personalization:      body.Personalization,
+		},
+	}, nil
 }
 
 func parseUpdateSettingsAttentionRequest(c *gin.Context) (settingspkg.SectionUpdateRequest, error) {

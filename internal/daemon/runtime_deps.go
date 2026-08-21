@@ -7,6 +7,7 @@ import (
 	"github.com/compozy/compozy/internal/api/core"
 	"github.com/compozy/compozy/internal/api/udsapi"
 	attachmentspkg "github.com/compozy/compozy/internal/attachments"
+	"github.com/compozy/compozy/internal/cmdpalette"
 	compozyconfig "github.com/compozy/compozy/internal/config"
 	"github.com/compozy/compozy/internal/doctor"
 	"github.com/compozy/compozy/internal/gateway"
@@ -35,6 +36,8 @@ type RuntimeDeps struct {
 	ToolArtifacts       toolspkg.ToolArtifactStore
 	SessionAttachments  attachmentspkg.Store
 	ToolApprovals       toolspkg.ApprovalTokenIssuer
+	ApprovalCoordinator toolspkg.ApprovalCoordinator
+	CmdPalette          cmdpalette.Registry
 	ApprovalGrants      toolspkg.ApprovalGrantStore
 	Clarify             toolspkg.ClarifyBroker
 	HostedMCP           *mcppkg.HostedService

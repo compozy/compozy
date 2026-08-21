@@ -12,7 +12,6 @@ const (
 	onboardingCompleteKey    = "complete"
 	onboardingCompletedKey   = "completed"
 	onboardingCompletedAtKey = "completed_at"
-	onboardingResetKey       = "reset"
 	onboardingCompletedAtLbl = "Completed At"
 )
 
@@ -70,7 +69,7 @@ func newOnboardingCompleteCommand(deps commandDeps) *cobra.Command {
 
 func newOnboardingResetCommand(deps commandDeps) *cobra.Command {
 	return &cobra.Command{
-		Use:   onboardingResetKey,
+		Use:   cliResetVerb,
 		Short: "Clear the onboarding completion flag so the wizard runs again",
 		RunE: func(cmd *cobra.Command, _ []string) error {
 			client, err := clientFromDeps(deps)

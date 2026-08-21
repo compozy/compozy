@@ -235,13 +235,13 @@ func validateBindingsConfig(config Config) error {
 			return fmt.Errorf("binding %q: %w", binding, ErrInvalidCommand)
 		}
 	}
-	_, err := CanonicalShortcutsV2(config.Shortcuts)
+	_, err := CanonicalStoredShortcutsV2(config.Shortcuts)
 	return err
 }
 
 func canonicalConfig(config Config) (Config, error) {
 	result := cloneConfig(config)
-	shortcuts, err := CanonicalShortcutsV2(result.Shortcuts)
+	shortcuts, err := CanonicalStoredShortcutsV2(result.Shortcuts)
 	if err != nil {
 		return Config{}, err
 	}

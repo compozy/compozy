@@ -1,10 +1,11 @@
 // Suite: palette view stack mechanics
-// Invariant: pushing and popping preserve the exact path at any depth, the
+// Invariant: pushing and popping preserve the exact path at any depth, and the
 // breadcrumb keeps the leaf and its parent while collapsing every earlier level
-// into one slot, and a keyboard selection survives a list refresh whenever its
-// row survives, otherwise landing on whatever now occupies its place.
-// Boundary IN: stack frames, breadcrumb labels, and rendered row identities.
-// Boundary OUT: store wiring, view registration, and rendered palette behavior.
+// into one slot.
+// Boundary IN: stack frames and breadcrumb labels.
+// Boundary OUT: store wiring, view registration, rendered palette behavior, and
+// keyboard-selection survival — that helper is `resolveCommandSelection`, owned
+// by the `@compozy/ui` Command suite.
 import { describe, expect, it } from "vitest";
 
 import {
@@ -13,7 +14,6 @@ import {
   paletteBreadcrumb,
   popPaletteViewFrame,
   pushPaletteViewFrame,
-  resolvePaletteSelection,
   type PaletteViewFrame,
 } from "../palette-view-stack";
 
@@ -40,7 +40,7 @@ describe("palette view stack (UT-059)", () => {
     expect(activePaletteViewId(popPaletteViewFrame(ROOT))).toBeNull();
   });
 
-  it("Should keep the leaf and its parent and collapse earlier levels into one slot", () => {
+  it("Should keep at most three breadcrumb slots at depth five [UT-132]", () => {
     expect(paletteBreadcrumb([])).toEqual({ truncated: false, visible: [] });
     expect(paletteBreadcrumb(["Sessions"])).toEqual({ truncated: false, visible: ["Sessions"] });
     expect(paletteBreadcrumb(["Sessions", "claude"])).toEqual({
@@ -54,31 +54,5 @@ describe("palette view stack (UT-059)", () => {
     const deeper = paletteBreadcrumb(["A", "B", "C", "D", "E"]);
     expect(deeper).toEqual({ truncated: true, visible: ["D", "E"] });
     expect(deeper.visible.length + 1).toBeLessThanOrEqual(PALETTE_BREADCRUMB_MAX_SLOTS);
-  });
-});
-
-describe("palette selection across refreshes (UT-076)", () => {
-  const rows = ["session:a", "session:b", "session:c"];
-
-  it("Should keep the selection when its row survives the refresh", () => {
-    expect(
-      resolvePaletteSelection(rows, ["session:c", "session:a", "session:b"], "session:b")
-    ).toBe("session:b");
-    expect(resolvePaletteSelection(rows, [...rows, "session:d"], "session:a")).toBe("session:a");
-  });
-
-  it("Should move to the row that took its place when the selection disappears", () => {
-    expect(resolvePaletteSelection(rows, ["session:a", "session:c"], "session:b")).toBe(
-      "session:c"
-    );
-    expect(resolvePaletteSelection(rows, ["session:a", "session:b"], "session:c")).toBe(
-      "session:b"
-    );
-    expect(resolvePaletteSelection(rows, ["session:b"], "session:c")).toBe("session:b");
-  });
-
-  it("Should clear the selection only when nothing is left to select", () => {
-    expect(resolvePaletteSelection(rows, [], "session:b")).toBe("");
-    expect(resolvePaletteSelection([], rows, "")).toBe("session:a");
   });
 });

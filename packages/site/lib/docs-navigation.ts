@@ -42,6 +42,7 @@ export const API_SECTIONS: ApiSection[] = [
       "tasks",
       "openai",
       "roles",
+      "cmd-palette",
     ],
   },
 ];

@@ -39,6 +39,8 @@ import type {
 } from "../types";
 import { normalizeOptionalText, SettingsApiError } from "./settings-api-error";
 
+export { getSettingsCmdPalette, updateSettingsCmdPalette } from "./settings-cmd-palette-api";
+
 function normalizeNotificationPresetFilter(filter: SettingsNotificationPresetFilter = {}) {
   return {
     enabled: filter.enabled,

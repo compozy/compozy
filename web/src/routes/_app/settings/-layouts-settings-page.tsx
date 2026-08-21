@@ -1,28 +1,26 @@
-import { useQuery } from "@tanstack/react-query";
 import { AlertCircle, Download, Upload } from "lucide-react";
 import { useRef, type ReactNode } from "react";
 
 import { Button, Spinner } from "@compozy/ui";
 
-import { type WindowManagerConfig, windowManagerConfigOptions } from "@/systems/os";
+import type { WindowManagerConfig, WindowManagerSettingsSection } from "@/systems/os";
 import {
   LayoutProfileGrid,
   LayoutStage,
   SettingsGroup,
   SettingsPageFrame,
   SettingsSaveBar,
+  useLayoutsSettingsData,
   useSettingsSaveBarState,
   useSettingsTopbar,
   useWindowManagerConfigEditor,
+  useWindowManagerKeyboardEditors,
   useWindowManagerLayoutEditor,
   useWindowManagerLayoutProfiles,
   WindowManagerConfigEditor,
-  windowManagerLayoutOptions,
-  windowManagerLayoutProfilesOptions,
   type WindowManagerLayoutResourceRecord,
   type WindowManagerLayoutState,
 } from "@/systems/settings";
-import { useActiveWorkspace } from "@/systems/workspace";
 
 function LoadingState() {
   return (
@@ -156,19 +154,32 @@ function LayoutSections({
  * global config, and the layout document reviews inside its own card.
  */
 function LayoutsSettingsView({
+  clientId,
   config,
+  focusCommandId,
   layout,
   meta,
   profiles,
+  section,
   workspaceId,
 }: {
+  clientId: string | undefined;
   config: WindowManagerConfig;
+  focusCommandId?: string;
   layout: WindowManagerLayoutState | null;
   meta: ReadonlyArray<{ key: string; content: ReactNode }>;
   profiles: readonly WindowManagerLayoutResourceRecord[];
+  section: WindowManagerSettingsSection;
   workspaceId: string;
 }) {
   const configEditor = useWindowManagerConfigEditor(config);
+  // Keyboard state is daemon-owned and applies live, so it writes through its
+  // own path rather than joining the page's draft (US-022.AC-3).
+  const { aliases, globalRecorder, recorder } = useWindowManagerKeyboardEditors(
+    section,
+    workspaceId,
+    clientId
+  );
   const saveBarState = useSettingsSaveBarState({
     isDirty: configEditor.dirty,
     isInvalid: configEditor.problems.length > 0,
@@ -206,63 +217,35 @@ function LayoutsSettingsView({
           workspaceId={workspaceId}
         />
       )}
-      <WindowManagerConfigEditor editor={configEditor} />
+      <WindowManagerConfigEditor
+        aliases={aliases}
+        editor={configEditor}
+        focusCommandId={focusCommandId}
+        globalRecorder={globalRecorder}
+        recorder={recorder}
+        section={section}
+      />
     </SettingsPageFrame>
   );
 }
 
 /** Global window-manager defaults plus the active workspace's authoritative layout. */
-export function LayoutsSettingsPage() {
+export function LayoutsSettingsPage({ focusCommandId }: { focusCommandId?: string }) {
   useSettingsTopbar("layouts");
-  const workspace = useActiveWorkspace();
-  const workspaceId = workspace.activeWorkspaceId ?? "";
-  const settings = useQuery(windowManagerConfigOptions());
-  const profiles = useQuery(windowManagerLayoutProfilesOptions(workspaceId));
-  const layout = useQuery(windowManagerLayoutOptions(workspaceId));
-  const waitingForWorkspace = !workspace.hasHydrated || workspace.isLoading;
-  const isPending =
-    settings.isPending ||
-    (workspaceId !== "" && profiles.isPending) ||
-    waitingForWorkspace ||
-    (workspaceId !== "" && layout.isPending);
-  const error =
-    settings.error instanceof Error
-      ? settings.error
-      : profiles.error instanceof Error
-        ? profiles.error
-        : workspace.error instanceof Error
-          ? workspace.error
-          : layout.error instanceof Error
-            ? layout.error
-            : null;
+  const data = useLayoutsSettingsData();
 
-  if (isPending) return <LoadingState />;
-  if (error !== null) {
-    return (
-      <ErrorState
-        error={error}
-        onRetry={() => {
-          void Promise.all([
-            settings.refetch(),
-            workspace.refetch(),
-            ...(workspaceId === "" ? [] : [profiles.refetch(), layout.refetch()]),
-          ]);
-        }}
-      />
-    );
-  }
-  if (!settings.data) return <LoadingState />;
+  if (data.isPending) return <LoadingState />;
+  if (data.error !== null) return <ErrorState error={data.error} onRetry={data.retry} />;
+  if (data.config === null || data.keyboard === null) return <LoadingState />;
 
-  const profileRecords = profiles.data ?? [];
-  const activeWorkspaceName = workspace.activeWorkspace?.name ?? null;
   const meta = [
-    activeWorkspaceName ? { key: "workspace", content: <span>{activeWorkspaceName}</span> } : null,
-    layout.data ? { key: "revision", content: <span>Revision {layout.data.revision}</span> } : null,
+    data.workspaceName ? { key: "workspace", content: <span>{data.workspaceName}</span> } : null,
+    data.layout ? { key: "revision", content: <span>Revision {data.layout.revision}</span> } : null,
     {
       key: "profiles",
       content: (
         <span>
-          {profileRecords.length} saved layout{profileRecords.length === 1 ? "" : "s"}
+          {data.profiles.length} saved layout{data.profiles.length === 1 ? "" : "s"}
         </span>
       ),
     },
@@ -270,11 +253,14 @@ export function LayoutsSettingsPage() {
 
   return (
     <LayoutsSettingsView
-      config={settings.data}
-      layout={layout.data ?? null}
+      clientId={data.clientId}
+      config={data.config}
+      focusCommandId={focusCommandId}
+      layout={data.layout}
       meta={meta}
-      profiles={profileRecords}
-      workspaceId={workspaceId}
+      profiles={data.profiles}
+      section={data.keyboard}
+      workspaceId={data.workspaceId}
     />
   );
 }

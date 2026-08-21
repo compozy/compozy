@@ -1,3 +1,5 @@
+import type * as ShortcutTypes from "./window-manager-shortcut-types";
+
 /** Stable identifiers from the daemon-authoritative window-manager snapshot. */
 export type LayoutRevision = number;
 export type DesktopId = string;
@@ -5,6 +7,7 @@ export type GroupId = string;
 export type LayoutNodeId = string;
 export type WindowId = string;
 export type WindowManagerClientId = string;
+export type WindowManagerClientKind = "shell" | "browser";
 export type WindowManagerConnectionStatus =
   | "disconnected"
   | "connecting"
@@ -154,9 +157,6 @@ export interface WindowManagerBindingsConfig {
   bottomCenter: WindowManagerEdgeCenterBinding;
 }
 
-export type WindowManagerShortcutBinding = readonly string[];
-export type WindowManagerShortcutMap = Readonly<Record<string, WindowManagerShortcutBinding>>;
-
 export interface WindowManagerWorkspaceConfig {
   newWindowPolicy?: "floating" | "beside_focus";
   smallViewportPolicy?: WindowManagerSmallViewportPolicy;
@@ -174,7 +174,8 @@ export interface WindowManagerWorkspaceConfig {
   gaps?: WindowManagerGapsConfig;
   snap?: WindowManagerSnapConfig;
   bindings?: WindowManagerBindingsConfig;
-  shortcuts?: WindowManagerShortcutMap;
+  shortcuts?: ShortcutTypes.WindowManagerShortcutMap;
+  globalShortcuts?: ShortcutTypes.WindowManagerGlobalShortcutMap;
 }
 
 /** Effective global config before workspace-scoped overrides are applied. */
@@ -196,11 +197,13 @@ export interface WindowManagerConfig {
   snap: WindowManagerSnapConfig;
   bindings: WindowManagerBindingsConfig;
   /** Stored operator overrides. Empty bindings disable an action. */
-  shortcuts: WindowManagerShortcutMap;
+  shortcuts: ShortcutTypes.WindowManagerShortcutMap;
   /** Daemon-owned defaults, served with the settings contract. */
-  shortcutDefaults: WindowManagerShortcutMap;
+  shortcutDefaults: ShortcutTypes.WindowManagerShortcutMap;
   /** Full, validated defaults + overrides map used by the live shell. */
-  effectiveShortcuts: WindowManagerShortcutMap;
+  effectiveShortcuts: ShortcutTypes.WindowManagerShortcutMap;
+  /** Daemon-owned intended desktop-global bindings. */
+  globalShortcuts: ShortcutTypes.WindowManagerGlobalShortcutMap;
 }
 
 export interface WindowManagerActor {
@@ -250,6 +253,39 @@ export interface WindowManagerClientView {
   focusOrder: readonly WindowId[];
   stackActive: Readonly<Record<LayoutNodeId, WindowId>>;
   connectedAt: string;
+}
+
+/** Stream and list projection. Registration adds a required attachment token. */
+export interface WindowManagerAttachedClientView extends WindowManagerClientView {
+  kind: WindowManagerClientKind;
+  contextRevision: LayoutRevision;
+  paletteContext: WindowManagerPaletteContext;
+  globalShortcuts: readonly ShortcutTypes.WindowManagerGlobalShortcutRegistration[];
+}
+
+export interface WindowManagerRegisteredClientView extends WindowManagerAttachedClientView {
+  attachmentToken: string;
+}
+
+export interface WindowManagerPaletteContext {
+  windowFocused: boolean;
+  windowFloating: boolean;
+  windowStacked: boolean;
+  desktopWindowCount: number;
+  scopeGlobal: boolean;
+  shellDesktop: boolean;
+  focusedSessionState: string | null;
+  workspaceTrusted: boolean;
+  destinationIntent: {
+    pathname: string;
+    search: Readonly<Record<string, unknown>>;
+  } | null;
+}
+
+export interface WindowManagerClientCommand {
+  commandId: string;
+  op: string;
+  payload: unknown;
 }
 
 export type WindowManagerCommandId =
@@ -328,7 +364,7 @@ export type WindowManagerStreamFrame =
       workspaceId: string;
       revision: LayoutRevision;
       snapshot: WindowManagerSnapshot;
-      client: WindowManagerClientView | null;
+      client: WindowManagerAttachedClientView | null;
     }
   | {
       type: "event";
@@ -340,8 +376,9 @@ export type WindowManagerStreamFrame =
       type: "client";
       workspaceId: string;
       revision: LayoutRevision;
-      client: WindowManagerClientView;
+      client: WindowManagerAttachedClientView;
     }
+  | { type: "client_command"; workspaceId: string; command: WindowManagerClientCommand }
   | { type: "error"; error: WindowManagerErrorPayload };
 
 export interface ProjectionGaps {

@@ -2,265 +2,135 @@
 
 package contracts
 
-import "time"
+import (
+	"encoding/json"
+	"time"
+)
 
-type RoutingPolicy struct {
-	IncludePeer   bool `json:"include_peer"`
-	IncludeThread bool `json:"include_thread"`
-	IncludeGroup  bool `json:"include_group"`
+type PromptRuntimeSelectionPayload struct {
+	Provider        string `json:"provider"`
+	Model           string `json:"model,omitempty"`
+	ReasoningEffort Effort `json:"reasoning_effort,omitempty"`
+	Speed           Speed  `json:"speed,omitempty"`
 }
 
-type Run struct {
-	ID                   string         `json:"id"`
-	JobID                string         `json:"job_id,omitempty"`
-	TriggerID            string         `json:"trigger_id,omitempty"`
-	SessionID            string         `json:"session_id,omitempty"`
-	TaskID               string         `json:"task_id,omitempty"`
-	TaskRunID            string         `json:"task_run_id,omitempty"`
-	LoopRunID            string         `json:"loop_run_id,omitempty"`
-	FireID               string         `json:"fire_id,omitempty"`
-	Status               RunStatus      `json:"status"`
-	Attempt              int            `json:"attempt"`
-	ScheduledAt          *time.Time     `json:"scheduled_at,omitempty"`
-	StartedAt            *time.Time     `json:"started_at,omitempty"`
-	EndedAt              *time.Time     `json:"ended_at,omitempty"`
-	Error                string         `json:"error,omitempty"`
-	DeliveryError        string         `json:"delivery_error,omitempty"`
-	DeliveryErrorAt      *time.Time     `json:"delivery_error_at,omitempty"`
-	NetworkParticipation *Request       `json:"network_participation,omitempty"`
-	Metadata             map[string]any `json:"metadata,omitempty"`
+type ProviderModelListResponse struct {
+	Models []ProviderModelPayload `json:"models"`
 }
 
-type RunDesignationSummary struct {
-	Index int    `json:"index"`
-	Brief string `json:"brief,omitempty"`
+type ProviderModelPayload struct {
+	ProviderID             string                         `json:"provider_id"`
+	ModelID                string                         `json:"model_id"`
+	DisplayName            string                         `json:"display_name,omitempty"`
+	Sources                []ModelCatalogSourceRefPayload `json:"sources"`
+	Available              *bool                          `json:"available"`
+	AvailabilityState      string                         `json:"availability_state"`
+	Stale                  bool                           `json:"stale"`
+	RefreshedAt            string                         `json:"refreshed_at,omitempty"`
+	ContextWindow          *int64                         `json:"context_window,omitempty"`
+	MaxInputTokens         *int64                         `json:"max_input_tokens,omitempty"`
+	MaxOutputTokens        *int64                         `json:"max_output_tokens,omitempty"`
+	SupportsTools          *bool                          `json:"supports_tools,omitempty"`
+	SupportsReasoning      *bool                          `json:"supports_reasoning,omitempty"`
+	ReasoningEfforts       []Effort                       `json:"reasoning_efforts,omitempty"`
+	DefaultReasoningEffort *Effort                        `json:"default_reasoning_effort,omitempty"`
+	Cost                   *ModelCatalogCostPayload       `json:"cost,omitempty"`
+	Curated                bool                           `json:"curated"`
+	Deprecated             bool                           `json:"deprecated"`
+	Hidden                 bool                           `json:"hidden"`
+	Featured               bool                           `json:"featured"`
+	ReleaseDate            string                         `json:"release_date,omitempty"`
+	ReasoningSource        ReasoningSource                `json:"reasoning_source,omitempty"`
+	LastError              string                         `json:"last_error,omitempty"`
 }
 
-type RunStatus string
-
-type RuntimeSelectionPayload struct {
-	Provider        string      `json:"provider"`
-	Model           string      `json:"model,omitempty"`
-	ReasoningEffort Effort      `json:"reasoning_effort,omitempty"`
-	Speed           Speed       `json:"speed,omitempty"`
-	SpeedResolution *Resolution `json:"speed_resolution,omitempty"`
+type ProviderModelRefreshResponse struct {
+	Sources []ModelCatalogSourceStatusPayload `json:"sources"`
+	Error   string                            `json:"error,omitempty"`
 }
 
-type SandboxExecParams struct {
-	WorkspaceID string `json:"workspace_id"`
-	SessionID   string `json:"session_id"`
-	Command     string `json:"command"`
-	Timeout     int    `json:"timeout,omitempty"`
+type ProviderModelStatusResponse struct {
+	Sources []ModelCatalogSourceStatusPayload `json:"sources"`
 }
 
-type SandboxExecResult struct {
-	ExitCode int    `json:"exit_code"`
-	Stdout   string `json:"stdout,omitempty"`
-	Stderr   string `json:"stderr,omitempty"`
+type ReasonCode string
+
+type ReasoningSource string
+
+type Redaction struct {
+	Path   string     `json:"path"`
+	Reason ReasonCode `json:"reason"`
+	Bytes  int64      `json:"bytes,omitempty"`
 }
 
-type SandboxInfoParams struct {
-	WorkspaceID string `json:"workspace_id"`
-	SessionID   string `json:"session_id"`
+type Request struct {
+	Mode            *Mode            `json:"mode,omitempty"`
+	ChannelStrategy *ChannelStrategy `json:"channel_strategy,omitempty"`
+	ChannelID       *string          `json:"channel_id,omitempty"`
+	Bounds          *BoundsRequest   `json:"bounds,omitempty"`
 }
 
-type SandboxInfoResult struct {
-	SandboxID     string    `json:"sandbox_id"`
-	Backend       string    `json:"backend"`
-	Profile       string    `json:"profile"`
-	InstanceID    string    `json:"instance_id"`
-	RuntimeRoot   string    `json:"runtime_root"`
-	SyncState     string    `json:"sync_state"`
-	CreatedAt     time.Time `json:"created_at"`
-	LastSyncError string    `json:"last_sync_error"`
+type Resolution struct {
+	Requested Speed            `json:"requested"`
+	Status    ResolutionStatus `json:"status"`
+	Reason    ResolutionReason `json:"reason,omitempty"`
 }
 
-type SandboxListParams struct {
-	Workspace string `json:"workspace,omitempty"`
+type ResolutionReason string
+
+type ResolutionStatus string
+
+type ResolvedWorktreeMode string
+
+type ResourceGetParams struct {
+	Kind ResourceKind `json:"kind"`
+	ID   string       `json:"id"`
 }
 
-type SandboxListResult struct {
-	Sandboxes []SandboxSummary `json:"sandboxes"`
+type ResourceKind string
+
+type ResourceOwner struct {
+	Kind ResourceOwnerKind `json:"kind"`
+	ID   string            `json:"id"`
 }
 
-type SandboxObservationPatch struct{}
+type ResourceOwnerKind string
 
-type SandboxPreparePatch struct {
-	Deny         bool              `json:"deny,omitempty"`
-	DenyReason   string            `json:"deny_reason,omitempty"`
-	EnvOverrides map[string]string `json:"env_overrides,omitempty"`
+type ResourceRecord struct {
+	Kind      ResourceKind    `json:"kind"`
+	ID        string          `json:"id"`
+	Version   int64           `json:"version"`
+	Scope     ResourceScope   `json:"scope"`
+	Owner     ResourceOwner   `json:"owner"`
+	Source    ResourceSource  `json:"source"`
+	Spec      json.RawMessage `json:"spec"`
+	CreatedAt time.Time       `json:"created_at"`
+	UpdatedAt time.Time       `json:"updated_at"`
 }
 
-type SandboxPreparePayload struct {
-	Event               HookEvent             `json:"event"`
-	Timestamp           time.Time             `json:"timestamp"`
-	SessionID           string                `json:"session_id,omitempty"`
-	SessionName         string                `json:"session_name,omitempty"`
-	SessionType         string                `json:"session_type,omitempty"`
-	AgentName           string                `json:"agent_name,omitempty"`
-	WorkspaceID         string                `json:"workspace_id,omitempty"`
-	Workspace           string                `json:"workspace,omitempty"`
-	WorktreeID          string                `json:"worktree_id,omitempty"`
-	ACPSessionID        string                `json:"acp_session_id,omitempty"`
-	State               string                `json:"state,omitempty"`
-	SoulSnapshotID      string                `json:"soul_snapshot_id,omitempty"`
-	SoulDigest          string                `json:"soul_digest,omitempty"`
-	CreatedAt           time.Time             `json:"created_at"`
-	UpdatedAt           time.Time             `json:"updated_at"`
-	SandboxID           string                `json:"sandbox_id,omitempty"`
-	Backend             string                `json:"backend,omitempty"`
-	Profile             SandboxProfilePayload `json:"profile"`
-	LocalRootDir        string                `json:"local_root,omitempty"`
-	LocalAdditionalDirs []string              `json:"local_additional_dirs,omitempty"`
-	AgentCommand        string                `json:"agent_command,omitempty"`
-	AgentEnv            []string              `json:"agent_env,omitempty"`
-	Permissions         string                `json:"permissions,omitempty"`
-	ResumeACPState      string                `json:"resume_acp_state,omitempty"`
-	EnvOverrides        map[string]string     `json:"env_overrides,omitempty"`
-	Denied              bool                  `json:"denied,omitempty"`
-	DenyReason          string                `json:"deny_reason,omitempty"`
+type ResourceScope struct {
+	Kind ResourceScopeKind `json:"kind"`
+	ID   string            `json:"id,omitempty"`
 }
 
-type SandboxProfilePayload struct {
-	Profile        string            `json:"profile,omitempty"`
-	Backend        string            `json:"backend,omitempty"`
-	SyncMode       string            `json:"sync_mode,omitempty"`
-	Persistence    string            `json:"persistence,omitempty"`
-	RuntimeRootDir string            `json:"runtime_root,omitempty"`
-	DestroyOnStop  bool              `json:"destroy_on_stop,omitempty"`
-	Env            map[string]string `json:"env,omitempty"`
-	SecretEnv      map[string]string `json:"secret_env,omitempty"`
+type ResourceScopeKind string
+
+type ResourceSnapshotRecord struct {
+	Kind  ResourceKind    `json:"kind"`
+	ID    string          `json:"id"`
+	Scope ResourceScope   `json:"scope"`
+	Spec  json.RawMessage `json:"spec"`
 }
 
-type SandboxReadyPatch struct{}
-
-type SandboxReadyPayload struct {
-	Event                 HookEvent `json:"event"`
-	Timestamp             time.Time `json:"timestamp"`
-	SessionID             string    `json:"session_id,omitempty"`
-	SessionName           string    `json:"session_name,omitempty"`
-	SessionType           string    `json:"session_type,omitempty"`
-	AgentName             string    `json:"agent_name,omitempty"`
-	WorkspaceID           string    `json:"workspace_id,omitempty"`
-	Workspace             string    `json:"workspace,omitempty"`
-	WorktreeID            string    `json:"worktree_id,omitempty"`
-	ACPSessionID          string    `json:"acp_session_id,omitempty"`
-	State                 string    `json:"state,omitempty"`
-	SoulSnapshotID        string    `json:"soul_snapshot_id,omitempty"`
-	SoulDigest            string    `json:"soul_digest,omitempty"`
-	CreatedAt             time.Time `json:"created_at"`
-	UpdatedAt             time.Time `json:"updated_at"`
-	SandboxID             string    `json:"sandbox_id,omitempty"`
-	Backend               string    `json:"backend,omitempty"`
-	Profile               string    `json:"profile,omitempty"`
-	InstanceID            string    `json:"instance_id,omitempty"`
-	RuntimeRootDir        string    `json:"runtime_root,omitempty"`
-	RuntimeAdditionalDirs []string  `json:"runtime_additional_dirs,omitempty"`
+type ResourceSource struct {
+	Kind ResourceSourceKind `json:"kind"`
+	ID   string             `json:"id"`
 }
 
-type SandboxStopPatch struct {
-	Deny       bool   `json:"deny,omitempty"`
-	DenyReason string `json:"deny_reason,omitempty"`
-}
+type ResourceSourceKind string
 
-type SandboxStopPayload struct {
-	Event          HookEvent `json:"event"`
-	Timestamp      time.Time `json:"timestamp"`
-	SessionID      string    `json:"session_id,omitempty"`
-	SessionName    string    `json:"session_name,omitempty"`
-	SessionType    string    `json:"session_type,omitempty"`
-	AgentName      string    `json:"agent_name,omitempty"`
-	WorkspaceID    string    `json:"workspace_id,omitempty"`
-	Workspace      string    `json:"workspace,omitempty"`
-	WorktreeID     string    `json:"worktree_id,omitempty"`
-	ACPSessionID   string    `json:"acp_session_id,omitempty"`
-	State          string    `json:"state,omitempty"`
-	SoulSnapshotID string    `json:"soul_snapshot_id,omitempty"`
-	SoulDigest     string    `json:"soul_digest,omitempty"`
-	CreatedAt      time.Time `json:"created_at"`
-	UpdatedAt      time.Time `json:"updated_at"`
-	SandboxID      string    `json:"sandbox_id,omitempty"`
-	Backend        string    `json:"backend,omitempty"`
-	Profile        string    `json:"profile,omitempty"`
-	InstanceID     string    `json:"instance_id,omitempty"`
-	RuntimeRootDir string    `json:"runtime_root,omitempty"`
-	StopReason     string    `json:"stop_reason,omitempty"`
-	WillDestroy    bool      `json:"will_destroy,omitempty"`
-	Denied         bool      `json:"denied,omitempty"`
-	DenyReason     string    `json:"deny_reason,omitempty"`
-}
-
-type SandboxSummary struct {
-	SessionID  string `json:"session_id"`
-	SandboxID  string `json:"sandbox_id"`
-	Backend    string `json:"backend"`
-	Profile    string `json:"profile,omitempty"`
-	InstanceID string `json:"instance_id,omitempty"`
-	State      string `json:"state"`
-	SyncState  string `json:"sync_state,omitempty"`
-}
-
-type SandboxSyncAfterPatch struct{}
-
-type SandboxSyncAfterPayload struct {
-	Event            HookEvent `json:"event"`
-	Timestamp        time.Time `json:"timestamp"`
-	SessionID        string    `json:"session_id,omitempty"`
-	SessionName      string    `json:"session_name,omitempty"`
-	SessionType      string    `json:"session_type,omitempty"`
-	AgentName        string    `json:"agent_name,omitempty"`
-	WorkspaceID      string    `json:"workspace_id,omitempty"`
-	Workspace        string    `json:"workspace,omitempty"`
-	WorktreeID       string    `json:"worktree_id,omitempty"`
-	ACPSessionID     string    `json:"acp_session_id,omitempty"`
-	State            string    `json:"state,omitempty"`
-	SoulSnapshotID   string    `json:"soul_snapshot_id,omitempty"`
-	SoulDigest       string    `json:"soul_digest,omitempty"`
-	CreatedAt        time.Time `json:"created_at"`
-	UpdatedAt        time.Time `json:"updated_at"`
-	SandboxID        string    `json:"sandbox_id,omitempty"`
-	Backend          string    `json:"backend,omitempty"`
-	Profile          string    `json:"profile,omitempty"`
-	InstanceID       string    `json:"instance_id,omitempty"`
-	RuntimeRootDir   string    `json:"runtime_root,omitempty"`
-	Direction        string    `json:"direction,omitempty"`
-	Reason           string    `json:"reason,omitempty"`
-	FilesSynced      int       `json:"files_synced,omitempty"`
-	BytesTransferred int64     `json:"bytes_transferred,omitempty"`
-	DurationMS       int64     `json:"duration_ms,omitempty"`
-	Errors           []string  `json:"errors,omitempty"`
-}
-
-type SandboxSyncBeforePatch struct {
-	Deny            bool     `json:"deny,omitempty"`
-	DenyReason      string   `json:"deny_reason,omitempty"`
-	ExcludePatterns []string `json:"exclude_patterns,omitempty"`
-}
-
-type SandboxSyncBeforePayload struct {
-	Event           HookEvent `json:"event"`
-	Timestamp       time.Time `json:"timestamp"`
-	SessionID       string    `json:"session_id,omitempty"`
-	SessionName     string    `json:"session_name,omitempty"`
-	SessionType     string    `json:"session_type,omitempty"`
-	AgentName       string    `json:"agent_name,omitempty"`
-	WorkspaceID     string    `json:"workspace_id,omitempty"`
-	Workspace       string    `json:"workspace,omitempty"`
-	WorktreeID      string    `json:"worktree_id,omitempty"`
-	ACPSessionID    string    `json:"acp_session_id,omitempty"`
-	State           string    `json:"state,omitempty"`
-	SoulSnapshotID  string    `json:"soul_snapshot_id,omitempty"`
-	SoulDigest      string    `json:"soul_digest,omitempty"`
-	CreatedAt       time.Time `json:"created_at"`
-	UpdatedAt       time.Time `json:"updated_at"`
-	SandboxID       string    `json:"sandbox_id,omitempty"`
-	Backend         string    `json:"backend,omitempty"`
-	Profile         string    `json:"profile,omitempty"`
-	InstanceID      string    `json:"instance_id,omitempty"`
-	RuntimeRootDir  string    `json:"runtime_root,omitempty"`
-	Direction       string    `json:"direction,omitempty"`
-	Reason          string    `json:"reason,omitempty"`
-	ExcludePatterns []string  `json:"exclude_patterns,omitempty"`
-	Denied          bool      `json:"denied,omitempty"`
-	DenyReason      string    `json:"deny_reason,omitempty"`
+type ResourcesListParams struct {
+	Kind  ResourceKind   `json:"kind,omitempty"`
+	Scope *ResourceScope `json:"scope,omitempty"`
+	Limit int            `json:"limit,omitempty"`
 }

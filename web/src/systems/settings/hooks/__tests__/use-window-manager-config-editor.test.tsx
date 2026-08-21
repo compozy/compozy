@@ -6,11 +6,21 @@
 // Boundary IN: a config draft.
 // Boundary OUT: the controls that produce it, transport.
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { act, renderHook } from "@testing-library/react";
+import { act, renderHook, waitFor } from "@testing-library/react";
 import { createElement, type ReactNode } from "react";
-import { describe, expect, it } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 
-import type { WindowManagerConfig } from "@/systems/os";
+import { type WindowManagerConfig, windowManagerKeys } from "@/systems/os";
+
+const { updateWindowManagerSettings } = vi.hoisted(() => ({
+  updateWindowManagerSettings: vi.fn(),
+}));
+
+vi.mock("../../adapters/window-manager-layouts-api", async importOriginal => {
+  const actual = await importOriginal<typeof import("../../adapters/window-manager-layouts-api")>();
+  return { ...actual, updateWindowManagerSettings };
+});
+
 import { windowManagerSettingsConfigToWire } from "../../lib/window-manager-layout-schema";
 import {
   applyTerminalShortcutPreset,
@@ -70,20 +80,24 @@ const CONFIG: WindowManagerConfig = {
   snap: { edgeBand: 24, cornerReach: 96, exitSlack: 16, repeatRatios: [0.5, 0.33, 0.67] },
   bindings: { topCenter: "zoom", bottomCenter: "none" },
   shortcuts: {},
+  globalShortcuts: {},
   shortcutDefaults: SHORTCUT_DEFAULTS,
   effectiveShortcuts: SHORTCUT_DEFAULTS,
 };
 
 function renderEditor(initial = CONFIG) {
-  const client = new QueryClient({
+  const queryClient = new QueryClient({
     defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
   });
   const wrapper = ({ children }: { children: ReactNode }) =>
-    createElement(QueryClientProvider, { client }, children);
-  return renderHook(({ baseline }) => useWindowManagerConfigEditor(baseline), {
-    initialProps: { baseline: initial },
-    wrapper,
-  });
+    createElement(QueryClientProvider, { client: queryClient }, children);
+  return {
+    queryClient,
+    ...renderHook(({ baseline }) => useWindowManagerConfigEditor(baseline), {
+      initialProps: { baseline: initial },
+      wrapper,
+    }),
+  };
 }
 
 function fields(problems: ReadonlyArray<{ field: string }>) {
@@ -91,6 +105,11 @@ function fields(problems: ReadonlyArray<{ field: string }>) {
 }
 
 describe("useWindowManagerConfigEditor", () => {
+  beforeEach(() => {
+    updateWindowManagerSettings.mockReset();
+    updateWindowManagerSettings.mockResolvedValue(undefined);
+  });
+
   it("Should preserve every daemon-required limit in the wire config", () => {
     expect(windowManagerSettingsConfigToWire(CONFIG)).toMatchObject({
       history_limit: 100,
@@ -183,36 +202,9 @@ describe("useWindowManagerConfigEditor", () => {
     expect(fields(result.current.problems)).toEqual(["gaps", "snap"]);
   });
 
-  it("Should block a save when two overrides claim the same chord", () => {
-    const { result } = renderEditor();
-    act(() => {
-      result.current.setShortcuts({
-        "window.focus.up": ["meta+shift+KeyP"],
-        "window.focus.down": ["meta+shift+KeyP"],
-      });
-    });
-
-    expect(fields(result.current.problems)).toEqual(["shortcuts"]);
-    expect(result.current.canSave).toBe(false);
-  });
-
-  it("Should block an override that collides with a daemon default", () => {
-    const { result } = renderEditor();
-    act(() => {
-      result.current.setShortcuts({ "window.close": ["control+alt+ArrowLeft"] });
-    });
-
-    expect(fields(result.current.problems)).toEqual(["shortcuts"]);
-    expect(result.current.canSave).toBe(false);
-  });
-
-  it("Should keep focused-surface shadowing advisory rather than blocking", () => {
-    const { result } = renderEditor();
-    act(() => result.current.setShortcuts({ "sidebar.toggle": ["meta+KeyB"] }));
-
-    expect(result.current.problems).toEqual([]);
-    expect(result.current.canSave).toBe(true);
-  });
+  // Chord collisions are no longer a draft concern: shortcuts left this editor
+  // when they became live daemon-arbitrated writes, and the block an operator
+  // sees is the daemon's own refusal — asserted in the shortcut-table suite.
 
   it("Should return to the saved config on reset", () => {
     const { result } = renderEditor();
@@ -228,11 +220,40 @@ describe("useWindowManagerConfigEditor", () => {
     expect(result.current.dirty).toBe(false);
     expect(result.current.draft.historyLimit).toBe(100);
   });
+
+  it("Should invalidate every client-scoped window-manager settings cache after a global save", async () => {
+    const { queryClient, result } = renderEditor();
+    const clientKey = windowManagerKeys.config(null, "desktop-1");
+    const globalKey = windowManagerKeys.config();
+    queryClient.setQueryData(clientKey, CONFIG);
+    queryClient.setQueryData(globalKey, CONFIG);
+
+    act(() => {
+      result.current.setDraft(current => ({ ...current, historyLimit: 101 }));
+    });
+    act(() => {
+      result.current.save();
+    });
+
+    await waitFor(() => expect(updateWindowManagerSettings).toHaveBeenCalledTimes(1));
+    await waitFor(() => {
+      expect(queryClient.getQueryState(clientKey)?.isInvalidated).toBe(true);
+      expect(queryClient.getQueryState(globalKey)?.isInvalidated).toBe(true);
+    });
+  });
 });
+
+/**
+ * The preset preview reports rows by label, so it needs the catalog the daemon
+ * would project — every id the preset touches, plus the defaults it displaces.
+ */
+const PRESET_ACTIONS = [
+  ...new Set([...Object.keys(TERMINAL_SHORTCUT_PRESET), ...Object.keys(SHORTCUT_DEFAULTS)]),
+].map(id => ({ id, label: id, section: "Window", source: "core", alias: null }));
 
 describe("Terminal shortcut preset", () => {
   it("Should preview every changed key and flag layout hazards [UT-063]", () => {
-    const preview = previewTerminalShortcutPreset({}, SHORTCUT_DEFAULTS);
+    const preview = previewTerminalShortcutPreset({}, SHORTCUT_DEFAULTS, PRESET_ACTIONS);
 
     expect(preview.map(change => change.actionId)).toEqual(Object.keys(TERMINAL_SHORTCUT_PRESET));
     expect(preview.some(change => change.hazards.includes("altgr"))).toBe(true);
@@ -248,7 +269,8 @@ describe("Terminal shortcut preset", () => {
     ]);
     const conflicted = previewTerminalShortcutPreset(
       { "layout.undo": ["control+ArrowLeft"] },
-      SHORTCUT_DEFAULTS
+      SHORTCUT_DEFAULTS,
+      PRESET_ACTIONS
     );
     expect(
       conflicted

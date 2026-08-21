@@ -225,7 +225,8 @@ func TestCommandGroupValidationAndRoundTrip(t *testing.T) {
 			nil,
 			false,
 		)
-		built, err := manifestFromDescribe(commandDescribePayload(t, manifest))
+		payload := commandDescribePayload(t, manifest)
+		built, err := manifestFromDescribe(&payload)
 		if err != nil {
 			t.Fatalf("manifestFromDescribe() error = %v", err)
 		}
@@ -335,6 +336,94 @@ func TestManagerCommandsFiltersUnavailableExtensionsAndSortsDeterministically(t 
 	})
 }
 
+// Invariant: palette membership follows enablement while source health changes
+// availability only, and workspace dev instances shadow published instances atomically.
+// Owner: extension manager palette projection.
+// Canonical suite: extension command projection tests.
+func TestManagerCmdPaletteProjectsEffectiveWorkspaceInstances(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should namespace commands and preserve unhealthy membership [UT-055,UT-057,UT-060]", func(t *testing.T) {
+		t.Parallel()
+		manager := NewManager(nil)
+		manifest := cmdPaletteTestManifest("notes")
+		manager.extensions["notes"] = &managedExtension{
+			key: GlobalInstanceKey("notes"), info: ExtensionInfo{Name: "notes", Enabled: true},
+			manifest: manifest, registered: true, active: true,
+		}
+		manager.extensions["plain"] = &managedExtension{
+			key: GlobalInstanceKey("plain"), info: ExtensionInfo{Name: "plain", Enabled: true},
+			manifest: &Manifest{Name: "plain"}, registered: true, active: true,
+		}
+		projection, err := manager.CmdPalette("workspace-a")
+		if err != nil {
+			t.Fatalf("Manager.CmdPalette() error = %v", err)
+		}
+		if len(projection.Commands) != 3 || len(projection.Sources) != 1 ||
+			projection.Commands[0].ID != "ext.notes.capture" ||
+			projection.Commands[0].Action.Tool != "ext__notes__capture_note" ||
+			!projection.Commands[0].Execution.SingleFlight || projection.Commands[0].Execution.RetrySafe {
+			t.Fatalf("healthy projection = %#v", projection)
+		}
+		if len(projection.Views) != 1 || projection.Views[0].ID != "ext.notes.recent" ||
+			projection.Views[0].SourceTool != "ext__notes__list_recent" {
+			t.Fatalf("view projection = %#v", projection.Views)
+		}
+
+		extension := manager.extensions["notes"]
+		extension.active = false
+		extension.lastError = "crash loop"
+		unhealthy, err := manager.CmdPalette("workspace-a")
+		if err != nil {
+			t.Fatalf("Manager.CmdPalette(unhealthy) error = %v", err)
+		}
+		if len(unhealthy.Commands) != 3 || unhealthy.Commands[0].UnavailableReason !=
+			"extension notes is unhealthy (crash loop)" || len(unhealthy.Sources) != 1 ||
+			unhealthy.Sources[0].Status != CmdPaletteSourceUnhealthy || unhealthy.Defaults[0].Active {
+			t.Fatalf("unhealthy projection = %#v", unhealthy)
+		}
+
+		extension.info.Enabled = false
+		disabled, err := manager.CmdPalette("workspace-a")
+		if err != nil {
+			t.Fatalf("Manager.CmdPalette(disabled) error = %v", err)
+		}
+		if len(disabled.Commands) != 0 || len(disabled.Views) != 0 || len(disabled.Sources) != 0 {
+			t.Fatalf("disabled projection = %#v, want empty membership", disabled)
+		}
+	})
+
+	t.Run("Should shadow the published instance only in the linked workspace [UT-061]", func(t *testing.T) {
+		t.Parallel()
+		manager := NewManager(nil)
+		published := cmdPaletteTestManifest("notes")
+		published.Resources.CmdPalette.Commands[0].Title = "Published capture"
+		development := cmdPaletteTestManifest("notes")
+		development.Resources.CmdPalette.Commands[0].Title = "Development capture"
+		manager.extensions["notes"] = &managedExtension{
+			key: GlobalInstanceKey("notes"), info: ExtensionInfo{Name: "notes", Enabled: true},
+			manifest: published, registered: true, active: true,
+		}
+		key := InstanceKey{Name: "notes", WorkspaceID: "workspace-a"}.Normalize()
+		manager.devExtensions[key] = &managedExtension{
+			key: key, info: ExtensionInfo{Name: "notes", Enabled: true, Source: SourceWorkspace},
+			manifest: development, registered: true, active: true,
+		}
+		workspaceA, err := manager.CmdPalette("workspace-a")
+		if err != nil {
+			t.Fatalf("Manager.CmdPalette(workspace-a) error = %v", err)
+		}
+		workspaceB, err := manager.CmdPalette("workspace-b")
+		if err != nil {
+			t.Fatalf("Manager.CmdPalette(workspace-b) error = %v", err)
+		}
+		if workspaceA.Commands[0].Title != "Development capture" ||
+			workspaceB.Commands[0].Title != "Published capture" {
+			t.Fatalf("workspace titles = %q/%q", workspaceA.Commands[0].Title, workspaceB.Commands[0].Title)
+		}
+	})
+}
+
 func commandTestManifest(name string) *Manifest {
 	return &Manifest{
 		Name: name, Version: "0.1.0", MinCompozyVersion: "0.3.0-beta.1",
@@ -425,7 +514,8 @@ func commandDescribePayload(t *testing.T, manifest *Manifest) extensioncontract.
 func assertCommandRejectedAtBuildAndLoad(t *testing.T, manifest *Manifest, fragments ...string) {
 	t.Helper()
 
-	_, buildErr := manifestFromDescribe(commandDescribePayload(t, manifest))
+	payload := commandDescribePayload(t, manifest)
+	_, buildErr := manifestFromDescribe(&payload)
 	assertCommandValidationError(t, "build", buildErr, fragments...)
 	assertCommandValidationError(t, "load", manifest.Validate(), fragments...)
 }

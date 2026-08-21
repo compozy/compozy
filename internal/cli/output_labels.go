@@ -29,6 +29,13 @@ const (
 	cliSchemaVersion  = "schema_version"
 	cliValidateVerb   = "validate"
 	cliConfiguredKey  = "configured"
+	cliPinVerb        = "pin"
+	cliUnpinVerb      = "unpin"
+	cliListVerb       = "list"
+	cliShowVerb       = "show"
+	cliResetVerb      = "reset"
+	cliInspectIDUse   = "inspect <id>"
+	cliClientsUse     = "clients"
 	agentOutputLabel  = automationAgentValue
 	roleOutputLabel   = "Role"
 )

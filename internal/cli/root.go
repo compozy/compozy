@@ -185,6 +185,7 @@ func registerRootCommands(cmd *cobra.Command, deps commandDeps) {
 		newLoopCommand(deps), newSchedulerCommand(deps), newTaskCommand(deps), newSkillCommand(deps),
 		newResourceCommand(deps), newMemoryCommand(deps), newVaultCommand(deps), newToolCommand(deps),
 		newToolsetsCommand(deps), newMCPCommand(deps), newLogsCommand(deps), newWhoamiCommand(deps),
+		newCmdPaletteCommand(deps), newApprovalsCommand(deps),
 		newOpenCommand(deps), newDocCommand(), newInternalCommand(),
 		newAppCommand(deps),
 	)
@@ -417,7 +418,7 @@ func marshalWindowManagerExecutionError(
 		}
 		return []byte(renderToonObject(
 			"error",
-			[]string{cliCodeKey, "workspace_id", "current_revision", clientMessageKey},
+			[]string{cliCodeKey, automationWorkspaceIDKey, "current_revision", clientMessageKey},
 			[]string{string(payload.Code), string(payload.WorkspaceID), currentRevision, payload.Error},
 		)), true
 	default:

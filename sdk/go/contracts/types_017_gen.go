@@ -7,120 +7,238 @@ import (
 	"time"
 )
 
-type ReasoningSource string
-
-type Redaction struct {
-	Path   string     `json:"path"`
-	Reason ReasonCode `json:"reason"`
-	Bytes  int64      `json:"bytes,omitempty"`
+type Pagination struct {
+	HasMore  bool `json:"has_more"`
+	PageSize int  `json:"page_size,omitempty"`
 }
 
-type Request struct {
-	Mode            *Mode            `json:"mode,omitempty"`
-	ChannelStrategy *ChannelStrategy `json:"channel_strategy,omitempty"`
-	ChannelID       *string          `json:"channel_id,omitempty"`
-	Bounds          *BoundsRequest   `json:"bounds,omitempty"`
+type ParticipationOwnerKind string
+
+type ParticipationStatus struct {
+	Owner         OwnerRef `json:"owner"`
+	Available     bool     `json:"available"`
+	Participating bool     `json:"participating"`
+	Reason        string   `json:"reason,omitempty"`
 }
 
-type Resolution struct {
-	Requested Speed            `json:"requested"`
-	Status    ResolutionStatus `json:"status"`
-	Reason    ResolutionReason `json:"reason,omitempty"`
+type PatchOp struct {
+	Op    string          `json:"op"`
+	Path  string          `json:"path"`
+	Value json.RawMessage `json:"value,omitempty"`
 }
 
-type ResolutionReason string
-
-type ResolutionStatus string
-
-type ResolvedWorktreeMode string
-
-type ResourceGetParams struct {
-	Kind ResourceKind `json:"kind"`
-	ID   string       `json:"id"`
+type PayloadBase struct {
+	Event     HookEvent `json:"event"`
+	Timestamp time.Time `json:"timestamp"`
 }
 
-type ResourceKind string
-
-type ResourceOwner struct {
-	Kind ResourceOwnerKind `json:"kind"`
-	ID   string            `json:"id"`
+type PendingInteractionPayload struct {
+	InteractionID     string     `json:"interaction_id"`
+	Kind              string     `json:"kind"`
+	ProviderRequestID string     `json:"provider_request_id"`
+	TurnID            string     `json:"turn_id,omitempty"`
+	Title             string     `json:"title,omitempty"`
+	Choices           []string   `json:"choices,omitempty"`
+	Decisions         []string   `json:"decisions,omitempty"`
+	Status            string     `json:"status"`
+	CreatedAt         time.Time  `json:"created_at"`
+	ResolvedAt        *time.Time `json:"resolved_at,omitempty"`
+	Resolution        string     `json:"resolution,omitempty"`
+	ResolvedBy        string     `json:"resolved_by,omitempty"`
 }
 
-type ResourceOwnerKind string
+type PermissionDeniedPatch struct{}
 
-type ResourceRecord struct {
-	Kind      ResourceKind    `json:"kind"`
-	ID        string          `json:"id"`
-	Version   int64           `json:"version"`
-	Scope     ResourceScope   `json:"scope"`
-	Owner     ResourceOwner   `json:"owner"`
-	Source    ResourceSource  `json:"source"`
-	Spec      json.RawMessage `json:"spec"`
-	CreatedAt time.Time       `json:"created_at"`
-	UpdatedAt time.Time       `json:"updated_at"`
+type PermissionDeniedPayload struct {
+	Event          HookEvent          `json:"event"`
+	Timestamp      time.Time          `json:"timestamp"`
+	SessionID      string             `json:"session_id,omitempty"`
+	SessionName    string             `json:"session_name,omitempty"`
+	SessionType    string             `json:"session_type,omitempty"`
+	AgentName      string             `json:"agent_name,omitempty"`
+	WorkspaceID    string             `json:"workspace_id,omitempty"`
+	Workspace      string             `json:"workspace,omitempty"`
+	WorktreeID     string             `json:"worktree_id,omitempty"`
+	ACPSessionID   string             `json:"acp_session_id,omitempty"`
+	State          string             `json:"state,omitempty"`
+	SoulSnapshotID string             `json:"soul_snapshot_id,omitempty"`
+	SoulDigest     string             `json:"soul_digest,omitempty"`
+	CreatedAt      time.Time          `json:"created_at"`
+	UpdatedAt      time.Time          `json:"updated_at"`
+	TurnID         string             `json:"turn_id,omitempty"`
+	RequestID      string             `json:"request_id,omitempty"`
+	Action         string             `json:"action,omitempty"`
+	Resource       string             `json:"resource,omitempty"`
+	Decision       string             `json:"decision,omitempty"`
+	DecisionClass  string             `json:"decision_class,omitempty"`
+	ToolCall       PermissionToolCall `json:"tool_call"`
 }
 
-type ResourceScope struct {
-	Kind ResourceScopeKind `json:"kind"`
-	ID   string            `json:"id,omitempty"`
+type PermissionOption struct {
+	Decision string `json:"decision,omitempty"`
+	OptionID string `json:"option_id,omitempty"`
+	Kind     string `json:"kind,omitempty"`
+	Label    string `json:"label,omitempty"`
 }
 
-type ResourceScopeKind string
-
-type ResourceSnapshotRecord struct {
-	Kind  ResourceKind    `json:"kind"`
-	ID    string          `json:"id"`
-	Scope ResourceScope   `json:"scope"`
-	Spec  json.RawMessage `json:"spec"`
+type PermissionRequestPatch struct {
+	Deny          bool    `json:"deny,omitempty"`
+	DenyReason    string  `json:"deny_reason,omitempty"`
+	Decision      *string `json:"decision,omitempty"`
+	DecisionClass *string `json:"decision_class,omitempty"`
+	Reason        *string `json:"reason,omitempty"`
 }
 
-type ResourceSource struct {
-	Kind ResourceSourceKind `json:"kind"`
-	ID   string             `json:"id"`
+type PermissionRequestPayload struct {
+	Event          HookEvent          `json:"event"`
+	Timestamp      time.Time          `json:"timestamp"`
+	SessionID      string             `json:"session_id,omitempty"`
+	SessionName    string             `json:"session_name,omitempty"`
+	SessionType    string             `json:"session_type,omitempty"`
+	AgentName      string             `json:"agent_name,omitempty"`
+	WorkspaceID    string             `json:"workspace_id,omitempty"`
+	Workspace      string             `json:"workspace,omitempty"`
+	WorktreeID     string             `json:"worktree_id,omitempty"`
+	ACPSessionID   string             `json:"acp_session_id,omitempty"`
+	State          string             `json:"state,omitempty"`
+	SoulSnapshotID string             `json:"soul_snapshot_id,omitempty"`
+	SoulDigest     string             `json:"soul_digest,omitempty"`
+	CreatedAt      time.Time          `json:"created_at"`
+	UpdatedAt      time.Time          `json:"updated_at"`
+	TurnID         string             `json:"turn_id,omitempty"`
+	RequestID      string             `json:"request_id,omitempty"`
+	Action         string             `json:"action,omitempty"`
+	Resource       string             `json:"resource,omitempty"`
+	Decision       string             `json:"decision,omitempty"`
+	DecisionClass  string             `json:"decision_class,omitempty"`
+	ToolInput      json.RawMessage    `json:"tool_input,omitempty"`
+	ToolCall       PermissionToolCall `json:"tool_call"`
+	Options        []PermissionOption `json:"options,omitempty"`
 }
 
-type ResourceSourceKind string
-
-type ResourcesListParams struct {
-	Kind  ResourceKind   `json:"kind,omitempty"`
-	Scope *ResourceScope `json:"scope,omitempty"`
-	Limit int            `json:"limit,omitempty"`
+type PermissionResolutionPayload struct {
+	Event          HookEvent          `json:"event"`
+	Timestamp      time.Time          `json:"timestamp"`
+	SessionID      string             `json:"session_id,omitempty"`
+	SessionName    string             `json:"session_name,omitempty"`
+	SessionType    string             `json:"session_type,omitempty"`
+	AgentName      string             `json:"agent_name,omitempty"`
+	WorkspaceID    string             `json:"workspace_id,omitempty"`
+	Workspace      string             `json:"workspace,omitempty"`
+	WorktreeID     string             `json:"worktree_id,omitempty"`
+	ACPSessionID   string             `json:"acp_session_id,omitempty"`
+	State          string             `json:"state,omitempty"`
+	SoulSnapshotID string             `json:"soul_snapshot_id,omitempty"`
+	SoulDigest     string             `json:"soul_digest,omitempty"`
+	CreatedAt      time.Time          `json:"created_at"`
+	UpdatedAt      time.Time          `json:"updated_at"`
+	TurnID         string             `json:"turn_id,omitempty"`
+	RequestID      string             `json:"request_id,omitempty"`
+	Action         string             `json:"action,omitempty"`
+	Resource       string             `json:"resource,omitempty"`
+	Decision       string             `json:"decision,omitempty"`
+	DecisionClass  string             `json:"decision_class,omitempty"`
+	ToolInput      json.RawMessage    `json:"tool_input,omitempty"`
+	ToolCall       PermissionToolCall `json:"tool_call"`
 }
 
-type ResourcesSnapshotParams struct {
-	SourceVersion int64                    `json:"source_version"`
-	Records       []ResourceSnapshotRecord `json:"records"`
+type PermissionResolvedPatch struct{}
+
+type PermissionResolvedPayload struct {
+	Event          HookEvent          `json:"event"`
+	Timestamp      time.Time          `json:"timestamp"`
+	SessionID      string             `json:"session_id,omitempty"`
+	SessionName    string             `json:"session_name,omitempty"`
+	SessionType    string             `json:"session_type,omitempty"`
+	AgentName      string             `json:"agent_name,omitempty"`
+	WorkspaceID    string             `json:"workspace_id,omitempty"`
+	Workspace      string             `json:"workspace,omitempty"`
+	WorktreeID     string             `json:"worktree_id,omitempty"`
+	ACPSessionID   string             `json:"acp_session_id,omitempty"`
+	State          string             `json:"state,omitempty"`
+	SoulSnapshotID string             `json:"soul_snapshot_id,omitempty"`
+	SoulDigest     string             `json:"soul_digest,omitempty"`
+	CreatedAt      time.Time          `json:"created_at"`
+	UpdatedAt      time.Time          `json:"updated_at"`
+	TurnID         string             `json:"turn_id,omitempty"`
+	RequestID      string             `json:"request_id,omitempty"`
+	Action         string             `json:"action,omitempty"`
+	Resource       string             `json:"resource,omitempty"`
+	Decision       string             `json:"decision,omitempty"`
+	DecisionClass  string             `json:"decision_class,omitempty"`
+	ToolInput      json.RawMessage    `json:"tool_input,omitempty"`
+	ToolCall       PermissionToolCall `json:"tool_call"`
 }
 
-type RetentionHealth struct {
-	Enabled                  bool       `json:"enabled"`
-	RetentionDays            int        `json:"retention_days"`
-	SweepIntervalSeconds     int64      `json:"sweep_interval_seconds"`
-	LastSweepStatus          string     `json:"last_sweep_status"`
-	LastSweepAt              *time.Time `json:"last_sweep_at,omitempty"`
-	LastCutoffAt             *time.Time `json:"last_cutoff_at,omitempty"`
-	LastSweepError           string     `json:"last_sweep_error,omitempty"`
-	DeletedEventSummaries    int64      `json:"deleted_event_summaries"`
-	DeletedTokenStats        int64      `json:"deleted_token_stats"`
-	DeletedTokenUsageDaily   int64      `json:"deleted_token_usage_daily"`
-	DeletedPermissionLogRows int64      `json:"deleted_permission_log_rows"`
+type PermissionSet struct {
+	Tools           []string `json:"tools,omitempty"`
+	Skills          []string `json:"skills,omitempty"`
+	MCPServers      []string `json:"mcp_servers,omitempty"`
+	WorkspacePaths  []string `json:"workspace_paths,omitempty"`
+	NetworkChannels []string `json:"network_channels,omitempty"`
+	SandboxProfiles []string `json:"sandbox_profiles,omitempty"`
 }
 
-type RetryConfig struct {
-	Strategy   RetryStrategy `json:"strategy"`
-	MaxRetries int           `json:"max_retries"`
-	BaseDelay  string        `json:"base_delay"`
+type PermissionToolCall struct {
+	ID        string         `json:"id,omitempty"`
+	Kind      string         `json:"kind,omitempty"`
+	Title     string         `json:"title,omitempty"`
+	Status    string         `json:"status,omitempty"`
+	Locations []ToolLocation `json:"locations,omitempty"`
 }
 
-type RetryStrategy string
+type PersistenceHealth struct {
+	Status             string `json:"status"`
+	GlobalDBSizeBytes  int64  `json:"global_db_size_bytes"`
+	SessionDBSizeBytes int64  `json:"session_db_size_bytes"`
+}
 
-type RiskClass string
+type PickFilesEffect struct {
+	Directories bool `json:"directories,omitempty"`
+}
 
-type RoutingKey struct {
-	Scope            BridgeScope `json:"scope"`
-	WorkspaceID      string      `json:"workspace_id,omitempty"`
-	BridgeInstanceID string      `json:"bridge_instance_id"`
-	PeerID           string      `json:"peer_id,omitempty"`
-	ThreadID         string      `json:"thread_id,omitempty"`
-	GroupID          string      `json:"group_id,omitempty"`
+type Priority string
+
+type ProbeResult struct {
+	AgentName  string    `json:"agent_name,omitempty"`
+	Provider   string    `json:"provider,omitempty"`
+	Command    string    `json:"command,omitempty"`
+	Executable string    `json:"executable,omitempty"`
+	Status     string    `json:"status"`
+	Error      string    `json:"error,omitempty"`
+	CheckedAt  time.Time `json:"checked_at"`
+	DurationMS int64     `json:"duration_ms"`
+}
+
+type PromptDelivery string
+
+type PromptMode string
+
+type PromptPatch struct {
+	Deny          bool           `json:"deny,omitempty"`
+	DenyReason    string         `json:"deny_reason,omitempty"`
+	Prompt        *string        `json:"prompt,omitempty"`
+	ContextBlocks []ContextBlock `json:"context_blocks,omitempty"`
+}
+
+type PromptPayload struct {
+	Event          HookEvent      `json:"event"`
+	Timestamp      time.Time      `json:"timestamp"`
+	SessionID      string         `json:"session_id,omitempty"`
+	SessionName    string         `json:"session_name,omitempty"`
+	SessionType    string         `json:"session_type,omitempty"`
+	AgentName      string         `json:"agent_name,omitempty"`
+	WorkspaceID    string         `json:"workspace_id,omitempty"`
+	Workspace      string         `json:"workspace,omitempty"`
+	WorktreeID     string         `json:"worktree_id,omitempty"`
+	ACPSessionID   string         `json:"acp_session_id,omitempty"`
+	State          string         `json:"state,omitempty"`
+	SoulSnapshotID string         `json:"soul_snapshot_id,omitempty"`
+	SoulDigest     string         `json:"soul_digest,omitempty"`
+	CreatedAt      time.Time      `json:"created_at"`
+	UpdatedAt      time.Time      `json:"updated_at"`
+	TurnID         string         `json:"turn_id,omitempty"`
+	InputClass     string         `json:"input_class,omitempty"`
+	Prompt         string         `json:"prompt,omitempty"`
+	ContextBlocks  []ContextBlock `json:"context_blocks,omitempty"`
 }

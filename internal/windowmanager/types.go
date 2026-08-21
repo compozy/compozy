@@ -21,6 +21,13 @@ type GroupID string
 type ClientID string
 type Revision uint64
 
+type ClientKind string
+
+const (
+	ClientKindShell   ClientKind = "shell"
+	ClientKindBrowser ClientKind = "browser"
+)
+
 type DesktopPurpose string
 
 const (
@@ -161,21 +168,90 @@ type ReturnAnchor struct {
 
 // ClientView is transient presentation state for one connected client.
 type ClientView struct {
-	WorkspaceID          WorkspaceID         `json:"workspace_id"`
-	ClientID             ClientID            `json:"client_id"`
-	PresentationRevision uint64              `json:"presentation_revision"`
-	ActiveDesktopID      DesktopID           `json:"active_desktop_id"`
-	FocusedWindowID      *WindowID           `json:"focused_window_id,omitempty"`
-	FocusOrder           []WindowID          `json:"focus_order"`
-	StackActive          map[NodeID]WindowID `json:"stack_active"`
-	ConnectedAt          time.Time           `json:"connected_at"`
+	WorkspaceID          WorkspaceID                  `json:"workspace_id"`
+	ClientID             ClientID                     `json:"client_id"`
+	Kind                 ClientKind                   `json:"kind"`
+	PresentationRevision uint64                       `json:"presentation_revision"`
+	ContextRevision      uint64                       `json:"context_revision"`
+	ActiveDesktopID      DesktopID                    `json:"active_desktop_id"`
+	FocusedWindowID      *WindowID                    `json:"focused_window_id,omitempty"`
+	FocusOrder           []WindowID                   `json:"focus_order"`
+	StackActive          map[NodeID]WindowID          `json:"stack_active"`
+	PaletteContext       PaletteContext               `json:"palette_context"`
+	GlobalShortcuts      []GlobalShortcutRegistration `json:"global_shortcuts"`
+	ConnectedAt          time.Time                    `json:"connected_at"`
+	AttachmentToken      string                       `json:"attachment_token,omitempty"`
+}
+
+// PaletteContext is the volatile, client-targeted availability snapshot.
+type PaletteContext struct {
+	WindowFocused       bool         `json:"window_focused"`
+	WindowFloating      bool         `json:"window_floating"`
+	WindowStacked       bool         `json:"window_stacked"`
+	DesktopWindowCount  int          `json:"desktop_window_count"`
+	ScopeGlobal         bool         `json:"scope_global"`
+	ShellDesktop        bool         `json:"shell_desktop"`
+	FocusedSessionState string       `json:"focused_session_state,omitempty"`
+	WorkspaceTrusted    bool         `json:"workspace_trusted"`
+	DestinationIntent   *RouteIntent `json:"destination_intent,omitempty"`
 }
 
 // ClientRegistration requests a live client view.
 type ClientRegistration struct {
 	WorkspaceID     WorkspaceID
 	ClientID        ClientID
+	Kind            ClientKind
 	ActiveDesktopID DesktopID
+	Context         ClientContextInput
+}
+
+// ClientContextInput carries only client-owned volatile palette state.
+type ClientContextInput struct {
+	ScopeGlobal         bool
+	FocusedSessionState string
+	WorkspaceTrusted    bool
+	DestinationIntent   *RouteIntent
+	GlobalShortcuts     []GlobalShortcutRegistration
+}
+
+// ClientContextUpdate replaces one attached client's palette and global-shortcut context.
+type ClientContextUpdate struct {
+	WorkspaceID WorkspaceID
+	ClientID    ClientID
+	Context     ClientContextInput
+}
+
+// ClientCommand is one invocation the daemon dispatches to an attached client.
+type ClientCommand struct {
+	CommandID string          `json:"command_id"`
+	Op        string          `json:"op"`
+	Payload   json.RawMessage `json:"payload,omitempty"`
+}
+
+// ClientCommandResponseStatus is the ack, result, or error stage of one command.
+type ClientCommandResponseStatus string
+
+const (
+	ClientCommandAcknowledged ClientCommandResponseStatus = "ack"
+	ClientCommandCompleted    ClientCommandResponseStatus = "result"
+	ClientCommandFailed       ClientCommandResponseStatus = "error"
+)
+
+// ClientCommandResponse is the client's ack, result, or error for one command.
+type ClientCommandResponse struct {
+	CommandID string                      `json:"command_id"`
+	Status    ClientCommandResponseStatus `json:"status"`
+	Result    json.RawMessage             `json:"result,omitempty"`
+	Error     string                      `json:"error,omitempty"`
+}
+
+// ClientCommandConnection is the live channel used to dispatch and resolve commands.
+type ClientCommandConnection interface {
+	Commands() <-chan ClientCommand
+	Done() <-chan struct{}
+	Err() error
+	Resolve(ClientCommandResponse) error
+	Close() error
 }
 
 // Actor records the initiator without affecting command semantics.
@@ -256,6 +332,10 @@ type Service interface {
 	Execute(context.Context, CommandRequest) (Result, error)
 	Clients(context.Context, WorkspaceID) ([]ClientView, error)
 	RegisterClient(context.Context, ClientRegistration) (ClientView, error)
+	UpdateClientContext(context.Context, ClientContextUpdate) (ClientView, error)
+	AuthorizeClient(context.Context, WorkspaceID, ClientID, string) error
+	AttachClientCommands(context.Context, WorkspaceID, ClientID) (ClientCommandConnection, error)
+	DispatchClientCommand(context.Context, WorkspaceID, ClientID, ClientCommand) (ClientCommandResponse, error)
 	UnregisterClient(context.Context, WorkspaceID, ClientID) error
 	ExportLayout(context.Context, WorkspaceID) (LayoutDocument, error)
 	ValidateLayout(context.Context, WorkspaceID, LayoutDocument) (Validation, error)

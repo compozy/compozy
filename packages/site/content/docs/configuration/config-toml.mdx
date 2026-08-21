@@ -34,6 +34,7 @@ Unknown TOML keys are errors. Sandbox profiles are implemented under `[sandboxes
 | `[app]`                              | Desktop app update-check policy.                                                     | checks enabled every 6 hours                                                                          |
 | `[attention]`                        | Live operator notification delivery and per-workspace mute policy.                   | toasts and sound on, system notifications off, no muted workspaces                                    |
 | `[shell.sessions]`                   | Live operator preferences for the session list.                                      | last-activity order, recent sessions                                                                  |
+| `[cmd_palette]`                      | Command fallback targets, personalization, and workspace aliases.                    | agent fallback target, personalization on, no aliases                                                 |
 | `[window_manager]`                   | Live virtual-desktop, focus, snap, layout, transition, and shortcut defaults.        | floating windows, adaptive stacks, 50-entry history, slide transition                                 |
 | `[defaults]`                         | Default agent, provider, and sandbox resolution.                                     | `agent = "general"`, `provider = ""`, `sandbox = ""`                                                  |
 | `[roles.coordinator]`                | Coordinator routing plus coordinator-owned session limits.                           | disabled, builtin `coordinator`, TTL 2 hours, 5 children, 5 active sessions/workspace                 |
@@ -161,6 +162,16 @@ muted_workspaces = []
 sort = "last_activity"
 # Session breadth: "recent", "all", or "all-workspaces".
 scope = "recent"
+
+[cmd_palette]
+# The current runtime accepts "agent". Use [] to disable the fallback row.
+fallback_targets = ["agent"]
+# Keep workspace ranking signals and recents enabled.
+personalization = true
+
+[cmd_palette.aliases]
+# Aliases are workspace vocabulary used by the palette and CLI.
+"session.new" = "new"
 
 [window_manager]
 new_window_policy = "floating"
@@ -966,6 +977,29 @@ Both fields have the `live` lifecycle. The daemon stores them in global `config.
 preference survives browser restarts without browser-local storage. Workspace overlays and
 workspace-scoped CLI or native-tool writes are rejected.
 
+## `[cmd_palette]`
+
+Command-palette settings are global desired state with workspace overrides. Changes apply live as
+one validated candidate. The typed Settings surface exposes the agent fallback and
+`personalization`; aliases remain available through `compozy config` and `config.toml`.
+
+| Field              | Type         | Default     | Validation                                    | Description                                       |
+| ------------------ | ------------ | ----------- | --------------------------------------------- | ------------------------------------------------- |
+| `fallback_targets` | string array | `["agent"]` | Empty, or the single supported value `agent`. | Enables or disables the agent fallback row.       |
+| `personalization`  | boolean      | `true`      | `true` or `false`                             | Controls workspace personalization desired state. |
+
+With `fallback_targets = ["agent"]`, a non-empty query without a strong result can show
+`Ask agent: '<query>'`. Selecting it with Enter creates a new session with the workspace's default
+agent and uses the query as the opening prompt. The query is not sent before Enter. Set
+`fallback_targets = []`, or turn off **Agent fallback** in Settings → Palette, to remove the row.
+
+`[cmd_palette.aliases]` maps a command ID to one workspace alias. An alias contains 1–32 Unicode
+characters with no whitespace and must be unique in the workspace. Use
+`compozy cmd-palette alias set|clear`, or send `aliases` through
+`PATCH /api/settings/window-manager`, for an atomic update. The same endpoint accepts shortcut
+changes and returns `409 shortcut_conflict`, `409 alias_conflict`, or `422 invalid_alias` without a
+partial write.
+
 ## `[window_manager]`
 
 Window-manager defaults are global desired state and may be overridden by the same typed fields in
@@ -1020,6 +1054,14 @@ members expand before full-map validation, and any duplicate rejects the whole c
 [Keyboard shortcuts](/docs/configuration/shortcuts/) for defaults, examples, and the Terminal preset.
 Named any/landscape/portrait layout profiles are declarative `window_layout` resources, not a second
 config source.
+
+### `[window_manager.global_shortcuts]`
+
+This table maps any command-palette command ID to one desktop-global chord. It defaults
+`palette.summon.global = "meta+shift+Space"`. The daemon validates and persists the intended map;
+each Electron shell reports its own registration status. Use `compozy cmd-palette bind|unbind
+--global` for atomic changes and [Global hotkeys](/docs/desktop/global-hotkeys/) for failure and
+browser-mode behavior.
 
 ## `[defaults]`
 

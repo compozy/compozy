@@ -34,6 +34,7 @@ var sdkHostControlTypes = []NamedType{
 	{Name: "ConsentArea", Value: ConsentArea{}},
 	{Name: "ExtensionManifestSummary", Value: ExtensionManifestSummary{}},
 	{Name: "ExtensionValidatePayload", Value: ExtensionValidatePayload{}},
+	{Name: "CmdPaletteConfig", Value: CmdPaletteConfig{}},
 }
 
 // SDKRootTypes returns a defensive copy of every canonical generated SDK contract root.

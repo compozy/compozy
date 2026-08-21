@@ -68,7 +68,6 @@ type stubClient struct {
 	downloadSupportBundleFn            func(context.Context, string, io.Writer) error
 	getSettingsUpdateFn                func(context.Context) (SettingsUpdateRecord, error)
 	updateSettingsSkillsFn             func(context.Context, UpdateSettingsSkillsRequest) (SettingsMutationRecord, error)
-	updateSettingsWindowManagerFn      func(context.Context, UpdateSettingsWindowManagerRequest) (SettingsMutationRecord, error)
 	updateSettingsAttentionFn          func(context.Context, UpdateSettingsAttentionRequest) (SettingsMutationRecord, error)
 	updateSettingsShellFn              func(context.Context, UpdateSettingsShellRequest) (SettingsMutationRecord, error)
 	reloadSettingsFn                   func(context.Context) (SettingsMutationRecord, error)
@@ -660,16 +659,6 @@ func (s *stubClient) UpdateSettingsSkills(
 		return s.updateSettingsSkillsFn(ctx, request)
 	}
 	return SettingsMutationRecord{}, errors.New("unexpected UpdateSettingsSkills call")
-}
-
-func (s *stubClient) UpdateSettingsWindowManager(
-	ctx context.Context,
-	request UpdateSettingsWindowManagerRequest,
-) (SettingsMutationRecord, error) {
-	if s.updateSettingsWindowManagerFn != nil {
-		return s.updateSettingsWindowManagerFn(ctx, request)
-	}
-	return SettingsMutationRecord{}, errors.New("unexpected UpdateSettingsWindowManager call")
 }
 
 func (s *stubClient) UpdateSettingsAttention(

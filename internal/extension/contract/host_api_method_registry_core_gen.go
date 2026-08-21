@@ -230,4 +230,9 @@ var hostAPIMethodSpecsCore = []HostAPIMethodSpec{
 		Params: NamedType{Name: "AgentHeartbeatWakeParams", Value: AgentHeartbeatWakeParams{}},
 		Result: NamedType{Name: "HeartbeatWakeResponse", Value: apicontract.HeartbeatWakeResponse{}},
 	},
+	{
+		Method: HostAPIMethod("view/patch"),
+		Params: NamedType{Name: "ViewFrame", Value: ViewFrame{}},
+		Result: NamedType{Name: "EmptyResult", Value: EmptyResult{}},
+	},
 }

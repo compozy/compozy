@@ -82,7 +82,11 @@ export class InvalidParamsError extends RPCError<Record<string, JSONValue>> {
 
 export class InternalError extends RPCError<Record<string, JSONValue>> {
   public constructor(error: string) {
-    super(-32603, "Internal error", { error });
+    super(-32603, error, { error });
+  }
+
+  public override toJSONRPC(): JSONRPCErrorObject<Record<string, JSONValue>> {
+    return { code: this.code, message: "Internal error", data: this.data ?? {} };
   }
 }
 
@@ -130,6 +134,10 @@ export function errorFromObject(error: JSONRPCErrorObject): RPCError {
       return new InvalidParamsError(
         String((error.data as { error?: unknown } | undefined)?.error ?? error.message),
         (error.data as Record<string, JSONValue> | undefined) ?? {}
+      );
+    case -32603:
+      return new InternalError(
+        String((error.data as { error?: unknown } | undefined)?.error ?? error.message)
       );
     case -32001:
       return new CapabilityDeniedError((error.data as CapabilityDeniedData | undefined) ?? {});

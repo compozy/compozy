@@ -7,7 +7,9 @@ import (
 	"strings"
 	"time"
 
+	"github.com/compozy/compozy/internal/api/contract"
 	settingspkg "github.com/compozy/compozy/internal/settings"
+	"github.com/compozy/compozy/internal/windowmanager"
 	"github.com/gin-gonic/gin"
 )
 
@@ -171,7 +173,47 @@ func (h *BaseHandlers) UpdateSettingsWindowManager(c *gin.Context) {
 		h.respondError(c, StatusForSettingsError(err), err)
 		return
 	}
-	h.updateSettingsSection(c, req)
+	h.updateSettingsSectionEcho(c, req, h.respondWindowManagerMutationError)
+}
+
+// GetSettingsCmdPalette returns the command-palette settings section.
+func (h *BaseHandlers) GetSettingsCmdPalette(c *gin.Context) {
+	h.getSettingsSection(c, settingspkg.SectionCmdPalette)
+}
+
+// UpdateSettingsCmdPalette persists command-palette personalization settings.
+func (h *BaseHandlers) UpdateSettingsCmdPalette(c *gin.Context) {
+	req, err := parseUpdateSettingsCmdPaletteRequest(c)
+	if err != nil {
+		h.respondError(c, StatusForSettingsError(err), err)
+		return
+	}
+	h.updateSettingsSectionEcho(c, req, nil)
+}
+
+func (h *BaseHandlers) respondWindowManagerMutationError(c *gin.Context, err error) bool {
+	var shortcutConflict *windowmanager.ShortcutConflictError
+	if errors.As(err, &shortcutConflict) {
+		c.JSON(http.StatusConflict, contract.SettingsWindowManagerMutationError{
+			Error: "shortcut_conflict", Owner: shortcutConflict.Owner, Chord: shortcutConflict.Chord,
+		})
+		return true
+	}
+	var aliasConflict *settingspkg.AliasConflictError
+	if errors.As(err, &aliasConflict) {
+		c.JSON(http.StatusConflict, contract.SettingsWindowManagerMutationError{
+			Error: "alias_conflict", Owner: aliasConflict.Owner, Alias: aliasConflict.Alias,
+		})
+		return true
+	}
+	var invalidAlias *settingspkg.InvalidAliasError
+	if errors.As(err, &invalidAlias) {
+		c.JSON(http.StatusUnprocessableEntity, contract.SettingsWindowManagerMutationError{
+			Error: "invalid_alias", Message: invalidAlias.Error(),
+		})
+		return true
+	}
+	return false
 }
 
 // GetSettingsAttention returns the operator attention settings section.

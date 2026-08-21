@@ -14,6 +14,10 @@ import { SettingsWindowNav } from "./settings-window-nav";
 import { SETTINGS_SECTIONS } from "@/systems/settings";
 import { useDaemonConnectionStatus } from "@/systems/status";
 
+interface SettingsSectionPageProps {
+  focusCommandId?: string;
+}
+
 /**
  * Section pages stay in their route-colocated modules (the views are rehosted
  * unchanged); each loads on demand so the settings window ships no section
@@ -70,6 +74,11 @@ const SECTION_PAGES = {
       default: m.GatewaySettingsPage,
     }))
   ),
+  palette: lazy(() =>
+    import("@/routes/_app/settings/-palette-settings-page").then(m => ({
+      default: m.PaletteSettingsPage,
+    }))
+  ),
   attention: lazy(() =>
     import("@/routes/_app/settings/-attention-settings-page").then(m => ({
       default: m.AttentionSettingsPage,
@@ -90,7 +99,7 @@ const SECTION_PAGES = {
       default: m.ExtensionsSettingsPage,
     }))
   ),
-} satisfies Partial<Record<string, LazyExoticComponent<ComponentType>>>;
+} satisfies Partial<Record<string, LazyExoticComponent<ComponentType<SettingsSectionPageProps>>>>;
 
 type MappedSectionSlug = keyof typeof SECTION_PAGES;
 
@@ -107,13 +116,23 @@ function sectionSlugFromPathname(pathname: string): MappedSectionSlug {
  * keeps showing its own section (ADR-002 rule 6).
  */
 const TYPING_TAGS = /^(INPUT|SELECT|TEXTAREA)$/;
+const DEFAULT_SETTINGS_ROUTE = { pathname: "/settings", search: {} } as const;
+
+function focusCommandFromSearch(search: Record<string, unknown>): string | undefined {
+  const command = search.command;
+  if (typeof command !== "string") return undefined;
+  const normalized = command.trim();
+  return normalized === "" ? undefined : normalized;
+}
 
 export function SettingsWindow({ windowId }: { windowId: string }) {
-  const pathname = useDesktop(state => state.windows[windowId]?.route.pathname ?? "/settings");
+  const route = useDesktop(state => state.windows[windowId]?.route ?? DEFAULT_SETTINGS_ROUTE);
   const searchInputRef = useRef<HTMLInputElement>(null);
   const connection = useDaemonConnectionStatus();
-  const activeSlug = sectionSlugFromPathname(pathname);
+  const activeSlug = sectionSlugFromPathname(route.pathname);
   const SectionPage = SECTION_PAGES[activeSlug];
+  const focusCommandId =
+    activeSlug === "layouts" ? focusCommandFromSearch(route.search) : undefined;
 
   // Window-scoped `/` shortcut: focus the sidebar search unless the user is
   // already typing in a field.
@@ -147,7 +166,7 @@ export function SettingsWindow({ windowId }: { windowId: string }) {
               </div>
             }
           >
-            <SectionPage />
+            <SectionPage focusCommandId={focusCommandId} />
           </Suspense>
         </div>
       </div>

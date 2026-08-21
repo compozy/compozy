@@ -6,6 +6,7 @@ import (
 	automationmodel "github.com/compozy/compozy/internal/automation/model"
 	compozyconfig "github.com/compozy/compozy/internal/config"
 	skillspkg "github.com/compozy/compozy/internal/skills"
+	"github.com/compozy/compozy/internal/windowmanager"
 )
 
 // AutomationSettings groups the editable automation-engine settings.
@@ -67,7 +68,51 @@ type GatewaySection struct {
 
 // WindowManagerSection is the window-manager section read model.
 type WindowManagerSection struct {
-	Config compozyconfig.WindowManagerConfig
+	Config             compozyconfig.WindowManagerConfig
+	Commands           []WindowManagerShortcutCommand
+	EffectiveShortcuts map[string]windowmanager.ShortcutBinding
+	Aliases            map[string]string
+	ExtensionDefaults  []WindowManagerExtensionDefault
+	Diagnostics        []windowmanager.ShortcutDiagnostic
+	GlobalShortcuts    []WindowManagerGlobalShortcut
+}
+
+// WindowManagerGlobalShortcut projects intended and shell-confirmed global binding state.
+type WindowManagerGlobalShortcut struct {
+	CommandID     string
+	IntendedChord string
+	ActiveChord   string
+	Status        string
+	Reason        string
+	SettingsURL   string
+}
+
+// WindowManagerShortcutCommand identifies one bindable command in the current catalog.
+type WindowManagerShortcutCommand struct {
+	ID      string
+	Title   string
+	Section string
+	Source  string
+}
+
+// WindowManagerExtensionDefault reserves the response shape populated by extension contributions.
+type WindowManagerExtensionDefault struct {
+	CommandID    string
+	Binding      windowmanager.ShortcutBinding
+	Dormant      bool
+	ConflictWith string
+}
+
+// CmdPaletteSection is the command-palette settings read model.
+type CmdPaletteSection struct {
+	FallbackAgentEnabled bool
+	Personalization      bool
+}
+
+// CmdPaletteUpdate changes either live command-palette control while preserving omitted values.
+type CmdPaletteUpdate struct {
+	FallbackAgentEnabled *bool
+	Personalization      *bool
 }
 
 // AttentionSection is the operator attention section read model.
@@ -212,6 +257,33 @@ type InstalledExtension struct {
 	LastError     string
 	RequiresEnv   []string
 	MissingEnv    []string
+	Palette       *InstalledExtensionPalette
+}
+
+// InstalledExtensionPalette is the operator-facing palette contribution summary.
+type InstalledExtensionPalette struct {
+	Commands []InstalledExtensionPaletteCommand
+	Views    []InstalledExtensionPaletteView
+}
+
+// InstalledExtensionPaletteCommand reports one command and its effective shortcut state.
+type InstalledExtensionPaletteCommand struct {
+	ID             string
+	Title          string
+	Bindings       []string
+	DefaultBinding string
+	DefaultDormant bool
+	ConflictWith   string
+	Available      bool
+	Reason         string
+}
+
+// InstalledExtensionPaletteView reports one contributed view.
+type InstalledExtensionPaletteView struct {
+	ID        string
+	Title     string
+	Available bool
+	Reason    string
 }
 
 // SourceRef identifies one semantic source for a resolved resource.

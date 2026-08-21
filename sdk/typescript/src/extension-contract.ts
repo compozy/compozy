@@ -50,6 +50,7 @@ export interface ExtensionContext {
   readonly requestId: string | number;
   readonly host: HostAPI;
   readonly session: ExtensionSession;
+  readonly signal: AbortSignal;
   log: (...values: unknown[]) => void;
 }
 

@@ -112,7 +112,7 @@ func newTaskGetCommand(deps commandDeps) *cobra.Command {
 
 func newTaskInspectCommand(deps commandDeps) *cobra.Command {
 	return &cobra.Command{
-		Use:   "inspect <id>",
+		Use:   cliInspectIDUse,
 		Short: "Inspect a task or run with diagnostics",
 		Args:  exactOneNonBlankArg(),
 		RunE: func(cmd *cobra.Command, args []string) error {

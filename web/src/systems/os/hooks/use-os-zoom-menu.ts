@@ -4,8 +4,10 @@ import { useSelector, useStore } from "@xstate/store-react";
 
 import type { OsArrangePreset } from "../lib/os-types";
 import { arrangePeerWindows } from "../lib/window-manager-navigation";
-import { dispatchWindowPlacement } from "../lib/window-manager-action-dispatch";
-import type { WindowPlacementCommand } from "../lib/window-manager-command-registry";
+import {
+  dispatchWindowPlacement,
+  type WindowPlacementPreset,
+} from "../lib/window-placement-presets";
 import { windowManagerCommandsAvailable } from "../lib/window-manager-command-availability";
 import { useDesktop } from "./use-desktop";
 import { useOsShell } from "./use-os-shell";
@@ -27,7 +29,7 @@ export interface OsZoomMenuModel {
   placementEnabled: boolean;
   /** Arrange presets need at least one other visible window (truthful UI). */
   arrangeEnabled: boolean;
-  dispatchPlacement(command: WindowPlacementCommand): void;
+  dispatchPlacement(preset: WindowPlacementPreset): void;
   dispatchMakeFloating(): void;
   dispatchFill(): void;
   dispatchArrange(preset: OsArrangePreset): void;
@@ -77,11 +79,11 @@ export function useOsZoomMenu(windowId: string): OsZoomMenuModel {
     },
     onHoverLeave: () => store.trigger.hoverLeft(),
     onContentEnter: () => store.trigger.contentEntered(),
-    dispatchPlacement: command =>
+    dispatchPlacement: preset =>
       dispatch(() => {
         const state = manager.getState();
         if (windowManagerCommandsAvailable(state) && state.windowManagerConfig !== null) {
-          dispatchWindowPlacement(manager, windowId, command);
+          dispatchWindowPlacement(manager, windowId, preset);
         }
       }),
     dispatchMakeFloating: () =>

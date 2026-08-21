@@ -2033,6 +2033,8 @@ func (h *extensionHelperServer) run() int {
 
 func (h *extensionHelperServer) handleRequest(req helperRequest) error {
 	switch req.Method {
+	case "$/cancelRequest":
+		return nil
 	case "initialize":
 		var params subprocess.InitializeRequest
 		if err := json.Unmarshal(req.Params, &params); err != nil {

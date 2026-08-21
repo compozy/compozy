@@ -7,6 +7,112 @@ import (
 	"time"
 )
 
+type DeliveryErrorDetail struct {
+	Message string `json:"message"`
+}
+
+type DeliveryEvent struct {
+	DeliveryID       string                    `json:"delivery_id"`
+	BridgeInstanceID string                    `json:"bridge_instance_id"`
+	RoutingKey       RoutingKey                `json:"routing_key"`
+	DeliveryTarget   DeliveryTarget            `json:"delivery_target"`
+	Seq              int64                     `json:"seq"`
+	EventType        DeliveryEventType         `json:"event_type"`
+	Content          MessageContent            `json:"content"`
+	Final            bool                      `json:"final"`
+	Operation        DeliveryOperation         `json:"operation,omitempty"`
+	Reference        *DeliveryMessageReference `json:"reference,omitempty"`
+	Error            *DeliveryErrorDetail      `json:"error,omitempty"`
+	Resume           *DeliveryResumeState      `json:"resume,omitempty"`
+	Progress         *ToolProgress             `json:"progress,omitempty"`
+	ProviderMetadata json.RawMessage           `json:"provider_metadata,omitempty"`
+}
+
+type DeliveryEventType string
+
+type DeliveryMessageReference struct {
+	DeliveryID      string `json:"delivery_id,omitempty"`
+	RemoteMessageID string `json:"remote_message_id,omitempty"`
+}
+
+type DeliveryMode string
+
+type DeliveryOperation string
+
+type DeliveryRequest struct {
+	Event    DeliveryEvent     `json:"event"`
+	Snapshot *DeliverySnapshot `json:"snapshot,omitempty"`
+}
+
+type DeliveryResumeState struct {
+	LatestEventType DeliveryEventType `json:"latest_event_type"`
+}
+
+type DeliverySnapshot struct {
+	DeliveryID             string                    `json:"delivery_id"`
+	SessionID              string                    `json:"session_id"`
+	TurnID                 string                    `json:"turn_id"`
+	BridgeInstanceID       string                    `json:"bridge_instance_id"`
+	RoutingKey             RoutingKey                `json:"routing_key"`
+	DeliveryTarget         DeliveryTarget            `json:"delivery_target"`
+	LatestSeq              int64                     `json:"latest_seq"`
+	LatestEventType        DeliveryEventType         `json:"latest_event_type"`
+	CurrentContent         MessageContent            `json:"current_content"`
+	Operation              DeliveryOperation         `json:"operation,omitempty"`
+	Reference              *DeliveryMessageReference `json:"reference,omitempty"`
+	ProviderMetadata       json.RawMessage           `json:"provider_metadata,omitempty"`
+	LastSentSeq            int64                     `json:"last_sent_seq,omitempty"`
+	LastAckedSeq           int64                     `json:"last_acked_seq,omitempty"`
+	RemoteMessageID        string                    `json:"remote_message_id,omitempty"`
+	ReplaceRemoteMessageID string                    `json:"replace_remote_message_id,omitempty"`
+	Final                  bool                      `json:"final"`
+	Error                  string                    `json:"error,omitempty"`
+	UpdatedAt              time.Time                 `json:"updated_at"`
+}
+
+type DeliveryTarget struct {
+	BridgeInstanceID string       `json:"bridge_instance_id"`
+	PeerID           string       `json:"peer_id,omitempty"`
+	ThreadID         string       `json:"thread_id,omitempty"`
+	GroupID          string       `json:"group_id,omitempty"`
+	Mode             DeliveryMode `json:"mode,omitempty"`
+}
+
+type DependencyKind string
+
+type DescribeNetworkParticipation struct {
+	Required      bool     `json:"required"`
+	Mode          string   `json:"mode"`
+	ChannelScopes []string `json:"channel_scopes,omitempty"`
+}
+
+type DescribePayload struct {
+	Name                 string                           `json:"name"`
+	Version              string                           `json:"version"`
+	Description          string                           `json:"description,omitempty"`
+	Provides             []string                         `json:"provides"`
+	Permissions          []string                         `json:"permissions"`
+	RequiresEnv          []string                         `json:"requires_env,omitempty"`
+	Resources            DescribeResources                `json:"resources"`
+	Subprocess           DescribeSubprocess               `json:"subprocess"`
+	NetworkParticipation *DescribeNetworkParticipation    `json:"network_participation,omitempty"`
+	Tools                []ExtensionToolRuntimeDescriptor `json:"tools,omitempty"`
+	HookEvents           []string                         `json:"hook_events,omitempty"`
+	WatchSourceKinds     []string                         `json:"watch_source_kinds,omitempty"`
+	CmdPaletteViews      []string                         `json:"cmd_palette_views,omitempty"`
+	CommandGroups        []ExtensionCommandGroupSpec      `json:"command_groups,omitempty"`
+	SDK                  DescribeSDKInfo                  `json:"sdk"`
+}
+
+type DescribeResources struct {
+	Skills     []string         `json:"skills,omitempty"`
+	Loops      []string         `json:"loops,omitempty"`
+	Agents     []string         `json:"agents,omitempty"`
+	Automation []string         `json:"automation,omitempty"`
+	Layouts    []string         `json:"layouts,omitempty"`
+	CmdPalette CmdPaletteConfig `json:"cmd_palette,omitzero"`
+}
+
 type DescribeSDKInfo struct {
 	Name              string `json:"name"`
 	Version           string `json:"version"`
@@ -20,9 +126,36 @@ type DescribeSubprocess struct {
 	Env     map[string]string `json:"env,omitempty"`
 }
 
+type DetailBody struct {
+	IsLoading bool        `json:"is_loading,omitempty"`
+	Markdown  string      `json:"markdown,omitempty"`
+	Metadata  []MetaField `json:"metadata,omitempty"`
+	Actions   []RowAction `json:"actions,omitempty"`
+}
+
+type Effect struct {
+	ID        string           `json:"id"`
+	Toast     *ToastEffect     `json:"toast,omitempty"`
+	Copy      *CopyEffect      `json:"copy,omitempty"`
+	OpenURL   *OpenURLEffect   `json:"open_url,omitempty"`
+	OpenApp   *OpenAppEffect   `json:"open_app,omitempty"`
+	PickFiles *PickFilesEffect `json:"pick_files,omitempty"`
+}
+
+type EffectResult struct {
+	EffectID string          `json:"effect_id"`
+	Payload  json.RawMessage `json:"payload,omitempty"`
+}
+
 type Effort string
 
 type EmptyResult struct{}
+
+type EmptyState struct {
+	Title string `json:"title"`
+	Hint  string `json:"hint,omitempty"`
+	Icon  string `json:"icon,omitempty"`
+}
 
 type EventPostRecordPatch struct {
 	Labels map[string]string `json:"labels,omitempty"`
@@ -48,151 +181,4 @@ type EventPostRecordPayload struct {
 	RecordType     string          `json:"record_type,omitempty"`
 	Sequence       int64           `json:"sequence,omitempty"`
 	Content        json.RawMessage `json:"content,omitempty"`
-}
-
-type EventPreRecordPatch struct {
-	Labels map[string]string `json:"labels,omitempty"`
-}
-
-type EventPreRecordPayload struct {
-	Event          HookEvent       `json:"event"`
-	Timestamp      time.Time       `json:"timestamp"`
-	SessionID      string          `json:"session_id,omitempty"`
-	SessionName    string          `json:"session_name,omitempty"`
-	SessionType    string          `json:"session_type,omitempty"`
-	AgentName      string          `json:"agent_name,omitempty"`
-	WorkspaceID    string          `json:"workspace_id,omitempty"`
-	Workspace      string          `json:"workspace,omitempty"`
-	WorktreeID     string          `json:"worktree_id,omitempty"`
-	ACPSessionID   string          `json:"acp_session_id,omitempty"`
-	State          string          `json:"state,omitempty"`
-	SoulSnapshotID string          `json:"soul_snapshot_id,omitempty"`
-	SoulDigest     string          `json:"soul_digest,omitempty"`
-	CreatedAt      time.Time       `json:"created_at"`
-	UpdatedAt      time.Time       `json:"updated_at"`
-	TurnID         string          `json:"turn_id,omitempty"`
-	RecordType     string          `json:"record_type,omitempty"`
-	Sequence       int64           `json:"sequence,omitempty"`
-	Content        json.RawMessage `json:"content,omitempty"`
-}
-
-type EventRecordPatch struct {
-	Labels map[string]string `json:"labels,omitempty"`
-}
-
-type EventRecordPayload struct {
-	Event          HookEvent       `json:"event"`
-	Timestamp      time.Time       `json:"timestamp"`
-	SessionID      string          `json:"session_id,omitempty"`
-	SessionName    string          `json:"session_name,omitempty"`
-	SessionType    string          `json:"session_type,omitempty"`
-	AgentName      string          `json:"agent_name,omitempty"`
-	WorkspaceID    string          `json:"workspace_id,omitempty"`
-	Workspace      string          `json:"workspace,omitempty"`
-	WorktreeID     string          `json:"worktree_id,omitempty"`
-	ACPSessionID   string          `json:"acp_session_id,omitempty"`
-	State          string          `json:"state,omitempty"`
-	SoulSnapshotID string          `json:"soul_snapshot_id,omitempty"`
-	SoulDigest     string          `json:"soul_digest,omitempty"`
-	CreatedAt      time.Time       `json:"created_at"`
-	UpdatedAt      time.Time       `json:"updated_at"`
-	TurnID         string          `json:"turn_id,omitempty"`
-	RecordType     string          `json:"record_type,omitempty"`
-	Sequence       int64           `json:"sequence,omitempty"`
-	Content        json.RawMessage `json:"content,omitempty"`
-}
-
-type ExtensionCommandGroupSpec struct {
-	Path    string `json:"path"`
-	Summary string `json:"summary"`
-}
-
-type ExtensionCommandSpec struct {
-	Verb    string            `json:"verb"`
-	Summary string            `json:"summary"`
-	Example string            `json:"example,omitempty"`
-	Flags   map[string]string `json:"flags,omitempty"`
-}
-
-type ExtensionManifestSummary struct {
-	Name              string   `json:"name"`
-	Version           string   `json:"version"`
-	Description       string   `json:"description,omitempty"`
-	MinCompozyVersion string   `json:"min_compozy_version"`
-	Provides          []string `json:"provides"`
-	Permissions       []string `json:"permissions"`
-}
-
-type ExtensionProvideToolsResponse struct {
-	Tools []ExtensionToolRuntimeDescriptor `json:"tools"`
-}
-
-type ExtensionToolCallRequest struct {
-	ToolID           ToolID                       `json:"tool_id"`
-	Handler          string                       `json:"handler"`
-	SessionID        string                       `json:"session_id,omitempty"`
-	InvocationID     string                       `json:"invocation_id,omitempty"`
-	TrustedWorkspace *ExtensionToolWorkspaceScope `json:"trusted_workspace,omitempty"`
-	Input            json.RawMessage              `json:"input"`
-}
-
-type ExtensionToolCallResponse struct {
-	Result ToolResult `json:"result"`
-}
-
-type ExtensionToolRuntimeDescriptor struct {
-	ID                  ToolID                `json:"id"`
-	Handler             string                `json:"handler"`
-	Description         string                `json:"description,omitempty"`
-	FriendlyVerb        string                `json:"friendly_verb,omitempty"`
-	Preview             string                `json:"preview,omitempty"`
-	InputSchema         json.RawMessage       `json:"input_schema,omitempty"`
-	OutputSchema        json.RawMessage       `json:"output_schema,omitempty"`
-	InputSchemaDigest   string                `json:"input_schema_digest"`
-	OutputSchemaDigest  string                `json:"output_schema_digest,omitempty"`
-	ReadOnly            bool                  `json:"read_only"`
-	Risk                RiskClass             `json:"risk"`
-	RequiresInteraction bool                  `json:"requires_interaction"`
-	Capabilities        []string              `json:"capabilities,omitempty"`
-	Command             *ExtensionCommandSpec `json:"command,omitempty"`
-}
-
-type ExtensionToolWorkspaceScope struct {
-	ID   string `json:"id"`
-	Root string `json:"root"`
-}
-
-type ExtensionValidatePayload struct {
-	Status       string                         `json:"status"`
-	Format       string                         `json:"format"`
-	Name         string                         `json:"name,omitempty"`
-	Version      string                         `json:"version,omitempty"`
-	WouldIngest  []ExtensionValidationComponent `json:"would_ingest,omitempty"`
-	Manifest     *ExtensionManifestSummary      `json:"manifest,omitempty"`
-	Issues       []ValidationIssue              `json:"issues"`
-	ConsentAreas []ConsentArea                  `json:"consent_areas,omitempty"`
-}
-
-type ExtensionValidationComponent struct {
-	Kind      string `json:"kind"`
-	Name      string `json:"name"`
-	Transport string `json:"transport,omitempty"`
-}
-
-type FailureHealth struct {
-	Status string                 `json:"status"`
-	Total  int                    `json:"total"`
-	ByKind map[FailureKind]int    `json:"by_kind,omitempty"`
-	Recent []SessionFailureHealth `json:"recent,omitempty"`
-}
-
-type FailureKind string
-
-type FireLimitConfig struct {
-	Max    int    `json:"max"`
-	Window string `json:"window"`
-}
-
-type ForgeCapabilitiesRequest struct {
-	RemoteURLs []string `json:"remote_urls"`
 }

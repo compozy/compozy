@@ -9,6 +9,7 @@ import (
 	"strings"
 	"sync"
 
+	"github.com/compozy/compozy/internal/cmdpalette"
 	compozyconfig "github.com/compozy/compozy/internal/config"
 	"github.com/compozy/compozy/internal/marketplace"
 	mcpauth "github.com/compozy/compozy/internal/mcp/auth"
@@ -80,6 +81,11 @@ type ExtensionStatusProvider interface {
 // TransportParityProvider returns settings transport parity metadata.
 type TransportParityProvider interface {
 	TransportParityStatus(ctx context.Context) (TransportParityStatus, error)
+}
+
+// CmdPaletteCatalog returns the workspace command catalog used by shortcut settings.
+type CmdPaletteCatalog interface {
+	Catalog(context.Context, cmdpalette.WorkspaceID, cmdpalette.ClientID) (cmdpalette.Catalog, error)
 }
 
 // MCPAuthRuntimeProvider owns daemon-mediated MCP OAuth sessions and status.
@@ -179,6 +185,7 @@ type Dependencies struct {
 	ObservabilityRuntime        ObservabilityRuntimeProvider
 	Extensions                  ExtensionStatusProvider
 	TransportParity             TransportParityProvider
+	CmdPalette                  CmdPaletteCatalog
 	MCPAuth                     MCPAuthRuntimeProvider
 	MCPRuntime                  MCPRuntimeProvider
 	MCPCatalog                  MCPCatalog
@@ -209,6 +216,7 @@ type service struct {
 	observabilityRuntime        ObservabilityRuntimeProvider
 	extensions                  ExtensionStatusProvider
 	transportParity             TransportParityProvider
+	cmdPalette                  CmdPaletteCatalog
 	mcpAuth                     MCPAuthRuntimeProvider
 	mcpRuntime                  MCPRuntimeProvider
 	mcpCatalog                  MCPCatalog
@@ -266,6 +274,7 @@ func NewService(homePaths compozyconfig.HomePaths, deps Dependencies) (Service, 
 		observabilityRuntime:        deps.ObservabilityRuntime,
 		extensions:                  deps.Extensions,
 		transportParity:             deps.TransportParity,
+		cmdPalette:                  deps.CmdPalette,
 		mcpAuth:                     deps.MCPAuth,
 		mcpRuntime:                  deps.MCPRuntime,
 		mcpCatalog:                  deps.MCPCatalog,

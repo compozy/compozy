@@ -1,69 +1,65 @@
-import { Fragment } from "react";
+import { MenubarContent, MenubarMenu, MenubarTrigger } from "@compozy/ui";
 
-import {
-  MenubarContent,
-  MenubarItem,
-  MenubarMenu,
-  MenubarSeparator,
-  MenubarShortcut,
-  MenubarTrigger,
-} from "@compozy/ui";
-
+import { usePaletteRegistry } from "../../hooks/use-palette-registry";
 import { dockApps } from "../../lib/app-registry";
-import type { OsAppId } from "../../lib/os-types";
+import { MenubarCommandGroups } from "./menubar-command-groups";
+import { MenubarCommandItem } from "./menubar-command-item";
 
 export interface GoMenuProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  /** Opening an app window needs a live window-manager client. */
-  canOpenApps: boolean;
-  onOpenPalette: () => void;
-  onOpenApp: (app: OsAppId) => void;
-  onOpenWorkspaces: () => void;
-  paletteShortcutLabel?: string;
+  /** Runs a registry command through the one dispatch seam. */
+  onRun: (commandId: string) => void;
 }
 
 /**
  * Navigation menu. Groups and order mirror the dock strip exactly, so the two
- * ways to reach a surface teach the same map (recognition over recall).
+ * ways to reach a surface teach the same map (recognition over recall). The
+ * app rows themselves are `app.open.*` registry commands, so their availability
+ * tracks the live client instead of a locally-computed flag.
  */
-export function GoMenu({
-  open,
-  onOpenChange,
-  canOpenApps,
-  onOpenPalette,
-  onOpenApp,
-  onOpenWorkspaces,
-  paletteShortcutLabel,
-}: GoMenuProps) {
+export function GoMenu({ open, onOpenChange, onRun }: GoMenuProps) {
+  const registry = usePaletteRegistry();
+  const has = (commandId: string) => registry.byId.has(commandId);
+  const dockGroups = dockApps().reduce<ReturnType<typeof dockApps>>((groups, group) => {
+    const available = group.filter(app => has(`app.open.${app.id}`));
+    if (available.length > 0) groups.push(available);
+    return groups;
+  }, []);
   return (
     <MenubarMenu open={open} onOpenChange={onOpenChange}>
       <MenubarTrigger>Go</MenubarTrigger>
       <MenubarContent align="start" data-testid="os-menu-go">
-        <MenubarItem data-testid="os-menu-palette" onClick={onOpenPalette}>
-          Command palette…
-          {paletteShortcutLabel ? <MenubarShortcut>{paletteShortcutLabel}</MenubarShortcut> : null}
-        </MenubarItem>
-        {dockApps().map(group => (
-          <Fragment key={group[0].id}>
-            <MenubarSeparator />
-            {group.map(app => (
-              <MenubarItem
-                key={app.id}
-                data-testid={`os-menu-app-${app.id}`}
-                disabled={!canOpenApps}
-                onClick={() => onOpenApp(app.id)}
-              >
-                <app.icon className="size-3.5 text-muted" />
-                {app.title}
-              </MenubarItem>
-            ))}
-          </Fragment>
-        ))}
-        <MenubarSeparator />
-        <MenubarItem data-testid="os-menu-workspaces-overview" onClick={onOpenWorkspaces}>
-          Workspaces…
-        </MenubarItem>
+        <MenubarCommandGroups
+          groups={[
+            {
+              id: "palette",
+              content: has("palette.open") ? (
+                <MenubarCommandItem commandId="palette.open" onRun={onRun} />
+              ) : null,
+            },
+            ...dockGroups.map(group => ({
+              id: `apps:${group.map(app => app.id).join(",")}`,
+              content: (
+                <>
+                  {group.map(app => (
+                    <MenubarCommandItem
+                      commandId={`app.open.${app.id}`}
+                      key={app.id}
+                      onRun={onRun}
+                    />
+                  ))}
+                </>
+              ),
+            })),
+            {
+              id: "workspace",
+              content: has("workspace.picker") ? (
+                <MenubarCommandItem commandId="workspace.picker" onRun={onRun} />
+              ) : null,
+            },
+          ]}
+        />
       </MenubarContent>
     </MenubarMenu>
   );

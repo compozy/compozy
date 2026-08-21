@@ -538,37 +538,40 @@ func TestManagerDevelopmentLifecycle(t *testing.T) {
 		}
 	})
 
-	t.Run("Should retain the active generation authority after a failed reload", func(t *testing.T) {
+	t.Run("Should retain the active generation and palette projection after a failed reload [UT-063,IT-018]", func(t *testing.T) {
 		t.Parallel()
 
 		env := newRegistryTestEnv(t)
 		workspace := newDevTestWorkspace(t, "workspace-last-good")
 		origin := filepath.Join(workspace.RootDir, "resilient-extension")
 		goodHash := writeDevTestGenerationFiles(t, origin, map[string]string{
-			manifestJSONFileName: extensionToolManifestJSON(
+			manifestJSONFileName: extensionToolPaletteManifestJSON(
 				"resilient",
 				helperCommand(t),
 				helperArgs(),
 				helperEnv("tool_call_generation_marker", "first"),
 				true,
+				"First search",
 			),
 		})
 		badHash := writeDevTestGenerationFiles(t, origin, map[string]string{
-			manifestJSONFileName: extensionToolManifestJSON(
+			manifestJSONFileName: extensionToolPaletteManifestJSON(
 				"resilient",
 				"./missing-extension-binary",
 				nil,
 				nil,
 				true,
+				"Broken search",
 			),
 		})
 		secondHash := writeDevTestGenerationFiles(t, origin, map[string]string{
-			manifestJSONFileName: extensionToolManifestJSON(
+			manifestJSONFileName: extensionToolPaletteManifestJSON(
 				"resilient",
 				helperCommand(t),
 				helperArgs(),
 				helperEnv("tool_call_generation_marker", "second"),
 				true,
+				"Second search",
 			),
 		})
 		sourceSessions := &recordingSourceSessionManager{}
@@ -585,6 +588,7 @@ func TestManagerDevelopmentLifecycle(t *testing.T) {
 		); err != nil {
 			t.Fatalf("LinkDevelopmentFromOrigin() error = %v", err)
 		}
+		assertCmdPaletteTitle(t, manager, workspace.WorkspaceID, "First search")
 
 		key := InstanceKey{Name: "resilient", WorkspaceID: workspace.WorkspaceID}
 		manager.mu.RLock()
@@ -619,6 +623,7 @@ func TestManagerDevelopmentLifecycle(t *testing.T) {
 			!strings.Contains(current.Status.LastError, extensionFailureActivationFailed) {
 			t.Fatalf("current failure = %#v, want honest activation failure", current.Status)
 		}
+		assertCmdPaletteTitle(t, manager, workspace.WorkspaceID, "First search")
 		link, err := env.registry.GetDevLink(key.Name, key.WorkspaceID)
 		if err != nil {
 			t.Fatalf("GetDevLink() error = %v", err)
@@ -658,6 +663,7 @@ func TestManagerDevelopmentLifecycle(t *testing.T) {
 		if _, err := manager.ReloadExtension(testutil.Context(t), key, secondHash); err != nil {
 			t.Fatalf("ReloadExtension(clean generation) error = %v", err)
 		}
+		assertCmdPaletteTitle(t, manager, workspace.WorkspaceID, "Second search")
 		manager.mu.RLock()
 		replaced := manager.instanceLocked(key)
 		replacedGrantID := replaced.capabilityGrantID
@@ -1645,6 +1651,46 @@ func assertDevToolGeneration(t *testing.T, manager *Manager, key InstanceKey, ma
 	want := `generation:` + marker + `:{"query":"alpha"}`
 	if len(result.Content) != 1 || result.Content[0].Text != want {
 		t.Fatalf("CallToolForInstance(%s) content = %#v, want %q", marker, result.Content, want)
+	}
+}
+
+func extensionToolPaletteManifestJSON(
+	name string,
+	command string,
+	args []string,
+	env map[string]string,
+	readOnly bool,
+	title string,
+) string {
+	payload := map[string]any{}
+	if err := json.Unmarshal([]byte(extensionToolManifestJSON(name, command, args, env, readOnly)), &payload); err != nil {
+		panic(fmt.Sprintf("decode extension tool manifest fixture: %v", err))
+	}
+	resources, ok := payload["resources"].(map[string]any)
+	if !ok {
+		panic("extension tool manifest fixture resources are missing")
+	}
+	resources["cmd_palette"] = map[string]any{
+		"commands": []map[string]any{{
+			"id": "search", "title": title, "section": "Development", "icon": "search",
+			"action": map[string]any{"kind": "tool", "tool": "search"},
+		}},
+	}
+	data, err := json.MarshalIndent(payload, "", "  ")
+	if err != nil {
+		panic(fmt.Sprintf("encode extension palette manifest fixture: %v", err))
+	}
+	return string(data)
+}
+
+func assertCmdPaletteTitle(t *testing.T, manager *Manager, workspaceID, want string) {
+	t.Helper()
+	projection, err := manager.CmdPalette(workspaceID)
+	if err != nil {
+		t.Fatalf("Manager.CmdPalette() error = %v", err)
+	}
+	if len(projection.Commands) != 1 || projection.Commands[0].Title != want {
+		t.Fatalf("Manager.CmdPalette() = %#v, want title %q", projection, want)
 	}
 }
 

@@ -50,7 +50,7 @@ export function useOsPaletteSessionsView({
   // not a preference worth round-tripping through config.
   const [archived, setArchived] = useState(false);
   const preferences = useSessionListPreferences();
-  const { workspaces, runtimeWorkspaceId } = useActiveWorkspace();
+  const { registeredWorkspaces, runtimeWorkspaceId } = useActiveWorkspace();
   const jumpToSession = useAttentionJump();
   const allWorkspaces = preferences.scope === "all-workspaces";
   const sort = sessionListSortParam(preferences.sort);
@@ -68,7 +68,7 @@ export function useOsPaletteSessionsView({
     },
   });
   const groups = useWorkspaceSessionGroups({
-    workspaces,
+    workspaces: registeredWorkspaces,
     sort: preferences.sort,
     archived,
     enabled: allWorkspaces,
@@ -83,7 +83,9 @@ export function useOsPaletteSessionsView({
   const counts = paletteSessionFilterCounts(sessions);
   const matched = filterPaletteSessions(sessions, filterId, query);
   const visible = matched.slice(0, PALETTE_SESSION_ROW_LIMIT);
-  const workspaceNames = new Map(workspaces.map(workspace => [workspace.id, workspace.name]));
+  const workspaceNames = new Map(
+    registeredWorkspaces.map(workspace => [workspace.id, workspace.name])
+  );
   const failedWorkspaceNames: string[] = [];
   if (allWorkspaces) {
     for (const group of groups) {
@@ -96,6 +98,7 @@ export function useOsPaletteSessionsView({
     rows: visible.map(session => ({
       value: `session:${session.id}`,
       testId: `os-palette-session-view-${session.id}`,
+      twoLine: true,
       node: (
         <OsPaletteSessionRow
           session={session}

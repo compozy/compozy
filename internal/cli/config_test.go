@@ -161,6 +161,23 @@ func TestConfigCommandsMutateValidateAndInspectTempHome(t *testing.T) {
 		) {
 			t.Fatalf("WindowManager.Shortcuts[window.focus.left] = %q, want %q", got, want)
 		}
+		if _, _, err := executeRootCommand(
+			t,
+			deps,
+			"config",
+			"set",
+			"window_manager.global_shortcuts.session.new",
+			"meta+shift+KeyN",
+		); err != nil {
+			t.Fatalf("config set window manager global shortcut error = %v", err)
+		}
+		configured, err = compozyconfig.LoadGlobalConfig(homePaths)
+		if err != nil {
+			t.Fatalf("LoadGlobalConfig(global shortcuts) error = %v", err)
+		}
+		if got, want := configured.WindowManager.GlobalShortcuts["session.new"], "meta+shift+KeyN"; got != want {
+			t.Fatalf("WindowManager.GlobalShortcuts[session.new] = %q, want %q", got, want)
+		}
 		discoveryOut, _, err := executeRootCommand(
 			t,
 			deps,
@@ -178,8 +195,10 @@ func TestConfigCommandsMutateValidateAndInspectTempHome(t *testing.T) {
 			t.Fatalf("json.Unmarshal(config get window_manager) error = %v", err)
 		}
 		discovery, ok := discoveryRecord.Value.(map[string]any)
-		if !ok || discovery["defaults"] == nil || discovery["effective"] == nil {
-			t.Fatalf("config get window_manager value = %#v, want defaults and effective", discoveryRecord.Value)
+		if !ok || discovery["defaults"] == nil || discovery["effective"] == nil ||
+			!strings.Contains(discoveryOut, "global_shortcuts") ||
+			!strings.Contains(discoveryOut, "session.new") {
+			t.Fatalf("config get window_manager value = %#v, want global_shortcuts.session.new", discoveryRecord.Value)
 		}
 		if _, _, invalidErr := executeRootCommand(
 			t,
@@ -420,6 +439,20 @@ func TestConfigSetReportsMutationLifecycle(t *testing.T) {
 			wantApplied:   true,
 		},
 		{
+			name:          "Should apply command palette personalization live",
+			path:          "cmd_palette.personalization",
+			value:         "false",
+			wantLifecycle: "live",
+			wantApplied:   true,
+		},
+		{
+			name:          "Should apply command palette fallback targets live",
+			path:          "cmd_palette.fallback_targets",
+			value:         `["agent"]`,
+			wantLifecycle: "live",
+			wantApplied:   true,
+		},
+		{
 			name:          "Should apply the extension side-load policy live",
 			path:          "extensions.trust.allow_unverified",
 			value:         "true",
@@ -616,16 +649,13 @@ func TestConfigSetDisabledSkillsUsesDaemonSettingsWhenRunning(t *testing.T) {
 	}
 }
 
-func TestConfigSetWindowManagerUsesDaemonSettingsWhenRunning(t *testing.T) {
+func TestConfigSetWindowManagerWritesOverlayAndReloadsWhenDaemonRuns(t *testing.T) {
 	t.Parallel()
 
-	var captured UpdateSettingsWindowManagerRequest
+	var reloadCalls int
 	client := &stubClient{
-		updateSettingsWindowManagerFn: func(
-			_ context.Context,
-			request UpdateSettingsWindowManagerRequest,
-		) (SettingsMutationRecord, error) {
-			captured = request
+		reloadSettingsFn: func(context.Context) (SettingsMutationRecord, error) {
+			reloadCalls++
 			return SettingsMutationRecord{
 				Section:          "window-manager",
 				Scope:            contract.SettingsScopeGlobal,
@@ -658,20 +688,20 @@ func TestConfigSetWindowManagerUsesDaemonSettingsWhenRunning(t *testing.T) {
 	if err != nil {
 		t.Fatalf("config set window_manager.nav_stack_limit error = %v", err)
 	}
-
-	defaults := compozyconfig.DefaultWindowManagerConfig()
-	if captured.Config.NavStackLimit != 1 || captured.Config.HistoryLimit != defaults.HistoryLimit ||
-		captured.Config.ClosedEntryLimit != defaults.ClosedEntryLimit ||
-		len(captured.Config.Shortcuts) != len(defaults.Shortcuts) {
-		t.Fatalf("daemon window-manager payload = %#v, want complete defaults with nav_stack_limit=1", captured.Config)
+	if reloadCalls != 1 {
+		t.Fatalf("ReloadSettings calls = %d, want 1", reloadCalls)
 	}
 
 	homePaths, err := deps.resolveHome()
 	if err != nil {
 		t.Fatalf("resolveHome() error = %v", err)
 	}
-	if _, err := os.Stat(homePaths.ConfigFile); !os.IsNotExist(err) {
-		t.Fatalf("config set wrote local overlay while daemon-backed path should own persistence: stat err=%v", err)
+	cfg, err := compozyconfig.LoadGlobalConfig(homePaths)
+	if err != nil {
+		t.Fatalf("LoadGlobalConfig() error = %v", err)
+	}
+	if cfg.WindowManager.NavStackLimit != 1 {
+		t.Fatalf("WindowManager.NavStackLimit = %d, want 1", cfg.WindowManager.NavStackLimit)
 	}
 
 	var record configSetRecord
@@ -1846,6 +1876,18 @@ func TestConfigRenderingAndMutationHelpers(t *testing.T) {
 				name:        "Should allow window manager string behavior",
 				path:        "window_manager.new_window_policy",
 				wantKind:    configSetString,
+				wantAllowed: true,
+			},
+			{
+				name:        "Should allow command palette personalization",
+				path:        "cmd_palette.personalization",
+				wantKind:    configSetBool,
+				wantAllowed: true,
+			},
+			{
+				name:        "Should allow command palette fallback targets",
+				path:        "cmd_palette.fallback_targets",
+				wantKind:    configSetStringSlice,
 				wantAllowed: true,
 			},
 			{

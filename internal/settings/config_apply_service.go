@@ -39,7 +39,7 @@ func (s *service) ApplySection(ctx context.Context, req SectionUpdateRequest) (A
 	if result.Section == SectionGateway {
 		return s.recordGatewaySectionApply(ctx, result)
 	}
-	if result.Section == SectionWindowManager {
+	if result.Section == SectionWindowManager && result.Scope == ScopeGlobal {
 		return s.recordWindowManagerSectionApply(ctx, result)
 	}
 	if result.Section == SectionAttention {

@@ -46,7 +46,7 @@ export function OsPaletteSessionChips({
 }: OsPaletteSessionChipsProps) {
   return (
     <div
-      className={cn("flex items-center gap-4 py-3", paletteViewGutterClass)}
+      className={cn("flex items-center gap-2 border-b border-line py-2", paletteViewGutterClass)}
       data-slot="os-palette-chips"
     >
       <div

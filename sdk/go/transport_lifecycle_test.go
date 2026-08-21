@@ -8,6 +8,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"sync/atomic"
 	"testing"
 	"time"
 )
@@ -50,6 +51,15 @@ func TestStdioTransportLifecycle(t *testing.T) {
 			}
 		case <-time.After(time.Second):
 			t.Fatal("first Call() did not return after cancellation")
+		}
+		cancelRequest := readTestMessage(t, bufio.NewReader(outputReader))
+		if got, want := cancelRequest["method"], jsonRPCCancelMethod; got != want {
+			t.Fatalf("cancel method = %#v, want %q", got, want)
+		}
+		params, ok := cancelRequest["params"].(map[string]any)
+		cancelID, idOK := params["id"].(float64)
+		if !ok || !idOK || int(cancelID) != firstID {
+			t.Fatalf("cancel params = %#v, want id %d", cancelRequest["params"], firstID)
 		}
 		input.WriteLine(t, fmt.Sprintf(`{"jsonrpc":"2.0","id":%d,"result":{"value":"ignored"}}`, firstID))
 		select {
@@ -144,6 +154,102 @@ func TestStdioTransportLifecycle(t *testing.T) {
 		}
 		if got, want := string(line), "partial"; got != want {
 			t.Fatalf("readBoundedTransportLine() = %q, want %q", got, want)
+		}
+	})
+}
+
+func TestStdioTransportInboundOwnership(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should keep newer inbound cancellation after superseded request finishes", func(t *testing.T) {
+		t.Parallel()
+
+		inputReader, inputWriter := io.Pipe()
+		outputReader, outputWriter := io.Pipe()
+		transport := NewStdioTransport(StdioTransportOptions{
+			Input:  inputReader,
+			Output: outputWriter,
+		})
+		firstStarted := make(chan struct{})
+		firstRelease := make(chan struct{})
+		firstDone := make(chan struct{})
+		secondStarted := make(chan struct{})
+		secondCanceled := make(chan struct{})
+		var generation atomic.Int32
+		transport.Handle(
+			"slow",
+			func(ctx context.Context, _ json.RawMessage, _ JSONRPCRequestEnvelope) (any, error) {
+				switch generation.Add(1) {
+				case 1:
+					close(firstStarted)
+					<-firstRelease
+					close(firstDone)
+					return map[string]any{"generation": 1}, nil
+				default:
+					close(secondStarted)
+					<-ctx.Done()
+					close(secondCanceled)
+					return nil, ctx.Err()
+				}
+			},
+		)
+		ctx, cancel := context.WithCancel(context.Background())
+		defer cancel()
+		done := make(chan error, 1)
+		go func() {
+			done <- transport.Run(ctx)
+		}()
+		t.Cleanup(func() {
+			cancel()
+			closeTestPipe(t, inputReader)
+			closeTestPipe(t, inputWriter)
+			closeTestPipe(t, outputReader)
+			closeTestPipe(t, outputWriter)
+			select {
+			case <-done:
+			case <-time.After(time.Second):
+				t.Fatal("transport did not stop")
+			}
+		})
+
+		if _, err := io.WriteString(
+			inputWriter,
+			`{"jsonrpc":"2.0","id":7,"method":"slow","params":{}}`+"\n",
+		); err != nil {
+			t.Fatalf("write first request: %v", err)
+		}
+		select {
+		case <-firstStarted:
+		case <-time.After(time.Second):
+			t.Fatal("first inbound request did not start")
+		}
+		if _, err := io.WriteString(
+			inputWriter,
+			`{"jsonrpc":"2.0","id":7,"method":"slow","params":{}}`+"\n",
+		); err != nil {
+			t.Fatalf("write second request: %v", err)
+		}
+		select {
+		case <-secondStarted:
+		case <-time.After(time.Second):
+			t.Fatal("second inbound request did not start")
+		}
+		close(firstRelease)
+		select {
+		case <-firstDone:
+		case <-time.After(time.Second):
+			t.Fatal("first inbound request did not finish")
+		}
+		if _, err := io.WriteString(
+			inputWriter,
+			`{"jsonrpc":"2.0","method":"$/cancelRequest","params":{"id":7}}`+"\n",
+		); err != nil {
+			t.Fatalf("write cancel: %v", err)
+		}
+		select {
+		case <-secondCanceled:
+		case <-time.After(time.Second):
+			t.Fatal("second inbound request lost cancellation after superseded cleanup")
 		}
 	})
 }
