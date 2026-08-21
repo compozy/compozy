@@ -89,6 +89,38 @@ func TestSubprocessHealthEscalator(t *testing.T) {
 			t.Fatalf("MarkRunNeedsAttention() calls = %d, want 0", actor.markCalls)
 		}
 	})
+
+	t.Run("Should leave a confirmed Loop worker crash to the Loop recovery owner", func(t *testing.T) {
+		t.Parallel()
+
+		runs := &subprocessHealthRunSourceStub{runs: []taskpkg.Run{{
+			ID:        "run-loop-crash",
+			TaskID:    "task-loop-crash",
+			SessionID: "sess-health",
+			Status:    taskpkg.TaskRunStatusRunning,
+			RunKind:   taskpkg.RunKindWorker,
+			LoopRunID: "looprun-health",
+		}}}
+		actor := &subprocessHealthEscalationActorStub{runs: runs}
+		escalator, err := newSubprocessHealthEscalator(runs, actor, 3, discardLogger())
+		if err != nil {
+			t.Fatalf("newSubprocessHealthEscalator() error = %v", err)
+		}
+
+		escalator.escalate(
+			testutil.Context(t),
+			unhealthySubprocessObservation(3),
+			"agent subprocess crashed",
+			true,
+		)
+
+		if actor.markCalls != 0 {
+			t.Fatalf(
+				"MarkRunNeedsAttention() calls = %d, want Loop crash recovery to remain authoritative",
+				actor.markCalls,
+			)
+		}
+	})
 }
 
 type subprocessHealthRunSourceStub struct {

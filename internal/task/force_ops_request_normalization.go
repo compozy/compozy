@@ -24,6 +24,16 @@ func requireForceFailStatus(run Run) error {
 			map[string]any{runEvidenceIDKey: run.ID, leaseStatusKey: run.Status.Normalize().String()},
 			ErrInvalidStatusTransition,
 		)
+	case TaskRunStatusNeedsAttention:
+		return forceRunDiagnosticError(
+			diagnosticcontract.CodeTaskRunStillActive,
+			"Task run needs recovery",
+			fmt.Sprintf("Run %s is needs_attention; recover it before forcing another terminal action.", run.ID),
+			diagnosticcontract.SeverityError,
+			fmt.Sprintf("compozy task run recover %s --reason %q", run.ID, "operator recovery"),
+			map[string]any{runEvidenceIDKey: run.ID, leaseStatusKey: run.Status.Normalize().String()},
+			ErrInvalidStatusTransition,
+		)
 	default:
 		return forceRunDiagnosticError(
 			diagnosticcontract.CodeTaskRunStillActive,
@@ -34,7 +44,7 @@ func requireForceFailStatus(run Run) error {
 				run.Status.Normalize(),
 			),
 			diagnosticcontract.SeverityError,
-			fmt.Sprintf("compozy task cancel %s --reason %q", run.ID, "stop before force fail"),
+			fmt.Sprintf("compozy task run cancel %s --reason %q", run.ID, "stop before force fail"),
 			map[string]any{runEvidenceIDKey: run.ID, leaseStatusKey: run.Status.Normalize().String()},
 			ErrInvalidStatusTransition,
 		)

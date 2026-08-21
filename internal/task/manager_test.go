@@ -9292,6 +9292,30 @@ func TestManagerForceRunOperations(t *testing.T) {
 		}
 	})
 
+	t.Run("Should suggest recovery only for a needs_attention run", func(t *testing.T) {
+		t.Parallel()
+
+		needsAttention := Run{ID: "run-attention", Status: TaskRunStatusNeedsAttention}
+		attentionItem, ok := diagnostics.ItemFromError(requireForceFailStatus(needsAttention))
+		if !ok {
+			t.Fatal("requireForceFailStatus(needs_attention) diagnostic = false, want structured item")
+		}
+		if got, want := attentionItem.SuggestedCommand,
+			`compozy task run recover run-attention --reason "operator recovery"`; got != want {
+			t.Fatalf("needs_attention suggested command = %q, want %q", got, want)
+		}
+
+		active := Run{ID: "run-active", Status: TaskRunStatusRunning}
+		activeItem, ok := diagnostics.ItemFromError(requireForceFailStatus(active))
+		if !ok {
+			t.Fatal("requireForceFailStatus(running) diagnostic = false, want structured item")
+		}
+		if got, want := activeItem.SuggestedCommand,
+			`compozy task run cancel run-active --reason "stop before force fail"`; got != want {
+			t.Fatalf("running suggested command = %q, want %q", got, want)
+		}
+	})
+
 	t.Run("Should redact raw claim bearers from forced failure state and audit", func(t *testing.T) {
 		t.Parallel()
 

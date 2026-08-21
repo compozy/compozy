@@ -177,48 +177,67 @@ func (g *TaskRunRepo) markTaskRunNeedsAttentionMutationWithExecutor(
 			id,
 		)
 	}
-	candidate := previous
-	candidate.Status = taskpkg.TaskRunStatusNeedsAttention
-	candidate.Error = diagnostic
-	if err := candidate.Validate(); err != nil {
+	if err := g.persistTaskRunNeedsAttention(ctx, exec, previous, fence, diagnostic); err != nil {
 		return taskpkg.RunNeedsAttentionMutation{}, err
-	}
-	affected, err := sqlcgen.New(exec).MarkTaskRunNeedsAttention(
-		ctx,
-		sqlcgen.MarkTaskRunNeedsAttentionParams{
-			Error:          nullableTaskString(diagnostic),
-			ID:             id,
-			ExpectedTaskID: nullableTaskString(fence.TaskID()),
-			ExpectedWorkspaceID: nullableTaskString(
-				fence.WorkspaceID(),
-			),
-			ExpectedStatus:    fence.Status().String(),
-			ExpectedSessionID: nullableTaskString(fence.SessionID()),
-			ExpectedClaimTokenHash: nullableTaskString(
-				fence.ClaimTokenHash(),
-			),
-			ExpectedLeaseUntil: nullableTaskTime(fence.LeaseUntil().UTC()),
-		},
-	)
-	if err != nil {
-		return taskpkg.RunNeedsAttentionMutation{}, fmt.Errorf("store: mark task run needs attention: %w", err)
-	}
-	if affected == 0 {
-		_, currentErr := g.tasks.getTaskRunWithExecutor(ctx, exec, id)
-		if currentErr != nil {
-			return taskpkg.RunNeedsAttentionMutation{}, currentErr
-		}
-		return taskpkg.RunNeedsAttentionMutation{}, fmt.Errorf(
-			"%w: task run %q changed before needs_attention applied",
-			taskpkg.ErrInvalidStatusTransition,
-			id,
-		)
 	}
 	updated, err := g.tasks.getTaskRunWithExecutor(ctx, exec, id)
 	if err != nil {
 		return taskpkg.RunNeedsAttentionMutation{}, err
 	}
+	if updated.IsLoopWorker() {
+		if err := projectLoopTaskRunAttentionWithExecutor(
+			ctx,
+			exec,
+			updated,
+			diagnostic,
+			command.Now(),
+		); err != nil {
+			return taskpkg.RunNeedsAttentionMutation{}, err
+		}
+	}
 	return taskpkg.RunNeedsAttentionMutation{Previous: previous, Run: updated, Applied: true}, nil
+}
+
+func (g *TaskRunRepo) persistTaskRunNeedsAttention(
+	ctx context.Context,
+	exec taskSQLExecutor,
+	previous taskpkg.Run,
+	fence taskpkg.RunMutationFence,
+	diagnostic string,
+) error {
+	candidate := previous
+	candidate.Status = taskpkg.TaskRunStatusNeedsAttention
+	candidate.Error = diagnostic
+	if err := candidate.Validate(); err != nil {
+		return err
+	}
+	affected, err := sqlcgen.New(exec).MarkTaskRunNeedsAttention(
+		ctx,
+		sqlcgen.MarkTaskRunNeedsAttentionParams{
+			Error:                  nullableTaskString(diagnostic),
+			ID:                     previous.ID,
+			ExpectedTaskID:         nullableTaskString(fence.TaskID()),
+			ExpectedWorkspaceID:    nullableTaskString(fence.WorkspaceID()),
+			ExpectedStatus:         fence.Status().String(),
+			ExpectedSessionID:      nullableTaskString(fence.SessionID()),
+			ExpectedClaimTokenHash: nullableTaskString(fence.ClaimTokenHash()),
+			ExpectedLeaseUntil:     nullableTaskTime(fence.LeaseUntil().UTC()),
+		},
+	)
+	if err != nil {
+		return fmt.Errorf("store: mark task run needs attention: %w", err)
+	}
+	if affected != 0 {
+		return nil
+	}
+	if _, err := g.tasks.getTaskRunWithExecutor(ctx, exec, previous.ID); err != nil {
+		return err
+	}
+	return fmt.Errorf(
+		"%w: task run %q changed before needs_attention applied",
+		taskpkg.ErrInvalidStatusTransition,
+		previous.ID,
+	)
 }
 
 func validateNeedsAttentionDiagnostic(diagnostic string) error {

@@ -101,9 +101,11 @@ diagnostic fields.
 
 With the default `daemon.subprocess_health_escalation_threshold = 3`, three consecutive failed
 checks move the exact nonterminal task run bound to that session to `needs_attention`. An unexpected
-ACP process exit escalates the linked run immediately. Repeated observations do not create another
-transition, and terminal runs remain terminal. Recover a parked run through the existing task-run
-recovery surface after fixing the subprocess cause:
+ACP process exit escalates a linked non-Loop run immediately. A confirmed crash of a Loop worker
+stays with the Loop's bounded death-resume path instead of entering this generic transition. Health
+checks can still park that worker when repeated degraded verdicts require operator attention.
+Repeated observations do not create another transition, and terminal runs remain terminal. Recover
+a parked run through the task-run recovery surface after fixing the subprocess cause:
 
 ```bash
 compozy task run recover <run-id> --reason "provider recovered" -o json

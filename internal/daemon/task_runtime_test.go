@@ -220,6 +220,55 @@ func TestLoopActionRuntimeEnforcesActionLiveness(t *testing.T) {
 		}
 	})
 
+	t.Run("Should fail the lease when completion returns a precommit error", func(t *testing.T) {
+		t.Parallel()
+
+		manager, taskRecord, run := newLoopActionLivenessTestFixture()
+		completeErr := errors.New("completion write rejected")
+		manager.completeErr = completeErr
+		manager.completeReturnsNil = true
+		runtime, err := newLoopActionRuntime(
+			manager,
+			&loopActionCapacityTestStore{taskRecord: taskRecord, run: run},
+			&loopActionLivenessTestRunner{completeAfter: time.Millisecond},
+			nil,
+			discardLogger(),
+			nil,
+		)
+		if err != nil {
+			t.Fatalf("newLoopActionRuntime() error = %v", err)
+		}
+
+		err = runtime.executeQueuedRun(context.Background(), taskRecord, run, loopActionRuntimeReasonEnqueued)
+		if !errors.Is(err, completeErr) || manager.failure.RunID != run.ID {
+			t.Fatalf("completion/failure = %v/%#v, want precommit error to fail owned lease", err, manager.failure)
+		}
+	})
+
+	t.Run("Should not roll back a completion that committed before publication failed", func(t *testing.T) {
+		t.Parallel()
+
+		manager, taskRecord, run := newLoopActionLivenessTestFixture()
+		completeErr := errors.New("completion publication failed")
+		manager.completeErr = completeErr
+		runtime, err := newLoopActionRuntime(
+			manager,
+			&loopActionCapacityTestStore{taskRecord: taskRecord, run: run},
+			&loopActionLivenessTestRunner{completeAfter: time.Millisecond},
+			nil,
+			discardLogger(),
+			nil,
+		)
+		if err != nil {
+			t.Fatalf("newLoopActionRuntime() error = %v", err)
+		}
+
+		err = runtime.executeQueuedRun(context.Background(), taskRecord, run, loopActionRuntimeReasonEnqueued)
+		if !errors.Is(err, completeErr) || manager.failure.RunID != "" {
+			t.Fatalf("completion/failure = %v/%#v, want committed result without rollback", err, manager.failure)
+		}
+	})
+
 	t.Run("Should fail invalid captured output before completing the lease", func(t *testing.T) {
 		t.Parallel()
 
@@ -668,14 +717,16 @@ func (*loopActionCapacityTestRunner) ActionRunTimeout(
 }
 
 type loopActionLivenessTestManager struct {
-	heartbeatCalls atomic.Int32
-	completedCalls atomic.Int32
-	bindCalls      atomic.Int32
-	bindFailures   atomic.Int32
-	bindMu         sync.Mutex
-	boundSessionID string
-	failure        taskpkg.LeaseFailure
-	run            taskpkg.Run
+	heartbeatCalls     atomic.Int32
+	completedCalls     atomic.Int32
+	completeErr        error
+	completeReturnsNil bool
+	bindCalls          atomic.Int32
+	bindFailures       atomic.Int32
+	bindMu             sync.Mutex
+	boundSessionID     string
+	failure            taskpkg.LeaseFailure
+	run                taskpkg.Run
 }
 
 func (m *loopActionLivenessTestManager) ClaimNextRun(
@@ -727,7 +778,10 @@ func (m *loopActionLivenessTestManager) CompleteRunLease(
 	taskpkg.ActorContext,
 ) (*taskpkg.Run, error) {
 	m.completedCalls.Add(1)
-	return &m.run, nil
+	if m.completeReturnsNil {
+		return nil, m.completeErr
+	}
+	return &m.run, m.completeErr
 }
 
 func (m *loopActionLivenessTestManager) FailRunLease(

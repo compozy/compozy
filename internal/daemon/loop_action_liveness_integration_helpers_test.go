@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 	"errors"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 
@@ -23,6 +24,21 @@ var errLoopFailureBreakerIntegration = errors.New("forced breaker failure")
 
 func testLoopActionLivenessIntegration(t *testing.T) {
 	t.Helper()
+	testLoopActionSettlementIntegration(t, "action-liveness", quietLoopActionExecutor{}, false)
+}
+
+func testLoopActionOversizedResultIntegration(t *testing.T) {
+	t.Helper()
+	testLoopActionSettlementIntegration(t, "oversized-result", oversizedLoopActionExecutor{}, true)
+}
+
+func testLoopActionSettlementIntegration(
+	t *testing.T,
+	suffix string,
+	executor looppkg.ActionExecutor,
+	wantFailure bool,
+) {
+	t.Helper()
 
 	ctx := testutil.Context(t)
 	root := t.TempDir()
@@ -37,16 +53,16 @@ func testLoopActionLivenessIntegration(t *testing.T) {
 	})
 
 	now := time.Now().UTC()
-	workspaceID := "workspace-action-liveness"
+	workspaceID := "workspace-" + suffix
 	if err := db.InsertWorkspace(ctx, workspace.Workspace{
 		ID: workspaceID, Name: "Action liveness", RootDir: root, CreatedAt: now, UpdatedAt: now,
 	}); err != nil {
 		t.Fatalf("InsertWorkspace() error = %v", err)
 	}
 
-	resolved := compileManagedGoalDefinition(t, "action-liveness", "worker", "main")
+	resolved := compileManagedGoalDefinition(t, suffix, "worker", "main")
 	run := looppkg.Run{
-		ID:                "looprun-action-liveness",
+		ID:                looppkg.RunID("looprun-" + suffix),
 		WorkspaceID:       looppkg.WorkspaceID(workspaceID),
 		LoopName:          resolved.Definition.Meta.Name,
 		Status:            looppkg.StatusRunning,
@@ -68,7 +84,7 @@ func testLoopActionLivenessIntegration(t *testing.T) {
 
 	actions, err := looppkg.NewActionRegistry(
 		inertActionToolRegistry{},
-		looppkg.WithActionGoalExecutor(quietLoopActionExecutor{}),
+		looppkg.WithActionGoalExecutor(executor),
 	)
 	if err != nil {
 		t.Fatalf("loop.NewActionRegistry() error = %v", err)
@@ -144,21 +160,36 @@ func testLoopActionLivenessIntegration(t *testing.T) {
 
 	runtime.heartbeatInterval = func(time.Duration) time.Duration { return 5 * time.Millisecond }
 	runtime.livenessPollInterval = func(time.Duration) time.Duration { return 5 * time.Millisecond }
-	if err := runtime.executeQueuedRun(ctx, taskRecord, worker, loopActionRuntimeReasonEnqueued); err != nil {
-		t.Fatalf("executeQueuedRun(quiet) error = %v", err)
+	executeErr := runtime.executeQueuedRun(ctx, taskRecord, worker, loopActionRuntimeReasonEnqueued)
+	if wantFailure {
+		if executeErr == nil || !errors.Is(executeErr, taskpkg.ErrValidation) {
+			t.Fatalf("executeQueuedRun(oversized) error = %v, want ErrValidation", executeErr)
+		}
+	} else if executeErr != nil {
+		t.Fatalf("executeQueuedRun(quiet) error = %v", executeErr)
 	}
-	completed, err := db.GetTaskRun(ctx, worker.ID)
+	settled, err := db.GetTaskRun(ctx, worker.ID)
 	if err != nil {
-		t.Fatalf("GetTaskRun(completed worker) error = %v", err)
+		t.Fatalf("GetTaskRun(settled worker) error = %v", err)
 	}
-	if completed.Status.Normalize() != taskpkg.TaskRunStatusCompleted || !completed.LeaseUntil.IsZero() {
-		t.Fatalf("quiet worker lease state = %#v, want completed without hidden timeout", completed)
+	wantStatus := taskpkg.TaskRunStatusCompleted
+	if wantFailure {
+		wantStatus = taskpkg.TaskRunStatusFailed
+	}
+	if settled.Status.Normalize() != wantStatus || !settled.LeaseUntil.IsZero() || settled.ClaimTokenHash != "" {
+		t.Fatalf("worker lease state = %#v, want %s without an owned lease", settled, wantStatus)
 	}
 	outputs, err := db.ListGenerationOutputs(ctx, created.WorkspaceID, created.ID, 1)
 	if err != nil {
 		t.Fatalf("ListGenerationOutputs(completed worker) error = %v", err)
 	}
-	if len(outputs) != 1 || outputs[0].Status == "failed" {
+	if len(outputs) != 1 {
+		t.Fatalf("generation outputs = %#v, want one node cell", outputs)
+	}
+	if wantFailure && outputs[0].Status != "failed" {
+		t.Fatalf("oversized generation output = %#v, want failed", outputs[0])
+	}
+	if !wantFailure && outputs[0].Status == "failed" {
 		t.Fatalf("quiet generation outputs = %#v, want no liveness failure", outputs)
 	}
 }
@@ -557,6 +588,27 @@ func (e quietLoopActionExecutor) Execute(
 }
 
 func (quietLoopActionExecutor) Harvest(
+	_ context.Context,
+	raw looppkg.ActionRawResult,
+	_ loopdsl.Node,
+) (looppkg.ActionOutput, error) {
+	return looppkg.ActionOutput{Value: raw.Value}, nil
+}
+
+type oversizedLoopActionExecutor struct{}
+
+func (oversizedLoopActionExecutor) Execute(
+	_ context.Context,
+	_ loopdsl.Node,
+	_ looppkg.ActionExecutionInput,
+) (looppkg.ActionRawResult, error) {
+	return looppkg.ActionRawResult{Value: map[string]any{
+		"status": "complete",
+		"data":   strings.Repeat("x", taskpkg.MaxResultBytes),
+	}}, nil
+}
+
+func (oversizedLoopActionExecutor) Harvest(
 	_ context.Context,
 	raw looppkg.ActionRawResult,
 	_ loopdsl.Node,

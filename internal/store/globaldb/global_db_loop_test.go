@@ -5871,7 +5871,7 @@ func seedLiveLoopLivenessCellForTest(
 	if err != nil {
 		t.Fatalf("CreateLoopRunForStart(liveness) error = %v", err)
 	}
-	taskRecord := taskRecordForTest("task-loop-liveness-" + caseID)
+	taskRecord := workspaceTaskRecordForTest("task-loop-liveness-"+caseID, string(run.WorkspaceID))
 	taskRecord.MaxAttempts = taskpkg.MaxTaskMaxAttempts
 	if err := globalDB.CreateTask(ctx, taskRecord); err != nil {
 		t.Fatalf("CreateTask(liveness) error = %v", err)
@@ -5884,8 +5884,15 @@ func seedLiveLoopLivenessCellForTest(
 		t.Fatalf("json.Marshal(liveness metadata) error = %v", err)
 	}
 	taskRun := taskRunForTest("run-loop-liveness-"+caseID, taskRecord.ID)
+	taskRun.WorkspaceID = string(run.WorkspaceID)
 	taskRun.RunKind = taskpkg.RunKindWorker
 	taskRun.LoopRunID = string(run.ID)
+	taskRun.DesignationGroupID = "designation-" + caseID
+	taskRun.RunWorktreeState = &taskpkg.RunWorktreeState{
+		ResolvedWorktreeMode: taskpkg.WorktreeModeNone,
+	}
+	taskRun.RequiredCapabilities = []string{"go"}
+	taskRun.PreferredCapabilities = []string{"review"}
 	taskRun.Metadata = metadata
 	if err := globalDB.CreateTaskRun(ctx, taskRun); err != nil {
 		t.Fatalf("CreateTaskRun(liveness) error = %v", err)

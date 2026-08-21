@@ -16,6 +16,7 @@ import (
 
 	eventspkg "github.com/compozy/compozy/internal/events"
 	hookspkg "github.com/compozy/compozy/internal/hooks"
+	looppkg "github.com/compozy/compozy/internal/loop"
 	"github.com/compozy/compozy/internal/network/participation"
 	"github.com/compozy/compozy/internal/store"
 	taskpkg "github.com/compozy/compozy/internal/task"
@@ -4396,6 +4397,146 @@ func TestGlobalDBListTaskTriageStatesFiltersByActorAndOrdersByUpdate(t *testing.
 
 func TestGlobalDBRecoverTaskRun(t *testing.T) {
 	t.Parallel()
+
+	t.Run("Should preserve and rebind a Loop-owned run to the same node cell", func(t *testing.T) {
+		t.Parallel()
+
+		globalDB := openLoopTestGlobalDB(t)
+		ctx := testutil.Context(t)
+		now := time.Date(2026, time.August, 20, 12, 0, 0, 0, time.UTC)
+		loopRun, sourceID := seedLiveLoopLivenessCellForTest(t, globalDB, now)
+		source, err := globalDB.GetTaskRun(ctx, sourceID)
+		if err != nil {
+			t.Fatalf("GetTaskRun(source) error = %v", err)
+		}
+		diagnostic := "provider requires operator recovery"
+		var attention taskpkg.RunNeedsAttentionMutation
+		err = globalDB.withTaskMutationTransactionForTest(
+			ctx,
+			"test mark Loop task run needs attention",
+			func(store *taskMutationTxStore) error {
+				var mutationErr error
+				attention, mutationErr = store.MarkRunNeedsAttentionMutation(
+					ctx,
+					taskpkg.NewRunNeedsAttentionCommand(source, diagnostic, now.Add(time.Minute)),
+				)
+				return mutationErr
+			},
+		)
+		if err != nil {
+			t.Fatalf("MarkRunNeedsAttentionMutation() error = %v", err)
+		}
+		if !attention.Applied || attention.Run.Status != taskpkg.TaskRunStatusNeedsAttention {
+			t.Fatalf("MarkRunNeedsAttentionMutation() = %#v, want applied attention", attention)
+		}
+		var attentionFlag, attentionReason string
+		if err := globalDB.db.QueryRowContext(ctx, `SELECT attention_flag, attention_reason
+			FROM loop_node_controls WHERE loop_run_id = ? AND node_id = 'work'`, loopRun.ID).
+			Scan(&attentionFlag, &attentionReason); err != nil {
+			t.Fatalf("read Loop attention control error = %v", err)
+		}
+		if attentionFlag != loopTaskAttentionFlag || attentionReason != diagnostic {
+			t.Fatalf(
+				"Loop attention = %q/%q, want %q/%q",
+				attentionFlag,
+				attentionReason,
+				loopTaskAttentionFlag,
+				diagnostic,
+			)
+		}
+
+		result, err := recoverTaskRunForTest(
+			ctx,
+			globalDB,
+			taskpkg.NewRecoverRunMutation(
+				attention.Run,
+				"run-loop-operator-recovery",
+				taskpkg.Origin{Kind: taskpkg.OriginKindCLI, Ref: "operator"},
+				"operator restored provider access",
+				json.RawMessage(`{"operator_note":"credentials refreshed"}`),
+				now.Add(2*time.Minute),
+			),
+		)
+		if err != nil {
+			t.Fatalf("RecoverTaskRun(Loop) error = %v", err)
+		}
+		if result.PreviousRun.Status != taskpkg.TaskRunStatusFailed ||
+			result.Run.Status != taskpkg.TaskRunStatusQueued ||
+			result.Run.PreviousRunID != source.ID {
+			t.Fatalf("RecoverTaskRun(Loop) = %#v, want failed source and linked queued child", result)
+		}
+		if result.Run.RunKind != source.RunKind || result.Run.LoopRunID != source.LoopRunID ||
+			result.Run.WorkspaceID != source.WorkspaceID ||
+			result.Run.DesignationGroupID != source.DesignationGroupID {
+			t.Fatalf("recovered Loop identity = %#v, want source identity %#v", result.Run, source)
+		}
+		if result.Run.RunWorktreeState == nil || source.RunWorktreeState == nil ||
+			*result.Run.RunWorktreeState != *source.RunWorktreeState ||
+			!testutil.EqualStringSlices(result.Run.RequiredCapabilities, source.RequiredCapabilities) ||
+			!testutil.EqualStringSlices(result.Run.PreferredCapabilities, source.PreferredCapabilities) {
+			t.Fatalf("recovered Loop runtime binding = %#v, want source binding %#v", result.Run, source)
+		}
+		var recoveredMetadata struct {
+			Generation       int    `json:"generation"`
+			NodeID           string `json:"node_id"`
+			ItemIndex        int    `json:"item_index"`
+			Attempt          int    `json:"attempt"`
+			Epoch            int64  `json:"epoch"`
+			SessionHandle    string `json:"session_handle"`
+			OperatorNote     string `json:"operator_note"`
+			ContinuationKind string `json:"continuation_kind"`
+		}
+		if err := json.Unmarshal(result.Run.Metadata, &recoveredMetadata); err != nil {
+			t.Fatalf("json.Unmarshal(recovered metadata) error = %v", err)
+		}
+		if recoveredMetadata.Generation != 1 || recoveredMetadata.NodeID != "work" ||
+			recoveredMetadata.ItemIndex != 0 || recoveredMetadata.Attempt != 2 ||
+			recoveredMetadata.Epoch != 5 || recoveredMetadata.SessionHandle != "main" ||
+			recoveredMetadata.OperatorNote != "credentials refreshed" ||
+			recoveredMetadata.ContinuationKind != "" {
+			t.Fatalf("recovered metadata = %#v, want same cell at attempt 2 epoch 5", recoveredMetadata)
+		}
+		var status, boundRunID string
+		var attempt int
+		var epoch int64
+		if err := globalDB.db.QueryRowContext(ctx, `SELECT status, task_run_id, attempt, epoch
+			FROM loop_generation_outputs WHERE loop_run_id = ? AND generation = 1
+			AND node_id = 'work' AND item_index = 0`, loopRun.ID).
+			Scan(&status, &boundRunID, &attempt, &epoch); err != nil {
+			t.Fatalf("read recovered Loop cell error = %v", err)
+		}
+		if status != "enqueued" || boundRunID != result.Run.ID || attempt != 2 || epoch != 5 {
+			t.Fatalf(
+				"recovered Loop cell = %s/%s/a%d/e%d, want enqueued/%s/a2/e5",
+				status,
+				boundRunID,
+				attempt,
+				epoch,
+				result.Run.ID,
+			)
+		}
+		if err := globalDB.db.QueryRowContext(ctx, `SELECT attention_flag, attention_reason
+			FROM loop_node_controls WHERE loop_run_id = ? AND node_id = 'work'`, loopRun.ID).
+			Scan(&attentionFlag, &attentionReason); err != nil {
+			t.Fatalf("read cleared Loop attention error = %v", err)
+		}
+		if attentionFlag != "" || attentionReason != "" {
+			t.Fatalf("cleared Loop attention = %q/%q, want empty", attentionFlag, attentionReason)
+		}
+		events, err := globalDB.ListLoopRunEvents(ctx, looppkg.RunEventQuery{
+			WorkspaceID: loopRun.WorkspaceID,
+			RunID:       loopRun.ID,
+			Limit:       100,
+		})
+		if err != nil {
+			t.Fatalf("ListLoopRunEvents() error = %v", err)
+		}
+		if countLoopEventKindForTest(events, loopRunEventNodeAttentionFlagged) != 1 ||
+			countLoopEventKindForTest(events, loopRunEventNodeAttentionCleared) != 1 ||
+			countLoopEventKindForTest(events, loopRunEventNodeResumed) != 1 {
+			t.Fatalf("Loop recovery events = %#v, want one flagged, cleared, and resumed", events)
+		}
+	})
 
 	t.Run("Should terminalize a needs_attention run and queue a linked child", func(t *testing.T) {
 		t.Parallel()

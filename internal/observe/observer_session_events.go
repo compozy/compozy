@@ -14,17 +14,7 @@ import (
 // OnSessionCreated tracks the live session snapshot used by observability reads.
 func (o *Observer) OnSessionCreated(ctx context.Context, sess *session.Session) {
 	info := sess.Info()
-	snapshot := o.observedSessionSnapshot(
-		ctx,
-		info.ID,
-		info.AgentName,
-		info.Provider,
-		info.Model,
-		info.WorkspaceID,
-		info.Lineage,
-	)
-
-	o.trackSession(info.ID, snapshot)
+	o.trackLiveSession(ctx, info)
 }
 
 // OnSessionStopped removes the live snapshot after the manager persists lifecycle state.
@@ -47,15 +37,7 @@ func (o *Observer) OnAgentEventForSession(ctx context.Context, sess *session.Ses
 	if info == nil {
 		return
 	}
-	o.trackSession(info.ID, o.observedSessionSnapshot(
-		ctx,
-		info.ID,
-		info.AgentName,
-		info.Provider,
-		info.Model,
-		info.WorkspaceID,
-		info.Lineage,
-	))
+	o.trackLiveSession(ctx, info)
 	o.observeAgentEvent(ctx, info.ID, payload)
 }
 
@@ -160,16 +142,7 @@ func (o *Observer) recoverSessionSnapshot(ctx context.Context, sessionID string)
 			if info == nil || strings.TrimSpace(info.ID) != id {
 				continue
 			}
-			snapshot := o.observedSessionSnapshot(
-				ctx,
-				id,
-				info.AgentName,
-				info.Provider,
-				info.Model,
-				info.WorkspaceID,
-				info.Lineage,
-			)
-			o.trackSession(id, snapshot)
+			snapshot := o.trackLiveSession(ctx, info)
 			return snapshot, true
 		}
 	}
@@ -186,13 +159,14 @@ func (o *Observer) recoverSessionSnapshot(ctx context.Context, sessionID string)
 		if strings.TrimSpace(info.ID) != id {
 			continue
 		}
-		snapshot := o.observedSessionSnapshot(
-			ctx,
+		snapshot := observedSessionIdentity(
 			id,
 			info.AgentName,
 			info.Provider,
 			"",
 			info.WorkspaceID,
+			"",
+			info.RuntimeSelectionRevision,
 			info.Lineage,
 		)
 		if strings.TrimSpace(info.State) != string(session.StateStopped) {
@@ -210,38 +184,22 @@ func (o *Observer) observedSessionSnapshot(
 	provider string,
 	model string,
 	workspaceID string,
+	permissionMode string,
+	runtimeRevision int64,
 	lineage *store.SessionLineage,
 ) observedSession {
 	requireObserverContext(ctx, "observedSessionSnapshot")
 
-	normalizedLineage := store.NormalizeSessionLineage(sessionID, lineage)
-	snapshot := observedSession{
-		agentName:       strings.TrimSpace(agentName),
-		provider:        strings.TrimSpace(provider),
-		model:           strings.TrimSpace(model),
-		workspaceID:     strings.TrimSpace(workspaceID),
-		parentSessionID: normalizedLineage.ParentSessionID,
-		rootSessionID:   normalizedLineage.RootSessionID,
-		spawnDepth:      normalizedLineage.SpawnDepth,
-	}
-	if o.resolvePermissionMode != nil {
-		permissionMode, err := o.resolvePermissionMode(ctx, snapshot.agentName, snapshot.workspaceID)
-		if err != nil {
-			o.logger.Warn(
-				"observe: resolve permission mode failed",
-				"session_id",
-				strings.TrimSpace(sessionID),
-				"agent_name",
-				snapshot.agentName,
-				"workspace_id",
-				snapshot.workspaceID,
-				"error",
-				err,
-			)
-		} else {
-			snapshot.permissionMode = strings.TrimSpace(permissionMode)
-		}
-	}
+	snapshot := observedSessionIdentity(
+		sessionID,
+		agentName,
+		provider,
+		model,
+		workspaceID,
+		permissionMode,
+		runtimeRevision,
+		lineage,
+	)
 	if o.resolveProviderAuth != nil {
 		authMode, err := o.resolveProviderAuth(
 			ctx,
@@ -269,6 +227,71 @@ func (o *Observer) observedSessionSnapshot(
 		}
 	}
 	return snapshot
+}
+
+func (o *Observer) trackLiveSession(ctx context.Context, info *session.Info) observedSession {
+	if info == nil {
+		return observedSession{}
+	}
+	candidate := observedSessionIdentity(
+		info.ID,
+		info.AgentName,
+		info.Provider,
+		info.Model,
+		info.WorkspaceID,
+		info.EffectivePermissions,
+		info.RuntimeSelectionRevision,
+		info.Lineage,
+	)
+	if current, ok := o.sessionSnapshot(info.ID); ok && current.sameRuntimeIdentity(candidate) {
+		return current
+	}
+	snapshot := o.observedSessionSnapshot(
+		ctx,
+		info.ID,
+		info.AgentName,
+		info.Provider,
+		info.Model,
+		info.WorkspaceID,
+		info.EffectivePermissions,
+		info.RuntimeSelectionRevision,
+		info.Lineage,
+	)
+	o.trackSession(info.ID, snapshot)
+	return snapshot
+}
+
+func observedSessionIdentity(
+	sessionID string,
+	agentName string,
+	provider string,
+	model string,
+	workspaceID string,
+	permissionMode string,
+	runtimeRevision int64,
+	lineage *store.SessionLineage,
+) observedSession {
+	normalizedLineage := store.NormalizeSessionLineage(sessionID, lineage)
+	return observedSession{
+		agentName:       strings.TrimSpace(agentName),
+		provider:        strings.TrimSpace(provider),
+		model:           strings.TrimSpace(model),
+		workspaceID:     strings.TrimSpace(workspaceID),
+		permissionMode:  strings.TrimSpace(permissionMode),
+		runtimeRevision: runtimeRevision,
+		parentSessionID: normalizedLineage.ParentSessionID,
+		rootSessionID:   normalizedLineage.RootSessionID,
+		spawnDepth:      normalizedLineage.SpawnDepth,
+	}
+}
+
+func (snapshot observedSession) sameRuntimeIdentity(other observedSession) bool {
+	return snapshot.agentName == other.agentName &&
+		snapshot.provider == other.provider &&
+		snapshot.model == other.model &&
+		snapshot.workspaceID == other.workspaceID &&
+		snapshot.permissionMode == other.permissionMode &&
+		snapshot.runtimeRevision == other.runtimeRevision
 }
 
 func requireObserverContext(ctx context.Context, caller string) {

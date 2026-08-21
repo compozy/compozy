@@ -153,6 +153,12 @@ flag; it does not pause, cancel, or fail the node. Confirmed process or transpor
 the daemon resumes from recorded progress through one atomic authority, bounded by the configured
 death streak. Any post-resume evidence resets that streak, and parked nodes are never death-resumed.
 
+If another failure parks the worker task run as `needs_attention`, fix the cause and run
+`compozy task run recover <run-id> --reason <reason> -o json`. Recovery fails the parked source run,
+queues a linked child, and rebinds that child to the same Loop node and item with the next attempt and
+epoch. The Loop's workspace, runtime selection, worktree, capabilities, and event history remain
+attached to that cell.
+
 At run scope, **Cancel** is cooperative and ends `canceled` with cause `operator_cancel`; **Kill**
 fences immediately and ends `canceled` with cause `operator_kill`. There is no `stop` alias and no
 silent cancel-to-kill escalation. See [Running and observing](/docs/loops/running#pause-resume-cancel-and-kill)

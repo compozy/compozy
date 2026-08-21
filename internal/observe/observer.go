@@ -47,10 +47,6 @@ type SessionSource interface {
 	List() []*session.Info
 }
 
-// PermissionModeResolver resolves the effective permission mode for a live
-// session using its durable workspace reference.
-type PermissionModeResolver func(ctx context.Context, agentName, workspaceID string) (string, error)
-
 // VersionSource returns the current daemon build metadata.
 type VersionSource func() version.Info
 
@@ -89,6 +85,7 @@ type observedSession struct {
 	authMode        compozyconfig.ProviderAuthMode
 	workspaceID     string
 	permissionMode  string
+	runtimeRevision int64
 	parentSessionID string
 	rootSessionID   string
 	spawnDepth      int
@@ -122,31 +119,31 @@ type taskDashboardConfig struct {
 type Observer struct {
 	mu sync.RWMutex
 
-	registry              Registry
-	homePaths             compozyconfig.HomePaths
-	sessionSource         SessionSource
-	resolvePermissionMode PermissionModeResolver
-	resolveProviderAuth   ProviderAuthModeResolver
-	costCatalog           CostCatalog
-	memoryEventSource     MemoryEventSource
-	workspaceResolver     workspacepkg.RuntimeResolver
-	now                   func() time.Time
-	startedAt             time.Time
-	logger                *slog.Logger
-	versionSource         VersionSource
-	sessions              map[string]observedSession
-	bridgeSource          BridgeSource
-	bridgeState           map[string]observedBridgeState
-	hookCatalogSource     HookCatalogSource
-	openHookStore         HookStoreOpener
-	taskHealthConfig      TaskHealthConfig
-	taskDashboardConfig   taskDashboardConfig
-	retention             RetentionConfig
-	retentionHealth       RetentionHealth
-	retentionRun          *retentionRun
-	retentionMu           sync.RWMutex
-	agentProbeSource      AgentProbeTargetSource
-	agentProbeTimeout     time.Duration
+	registry            Registry
+	homePaths           compozyconfig.HomePaths
+	sessionSource       SessionSource
+	resolveProviderAuth ProviderAuthModeResolver
+	agentResolver       session.AgentResolver
+	costCatalog         CostCatalog
+	memoryEventSource   MemoryEventSource
+	workspaceResolver   workspacepkg.RuntimeResolver
+	now                 func() time.Time
+	startedAt           time.Time
+	logger              *slog.Logger
+	versionSource       VersionSource
+	sessions            map[string]observedSession
+	bridgeSource        BridgeSource
+	bridgeState         map[string]observedBridgeState
+	hookCatalogSource   HookCatalogSource
+	openHookStore       HookStoreOpener
+	taskHealthConfig    TaskHealthConfig
+	taskDashboardConfig taskDashboardConfig
+	retention           RetentionConfig
+	retentionHealth     RetentionHealth
+	retentionRun        *retentionRun
+	retentionMu         sync.RWMutex
+	agentProbeSource    AgentProbeTargetSource
+	agentProbeTimeout   time.Duration
 }
 
 var _ session.Notifier = (*Observer)(nil)
@@ -173,10 +170,11 @@ func WithSessionSource(source SessionSource) Option {
 	}
 }
 
-// WithPermissionModeResolver injects custom permission resolution logic.
-func WithPermissionModeResolver(resolver PermissionModeResolver) Option {
+// WithAgentResolver injects the daemon-authoritative agent catalog used by
+// provider-auth snapshot resolution.
+func WithAgentResolver(resolver session.AgentResolver) Option {
 	return func(observer *Observer) {
-		observer.resolvePermissionMode = resolver
+		observer.agentResolver = resolver
 	}
 }
 
@@ -354,11 +352,12 @@ func New(ctx context.Context, opts ...Option) (*Observer, error) {
 	if observer.bridgeState == nil {
 		observer.bridgeState = make(map[string]observedBridgeState)
 	}
-	if observer.resolvePermissionMode == nil {
-		observer.resolvePermissionMode = defaultPermissionModeResolver(observer.homePaths, observer.workspaceResolver)
-	}
 	if observer.resolveProviderAuth == nil {
-		observer.resolveProviderAuth = defaultProviderAuthModeResolver(observer.homePaths, observer.workspaceResolver)
+		observer.resolveProviderAuth = defaultProviderAuthModeResolver(
+			observer.homePaths,
+			observer.workspaceResolver,
+			observer.agentResolver,
+		)
 	}
 	if observer.openHookStore == nil {
 		observer.openHookStore = func(ctx context.Context, owner store.SessionDBOwner, path string) (HookRunStore, error) {

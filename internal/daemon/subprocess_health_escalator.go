@@ -74,7 +74,7 @@ func (e *subprocessHealthEscalator) OnSessionStopped(ctx context.Context, sess *
 		SessionID:   info.ID,
 		WorkspaceID: info.WorkspaceID,
 		AgentName:   info.AgentName,
-	}, "agent subprocess crashed")
+	}, "agent subprocess crashed", true)
 }
 
 func (e *subprocessHealthEscalator) OnSubprocessHealth(
@@ -90,13 +90,14 @@ func (e *subprocessHealthEscalator) OnSubprocessHealth(
 	if strings.TrimSpace(reason) == "" {
 		reason = "subprocess reported an unhealthy verdict"
 	}
-	e.escalate(ctx, observation, reason)
+	e.escalate(ctx, observation, reason, false)
 }
 
 func (e *subprocessHealthEscalator) escalate(
 	ctx context.Context,
 	observation session.SubprocessHealthSnapshot,
 	reason string,
+	confirmedCrash bool,
 ) {
 	sessionID := strings.TrimSpace(observation.SessionID)
 	if sessionID == "" {
@@ -122,6 +123,9 @@ func (e *subprocessHealthEscalator) escalate(
 	}
 
 	run := candidates[0]
+	if confirmedCrash && run.IsLoopWorker() {
+		return
+	}
 	diagnostic := diagnostics.RedactAndBound(
 		"subprocess health degraded: "+strings.TrimSpace(reason),
 		maxSubprocessHealthEscalationDiagnosticBytes,

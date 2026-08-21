@@ -235,14 +235,17 @@ func (r *loopActionRuntime) executeQueuedRun(
 		}
 		return r.failClaimedRun(ctx, claim, actor, reason, result.TokensUsed, err)
 	}
-	_, err = r.manager.CompleteRunLease(context.WithoutCancel(ctx), taskpkg.LeaseCompletion{
+	completed, err := r.manager.CompleteRunLease(context.WithoutCancel(ctx), taskpkg.LeaseCompletion{
 		RunID:      claim.Run.ID,
 		ClaimToken: claim.ClaimToken,
 		Result:     result,
 		TokensUsed: result.TokensUsed,
 		Now:        r.now().UTC(),
 	}, actor)
-	return err
+	if err == nil || completed != nil {
+		return err
+	}
+	return r.failClaimedRun(ctx, claim, actor, reason, result.TokensUsed, err)
 }
 
 func (r *loopActionRuntime) failClaimedRun(

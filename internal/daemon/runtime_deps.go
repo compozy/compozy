@@ -13,6 +13,7 @@ import (
 	"github.com/compozy/compozy/internal/gateway"
 	mcppkg "github.com/compozy/compozy/internal/mcp"
 	"github.com/compozy/compozy/internal/memory"
+	"github.com/compozy/compozy/internal/session"
 	"github.com/compozy/compozy/internal/situation"
 	taskpkg "github.com/compozy/compozy/internal/task"
 	toolspkg "github.com/compozy/compozy/internal/tools"
@@ -60,6 +61,7 @@ type RuntimeDeps struct {
 	Worktrees           core.WorktreeService
 	WorkspaceAccess     workspaceaccess.Policy
 	AgentCatalog        core.AgentCatalog
+	AgentResolver       session.AgentResolver
 	AgentDefinitionSync core.AgentDefinitionSync
 	ModelCatalog        core.ModelCatalogService
 	MarketplaceCatalog  core.MarketplaceCatalogService

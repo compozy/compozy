@@ -324,6 +324,9 @@ func (g *TaskRunRepo) recoverTaskRunWithExecutor(
 	if err := requireNoRetryChildWithExecutor(ctx, exec, source.ID); err != nil {
 		return taskpkg.RetryRunResult{}, err
 	}
+	if source.IsLoopWorker() {
+		return g.recoverLoopTaskRunWithExecutor(ctx, exec, args, source)
+	}
 	failed, err := failNeedsAttentionTaskRunForRecoveryWithExecutor(
 		ctx,
 		exec,
