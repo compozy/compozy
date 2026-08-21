@@ -306,6 +306,11 @@ resume from progress through the bounded death-streak authority; parked nodes ar
 death-resumed. Paused nodes, durable waits, approval waits, and quarantined cells suspend node
 clocks and the run wall-clock work budget; token spend still counts.
 
+When another failure parks a Loop worker task run as `needs_attention`, use
+`compozy task run recover <run-id> --reason <reason> -o json` after fixing the cause. Recovery queues
+a linked child and atomically rebinds the same node cell at the next attempt and epoch while
+preserving its workspace and runtime binding.
+
 ## Re-attempt And Succession Semantics
 
 Node failure and gate rejection use different controls:

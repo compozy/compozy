@@ -34,6 +34,7 @@ func (m *Manager) prepareFatalPromptFailureEvent(
 	)
 	stopCtx, cancel := detachedPromptStopContext(ctx, m)
 	defer cancel()
+	stopCause := fatalPromptStopCause(event.Failure)
 	if err := m.waitForConversationFinalization(stopCtx, session.ID); err != nil {
 		m.logFatalPromptBarrierFailure(session, event.Failure.Kind, err)
 		return false
@@ -41,7 +42,7 @@ func (m *Manager) prepareFatalPromptFailureEvent(
 	prepared, preparedProc, alreadyStopped, _, _, err := m.prepareStopWithCauseMode(
 		stopCtx,
 		session.ID,
-		CauseProcessExited,
+		stopCause,
 		summary,
 		stopPreparationFatalPromptFailure,
 	)
@@ -60,7 +61,14 @@ func (m *Manager) prepareFatalPromptFailureEvent(
 		return false
 	}
 
-	waitErr, err := m.stopProcessForFatalPromptFailure(stopCtx, session, proc, event.Failure, summary)
+	waitErr, err := m.stopProcessForFatalPromptFailure(
+		stopCtx,
+		session,
+		proc,
+		event.Failure,
+		stopCause,
+		summary,
+	)
 	if err != nil {
 		m.finishFinalization(session.ID, err)
 		m.logFatalPromptBarrierFailure(session, event.Failure.Kind, err)
@@ -87,6 +95,7 @@ func (m *Manager) stopProcessForFatalPromptFailure(
 	session *Session,
 	proc *AgentProcess,
 	failure *store.SessionFailure,
+	stopCause StopCause,
 	summary string,
 ) (error, error) {
 	if proc == nil {
@@ -108,8 +117,15 @@ func (m *Manager) stopProcessForFatalPromptFailure(
 
 	processWaitErr := proc.Wait()
 	typedFailure := acp.WrapFailure(failure.Kind, summary, errors.New(summary))
-	session.setStopCause(CauseProcessExited)
+	session.setStopCause(stopCause)
 	return errors.Join(typedFailure, processWaitErr), nil
+}
+
+func fatalPromptStopCause(failure *store.SessionFailure) StopCause {
+	if failure != nil && failure.Kind == store.FailureProcess {
+		return CauseProcessExited
+	}
+	return CauseFailed
 }
 
 func (m *Manager) finalizeSessionAfterFatalPromptFailure(

@@ -399,18 +399,18 @@ heartbeats.
 
 The session manager currently emits these persisted stop classifications:
 
-| Stop reason       | When CompozyOS uses it                                                                                                                  |
-| ----------------- | --------------------------------------------------------------------------------------------------------------------------------------- |
-| `completed`       | The agent finished normally.                                                                                                            |
-| `user_canceled`   | A normal user stop request.                                                                                                             |
-| `max_iterations`  | A user stop request carried `max_iterations` detail.                                                                                    |
-| `loop_detected`   | A user stop request carried `loop_detected` detail.                                                                                     |
-| `budget_exceeded` | A user stop request carried `budget_exceeded` detail.                                                                                   |
-| `timeout`         | Runtime supervision detected inactivity, prompt cancel did not complete within the configured grace, and CompozyOS stopped the session. |
-| `error`           | Start or stop failed, or the process exited unexpectedly without a crash wait error.                                                    |
-| `agent_crashed`   | The subprocess exited with a wait error, or CompozyOS repaired stale `active`/`stopping` metadata after a daemon crash.                 |
-| `hook_stopped`    | A required lifecycle hook denied continuation.                                                                                          |
-| `shutdown`        | The daemon shut the session down.                                                                                                       |
+| Stop reason       | When CompozyOS uses it                                                                                                                                           |
+| ----------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `completed`       | The agent finished normally.                                                                                                                                     |
+| `user_canceled`   | A normal user stop request.                                                                                                                                      |
+| `max_iterations`  | A user stop request carried `max_iterations` detail.                                                                                                             |
+| `loop_detected`   | A user stop request carried `loop_detected` detail.                                                                                                              |
+| `budget_exceeded` | A user stop request carried `budget_exceeded` detail.                                                                                                            |
+| `timeout`         | Runtime supervision detected inactivity, prompt cancel did not complete within the configured grace, and CompozyOS stopped the session.                          |
+| `error`           | Start or stop failed, or ACP reported a transport failure and the subprocess then exited successfully with code `0`.                                             |
+| `agent_crashed`   | The subprocess exited with a non-zero code, a signal, or a wait error; also used when CompozyOS repairs stale `active`/`stopping` metadata after a daemon crash. |
+| `hook_stopped`    | A required lifecycle hook denied continuation.                                                                                                                   |
+| `shutdown`        | The daemon shut the session down.                                                                                                                                |
 
 Inspect the current session state and stop classification at any time:
 

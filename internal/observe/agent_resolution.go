@@ -7,25 +7,18 @@ import (
 	"strings"
 
 	compozyconfig "github.com/compozy/compozy/internal/config"
+	"github.com/compozy/compozy/internal/session"
 	workspacepkg "github.com/compozy/compozy/internal/workspace"
 )
 
-func defaultPermissionModeResolver(
-	homePaths compozyconfig.HomePaths,
-	resolver workspacepkg.RuntimeResolver,
-) PermissionModeResolver {
-	return func(ctx context.Context, agentName, workspaceID string) (string, error) {
-		resolved, err := resolveObservedAgent(ctx, homePaths, resolver, agentName, "", "", workspaceID)
-		if err != nil {
-			return "", err
-		}
-		return strings.TrimSpace(resolved.Permissions), nil
-	}
+type agentCatalogRevisionSource interface {
+	AgentCatalogRevision() int64
 }
 
 func defaultProviderAuthModeResolver(
 	homePaths compozyconfig.HomePaths,
-	resolver workspacepkg.RuntimeResolver,
+	workspaceResolver workspacepkg.RuntimeResolver,
+	agentResolver session.AgentResolver,
 ) ProviderAuthModeResolver {
 	return func(
 		ctx context.Context,
@@ -37,7 +30,8 @@ func defaultProviderAuthModeResolver(
 		resolved, err := resolveObservedAgent(
 			ctx,
 			homePaths,
-			resolver,
+			workspaceResolver,
+			agentResolver,
 			agentName,
 			provider,
 			model,
@@ -53,7 +47,8 @@ func defaultProviderAuthModeResolver(
 func resolveObservedAgent(
 	ctx context.Context,
 	homePaths compozyconfig.HomePaths,
-	resolver workspacepkg.RuntimeResolver,
+	workspaceResolver workspacepkg.RuntimeResolver,
+	agentResolver session.AgentResolver,
 	agentName string,
 	provider string,
 	model string,
@@ -63,7 +58,14 @@ func resolveObservedAgent(
 		return compozyconfig.ResolvedAgent{}, errors.New("observe: agent resolver context is required")
 	}
 
-	cfg, agentDef, err := loadObservedAgent(ctx, homePaths, resolver, agentName, workspaceID)
+	cfg, agentDef, err := loadObservedAgent(
+		ctx,
+		homePaths,
+		workspaceResolver,
+		agentResolver,
+		agentName,
+		workspaceID,
+	)
 	if err != nil {
 		return compozyconfig.ResolvedAgent{}, err
 	}
@@ -80,36 +82,47 @@ func resolveObservedAgent(
 func loadObservedAgent(
 	ctx context.Context,
 	homePaths compozyconfig.HomePaths,
-	resolver workspacepkg.RuntimeResolver,
+	workspaceResolver workspacepkg.RuntimeResolver,
+	agentResolver session.AgentResolver,
 	agentName string,
 	workspaceID string,
 ) (compozyconfig.Config, compozyconfig.AgentDef, error) {
-	if strings.TrimSpace(workspaceID) == "" {
-		cfg, err := compozyconfig.LoadForHome(homePaths)
-		if err != nil {
-			return compozyconfig.Config{}, compozyconfig.AgentDef{}, fmt.Errorf("load config: %w", err)
+	var resolvedWorkspace *workspacepkg.ResolvedWorkspace
+	loadOptions := make([]compozyconfig.LoadOption, 0, 1)
+	if strings.TrimSpace(workspaceID) != "" {
+		if workspaceResolver == nil {
+			return compozyconfig.Config{}, compozyconfig.AgentDef{}, errors.New(
+				"observe: workspace resolver is required",
+			)
 		}
-		agentDef, err := compozyconfig.LoadAgentDef(agentName, homePaths)
+		workspace, err := workspaceResolver.Resolve(ctx, workspaceID)
+		if err != nil {
+			return compozyconfig.Config{}, compozyconfig.AgentDef{}, fmt.Errorf(
+				"resolve workspace %q: %w",
+				workspaceID,
+				err,
+			)
+		}
+		resolvedWorkspace = &workspace
+		loadOptions = append(loadOptions, compozyconfig.WithWorkspaceRoot(workspace.RootDir))
+	}
+	cfg, err := compozyconfig.LoadForHome(homePaths, loadOptions...)
+	if err != nil {
+		return compozyconfig.Config{}, compozyconfig.AgentDef{}, fmt.Errorf("load config: %w", err)
+	}
+	if agentResolver != nil {
+		agentDef, err := agentResolver.ResolveAgent(agentName, resolvedWorkspace)
 		if err != nil {
 			return compozyconfig.Config{}, compozyconfig.AgentDef{}, fmt.Errorf("load agent %q: %w", agentName, err)
 		}
 		return cfg, agentDef, nil
 	}
-
-	if resolver == nil {
-		return compozyconfig.Config{}, compozyconfig.AgentDef{}, errors.New("observe: workspace resolver is required")
-	}
-	resolvedWorkspace, err := resolver.Resolve(ctx, workspaceID)
-	if err != nil {
-		return compozyconfig.Config{}, compozyconfig.AgentDef{}, fmt.Errorf(
-			"resolve workspace %q: %w",
-			workspaceID,
-			err,
-		)
-	}
-	cfg, err := compozyconfig.LoadForHome(homePaths, compozyconfig.WithWorkspaceRoot(resolvedWorkspace.RootDir))
-	if err != nil {
-		return compozyconfig.Config{}, compozyconfig.AgentDef{}, fmt.Errorf("load config: %w", err)
+	if resolvedWorkspace == nil {
+		agentDef, err := compozyconfig.LoadAgentDef(agentName, homePaths)
+		if err != nil {
+			return compozyconfig.Config{}, compozyconfig.AgentDef{}, fmt.Errorf("load agent %q: %w", agentName, err)
+		}
+		return cfg, agentDef, nil
 	}
 	if agentDef, ok := compozyconfig.BuiltinAgentDef(agentName); ok {
 		return cfg, agentDef, nil
@@ -132,4 +145,15 @@ func agentDefByName(agents []compozyconfig.AgentDef, name string) (compozyconfig
 		}
 	}
 	return compozyconfig.AgentDef{}, workspacepkg.ErrAgentNotAvailable
+}
+
+func (o *Observer) agentCatalogRevision() int64 {
+	if o == nil || o.agentResolver == nil {
+		return 0
+	}
+	source, ok := o.agentResolver.(agentCatalogRevisionSource)
+	if !ok {
+		return 0
+	}
+	return source.AgentCatalogRevision()
 }

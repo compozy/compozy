@@ -25,6 +25,7 @@ func (d *Daemon) applyObserverFactoryDefault() {
 			observe.WithRegistry(deps.Registry),
 			observe.WithHomePaths(deps.HomePaths),
 			observe.WithSessionSource(source),
+			observe.WithAgentResolver(deps.AgentResolver),
 			observe.WithCostCatalog(deps.ModelCatalog),
 			observe.WithWorkspaceResolver(deps.WorkspaceResolver),
 			observe.WithLogger(deps.Logger),

@@ -55,6 +55,12 @@ For a non-leased run with an active session, direct `task run complete`, `task r
 
 When the scheduler's convergence backstop cannot get a claimable run picked up, it parks the run as `needs_attention` — a non-claimable run status — and emits `task.run_needs_attention`. `compozy task run recover <run-id> [--reason <reason>] -o json` is the operator/agent recovery path: it terminalizes the parked run and queues a fresh linked child (`previous_run_id`, next attempt) for re-dispatch. Recover applies only to `needs_attention` runs; a still-queued or failed run returns a deterministic `task_run_not_recoverable` diagnostic (use `compozy task retry` for a failed run). This run-level recovery is distinct from task-level `compozy task recover <task-id>`, which clears a task escalated by the unblock-loop breaker (see Task Blocks And Escalation).
 
+For a Loop-owned worker, run-level recovery also advances the exact bound node cell to the linked
+child with the next attempt and epoch. It preserves the Loop run, workspace, designation, worktree,
+network, capability selectors, and node metadata; clears node attention; and emits the matching Loop
+attention-cleared and resumed events. A confirmed process crash follows the Loop's bounded
+death-resume path instead of generic task-run escalation.
+
 ## Task Blocks And Escalation
 
 Declare _why_ a task cannot proceed with a typed block instead of leaving it silently stuck. Kinds are `needs_input` (waiting on a human or agent), `capability` (missing a skill, tool, or credential), and `transient` (a recoverable external failure, optionally self-expiring). Dependency waits, pending approval, and pause are not block kinds; they surface only in the read-only `blocked_reasons` projection on task read payloads.

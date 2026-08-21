@@ -54,6 +54,7 @@ func promptProcessExitEvent(proc *AgentProcess) acp.AgentEvent {
 func promptProcessFailureEvent(proc *AgentProcess, event acp.AgentEvent) acp.AgentEvent {
 	const fallback = "ACP subprocess exited during active prompt"
 
+	failureKind := store.FailureProcess
 	summary := firstTrimmedNonEmpty(failureSummary(event.Failure, event.Error), event.Error, fallback)
 	if proc != nil && isProcessDone(proc) {
 		if waitErr := proc.Wait(); waitErr != nil {
@@ -66,6 +67,9 @@ func promptProcessFailureEvent(proc *AgentProcess, event acp.AgentEvent) acp.Age
 	}
 	if proc != nil {
 		if status, ok := proc.ExitStatus(); ok {
+			if status.Signal == "" && status.ExitCode == 0 {
+				failureKind = store.FailureTransport
+			}
 			detail := fmt.Sprintf("exit code %d", status.ExitCode)
 			if status.Signal != "" {
 				detail = "signal " + status.Signal
@@ -77,7 +81,7 @@ func promptProcessFailureEvent(proc *AgentProcess, event acp.AgentEvent) acp.Age
 	event.Type = acp.EventTypeError
 	event.Error = summary
 	event.Failure = &store.SessionFailure{
-		Kind:    store.FailureProcess,
+		Kind:    failureKind,
 		Summary: summary,
 	}
 	return event

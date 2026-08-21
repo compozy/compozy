@@ -28,8 +28,22 @@ describe("session prompt chat transport", () => {
     const fetch = vi.fn<(input: RequestInfo | URL, init?: RequestInit) => Promise<Response>>(
       async () => streamResponse()
     );
-    const transport = createSessionPromptChatTransport({ api: "/prompt", fetch });
-    const messages = [userMessage("message-001")];
+    const onPromptPrepared = vi.fn();
+    const transport = createSessionPromptChatTransport({
+      api: "/prompt",
+      fetch,
+      onPromptPrepared,
+    });
+    const latest = userMessage("message-002", "Send only this turn");
+    const messages = [
+      userMessage("message-001", "Already persisted"),
+      {
+        id: "assistant-001",
+        parts: [{ text: "Persisted answer", type: "text" as const }],
+        role: "assistant" as const,
+      },
+      latest,
+    ];
 
     await transport.sendMessages({
       abortSignal: undefined,
@@ -49,13 +63,14 @@ describe("session prompt chat transport", () => {
     const first = JSON.parse(String(fetch.mock.calls[0]?.[1]?.body)) as Record<string, unknown>;
     const second = JSON.parse(String(fetch.mock.calls[1]?.[1]?.body)) as Record<string, unknown>;
     expect(first).toMatchObject({
-      message_id: "message-001",
-      messages,
+      message_id: "message-002",
+      messages: [latest],
     });
     expect(typeof first.idempotency_key).toBe("string");
     expect(first.idempotency_key).toBe(second.idempotency_key);
     expect(first).not.toHaveProperty("message");
     expect(first).not.toHaveProperty("messageId");
+    expect(onPromptPrepared).toHaveBeenLastCalledWith({ messages: [latest] });
   });
 
   it("mints a separate key for the next submitted user message and retains the runtime snapshot", async () => {

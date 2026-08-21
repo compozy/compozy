@@ -54,11 +54,11 @@ export function createSessionPromptChatTransport({
       const body: SessionPromptRequestBody = {
         idempotency_key: idempotencyKey,
         message_id: messageId,
-        messages,
+        messages: [message],
         ...(attachments.length > 0 ? { attachments } : {}),
         ...(runtime ? { runtime } : {}),
       };
-      onPromptPrepared?.({ messages });
+      onPromptPrepared?.({ messages: [message] });
       return { body };
     },
   });

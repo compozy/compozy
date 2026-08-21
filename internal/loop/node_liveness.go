@@ -9,6 +9,8 @@ import (
 const (
 	// AttentionSilence reports ambiguous loss of liveness evidence without declaring death.
 	AttentionSilence = "silence"
+	// AttentionWaitIntervention reports a node parked for explicit operator recovery.
+	AttentionWaitIntervention = "wait_intervention"
 )
 
 // NodeLivenessObservation records one evidence probe for a live node attempt.

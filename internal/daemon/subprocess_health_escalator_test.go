@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/compozy/compozy/internal/session"
+	"github.com/compozy/compozy/internal/store"
 	"github.com/compozy/compozy/internal/subprocess"
 	taskpkg "github.com/compozy/compozy/internal/task"
 	"github.com/compozy/compozy/internal/testutil"
@@ -87,6 +88,40 @@ func TestSubprocessHealthEscalator(t *testing.T) {
 
 		if actor.markCalls != 0 {
 			t.Fatalf("MarkRunNeedsAttention() calls = %d, want 0", actor.markCalls)
+		}
+	})
+
+	t.Run("Should leave a confirmed Loop worker crash to the Loop recovery owner", func(t *testing.T) {
+		t.Parallel()
+
+		runs := &subprocessHealthRunSourceStub{runs: []taskpkg.Run{{
+			ID:        "run-loop-crash",
+			TaskID:    "task-loop-crash",
+			SessionID: "sess-health",
+			Status:    taskpkg.TaskRunStatusRunning,
+			RunKind:   taskpkg.RunKindWorker,
+			LoopRunID: "looprun-health",
+		}}}
+		actor := &subprocessHealthEscalationActorStub{runs: runs}
+		escalator, err := newSubprocessHealthEscalator(runs, actor, 3, discardLogger())
+		if err != nil {
+			t.Fatalf("newSubprocessHealthEscalator() error = %v", err)
+		}
+
+		stopped := session.NotificationSessionFromInfo(&session.Info{
+			ID:          "sess-health",
+			AgentName:   "coder",
+			WorkspaceID: "ws-health",
+			State:       session.StateStopped,
+			StopReason:  store.StopAgentCrashed,
+		})
+		escalator.OnSessionStopped(testutil.Context(t), stopped)
+
+		if actor.markCalls != 0 {
+			t.Fatalf(
+				"MarkRunNeedsAttention() calls = %d, want Loop crash recovery to remain authoritative",
+				actor.markCalls,
+			)
 		}
 	})
 }

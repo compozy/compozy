@@ -363,17 +363,45 @@ func TestResourceAgentCatalogResolveAgentUsesCatalogMatches(t *testing.T) {
 	})
 
 	dependency := agentCatalogDependency(catalog)
-	got, err := dependency.ResolveAgent("coder", nil)
-	if err != nil {
-		t.Fatalf("ResolveAgent(coder) error = %v", err)
-	}
-	if got.Prompt != "latest global coder" {
-		t.Fatalf("ResolveAgent(coder).Prompt = %q, want latest global coder", got.Prompt)
-	}
+	t.Run("Should resolve the latest global catalog match without a workspace", func(t *testing.T) {
+		t.Parallel()
 
-	if _, err := dependency.ResolveAgent("missing", nil); !errors.Is(err, workspacepkg.ErrAgentNotAvailable) {
-		t.Fatalf("ResolveAgent(missing) error = %v, want ErrAgentNotAvailable", err)
-	}
+		got, err := dependency.ResolveAgent("coder", nil)
+		if err != nil {
+			t.Fatalf("ResolveAgent(coder) error = %v", err)
+		}
+		if got.Prompt != "latest global coder" {
+			t.Fatalf("ResolveAgent(coder).Prompt = %q, want latest global coder", got.Prompt)
+		}
+	})
+
+	t.Run("Should return unavailable for a missing agent", func(t *testing.T) {
+		t.Parallel()
+
+		if _, err := dependency.ResolveAgent("missing", nil); !errors.Is(err, workspacepkg.ErrAgentNotAvailable) {
+			t.Fatalf("ResolveAgent(missing) error = %v, want ErrAgentNotAvailable", err)
+		}
+	})
+
+	t.Run("Should resolve a builtin agent without a workspace", func(t *testing.T) {
+		t.Parallel()
+
+		builtin, err := dependency.ResolveAgent(compozyconfig.BuiltinCoordinatorAgentName, nil)
+		if err != nil {
+			t.Fatalf("ResolveAgent(coordinator builtin) error = %v", err)
+		}
+		if builtin.Name != compozyconfig.BuiltinCoordinatorAgentName {
+			t.Fatalf("ResolveAgent(coordinator builtin).Name = %q, want coordinator", builtin.Name)
+		}
+	})
+
+	t.Run("Should expose the current catalog revision", func(t *testing.T) {
+		t.Parallel()
+
+		if got, want := dependency.AgentCatalogRevision(), int64(3); got != want {
+			t.Fatalf("AgentCatalogRevision() = %d, want %d", got, want)
+		}
+	})
 }
 
 func TestResourceAgentCatalogResolveAgentValidation(t *testing.T) {

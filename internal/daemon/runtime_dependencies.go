@@ -26,6 +26,10 @@ func (d *Daemon) runtimeDeps(
 		worktrees = state.worktrees
 	}
 	roles := roleResolverForState(state)
+	agentCatalog := agentCatalogDependency(state.agentCatalog, agentSidecarCatalogs{
+		soul:      state.soulCatalog,
+		heartbeat: state.heartbeatCatalog,
+	})
 	return RuntimeDeps{
 		Config:              state.cfg,
 		AgentProbeConfig:    state.agentProbeConfig,
@@ -51,10 +55,8 @@ func (d *Daemon) runtimeDeps(
 		WindowManager:       state.windowManager,
 		ModelCatalog:        state.modelCatalog,
 		MarketplaceCatalog:  state.marketplace,
-		AgentCatalog: agentCatalogDependency(state.agentCatalog, agentSidecarCatalogs{
-			soul:      state.soulCatalog,
-			heartbeat: state.heartbeatCatalog,
-		}),
+		AgentCatalog:        agentCatalog,
+		AgentResolver:       agentCatalog,
 		AgentContext:        state.situationContext,
 		AgentDefinitionSync: state.agentSkillResources,
 		SoulAuthoring:       authoredContext.SoulAuthoring,

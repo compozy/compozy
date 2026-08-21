@@ -27,6 +27,10 @@ func TestLoopGoalManagedRuntimeIntegration(t *testing.T) {
 		testLoopActionLivenessIntegration(t)
 	})
 
+	t.Run("Should fail and release a Loop action lease when completion rejects an oversized result", func(t *testing.T) {
+		testLoopActionOversizedResultIntegration(t)
+	})
+
 	t.Run("Should quarantine a repeated node failure while preserving a successful sibling", func(t *testing.T) {
 		testLoopFailureBreakerIntegration(t)
 	})

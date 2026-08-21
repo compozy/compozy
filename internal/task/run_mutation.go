@@ -101,14 +101,23 @@ func (m TerminalRunMutation) Fence() RunMutationFence { return m.fence }
 type RunNeedsAttentionCommand struct {
 	diagnostic string
 	fence      RunMutationFence
+	now        time.Time
 }
 
 // NewRunNeedsAttentionCommand captures the exact run snapshot to escalate.
-func NewRunNeedsAttentionCommand(previous Run, diagnostic string) RunNeedsAttentionCommand {
-	return RunNeedsAttentionCommand{
+func NewRunNeedsAttentionCommand(
+	previous Run,
+	diagnostic string,
+	now ...time.Time,
+) RunNeedsAttentionCommand {
+	command := RunNeedsAttentionCommand{
 		diagnostic: strings.TrimSpace(diagnostic),
 		fence:      NewRunMutationFence(previous),
 	}
+	if len(now) > 0 {
+		command.now = now[0].UTC()
+	}
+	return command
 }
 
 // Diagnostic reports the sanitized operator-facing diagnostic.
@@ -116,6 +125,9 @@ func (c RunNeedsAttentionCommand) Diagnostic() string { return c.diagnostic }
 
 // Fence reports the exact source snapshot required by the command.
 func (c RunNeedsAttentionCommand) Fence() RunMutationFence { return c.fence }
+
+// Now reports when the needs-attention command was admitted.
+func (c RunNeedsAttentionCommand) Now() time.Time { return c.now }
 
 // RunMetadataMutation is a metadata-only CAS. It cannot alter lifecycle,
 // session, lease, identity, or payload fields.

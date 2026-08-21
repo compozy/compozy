@@ -271,7 +271,7 @@ func (m *Service) settleNeedsAttentionTerminalRunCommand(
 	}
 	mutation, err := store.MarkRunNeedsAttentionMutation(
 		ctx,
-		NewRunNeedsAttentionCommand(current, command.diagnostic()),
+		NewRunNeedsAttentionCommand(current, command.diagnostic(), command.CommandAt()),
 	)
 	if err != nil {
 		return err

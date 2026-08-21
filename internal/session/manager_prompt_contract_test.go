@@ -501,6 +501,56 @@ func TestPromptFatalProcessFailureStopsSessionAndPreservesReadOnlyHistory(t *tes
 			t.Fatalf("dead-session Prompt() start calls = %d, want %d", got, startsBeforeRejectedPrompt)
 		}
 	})
+
+	t.Run("Should classify an ACP error followed by exit code zero as a transport failure", func(t *testing.T) {
+		t.Parallel()
+
+		h := newHarness(t)
+		sess := createSession(t, h)
+		proc := h.driver.lastProcess()
+		proc.handle.exitStatusFn = func() (subprocess.ExitStatus, bool) {
+			return subprocess.ExitStatus{ExitCode: 0}, true
+		}
+		t.Cleanup(func() {
+			if _, ok := h.manager.Get(sess.ID); ok {
+				reportSessionStop(t, h, sess.ID)
+			}
+		})
+		h.driver.promptHook = func(_ *fakeProcess, req acp.PromptRequest) (<-chan acp.AgentEvent, error) {
+			events := make(chan acp.AgentEvent, 1)
+			events <- acp.AgentEvent{
+				Type:      acp.EventTypeError,
+				SessionID: sess.Info().ACPSessionID,
+				TurnID:    req.TurnID,
+				Timestamp: time.Now().UTC(),
+				Error:     "ACP connection closed after protocol error",
+				Failure: &store.SessionFailure{
+					Kind:    store.FailureTransport,
+					Summary: "ACP connection closed after protocol error",
+				},
+			}
+			close(events)
+			return events, nil
+		}
+
+		eventsCh, err := h.manager.Prompt(testutil.Context(t), sess.ID, "hello")
+		if err != nil {
+			t.Fatalf("Prompt() error = %v", err)
+		}
+		events := collectEvents(t, eventsCh)
+		if len(events) != 1 || events[0].Failure == nil ||
+			events[0].Failure.Kind != store.FailureTransport {
+			t.Fatalf("Prompt() events = %#v, want one transport failure", events)
+		}
+		h.notifier.waitForStopped(t, sess.ID)
+		meta := readMeta(t, sess.MetaPath())
+		if meta.StopReason == nil || *meta.StopReason != store.StopError {
+			t.Fatalf("meta.StopReason = %#v, want %q", meta.StopReason, store.StopError)
+		}
+		if meta.Failure == nil || meta.Failure.Kind != store.FailureTransport {
+			t.Fatalf("meta.Failure = %#v, want transport failure", meta.Failure)
+		}
+	})
 }
 
 func TestPromptStreamClosureWithoutTerminalStopsSession(t *testing.T) {
