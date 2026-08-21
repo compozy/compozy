@@ -2158,6 +2158,7 @@ func TestGlobalDBRecoverExpiredRunLeasesThenClaim(t *testing.T) {
 	now := time.Date(2026, 4, 26, 12, 0, 0, 0, time.UTC)
 	taskRecord := taskRecordForTest("task-expired-lease-recovery")
 	taskRecord.Status = taskpkg.TaskStatusReady
+	taskRecord.MaxAttempts = 1
 	if err := globalDB.CreateTask(ctx, taskRecord); err != nil {
 		t.Fatalf("CreateTask() error = %v", err)
 	}
@@ -2171,6 +2172,8 @@ func TestGlobalDBRecoverExpiredRunLeasesThenClaim(t *testing.T) {
 		now.Add(-time.Minute),
 	)
 	expiredRun.SessionID = ""
+	expiredRun.RunKind = taskpkg.RunKindCoordinator
+	expiredRun.LoopRunID = "looprun-expired-lease-recovery"
 	if err := globalDB.CreateTaskRun(ctx, expiredRun); err != nil {
 		t.Fatalf("CreateTaskRun(expired) error = %v", err)
 	}
