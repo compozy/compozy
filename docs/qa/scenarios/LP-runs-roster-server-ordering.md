@@ -6,13 +6,13 @@ persona: Ada
 journey: J-operate-loop-run-headless
 expected: Every runs-list read returns needs-you runs first, then active, then terminal, with the ordering applied before pagination so a run that needs a human never falls off page one; each item carries progress (round, steps done, steps total) always and an attention object (kind, count, since) only when something is actually waiting; CLI columns, HTTP and UDS responses agree on the same persisted state, a malformed cursor is a field-addressed 400 invalid_cursor, and a run id from another workspace resolves to 404 rather than an empty success.
 entry_points: compozy loop runs; compozy loop runs --loop <loop-name> --status <status> -o json; GET /api/workspaces/:workspace_id/loop-runs over HTTP and UDS; /docs/cli/loop/runs
-qa_status: untested
+qa_status: fail
 bug_ids: BUG-20260719-autonomous-progress-unobservable
 fix_status: pending
 retest_status:
 fix_commits:
-evidence:
-last_report:
+evidence: /Users/pedronauck/dev/qa-labs/compozy-loop-task-legibility-runtime-20260821-1126-20260821-112711-004724-lab/qa-artifacts/qa/headless/roster-limit1.json; /Users/pedronauck/dev/qa-labs/compozy-loop-task-legibility-runtime-20260821-1126-20260821-112711-004724-lab/qa-artifacts/qa/headless/roster-page2.json; /Users/pedronauck/dev/qa-labs/compozy-loop-task-legibility-runtime-20260821-1126-20260821-112711-004724-lab/qa-artifacts/qa/observation-summary.json
+last_report: docs/qa/reports/2026-08-21-loop-task-legibility.md
 overlaps: LP-run-read-agent-journey; LP-web-runs-roster-rerank; LP-web-runs-breadcrumb; GL-016
 ---
 
@@ -25,3 +25,8 @@ Ordering is the contract, not a convenience. Walk it with more runs than one pag
 This scenario carries the runtime-owned progress surface that `BUG-20260719-autonomous-progress-unobservable` has been missing for six reproductions: an observer reading `progress` from this list must be able to distinguish real advancement from a stall without tailing any log.
 
 QA impact 2026-08-21: Task 03 extended the runs list with server-owned ordering, attention and progress. Planning flag only; the loop's QA phase owns the real-daemon walk and evidence.
+
+QA result 2026-08-21: a needs-you run created last ranked first before the `limit=1` cut; every
+row carried progress and terminal rows omitted attention. Cursor paging returned each run once.
+The scenario remains `fail` because the one-kickoff observer still detected the pre-existing
+autonomous progress gap tracked by `BUG-20260719-autonomous-progress-unobservable`.

@@ -82,7 +82,8 @@ by default up to 500; without `--run` the same verb reads the workspace exceptio
 `--state` is required, closed to `waiting|quarantined|attention|retrying`, and pages 50 by default up to 200.
 `events --after <seq> --follow` resumes at a plain per-run sequence; HTTP timeline pagination instead
 uses an opaque run-bound cursor. Follow attaches after the first page's `head_seq`, so the durable/live
-handoff does not duplicate or skip events.
+handoff does not duplicate or skip events. A plain sequence beyond the current history returns the
+requested position and real `head_seq` with the stable `timeline_position_beyond_head` code.
 
 ## Typed Inputs
 
