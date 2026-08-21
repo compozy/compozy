@@ -1,6 +1,6 @@
-import { useQueries, useQuery } from "@tanstack/react-query";
+import { useQueries } from "@tanstack/react-query";
 
-import { loopRequestAttentionOptions, loopRunRequestCountsOptions } from "../lib/query-options";
+import { loopRequestAttentionOptions } from "../lib/query-options";
 import type { LoopRequest } from "../types";
 
 export interface LoopRequestAttentionItem {
@@ -55,19 +55,4 @@ export function useLoopRequestAttention(
   });
 
   return { pendingCount, items, disconnected, loading };
-}
-
-export function useLoopRunPendingRequestCounts(
-  workspaceId: string,
-  runIds: readonly string[],
-  enabled = true
-): ReadonlyMap<string, number> {
-  const query = useQuery(loopRunRequestCountsOptions(workspaceId, enabled && runIds.length > 0));
-  const counts = new Map<string, number>();
-  if (query.isError) return counts;
-  for (const runId of runIds) {
-    const count = query.data?.[runId] ?? 0;
-    if (count > 0) counts.set(runId, count);
-  }
-  return counts;
 }

@@ -134,31 +134,55 @@ func TestRosterContract(t *testing.T) {
 	})
 	t.Run("Should satisfy UT-018 with distinct strategy and operator cancellation", func(t *testing.T) {
 		t.Parallel()
-		operator := NodeControl{
-			NodeID:      "op",
-			CancelState: CancelStateCanceled,
-			CancelProvenance: &ControlProvenance{
-				ActorKind: "human",
-				ActorID:   "pedro",
-				Reason:    "stop",
-			},
-		}
-		strategy := NodeControl{NodeID: "strategy", CancelState: CancelStateCanceled}
 		source := RosterSource{
 			Run: Run{ID: "r", Generation: 1},
 			Graph: dsl.Graph{Nodes: []dsl.Node{
 				{ID: "op", Class: dsl.NodeClassAction},
 				{ID: "strategy", Class: dsl.NodeClassAction},
+				{ID: "never-started", Class: dsl.NodeClassAction},
 			}},
-			Controls: []NodeControl{operator, strategy},
+			Outputs: []GenerationOutput{
+				{Generation: 1, NodeID: "op", Status: generationOutputCanceled, OutputRef: strategyCanceledReasonCode},
+				{
+					Generation: 1, NodeID: "strategy", Status: generationOutputCanceled,
+					OutputRef: strategyCanceledReasonCode,
+				},
+				{
+					Generation: 1, NodeID: "never-started", Status: generationOutputCanceled,
+					OutputRef: strategyNeverStartedReasonCode,
+				},
+			},
+			Controls: []NodeControl{{
+				NodeID:      "op",
+				CancelState: CancelStateCanceled,
+				CancelProvenance: &ControlProvenance{
+					ActorKind: "human",
+					ActorID:   "pedro",
+					Reason:    "stop",
+				},
+			}},
 		}
 		page, err := ProjectRoster(&source, RosterQuery{})
 		if err != nil {
 			t.Fatalf("ProjectRoster() error = %v", err)
 		}
-		if page.Nodes[0].Cancellation.Disposition != nodeCancellationOperator ||
-			page.Nodes[1].Cancellation.Disposition != nodeCancellationStrategy {
-			t.Fatalf("cancellations = %#v", page.Nodes)
+		if len(page.Nodes) != 3 {
+			t.Fatalf("nodes = %d, want 3", len(page.Nodes))
+		}
+		operator := page.Nodes[0].Cancellation
+		if operator == nil || operator.Disposition != nodeCancellationOperator ||
+			operator.ActorKind != "human" || operator.ActorRef != "pedro" || operator.Cause != "stop" {
+			t.Fatalf("operator cancellation = %#v", operator)
+		}
+		strategy := page.Nodes[1].Cancellation
+		if strategy == nil || strategy.Disposition != nodeCancellationStrategy ||
+			strategy.Cause != strategyCanceledReasonCode {
+			t.Fatalf("strategy cancellation = %#v", strategy)
+		}
+		neverStarted := page.Nodes[2].Cancellation
+		if neverStarted == nil || neverStarted.Disposition != nodeCancellationStrategy ||
+			neverStarted.Cause != strategyNeverStartedReasonCode {
+			t.Fatalf("never-started cancellation = %#v", neverStarted)
 		}
 	})
 	t.Run("Should satisfy UT-019 with every durable generation and no invented score", func(t *testing.T) {

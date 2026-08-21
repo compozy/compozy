@@ -15,8 +15,7 @@ vi.mock("@tanstack/react-query", async importOriginal => {
   return { ...actual, useQueries: useQueriesMock, useQuery: useQueryMock };
 });
 
-const { useLoopRequestAttention, useLoopRunPendingRequestCounts } =
-  await import("../use-loop-request-attention");
+const { useLoopRequestAttention } = await import("../use-loop-request-attention");
 
 function result(
   pending: number,
@@ -71,21 +70,5 @@ describe("useLoopRequestAttention", () => {
     expect(hook.current.items[0]).toMatchObject({ workspaceId: "ws-a", stale: false });
     expect(hook.current.items[1]).toMatchObject({ workspaceId: "ws-b", stale: true });
     expect(hook.current.disconnected).toBe(true);
-  });
-});
-
-describe("useLoopRunPendingRequestCounts", () => {
-  beforeEach(() => useQueryMock.mockReset());
-
-  it("Should bind exact paged counts to runs and omit a stale projection", () => {
-    useQueryMock.mockReturnValue({ data: { "run-a": 3, "run-b": 8 }, isError: false });
-
-    const hook = renderHook(() => useLoopRunPendingRequestCounts("ws-a", ["run-a", "run-c"]));
-
-    expect([...hook.result.current]).toEqual([["run-a", 3]]);
-
-    useQueryMock.mockReturnValue({ data: { "run-a": 3 }, isError: true });
-    hook.rerender();
-    expect([...hook.result.current]).toEqual([]);
   });
 });

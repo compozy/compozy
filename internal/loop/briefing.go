@@ -3,8 +3,11 @@ package loop
 import (
 	"fmt"
 	"sort"
+	"strconv"
 	"strings"
 	"time"
+
+	"github.com/kballard/go-shellquote"
 )
 
 type BriefingTone string
@@ -143,14 +146,16 @@ func briefingBlockers(source *BriefingSource, now time.Time) []Blocker {
 		items = append(items, Blocker{
 			Kind: gateResultApprovalKey, GateID: source.Run.ActiveGateID,
 			WaitingSince: source.Run.LastProgressAt.UTC(),
-			Unblocker: fmt.Sprintf(
-				"compozy loop approve %s --gate %s", source.Run.ID, source.Run.ActiveGateID,
+			Unblocker: shellquote.Join(
+				"compozy", "loop", "approve", string(source.Run.ID),
+				"--gate", string(source.Run.ActiveGateID),
+				"--workspace", string(source.Run.WorkspaceID),
 			),
 		})
 	}
 	for _, node := range source.Roster.Nodes {
 		if node.State == NodeStateQuarantined {
-			items = append(items, nodeBlocker(string(NodeControlMutationQuarantine), source.Run.ID, node))
+			items = append(items, nodeBlocker(string(NodeControlMutationQuarantine), source.Run, node))
 		}
 	}
 	for _, request := range source.Requests {
@@ -160,11 +165,15 @@ func briefingBlockers(source *BriefingSource, now time.Time) []Blocker {
 		blocker := Blocker{
 			Kind: NodeWaitKindRequest, NodeID: request.NodeID, ItemIndex: request.ItemIndex,
 			WaitingSince: request.OpenedAt.UTC(), ExpiresAt: request.ExpiresAt,
-			Unblocker: fmt.Sprintf(
-				"compozy loop respond %s --node %s --item %d",
-				source.Run.ID,
-				request.NodeID,
-				request.ItemIndex,
+			Unblocker: shellquote.Join(
+				"compozy", "loop", "respond",
+				"--workspace", string(source.Run.WorkspaceID),
+				"--run-id", string(source.Run.ID),
+				"--generation", strconv.Itoa(request.Generation),
+				"--node", string(request.NodeID),
+				"--item", strconv.Itoa(request.ItemIndex),
+				"--decision", requestUnblockerDecision(request),
+				"--payload", "<json>",
 			),
 		}
 		blocker.Expired = request.ExpiresAt != nil && !request.ExpiresAt.After(now)
@@ -172,7 +181,7 @@ func briefingBlockers(source *BriefingSource, now time.Time) []Blocker {
 	}
 	for _, node := range source.Roster.Nodes {
 		if node.State == NodeStateFailed {
-			items = append(items, nodeBlocker(namespaceFailureKey, source.Run.ID, node))
+			items = append(items, nodeBlocker(namespaceFailureKey, source.Run, node))
 		}
 		if node.State == NodeStateRetrying {
 			items = append(items, Blocker{
@@ -191,7 +200,17 @@ func briefingBlockers(source *BriefingSource, now time.Time) []Blocker {
 	return items
 }
 
-func nodeBlocker(kind string, runID RunID, node RosterNode) Blocker {
+func requestUnblockerDecision(request Request) string {
+	if request.Kind == RequestKindAsk {
+		return RequestDecisionRespond
+	}
+	if len(request.Decisions) == 1 {
+		return request.Decisions[0]
+	}
+	return "<decision>"
+}
+
+func nodeBlocker(kind string, run Run, node RosterNode) Blocker {
 	waitingSince := timeOrZero(node.StartedAt)
 	if kind == namespaceFailureKey {
 		waitingSince = timeOrZero(node.EndedAt)
@@ -199,8 +218,11 @@ func nodeBlocker(kind string, runID RunID, node RosterNode) Blocker {
 	return Blocker{
 		Kind: kind, NodeID: node.NodeID, ItemIndex: node.ItemIndex,
 		WaitingSince: waitingSince,
-		Unblocker: fmt.Sprintf(
-			"compozy loop node requeue %s --node %s --item %d", runID, node.NodeID, node.ItemIndex,
+		Unblocker: shellquote.Join(
+			"compozy", "loop", "node", "requeue",
+			"--workspace", string(run.WorkspaceID),
+			"--run-id", string(run.ID),
+			"--node", string(node.NodeID),
 		),
 	}
 }

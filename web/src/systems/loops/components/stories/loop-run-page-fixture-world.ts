@@ -212,6 +212,8 @@ export function reviewAndFixRun(overrides: Partial<LoopRunRecord> = {}): LoopRun
       auto_commit: false,
     },
     resolved_network_participation: buildLocalNetworkParticipationFixture(),
+    // Server-owned step/round progress (B-001): round 2, drafting done, quality gate running.
+    progress: { round: 2, steps_done: 1, steps_total: 2 },
     ...overrides,
     forks: overrides.forks ?? [],
   };

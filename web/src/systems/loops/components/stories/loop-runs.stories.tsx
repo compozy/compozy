@@ -4,6 +4,7 @@ import { StorySurface } from "@/storybook/story-layout";
 
 import { LoopRunsView } from "../runs/loop-runs-view";
 import type { LoopOutcomeValue } from "../../lib/loop-runs-view";
+import type { LoopRun } from "../../types";
 import { loopRunFixtures } from "../../mocks/fixtures";
 
 const meta: Meta<typeof LoopRunsView> = {
@@ -15,20 +16,37 @@ const meta: Meta<typeof LoopRunsView> = {
 export default meta;
 type Story = StoryObj<typeof meta>;
 
-function RunsHarness({ outcome = "all" }: { outcome?: LoopOutcomeValue }) {
-  const pendingRequestCounts = new Map([[loopRunFixtures[0].id, 2]]);
+function RunsHarness({
+  outcome = "all",
+  runs = loopRunFixtures,
+  isReconnecting = false,
+}: {
+  outcome?: LoopOutcomeValue;
+  runs?: readonly LoopRun[];
+  isReconnecting?: boolean;
+}) {
   return (
     <StorySurface className="p-8">
       <div className="mx-auto max-w-[1320px]">
         <LoopRunsView
+          isReconnecting={isReconnecting}
+          onRetry={() => undefined}
           outcome={outcome}
-          pendingRequestCounts={pendingRequestCounts}
-          runs={loopRunFixtures}
+          runs={runs}
         />
       </div>
     </StorySurface>
   );
 }
+
+/**
+ * Thirty runs of the same shapes. The roster has to stay readable at the scale
+ * an actual workspace reaches, and grouping is what keeps it readable.
+ */
+const manyRuns: readonly LoopRun[] = Array.from({ length: 30 }, (_, index) => {
+  const seed = loopRunFixtures[index % loopRunFixtures.length];
+  return { ...seed, id: `${seed.id}-${index + 1}` };
+});
 
 export const Default: Story = {
   render: () => <RunsHarness />,
@@ -42,4 +60,19 @@ export const OutcomeFiltered: Story = {
 /** No fixture run is `watching`, so the outcome filter reaches the truthful empty state. */
 export const OutcomeFilteredEmpty: Story = {
   render: () => <RunsHarness outcome="watching" />,
+};
+
+/** VC-34 · a workspace that has never run a loop explains how to start one. */
+export const EmptyWorkspace: Story = {
+  render: () => <RunsHarness runs={[]} />,
+};
+
+/** VC-35 · thirty runs: grouping is what keeps the roster readable at scale. */
+export const DozensActive: Story = {
+  render: () => <RunsHarness runs={manyRuns} />,
+};
+
+/** VC-36 · a dropped stream is not an empty workspace and never borrows its words. */
+export const TransportDegraded: Story = {
+  render: () => <RunsHarness isReconnecting />,
 };

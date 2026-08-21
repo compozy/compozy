@@ -3,12 +3,14 @@ package loop
 import (
 	"context"
 	"errors"
+	"slices"
 	"strings"
 	"testing"
 	"time"
 
 	"github.com/compozy/compozy/internal/loop/dsl"
 	"github.com/compozy/compozy/internal/task"
+	"github.com/kballard/go-shellquote"
 )
 
 func TestBriefingContract(t *testing.T) {
@@ -30,7 +32,7 @@ func TestBriefingContract(t *testing.T) {
 		source.Run.ActiveGateID = "release"
 		got := ProjectBriefing(&source)
 		if got.Tone != BriefingToneNeedsYou ||
-			got.Blockers[0].Unblocker != "compozy loop approve run-a --gate release" {
+			got.Blockers[0].Unblocker != "compozy loop approve run-a --gate release --workspace ws-a" {
 			t.Fatalf("briefing = %#v", got)
 		}
 	})
@@ -53,23 +55,80 @@ func TestBriefingContract(t *testing.T) {
 			got.Blockers[2].Kind != NodeWaitKindRequest {
 			t.Fatalf("blockers = %#v", got.Blockers)
 		}
+		arguments, err := shellquote.Split(got.Blockers[1].Unblocker)
+		if err != nil {
+			t.Fatalf("shellquote.Split(quarantine unblocker) error = %v", err)
+		}
+		wantArguments := []string{
+			"compozy", "loop", "node", "requeue",
+			"--workspace", "ws-a",
+			"--run-id", "run-a",
+			"--node", "q",
+		}
+		if !slices.Equal(arguments, wantArguments) {
+			t.Fatalf("quarantine unblocker arguments = %#v, want %#v", arguments, wantArguments)
+		}
 	})
 	t.Run("Should satisfy UT-004 with expired request truth and no retry field", func(t *testing.T) {
 		t.Parallel()
 		expired := now.Add(-time.Minute)
 		source := healthyBriefing(now)
+		source.Run.WorkspaceID = "workspace with spaces"
 		source.Requests = []Request{
 			{
-				LoopRunID: "run-a",
-				NodeID:    "ask",
-				State:     "pending",
-				OpenedAt:  now.Add(-time.Hour),
-				ExpiresAt: &expired,
+				LoopRunID:  "run-a",
+				Generation: 7,
+				NodeID:     "ask;echo",
+				ItemIndex:  3,
+				Kind:       RequestKindAsk,
+				State:      "pending",
+				OpenedAt:   now.Add(-time.Hour),
+				ExpiresAt:  &expired,
 			},
 		}
 		got := ProjectBriefing(&source)
 		if !got.Blockers[0].Expired || got.Blockers[0].ExpiresAt == nil {
 			t.Fatalf("blocker = %#v", got.Blockers[0])
+		}
+		arguments, err := shellquote.Split(got.Blockers[0].Unblocker)
+		if err != nil {
+			t.Fatalf("shellquote.Split(unblocker) error = %v", err)
+		}
+		wantArguments := []string{
+			"compozy", "loop", "respond",
+			"--workspace", "workspace with spaces",
+			"--run-id", "run-a",
+			"--generation", "7",
+			"--node", "ask;echo",
+			"--item", "3",
+			"--decision", "respond",
+			"--payload", "<json>",
+		}
+		if !slices.Equal(arguments, wantArguments) {
+			t.Fatalf("unblocker arguments = %#v, want %#v", arguments, wantArguments)
+		}
+	})
+	t.Run("Should preserve an explicit decision placeholder for multi-decision reviews", func(t *testing.T) {
+		t.Parallel()
+		source := healthyBriefing(now)
+		source.Requests = []Request{
+			{
+				LoopRunID:  "run-a",
+				Generation: 2,
+				NodeID:     "review",
+				Kind:       RequestKindReview,
+				State:      "pending",
+				Decisions:  []string{RequestDecisionApprove, RequestDecisionRespond},
+				OpenedAt:   now,
+			},
+		}
+		got := ProjectBriefing(&source)
+		arguments, err := shellquote.Split(got.Blockers[0].Unblocker)
+		if err != nil {
+			t.Fatalf("shellquote.Split(review unblocker) error = %v", err)
+		}
+		if !slices.Contains(arguments, "<decision>") || !slices.Contains(arguments, "<json>") {
+			t.Fatalf("review unblocker arguments = %#v, want explicit decision and payload placeholders", arguments)
 		}
 	})
 	t.Run("Should satisfy UT-005 with neutral canceled actor outcome", func(t *testing.T) {
@@ -194,6 +253,7 @@ func healthyBriefing(now time.Time) BriefingSource {
 	return BriefingSource{
 		Run: Run{
 			ID:             "run-a",
+			WorkspaceID:    "ws-a",
 			Status:         StatusRunning,
 			Generation:     2,
 			StartedAt:      now.Add(-time.Hour),

@@ -346,6 +346,9 @@ func newRosterNode(
 	if wait != nil && (wait.ClaimState == WaitClaimWaiting || wait.ClaimState == WaitClaimInterventionRequired) {
 		view.State = NodeStateWaiting
 	}
+	if output != nil && view.State == NodeStateCanceled {
+		view.Cancellation = strategyCancellationView(*output)
+	}
 	if control != nil {
 		switch {
 		case control.Quarantined:
@@ -367,10 +370,17 @@ func cancellationView(control NodeControl) *NodeCancellation {
 		result.ActorRef = control.CancelProvenance.ActorID
 		result.Cause = control.CancelProvenance.Reason
 	}
-	if result.ActorKind == "" {
-		result.Disposition = nodeCancellationStrategy
-	}
 	return result
+}
+
+func strategyCancellationView(output GenerationOutput) *NodeCancellation {
+	cause := strings.TrimSpace(output.OutputRef)
+	switch cause {
+	case strategyCanceledReasonCode, strategyNeverStartedReasonCode:
+		return &NodeCancellation{Disposition: nodeCancellationStrategy, Cause: cause}
+	default:
+		return nil
+	}
 }
 
 func attemptState(disposition AttemptDisposition) NodeState {

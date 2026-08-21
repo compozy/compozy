@@ -21,16 +21,12 @@ vi.mock("@tanstack/react-router", async importOriginal => {
   };
 });
 
-const { LoopRunProgressPanel } = await import("../run-page/loop-run-progress-panel");
-const { LoopRunStoryTimeline } = await import("../run-page/loop-run-story-timeline");
-const { LoopRunNowCard } = await import("../run-page/loop-run-now-card");
-const { LoopRunAttentionPanel, LoopRunWaitingPanel } =
-  await import("../run-page/loop-run-parked-panels");
 const { LoopRunNeedsYouCard } = await import("../run-page/loop-run-needs-you-card");
+const { LOOP_NEEDS_YOU_ANCHOR_ID, LoopRunBriefing } = await import("../run-page/loop-run-briefing");
+const { buildBriefingView } = await import("../../lib/loop-run-briefing-view");
 const { projectLoopRequest } = await import("../../lib/loop-request-model");
 const { answeredAskRequest, pendingEntityAskRequest, pendingReviewRequest } =
   await import("../../mocks/fixture-graph-eng-requests");
-const { LoopRunOutcomeCard } = await import("../run-page/loop-run-outcome-card");
 const { LoopRunControls } = await import("../run-page/loop-run-controls");
 const { LoopNodeControlMenu } = await import("../run-page/loop-node-control-menu");
 const { LoopNodeRowActions } = await import("../run-page/loop-node-row-actions");
@@ -39,10 +35,8 @@ const { LoopRunControlDialog } = await import("../run-page/loop-run-control-dial
 const { LoopNodeControlDialog } = await import("../run-page/loop-node-control-dialog");
 const { LoopNodeAmendDialog } = await import("../run-page/loop-node-amend-dialog");
 const { LoopQuarantineSheet } = await import("../run-page/loop-quarantine-sheet");
-const { LoopRunWaitsRail } = await import("../run-page/loop-run-waits-rail");
 const { LOOP_NODE_VERB_PRESENTATION, loopNodeVerbs, loopNodeWaitResumeItemIndex } =
   await import("../../lib/loop-node-controls");
-const { buildNodeNowLines } = await import("../../lib/loop-node-now-view");
 const { quarantineChainRows } = await import("../../lib/loop-quarantine-entry");
 const { loopNodeStateStrip, loopNodeVerbConfirmCopy, loopRunStateStrip } =
   await import("../../lib/loop-node-verb-copy");
@@ -51,412 +45,17 @@ const { checkLoopWaitPayload, loopWaitExpectRequiredKeys } =
 type LoopNodeLifecycle = import("../../lib/loop-node-lifecycle").LoopNodeLifecycle;
 const { LoopRunUsageRail } = await import("../run-page/loop-run-usage-rail");
 const { LoopRunAboutRail } = await import("../run-page/loop-run-about-rail");
-const { LoopRunResolvedRuntimes } = await import("../run-page/loop-run-resolved-runtimes");
-const { buildRunProgress } = await import("../../lib/loop-run-progress");
+const { LoopRunRegisters } = await import("../run-page/loop-run-registers");
+const { projectLoopRunRegisters } = await import("../../lib/loop-run-registers-view");
 const { buildRunUsage } = await import("../../lib/loop-run-usage");
 const { loopRunDetailByRunId } = await import("../../mocks/fixtures");
 type LoopRunRecord = import("../../types").LoopRunRecord;
-type LoopStoryRow = import("../../lib/loop-run-story").LoopStoryRow;
-type LoopStoryNow = import("../../lib/loop-run-story").LoopStoryNow;
 
 const detail = loopRunDetailByRunId.get("looprun_running")!;
 
 function run(overrides: Partial<LoopRunRecord> = {}): LoopRunRecord {
   return { ...detail.run, ...overrides };
 }
-
-function storyRow(overrides: Partial<LoopStoryRow> = {}): LoopStoryRow {
-  return {
-    key: overrides.key ?? "f-1",
-    kind: "gate_verdict",
-    seq: 1,
-    at: "2026-07-22T14:36:00Z",
-    tone: "warning",
-    icon: "check-warn",
-    title: "Check: not clean yet",
-    sub: "Verdict revise.",
-    issues: [{ id: "issue_022", note: "no decision" }],
-    micro: "gate_verdict · revise",
-    ...overrides,
-  };
-}
-
-const EMPTY_GOAL_IDS: ReadonlySet<string> = new Set();
-
-describe("LoopRunProgressPanel", () => {
-  it("Should render the goal voice, the group bar states, and the meta line", () => {
-    const progress = buildRunProgress(
-      run({ status: "running", generation: 2, reattempt_strategy: "failed_only" }),
-      [
-        {
-          generation: 2,
-          parent_generation: 1,
-          origin: "gate_revise",
-          route_causes: [],
-          verdicts: [],
-          outputs: [
-            { node_id: "fix", status: "succeeded", generation: 2, item_index: 1 },
-            { node_id: "fix", status: "succeeded", generation: 2, item_index: 2 },
-            { node_id: "fix", status: "running", generation: 2, item_index: 3 },
-          ],
-        },
-      ],
-      2
-    );
-    render(
-      <LoopRunProgressPanel
-        title="Resolve every review comment on PR 128"
-        doneWhen="Done when a fresh review reports zero unresolved comments."
-        progress={progress}
-      />
-    );
-    expect(screen.getByTestId("loop-run-goal")).toHaveTextContent(
-      "Resolve every review comment on PR 128"
-    );
-    expect(screen.getByTestId("loop-run-done-when")).toBeInTheDocument();
-    const bar = screen.getByTestId("loop-run-progress-bar");
-    expect(bar.querySelectorAll("[data-state='clean']")).toHaveLength(2);
-    expect(bar.querySelectorAll("[data-state='active']")).toHaveLength(1);
-    expect(screen.getByTestId("loop-run-progress-meta")).toHaveTextContent(
-      "2 of 3 groups clean — the failed group is being redone"
-    );
-    expect(screen.getByTestId("loop-run-progress-right")).toHaveTextContent(
-      "2 open points from the last check"
-    );
-  });
-
-  it("Should hide the bar without fan-out and summarize the round alone", () => {
-    const progress = buildRunProgress(run({ status: "watching", generation: 3 }), [], null);
-    render(<LoopRunProgressPanel title="React to inbound review requests" progress={progress} />);
-    expect(screen.queryByTestId("loop-run-progress-bar")).not.toBeInTheDocument();
-    expect(screen.getByTestId("loop-run-progress-meta")).toHaveTextContent("Round 3");
-  });
-});
-
-describe("LoopRunStoryTimeline", () => {
-  it("Should render story rows with verbatim micro labels and mono issue ids", () => {
-    render(
-      <LoopRunStoryTimeline
-        rows={[
-          storyRow(),
-          storyRow({
-            key: "f-2",
-            kind: "node_succeeded",
-            tone: "success",
-            icon: "node-done",
-            title: "Fix batches — 2 of 3 clean",
-            sub: undefined,
-            issues: undefined,
-            micro: "node_succeeded · fix_batches[1–2]",
-          }),
-        ]}
-        isLive
-        goalNodeIds={EMPTY_GOAL_IDS}
-        goalTurns={[]}
-      />
-    );
-    const rows = screen.getAllByTestId("loop-story-row");
-    expect(rows).toHaveLength(2);
-    expect(rows[0]).toHaveTextContent("Check: not clean yet");
-    expect(rows[0]).toHaveTextContent("gate_verdict · revise");
-    expect(screen.getByTestId("loop-story-issues")).toHaveTextContent("issue_022 — no decision");
-    expect(rows[1]).toHaveTextContent("node_succeeded · fix_batches[1–2]");
-  });
-
-  it("Should render score, best, and restored provenance from a generation row", () => {
-    const originalScroll = Element.prototype.scrollIntoView;
-    const scrollIntoView = vi.fn();
-    Element.prototype.scrollIntoView = scrollIntoView;
-    window.location.hash = "#loop-generation-3";
-    try {
-      render(
-        <LoopRunStoryTimeline
-          rows={[
-            storyRow({
-              kind: "generation_started",
-              generation: 3,
-              score: 0.7,
-              isBest: true,
-              originLabel: "Restored from gen 1",
-            }),
-          ]}
-          isLive={false}
-          goalNodeIds={EMPTY_GOAL_IDS}
-          goalTurns={[]}
-        />
-      );
-
-      const row = screen.getByTestId("loop-story-row");
-      expect(row).toHaveAttribute("id", "loop-generation-3");
-      expect(row).toHaveTextContent("score 0.70");
-      expect(row).toHaveTextContent("Best");
-      expect(row).toHaveTextContent("Restored from gen 1");
-      expect(scrollIntoView).toHaveBeenCalledWith({ block: "start" });
-    } finally {
-      Element.prototype.scrollIntoView = originalScroll;
-      window.location.hash = "";
-    }
-  });
-
-  it("Should stay quiet before any frame arrives", () => {
-    render(<LoopRunStoryTimeline rows={[]} isLive goalNodeIds={EMPTY_GOAL_IDS} goalTurns={[]} />);
-    expect(screen.getByText("Nothing yet")).toBeInTheDocument();
-  });
-
-  it("Should keep the newest generation flat and fold older generations", () => {
-    render(
-      <LoopRunStoryTimeline
-        rows={[
-          storyRow({
-            key: "g2",
-            generation: 2,
-            title: "Newest beat",
-            micro: "generation_started · gen 2",
-          }),
-          storyRow({
-            key: "g1",
-            generation: 1,
-            title: "Older beat",
-            micro: "generation_started · gen 1",
-          }),
-        ]}
-        isLive={false}
-        goalNodeIds={EMPTY_GOAL_IDS}
-        goalTurns={[]}
-      />
-    );
-    expect(screen.getByText("Newest beat")).toBeInTheDocument();
-    expect(screen.getByTestId("loop-story-generation-1")).toHaveTextContent(
-      "Generation 1 · 1 event"
-    );
-    expect(screen.queryByText("Older beat")).not.toBeInTheDocument();
-  });
-});
-
-describe("LoopRunNowCard", () => {
-  const now: LoopStoryNow = {
-    nodeId: "fix_batches",
-    label: "fix batches",
-    itemIndex: 3,
-    generation: 2,
-    startedAt: "2026-07-22T14:36:00Z",
-    taskLink: { taskId: "task_9", taskRunId: "tr_9" },
-    isGoalNode: false,
-  };
-
-  it("Should show the running step with its task-run link and ticking trail", () => {
-    render(
-      <LoopRunNowCard
-        run={run({ status: "running", generation: 2, reattempt_strategy: "failed_only" })}
-        now={now}
-        isLive
-        stepElapsedLabel="4m 09s"
-      />
-    );
-    expect(screen.getByTestId("loop-run-now-label")).toHaveTextContent("Working on fix batches");
-    expect(screen.getByText("4m 09s")).toBeInTheDocument();
-    expect(screen.getByTestId("loop-run-now-task-link")).toHaveAttribute(
-      "data-params",
-      JSON.stringify({ id: "task_9", runId: "tr_9" })
-    );
-  });
-
-  it("Should render the watching card with cadence and last wake", () => {
-    render(
-      <LoopRunNowCard
-        run={run({ status: "watching" })}
-        now={null}
-        isLive
-        watchLastWakeAt="2026-07-22T14:40:00Z"
-        watchCadence="checks every 30s"
-      />
-    );
-    expect(screen.getByTestId("loop-run-now-label")).toHaveTextContent(
-      "Watching for the next event"
-    );
-    expect(screen.getByText("checks every 30s")).toBeInTheDocument();
-  });
-
-  it("Should render the paused explainer without a live badge", () => {
-    render(<LoopRunNowCard run={run({ status: "paused", generation: 2 })} now={null} isLive />);
-    expect(screen.getByTestId("loop-run-now-label")).toHaveTextContent("Paused");
-    expect(screen.queryByRole("status")).not.toBeInTheDocument();
-  });
-
-  it("Should open the live agent session in one click when the cell has one bound", () => {
-    render(
-      <LoopRunNowCard
-        run={run({ status: "running", generation: 2 })}
-        now={now}
-        isLive
-        nodeSessions={new Map([["fix_batches", "sess-live-agent"]])}
-        nodeLines={[
-          {
-            nodeId: "execute_task",
-            state: "retrying",
-            headline: "execute task is retrying",
-            body: "Next attempt shortly.",
-            chip: null,
-            provenance: null,
-            micro: "execute_task · gen 2",
-          },
-        ]}
-        nodesById={
-          new Map([["execute_task", loopNodeLifecycleFixture({ nodeId: "execute_task" })]])
-        }
-      />
-    );
-    expect(screen.getByTestId("loop-run-now-session-link")).toHaveAttribute(
-      "data-params",
-      JSON.stringify({ id: "sess-live-agent" })
-    );
-    // A lifecycle row without a bound session offers no dead session affordance.
-    expect(screen.queryByTestId("loop-run-now-node-session-execute_task")).not.toBeInTheDocument();
-  });
-});
-
-describe("LoopRunAttentionPanel", () => {
-  it("Should collapse consumers behind one quarantined producer and route its entry", () => {
-    const onOpenQuarantine = vi.fn();
-    const consumers = ["collect", "review", "verify", "approve"].map(nodeId =>
-      loopNodeLifecycleFixture({
-        nodeId,
-        label: nodeId,
-        attentionFlag: "dependency_quarantined",
-        attentionReason: `node ${nodeId} requires parked producer execute_task`,
-        attentionProducerNodeId: "execute_task",
-        generation: 3,
-      })
-    );
-    render(<LoopRunAttentionPanel nodes={consumers} onOpenQuarantine={onOpenQuarantine} />);
-
-    const row = screen.getByTestId("loop-run-attention-producer-execute_task");
-    expect(row).toHaveTextContent("execute task is quarantined");
-    expect(row).toHaveTextContent(
-      "collect, review, verify and approve are parked behind it until it is requeued."
-    );
-    expect(screen.getByTestId("loop-run-attention")).toHaveTextContent("4 flagged");
-
-    const buttons = screen.getAllByRole("button", { name: "Open quarantine entry" });
-    expect(buttons).toHaveLength(1);
-    fireEvent.click(buttons[0]);
-    expect(onOpenQuarantine).toHaveBeenCalledWith("execute_task");
-  });
-
-  it("Should keep the daemon's own reason for non-dependency flags", () => {
-    render(
-      <LoopRunAttentionPanel
-        nodes={[
-          loopNodeLifecycleFixture({
-            nodeId: "watcher",
-            label: "watcher",
-            attentionFlag: "expired_wait",
-            attentionReason: "wait expired without a timeout route",
-          }),
-        ]}
-      />
-    );
-    expect(screen.getByTestId("loop-run-attention-watcher")).toHaveTextContent(
-      "watcher waited past its deadline"
-    );
-    expect(screen.queryByRole("button", { name: "Open quarantine entry" })).not.toBeInTheDocument();
-  });
-
-  it("Should keep dependency consumers without producer provenance as separate rows", () => {
-    const consumers = ["collect", "review"].map(nodeId =>
-      loopNodeLifecycleFixture({
-        nodeId,
-        label: nodeId,
-        attentionFlag: "dependency_quarantined",
-        attentionReason: `node ${nodeId} requires an unavailable producer`,
-        attentionProducerNodeId: "",
-      })
-    );
-    render(<LoopRunAttentionPanel nodes={consumers} />);
-
-    expect(screen.getByTestId("loop-run-attention-collect")).toBeInTheDocument();
-    expect(screen.getByTestId("loop-run-attention-review")).toBeInTheDocument();
-    expect(screen.queryByTestId("loop-run-attention-producer-unknown")).not.toBeInTheDocument();
-    expect(screen.getByTestId("loop-run-attention-inventory-link")).toBeInTheDocument();
-  });
-});
-
-describe("LoopRunWaitingPanel", () => {
-  it("Should show the ladder strip only when cursor or next stamp exist", () => {
-    render(
-      <LoopRunWaitingPanel
-        runId="r-7c4e19"
-        nodes={[
-          loopNodeLifecycleFixture({
-            nodeId: "approve_fix",
-            label: "approve fix",
-            state: "waiting",
-            parked: true,
-            waits: [
-              {
-                nodeId: "approve_fix",
-                generation: 2,
-                itemIndex: 0,
-                kind: "approval_escalation",
-                claimState: "intervention_required",
-                escalationCursor: 1,
-                nextEscalationAt: "2026-08-03T15:02:00Z",
-                admissionFailures: 0,
-                ageSeconds: 120,
-                createdAt: "2026-08-03T14:00:00Z",
-                expect: { env: "staging" },
-              },
-            ],
-          }),
-        ]}
-      />
-    );
-    expect(screen.getByTestId("loop-run-wait-ladder-approve_fix-0")).toHaveTextContent(
-      "step 1 done"
-    );
-    expect(screen.getByTestId("loop-run-wait-approve_fix-0")).toHaveTextContent(
-      "The ladder walks its steps"
-    );
-    expect(screen.getByTestId("loop-run-wait-approve_fix-0")).toHaveTextContent(
-      '{"env":"staging"}'
-    );
-  });
-
-  it("Should not describe a ladder that is not on screen", () => {
-    render(
-      <LoopRunWaitingPanel
-        runId="r-7c4e19"
-        nodes={[
-          loopNodeLifecycleFixture({
-            nodeId: "approve_fix",
-            label: "approve fix",
-            state: "waiting",
-            parked: true,
-            waits: [
-              {
-                nodeId: "approve_fix",
-                generation: 2,
-                itemIndex: 0,
-                kind: "approval_escalation",
-                claimState: "waiting",
-                escalationCursor: 0,
-                admissionFailures: 0,
-                ageSeconds: 30,
-                createdAt: "2026-08-03T14:00:00Z",
-                expect: undefined,
-              },
-            ],
-          }),
-        ]}
-      />
-    );
-    expect(screen.queryByTestId("loop-run-wait-ladder-approve_fix-0")).not.toBeInTheDocument();
-    expect(screen.getByTestId("loop-run-wait-approve_fix-0")).toHaveTextContent(
-      "Waiting for your decision"
-    );
-    expect(screen.getByTestId("loop-run-wait-approve_fix-0")).not.toHaveTextContent("ladder");
-  });
-});
 
 describe("LoopRunNeedsYouCard", () => {
   it("Should keep same-node requests from different generations distinct and retry context", () => {
@@ -695,150 +294,6 @@ describe("LoopNodeAmendDialog typed fields", () => {
     expect(picker.tagName).toBe("BUTTON");
     expect(picker).toHaveTextContent("reviewer");
     expect(picker).toHaveTextContent("Not available");
-  });
-});
-
-describe("LoopRunOutcomeCard", () => {
-  it("Should tell what went wrong with recovery and restart, and never an invented Vault CTA", () => {
-    render(
-      <LoopRunOutcomeCard
-        run={run({ status: "failed", created_at: "2026-01-01T00:00:00Z" })}
-        failure={{
-          kind: "coordinator_failure",
-          code: "coordinator_failed",
-          cause: "The Loop coordinator failed before it could settle the run.",
-          recovery: "Inspect daemon logs for the correlated coordinator run, then start a new run.",
-        }}
-        fromStatus="running"
-        cause=""
-        terminalAt="2026-01-01T00:26:41Z"
-        repeatedIssueIds={[]}
-        onStartNewRun={vi.fn()}
-      />
-    );
-    expect(screen.getByTestId("loop-run-outcome-title")).toHaveTextContent("Failed after 26m 41s");
-    expect(
-      screen.getByText("The Loop coordinator failed before it could settle the run.")
-    ).toBeInTheDocument();
-    expect(screen.getByTestId("loop-run-start-new")).toBeInTheDocument();
-    // No Loops producer emits a Vault-repairable failure, so the CTA must be gone.
-    expect(screen.queryByText("Open Vault")).not.toBeInTheDocument();
-    expect(
-      screen.getByText("status_changed · running → failed · cause coordinator_failed")
-    ).toBeInTheDocument();
-  });
-
-  it("Should fire the same-inputs restart", () => {
-    const onStartNewRun = vi.fn();
-    render(
-      <LoopRunOutcomeCard
-        run={run({ status: "exhausted", generation: 50, iteration_cap: 50 })}
-        failure={null}
-        repeatedIssueIds={[]}
-        onStartNewRun={onStartNewRun}
-      />
-    );
-    expect(screen.getByTestId("loop-run-outcome-title")).toHaveTextContent("Round cap reached");
-    fireEvent.click(screen.getByTestId("loop-run-start-new"));
-    expect(onStartNewRun).toHaveBeenCalledTimes(1);
-  });
-
-  it("Should point an exhausted run to its persisted best generation", () => {
-    render(
-      <LoopRunOutcomeCard
-        run={run({
-          status: "exhausted",
-          generation: 3,
-          iteration_cap: 3,
-          best_generation: 1,
-          best_score: 0.7,
-        })}
-        failure={null}
-        repeatedIssueIds={[]}
-        onStartNewRun={vi.fn()}
-      />
-    );
-
-    expect(screen.getByTestId("loop-run-best-pointer").querySelector("a")).toHaveAttribute(
-      "href",
-      "#loop-generation-1"
-    );
-    expect(screen.getByTestId("loop-run-best-pointer")).toHaveTextContent(
-      "Best result · Gen 1 · 0.70"
-    );
-  });
-
-  it("Should not invent a Time limit when the terminal frame lands before the wall budget", () => {
-    render(
-      <LoopRunOutcomeCard
-        run={run({
-          status: "exhausted",
-          budget_wall_sec: 999_999,
-          iteration_cap: 0,
-          budget_tokens: 0,
-          created_at: "2026-01-01T00:00:00Z",
-        })}
-        failure={null}
-        terminalAt="2026-01-01T00:04:12Z"
-        repeatedIssueIds={[]}
-        onStartNewRun={vi.fn()}
-      />
-    );
-    const title = screen.getByTestId("loop-run-outcome-title");
-    expect(title).toHaveTextContent("Run exhausted after 4m 12s");
-    expect(title).not.toHaveTextContent("Time limit");
-  });
-
-  it("Should report the Time limit from the terminal frame even when last_progress predates the cap", () => {
-    // The status CAS never refreshes last_progress_at: the durable span (created →
-    // last_progress) sits under the 30m cap, but the terminal status_changed `at`
-    // is the truth and crosses it, so the run must read as a Time limit.
-    render(
-      <LoopRunOutcomeCard
-        run={run({
-          status: "exhausted",
-          budget_wall_sec: 1_800,
-          iteration_cap: 0,
-          budget_tokens: 0,
-          created_at: "2026-01-01T00:00:00Z",
-          last_progress_at: "2026-01-01T00:20:00Z",
-        })}
-        failure={null}
-        terminalAt="2026-01-01T00:31:00Z"
-        repeatedIssueIds={[]}
-        onStartNewRun={vi.fn()}
-      />
-    );
-    expect(screen.getByTestId("loop-run-outcome-title")).toHaveTextContent(
-      "Time limit reached after 31m 00s"
-    );
-  });
-
-  it("Should render the stalled explainer with the repeated blocking ids", () => {
-    render(
-      <LoopRunOutcomeCard
-        run={run({ status: "stalled" })}
-        failure={null}
-        noProgressWindow={2}
-        repeatedIssueIds={["issue_022", "issue_024"]}
-        onStartNewRun={vi.fn()}
-      />
-    );
-    expect(screen.getByTestId("loop-run-outcome-title")).toHaveTextContent("Stalled — no progress");
-    expect(screen.getByTestId("loop-run-stalled-issues")).toHaveTextContent("issue_022");
-    expect(screen.queryByTestId("loop-run-start-new")).not.toBeInTheDocument();
-  });
-
-  it("Should keep the no-op outcome a quiet note", () => {
-    render(
-      <LoopRunOutcomeCard
-        run={run({ status: "no-op" })}
-        failure={null}
-        repeatedIssueIds={[]}
-        onStartNewRun={vi.fn()}
-      />
-    );
-    expect(screen.getByTestId("loop-run-noop-note")).toHaveTextContent("Ran, nothing to do");
   });
 });
 
@@ -1084,80 +539,6 @@ describe("loopNodeVerbs", () => {
     for (const status of ["done", "failed", "canceled", "exhausted"]) {
       expect(loopNodeVerbs(node({ paused: true, state: "paused" }), status)).toEqual([]);
     }
-  });
-});
-
-describe("buildNodeNowLines", () => {
-  it("Should present cancellation as a stable state without leaking the daemon token", () => {
-    const [line] = buildNodeNowLines(
-      [
-        loopNodeLifecycleFixture({
-          state: "canceling",
-          cancelState: "draining",
-          cancelProvenance: {
-            actor_kind: "user",
-            actor_id: "pedro",
-            reason: "operator request",
-            requested_at: "2026-08-03T14:00:00Z",
-          },
-        }),
-      ],
-      null,
-      {}
-    );
-    if (!line) throw new Error("expected a current-state line for the canceling node");
-    expect(line.state).toBe("canceling");
-    expect(line.body).toContain("Cancellation is in progress — requested by you (pedro)");
-    expect(line.body).not.toContain("draining");
-    expect(line.micro).toContain("cancel_state draining");
-  });
-
-  it("Should omit the pause timestamp clause when the daemon timestamp is invalid", () => {
-    const [line] = buildNodeNowLines(
-      [
-        loopNodeLifecycleFixture({
-          state: "paused",
-          parked: true,
-          paused: true,
-          pauseProvenance: {
-            actor_kind: "system",
-            actor_id: "autopause",
-            reason: "retry storm",
-            requested_at: "not-a-timestamp",
-          },
-        }),
-      ],
-      null,
-      {}
-    );
-    if (!line) throw new Error("expected a current-state line for the paused node");
-    expect(line.provenance).toBe("paused by system autopause · reason “retry storm”");
-    expect(line.provenance).not.toContain("at ");
-  });
-
-  it("Should omit waiting and quarantined lanes from Happening now", () => {
-    const lines = buildNodeNowLines(
-      [
-        loopNodeLifecycleFixture({ state: "waiting", parked: true }),
-        loopNodeLifecycleFixture({
-          nodeId: "task_04",
-          state: "quarantined",
-          parked: true,
-          quarantined: true,
-        }),
-        loopNodeLifecycleFixture({
-          nodeId: "task_05",
-          state: "paused",
-          parked: true,
-          paused: true,
-          itemIndex: 1,
-        }),
-      ],
-      null,
-      {}
-    );
-    expect(lines.map(line => line.state)).toEqual(["paused"]);
-    expect(lines[0]?.micro).toContain("task_05[1] · gen 2");
   });
 });
 
@@ -1586,39 +967,6 @@ describe("LoopQuarantineSheet", () => {
   });
 });
 
-describe("LoopRunWaitsRail", () => {
-  it("Should count every open wait truthfully and identify its sole node", () => {
-    render(
-      <LoopRunWaitsRail
-        runId="r-7c4e19"
-        nodes={[
-          loopNodeLifecycleFixture({
-            nodeId: "await_deploy",
-            state: "waiting",
-            parked: true,
-            waits: [
-              {
-                nodeId: "await_deploy",
-                generation: 2,
-                itemIndex: 0,
-                kind: "timer",
-                claimState: "waiting",
-                escalationCursor: 0,
-                admissionFailures: 0,
-                ageSeconds: 60,
-                createdAt: "2026-08-03T14:00:00Z",
-                expect: undefined,
-              },
-            ],
-          }),
-        ]}
-      />
-    );
-    expect(screen.getByTestId("loop-run-waits-open-waits")).toHaveTextContent("1· await_deploy");
-    expect(screen.queryByText("Waiting on you")).not.toBeInTheDocument();
-  });
-});
-
 describe("LoopRunUsageRail", () => {
   it("Should render the four rows with ceilings, ∞, and the policy note", () => {
     const rows = buildRunUsage(
@@ -1667,59 +1015,261 @@ describe("LoopRunAboutRail", () => {
   });
 });
 
-describe("LoopRunResolvedRuntimes", () => {
-  it("Should expose each durable runtime field with the daemon-reported provenance", () => {
+// The briefing strip points at the decision; it never carries it. That pointer
+// has to actually arrive somewhere, for a keyboard user as much as a mouse one —
+// an action that only looks like an action is worse than no action at all.
+describe("LoopRunBriefing needs-you action", () => {
+  function needsYouBriefing() {
+    return buildBriefingView({
+      run_id: "looprun-1",
+      status: "needs-approval",
+      tone: "needs_you",
+      headline: "The gate has been waiting for your decision",
+      blockers: [
+        {
+          kind: "approval",
+          gate_id: "aplicar-correcoes",
+          waiting_since: "2026-08-19T18:41:00Z",
+          unblocker: "compozy loop approve looprun-1 --gate aplicar-correcoes",
+        },
+      ],
+      artifacts: [],
+      progress: { round: 1, steps_done: 4, steps_total: 6 },
+      usage: { tokens: 82_400 },
+    } as never);
+  }
+
+  it("Should move focus to the needs-you region rather than merely scrolling", async () => {
     render(
-      <LoopRunResolvedRuntimes
-        generations={[
-          {
-            generation: 2,
-            parent_generation: 1,
-            origin: "gate_revise",
-            route_causes: [],
-            verdicts: [],
-            outputs: [
-              {
-                node_id: "execute_task",
-                item_index: 2,
-                status: "running",
-                task_run_id: "tr_204",
-                resolved_runtime: {
-                  provider: "openai",
-                  model: "gpt-5.4",
-                  reasoning: "high",
-                  speed: "fast",
-                  speed_resolution: {
-                    requested: "fast",
-                    status: "unsupported",
-                    reason: "capability_absent",
-                  },
-                  source: {
-                    provider: "run",
-                    model: "frontmatter",
-                    reasoning: "config",
-                    speed: "input",
-                  },
-                },
-              },
-            ],
-          },
-        ]}
-      />
+      <>
+        <LoopRunBriefing briefing={needsYouBriefing()} outcome={null} />
+        <section data-testid="needs-you-region" id={LOOP_NEEDS_YOU_ANCHOR_ID} tabIndex={-1}>
+          decision card
+        </section>
+      </>
     );
 
-    const runtime = screen.getByTestId("loop-run-resolved-runtime");
-    expect(runtime).toHaveTextContent("Generation 2 · execute_task · item 3");
-    expect(runtime).toHaveTextContent("tr_204");
-    expect(runtime).toHaveTextContent("openai");
-    expect(runtime).toHaveTextContent("per-run rule");
-    expect(runtime).toHaveTextContent("gpt-5.4");
-    expect(runtime).toHaveTextContent("task frontmatter");
-    expect(runtime).toHaveTextContent("high");
-    expect(runtime).toHaveTextContent("config rule");
-    expect(runtime).toHaveTextContent("fast");
-    expect(runtime).toHaveTextContent("runtime input");
-    expect(runtime).toHaveTextContent("unsupported · capability absent");
-    expect(screen.queryByRole("button")).not.toBeInTheDocument();
+    const region = screen.getByTestId("needs-you-region");
+    region.scrollIntoView = vi.fn();
+
+    const action = screen.getByTestId("loop-run-briefing-action");
+    expect(action).toHaveTextContent("Review the request");
+    await userEvent.click(action);
+
+    // Focus, not just scroll: leaving a keyboard caret in the strip would strand
+    // the very person the pointer exists for.
+    expect(region).toHaveFocus();
+    expect(region.scrollIntoView).toHaveBeenCalled();
+  });
+
+  it("Should never render a decision button of its own", () => {
+    render(<LoopRunBriefing briefing={needsYouBriefing()} outcome={null} />);
+    // One primary per decision, in one viewport. The card owns Approve/Reject.
+    expect(screen.queryByRole("button", { name: /approve/i })).toBeNull();
+    expect(screen.queryByRole("button", { name: /reject/i })).toBeNull();
+  });
+});
+
+// The lib knows how to degrade a pruned session; what this owns is whether the
+// register ever hands it the truth to degrade on. Wiring is exactly where this
+// went wrong before: the projection took a pruned set the page never passed, so
+// the sentence existed and was unreachable.
+describe("LoopRunRegisters pruned session", () => {
+  const rosterNode = {
+    generation: 1,
+    node_id: "revisor-estilo",
+    item_index: 0,
+    state: "succeeded",
+    attempt: 1,
+    attempts: [
+      {
+        attempt: 1,
+        state: "succeeded",
+        disposition: "settled",
+        started_at: "2026-08-19T18:41:07Z",
+        ended_at: "2026-08-19T18:43:38Z",
+      },
+    ],
+    session_id: "ses-5d871c99",
+    cell_task_id: "loop.looprun-1.g1.node.revisor-estilo.0",
+    started_at: "2026-08-19T18:41:07Z",
+    ended_at: "2026-08-19T18:43:38Z",
+  } as never;
+
+  function renderRegisters(prunedSessionIds?: ReadonlySet<string>) {
+    const nodes = [rosterNode];
+    return render(
+      <LoopRunRegisters
+        generations={[]}
+        graph={null}
+        isLive={false}
+        isReconnecting={false}
+        nodeLifecycles={[]}
+        nodes={nodes}
+        nowMs={Date.parse("2026-08-19T19:00:00Z")}
+        onOpenChange={() => undefined}
+        onSelectionChange={() => undefined}
+        open
+        prunedSessionIds={prunedSessionIds}
+        registers={projectLoopRunRegisters({
+          briefing: null,
+          nodes,
+          rollups: [],
+          timeline: [],
+          graph: null,
+        })}
+        rollups={[]}
+        selection={{ nodeId: "revisor-estilo", itemIndex: 0, generation: 1 }}
+      />
+    );
+  }
+
+  it("Should open the recorded session while it is still there", () => {
+    renderRegisters();
+
+    expect(screen.getByTestId("loop-node-panel-link-session")).toBeInTheDocument();
+    expect(screen.queryByTestId("loop-node-panel-degraded-session")).toBeNull();
+  });
+
+  it("Should say the session is gone instead of offering a link that 404s", () => {
+    renderRegisters(new Set(["ses-5d871c99"]));
+
+    expect(screen.queryByTestId("loop-node-panel-link-session")).toBeNull();
+    expect(screen.getByTestId("loop-node-panel-degraded-session")).toHaveTextContent(
+      "Session no longer available"
+    );
+    // The record link is a different store's fact and survives the degrade.
+    expect(screen.getByTestId("loop-node-panel-link-record")).toBeInTheDocument();
+  });
+});
+
+// What the lib models and what the reader actually sees are two different
+// assertions. These own the second one: the words that reach the DOM.
+describe("LoopRunRegisters roster and generation lanes", () => {
+  const runningNode = {
+    generation: 2,
+    node_id: "implementar",
+    item_index: 0,
+    state: "running",
+    attempt: 1,
+    attempts: [
+      { attempt: 1, state: "running", disposition: "open", started_at: "2026-08-19T18:40:00Z" },
+    ],
+    started_at: "2026-08-19T18:40:00Z",
+    ended_at: null,
+    usage: { tokens: 14_800 },
+  } as never;
+
+  const generation = {
+    generation: 2,
+    origin: "gate_revise",
+    parent_generation: 1,
+    outputs: [],
+    route_causes: [],
+    verdicts: [
+      {
+        blocking_issues: [],
+        criteria: [],
+        gate_id: "quality",
+        item_index: 0,
+        outcome: "invalid_output",
+      },
+    ],
+  } as never;
+
+  async function openLane(lane: "nodes" | "generations") {
+    const nodes = [runningNode];
+    render(
+      <LoopRunRegisters
+        generations={[generation]}
+        graph={null}
+        isLive
+        isReconnecting={false}
+        nodeLifecycles={[]}
+        nodes={nodes}
+        nowMs={Date.parse("2026-08-19T18:50:00Z")}
+        onOpenChange={() => undefined}
+        onSelectionChange={() => undefined}
+        open
+        registers={projectLoopRunRegisters({
+          briefing: null,
+          nodes,
+          rollups: [],
+          timeline: [],
+          graph: null,
+        })}
+        rollups={[]}
+        runStatus="running"
+        selection={null}
+      />
+    );
+    await userEvent.click(screen.getByTestId(`loop-lane-${lane}`));
+  }
+
+  it("Should read a running step as in progress with its elapsed clock", async () => {
+    await openLane("nodes");
+
+    const row = screen.getByTestId("loop-roster-row-2:implementar:0");
+    expect(row).toHaveTextContent("in progress");
+    expect(row).not.toHaveTextContent("not started");
+    expect(row).toHaveTextContent("10m");
+  });
+
+  it("Should show tokens beside a cost the header labels an estimate", async () => {
+    await openLane("nodes");
+
+    // `formatTokenCount` is the app-wide token formatter; the roster reuses it
+    // rather than minting a second spelling of the same number.
+    expect(screen.getByTestId("loop-roster-row-2:implementar:0")).toHaveTextContent(
+      "14.8K · ~$0.07"
+    );
+    expect(screen.getByRole("columnheader", { name: /est\. cost/i })).toBeInTheDocument();
+  });
+
+  it("Should give every round's row its own DOM identity", async () => {
+    // The same step id exists once per round. A locator that names only the step
+    // matches several rows at once, so a test asserting on "the retrying row"
+    // silently asserts on whichever one it happened to find first.
+    const nodes = [runningNode, { ...(runningNode as object), generation: 3 } as never];
+    render(
+      <LoopRunRegisters
+        generations={[]}
+        graph={null}
+        isLive
+        isReconnecting={false}
+        nodeLifecycles={[]}
+        nodes={nodes}
+        nowMs={Date.parse("2026-08-19T18:50:00Z")}
+        onOpenChange={() => undefined}
+        onSelectionChange={() => undefined}
+        open
+        registers={projectLoopRunRegisters({
+          briefing: null,
+          nodes,
+          rollups: [],
+          timeline: [],
+          graph: null,
+        })}
+        rollups={[]}
+        runStatus="running"
+        selection={null}
+      />
+    );
+    await userEvent.click(screen.getByTestId("loop-lane-nodes"));
+    await userEvent.click(screen.getByRole("button", { name: "All rounds" }));
+
+    expect(screen.getByTestId("loop-roster-row-2:implementar:0")).toBeInTheDocument();
+    expect(screen.getByTestId("loop-roster-row-3:implementar:0")).toBeInTheDocument();
+  });
+
+  it("Should state the round's outcome in words and its own usage", async () => {
+    await openLane("generations");
+
+    const round = screen.getByTestId("loop-generation-2");
+    expect(round).toHaveTextContent("the output did not match its schema");
+    expect(round).not.toHaveTextContent("invalid_output");
+    expect(screen.getByTestId("loop-generation-usage-2")).toHaveTextContent("14.8K · ~$0.07 est.");
+    // A live run holding an unsettled step has not finished the round.
+    expect(screen.getByTestId("loop-generation-progress-2")).toHaveTextContent("still running");
   });
 });

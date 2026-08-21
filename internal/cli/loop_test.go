@@ -26,6 +26,70 @@ import (
 func TestLoopCommandShouldMapCLIVerbsToClient(t *testing.T) {
 	t.Parallel()
 
+	t.Run("Should map request response identity flags without positional arguments", func(t *testing.T) {
+		t.Parallel()
+
+		var capturedWorkspaceID, capturedRunID, capturedNodeID string
+		var capturedRequest contract.RespondLoopRequest
+		deps := newTestDeps(t, &stubClient{
+			getWorkspaceFn: resolveTestLoopWorkspace(t),
+			respondLoopRequestFn: func(
+				_ context.Context,
+				workspaceID string,
+				runID string,
+				nodeID string,
+				request contract.RespondLoopRequest,
+				_ agentidentity.Credentials,
+			) (contract.RespondLoopRequestResponse, error) {
+				capturedWorkspaceID = workspaceID
+				capturedRunID = runID
+				capturedNodeID = nodeID
+				capturedRequest = request
+				return contract.RespondLoopRequestResponse{
+					OK: true, RunID: runID, NodeID: nodeID, State: "answered",
+				}, nil
+			},
+		})
+
+		_, _, err := executeRootCommand(
+			t,
+			deps,
+			"loop", "respond",
+			"--workspace", "alpha",
+			"--run-id", "run-request",
+			"--generation", "7",
+			"--node", "ask",
+			"--item", "3",
+			"--decision", "respond",
+			"--payload", `{"answer":"yes"}`,
+		)
+		if err != nil {
+			t.Fatalf("executeRootCommand(loop respond) error = %v", err)
+		}
+		if capturedWorkspaceID != "ws-alpha" || capturedRunID != "run-request" || capturedNodeID != "ask" ||
+			capturedRequest.Generation != 7 || capturedRequest.ItemIndex != 3 ||
+			capturedRequest.Decision != "respond" ||
+			string(capturedRequest.Payload) != `{"answer":"yes"}` {
+			t.Fatalf(
+				"RespondLoopRequest target/request = %q/%q/%q/%#v",
+				capturedWorkspaceID,
+				capturedRunID,
+				capturedNodeID,
+				capturedRequest,
+			)
+		}
+	})
+
+	t.Run("Should reject a positional run argument for request responses", func(t *testing.T) {
+		t.Parallel()
+
+		deps := newTestDeps(t, &stubClient{})
+		_, _, err := executeRootCommand(t, deps, "loop", "respond", "run-request")
+		if err == nil || !strings.Contains(err.Error(), `unknown command "run-request"`) {
+			t.Fatalf("executeRootCommand(loop respond positional) error = %v, want no-args rejection", err)
+		}
+	})
+
 	t.Run("Should preserve editor and temporary-file cleanup failures", func(t *testing.T) {
 		t.Parallel()
 

@@ -1,12 +1,13 @@
 import { normalizeLoopCatalogFilter } from "./loops-list-query";
 import type {
-  GoalTurnFilter,
   LoopCatalogStableFilter,
   LoopDiffQuery,
   LoopNodeInventoryFilter,
   LoopRequestStableFilter,
+  LoopRosterStableFilter,
   LoopRunsFilter,
   LoopStreamFilter,
+  LoopTimelineStableFilter,
 } from "../types";
 
 /** Inventory filter minus the continuation cursor, which lives in `pageParam`. */
@@ -82,6 +83,34 @@ export const loopsKeys = {
   runDetail: (workspaceId: string, runId: string) =>
     [...loopsKeys.runDetails(), workspaceId, runId] as const,
 
+  // Run read layer (ADR-005). Three projections of one source, so they share a
+  // root and invalidate together when a node verb lands or the stream reconnects.
+  runReadsRoot: () => [...loopsKeys.all, "run-reads"] as const,
+  runReads: (workspaceId: string, runId: string) =>
+    [...loopsKeys.runReadsRoot(), workspaceId, runId] as const,
+  runBriefing: (workspaceId: string, runId: string) =>
+    [...loopsKeys.runReads(workspaceId, runId), "briefing"] as const,
+  // `state` and `generation` are part of the key: a filtered roster is a
+  // different population with its own cursor, never one list filtered on the client.
+  runRoster: (workspaceId: string, runId: string, filters: LoopRosterStableFilter = {}) =>
+    [
+      ...loopsKeys.runReads(workspaceId, runId),
+      "roster",
+      normalizeText(filters.state),
+      normalizeNumber(filters.generation),
+      normalizeNumber(filters.limit),
+    ] as const,
+  // `view` is part of the key for the same reason: `notable` and `all` are two
+  // histories with independently fenced cursors, not one list filtered down.
+  runTimeline: (workspaceId: string, runId: string, filters: LoopTimelineStableFilter = {}) =>
+    [
+      ...loopsKeys.runReads(workspaceId, runId),
+      "timeline",
+      normalizeText(filters.view),
+      normalizeNumber(filters.limit),
+      normalizeNumber(filters.after_sequence),
+    ] as const,
+
   // Workspace-scoped node inventory (`GET /loop-nodes?state=…`). `state` is a
   // required query param, so it is part of every key — the four inventory views
   // are four independent caches, never one list filtered client-side.
@@ -106,8 +135,6 @@ export const loopsKeys = {
   requestsByWorkspace: (workspaceId: string) => [...loopsKeys.requestsRoot(), workspaceId] as const,
   requestAttention: (workspaceId: string) =>
     [...loopsKeys.requestsByWorkspace(workspaceId), "attention"] as const,
-  runRequestCounts: (workspaceId: string) =>
-    [...loopsKeys.requestsByWorkspace(workspaceId), "run-counts"] as const,
   requests: (workspaceId: string, filters: LoopRequestStableFilter = {}) =>
     [
       ...loopsKeys.requestsByWorkspace(workspaceId),
@@ -142,21 +169,6 @@ export const loopsKeys = {
       normalizeNumber(query.generation),
       normalizeNumber(query.against_generation),
       normalizeText(query.against_run),
-    ] as const,
-
-  goalTurnsRoot: () => [...loopsKeys.all, "goal-turns"] as const,
-  goalTurns: (
-    workspaceId: string,
-    runId: string,
-    filters: Pick<GoalTurnFilter, "node" | "item" | "limit"> = {}
-  ) =>
-    [
-      ...loopsKeys.goalTurnsRoot(),
-      workspaceId,
-      runId,
-      normalizeText(filters.node),
-      normalizeNumber(filters.item),
-      normalizeNumber(filters.limit),
     ] as const,
 
   // SSE stream resume seed (after_sequence + Last-Event-ID intent).

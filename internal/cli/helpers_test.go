@@ -300,6 +300,14 @@ type stubClient struct {
 		contract.ApproveLoopRunRequest,
 		agentidentity.Credentials,
 	) error
+	respondLoopRequestFn func(
+		context.Context,
+		string,
+		string,
+		string,
+		contract.RespondLoopRequest,
+		agentidentity.Credentials,
+	) (contract.RespondLoopRequestResponse, error)
 	listAgentsFn                func(context.Context, AgentQuery) ([]AgentRecord, error)
 	getAgentFn                  func(context.Context, string, AgentQuery) (AgentRecord, error)
 	createAgentFn               func(context.Context, contract.CreateAgentRequest) (AgentRecord, error)
@@ -2293,13 +2301,16 @@ func (s *stubClient) GetLoopRequest(
 }
 
 func (s *stubClient) RespondLoopRequest(
-	context.Context,
-	string,
-	string,
-	string,
-	contract.RespondLoopRequest,
-	agentidentity.Credentials,
+	ctx context.Context,
+	workspaceID string,
+	runID string,
+	nodeID string,
+	request contract.RespondLoopRequest,
+	credentials agentidentity.Credentials,
 ) (contract.RespondLoopRequestResponse, error) {
+	if s.respondLoopRequestFn != nil {
+		return s.respondLoopRequestFn(ctx, workspaceID, runID, nodeID, request, credentials)
+	}
 	return contract.RespondLoopRequestResponse{}, errors.New("unexpected RespondLoopRequest call")
 }
 

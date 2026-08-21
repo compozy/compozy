@@ -6,7 +6,7 @@ persona: Lea
 journey: J-complete-partial-loop
 expected: The run detail uses the materialized contract for its plain-language Progress story, shows bounded Goal criterion diagnostics and warnings in the turn timeline, and keeps the raw executed definition plus every operator fact reachable through Inspect.
 entry_points: web /loop-runs/:id; GET /loop-runs/:id; SSE /loop-runs/:id/events; topbar ⋯ Inspect
-qa_status: pass
+qa_status: untested
 bug_ids:
 fix_status:
 retest_status:

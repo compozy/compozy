@@ -6,7 +6,7 @@ persona: Bruno
 journey: J-supervise-loop-request
 expected: The story timeline renders a row per graph-completion beat: request opened/answered/expired/canceled with actor and decision, route taken naming the matched condition or stating the default was used, a pruned aggregate naming the lane count and cause, an amended row citing provenance, and a forked row linking the new run.
 entry_points: /loop-runs/$runId story timeline
-qa_status: pass
+qa_status: untested
 bug_ids: ""
 fix_status:
 retest_status:

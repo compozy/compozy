@@ -3,8 +3,8 @@ import {
   emptyLoopRunLiveState,
   type LoopRunLiveState,
 } from "../../lib/loop-events";
-import { buildNodeNowLines } from "../../lib/loop-node-now-view";
 import { projectLoopRunPageView } from "../../lib/loop-run-page-view";
+import { projectLoopRunRegisters } from "../../lib/loop-run-registers-view";
 import { materializeContractFixture } from "../../mocks/materialize-contract-fixture";
 import type { LoopRunPageBodyProps } from "../run-page/loop-run-page-body";
 import type { LoopRunStoryScenario } from "./loop-run-scenario-types";
@@ -23,10 +23,18 @@ function reduceLiveState(frames: readonly LoopRunEventFrame[]): LoopRunLiveState
   return frames.reduce(applyLoopEventFrame, emptyLoopRunLiveState());
 }
 
-export type ScenarioBodyProps = Omit<LoopRunPageBodyProps, "inspect">;
+/**
+ * Everything a scenario can state as data. Whatever describes where the reader
+ * currently is — the disclosure, the open node, what retention has since removed
+ * — belongs to the story component, exactly as it belongs to the page.
+ */
+export type ScenarioBodyProps = Omit<
+  LoopRunPageBodyProps,
+  "inspect" | "nodeSelection" | "onNodeSelectionChange" | "prunedSessionIds"
+>;
 
 export function buildScenarioProps(scenario: LoopRunStoryScenario): ScenarioBodyProps {
-  const { run, definition, generations, watchEvents } = scenario;
+  const { run, definition, generations } = scenario;
   const live = reduceLiveState(scenario.frames);
   const {
     effectiveRun,
@@ -45,17 +53,24 @@ export function buildScenarioProps(scenario: LoopRunStoryScenario): ScenarioBody
   return {
     ...view,
     run: effectiveRun,
-    definition,
     materializedContract: materializeContractFixture(definition.contract, run.inputs ?? {}),
-    goalTurns: scenario.goalTurns ?? [],
     generations,
-    watchEvents,
-    frames: live.frames,
     workspaceLabel: "Home",
     versionLabel: `v${run.definition_version} · pinned`,
-    nodeNowLines: buildNodeNowLines(view.nodeLifecycles, view.graph, live.retrySchedules),
-    nodesById: new Map(view.nodeLifecycles.map(node => [node.nodeId, node])),
+    // Both registers come from the same three reads the live page uses, so a
+    // captured story is evidence about the real projection, not a hand-built one.
+    registers: projectLoopRunRegisters({
+      briefing: scenario.briefing ?? null,
+      nodes: scenario.rosterNodes ?? [],
+      rollups: scenario.rosterRollups ?? [],
+      timeline: scenario.timeline ?? [],
+      graph: view.graph,
+    }),
+    rosterNodes: scenario.rosterNodes ?? [],
+    rosterRollups: scenario.rosterRollups ?? [],
+    // Pinned, not the wall clock: an elapsed reading that moves between captures
+    // turns every visual-contract diff into noise.
+    nowMs: STORY_NOW,
     onDecision: () => undefined,
-    onStartNewRun: () => undefined,
   };
 }

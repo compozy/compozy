@@ -177,6 +177,40 @@ export class LoopRequestError extends LoopsApiError {
   }
 }
 
+/**
+ * A rejection from the run read layer (`/briefing`, `/nodes`, `/timeline`).
+ *
+ * These carry structure the UI acts on rather than prose it prints: an invalid
+ * roster state names the `allowed` set, and a cursor the daemon will not honour
+ * says whether the page set moved (`timeline_branch_changed`) or the token was
+ * malformed. The story recovers from a stale cursor by re-reading the newest
+ * window — it never splices two histories together (Safety Invariant 7).
+ */
+export class LoopReadError extends LoopsApiError {
+  constructor(
+    message: string,
+    status: number,
+    public readonly code: string,
+    public readonly details: Readonly<Record<string, string>>
+  ) {
+    super(message, status);
+    this.name = "LoopReadError";
+  }
+
+  /** The cursor no longer addresses a readable page set; restart from the head. */
+  get isStaleCursor(): boolean {
+    return this.code === "timeline_branch_changed" || this.code === "invalid_cursor";
+  }
+
+  /** The roster state vocabulary the daemon accepts, already split. */
+  get allowedStates(): string[] {
+    return (this.details.allowed ?? "")
+      .split(",")
+      .map(state => state.trim())
+      .filter(state => state !== "");
+  }
+}
+
 export class LoopTimetravelError extends LoopsApiError {
   constructor(
     message: string,

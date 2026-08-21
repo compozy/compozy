@@ -27,6 +27,11 @@ import {
 } from "./fixtures";
 import { graphEngHandlers } from "./handlers-graph-eng";
 import { graphEngRunDetailByRunId, graphEngRunFixtures } from "./fixture-graph-eng-runs";
+import {
+  resolveLoopRunBriefing,
+  resolveLoopRunRoster,
+  resolveLoopRunTimeline,
+} from "./fixture-run-reads";
 import { RELEASE_TRAIN_LOOP_NAME, releaseTrainDetail } from "./fixture-release-train";
 import { lintDefinition } from "./lint-definition";
 import { materializeContractFixture } from "./materialize-contract-fixture";
@@ -366,6 +371,24 @@ export const handlers: HttpHandler[] = [
     }
     return HttpResponse.json(detail);
   }),
+  // The run read layer: three computed projections over one source (ADR-005).
+  compozyApiMock.get("/api/workspaces/{workspace_id}/loop-runs/{run_id}/briefing", ({ params }) =>
+    HttpResponse.json(resolveLoopRunBriefing(String(params.run_id)))
+  ),
+  compozyApiMock.get(
+    "/api/workspaces/{workspace_id}/loop-runs/{run_id}/nodes",
+    ({ params, request }) =>
+      HttpResponse.json(
+        resolveLoopRunRoster(String(params.run_id), new URL(request.url).searchParams)
+      )
+  ),
+  compozyApiMock.get(
+    "/api/workspaces/{workspace_id}/loop-runs/{run_id}/timeline",
+    ({ params, request }) =>
+      HttpResponse.json(
+        resolveLoopRunTimeline(String(params.run_id), new URL(request.url).searchParams)
+      )
+  ),
   compozyApiMock.get("/api/workspaces/{workspace_id}/loop-runs/{run_id}/turns", ({ params }) => {
     const runId = String(params.run_id);
     if (!runDetailByRunId.has(runId)) {

@@ -1,88 +1,88 @@
 import { Link } from "@tanstack/react-router";
-import { ChevronRight, TriangleAlert } from "lucide-react";
+import { TriangleAlert } from "lucide-react";
 
-import { formatRelativeTime, Pill } from "@compozy/ui";
+import { cn, MonoId, Pill, PillDot, TableCell, TableRow, Time } from "@compozy/ui";
 
-import { loopRunBestLabel } from "../../lib/loop-generation-presentation";
-import { formatRunInputs, loopBudgetBar, runGenerationLabel } from "../../lib/loop-runs-view";
+import { formatClockDuration } from "../../lib/loop-run-usage";
+import type { LoopRunRow as LoopRunRowModel } from "../../lib/loop-runs-view";
 import type { LoopRun } from "../../types";
-import { LoopStatusPill } from "../loop-status-pill";
-import { LoopBudgetMiniBar } from "./loop-budget-mini-bar";
 
 interface LoopRunRowProps {
-  run: LoopRun;
-  pendingRequestCount?: number;
-}
-
-export const LOOP_RUNS_ROW_GRID =
-  "grid-cols-[128px_minmax(0,1.4fr)_minmax(0,1fr)_84px_112px_112px_128px_16px]";
-
-/** Trigger line for a run (`schedule`, `cli`). */
-function triggerLabel(run: LoopRun): string {
-  if (run.started_origin_kind === "session") {
-    return run.started_origin_ref ? `session · ${run.started_origin_ref}` : "session";
-  }
-  return run.started_origin_kind || run.started_by_kind || "manual";
+  row: LoopRunRowModel;
 }
 
 /**
- * One workspace-wide runs table row: outcome pill, loop + id/trigger, resolved
- * inputs, generations vs cap, when it started, budget mini-bar, and a chevron to
- * the run detail.
+ * The durable span the read already carries (`created_at` -> `last_progress_at`).
+ * A run that has not moved yet has no span to state, so it reads `—` rather than
+ * a `0m 00s` that would imply it ran and finished instantly.
  */
-export function LoopRunRow({ run, pendingRequestCount = 0 }: LoopRunRowProps) {
-  const inputs = formatRunInputs(run.inputs);
-  const best = loopRunBestLabel(run);
+function durationLabel(run: LoopRun): string {
+  const created = Date.parse(run.created_at);
+  const last = Date.parse(run.last_progress_at);
+  if (Number.isNaN(created) || Number.isNaN(last) || last <= created) return "—";
+  return formatClockDuration(Math.round((last - created) / 1000));
+}
+
+const META_CELL = "font-mono text-mono-id tabular-nums text-muted";
+
+/**
+ * One roster row: Loop · Status · Progress · Started · Duration.
+ *
+ * Everything the row says comes from the server-owned row model — it never
+ * re-derives a status, an attention marker, or a step count from the raw run.
+ * Spend (generations, best score, budget) is deliberately absent: it demoted to
+ * the run page, where there is room to say what it means.
+ */
+export function LoopRunRow({ row }: LoopRunRowProps) {
+  const { run } = row;
   return (
-    <Link
-      to="/loop-runs/$runId"
-      params={{ runId: run.id }}
-      className={`grid ${LOOP_RUNS_ROW_GRID} items-center gap-3.5 border-b border-line-soft px-4 py-3 transition-colors last:border-b-0 hover:bg-row-hover max-[1140px]:grid-cols-[128px_minmax(0,1fr)_auto] max-[1140px]:gap-3`}
-      data-testid="loop-run-row"
+    <TableRow
+      className={cn(row.needsYou && "bg-row-selected hover:bg-surface-glaze")}
+      data-needs-you={row.needsYou ? "true" : undefined}
+      data-run-id={run.id}
       data-status={run.status}
+      data-testid="loop-run-row"
     >
-      <LoopStatusPill status={run.status} />
-      <span className="flex min-w-0 flex-col gap-0.5">
-        <span className="flex min-w-0 items-center gap-2">
-          <span className="truncate text-ws-name font-medium text-fg-strong">{run.loop_name}</span>
-          {pendingRequestCount > 0 ? (
-            <Pill
-              aria-label={`${pendingRequestCount} pending ${pendingRequestCount === 1 ? "request" : "requests"}`}
-              className="shrink-0"
-              data-testid="loop-run-pending-requests"
-              size="xs"
-              tone="warning"
-            >
-              <TriangleAlert aria-hidden="true" />
-              {pendingRequestCount}
-            </Pill>
+      <TableCell className="w-full max-w-0 py-2.5">
+        <span className="flex min-w-0 flex-col gap-0.5">
+          <Link
+            className="truncate text-ws-name font-medium text-fg-strong underline-offset-3 hover:underline"
+            data-testid="loop-run-name"
+            params={{ runId: run.id }}
+            to="/loop-runs/$runId"
+          >
+            {run.loop_name}
+          </Link>
+          {row.summaryLine ? (
+            <span className="truncate text-small-body text-subtle" data-testid="loop-run-summary">
+              {row.summaryLine}
+            </span>
           ) : null}
+          <MonoId data-testid="loop-run-id" value={run.id} />
         </span>
-        <span className="font-mono text-mono-id text-faint">
-          {run.id} · {triggerLabel(run)}
-        </span>
-      </span>
-      <span className="truncate text-small-body text-muted max-[1140px]:hidden">
-        {inputs || "—"}
-      </span>
-      <span className="font-mono text-mono-id tabular-nums text-muted max-[1140px]:hidden">
-        {runGenerationLabel(run)}
-      </span>
-      <span
-        className="font-mono text-mono-id tabular-nums text-muted max-[1140px]:hidden"
-        data-testid="loop-run-best"
-      >
-        {best ?? "—"}
-      </span>
-      <span className="text-xs tabular-nums text-muted max-[1140px]:text-right">
-        {formatRelativeTime(run.created_at)}
-      </span>
-      <span className="max-[1140px]:hidden">
-        <LoopBudgetMiniBar bar={loopBudgetBar(run)} />
-      </span>
-      <span className="justify-self-end text-faint max-[1140px]:hidden">
-        <ChevronRight aria-hidden="true" className="size-3.5" />
-      </span>
-    </Link>
+      </TableCell>
+      <TableCell>
+        <Pill data-testid="loop-run-status" tone={row.statusTone}>
+          {/* The needs-you chip carries a glyph as well as tone, so colour never
+              travels alone on the one row a person has to act on. Every other
+              status keeps production's dot-and-label chip vocabulary. */}
+          {row.needsYou ? (
+            <TriangleAlert aria-hidden="true" />
+          ) : (
+            <PillDot pulse={row.statusPulse} />
+          )}
+          {row.statusLabel}
+        </Pill>
+      </TableCell>
+      <TableCell className={META_CELL} data-testid="loop-run-progress">
+        {row.progressLabel}
+      </TableCell>
+      <TableCell className={META_CELL} data-testid="loop-run-started">
+        <Time iso={run.created_at} />
+      </TableCell>
+      <TableCell className={META_CELL} data-testid="loop-run-duration">
+        {durationLabel(run)}
+      </TableCell>
+    </TableRow>
   );
 }

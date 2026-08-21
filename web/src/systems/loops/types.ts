@@ -35,6 +35,36 @@ export type LoopRunGenerationOutput = LoopRunGeneration["outputs"][number];
 export type LoopWatchEventsState = NonNullable<LoopRunDetail["watch_events"]>;
 export type LoopWatchEventSubscription = LoopWatchEventsState["subscriptions"][number];
 
+/** Server-owned attention summary on a runs-list row (needs-you marker + count). */
+export type LoopRunAttention = NonNullable<LoopRun["attention"]>;
+/** Server-owned step/round progress: the roster and the briefing agree by construction. */
+export type LoopStepProgress = LoopRun["progress"];
+
+// Run read layer ------------------------------------------------------------
+// Three computed projections over one source (ADR-005). The web renders them and
+// never re-derives a verdict or a node state from SSE frames alone.
+
+export type LoopBriefing = OperationResponse<"getLoopRunBriefing", 200>;
+export type LoopBriefingBlocker = LoopBriefing["blockers"][number];
+export type LoopRunArtifact = LoopBriefing["artifacts"][number];
+export type LoopRunOutcome = NonNullable<LoopBriefing["outcome"]>;
+export type LoopBriefingUsage = LoopBriefing["usage"];
+
+export type LoopRunRosterPage = OperationResponse<"getLoopRunNodes", 200>;
+export type LoopRosterFilter = OperationQuery<"getLoopRunNodes">;
+/** Roster filter minus the continuation cursor, which lives in `pageParam`. */
+export type LoopRosterStableFilter = Omit<LoopRosterFilter, "cursor">;
+export type LoopRosterNode = LoopRunRosterPage["nodes"][number];
+export type LoopRosterAttempt = LoopRosterNode["attempts"][number];
+export type LoopRosterCancellation = NonNullable<LoopRosterNode["cancellation"]>;
+export type LoopFanoutRollup = LoopRunRosterPage["fanout_rollups"][number];
+
+export type LoopTimelinePage = OperationResponse<"getLoopRunTimeline", 200>;
+export type LoopTimelineFilter = OperationQuery<"getLoopRunTimeline">;
+/** Timeline filter minus the opaque snapshot-fenced cursor, which lives in `pageParam`. */
+export type LoopTimelineStableFilter = Omit<LoopTimelineFilter, "cursor">;
+export type LoopTimelineEntry = LoopTimelinePage["entries"][number];
+
 // SSE -----------------------------------------------------------------------
 
 export type LoopRunEventFrame = OperationResponse<"streamLoopRunEvents", 200>;
@@ -148,6 +178,7 @@ export type LoopRouteCause = LoopRunGeneration["route_causes"][number];
 // Status vocabulary ---------------------------------------------------------
 
 export type LoopRunStatus = LoopRun["status"];
+// The goal-turn read had no web consumer left once the cockpit went, but the SSE
+// reducer still classifies `goal_turn_*` frames, so the shape stays.
 export type GoalTurnPage = OperationResponse<"listGoalTurns", 200>;
 export type GoalTurn = GoalTurnPage["turns"][number];
-export type GoalTurnFilter = OperationQuery<"listGoalTurns">;

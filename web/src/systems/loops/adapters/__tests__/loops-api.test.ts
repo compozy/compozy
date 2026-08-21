@@ -22,7 +22,6 @@ import {
   getLoopConfig,
   getLoopRequest,
   getLoopRun,
-  listGoalTurns,
   listLoopRequests,
   listLoopRuns,
   listLoops,
@@ -208,26 +207,6 @@ describe("loops-api (request construction + error mapping)", () => {
     await expectFetchRequest({
       path: "/api/workspaces/ws_1/loop-runs?loop=implement-tasks&status=running&origin=session&origin_session=session_1&live=true&limit=10",
       method: "GET",
-    });
-  });
-
-  it("Should paginate Goal turns with run-scoped filters and preserve after_seq zero", async () => {
-    mockJsonResponse({ turns: [], next_after_seq: null });
-    await listGoalTurns(WS, "run_1", {
-      node: "goal",
-      item: 0,
-      after_seq: 0,
-      limit: 25,
-    });
-    await expectFetchRequest({
-      path: "/api/workspaces/ws_1/loop-runs/run_1/turns?node=goal&item=0&after_seq=0&limit=25",
-      method: "GET",
-    });
-
-    mockJsonResponse({ error: "missing" }, { status: 404 });
-    await expect(listGoalTurns(WS, "missing")).rejects.toMatchObject({
-      status: 404,
-      message: expect.stringContaining("missing"),
     });
   });
 

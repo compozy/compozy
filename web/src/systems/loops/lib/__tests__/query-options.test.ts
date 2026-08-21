@@ -1,4 +1,3 @@
-import { QueryClient, type QueryFunctionContext } from "@tanstack/react-query";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const listLoopRequestsMock = vi.hoisted(() => vi.fn());
@@ -9,27 +8,17 @@ vi.mock("../../adapters/loop-requests-api", async importOriginal => {
 });
 
 import {
-  goalTurnsOptions,
   loopConfigOptions,
   loopDetailOptions,
   loopRequestDetailOptions,
   loopRequestAttentionOptions,
   loopRequestsOptions,
-  loopRunRequestCountsOptions,
   loopRunDetailOptions,
   loopRunDiffOptions,
+  loopRunTimelineOptions,
   loopRunsOptions,
   loopsCatalogOptions,
 } from "../query-options";
-
-function queryContext<TQueryKey extends readonly unknown[]>(queryKey: TQueryKey) {
-  return {
-    client: new QueryClient(),
-    meta: undefined,
-    queryKey,
-    signal: new AbortController().signal,
-  } as QueryFunctionContext<TQueryKey>;
-}
 
 describe("loop query-options", () => {
   beforeEach(() => listLoopRequestsMock.mockReset());
@@ -57,15 +46,6 @@ describe("loop query-options", () => {
       "run-detail",
       "ws_a",
       "run_1",
-    ]);
-    expect(goalTurnsOptions("ws_a", "run_1", { node: "build", limit: 25 }).queryKey).toEqual([
-      "loops",
-      "goal-turns",
-      "ws_a",
-      "run_1",
-      "build",
-      "",
-      "25",
     ]);
   });
 
@@ -106,7 +86,7 @@ describe("loop query-options", () => {
     expect(loopRequestsOptions("ws_a", { state: "resolved" }).queryKey).toContain("resolved");
   });
 
-  it("Should keep exact bell and run counts in non-paged caches", () => {
+  it("Should key the bell cache exactly and disable it without a workspace", () => {
     expect(loopRequestAttentionOptions("ws_a").queryKey).toEqual([
       "loops",
       "requests",
@@ -115,46 +95,6 @@ describe("loop query-options", () => {
     ]);
     expect(loopRequestAttentionOptions("", true).enabled).toBe(false);
     expect(loopRequestAttentionOptions("ws_a", true, false).refetchInterval).toBe(false);
-    expect(loopRunRequestCountsOptions("ws_a").queryKey).toEqual([
-      "loops",
-      "requests",
-      "ws_a",
-      "run-counts",
-    ]);
-    expect(loopRunRequestCountsOptions("").enabled).toBe(false);
-  });
-
-  it("Should count every pending request by run across all workspace pages", async () => {
-    listLoopRequestsMock
-      .mockResolvedValueOnce({
-        aggregates: { pending: 3 },
-        items: [{ loop_run_id: "run-a" }, { loop_run_id: "run-b" }],
-        next_cursor: "next",
-      })
-      .mockResolvedValueOnce({
-        aggregates: { pending: 3 },
-        items: [{ loop_run_id: "run-a" }],
-        next_cursor: "",
-      });
-    const options = loopRunRequestCountsOptions("ws_a");
-    if (typeof options.queryFn !== "function") throw new Error("Expected queryFn");
-
-    await expect(options.queryFn(queryContext(options.queryKey))).resolves.toEqual({
-      "run-a": 2,
-      "run-b": 1,
-    });
-    expect(listLoopRequestsMock).toHaveBeenNthCalledWith(
-      1,
-      "ws_a",
-      { state: "pending", limit: 200, cursor: undefined },
-      expect.any(AbortSignal)
-    );
-    expect(listLoopRequestsMock).toHaveBeenNthCalledWith(
-      2,
-      "ws_a",
-      { state: "pending", limit: 200, cursor: "next" },
-      expect.any(AbortSignal)
-    );
   });
 
   it("Should stop paging the request inventory when the daemon returns no cursor", () => {
@@ -182,6 +122,25 @@ describe("loop query-options", () => {
     expect(loopRequestDetailOptions("ws_a", "run_1", 3, "").enabled).toBe(false);
 
     expect(loopRequestDetailOptions("ws_a", "run_1", 3, "ask_node", 0, false).enabled).toBe(false);
+  });
+
+  it("Should leave the fenced story to the stream instead of re-anchoring it", () => {
+    // Every read of the newest window is unpinned, so anything that triggers one
+    // slides the loaded window up and drops the oldest pages. A timer or a window
+    // regaining focus is not a lifecycle event and has no business doing that.
+    const options = loopRunTimelineOptions("ws_a", "run_1");
+    expect(options.refetchOnWindowFocus).toBe(false);
+    expect(options.refetchInterval).toBeUndefined();
+    expect(options.queryKey).toEqual([
+      "loops",
+      "run-reads",
+      "ws_a",
+      "run_1",
+      "timeline",
+      "notable",
+      "50",
+      "",
+    ]);
   });
 
   it("Should keep refreshing a diff while either compared side is still executing", () => {

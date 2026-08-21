@@ -74,19 +74,6 @@ describe("loopsKeys", () => {
     );
   });
 
-  it("Should key Goal turn pages by their stable run and axis filters", () => {
-    expect(loopsKeys.goalTurns("ws_a", "run_1", { node: "goal", item: 0, limit: 50 })).toEqual([
-      "loops",
-      "goal-turns",
-      "ws_a",
-      "run_1",
-      "goal",
-      "0",
-      "50",
-    ]);
-    expect(loopsKeys.goalTurns("ws_a", "run_1")).not.toEqual(loopsKeys.goalTurns("ws_a", "run_2"));
-  });
-
   it("Should encode the stream resume seed distinctly per run and after_sequence", () => {
     expect(loopsKeys.stream("ws_a", "run_1", { after_sequence: "14" })).toEqual([
       "loops",
@@ -145,10 +132,6 @@ describe("loopsKeys", () => {
 
   it("Should isolate normal attention projections from the paged request cache", () => {
     expect(loopsKeys.requestAttention("ws_a")).toEqual(["loops", "requests", "ws_a", "attention"]);
-    expect(loopsKeys.runRequestCounts("ws_a")).toEqual(["loops", "requests", "ws_a", "run-counts"]);
-    expect(loopsKeys.runRequestCounts("ws_a")).not.toEqual(
-      loopsKeys.requests("ws_a", { state: "pending", run_id: "run_1", limit: 1 })
-    );
   });
 
   it("Should make every compared diff pair its own key, never one filtered read", () => {

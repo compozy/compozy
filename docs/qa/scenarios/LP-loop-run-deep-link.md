@@ -6,7 +6,7 @@ persona: Bruno
 journey: J-01
 expected: A successful non-dry `compozy loop run` prints the effective daemon URL for `/loop-runs/<run_id>` as its final human-readable line and returns the same `web_url` in JSON and TOON; the URL opens the matching persisted run. Dry-run emits no URL in any format.
 entry_points: compozy loop run; compozy loop run --dry-run; web /loop-runs/:run_id; POST /api/workspaces/:workspace_id/loops/:name/run over HTTP and UDS
-qa_status: pass
+qa_status: untested
 bug_ids:
 fix_status:
 retest_status: pass

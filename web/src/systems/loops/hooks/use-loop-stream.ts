@@ -83,6 +83,10 @@ function invalidateLoopRunQueries(
 ) {
   void queryClient.invalidateQueries({ queryKey: loopsKeys.runDetail(workspaceId, runId) });
   void queryClient.invalidateQueries({ queryKey: loopsKeys.runsByWorkspace(workspaceId) });
+  // The stream accelerates; the reads reconcile. A lifecycle frame is the signal
+  // that the briefing, roster and story have something new to say — it is never
+  // the story itself, because the daemon writes those sentences at read time.
+  void queryClient.invalidateQueries({ queryKey: loopsKeys.runReads(workspaceId, runId) });
   if (refreshCatalog) {
     void queryClient.invalidateQueries({ queryKey: loopsKeys.catalogByWorkspace(workspaceId) });
   }
@@ -96,6 +100,9 @@ function invalidateLoopRequestQueries(
   void queryClient.invalidateQueries({ queryKey: loopsKeys.runDetail(workspaceId, runId) });
   void queryClient.invalidateQueries({ queryKey: loopsKeys.nodeInventoryByWorkspace(workspaceId) });
   void queryClient.invalidateQueries({ queryKey: loopsKeys.requestsByWorkspace(workspaceId) });
+  // A request opening or closing changes the served verdict, so the briefing has
+  // to be re-read rather than inferred from the frame.
+  void queryClient.invalidateQueries({ queryKey: loopsKeys.runReads(workspaceId, runId) });
 }
 
 /**

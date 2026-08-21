@@ -1,12 +1,15 @@
-import type { GoalTurnTimelineItem } from "../../hooks/use-goal-turns";
 import type {
   LoopDefinition,
   LoopNodeControl,
   LoopNodeWait,
   LoopRequest,
+  LoopBriefing,
+  LoopFanoutRollup,
+  LoopRosterNode,
   LoopRunEventFrame,
   LoopRunGeneration,
   LoopRunRecord,
+  LoopTimelineEntry,
   LoopWatchEventsState,
 } from "../../types";
 
@@ -22,11 +25,20 @@ export interface LoopRunStoryScenario {
   frames: LoopRunEventFrame[];
   generations: LoopRunGeneration[];
   watchEvents?: LoopWatchEventsState;
-  goalTurns?: GoalTurnTimelineItem[];
   /** Durable per-node control truth, exactly as `getLoopRun` returns it. */
   nodeControls?: LoopNodeControl[];
   /** Durable wait cells, exactly as `getLoopRun` returns them. */
   waits?: LoopNodeWait[];
 
   requests?: LoopRequest[];
+
+  /**
+   * The three run reads (ADR-005). Optional so a scenario can stage only the
+   * default read; a scenario that omits them renders the registers empty rather
+   * than inventing a roster the fixture never described.
+   */
+  briefing?: LoopBriefing;
+  rosterNodes?: LoopRosterNode[];
+  rosterRollups?: LoopFanoutRollup[];
+  timeline?: LoopTimelineEntry[];
 }

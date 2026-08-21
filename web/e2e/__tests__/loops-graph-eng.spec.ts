@@ -148,27 +148,12 @@ test.describe("Human requests on the run page", () => {
   });
 });
 
-test("E2E-023: strategy progress reads partial, pruning, and width from daemon truth", async ({
-  page,
-}) => {
-  await openStory(page, `${RUN_PAGE}--partial-completion`);
-
-  const progress = page.getByTestId("loop-strategy-progress");
-  await expect(progress).toBeVisible();
-  await expect(page.getByTestId("loop-strategy-partial")).toBeVisible();
-  await expect(page.getByTestId("loop-strategy-kind").first()).toBeVisible();
-  await expect(page.getByTestId("loop-strategy-coverage").first()).toBeVisible();
-
-  await openStory(page, `${RUN_PAGE}--lane-requests`);
-  await expect(page.getByTestId("loop-strategy-progress")).toBeVisible();
-});
-
 test("E2E-024: the timeline renders the new graph-completion row families", async ({ page }) => {
   await openStory(page, `${RUN_PAGE}--pending-requests`);
 
   const story = page.getByTestId("loop-run-story");
   await expect(story).toBeVisible();
-  const rows = story.getByTestId("loop-story-row");
+  const rows = story.getByTestId(/^loop-run-beat-/);
   await expect(rows.first()).toBeVisible();
 
   const timeline = await story.innerText();

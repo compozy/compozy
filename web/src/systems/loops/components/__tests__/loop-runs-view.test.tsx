@@ -1,6 +1,5 @@
-import { render, screen, within } from "@testing-library/react";
-import { describe, expect, it } from "vitest";
-import { vi } from "vitest";
+import { fireEvent, render, screen, within } from "@testing-library/react";
+import { describe, expect, it, vi } from "vitest";
 
 vi.mock("@tanstack/react-router", async importOriginal => {
   const actual = await importOriginal<typeof import("@tanstack/react-router")>();
@@ -20,81 +19,125 @@ vi.mock("@tanstack/react-router", async importOriginal => {
 
 const { LoopRunsView } = await import("../runs/loop-runs-view");
 const { loopRunFixtures } = await import("../../mocks/fixtures");
+type LoopRun = (typeof loopRunFixtures)[number];
 
+/** The roster's five columns, in the order the board locks them. */
+const COLUMNS = ["Loop", "Status", "Progress", "Started", "Duration"];
+
+function run(overrides: Partial<LoopRun> & Pick<LoopRun, "id">): LoopRun {
+  return { ...loopRunFixtures[0], ...overrides };
+}
+
+const NEEDS_YOU = run({
+  id: "looprun_needs",
+  loop_name: "revisao-paralela",
+  status: "running",
+  attention: { kind: "approval", count: 1, since: "2026-07-05T11:57:00Z" },
+  active_gate_id: "aplicar-correcoes",
+  progress: { round: 1, steps_done: 4, steps_total: 6 },
+});
+const ACTIVE = run({
+  id: "looprun_active",
+  loop_name: "fabrica-assistida",
+  status: "running",
+  progress: { round: 1, steps_done: 2, steps_total: 9 },
+});
+const RECENT = run({
+  id: "looprun_recent",
+  loop_name: "revisao-paralela",
+  status: "done",
+  progress: { round: 2, steps_done: 6, steps_total: 6 },
+});
+
+// VC-33..36. The view-model owns the ranking and the copy (see
+// `lib/__tests__/loop-runs-view.test.ts`); what these cases pin is the anatomy
+// rendered over it — one section per group, five columns, the run id demoted
+// under the loop name, and a degraded transport that never borrows the empty
+// state's words.
 describe("LoopRunsView", () => {
-  it("Should render the four workspace KPIs with a live active count", () => {
-    render(<LoopRunsView outcome="all" runs={loopRunFixtures} />);
-    const kpis = screen.getByTestId("loop-runs-kpis");
-    expect(within(kpis).getByText("Active now")).toBeInTheDocument();
-    expect(within(kpis).getByText("Awaiting you")).toBeInTheDocument();
-    expect(within(kpis).getByText("Done today")).toBeInTheDocument();
-    expect(within(kpis).getByText("Needs a look")).toBeInTheDocument();
-    // 5 live runs (running/watching/needs-approval/paused/queued).
-    expect(within(screen.getByTestId("kpi-active-now")).getByText("5")).toBeInTheDocument();
+  it("Should render one section per group in server order, with counts and no KPI band", () => {
+    render(<LoopRunsView outcome="all" runs={[RECENT, NEEDS_YOU, ACTIVE]} />);
+
+    const sections = screen.getAllByTestId(/^loop-runs-group-/);
+    expect(sections.map(section => section.getAttribute("data-group"))).toEqual([
+      "needs-you",
+      "active",
+      "recent",
+    ]);
+    expect(within(sections[0]).getByRole("heading", { name: "Needs you" })).toBeInTheDocument();
+    expect(within(sections[0]).getByTestId("loop-runs-count")).toHaveTextContent("1");
+    // Four counters above the list pushed the runs that need a person below the
+    // fold and answered nothing the groups do not already answer.
+    expect(screen.queryByTestId("loop-runs-kpis")).not.toBeInTheDocument();
   });
 
-  it("Should render Active and Past tables with budget mini-bars and run links", () => {
-    render(<LoopRunsView outcome="all" runs={loopRunFixtures} />);
-    expect(screen.getByTestId("loop-runs-active")).toBeInTheDocument();
-    expect(screen.getByTestId("loop-runs-past")).toBeInTheDocument();
-    expect(screen.getAllByTestId("loop-budget-bar").length).toBeGreaterThan(0);
-    const rows = screen.getAllByTestId("loop-run-row");
-    expect(rows[0]).toHaveAttribute("href");
-    expect(rows[0].getAttribute("data-params")).toContain("looprun_");
-    const scoredRun = rows.find(row =>
-      row.getAttribute("data-params")?.includes("looprun_exhausted")
+  it("Should render Loop, Status, Progress, Started and Duration, and no spend columns", () => {
+    render(<LoopRunsView outcome="all" runs={[ACTIVE]} />);
+
+    const headers = screen.getAllByRole("columnheader").map(header => header.textContent);
+    expect(headers).toEqual(COLUMNS);
+    // Generations, best score and budget demote to the run page.
+    expect(screen.queryByTestId("loop-run-best")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("loop-budget-bar")).not.toBeInTheDocument();
+    const row = screen.getByTestId("loop-run-row");
+    expect(within(row).getByTestId("loop-run-progress")).toHaveTextContent("step 2 of 9");
+    expect(within(row).getByTestId("loop-run-duration")).toHaveTextContent("18m 00s");
+  });
+
+  it("Should lead a needs-you row with a warning chip and demote its run id under the name", () => {
+    render(<LoopRunsView outcome="all" runs={[NEEDS_YOU]} />);
+
+    const row = screen.getByTestId("loop-run-row");
+    const status = within(row).getByTestId("loop-run-status");
+    expect(status).toHaveTextContent("Needs you");
+    // Warning on the page; danger stays with failure and the attention bell.
+    expect(status).toHaveAttribute("data-tone", "warning");
+    expect(within(row).getByTestId("loop-run-summary")).toHaveTextContent(
+      "an approval is waiting on “aplicar-correcoes”"
     );
-    expect(scoredRun).toBeDefined();
-    expect(within(scoredRun!).getByTestId("loop-run-best")).toHaveTextContent("Gen 12 · 0.88");
+    const name = within(row).getByTestId("loop-run-name");
+    expect(name).toHaveTextContent("revisao-paralela");
+    expect(name.getAttribute("data-params")).toContain("looprun_needs");
+    expect(within(row).getByTestId("loop-run-id")).toHaveTextContent("looprun_needs");
   });
 
-  it("Should label a session-origin Run with its exact origin session", () => {
+  it("Should explain how to clear a filter that matches no run", () => {
+    const onEmptyAction = vi.fn();
+    // No fixture run is `watching`, so the filter empties the whole roster.
     render(
-      <LoopRunsView
-        outcome="all"
-        runs={[
-          {
-            ...loopRunFixtures[0],
-            started_origin_kind: "session",
-            started_origin_ref: "session_42",
-          },
-        ]}
-      />
+      <LoopRunsView onEmptyAction={onEmptyAction} outcome="watching" runs={loopRunFixtures} />
     );
-    expect(screen.getByTestId("loop-run-row")).toHaveTextContent("session · session_42");
-  });
 
-  it("Should filter the tables to the selected outcome", () => {
-    render(<LoopRunsView outcome="done" runs={loopRunFixtures} />);
-    const rows = screen.getAllByTestId("loop-run-row");
-    expect(rows.every(row => row.getAttribute("data-status") === "done")).toBe(true);
-    // Done runs are terminal, so the Active table hides.
-    expect(screen.queryByTestId("loop-runs-active")).not.toBeInTheDocument();
-  });
-
-  it("Should show the truthful empty state when the outcome filter matches no run", () => {
-    // No fixture run is `watching`, so the filter empties both tables.
-    render(<LoopRunsView outcome="watching" runs={loopRunFixtures} />);
-    expect(screen.getByText("No matching runs")).toBeInTheDocument();
+    const empty = screen.getByTestId("loop-runs-empty");
+    expect(within(empty).getByText("No runs match this filter")).toBeInTheDocument();
     expect(screen.queryByTestId("loop-run-row")).not.toBeInTheDocument();
-    expect(screen.queryByTestId("loop-runs-active")).not.toBeInTheDocument();
-    expect(screen.queryByTestId("loop-runs-past")).not.toBeInTheDocument();
+    fireEvent.click(screen.getByTestId("loop-runs-empty-action"));
+    expect(onEmptyAction).toHaveBeenCalledTimes(1);
   });
 
-  it("Should show fully paged pending request counts only on their owning runs", () => {
-    const target = loopRunFixtures[0];
+  it("Should say the rows are the last read when the transport is degraded, never that it is empty", () => {
+    const onRetry = vi.fn();
     render(
-      <LoopRunsView
-        outcome="all"
-        pendingRequestCounts={new Map([[target.id, 3]])}
-        runs={loopRunFixtures}
-      />
+      <LoopRunsView isReconnecting onRetry={onRetry} outcome="all" runs={[NEEDS_YOU, ACTIVE]} />
     );
 
-    const targetRow = screen
-      .getAllByTestId("loop-run-row")
-      .find(row => row.getAttribute("data-params")?.includes(target.id));
-    expect(within(targetRow!).getByLabelText("3 pending requests")).toBeInTheDocument();
-    expect(screen.getAllByTestId("loop-run-pending-requests")).toHaveLength(1);
+    expect(screen.getByTestId("loop-runs-degraded")).toHaveTextContent(
+      "Reconnecting to the daemon. The list below is the last read."
+    );
+    expect(screen.getAllByTestId("loop-run-row")).toHaveLength(2);
+    expect(screen.queryByTestId("loop-runs-empty")).not.toBeInTheDocument();
+    fireEvent.click(screen.getByTestId("loop-runs-degraded-retry"));
+    expect(onRetry).toHaveBeenCalledTimes(1);
+  });
+
+  it("Should keep the shape of what is coming when a degraded read has no rows yet", () => {
+    render(<LoopRunsView isError outcome="all" runs={[]} />);
+
+    expect(screen.getByTestId("loop-runs-degraded")).toHaveTextContent(
+      "Reconnecting to the daemon. No runs have been read yet."
+    );
+    expect(screen.getByTestId("loop-runs-skeleton")).toBeInTheDocument();
+    // "No runs yet" here would blame the workspace for a transport failure.
+    expect(screen.queryByTestId("loop-runs-empty")).not.toBeInTheDocument();
   });
 });

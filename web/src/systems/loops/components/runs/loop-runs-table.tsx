@@ -1,57 +1,68 @@
-import { Eyebrow } from "@compozy/ui";
+import { Eyebrow, Table, TableBody, TableHead, TableHeader, TableRow } from "@compozy/ui";
 
-import type { LoopRun } from "../../types";
-import { LOOP_RUNS_ROW_GRID, LoopRunRow } from "./loop-run-row";
+import type { LoopRunGroup } from "../../lib/loop-runs-view";
+import { LoopRunRow } from "./loop-run-row";
 
 interface LoopRunsTableProps {
-  title: string;
-  runs: readonly LoopRun[];
-  testId: string;
-  pendingRequestCounts?: ReadonlyMap<string, number>;
+  group: LoopRunGroup;
 }
 
-// The run projection exposes only `created_at` (no `ended_at`), so the time column
-// is always the start time — never "Ended" (that would be untruthful).
-const COLUMNS: readonly string[] = [
-  "Outcome",
-  "Loop",
-  "Inputs",
-  "Gens",
-  "Best",
-  "Started",
-  "Budget",
+/**
+ * The run projection exposes `created_at` and `last_progress_at`, so the roster
+ * can state when a run started and how long it has been going — never an "Ended"
+ * it does not know. Gens / Best / Budget demoted to the run page.
+ */
+const COLUMNS: readonly { key: string; label: string; className?: string }[] = [
+  { key: "loop", label: "Loop", className: "w-full" },
+  { key: "status", label: "Status" },
+  { key: "progress", label: "Progress" },
+  { key: "started", label: "Started" },
+  { key: "duration", label: "Duration" },
 ];
 
 /**
- * One runs table section (Active or Past) with a labeled header and run rows.
- * Renders nothing when the section is empty so the outcome filter hides sections
- * with no matching runs.
+ * One roster group (Needs you / Active / Recent) as a labeled table.
+ *
+ * The heading is a bare eyebrow plus a count: no glyph, because an icon beside
+ * every group heading is decoration rather than wayfinding. Groups arrive
+ * already ranked by the daemon, so this renders the order it is handed.
  */
-export function LoopRunsTable({ title, runs, testId, pendingRequestCounts }: LoopRunsTableProps) {
-  if (runs.length === 0) return null;
+export function LoopRunsTable({ group }: LoopRunsTableProps) {
+  const headingId = `loop-runs-group-${group.id}-heading`;
   return (
-    <section data-testid={testId}>
-      <div className="flex items-center gap-2 px-0.5 pb-2 pt-1">
-        <Eyebrow className="text-subtle">{title}</Eyebrow>
-        <span className="font-mono text-mono-id tabular-nums text-faint">{runs.length}</span>
+    <section
+      aria-labelledby={headingId}
+      data-group={group.id}
+      data-testid={`loop-runs-group-${group.id}`}
+    >
+      <div className="flex min-h-6 items-center gap-2 px-0.5 pb-2.5">
+        <h2 className="min-w-0" id={headingId}>
+          <Eyebrow className="text-subtle">{group.label}</Eyebrow>
+        </h2>
+        <span
+          className="inline-flex h-count-chip min-w-count-chip items-center justify-center rounded-mono-badge bg-canvas-soft px-1.5 font-mono text-mono-id font-medium tabular-nums text-muted"
+          data-testid="loop-runs-count"
+        >
+          {group.rows.length}
+        </span>
       </div>
       <div className="overflow-hidden rounded-lg border border-line bg-canvas-soft">
-        <div
-          className={`grid ${LOOP_RUNS_ROW_GRID} gap-3.5 border-b border-line-soft px-4 py-2.5 max-[1140px]:hidden`}
-        >
-          {COLUMNS.map(column => (
-            <Eyebrow key={column} className="text-faint">
-              {column}
-            </Eyebrow>
-          ))}
-        </div>
-        {runs.map(run => (
-          <LoopRunRow
-            key={run.id}
-            pendingRequestCount={pendingRequestCounts?.get(run.id)}
-            run={run}
-          />
-        ))}
+        <Table>
+          <TableHeader>
+            <TableRow className="hover:bg-transparent">
+              {COLUMNS.map(column => (
+                <TableHead className={column.className} key={column.key}>
+                  {column.label}
+                </TableHead>
+              ))}
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {group.rows.map(row => (
+              <LoopRunRow key={row.run.id} row={row} />
+            ))}
+          </TableBody>
+        </Table>
       </div>
     </section>
   );

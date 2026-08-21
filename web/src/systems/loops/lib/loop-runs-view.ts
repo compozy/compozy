@@ -1,113 +1,173 @@
+import type { PillTone } from "@compozy/ui";
+
 import type { LoopRun, LoopRunStatus } from "../types";
-import { isLoopRunStatus, isTerminalLoopStatus, loopStatusLabel } from "./loop-formatters";
+import {
+  isLoopRunStatus,
+  isTerminalLoopStatus,
+  loopStatusLabel,
+  loopStatusSignal,
+} from "./loop-formatters";
 
 /** The runs roster's client-side outcome filter: `all` or one daemon run status. */
 export type LoopOutcomeValue = "all" | LoopRunStatus;
-
-/** Terminal problem states that surface in the "Needs a look" KPI. */
-const NEEDS_A_LOOK: readonly LoopRunStatus[] = ["failed", "exhausted", "stalled", "blocked"];
-
-/** Live states that count toward "Active now". */
-const LIVE_STATUSES: readonly LoopRunStatus[] = [
-  "running",
-  "watching",
-  "needs-approval",
-  "paused",
-  "queued",
-];
 
 function statusOf(run: LoopRun): LoopRunStatus | null {
   return isLoopRunStatus(run.status) ? run.status : null;
 }
 
-function countByStatus(runs: readonly LoopRun[]): Map<LoopRunStatus, number> {
-  const counts = new Map<LoopRunStatus, number>();
-  for (const run of runs) {
-    const status = statusOf(run);
-    if (status) counts.set(status, (counts.get(status) ?? 0) + 1);
+/**
+ * The runs roster, answering "which runs need me" before anything else.
+ *
+ * The ordering is the daemon's. It ranks needs-you above live above terminal in
+ * SQL, before the page is cut, so a run that needs a person cannot be stranded
+ * on page two by a client-side sort of whatever happened to load (B-001). This
+ * model only groups what arrives — it never reorders inside a group, and it
+ * never re-reads a run to find out whether it needs attention.
+ */
+
+export type LoopRunGroupId = "needs-you" | "active" | "recent";
+
+export interface LoopRunRow {
+  run: LoopRun;
+  statusLabel: string;
+  statusTone: PillTone;
+  statusPulse: boolean;
+  needsYou: boolean;
+  /** A sentence that adds something the status pill has not already said. */
+  summaryLine: string | null;
+  /** "step 4 of 6" while live, "2 rounds" once finished, "not started" before. */
+  progressLabel: string;
+}
+
+export interface LoopRunGroup {
+  id: LoopRunGroupId;
+  label: string;
+  rows: LoopRunRow[];
+}
+
+export interface LoopRunsEmptyState {
+  title: string;
+  body: string;
+  actionLabel: string;
+}
+
+export interface LoopRunsRosterModel {
+  /** Only groups with rows, in server order: needs-you, then active, then recent. */
+  groups: LoopRunGroup[];
+  total: number;
+  needsYouCount: number;
+  /** Set only when there is genuinely nothing — never when a read is in flight. */
+  emptyState: LoopRunsEmptyState | null;
+}
+
+const GROUP_LABELS: Record<LoopRunGroupId, string> = {
+  "needs-you": "Needs you",
+  active: "Active",
+  recent: "Recent",
+};
+
+/** Group order is the server's ranking, restated so the page cannot drift from it. */
+const GROUP_ORDER: LoopRunGroupId[] = ["needs-you", "active", "recent"];
+
+function groupOf(run: LoopRun): LoopRunGroupId {
+  // Attention is a served summary, not something the page infers from status.
+  if (run.attention) return "needs-you";
+  return isTerminalLoopStatus(run.status) ? "recent" : "active";
+}
+
+/**
+ * Sentences that earn their place. A terminal row's pill already says "Done", so
+ * repeating it underneath would be noise — and the artifact that would make the
+ * line worth reading is not on the list read, which is exactly the N+1 the
+ * server-owned summary exists to avoid.
+ */
+const LIVE_SUMMARIES: Partial<Record<LoopRunStatus, string>> = {
+  running: "moving on its own",
+  watching: "watching for its event",
+  queued: "waiting for a free slot",
+  paused: "paused by an operator",
+  blocked: "blocked and waiting",
+};
+
+const ATTENTION_SUMMARIES: Record<string, string> = {
+  approval: "an approval is waiting",
+  quarantine: "a step is quarantined",
+  request: "a question is waiting",
+};
+
+function summaryLine(run: LoopRun): string | null {
+  const attention = run.attention;
+  if (attention) {
+    const base = ATTENTION_SUMMARIES[attention.kind] ?? "waiting on you";
+    const gate = run.active_gate_id?.trim();
+    return gate && attention.kind === "approval" ? `${base} on “${gate}”` : base;
   }
-  return counts;
+  const status = statusOf(run);
+  return status ? (LIVE_SUMMARIES[status] ?? null) : null;
 }
 
-function breakdown(counts: Map<LoopRunStatus, number>, statuses: readonly LoopRunStatus[]): string {
-  const parts: string[] = [];
-  for (const status of statuses) {
-    const count = counts.get(status) ?? 0;
-    if (count > 0) parts.push(`${count} ${loopStatusLabel(status).toLowerCase()}`);
+function progressLabel(run: LoopRun): string {
+  const progress = run.progress;
+  if (isTerminalLoopStatus(run.status)) {
+    const rounds = Math.max(progress.round, 1);
+    return rounds === 1 ? "1 round" : `${rounds} rounds`;
   }
-  return parts.join(" · ");
+  if (progress.steps_total <= 0) return "not started";
+  const base = `step ${progress.steps_done} of ${progress.steps_total}`;
+  // The round counter earns its place only past round 1, on every surface.
+  return progress.round > 1 ? `${base} · round ${progress.round}` : base;
 }
 
-function isSameLocalDay(iso: string | undefined, now: Date): boolean {
-  if (!iso) return false;
-  const at = new Date(iso);
-  if (Number.isNaN(at.getTime())) return false;
-  return (
-    at.getFullYear() === now.getFullYear() &&
-    at.getMonth() === now.getMonth() &&
-    at.getDate() === now.getDate()
-  );
-}
-
-export interface LoopKpi {
-  count: number;
-  detail: string;
-}
-
-export interface LoopRunKpis {
-  activeNow: LoopKpi;
-  awaitingYou: LoopKpi;
-  doneToday: LoopKpi;
-  needsALook: LoopKpi;
-}
-
-export function buildRunKpis(runs: readonly LoopRun[], now: Date = new Date()): LoopRunKpis {
-  const counts = countByStatus(runs);
-  const liveCount = LIVE_STATUSES.reduce((total, status) => total + (counts.get(status) ?? 0), 0);
-  const awaiting = counts.get("needs-approval") ?? 0;
-  const needsLook = NEEDS_A_LOOK.reduce((total, status) => total + (counts.get(status) ?? 0), 0);
-  const doneToday = runs.reduce((total, run) => {
-    if (statusOf(run) !== "done") return total;
-    return total + (isSameLocalDay(run.last_progress_at, now) ? 1 : 0);
-  }, 0);
+function buildRow(run: LoopRun): LoopRunRow {
+  const needsYou = Boolean(run.attention);
+  const signal = loopStatusSignal(run.status);
   return {
-    activeNow: {
-      count: liveCount,
-      detail: breakdown(counts, LIVE_STATUSES) || "none active",
-    },
-    awaitingYou: {
-      count: awaiting,
-      detail: awaiting > 0 ? "at a human gate" : "none waiting",
-    },
-    doneToday: {
-      count: doneToday,
-      detail: doneToday > 0 ? "since midnight" : "none yet today",
-    },
-    needsALook: {
-      count: needsLook,
-      detail: breakdown(counts, NEEDS_A_LOOK) || "all clear",
-    },
+    run,
+    // A run that needs a person leads with that fact, not with the mechanism
+    // that produced it.
+    statusLabel: needsYou ? "Needs you" : loopStatusLabel(run.status),
+    statusTone: needsYou ? "warning" : signal.tone,
+    statusPulse: needsYou ? false : signal.pulse,
+    needsYou,
+    summaryLine: summaryLine(run),
+    progressLabel: progressLabel(run),
   };
 }
 
-export interface LoopRunPartition {
-  active: LoopRun[];
-  past: LoopRun[];
-}
-
-/** Splits runs into the Active (live) and Past (terminal) tables, applying the outcome filter. */
-export function partitionRuns(
+export function buildRunsRoster(
   runs: readonly LoopRun[],
   outcome: LoopOutcomeValue = "all"
-): LoopRunPartition {
-  const active: LoopRun[] = [];
-  const past: LoopRun[] = [];
-  for (const run of runs) {
-    if (outcome !== "all" && run.status !== outcome) continue;
-    if (isTerminalLoopStatus(run.status)) past.push(run);
-    else active.push(run);
+): LoopRunsRosterModel {
+  const filtered = outcome === "all" ? runs : runs.filter(run => run.status === outcome);
+  const buckets = new Map<LoopRunGroupId, LoopRunRow[]>();
+  for (const run of filtered) {
+    const id = groupOf(run);
+    const rows = buckets.get(id);
+    // Server order is preserved by appending: grouping partitions, it never sorts.
+    if (rows) rows.push(buildRow(run));
+    else buckets.set(id, [buildRow(run)]);
   }
-  return { active, past };
+  const groups = GROUP_ORDER.filter(id => (buckets.get(id)?.length ?? 0) > 0).map(id => ({
+    id,
+    label: GROUP_LABELS[id],
+    rows: buckets.get(id) ?? [],
+  }));
+  return {
+    groups,
+    total: filtered.length,
+    needsYouCount: buckets.get("needs-you")?.length ?? 0,
+    emptyState:
+      filtered.length === 0
+        ? {
+            title: outcome === "all" ? "No runs yet" : "No runs match this filter",
+            body:
+              outcome === "all"
+                ? "Start a loop from the catalog and its runs will collect here."
+                : "Clear the filter to see the rest of this workspace's runs.",
+            actionLabel: outcome === "all" ? "Browse loops" : "Clear filter",
+          }
+        : null,
+  };
 }
 
 /** Compact token count for a run's budget cell (`412K`, `2.4M`, `12K`, `0`). */
