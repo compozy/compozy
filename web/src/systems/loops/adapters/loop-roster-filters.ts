@@ -29,6 +29,6 @@ export const LOOP_ROSTER_STATE_FILTERS = [
 export type LoopRosterStateFilter = (typeof LOOP_ROSTER_STATE_FILTERS)[number];
 
 /** Whether the daemon would accept this value as a roster `state` filter. */
-export function isLoopRosterStateFilter(value: string): boolean {
-  return (LOOP_ROSTER_STATE_FILTERS as readonly string[]).includes(value);
+export function isLoopRosterStateFilter(value: string): value is LoopRosterStateFilter {
+  return LOOP_ROSTER_STATE_FILTERS.some(filter => filter === value);
 }

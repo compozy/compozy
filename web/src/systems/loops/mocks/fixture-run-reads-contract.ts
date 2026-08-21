@@ -2,6 +2,7 @@ import {
   LOOP_ROSTER_STATE_FILTERS,
   isLoopRosterStateFilter,
 } from "../adapters/loop-roster-filters";
+import { type LoopTimelineView, isLoopTimelineView } from "../adapters/loop-timeline-filters";
 
 /**
  * The read layer's refusals, as the daemon actually writes them.
@@ -51,10 +52,6 @@ export function invalidCursor(): LoopReadRefusalOf<400> {
 export function invalidRequest(message: string): LoopReadRefusalOf<400> {
   return { status: 400, body: { error: message, code: "invalid_request" } };
 }
-
-/** `view=notable|all`; anything else is a rejection, never a silent default. */
-export const TIMELINE_VIEWS = ["notable", "all"] as const;
-export type LoopTimelineView = (typeof TIMELINE_VIEWS)[number];
 
 const ROSTER_LIMIT_MAX = 500;
 const TIMELINE_LIMIT_MAX = 500;
@@ -179,10 +176,10 @@ export function normalizeTimelineQuery(
   headSeq: number
 ): LoopReadResult<TimelineQuery, 400 | 409> {
   const rawView = params.get("view") ?? "notable";
-  if (!(TIMELINE_VIEWS as readonly string[]).includes(rawView)) {
+  if (!isLoopTimelineView(rawView)) {
     return { ok: false, refusal: invalidRequest(`unknown timeline view: ${rawView}`) };
   }
-  const view = rawView as LoopTimelineView;
+  const view = rawView;
   const after = integerParam(params, "after_sequence");
   if (!after.ok) return after;
   if (after.value !== null && after.value < 0) {

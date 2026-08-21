@@ -7,6 +7,7 @@ import {
   reasonEnvelope,
 } from "./loops-api-errors";
 import { LOOP_ROSTER_STATE_FILTERS, isLoopRosterStateFilter } from "./loop-roster-filters";
+import { LOOP_TIMELINE_VIEWS, isLoopTimelineView } from "./loop-timeline-filters";
 import type {
   LoopBriefing,
   LoopRosterFilter,
@@ -14,6 +15,9 @@ import type {
   LoopTimelineFilter,
   LoopTimelinePage,
 } from "../types";
+
+type LoopRosterRequestFilter = Omit<LoopRosterFilter, "state"> & { state?: string | null };
+type LoopTimelineRequestFilter = Omit<LoopTimelineFilter, "view"> & { view?: string | null };
 
 /**
  * The run read layer: three computed projections over one source (ADR-005).
@@ -36,7 +40,7 @@ import type {
  * `LOOP_ROSTER_STATE_FILTERS` is that list, and it is the same one the MSW
  * resolvers validate against, so the two cannot drift.
  */
-function rosterStateFilter(value?: string | null): string | undefined {
+function rosterStateFilter(value?: string | null): LoopRosterFilter["state"] {
   const state = normalizeOptionalText(value);
   if (state === undefined) return undefined;
   if (!isLoopRosterStateFilter(state)) {
@@ -50,6 +54,17 @@ function rosterStateFilter(value?: string | null): string | undefined {
     );
   }
   return state;
+}
+
+function timelineViewFilter(value?: string | null): LoopTimelineFilter["view"] {
+  const view = normalizeOptionalText(value);
+  if (view === undefined) return undefined;
+  if (!isLoopTimelineView(view)) {
+    throw new LoopReadError(`Unsupported timeline view filter: ${view}`, 400, "invalid_request", {
+      allowed: LOOP_TIMELINE_VIEWS.join(","),
+    });
+  }
+  return view;
 }
 
 const BRIEFING_FAILED = "Failed to read this run's status";
@@ -112,7 +127,7 @@ export async function getLoopRunBriefing(
 export async function getLoopRunRoster(
   workspaceId: string,
   runId: string,
-  filters: LoopRosterFilter = {},
+  filters: LoopRosterRequestFilter = {},
   signal?: AbortSignal
 ): Promise<LoopRunRosterPage> {
   const { data, error, response } = await apiClient.GET(
@@ -141,7 +156,7 @@ export async function getLoopRunRoster(
 export async function getLoopRunTimeline(
   workspaceId: string,
   runId: string,
-  filters: LoopTimelineFilter = {},
+  filters: LoopTimelineRequestFilter = {},
   signal?: AbortSignal
 ): Promise<LoopTimelinePage> {
   const { data, error, response } = await apiClient.GET(
@@ -150,7 +165,7 @@ export async function getLoopRunTimeline(
       params: {
         path: { workspace_id: workspaceId, run_id: runId },
         query: {
-          view: normalizeOptionalText(filters.view),
+          view: timelineViewFilter(filters.view),
           // Backward paging is the opaque cursor only; it binds
           // {run, view, fixed head, before} so appends never shift a page set.
           cursor: normalizeOptionalText(filters.cursor),
