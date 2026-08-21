@@ -268,7 +268,7 @@ func TestGlobalCommandPaletteMigrationTail(t *testing.T) {
 
 	t.Run("Should upgrade 00078 to 00079 and cascade workspace personalization [IT-020]", func(t *testing.T) {
 		t.Parallel()
-		ctx := testutil.Context(t)
+		ctx := migrationTestContext(t)
 		db := openStreamTestDB(t, "global-command-palette-tail.db")
 		stream := globaldb.MigrationStream()
 		stream.Bootstrap = nil
@@ -364,7 +364,7 @@ func TestGlobalCommandPaletteMigrationTail(t *testing.T) {
 
 	t.Run("Should rebuild the approval recovery index with resume_fence before expires_at", func(t *testing.T) {
 		t.Parallel()
-		ctx := testutil.Context(t)
+		ctx := migrationTestContext(t)
 		db := openStreamTestDB(t, "global-approval-recovery-index.db")
 		stream := globaldb.MigrationStream()
 		stream.Bootstrap = nil
