@@ -32,6 +32,16 @@ func TestNewWithEmptyHomePathsReturnsError(t *testing.T) {
 	}
 }
 
+func TestValidObservedSessionID(t *testing.T) {
+	t.Run("Should reject a parent directory path component", func(t *testing.T) {
+		t.Parallel()
+
+		if validObservedSessionID("..") {
+			t.Fatal("validObservedSessionID(\"..\") = true, want false")
+		}
+	})
+}
+
 func TestNewOpensRegistryAndCloseSucceeds(t *testing.T) {
 	home, err := compozyconfig.ResolveHomePathsFrom(filepath.Join(t.TempDir(), "home"))
 	if err != nil {

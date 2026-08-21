@@ -51,8 +51,8 @@ journey:
       verb: Reload concurrently and inject an activation failure
       expected_observable: Operations serialize per instance, torn generations are unobservable, and the last-good generation continues with truthful errored status
     - step: 4
-      verb: Follow logs across supported planes
-      expected_observable: Secret masking happens before a bounded ring and every transport observes the same redacted epoch/sequence cursor, replacing retained rows atomically when the ring changes
+      verb: Run a resource-defined agent, change its catalog authorization, and follow observations and logs across supported planes
+      expected_observable: The next observation uses the latest catalog revision; stopped events keep the persisted model, permissions, and authentication owner; secret masking happens before the bounded log ring
     - step: 5
       verb: Compare a second workspace and an invalidated origin
       expected_observable: No cross-workspace state or global-log access leaks; missing or escaping origins are refused without daemon failure

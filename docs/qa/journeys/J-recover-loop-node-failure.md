@@ -56,7 +56,7 @@ journey:
       expected_observable: "The runtime takes one retry, route, repair, pause, resume, cancel, or kill authority with durable provenance"
     - step: 4
       verb: "Diagnose and repair the affected lane"
-      expected_observable: "Healthy siblings continue while the operator can inspect and requeue or resume only the actionable node"
+      expected_observable: "Healthy siblings continue while the operator can inspect and requeue or resume only the actionable node; the continuation preserves the exact generation, node id, and item index while advancing attempt and epoch"
     - step: 5
       verb: "Return after the run settles and compare public reads"
       expected_observable: "Web, CLI, HTTP, UDS, SSE, and effect results expose one terminal outcome with its original classified context"

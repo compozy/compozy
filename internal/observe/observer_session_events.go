@@ -99,6 +99,9 @@ func (o *Observer) validateObservedEvent(
 	}
 
 	snapshot, ok := o.sessionSnapshot(id)
+	if ok && snapshot.agentCatalogRevision != o.agentCatalogRevision() {
+		snapshot, ok = o.recoverSessionSnapshot(ctx, id)
+	}
 	if !ok {
 		snapshot, ok = o.recoverSessionSnapshot(ctx, id)
 		if !ok {

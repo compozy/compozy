@@ -462,12 +462,6 @@ type AgentResolver interface {
 	ResolveAgent(name string, resolved *workspacepkg.ResolvedWorkspace) (compozyconfig.AgentDef, error)
 }
 
-// AgentCatalogRevisionSource exposes the daemon-authoritative agent catalog
-// generation so consumers can invalidate resolution caches after catalog changes.
-type AgentCatalogRevisionSource interface {
-	AgentCatalogRevision() int64
-}
-
 // SkillRegistry resolves the active skill set for a workspace during session start.
 type SkillRegistry interface {
 	ForWorkspace(ctx context.Context, resolved *workspacepkg.ResolvedWorkspace) ([]*skillspkg.Skill, error)

@@ -45,7 +45,7 @@ func TestOnSessionCreatedTracksSessionSnapshot(t *testing.T) {
 	})
 }
 
-func TestOnAgentEventForSessionCachesResolvedAgentByRuntimeIdentity(t *testing.T) {
+func TestAgentEventCachesResolvedAgentByRuntimeIdentity(t *testing.T) {
 	t.Run("Should resolve auth once until the runtime selection changes", func(t *testing.T) {
 		t.Parallel()
 
@@ -112,6 +112,48 @@ func TestOnAgentEventForSessionCachesResolvedAgentByRuntimeIdentity(t *testing.T
 		})
 		if got := resolver.calls.Load(); got != 4 {
 			t.Fatalf("ResolveAgent() calls = %d, want 4 after agent catalog revision change", got)
+		}
+	})
+
+	t.Run("Should refresh an ID-only event after the agent catalog revision changes", func(t *testing.T) {
+		t.Parallel()
+
+		h := newHarness(t)
+		resolver := &countingObserveAgentResolver{}
+		h.observer.agentResolver = resolver
+		h.observer.resolveProviderAuth = func(
+			context.Context,
+			string,
+			string,
+			string,
+			string,
+		) (compozyconfig.ProviderAuthMode, error) {
+			if resolver.revision.Load() == 0 {
+				return compozyconfig.ProviderAuthModeNativeCLI, nil
+			}
+			return compozyconfig.ProviderAuthModeBoundSecret, nil
+		}
+		sess := newSession("sess-id-only-catalog-cache", session.StateActive, h.workspace, h.now)
+		h.source.sessions = []*session.Info{sess.Info()}
+		h.observeSessionCreated(t, sess)
+
+		resolver.revision.Store(2)
+		h.observer.OnAgentEvent(testutil.Context(t), sess.ID, acp.AgentEvent{
+			Type:      "agent_message",
+			TurnID:    "turn-id-only-catalog-change",
+			Timestamp: h.now.Add(time.Minute),
+			Text:      "catalog changed",
+		})
+
+		snapshot, ok := h.observer.sessionSnapshot(sess.ID)
+		if !ok {
+			t.Fatal("sessionSnapshot() cached = false, want true")
+		}
+		if got, want := snapshot.agentCatalogRevision, int64(2); got != want {
+			t.Fatalf("sessionSnapshot().agentCatalogRevision = %d, want %d", got, want)
+		}
+		if got, want := snapshot.authMode, compozyconfig.ProviderAuthModeBoundSecret; got != want {
+			t.Fatalf("sessionSnapshot().authMode = %q, want %q", got, want)
 		}
 	})
 }

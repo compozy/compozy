@@ -55,7 +55,7 @@ journey:
       expected_observable: "Stop flips the primary back to Send and reflects the badge immediately; on natural settle the turn folds behind 'Worked for Xs' with the terminal message below, a changed-files roll-up if files were edited, and a hover copy+timestamp toolbar"
     - step: 5
       verb: "Send a normal prompt after the session is stopped"
-      expected_observable: "The composer remains available; submitting restarts the same logical session, preserves the prior transcript, and streams exactly one new turn without a separate resume action"
+      expected_observable: "The composer remains available; submitting sends only the new follow-up, restarts the same logical session, preserves the prior transcript, and streams exactly one new turn without a separate resume action"
   goal:
     observable: "The live turn is smooth to follow and steer; queued prompts dispatch in order after the turn ends; after Stop, a normal prompt continues the same durable history"
     side_effects: [queued-prompts-dispatched-in-order, tool-events-streamed, changed-files-rolled-up, stopped-session-auto-resumed]

@@ -11,6 +11,10 @@ import (
 	workspacepkg "github.com/compozy/compozy/internal/workspace"
 )
 
+type agentCatalogRevisionSource interface {
+	AgentCatalogRevision() int64
+}
+
 func defaultProviderAuthModeResolver(
 	homePaths compozyconfig.HomePaths,
 	workspaceResolver workspacepkg.RuntimeResolver,
@@ -147,7 +151,7 @@ func (o *Observer) agentCatalogRevision() int64 {
 	if o == nil || o.agentResolver == nil {
 		return 0
 	}
-	source, ok := o.agentResolver.(session.AgentCatalogRevisionSource)
+	source, ok := o.agentResolver.(agentCatalogRevisionSource)
 	if !ok {
 		return 0
 	}

@@ -21,6 +21,6 @@ func (o *Observer) readObservedSessionMeta(sessionID string, workspaceID string)
 }
 
 func validObservedSessionID(id string) bool {
-	return id != "" && id != "." && !filepath.IsAbs(id) && filepath.Clean(id) == id &&
+	return id != "" && id != "." && id != ".." && !filepath.IsAbs(id) && filepath.Clean(id) == id &&
 		!strings.ContainsAny(id, `/\`)
 }
