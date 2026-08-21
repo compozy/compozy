@@ -29,7 +29,7 @@ func (p *extensionCmdPaletteProvider) SubscribeViewPatchesAfter(
 	after int64,
 	streamEpoch string,
 ) (<-chan cmdpalette.ViewPatchEvent, func(), error) {
-	if _, err := p.requireDeclarativeView(ctx, workspaceID, viewID, ""); err != nil {
+	if err := p.requireDeclarativeView(ctx, workspaceID, viewID, ""); err != nil {
 		return nil, nil, err
 	}
 	if p.patches == nil {
@@ -47,7 +47,7 @@ func (p *extensionCmdPaletteProvider) PublishViewPatch(
 	if err := cmdpalette.ValidateViewPatch(patch); err != nil {
 		return err
 	}
-	if _, err := p.requireDeclarativeView(ctx, workspaceID, patch.ViewID, extension); err != nil {
+	if err := p.requireDeclarativeView(ctx, workspaceID, patch.ViewID, extension); err != nil {
 		return err
 	}
 	if p.patches == nil {
@@ -72,10 +72,10 @@ func (p *extensionCmdPaletteProvider) requireDeclarativeView(
 	workspaceID cmdpalette.WorkspaceID,
 	viewID string,
 	extension string,
-) (extensionpkg.CmdPaletteProjectedView, error) {
+) error {
 	projection, err := p.projection(ctx, workspaceID)
 	if err != nil {
-		return extensionpkg.CmdPaletteProjectedView{}, err
+		return err
 	}
 	viewID = strings.TrimSpace(viewID)
 	var selected *extensionpkg.CmdPaletteProjectedView
@@ -86,27 +86,27 @@ func (p *extensionCmdPaletteProvider) requireDeclarativeView(
 		}
 	}
 	if selected == nil {
-		return extensionpkg.CmdPaletteProjectedView{}, &cmdpalette.ViewNotFoundError{ViewID: viewID}
+		return &cmdpalette.ViewNotFoundError{ViewID: viewID}
 	}
 	if selected.UnavailableReason != "" {
-		return extensionpkg.CmdPaletteProjectedView{}, fmt.Errorf(
+		return fmt.Errorf(
 			"daemon: extension palette view is unavailable: %s",
 			selected.UnavailableReason,
 		)
 	}
 	if selected.Program || selected.SourceTool == "" {
-		return extensionpkg.CmdPaletteProjectedView{}, errors.New(
+		return errors.New(
 			"daemon: extension palette view is not declarative",
 		)
 	}
 	if extension != "" && selected.Extension != extension {
-		return extensionpkg.CmdPaletteProjectedView{}, fmt.Errorf(
+		return fmt.Errorf(
 			"daemon: extension %q does not own view %q",
 			extension,
 			viewID,
 		)
 	}
-	return *selected, nil
+	return nil
 }
 
 func (p *extensionCmdPaletteProvider) paletteRuntime() extensionCmdPaletteRuntime {

@@ -19,11 +19,11 @@ func TestCmdPaletteOperationsSupportHTTPAndUDS(t *testing.T) {
 		want := map[string]string{
 			"GET /api/cmd-palette/commands":                        "listCmdPaletteCommands",
 			"GET /api/cmd-palette/clients":                         "listCmdPaletteClients",
-			"POST /api/cmd-palette/commands/{id}/invoke":           "invokeCmdPaletteCommand",
-			"POST /api/cmd-palette/views/{id}/open":                "openCmdPaletteViewSession",
+			"POST /api/cmd-palette/commands/{id}/invoke":           cmdPaletteInvokeOperationID,
+			"POST /api/cmd-palette/views/{id}/open":                cmdPaletteOpenViewOperationID,
 			"GET /api/cmd-palette/view-sessions/{session}/stream":  "streamCmdPaletteViewSession",
-			"POST /api/cmd-palette/view-sessions/{session}/events": "admitCmdPaletteViewSessionEvent",
-			"DELETE /api/cmd-palette/view-sessions/{session}":      "closeCmdPaletteViewSession",
+			"POST /api/cmd-palette/view-sessions/{session}/events": cmdPaletteAdmitViewEventOperationID,
+			"DELETE /api/cmd-palette/view-sessions/{session}":      cmdPaletteCloseViewOperationID,
 			"GET /api/cmd-palette/stream":                          "streamCmdPalette",
 			"GET /api/tools/approvals/{id}":                        "getPendingToolApproval",
 			"POST /api/tools/approvals/{id}/cancel":                "cancelPendingToolApproval",
@@ -52,10 +52,10 @@ func TestCmdPaletteOperationsSupportHTTPAndUDS(t *testing.T) {
 		t.Parallel()
 
 		want := map[string]string{
-			"invokeCmdPaletteCommand":         "POST /api/cmd-palette/commands/{id}/invoke",
-			"openCmdPaletteViewSession":       "POST /api/cmd-palette/views/{id}/open",
-			"admitCmdPaletteViewSessionEvent": "POST /api/cmd-palette/view-sessions/{session}/events",
-			"closeCmdPaletteViewSession":      "DELETE /api/cmd-palette/view-sessions/{session}",
+			cmdPaletteInvokeOperationID:         "POST /api/cmd-palette/commands/{id}/invoke",
+			cmdPaletteOpenViewOperationID:       "POST /api/cmd-palette/views/{id}/open",
+			cmdPaletteAdmitViewEventOperationID: "POST /api/cmd-palette/view-sessions/{session}/events",
+			cmdPaletteCloseViewOperationID:      "DELETE /api/cmd-palette/view-sessions/{session}",
 		}
 		seen := make(map[string]OperationSpec, len(want))
 		for _, operation := range Operations() {

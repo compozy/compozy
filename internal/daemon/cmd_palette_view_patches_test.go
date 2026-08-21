@@ -52,10 +52,14 @@ func TestExtensionCmdPaletteViewPatchSubscriber(t *testing.T) {
 	t.Run("Should replay retained patches after the cursor on the same epoch", func(t *testing.T) {
 		t.Parallel()
 		provider := newViewPatchTestProvider(t, viewPatchTestProjection())
-		if err := provider.PublishViewPatch(t.Context(), "ws-a", "notes", viewPatchTestPatch("vr_1", "vr_2")); err != nil {
+		if err := provider.PublishViewPatch(
+			t.Context(), "ws-a", "notes", viewPatchTestPatch("vr_1", "vr_2"),
+		); err != nil {
 			t.Fatalf("PublishViewPatch(first) error = %v", err)
 		}
-		if err := provider.PublishViewPatch(t.Context(), "ws-a", "notes", viewPatchTestPatch("vr_2", "vr_3")); err != nil {
+		if err := provider.PublishViewPatch(
+			t.Context(), "ws-a", "notes", viewPatchTestPatch("vr_2", "vr_3"),
+		); err != nil {
 			t.Fatalf("PublishViewPatch(second) error = %v", err)
 		}
 		events, cancel, err := provider.SubscribeViewPatchesAfter(

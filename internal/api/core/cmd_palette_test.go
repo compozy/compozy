@@ -470,7 +470,8 @@ func TestBaseHandlersCmdPalette(t *testing.T) {
 		if recorder.Code != http.StatusOK || recorder.Header().Get("Content-Type") != "text/event-stream" {
 			t.Fatalf("stream = status %d content-type %q", recorder.Code, recorder.Header().Get("Content-Type"))
 		}
-		want := "event: cmd_palette.catalog.changed\ndata: {\"workspace\":\"workspace-canonical\",\"catalog_revision\":\"cr_current\"}\n\n"
+		want := "event: cmd_palette.catalog.changed\n" +
+			"data: {\"workspace\":\"workspace-canonical\",\"catalog_revision\":\"cr_current\"}\n\n"
 		if recorder.Body.String() != want {
 			t.Fatalf("stream body = %q, want %q", recorder.Body.String(), want)
 		}
@@ -929,7 +930,11 @@ func (s *cmdPaletteRegistryStub) CloseSession(
 	return nil
 }
 
-func (s *cmdPaletteRegistryStub) CloseClientSessions(context.Context, cmdpalette.WorkspaceID, cmdpalette.ClientID) error {
+func (s *cmdPaletteRegistryStub) CloseClientSessions(
+	context.Context,
+	cmdpalette.WorkspaceID,
+	cmdpalette.ClientID,
+) error {
 	return nil
 }
 

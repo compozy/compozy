@@ -19,13 +19,31 @@ type shellCommandDefinition struct {
 }
 
 var fixedShellCommands = []shellCommandDefinition{
-	{id: "palette.open", title: "Command palette", section: coreSectionShell, icon: "command", availabilityExempt: true},
+	{
+		id:                 "palette.open",
+		title:              "Command palette",
+		section:            coreSectionShell,
+		icon:               coreIconCommand,
+		availabilityExempt: true,
+	},
 	{
 		id: "palette.summon.global", title: "Command palette · global",
-		section: coreSectionShell, icon: "command", availabilityExempt: true,
+		section: coreSectionShell, icon: coreIconCommand, availabilityExempt: true,
 	},
-	{id: "session.new", title: "New session", section: coreSectionShell, icon: coreIconTerminal, availabilityExempt: true},
-	{id: "scope.global.toggle", title: "Global scope", section: coreSectionShell, icon: coreIconGlobe, availabilityExempt: true},
+	{
+		id:                 "session.new",
+		title:              "New session",
+		section:            coreSectionShell,
+		icon:               coreIconTerminal,
+		availabilityExempt: true,
+	},
+	{
+		id:                 "scope.global.toggle",
+		title:              "Global scope",
+		section:            coreSectionShell,
+		icon:               coreIconGlobe,
+		availabilityExempt: true,
+	},
 	{
 		id:                 "window.nav.back",
 		title:              "Back",

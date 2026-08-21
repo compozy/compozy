@@ -122,7 +122,8 @@ func TestCmdPaletteBindingsResolver(t *testing.T) {
 			t.Fatalf("MkdirAll() error = %v", err)
 		}
 		configPath := filepath.Join(configDir, compozyconfig.ConfigName)
-		if err := os.WriteFile(configPath, []byte("[cmd_palette.aliases]\n\"session.new\" = \"bad alias\"\n"), 0o644); err != nil {
+		configData := []byte("[cmd_palette.aliases]\n\"session.new\" = \"bad alias\"\n")
+		if err := os.WriteFile(configPath, configData, 0o644); err != nil {
 			t.Fatalf("WriteFile() error = %v", err)
 		}
 		resolver := &cmdPaletteBindingsResolver{

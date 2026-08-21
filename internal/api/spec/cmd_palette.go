@@ -4,9 +4,14 @@ import "github.com/compozy/compozy/internal/api/contract"
 
 const (
 	cmdPaletteInvalidWorkspaceDescription = "Invalid workspace"
+	cmdPaletteInvalidRequestDescription   = "Invalid request"
 	cmdPaletteUnavailableDescription      = "Command palette unavailable"
 	cmdPaletteCommandNotFoundDescription  = "Command not found"
 	cmdPaletteViewNotFoundDescription     = "View not found"
+	cmdPaletteInvokeOperationID           = "invokeCmdPaletteCommand"
+	cmdPaletteOpenViewOperationID         = "openCmdPaletteViewSession"
+	cmdPaletteAdmitViewEventOperationID   = "admitCmdPaletteViewSessionEvent"
+	cmdPaletteCloseViewOperationID        = "closeCmdPaletteViewSession"
 )
 
 var (
@@ -55,7 +60,7 @@ var (
 			RequestBody: contract.CmdPaletteUsageRequest{},
 			Responses: []ResponseSpec{
 				{Status: 204, Description: "Recorded"},
-				{Status: 400, Description: "Invalid request", Body: contract.CmdPaletteError{}},
+				{Status: 400, Description: cmdPaletteInvalidRequestDescription, Body: contract.CmdPaletteError{}},
 				{Status: 404, Description: cmdPaletteCommandNotFoundDescription, Body: contract.CmdPaletteError{}},
 				{Status: 503, Description: cmdPaletteUnavailableDescription, Body: contract.CmdPaletteError{}},
 			},
@@ -114,7 +119,7 @@ var (
 		},
 		{
 			Method: httpMethodPost, Path: "/api/cmd-palette/commands/{id}/invoke",
-			OperationID: "invokeCmdPaletteCommand", Summary: "Invoke one command palette command",
+			OperationID: cmdPaletteInvokeOperationID, Summary: "Invoke one command palette command",
 			Tags: []string{specCmdPaletteKey}, Transports: cmdPaletteTransports,
 			Parameters: []ParameterSpec{
 				pathParam("id", "Canonical command id"),
@@ -124,7 +129,7 @@ var (
 			Responses: []ResponseSpec{
 				{Status: 200, Description: "Completed", Body: contract.CmdPaletteInvokeResult{}},
 				{Status: 202, Description: "Approval pending", Body: contract.CmdPaletteInvokeResult{}},
-				{Status: 400, Description: "Invalid request", Body: contract.CmdPaletteError{}},
+				{Status: 400, Description: cmdPaletteInvalidRequestDescription, Body: contract.CmdPaletteError{}},
 				{Status: 401, Description: "Invalid client attachment", Body: contract.CmdPaletteError{}},
 				{Status: 404, Description: cmdPaletteCommandNotFoundDescription, Body: contract.CmdPaletteError{}},
 				{Status: 409, Description: "Invocation conflict", Body: contract.CmdPaletteError{}},
@@ -172,7 +177,7 @@ var (
 		},
 		{
 			Method: httpMethodPost, Path: "/api/cmd-palette/views/{id}/open",
-			OperationID: "openCmdPaletteViewSession", Summary: "Open one programmable command palette view",
+			OperationID: cmdPaletteOpenViewOperationID, Summary: "Open one programmable command palette view",
 			Tags: []string{specCmdPaletteKey}, Transports: cmdPaletteTransports,
 			Parameters: []ParameterSpec{
 				pathParam("id", "Canonical view id"),
@@ -181,7 +186,7 @@ var (
 			RequestBody: contract.CmdPaletteViewSessionOpenRequest{},
 			Responses: []ResponseSpec{
 				{Status: 200, Description: "Opened", Body: contract.CmdPaletteViewSessionOpenResponse{}},
-				{Status: 400, Description: "Invalid request", Body: contract.CmdPaletteError{}},
+				{Status: 400, Description: cmdPaletteInvalidRequestDescription, Body: contract.CmdPaletteError{}},
 				{Status: 401, Description: "Invalid client attachment", Body: contract.CmdPaletteError{}},
 				{Status: 404, Description: cmdPaletteViewNotFoundDescription, Body: contract.CmdPaletteError{}},
 				{Status: 422, Description: "View is not programmable", Body: contract.CmdPaletteError{}},
@@ -207,7 +212,7 @@ var (
 		},
 		{
 			Method: httpMethodPost, Path: "/api/cmd-palette/view-sessions/{session}/events",
-			OperationID: "admitCmdPaletteViewSessionEvent", Summary: "Send one programmable view event",
+			OperationID: cmdPaletteAdmitViewEventOperationID, Summary: "Send one programmable view event",
 			Tags: []string{specCmdPaletteKey}, Transports: cmdPaletteTransports,
 			Parameters: []ParameterSpec{
 				pathParam("session", "Opaque view session id"),
@@ -216,7 +221,7 @@ var (
 			RequestBody: contract.CmdPaletteViewSessionEventRequest{},
 			Responses: []ResponseSpec{
 				{Status: 202, Description: "Accepted", Body: contract.CmdPaletteViewSessionAccepted{}},
-				{Status: 400, Description: "Invalid request", Body: contract.CmdPaletteError{}},
+				{Status: 400, Description: cmdPaletteInvalidRequestDescription, Body: contract.CmdPaletteError{}},
 				{Status: 403, Description: "Session ownership mismatch", Body: contract.CmdPaletteError{}},
 				{Status: 409, Description: "View event cap reached", Body: contract.CmdPaletteError{}},
 				{Status: 410, Description: "View session is gone", Body: contract.CmdPaletteError{}},
@@ -224,7 +229,7 @@ var (
 		},
 		{
 			Method: httpMethodDelete, Path: "/api/cmd-palette/view-sessions/{session}",
-			OperationID: "closeCmdPaletteViewSession", Summary: "Close one programmable command palette view",
+			OperationID: cmdPaletteCloseViewOperationID, Summary: "Close one programmable command palette view",
 			Tags: []string{specCmdPaletteKey}, Transports: cmdPaletteTransports,
 			Parameters: []ParameterSpec{
 				pathParam("session", "Opaque view session id"),

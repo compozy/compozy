@@ -132,6 +132,39 @@ func DefaultWindowManagerConfig() WindowManagerConfig {
 
 // Validate rejects incomplete or internally conflicting window-manager behavior.
 func (c WindowManagerConfig) Validate() error {
+	if err := c.validateEnums(); err != nil {
+		return err
+	}
+	if c.HistoryLimit < 1 || c.HistoryLimit > 500 {
+		return ValidationError{
+			Path: "window_manager.history_limit", Message: "must be between 1 and 500",
+		}
+	}
+	if c.NavStackLimit < 1 || c.NavStackLimit > 200 {
+		return ValidationError{Path: windowManagerNavStackLimitPath, Message: "must be between 1 and 200"}
+	}
+	if c.ClosedEntryLimit < 1 || c.ClosedEntryLimit > 100 {
+		return ValidationError{Path: windowManagerClosedEntryLimitPath, Message: "must be between 1 and 100"}
+	}
+	if err := c.Gaps.Validate(); err != nil {
+		return err
+	}
+	if err := c.Snap.Validate(); err != nil {
+		return err
+	}
+	if err := c.Bindings.Validate(); err != nil {
+		return err
+	}
+	if err := validateWindowManagerShortcuts(c.Shortcuts); err != nil {
+		return err
+	}
+	if _, err := windowmanager.CanonicalStoredGlobalShortcuts(c.GlobalShortcuts); err != nil {
+		return ValidationError{Path: "window_manager.global_shortcuts", Message: err.Error()}
+	}
+	return nil
+}
+
+func (c WindowManagerConfig) validateEnums() error {
 	if err := validateWindowManagerEnum(
 		"window_manager.new_window_policy",
 		c.NewWindowPolicy,
@@ -186,32 +219,6 @@ func (c WindowManagerConfig) Validate() error {
 		windowDragModifiers()...,
 	); err != nil {
 		return err
-	}
-	if c.HistoryLimit < 1 || c.HistoryLimit > 500 {
-		return ValidationError{
-			Path: "window_manager.history_limit", Message: "must be between 1 and 500",
-		}
-	}
-	if c.NavStackLimit < 1 || c.NavStackLimit > 200 {
-		return ValidationError{Path: windowManagerNavStackLimitPath, Message: "must be between 1 and 200"}
-	}
-	if c.ClosedEntryLimit < 1 || c.ClosedEntryLimit > 100 {
-		return ValidationError{Path: windowManagerClosedEntryLimitPath, Message: "must be between 1 and 100"}
-	}
-	if err := c.Gaps.Validate(); err != nil {
-		return err
-	}
-	if err := c.Snap.Validate(); err != nil {
-		return err
-	}
-	if err := c.Bindings.Validate(); err != nil {
-		return err
-	}
-	if err := validateWindowManagerShortcuts(c.Shortcuts); err != nil {
-		return err
-	}
-	if _, err := windowmanager.CanonicalStoredGlobalShortcuts(c.GlobalShortcuts); err != nil {
-		return ValidationError{Path: "window_manager.global_shortcuts", Message: err.Error()}
 	}
 	return nil
 }

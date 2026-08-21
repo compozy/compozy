@@ -27,39 +27,7 @@ func (s *service) updateWindowManagerSection(
 			errors.New("settings: window-manager section payload is required"),
 		)
 	}
-	desired, desiredAliases := mergeWindowManagerRequest(
-		loaded.config.WindowManager,
-		loaded.config.CmdPalette.Aliases,
-		req,
-	)
-	bindableIDs, err := s.windowManagerBindableIDs(ctx, loaded.workspaceID)
-	if err != nil {
-		return MutationResult{}, err
-	}
-	desired.Shortcuts, err = normalizeShortcutMutation(
-		loaded.config.WindowManager.Shortcuts,
-		desired.Shortcuts,
-		bindableIDs,
-		req.Overwrite,
-	)
-	if err != nil {
-		return MutationResult{}, err
-	}
-	desired.GlobalShortcuts, err = normalizeGlobalShortcutMutation(
-		loaded.config.WindowManager.GlobalShortcuts,
-		desired.GlobalShortcuts,
-		bindableIDs,
-		req.Overwrite,
-	)
-	if err != nil {
-		return MutationResult{}, err
-	}
-	desiredAliases, err = normalizeAliasMutation(
-		loaded.config.CmdPalette.Aliases,
-		desiredAliases,
-		bindableIDs,
-		req.Overwrite,
-	)
+	desired, desiredAliases, err := s.normalizeWindowManagerRequest(ctx, &loaded, req)
 	if err != nil {
 		return MutationResult{}, err
 	}
@@ -104,4 +72,48 @@ func (s *service) updateWindowManagerSection(
 	}
 	s.emitCmdPaletteSettingsEvents(ctx, eventWorkspaces, bindingChanges, aliasChanges)
 	return result, nil
+}
+
+func (s *service) normalizeWindowManagerRequest(
+	ctx context.Context,
+	loaded *scopedSectionUpdate,
+	req SectionUpdateRequest,
+) (compozyconfig.WindowManagerConfig, map[string]string, error) {
+	desired, desiredAliases := mergeWindowManagerRequest(
+		loaded.config.WindowManager,
+		loaded.config.CmdPalette.Aliases,
+		req,
+	)
+	bindableIDs, err := s.windowManagerBindableIDs(ctx, loaded.workspaceID)
+	if err != nil {
+		return compozyconfig.WindowManagerConfig{}, nil, err
+	}
+	desired.Shortcuts, err = normalizeShortcutMutation(
+		loaded.config.WindowManager.Shortcuts,
+		desired.Shortcuts,
+		bindableIDs,
+		req.Overwrite,
+	)
+	if err != nil {
+		return compozyconfig.WindowManagerConfig{}, nil, err
+	}
+	desired.GlobalShortcuts, err = normalizeGlobalShortcutMutation(
+		loaded.config.WindowManager.GlobalShortcuts,
+		desired.GlobalShortcuts,
+		bindableIDs,
+		req.Overwrite,
+	)
+	if err != nil {
+		return compozyconfig.WindowManagerConfig{}, nil, err
+	}
+	desiredAliases, err = normalizeAliasMutation(
+		loaded.config.CmdPalette.Aliases,
+		desiredAliases,
+		bindableIDs,
+		req.Overwrite,
+	)
+	if err != nil {
+		return compozyconfig.WindowManagerConfig{}, nil, err
+	}
+	return desired, desiredAliases, nil
 }

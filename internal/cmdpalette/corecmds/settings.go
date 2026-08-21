@@ -43,7 +43,7 @@ var settingsDestinations = []settingsDestination{
 		Keywords: []string{"logs", "capture", "support bundle"},
 	},
 	{Slug: "hooks", Title: "Hooks", Icon: "webhook", Keywords: []string{"lifecycle", "events", "presets"}},
-	{Slug: "palette", Title: "Palette", Icon: "command", Keywords: []string{"commands", "shortcuts", "search"}},
+	{Slug: "palette", Title: "Palette", Icon: coreIconCommand, Keywords: []string{"commands", "shortcuts", "search"}},
 	{Slug: coreAppExtensions, Title: "Extensions", Icon: "puzzle", Keywords: []string{"policy", "registry", "trust"}},
 }
 

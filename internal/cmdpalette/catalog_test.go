@@ -304,7 +304,8 @@ func TestRegistryCatalog(t *testing.T) {
 			if err != nil || len(defaults) != 1 || defaults[0].Active {
 				t.Fatalf("ExtensionDefaults() = %#v, %v", defaults, err)
 			}
-			if _, err := service.ExtensionDefaults(nil, "ws-1"); err == nil {
+			var missingContext context.Context
+			if _, err := service.ExtensionDefaults(missingContext, "ws-1"); err == nil {
 				t.Fatal("ExtensionDefaults(nil context) error = nil, want required-context error")
 			}
 			if _, err := service.ExtensionDefaults(t.Context(), ""); err == nil {

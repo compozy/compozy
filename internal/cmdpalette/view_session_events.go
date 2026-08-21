@@ -350,7 +350,7 @@ func rejectViewGenerationLocked(session *viewSession, generation uint64) {
 
 func pruneRejectedGenerationsLocked(session *viewSession) {
 	for len(session.rejectedGenerations) > maxRejectedGenerations {
-		oldest := uint64(^uint64(0))
+		oldest := ^uint64(0)
 		for generation := range session.rejectedGenerations {
 			if generation < oldest {
 				oldest = generation

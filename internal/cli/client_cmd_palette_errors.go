@@ -3,6 +3,7 @@ package cli
 import (
 	"encoding/json"
 	"fmt"
+	"maps"
 	"sort"
 	"strings"
 
@@ -52,9 +53,7 @@ func (e *cmdPaletteAPIError) errorPayload() contract.ErrorPayload {
 		return contract.ErrorPayload{}
 	}
 	details := map[string]string{}
-	for field, reason := range e.payload.Fields {
-		details[field] = reason
-	}
+	maps.Copy(details, e.payload.Fields)
 	if reason := strings.TrimSpace(e.payload.Reason); reason != "" {
 		details["reason"] = reason
 	}

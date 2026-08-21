@@ -27,22 +27,7 @@ func (t *transport) handleRequest(envelope rpcEnvelope) {
 		return
 	}
 
-	switch t.process.currentState() {
-	case processStateStarting:
-		t.sendErrorOrFail(
-			id.raw,
-			NewRPCError(codeNotInitialized, "Not initialized", nil),
-			"subprocess: send not initialized error",
-		)
-		return
-	case processStateDraining:
-		t.sendErrorOrFail(
-			id.raw,
-			NewRPCError(codeShutdownProgress, "Shutdown in progress", nil),
-			"subprocess: send shutdown-in-progress error",
-		)
-		return
-	case processStateStopped:
+	if t.rejectRequestForProcessState(id) {
 		return
 	}
 
@@ -90,6 +75,29 @@ func (t *transport) handleRequest(envelope rpcEnvelope) {
 		}
 		t.sendResultOrFail(id.raw, result, "subprocess: send result")
 	})
+}
+
+func (t *transport) rejectRequestForProcessState(id rpcID) bool {
+	switch t.process.currentState() {
+	case processStateStarting:
+		t.sendErrorOrFail(
+			id.raw,
+			NewRPCError(codeNotInitialized, "Not initialized", nil),
+			"subprocess: send not initialized error",
+		)
+		return true
+	case processStateDraining:
+		t.sendErrorOrFail(
+			id.raw,
+			NewRPCError(codeShutdownProgress, "Shutdown in progress", nil),
+			"subprocess: send shutdown-in-progress error",
+		)
+		return true
+	case processStateStopped:
+		return true
+	default:
+		return false
+	}
 }
 
 func (t *transport) handleCancel(raw json.RawMessage) {

@@ -31,7 +31,7 @@ type asyncApprovalCoordinator struct {
 
 var _ ApprovalCoordinator = (*asyncApprovalCoordinator)(nil)
 
-// NewApprovalCoordinator creates an asynchronous approval coordinator backed by the supplied durable store and dispatcher.
+// NewApprovalCoordinator creates a durable asynchronous approval coordinator.
 func NewApprovalCoordinator(store ApprovalPendingStore, dispatcher ApprovalDispatcher) (ApprovalCoordinator, error) {
 	if store == nil {
 		return nil, errors.New("tool approval store is required")

@@ -474,7 +474,7 @@ func TestReleaseWorkflowConsumesExplicitPlan(t *testing.T) {
 		"release_previous_tag:",
 		"release_git_range:",
 		"release_initial:",
-		"github.com/compozy/releasepr@v0.0.28",
+		"github.com/compozy/releasepr@v0.0.29",
 		"name: Synchronize explicit release web assets",
 		`go run "${mage_module}" webAssetsCheck`,
 		`go run "${mage_module}" releaseWebAssetsSync`,
@@ -1191,19 +1191,27 @@ func TestReleasePublicationStateKeepsImmutableRegistryVersionsRecoverable(t *tes
 			name:           "Should resume an orphaned draft without presenting its old desktop as fixed",
 			cliState:       "published",
 			extensionState: "published",
-			releases:       `[{"id":42,"tag_name":"v0.3.0-beta.15","target_commitish":"release-commit","draft":true,"assets":[{"id":1,"name":"checksums.txt","state":"uploaded","size":100},{"id":2,"name":"checksums.txt.sigstore.json","state":"uploaded","size":1},{"id":3,"name":"install.sh","state":"uploaded","size":1},{"id":4,"name":"compozy_darwin_arm64.tar.gz","state":"uploaded","size":1}]}]`,
-			wantState:      "draft_published_published",
-			wantStage:      "false",
-			wantDesktop:    "false",
+			releases: `[{"id":42,"tag_name":"v0.3.0-beta.15","target_commitish":"release-commit",` +
+				`"draft":true,"assets":[{"id":1,"name":"checksums.txt","state":"uploaded","size":100},` +
+				`{"id":2,"name":"checksums.txt.sigstore.json","state":"uploaded","size":1},` +
+				`{"id":3,"name":"install.sh","state":"uploaded","size":1},` +
+				`{"id":4,"name":"compozy_darwin_arm64.tar.gz","state":"uploaded","size":1}]}]`,
+			wantState:   "draft_published_published",
+			wantStage:   "false",
+			wantDesktop: "false",
 		},
 		{
 			name:           "Should resume npm publication from an already public GitHub release",
 			cliState:       "missing",
 			extensionState: "missing",
-			releases:       `[{"id":42,"tag_name":"v0.3.0-beta.15","target_commitish":"release-commit","draft":false,"assets":[{"id":1,"name":"checksums.txt","state":"uploaded","size":100},{"id":2,"name":"checksums.txt.sigstore.json","state":"uploaded","size":1},{"id":3,"name":"install.sh","state":"uploaded","size":1},{"id":4,"name":"compozy_darwin_arm64.tar.gz","state":"uploaded","size":1}]}]`,
-			wantState:      "published_missing_missing",
-			wantStage:      "false",
-			wantDesktop:    "false",
+			releases: `[{"id":42,"tag_name":"v0.3.0-beta.15","target_commitish":"release-commit",` +
+				`"draft":false,"assets":[{"id":1,"name":"checksums.txt","state":"uploaded","size":100},` +
+				`{"id":2,"name":"checksums.txt.sigstore.json","state":"uploaded","size":1},` +
+				`{"id":3,"name":"install.sh","state":"uploaded","size":1},` +
+				`{"id":4,"name":"compozy_darwin_arm64.tar.gz","state":"uploaded","size":1}]}]`,
+			wantState:   "published_missing_missing",
+			wantStage:   "false",
+			wantDesktop: "false",
 		},
 	}
 

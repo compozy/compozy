@@ -76,9 +76,14 @@ func TestManagerViewProgramForwarding(t *testing.T) {
 					return nil
 				}
 				manager := newViewProgramManagerForTest("notes", 1, time.Second, process)
-				frame, err := manager.HandleProgramEvent(testutil.Context(t), "workspace-a", "notes", cmdpalette.ViewEvent{
-					ViewSession: "vs_test", Handler: "search", Revision: "rev-1", Seq: 1,
-				})
+				frame, err := manager.HandleProgramEvent(
+					testutil.Context(t),
+					"workspace-a",
+					"notes",
+					cmdpalette.ViewEvent{
+						ViewSession: "vs_test", Handler: "search", Revision: "rev-1", Seq: 1,
+					},
+				)
 				if err != nil {
 					t.Fatalf("HandleProgramEvent() error = %v", err)
 				}

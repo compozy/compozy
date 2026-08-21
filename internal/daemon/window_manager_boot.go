@@ -70,40 +70,8 @@ func (d *Daemon) bootDefaultWorkspaceAndWindowManager(
 		windowManagerDefaults(state.cfg.WindowManager),
 		windowmanager.WithLifecycleContext(ctx),
 		windowmanager.WithEventObserver(newWindowManagerHookObserver(state)),
-		windowmanager.WithClientUnregisteredObserver(
-			func(ctx context.Context, workspaceID windowmanager.WorkspaceID, clientID windowmanager.ClientID) error {
-				views, ok := state.cmdPalette.(cmdpalette.ViewSessionService)
-				if !ok || views == nil {
-					return nil
-				}
-				return views.CloseClientSessions(
-					ctx,
-					cmdpalette.WorkspaceID(workspaceID),
-					cmdpalette.ClientID(clientID),
-				)
-			},
-		),
-		windowmanager.WithGlobalShortcutFailureObserver(
-			func(
-				ctx context.Context,
-				workspaceID windowmanager.WorkspaceID,
-				clientID windowmanager.ClientID,
-				registration windowmanager.GlobalShortcutRegistration,
-			) {
-				notifier, ok := state.cmdPalette.(globalHotkeyFailureNotifier)
-				if !ok || notifier == nil {
-					return
-				}
-				notifier.NotifyGlobalHotkeyRegistrationFailed(
-					ctx,
-					cmdpalette.WorkspaceID(workspaceID),
-					cmdpalette.ClientID(clientID),
-					cmdpalette.CommandID(registration.CommandID),
-					registration.IntendedChord,
-					registration.Reason,
-				)
-			},
-		),
+		windowmanager.WithClientUnregisteredObserver(closeCmdPaletteClientViews(state)),
+		windowmanager.WithGlobalShortcutFailureObserver(notifyGlobalHotkeyRegistrationFailure(state)),
 		windowmanager.WithWorkspaceConfigResolver(
 			windowManagerWorkspaceConfigResolver{resolver: state.workspaceResolver},
 		),
@@ -117,6 +85,51 @@ func (d *Daemon) bootDefaultWorkspaceAndWindowManager(
 	state.windowManagerRepository = repository
 	state.windowManager = manager
 	return nil
+}
+
+func closeCmdPaletteClientViews(state *bootState) func(
+	context.Context,
+	windowmanager.WorkspaceID,
+	windowmanager.ClientID,
+) error {
+	return func(ctx context.Context, workspaceID windowmanager.WorkspaceID, clientID windowmanager.ClientID) error {
+		views, ok := state.cmdPalette.(cmdpalette.ViewSessionService)
+		if !ok || views == nil {
+			return nil
+		}
+		return views.CloseClientSessions(
+			ctx,
+			cmdpalette.WorkspaceID(workspaceID),
+			cmdpalette.ClientID(clientID),
+		)
+	}
+}
+
+func notifyGlobalHotkeyRegistrationFailure(state *bootState) func(
+	context.Context,
+	windowmanager.WorkspaceID,
+	windowmanager.ClientID,
+	windowmanager.GlobalShortcutRegistration,
+) {
+	return func(
+		ctx context.Context,
+		workspaceID windowmanager.WorkspaceID,
+		clientID windowmanager.ClientID,
+		registration windowmanager.GlobalShortcutRegistration,
+	) {
+		notifier, ok := state.cmdPalette.(globalHotkeyFailureNotifier)
+		if !ok || notifier == nil {
+			return
+		}
+		notifier.NotifyGlobalHotkeyRegistrationFailed(
+			ctx,
+			cmdpalette.WorkspaceID(workspaceID),
+			cmdpalette.ClientID(clientID),
+			cmdpalette.CommandID(registration.CommandID),
+			registration.IntendedChord,
+			registration.Reason,
+		)
+	}
 }
 
 func installWorkspaceRemovalPreparer(state *bootState, sessions SessionManager) error {

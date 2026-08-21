@@ -904,7 +904,7 @@ func TestClientLifecycle(t *testing.T) {
 		}); err != nil {
 			t.Fatalf("RegisterClient() error = %v", err)
 		}
-		for attempt := 0; attempt < 2; attempt++ {
+		for attempt := range 2 {
 			if _, err := environment.manager.UpdateClientContext(t.Context(), ClientContextUpdate{
 				WorkspaceID: "workspace-a",
 				ClientID:    "shell-a",

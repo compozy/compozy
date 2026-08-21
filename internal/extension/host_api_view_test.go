@@ -179,7 +179,11 @@ func (s *hostAPIViewServiceStub) CloseSession(context.Context, cmdpalette.Sessio
 	return nil
 }
 
-func (s *hostAPIViewServiceStub) CloseClientSessions(context.Context, cmdpalette.WorkspaceID, cmdpalette.ClientID) error {
+func (s *hostAPIViewServiceStub) CloseClientSessions(
+	context.Context,
+	cmdpalette.WorkspaceID,
+	cmdpalette.ClientID,
+) error {
 	return nil
 }
 

@@ -250,7 +250,7 @@ func TestNewDocCommand_GeneratesDocs(t *testing.T) {
 	if !strings.Contains(listBody, "--available=false") {
 		t.Error("cmd-palette list docs should keep an explicit --available=false example")
 	}
-	for _, line := range strings.Split(listBody, "\n") {
+	for line := range strings.SplitSeq(listBody, "\n") {
 		if !strings.Contains(line, "--available") || !strings.Contains(line, cmdPaletteAvailableFlagHelp) {
 			continue
 		}

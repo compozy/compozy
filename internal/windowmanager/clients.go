@@ -145,21 +145,9 @@ func (m *Manager) storeRegisteredClient(
 	contextChanged := !exists || before.Kind != view.Kind ||
 		!paletteContextsEqual(before.PaletteContext, view.PaletteContext) ||
 		!globalShortcutRegistrationsEqual(before.GlobalShortcuts, view.GlobalShortcuts)
-	if exists && changed {
-		next, revisionErr := nextPresentationRevision(before.PresentationRevision)
-		if revisionErr != nil {
-			return ClientView{}, nil, false, fmt.Errorf("advance client %q: %w", prepared.clientID, revisionErr)
-		}
-		view.PresentationRevision = next
-	}
-	if exists && contextChanged {
-		next, revisionErr := nextContextRevision(before.ContextRevision)
-		if revisionErr != nil {
-			return ClientView{}, nil, false, fmt.Errorf(
-				"advance client %q context: %w", prepared.clientID, revisionErr,
-			)
-		}
-		view.ContextRevision = next
+	view, err = advanceRegisteredClientRevisions(prepared.clientID, before, view, exists, changed, contextChanged)
+	if err != nil {
+		return ClientView{}, nil, false, err
 	}
 	stored := cloneClientView(view)
 	stored.AttachmentToken = ""
@@ -171,6 +159,31 @@ func (m *Manager) storeRegisteredClient(
 	}
 	workspaceTokens[prepared.clientID] = prepared.digest
 	return stored, CloneGlobalShortcutRegistrations(before.GlobalShortcuts), changed, nil
+}
+
+func advanceRegisteredClientRevisions(
+	clientID ClientID,
+	before ClientView,
+	view ClientView,
+	exists bool,
+	changed bool,
+	contextChanged bool,
+) (ClientView, error) {
+	if exists && changed {
+		next, err := nextPresentationRevision(before.PresentationRevision)
+		if err != nil {
+			return ClientView{}, fmt.Errorf("advance client %q: %w", clientID, err)
+		}
+		view.PresentationRevision = next
+	}
+	if exists && contextChanged {
+		next, err := nextContextRevision(before.ContextRevision)
+		if err != nil {
+			return ClientView{}, fmt.Errorf("advance client %q context: %w", clientID, err)
+		}
+		view.ContextRevision = next
+	}
+	return view, nil
 }
 
 // UnregisterClient removes transient presentation state only.

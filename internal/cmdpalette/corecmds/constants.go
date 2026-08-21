@@ -21,6 +21,7 @@ const (
 	coreIconChevronRight  = "chevron-right"
 	coreIconChevronLeft   = "chevron-left"
 	coreIconMonitor       = "monitor"
+	coreIconCommand       = "command"
 	coreSectionShell      = "Shell"
 	coreSectionWindow     = "Window"
 	coreSectionTabs       = "Tabs"

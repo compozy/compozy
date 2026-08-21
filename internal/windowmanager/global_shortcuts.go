@@ -2,6 +2,7 @@ package windowmanager
 
 import (
 	"fmt"
+	"maps"
 	"sort"
 	"strings"
 )
@@ -36,9 +37,7 @@ func CloneGlobalShortcutMap(source map[string]string) map[string]string {
 		return nil
 	}
 	cloned := make(map[string]string, len(source))
-	for commandID, chord := range source {
-		cloned[commandID] = chord
-	}
+	maps.Copy(cloned, source)
 	return cloned
 }
 

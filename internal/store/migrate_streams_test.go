@@ -372,7 +372,7 @@ func TestGlobalCommandPaletteMigrationTail(t *testing.T) {
 			t.Fatalf("Apply(global through 00079) error = %v", err)
 		}
 		before := sqliteIndexSQL(t, db, "idx_tool_approval_pending_recovery")
-		if strings.Index(before, "expires_at") < 0 ||
+		if !strings.Contains(before, "expires_at") ||
 			strings.Index(before, "expires_at") > strings.Index(before, "resume_fence") {
 			t.Fatalf("recovery index at 00079 = %q, want expires_at before resume_fence", before)
 		}
@@ -380,7 +380,7 @@ func TestGlobalCommandPaletteMigrationTail(t *testing.T) {
 			t.Fatalf("Apply(global through 00080) error = %v", err)
 		}
 		after := sqliteIndexSQL(t, db, "idx_tool_approval_pending_recovery")
-		if strings.Index(after, "resume_fence") < 0 ||
+		if !strings.Contains(after, "resume_fence") ||
 			strings.Index(after, "resume_fence") > strings.Index(after, "expires_at") {
 			t.Fatalf("recovery index at 00080 = %q, want resume_fence before expires_at", after)
 		}

@@ -26,63 +26,71 @@ func (s *service) buildWindowManagerSection(
 		ExtensionDefaults: []WindowManagerExtensionDefault{},
 	}
 	if s.cmdPalette != nil && workspaceID != "" {
-		catalog, err := s.cmdPalette.Catalog(
-			ctx,
-			cmdpalette.WorkspaceID(workspaceID),
-			cmdpalette.ClientID(clientID),
-		)
-		if err != nil {
-			return WindowManagerSection{}, fmt.Errorf("settings: load command catalog for shortcuts: %w", err)
-		}
-		section.Commands = make([]WindowManagerShortcutCommand, 0, len(catalog.Commands))
-		section.EffectiveShortcuts = make(map[string]windowmanager.ShortcutBinding, len(catalog.Commands))
-		section.Aliases = make(map[string]string)
-		catalogIDs := make([]string, 0, len(catalog.Commands))
-		for _, command := range catalog.Commands {
-			catalogIDs = append(catalogIDs, string(command.ID))
-		}
-		bindableIDs := catalogBindableIDs(catalogIDs)
-		for _, command := range catalog.Commands {
-			commandID := string(command.ID)
-			section.Commands = append(section.Commands, WindowManagerShortcutCommand{
-				ID:      commandID,
-				Title:   command.Title,
-				Section: command.Section,
-				Source:  command.Source.ID(),
-			})
-			section.EffectiveShortcuts[commandID] = append(
-				windowmanager.ShortcutBinding(nil), command.Bindings...,
-			)
-			if command.Alias != nil {
-				section.Aliases[commandID] = *command.Alias
-			}
-			if command.GlobalShortcut != nil {
-				section.GlobalShortcuts = append(section.GlobalShortcuts, WindowManagerGlobalShortcut{
-					CommandID:     commandID,
-					IntendedChord: command.GlobalShortcut.IntendedChord,
-					ActiveChord:   command.GlobalShortcut.ActiveChord,
-					Status:        command.GlobalShortcut.Status,
-					Reason:        command.GlobalShortcut.Reason,
-					SettingsURL:   command.GlobalShortcut.SettingsURL,
-				})
-			}
-		}
-		_, diagnostics, err := windowmanager.TolerantEffectiveKeymap(
-			cfg.WindowManager.Shortcuts, bindableIDs,
-		)
-		if err != nil {
-			return WindowManagerSection{}, fmt.Errorf("settings: diagnose stored shortcuts: %w", err)
-		}
-		section.ExtensionDefaults, err = s.buildWindowManagerExtensionDefaults(
-			ctx, workspaceID, cfg.WindowManager.Shortcuts, bindableIDs,
-		)
-		if err != nil {
-			return WindowManagerSection{}, err
-		}
-		section.Diagnostics = diagnostics
-		return section, nil
+		return s.buildCatalogWindowManagerSection(ctx, cfg, workspaceID, clientID, section)
 	}
+	return buildDefaultWindowManagerSection(cfg, section)
+}
 
+func (s *service) buildCatalogWindowManagerSection(
+	ctx context.Context,
+	cfg *compozyconfig.Config,
+	workspaceID string,
+	clientID string,
+	section WindowManagerSection,
+) (WindowManagerSection, error) {
+	catalog, err := s.cmdPalette.Catalog(
+		ctx,
+		cmdpalette.WorkspaceID(workspaceID),
+		cmdpalette.ClientID(clientID),
+	)
+	if err != nil {
+		return WindowManagerSection{}, fmt.Errorf("settings: load command catalog for shortcuts: %w", err)
+	}
+	section.Commands = make([]WindowManagerShortcutCommand, 0, len(catalog.Commands))
+	section.EffectiveShortcuts = make(map[string]windowmanager.ShortcutBinding, len(catalog.Commands))
+	section.Aliases = make(map[string]string)
+	catalogIDs := make([]string, 0, len(catalog.Commands))
+	for _, command := range catalog.Commands {
+		catalogIDs = append(catalogIDs, string(command.ID))
+	}
+	bindableIDs := catalogBindableIDs(catalogIDs)
+	for _, command := range catalog.Commands {
+		commandID := string(command.ID)
+		section.Commands = append(section.Commands, WindowManagerShortcutCommand{
+			ID: commandID, Title: command.Title, Section: command.Section, Source: command.Source.ID(),
+		})
+		section.EffectiveShortcuts[commandID] = append(
+			windowmanager.ShortcutBinding(nil), command.Bindings...,
+		)
+		if command.Alias != nil {
+			section.Aliases[commandID] = *command.Alias
+		}
+		if command.GlobalShortcut != nil {
+			section.GlobalShortcuts = append(section.GlobalShortcuts, WindowManagerGlobalShortcut{
+				CommandID: commandID, IntendedChord: command.GlobalShortcut.IntendedChord,
+				ActiveChord: command.GlobalShortcut.ActiveChord, Status: command.GlobalShortcut.Status,
+				Reason: command.GlobalShortcut.Reason, SettingsURL: command.GlobalShortcut.SettingsURL,
+			})
+		}
+	}
+	_, diagnostics, err := windowmanager.TolerantEffectiveKeymap(cfg.WindowManager.Shortcuts, bindableIDs)
+	if err != nil {
+		return WindowManagerSection{}, fmt.Errorf("settings: diagnose stored shortcuts: %w", err)
+	}
+	section.ExtensionDefaults, err = s.buildWindowManagerExtensionDefaults(
+		ctx, workspaceID, cfg.WindowManager.Shortcuts, bindableIDs,
+	)
+	if err != nil {
+		return WindowManagerSection{}, err
+	}
+	section.Diagnostics = diagnostics
+	return section, nil
+}
+
+func buildDefaultWindowManagerSection(
+	cfg *compozyconfig.Config,
+	section WindowManagerSection,
+) (WindowManagerSection, error) {
 	bindableIDs := windowmanager.DefaultBindableIDs()
 	effective, diagnostics, err := windowmanager.TolerantEffectiveKeymap(
 		cfg.WindowManager.Shortcuts,
