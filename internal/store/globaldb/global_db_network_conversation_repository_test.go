@@ -223,7 +223,7 @@ func TestGlobalDBAcceptNetworkMessage(t *testing.T) {
 		)
 		now := time.Date(2026, 7, 14, 2, 20, 0, 0, time.UTC)
 		if err := globalDB.RegisterSession(testutil.Context(t), SessionInfo{
-			ID: "sess-foreign-recipient", AgentName: "coder", Provider: "claude",
+			ID: "sess-foreign-recipient", ProfileID: store.DefaultProfileID, AgentName: "coder", Provider: "claude",
 			RuntimeStatus: store.SessionRuntimeUnbound,
 			WorkspaceID:   foreignWorkspaceID, State: "active", CreatedAt: now, UpdatedAt: now,
 		}); err != nil {
@@ -1814,7 +1814,7 @@ func TestGlobalDBWriteConversationMessageDirectIsolationAndWorkLookup(t *testing
 		startedAt := time.Date(2026, 7, 14, 15, 0, 0, 0, time.UTC)
 		for _, sessionID := range []string{"foreign.coder", "foreign.reviewer"} {
 			if err := globalDB.RegisterSession(testutil.Context(t), SessionInfo{
-				ID: sessionID, AgentName: "coder", Provider: "claude",
+				ID: sessionID, ProfileID: store.DefaultProfileID, AgentName: "coder", Provider: "claude",
 				RuntimeStatus: store.SessionRuntimeUnbound,
 				WorkspaceID:   foreignWorkspaceID, State: "active",
 				CreatedAt: startedAt, UpdatedAt: startedAt,
@@ -3495,6 +3495,7 @@ func openNetworkConversationRepositoryTestDB(t *testing.T) *GlobalDB {
 	} {
 		if err := globalDB.RegisterSession(testutil.Context(t), SessionInfo{
 			ID:            sessionID,
+			ProfileID:     store.DefaultProfileID,
 			AgentName:     "coder",
 			Provider:      "claude",
 			RuntimeStatus: store.SessionRuntimeUnbound,

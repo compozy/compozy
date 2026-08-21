@@ -4,6 +4,7 @@ import (
 	"context"
 	"strings"
 
+	"github.com/compozy/compozy/internal/store"
 	toolspkg "github.com/compozy/compozy/internal/tools"
 	"github.com/spf13/cobra"
 )
@@ -46,7 +47,7 @@ func newToolApprovalsSetCommand(deps commandDeps) *cobra.Command {
 					Scope:     toolspkg.ApprovalGrantManagementScope(scope),
 					AgentName: agentName,
 				}.Normalize()
-				if _, err := request.BuildGrant(resolvedWorkspaceID); err != nil {
+				if _, err := request.BuildGrant(store.DefaultProfileID, resolvedWorkspaceID); err != nil {
 					return err
 				}
 				grant, err := client.SetToolApprovalGrant(

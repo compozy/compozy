@@ -403,6 +403,7 @@ func (o *loopWatchEventsObserver) writeObserverEvent(
 		return fmt.Errorf("daemon: marshal loop watch-events observer event: %w", err)
 	}
 	return o.store.WriteEventSummary(ctx, store.EventSummary{
+		ProfileID:   store.DefaultProfileID,
 		SessionID:   loopWatchEventsObserverSessionID,
 		WorkspaceID: strings.TrimSpace(subscription.WorkspaceID),
 		Type:        eventType,

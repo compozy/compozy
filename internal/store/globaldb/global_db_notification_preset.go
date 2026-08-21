@@ -22,12 +22,8 @@ func (n *NotificationRepo) ListPresets(
 		return nil, err
 	}
 	normalized := query.Normalize()
-	args := make([]any, 0, 3)
-	clauses := make([]string, 0, 3)
-	if normalized.Enabled != nil {
-		clauses = append(clauses, "enabled = ?")
-		args = append(args, *normalized.Enabled)
-	}
+	args := make([]any, 0, 2)
+	clauses := make([]string, 0, 2)
 	if normalized.BuiltIn != nil {
 		clauses = append(clauses, "built_in = ?")
 		args = append(args, *normalized.BuiltIn)
@@ -48,7 +44,7 @@ func (n *NotificationRepo) ListPresets(
 	// dynamic-sql: optional preset filters and the limit change the query structure.
 	rows, err := n.db.QueryContext(
 		ctx,
-		`SELECT name, events, targets, filter, enabled, built_in, default_version,
+		`SELECT name, events, targets, filter, built_in, default_version,
 		       default_hash, user_modified, default_update_available, created_at, updated_at
 		  FROM notification_presets`+where+`
 		 ORDER BY built_in DESC, name ASC`+limit,
@@ -113,7 +109,6 @@ func (n *NotificationRepo) CreatePreset(
 		Events:                 eventsJSON,
 		Targets:                targetsJSON,
 		Filter:                 normalized.Filter,
-		Enabled:                normalized.Enabled,
 		BuiltIn:                normalized.BuiltIn,
 		DefaultVersion:         normalized.DefaultVersion,
 		DefaultHash:            normalized.DefaultHash,
@@ -162,9 +157,6 @@ func (n *NotificationRepo) UpdatePreset(
 	if req.Filter != nil {
 		updated.Filter = strings.TrimSpace(*req.Filter)
 	}
-	if req.Enabled != nil {
-		updated.Enabled = *req.Enabled
-	}
 	updated.UpdatedAt = req.Now
 	if updated.UpdatedAt.IsZero() {
 		updated.UpdatedAt = n.now()
@@ -181,7 +173,6 @@ func (n *NotificationRepo) UpdatePreset(
 		Events:                 eventsJSON,
 		Targets:                targetsJSON,
 		Filter:                 updated.Filter,
-		Enabled:                updated.Enabled,
 		UserModified:           updated.UserModified,
 		DefaultUpdateAvailable: updated.DefaultUpdateAvailable,
 		UpdatedAt:              store.FormatTimestamp(updated.UpdatedAt),
@@ -296,7 +287,6 @@ func seedNotificationPresetDefault(
 		Events:         eventsJSON,
 		Targets:        targetsJSON,
 		Filter:         normalized.Filter,
-		Enabled:        normalized.Enabled,
 		DefaultVersion: normalized.DefaultVersion,
 		DefaultHash:    normalized.DefaultHash,
 		CreatedAt:      timestamp,

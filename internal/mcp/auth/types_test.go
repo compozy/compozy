@@ -12,7 +12,7 @@ func TestTargetKeyRejectsIdentitySeparatorBytes(t *testing.T) {
 		t.Parallel()
 
 		for _, target := range []Target{
-			{Scope: ScopeGlobal, ServerName: "linear\x00workspace"},
+			{Scope: ScopeUser, ServerName: "linear\x00workspace"},
 			{Scope: ScopeWorkspace, WorkspaceID: "workspace\x00linear", ServerName: "linear"},
 		} {
 			if _, err := target.Key(); err == nil || !strings.Contains(err.Error(), "NUL") {
@@ -27,7 +27,7 @@ func TestServerConfigValidate(t *testing.T) {
 	t.Run("Should reject unsupported auth types", func(t *testing.T) {
 		t.Parallel()
 		cfg := ServerConfig{
-			Target: Target{Scope: ScopeGlobal, ServerName: "fixture"},
+			Target: Target{Scope: ScopeUser, ServerName: "fixture"},
 			Type:   "unsupported",
 		}
 		if err := cfg.Validate(); err == nil {

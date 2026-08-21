@@ -26,6 +26,7 @@ CREATE TABLE automation_job_overlays (
 
 CREATE TABLE automation_jobs (
 		id           TEXT PRIMARY KEY,
+		profile_id   TEXT NOT NULL REFERENCES profiles(id),
 		scope        TEXT NOT NULL CHECK (scope IN ('global', 'workspace')),
 		name         TEXT NOT NULL,
 		agent_name   TEXT NOT NULL,
@@ -55,6 +56,7 @@ CREATE TABLE automation_jobs (
 
 CREATE TABLE automation_suggestions (
 		id           TEXT PRIMARY KEY,
+		profile_id   TEXT NOT NULL REFERENCES profiles(id),
 		workspace_id TEXT REFERENCES workspaces(id) ON DELETE CASCADE,
 		source       TEXT NOT NULL CHECK (source IN ('catalog', 'usage', 'integration')),
 		dedup_key    TEXT NOT NULL,
@@ -139,6 +141,7 @@ CREATE TABLE automation_trigger_overlays (
 
 CREATE TABLE automation_triggers (
 		id            TEXT PRIMARY KEY,
+		profile_id    TEXT NOT NULL REFERENCES profiles(id),
 		scope         TEXT NOT NULL CHECK (scope IN ('global', 'workspace')),
 		name          TEXT NOT NULL,
 		agent_name    TEXT NOT NULL,

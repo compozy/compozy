@@ -111,6 +111,7 @@ func (b *harnessReentryBridge) writeEventSummaryWithContext(
 		return
 	}
 	summaryPayload := store.EventSummary{
+		ProfileID: store.DefaultProfileID,
 		SessionID: targetSessionID,
 		Type:      strings.TrimSpace(eventType),
 		AgentName: targetAgentName,

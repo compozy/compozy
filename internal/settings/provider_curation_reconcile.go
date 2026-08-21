@@ -30,7 +30,7 @@ func (s *service) reconcileProviderCuratedWrite(
 		}
 		return settings, nil
 	}
-	cfg, _, err := s.loadConfig(ctx, ScopeGlobal, "")
+	cfg, _, err := s.loadConfig(ctx, ScopeUser, "")
 	if err != nil {
 		return ProviderSettings{}, err
 	}

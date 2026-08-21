@@ -1608,7 +1608,7 @@ func TestBridgeResourceProjectionReconcilesWritesAndBootRebuild(t *testing.T) {
 	spec := bridgeResourceIntegrationSpec("Projected Bridge", true)
 	record, err := bridgeStore.Put(testutil.Context(t), operator, resources.Draft[bridgepkg.BridgeInstanceSpec]{
 		ID:              "brg-resource",
-		Scope:           resources.ResourceScope{Kind: resources.ResourceScopeKindGlobal},
+		Scope:           resources.ResourceScope{Kind: resources.ResourceScopeKindUser},
 		ExpectedVersion: 0,
 		Spec:            spec,
 	})
@@ -1657,7 +1657,7 @@ func TestBridgeResourceProjectionReconcilesWritesAndBootRebuild(t *testing.T) {
 
 	bootRecord, err := bridgeStore.Put(testutil.Context(t), operator, resources.Draft[bridgepkg.BridgeInstanceSpec]{
 		ID:              "brg-boot",
-		Scope:           resources.ResourceScope{Kind: resources.ResourceScopeKindGlobal},
+		Scope:           resources.ResourceScope{Kind: resources.ResourceScopeKindUser},
 		ExpectedVersion: 0,
 		Spec:            bridgeResourceIntegrationSpec("Boot Bridge", true),
 	})

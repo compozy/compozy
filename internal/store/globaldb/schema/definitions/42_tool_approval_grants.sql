@@ -1,5 +1,6 @@
 CREATE TABLE tool_approval_grants (
 	id           TEXT NOT NULL PRIMARY KEY CHECK (trim(id) <> ''),
+	profile_id   TEXT NOT NULL REFERENCES profiles(id),
 	workspace_id TEXT NOT NULL,
 	agent_name   TEXT NOT NULL DEFAULT '',
 	tool_id      TEXT NOT NULL CHECK (trim(tool_id) <> ''),

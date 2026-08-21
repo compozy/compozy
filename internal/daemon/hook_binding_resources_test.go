@@ -395,7 +395,7 @@ func TestNewHookBindingPublisherUsesResourceBackedSync(t *testing.T) {
 		Kind:     resources.MutationActorKindDaemon,
 		ID:       "reader",
 		Source:   resources.ResourceSource{Kind: resources.ResourceSourceKind("daemon"), ID: "reader"},
-		MaxScope: resources.ResourceScope{Kind: resources.ResourceScopeKindGlobal},
+		MaxScope: resources.ResourceScope{Kind: resources.ResourceScopeKindUser},
 	}, resources.ResourceFilter{})
 	if err != nil {
 		t.Fatalf("store.List() error = %v", err)
@@ -548,7 +548,7 @@ func TestHookBindingProjectorBuildFailurePreservesAppliedRuntimeState(t *testing
 	ctx := testutil.Context(t)
 
 	plan, err := projector.Build(ctx, []resources.Record[hookspkg.HookDecl]{
-		testHookBindingRecord(t, 1, resources.ResourceScope{Kind: resources.ResourceScopeKindGlobal}, hookspkg.HookDecl{
+		testHookBindingRecord(t, 1, resources.ResourceScope{Kind: resources.ResourceScopeKindUser}, hookspkg.HookDecl{
 			Name:         "tool-stable",
 			Event:        hookspkg.HookToolPreCall,
 			Source:       hookspkg.HookSourceNative,
@@ -565,7 +565,7 @@ func TestHookBindingProjectorBuildFailurePreservesAppliedRuntimeState(t *testing
 	}
 
 	_, err = projector.Build(ctx, []resources.Record[hookspkg.HookDecl]{
-		testHookBindingRecord(t, 2, resources.ResourceScope{Kind: resources.ResourceScopeKindGlobal}, hookspkg.HookDecl{
+		testHookBindingRecord(t, 2, resources.ResourceScope{Kind: resources.ResourceScopeKindUser}, hookspkg.HookDecl{
 			Name:         "tool-missing",
 			Event:        hookspkg.HookToolPreCall,
 			Source:       hookspkg.HookSourceNative,
@@ -595,7 +595,7 @@ func TestHookBindingProjectorPreservesPermissionEscalationGuard(t *testing.T) {
 	ctx := testutil.Context(t)
 
 	plan, err := projector.Build(ctx, []resources.Record[hookspkg.HookDecl]{
-		testHookBindingRecord(t, 1, resources.ResourceScope{Kind: resources.ResourceScopeKindGlobal}, hookspkg.HookDecl{
+		testHookBindingRecord(t, 1, resources.ResourceScope{Kind: resources.ResourceScopeKindUser}, hookspkg.HookDecl{
 			Name:    "permission-escalation",
 			Event:   hookspkg.HookPermissionRequest,
 			Source:  hookspkg.HookSourceSkill,
@@ -663,7 +663,7 @@ func TestHookBindingCodecPreservesInternalDeclarationFields(t *testing.T) {
 
 	decoded, err := codec.DecodeAndValidate(
 		testutil.Context(t),
-		resources.ResourceScope{Kind: resources.ResourceScopeKindGlobal},
+		resources.ResourceScope{Kind: resources.ResourceScopeKindUser},
 		encoded,
 	)
 	if err != nil {
@@ -963,7 +963,7 @@ func newHookBindingUnitHarness(
 			Kind:     resources.MutationActorKindDaemon,
 			ID:       "unit-control",
 			Source:   resources.ResourceSource{Kind: resources.ResourceSourceKind("daemon"), ID: "unit"},
-			MaxScope: resources.ResourceScope{Kind: resources.ResourceScopeKindGlobal},
+			MaxScope: resources.ResourceScope{Kind: resources.ResourceScopeKindUser},
 		},
 		[]resources.ProjectorRegistration{registration},
 		resources.WithReconcileLogger(discardLogger()),
@@ -990,7 +990,7 @@ func newHookBindingUnitHarness(
 			Kind:     resources.MutationActorKindDaemon,
 			ID:       "unit-writer",
 			Source:   resources.ResourceSource{Kind: resources.ResourceSourceKind("daemon"), ID: "unit"},
-			MaxScope: resources.ResourceScope{Kind: resources.ResourceScopeKindGlobal},
+			MaxScope: resources.ResourceScope{Kind: resources.ResourceScopeKindUser},
 		},
 	}
 }

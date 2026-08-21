@@ -740,7 +740,7 @@ func TestWindowManagerHandlers(t *testing.T) {
 		records := map[string]resources.RawRecord{
 			"global-profile": {
 				Kind: windowmanager.WindowLayoutResourceKind, ID: "global-profile", Version: 1,
-				Scope:    resources.ResourceScope{Kind: resources.ResourceScopeKindGlobal},
+				Scope:    resources.ResourceScope{Kind: resources.ResourceScopeKindUser},
 				SpecJSON: []byte(`{"version":1}`), CreatedAt: now, UpdatedAt: now,
 			},
 			"workspace-a-profile": {
@@ -760,7 +760,7 @@ func TestWindowManagerHandlers(t *testing.T) {
 				if filter.Kind != windowmanager.WindowLayoutResourceKind || filter.Scope == nil {
 					t.Fatalf("layout-profile filter = %+v", filter)
 				}
-				if filter.Scope.Kind == resources.ResourceScopeKindGlobal {
+				if filter.Scope.Kind == resources.ResourceScopeKindUser {
 					return []resources.RawRecord{records["global-profile"]}, nil
 				}
 				if filter.Scope.ID == "workspace-a" {

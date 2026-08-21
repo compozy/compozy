@@ -80,7 +80,7 @@ func (candidate rankedCandidate) scopeDepth() int {
 		return 2
 	case memcontract.ScopeWorkspace:
 		return 1
-	case memcontract.ScopeGlobal:
+	case memcontract.ScopeProfile:
 		return 0
 	default:
 		return 0

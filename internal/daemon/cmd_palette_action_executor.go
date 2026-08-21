@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/compozy/compozy/internal/cmdpalette"
+	"github.com/compozy/compozy/internal/store"
 	toolspkg "github.com/compozy/compozy/internal/tools"
 	"github.com/compozy/compozy/internal/windowmanager"
 )
@@ -107,6 +108,7 @@ func (e *cmdPaletteActionExecutor) beginApproval(
 		return cmdpalette.ExecutionResult{}, fmt.Errorf("cmd palette: encode approval target: %w", err)
 	}
 	ticket, err := e.approvals.Begin(ctx, toolspkg.ApprovalRequest{
+		ProfileID:   store.DefaultProfileID,
 		WorkspaceID: string(request.WorkspaceID), InvocationID: request.InvocationID,
 		CommandID: string(request.Descriptor.ID),
 		Target: toolspkg.ApprovalTarget{

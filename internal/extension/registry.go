@@ -7,6 +7,8 @@ import (
 	"fmt"
 
 	"time"
+
+	"github.com/compozy/compozy/internal/store"
 )
 
 var (
@@ -25,7 +27,12 @@ const (
 			name,
 			version,
 			source,
-			enabled,
+			COALESCE((
+				SELECT enabled
+				FROM extension_profile_enablement
+				WHERE extension_name = extensions.name
+					AND profile_id = '` + store.DefaultProfileID + `'
+			), 1),
 			manifest_path,
 			format,
 			ingest_diagnostics_json,
@@ -45,7 +52,6 @@ const (
 			name,
 			version,
 			source,
-			enabled,
 			manifest_path,
 			format,
 			ingest_diagnostics_json,

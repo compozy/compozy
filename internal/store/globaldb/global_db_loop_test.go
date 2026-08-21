@@ -5459,6 +5459,7 @@ func testLoopRun(id string, at time.Time, status looppkg.Status) looppkg.Run {
 	}
 	return looppkg.Run{
 		ID:                  looppkg.RunID(id),
+		ProfileID:           storepkg.DefaultProfileID,
 		WorkspaceID:         "ws-1",
 		LoopName:            "delivery",
 		Status:              status,

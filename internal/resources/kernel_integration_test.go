@@ -31,7 +31,7 @@ func TestKernelSnapshotSequenceConflictAndResetIntegration(t *testing.T) {
 	if _, err := kernel.PutRaw(ctx, testDaemonActor(), RawDraft{
 		Kind:            testResourceKind,
 		ID:              "daemon-owned",
-		Scope:           ResourceScope{Kind: ResourceScopeKindGlobal},
+		Scope:           ResourceScope{Kind: ResourceScopeKindUser},
 		ExpectedVersion: 0,
 		SpecJSON:        []byte(`{"name":"daemon-owned"}`),
 	}); err != nil {
@@ -43,7 +43,7 @@ func TestKernelSnapshotSequenceConflictAndResetIntegration(t *testing.T) {
 		Records: []RawDraft{{
 			Kind:            testResourceKind,
 			ID:              "foreign-owned",
-			Scope:           ResourceScope{Kind: ResourceScopeKindGlobal},
+			Scope:           ResourceScope{Kind: ResourceScopeKindUser},
 			ExpectedVersion: 0,
 			SpecJSON:        []byte(`{"name":"foreign-owned"}`),
 		}},
@@ -56,7 +56,7 @@ func TestKernelSnapshotSequenceConflictAndResetIntegration(t *testing.T) {
 		Records: []RawDraft{{
 			Kind:            testResourceKind,
 			ID:              "alpha-v1",
-			Scope:           ResourceScope{Kind: ResourceScopeKindGlobal},
+			Scope:           ResourceScope{Kind: ResourceScopeKindUser},
 			ExpectedVersion: 0,
 			SpecJSON:        []byte(`{"name":"alpha-v1"}`),
 		}},
@@ -68,7 +68,7 @@ func TestKernelSnapshotSequenceConflictAndResetIntegration(t *testing.T) {
 		Records: []RawDraft{{
 			Kind:            testResourceKind,
 			ID:              "alpha-v2",
-			Scope:           ResourceScope{Kind: ResourceScopeKindGlobal},
+			Scope:           ResourceScope{Kind: ResourceScopeKindUser},
 			ExpectedVersion: 0,
 			SpecJSON:        []byte(`{"name":"alpha-v2"}`),
 		}},
@@ -92,7 +92,7 @@ func TestKernelSnapshotSequenceConflictAndResetIntegration(t *testing.T) {
 		Records: []RawDraft{{
 			Kind:            testResourceKind,
 			ID:              "daemon-owned",
-			Scope:           ResourceScope{Kind: ResourceScopeKindGlobal},
+			Scope:           ResourceScope{Kind: ResourceScopeKindUser},
 			ExpectedVersion: 0,
 			SpecJSON:        []byte(`{"name":"conflict-daemon"}`),
 		}},
@@ -106,7 +106,7 @@ func TestKernelSnapshotSequenceConflictAndResetIntegration(t *testing.T) {
 		Records: []RawDraft{{
 			Kind:            testResourceKind,
 			ID:              "foreign-owned",
-			Scope:           ResourceScope{Kind: ResourceScopeKindGlobal},
+			Scope:           ResourceScope{Kind: ResourceScopeKindUser},
 			ExpectedVersion: 0,
 			SpecJSON:        []byte(`{"name":"conflict-foreign"}`),
 		}},
@@ -120,7 +120,7 @@ func TestKernelSnapshotSequenceConflictAndResetIntegration(t *testing.T) {
 		Records: []RawDraft{{
 			Kind:            testResourceKind,
 			ID:              "alpha-v2",
-			Scope:           ResourceScope{Kind: ResourceScopeKindGlobal},
+			Scope:           ResourceScope{Kind: ResourceScopeKindUser},
 			ExpectedVersion: 0,
 			SpecJSON:        []byte(`{"name":"alpha-v2"}`),
 		}},

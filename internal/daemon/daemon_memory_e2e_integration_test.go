@@ -163,7 +163,7 @@ func TestDaemonE2EMemoryCatalogCLIHTTPParityAndNoncanonicalPathIsolation(t *test
 		memcontract.TypeUser,
 		"User prefers concise answers",
 		"Prefer concise answers with direct technical detail.",
-		memcontract.ScopeGlobal,
+		memcontract.ScopeProfile,
 	)
 	writeMemoryViaCLI(
 		t,

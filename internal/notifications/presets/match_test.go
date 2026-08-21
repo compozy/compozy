@@ -20,6 +20,8 @@ import (
 	"github.com/compozy/compozy/internal/testutil"
 )
 
+const presetDefaultProfileID = store.DefaultProfileID
+
 func TestNotificationPresetMatchingAndFilters(t *testing.T) {
 	t.Parallel()
 
@@ -169,6 +171,7 @@ func TestNotificationPresetDispatch(t *testing.T) {
 		cursors := newPresetMemoryCursorStore()
 		bridges := &presetFakeBridgeRuntime{
 			instance: bridgepkg.BridgeInstance{
+				ProfileID:            presetDefaultProfileID,
 				ID:                   "brg-1",
 				Scope:                bridgepkg.ScopeGlobal,
 				Platform:             "slack",
@@ -246,6 +249,7 @@ func TestNotificationPresetDispatch(t *testing.T) {
 		}})
 		cursors := newPresetMemoryCursorStore()
 		bridges := &presetFakeBridgeRuntime{instance: bridgepkg.BridgeInstance{
+			ProfileID:     presetDefaultProfileID,
 			ID:            "brg-1",
 			Scope:         bridgepkg.ScopeGlobal,
 			Platform:      "slack",
@@ -339,6 +343,7 @@ func TestNotificationPresetDispatch(t *testing.T) {
 		}})
 		cursors := newPresetMemoryCursorStore()
 		bridges := &presetFakeBridgeRuntime{instance: bridgepkg.BridgeInstance{
+			ProfileID:     presetDefaultProfileID,
 			ID:            "brg-1",
 			Scope:         bridgepkg.ScopeGlobal,
 			Platform:      "slack",
@@ -398,6 +403,7 @@ func TestNotificationPresetDispatch(t *testing.T) {
 		}})
 		cursors := newPresetMemoryCursorStore()
 		bridges := &presetFakeBridgeRuntime{instance: bridgepkg.BridgeInstance{
+			ProfileID:     presetDefaultProfileID,
 			ID:            "brg-1",
 			Scope:         bridgepkg.ScopeGlobal,
 			Platform:      "slack",
@@ -479,6 +485,7 @@ func TestNotificationPresetDispatchRedactsCursorDiagnostics(t *testing.T) {
 		events := &presetMemoryEventSummaryStore{}
 		bridges := &presetFakeBridgeRuntime{
 			instance: bridgepkg.BridgeInstance{
+				ProfileID:     presetDefaultProfileID,
 				ID:            "brg-1",
 				Scope:         bridgepkg.ScopeGlobal,
 				Platform:      "slack",
@@ -679,6 +686,7 @@ func (r presetFakeTaskReader) GetTask(_ context.Context, _ string) (taskpkg.Task
 
 func newPresetReadyBridgeRuntime() *presetFakeBridgeRuntime {
 	return &presetFakeBridgeRuntime{instance: bridgepkg.BridgeInstance{
+		ProfileID:     presetDefaultProfileID,
 		ID:            "brg-1",
 		Scope:         bridgepkg.ScopeGlobal,
 		Platform:      "slack",

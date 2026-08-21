@@ -1,17 +1,21 @@
 -- name: CreateNetworkChannel :exec
 INSERT INTO network_channels (
+  profile_id,
   channel, workspace_id, purpose, fanout_policy, coordinator_peer_id,
   created_by, created_at, updated_at
 ) VALUES (
+  sqlc.arg(profile_id),
   sqlc.arg(channel), sqlc.arg(workspace_id), sqlc.arg(purpose), sqlc.arg(fanout_policy),
   sqlc.arg(coordinator_peer_id), sqlc.arg(created_by), sqlc.arg(created_at), sqlc.arg(updated_at)
 );
 
 -- name: UpsertNetworkChannel :exec
 INSERT INTO network_channels (
+  profile_id,
   channel, workspace_id, purpose, fanout_policy, coordinator_peer_id,
   created_by, created_at, updated_at
 ) VALUES (
+  sqlc.arg(profile_id),
   sqlc.arg(channel), sqlc.arg(workspace_id), sqlc.arg(purpose), sqlc.arg(fanout_policy),
   sqlc.arg(coordinator_peer_id), sqlc.arg(created_by), sqlc.arg(created_at), sqlc.arg(updated_at)
 )
@@ -26,7 +30,7 @@ ON CONFLICT(workspace_id, channel) DO UPDATE SET
   END;
 
 -- name: GetNetworkChannel :one
-SELECT channel, workspace_id, purpose, fanout_policy, coordinator_peer_id,
+SELECT profile_id, channel, workspace_id, purpose, fanout_policy, coordinator_peer_id,
        created_by, created_at, updated_at
 FROM network_channels
 WHERE workspace_id = sqlc.arg(workspace_id) AND channel = sqlc.arg(channel);

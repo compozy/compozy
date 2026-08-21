@@ -32,7 +32,7 @@ func TestProviderLifecycle(t *testing.T) {
 		ctx := testutil.Context(t)
 		if _, err := provider.SystemPromptBlock(
 			ctx,
-			memcontract.SnapshotRequest{Scope: memcontract.ScopeGlobal},
+			memcontract.SnapshotRequest{Scope: memcontract.ScopeProfile},
 		); err == nil {
 			t.Fatal("SystemPromptBlock(before Initialize) error = nil, want error")
 		}
@@ -169,11 +169,11 @@ func TestProviderBackendContract(t *testing.T) {
 			headers: []memcontract.Header{{
 				Name:    "Contract backend",
 				Type:    memcontract.TypeProject,
-				Scope:   memcontract.ScopeGlobal,
+				Scope:   memcontract.ScopeProfile,
 				ModTime: now.Add(-time.Minute),
 			}},
 			packaged: memcontract.Packaged{Blocks: []memcontract.Block{{
-				Scope: memcontract.ScopeGlobal,
+				Scope: memcontract.ScopeProfile,
 				Entries: []memcontract.PackagedEntry{{
 					ID:    "global/project.md",
 					Title: "Contract backend",
@@ -190,7 +190,7 @@ func TestProviderBackendContract(t *testing.T) {
 		if err := provider.Initialize(ctx, memcontract.ProviderInit{WorkspaceID: "ws-contract"}); err != nil {
 			t.Fatalf("Initialize() error = %v", err)
 		}
-		snapshot, err := provider.SystemPromptBlock(ctx, memcontract.SnapshotRequest{Scope: memcontract.ScopeGlobal})
+		snapshot, err := provider.SystemPromptBlock(ctx, memcontract.SnapshotRequest{Scope: memcontract.ScopeProfile})
 		if err != nil {
 			t.Fatalf("SystemPromptBlock() error = %v", err)
 		}
@@ -240,7 +240,7 @@ func TestProviderSystemPromptBlock(t *testing.T) {
 		if err := store.EnsureDirs(); err != nil {
 			t.Fatalf("Store.EnsureDirs() error = %v", err)
 		}
-		if err := store.Write(ctx, memcontract.ScopeGlobal, "project_auth.md", memoryPayload(t, memoryPayloadMeta{
+		if err := store.Write(ctx, memcontract.ScopeProfile, "project_auth.md", memoryPayload(t, memoryPayloadMeta{
 			Name:        "Auth Runtime",
 			Description: "Auth session rules",
 			Type:        memcontract.TypeProject,
@@ -252,7 +252,7 @@ func TestProviderSystemPromptBlock(t *testing.T) {
 		if err := provider.Initialize(ctx, memcontract.ProviderInit{}); err != nil {
 			t.Fatalf("Initialize() error = %v", err)
 		}
-		result, err := provider.SystemPromptBlock(ctx, memcontract.SnapshotRequest{Scope: memcontract.ScopeGlobal})
+		result, err := provider.SystemPromptBlock(ctx, memcontract.SnapshotRequest{Scope: memcontract.ScopeProfile})
 		if err != nil {
 			t.Fatalf("SystemPromptBlock() error = %v", err)
 		}
@@ -357,7 +357,7 @@ func TestProviderOnMemoryWrite(t *testing.T) {
 		frontmatter := memcontract.Header{
 			Name:  "Provider Write",
 			Type:  memcontract.TypeProject,
-			Scope: memcontract.ScopeGlobal,
+			Scope: memcontract.ScopeProfile,
 		}
 		content := string(memoryPayload(t, memoryPayloadMeta{
 			Name: "Provider Write",
@@ -380,7 +380,7 @@ func TestProviderOnMemoryWrite(t *testing.T) {
 		if err := provider.OnMemoryWrite(ctx, memcontract.WriteRecord{Decision: decision}); err != nil {
 			t.Fatalf("OnMemoryWrite() error = %v", err)
 		}
-		got, err := store.Read(ctx, memcontract.ScopeGlobal, "project_provider_write.md")
+		got, err := store.Read(ctx, memcontract.ScopeProfile, "project_provider_write.md")
 		if err != nil {
 			t.Fatalf("Store.Read() error = %v", err)
 		}
@@ -585,7 +585,7 @@ func TestProviderValidationErrors(t *testing.T) {
 		}
 		if _, err := provider.SystemPromptBlock(
 			ctx,
-			memcontract.SnapshotRequest{Scope: memcontract.ScopeGlobal},
+			memcontract.SnapshotRequest{Scope: memcontract.ScopeProfile},
 		); err == nil {
 			t.Fatal("SystemPromptBlock(load error) error = nil, want error")
 		}
@@ -593,7 +593,7 @@ func TestProviderValidationErrors(t *testing.T) {
 		backend.listErr = boom
 		if _, err := provider.SystemPromptBlock(
 			ctx,
-			memcontract.SnapshotRequest{Scope: memcontract.ScopeGlobal},
+			memcontract.SnapshotRequest{Scope: memcontract.ScopeProfile},
 		); err == nil {
 			t.Fatal("SystemPromptBlock(list error) error = nil, want error")
 		}

@@ -133,7 +133,7 @@ func daemonBenchmarkAgentRecords(count int, workspaceID string) []resources.Reco
 		records = append(records, resources.Record[compozyconfig.AgentDef]{
 			ID:      fmt.Sprintf("global:%s", name),
 			Version: int64(i + 1),
-			Scope:   resources.ResourceScope{Kind: resources.ResourceScopeKindGlobal},
+			Scope:   resources.ResourceScope{Kind: resources.ResourceScopeKindUser},
 			Source: resources.ResourceSource{
 				Kind: resources.ResourceSourceKind("bench"),
 				ID:   fmt.Sprintf("global-%03d", i),
@@ -168,7 +168,7 @@ func daemonBenchmarkAgentSkillDeclarations(count int) agentSkillDeclarations {
 		skills:     make([]skillPublicationInput, 0, count),
 		mcpServers: make([]mcpServerPublicationInput, 0, count),
 	}
-	scope := resources.ResourceScope{Kind: resources.ResourceScopeKindGlobal}
+	scope := resources.ResourceScope{Kind: resources.ResourceScopeKindUser}
 	for i := range count {
 		desired.agents = append(desired.agents, agentPublicationInput{
 			sourceKey: fmt.Sprintf("bench/agent/%03d", i),
@@ -208,7 +208,7 @@ func daemonBenchmarkToolMCPDesiredResources(count int) toolMCPDesiredResources {
 		tools:      make([]toolPublicationInput, 0, count),
 		mcpServers: make([]mcpServerPublicationInput, 0, count),
 	}
-	scope := resources.ResourceScope{Kind: resources.ResourceScopeKindGlobal}
+	scope := resources.ResourceScope{Kind: resources.ResourceScopeKindUser}
 	for i := range count {
 		desired.tools = append(desired.tools, toolPublicationInput{
 			sourceKey: fmt.Sprintf("bench/tool/%03d", i),

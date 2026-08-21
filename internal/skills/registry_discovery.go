@@ -165,7 +165,7 @@ func (r *Registry) projectResourceSkillRecord(
 		return nil
 	}
 	switch record.Scope.Kind.Normalize() {
-	case resources.ResourceScopeKindGlobal:
+	case resources.ResourceScopeKindUser:
 		skill.CommandScope = registryGlobalKey
 		if err := appendCommandResourceCandidate(
 			projection.seenCommandCandidates,

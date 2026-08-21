@@ -240,7 +240,7 @@ func (n *daemonNativeTools) memoryAdminHealth(
 			payload.LastConsolidation = &lastConsolidation
 		}
 	}
-	globalCount, err := n.deps.MemoryStore.SourceHeaderCount(ctx, memcontract.ScopeGlobal)
+	globalCount, err := n.deps.MemoryStore.SourceHeaderCount(ctx, memcontract.ScopeProfile)
 	if err != nil {
 		payload.Status = "unavailable"
 		payload.Reason = taskpkg.RedactClaimTokens(err.Error())
@@ -345,7 +345,7 @@ func (n *daemonNativeTools) memoryAdminReindex(
 		scope,
 		req.ToolID,
 		input.memoryAdminSelectorInput,
-		memcontract.ScopeGlobal,
+		memcontract.ScopeProfile,
 	)
 	if err != nil {
 		return toolspkg.ToolResult{}, nativeMemoryAdminToolError(req.ToolID, err)

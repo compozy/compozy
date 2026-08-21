@@ -16,7 +16,7 @@ func memoryTypeValues() []string {
 }
 
 func memoryScopeValues() []string {
-	return []string{string(memcontract.ScopeGlobal), string(memcontract.ScopeWorkspace), string(memcontract.ScopeAgent)}
+	return []string{string(memcontract.ScopeProfile), string(memcontract.ScopeWorkspace), string(memcontract.ScopeAgent)}
 }
 
 func memoryAgentTierValues() []string {

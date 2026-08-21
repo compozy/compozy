@@ -74,7 +74,8 @@ func (g *AutomationRepo) CreateSuggestion(
 			return automation.ErrSuggestionPendingCap
 		}
 		if insertErr := queries.InsertAutomationSuggestion(ctx, sqlcgen.InsertAutomationSuggestionParams{
-			ID: normalized.ID, WorkspaceID: nullableAutomationString(normalized.WorkspaceID),
+			ProfileID: normalized.ProfileID,
+			ID:        normalized.ID, WorkspaceID: nullableAutomationString(normalized.WorkspaceID),
 			Source:   string(normalized.Source),
 			DedupKey: normalized.DedupKey, Status: string(normalized.Status), Payload: payloadJSON,
 			CreatedAt: store.FormatTimestamp(normalized.CreatedAt), ResolvedAt: nullableAutomationTime(nil),
@@ -286,6 +287,7 @@ func (g *AutomationRepo) RecordSuggestionTransition(
 	if err := g.queries.InsertAutomationSuggestionEventSummary(
 		ctx,
 		sqlcgen.InsertAutomationSuggestionEventSummaryParams{
+			ProfileID:   suggestion.ProfileID,
 			ID:          "automation-suggestion:" + suggestion.ID + ":" + string(suggestion.Status),
 			WorkspaceID: suggestion.WorkspaceID, Type: eventType, ContentJson: string(content),
 			ActorID: suggestion.ID, Outcome: string(events.OutcomeFor(eventType)),
@@ -352,7 +354,8 @@ func automationSuggestionFromGenerated(row sqlcgen.AutomationSuggestion) (automa
 		return automation.Suggestion{}, fmt.Errorf("store: decode automation suggestion payload: %w", err)
 	}
 	suggestion := automation.Suggestion{
-		ID: row.ID, WorkspaceID: row.WorkspaceID.String, Source: automation.SuggestionSource(row.Source),
+		ID: row.ID, ProfileID: row.ProfileID, WorkspaceID: row.WorkspaceID.String,
+		Source:   automation.SuggestionSource(row.Source),
 		DedupKey: row.DedupKey, Status: automation.SuggestionStatus(row.Status), Payload: payload,
 		CreatedAt: createdAt, ResolvedAt: resolvedAt,
 	}

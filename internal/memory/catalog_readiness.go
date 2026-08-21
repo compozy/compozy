@@ -18,9 +18,9 @@ func (s *Store) ensureCatalogReady(
 		return nil
 	}
 
-	filters := []catalogFilter{{scope: memcontract.ScopeGlobal}}
+	filters := []catalogFilter{{profileID: s.profileIDForScope(memcontract.ScopeProfile), scope: memcontract.ScopeProfile}}
 	switch scope.Normalize() {
-	case memcontract.ScopeGlobal:
+	case memcontract.ScopeProfile:
 		filters = filters[:1]
 	case memcontract.ScopeWorkspace:
 		filters = []catalogFilter{{
@@ -58,6 +58,7 @@ func (s *Store) ensureCatalogFilterReady(ctx context.Context, filter catalogFilt
 	}
 
 	identity := newCatalogIdentity(
+		filter.profileID,
 		filter.scope,
 		filter.workspaceID,
 		s.catalogAgentName(filter.scope),
@@ -142,6 +143,7 @@ func (s *Store) reindexScopesLocked(
 		}
 		if err := s.catalog.replaceScope(
 			ctx,
+			s.profileIDForScope(scope),
 			scope,
 			workspaceID,
 			s.catalogAgentName(scope),
@@ -158,8 +160,8 @@ func (s *Store) reindexScopesLocked(
 	}
 
 	switch scope.Normalize() {
-	case memcontract.ScopeGlobal:
-		if err := reindexScope(memcontract.ScopeGlobal, "", ""); err != nil {
+	case memcontract.ScopeProfile:
+		if err := reindexScope(memcontract.ScopeProfile, "", ""); err != nil {
 			return 0, err
 		}
 	case memcontract.ScopeWorkspace:
@@ -171,7 +173,7 @@ func (s *Store) reindexScopesLocked(
 			return 0, err
 		}
 	default:
-		if err := reindexScope(memcontract.ScopeGlobal, "", ""); err != nil {
+		if err := reindexScope(memcontract.ScopeProfile, "", ""); err != nil {
 			return 0, err
 		}
 		if seenWorkspaceRoot != "" {
@@ -211,7 +213,7 @@ func (s *Store) documentsForHeaders(
 		if err != nil {
 			return nil, err
 		}
-		doc, err := buildCatalogDocument(scope, workspaceID, header, rawContent)
+		doc, err := buildCatalogDocument(s.profileIDForScope(scope), scope, workspaceID, header, rawContent)
 		if err != nil {
 			return nil, err
 		}

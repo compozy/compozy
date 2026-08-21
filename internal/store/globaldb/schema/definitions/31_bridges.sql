@@ -7,6 +7,7 @@ CREATE TABLE bridge_ingest_dedup (
 
 CREATE TABLE bridge_instances (
 		id                TEXT PRIMARY KEY,
+		profile_id        TEXT NOT NULL REFERENCES profiles(id),
 		scope             TEXT NOT NULL,
 		workspace_id      TEXT REFERENCES workspaces(id) ON DELETE CASCADE,
 		platform          TEXT NOT NULL,

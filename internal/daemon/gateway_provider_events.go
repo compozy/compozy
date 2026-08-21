@@ -45,7 +45,8 @@ func (s gatewayProviderAuditSink) RecordEndpointVerified(
 		return fmt.Errorf("daemon: encode verified gateway endpoint: %w", err)
 	}
 	return s.record(ctx, store.EventSummary{
-		Type: eventspkg.GatewayEndpointVerified, Outcome: string(eventspkg.OutcomeSuccess),
+		ProfileID: store.DefaultProfileID,
+		Type:      eventspkg.GatewayEndpointVerified, Outcome: string(eventspkg.OutcomeSuccess),
 		Provider: safeProvider, Content: payload,
 		Summary: "gateway provider endpoint verified",
 	}, "verified gateway endpoint")
@@ -80,7 +81,8 @@ func (s gatewayProviderAuditSink) RecordProviderStateChanged(
 		outcome = eventspkg.OutcomeFailure
 	}
 	return s.record(ctx, store.EventSummary{
-		Type: eventspkg.GatewayProviderStateChanged, Outcome: string(outcome),
+		ProfileID: store.DefaultProfileID,
+		Type:      eventspkg.GatewayProviderStateChanged, Outcome: string(outcome),
 		Provider: safeProvider, Content: payload,
 		Summary: "gateway provider state changed",
 	}, "gateway provider state change")
@@ -117,7 +119,8 @@ func (s gatewayProviderAuditSink) RecordProviderRefusal(
 		summary = "gateway provider endpoint rejected"
 	}
 	return s.record(ctx, store.EventSummary{
-		Type: eventType, Outcome: string(eventspkg.OutcomeFailure),
+		ProfileID: store.DefaultProfileID,
+		Type:      eventType, Outcome: string(eventspkg.OutcomeFailure),
 		Provider: safeProvider, Content: payload,
 		Summary: summary,
 	}, "gateway provider refusal")

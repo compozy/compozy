@@ -40,6 +40,7 @@ func (s *Service) emitTransition(ctx context.Context, entity store.DeadEntity, m
 	writeCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), s.transitionEventTimeout)
 	defer cancel()
 	if err := s.events.WriteEventSummary(writeCtx, store.EventSummary{
+		ProfileID:   entity.ProfileID,
 		WorkspaceID: entity.WorkspaceID,
 		Type:        eventType,
 		Outcome:     string(events.OutcomeFor(eventType)),

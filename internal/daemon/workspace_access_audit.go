@@ -69,6 +69,7 @@ func (e *workspaceAccessAuditEmitter) EmitWorkspaceAccess(
 	writeCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), workspaceAccessAuditWriteTimeout)
 	defer cancel()
 	if err := e.store.WriteEventSummary(writeCtx, store.EventSummary{
+		ProfileID:   store.DefaultProfileID,
 		SessionID:   strings.TrimSpace(record.Actor.SessionID),
 		WorkspaceID: strings.TrimSpace(record.Actor.WorkspaceID),
 		Type:        eventType,

@@ -72,9 +72,10 @@ func (s *service) emitSettingsChanged(
 	}
 
 	return s.eventSummaries.WriteEventSummary(ctx, store.EventSummary{
-		Type:    eventspkg.SettingsChanged,
-		Content: content,
-		Summary: summary,
+		ProfileID: store.DefaultProfileID,
+		Type:      eventspkg.SettingsChanged,
+		Content:   content,
+		Summary:   summary,
 	})
 }
 

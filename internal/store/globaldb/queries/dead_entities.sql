@@ -1,7 +1,9 @@
 -- name: UpsertDeadEntity :exec
 INSERT INTO dead_entities (
+  profile_id,
   workspace_id, kind, entity_id, reason, marked_at
 ) VALUES (
+  sqlc.arg(profile_id),
   sqlc.arg(workspace_id), sqlc.arg(kind), sqlc.arg(entity_id), sqlc.arg(reason), sqlc.arg(marked_at)
 )
 ON CONFLICT(workspace_id, kind, entity_id) DO UPDATE SET
@@ -9,7 +11,7 @@ ON CONFLICT(workspace_id, kind, entity_id) DO UPDATE SET
   marked_at = excluded.marked_at;
 
 -- name: GetDeadEntity :one
-SELECT workspace_id, kind, entity_id, reason, marked_at
+SELECT profile_id, workspace_id, kind, entity_id, reason, marked_at
 FROM dead_entities
 WHERE workspace_id = sqlc.arg(workspace_id)
   AND kind = sqlc.arg(kind)
@@ -22,7 +24,7 @@ WHERE workspace_id = sqlc.arg(workspace_id)
   AND entity_id = sqlc.arg(entity_id);
 
 -- name: ListDeadEntities :many
-SELECT workspace_id, kind, entity_id, reason, marked_at
+SELECT profile_id, workspace_id, kind, entity_id, reason, marked_at
 FROM dead_entities
 WHERE workspace_id = sqlc.arg(workspace_id)
 ORDER BY marked_at DESC, kind, entity_id;

@@ -4295,7 +4295,7 @@ func TestDoctorLogTailDiagnosticIncludesCapabilityEvidence(t *testing.T) {
 				_ context.Context,
 				req settingspkg.SectionRequest,
 			) (settingspkg.SectionEnvelope, error) {
-				if req.Section != settingspkg.SectionObservability || req.Scope != settingspkg.ScopeGlobal {
+				if req.Section != settingspkg.SectionObservability || req.Scope != settingspkg.ScopeUser {
 					t.Fatalf("GetSection() request = %#v, want global observability", req)
 				}
 				return settingspkg.SectionEnvelope{

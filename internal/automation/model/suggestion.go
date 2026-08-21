@@ -65,6 +65,7 @@ func (s SuggestionStatus) Validate(path string) error {
 // Suggestion is a scoped proposal for a prefilled Job.
 type Suggestion struct {
 	ID          string           `json:"id"`
+	ProfileID   string           `json:"profile_id"`
 	WorkspaceID string           `json:"workspace_id"`
 	Source      SuggestionSource `json:"source"`
 	DedupKey    string           `json:"dedup_key"`

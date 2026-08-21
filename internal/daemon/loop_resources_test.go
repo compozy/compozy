@@ -38,7 +38,7 @@ func TestLoopProjectorShouldBuildAndApplyCatalogSnapshot(t *testing.T) {
 			{
 				ID:      "loop-a",
 				Version: 7,
-				Scope:   resources.ResourceScope{Kind: resources.ResourceScopeKindGlobal},
+				Scope:   resources.ResourceScope{Kind: resources.ResourceScopeKindUser},
 				Spec:    testLoopSpec(t, "loop-a", looppkg.SourceUser),
 			},
 		}
@@ -673,7 +673,7 @@ func TestLoopSourceSyncerShouldProjectAndDeleteManagedRecords(t *testing.T) {
 		providerItems := []loopPublicationInput{
 			{
 				sourceKey: "test/global/loop-a",
-				scope:     resources.ResourceScope{Kind: resources.ResourceScopeKindGlobal},
+				scope:     resources.ResourceScope{Kind: resources.ResourceScopeKindUser},
 				spec:      testLoopSpec(t, "loop-a", looppkg.SourceUser),
 			},
 		}
@@ -872,7 +872,7 @@ func newLoopAPIForkFixture(t *testing.T) loopAPIForkFixture {
 		{
 			ID:      "loop:extension:implement-tasks",
 			Version: 1,
-			Scope:   resources.ResourceScope{Kind: resources.ResourceScopeKindGlobal},
+			Scope:   resources.ResourceScope{Kind: resources.ResourceScopeKindUser},
 			Spec:    sourceSpec,
 		},
 	})

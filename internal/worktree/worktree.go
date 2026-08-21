@@ -51,6 +51,7 @@ const (
 
 type Worktree struct {
 	ID            string
+	ProfileID     string
 	WorkspaceID   string
 	Name          string
 	Branch        string

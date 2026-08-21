@@ -12,6 +12,7 @@ import (
 	compozyconfig "github.com/compozy/compozy/internal/config"
 	extensionpkg "github.com/compozy/compozy/internal/extension"
 	"github.com/compozy/compozy/internal/mcppolicy"
+	"github.com/compozy/compozy/internal/store"
 	"github.com/compozy/compozy/internal/vault"
 )
 
@@ -220,7 +221,8 @@ func (s *daemonExtensionService) applyExtensionSecret(
 		createdAt = mutation.previousBinding.CreatedAt
 	}
 	binding := extensionpkg.EnvBinding{
-		ExtensionName: key.Name, WorkspaceID: key.WorkspaceID, EnvName: write.envName,
+		ExtensionName: key.Name, ProfileID: store.DefaultProfileID,
+		WorkspaceID: key.WorkspaceID, EnvName: write.envName,
 		SecretRef: write.ref, MCPServer: write.mcpServer, HeaderName: write.headerName,
 		Kind: extensionpkg.ExtensionEnvBindingKind, CreatedAt: createdAt, UpdatedAt: now,
 	}
@@ -264,6 +266,7 @@ func (s *daemonExtensionService) rollbackExtensionSecretMutations(
 			if err := s.envBindings.DeleteEnvBinding(
 				rollbackCtx,
 				key.Name,
+				store.DefaultProfileID,
 				key.WorkspaceID,
 				mutation.envName,
 			); err != nil {

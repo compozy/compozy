@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	acpsdk "github.com/coder/acp-go-sdk"
+	"github.com/compozy/compozy/internal/store"
 	toolspkg "github.com/compozy/compozy/internal/tools"
 )
 
@@ -130,6 +131,7 @@ func toolApprovalGrantKey(
 		return toolspkg.ApprovalGrantKey{}, err
 	}
 	key := toolspkg.ApprovalGrantKey{
+		ProfileID:   store.DefaultProfileID,
 		WorkspaceID: workspaceID,
 		AgentName:   agentName,
 		ToolID:      toolID,

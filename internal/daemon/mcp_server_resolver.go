@@ -11,6 +11,7 @@ import (
 	mcppkg "github.com/compozy/compozy/internal/mcp"
 	mcpauth "github.com/compozy/compozy/internal/mcp/auth"
 	"github.com/compozy/compozy/internal/resources"
+	"github.com/compozy/compozy/internal/store"
 	toolspkg "github.com/compozy/compozy/internal/tools"
 )
 
@@ -93,7 +94,12 @@ func projectExtensionSecretHeaders(
 		server.EffectiveTransport() != compozyconfig.MCPServerTransportHTTP {
 		return server, nil
 	}
-	bindings, err := state.extensionEnvBindings.ListEnvBindings(ctx, owner.ID, record.Scope.ID)
+	bindings, err := state.extensionEnvBindings.ListEnvBindings(
+		ctx,
+		owner.ID,
+		store.DefaultProfileID,
+		record.Scope.ID,
+	)
 	if err != nil {
 		return compozyconfig.MCPServer{}, fmt.Errorf(
 			"daemon: list extension MCP header bindings for %q: %w",
@@ -120,7 +126,7 @@ func globalResolvedMCPServer(server compozyconfig.MCPServer) mcppkg.ResolvedServ
 	name := strings.TrimSpace(server.Name)
 	return mcppkg.ResolvedServer{
 		Server: cloneDaemonMCPServer(server),
-		Target: mcpauth.Target{Scope: mcpauth.ScopeGlobal, ServerName: name},
+		Target: mcpauth.Target{Scope: mcpauth.ScopeUser, ServerName: name},
 	}
 }
 
@@ -128,8 +134,8 @@ func mcpAuthTargetForResource(scope resources.ResourceScope, serverName string) 
 	scope = scope.Normalize()
 	target := mcpauth.Target{ServerName: strings.TrimSpace(serverName)}
 	switch scope.Kind {
-	case resources.ResourceScopeKindGlobal:
-		target.Scope = mcpauth.ScopeGlobal
+	case resources.ResourceScopeKindUser:
+		target.Scope = mcpauth.ScopeUser
 	case resources.ResourceScopeKindWorkspace:
 		target.Scope = mcpauth.ScopeWorkspace
 		target.WorkspaceID = scope.ID
@@ -164,7 +170,7 @@ func daemonMCPSources(state *bootState) []toolspkg.SourceRef {
 		sources = append(sources, source)
 	}
 	for _, server := range state.cfg.MCPServers {
-		add(server, toolspkg.SourceRef{Scope: string(mcpauth.ScopeGlobal)})
+		add(server, toolspkg.SourceRef{Scope: string(mcpauth.ScopeUser)})
 	}
 	providerNames := make([]string, 0, len(state.cfg.Providers))
 	for name := range state.cfg.Providers {
@@ -173,7 +179,7 @@ func daemonMCPSources(state *bootState) []toolspkg.SourceRef {
 	slices.Sort(providerNames)
 	for _, name := range providerNames {
 		for _, server := range state.cfg.Providers[name].MCPServers {
-			add(server, toolspkg.SourceRef{Scope: string(mcpauth.ScopeGlobal)})
+			add(server, toolspkg.SourceRef{Scope: string(mcpauth.ScopeUser)})
 		}
 	}
 	if state.mcpServerCatalog != nil {

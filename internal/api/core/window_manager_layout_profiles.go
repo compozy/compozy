@@ -23,7 +23,7 @@ func (h *BaseHandlers) ListWindowManagerLayoutProfiles(c *gin.Context) {
 	}
 
 	scopes := []resources.ResourceScope{
-		{Kind: resources.ResourceScopeKindGlobal},
+		{Kind: resources.ResourceScopeKindUser},
 		{Kind: resources.ResourceScopeKindWorkspace, ID: string(workspaceID)},
 	}
 	records := make([]resources.RawRecord, 0)
@@ -214,6 +214,6 @@ func windowManagerLayoutProfileScopeVisible(
 	workspaceID windowmanager.WorkspaceID,
 ) bool {
 	normalized := scope.Normalize()
-	return normalized.Kind == resources.ResourceScopeKindGlobal ||
+	return normalized.Kind == resources.ResourceScopeKindUser ||
 		(normalized.Kind == resources.ResourceScopeKindWorkspace && normalized.ID == string(workspaceID))
 }

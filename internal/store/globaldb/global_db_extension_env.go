@@ -18,6 +18,7 @@ var _ extensionenv.LifecycleStore = (*ExtensionEnvRepo)(nil)
 func (r *ExtensionEnvRepo) ListEnvBindings(
 	ctx context.Context,
 	extension string,
+	profileID string,
 	workspaceID string,
 ) ([]extensionenv.Binding, error) {
 	if err := r.checkReady(ctx, "list extension env bindings"); err != nil {
@@ -29,6 +30,7 @@ func (r *ExtensionEnvRepo) ListEnvBindings(
 	}
 	rows, err := r.queries.ListExtensionEnvBindings(ctx, sqlcgen.ListExtensionEnvBindingsParams{
 		ExtensionName: name,
+		ProfileID:     strings.TrimSpace(profileID),
 		WorkspaceID:   workspace,
 	})
 	if err != nil {
@@ -60,6 +62,7 @@ func (r *ExtensionEnvRepo) PutEnvBinding(ctx context.Context, binding extensione
 	}
 	err = r.queries.UpsertExtensionEnvBinding(ctx, sqlcgen.UpsertExtensionEnvBindingParams{
 		ExtensionName: normalized.ExtensionName,
+		ProfileID:     normalized.ProfileID,
 		WorkspaceID:   normalized.WorkspaceID,
 		EnvName:       normalized.EnvName,
 		SecretRef:     normalized.SecretRef,
@@ -81,7 +84,10 @@ func (r *ExtensionEnvRepo) PutEnvBinding(ctx context.Context, binding extensione
 }
 
 // DeleteEnvBinding removes one extension instance binding.
-func (r *ExtensionEnvRepo) DeleteEnvBinding(ctx context.Context, extension, workspaceID, envName string) error {
+func (r *ExtensionEnvRepo) DeleteEnvBinding(
+	ctx context.Context,
+	extension, profileID, workspaceID, envName string,
+) error {
 	if err := r.checkReady(ctx, "delete extension env binding"); err != nil {
 		return err
 	}
@@ -94,7 +100,7 @@ func (r *ExtensionEnvRepo) DeleteEnvBinding(ctx context.Context, extension, work
 		return fmt.Errorf("store: invalid extension env name %q", env)
 	}
 	_, err = r.queries.DeleteExtensionEnvBinding(ctx, sqlcgen.DeleteExtensionEnvBindingParams{
-		ExtensionName: name, WorkspaceID: workspace, EnvName: env,
+		ExtensionName: name, ProfileID: strings.TrimSpace(profileID), WorkspaceID: workspace, EnvName: env,
 	})
 	if err != nil {
 		return fmt.Errorf(
@@ -108,7 +114,10 @@ func (r *ExtensionEnvRepo) DeleteEnvBinding(ctx context.Context, extension, work
 }
 
 // DeleteEnvBindings removes all bindings for exactly one extension instance.
-func (r *ExtensionEnvRepo) DeleteEnvBindings(ctx context.Context, extension, workspaceID string) error {
+func (r *ExtensionEnvRepo) DeleteEnvBindings(
+	ctx context.Context,
+	extension, profileID, workspaceID string,
+) error {
 	if err := r.checkReady(ctx, "delete extension env bindings"); err != nil {
 		return err
 	}
@@ -117,7 +126,7 @@ func (r *ExtensionEnvRepo) DeleteEnvBindings(ctx context.Context, extension, wor
 		return err
 	}
 	_, err = r.queries.DeleteExtensionEnvBindings(ctx, sqlcgen.DeleteExtensionEnvBindingsParams{
-		ExtensionName: name, WorkspaceID: workspace,
+		ExtensionName: name, ProfileID: strings.TrimSpace(profileID), WorkspaceID: workspace,
 	})
 	if err != nil {
 		return fmt.Errorf(
@@ -153,6 +162,7 @@ func (r *ExtensionEnvRepo) normalizeExtensionEnvBinding(
 		return extensionenv.Binding{}, err
 	}
 	binding.ExtensionName = name
+	binding.ProfileID = strings.TrimSpace(binding.ProfileID)
 	binding.WorkspaceID = workspace
 	binding.EnvName = strings.TrimSpace(binding.EnvName)
 	binding.SecretRef = vault.NormalizeRef(binding.SecretRef)
@@ -226,7 +236,8 @@ func extensionEnvBindingFromGenerated(row sqlcgen.ExtensionEnvBinding) (extensio
 		)
 	}
 	return extensionenv.Binding{
-		ExtensionName: row.ExtensionName, WorkspaceID: row.WorkspaceID, EnvName: row.EnvName,
+		ExtensionName: row.ExtensionName, ProfileID: row.ProfileID,
+		WorkspaceID: row.WorkspaceID, EnvName: row.EnvName,
 		SecretRef: row.SecretRef, MCPServer: row.McpServer, HeaderName: row.HeaderName,
 		Kind: row.Kind, CreatedAt: createdAt, UpdatedAt: updatedAt,
 	}, nil

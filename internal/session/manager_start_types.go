@@ -14,6 +14,7 @@ import (
 
 type sessionStartSpec struct {
 	sessionID                string
+	profileID                string
 	sandboxID                string
 	sandbox                  *store.SessionSandboxMeta
 	sessionName              string

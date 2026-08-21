@@ -116,6 +116,7 @@ func (h *BaseHandlers) CreateNetworkChannel(c *gin.Context) {
 	}
 
 	entry := store.NetworkChannelEntry{
+		ProfileID:         store.DefaultProfileID,
 		Channel:           channel,
 		WorkspaceID:       networkWorkspaceID,
 		Purpose:           purpose,

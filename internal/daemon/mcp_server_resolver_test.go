@@ -212,7 +212,7 @@ func TestDaemonMCPProviderRecordsExtensionLaunchFailures(t *testing.T) {
 		catalog.Replace(1, []resources.Record[compozyconfig.MCPServer]{
 			{
 				ID: "mcp-kit-broken", Version: 1,
-				Scope: resources.ResourceScope{Kind: resources.ResourceScopeKindGlobal},
+				Scope: resources.ResourceScope{Kind: resources.ResourceScopeKindUser},
 				Owner: resources.ResourceOwner{Kind: extensionResourceOwnerKind, ID: "kit"},
 				Spec: compozyconfig.MCPServer{
 					Name: "broken", Transport: compozyconfig.MCPServerTransportStdio,

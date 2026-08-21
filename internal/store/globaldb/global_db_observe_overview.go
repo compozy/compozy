@@ -32,6 +32,7 @@ func (g *ObserveRepo) tokenUsageDailyParams(update store.TokenUsageDailyUpdate) 
 		update.Turns = 1
 	}
 	return sqlcgen.UpsertTokenUsageDailyParams{
+		ProfileID:    strings.TrimSpace(update.ProfileID),
 		Day:          strings.TrimSpace(update.Day),
 		WorkspaceID:  strings.TrimSpace(update.WorkspaceID),
 		AgentName:    strings.TrimSpace(update.AgentName),

@@ -144,6 +144,7 @@ func recordRoleFallbackEvent(
 	eventCtx, cancel := detachedDaemonOperationContext(ctx, roleEventWriteTimeout)
 	defer cancel()
 	if err := role.eventWriter.WriteEventSummary(eventCtx, store.EventSummary{
+		ProfileID: store.DefaultProfileID,
 		SessionID: correlation.SessionID, WorkspaceID: correlation.WorkspaceID,
 		Type: eventspkg.RoleFallbackUsed, AgentName: firstRoleValue(correlation.AgentName, route.AgentName),
 		Provider: route.Provider, Outcome: string(eventspkg.OutcomeFor(eventspkg.RoleFallbackUsed)), Content: content,
@@ -181,6 +182,7 @@ func (r *roleResolver) recordRoleResolveError(
 	eventCtx, cancel := detachedDaemonOperationContext(ctx, roleEventWriteTimeout)
 	defer cancel()
 	if err := r.events.WriteEventSummary(eventCtx, store.EventSummary{
+		ProfileID: store.DefaultProfileID,
 		SessionID: correlation.SessionID, WorkspaceID: correlation.WorkspaceID,
 		Type: eventspkg.RoleResolveError, AgentName: firstRoleValue(correlation.AgentName, agentName),
 		Outcome: string(eventspkg.OutcomeFor(eventspkg.RoleResolveError)), Content: content,

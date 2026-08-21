@@ -253,6 +253,7 @@ func scanSessionInfoRow(scanner rowScanner) (sessionInfoRow, error) {
 	var row sessionInfoRow
 	if err := scanner.Scan(
 		&row.session.ID,
+		&row.session.ProfileID,
 		&row.name,
 		&row.session.AgentName,
 		&row.session.Provider,

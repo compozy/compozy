@@ -23,6 +23,7 @@ func LocalDayStart(value time.Time, daysBack int) time.Time {
 // TokenUsageDailyUpdate merges one turn of token usage into the daily rollup.
 type TokenUsageDailyUpdate struct {
 	Day          string
+	ProfileID    string
 	WorkspaceID  string
 	AgentName    string
 	InputTokens  *int64
@@ -39,6 +40,9 @@ type TokenUsageDailyUpdate struct {
 // Validate ensures the rollup update carries a canonical day bucket, non-negative
 // token deltas, and a valid cost shape.
 func (u TokenUsageDailyUpdate) Validate() error {
+	if err := requireField(u.ProfileID, "token usage profile_id"); err != nil {
+		return err
+	}
 	if _, err := time.Parse(time.DateOnly, strings.TrimSpace(u.Day)); err != nil {
 		return fmt.Errorf("store: token usage day must be a YYYY-MM-DD bucket: %w", err)
 	}

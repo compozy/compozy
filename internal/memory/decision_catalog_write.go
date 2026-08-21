@@ -15,7 +15,12 @@ import (
 	storepkg "github.com/compozy/compozy/internal/store"
 )
 
-func (c *catalog) insertDecision(ctx context.Context, decision memcontract.Decision, workspaceID string) error {
+func (c *catalog) insertDecision(
+	ctx context.Context,
+	profileID string,
+	decision memcontract.Decision,
+	workspaceID string,
+) error {
 	return c.withCatalogWriteTx(ctx, "decision wal insert", func(tx *storepkg.WriteTx) error {
 		targets, err := json.Marshal(decision.Targets)
 		if err != nil {
@@ -36,16 +41,17 @@ func (c *catalog) insertDecision(ctx context.Context, decision memcontract.Decis
 		if _, err := tx.ExecContext(
 			ctx,
 			`INSERT INTO memory_decisions (
-				id, candidate_hash, idempotency_key, frontmatter_hash, workspace_id,
+				id, candidate_hash, idempotency_key, frontmatter_hash, workspace_id, profile_id,
 				scope, agent_name, agent_tier, op, targets, target_filename, frontmatter,
 				post_content, post_content_hash, prior_content, confidence, source,
 				rule_trace, llm_trace, reason, prompt_version, decided_at
-			) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+			) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
 			decision.ID,
 			decision.CandidateHash,
 			decision.IdempotencyKey,
 			controller.FrontmatterHash(decision.Frontmatter),
 			nullStringForEmpty(workspaceID),
+			strings.TrimSpace(profileID),
 			string(decision.Frontmatter.Scope.Normalize()),
 			nullStringForEmpty(decision.Frontmatter.AgentName),
 			nullStringForEmpty(string(decision.Frontmatter.AgentTier.Normalize())),

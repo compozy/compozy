@@ -201,7 +201,7 @@ func normalizeMCPAuthTarget(req MCPAuthTargetRequest) (mcpauth.Target, error) {
 	if scope == "" {
 		return mcpauth.Target{}, validationError(errors.New("settings: MCP auth scope is required"))
 	}
-	if scope != ScopeGlobal && scope != ScopeWorkspace {
+	if scope != ScopeUser && scope != ScopeWorkspace {
 		return mcpauth.Target{}, validationError(fmt.Errorf("settings: MCP auth scope %q is unsupported", scope))
 	}
 	target := mcpauth.Target{
@@ -218,7 +218,7 @@ func mcpAuthTargetForSource(entry mcpSourceEntry) (mcpauth.Target, error) {
 	target := mcpauth.Target{ServerName: strings.TrimSpace(entry.Server.Name)}
 	switch entry.Target {
 	case WriteTargetGlobalConfig, WriteTargetGlobalMCPSidecar:
-		target.Scope = mcpauth.ScopeGlobal
+		target.Scope = mcpauth.ScopeUser
 	case WriteTargetWorkspaceConfig, WriteTargetWorkspaceMCPSidecar:
 		target.Scope = mcpauth.ScopeWorkspace
 		target.WorkspaceID = strings.TrimSpace(entry.Source.WorkspaceID)

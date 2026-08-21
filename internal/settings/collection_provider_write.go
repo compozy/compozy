@@ -141,7 +141,7 @@ func (s *service) putProvider(
 	var target compozyconfig.WriteTarget
 	classification := providerWriteClassification{}
 	if len(values) != 0 {
-		target, err = compozyconfig.ResolveConfigWriteTarget(s.homePaths, "", compozyconfig.WriteScopeGlobal)
+		target, err = compozyconfig.ResolveConfigWriteTarget(s.homePaths, "", compozyconfig.WriteScopeUser)
 		if err != nil {
 			return MutationResult{}, err
 		}
@@ -159,7 +159,7 @@ func (s *service) putProvider(
 		return MutationResult{}, err
 	}
 	if len(values) == 0 {
-		return mutationResultForCollection(CollectionProviders, ScopeGlobal, "", WriteTargetGlobalConfig), nil
+		return mutationResultForCollection(CollectionProviders, ScopeUser, "", WriteTargetGlobalConfig), nil
 	}
 
 	if _, err := compozyconfig.EditConfigOverlay(
@@ -188,7 +188,7 @@ func (s *service) preserveProviderAuthLoginCommand(
 	if settings.AuthLoginCmdSet || strings.TrimSpace(settings.AuthLoginCmd) != "" {
 		return settings, nil
 	}
-	cfg, _, err := s.loadConfig(ctx, ScopeGlobal, "")
+	cfg, _, err := s.loadConfig(ctx, ScopeUser, "")
 	if err != nil {
 		return ProviderSettings{}, fmt.Errorf("settings: load provider %q write-only fields: %w", name, err)
 	}

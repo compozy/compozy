@@ -18,7 +18,7 @@ import (
 func (s *Service) prepareWorkspace(ctx context.Context, workspaceRef string) (dreamRunWorkspace, error) {
 	trimmedRef := strings.TrimSpace(workspaceRef)
 	if trimmedRef == "" {
-		return dreamRunWorkspace{id: "", store: s.memStore, scope: memcontract.ScopeGlobal}, nil
+		return dreamRunWorkspace{id: "", store: s.memStore, scope: memcontract.ScopeProfile}, nil
 	}
 	if s.workspaceResolver == nil {
 		return dreamRunWorkspace{}, errors.New("memory: workspace resolver is required")

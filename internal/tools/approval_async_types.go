@@ -64,6 +64,7 @@ type ApprovalTarget struct {
 
 // ApprovalRequest is the durable payload stored while an operator decides.
 type ApprovalRequest struct {
+	ProfileID               string          `json:"profile_id"`
 	WorkspaceID             string          `json:"workspace_id"`
 	InvocationID            string          `json:"invocation_id"`
 	CommandID               string          `json:"command_id,omitempty"`
@@ -84,6 +85,7 @@ type ApprovalTicket struct {
 // ApprovalStatus is the operator-visible lifecycle of one pending approval.
 type ApprovalStatus struct {
 	ApprovalID      string                  `json:"approval_id"`
+	ProfileID       string                  `json:"profile_id"`
 	WorkspaceID     string                  `json:"workspace_id"`
 	InvocationID    string                  `json:"invocation_id"`
 	CommandID       string                  `json:"command_id,omitempty"`
@@ -134,6 +136,9 @@ type ApprovalDispatcher interface {
 }
 
 func (request ApprovalRequest) validate(now time.Time) error {
+	if strings.TrimSpace(request.ProfileID) == "" {
+		return fmt.Errorf("%w: profile_id is required", ErrApprovalInvalid)
+	}
 	if strings.TrimSpace(request.WorkspaceID) == "" || strings.TrimSpace(request.InvocationID) == "" {
 		return fmt.Errorf("%w: workspace_id and invocation_id are required", ErrApprovalInvalid)
 	}

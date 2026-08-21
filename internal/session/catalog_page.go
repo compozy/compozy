@@ -403,6 +403,7 @@ func sessionInfoFromCatalog(info store.SessionInfo) *Info {
 	attention := info.AttentionSnapshot()
 	return &Info{
 		ID:                     strings.TrimSpace(info.ID),
+		ProfileID:              strings.TrimSpace(info.ProfileID),
 		Name:                   strings.TrimSpace(info.Name),
 		AgentName:              strings.TrimSpace(info.AgentName),
 		Provider:               strings.TrimSpace(info.Provider),

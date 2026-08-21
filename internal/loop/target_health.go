@@ -68,6 +68,7 @@ func targetHealthKey(
 		return store.DeadEntityKey{}, false, err
 	}
 	key := store.DeadEntityKey{
+		ProfileID:   store.DefaultProfileID,
 		WorkspaceID: string(workspaceID),
 		Kind:        store.DeadEntityKindLoopTarget,
 		EntityID:    family + ":" + target,

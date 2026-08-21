@@ -225,10 +225,11 @@ type ExecutionResult struct {
 }
 
 type Usage struct {
-	WorkspaceID WorkspaceID
-	CommandID   CommandID
-	Query       string
-	UsedAt      time.Time
+	ProfileLensID ProfileLensID
+	WorkspaceID   WorkspaceID
+	CommandID     CommandID
+	Query         string
+	UsedAt        time.Time
 }
 
 // Contribution is one atomic extension catalog snapshot.

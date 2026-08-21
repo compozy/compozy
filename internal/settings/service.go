@@ -298,14 +298,14 @@ func NewService(homePaths compozyconfig.HomePaths, deps Dependencies) (Service, 
 func (s *service) normalizeReadScope(scope ScopeKind, workspaceID string) (ScopeKind, string, error) {
 	normalized := scope
 	if normalized == "" {
-		normalized = ScopeGlobal
+		normalized = ScopeUser
 	}
 	if err := normalized.Validate(); err != nil {
 		return "", "", validationError(err)
 	}
 
 	trimmedWorkspaceID := strings.TrimSpace(workspaceID)
-	if normalized == ScopeGlobal && trimmedWorkspaceID != "" {
+	if normalized == ScopeUser && trimmedWorkspaceID != "" {
 		return "", "", conflictError(errors.New("settings: workspace_id requires workspace scope"))
 	}
 	return normalized, trimmedWorkspaceID, nil

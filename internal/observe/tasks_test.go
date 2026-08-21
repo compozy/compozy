@@ -777,13 +777,15 @@ func TestQueryTaskDashboardSelectsRecentActiveRunsAndFiltersWorkspaces(t *testin
 		now := h.observer.now()
 		worktrees := []worktreepkg.Worktree{
 			{
-				ID: "wt-observe-alpha", WorkspaceID: h.workspaceID, Name: "alpha", Branch: "feature/alpha",
+				ProfileID: store.DefaultProfileID,
+				ID:        "wt-observe-alpha", WorkspaceID: h.workspaceID, Name: "alpha", Branch: "feature/alpha",
 				Path: filepath.Join(t.TempDir(), "alpha"), State: worktreepkg.StateReady,
 				Origin: worktreepkg.OriginManual, SetupState: worktreepkg.SetupNone,
 				CreatedAt: now, UpdatedAt: now,
 			},
 			{
-				ID: "wt-observe-beta", WorkspaceID: h.workspaceID, Name: "beta", Branch: "feature/beta",
+				ProfileID: store.DefaultProfileID,
+				ID:        "wt-observe-beta", WorkspaceID: h.workspaceID, Name: "beta", Branch: "feature/beta",
 				Path: filepath.Join(t.TempDir(), "beta"), State: worktreepkg.StateReady,
 				Origin: worktreepkg.OriginManual, SetupState: worktreepkg.SetupNone,
 				CreatedAt: now, UpdatedAt: now,
@@ -1295,6 +1297,9 @@ func TestObserverHealthWrapsTaskHealthErrors(t *testing.T) {
 
 func createObserveTask(t *testing.T, h *harness, record taskpkg.Task) {
 	t.Helper()
+	if record.ProfileID == "" {
+		record.ProfileID = store.DefaultProfileID
+	}
 	if err := h.registry.CreateTask(testutil.Context(t), record); err != nil {
 		t.Fatalf("CreateTask(%q) error = %v", record.ID, err)
 	}
@@ -1342,6 +1347,7 @@ func createObserveEvent(t *testing.T, h *harness, event taskpkg.Event) {
 func createObserveNetworkChannel(t *testing.T, h *harness, channel string) {
 	t.Helper()
 	if err := h.registry.WriteNetworkChannel(testutil.Context(t), store.NetworkChannelEntry{
+		ProfileID:   store.DefaultProfileID,
 		WorkspaceID: h.workspaceID,
 		Channel:     channel,
 		Purpose:     "observe task test",

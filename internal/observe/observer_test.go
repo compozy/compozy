@@ -1143,6 +1143,7 @@ func TestQueryEventsReturnsHarnessLifecycleSummaries(t *testing.T) {
 	base := h.now.Add(3 * time.Minute)
 	summaries := []store.EventSummary{
 		{
+			ProfileID: store.DefaultProfileID,
 			SessionID: sess.ID,
 			Type:      "harness.context_resolved",
 			AgentName: sess.AgentName,
@@ -1150,6 +1151,7 @@ func TestQueryEventsReturnsHarnessLifecycleSummaries(t *testing.T) {
 			Timestamp: base,
 		},
 		{
+			ProfileID: store.DefaultProfileID,
 			SessionID: sess.ID,
 			Type:      "harness.section_selected",
 			AgentName: sess.AgentName,
@@ -1157,6 +1159,7 @@ func TestQueryEventsReturnsHarnessLifecycleSummaries(t *testing.T) {
 			Timestamp: base.Add(time.Second),
 		},
 		{
+			ProfileID: store.DefaultProfileID,
 			SessionID: sess.ID,
 			Type:      "harness.augmenter_applied",
 			AgentName: sess.AgentName,
@@ -1330,6 +1333,7 @@ func TestHealthIncludesLifecycleFailuresAndAgentProbes(t *testing.T) {
 	ctx := testutil.Context(t)
 	if err := h.registry.RegisterSession(ctx, store.SessionInfo{
 		ID:            "sess-protocol",
+		ProfileID:     store.DefaultProfileID,
 		Name:          "Protocol",
 		AgentName:     "reviewer",
 		Provider:      "codex",
@@ -1348,6 +1352,7 @@ func TestHealthIncludesLifecycleFailuresAndAgentProbes(t *testing.T) {
 	}
 	if err := h.registry.RegisterSession(ctx, store.SessionInfo{
 		ID:            "sess-crash",
+		ProfileID:     store.DefaultProfileID,
 		Name:          "Crashed",
 		AgentName:     "coder",
 		Provider:      "claude",
@@ -1427,6 +1432,7 @@ func TestHealthStatusDegradesForLifecycleFailures(t *testing.T) {
 		ctx := testutil.Context(t)
 		if err := h.registry.RegisterSession(ctx, store.SessionInfo{
 			ID:            "sess-user-canceled",
+			ProfileID:     store.DefaultProfileID,
 			Name:          "User Canceled",
 			AgentName:     "coder",
 			Provider:      "codex",
@@ -1472,6 +1478,7 @@ func TestHealthStatusDegradesForLifecycleFailures(t *testing.T) {
 		ctx := testutil.Context(t)
 		if err := h.registry.RegisterSession(ctx, store.SessionInfo{
 			ID:            "sess-failure-only",
+			ProfileID:     store.DefaultProfileID,
 			Name:          "Failure Only",
 			AgentName:     "coder",
 			Provider:      "codex",
@@ -1757,6 +1764,7 @@ func (h *harness) singleTokenStat(t *testing.T, sessionID string) store.TokenSta
 func newSession(id string, state session.State, workspace string, now time.Time) *session.Session {
 	return &session.Session{
 		ID:                   id,
+		ProfileID:            store.DefaultProfileID,
 		Name:                 strings.ToUpper(id),
 		AgentName:            "coder",
 		Provider:             "claude",

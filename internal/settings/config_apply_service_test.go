@@ -241,7 +241,7 @@ func TestConfigApplyServiceRecordsLiveApplyAndAdvancesGeneration(t *testing.T) {
 			t.Fatalf("GetSection(workspace roles) error = %v", err)
 		}
 		if envelope.Scope != ScopeWorkspace ||
-			!reflect.DeepEqual(envelope.AvailableScopes, []ScopeKind{ScopeGlobal, ScopeWorkspace}) {
+			!reflect.DeepEqual(envelope.AvailableScopes, []ScopeKind{ScopeUser, ScopeWorkspace}) {
 			t.Fatalf("GetSection(workspace roles) envelope = %#v", envelope)
 		}
 	})
@@ -2118,7 +2118,7 @@ func TestConfigApplyServiceReloadUsesBootedConfigAsActiveState(t *testing.T) {
 		if active.Automation.Enabled {
 			t.Fatal("ActiveConfig(after restart).Automation.Enabled = true, want false")
 		}
-		target, err := compozyconfig.ResolveConfigWriteTarget(homePaths, "", compozyconfig.WriteScopeGlobal)
+		target, err := compozyconfig.ResolveConfigWriteTarget(homePaths, "", compozyconfig.WriteScopeUser)
 		if err != nil {
 			t.Fatalf("ResolveConfigWriteTarget() error = %v", err)
 		}

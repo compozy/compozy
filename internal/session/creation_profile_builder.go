@@ -12,6 +12,7 @@ type CreationProfileInput struct {
 	Model           string
 	ReasoningEffort string
 	Speed           speedpkg.Speed
+	ProfileID       string
 	WorkspaceID     string
 	CWD             string
 	WorktreeRef     string
@@ -36,6 +37,7 @@ func BuildCreationProfile(input CreationProfileInput) store.SessionCreationProfi
 		Model:           input.Model,
 		ReasoningEffort: input.ReasoningEffort,
 		Speed:           input.Speed,
+		ProfileID:       input.ProfileID,
 		WorkspaceID:     input.WorkspaceID,
 		CWD:             input.CWD,
 		WorktreeRef:     input.WorktreeRef,

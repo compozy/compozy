@@ -54,7 +54,7 @@ func TestMemoryHandlersAndHelpers(t *testing.T) {
 			t.Fatalf("MkdirAll(workspace) error = %v", err)
 		}
 		if err := store.Write(t.Context(),
-			memcontract.ScopeGlobal,
+			memcontract.ScopeProfile,
 			"global.md",
 			[]byte(memoryDocument(t, "Global", memcontract.TypeUser, "hello"))); err != nil {
 			t.Fatalf("Write(global) error = %v", err)
@@ -162,7 +162,7 @@ func TestMemoryHandlersAndHelpers(t *testing.T) {
 		)
 
 		query := url.Values{}
-		query.Set("scope", string(memcontract.ScopeGlobal))
+		query.Set("scope", string(memcontract.ScopeProfile))
 		query.Set("type", string(memcontract.TypeReference))
 		query.Set("limit", "1")
 		response := performRequest(t, fixture.Engine, http.MethodGet, "/memory?"+query.Encode(), nil)
@@ -700,7 +700,7 @@ func TestMemoryHandlersAndHelpers(t *testing.T) {
 		body, err := json.Marshal(contract.MemoryPromoteRequest{
 			Filename: "global.md",
 			From: contract.MemoryScopeSelectorPayload{
-				Scope: memcontract.ScopeGlobal,
+				Scope: memcontract.ScopeProfile,
 			},
 			To: contract.MemoryScopeSelectorPayload{
 				Scope:       memcontract.ScopeWorkspace,
@@ -748,7 +748,7 @@ func TestMemoryHandlersAndHelpers(t *testing.T) {
 
 		fixture, _, _ := setup(t)
 		writeBody, err := json.Marshal(contract.MemoryCreateRequest{
-			Scope:   memcontract.ScopeGlobal,
+			Scope:   memcontract.ScopeProfile,
 			Type:    memcontract.TypeUser,
 			Name:    "Decision API",
 			Content: "Decision API body for revert.",
@@ -769,7 +769,7 @@ func TestMemoryHandlersAndHelpers(t *testing.T) {
 		testutil.DecodeJSONResponse(t, writeResp, &writePayload)
 
 		newerBody, err := json.Marshal(contract.MemoryCreateRequest{
-			Scope:   memcontract.ScopeGlobal,
+			Scope:   memcontract.ScopeProfile,
 			Type:    memcontract.TypeProject,
 			Name:    "Newer Decision API",
 			Content: "A different decision that must not consume the filtered limit.",
@@ -1146,7 +1146,7 @@ func TestMemoryHandlersAndHelpers(t *testing.T) {
 
 		fixture, _, _ := setup(t)
 		writeBody, err := json.Marshal(contract.MemoryCreateRequest{
-			Scope:   memcontract.ScopeGlobal,
+			Scope:   memcontract.ScopeProfile,
 			Type:    memcontract.TypeUser,
 			Name:    "Daily Event",
 			Content: "Daily API event body.",

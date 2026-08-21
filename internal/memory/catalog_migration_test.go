@@ -49,8 +49,8 @@ func TestCatalogMigrationStreams(t *testing.T) {
 		if globalBefore != globalAfter {
 			t.Fatalf("global status changed after memory apply: before=%#v after=%#v", globalBefore, globalAfter)
 		}
-		if memoryStatus.Version != 1 || memoryStatus.AppliedCount != 1 {
-			t.Fatalf("shared memory status = %#v, want version/count 1", memoryStatus)
+		if memoryStatus.Version != 2 || memoryStatus.AppliedCount != 2 {
+			t.Fatalf("shared memory status = %#v, want version/count 2", memoryStatus)
 		}
 		for _, table := range []string{globaldb.MigrationStream().VersionTable, MigrationStream().VersionTable} {
 			if !catalogMigrationTableExists(t, catalog.catalog.db, table) {
@@ -213,6 +213,84 @@ func TestCatalogMigrationStreams(t *testing.T) {
 			})
 		}
 	})
+}
+
+func TestCatalogMigrationShouldConvergeLegacyProfileMemoryMove(t *testing.T) {
+	t.Parallel()
+
+	ctx := testutil.Context(t)
+	homeDir := t.TempDir()
+	legacyDir := filepath.Join(homeDir, "memory")
+	targetDir := filepath.Join(homeDir, "profiles", "default", "memory")
+	if err := os.MkdirAll(legacyDir, 0o700); err != nil {
+		t.Fatalf("MkdirAll(legacy) error = %v", err)
+	}
+	legacyFile := filepath.Join(legacyDir, "preferences.md")
+	if err := os.WriteFile(legacyFile, []byte("legacy-profile-memory"), 0o600); err != nil {
+		t.Fatalf("WriteFile(legacy) error = %v", err)
+	}
+	databasePath := filepath.Join(homeDir, storepkg.GlobalDatabaseName)
+	first := NewStore(targetDir, WithCatalogDatabasePath(databasePath))
+	if err := first.OpenCatalog(ctx); err != nil {
+		t.Fatalf("OpenCatalog(first) error = %v", err)
+	}
+	assertProfileMemoryMoveDone(t, first, legacyDir, targetDir)
+	if err := first.CloseCatalog(ctx); err != nil {
+		t.Fatalf("CloseCatalog(first) error = %v", err)
+	}
+
+	seed, err := sql.Open("sqlite", databasePath)
+	if err != nil {
+		t.Fatalf("sql.Open(interrupted) error = %v", err)
+	}
+	if _, err := seed.ExecContext(
+		ctx,
+		`UPDATE memory_maintenance_ops SET status = 'pending', completed_at = NULL WHERE op = ?`,
+		moveGlobalMemoryDirOperation,
+	); err != nil {
+		t.Fatalf("reset maintenance row error = %v", err)
+	}
+	if err := seed.Close(); err != nil {
+		t.Fatalf("Close(interrupted seed) error = %v", err)
+	}
+	if err := os.Rename(targetDir, legacyDir); err != nil {
+		t.Fatalf("restore interrupted legacy directory error = %v", err)
+	}
+
+	reopened := NewStore(targetDir, WithCatalogDatabasePath(databasePath))
+	if err := reopened.OpenCatalog(ctx); err != nil {
+		t.Fatalf("OpenCatalog(reopened) error = %v", err)
+	}
+	t.Cleanup(func() {
+		if err := reopened.CloseCatalog(testutil.Context(t)); err != nil {
+			t.Fatalf("CloseCatalog(reopened) error = %v", err)
+		}
+	})
+	assertProfileMemoryMoveDone(t, reopened, legacyDir, targetDir)
+}
+
+func assertProfileMemoryMoveDone(t *testing.T, store *Store, legacyDir string, targetDir string) {
+	t.Helper()
+	if _, err := os.Stat(legacyDir); !errors.Is(err, os.ErrNotExist) {
+		t.Fatalf("Stat(legacy) error = %v, want not exist", err)
+	}
+	contents, err := os.ReadFile(filepath.Join(targetDir, "preferences.md"))
+	if err != nil {
+		t.Fatalf("ReadFile(moved) error = %v", err)
+	}
+	if string(contents) != "legacy-profile-memory" {
+		t.Fatalf("moved memory = %q, want legacy content", contents)
+	}
+	var status string
+	if err := store.catalog.db.QueryRow(
+		`SELECT status FROM memory_maintenance_ops WHERE op = ?`,
+		moveGlobalMemoryDirOperation,
+	).Scan(&status); err != nil {
+		t.Fatalf("query maintenance status error = %v", err)
+	}
+	if status != "done" {
+		t.Fatalf("maintenance status = %q, want done", status)
+	}
 }
 
 func catalogMigrationStatuses(t *testing.T, db *sql.DB) map[string]storepkg.StreamStatus {

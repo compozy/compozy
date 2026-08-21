@@ -203,6 +203,7 @@ type LoopDefaults struct {
 // Run is the durable loop_run aggregate returned by the service.
 type Run struct {
 	ID                    RunID
+	ProfileID             string
 	WorkspaceID           WorkspaceID
 	LoopName              string
 	Status                Status

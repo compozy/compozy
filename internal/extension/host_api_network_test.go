@@ -378,6 +378,7 @@ func TestHostAPIHandlerNetworkReadMethodsShouldUseRuntimeAndStore(t *testing.T) 
 	storeDB := openHostAPINetworkTestStore(t)
 	baseTime := time.Date(2026, 4, 10, 20, 0, 0, 0, time.UTC)
 	_, err := storeDB.WriteConversationMessage(testutil.Context(t), store.NetworkConversationMessage{
+		ProfileID:   store.DefaultProfileID,
 		MessageID:   "msg-thread-root",
 		SessionID:   "sess-local",
 		WorkspaceID: hostAPINetworkWorkspaceID,
@@ -407,6 +408,7 @@ func TestHostAPIHandlerNetworkReadMethodsShouldUseRuntimeAndStore(t *testing.T) 
 		t.Fatalf("DirectRoomIdentity() error = %v", err)
 	}
 	_, err = storeDB.WriteConversationMessage(testutil.Context(t), store.NetworkConversationMessage{
+		ProfileID:   store.DefaultProfileID,
 		MessageID:   "msg-direct-one",
 		SessionID:   "sess-local",
 		WorkspaceID: hostAPINetworkWorkspaceID,
@@ -875,6 +877,7 @@ func TestHostAPIHandlerNetworkThreadMessagesShouldUseConversationStore(t *testin
 	storeDB := openHostAPINetworkTestStore(t)
 	baseTime := time.Date(2026, 4, 10, 18, 30, 0, 0, time.UTC)
 	_, err := storeDB.WriteConversationMessage(testutil.Context(t), store.NetworkConversationMessage{
+		ProfileID:   store.DefaultProfileID,
 		MessageID:   "msg-thread-root",
 		SessionID:   "sess-local",
 		WorkspaceID: hostAPINetworkWorkspaceID,
@@ -1156,6 +1159,7 @@ func openHostAPINetworkTestStore(t testing.TB) *globaldb.GlobalDB {
 	}
 	for _, sessionInfo := range []store.SessionInfo{
 		{
+			ProfileID:           store.DefaultProfileID,
 			ID:                  "sess-local",
 			AgentName:           "local",
 			RuntimeStatus:       store.SessionRuntimeUnbound,
@@ -1167,6 +1171,7 @@ func openHostAPINetworkTestStore(t testing.TB) *globaldb.GlobalDB {
 			UpdatedAt:           now,
 		},
 		{
+			ProfileID:           store.DefaultProfileID,
 			ID:                  "sess-remote",
 			AgentName:           "remote",
 			RuntimeStatus:       store.SessionRuntimeUnbound,
@@ -1183,6 +1188,7 @@ func openHostAPINetworkTestStore(t testing.TB) *globaldb.GlobalDB {
 		}
 	}
 	if err := db.WriteNetworkChannel(testutil.Context(t), store.NetworkChannelEntry{
+		ProfileID:   store.DefaultProfileID,
 		WorkspaceID: hostAPINetworkWorkspaceID,
 		Channel:     "builders",
 		Purpose:     "Host API test coordination",

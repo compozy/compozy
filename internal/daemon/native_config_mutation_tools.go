@@ -202,7 +202,7 @@ func (n *daemonNativeTools) nativeConfigApplyService(
 	if err != nil {
 		return nil, nativeConfigValidationError(id, err)
 	}
-	if target.Scope() != compozyconfig.WriteScopeGlobal || rule.Lifecycle == lifecycle.RestartRequired {
+	if target.Scope() != compozyconfig.WriteScopeUser || rule.Lifecycle == lifecycle.RestartRequired {
 		return nil, nil
 	}
 	service := n.settingsService()

@@ -9,6 +9,7 @@ import (
 
 // NetworkDirectRoomEntry is the write DTO for a direct-room row.
 type NetworkDirectRoomEntry struct {
+	ProfileID      string
 	WorkspaceID    string
 	Channel        string
 	DirectID       string
@@ -20,6 +21,9 @@ type NetworkDirectRoomEntry struct {
 
 // Validate ensures direct-room membership is stable and ordered.
 func (e NetworkDirectRoomEntry) Validate() error {
+	if err := requireField(e.ProfileID, "network direct room profile_id"); err != nil {
+		return err
+	}
 	if err := validateNetworkDirectRoom(e.WorkspaceID, e.Channel, e.DirectID, e.SessionA, e.SessionB); err != nil {
 		return err
 	}
@@ -35,6 +39,7 @@ func (e NetworkDirectRoomEntry) Validate() error {
 // NetworkWorkEntry stores lifecycle metadata for work inside one conversation.
 type NetworkWorkEntry struct {
 	WorkID            string
+	ProfileID         string
 	WorkspaceID       string
 	Channel           string
 	Surface           string
@@ -50,6 +55,9 @@ type NetworkWorkEntry struct {
 
 // Validate ensures a work row is bound to exactly one conversation container.
 func (e NetworkWorkEntry) Validate() error {
+	if err := requireField(e.ProfileID, "network work profile_id"); err != nil {
+		return err
+	}
 	if err := validateNetworkConversationID(e.WorkID, "work_id"); err != nil {
 		return err
 	}
@@ -84,6 +92,7 @@ func (e NetworkWorkEntry) Validate() error {
 // NetworkConversationMessage is one persisted network conversation or presence message.
 type NetworkConversationMessage struct {
 	Sequence    int64
+	ProfileID   string
 	MessageID   string
 	SessionID   string
 	WorkspaceID string
@@ -114,6 +123,9 @@ type NetworkMessageEntry = NetworkConversationMessage
 
 // Validate ensures the persisted network message is complete and internally consistent.
 func (e NetworkConversationMessage) Validate() error {
+	if err := requireField(e.ProfileID, "network message profile_id"); err != nil {
+		return err
+	}
 	if e.Sequence < 0 {
 		return fmt.Errorf("store: network message sequence must be zero or positive")
 	}

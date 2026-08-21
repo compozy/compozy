@@ -15,6 +15,7 @@ func sessionInfoFromSession(info *session.Info) store.SessionInfo {
 
 	result := store.SessionInfo{
 		ID:                info.ID,
+		ProfileID:         info.ProfileID,
 		Name:              info.Name,
 		AgentName:         info.AgentName,
 		Provider:          info.Provider,

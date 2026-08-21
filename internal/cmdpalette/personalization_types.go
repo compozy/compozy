@@ -2,8 +2,35 @@ package cmdpalette
 
 import (
 	"context"
+	"errors"
+	"strings"
 	"time"
+
+	"github.com/oklog/ulid"
 )
+
+// ProfileLensID partitions personalization by one real profile or the explicit aggregate lens.
+type ProfileLensID string
+
+const (
+	DefaultProfileLensID   ProfileLensID = "00000000000000000000000000"
+	AggregateProfileLensID ProfileLensID = "@all"
+)
+
+// Validate rejects absent or malformed profile lenses before persistence.
+func (id ProfileLensID) Validate() error {
+	normalized := strings.TrimSpace(string(id))
+	if normalized == string(AggregateProfileLensID) {
+		return nil
+	}
+	if normalized == "" {
+		return errors.New("cmd palette: profile lens is required")
+	}
+	if _, err := ulid.ParseStrict(normalized); err != nil {
+		return errors.New("cmd palette: profile lens must be a profile ULID or @all")
+	}
+	return nil
+}
 
 // Weights is the versioned scorer configuration served to attached clients.
 type Weights struct {
@@ -126,13 +153,13 @@ type PersonalizationSummary struct {
 
 type PersonalizationStore interface {
 	RecordCmdPaletteUsage(context.Context, Usage, Weights) error
-	CmdPalettePersonalization(context.Context, WorkspaceID) (PersonalizationRows, error)
-	PutCmdPalettePin(context.Context, WorkspaceID, CommandID, time.Time) error
-	DeleteCmdPalettePin(context.Context, WorkspaceID, CommandID) error
-	PruneCmdPaletteCommand(context.Context, WorkspaceID, CommandID) error
-	PruneCmdPaletteUsage(context.Context, WorkspaceID, CommandID) error
-	PruneCmdPaletteQueryHit(context.Context, WorkspaceID, string, CommandID) error
-	ResetCmdPalettePersonalization(context.Context, WorkspaceID) error
+	CmdPalettePersonalization(context.Context, ProfileLensID, WorkspaceID) (PersonalizationRows, error)
+	PutCmdPalettePin(context.Context, ProfileLensID, WorkspaceID, CommandID, time.Time) error
+	DeleteCmdPalettePin(context.Context, ProfileLensID, WorkspaceID, CommandID) error
+	PruneCmdPaletteCommand(context.Context, ProfileLensID, WorkspaceID, CommandID) error
+	PruneCmdPaletteUsage(context.Context, ProfileLensID, WorkspaceID, CommandID) error
+	PruneCmdPaletteQueryHit(context.Context, ProfileLensID, WorkspaceID, string, CommandID) error
+	ResetCmdPalettePersonalization(context.Context, ProfileLensID, WorkspaceID) error
 }
 
 // PersonalizationPolicy resolves whether workspace ranking signals are active.

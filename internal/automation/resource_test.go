@@ -1490,7 +1490,7 @@ func newManagerResourceHarness(t *testing.T) *managerResourceHarness {
 				Kind: resources.ResourceSourceKind("daemon"),
 				ID:   "automation-resource-test",
 			},
-			MaxScope: resources.ResourceScope{Kind: resources.ResourceScopeKindGlobal},
+			MaxScope: resources.ResourceScope{Kind: resources.ResourceScopeKindUser},
 		},
 	}
 }

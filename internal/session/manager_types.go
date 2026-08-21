@@ -23,6 +23,7 @@ import (
 // CreateOpts defines the inputs required to create a new session.
 type CreateOpts struct {
 	DesiredSessionID string
+	ProfileID        string
 	AgentName        string
 	Provider         string
 	Model            string

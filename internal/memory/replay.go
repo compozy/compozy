@@ -159,7 +159,7 @@ func scanReplayDecision(scanner interface{ Scan(dest ...any) error }) (replayDec
 
 func (s *Store) storeForReplayDecision(ctx context.Context, decision replayDecision) (*Store, error) {
 	switch decision.Scope.Normalize() {
-	case memcontract.ScopeGlobal:
+	case memcontract.ScopeProfile:
 		return s, nil
 	case memcontract.ScopeWorkspace:
 		if err := s.validateReplayWorkspace(ctx, decision.WorkspaceID); err != nil {

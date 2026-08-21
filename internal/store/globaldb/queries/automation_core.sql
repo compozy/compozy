@@ -1,5 +1,5 @@
 -- name: GetAutomationTriggerByWebhookID :one
-SELECT id, scope, name, agent_name, workspace_id, prompt, event, filter,
+SELECT id, profile_id, scope, name, agent_name, workspace_id, prompt, event, filter,
        enabled, retry, fire_limit, source, webhook_id, endpoint_slug,
        webhook_secret_ref, target_kind, loop_workspace_id, loop_name,
 	   loop_inputs, loop_input_mapping, loop_network_participation, created_at, updated_at
@@ -76,10 +76,12 @@ DELETE FROM automation_trigger_overlays WHERE trigger_id = sqlc.arg(trigger_id);
 
 -- name: InsertAutomationJob :exec
 INSERT INTO automation_jobs (
+  profile_id,
   id, scope, name, agent_name, workspace_id, prompt, schedule, task,
   enabled, retry, fire_limit, source, target_kind, loop_workspace_id,
 	loop_name, loop_inputs, loop_input_mapping, loop_network_participation, created_at, updated_at
 ) VALUES (
+  sqlc.arg(profile_id),
   sqlc.arg(id), sqlc.arg(scope), sqlc.arg(name), sqlc.arg(agent_name),
   sqlc.narg(workspace_id), sqlc.arg(prompt), sqlc.narg(schedule), sqlc.narg(task),
   sqlc.arg(enabled), sqlc.arg(retry), sqlc.arg(fire_limit), sqlc.arg(source),
@@ -104,18 +106,20 @@ WHERE id = sqlc.arg(id);
 DELETE FROM automation_jobs WHERE id = sqlc.arg(id);
 
 -- name: GetAutomationJob :one
-SELECT id, scope, name, agent_name, workspace_id, prompt, schedule, task,
+SELECT id, profile_id, scope, name, agent_name, workspace_id, prompt, schedule, task,
        enabled, retry, fire_limit, source, target_kind, loop_workspace_id,
 	   loop_name, loop_inputs, loop_input_mapping, loop_network_participation, created_at, updated_at
 FROM automation_jobs WHERE id = sqlc.arg(id);
 
 -- name: InsertAutomationTrigger :exec
 INSERT INTO automation_triggers (
+  profile_id,
   id, scope, name, agent_name, workspace_id, prompt, event, filter,
   enabled, retry, fire_limit, source, webhook_id, endpoint_slug, webhook_secret_ref,
   target_kind, loop_workspace_id, loop_name, loop_inputs, loop_input_mapping,
 	loop_network_participation, created_at, updated_at
 ) VALUES (
+  sqlc.arg(profile_id),
   sqlc.arg(id), sqlc.arg(scope), sqlc.arg(name), sqlc.arg(agent_name),
   sqlc.narg(workspace_id), sqlc.arg(prompt), sqlc.arg(event), sqlc.arg(filter),
   sqlc.arg(enabled), sqlc.arg(retry), sqlc.arg(fire_limit), sqlc.arg(source),
@@ -143,7 +147,7 @@ WHERE id = sqlc.arg(id);
 DELETE FROM automation_triggers WHERE id = sqlc.arg(id);
 
 -- name: GetAutomationTrigger :one
-SELECT id, scope, name, agent_name, workspace_id, prompt, event, filter,
+SELECT id, profile_id, scope, name, agent_name, workspace_id, prompt, event, filter,
        enabled, retry, fire_limit, source, webhook_id, endpoint_slug,
        webhook_secret_ref, target_kind, loop_workspace_id, loop_name,
 	   loop_inputs, loop_input_mapping, loop_network_participation, created_at, updated_at

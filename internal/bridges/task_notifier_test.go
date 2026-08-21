@@ -13,6 +13,7 @@ import (
 	"unicode/utf8"
 
 	"github.com/compozy/compozy/internal/notifications"
+	"github.com/compozy/compozy/internal/store"
 	taskpkg "github.com/compozy/compozy/internal/task"
 	"github.com/compozy/compozy/internal/testutil"
 )
@@ -67,6 +68,7 @@ func TestBridgeTaskSubscriptionValidation(t *testing.T) {
 			t.Fatalf("Normalize() = %#v, want byte-exact opaque identities %#v", got, want)
 		}
 		if got, want := normalized.CursorKey(), (notifications.CursorKey{
+			ProfileID:  store.DefaultProfileID,
 			Scope:      notifications.ScopeRef{Kind: notifications.ScopeKindWorkspace, WorkspaceID: " workspace-1 "},
 			ConsumerID: " sub-1 ",
 			StreamName: BridgeTaskNotificationStream,

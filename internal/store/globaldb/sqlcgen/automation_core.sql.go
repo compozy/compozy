@@ -65,7 +65,7 @@ func (q *Queries) DeleteAutomationTriggerOverlay(ctx context.Context, triggerID 
 }
 
 const getAutomationJob = `-- name: GetAutomationJob :one
-SELECT id, scope, name, agent_name, workspace_id, prompt, schedule, task,
+SELECT id, profile_id, scope, name, agent_name, workspace_id, prompt, schedule, task,
        enabled, retry, fire_limit, source, target_kind, loop_workspace_id,
 	   loop_name, loop_inputs, loop_input_mapping, loop_network_participation, created_at, updated_at
 FROM automation_jobs WHERE id = ?1
@@ -76,6 +76,7 @@ func (q *Queries) GetAutomationJob(ctx context.Context, id string) (AutomationJo
 	var i AutomationJob
 	err := row.Scan(
 		&i.ID,
+		&i.ProfileID,
 		&i.Scope,
 		&i.Name,
 		&i.AgentName,
@@ -166,7 +167,7 @@ func (q *Queries) GetAutomationRun(ctx context.Context, id string) (GetAutomatio
 }
 
 const getAutomationTrigger = `-- name: GetAutomationTrigger :one
-SELECT id, scope, name, agent_name, workspace_id, prompt, event, filter,
+SELECT id, profile_id, scope, name, agent_name, workspace_id, prompt, event, filter,
        enabled, retry, fire_limit, source, webhook_id, endpoint_slug,
        webhook_secret_ref, target_kind, loop_workspace_id, loop_name,
 	   loop_inputs, loop_input_mapping, loop_network_participation, created_at, updated_at
@@ -178,6 +179,7 @@ func (q *Queries) GetAutomationTrigger(ctx context.Context, id string) (Automati
 	var i AutomationTrigger
 	err := row.Scan(
 		&i.ID,
+		&i.ProfileID,
 		&i.Scope,
 		&i.Name,
 		&i.AgentName,
@@ -205,7 +207,7 @@ func (q *Queries) GetAutomationTrigger(ctx context.Context, id string) (Automati
 }
 
 const getAutomationTriggerByWebhookID = `-- name: GetAutomationTriggerByWebhookID :one
-SELECT id, scope, name, agent_name, workspace_id, prompt, event, filter,
+SELECT id, profile_id, scope, name, agent_name, workspace_id, prompt, event, filter,
        enabled, retry, fire_limit, source, webhook_id, endpoint_slug,
        webhook_secret_ref, target_kind, loop_workspace_id, loop_name,
 	   loop_inputs, loop_input_mapping, loop_network_participation, created_at, updated_at
@@ -217,6 +219,7 @@ func (q *Queries) GetAutomationTriggerByWebhookID(ctx context.Context, webhookID
 	var i AutomationTrigger
 	err := row.Scan(
 		&i.ID,
+		&i.ProfileID,
 		&i.Scope,
 		&i.Name,
 		&i.AgentName,
@@ -257,20 +260,23 @@ func (q *Queries) GetAutomationTriggerOverlay(ctx context.Context, triggerID str
 
 const insertAutomationJob = `-- name: InsertAutomationJob :exec
 INSERT INTO automation_jobs (
+  profile_id,
   id, scope, name, agent_name, workspace_id, prompt, schedule, task,
   enabled, retry, fire_limit, source, target_kind, loop_workspace_id,
 	loop_name, loop_inputs, loop_input_mapping, loop_network_participation, created_at, updated_at
 ) VALUES (
-  ?1, ?2, ?3, ?4,
-  ?5, ?6, ?7, ?8,
-  ?9, ?10, ?11, ?12,
-  ?13, ?14, ?15,
-	?16, ?17, ?18,
-	?19, ?20
+  ?1,
+  ?2, ?3, ?4, ?5,
+  ?6, ?7, ?8, ?9,
+  ?10, ?11, ?12, ?13,
+  ?14, ?15, ?16,
+	?17, ?18, ?19,
+	?20, ?21
 )
 `
 
 type InsertAutomationJobParams struct {
+	ProfileID                string         `json:"profile_id"`
 	ID                       string         `json:"id"`
 	Scope                    string         `json:"scope"`
 	Name                     string         `json:"name"`
@@ -295,6 +301,7 @@ type InsertAutomationJobParams struct {
 
 func (q *Queries) InsertAutomationJob(ctx context.Context, arg InsertAutomationJobParams) error {
 	_, err := q.db.ExecContext(ctx, insertAutomationJob,
+		arg.ProfileID,
 		arg.ID,
 		arg.Scope,
 		arg.Name,
@@ -380,22 +387,25 @@ func (q *Queries) InsertAutomationRun(ctx context.Context, arg InsertAutomationR
 
 const insertAutomationTrigger = `-- name: InsertAutomationTrigger :exec
 INSERT INTO automation_triggers (
+  profile_id,
   id, scope, name, agent_name, workspace_id, prompt, event, filter,
   enabled, retry, fire_limit, source, webhook_id, endpoint_slug, webhook_secret_ref,
   target_kind, loop_workspace_id, loop_name, loop_inputs, loop_input_mapping,
 	loop_network_participation, created_at, updated_at
 ) VALUES (
-  ?1, ?2, ?3, ?4,
-  ?5, ?6, ?7, ?8,
-  ?9, ?10, ?11, ?12,
-  ?13, ?14, ?15,
-  ?16, ?17, ?18,
-	?19, ?20, ?21,
-	?22, ?23
+  ?1,
+  ?2, ?3, ?4, ?5,
+  ?6, ?7, ?8, ?9,
+  ?10, ?11, ?12, ?13,
+  ?14, ?15, ?16,
+  ?17, ?18, ?19,
+	?20, ?21, ?22,
+	?23, ?24
 )
 `
 
 type InsertAutomationTriggerParams struct {
+	ProfileID                string         `json:"profile_id"`
 	ID                       string         `json:"id"`
 	Scope                    string         `json:"scope"`
 	Name                     string         `json:"name"`
@@ -423,6 +433,7 @@ type InsertAutomationTriggerParams struct {
 
 func (q *Queries) InsertAutomationTrigger(ctx context.Context, arg InsertAutomationTriggerParams) error {
 	_, err := q.db.ExecContext(ctx, insertAutomationTrigger,
+		arg.ProfileID,
 		arg.ID,
 		arg.Scope,
 		arg.Name,

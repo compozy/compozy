@@ -64,7 +64,11 @@ func (s *Store) RevertDecision(ctx context.Context, id string) (DecisionRevertRe
 		return DecisionRevertResult{}, fmt.Errorf("memory: unsupported decision op %q", decision.Op.String())
 	}
 	if reverted {
-		if err := s.catalog.logRevertEvent(ctx, decision); err != nil {
+		if err := s.catalog.logRevertEvent(
+			ctx,
+			s.profileIDForScope(decisionScope(decision.Decision)),
+			decision,
+		); err != nil {
 			return DecisionRevertResult{}, err
 		}
 	}

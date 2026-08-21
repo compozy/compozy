@@ -26,6 +26,7 @@ var (
 // Work tracks one directed work inside one channel.
 type Work struct {
 	ID         string
+	ProfileID  string
 	Ref        ConversationRef
 	Initiator  string
 	Target     string

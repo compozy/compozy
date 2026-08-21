@@ -1157,7 +1157,7 @@ func TestManifestValidateRejectsDaemonOnlyResourcePublishFamily(t *testing.T) {
 	manifest := expectedManifest()
 	manifest.Resources.Publish = ResourceGrantRequest{
 		Families: []string{"bridge_instances"},
-		MaxScope: resources.ResourceScopeKindGlobal,
+		MaxScope: resources.ResourceScopeKindUser,
 	}
 
 	err := manifest.Validate()

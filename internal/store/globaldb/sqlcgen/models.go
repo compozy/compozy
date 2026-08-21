@@ -101,8 +101,14 @@ type AppMetadatum struct {
 	UpdatedAt string `json:"updated_at"`
 }
 
+type AttentionWorkspaceMute struct {
+	ProfileID   string `json:"profile_id"`
+	WorkspaceID string `json:"workspace_id"`
+}
+
 type AutomationJob struct {
 	ID                       string         `json:"id"`
+	ProfileID                string         `json:"profile_id"`
 	Scope                    string         `json:"scope"`
 	Name                     string         `json:"name"`
 	AgentName                string         `json:"agent_name"`
@@ -188,6 +194,7 @@ type AutomationSchedulerState struct {
 
 type AutomationSuggestion struct {
 	ID          string         `json:"id"`
+	ProfileID   string         `json:"profile_id"`
 	WorkspaceID sql.NullString `json:"workspace_id"`
 	Source      string         `json:"source"`
 	DedupKey    string         `json:"dedup_key"`
@@ -199,6 +206,7 @@ type AutomationSuggestion struct {
 
 type AutomationTrigger struct {
 	ID                       string         `json:"id"`
+	ProfileID                string         `json:"profile_id"`
 	Scope                    string         `json:"scope"`
 	Name                     string         `json:"name"`
 	AgentName                string         `json:"agent_name"`
@@ -309,6 +317,7 @@ type BridgeIngestDedup struct {
 
 type BridgeInstance struct {
 	ID                   string         `json:"id"`
+	ProfileID            string         `json:"profile_id"`
 	Scope                string         `json:"scope"`
 	WorkspaceID          sql.NullString `json:"workspace_id"`
 	Platform             string         `json:"platform"`
@@ -386,21 +395,24 @@ type BridgeTaskSubscription struct {
 }
 
 type CmdPalettePin struct {
-	WorkspaceID string `json:"workspace_id"`
-	CommandID   string `json:"command_id"`
-	PinnedAt    int64  `json:"pinned_at"`
+	WorkspaceID   string `json:"workspace_id"`
+	ProfileLensID string `json:"profile_lens_id"`
+	CommandID     string `json:"command_id"`
+	PinnedAt      int64  `json:"pinned_at"`
 }
 
 type CmdPaletteQueryHit struct {
-	WorkspaceID string  `json:"workspace_id"`
-	Query       string  `json:"query"`
-	CommandID   string  `json:"command_id"`
-	Weight      float64 `json:"weight"`
-	LastUsedAt  int64   `json:"last_used_at"`
+	WorkspaceID   string  `json:"workspace_id"`
+	ProfileLensID string  `json:"profile_lens_id"`
+	Query         string  `json:"query"`
+	CommandID     string  `json:"command_id"`
+	Weight        float64 `json:"weight"`
+	LastUsedAt    int64   `json:"last_used_at"`
 }
 
 type CmdPaletteUsage struct {
 	WorkspaceID    string  `json:"workspace_id"`
+	ProfileLensID  string  `json:"profile_lens_id"`
 	CommandID      string  `json:"command_id"`
 	UseCount       int64   `json:"use_count"`
 	FrecencyWeight float64 `json:"frecency_weight"`
@@ -423,6 +435,7 @@ type ConfigApplyRecord struct {
 }
 
 type DeadEntity struct {
+	ProfileID   string `json:"profile_id"`
 	WorkspaceID string `json:"workspace_id"`
 	Kind        string `json:"kind"`
 	EntityID    string `json:"entity_id"`
@@ -432,6 +445,7 @@ type DeadEntity struct {
 
 type EventSummary struct {
 	ID                   string         `json:"id"`
+	ProfileID            string         `json:"profile_id"`
 	SessionID            string         `json:"session_id"`
 	WorkspaceID          string         `json:"workspace_id"`
 	WorktreeID           string         `json:"worktree_id"`
@@ -463,7 +477,6 @@ type Extension struct {
 	Name                     string         `json:"name"`
 	Version                  string         `json:"version"`
 	Source                   string         `json:"source"`
-	Enabled                  bool           `json:"enabled"`
 	ManifestPath             string         `json:"manifest_path"`
 	Format                   string         `json:"format"`
 	IngestDiagnosticsJson    string         `json:"ingest_diagnostics_json"`
@@ -495,6 +508,7 @@ type ExtensionDevLink struct {
 
 type ExtensionEnvBinding struct {
 	ExtensionName string `json:"extension_name"`
+	ProfileID     string `json:"profile_id"`
 	WorkspaceID   string `json:"workspace_id"`
 	EnvName       string `json:"env_name"`
 	SecretRef     string `json:"secret_ref"`
@@ -503,6 +517,19 @@ type ExtensionEnvBinding struct {
 	Kind          string `json:"kind"`
 	CreatedAt     string `json:"created_at"`
 	UpdatedAt     string `json:"updated_at"`
+}
+
+type ExtensionProfileEnablement struct {
+	ExtensionName string `json:"extension_name"`
+	ProfileID     string `json:"profile_id"`
+	Enabled       int64  `json:"enabled"`
+}
+
+type ExtensionProfileMarker struct {
+	ExtensionName    string `json:"extension_name"`
+	ProfileName      string `json:"profile_name"`
+	CreatedProfileID string `json:"created_profile_id"`
+	CreatedAt        string `json:"created_at"`
 }
 
 type GatewayDeviceSession struct {
@@ -932,6 +959,7 @@ type LoopRequest struct {
 
 type LoopRun struct {
 	ID                       string          `json:"id"`
+	ProfileID                string          `json:"profile_id"`
 	WorkspaceID              string          `json:"workspace_id"`
 	LoopName                 string          `json:"loop_name"`
 	Status                   string          `json:"status"`
@@ -1183,6 +1211,7 @@ type NetworkAvailability struct {
 }
 
 type NetworkChannel struct {
+	ProfileID         string `json:"profile_id"`
 	WorkspaceID       string `json:"workspace_id"`
 	Channel           string `json:"channel"`
 	Purpose           string `json:"purpose"`
@@ -1230,6 +1259,7 @@ type NetworkCoordinationInvitation struct {
 }
 
 type NetworkDirectRoom struct {
+	ProfileID            string `json:"profile_id"`
 	WorkspaceID          string `json:"workspace_id"`
 	Channel              string `json:"channel"`
 	DirectID             string `json:"direct_id"`
@@ -1320,6 +1350,7 @@ type NetworkTaskThreadOrigin struct {
 }
 
 type NetworkThread struct {
+	ProfileID            string `json:"profile_id"`
 	WorkspaceID          string `json:"workspace_id"`
 	Channel              string `json:"channel"`
 	ThreadID             string `json:"thread_id"`
@@ -1418,6 +1449,7 @@ type NetworkWakeSource struct {
 
 type NetworkWork struct {
 	WorkID            string         `json:"work_id"`
+	ProfileID         string         `json:"profile_id"`
 	WorkspaceID       string         `json:"workspace_id"`
 	Channel           string         `json:"channel"`
 	Surface           string         `json:"surface"`
@@ -1433,6 +1465,7 @@ type NetworkWork struct {
 
 type NotificationCursor struct {
 	ScopeKind       string         `json:"scope_kind"`
+	ProfileID       string         `json:"profile_id"`
 	WorkspaceID     string         `json:"workspace_id"`
 	ConsumerID      string         `json:"consumer_id"`
 	StreamName      string         `json:"stream_name"`
@@ -1444,12 +1477,22 @@ type NotificationCursor struct {
 	UpdatedAt       string         `json:"updated_at"`
 }
 
+type NotificationDeliveryPermit struct {
+	ScopeKind   string `json:"scope_kind"`
+	ProfileID   string `json:"profile_id"`
+	WorkspaceID string `json:"workspace_id"`
+	ConsumerID  string `json:"consumer_id"`
+	StreamName  string `json:"stream_name"`
+	SubjectID   string `json:"subject_id"`
+	DeliveryID  string `json:"delivery_id"`
+	AcquiredAt  string `json:"acquired_at"`
+}
+
 type NotificationPreset struct {
 	Name                   string `json:"name"`
 	Events                 string `json:"events"`
 	Targets                string `json:"targets"`
 	Filter                 string `json:"filter"`
-	Enabled                bool   `json:"enabled"`
 	BuiltIn                bool   `json:"built_in"`
 	DefaultVersion         string `json:"default_version"`
 	DefaultHash            string `json:"default_hash"`
@@ -1457,6 +1500,12 @@ type NotificationPreset struct {
 	DefaultUpdateAvailable bool   `json:"default_update_available"`
 	CreatedAt              string `json:"created_at"`
 	UpdatedAt              string `json:"updated_at"`
+}
+
+type NotificationPresetEnablement struct {
+	PresetName string `json:"preset_name"`
+	ProfileID  string `json:"profile_id"`
+	Enabled    int64  `json:"enabled"`
 }
 
 type PermissionLog struct {
@@ -1468,6 +1517,76 @@ type PermissionLog struct {
 	Decision   string `json:"decision"`
 	PolicyUsed string `json:"policy_used"`
 	Timestamp  string `json:"timestamp"`
+}
+
+type Profile struct {
+	ID         string         `json:"id"`
+	Name       string         `json:"name"`
+	Color      string         `json:"color"`
+	Icon       sql.NullString `json:"icon"`
+	Emoji      sql.NullString `json:"emoji"`
+	State      string         `json:"state"`
+	CreatedAt  string         `json:"created_at"`
+	ArchivedAt sql.NullString `json:"archived_at"`
+}
+
+type ProfileCredentialRequirement struct {
+	ProfileID         string `json:"profile_id"`
+	Provider          string `json:"provider"`
+	Slot              string `json:"slot"`
+	SourceExtension   string `json:"source_extension"`
+	DeclarationDigest string `json:"declaration_digest"`
+	CreatedAt         string `json:"created_at"`
+}
+
+type ProfileLifecycleOp struct {
+	ID           string         `json:"id"`
+	Kind         string         `json:"kind"`
+	ProfileID    string         `json:"profile_id"`
+	OldName      sql.NullString `json:"old_name"`
+	NewName      sql.NullString `json:"new_name"`
+	PlanRevision string         `json:"plan_revision"`
+	Status       string         `json:"status"`
+	CreatedAt    string         `json:"created_at"`
+	UpdatedAt    string         `json:"updated_at"`
+	CompletedAt  sql.NullString `json:"completed_at"`
+	ErrorCode    sql.NullString `json:"error_code"`
+	ErrorMessage sql.NullString `json:"error_message"`
+}
+
+type ProfileLifecycleOpCredentialAsk struct {
+	OpID     string `json:"op_id"`
+	Provider string `json:"provider"`
+	Slot     string `json:"slot"`
+}
+
+type ProfileLifecycleOpSeed struct {
+	OpID              string         `json:"op_id"`
+	Color             string         `json:"color"`
+	Icon              sql.NullString `json:"icon"`
+	Emoji             sql.NullString `json:"emoji"`
+	DefaultAgent      sql.NullString `json:"default_agent"`
+	DefaultProvider   sql.NullString `json:"default_provider"`
+	DefaultSandbox    sql.NullString `json:"default_sandbox"`
+	DeclarationDigest string         `json:"declaration_digest"`
+}
+
+type ProfileLifecycleOpStep struct {
+	OpID         string         `json:"op_id"`
+	Seq          int64          `json:"seq"`
+	Action       string         `json:"action"`
+	PathOld      sql.NullString `json:"path_old"`
+	PathNew      sql.NullString `json:"path_new"`
+	Status       string         `json:"status"`
+	UpdatedAt    string         `json:"updated_at"`
+	ErrorMessage sql.NullString `json:"error_message"`
+}
+
+type ProfileSelection struct {
+	Lens        string `json:"lens"`
+	WorkspaceID string `json:"workspace_id"`
+	ProfileID   string `json:"profile_id"`
+	UpdatedAt   string `json:"updated_at"`
 }
 
 type ResourceRecord struct {
@@ -1504,6 +1623,7 @@ type SchedulerPause struct {
 
 type Session struct {
 	ID                       string         `json:"id"`
+	ProfileID                string         `json:"profile_id"`
 	Name                     sql.NullString `json:"name"`
 	AgentName                string         `json:"agent_name"`
 	Provider                 string         `json:"provider"`
@@ -1702,6 +1822,7 @@ type SessionPromptAdmission struct {
 
 type Task struct {
 	ID                    string         `json:"id"`
+	ProfileID             string         `json:"profile_id"`
 	Identifier            sql.NullString `json:"identifier"`
 	Scope                 string         `json:"scope"`
 	WorkspaceID           sql.NullString `json:"workspace_id"`
@@ -2028,6 +2149,7 @@ type TokenStat struct {
 
 type TokenUsageDaily struct {
 	Day          string          `json:"day"`
+	ProfileID    string          `json:"profile_id"`
 	WorkspaceID  string          `json:"workspace_id"`
 	AgentName    string          `json:"agent_name"`
 	InputTokens  int64           `json:"input_tokens"`
@@ -2043,6 +2165,7 @@ type TokenUsageDaily struct {
 
 type ToolApprovalGrant struct {
 	ID          string `json:"id"`
+	ProfileID   string `json:"profile_id"`
 	WorkspaceID string `json:"workspace_id"`
 	AgentName   string `json:"agent_name"`
 	ToolID      string `json:"tool_id"`
@@ -2054,6 +2177,7 @@ type ToolApprovalGrant struct {
 
 type ToolApprovalPending struct {
 	ApprovalID      string         `json:"approval_id"`
+	ProfileID       string         `json:"profile_id"`
 	WorkspaceID     sql.NullString `json:"workspace_id"`
 	InvocationID    string         `json:"invocation_id"`
 	TargetKind      string         `json:"target_kind"`
@@ -2126,6 +2250,7 @@ type WorkspaceNetworkCoordination struct {
 
 type Worktree struct {
 	ID            string `json:"id"`
+	ProfileID     string `json:"profile_id"`
 	WorkspaceID   string `json:"workspace_id"`
 	Name          string `json:"name"`
 	Branch        string `json:"branch"`

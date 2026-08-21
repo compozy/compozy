@@ -561,7 +561,8 @@ func TestValidatePinnedRuntimeShouldRejectRuntimeDivergence(t *testing.T) {
 	t.Parallel()
 
 	profile := store.SessionCreationProfile{
-		Provider: "claude", Model: "opus", ReasoningEffort: "high",
+		ProfileID: store.DefaultProfileID,
+		Provider:  "claude", Model: "opus", ReasoningEffort: "high",
 	}
 	cases := []struct {
 		name    string

@@ -34,7 +34,7 @@ func extensionResourceSnapshots(
 	})
 
 	snapshots := make([]scopedExtensionResourceSnapshot, 0, len(infos))
-	globalScope := resources.ResourceScope{Kind: resources.ResourceScopeKindGlobal}
+	globalScope := resources.ResourceScope{Kind: resources.ResourceScopeKindUser}
 	for _, info := range infos {
 		if !info.Enabled {
 			continue

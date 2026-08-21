@@ -82,7 +82,8 @@ func (g *ObserveRepo) prepareEventSummary(ctx context.Context, summary *store.Ev
 
 func insertEventSummary(ctx context.Context, queries *sqlcgen.Queries, summary store.EventSummary) error {
 	if err := queries.InsertEventSummary(ctx, sqlcgen.InsertEventSummaryParams{
-		ID: summary.ID, SessionID: summary.SessionID, WorkspaceID: summary.WorkspaceID,
+		ProfileID: summary.ProfileID,
+		ID:        summary.ID, SessionID: summary.SessionID, WorkspaceID: summary.WorkspaceID,
 		WorktreeID: summary.WorktreeID,
 		Type:       summary.Type, AgentName: summary.AgentName, ContentJson: string(summary.Content),
 		TaskID: summary.TaskID, RunID: summary.RunID, WorkflowID: summary.WorkflowID,

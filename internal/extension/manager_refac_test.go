@@ -940,7 +940,7 @@ func seedManagedSourceRecord(
 	); err != nil {
 		t.Fatalf("ActivateSourceSession() error = %v", err)
 	}
-	scope := resources.ResourceScope{Kind: resources.ResourceScopeKindGlobal}
+	scope := resources.ResourceScope{Kind: resources.ResourceScopeKindUser}
 	if !key.IsGlobal() {
 		scope = resources.ResourceScope{Kind: resources.ResourceScopeKindWorkspace, ID: key.WorkspaceID}
 	}

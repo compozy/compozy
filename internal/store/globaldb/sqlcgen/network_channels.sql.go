@@ -12,15 +12,18 @@ import (
 
 const createNetworkChannel = `-- name: CreateNetworkChannel :exec
 INSERT INTO network_channels (
+  profile_id,
   channel, workspace_id, purpose, fanout_policy, coordinator_peer_id,
   created_by, created_at, updated_at
 ) VALUES (
-  ?1, ?2, ?3, ?4,
-  ?5, ?6, ?7, ?8
+  ?1,
+  ?2, ?3, ?4, ?5,
+  ?6, ?7, ?8, ?9
 )
 `
 
 type CreateNetworkChannelParams struct {
+	ProfileID         string `json:"profile_id"`
 	Channel           string `json:"channel"`
 	WorkspaceID       string `json:"workspace_id"`
 	Purpose           string `json:"purpose"`
@@ -33,6 +36,7 @@ type CreateNetworkChannelParams struct {
 
 func (q *Queries) CreateNetworkChannel(ctx context.Context, arg CreateNetworkChannelParams) error {
 	_, err := q.db.ExecContext(ctx, createNetworkChannel,
+		arg.ProfileID,
 		arg.Channel,
 		arg.WorkspaceID,
 		arg.Purpose,
@@ -81,7 +85,7 @@ func (q *Queries) EnsureNetworkChannelProjection(ctx context.Context, arg Ensure
 }
 
 const getNetworkChannel = `-- name: GetNetworkChannel :one
-SELECT channel, workspace_id, purpose, fanout_policy, coordinator_peer_id,
+SELECT profile_id, channel, workspace_id, purpose, fanout_policy, coordinator_peer_id,
        created_by, created_at, updated_at
 FROM network_channels
 WHERE workspace_id = ?1 AND channel = ?2
@@ -93,6 +97,7 @@ type GetNetworkChannelParams struct {
 }
 
 type GetNetworkChannelRow struct {
+	ProfileID         string `json:"profile_id"`
 	Channel           string `json:"channel"`
 	WorkspaceID       string `json:"workspace_id"`
 	Purpose           string `json:"purpose"`
@@ -107,6 +112,7 @@ func (q *Queries) GetNetworkChannel(ctx context.Context, arg GetNetworkChannelPa
 	row := q.db.QueryRowContext(ctx, getNetworkChannel, arg.WorkspaceID, arg.Channel)
 	var i GetNetworkChannelRow
 	err := row.Scan(
+		&i.ProfileID,
 		&i.Channel,
 		&i.WorkspaceID,
 		&i.Purpose,
@@ -306,11 +312,13 @@ func (q *Queries) PatchNetworkChannel(ctx context.Context, arg PatchNetworkChann
 
 const upsertNetworkChannel = `-- name: UpsertNetworkChannel :exec
 INSERT INTO network_channels (
+  profile_id,
   channel, workspace_id, purpose, fanout_policy, coordinator_peer_id,
   created_by, created_at, updated_at
 ) VALUES (
-  ?1, ?2, ?3, ?4,
-  ?5, ?6, ?7, ?8
+  ?1,
+  ?2, ?3, ?4, ?5,
+  ?6, ?7, ?8, ?9
 )
 ON CONFLICT(workspace_id, channel) DO UPDATE SET
   purpose = excluded.purpose,
@@ -324,6 +332,7 @@ ON CONFLICT(workspace_id, channel) DO UPDATE SET
 `
 
 type UpsertNetworkChannelParams struct {
+	ProfileID         string `json:"profile_id"`
 	Channel           string `json:"channel"`
 	WorkspaceID       string `json:"workspace_id"`
 	Purpose           string `json:"purpose"`
@@ -336,6 +345,7 @@ type UpsertNetworkChannelParams struct {
 
 func (q *Queries) UpsertNetworkChannel(ctx context.Context, arg UpsertNetworkChannelParams) error {
 	_, err := q.db.ExecContext(ctx, upsertNetworkChannel,
+		arg.ProfileID,
 		arg.Channel,
 		arg.WorkspaceID,
 		arg.Purpose,

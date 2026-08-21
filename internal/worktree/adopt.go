@@ -9,6 +9,7 @@ import (
 	"strings"
 
 	"github.com/compozy/compozy/internal/fileutil"
+	"github.com/compozy/compozy/internal/store"
 )
 
 func (s *Service) Adopt(ctx context.Context, workspaceID, candidatePath string) (*Worktree, error) {
@@ -85,7 +86,8 @@ func (s *Service) insertAdoptedWorktree(
 	}
 	now := s.now().UTC()
 	item := Worktree{
-		ID: id, WorkspaceID: workspaceID, Name: name, Branch: entry.Branch,
+		ProfileID: store.DefaultProfileID,
+		ID:        id, WorkspaceID: workspaceID, Name: name, Branch: entry.Branch,
 		Path: candidatePath, GitDir: adminGitDir, State: StateReady,
 		Origin: OriginAdopted, SetupState: SetupNone, CreatedAt: now, UpdatedAt: now,
 	}

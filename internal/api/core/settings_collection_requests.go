@@ -158,7 +158,7 @@ func parsePutSettingsHookRequest(c *gin.Context) (settingspkg.CollectionItemPutR
 func parseSettingsScope(rawScope string, rawWorkspaceID string) (settingspkg.ScopeKind, string, error) {
 	scope := settingspkg.ScopeKind(strings.TrimSpace(rawScope))
 	if scope == "" {
-		scope = settingspkg.ScopeGlobal
+		scope = settingspkg.ScopeUser
 	}
 	if err := scope.Validate(); err != nil {
 		return "", "", NewSettingsValidationError(err)

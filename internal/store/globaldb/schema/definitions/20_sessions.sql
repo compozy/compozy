@@ -88,6 +88,7 @@ CREATE TABLE session_health (
 
 CREATE TABLE sessions (
 		id             TEXT PRIMARY KEY,
+		profile_id     TEXT NOT NULL REFERENCES profiles(id),
 		name           TEXT,
 		agent_name     TEXT NOT NULL,
 		provider       TEXT NOT NULL DEFAULT '',
@@ -189,6 +190,7 @@ CREATE TABLE token_stats (
 
 CREATE TABLE token_usage_daily (
 		day           TEXT NOT NULL CHECK (length(day) = 10),
+		profile_id    TEXT NOT NULL REFERENCES profiles(id),
 		workspace_id  TEXT NOT NULL DEFAULT '',
 		agent_name    TEXT NOT NULL DEFAULT '',
 		input_tokens  INTEGER NOT NULL DEFAULT 0 CHECK (input_tokens >= 0),
@@ -202,8 +204,11 @@ CREATE TABLE token_usage_daily (
 			CHECK (cost_source IN ('agent_reported', 'catalog_config', 'models_dev', 'builtin', 'none')),
 		turn_count    INTEGER NOT NULL DEFAULT 0 CHECK (turn_count >= 0),
 		updated_at    TEXT NOT NULL,
-		PRIMARY KEY (day, workspace_id, agent_name)
+		PRIMARY KEY (day, profile_id, workspace_id, agent_name)
 	);
+
+CREATE INDEX idx_token_usage_daily_profile_day
+	ON token_usage_daily (profile_id, day);
 
 CREATE INDEX idx_session_health_wake
 			ON session_health(workspace_id, agent_name, eligible_for_wake, active_prompt, attachable);

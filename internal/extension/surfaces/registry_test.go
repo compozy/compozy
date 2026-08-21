@@ -21,7 +21,7 @@ func TestLookupReturnsFirstWaveSurfaceMetadata(t *testing.T) {
 		t.Fatalf("Lookup(tool).ManifestFamily = %q, want %q", surface.ManifestFamily, FamilyTools)
 	}
 	if !slices.Equal(surface.LegalScopes, []resources.ResourceScopeKind{
-		resources.ResourceScopeKindGlobal,
+		resources.ResourceScopeKindUser,
 		resources.ResourceScopeKindWorkspace,
 	}) {
 		t.Fatalf("Lookup(tool).LegalScopes = %#v, want global+workspace", surface.LegalScopes)
@@ -31,7 +31,7 @@ func TestLookupReturnsFirstWaveSurfaceMetadata(t *testing.T) {
 func TestResolveManifestRequestRejectsIllegalFamilyBeforeHandshake(t *testing.T) {
 	t.Parallel()
 
-	_, err := ResolveManifestRequest([]string{string(FamilyBridgeInstances)}, resources.ResourceScopeKindGlobal)
+	_, err := ResolveManifestRequest([]string{string(FamilyBridgeInstances)}, resources.ResourceScopeKindUser)
 	if err == nil {
 		t.Fatal("ResolveManifestRequest() error = nil, want daemon-only family rejection")
 	}
@@ -63,7 +63,7 @@ func TestResolveManifestRequestExpandsGlobalScopeToGrantedScopeSet(t *testing.T)
 
 	request, err := ResolveManifestRequest(
 		[]string{string(FamilyTools), string(FamilyMCPServers), string(FamilyWindowLayouts)},
-		resources.ResourceScopeKindGlobal,
+		resources.ResourceScopeKindUser,
 	)
 	if err != nil {
 		t.Fatalf("ResolveManifestRequest() error = %v", err)
@@ -76,7 +76,7 @@ func TestResolveManifestRequestExpandsGlobalScopeToGrantedScopeSet(t *testing.T)
 		t.Fatalf("ResolveManifestRequest().Kinds = %#v, want tool+mcp_server+window_layout", request.Kinds)
 	}
 	if !slices.Equal(request.Scopes, []resources.ResourceScopeKind{
-		resources.ResourceScopeKindGlobal,
+		resources.ResourceScopeKindUser,
 		resources.ResourceScopeKindWorkspace,
 	}) {
 		t.Fatalf("ResolveManifestRequest().Scopes = %#v, want global+workspace", request.Scopes)

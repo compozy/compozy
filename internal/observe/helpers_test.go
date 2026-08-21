@@ -161,6 +161,7 @@ func TestHealthFallsBackToRegistryWithoutSessionSource(t *testing.T) {
 		{ID: "sess-stopped", AgentName: "coder", WorkspaceID: h.workspaceID, State: "stopped", RuntimeStatus: store.SessionRuntimeUnbound, CreatedAt: now, UpdatedAt: now},
 		{ID: "sess-orphaned", AgentName: "coder", WorkspaceID: h.workspaceID, State: "orphaned", RuntimeStatus: store.SessionRuntimeUnbound, CreatedAt: now, UpdatedAt: now},
 	} {
+		info.ProfileID = store.DefaultProfileID
 		if err := h.observer.registry.RegisterSession(testutil.Context(t), info); err != nil {
 			t.Fatalf("RegisterSession(%q) error = %v", info.ID, err)
 		}
@@ -234,6 +235,7 @@ func TestLoadSessionMetadataSkipsMissingMetaAndKeepsStoppedState(t *testing.T) {
 	sessionDir := filepath.Join(h.home.SessionsDir, "sess-stopped")
 	if err := store.WriteSessionMeta(store.SessionMetaFile(sessionDir), store.SessionMeta{
 		ID:                   "sess-stopped",
+		ProfileID:            store.DefaultProfileID,
 		Name:                 "Stopped",
 		AgentName:            "coder",
 		Provider:             "claude",
@@ -269,6 +271,7 @@ func TestLoadSessionMetadataLogsInvalidProviderSessionID(t *testing.T) {
 	sessionDir := filepath.Join(h.home.SessionsDir, "sess-without-provider")
 	if err := store.WriteSessionMeta(store.SessionMetaFile(sessionDir), store.SessionMeta{
 		ID:                   "sess-without-provider",
+		ProfileID:            store.DefaultProfileID,
 		Name:                 "Missing Provider",
 		AgentName:            "coder",
 		WorkspaceID:          h.workspaceID,

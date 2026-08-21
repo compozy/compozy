@@ -141,6 +141,7 @@ func (r *Registry) buildSkillShadowSummaries(
 		}
 
 		summaries = append(summaries, store.EventSummary{
+			ProfileID:   store.DefaultProfileID,
 			WorkspaceID: strings.TrimSpace(workspaceID),
 			AgentName:   strings.TrimSpace(agentName),
 			Type:        eventspkg.SkillShadowed,
@@ -194,6 +195,7 @@ func (r *Registry) buildSkillShadowSummariesFromResolved(
 			continue
 		}
 		summaries = append(summaries, store.EventSummary{
+			ProfileID:   store.DefaultProfileID,
 			WorkspaceID: strings.TrimSpace(workspaceID),
 			AgentName:   strings.TrimSpace(agentName),
 			Type:        eventspkg.SkillShadowed,
@@ -256,6 +258,7 @@ func (r *Registry) emitSkillsLoadFailed(ctx context.Context, workspaceID string,
 	}
 
 	if writeErr := r.events.WriteEventSummary(ctx, store.EventSummary{
+		ProfileID:   store.DefaultProfileID,
 		WorkspaceID: strings.TrimSpace(workspaceID),
 		AgentName:   strings.TrimSpace(agentName),
 		Type:        eventspkg.SkillLoadFailed,

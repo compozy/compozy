@@ -23,6 +23,7 @@ var ErrInvalidDeadEntity = errors.New("store: invalid dead entity")
 
 // DeadEntityKey identifies one workspace-scoped external runtime.
 type DeadEntityKey struct {
+	ProfileID   string
 	WorkspaceID string
 	Kind        DeadEntityKind
 	EntityID    string
@@ -31,6 +32,7 @@ type DeadEntityKey struct {
 // Normalize returns the canonical dead-entity key.
 func (k DeadEntityKey) Normalize() DeadEntityKey {
 	return DeadEntityKey{
+		ProfileID:   strings.TrimSpace(k.ProfileID),
 		WorkspaceID: strings.TrimSpace(k.WorkspaceID),
 		Kind:        DeadEntityKind(strings.TrimSpace(string(k.Kind))),
 		EntityID:    strings.TrimSpace(k.EntityID),
@@ -75,6 +77,9 @@ func (e DeadEntity) Normalize() DeadEntity {
 // Validate ensures the durable row is complete and bounded.
 func (e DeadEntity) Validate() error {
 	normalized := e.Normalize()
+	if normalized.ProfileID == "" {
+		return fmt.Errorf("%w: profile_id is required", ErrInvalidDeadEntity)
+	}
 	if err := normalized.DeadEntityKey.Validate(); err != nil {
 		return err
 	}

@@ -19,7 +19,7 @@ func ResolveEffectiveResources(
 		if scope.Kind == resources.ResourceScopeKindWorkspace && scope.ID != strings.TrimSpace(workspaceID) {
 			continue
 		}
-		if scope.Kind != resources.ResourceScopeKindGlobal && scope.Kind != resources.ResourceScopeKindWorkspace {
+		if scope.Kind != resources.ResourceScopeKindUser && scope.Kind != resources.ResourceScopeKindWorkspace {
 			continue
 		}
 		name := strings.TrimSpace(record.Spec.Name)

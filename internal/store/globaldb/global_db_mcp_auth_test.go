@@ -211,7 +211,7 @@ func TestMCPAuthTokenStoreRejectsInvalidInput(t *testing.T) {
 			name: "Should reject an ambiguous target",
 			token: mcpauth.TokenRecord{
 				Target: mcpauth.Target{
-					Scope: mcpauth.ScopeGlobal, WorkspaceID: "workspace-a", ServerName: "linear",
+					Scope: mcpauth.ScopeUser, WorkspaceID: "workspace-a", ServerName: "linear",
 				},
 				DefinitionFingerprint: testMCPDefinitionFingerprint,
 				ClientID:              "client",
@@ -891,7 +891,7 @@ func assertVaultRefPresence(ctx context.Context, t *testing.T, db *sql.DB, ref s
 }
 
 func globalMCPAuthTarget(serverName string) mcpauth.Target {
-	return mcpauth.Target{Scope: mcpauth.ScopeGlobal, ServerName: serverName}
+	return mcpauth.Target{Scope: mcpauth.ScopeUser, ServerName: serverName}
 }
 
 func mcpOAuthRegistrationRecord(

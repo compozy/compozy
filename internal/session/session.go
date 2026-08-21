@@ -56,6 +56,7 @@ const (
 // Info is the external read model returned by session list/get operations.
 type Info struct {
 	ID                       string
+	ProfileID                string
 	Name                     string
 	AgentName                string
 	Provider                 string
@@ -114,6 +115,7 @@ type Session struct {
 	conversationRewindReserved bool
 
 	ID                        string
+	ProfileID                 string
 	Name                      string
 	AgentName                 string
 	Provider                  string

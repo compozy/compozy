@@ -289,7 +289,7 @@ func buildListRawQuery(actor MutationActor, filter ResourceFilter) (string, []an
 	if filter.Scope != nil {
 		clauses = append(clauses, "scope_kind = ?")
 		args = append(args, filter.Scope.Kind)
-		if filter.Scope.Kind == ResourceScopeKindGlobal {
+		if filter.Scope.Kind == ResourceScopeKindUser {
 			clauses = append(clauses, "scope_id IS NULL")
 		} else {
 			clauses = append(clauses, "scope_id = ?")

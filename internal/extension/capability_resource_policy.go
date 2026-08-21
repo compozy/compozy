@@ -74,7 +74,7 @@ func sourceTierMaxScope(source ExtensionSource) resources.ResourceScopeKind {
 	case SourceWorkspace:
 		return resources.ResourceScopeKindWorkspace
 	case SourceBundled, SourceUser, SourceMarketplace:
-		return resources.ResourceScopeKindGlobal
+		return resources.ResourceScopeKindUser
 	default:
 		return ""
 	}
@@ -92,7 +92,7 @@ func narrowScopeCeiling(
 		operator.Normalize(),
 		session.Normalize(),
 	}
-	result := resources.ResourceScopeKindGlobal
+	result := resources.ResourceScopeKindUser
 	seen := false
 	for _, candidate := range candidates {
 		if candidate == "" {
@@ -116,7 +116,7 @@ func scopeRank(scope resources.ResourceScopeKind) int {
 	switch scope.Normalize() {
 	case resources.ResourceScopeKindWorkspace:
 		return 0
-	case resources.ResourceScopeKindGlobal:
+	case resources.ResourceScopeKindUser:
 		return 1
 	default:
 		return 2
@@ -125,9 +125,9 @@ func scopeRank(scope resources.ResourceScopeKind) int {
 
 func scopesThrough(maxScope resources.ResourceScopeKind) []resources.ResourceScopeKind {
 	switch maxScope.Normalize() {
-	case resources.ResourceScopeKindGlobal:
+	case resources.ResourceScopeKindUser:
 		return []resources.ResourceScopeKind{
-			resources.ResourceScopeKindGlobal,
+			resources.ResourceScopeKindUser,
 			resources.ResourceScopeKindWorkspace,
 		}
 	case resources.ResourceScopeKindWorkspace:

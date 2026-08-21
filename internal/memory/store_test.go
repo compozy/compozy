@@ -17,6 +17,7 @@ import (
 
 	"github.com/compozy/compozy/internal/fileutil"
 	memcontract "github.com/compozy/compozy/internal/memory/contract"
+	storepkg "github.com/compozy/compozy/internal/store"
 	"github.com/compozy/compozy/internal/testutil"
 	compozyworkspace "github.com/compozy/compozy/internal/workspace"
 	"github.com/goccy/go-yaml"
@@ -42,7 +43,7 @@ func TestStoreWriteReadRoundTrip(t *testing.T) {
 	}{
 		{
 			name:     "global scope",
-			scope:    memcontract.ScopeGlobal,
+			scope:    memcontract.ScopeProfile,
 			filename: "user_preferences.md",
 			meta: testMemoryMeta{
 				Name:        "User Preferences",
@@ -136,28 +137,28 @@ func TestStoreWriteReadRoundTrip(t *testing.T) {
 			t.Skipf("os.Symlink() unavailable: %v", err)
 		}
 		store := NewStore(memoryRoot)
-		if _, err := store.Read(t.Context(), memcontract.ScopeGlobal, "external.md"); !errors.Is(
+		if _, err := store.Read(t.Context(), memcontract.ScopeProfile, "external.md"); !errors.Is(
 			err,
 			fileutil.ErrSymlink,
 		) {
 			t.Fatalf("Store.Read(symlink root) error = %v, want fileutil.ErrSymlink", err)
 		}
-		if err := store.Write(t.Context(), memcontract.ScopeGlobal, "created.md", payload); !errors.Is(
+		if err := store.Write(t.Context(), memcontract.ScopeProfile, "created.md", payload); !errors.Is(
 			err,
 			fileutil.ErrSymlink,
 		) {
 			t.Fatalf("Store.Write(symlink root) error = %v, want fileutil.ErrSymlink", err)
 		}
-		if err := store.Delete(t.Context(), memcontract.ScopeGlobal, "external.md"); !errors.Is(
+		if err := store.Delete(t.Context(), memcontract.ScopeProfile, "external.md"); !errors.Is(
 			err,
 			fileutil.ErrSymlink,
 		) {
 			t.Fatalf("Store.Delete(symlink root) error = %v, want fileutil.ErrSymlink", err)
 		}
-		if _, err := store.Scan(t.Context(), memcontract.ScopeGlobal); !errors.Is(err, fileutil.ErrSymlink) {
+		if _, err := store.Scan(t.Context(), memcontract.ScopeProfile); !errors.Is(err, fileutil.ErrSymlink) {
 			t.Fatalf("Store.Scan(symlink root) error = %v, want fileutil.ErrSymlink", err)
 		}
-		if _, _, err := store.LoadIndex(t.Context(), memcontract.ScopeGlobal); !errors.Is(
+		if _, _, err := store.LoadIndex(t.Context(), memcontract.ScopeProfile); !errors.Is(
 			err,
 			fileutil.ErrSymlink,
 		) {
@@ -192,20 +193,20 @@ func TestStoreWriteReadRoundTrip(t *testing.T) {
 			t.Skipf("os.Symlink() unavailable: %v", err)
 		}
 
-		if _, err := store.Read(t.Context(), memcontract.ScopeGlobal, "linked.md"); !errors.Is(
+		if _, err := store.Read(t.Context(), memcontract.ScopeProfile, "linked.md"); !errors.Is(
 			err,
 			fileutil.ErrSymlink,
 		) {
 			t.Fatalf("Store.Read(symlink file) error = %v, want fileutil.ErrSymlink", err)
 		}
-		headers, err := store.Scan(t.Context(), memcontract.ScopeGlobal)
+		headers, err := store.Scan(t.Context(), memcontract.ScopeProfile)
 		if err != nil {
 			t.Fatalf("Store.Scan(symlink file) error = %v", err)
 		}
 		if len(headers) != 0 {
 			t.Fatalf("Store.Scan(symlink file) headers = %#v, want none", headers)
 		}
-		if err := store.Delete(t.Context(), memcontract.ScopeGlobal, "linked.md"); !errors.Is(
+		if err := store.Delete(t.Context(), memcontract.ScopeProfile, "linked.md"); !errors.Is(
 			err,
 			fileutil.ErrSymlink,
 		) {
@@ -216,13 +217,13 @@ func TestStoreWriteReadRoundTrip(t *testing.T) {
 			Name: "Replacement",
 			Type: memcontract.TypeUser,
 		}, "Owned replacement.\n")
-		if err := store.Write(t.Context(), memcontract.ScopeGlobal, "linked.md", replacement); err != nil {
+		if err := store.Write(t.Context(), memcontract.ScopeProfile, "linked.md", replacement); err != nil {
 			t.Fatalf("Store.Write(replace symlink) error = %v", err)
 		}
 		if got, err := os.ReadFile(externalPath); err != nil || !bytes.Equal(got, externalPayload) {
 			t.Fatalf("external target after replacement = %q, %v", got, err)
 		}
-		if got, err := store.Read(t.Context(), memcontract.ScopeGlobal, "linked.md"); err != nil || !bytes.Equal(
+		if got, err := store.Read(t.Context(), memcontract.ScopeProfile, "linked.md"); err != nil || !bytes.Equal(
 			got,
 			replacement,
 		) {
@@ -279,7 +280,7 @@ Body
 			t.Parallel()
 
 			env := newTestStoreEnv(t)
-			err := env.store.Write(t.Context(), memcontract.ScopeGlobal, "invalid.md", []byte(tt.content))
+			err := env.store.Write(t.Context(), memcontract.ScopeProfile, "invalid.md", []byte(tt.content))
 			if err == nil {
 				t.Fatal("Store.Write() error = nil, want non-nil")
 			}
@@ -317,7 +318,7 @@ func TestStoreWriteRejectsInvalidFilename(t *testing.T) {
 			t.Parallel()
 
 			env := newTestStoreEnv(t)
-			err := env.store.Write(t.Context(), memcontract.ScopeGlobal, tt.filename, payload)
+			err := env.store.Write(t.Context(), memcontract.ScopeProfile, tt.filename, payload)
 			if err == nil {
 				t.Fatal("Store.Write() error = nil, want non-nil")
 			}
@@ -336,7 +337,7 @@ func TestStoreReadMissingFile(t *testing.T) {
 
 	env := newTestStoreEnv(t)
 
-	_, err := env.store.Read(t.Context(), memcontract.ScopeGlobal, "missing.md")
+	_, err := env.store.Read(t.Context(), memcontract.ScopeProfile, "missing.md")
 	if err == nil {
 		t.Fatal("Store.Read() error = nil, want non-nil")
 	}
@@ -355,7 +356,7 @@ func TestStoreDeleteRemovesFileAndIndexEntry(t *testing.T) {
 		Type:        memcontract.TypeUser,
 	}, "Prefers rg over grep.\n")
 
-	if err := env.store.Write(t.Context(), memcontract.ScopeGlobal, "user_preferences.md", payload); err != nil {
+	if err := env.store.Write(t.Context(), memcontract.ScopeProfile, "user_preferences.md", payload); err != nil {
 		t.Fatalf("Store.Write() error = %v", err)
 	}
 
@@ -373,13 +374,13 @@ func TestStoreDeleteRemovesFileAndIndexEntry(t *testing.T) {
 	}
 	canceledCtx, cancel := context.WithCancel(t.Context())
 	cancel()
-	if err := env.store.Delete(canceledCtx, memcontract.ScopeGlobal, "user_preferences.md"); !errors.Is(
+	if err := env.store.Delete(canceledCtx, memcontract.ScopeProfile, "user_preferences.md"); !errors.Is(
 		err,
 		context.Canceled,
 	) {
 		t.Fatalf("Store.Delete(canceled) error = %v, want context.Canceled", err)
 	}
-	exists, err := env.store.Exists(memcontract.ScopeGlobal, "user_preferences.md")
+	exists, err := env.store.Exists(memcontract.ScopeProfile, "user_preferences.md")
 	if err != nil {
 		t.Fatalf("Store.Exists(after canceled delete) error = %v", err)
 	}
@@ -387,7 +388,7 @@ func TestStoreDeleteRemovesFileAndIndexEntry(t *testing.T) {
 		t.Fatal("Store.Delete(canceled) removed the file")
 	}
 
-	if err := env.store.Delete(t.Context(), memcontract.ScopeGlobal, "user_preferences.md"); err != nil {
+	if err := env.store.Delete(t.Context(), memcontract.ScopeProfile, "user_preferences.md"); err != nil {
 		t.Fatalf("Store.Delete() error = %v", err)
 	}
 
@@ -417,7 +418,7 @@ func TestStoreDeletePreservesLinesThatOnlyMentionFilenameInDescription(t *testin
 		Type:        memcontract.TypeUser,
 	}, "Prefers rg over grep.\n")
 
-	if err := env.store.Write(t.Context(), memcontract.ScopeGlobal, "user_preferences.md", payload); err != nil {
+	if err := env.store.Write(t.Context(), memcontract.ScopeProfile, "user_preferences.md", payload); err != nil {
 		t.Fatalf("Store.Write() error = %v", err)
 	}
 
@@ -434,7 +435,7 @@ func TestStoreDeletePreservesLinesThatOnlyMentionFilenameInDescription(t *testin
 		t.Fatalf("write index file: %v", err)
 	}
 
-	if err := env.store.Delete(t.Context(), memcontract.ScopeGlobal, "user_preferences.md"); err != nil {
+	if err := env.store.Delete(t.Context(), memcontract.ScopeProfile, "user_preferences.md"); err != nil {
 		t.Fatalf("Store.Delete() error = %v", err)
 	}
 
@@ -462,7 +463,7 @@ func TestStoreDeleteRemovesIndexEntryForFilenameWithParentheses(t *testing.T) {
 		Type:        memcontract.TypeUser,
 	}, "Prefers rg over grep.\n")
 
-	if err := env.store.Write(t.Context(), memcontract.ScopeGlobal, filename, payload); err != nil {
+	if err := env.store.Write(t.Context(), memcontract.ScopeProfile, filename, payload); err != nil {
 		t.Fatalf("Store.Write() error = %v", err)
 	}
 
@@ -479,7 +480,7 @@ func TestStoreDeleteRemovesIndexEntryForFilenameWithParentheses(t *testing.T) {
 		t.Fatalf("write index file: %v", err)
 	}
 
-	if err := env.store.Delete(t.Context(), memcontract.ScopeGlobal, filename); err != nil {
+	if err := env.store.Delete(t.Context(), memcontract.ScopeProfile, filename); err != nil {
 		t.Fatalf("Store.Delete() error = %v", err)
 	}
 
@@ -745,7 +746,7 @@ func TestStoreScanSkipsMalformedFilesAndLogsWarning(t *testing.T) {
 	var logs bytes.Buffer
 	env.store.logger = slog.New(slog.NewTextHandler(&logs, &slog.HandlerOptions{Level: slog.LevelWarn}))
 
-	if err := env.store.Write(t.Context(), memcontract.ScopeGlobal, "valid.md", mustMemoryContent(t, testMemoryMeta{
+	if err := env.store.Write(t.Context(), memcontract.ScopeProfile, "valid.md", mustMemoryContent(t, testMemoryMeta{
 		Name:        "Valid",
 		Description: "Valid memory",
 		Type:        memcontract.TypeFeedback,
@@ -761,7 +762,7 @@ func TestStoreScanSkipsMalformedFilesAndLogsWarning(t *testing.T) {
 		t.Fatalf("write malformed file: %v", err)
 	}
 
-	headers, err := env.store.Scan(t.Context(), memcontract.ScopeGlobal)
+	headers, err := env.store.Scan(t.Context(), memcontract.ScopeProfile)
 	if err != nil {
 		t.Fatalf("Store.Scan() error = %v", err)
 	}
@@ -821,7 +822,7 @@ func TestStoreLoadIndex(t *testing.T) {
 		}
 		writeIndexFixtures(t, env.store.globalDir, index)
 
-		got, truncated, err := env.store.LoadIndex(t.Context(), memcontract.ScopeGlobal)
+		got, truncated, err := env.store.LoadIndex(t.Context(), memcontract.ScopeProfile)
 		if err != nil {
 			t.Fatalf("Store.LoadIndex() error = %v", err)
 		}
@@ -849,7 +850,7 @@ func TestStoreLoadIndex(t *testing.T) {
 			t.Fatalf("write index: %v", err)
 		}
 
-		got, truncated, err := env.store.LoadIndex(t.Context(), memcontract.ScopeGlobal)
+		got, truncated, err := env.store.LoadIndex(t.Context(), memcontract.ScopeProfile)
 		if err != nil {
 			t.Fatalf("Store.LoadIndex() error = %v", err)
 		}
@@ -887,7 +888,7 @@ func TestStoreLoadPromptIndexViaBackendAlias(t *testing.T) {
 		t.Parallel()
 
 		env := newTestStoreEnv(t)
-		if err := env.store.Write(t.Context(), memcontract.ScopeGlobal, "prefs.md", mustMemoryContent(t, testMemoryMeta{
+		if err := env.store.Write(t.Context(), memcontract.ScopeProfile, "prefs.md", mustMemoryContent(t, testMemoryMeta{
 			Name:        "Prefs",
 			Description: "Saved preference",
 			Type:        memcontract.TypeUser,
@@ -896,7 +897,7 @@ func TestStoreLoadPromptIndexViaBackendAlias(t *testing.T) {
 		}
 
 		var backend memcontract.Backend = env.store
-		got, truncated, err := backend.LoadPromptIndex(t.Context(), memcontract.ScopeGlobal)
+		got, truncated, err := backend.LoadPromptIndex(t.Context(), memcontract.ScopeProfile)
 		if err != nil {
 			t.Fatalf("memcontract.Backend.LoadPromptIndex() error = %v", err)
 		}
@@ -916,7 +917,7 @@ func TestStoreLoadIndexSynthesizesWhenIndexIsMissingOrStale(t *testing.T) {
 		t.Parallel()
 
 		env := newTestStoreEnv(t)
-		if err := env.store.Write(t.Context(), memcontract.ScopeGlobal, "prefs.md", mustMemoryContent(t, testMemoryMeta{
+		if err := env.store.Write(t.Context(), memcontract.ScopeProfile, "prefs.md", mustMemoryContent(t, testMemoryMeta{
 			Name:        "Prefs",
 			Description: "User preferences",
 			Type:        memcontract.TypeUser,
@@ -927,7 +928,7 @@ func TestStoreLoadIndexSynthesizesWhenIndexIsMissingOrStale(t *testing.T) {
 			t.Fatalf("remove index: %v", err)
 		}
 
-		got, truncated, err := env.store.LoadIndex(t.Context(), memcontract.ScopeGlobal)
+		got, truncated, err := env.store.LoadIndex(t.Context(), memcontract.ScopeProfile)
 		if err != nil {
 			t.Fatalf("Store.LoadIndex() error = %v", err)
 		}
@@ -984,7 +985,7 @@ func TestStoreLoadIndexSynthesizesWhenIndexIsMissingOrStale(t *testing.T) {
 		t.Parallel()
 
 		env := newTestStoreEnv(t)
-		if err := env.store.Write(t.Context(), memcontract.ScopeGlobal, "prefs.md", mustMemoryContent(t, testMemoryMeta{
+		if err := env.store.Write(t.Context(), memcontract.ScopeProfile, "prefs.md", mustMemoryContent(t, testMemoryMeta{
 			Name:        "Prefs",
 			Description: "Fresh description",
 			Type:        memcontract.TypeUser,
@@ -997,7 +998,7 @@ func TestStoreLoadIndexSynthesizesWhenIndexIsMissingOrStale(t *testing.T) {
 			t.Fatalf("write stale index: %v", err)
 		}
 
-		got, truncated, err := env.store.LoadIndex(t.Context(), memcontract.ScopeGlobal)
+		got, truncated, err := env.store.LoadIndex(t.Context(), memcontract.ScopeProfile)
 		if err != nil {
 			t.Fatalf("Store.LoadIndex() error = %v", err)
 		}
@@ -1055,7 +1056,7 @@ func TestStoreSearchAndReindex(t *testing.T) {
 			t.Fatalf("Store.EnsureDirs() error = %v", err)
 		}
 
-		if err := store.Write(t.Context(), memcontract.ScopeGlobal, "prefs.md", mustMemoryContent(t, testMemoryMeta{
+		if err := store.Write(t.Context(), memcontract.ScopeProfile, "prefs.md", mustMemoryContent(t, testMemoryMeta{
 			Name:        "Code Style",
 			Description: "Keep prompts concise",
 			Type:        memcontract.TypeUser,
@@ -1122,7 +1123,7 @@ func TestStoreSearchAndReindex(t *testing.T) {
 
 		if err := storeA.Write(
 			t.Context(),
-			memcontract.ScopeGlobal,
+			memcontract.ScopeProfile,
 			"prefs.md",
 			mustMemoryContent(t, testMemoryMeta{
 				Name: "Shared Preferences",
@@ -1174,7 +1175,7 @@ func TestStoreSearchAndReindex(t *testing.T) {
 			workspaceID string
 			timestamp   time.Time
 		}{
-			{scope: memcontract.ScopeGlobal, timestamp: globalAt},
+			{scope: memcontract.ScopeProfile, timestamp: globalAt},
 			{scope: memcontract.ScopeWorkspace, workspaceID: identityA.WorkspaceID, timestamp: workspaceAAt},
 			{scope: memcontract.ScopeWorkspace, workspaceID: identityB.WorkspaceID, timestamp: workspaceBAt},
 		}
@@ -1217,7 +1218,7 @@ func TestStoreSearchAndReindex(t *testing.T) {
 
 		for idx := range maxSearchLimit + 5 {
 			filename := fmt.Sprintf("shared-%02d.md", idx)
-			if err := store.Write(t.Context(), memcontract.ScopeGlobal, filename, mustMemoryContent(t, testMemoryMeta{
+			if err := store.Write(t.Context(), memcontract.ScopeProfile, filename, mustMemoryContent(t, testMemoryMeta{
 				Name:        fmt.Sprintf("Shared signal %02d", idx),
 				Description: "Common token across many memories",
 				Type:        memcontract.TypeUser,
@@ -1227,7 +1228,7 @@ func TestStoreSearchAndReindex(t *testing.T) {
 		}
 
 		results, err := store.Search(context.Background(), "common token", memcontract.SearchOptions{
-			Scope: memcontract.ScopeGlobal,
+			Scope: memcontract.ScopeProfile,
 			Limit: maxSearchLimit + 25,
 		})
 		if err != nil {
@@ -1252,14 +1253,14 @@ func TestStoreSearchAndReindex(t *testing.T) {
 		if err := seedStore.EnsureDirs(); err != nil {
 			t.Fatalf("seedStore.EnsureDirs() error = %v", err)
 		}
-		if err := seedStore.Write(t.Context(), memcontract.ScopeGlobal, "prefs.md", mustMemoryContent(t, testMemoryMeta{
+		if err := seedStore.Write(t.Context(), memcontract.ScopeProfile, "prefs.md", mustMemoryContent(t, testMemoryMeta{
 			Name:        "Shared Preferences",
 			Description: "Global shared signal",
 			Type:        memcontract.TypeUser,
 		}, "Shared signal is available globally.\n")); err != nil {
 			t.Fatalf("seedStore.Write(global) error = %v", err)
 		}
-		if _, err := seedStore.Reindex(ctx, memcontract.ReindexOptions{Scope: memcontract.ScopeGlobal}); err != nil {
+		if _, err := seedStore.Reindex(ctx, memcontract.ReindexOptions{Scope: memcontract.ScopeProfile}); err != nil {
 			t.Fatalf("seedStore.Reindex(global) error = %v", err)
 		}
 
@@ -1296,7 +1297,7 @@ func TestStoreSearchAndReindex(t *testing.T) {
 		for _, result := range results {
 			scopeCounts[result.Scope.Normalize()]++
 		}
-		if scopeCounts[memcontract.ScopeGlobal] != 1 || scopeCounts[memcontract.ScopeWorkspace] != 1 {
+		if scopeCounts[memcontract.ScopeProfile] != 1 || scopeCounts[memcontract.ScopeWorkspace] != 1 {
 			t.Fatalf("scopeCounts = %#v, want one global and one workspace result", scopeCounts)
 		}
 
@@ -1340,6 +1341,7 @@ func TestStoreSearchAndReindex(t *testing.T) {
 		}
 		workspaceReady, err := store.catalog.scopeReady(
 			context.Background(),
+			"",
 			memcontract.ScopeWorkspace,
 			identity.WorkspaceID,
 		)
@@ -1349,7 +1351,12 @@ func TestStoreSearchAndReindex(t *testing.T) {
 		if !workspaceReady {
 			t.Fatal("catalog.scopeReady(workspace) = false, want true after empty reindex")
 		}
-		globalReady, err := store.catalog.scopeReady(context.Background(), memcontract.ScopeGlobal, "")
+		globalReady, err := store.catalog.scopeReady(
+			context.Background(),
+			storepkg.DefaultProfileID,
+			memcontract.ScopeProfile,
+			"",
+		)
 		if err != nil {
 			t.Fatalf("catalog.scopeReady(global) error = %v", err)
 		}
@@ -1390,6 +1397,77 @@ func TestStoreSearchAndReindex(t *testing.T) {
 			)
 		}
 	})
+}
+
+func TestStoreSearchShouldIsolateProfileCatalogIdentity(t *testing.T) {
+	t.Parallel()
+
+	ctx := testutil.Context(t)
+	baseDir := t.TempDir()
+	catalogPath := filepath.Join(baseDir, "compozy.db")
+	profileA := NewStore(
+		filepath.Join(baseDir, "profiles", "alpha", "memory"),
+		WithProfileID("01PROFILEALPHA000000000001"),
+		WithCatalogDatabasePath(catalogPath),
+	)
+	if err := profileA.OpenCatalog(ctx); err != nil {
+		t.Fatalf("profile A OpenCatalog() error = %v", err)
+	}
+	t.Cleanup(func() {
+		if err := profileA.CloseCatalog(testutil.Context(t)); err != nil {
+			t.Fatalf("profile A CloseCatalog() error = %v", err)
+		}
+	})
+	profileB := NewStore(
+		filepath.Join(baseDir, "profiles", "beta", "memory"),
+		WithProfileID("01PROFILEBETA0000000000002"),
+		WithCatalogDatabasePath(catalogPath),
+	)
+	if err := profileB.OpenCatalog(ctx); err != nil {
+		t.Fatalf("profile B OpenCatalog() error = %v", err)
+	}
+	t.Cleanup(func() {
+		if err := profileB.CloseCatalog(testutil.Context(t)); err != nil {
+			t.Fatalf("profile B CloseCatalog() error = %v", err)
+		}
+	})
+	for _, store := range []*Store{profileA, profileB} {
+		if err := store.EnsureDirs(); err != nil {
+			t.Fatalf("EnsureDirs() error = %v", err)
+		}
+	}
+	contentA := []byte("---\nname: Alpha preference\ntype: user\nscope: profile\n---\nalpha-only-token\n")
+	contentB := []byte("---\nname: Beta preference\ntype: user\nscope: profile\n---\nbeta-only-token\n")
+	if err := profileA.Write(ctx, memcontract.ScopeProfile, "preference.md", contentA); err != nil {
+		t.Fatalf("profile A Write() error = %v", err)
+	}
+	if err := profileB.Write(ctx, memcontract.ScopeProfile, "preference.md", contentB); err != nil {
+		t.Fatalf("profile B Write() error = %v", err)
+	}
+	resultsA, err := profileA.Search(ctx, "token", memcontract.SearchOptions{Scope: memcontract.ScopeProfile})
+	if err != nil {
+		t.Fatalf("profile A Search() error = %v", err)
+	}
+	resultsB, err := profileB.Search(ctx, "token", memcontract.SearchOptions{Scope: memcontract.ScopeProfile})
+	if err != nil {
+		t.Fatalf("profile B Search() error = %v", err)
+	}
+	if len(resultsA) != 1 || resultsA[0].Name != "Alpha preference" {
+		t.Fatalf("profile A results = %#v, want only alpha", resultsA)
+	}
+	if len(resultsB) != 1 || resultsB[0].Name != "Beta preference" {
+		t.Fatalf("profile B results = %#v, want only beta", resultsB)
+	}
+	var count int
+	if err := profileA.catalog.db.QueryRowContext(
+		ctx,
+		`SELECT COUNT(*) FROM memory_catalog_entries WHERE filename = 'preference.md'`,
+	).Scan(&count); err != nil {
+		t.Fatalf("count profile catalog identities error = %v", err)
+	}
+	if count != 2 {
+		t.Fatalf("profile catalog identity count = %d, want 2", count)
+	}
 }
 
 func TestStoreConcurrentMutationDerivedState(t *testing.T) {
@@ -1489,7 +1567,7 @@ func TestStoreOperationHistoryFiltersRedactsBoundsAndPersists(t *testing.T) {
 
 	if err := workspaceStore.Write(
 		t.Context(),
-		memcontract.ScopeGlobal,
+		memcontract.ScopeProfile,
 		"prefs.md",
 		mustMemoryContent(t, testMemoryMeta{
 			Name:        "Global Preferences",
@@ -1545,7 +1623,7 @@ func TestStoreOperationHistoryFiltersRedactsBoundsAndPersists(t *testing.T) {
 	}
 
 	globalWrites, err := workspaceStore.History(ctx, memcontract.OperationHistoryQuery{
-		Scope:     memcontract.ScopeGlobal,
+		Scope:     memcontract.ScopeProfile,
 		Operation: memcontract.OperationWrite,
 		Limit:     10,
 	})
@@ -1723,7 +1801,7 @@ func TestStoreSearchTreatsFTSReservedWordsAsLiteralTerms(t *testing.T) {
 		if err := store.EnsureDirs(); err != nil {
 			t.Fatalf("Store.EnsureDirs() error = %v", err)
 		}
-		if err := store.Write(t.Context(), memcontract.ScopeGlobal, "operators.md", mustMemoryContent(t, testMemoryMeta{
+		if err := store.Write(t.Context(), memcontract.ScopeProfile, "operators.md", mustMemoryContent(t, testMemoryMeta{
 			Name:        "Reserved Words",
 			Description: "Contains literal FTS keywords",
 			Type:        memcontract.TypeUser,
@@ -1775,10 +1853,10 @@ func TestStoreMutationsStaySuccessfulWhenDerivedSyncFails(t *testing.T) {
 			Type:        memcontract.TypeUser,
 		}, "body\n")
 
-		if err := store.Write(t.Context(), memcontract.ScopeGlobal, "prefs.md", content); err != nil {
+		if err := store.Write(t.Context(), memcontract.ScopeProfile, "prefs.md", content); err != nil {
 			t.Fatalf("Store.Write() error = %v, want primary mutation to succeed", err)
 		}
-		if _, err := store.Read(t.Context(), memcontract.ScopeGlobal, "prefs.md"); err != nil {
+		if _, err := store.Read(t.Context(), memcontract.ScopeProfile, "prefs.md"); err != nil {
 			t.Fatalf("Store.Read() error = %v, want written file present", err)
 		}
 		if !strings.Contains(logs.String(), "sync derived state failed after mutation") {
@@ -1786,10 +1864,10 @@ func TestStoreMutationsStaySuccessfulWhenDerivedSyncFails(t *testing.T) {
 		}
 
 		logs.Reset()
-		if err := store.Delete(t.Context(), memcontract.ScopeGlobal, "prefs.md"); err != nil {
+		if err := store.Delete(t.Context(), memcontract.ScopeProfile, "prefs.md"); err != nil {
 			t.Fatalf("Store.Delete() error = %v, want primary mutation to succeed", err)
 		}
-		if _, err := store.Read(t.Context(), memcontract.ScopeGlobal, "prefs.md"); !errors.Is(err, os.ErrNotExist) {
+		if _, err := store.Read(t.Context(), memcontract.ScopeProfile, "prefs.md"); !errors.Is(err, os.ErrNotExist) {
 			t.Fatalf("Store.Read(deleted) error = %v, want os.ErrNotExist", err)
 		}
 		if !strings.Contains(logs.String(), "sync derived state failed after mutation") {
@@ -1816,10 +1894,10 @@ func TestStoreMutationsStaySuccessfulWhenDerivedSyncFails(t *testing.T) {
 			Name: "Kept Memory",
 			Type: memcontract.TypeUser,
 		}, "kept body\n")
-		if err := store.Write(t.Context(), memcontract.ScopeGlobal, "kept.md", keptContent); err != nil {
+		if err := store.Write(t.Context(), memcontract.ScopeProfile, "kept.md", keptContent); err != nil {
 			t.Fatalf("Store.Write(kept) error = %v", err)
 		}
-		if _, err := store.CatalogHeaders(ctx, memcontract.ScopeGlobal); err != nil {
+		if _, err := store.CatalogHeaders(ctx, memcontract.ScopeProfile); err != nil {
 			t.Fatalf("Store.CatalogHeaders(seed) error = %v", err)
 		}
 		assertMemoryCatalogIdentityReady(ctx, t, store, true)
@@ -1833,10 +1911,10 @@ func TestStoreMutationsStaySuccessfulWhenDerivedSyncFails(t *testing.T) {
 			Name: "New Memory",
 			Type: memcontract.TypeProject,
 		}, "new body\n")
-		if err := store.Write(t.Context(), memcontract.ScopeGlobal, "new.md", newContent); err != nil {
+		if err := store.Write(t.Context(), memcontract.ScopeProfile, "new.md", newContent); err != nil {
 			t.Fatalf("Store.Write(new) error = %v, want primary mutation success", err)
 		}
-		if _, err := store.Read(t.Context(), memcontract.ScopeGlobal, "new.md"); err != nil {
+		if _, err := store.Read(t.Context(), memcontract.ScopeProfile, "new.md"); err != nil {
 			t.Fatalf("Store.Read(new) error = %v, want written source", err)
 		}
 		assertMemoryCatalogIdentityReady(ctx, t, store, false)
@@ -1845,7 +1923,7 @@ func TestStoreMutationsStaySuccessfulWhenDerivedSyncFails(t *testing.T) {
 		}
 		dropInsertTrigger()
 
-		headers, err := store.CatalogHeaders(ctx, memcontract.ScopeGlobal)
+		headers, err := store.CatalogHeaders(ctx, memcontract.ScopeProfile)
 		if err != nil {
 			t.Fatalf("Store.CatalogHeaders(after write) error = %v", err)
 		}
@@ -1854,10 +1932,10 @@ func TestStoreMutationsStaySuccessfulWhenDerivedSyncFails(t *testing.T) {
 
 		logs.Reset()
 		dropDeleteTrigger := installMemoryCatalogAbortTrigger(ctx, t, db, "delete")
-		if err := store.Delete(t.Context(), memcontract.ScopeGlobal, "new.md"); err != nil {
+		if err := store.Delete(t.Context(), memcontract.ScopeProfile, "new.md"); err != nil {
 			t.Fatalf("Store.Delete(new) error = %v, want primary mutation success", err)
 		}
-		if _, err := store.Read(t.Context(), memcontract.ScopeGlobal, "new.md"); !errors.Is(err, os.ErrNotExist) {
+		if _, err := store.Read(t.Context(), memcontract.ScopeProfile, "new.md"); !errors.Is(err, os.ErrNotExist) {
 			t.Fatalf("Store.Read(deleted new) error = %v, want os.ErrNotExist", err)
 		}
 		assertMemoryCatalogIdentityReady(ctx, t, store, false)
@@ -1866,7 +1944,7 @@ func TestStoreMutationsStaySuccessfulWhenDerivedSyncFails(t *testing.T) {
 		}
 		dropDeleteTrigger()
 
-		headers, err = store.CatalogHeaders(ctx, memcontract.ScopeGlobal)
+		headers, err = store.CatalogHeaders(ctx, memcontract.ScopeProfile)
 		if err != nil {
 			t.Fatalf("Store.CatalogHeaders(after delete) error = %v", err)
 		}
@@ -1882,14 +1960,14 @@ func TestStoreMutationsStaySuccessfulWhenDerivedSyncFails(t *testing.T) {
 		}, "canceled sync body\n")
 		if err := store.writeRaw(
 			canceledCtx,
-			memcontract.ScopeGlobal,
+			memcontract.ScopeProfile,
 			"canceled.md",
 			canceledContent,
 			true,
 		); err != nil {
 			t.Fatalf("Store.writeRaw(canceled sync) error = %v, want primary mutation success", err)
 		}
-		if _, err := store.Read(t.Context(), memcontract.ScopeGlobal, "canceled.md"); err != nil {
+		if _, err := store.Read(t.Context(), memcontract.ScopeProfile, "canceled.md"); err != nil {
 			t.Fatalf("Store.Read(canceled) error = %v, want written source", err)
 		}
 		assertMemoryCatalogIdentityReady(ctx, t, store, false)
@@ -1897,7 +1975,7 @@ func TestStoreMutationsStaySuccessfulWhenDerivedSyncFails(t *testing.T) {
 			t.Fatalf("logs after canceled sync = %q, want derived sync warning", logs.String())
 		}
 
-		headers, err = store.CatalogHeaders(ctx, memcontract.ScopeGlobal)
+		headers, err = store.CatalogHeaders(ctx, memcontract.ScopeProfile)
 		if err != nil {
 			t.Fatalf("Store.CatalogHeaders(after canceled sync) error = %v", err)
 		}
@@ -1921,10 +1999,10 @@ func TestStoreMutationsStaySuccessfulWhenDerivedSyncFails(t *testing.T) {
 			Name: "Reset Memory",
 			Type: memcontract.TypeReference,
 		}, "reset body\n")
-		if err := store.Write(t.Context(), memcontract.ScopeGlobal, "reset.md", content); err != nil {
+		if err := store.Write(t.Context(), memcontract.ScopeProfile, "reset.md", content); err != nil {
 			t.Fatalf("Store.Write(reset) error = %v", err)
 		}
-		if _, err := store.CatalogHeaders(ctx, memcontract.ScopeGlobal); err != nil {
+		if _, err := store.CatalogHeaders(ctx, memcontract.ScopeProfile); err != nil {
 			t.Fatalf("Store.CatalogHeaders(seed) error = %v", err)
 		}
 		assertMemoryCatalogIdentityReady(ctx, t, store, true)
@@ -1934,7 +2012,7 @@ func TestStoreMutationsStaySuccessfulWhenDerivedSyncFails(t *testing.T) {
 			t.Fatalf("catalog.ensureDB() error = %v", err)
 		}
 		dropInsertTrigger := installMemoryCatalogAbortTrigger(ctx, t, db, "insert")
-		if _, err := store.ResetDerived(ctx, memcontract.ReindexOptions{Scope: memcontract.ScopeGlobal}); err == nil {
+		if _, err := store.ResetDerived(ctx, memcontract.ReindexOptions{Scope: memcontract.ScopeProfile}); err == nil {
 			t.Fatal("Store.ResetDerived() error = nil, want forced rebuild failure")
 		}
 		assertMemoryCatalogIdentityReady(ctx, t, store, false)
@@ -1942,7 +2020,7 @@ func TestStoreMutationsStaySuccessfulWhenDerivedSyncFails(t *testing.T) {
 		if err := db.QueryRowContext(
 			ctx,
 			`SELECT COUNT(*) FROM memory_catalog_entries WHERE scope = ?`,
-			string(memcontract.ScopeGlobal),
+			string(memcontract.ScopeProfile),
 		).Scan(&rowCount); err != nil {
 			t.Fatalf("query cleared catalog row count error = %v", err)
 		}
@@ -1951,7 +2029,7 @@ func TestStoreMutationsStaySuccessfulWhenDerivedSyncFails(t *testing.T) {
 		}
 		dropInsertTrigger()
 
-		headers, err := store.CatalogHeaders(ctx, memcontract.ScopeGlobal)
+		headers, err := store.CatalogHeaders(ctx, memcontract.ScopeProfile)
 		if err != nil {
 			t.Fatalf("Store.CatalogHeaders(repair) error = %v", err)
 		}
@@ -1977,10 +2055,10 @@ func TestStoreMutationsStaySuccessfulWhenDerivedSyncFails(t *testing.T) {
 			Name: "Seed Memory",
 			Type: memcontract.TypeUser,
 		}, "seed body\n")
-		if err := store.Write(t.Context(), memcontract.ScopeGlobal, "seed.md", seedContent); err != nil {
+		if err := store.Write(t.Context(), memcontract.ScopeProfile, "seed.md", seedContent); err != nil {
 			t.Fatalf("Store.Write(seed) error = %v", err)
 		}
-		if _, err := store.CatalogHeaders(ctx, memcontract.ScopeGlobal); err != nil {
+		if _, err := store.CatalogHeaders(ctx, memcontract.ScopeProfile); err != nil {
 			t.Fatalf("Store.CatalogHeaders(seed) error = %v", err)
 		}
 		assertMemoryCatalogIdentityReady(ctx, t, store, true)
@@ -1995,21 +2073,21 @@ func TestStoreMutationsStaySuccessfulWhenDerivedSyncFails(t *testing.T) {
 			Name: "Recovered Memory",
 			Type: memcontract.TypeProject,
 		}, "recovered body\n")
-		if err := store.Write(t.Context(), memcontract.ScopeGlobal, "recovered.md", lostContent); err != nil {
+		if err := store.Write(t.Context(), memcontract.ScopeProfile, "recovered.md", lostContent); err != nil {
 			t.Fatalf("Store.Write(recovered) error = %v, want primary mutation success", err)
 		}
-		if _, err := store.Read(t.Context(), memcontract.ScopeGlobal, "recovered.md"); err != nil {
+		if _, err := store.Read(t.Context(), memcontract.ScopeProfile, "recovered.md"); err != nil {
 			t.Fatalf("Store.Read(recovered) error = %v, want written source", err)
 		}
 		assertMemoryCatalogIdentityReady(ctx, t, store, true)
-		dirty, err := store.catalogSourceDirty(memcontract.ScopeGlobal)
+		dirty, err := store.catalogSourceDirty(memcontract.ScopeProfile)
 		if err != nil {
 			t.Fatalf("Store.catalogSourceDirty() error = %v", err)
 		}
 		if !dirty {
 			t.Fatal("Store.catalogSourceDirty() = false, want durable marker after double failure")
 		}
-		markerPath, err := store.catalogDirtyMarkerPath(memcontract.ScopeGlobal)
+		markerPath, err := store.catalogDirtyMarkerPath(memcontract.ScopeProfile)
 		if err != nil {
 			t.Fatalf("Store.catalogDirtyMarkerPath() error = %v", err)
 		}
@@ -2025,11 +2103,11 @@ func TestStoreMutationsStaySuccessfulWhenDerivedSyncFails(t *testing.T) {
 			catalogDirtyMarkerFilename,
 			strings.ToUpper(catalogDirtyMarkerFilename),
 		} {
-			writeErr := store.Write(t.Context(), memcontract.ScopeGlobal, reservedFilename, reservedContent)
+			writeErr := store.Write(t.Context(), memcontract.ScopeProfile, reservedFilename, reservedContent)
 			if !errors.Is(writeErr, ErrValidation) {
 				t.Fatalf("Store.Write(%q) error = %v, want ErrValidation", reservedFilename, writeErr)
 			}
-			deleteErr := store.Delete(t.Context(), memcontract.ScopeGlobal, reservedFilename)
+			deleteErr := store.Delete(t.Context(), memcontract.ScopeProfile, reservedFilename)
 			if !errors.Is(deleteErr, ErrValidation) {
 				t.Fatalf("Store.Delete(%q) error = %v, want ErrValidation", reservedFilename, deleteErr)
 			}
@@ -2049,7 +2127,7 @@ func TestStoreMutationsStaySuccessfulWhenDerivedSyncFails(t *testing.T) {
 			t.Fatalf("logs = %q, want secondary invalidation warning", logs.String())
 		}
 		probe := newOpenTestStore(t, globalDir, WithCatalogDatabasePath(catalogPath))
-		if _, err := probe.CatalogHeaders(ctx, memcontract.ScopeGlobal); err == nil {
+		if _, err := probe.CatalogHeaders(ctx, memcontract.ScopeProfile); err == nil {
 			t.Fatal("restarted Store.CatalogHeaders() error = nil, want dirty marker to force a rebuild")
 		}
 		dropInsertTrigger()
@@ -2063,10 +2141,10 @@ func TestStoreMutationsStaySuccessfulWhenDerivedSyncFails(t *testing.T) {
 			Name: "Later Memory",
 			Type: memcontract.TypeFeedback,
 		}, "later body\n")
-		if err := restarted.Write(t.Context(), memcontract.ScopeGlobal, "later.md", laterContent); err != nil {
+		if err := restarted.Write(t.Context(), memcontract.ScopeProfile, "later.md", laterContent); err != nil {
 			t.Fatalf("restarted Store.Write(later) error = %v", err)
 		}
-		dirty, err = restarted.catalogSourceDirty(memcontract.ScopeGlobal)
+		dirty, err = restarted.catalogSourceDirty(memcontract.ScopeProfile)
 		if err != nil {
 			t.Fatalf("restarted Store.catalogSourceDirty() error = %v", err)
 		}
@@ -2074,7 +2152,7 @@ func TestStoreMutationsStaySuccessfulWhenDerivedSyncFails(t *testing.T) {
 			t.Fatal("restarted Store.catalogSourceDirty() = true after successful full repair")
 		}
 
-		headers, err := restarted.CatalogHeaders(ctx, memcontract.ScopeGlobal)
+		headers, err := restarted.CatalogHeaders(ctx, memcontract.ScopeProfile)
 		if err != nil {
 			t.Fatalf("restarted Store.CatalogHeaders() error = %v", err)
 		}
@@ -2137,7 +2215,7 @@ func assertMemoryCatalogIdentityReady(ctx context.Context, t *testing.T, store *
 
 	ready, err := store.catalog.identityReady(
 		ctx,
-		newCatalogIdentity(memcontract.ScopeGlobal, "", "", ""),
+		newCatalogIdentity(storepkg.DefaultProfileID, memcontract.ScopeProfile, "", "", ""),
 	)
 	if err != nil {
 		t.Fatalf("catalog.identityReady(global) error = %v", err)
@@ -2325,7 +2403,7 @@ func TestStoreRejectsInvalidInputs(t *testing.T) {
 		{
 			name: "path traversal filename on read",
 			run: func(env *testStoreEnv) error {
-				_, err := env.store.Read(t.Context(), memcontract.ScopeGlobal, "nested/file.md")
+				_, err := env.store.Read(t.Context(), memcontract.ScopeProfile, "nested/file.md")
 				return err
 			},
 			wantErr: "must not include path separators",
@@ -2333,14 +2411,14 @@ func TestStoreRejectsInvalidInputs(t *testing.T) {
 		{
 			name: "empty filename on delete",
 			run: func(env *testStoreEnv) error {
-				return env.store.Delete(t.Context(), memcontract.ScopeGlobal, " ")
+				return env.store.Delete(t.Context(), memcontract.ScopeProfile, " ")
 			},
 			wantErr: "filename is required",
 		},
 		{
 			name: "normalized memory type",
 			run: func(env *testStoreEnv) error {
-				return env.store.Write(t.Context(), memcontract.ScopeGlobal, "normalized.md", []byte(`---
+				return env.store.Write(t.Context(), memcontract.ScopeProfile, "normalized.md", []byte(`---
 name: Normalized Type
 type: "  PROJECT "
 ---
@@ -2351,7 +2429,7 @@ Body
 			verify: func(t *testing.T, env *testStoreEnv) {
 				t.Helper()
 
-				headers, err := env.store.Scan(t.Context(), memcontract.ScopeGlobal)
+				headers, err := env.store.Scan(t.Context(), memcontract.ScopeProfile)
 				if err != nil {
 					t.Fatalf("Store.Scan() error = %v", err)
 				}

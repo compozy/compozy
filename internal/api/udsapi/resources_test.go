@@ -120,7 +120,7 @@ func TestGetResourceHandlerPreservesKindAndID(t *testing.T) {
 						Kind:    kind,
 						ID:      id,
 						Version: 5,
-						Scope:   resources.ResourceScope{Kind: resources.ResourceScopeKindGlobal},
+						Scope:   resources.ResourceScope{Kind: resources.ResourceScopeKindUser},
 						Owner: resources.ResourceOwner{
 							Kind: resources.ResourceOwnerKind("daemon"),
 							ID:   "daemon-control",
@@ -162,7 +162,7 @@ func TestPutResourceHandlerPreservesExpectedVersionAndStatusSemantics(t *testing
 			body:            []byte(`{"scope":{"kind":"global"},"spec":{"enabled":true}}`),
 			wantStatus:      http.StatusCreated,
 			wantVersion:     1,
-			wantScopeKind:   resources.ResourceScopeKindGlobal,
+			wantScopeKind:   resources.ResourceScopeKindUser,
 			wantExpectedVer: 0,
 		},
 		{

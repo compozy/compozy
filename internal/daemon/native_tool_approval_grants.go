@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/compozy/compozy/internal/store"
 	toolspkg "github.com/compozy/compozy/internal/tools"
 )
 
@@ -72,7 +73,7 @@ func (n *daemonNativeTools) toolApprovalsSet(
 		Decision:  input.Decision,
 		Scope:     input.Scope,
 		AgentName: input.AgentName,
-	}).BuildGrant(workspaceID)
+	}).BuildGrant(store.DefaultProfileID, workspaceID)
 	if err != nil {
 		return toolspkg.ToolResult{}, nativeToolApprovalGrantError(req.ToolID, err)
 	}

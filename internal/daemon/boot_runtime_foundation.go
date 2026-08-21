@@ -118,6 +118,9 @@ func (d *Daemon) bootRegistryState(
 	cleanup.add(func(ctx context.Context) error {
 		return registry.Close(ctx)
 	})
+	if err := registry.VerifyDefaultProfile(ctx); err != nil {
+		return fmt.Errorf("daemon: verify default profile: %w", err)
+	}
 	if err := d.bootMemoryCatalog(ctx, state, cleanup); err != nil {
 		return err
 	}

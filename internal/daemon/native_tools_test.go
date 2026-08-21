@@ -3398,7 +3398,7 @@ func TestDaemonNativeTools(t *testing.T) {
 		t.Parallel()
 
 		homePaths := testHomePaths(t)
-		globalTarget, err := compozyconfig.ResolveConfigWriteTarget(homePaths, "", compozyconfig.WriteScopeGlobal)
+		globalTarget, err := compozyconfig.ResolveConfigWriteTarget(homePaths, "", compozyconfig.WriteScopeUser)
 		if err != nil {
 			t.Fatalf("ResolveConfigWriteTarget() error = %v", err)
 		}
@@ -4010,7 +4010,7 @@ func TestDaemonNativeTools(t *testing.T) {
 		globalTarget, err := compozyconfig.ResolveConfigWriteTarget(
 			homePaths,
 			"",
-			compozyconfig.WriteScopeGlobal,
+			compozyconfig.WriteScopeUser,
 		)
 		if err != nil {
 			t.Fatalf("ResolveConfigWriteTarget(global) error = %v", err)
@@ -4339,7 +4339,7 @@ func TestDaemonNativeTools(t *testing.T) {
 		requireNativeStructuredContains(t, createResult, []byte(`"applied":false`))
 		requireNativeStructuredContains(t, createResult, []byte(`"lifecycle":"restart-required"`))
 		requireNativeStructuredContains(t, createResult, []byte(`"next_action":"restart-daemon"`))
-		target, err := compozyconfig.ResolveConfigWriteTarget(homePaths, "", compozyconfig.WriteScopeGlobal)
+		target, err := compozyconfig.ResolveConfigWriteTarget(homePaths, "", compozyconfig.WriteScopeUser)
 		if err != nil {
 			t.Fatalf("ResolveConfigWriteTarget() error = %v", err)
 		}
@@ -8322,7 +8322,7 @@ func TestDaemonNativeTools(t *testing.T) {
 			t.Fatalf("MkdirAll(workspaceRoot) error = %v", err)
 		}
 		if err := memoryStore.Write(t.Context(),
-			memcontract.ScopeGlobal,
+			memcontract.ScopeProfile,
 			"global.md",
 			nativeMemoryDocument(
 				"Global "+rawClaim,
@@ -8726,7 +8726,7 @@ func TestDaemonNativeTools(t *testing.T) {
 		for idx := range 205 {
 			filename := fmt.Sprintf("ops-%03d.md", idx)
 			if err := memoryStore.Write(t.Context(),
-				memcontract.ScopeGlobal,
+				memcontract.ScopeProfile,
 				filename,
 				nativeMemoryDocument(
 					fmt.Sprintf("Ops %03d", idx),
@@ -11135,19 +11135,19 @@ func newNativeMemoryAdminFixture(t *testing.T) nativeMemoryAdminFixture {
 		t.Fatalf("EnsureDirs() error = %v", err)
 	}
 	if err := memoryStore.Write(t.Context(),
-		memcontract.ScopeGlobal,
+		memcontract.ScopeProfile,
 		"ops.md",
 		nativeMemoryDocument("Ops", "Operational memory", memcontract.TypeUser, "memory admin health")); err != nil {
 		t.Fatalf("Write(global memory) error = %v", err)
 	}
 	decision, err := memoryStore.ProposeCandidate(t.Context(), memcontract.Candidate{
-		Scope:   memcontract.ScopeGlobal,
+		Scope:   memcontract.ScopeProfile,
 		Origin:  memcontract.OriginTool,
 		Content: "Native Memory admin decisions stay inspectable.",
 		Frontmatter: memcontract.Header{
 			Name:  "Native admin decision",
 			Type:  memcontract.TypeUser,
-			Scope: memcontract.ScopeGlobal,
+			Scope: memcontract.ScopeProfile,
 		},
 		SubmittedAt: now,
 	})

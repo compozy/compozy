@@ -17,7 +17,7 @@ const (
 	sessionCatalogSortAttention     = "attention"
 )
 
-const sessionInfoSelectQuery = `SELECT id, name, agent_name, provider, model, reasoning_effort, speed,
+const sessionInfoSelectQuery = `SELECT id, profile_id, name, agent_name, provider, model, reasoning_effort, speed,
 	speed_resolution_json, runtime_status, runtime_transition, runtime_failure,
 	selected_provider, selected_model, selected_reasoning_effort, selected_speed,
 	runtime_selection_revision, workspace_id, worktree_id,

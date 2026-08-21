@@ -759,7 +759,7 @@ func TestMemoryWrapperExports(t *testing.T) {
 	}
 	if scope, resolved, err := core.ResolveMemoryWriteScope(contract.MemoryWriteRequest{
 		Content: "---\nname: Global\ndescription: desc\ntype: user\n---\n\nbody",
-	}); err != nil || scope != memcontract.ScopeGlobal || resolved != "" {
+	}); err != nil || scope != memcontract.ScopeProfile || resolved != "" {
 		t.Fatalf("ResolveMemoryWriteScope(user default) = %q %q %v", scope, resolved, err)
 	}
 

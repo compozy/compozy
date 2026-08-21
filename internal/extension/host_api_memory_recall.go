@@ -28,7 +28,7 @@ func (h *HostAPIHandler) recallMemory(
 	if err != nil {
 		return memcontract.Packaged{}, err
 	}
-	if selection.Scope.Normalize() == memcontract.ScopeGlobal {
+	if selection.Scope.Normalize() == memcontract.ScopeProfile {
 		workspaceID = ""
 	}
 	if providerRecall, ok, err := h.recallMemoryFromProvider(
@@ -109,13 +109,13 @@ func (h *HostAPIHandler) memoryStoreFor(
 		if workspaceRoot != "" {
 			scope = memcontract.ScopeWorkspace
 		} else {
-			scope = memcontract.ScopeGlobal
+			scope = memcontract.ScopeProfile
 		}
 	}
 
 	switch scope {
-	case memcontract.ScopeGlobal:
-		return h.memory, memcontract.ScopeGlobal, nil
+	case memcontract.ScopeProfile:
+		return h.memory, memcontract.ScopeProfile, nil
 	case memcontract.ScopeWorkspace:
 		if workspaceRoot == "" {
 			return nil, "", invalidParamsRPCError(errors.New("workspace is required for workspace memory scope"))

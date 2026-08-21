@@ -700,7 +700,7 @@ func TestSpecCycleBundledSkillPublicationAndBootRebuild(t *testing.T) {
 		}
 		globalSpecCycleCount := 0
 		for _, record := range records {
-			if record.Scope.Kind == resources.ResourceScopeKindGlobal &&
+			if record.Scope.Kind == resources.ResourceScopeKindUser &&
 				record.Spec.InstalledFromExtension == speccycle.Name {
 				globalSpecCycleCount++
 			}
@@ -1118,7 +1118,7 @@ func assertExtensionAgentSidecarOwnership(
 	for _, record := range agents {
 		if record.Owner.Normalize() == wantOwner {
 			agentID = record.ID
-			if record.Scope.Normalize().Kind != resources.ResourceScopeKindGlobal {
+			if record.Scope.Normalize().Kind != resources.ResourceScopeKindUser {
 				t.Fatalf("extension agent scope = %#v, want global", record.Scope)
 			}
 		}
@@ -1240,7 +1240,7 @@ func newAgentSkillIntegrationDriver(
 				Kind: resources.ResourceSourceKind("daemon"),
 				ID:   "agent-skill-integration",
 			},
-			MaxScope: resources.ResourceScope{Kind: resources.ResourceScopeKindGlobal},
+			MaxScope: resources.ResourceScope{Kind: resources.ResourceScopeKindUser},
 		},
 		registrations,
 		resources.WithReconcileLogger(discardLogger()),

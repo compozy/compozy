@@ -27,17 +27,17 @@ func TestResourceAgentCatalogListsGetsAndResolvesByScope(t *testing.T) {
 		catalog.Replace(5, []resources.Record[compozyconfig.AgentDef]{
 			{
 				ID:    "global:alpha",
-				Scope: resources.ResourceScope{Kind: resources.ResourceScopeKindGlobal},
+				Scope: resources.ResourceScope{Kind: resources.ResourceScopeKindUser},
 				Spec:  compozyconfig.AgentDef{Name: "alpha", Prompt: "global alpha"},
 			},
 			{
 				ID:    "global:onboarding",
-				Scope: resources.ResourceScope{Kind: resources.ResourceScopeKindGlobal},
+				Scope: resources.ResourceScope{Kind: resources.ResourceScopeKindUser},
 				Spec:  compozyconfig.AgentDef{Name: "onboarding", Prompt: "global onboarding"},
 			},
 			{
 				ID:    "global:coder",
-				Scope: resources.ResourceScope{Kind: resources.ResourceScopeKindGlobal},
+				Scope: resources.ResourceScope{Kind: resources.ResourceScopeKindUser},
 				Spec:  compozyconfig.AgentDef{Name: "coder", Prompt: "global coder"},
 			},
 			{
@@ -172,7 +172,7 @@ func TestManagedResourceSyncerOrdersMutations(t *testing.T) {
 		if err != nil {
 			t.Fatalf("compozyconfig.NewAgentResourceCodec() error = %v", err)
 		}
-		scope := resources.ResourceScope{Kind: resources.ResourceScopeKindGlobal}
+		scope := resources.ResourceScope{Kind: resources.ResourceScopeKindUser}
 		actor := agentSkillSyncActor()
 		store := &recordingManagedAgentStore{records: []resources.Record[compozyconfig.AgentDef]{
 			{ID: "stale-z", Version: 2, Scope: scope, Source: actor.Source},
@@ -299,7 +299,7 @@ func TestResourceAgentCatalogResolveAgentFallsBackWhenCatalogMissesWorkspaceAgen
 	catalog := newResourceCatalog(cloneAgentDef)
 	catalog.Replace(1, []resources.Record[compozyconfig.AgentDef]{{
 		ID:      "global:other",
-		Scope:   resources.ResourceScope{Kind: resources.ResourceScopeKindGlobal},
+		Scope:   resources.ResourceScope{Kind: resources.ResourceScopeKindUser},
 		Source:  resources.ResourceSource{Kind: resources.ResourceSourceKind("daemon"), ID: "bench"},
 		Version: 1,
 		Spec: compozyconfig.AgentDef{
@@ -332,7 +332,7 @@ func TestResourceAgentCatalogResolveAgentUsesCatalogMatches(t *testing.T) {
 	catalog.Replace(3, []resources.Record[compozyconfig.AgentDef]{
 		{
 			ID:      "global:coder:a",
-			Scope:   resources.ResourceScope{Kind: resources.ResourceScopeKindGlobal},
+			Scope:   resources.ResourceScope{Kind: resources.ResourceScopeKindUser},
 			Source:  resources.ResourceSource{Kind: resources.ResourceSourceKind("daemon"), ID: "alpha"},
 			Version: 1,
 			Spec: compozyconfig.AgentDef{
@@ -342,7 +342,7 @@ func TestResourceAgentCatalogResolveAgentUsesCatalogMatches(t *testing.T) {
 		},
 		{
 			ID:      "global:coder:z",
-			Scope:   resources.ResourceScope{Kind: resources.ResourceScopeKindGlobal},
+			Scope:   resources.ResourceScope{Kind: resources.ResourceScopeKindUser},
 			Source:  resources.ResourceSource{Kind: resources.ResourceSourceKind("daemon"), ID: "omega"},
 			Version: 1,
 			Spec: compozyconfig.AgentDef{
@@ -352,7 +352,7 @@ func TestResourceAgentCatalogResolveAgentUsesCatalogMatches(t *testing.T) {
 		},
 		{
 			ID:      "global:other",
-			Scope:   resources.ResourceScope{Kind: resources.ResourceScopeKindGlobal},
+			Scope:   resources.ResourceScope{Kind: resources.ResourceScopeKindUser},
 			Source:  resources.ResourceSource{Kind: resources.ResourceSourceKind("daemon"), ID: "bench"},
 			Version: 1,
 			Spec: compozyconfig.AgentDef{
@@ -436,7 +436,7 @@ func TestResourceAgentCatalogResolvesExtensionOwnedArtifactsAndHeartbeatPolicy(t
 		agentCatalog.Replace(1, []resources.Record[compozyconfig.AgentDef]{
 			{
 				ID:    "agt-global",
-				Scope: resources.ResourceScope{Kind: resources.ResourceScopeKindGlobal},
+				Scope: resources.ResourceScope{Kind: resources.ResourceScopeKindUser},
 				Spec:  compozyconfig.AgentDef{Name: "marketer", Prompt: "global marketer"},
 			},
 			{
@@ -461,7 +461,7 @@ func TestResourceAgentCatalogResolvesExtensionOwnedArtifactsAndHeartbeatPolicy(t
 			},
 			{
 				ID:    "sol-leak",
-				Scope: resources.ResourceScope{Kind: resources.ResourceScopeKindGlobal},
+				Scope: resources.ResourceScope{Kind: resources.ResourceScopeKindUser},
 				Owner: owner,
 				Spec: soul.ResourceSpec{
 					AgentName:       "marketer",
@@ -562,7 +562,7 @@ func TestResourceAgentCatalogMatchesExtensionSidecarsByOwnerScopeAndAgentID(t *t
 			},
 			{
 				ID:    "wrong-scope-soul",
-				Scope: resources.ResourceScope{Kind: resources.ResourceScopeKindGlobal}, Owner: owner,
+				Scope: resources.ResourceScope{Kind: resources.ResourceScopeKindUser}, Owner: owner,
 				Spec: soul.ResourceSpec{
 					AgentName: "coder", AgentResourceID: "shared-agent-id", Body: "must not attach either",
 				},
@@ -671,7 +671,7 @@ func TestAgentSkillSourceSyncerReplacesCanonicalSnapshot(t *testing.T) {
 	desired := agentSkillDeclarations{
 		agents: []agentPublicationInput{{
 			sourceKey: "test/agent/coder",
-			scope:     resources.ResourceScope{Kind: resources.ResourceScopeKindGlobal},
+			scope:     resources.ResourceScope{Kind: resources.ResourceScopeKindUser},
 			spec: compozyconfig.AgentDef{
 				Name:       "coder",
 				Prompt:     "Use canonical tools.",
@@ -681,7 +681,7 @@ func TestAgentSkillSourceSyncerReplacesCanonicalSnapshot(t *testing.T) {
 		}},
 		skills: []skillPublicationInput{{
 			sourceKey: "test/skill/review",
-			scope:     resources.ResourceScope{Kind: resources.ResourceScopeKindGlobal},
+			scope:     resources.ResourceScope{Kind: resources.ResourceScopeKindUser},
 			spec: skillspkg.SkillResourceSpec{
 				Name:        "review",
 				Description: "Review skill",
@@ -691,7 +691,7 @@ func TestAgentSkillSourceSyncerReplacesCanonicalSnapshot(t *testing.T) {
 		}},
 		mcpServers: []mcpServerPublicationInput{{
 			sourceKey: "test/mcp/review",
-			scope:     resources.ResourceScope{Kind: resources.ResourceScopeKindGlobal},
+			scope:     resources.ResourceScope{Kind: resources.ResourceScopeKindUser},
 			spec: compozyconfig.MCPServer{
 				Name:    "review-mcp",
 				Command: "review-command",
@@ -779,7 +779,7 @@ func TestAgentSkillSourceSyncerRetriesAgentProjection(t *testing.T) {
 			providers: []agentSkillDeclarationProvider{func(context.Context) (agentSkillDeclarations, error) {
 				return agentSkillDeclarations{agents: []agentPublicationInput{{
 					sourceKey: "test/agent/coder",
-					scope:     resources.ResourceScope{Kind: resources.ResourceScopeKindGlobal},
+					scope:     resources.ResourceScope{Kind: resources.ResourceScopeKindUser},
 					spec:      compozyconfig.AgentDef{Name: "coder", Provider: "codex", Prompt: "Code."},
 				}}}, nil
 			}},
@@ -849,7 +849,7 @@ func TestAgentSkillSourceSyncerSyncSkillsProjectsRegistrySynchronously(t *testin
 		desired := agentSkillDeclarations{
 			skills: []skillPublicationInput{{
 				sourceKey: "test/skill/review",
-				scope:     resources.ResourceScope{Kind: resources.ResourceScopeKindGlobal},
+				scope:     resources.ResourceScope{Kind: resources.ResourceScopeKindUser},
 				spec: skillspkg.SkillResourceSpec{
 					Name:        "review",
 					Description: "Review skill",

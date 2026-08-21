@@ -107,7 +107,7 @@ func (h *BaseHandlers) scanMemoryHeaders(
 	ctx context.Context,
 	resolved memorySelector,
 ) ([]memcontract.Header, error) {
-	scopes := []memcontract.Scope{memcontract.ScopeGlobal}
+	scopes := []memcontract.Scope{memcontract.ScopeProfile}
 	if resolved.Scope != "" {
 		scopes = []memcontract.Scope{resolved.Scope}
 	}

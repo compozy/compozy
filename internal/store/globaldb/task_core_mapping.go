@@ -15,8 +15,9 @@ import (
 
 func taskFromGenerated(row *sqlcgen.GetTaskRow) (taskpkg.Task, error) {
 	record := taskpkg.Task{
-		ID:    row.ID,
-		Title: row.Title,
+		ID:        row.ID,
+		ProfileID: row.ProfileID,
+		Title:     row.Title,
 		CreatedBy: taskpkg.ActorIdentity{
 			Ref: row.CreatedByRef,
 		},
@@ -200,6 +201,7 @@ func taskAttemptFromInt64(value int64) (int32, error) {
 
 func insertTaskParams(record taskpkg.Task) sqlcgen.InsertTaskParams {
 	return sqlcgen.InsertTaskParams{
+		ProfileID:          record.ProfileID,
 		ID:                 record.ID,
 		Identifier:         nullableTaskString(record.Identifier),
 		Scope:              string(record.Scope),

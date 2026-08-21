@@ -39,7 +39,7 @@ func (s *service) ApplySection(ctx context.Context, req SectionUpdateRequest) (A
 	if result.Section == SectionGateway {
 		return s.recordGatewaySectionApply(ctx, result)
 	}
-	if result.Section == SectionWindowManager && result.Scope == ScopeGlobal {
+	if result.Section == SectionWindowManager && result.Scope == ScopeUser {
 		return s.recordWindowManagerSectionApply(ctx, result)
 	}
 	if result.Section == SectionAttention {
@@ -116,7 +116,7 @@ func (s *service) Reload(ctx context.Context) (ApplyResult, error) {
 	}
 	desiredHash, desiredConfig, err := s.currentDesiredConfigHash()
 	if err != nil {
-		return s.recordFailedApply(ctx, "", ScopeGlobal, "", lifecycle.RestartRequired, err)
+		return s.recordFailedApply(ctx, "", ScopeUser, "", lifecycle.RestartRequired, err)
 	}
 	if desiredHash == state.hash {
 		return skippedReloadResult(&state, desiredHash), nil

@@ -3883,5 +3883,5 @@ func (f secretRefResolverFunc) ResolveRef(ctx context.Context, ref string) (stri
 }
 
 func globalMCPExecutorTarget(serverName string) mcpauth.Target {
-	return mcpauth.Target{Scope: mcpauth.ScopeGlobal, ServerName: serverName}
+	return mcpauth.Target{Scope: mcpauth.ScopeUser, ServerName: serverName}
 }

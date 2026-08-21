@@ -58,6 +58,7 @@ func TestTargetHealthShouldFailFastThroughTheNormalFailureChain(t *testing.T) {
 		t.Fatalf("target-unavailable terminal = %#v, want normal failed precedence", terminal)
 	}
 	if got, want := health.probedKeys(), []store.DeadEntityKey{{
+		ProfileID:   store.DefaultProfileID,
 		WorkspaceID: "ws-target",
 		Kind:        store.DeadEntityKindLoopTarget,
 		EntityID:    "toolcall:compozy__search",

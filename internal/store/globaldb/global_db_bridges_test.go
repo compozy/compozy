@@ -35,6 +35,7 @@ func TestOpenGlobalDBCreatesBridgeTables(t *testing.T) {
 	)
 	assertTableColumns(t, globalDB.db, "bridge_instances", []string{
 		"id",
+		"profile_id",
 		"scope",
 		"workspace_id",
 		"platform",
@@ -86,9 +87,10 @@ func TestOpenGlobalDBCreatesBridgeTables(t *testing.T) {
 	if _, err := globalDB.db.ExecContext(
 		testutil.Context(t),
 		`INSERT INTO bridge_instances (
-			id, scope, workspace_id, platform, extension_name, display_name, enabled, status, routing_policy, created_at, updated_at
-		) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+			id, profile_id, scope, workspace_id, platform, extension_name, display_name, enabled, status, routing_policy, created_at, updated_at
+		) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
 		"brg-default-source",
+		store.DefaultProfileID,
 		string(bridges.ScopeGlobal),
 		nil,
 		"telegram",
@@ -449,6 +451,7 @@ func TestGlobalDBBridgeTargetDirectoryRefresh(t *testing.T) {
 		ctx := testutil.Context(t)
 		globalDB := openTestGlobalDB(t)
 		instance := bridges.BridgeInstance{
+			ProfileID:     store.DefaultProfileID,
 			ID:            "brg-target-refresh",
 			Scope:         bridges.ScopeGlobal,
 			Platform:      "slack",

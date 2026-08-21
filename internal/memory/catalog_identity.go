@@ -11,6 +11,7 @@ import (
 )
 
 type catalogIdentity struct {
+	profileID   string
 	scope       memcontract.Scope
 	workspaceID string
 	agentName   string
@@ -18,6 +19,7 @@ type catalogIdentity struct {
 }
 
 func newCatalogIdentity(
+	profileID string,
 	scope memcontract.Scope,
 	workspaceID string,
 	agentName string,
@@ -25,6 +27,7 @@ func newCatalogIdentity(
 ) catalogIdentity {
 	normalizedScope := scope.Normalize()
 	identity := catalogIdentity{
+		profileID:   strings.TrimSpace(profileID),
 		scope:       normalizedScope,
 		workspaceID: strings.TrimSpace(workspaceID),
 	}
@@ -36,7 +39,7 @@ func newCatalogIdentity(
 }
 
 func (i catalogIdentity) stateKey() string {
-	base := catalogScopeStateKey(i.scope, i.workspaceID)
+	base := fmt.Sprintf("%s::%s", catalogScopeStateKey(i.scope, i.workspaceID), i.profileID)
 	if i.scope != memcontract.ScopeAgent {
 		return base
 	}
@@ -55,7 +58,8 @@ func (c *catalog) upsertCatalogIdentityStateTx(
 		storepkg.FormatTimestamp(c.now().UTC()),
 	); err != nil {
 		return fmt.Errorf(
-			"memory: persist catalog identity state %q/%q/%q/%q: %w",
+			"memory: persist catalog identity state %q/%q/%q/%q/%q: %w",
+			identity.profileID,
 			identity.scope,
 			identity.workspaceID,
 			identity.agentName,
@@ -109,6 +113,11 @@ func (c *catalog) identityReady(ctx context.Context, identity catalogIdentity) (
 	return true, nil
 }
 
-func (c *catalog) scopeReady(ctx context.Context, scope memcontract.Scope, workspaceID string) (bool, error) {
-	return c.identityReady(ctx, newCatalogIdentity(scope, workspaceID, "", ""))
+func (c *catalog) scopeReady(
+	ctx context.Context,
+	profileID string,
+	scope memcontract.Scope,
+	workspaceID string,
+) (bool, error) {
+	return c.identityReady(ctx, newCatalogIdentity(profileID, scope, workspaceID, "", ""))
 }

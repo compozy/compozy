@@ -313,7 +313,7 @@ func parseMarketplaceReadScope(rawScope string, rawWorkspaceID string) (marketpl
 		if workspaceID != "" {
 			return marketplaceReadScope{}, marketplaceValidationf("global scope must not include workspace_id")
 		}
-		return marketplaceReadScope{scope: settingspkg.ScopeGlobal}, nil
+		return marketplaceReadScope{scope: settingspkg.ScopeUser}, nil
 	case contract.MarketplaceScopeWorkspace:
 		if workspaceID == "" {
 			return marketplaceReadScope{}, marketplaceValidationf("workspace scope requires workspace_id")

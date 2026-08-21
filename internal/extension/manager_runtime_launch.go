@@ -320,7 +320,7 @@ func (m *Manager) extensionWorkspaceScope(
 		// Marketplace artifacts are installed once under the daemon home, not
 		// owned by any project workspace. Their read-oriented capability ceiling
 		// is the trust boundary; the runtime principal is explicitly global.
-		return resources.ResourceScope{Kind: resources.ResourceScopeKindGlobal}, nil
+		return resources.ResourceScope{Kind: resources.ResourceScopeKindUser}, nil
 	case SourceWorkspace:
 		if m.workspaceResolver == nil {
 			return resources.ResourceScope{}, errors.New(
@@ -366,7 +366,7 @@ func extensionManagerResourceActor() resources.MutationActor {
 			Kind: resources.ResourceSourceKind("daemon"),
 			ID:   "extension-manager",
 		},
-		MaxScope: resources.ResourceScope{Kind: resources.ResourceScopeKindGlobal},
+		MaxScope: resources.ResourceScope{Kind: resources.ResourceScopeKindUser},
 	}
 }
 

@@ -43,11 +43,11 @@ func newConfigPathCommand(deps commandDeps) *cobra.Command {
 			if err != nil {
 				return err
 			}
-			globalMCP, err := compozyconfig.ResolveMCPSidecarWriteTarget(homePaths, "", compozyconfig.WriteScopeGlobal)
+			globalMCP, err := compozyconfig.ResolveMCPSidecarWriteTarget(homePaths, "", compozyconfig.WriteScopeUser)
 			if err != nil {
 				return err
 			}
-			selected, err := compozyconfig.ResolveConfigWriteTarget(homePaths, "", compozyconfig.WriteScopeGlobal)
+			selected, err := compozyconfig.ResolveConfigWriteTarget(homePaths, "", compozyconfig.WriteScopeUser)
 			if err != nil {
 				return err
 			}
@@ -89,7 +89,7 @@ func newConfigPathCommand(deps commandDeps) *cobra.Command {
 		},
 	}
 	cmd.Flags().
-		StringVar(&scopeRaw, configScopeKey, string(compozyconfig.WriteScopeGlobal), "Path scope: global or workspace")
+		StringVar(&scopeRaw, configScopeKey, string(compozyconfig.WriteScopeUser), "Path scope: global or workspace")
 	cmd.Flags().
 		StringVar(&workspaceRoot, "workspace", "", "Override workspace binding (ID, name, or path)")
 	return cmd
@@ -259,7 +259,7 @@ func newConfigEditCommand(deps commandDeps) *cobra.Command {
 		},
 	}
 	cmd.Flags().
-		StringVar(&scopeRaw, configScopeKey, string(compozyconfig.WriteScopeGlobal), "Edit scope: global or workspace")
+		StringVar(&scopeRaw, configScopeKey, string(compozyconfig.WriteScopeUser), "Edit scope: global or workspace")
 	cmd.Flags().
 		StringVar(&workspaceRoot, "workspace", "", "Override workspace binding (ID, name, or path)")
 	return cmd
@@ -282,7 +282,7 @@ func newConfigReloadCommand(deps commandDeps) *cobra.Command {
 			return writeCommandOutput(cmd, configSetBundle(configSetRecord{
 				Path:             "config.toml",
 				Value:            configReloadCommandName,
-				Scope:            string(compozyconfig.WriteScopeGlobal),
+				Scope:            string(compozyconfig.WriteScopeUser),
 				Target:           configDaemonKey,
 				Lifecycle:        string(result.Lifecycle),
 				ApplyRecordID:    result.ApplyRecordID,

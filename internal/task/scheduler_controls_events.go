@@ -120,6 +120,7 @@ func (m *Service) recordSchedulerEventBestEffort(
 		return
 	}
 	summary := store.EventSummary{
+		ProfileID: store.DefaultProfileID,
 		Type:      eventType,
 		Outcome:   string(eventspkg.OutcomeFor(eventType)),
 		Content:   content,

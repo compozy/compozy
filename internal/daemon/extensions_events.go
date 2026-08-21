@@ -66,7 +66,8 @@ func (s extensionLifecycleEventStoreSink) summary(
 		now = time.Now
 	}
 	return store.EventSummary{
-		Type: event.Type, Outcome: string(eventspkg.OutcomeFor(event.Type)), Content: content,
+		ProfileID: store.DefaultProfileID,
+		Type:      event.Type, Outcome: string(eventspkg.OutcomeFor(event.Type)), Content: content,
 		Summary: event.Type + " " + event.ExtensionName, Timestamp: now().UTC(),
 		EventCorrelation: store.EventCorrelation{ActorKind: s.actorKind, ActorID: s.actorID},
 	}, nil
@@ -310,7 +311,8 @@ func (s *daemonExtensionService) writeExtensionEvent(
 		return fmt.Errorf("daemon: encode extension event: %w", err)
 	}
 	if err := s.eventWriter.WriteEventSummary(context.WithoutCancel(ctx), store.EventSummary{
-		Type: eventType, Outcome: string(outcome), Content: content,
+		ProfileID: store.DefaultProfileID,
+		Type:      eventType, Outcome: string(outcome), Content: content,
 		Summary: summary, Timestamp: s.now().UTC(),
 		EventCorrelation: store.EventCorrelation{ActorKind: actorKind, ActorID: actorID},
 	}); err != nil {

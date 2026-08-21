@@ -112,6 +112,9 @@ func (g *GlobalDB) Close(ctx context.Context) error {
 }
 
 func openGlobalSQLite(ctx context.Context, path string, operatorHomeDir string) (*sql.DB, error) {
+	if err := store.RefuseLegacyDatabaseAtPath(ctx, path, MigrationStream()); err != nil {
+		return nil, err
+	}
 	return store.OpenSQLiteDatabase(ctx, path, func(ctx context.Context, db *sql.DB) error {
 		if err := rejectSessionMetadataWithoutRuntime(ctx, path); err != nil {
 			return err

@@ -144,7 +144,7 @@ func daemonAgentSkillDeclarationProvider(
 ) agentSkillDeclarationProvider {
 	return func(ctx context.Context) (agentSkillDeclarations, error) {
 		desired := agentSkillDeclarations{}
-		globalScope := resources.ResourceScope{Kind: resources.ResourceScopeKindGlobal}
+		globalScope := resources.ResourceScope{Kind: resources.ResourceScopeKindUser}
 		globalAgents, err := compozyconfig.LoadWorkspaceAgentDefs("", nil, homePaths)
 		if err != nil {
 			return agentSkillDeclarations{}, fmt.Errorf("daemon: discover global agents: %w", err)

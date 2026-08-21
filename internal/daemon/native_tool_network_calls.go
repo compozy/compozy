@@ -264,6 +264,7 @@ func (n *daemonNativeTools) networkDirectResolve(
 	}
 	now := time.Now().UTC()
 	direct, err := n.deps.NetworkStore.ResolveDirectRoom(ctx, store.NetworkDirectRoomEntry{
+		ProfileID:      store.DefaultProfileID,
 		WorkspaceID:    workspaceID,
 		Channel:        channel,
 		DirectID:       directID,

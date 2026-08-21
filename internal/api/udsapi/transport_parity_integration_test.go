@@ -994,14 +994,14 @@ func assertWindowManagerLayoutProfileRoundTrip(
 		http.MethodPut,
 		basePath+"/layout-profiles/"+profileID,
 		compozycontract.PutResourceRequest{
-			Scope: resources.ResourceScope{Kind: resources.ResourceScopeKindGlobal},
+			Scope: resources.ResourceScope{Kind: resources.ResourceScopeKindUser},
 			Spec:  profileSpec,
 		},
 		&stored,
 	); err != nil {
 		t.Fatalf("HTTP layout profile put error = %v", err)
 	}
-	if stored.Record.ID != profileID || stored.Record.Scope.Kind != resources.ResourceScopeKindGlobal {
+	if stored.Record.ID != profileID || stored.Record.Scope.Kind != resources.ResourceScopeKindUser {
 		t.Fatalf("stored layout profile = %#v, want global profile %q", stored.Record, profileID)
 	}
 

@@ -26,7 +26,7 @@ func TestKernelPutRawCreateAndStaleVersionConflict(t *testing.T) {
 	record, err := kernel.PutRaw(ctx, actor, RawDraft{
 		Kind:            testResourceKind,
 		ID:              "tool-alpha",
-		Scope:           ResourceScope{Kind: ResourceScopeKindGlobal},
+		Scope:           ResourceScope{Kind: ResourceScopeKindUser},
 		ExpectedVersion: 0,
 		SpecJSON:        []byte(`{"name":"alpha"}`),
 	})
@@ -40,7 +40,7 @@ func TestKernelPutRawCreateAndStaleVersionConflict(t *testing.T) {
 	if _, err := kernel.PutRaw(ctx, actor, RawDraft{
 		Kind:            testResourceKind,
 		ID:              "tool-alpha",
-		Scope:           ResourceScope{Kind: ResourceScopeKindGlobal},
+		Scope:           ResourceScope{Kind: ResourceScopeKindUser},
 		ExpectedVersion: 0,
 		SpecJSON:        []byte(`{"name":"alpha-v2"}`),
 	}); !errors.Is(err, ErrConflict) {
@@ -62,7 +62,7 @@ func TestKernelPutRawUpdateDeleteAndNotFound(t *testing.T) {
 	record, err := kernel.PutRaw(ctx, actor, RawDraft{
 		Kind:            testResourceKind,
 		ID:              "tool-updatable",
-		Scope:           ResourceScope{Kind: ResourceScopeKindGlobal},
+		Scope:           ResourceScope{Kind: ResourceScopeKindUser},
 		ExpectedVersion: 0,
 		SpecJSON:        []byte(`{"name":"alpha"}`),
 	})
@@ -107,7 +107,7 @@ func TestKernelWriteTransactionsRetryBusyLocks(t *testing.T) {
 		record, err := kernel.PutRaw(ctx, testDaemonActor(), RawDraft{
 			Kind:            testResourceKind,
 			ID:              "busy-put",
-			Scope:           ResourceScope{Kind: ResourceScopeKindGlobal},
+			Scope:           ResourceScope{Kind: ResourceScopeKindUser},
 			ExpectedVersion: 0,
 			SpecJSON:        []byte(`{"name":"busy-put"}`),
 		})
@@ -127,7 +127,7 @@ func TestKernelWriteTransactionsRetryBusyLocks(t *testing.T) {
 		record, err := kernel.PutRaw(ctx, testDaemonActor(), RawDraft{
 			Kind:            testResourceKind,
 			ID:              "busy-delete",
-			Scope:           ResourceScope{Kind: ResourceScopeKindGlobal},
+			Scope:           ResourceScope{Kind: ResourceScopeKindUser},
 			ExpectedVersion: 0,
 			SpecJSON:        []byte(`{"name":"busy-delete"}`),
 		})
@@ -160,7 +160,7 @@ func TestKernelWriteTransactionsRetryBusyLocks(t *testing.T) {
 				Records: []RawDraft{{
 					Kind:            testResourceKind,
 					ID:              "busy-snapshot",
-					Scope:           ResourceScope{Kind: ResourceScopeKindGlobal},
+					Scope:           ResourceScope{Kind: ResourceScopeKindUser},
 					ExpectedVersion: 0,
 					SpecJSON:        []byte(`{"name":"busy-snapshot"}`),
 				}},
@@ -183,7 +183,7 @@ func TestKernelPutRawStampsDaemonOwnerOverride(t *testing.T) {
 	record, err := kernel.PutRaw(ctx, actor, RawDraft{
 		Kind:            testResourceKind,
 		ID:              "owned-tool",
-		Scope:           ResourceScope{Kind: ResourceScopeKindGlobal},
+		Scope:           ResourceScope{Kind: ResourceScopeKindUser},
 		ExpectedVersion: 0,
 		SpecJSON:        []byte(`{"name":"owned"}`),
 	})
@@ -212,7 +212,7 @@ func TestKernelPutRawRejectsExtensionOwnerOverride(t *testing.T) {
 		Records: []RawDraft{{
 			Kind:            testResourceKind,
 			ID:              "extension-owned-tool",
-			Scope:           ResourceScope{Kind: ResourceScopeKindGlobal},
+			Scope:           ResourceScope{Kind: ResourceScopeKindUser},
 			ExpectedVersion: 0,
 			SpecJSON:        []byte(`{"name":"owned"}`),
 		}},
@@ -241,7 +241,7 @@ func TestKernelPutRawRejectsInvalidScopeBinding(t *testing.T) {
 		},
 		{
 			name:    "global with scope id",
-			scope:   ResourceScope{Kind: ResourceScopeKindGlobal, ID: "ws-1"},
+			scope:   ResourceScope{Kind: ResourceScopeKindUser, ID: "ws-1"},
 			wantErr: ErrInvalidScopeBinding,
 		},
 		{
@@ -290,7 +290,7 @@ func TestKernelApplySourceSnapshotRejectsInvalidNonceVersionAndPayloadLimits(t *
 				Records: []RawDraft{{
 					Kind:            testResourceKind,
 					ID:              "tool-alpha",
-					Scope:           ResourceScope{Kind: ResourceScopeKindGlobal},
+					Scope:           ResourceScope{Kind: ResourceScopeKindUser},
 					ExpectedVersion: 0,
 					SpecJSON:        []byte(`{"name":"alpha"}`),
 				}},
@@ -317,7 +317,7 @@ func TestKernelApplySourceSnapshotRejectsInvalidNonceVersionAndPayloadLimits(t *
 			Records: []RawDraft{{
 				Kind:            testResourceKind,
 				ID:              "tool-bravo",
-				Scope:           ResourceScope{Kind: ResourceScopeKindGlobal},
+				Scope:           ResourceScope{Kind: ResourceScopeKindUser},
 				ExpectedVersion: 0,
 				SpecJSON:        []byte(`{"name":"bravo"}`),
 			}},
@@ -330,7 +330,7 @@ func TestKernelApplySourceSnapshotRejectsInvalidNonceVersionAndPayloadLimits(t *
 			Records: []RawDraft{{
 				Kind:            testResourceKind,
 				ID:              "tool-bravo",
-				Scope:           ResourceScope{Kind: ResourceScopeKindGlobal},
+				Scope:           ResourceScope{Kind: ResourceScopeKindUser},
 				ExpectedVersion: 0,
 				SpecJSON:        []byte(`{"name":"bravo-v2"}`),
 			}},
@@ -355,7 +355,7 @@ func TestKernelApplySourceSnapshotRejectsInvalidNonceVersionAndPayloadLimits(t *
 			Records: []RawDraft{{
 				Kind:            testResourceKind,
 				ID:              "tool-charlie",
-				Scope:           ResourceScope{Kind: ResourceScopeKindGlobal},
+				Scope:           ResourceScope{Kind: ResourceScopeKindUser},
 				ExpectedVersion: 0,
 				SpecJSON:        []byte(`{"name":"too-large"}`),
 			}},
@@ -381,14 +381,14 @@ func TestKernelApplySourceSnapshotRejectsInvalidNonceVersionAndPayloadLimits(t *
 				{
 					Kind:            testResourceKind,
 					ID:              "tool-delta-1",
-					Scope:           ResourceScope{Kind: ResourceScopeKindGlobal},
+					Scope:           ResourceScope{Kind: ResourceScopeKindUser},
 					ExpectedVersion: 0,
 					SpecJSON:        []byte(`{"n":"12345"}`),
 				},
 				{
 					Kind:            testResourceKind,
 					ID:              "tool-delta-2",
-					Scope:           ResourceScope{Kind: ResourceScopeKindGlobal},
+					Scope:           ResourceScope{Kind: ResourceScopeKindUser},
 					ExpectedVersion: 0,
 					SpecJSON:        []byte(`{"n":"67890"}`),
 				},
@@ -410,7 +410,7 @@ func TestKernelStampsOwnerAndSourceFromActor(t *testing.T) {
 	record, err := kernel.PutRaw(ctx, actor, RawDraft{
 		Kind:            testResourceKind,
 		ID:              "tool-owned",
-		Scope:           ResourceScope{Kind: ResourceScopeKindGlobal},
+		Scope:           ResourceScope{Kind: ResourceScopeKindUser},
 		ExpectedVersion: 0,
 		SpecJSON:        []byte(`{"owner_kind":"fake","owner_id":"fake","source_kind":"fake","source_id":"fake"}`),
 	})
@@ -443,7 +443,7 @@ func TestKernelActivateSessionNoOpSnapshotAndReset(t *testing.T) {
 		Records: []RawDraft{{
 			Kind:            testResourceKind,
 			ID:              "tool-noop",
-			Scope:           ResourceScope{Kind: ResourceScopeKindGlobal},
+			Scope:           ResourceScope{Kind: ResourceScopeKindUser},
 			ExpectedVersion: 0,
 			SpecJSON:        []byte(`{"name":"same"}`),
 		}},
@@ -515,7 +515,7 @@ func TestKernelResetSourceIfActiveSessionFencesNewerGeneration(t *testing.T) {
 				Records: []RawDraft{{
 					Kind:            testResourceKind,
 					ID:              "winner-tool",
-					Scope:           ResourceScope{Kind: ResourceScopeKindGlobal},
+					Scope:           ResourceScope{Kind: ResourceScopeKindUser},
 					ExpectedVersion: 0,
 					SpecJSON:        []byte(`{"name":"candidate-b"}`),
 				}},
@@ -567,7 +567,7 @@ func TestKernelGetAndListEnforceSourceAndScope(t *testing.T) {
 			{
 				Kind:            testResourceKind,
 				ID:              "alpha-global",
-				Scope:           ResourceScope{Kind: ResourceScopeKindGlobal},
+				Scope:           ResourceScope{Kind: ResourceScopeKindUser},
 				ExpectedVersion: 0,
 				SpecJSON:        []byte(`{"name":"alpha-global"}`),
 			},
@@ -587,7 +587,7 @@ func TestKernelGetAndListEnforceSourceAndScope(t *testing.T) {
 		Records: []RawDraft{{
 			Kind:            testResourceKind,
 			ID:              "bravo-global",
-			Scope:           ResourceScope{Kind: ResourceScopeKindGlobal},
+			Scope:           ResourceScope{Kind: ResourceScopeKindUser},
 			ExpectedVersion: 0,
 			SpecJSON:        []byte(`{"name":"bravo-global"}`),
 		}},
@@ -641,7 +641,7 @@ func TestKernelListRawFilterValidationAndSourceOwnerFilters(t *testing.T) {
 	if _, err := kernel.PutRaw(ctx, actor, RawDraft{
 		Kind:            testResourceKind,
 		ID:              "tool-filtered",
-		Scope:           ResourceScope{Kind: ResourceScopeKindGlobal},
+		Scope:           ResourceScope{Kind: ResourceScopeKindUser},
 		ExpectedVersion: 0,
 		SpecJSON:        []byte(`{"name":"filtered"}`),
 	}); err != nil {
@@ -694,14 +694,14 @@ func TestKernelApplySourceSnapshotRejectsRecordCountAndEmptyGrants(t *testing.T)
 			{
 				Kind:            testResourceKind,
 				ID:              "tool-limit-1",
-				Scope:           ResourceScope{Kind: ResourceScopeKindGlobal},
+				Scope:           ResourceScope{Kind: ResourceScopeKindUser},
 				ExpectedVersion: 0,
 				SpecJSON:        []byte(`{"name":"one"}`),
 			},
 			{
 				Kind:            testResourceKind,
 				ID:              "tool-limit-2",
-				Scope:           ResourceScope{Kind: ResourceScopeKindGlobal},
+				Scope:           ResourceScope{Kind: ResourceScopeKindUser},
 				ExpectedVersion: 0,
 				SpecJSON:        []byte(`{"name":"two"}`),
 			},
@@ -740,14 +740,14 @@ func TestKernelApplySourceSnapshotUpdatesAndDeletesExistingRecords(t *testing.T)
 			{
 				Kind:            testResourceKind,
 				ID:              "tool-keep",
-				Scope:           ResourceScope{Kind: ResourceScopeKindGlobal},
+				Scope:           ResourceScope{Kind: ResourceScopeKindUser},
 				ExpectedVersion: 0,
 				SpecJSON:        []byte(`{"name":"old"}`),
 			},
 			{
 				Kind:            testResourceKind,
 				ID:              "tool-drop",
-				Scope:           ResourceScope{Kind: ResourceScopeKindGlobal},
+				Scope:           ResourceScope{Kind: ResourceScopeKindUser},
 				ExpectedVersion: 0,
 				SpecJSON:        []byte(`{"name":"drop"}`),
 			},
@@ -922,7 +922,7 @@ func TestKernelValidationAndAuthorityEdgeCases(t *testing.T) {
 		if _, err := kernel.PutRaw(ctx, workspaceActor, RawDraft{
 			Kind:            testResourceKind,
 			ID:              "tool-scope-denied",
-			Scope:           ResourceScope{Kind: ResourceScopeKindGlobal},
+			Scope:           ResourceScope{Kind: ResourceScopeKindUser},
 			ExpectedVersion: 0,
 			SpecJSON:        []byte(`{"name":"denied"}`),
 		}); !errors.Is(err, ErrPermissionDenied) {
@@ -933,7 +933,7 @@ func TestKernelValidationAndAuthorityEdgeCases(t *testing.T) {
 		record, err := kernel.PutRaw(ctx, creator, RawDraft{
 			Kind:            testResourceKind,
 			ID:              "tool-source-mismatch",
-			Scope:           ResourceScope{Kind: ResourceScopeKindGlobal},
+			Scope:           ResourceScope{Kind: ResourceScopeKindUser},
 			ExpectedVersion: 0,
 			SpecJSON:        []byte(`{"name":"alpha"}`),
 		})
@@ -946,7 +946,7 @@ func TestKernelValidationAndAuthorityEdgeCases(t *testing.T) {
 		if _, err := kernel.PutRaw(ctx, otherSourceActor, RawDraft{
 			Kind:            testResourceKind,
 			ID:              "tool-source-mismatch",
-			Scope:           ResourceScope{Kind: ResourceScopeKindGlobal},
+			Scope:           ResourceScope{Kind: ResourceScopeKindUser},
 			ExpectedVersion: record.Version,
 			SpecJSON:        []byte(`{"name":"beta"}`),
 		}); !errors.Is(err, ErrPermissionDenied) {
@@ -966,7 +966,7 @@ func TestKernelValidationAndAuthorityEdgeCases(t *testing.T) {
 			Records: []RawDraft{{
 				Kind:            testResourceKind,
 				ID:              "tool-read",
-				Scope:           ResourceScope{Kind: ResourceScopeKindGlobal},
+				Scope:           ResourceScope{Kind: ResourceScopeKindUser},
 				ExpectedVersion: 0,
 				SpecJSON:        []byte(`{"name":"read"}`),
 			}},
@@ -1038,14 +1038,14 @@ func TestKernelValidationAndAuthorityEdgeCases(t *testing.T) {
 				{
 					Kind:            testResourceKind,
 					ID:              "tool-dup",
-					Scope:           ResourceScope{Kind: ResourceScopeKindGlobal},
+					Scope:           ResourceScope{Kind: ResourceScopeKindUser},
 					ExpectedVersion: 0,
 					SpecJSON:        []byte(`{"name":"dup-1"}`),
 				},
 				{
 					Kind:            testResourceKind,
 					ID:              "tool-dup",
-					Scope:           ResourceScope{Kind: ResourceScopeKindGlobal},
+					Scope:           ResourceScope{Kind: ResourceScopeKindUser},
 					ExpectedVersion: 0,
 					SpecJSON:        []byte(`{"name":"dup-2"}`),
 				},
@@ -1077,7 +1077,7 @@ func TestKernelHelperPathsAndMissingState(t *testing.T) {
 	}
 
 	if _, err := normalizeFilter(ResourceFilter{
-		Scope: &ResourceScope{Kind: ResourceScopeKindGlobal, ID: "ws-1"},
+		Scope: &ResourceScope{Kind: ResourceScopeKindUser, ID: "ws-1"},
 	}); !errors.Is(err, ErrInvalidScopeBinding) {
 		t.Fatalf("normalizeFilter(invalid scope) error = %v, want ErrInvalidScopeBinding", err)
 	}
@@ -1182,7 +1182,7 @@ func TestKernelAdditionalValidationBranches(t *testing.T) {
 		if _, err := kernel.PutRaw(ctx, invalidSourceActor, RawDraft{
 			Kind:            testResourceKind,
 			ID:              "tool-invalid-source",
-			Scope:           ResourceScope{Kind: ResourceScopeKindGlobal},
+			Scope:           ResourceScope{Kind: ResourceScopeKindUser},
 			ExpectedVersion: 0,
 			SpecJSON:        []byte(`{"name":"invalid-source"}`),
 		}); !errors.Is(err, ErrValidation) {
@@ -1192,7 +1192,7 @@ func TestKernelAdditionalValidationBranches(t *testing.T) {
 		if _, err := kernel.PutRaw(ctx, testDaemonActor(), RawDraft{
 			Kind:            testResourceKind,
 			ID:              "tool-missing-update",
-			Scope:           ResourceScope{Kind: ResourceScopeKindGlobal},
+			Scope:           ResourceScope{Kind: ResourceScopeKindUser},
 			ExpectedVersion: 1,
 			SpecJSON:        []byte(`{"name":"missing"}`),
 		}); !errors.Is(err, ErrNotFound) {
@@ -1365,7 +1365,7 @@ func testDaemonActor() MutationActor {
 		Kind:     MutationActorKindDaemon,
 		ID:       "daemon-control",
 		Source:   ResourceSource{Kind: ResourceSourceKind("daemon"), ID: "system"},
-		MaxScope: ResourceScope{Kind: ResourceScopeKindGlobal},
+		MaxScope: ResourceScope{Kind: ResourceScopeKindUser},
 	}
 }
 
@@ -1374,7 +1374,7 @@ func testOperatorActor() MutationActor {
 		Kind:     MutationActorKindOperator,
 		ID:       "operator-1",
 		Source:   ResourceSource{Kind: ResourceSourceKind("daemon"), ID: "operator-control"},
-		MaxScope: ResourceScope{Kind: ResourceScopeKindGlobal},
+		MaxScope: ResourceScope{Kind: ResourceScopeKindUser},
 	}
 }
 
@@ -1384,8 +1384,8 @@ func testExtensionActor(sessionID string, sourceID string, nonce string) Mutatio
 		ID:            sessionID,
 		SessionNonce:  nonce,
 		Source:        ResourceSource{Kind: ResourceSourceKind("extension"), ID: sourceID},
-		MaxScope:      ResourceScope{Kind: ResourceScopeKindGlobal},
+		MaxScope:      ResourceScope{Kind: ResourceScopeKindUser},
 		GrantedKinds:  []ResourceKind{testResourceKind},
-		GrantedScopes: []ResourceScopeKind{ResourceScopeKindGlobal, ResourceScopeKindWorkspace},
+		GrantedScopes: []ResourceScopeKind{ResourceScopeKindUser, ResourceScopeKindWorkspace},
 	}
 }

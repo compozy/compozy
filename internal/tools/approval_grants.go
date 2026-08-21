@@ -52,9 +52,13 @@ func (r ApprovalGrantSetRequest) Normalize() ApprovalGrantSetRequest {
 }
 
 // BuildGrant validates the explicit management boundary and returns its durable wider key.
-func (r ApprovalGrantSetRequest) BuildGrant(workspaceID string) (ApprovalGrant, error) {
+func (r ApprovalGrantSetRequest) BuildGrant(profileID string, workspaceID string) (ApprovalGrant, error) {
 	r = r.Normalize()
+	profileID = strings.TrimSpace(profileID)
 	workspaceID = strings.TrimSpace(workspaceID)
+	if profileID == "" {
+		return ApprovalGrant{}, fmt.Errorf("%w: profile_id is required", ErrApprovalGrantInvalid)
+	}
 	if workspaceID == "" {
 		return ApprovalGrant{}, fmt.Errorf("%w: workspace_id is required", ErrApprovalGrantInvalid)
 	}
@@ -80,6 +84,7 @@ func (r ApprovalGrantSetRequest) BuildGrant(workspaceID string) (ApprovalGrant, 
 	}
 	grant := ApprovalGrant{
 		ApprovalGrantKey: ApprovalGrantKey{
+			ProfileID:   profileID,
 			WorkspaceID: workspaceID,
 			AgentName:   r.AgentName,
 			ToolID:      r.ToolID,
@@ -94,6 +99,7 @@ func (r ApprovalGrantSetRequest) BuildGrant(workspaceID string) (ApprovalGrant, 
 
 // ApprovalGrantKey identifies one durable native-tool approval decision.
 type ApprovalGrantKey struct {
+	ProfileID   string `json:"profile_id"`
 	WorkspaceID string `json:"workspace_id"`
 	AgentName   string `json:"agent_name,omitempty"`
 	ToolID      ToolID `json:"tool_id"`
@@ -102,6 +108,7 @@ type ApprovalGrantKey struct {
 
 // Normalize returns a canonical approval grant key.
 func (k ApprovalGrantKey) Normalize() ApprovalGrantKey {
+	k.ProfileID = strings.TrimSpace(k.ProfileID)
 	k.WorkspaceID = strings.TrimSpace(k.WorkspaceID)
 	k.AgentName = strings.TrimSpace(k.AgentName)
 	k.ToolID = ToolID(strings.TrimSpace(k.ToolID.String()))
@@ -112,6 +119,9 @@ func (k ApprovalGrantKey) Normalize() ApprovalGrantKey {
 // Validate checks the fields required by every durable approval lookup.
 func (k ApprovalGrantKey) Validate() error {
 	k = k.Normalize()
+	if k.ProfileID == "" {
+		return fmt.Errorf("%w: profile_id is required", ErrApprovalGrantInvalid)
+	}
 	if k.WorkspaceID == "" {
 		return fmt.Errorf("%w: workspace_id is required", ErrApprovalGrantInvalid)
 	}

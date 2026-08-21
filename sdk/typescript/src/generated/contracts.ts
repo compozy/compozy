@@ -896,6 +896,7 @@ export type JobSource = string;
 
 export interface Job {
   id: string;
+  profile_id: string;
   scope: Scope;
   name: string;
   target_kind: TargetKind;
@@ -1139,6 +1140,7 @@ export interface BridgeDegradation {
 
 export interface BridgeInstance {
   id: string;
+  profile_id: string;
   scope: BridgeScope;
   workspace_id?: string;
   platform: string;
@@ -2877,7 +2879,7 @@ export interface LoopTerminalPayload {
   details?: JSONValue;
 }
 
-export type MemoryScope = "global" | "workspace" | "agent";
+export type MemoryScope = "profile" | "workspace" | "agent";
 
 export interface MemoryForgetParams {
   key: string;

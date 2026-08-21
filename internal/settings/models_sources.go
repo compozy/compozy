@@ -1,17 +1,17 @@
 package settings
 
 func builtinProviderSource() SourceRef {
-	return SourceRef{Kind: SourceKindBuiltinProvider, Scope: ScopeGlobal}
+	return SourceRef{Kind: SourceKindBuiltinProvider, Scope: ScopeUser}
 }
 
 func sourceRefForWriteTarget(kind WriteTargetKind, workspaceID string) SourceRef {
 	switch kind {
 	case WriteTargetGlobalConfig:
-		return SourceRef{Kind: SourceKindGlobalConfig, Scope: ScopeGlobal}
+		return SourceRef{Kind: SourceKindGlobalConfig, Scope: ScopeUser}
 	case WriteTargetWorkspaceConfig:
 		return SourceRef{Kind: SourceKindWorkspaceConfig, Scope: ScopeWorkspace, WorkspaceID: workspaceID}
 	case WriteTargetGlobalMCPSidecar:
-		return SourceRef{Kind: SourceKindGlobalMCPSidecar, Scope: ScopeGlobal}
+		return SourceRef{Kind: SourceKindGlobalMCPSidecar, Scope: ScopeUser}
 	case WriteTargetWorkspaceMCPSidecar:
 		return SourceRef{Kind: SourceKindWorkspaceMCPSidecar, Scope: ScopeWorkspace, WorkspaceID: workspaceID}
 	case WriteTargetGlobalAgentFile:

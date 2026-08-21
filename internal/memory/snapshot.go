@@ -167,7 +167,7 @@ type snapshotSpec struct {
 }
 
 func snapshotSpecs(req PromptSnapshotRequest) []snapshotSpec {
-	specs := []snapshotSpec{{scope: memcontract.ScopeGlobal, title: "Global MEMORY.md Index"}}
+	specs := []snapshotSpec{{scope: memcontract.ScopeProfile, title: "Global MEMORY.md Index"}}
 	if req.WorkspaceRoot != "" || req.WorkspaceID != "" {
 		specs = append(specs, snapshotSpec{scope: memcontract.ScopeWorkspace, title: "Workspace MEMORY.md Index"})
 	}

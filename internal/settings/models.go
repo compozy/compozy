@@ -17,8 +17,8 @@ import (
 type ScopeKind string
 
 const (
-	// ScopeGlobal selects the global Compozy home scope.
-	ScopeGlobal ScopeKind = "global"
+	// ScopeUser selects the user-wide Compozy home scope.
+	ScopeUser ScopeKind = "user"
 	// ScopeWorkspace selects one workspace-local overlay scope.
 	ScopeWorkspace ScopeKind = "workspace"
 	// ScopeAgent selects one effective agent-local overlay scope.
@@ -28,7 +28,7 @@ const (
 // Validate ensures the requested settings scope is supported.
 func (s ScopeKind) Validate() error {
 	switch s {
-	case ScopeGlobal, ScopeWorkspace, ScopeAgent:
+	case ScopeUser, ScopeWorkspace, ScopeAgent:
 		return nil
 	default:
 		return fmt.Errorf("settings: invalid scope %q", s)
@@ -39,7 +39,7 @@ func (s ScopeKind) configWriteScope() compozyconfig.WriteScope {
 	if s == ScopeWorkspace {
 		return compozyconfig.WriteScopeWorkspace
 	}
-	return compozyconfig.WriteScopeGlobal
+	return compozyconfig.WriteScopeUser
 }
 
 // WriteTargetKind identifies the semantic persistence target for one mutation.

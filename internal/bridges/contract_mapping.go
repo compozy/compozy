@@ -10,6 +10,7 @@ import (
 func BridgeInstanceToContract(instance BridgeInstance) bridgecontract.BridgeInstance {
 	converted := bridgecontract.BridgeInstance{
 		ID:            instance.ID,
+		ProfileID:     instance.ProfileID,
 		Scope:         bridgecontract.Scope(instance.Scope),
 		WorkspaceID:   instance.WorkspaceID,
 		Platform:      instance.Platform,
@@ -42,6 +43,7 @@ func BridgeInstanceToContract(instance BridgeInstance) bridgecontract.BridgeInst
 func bridgeInstanceFromContract(instance bridgecontract.BridgeInstance) BridgeInstance {
 	converted := BridgeInstance{
 		ID:            instance.ID,
+		ProfileID:     instance.ProfileID,
 		Scope:         Scope(instance.Scope),
 		WorkspaceID:   instance.WorkspaceID,
 		Platform:      instance.Platform,

@@ -313,7 +313,7 @@ func (q *Queries) GetNetworkMessageTimestamp(ctx context.Context, arg GetNetwork
 }
 
 const getNetworkWork = `-- name: GetNetworkWork :one
-SELECT work_id, workspace_id, channel, surface, thread_id, direct_id, opened_by_session_id,
+SELECT work_id, profile_id, workspace_id, channel, surface, thread_id, direct_id, opened_by_session_id,
        target_session_id, state, opened_at, last_activity_at, terminal_at
 FROM network_work
 WHERE workspace_id = ?1 AND work_id = ?2
@@ -329,6 +329,7 @@ func (q *Queries) GetNetworkWork(ctx context.Context, arg GetNetworkWorkParams) 
 	var i NetworkWork
 	err := row.Scan(
 		&i.WorkID,
+		&i.ProfileID,
 		&i.WorkspaceID,
 		&i.Channel,
 		&i.Surface,
@@ -401,15 +402,18 @@ func (q *Queries) InitializeNetworkDirectRoomSequence(ctx context.Context, arg I
 
 const insertNetworkDirectRoom = `-- name: InsertNetworkDirectRoom :execrows
 INSERT OR IGNORE INTO network_direct_rooms (
+  profile_id,
   workspace_id, channel, direct_id, session_a, session_b, opened_at, last_activity_at,
   message_count, open_work_count, last_message_preview
 ) VALUES (
-  ?1, ?2, ?3, ?4, ?5,
-  ?6, ?7, 0, 0, ''
+  ?1,
+  ?2, ?3, ?4, ?5, ?6,
+  ?7, ?8, 0, 0, ''
 )
 `
 
 type InsertNetworkDirectRoomParams struct {
+	ProfileID      string `json:"profile_id"`
 	WorkspaceID    string `json:"workspace_id"`
 	Channel        string `json:"channel"`
 	DirectID       string `json:"direct_id"`
@@ -421,6 +425,7 @@ type InsertNetworkDirectRoomParams struct {
 
 func (q *Queries) InsertNetworkDirectRoom(ctx context.Context, arg InsertNetworkDirectRoomParams) (int64, error) {
 	result, err := q.db.ExecContext(ctx, insertNetworkDirectRoom,
+		arg.ProfileID,
 		arg.WorkspaceID,
 		arg.Channel,
 		arg.DirectID,
@@ -437,17 +442,20 @@ func (q *Queries) InsertNetworkDirectRoom(ctx context.Context, arg InsertNetwork
 
 const insertNetworkThread = `-- name: InsertNetworkThread :execrows
 INSERT OR IGNORE INTO network_threads (
+  profile_id,
   workspace_id, channel, thread_id, root_message_id, title, opened_by_peer_id, opened_session_id,
   opened_at, opened_sequence, last_activity_at, last_activity_sequence,
   message_count, participant_count, open_work_count, last_message_preview
 ) VALUES (
-  ?1, ?2, ?3, ?4,
-  ?5, ?6, ?7, ?8,
-  ?9, ?10, ?11, 0, 0, 0, ''
+  ?1,
+  ?2, ?3, ?4, ?5,
+  ?6, ?7, ?8, ?9,
+  ?10, ?11, ?12, 0, 0, 0, ''
 )
 `
 
 type InsertNetworkThreadParams struct {
+	ProfileID            string `json:"profile_id"`
 	WorkspaceID          string `json:"workspace_id"`
 	Channel              string `json:"channel"`
 	ThreadID             string `json:"thread_id"`
@@ -463,6 +471,7 @@ type InsertNetworkThreadParams struct {
 
 func (q *Queries) InsertNetworkThread(ctx context.Context, arg InsertNetworkThreadParams) (int64, error) {
 	result, err := q.db.ExecContext(ctx, insertNetworkThread,
+		arg.ProfileID,
 		arg.WorkspaceID,
 		arg.Channel,
 		arg.ThreadID,
@@ -551,17 +560,20 @@ func (q *Queries) InsertNetworkTimelineMessage(ctx context.Context, arg InsertNe
 
 const insertNetworkWork = `-- name: InsertNetworkWork :exec
 INSERT INTO network_work (
+  profile_id,
   work_id, workspace_id, channel, surface, thread_id, direct_id, opened_by_session_id,
   target_session_id, state, opened_at, last_activity_at, terminal_at
 ) VALUES (
-  ?1, ?2, ?3, ?4,
-  ?5, ?6, ?7,
-  ?8, ?9,
-  ?10, ?11, NULL
+  ?1,
+  ?2, ?3, ?4, ?5,
+  ?6, ?7, ?8,
+  ?9, ?10,
+  ?11, ?12, NULL
 )
 `
 
 type InsertNetworkWorkParams struct {
+	ProfileID         string         `json:"profile_id"`
 	WorkID            string         `json:"work_id"`
 	WorkspaceID       string         `json:"workspace_id"`
 	Channel           string         `json:"channel"`
@@ -577,6 +589,7 @@ type InsertNetworkWorkParams struct {
 
 func (q *Queries) InsertNetworkWork(ctx context.Context, arg InsertNetworkWorkParams) error {
 	_, err := q.db.ExecContext(ctx, insertNetworkWork,
+		arg.ProfileID,
 		arg.WorkID,
 		arg.WorkspaceID,
 		arg.Channel,

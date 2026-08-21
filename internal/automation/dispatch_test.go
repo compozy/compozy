@@ -2199,6 +2199,7 @@ func newTestDispatcher(t *testing.T, creator SessionCreator, store RunStore, opt
 func testJob(scope Scope, name string, workspaceID string) Job {
 	return Job{
 		ID:          "job-" + name,
+		ProfileID:   store.DefaultProfileID,
 		Scope:       scope,
 		Name:        name,
 		AgentName:   "researcher",
@@ -2218,6 +2219,7 @@ func testJob(scope Scope, name string, workspaceID string) Job {
 func testTrigger(scope Scope, name string, workspaceID string) Trigger {
 	return Trigger{
 		ID:               "trigger-" + name,
+		ProfileID:        store.DefaultProfileID,
 		Scope:            scope,
 		Name:             name,
 		AgentName:        "reviewer",

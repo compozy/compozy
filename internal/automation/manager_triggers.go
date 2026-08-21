@@ -51,6 +51,9 @@ func (m *Manager) CreateTrigger(
 	}
 
 	next := cloneTrigger(trigger)
+	if strings.TrimSpace(next.ProfileID) == "" {
+		next.ProfileID = store.DefaultProfileID
+	}
 	if next.Source == "" {
 		next.Source = JobSourceDynamic
 	}

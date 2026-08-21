@@ -2186,6 +2186,7 @@ func TestDefaultExtensionManagerFactory(t *testing.T) {
 
 type extensionEnvBindingLookup struct {
 	extension   string
+	profileID   string
 	workspaceID string
 }
 
@@ -2198,11 +2199,14 @@ type recordingExtensionEnvBindingStore struct {
 func (s *recordingExtensionEnvBindingStore) ListEnvBindings(
 	_ context.Context,
 	extension string,
+	profileID string,
 	workspaceID string,
 ) ([]extensionpkg.EnvBinding, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	s.calls = append(s.calls, extensionEnvBindingLookup{extension: extension, workspaceID: workspaceID})
+	s.calls = append(s.calls, extensionEnvBindingLookup{
+		extension: extension, profileID: profileID, workspaceID: workspaceID,
+	})
 	return nil, s.listErr
 }
 
@@ -2212,6 +2216,7 @@ func (*recordingExtensionEnvBindingStore) PutEnvBinding(context.Context, extensi
 
 func (*recordingExtensionEnvBindingStore) DeleteEnvBinding(
 	context.Context,
+	string,
 	string,
 	string,
 	string,
@@ -2302,7 +2307,7 @@ func TestBootHooksBuildsResourceBackedRuntimeAndAttachesObserver(t *testing.T) {
 		Kind:     resources.MutationActorKindDaemon,
 		ID:       "reader",
 		Source:   resources.ResourceSource{Kind: resources.ResourceSourceKind("daemon"), ID: "reader"},
-		MaxScope: resources.ResourceScope{Kind: resources.ResourceScopeKindGlobal},
+		MaxScope: resources.ResourceScope{Kind: resources.ResourceScopeKindUser},
 	}, resources.ResourceFilter{})
 	if err != nil {
 		t.Fatalf("store.List() error = %v", err)
@@ -8325,6 +8330,10 @@ type queuedAttachmentStore struct {
 	entries []store.SessionInputQueueEntry
 }
 
+func (r *recordingRegistry) VerifyDefaultProfile(context.Context) error {
+	return nil
+}
+
 func (s queuedAttachmentStore) ListPendingSessionInputs(
 	context.Context,
 	string,
@@ -8605,6 +8614,7 @@ func (r *recordingRegistry) RecordCmdPaletteUsage(
 
 func (r *recordingRegistry) CmdPalettePersonalization(
 	context.Context,
+	cmdpalette.ProfileLensID,
 	cmdpalette.WorkspaceID,
 ) (cmdpalette.PersonalizationRows, error) {
 	return cmdpalette.PersonalizationRows{}, nil
@@ -8612,6 +8622,7 @@ func (r *recordingRegistry) CmdPalettePersonalization(
 
 func (r *recordingRegistry) PutCmdPalettePin(
 	context.Context,
+	cmdpalette.ProfileLensID,
 	cmdpalette.WorkspaceID,
 	cmdpalette.CommandID,
 	time.Time,
@@ -8621,6 +8632,7 @@ func (r *recordingRegistry) PutCmdPalettePin(
 
 func (r *recordingRegistry) DeleteCmdPalettePin(
 	context.Context,
+	cmdpalette.ProfileLensID,
 	cmdpalette.WorkspaceID,
 	cmdpalette.CommandID,
 ) error {
@@ -8629,6 +8641,7 @@ func (r *recordingRegistry) DeleteCmdPalettePin(
 
 func (r *recordingRegistry) PruneCmdPaletteCommand(
 	context.Context,
+	cmdpalette.ProfileLensID,
 	cmdpalette.WorkspaceID,
 	cmdpalette.CommandID,
 ) error {
@@ -8637,6 +8650,7 @@ func (r *recordingRegistry) PruneCmdPaletteCommand(
 
 func (r *recordingRegistry) PruneCmdPaletteUsage(
 	context.Context,
+	cmdpalette.ProfileLensID,
 	cmdpalette.WorkspaceID,
 	cmdpalette.CommandID,
 ) error {
@@ -8645,6 +8659,7 @@ func (r *recordingRegistry) PruneCmdPaletteUsage(
 
 func (r *recordingRegistry) PruneCmdPaletteQueryHit(
 	context.Context,
+	cmdpalette.ProfileLensID,
 	cmdpalette.WorkspaceID,
 	string,
 	cmdpalette.CommandID,
@@ -8654,6 +8669,7 @@ func (r *recordingRegistry) PruneCmdPaletteQueryHit(
 
 func (r *recordingRegistry) ResetCmdPalettePersonalization(
 	context.Context,
+	cmdpalette.ProfileLensID,
 	cmdpalette.WorkspaceID,
 ) error {
 	return nil

@@ -13,6 +13,7 @@ import (
 	"github.com/compozy/compozy/internal/api/contract"
 	extensionpkg "github.com/compozy/compozy/internal/extension"
 	registrypkg "github.com/compozy/compozy/internal/registry"
+	"github.com/compozy/compozy/internal/store"
 	taskpkg "github.com/compozy/compozy/internal/task"
 )
 
@@ -203,7 +204,7 @@ func (s *daemonExtensionService) payloadFromExtension(
 	}
 	key := extensionpkg.InstanceKey{Name: ext.Info.Name, WorkspaceID: ext.Status.WorkspaceID}.Normalize()
 	if s.envBindings != nil {
-		bindings, err := s.envBindings.ListEnvBindings(ctx, key.Name, key.WorkspaceID)
+		bindings, err := s.envBindings.ListEnvBindings(ctx, key.Name, store.DefaultProfileID, key.WorkspaceID)
 		if err != nil {
 			return contract.ExtensionPayload{}, fmt.Errorf("daemon: list extension secret bindings for status: %w", err)
 		}

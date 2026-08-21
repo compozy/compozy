@@ -11,6 +11,7 @@ import (
 
 type EventSummary struct {
 	ID          string
+	ProfileID   string
 	SessionID   string
 	WorkspaceID string
 	Sequence    int64
@@ -29,6 +30,9 @@ type EventSummary struct {
 
 // Validate ensures the summary contains the required identifying fields.
 func (s EventSummary) Validate() error {
+	if err := requireField(s.ProfileID, "event summary profile_id"); err != nil {
+		return err
+	}
 	eventType := strings.TrimSpace(s.Type)
 	if err := requireField(eventType, "event summary type"); err != nil {
 		return err

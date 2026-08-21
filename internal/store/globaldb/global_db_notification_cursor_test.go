@@ -54,6 +54,7 @@ func TestGlobalDBNotificationCursorStore(t *testing.T) {
 		service := notifications.NewService(globalDB)
 		now := notificationCursorTestTime()
 		globalKey := notifications.CursorKey{
+			ProfileID:  store.DefaultProfileID,
 			Scope:      notifications.ScopeRef{Kind: notifications.ScopeKindGlobal},
 			ConsumerID: "consumer:terminal",
 			StreamName: "task:events",
@@ -122,6 +123,7 @@ func TestGlobalDBNotificationCursorStore(t *testing.T) {
 		globalDB := openTestGlobalDB(t)
 		service := notifications.NewService(globalDB)
 		key := notifications.CursorKey{
+			ProfileID: store.DefaultProfileID,
 			Scope: notifications.ScopeRef{
 				Kind:        notifications.ScopeKindWorkspace,
 				WorkspaceID: " ",
@@ -412,6 +414,7 @@ func TestGlobalDBNotificationCursorStore(t *testing.T) {
 		inputs := []notifications.AdvanceCursor{
 			{
 				Key: notifications.CursorKey{
+					ProfileID:  store.DefaultProfileID,
 					Scope:      notifications.ScopeRef{Kind: notifications.ScopeKindGlobal},
 					ConsumerID: "consumer-a",
 					StreamName: "task_events",
@@ -423,6 +426,7 @@ func TestGlobalDBNotificationCursorStore(t *testing.T) {
 			},
 			{
 				Key: notifications.CursorKey{
+					ProfileID:  store.DefaultProfileID,
 					Scope:      notifications.ScopeRef{Kind: notifications.ScopeKindWorkspace, WorkspaceID: "ws-list"},
 					ConsumerID: "consumer-b",
 					StreamName: "task_events",
@@ -451,6 +455,7 @@ func TestGlobalDBNotificationCursorStore(t *testing.T) {
 
 func notificationCursorTestKey() notifications.CursorKey {
 	return notifications.CursorKey{
+		ProfileID:  store.DefaultProfileID,
 		Scope:      notifications.ScopeRef{Kind: notifications.ScopeKindGlobal},
 		ConsumerID: "sub-1",
 		StreamName: "task_events",

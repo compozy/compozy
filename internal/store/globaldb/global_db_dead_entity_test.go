@@ -230,6 +230,9 @@ func previousDeadEntityMigrationStream(t *testing.T) store.MigrationStream {
 
 func markDeadEntityForTest(t *testing.T, globalDB *GlobalDB, entity store.DeadEntity) {
 	t.Helper()
+	if entity.ProfileID == "" {
+		entity.ProfileID = store.DefaultProfileID
+	}
 
 	if err := globalDB.MarkDeadEntity(testutil.Context(t), entity); err != nil {
 		t.Fatalf("MarkDeadEntity(%q/%q/%q) error = %v", entity.WorkspaceID, entity.Kind, entity.EntityID, err)

@@ -78,7 +78,7 @@ func (s *service) classifyWindowManagerRequest(
 	req SectionUpdateRequest,
 ) lifecycle.Lifecycle {
 	loaded, err := s.loadScopedSectionUpdate(
-		ctx, req.Section, req.Scope, req.WorkspaceID, ScopeGlobal, ScopeWorkspace,
+		ctx, req.Section, req.Scope, req.WorkspaceID, ScopeUser, ScopeWorkspace,
 	)
 	if err != nil {
 		return lifecycle.Live
@@ -106,7 +106,7 @@ func (s *service) classifyCmdPaletteRequest(
 		req.Section,
 		req.Scope,
 		req.WorkspaceID,
-		ScopeGlobal,
+		ScopeUser,
 		ScopeWorkspace,
 	)
 	if err != nil {

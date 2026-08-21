@@ -62,7 +62,7 @@ func TestLoopSourceSyncerIntegrationShouldProjectFSPrecedence(t *testing.T) {
 				}
 				appendLoopResources(
 					&desired,
-					resources.ResourceScope{Kind: resources.ResourceScopeKindGlobal},
+					resources.ResourceScope{Kind: resources.ResourceScopeKindUser},
 					"test/global",
 					global,
 				)
@@ -127,12 +127,12 @@ func TestLoopSourceSyncerIntegrationShouldProjectFSPrecedence(t *testing.T) {
 				return []loopPublicationInput{
 					{
 						sourceKey: "extension/market-ext/loops/extension-loop",
-						scope:     resources.ResourceScope{Kind: resources.ResourceScopeKindGlobal},
+						scope:     resources.ResourceScope{Kind: resources.ResourceScopeKindUser},
 						spec:      extensionSpec,
 					},
 					{
 						sourceKey: "global/user/extension-loop",
-						scope:     resources.ResourceScope{Kind: resources.ResourceScopeKindGlobal},
+						scope:     resources.ResourceScope{Kind: resources.ResourceScopeKindUser},
 						spec:      userSpec,
 					},
 				}, nil

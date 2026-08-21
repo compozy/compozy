@@ -16,7 +16,7 @@ import (
 	storepkg "github.com/compozy/compozy/internal/store"
 )
 
-func (c *catalog) logEvent(ctx context.Context, record memcontract.OperationRecord) error {
+func (c *catalog) logEvent(ctx context.Context, profileID string, record memcontract.OperationRecord) error {
 	c.writeMu.Lock()
 	defer c.writeMu.Unlock()
 
@@ -33,7 +33,7 @@ func (c *catalog) logEvent(ctx context.Context, record memcontract.OperationReco
 	}
 	scope := record.Scope.Normalize()
 	switch scope {
-	case "", memcontract.ScopeGlobal, memcontract.ScopeWorkspace, memcontract.ScopeAgent:
+	case "", memcontract.ScopeProfile, memcontract.ScopeWorkspace, memcontract.ScopeAgent:
 	default:
 		return fmt.Errorf("memory: unsupported operation scope %q", record.Scope)
 	}
@@ -49,18 +49,19 @@ func (c *catalog) logEvent(ctx context.Context, record memcontract.OperationReco
 	record.Scope = scope
 	record.AgentName = agentName
 	record.Timestamp = timestamp.UTC()
-	return insertMemoryEventDB(ctx, db, record)
+	return insertMemoryEventDB(ctx, db, profileID, record)
 }
 
-func insertMemoryEventDB(ctx context.Context, db *sql.DB, record memcontract.OperationRecord) error {
+func insertMemoryEventDB(ctx context.Context, db *sql.DB, profileID string, record memcontract.OperationRecord) error {
 	return storepkg.ExecuteWrite(ctx, db, func(ctx context.Context, tx *storepkg.WriteTx) error {
 		if _, err := tx.ExecContext(
 			ctx,
 			`INSERT INTO memory_events (
-				op, scope, agent_name, agent_tier, workspace_id, session_id, actor_kind,
+				op, profile_id, scope, agent_name, agent_tier, workspace_id, session_id, actor_kind,
 				decision_id, target_id, metadata, ts_ms
-			) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+			) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
 			canonicalEventOp(record),
+			strings.TrimSpace(profileID),
 			nullStringForEmpty(record.Scope.Normalize()),
 			nullStringForEmpty(record.AgentName),
 			nil,
@@ -93,7 +94,7 @@ func (c *catalog) listOperations(
 	operation := canonicalEventOp(memcontract.OperationRecord{Operation: query.Operation.Normalize()})
 	workspace := strings.TrimSpace(query.Workspace)
 	switch scope := query.Scope.Normalize(); scope {
-	case "", memcontract.ScopeGlobal, memcontract.ScopeWorkspace:
+	case "", memcontract.ScopeProfile, memcontract.ScopeWorkspace:
 	default:
 		return nil, fmt.Errorf("memory: unsupported history scope %q", query.Scope)
 	}
@@ -110,8 +111,8 @@ func (c *catalog) listOperations(
 		 FROM memory_events
 		 WHERE (? = '' OR op = ?)
 		 AND (
-			(? = '' AND (? = '' OR scope IS NULL OR scope = 'global' OR (scope = 'workspace' AND workspace_id = ?)))
-			OR (? = 'global' AND scope = 'global')
+			(? = '' AND (? = '' OR scope IS NULL OR scope = 'profile' OR (scope = 'workspace' AND workspace_id = ?)))
+			OR (? = 'profile' AND scope = 'profile')
 			OR (? = 'workspace' AND scope = 'workspace' AND (? = '' OR workspace_id = ?))
 		 )
 		 AND (? = 0 OR ts_ms >= ?)
@@ -163,7 +164,7 @@ func (c *catalog) operationStats(
 
 	rows, err := db.QueryContext(
 		ctx,
-		`SELECT scope, workspace_id, ts_ms FROM memory_events`,
+		`SELECT profile_id, scope, workspace_id, ts_ms FROM memory_events`,
 	)
 	if err != nil {
 		return 0, nil, fmt.Errorf("memory: read operation stats: %w", err)
@@ -172,14 +173,15 @@ func (c *catalog) operationStats(
 
 	for rows.Next() {
 		var (
+			profileID   string
 			scope       sql.NullString
 			workspaceID sql.NullString
 			tsMillis    int64
 		)
-		if err := rows.Scan(&scope, &workspaceID, &tsMillis); err != nil {
+		if err := rows.Scan(&profileID, &scope, &workspaceID, &tsMillis); err != nil {
 			return 0, nil, fmt.Errorf("memory: scan operation stats: %w", err)
 		}
-		if !catalogFiltersAllow(filters, memcontract.Scope(scope.String), workspaceID.String) {
+		if !catalogFiltersAllow(filters, profileID, memcontract.Scope(scope.String), workspaceID.String) {
 			continue
 		}
 		count++

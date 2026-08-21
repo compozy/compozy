@@ -15,6 +15,23 @@ import (
 	"time"
 )
 
+// Invariant: personalization accepts only a real profile ULID or the reserved aggregate lens.
+// The existing personalization suite owns the lens contract because every ranking operation consumes it.
+func TestProfileLensIDValidation(t *testing.T) {
+	t.Parallel()
+
+	for _, lens := range []ProfileLensID{DefaultProfileLensID, AggregateProfileLensID, "01ARZ3NDEKTSV4RRFFQ69G5FAV"} {
+		if err := lens.Validate(); err != nil {
+			t.Fatalf("ProfileLensID(%q).Validate() error = %v", lens, err)
+		}
+	}
+	for _, lens := range []ProfileLensID{"", "default", "@unknown"} {
+		if err := lens.Validate(); err == nil {
+			t.Fatalf("ProfileLensID(%q).Validate() error = nil, want non-nil", lens)
+		}
+	}
+}
+
 func TestPersonalization(t *testing.T) {
 	t.Parallel()
 
@@ -265,6 +282,7 @@ func (s *personalizationStoreStub) lastUsage() Usage {
 
 func (s *personalizationStoreStub) CmdPalettePersonalization(
 	context.Context,
+	ProfileLensID,
 	WorkspaceID,
 ) (PersonalizationRows, error) {
 	return s.rows, s.readErr
@@ -272,6 +290,7 @@ func (s *personalizationStoreStub) CmdPalettePersonalization(
 
 func (s *personalizationStoreStub) PutCmdPalettePin(
 	_ context.Context,
+	_ ProfileLensID,
 	_ WorkspaceID,
 	_ CommandID,
 	_ time.Time,
@@ -280,12 +299,18 @@ func (s *personalizationStoreStub) PutCmdPalettePin(
 	return nil
 }
 
-func (s *personalizationStoreStub) DeleteCmdPalettePin(context.Context, WorkspaceID, CommandID) error {
+func (s *personalizationStoreStub) DeleteCmdPalettePin(
+	context.Context,
+	ProfileLensID,
+	WorkspaceID,
+	CommandID,
+) error {
 	return nil
 }
 
 func (s *personalizationStoreStub) PruneCmdPaletteCommand(
 	_ context.Context,
+	_ ProfileLensID,
 	_ WorkspaceID,
 	commandID CommandID,
 ) error {
@@ -295,6 +320,7 @@ func (s *personalizationStoreStub) PruneCmdPaletteCommand(
 
 func (s *personalizationStoreStub) PruneCmdPaletteUsage(
 	_ context.Context,
+	_ ProfileLensID,
 	_ WorkspaceID,
 	commandID CommandID,
 ) error {
@@ -304,6 +330,7 @@ func (s *personalizationStoreStub) PruneCmdPaletteUsage(
 
 func (s *personalizationStoreStub) PruneCmdPaletteQueryHit(
 	_ context.Context,
+	_ ProfileLensID,
 	_ WorkspaceID,
 	query string,
 	commandID CommandID,
@@ -314,6 +341,7 @@ func (s *personalizationStoreStub) PruneCmdPaletteQueryHit(
 
 func (s *personalizationStoreStub) ResetCmdPalettePersonalization(
 	_ context.Context,
+	_ ProfileLensID,
 	workspaceID WorkspaceID,
 ) error {
 	s.resetWorkspace = workspaceID

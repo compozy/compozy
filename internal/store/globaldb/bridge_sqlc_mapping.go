@@ -85,7 +85,8 @@ func bridgeInstanceInsertParams(record bridgeInstanceRecord) (sqlcgen.InsertBrid
 		return sqlcgen.InsertBridgeInstanceParams{}, err
 	}
 	return sqlcgen.InsertBridgeInstanceParams{
-		ID: instance.ID, Scope: string(instance.Scope), WorkspaceID: nullableBridgeString(instance.WorkspaceID),
+		ProfileID: instance.ProfileID,
+		ID:        instance.ID, Scope: string(instance.Scope), WorkspaceID: nullableBridgeString(instance.WorkspaceID),
 		Platform: instance.Platform, ExtensionName: instance.ExtensionName, DisplayName: instance.DisplayName,
 		Source: string(instance.Source), Enabled: instance.Enabled, Status: string(instance.Status),
 		DmPolicy: string(instance.DMPolicy), RoutingPolicy: record.routingPolicyJSON,
@@ -122,8 +123,9 @@ func bridgeInstanceUpsertParams(record bridgeInstanceRecord) (sqlcgen.UpsertBrid
 
 func bridgeInstanceFromGenerated(row sqlcgen.BridgeInstance) (bridges.BridgeInstance, error) {
 	instance := bridges.BridgeInstance{
-		ID: row.ID, Scope: bridges.Scope(row.Scope), WorkspaceID: bridgeStringValue(row.WorkspaceID),
-		Platform: row.Platform, ExtensionName: row.ExtensionName, DisplayName: row.DisplayName,
+		ID: row.ID, ProfileID: row.ProfileID, Scope: bridges.Scope(row.Scope),
+		WorkspaceID: bridgeStringValue(row.WorkspaceID),
+		Platform:    row.Platform, ExtensionName: row.ExtensionName, DisplayName: row.DisplayName,
 		Source: bridges.BridgeInstanceSource(row.Source), Enabled: row.Enabled,
 		Status: bridges.BridgeStatus(row.Status), DMPolicy: bridges.BridgeDMPolicy(row.DmPolicy),
 		NotificationSuppress: row.NotificationSuppress,

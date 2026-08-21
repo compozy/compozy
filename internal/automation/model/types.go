@@ -151,6 +151,7 @@ type LoopTarget struct {
 // Job is the canonical scheduled automation definition used by runtime and storage layers.
 type Job struct {
 	ID          string          `json:"id"`
+	ProfileID   string          `json:"profile_id"`
 	Scope       Scope           `json:"scope"`
 	Name        string          `json:"name"`
 	TargetKind  TargetKind      `json:"target_kind"`
@@ -181,6 +182,7 @@ type ScheduleSpec struct {
 // Trigger is the canonical event-driven automation definition used by runtime and storage layers.
 type Trigger struct {
 	ID               string            `json:"id"`
+	ProfileID        string            `json:"profile_id"`
 	Scope            Scope             `json:"scope"`
 	Name             string            `json:"name"`
 	TargetKind       TargetKind        `json:"target_kind"`

@@ -9,7 +9,7 @@ import (
 )
 
 func (s *service) deleteProvider(name string) (MutationResult, error) {
-	target, err := compozyconfig.ResolveConfigWriteTarget(s.homePaths, "", compozyconfig.WriteScopeGlobal)
+	target, err := compozyconfig.ResolveConfigWriteTarget(s.homePaths, "", compozyconfig.WriteScopeUser)
 	if err != nil {
 		return MutationResult{}, err
 	}
@@ -29,12 +29,12 @@ func (s *service) deleteProvider(name string) (MutationResult, error) {
 		return MutationResult{}, fmt.Errorf("settings: delete provider %q: %w", name, err)
 	}
 
-	return mutationResultForCollection(CollectionProviders, ScopeGlobal, "", target.Kind()), nil
+	return mutationResultForCollection(CollectionProviders, ScopeUser, "", target.Kind()), nil
 }
 
 func (s *service) putSandbox(name string, profile compozyconfig.SandboxProfile) (MutationResult, error) {
 	values := sandboxProfileMap(profile)
-	target, err := compozyconfig.ResolveConfigWriteTarget(s.homePaths, "", compozyconfig.WriteScopeGlobal)
+	target, err := compozyconfig.ResolveConfigWriteTarget(s.homePaths, "", compozyconfig.WriteScopeUser)
 	if err != nil {
 		return MutationResult{}, err
 	}
@@ -50,11 +50,11 @@ func (s *service) putSandbox(name string, profile compozyconfig.SandboxProfile) 
 		return MutationResult{}, fmt.Errorf("settings: write sandbox %q: %w", name, err)
 	}
 
-	return mutationResultForCollection(CollectionSandboxes, ScopeGlobal, "", target.Kind()), nil
+	return mutationResultForCollection(CollectionSandboxes, ScopeUser, "", target.Kind()), nil
 }
 
 func (s *service) deleteSandbox(name string) (MutationResult, error) {
-	target, err := compozyconfig.ResolveConfigWriteTarget(s.homePaths, "", compozyconfig.WriteScopeGlobal)
+	target, err := compozyconfig.ResolveConfigWriteTarget(s.homePaths, "", compozyconfig.WriteScopeUser)
 	if err != nil {
 		return MutationResult{}, err
 	}
@@ -74,7 +74,7 @@ func (s *service) deleteSandbox(name string) (MutationResult, error) {
 		return MutationResult{}, fmt.Errorf("settings: delete sandbox %q: %w", name, err)
 	}
 
-	return mutationResultForCollection(CollectionSandboxes, ScopeGlobal, "", target.Kind()), nil
+	return mutationResultForCollection(CollectionSandboxes, ScopeUser, "", target.Kind()), nil
 }
 
 func (s *service) putHook(name string, declaration hookspkg.HookDecl) (MutationResult, error) {
@@ -83,7 +83,7 @@ func (s *service) putHook(name string, declaration hookspkg.HookDecl) (MutationR
 		return MutationResult{}, err
 	}
 
-	target, err := compozyconfig.ResolveConfigWriteTarget(s.homePaths, "", compozyconfig.WriteScopeGlobal)
+	target, err := compozyconfig.ResolveConfigWriteTarget(s.homePaths, "", compozyconfig.WriteScopeUser)
 	if err != nil {
 		return MutationResult{}, err
 	}
@@ -104,11 +104,11 @@ func (s *service) putHook(name string, declaration hookspkg.HookDecl) (MutationR
 		return MutationResult{}, fmt.Errorf("settings: write hook %q: %w", name, err)
 	}
 
-	return mutationResultForCollection(CollectionHooks, ScopeGlobal, "", target.Kind()), nil
+	return mutationResultForCollection(CollectionHooks, ScopeUser, "", target.Kind()), nil
 }
 
 func (s *service) deleteHook(name string) (MutationResult, error) {
-	target, err := compozyconfig.ResolveConfigWriteTarget(s.homePaths, "", compozyconfig.WriteScopeGlobal)
+	target, err := compozyconfig.ResolveConfigWriteTarget(s.homePaths, "", compozyconfig.WriteScopeUser)
 	if err != nil {
 		return MutationResult{}, err
 	}
@@ -131,7 +131,7 @@ func (s *service) deleteHook(name string) (MutationResult, error) {
 		return MutationResult{}, fmt.Errorf("settings: delete hook %q: %w", name, err)
 	}
 
-	return mutationResultForCollection(CollectionHooks, ScopeGlobal, "", target.Kind()), nil
+	return mutationResultForCollection(CollectionHooks, ScopeUser, "", target.Kind()), nil
 }
 
 func mutationResultForCollection(

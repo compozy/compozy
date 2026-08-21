@@ -24,7 +24,11 @@ func (s *Store) RecordRecall(ctx context.Context, signals []memoryrecall.Signal)
 	}
 	return s.catalog.withCatalogWriteTx(ctx, "recall signal update", func(tx *storepkg.WriteTx) error {
 		for _, signal := range signals {
-			if err := upsertRecallSignal(ctx, tx, signal); err != nil {
+			scope := memcontract.ScopeProfile
+			if strings.TrimSpace(signal.WorkspaceID) != "" {
+				scope = memcontract.ScopeWorkspace
+			}
+			if err := upsertRecallSignal(ctx, tx, s.profileIDForScope(scope), signal); err != nil {
 				return err
 			}
 		}
@@ -32,7 +36,12 @@ func (s *Store) RecordRecall(ctx context.Context, signals []memoryrecall.Signal)
 	})
 }
 
-func upsertRecallSignal(ctx context.Context, tx *storepkg.WriteTx, signal memoryrecall.Signal) error {
+func upsertRecallSignal(
+	ctx context.Context,
+	tx *storepkg.WriteTx,
+	profileID string,
+	signal memoryrecall.Signal,
+) error {
 	surfacedAt := signal.SurfacedAt.UTC()
 	if surfacedAt.IsZero() {
 		surfacedAt = time.Now().UTC()
@@ -48,12 +57,13 @@ func upsertRecallSignal(ctx context.Context, tx *storepkg.WriteTx, signal memory
 	if _, err := tx.ExecContext(
 		ctx,
 		`INSERT INTO memory_recall_signals (
-			chunk_id, workspace_id, recall_count, last_recalled_at, recall_score,
+			chunk_id, workspace_id, profile_id, recall_count, last_recalled_at, recall_score,
 			freshness_started_at, last_score_update_at, session_count, last_session_id,
 			already_surfaced_json, updated_at
-		) VALUES (?, ?, 1, ?, ?, ?, ?, ?, ?, ?, ?)
+		) VALUES (?, ?, ?, 1, ?, ?, ?, ?, ?, ?, ?, ?)
 		ON CONFLICT(chunk_id) DO UPDATE SET
 			workspace_id = excluded.workspace_id,
+			profile_id = excluded.profile_id,
 			recall_count = memory_recall_signals.recall_count + 1,
 			last_recalled_at = excluded.last_recalled_at,
 			recall_score = CASE
@@ -74,6 +84,7 @@ func upsertRecallSignal(ctx context.Context, tx *storepkg.WriteTx, signal memory
 			updated_at = excluded.updated_at`,
 		strings.TrimSpace(signal.ChunkID),
 		nullStringForEmpty(signal.WorkspaceID),
+		strings.TrimSpace(profileID),
 		timeToUnixMillis(surfacedAt),
 		signal.Score,
 		timeToUnixMillis(surfacedAt),
@@ -165,7 +176,7 @@ func (s *Store) insertRecallEvent(
 		return fmt.Errorf("memory: encode recall event metadata: %w", err)
 	}
 	workspaceID := strings.TrimSpace(query.WorkspaceID)
-	scope := memcontract.ScopeGlobal
+	scope := memcontract.ScopeProfile
 	if workspaceID != "" {
 		scope = memcontract.ScopeWorkspace
 	}
@@ -177,10 +188,11 @@ func (s *Store) insertRecallEvent(
 		if _, err := tx.ExecContext(
 			ctx,
 			`INSERT INTO memory_events (
-				op, scope, agent_name, agent_tier, workspace_id, session_id, actor_kind,
+				op, profile_id, scope, agent_name, agent_tier, workspace_id, session_id, actor_kind,
 				decision_id, target_id, metadata, ts_ms
-			) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+			) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
 			strings.TrimSpace(op),
+			s.profileIDForScope(scope),
 			string(scope),
 			agentName,
 			nil,

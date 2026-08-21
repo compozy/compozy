@@ -21,8 +21,8 @@ var (
 type WriteScope string
 
 const (
-	// WriteScopeGlobal targets the global Compozy home config.
-	WriteScopeGlobal WriteScope = "global"
+	// WriteScopeUser targets the user-wide Compozy home config.
+	WriteScopeUser WriteScope = "user"
 	// WriteScopeWorkspace targets a workspace-local Compozy overlay.
 	WriteScopeWorkspace WriteScope = "workspace"
 )
@@ -30,7 +30,7 @@ const (
 // Validate ensures the write scope is supported.
 func (s WriteScope) Validate() error {
 	switch s {
-	case WriteScopeGlobal, WriteScopeWorkspace:
+	case WriteScopeUser, WriteScopeWorkspace:
 		return nil
 	default:
 		return fmt.Errorf("config: invalid write scope %q", s)
@@ -107,7 +107,7 @@ func resolveWriteTarget(
 	}
 
 	switch scope {
-	case WriteScopeGlobal:
+	case WriteScopeUser:
 		if sidecar {
 			return WriteTarget{
 				kind:  WriteTargetGlobalMCPSidecar,

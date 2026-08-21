@@ -44,7 +44,7 @@ func TestBridgeInstanceResourceCodecRejectsInvalidPayloads(t *testing.T) {
 		},
 		{
 			name:      "malformed provider config",
-			scope:     resources.ResourceScope{Kind: resources.ResourceScopeKindGlobal},
+			scope:     resources.ResourceScope{Kind: resources.ResourceScopeKindUser},
 			wantError: "bridge instance provider config must be a JSON object or null",
 			raw: []byte(`{
 				"scope":"global",
@@ -59,7 +59,7 @@ func TestBridgeInstanceResourceCodecRejectsInvalidPayloads(t *testing.T) {
 		},
 		{
 			name:      "invalid dm policy",
-			scope:     resources.ResourceScope{Kind: resources.ResourceScopeKindGlobal},
+			scope:     resources.ResourceScope{Kind: resources.ResourceScopeKindUser},
 			wantError: `unsupported dm policy "invite-everyone"`,
 			raw: []byte(`{
 				"scope":"global",
@@ -73,7 +73,7 @@ func TestBridgeInstanceResourceCodecRejectsInvalidPayloads(t *testing.T) {
 		},
 		{
 			name:      "invalid delivery defaults field type",
-			scope:     resources.ResourceScope{Kind: resources.ResourceScopeKindGlobal},
+			scope:     resources.ResourceScope{Kind: resources.ResourceScopeKindUser},
 			wantError: `bridge instance delivery defaults field "thread_id" must be a string`,
 			raw: []byte(`{
 					"scope":"global",
@@ -116,7 +116,7 @@ func TestBridgeInstanceResourceCodecAllowsProviderSpecificDeliveryDefaults(t *te
 
 	spec, err := codec.DecodeAndValidate(
 		testutil.Context(t),
-		resources.ResourceScope{Kind: resources.ResourceScopeKindGlobal},
+		resources.ResourceScope{Kind: resources.ResourceScopeKindUser},
 		[]byte(`{
 			"scope":"global",
 			"platform":"telegram",
@@ -164,7 +164,7 @@ func TestBridgeProgressConfigValidationAndResolution(t *testing.T) {
 		}
 		spec, err := codec.DecodeAndValidate(
 			testutil.Context(t),
-			resources.ResourceScope{Kind: resources.ResourceScopeKindGlobal},
+			resources.ResourceScope{Kind: resources.ResourceScopeKindUser},
 			raw,
 		)
 		if err != nil {
@@ -206,7 +206,7 @@ func TestBridgeInstanceResourceCodecEnforcesProviderManifestMetadata(t *testing.
 		t.Fatalf("NewBridgeInstanceResourceCodec() error = %v", err)
 	}
 
-	scope := resources.ResourceScope{Kind: resources.ResourceScopeKindGlobal}
+	scope := resources.ResourceScope{Kind: resources.ResourceScopeKindUser}
 	spec, err := codec.DecodeAndValidate(scopeContext(t), scope, []byte(`{
 		"scope":"global",
 		"platform":"telegram",
@@ -329,7 +329,7 @@ func TestBridgeResourceBuildComputesDeltaWithoutApplyingSideEffects(t *testing.T
 	records := []resources.Record[bridgepkg.BridgeInstanceSpec]{{
 		ID:        "brg-existing",
 		Version:   7,
-		Scope:     resources.ResourceScope{Kind: resources.ResourceScopeKindGlobal},
+		Scope:     resources.ResourceScope{Kind: resources.ResourceScopeKindUser},
 		Spec:      resourceSpec("Updated", true),
 		CreatedAt: now.Add(-time.Hour),
 		UpdatedAt: now,
@@ -400,7 +400,7 @@ func TestBridgeResourceApplyReturnsReplaceFailure(t *testing.T) {
 		[]resources.Record[bridgepkg.BridgeInstanceSpec]{{
 			ID:        "brg-fail",
 			Version:   1,
-			Scope:     resources.ResourceScope{Kind: resources.ResourceScopeKindGlobal},
+			Scope:     resources.ResourceScope{Kind: resources.ResourceScopeKindUser},
 			Spec:      resourceSpec("Failing", true),
 			CreatedAt: time.Date(2026, 4, 16, 12, 0, 0, 0, time.UTC),
 			UpdatedAt: time.Date(2026, 4, 16, 12, 0, 0, 0, time.UTC),
@@ -519,7 +519,7 @@ func TestBridgeResourceProjectionPlanAccessorsAndRollback(t *testing.T) {
 		[]resources.Record[bridgepkg.BridgeInstanceSpec]{{
 			ID:        "brg-accessor",
 			Version:   17,
-			Scope:     resources.ResourceScope{Kind: resources.ResourceScopeKindGlobal},
+			Scope:     resources.ResourceScope{Kind: resources.ResourceScopeKindUser},
 			Spec:      spec,
 			CreatedAt: now.Add(-time.Hour),
 			UpdatedAt: now,
@@ -592,7 +592,7 @@ func TestBridgeResourceProjectionIgnoresSemanticallyEquivalentJSON(t *testing.T)
 		[]resources.Record[bridgepkg.BridgeInstanceSpec]{{
 			ID:        "brg-json",
 			Version:   9,
-			Scope:     resources.ResourceScope{Kind: resources.ResourceScopeKindGlobal},
+			Scope:     resources.ResourceScope{Kind: resources.ResourceScopeKindUser},
 			Spec:      spec,
 			CreatedAt: now.Add(-time.Hour),
 			UpdatedAt: now,
@@ -666,7 +666,7 @@ func TestBridgeResourceProjectionDetectsLargeJSONNumberChanges(t *testing.T) {
 				[]resources.Record[bridgepkg.BridgeInstanceSpec]{{
 					ID:        "brg-json-number",
 					Version:   10,
-					Scope:     resources.ResourceScope{Kind: resources.ResourceScopeKindGlobal},
+					Scope:     resources.ResourceScope{Kind: resources.ResourceScopeKindUser},
 					Spec:      spec,
 					CreatedAt: now.Add(-time.Hour),
 					UpdatedAt: now,

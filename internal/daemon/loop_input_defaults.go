@@ -255,7 +255,7 @@ func (s *daemonLoopAPIService) loopInputDefaultsWorkspaceRoot(
 func loopInputDefaultsWriteScope(scope contract.LoopInputDefaultsScope) (compozyconfig.WriteScope, error) {
 	switch scope {
 	case contract.LoopInputDefaultsScopeGlobal:
-		return compozyconfig.WriteScopeGlobal, nil
+		return compozyconfig.WriteScopeUser, nil
 	case contract.LoopInputDefaultsScopeWorkspace:
 		return compozyconfig.WriteScopeWorkspace, nil
 	default:

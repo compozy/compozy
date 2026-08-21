@@ -5,6 +5,7 @@ import (
 	"sync"
 	"testing"
 
+	"github.com/compozy/compozy/internal/store"
 	"github.com/compozy/compozy/internal/testutil"
 )
 
@@ -227,12 +228,14 @@ func TestManagerAutomationSuggestions(t *testing.T) {
 func suggestionForManagerTest(workspaceID string, id string, dedupKey string) Suggestion {
 	return Suggestion{
 		ID:          id,
+		ProfileID:   store.DefaultProfileID,
 		WorkspaceID: workspaceID,
 		Source:      SuggestionSourceCatalog,
 		DedupKey:    dedupKey,
 		Status:      SuggestionStatusPending,
 		Payload: Job{
 			ID:          suggestionJobID(workspaceID, dedupKey),
+			ProfileID:   store.DefaultProfileID,
 			Scope:       AutomationScopeWorkspace,
 			Name:        "Suggested workspace review",
 			TargetKind:  TargetKindAgent,

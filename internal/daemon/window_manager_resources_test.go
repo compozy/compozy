@@ -20,12 +20,12 @@ func TestWindowManagerLayoutResources(t *testing.T) {
 		catalog.Replace(4, []resources.Record[windowmanager.LayoutResource]{
 			windowLayoutRecord(
 				"focus",
-				resources.ResourceScope{Kind: resources.ResourceScopeKindGlobal},
+				resources.ResourceScope{Kind: resources.ResourceScopeKindUser},
 				"Global Focus",
 			),
 			windowLayoutRecord(
 				"alpha",
-				resources.ResourceScope{Kind: resources.ResourceScopeKindGlobal},
+				resources.ResourceScope{Kind: resources.ResourceScopeKindUser},
 				"Alpha",
 			),
 			windowLayoutRecord(
@@ -69,7 +69,7 @@ func TestWindowManagerLayoutResources(t *testing.T) {
 		projector := newWindowLayoutProjector(catalog)
 		good := windowLayoutRecord(
 			"focus",
-			resources.ResourceScope{Kind: resources.ResourceScopeKindGlobal},
+			resources.ResourceScope{Kind: resources.ResourceScopeKindUser},
 			"Focus",
 		)
 		plan, err := projector.Build(t.Context(), []resources.Record[windowmanager.LayoutResource]{good})

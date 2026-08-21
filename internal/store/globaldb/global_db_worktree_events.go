@@ -74,6 +74,7 @@ func worktreeEventSummary(event worktree.LifecycleEvent) store.EventSummary {
 	outcome := string(eventspkg.OutcomeFor(event.Name))
 	content := append(json.RawMessage(nil), event.Payload...)
 	return store.EventSummary{
+		ProfileID:   store.DefaultProfileID,
 		WorkspaceID: event.WorkspaceID,
 		Type:        event.Name,
 		Outcome:     outcome,

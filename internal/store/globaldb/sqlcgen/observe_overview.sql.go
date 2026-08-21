@@ -429,15 +429,17 @@ func (q *Queries) SumTokenUsageDailyCost(ctx context.Context, arg SumTokenUsageD
 
 const upsertTokenUsageDaily = `-- name: UpsertTokenUsageDaily :exec
 INSERT INTO token_usage_daily (
+  profile_id,
   day, workspace_id, agent_name, input_tokens, output_tokens, total_tokens,
   total_cost, cost_currency, cost_status, cost_source, turn_count, updated_at
 ) VALUES (
-  ?1, ?2, ?3, ?4,
-  ?5, ?6, ?7,
-  ?8, ?9, ?10,
-  ?11, ?12
+  ?1,
+  ?2, ?3, ?4, ?5,
+  ?6, ?7, ?8,
+  ?9, ?10, ?11,
+  ?12, ?13
 )
-ON CONFLICT(day, workspace_id, agent_name) DO UPDATE SET
+ON CONFLICT(day, profile_id, workspace_id, agent_name) DO UPDATE SET
   input_tokens = token_usage_daily.input_tokens + excluded.input_tokens,
   output_tokens = token_usage_daily.output_tokens + excluded.output_tokens,
   total_tokens = token_usage_daily.total_tokens + excluded.total_tokens,
@@ -484,6 +486,7 @@ ON CONFLICT(day, workspace_id, agent_name) DO UPDATE SET
 `
 
 type UpsertTokenUsageDailyParams struct {
+	ProfileID    string          `json:"profile_id"`
 	Day          string          `json:"day"`
 	WorkspaceID  string          `json:"workspace_id"`
 	AgentName    string          `json:"agent_name"`
@@ -508,6 +511,7 @@ type UpsertTokenUsageDailyParams struct {
 // On mismatch: total_cost/cost_currency -> NULL, cost_status -> 'unknown', cost_source -> 'none'.
 func (q *Queries) UpsertTokenUsageDaily(ctx context.Context, arg UpsertTokenUsageDailyParams) error {
 	_, err := q.db.ExecContext(ctx, upsertTokenUsageDaily,
+		arg.ProfileID,
 		arg.Day,
 		arg.WorkspaceID,
 		arg.AgentName,

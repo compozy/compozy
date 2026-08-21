@@ -40,7 +40,7 @@ func (ext *managedExtension) maxResourceScope() resources.ResourceScopeKind {
 	if ext != nil && !ext.instanceKey().IsGlobal() {
 		return resources.ResourceScopeKindWorkspace
 	}
-	return resources.ResourceScopeKindGlobal
+	return resources.ResourceScopeKindUser
 }
 
 func extensionCapabilityGrantID(key InstanceKey, sessionNonce string) string {

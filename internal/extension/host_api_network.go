@@ -190,6 +190,7 @@ func (h *HostAPIHandler) handleNetworkDirectResolve(ctx context.Context, raw jso
 	}
 	now := h.now()
 	direct, err := networkStore.ResolveDirectRoom(ctx, store.NetworkDirectRoomEntry{
+		ProfileID:      store.DefaultProfileID,
 		WorkspaceID:    workspaceID,
 		Channel:        channel,
 		DirectID:       directID,

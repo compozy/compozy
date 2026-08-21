@@ -761,7 +761,7 @@ func TestDreamSystemPathValidation(t *testing.T) {
 		t.Parallel()
 
 		store := newOpenTestStore(t, filepath.Join(t.TempDir(), "memory"))
-		if _, err := store.dreamSystemPath(memcontract.ScopeGlobal, "dreaming", "../bad.json"); err == nil {
+		if _, err := store.dreamSystemPath(memcontract.ScopeProfile, "dreaming", "../bad.json"); err == nil {
 			t.Fatal("dreamSystemPath() error = nil, want unsafe segment error")
 		}
 	})
@@ -771,7 +771,7 @@ func TestDreamSystemPathValidation(t *testing.T) {
 
 		root := filepath.Join(t.TempDir(), "memory")
 		store := newOpenTestStore(t, root)
-		path, err := store.dreamSystemPath(memcontract.ScopeGlobal, "dream", "failures", "run.json")
+		path, err := store.dreamSystemPath(memcontract.ScopeProfile, "dream", "failures", "run.json")
 		if err != nil {
 			t.Fatalf("dreamSystemPath() error = %v", err)
 		}

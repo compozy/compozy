@@ -69,7 +69,7 @@ func ResourceScopeForBridge(scope Scope, workspaceID string) resources.ResourceS
 			ID:   workspaceID,
 		}
 	default:
-		return resources.ResourceScope{Kind: resources.ResourceScopeKindGlobal}
+		return resources.ResourceScope{Kind: resources.ResourceScopeKindUser}
 	}
 }
 
@@ -167,7 +167,7 @@ func bindBridgeResourceScope(
 	resourceScope resources.ResourceScope,
 ) error {
 	switch resourceScope.Kind {
-	case resources.ResourceScopeKindGlobal:
+	case resources.ResourceScopeKindUser:
 		if *domainScope == "" {
 			*domainScope = ScopeGlobal
 		}
@@ -383,6 +383,7 @@ func bridgeInstanceFromResourceRecord(
 	}
 
 	instance := BridgeInstance{
+		ProfileID:            store.DefaultProfileID,
 		ID:                   record.ID,
 		Scope:                record.Spec.Scope,
 		WorkspaceID:          record.Spec.WorkspaceID,

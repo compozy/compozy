@@ -110,6 +110,7 @@ func (e globalHookDispatchEventEmitter) EmitHookDispatchEvent(
 	}
 
 	if writeErr := e.summaries.WriteEventSummary(ctx, store.EventSummary{
+		ProfileID:        store.DefaultProfileID,
 		SessionID:        strings.TrimSpace(sessionCtx.SessionID),
 		Type:             hookDispatchEventType(phase),
 		AgentName:        strings.TrimSpace(sessionCtx.AgentName),

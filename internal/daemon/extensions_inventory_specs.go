@@ -96,7 +96,7 @@ func (c *extensionKitItemCollector) appendAgentSkillItems(
 	if len(ext.StaticAgents) == 0 && len(ext.Skills) == 0 {
 		return nil
 	}
-	globalScope := resources.ResourceScope{Kind: resources.ResourceScopeKindGlobal}
+	globalScope := resources.ResourceScope{Kind: resources.ResourceScopeKindUser}
 	declarations := agentSkillDeclarations{}
 	appendExtensionAgentResources(&declarations, globalScope, ext.Info.Name, ext.StaticAgents)
 	appendSkillResources(&declarations, globalScope, skillPublicationSource{
@@ -160,7 +160,7 @@ func (c *extensionKitItemCollector) appendToolMCPItems(
 	if len(ext.Manifest.Resources.Tools) == 0 && len(ext.Manifest.Resources.MCPServers) == 0 {
 		return nil
 	}
-	globalScope := resources.ResourceScope{Kind: resources.ResourceScopeKindGlobal}
+	globalScope := resources.ResourceScope{Kind: resources.ResourceScopeKindUser}
 	declarations := toolMCPDesiredResources{}
 	tools, err := extensionpkg.ResolveManifestToolResources(ext.Manifest)
 	if err != nil {
@@ -216,7 +216,7 @@ func (c *extensionKitItemCollector) appendLoopItems(
 	if err != nil {
 		return fmt.Errorf("daemon: resolve extension preview loop codec: %w", err)
 	}
-	globalScope := resources.ResourceScope{Kind: resources.ResourceScopeKindGlobal}
+	globalScope := resources.ResourceScope{Kind: resources.ResourceScopeKindUser}
 	inputs := make([]loopPublicationInput, 0, len(ext.Loops))
 	for _, spec := range ext.Loops {
 		inputs = append(inputs, loopPublicationInput{
@@ -284,7 +284,7 @@ func (c *extensionKitItemCollector) appendAutomationItems(
 	if err != nil {
 		return fmt.Errorf("daemon: resolve extension preview trigger codec: %w", err)
 	}
-	globalScope := resources.ResourceScope{Kind: resources.ResourceScopeKindGlobal}
+	globalScope := resources.ResourceScope{Kind: resources.ResourceScopeKindUser}
 	for _, job := range ext.AutomationJobs {
 		validated, encoded, err := validateAndEncodeResource(ctx, jobCodec, globalScope, job)
 		if err != nil {
@@ -317,7 +317,7 @@ func (c *extensionKitItemCollector) appendLayoutItems(
 	if err != nil {
 		return fmt.Errorf("daemon: resolve extension preview layout codec: %w", err)
 	}
-	globalScope := resources.ResourceScope{Kind: resources.ResourceScopeKindGlobal}
+	globalScope := resources.ResourceScope{Kind: resources.ResourceScopeKindUser}
 	for _, layout := range ext.Layouts {
 		name := strings.TrimSpace(layout.ID)
 		id := "extension/" + ext.Info.Name + "/window_layout/" + name

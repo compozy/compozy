@@ -57,7 +57,7 @@ func TestStoreListMemoryEventSummaries(t *testing.T) {
 			t,
 			globalStore.catalog,
 			memoryEventWriteCommitted,
-			"global",
+			"profile",
 			"",
 			"daemon",
 			"global write committed",
@@ -342,12 +342,17 @@ func insertMemoryObservabilityEvent(
 	if err != nil {
 		t.Fatalf("json.Marshal(metadata) error = %v", err)
 	}
+	profileID := ""
+	if scope == "profile" {
+		profileID = storepkg.DefaultProfileID
+	}
 	if _, err := db.ExecContext(
 		ctx,
 		`INSERT INTO memory_events (
-			op, scope, agent_name, workspace_id, actor_kind, metadata, ts_ms
-		) VALUES (?, ?, ?, ?, ?, ?, ?)`,
+			op, profile_id, scope, agent_name, workspace_id, actor_kind, metadata, ts_ms
+		) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
 		op,
+		profileID,
 		nullStringForEmpty(scope),
 		agentName,
 		nullStringForEmpty(workspaceID),

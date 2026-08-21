@@ -11,6 +11,7 @@ import (
 	hookspkg "github.com/compozy/compozy/internal/hooks"
 	"github.com/compozy/compozy/internal/network/identifier"
 	"github.com/compozy/compozy/internal/network/participation"
+	"github.com/compozy/compozy/internal/store"
 	workspacepkg "github.com/compozy/compozy/internal/workspace"
 )
 
@@ -61,6 +62,7 @@ func (m *Manager) prepareCreateStart(ctx context.Context, opts CreateOpts) (sess
 
 	return sessionStartSpec{
 		sessionID:                sessionID,
+		profileID:                normalizeCreateProfileID(opts.ProfileID),
 		sandboxID:                sandboxID,
 		sessionName:              strings.TrimSpace(opts.Name),
 		agentName:                strings.TrimSpace(agentName),
@@ -94,6 +96,14 @@ func (m *Manager) prepareCreateStart(ctx context.Context, opts CreateOpts) (sess
 		startAction:              sessionStartActionCreate,
 		cleanupSessionDir:        true,
 	}, nil
+}
+
+func normalizeCreateProfileID(profileID string) string {
+	profileID = strings.TrimSpace(profileID)
+	if profileID == "" {
+		return store.DefaultProfileID
+	}
+	return profileID
 }
 
 func validateCreateNetworkParticipant(agentName string, sessionID string, mode participation.Mode) error {

@@ -10,6 +10,7 @@ import (
 
 	"github.com/compozy/compozy/internal/diagnostics"
 	"github.com/compozy/compozy/internal/redact"
+	"github.com/compozy/compozy/internal/store"
 )
 
 type CreateOptions struct {
@@ -266,7 +267,8 @@ func (s *Service) prepareCreate(
 	}
 	now := s.now().UTC()
 	return Worktree{
-		ID: id, WorkspaceID: workspace.ID, Name: names.Directory, Branch: branch, Path: path,
+		ProfileID: store.DefaultProfileID,
+		ID:        id, WorkspaceID: workspace.ID, Name: names.Directory, Branch: branch, Path: path,
 		State: StatePending, Origin: origin, SetupState: SetupNone, BaseRef: strings.TrimSpace(options.BaseRef),
 		RunID: strings.TrimSpace(options.RunID), RunNamespace: strings.TrimSpace(options.RunNamespace),
 		CreatedAt: now, UpdatedAt: now,

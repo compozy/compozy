@@ -19,6 +19,7 @@ func (g *NetworkRepo) CreateNetworkChannel(ctx context.Context, entry store.Netw
 	}
 
 	err = g.queries.CreateNetworkChannel(ctx, sqlcgen.CreateNetworkChannelParams{
+		ProfileID:         entry.ProfileID,
 		Channel:           entry.Channel,
 		WorkspaceID:       entry.WorkspaceID,
 		Purpose:           entry.Purpose,
@@ -45,6 +46,7 @@ func (g *NetworkRepo) WriteNetworkChannel(ctx context.Context, entry store.Netwo
 	}
 
 	if err := g.queries.UpsertNetworkChannel(ctx, sqlcgen.UpsertNetworkChannelParams{
+		ProfileID:         entry.ProfileID,
 		Channel:           entry.Channel,
 		WorkspaceID:       entry.WorkspaceID,
 		Purpose:           entry.Purpose,
@@ -250,7 +252,7 @@ func getNetworkChannel(
 		return store.NetworkChannelEntry{}, fmt.Errorf("store: parse network channel updated_at: %w", err)
 	}
 	return store.NetworkChannelEntry{
-		Channel: row.Channel, WorkspaceID: row.WorkspaceID, Purpose: row.Purpose,
+		ProfileID: row.ProfileID, Channel: row.Channel, WorkspaceID: row.WorkspaceID, Purpose: row.Purpose,
 		FanoutPolicy:      store.NormalizeNetworkFanoutPolicy(row.FanoutPolicy),
 		CoordinatorPeerID: row.CoordinatorPeerID, CreatedBy: row.CreatedBy,
 		CreatedAt: createdAt, UpdatedAt: updatedAt,
@@ -266,6 +268,7 @@ func scanNetworkChannel(scanner rowScanner) (store.NetworkChannelEntry, error) {
 		updatedAtRaw string
 	)
 	if err := scanner.Scan(
+		&entry.ProfileID,
 		&entry.Channel,
 		&entry.WorkspaceID,
 		&entry.Purpose,

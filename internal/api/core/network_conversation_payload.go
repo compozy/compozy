@@ -157,6 +157,7 @@ func (s networkMessageHistorySummary) timelineViews(includePresence bool) []netw
 
 func cloneNetworkMessageEntry(entry store.NetworkMessageEntry) store.NetworkMessageEntry {
 	return store.NetworkMessageEntry{
+		ProfileID:   strings.TrimSpace(entry.ProfileID),
 		MessageID:   strings.TrimSpace(entry.MessageID),
 		WorkspaceID: strings.TrimSpace(entry.WorkspaceID),
 		SessionID:   strings.TrimSpace(entry.SessionID),

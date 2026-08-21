@@ -37,7 +37,7 @@ func ResourceScopeForAutomation(scope Scope, workspaceID string) resources.Resou
 			ID:   strings.TrimSpace(workspaceID),
 		}
 	default:
-		return resources.ResourceScope{Kind: resources.ResourceScopeKindGlobal}
+		return resources.ResourceScope{Kind: resources.ResourceScopeKindUser}
 	}
 }
 
@@ -160,7 +160,7 @@ func bindAutomationScope(
 	path string,
 ) error {
 	switch resourceScope.Kind {
-	case resources.ResourceScopeKindGlobal:
+	case resources.ResourceScopeKindUser:
 		if *domainScope == "" {
 			*domainScope = AutomationScopeGlobal
 		}

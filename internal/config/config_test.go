@@ -2599,7 +2599,7 @@ base_url = "https://catalog.example.test"
 		if err != nil {
 			t.Fatalf("ResolveHomePathsFrom() error = %v", err)
 		}
-		target, err := ResolveConfigWriteTarget(homePaths, "", WriteScopeGlobal)
+		target, err := ResolveConfigWriteTarget(homePaths, "", WriteScopeUser)
 		if err != nil {
 			t.Fatalf("ResolveConfigWriteTarget() error = %v", err)
 		}

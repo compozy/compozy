@@ -2902,6 +2902,7 @@ func automationJobForTest(
 ) Job {
 	createdAt := time.Date(2026, 4, 10, 18, 0, 0, 0, time.UTC)
 	return Job{
+		ProfileID:   store.DefaultProfileID,
 		Scope:       scope,
 		Name:        name,
 		AgentName:   "researcher",
@@ -2928,6 +2929,7 @@ func automationWebhookTriggerForTest(
 ) Trigger {
 	createdAt := time.Date(2026, 4, 10, 18, 5, 0, 0, time.UTC)
 	return Trigger{
+		ProfileID:        store.DefaultProfileID,
 		Scope:            scope,
 		Name:             name,
 		AgentName:        "reviewer",
@@ -2954,6 +2956,7 @@ func automationNonWebhookTriggerForTest(
 ) Trigger {
 	createdAt := time.Date(2026, 4, 10, 18, 10, 0, 0, time.UTC)
 	return Trigger{
+		ProfileID:   store.DefaultProfileID,
 		Scope:       scope,
 		Name:        name,
 		AgentName:   "reviewer",
@@ -2997,12 +3000,14 @@ func automationRunForTrigger(triggerID string, status automation.RunStatus, atte
 func automationSuggestionForTest(id string, workspaceID string, dedupKey string) automation.Suggestion {
 	return automation.Suggestion{
 		ID:          id,
+		ProfileID:   store.DefaultProfileID,
 		WorkspaceID: workspaceID,
 		Source:      automation.SuggestionSourceCatalog,
 		DedupKey:    dedupKey,
 		Status:      automation.SuggestionStatusPending,
 		Payload: Job{
 			ID:          "job-" + id,
+			ProfileID:   store.DefaultProfileID,
 			Scope:       automation.AutomationScopeWorkspace,
 			Name:        "Suggested job",
 			TargetKind:  automation.TargetKindAgent,

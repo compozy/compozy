@@ -234,7 +234,7 @@ func TestExtensionInventoryAndEnablePreview(t *testing.T) {
 		_, writerSpec, err := validateAndEncodeResource(
 			t.Context(),
 			writerCodec,
-			resources.ResourceScope{Kind: resources.ResourceScopeKindGlobal},
+			resources.ResourceScope{Kind: resources.ResourceScopeKindUser},
 			compozyconfig.AgentDef{Name: "writer", Prompt: "Existing writer"},
 		)
 		if err != nil {
@@ -244,7 +244,7 @@ func TestExtensionInventoryAndEnablePreview(t *testing.T) {
 		store := inventoryRawStore{records: []resources.RawRecord{{
 			Kind:     compozyconfig.AgentResourceKind,
 			ID:       "authored/agent/writer",
-			Scope:    resources.ResourceScope{Kind: resources.ResourceScopeKindGlobal},
+			Scope:    resources.ResourceScope{Kind: resources.ResourceScopeKindUser},
 			SpecJSON: writerSpec,
 			Owner:    resources.ResourceOwner{Kind: resources.ResourceOwnerKind("operator"), ID: "operator"},
 		}}}
@@ -306,7 +306,7 @@ func TestExtensionInventoryAndEnablePreview(t *testing.T) {
 		changes, err := service.extensionKitChanges(t.Context(), desired, []resources.RawRecord{{
 			Kind:     automationpkg.JobResourceKind,
 			ID:       desiredJob.ID,
-			Scope:    resources.ResourceScope{Kind: resources.ResourceScopeKindGlobal},
+			Scope:    resources.ResourceScope{Kind: resources.ResourceScopeKindUser},
 			SpecJSON: semanticallyIdenticalSpec,
 		}})
 		if err != nil {
@@ -359,7 +359,7 @@ func TestExtensionInventoryAndEnablePreview(t *testing.T) {
 		changes, err := service.extensionKitChanges(t.Context(), desired, []resources.RawRecord{{
 			Kind:     automationpkg.JobResourceKind,
 			ID:       liveJob.ID,
-			Scope:    resources.ResourceScope{Kind: resources.ResourceScopeKindGlobal},
+			Scope:    resources.ResourceScope{Kind: resources.ResourceScopeKindUser},
 			SpecJSON: inventoryTestJobSpec(t, codecs, liveJob),
 		}})
 		if err != nil {
@@ -385,7 +385,7 @@ func TestExtensionInventoryAndEnablePreview(t *testing.T) {
 		changes, err := service.extensionKitChanges(t.Context(), desired, []resources.RawRecord{{
 			Kind:     automationpkg.JobResourceKind,
 			ID:       liveJob.ID,
-			Scope:    resources.ResourceScope{Kind: resources.ResourceScopeKindGlobal},
+			Scope:    resources.ResourceScope{Kind: resources.ResourceScopeKindUser},
 			SpecJSON: inventoryTestJobSpec(t, codecs, liveJob),
 		}})
 		if err != nil {
@@ -535,7 +535,7 @@ func inventoryTestJobSpec(
 	_, encoded, err := validateAndEncodeResource(
 		t.Context(),
 		codec,
-		resources.ResourceScope{Kind: resources.ResourceScopeKindGlobal},
+		resources.ResourceScope{Kind: resources.ResourceScopeKindUser},
 		job,
 	)
 	if err != nil {
@@ -561,7 +561,7 @@ func inventoryTestRawRecords(items []extensionpkg.KitItem) []resources.RawRecord
 	for _, item := range items {
 		records = append(records, resources.RawRecord{
 			Kind: item.Kind, ID: item.ID,
-			Scope: resources.ResourceScope{Kind: resources.ResourceScopeKindGlobal},
+			Scope: resources.ResourceScope{Kind: resources.ResourceScopeKindUser},
 			Owner: *extensionOwner("kit"), SpecJSON: slices.Clone(item.SpecJSON),
 		})
 	}

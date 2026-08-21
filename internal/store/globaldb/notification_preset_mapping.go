@@ -20,7 +20,6 @@ func scanNotificationPreset(scanner notificationPresetScanner) (presetspkg.Prese
 		&row.Events,
 		&row.Targets,
 		&row.Filter,
-		&row.Enabled,
 		&row.BuiltIn,
 		&row.DefaultVersion,
 		&row.DefaultHash,
@@ -38,7 +37,7 @@ func notificationPresetFromGenerated(row sqlcgen.NotificationPreset) (presetspkg
 	preset := presetspkg.Preset{
 		Name:                   row.Name,
 		Filter:                 row.Filter,
-		Enabled:                row.Enabled,
+		Enabled:                true,
 		BuiltIn:                row.BuiltIn,
 		DefaultVersion:         row.DefaultVersion,
 		DefaultHash:            row.DefaultHash,

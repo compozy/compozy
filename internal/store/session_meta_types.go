@@ -59,6 +59,7 @@ type SessionMeta struct {
 	RuntimeSelection     *SessionRuntimeSelectionState `json:"runtime_selection,omitempty"`
 	EffectivePermissions string                        `json:"effective_permissions,omitempty"`
 	*SessionProviderAuthState
+	ProfileID   string `json:"profile_id"`
 	WorkspaceID string `json:"workspace_id,omitempty"`
 	*SessionWorktreeState
 	CWD                  string                  `json:"cwd,omitempty"`

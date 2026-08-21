@@ -92,7 +92,7 @@ func parseOptionalCLIMemoryScope(raw string) (memcontract.Scope, error) {
 	switch scope {
 	case "":
 		return "", nil
-	case memcontract.ScopeGlobal, memcontract.ScopeWorkspace, memcontract.ScopeAgent:
+	case memcontract.ScopeProfile, memcontract.ScopeWorkspace, memcontract.ScopeAgent:
 		return scope, nil
 	default:
 		return "", errors.New("memory.scope.invalid: scope must be one of global, workspace, or agent")

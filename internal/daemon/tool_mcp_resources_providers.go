@@ -30,7 +30,7 @@ func daemonConfigMCPDeclarationProvider(
 		if active == nil {
 			return desired, nil
 		}
-		globalScope := resources.ResourceScope{Kind: resources.ResourceScopeKindGlobal}
+		globalScope := resources.ResourceScope{Kind: resources.ResourceScopeKindUser}
 		for _, server := range active.MCPServers {
 			desired.mcpServers = append(desired.mcpServers, mcpServerPublicationInput{
 				sourceKey: "config/global/" + strings.TrimSpace(server.Name),
@@ -101,7 +101,7 @@ func collectExtensionManifestToolMCPDeclarations(
 	})
 
 	desired := toolMCPDesiredResources{}
-	globalScope := resources.ResourceScope{Kind: resources.ResourceScopeKindGlobal}
+	globalScope := resources.ResourceScope{Kind: resources.ResourceScopeKindUser}
 	for _, info := range infos {
 		if !info.Enabled {
 			continue

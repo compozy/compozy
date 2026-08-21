@@ -72,7 +72,7 @@ func WriteDefinition(root string, data []byte, opts WriteDefinitionOptions) (Res
 	spec.FilePath = definitionPath
 	if _, err := validateResourceSpec(
 		context.Background(),
-		resources.ResourceScope{Kind: resources.ResourceScopeKindGlobal},
+		resources.ResourceScope{Kind: resources.ResourceScopeKindUser},
 		spec,
 	); err != nil {
 		return ResourceSpec{}, "", err

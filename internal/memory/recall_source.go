@@ -114,7 +114,10 @@ func (s *Store) ensureRecallCatalogReady(ctx context.Context, query memcontract.
 	}
 	workspaceID := strings.TrimSpace(query.WorkspaceID)
 	workspaceRoot := strings.TrimSpace(s.workspaceRoot)
-	filters := []catalogFilter{{scope: memcontract.ScopeGlobal}}
+	filters := []catalogFilter{{
+		profileID: s.profileIDForScope(memcontract.ScopeProfile),
+		scope:     memcontract.ScopeProfile,
+	}}
 	if workspaceID != "" && workspaceRoot != "" {
 		filters = append(filters, catalogFilter{
 			scope:         memcontract.ScopeWorkspace,
@@ -269,7 +272,7 @@ func appendRecallVisibilityFilter(
 ) (string, []any) {
 	workspaceID := strings.TrimSpace(query.WorkspaceID)
 	agentName := strings.TrimSpace(query.AgentName)
-	clauses := []string{`e.scope = 'global'`}
+	clauses := []string{`e.scope = 'profile'`}
 	if workspaceID != "" {
 		clauses = append(clauses, `(e.scope = 'workspace' AND e.workspace_id = ?)`)
 		args = append(args, workspaceID)

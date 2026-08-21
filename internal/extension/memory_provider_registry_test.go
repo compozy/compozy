@@ -154,7 +154,10 @@ func TestMemoryProviderCollisionEventSummaryValidation(t *testing.T) {
 	t.Run("Should allow provider collision as global observability", func(t *testing.T) {
 		t.Parallel()
 
-		if err := (store.EventSummary{Type: memoryProviderCollisionEvent}).Validate(); err != nil {
+		if err := (store.EventSummary{
+			ProfileID: store.DefaultProfileID,
+			Type:      memoryProviderCollisionEvent,
+		}).Validate(); err != nil {
 			t.Fatalf("EventSummary.Validate(provider collision) error = %v", err)
 		}
 	})

@@ -158,6 +158,7 @@ func (h *BaseHandlers) networkChannelMetadataForUpdate(
 	}
 	now := h.nowUTC()
 	return store.NetworkChannelEntry{
+		ProfileID:    store.DefaultProfileID,
 		WorkspaceID:  strings.TrimSpace(ref.WorkspaceID),
 		Channel:      strings.TrimSpace(ref.Channel),
 		Purpose:      "network_channel",

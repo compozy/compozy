@@ -538,6 +538,7 @@ CREATE TABLE loop_run_events (
 
 CREATE TABLE loop_runs (
 			id                   TEXT PRIMARY KEY,
+			profile_id           TEXT NOT NULL REFERENCES profiles(id),
 			workspace_id         TEXT NOT NULL,
 			loop_name            TEXT NOT NULL,
 			status               TEXT NOT NULL,

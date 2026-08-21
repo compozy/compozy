@@ -88,6 +88,7 @@ type catalog struct {
 
 type catalogDocument struct {
 	ID            string
+	ProfileID     string
 	Scope         memcontract.Scope
 	WorkspaceID   string
 	WorkspaceRoot string
@@ -146,6 +147,9 @@ func (c *catalog) open(ctx context.Context) error {
 	if c.db != nil {
 		return nil
 	}
+	if err := storepkg.RefuseLegacyDatabaseAtPath(ctx, c.path, MigrationStream()); err != nil {
+		return fmt.Errorf("memory: open catalog database %q: %w", c.path, err)
+	}
 
 	db, err := storepkg.OpenSQLiteDatabase(ctx, c.path, func(ctx context.Context, db *sql.DB) error {
 		return storepkg.Apply(ctx, db, MigrationStream())
@@ -193,6 +197,7 @@ func (c *catalog) close(ctx context.Context) error {
 
 func (c *catalog) replaceScope(
 	ctx context.Context,
+	profileID string,
 	scope memcontract.Scope,
 	workspaceID string,
 	agentName string,
@@ -203,7 +208,8 @@ func (c *catalog) replaceScope(
 		if _, err := tx.ExecContext(
 			ctx,
 			`DELETE FROM memory_catalog_entries
-			 WHERE scope = ? AND workspace_id = ? AND agent_name = ? AND agent_tier = ?`,
+			 WHERE profile_id = ? AND scope = ? AND workspace_id = ? AND agent_name = ? AND agent_tier = ?`,
+			strings.TrimSpace(profileID),
 			string(scope.Normalize()),
 			strings.TrimSpace(workspaceID),
 			strings.TrimSpace(agentName),
@@ -222,7 +228,7 @@ func (c *catalog) replaceScope(
 		return c.upsertCatalogIdentityStateTx(
 			ctx,
 			tx,
-			newCatalogIdentity(scope, workspaceID, agentName, agentTier),
+			newCatalogIdentity(profileID, scope, workspaceID, agentName, agentTier),
 		)
 	})
 }
@@ -238,7 +244,7 @@ func (c *catalog) upsertDocument(ctx context.Context, doc catalogDocument) (err 
 		if err := c.upsertCatalogIdentityStateTx(
 			ctx,
 			tx,
-			newCatalogIdentity(doc.Scope, doc.WorkspaceID, doc.AgentName, doc.AgentTier),
+			newCatalogIdentity(doc.ProfileID, doc.Scope, doc.WorkspaceID, doc.AgentName, doc.AgentTier),
 		); err != nil {
 			return err
 		}
@@ -305,11 +311,12 @@ func insertCatalogDocumentIntoTx(
 	if _, err := tx.ExecContext(
 		ctx,
 		fmt.Sprintf(`INSERT INTO %s (
-			id, workspace_id, scope, agent_name, agent_tier, type, slug, filename, name,
+			id, workspace_id, profile_id, scope, agent_name, agent_tier, type, slug, filename, name,
 			description, content, content_hash, injection, mtime_ms, indexed_at, updated_at
-		) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`, tableName),
+		) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`, tableName),
 		doc.ID,
 		strings.TrimSpace(doc.WorkspaceID),
+		strings.TrimSpace(doc.ProfileID),
 		string(doc.Scope.Normalize()),
 		strings.TrimSpace(doc.AgentName),
 		string(doc.AgentTier.Normalize()),
@@ -334,10 +341,10 @@ func upsertCatalogDocumentTx(ctx context.Context, tx catalogWriteExecutor, doc c
 	if _, err := tx.ExecContext(
 		ctx,
 		`INSERT INTO memory_catalog_entries (
-			id, workspace_id, scope, agent_name, agent_tier, type, slug, filename, name,
+			id, workspace_id, profile_id, scope, agent_name, agent_tier, type, slug, filename, name,
 			description, content, content_hash, injection, mtime_ms, indexed_at, updated_at
-		) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-		ON CONFLICT(workspace_id, scope, agent_name, agent_tier, type, slug) DO UPDATE SET
+		) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+		ON CONFLICT(workspace_id, profile_id, scope, agent_name, agent_tier, type, slug) DO UPDATE SET
 			id = excluded.id,
 			filename = excluded.filename,
 			type = excluded.type,
@@ -351,6 +358,7 @@ func upsertCatalogDocumentTx(ctx context.Context, tx catalogWriteExecutor, doc c
 			updated_at = excluded.updated_at`,
 		doc.ID,
 		strings.TrimSpace(doc.WorkspaceID),
+		strings.TrimSpace(doc.ProfileID),
 		string(doc.Scope.Normalize()),
 		strings.TrimSpace(doc.AgentName),
 		string(doc.AgentTier.Normalize()),

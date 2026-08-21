@@ -24,6 +24,7 @@ func (g *DeadEntityRepo) MarkDeadEntity(ctx context.Context, entity store.DeadEn
 		return err
 	}
 	if err := g.queries.UpsertDeadEntity(ctx, sqlcgen.UpsertDeadEntityParams{
+		ProfileID:   normalized.ProfileID,
 		WorkspaceID: normalized.WorkspaceID,
 		Kind:        string(normalized.Kind),
 		EntityID:    normalized.EntityID,
@@ -149,6 +150,7 @@ func deadEntityFromRow(row sqlcgen.DeadEntity) (store.DeadEntity, error) {
 	}
 	entity := store.DeadEntity{
 		DeadEntityKey: store.DeadEntityKey{
+			ProfileID:   row.ProfileID,
 			WorkspaceID: row.WorkspaceID,
 			Kind:        store.DeadEntityKind(row.Kind),
 			EntityID:    row.EntityID,

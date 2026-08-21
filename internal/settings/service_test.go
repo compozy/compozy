@@ -241,8 +241,8 @@ func TestGetSectionBuildsSupportedSections(t *testing.T) {
 				if envelope.Gateway == nil {
 					t.Fatal("Gateway section = nil")
 				}
-				if envelope.Scope != ScopeGlobal {
-					t.Fatalf("Gateway scope = %q, want %q", envelope.Scope, ScopeGlobal)
+				if envelope.Scope != ScopeUser {
+					t.Fatalf("Gateway scope = %q, want %q", envelope.Scope, ScopeUser)
 				}
 				if envelope.Gateway.Config.Enabled {
 					t.Fatal("Gateway enabled = true, want secure disabled default")
@@ -279,7 +279,7 @@ func TestGetSectionBuildsSupportedSections(t *testing.T) {
 				if !envelope.CmdPalette.Personalization {
 					t.Fatal("CmdPalette personalization = false, want true")
 				}
-				if !slices.Equal(envelope.AvailableScopes, []ScopeKind{ScopeGlobal, ScopeWorkspace}) {
+				if !slices.Equal(envelope.AvailableScopes, []ScopeKind{ScopeUser, ScopeWorkspace}) {
 					t.Fatalf("CmdPalette scopes = %q, want global and workspace", envelope.AvailableScopes)
 				}
 			},
@@ -3402,7 +3402,7 @@ func TestInstallMCPCatalogAppliesLiveConfiguration(t *testing.T) {
 
 		_, err = service.InstallMCPCatalog(ctx, MCPCatalogInstallRequest{
 			EntryID: "github",
-			Scope:   ScopeGlobal,
+			Scope:   ScopeUser,
 			Values: MCPCatalogInstallValues{Inputs: map[string]MCPSecretInput{
 				"github_token": {Value: "ghp-secret"},
 			}},
@@ -3470,7 +3470,7 @@ func TestInstallMCPCatalogSerializesConcurrentMutations(t *testing.T) {
 				result, err := service.InstallMCPCatalog(ctx, MCPCatalogInstallRequest{
 					EntryID: "github",
 					Name:    name,
-					Scope:   ScopeGlobal,
+					Scope:   ScopeUser,
 					Values: MCPCatalogInstallValues{Inputs: map[string]MCPSecretInput{
 						"github_token": {Value: "secret-" + name},
 					}},
@@ -3574,7 +3574,7 @@ func TestInstallMCPCatalogEnforcesBornValidVaultSemantics(t *testing.T) {
 
 		result, err := service.InstallMCPCatalog(ctx, MCPCatalogInstallRequest{
 			EntryID: "github",
-			Scope:   ScopeGlobal,
+			Scope:   ScopeUser,
 			Values: MCPCatalogInstallValues{Inputs: map[string]MCPSecretInput{
 				"github_token": {Value: "ghp-secret"},
 			}},
@@ -3641,7 +3641,7 @@ func TestInstallMCPCatalogEnforcesBornValidVaultSemantics(t *testing.T) {
 
 		result, err := service.InstallMCPCatalog(t.Context(), MCPCatalogInstallRequest{
 			EntryID: "github",
-			Scope:   ScopeGlobal,
+			Scope:   ScopeUser,
 			Values: MCPCatalogInstallValues{Inputs: map[string]MCPSecretInput{
 				"github_token": {Value: "ghp-secret"},
 			}},
@@ -3673,7 +3673,7 @@ func TestInstallMCPCatalogEnforcesBornValidVaultSemantics(t *testing.T) {
 		_, err := service.InstallMCPCatalog(t.Context(), MCPCatalogInstallRequest{
 			EntryID: "plain-env",
 			Name:    "team/server",
-			Scope:   ScopeGlobal,
+			Scope:   ScopeUser,
 			Values: MCPCatalogInstallValues{Inputs: map[string]MCPSecretInput{
 				"project": {Value: "compozy"},
 			}},
@@ -3698,7 +3698,7 @@ func TestInstallMCPCatalogEnforcesBornValidVaultSemantics(t *testing.T) {
 		})
 		result, err := service.InstallMCPCatalog(ctx, MCPCatalogInstallRequest{
 			EntryID: "plain-env",
-			Scope:   ScopeGlobal,
+			Scope:   ScopeUser,
 			Values: MCPCatalogInstallValues{Inputs: map[string]MCPSecretInput{
 				"project": {Value: "compozy"},
 			}},
@@ -3845,7 +3845,7 @@ func TestInstallMCPCatalogEnforcesBornValidVaultSemantics(t *testing.T) {
 
 		_, err := service.InstallMCPCatalog(ctx, MCPCatalogInstallRequest{
 			EntryID: "github",
-			Scope:   ScopeGlobal,
+			Scope:   ScopeUser,
 			Values: MCPCatalogInstallValues{Inputs: map[string]MCPSecretInput{
 				"github_token": {Value: "owned-secret"},
 			}},
@@ -3856,7 +3856,7 @@ func TestInstallMCPCatalogEnforcesBornValidVaultSemantics(t *testing.T) {
 
 		replacement, err := service.InstallMCPCatalog(ctx, MCPCatalogInstallRequest{
 			EntryID: "github",
-			Scope:   ScopeGlobal,
+			Scope:   ScopeUser,
 			Values: MCPCatalogInstallValues{Inputs: map[string]MCPSecretInput{
 				"github_token": {VaultRef: ownedRef},
 			}},
@@ -3891,7 +3891,7 @@ func TestInstallMCPCatalogEnforcesBornValidVaultSemantics(t *testing.T) {
 
 		initial, err := service.InstallMCPCatalog(ctx, MCPCatalogInstallRequest{
 			EntryID: "github",
-			Scope:   ScopeGlobal,
+			Scope:   ScopeUser,
 			Values: MCPCatalogInstallValues{Inputs: map[string]MCPSecretInput{
 				"github_token": {Value: "owned-secret"},
 			}},
@@ -3903,7 +3903,7 @@ func TestInstallMCPCatalogEnforcesBornValidVaultSemantics(t *testing.T) {
 
 		_, err = service.InstallMCPCatalog(ctx, MCPCatalogInstallRequest{
 			EntryID: "github",
-			Scope:   ScopeGlobal,
+			Scope:   ScopeUser,
 			Values: MCPCatalogInstallValues{Inputs: map[string]MCPSecretInput{
 				"github_token": {VaultRef: ownedRef},
 			}},
@@ -3947,7 +3947,7 @@ func TestInstallMCPCatalogEnforcesBornValidVaultSemantics(t *testing.T) {
 		})
 		result, err := service.InstallMCPCatalog(ctx, MCPCatalogInstallRequest{
 			EntryID: "github",
-			Scope:   ScopeGlobal,
+			Scope:   ScopeUser,
 			Values: MCPCatalogInstallValues{Inputs: map[string]MCPSecretInput{
 				"github_token": {Value: "owned-secret"},
 			}},
@@ -4035,7 +4035,7 @@ func TestInstallMCPCatalogEnforcesBornValidVaultSemantics(t *testing.T) {
 				})
 				result, err := service.InstallMCPCatalog(ctx, MCPCatalogInstallRequest{
 					EntryID: "github",
-					Scope:   ScopeGlobal,
+					Scope:   ScopeUser,
 					Values: MCPCatalogInstallValues{Inputs: map[string]MCPSecretInput{
 						"github_token": {Value: "owned-secret"},
 					}},
@@ -4149,7 +4149,7 @@ func TestInstallMCPCatalogEnforcesBornValidVaultSemantics(t *testing.T) {
 
 		result, err := service.InstallMCPCatalog(ctx, MCPCatalogInstallRequest{
 			EntryID: "linear",
-			Scope:   ScopeGlobal,
+			Scope:   ScopeUser,
 		})
 		if err != nil {
 			t.Fatalf("InstallMCPCatalog(OAuth) error = %v", err)
@@ -4210,7 +4210,7 @@ func TestInstallMCPCatalogRejectsInvalidInputsBeforeWrites(t *testing.T) {
 			name:       "Should reject a missing required value",
 			catalog:    fakeMCPCatalog{entry: stdioMCPCatalogEntry()},
 			entryID:    "github",
-			scope:      ScopeGlobal,
+			scope:      ScopeUser,
 			wantErr:    ErrValidation,
 			wantDetail: "values.inputs.github_token is required",
 		},
@@ -4218,7 +4218,7 @@ func TestInstallMCPCatalogRejectsInvalidInputsBeforeWrites(t *testing.T) {
 			name:       "Should reject a missing required plain value",
 			catalog:    fakeMCPCatalog{entry: plainEnvMCPCatalogEntry()},
 			entryID:    "plain-env",
-			scope:      ScopeGlobal,
+			scope:      ScopeUser,
 			wantErr:    ErrValidation,
 			wantDetail: "values.inputs.project is required",
 		},
@@ -4226,7 +4226,7 @@ func TestInstallMCPCatalogRejectsInvalidInputsBeforeWrites(t *testing.T) {
 			name:    "Should reject both value modes",
 			catalog: fakeMCPCatalog{entry: stdioMCPCatalogEntry()},
 			entryID: "github",
-			scope:   ScopeGlobal,
+			scope:   ScopeUser,
 			values: MCPCatalogInstallValues{Inputs: map[string]MCPSecretInput{
 				"github_token": {Value: "secret", VaultRef: "vault:mcp/shared/token"},
 			}},
@@ -4237,7 +4237,7 @@ func TestInstallMCPCatalogRejectsInvalidInputsBeforeWrites(t *testing.T) {
 			name:    "Should reject neither value mode",
 			catalog: fakeMCPCatalog{entry: stdioMCPCatalogEntry()},
 			entryID: "github",
-			scope:   ScopeGlobal,
+			scope:   ScopeUser,
 			values: MCPCatalogInstallValues{Inputs: map[string]MCPSecretInput{
 				"github_token": {},
 			}},
@@ -4248,7 +4248,7 @@ func TestInstallMCPCatalogRejectsInvalidInputsBeforeWrites(t *testing.T) {
 			name:    "Should reject a ref outside the MCP namespace",
 			catalog: fakeMCPCatalog{entry: stdioMCPCatalogEntry()},
 			entryID: "github",
-			scope:   ScopeGlobal,
+			scope:   ScopeUser,
 			values: MCPCatalogInstallValues{Inputs: map[string]MCPSecretInput{
 				"github_token": {VaultRef: "vault:providers/github/token"},
 			}},
@@ -4259,7 +4259,7 @@ func TestInstallMCPCatalogRejectsInvalidInputsBeforeWrites(t *testing.T) {
 			name:    "Should reject a missing MCP ref",
 			catalog: fakeMCPCatalog{entry: stdioMCPCatalogEntry()},
 			entryID: "github",
-			scope:   ScopeGlobal,
+			scope:   ScopeUser,
 			values: MCPCatalogInstallValues{Inputs: map[string]MCPSecretInput{
 				"github_token": {VaultRef: "vault:mcp/shared/missing"},
 			}},
@@ -4270,7 +4270,7 @@ func TestInstallMCPCatalogRejectsInvalidInputsBeforeWrites(t *testing.T) {
 			name:       "Should map an unknown catalog entry to not found",
 			catalog:    fakeMCPCatalog{},
 			entryID:    "github",
-			scope:      ScopeGlobal,
+			scope:      ScopeUser,
 			wantErr:    ErrNotFound,
 			wantDetail: "not found",
 		},
@@ -4278,7 +4278,7 @@ func TestInstallMCPCatalogRejectsInvalidInputsBeforeWrites(t *testing.T) {
 			name:       "Should preserve an unexpected catalog detail failure",
 			catalog:    fakeMCPCatalog{detailErr: catalogFailure},
 			entryID:    "github",
-			scope:      ScopeGlobal,
+			scope:      ScopeUser,
 			wantErr:    catalogFailure,
 			wantDetail: "load MCP catalog entry",
 		},
@@ -4286,14 +4286,14 @@ func TestInstallMCPCatalogRejectsInvalidInputsBeforeWrites(t *testing.T) {
 			name:       "Should map a nil catalog detail to not found",
 			catalog:    fakeMCPCatalog{returnNil: true},
 			entryID:    "github",
-			scope:      ScopeGlobal,
+			scope:      ScopeUser,
 			wantErr:    ErrNotFound,
 			wantDetail: "not found",
 		},
 		{
 			name:       "Should require an entry ID",
 			catalog:    fakeMCPCatalog{entry: stdioMCPCatalogEntry()},
-			scope:      ScopeGlobal,
+			scope:      ScopeUser,
 			wantErr:    ErrValidation,
 			wantDetail: "entry_id is required",
 		},
@@ -4309,7 +4309,7 @@ func TestInstallMCPCatalogRejectsInvalidInputsBeforeWrites(t *testing.T) {
 			name:       "Should reject workspace ID in global scope",
 			catalog:    fakeMCPCatalog{entry: stdioMCPCatalogEntry()},
 			entryID:    "github",
-			scope:      ScopeGlobal,
+			scope:      ScopeUser,
 			workspace:  "ws-1",
 			wantErr:    ErrConflict,
 			wantDetail: "workspace_id requires workspace scope",
@@ -4325,7 +4325,7 @@ func TestInstallMCPCatalogRejectsInvalidInputsBeforeWrites(t *testing.T) {
 		{
 			name:       "Should report an unavailable catalog",
 			entryID:    "github",
-			scope:      ScopeGlobal,
+			scope:      ScopeUser,
 			wantErr:    ErrUnavailable,
 			wantDetail: "catalog is not configured",
 		},
@@ -4333,7 +4333,7 @@ func TestInstallMCPCatalogRejectsInvalidInputsBeforeWrites(t *testing.T) {
 			name:       "Should reject an invalid MCP projection",
 			catalog:    fakeMCPCatalog{entry: invalidProjection},
 			entryID:    "github",
-			scope:      ScopeGlobal,
+			scope:      ScopeUser,
 			wantErr:    ErrUnprocessable,
 			wantDetail: "project MCP catalog entry",
 		},
@@ -4341,7 +4341,7 @@ func TestInstallMCPCatalogRejectsInvalidInputsBeforeWrites(t *testing.T) {
 			name:       "Should reject a catalog row that does not project MCP",
 			catalog:    fakeMCPCatalog{entry: nonMCPProjection},
 			entryID:    "github",
-			scope:      ScopeGlobal,
+			scope:      ScopeUser,
 			wantErr:    ErrUnprocessable,
 			wantDetail: "does not project an MCP server",
 		},
@@ -4349,7 +4349,7 @@ func TestInstallMCPCatalogRejectsInvalidInputsBeforeWrites(t *testing.T) {
 			name:       "Should require a resolved install name",
 			catalog:    fakeMCPCatalog{entry: blankInstallName},
 			entryID:    "github",
-			scope:      ScopeGlobal,
+			scope:      ScopeUser,
 			wantErr:    ErrValidation,
 			wantDetail: "install name is required",
 		},
@@ -4357,7 +4357,7 @@ func TestInstallMCPCatalogRejectsInvalidInputsBeforeWrites(t *testing.T) {
 			name:    "Should reject an undeclared field",
 			catalog: fakeMCPCatalog{entry: stdioMCPCatalogEntry()},
 			entryID: "github",
-			scope:   ScopeGlobal,
+			scope:   ScopeUser,
 			values: MCPCatalogInstallValues{Inputs: map[string]MCPSecretInput{
 				"github_token": {Value: "secret"},
 				"UNKNOWN":      {Value: "value"},
@@ -4369,7 +4369,7 @@ func TestInstallMCPCatalogRejectsInvalidInputsBeforeWrites(t *testing.T) {
 			name:    "Should reject a Vault ref for a plain field",
 			catalog: fakeMCPCatalog{entry: plainEnvMCPCatalogEntry()},
 			entryID: "plain-env",
-			scope:   ScopeGlobal,
+			scope:   ScopeUser,
 			values: MCPCatalogInstallValues{Inputs: map[string]MCPSecretInput{
 				"project": {VaultRef: "vault:mcp/shared/project"},
 			}},
@@ -4380,7 +4380,7 @@ func TestInstallMCPCatalogRejectsInvalidInputsBeforeWrites(t *testing.T) {
 			name:    "Should reject a URL query input on a stdio launch",
 			catalog: fakeMCPCatalog{entry: urlQueryOnStdio},
 			entryID: "plain-env",
-			scope:   ScopeGlobal,
+			scope:   ScopeUser,
 			values: MCPCatalogInstallValues{Inputs: map[string]MCPSecretInput{
 				"project": {Value: "compozy"},
 			}},
@@ -4391,7 +4391,7 @@ func TestInstallMCPCatalogRejectsInvalidInputsBeforeWrites(t *testing.T) {
 			name:    "Should reject a secret input with a non-env binding",
 			catalog: fakeMCPCatalog{entry: secretQueryInput},
 			entryID: "github",
-			scope:   ScopeGlobal,
+			scope:   ScopeUser,
 			values: MCPCatalogInstallValues{Inputs: map[string]MCPSecretInput{
 				"github_token": {Value: "secret"},
 			}},
@@ -4560,7 +4560,7 @@ func TestInstallMCPCatalogCompensatesPartialFailures(t *testing.T) {
 
 			_, err := service.InstallMCPCatalog(ctx, MCPCatalogInstallRequest{
 				EntryID: "github",
-				Scope:   ScopeGlobal,
+				Scope:   ScopeUser,
 				Values: MCPCatalogInstallValues{Inputs: map[string]MCPSecretInput{
 					"github_token": {Value: "orphan-candidate"},
 				}},
@@ -4613,7 +4613,7 @@ func TestInstallMCPCatalogCompensatesPartialFailures(t *testing.T) {
 
 		_, err := service.InstallMCPCatalog(ctx, MCPCatalogInstallRequest{
 			EntryID: "github",
-			Scope:   ScopeGlobal,
+			Scope:   ScopeUser,
 			Values: MCPCatalogInstallValues{Inputs: map[string]MCPSecretInput{
 				"github_token": {Value: "replacement-secret"},
 			}},
@@ -4653,7 +4653,7 @@ func TestInstallMCPCatalogCompensatesPartialFailures(t *testing.T) {
 
 		_, err := service.InstallMCPCatalog(ctx, MCPCatalogInstallRequest{
 			EntryID: "multi-secret",
-			Scope:   ScopeGlobal,
+			Scope:   ScopeUser,
 			Values: MCPCatalogInstallValues{Inputs: map[string]MCPSecretInput{
 				"token_a": {Value: "replacement-secret"},
 				"token_b": {Value: "second-secret"},
@@ -4688,7 +4688,7 @@ func TestInstallMCPCatalogCompensatesPartialFailures(t *testing.T) {
 
 		_, err := service.InstallMCPCatalog(ctx, MCPCatalogInstallRequest{
 			EntryID: "multi-secret",
-			Scope:   ScopeGlobal,
+			Scope:   ScopeUser,
 			Values: MCPCatalogInstallValues{Inputs: map[string]MCPSecretInput{
 				"token_a": {Value: "first-secret"},
 				"token_b": {Value: "second-secret"},
@@ -4723,7 +4723,7 @@ func TestInstallMCPCatalogCompensatesPartialFailures(t *testing.T) {
 
 		_, err := service.InstallMCPCatalog(ctx, MCPCatalogInstallRequest{
 			EntryID: "multi-secret",
-			Scope:   ScopeGlobal,
+			Scope:   ScopeUser,
 			Values: MCPCatalogInstallValues{Inputs: map[string]MCPSecretInput{
 				"token_a": {Value: "first-secret"},
 				"token_b": {Value: "second-secret"},
@@ -5851,7 +5851,7 @@ func TestSettingsMutationsEmitEventSummaries(t *testing.T) {
 		_, err = service.UpdateSection(WithMutationSource(context.Background(), "http"), SectionUpdateRequest{
 			SectionRequest: SectionRequest{
 				Section: SectionGeneral,
-				Scope:   ScopeGlobal,
+				Scope:   ScopeUser,
 			},
 			General: &GeneralSettings{
 				Defaults: cfg.Defaults,

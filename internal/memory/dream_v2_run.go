@@ -170,6 +170,7 @@ func (s *Store) upsertDreamRun(
 		if err := upsertDreamConsolidationTx(
 			ctx,
 			tx,
+			s.profileIDForScope(workspace.scope),
 			run,
 			workspace,
 			status,
@@ -180,7 +181,18 @@ func (s *Store) upsertDreamRun(
 		); err != nil {
 			return err
 		}
-		return insertDreamEventTx(ctx, tx, run, workspace, status, promoted, errorText, metadata, at)
+		return insertDreamEventTx(
+			ctx,
+			tx,
+			s.profileIDForScope(workspace.scope),
+			run,
+			workspace,
+			status,
+			promoted,
+			errorText,
+			metadata,
+			at,
+		)
 	})
 }
 

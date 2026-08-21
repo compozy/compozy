@@ -226,7 +226,7 @@ func TestExtensionResourceSnapshotsPreserveGlobalResourcesWithoutScopedRuntime(t
 			t.Fatalf("extensionResourceSnapshots() error = %v", err)
 		}
 		if len(snapshots) != 1 || snapshots[0].extension != global ||
-			snapshots[0].scope.Kind != resources.ResourceScopeKindGlobal {
+			snapshots[0].scope.Kind != resources.ResourceScopeKindUser {
 			t.Fatalf("extensionResourceSnapshots() = %#v, want preserved global snapshot", snapshots)
 		}
 	})
@@ -340,7 +340,7 @@ func testManagedPublicationIDScopes(t *testing.T) {
 	owner := extensionOwner("resource-only-kit")
 	global := managedPublicationID(
 		"daemon.sync.test.",
-		resources.ResourceScope{Kind: resources.ResourceScopeKindGlobal},
+		resources.ResourceScope{Kind: resources.ResourceScopeKindUser},
 		"extension/resource-only-kit/agent/writer",
 		nil,
 		owner,
@@ -373,7 +373,7 @@ func TestAgentSidecarsResolveAgentsWithinTheSameResourceScope(t *testing.T) {
 		if err != nil {
 			t.Fatalf("soul.NewResourceCodec() error = %v", err)
 		}
-		globalScope := resources.ResourceScope{Kind: resources.ResourceScopeKindGlobal}
+		globalScope := resources.ResourceScope{Kind: resources.ResourceScopeKindUser}
 		workspaceScope := resources.ResourceScope{Kind: resources.ResourceScopeKindWorkspace, ID: "workspace-a"}
 		const sourceKey = "extension/resource-only-kit/agent/writer"
 		declarations := agentSkillDeclarations{

@@ -10,7 +10,7 @@ import (
 )
 
 const listApprovalGrants = `-- name: ListApprovalGrants :many
-SELECT id, workspace_id, agent_name, tool_id, input_digest, decision, created_at, last_used_at
+SELECT id, profile_id, workspace_id, agent_name, tool_id, input_digest, decision, created_at, last_used_at
 FROM tool_approval_grants
 WHERE workspace_id = ?1
 ORDER BY created_at DESC, id
@@ -27,6 +27,7 @@ func (q *Queries) ListApprovalGrants(ctx context.Context, workspaceID string) ([
 		var i ToolApprovalGrant
 		if err := rows.Scan(
 			&i.ID,
+			&i.ProfileID,
 			&i.WorkspaceID,
 			&i.AgentName,
 			&i.ToolID,
@@ -66,7 +67,7 @@ WHERE id = (
   END DESC
   LIMIT 1
 )
-RETURNING id, workspace_id, agent_name, tool_id, input_digest, decision, created_at, last_used_at
+RETURNING id, profile_id, workspace_id, agent_name, tool_id, input_digest, decision, created_at, last_used_at
 `
 
 type LookupApprovalGrantParams struct {
@@ -88,6 +89,7 @@ func (q *Queries) LookupApprovalGrant(ctx context.Context, arg LookupApprovalGra
 	var i ToolApprovalGrant
 	err := row.Scan(
 		&i.ID,
+		&i.ProfileID,
 		&i.WorkspaceID,
 		&i.AgentName,
 		&i.ToolID,
@@ -101,19 +103,22 @@ func (q *Queries) LookupApprovalGrant(ctx context.Context, arg LookupApprovalGra
 
 const putApprovalGrant = `-- name: PutApprovalGrant :one
 INSERT INTO tool_approval_grants (
+  profile_id,
   id, workspace_id, agent_name, tool_id, input_digest, decision, created_at, last_used_at
 ) VALUES (
-  ?1, ?2, ?3, ?4,
-  ?5, ?6, ?7, ?8
+  ?1,
+  ?2, ?3, ?4, ?5,
+  ?6, ?7, ?8, ?9
 )
 ON CONFLICT(workspace_id, agent_name, tool_id, input_digest) DO UPDATE SET
   decision = excluded.decision,
   created_at = excluded.created_at,
   last_used_at = excluded.last_used_at
-RETURNING id, workspace_id, agent_name, tool_id, input_digest, decision, created_at, last_used_at
+RETURNING id, profile_id, workspace_id, agent_name, tool_id, input_digest, decision, created_at, last_used_at
 `
 
 type PutApprovalGrantParams struct {
+	ProfileID   string `json:"profile_id"`
 	ID          string `json:"id"`
 	WorkspaceID string `json:"workspace_id"`
 	AgentName   string `json:"agent_name"`
@@ -126,6 +131,7 @@ type PutApprovalGrantParams struct {
 
 func (q *Queries) PutApprovalGrant(ctx context.Context, arg PutApprovalGrantParams) (ToolApprovalGrant, error) {
 	row := q.db.QueryRowContext(ctx, putApprovalGrant,
+		arg.ProfileID,
 		arg.ID,
 		arg.WorkspaceID,
 		arg.AgentName,
@@ -138,6 +144,7 @@ func (q *Queries) PutApprovalGrant(ctx context.Context, arg PutApprovalGrantPara
 	var i ToolApprovalGrant
 	err := row.Scan(
 		&i.ID,
+		&i.ProfileID,
 		&i.WorkspaceID,
 		&i.AgentName,
 		&i.ToolID,

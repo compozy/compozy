@@ -133,7 +133,7 @@ func loopSyncActor() resources.MutationActor {
 			Kind: resources.ResourceSourceKind("daemon"),
 			ID:   "loop-sync",
 		},
-		MaxScope: resources.ResourceScope{Kind: resources.ResourceScopeKindGlobal},
+		MaxScope: resources.ResourceScope{Kind: resources.ResourceScopeKindUser},
 	}
 }
 
@@ -272,7 +272,7 @@ func daemonLoopDeclarationProvider(
 	logger *slog.Logger,
 ) loopDeclarationProvider {
 	return func(ctx context.Context) ([]loopPublicationInput, error) {
-		globalScope := resources.ResourceScope{Kind: resources.ResourceScopeKindGlobal}
+		globalScope := resources.ResourceScope{Kind: resources.ResourceScopeKindUser}
 		var desired []loopPublicationInput
 
 		global, err := scanLoopResourceDir(ctx, homePaths.LoopsDir, looppkg.SourceUser)

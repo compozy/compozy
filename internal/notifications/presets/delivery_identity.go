@@ -7,6 +7,7 @@ import (
 	"unicode/utf8"
 
 	"github.com/compozy/compozy/internal/notifications"
+	"github.com/compozy/compozy/internal/store"
 )
 
 const presetIdentityVersion = 1
@@ -30,6 +31,7 @@ func cursorKeyForTarget(
 		return notifications.CursorKey{}, err
 	}
 	return notifications.CursorKey{
+		ProfileID:  store.DefaultProfileID,
 		Scope:      event.Scope,
 		ConsumerID: consumerID,
 		StreamName: event.Type,

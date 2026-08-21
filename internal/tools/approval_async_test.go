@@ -208,6 +208,7 @@ func newTestApprovalCoordinator(
 
 func testApprovalRequest(invocationID string) ApprovalRequest {
 	return ApprovalRequest{
+		ProfileID:   defaultApprovalProfileIDForTest,
 		WorkspaceID: "workspace-a", InvocationID: invocationID,
 		Target: ApprovalTarget{Kind: ApprovalTargetTool, ToolID: "compozy__test"},
 		Args:   json.RawMessage(`{"value":1}`), ExpiresAt: time.Now().UTC().Add(time.Hour),

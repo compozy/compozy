@@ -131,6 +131,7 @@ func (s *toolApprovalGrantService) emitTransition(
 		summary = fmt.Sprintf("approval grant for %s revoked", grant.ToolID)
 	}
 	if err := s.events.WriteEventSummary(context.WithoutCancel(ctx), store.EventSummary{
+		ProfileID:   grant.ProfileID,
 		WorkspaceID: grant.WorkspaceID,
 		Type:        eventType,
 		Outcome:     string(events.OutcomeFor(eventType)),

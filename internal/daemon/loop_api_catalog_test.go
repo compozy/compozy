@@ -44,12 +44,12 @@ func TestDaemonLoopCatalogShouldBatchBeforePageHydration(t *testing.T) {
 		catalog.Replace(1, []resources.Record[looppkg.ResourceSpec]{
 			{
 				ID:    "global-alpha",
-				Scope: resources.ResourceScope{Kind: resources.ResourceScopeKindGlobal},
+				Scope: resources.ResourceScope{Kind: resources.ResourceScopeKindUser},
 				Spec:  alpha,
 			},
 			{
 				ID:    "global-shadow",
-				Scope: resources.ResourceScope{Kind: resources.ResourceScopeKindGlobal},
+				Scope: resources.ResourceScope{Kind: resources.ResourceScopeKindUser},
 				Spec:  shadowGlobal,
 			},
 			{

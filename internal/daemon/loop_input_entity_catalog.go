@@ -151,7 +151,7 @@ func (c daemonLoopInputEntityCatalog) hasLoop(workspaceID string, name string) b
 			continue
 		}
 		scope := record.Scope.Normalize()
-		if scope.Kind == resources.ResourceScopeKindGlobal ||
+		if scope.Kind == resources.ResourceScopeKindUser ||
 			(scope.Kind == resources.ResourceScopeKindWorkspace && scope.ID == workspaceID) {
 			return true
 		}

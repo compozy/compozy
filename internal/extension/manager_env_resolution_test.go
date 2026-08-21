@@ -186,6 +186,7 @@ type envResolutionBindingStore struct {
 func (s *envResolutionBindingStore) ListEnvBindings(
 	_ context.Context,
 	extension string,
+	_ string,
 	workspaceID string,
 ) ([]EnvBinding, error) {
 	key := strings.TrimSpace(extension) + "\x00" + strings.TrimSpace(workspaceID)
@@ -195,7 +196,7 @@ func (s *envResolutionBindingStore) ListEnvBindings(
 
 func (*envResolutionBindingStore) PutEnvBinding(context.Context, EnvBinding) error { return nil }
 
-func (*envResolutionBindingStore) DeleteEnvBinding(context.Context, string, string, string) error {
+func (*envResolutionBindingStore) DeleteEnvBinding(context.Context, string, string, string, string) error {
 	return nil
 }
 

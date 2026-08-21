@@ -271,10 +271,11 @@ func (n *daemonMarketplaceNotifier) NotifyCatalogRefresh(
 		eventOutcome = eventspkg.OutcomeFailure
 	}
 	return n.writeEvent(ctx, "catalog.refresh", store.EventSummary{
-		Type:    eventspkg.MarketplaceCatalogRefresh,
-		Outcome: string(eventOutcome),
-		Content: content,
-		Summary: fmt.Sprintf("marketplace catalog %s refresh %s", outcome.Kind, outcome.Outcome),
+		ProfileID: store.DefaultProfileID,
+		Type:      eventspkg.MarketplaceCatalogRefresh,
+		Outcome:   string(eventOutcome),
+		Content:   content,
+		Summary:   fmt.Sprintf("marketplace catalog %s refresh %s", outcome.Kind, outcome.Outcome),
 	})
 }
 
@@ -295,10 +296,11 @@ func (n *daemonMarketplaceNotifier) NotifyInstall(ctx context.Context, outcome m
 		eventOutcome = eventspkg.OutcomeFailure
 	}
 	return n.writeEvent(ctx, "install", store.EventSummary{
-		Type:    eventspkg.MarketplaceInstall,
-		Outcome: string(eventOutcome),
-		Content: content,
-		Summary: fmt.Sprintf("marketplace %s install %s", outcome.Kind, outcome.Outcome),
+		ProfileID: store.DefaultProfileID,
+		Type:      eventspkg.MarketplaceInstall,
+		Outcome:   string(eventOutcome),
+		Content:   content,
+		Summary:   fmt.Sprintf("marketplace %s install %s", outcome.Kind, outcome.Outcome),
 	})
 }
 

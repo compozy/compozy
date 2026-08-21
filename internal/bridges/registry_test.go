@@ -12,6 +12,7 @@ import (
 	"time"
 
 	bridgepkg "github.com/compozy/compozy/internal/bridges"
+	"github.com/compozy/compozy/internal/store"
 	"github.com/compozy/compozy/internal/testutil"
 )
 
@@ -286,6 +287,7 @@ func TestValidateInstanceStateTransitionRejectsReadyFromDisabledWithoutEnablePat
 	t.Parallel()
 
 	current := bridgepkg.BridgeInstance{
+		ProfileID:     store.DefaultProfileID,
 		ID:            "brg-disabled",
 		Scope:         bridgepkg.ScopeGlobal,
 		Platform:      "telegram",
@@ -451,6 +453,7 @@ func TestValidateInstanceStateTransitionAllowedPaths(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
+			tt.current.ProfileID = store.DefaultProfileID
 			if err := bridgepkg.ValidateInstanceStateTransition(tt.current, tt.nextEnabled, tt.nextStatus); err != nil {
 				t.Fatalf("ValidateInstanceStateTransition() error = %v", err)
 			}

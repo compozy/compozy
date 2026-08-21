@@ -21,7 +21,7 @@ var (
 		"read_only":true,
 		"concurrency_safe":true
 	}`)
-	benchmarkToolScope = resources.ResourceScope{Kind: resources.ResourceScopeKindGlobal}
+	benchmarkToolScope = resources.ResourceScope{Kind: resources.ResourceScopeKindUser}
 	benchmarkToolSpec  = Tool{
 		ID:           "ext__linear__search",
 		DisplayTitle: "Search",

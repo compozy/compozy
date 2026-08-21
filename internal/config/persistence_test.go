@@ -18,7 +18,7 @@ func TestEditConfigOverlayPreservesCommentsAndUntouchedSections(t *testing.T) {
 	if err != nil {
 		t.Fatalf("ResolveHomePathsFrom() error = %v", err)
 	}
-	target, err := ResolveConfigWriteTarget(homePaths, "", WriteScopeGlobal)
+	target, err := ResolveConfigWriteTarget(homePaths, "", WriteScopeUser)
 	if err != nil {
 		t.Fatalf("ResolveConfigWriteTarget() error = %v", err)
 	}
@@ -75,7 +75,7 @@ func TestEditConfigOverlayRejectsSymlinkWithoutReadingTarget(t *testing.T) {
 	if err != nil {
 		t.Fatalf("ResolveHomePathsFrom() error = %v", err)
 	}
-	target, err := ResolveConfigWriteTarget(homePaths, "", WriteScopeGlobal)
+	target, err := ResolveConfigWriteTarget(homePaths, "", WriteScopeUser)
 	if err != nil {
 		t.Fatalf("ResolveConfigWriteTarget() error = %v", err)
 	}
@@ -142,7 +142,7 @@ func TestEditConfigOverlayUpdatesExistingBooleanValue(t *testing.T) {
 	if err != nil {
 		t.Fatalf("ResolveHomePathsFrom() error = %v", err)
 	}
-	target, err := ResolveConfigWriteTarget(homePaths, "", WriteScopeGlobal)
+	target, err := ResolveConfigWriteTarget(homePaths, "", WriteScopeUser)
 	if err != nil {
 		t.Fatalf("ResolveConfigWriteTarget() error = %v", err)
 	}
@@ -189,7 +189,7 @@ func TestEditConfigOverlayRejectsUnsupportedMutation(t *testing.T) {
 	if err != nil {
 		t.Fatalf("ResolveHomePathsFrom() error = %v", err)
 	}
-	target, err := ResolveConfigWriteTarget(homePaths, "", WriteScopeGlobal)
+	target, err := ResolveConfigWriteTarget(homePaths, "", WriteScopeUser)
 	if err != nil {
 		t.Fatalf("ResolveConfigWriteTarget() error = %v", err)
 	}
@@ -232,7 +232,7 @@ func TestEditConfigOverlayCreatesNestedSkillsSection(t *testing.T) {
 	if err != nil {
 		t.Fatalf("ResolveHomePathsFrom() error = %v", err)
 	}
-	target, err := ResolveConfigWriteTarget(homePaths, "", WriteScopeGlobal)
+	target, err := ResolveConfigWriteTarget(homePaths, "", WriteScopeUser)
 	if err != nil {
 		t.Fatalf("ResolveConfigWriteTarget() error = %v", err)
 	}
@@ -339,13 +339,13 @@ func TestResolveWriteTargets(t *testing.T) {
 	}{
 		{
 			name:     "global config",
-			scope:    WriteScopeGlobal,
+			scope:    WriteScopeUser,
 			wantKind: WriteTargetGlobalConfig,
 			wantPath: homePaths.ConfigFile,
 		},
 		{
 			name:     "global sidecar",
-			scope:    WriteScopeGlobal,
+			scope:    WriteScopeUser,
 			sidecar:  true,
 			wantKind: WriteTargetGlobalMCPSidecar,
 			wantPath: globalMCPJSONFile(homePaths),
@@ -419,7 +419,7 @@ func TestEditConfigOverlayValidationBlocksInvalidWrite(t *testing.T) {
 	if err != nil {
 		t.Fatalf("ResolveHomePathsFrom() error = %v", err)
 	}
-	target, err := ResolveConfigWriteTarget(homePaths, "", WriteScopeGlobal)
+	target, err := ResolveConfigWriteTarget(homePaths, "", WriteScopeUser)
 	if err != nil {
 		t.Fatalf("ResolveConfigWriteTarget() error = %v", err)
 	}
@@ -476,7 +476,7 @@ func TestWriteScopeValidationAndTargetScope(t *testing.T) {
 		}
 	})
 
-	for _, scope := range []WriteScope{WriteScopeGlobal, WriteScopeWorkspace} {
+	for _, scope := range []WriteScope{WriteScopeUser, WriteScopeWorkspace} {
 		if err := scope.Validate(); err != nil {
 			t.Fatalf("WriteScope(%q).Validate() error = %v", scope, err)
 		}
@@ -494,11 +494,11 @@ func TestWriteScopeValidationAndTargetScope(t *testing.T) {
 	}
 	workspaceRoot := filepath.Join(t.TempDir(), "workspace")
 
-	globalTarget, err := ResolveConfigWriteTarget(homePaths, "", WriteScopeGlobal)
+	globalTarget, err := ResolveConfigWriteTarget(homePaths, "", WriteScopeUser)
 	if err != nil {
 		t.Fatalf("ResolveConfigWriteTarget(global) error = %v", err)
 	}
-	if got, want := globalTarget.Scope(), WriteScopeGlobal; got != want {
+	if got, want := globalTarget.Scope(), WriteScopeUser; got != want {
 		t.Fatalf("globalTarget.Scope() = %q, want %q", got, want)
 	}
 

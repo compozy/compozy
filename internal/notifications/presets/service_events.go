@@ -90,6 +90,7 @@ func (s *Service) recordPresetLifecycleEvent(
 		return fmt.Errorf("notifications: encode preset lifecycle event: %w", err)
 	}
 	if err := s.events.WriteEventSummary(detachedContext(ctx), store.EventSummary{
+		ProfileID: store.DefaultProfileID,
 		Type:      eventType,
 		Outcome:   string(eventspkg.OutcomeFor(eventType)),
 		Content:   content,
@@ -131,6 +132,7 @@ func (s *Service) recordDispatchFailureEvent(
 		return fmt.Errorf("notifications: encode preset dispatch failure event: %w", err)
 	}
 	if err := s.events.WriteEventSummary(detachedContext(ctx), store.EventSummary{
+		ProfileID: store.DefaultProfileID,
 		Type:      eventspkg.NotificationPresetDispatchFailed,
 		Outcome:   string(eventspkg.OutcomeFor(eventspkg.NotificationPresetDispatchFailed)),
 		Content:   content,

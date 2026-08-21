@@ -1592,7 +1592,7 @@ func TestHostAPIHandlerResourcesListAndGetEnforceSameSourceAndGrantedKinds(t *te
 			Kind: resources.ResourceSourceKind("daemon"),
 			ID:   "host-api-tests",
 		},
-		MaxScope: resources.ResourceScope{Kind: resources.ResourceScopeKindGlobal},
+		MaxScope: resources.ResourceScope{Kind: resources.ResourceScopeKindUser},
 	}, resources.RawDraft{
 		Kind:  resources.ResourceKind("tool"),
 		ID:    "foreign",
@@ -1758,7 +1758,7 @@ func TestHostAPIHandlerMemoryStorePersistsContentWithTags(t *testing.T) {
 		t.Fatalf("Handle(memory/store) error = %v", err)
 	}
 
-	content, err := env.memory.Read(t.Context(), memcontract.ScopeGlobal, "deploy-script.md")
+	content, err := env.memory.Read(t.Context(), memcontract.ScopeProfile, "deploy-script.md")
 	if err != nil {
 		t.Fatalf("memory.Read() error = %v", err)
 	}
@@ -1895,7 +1895,7 @@ func TestHostAPIHandlerMemoryForgetRemovesEntries(t *testing.T) {
 		t.Fatalf("Handle(memory/forget) error = %v", err)
 	}
 
-	if _, err := env.memory.Read(t.Context(), memcontract.ScopeGlobal, "scratch.md"); !errors.Is(err, os.ErrNotExist) {
+	if _, err := env.memory.Read(t.Context(), memcontract.ScopeProfile, "scratch.md"); !errors.Is(err, os.ErrNotExist) {
 		t.Fatalf("memory.Read() error = %v, want os.ErrNotExist", err)
 	}
 }
@@ -3328,9 +3328,9 @@ func TestHostAPIContextHelpersCloneBridgeAndResourceSession(t *testing.T) {
 				Kind: resources.ResourceSourceKind("extension"),
 				ID:   "ext-runtime",
 			},
-			MaxScope:      resources.ResourceScope{Kind: resources.ResourceScopeKindGlobal},
+			MaxScope:      resources.ResourceScope{Kind: resources.ResourceScopeKindUser},
 			GrantedKinds:  []resources.ResourceKind{"tool.definition"},
-			GrantedScopes: []resources.ResourceScopeKind{resources.ResourceScopeKindGlobal},
+			GrantedScopes: []resources.ResourceScopeKind{resources.ResourceScopeKindUser},
 		},
 	}
 
@@ -3923,6 +3923,7 @@ func TestHostAPIHandlerAutomationTriggerCRUDAndConfigGuardrails(t *testing.T) {
 		}
 
 		configJob, err := env.registry.CreateJob(testutil.Context(t), automationpkg.Job{
+			ProfileID:   store.DefaultProfileID,
 			ID:          "job-config-host-api",
 			Scope:       automationpkg.AutomationScopeWorkspace,
 			Name:        "config-host-api-job",
@@ -3956,6 +3957,7 @@ func TestHostAPIHandlerAutomationTriggerCRUDAndConfigGuardrails(t *testing.T) {
 		assertRPCErrorCode(t, err, HostAPIInvalidParamsCode)
 
 		configTrigger, err := env.registry.CreateTrigger(testutil.Context(t), automationpkg.Trigger{
+			ProfileID:   store.DefaultProfileID,
 			ID:          "trigger-config-host-api",
 			Scope:       automationpkg.AutomationScopeWorkspace,
 			Name:        "config-host-api-trigger",
@@ -6622,7 +6624,7 @@ func (e *hostAPITestEnv) grantWithResources(
 				MaxScope: maxScope,
 			},
 		},
-	}, resources.ResourceScopeKindGlobal)
+	}, resources.ResourceScopeKindUser)
 	if err != nil {
 		t.Fatalf("RegisterForSession(%q) error = %v", extName, err)
 	}
@@ -6722,7 +6724,7 @@ func (e *hostAPITestEnv) resourceContext(t testing.TB, extName string, sessionNo
 				Kind: resources.ResourceSourceKind("extension"),
 				ID:   extName,
 			},
-			MaxScope:      resources.ResourceScope{Kind: resources.ResourceScopeKindGlobal},
+			MaxScope:      resources.ResourceScope{Kind: resources.ResourceScopeKindUser},
 			GrantedKinds:  append([]resources.ResourceKind(nil), grant.ResourceKinds...),
 			GrantedScopes: append([]resources.ResourceScopeKind(nil), grant.ResourceScopes...),
 		},
@@ -6742,7 +6744,7 @@ func (e *hostAPITestEnv) activateResourceSession(t testing.TB, extName string, s
 			Kind: resources.ResourceSourceKind("daemon"),
 			ID:   "host-api-tests",
 		},
-		MaxScope: resources.ResourceScope{Kind: resources.ResourceScopeKindGlobal},
+		MaxScope: resources.ResourceScope{Kind: resources.ResourceScopeKindUser},
 	}, resources.ResourceSource{
 		Kind: resources.ResourceSourceKind("extension"),
 		ID:   extName,

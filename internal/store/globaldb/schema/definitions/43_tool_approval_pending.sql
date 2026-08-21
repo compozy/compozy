@@ -1,5 +1,6 @@
 CREATE TABLE tool_approval_pending (
 	approval_id TEXT NOT NULL PRIMARY KEY CHECK (approval_id LIKE 'apr_%'),
+	profile_id TEXT NOT NULL REFERENCES profiles(id),
 	workspace_id TEXT REFERENCES workspaces(id) ON DELETE CASCADE,
 	invocation_id TEXT NOT NULL UNIQUE CHECK (trim(invocation_id) <> ''),
 	target_kind TEXT NOT NULL CHECK (target_kind IN ('tool', 'client_op', 'navigate', 'view')),

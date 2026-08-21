@@ -1,5 +1,6 @@
 CREATE TABLE worktrees (
 		id TEXT PRIMARY KEY,
+		profile_id TEXT NOT NULL REFERENCES profiles(id),
 		workspace_id TEXT NOT NULL REFERENCES workspaces(id) ON DELETE CASCADE,
 		name TEXT NOT NULL,
 		branch TEXT NOT NULL DEFAULT '',

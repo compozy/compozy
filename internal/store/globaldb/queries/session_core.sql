@@ -55,7 +55,7 @@ ORDER BY updated_at DESC, session_id DESC;
 
 -- name: UpsertSession :execrows
 INSERT INTO sessions (
-  id, name, agent_name, provider, model, reasoning_effort, speed, speed_resolution_json,
+  profile_id, id, name, agent_name, provider, model, reasoning_effort, speed, speed_resolution_json,
   runtime_status, runtime_transition, runtime_failure,
   selected_provider, selected_model, selected_reasoning_effort, selected_speed,
   runtime_selection_revision, workspace_id, worktree_id, session_type,
@@ -69,7 +69,7 @@ INSERT INTO sessions (
   sandbox_state, sandbox_provider_state_json, sandbox_last_sync_at, sandbox_last_sync_error,
   created_at, updated_at
 ) SELECT
-  sqlc.arg(id), sqlc.narg(name), sqlc.arg(agent_name), sqlc.arg(provider), sqlc.arg(model),
+  sqlc.arg(profile_id), sqlc.arg(id), sqlc.narg(name), sqlc.arg(agent_name), sqlc.arg(provider), sqlc.arg(model),
   sqlc.arg(reasoning_effort), sqlc.arg(speed), sqlc.arg(speed_resolution_json),
   sqlc.arg(runtime_status), sqlc.arg(runtime_transition), sqlc.arg(runtime_failure),
   sqlc.arg(selected_provider), sqlc.arg(selected_model), sqlc.arg(selected_reasoning_effort),

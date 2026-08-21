@@ -19,6 +19,7 @@ func upsertSessionParams(record *sessionCatalogRecord) (sqlcgen.UpsertSessionPar
 		return sqlcgen.UpsertSessionParams{}, err
 	}
 	params := sqlcgen.UpsertSessionParams{
+		ProfileID:                session.ProfileID,
 		ID:                       session.ID,
 		Name:                     nullableSessionString(session.Name),
 		AgentName:                session.AgentName,

@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"github.com/compozy/compozy/internal/api/contract"
+	"github.com/compozy/compozy/internal/store"
 	toolspkg "github.com/compozy/compozy/internal/tools"
 	workspacepkg "github.com/compozy/compozy/internal/workspace"
 	"github.com/gin-gonic/gin"
@@ -34,7 +35,7 @@ func (h *BaseHandlers) SetToolApprovalGrant(c *gin.Context) {
 		)
 		return
 	}
-	grant, err := req.Domain().BuildGrant(workspaceID)
+	grant, err := req.Domain().BuildGrant(store.DefaultProfileID, workspaceID)
 	if err != nil {
 		h.respondError(c, statusForToolApprovalGrantError(err), err)
 		return

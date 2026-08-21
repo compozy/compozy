@@ -9,6 +9,7 @@ import (
 
 	"github.com/compozy/compozy/internal/api/contract"
 	extensionpkg "github.com/compozy/compozy/internal/extension"
+	"github.com/compozy/compozy/internal/store"
 	taskpkg "github.com/compozy/compozy/internal/task"
 	"github.com/compozy/compozy/internal/vault"
 )
@@ -134,7 +135,7 @@ func (s *daemonExtensionService) extensionSecretsForInstance(
 	if err != nil {
 		return contract.ExtensionSecretsPayload{}, err
 	}
-	bindings, err := s.envBindings.ListEnvBindings(ctx, key.Name, key.WorkspaceID)
+	bindings, err := s.envBindings.ListEnvBindings(ctx, key.Name, store.DefaultProfileID, key.WorkspaceID)
 	if err != nil {
 		return contract.ExtensionSecretsPayload{}, fmt.Errorf("daemon: list extension secret bindings: %w", err)
 	}
@@ -183,7 +184,7 @@ func (s *daemonExtensionService) setExtensionSecretsForInstance(
 	if err != nil {
 		return contract.ExtensionSecretsPayload{}, err
 	}
-	previous, err := s.envBindings.ListEnvBindings(ctx, key.Name, key.WorkspaceID)
+	previous, err := s.envBindings.ListEnvBindings(ctx, key.Name, store.DefaultProfileID, key.WorkspaceID)
 	if err != nil {
 		return contract.ExtensionSecretsPayload{}, fmt.Errorf("daemon: snapshot extension secret bindings: %w", err)
 	}
@@ -220,7 +221,7 @@ func (s *daemonExtensionService) deleteExtensionSecretForInstance(
 			Cause:   extensionpkg.ErrExtensionEnvBindingInvalid,
 		}
 	}
-	bindings, err := s.envBindings.ListEnvBindings(ctx, key.Name, key.WorkspaceID)
+	bindings, err := s.envBindings.ListEnvBindings(ctx, key.Name, store.DefaultProfileID, key.WorkspaceID)
 	if err != nil {
 		return fmt.Errorf("daemon: list extension secret bindings: %w", err)
 	}
@@ -228,7 +229,13 @@ func (s *daemonExtensionService) deleteExtensionSecretForInstance(
 	if !ok {
 		return nil
 	}
-	if err := s.envBindings.DeleteEnvBinding(ctx, key.Name, key.WorkspaceID, envName); err != nil {
+	if err := s.envBindings.DeleteEnvBinding(
+		ctx,
+		key.Name,
+		store.DefaultProfileID,
+		key.WorkspaceID,
+		envName,
+	); err != nil {
 		return fmt.Errorf("daemon: delete extension secret binding %q: %w", envName, err)
 	}
 	if err := s.gcOwnedExtensionSecret(ctx, previous.SecretRef); err != nil {

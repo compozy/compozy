@@ -3076,7 +3076,7 @@ func TestUnixSocketClientMethods(t *testing.T) {
 					if err := json.NewDecoder(req.Body).Decode(&body); err != nil {
 						t.Fatalf("decode memory create request error = %v", err)
 					}
-					if body.Scope != memcontract.ScopeGlobal ||
+					if body.Scope != memcontract.ScopeProfile ||
 						body.Type != memcontract.TypeUser ||
 						body.Name != "Memory" ||
 						body.Content != "payload" {
@@ -3362,7 +3362,7 @@ func TestUnixSocketClientMethods(t *testing.T) {
 	}
 
 	memories, err := client.ListMemory(ctx, MemoryListQuery{
-		MemorySelectorQuery: MemorySelectorQuery{Scope: memcontract.ScopeGlobal},
+		MemorySelectorQuery: MemorySelectorQuery{Scope: memcontract.ScopeProfile},
 	})
 	if err != nil || len(memories.Memories) != 1 {
 		t.Fatalf("ListMemory() = %#v, %v", memories, err)
@@ -3378,13 +3378,13 @@ func TestUnixSocketClientMethods(t *testing.T) {
 		t.Fatalf("SearchMemory() = %#v, %v", searchResults, err)
 	}
 
-	memoryRecord, err := client.ShowMemory(ctx, "memory.md", MemorySelectorQuery{Scope: memcontract.ScopeGlobal})
+	memoryRecord, err := client.ShowMemory(ctx, "memory.md", MemorySelectorQuery{Scope: memcontract.ScopeProfile})
 	if err != nil || !strings.Contains(memoryRecord.Memory.Content, "hello") {
 		t.Fatalf("ShowMemory() = %#v, %v", memoryRecord, err)
 	}
 
 	written, err := client.CreateMemory(ctx, MemoryCreateRequest{
-		Scope:   memcontract.ScopeGlobal,
+		Scope:   memcontract.ScopeProfile,
 		Type:    memcontract.TypeUser,
 		Name:    "Memory",
 		Content: "payload",

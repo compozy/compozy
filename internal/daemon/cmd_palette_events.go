@@ -42,6 +42,7 @@ func (r *cmdPaletteEventRecorder) RecordCmdPaletteEvent(ctx context.Context, eve
 	writeCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), cmdPaletteEventWriteTimeout)
 	defer cancel()
 	if err := r.writer.WriteEventSummary(writeCtx, store.EventSummary{
+		ProfileID:   store.DefaultProfileID,
 		WorkspaceID: string(event.WorkspaceID), Type: string(event.Name),
 		Outcome: string(eventspkg.OutcomeFor(string(event.Name))), Content: payload,
 		Summary: string(event.Name), Timestamp: event.OccurredAt,

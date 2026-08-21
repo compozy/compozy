@@ -119,6 +119,7 @@ func (r *harnessLifecycleRecorder) RecordStartupContextResolved(
 ) {
 	r.queue(
 		store.EventSummary{
+			ProfileID: store.DefaultProfileID,
 			SessionID: strings.TrimSpace(startup.SessionID),
 			Type:      harnessSummaryContextResolved,
 			AgentName: harnessSummaryAgentName(startup.AgentName),
@@ -136,6 +137,7 @@ func (r *harnessLifecycleRecorder) RecordStartupSectionSelected(
 ) {
 	r.queue(
 		store.EventSummary{
+			ProfileID: store.DefaultProfileID,
 			SessionID: strings.TrimSpace(startup.SessionID),
 			Type:      harnessSummarySectionSelected,
 			AgentName: harnessSummaryAgentName(startup.AgentName),
@@ -157,6 +159,7 @@ func (r *harnessLifecycleRecorder) RecordPromptContextResolved(
 	r.record(
 		ctx,
 		harnessEventSummaryWithLineage(store.EventSummary{
+			ProfileID: info.ProfileID,
 			SessionID: strings.TrimSpace(info.ID),
 			Type:      harnessSummaryContextResolved,
 			AgentName: harnessSummaryAgentName(info.AgentName),
@@ -176,6 +179,7 @@ func (r *harnessLifecycleRecorder) RecordSyntheticContextResolved(
 	r.record(
 		ctx,
 		store.EventSummary{
+			ProfileID: store.DefaultProfileID,
 			SessionID: strings.TrimSpace(sessionID),
 			Type:      harnessSummaryContextResolved,
 			AgentName: harnessSummaryAgentName(agentName),
@@ -198,6 +202,7 @@ func (r *harnessLifecycleRecorder) RecordAugmenterApplied(
 	r.record(
 		ctx,
 		harnessEventSummaryWithLineage(store.EventSummary{
+			ProfileID: info.ProfileID,
 			SessionID: strings.TrimSpace(info.ID),
 			Type:      harnessSummaryAugmenterApplied,
 			AgentName: harnessSummaryAgentName(info.AgentName),
@@ -221,6 +226,7 @@ func (r *harnessLifecycleRecorder) RecordAugmenterFailed(
 	r.record(
 		ctx,
 		harnessEventSummaryWithLineage(store.EventSummary{
+			ProfileID: info.ProfileID,
 			SessionID: strings.TrimSpace(info.ID),
 			Type:      harnessSummaryAugmenterFailed,
 			AgentName: harnessSummaryAgentName(info.AgentName),

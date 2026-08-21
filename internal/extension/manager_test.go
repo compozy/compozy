@@ -21,6 +21,7 @@ import (
 	"github.com/compozy/compozy/internal/modelcatalog"
 	"github.com/compozy/compozy/internal/resources"
 	skillspkg "github.com/compozy/compozy/internal/skills"
+	"github.com/compozy/compozy/internal/store"
 	"github.com/compozy/compozy/internal/subprocess"
 	"github.com/compozy/compozy/internal/testutil"
 	"github.com/compozy/compozy/internal/toolruntime"
@@ -528,7 +529,7 @@ func TestManagerWorkspaceScopedResourceSessionBindsOwningWorkspace(t *testing.T)
 		if err != nil {
 			t.Fatalf("newHostAPIResourceSession() error = %v", err)
 		}
-		if got := resourceSession.Actor.MaxScope; got.Kind != resources.ResourceScopeKindGlobal ||
+		if got := resourceSession.Actor.MaxScope; got.Kind != resources.ResourceScopeKindUser ||
 			got.ID != "" {
 			t.Fatalf("resource session max scope = %#v, want global", got)
 		}
@@ -1464,7 +1465,7 @@ func TestManagerCloneExtensionReturnsIsolatedSnapshot(t *testing.T) {
 	clone.Skills[0].MCPServers[0].Env["ROOT"] = "/tmp/changed"
 	clone.Skills[0].Provenance.Hash = "hash-changed"
 	clone.GrantedResourceKinds[0] = resources.ResourceKind("changed")
-	clone.GrantedResourceScopes[0] = resources.ResourceScopeKindGlobal
+	clone.GrantedResourceScopes[0] = resources.ResourceScopeKindUser
 	clone.InitializeResult.ImplementedMethods[0] = "changed"
 	clone.InitializeResult.AcceptedCapabilities.Provides[0] = "changed"
 
@@ -1689,9 +1690,9 @@ func TestManagerDirectPhaseAndMonitorBranches(t *testing.T) {
 				Kind: resources.ResourceSourceKind("extension"),
 				ID:   "ext-host",
 			},
-			MaxScope:      resources.ResourceScope{Kind: resources.ResourceScopeKindGlobal},
+			MaxScope:      resources.ResourceScope{Kind: resources.ResourceScopeKindUser},
 			GrantedKinds:  []resources.ResourceKind{"tool.definition"},
-			GrantedScopes: []resources.ResourceScopeKind{resources.ResourceScopeKindGlobal},
+			GrantedScopes: []resources.ResourceScopeKind{resources.ResourceScopeKindUser},
 		},
 	}
 	bridgeRuntime := &subprocess.InitializeBridgeRuntime{
@@ -2769,6 +2770,7 @@ func waitForManagerCondition(t *testing.T, timeout time.Duration, fn func() bool
 
 func testBridgeRuntimeInstance(extensionName string, instanceID string) bridgepkg.BridgeInstance {
 	return bridgepkg.BridgeInstance{
+		ProfileID:     store.DefaultProfileID,
 		ID:            instanceID,
 		Scope:         bridgepkg.ScopeGlobal,
 		Platform:      "telegram",

@@ -8,6 +8,7 @@ import (
 	"unicode/utf8"
 
 	"github.com/compozy/compozy/internal/diagnostics"
+	"github.com/compozy/compozy/internal/store"
 )
 
 func TestEncodeDeliveryID(t *testing.T) {
@@ -299,6 +300,7 @@ func notificationDeliveryIdentityForTest() DeliveryIdentity {
 
 func notificationCursorKeyForDeliveryTest() CursorKey {
 	return CursorKey{
+		ProfileID:  store.DefaultProfileID,
 		Scope:      ScopeRef{Kind: ScopeKindWorkspace, WorkspaceID: "global"},
 		ConsumerID: "consumer:terminal",
 		StreamName: "task.run_completed",

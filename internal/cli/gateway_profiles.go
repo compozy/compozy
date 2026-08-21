@@ -205,7 +205,7 @@ func upsertGatewayProfileMetadata(
 	homePaths compozyconfig.HomePaths,
 	profile compozyconfig.GatewayConnectionConfig,
 ) error {
-	target, err := compozyconfig.ResolveConfigWriteTarget(homePaths, "", compozyconfig.WriteScopeGlobal)
+	target, err := compozyconfig.ResolveConfigWriteTarget(homePaths, "", compozyconfig.WriteScopeUser)
 	if err != nil {
 		return err
 	}
@@ -229,7 +229,7 @@ func applyGatewayProfileConfigState(
 	profile *compozyconfig.GatewayConnectionConfig,
 	active string,
 ) error {
-	target, err := compozyconfig.ResolveConfigWriteTarget(homePaths, "", compozyconfig.WriteScopeGlobal)
+	target, err := compozyconfig.ResolveConfigWriteTarget(homePaths, "", compozyconfig.WriteScopeUser)
 	if err != nil {
 		return err
 	}
@@ -301,7 +301,7 @@ func gatewayProfileTOMLValues(profile compozyconfig.GatewayConnectionConfig) map
 }
 
 func setActiveGatewayProfile(homePaths compozyconfig.HomePaths, name string) error {
-	target, err := compozyconfig.ResolveConfigWriteTarget(homePaths, "", compozyconfig.WriteScopeGlobal)
+	target, err := compozyconfig.ResolveConfigWriteTarget(homePaths, "", compozyconfig.WriteScopeUser)
 	if err != nil {
 		return err
 	}

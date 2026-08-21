@@ -21,7 +21,7 @@ func (s *service) classifyProviderWrite(
 	name string,
 	settings ProviderSettings,
 ) (providerWriteClassification, error) {
-	currentConfig, _, err := s.loadConfig(ctx, ScopeGlobal, "")
+	currentConfig, _, err := s.loadConfig(ctx, ScopeUser, "")
 	if err != nil {
 		return providerWriteClassification{}, fmt.Errorf(
 			"load config for provider %q mutation validation: %w",
@@ -81,11 +81,11 @@ func providerWriteSettingsFromConfig(
 
 func mutationResultForProvider(target WriteTargetKind, modelOnly bool) MutationResult {
 	if !modelOnly {
-		return mutationResultForCollection(CollectionProviders, ScopeGlobal, "", target)
+		return mutationResultForCollection(CollectionProviders, ScopeUser, "", target)
 	}
 	return MutationResult{
 		Section:     SectionName(CollectionProviders),
-		Scope:       ScopeGlobal,
+		Scope:       ScopeUser,
 		WriteTarget: target,
 		Behavior:    MutationBehaviorAppliedNow,
 		Applied:     true,

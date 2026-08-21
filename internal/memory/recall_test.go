@@ -144,7 +144,7 @@ func TestStoreRecall(t *testing.T) {
 		}
 		if err := store.Write(
 			t.Context(),
-			memcontract.ScopeGlobal,
+			memcontract.ScopeProfile,
 			"project_auth.md",
 			mustMemoryContent(t, testMemoryMeta{
 				Name:        "Global Auth",
@@ -292,7 +292,7 @@ func TestStoreRecall(t *testing.T) {
 		}
 		if err := store.Write(
 			t.Context(),
-			memcontract.ScopeGlobal,
+			memcontract.ScopeProfile,
 			"project_auth.md",
 			mustMemoryContent(t, testMemoryMeta{
 				Name:        "Global Auth",
@@ -626,21 +626,21 @@ func TestBuildRecallBlock(t *testing.T) {
 			},
 			{
 				Name:    "Two",
-				Scope:   memcontract.ScopeGlobal,
+				Scope:   memcontract.ScopeProfile,
 				Score:   0.8,
 				Snippet: "second result",
 				ModTime: now.Add(-48 * time.Hour),
 			},
 			{
 				Name:    "Three",
-				Scope:   memcontract.ScopeGlobal,
+				Scope:   memcontract.ScopeProfile,
 				Score:   0.7,
 				Snippet: "third result",
 				ModTime: now,
 			},
 			{
 				Name:    "Four",
-				Scope:   memcontract.ScopeGlobal,
+				Scope:   memcontract.ScopeProfile,
 				Score:   0.6,
 				Snippet: "fourth result",
 				ModTime: now,

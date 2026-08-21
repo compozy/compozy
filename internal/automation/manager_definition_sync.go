@@ -8,6 +8,7 @@ import (
 	"strings"
 
 	compozyconfig "github.com/compozy/compozy/internal/config"
+	storepkg "github.com/compozy/compozy/internal/store"
 )
 
 // SyncManagedDefinitions reconciles one daemon-managed automation source
@@ -199,6 +200,7 @@ func (m *Manager) resolveConfigJob(ctx context.Context, raw compozyconfig.Automa
 	schedule := raw.Schedule
 	job := Job{
 		ID:          configJobID(raw.Scope, workspaceID, raw.Name),
+		ProfileID:   storepkg.DefaultProfileID,
 		Scope:       raw.Scope,
 		Name:        strings.TrimSpace(raw.Name),
 		AgentName:   strings.TrimSpace(raw.AgentName),
@@ -240,6 +242,7 @@ func (m *Manager) resolveConfigTrigger(ctx context.Context, raw compozyconfig.Au
 
 	trigger := Trigger{
 		ID:               configTriggerID(raw.Scope, workspaceID, raw.Name),
+		ProfileID:        storepkg.DefaultProfileID,
 		Scope:            raw.Scope,
 		Name:             strings.TrimSpace(raw.Name),
 		AgentName:        strings.TrimSpace(raw.AgentName),

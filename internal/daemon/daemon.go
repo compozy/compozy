@@ -101,6 +101,7 @@ type Registry interface {
 	daemonWorkspaceRegistry
 	gateway.Store
 	store.OnboardingStore
+	VerifyDefaultProfile(context.Context) error
 }
 
 // Server is a daemon-owned runtime component with explicit start and shutdown phases.

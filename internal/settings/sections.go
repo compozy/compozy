@@ -115,7 +115,7 @@ func validateSectionScope(section SectionName, scope ScopeKind, agentName string
 		}
 		return nil
 	}
-	if section != SectionSkills && scope != ScopeGlobal {
+	if section != SectionSkills && scope != ScopeUser {
 		return conflictError(
 			fmt.Errorf("settings: section %q does not support %s scope", section, scope),
 		)
@@ -145,7 +145,7 @@ func newSectionEnvelope(
 		Scope:           scope,
 		WorkspaceID:     workspaceID,
 		AgentName:       agentName,
-		AvailableScopes: []ScopeKind{ScopeGlobal},
+		AvailableScopes: []ScopeKind{ScopeUser},
 	}
 }
 
@@ -160,21 +160,21 @@ func (s *service) populateSectionEnvelope(
 	}
 	switch envelope.Section {
 	case SectionGeneral:
-		envelope.Scope = ScopeGlobal
+		envelope.Scope = ScopeUser
 		section, err := s.buildGeneralSection(ctx, cfg)
 		if err != nil {
 			return err
 		}
 		envelope.General = &section
 	case SectionMemory:
-		envelope.Scope = ScopeGlobal
+		envelope.Scope = ScopeUser
 		section, err := s.buildMemorySection(ctx, cfg)
 		if err != nil {
 			return err
 		}
 		envelope.Memory = &section
 	case SectionSkills:
-		envelope.AvailableScopes = []ScopeKind{ScopeGlobal, ScopeAgent}
+		envelope.AvailableScopes = []ScopeKind{ScopeUser, ScopeAgent}
 		section, err := s.buildSkillsSection(
 			ctx,
 			cfg,
@@ -187,35 +187,35 @@ func (s *service) populateSectionEnvelope(
 		}
 		envelope.Skills = &section
 	case SectionAutomation:
-		envelope.Scope = ScopeGlobal
+		envelope.Scope = ScopeUser
 		section, err := s.buildAutomationSection(ctx, cfg)
 		if err != nil {
 			return err
 		}
 		envelope.Automation = &section
 	case SectionNetwork:
-		envelope.Scope = ScopeGlobal
+		envelope.Scope = ScopeUser
 		section, err := s.buildNetworkSection(ctx, cfg)
 		if err != nil {
 			return err
 		}
 		envelope.Network = &section
 	case SectionWindowManager:
-		envelope.AvailableScopes = []ScopeKind{ScopeGlobal, ScopeWorkspace}
+		envelope.AvailableScopes = []ScopeKind{ScopeUser, ScopeWorkspace}
 		section, err := s.buildWindowManagerSection(ctx, cfg, envelope.WorkspaceID, envelope.ClientID)
 		if err != nil {
 			return err
 		}
 		envelope.WindowManager = &section
 	case SectionObservability:
-		envelope.Scope = ScopeGlobal
+		envelope.Scope = ScopeUser
 		section, err := s.buildObservabilitySection(ctx, cfg)
 		if err != nil {
 			return err
 		}
 		envelope.Observability = &section
 	case SectionHooksExtensions:
-		envelope.Scope = ScopeGlobal
+		envelope.Scope = ScopeUser
 		section, err := s.buildHooksExtensionsSection(ctx, cfg)
 		if err != nil {
 			return err
@@ -230,23 +230,23 @@ func (s *service) populateSectionEnvelope(
 func populateSimpleSectionEnvelope(envelope *SectionEnvelope, cfg *compozyconfig.Config) bool {
 	switch envelope.Section {
 	case SectionRoles:
-		envelope.AvailableScopes = []ScopeKind{ScopeGlobal, ScopeWorkspace}
+		envelope.AvailableScopes = []ScopeKind{ScopeUser, ScopeWorkspace}
 		section := RolesSection{Config: compozyconfig.CloneRolesConfig(&cfg.Roles)}
 		envelope.Roles = &section
 	case SectionGateway:
-		envelope.Scope = ScopeGlobal
+		envelope.Scope = ScopeUser
 		section := GatewaySection{Config: cfg.Gateway}
 		envelope.Gateway = &section
 	case SectionCmdPalette:
-		envelope.AvailableScopes = []ScopeKind{ScopeGlobal, ScopeWorkspace}
+		envelope.AvailableScopes = []ScopeKind{ScopeUser, ScopeWorkspace}
 		section := buildCmdPaletteSection(cfg)
 		envelope.CmdPalette = &section
 	case SectionAttention:
-		envelope.Scope = ScopeGlobal
+		envelope.Scope = ScopeUser
 		section := buildAttentionSection(cfg)
 		envelope.Attention = &section
 	case SectionShell:
-		envelope.Scope = ScopeGlobal
+		envelope.Scope = ScopeUser
 		section := buildShellSection(cfg)
 		envelope.Shell = &section
 	default:

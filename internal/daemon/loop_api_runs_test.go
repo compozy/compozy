@@ -185,7 +185,7 @@ func TestDaemonLoopAPIServiceShouldBuildRunWebURLFromEffectiveConfig(t *testing.
 	if err != nil {
 		t.Fatalf("ResolveHomePathsFrom() error = %v", err)
 	}
-	target, err := compozyconfig.ResolveConfigWriteTarget(homePaths, "", compozyconfig.WriteScopeGlobal)
+	target, err := compozyconfig.ResolveConfigWriteTarget(homePaths, "", compozyconfig.WriteScopeUser)
 	if err != nil {
 		t.Fatalf("ResolveConfigWriteTarget() error = %v", err)
 	}

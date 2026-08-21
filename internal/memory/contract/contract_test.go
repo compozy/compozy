@@ -22,7 +22,7 @@ func TestEnumNormalization(t *testing.T) {
 		if got := Scope(" Agent ").Normalize(); got != ScopeAgent {
 			t.Fatalf("Scope.Normalize() = %q, want %q", got, ScopeAgent)
 		}
-		for _, scope := range []Scope{ScopeGlobal, ScopeWorkspace, ScopeAgent} {
+		for _, scope := range []Scope{ScopeProfile, ScopeWorkspace, ScopeAgent} {
 			if err := scope.Validate(); err != nil {
 				t.Fatalf("Scope(%q).Validate() error = %v", scope, err)
 			}
@@ -98,8 +98,8 @@ func TestEnumNormalization(t *testing.T) {
 			if err != nil {
 				t.Fatalf("DefaultScopeForType(%q) error = %v", typ, err)
 			}
-			if scope != ScopeGlobal {
-				t.Fatalf("DefaultScopeForType(%q) = %q, want %q", typ, scope, ScopeGlobal)
+			if scope != ScopeProfile {
+				t.Fatalf("DefaultScopeForType(%q) = %q, want %q", typ, scope, ScopeProfile)
 			}
 		}
 		for _, typ := range []Type{TypeProject, TypeReference} {
@@ -285,7 +285,7 @@ func TestHeaderSerialization(t *testing.T) {
 				header: Header{
 					Name:      "Wrong tier metadata",
 					Type:      TypeUser,
-					Scope:     ScopeGlobal,
+					Scope:     ScopeProfile,
 					AgentTier: AgentTierWorkspace,
 				},
 			},

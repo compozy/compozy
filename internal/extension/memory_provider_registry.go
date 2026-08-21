@@ -299,6 +299,7 @@ func (r *MemoryProviderRegistry) recordCollision(
 		return fmt.Errorf("extension: encode memory provider collision: %w", err)
 	}
 	return r.eventWriter.WriteEventSummary(ctx, store.EventSummary{
+		ProfileID: store.DefaultProfileID,
 		Type:      memoryProviderCollisionEvent,
 		Content:   content,
 		Summary:   memoryProviderCollisionSummary,

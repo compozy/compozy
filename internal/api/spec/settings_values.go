@@ -8,7 +8,7 @@ import (
 
 func resourceScopeKindValues() []string {
 	return []string{
-		string(resources.ResourceScopeKindGlobal),
+		string(resources.ResourceScopeKindUser),
 		string(resources.ResourceScopeKindWorkspace),
 	}
 }

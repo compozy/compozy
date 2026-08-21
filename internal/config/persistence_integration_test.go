@@ -16,7 +16,7 @@ func TestEditConfigOverlayGlobalWritePreservesStructureOnDisk(t *testing.T) {
 		if err != nil {
 			t.Fatalf("ResolveHomePathsFrom() error = %v", err)
 		}
-		target, err := ResolveConfigWriteTarget(homePaths, "", WriteScopeGlobal)
+		target, err := ResolveConfigWriteTarget(homePaths, "", WriteScopeUser)
 		if err != nil {
 			t.Fatalf("ResolveConfigWriteTarget() error = %v", err)
 		}
@@ -69,7 +69,7 @@ func TestEditConfigOverlayGlobalWriteFromOperatorHomeWorkspace(t *testing.T) {
 		if err != nil {
 			t.Fatalf("ResolveHomePathsFrom() error = %v", err)
 		}
-		target, err := ResolveConfigWriteTarget(homePaths, operatorHome, WriteScopeGlobal)
+		target, err := ResolveConfigWriteTarget(homePaths, operatorHome, WriteScopeUser)
 		if err != nil {
 			t.Fatalf("ResolveConfigWriteTarget() error = %v", err)
 		}
@@ -149,7 +149,7 @@ func TestPutMCPSidecarServerWritesAndPreservesUnaffectedEntries(t *testing.T) {
 		if err != nil {
 			t.Fatalf("ResolveHomePathsFrom() error = %v", err)
 		}
-		target, err := ResolveMCPSidecarWriteTarget(homePaths, "", WriteScopeGlobal)
+		target, err := ResolveMCPSidecarWriteTarget(homePaths, "", WriteScopeUser)
 		if err != nil {
 			t.Fatalf("ResolveMCPSidecarWriteTarget() error = %v", err)
 		}
@@ -208,7 +208,7 @@ func TestPutMCPSidecarServerRejectsDuplicateNamesAcrossTopLevelKeys(t *testing.T
 		if err != nil {
 			t.Fatalf("ResolveHomePathsFrom() error = %v", err)
 		}
-		target, err := ResolveMCPSidecarWriteTarget(homePaths, "", WriteScopeGlobal)
+		target, err := ResolveMCPSidecarWriteTarget(homePaths, "", WriteScopeUser)
 		if err != nil {
 			t.Fatalf("ResolveMCPSidecarWriteTarget() error = %v", err)
 		}

@@ -13,6 +13,7 @@ import (
 
 	"github.com/compozy/compozy/internal/api/contract"
 	extensionpkg "github.com/compozy/compozy/internal/extension"
+	"github.com/compozy/compozy/internal/store"
 	"github.com/compozy/compozy/internal/store/globaldb"
 	"github.com/compozy/compozy/internal/testutil"
 	"github.com/compozy/compozy/internal/vault"
@@ -89,7 +90,7 @@ func TestExtensionSecretsValidationIsMutationFree(t *testing.T) {
 			if !errors.Is(err, testCase.want) {
 				t.Fatalf("setExtensionSecretsForInstance() error = %v, want %v", err, testCase.want)
 			}
-			rows, listErr := bindings.ListEnvBindings(testutil.Context(t), "kit", "")
+			rows, listErr := bindings.ListEnvBindings(testutil.Context(t), "kit", store.DefaultProfileID, "")
 			if listErr != nil {
 				t.Fatalf("ListEnvBindings() error = %v", listErr)
 			}
@@ -132,7 +133,7 @@ func TestExtensionSecretsRemoteHeaderBinding(t *testing.T) {
 		payload.Bindings[0].HeaderName != "X-Deployment-Key" || payload.Bindings[0].Stale {
 		t.Fatalf("remote binding payload = %#v, want presence-only current mapping", payload)
 	}
-	rows, err := bindings.ListEnvBindings(testutil.Context(t), "kit", "")
+	rows, err := bindings.ListEnvBindings(testutil.Context(t), "kit", store.DefaultProfileID, "")
 	if err != nil {
 		t.Fatalf("ListEnvBindings() error = %v", err)
 	}
@@ -195,7 +196,7 @@ func TestExtensionSecretsRollbackUsesSortedForwardAndReverseOrder(t *testing.T) 
 					t.Fatalf("restored %s value = %q, want %q", envName, got, "old-"+envName)
 				}
 			}
-			rows, listErr := bindings.ListEnvBindings(testutil.Context(t), "kit", "")
+			rows, listErr := bindings.ListEnvBindings(testutil.Context(t), "kit", store.DefaultProfileID, "")
 			if listErr != nil {
 				t.Fatalf("ListEnvBindings() error = %v", listErr)
 			}
@@ -250,7 +251,7 @@ func TestExtensionSecretsRollbackUsesSortedForwardAndReverseOrder(t *testing.T) 
 		if got := secretVault.value(ref); got != "old-value" {
 			t.Fatalf("secret after failed write = %q, want restored old-value", got)
 		}
-		rows, listErr := bindings.ListEnvBindings(testutil.Context(t), "kit", "")
+		rows, listErr := bindings.ListEnvBindings(testutil.Context(t), "kit", store.DefaultProfileID, "")
 		if listErr != nil {
 			t.Fatalf("ListEnvBindings() error = %v", listErr)
 		}
@@ -387,7 +388,7 @@ func TestExtensionSecretsGarbageCollectionAndStaleProjection(t *testing.T) {
 		if got := secretVault.value(ref); got != "" {
 			t.Fatalf("deleted secret value = %q, want absent", got)
 		}
-		rows, err := bindings.ListEnvBindings(testutil.Context(t), "kit", "")
+		rows, err := bindings.ListEnvBindings(testutil.Context(t), "kit", store.DefaultProfileID, "")
 		if err != nil {
 			t.Fatalf("ListEnvBindings() error = %v", err)
 		}
@@ -480,7 +481,7 @@ func TestExtensionSecretsGarbageCollectionAndStaleProjection(t *testing.T) {
 				if got := secretVault.value(oldBRef); got != "old-b" {
 					t.Fatalf("preserved second secret = %q, want old-b", got)
 				}
-				rows, listErr := bindings.ListEnvBindings(testutil.Context(t), "kit", "")
+				rows, listErr := bindings.ListEnvBindings(testutil.Context(t), "kit", store.DefaultProfileID, "")
 				if listErr != nil {
 					t.Fatalf("ListEnvBindings() error = %v", listErr)
 				}

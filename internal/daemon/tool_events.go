@@ -40,6 +40,7 @@ func (s *daemonToolEventSink) EmitToolEvent(ctx context.Context, event toolspkg.
 		timestamp = s.now().UTC()
 	}
 	return s.writer.WriteEventSummary(context.WithoutCancel(ctx), store.EventSummary{
+		ProfileID:   store.DefaultProfileID,
 		Type:        eventType,
 		WorkspaceID: event.WorkspaceID,
 		SessionID:   event.SessionID,

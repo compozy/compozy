@@ -9,6 +9,7 @@ import (
 
 // NetworkChannelEntry stores durable channel metadata for the operator-facing network workspace.
 type NetworkChannelEntry struct {
+	ProfileID         string
 	Channel           string
 	WorkspaceID       string
 	Purpose           string
@@ -65,6 +66,9 @@ func (r NetworkChannelRef) Validate() error {
 
 // Validate ensures the persisted channel metadata is complete.
 func (e NetworkChannelEntry) Validate() error {
+	if err := requireField(e.ProfileID, "network channel profile_id"); err != nil {
+		return err
+	}
 	if err := (NetworkChannelRef{WorkspaceID: e.WorkspaceID, Channel: e.Channel}).Validate(); err != nil {
 		return err
 	}

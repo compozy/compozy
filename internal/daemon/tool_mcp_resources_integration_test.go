@@ -172,7 +172,7 @@ func TestToolMCPStaticPublicationAndBootRebuild(t *testing.T) {
 		configSourceKey := "config/global/git"
 		wantConfigID := contentAddressedManagedPublicationID(
 			mcpServerManagedIDPrefix,
-			resources.ResourceScope{Kind: resources.ResourceScopeKindGlobal},
+			resources.ResourceScope{Kind: resources.ResourceScopeKindUser},
 			configSourceKey,
 			configEncoded,
 		)
@@ -390,7 +390,7 @@ func newToolMCPIntegrationDriver(
 				Kind: resources.ResourceSourceKind("daemon"),
 				ID:   "tool-mcp-integration",
 			},
-			MaxScope: resources.ResourceScope{Kind: resources.ResourceScopeKindGlobal},
+			MaxScope: resources.ResourceScope{Kind: resources.ResourceScopeKindUser},
 		},
 		[]resources.ProjectorRegistration{toolRegistration, mcpRegistration},
 		resources.WithReconcileLogger(discardLogger()),

@@ -182,8 +182,8 @@ func actorAllowsScope(actor MutationActor, target ResourceScope) bool {
 	maxScope := actor.MaxScope.Normalize()
 	target = target.Normalize()
 	switch maxScope.Kind {
-	case ResourceScopeKindGlobal:
-		return target.Kind == ResourceScopeKindGlobal || target.Kind == ResourceScopeKindWorkspace
+	case ResourceScopeKindUser:
+		return target.Kind == ResourceScopeKindUser || target.Kind == ResourceScopeKindWorkspace
 	case ResourceScopeKindWorkspace:
 		return target.Kind == ResourceScopeKindWorkspace && target.ID == maxScope.ID
 	default:

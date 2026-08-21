@@ -16,7 +16,7 @@ func (s *service) updateCmdPaletteSection(
 		req.Section,
 		req.Scope,
 		req.WorkspaceID,
-		ScopeGlobal,
+		ScopeUser,
 		ScopeWorkspace,
 	)
 	if err != nil {

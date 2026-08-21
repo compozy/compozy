@@ -128,6 +128,7 @@ func (b *clarifyBridge) writeSummary(ctx context.Context, event toolspkg.Clarify
 		return fmt.Errorf("marshal clarification summary: %w", err)
 	}
 	return b.summaries.WriteEventSummary(ctx, store.EventSummary{
+		ProfileID:   store.DefaultProfileID,
 		ID:          event.Request.RequestID + "-" + string(event.Status),
 		SessionID:   event.Request.SessionID,
 		WorkspaceID: event.Request.WorkspaceID,

@@ -5,6 +5,8 @@ import (
 	"testing"
 )
 
+const defaultApprovalProfileIDForTest = "00000000000000000000000000"
+
 func TestApprovalGrantSetRequestBuildGrant(t *testing.T) {
 	t.Parallel()
 
@@ -16,7 +18,7 @@ func TestApprovalGrantSetRequestBuildGrant(t *testing.T) {
 			Decision:  ApprovalGrantAllow,
 			Scope:     ApprovalGrantScopeAgent,
 			AgentName: " codex ",
-		}).BuildGrant(" ws-1 ")
+		}).BuildGrant(defaultApprovalProfileIDForTest, " ws-1 ")
 		if err != nil {
 			t.Fatalf("BuildGrant() error = %v", err)
 		}
@@ -35,7 +37,7 @@ func TestApprovalGrantSetRequestBuildGrant(t *testing.T) {
 			ToolID:   ToolIDWorkspaceList,
 			Decision: ApprovalGrantReject,
 			Scope:    ApprovalGrantScopeTool,
-		}).BuildGrant("ws-1")
+		}).BuildGrant(defaultApprovalProfileIDForTest, "ws-1")
 		if err != nil {
 			t.Fatalf("BuildGrant() error = %v", err)
 		}
@@ -78,7 +80,7 @@ func TestApprovalGrantSetRequestBuildGrant(t *testing.T) {
 			t.Run("Should reject "+test.name, func(t *testing.T) {
 				t.Parallel()
 
-				_, err := test.request.BuildGrant("ws-1")
+				_, err := test.request.BuildGrant(defaultApprovalProfileIDForTest, "ws-1")
 				if !errors.Is(err, ErrApprovalGrantInvalid) {
 					t.Fatalf("BuildGrant() error = %v, want ErrApprovalGrantInvalid", err)
 				}

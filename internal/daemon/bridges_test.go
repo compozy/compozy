@@ -227,6 +227,7 @@ func TestBootBridgeDeliveryReconcileCompletesBeforeRegistration(t *testing.T) {
 		ctx := testutil.Context(t)
 		db := openDaemonTestGlobalDB(t)
 		instance := bridgepkg.BridgeInstance{
+			ProfileID:     store.DefaultProfileID,
 			ID:            "brg-reconcile",
 			Scope:         bridgepkg.ScopeGlobal,
 			Platform:      "slack",
@@ -349,6 +350,7 @@ func TestBootBridgeDeliveryReconcileCompletesBeforeRegistration(t *testing.T) {
 			}
 			instanceID := "brg-" + workspaceID
 			instance := bridgepkg.BridgeInstance{
+				ProfileID:     store.DefaultProfileID,
 				ID:            instanceID,
 				Scope:         bridgepkg.ScopeWorkspace,
 				WorkspaceID:   workspaceID,
@@ -1785,7 +1787,7 @@ func TestBridgeRuntimeTransition(t *testing.T) {
 			[]resources.Record[bridgepkg.BridgeInstanceSpec]{{
 				ID:      previous.ID,
 				Version: 2,
-				Scope:   resources.ResourceScope{Kind: resources.ResourceScopeKindGlobal},
+				Scope:   resources.ResourceScope{Kind: resources.ResourceScopeKindUser},
 				Spec: bridgepkg.BridgeInstanceSpec{
 					Scope:         bridgepkg.ScopeGlobal,
 					Platform:      "slack",

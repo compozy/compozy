@@ -31,7 +31,7 @@ func TestLayoutResourceCodec(t *testing.T) {
 		}
 		got, err := codec.DecodeAndValidate(
 			context.Background(),
-			resources.ResourceScope{Kind: resources.ResourceScopeKindGlobal},
+			resources.ResourceScope{Kind: resources.ResourceScopeKindUser},
 			encoded,
 		)
 		if err != nil {
@@ -54,7 +54,7 @@ func TestLayoutResourceCodec(t *testing.T) {
 		}
 		_, err = codec.DecodeAndValidate(
 			context.Background(),
-			resources.ResourceScope{Kind: resources.ResourceScopeKindGlobal},
+			resources.ResourceScope{Kind: resources.ResourceScopeKindUser},
 			encoded,
 		)
 		if !errors.Is(err, resources.ErrValidation) {
@@ -70,7 +70,7 @@ func TestLayoutResourceCodec(t *testing.T) {
 			`"legacy":true}`)
 		_, err := codec.DecodeAndValidate(
 			context.Background(),
-			resources.ResourceScope{Kind: resources.ResourceScopeKindGlobal},
+			resources.ResourceScope{Kind: resources.ResourceScopeKindUser},
 			raw,
 		)
 		if !errors.Is(err, resources.ErrValidation) || !strings.Contains(err.Error(), "unknown field") {

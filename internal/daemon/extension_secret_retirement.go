@@ -7,6 +7,7 @@ import (
 	"slices"
 
 	extensionpkg "github.com/compozy/compozy/internal/extension"
+	"github.com/compozy/compozy/internal/store"
 	"github.com/compozy/compozy/internal/vault"
 )
 
@@ -25,7 +26,7 @@ func (s *daemonExtensionService) retireExtensionSecretBindings(
 	if s.envBindings == nil || s.secretVault == nil {
 		return nil, errors.New("daemon: extension secret storage is incomplete")
 	}
-	bindings, err := s.envBindings.ListEnvBindings(ctx, key.Name, key.WorkspaceID)
+	bindings, err := s.envBindings.ListEnvBindings(ctx, key.Name, store.DefaultProfileID, key.WorkspaceID)
 	if err != nil {
 		return nil, fmt.Errorf("daemon: snapshot retiring extension bindings: %w", err)
 	}
@@ -56,7 +57,7 @@ func (s *daemonExtensionService) retireExtensionSecretBindings(
 		}
 		retirement.ownedSecretSnapshots = append(retirement.ownedSecretSnapshots, snapshot)
 	}
-	if err := s.envBindings.DeleteEnvBindings(ctx, key.Name, key.WorkspaceID); err != nil {
+	if err := s.envBindings.DeleteEnvBindings(ctx, key.Name, store.DefaultProfileID, key.WorkspaceID); err != nil {
 		return nil, fmt.Errorf("daemon: retire extension bindings: %w", err)
 	}
 	for _, ref := range refs {

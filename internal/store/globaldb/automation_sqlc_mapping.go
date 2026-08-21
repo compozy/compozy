@@ -167,6 +167,7 @@ func automationJobParams(job automation.Job) (sqlcgen.InsertAutomationJobParams,
 		return sqlcgen.InsertAutomationJobParams{}, err
 	}
 	return sqlcgen.InsertAutomationJobParams{
+		ProfileID:   job.ProfileID,
 		ID:          job.ID,
 		Scope:       string(job.Scope),
 		Name:        job.Name,
@@ -210,7 +211,7 @@ func automationJobUpdateParams(job automation.Job) (sqlcgen.UpdateAutomationJobP
 
 func automationJobFromGenerated(row sqlcgen.AutomationJob) (automation.Job, error) {
 	job := automation.Job{
-		ID: row.ID, Scope: automation.Scope(strings.TrimSpace(row.Scope)), Name: row.Name,
+		ID: row.ID, ProfileID: row.ProfileID, Scope: automation.Scope(strings.TrimSpace(row.Scope)), Name: row.Name,
 		AgentName: row.AgentName, WorkspaceID: automationNullStringValue(row.WorkspaceID), Prompt: row.Prompt,
 		Enabled: row.Enabled, Source: automation.JobSource(strings.TrimSpace(row.Source)),
 		TargetKind: automation.TargetKind(strings.TrimSpace(row.TargetKind)),
@@ -279,6 +280,7 @@ func automationTriggerParams(trigger automation.Trigger) (sqlcgen.InsertAutomati
 		return sqlcgen.InsertAutomationTriggerParams{}, err
 	}
 	return sqlcgen.InsertAutomationTriggerParams{
+		ProfileID:   trigger.ProfileID,
 		ID:          trigger.ID,
 		Scope:       string(trigger.Scope),
 		Name:        trigger.Name,
@@ -326,7 +328,7 @@ func automationTriggerUpdateParams(trigger automation.Trigger) (sqlcgen.UpdateAu
 
 func automationTriggerFromGenerated(row sqlcgen.AutomationTrigger) (automation.Trigger, error) {
 	trigger := automation.Trigger{
-		ID: row.ID, Scope: automation.Scope(strings.TrimSpace(row.Scope)), Name: row.Name,
+		ID: row.ID, ProfileID: row.ProfileID, Scope: automation.Scope(strings.TrimSpace(row.Scope)), Name: row.Name,
 		AgentName: row.AgentName, WorkspaceID: automationNullStringValue(row.WorkspaceID), Prompt: row.Prompt,
 		Event: row.Event, Enabled: row.Enabled, Source: automation.JobSource(strings.TrimSpace(row.Source)),
 		WebhookID: automationNullStringValue(row.WebhookID), EndpointSlug: automationNullStringValue(row.EndpointSlug),

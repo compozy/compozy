@@ -296,6 +296,6 @@ func resourceReconcileActor() resources.MutationActor {
 			Kind: resources.ResourceSourceKind("daemon"),
 			ID:   string(SessionClassSystem),
 		},
-		MaxScope: resources.ResourceScope{Kind: resources.ResourceScopeKindGlobal},
+		MaxScope: resources.ResourceScope{Kind: resources.ResourceScopeKindUser},
 	}
 }

@@ -36,6 +36,7 @@ func NotificationSessionFromInfo(info *Info) *Session {
 	}
 	return &Session{
 		ID:                       info.ID,
+		ProfileID:                info.ProfileID,
 		Name:                     info.Name,
 		AgentName:                info.AgentName,
 		Provider:                 info.Provider,

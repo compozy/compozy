@@ -144,21 +144,21 @@ func TestMemoryHeaderListPage(t *testing.T) {
 			Filename: "user-latest.md",
 			Name:     "Latest",
 			Type:     memcontract.TypeUser,
-			Scope:    memcontract.ScopeGlobal,
+			Scope:    memcontract.ScopeProfile,
 			ModTime:  baseTime.Add(5 * time.Minute),
 		},
 		{
 			Filename: "_system/internal.md",
 			Name:     "Internal",
 			Type:     memcontract.TypeUser,
-			Scope:    memcontract.ScopeGlobal,
+			Scope:    memcontract.ScopeProfile,
 			ModTime:  baseTime.Add(4 * time.Minute),
 		},
 		{
 			Filename: "user-middle.md",
 			Name:     "middle",
 			Type:     memcontract.TypeUser,
-			Scope:    memcontract.ScopeGlobal,
+			Scope:    memcontract.ScopeProfile,
 			ModTime:  baseTime.Add(3 * time.Minute),
 		},
 		{
@@ -172,7 +172,7 @@ func TestMemoryHeaderListPage(t *testing.T) {
 			Filename: "user-oldest.md",
 			Name:     "alpha",
 			Type:     memcontract.TypeUser,
-			Scope:    memcontract.ScopeGlobal,
+			Scope:    memcontract.ScopeProfile,
 			ModTime:  baseTime.Add(time.Minute),
 		},
 	}
@@ -181,7 +181,7 @@ func TestMemoryHeaderListPage(t *testing.T) {
 		t.Parallel()
 
 		query := HeaderListQuery{
-			Scope: memcontract.ScopeGlobal,
+			Scope: memcontract.ScopeProfile,
 			Type:  memcontract.TypeUser,
 			Limit: 2,
 		}
@@ -223,7 +223,7 @@ func TestMemoryHeaderListPage(t *testing.T) {
 		t.Parallel()
 
 		query := HeaderListQuery{
-			Scope:       memcontract.ScopeGlobal,
+			Scope:       memcontract.ScopeProfile,
 			WorkspaceID: "workspace-a",
 			Sort:        HeaderListSortName,
 			Limit:       1,
@@ -255,12 +255,12 @@ func TestMemoryHeaderListPage(t *testing.T) {
 		}
 		seedHeaderCatalogDocuments(t, globalDir, 205)
 
-		catalogHeaders, err := store.CatalogHeaders(ctx, memcontract.ScopeGlobal)
+		catalogHeaders, err := store.CatalogHeaders(ctx, memcontract.ScopeProfile)
 		if err != nil {
 			t.Fatalf("Store.CatalogHeaders() error = %v", err)
 		}
 		page, err := BuildHeaderListPage(catalogHeaders, HeaderListQuery{
-			Scope: memcontract.ScopeGlobal,
+			Scope: memcontract.ScopeProfile,
 			Type:  memcontract.TypeReference,
 			Limit: 1,
 		})
@@ -272,7 +272,7 @@ func TestMemoryHeaderListPage(t *testing.T) {
 			t.Fatalf("catalog headers/page = %d/%#v, want oldest reference header", len(catalogHeaders), page)
 		}
 
-		query := HeaderListQuery{Scope: memcontract.ScopeGlobal, Limit: 100}
+		query := HeaderListQuery{Scope: memcontract.ScopeProfile, Limit: 100}
 		for pageIndex, wantFirst := range []string{"memory-204.md", "memory-104.md", "memory-004.md"} {
 			catalogPage, err := BuildHeaderListPage(catalogHeaders, query)
 			if err != nil {
@@ -304,7 +304,7 @@ func TestMemoryHeaderListPage(t *testing.T) {
 		}
 		seedHeaderCatalogDocuments(t, globalDir, 205)
 
-		first, err := store.CatalogHeaders(ctx, memcontract.ScopeGlobal)
+		first, err := store.CatalogHeaders(ctx, memcontract.ScopeProfile)
 		if err != nil {
 			t.Fatalf("Store.CatalogHeaders(first) error = %v", err)
 		}
@@ -316,12 +316,12 @@ func TestMemoryHeaderListPage(t *testing.T) {
 			t.Fatalf("WriteFile(corrupt ready body) error = %v", err)
 		}
 
-		second, err := store.CatalogHeaders(ctx, memcontract.ScopeGlobal)
+		second, err := store.CatalogHeaders(ctx, memcontract.ScopeProfile)
 		if err != nil {
 			t.Fatalf("Store.CatalogHeaders(second) error = %v", err)
 		}
 		page, err := BuildHeaderListPage(second, HeaderListQuery{
-			Scope: memcontract.ScopeGlobal,
+			Scope: memcontract.ScopeProfile,
 			Type:  memcontract.TypeReference,
 			Limit: 1,
 		})
@@ -363,7 +363,7 @@ func TestMemoryHeaderListPage(t *testing.T) {
 		listResults := make(chan catalogResult, 1)
 		go func() {
 			close(listStarted)
-			headers, err := store.CatalogHeaders(ctx, memcontract.ScopeGlobal)
+			headers, err := store.CatalogHeaders(ctx, memcontract.ScopeProfile)
 			listResults <- catalogResult{headers: headers, err: err}
 		}()
 		<-listStarted
@@ -387,7 +387,7 @@ func TestMemoryHeaderListPage(t *testing.T) {
 		go func() {
 			close(writeStarted)
 			writeResults <- store.Write(t.Context(),
-				memcontract.ScopeGlobal,
+				memcontract.ScopeProfile,
 				"memory-new.md",
 				newContent)
 		}()
@@ -407,7 +407,7 @@ func TestMemoryHeaderListPage(t *testing.T) {
 			t.Fatalf("Store.Write() error = %v", err)
 		}
 
-		final, err := store.CatalogHeaders(ctx, memcontract.ScopeGlobal)
+		final, err := store.CatalogHeaders(ctx, memcontract.ScopeProfile)
 		if err != nil {
 			t.Fatalf("Store.CatalogHeaders(final) error = %v", err)
 		}
@@ -538,25 +538,25 @@ func TestStoreMemV2BackendHelpers(t *testing.T) {
 			Description: "Covers List and Exists",
 			Type:        memcontract.TypeUser,
 		}, "Backend helpers remain aligned with Store methods.\n")
-		if err := store.Write(t.Context(), memcontract.ScopeGlobal, "user_backend_alias.md", payload); err != nil {
+		if err := store.Write(t.Context(), memcontract.ScopeProfile, "user_backend_alias.md", payload); err != nil {
 			t.Fatalf("Store.Write() error = %v", err)
 		}
 
-		headers, err := store.List(t.Context(), memcontract.ScopeGlobal)
+		headers, err := store.List(t.Context(), memcontract.ScopeProfile)
 		if err != nil {
 			t.Fatalf("Store.List() error = %v", err)
 		}
 		if len(headers) != 1 {
 			t.Fatalf("Store.List() length = %d, want 1", len(headers))
 		}
-		exists, err := store.Exists(memcontract.ScopeGlobal, "user_backend_alias.md")
+		exists, err := store.Exists(memcontract.ScopeProfile, "user_backend_alias.md")
 		if err != nil {
 			t.Fatalf("Store.Exists(existing) error = %v", err)
 		}
 		if !exists {
 			t.Fatal("Store.Exists(existing) = false, want true")
 		}
-		missing, err := store.Exists(memcontract.ScopeGlobal, "missing.md")
+		missing, err := store.Exists(memcontract.ScopeProfile, "missing.md")
 		if err != nil {
 			t.Fatalf("Store.Exists(missing) error = %v", err)
 		}
@@ -727,12 +727,12 @@ func TestStoreMemoryBatch(t *testing.T) {
 			Description: "Atomic batch fixture",
 			Type:        memcontract.TypeUser,
 		}, "Keep the old summary.\n\nRemove this stale note.\n")
-		if err := store.Write(t.Context(), memcontract.ScopeGlobal, filename, initial); err != nil {
+		if err := store.Write(t.Context(), memcontract.ScopeProfile, filename, initial); err != nil {
 			t.Fatalf("Store.Write(seed) error = %v", err)
 		}
 
 		result, err := store.ProposeBatch(ctx, BatchProposal{
-			Scope:    memcontract.ScopeGlobal,
+			Scope:    memcontract.ScopeProfile,
 			Filename: filename,
 			Operations: []BatchOperation{
 				{Action: BatchActionAdd, Content: "Remember the cobalt release decision."},
@@ -755,7 +755,7 @@ func TestStoreMemoryBatch(t *testing.T) {
 				t.Fatalf("batch operation %d = %#v, want changed applied", index, outcome)
 			}
 		}
-		got, err := store.Read(t.Context(), memcontract.ScopeGlobal, filename)
+		got, err := store.Read(t.Context(), memcontract.ScopeProfile, filename)
 		if err != nil {
 			t.Fatalf("Store.Read(batch result) error = %v", err)
 		}
@@ -803,7 +803,7 @@ func TestStoreMemoryBatch(t *testing.T) {
 			Name: "Release",
 			Type: memcontract.TypeProject,
 		}, "Keep the stable release fact.\n")
-		if err := store.Write(t.Context(), memcontract.ScopeGlobal, filename, initial); err != nil {
+		if err := store.Write(t.Context(), memcontract.ScopeProfile, filename, initial); err != nil {
 			t.Fatalf("Store.Write(seed) error = %v", err)
 		}
 		db := ensureReplayTestDB(ctx, t, store)
@@ -813,7 +813,7 @@ func TestStoreMemoryBatch(t *testing.T) {
 		}
 
 		_, err := store.ProposeBatch(ctx, BatchProposal{
-			Scope:    memcontract.ScopeGlobal,
+			Scope:    memcontract.ScopeProfile,
 			Filename: filename,
 			Operations: []BatchOperation{
 				{Action: BatchActionAdd, Content: "This staged addition must not land."},
@@ -825,7 +825,7 @@ func TestStoreMemoryBatch(t *testing.T) {
 			!strings.Contains(err.Error(), "matched 0 occurrences") {
 			t.Fatalf("Store.ProposeBatch(mid-batch failure) error = %v, want deterministic validation", err)
 		}
-		got, readErr := store.Read(t.Context(), memcontract.ScopeGlobal, filename)
+		got, readErr := store.Read(t.Context(), memcontract.ScopeProfile, filename)
 		if readErr != nil {
 			t.Fatalf("Store.Read(after failed batch) error = %v", readErr)
 		}
@@ -873,12 +873,12 @@ func TestStoreMemoryBatch(t *testing.T) {
 				Name: "Markers",
 				Type: memcontract.TypeReference,
 			}, testCase.body+"\n")
-			if err := store.Write(t.Context(), memcontract.ScopeGlobal, filename, initial); err != nil {
+			if err := store.Write(t.Context(), memcontract.ScopeProfile, filename, initial); err != nil {
 				t.Fatalf("Store.Write(seed) error = %v", err)
 			}
 
 			_, err := store.ProposeBatch(ctx, BatchProposal{
-				Scope:    memcontract.ScopeGlobal,
+				Scope:    memcontract.ScopeProfile,
 				Filename: filename,
 				Operations: []BatchOperation{{
 					Action:  BatchActionReplace,
@@ -891,7 +891,7 @@ func TestStoreMemoryBatch(t *testing.T) {
 			if !errors.Is(err, ErrValidation) || !strings.Contains(err.Error(), want) {
 				t.Fatalf("Store.ProposeBatch(ambiguous) error = %v, want %q", err, want)
 			}
-			got, readErr := store.Read(t.Context(), memcontract.ScopeGlobal, filename)
+			got, readErr := store.Read(t.Context(), memcontract.ScopeProfile, filename)
 			if readErr != nil {
 				t.Fatalf("Store.Read(after rejection) error = %v", readErr)
 			}
@@ -921,12 +921,12 @@ func TestStoreMemoryBatch(t *testing.T) {
 			Name: "Capacity",
 			Type: memcontract.TypeProject,
 		}, initialBody+"\n")
-		if err := store.Write(t.Context(), memcontract.ScopeGlobal, filename, initial); err != nil {
+		if err := store.Write(t.Context(), memcontract.ScopeProfile, filename, initial); err != nil {
 			t.Fatalf("Store.Write(over-capacity seed) error = %v", err)
 		}
 
 		_, err := store.ProposeBatch(ctx, BatchProposal{
-			Scope:      memcontract.ScopeGlobal,
+			Scope:      memcontract.ScopeProfile,
 			Filename:   filename,
 			Operations: []BatchOperation{{Action: BatchActionAdd, Content: "New release fact."}},
 			Origin:     memcontract.OriginTool,
@@ -936,7 +936,7 @@ func TestStoreMemoryBatch(t *testing.T) {
 		}
 
 		result, err := store.ProposeBatch(ctx, BatchProposal{
-			Scope:    memcontract.ScopeGlobal,
+			Scope:    memcontract.ScopeProfile,
 			Filename: filename,
 			Operations: []BatchOperation{
 				{Action: BatchActionRemove, OldText: strings.Repeat("obsolete detail ", 5)},
@@ -950,11 +950,11 @@ func TestStoreMemoryBatch(t *testing.T) {
 		if !result.Applied {
 			t.Fatalf("Store.ProposeBatch(consolidate and add) = %#v, want applied", result)
 		}
-		got, err := store.Read(t.Context(), memcontract.ScopeGlobal, filename)
+		got, err := store.Read(t.Context(), memcontract.ScopeProfile, filename)
 		if err != nil {
 			t.Fatalf("Store.Read(consolidated) error = %v", err)
 		}
-		body, _, err := store.parseControlledWriteDocument(memcontract.ScopeGlobal, filename, got, false)
+		body, _, err := store.parseControlledWriteDocument(memcontract.ScopeProfile, filename, got, false)
 		if err != nil {
 			t.Fatalf("parseControlledWriteDocument(consolidated) error = %v", err)
 		}
@@ -984,7 +984,7 @@ func TestStoreMemoryBatch(t *testing.T) {
 			t.Fatalf("Store.EnsureDirs() error = %v", err)
 		}
 		proposal := BatchProposal{
-			Scope:    memcontract.ScopeGlobal,
+			Scope:    memcontract.ScopeProfile,
 			Filename: "user_retry.md",
 			Header: memcontract.Header{
 				Name:        "Retry",
@@ -998,7 +998,7 @@ func TestStoreMemoryBatch(t *testing.T) {
 		if err != nil {
 			t.Fatalf("Store.ProposeBatch(first) error = %v", err)
 		}
-		before, err := store.Read(t.Context(), memcontract.ScopeGlobal, proposal.Filename)
+		before, err := store.Read(t.Context(), memcontract.ScopeProfile, proposal.Filename)
 		if err != nil {
 			t.Fatalf("Store.Read(first) error = %v", err)
 		}
@@ -1006,7 +1006,7 @@ func TestStoreMemoryBatch(t *testing.T) {
 		if err != nil {
 			t.Fatalf("Store.ProposeBatch(retry) error = %v", err)
 		}
-		after, err := store.Read(t.Context(), memcontract.ScopeGlobal, proposal.Filename)
+		after, err := store.Read(t.Context(), memcontract.ScopeProfile, proposal.Filename)
 		if err != nil {
 			t.Fatalf("Store.Read(retry) error = %v", err)
 		}
@@ -1042,7 +1042,7 @@ func TestStoreDecisionControllerWAL(t *testing.T) {
 			}, "Persisted memory body.\n")
 			if _, err := store.ProposeWrite(
 				ctx,
-				memcontract.ScopeGlobal,
+				memcontract.ScopeProfile,
 				filename,
 				content,
 				memcontract.OriginHTTP,
@@ -1052,7 +1052,7 @@ func TestStoreDecisionControllerWAL(t *testing.T) {
 		}
 
 		records, err := store.ListDecisionRecords(ctx, DecisionListQuery{
-			Scope:          memcontract.ScopeGlobal,
+			Scope:          memcontract.ScopeProfile,
 			TargetFilename: "selected.md",
 			Limit:          1,
 		})
@@ -1082,7 +1082,7 @@ func TestStoreDecisionControllerWAL(t *testing.T) {
 
 		result, err := store.ProposeWrite(
 			ctx,
-			memcontract.ScopeGlobal,
+			memcontract.ScopeProfile,
 			"user_preferences.md",
 			content,
 			memcontract.OriginHTTP,
@@ -1093,7 +1093,7 @@ func TestStoreDecisionControllerWAL(t *testing.T) {
 		if result.Decision.Op != memcontract.OpAdd || !result.Applied {
 			t.Fatalf("Store.ProposeWrite() = %#v, want add applied", result)
 		}
-		if got, err := store.Read(t.Context(), memcontract.ScopeGlobal, "user_preferences.md"); err != nil ||
+		if got, err := store.Read(t.Context(), memcontract.ScopeProfile, "user_preferences.md"); err != nil ||
 			!bytes.Equal(got, content) {
 			t.Fatalf("Store.Read() = %q, %v, want written content", string(got), err)
 		}
@@ -1179,7 +1179,7 @@ func TestStoreDecisionControllerWAL(t *testing.T) {
 			Description: "Original",
 			Type:        memcontract.TypeUser,
 		}, "Prefer concise explanations.\n")
-		if err := store.Write(t.Context(), memcontract.ScopeGlobal, "user_preferences.md", original); err != nil {
+		if err := store.Write(t.Context(), memcontract.ScopeProfile, "user_preferences.md", original); err != nil {
 			t.Fatalf("Store.Write(seed) error = %v", err)
 		}
 		updated := mustMemoryContent(t, testMemoryMeta{
@@ -1190,7 +1190,7 @@ func TestStoreDecisionControllerWAL(t *testing.T) {
 
 		result, err := store.ProposeWrite(
 			ctx,
-			memcontract.ScopeGlobal,
+			memcontract.ScopeProfile,
 			"user_preferences.md",
 			updated,
 			memcontract.OriginHTTP,
@@ -1212,7 +1212,7 @@ func TestStoreDecisionControllerWAL(t *testing.T) {
 		if !revert.Reverted {
 			t.Fatalf("Store.RevertDecision().Reverted = false, want true")
 		}
-		got, err := store.Read(t.Context(), memcontract.ScopeGlobal, "user_preferences.md")
+		got, err := store.Read(t.Context(), memcontract.ScopeProfile, "user_preferences.md")
 		if err != nil {
 			t.Fatalf("Store.Read(reverted) error = %v", err)
 		}
@@ -1238,7 +1238,7 @@ func TestStoreDecisionControllerWAL(t *testing.T) {
 			Description: "Original",
 			Type:        memcontract.TypeUser,
 		}, "Prefer concise explanations.\n")
-		if err := store.Write(t.Context(), memcontract.ScopeGlobal, "user_preferences.md", original); err != nil {
+		if err := store.Write(t.Context(), memcontract.ScopeProfile, "user_preferences.md", original); err != nil {
 			t.Fatalf("Store.Write(seed) error = %v", err)
 		}
 		updated := mustMemoryContent(t, testMemoryMeta{
@@ -1248,7 +1248,7 @@ func TestStoreDecisionControllerWAL(t *testing.T) {
 		}, "Prefer detailed explanations with examples.\n")
 		result, err := store.ProposeWrite(
 			ctx,
-			memcontract.ScopeGlobal,
+			memcontract.ScopeProfile,
 			"user_preferences.md",
 			updated,
 			memcontract.OriginHTTP,
@@ -1261,14 +1261,14 @@ func TestStoreDecisionControllerWAL(t *testing.T) {
 			Description: "Newer",
 			Type:        memcontract.TypeUser,
 		}, "Prefer newer guidance that must survive stale reverts.\n")
-		if err := store.Write(t.Context(), memcontract.ScopeGlobal, "user_preferences.md", newer); err != nil {
+		if err := store.Write(t.Context(), memcontract.ScopeProfile, "user_preferences.md", newer); err != nil {
 			t.Fatalf("Store.Write(newer) error = %v", err)
 		}
 
 		if _, err := store.RevertDecision(ctx, result.Decision.ID); err == nil {
 			t.Fatal("Store.RevertDecision(stale update) error = nil, want hash guard failure")
 		}
-		got, err := store.Read(t.Context(), memcontract.ScopeGlobal, "user_preferences.md")
+		got, err := store.Read(t.Context(), memcontract.ScopeProfile, "user_preferences.md")
 		if err != nil {
 			t.Fatalf("Store.Read(after stale update revert) error = %v", err)
 		}
@@ -1292,11 +1292,11 @@ func TestStoreDecisionControllerWAL(t *testing.T) {
 			Description: "Delete",
 			Type:        memcontract.TypeUser,
 		}, "Delete this via controller.\n")
-		if err := store.Write(t.Context(), memcontract.ScopeGlobal, "user_preferences.md", content); err != nil {
+		if err := store.Write(t.Context(), memcontract.ScopeProfile, "user_preferences.md", content); err != nil {
 			t.Fatalf("Store.Write(seed) error = %v", err)
 		}
 
-		result, err := store.ProposeDelete(ctx, memcontract.ScopeGlobal, "user_preferences.md", memcontract.OriginHTTP)
+		result, err := store.ProposeDelete(ctx, memcontract.ScopeProfile, "user_preferences.md", memcontract.OriginHTTP)
 		if err != nil {
 			t.Fatalf("Store.ProposeDelete() error = %v", err)
 		}
@@ -1325,10 +1325,10 @@ func TestStoreDecisionControllerWAL(t *testing.T) {
 			Description: "Delete",
 			Type:        memcontract.TypeUser,
 		}, "Delete this via controller.\n")
-		if err := store.Write(t.Context(), memcontract.ScopeGlobal, "user_preferences.md", original); err != nil {
+		if err := store.Write(t.Context(), memcontract.ScopeProfile, "user_preferences.md", original); err != nil {
 			t.Fatalf("Store.Write(seed) error = %v", err)
 		}
-		result, err := store.ProposeDelete(ctx, memcontract.ScopeGlobal, "user_preferences.md", memcontract.OriginHTTP)
+		result, err := store.ProposeDelete(ctx, memcontract.ScopeProfile, "user_preferences.md", memcontract.OriginHTTP)
 		if err != nil {
 			t.Fatalf("Store.ProposeDelete() error = %v", err)
 		}
@@ -1337,14 +1337,14 @@ func TestStoreDecisionControllerWAL(t *testing.T) {
 			Description: "Recreated",
 			Type:        memcontract.TypeUser,
 		}, "This recreated content must not be overwritten by stale delete revert.\n")
-		if err := store.Write(t.Context(), memcontract.ScopeGlobal, "user_preferences.md", recreated); err != nil {
+		if err := store.Write(t.Context(), memcontract.ScopeProfile, "user_preferences.md", recreated); err != nil {
 			t.Fatalf("Store.Write(recreated) error = %v", err)
 		}
 
 		if _, err := store.RevertDecision(ctx, result.Decision.ID); err == nil {
 			t.Fatal("Store.RevertDecision(stale delete) error = nil, want existence guard failure")
 		}
-		got, err := store.Read(t.Context(), memcontract.ScopeGlobal, "user_preferences.md")
+		got, err := store.Read(t.Context(), memcontract.ScopeProfile, "user_preferences.md")
 		if err != nil {
 			t.Fatalf("Store.Read(after stale delete revert) error = %v", err)
 		}
@@ -1372,7 +1372,7 @@ func TestStoreDecisionControllerWAL(t *testing.T) {
 
 		result, err := store.ProposeWrite(
 			ctx,
-			memcontract.ScopeGlobal,
+			memcontract.ScopeProfile,
 			"user_auto_catalog.md",
 			content,
 			memcontract.OriginCLI,
@@ -1408,7 +1408,7 @@ func TestStoreDecisionControllerWAL(t *testing.T) {
 
 		result, err := store.ProposeWrite(
 			ctx,
-			memcontract.ScopeGlobal,
+			memcontract.ScopeProfile,
 			"user_unsafe.md",
 			content,
 			memcontract.OriginHTTP,
@@ -1438,7 +1438,7 @@ func TestStoreDecisionControllerWAL(t *testing.T) {
 			t.Fatalf("Store.EnsureDirs() error = %v", err)
 		}
 
-		result, err := store.ProposeDelete(ctx, memcontract.ScopeGlobal, "user_missing.md", memcontract.OriginCLI)
+		result, err := store.ProposeDelete(ctx, memcontract.ScopeProfile, "user_missing.md", memcontract.OriginCLI)
 		if err != nil {
 			t.Fatalf("Store.ProposeDelete(missing) error = %v", err)
 		}
@@ -1474,7 +1474,7 @@ func TestStoreDecisionControllerWAL(t *testing.T) {
 		}, "Temporary preference.\n")
 		result, err := store.ProposeWrite(
 			ctx,
-			memcontract.ScopeGlobal,
+			memcontract.ScopeProfile,
 			"user_temporary.md",
 			content,
 			memcontract.OriginCLI,
@@ -1496,7 +1496,7 @@ func TestStoreDecisionControllerWAL(t *testing.T) {
 		}, "Temporary preference with guard.\n")
 		second, err := store.ProposeWrite(
 			ctx,
-			memcontract.ScopeGlobal,
+			memcontract.ScopeProfile,
 			"user_temporary_changed.md",
 			secondContent,
 			memcontract.OriginCLI,
@@ -1509,7 +1509,7 @@ func TestStoreDecisionControllerWAL(t *testing.T) {
 			Description: "Changed",
 			Type:        memcontract.TypeUser,
 		}, "Changed after decision.\n")
-		if err := store.Write(t.Context(), memcontract.ScopeGlobal, "user_temporary_changed.md", changed); err != nil {
+		if err := store.Write(t.Context(), memcontract.ScopeProfile, "user_temporary_changed.md", changed); err != nil {
 			t.Fatalf("Store.Write(changed) error = %v", err)
 		}
 		if _, err := store.RevertDecision(ctx, second.Decision.ID); err == nil {
@@ -1627,7 +1627,7 @@ func TestStoreDecisionErrorPaths(t *testing.T) {
 		store := newOpenTestStore(t, filepath.Join(t.TempDir(), "memory"))
 		if _, err := store.ProposeWrite(
 			nilMemoryTestContext(),
-			memcontract.ScopeGlobal,
+			memcontract.ScopeProfile,
 			"valid.md",
 			[]byte(""),
 			memcontract.OriginCLI,
@@ -1636,7 +1636,7 @@ func TestStoreDecisionErrorPaths(t *testing.T) {
 		}
 		if _, err := store.ProposeWrite(
 			ctx,
-			memcontract.ScopeGlobal,
+			memcontract.ScopeProfile,
 			"../bad.md",
 			[]byte(""),
 			memcontract.OriginCLI,
@@ -1648,7 +1648,7 @@ func TestStoreDecisionErrorPaths(t *testing.T) {
 		}
 		if _, err := store.ProposeWrite(
 			ctx,
-			memcontract.ScopeGlobal,
+			memcontract.ScopeProfile,
 			"bad.md",
 			[]byte("no frontmatter\n"),
 			memcontract.OriginCLI,
@@ -1657,7 +1657,7 @@ func TestStoreDecisionErrorPaths(t *testing.T) {
 		}
 		if _, err := store.ProposeDelete(
 			nilMemoryTestContext(),
-			memcontract.ScopeGlobal,
+			memcontract.ScopeProfile,
 			"valid.md",
 			memcontract.OriginCLI,
 		); err == nil {
@@ -1676,7 +1676,7 @@ func TestStoreDecisionErrorPaths(t *testing.T) {
 		}
 		if _, err := store.ProposeDelete(
 			ctx,
-			memcontract.ScopeGlobal,
+			memcontract.ScopeProfile,
 			"../bad.md",
 			memcontract.OriginCLI,
 		); !errors.Is(
@@ -1721,7 +1721,7 @@ func TestStoreDecisionErrorPaths(t *testing.T) {
 		)
 		if _, err := store.ListTargets(
 			nilMemoryTestContext(),
-			memcontract.Candidate{Scope: memcontract.ScopeGlobal},
+			memcontract.Candidate{Scope: memcontract.ScopeProfile},
 		); err == nil {
 			t.Fatal("Store.ListTargets(nil context) error = nil, want error")
 		}
@@ -1890,13 +1890,13 @@ func TestStoreReplayPendingDecisions(t *testing.T) {
 
 		insertReplayDecision(ctx, t, db, replayDecisionFixture{
 			ID:             "decision-noop",
-			Scope:          memcontract.ScopeGlobal,
+			Scope:          memcontract.ScopeProfile,
 			Op:             memcontract.OpNoop,
 			TargetFilename: "project_noop.md",
 		})
 		insertReplayDecision(ctx, t, db, replayDecisionFixture{
 			ID:             "decision-reject",
-			Scope:          memcontract.ScopeGlobal,
+			Scope:          memcontract.ScopeProfile,
 			Op:             memcontract.OpReject,
 			TargetFilename: "project_reject.md",
 		})
@@ -2132,7 +2132,7 @@ func TestStoreReplayPendingDecisions(t *testing.T) {
 		db := ensureReplayTestDB(ctx, t, store)
 		insertReplayDecision(ctx, t, db, replayDecisionFixture{
 			ID:             "decision-missing-post-content",
-			Scope:          memcontract.ScopeGlobal,
+			Scope:          memcontract.ScopeProfile,
 			Op:             memcontract.OpAdd,
 			TargetFilename: "project_missing_post_content.md",
 		})
@@ -2160,7 +2160,7 @@ func TestStoreReplayPendingDecisions(t *testing.T) {
 		}
 		insertReplayDecision(ctx, t, db, replayDecisionFixture{
 			ID:             "decision-unsupported-op",
-			Scope:          memcontract.ScopeGlobal,
+			Scope:          memcontract.ScopeProfile,
 			Op:             memcontract.Op(255),
 			TargetFilename: "project_unsupported.md",
 		})
@@ -2250,7 +2250,7 @@ func testDecisionFixture(id string, op memcontract.Op, filename string) memcontr
 		Frontmatter: memcontract.Header{
 			Name:  "Broken",
 			Type:  memcontract.TypeProject,
-			Scope: memcontract.ScopeGlobal,
+			Scope: memcontract.ScopeProfile,
 		},
 		PostContent:     content,
 		PostContentHash: hashMemoryContent([]byte(content)),

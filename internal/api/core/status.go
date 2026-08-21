@@ -273,7 +273,7 @@ func (h *BaseHandlers) logTailStatusPayload(ctx context.Context) contract.LogTai
 	}
 	envelope, err := h.Settings.GetSection(ctx, settingspkg.SectionRequest{
 		Section: settingspkg.SectionObservability,
-		Scope:   settingspkg.ScopeGlobal,
+		Scope:   settingspkg.ScopeUser,
 	})
 	if err != nil || envelope.Observability == nil {
 		return contract.LogTailStatusPayload{

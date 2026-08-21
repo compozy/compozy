@@ -3235,7 +3235,7 @@ func newIntegrationRuntime(t *testing.T) integrationRuntime {
 			Kind: resources.ResourceSourceKind("daemon"),
 			ID:   "uds-integration",
 		},
-		MaxScope: resources.ResourceScope{Kind: resources.ResourceScopeKindGlobal},
+		MaxScope: resources.ResourceScope{Kind: resources.ResourceScopeKindUser},
 	}
 	resourceCodecs := resources.NewCodecRegistry()
 	toolCodec, err := toolspkg.NewResourceCodec()

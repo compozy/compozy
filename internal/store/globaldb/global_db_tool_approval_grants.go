@@ -75,6 +75,7 @@ func (g *ApprovalGrantRepo) PutApprovalGrant(
 		grant.LastUsedAt = now
 	}
 	row, err := g.queries.PutApprovalGrant(ctx, sqlcgen.PutApprovalGrantParams{
+		ProfileID:   grant.ProfileID,
 		ID:          grant.ID,
 		WorkspaceID: grant.WorkspaceID,
 		AgentName:   grant.AgentName,
@@ -161,6 +162,7 @@ func approvalGrantFromRow(row sqlcgen.ToolApprovalGrant) (toolspkg.ApprovalGrant
 	grant := toolspkg.ApprovalGrant{
 		ID: row.ID,
 		ApprovalGrantKey: toolspkg.ApprovalGrantKey{
+			ProfileID:   row.ProfileID,
 			WorkspaceID: row.WorkspaceID,
 			AgentName:   row.AgentName,
 			ToolID:      toolspkg.ToolID(row.ToolID),

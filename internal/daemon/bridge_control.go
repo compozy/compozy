@@ -155,6 +155,7 @@ func (r *bridgeRuntime) bridgeDeadEntityKey(
 		return store.DeadEntityKey{}, false, nil
 	}
 	key := store.DeadEntityKey{
+		ProfileID:   instance.ProfileID,
 		WorkspaceID: instance.WorkspaceID,
 		Kind:        store.DeadEntityKindBridge,
 		EntityID:    instance.ID,

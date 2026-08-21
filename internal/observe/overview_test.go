@@ -71,6 +71,9 @@ func (f *overviewFixture) query() OverviewQuery {
 
 func (f *overviewFixture) seedTask(t *testing.T, record taskpkg.Task) {
 	t.Helper()
+	if record.ProfileID == "" {
+		record.ProfileID = store.DefaultProfileID
+	}
 	if record.CreatedAt.IsZero() {
 		record.CreatedAt = f.now.Add(-24 * time.Hour)
 	}
@@ -118,6 +121,7 @@ func (f *overviewFixture) seedUsage(
 ) {
 	t.Helper()
 	update := store.TokenUsageDailyUpdate{
+		ProfileID:   store.DefaultProfileID,
 		Day:         day,
 		AgentName:   agent,
 		TotalTokens: new(tokens),
@@ -137,6 +141,7 @@ func (f *overviewFixture) seedUsage(
 func (f *overviewFixture) seedEvent(t *testing.T, id string, timestamp time.Time) {
 	t.Helper()
 	if err := f.registry.WriteEventSummary(observeTestContext(t), store.EventSummary{
+		ProfileID:   store.DefaultProfileID,
 		ID:          id,
 		SessionID:   "sess-overview",
 		AgentName:   "coder",

@@ -121,13 +121,13 @@ func TestResourceSpecShouldResolveLoopPrecedence(t *testing.T) {
 		records := []resources.Record[loop.ResourceSpec]{
 			loopRecord(
 				"market",
-				resources.ResourceScope{Kind: resources.ResourceScopeKindGlobal},
+				resources.ResourceScope{Kind: resources.ResourceScopeKindUser},
 				loop.SourceMarketplace,
 				2,
 			),
 			loopRecord(
 				"user",
-				resources.ResourceScope{Kind: resources.ResourceScopeKindGlobal},
+				resources.ResourceScope{Kind: resources.ResourceScopeKindUser},
 				loop.SourceUser,
 				3,
 			),

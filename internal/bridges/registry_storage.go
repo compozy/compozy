@@ -67,6 +67,7 @@ func (r CreateInstanceRequest) toInstance(now func() time.Time) (BridgeInstance,
 
 	instance := BridgeInstance{
 		ID:                   r.ID,
+		ProfileID:            store.DefaultProfileID,
 		Scope:                r.Scope.Normalize(),
 		WorkspaceID:          r.WorkspaceID,
 		Platform:             strings.TrimSpace(r.Platform),

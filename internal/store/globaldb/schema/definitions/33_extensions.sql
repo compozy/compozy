@@ -2,7 +2,6 @@ CREATE TABLE extensions (
 		name          TEXT PRIMARY KEY,
 		version       TEXT NOT NULL,
 		source        TEXT NOT NULL,
-		enabled       BOOLEAN NOT NULL DEFAULT 1,
 		manifest_path TEXT NOT NULL,
 		format        TEXT NOT NULL DEFAULT 'compozy',
 		ingest_diagnostics_json TEXT NOT NULL DEFAULT '[]',
@@ -21,6 +20,7 @@ CREATE TABLE extensions (
 
 CREATE TABLE extension_env_bindings (
 		extension_name TEXT NOT NULL,
+		profile_id TEXT NOT NULL DEFAULT '',
 		workspace_id TEXT NOT NULL DEFAULT '',
 		env_name TEXT NOT NULL,
 		secret_ref TEXT NOT NULL,
@@ -29,7 +29,7 @@ CREATE TABLE extension_env_bindings (
 		kind TEXT NOT NULL CHECK (kind = 'extension_env'),
 		created_at TEXT NOT NULL,
 		updated_at TEXT NOT NULL,
-		PRIMARY KEY (extension_name, workspace_id, env_name),
+		PRIMARY KEY (extension_name, profile_id, workspace_id, env_name),
 		CHECK ((mcp_server = '' AND header_name = '') OR (mcp_server <> '' AND header_name <> ''))
 	);
 
@@ -40,4 +40,17 @@ CREATE TRIGGER extension_env_bindings_workspace_delete
 AFTER DELETE ON workspaces
 BEGIN
 	DELETE FROM extension_env_bindings WHERE workspace_id = OLD.id;
+END;
+
+CREATE TRIGGER extension_env_bindings_profile_delete
+AFTER DELETE ON profiles
+BEGIN
+	DELETE FROM extension_env_bindings WHERE profile_id = OLD.id;
+END;
+
+CREATE TRIGGER extension_env_bindings_profile_insert
+BEFORE INSERT ON extension_env_bindings
+WHEN NEW.profile_id <> '' AND NOT EXISTS (SELECT 1 FROM profiles WHERE id = NEW.profile_id)
+BEGIN
+	SELECT RAISE(ABORT, 'profile_not_found');
 END;

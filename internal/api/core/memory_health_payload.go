@@ -74,7 +74,7 @@ func (h *BaseHandlers) memoryHealthSnapshot(
 		return payload, nil
 	}
 
-	globalCount, err := h.MemoryStore.SourceHeaderCount(ctx, memcontract.ScopeGlobal)
+	globalCount, err := h.MemoryStore.SourceHeaderCount(ctx, memcontract.ScopeProfile)
 	if err != nil {
 		payload.Status = memoryHealthStatusUnavailable
 		payload.Reason = err.Error()

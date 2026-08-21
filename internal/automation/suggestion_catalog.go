@@ -4,6 +4,8 @@ import (
 	"context"
 	"errors"
 	"strings"
+
+	"github.com/compozy/compozy/internal/store"
 )
 
 const starterSuggestionCatalogVersion = "v1"
@@ -54,12 +56,14 @@ func (m *Manager) ensureStarterSuggestions(
 		dedupKey := starterSuggestionDedupKey(entry.key)
 		_, err := m.store.CreateSuggestion(ctx, Suggestion{
 			ID:          stableConfigID("sugcat", workspaceID, dedupKey),
+			ProfileID:   store.DefaultProfileID,
 			WorkspaceID: workspaceID,
 			Source:      SuggestionSourceCatalog,
 			DedupKey:    dedupKey,
 			Status:      SuggestionStatusPending,
 			Payload: Job{
 				ID:          suggestionJobID(workspaceID, dedupKey),
+				ProfileID:   store.DefaultProfileID,
 				Scope:       AutomationScopeWorkspace,
 				Name:        entry.name,
 				TargetKind:  TargetKindAgent,

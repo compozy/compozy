@@ -21,6 +21,7 @@ func sessionStartSpecFromMeta(
 	selectedRuntime, selectionRevision := store.SessionRuntimeSelectionStateValues(meta.RuntimeSelection)
 	spec := sessionStartSpec{
 		sessionID:                meta.ID,
+		profileID:                strings.TrimSpace(meta.ProfileID),
 		sandboxID:                sessionSandboxID(meta.Sandbox),
 		sandbox:                  cloneSessionSandboxMeta(meta.Sandbox),
 		sandboxDisabled:          meta.Sandbox == nil,

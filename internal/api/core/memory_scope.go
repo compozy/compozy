@@ -57,7 +57,7 @@ func defaultMemorySelectorScope(selector memorySelector) memcontract.Scope {
 	case strings.TrimSpace(firstNonEmptyString(selector.WorkspaceID, selector.Workspace)) != "":
 		return memcontract.ScopeWorkspace
 	default:
-		return memcontract.ScopeGlobal
+		return memcontract.ScopeProfile
 	}
 }
 
@@ -156,7 +156,7 @@ func parseOptionalMemoryScope(raw string) (memcontract.Scope, error) {
 	switch scope {
 	case "":
 		return "", nil
-	case memcontract.ScopeGlobal, memcontract.ScopeWorkspace, memcontract.ScopeAgent:
+	case memcontract.ScopeProfile, memcontract.ScopeWorkspace, memcontract.ScopeAgent:
 		return scope, nil
 	default:
 		return "", NewMemoryValidationError(fmt.Errorf("scope must be one of global, workspace, or agent"))

@@ -26,7 +26,8 @@ func (g *WorktreeRepo) Insert(ctx context.Context, item worktree.Worktree) error
 		return err
 	}
 	return g.queries.InsertWorktree(ctx, sqlcgen.InsertWorktreeParams{
-		ID: strings.TrimSpace(item.ID), WorkspaceID: strings.TrimSpace(item.WorkspaceID),
+		ProfileID: strings.TrimSpace(item.ProfileID),
+		ID:        strings.TrimSpace(item.ID), WorkspaceID: strings.TrimSpace(item.WorkspaceID),
 		Name: strings.TrimSpace(item.Name), Branch: strings.TrimSpace(item.Branch),
 		Path: strings.TrimSpace(item.Path), GitDir: strings.TrimSpace(item.GitDir),
 		State: string(item.State), PendingPhase: string(item.PendingPhase), Origin: string(item.Origin),

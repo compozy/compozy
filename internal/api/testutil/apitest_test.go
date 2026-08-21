@@ -326,7 +326,7 @@ func TestStubResourceServicePut(t *testing.T) {
 		draft := resources.RawDraft{
 			Kind:     resources.ResourceKind("agent"),
 			ID:       "agent.demo",
-			Scope:    resources.ResourceScope{Kind: resources.ResourceScopeKindGlobal},
+			Scope:    resources.ResourceScope{Kind: resources.ResourceScopeKindUser},
 			SpecJSON: specJSON,
 		}
 

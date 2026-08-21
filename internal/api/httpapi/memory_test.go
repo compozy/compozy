@@ -51,7 +51,7 @@ func TestMemoryHandlersListAndFilters(t *testing.T) {
 	t.Parallel()
 
 	store, workspace := newTestMemoryStore(t)
-	mustWriteMemory(t, store, memcontract.ScopeGlobal, "", "global.md", memcontract.TypeUser, "global memory")
+	mustWriteMemory(t, store, memcontract.ScopeProfile, "", "global.md", memcontract.TypeUser, "global memory")
 	mustWriteMemory(
 		t,
 		store,
@@ -64,7 +64,7 @@ func TestMemoryHandlersListAndFilters(t *testing.T) {
 	mustWriteMemory(
 		t,
 		store,
-		memcontract.ScopeGlobal,
+		memcontract.ScopeProfile,
 		"",
 		"_system-hidden.md",
 		memcontract.TypeReference,
@@ -160,11 +160,11 @@ func TestMemoryHandlersReadAndNotFound(t *testing.T) {
 	t.Parallel()
 
 	store, _ := newTestMemoryStore(t)
-	mustWriteMemory(t, store, memcontract.ScopeGlobal, "", "readme.md", memcontract.TypeUser, "hello world")
+	mustWriteMemory(t, store, memcontract.ScopeProfile, "", "readme.md", memcontract.TypeUser, "hello world")
 	mustWriteMemory(
 		t,
 		store,
-		memcontract.ScopeGlobal,
+		memcontract.ScopeProfile,
 		"",
 		"_system-hidden.md",
 		memcontract.TypeReference,
@@ -244,7 +244,7 @@ func TestMemoryHandlersWriteValidationAndScopeResolution(t *testing.T) {
 	if !validPayload.Applied || validPayload.Decision.TargetFilename == "" {
 		t.Fatalf("valid payload = %#v, want applied decision with target filename", validPayload)
 	}
-	if _, err := store.Read(t.Context(), memcontract.ScopeGlobal, validPayload.Decision.TargetFilename); err != nil {
+	if _, err := store.Read(t.Context(), memcontract.ScopeProfile, validPayload.Decision.TargetFilename); err != nil {
 		t.Fatalf("store.Read(valid) error = %v", err)
 	}
 
@@ -282,7 +282,7 @@ func TestMemoryHandlersWriteValidationAndScopeResolution(t *testing.T) {
 	var userDefaultPayload memoryMutationDecisionResponse
 	decodeJSONResponse(t, userDefault, &userDefaultPayload)
 	if _, err := store.Read(
-		t.Context(), memcontract.ScopeGlobal, userDefaultPayload.Decision.TargetFilename,
+		t.Context(), memcontract.ScopeProfile, userDefaultPayload.Decision.TargetFilename,
 	); err != nil {
 		t.Fatalf("store.Read(global inferred) error = %v", err)
 	}
@@ -317,7 +317,7 @@ func TestMemoryHandlersDeleteAndNotFound(t *testing.T) {
 	t.Parallel()
 
 	store, _ := newTestMemoryStore(t)
-	mustWriteMemory(t, store, memcontract.ScopeGlobal, "", "delete-me.md", memcontract.TypeUser, "bye")
+	mustWriteMemory(t, store, memcontract.ScopeProfile, "", "delete-me.md", memcontract.TypeUser, "bye")
 
 	handlers := newTestMemoryHandlers(t, stubSessionManager{}, stubObserver{}, store, &stubDreamTrigger{})
 	engine := newTestRouter(t, handlers)
@@ -326,7 +326,7 @@ func TestMemoryHandlersDeleteAndNotFound(t *testing.T) {
 	if resp.Code != http.StatusOK {
 		t.Fatalf("status = %d, want %d; body=%s", resp.Code, http.StatusOK, resp.Body.String())
 	}
-	if _, err := store.Read(t.Context(), memcontract.ScopeGlobal, "delete-me.md"); err == nil {
+	if _, err := store.Read(t.Context(), memcontract.ScopeProfile, "delete-me.md"); err == nil {
 		t.Fatal("expected file to be deleted")
 	}
 
@@ -343,7 +343,7 @@ func TestMemoryHandlersSearchAndReindex(t *testing.T) {
 	mustWriteMemory(
 		t,
 		store,
-		memcontract.ScopeGlobal,
+		memcontract.ScopeProfile,
 		"",
 		"prefs.md",
 		memcontract.TypeUser,
@@ -491,7 +491,7 @@ func TestHealthIncludesMemoryStats(t *testing.T) {
 	t.Parallel()
 
 	store, workspace := newTestMemoryStore(t)
-	mustWriteMemory(t, store, memcontract.ScopeGlobal, "", "health-global.md", memcontract.TypeUser, "global")
+	mustWriteMemory(t, store, memcontract.ScopeProfile, "", "health-global.md", memcontract.TypeUser, "global")
 	mustWriteMemory(
 		t,
 		store,
@@ -547,7 +547,7 @@ func TestMemoryHelpersResolveLocationAndScope(t *testing.T) {
 	t.Parallel()
 
 	store, workspace := newTestMemoryStore(t)
-	mustWriteMemory(t, store, memcontract.ScopeGlobal, "", "shared.md", memcontract.TypeUser, "global")
+	mustWriteMemory(t, store, memcontract.ScopeProfile, "", "shared.md", memcontract.TypeUser, "global")
 	mustWriteMemory(t, store, memcontract.ScopeWorkspace, workspace, "shared.md", memcontract.TypeProject, "workspace")
 	mustWriteMemory(
 		t,

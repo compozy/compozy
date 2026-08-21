@@ -176,7 +176,7 @@ func (s *settingsRuntimeSurface) MemoryHealthStatus(ctx context.Context) (settin
 		return status, nil
 	}
 
-	count, err := s.memoryStore.SourceHeaderCount(ctx, memcontract.ScopeGlobal)
+	count, err := s.memoryStore.SourceHeaderCount(ctx, memcontract.ScopeProfile)
 	if err != nil {
 		return settingspkg.MemoryHealthStatus{}, fmt.Errorf("daemon: settings memory health scan: %w", err)
 	}

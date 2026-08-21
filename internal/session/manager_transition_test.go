@@ -198,7 +198,7 @@ func TestManagerLifecycleCatalogTransitions(t *testing.T) {
 		register := func(id string) {
 			t.Helper()
 			if err := catalog.RegisterSession(ctx, store.SessionInfo{
-				ID: id, Name: id, AgentName: "coder", WorkspaceID: h.workspaceID,
+				ID: id, Name: id, AgentName: "coder", ProfileID: store.DefaultProfileID, WorkspaceID: h.workspaceID,
 				SessionType: string(SessionTypeUser), State: string(StateActive),
 				RuntimeStatus: store.SessionRuntimeReady, CreatedAt: baseAt, UpdatedAt: baseAt,
 			}); err != nil {

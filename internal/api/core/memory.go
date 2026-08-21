@@ -228,7 +228,7 @@ func (h *BaseHandlers) memoryExplicitSearchFallback(
 	switch selector.Scope.Normalize() {
 	case memcontract.ScopeWorkspace:
 		workspace = strings.TrimSpace(selector.Workspace)
-	case memcontract.ScopeGlobal:
+	case memcontract.ScopeProfile:
 		workspace = ""
 	default:
 		return nil, nil

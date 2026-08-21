@@ -246,6 +246,7 @@ func (n *hooksNotifier) writeCoordinatorWatchEvent(
 		return fmt.Errorf("daemon: marshal coordinator watch event: %w", err)
 	}
 	return writer.WriteEventSummary(ctx, store.EventSummary{
+		ProfileID:   store.DefaultProfileID,
 		SessionID:   strings.TrimSpace(payload.CoordinatorSessionID),
 		WorkspaceID: strings.TrimSpace(payload.WorkspaceID),
 		Type:        string(event),

@@ -937,6 +937,7 @@ func networkWakeIntegrationAcceptance(
 	}
 	return store.AcceptNetworkMessageRequest{
 		Message: store.NetworkConversationMessage{
+			ProfileID:   store.DefaultProfileID,
 			MessageID:   "message-network-runner",
 			SessionID:   "session-sender",
 			WorkspaceID: "workspace-network",
@@ -2696,7 +2697,7 @@ func TestLoopCoordinatorRunnerShouldPollThroughExtensionRuntime(t *testing.T) {
 		catalog.Replace(1, []resources.Record[looppkg.ResourceSpec]{{
 			ID:      loopName,
 			Version: 1,
-			Scope:   resources.ResourceScope{Kind: resources.ResourceScopeKindGlobal},
+			Scope:   resources.ResourceScope{Kind: resources.ResourceScopeKindUser},
 			Spec:    watchSpec,
 		}})
 		definition, err := daemonLoopDefinitionFromSpec(watchSpec)
@@ -2969,7 +2970,7 @@ func TestBootTasksRecoversPendingRunsOnStartup(t *testing.T) {
 	}
 	for _, sessionID := range []string{"sess-wake-live", "sess-wake-sender"} {
 		if err := db.RegisterSession(testutil.Context(t), store.SessionInfo{
-			ID: sessionID, AgentName: "coder", Provider: "test",
+			ProfileID: store.DefaultProfileID, ID: sessionID, AgentName: "coder", Provider: "test",
 			WorkspaceID: "global", State: string(session.StateActive), CreatedAt: now, UpdatedAt: now,
 			RuntimeStatus: store.SessionRuntimeUnbound,
 		}); err != nil {

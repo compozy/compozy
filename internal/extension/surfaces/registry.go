@@ -41,7 +41,7 @@ type GrantRequest struct {
 
 var (
 	globalAndWorkspaceScopes = []resources.ResourceScopeKind{
-		resources.ResourceScopeKindGlobal,
+		resources.ResourceScopeKindUser,
 		resources.ResourceScopeKindWorkspace,
 	}
 	registry = []Surface{
@@ -149,7 +149,7 @@ func ResolveManifestRequest(
 		return GrantRequest{}, nil
 	}
 	if normalizedMaxScope == "" {
-		normalizedMaxScope = resources.ResourceScopeKindGlobal
+		normalizedMaxScope = resources.ResourceScopeKindUser
 	}
 	if err := normalizedMaxScope.Validate("resources.publish.max_scope"); err != nil {
 		return GrantRequest{}, err
@@ -275,7 +275,7 @@ func normalizeKinds(values []resources.ResourceKind) []resources.ResourceKind {
 
 func scopesThrough(maxScope resources.ResourceScopeKind) []resources.ResourceScopeKind {
 	switch maxScope.Normalize() {
-	case resources.ResourceScopeKindGlobal:
+	case resources.ResourceScopeKindUser:
 		return cloneScopes(globalAndWorkspaceScopes)
 	case resources.ResourceScopeKindWorkspace:
 		return []resources.ResourceScopeKind{resources.ResourceScopeKindWorkspace}

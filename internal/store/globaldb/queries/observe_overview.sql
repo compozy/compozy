@@ -1,8 +1,10 @@
 -- name: UpsertTokenUsageDaily :exec
 INSERT INTO token_usage_daily (
+  profile_id,
   day, workspace_id, agent_name, input_tokens, output_tokens, total_tokens,
   total_cost, cost_currency, cost_status, cost_source, turn_count, updated_at
 ) VALUES (
+  sqlc.arg(profile_id),
   sqlc.arg(day), sqlc.arg(workspace_id), sqlc.arg(agent_name), sqlc.arg(input_tokens),
   sqlc.arg(output_tokens), sqlc.arg(total_tokens), sqlc.narg(total_cost),
   sqlc.narg(cost_currency), sqlc.arg(cost_status), sqlc.arg(cost_source),
@@ -14,7 +16,7 @@ INSERT INTO token_usage_daily (
 --   OR COALESCE(token_usage_daily.cost_currency, '') != COALESCE(excluded.cost_currency, '')
 --   OR float64 overflow on the additive total_cost (mirrors token_stats)
 -- On mismatch: total_cost/cost_currency -> NULL, cost_status -> 'unknown', cost_source -> 'none'.
-ON CONFLICT(day, workspace_id, agent_name) DO UPDATE SET
+ON CONFLICT(day, profile_id, workspace_id, agent_name) DO UPDATE SET
   input_tokens = token_usage_daily.input_tokens + excluded.input_tokens,
   output_tokens = token_usage_daily.output_tokens + excluded.output_tokens,
   total_tokens = token_usage_daily.total_tokens + excluded.total_tokens,

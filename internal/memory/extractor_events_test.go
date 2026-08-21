@@ -25,13 +25,13 @@ func TestStoreExtractorControllerFlow(t *testing.T) {
 			t.Fatalf("EnsureDirs() error = %v", err)
 		}
 		candidate := memcontract.Candidate{
-			Scope:   memcontract.ScopeGlobal,
+			Scope:   memcontract.ScopeProfile,
 			Origin:  memcontract.OriginExtractor,
 			Content: "Pedro prefers concise implementation updates.",
 			Frontmatter: memcontract.Header{
 				Name:  "Pedro update preference",
 				Type:  memcontract.TypeUser,
-				Scope: memcontract.ScopeGlobal,
+				Scope: memcontract.ScopeProfile,
 			},
 			Entity:    "pedro",
 			Attribute: "preference",
@@ -44,7 +44,7 @@ func TestStoreExtractorControllerFlow(t *testing.T) {
 		if decision.Op != memcontract.OpAdd {
 			t.Fatalf("decision op = %s, want add", decision.Op.String())
 		}
-		content, err := store.Read(t.Context(), memcontract.ScopeGlobal, decision.TargetFilename)
+		content, err := store.Read(t.Context(), memcontract.ScopeProfile, decision.TargetFilename)
 		if err != nil {
 			t.Fatalf("Read(%q) error = %v", decision.TargetFilename, err)
 		}

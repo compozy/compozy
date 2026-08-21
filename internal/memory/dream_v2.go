@@ -235,9 +235,9 @@ func queryDreamCandidateRows(
 func appendDreamVisibilityFilter(base string, args []any, workspaceID string) (string, []any) {
 	workspaceID = strings.TrimSpace(workspaceID)
 	if workspaceID == "" {
-		return base + "\n  AND e.scope = 'global'", args
+		return base + "\n  AND e.scope = 'profile'", args
 	}
-	return base + "\n  AND (e.scope = 'global' OR (e.scope IN ('workspace', 'agent') AND e.workspace_id = ?))",
+	return base + "\n  AND (e.scope = 'profile' OR (e.scope IN ('workspace', 'agent') AND e.workspace_id = ?))",
 		append(args, workspaceID)
 }
 

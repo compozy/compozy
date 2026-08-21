@@ -81,6 +81,7 @@ func (s gatewayIngressAuditSink) record(
 	writeCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), gatewayAuditWriteTimeout)
 	defer cancel()
 	if err := s.writer.WriteEventSummary(writeCtx, store.EventSummary{
+		ProfileID:   store.DefaultProfileID,
 		WorkspaceID: binding.WorkspaceID,
 		Type:        eventType, Outcome: string(outcome), Content: payload,
 		Summary: summary, Timestamp: now().UTC(),

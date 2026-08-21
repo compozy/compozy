@@ -293,6 +293,7 @@ func normalizeTimelineMessageEntry(
 		peerTo = strings.TrimSpace(*envelope.To)
 	}
 	entry := store.NetworkMessageEntry{
+		ProfileID:   store.DefaultProfileID,
 		MessageID:   strings.TrimSpace(envelope.ID),
 		SessionID:   strings.TrimSpace(sessionID),
 		WorkspaceID: strings.TrimSpace(envelope.WorkspaceID),

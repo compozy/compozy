@@ -571,7 +571,7 @@ func seedExtensionKitUnownedJob(
 ) {
 	t.Helper()
 	if _, err := store.Put(ctx, extensionKitSyncActor(), resources.Draft[automationpkg.Job]{
-		ID: job.ID, Scope: resources.ResourceScope{Kind: resources.ResourceScopeKindGlobal}, Spec: job,
+		ID: job.ID, Scope: resources.ResourceScope{Kind: resources.ResourceScopeKindUser}, Spec: job,
 	}); err != nil {
 		t.Fatalf("seed unowned job error = %v", err)
 	}

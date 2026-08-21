@@ -66,7 +66,8 @@ func seedNetwork(
 ) error {
 	createdAt := messages[0].At.Add(-time.Minute)
 	if err := db.CreateNetworkChannel(ctx, store.NetworkChannelEntry{
-		Channel: launchChannel, WorkspaceID: workspaceID,
+		ProfileID: store.DefaultProfileID,
+		Channel:   launchChannel, WorkspaceID: workspaceID,
 		Purpose:      "Checkout launch decisions, market holds, and rollback evidence.",
 		FanoutPolicy: store.NetworkFanoutPolicyAllMembers,
 		CreatedBy:    scenarioSessionIDs[3], CreatedAt: createdAt, UpdatedAt: messages[len(messages)-1].At,
@@ -79,6 +80,7 @@ func seedNetwork(
 			return fmt.Errorf("demo seed: encode Network message %q: %w", story.ID, err)
 		}
 		if _, err := db.WriteConversationMessage(ctx, store.NetworkConversationMessage{
+			ProfileID: store.DefaultProfileID,
 			MessageID: story.ID, SessionID: story.SessionID, WorkspaceID: workspaceID,
 			Channel: launchChannel, Surface: store.NetworkSurfaceThread, ThreadID: launchThreadID,
 			Direction: "sent", PeerFrom: story.SessionID, Kind: store.NetworkKindSay,
@@ -93,7 +95,8 @@ func seedNetwork(
 
 func seedAutomation(ctx context.Context, db *globaldb.GlobalDB, workspaceID string, now time.Time) error {
 	job, err := db.CreateJob(ctx, automation.Job{
-		ID: launchAutomationID, Scope: automation.AutomationScopeWorkspace,
+		ProfileID: store.DefaultProfileID,
+		ID:        launchAutomationID, Scope: automation.AutomationScopeWorkspace,
 		Name: "Brazil canary health digest", TargetKind: automation.TargetKindAgent,
 		AgentName: productLeadAgent, WorkspaceID: workspaceID,
 		Prompt:   "Summarize authorization errors, rollback threshold, and launch-tagged support conversations.",

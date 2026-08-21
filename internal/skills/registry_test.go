@@ -711,7 +711,7 @@ func TestRegistryWorkspaceOverrideAudits(t *testing.T) {
 				Kind: SkillResourceKind,
 				ID:   "global:cool-skill",
 				Scope: resources.ResourceScope{
-					Kind: resources.ResourceScopeKindGlobal,
+					Kind: resources.ResourceScopeKindUser,
 				},
 				Spec: SkillResourceSpec{
 					Name:        "cool-skill",
@@ -2049,7 +2049,7 @@ func TestRegistryCommandCandidatesRespectScopeSourceAndActivation(t *testing.T) 
 		records := []resources.Record[SkillResourceSpec]{
 			{
 				ID:    "global:base",
-				Scope: resources.ResourceScope{Kind: resources.ResourceScopeKindGlobal},
+				Scope: resources.ResourceScope{Kind: resources.ResourceScopeKindUser},
 				Spec: SkillResourceSpec{
 					Name:        "base",
 					Description: "Global base",
@@ -2059,7 +2059,7 @@ func TestRegistryCommandCandidatesRespectScopeSourceAndActivation(t *testing.T) 
 			},
 			{
 				ID:    "global:extension-review",
-				Scope: resources.ResourceScope{Kind: resources.ResourceScopeKindGlobal},
+				Scope: resources.ResourceScope{Kind: resources.ResourceScopeKindUser},
 				Spec: SkillResourceSpec{
 					Name:        "review",
 					Description: "Extension review",
@@ -2071,7 +2071,7 @@ func TestRegistryCommandCandidatesRespectScopeSourceAndActivation(t *testing.T) 
 			{
 				ID: "global:marketplace-review",
 				Scope: resources.ResourceScope{
-					Kind: resources.ResourceScopeKindGlobal,
+					Kind: resources.ResourceScopeKindUser,
 				},
 				Spec: SkillResourceSpec{
 					Name:        "review",
@@ -2444,7 +2444,7 @@ func TestRegistrySetEnabledPreservesDisabledOverlayDuringResourceRediscovery(t *
 		if err := registry.ApplyResourceRecords(context.Background(), 1, []resources.Record[SkillResourceSpec]{
 			{
 				ID:    "skill.global-skill",
-				Scope: resources.ResourceScope{Kind: resources.ResourceScopeKindGlobal},
+				Scope: resources.ResourceScope{Kind: resources.ResourceScopeKindUser},
 				Spec:  SkillToResourceSpec(findSkill(t, discovered, "global-skill")),
 			},
 		}); err != nil {

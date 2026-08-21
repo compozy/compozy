@@ -291,6 +291,7 @@ func (g *LoopRepo) writeWatchEventsGapEvent(
 		return fmt.Errorf("store: marshal watch-events gap event: %w", err)
 	}
 	return g.observe.WriteEventSummary(ctx, store.EventSummary{
+		ProfileID:   store.DefaultProfileID,
 		SessionID:   watchEventsRecoverySessionID,
 		WorkspaceID: strings.TrimSpace(subscription.WorkspaceID),
 		Type:        eventType,

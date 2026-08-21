@@ -74,6 +74,7 @@ func (h *BaseHandlers) ResolveNetworkDirectRoom(c *gin.Context) {
 	}
 	now := h.nowUTC()
 	direct, err := h.NetworkStore.ResolveDirectRoom(c.Request.Context(), store.NetworkDirectRoomEntry{
+		ProfileID:      store.DefaultProfileID,
 		WorkspaceID:    networkWorkspaceID,
 		Channel:        channel,
 		DirectID:       directID,

@@ -8,6 +8,7 @@ import (
 	"os"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/compozy/compozy/internal/fileutil"
@@ -19,7 +20,7 @@ const (
 	maxScanEntries    = 200
 	defaultIndexLines = 200
 	defaultIndexBytes = 25_600
-	dirPerm           = 0o755
+	dirPerm           = 0o700
 	filePerm          = 0o644
 	memoryDirName     = "memory"
 )
@@ -32,6 +33,8 @@ var (
 // Store manages memory files for the global and workspace scopes.
 type Store struct {
 	globalDir                 string
+	profileID                 string
+	profileMaintenancePending *atomic.Bool
 	workspaceDir              string
 	workspaceRoot             string
 	agentName                 string
@@ -202,7 +205,7 @@ func (s *Store) Search(
 		return nil, err
 	}
 	if s.catalog != nil {
-		results, err := s.catalog.search(ctx, query, scope, workspaceID, limit)
+		results, err := s.catalog.search(ctx, query, s.profileID, scope, workspaceID, limit)
 		if err != nil {
 			return nil, err
 		}

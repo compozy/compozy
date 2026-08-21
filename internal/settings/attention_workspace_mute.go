@@ -25,7 +25,7 @@ func (s *service) SetAttentionWorkspaceMuted(
 	s.applyMu.Lock()
 	defer s.applyMu.Unlock()
 
-	cfg, target, err := s.loadGlobalSectionUpdate(ctx, SectionAttention, ScopeGlobal, "")
+	cfg, target, err := s.loadGlobalSectionUpdate(ctx, SectionAttention, ScopeUser, "")
 	if err != nil {
 		return false, err
 	}

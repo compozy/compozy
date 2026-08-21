@@ -139,7 +139,7 @@ func configWriteTarget(
 func parseWriteScope(raw string) (compozyconfig.WriteScope, error) {
 	scope := compozyconfig.WriteScope(strings.ToLower(strings.TrimSpace(raw)))
 	if scope == "" {
-		scope = compozyconfig.WriteScopeGlobal
+		scope = compozyconfig.WriteScopeUser
 	}
 	if err := scope.Validate(); err != nil {
 		return "", err
@@ -178,7 +178,7 @@ func resolveContextualConfigWorkspaceRoot(
 
 func scopeForWorkspace(workspaceRoot string) string {
 	if strings.TrimSpace(workspaceRoot) == "" {
-		return string(compozyconfig.WriteScopeGlobal)
+		return string(compozyconfig.WriteScopeUser)
 	}
 	return string(compozyconfig.WriteScopeWorkspace)
 }

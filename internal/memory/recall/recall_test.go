@@ -20,7 +20,7 @@ func TestRecallerRecall(t *testing.T) {
 
 		source := &fakeSource{candidates: []Candidate{
 			recallCandidate("chunk-c", memcontract.ScopeWorkspace, "", "deploy", 0.2, 0.1, now),
-			recallCandidate("chunk-a", memcontract.ScopeGlobal, "", "auth", 1.0, 0.1, now),
+			recallCandidate("chunk-a", memcontract.ScopeProfile, "", "auth", 1.0, 0.1, now),
 			recallCandidate("chunk-b", memcontract.ScopeWorkspace, "", "session", 0.5, 0.2, now),
 		}}
 		recaller := New(source, WithClock(func() time.Time { return now }))
@@ -132,7 +132,7 @@ func TestRecallerRecall(t *testing.T) {
 	t.Run("Should enforce scope precedence shadow by ID", func(t *testing.T) {
 		t.Parallel()
 
-		global := recallCandidate("chunk-global", memcontract.ScopeGlobal, "", "auth", 1.0, 0.1, now)
+		global := recallCandidate("chunk-global", memcontract.ScopeProfile, "", "auth", 1.0, 0.1, now)
 		workspace := recallCandidate("chunk-workspace", memcontract.ScopeWorkspace, "", "auth", 0.8, 0.1, now)
 		agent := recallCandidate(
 			"chunk-agent",
@@ -172,12 +172,12 @@ func TestRecallerRecall(t *testing.T) {
 	t.Run("Should filter already surfaced and system candidates", func(t *testing.T) {
 		t.Parallel()
 
-		system := recallCandidate("chunk-system", memcontract.ScopeGlobal, "", "system", 1.0, 1.0, now)
+		system := recallCandidate("chunk-system", memcontract.ScopeProfile, "", "system", 1.0, 1.0, now)
 		system.Injection = false
 		source := &fakeSource{candidates: []Candidate{
 			system,
-			recallCandidate("chunk-seen", memcontract.ScopeGlobal, "", "seen", 0.9, 0.1, now),
-			recallCandidate("chunk-visible", memcontract.ScopeGlobal, "", "visible", 0.8, 0.1, now),
+			recallCandidate("chunk-seen", memcontract.ScopeProfile, "", "seen", 0.9, 0.1, now),
+			recallCandidate("chunk-visible", memcontract.ScopeProfile, "", "visible", 0.8, 0.1, now),
 		}}
 		recaller := New(source, WithClock(func() time.Time { return now }))
 
@@ -199,7 +199,7 @@ func TestRecallerRecall(t *testing.T) {
 	t.Run("Should package stale entries with stable header across turns", func(t *testing.T) {
 		t.Parallel()
 
-		stale := recallCandidate("chunk-stale", memcontract.ScopeGlobal, "", "stale", 1.0, 0.3, now.Add(-72*time.Hour))
+		stale := recallCandidate("chunk-stale", memcontract.ScopeProfile, "", "stale", 1.0, 0.3, now.Add(-72*time.Hour))
 		source := &fakeSource{candidates: []Candidate{stale}}
 		recaller := New(source, WithClock(func() time.Time { return now }))
 
@@ -238,7 +238,7 @@ func TestRecallerRecall(t *testing.T) {
 		t.Parallel()
 
 		source := &fakeSource{
-			candidates:    []Candidate{recallCandidate("chunk-a", memcontract.ScopeGlobal, "", "auth", 1.0, 0.1, now)},
+			candidates:    []Candidate{recallCandidate("chunk-a", memcontract.ScopeProfile, "", "auth", 1.0, 0.1, now)},
 			recordErr:     errors.New("forced signal failure"),
 			signalFailure: make([]error, 0),
 		}

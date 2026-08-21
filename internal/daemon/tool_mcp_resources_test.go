@@ -62,7 +62,7 @@ func TestResourceCatalogProjectorBuildAndApply(t *testing.T) {
 			ID:      "lookup",
 			Version: 3,
 			Scope: resources.ResourceScope{
-				Kind: resources.ResourceScopeKindGlobal,
+				Kind: resources.ResourceScopeKindUser,
 			},
 			Spec: testToolSpec("ext__linear__lookup"),
 		}}
@@ -165,7 +165,7 @@ func TestToolMCPComparisonAndNilHelpers(t *testing.T) {
 			t.Fatalf("compozyconfig.NewMCPServerResourceCodec() error = %v", err)
 		}
 
-		globalScope := resources.ResourceScope{Kind: resources.ResourceScopeKindGlobal}
+		globalScope := resources.ResourceScope{Kind: resources.ResourceScopeKindUser}
 		workspaceScope := resources.ResourceScope{Kind: resources.ResourceScopeKindWorkspace, ID: "ws-1"}
 
 		toolSpec := testToolSpec("ext__linear__lookup")
@@ -312,7 +312,7 @@ func TestToolMCPSourceSyncerHandlesNilReceiverAndTriggerFailures(t *testing.T) {
 				return toolMCPDesiredResources{
 					tools: []toolPublicationInput{{
 						sourceKey: "test/tool/lookup",
-						scope:     resources.ResourceScope{Kind: resources.ResourceScopeKindGlobal},
+						scope:     resources.ResourceScope{Kind: resources.ResourceScopeKindUser},
 						spec:      testToolSpec("ext__linear__lookup"),
 					}},
 				}, nil
@@ -370,12 +370,12 @@ func TestToolMCPSourceSyncerReplacesCanonicalSnapshot(t *testing.T) {
 		desired := toolMCPDesiredResources{
 			tools: []toolPublicationInput{{
 				sourceKey: "test/tool/lookup",
-				scope:     resources.ResourceScope{Kind: resources.ResourceScopeKindGlobal},
+				scope:     resources.ResourceScope{Kind: resources.ResourceScopeKindUser},
 				spec:      testToolSpec("ext__linear__lookup"),
 			}},
 			mcpServers: []mcpServerPublicationInput{{
 				sourceKey: "test/mcp/git",
-				scope:     resources.ResourceScope{Kind: resources.ResourceScopeKindGlobal},
+				scope:     resources.ResourceScope{Kind: resources.ResourceScopeKindUser},
 				spec: compozyconfig.MCPServer{
 					Name:    "git",
 					Command: "npx",
@@ -567,7 +567,7 @@ func TestValidateAndEncodeToolAndMCPServer(t *testing.T) {
 			t.Fatalf("toolspkg.NewResourceCodec() error = %v", err)
 		}
 
-		toolScope := resources.ResourceScope{Kind: resources.ResourceScopeKindGlobal}
+		toolScope := resources.ResourceScope{Kind: resources.ResourceScopeKindUser}
 		toolSpec := testToolSpec("ext__linear__lookup")
 		toolSpec.Description = " Search extension data "
 		toolSpec.InputSchema = json.RawMessage(`{"required":["query"],"type":"object"}`)

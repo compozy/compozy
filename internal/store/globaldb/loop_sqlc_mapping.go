@@ -21,6 +21,7 @@ func loopRunInsertParams(
 		return sqlcgen.InsertLoopRunParams{}, err
 	}
 	return sqlcgen.InsertLoopRunParams{
+		ProfileID:               run.ProfileID,
 		ID:                      string(run.ID),
 		WorkspaceID:             string(run.WorkspaceID),
 		LoopName:                run.LoopName,
@@ -72,7 +73,8 @@ func loopRunFromGenerated(row *sqlcgen.LoopRun) (looppkg.Run, error) {
 	}
 	values := loopRunScanValues{
 		run: looppkg.Run{
-			LoopName: row.LoopName, Generation: int(row.Generation), DefinitionVersion: int(row.DefinitionVersion),
+			ProfileID: row.ProfileID,
+			LoopName:  row.LoopName, Generation: int(row.Generation), DefinitionVersion: int(row.DefinitionVersion),
 			DefinitionDigest: row.DefinitionDigest, ActiveGateID: looppkg.NodeID(row.ActiveGateID),
 			BudgetApprovalSeq: int(row.BudgetApprovalSeq),
 			BudgetTokens:      int(row.BudgetTokens), BudgetWallSec: int(row.BudgetWallSec), TokensUsed: row.TokensUsed,

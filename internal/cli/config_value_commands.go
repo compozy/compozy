@@ -44,7 +44,7 @@ func newConfigUnsetCommand(deps commandDeps) *cobra.Command {
 		},
 	}
 	cmd.Flags().
-		StringVar(&scopeRaw, configScopeKey, string(compozyconfig.WriteScopeGlobal), "Write scope: global or workspace")
+		StringVar(&scopeRaw, configScopeKey, string(compozyconfig.WriteScopeUser), "Write scope: global or workspace")
 	cmd.Flags().
 		StringVar(&workspaceRoot, "workspace", "", "Override workspace binding (ID, name, or path)")
 	return cmd
@@ -214,7 +214,7 @@ func newConfigSetCommand(deps commandDeps) *cobra.Command {
 		},
 	}
 	cmd.Flags().
-		StringVar(&scopeRaw, configScopeKey, string(compozyconfig.WriteScopeGlobal), "Write scope: global or workspace")
+		StringVar(&scopeRaw, configScopeKey, string(compozyconfig.WriteScopeUser), "Write scope: global or workspace")
 	cmd.Flags().
 		StringVar(&workspaceRoot, "workspace", "", "Override workspace binding (ID, name, or path)")
 	return cmd

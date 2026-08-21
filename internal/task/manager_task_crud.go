@@ -6,6 +6,7 @@ import (
 	"strings"
 
 	"github.com/compozy/compozy/internal/network/participation"
+	storepkg "github.com/compozy/compozy/internal/store"
 )
 
 // CreateTask derives one canonical task record from trusted actor context and
@@ -69,6 +70,7 @@ func (m *Service) newTaskRecord(normalizedSpec CreateTask, actor ActorContext) (
 	now := m.now().UTC()
 	record := Task{
 		ID:                 normalizedSpec.ID,
+		ProfileID:          storepkg.DefaultProfileID,
 		Identifier:         normalizedSpec.Identifier,
 		Scope:              normalizedSpec.Scope,
 		WorkspaceID:        normalizedSpec.WorkspaceID,

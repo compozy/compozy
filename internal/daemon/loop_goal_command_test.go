@@ -417,7 +417,8 @@ context_nudge_ratio = 0.0
 	}
 	profile := store.SessionCreationProfile{
 		Version: store.SessionCreationProfileVersion, AgentName: "operator-agent",
-		Provider: "cursor", Model: profileModel, WorkspaceID: workspaceID, CWD: workspaceRoot,
+		ProfileID: store.DefaultProfileID,
+		Provider:  "cursor", Model: profileModel, WorkspaceID: workspaceID, CWD: workspaceRoot,
 		SandboxMode: store.SessionCreationSandboxNone, Permissions: "default",
 	}
 	profileRef, err := db.PutSessionCreationProfile(ctx, profile)

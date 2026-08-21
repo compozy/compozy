@@ -129,6 +129,7 @@ func TestManagerStartSyncsConfigDefinitionsAndPreservesDynamicEntries(t *testing
 	}
 	dynamicTrigger := Trigger{
 		ID:        "trigger-dynamic-session-stopped",
+		ProfileID: store.DefaultProfileID,
 		Scope:     AutomationScopeGlobal,
 		Name:      "dynamic-trigger",
 		AgentName: "reviewer",
@@ -970,6 +971,7 @@ func TestManagerSetEnabledForDynamicDefinitionsUpdatesStoredStateAndRuntime(t *t
 	}
 	dynamicTrigger, err := h.db.CreateTrigger(h.ctx, Trigger{
 		ID:          "trigger-dynamic-runtime",
+		ProfileID:   store.DefaultProfileID,
 		Scope:       AutomationScopeWorkspace,
 		Name:        "dynamic-runtime-trigger",
 		AgentName:   "reviewer",
@@ -1617,6 +1619,7 @@ func TestManagerCRUDRejectsNilContextAndReadOnlyDefinitions(t *testing.T) {
 
 	configTrigger := Trigger{
 		ID:          "trigger-readonly",
+		ProfileID:   store.DefaultProfileID,
 		Scope:       AutomationScopeWorkspace,
 		Name:        "readonly-trigger",
 		AgentName:   "reviewer",
@@ -1744,6 +1747,7 @@ func TestManagerWebhookSecretHelpers(t *testing.T) {
 
 	webhookTrigger := Trigger{
 		ID:               "trigger-secret-helpers",
+		ProfileID:        store.DefaultProfileID,
 		Scope:            AutomationScopeWorkspace,
 		Name:             "secret-helpers",
 		AgentName:        "reviewer",
@@ -2308,6 +2312,7 @@ func TestManagerHelperRollbackAndComparisonCoverage(t *testing.T) {
 
 	dynamicTrigger, err := h.db.CreateTrigger(h.ctx, Trigger{
 		ID:          "trigger-rollback-dynamic",
+		ProfileID:   store.DefaultProfileID,
 		Scope:       AutomationScopeWorkspace,
 		Name:        "rollback-dynamic-trigger",
 		AgentName:   "reviewer",

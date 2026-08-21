@@ -8,6 +8,7 @@ import (
 
 	"github.com/compozy/compozy/internal/loop/dsl"
 	"github.com/compozy/compozy/internal/network/participation"
+	storepkg "github.com/compozy/compozy/internal/store"
 	"github.com/compozy/compozy/internal/task"
 )
 
@@ -254,7 +255,7 @@ func (s *service) startResolved(
 	}
 	now := s.now().UTC()
 	run := Run{
-		ID: runID, WorkspaceID: ws,
+		ID: runID, ProfileID: storepkg.DefaultProfileID, WorkspaceID: ws,
 		LoopName: loopName, Status: StatusRunning, Generation: 0,
 		ReattemptStrategy: effective.ReattemptStrategy, CreatedAt: now, StartedAt: now, LastProgressAt: now,
 		StartedBy: actor.Actor, StartedOrigin: actor.Origin,

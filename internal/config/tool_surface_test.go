@@ -982,7 +982,7 @@ func TestConfigOverlayHookDeclarationsAndValues(t *testing.T) {
 	if err := EnsureHomeLayout(homePaths); err != nil {
 		t.Fatalf("EnsureHomeLayout() error = %v", err)
 	}
-	target, err := ResolveConfigWriteTarget(homePaths, "", WriteScopeGlobal)
+	target, err := ResolveConfigWriteTarget(homePaths, "", WriteScopeUser)
 	if err != nil {
 		t.Fatalf("ResolveConfigWriteTarget() error = %v", err)
 	}

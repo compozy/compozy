@@ -19,6 +19,12 @@ func (s *Service) RecordUsage(ctx context.Context, usage Usage) error {
 	if s.personalization == nil {
 		return errors.New("cmd palette: personalization service is unavailable")
 	}
+	if usage.ProfileLensID == "" {
+		usage.ProfileLensID = DefaultProfileLensID
+	}
+	if err := usage.ProfileLensID.Validate(); err != nil {
+		return err
+	}
 	usage.CommandID = CommandID(strings.TrimSpace(string(usage.CommandID)))
 	if usage.CommandID == "" {
 		return errors.New("cmd palette: command ID is required")
@@ -62,9 +68,10 @@ func (s *Service) recordDaemonUsage(ctx context.Context, execution ExecutionRequ
 		return
 	}
 	usage := Usage{
-		WorkspaceID: execution.WorkspaceID,
-		CommandID:   execution.Descriptor.ID,
-		UsedAt:      s.now().UTC(),
+		ProfileLensID: DefaultProfileLensID,
+		WorkspaceID:   execution.WorkspaceID,
+		CommandID:     execution.Descriptor.ID,
+		UsedAt:        s.now().UTC(),
 	}
 	if err := s.personalization.RecordCmdPaletteUsage(ctx, usage, WeightsV1); err != nil {
 		s.logger.WarnContext(ctx, "record command palette usage",
@@ -97,12 +104,14 @@ func (s *Service) Personalization(ctx context.Context, workspaceID WorkspaceID) 
 	for _, descriptor := range descriptors {
 		valid[descriptor.ID] = struct{}{}
 	}
-	rows, err := s.personalization.CmdPalettePersonalization(ctx, workspaceID)
+	rows, err := s.personalization.CmdPalettePersonalization(ctx, DefaultProfileLensID, workspaceID)
 	if err != nil {
 		s.logPersonalizationDegraded(workspaceID, err)
 		return newPersonalizationSnapshot(nil, nil, nil)
 	}
-	usage, queryHits, pins := s.maintainPersonalization(ctx, workspaceID, valid, rows)
+	usage, queryHits, pins := s.maintainPersonalization(
+		ctx, DefaultProfileLensID, workspaceID, valid, rows,
+	)
 	return newPersonalizationSnapshot(usage, queryHits, pins)
 }
 
@@ -161,9 +170,11 @@ func (s *Service) changePin(
 	}
 	var err error
 	if pinned {
-		err = s.personalization.PutCmdPalettePin(ctx, workspaceID, commandID, s.now().UTC())
+		err = s.personalization.PutCmdPalettePin(
+			ctx, DefaultProfileLensID, workspaceID, commandID, s.now().UTC(),
+		)
 	} else {
-		err = s.personalization.DeleteCmdPalettePin(ctx, workspaceID, commandID)
+		err = s.personalization.DeleteCmdPalettePin(ctx, DefaultProfileLensID, workspaceID, commandID)
 	}
 	if err != nil {
 		return fmt.Errorf("cmd palette: change pin for %q: %w", commandID, err)
@@ -182,7 +193,9 @@ func (s *Service) ResetPersonalization(ctx context.Context, workspaceID Workspac
 	if s.personalization == nil {
 		return errors.New("cmd palette: personalization service is unavailable")
 	}
-	if err := s.personalization.ResetCmdPalettePersonalization(ctx, workspaceID); err != nil {
+	if err := s.personalization.ResetCmdPalettePersonalization(
+		ctx, DefaultProfileLensID, workspaceID,
+	); err != nil {
 		return fmt.Errorf("cmd palette: reset personalization: %w", err)
 	}
 	s.emit(ctx, Event{
@@ -193,6 +206,7 @@ func (s *Service) ResetPersonalization(ctx context.Context, workspaceID Workspac
 
 func (s *Service) maintainPersonalization(
 	ctx context.Context,
+	profileLensID ProfileLensID,
 	workspaceID WorkspaceID,
 	valid map[CommandID]struct{},
 	rows PersonalizationRows,
@@ -210,7 +224,9 @@ func (s *Service) maintainPersonalization(
 		last := time.UnixMilli(signal.LastUsedAt)
 		signal.Weight = DecayFrecency(signal.Weight, last, now, WeightsV1.frecencyHalfLife())
 		if shouldPruneSignal(signal.Weight, last, now) {
-			if err := s.personalization.PruneCmdPaletteUsage(ctx, workspaceID, signal.CommandID); err != nil {
+			if err := s.personalization.PruneCmdPaletteUsage(
+				ctx, profileLensID, workspaceID, signal.CommandID,
+			); err != nil {
 				s.logPruneError(ctx, workspaceID, signal.CommandID, err)
 			}
 			continue
@@ -226,7 +242,7 @@ func (s *Service) maintainPersonalization(
 		hit.Weight = DecayFrecency(hit.Weight, last, now, WeightsV1.queryHalfLife())
 		if shouldPruneSignal(hit.Weight, last, now) {
 			if err := s.personalization.PruneCmdPaletteQueryHit(
-				ctx, workspaceID, hit.Query, hit.CommandID,
+				ctx, profileLensID, workspaceID, hit.Query, hit.CommandID,
 			); err != nil {
 				s.logPruneQueryError(ctx, workspaceID, hit.Query, hit.CommandID, err)
 			}
@@ -242,7 +258,9 @@ func (s *Service) maintainPersonalization(
 		pins = append(pins, pin)
 	}
 	for commandID := range staleCommands {
-		if err := s.personalization.PruneCmdPaletteCommand(ctx, workspaceID, commandID); err != nil {
+		if err := s.personalization.PruneCmdPaletteCommand(
+			ctx, profileLensID, workspaceID, commandID,
+		); err != nil {
 			s.logPruneError(ctx, workspaceID, commandID, err)
 		}
 	}

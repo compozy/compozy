@@ -68,7 +68,7 @@ func SaveBootstrapConfig(homePaths HomePaths, provider string, model string) (Co
 		return Config{}, fmt.Errorf("bootstrap model is required for provider %q", selectedProvider)
 	}
 
-	target, err := ResolveConfigWriteTarget(homePaths, "", WriteScopeGlobal)
+	target, err := ResolveConfigWriteTarget(homePaths, "", WriteScopeUser)
 	if err != nil {
 		return Config{}, err
 	}

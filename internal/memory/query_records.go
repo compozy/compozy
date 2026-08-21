@@ -86,6 +86,7 @@ func (s *Store) ResetDerived(ctx context.Context, opts memcontract.ReindexOption
 
 	deletedRows, err := s.catalog.clearDerivedScope(
 		ctx,
+		s.profileIDForScope(scope),
 		scope,
 		workspaceID,
 		s.catalogAgentName(scope),
@@ -140,6 +141,7 @@ func (s *Store) ListDailyLogRecords(ctx context.Context, query DailyLogListQuery
 
 func (c *catalog) clearDerivedScope(
 	ctx context.Context,
+	profileID string,
 	scope memcontract.Scope,
 	workspaceID string,
 	agentName string,
@@ -154,7 +156,8 @@ func (c *catalog) clearDerivedScope(
 		result, err := tx.ExecContext(
 			ctx,
 			`DELETE FROM memory_catalog_entries
-			 WHERE scope = ? AND workspace_id = ? AND agent_name = ? AND agent_tier = ?`,
+			 WHERE profile_id = ? AND scope = ? AND workspace_id = ? AND agent_name = ? AND agent_tier = ?`,
+			strings.TrimSpace(profileID),
 			string(scope),
 			strings.TrimSpace(workspaceID),
 			strings.TrimSpace(agentName),
@@ -171,7 +174,7 @@ func (c *catalog) clearDerivedScope(
 		return invalidateCatalogIdentityTx(
 			ctx,
 			tx,
-			newCatalogIdentity(scope, workspaceID, agentName, agentTier),
+			newCatalogIdentity(profileID, scope, workspaceID, agentName, agentTier),
 		)
 	})
 	if err != nil {

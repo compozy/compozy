@@ -4,13 +4,14 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/compozy/compozy/internal/network/participation"
 	speedpkg "github.com/compozy/compozy/internal/speed"
 )
 
-func TestSessionCreationProfileShouldBindSpeedToVersionedIdentity(t *testing.T) {
+func TestSessionCreationProfileShouldBindRuntimePolicyToVersionedIdentity(t *testing.T) {
 	t.Parallel()
 
-	t.Run("Should persist normal speed in the canonical version three profile", func(t *testing.T) {
+	t.Run("Should persist normal speed and profile id in the canonical version four profile", func(t *testing.T) {
 		t.Parallel()
 
 		profile := validSessionCreationProfile()
@@ -19,8 +20,10 @@ func TestSessionCreationProfileShouldBindSpeedToVersionedIdentity(t *testing.T) 
 			t.Fatalf("CanonicalJSON() error = %v", err)
 		}
 		encoded := string(payload)
-		if !strings.Contains(encoded, `"version":3`) || !strings.Contains(encoded, `"speed":"normal"`) {
-			t.Fatalf("CanonicalJSON() = %s, want version 3 with normal speed", encoded)
+		if !strings.Contains(encoded, `"version":4`) ||
+			!strings.Contains(encoded, `"speed":"normal"`) ||
+			!strings.Contains(encoded, `"profile_id":"00000000000000000000000000"`) {
+			t.Fatalf("CanonicalJSON() = %s, want version 4 with normal speed and profile id", encoded)
 		}
 	})
 
@@ -40,6 +43,49 @@ func TestSessionCreationProfileShouldBindSpeedToVersionedIdentity(t *testing.T) 
 		}
 		if normalRef == fastRef {
 			t.Fatalf("profile refs = %q, want speed-specific identities", normalRef)
+		}
+	})
+
+	t.Run("Should change every digest when profile identity changes", func(t *testing.T) {
+		t.Parallel()
+
+		defaultProfile := validSessionCreationProfile()
+		otherProfile := defaultProfile
+		otherProfile.ProfileID = "01K3PROFILEIDENTITY00000001"
+		options := SessionCreationOptions{
+			SessionID:            "sess-profile-witness",
+			NetworkOwnerKey:      "session:sess-profile-witness",
+			NetworkParticipation: participation.LocalSpec(),
+			SessionType:          "user",
+		}
+
+		defaultRef, err := defaultProfile.Ref()
+		if err != nil {
+			t.Fatalf("default Ref() error = %v", err)
+		}
+		otherRef, err := otherProfile.Ref()
+		if err != nil {
+			t.Fatalf("other Ref() error = %v", err)
+		}
+		defaultPolicy, err := defaultProfile.PolicySpecDigest()
+		if err != nil {
+			t.Fatalf("default PolicySpecDigest() error = %v", err)
+		}
+		otherPolicy, err := otherProfile.PolicySpecDigest()
+		if err != nil {
+			t.Fatalf("other PolicySpecDigest() error = %v", err)
+		}
+		defaultCreation, err := defaultProfile.CreationDigest(options)
+		if err != nil {
+			t.Fatalf("default CreationDigest() error = %v", err)
+		}
+		otherCreation, err := otherProfile.CreationDigest(options)
+		if err != nil {
+			t.Fatalf("other CreationDigest() error = %v", err)
+		}
+		if defaultRef == otherRef || defaultPolicy == otherPolicy || defaultCreation == otherCreation {
+			t.Fatalf("profile identity did not bind every digest: refs=%t policies=%t creations=%t",
+				defaultRef == otherRef, defaultPolicy == otherPolicy, defaultCreation == otherCreation)
 		}
 	})
 
@@ -66,6 +112,7 @@ func validSessionCreationProfile() SessionCreationProfile {
 		Version:     SessionCreationProfileVersion,
 		AgentName:   "worker",
 		Provider:    "codex",
+		ProfileID:   DefaultProfileID,
 		WorkspaceID: "workspace:test",
 		CWD:         "/workspace",
 		SandboxMode: SessionCreationSandboxNone,

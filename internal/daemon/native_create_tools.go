@@ -76,6 +76,7 @@ func (n *daemonNativeTools) networkChannelCreate(
 		return toolspkg.ToolResult{}, err
 	}
 	entry := store.NetworkChannelEntry{
+		ProfileID:         store.DefaultProfileID,
 		Channel:           channel,
 		WorkspaceID:       workspaceID,
 		Purpose:           purpose,

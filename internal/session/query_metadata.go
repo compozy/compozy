@@ -139,6 +139,7 @@ func sessionInfoFromMeta(meta store.SessionMeta) *Info {
 	selectedRuntime, selectionRevision := store.SessionRuntimeSelectionStateValues(meta.RuntimeSelection)
 	return &Info{
 		ID:                       meta.ID,
+		ProfileID:                strings.TrimSpace(meta.ProfileID),
 		Name:                     meta.Name,
 		AgentName:                meta.AgentName,
 		Provider:                 meta.Provider,

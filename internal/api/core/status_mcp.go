@@ -19,7 +19,7 @@ func (h *BaseHandlers) mcpServerStatusPayloads(
 	}
 	request := settingspkg.CollectionRequest{
 		Collection: settingspkg.CollectionMCPServers,
-		Scope:      settingspkg.ScopeGlobal,
+		Scope:      settingspkg.ScopeUser,
 	}
 	if workspaceID = strings.TrimSpace(workspaceID); workspaceID != "" {
 		request.Scope = settingspkg.ScopeWorkspace

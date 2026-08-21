@@ -9,6 +9,7 @@ import (
 	"unicode/utf8"
 
 	"github.com/compozy/compozy/internal/notifications"
+	"github.com/compozy/compozy/internal/store"
 	taskpkg "github.com/compozy/compozy/internal/task"
 )
 
@@ -131,6 +132,7 @@ func (s BridgeTaskSubscription) Normalize() BridgeTaskSubscription {
 func (s BridgeTaskSubscription) CursorKey() notifications.CursorKey {
 	normalized := s.Normalize()
 	return notifications.CursorKey{
+		ProfileID: store.DefaultProfileID,
 		Scope: notifications.ScopeRef{
 			Kind:        notifications.ScopeKind(normalized.Scope),
 			WorkspaceID: normalized.WorkspaceID,

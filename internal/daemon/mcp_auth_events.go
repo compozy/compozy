@@ -65,6 +65,7 @@ func (n *daemonMCPAuthNotifier) NotifyMCPAuth(ctx context.Context, lifecycle mcp
 		eventOutcome = eventspkg.OutcomeFailure
 	}
 	summary := store.EventSummary{
+		ProfileID: store.DefaultProfileID,
 		Type:      eventType,
 		Outcome:   string(eventOutcome),
 		Content:   content,

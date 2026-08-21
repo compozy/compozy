@@ -44,7 +44,7 @@ func (s *service) updateSkillsSection(
 		return s.updateAgentSkillsSection(cfg.Skills, resolved, workspaceID, agentName, next)
 	}
 
-	target, err := compozyconfig.ResolveConfigWriteTarget(s.homePaths, "", compozyconfig.WriteScopeGlobal)
+	target, err := compozyconfig.ResolveConfigWriteTarget(s.homePaths, "", compozyconfig.WriteScopeUser)
 	if err != nil {
 		return MutationResult{}, fmt.Errorf("settings: resolve section %q write target: %w", SectionSkills, err)
 	}
@@ -54,7 +54,7 @@ func (s *service) updateSkillsSection(
 	if len(changed) == 0 {
 		return MutationResult{
 			Section:   SectionSkills,
-			Scope:     ScopeGlobal,
+			Scope:     ScopeUser,
 			Behavior:  MutationBehaviorAppliedNow,
 			Applied:   true,
 			Warnings:  []string{sectionsNoChangesValue},
@@ -83,7 +83,7 @@ func (s *service) updateSkillsSection(
 
 	return MutationResult{
 		Section:         SectionSkills,
-		Scope:           ScopeGlobal,
+		Scope:           ScopeUser,
 		WriteTarget:     target.Kind(),
 		Behavior:        classification.Behavior,
 		Applied:         classification.Applied,

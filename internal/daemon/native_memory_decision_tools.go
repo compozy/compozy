@@ -178,7 +178,7 @@ func nativeMemoryAdminAuthorizeDecisionRecord(
 		recordAgentTier = record.Decision.Frontmatter.AgentTier.Normalize()
 	}
 	switch decisionScope {
-	case memcontract.ScopeGlobal:
+	case memcontract.ScopeProfile:
 		return nil
 	case memcontract.ScopeWorkspace:
 		if recordWorkspaceID != "" && recordWorkspaceID == strings.TrimSpace(callerScope.WorkspaceID) {

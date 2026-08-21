@@ -72,7 +72,7 @@ func hookBindingSyncActor() resources.MutationActor {
 			Kind: resources.ResourceSourceKind("daemon"),
 			ID:   "hook-binding-sync",
 		},
-		MaxScope: resources.ResourceScope{Kind: resources.ResourceScopeKindGlobal},
+		MaxScope: resources.ResourceScope{Kind: resources.ResourceScopeKindUser},
 	}
 }
 
@@ -210,7 +210,7 @@ func hookBindingScope(decl hookspkg.HookDecl) resources.ResourceScope {
 			ID:   workspaceID,
 		}
 	}
-	return resources.ResourceScope{Kind: resources.ResourceScopeKindGlobal}
+	return resources.ResourceScope{Kind: resources.ResourceScopeKindUser}
 }
 
 func hookCloneDeclarations(decls []hookspkg.HookDecl) []hookspkg.HookDecl {

@@ -184,6 +184,8 @@ func TestEnsureHomeLayoutCreatesRequiredDirectories(t *testing.T) {
 		"UpdateOperationLock":   filepath.Join(paths.HomeDir, UpdateOperationLockName),
 		"UpdateHistoryFile":     filepath.Join(paths.LogsDir, UpdateHistoryFileName),
 		"DesktopProvenanceFile": filepath.Join(paths.HomeDir, BinDirName, DesktopProvenanceFileName),
+		"ProfilesDir":           filepath.Join(paths.HomeDir, ProfilesDirName),
+		"DefaultProfileDir":     filepath.Join(paths.HomeDir, ProfilesDirName, DefaultProfileDirName),
 	}
 	for label, want := range pathContracts {
 		var got string
@@ -200,6 +202,10 @@ func TestEnsureHomeLayoutCreatesRequiredDirectories(t *testing.T) {
 			got = paths.UpdateHistoryFile
 		case "DesktopProvenanceFile":
 			got = paths.DesktopProvenanceFile
+		case "ProfilesDir":
+			got = paths.ProfilesDir
+		case "DefaultProfileDir":
+			got = paths.DefaultProfileDir
 		}
 		if got != want {
 			t.Fatalf("ResolveHomePathsFrom() %s = %q, want %q", label, got, want)
@@ -211,6 +217,8 @@ func TestEnsureHomeLayoutCreatesRequiredDirectories(t *testing.T) {
 		paths.AgentsDir,
 		paths.SkillsDir,
 		paths.LoopsDir,
+		paths.ProfilesDir,
+		paths.DefaultProfileDir,
 		paths.MemoryDir,
 		paths.SessionsDir,
 		paths.ToolArtifactsDir,
@@ -249,7 +257,13 @@ func TestResolveHomePathsFromExpandsTildePaths(t *testing.T) {
 			filepath.Join(userHome, "compozy-test-home"),
 		)
 	}
-	if got, want := paths.MemoryDir, filepath.Join(userHome, "compozy-test-home", MemoryDirName); got != want {
+	if got, want := paths.MemoryDir, filepath.Join(
+		userHome,
+		"compozy-test-home",
+		ProfilesDirName,
+		DefaultProfileDirName,
+		MemoryDirName,
+	); got != want {
 		t.Fatalf("ResolveHomePathsFrom() MemoryDir = %q, want %q", got, want)
 	}
 	if got, want := paths.SkillsDir, filepath.Join(userHome, "compozy-test-home", SkillsDirName); got != want {

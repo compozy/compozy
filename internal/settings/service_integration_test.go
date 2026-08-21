@@ -135,7 +135,7 @@ func TestMCPCatalogInstallPersistsEncryptedSecretAndExecutorResolvesIt(t *testin
 
 		installed, err := service.InstallMCPCatalog(ctx, MCPCatalogInstallRequest{
 			EntryID: "github",
-			Scope:   ScopeGlobal,
+			Scope:   ScopeUser,
 			Values: MCPCatalogInstallValues{Inputs: map[string]MCPSecretInput{
 				"catalog_token": {Value: "executor-secret"},
 			}},
@@ -181,7 +181,7 @@ func TestMCPCatalogInstallPersistsEncryptedSecretAndExecutorResolvesIt(t *testin
 				return mcppkg.ResolvedServer{
 					Server: server,
 					Target: mcpauth.Target{
-						Scope:      mcpauth.ScopeGlobal,
+						Scope:      mcpauth.ScopeUser,
 						ServerName: installed.Item.Name,
 					},
 				}, nil

@@ -54,7 +54,7 @@ func (h *BaseHandlers) resolveMemoryLocation(
 		return h.resolveScopedMemoryLocation(ctx, filename, resolved)
 	}
 
-	candidates := []MemoryLocation{{Scope: memcontract.ScopeGlobal, Filename: filename}}
+	candidates := []MemoryLocation{{Scope: memcontract.ScopeProfile, Filename: filename}}
 	if resolved.Workspace != "" {
 		candidates = append(candidates, MemoryLocation{
 			Scope:       memcontract.ScopeWorkspace,
@@ -133,7 +133,7 @@ func (h *BaseHandlers) memoryStoreForSelector(ctx context.Context, selector memo
 	}
 
 	switch selector.Scope.Normalize() {
-	case memcontract.ScopeGlobal:
+	case memcontract.ScopeProfile:
 		return h.MemoryStore, nil
 	case memcontract.ScopeWorkspace:
 		resolved, err := h.resolveMemorySelector(ctx, selector, true)

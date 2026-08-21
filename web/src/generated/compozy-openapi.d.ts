@@ -41170,7 +41170,7 @@ export interface operations {
     parameters: {
       query?: {
         /** @description Memory scope */
-        scope?: "global" | "workspace" | "agent";
+        scope?: "profile" | "workspace" | "agent";
         /** @description Durable workspace id */
         workspace_id?: string;
         /** @description Agent name for agent-scoped memory */
@@ -41218,7 +41218,7 @@ export interface operations {
               name: string;
               recall_count: number;
               /** @enum {string} */
-              scope: "global" | "workspace" | "agent";
+              scope: "profile" | "workspace" | "agent";
               staleness_banner?: string;
               superseded_by?: string;
               system_managed: boolean;
@@ -41311,7 +41311,7 @@ export interface operations {
           /** @enum {string} */
           origin?: "cli" | "http" | "uds" | "tool" | "extractor" | "dreaming" | "file" | "provider";
           /** @enum {string} */
-          scope: "global" | "workspace" | "agent";
+          scope: "profile" | "workspace" | "agent";
           /** @enum {string} */
           type: "user" | "feedback" | "project" | "reference";
           workspace_id?: string;
@@ -41367,7 +41367,7 @@ export interface operations {
                   updated_at: string;
                 } | null;
                 /** @enum {string} */
-                scope?: "global" | "workspace" | "agent";
+                scope?: "profile" | "workspace" | "agent";
                 /** @enum {string} */
                 type: "user" | "feedback" | "project" | "reference";
                 workspace_id?: string;
@@ -41394,7 +41394,7 @@ export interface operations {
                 target?: string;
               }[];
               /** @enum {string} */
-              scope: "global" | "workspace" | "agent";
+              scope: "profile" | "workspace" | "agent";
               /** @enum {string} */
               source: "rule" | "llm";
               target_filename?: string;
@@ -41483,7 +41483,7 @@ export interface operations {
           agent_tier?: "workspace" | "global";
           content: string;
           /** @enum {string} */
-          scope: "global" | "workspace" | "agent";
+          scope: "profile" | "workspace" | "agent";
           slug?: string;
           workspace_id?: string;
         };
@@ -41726,7 +41726,7 @@ export interface operations {
     parameters: {
       query?: {
         /** @description Memory scope */
-        scope?: "global" | "workspace" | "agent";
+        scope?: "profile" | "workspace" | "agent";
         /** @description Durable workspace id */
         workspace_id?: string;
         /** @description Agent name for agent-scoped memory */
@@ -41759,7 +41759,7 @@ export interface operations {
               operation_count: number;
               path: string;
               /** @enum {string} */
-              scope: "global" | "workspace" | "agent";
+              scope: "profile" | "workspace" | "agent";
               workspace_id?: string;
             }[];
           };
@@ -41801,7 +41801,7 @@ export interface operations {
     parameters: {
       query?: {
         /** @description Memory scope */
-        scope?: "global" | "workspace" | "agent";
+        scope?: "profile" | "workspace" | "agent";
         /** @description Durable workspace id */
         workspace_id?: string;
         /** @description Agent name for agent-scoped memory */
@@ -41870,7 +41870,7 @@ export interface operations {
                   updated_at: string;
                 } | null;
                 /** @enum {string} */
-                scope?: "global" | "workspace" | "agent";
+                scope?: "profile" | "workspace" | "agent";
                 /** @enum {string} */
                 type: "user" | "feedback" | "project" | "reference";
                 workspace_id?: string;
@@ -41897,7 +41897,7 @@ export interface operations {
                 target?: string;
               }[];
               /** @enum {string} */
-              scope: "global" | "workspace" | "agent";
+              scope: "profile" | "workspace" | "agent";
               /** @enum {string} */
               source: "rule" | "llm";
               target_filename?: string;
@@ -41998,7 +41998,7 @@ export interface operations {
                   updated_at: string;
                 } | null;
                 /** @enum {string} */
-                scope?: "global" | "workspace" | "agent";
+                scope?: "profile" | "workspace" | "agent";
                 /** @enum {string} */
                 type: "user" | "feedback" | "project" | "reference";
                 workspace_id?: string;
@@ -42025,7 +42025,7 @@ export interface operations {
                 target?: string;
               }[];
               /** @enum {string} */
-              scope: "global" | "workspace" | "agent";
+              scope: "profile" | "workspace" | "agent";
               /** @enum {string} */
               source: "rule" | "llm";
               target_filename?: string;
@@ -42134,7 +42134,7 @@ export interface operations {
                   updated_at: string;
                 } | null;
                 /** @enum {string} */
-                scope?: "global" | "workspace" | "agent";
+                scope?: "profile" | "workspace" | "agent";
                 /** @enum {string} */
                 type: "user" | "feedback" | "project" | "reference";
                 workspace_id?: string;
@@ -42161,7 +42161,7 @@ export interface operations {
                 target?: string;
               }[];
               /** @enum {string} */
-              scope: "global" | "workspace" | "agent";
+              scope: "profile" | "workspace" | "agent";
               /** @enum {string} */
               source: "rule" | "llm";
               target_filename?: string;
@@ -42239,7 +42239,7 @@ export interface operations {
     parameters: {
       query?: {
         /** @description Memory scope */
-        scope?: "global" | "workspace" | "agent";
+        scope?: "profile" | "workspace" | "agent";
         /** @description Durable workspace id */
         workspace_id?: string;
         /** @description Agent name for agent-scoped memory */
@@ -42279,7 +42279,7 @@ export interface operations {
               lock_until?: string | null;
               promoted_count: number;
               /** @enum {string} */
-              scope: "global" | "workspace" | "agent";
+              scope: "profile" | "workspace" | "agent";
               /** Format: date-time */
               started_at: string;
               /** @enum {string} */
@@ -42352,7 +42352,7 @@ export interface operations {
               lock_until?: string | null;
               promoted_count: number;
               /** @enum {string} */
-              scope: "global" | "workspace" | "agent";
+              scope: "profile" | "workspace" | "agent";
               /** Format: date-time */
               started_at: string;
               /** @enum {string} */
@@ -42395,7 +42395,7 @@ export interface operations {
           agent_tier?: "workspace" | "global";
           force?: boolean;
           /** @enum {string} */
-          scope?: "global" | "workspace" | "agent";
+          scope?: "profile" | "workspace" | "agent";
           workspace_id?: string;
         };
       };
@@ -42423,7 +42423,7 @@ export interface operations {
               lock_until?: string | null;
               promoted_count: number;
               /** @enum {string} */
-              scope: "global" | "workspace" | "agent";
+              scope: "profile" | "workspace" | "agent";
               /** Format: date-time */
               started_at: string;
               /** @enum {string} */
@@ -42516,7 +42516,7 @@ export interface operations {
               lock_until?: string | null;
               promoted_count: number;
               /** @enum {string} */
-              scope: "global" | "workspace" | "agent";
+              scope: "profile" | "workspace" | "agent";
               /** Format: date-time */
               started_at: string;
               /** @enum {string} */
@@ -42600,7 +42600,7 @@ export interface operations {
               lock_until?: string | null;
               promoted_count: number;
               /** @enum {string} */
-              scope: "global" | "workspace" | "agent";
+              scope: "profile" | "workspace" | "agent";
               /** Format: date-time */
               started_at: string;
               /** @enum {string} */
@@ -42876,7 +42876,7 @@ export interface operations {
     parameters: {
       query?: {
         /** @description Memory scope */
-        scope?: "global" | "workspace" | "agent";
+        scope?: "profile" | "workspace" | "agent";
         /** @description Durable workspace id */
         workspace_id?: string;
         /** @description Agent name for agent-scoped memory */
@@ -42959,7 +42959,7 @@ export interface operations {
     parameters: {
       query?: {
         /** @description Memory scope */
-        scope?: "global" | "workspace" | "agent";
+        scope?: "profile" | "workspace" | "agent";
         /** @description Durable workspace id */
         workspace_id?: string;
         /** @description Agent name for agent-scoped memory */
@@ -42995,7 +42995,7 @@ export interface operations {
               /** @enum {string} */
               operation: "memory.write" | "memory.delete" | "memory.search" | "memory.reindex";
               /** @enum {string} */
-              scope?: "global" | "workspace" | "agent";
+              scope?: "profile" | "workspace" | "agent";
               summary?: string;
               /** Format: date-time */
               timestamp: string;
@@ -43054,7 +43054,7 @@ export interface operations {
             /** @enum {string} */
             agent_tier?: "workspace" | "global";
             /** @enum {string} */
-            scope: "global" | "workspace" | "agent";
+            scope: "profile" | "workspace" | "agent";
             workspace_id?: string;
           };
           idempotency_key?: string;
@@ -43063,7 +43063,7 @@ export interface operations {
             /** @enum {string} */
             agent_tier?: "workspace" | "global";
             /** @enum {string} */
-            scope: "global" | "workspace" | "agent";
+            scope: "profile" | "workspace" | "agent";
             workspace_id?: string;
           };
         };
@@ -43118,7 +43118,7 @@ export interface operations {
                   updated_at: string;
                 } | null;
                 /** @enum {string} */
-                scope?: "global" | "workspace" | "agent";
+                scope?: "profile" | "workspace" | "agent";
                 /** @enum {string} */
                 type: "user" | "feedback" | "project" | "reference";
                 workspace_id?: string;
@@ -43145,7 +43145,7 @@ export interface operations {
                 target?: string;
               }[];
               /** @enum {string} */
-              scope: "global" | "workspace" | "agent";
+              scope: "profile" | "workspace" | "agent";
               /** @enum {string} */
               source: "rule" | "llm";
               target_filename?: string;
@@ -43682,7 +43682,7 @@ export interface operations {
                     workspace_id?: string;
                   }[];
                   /** @enum {string} */
-                  scope: "global" | "workspace" | "agent";
+                  scope: "profile" | "workspace" | "agent";
                 }[];
                 header: {
                   content_hash: string;
@@ -43745,7 +43745,7 @@ export interface operations {
           agent_tier?: "workspace" | "global";
           include_system?: boolean;
           /** @enum {string} */
-          scope?: "global" | "workspace" | "agent";
+          scope?: "profile" | "workspace" | "agent";
           workspace_id?: string;
         };
       };
@@ -43765,7 +43765,7 @@ export interface operations {
             completed_at: string;
             indexed_files: number;
             /** @enum {string} */
-            scope?: "global" | "workspace" | "agent";
+            scope?: "profile" | "workspace" | "agent";
             workspace_id?: string;
           };
         };
@@ -43859,7 +43859,7 @@ export interface operations {
           confirm: boolean;
           derived_only: boolean;
           /** @enum {string} */
-          scope?: "global" | "workspace" | "agent";
+          scope?: "profile" | "workspace" | "agent";
           workspace_id?: string;
         };
       };
@@ -43946,7 +43946,7 @@ export interface operations {
     parameters: {
       query?: {
         /** @description Memory scope */
-        scope?: "global" | "workspace" | "agent";
+        scope?: "profile" | "workspace" | "agent";
         /** @description Durable workspace id */
         workspace_id?: string;
         /** @description Agent name for agent-scoped memory */
@@ -43972,7 +43972,7 @@ export interface operations {
               /** @enum {string} */
               agent_tier?: "workspace" | "global";
               /** @enum {string} */
-              scope: "global" | "workspace" | "agent";
+              scope: "profile" | "workspace" | "agent";
               workspace_id?: string;
             }[];
             roots: {
@@ -43983,7 +43983,7 @@ export interface operations {
               /** @enum {string} */
               agent_tier?: "workspace" | "global";
               /** @enum {string} */
-              scope: "global" | "workspace" | "agent";
+              scope: "profile" | "workspace" | "agent";
               workspace_id?: string;
             };
           };
@@ -44058,7 +44058,7 @@ export interface operations {
           query_text: string;
           raw_candidates?: number;
           /** @enum {string} */
-          scope?: "global" | "workspace" | "agent";
+          scope?: "profile" | "workspace" | "agent";
           top_k?: number;
           workspace_id?: string;
         };
@@ -44091,7 +44091,7 @@ export interface operations {
                   workspace_id?: string;
                 }[];
                 /** @enum {string} */
-                scope: "global" | "workspace" | "agent";
+                scope: "profile" | "workspace" | "agent";
               }[];
               header: {
                 content_hash: string;
@@ -44117,7 +44117,7 @@ export interface operations {
                 name: string;
                 recall_count: number;
                 /** @enum {string} */
-                scope: "global" | "workspace" | "agent";
+                scope: "profile" | "workspace" | "agent";
                 staleness_banner?: string;
                 superseded_by?: string;
                 system_managed: boolean;
@@ -44274,7 +44274,7 @@ export interface operations {
     parameters: {
       query?: {
         /** @description Memory scope */
-        scope?: "global" | "workspace" | "agent";
+        scope?: "profile" | "workspace" | "agent";
         /** @description Durable workspace id */
         workspace_id?: string;
         /** @description Agent name for agent-scoped memory */
@@ -44317,7 +44317,7 @@ export interface operations {
                 name: string;
                 recall_count: number;
                 /** @enum {string} */
-                scope: "global" | "workspace" | "agent";
+                scope: "profile" | "workspace" | "agent";
                 staleness_banner?: string;
                 superseded_by?: string;
                 system_managed: boolean;
@@ -44382,7 +44382,7 @@ export interface operations {
     parameters: {
       query?: {
         /** @description Memory scope */
-        scope?: "global" | "workspace" | "agent";
+        scope?: "profile" | "workspace" | "agent";
         /** @description Durable workspace id */
         workspace_id?: string;
         /** @description Agent name for agent-scoped memory */
@@ -44447,7 +44447,7 @@ export interface operations {
                   updated_at: string;
                 } | null;
                 /** @enum {string} */
-                scope?: "global" | "workspace" | "agent";
+                scope?: "profile" | "workspace" | "agent";
                 /** @enum {string} */
                 type: "user" | "feedback" | "project" | "reference";
                 workspace_id?: string;
@@ -44474,7 +44474,7 @@ export interface operations {
                 target?: string;
               }[];
               /** @enum {string} */
-              scope: "global" | "workspace" | "agent";
+              scope: "profile" | "workspace" | "agent";
               /** @enum {string} */
               source: "rule" | "llm";
               target_filename?: string;
@@ -44572,7 +44572,7 @@ export interface operations {
           };
           name?: string;
           /** @enum {string} */
-          scope?: "global" | "workspace" | "agent";
+          scope?: "profile" | "workspace" | "agent";
           /** @enum {string} */
           type?: "user" | "feedback" | "project" | "reference";
           workspace_id?: string;
@@ -44628,7 +44628,7 @@ export interface operations {
                   updated_at: string;
                 } | null;
                 /** @enum {string} */
-                scope?: "global" | "workspace" | "agent";
+                scope?: "profile" | "workspace" | "agent";
                 /** @enum {string} */
                 type: "user" | "feedback" | "project" | "reference";
                 workspace_id?: string;
@@ -44655,7 +44655,7 @@ export interface operations {
                 target?: string;
               }[];
               /** @enum {string} */
-              scope: "global" | "workspace" | "agent";
+              scope: "profile" | "workspace" | "agent";
               /** @enum {string} */
               source: "rule" | "llm";
               target_filename?: string;
@@ -48721,7 +48721,7 @@ export interface operations {
         /** @description Filter by resource kind */
         kind?: string;
         /** @description Filter by resource scope kind */
-        scope_kind?: "global" | "workspace";
+        scope_kind?: "user" | "workspace";
         /** @description Filter by workspace scope id */
         scope_id?: string;
         /** @description Filter by stamped owner kind */
@@ -48760,7 +48760,7 @@ export interface operations {
               scope: {
                 id?: string;
                 /** @enum {string} */
-                kind: "global" | "workspace";
+                kind: "user" | "workspace";
               };
               source: {
                 id: string;
@@ -48868,7 +48868,7 @@ export interface operations {
     parameters: {
       query?: {
         /** @description Filter by resource scope kind */
-        scope_kind?: "global" | "workspace";
+        scope_kind?: "user" | "workspace";
         /** @description Filter by workspace scope id */
         scope_id?: string;
         /** @description Filter by stamped owner kind */
@@ -48910,7 +48910,7 @@ export interface operations {
               scope: {
                 id?: string;
                 /** @enum {string} */
-                kind: "global" | "workspace";
+                kind: "user" | "workspace";
               };
               source: {
                 id: string;
@@ -49047,7 +49047,7 @@ export interface operations {
               scope: {
                 id?: string;
                 /** @enum {string} */
-                kind: "global" | "workspace";
+                kind: "user" | "workspace";
               };
               source: {
                 id: string;
@@ -49201,7 +49201,7 @@ export interface operations {
           scope: {
             id?: string;
             /** @enum {string} */
-            kind: "global" | "workspace";
+            kind: "user" | "workspace";
           };
           spec: unknown;
         };
@@ -49227,7 +49227,7 @@ export interface operations {
               scope: {
                 id?: string;
                 /** @enum {string} */
-                kind: "global" | "workspace";
+                kind: "user" | "workspace";
               };
               source: {
                 id: string;
@@ -49261,7 +49261,7 @@ export interface operations {
               scope: {
                 id?: string;
                 /** @enum {string} */
-                kind: "global" | "workspace";
+                kind: "user" | "workspace";
               };
               source: {
                 id: string;
@@ -57810,7 +57810,7 @@ export interface operations {
               resources: {
                 allowed_kinds?: string[];
                 /** @enum {string} */
-                max_scope?: "global" | "workspace";
+                max_scope?: "user" | "workspace";
                 operator_write_rate_limit: {
                   queue: number;
                   requests: number;
@@ -58152,7 +58152,7 @@ export interface operations {
             resources: {
               allowed_kinds?: string[];
               /** @enum {string} */
-              max_scope?: "global" | "workspace";
+              max_scope?: "user" | "workspace";
               operator_write_rate_limit: {
                 queue: number;
                 requests: number;
@@ -132616,7 +132616,7 @@ export interface operations {
               scope: {
                 id?: string;
                 /** @enum {string} */
-                kind: "global" | "workspace";
+                kind: "user" | "workspace";
               };
               source: {
                 id: string;
@@ -132807,7 +132807,7 @@ export interface operations {
           scope: {
             id?: string;
             /** @enum {string} */
-            kind: "global" | "workspace";
+            kind: "user" | "workspace";
           };
           spec: unknown;
         };
@@ -132833,7 +132833,7 @@ export interface operations {
               scope: {
                 id?: string;
                 /** @enum {string} */
-                kind: "global" | "workspace";
+                kind: "user" | "workspace";
               };
               source: {
                 id: string;
@@ -132867,7 +132867,7 @@ export interface operations {
               scope: {
                 id?: string;
                 /** @enum {string} */
-                kind: "global" | "workspace";
+                kind: "user" | "workspace";
               };
               source: {
                 id: string;

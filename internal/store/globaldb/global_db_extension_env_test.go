@@ -326,7 +326,7 @@ func TestExtensionEnvironmentMigration(t *testing.T) {
 				t.Errorf("Close(reopened fixture) error = %v", closeErr)
 			}
 		})
-		bindings, err := reopened.ListEnvBindings(testutil.Context(t), "kit", "ws-1")
+		bindings, err := reopened.ListEnvBindings(testutil.Context(t), "kit", "", "ws-1")
 		if err != nil {
 			t.Fatalf("ListEnvBindings(reopened) error = %v", err)
 		}
@@ -367,7 +367,7 @@ func TestExtensionEnvRepoRoundTripAndInstanceIsolation(t *testing.T) {
 		if err := db.PutEnvBinding(testutil.Context(t), global); err != nil {
 			t.Fatalf("PutEnvBinding(upsert) error = %v", err)
 		}
-		gotGlobal, err := db.ListEnvBindings(testutil.Context(t), "kit", "")
+		gotGlobal, err := db.ListEnvBindings(testutil.Context(t), "kit", "", "")
 		if err != nil {
 			t.Fatalf("ListEnvBindings(global) error = %v", err)
 		}
@@ -377,7 +377,7 @@ func TestExtensionEnvRepoRoundTripAndInstanceIsolation(t *testing.T) {
 			gotGlobal[0].Kind != extensionenv.BindingKind {
 			t.Fatalf("global bindings = %#v, want upsert preserving created_at", gotGlobal)
 		}
-		gotWorkspace, err := db.ListEnvBindings(testutil.Context(t), "kit", "ws-1")
+		gotWorkspace, err := db.ListEnvBindings(testutil.Context(t), "kit", "", "ws-1")
 		if err != nil {
 			t.Fatalf("ListEnvBindings(workspace) error = %v", err)
 		}
@@ -385,17 +385,17 @@ func TestExtensionEnvRepoRoundTripAndInstanceIsolation(t *testing.T) {
 			t.Fatalf("workspace bindings = %#v, want %#v", gotWorkspace, []extensionenv.Binding{workspace})
 		}
 
-		if err := db.DeleteEnvBinding(testutil.Context(t), "kit", "", "API_KEY"); err != nil {
+		if err := db.DeleteEnvBinding(testutil.Context(t), "kit", "", "", "API_KEY"); err != nil {
 			t.Fatalf("DeleteEnvBinding(global) error = %v", err)
 		}
-		gotGlobal, err = db.ListEnvBindings(testutil.Context(t), "kit", "")
+		gotGlobal, err = db.ListEnvBindings(testutil.Context(t), "kit", "", "")
 		if err != nil {
 			t.Fatalf("ListEnvBindings(global after delete) error = %v", err)
 		}
 		if len(gotGlobal) != 0 {
 			t.Fatalf("global bindings after delete = %#v, want empty", gotGlobal)
 		}
-		gotWorkspace, err = db.ListEnvBindings(testutil.Context(t), "kit", "ws-1")
+		gotWorkspace, err = db.ListEnvBindings(testutil.Context(t), "kit", "", "ws-1")
 		if err != nil || len(gotWorkspace) != 1 {
 			t.Fatalf("workspace bindings after global delete = %#v, %v", gotWorkspace, err)
 		}
@@ -413,7 +413,7 @@ func TestExtensionEnvRepoRoundTripAndInstanceIsolation(t *testing.T) {
 				t.Fatalf("PutEnvBinding(%s) error = %v", envName, err)
 			}
 		}
-		bindings, err := db.ListEnvBindings(testutil.Context(t), "kit", "")
+		bindings, err := db.ListEnvBindings(testutil.Context(t), "kit", "", "")
 		if err != nil {
 			t.Fatalf("ListEnvBindings() error = %v", err)
 		}

@@ -196,7 +196,7 @@ func TestSettingsRuntimeSurfaceMemoryHealthStatus(t *testing.T) {
 		for idx := range 205 {
 			filename := fmt.Sprintf("settings-%03d.md", idx)
 			if err := memoryStore.Write(t.Context(),
-				memcontract.ScopeGlobal,
+				memcontract.ScopeProfile,
 				filename,
 				[]byte(memoryDocument(
 					fmt.Sprintf("Settings %03d", idx),
@@ -692,7 +692,7 @@ func TestSettingsRuntimeSurfaceMCPServerRuntimeStatus(t *testing.T) {
 }
 
 func globalMCPTestTarget(serverName string) mcpauth.Target {
-	return mcpauth.Target{Scope: mcpauth.ScopeGlobal, ServerName: serverName}
+	return mcpauth.Target{Scope: mcpauth.ScopeUser, ServerName: serverName}
 }
 
 func newSettingsMCPTestServer() *mcp.Server {

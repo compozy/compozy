@@ -235,6 +235,7 @@ func mcpDeadEntityKey(source SourceRef) (store.DeadEntityKey, bool) {
 		return store.DeadEntityKey{}, false
 	}
 	key := store.DeadEntityKey{
+		ProfileID:   store.DefaultProfileID,
 		WorkspaceID: source.WorkspaceID,
 		Kind:        store.DeadEntityKindMCPSidecar,
 		EntityID:    firstNonEmpty(source.RawServerName, source.Owner),

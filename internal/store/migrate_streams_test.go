@@ -388,6 +388,181 @@ func TestGlobalCommandPaletteMigrationTail(t *testing.T) {
 	})
 }
 
+// Suite: profiles migration tail.
+// Invariant: 00082 seeds the permanent default owner before backfill, preserves
+// pre-profile owner and personalization rows, and installs the immutable,
+// active-owner contract on every durable work root.
+// Owning layer: global migration stream. Canonical suite: this file.
+func TestGlobalProfilesMigrationTail(t *testing.T) {
+	t.Parallel()
+
+	ctx := migrationTestContext(t)
+	db := openStreamTestDB(t, "global-profiles-tail.db")
+	stream := globaldb.MigrationStream()
+	stream.Bootstrap = nil
+	if err := store.Apply(ctx, db, migrationPrefixStream(t, stream, 81)); err != nil {
+		t.Fatalf("Apply(global through 00081) error = %v", err)
+	}
+
+	const (
+		workspaceID = "workspace-profiles-tail"
+		createdAt   = "2026-08-20T12:00:00Z"
+	)
+	if _, err := db.ExecContext(ctx, `INSERT INTO workspaces (
+		id, root_dir, add_dirs, name, default_agent, sandbox_ref, created_at, updated_at
+	) VALUES (?, ?, '[]', ?, '', '', ?, ?)`,
+		workspaceID, "/tmp/workspace-profiles-tail", "profiles-tail", createdAt, createdAt,
+	); err != nil {
+		t.Fatalf("insert pre-profile workspace: %v", err)
+	}
+	if _, err := db.ExecContext(ctx, `INSERT INTO sessions (
+		id, agent_name, workspace_id, state, created_at, updated_at
+	) VALUES ('session-profiles-tail', 'coder', ?, 'active', ?, ?)`, workspaceID, createdAt, createdAt); err != nil {
+		t.Fatalf("insert pre-profile session: %v", err)
+	}
+	if _, err := db.ExecContext(ctx, `INSERT INTO token_usage_daily (
+		day, workspace_id, agent_name, input_tokens, output_tokens, total_tokens, updated_at
+	) VALUES ('2026-08-20', ?, 'coder', 3, 5, 8, ?)`, workspaceID, createdAt); err != nil {
+		t.Fatalf("insert pre-profile token usage: %v", err)
+	}
+	if _, err := db.ExecContext(ctx, `INSERT INTO notification_cursors (
+		scope_kind, workspace_id, consumer_id, stream_name, subject_id, last_sequence, updated_at
+	) VALUES ('workspace', ?, 'consumer-tail', 'task_events', 'task-tail', 7, ?)`, workspaceID, createdAt); err != nil {
+		t.Fatalf("insert pre-profile notification cursor: %v", err)
+	}
+	if _, err := db.ExecContext(ctx, `INSERT INTO tool_approval_pending (
+		approval_id, workspace_id, invocation_id, target_kind, tool_id, args_json,
+		approval_status, requested_at, expires_at
+	) VALUES ('apr_profiles_tail', ?, 'invocation-profiles-tail', 'tool', 'compozy__status', '{}',
+		'pending', 1, 2)`, workspaceID); err != nil {
+		t.Fatalf("insert pre-profile pending approval: %v", err)
+	}
+	if _, err := db.ExecContext(ctx, `INSERT INTO cmd_palette_usage (
+		workspace_id, command_id, use_count, frecency_weight, last_used_at, updated_at
+	) VALUES (?, 'session.new', 4, 2.5, 11, 12)`, workspaceID); err != nil {
+		t.Fatalf("insert pre-profile palette usage: %v", err)
+	}
+	if _, err := db.ExecContext(ctx, `INSERT INTO cmd_palette_query_hits (
+		workspace_id, query, command_id, weight, last_used_at
+	) VALUES (?, 'new', 'session.new', 3.5, 13)`, workspaceID); err != nil {
+		t.Fatalf("insert pre-profile palette query hit: %v", err)
+	}
+	if _, err := db.ExecContext(ctx, `INSERT INTO cmd_palette_pins (
+		workspace_id, command_id, pinned_at
+	) VALUES (?, 'session.new', 14)`, workspaceID); err != nil {
+		t.Fatalf("insert pre-profile palette pin: %v", err)
+	}
+
+	if err := store.Apply(ctx, db, stream); err != nil {
+		t.Fatalf("Apply(global through 00082) error = %v", err)
+	}
+
+	var name, color, icon, state string
+	if err := db.QueryRowContext(ctx, `SELECT name, color, icon, state FROM profiles WHERE id = ?`,
+		store.DefaultProfileID,
+	).Scan(&name, &color, &icon, &state); err != nil {
+		t.Fatalf("query permanent default profile: %v", err)
+	}
+	if name != "default" || color != "#8E8EB5" || icon != "circle" || state != "active" {
+		t.Fatalf("default profile = (%q, %q, %q, %q), want exact permanent seed", name, color, icon, state)
+	}
+
+	ownerRoots := []string{
+		"sessions", "tasks", "loop_runs", "automation_jobs", "automation_triggers",
+		"automation_suggestions", "bridge_instances", "worktrees", "network_channels",
+		"network_direct_rooms", "network_threads", "network_work", "notification_cursors",
+		"tool_approval_grants", "event_summaries", "dead_entities", "token_usage_daily",
+		"tool_approval_pending",
+	}
+	for _, table := range ownerRoots {
+		if !sqliteColumns(t, db, table)["profile_id"] {
+			t.Fatalf("table %q missing profile_id after 00082", table)
+		}
+		for _, suffix := range []string{"profile_owner_active", "profile_owner_immutable"} {
+			var count int
+			if err := db.QueryRowContext(ctx,
+				`SELECT COUNT(*) FROM sqlite_master WHERE type = 'trigger' AND name = ?`,
+				table+"_"+suffix,
+			).Scan(&count); err != nil {
+				t.Fatalf("query %s %s trigger: %v", table, suffix, err)
+			}
+			if count != 1 {
+				t.Fatalf("%s %s trigger count = %d, want 1", table, suffix, count)
+			}
+		}
+	}
+
+	for _, assertion := range []struct {
+		name  string
+		query string
+		args  []any
+		want  int64
+	}{
+		{name: "session owner", query: `SELECT COUNT(*) FROM sessions WHERE id = 'session-profiles-tail' AND profile_id = ?`, args: []any{store.DefaultProfileID}, want: 1},
+		{name: "token usage owner", query: `SELECT total_tokens FROM token_usage_daily WHERE day = '2026-08-20' AND profile_id = ? AND workspace_id = ? AND agent_name = 'coder'`, args: []any{store.DefaultProfileID, workspaceID}, want: 8},
+		{name: "cursor owner", query: `SELECT last_sequence FROM notification_cursors WHERE profile_id = ? AND workspace_id = ? AND consumer_id = 'consumer-tail'`, args: []any{store.DefaultProfileID, workspaceID}, want: 7},
+		{name: "pending approval owner", query: `SELECT COUNT(*) FROM tool_approval_pending WHERE approval_id = 'apr_profiles_tail' AND profile_id = ?`, args: []any{store.DefaultProfileID}, want: 1},
+		{name: "palette usage lens", query: `SELECT use_count FROM cmd_palette_usage WHERE workspace_id = ? AND profile_lens_id = ? AND command_id = 'session.new'`, args: []any{workspaceID, store.DefaultProfileID}, want: 4},
+		{name: "palette query lens", query: `SELECT CAST(weight AS INTEGER) FROM cmd_palette_query_hits WHERE workspace_id = ? AND profile_lens_id = ? AND query = 'new'`, args: []any{workspaceID, store.DefaultProfileID}, want: 3},
+		{name: "palette pin lens", query: `SELECT pinned_at FROM cmd_palette_pins WHERE workspace_id = ? AND profile_lens_id = ? AND command_id = 'session.new'`, args: []any{workspaceID, store.DefaultProfileID}, want: 14},
+	} {
+		var got int64
+		if err := db.QueryRowContext(ctx, assertion.query, assertion.args...).Scan(&got); err != nil {
+			t.Fatalf("query preserved %s: %v", assertion.name, err)
+		}
+		if got != assertion.want {
+			t.Fatalf("preserved %s = %d, want %d", assertion.name, got, assertion.want)
+		}
+	}
+
+	const otherProfileID = "01ARZ3NDEKTSV4RRFFQ69G5FAV"
+	if _, err := db.ExecContext(ctx, `INSERT INTO profiles (
+		id, name, color, icon, state, created_at
+	) VALUES (?, 'other', '#8E8EB5', 'circle', 'active', ?)`, otherProfileID, createdAt); err != nil {
+		t.Fatalf("insert second profile: %v", err)
+	}
+	if _, err := db.ExecContext(ctx,
+		`UPDATE sessions SET profile_id = ? WHERE id = 'session-profiles-tail'`, otherProfileID,
+	); err == nil || !strings.Contains(err.Error(), "profile_owner_immutable") {
+		t.Fatalf("update immutable session owner error = %v, want profile_owner_immutable", err)
+	}
+	if _, err := db.ExecContext(ctx, `PRAGMA foreign_keys = ON`); err != nil {
+		t.Fatalf("enable foreign keys for restriction assertion: %v", err)
+	}
+	if _, err := db.ExecContext(ctx,
+		`DELETE FROM profiles WHERE id = ?`, store.DefaultProfileID,
+	); err == nil {
+		t.Fatal("delete profile with owned work error = nil, want FK restriction")
+	}
+
+	const emptyWorkspaceID = "workspace-selection-cascade"
+	if _, err := db.ExecContext(ctx, `INSERT INTO workspaces (
+		id, root_dir, add_dirs, name, default_agent, sandbox_ref, created_at, updated_at
+	) VALUES (?, ?, '[]', ?, '', '', ?, ?)`,
+		emptyWorkspaceID, "/tmp/workspace-selection-cascade", "selection-cascade", createdAt, createdAt,
+	); err != nil {
+		t.Fatalf("insert selection workspace: %v", err)
+	}
+	if _, err := db.ExecContext(ctx, `INSERT INTO profile_selections (
+		lens, workspace_id, profile_id, updated_at
+	) VALUES ('workspace', ?, ?, ?)`, emptyWorkspaceID, store.DefaultProfileID, createdAt); err != nil {
+		t.Fatalf("insert profile selection: %v", err)
+	}
+	if _, err := db.ExecContext(ctx, `DELETE FROM workspaces WHERE id = ?`, emptyWorkspaceID); err != nil {
+		t.Fatalf("delete selection workspace: %v", err)
+	}
+	var remainingSelections int
+	if err := db.QueryRowContext(ctx,
+		`SELECT COUNT(*) FROM profile_selections WHERE workspace_id = ?`, emptyWorkspaceID,
+	).Scan(&remainingSelections); err != nil {
+		t.Fatalf("query selection cascade: %v", err)
+	}
+	if remainingSelections != 0 {
+		t.Fatalf("selection rows after workspace delete = %d, want 0", remainingSelections)
+	}
+	assertSQLiteIntegrity(t, "global profiles migration tail", db)
+}
+
 func TestGlobalExtensionManifestV2Migration(t *testing.T) {
 	t.Run("Should migrate extension manifests to the v2 contract", func(t *testing.T) {
 		t.Parallel()

@@ -68,7 +68,7 @@ func defaultResourceControlActor() resources.MutationActor {
 			Kind: resources.ResourceSourceKind("daemon"),
 			ID:   resourcesSystemKey,
 		},
-		MaxScope: resources.ResourceScope{Kind: resources.ResourceScopeKindGlobal},
+		MaxScope: resources.ResourceScope{Kind: resources.ResourceScopeKindUser},
 	}
 }
 

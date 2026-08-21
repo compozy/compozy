@@ -27,10 +27,14 @@ var ErrRegistrationNotFound = errors.New("mcp auth: client registration not foun
 type Scope string
 
 const (
-	// ScopeGlobal identifies a daemon-global MCP server.
-	ScopeGlobal Scope = "global"
+	// ScopeUser identifies a user-owned MCP server.
+	ScopeUser Scope = "user"
 	// ScopeWorkspace identifies a workspace-owned MCP server.
 	ScopeWorkspace Scope = "workspace"
+	// ScopeProfile identifies a profile-owned MCP server.
+	ScopeProfile Scope = "profile"
+	// ScopeWorkspaceProfile identifies a workspace-and-profile-owned MCP server.
+	ScopeWorkspaceProfile Scope = "workspace_profile"
 )
 
 // Target is the complete identity of one MCP OAuth credential set.
@@ -54,11 +58,12 @@ func (t Target) Validate() error {
 	switch {
 	case strings.ContainsRune(t.WorkspaceID, '\x00'):
 		return errors.New("mcp auth: workspace_id cannot contain NUL")
-	case t.Scope == ScopeGlobal && t.WorkspaceID != "":
-		return errors.New("mcp auth: global target cannot include workspace_id")
-	case t.Scope == ScopeWorkspace && t.WorkspaceID == "":
-		return errors.New("mcp auth: workspace target requires workspace_id")
-	case t.Scope != ScopeGlobal && t.Scope != ScopeWorkspace:
+	case t.Scope == ScopeUser && t.WorkspaceID != "":
+		return errors.New("mcp auth: user target cannot include scope identifier")
+	case t.Scope != ScopeUser && t.WorkspaceID == "":
+		return errors.New("mcp auth: non-user target requires a scope identifier")
+	case t.Scope != ScopeUser && t.Scope != ScopeWorkspace &&
+		t.Scope != ScopeProfile && t.Scope != ScopeWorkspaceProfile:
 		return fmt.Errorf("mcp auth: unsupported target scope %q", t.Scope)
 	default:
 		if err := compozyconfig.ValidateMCPServerName(t.ServerName); err != nil {

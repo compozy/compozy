@@ -320,7 +320,7 @@ func (s *stubSettingsService) HasPendingConfigRestart(ctx context.Context) (bool
 func defaultApplyResult(section settingspkg.SectionName) settingspkg.ApplyResult {
 	return settingspkg.ApplyResult{
 		Section:    section,
-		Scope:      settingspkg.ScopeGlobal,
+		Scope:      settingspkg.ScopeUser,
 		Applied:    true,
 		NextAction: "none",
 		Record: settingspkg.ApplyRecord{
@@ -1310,8 +1310,8 @@ func TestSettingsSectionAndCollectionConversions(t *testing.T) {
 	sectionEnvelopes := []settingspkg.SectionEnvelope{
 		{
 			Section:         settingspkg.SectionGeneral,
-			Scope:           settingspkg.ScopeGlobal,
-			AvailableScopes: []settingspkg.ScopeKind{settingspkg.ScopeGlobal},
+			Scope:           settingspkg.ScopeUser,
+			AvailableScopes: []settingspkg.ScopeKind{settingspkg.ScopeUser},
 			General: &settingspkg.GeneralSection{
 				Runtime: settingspkg.DaemonRuntimeStatus{
 					Available:      true,
@@ -1355,8 +1355,8 @@ func TestSettingsSectionAndCollectionConversions(t *testing.T) {
 		},
 		{
 			Section:         settingspkg.SectionMemory,
-			Scope:           settingspkg.ScopeGlobal,
-			AvailableScopes: []settingspkg.ScopeKind{settingspkg.ScopeGlobal},
+			Scope:           settingspkg.ScopeUser,
+			AvailableScopes: []settingspkg.ScopeKind{settingspkg.ScopeUser},
 			Memory: &settingspkg.MemorySection{
 				Config: compozyconfig.MemoryConfig{
 					Enabled:   true,
@@ -1384,8 +1384,8 @@ func TestSettingsSectionAndCollectionConversions(t *testing.T) {
 		},
 		{
 			Section:         settingspkg.SectionSkills,
-			Scope:           settingspkg.ScopeGlobal,
-			AvailableScopes: []settingspkg.ScopeKind{settingspkg.ScopeGlobal},
+			Scope:           settingspkg.ScopeUser,
+			AvailableScopes: []settingspkg.ScopeKind{settingspkg.ScopeUser},
 			Skills: &settingspkg.SkillsSection{
 				Config: compozyconfig.SkillsConfig{
 					Enabled:      true,
@@ -1406,8 +1406,8 @@ func TestSettingsSectionAndCollectionConversions(t *testing.T) {
 		},
 		{
 			Section:         settingspkg.SectionAutomation,
-			Scope:           settingspkg.ScopeGlobal,
-			AvailableScopes: []settingspkg.ScopeKind{settingspkg.ScopeGlobal},
+			Scope:           settingspkg.ScopeUser,
+			AvailableScopes: []settingspkg.ScopeKind{settingspkg.ScopeUser},
 			Automation: &settingspkg.AutomationSection{
 				Config: settingspkg.AutomationSettings{
 					Enabled:           true,
@@ -1431,8 +1431,8 @@ func TestSettingsSectionAndCollectionConversions(t *testing.T) {
 		},
 		{
 			Section:         settingspkg.SectionNetwork,
-			Scope:           settingspkg.ScopeGlobal,
-			AvailableScopes: []settingspkg.ScopeKind{settingspkg.ScopeGlobal},
+			Scope:           settingspkg.ScopeUser,
+			AvailableScopes: []settingspkg.ScopeKind{settingspkg.ScopeUser},
 			Network: &settingspkg.NetworkSection{
 				Config: compozyconfig.NetworkConfig{
 					Enabled:      true,
@@ -1454,8 +1454,8 @@ func TestSettingsSectionAndCollectionConversions(t *testing.T) {
 		},
 		{
 			Section:         settingspkg.SectionWindowManager,
-			Scope:           settingspkg.ScopeGlobal,
-			AvailableScopes: []settingspkg.ScopeKind{settingspkg.ScopeGlobal},
+			Scope:           settingspkg.ScopeUser,
+			AvailableScopes: []settingspkg.ScopeKind{settingspkg.ScopeUser},
 			WindowManager: &settingspkg.WindowManagerSection{
 				Config: compozyconfig.WindowManagerConfig{
 					NewWindowPolicy:     compozyconfig.WindowNewPolicyBesideFocus,
@@ -1494,7 +1494,7 @@ func TestSettingsSectionAndCollectionConversions(t *testing.T) {
 			Section:         settingspkg.SectionCmdPalette,
 			Scope:           settingspkg.ScopeWorkspace,
 			WorkspaceID:     "ws-test",
-			AvailableScopes: []settingspkg.ScopeKind{settingspkg.ScopeGlobal, settingspkg.ScopeWorkspace},
+			AvailableScopes: []settingspkg.ScopeKind{settingspkg.ScopeUser, settingspkg.ScopeWorkspace},
 			CmdPalette: &settingspkg.CmdPaletteSection{
 				FallbackAgentEnabled: true,
 				Personalization:      true,
@@ -1502,14 +1502,14 @@ func TestSettingsSectionAndCollectionConversions(t *testing.T) {
 		},
 		{
 			Section:         settingspkg.SectionAttention,
-			Scope:           settingspkg.ScopeGlobal,
-			AvailableScopes: []settingspkg.ScopeKind{settingspkg.ScopeGlobal},
+			Scope:           settingspkg.ScopeUser,
+			AvailableScopes: []settingspkg.ScopeKind{settingspkg.ScopeUser},
 			Attention:       &settingspkg.AttentionSection{},
 		},
 		{
 			Section:         settingspkg.SectionObservability,
-			Scope:           settingspkg.ScopeGlobal,
-			AvailableScopes: []settingspkg.ScopeKind{settingspkg.ScopeGlobal},
+			Scope:           settingspkg.ScopeUser,
+			AvailableScopes: []settingspkg.ScopeKind{settingspkg.ScopeUser},
 			Observability: &settingspkg.ObservabilitySection{
 				Config: compozyconfig.ObservabilityConfig{
 					Enabled:        true,
@@ -1535,8 +1535,8 @@ func TestSettingsSectionAndCollectionConversions(t *testing.T) {
 		},
 		{
 			Section:         settingspkg.SectionHooksExtensions,
-			Scope:           settingspkg.ScopeGlobal,
-			AvailableScopes: []settingspkg.ScopeKind{settingspkg.ScopeGlobal},
+			Scope:           settingspkg.ScopeUser,
+			AvailableScopes: []settingspkg.ScopeKind{settingspkg.ScopeUser},
 			HooksExtensions: &settingspkg.HooksExtensionsSection{
 				Hooks: []settingspkg.HookItem{{
 					Name: "capture-tool-call",
@@ -1553,7 +1553,7 @@ func TestSettingsSectionAndCollectionConversions(t *testing.T) {
 					SourceMetadata: settingspkg.SourceMetadata{
 						EffectiveSource: settingspkg.SourceRef{
 							Kind:  settingspkg.SourceKindGlobalConfig,
-							Scope: settingspkg.ScopeGlobal,
+							Scope: settingspkg.ScopeUser,
 						},
 						AvailableTargets: []settingspkg.WriteTargetKind{settingspkg.WriteTargetGlobalConfig},
 					},
@@ -1728,8 +1728,8 @@ func TestSettingsSectionAndCollectionConversions(t *testing.T) {
 	collectionEnvelopes := []settingspkg.CollectionEnvelope{
 		{
 			Collection:      settingspkg.CollectionProviders,
-			Scope:           settingspkg.ScopeGlobal,
-			AvailableScopes: []settingspkg.ScopeKind{settingspkg.ScopeGlobal},
+			Scope:           settingspkg.ScopeUser,
+			AvailableScopes: []settingspkg.ScopeKind{settingspkg.ScopeUser},
 			Providers: []settingspkg.ProviderItem{
 				{
 					Name: "openai",
@@ -1764,7 +1764,7 @@ func TestSettingsSectionAndCollectionConversions(t *testing.T) {
 					SourceMetadata: settingspkg.SourceMetadata{
 						EffectiveSource: settingspkg.SourceRef{
 							Kind:  settingspkg.SourceKindGlobalConfig,
-							Scope: settingspkg.ScopeGlobal,
+							Scope: settingspkg.ScopeUser,
 						},
 						AvailableTargets: []settingspkg.WriteTargetKind{
 							settingspkg.WriteTargetGlobalConfig,
@@ -1773,7 +1773,7 @@ func TestSettingsSectionAndCollectionConversions(t *testing.T) {
 					Fallback: &settingspkg.ProviderFallback{
 						Source: settingspkg.SourceRef{
 							Kind:  settingspkg.SourceKindBuiltinProvider,
-							Scope: settingspkg.ScopeGlobal,
+							Scope: settingspkg.ScopeUser,
 						},
 						Settings: settingspkg.ProviderSettings{
 							Command: "codex",
@@ -1789,7 +1789,7 @@ func TestSettingsSectionAndCollectionConversions(t *testing.T) {
 			Collection:      settingspkg.CollectionMCPServers,
 			Scope:           settingspkg.ScopeWorkspace,
 			WorkspaceID:     "ws-1",
-			AvailableScopes: []settingspkg.ScopeKind{settingspkg.ScopeGlobal, settingspkg.ScopeWorkspace},
+			AvailableScopes: []settingspkg.ScopeKind{settingspkg.ScopeUser, settingspkg.ScopeWorkspace},
 			MCPServers: []settingspkg.MCPServerItem{{
 				Name:        "memory",
 				Command:     "memoryd",
@@ -1809,8 +1809,8 @@ func TestSettingsSectionAndCollectionConversions(t *testing.T) {
 		},
 		{
 			Collection:      settingspkg.CollectionSandboxes,
-			Scope:           settingspkg.ScopeGlobal,
-			AvailableScopes: []settingspkg.ScopeKind{settingspkg.ScopeGlobal},
+			Scope:           settingspkg.ScopeUser,
+			AvailableScopes: []settingspkg.ScopeKind{settingspkg.ScopeUser},
 			Sandboxes: []settingspkg.SandboxItem{{
 				Name: "local",
 				Profile: compozyconfig.SandboxProfile{
@@ -1823,7 +1823,7 @@ func TestSettingsSectionAndCollectionConversions(t *testing.T) {
 				SourceMetadata: settingspkg.SourceMetadata{
 					EffectiveSource: settingspkg.SourceRef{
 						Kind:  settingspkg.SourceKindGlobalConfig,
-						Scope: settingspkg.ScopeGlobal,
+						Scope: settingspkg.ScopeUser,
 					},
 					AvailableTargets: []settingspkg.WriteTargetKind{
 						settingspkg.WriteTargetGlobalConfig,
@@ -1833,8 +1833,8 @@ func TestSettingsSectionAndCollectionConversions(t *testing.T) {
 		},
 		{
 			Collection:      settingspkg.CollectionHooks,
-			Scope:           settingspkg.ScopeGlobal,
-			AvailableScopes: []settingspkg.ScopeKind{settingspkg.ScopeGlobal},
+			Scope:           settingspkg.ScopeUser,
+			AvailableScopes: []settingspkg.ScopeKind{settingspkg.ScopeUser},
 			Hooks: []settingspkg.HookItem{{
 				Name: "capture",
 				Declaration: hookspkg.HookDecl{
@@ -1853,7 +1853,7 @@ func TestSettingsSectionAndCollectionConversions(t *testing.T) {
 				SourceMetadata: settingspkg.SourceMetadata{
 					EffectiveSource: settingspkg.SourceRef{
 						Kind:  settingspkg.SourceKindGlobalConfig,
-						Scope: settingspkg.ScopeGlobal,
+						Scope: settingspkg.ScopeUser,
 					},
 					AvailableTargets: []settingspkg.WriteTargetKind{
 						settingspkg.WriteTargetGlobalConfig,
@@ -2522,9 +2522,9 @@ func TestUpdateSettingsSectionHandlersDelegateValidPayloads(t *testing.T) {
 					case settingspkg.SectionWindowManager:
 						return settingspkg.SectionEnvelope{
 							Section: req.Section,
-							Scope:   settingspkg.ScopeGlobal,
+							Scope:   settingspkg.ScopeUser,
 							AvailableScopes: []settingspkg.ScopeKind{
-								settingspkg.ScopeGlobal,
+								settingspkg.ScopeUser,
 								settingspkg.ScopeWorkspace,
 							},
 							WindowManager: &settingspkg.WindowManagerSection{
@@ -2534,9 +2534,9 @@ func TestUpdateSettingsSectionHandlersDelegateValidPayloads(t *testing.T) {
 					case settingspkg.SectionCmdPalette:
 						return settingspkg.SectionEnvelope{
 							Section: req.Section,
-							Scope:   settingspkg.ScopeGlobal,
+							Scope:   settingspkg.ScopeUser,
 							AvailableScopes: []settingspkg.ScopeKind{
-								settingspkg.ScopeGlobal,
+								settingspkg.ScopeUser,
 								settingspkg.ScopeWorkspace,
 							},
 							CmdPalette: &settingspkg.CmdPaletteSection{
@@ -3007,7 +3007,7 @@ func TestSettingsCollectionHandlersDelegateValidPayloads(t *testing.T) {
 						Collection:      req.Collection,
 						Scope:           req.Scope,
 						WorkspaceID:     req.WorkspaceID,
-						AvailableScopes: []settingspkg.ScopeKind{settingspkg.ScopeGlobal, settingspkg.ScopeWorkspace},
+						AvailableScopes: []settingspkg.ScopeKind{settingspkg.ScopeUser, settingspkg.ScopeWorkspace},
 					}
 					switch req.Collection {
 					case settingspkg.CollectionProviders:
@@ -3041,7 +3041,7 @@ func TestSettingsCollectionHandlersDelegateValidPayloads(t *testing.T) {
 								SourceMetadata: settingspkg.SourceMetadata{
 									EffectiveSource: settingspkg.SourceRef{
 										Kind:  settingspkg.SourceKindGlobalConfig,
-										Scope: settingspkg.ScopeGlobal,
+										Scope: settingspkg.ScopeUser,
 									},
 									AvailableTargets: []settingspkg.WriteTargetKind{
 										settingspkg.WriteTargetGlobalConfig,
@@ -3075,7 +3075,7 @@ func TestSettingsCollectionHandlersDelegateValidPayloads(t *testing.T) {
 							SourceMetadata: settingspkg.SourceMetadata{
 								EffectiveSource: settingspkg.SourceRef{
 									Kind:  settingspkg.SourceKindGlobalConfig,
-									Scope: settingspkg.ScopeGlobal,
+									Scope: settingspkg.ScopeUser,
 								},
 								AvailableTargets: []settingspkg.WriteTargetKind{
 									settingspkg.WriteTargetGlobalConfig,
@@ -3096,7 +3096,7 @@ func TestSettingsCollectionHandlersDelegateValidPayloads(t *testing.T) {
 							SourceMetadata: settingspkg.SourceMetadata{
 								EffectiveSource: settingspkg.SourceRef{
 									Kind:  settingspkg.SourceKindGlobalConfig,
-									Scope: settingspkg.ScopeGlobal,
+									Scope: settingspkg.ScopeUser,
 								},
 								AvailableTargets: []settingspkg.WriteTargetKind{
 									settingspkg.WriteTargetGlobalConfig,
@@ -3315,8 +3315,8 @@ func TestSettingsRemainingReadAndDeleteHandlers(t *testing.T) {
 				}
 				return settingspkg.SectionEnvelope{
 					Section:         settingspkg.SectionWindowManager,
-					Scope:           settingspkg.ScopeGlobal,
-					AvailableScopes: []settingspkg.ScopeKind{settingspkg.ScopeGlobal},
+					Scope:           settingspkg.ScopeUser,
+					AvailableScopes: []settingspkg.ScopeKind{settingspkg.ScopeUser},
 					WindowManager: &settingspkg.WindowManagerSection{
 						Config: config,
 					},
@@ -3378,7 +3378,7 @@ func TestSettingsRemainingReadAndDeleteHandlers(t *testing.T) {
 				Section:         req.Section,
 				Scope:           req.Scope,
 				WorkspaceID:     req.WorkspaceID,
-				AvailableScopes: []settingspkg.ScopeKind{settingspkg.ScopeGlobal},
+				AvailableScopes: []settingspkg.ScopeKind{settingspkg.ScopeUser},
 			}
 			switch req.Section {
 			case settingspkg.SectionMemory:
@@ -3442,7 +3442,7 @@ func TestSettingsRemainingReadAndDeleteHandlers(t *testing.T) {
 				Collection:      req.Collection,
 				Scope:           req.Scope,
 				WorkspaceID:     req.WorkspaceID,
-				AvailableScopes: []settingspkg.ScopeKind{settingspkg.ScopeGlobal},
+				AvailableScopes: []settingspkg.ScopeKind{settingspkg.ScopeUser},
 			}
 			switch req.Collection {
 			case settingspkg.CollectionSandboxes:
@@ -3454,7 +3454,7 @@ func TestSettingsRemainingReadAndDeleteHandlers(t *testing.T) {
 					SourceMetadata: settingspkg.SourceMetadata{
 						EffectiveSource: settingspkg.SourceRef{
 							Kind:  settingspkg.SourceKindGlobalConfig,
-							Scope: settingspkg.ScopeGlobal,
+							Scope: settingspkg.ScopeUser,
 						},
 						AvailableTargets: []settingspkg.WriteTargetKind{
 							settingspkg.WriteTargetGlobalConfig,
@@ -3610,7 +3610,7 @@ func TestGetSettingsProviderMissingResourceReturnsNotFound(t *testing.T) {
 		ListCollectionFn: func(context.Context, settingspkg.CollectionRequest) (settingspkg.CollectionEnvelope, error) {
 			return settingspkg.CollectionEnvelope{
 				Collection: settingspkg.CollectionProviders,
-				Scope:      settingspkg.ScopeGlobal,
+				Scope:      settingspkg.ScopeUser,
 			}, nil
 		},
 	}
@@ -4098,8 +4098,8 @@ func TestSettingsHandlersBehaveIdenticallyAcrossTransportShims(t *testing.T) {
 
 	observabilityEnvelope := settingspkg.SectionEnvelope{
 		Section:         settingspkg.SectionObservability,
-		Scope:           settingspkg.ScopeGlobal,
-		AvailableScopes: []settingspkg.ScopeKind{settingspkg.ScopeGlobal},
+		Scope:           settingspkg.ScopeUser,
+		AvailableScopes: []settingspkg.ScopeKind{settingspkg.ScopeUser},
 		Observability: &settingspkg.ObservabilitySection{
 			Config: compozyconfig.ObservabilityConfig{
 				Enabled:        true,

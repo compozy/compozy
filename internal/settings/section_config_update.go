@@ -253,7 +253,7 @@ func (s *service) loadGlobalSectionUpdate(
 	scope ScopeKind,
 	workspaceID string,
 ) (compozyconfig.Config, compozyconfig.WriteTarget, error) {
-	loaded, err := s.loadScopedSectionUpdate(ctx, section, scope, workspaceID, ScopeGlobal)
+	loaded, err := s.loadScopedSectionUpdate(ctx, section, scope, workspaceID, ScopeUser)
 	if err != nil {
 		return compozyconfig.Config{}, compozyconfig.WriteTarget{}, err
 	}
@@ -281,7 +281,7 @@ func (s *service) loadScopedSectionUpdate(
 	}
 	supported := slices.Contains(allowedScopes, normalizedScope)
 	if !supported {
-		if len(allowedScopes) == 1 && allowedScopes[0] == ScopeGlobal {
+		if len(allowedScopes) == 1 && allowedScopes[0] == ScopeUser {
 			return scopedSectionUpdate{}, conflictError(
 				fmt.Errorf("settings: section %q does not support workspace scope", section),
 			)
@@ -300,7 +300,7 @@ func (s *service) loadScopedSectionUpdate(
 		)
 	}
 
-	writeScope := compozyconfig.WriteScopeGlobal
+	writeScope := compozyconfig.WriteScopeUser
 	workspaceRoot := ""
 	if normalizedScope == ScopeWorkspace {
 		if resolved == nil {
@@ -332,7 +332,7 @@ func (s *service) loadRolesSectionUpdate(
 	scope ScopeKind,
 	workspaceID string,
 ) (scopedSectionUpdate, error) {
-	return s.loadScopedSectionUpdate(ctx, SectionRoles, scope, workspaceID, ScopeGlobal, ScopeWorkspace)
+	return s.loadScopedSectionUpdate(ctx, SectionRoles, scope, workspaceID, ScopeUser, ScopeWorkspace)
 }
 
 func (s *service) updateConfigSection(
@@ -341,7 +341,7 @@ func (s *service) updateConfigSection(
 	target compozyconfig.WriteTarget,
 	mutate func(*compozyconfig.OverlayEditor) error,
 ) (MutationResult, error) {
-	return s.updateScopedConfigSection(section, changed, target, ScopeGlobal, "", "", mutate)
+	return s.updateScopedConfigSection(section, changed, target, ScopeUser, "", "", mutate)
 }
 
 func (s *service) updateScopedConfigSection(

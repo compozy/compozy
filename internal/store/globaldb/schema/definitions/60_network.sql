@@ -48,6 +48,7 @@ CREATE TABLE network_channel_stats (
 	);
 
 CREATE TABLE network_channels (
+			profile_id   TEXT NOT NULL REFERENCES profiles(id),
 			workspace_id TEXT NOT NULL,
 			channel      TEXT NOT NULL,
 			purpose      TEXT NOT NULL,
@@ -60,6 +61,7 @@ CREATE TABLE network_channels (
 		);
 
 CREATE TABLE network_direct_rooms (
+		profile_id          TEXT NOT NULL REFERENCES profiles(id),
 		workspace_id         TEXT NOT NULL,
 		channel              TEXT NOT NULL,
 		direct_id            TEXT NOT NULL,
@@ -165,6 +167,7 @@ CREATE TABLE network_thread_session_token_stats (
 		);
 
 CREATE TABLE network_threads (
+		profile_id           TEXT NOT NULL REFERENCES profiles(id),
 		workspace_id         TEXT NOT NULL,
 		channel              TEXT NOT NULL,
 		thread_id            TEXT NOT NULL,
@@ -222,6 +225,7 @@ CREATE TABLE network_timeline_log (
 
 CREATE TABLE network_work (
 		work_id           TEXT NOT NULL,
+		profile_id        TEXT NOT NULL REFERENCES profiles(id),
 		workspace_id      TEXT NOT NULL,
 		channel           TEXT NOT NULL,
 		surface           TEXT NOT NULL CHECK (surface IN ('thread', 'direct')),

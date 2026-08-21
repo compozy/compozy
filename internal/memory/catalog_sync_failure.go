@@ -31,6 +31,7 @@ func (s *Store) invalidateCatalogIdentityAfterSyncFailure(
 	_, workspaceID, err := s.catalogWorkspaceForScope(cleanupCtx, scope)
 	if err == nil {
 		err = s.catalog.invalidateCatalogIdentity(cleanupCtx, newCatalogIdentity(
+			s.profileIDForScope(scope),
 			scope,
 			workspaceID,
 			s.catalogAgentName(scope),

@@ -312,7 +312,7 @@ func TestSnapshotServiceCapture(t *testing.T) {
 		}
 
 		if err := env.store.Write(t.Context(),
-			memcontract.ScopeGlobal,
+			memcontract.ScopeProfile,
 			"user_prefix_change.md",
 			mustMemoryContent(t, testMemoryMeta{
 				Name:        "Prefix Change",
@@ -563,7 +563,7 @@ func resolvedWorkspacePtr(root string) *workspacepkg.ResolvedWorkspace {
 func (e assemblerTestEnv) writeGlobalIndex(t *testing.T, content string) {
 	t.Helper()
 	writeAssemblerFileForTest(t, filepath.Join(e.store.globalDir, indexFilename), content)
-	e.writeIndexBackedDocuments(t, memcontract.ScopeGlobal, "", content)
+	e.writeIndexBackedDocuments(t, memcontract.ScopeProfile, "", content)
 }
 
 func (e assemblerTestEnv) writeWorkspaceIndex(t *testing.T, content string) {

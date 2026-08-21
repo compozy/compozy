@@ -4885,6 +4885,7 @@ func taskRecordForTest(id string) taskpkg.Task {
 	now := time.Date(2026, 4, 14, 12, 0, 0, 0, time.UTC)
 	return taskpkg.Task{
 		ID:             id,
+		ProfileID:      store.DefaultProfileID,
 		Identifier:     "identifier-" + id,
 		Scope:          taskpkg.ScopeGlobal,
 		Title:          "Task " + id,

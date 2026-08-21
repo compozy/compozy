@@ -129,6 +129,37 @@ func reportTestMainError(format string, args ...any) {
 }
 
 func TestOpenGlobalDBAppliesGlobalMigrationsAndEnablesWAL(t *testing.T) {
+	t.Run("Should verify the exact permanent default profile without repairing it", func(t *testing.T) {
+		t.Parallel()
+
+		globalDB := openFreshTestGlobalDB(t)
+		ctx := testutil.Context(t)
+		if err := globalDB.VerifyDefaultProfile(ctx); err != nil {
+			t.Fatalf("VerifyDefaultProfile() error = %v", err)
+		}
+		if _, err := globalDB.db.ExecContext(
+			ctx,
+			`UPDATE profiles SET color = '#000000' WHERE id = ?`,
+			store.DefaultProfileID,
+		); err != nil {
+			t.Fatalf("corrupt default profile fixture error = %v", err)
+		}
+		if err := globalDB.VerifyDefaultProfile(ctx); err == nil {
+			t.Fatal("VerifyDefaultProfile(corrupt) error = nil, want non-nil")
+		}
+		var color string
+		if err := globalDB.db.QueryRowContext(
+			ctx,
+			`SELECT color FROM profiles WHERE id = ?`,
+			store.DefaultProfileID,
+		).Scan(&color); err != nil {
+			t.Fatalf("read corrupt default profile error = %v", err)
+		}
+		if color != "#000000" {
+			t.Fatalf("VerifyDefaultProfile() repaired color = %q, want verify-only state", color)
+		}
+	})
+
 	t.Run("Should apply the complete global migration stream before repository use", func(t *testing.T) {
 		t.Parallel()
 
@@ -2700,12 +2731,12 @@ func TestGlobalDBDeleteWorkspaceWithoutSessions(t *testing.T) {
 		if err := globalDB.DeleteWorkspace(ctx, workspaceID); err != nil {
 			t.Fatalf("DeleteWorkspace() error = %v", err)
 		}
-		deleted, err := globalDB.ListEnvBindings(ctx, "kit", workspaceID)
+		deleted, err := globalDB.ListEnvBindings(ctx, "kit", "", workspaceID)
 		if err != nil || len(deleted) != 0 {
 			t.Fatalf("deleted workspace bindings = %#v, %v; want empty", deleted, err)
 		}
 		for _, preservedWorkspaceID := range []string{"", siblingID} {
-			preserved, listErr := globalDB.ListEnvBindings(ctx, "kit", preservedWorkspaceID)
+			preserved, listErr := globalDB.ListEnvBindings(ctx, "kit", "", preservedWorkspaceID)
 			if listErr != nil || len(preserved) != 1 {
 				t.Fatalf("preserved bindings for %q = %#v, %v; want one", preservedWorkspaceID, preserved, listErr)
 			}
@@ -2713,7 +2744,7 @@ func TestGlobalDBDeleteWorkspaceWithoutSessions(t *testing.T) {
 		if err := globalDB.InsertWorkspace(ctx, deletedWorkspace); err != nil {
 			t.Fatalf("InsertWorkspace(same ID) error = %v", err)
 		}
-		reused, err := globalDB.ListEnvBindings(ctx, "kit", workspaceID)
+		reused, err := globalDB.ListEnvBindings(ctx, "kit", "", workspaceID)
 		if err != nil || len(reused) != 0 {
 			t.Fatalf("reused workspace bindings = %#v, %v; want no recovered secrets", reused, err)
 		}
@@ -2723,7 +2754,7 @@ func TestGlobalDBDeleteWorkspaceWithoutSessions(t *testing.T) {
 		if _, err := globalDB.db.ExecContext(ctx, `DELETE FROM workspaces WHERE id = ?`, workspaceID); err != nil {
 			t.Fatalf("raw workspace delete error = %v", err)
 		}
-		cascaded, err := globalDB.ListEnvBindings(ctx, "kit", workspaceID)
+		cascaded, err := globalDB.ListEnvBindings(ctx, "kit", "", workspaceID)
 		if err != nil || len(cascaded) != 0 {
 			t.Fatalf("raw-delete cascaded bindings = %#v, %v; want empty", cascaded, err)
 		}
@@ -4332,6 +4363,7 @@ func registerSessionForGlobalTests(t *testing.T, globalDB *GlobalDB, sessionID s
 	)
 	if err := globalDB.RegisterSession(testutil.Context(t), SessionInfo{
 		ID:            sessionID,
+		ProfileID:     store.DefaultProfileID,
 		AgentName:     "coder",
 		Provider:      "claude",
 		RuntimeStatus: store.SessionRuntimeUnbound,
