@@ -57,6 +57,10 @@ func TestResumeUsesPersistedEffectivePermissions(t *testing.T) {
 		if got, want := createdMeta.EffectivePermissions, string(compozyconfig.PermissionModeApproveAll); got != want {
 			t.Fatalf("created metadata effective permissions = %q, want %q", got, want)
 		}
+		wantAuthMode := string(compozyconfig.ProviderAuthModeNativeCLI)
+		if got, want := createdMeta.EffectiveProviderAuthModeValue(), wantAuthMode; got != want {
+			t.Fatalf("created metadata provider auth mode = %q, want %q", got, want)
+		}
 
 		if err := h.manager.Stop(testutil.Context(t), created.ID); err != nil {
 			t.Fatalf("Stop() error = %v", err)
@@ -88,6 +92,9 @@ func TestResumeUsesPersistedEffectivePermissions(t *testing.T) {
 		resumedMeta := readMeta(t, resumed.MetaPath())
 		if got, want := resumedMeta.EffectivePermissions, string(compozyconfig.PermissionModeApproveAll); got != want {
 			t.Fatalf("resumed metadata effective permissions = %q, want %q", got, want)
+		}
+		if got, want := resumedMeta.EffectiveProviderAuthModeValue(), wantAuthMode; got != want {
+			t.Fatalf("resumed metadata provider auth mode = %q, want %q", got, want)
 		}
 	})
 }

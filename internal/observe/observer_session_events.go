@@ -2,11 +2,10 @@ package observe
 
 import (
 	"context"
-
 	"strings"
 
 	"github.com/compozy/compozy/internal/acp"
-
+	compozyconfig "github.com/compozy/compozy/internal/config"
 	"github.com/compozy/compozy/internal/session"
 	"github.com/compozy/compozy/internal/store"
 )
@@ -159,16 +158,26 @@ func (o *Observer) recoverSessionSnapshot(ctx context.Context, sessionID string)
 		if strings.TrimSpace(info.ID) != id {
 			continue
 		}
+		model := strings.TrimSpace(info.Model)
+		permissionMode := ""
+		authMode := compozyconfig.ProviderAuthMode("")
+		if meta, ok := o.readObservedSessionMeta(id, info.WorkspaceID); ok {
+			model = strings.TrimSpace(meta.Model)
+			permissionMode = strings.TrimSpace(meta.EffectivePermissions)
+			authMode = compozyconfig.ProviderAuthMode(strings.TrimSpace(meta.EffectiveProviderAuthModeValue()))
+		}
 		snapshot := observedSessionIdentity(
 			id,
 			info.AgentName,
 			info.Provider,
-			"",
+			model,
 			info.WorkspaceID,
-			"",
+			permissionMode,
 			info.RuntimeSelectionRevision,
 			info.Lineage,
 		)
+		snapshot.authMode = authMode
+		snapshot.agentCatalogRevision = o.agentCatalogRevision()
 		if strings.TrimSpace(info.State) != string(session.StateStopped) {
 			o.trackSession(id, snapshot)
 		}
@@ -200,6 +209,7 @@ func (o *Observer) observedSessionSnapshot(
 		runtimeRevision,
 		lineage,
 	)
+	snapshot.agentCatalogRevision = o.agentCatalogRevision()
 	if o.resolveProviderAuth != nil {
 		authMode, err := o.resolveProviderAuth(
 			ctx,
@@ -230,6 +240,7 @@ func (o *Observer) observedSessionSnapshot(
 }
 
 func (o *Observer) trackLiveSession(ctx context.Context, info *session.Info) observedSession {
+	requireObserverContext(ctx, "trackLiveSession")
 	if info == nil {
 		return observedSession{}
 	}
@@ -243,6 +254,7 @@ func (o *Observer) trackLiveSession(ctx context.Context, info *session.Info) obs
 		info.RuntimeSelectionRevision,
 		info.Lineage,
 	)
+	candidate.agentCatalogRevision = o.agentCatalogRevision()
 	if current, ok := o.sessionSnapshot(info.ID); ok && current.sameRuntimeIdentity(candidate) {
 		return current
 	}
@@ -291,7 +303,8 @@ func (snapshot observedSession) sameRuntimeIdentity(other observedSession) bool 
 		snapshot.model == other.model &&
 		snapshot.workspaceID == other.workspaceID &&
 		snapshot.permissionMode == other.permissionMode &&
-		snapshot.runtimeRevision == other.runtimeRevision
+		snapshot.runtimeRevision == other.runtimeRevision &&
+		snapshot.agentCatalogRevision == other.agentCatalogRevision
 }
 
 func requireObserverContext(ctx context.Context, caller string) {

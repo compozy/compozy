@@ -5,7 +5,6 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
-
 	"sync"
 	"time"
 
@@ -79,16 +78,17 @@ type HookStoreOpener func(ctx context.Context, owner store.SessionDBOwner, path 
 type Option func(*Observer)
 
 type observedSession struct {
-	agentName       string
-	provider        string
-	model           string
-	authMode        compozyconfig.ProviderAuthMode
-	workspaceID     string
-	permissionMode  string
-	runtimeRevision int64
-	parentSessionID string
-	rootSessionID   string
-	spawnDepth      int
+	agentName            string
+	provider             string
+	model                string
+	authMode             compozyconfig.ProviderAuthMode
+	workspaceID          string
+	permissionMode       string
+	runtimeRevision      int64
+	agentCatalogRevision int64
+	parentSessionID      string
+	rootSessionID        string
+	spawnDepth           int
 }
 
 // TaskHealthConfig controls task-run stuck detection in the read-side health view.

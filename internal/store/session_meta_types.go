@@ -37,6 +37,12 @@ type SessionAdvertisedCommandState struct {
 	AdvertisedCommands []SessionAdvertisedCommand `json:"advertised_commands,omitempty"`
 }
 
+// SessionProviderAuthState keeps the resolved provider authentication owner compact inside SessionMeta.
+// Embedding preserves the flat session metadata JSON contract.
+type SessionProviderAuthState struct {
+	EffectiveProviderAuthMode string `json:"effective_provider_auth_mode,omitempty"`
+}
+
 // SessionMeta is the atomically-written session metadata document.
 type SessionMeta struct {
 	ID                   string                        `json:"id"`
@@ -52,7 +58,8 @@ type SessionMeta struct {
 	RuntimeFailure       *string                       `json:"runtime_failure,omitempty"`
 	RuntimeSelection     *SessionRuntimeSelectionState `json:"runtime_selection,omitempty"`
 	EffectivePermissions string                        `json:"effective_permissions,omitempty"`
-	WorkspaceID          string                        `json:"workspace_id,omitempty"`
+	*SessionProviderAuthState
+	WorkspaceID string `json:"workspace_id,omitempty"`
 	*SessionWorktreeState
 	CWD                  string                  `json:"cwd,omitempty"`
 	NetworkParticipation *participation.Spec     `json:"network_participation"`
@@ -112,6 +119,23 @@ func (m *SessionMeta) SetAdvertisedCommands(commands []SessionAdvertisedCommand)
 	m.SessionAdvertisedCommandState = &SessionAdvertisedCommandState{
 		AdvertisedCommands: CloneSessionAdvertisedCommands(commands),
 	}
+}
+
+// EffectiveProviderAuthModeValue returns the persisted provider authentication owner.
+func (m SessionMeta) EffectiveProviderAuthModeValue() string {
+	if m.SessionProviderAuthState == nil {
+		return ""
+	}
+	return m.EffectiveProviderAuthMode
+}
+
+// SetEffectiveProviderAuthMode updates the optional provider authentication owner.
+func (m *SessionMeta) SetEffectiveProviderAuthMode(mode string) {
+	if mode == "" {
+		m.SessionProviderAuthState = nil
+		return
+	}
+	m.SessionProviderAuthState = &SessionProviderAuthState{EffectiveProviderAuthMode: mode}
 }
 
 // Validate ensures the metadata file remains aligned with the session index schema.

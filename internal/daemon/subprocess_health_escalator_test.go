@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/compozy/compozy/internal/session"
+	"github.com/compozy/compozy/internal/store"
 	"github.com/compozy/compozy/internal/subprocess"
 	taskpkg "github.com/compozy/compozy/internal/task"
 	"github.com/compozy/compozy/internal/testutil"
@@ -107,12 +108,14 @@ func TestSubprocessHealthEscalator(t *testing.T) {
 			t.Fatalf("newSubprocessHealthEscalator() error = %v", err)
 		}
 
-		escalator.escalate(
-			testutil.Context(t),
-			unhealthySubprocessObservation(3),
-			"agent subprocess crashed",
-			true,
-		)
+		stopped := session.NotificationSessionFromInfo(&session.Info{
+			ID:          "sess-health",
+			AgentName:   "coder",
+			WorkspaceID: "ws-health",
+			State:       session.StateStopped,
+			StopReason:  store.StopAgentCrashed,
+		})
+		escalator.OnSessionStopped(testutil.Context(t), stopped)
 
 		if actor.markCalls != 0 {
 			t.Fatalf(

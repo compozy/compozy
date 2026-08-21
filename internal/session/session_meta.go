@@ -58,6 +58,7 @@ func (s *Session) metaLocked() store.SessionMeta {
 		CreatedAt:            s.CreatedAt,
 		UpdatedAt:            s.UpdatedAt,
 	}
+	meta.SetEffectiveProviderAuthMode(string(s.effectiveProviderAuthMode))
 	meta.SetWorktreeID(s.WorktreeID)
 	meta.SetAdvertisedCommands(s.AdvertisedCommands)
 	if identity != nil {

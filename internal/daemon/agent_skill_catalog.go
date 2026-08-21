@@ -26,6 +26,7 @@ type resourceAgentCatalog struct {
 var _ session.AgentArtifactResolver = (*resourceAgentCatalog)(nil)
 var _ heartbeat.PolicyResolver = (*resourceAgentCatalog)(nil)
 var _ session.AgentResolver = (*resourceAgentCatalog)(nil)
+var _ session.AgentCatalogRevisionSource = (*resourceAgentCatalog)(nil)
 
 type agentSidecarCatalogs struct {
 	soul      *resourceCatalog[soul.ResourceSpec]
@@ -56,13 +57,51 @@ func (c *resourceAgentCatalog) ResolveAgent(
 		return compozyconfig.AgentDef{}, errors.New("session: agent name is required")
 	}
 	if c == nil || c.catalog == nil {
-		return resolveAgentFromWorkspaceSnapshot(target, resolved)
+		return resolveAgentFallback(target, resolved)
 	}
 	if record, ok := c.lookupAgentRecord(target, resolved); ok {
 		return cloneAgentDef(record.Spec), nil
 	}
 	if resolved != nil {
-		return resolveAgentFromWorkspaceSnapshot(target, resolved)
+		agent, err := resolveAgentFromWorkspaceSnapshot(target, resolved)
+		if err == nil {
+			return agent, nil
+		}
+		if !errors.Is(err, workspacepkg.ErrAgentNotAvailable) {
+			return compozyconfig.AgentDef{}, err
+		}
+	}
+	if builtin, ok := compozyconfig.BuiltinAgentDef(target); ok {
+		return cloneAgentDef(builtin), nil
+	}
+	return compozyconfig.AgentDef{}, fmt.Errorf("%w: %s", workspacepkg.ErrAgentNotAvailable, target)
+}
+
+func (c *resourceAgentCatalog) AgentCatalogRevision() int64 {
+	if c == nil || c.catalog == nil {
+		return 0
+	}
+	return c.catalog.Revision()
+}
+
+func resolveAgentFallback(
+	target string,
+	resolved *workspacepkg.ResolvedWorkspace,
+) (compozyconfig.AgentDef, error) {
+	if resolved != nil {
+		agent, err := resolveAgentFromWorkspaceSnapshot(target, resolved)
+		if err == nil {
+			return agent, nil
+		}
+		if !errors.Is(err, workspacepkg.ErrAgentNotAvailable) {
+			return compozyconfig.AgentDef{}, err
+		}
+	}
+	if builtin, ok := compozyconfig.BuiltinAgentDef(target); ok {
+		return cloneAgentDef(builtin), nil
+	}
+	if resolved == nil {
+		return compozyconfig.AgentDef{}, errors.New("session: resolved workspace is required")
 	}
 	return compozyconfig.AgentDef{}, fmt.Errorf("%w: %s", workspacepkg.ErrAgentNotAvailable, target)
 }

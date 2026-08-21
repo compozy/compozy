@@ -142,3 +142,14 @@ func agentDefByName(agents []compozyconfig.AgentDef, name string) (compozyconfig
 	}
 	return compozyconfig.AgentDef{}, workspacepkg.ErrAgentNotAvailable
 }
+
+func (o *Observer) agentCatalogRevision() int64 {
+	if o == nil || o.agentResolver == nil {
+		return 0
+	}
+	source, ok := o.agentResolver.(session.AgentCatalogRevisionSource)
+	if !ok {
+		return 0
+	}
+	return source.AgentCatalogRevision()
+}

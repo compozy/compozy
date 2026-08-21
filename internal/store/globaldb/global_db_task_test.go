@@ -4435,12 +4435,12 @@ func TestGlobalDBRecoverTaskRun(t *testing.T) {
 			Scan(&attentionFlag, &attentionReason); err != nil {
 			t.Fatalf("read Loop attention control error = %v", err)
 		}
-		if attentionFlag != loopTaskAttentionFlag || attentionReason != diagnostic {
+		if attentionFlag != looppkg.AttentionWaitIntervention || attentionReason != diagnostic {
 			t.Fatalf(
 				"Loop attention = %q/%q, want %q/%q",
 				attentionFlag,
 				attentionReason,
-				loopTaskAttentionFlag,
+				looppkg.AttentionWaitIntervention,
 				diagnostic,
 			)
 		}

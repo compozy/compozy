@@ -374,6 +374,16 @@ func TestResourceAgentCatalogResolveAgentUsesCatalogMatches(t *testing.T) {
 	if _, err := dependency.ResolveAgent("missing", nil); !errors.Is(err, workspacepkg.ErrAgentNotAvailable) {
 		t.Fatalf("ResolveAgent(missing) error = %v, want ErrAgentNotAvailable", err)
 	}
+	builtin, err := dependency.ResolveAgent(compozyconfig.BuiltinCoordinatorAgentName, nil)
+	if err != nil {
+		t.Fatalf("ResolveAgent(coordinator builtin) error = %v", err)
+	}
+	if builtin.Name != compozyconfig.BuiltinCoordinatorAgentName {
+		t.Fatalf("ResolveAgent(coordinator builtin).Name = %q, want coordinator", builtin.Name)
+	}
+	if got, want := dependency.AgentCatalogRevision(), int64(3); got != want {
+		t.Fatalf("AgentCatalogRevision() = %d, want %d", got, want)
+	}
 }
 
 func TestResourceAgentCatalogResolveAgentValidation(t *testing.T) {

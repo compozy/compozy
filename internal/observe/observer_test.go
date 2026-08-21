@@ -17,6 +17,7 @@ import (
 	bridgepkg "github.com/compozy/compozy/internal/bridges"
 	compozyconfig "github.com/compozy/compozy/internal/config"
 	"github.com/compozy/compozy/internal/modelcatalog"
+	"github.com/compozy/compozy/internal/network/participation"
 	"github.com/compozy/compozy/internal/session"
 	"github.com/compozy/compozy/internal/store"
 	"github.com/compozy/compozy/internal/store/globaldb"
@@ -58,6 +59,7 @@ func TestOnAgentEventForSessionCachesResolvedAgentByRuntimeIdentity(t *testing.T
 			h.observer.workspaceResolver,
 			resolver,
 		)
+		h.observer.agentResolver = resolver
 		sess := newSession("sess-runtime-cache", session.StateActive, h.workspace, h.now)
 		sess.Model = "claude-test"
 		sess.EffectivePermissions = "deny-all"
@@ -80,7 +82,6 @@ func TestOnAgentEventForSessionCachesResolvedAgentByRuntimeIdentity(t *testing.T
 		}
 
 		sess.RuntimeSelectionRevision++
-		sess.Model = "claude-next"
 		h.observer.OnAgentEventForSession(testutil.Context(t), sess, acp.AgentEvent{
 			Type:      "agent_message",
 			TurnID:    "turn-cache-runtime-change",
@@ -88,7 +89,29 @@ func TestOnAgentEventForSessionCachesResolvedAgentByRuntimeIdentity(t *testing.T
 			Text:      "runtime changed",
 		})
 		if got := resolver.calls.Load(); got != 2 {
-			t.Fatalf("ResolveAgent() calls = %d, want 2 after runtime identity change", got)
+			t.Fatalf("ResolveAgent() calls = %d, want 2 after runtime revision change", got)
+		}
+
+		sess.Model = "claude-next"
+		h.observer.OnAgentEventForSession(testutil.Context(t), sess, acp.AgentEvent{
+			Type:      "agent_message",
+			TurnID:    "turn-cache-model-change",
+			Timestamp: h.now.Add(4 * time.Minute),
+			Text:      "model changed",
+		})
+		if got := resolver.calls.Load(); got != 3 {
+			t.Fatalf("ResolveAgent() calls = %d, want 3 after model change", got)
+		}
+
+		resolver.revision.Store(2)
+		h.observer.OnAgentEventForSession(testutil.Context(t), sess, acp.AgentEvent{
+			Type:      "agent_message",
+			TurnID:    "turn-cache-catalog-change",
+			Timestamp: h.now.Add(5 * time.Minute),
+			Text:      "catalog changed",
+		})
+		if got := resolver.calls.Load(); got != 4 {
+			t.Fatalf("ResolveAgent() calls = %d, want 4 after agent catalog revision change", got)
 		}
 	})
 }
@@ -301,12 +324,13 @@ func TestOnAgentEventRecoversSessionSnapshot(t *testing.T) {
 	t.Parallel()
 
 	testCases := []struct {
-		name       string
-		sessionID  string
-		state      session.State
-		summary    string
-		setup      func(t *testing.T, h *harness, sess *session.Session)
-		wantCached bool
+		name               string
+		sessionID          string
+		state              session.State
+		summary            string
+		setup              func(t *testing.T, h *harness, sess *session.Session)
+		wantCached         bool
+		wantPersistedState bool
 	}{
 		{
 			name:      "Should recover session snapshot from live source",
@@ -315,6 +339,8 @@ func TestOnAgentEventRecoversSessionSnapshot(t *testing.T) {
 			summary:   "live source event was observed",
 			setup: func(t *testing.T, h *harness, sess *session.Session) {
 				t.Helper()
+				sess.Model = "claude-persisted"
+				sess.EffectivePermissions = "deny-all"
 
 				if err := h.registry.RegisterSession(
 					testutil.Context(t),
@@ -334,6 +360,8 @@ func TestOnAgentEventRecoversSessionSnapshot(t *testing.T) {
 			summary:   "registry event was observed",
 			setup: func(t *testing.T, h *harness, sess *session.Session) {
 				t.Helper()
+				sess.Model = "claude-persisted"
+				sess.EffectivePermissions = "deny-all"
 
 				if err := h.registry.RegisterSession(
 					testutil.Context(t),
@@ -341,8 +369,17 @@ func TestOnAgentEventRecoversSessionSnapshot(t *testing.T) {
 				); err != nil {
 					t.Fatalf("RegisterSession() error = %v", err)
 				}
+				meta := sess.Meta()
+				meta.SetEffectiveProviderAuthMode(string(compozyconfig.ProviderAuthModeNativeCLI))
+				if err := store.WriteSessionMeta(
+					store.SessionMetaFile(filepath.Join(h.home.SessionsDir, sess.ID)),
+					meta,
+				); err != nil {
+					t.Fatalf("WriteSessionMeta() error = %v", err)
+				}
 			},
-			wantCached: true,
+			wantCached:         true,
+			wantPersistedState: true,
 		},
 		{
 			name:      "Should not cache stopped sessions recovered from registry",
@@ -351,6 +388,8 @@ func TestOnAgentEventRecoversSessionSnapshot(t *testing.T) {
 			summary:   "stopped registry event was observed",
 			setup: func(t *testing.T, h *harness, sess *session.Session) {
 				t.Helper()
+				sess.Model = "claude-persisted"
+				sess.EffectivePermissions = "deny-all"
 
 				if err := h.registry.RegisterSession(
 					testutil.Context(t),
@@ -358,8 +397,17 @@ func TestOnAgentEventRecoversSessionSnapshot(t *testing.T) {
 				); err != nil {
 					t.Fatalf("RegisterSession(stopped) error = %v", err)
 				}
+				meta := sess.Meta()
+				meta.SetEffectiveProviderAuthMode(string(compozyconfig.ProviderAuthModeNativeCLI))
+				if err := store.WriteSessionMeta(
+					store.SessionMetaFile(filepath.Join(h.home.SessionsDir, sess.ID)),
+					meta,
+				); err != nil {
+					t.Fatalf("WriteSessionMeta(stopped) error = %v", err)
+				}
 			},
-			wantCached: false,
+			wantCached:         false,
+			wantPersistedState: true,
 		},
 	}
 
@@ -370,6 +418,16 @@ func TestOnAgentEventRecoversSessionSnapshot(t *testing.T) {
 			h := newHarness(t)
 			sess := newSession(tc.sessionID, tc.state, h.workspace, h.now)
 			tc.setup(t, h, sess)
+			if tc.wantPersistedState {
+				snapshot, ok := h.observer.recoverSessionSnapshot(testutil.Context(t), sess.ID)
+				if !ok {
+					t.Fatal("recoverSessionSnapshot() ok = false, want true")
+				}
+				if snapshot.model != "claude-persisted" || snapshot.permissionMode != "deny-all" ||
+					snapshot.authMode != compozyconfig.ProviderAuthModeNativeCLI {
+					t.Fatalf("recoverSessionSnapshot() = %#v, want persisted runtime observation state", snapshot)
+				}
+			}
 
 			h.observer.OnAgentEvent(testutil.Context(t), sess.ID, acp.AgentEvent{
 				Type:      "agent_message",
@@ -427,6 +485,20 @@ func TestObserverSessionSnapshotRequiresContext(t *testing.T) {
 					0,
 					nil,
 				)
+			},
+		},
+		{
+			name: "Should panic before accepting nil info with nil context",
+			call: func(observer *Observer) {
+				observer.trackLiveSession(nilContext(), nil)
+			},
+		},
+		{
+			name: "Should panic on a cached live session with nil context",
+			call: func(observer *Observer) {
+				info := &session.Info{ID: "sess-cached-context", AgentName: "coder"}
+				observer.trackLiveSession(context.Background(), info)
+				observer.trackLiveSession(nilContext(), info)
 			},
 		},
 	}
@@ -1648,6 +1720,7 @@ func newSession(id string, state session.State, workspace string, now time.Time)
 		Provider:             "claude",
 		EffectivePermissions: "approve-all",
 		RuntimeStatus:        session.RuntimeStatusReady,
+		NetworkParticipation: participation.LocalSpec(),
 		WorkspaceID:          observerWorkspaceID,
 		Workspace:            workspace,
 		State:                state,
@@ -1658,8 +1731,9 @@ func newSession(id string, state session.State, workspace string, now time.Time)
 }
 
 type countingObserveAgentResolver struct {
-	calls atomic.Int64
-	agent compozyconfig.AgentDef
+	calls    atomic.Int64
+	revision atomic.Int64
+	agent    compozyconfig.AgentDef
 }
 
 func (r *countingObserveAgentResolver) ResolveAgent(
@@ -1668,4 +1742,8 @@ func (r *countingObserveAgentResolver) ResolveAgent(
 ) (compozyconfig.AgentDef, error) {
 	r.calls.Add(1)
 	return r.agent, nil
+}
+
+func (r *countingObserveAgentResolver) AgentCatalogRevision() int64 {
+	return r.revision.Load()
 }
