@@ -5,7 +5,7 @@
 - **Severity:** High · **Priority:** P1
 - **Persona Affected:** QA operator; registered collaborator agents
 - **Journey Step:** RT-073 one-kickoff autonomous collaboration, runtime observation
-- **Scenarios:** RT-073
+- **Scenarios:** RT-073; LP-run-read-agent-journey; LP-runs-roster-server-ordering; LP-web-run-default-read-briefing; LP-web-run-operator-register
 - **Found:** 2026-07-19 · **Report:** docs/qa/reports/2026-07-19-hermes-comparison.md
 - **Origin:** n/a
 
@@ -157,3 +157,29 @@ declared tasks unstarted and six task-owning agents silent, while the independen
 - **Evidence:**
   `/Users/pedronauck/dev/qa-labs/compozy-northstar-pay-20260816-141901-835450-lab/qa-artifacts/qa/observation-summary.json`;
   `/Users/pedronauck/dev/qa-labs/compozy-northstar-pay-20260816-141901-835450-lab/qa-artifacts/qa/journey-log.jsonl`.
+
+## Closure verification — scheduled 2026-08-21
+
+Planned by the `loop-task-legibility` QA cycle (`.compozy/tasks/loop-task-legibility/task_06.md`);
+executed by that program's QA tail (task_07). Status stays `open` until that run records a verdict.
+
+- **Why this cycle can close it.** The root cause is that the daemon, agent sessions, task scheduler
+  and Network runtime had no writer projecting lifecycle events into any stream the observer could
+  read — so `observe-runtime.py` tailed `journey-log.jsonl` and derived task and agent state from an
+  incomplete log. This program ships the missing surface: a runtime-owned public progress read.
+  `compozy loop runs` now serves `progress{round, steps_done, steps_total}` on every item plus
+  `attention{kind, count, since}` when something waits; `compozy loop why` always returns a non-empty
+  verdict; `compozy loop events <run-id> --after <seq> --follow` resumes from a durable per-run sequence; and
+  `compozy task list` returns a calm, truthful catalog on the same persisted state. None of these
+  existed at any of the six reproductions.
+- **Owning charters.** `CH-loop-legibility-run-read-resume` (the agent-side progress stream and its
+  resume seam), `CH-loop-legibility-run-default-read` and `CH-loop-legibility-operator-register`
+  (the human-side registers ADR-002 and ADR-003 cite this bug to justify).
+- **Pass condition.** A one-kickoff replay in a fresh isolated lab where progress is derived from the
+  runtime-owned reads above instead of from tailing `journey-log.jsonl`, and the observer's account
+  of task and run state matches an independent public task-catalog read for the whole window — no
+  `stall_detected` while the catalog is advancing, and no task reported unstarted that the catalog
+  shows started. A run that reproduces the divergence against the new surfaces keeps the bug open and
+  supersedes the root-cause statement above.
+- **Regression debt.** Recorded at `docs/qa/automation-backlog/runtime-owned-progress-observer.md` —
+  the fix has no regression test yet, and a sixth-plus reproduction is what earns one.

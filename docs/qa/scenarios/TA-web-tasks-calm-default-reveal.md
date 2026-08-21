@@ -3,7 +3,7 @@ id: TA-web-tasks-calm-default-reveal
 area: TA
 title: Web Tasks stays work-items only and reveals Loop records on request
 persona: Dora
-journey: J-05
+journey: J-supervise-loop-steady-state
 expected: With a Loop run in the workspace, the web Tasks list and board show zero Loop execution records and group counts that match their rows; the toolbar reveal reads "Work items" until turned on, and turning it on adds coordinator and cell rows carrying a loop glyph, a plain identity ("<loop> · run" / "<loop> · round N · step <node>"), a "Loop run"/"Loop step" tag and a link that lands on that run's page; leaving Tasks and coming back turns the reveal back off; revealing in a workspace with no Loop records shows "No loop records in this workspace" with a "Show work items" action instead of the generic empty; a record whose run retention deleted reads "Run no longer available" with its run id and no link; a workspace holding only Loop records shows the true "No tasks yet" empty.
 entry_points: web Tasks window -> List; web Tasks window -> Kanban; web Tasks window -> Dashboard
 qa_status: untested

@@ -3,7 +3,7 @@ id: TA-web-task-detail-loop-provenance
 area: TA
 title: A Loop execution record's detail page names its run and links back to it
 persona: Dora
-journey: J-05
+journey: J-supervise-loop-steady-state
 expected: Opening a coordinator or cell record's task detail — by deep link, not only from the list — leads the properties rail with a block headed "Loop run" or "Loop step" carrying the loop name, round, step and item in plain words plus an "Open run" link that lands on that run's page; a record whose run retention deleted keeps the same block and its run id but reads "Run no longer available" with no link to follow; no field on the page is recovered by parsing the task id.
 entry_points: web Tasks window -> List (reveal on) -> record; direct URL /tasks/<record-id>
 qa_status: untested
