@@ -381,6 +381,64 @@ func TestExtensionDistributionHandlers(t *testing.T) {
 			t.Fatalf("portable validation payload leaked claim token: %s", response.Body.String())
 		}
 	})
+
+	t.Run("Should preview the exact install summary without invoking install", func(t *testing.T) {
+		t.Parallel()
+
+		want := contract.ExtensionInstallPreviewPayload{
+			Name: "growth-kit",
+			DeclaredProfiles: []contract.ExtensionInstallDeclaredProfilePayload{{
+				Name: "growth", Create: true,
+				Credentials: []contract.ProfileCredentialRequirement{{
+					Provider: "openai", Slot: "api_key", SourceExtension: "growth-kit", Missing: true,
+				}},
+			}},
+			Placements: []contract.ExtensionPlacementPayload{{
+				Kind: "skill", Resource: "tweet-writer", Profile: "growth",
+			}},
+			NetworkRequirementDigest: "sha256:growth-kit",
+		}
+		installCalled := false
+		service := extensionServiceStub{
+			installFn: func(
+				context.Context,
+				contract.InstallExtensionRequest,
+				taskpkg.ActorContext,
+			) (contract.ExtensionPayload, error) {
+				installCalled = true
+				return contract.ExtensionPayload{}, nil
+			},
+			previewInstallFn: func(
+				_ context.Context,
+				req contract.InstallExtensionRequest,
+				actor taskpkg.ActorContext,
+			) (contract.ExtensionInstallPreviewPayload, error) {
+				if req.Source != contract.InstallExtensionSourceLocalPath || req.Ref != "/tmp/growth-kit" ||
+					!req.AllowUnverified || !actor.Authority.Write {
+					t.Fatalf("PreviewInstall() req=%#v actor=%#v", req, actor)
+				}
+				return want, nil
+			},
+		}
+		handlers := core.NewBaseHandlers(&core.BaseHandlerConfig{Extensions: service})
+		engine := gin.New()
+		engine.POST("/extensions/preview-install", handlers.PreviewExtensionInstall)
+		response := performRequest(t, engine, http.MethodPost, "/extensions/preview-install",
+			[]byte(`{"source":"local_path","ref":"/tmp/growth-kit","allow_unverified":true}`))
+		if response.Code != http.StatusOK {
+			t.Fatalf("status = %d, want 200; body=%s", response.Code, response.Body.String())
+		}
+		var got contract.ExtensionInstallPreviewPayload
+		if err := json.Unmarshal(response.Body.Bytes(), &got); err != nil {
+			t.Fatalf("json.Unmarshal(preview) error = %v", err)
+		}
+		if !reflect.DeepEqual(got, want) {
+			t.Fatalf("preview = %#v, want %#v", got, want)
+		}
+		if installCalled {
+			t.Fatal("PreviewExtensionInstall invoked Install")
+		}
+	})
 }
 
 type extensionServiceStub struct {
@@ -388,6 +446,7 @@ type extensionServiceStub struct {
 	searchFn           func(context.Context, contract.ExtensionSearchRequest) (contract.ExtensionSearchResponse, error)
 	updateBatchFn      func(context.Context, contract.UpdateExtensionsRequest, taskpkg.ActorContext) ([]contract.ManagedExtensionUpdatePayload, error)
 	installFn          func(context.Context, contract.InstallExtensionRequest, taskpkg.ActorContext) (contract.ExtensionPayload, error)
+	previewInstallFn   func(context.Context, contract.InstallExtensionRequest, taskpkg.ActorContext) (contract.ExtensionInstallPreviewPayload, error)
 	enableFn           func(context.Context, string, contract.EnableExtensionRequest, taskpkg.ActorContext) (contract.ExtensionEnableResult, error)
 	inventoryFn        func(context.Context, string) (contract.ExtensionInventoryPayload, error)
 	previewFn          func(context.Context, string) (contract.ExtensionEnablePreviewPayload, error)
@@ -431,6 +490,17 @@ func (s extensionServiceStub) Install(
 		return s.installFn(ctx, req, actor)
 	}
 	return contract.ExtensionPayload{}, nil
+}
+
+func (s extensionServiceStub) PreviewInstall(
+	ctx context.Context,
+	req contract.InstallExtensionRequest,
+	actor taskpkg.ActorContext,
+) (contract.ExtensionInstallPreviewPayload, error) {
+	if s.previewInstallFn != nil {
+		return s.previewInstallFn(ctx, req, actor)
+	}
+	return contract.ExtensionInstallPreviewPayload{}, nil
 }
 
 func (extensionServiceStub) Update(

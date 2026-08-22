@@ -5,14 +5,14 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import {
-  disableExtension,
-  enableExtension,
   ExtensionsApiError,
   getExtensionInventory,
   getExtensionProvenance,
   listExtensionLogs,
   listExtensions,
+  previewExtensionInstall,
   removeExtension,
+  setExtensionEnablement,
   updateExtension,
 } from "../extensions-api";
 import {
@@ -56,27 +56,36 @@ describe("extensions management reads", () => {
 });
 
 describe("extensions management mutations", () => {
-  it("Should enable and disable one extension through distinct lifecycle routes", async () => {
+  it("Should set one profile's extension enablement through the dedicated route", async () => {
     const controller = new AbortController();
-    const result = { automation_started: ["span-export"], extension: extensionFixtures[0] };
+    const result = { enabled: false, profile: "growth" };
     mockJsonResponse(result);
-    await expect(enableExtension("otel-bridge", {}, controller.signal)).resolves.toEqual(result);
+    await expect(
+      setExtensionEnablement("otel-bridge", "growth", false, controller.signal)
+    ).resolves.toEqual(result);
     await expectFetchRequest({
-      body: {},
-      method: "POST",
-      path: "/api/extensions/otel-bridge/enable",
+      body: { enabled: false, profile: "growth" },
+      method: "PUT",
+      path: "/api/extensions/otel-bridge/enablement",
       signal: controller.signal,
     });
+  });
 
-    mockJsonResponse({ extension: extensionFixtures[0] });
-    await expect(disableExtension("otel-bridge", controller.signal)).resolves.toEqual(
-      extensionFixtures[0]
-    );
+  it("Should preview an install before committing it", async () => {
+    const request = { ref: "dep-kit-ops", source: "curated" as const, version: "1.1.0" };
+    const preview = {
+      declared_profiles: [{ create: true, credentials: [], name: "operations" }],
+      name: "dep-kit-ops",
+      network_requirement_digest: "sha256:6f1c0a94d3b27e58",
+      placements: [],
+    };
+    mockJsonResponse(preview);
+
+    await expect(previewExtensionInstall(request)).resolves.toEqual(preview);
     await expectFetchRequest({
-      callIndex: 1,
+      body: request,
       method: "POST",
-      path: "/api/extensions/otel-bridge/disable",
-      signal: controller.signal,
+      path: "/api/extensions/preview-install",
     });
   });
 
@@ -101,10 +110,10 @@ describe("extensions management mutations", () => {
     });
   });
 
-  it("Should bind the workspace instance on scoped reads, removal, and log history", async () => {
+  it("Should bind the profile and workspace instance on scoped reads, removal, and log history", async () => {
     mockJsonResponse({ extensions: extensionFixtures });
-    await listExtensions({ workspaceId: "ws_northstar" });
-    await expectFetchRequest({ path: "/api/extensions?workspace=ws_northstar" });
+    await listExtensions({ profileName: "growth", workspaceId: "ws_northstar" });
+    await expectFetchRequest({ path: "/api/extensions?profile=growth&workspace=ws_northstar" });
 
     mockEmptyResponse({ status: 204 });
     await removeExtension("otel-bridge", { workspaceId: "ws_northstar" });
@@ -137,16 +146,8 @@ describe("extensions management mutations", () => {
     await expectFetchRequest({ path: "/api/extensions/otel-bridge/logs" });
   });
 
-  it("Should ratify the exact digest on both the enable and update routes", async () => {
+  it("Should ratify the exact digest on the update route", async () => {
     const digest = "sha256:6f1c0a94d3b27e58";
-    mockJsonResponse({ automation_started: [], extension: extensionFixtures[0] });
-    await enableExtension("dep-kit-ops", { confirmNetworkDigest: digest });
-    await expectFetchRequest({
-      body: { confirm_network_digest: digest },
-      method: "POST",
-      path: "/api/extensions/dep-kit-ops/enable",
-    });
-
     mockEmptyResponse();
     await updateExtension("dep-kit-ops", {
       allow_unverified: true,
@@ -155,7 +156,6 @@ describe("extensions management mutations", () => {
     });
     await expectFetchRequest({
       body: { allow_unverified: true, confirm_network_digest: digest, version: "1.1.0" },
-      callIndex: 1,
       method: "PUT",
       path: "/api/extensions/dep-kit-ops",
     });
@@ -189,7 +189,7 @@ describe("extensions management failures", () => {
       { status: 409 }
     );
 
-    const error = await enableExtension("dep-kit-ops").catch((reason: unknown) => reason);
+    const error = await updateExtension("dep-kit-ops", {}).catch((reason: unknown) => reason);
     expect(error).toBeInstanceOf(ExtensionsApiError);
     expect(error).toMatchObject({
       code: "extension_network_confirmation_required",
@@ -238,7 +238,11 @@ describe("extensions management failures", () => {
   it.each([
     ["extension inventory", "extensions", () => listExtensions()],
     ["extension provenance", "provenance", () => getExtensionProvenance("otel-bridge")],
-    ["extension lifecycle", "extension", () => enableExtension("otel-bridge")],
+    [
+      "extension enablement",
+      "profile",
+      () => setExtensionEnablement("otel-bridge", "growth", true),
+    ],
     ["kit inventory", "items", () => getExtensionInventory("dep-kit-ops")],
   ])("Should reject a successful empty %s envelope", async (_name, field, invoke) => {
     mockJsonResponse({});

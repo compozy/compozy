@@ -202,6 +202,117 @@ func TestManagerStartRegistersResourcesAndActivatesExtension(t *testing.T) {
 	}
 }
 
+// Invariant: a live extension projection contains shared resources plus only
+// the selected profile's placements, and a placement update moves ownership
+// without copying resource content.
+// Owner: extension manager profile projection.
+// Canonical suite: extension manager tests.
+// Covers IT-053 and IT-054.
+func TestManagerProjectsLiveResourcesByProfile(t *testing.T) {
+	t.Parallel()
+
+	withDaemonVersion(t, "0.6.0")
+	env := newRegistryTestEnv(t)
+	fixture := createManagerTestExtension(t, `[extension]
+name = "profile-kit"
+version = "1.0.0"
+min_compozy_version = "0.5.0"
+
+[[resources.skills]]
+path = "skills/shared"
+
+[[resources.skills]]
+path = "skills/x-one"
+profile = "x"
+
+[[resources.skills]]
+path = "skills/x-two"
+profile = "x"
+
+[[resources.skills]]
+path = "skills/y-one"
+profile = "y"
+`, map[string]string{
+		"skills/shared/SKILL.md": managerSkillFile("shared", "Shared"),
+		"skills/x-one/SKILL.md":  managerSkillFile("x-one", "X one"),
+		"skills/x-two/SKILL.md":  managerSkillFile("x-two", "X two"),
+		"skills/y-one/SKILL.md":  managerSkillFile("y-one", "Y one"),
+	})
+	installManagerFixture(t, env.registry, fixture, SourceUser, true)
+	const (
+		xProfileID = "01ARZ3NDEKTSV4RRFFQ69G5FAV"
+		yProfileID = "01BX5ZZKBKACTAV9WEVGEMMVRZ"
+	)
+	now := store.FormatTimestamp(time.Now().UTC())
+	if _, err := env.db.Exec(`INSERT INTO profiles (id, name, color, icon, state, created_at) VALUES
+		(?, 'x', '#112233', 'x', 'active', ?),
+		(?, 'y', '#334455', 'y', 'active', ?)`, xProfileID, now, yProfileID, now); err != nil {
+		t.Fatalf("insert profile fixtures error = %v", err)
+	}
+	info, err := env.registry.Get(fixture.manifest.Name)
+	if err != nil {
+		t.Fatalf("registry.Get() error = %v", err)
+	}
+	manager := NewManager(env.registry)
+	manager.extensions[fixture.manifest.Name] = &managedExtension{
+		key: GlobalInstanceKey(fixture.manifest.Name), info: *info,
+		rootDir: fixture.dir, manifest: fixture.manifest, registered: true, active: true,
+	}
+
+	project := func(t *testing.T, id, name string) (*Extension, bool) {
+		t.Helper()
+		projected, enabled, projectErr := manager.ProjectForProfile(
+			testutil.Context(t),
+			GlobalInstanceKey(fixture.manifest.Name),
+			ProfileLens{ID: id, Name: name},
+		)
+		if projectErr != nil {
+			t.Fatalf("ProjectForProfile(%s) error = %v", name, projectErr)
+		}
+		return projected, enabled
+	}
+	assertSkills := func(t *testing.T, extension *Extension, want []string) {
+		t.Helper()
+		got := make([]string, 0, len(extension.Skills))
+		for _, skill := range extension.Skills {
+			got = append(got, skill.Meta.Name)
+		}
+		slices.Sort(got)
+		slices.Sort(want)
+		if !slices.Equal(got, want) {
+			t.Fatalf("projected skills = %#v, want %#v", got, want)
+		}
+	}
+
+	xProjection, enabled := project(t, xProfileID, "x")
+	if !enabled {
+		t.Fatal("ProjectForProfile(x) enabled = false, want true")
+	}
+	assertSkills(t, xProjection, []string{"shared", "x-one", "x-two"})
+	yProjection, enabled := project(t, yProfileID, "y")
+	if !enabled {
+		t.Fatal("ProjectForProfile(y) enabled = false, want true")
+	}
+	assertSkills(t, yProjection, []string{"shared", "y-one"})
+
+	if err := env.registry.SetEnabledForProfile(fixture.manifest.Name, xProfileID, false); err != nil {
+		t.Fatalf("SetEnabledForProfile(x disabled) error = %v", err)
+	}
+	_, enabled = project(t, xProfileID, "x")
+	if enabled {
+		t.Fatal("ProjectForProfile(x disabled) enabled = true, want false [IT-053]")
+	}
+
+	if err := env.registry.SetEnabledForProfile(fixture.manifest.Name, xProfileID, true); err != nil {
+		t.Fatalf("SetEnabledForProfile(x enabled) error = %v", err)
+	}
+	manager.extensions[fixture.manifest.Name].manifest.Resources.Skills[2].Profile = "y"
+	xProjection, _ = project(t, xProfileID, "x")
+	yProjection, _ = project(t, yProfileID, "y")
+	assertSkills(t, xProjection, []string{"shared", "x-one"})
+	assertSkills(t, yProjection, []string{"shared", "x-two", "y-one"})
+}
+
 func TestManagerInitializeRuntimeRequestEncodesEmptyCapabilitiesAsArrays(t *testing.T) {
 	t.Parallel()
 
@@ -1388,7 +1499,7 @@ func TestManagerCloneExtensionReturnsIsolatedSnapshot(t *testing.T) {
 			Name:    "snapshot",
 			Version: "1.0.0",
 			Resources: ResourcesConfig{
-				Skills: []string{"skills/"},
+				Skills: []ManifestResourcePath{{Path: "skills/"}},
 				Publish: ResourceGrantRequest{
 					Families: []string{"tools"},
 					MaxScope: resources.ResourceScopeKindWorkspace,
@@ -1453,7 +1564,7 @@ func TestManagerCloneExtensionReturnsIsolatedSnapshot(t *testing.T) {
 
 	clone.Info.Capabilities.Provides[0] = "changed"
 	clone.Info.Permissions.Requires[0] = "changed"
-	clone.Manifest.Resources.Skills[0] = "changed"
+	clone.Manifest.Resources.Skills[0].Path = "changed"
 	clone.Manifest.Subprocess.Env["TOKEN"] = "changed"
 	clone.Manifest.Resources.Publish.Families[0] = "changed"
 	clone.Skills[0].Meta.Name = "changed"
@@ -1475,7 +1586,7 @@ func TestManagerCloneExtensionReturnsIsolatedSnapshot(t *testing.T) {
 	if ext.info.Permissions.Requires[0] != "sessions/list" {
 		t.Fatalf("original permissions mutated to %#v", ext.info.Permissions.Requires)
 	}
-	if ext.manifest.Resources.Skills[0] != "skills/" {
+	if ext.manifest.Resources.Skills[0].Path != "skills/" {
 		t.Fatalf("original manifest resources mutated to %#v", ext.manifest.Resources.Skills)
 	}
 	if ext.manifest.Resources.Publish.Families[0] != "tools" {
@@ -1649,7 +1760,7 @@ func TestManagerDirectPhaseAndMonitorBranches(t *testing.T) {
 			Version:           "1.0.0",
 			MinCompozyVersion: "0.5.0",
 			Resources: ResourcesConfig{
-				Skills: []string{"skills"},
+				Skills: []ManifestResourcePath{{Path: "skills"}},
 			},
 		},
 	}
@@ -2598,11 +2709,13 @@ min_compozy_version = %q
 [resources]
 `, name, minVersion)
 	if opts.withSkills {
-		builder.WriteString(`skills = ["skills/"]
+		builder.WriteString(`[[resources.skills]]
+path = "skills/"
 `)
 	}
 	if opts.withAgents {
-		builder.WriteString(`agents = ["agents/"]
+		builder.WriteString(`[[resources.agents]]
+path = "agents/"
 `)
 	}
 	if opts.withHooks {

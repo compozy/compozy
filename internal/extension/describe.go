@@ -58,6 +58,7 @@ func DescribeExtension(ext *Extension, daemonRunning bool, now time.Time) contra
 
 	return contract.ExtensionPayload{
 		Name:                     ext.Info.Name,
+		Profile:                  "default",
 		WorkspaceID:              ext.Status.WorkspaceID,
 		Version:                  ext.Info.Version,
 		Type:                     extensionType(ext.Manifest, ext.Info),

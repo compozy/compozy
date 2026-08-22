@@ -129,8 +129,8 @@ required = true
 mode = "live"
 channel_scopes = ["builders"]
 
-[resources]
-skills = ["skills"]
+[[resources.skills]]
+path = "skills"
 `)
 		runner := newBuildTestRunner(validDescribePayloadPointer())
 
@@ -195,8 +195,8 @@ required = true
 mode = "live"
 channel_scopes = ["release"]
 
-[resources]
-skills = ["skills"]
+[[resources.skills]]
+path = "skills"
 `)
 		networkChanged, err := buildBundle(testutil.Context(t), BuildRequest{SourceDir: dir}, runner)
 		if err != nil {
@@ -246,8 +246,8 @@ name = "executable"
 version = "0.1.0"
 min_compozy_version = "0.0.0"
 
-[resources]
-skills = ["skills"]
+[[resources.skills]]
+path = "skills"
 
 [subprocess]
 command = "./bin/extension"
@@ -263,8 +263,8 @@ name = "capability"
 version = "0.1.0"
 min_compozy_version = "0.0.0"
 
-[resources]
-skills = ["skills"]
+[[resources.skills]]
+path = "skills"
 
 [capabilities]
 provides = ["tool.provider"]
@@ -280,8 +280,8 @@ name = "hook"
 version = "0.1.0"
 min_compozy_version = "0.0.0"
 
-[resources]
-skills = ["skills"]
+[[resources.skills]]
+path = "skills"
 
 [[resources.hooks]]
 name = "observe"
@@ -301,8 +301,8 @@ name = "tool"
 version = "0.1.0"
 min_compozy_version = "0.0.0"
 
-[resources]
-skills = ["skills"]
+[[resources.skills]]
+path = "skills"
 
 [resources.tools.lookup]
 description = "Look up content"
@@ -323,8 +323,8 @@ name = "mcp"
 version = "0.1.0"
 min_compozy_version = "0.0.0"
 
-[resources]
-skills = ["skills"]
+[[resources.skills]]
+path = "skills"
 
 [resources.mcp_servers.local]
 command = "mcp-server"
@@ -341,8 +341,8 @@ name = "custom-build"
 version = "0.1.0"
 min_compozy_version = "0.0.0"
 
-[resources]
-skills = ["skills"]
+[[resources.skills]]
+path = "skills"
 `,
 				buildCmd:  []string{"make", "extension"},
 				resources: true,
@@ -462,7 +462,8 @@ expr = "0 * * * *"
 		if err != nil {
 			t.Fatalf("os.ReadFile(copied skill) error = %v", err)
 		}
-		if string(copied) != "# Writer\n" || !reflect.DeepEqual(first.Manifest.Resources.Skills, []string{"skills"}) {
+		if string(copied) != "# Writer\n" ||
+			!reflect.DeepEqual(manifestResourcePaths(first.Manifest.Resources.Skills), []string{"skills"}) {
 			t.Fatalf("copied = %q resources = %#v", copied, first.Manifest.Resources.Skills)
 		}
 		for _, relativePath := range []string{
@@ -481,10 +482,10 @@ expr = "0 * * * *"
 			t.Fatalf("os.ReadFile(first manifest) error = %v", err)
 		}
 		for _, declaration := range []string{
-			"agents = [\"agents\"]",
-			"skills = [\"skills\"]",
-			"automation = [\"automation\"]",
-			"layouts = [\"layouts/two-up.json\"]",
+			"[[resources.agents]]\n    path = \"agents\"",
+			"[[resources.skills]]\n    path = \"skills\"",
+			"[[resources.automation]]\n    path = \"automation\"",
+			"[[resources.layouts]]\n    path = \"layouts/two-up.json\"",
 		} {
 			if !strings.Contains(string(firstManifest), declaration) {
 				t.Fatalf("manifest = %s, want declaration %q", firstManifest, declaration)
@@ -701,11 +702,11 @@ func TestManifestFromDescribeResources(t *testing.T) {
 			t.Fatalf("manifestFromDescribe() error = %v", err)
 		}
 		want := ResourcesConfig{
-			Skills:     []string{"skills/a", "skills/z"},
-			Loops:      []string{"loops"},
-			Agents:     []string{"agents"},
-			Automation: []string{"automation/a.toml", "automation/z.toml"},
-			Layouts:    []string{"layouts"},
+			Skills:     []ManifestResourcePath{{Path: "skills/a"}, {Path: "skills/z"}},
+			Loops:      []ManifestResourcePath{{Path: "loops"}},
+			Agents:     []ManifestResourcePath{{Path: "agents"}},
+			Automation: []ManifestResourcePath{{Path: "automation/a.toml"}, {Path: "automation/z.toml"}},
+			Layouts:    []ManifestResourcePath{{Path: "layouts"}},
 			CmdPalette: extensioncontract.CmdPaletteConfig{
 				Commands: []extensioncontract.CmdPaletteCommand{{
 					ID: "open", Title: "Open fixture", Icon: "terminal",
@@ -765,9 +766,11 @@ name = "resource-only"
 version = "0.1.0"
 min_compozy_version = "0.3.0-beta.1"
 
-[resources]
-automation = ["automation"]
-layouts = ["layouts"]
+[[resources.automation]]
+path = "automation"
+
+[[resources.layouts]]
+path = "layouts"
 
 [subprocess]
 command = "./bin"

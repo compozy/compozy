@@ -9,8 +9,13 @@ import (
 	"github.com/compozy/compozy/internal/api/contract"
 )
 
-type profileClientAPI interface {
+type profileResolutionClient interface {
 	ListProfiles(context.Context) ([]contract.Profile, error)
+	ListProfileSelections(context.Context) ([]contract.ProfileSelection, error)
+}
+
+type profileClientAPI interface {
+	profileResolutionClient
 	CreateProfile(context.Context, contract.CreateProfileRequest) (contract.Profile, error)
 	UpdateProfile(context.Context, string, contract.UpdateProfileRequest) (contract.Profile, error)
 	PrepareProfileRename(context.Context, string, string) (contract.RenameProfilePlan, error)
@@ -20,10 +25,23 @@ type profileClientAPI interface {
 	UnarchiveProfile(context.Context, string) (contract.UnarchiveProfileResponse, error)
 	PrepareProfileDelete(context.Context, string) (contract.DeleteProfilePlan, error)
 	DeleteProfile(context.Context, string, string) (contract.DeleteProfileResponse, error)
-	ListProfileSelections(context.Context) ([]contract.ProfileSelection, error)
 	PutProfileSelection(context.Context, contract.ProfileSelection) (contract.ProfileSelection, error)
 	ListProfileOperations(context.Context) ([]contract.ProfileOperation, error)
 	RetryProfileOperation(context.Context, string) (contract.ProfileOperation, error)
+}
+
+func profileResolutionClientFromDeps(deps commandDeps) (profileResolutionClient, DaemonClient, error) {
+	client, err := clientFromDeps(deps)
+	if err != nil {
+		return nil, nil, err
+	}
+	profiles, ok := client.(profileResolutionClient)
+	if !ok {
+		return nil, nil, &profileCommandError{payload: contract.ProfileErrorPayload{Error: contract.ProfileError{
+			Code: "profile_unavailable", Message: "profile client is unavailable", Action: "update the Compozy client and retry",
+		}}}
+	}
+	return profiles, client, nil
 }
 
 func profileClientFromDeps(deps commandDeps) (profileClientAPI, DaemonClient, error) {

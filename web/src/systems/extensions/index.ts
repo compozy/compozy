@@ -1,6 +1,8 @@
 export type {
-  ExtensionEnableResult,
+  ExtensionEnablement,
   ExtensionEntry,
+  ExtensionInstallRequest,
+  ExtensionInstallPreview,
   ExtensionInstanceScope,
   ExtensionKitInventory,
   ExtensionKitItem,
@@ -46,6 +48,7 @@ export {
   VerifiedMark,
 } from "./components/extension-dialogs";
 export { ExtensionKitInventoryPanel } from "./components/extension-kit-inventory-panel";
+export { ExtensionDeclaredProfiles } from "./components/extension-declared-profiles";
 export { ExtensionLogPanel } from "./components/extension-log-panel";
 export { ExtensionSkippedComponents } from "./components/extension-skipped-components";
 export type { ExtensionSkippedComponentsProps } from "./components/extension-skipped-components";
@@ -76,6 +79,8 @@ export type { ExtensionTrustFacts, ExtensionTrustSource } from "./lib/extension-
 export {
   EXTENSION_GLOBAL_WORKSPACE_KEY,
   extensionKeys,
+  extensionProfileKey,
   extensionWorkspaceKey,
 } from "./lib/query-keys";
 export { extensionsListOptions } from "./lib/query-options";
+export { previewExtensionInstall } from "./adapters/extensions-api";

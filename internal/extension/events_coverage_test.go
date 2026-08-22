@@ -142,6 +142,19 @@ func TestExtensionLifecycleEventCoverageMatrix(t *testing.T) {
 			},
 			want: map[string]any{"extension_name": "alpha", "automation_started_count": 3},
 		},
+		{
+			name: "Should emit declared profile creation keys [IT-079]",
+			event: LifecycleEvent{
+				Type: eventspkg.ExtensionProfileCreated, ExtensionName: "alpha",
+				ProfileID: "01JPROFILEFINANCE000000000", ProfileName: "finance",
+				WorkspaceID: secret,
+			},
+			want: map[string]any{
+				"extension_name": "alpha",
+				"profile_id":     "01JPROFILEFINANCE000000000",
+				"profile_name":   "finance",
+			},
+		},
 	}
 
 	for _, test := range tests {

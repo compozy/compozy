@@ -9,6 +9,7 @@ import { NotificationPresetsPanel } from "../notification-presets-panel";
 
 const builtInPreset: NotificationPresetEntry = {
   name: "task_terminal",
+  profile: "marketing",
   events: ["task.run_*"],
   targets: [{ bridge_id: "bridge_slack_ops", canonical_route: "channel:ops" }],
   filter: "",
@@ -20,6 +21,15 @@ const builtInPreset: NotificationPresetEntry = {
   default_update_available: false,
   created_at: "2026-05-21T10:00:00Z",
   updated_at: "2026-05-21T10:00:00Z",
+};
+
+const marketingProfile = {
+  id: "01JMARKETING000000000000000",
+  name: "marketing",
+  color: "#C26AD6",
+  icon: "megaphone",
+  emoji: null,
+  archived: false,
 };
 
 const customPreset: NotificationPresetEntry = {
@@ -46,6 +56,7 @@ describe("NotificationPresetsPanel", () => {
         isLoading={false}
         error={null}
         pendingName={null}
+        profile={marketingProfile}
         canMutate
         onCreate={vi.fn()}
         onToggle={vi.fn()}
@@ -69,6 +80,7 @@ describe("NotificationPresetsPanel", () => {
         isLoading={false}
         error={null}
         pendingName={null}
+        profile={marketingProfile}
         canMutate
         onCreate={onCreate}
         onToggle={vi.fn()}
@@ -86,7 +98,6 @@ describe("NotificationPresetsPanel", () => {
     fireEvent.change(screen.getByTestId("settings-page-hooks-notification-preset-target"), {
       target: { value: "bridge_slack_ops:channel:ops" },
     });
-    fireEvent.click(screen.getByTestId("settings-page-hooks-notification-preset-enabled"));
     fireEvent.click(screen.getByTestId("settings-page-hooks-notification-preset-create"));
 
     expect(onCreate).toHaveBeenCalledWith({
@@ -100,7 +111,6 @@ describe("NotificationPresetsPanel", () => {
         },
       ],
       filter: "",
-      enabled: true,
     });
   });
 
@@ -113,6 +123,7 @@ describe("NotificationPresetsPanel", () => {
         isLoading={false}
         error={null}
         pendingName={null}
+        profile={marketingProfile}
         canMutate
         onCreate={vi.fn()}
         onToggle={onToggle}
@@ -139,6 +150,7 @@ describe("NotificationPresetsPanel", () => {
         isLoading={false}
         error={null}
         pendingName={null}
+        profile={marketingProfile}
         canMutate
         onCreate={onCreate}
         onToggle={vi.fn()}
@@ -178,6 +190,7 @@ describe("NotificationPresetsPanel", () => {
         isLoading={false}
         error={null}
         pendingName="first_request"
+        profile={marketingProfile}
         canMutate
         onCreate={onCreate}
         onToggle={vi.fn()}
@@ -199,6 +212,7 @@ describe("NotificationPresetsPanel", () => {
         isLoading={false}
         error={null}
         pendingName={customPreset.name}
+        profile={marketingProfile}
         canMutate
         onCreate={vi.fn()}
         onToggle={vi.fn()}
@@ -222,6 +236,7 @@ describe("NotificationPresetsPanel", () => {
         isLoading={false}
         error="Failed to load notification presets."
         pendingName={null}
+        profile={marketingProfile}
         canMutate
         onCreate={vi.fn()}
         onToggle={vi.fn()}
@@ -237,5 +252,28 @@ describe("NotificationPresetsPanel", () => {
     expect(
       screen.getByTestId("settings-page-hooks-notification-presets-operational-error")
     ).toHaveTextContent("Failed to load notification presets.");
+  });
+
+  it("shows that effective preset state belongs to the active profile", () => {
+    render(
+      <NotificationPresetsPanel
+        presets={[builtInPreset]}
+        isLoading={false}
+        error={null}
+        pendingName={null}
+        profile={marketingProfile}
+        canMutate
+        onCreate={vi.fn()}
+        onToggle={vi.fn()}
+        onDelete={vi.fn()}
+      />
+    );
+
+    expect(screen.getByTestId("settings-page-hooks-notification-preset-profile")).toHaveTextContent(
+      "marketing"
+    );
+    expect(
+      screen.getByTestId("settings-page-hooks-notification-preset-row-task_terminal-toggle")
+    ).toHaveAttribute("aria-checked", "false");
   });
 });

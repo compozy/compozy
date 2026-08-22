@@ -93,7 +93,7 @@ CREATE TABLE notification_delivery_permits (
 );
 
 CREATE TABLE extension_profile_enablement (
-	extension_name TEXT NOT NULL REFERENCES extensions(name) ON DELETE CASCADE,
+	extension_name TEXT NOT NULL,
 	profile_id TEXT NOT NULL REFERENCES profiles(id) ON DELETE CASCADE,
 	enabled INTEGER NOT NULL CHECK (enabled IN (0, 1)),
 	PRIMARY KEY (extension_name, profile_id)

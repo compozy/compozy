@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/compozy/compozy/internal/api/contract"
+	"github.com/compozy/compozy/internal/store"
 	taskpkg "github.com/compozy/compozy/internal/task"
 	"github.com/gin-gonic/gin"
 )
@@ -300,7 +301,7 @@ func (h *BaseHandlers) extensionScopedActorContext(
 			h.respondExtensionError(c, http.StatusBadRequest, errors.New("a resolved workspace is required"))
 			return taskpkg.ActorContext{}, false
 		}
-		return actor, true
+		return h.extensionActorProfileScope(c, actor)
 	}
 	credentials := agentCallerCredentialsFromRequest(c)
 	if hasAgentCallerIdentityCredentials(credentials) {
@@ -309,7 +310,7 @@ func (h *BaseHandlers) extensionScopedActorContext(
 			h.respondExtensionError(c, StatusForTaskError(err), err)
 			return taskpkg.ActorContext{}, false
 		}
-		return caller.Actor, true
+		return h.extensionActorProfileScope(c, caller.Actor)
 	}
 	workspaceID, err := h.resolveExpectedWorkspaceID(c.Request.Context(), c.Query("workspace"))
 	if err != nil {
@@ -330,5 +331,18 @@ func (h *BaseHandlers) extensionScopedActorContext(
 		h.respondExtensionError(c, StatusForTaskError(err), err)
 		return taskpkg.ActorContext{}, false
 	}
+	return h.extensionActorProfileScope(c, actor)
+}
+
+func (h *BaseHandlers) extensionActorProfileScope(
+	c *gin.Context,
+	actor taskpkg.ActorContext,
+) (taskpkg.ActorContext, bool) {
+	scope, err := h.resolveProfileMutationScope(c)
+	if err != nil {
+		h.respondProfileReadScopeError(c, err)
+		return taskpkg.ActorContext{}, false
+	}
+	actor.ReadScope = store.ReadScope{ProfileID: scope.ProfileID}
 	return actor, true
 }

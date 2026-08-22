@@ -2,12 +2,14 @@ package profile
 
 import (
 	"context"
+	"database/sql"
 	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
 
+	compozyconfig "github.com/compozy/compozy/internal/config"
 	"github.com/compozy/compozy/internal/store/globaldb"
 )
 
@@ -74,7 +76,7 @@ func (m *Manager) finalizeOperation(ctx context.Context, opID string, recovered 
 		return m.failOperation(ctx, opID, -1, err)
 	}
 	for _, step := range steps {
-		if err := m.executeStep(step); err != nil {
+		if err := m.executeStep(ctx, opID, step); err != nil {
 			return m.failOperation(ctx, opID, step.Seq, err)
 		}
 		if err := m.write(ctx, "complete profile lifecycle step", func(exec globaldb.ProfileWriteExecutor) error {
@@ -132,7 +134,7 @@ func (m *Manager) pendingSteps(ctx context.Context, opID string) (steps []lifecy
 	return steps, rows.Err()
 }
 
-func (m *Manager) executeStep(step lifecycleStep) error {
+func (m *Manager) executeStep(ctx context.Context, opID string, step lifecycleStep) error {
 	switch step.Action {
 	case "mkdir_profile":
 		path, err := m.containedProfilePath(step.PathNew)
@@ -143,6 +145,8 @@ func (m *Manager) executeStep(step lifecycleStep) error {
 			return fmt.Errorf("profile: create profile directory %q: %w", path, err)
 		}
 		return os.Chmod(path, 0o700)
+	case "write_declared_seed":
+		return m.writeDeclaredSeed(ctx, opID, step.PathNew)
 	case "rename_profile":
 		oldPath, err := m.containedProfilePath(step.PathOld)
 		if err != nil {
@@ -181,6 +185,56 @@ func (m *Manager) executeStep(step lifecycleStep) error {
 	default:
 		return fmt.Errorf("profile: unsupported lifecycle step action %q", step.Action)
 	}
+}
+
+func (m *Manager) writeDeclaredSeed(ctx context.Context, opID, profilePath string) error {
+	path, err := m.containedProfilePath(profilePath)
+	if err != nil {
+		return err
+	}
+	var agent, provider, sandbox sql.NullString
+	if err := m.store.DB().QueryRowContext(
+		ctx,
+		`SELECT default_agent, default_provider, default_sandbox
+		 FROM profile_lifecycle_op_seed WHERE op_id = ?`,
+		opID,
+	).Scan(&agent, &provider, &sandbox); err != nil {
+		return fmt.Errorf("profile: read declared seed for operation %s: %w", opID, err)
+	}
+	if !agent.Valid && !provider.Valid && !sandbox.Valid {
+		return nil
+	}
+	target, err := compozyconfig.ResolveConfigWriteTarget(
+		m.home,
+		"",
+		compozyconfig.WriteScopeProfile,
+		filepath.Base(path),
+	)
+	if err != nil {
+		return fmt.Errorf("profile: resolve declared profile config target: %w", err)
+	}
+	_, err = compozyconfig.EditConfigOverlay(m.home, "", target, func(editor *compozyconfig.OverlayEditor) error {
+		for _, candidate := range []struct {
+			key   string
+			value sql.NullString
+		}{
+			{key: "agent", value: agent},
+			{key: "provider", value: provider},
+			{key: "sandbox", value: sandbox},
+		} {
+			if !candidate.value.Valid {
+				continue
+			}
+			if err := editor.SetValue([]string{"defaults", candidate.key}, candidate.value.String); err != nil {
+				return err
+			}
+		}
+		return nil
+	})
+	if err != nil {
+		return fmt.Errorf("profile: write declared seed for operation %s: %w", opID, err)
+	}
+	return nil
 }
 
 func (m *Manager) containedProfilePath(path string) (string, error) {

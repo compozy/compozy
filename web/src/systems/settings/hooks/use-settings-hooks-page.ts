@@ -8,7 +8,7 @@ import {
   useCreateNotificationPreset,
   useDeleteNotificationPreset,
   useNotificationPresets,
-  useUpdateNotificationPreset,
+  useSetNotificationPresetEnablement,
 } from "@/systems/notifications";
 import {
   SettingsApiError,
@@ -27,7 +27,7 @@ function errorMessage(error: unknown): string | null {
 }
 
 export function useSettingsHooksPage() {
-  const { destination } = useProfileReadScope();
+  const { destination, destinationOwner } = useProfileReadScope();
   const { activeWorkspaceId } = useActiveWorkspace();
   const filter =
     destination === "default"
@@ -40,9 +40,9 @@ export function useSettingsHooksPage() {
   const query = useSettingsHooks(filter);
   const capabilityQuery = useSettingsHooksExtensions();
   const hookMutation = usePutSettingsHook();
-  const presetsQuery = useNotificationPresets();
+  const presetsQuery = useNotificationPresets({ profile: destination });
   const createPreset = useCreateNotificationPreset();
-  const updatePreset = useUpdateNotificationPreset();
+  const setPresetEnablement = useSetNotificationPresetEnablement();
   const deletePreset = useDeleteNotificationPreset();
   const page = useSettingsPage({ currentSlug: "hooks" });
   const [pendingHookName, setPendingHookName] = useState<string | null>(null);
@@ -62,12 +62,15 @@ export function useSettingsHooksPage() {
   };
   const createNotificationPreset = (body: CreateNotificationPresetRequest) => {
     setPendingPresetName(body.name ?? null);
-    createPreset.mutate(body, { onSettled: () => setPendingPresetName(null) });
+    createPreset.mutate(
+      { body, profile: destination },
+      { onSettled: () => setPendingPresetName(null) }
+    );
   };
   const toggleNotificationPreset = (preset: NotificationPresetEntry, enabled: boolean) => {
     setPendingPresetName(preset.name);
-    updatePreset.mutate(
-      { name: preset.name, body: { enabled } },
+    setPresetEnablement.mutate(
+      { name: preset.name, body: { profile: destination, enabled } },
       { onSettled: () => setPendingPresetName(null) }
     );
   };
@@ -77,7 +80,7 @@ export function useSettingsHooksPage() {
   };
   const mutationError =
     errorMessage(createPreset.error) ??
-    errorMessage(updatePreset.error) ??
+    errorMessage(setPresetEnablement.error) ??
     errorMessage(deletePreset.error);
   return {
     canMutateHooks: capabilityQuery.data?.transport_parity?.settings_http !== false,
@@ -100,6 +103,7 @@ export function useSettingsHooksPage() {
     notificationPresetsLoading: presetsQuery.isLoading,
     pendingHookName,
     pendingNotificationPresetName: pendingPresetName,
+    notificationPresetProfile: destinationOwner,
     restart: page.restart,
     toggleHookEnabled,
     toggleNotificationPreset,

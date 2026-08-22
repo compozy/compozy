@@ -12,7 +12,6 @@ import (
 	compozyconfig "github.com/compozy/compozy/internal/config"
 	extensionpkg "github.com/compozy/compozy/internal/extension"
 	"github.com/compozy/compozy/internal/mcppolicy"
-	"github.com/compozy/compozy/internal/store"
 	"github.com/compozy/compozy/internal/vault"
 )
 
@@ -42,6 +41,7 @@ type extensionSecretMutation struct {
 func (s *daemonExtensionService) prepareExtensionSecrets(
 	ctx context.Context,
 	key extensionpkg.InstanceKey,
+	profileID string,
 	ext *extensionpkg.Extension,
 	req contract.SetExtensionSecretsRequest,
 ) ([]preparedExtensionSecret, error) {
@@ -57,7 +57,7 @@ func (s *daemonExtensionService) prepareExtensionSecrets(
 	slices.Sort(names)
 	prepared := make([]preparedExtensionSecret, 0, len(names))
 	for _, name := range names {
-		secret, err := s.prepareExtensionSecret(ctx, key, byName[name])
+		secret, err := s.prepareExtensionSecret(ctx, key, profileID, byName[name])
 		if err != nil {
 			return nil, err
 		}
@@ -129,6 +129,7 @@ func normalizeExtensionSecretInputs(
 func (s *daemonExtensionService) prepareExtensionSecret(
 	ctx context.Context,
 	key extensionpkg.InstanceKey,
+	profileID string,
 	input contract.ExtensionSecretBindingInput,
 ) (preparedExtensionSecret, error) {
 	name := input.EnvName
@@ -139,7 +140,7 @@ func (s *daemonExtensionService) prepareExtensionSecret(
 			}
 		}
 		return preparedExtensionSecret{
-			envName: name, ref: vault.ExtensionSecretRef(key.Name, key.WorkspaceID, name), value: input.Value,
+			envName: name, ref: vault.ExtensionProfileSecretRef(key.Name, profileID, key.WorkspaceID, name), value: input.Value,
 			mcpServer: input.MCPServer, headerName: input.HeaderName,
 		}, nil
 	}
@@ -188,6 +189,7 @@ func validateRemoteHeaderTarget(ext *extensionpkg.Extension, serverName, headerN
 func (s *daemonExtensionService) applyExtensionSecret(
 	ctx context.Context,
 	key extensionpkg.InstanceKey,
+	profileID string,
 	write preparedExtensionSecret,
 	previous extensionpkg.EnvBinding,
 ) (extensionSecretMutation, error) {
@@ -208,7 +210,7 @@ func (s *daemonExtensionService) applyExtensionSecret(
 			extensionpkg.ExtensionEnvBindingKind,
 			*write.value,
 		); err != nil {
-			rollbackErr := s.rollbackExtensionSecretMutations(ctx, key, []extensionSecretMutation{mutation})
+			rollbackErr := s.rollbackExtensionSecretMutations(ctx, key, profileID, []extensionSecretMutation{mutation})
 			return extensionSecretMutation{}, errors.Join(
 				fmt.Errorf("daemon: store extension secret %q: %w", write.envName, err),
 				rollbackErr,
@@ -221,13 +223,13 @@ func (s *daemonExtensionService) applyExtensionSecret(
 		createdAt = mutation.previousBinding.CreatedAt
 	}
 	binding := extensionpkg.EnvBinding{
-		ExtensionName: key.Name, ProfileID: store.DefaultProfileID,
+		ExtensionName: key.Name, ProfileID: profileID,
 		WorkspaceID: key.WorkspaceID, EnvName: write.envName,
 		SecretRef: write.ref, MCPServer: write.mcpServer, HeaderName: write.headerName,
 		Kind: extensionpkg.ExtensionEnvBindingKind, CreatedAt: createdAt, UpdatedAt: now,
 	}
 	if err := s.envBindings.PutEnvBinding(ctx, binding); err != nil {
-		rollbackErr := s.rollbackExtensionSecretMutations(ctx, key, []extensionSecretMutation{mutation})
+		rollbackErr := s.rollbackExtensionSecretMutations(ctx, key, profileID, []extensionSecretMutation{mutation})
 		return extensionSecretMutation{}, errors.Join(
 			fmt.Errorf("daemon: store extension secret binding %q: %w", write.envName, err), rollbackErr,
 		)
@@ -256,6 +258,7 @@ func (s *daemonExtensionService) snapshotExtensionSecret(
 func (s *daemonExtensionService) rollbackExtensionSecretMutations(
 	ctx context.Context,
 	key extensionpkg.InstanceKey,
+	profileID string,
 	mutations []extensionSecretMutation,
 ) error {
 	rollbackCtx, cancel := extensionSecretRollbackContext(ctx)
@@ -266,7 +269,7 @@ func (s *daemonExtensionService) rollbackExtensionSecretMutations(
 			if err := s.envBindings.DeleteEnvBinding(
 				rollbackCtx,
 				key.Name,
-				store.DefaultProfileID,
+				profileID,
 				key.WorkspaceID,
 				mutation.envName,
 			); err != nil {

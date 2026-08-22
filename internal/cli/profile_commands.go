@@ -23,7 +23,7 @@ func newProfileListCommand(deps commandDeps) *cobra.Command {
 	return &cobra.Command{
 		Use: "list", Short: "List profiles",
 		RunE: func(cmd *cobra.Command, _ []string) error {
-			profiles, client, err := profileClientFromDeps(deps)
+			profiles, client, err := profileResolutionClientFromDeps(deps)
 			if err != nil {
 				return err
 			}
@@ -44,7 +44,7 @@ func newProfileCurrentCommand(deps commandDeps) *cobra.Command {
 	return &cobra.Command{
 		Use: "current", Short: "Show the active profile",
 		RunE: func(cmd *cobra.Command, _ []string) error {
-			profiles, client, err := profileClientFromDeps(deps)
+			profiles, client, err := profileResolutionClientFromDeps(deps)
 			if err != nil {
 				return err
 			}

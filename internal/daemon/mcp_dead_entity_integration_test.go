@@ -99,7 +99,9 @@ func TestDaemonIntegrationMCPDeadEntityRecoversWithoutRestart(t *testing.T) {
 			if err != nil {
 				t.Fatalf("tools.NewRegistry() error = %v", err)
 			}
-			scope := toolspkg.Scope{WorkspaceID: workspaceID, Operator: true}
+			scope := toolspkg.Scope{
+				ProfileID: store.DefaultProfileID, WorkspaceID: workspaceID, Operator: true,
+			}
 			const toolID toolspkg.ToolID = "mcp__recovery_fixture__lookup"
 
 			ready := requireDeadEntityMCPToolView(t, ctx, registry, scope, toolID)
@@ -126,7 +128,11 @@ func TestDaemonIntegrationMCPDeadEntityRecoversWithoutRestart(t *testing.T) {
 				!slices.Contains(dead.Availability.ReasonCodes, toolspkg.ReasonBackendDead) {
 				t.Fatalf("dead availability = %#v, want unavailable with backend_dead", dead.Availability)
 			}
-			listed, err := globalDB.ListDeadEntities(ctx, workspaceID)
+			listed, err := globalDB.ListDeadEntities(
+				ctx,
+				store.ReadScope{ProfileID: store.DefaultProfileID},
+				workspaceID,
+			)
 			if err != nil {
 				t.Fatalf("ListDeadEntities(marked) error = %v", err)
 			}
@@ -141,7 +147,11 @@ func TestDaemonIntegrationMCPDeadEntityRecoversWithoutRestart(t *testing.T) {
 			if !recovered.Availability.Executable || len(recovered.Availability.ReasonCodes) != 0 {
 				t.Fatalf("recovered availability = %#v, want executable without reasons", recovered.Availability)
 			}
-			listed, err = globalDB.ListDeadEntities(ctx, workspaceID)
+			listed, err = globalDB.ListDeadEntities(
+				ctx,
+				store.ReadScope{ProfileID: store.DefaultProfileID},
+				workspaceID,
+			)
 			if err != nil {
 				t.Fatalf("ListDeadEntities(recovered) error = %v", err)
 			}

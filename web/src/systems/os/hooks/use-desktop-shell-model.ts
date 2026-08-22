@@ -88,6 +88,7 @@ export function useDesktopShellModel() {
     canDisableGlobal,
     rememberedWorkspace,
     workspaceAgents,
+    workspaceProfileHints: projectWorkspaceDetail.data?.profile_hints ?? [],
     setActiveWorkspaceId,
     toggleGlobalScope,
     areWorkspacesLoading,

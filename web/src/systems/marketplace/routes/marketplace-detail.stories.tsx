@@ -115,7 +115,7 @@ const kitInventoryItems = [
 ];
 
 /** One MSW group set per story: a second `storybookMswParameters` spread would replace the first. */
-function kitDetailHandlers(refuseEnable = false) {
+function kitDetailHandlers(refuseUpdate = false) {
   return storybookMswParameters({
     marketplace: [
       compozyApiMock.get("/api/marketplace/{kind}/{entry_id}", () =>
@@ -129,14 +129,22 @@ function kitDetailHandlers(refuseEnable = false) {
             kind: "extension",
             name: "dep-kit-ops",
             source: "registry",
-            update_available: false,
+            update_available: refuseUpdate,
+            ...(refuseUpdate ? { version: "1.1.0" } : {}),
           },
         })
       ),
     ],
     extensions: [
       compozyApiMock.get("/api/extensions", () =>
-        HttpResponse.json({ extensions: [kitExtensionFixture] })
+        HttpResponse.json({
+          extensions: [
+            {
+              ...kitExtensionFixture,
+              ...(refuseUpdate ? { remote_version: "1.1.0", update_available: true } : {}),
+            },
+          ],
+        })
       ),
       compozyApiMock.get("/api/extensions/{name}/inventory", () =>
         HttpResponse.json({
@@ -146,14 +154,14 @@ function kitDetailHandlers(refuseEnable = false) {
           items: kitInventoryItems,
         })
       ),
-      ...(refuseEnable
+      ...(refuseUpdate
         ? [
-            compozyApiMock.post("/api/extensions/{name}/enable", ({ response }) =>
+            compozyApiMock.put("/api/extensions/{name}", ({ response }) =>
               response(409).json({
                 code: "extension_network_confirmation_required",
                 current_digest: "sha256:6f1c0a94d3b27e58",
                 error:
-                  "dep-kit-ops declares Live network participation that has not been confirmed",
+                  "dep-kit-ops update changes Live network participation that has not been confirmed",
               })
             ),
           ]
@@ -381,7 +389,7 @@ export const DetailExtensionNetworkConfirm: Story = {
   tags: ["play-fn"],
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
-    await userEvent.click(await canvas.findByTestId("extension-enabled-switch"));
+    await userEvent.click(await canvas.findByRole("button", { name: "Update" }));
     const dialog = within(document.body);
     await expect(dialog.findByTestId("extension-network-confirm-dialog")).resolves.toBeDefined();
     await expect(

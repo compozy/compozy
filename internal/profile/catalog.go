@@ -55,14 +55,52 @@ func (m *Manager) List(ctx context.Context) (profiles []ProfileWithCounts, err e
 		if countErr != nil {
 			return nil, countErr
 		}
+		requirements, requirementErr := listCredentialRequirements(ctx, m.store.DB(), profile.ID)
+		if requirementErr != nil {
+			return nil, requirementErr
+		}
 		profiles = append(profiles, ProfileWithCounts{
 			Profile: profile, WorkItems: counts.workItems, NeedsSetup: counts.needsSetup,
+			CredentialRequirements: requirements,
 		})
 	}
 	if err := rows.Err(); err != nil {
 		return nil, fmt.Errorf("profile: iterate list: %w", err)
 	}
 	return profiles, nil
+}
+
+func listCredentialRequirements(
+	ctx context.Context,
+	q queryer,
+	profileID string,
+) (_ []CredentialRequirement, err error) {
+	rows, err := q.QueryContext(ctx, `
+		SELECT provider, slot, source_extension
+		FROM profile_credential_requirements
+		WHERE profile_id = ?
+		ORDER BY provider ASC, slot ASC`, profileID)
+	if err != nil {
+		return nil, fmt.Errorf("profile: list credential requirements: %w", err)
+	}
+	defer func() {
+		if closeErr := rows.Close(); closeErr != nil {
+			err = errors.Join(err, fmt.Errorf("profile: close credential requirement rows: %w", closeErr))
+		}
+	}()
+	result := make([]CredentialRequirement, 0)
+	for rows.Next() {
+		var item CredentialRequirement
+		if err := rows.Scan(&item.Provider, &item.Slot, &item.SourceExtension); err != nil {
+			return nil, fmt.Errorf("profile: scan credential requirement: %w", err)
+		}
+		item.Missing = true
+		result = append(result, item)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("profile: iterate credential requirements: %w", err)
+	}
+	return result, nil
 }
 
 type profileCountsResult struct {

@@ -8,12 +8,31 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
-func profileContract(value profilepkg.Profile, workItems int, needsSetup bool) contract.Profile {
+func profileContract(
+	value profilepkg.Profile,
+	workItems int,
+	needsSetup bool,
+	requirements []profilepkg.CredentialRequirement,
+) contract.Profile {
 	return contract.Profile{
 		ID: value.ID, Name: value.Name, Color: value.Color, Icon: optionalString(value.Icon),
 		Emoji: optionalString(value.Emoji), State: string(value.State), CreatedAt: value.CreatedAt,
 		ArchivedAt: value.ArchivedAt, WorkItems: workItems, NeedsSetup: needsSetup,
+		CredentialRequirements: credentialRequirementContracts(requirements),
 	}
+}
+
+func credentialRequirementContracts(
+	values []profilepkg.CredentialRequirement,
+) []contract.ProfileCredentialRequirement {
+	result := make([]contract.ProfileCredentialRequirement, 0, len(values))
+	for _, value := range values {
+		result = append(result, contract.ProfileCredentialRequirement{
+			Provider: value.Provider, Slot: value.Slot,
+			SourceExtension: value.SourceExtension, Missing: value.Missing,
+		})
+	}
+	return result
 }
 
 func optionalString(value string) *string {

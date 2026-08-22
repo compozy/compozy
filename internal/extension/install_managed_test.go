@@ -1,6 +1,7 @@
 package extensionpkg
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"os"
@@ -8,11 +9,99 @@ import (
 	"runtime"
 	"strings"
 	"testing"
+	"time"
 
 	compozyconfig "github.com/compozy/compozy/internal/config"
+	profilepkg "github.com/compozy/compozy/internal/profile"
 )
 
 var _ managedInstallRegistry = (*recordingManagedInstallRegistry)(nil)
+
+// Invariant: install planning names only declarations that will be created,
+// carries their credential asks, and apply binds pre-existing profiles without
+// seeding them or changing activation.
+// Owner: extension managed-install declared-profile pipeline.
+// Canonical suite: managed install tests.
+func TestDeclaredProfileInstallPlanAndApply(t *testing.T) {
+	t.Parallel()
+
+	manager := &declaredProfileManagerStub{
+		profiles: map[string]profilepkg.Profile{
+			"existing": {ID: "pf-existing", Name: "existing", Color: "#8e8eb5", Icon: "circle", State: profilepkg.StateActive},
+		},
+		markers: make(map[string]bool),
+	}
+	manifest := &Manifest{Name: "growth-kit", Profiles: []ManifestProfile{
+		{
+			Name: "growth", Color: "#5fbf85", Icon: "chart-line",
+			Defaults:    ManifestProfileDefaults{Agent: "growth-analyst"},
+			Credentials: []ManifestProfileCredential{{Provider: "openai", Slot: "api_key"}},
+		},
+		{Name: "existing", Color: "#e0635a", Icon: "flame"},
+	}}
+	plan, err := BuildDeclaredProfilePlan(t.Context(), manager, manifest)
+	if err != nil {
+		t.Fatalf("BuildDeclaredProfilePlan() error = %v", err)
+	}
+	if len(plan.Profiles) != 2 || !plan.Profiles[0].Create || len(plan.Profiles[0].NeedsSetup) != 1 || plan.Profiles[1].Create {
+		t.Fatalf("BuildDeclaredProfilePlan() = %#v, want create growth and bind existing", plan)
+	}
+	results, err := ApplyDeclaredProfiles(t.Context(), manager, manifest)
+	if err != nil {
+		t.Fatalf("ApplyDeclaredProfiles() error = %v", err)
+	}
+	if len(results) != 2 || !results[0].Created || results[0].Bound || results[1].Created || !results[1].Bound {
+		t.Fatalf("ApplyDeclaredProfiles() = %#v, want created then bound", results)
+	}
+	if manager.profiles["existing"].Color != "#8e8eb5" || manager.profiles["existing"].Icon != "circle" {
+		t.Fatalf("existing profile mutated to %#v", manager.profiles["existing"])
+	}
+	if manager.lastSeed.Defaults.Agent != "growth-analyst" || len(manager.lastSeed.CredentialAsks) != 1 {
+		t.Fatalf("created seed = %#v, want defaults and credential ask", manager.lastSeed)
+	}
+}
+
+type declaredProfileManagerStub struct {
+	profiles map[string]profilepkg.Profile
+	markers  map[string]bool
+	lastSeed profilepkg.DeclaredSeed
+}
+
+func (s *declaredProfileManagerStub) CreateDeclared(
+	_ context.Context,
+	in profilepkg.DeclaredInput,
+) (profilepkg.Profile, error) {
+	key := in.Extension + "\x00" + in.Name
+	if s.markers[key] {
+		return s.profiles[in.Name], nil
+	}
+	s.markers[key] = true
+	if existing, ok := s.profiles[in.Name]; ok {
+		return existing, nil
+	}
+	s.lastSeed = in.Seed
+	created := profilepkg.Profile{
+		ID: "pf-" + in.Name, Name: in.Name, Color: in.Seed.Color, Icon: in.Seed.Icon,
+		State: profilepkg.StateActive, CreatedAt: time.Now().UTC(),
+	}
+	s.profiles[in.Name] = created
+	return created, nil
+}
+
+func (s *declaredProfileManagerStub) GetByName(_ context.Context, name string) (profilepkg.Profile, error) {
+	profile, ok := s.profiles[name]
+	if !ok {
+		return profilepkg.Profile{}, profilepkg.ErrNotFound
+	}
+	return profile, nil
+}
+
+func (s *declaredProfileManagerStub) HasDeclaredMarker(
+	_ context.Context,
+	extension, name string,
+) (bool, error) {
+	return s.markers[extension+"\x00"+name], nil
+}
 
 type managedInstallRegistryStub struct {
 	getFn     func(string) (*ExtensionInfo, error)
@@ -755,7 +844,7 @@ func TestInstallLocalManaged(t *testing.T) {
 		}
 	})
 
-	t.Run("Should keep managed installs disabled until enable", func(t *testing.T) {
+	t.Run("Should keep managed installs enabled by default", func(t *testing.T) {
 		t.Parallel()
 
 		sourceDir := t.TempDir()
@@ -779,8 +868,8 @@ func TestInstallLocalManaged(t *testing.T) {
 		); err != nil {
 			t.Fatalf("InstallLocalManaged() error = %v", err)
 		}
-		if registry.installedEnabled {
-			t.Fatal("registry installed enabled = true, want false before enable")
+		if !registry.installedEnabled {
+			t.Fatal("registry installed enabled = false, want default-on")
 		}
 	})
 

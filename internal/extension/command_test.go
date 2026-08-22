@@ -7,9 +7,11 @@ import (
 	"slices"
 	"strings"
 	"testing"
+	"time"
 
 	extensioncontract "github.com/compozy/compozy/internal/extension/contract"
 	extensionprotocol "github.com/compozy/compozy/internal/extensionprotocol"
+	"github.com/compozy/compozy/internal/store"
 	toolspkg "github.com/compozy/compozy/internal/tools"
 )
 
@@ -355,7 +357,8 @@ func TestManagerCmdPaletteProjectsEffectiveWorkspaceInstances(t *testing.T) {
 			key: GlobalInstanceKey("plain"), info: ExtensionInfo{Name: "plain", Enabled: true},
 			manifest: &Manifest{Name: "plain"}, registered: true, active: true,
 		}
-		projection, err := manager.CmdPalette("workspace-a")
+		profile := ProfileLens{ID: "00000000000000000000000000", Name: "default"}
+		projection, err := manager.CmdPalette("workspace-a", profile)
 		if err != nil {
 			t.Fatalf("Manager.CmdPalette() error = %v", err)
 		}
@@ -373,7 +376,7 @@ func TestManagerCmdPaletteProjectsEffectiveWorkspaceInstances(t *testing.T) {
 		extension := manager.extensions["notes"]
 		extension.active = false
 		extension.lastError = "crash loop"
-		unhealthy, err := manager.CmdPalette("workspace-a")
+		unhealthy, err := manager.CmdPalette("workspace-a", profile)
 		if err != nil {
 			t.Fatalf("Manager.CmdPalette(unhealthy) error = %v", err)
 		}
@@ -384,7 +387,7 @@ func TestManagerCmdPaletteProjectsEffectiveWorkspaceInstances(t *testing.T) {
 		}
 
 		extension.info.Enabled = false
-		disabled, err := manager.CmdPalette("workspace-a")
+		disabled, err := manager.CmdPalette("workspace-a", profile)
 		if err != nil {
 			t.Fatalf("Manager.CmdPalette(disabled) error = %v", err)
 		}
@@ -409,11 +412,12 @@ func TestManagerCmdPaletteProjectsEffectiveWorkspaceInstances(t *testing.T) {
 			key: key, info: ExtensionInfo{Name: "notes", Enabled: true, Source: SourceWorkspace},
 			manifest: development, registered: true, active: true,
 		}
-		workspaceA, err := manager.CmdPalette("workspace-a")
+		profile := ProfileLens{ID: "00000000000000000000000000", Name: "default"}
+		workspaceA, err := manager.CmdPalette("workspace-a", profile)
 		if err != nil {
 			t.Fatalf("Manager.CmdPalette(workspace-a) error = %v", err)
 		}
-		workspaceB, err := manager.CmdPalette("workspace-b")
+		workspaceB, err := manager.CmdPalette("workspace-b", profile)
 		if err != nil {
 			t.Fatalf("Manager.CmdPalette(workspace-b) error = %v", err)
 		}
@@ -422,6 +426,97 @@ func TestManagerCmdPaletteProjectsEffectiveWorkspaceInstances(t *testing.T) {
 			t.Fatalf("workspace titles = %q/%q", workspaceA.Commands[0].Title, workspaceB.Commands[0].Title)
 		}
 	})
+}
+
+// Invariant: command-palette membership is the conjunction of the selected
+// profile's extension enablement and every contribution's name-bound placement.
+// Owner: extension manager command-palette projection.
+// Canonical suite: extension command projection tests.
+func TestManagerCmdPaletteFiltersByProfileEnablementAndPlacement(t *testing.T) {
+	t.Parallel()
+	withDaemonVersion(t, "0.6.0")
+
+	env := newRegistryTestEnv(t)
+	dir, installed, checksum := createRegistryTestExtension(t, "profile-palette", registryManifestOptions{})
+	if err := env.registry.Install(installed, dir, checksum); err != nil {
+		t.Fatalf("Install() error = %v", err)
+	}
+	const (
+		financeID   = "01JPROFILEFINANCE000000000"
+		marketingID = "01JPROFILEMARKETING0000000"
+	)
+	if _, err := env.db.Exec(`INSERT INTO profiles (
+		id, name, color, icon, state, created_at
+	) VALUES
+		(?, 'finance', '#112233', 'briefcase', 'active', ?),
+		(?, 'marketing', '#334455', 'megaphone', 'active', ?)`,
+		financeID, store.FormatTimestamp(time.Now().UTC()),
+		marketingID, store.FormatTimestamp(time.Now().UTC()),
+	); err != nil {
+		t.Fatalf("insert profile fixtures: %v", err)
+	}
+
+	manifest := cmdPaletteTestManifest(installed.Name)
+	manifest.Resources.Tools["capture_note"] = withToolProfile(manifest.Resources.Tools["capture_note"], "marketing")
+	manifest.Resources.Tools["list_recent"] = withToolProfile(manifest.Resources.Tools["list_recent"], "finance")
+	manifest.Resources.CmdPalette.Commands[0].Profile = "marketing"
+	manifest.Resources.CmdPalette.Commands[1].Profile = "finance"
+	manifest.Resources.CmdPalette.Views[0].Profile = "finance"
+	manager := NewManager(env.registry)
+	manager.extensions[installed.Name] = &managedExtension{
+		key:      GlobalInstanceKey(installed.Name),
+		info:     ExtensionInfo{Name: installed.Name, Enabled: true},
+		manifest: manifest, registered: true, active: true,
+	}
+
+	marketing := ProfileLens{ID: marketingID, Name: "marketing"}
+	marketingProjection, err := manager.CmdPalette("workspace-a", marketing)
+	if err != nil {
+		t.Fatalf("Manager.CmdPalette(marketing) error = %v", err)
+	}
+	if got, want := projectedCommandIDs(marketingProjection), []string{
+		"ext.profile-palette.capture", "ext.profile-palette.purge",
+	}; !slices.Equal(got, want) {
+		t.Fatalf("marketing commands = %#v, want %#v", got, want)
+	}
+	if len(marketingProjection.Views) != 0 || len(marketingProjection.Defaults) != 1 {
+		t.Fatalf("marketing projection = %#v, want placed command/default only", marketingProjection)
+	}
+
+	financeProjection, err := manager.CmdPalette("workspace-a", ProfileLens{ID: financeID, Name: "finance"})
+	if err != nil {
+		t.Fatalf("Manager.CmdPalette(finance) error = %v", err)
+	}
+	if got, want := projectedCommandIDs(financeProjection), []string{
+		"ext.profile-palette.purge", "ext.profile-palette.recent",
+	}; !slices.Equal(got, want) || len(financeProjection.Views) != 1 || len(financeProjection.Defaults) != 0 {
+		t.Fatalf("finance projection = %#v, want finance and unplaced contributions", financeProjection)
+	}
+
+	if err := env.registry.SetEnabledForProfile(installed.Name, marketingID, false); err != nil {
+		t.Fatalf("SetEnabledForProfile(marketing disabled) error = %v", err)
+	}
+	disabled, err := manager.CmdPalette("workspace-a", marketing)
+	if err != nil {
+		t.Fatalf("Manager.CmdPalette(marketing disabled) error = %v", err)
+	}
+	if len(disabled.Commands) != 0 || len(disabled.Views) != 0 || len(disabled.Defaults) != 0 {
+		t.Fatalf("disabled marketing projection = %#v, want empty", disabled)
+	}
+}
+
+func withToolProfile(tool ToolConfig, profile string) ToolConfig {
+	tool.Profile = profile
+	return tool
+}
+
+func projectedCommandIDs(projection CmdPaletteProjection) []string {
+	ids := make([]string, 0, len(projection.Commands))
+	for _, command := range projection.Commands {
+		ids = append(ids, command.ID)
+	}
+	slices.Sort(ids)
+	return ids
 }
 
 func commandTestManifest(name string) *Manifest {

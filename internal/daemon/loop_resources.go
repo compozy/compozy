@@ -121,7 +121,12 @@ func (d *Daemon) newLoopPublisher(
 			return err
 		},
 		daemonLoopDeclarationProvider(d.homePaths, state.registry, state.workspaceResolver, state.logger),
-		extensionLoopDeclarationProvider(registry, state.currentExtensionRuntime, state.logger),
+		extensionLoopDeclarationProvider(
+			registry,
+			state.currentExtensionRuntime,
+			state.logger,
+			state.deps.Profiles,
+		),
 	), nil
 }
 
@@ -316,6 +321,7 @@ func extensionLoopDeclarationProvider(
 	registry *extensionpkg.Registry,
 	runtime func() extensionRuntime,
 	logger *slog.Logger,
+	profileCatalogs ...extensionProfileCatalog,
 ) loopDeclarationProvider {
 	return func(ctx context.Context) ([]loopPublicationInput, error) {
 		if err := ctx.Err(); err != nil {
@@ -329,7 +335,15 @@ func extensionLoopDeclarationProvider(
 			return nil, nil
 		}
 		var desired []loopPublicationInput
-		snapshots, err := extensionResourceSnapshots(registry, manager, logger)
+		var snapshots []scopedExtensionResourceSnapshot
+		var err error
+		if len(profileCatalogs) > 0 && profileCatalogs[0] != nil {
+			snapshots, err = extensionResourceSnapshotsForProfiles(
+				ctx, registry, manager, logger, profileCatalogs[0],
+			)
+		} else {
+			snapshots, err = extensionResourceSnapshots(registry, manager, logger)
+		}
 		if err != nil {
 			return nil, err
 		}

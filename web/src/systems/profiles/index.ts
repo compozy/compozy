@@ -188,6 +188,10 @@ export { ProfileUnarchiveDialog } from "./components/profile-unarchive-dialog";
 export { ProfileDeleteDialog } from "./components/profile-delete-dialog";
 export { ProfileLifecycleDialogs } from "./components/profile-lifecycle-dialogs";
 export { ProfileLifecycleHost } from "./components/profile-lifecycle-host";
+export {
+  WorkspaceProfilesHint,
+  type WorkspaceProfilesHintProps,
+} from "./components/workspace-profiles-hint";
 export { ProfileSwitcherSlot } from "./components/profile-switcher-slot";
 export { ProfileSettingsList } from "./components/profile-settings-list";
 export { ProfileSelectionMap } from "./components/profile-selection-map";

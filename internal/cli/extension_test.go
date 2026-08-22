@@ -418,8 +418,8 @@ func TestExtensionInstallOfflinePersistsExtension(t *testing.T) {
 	}
 
 	info := getInstalledExtension(t, homePaths, "alpha-ext")
-	if info.Enabled {
-		t.Fatal("installed extension enabled = true, want inert install")
+	if !info.Enabled {
+		t.Fatal("installed extension enabled = false, want default-on install")
 	}
 	if !info.Provenance.AllowUnverified {
 		t.Fatalf("installed provenance allow_unverified = false, want true")
@@ -924,6 +924,64 @@ func TestExtensionInstallUsesDaemonClientWhenRunning(t *testing.T) {
 		!captured.AllowUnverified {
 		t.Fatalf("captured install request = %#v, want local_path ref and allow_unverified", captured)
 	}
+
+	t.Run("Should print the declared-profile preview before installing [UT-058][E2E-008]", func(t *testing.T) {
+		var previewed bool
+		client := &stubClient{
+			previewExtensionInstallFn: func(
+				_ context.Context,
+				request InstallExtensionRequest,
+			) (ExtensionInstallPreviewRecord, error) {
+				previewed = true
+				return ExtensionInstallPreviewRecord{
+					Name: "growth-kit",
+					DeclaredProfiles: []contract.ExtensionInstallDeclaredProfilePayload{{
+						Name: "growth", Create: true,
+						Credentials: []contract.ProfileCredentialRequirement{{Provider: "openai", Slot: "api_key"}},
+					}},
+					Placements: []contract.ExtensionPlacementPayload{{
+						Kind: "skill", Resource: "tweet-writer", Profile: "growth",
+					}},
+				}, nil
+			},
+			installExtensionFn: func(
+				_ context.Context,
+				_ InstallExtensionRequest,
+			) (ExtensionRecord, error) {
+				if !previewed {
+					t.Fatal("InstallExtension called before PreviewExtensionInstall")
+				}
+				return ExtensionRecord{Name: "growth-kit", Enabled: true}, nil
+			},
+		}
+		previewDeps, _ := newExtensionLocalDeps(t, client)
+		previewDeps.readDaemonInfo = func(string) (compozydaemon.Info, error) {
+			return compozydaemon.Info{PID: 102, StartedAt: fixedTestNow}, nil
+		}
+		previewDeps.processAlive = func(int) bool { return true }
+
+		_, stderr, err := executeRootCommand(
+			t,
+			previewDeps,
+			"extension",
+			"install",
+			dir,
+			"--allow-unverified",
+			"--yes",
+		)
+		if err != nil {
+			t.Fatalf("extension install human preview error = %v", err)
+		}
+		for _, want := range []string{
+			"growth-kit will:",
+			"create profile growth (needs openai api_key)",
+			"add skill tweet-writer to profile growth",
+		} {
+			if !strings.Contains(stderr, want) {
+				t.Fatalf("extension install preview = %q, want %q", stderr, want)
+			}
+		}
+	})
 }
 
 func TestExtensionDevBindsResolvedCurrentWorkspace(t *testing.T) {
@@ -1034,8 +1092,8 @@ version = "0.1.0"
 description = "Resource-only watch fixture"
 min_compozy_version = "0.5.0"
 
-[resources]
-skills = ["skills"]
+[[resources.skills]]
+path = "skills"
 `)
 			skillPath := filepath.Join(skillDir, "SKILL.md")
 			writeExtensionManifest(t, skillPath, `---

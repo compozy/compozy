@@ -1,6 +1,7 @@
 package profile
 
 import (
+	"context"
 	"crypto/rand"
 	"errors"
 	"fmt"
@@ -31,6 +32,11 @@ type Event struct {
 
 type EventRecorder interface{ RecordProfileEvent(Event) }
 
+// PlacementCatalog reports extension resources that bind to one profile name.
+type PlacementCatalog interface {
+	PlacementsForProfile(context.Context, string) ([]PlacementRef, error)
+}
+
 type Manager struct {
 	store      *globaldb.GlobalDB
 	home       compozyconfig.HomePaths
@@ -38,6 +44,7 @@ type Manager struct {
 	entropy    io.Reader
 	logger     *slog.Logger
 	events     EventRecorder
+	placements PlacementCatalog
 	selections *selectionStore
 	vaultRefs  *vault.ProfileRefRewriter
 	opMu       sync.Mutex
@@ -98,6 +105,13 @@ func WithLogger(logger *slog.Logger) Option {
 func WithEventRecorder(recorder EventRecorder) Option {
 	return func(m *Manager) error {
 		m.events = recorder
+		return nil
+	}
+}
+
+func WithPlacementCatalog(catalog PlacementCatalog) Option {
+	return func(m *Manager) error {
+		m.placements = catalog
 		return nil
 	}
 }

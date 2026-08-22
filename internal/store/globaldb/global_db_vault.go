@@ -65,7 +65,9 @@ func (g *VaultRepo) PutVaultSecret(ctx context.Context, record vault.Record) err
 	if err != nil {
 		return err
 	}
-	if err := putVaultSecretWithExecutor(ctx, g.db, normalized); err != nil {
+	if err := store.ExecuteWrite(ctx, g.db, func(_ context.Context, tx *store.WriteTx) error {
+		return putVaultSecretWithExecutor(ctx, tx, normalized)
+	}); err != nil {
 		return err
 	}
 	return nil
@@ -78,6 +80,27 @@ func putVaultSecretWithExecutor(ctx context.Context, exec globalSQLExecutor, rec
 	})
 	if err != nil {
 		return fmt.Errorf("store: put vault secret %q: %w", record.Ref, err)
+	}
+	parsed, err := vault.ParseProfileSecretRef(record.Ref)
+	if err != nil {
+		if strings.HasPrefix(record.Ref, vault.ProfileSecretRefPrefix) {
+			return fmt.Errorf("store: parse profile credential ref %q: %w", record.Ref, err)
+		}
+		return nil
+	}
+	if parsed.OwnerKind != "providers" {
+		return nil
+	}
+	if _, err := exec.ExecContext(
+		ctx,
+		`DELETE FROM profile_credential_requirements
+		 WHERE profile_id = (SELECT id FROM profiles WHERE name = ?)
+		   AND provider = ? AND slot = ?`,
+		parsed.ProfileName,
+		parsed.Owner,
+		parsed.Key,
+	); err != nil {
+		return fmt.Errorf("store: clear satisfied profile credential requirement: %w", err)
 	}
 	return nil
 }

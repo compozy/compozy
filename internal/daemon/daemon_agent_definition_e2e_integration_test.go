@@ -148,12 +148,12 @@ func TestDaemonE2EAgentDefinitionLifecycleParity(t *testing.T) {
 			!reflect.DeepEqual(afterRestart.Agent.CategoryPath, []string{"CompozyOS"}) {
 			t.Fatalf("post-restart extension agent = %#v, want persisted update %#v", afterRestart.Agent, updated.Agent)
 		}
-		disabled, err := restarted.DisableExtension(ctx, speccycle.Name)
+		disabled, err := restarted.SetExtensionEnablement(ctx, speccycle.Name, "default", false)
 		if err != nil {
-			t.Fatalf("DisableExtension(%s) error = %v", speccycle.Name, err)
+			t.Fatalf("SetExtensionEnablement(%s) error = %v", speccycle.Name, err)
 		}
 		if disabled.Enabled {
-			t.Fatalf("DisableExtension(%s) = %#v, want disabled", speccycle.Name, disabled)
+			t.Fatalf("SetExtensionEnablement(%s) = %#v, want disabled", speccycle.Name, disabled)
 		}
 		assertSpecCycleE2ECatalogPresence(t, ctx, restarted, false)
 	})

@@ -56,6 +56,7 @@ func registerFilesystemRoutes(api gin.IRouter, handlers *Handlers) {
 }
 
 func registerNotificationRoutes(api gin.IRouter, handlers *Handlers) {
+	privileged := handlers.privilegedMutationGuard()
 	notifications := api.Group("/notifications")
 	presets := notifications.Group("/presets")
 	presets.GET("", handlers.ListNotificationPresets)
@@ -63,6 +64,7 @@ func registerNotificationRoutes(api gin.IRouter, handlers *Handlers) {
 	presets.GET("/:name", handlers.GetNotificationPreset)
 	presets.PUT("/:name", handlers.UpdateNotificationPreset)
 	presets.DELETE("/:name", handlers.DeleteNotificationPreset)
+	presets.PUT("/:name/enablement", privileged, handlers.SetNotificationPresetEnablement)
 }
 
 func registerWorkspaceRoutes(api gin.IRouter, handlers *Handlers) {
@@ -362,6 +364,7 @@ func registerExtensionRoutes(api gin.IRouter, handlers *Handlers) {
 	extensions.GET("", handlers.ListExtensions)
 	extensions.GET("/search", handlers.SearchExtensions)
 	extensions.GET("/commands", handlers.ExtensionCommands)
+	extensions.POST("/preview-install", privileged, handlers.PreviewExtensionInstall)
 	extensions.POST("", privileged, handlers.InstallExtension)
 	extensions.POST("/dev", privileged, handlers.DevExtension)
 	extensions.POST("/update", privileged, handlers.UpdateExtensions)
@@ -372,12 +375,11 @@ func registerExtensionRoutes(api gin.IRouter, handlers *Handlers) {
 	extensions.PUT("/:name/secrets", privileged, handlers.SetExtensionSecrets)
 	extensions.DELETE("/:name/secrets/:env_name", privileged, handlers.DeleteExtensionSecret)
 	extensions.GET("/:name/inventory", handlers.ExtensionInventory)
-	extensions.GET("/:name/preview", handlers.PreviewExtensionEnable)
 	extensions.GET("/:name", handlers.ExtensionStatus)
 	extensions.POST("/:name/reload", privileged, handlers.ReloadDevExtension)
 	extensions.GET("/:name/logs", handlers.ExtensionLogs)
-	extensions.POST("/:name/enable", privileged, handlers.EnableExtension)
-	extensions.POST("/:name/disable", privileged, handlers.DisableExtension)
+	extensions.GET("/:name/enablement", handlers.ListExtensionEnablement)
+	extensions.PUT("/:name/enablement", privileged, handlers.SetExtensionEnablement)
 }
 
 func registerSettingsRoutes(api gin.IRouter, handlers *Handlers) {

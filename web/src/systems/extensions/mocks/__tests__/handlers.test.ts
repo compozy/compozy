@@ -24,11 +24,15 @@ afterAll(() => {
 });
 
 describe("extensions MSW handlers", () => {
-  it("Should retain extension enablement and deletion across inventory refetches", async () => {
-    const disable = await fetch(`${API}/api/extensions/otel-bridge/disable`, { method: "POST" });
+  it("Should retain profile enablement and deletion across inventory refetches", async () => {
+    const disable = await fetch(`${API}/api/extensions/otel-bridge/enablement`, {
+      body: JSON.stringify({ enabled: false, profile: "growth" }),
+      headers: { "Content-Type": "application/json" },
+      method: "PUT",
+    });
     expect(disable.status).toBe(200);
 
-    let inventory = await fetch(`${API}/api/extensions`);
+    let inventory = await fetch(`${API}/api/extensions?profile=growth`);
     let body = (await inventory.json()) as {
       extensions: Array<{ enabled: boolean; name: string }>;
     };
@@ -36,9 +40,13 @@ describe("extensions MSW handlers", () => {
       false
     );
 
-    const enable = await fetch(`${API}/api/extensions/otel-bridge/enable`, { method: "POST" });
+    const enable = await fetch(`${API}/api/extensions/otel-bridge/enablement`, {
+      body: JSON.stringify({ enabled: true, profile: "growth" }),
+      headers: { "Content-Type": "application/json" },
+      method: "PUT",
+    });
     expect(enable.status).toBe(200);
-    inventory = await fetch(`${API}/api/extensions`);
+    inventory = await fetch(`${API}/api/extensions?profile=growth`);
     body = (await inventory.json()) as { extensions: Array<{ enabled: boolean; name: string }> };
     expect(body.extensions.find(extension => extension.name === "otel-bridge")?.enabled).toBe(true);
 
@@ -49,13 +57,18 @@ describe("extensions MSW handlers", () => {
     expect(body.extensions.some(extension => extension.name === "otel-bridge")).toBe(false);
   });
 
-  /**
-   * The mock has to gate on the digest exactly as the daemon does; a mock that enabled anyway
-   * would let the confirm affordance pass its own tests while the real lifecycle refused.
-   */
-  it("Should refuse an unconfirmed enable and go live only once the digest is ratified", async () => {
-    const refused = await fetch(`${API}/api/extensions/dep-kit-ops/enable`, {
-      body: JSON.stringify({}),
+  it("Should preview network requirements and require the exact digest before install", async () => {
+    const request = { ref: "dep-kit-ops", source: "curated", version: "1.1.0" };
+    const previewResponse = await fetch(`${API}/api/extensions/preview-install`, {
+      body: JSON.stringify(request),
+      headers: { "Content-Type": "application/json" },
+      method: "POST",
+    });
+    expect(previewResponse.status).toBe(200);
+    const preview = (await previewResponse.json()) as { network_requirement_digest: string };
+
+    const refused = await fetch(`${API}/api/extensions`, {
+      body: JSON.stringify(request),
       headers: { "Content-Type": "application/json" },
       method: "POST",
     });
@@ -66,34 +79,17 @@ describe("extensions MSW handlers", () => {
       current_digest: "sha256:6f1c0a94d3b27e58",
     });
 
-    const shipped = (await (await fetch(`${API}/api/extensions/dep-kit-ops/inventory`)).json()) as {
-      enabled: boolean;
-      items: Array<{ live: boolean }>;
-    };
-    expect(shipped.enabled).toBe(false);
-    expect(shipped.items.every(item => item.live)).toBe(false);
+    expect(refusal.current_digest).toBe(preview.network_requirement_digest);
 
-    const confirmed = await fetch(`${API}/api/extensions/dep-kit-ops/enable`, {
-      body: JSON.stringify({ confirm_network_digest: refusal.current_digest }),
+    const confirmed = await fetch(`${API}/api/extensions`, {
+      body: JSON.stringify({
+        ...request,
+        confirm_network_digest: preview.network_requirement_digest,
+      }),
       headers: { "Content-Type": "application/json" },
       method: "POST",
     });
-    expect(confirmed.status).toBe(200);
-    const enabled = (await confirmed.json()) as { automation_started: string[] };
-    expect(enabled.automation_started).toEqual(["weekly-audit"]);
-
-    const live = (await (await fetch(`${API}/api/extensions/dep-kit-ops/inventory`)).json()) as {
-      enabled: boolean;
-      items: Array<{ live: boolean }>;
-    };
-    expect(live.enabled).toBe(true);
-    expect(live.items.every(item => item.live)).toBe(true);
-
-    await fetch(`${API}/api/extensions/dep-kit-ops/disable`, { method: "POST" });
-    const afterDisable = (await (
-      await fetch(`${API}/api/extensions/dep-kit-ops/inventory`)
-    ).json()) as { items: Array<{ live: boolean }> };
-    expect(afterDisable.items.some(item => item.live)).toBe(false);
+    expect(confirmed.status).toBe(201);
   });
 
   it("Should refuse an unconfirmed update and accept an exact digest retry", async () => {
@@ -203,8 +199,7 @@ describe("extensions MSW handlers", () => {
     const missingExtensionRoutes = [
       ["/api/extensions/missing/provenance", "GET"],
       ["/api/extensions/missing/inventory", "GET"],
-      ["/api/extensions/missing/enable", "POST"],
-      ["/api/extensions/missing/disable", "POST"],
+      ["/api/extensions/missing/enablement", "PUT"],
       ["/api/extensions/missing", "PUT"],
       ["/api/extensions/missing", "DELETE"],
     ] as const;

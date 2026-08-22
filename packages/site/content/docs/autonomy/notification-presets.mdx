@@ -7,7 +7,8 @@ Notification presets are daemon-owned fanout policies stored in `notification_pr
 managed through HTTP, UDS, CLI, native tools, and the web settings surface; `config.toml` does not
 define mutable preset rows.
 
-Built-in presets are seeded disabled:
+Built-in preset definitions are shared. Enablement is resolved separately for each profile and
+defaults to enabled when no exception row exists:
 
 | Preset              | Events                                                                                                  |
 | ------------------- | ------------------------------------------------------------------------------------------------------- |
@@ -80,22 +81,28 @@ The CLI group is agent-operable and supports `-o json|jsonl|toon`:
 
 ```bash
 compozy notifications presets list -o json
+compozy --profile marketing notifications presets list -o json
 compozy notifications preset show task_terminal -o json
-compozy notifications preset enable task_terminal --target brg_ops:channel:ops -o json
+compozy --profile marketing notifications preset disable task_terminal -o json
 compozy notifications preset create provider_failures --event provider.* --filter "severity >= warning" -o json
-compozy notifications preset disable task_terminal -o json
+compozy --profile marketing notifications preset enable task_terminal -o json
 compozy notifications preset delete provider_failures -o json
 ```
 
 HTTP and UDS expose the same CRUD contract:
 
-| Method   | Path                                |
-| -------- | ----------------------------------- |
-| `GET`    | `/api/notifications/presets`        |
-| `POST`   | `/api/notifications/presets`        |
-| `GET`    | `/api/notifications/presets/{name}` |
-| `PUT`    | `/api/notifications/presets/{name}` |
-| `DELETE` | `/api/notifications/presets/{name}` |
+| Method   | Path                                           |
+| -------- | ---------------------------------------------- |
+| `GET`    | `/api/notifications/presets`                   |
+| `POST`   | `/api/notifications/presets`                   |
+| `GET`    | `/api/notifications/presets/{name}`            |
+| `PUT`    | `/api/notifications/presets/{name}`            |
+| `DELETE` | `/api/notifications/presets/{name}`            |
+| `PUT`    | `/api/notifications/presets/{name}/enablement` |
+
+`GET /api/notifications/presets?profile=marketing` returns each shared definition with that profile's
+effective `enabled` value. The enablement mutation accepts `{"profile":"marketing","enabled":false}`.
+Disabling a preset in one profile does not change delivery in another profile.
 
 See also [Notification Cursors](/docs/autonomy/notification-cursors) for replay and cursor
 diagnostics.

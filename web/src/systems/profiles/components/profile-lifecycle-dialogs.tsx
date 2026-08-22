@@ -41,6 +41,7 @@ export function ProfileLifecycleDialogs({ profiles, lens }: ProfileLifecycleDial
         lens={lens}
         isPending={model.create.isPending}
         nameError={lifecycleErrorMessage(model.create.error)}
+        initialName={intent.profile}
         onCreate={input =>
           model.create.mutate(
             {

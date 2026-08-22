@@ -261,9 +261,11 @@ name = %q
 version = "0.1.0"
 min_compozy_version = "0.3.0-beta.1"
 
-[resources]
-agents = ["agents"]
-skills = ["skills"]
+[[resources.agents]]
+path = "agents"
+
+[[resources.skills]]
+path = "skills"
 `, resourceOnlyExtensionAuthoringE2EName)
 	if err := os.WriteFile(filepath.Join(sourceDir, "extension.toml"), []byte(manifest), 0o600); err != nil {
 		t.Fatalf("os.WriteFile(resource-only manifest) error = %v", err)

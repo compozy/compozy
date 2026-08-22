@@ -11,11 +11,12 @@ import (
 )
 
 type nativeProfileListItem struct {
-	Name       string `json:"name"`
-	State      string `json:"state"`
-	Current    bool   `json:"current"`
-	WorkItems  int    `json:"work_items"`
-	NeedsSetup bool   `json:"needs_setup"`
+	Name                   string                             `json:"name"`
+	State                  string                             `json:"state"`
+	Current                bool                               `json:"current"`
+	WorkItems              int                                `json:"work_items"`
+	NeedsSetup             bool                               `json:"needs_setup"`
+	CredentialRequirements []profilepkg.CredentialRequirement `json:"credential_requirements,omitempty"`
 }
 
 type nativeProfileCurrentResult struct {
@@ -54,6 +55,7 @@ func (n *daemonNativeTools) profileList(
 		items = append(items, nativeProfileListItem{
 			Name: profile.Name, State: string(profile.State), Current: profile.ID == profileID,
 			WorkItems: profile.WorkItems, NeedsSetup: profile.NeedsSetup,
+			CredentialRequirements: append([]profilepkg.CredentialRequirement(nil), profile.CredentialRequirements...),
 		})
 	}
 	return structuredResult(map[string]any{"profiles": items}, "profile catalog")

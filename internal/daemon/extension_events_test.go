@@ -139,6 +139,7 @@ func TestExtensionEventCallSitesUseCanonicalSafePayloads(t *testing.T) {
 		if err != nil {
 			t.Fatalf("DeriveHumanActorContext() error = %v", err)
 		}
+		actor.ReadScope = store.ReadScope{ProfileID: store.DefaultProfileID}
 		value := "secret-value"
 		_, err = service.SetExtensionSecrets(
 			testutil.Context(t),
@@ -216,10 +217,39 @@ func TestExtensionEventCallSitesUseCanonicalSafePayloads(t *testing.T) {
 			t.Fatalf("notified workspaces = %#v, want ws-a and ws-b", catalog.workspaces)
 		}
 		if !reflect.DeepEqual(views.invalidations, []viewSessionInvalidation{
-			{workspace: "ws-a", extension: "notes"},
-			{workspace: "ws-b", extension: "notes"},
+			{profileLens: cmdpalette.AggregateProfileLens(), workspace: "ws-a", extension: "notes"},
+			{profileLens: cmdpalette.AggregateProfileLens(), workspace: "ws-b", extension: "notes"},
 		}) {
 			t.Fatalf("view invalidations = %#v, want notes in both workspaces", views.invalidations)
+		}
+	})
+
+	t.Run("Should invalidate only the affected profile after profile enablement changes [IT-093]", func(t *testing.T) {
+		t.Parallel()
+
+		catalog := &recordingExtensionPaletteCatalog{}
+		views := &recordingExtensionViewSessions{}
+		notifier := &extensionPaletteNotifier{
+			catalog: func() cmdpalette.Registry { return catalog },
+			views:   func() cmdpalette.ViewSessionService { return views },
+			workspaces: func(context.Context) ([]workspacepkg.Workspace, error) {
+				return []workspacepkg.Workspace{{ID: "ws-a"}, {ID: "ws-b"}}, nil
+			},
+		}
+		finance := cmdpalette.ScopedProfileLens("01ARZ3NDEKTSV4RRFFQ69G5FAV", "finance")
+		if err := notifier.NotifyExtensionProfileChanged(
+			t.Context(), "", "notes", finance,
+		); err != nil {
+			t.Fatalf("NotifyExtensionProfileChanged() error = %v", err)
+		}
+		if !reflect.DeepEqual(catalog.profileLenses, []cmdpalette.ProfileLens{finance, finance}) {
+			t.Fatalf("catalog profile lenses = %#v, want finance only", catalog.profileLenses)
+		}
+		if !reflect.DeepEqual(views.invalidations, []viewSessionInvalidation{
+			{profileLens: finance, workspace: "ws-a", extension: "notes"},
+			{profileLens: finance, workspace: "ws-b", extension: "notes"},
+		}) {
+			t.Fatalf("view invalidations = %#v, want finance in both workspaces", views.invalidations)
 		}
 	})
 
@@ -241,7 +271,7 @@ func TestExtensionEventCallSitesUseCanonicalSafePayloads(t *testing.T) {
 			t.Fatalf("notified workspaces = %#v, want ws-a", catalog.workspaces)
 		}
 		if !reflect.DeepEqual(views.invalidations, []viewSessionInvalidation{{
-			workspace: "ws-a", extension: "notes",
+			profileLens: cmdpalette.AggregateProfileLens(), workspace: "ws-a", extension: "notes",
 		}}) {
 			t.Fatalf("view invalidations = %#v, want notes in ws-a", views.invalidations)
 		}
@@ -250,7 +280,8 @@ func TestExtensionEventCallSitesUseCanonicalSafePayloads(t *testing.T) {
 
 type recordingExtensionPaletteCatalog struct {
 	cmdpalette.Registry
-	workspaces []cmdpalette.WorkspaceID
+	workspaces    []cmdpalette.WorkspaceID
+	profileLenses []cmdpalette.ProfileLens
 }
 
 type viewSessionInvalidation struct {
@@ -281,10 +312,11 @@ func (s *recordingExtensionViewSessions) InvalidateInstance(
 
 func (c *recordingExtensionPaletteCatalog) NotifyCatalogChanged(
 	_ context.Context,
-	_ cmdpalette.ProfileLens,
+	profileLens cmdpalette.ProfileLens,
 	workspaceID cmdpalette.WorkspaceID,
 ) error {
 	c.workspaces = append(c.workspaces, workspaceID)
+	c.profileLenses = append(c.profileLenses, profileLens)
 	return nil
 }
 

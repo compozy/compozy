@@ -184,7 +184,10 @@ func (s settingsPaletteRuntimeStub) InspectPackageResources(
 ) (*extensionpkg.Extension, error) {
 	return nil, errors.New("unexpected InspectPackageResources")
 }
-func (s settingsPaletteRuntimeStub) CmdPaletteSettings(string) (extensionpkg.CmdPaletteProjection, error) {
+func (s settingsPaletteRuntimeStub) CmdPaletteSettings(
+	string,
+	extensionpkg.ProfileLens,
+) (extensionpkg.CmdPaletteProjection, error) {
 	return s.projection, s.err
 }
 

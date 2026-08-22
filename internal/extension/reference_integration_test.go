@@ -455,15 +455,8 @@ func (h *referenceHarness) installExtension(t *testing.T, relativePath string) c
 	if err != nil {
 		t.Fatalf("InstallExtension(%q) error = %v", relativePath, err)
 	}
-	if record.Enabled {
-		t.Fatalf("InstallExtension(%q).Enabled = true, want inert install before enable", relativePath)
-	}
-	enabled, err := h.client.EnableExtension(ctx, record.Name, cli.EnableExtensionRequest{})
-	if err != nil {
-		t.Fatalf("EnableExtension(%q) error = %v", record.Name, err)
-	}
-	if !enabled.Extension.Enabled {
-		t.Fatalf("EnableExtension(%q).Enabled = false, want true", record.Name)
+	if !record.Enabled {
+		t.Fatalf("InstallExtension(%q).Enabled = false, want default-on install", relativePath)
 	}
 
 	return h.waitForExtensionActive(t, record.Name)

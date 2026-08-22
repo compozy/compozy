@@ -15,7 +15,7 @@ import (
 )
 
 type extensionCmdPaletteRuntime interface {
-	CmdPalette(string) (extensionpkg.CmdPaletteProjection, error)
+	CmdPalette(string, extensionpkg.ProfileLens) (extensionpkg.CmdPaletteProjection, error)
 }
 
 type extensionCmdPaletteProvider struct {
@@ -223,7 +223,13 @@ func (p *extensionCmdPaletteProvider) projection(
 	if runtime == nil {
 		return extensionpkg.CmdPaletteProjection{}, nil
 	}
-	projection, err := runtime.CmdPalette(string(request.WorkspaceID))
+	if request.ProfileLens.IsAggregate() {
+		return extensionpkg.CmdPaletteProjection{}, nil
+	}
+	projection, err := runtime.CmdPalette(string(request.WorkspaceID), extensionpkg.ProfileLens{
+		ID:   string(request.ProfileLens.ID),
+		Name: request.ProfileLens.Name,
+	})
 	if err != nil {
 		return extensionpkg.CmdPaletteProjection{}, fmt.Errorf("daemon: project extension command palette: %w", err)
 	}

@@ -19,6 +19,8 @@ const (
 	lifecycleEventConfirmedByKey         = "confirmed_by"
 	lifecycleEventBoundCountKey          = "bound_count"
 	lifecycleEventAutomationCountKey     = "automation_started_count"
+	lifecycleEventProfileIDKey           = "profile_id"
+	lifecycleEventProfileNameKey         = "profile_name"
 )
 
 // LifecycleEventSink records one closed-shape extension lifecycle event.
@@ -38,6 +40,8 @@ type LifecycleEvent struct {
 	ConfirmedBy         string
 	BoundCount          *int
 	AutomationCount     *int
+	ProfileID           string
+	ProfileName         string
 }
 
 // RequiredFields returns the exact payload shape for the event type.
@@ -103,6 +107,14 @@ func (e LifecycleEvent) RequiredFields() (map[string]any, error) {
 			return nil, errors.New("extension: enabled automation count is required")
 		}
 		fields[lifecycleEventAutomationCountKey] = *e.AutomationCount
+	case eventspkg.ExtensionProfileCreated:
+		profileID := strings.TrimSpace(e.ProfileID)
+		profileName := strings.TrimSpace(e.ProfileName)
+		if profileID == "" || profileName == "" {
+			return nil, errors.New("extension: profile created event profile id and name are required")
+		}
+		fields[lifecycleEventProfileIDKey] = profileID
+		fields[lifecycleEventProfileNameKey] = profileName
 	default:
 		return nil, fmt.Errorf("extension: unsupported lifecycle event type %q", e.Type)
 	}

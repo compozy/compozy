@@ -7,8 +7,9 @@ type ExtensionCommandSpec = toolspkg.ExtensionCommandSpec
 
 // ExtensionCommandGroupSpec declares a presentation-only command group.
 type ExtensionCommandGroupSpec struct {
-	Path    string `json:"path"`
-	Summary string `json:"summary"`
+	Path    string `toml:"path"              json:"path"`
+	Summary string `toml:"summary"           json:"summary"`
+	Profile string `toml:"profile,omitempty" json:"profile,omitempty"`
 }
 
 // CommandFlagType is the closed scalar type accepted by projected command flags.

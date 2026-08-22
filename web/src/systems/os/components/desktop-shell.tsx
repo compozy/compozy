@@ -30,7 +30,11 @@ import { OsWinLayer } from "./os-win-layer";
 import { OsSessionsModal } from "./sessions-modal";
 import { AgentCreateDialog, AgentCreateHostProvider } from "@/systems/agent";
 import { useOnboardingStatus } from "@/systems/onboarding";
-import { ProfileLifecycleHost, ProfileSwitcherSlot } from "@/systems/profiles";
+import {
+  ProfileLifecycleHost,
+  ProfileSwitcherSlot,
+  WorkspaceProfilesHint,
+} from "@/systems/profiles";
 import {
   SessionCreateDialogHost,
   SessionCreateProvider,
@@ -261,6 +265,12 @@ function DesktopShellScopedBody({
       />
       <div data-slot="os-desk" className="relative min-h-0 flex-1 overflow-hidden">
         <OsWallpaper wallpaper={desktop.wallpaper} />
+        {model.activeWorkspaceId !== null ? (
+          <WorkspaceProfilesHint
+            hints={model.workspaceProfileHints}
+            workspaceId={model.activeWorkspaceId}
+          />
+        ) : null}
         {Object.keys(desktop.windows).map(windowId => (
           <OsAppPreloader key={windowId} windowId={windowId} />
         ))}

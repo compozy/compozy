@@ -52,6 +52,6 @@ export type ProfileLifecycleFlow =
 /** What the palette or Settings hands to the canonical dialog host. */
 export interface ProfileDialogIntent {
   flow: ProfileLifecycleFlow;
-  /** Absent for `create`. */
+  /** Target profile, or the suggested name for `create`. */
   profile?: string;
 }

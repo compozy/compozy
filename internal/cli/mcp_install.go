@@ -54,7 +54,7 @@ func newMCPInstallCommand(deps commandDeps) *cobra.Command {
 				request.WorkspaceID = resolution.ID
 			}
 			if request.Scope == contract.SettingsLayeredScopeProfile {
-				profiles, _, err := profileClientFromDeps(deps)
+				profiles, _, err := profileResolutionClientFromDeps(deps)
 				if err != nil {
 					return err
 				}

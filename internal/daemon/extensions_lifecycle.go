@@ -36,10 +36,51 @@ func (s *daemonExtensionService) Install(
 		)
 	}
 	event.ExtensionName = prepared.name
+	confirmation, err := s.prepareInstallNetworkConfirmation(
+		prepared.manifest,
+		strings.TrimSpace(req.ConfirmNetworkDigest),
+		actor,
+	)
+	if err != nil {
+		return contract.ExtensionPayload{}, errors.Join(err, prepared.Close())
+	}
 	var item contract.ExtensionPayload
 	mutation := func() error {
 		if err := prepared.commit(); err != nil {
 			return err
+		}
+		if confirmation != nil {
+			if err := s.registry.ConfirmNetworkRequirement(
+				extensionpkg.GlobalInstanceKey(prepared.name),
+				confirmation.Digest,
+				confirmation.ConfirmedBy,
+				confirmation.ConfirmedAt,
+			); err != nil {
+				return s.rollbackFailedInstall(ctx, prepared.name, err)
+			}
+			if err := s.recordExtensionNetworkConfirmedEvent(
+				ctx, actor, extensionpkg.GlobalInstanceKey(prepared.name), *confirmation,
+			); err != nil {
+				return s.rollbackFailedInstall(ctx, prepared.name, err)
+			}
+		}
+		if prepared.manifest != nil && len(prepared.manifest.Profiles) > 0 {
+			if s.profiles == nil {
+				return s.rollbackFailedInstall(
+					ctx,
+					prepared.name,
+					errors.New("daemon: profile manager is required for declared profiles"),
+				)
+			}
+			results, applyErr := extensionpkg.ApplyDeclaredProfiles(ctx, s.profiles, prepared.manifest)
+			if applyErr != nil {
+				return s.rollbackFailedInstall(ctx, prepared.name, applyErr)
+			}
+			if eventErr := s.recordDeclaredProfileCreatedEvents(
+				ctx, actor, prepared.name, results,
+			); eventErr != nil {
+				return s.rollbackFailedInstall(ctx, prepared.name, eventErr)
+			}
 		}
 		if err := s.reload(ctx); err != nil {
 			return s.rollbackFailedInstall(ctx, prepared.name, err)
@@ -167,6 +208,28 @@ func (s *daemonExtensionService) updateBatchUnlocked(
 		s.observeExtensionDigestVerification(ctx, actor, trust, verificationErr)
 	}
 	confirmed := s.configureUpdateNetworkGate(&domainReq, confirmNetworkDigest, actor)
+	previousCommitCandidate := domainReq.CommitCandidate
+	domainReq.CommitCandidate = func(
+		info extensionpkg.ExtensionInfo,
+		manifest *extensionpkg.Manifest,
+	) error {
+		if previousCommitCandidate != nil {
+			if err := previousCommitCandidate(info, manifest); err != nil {
+				return err
+			}
+		}
+		if manifest == nil || len(manifest.Profiles) == 0 {
+			return nil
+		}
+		if s.profiles == nil {
+			return errors.New("daemon: profile manager is required for declared profiles")
+		}
+		results, err := extensionpkg.ApplyDeclaredProfiles(ctx, s.profiles, manifest)
+		if err != nil {
+			return err
+		}
+		return s.recordDeclaredProfileCreatedEvents(ctx, actor, info.Name, results)
+	}
 	items, updateErr := extensionpkg.UpdateMarketplaceManaged(
 		ctx,
 		s.homePaths,

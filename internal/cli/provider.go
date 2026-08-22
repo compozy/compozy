@@ -92,7 +92,7 @@ func newProviderInspectCommand(deps commandDeps) *cobra.Command {
 		Short: "Inspect effective provider authentication and credential sources",
 		Args:  exactOneNonBlankArg(),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			profiles, client, err := profileClientFromDeps(deps)
+			profiles, client, err := profileResolutionClientFromDeps(deps)
 			if err != nil {
 				return err
 			}

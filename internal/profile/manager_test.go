@@ -23,6 +23,218 @@ import (
 func TestManagerProfileLifecycle(t *testing.T) {
 	t.Parallel()
 
+	t.Run("Should include extension placements in rename previews and revisions", func(t *testing.T) {
+		t.Parallel()
+
+		manager, _, _ := newTestManager(t)
+		ctx := testutil.Context(t)
+		if _, err := manager.Create(ctx, CreateInput{Name: "dev"}); err != nil {
+			t.Fatalf("Create(dev) error = %v", err)
+		}
+		placements := []PlacementRef{
+			{Extension: "z-kit", Resource: "release", ProfileName: "dev"},
+			{Extension: "a-kit", Resource: "review", ProfileName: "dev"},
+		}
+		manager.placements = placementCatalogFunc(func(context.Context, string) ([]PlacementRef, error) {
+			return slices.Clone(placements), nil
+		})
+
+		plan, err := manager.PrepareRename(ctx, "dev", "engineering")
+		if err != nil {
+			t.Fatalf("PrepareRename() error = %v", err)
+		}
+		want := []PlacementRef{
+			{Extension: "a-kit", Resource: "review", ProfileName: "dev"},
+			{Extension: "z-kit", Resource: "release", ProfileName: "dev"},
+		}
+		if !slices.Equal(plan.DormantPlacements, want) {
+			t.Fatalf("PrepareRename().DormantPlacements = %#v, want %#v", plan.DormantPlacements, want)
+		}
+
+		placements = append(placements, PlacementRef{
+			Extension: "new-kit", Resource: "deploy", ProfileName: "dev",
+		})
+		_, err = manager.Rename(ctx, "dev", RenameOptions{
+			NewName: "engineering", Repos: RepoChoice{None: true}, PlanRevision: plan.Revision,
+		})
+		if !errors.Is(err, ErrPlanStale) {
+			t.Fatalf("Rename(changed placements) error = %v, want ErrPlanStale", err)
+		}
+		if _, err := manager.GetByName(ctx, "dev"); err != nil {
+			t.Fatalf("GetByName(dev after stale placement plan) error = %v", err)
+		}
+	})
+
+	t.Run("Should never recreate a deleted extension-declared profile while its marker exists [IT-052]", func(t *testing.T) {
+		t.Parallel()
+
+		manager, database, _ := newTestManager(t)
+		ctx := testutil.Context(t)
+		if _, err := database.DB().ExecContext(ctx, `
+			INSERT INTO extensions (name, version, source, manifest_path, installed_at, checksum)
+			VALUES ('growth-kit', '1.0.0', 'user', '/tmp/growth-kit/extension.toml', ?, 'checksum')`,
+			formatTimestamp(time.Now()),
+		); err != nil {
+			t.Fatalf("insert extension error = %v", err)
+		}
+		created, err := manager.CreateDeclared(ctx, DeclaredInput{
+			Extension: "growth-kit",
+			Name:      "growth",
+			Seed: DeclaredSeed{
+				Color: "#5fbf85", Icon: "chart-line",
+				Defaults: PersonaDefaults{Agent: "growth-analyst"},
+			},
+		})
+		if err != nil {
+			t.Fatalf("CreateDeclared(first) error = %v", err)
+		}
+		plan, err := manager.PrepareDelete(ctx, created.Name)
+		if err != nil {
+			t.Fatalf("PrepareDelete() error = %v", err)
+		}
+		if _, err := manager.Delete(ctx, created.Name, plan.Revision); err != nil {
+			t.Fatalf("Delete() error = %v", err)
+		}
+		replayed, err := manager.CreateDeclared(ctx, DeclaredInput{
+			Extension: "growth-kit", Name: "growth",
+			Seed: DeclaredSeed{Color: "#e0635a", Icon: "flame"},
+		})
+		if err != nil {
+			t.Fatalf("CreateDeclared(replay) error = %v", err)
+		}
+		if replayed.ID != created.ID || replayed.Name != created.Name {
+			t.Fatalf("CreateDeclared(replay) = %#v, want original marker identity %#v", replayed, created)
+		}
+		var profiles int
+		if err := database.DB().QueryRowContext(
+			ctx, `SELECT COUNT(*) FROM profiles WHERE name = 'growth'`,
+		).Scan(&profiles); err != nil {
+			t.Fatalf("count recreated profiles error = %v", err)
+		}
+		if profiles != 0 {
+			t.Fatalf("growth profile count = %d, want 0 after marker-gated replay", profiles)
+		}
+		if _, err := database.DB().ExecContext(ctx, `DELETE FROM extensions WHERE name = 'growth-kit'`); err != nil {
+			t.Fatalf("uninstall extension error = %v", err)
+		}
+		if _, err := database.DB().ExecContext(ctx, `
+			INSERT INTO extensions (name, version, source, manifest_path, installed_at, checksum)
+			VALUES ('growth-kit', '2.0.0', 'user', '/tmp/growth-kit/extension.toml', ?, 'checksum-2')`,
+			formatTimestamp(time.Now()),
+		); err != nil {
+			t.Fatalf("reinstall extension error = %v", err)
+		}
+		fresh, err := manager.CreateDeclared(ctx, DeclaredInput{
+			Extension: "growth-kit", Name: "growth",
+			Seed: DeclaredSeed{Color: "#e0635a", Icon: "flame"},
+		})
+		if err != nil {
+			t.Fatalf("CreateDeclared(fresh install) error = %v", err)
+		}
+		if fresh.ID == created.ID || fresh.Color != "#e0635a" || fresh.Icon != "flame" {
+			t.Fatalf("CreateDeclared(fresh install) = %#v, want a new seeded profile", fresh)
+		}
+	})
+
+	t.Run("Should bind existing profiles independently and preserve created state across update and uninstall", func(t *testing.T) {
+		t.Parallel()
+
+		manager, database, _ := newTestManager(t)
+		ctx := testutil.Context(t)
+		for _, name := range []string{"kit-a", "kit-b"} {
+			if _, err := database.DB().ExecContext(ctx, `
+				INSERT INTO extensions (name, version, source, manifest_path, installed_at, checksum)
+				VALUES (?, '1.0.0', 'user', ?, ?, 'checksum')`,
+				name,
+				"/tmp/"+name+"/extension.toml",
+				formatTimestamp(time.Now()),
+			); err != nil {
+				t.Fatalf("insert extension %q error = %v", name, err)
+			}
+		}
+		existing, err := manager.Create(ctx, CreateInput{
+			Name: "shared", Color: "#112233", Icon: "briefcase",
+		})
+		if err != nil {
+			t.Fatalf("Create(shared) error = %v", err)
+		}
+		for _, extensionName := range []string{"kit-a", "kit-b"} {
+			bound, bindErr := manager.CreateDeclared(ctx, DeclaredInput{
+				Extension: extensionName, Name: "shared",
+				Seed: DeclaredSeed{Color: "#e0635a", Icon: "flame"},
+			})
+			if bindErr != nil {
+				t.Fatalf("CreateDeclared(%s bind) error = %v", extensionName, bindErr)
+			}
+			if bound.ID != existing.ID || bound.Color != existing.Color || bound.Icon != existing.Icon {
+				t.Fatalf("CreateDeclared(%s bind) = %#v, want untouched %#v", extensionName, bound, existing)
+			}
+		}
+		var markerCount int
+		if err := database.DB().QueryRowContext(
+			ctx,
+			`SELECT COUNT(*) FROM extension_profile_markers WHERE profile_name = 'shared'`,
+		).Scan(&markerCount); err != nil {
+			t.Fatalf("count independent markers error = %v", err)
+		}
+		if markerCount != 2 {
+			t.Fatalf("shared marker count = %d, want 2", markerCount)
+		}
+
+		created, err := manager.CreateDeclared(ctx, DeclaredInput{
+			Extension: "kit-a", Name: "retained",
+			Seed: DeclaredSeed{
+				Color: "#5fbf85", Icon: "chart-line",
+				Defaults:       PersonaDefaults{Agent: "analyst"},
+				CredentialAsks: []CredentialAsk{{Provider: "openai", Slot: "api_key"}},
+			},
+		})
+		if err != nil {
+			t.Fatalf("CreateDeclared(retained) error = %v", err)
+		}
+		replayed, err := manager.CreateDeclared(ctx, DeclaredInput{
+			Extension: "kit-a", Name: "retained",
+			Seed: DeclaredSeed{
+				Color: "#e0635a", Icon: "flame", Defaults: PersonaDefaults{Agent: "mutated"},
+			},
+		})
+		if err != nil {
+			t.Fatalf("CreateDeclared(update replay) error = %v", err)
+		}
+		if replayed.ID != created.ID || replayed.Color != created.Color || replayed.Icon != created.Icon {
+			t.Fatalf("CreateDeclared(update replay) = %#v, want unchanged %#v", replayed, created)
+		}
+		if _, err := database.DB().ExecContext(ctx, `DELETE FROM extensions WHERE name = 'kit-a'`); err != nil {
+			t.Fatalf("uninstall kit-a error = %v", err)
+		}
+		preserved, err := manager.GetByName(ctx, "retained")
+		if err != nil {
+			t.Fatalf("GetByName(retained after uninstall) error = %v", err)
+		}
+		var markers, requirements int
+		if err := database.DB().QueryRowContext(
+			ctx,
+			`SELECT COUNT(*) FROM extension_profile_markers WHERE extension_name = 'kit-a'`,
+		).Scan(&markers); err != nil {
+			t.Fatalf("count removed markers error = %v", err)
+		}
+		if err := database.DB().QueryRowContext(
+			ctx,
+			`SELECT COUNT(*) FROM profile_credential_requirements WHERE profile_id = ?`,
+			created.ID,
+		).Scan(&requirements); err != nil {
+			t.Fatalf("count preserved requirements error = %v", err)
+		}
+		if preserved.ID != created.ID || markers != 0 || requirements != 1 {
+			t.Fatalf(
+				"uninstall state = profile %#v markers %d requirements %d, want profile preserved, 0 markers, 1 requirement",
+				preserved,
+				markers,
+				requirements,
+			)
+		}
+	})
+
 	t.Run("Should enumerate and atomically rewrite only renamed profile vault refs", func(t *testing.T) {
 		t.Parallel()
 
@@ -205,14 +417,22 @@ func TestManagerProfileLifecycle(t *testing.T) {
 				t.Fatalf("PutSecret(%q) error = %v", ref, err)
 			}
 		}
+		if _, err := database.DB().ExecContext(ctx, `
+			INSERT INTO profile_credential_requirements
+				(profile_id, provider, slot, source_extension, declaration_digest, created_at)
+			VALUES (?, 'anthropic', 'api_key', 'growth-kit', 'declaration-digest', '2026-08-22T00:00:00Z')`,
+			created.ID,
+		); err != nil {
+			t.Fatalf("seed profile credential requirement error = %v", err)
+		}
 
 		deletePlan, err := manager.PrepareDelete(ctx, "growth")
 		if err != nil {
 			t.Fatalf("PrepareDelete() error = %v", err)
 		}
 		if deletePlan.Removed.ConfigKeys != 2 || deletePlan.Removed.MCPServers != 2 ||
-			deletePlan.Removed.CredentialOverrides != 2 {
-			t.Fatalf("PrepareDelete().Removed = %#v, want config=2 MCP=2 credentials=2", deletePlan.Removed)
+			deletePlan.Removed.CredentialOverrides != 3 {
+			t.Fatalf("PrepareDelete().Removed = %#v, want config=2 MCP=2 credentials=3", deletePlan.Removed)
 		}
 		deleted, err := manager.Delete(ctx, "growth", deletePlan.Revision)
 		if err != nil {
@@ -241,6 +461,17 @@ func TestManagerProfileLifecycle(t *testing.T) {
 		}
 		if selections != 0 {
 			t.Fatalf("selection rows = %d, want 0", selections)
+		}
+		var requirements int
+		if err := database.DB().QueryRowContext(
+			ctx,
+			`SELECT COUNT(*) FROM profile_credential_requirements WHERE profile_id = ?`,
+			created.ID,
+		).Scan(&requirements); err != nil {
+			t.Fatalf("count credential requirements error = %v", err)
+		}
+		if requirements != 0 {
+			t.Fatalf("profile credential requirement rows = %d, want 0", requirements)
 		}
 		if _, err := manager.Create(ctx, CreateInput{Name: "growth"}); err != nil {
 			t.Fatalf("Create(freed name) error = %v", err)
@@ -394,6 +625,15 @@ func TestManagerProfileLifecycle(t *testing.T) {
 	})
 }
 
+type placementCatalogFunc func(context.Context, string) ([]PlacementRef, error)
+
+func (f placementCatalogFunc) PlacementsForProfile(
+	ctx context.Context,
+	profile string,
+) ([]PlacementRef, error) {
+	return f(ctx, profile)
+}
+
 func TestManagerSelectionResolutionAndAvailability(t *testing.T) {
 	t.Parallel()
 
@@ -529,6 +769,104 @@ func TestManagerRecoveryAndReservation(t *testing.T) {
 		}
 		if status != opStatusDone {
 			t.Fatalf("recovery status = %q, want %q", status, opStatusDone)
+		}
+	})
+
+	t.Run("Should recover declared defaults from the journal and retain setup requirements [IT-085]", func(t *testing.T) {
+		t.Parallel()
+
+		manager, database, home := newTestManager(t)
+		ctx := testutil.Context(t)
+		const (
+			profileID = "01JPROFILEGROWTH0000000000"
+			opID      = "op_declared_seed"
+		)
+		now := formatTimestamp(time.Now())
+		if _, err := database.DB().ExecContext(ctx, `INSERT INTO profiles (
+			id, name, color, icon, state, created_at
+		) VALUES (?, 'growth', '#5fbf85', 'chart-line', 'active', ?)`, profileID, now); err != nil {
+			t.Fatalf("insert declared recovery profile error = %v", err)
+		}
+		insertLifecycleOperation(t, ctx, database, opID, profileID, "create", "", "growth", opStatusApplied)
+		accepted := DeclaredSeed{
+			Color: "#5fbf85", Icon: "chart-line",
+			Defaults:       PersonaDefaults{Agent: "growth-analyst"},
+			CredentialAsks: []CredentialAsk{{Provider: "openai", Slot: "api_key"}},
+		}
+		encoded, err := json.Marshal(accepted)
+		if err != nil {
+			t.Fatalf("json.Marshal(accepted seed) error = %v", err)
+		}
+		digest, err := fingerprint(json.RawMessage(encoded))
+		if err != nil {
+			t.Fatalf("fingerprint(accepted seed) error = %v", err)
+		}
+		if _, err := database.DB().ExecContext(ctx, `INSERT INTO profile_lifecycle_op_seed (
+			op_id, color, icon, default_agent, declaration_digest
+		) VALUES (?, ?, ?, ?, ?)`, opID, accepted.Color, accepted.Icon, accepted.Defaults.Agent, digest); err != nil {
+			t.Fatalf("insert declared seed snapshot error = %v", err)
+		}
+		if _, err := database.DB().ExecContext(ctx, `INSERT INTO profile_lifecycle_op_credential_asks (
+			op_id, provider, slot
+		) VALUES (?, 'openai', 'api_key')`, opID); err != nil {
+			t.Fatalf("insert declared credential ask error = %v", err)
+		}
+		if _, err := database.DB().ExecContext(ctx, `INSERT INTO profile_credential_requirements (
+			profile_id, provider, slot, source_extension, declaration_digest, created_at
+		) VALUES (?, 'openai', 'api_key', 'growth-kit', ?, ?)`, profileID, digest, now); err != nil {
+			t.Fatalf("insert durable credential requirement error = %v", err)
+		}
+		profilePath := filepath.Join(home.ProfilesDir, "growth")
+		if err := os.MkdirAll(profilePath, 0o700); err != nil {
+			t.Fatalf("MkdirAll(profile path) error = %v", err)
+		}
+		if _, err := database.DB().ExecContext(ctx, `INSERT INTO profile_lifecycle_op_steps
+			(op_id, seq, action, path_new, status, updated_at) VALUES
+			(?, 0, 'mkdir_profile', ?, 'done', ?),
+			(?, 1, 'write_declared_seed', ?, 'pending', ?)`,
+			opID, profilePath, now, opID, profilePath, now,
+		); err != nil {
+			t.Fatalf("insert declared recovery steps error = %v", err)
+		}
+
+		accepted.Defaults.Agent = "mutated-after-crash"
+		if err := manager.Recover(ctx); err != nil {
+			t.Fatalf("Recover(declared seed) error = %v", err)
+		}
+		effective, err := compozyconfig.LoadForHome(home, compozyconfig.WithProfile("growth"))
+		if err != nil {
+			t.Fatalf("LoadForHome(growth) error = %v", err)
+		}
+		if effective.Defaults.Agent != "growth-analyst" {
+			t.Fatalf("recovered defaults.agent = %q, want journaled value", effective.Defaults.Agent)
+		}
+		var storedDigest string
+		if err := database.DB().QueryRowContext(
+			ctx, `SELECT declaration_digest FROM profile_lifecycle_op_seed WHERE op_id = ?`, opID,
+		).Scan(&storedDigest); err != nil {
+			t.Fatalf("read declaration digest error = %v", err)
+		}
+		if storedDigest != digest {
+			t.Fatalf("declaration digest = %q, want %q", storedDigest, digest)
+		}
+
+		insertLifecycleOperation(t, ctx, database, "op_z_retained", profileID, "archive", "growth", "growth", opStatusDone)
+		if err := manager.pruneDoneOperations(ctx, 1); err != nil {
+			t.Fatalf("pruneDoneOperations() error = %v", err)
+		}
+		var opCount, requirementCount int
+		if err := database.DB().QueryRowContext(
+			ctx, `SELECT COUNT(*) FROM profile_lifecycle_ops WHERE id = ?`, opID,
+		).Scan(&opCount); err != nil {
+			t.Fatalf("count pruned operation error = %v", err)
+		}
+		if err := database.DB().QueryRowContext(
+			ctx, `SELECT COUNT(*) FROM profile_credential_requirements WHERE profile_id = ?`, profileID,
+		).Scan(&requirementCount); err != nil {
+			t.Fatalf("count retained requirements error = %v", err)
+		}
+		if opCount != 0 || requirementCount != 1 {
+			t.Fatalf("retention counts operation=%d requirement=%d, want 0/1", opCount, requirementCount)
 		}
 	})
 

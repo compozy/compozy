@@ -687,7 +687,6 @@ func TestBuiltinNativeDescriptors(t *testing.T) {
 		descriptors := descriptorMap(NativeDescriptors())
 		inventory := descriptors[toolspkg.ToolIDExtensionsInventory]
 		logs := descriptors[toolspkg.ToolIDExtensionsLogs]
-		preview := descriptors[toolspkg.ToolIDExtensionsPreview]
 		assertNativeOutputSchemaAccepts(t, logs, `{
 			"stream_epoch":"epoch-a",
 			"logs":[{
@@ -709,21 +708,8 @@ func TestBuiltinNativeDescriptors(t *testing.T) {
 			"extension":"kit","enabled":true,
 			"items":[{"kind":"skill","id":"review","name":"Review","live":true,"extra":1}]
 		}`)
-		assertNativeOutputSchemaAccepts(t, preview, `{
-			"extension":"kit",
-			"changes":[{"kind":"skill","id":"review","name":"Review","change":"changed"}],
-			"agent_conflicts":[],"missing_env":["API_KEY"],"automation_starting":["daily"],
-			"network_requirement_digest":"","network_confirmation_required":false
-		}`)
-		assertNativeOutputSchemaRejects(t, preview, `{
-			"extension":"kit",
-			"changes":[{"kind":"skill","id":"review","name":"Review","change":"updated"}],
-			"agent_conflicts":[],"missing_env":[],"automation_starting":[],
-			"network_requirement_digest":"","network_confirmation_required":false
-		}`)
-
 		for _, id := range []toolspkg.ToolID{
-			toolspkg.ToolIDExtensionsEnable,
+			toolspkg.ToolIDExtensionsInstall,
 			toolspkg.ToolIDExtensionsUpdate,
 		} {
 			var schema struct {
@@ -1123,8 +1109,6 @@ func nativeDescriptorExpectations() []nativeDescriptorExpectation {
 		{id: "compozy__extensions_list", risk: toolspkg.RiskRead,
 			readOnly: true, destructive: false, openWorld: false},
 		{id: "compozy__extensions_logs", risk: toolspkg.RiskRead,
-			readOnly: true, destructive: false, openWorld: false},
-		{id: "compozy__extensions_preview", risk: toolspkg.RiskRead,
 			readOnly: true, destructive: false, openWorld: false},
 		{id: "compozy__extensions_provenance", risk: toolspkg.RiskRead,
 			readOnly: true, destructive: false, openWorld: false},

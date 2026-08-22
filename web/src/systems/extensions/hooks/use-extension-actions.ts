@@ -4,20 +4,18 @@ import { toast } from "sonner";
 import { reconcileInstalledExtensionCaches } from "@/integrations/tanstack-query/reconcile-installed-extension";
 
 import {
-  disableExtension,
-  enableExtension,
   removeExtension,
+  setExtensionEnablement,
   updateExtension,
 } from "../adapters/extensions-api";
 import { extensionNetworkConfirmation } from "../lib/extension-network-confirmation";
 import { extensionKeys } from "../lib/query-keys";
-import type { ExtensionEnableResult, ExtensionEntry } from "../types";
+import type { ExtensionEnablement, ExtensionEntry } from "../types";
 import { useExtensionInstanceScope } from "./use-extensions";
 
 export interface ToggleExtensionVariables {
   name: string;
   enabled: boolean;
-  confirmNetworkDigest?: string;
 }
 
 export interface UpdateExtensionVariables {
@@ -41,29 +39,17 @@ function toastUnlessNetworkConfirmation(error: Error) {
   toast.error(error.message);
 }
 
-function enabledToast(result: ExtensionEnableResult, name: string) {
-  const started = result.automation_started;
-  if (started.length === 0) {
-    toast.success(`${name} enabled`);
-    return;
-  }
-  toast.success(`${name} enabled · ${started.length} automation started`, {
-    description: [...started].sort().join(", "),
-  });
-}
-
 export function useToggleExtension() {
   const queryClient = useQueryClient();
-  const { workspaceId } = useExtensionInstanceScope();
-  const listKey = extensionKeys.list(workspaceId);
+  const { profileName, workspaceId } = useExtensionInstanceScope();
+  const listKey = extensionKeys.list(workspaceId, profileName);
   return useMutation<
-    ExtensionEnableResult | ExtensionEntry,
+    ExtensionEnablement,
     Error,
     ToggleExtensionVariables,
     { previous?: ExtensionEntry[] }
   >({
-    mutationFn: ({ name, enabled, confirmNetworkDigest }) =>
-      enabled ? enableExtension(name, { confirmNetworkDigest }) : disableExtension(name),
+    mutationFn: ({ name, enabled }) => setExtensionEnablement(name, profileName, enabled),
     onMutate: async ({ name, enabled }) => {
       await queryClient.cancelQueries({ queryKey: listKey });
       const previous = queryClient.getQueryData<ExtensionEntry[]>(listKey);
@@ -72,16 +58,15 @@ export function useToggleExtension() {
       );
       return { previous };
     },
-    onSuccess: (data, { enabled, name }) => {
-      if (enabled && "automation_started" in data) enabledToast(data, name);
-    },
+    onSuccess: (_data, { enabled, name }) =>
+      toast.success(`${name} ${enabled ? "enabled" : "disabled"} in ${profileName}`),
     onError: (error, _variables, context) => {
       if (context?.previous) queryClient.setQueryData(listKey, context.previous);
-      toastUnlessNetworkConfirmation(error);
+      toast.error(error.message);
     },
     /**
-     * Enabling and disabling change which kit resources are live and whether confirmation is still
-     * required, so the whole extension cache — inventory included — is reconciled, not just the list.
+     * Enabling and disabling change which kit resources are live, so the whole extension cache —
+     * inventory included — is reconciled, not just the list.
      */
     onSettled: () => reconcileInstalledExtensionCaches(queryClient),
   });

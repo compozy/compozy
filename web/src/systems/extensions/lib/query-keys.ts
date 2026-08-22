@@ -10,11 +10,20 @@ export function extensionWorkspaceKey(workspaceId?: string | null): string {
   return normalized === "" ? EXTENSION_GLOBAL_WORKSPACE_KEY : normalized;
 }
 
+export function extensionProfileKey(profileName?: string | null): string {
+  const normalized = typeof profileName === "string" ? profileName.trim() : "";
+  return normalized === "" ? "default" : normalized;
+}
+
 export const extensionKeys = {
   all: ["extensions"] as const,
   lists: () => [...extensionKeys.all, "list"] as const,
-  list: (workspaceId?: string | null) =>
-    [...extensionKeys.lists(), extensionWorkspaceKey(workspaceId)] as const,
+  list: (workspaceId?: string | null, profileName?: string | null) =>
+    [
+      ...extensionKeys.lists(),
+      extensionWorkspaceKey(workspaceId),
+      extensionProfileKey(profileName),
+    ] as const,
   provenance: (name: string) => [...extensionKeys.all, "provenance", name] as const,
   logs: (name: string, workspaceId?: string | null) =>
     [...extensionKeys.all, "logs", extensionWorkspaceKey(workspaceId), name.trim()] as const,

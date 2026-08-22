@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"strings"
 
 	eventspkg "github.com/compozy/compozy/internal/events"
 	"github.com/compozy/compozy/internal/notifications"
@@ -47,6 +48,44 @@ func (s *Service) recordDispatchError(
 	return safeErr
 }
 
+func (s *Service) recordPresetEnablementEvent(
+	ctx context.Context,
+	preset Preset,
+	profileID string,
+	profileName string,
+	actorKind string,
+	actorID string,
+) error {
+	if s == nil || s.events == nil {
+		return nil
+	}
+	payload := struct {
+		Preset      string `json:"preset"`
+		ProfileID   string `json:"profile_id"`
+		ProfileName string `json:"profile_name"`
+		ActorKind   string `json:"actor_kind"`
+		Enabled     bool   `json:"enabled"`
+	}{
+		Preset: preset.Name, ProfileID: profileID, ProfileName: profileName,
+		ActorKind: strings.TrimSpace(actorKind), Enabled: preset.Enabled,
+	}
+	content, err := json.Marshal(payload)
+	if err != nil {
+		return fmt.Errorf("notifications: encode preset enablement event: %w", err)
+	}
+	if err := s.events.WriteEventSummary(detachedContext(ctx), store.EventSummary{
+		ProfileID: profileID, Type: eventspkg.NotificationPresetEnablementChanged,
+		Outcome: string(eventspkg.OutcomeFor(eventspkg.NotificationPresetEnablementChanged)),
+		Content: content, Summary: fmt.Sprintf("notification preset %s enablement changed for profile %s", preset.Name, profileName),
+		Timestamp: s.now().UTC(), EventCorrelation: store.EventCorrelation{
+			ActorKind: strings.TrimSpace(actorKind), ActorID: strings.TrimSpace(actorID),
+		},
+	}); err != nil {
+		return fmt.Errorf("notifications: record preset enablement event: %w", err)
+	}
+	return nil
+}
+
 // dispatchDiagnosticError preserves the cause for errors.Is and errors.As
 // while ensuring the surfaced error string is safe for logs and event paths.
 type dispatchDiagnosticError struct {
@@ -73,14 +112,12 @@ func (s *Service) recordPresetLifecycleEvent(
 	payload := struct {
 		Name                   string   `json:"name"`
 		Events                 []string `json:"events,omitempty"`
-		Enabled                bool     `json:"enabled"`
 		BuiltIn                bool     `json:"built_in"`
 		UserModified           bool     `json:"user_modified"`
 		DefaultUpdateAvailable bool     `json:"default_update_available"`
 	}{
 		Name:                   preset.Name,
 		Events:                 append([]string(nil), preset.Events...),
-		Enabled:                preset.Enabled,
 		BuiltIn:                preset.BuiltIn,
 		UserModified:           preset.UserModified,
 		DefaultUpdateAvailable: preset.DefaultUpdateAvailable,

@@ -10,14 +10,15 @@ import (
 )
 
 type profileListRecord struct {
-	Name       string  `json:"name"`
-	Color      string  `json:"color"`
-	Icon       *string `json:"icon"`
-	Emoji      *string `json:"emoji"`
-	State      string  `json:"state"`
-	Current    bool    `json:"current"`
-	WorkItems  int     `json:"work_items"`
-	NeedsSetup bool    `json:"needs_setup,omitempty"`
+	Name                   string                                  `json:"name"`
+	Color                  string                                  `json:"color"`
+	Icon                   *string                                 `json:"icon"`
+	Emoji                  *string                                 `json:"emoji"`
+	State                  string                                  `json:"state"`
+	Current                bool                                    `json:"current"`
+	WorkItems              int                                     `json:"work_items"`
+	NeedsSetup             bool                                    `json:"needs_setup,omitempty"`
+	CredentialRequirements []contract.ProfileCredentialRequirement `json:"credential_requirements,omitempty"`
 }
 
 type profileCurrentRecord struct {
@@ -33,6 +34,7 @@ func profileListBundle(items []contract.Profile, current string) outputBundle {
 		rows = append(rows, profileListRecord{
 			Name: item.Name, Color: item.Color, Icon: item.Icon, Emoji: item.Emoji, State: item.State,
 			Current: item.Name == current, WorkItems: item.WorkItems, NeedsSetup: item.NeedsSetup,
+			CredentialRequirements: append([]contract.ProfileCredentialRequirement(nil), item.CredentialRequirements...),
 		})
 	}
 	return outputBundle{

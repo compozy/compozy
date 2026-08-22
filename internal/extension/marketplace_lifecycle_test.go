@@ -406,9 +406,9 @@ func TestMarketplaceLifecycleInstallsUpdatesAndRemovesManagedExtensions(t *testi
 			if err != nil {
 				t.Fatalf("registry.Get(updated) error = %v", err)
 			}
-			if updated.Enabled || updated.Format != FormatAgentPlugin || len(updated.IngestDiagnostics) != 1 ||
+			if !updated.Enabled || updated.Format != FormatAgentPlugin || len(updated.IngestDiagnostics) != 1 ||
 				reflect.DeepEqual(updated.IngestDiagnostics, firstDiagnostics) {
-				t.Fatalf("updated portable metadata = %#v, want disabled with replaced diagnostic", updated)
+				t.Fatalf("updated portable metadata = %#v, want default-on with replaced diagnostic", updated)
 			}
 			if data, readErr := os.ReadFile(dataFile); readErr != nil || string(data) != "portable-state" {
 				t.Fatalf("portable data after update = %q, %v; want preserved", data, readErr)
@@ -488,8 +488,8 @@ func TestMarketplaceLifecycleInstallsUpdatesAndRemovesManagedExtensions(t *testi
 		if err != nil {
 			t.Fatalf("InstallMarketplaceManaged() error = %v", err)
 		}
-		if installed.Enabled {
-			t.Fatalf("installed.Enabled = true, want false")
+		if !installed.Enabled {
+			t.Fatalf("installed.Enabled = false, want default-on")
 		}
 		if installed.Source != SourceMarketplace ||
 			dereferenceOptionalString(installed.RegistrySlug) != "acme/lifecycle-ext" ||

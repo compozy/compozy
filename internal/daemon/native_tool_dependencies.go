@@ -51,6 +51,7 @@ type daemonNativeToolsDeps struct {
 	Skills                     daemonNativeSkillsRegistry
 	Sessions                   core.SessionManager
 	Profiles                   nativeProfileReader
+	ProfileManager             *profilepkg.Manager
 	SessionAttachments         attachmentspkg.Store
 	Workspaces                 core.WorkspaceService
 	Worktrees                  core.WorktreeService

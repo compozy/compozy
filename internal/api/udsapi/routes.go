@@ -75,6 +75,7 @@ func registerNotificationRoutes(api gin.IRouter, handlers *Handlers) {
 	presets.GET("/:name", handlers.GetNotificationPreset)
 	presets.PUT("/:name", handlers.UpdateNotificationPreset)
 	presets.DELETE("/:name", handlers.DeleteNotificationPreset)
+	presets.PUT("/:name/enablement", handlers.SetNotificationPresetEnablement)
 }
 
 func registerWorkspaceRoutes(api gin.IRouter, handlers *Handlers) {

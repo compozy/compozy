@@ -2,6 +2,7 @@ package profile
 
 import (
 	"context"
+	"database/sql"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -52,6 +53,28 @@ type declaredCreation struct {
 	seed      DeclaredSeed
 }
 
+// HasDeclaredMarker reports whether one installed extension has already bound
+// or created the named profile during its current installation lifetime.
+func (m *Manager) HasDeclaredMarker(ctx context.Context, extension, name string) (bool, error) {
+	if ctx == nil {
+		return false, errors.New("profile: declared marker context is required")
+	}
+	var exists bool
+	err := m.store.DB().QueryRowContext(
+		ctx,
+		`SELECT EXISTS(
+			SELECT 1 FROM extension_profile_markers
+			WHERE extension_name = ? AND profile_name = ?
+		)`,
+		strings.TrimSpace(extension),
+		strings.TrimSpace(name),
+	).Scan(&exists)
+	if err != nil {
+		return false, fmt.Errorf("profile: inspect declared profile marker: %w", err)
+	}
+	return exists, nil
+}
+
 func (m *Manager) create(
 	ctx context.Context,
 	name, color, icon, emoji string,
@@ -62,6 +85,13 @@ func (m *Manager) create(
 	defer m.opMu.Unlock()
 
 	if declared != nil {
+		marked, markerProfile, err := m.declaredMarkerProfile(ctx, declared.extension, name)
+		if err != nil {
+			return Profile{}, err
+		}
+		if marked {
+			return markerProfile, nil
+		}
 		existing, err := getProfileByName(ctx, m.store.DB(), name)
 		if err == nil {
 			if err := m.markDeclaredBinding(ctx, declared.extension, name, existing.ID); err != nil {
@@ -106,9 +136,13 @@ func (m *Manager) create(
 		if err != nil {
 			return mapNameConstraint(err, name)
 		}
+		steps := []lifecycleStep{{Seq: 0, Action: "mkdir_profile", PathNew: m.profileDir(name)}}
+		if declared != nil {
+			steps = append(steps, lifecycleStep{Seq: 1, Action: "write_declared_seed", PathNew: m.profileDir(name)})
+		}
 		if err := m.insertOperation(
 			ctx, exec, opID, "create", profileID, "", name, revision,
-			[]lifecycleStep{{Seq: 0, Action: "mkdir_profile", PathNew: m.profileDir(name)}},
+			steps,
 		); err != nil {
 			return err
 		}
@@ -143,6 +177,34 @@ func (m *Manager) create(
 		m.recordEvent("profile.selection_changed", created, opID)
 	}
 	return created, nil
+}
+
+func (m *Manager) declaredMarkerProfile(
+	ctx context.Context,
+	extension, name string,
+) (bool, Profile, error) {
+	var profileID string
+	err := m.store.DB().QueryRowContext(
+		ctx,
+		`SELECT created_profile_id FROM extension_profile_markers
+		 WHERE extension_name = ? AND profile_name = ?`,
+		extension,
+		name,
+	).Scan(&profileID)
+	if errors.Is(err, sql.ErrNoRows) {
+		return false, Profile{}, nil
+	}
+	if err != nil {
+		return false, Profile{}, fmt.Errorf("profile: read declared profile marker: %w", err)
+	}
+	current, currentErr := getProfileByName(ctx, m.store.DB(), name)
+	if currentErr == nil {
+		return true, current, nil
+	}
+	if !errors.Is(currentErr, ErrNotFound) {
+		return false, Profile{}, currentErr
+	}
+	return true, Profile{ID: profileID, Name: name}, nil
 }
 
 func (m *Manager) persistDeclaredSeed(

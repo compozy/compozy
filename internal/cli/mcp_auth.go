@@ -209,7 +209,7 @@ func (o mcpAuthCommandOptions) resolveTarget(
 		o.workspaceID = resolution.ID
 	}
 	if scope == contract.SettingsLayeredScopeProfile {
-		profiles, _, err := profileClientFromDeps(deps)
+		profiles, _, err := profileResolutionClientFromDeps(deps)
 		if err != nil {
 			return mcpAuthCommandOptions{}, err
 		}

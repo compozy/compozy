@@ -12,5 +12,8 @@ func configureRootProfileFlag(cmd *cobra.Command) {
 }
 
 func commandProfileFlag(cmd *cobra.Command) (string, error) {
+	if cmd == nil {
+		return "", nil
+	}
 	return cmd.Flags().GetString(profileFlagName)
 }

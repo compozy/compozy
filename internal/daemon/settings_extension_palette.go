@@ -11,7 +11,7 @@ import (
 )
 
 type extensionCmdPaletteSettingsRuntime interface {
-	CmdPaletteSettings(string) (extensionpkg.CmdPaletteProjection, error)
+	CmdPaletteSettings(string, extensionpkg.ProfileLens) (extensionpkg.CmdPaletteProjection, error)
 }
 
 func (s *settingsRuntimeSurface) attachExtensionPaletteSettings(
@@ -24,7 +24,10 @@ func (s *settingsRuntimeSurface) attachExtensionPaletteSettings(
 	if !ok || runtime == nil {
 		return nil
 	}
-	projection, err := runtime.CmdPaletteSettings("")
+	projection, err := runtime.CmdPaletteSettings("", extensionpkg.ProfileLens{
+		ID:   string(cmdpalette.DefaultProfileLensID),
+		Name: "default",
+	})
 	if err != nil {
 		return fmt.Errorf("daemon: project extension palette settings: %w", err)
 	}

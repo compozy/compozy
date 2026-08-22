@@ -2210,6 +2210,15 @@ func (s *recordingExtensionEnvBindingStore) ListEnvBindings(
 	return nil, s.listErr
 }
 
+func (s *recordingExtensionEnvBindingStore) ResolveEnvBindings(
+	ctx context.Context,
+	extension string,
+	profileID string,
+	workspaceID string,
+) ([]extensionpkg.EnvBinding, error) {
+	return s.ListEnvBindings(ctx, extension, profileID, workspaceID)
+}
+
 func (*recordingExtensionEnvBindingStore) PutEnvBinding(context.Context, extensionpkg.EnvBinding) error {
 	return errors.New("unexpected env binding write")
 }
@@ -2961,7 +2970,7 @@ func TestHooksNotifierNoopDispatchesWithoutRuntime(t *testing.T) {
 func TestDaemonExtensionServiceInstallStatusEnableAndDisable(t *testing.T) {
 	t.Parallel()
 
-	t.Run("Should install disabled and transition through enable and disable", func(t *testing.T) {
+	t.Run("Should install enabled and transition through the legacy internal lifecycle", func(t *testing.T) {
 		t.Parallel()
 
 		homePaths := testHomePaths(t)
@@ -3029,14 +3038,14 @@ func TestDaemonExtensionServiceInstallStatusEnableAndDisable(t *testing.T) {
 		if got, want := installed.Name, "service-ext"; got != want {
 			t.Fatalf("installed.Name = %q, want %q", got, want)
 		}
-		if got, want := installed.State, "disabled"; got != want {
+		if got, want := installed.State, "active"; got != want {
 			t.Fatalf("installed.State = %q, want %q", got, want)
 		}
-		if installed.Enabled {
-			t.Fatal("installed.Enabled = true, want false")
+		if !installed.Enabled {
+			t.Fatal("installed.Enabled = false, want default-on install")
 		}
-		if got, want := installed.PID, 0; got != want {
-			t.Fatalf("installed.PID = %d, want %d", got, want)
+		if installed.PID <= 0 {
+			t.Fatalf("installed.PID = %d, want active subprocess", installed.PID)
 		}
 		if installed.Provenance == nil ||
 			installed.Provenance.InstalledFrom != extensionpkg.ExtensionInstalledFromLocalPath ||
@@ -3061,8 +3070,8 @@ func TestDaemonExtensionServiceInstallStatusEnableAndDisable(t *testing.T) {
 		if got, want := listed[0].Name, "service-ext"; got != want {
 			t.Fatalf("service.List()[0].Name = %q, want %q", got, want)
 		}
-		if listed[0].Enabled {
-			t.Fatal("service.List()[0].Enabled = true, want false")
+		if !listed[0].Enabled {
+			t.Fatal("service.List()[0].Enabled = false, want default-on install")
 		}
 
 		info, err := registry.Get("service-ext")
@@ -3084,14 +3093,14 @@ func TestDaemonExtensionServiceInstallStatusEnableAndDisable(t *testing.T) {
 		if got, want := status.Name, "service-ext"; got != want {
 			t.Fatalf("status.Name = %q, want %q", got, want)
 		}
-		if got, want := status.State, "disabled"; got != want {
+		if got, want := status.State, "active"; got != want {
 			t.Fatalf("status.State = %q, want %q", got, want)
 		}
-		if status.Enabled {
-			t.Fatal("status.Enabled = true, want false")
+		if !status.Enabled {
+			t.Fatal("status.Enabled = false, want default-on install")
 		}
-		if got, want := status.PID, 0; got != want {
-			t.Fatalf("status.PID = %d, want %d", got, want)
+		if status.PID <= 0 {
+			t.Fatalf("status.PID = %d, want active subprocess", status.PID)
 		}
 
 		enabled, err := service.Enable(
@@ -3555,10 +3564,10 @@ func (*daemonExtensionEventStoreStub) ListEventSummaries(
 	return nil, nil
 }
 
-func TestDaemonExtensionServiceRollsBackFailedEnableReload(t *testing.T) {
+func TestDaemonExtensionServiceRollsBackFailedInstallReload(t *testing.T) {
 	t.Parallel()
 
-	t.Run("Should keep the managed install disabled when enable reload fails", func(t *testing.T) {
+	t.Run("Should remove the managed install when default-on reload fails", func(t *testing.T) {
 		t.Parallel()
 
 		homePaths := testHomePaths(t)
@@ -3609,8 +3618,8 @@ version = "0.1.0"
 description = "Invalid extension used to verify daemon install rollback."
 min_compozy_version = "0.0.1"
 
-[resources]
-agents = ["agents"]
+[[resources.agents]]
+path = "agents"
 `),
 			0o644,
 		); err != nil {
@@ -3629,57 +3638,27 @@ Broken agent missing required name.
 			t.Fatalf("os.WriteFile(AGENT.md) error = %v", err)
 		}
 
-		installed, err := service.Install(testutil.Context(t), contract.InstallExtensionRequest{
+		_, err = service.Install(testutil.Context(t), contract.InstallExtensionRequest{
 			Source:          contract.InstallExtensionSourceLocalPath,
 			Ref:             fixtureDir,
 			AllowUnverified: true,
 		}, actor)
-		if err != nil {
-			t.Fatalf("service.Install(invalid extension) error = %v", err)
-		}
-		if installed.Enabled {
-			t.Fatal("service.Install(invalid extension).Enabled = true, want false")
-		}
-		if got, want := installed.State, "disabled"; got != want {
-			t.Fatalf("service.Install(invalid extension).State = %q, want %q", got, want)
-		}
-
-		_, err = service.Enable(
-			testutil.Context(t),
-			"rollback-ext",
-			contract.EnableExtensionRequest{},
-			actor,
-		)
 		if err == nil {
-			t.Fatal("service.Enable(invalid extension) error = nil, want reload failure")
+			t.Fatal("service.Install(invalid extension) error = nil, want reload failure")
 		}
 		if !strings.Contains(err.Error(), "agent name is required") {
-			t.Fatalf("service.Enable(invalid extension) error = %v, want agent parse failure", err)
+			t.Fatalf("service.Install(invalid extension) error = %v, want agent parse failure", err)
 		}
 
-		info, err := registry.Get("rollback-ext")
-		if err != nil {
-			t.Fatalf("registry.Get(rollback-ext) error = %v", err)
-		}
-		if info.Enabled {
-			t.Fatal("registry.Get(rollback-ext).Enabled = true, want rolled back disabled state")
+		if _, err := registry.Get("rollback-ext"); !errors.Is(err, extensionpkg.ErrExtensionNotFound) {
+			t.Fatalf("registry.Get(rollback-ext) error = %v, want ErrExtensionNotFound", err)
 		}
 		managedPath := extensionpkg.ManagedInstallPath(homePaths, "rollback-ext")
-		if _, err := os.Stat(managedPath); err != nil {
-			t.Fatalf("os.Stat(%q) error = %v, want managed install preserved", managedPath, err)
+		if _, err := os.Stat(managedPath); !errors.Is(err, os.ErrNotExist) {
+			t.Fatalf("os.Stat(%q) error = %v, want rolled-back install absent", managedPath, err)
 		}
-		managed, err := manager.Get("rollback-ext")
-		if err != nil {
-			t.Fatalf("manager.Get(rollback-ext) error = %v", err)
-		}
-		if managed.Status.Enabled {
-			t.Fatal("manager.Get(rollback-ext).Status.Enabled = true, want false")
-		}
-		if managed.Status.Active {
-			t.Fatal("manager.Get(rollback-ext).Status.Active = true, want false")
-		}
-		if got, want := managed.Status.PID, 0; got != want {
-			t.Fatalf("manager.Get(rollback-ext).Status.PID = %d, want %d", got, want)
+		if _, err := manager.Get("rollback-ext"); !errors.Is(err, extensionpkg.ErrExtensionNotFound) {
+			t.Fatalf("manager.Get(rollback-ext) error = %v, want ErrExtensionNotFound", err)
 		}
 		if _, err := os.Stat(filepath.Join(fixtureDir, "extension.toml")); err != nil {
 			t.Fatalf("source fixture manifest stat error = %v", err)

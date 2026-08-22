@@ -59,6 +59,7 @@ const mocks = vi.hoisted(() => {
     vaultSecrets: [] as unknown[],
     createSecret: vi.fn(),
     installExtension: vi.fn(),
+    previewExtensionInstall: vi.fn(),
   };
   return Object.assign(state, {
     marketplaceKind(options: unknown, enabled = true) {
@@ -232,6 +233,11 @@ vi.mock("@/systems/extensions/hooks/use-extensions", () => ({
   useExtensionInventory: mocks.extensionInventory,
 }));
 
+vi.mock("@/systems/extensions/adapters/extensions-api", async importOriginal => ({
+  ...(await importOriginal<typeof import("@/systems/extensions/adapters/extensions-api")>()),
+  previewExtensionInstall: mocks.previewExtensionInstall,
+}));
+
 vi.mock("@/systems/settings/hooks/use-settings-collections", async () => {
   const actual = await vi.importActual<
     typeof import("@/systems/settings/hooks/use-settings-collections")
@@ -366,6 +372,12 @@ describe("MarketplaceKindPage", () => {
     mocks.createSecret.mockReset();
     mocks.installExtension.mockReset();
     mocks.installExtension.mockResolvedValue({});
+    mocks.previewExtensionInstall.mockReset();
+    mocks.previewExtensionInstall.mockImplementation(async (request: { ref: string }) => ({
+      declared_profiles: [{ create: false, credentials: [], name: "default" }],
+      name: request.ref.split("/").pop() ?? request.ref,
+      placements: [],
+    }));
     mocks.putMCP.mockImplementation(() => new Promise(() => undefined));
     mocks.isEntryPending.mockReturnValue(false);
     mocks.isInstalledItemPending.mockReturnValue(false);
@@ -1166,6 +1178,12 @@ describe("MarketplaceKindPage", () => {
   it("Should install a local path through the source union and gate consent explicitly", async () => {
     const user = userEvent.setup();
     mocks.marketData = { ...marketplaceKindFixture("extension"), items: [], total: 0 };
+    mocks.previewExtensionInstall.mockResolvedValueOnce({
+      declared_profiles: [{ create: true, credentials: [], name: "operations" }],
+      name: "gen-a1b2c3",
+      network_requirement_digest: "sha256:local-network",
+      placements: [],
+    });
     renderKindPage("extension", { tab: "market" });
 
     await user.click(screen.getByTestId("marketplace-extension-install"));
@@ -1182,6 +1200,10 @@ describe("MarketplaceKindPage", () => {
     await user.click(screen.getByTestId("extension-install-allow-unverified"));
     await user.click(screen.getByTestId("extension-install-submit"));
 
+    expect(await screen.findByTestId("extension-install-summary")).toBeVisible();
+    expect(mocks.installExtension).not.toHaveBeenCalled();
+    await user.click(screen.getByTestId("extension-install-submit"));
+
     expect(await screen.findByTestId("extension-trust-dialog")).toBeInTheDocument();
     expect(mocks.installExtension).not.toHaveBeenCalled();
 
@@ -1190,6 +1212,7 @@ describe("MarketplaceKindPage", () => {
     await waitFor(() =>
       expect(mocks.installExtension).toHaveBeenCalledWith({
         allow_unverified: true,
+        confirm_network_digest: "sha256:local-network",
         ref: "/srv/hello/dist/gen-a1b2c3",
         source: "local_path",
       })
@@ -1259,6 +1282,8 @@ describe("MarketplaceKindPage", () => {
     await user.clear(ref);
     await user.type(ref, "https://git.example.com/acme/hello.git@v1.2.3");
     await user.click(screen.getByTestId("extension-install-submit"));
+    expect(await screen.findByTestId("extension-install-summary")).toBeVisible();
+    await user.click(screen.getByTestId("extension-install-submit"));
     await waitFor(() =>
       expect(mocks.installExtension).toHaveBeenCalledWith({
         ref: "https://git.example.com/acme/hello.git@v1.2.3",
@@ -1283,6 +1308,8 @@ describe("MarketplaceKindPage", () => {
 
     await user.click(screen.getByTestId("marketplace-extension-install"));
     await user.type(screen.getByTestId("extension-install-ref"), "/srv/hello/dist/gen-a1b2c3");
+    await user.click(screen.getByTestId("extension-install-submit"));
+    expect(await screen.findByTestId("extension-install-summary")).toBeVisible();
     await user.click(screen.getByTestId("extension-install-submit"));
 
     expect(await screen.findByTestId("extension-trust-dialog")).toBeInTheDocument();
@@ -1315,6 +1342,8 @@ describe("MarketplaceKindPage", () => {
 
     await user.click(screen.getByTestId("marketplace-extension-install"));
     await user.type(screen.getByTestId("extension-install-ref"), "/srv/hello/dist/gen-a1b2c3");
+    await user.click(screen.getByTestId("extension-install-submit"));
+    expect(await screen.findByTestId("extension-install-summary")).toBeVisible();
     await user.click(screen.getByTestId("extension-install-submit"));
 
     expect(await screen.findByTestId("extension-install-error")).toHaveTextContent(

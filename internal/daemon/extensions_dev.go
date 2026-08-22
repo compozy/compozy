@@ -308,17 +308,22 @@ func (s *daemonExtensionService) ListScoped(
 	if err != nil {
 		return nil, err
 	}
+	profile, err := s.extensionReadProfile(ctx, actor)
+	if err != nil {
+		return nil, err
+	}
 	infos := runtime.ListForWorkspace(workspaceID)
 	items := make([]contract.ExtensionPayload, 0, len(infos))
 	for _, info := range infos {
-		ext, getErr := runtime.GetForInstance(extensionpkg.InstanceKey{
+		key := extensionpkg.InstanceKey{
 			Name:        info.Name,
 			WorkspaceID: workspaceID,
-		})
+		}
+		ext, getErr := s.projectExtensionReadProfile(ctx, runtime, key, profile)
 		if getErr != nil {
 			return nil, getErr
 		}
-		item, payloadErr := s.payloadFromExtension(ctx, ext)
+		item, payloadErr := s.payloadFromExtension(ctx, ext, profile)
 		if payloadErr != nil {
 			return nil, payloadErr
 		}
@@ -349,14 +354,18 @@ func (s *daemonExtensionService) StatusScoped(
 	if err != nil {
 		return contract.ExtensionPayload{}, err
 	}
-	ext, err := runtime.GetForInstance(extensionpkg.InstanceKey{
-		Name:        name,
-		WorkspaceID: workspaceID,
-	})
+	profile, err := s.extensionReadProfile(ctx, actor)
 	if err != nil {
 		return contract.ExtensionPayload{}, err
 	}
-	return s.payloadFromExtension(ctx, ext)
+	ext, err := s.projectExtensionReadProfile(ctx, runtime, extensionpkg.InstanceKey{
+		Name:        name,
+		WorkspaceID: workspaceID,
+	}, profile)
+	if err != nil {
+		return contract.ExtensionPayload{}, err
+	}
+	return s.payloadFromExtension(ctx, ext, profile)
 }
 
 func (s *daemonExtensionService) RemoveScoped(

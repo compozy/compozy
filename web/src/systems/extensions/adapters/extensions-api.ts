@@ -1,8 +1,10 @@
 import { apiClient, apiErrorMessage, apiRequestFailed } from "@/lib/api-client";
 
 import type {
-  ExtensionEnableResult,
+  ExtensionEnablement,
   ExtensionEntry,
+  ExtensionInstallRequest,
+  ExtensionInstallPreview,
   ExtensionInstanceScope,
   ExtensionKitInventory,
   ExtensionLogsSnapshot,
@@ -16,9 +18,14 @@ import type {
  */
 function instanceQuery(
   scope: ExtensionInstanceScope | undefined
-): { workspace: string } | undefined {
+): { profile?: string; workspace?: string } | undefined {
   const workspace = scope?.workspaceId?.trim() ?? "";
-  return workspace === "" ? undefined : { workspace };
+  const profile = scope?.profileName?.trim() ?? "";
+  if (workspace === "" && profile === "") return undefined;
+  return {
+    ...(profile ? { profile } : {}),
+    ...(workspace ? { workspace } : {}),
+  };
 }
 
 export type ExtensionsApiErrorKind = "daemon" | "malformed_response" | "transport";
@@ -195,42 +202,40 @@ export async function getExtensionProvenance(
   return requiredObject(envelope.provenance, response, fallback, "provenance");
 }
 
-/**
- * Enabling activates the extension kit. Its result enumerates the automation definitions that
- * became runnable in the committed operation, so callers receive the complete lifecycle result
- * rather than the extension row alone.
- */
-export async function enableExtension(
+export async function setExtensionEnablement(
   name: string,
-  options: { confirmNetworkDigest?: string } = {},
+  profile: string,
+  enabled: boolean,
   signal?: AbortSignal
-): Promise<ExtensionEnableResult> {
-  const digest = options.confirmNetworkDigest?.trim();
-  const { data, error, response } = await apiClient.POST("/api/extensions/{name}/enable", {
+): Promise<ExtensionEnablement> {
+  const { data, error, response } = await apiClient.PUT("/api/extensions/{name}/enablement", {
     params: { path: { name } },
-    body: digest ? { confirm_network_digest: digest } : {},
+    body: { enabled, profile: profile.trim() },
     signal,
   });
-  const fallback = `Failed to enable ${name}`;
+  const fallback = `Failed to change ${name} in profile ${profile}`;
   if (apiRequestFailed(response, error)) throw responseError(fallback, response, error);
-  const envelope = responseData(data, response, fallback);
-  requiredObject(envelope.extension, response, fallback, "extension");
-  requiredArray(envelope.automation_started, response, fallback, "automation_started");
-  return envelope;
+  const enablement = responseData(data, response, fallback);
+  requiredString(enablement.profile, response, fallback, "profile");
+  requiredBoolean(enablement.enabled, response, fallback, "enabled");
+  return enablement;
 }
 
-export async function disableExtension(
-  name: string,
+export async function previewExtensionInstall(
+  body: ExtensionInstallRequest,
   signal?: AbortSignal
-): Promise<ExtensionEntry> {
-  const { data, error, response } = await apiClient.POST("/api/extensions/{name}/disable", {
-    params: { path: { name } },
+): Promise<ExtensionInstallPreview> {
+  const { data, error, response } = await apiClient.POST("/api/extensions/preview-install", {
+    body,
     signal,
   });
-  const fallback = `Failed to disable ${name}`;
+  const fallback = "Failed to preview extension install";
   if (apiRequestFailed(response, error)) throw responseError(fallback, response, error);
-  const envelope = responseData(data, response, fallback);
-  return requiredObject(envelope.extension, response, fallback, "extension");
+  const preview = responseData(data, response, fallback);
+  requiredString(preview.name, response, fallback, "name");
+  requiredArray(preview.declared_profiles, response, fallback, "declared_profiles");
+  requiredArray(preview.placements, response, fallback, "placements");
+  return preview;
 }
 
 export async function updateExtension(

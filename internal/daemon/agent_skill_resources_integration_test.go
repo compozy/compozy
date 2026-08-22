@@ -1380,9 +1380,11 @@ name = "agent-skill-ext"
 version = "0.1.0"
 min_compozy_version = "0.5.0"
 
-[resources]
-skills = ["skills/"]
-agents = ["agents/"]
+[[resources.skills]]
+path = "skills/"
+
+[[resources.agents]]
+path = "agents/"
 `)
 	agentPath := filepath.Join(dir, "agents", "ext-agent", "AGENT.md")
 	writeAgentSkillIntegrationFile(t, agentPath, `---
@@ -1436,7 +1438,7 @@ Use extension skill context.
 	if err != nil {
 		t.Fatalf("registry.Get(%q) error = %v", manifest.Name, err)
 	}
-	staticAgents, err := extensionpkg.LoadAgentResources(dir, manifest.Resources.Agents)
+	staticAgents, err := extensionpkg.LoadAgentResources(dir, extensionpkg.ResourcePaths(manifest.Resources.Agents))
 	if err != nil {
 		t.Fatalf("extensionpkg.LoadAgentResources(%q) error = %v", dir, err)
 	}
@@ -1544,7 +1546,10 @@ func agentSkillIntegrationSpecCycleExtension(
 	if err != nil {
 		t.Fatalf("extensionpkg.LoadManifest(%q) error = %v", rootDir, err)
 	}
-	staticAgents, err := extensionpkg.LoadAgentResources(rootDir, manifest.Resources.Agents)
+	staticAgents, err := extensionpkg.LoadAgentResources(
+		rootDir,
+		extensionpkg.ResourcePaths(manifest.Resources.Agents),
+	)
 	if err != nil {
 		t.Fatalf("extensionpkg.LoadAgentResources(%q) error = %v", rootDir, err)
 	}
@@ -1554,7 +1559,7 @@ func agentSkillIntegrationSpecCycleExtension(
 	}
 	skills := make([]*skillspkg.Skill, 0, len(specCycleIntegrationSkillNames))
 	for _, resourcePath := range manifest.Resources.Skills {
-		resourceRoot := filepath.Join(rootDir, filepath.FromSlash(resourcePath))
+		resourceRoot := filepath.Join(rootDir, filepath.FromSlash(resourcePath.Path))
 		if err := filepath.WalkDir(resourceRoot, func(path string, entry os.DirEntry, walkErr error) error {
 			if walkErr != nil {
 				return walkErr

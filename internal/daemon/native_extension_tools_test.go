@@ -24,6 +24,7 @@ import (
 	eventspkg "github.com/compozy/compozy/internal/events"
 	extensionpkg "github.com/compozy/compozy/internal/extension"
 	marketplacepkg "github.com/compozy/compozy/internal/marketplace"
+	profilepkg "github.com/compozy/compozy/internal/profile"
 	registrypkg "github.com/compozy/compozy/internal/registry"
 	registrygit "github.com/compozy/compozy/internal/registry/gitsrc"
 	"github.com/compozy/compozy/internal/store"
@@ -132,7 +133,7 @@ func (s *nativeExtensionSource) Close() error {
 }
 
 func TestDaemonNativeExtensionTools(t *testing.T) {
-	t.Run("Should expose inventory and preview through native bindings", func(t *testing.T) {
+	t.Run("Should expose inventory through native bindings", func(t *testing.T) {
 		t.Parallel()
 
 		deps, _, _, _ := newNativeExtensionToolDeps(t)
@@ -141,9 +142,6 @@ func TestDaemonNativeExtensionTools(t *testing.T) {
 				inventory: contract.ExtensionInventoryPayload{
 					Extension: "kit", Enabled: true,
 					Items: []contract.ExtensionKitItemPayload{{Kind: "automation.job", Name: "kit/daily", Live: true}},
-				},
-				preview: contract.ExtensionEnablePreviewPayload{
-					Extension: "kit", AutomationStarting: []string{"kit/daily"}, MissingEnv: []string{"API_KEY"},
 				},
 			}
 		}
@@ -157,16 +155,6 @@ func TestDaemonNativeExtensionTools(t *testing.T) {
 		}
 		requireNativeStructuredContains(t, inventory, []byte(`"extension":"kit"`))
 		requireNativeStructuredContains(t, inventory, []byte(`"live":true`))
-
-		preview, err := registry.Call(t.Context(), toolspkg.Scope{}, toolspkg.CallRequest{
-			ToolID: toolspkg.ToolIDExtensionsPreview,
-			Input:  json.RawMessage(`{"name":"kit"}`),
-		})
-		if err != nil {
-			t.Fatalf("Registry.Call(extensions_preview) error = %v", err)
-		}
-		requireNativeStructuredContains(t, preview, []byte(`"automation_starting":["kit/daily"]`))
-		requireNativeStructuredContains(t, preview, []byte(`"missing_env":["API_KEY"]`))
 	})
 
 	t.Run("Should serialize only safe development boot diagnostics", func(t *testing.T) {
@@ -736,7 +724,6 @@ func TestDaemonNativeExtensionTools(t *testing.T) {
 type nativeInventoryExtensionService struct {
 	core.ExtensionService
 	inventory contract.ExtensionInventoryPayload
-	preview   contract.ExtensionEnablePreviewPayload
 }
 
 func (s nativeInventoryExtensionService) Inventory(
@@ -744,13 +731,6 @@ func (s nativeInventoryExtensionService) Inventory(
 	string,
 ) (contract.ExtensionInventoryPayload, error) {
 	return s.inventory, nil
-}
-
-func (s nativeInventoryExtensionService) Preview(
-	context.Context,
-	string,
-) (contract.ExtensionEnablePreviewPayload, error) {
-	return s.preview, nil
 }
 
 func newNativeExtensionToolDeps(
@@ -778,6 +758,13 @@ func newNativeExtensionToolDeps(
 	source := newNativeExtensionSource(t, "1.0.0", "2.0.0")
 	runtime := &fakeExtensionRuntime{}
 	extRegistry := extensionpkg.NewRegistry(db.DB())
+	profileManager, err := profilepkg.NewManager(
+		profilepkg.WithStore(db),
+		profilepkg.WithHomePaths(homePaths),
+	)
+	if err != nil {
+		t.Fatalf("profile.NewManager() error = %v", err)
+	}
 	runtime.getFn = func(name string) (*extensionpkg.Extension, error) {
 		info, getErr := extRegistry.Get(name)
 		if getErr != nil {
@@ -805,6 +792,7 @@ func newNativeExtensionToolDeps(
 	deps := daemonNativeToolsDeps{
 		HomePaths:         homePaths,
 		ExtensionRegistry: extRegistry,
+		ProfileManager:    profileManager,
 		ExtensionRuntime: func() extensionRuntime {
 			return runtime
 		},
@@ -868,8 +856,8 @@ func nativeExtensionTarGzWithNetwork(t *testing.T, version string, channelScope 
 	integrationManifestSections := ""
 	if strings.TrimSpace(channelScope) != "" {
 		integrationManifestSections = fmt.Sprintf(`
-[resources]
-skills = ["skills/"]
+[[resources.skills]]
+path = "skills/"
 
 [network_participation]
 required = true

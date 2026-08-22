@@ -254,6 +254,9 @@ func TestBridgeHandlersShouldHandleBridgeRoutes(t *testing.T) {
 				`{"message":"hello","target":{"peer_id":"peer-1","thread_id":"thread-1","group_id":"group-1","mode":"reply"}}`,
 			),
 			bridges: stubBridgeService{
+				GetInstanceFn: func(_ context.Context, id string) (*bridgepkg.BridgeInstance, error) {
+					return &bridgepkg.BridgeInstance{ID: id, ProfileID: store.DefaultProfileID}, nil
+				},
 				ResolveDeliveryTargetFn: func(_ context.Context, req bridgepkg.ResolveDeliveryTargetRequest) (*bridgepkg.DeliveryTarget, error) {
 					if req.BridgeInstanceID != "brg-1" || req.PeerID != "peer-1" || req.ThreadID != "thread-1" ||
 						req.GroupID != "group-1" ||

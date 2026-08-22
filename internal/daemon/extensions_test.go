@@ -648,7 +648,7 @@ func TestExtensionLifecycleCoordinator(t *testing.T) {
 			{
 				name: "registry mutation",
 				configure: func(t *testing.T, harness *lifecycleFailureHarness) {
-					harness.installFailureTrigger(t, "enabled", "NEW.enabled = 1")
+					harness.installEnablementDeleteFailureTrigger(t)
 				},
 				wantError: "injected lifecycle failure",
 			},
@@ -1112,6 +1112,17 @@ func (h *lifecycleFailureHarness) installFailureTrigger(t *testing.T, column str
 		" BEGIN SELECT RAISE(ABORT, 'injected lifecycle failure'); END"
 	if _, err := h.registry.DB().ExecContext(t.Context(), statement); err != nil {
 		t.Fatalf("install lifecycle failure trigger error = %v", err)
+	}
+}
+
+func (h *lifecycleFailureHarness) installEnablementDeleteFailureTrigger(t *testing.T) {
+	t.Helper()
+	statement := "CREATE TEMP TRIGGER fail_extension_lifecycle_enablement" +
+		" BEFORE DELETE ON extension_profile_enablement" +
+		" WHEN OLD.extension_name = '" + h.name + "'" +
+		" BEGIN SELECT RAISE(ABORT, 'injected lifecycle failure'); END"
+	if _, err := h.registry.DB().ExecContext(t.Context(), statement); err != nil {
+		t.Fatalf("install lifecycle enablement failure trigger error = %v", err)
 	}
 }
 

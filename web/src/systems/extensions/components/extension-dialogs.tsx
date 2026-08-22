@@ -164,10 +164,15 @@ export function RemoveExtensionDialog({
               extension. Files under the origin path are left untouched.
             </p>
           ) : (
-            <p>
-              This deletes local extension files known to provenance and unregisters{" "}
-              {capabilityCount} capabilities.
-            </p>
+            <>
+              <p>
+                This deletes local extension files known to provenance and unregisters{" "}
+                {capabilityCount} capabilities.
+              </p>
+              {(extension?.declared_profiles?.length ?? 0) > 0 ? (
+                <p>Declared profiles and their work stay.</p>
+              ) : null}
+            </>
           )}
           <p>
             Revoked permissions: {permissions.length ? permissions.join(", ") : "none declared"}.

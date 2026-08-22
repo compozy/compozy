@@ -22,6 +22,7 @@ import type {
 } from "../types";
 import { marketplaceRouteKindFor } from "../types";
 import { MarketplaceActionDialogs } from "./marketplace-action-dialogs";
+import { ExtensionInstallSummaryDialog } from "./extension-install-summary-dialog";
 import {
   formatMarketplaceVersion,
   marketplaceEntrySlug,
@@ -36,6 +37,8 @@ import { useMarketplacePending } from "./use-marketplace-pending";
 import {
   extensionNetworkConfirmation,
   ExtensionNetworkConfirmDialog,
+  previewExtensionInstall,
+  type ExtensionInstallPreview,
   type ToggleExtensionVariables,
   useRemoveExtension,
   useToggleExtension,
@@ -72,19 +75,18 @@ interface MarketplaceActionController {
   isAuthorizing: boolean;
 }
 
-type MarketplaceExtensionNetworkConfirm =
-  | {
-      action: "enable";
-      digest: string;
-      item: MarketplaceInstalledItem;
-      variables: ToggleExtensionVariables;
-    }
-  | {
-      action: "update";
-      digest: string;
-      entry: MarketplaceListing;
-      request: { body: ExtensionUpdateRequest; name: string };
-    };
+type MarketplaceExtensionNetworkConfirm = {
+  action: "update";
+  digest: string;
+  entry: MarketplaceListing;
+  request: { body: ExtensionUpdateRequest; name: string };
+};
+
+interface MarketplaceExtensionInstallPreview {
+  entry: MarketplaceListing;
+  preview: ExtensionInstallPreview;
+  request: ExtensionInstallRequest;
+}
 
 function installedName(entry: MarketplaceListing): string {
   if (!entry.installed_name) {
@@ -123,6 +125,9 @@ function useMarketplaceActionController(
   const toggleExtension = useToggleExtension();
   const pending = useMarketplacePending();
   const [networkConfirm, setNetworkConfirm] = useState<MarketplaceExtensionNetworkConfirm | null>(
+    null
+  );
+  const [installPreview, setInstallPreview] = useState<MarketplaceExtensionInstallPreview | null>(
     null
   );
   const controllerStore = useStore(marketplaceActionControllerLogic);
@@ -173,10 +178,7 @@ function useMarketplaceActionController(
   const handleExtensionTrusted = (entry: MarketplaceListing) => {
     if (entry.update_available) {
       toast.success(`${entry.name} updated`);
-      return;
     }
-    pending.flash(entry);
-    viewInstalledToast(entry, `${entry.name} installed`);
   };
 
   const runExtensionUpdate = async (
@@ -200,18 +202,17 @@ function useMarketplaceActionController(
   };
 
   const runExtensionToggle = async (
-    item: MarketplaceInstalledItem,
+    _item: MarketplaceInstalledItem,
     variables: ToggleExtensionVariables
   ): Promise<boolean> => {
-    try {
-      await toggleExtension.mutateAsync(variables);
-      return true;
-    } catch (error) {
-      const confirmation = variables.enabled ? extensionNetworkConfirmation(error) : null;
-      if (!confirmation) throw error;
-      setNetworkConfirm({ action: "enable", digest: confirmation.digest, item, variables });
-      return false;
-    }
+    await toggleExtension.mutateAsync(variables);
+    return true;
+  };
+
+  const previewExtension = async (entry: MarketplaceListing, allowUnverified: boolean) => {
+    const request = curatedInstallRequest(entry, allowUnverified);
+    const preview = await previewExtensionInstall(request);
+    setInstallPreview({ entry, preview, request });
   };
 
   const withPendingEntry = async (entry: MarketplaceListing, action: () => Promise<void>) => {
@@ -297,9 +298,7 @@ function useMarketplaceActionController(
           );
           return;
         }
-        await installExtension.mutateAsync(curatedInstallRequest(entry, false));
-        pending.flash(entry);
-        viewInstalledToast(entry, `${entry.name} installed`);
+        await previewExtension(entry, false);
         return;
       }
     });
@@ -331,7 +330,7 @@ function useMarketplaceActionController(
               name: installedName(entry),
             });
           }
-          await installExtension.mutateAsync(curatedInstallRequest(entry, true));
+          await previewExtension(entry, true);
           return true;
         }),
     });
@@ -385,27 +384,33 @@ function useMarketplaceActionController(
   const submitNetworkConfirm = () => {
     const pendingConfirmation = networkConfirm;
     if (!pendingConfirmation) return;
-    if (pendingConfirmation.action === "update") {
-      void withPendingEntry(pendingConfirmation.entry, async () => {
-        const updated = await runExtensionUpdate(pendingConfirmation.entry, {
-          ...pendingConfirmation.request,
-          body: {
-            ...pendingConfirmation.request.body,
-            confirm_network_digest: pendingConfirmation.digest,
-          },
-        });
-        if (!updated) return;
-        setNetworkConfirm(null);
-        handleExtensionTrusted(pendingConfirmation.entry);
+    void withPendingEntry(pendingConfirmation.entry, async () => {
+      const updated = await runExtensionUpdate(pendingConfirmation.entry, {
+        ...pendingConfirmation.request,
+        body: {
+          ...pendingConfirmation.request.body,
+          confirm_network_digest: pendingConfirmation.digest,
+        },
       });
-      return;
-    }
-    void withPendingItem(pendingConfirmation.item, async () => {
-      const enabled = await runExtensionToggle(pendingConfirmation.item, {
-        ...pendingConfirmation.variables,
-        confirmNetworkDigest: pendingConfirmation.digest,
+      if (!updated) return;
+      setNetworkConfirm(null);
+      handleExtensionTrusted(pendingConfirmation.entry);
+    });
+  };
+
+  const confirmExtensionInstall = () => {
+    const selected = installPreview;
+    if (!selected) return;
+    void withPendingEntry(selected.entry, async () => {
+      await installExtension.mutateAsync({
+        ...selected.request,
+        ...(selected.preview.network_requirement_digest
+          ? { confirm_network_digest: selected.preview.network_requirement_digest }
+          : {}),
       });
-      if (enabled) setNetworkConfirm(null);
+      setInstallPreview(null);
+      pending.flash(selected.entry);
+      viewInstalledToast(selected.entry, `${selected.entry.name} installed`);
     });
   };
 
@@ -432,21 +437,24 @@ function useMarketplaceActionController(
         <ExtensionNetworkConfirmDialog
           action={networkConfirm.action}
           digest={networkConfirm.digest}
-          extensionName={
-            networkConfirm.action === "update"
-              ? networkConfirm.entry.name
-              : networkConfirm.item.entry.name
-          }
+          extensionName={networkConfirm.entry.name}
           onConfirm={submitNetworkConfirm}
           onOpenChange={open => {
             if (!open) setNetworkConfirm(null);
           }}
           open
-          pending={
-            networkConfirm.action === "update"
-              ? updateExtension.isPending
-              : toggleExtension.isPending
-          }
+          pending={updateExtension.isPending}
+        />
+      ) : null}
+      {installPreview ? (
+        <ExtensionInstallSummaryDialog
+          onConfirm={confirmExtensionInstall}
+          onOpenChange={open => {
+            if (!open) setInstallPreview(null);
+          }}
+          open
+          pending={pending.isEntryPending(installPreview.entry)}
+          preview={installPreview.preview}
         />
       ) : null}
     </>

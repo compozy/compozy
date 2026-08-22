@@ -111,15 +111,16 @@ type Manifest struct {
 	Permissions          PermissionsConfig           `toml:"permissions"                     json:"permissions"`
 	Subprocess           SubprocessConfig            `toml:"subprocess"                      json:"subprocess"`
 	Bridge               BridgeConfig                `toml:"bridge"                          json:"bridge"`
+	Profiles             []ManifestProfile           `toml:"profiles,omitempty"              json:"profiles,omitempty"`
 }
 
 // ResourcesConfig declares static assets packaged with an extension.
 type ResourcesConfig struct {
-	Skills        []string                   `toml:"skills,omitempty"         json:"skills,omitempty"`
-	Loops         []string                   `toml:"loops,omitempty"          json:"loops,omitempty"`
-	Agents        []string                   `toml:"agents,omitempty"         json:"agents,omitempty"`
-	Automation    []string                   `toml:"automation,omitempty"     json:"automation,omitempty"`
-	Layouts       []string                   `toml:"layouts,omitempty"        json:"layouts,omitempty"`
+	Skills        []ManifestResourcePath     `toml:"skills,omitempty"         json:"skills,omitempty"`
+	Loops         []ManifestResourcePath     `toml:"loops,omitempty"          json:"loops,omitempty"`
+	Agents        []ManifestResourcePath     `toml:"agents,omitempty"         json:"agents,omitempty"`
+	Automation    []ManifestResourcePath     `toml:"automation,omitempty"     json:"automation,omitempty"`
+	Layouts       []ManifestResourcePath     `toml:"layouts,omitempty"        json:"layouts,omitempty"`
 	Hooks         []HookConfig               `toml:"hooks,omitempty"          json:"hooks,omitempty"`
 	Tools         map[string]ToolConfig      `toml:"tools,omitempty"          json:"tools,omitempty"`
 	CommandGroups []manifestCommandGroupSpec `toml:"command_groups,omitempty" json:"command_groups,omitempty"`
@@ -164,6 +165,7 @@ type BridgeConfig struct {
 
 // HookConfig mirrors the hook declaration shape accepted from extension manifests.
 type HookConfig struct {
+	Profile   string             `toml:"profile,omitempty"          json:"profile,omitempty"`
 	Name      string             `toml:"name"                 json:"name"`
 	Event     string             `toml:"event"                json:"event"`
 	Mode      string             `toml:"mode,omitempty"       json:"mode,omitempty"`
@@ -214,6 +216,7 @@ type HookMatcherConfig struct {
 
 // MCPServerConfig declares one MCP server packaged with the extension.
 type MCPServerConfig struct {
+	Profile   string            `toml:"profile,omitempty"   json:"profile,omitempty"`
 	Command   string            `toml:"command,omitempty"    json:"command,omitempty"`
 	CWD       string            `toml:"-"                    json:"-"`
 	Args      []string          `toml:"args,omitempty"       json:"args,omitempty"`
@@ -226,6 +229,7 @@ type MCPServerConfig struct {
 
 // ToolConfig declares one static tool packaged with the extension.
 type ToolConfig struct {
+	Profile              string            `toml:"profile,omitempty"               json:"profile,omitempty"`
 	ID                   string            `toml:"id,omitempty"                    json:"id,omitempty"`
 	DisplayTitle         string            `toml:"display_title,omitempty"         json:"display_title,omitempty"`
 	FriendlyVerb         string            `toml:"friendly_verb,omitempty"         json:"friendly_verb,omitempty"`
@@ -279,6 +283,7 @@ type manifestDocument struct {
 	Permissions          PermissionsConfig           `toml:"permissions"                     json:"permissions"`
 	Subprocess           SubprocessConfig            `toml:"subprocess"                      json:"subprocess"`
 	Bridge               BridgeConfig                `toml:"bridge"                          json:"bridge"`
+	Profiles             []ManifestProfile           `toml:"profiles,omitempty"              json:"profiles,omitempty"`
 }
 
 type manifestCore struct {

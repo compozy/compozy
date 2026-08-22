@@ -234,19 +234,8 @@ func testDaemonE2EExtensionContributedCommandsPreserveToolPolicy(t *testing.T) {
 		&installed,
 		"extension", "install", build.GenerationDir, "--allow-unverified", "--yes", "-o", "json",
 	)
-	if installed.Name != commandFixtureExtensionName || installed.Enabled {
-		t.Fatalf("installed command fixture = %#v, want inert extension", installed)
-	}
-	var enabled compozycontract.ExtensionEnableResult
-	runExtensionAuthoringCLI(
-		t,
-		ctx,
-		harness,
-		&enabled,
-		"extension", "enable", commandFixtureExtensionName, "-o", "json",
-	)
-	if !enabled.Extension.Enabled {
-		t.Fatalf("enabled command fixture = %#v, want active extension", enabled)
+	if installed.Name != commandFixtureExtensionName || !installed.Enabled {
+		t.Fatalf("installed command fixture = %#v, want default-on extension", installed)
 	}
 
 	assertCommandFixtureDiscovery(t, ctx, harness)

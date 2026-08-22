@@ -90,6 +90,21 @@ type NotificationPresetService interface {
 	Delete(ctx context.Context, name string) error
 }
 
+// NotificationPresetEnablementService exposes profile-specific preset state.
+type NotificationPresetEnablementService interface {
+	ListForProfile(ctx context.Context, query presetspkg.Query, profileID string) ([]presetspkg.Preset, error)
+	GetForProfile(ctx context.Context, name string, profileID string) (presetspkg.Preset, error)
+	SetEnablement(
+		ctx context.Context,
+		name string,
+		profileID string,
+		profileName string,
+		actorKind string,
+		actorID string,
+		enabled bool,
+	) (presetspkg.Preset, error)
+}
+
 // NetworkService is the runtime network surface exposed to daemon transports.
 type NetworkService interface {
 	Send(ctx context.Context, req network.SendRequest) (string, error)

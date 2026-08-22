@@ -24,6 +24,7 @@ func (d *Daemon) nativeToolsDeps(
 		Skills:                     skillsRegistryAPI(state.skillsRegistry),
 		Sessions:                   state.sessions,
 		Profiles:                   state.profiles,
+		ProfileManager:             state.profiles,
 		SessionAttachments:         state.sessionAttachments,
 		Workspaces:                 state.workspaceResolver,
 		Worktrees:                  state.worktrees,

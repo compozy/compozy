@@ -110,8 +110,9 @@ type RepoChoice struct {
 }
 type ProfileWithCounts struct {
 	Profile
-	WorkItems  int
-	NeedsSetup bool
+	WorkItems              int
+	NeedsSetup             bool
+	CredentialRequirements []CredentialRequirement
 }
 type CredentialRequirement struct {
 	Provider, Slot, SourceExtension string

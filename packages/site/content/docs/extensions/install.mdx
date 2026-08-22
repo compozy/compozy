@@ -42,6 +42,17 @@ submit the structured union directly; the shorthand is a CLI convenience.
 
 `--version` and `--asset` select a specific registry version or archive for published sources.
 
+## Review declared profiles before install
+
+Install preview acquires and validates the package without changing state. It names every profile the
+manifest will create or bind, its credential requirements, resource placements, and the exact Live
+Network digest when one needs confirmation. The web install flow shows this summary before the final
+action. HTTP and UDS use `POST /api/extensions/preview-install` with the same install-source request.
+
+When the install succeeds, declared profiles are created without becoming active. Existing names are
+bound without changing their identity or defaults. The extension is enabled by default in every
+profile; use `compozy --profile <name> extension disable <extension>` for a profile-specific exception.
+
 ## Detected package layouts
 
 CompozyOS detects the package layout after acquiring the source. You do not select a format flag.
@@ -220,10 +231,10 @@ The runtime activation is the commit point. If the new version is active but Com
 staging directory or backup, the result is still `status: "updated"` with an
 `extension_update_cleanup_failed` warning naming the residual path.
 
-## Inspect and preview the kit
+## Inspect the kit
 
-Use inventory to compare every resource shipped by the global installed extension with the records
-currently live in the daemon:
+Use inventory to compare every resource shipped by the installed extension with the records currently
+live for the selected profile:
 
 ```bash
 compozy extension inventory hello -o json
@@ -233,35 +244,23 @@ Portable inventory preserves the detected `format` and ingest diagnostics even w
 component was skipped. An empty live resource set is therefore distinguishable from a native empty
 extension.
 
-Use preview before enable to calculate the same desired state without writing records, starting
-automation, launching a subprocess, or recording Network consent:
-
-```bash
-compozy extension preview hello -o json
-```
-
-Preview reports the publish set, agent-name conflicts, unbound environment names, automation that
-would start, and the current Network requirement digest. Resolve conflicts and bindings before the
-enable mutation.
-
 ## Enable, disable, remove
 
 ```bash
-compozy extension disable hello
-compozy extension enable hello
+compozy --profile marketing extension disable hello
+compozy --profile marketing extension enable hello
 compozy extension remove hello
 compozy extension remove hello --global
 ```
 
-Enable and disable require the daemon. Enable publishes the complete static kit, starts effectively
-enabled package automation, loads runtime behavior, and writes an `extension.enabled` event. Its
-result lists the automation definitions that became runnable. Disable removes the extension-owned
-live resources, stops runtime behavior, and writes `extension.disabled`.
+Enable and disable require the daemon and change only the selected profile. An absent exception row
+means enabled. Disable stores one exception and removes extension resources from that profile;
+enable deletes the exception and republishes resources whose placement matches the profile. Each
+change writes `extension.enablement_changed`.
 
-When the manifest requires Live Network participation, an unconfirmed enable returns
-`extension_network_confirmation_required` with the current digest. Review it, then retry with
-`--confirm-network-requirement <digest>`. An update that changes the digest refuses before replacing
-the installed package and uses the same exact-digest confirmation flag.
+When the manifest requires Live Network participation, install or update returns
+`extension_network_confirmation_required` before changing package state. Review the exact digest,
+then retry with `--confirm-network-requirement <digest>`.
 
 Inside a workspace, `remove` unlinks a dev overlay and lets the published installation resume;
 `--global` removes the published installation. Removal deletes the managed install directory and
@@ -349,7 +348,6 @@ as the CLI:
 | Inspect one        | `compozy__extensions_info`              | `compozy extension status`         |
 | Inspect provenance | `compozy__extensions_provenance`        | `compozy extension provenance`     |
 | Inspect kit        | `compozy__extensions_inventory`         | `compozy extension inventory`      |
-| Preview enable     | `compozy__extensions_preview`           | `compozy extension preview`        |
 | Install            | `compozy__extensions_install`           | `compozy extension install`        |
 | Update             | `compozy__extensions_update`            | `compozy extension update`         |
 | Remove             | `compozy__extensions_remove`            | `compozy extension remove`         |
@@ -372,19 +370,19 @@ Host API methods in `permissions.requires`, such as `resources/list`, `resources
 
 ## Troubleshooting
 
-| Symptom                                     | Cause                                                                             | Fix                                                                         |
-| ------------------------------------------- | --------------------------------------------------------------------------------- | --------------------------------------------------------------------------- |
-| `extension_unverified_policy_blocked`       | Live policy is off.                                                               | Review the source, then set `extensions.trust.allow_unverified` and reload. |
-| `extension_checksum_unverified`             | Consent missing on the request.                                                   | Add `--allow-unverified` (`--yes` for structured output).                   |
-| `extension_archive_digest_mismatch`         | Curated archive differs from the pinned bytes.                                    | Stop; refresh the catalog or wait for the entry to be corrected.            |
-| `extension_git_unavailable`                 | No `git` binary on the daemon host.                                               | Install `git` or install from another source.                               |
-| `extension_git_version_unsupported`         | The daemon host has Git older than 2.37.                                          | Install Git 2.37 or newer, then retry.                                      |
-| `extension_agent_plugin_client_layout`      | The package uses a client-specific plugin layout.                                 | Repackage it with the portable root layout.                                 |
-| `extension_agent_plugin_schema_unsupported` | The package declares an unsupported Agent Plugins schema.                         | Publish a package using schema `1.0.0`.                                     |
-| Extension is `enabled` but not `active`     | Daemon offline, disabled, or activation failed.                                   | `compozy extension status <name>` and `compozy extension logs <name>`.      |
-| Enable asks for Network confirmation        | The extension declares an unconfirmed or changed Live requirement digest.         | Review the digest, then retry with `--confirm-network-requirement`.         |
-| `bridge.adapter` install rejected           | External bridge authoring is a planned follow-up.                                 | See [Develop Extensions](/docs/extensions/develop#bridge-adapters).         |
-| Daemon-required error on a marketplace verb | Search, install, update, remove, enable, status, and provenance are daemon-owned. | Start the daemon and retry.                                                 |
+| Symptom                                         | Cause                                                                             | Fix                                                                         |
+| ----------------------------------------------- | --------------------------------------------------------------------------------- | --------------------------------------------------------------------------- |
+| `extension_unverified_policy_blocked`           | Live policy is off.                                                               | Review the source, then set `extensions.trust.allow_unverified` and reload. |
+| `extension_checksum_unverified`                 | Consent missing on the request.                                                   | Add `--allow-unverified` (`--yes` for structured output).                   |
+| `extension_archive_digest_mismatch`             | Curated archive differs from the pinned bytes.                                    | Stop; refresh the catalog or wait for the entry to be corrected.            |
+| `extension_git_unavailable`                     | No `git` binary on the daemon host.                                               | Install `git` or install from another source.                               |
+| `extension_git_version_unsupported`             | The daemon host has Git older than 2.37.                                          | Install Git 2.37 or newer, then retry.                                      |
+| `extension_agent_plugin_client_layout`          | The package uses a client-specific plugin layout.                                 | Repackage it with the portable root layout.                                 |
+| `extension_agent_plugin_schema_unsupported`     | The package declares an unsupported Agent Plugins schema.                         | Publish a package using schema `1.0.0`.                                     |
+| Extension is `enabled` but not `active`         | Daemon offline, disabled, or activation failed.                                   | `compozy extension status <name>` and `compozy extension logs <name>`.      |
+| Install or update asks for Network confirmation | The candidate declares an unconfirmed or changed Live requirement digest.         | Review the exact digest, then retry with `--confirm-network-requirement`.   |
+| `bridge.adapter` install rejected               | External bridge authoring is a planned follow-up.                                 | See [Develop Extensions](/docs/extensions/develop#bridge-adapters).         |
+| Daemon-required error on a marketplace verb     | Search, install, update, remove, enable, status, and provenance are daemon-owned. | Start the daemon and retry.                                                 |
 
 Related references:
 

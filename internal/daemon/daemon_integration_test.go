@@ -3656,9 +3656,9 @@ func TestBootStartsBridgeExtensionWithMultipleOwnedInstances(t *testing.T) {
 
 	registry := openDaemonIntegrationGlobalDB(t, homePaths.DatabaseFile)
 	for _, req := range []bridgepkg.CreateInstanceRequest{
-		ProfileID: store.DefaultProfileID,
 		{
 			ID:            firstID,
+			ProfileID:     store.DefaultProfileID,
 			Scope:         bridgepkg.ScopeGlobal,
 			Platform:      "slack",
 			ExtensionName: extensionName,
@@ -3669,6 +3669,7 @@ func TestBootStartsBridgeExtensionWithMultipleOwnedInstances(t *testing.T) {
 		},
 		{
 			ID:            secondID,
+			ProfileID:     store.DefaultProfileID,
 			Scope:         bridgepkg.ScopeGlobal,
 			Platform:      "slack",
 			ExtensionName: extensionName,

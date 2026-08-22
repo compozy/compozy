@@ -27,6 +27,7 @@ type extensionKitSourceSyncer struct {
 	actor        resources.MutationActor
 	registry     *extensionpkg.Registry
 	runtime      func() extensionRuntime
+	profiles     extensionProfileCatalog
 	logger       *slog.Logger
 	trigger      func(context.Context, resources.ResourceKind, resources.ReconcileReason) error
 }
@@ -61,7 +62,8 @@ func (d *Daemon) newExtensionKitResourcePublisher(
 		triggers: triggerStore, triggerCodec: triggerCodec,
 		layouts: layoutStore, layoutCodec: layoutCodec,
 		actor: extensionKitSyncActor(), registry: registry, runtime: state.currentExtensionRuntime,
-		logger: state.logger,
+		profiles: state.deps.Profiles,
+		logger:   state.logger,
 		trigger: func(ctx context.Context, kind resources.ResourceKind, reason resources.ReconcileReason) error {
 			if state.resourceReconcile == nil {
 				return nil
@@ -155,7 +157,15 @@ func (s *extensionKitSourceSyncer) desired(
 	if manager == nil {
 		return jobs, triggers, layouts, nil
 	}
-	snapshots, err := extensionResourceSnapshots(s.registry, manager, s.logger)
+	var snapshots []scopedExtensionResourceSnapshot
+	var err error
+	if s.profiles != nil {
+		snapshots, err = extensionResourceSnapshotsForProfiles(
+			ctx, s.registry, manager, s.logger, s.profiles,
+		)
+	} else {
+		snapshots, err = extensionResourceSnapshots(s.registry, manager, s.logger)
+	}
 	if err != nil {
 		return nil, nil, nil, err
 	}

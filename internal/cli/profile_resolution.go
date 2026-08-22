@@ -31,7 +31,7 @@ func resolveCommandProfile(
 	ctx context.Context,
 	cmd *cobra.Command,
 	deps commandDeps,
-	profiles profileClientAPI,
+	profiles profileResolutionClient,
 	workspaces workspaceLookupClient,
 ) (profileResolution, error) {
 	if resolution, ok := commandProfileResolution(cmd); ok {
@@ -64,7 +64,7 @@ func resolveProfileForWorkspace(
 	ctx context.Context,
 	cmd *cobra.Command,
 	deps commandDeps,
-	profiles profileClientAPI,
+	profiles profileResolutionClient,
 	workspace workspaceResolution,
 	hasWorkspace bool,
 ) (profileResolution, error) {
@@ -136,7 +136,7 @@ func resolveProfileAtWorkspaceBoundary(
 	if profileSelectionExemptCommand(cmd) {
 		return nil
 	}
-	profiles, ok := client.(profileClientAPI)
+	profiles, ok := client.(profileResolutionClient)
 	if !ok {
 		return nil
 	}

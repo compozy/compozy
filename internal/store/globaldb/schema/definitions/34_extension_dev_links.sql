@@ -11,3 +11,27 @@ CREATE TABLE extension_dev_links (
 		network_confirmed_at TEXT,
 		UNIQUE (extension_name, workspace_id)
 	);
+
+CREATE TRIGGER extension_dev_links_profile_enablement_insert
+BEFORE INSERT ON extension_profile_enablement
+WHEN NOT EXISTS (
+		SELECT 1 FROM extensions WHERE name = NEW.extension_name
+	)
+	AND NOT EXISTS (
+		SELECT 1 FROM extension_dev_links WHERE extension_name = NEW.extension_name
+	)
+BEGIN
+	SELECT RAISE(ABORT, 'extension_not_found');
+END;
+
+CREATE TRIGGER extension_dev_links_profile_enablement_delete
+AFTER DELETE ON extension_dev_links
+WHEN NOT EXISTS (
+		SELECT 1 FROM extensions WHERE name = OLD.extension_name
+	)
+	AND NOT EXISTS (
+		SELECT 1 FROM extension_dev_links WHERE extension_name = OLD.extension_name
+	)
+BEGIN
+	DELETE FROM extension_profile_enablement WHERE extension_name = OLD.extension_name;
+END;

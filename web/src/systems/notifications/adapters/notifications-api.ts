@@ -10,6 +10,8 @@ import type {
   NotificationPresetCollection,
   NotificationPresetEntry,
   NotificationPresetFilter,
+  NotificationPresetEnablement,
+  SetNotificationPresetEnablementRequest,
   UpdateNotificationPresetRequest,
 } from "../types";
 
@@ -36,6 +38,7 @@ function normalizeNotificationPresetFilter(filter: NotificationPresetFilter = {}
   return {
     enabled: filter.enabled,
     built_in: filter.built_in,
+    profile: normalizeOptionalText(filter.profile),
     name: normalizeOptionalText(filter.name),
     limit: filter.limit,
   };
@@ -62,9 +65,11 @@ export async function listNotificationPresets(
 
 export async function createNotificationPreset(
   body: CreateNotificationPresetRequest,
+  profile?: string,
   signal?: AbortSignal
 ): Promise<NotificationPresetEntry> {
   const { data, error, response } = await apiClient.POST("/api/notifications/presets", {
+    params: { query: { profile: normalizeOptionalText(profile) } },
     body,
     signal,
   });
@@ -82,10 +87,11 @@ export async function createNotificationPreset(
 export async function updateNotificationPreset(
   name: string,
   body: UpdateNotificationPresetRequest,
+  profile?: string,
   signal?: AbortSignal
 ): Promise<NotificationPresetEntry> {
   const { data, error, response } = await apiClient.PUT("/api/notifications/presets/{name}", {
-    params: { path: { name } },
+    params: { path: { name }, query: { profile: normalizeOptionalText(profile) } },
     body,
     signal,
   });
@@ -98,6 +104,30 @@ export async function updateNotificationPreset(
   }
 
   return requireResponseData(data, response, "Failed to update notification preset").preset;
+}
+
+export async function setNotificationPresetEnablement(
+  name: string,
+  body: SetNotificationPresetEnablementRequest,
+  signal?: AbortSignal
+): Promise<NotificationPresetEnablement> {
+  const { data, error, response } = await apiClient.PUT(
+    "/api/notifications/presets/{name}/enablement",
+    {
+      params: { path: { name } },
+      body,
+      signal,
+    }
+  );
+
+  if (apiRequestFailed(response, error)) {
+    throw new NotificationsApiError(
+      defaultApiErrorMessage("Failed to update notification preset enablement", response, error),
+      response.status
+    );
+  }
+
+  return requireResponseData(data, response, "Failed to update notification preset enablement");
 }
 
 export async function deleteNotificationPreset(name: string, signal?: AbortSignal): Promise<void> {
@@ -118,5 +148,6 @@ export const notificationsApi = {
   listPresets: listNotificationPresets,
   createPreset: createNotificationPreset,
   updatePreset: updateNotificationPreset,
+  setPresetEnablement: setNotificationPresetEnablement,
   deletePreset: deleteNotificationPreset,
 };

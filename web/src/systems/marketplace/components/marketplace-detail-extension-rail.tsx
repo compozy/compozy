@@ -46,8 +46,13 @@ function MarketplaceExtensionManageCard({
           </PropertyRow>
         </div>
       ) : null}
+      <div className="px-3.5">
+        <PropertyRow label="Profile" mono>
+          {extension.profile || "default"}
+        </PropertyRow>
+      </div>
       <MarketplaceDetailRailNote>
-        Disabling unpublishes the kit and stops the subprocess.
+        This switch controls the effective state in {extension.profile || "default"}.
       </MarketplaceDetailRailNote>
     </MarketplaceDetailRailCard>
   );

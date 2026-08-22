@@ -468,7 +468,7 @@ func loadSpecCycleLoopResourceSpecs(
 ) ([]looppkg.ResourceSpec, error) {
 	loaded := map[string]looppkg.ResourceSpec{}
 	for _, resourcePath := range manifest.Resources.Loops {
-		resourceRoot := filepath.Join(rootDir, filepath.FromSlash(resourcePath))
+		resourceRoot := filepath.Join(rootDir, filepath.FromSlash(resourcePath.Path))
 		err := filepath.WalkDir(resourceRoot, func(path string, entry os.DirEntry, walkErr error) error {
 			if walkErr != nil {
 				return walkErr

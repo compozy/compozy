@@ -537,12 +537,12 @@ func requireSpecCycleExtensionEnabled(
 ) {
 	t.Helper()
 
-	enabled, err := harness.EnableExtension(ctx, speccycle.Name)
+	enabled, err := harness.SetExtensionEnablement(ctx, speccycle.Name, "default", true)
 	if err != nil {
-		t.Fatalf("EnableExtension(%s) error = %v", speccycle.Name, err)
+		t.Fatalf("SetExtensionEnablement(%s) error = %v", speccycle.Name, err)
 	}
 	if !enabled.Enabled {
-		t.Fatalf("EnableExtension(%s).Enabled = false, want true", speccycle.Name)
+		t.Fatalf("SetExtensionEnablement(%s).Enabled = false, want true", speccycle.Name)
 	}
 }
 

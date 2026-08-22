@@ -141,7 +141,7 @@ func (v marketplaceReadFlagValues) resolve(
 		result.WorkspaceID = resolution.ID
 	}
 	if result.Scope == contract.SettingsLayeredScopeProfile {
-		profiles, ok := client.(profileClientAPI)
+		profiles, ok := client.(profileResolutionClient)
 		if !ok {
 			return MarketplaceReadScope{}, errors.New("cli: profile catalog is unavailable")
 		}

@@ -19,9 +19,11 @@ export type ExtensionDetailDialog = "provenance" | "remove" | "update" | null;
  * variables the daemon refused so the retry ratifies the digest without silently changing what was
  * asked for (an unverified update keeps its `allowUnverified` and resolved version).
  */
-export type ExtensionNetworkConfirm =
-  | { action: "enable"; digest: string; variables: ToggleExtensionVariables }
-  | { action: "update"; digest: string; variables: UpdateExtensionVariables };
+export type ExtensionNetworkConfirm = {
+  action: "update";
+  digest: string;
+  variables: UpdateExtensionVariables;
+};
 
 type ExtensionDetailDialogState =
   | { type: "closed" }
@@ -71,19 +73,7 @@ export function useExtensionDetailState(
   };
 
   const runToggle = async (variables: ToggleExtensionVariables) => {
-    try {
-      await toggle.mutateAsync(variables);
-      setDialogState(current =>
-        current.type === "network-confirm" ? CLOSED_DIALOG_STATE : current
-      );
-    } catch (error) {
-      const confirmation = extensionNetworkConfirmation(error);
-      if (!confirmation) return;
-      setDialogState({
-        type: "network-confirm",
-        confirmation: { action: "enable", digest: confirmation.digest, variables },
-      });
-    }
+    await toggle.mutateAsync(variables);
   };
 
   const runUpdate = async (variables: UpdateExtensionVariables) => {
@@ -109,8 +99,6 @@ export function useExtensionDetailState(
       setDialogState(current =>
         current.type === "network-confirm" ? CLOSED_DIALOG_STATE : current
       ),
-    /** The last enable result in this session; automation the operator started is theirs to see. */
-    enableResult: toggle.data && "automation_started" in toggle.data ? toggle.data : null,
     inventory,
     logs,
     navigate,
@@ -134,16 +122,9 @@ export function useExtensionDetailState(
       }
       setDialogState({ type: "dialog", dialog: "update" });
     },
-    /** Resumes the refused mutation with its original variables plus the ratified digest. */
+    /** Resumes the refused update with its original variables plus the ratified digest. */
     submitNetworkConfirm: async () => {
       if (!networkConfirm) return;
-      if (networkConfirm.action === "enable") {
-        await runToggle({
-          ...networkConfirm.variables,
-          confirmNetworkDigest: networkConfirm.digest,
-        });
-        return;
-      }
       await runUpdate({
         ...networkConfirm.variables,
         confirmNetworkDigest: networkConfirm.digest,

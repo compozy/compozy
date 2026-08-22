@@ -116,7 +116,7 @@ func TestNativeExtensionToolsIntegrationLifecycleParity(t *testing.T) {
 				inspected.Manifest.Resources.Skills,
 			)
 		}
-		assertNativeExtensionInventoryPreviewParity(t, registry, agentScope, service, "tool-ext")
+		assertNativeExtensionInventoryParity(t, registry, agentScope, service, "tool-ext")
 
 		firstDigest := nativeIntegrationNetworkDigest(t, "builders")
 		_, err = registry.Call(t.Context(), agentScope, toolspkg.CallRequest{
@@ -546,7 +546,7 @@ func (r *nativeExtensionInspectionRuntime) InspectPackageResources(
 	return r.manager.InspectPackageResources(ctx, name)
 }
 
-func assertNativeExtensionInventoryPreviewParity(
+func assertNativeExtensionInventoryParity(
 	t *testing.T,
 	registry toolspkg.Registry,
 	scope toolspkg.Scope,
@@ -575,28 +575,6 @@ func assertNativeExtensionInventoryPreviewParity(
 	}
 	if len(nativeInventory.Items) != 1 || nativeInventory.Items[0].Live {
 		t.Fatalf("native inventory = %#v, want one shipped inactive item", nativeInventory)
-	}
-
-	previewResult, err := registry.Call(t.Context(), scope, toolspkg.CallRequest{
-		ToolID: toolspkg.ToolIDExtensionsPreview,
-		Input:  json.RawMessage(fmt.Sprintf(`{"name":%q}`, name)),
-	})
-	if err != nil {
-		t.Fatalf("Registry.Call(extensions_preview) error = %v", err)
-	}
-	var nativePreview contract.ExtensionEnablePreviewPayload
-	if err := json.Unmarshal(previewResult.Structured, &nativePreview); err != nil {
-		t.Fatalf("json.Unmarshal(extensions_preview) error = %v", err)
-	}
-	directPreview, err := service.Preview(t.Context(), name)
-	if err != nil {
-		t.Fatalf("service.Preview() error = %v", err)
-	}
-	if !reflect.DeepEqual(nativePreview, directPreview) {
-		t.Fatalf("native preview = %#v, want core service payload %#v", nativePreview, directPreview)
-	}
-	if len(nativePreview.Changes) != 1 || !nativePreview.NetworkConfirmationRequired {
-		t.Fatalf("native preview = %#v, want one item and network confirmation", nativePreview)
 	}
 }
 

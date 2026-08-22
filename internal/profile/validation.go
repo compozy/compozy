@@ -33,6 +33,17 @@ func normalizeName(name string) (string, error) {
 	return name, nil
 }
 
+// NormalizeName validates and returns the canonical profile name used by
+// manifests and other boundaries that bind to profiles by name.
+func NormalizeName(name string) (string, error) {
+	return normalizeName(name)
+}
+
+// NormalizeIdentity validates and defaults the shared profile identity shape.
+func NormalizeIdentity(color, icon, emoji string) (string, string, string, error) {
+	return normalizeIdentity(color, icon, emoji)
+}
+
 func normalizeIdentity(color, icon, emoji string) (string, string, string, error) {
 	color = strings.ToLower(strings.TrimSpace(color))
 	icon = strings.TrimSpace(icon)

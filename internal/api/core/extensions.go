@@ -64,6 +64,26 @@ type ExtensionService interface {
 	Preview(ctx context.Context, name string) (contract.ExtensionEnablePreviewPayload, error)
 }
 
+// ExtensionInstallPreviewService exposes the mutation-free install confirmation contract.
+type ExtensionInstallPreviewService interface {
+	PreviewInstall(
+		ctx context.Context,
+		req contract.InstallExtensionRequest,
+		actor taskpkg.ActorContext,
+	) (contract.ExtensionInstallPreviewPayload, error)
+}
+
+// ExtensionEnablementService exposes the profile-specific extension authority.
+type ExtensionEnablementService interface {
+	ListEnablement(ctx context.Context, name string) ([]contract.ExtensionEnablementPayload, error)
+	SetEnablement(
+		ctx context.Context,
+		name string,
+		req contract.SetExtensionEnablementRequest,
+		actor taskpkg.ActorContext,
+	) (contract.ExtensionEnablementPayload, error)
+}
+
 // ExtensionSecretsService exposes presence-only, caller-scoped secret bindings.
 type ExtensionSecretsService interface {
 	ListExtensionSecrets(
@@ -129,7 +149,7 @@ func (h *BaseHandlers) ListExtensions(c *gin.Context) {
 
 	var items []contract.ExtensionPayload
 	var err error
-	if scoped, supportsScope := service.(ExtensionScopedReadService); supportsScope && hasExtensionScopeRequest(c) {
+	if scoped, supportsScope := service.(ExtensionScopedReadService); supportsScope {
 		actor, actorOK := h.extensionScopedActorContext(c, "list", false)
 		if !actorOK {
 			return
@@ -282,7 +302,7 @@ func (h *BaseHandlers) ExtensionStatus(c *gin.Context) {
 
 	var item contract.ExtensionPayload
 	var err error
-	if scoped, supportsScope := service.(ExtensionScopedReadService); supportsScope && hasExtensionScopeRequest(c) {
+	if scoped, supportsScope := service.(ExtensionScopedReadService); supportsScope {
 		actor, actorOK := h.extensionScopedActorContext(c, "status", false)
 		if !actorOK {
 			return
@@ -300,7 +320,8 @@ func (h *BaseHandlers) ExtensionStatus(c *gin.Context) {
 
 func hasExtensionScopeRequest(c *gin.Context) bool {
 	return hasAgentCallerIdentityCredentials(agentCallerCredentialsFromRequest(c)) ||
-		strings.TrimSpace(c.Query("workspace")) != ""
+		strings.TrimSpace(c.Query("workspace")) != "" ||
+		strings.TrimSpace(c.Query("profile")) != ""
 }
 
 // ExtensionProvenance returns one installed extension's persisted trust report.
@@ -426,6 +447,7 @@ func normalizeInstallExtensionRequest(req *contract.InstallExtensionRequest) {
 	req.Ref = strings.TrimSpace(req.Ref)
 	req.Version = strings.TrimSpace(req.Version)
 	req.Asset = strings.TrimSpace(req.Asset)
+	req.ConfirmNetworkDigest = strings.TrimSpace(req.ConfirmNetworkDigest)
 }
 
 func validateInstallExtensionRequest(req contract.InstallExtensionRequest) error {

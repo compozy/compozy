@@ -159,7 +159,7 @@ func resolveConfigWriteProfile(cmd *cobra.Command, deps commandDeps) (string, er
 	if err != nil {
 		return "", err
 	}
-	profiles, ok := client.(profileClientAPI)
+	profiles, ok := client.(profileResolutionClient)
 	if !ok {
 		flag, flagErr := commandProfileFlag(cmd)
 		if flagErr != nil {

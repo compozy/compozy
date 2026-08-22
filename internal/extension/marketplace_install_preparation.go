@@ -47,6 +47,14 @@ func (p *PreparedMarketplaceManagedInstall) Name() string {
 	return strings.TrimSpace(p.install.manifest.Name)
 }
 
+// Manifest returns an isolated copy of the validated staged manifest.
+func (p *PreparedMarketplaceManagedInstall) Manifest() *Manifest {
+	if p == nil {
+		return nil
+	}
+	return cloneManifest(p.install.manifest)
+}
+
 // Commit moves the staged artifact into place and persists its registry row.
 func (p *PreparedMarketplaceManagedInstall) Commit() (*ExtensionInfo, error) {
 	if p == nil || p.registry == nil || p.install.manifest == nil {
@@ -73,7 +81,6 @@ func (p *PreparedMarketplaceManagedInstall) Commit() (*ExtensionInfo, error) {
 		p.install.finalDir,
 		p.install.checksum,
 		WithInstallSource(SourceMarketplace),
-		WithInstallEnabled(false),
 		WithInstallRegistryMetadata(
 			p.install.slug,
 			strings.TrimSpace(p.install.detail.Source),

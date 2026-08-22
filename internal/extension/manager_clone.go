@@ -81,6 +81,8 @@ func cloneManifest(src *Manifest) *Manifest {
 	cloned.Capabilities = normalizeCapabilitiesConfig(src.Capabilities)
 	cloned.Permissions = normalizePermissionsConfig(src.Permissions)
 	cloned.Subprocess = normalizeSubprocessConfig(src.Subprocess)
+	cloned.Bridge = normalizeBridgeConfig(src.Bridge)
+	cloned.Profiles = normalizeManifestProfiles(src.Profiles)
 	return &cloned
 }
 

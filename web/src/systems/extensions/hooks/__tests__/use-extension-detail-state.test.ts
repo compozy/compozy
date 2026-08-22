@@ -1,7 +1,7 @@
 // Suite: Extension detail dialog state
 // Invariant: extension detail selects at most one dialog at a time, only consents to an
-// unverified update through the explicit gate, and resumes a refused enable or update with the
-// exact variables the daemon rejected plus the digest it named.
+// unverified update through the explicit gate, and resumes a refused update with the exact
+// variables the daemon rejected plus the digest it named.
 // Boundary IN: useExtensionDetailState dialog actions, update routing, and confirm resumption.
 // Boundary OUT: Extension queries, mutations, and rendered dialog primitives.
 
@@ -68,10 +68,7 @@ describe("useExtensionDetailState", () => {
     mocks.detail.workspaceId = null;
     mocks.logsOptions = null;
     mocks.toggle.data = undefined;
-    mocks.toggle.mutateAsync.mockResolvedValue({
-      automation_started: [],
-      extension: extensionFixtures[0],
-    });
+    mocks.toggle.mutateAsync.mockResolvedValue({ enabled: true, profile: "default" });
     mocks.update.mutateAsync.mockResolvedValue(undefined);
   });
 
@@ -171,32 +168,15 @@ describe("useExtensionDetailState", () => {
     expect(result.current.activeDialog).toBeNull();
   });
 
-  // UT-064: enable and update share one affordance, and each retry ratifies the digest without
-  // silently changing what the operator originally asked for.
-  it("Should open the shared confirm affordance when enable is refused and resume it with the digest", async () => {
+  it("Should toggle the active profile without opening a network confirmation", async () => {
     mocks.detail.data = installedView({ name: "dep-kit-ops" });
-    mocks.toggle.mutateAsync.mockRejectedValueOnce(networkConfirmationRefusal());
     const { result } = renderHook(() => useExtensionDetailState("dep-kit-ops"));
 
     await act(async () => {
       await result.current.requestToggle(true);
     });
 
-    expect(result.current.networkConfirm).toEqual({
-      action: "enable",
-      digest: CURRENT_DIGEST,
-      variables: { enabled: true, name: "dep-kit-ops" },
-    });
-
-    await act(async () => {
-      await result.current.submitNetworkConfirm();
-    });
-
-    expect(mocks.toggle.mutateAsync).toHaveBeenLastCalledWith({
-      confirmNetworkDigest: CURRENT_DIGEST,
-      enabled: true,
-      name: "dep-kit-ops",
-    });
+    expect(mocks.toggle.mutateAsync).toHaveBeenCalledWith({ enabled: true, name: "dep-kit-ops" });
     expect(result.current.networkConfirm).toBeNull();
   });
 
@@ -248,11 +228,11 @@ describe("useExtensionDetailState", () => {
 
   it("Should clear the pending confirmation when the operator dismisses it", async () => {
     mocks.detail.data = installedView({ name: "dep-kit-ops" });
-    mocks.toggle.mutateAsync.mockRejectedValueOnce(networkConfirmationRefusal());
+    mocks.update.mutateAsync.mockRejectedValueOnce(networkConfirmationRefusal());
     const { result } = renderHook(() => useExtensionDetailState("dep-kit-ops"));
 
     await act(async () => {
-      await result.current.requestToggle(true);
+      await result.current.requestUpdate();
     });
     expect(result.current.networkConfirm).not.toBeNull();
 
@@ -265,18 +245,19 @@ describe("useExtensionDetailState", () => {
 
   it("Should not open confirmation for an unrelated lifecycle failure", async () => {
     mocks.detail.data = installedView({ name: "dep-kit-ops" });
-    mocks.toggle.mutateAsync.mockRejectedValueOnce(
-      new ExtensionsApiError("daemon refused the toggle", 500, "daemon")
+    mocks.update.mutateAsync.mockRejectedValueOnce(
+      new ExtensionsApiError("daemon refused the update", 500, "daemon")
     );
     const { result } = renderHook(() => useExtensionDetailState("dep-kit-ops"));
 
     await act(async () => {
-      await result.current.requestToggle(true);
+      await result.current.requestUpdate();
     });
 
-    expect(mocks.toggle.mutateAsync).toHaveBeenCalledWith({
-      enabled: true,
+    expect(mocks.update.mutateAsync).toHaveBeenCalledWith({
+      allowUnverified: false,
       name: "dep-kit-ops",
+      version: "0.6.0",
     });
     expect(result.current.networkConfirm).toBeNull();
   });

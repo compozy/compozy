@@ -25,6 +25,7 @@ export interface ProfileCreateDialogProps {
   isPending: boolean;
   /** Refusal from the daemon, shown inline against the name field. */
   nameError?: string | null;
+  initialName?: string;
   onCreate: (input: {
     name: string;
     color: string;
@@ -40,9 +41,10 @@ export function ProfileCreateDialog({
   lens,
   isPending,
   nameError = null,
+  initialName = "",
   onCreate,
 }: ProfileCreateDialogProps) {
-  const [name, setName] = useState("");
+  const [name, setName] = useState(initialName);
   const [identity, setIdentity] = useState<{
     color: string;
     symbol: SymbolValue;

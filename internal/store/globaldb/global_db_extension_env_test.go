@@ -339,6 +339,47 @@ func TestExtensionEnvironmentMigration(t *testing.T) {
 func TestExtensionEnvRepoRoundTripAndInstanceIsolation(t *testing.T) {
 	t.Parallel()
 
+	// Invariant: profile overrides outrank workspace overrides for the same
+	// environment name, with all four fallback tiers deterministic.
+	// Owner: global extension environment binding store.
+	// Canonical suite: extension environment repository tests.
+	t.Run("Should resolve the complete profile-first precedence order", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t)
+		db := openFreshTestGlobalDB(t)
+		const financeID = "01JPROFILEFINANCE000000000"
+		if _, err := db.db.ExecContext(ctx, `INSERT INTO profiles (
+			id, name, color, icon, state, created_at
+		) VALUES (?, 'finance', '#112233', 'briefcase', 'active', ?)`, financeID, phase0FixtureTime); err != nil {
+			t.Fatalf("insert finance profile: %v", err)
+		}
+		rows := []extensionenv.Binding{
+			{ExtensionName: "kit", EnvName: "TOKEN", SecretRef: vault.ExtensionSecretRef("kit", "", "user-user"), Kind: extensionenv.BindingKind},
+			{ExtensionName: "kit", WorkspaceID: "ws-1", EnvName: "TOKEN", SecretRef: vault.ExtensionSecretRef("kit", "ws-1", "user-workspace"), Kind: extensionenv.BindingKind},
+			{ExtensionName: "kit", ProfileID: financeID, EnvName: "TOKEN", SecretRef: vault.ExtensionProfileSecretRef("kit", financeID, "", "profile-user"), Kind: extensionenv.BindingKind},
+			{ExtensionName: "kit", ProfileID: financeID, WorkspaceID: "ws-1", EnvName: "TOKEN", SecretRef: vault.ExtensionProfileSecretRef("kit", financeID, "ws-1", "profile-workspace"), Kind: extensionenv.BindingKind},
+		}
+		for _, binding := range rows {
+			if err := db.PutEnvBinding(ctx, binding); err != nil {
+				t.Fatalf("PutEnvBinding(%#v) error = %v", binding, err)
+			}
+		}
+		want := []string{rows[3].SecretRef, rows[2].SecretRef, rows[1].SecretRef, rows[0].SecretRef}
+		deleteScopes := [][2]string{{financeID, "ws-1"}, {financeID, ""}, {"", "ws-1"}}
+		for index, wantRef := range want {
+			resolved, err := db.ResolveEnvBindings(ctx, "kit", financeID, "ws-1")
+			if err != nil || len(resolved) != 1 || resolved[0].SecretRef != wantRef {
+				t.Fatalf("ResolveEnvBindings(step %d) = %#v, %v, want %q", index, resolved, err, wantRef)
+			}
+			if index < len(deleteScopes) {
+				scope := deleteScopes[index]
+				if err := db.DeleteEnvBinding(ctx, "kit", scope[0], scope[1], "TOKEN"); err != nil {
+					t.Fatalf("DeleteEnvBinding(step %d) error = %v", index, err)
+				}
+			}
+		}
+	})
+
 	t.Run("Should upsert one instance while preserving timestamps and other scopes", func(t *testing.T) {
 		t.Parallel()
 

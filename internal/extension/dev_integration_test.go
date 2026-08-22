@@ -1685,7 +1685,9 @@ func extensionToolPaletteManifestJSON(
 
 func assertCmdPaletteTitle(t *testing.T, manager *Manager, workspaceID, want string) {
 	t.Helper()
-	projection, err := manager.CmdPalette(workspaceID)
+	projection, err := manager.CmdPalette(workspaceID, ProfileLens{
+		ID: "00000000000000000000000000", Name: "default",
+	})
 	if err != nil {
 		t.Fatalf("Manager.CmdPalette() error = %v", err)
 	}

@@ -277,8 +277,8 @@ func testDaemonE2EAgentPluginRuntimeDistribution(t *testing.T) {
 	if installed.Name != "acme.tools" || installed.Version != "1.2.0" {
 		t.Fatalf("installed portable package = %#v, want acme.tools@1.2.0", installed)
 	}
-	if installed.Enabled {
-		t.Fatalf("installed portable package = %#v, want inert before enable", installed)
+	if !installed.Enabled {
+		t.Fatalf("installed portable package = %#v, want default-on enablement", installed)
 	}
 	dataPath, err := harness.HomePaths.ExtensionDataPath(installed.Name, "")
 	if err != nil {
@@ -288,9 +288,16 @@ func testDaemonE2EAgentPluginRuntimeDistribution(t *testing.T) {
 		t.Fatalf("portable data path before first MCP launch stat error = %v, want not-exist", err)
 	}
 
-	enabled, err := harness.EnableExtension(ctx, installed.Name)
+	disabled, err := harness.SetExtensionEnablement(ctx, installed.Name, "default", false)
 	if err != nil {
-		t.Fatalf("EnableExtension(%q) error = %v", installed.Name, err)
+		t.Fatalf("SetExtensionEnablement(%q, false) error = %v", installed.Name, err)
+	}
+	if disabled.Enabled {
+		t.Fatalf("disabled portable package = %#v, want disabled", disabled)
+	}
+	enabled, err := harness.SetExtensionEnablement(ctx, installed.Name, "default", true)
+	if err != nil {
+		t.Fatalf("SetExtensionEnablement(%q, true) error = %v", installed.Name, err)
 	}
 	if !enabled.Enabled {
 		t.Fatalf("enabled portable package = %#v, want enabled", enabled)

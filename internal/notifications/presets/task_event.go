@@ -8,6 +8,7 @@ import (
 
 	eventspkg "github.com/compozy/compozy/internal/events"
 	"github.com/compozy/compozy/internal/notifications"
+	"github.com/compozy/compozy/internal/store"
 	taskpkg "github.com/compozy/compozy/internal/task"
 )
 
@@ -20,6 +21,7 @@ func EventFromTaskRecord(
 ) Event {
 	event := Event{
 		ID:        record.Event.ID,
+		ProfileID: store.DefaultProfileID,
 		Type:      record.Event.EventType,
 		Scope:     globalTaskEventScope(),
 		AgentName: strings.TrimSpace(record.Event.Actor.Ref),
@@ -46,6 +48,9 @@ func EventFromTaskRecord(
 		return event
 	}
 	event.Scope = taskEventScope(taskRecord)
+	if profileID := strings.TrimSpace(taskRecord.ProfileID); profileID != "" {
+		event.ProfileID = profileID
+	}
 	event.Summary = strings.TrimSpace(taskRecord.Title)
 	return event
 }

@@ -14,6 +14,7 @@ type CmdPaletteCommand struct {
 	Title   string `toml:"title"             json:"title"`
 	Section string `toml:"section,omitempty" json:"section,omitempty"`
 	Icon    string `toml:"icon"              json:"icon"`
+	Profile string `toml:"profile,omitempty" json:"profile,omitempty"`
 
 	Keywords []string `toml:"keywords,omitempty" json:"keywords,omitempty"`
 
@@ -63,9 +64,10 @@ type CmdPaletteExecutionPolicy struct {
 
 // CmdPaletteView declares one declarative or programmable palette view.
 type CmdPaletteView struct {
-	ID    string `toml:"id"    json:"id"`
-	Title string `toml:"title" json:"title"`
-	Kind  string `toml:"kind"  json:"kind"`
+	ID      string `toml:"id"    json:"id"`
+	Title   string `toml:"title" json:"title"`
+	Kind    string `toml:"kind"  json:"kind"`
+	Profile string `toml:"profile,omitempty" json:"profile,omitempty"`
 
 	Source *CmdPaletteViewSource `toml:"source,omitempty" json:"source,omitempty"`
 

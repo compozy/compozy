@@ -14,13 +14,13 @@
 
 ## Extension Kits
 
-An extension kit is the static resource set shipped by one extension: skills, agents, Loops, automation jobs and triggers, layouts, and MCP sidecars. The manifest owns the paths. Installation keeps the kit inert; enabling the extension publishes its resources, and disabling it removes only resources owned by that extension instance.
+An extension kit is the static resource set shipped by one extension: skills, agents, Loops, automation jobs and triggers, layouts, and MCP sidecars. The manifest owns the paths. Installation enables the kit by default. Per-profile enablement and resource placement decide what is published in each profile.
 
-Inspect the shipped-versus-live view with `compozy extension inventory <name> -o json`, `GET /api/extensions/{name}/inventory`, or `compozy__extensions_inventory`. Preview enable with `compozy extension preview <name> -o json`, its HTTP/UDS route, or `compozy__extensions_preview`; the result names added, changed, and removed resources. Inventory and preview are reads; they never publish resources.
+Inspect the selected profile's shipped-versus-live view with `compozy --profile <profile> extension inventory <name> -o json`, `GET /api/extensions/{name}/inventory?profile=<profile>`, or `compozy__extensions_inventory`. Use `POST /api/extensions/preview-install` before installation to review declared profile creation or binding, credential requirements, placements, and any Network digest without changing state.
 
-Extensions declare required environment variable names. Bind an existing Vault reference with `compozy extension secrets bind <name> --env <key> --vault-ref <ref>`, or set a value through stdin or a hidden prompt. Add `--remote-header <server>:<header>` to bind that value to one declared remote MCP header. List and unset bindings through CLI or HTTP/UDS. Reads expose bound key, server, and header names only, never values or Vault references. Bindings are scoped to the extension instance.
+Extensions declare required environment variable names. Bind an existing Vault reference with `compozy --profile <profile> extension secrets bind <name> --env <key> --vault-ref <ref>`, or set a value through stdin or a hidden prompt. Add `--remote-header <server>:<header>` to bind that value to one declared remote MCP header. List and unset bindings through CLI or HTTP/UDS. Reads expose bound key, server, and header names only, never values or Vault references. Resolution is `(profile, workspace) → (profile, published) → (shared, workspace) → (shared, published)`.
 
-If a candidate extension changes its normalized Network Live requirement, enable or update returns `extension_network_confirmation_required` with the exact digest before changing active state. Inspect that digest and retry with `--confirm-network-requirement <digest>` or the equivalent `confirm_network_digest` request field. Do not confirm a stale or reconstructed digest. Confirmation records consent to the requirement; it does not enroll an execution into Live participation.
+If a candidate extension changes its normalized Network Live requirement, install or update returns `extension_network_confirmation_required` with the exact digest before changing package state. Inspect that digest and retry with `--confirm-network-requirement <digest>` or the equivalent `confirm_network_digest` request field. Do not confirm a stale or reconstructed digest. Confirmation records consent to the requirement; it does not enroll an execution into Live participation.
 
 A subprocess extension that publishes layouts directly declares the generic Host API permissions and `window_layouts` family. `resources/snapshot` is complete desired state for that extension source, not an append call: advance `source_version`, include every record that remains owned, and let omission delete stale records. Codec, kind, scope, and workspace-binding failure reject the snapshot atomically.
 
@@ -154,8 +154,9 @@ installation is the global instance (empty workspace); a dev link is a workspace
 operation coordinator, last-good generation, log ring, status, and events are per instance, so two
 workspaces linking the same extension share no process, logs, or failure state.
 
-Declared agents, skills, Loops, automations, and layouts use the same scope. Enabled published
-instances populate global resource catalogs; active dev instances populate only the linked
+Declared agents, skills, Loops, automations, and layouts use the same instance scope. Within an
+instance, resources are visible only when the extension is enabled for the active profile and the
+resource is unplaced or placed in that profile. Active dev instances populate only the linked
 workspace's catalogs and workspace detail. Reload swaps that workspace snapshot atomically, and
 unlinking removes it without mutating the published installation.
 

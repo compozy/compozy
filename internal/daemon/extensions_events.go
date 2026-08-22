@@ -65,8 +65,12 @@ func (s extensionLifecycleEventStoreSink) summary(
 	if now == nil {
 		now = time.Now
 	}
+	profileID := strings.TrimSpace(event.ProfileID)
+	if profileID == "" {
+		profileID = store.DefaultProfileID
+	}
 	return store.EventSummary{
-		ProfileID: store.DefaultProfileID,
+		ProfileID: profileID,
 		Type:      event.Type, Outcome: string(eventspkg.OutcomeFor(event.Type)), Content: content,
 		Summary: event.Type + " " + event.ExtensionName, Timestamp: now().UTC(),
 		EventCorrelation: store.EventCorrelation{ActorKind: s.actorKind, ActorID: s.actorID},

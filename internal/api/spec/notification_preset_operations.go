@@ -10,6 +10,7 @@ func notificationPresetOperations() []OperationSpec {
 		getNotificationPresetOperation(),
 		updateNotificationPresetOperation(),
 		deleteNotificationPresetOperation(),
+		setNotificationPresetEnablementOperation(),
 	}
 }
 
@@ -22,6 +23,7 @@ func listNotificationPresetsOperation() OperationSpec {
 		Tags:        []string{specNotificationsKey},
 		Transports:  []Transport{TransportHTTP, TransportUDS},
 		Parameters: []ParameterSpec{
+			queryParam("profile", "Profile whose effective enablement state is returned", false),
 			boolQueryParam("enabled", "Filter by enabled state"),
 			boolQueryParam("built_in", "Filter by built-in state"),
 			queryParam("name", "Filter by exact preset name", false),
@@ -44,6 +46,7 @@ func createNotificationPresetOperation() OperationSpec {
 		Summary:     "Create a notification preset",
 		Tags:        []string{specNotificationsKey},
 		Transports:  []Transport{TransportHTTP, TransportUDS},
+		Parameters:  []ParameterSpec{queryParam("profile", "Profile whose effective state is returned", false)},
 		RequestBody: contract.CreateNotificationPresetRequest{},
 		Responses: []ResponseSpec{
 			{Status: 201, Description: specCreatedDescription, Body: contract.NotificationPresetResponse{}},
@@ -63,7 +66,10 @@ func getNotificationPresetOperation() OperationSpec {
 		Summary:     "Get one notification preset",
 		Tags:        []string{specNotificationsKey},
 		Transports:  []Transport{TransportHTTP, TransportUDS},
-		Parameters:  []ParameterSpec{pathParam("name", "Notification preset name")},
+		Parameters: []ParameterSpec{
+			pathParam("name", "Notification preset name"),
+			queryParam("profile", "Profile whose effective state is returned", false),
+		},
 		Responses: []ResponseSpec{
 			{Status: 200, Description: "OK", Body: contract.NotificationPresetResponse{}},
 			{Status: 404, Description: specNotificationPresetNotFoundDescription, Body: contract.ErrorPayload{}},
@@ -81,13 +87,36 @@ func updateNotificationPresetOperation() OperationSpec {
 		Summary:     "Update one notification preset",
 		Tags:        []string{specNotificationsKey},
 		Transports:  []Transport{TransportHTTP, TransportUDS},
-		Parameters:  []ParameterSpec{pathParam("name", "Notification preset name")},
+		Parameters: []ParameterSpec{
+			pathParam("name", "Notification preset name"),
+			queryParam("profile", "Profile whose effective state is returned", false),
+		},
 		RequestBody: contract.UpdateNotificationPresetRequest{},
 		Responses: []ResponseSpec{
 			{Status: 200, Description: "OK", Body: contract.NotificationPresetResponse{}},
 			{Status: 400, Description: "Invalid notification preset update", Body: contract.ErrorPayload{}},
 			{Status: 404, Description: specNotificationPresetNotFoundDescription, Body: contract.ErrorPayload{}},
 			{Status: 422, Description: "Bridge target lookup is ambiguous", Body: contract.ErrorPayload{}},
+			notificationPresetServiceUnavailableResponse(),
+			{Status: 500, Description: specInternalServerErrorDescription, Body: contract.ErrorPayload{}},
+		},
+	}
+}
+
+func setNotificationPresetEnablementOperation() OperationSpec {
+	return OperationSpec{
+		Method:      httpMethodPut,
+		Path:        specAPINotificationsPresetsNameEnablementPath,
+		OperationID: "setNotificationPresetEnablement",
+		Summary:     "Set one notification preset's effective state for a profile",
+		Tags:        []string{specNotificationsKey},
+		Transports:  []Transport{TransportHTTP, TransportUDS},
+		Parameters:  []ParameterSpec{pathParam("name", "Notification preset name")},
+		RequestBody: contract.SetNotificationPresetEnablementRequest{},
+		Responses: []ResponseSpec{
+			{Status: 200, Description: "OK", Body: contract.NotificationPresetEnablementPayload{}},
+			{Status: 400, Description: "Invalid profile or enablement state", Body: contract.ErrorPayload{}},
+			{Status: 404, Description: specNotificationPresetNotFoundDescription, Body: contract.ErrorPayload{}},
 			notificationPresetServiceUnavailableResponse(),
 			{Status: 500, Description: specInternalServerErrorDescription, Body: contract.ErrorPayload{}},
 		},

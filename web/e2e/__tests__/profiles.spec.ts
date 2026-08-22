@@ -1,9 +1,14 @@
+import { mkdir, mkdtemp, writeFile } from "node:fs/promises";
+import os from "node:os";
+import path from "node:path";
+
 import { expect, test } from "../fixtures/test";
 import {
   appWindow,
   openAppWindow,
   openCommandPalette,
   paletteView,
+  switchWorkspace,
 } from "../fixtures/os-navigation";
 import { profilesOperatorSelectors } from "../fixtures/selectors";
 import { completeOnboardingIfPrompted, ensureGlobalWorkspace } from "../fixtures/workspace";
@@ -391,6 +396,54 @@ test.describe("Profiles", () => {
     await ui.switcherAll.click();
     await expect(scoped.usageProfileShare).toBeVisible();
     await expect(scoped.usageProfileShare).toContainText("default");
+  });
+
+  // Invariant: a repository profile declaration stays dormant until the
+  // operator creates that profile, after which its content binds immediately.
+  // Owner: workspace profile-adoption browser journey.
+  // Canonical suite: profile Playwright tests.
+  test("E2E-022: a repository profile hint adopts, binds, and disappears", async ({
+    appPage,
+    runtime,
+  }) => {
+    const workspaceRoot = await mkdtemp(path.join(os.tmpdir(), "compozy-profile-hint-"));
+    const agentDir = path.join(
+      workspaceRoot,
+      ".compozy",
+      "profiles",
+      "dev",
+      "agents",
+      "browser-dev"
+    );
+    await mkdir(agentDir, { recursive: true });
+    await writeFile(
+      path.join(agentDir, "AGENT.md"),
+      "---\nname: browser-dev\nprovider: anthropic\nmodel: claude-sonnet-4-20250514\n---\n",
+      "utf8"
+    );
+    const workspace = await runtime.resolveWorkspace(workspaceRoot);
+
+    await completeOnboardingIfPrompted(appPage);
+    await switchWorkspace(appPage, workspace.id, workspace.name);
+
+    const hint = appPage.getByTestId("workspace-profiles-hint");
+    await expect(hint).toContainText("This project declares content for profile dev.");
+    await hint.getByRole("button", { name: "Create dev" }).click();
+
+    const profiles = profilesOperatorSelectors(appPage);
+    await expect(profiles.createDialog).toBeVisible();
+    await expect(profiles.createName).toHaveValue("dev");
+    const created = appPage.waitForResponse(
+      response => response.request().method() === "POST" && response.url().endsWith("/api/profiles")
+    );
+    await profiles.createConfirm.click();
+    expect((await created).ok()).toBe(true);
+    await expect(hint).toHaveCount(0);
+
+    const detail = await runtime.requestJSON<{ agents: Array<{ name: string }> }>(
+      `/api/workspaces/${workspace.id}?profile=dev`
+    );
+    expect(detail.agents.map(agent => agent.name)).toContain("browser-dev");
   });
 
   test("E2E-028: palette results, ranking, and view sessions re-scope across a switch", async ({

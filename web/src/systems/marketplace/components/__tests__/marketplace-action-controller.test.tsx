@@ -21,6 +21,7 @@ const mocks = vi.hoisted(() => ({
   installMCP: vi.fn(),
   installSkill: vi.fn(),
   navigate: vi.fn(),
+  previewExtensionInstall: vi.fn(),
   toastError: vi.fn(),
   toastSuccess: vi.fn(),
   updateSkill: vi.fn(),
@@ -29,6 +30,11 @@ const mocks = vi.hoisted(() => ({
   removeExtension: vi.fn(),
   deleteMCP: vi.fn(),
   toggleExtension: vi.fn(),
+}));
+
+vi.mock("@/systems/extensions/adapters/extensions-api", async importOriginal => ({
+  ...(await importOriginal<typeof import("@/systems/extensions/adapters/extensions-api")>()),
+  previewExtensionInstall: mocks.previewExtensionInstall,
 }));
 
 vi.mock("sonner", () => ({
@@ -274,6 +280,11 @@ beforeEach(() => {
     },
   });
   mocks.installMCP.mockResolvedValue({});
+  mocks.previewExtensionInstall.mockImplementation(async (request: { ref: string }) => ({
+    declared_profiles: [{ create: false, credentials: [], name: "default" }],
+    name: request.ref.split("/").pop() ?? request.ref,
+    placements: [],
+  }));
   mocks.installSkill.mockResolvedValue({
     skill: {
       hash: "sha256:installed-skill",
@@ -322,7 +333,7 @@ describe("useMarketplaceActionController", () => {
           available_targets: ["global-config"],
           effective_source: {
             kind: "global-config",
-            scope: "global",
+            scope: "user",
           },
           shadowed_sources: [],
         },
@@ -337,8 +348,8 @@ describe("useMarketplaceActionController", () => {
     await user.click(screen.getByRole("button", { name: "Authorize MCP" }));
 
     await waitFor(() => expect(mocks.requestAuthorize).toHaveBeenCalledTimes(1));
-    expect(screen.getByRole("status", { name: "Authorization scope" })).toHaveTextContent("global");
-    expect(mocks.requestAuthorize).toHaveBeenCalledWith({ scope: "global" }, item.mcpServer);
+    expect(screen.getByRole("status", { name: "Authorization scope" })).toHaveTextContent("user");
+    expect(mocks.requestAuthorize).toHaveBeenCalledWith({ scope: "user" }, item.mcpServer);
   });
 
   it("Should remove MCP servers from the exact effective source target", async () => {
@@ -353,7 +364,7 @@ describe("useMarketplaceActionController", () => {
         workspace_id: "ws-a",
         source_metadata: {
           available_targets: ["global-mcp-sidecar"],
-          effective_source: { kind: "global-mcp-sidecar", scope: "global" },
+          effective_source: { kind: "global-mcp-sidecar", scope: "user" },
           shadowed_sources: [],
         },
       },
@@ -368,7 +379,7 @@ describe("useMarketplaceActionController", () => {
 
     await waitFor(() =>
       expect(mocks.deleteMCP).toHaveBeenCalledWith({
-        filter: { scope: "global", target: "sidecar" },
+        filter: { scope: "user", target: "sidecar" },
         name: "github",
       })
     );
@@ -391,7 +402,6 @@ describe("useMarketplaceActionController", () => {
         <ConcurrentInstalledHarness first={first} second={second} />
       </QueryClientProvider>
     );
-
     await user.click(screen.getByRole("button", { name: "Remove first" }));
     await waitFor(() =>
       expect(screen.getByRole("status", { name: "First installed pending" })).toHaveTextContent(
@@ -588,15 +598,8 @@ describe("useMarketplaceActionController", () => {
     );
   });
 
-  it("Should resume a refused installed-card enable with the exact network digest", async () => {
+  it("Should toggle an installed card without a network-confirmation detour", async () => {
     const user = userEvent.setup();
-    const digest = "sha256:quick-enable";
-    mocks.toggleExtension.mockRejectedValueOnce(
-      new ExtensionsApiError("network confirmation required", 409, "daemon", {
-        code: "extension_network_confirmation_required",
-        currentDigest: digest,
-      })
-    );
     const item: MarketplaceInstalledItem = {
       entry: {
         ...marketplaceListings.extension[0]!,
@@ -615,23 +618,10 @@ describe("useMarketplaceActionController", () => {
     );
 
     await user.click(screen.getByRole("switch", { name: "Enable Dependency Kit Ops" }));
-    expect(await screen.findByTestId("extension-network-confirm-dialog")).toBeInTheDocument();
-    expect(mocks.toggleExtension).toHaveBeenCalledWith({
-      enabled: true,
-      name: "dep-kit-ops",
-    });
-
-    await user.click(screen.getByTestId("extension-network-confirm-accept"));
     await waitFor(() =>
-      expect(mocks.toggleExtension).toHaveBeenLastCalledWith({
-        confirmNetworkDigest: digest,
-        enabled: true,
-        name: "dep-kit-ops",
-      })
+      expect(mocks.toggleExtension).toHaveBeenCalledWith({ enabled: true, name: "dep-kit-ops" })
     );
-    await waitFor(() =>
-      expect(screen.queryByTestId("extension-network-confirm-dialog")).not.toBeInTheDocument()
-    );
+    expect(screen.queryByTestId("extension-network-confirm-dialog")).not.toBeInTheDocument();
   });
 
   it("Should surface acquisition failures and always release pending state", async () => {
@@ -658,10 +648,21 @@ describe("useMarketplaceActionController", () => {
         <ActionHarness entry={marketplaceListings.extension[0]!} />
       </QueryClientProvider>
     );
+    mocks.previewExtensionInstall.mockResolvedValueOnce({
+      declared_profiles: [{ create: true, credentials: [], name: "observability" }],
+      name: "otel-bridge",
+      network_requirement_digest: "sha256:otel-network",
+      placements: [],
+    });
     await user.click(screen.getByRole("button", { name: "Run action" }));
+    expect(await screen.findByRole("heading", { name: "Install otel-bridge" })).toBeVisible();
+    expect(screen.getByText("Creates profile observability")).toBeVisible();
+    expect(mocks.installExtension).not.toHaveBeenCalled();
+    await user.click(screen.getByRole("button", { name: "Install" }));
     await waitFor(() =>
       expect(mocks.installExtension).toHaveBeenCalledWith({
         allow_unverified: false,
+        confirm_network_digest: "sha256:otel-network",
         ref: "compozy/otel-bridge",
         source: "curated",
         version: "0.6.0",
@@ -683,7 +684,7 @@ describe("useMarketplaceActionController", () => {
     );
     await user.click(screen.getByRole("button", { name: "Run action" }));
     expect(await screen.findByTestId("extension-trust-dialog")).toBeInTheDocument();
-    mocks.installExtension.mockRejectedValueOnce(new Error("policy changed"));
+    mocks.previewExtensionInstall.mockRejectedValueOnce(new Error("policy changed"));
     await user.click(screen.getByTestId("extension-trust-confirm"));
     expect(await screen.findByRole("alert")).toHaveTextContent("policy changed");
 
@@ -691,6 +692,8 @@ describe("useMarketplaceActionController", () => {
     await waitFor(() =>
       expect(screen.queryByTestId("extension-trust-dialog")).not.toBeInTheDocument()
     );
+    expect(await screen.findByRole("heading", { name: "Install slack-notify" })).toBeVisible();
+    await user.click(screen.getByRole("button", { name: "Install" }));
     expect(mocks.installExtension).toHaveBeenLastCalledWith({
       allow_unverified: true,
       ref: "community/slack-notify",
@@ -723,6 +726,12 @@ describe("useMarketplaceActionController", () => {
     expect(mocks.installExtension).not.toHaveBeenCalled();
 
     await user.click(screen.getByTestId("extension-trust-confirm"));
+    expect(
+      await screen.findByRole("heading", {
+        name: `Install ${portable.install_slug.split("/").pop()}`,
+      })
+    ).toBeVisible();
+    await user.click(screen.getByRole("button", { name: "Install" }));
     await waitFor(() =>
       expect(mocks.installExtension).toHaveBeenLastCalledWith({
         allow_unverified: true,
@@ -757,13 +766,15 @@ describe("useMarketplaceActionController", () => {
         <ConcurrentActionHarness first={skill} second={extension} />
       </QueryClientProvider>
     );
+    const firstPending = screen.getByRole("status", { name: "First pending" });
+    const secondPending = screen.getByRole("status", { name: "Second pending" });
 
     await user.click(screen.getByRole("button", { name: "Run first" }));
     await user.click(screen.getByRole("button", { name: "Run second" }));
-    await waitFor(() =>
-      expect(screen.getByRole("status", { name: "First pending" })).toHaveTextContent("pending")
-    );
-    expect(screen.getByRole("status", { name: "Second pending" })).toHaveTextContent("pending");
+    expect(await screen.findByRole("button", { name: "Install" })).toBeVisible();
+    await user.click(screen.getByRole("button", { name: "Install" }));
+    await waitFor(() => expect(firstPending).toHaveTextContent("pending"));
+    expect(secondPending).toHaveTextContent("pending");
 
     await act(async () => {
       resolveSkill?.({
@@ -778,10 +789,8 @@ describe("useMarketplaceActionController", () => {
         },
       });
     });
-    await waitFor(() =>
-      expect(screen.getByRole("status", { name: "First pending" })).toHaveTextContent("idle")
-    );
-    expect(screen.getByRole("status", { name: "Second pending" })).toHaveTextContent("pending");
+    await waitFor(() => expect(firstPending).toHaveTextContent("idle"));
+    expect(secondPending).toHaveTextContent("pending");
 
     await act(async () => {
       resolveExtension?.({
@@ -796,9 +805,7 @@ describe("useMarketplaceActionController", () => {
         },
       });
     });
-    await waitFor(() =>
-      expect(screen.getByRole("status", { name: "Second pending" })).toHaveTextContent("idle")
-    );
+    await waitFor(() => expect(secondPending).toHaveTextContent("idle"));
   });
 
   it("Should render acquisition dialogs from canonical details for the active workspace", async () => {

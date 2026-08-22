@@ -67,9 +67,14 @@ func TestNotificationPresetHandlers(t *testing.T) {
 			},
 			updateFn: func(_ context.Context, name string, request presetspkg.UpdateRequest) (presetspkg.Preset, error) {
 				calls = append(calls, "update:"+name)
-				if name != "provider_failure_copy" || request.Enabled == nil || !*request.Enabled {
+				if name != "provider_failure_copy" || request.Filter == nil || *request.Filter != "severity = warning" {
 					t.Fatalf("Update() request = name %q %#v", name, request)
 				}
+				preset := notificationPresetForHandlerTest(name)
+				preset.Enabled = true
+				return preset, nil
+			},
+			getForProfileFn: func(_ context.Context, name, profileID string) (presetspkg.Preset, error) {
 				preset := notificationPresetForHandlerTest(name)
 				preset.Enabled = true
 				return preset, nil
@@ -81,7 +86,7 @@ func TestNotificationPresetHandlers(t *testing.T) {
 		})
 
 		createBody := []byte(
-			`{"name":"provider_failure_copy","events":["provider.*"],"targets":[{"bridge_id":"brg-1","canonical_route":"#ops"}],"enabled":false}`,
+			`{"name":"provider_failure_copy","events":["provider.*"],"targets":[{"bridge_id":"brg-1","canonical_route":"#ops"}]}`,
 		)
 		createResponse := performRequest(
 			t,
@@ -102,7 +107,7 @@ func TestNotificationPresetHandlers(t *testing.T) {
 			engine,
 			http.MethodPut,
 			"/notifications/presets/provider_failure_copy",
-			[]byte(`{"enabled":true}`),
+			[]byte(`{"filter":"severity = warning"}`),
 		)
 		if updateResponse.Code != http.StatusOK {
 			t.Fatalf(
@@ -176,11 +181,43 @@ func notificationPresetForHandlerTest(name string) presetspkg.Preset {
 }
 
 type stubNotificationPresetService struct {
-	listFn   func(context.Context, presetspkg.Query) ([]presetspkg.Preset, error)
-	getFn    func(context.Context, string) (presetspkg.Preset, error)
-	createFn func(context.Context, presetspkg.CreateRequest) (presetspkg.Preset, error)
-	updateFn func(context.Context, string, presetspkg.UpdateRequest) (presetspkg.Preset, error)
-	deleteFn func(context.Context, string) error
+	listFn          func(context.Context, presetspkg.Query) ([]presetspkg.Preset, error)
+	getFn           func(context.Context, string) (presetspkg.Preset, error)
+	createFn        func(context.Context, presetspkg.CreateRequest) (presetspkg.Preset, error)
+	updateFn        func(context.Context, string, presetspkg.UpdateRequest) (presetspkg.Preset, error)
+	deleteFn        func(context.Context, string) error
+	getForProfileFn func(context.Context, string, string) (presetspkg.Preset, error)
+}
+
+func (s *stubNotificationPresetService) ListForProfile(
+	ctx context.Context,
+	query presetspkg.Query,
+	_ string,
+) ([]presetspkg.Preset, error) {
+	return s.List(ctx, query)
+}
+
+func (s *stubNotificationPresetService) GetForProfile(
+	ctx context.Context,
+	name string,
+	profileID string,
+) (presetspkg.Preset, error) {
+	if s.getForProfileFn != nil {
+		return s.getForProfileFn(ctx, name, profileID)
+	}
+	return s.Get(ctx, name)
+}
+
+func (s *stubNotificationPresetService) SetEnablement(
+	context.Context,
+	string,
+	string,
+	string,
+	string,
+	string,
+	bool,
+) (presetspkg.Preset, error) {
+	return presetspkg.Preset{}, errors.New("unexpected notification preset SetEnablement call")
 }
 
 func (s *stubNotificationPresetService) List(
@@ -232,3 +269,4 @@ func (s *stubNotificationPresetService) Delete(ctx context.Context, name string)
 }
 
 var _ core.NotificationPresetService = (*stubNotificationPresetService)(nil)
+var _ core.NotificationPresetEnablementService = (*stubNotificationPresetService)(nil)

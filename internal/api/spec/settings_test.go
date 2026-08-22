@@ -180,13 +180,13 @@ func TestSettingsRoutesAndSchemas(t *testing.T) {
 				transports: []Transport{TransportHTTP, TransportUDS},
 			},
 			{
-				path:       specAPIExtensionsNameEnablePath,
-				method:     "POST",
+				path:       specAPIExtensionsNameEnablementPath,
+				method:     "GET",
 				transports: []Transport{TransportHTTP, TransportUDS},
 			},
 			{
-				path:       specAPIExtensionsNameDisablePath,
-				method:     "POST",
+				path:       specAPIExtensionsNameEnablementPath,
+				method:     "PUT",
 				transports: []Transport{TransportHTTP, TransportUDS},
 			},
 		}

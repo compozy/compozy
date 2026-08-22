@@ -154,8 +154,8 @@ func TestRegisterRoutesCoversTechSpecEndpoints(t *testing.T) {
 			"GET /api/extensions/search",
 			"GET /api/extensions/:name",
 			"GET /api/extensions/:name/inventory",
+			"GET /api/extensions/:name/enablement",
 			"GET /api/extensions/:name/logs",
-			"GET /api/extensions/:name/preview",
 			"GET /api/extensions/:name/provenance",
 			"GET /api/extensions/:name/secrets",
 			"GET /api/hooks/catalog",
@@ -390,9 +390,8 @@ func TestRegisterRoutesCoversTechSpecEndpoints(t *testing.T) {
 			"POST /api/agents/:name/soul/rollback",
 			"POST /api/agents/:name/soul/validate",
 			"POST /api/extensions",
+			"POST /api/extensions/preview-install",
 			"POST /api/extensions/:name/reload",
-			"POST /api/extensions/:name/disable",
-			"POST /api/extensions/:name/enable",
 			"POST /api/extensions/dev",
 			"POST /api/extensions/update",
 			"POST /api/notifications/presets",
@@ -525,8 +524,10 @@ func TestRegisterRoutesCoversTechSpecEndpoints(t *testing.T) {
 			"PUT /api/agents/:name",
 			"PUT /api/bridges/:id/secret-bindings/:binding_name",
 			"PUT /api/extensions/:name",
+			"PUT /api/extensions/:name/enablement",
 			"PUT /api/extensions/:name/secrets",
 			"PUT /api/notifications/presets/:name",
+			"PUT /api/notifications/presets/:name/enablement",
 			"PUT /api/settings/sandboxes/:name",
 			"PUT /api/settings/hooks/:name",
 			"PUT /api/settings/mcp-servers/:name",
@@ -3010,17 +3011,6 @@ func TestExtensionKitAndSecretsRoutesReachUDSService(t *testing.T) {
 				if payload.Extension != "kit" || len(payload.Items) != 1 ||
 					payload.Items[0].Kind != "agent" || payload.Items[0].Name != "writer" || !payload.Items[0].Live {
 					t.Fatalf("inventory payload = %#v, want live kit writer", payload)
-				}
-			},
-		},
-		{
-			name: "Should return the typed enable preview",
-			path: "/api/extensions/kit/preview",
-			assert: func(t *testing.T, response *httptest.ResponseRecorder) {
-				var payload contract.ExtensionEnablePreviewPayload
-				decodeJSONResponse(t, response, &payload)
-				if payload.Extension != "kit" || !slices.Equal(payload.AutomationStarting, []string{"kit/daily"}) {
-					t.Fatalf("preview payload = %#v, want kit/daily automation", payload)
 				}
 			},
 		},

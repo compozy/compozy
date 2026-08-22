@@ -80,6 +80,22 @@ func (m *Manager) renamePlan(
 		return RenamePlan{}, fmt.Errorf("profile: list vault ref rewrites: %w", err)
 	}
 	plan.VaultRefRewrites = len(vaultRefRewrites)
+	if m.placements != nil {
+		plan.DormantPlacements, err = m.placements.PlacementsForProfile(ctx, profile.Name)
+		if err != nil {
+			return RenamePlan{}, fmt.Errorf("profile: list extension placements: %w", err)
+		}
+		sort.Slice(plan.DormantPlacements, func(i, j int) bool {
+			left, right := plan.DormantPlacements[i], plan.DormantPlacements[j]
+			if left.Extension != right.Extension {
+				return left.Extension < right.Extension
+			}
+			if left.Resource != right.Resource {
+				return left.Resource < right.Resource
+			}
+			return left.ProfileName < right.ProfileName
+		})
+	}
 	dirDigest, err := directoryDigest(oldDir)
 	if err != nil {
 		return RenamePlan{}, err
@@ -89,8 +105,9 @@ func (m *Manager) renamePlan(
 		NewName string
 		Dir     string
 		Repos   []RepoFolderRef
+		Dormant []PlacementRef
 		Vault   int
-	}{profile, newName, dirDigest, plan.RepoCandidates, plan.VaultRefRewrites})
+	}{profile, newName, dirDigest, plan.RepoCandidates, plan.DormantPlacements, plan.VaultRefRewrites})
 	if err != nil {
 		return RenamePlan{}, err
 	}

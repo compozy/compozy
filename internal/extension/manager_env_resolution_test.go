@@ -194,6 +194,15 @@ func (s *envResolutionBindingStore) ListEnvBindings(
 	return slices.Clone(s.bindings[key]), nil
 }
 
+func (s *envResolutionBindingStore) ResolveEnvBindings(
+	ctx context.Context,
+	extension string,
+	profileID string,
+	workspaceID string,
+) ([]EnvBinding, error) {
+	return s.ListEnvBindings(ctx, extension, profileID, workspaceID)
+}
+
 func (*envResolutionBindingStore) PutEnvBinding(context.Context, EnvBinding) error { return nil }
 
 func (*envResolutionBindingStore) DeleteEnvBinding(context.Context, string, string, string, string) error {

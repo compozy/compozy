@@ -161,8 +161,8 @@ func assertRegisteredRouteContract(t *testing.T) {
 		"GET /api/extensions/search",
 		"GET /api/extensions/:name",
 		"GET /api/extensions/:name/inventory",
+		"GET /api/extensions/:name/enablement",
 		"GET /api/extensions/:name/logs",
-		"GET /api/extensions/:name/preview",
 		"GET /api/extensions/:name/provenance",
 		"GET /api/extensions/:name/secrets",
 		"GET /api/hooks/catalog",
@@ -445,9 +445,8 @@ func assertRegisteredRouteContract(t *testing.T) {
 		"POST /api/bridges/:id/send-test",
 		"POST /api/bridges/:id/webhook/register",
 		"POST /api/extensions",
+		"POST /api/extensions/preview-install",
 		"POST /api/extensions/:name/reload",
-		"POST /api/extensions/:name/disable",
-		"POST /api/extensions/:name/enable",
 		"POST /api/extensions/dev",
 		"POST /api/extensions/update",
 		"POST /api/notifications/presets",
@@ -527,8 +526,10 @@ func assertRegisteredRouteContract(t *testing.T) {
 		"PUT /api/agents/:name",
 		"PUT /api/bridges/:id/secret-bindings/:binding_name",
 		"PUT /api/extensions/:name",
+		"PUT /api/extensions/:name/enablement",
 		"PUT /api/extensions/:name/secrets",
 		"PUT /api/notifications/presets/:name",
+		"PUT /api/notifications/presets/:name/enablement",
 		"PUT /api/settings/sandboxes/:name",
 		"PUT /api/settings/hooks/:name",
 		"PUT /api/settings/mcp-servers/:name",
@@ -1269,18 +1270,14 @@ func TestSettingsAndExtensionMutationsReturnForbiddenOnNonLoopbackHost(t *testin
 				t.Fatal("Install should not be called when HTTP mutations are blocked")
 				return contract.ExtensionPayload{}, nil
 			},
-			EnableFn: func(
+			SetEnablementFn: func(
 				context.Context,
 				string,
-				contract.EnableExtensionRequest,
+				contract.SetExtensionEnablementRequest,
 				taskpkg.ActorContext,
-			) (contract.ExtensionEnableResult, error) {
-				t.Fatal("Enable should not be called when HTTP mutations are blocked")
-				return contract.ExtensionEnableResult{}, nil
-			},
-			DisableFn: func(context.Context, string, taskpkg.ActorContext) (contract.ExtensionPayload, error) {
-				t.Fatal("Disable should not be called when HTTP mutations are blocked")
-				return contract.ExtensionPayload{}, nil
+			) (contract.ExtensionEnablementPayload, error) {
+				t.Fatal("SetEnablement should not be called when HTTP mutations are blocked")
+				return contract.ExtensionEnablementPayload{}, nil
 			},
 		},
 		homePaths,
@@ -1327,8 +1324,7 @@ func TestSettingsAndExtensionMutationsReturnForbiddenOnNonLoopbackHost(t *testin
 		{method: http.MethodDelete, path: "/api/settings/hooks/capture"},
 		{method: http.MethodPost, path: "/api/settings/actions/restart", body: []byte(`{}`)},
 		{method: http.MethodPost, path: "/api/extensions", body: []byte(`{}`)},
-		{method: http.MethodPost, path: "/api/extensions/demo/enable", body: []byte(`{}`)},
-		{method: http.MethodPost, path: "/api/extensions/demo/disable", body: []byte(`{}`)},
+		{method: http.MethodPut, path: "/api/extensions/demo/enablement", body: []byte(`{"profile":"default","enabled":false}`)},
 		{method: http.MethodPost, path: "/api/marketplace/refresh", body: []byte(`{}`)},
 	}
 
@@ -1519,9 +1515,9 @@ func TestSettingsAndExtensionMutationsReachHandlersOnLoopbackHost(t *testing.T) 
 	}
 	restartController := &stubSettingsRestartController{}
 	var (
-		installedReq contract.InstallExtensionRequest
-		enabledName  string
-		disabledName string
+		installedReq   contract.InstallExtensionRequest
+		enablementName string
+		enablementReq  contract.SetExtensionEnablementRequest
 	)
 	handlers := newTestHandlersWithSettingsAndExtensions(
 		t,
@@ -1533,20 +1529,15 @@ func TestSettingsAndExtensionMutationsReachHandlersOnLoopbackHost(t *testing.T) 
 				installedReq = req
 				return contract.ExtensionPayload{Name: "demo", State: "registered"}, nil
 			},
-			EnableFn: func(
+			SetEnablementFn: func(
 				_ context.Context,
 				name string,
-				_ contract.EnableExtensionRequest,
+				req contract.SetExtensionEnablementRequest,
 				_ taskpkg.ActorContext,
-			) (contract.ExtensionEnableResult, error) {
-				enabledName = name
-				return contract.ExtensionEnableResult{
-					Extension: contract.ExtensionPayload{Name: name, Enabled: true, State: "active"},
-				}, nil
-			},
-			DisableFn: func(_ context.Context, name string, _ taskpkg.ActorContext) (contract.ExtensionPayload, error) {
-				disabledName = name
-				return contract.ExtensionPayload{Name: name, Enabled: false, State: "inactive"}, nil
+			) (contract.ExtensionEnablementPayload, error) {
+				enablementName = name
+				enablementReq = req
+				return contract.ExtensionEnablementPayload{Profile: req.Profile, Enabled: req.Enabled}, nil
 			},
 		},
 		homePaths,
@@ -1694,28 +1685,15 @@ func TestSettingsAndExtensionMutationsReachHandlersOnLoopbackHost(t *testing.T) 
 			},
 		},
 		{
-			name:       "enable extension",
-			method:     http.MethodPost,
-			path:       "/api/extensions/demo/enable",
-			body:       []byte(`{}`),
+			name:       "set extension profile enablement",
+			method:     http.MethodPut,
+			path:       "/api/extensions/demo/enablement",
+			body:       []byte(`{"profile":"finance","enabled":false}`),
 			wantStatus: http.StatusOK,
 			assert: func(t *testing.T) {
 				t.Helper()
-				if enabledName != "demo" {
-					t.Fatalf("enabledName = %q, want %q", enabledName, "demo")
-				}
-			},
-		},
-		{
-			name:       "disable extension",
-			method:     http.MethodPost,
-			path:       "/api/extensions/demo/disable",
-			body:       []byte(`{}`),
-			wantStatus: http.StatusOK,
-			assert: func(t *testing.T) {
-				t.Helper()
-				if disabledName != "demo" {
-					t.Fatalf("disabledName = %q, want %q", disabledName, "demo")
+				if enablementName != "demo" || enablementReq.Profile != "finance" || enablementReq.Enabled {
+					t.Fatalf("enablement = name:%q req:%#v", enablementName, enablementReq)
 				}
 			},
 		},
@@ -3873,17 +3851,6 @@ func TestExtensionKitAndSecretsRoutesReachHTTPService(t *testing.T) {
 				if payload.Extension != "kit" || len(payload.Items) != 1 ||
 					payload.Items[0].Kind != "agent" || payload.Items[0].Name != "writer" || !payload.Items[0].Live {
 					t.Fatalf("inventory payload = %#v, want live kit writer", payload)
-				}
-			},
-		},
-		{
-			name: "Should return the typed enable preview",
-			path: "/api/extensions/kit/preview",
-			assert: func(t *testing.T, response *httptest.ResponseRecorder) {
-				var payload contract.ExtensionEnablePreviewPayload
-				decodeJSONResponse(t, response, &payload)
-				if payload.Extension != "kit" || !slices.Equal(payload.AutomationStarting, []string{"kit/daily"}) {
-					t.Fatalf("preview payload = %#v, want kit/daily automation", payload)
 				}
 			},
 		},

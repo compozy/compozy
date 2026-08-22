@@ -23,6 +23,7 @@ import {
 } from "@compozy/ui";
 
 import type { ExtensionInstallRequest } from "../types";
+import type { ExtensionInstallPreview } from "@/systems/extensions";
 import {
   buildExtensionInstallRequest,
   createExtensionInstallForm,
@@ -37,6 +38,8 @@ export interface ExtensionInstallDialogProps {
   error?: string | null;
   open: boolean;
   pending?: boolean;
+  preview?: ExtensionInstallPreview | null;
+  onFormChange?: () => void;
   onOpenChange: (open: boolean) => void;
   onSubmit: (request: ExtensionInstallRequest) => void;
 }
@@ -49,6 +52,8 @@ export function ExtensionInstallDialog({
   error,
   open,
   pending = false,
+  preview = null,
+  onFormChange,
   onOpenChange,
   onSubmit,
 }: ExtensionInstallDialogProps) {
@@ -57,6 +62,7 @@ export function ExtensionInstallDialog({
   const source = EXTENSION_INSTALL_SOURCES.find(item => item.value === form.source);
   const patch = (next: Partial<ExtensionInstallForm>) => {
     setFieldErrors({});
+    onFormChange?.();
     setForm(current => ({ ...current, ...next }));
   };
 
@@ -200,6 +206,8 @@ export function ExtensionInstallDialog({
               </div>
             </Field>
 
+            {preview ? <ExtensionInstallSummary preview={preview} /> : null}
+
             {error ? (
               <p
                 className="rounded-md bg-danger-tint px-3 py-2 text-small-body text-danger"
@@ -222,11 +230,39 @@ export function ExtensionInstallDialog({
             </Button>
             <Button data-testid="extension-install-submit" disabled={pending} type="submit">
               {pending ? <Spinner aria-hidden="true" className="size-3" /> : null}
-              {pending ? "Installing…" : "Install"}
+              {pending ? "Working…" : preview ? "Install" : "Review install"}
             </Button>
           </DialogFooter>
         </form>
       </DialogContent>
     </Dialog>
+  );
+}
+
+export function ExtensionInstallSummary({ preview }: { preview: ExtensionInstallPreview }) {
+  return (
+    <div
+      className="divide-y divide-line-soft border-y border-line-soft"
+      data-testid="extension-install-summary"
+    >
+      {preview.declared_profiles.map(profile => (
+        <div className="flex items-center gap-2 py-2.5 text-sm" key={profile.name}>
+          <span className="min-w-0 flex-1 text-fg">
+            {profile.create ? "Creates" : "Uses"} profile {profile.name}
+          </span>
+          {(profile.credentials?.length ?? 0) > 0 ? (
+            <span className="text-warning">
+              Needs {profile.credentials?.length ?? 0}{" "}
+              {(profile.credentials?.length ?? 0) === 1 ? "credential" : "credentials"}
+            </span>
+          ) : null}
+        </div>
+      ))}
+      {preview.placements.length > 0 ? (
+        <div className="py-2.5 text-sm text-muted">
+          {preview.placements.length} {preview.placements.length === 1 ? "resource" : "resources"}
+        </div>
+      ) : null}
+    </div>
   );
 }

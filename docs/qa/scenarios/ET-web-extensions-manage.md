@@ -4,9 +4,9 @@ area: ET
 title: Manage installed extensions and their kits
 persona: Bruno
 journey: J-marketplace-acquisition
-expected: The Extensions Installed scope lists daemon-owned inventory, applies enable changes immediately, derives truthful update state, previews kit changes, and permits typed removal with owned-resource cleanup.
+expected: The Extensions Installed scope lists profile-effective inventory, applies per-profile enablement immediately, shows declared profiles, needs-setup and dormant placements, reviews install or update changes before mutation, and permits typed removal with owned-resource cleanup.
 entry_points: /marketplace/extensions; Marketplace Manage actions
-qa_status: pass
+qa_status: untested
 bug_ids:
 fix_status:
 retest_status: pass
@@ -34,3 +34,6 @@ Flag only — retest in the next QA cycle.
 
 QA impact 2026-08-02: extension lifecycle is the only kit-management surface. Reset to cover
 inventory, preview, enable, update, disable, and removal without a separate activation scope.
+
+QA impact 2026-08-22: reset for declared-profile summaries, per-profile toggles, needs-setup,
+dormant placements, and install/update preview after the global enable-preview surface was removed.

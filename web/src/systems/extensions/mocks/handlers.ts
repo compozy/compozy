@@ -46,6 +46,7 @@ let inventoryState = cloneInventory();
 let inventoryDiagnosticsState = cloneInventoryDiagnostics();
 let devExtensionsState = cloneDevExtensions();
 let extensionLogsState = cloneExtensionLogs();
+let profileEnablementState: Record<string, Record<string, boolean>> = {};
 
 export function resetExtensionMockState(): void {
   extensionsState = cloneExtensions();
@@ -53,6 +54,7 @@ export function resetExtensionMockState(): void {
   inventoryDiagnosticsState = cloneInventoryDiagnostics();
   devExtensionsState = cloneDevExtensions();
   extensionLogsState = cloneExtensionLogs();
+  profileEnablementState = {};
 }
 
 function extensionByName(name: string) {
@@ -68,12 +70,34 @@ function extensionsForWorkspace(workspace: string): ExtensionEntry[] {
 
 export const handlers: HttpHandler[] = [
   compozyApiMock.get("/api/extensions", ({ request }) => {
-    const workspace = new URL(request.url).searchParams.get("workspace")?.trim() ?? "";
-    return HttpResponse.json({ extensions: extensionsForWorkspace(workspace) });
+    const search = new URL(request.url).searchParams;
+    const workspace = search.get("workspace")?.trim() ?? "";
+    const profile = search.get("profile")?.trim() || "default";
+    return HttpResponse.json({
+      extensions: extensionsForWorkspace(workspace).map(extension => ({
+        ...extension,
+        enabled: profileEnablementState[profile]?.[extension.name] ?? extension.enabled,
+      })),
+    });
+  }),
+  compozyApiMock.post("/api/extensions/preview-install", async ({ request }) => {
+    const body = (await request.json()) as { ref?: string; source?: string };
+    const name = body.ref?.trim().split("/").pop() ?? "";
+    if (name === "" || body.source?.trim() === "") {
+      return HttpResponse.json({ error: "extension source and ref are required" }, { status: 400 });
+    }
+    const digest = name === "dep-kit-ops" ? "sha256:6f1c0a94d3b27e58" : undefined;
+    return HttpResponse.json({
+      declared_profiles: [{ create: false, credentials: [], name: "default" }],
+      name,
+      ...(digest ? { network_requirement_digest: digest } : {}),
+      placements: [],
+    });
   }),
   compozyApiMock.post("/api/extensions", async ({ request }) => {
     const body = (await request.json()) as {
       allow_unverified?: boolean;
+      confirm_network_digest?: string;
       ref?: string;
       source?: string;
     };
@@ -94,10 +118,22 @@ export const handlers: HttpHandler[] = [
         { status: 422 }
       );
     }
+    const name = ref.split("/").pop() ?? ref;
+    const digest = name === "dep-kit-ops" ? "sha256:6f1c0a94d3b27e58" : undefined;
+    if (digest && body.confirm_network_digest !== digest) {
+      return HttpResponse.json(
+        {
+          code: "extension_network_confirmation_required",
+          current_digest: digest,
+          error: `${name} declares Live network participation that has not been confirmed`,
+        },
+        { status: 409 }
+      );
+    }
     const installed: ExtensionEntry = {
       ...structuredClone(extensionFixtures[0]!),
       digest_matched: source === "github",
-      name: ref.split("/").pop() ?? ref,
+      name,
       provenance: undefined,
       source,
       trust: undefined,
@@ -146,50 +182,26 @@ export const handlers: HttpHandler[] = [
       items: inventoryState[name] ?? [],
     });
   }),
-  /** Mirrors the lifecycle gate: a declared digest must be ratified before enable commits. */
-  compozyApiMock.post("/api/extensions/{name}/enable", async ({ params, request, response }) => {
+  compozyApiMock.put("/api/extensions/{name}/enablement", async ({ params, request }) => {
     const name = String(params.name);
     const extension = extensionByName(name);
     if (!extension) {
       return HttpResponse.json({ error: `Extension not found: ${name}` }, { status: 404 });
     }
-    const body = (await request.json().catch(() => ({}))) as { confirm_network_digest?: string };
-    const digest = extension.network_requirement_digest;
-    if (
-      extension.network_confirmation_required &&
-      digest &&
-      body.confirm_network_digest !== digest
-    ) {
-      return response(409).json({
-        code: "extension_network_confirmation_required",
-        current_digest: digest,
-        error: `${name} declares Live network participation that has not been confirmed`,
-      });
+    const body = (await request.json()) as { enabled?: boolean; profile?: string };
+    const profile = body.profile?.trim() ?? "";
+    if (profile === "" || typeof body.enabled !== "boolean") {
+      return HttpResponse.json({ error: "profile and enabled are required" }, { status: 400 });
     }
-    const enabled = { ...extension, enabled: true, network_confirmation_required: false };
-    extensionsState = extensionsState.map(item => (item.name === name ? enabled : item));
+    profileEnablementState = {
+      ...profileEnablementState,
+      [profile]: { ...profileEnablementState[profile], [name]: body.enabled },
+    };
     inventoryState = {
       ...inventoryState,
-      [name]: (inventoryState[name] ?? []).map(item => ({ ...item, live: true })),
+      [name]: (inventoryState[name] ?? []).map(item => ({ ...item, live: body.enabled! })),
     };
-    const automationStarted = (inventoryState[name] ?? [])
-      .filter(item => item.kind === "automation")
-      .map(item => item.name);
-    return HttpResponse.json({ automation_started: automationStarted, extension: enabled });
-  }),
-  compozyApiMock.post("/api/extensions/{name}/disable", ({ params }) => {
-    const name = String(params.name);
-    const extension = extensionByName(name);
-    if (!extension) {
-      return HttpResponse.json({ error: `Extension not found: ${name}` }, { status: 404 });
-    }
-    const disabled = { ...extension, enabled: false };
-    extensionsState = extensionsState.map(item => (item.name === name ? disabled : item));
-    inventoryState = {
-      ...inventoryState,
-      [name]: (inventoryState[name] ?? []).map(item => ({ ...item, live: false })),
-    };
-    return HttpResponse.json({ extension: disabled });
+    return HttpResponse.json({ enabled: body.enabled, profile });
   }),
   /** Mirrors the candidate gate used by update: the current digest stands in for the next release. */
   compozyApiMock.put("/api/extensions/{name}", async ({ params, request, response }) => {

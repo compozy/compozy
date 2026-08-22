@@ -99,7 +99,7 @@ func resolveSecretProfile(
 	cmd *cobra.Command,
 	deps commandDeps,
 ) (profileResolution, DaemonClient, error) {
-	profiles, client, err := profileClientFromDeps(deps)
+	profiles, client, err := profileResolutionClientFromDeps(deps)
 	if err != nil {
 		return profileResolution{}, nil, err
 	}

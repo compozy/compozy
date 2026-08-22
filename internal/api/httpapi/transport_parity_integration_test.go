@@ -595,37 +595,51 @@ func testHTTPTransportExtensionParityMatchesUDS(t *testing.T) {
 		missingBody,
 		"extension", "status", "missing-portable-package", "-o", "json",
 	)
-	enablePath := "/api/extensions/" + url.PathEscape(extensionName) + "/enable"
-	var httpEnable compozycontract.ExtensionResponse
-	if err := runtimeHarness.HTTPJSON(ctx, http.MethodPost, enablePath, nil, &httpEnable); err != nil {
-		t.Fatalf("HTTP enable extension error = %v", err)
+	for _, legacy := range []string{"enable", "disable"} {
+		legacyPath := "/api/extensions/" + url.PathEscape(extensionName) + "/" + legacy
+		for transport, request := range map[string]func() *http.Response{
+			"HTTP": func() *http.Response {
+				return mustHTTPRequest(t, clients.HTTPClient, http.MethodPost, runtimeHarness.HTTPURL(legacyPath), nil, nil)
+			},
+			"UDS": func() *http.Response {
+				return mustHTTPRequest(t, clients.UDSClient, http.MethodPost, runtimeHarness.UDSURL(legacyPath), nil, nil)
+			},
+		} {
+			response := request()
+			body := readAndCloseHTTPBody(t, response)
+			if response.StatusCode != http.StatusNotFound {
+				t.Fatalf("%s legacy %s status = %d, want 404; body=%s", transport, legacy, response.StatusCode, body)
+			}
+		}
 	}
-	var udsEnable compozycontract.ExtensionResponse
-	if err := runtimeHarness.UDSJSON(ctx, http.MethodPost, enablePath, nil, &udsEnable); err != nil {
-		t.Fatalf("UDS enable extension error = %v", err)
+
+	enablementPath := "/api/extensions/" + url.PathEscape(extensionName) + "/enablement"
+	enablementRequest := compozycontract.SetExtensionEnablementRequest{Profile: "default", Enabled: false}
+	var httpEnablement compozycontract.ExtensionEnablementPayload
+	if err := runtimeHarness.HTTPJSON(ctx, http.MethodPut, enablementPath, enablementRequest, &httpEnablement); err != nil {
+		t.Fatalf("HTTP disable extension in profile error = %v", err)
 	}
-	if !extensionSemanticallyEqual(httpEnable.Extension, udsEnable.Extension) {
-		t.Fatalf("HTTP enabled extension = %#v, want UDS parity %#v", httpEnable.Extension, udsEnable.Extension)
+	var udsEnablement compozycontract.ExtensionEnablementPayload
+	if err := runtimeHarness.UDSJSON(ctx, http.MethodPut, enablementPath, enablementRequest, &udsEnablement); err != nil {
+		t.Fatalf("UDS disable extension in profile error = %v", err)
 	}
-	var cliEnable compozycontract.ExtensionEnableResult
+	if !reflect.DeepEqual(httpEnablement, udsEnablement) {
+		t.Fatalf("HTTP enablement = %#v, want UDS parity %#v", httpEnablement, udsEnablement)
+	}
+	var cliEnablement compozycontract.ExtensionEnablementPayload
 	if err := clients.CLI.RunJSONInDir(
 		ctx,
 		runtimeHarness.WorkspaceRoot,
-		&cliEnable,
-		"extension", "enable", extensionName, "-o", "json",
+		&cliEnablement,
+		"extension", "disable", extensionName, "--profile", "default", "-o", "json",
 	); err != nil {
-		t.Fatalf("CLI enable extension error = %v", err)
+		t.Fatalf("CLI disable extension in profile error = %v", err)
 	}
-	if !extensionSemanticallyEqual(httpEnable.Extension, cliEnable.Extension) {
-		t.Fatalf("HTTP enabled extension = %#v, want CLI parity %#v", httpEnable.Extension, cliEnable.Extension)
+	if !reflect.DeepEqual(httpEnablement, cliEnablement) {
+		t.Fatalf("HTTP enablement = %#v, want CLI parity %#v", httpEnablement, cliEnablement)
 	}
-	if !httpEnable.Extension.Enabled || !udsEnable.Extension.Enabled || !cliEnable.Extension.Enabled {
-		t.Fatalf(
-			"enabled states = HTTP:%t UDS:%t CLI:%t, want all true",
-			httpEnable.Extension.Enabled,
-			udsEnable.Extension.Enabled,
-			cliEnable.Extension.Enabled,
-		)
+	if httpEnablement.Profile != "default" || httpEnablement.Enabled {
+		t.Fatalf("profile enablement = %#v, want default disabled", httpEnablement)
 	}
 
 	logsPath := "/api/extensions/" + url.PathEscape(extensionName) + "/logs"

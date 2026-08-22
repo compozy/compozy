@@ -17,7 +17,9 @@ func (h *BaseHandlers) ListProfiles(c *gin.Context) {
 	}
 	result := make([]contract.Profile, 0, len(profiles))
 	for _, item := range profiles {
-		result = append(result, profileContract(item.Profile, item.WorkItems, item.NeedsSetup))
+		result = append(result, profileContract(
+			item.Profile, item.WorkItems, item.NeedsSetup, item.CredentialRequirements,
+		))
 	}
 	c.JSON(http.StatusOK, result)
 }
@@ -28,7 +30,20 @@ func (h *BaseHandlers) GetProfile(c *gin.Context) {
 		respondProfileError(c, err)
 		return
 	}
-	c.JSON(http.StatusOK, profileContract(value, 0, false))
+	profiles, err := h.profileService().List(c.Request.Context())
+	if err != nil {
+		respondProfileError(c, err)
+		return
+	}
+	for _, item := range profiles {
+		if item.ID == value.ID {
+			c.JSON(http.StatusOK, profileContract(
+				value, item.WorkItems, item.NeedsSetup, item.CredentialRequirements,
+			))
+			return
+		}
+	}
+	c.JSON(http.StatusOK, profileContract(value, 0, false, nil))
 }
 
 func (h *BaseHandlers) CreateProfile(c *gin.Context) {
@@ -48,7 +63,7 @@ func (h *BaseHandlers) CreateProfile(c *gin.Context) {
 		respondProfileError(c, err)
 		return
 	}
-	c.JSON(http.StatusCreated, profileContract(created, 0, false))
+	c.JSON(http.StatusCreated, profileContract(created, 0, false, nil))
 }
 
 func (h *BaseHandlers) UpdateProfile(c *gin.Context) {
@@ -64,7 +79,7 @@ func (h *BaseHandlers) UpdateProfile(c *gin.Context) {
 		respondProfileError(c, err)
 		return
 	}
-	c.JSON(http.StatusOK, profileContract(updated, 0, false))
+	c.JSON(http.StatusOK, profileContract(updated, 0, false, nil))
 }
 
 func (h *BaseHandlers) PrepareProfileRename(c *gin.Context) {

@@ -172,6 +172,60 @@ root and may not escape it.
 | `resources.mcp_servers`    | Named MCP server declarations.                                          |
 | `resources.publish`        | Requested resource families and scope ceiling for `resources/snapshot`. |
 
+Every static resource declaration accepts an optional `profile` field. Omit it to publish the
+resource in every profile. Set it to a profile name to publish only when that profile exists and the
+extension is enabled there:
+
+```toml
+[[resources.skills]]
+path = "skills/release-notes"
+profile = "marketing"
+
+[[resources.skills]]
+path = "skills/code-review"
+```
+
+The same placement field applies to skills, agents, Loops, automation, layouts, hooks, tools, MCP
+servers, command groups, and command-palette commands and views. A placement for an absent profile is
+dormant: the extension remains valid, but CompozyOS does not publish that resource until the profile
+exists. The extension detail response lists dormant placements and provides the profile create action.
+
+## `[[profiles]]`
+
+An extension can declare profiles that installation creates when their names do not exist:
+
+```toml
+[[profiles]]
+name = "marketing"
+color = "#5FBF85"
+icon = "chart-line"
+
+[profiles.defaults]
+agent = "growth-analyst"
+provider = "openai"
+sandbox = "workspace-write"
+
+[[profiles.credentials]]
+provider = "openai"
+slot = "api_key"
+```
+
+| Field                  | Required | Notes                                                                                |
+| ---------------------- | -------- | ------------------------------------------------------------------------------------ |
+| `name`                 | yes      | Normalized profile name. Reserved names and invalid profile grammar fail validation. |
+| `color`                | no       | Seeded identity color.                                                               |
+| `icon` or `emoji`      | no       | Seeded identity mark. Set at most one.                                               |
+| `profiles.defaults`    | no       | Initial `agent`, `provider`, and `sandbox` values.                                   |
+| `profiles.credentials` | no       | Vault-backed `provider` and `slot` requirements shown as needs setup until filled.   |
+
+Declarations seed only a newly created profile. An existing name is bound without changing its
+identity or defaults. Updates create only newly declared names and never rewrite existing profiles.
+Removing the extension leaves profiles and their credential requirements in place. If an operator
+deletes a declared profile, the extension marker prevents a later update from recreating it.
+
+Install preview reports each declared profile as create or bind, lists credential needs, and names
+every placement before the install mutates state.
+
 ### `[resources.mcp_servers.<name>]`
 
 A native extension manifest may package a local stdio server or a remote HTTP server:

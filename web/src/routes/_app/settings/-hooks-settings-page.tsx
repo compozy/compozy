@@ -67,6 +67,7 @@ export function HooksSettingsPage() {
         onDelete={page.deleteNotificationPreset}
         onToggle={page.toggleNotificationPreset}
         pendingName={page.pendingNotificationPresetName}
+        profile={page.notificationPresetProfile}
         presets={page.notificationPresets}
       />
     </SettingsPageFrame>

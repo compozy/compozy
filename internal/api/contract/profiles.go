@@ -4,16 +4,25 @@ import "time"
 
 // Profile is the public identity record shared by the profile API surfaces.
 type Profile struct {
-	ID         string     `json:"id"`
-	Name       string     `json:"name"`
-	Color      string     `json:"color"`
-	Icon       *string    `json:"icon"`
-	Emoji      *string    `json:"emoji"`
-	State      string     `json:"state"`
-	CreatedAt  time.Time  `json:"created_at"`
-	ArchivedAt *time.Time `json:"archived_at,omitempty"`
-	WorkItems  int        `json:"work_items,omitempty"`
-	NeedsSetup bool       `json:"needs_setup,omitempty"`
+	ID                     string                         `json:"id"`
+	Name                   string                         `json:"name"`
+	Color                  string                         `json:"color"`
+	Icon                   *string                        `json:"icon"`
+	Emoji                  *string                        `json:"emoji"`
+	State                  string                         `json:"state"`
+	CreatedAt              time.Time                      `json:"created_at"`
+	ArchivedAt             *time.Time                     `json:"archived_at,omitempty"`
+	WorkItems              int                            `json:"work_items,omitempty"`
+	NeedsSetup             bool                           `json:"needs_setup,omitempty"`
+	CredentialRequirements []ProfileCredentialRequirement `json:"credential_requirements,omitempty"`
+}
+
+// ProfileCredentialRequirement is one missing vault-backed setup item.
+type ProfileCredentialRequirement struct {
+	Provider        string `json:"provider"`
+	Slot            string `json:"slot"`
+	SourceExtension string `json:"source_extension"`
+	Missing         bool   `json:"missing"`
 }
 
 type ProfileSelection struct {

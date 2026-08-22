@@ -26,6 +26,7 @@ type Binding struct {
 // Store persists extension-instance environment bindings.
 type Store interface {
 	ListEnvBindings(ctx context.Context, extension, profileID, workspaceID string) ([]Binding, error)
+	ResolveEnvBindings(ctx context.Context, extension, profileID, workspaceID string) ([]Binding, error)
 	PutEnvBinding(ctx context.Context, binding Binding) error
 	DeleteEnvBinding(ctx context.Context, extension, profileID, workspaceID, envName string) error
 }

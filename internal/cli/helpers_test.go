@@ -129,39 +129,47 @@ type stubClient struct {
 		SettingsMCPAuthTarget,
 		SettingsMCPAuthBeginRequest,
 	) (SettingsMCPAuthBeginRecord, error)
-	exchangeSettingsMCPAuthFn    func(context.Context, SettingsMCPAuthTarget, SettingsMCPAuthExchangeRequest) (SettingsMCPAuthStatusRecord, error)
-	logoutSettingsMCPAuthFn      func(context.Context, SettingsMCPAuthTarget) (SettingsMCPAuthStatusRecord, error)
-	installExtensionFn           func(context.Context, InstallExtensionRequest) (ExtensionRecord, error)
-	updateExtensionFn            func(context.Context, string, UpdateExtensionRequest) (ExtensionUpdateRecord, error)
-	updateExtensionsFn           func(context.Context, UpdateExtensionsRequest) ([]ExtensionUpdateRecord, error)
-	removeExtensionFn            func(context.Context, string) (ManagedExtensionRemoveRecord, error)
-	enableExtensionFn            func(context.Context, string, EnableExtensionRequest) (ExtensionEnableRecord, error)
-	disableExtensionFn           func(context.Context, string) (ExtensionRecord, error)
-	extensionStatusFn            func(context.Context, string) (ExtensionRecord, error)
-	extensionStatusScopedFn      func(context.Context, string, string) (ExtensionRecord, error)
-	extensionProvenanceFn        func(context.Context, string) (ExtensionProvenanceRecord, error)
-	extensionInventoryFn         func(context.Context, string) (ExtensionInventoryRecord, error)
-	previewExtensionEnableFn     func(context.Context, string) (ExtensionEnablePreviewRecord, error)
-	devExtensionFn               func(context.Context, string, DevLinkExtensionRequest) (ExtensionRecord, error)
-	reloadDevExtensionFn         func(context.Context, string, string, ReloadExtensionRequest) (ExtensionRecord, error)
-	extensionLogsFn              func(context.Context, string, string, int64, string) (ExtensionLogsRecord, error)
-	streamExtensionLogsFn        func(context.Context, string, string, int64, string, SSEHandler) error
-	removeDevExtensionFn         func(context.Context, string, string) (ManagedExtensionRemoveRecord, error)
-	listBridgesFn                func(context.Context, BridgeListQuery) (BridgeListRecord, error)
-	createBridgeFn               func(context.Context, CreateBridgeRequest) (BridgeRecord, error)
-	getBridgeFn                  func(context.Context, string) (BridgeRecord, error)
-	updateBridgeFn               func(context.Context, string, UpdateBridgeRequest) (BridgeRecord, error)
-	enableBridgeFn               func(context.Context, string) (BridgeRecord, error)
-	disableBridgeFn              func(context.Context, string) (BridgeRecord, error)
-	restartBridgeFn              func(context.Context, string) (BridgeRecord, error)
-	bridgeRoutesFn               func(context.Context, string) ([]BridgeRouteRecord, error)
-	bridgeTargetsFn              func(context.Context, string, string, int) (BridgeTargetsRecord, error)
-	resolveBridgeTargetFn        func(context.Context, string, string) (BridgeResolveTargetRecord, error)
-	listNotificationPresetsFn    func(context.Context, NotificationPresetQuery) (NotificationPresetListRecord, error)
-	getNotificationPresetFn      func(context.Context, string) (NotificationPresetRecord, error)
-	createNotificationPresetFn   func(context.Context, CreateNotificationPresetRequest) (NotificationPresetRecord, error)
-	updateNotificationPresetFn   func(context.Context, string, UpdateNotificationPresetRequest) (NotificationPresetRecord, error)
-	deleteNotificationPresetFn   func(context.Context, string) error
+	exchangeSettingsMCPAuthFn         func(context.Context, SettingsMCPAuthTarget, SettingsMCPAuthExchangeRequest) (SettingsMCPAuthStatusRecord, error)
+	logoutSettingsMCPAuthFn           func(context.Context, SettingsMCPAuthTarget) (SettingsMCPAuthStatusRecord, error)
+	installExtensionFn                func(context.Context, InstallExtensionRequest) (ExtensionRecord, error)
+	previewExtensionInstallFn         func(context.Context, InstallExtensionRequest) (ExtensionInstallPreviewRecord, error)
+	updateExtensionFn                 func(context.Context, string, UpdateExtensionRequest) (ExtensionUpdateRecord, error)
+	updateExtensionsFn                func(context.Context, UpdateExtensionsRequest) ([]ExtensionUpdateRecord, error)
+	removeExtensionFn                 func(context.Context, string) (ManagedExtensionRemoveRecord, error)
+	enableExtensionFn                 func(context.Context, string, EnableExtensionRequest) (ExtensionEnableRecord, error)
+	disableExtensionFn                func(context.Context, string) (ExtensionRecord, error)
+	extensionStatusFn                 func(context.Context, string) (ExtensionRecord, error)
+	extensionStatusScopedFn           func(context.Context, string, string) (ExtensionRecord, error)
+	extensionProvenanceFn             func(context.Context, string) (ExtensionProvenanceRecord, error)
+	extensionInventoryFn              func(context.Context, string) (ExtensionInventoryRecord, error)
+	previewExtensionEnableFn          func(context.Context, string) (ExtensionEnablePreviewRecord, error)
+	devExtensionFn                    func(context.Context, string, DevLinkExtensionRequest) (ExtensionRecord, error)
+	reloadDevExtensionFn              func(context.Context, string, string, ReloadExtensionRequest) (ExtensionRecord, error)
+	extensionLogsFn                   func(context.Context, string, string, int64, string) (ExtensionLogsRecord, error)
+	streamExtensionLogsFn             func(context.Context, string, string, int64, string, SSEHandler) error
+	removeDevExtensionFn              func(context.Context, string, string) (ManagedExtensionRemoveRecord, error)
+	listBridgesFn                     func(context.Context, BridgeListQuery) (BridgeListRecord, error)
+	createBridgeFn                    func(context.Context, CreateBridgeRequest) (BridgeRecord, error)
+	getBridgeFn                       func(context.Context, string) (BridgeRecord, error)
+	updateBridgeFn                    func(context.Context, string, UpdateBridgeRequest) (BridgeRecord, error)
+	enableBridgeFn                    func(context.Context, string) (BridgeRecord, error)
+	disableBridgeFn                   func(context.Context, string) (BridgeRecord, error)
+	restartBridgeFn                   func(context.Context, string) (BridgeRecord, error)
+	bridgeRoutesFn                    func(context.Context, string) ([]BridgeRouteRecord, error)
+	bridgeTargetsFn                   func(context.Context, string, string, int) (BridgeTargetsRecord, error)
+	resolveBridgeTargetFn             func(context.Context, string, string) (BridgeResolveTargetRecord, error)
+	listNotificationPresetsFn         func(context.Context, NotificationPresetQuery) (NotificationPresetListRecord, error)
+	getNotificationPresetFn           func(context.Context, string) (NotificationPresetRecord, error)
+	createNotificationPresetFn        func(context.Context, CreateNotificationPresetRequest) (NotificationPresetRecord, error)
+	updateNotificationPresetFn        func(context.Context, string, UpdateNotificationPresetRequest) (NotificationPresetRecord, error)
+	deleteNotificationPresetFn        func(context.Context, string) error
+	setNotificationPresetEnablementFn func(
+		context.Context,
+		string,
+		contract.SetNotificationPresetEnablementRequest,
+	) (contract.NotificationPresetEnablementPayload, error)
+	listProfilesFn               func(context.Context) ([]contract.Profile, error)
+	listProfileSelectionsFn      func(context.Context) ([]contract.ProfileSelection, error)
 	listBridgeSecretBindingsFn   func(context.Context, string) ([]BridgeSecretBindingRecord, error)
 	putBridgeSecretBindingFn     func(context.Context, string, string, BridgeSecretBindingRequest) (BridgeSecretBindingRecord, error)
 	deleteBridgeSecretBindingFn  func(context.Context, string, string) error
@@ -531,6 +539,14 @@ type stubClient struct {
 type profileAwareStubClient struct {
 	*stubClient
 	*profileClientStub
+}
+
+func (s *profileAwareStubClient) ListProfiles(ctx context.Context) ([]contract.Profile, error) {
+	return s.profileClientStub.ListProfiles(ctx)
+}
+
+func (s *profileAwareStubClient) ListProfileSelections(ctx context.Context) ([]contract.ProfileSelection, error) {
+	return s.profileClientStub.ListProfileSelections(ctx)
 }
 
 func (s *stubClient) SearchExtensions(
@@ -1200,6 +1216,16 @@ func (s *stubClient) InstallExtension(
 	return ExtensionRecord{}, errors.New("unexpected InstallExtension call")
 }
 
+func (s *stubClient) PreviewExtensionInstall(
+	ctx context.Context,
+	request InstallExtensionRequest,
+) (ExtensionInstallPreviewRecord, error) {
+	if s.previewExtensionInstallFn != nil {
+		return s.previewExtensionInstallFn(ctx, request)
+	}
+	return ExtensionInstallPreviewRecord{}, errors.New("unexpected PreviewExtensionInstall call")
+}
+
 func (s *stubClient) UpdateExtension(
 	ctx context.Context,
 	name string,
@@ -1516,6 +1542,35 @@ func (s *stubClient) DeleteNotificationPreset(ctx context.Context, name string) 
 		return s.deleteNotificationPresetFn(ctx, name)
 	}
 	return errors.New("unexpected DeleteNotificationPreset call")
+}
+
+func (s *stubClient) SetNotificationPresetEnablement(
+	ctx context.Context,
+	name string,
+	request contract.SetNotificationPresetEnablementRequest,
+) (contract.NotificationPresetEnablementPayload, error) {
+	if s.setNotificationPresetEnablementFn != nil {
+		return s.setNotificationPresetEnablementFn(ctx, name, request)
+	}
+	return contract.NotificationPresetEnablementPayload{}, errors.New(
+		"unexpected SetNotificationPresetEnablement call",
+	)
+}
+
+func (s *stubClient) ListProfiles(ctx context.Context) ([]contract.Profile, error) {
+	if s.listProfilesFn != nil {
+		return s.listProfilesFn(ctx)
+	}
+	return []contract.Profile{{Name: "default", State: "active"}}, nil
+}
+
+func (s *stubClient) ListProfileSelections(
+	ctx context.Context,
+) ([]contract.ProfileSelection, error) {
+	if s.listProfileSelectionsFn != nil {
+		return s.listProfileSelectionsFn(ctx)
+	}
+	return nil, nil
 }
 
 func (s *stubClient) ListBridgeSecretBindings(

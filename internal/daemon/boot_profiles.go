@@ -7,6 +7,7 @@ import (
 	"time"
 
 	eventspkg "github.com/compozy/compozy/internal/events"
+	extensionpkg "github.com/compozy/compozy/internal/extension"
 	"github.com/compozy/compozy/internal/profile"
 	"github.com/compozy/compozy/internal/store"
 	"github.com/compozy/compozy/internal/store/globaldb"
@@ -40,6 +41,7 @@ func (d *Daemon) bootProfiles(
 		profile.WithHomePaths(d.homePaths),
 		profile.WithLogger(state.logger),
 		profile.WithEventRecorder(recorder),
+		profile.WithPlacementCatalog(extensionpkg.NewRegistry(database.DB())),
 	)
 	if err != nil {
 		return nil, err

@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { useSelector, useStore } from "@xstate/store-react";
 import { toast } from "sonner";
 
@@ -6,6 +7,8 @@ import type { ExtensionInstallRequest } from "../types";
 import { ExtensionInstallDialog } from "./extension-install-dialog";
 import { createExtensionInstallLogic } from "./extension-install-dialog-store";
 import { ExtensionTrustDialog } from "./extension-trust-dialog";
+import { previewExtensionInstall } from "@/systems/extensions/adapters/extensions-api";
+import type { ExtensionInstallPreview } from "@/systems/extensions";
 
 const extensionInstallLogic = createExtensionInstallLogic();
 
@@ -27,6 +30,10 @@ export function useExtensionInstallDialog(
   const store = useStore(extensionInstallLogic);
   const state = useSelector(store, snapshot => snapshot.context);
   const install = useInstallMarketplaceExtension();
+  const [preview, setPreview] = useState<ExtensionInstallPreview | null>(null);
+  const [previewRequest, setPreviewRequest] = useState<ExtensionInstallRequest | null>(null);
+  const [previewError, setPreviewError] = useState<string | null>(null);
+  const [previewPending, setPreviewPending] = useState(false);
 
   const execute = async (request: ExtensionInstallRequest) => {
     await install.mutateAsync(request);
@@ -41,13 +48,52 @@ export function useExtensionInstallDialog(
   const dialogs = (
     <>
       <ExtensionInstallDialog
-        error={state.phase === "form" ? state.error : null}
-        onOpenChange={open => {
-          if (!open) store.trigger.installClosed();
+        error={state.phase === "form" ? (previewError ?? state.error) : null}
+        onFormChange={() => {
+          setPreview(null);
+          setPreviewRequest(null);
+          setPreviewError(null);
         }}
-        onSubmit={request => store.trigger.installRequested({ execute, request })}
+        onOpenChange={open => {
+          if (!open) {
+            setPreview(null);
+            setPreviewRequest(null);
+            setPreviewError(null);
+            store.trigger.installClosed();
+          }
+        }}
+        onSubmit={request => {
+          if (preview && previewRequest && requestsMatch(previewRequest, request)) {
+            store.trigger.installRequested({
+              execute,
+              request: {
+                ...request,
+                ...(preview.network_requirement_digest
+                  ? { confirm_network_digest: preview.network_requirement_digest }
+                  : {}),
+              },
+            });
+            return;
+          }
+          setPreview(null);
+          setPreviewRequest(null);
+          setPreviewPending(true);
+          setPreviewError(null);
+          void previewExtensionInstall(request)
+            .then(result => {
+              setPreview(result);
+              setPreviewRequest(request);
+            })
+            .catch((error: unknown) => {
+              setPreviewError(
+                error instanceof Error ? error.message : "The extension could not be previewed."
+              );
+            })
+            .finally(() => setPreviewPending(false));
+        }}
         open={state.phase === "form" || (state.phase === "submitting" && !state.consented)}
-        pending={state.phase === "submitting"}
+        pending={previewPending || state.phase === "submitting"}
+        preview={preview}
       />
       <ExtensionTrustDialog
         action="install"
@@ -73,4 +119,8 @@ export function useExtensionInstallDialog(
     isOpen: state.phase !== "closed",
     open: () => store.trigger.installOpened(),
   };
+}
+
+function requestsMatch(left: ExtensionInstallRequest, right: ExtensionInstallRequest): boolean {
+  return JSON.stringify(left) === JSON.stringify(right);
 }

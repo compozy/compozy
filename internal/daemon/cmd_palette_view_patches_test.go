@@ -305,7 +305,10 @@ type viewPatchRuntimeStub struct {
 	projection extensionpkg.CmdPaletteProjection
 }
 
-func (s viewPatchRuntimeStub) CmdPalette(string) (extensionpkg.CmdPaletteProjection, error) {
+func (s viewPatchRuntimeStub) CmdPalette(
+	string,
+	extensionpkg.ProfileLens,
+) (extensionpkg.CmdPaletteProjection, error) {
 	return s.projection, nil
 }
 

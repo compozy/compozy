@@ -18,6 +18,15 @@ CREATE TABLE extensions (
 		network_confirmed_at TEXT
 	);
 
+CREATE TRIGGER extensions_profile_enablement_delete
+AFTER DELETE ON extensions
+WHEN NOT EXISTS (
+	SELECT 1 FROM extension_dev_links WHERE extension_name = OLD.name
+)
+BEGIN
+	DELETE FROM extension_profile_enablement WHERE extension_name = OLD.name;
+END;
+
 CREATE TABLE extension_env_bindings (
 		extension_name TEXT NOT NULL,
 		profile_id TEXT NOT NULL DEFAULT '',
