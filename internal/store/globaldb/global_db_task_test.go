@@ -2620,6 +2620,8 @@ func TestGlobalDBTaskCatalogPaginationAndFacets(t *testing.T) {
 
 		t.Run("Should keep default visibility counts pagination and inbox coherent", func(t *testing.T) {
 			t.Parallel()
+			ctx := testutil.Context(t)
+
 			defaultPage, err := globalDB.ListTaskCatalog(ctx, taskpkg.CatalogQuery{
 				Scope:            taskpkg.CatalogScopeGlobal,
 				ExcludeCreatedBy: excluded,
@@ -2682,6 +2684,8 @@ func TestGlobalDBTaskCatalogPaginationAndFacets(t *testing.T) {
 
 		t.Run("Should project provenance and page one Loop run without duplicates", func(t *testing.T) {
 			t.Parallel()
+			ctx := testutil.Context(t)
+
 			included, err := globalDB.ListTaskCatalog(ctx, taskpkg.CatalogQuery{
 				Scope:         taskpkg.CatalogScopeGlobal,
 				IncludeDrafts: true,
@@ -2761,6 +2765,8 @@ func TestGlobalDBTaskCatalogPaginationAndFacets(t *testing.T) {
 
 		t.Run("Should return empty filtered pages and bind cursors to filters", func(t *testing.T) {
 			t.Parallel()
+			ctx := testutil.Context(t)
+
 			unknown, err := globalDB.ListTaskCatalog(ctx, taskpkg.CatalogQuery{
 				Scope: taskpkg.CatalogScopeGlobal, LoopRunID: "looprun-missing", Limit: 10,
 			})
@@ -2797,6 +2803,8 @@ func TestGlobalDBTaskCatalogPaginationAndFacets(t *testing.T) {
 
 		t.Run("Should use the created-by index for default exclusion", func(t *testing.T) {
 			t.Parallel()
+			ctx := testutil.Context(t)
+
 			normalized, err := taskpkg.NormalizeCatalogQuery(taskpkg.CatalogQuery{
 				Scope: taskpkg.CatalogScopeGlobal, ExcludeCreatedBy: excluded, Limit: 10,
 			})
