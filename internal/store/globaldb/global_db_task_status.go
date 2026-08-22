@@ -19,6 +19,17 @@ type taskStatusChangedEventPayload struct {
 	hookspkg.TaskContext
 	FromStatus string `json:"from_status"`
 	ToStatus   string `json:"to_status"`
+	Reason     string `json:"reason,omitempty"`
+	Detail     string `json:"detail,omitempty"`
+	LoopRunID  string `json:"loop_run_id,omitempty"`
+}
+
+type taskStatusEventContext struct {
+	reason        string
+	detail        string
+	runID         string
+	loopRunID     string
+	releaseReason string
 }
 
 func setTaskStatusWithExecutor(
@@ -30,30 +41,30 @@ func setTaskStatusWithExecutor(
 	actor taskpkg.ActorContext,
 	timestamp time.Time,
 ) error {
+	return setTaskStatusWithEventContext(ctx, exec, taskID, from, to, actor, timestamp, taskStatusEventContext{})
+}
+
+func setTaskStatusWithEventContext(
+	ctx context.Context,
+	exec taskSQLExecutor,
+	taskID string,
+	from taskpkg.Status,
+	to taskpkg.Status,
+	actor taskpkg.ActorContext,
+	timestamp time.Time,
+	eventContext taskStatusEventContext,
+) error {
 	trimmedTaskID, err := requireTaskValue(taskID, "task id")
 	if err != nil {
 		return err
 	}
-	if err := actor.Validate(); err != nil {
-		return err
-	}
-
-	fromStatus := from.Normalize()
-	if err := fromStatus.Validate("task.status.from"); err != nil {
-		return err
-	}
-	toStatus := to.Normalize()
-	if err := toStatus.Validate("task.status.to"); err != nil {
+	fromStatus, toStatus, err := normalizeTaskStatusEvent(actor, from, to)
+	if err != nil {
 		return err
 	}
 	if fromStatus == toStatus {
 		return nil
 	}
-	eventID, err := store.NewID("evt")
-	if err != nil {
-		return fmt.Errorf("store: generate task status event id: %w", err)
-	}
-
 	changed, err := sqlcgen.New(exec).UpdateTaskStatusChokepoint(ctx, sqlcgen.UpdateTaskStatusChokepointParams{
 		ToStatus: string(toStatus), FromStatus: string(fromStatus), ID: trimmedTaskID,
 	})
@@ -68,17 +79,62 @@ func setTaskStatusWithExecutor(
 	if err != nil {
 		return err
 	}
+	return appendTaskStatusChangedEvent(ctx, exec, committedTask, fromStatus, toStatus, actor, timestamp, eventContext)
+}
+
+func appendTaskStatusChangedAuditEvent(
+	ctx context.Context,
+	exec taskSQLExecutor,
+	taskID string,
+	from taskpkg.Status,
+	to taskpkg.Status,
+	actor taskpkg.ActorContext,
+	timestamp time.Time,
+	eventContext taskStatusEventContext,
+) error {
+	fromStatus, toStatus, err := normalizeTaskStatusEvent(actor, from, to)
+	if err != nil {
+		return err
+	}
+	committedTask, err := taskRecordAfterStatusChange(ctx, exec, taskID, toStatus)
+	if err != nil {
+		return err
+	}
+	return appendTaskStatusChangedEvent(ctx, exec, committedTask, fromStatus, toStatus, actor, timestamp, eventContext)
+}
+
+func appendTaskStatusChangedEvent(
+	ctx context.Context,
+	exec taskSQLExecutor,
+	committedTask taskpkg.Task,
+	fromStatus taskpkg.Status,
+	toStatus taskpkg.Status,
+	actor taskpkg.ActorContext,
+	timestamp time.Time,
+	eventContext taskStatusEventContext,
+) error {
+	eventID, err := store.NewID("evt")
+	if err != nil {
+		return fmt.Errorf("store: generate task status event id: %w", err)
+	}
+	taskContext := immutableTaskStatusContext(committedTask, actor)
+	taskContext.RunID = strings.TrimSpace(eventContext.runID)
+	taskContext.ReleaseReason = strings.TrimSpace(eventContext.releaseReason)
 	payload, err := json.Marshal(taskStatusChangedEventPayload{
-		TaskContext: immutableTaskStatusContext(committedTask, actor),
+		TaskContext: taskContext,
 		FromStatus:  string(fromStatus),
 		ToStatus:    string(toStatus),
+		Reason:      strings.TrimSpace(eventContext.reason),
+		Detail:      strings.TrimSpace(eventContext.detail),
+		LoopRunID:   strings.TrimSpace(eventContext.loopRunID),
 	})
 	if err != nil {
-		return fmt.Errorf("store: marshal task %q status_changed event: %w", trimmedTaskID, err)
+		return fmt.Errorf("store: marshal task %q status_changed event: %w", committedTask.ID, err)
 	}
 	if err := appendTaskEventWithExecutor(ctx, exec, EventRecordInsert{
 		ID:        eventID,
-		TaskID:    trimmedTaskID,
+		TaskID:    committedTask.ID,
+		RunID:     strings.TrimSpace(eventContext.runID),
 		EventType: string(hookspkg.HookTaskStatusChanged),
 		Actor:     actor.Actor,
 		Origin:    actor.Origin,
@@ -89,6 +145,25 @@ func setTaskStatusWithExecutor(
 	}
 
 	return nil
+}
+
+func normalizeTaskStatusEvent(
+	actor taskpkg.ActorContext,
+	from taskpkg.Status,
+	to taskpkg.Status,
+) (taskpkg.Status, taskpkg.Status, error) {
+	if err := actor.Validate(); err != nil {
+		return "", "", err
+	}
+	fromStatus := from.Normalize()
+	if err := fromStatus.Validate("task.status.from"); err != nil {
+		return "", "", err
+	}
+	toStatus := to.Normalize()
+	if err := toStatus.Validate("task.status.to"); err != nil {
+		return "", "", err
+	}
+	return fromStatus, toStatus, nil
 }
 
 func taskRecordAfterStatusChange(

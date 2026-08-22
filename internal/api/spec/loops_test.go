@@ -196,7 +196,7 @@ func TestLoopOpenAPIContract(t *testing.T) {
 				method:   "GET",
 				statuses: []int{200, 400, 503, 500},
 				parameters: []string{
-					"workspace_id", "loop", "status", "origin", "origin_session", "live", "limit",
+					"workspace_id", "loop", "status", "origin", "origin_session", "live", "cursor", "limit",
 				},
 			},
 			{
@@ -219,6 +219,27 @@ func TestLoopOpenAPIContract(t *testing.T) {
 				method:     "GET",
 				statuses:   []int{200, 400, 404, 503, 500},
 				parameters: []string{"workspace_id", "run_id"},
+			},
+			{
+				name:       "get run nodes",
+				path:       "/api/workspaces/{workspace_id}/loop-runs/{run_id}/nodes",
+				method:     "GET",
+				statuses:   []int{200, 400, 404, 503, 500},
+				parameters: []string{"workspace_id", "run_id", "state", "generation", "cursor", "limit"},
+			},
+			{
+				name:       "get run briefing",
+				path:       "/api/workspaces/{workspace_id}/loop-runs/{run_id}/briefing",
+				method:     "GET",
+				statuses:   []int{200, 404, 503, 500},
+				parameters: []string{"workspace_id", "run_id"},
+			},
+			{
+				name:       "get run timeline",
+				path:       "/api/workspaces/{workspace_id}/loop-runs/{run_id}/timeline",
+				method:     "GET",
+				statuses:   []int{200, 400, 404, 409, 503, 500},
+				parameters: []string{"workspace_id", "run_id", "view", "cursor", "limit", "after_sequence"},
 			},
 			{
 				name:       "cancel run",
@@ -332,7 +353,9 @@ func TestLoopOpenAPIContract(t *testing.T) {
 					case "scope":
 						assertParameter(t, operation, parameter, openapi3.ParameterInQuery, true)
 					case "state":
-						assertParameter(t, operation, parameter, openapi3.ParameterInQuery, true)
+						assertParameter(
+							t, operation, parameter, openapi3.ParameterInQuery, tc.name == "list nodes",
+						)
 					default:
 						assertParameter(t, operation, parameter, openapi3.ParameterInQuery, false)
 					}
@@ -681,6 +704,24 @@ func TestLoopOpenAPIContract(t *testing.T) {
 		}
 		for _, field := range serializedStructFields(reflect.TypeFor[dsl.Edge]()) {
 			propertySchema(t, edges.Items.Value, field)
+		}
+	})
+
+	t.Run("Should publish closed run-read filters and an int64 timeline sequence", func(t *testing.T) {
+		t.Parallel()
+		doc, err := Document()
+		if err != nil {
+			t.Fatalf("Document() error = %v", err)
+		}
+		nodes := operationFor(t, doc, "/api/workspaces/{workspace_id}/loop-runs/{run_id}/nodes", "GET")
+		assertEnumValues(t, parameterSchema(t, nodes, "state", openapi3.ParameterInQuery),
+			"all", "running", "queued", "waiting", "retrying", "paused", "quarantined",
+			"succeeded", "failed", "canceled", "not_taken",
+		)
+		timeline := operationFor(t, doc, "/api/workspaces/{workspace_id}/loop-runs/{run_id}/timeline", "GET")
+		assertEnumValues(t, parameterSchema(t, timeline, "view", openapi3.ParameterInQuery), "notable", "all")
+		if got := parameterSchema(t, timeline, "after_sequence", openapi3.ParameterInQuery).Format; got != "int64" {
+			t.Fatalf("after_sequence format = %q, want int64", got)
 		}
 	})
 }

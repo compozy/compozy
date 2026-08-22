@@ -140,6 +140,7 @@ func advanceControlNodes(
 	outputs *[]GenerationOutput,
 	outputBlobs *[]GenerationOutputBlob,
 ) (*task.CoordinatorTerminal, error) {
+	var approvalTerminal *task.CoordinatorTerminal
 	for {
 		changed, err := advanceFanOutWindows(
 			eval.resolved.Definition.Graph, eval.topology, eval.generation, outputs,
@@ -185,15 +186,20 @@ func advanceControlNodes(
 				(*outputs)[idx] = updated
 			}
 			if terminal != nil {
-				return terminal, nil
+				if terminal.Status != string(StatusNeedsApproval) {
+					return terminal, nil
+				}
+				if approvalTerminal == nil {
+					approvalTerminal = terminal
+				}
 			}
 			if plan.Yield {
-				return nil, nil
+				return approvalTerminal, nil
 			}
 			changed = true
 		}
 		if !changed {
-			return nil, nil
+			return approvalTerminal, nil
 		}
 	}
 }

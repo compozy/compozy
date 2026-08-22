@@ -84,3 +84,21 @@ export function loopStatusLabel(status?: string | null): string {
 }
 
 export { LOOP_STATUS_LABELS, LOOP_STATUS_TONE };
+
+/**
+ * The terminal outcome, named for a run that has stopped.
+ *
+ * Same labels as the status pill, with one deliberate difference: a `no-op` run
+ * is described by what happened ("Nothing to do") rather than by the wire word,
+ * because the outcome line is a sentence about the run and "No-op" is a term of
+ * art. Keeping both readings here stops the pill and the outcome from drifting
+ * into two names for the same status.
+ */
+const LOOP_OUTCOME_LABEL_OVERRIDES: Partial<Record<LoopRunStatus, string>> = {
+  "no-op": "Nothing to do",
+};
+
+export function loopOutcomeLabel(status: string): string {
+  if (!isLoopRunStatus(status)) return "Finished";
+  return LOOP_OUTCOME_LABEL_OVERRIDES[status] ?? LOOP_STATUS_LABELS[status];
+}

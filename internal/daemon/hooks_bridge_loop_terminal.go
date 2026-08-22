@@ -45,7 +45,7 @@ func (n *hooksNotifier) notifyLoopTerminalObservers(
 			[]any{
 				daemonLoopRunIDKey, payload.LoopRunID,
 				"parent_loop_run_id", payload.ParentLoopRunID,
-				"loop_name", payload.LoopName,
+				loopWatchEventsContentLoopNameField, payload.LoopName,
 			},
 			func(ctx context.Context, observer loopTerminalObserver, payload hookspkg.LoopTerminalPayload) error {
 				return observer.OnLoopTerminal(ctx, payload)

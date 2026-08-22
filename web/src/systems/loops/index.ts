@@ -18,7 +18,6 @@ export type {
   LoopRunRecord,
   LoopRunsFilter,
   LoopValidationIssue,
-  GoalTurn,
   PatchLoopRequest,
   RunLoopResult,
   LoopAmendment,
@@ -40,6 +39,7 @@ export {
 export {
   LoopInputValidationError,
   LoopLifecycleConflictError,
+  LoopReadError,
   LoopRequestError,
   LoopsApiError,
   LoopTimetravelError,
@@ -56,9 +56,11 @@ export {
   getLoopConfig,
   getLoopRequest,
   getLoopRun,
+  getLoopRunBriefing,
+  getLoopRunRoster,
+  getLoopRunTimeline,
   listLoopRequests,
   listLoopRuns,
-  listGoalTurns,
   listLoops,
   patchLoop,
   pauseLoopRun,
@@ -80,7 +82,6 @@ export {
   loopDetailOptions,
   loopRequestAttentionOptions,
   loopRequestsOptions,
-  loopRunRequestCountsOptions,
   loopRunDetailOptions,
   loopRunDiffOptions,
   loopRunsOptions,
@@ -165,15 +166,23 @@ export type { LoopConfigDraft, LoopReattemptStrategy } from "./lib/loop-config-d
 
 // Run-page model
 export {
-  type LoopRunStory,
-  type LoopRunStoryContext,
-  type LoopStoryIcon,
-  type LoopStoryIssue,
-  type LoopStoryNow,
-  type LoopStoryRow,
-  type LoopStoryTaskLink,
-} from "./lib/loop-run-story";
-export { type LoopProgressSegmentState, type LoopRunProgressModel } from "./lib/loop-run-progress";
+  type LoopStepRow,
+  type LoopStepsProgressModel,
+  buildStepsProgress,
+} from "./lib/loop-run-progress";
+export { type LoopProgressSegment } from "./lib/loop-run-fanout-band";
+export {
+  type LoopNodeSelection,
+  type LoopRosterReach,
+  type LoopRunRegisters as LoopRunRegistersModel,
+  LOOP_ROSTER_CONTINUATION_COMMAND,
+  loopRosterReachNote,
+  projectLoopRunRegisters,
+  selectedRosterNode,
+} from "./lib/loop-run-registers-view";
+export { type LoopStoryBeat, buildStoryBeats } from "./lib/loop-run-story-beats";
+export { type LoopStreamSeam, loopStreamSeam } from "./lib/loop-run-live-seam";
+export { type LoopStateChip, loopRosterStateChip } from "./lib/loop-run-state-copy";
 export { type LoopRunUsageRow, type LoopUsageKey, type LoopUsageTone } from "./lib/loop-run-usage";
 export { type LoopRunInputRow } from "./lib/loop-run-about";
 export {
@@ -208,7 +217,6 @@ export {
 export { useLoopRequestDetail, useLoopRequests } from "./hooks/use-loop-requests";
 export {
   useLoopRequestAttention,
-  useLoopRunPendingRequestCounts,
   type LoopRequestAttention,
   type LoopRequestAttentionItem,
 } from "./hooks/use-loop-request-attention";
@@ -257,7 +265,6 @@ export {
   loopRunVerbs,
 } from "./lib/loop-node-controls";
 export { buildRerunSet, type LoopRerunSet } from "./lib/loop-rerun-set";
-export { buildNodeNowLines } from "./lib/loop-node-now-view";
 export { LOOP_NODE_INVENTORY_LABELS, LOOP_NODE_INVENTORY_STATES } from "./lib/loop-node-inventory";
 
 // Run-form view-model hook
@@ -269,8 +276,6 @@ export type { UseLoopConfigureResult } from "./hooks/use-loop-configure";
 
 // SSE stream hook
 export { useLoopStream } from "./hooks/use-loop-stream";
-export { mergeGoalTurns, mergeGoalTurnTimeline, useGoalTurns } from "./hooks/use-goal-turns";
-export type { GoalTurnTimelineItem, UseGoalTurnsOptions } from "./hooks/use-goal-turns";
 export type { LoopStreamEventSource } from "./hooks/use-loop-stream";
 
 // Components
@@ -302,7 +307,6 @@ export { LoopRunPlan } from "./components/run-form/loop-run-plan";
 export { LoopConfigureDialog } from "./components/configure/loop-configure-dialog";
 
 // Run page
-export { GoalTurnTimeline } from "./components/run-page/goal-turn-timeline";
 export { LoopRunAboutRail } from "./components/run-page/loop-run-about-rail";
 export { LoopRunControls } from "./components/run-page/loop-run-controls";
 export { LoopNodeRowActions } from "./components/run-page/loop-node-row-actions";
@@ -316,7 +320,6 @@ export {
   LoopRunControlDialog,
   type LoopRunConfirmVerb,
 } from "./components/run-page/loop-run-control-dialog";
-export { LoopRunInspectSheet } from "./components/run-page/loop-run-inspect-sheet";
 export {
   type LoopRequestAnswerInput,
   type LoopRequestFocusTarget,
@@ -331,16 +334,29 @@ export {
 } from "./components/run-page/loop-node-rerun-dialog";
 export { LoopForkDialog, type LoopForkDialogProps } from "./components/run-page/loop-fork-dialog";
 export type { LoopGateDecision } from "./lib/loop-events";
-export { LoopRunNextNote } from "./components/run-page/loop-run-next-note";
-export { LoopRunNowCard } from "./components/run-page/loop-run-now-card";
-export { LoopRunOutcomeCard } from "./components/run-page/loop-run-outcome-card";
 export { LoopRunOverflowMenu } from "./components/run-page/loop-run-overflow-menu";
 export { LoopRunPageBody } from "./components/run-page/loop-run-page-body";
 export type { LoopRunPageBodyProps } from "./components/run-page/loop-run-page-body";
-export { LoopRunProgressPanel } from "./components/run-page/loop-run-progress-panel";
-export { LoopRunStoryTimeline } from "./components/run-page/loop-run-story-timeline";
-export { LoopRunTurnsDisclosure } from "./components/run-page/loop-run-turns-disclosure";
 export { LoopRunUsageRail } from "./components/run-page/loop-run-usage-rail";
+export { LoopRunBriefing } from "./components/run-page/loop-run-briefing";
+export { LoopRunStepsProgress } from "./components/run-page/loop-run-steps-progress";
+export { LoopRunStory } from "./components/run-page/loop-run-story";
+export { LoopRunRegisters } from "./components/run-page/loop-run-registers";
+export { LoopNodeStateChip } from "./components/run-page/loop-node-state-chip";
+export {
+  useLoopRunBriefing,
+  useLoopRunRoster,
+  useLoopRunTimeline,
+} from "./hooks/use-loop-run-reads";
+export {
+  type LoopRunEventsReadState,
+  useLoopRunEventsRead,
+} from "./hooks/use-loop-run-events-read";
+export {
+  type LoopNodeSessionAvailability,
+  loopPrunedSessionIds,
+  useLoopNodeSessionAvailability,
+} from "./hooks/use-loop-node-session-availability";
 
 export type { LoopDiffView } from "./lib/loop-run-diff-model";
 export { comparableGenerations, projectLoopDiff } from "./lib/loop-run-diff-model";

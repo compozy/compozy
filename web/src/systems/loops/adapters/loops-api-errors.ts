@@ -4,6 +4,20 @@ function asRecord(value: unknown): Record<string, unknown> | null {
   return typeof value === "object" && value !== null ? (value as Record<string, unknown>) : null;
 }
 
+/**
+ * The one trim-or-omit rule every Loops adapter builds its query with.
+ *
+ * A blank filter and an absent filter mean the same thing to the daemon, so they
+ * have to serialize the same way here — and they have to do it from a single
+ * implementation, because `normalizeText` in the query keys is written to match
+ * this behaviour and a private copy per adapter lets the two drift apart.
+ */
+export function normalizeOptionalText(value?: string | null): string | undefined {
+  if (typeof value !== "string") return undefined;
+  const normalized = value.trim();
+  return normalized === "" ? undefined : normalized;
+}
+
 /** Reads the daemon's `{code, details}` reason envelope off a rejected response. */
 export function reasonEnvelope(error: unknown): { code: string; details: Record<string, string> } {
   const body = asRecord(error);
@@ -174,6 +188,40 @@ export class LoopRequestError extends LoopsApiError {
 
   get recordedDecision(): string {
     return this.details.decision ?? this.details.answered_decision ?? "";
+  }
+}
+
+/**
+ * A rejection from the run read layer (`/briefing`, `/nodes`, `/timeline`).
+ *
+ * These carry structure the UI acts on rather than prose it prints: an invalid
+ * roster state names the `allowed` set, and a cursor the daemon will not honour
+ * says whether the page set moved (`timeline_branch_changed`) or the token was
+ * malformed. The story recovers from a stale cursor by re-reading the newest
+ * window — it never splices two histories together (Safety Invariant 7).
+ */
+export class LoopReadError extends LoopsApiError {
+  constructor(
+    message: string,
+    status: number,
+    public readonly code: string,
+    public readonly details: Readonly<Record<string, string>>
+  ) {
+    super(message, status);
+    this.name = "LoopReadError";
+  }
+
+  /** The cursor no longer addresses a readable page set; restart from the head. */
+  get isStaleCursor(): boolean {
+    return this.code === "timeline_branch_changed" || this.code === "invalid_cursor";
+  }
+
+  /** The roster state vocabulary the daemon accepts, already split. */
+  get allowedStates(): string[] {
+    return (this.details.allowed ?? "")
+      .split(",")
+      .map(state => state.trim())
+      .filter(state => state !== "");
   }
 }
 

@@ -24,6 +24,7 @@ import type { CmdPaletteCatalogResponse } from "../../lib/cmd-palette-types";
 import { useCmdPaletteCatalog } from "../use-cmd-palette-catalog";
 
 const WORKSPACE = "ws-hq";
+const OTHER_WORKSPACE = "ws-branch";
 const CLIENT = "client-1";
 
 function catalog(revision: string, titles: readonly string[]): CmdPaletteCatalogResponse {
@@ -49,9 +50,15 @@ function catalog(revision: string, titles: readonly string[]): CmdPaletteCatalog
   };
 }
 
-function harness() {
+function harness(options: { retry?: number; retryDelay?: number } = {}) {
   const queryClient = new QueryClient({
-    defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
+    defaultOptions: {
+      queries: {
+        retry: options.retry ?? false,
+        ...(options.retryDelay === undefined ? {} : { retryDelay: options.retryDelay }),
+      },
+      mutations: { retry: false },
+    },
   });
   const wrapper = ({ children }: { children: ReactNode }) => (
     <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
@@ -66,7 +73,7 @@ function harness() {
 
 describe("useCmdPaletteCatalog (UT-095)", () => {
   beforeEach(async () => {
-    await dropCatalogRecord(WORKSPACE);
+    await Promise.all([dropCatalogRecord(WORKSPACE), dropCatalogRecord(OTHER_WORKSPACE)]);
   });
 
   afterEach(() => {
@@ -116,6 +123,44 @@ describe("useCmdPaletteCatalog (UT-095)", () => {
     }
   });
 
+  it("Should carry a catalog only across client attachment in the same workspace", async () => {
+    let releaseClientCatalog: (value: CmdPaletteCatalogResponse) => void = () => {};
+    vi.spyOn(api, "listCmdPaletteCommands").mockImplementation((workspace, clientId) => {
+      if (workspace === WORKSPACE && clientId === null) {
+        return Promise.resolve(catalog("sha256:workspace", ["Settings"]));
+      }
+      return new Promise<CmdPaletteCatalogResponse>(resolve => {
+        releaseClientCatalog = resolve;
+      });
+    });
+    const queryClient = new QueryClient({
+      defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
+    });
+    const wrapper = ({ children }: { children: ReactNode }) => (
+      <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
+    );
+    const { result, rerender } = renderHook(
+      ({ workspaceId, clientId }: { workspaceId: string; clientId: string | null }) =>
+        useCmdPaletteCatalog({ workspaceId, clientId }),
+      {
+        initialProps: { workspaceId: WORKSPACE, clientId: null as string | null },
+        wrapper,
+      }
+    );
+    await waitFor(() => expect(result.current.catalog?.catalogRevision).toBe("sha256:workspace"));
+
+    rerender({ workspaceId: WORKSPACE, clientId: CLIENT });
+    expect(result.current.catalog?.commands.map(command => command.title)).toEqual(["Settings"]);
+    expect(result.current.daemonReachable).toBe(true);
+
+    rerender({ workspaceId: OTHER_WORKSPACE, clientId: CLIENT });
+    expect(result.current.catalog).toBeNull();
+    expect(result.current.daemonReachable).toBe(false);
+
+    releaseClientCatalog(catalog("sha256:client", ["Settings", "Close window"]));
+    await waitFor(() => expect(result.current.catalog?.catalogRevision).toBe("sha256:client"));
+  });
+
   it("Should keep the cached catalog and report the daemon unreachable when the fetch fails", async () => {
     await writeCatalogRecord(toCatalogRecord(WORKSPACE, catalog("sha256:cached", ["Cached row"])));
     vi.spyOn(api, "listCmdPaletteCommands").mockRejectedValue(
@@ -127,21 +172,23 @@ describe("useCmdPaletteCatalog (UT-095)", () => {
     expect(result.current.stale).toBe(true);
   });
 
-  it("Should stop reporting the daemon reachable once a refetch fails mid-session", async () => {
+  it("Should stop reporting the daemon reachable on the first failed refetch before its retry", async () => {
     const list = vi
       .spyOn(api, "listCmdPaletteCommands")
       .mockResolvedValue(catalog("sha256:live", ["Live row"]));
-    const { result, queryClient } = harness();
+    const { result, queryClient, unmount } = harness({ retry: 1, retryDelay: 60_000 });
     await waitFor(() => expect(result.current.daemonReachable).toBe(true));
 
     // The daemon goes away; its last answer is still the best structure to
     // render, but nothing may claim it is reachable.
     list.mockRejectedValue(new CmdPaletteApiError("Command palette unavailable", 503, "daemon"));
-    await queryClient.refetchQueries();
+    void queryClient.refetchQueries();
 
     await waitFor(() => expect(result.current.daemonReachable).toBe(false));
     expect(result.current.stale).toBe(true);
     expect(result.current.catalog?.commands.map(command => command.title)).toEqual(["Live row"]);
+    unmount();
+    queryClient.clear();
   });
 
   it("Should report a cold open with no cache and no daemon", async () => {

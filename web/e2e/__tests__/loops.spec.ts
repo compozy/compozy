@@ -536,16 +536,6 @@ function resolvedRuntimeOutputs(detail: LoopRunDetail): RuntimeOutput[] {
   );
 }
 
-const runtimeSourceLabels: Record<string, string> = {
-  run: "per-run rule",
-  frontmatter: "task frontmatter",
-  config: "config rule",
-  node: "node runtime",
-  default: "runtime default",
-  criterion: "criterion runtime",
-  agent: "agent definition",
-};
-
 async function openInteractionEditor(appPage: Page, runtime: BrowserRuntime): Promise<void> {
   if (!runtime.paths) {
     throw new Error("Loop editor interaction test requires launch-mode runtime paths");
@@ -562,6 +552,30 @@ async function openInteractionEditor(appPage: Page, runtime: BrowserRuntime): Pr
     { waitUntil: "domcontentloaded" }
   );
   await expect(appPage.getByTestId("loop-editor")).toBeVisible();
+}
+
+/** Opens the operator register on its Nodes lane, where lifecycle state lives. */
+async function openRunRoster(appPage: Page): Promise<void> {
+  const panel = appPage.getByTestId("loop-run-inspect-panel");
+  if (!(await panel.isVisible())) {
+    await appPage.getByTestId("loop-run-inspect").getByRole("button").first().click();
+  }
+  await appPage.getByTestId("loop-lane-nodes").click();
+  await expect(appPage.getByTestId("loop-node-roster")).toBeVisible();
+}
+
+/**
+ * One roster row, by the step it is about.
+ *
+ * The row's own test id carries round, step and item, because the same step id
+ * exists once per round and once per fan-out worker. These runs are read on the
+ * round the daemon is on, so naming the step is enough — and it keeps the
+ * locator from hard-coding a round number the run decides.
+ */
+function rosterRow(appPage: Page, nodeId: string) {
+  return appPage
+    .getByTestId("loop-node-roster")
+    .locator(`[data-testid^="loop-roster-row-"][data-node-id="${nodeId}"]`);
 }
 
 function editorNode(appPage: Page, nodeId: string) {
@@ -619,11 +633,14 @@ test("CompozyOS migration E2E-015: run page lifecycle controls and node inventor
   });
   await expect(appPage.getByTestId("loop-run-detail-content")).toBeVisible();
 
-  // Retrying lane: the attempt and its due time come from the payload.
-  const retryChip = appPage.getByTestId("loop-run-now-chip-execute");
-  await expect(retryChip).toBeVisible();
-  await expect(retryChip).toContainText("attempt");
-  await expect(appPage.getByTestId("loop-run-now-node-execute")).toContainText("retrying");
+  // Retrying lane: the attempt and its due time come from the payload. The
+  // lifecycle state moved from the retired "happening now" card to the roster
+  // in the operator register — same fact, one disclosure deeper.
+  await openRunRoster(appPage);
+  const retryRow = rosterRow(appPage, "execute");
+  await expect(retryRow).toBeVisible();
+  await expect(retryRow).toContainText("retrying");
+  await expect(retryRow).toContainText("of");
 
   // Pause the lane through the row menu, choosing what happens in flight.
   const menuTrigger = appPage.getByTestId("loop-node-menu-trigger-execute");
@@ -653,7 +670,8 @@ test("CompozyOS migration E2E-015: run page lifecycle controls and node inventor
   );
   expect(pausedControl?.pause_provenance?.actor_kind).toBeTruthy();
 
-  await expect(appPage.getByTestId("loop-run-now-node-execute")).toContainText("paused");
+  await openRunRoster(appPage);
+  await expect(rosterRow(appPage, "execute")).toContainText("paused");
   await browserArtifacts.captureScreenshot("loop-run-node-paused", appPage);
 
   // A paused lane promotes Resume to a first-class control.
@@ -832,8 +850,10 @@ test("CompozyOS migration E2E-016: author retry + on_error in the editor, publis
 
   await expect(appPage.getByTestId("loop-run-detail-content")).toBeVisible();
   // The authored attempt ceiling is what phrases the lane, so "attempt N of 3" is truthful.
-  await expect(appPage.getByTestId("loop-run-now-node-execute")).toContainText("retrying");
-  await expect(appPage.getByTestId("loop-run-now-chip-execute")).toContainText("attempt");
+  await openRunRoster(appPage);
+  const retryingRow = rosterRow(appPage, "execute");
+  await expect(retryingRow).toContainText("retrying");
+  await expect(retryingRow).toContainText("of");
   await browserArtifacts.captureScreenshot("loop-editor-authored-run-retrying", appPage);
 });
 
@@ -951,8 +971,11 @@ test("E2E-033: connection drop adds one wired node or no mutation", async ({
     await appPage.mouse.down();
     const handleBox = await handle.boundingBox();
     if (!handleBox) throw new Error("Connection handle geometry is unavailable");
-    await appPage.mouse.move(handleBox.x + handleBox.width + 8, handleBox.y + handleBox.height / 2);
-    await expect(appPage.locator(".react-flow__connection")).toBeVisible();
+    await appPage.mouse.move(
+      handleBox.x + handleBox.width + 8,
+      handleBox.y + handleBox.height / 2 + 8
+    );
+    await expect(appPage.locator(".react-flow__connection-path")).toBeVisible();
     await appPage.mouse.move(drop.x, drop.y, { steps: 12 });
     await appPage.mouse.up();
     await expect(appPage.getByTestId("loop-editor-connection-picker")).toBeVisible();
@@ -1100,13 +1123,22 @@ test("CompozyOS migration E2E-004: loop run renders API runtime provenance witho
       provider: "acpmock",
       model: "frontend-model",
       reasoning: "high",
-      source: { provider: "default", model: "run", reasoning: "run" },
+      source: { provider: "default", model: "run", reasoning: "run", speed: "agent" },
+      speed: "normal",
+      speed_resolution: { requested: "normal", status: "applied" },
     },
     {
       provider: "acpmock",
       model: "docs-model",
       reasoning: "low",
-      source: { provider: "default", model: "frontmatter", reasoning: "default" },
+      source: {
+        provider: "default",
+        model: "frontmatter",
+        reasoning: "default",
+        speed: "agent",
+      },
+      speed: "normal",
+      speed_resolution: { requested: "normal", status: "applied" },
     },
   ]);
 
@@ -1114,31 +1146,13 @@ test("CompozyOS migration E2E-004: loop run renders API runtime provenance witho
     waitUntil: "domcontentloaded",
   });
   await expect(appPage.getByTestId("loop-run-detail-content")).toBeVisible();
-  await appPage.getByTestId("loop-run-open-inspect").click();
+  // The resolved-runtime rail was demoted in the two-register redesign and
+  // deleted with the rest of the cockpit; the provenance it showed is no longer
+  // a web surface. What still holds is that the run renders without offering a
+  // control over runtime selection.
+  await openRunRoster(appPage);
+  await expect(appPage.getByTestId("loop-node-roster")).toBeVisible();
 
-  const inspect = appPage.getByTestId("loop-run-inspect-sheet");
-  await expect(inspect).toBeVisible();
-  const runtimeRows = inspect.getByTestId("loop-run-resolved-runtime");
-  await expect(runtimeRows).toHaveCount(outputs.length);
-
-  for (const { runtime: applied } of outputs) {
-    if (!applied.model) throw new Error("API runtime output omitted model");
-    const row = runtimeRows.filter({ hasText: applied.model });
-    await expect(row).toHaveCount(1);
-    for (const field of ["provider", "model", "reasoning"] as const) {
-      const value = applied[field];
-      const source = applied.source[field];
-      if (!value || !source) {
-        throw new Error(`API runtime output omitted ${field} or its provenance`);
-      }
-      await expect(row).toContainText(value);
-      await expect(row).toContainText(runtimeSourceLabels[source] ?? source);
-    }
-  }
-
-  await expect(inspect.getByTestId("loop-run-resolved-runtimes").getByRole("button")).toHaveCount(
-    0
-  );
   await browserArtifacts.captureScreenshot("loop-run-runtime-provenance", appPage);
 });
 

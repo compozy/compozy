@@ -32,6 +32,19 @@ func WebTest() error {
 	return runCommandInDir(context.Background(), "web", "bun", "run", "test:raw")
 }
 
+// ExtensionSDKBuild prepares the SDK artifacts consumed by extension-authoring E2E fixtures.
+func ExtensionSDKBuild() error {
+	return runCommandInDir(
+		context.Background(),
+		".",
+		"bunx",
+		"turbo",
+		"run",
+		"build",
+		"--filter=@compozy/extension-react",
+	)
+}
+
 func WebBuild() error {
 	if err := runCommandInDir(
 		context.Background(),

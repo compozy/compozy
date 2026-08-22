@@ -6,9 +6,6 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { createMswFetch } from "@/test/msw-fetch";
 import { handlers } from "@/systems/loops/mocks";
 import {
-  mergeGoalTurnTimeline,
-  mergeGoalTurns,
-  useGoalTurns,
   useLoop,
   useLoopNodeInventory,
   useLoopAnnotations,
@@ -17,7 +14,6 @@ import {
   useLoopRuns,
   useLoops,
 } from "@/systems/loops";
-import type { GoalTurn, LoopGoalTurnLive } from "@/systems/loops";
 
 const WS = "ws_1";
 
@@ -25,36 +21,6 @@ function createWrapper() {
   const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   return ({ children }: { children: ReactNode }) =>
     createElement(QueryClientProvider, { client: queryClient }, children);
-}
-
-function goalTurn(overrides: Partial<GoalTurn> = {}): GoalTurn {
-  return {
-    actor_id: "implementer",
-    actor_kind: "agent",
-    binding_epoch: 1,
-    binding_handle: "goal:abc",
-    blocking_issues: [],
-    criteria: [],
-    ended_at: null,
-    evidence_ref: null,
-    generation: 1,
-    item_index: 0,
-    node_id: "goal",
-    prompt_attempt: 1,
-    prompt_id: "prompt_1",
-    prompt_ref: null,
-    reason_code: null,
-    result_status: null,
-    seq: 1,
-    session_id: "session_1",
-    started_at: "2026-07-10T12:00:00Z",
-    stop_reason: null,
-    tokens_used: null,
-    turn: 1,
-    verdict_outcome: null,
-    warnings: [],
-    ...overrides,
-  };
 }
 
 describe("loop read hooks", () => {
@@ -118,61 +84,6 @@ describe("loop read hooks", () => {
     );
     expect(run.result.current.data?.materialized_contract.goal).toContain("loops-catalog-api");
     expect(run.result.current.data?.materialized_contract.goal).not.toContain("{{");
-  });
-
-  it("Should fetch an empty Goal turn page through the run-scoped infinite query", async () => {
-    const turns = renderHook(() => useGoalTurns(WS, "looprun_running"), {
-      wrapper: createWrapper(),
-    });
-    await waitFor(() => expect(turns.result.current.isSuccess).toBe(true));
-    expect(turns.result.current.data?.turns).toEqual([]);
-    expect(turns.result.current.hasNextPage).toBe(false);
-  });
-
-  it("Should deduplicate persisted pages and let a completed live turn settle its open row", () => {
-    const open = goalTurn();
-    const completed = goalTurn({
-      result_status: "completed",
-      ended_at: "2026-07-10T12:01:00Z",
-      stop_reason: "end_turn",
-    });
-    expect(mergeGoalTurns([open], [completed])).toEqual([completed]);
-
-    const live: LoopGoalTurnLive = {
-      seq: 1,
-      generation: 1,
-      nodeId: "goal",
-      itemIndex: 0,
-      turn: 1,
-      promptAttempt: 1,
-      promptId: "prompt_1",
-      sessionId: "session_1",
-      bindingHandle: "goal:abc",
-      bindingEpoch: 1,
-      actorKind: "agent",
-      actorId: "implementer",
-      resultStatus: "completed",
-      stopReason: "end_turn",
-      reasonCode: null,
-      verdictOutcome: "approved",
-      blockingIssues: [],
-      criteria: [{ id: "done", type: "command", outcome: "approved", passed: true, exit_code: 0 }],
-      warnings: [{ code: "judge_note", message: "Fresh evidence accepted." }],
-      evidenceRef: "blob_1",
-      tokensUsed: 120,
-      startedAt: "2026-07-10T12:00:00Z",
-      endedAt: "2026-07-10T12:01:00Z",
-    };
-    expect(mergeGoalTurnTimeline([open], [live])).toEqual([
-      expect.objectContaining({
-        key: "goal:0:1:1:1:prompt_1",
-        resultStatus: "completed",
-        verdictOutcome: "approved",
-        criteria: [expect.objectContaining({ id: "done", passed: true })],
-        warnings: [{ code: "judge_note", message: "Fresh evidence accepted." }],
-        evidenceRef: "blob_1",
-      }),
-    ]);
   });
 
   it("Should stay idle when the workspace is not resolved yet", () => {

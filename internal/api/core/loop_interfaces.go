@@ -209,6 +209,13 @@ type LoopService interface {
 	) ([]contract.LoopRunEventPayload, error)
 }
 
+// LoopRunReadService is the computed read contract used by run-read routes.
+type LoopRunReadService interface {
+	GetLoopRunNodes(context.Context, string, string, looppkg.RosterQuery) (contract.LoopRunNodesResponse, error)
+	GetLoopRunBriefing(context.Context, string, string) (contract.LoopBriefingResponse, error)
+	GetLoopRunTimeline(context.Context, string, string, looppkg.TimelineQuery) (contract.LoopTimelineResponse, error)
+}
+
 // LoopRunListQuery contains HTTP/UDS list filters for loop runs.
 type LoopRunListQuery struct {
 	LoopName      string
@@ -216,6 +223,7 @@ type LoopRunListQuery struct {
 	Origin        string
 	OriginSession string
 	Live          *bool
+	Cursor        string
 	Limit         int
 }
 

@@ -22,7 +22,7 @@ func updateLoopBoundaryStatusWithExecutor(
 	at time.Time,
 	generation int,
 ) error {
-	return updateLoopBoundaryStatusWithEffects(
+	_, err := updateLoopBoundaryStatusWithEffects(
 		ctx,
 		exec,
 		current,
@@ -33,6 +33,7 @@ func updateLoopBoundaryStatusWithExecutor(
 		nil,
 		nil,
 	)
+	return err
 }
 
 func updateLoopBoundaryStatusWithFailure(
@@ -44,7 +45,7 @@ func updateLoopBoundaryStatusWithFailure(
 	at time.Time,
 	generation int,
 	failure *taskpkg.CoordinatorFailure,
-) error {
+) ([]taskpkg.StatusTransition, error) {
 	return updateLoopBoundaryStatusWithEffects(
 		ctx, exec, current, to, cause, at, generation, failure, nil,
 	)
@@ -60,61 +61,96 @@ func updateLoopBoundaryStatusWithEffects(
 	generation int,
 	failure *taskpkg.CoordinatorFailure,
 	effects []loop.RenderedEffectIntent,
-) error {
+) ([]taskpkg.StatusTransition, error) {
 	if current.Status == to {
-		return updateLoopGenerationWithExecutor(ctx, exec, string(current.ID), generation)
+		return nil, updateLoopGenerationWithExecutor(ctx, exec, string(current.ID), generation)
 	}
+	if err := validateLoopBoundaryTransition(to, cause); err != nil {
+		return nil, err
+	}
+	return transitionLoopBoundaryStatus(ctx, exec, current, to, cause, at, generation, failure, effects)
+}
+
+func validateLoopBoundaryTransition(to loop.Status, cause loop.TransitionCause) error {
 	if !to.Valid() {
 		return fmt.Errorf("%w: loop status is invalid: %q", loop.ErrValidation, to)
 	}
 	if strings.TrimSpace(string(cause)) == "" {
 		return fmt.Errorf("%w: transition cause is required", loop.ErrValidation)
 	}
-	completionPartial := int64(0)
-	if to.Terminal() {
-		if err := exec.QueryRowContext(ctx, `SELECT EXISTS(SELECT 1 FROM loop_generation_outputs
-			WHERE loop_run_id = ? AND generation = ? AND status = 'partial')`,
-			current.ID, generation).Scan(&completionPartial); err != nil {
-			return fmt.Errorf("store: inspect partial Loop completion: %w", err)
-		}
+	return nil
+}
+
+func transitionLoopBoundaryStatus(
+	ctx context.Context,
+	exec taskSQLExecutor,
+	current loop.Run,
+	to loop.Status,
+	cause loop.TransitionCause,
+	at time.Time,
+	generation int,
+	failure *taskpkg.CoordinatorFailure,
+	effects []loop.RenderedEffectIntent,
+) ([]taskpkg.StatusTransition, error) {
+	completionPartial, err := loopBoundaryCompletionPartial(ctx, exec, current.ID, generation, to.Terminal())
+	if err != nil {
+		return nil, err
 	}
-	affected, err := sqlcgen.New(exec).TransitionLoopCoordinatorBoundary(
-		ctx,
+	affected, err := sqlcgen.New(exec).TransitionLoopCoordinatorBoundary(ctx,
 		sqlcgen.TransitionLoopCoordinatorBoundaryParams{
 			ToStatus: string(to), Generation: int64(generation),
 			NeedsApprovalStatus: string(loop.StatusNeedsApproval), ID: string(current.ID),
-			FromStatus:        string(current.Status),
-			CompletionPartial: completionPartial,
-		},
-	)
+			FromStatus: string(current.Status), CompletionPartial: completionPartial,
+		})
 	if err != nil {
-		return fmt.Errorf(
-			"store: transition loop run %q at coordinator boundary: %w",
-			current.ID,
-			err,
-		)
+		return nil, fmt.Errorf("store: transition loop run %q at coordinator boundary: %w", current.ID, err)
 	}
 	if affected == 0 {
-		return fmt.Errorf(
-			"%w: run_id=%s from=%s to=%s",
-			loop.ErrTransitionConflict,
-			current.ID,
-			current.Status,
-			to,
+		return nil, fmt.Errorf(
+			"%w: run_id=%s from=%s to=%s", loop.ErrTransitionConflict, current.ID, current.Status, to,
 		)
 	}
-	return appendLoopRunStatusEventWithFailureAndEffects(
-		ctx,
-		exec,
-		current.ID,
-		current.WorkspaceID,
-		current.Status,
-		to,
-		cause,
-		failure,
-		effects,
-		at,
-	)
+	if err := appendLoopRunStatusEventWithFailureAndEffects(
+		ctx, exec, current.ID, current.WorkspaceID, current.Status, to, cause, failure, effects, at,
+	); err != nil {
+		return nil, err
+	}
+	if !to.Terminal() {
+		return nil, nil
+	}
+	records, err := listLoopSettlementRecords(ctx, exec, string(current.ID))
+	if err != nil {
+		return nil, err
+	}
+	terminalCause, err := terminalCauseForLoopStatus(to, cause)
+	if err != nil {
+		return nil, err
+	}
+	if _, err := settleLoopRunTerminalWithRecords(
+		ctx, exec, string(current.ID), terminalCause, records,
+	); err != nil {
+		return nil, err
+	}
+	return loopSettlementTransitionsForRecords(ctx, exec, records)
+}
+
+func loopBoundaryCompletionPartial(
+	ctx context.Context,
+	exec taskSQLExecutor,
+	runID loop.RunID,
+	generation int,
+	terminal bool,
+) (int64, error) {
+	if !terminal {
+		return 0, nil
+	}
+	var completionPartial int64
+	if err := exec.QueryRowContext(ctx, `SELECT EXISTS(SELECT 1 FROM loop_generation_outputs
+		WHERE loop_run_id = ? AND generation = ? AND status = 'partial')`,
+		runID, generation).Scan(&completionPartial); err != nil {
+		return 0, fmt.Errorf("store: inspect partial Loop completion: %w", err)
+	}
+	return completionPartial, nil
 }
 
 func updateLoopGenerationWithExecutor(

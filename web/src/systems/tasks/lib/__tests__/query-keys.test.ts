@@ -23,6 +23,8 @@ describe("tasksKeys", () => {
         status: "ready",
         priority: "high",
         include_drafts: true,
+        include_loop: true,
+        loop_run_id: "looprun-8f3ab2c1d4e5f607",
         approval_state: "pending",
         owner_kind: "human",
         owner_ref: "op",
@@ -44,6 +46,10 @@ describe("tasksKeys", () => {
       "ready",
       "high",
       "1",
+      // Reveal state is part of the key: a revealed list and a calm list are
+      // different populations with different facets and cursors.
+      "1",
+      "looprun-8f3ab2c1d4e5f607",
       "pending",
       "human",
       "op",
@@ -71,7 +77,15 @@ describe("tasksKeys", () => {
       "",
       "",
       "",
+      "",
+      "",
     ]);
+
+    // The calm default sends no include flag at all, so it must not collide
+    // with an explicit reveal.
+    expect(tasksKeys.list({ scope: "workspace" })).not.toEqual(
+      tasksKeys.list({ scope: "workspace", include_loop: true })
+    );
 
     expect(tasksKeys.list({ scope: "workspace", sort: "recent", cursor: "first" })).toEqual(
       tasksKeys.list({ scope: "workspace", sort: "recent", cursor: "second" })

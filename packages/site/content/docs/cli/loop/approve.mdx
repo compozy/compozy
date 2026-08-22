@@ -8,16 +8,15 @@ description: "Apply one Loop human-gate decision"
 Apply one Loop human-gate decision
 
 ```
-compozy loop approve [flags]
+compozy loop approve <run> [flags]
 ```
 
 ### Options
 
 ```
-      --decision string    Decision: approve, request_changes, or reject
-      --gate-id string     Gate node ID
+      --decision string    Decision: approve, request_changes, or reject (default "approve")
+      --gate string        Gate node ID
   -h, --help               help for approve
-      --run-id string      Loop run ID
       --workspace string   Override workspace (ID, name, or path)
 ```
 
@@ -42,5 +41,5 @@ The root `-o, --output` flag accepts these values. A renderer is supported only 
 Example:
 
 ```bash
-compozy loop approve -o json
+compozy loop approve <run> -o json
 ```

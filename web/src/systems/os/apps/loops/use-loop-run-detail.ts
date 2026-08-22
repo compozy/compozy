@@ -1,3 +1,4 @@
+import { useLoopRunEventsRead } from "@/systems/loops";
 import { useLoopNodeControls } from "./use-loop-node-controls";
 import { useLoopRunDetailDialogs, type LoopRunDetailDialogs } from "./use-loop-run-detail-dialogs";
 import { useLoopRunPage } from "./use-loop-run-page";
@@ -12,6 +13,7 @@ export interface UseLoopRunDetailResult {
   requests: ReturnType<typeof useLoopRunRequestsState>;
   timetravel: ReturnType<typeof useLoopRunTimetravel>;
   dialogs: LoopRunDetailDialogs;
+  events: ReturnType<typeof useLoopRunEventsRead>;
 }
 
 export function useLoopRunDetail(
@@ -41,6 +43,16 @@ export function useLoopRunDetail(
     handleCancel: page.handleCancel,
     handleKill: page.handleKill,
   });
+  // The Events lane's raw `view=all` read, started only once Inspect is open —
+  // which is the only place that lane exists. It is composed here rather than in
+  // `useLoopRunPage` because the disclosure state is owned by `dialogs`, and
+  // because the page hook must keep exactly one timeline read driving the stream
+  // seam. This one never touches `useLoopStream`.
+  const events = useLoopRunEventsRead(
+    workspaceId,
+    runId,
+    options.liveDataEnabled && dialogs.inspectOpen
+  );
 
-  return { page, nodeControls, requests, timetravel, dialogs };
+  return { page, nodeControls, requests, timetravel, dialogs, events };
 }

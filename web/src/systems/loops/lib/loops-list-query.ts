@@ -1,17 +1,12 @@
 import type { InfiniteData } from "@tanstack/react-query";
 
+import { normalizeOptionalText } from "../adapters/loops-api-errors";
 import type {
   LoopCatalogEntry,
   LoopCatalogFilter,
   LoopCatalogStableFilter,
   LoopsListResponse,
 } from "../types";
-
-function normalizeOptionalText(value?: string | null): string | undefined {
-  if (typeof value !== "string") return undefined;
-  const normalized = value.trim();
-  return normalized === "" ? undefined : normalized;
-}
 
 export function normalizeLoopCatalogFilter(
   filters: LoopCatalogStableFilter = {}

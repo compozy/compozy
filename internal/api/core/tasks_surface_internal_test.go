@@ -5,6 +5,7 @@ import (
 	"errors"
 	"net/http"
 	"net/http/httptest"
+	"reflect"
 	"strings"
 	"testing"
 
@@ -72,6 +73,60 @@ func TestExpandedTaskQueryParsingAndDomainConversion(t *testing.T) {
 			domainQuery.Search != "review" ||
 			domainQuery.Limit != 7 {
 			t.Fatalf("taskListDomainQuery() = %#v", domainQuery)
+		}
+	})
+
+	t.Run("Should map typed Loop visibility to neutral catalog filters", func(t *testing.T) {
+		t.Parallel()
+
+		handlers := newExpandedTaskHandlers(nil)
+		tests := []struct {
+			name          string
+			path          string
+			wantExcluded  bool
+			wantLoopRunID string
+		}{
+			{name: "Should exclude Loop records by default", path: "/tasks", wantExcluded: true},
+			{name: "Should include Loop records explicitly", path: "/tasks?include_loop=true"},
+			{
+				name: "Should imply inclusion from a Loop run filter", path: "/tasks?loop_run_id=looprun-alpha",
+				wantLoopRunID: "looprun-alpha",
+			},
+			{
+				name: "Should preserve explicit parent drilldown", path: "/tasks?parent_task_id=task-parent",
+			},
+		}
+		for _, tt := range tests {
+			t.Run(tt.name, func(t *testing.T) {
+				t.Parallel()
+
+				recorder := httptest.NewRecorder()
+				ginCtx, _ := gin.CreateTestContext(recorder)
+				ginCtx.Request = httptest.NewRequestWithContext(
+					context.Background(), http.MethodGet, tt.path, http.NoBody,
+				)
+				transportQuery, err := ParseTaskListQuery(ginCtx)
+				if err != nil {
+					t.Fatalf("ParseTaskListQuery() error = %v", err)
+				}
+				domainQuery, err := handlers.taskListDomainQuery(context.Background(), transportQuery)
+				if err != nil {
+					t.Fatalf("taskListDomainQuery() error = %v", err)
+				}
+				if domainQuery.LoopRunID != tt.wantLoopRunID {
+					t.Fatalf("LoopRunID = %q, want %q", domainQuery.LoopRunID, tt.wantLoopRunID)
+				}
+				if tt.wantExcluded {
+					want := []taskpkg.ActorRef{{
+						Kind: taskpkg.ActorKindDaemon, Ref: "loop-coordinator",
+					}}
+					if !reflect.DeepEqual(domainQuery.ExcludeCreatedBy, want) {
+						t.Fatalf("ExcludeCreatedBy = %#v, want %#v", domainQuery.ExcludeCreatedBy, want)
+					}
+				} else if len(domainQuery.ExcludeCreatedBy) != 0 {
+					t.Fatalf("ExcludeCreatedBy = %#v, want empty", domainQuery.ExcludeCreatedBy)
+				}
+			})
 		}
 	})
 

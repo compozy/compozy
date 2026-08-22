@@ -106,6 +106,7 @@ type TaskPayload struct {
 	UpdatedAt            time.Time               `json:"updated_at"`
 	ClosedAt             *time.Time              `json:"closed_at,omitempty"`
 	Metadata             json.RawMessage         `json:"metadata,omitempty"`
+	Loop                 *LoopProvenance         `json:"loop,omitempty"`
 }
 
 // TaskExecutionProfilePayload is the task-owned orchestration profile read model.
@@ -219,6 +220,7 @@ type TaskTimelineItemPayload struct {
 	Task      TaskReferencePayload   `json:"task"`
 	Run       *TaskRunSummaryPayload `json:"run,omitempty"`
 	EventType string                 `json:"event_type"`
+	Reason    string                 `json:"reason,omitempty"`
 	Actor     taskpkg.ActorIdentity  `json:"actor"`
 	Origin    taskpkg.Origin         `json:"origin"`
 	Payload   json.RawMessage        `json:"payload,omitempty"`

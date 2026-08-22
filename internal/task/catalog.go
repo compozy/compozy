@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"sort"
 	"strings"
 	"time"
 
@@ -66,6 +67,8 @@ type CatalogQuery struct {
 	ParentTaskID         string
 	WorktreeID           string
 	ParticipationChannel string
+	ExcludeCreatedBy     []ActorRef
+	LoopRunID            string
 	Search               string
 	Sort                 CatalogSort
 	Cursor               string
@@ -114,6 +117,8 @@ type catalogFingerprint struct {
 	ParentTaskID         string        `json:"parent_task_id"`
 	WorktreeID           string        `json:"worktree_id"`
 	ParticipationChannel string        `json:"participation_channel"`
+	ExcludeCreatedBy     []ActorRef    `json:"exclude_created_by"`
+	LoopRunID            string        `json:"loop_run_id"`
 	Search               string        `json:"q"`
 	Sort                 CatalogSort   `json:"sort"`
 }
@@ -130,6 +135,20 @@ type CatalogManager interface {
 
 // NormalizeCatalogQuery validates and canonicalizes one public task catalog request.
 func NormalizeCatalogQuery(query CatalogQuery) (CatalogQuery, error) {
+	query = normalizeCatalogQuery(query)
+
+	if err := validateCatalogQuery(query); err != nil {
+		return CatalogQuery{}, err
+	}
+	if query.Cursor != "" {
+		if _, err := DecodeCatalogCursor(query); err != nil {
+			return CatalogQuery{}, err
+		}
+	}
+	return query, nil
+}
+
+func normalizeCatalogQuery(query CatalogQuery) CatalogQuery {
 	query.Scope = query.Scope.Normalize()
 	if query.Scope == "" {
 		query.Scope = CatalogScopeAll
@@ -143,6 +162,8 @@ func NormalizeCatalogQuery(query CatalogQuery) (CatalogQuery, error) {
 	query.ParentTaskID = strings.TrimSpace(query.ParentTaskID)
 	query.WorktreeID = strings.TrimSpace(query.WorktreeID)
 	query.ParticipationChannel = strings.TrimSpace(query.ParticipationChannel)
+	query.ExcludeCreatedBy = normalizeCatalogActorRefs(query.ExcludeCreatedBy)
+	query.LoopRunID = strings.TrimSpace(query.LoopRunID)
 	query.Search = strings.ToLower(strings.TrimSpace(query.Search))
 	query.Sort = query.Sort.Normalize()
 	query.Cursor = strings.TrimSpace(query.Cursor)
@@ -152,19 +173,20 @@ func NormalizeCatalogQuery(query CatalogQuery) (CatalogQuery, error) {
 	if query.Limit == 0 {
 		query.Limit = DefaultCatalogLimit
 	}
-
-	if err := validateCatalogQuery(query); err != nil {
-		return CatalogQuery{}, err
-	}
-	if query.Cursor != "" {
-		if _, err := DecodeCatalogCursor(query); err != nil {
-			return CatalogQuery{}, err
-		}
-	}
-	return query, nil
+	return query
 }
 
 func validateCatalogQuery(query CatalogQuery) error {
+	if err := validateCatalogScope(query); err != nil {
+		return err
+	}
+	if err := validateCatalogFilters(query); err != nil {
+		return err
+	}
+	return validateCatalogPage(query)
+}
+
+func validateCatalogScope(query CatalogQuery) error {
 	switch query.Scope {
 	case CatalogScopeAll:
 	case CatalogScopeGlobal:
@@ -181,6 +203,10 @@ func validateCatalogQuery(query CatalogQuery) error {
 	if query.WorktreeID != "" && query.WorkspaceID == "" {
 		return fmt.Errorf("%w: task_catalog.workspace_id is required with worktree_id", ErrValidation)
 	}
+	return nil
+}
+
+func validateCatalogFilters(query CatalogQuery) error {
 	if query.Status != "" {
 		if err := query.Status.Validate("task_catalog.status"); err != nil {
 			return err
@@ -201,6 +227,17 @@ func validateCatalogQuery(query CatalogQuery) error {
 			return err
 		}
 	}
+	for index := range query.ExcludeCreatedBy {
+		if err := query.ExcludeCreatedBy[index].Validate(
+			fmt.Sprintf("task_catalog.exclude_created_by[%d]", index),
+		); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func validateCatalogPage(query CatalogQuery) error {
 	if query.Sort != CatalogSortRecent && query.Sort != CatalogSortPriority {
 		return fmt.Errorf("%w: task_catalog.sort has unsupported value %q", ErrValidation, query.Sort)
 	}
@@ -243,6 +280,7 @@ func EncodeCatalogCursor(query CatalogQuery, summary *Summary) (string, error) {
 
 // DecodeCatalogCursor verifies and decodes a query-bound task catalog cursor.
 func DecodeCatalogCursor(query CatalogQuery) (CatalogCursor, error) {
+	query = normalizeCatalogQuery(query)
 	fingerprint, err := taskCatalogFingerprint(query)
 	if err != nil {
 		return CatalogCursor{}, err
@@ -282,6 +320,8 @@ func taskCatalogFingerprint(query CatalogQuery) (string, error) {
 		ParentTaskID:         query.ParentTaskID,
 		WorktreeID:           query.WorktreeID,
 		ParticipationChannel: query.ParticipationChannel,
+		ExcludeCreatedBy:     query.ExcludeCreatedBy,
+		LoopRunID:            query.LoopRunID,
 		Search:               query.Search,
 		Sort:                 query.Sort,
 	})
@@ -289,6 +329,29 @@ func taskCatalogFingerprint(query CatalogQuery) (string, error) {
 		return "", fmt.Errorf("task: fingerprint catalog query: %w", err)
 	}
 	return fingerprint, nil
+}
+
+func normalizeCatalogActorRefs(refs []ActorRef) []ActorRef {
+	normalized := make([]ActorRef, 0, len(refs))
+	seen := make(map[ActorRef]struct{}, len(refs))
+	for _, ref := range refs {
+		candidate := ActorRef{Kind: ref.Kind.Normalize(), Ref: strings.TrimSpace(ref.Ref)}
+		if candidate.IsZero() {
+			continue
+		}
+		if _, exists := seen[candidate]; exists {
+			continue
+		}
+		seen[candidate] = struct{}{}
+		normalized = append(normalized, candidate)
+	}
+	sort.Slice(normalized, func(left int, right int) bool {
+		if normalized[left].Kind != normalized[right].Kind {
+			return normalized[left].Kind < normalized[right].Kind
+		}
+		return normalized[left].Ref < normalized[right].Ref
+	})
+	return normalized
 }
 
 // PriorityRank returns the canonical highest-first task priority rank.

@@ -1,0 +1,280 @@
+import type { ComponentProps, ReactNode } from "react";
+import { ArrowUpRight, CornerDownRight } from "lucide-react";
+import { Link } from "@tanstack/react-router";
+
+import {
+  Empty,
+  PillGroup,
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+  Time,
+  cn,
+} from "@compozy/ui";
+
+import { formatClockDuration } from "../../../lib/loop-run-usage";
+import type { LoopRosterRow, LoopRosterTableModel } from "../../../lib/loop-run-roster-table";
+import { formatTokenCount } from "../../../lib/loop-runs-view";
+import { LoopNodeStateChip } from "../loop-node-state-chip";
+import type { LoopRunRosterRead } from "../loop-run-page-body";
+
+/** Sentinel for the "every round" option; rounds themselves are numbers. */
+const ALL_ROUNDS = "all";
+
+interface LoopNodeRosterProps extends Omit<ComponentProps<"div">, "children" | "onSelect"> {
+  roster: LoopRosterTableModel;
+  /** The round in view; `null` is every round, and then the round is shown per row. */
+  round: number | null;
+  onRoundChange: (round: number | null) => void;
+  onSelect: (row: LoopRosterRow) => void;
+  selectedKey: string | null;
+  /** Daemon-authorized verbs for this exact round/item row. */
+  renderActions?: (row: LoopRosterRow) => ReactNode;
+  /** Whether the roster read has answered; absent means the caller cannot say. */
+  read?: LoopRunRosterRead;
+}
+
+/**
+ * The complete roster: every node of every round, healthy included.
+ *
+ * The duration cell carries a micro-bar scaled against the run's longest node,
+ * because "1m18s" tells you nothing about whether that is fast until you can see
+ * it beside its siblings. A node that never started shows no bar at all rather
+ * than an empty one, which would read as zero rather than as not-applicable.
+ */
+function LoopRosterDurationCell({ row }: { row: LoopRosterRow }) {
+  if (row.progressState === "unknown") {
+    // The step plainly ran; nothing about when survived. Saying "not started"
+    // here would be a back-filled guess about a step that did start.
+    return <span className="font-mono text-mono-id text-faint">unknown</span>;
+  }
+  if (row.progressState === "not-started" || row.durationMs === null) {
+    return <span className="font-mono text-mono-id text-faint">not started</span>;
+  }
+  const clock = formatClockDuration(row.durationMs / 1000);
+  return (
+    <span className="flex flex-col gap-1">
+      <span
+        aria-hidden="true"
+        className="h-1 w-full max-w-24 overflow-hidden rounded-pill bg-badge-fill"
+      >
+        <span
+          className={cn(
+            "block h-full rounded-pill",
+            row.chip.tone === "danger" ? "bg-danger" : "bg-success"
+          )}
+          style={{ width: `${Math.round((row.durationRatio ?? 0) * 100)}%` }}
+        />
+      </span>
+      <span className="font-mono text-mono-id text-subtle">
+        {/* A step that started and has not ended is running, and the clock is
+            how long it has been running — never "not started". */}
+        {row.progressState === "in-progress" ? `${clock} · in progress` : clock}
+      </span>
+    </span>
+  );
+}
+
+function LoopRosterUsageCell({ row }: { row: LoopRosterRow }) {
+  if (row.usageTokens === null || row.usageTokens === 0) {
+    return <span className="font-mono text-mono-id text-faint">—</span>;
+  }
+  return (
+    <span className="font-mono text-mono-id text-subtle">
+      {formatTokenCount(row.usageTokens)}
+      {row.usageCostLabel ? <span className="text-faint"> · {row.usageCostLabel}</span> : null}
+    </span>
+  );
+}
+
+export function LoopNodeRoster({
+  roster,
+  round,
+  onRoundChange,
+  onSelect,
+  selectedKey,
+  renderActions,
+  read,
+  className,
+  ...props
+}: LoopNodeRosterProps) {
+  if (roster.reachedNothing) {
+    // "No steps ran" is a statement about the run. Making it while the read is
+    // still in flight — or after it failed — says something about the daemon we
+    // have no evidence for, so those two get their own sentences.
+    if (read?.isError) {
+      return (
+        <Empty
+          data-testid="loop-node-roster-error"
+          description="This run's steps could not be read. The run itself is unaffected."
+          title="Steps unavailable"
+        />
+      );
+    }
+    if (read?.isLoading) {
+      return (
+        <Empty
+          data-testid="loop-node-roster-loading"
+          description="Reading this run's steps…"
+          title="Still reading"
+        />
+      );
+    }
+    return (
+      <Empty
+        data-testid="loop-node-roster-empty"
+        description="This run ended before it reached a single step, so there is nothing to list."
+        title="No steps ran"
+      />
+    );
+  }
+  // Under one round the round is a constant and repeating it is noise. Across
+  // rounds it is the only thing telling two rows of the same step apart.
+  const showsRound = round === null && roster.rounds.length > 1;
+  return (
+    <div className={cn(className)} data-testid="loop-node-roster" {...props}>
+      {roster.rounds.length > 1 ? (
+        <div className="flex items-center gap-2 border-b border-line-soft px-4 py-2.5">
+          <PillGroup
+            aria-label="Round"
+            data-testid="loop-node-roster-round-filter"
+            items={[
+              ...roster.rounds.map(entry => ({ value: String(entry), label: `Round ${entry}` })),
+              { value: ALL_ROUNDS, label: "All rounds" },
+            ]}
+            onChange={next => onRoundChange(next === ALL_ROUNDS ? null : Number(next))}
+            size="sm"
+            value={round === null ? ALL_ROUNDS : String(round)}
+          />
+        </div>
+      ) : null}
+      <Table>
+        <TableHeader>
+          <TableRow>
+            <TableHead>Step</TableHead>
+            {showsRound ? <TableHead>Round</TableHead> : null}
+            <TableHead>State</TableHead>
+            <TableHead>Attempt</TableHead>
+            <TableHead>Duration</TableHead>
+            {/* Labelled once, in the header, so no row has to carry "est." */}
+            <TableHead>Tokens · est. cost</TableHead>
+            <TableHead>Session</TableHead>
+            {renderActions ? <TableHead>Actions</TableHead> : null}
+          </TableRow>
+        </TableHeader>
+        <TableBody>
+          {roster.rows.map(row => (
+            <TableRow
+              className={cn(selectedKey === row.key && "bg-canvas-tint")}
+              data-generation={row.generation}
+              data-item-index={row.itemIndex}
+              data-node-id={row.nodeId}
+              data-selected={selectedKey === row.key ? "true" : undefined}
+              data-state={row.chip.state}
+              // Round, step and item: the same step id exists once per round and
+              // once per fan-out worker, so anything shorter names several rows.
+              data-testid={`loop-roster-row-${row.key}`}
+              key={row.key}
+              onClick={() => onSelect(row)}
+            >
+              <TableCell>
+                <span className={cn("flex min-w-0 items-center gap-1.5", row.isBranch && "pl-4")}>
+                  {row.isBranch ? (
+                    <CornerDownRight aria-hidden="true" className="size-3 shrink-0 text-faint" />
+                  ) : null}
+                  {/* The row is a selection control, so one real control has to
+                      carry it. A pointer-only `tr` leaves keyboard users with no
+                      way into the node panel and no way to perceive which row is
+                      open; `aria-pressed` states that, which `aria-selected`
+                      could not do inside a plain table. */}
+                  <button
+                    aria-pressed={selectedKey === row.key}
+                    className="min-w-0 truncate rounded-sm text-left text-small-body font-medium text-fg-strong focus-visible:shadow-focus-ring focus-visible:outline-none"
+                    onClick={event => {
+                      event.stopPropagation();
+                      onSelect(row);
+                    }}
+                    type="button"
+                  >
+                    {row.nodeId}
+                  </button>
+                </span>
+                {row.kindLabel ? (
+                  <span className="mt-0.5 block font-mono text-mono-id text-faint">
+                    {row.fanOutLabel ? `${row.kindLabel} · ${row.fanOutLabel}` : row.kindLabel}
+                  </span>
+                ) : null}
+                {/* Strategy-canceled and operator-canceled share the neutral
+                    ramp, so the state word alone cannot tell them apart. The
+                    cause and the actor belong on the row itself — a reader
+                    should not have to open a panel to learn who stopped a step
+                    (US-012.EC-2). */}
+                {row.cancellation ? (
+                  <span
+                    className="mt-0.5 block text-form-hint text-subtle"
+                    data-disposition={row.cancellation.disposition}
+                    data-testid={`loop-roster-cancellation-${row.key}`}
+                  >
+                    {[row.cancellation.label, row.cancellation.actorLabel, row.cancellation.cause]
+                      .filter(Boolean)
+                      .join(" · ")}
+                  </span>
+                ) : null}
+              </TableCell>
+              {showsRound ? (
+                <TableCell className="font-mono text-mono-id text-subtle">
+                  Round {row.generation}
+                </TableCell>
+              ) : null}
+              <TableCell>
+                <LoopNodeStateChip chip={row.chip} />
+              </TableCell>
+              <TableCell className="font-mono text-mono-id text-subtle">
+                {row.attemptLabel}
+                {row.nextRetryAt ? (
+                  <span className="text-faint">
+                    {" · next "}
+                    <Time iso={row.nextRetryAt} />
+                  </span>
+                ) : null}
+              </TableCell>
+              <TableCell>
+                <LoopRosterDurationCell row={row} />
+              </TableCell>
+              <TableCell>
+                <LoopRosterUsageCell row={row} />
+              </TableCell>
+              <TableCell>
+                {/* An arrowed "Open" that opens nothing is a promise the cell
+                    cannot keep — this one navigates, and stops the click short
+                    of the row so leaving is not also a selection. */}
+                {row.sessionId ? (
+                  <Link
+                    className="inline-flex items-center gap-1 text-form-hint text-subtle hover:text-fg-strong"
+                    data-testid={`loop-roster-session-${row.key}`}
+                    onClick={event => event.stopPropagation()}
+                    params={{ id: row.sessionId }}
+                    to="/session/$id"
+                  >
+                    Open
+                    <ArrowUpRight aria-hidden="true" className="size-3" />
+                  </Link>
+                ) : (
+                  <span className="font-mono text-mono-id text-faint">—</span>
+                )}
+              </TableCell>
+              {renderActions ? (
+                <TableCell onClick={event => event.stopPropagation()}>
+                  {renderActions(row)}
+                </TableCell>
+              ) : null}
+            </TableRow>
+          ))}
+        </TableBody>
+      </Table>
+    </div>
+  );
+}

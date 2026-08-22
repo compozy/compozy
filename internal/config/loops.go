@@ -20,13 +20,15 @@ const (
 	loopDefaultSilenceWindow        = "30m"
 	loopDefaultAdmissionInterval    = "60s"
 	loopDefaultTombstoneHorizon     = "168h"
+	loopDefaultReconcileInterval    = "1m"
 )
 
 // LoopsConfig holds global and workspace defaults used to seed new loop runs.
 type LoopsConfig struct {
-	Defaults LoopsDefaultsConfig `toml:"defaults"`
-	Breaker  LoopBreakerConfig   `toml:"breaker"`
-	Inputs   LoopInputDefaults   `toml:"inputs,omitempty"`
+	ReconcileInterval string              `toml:"reconcile_interval"`
+	Defaults          LoopsDefaultsConfig `toml:"defaults"`
+	Breaker           LoopBreakerConfig   `toml:"breaker"`
+	Inputs            LoopInputDefaults   `toml:"inputs,omitempty"`
 
 	inputSources LoopInputDefaultSources
 }
@@ -103,6 +105,7 @@ type LoopBudgetDefaultConfig struct {
 // DefaultLoopsConfig returns the TechSpec `[loops.defaults.*]` layer.
 func DefaultLoopsConfig() LoopsConfig {
 	return LoopsConfig{
+		ReconcileInterval: loopDefaultReconcileInterval,
 		Defaults: LoopsDefaultsConfig{
 			Delivery: LoopDefaultConfig{
 				IterationCap: 50,
@@ -160,6 +163,9 @@ func DefaultLoopsConfig() LoopsConfig {
 
 // Validate enforces write-time loop default bounds.
 func (c *LoopsConfig) Validate() error {
+	if _, err := parsePositiveLoopDuration("loops.reconcile_interval", c.ReconcileInterval, false); err != nil {
+		return ValidationError{Path: "loops.reconcile_interval", Message: "reconcile_interval must be positive"}
+	}
 	if err := c.Defaults.Validate("loops.defaults"); err != nil {
 		return err
 	}

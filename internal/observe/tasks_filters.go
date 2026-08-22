@@ -80,6 +80,31 @@ func filterTasksByOrigin(tasks []taskpkg.Summary, origin taskpkg.OriginKind) []t
 	return filtered
 }
 
+func filterTasksByCreatedBy(
+	tasks []taskpkg.Summary,
+	excluded []taskpkg.ActorRef,
+) []taskpkg.Summary {
+	if len(excluded) == 0 {
+		return tasks
+	}
+	filtered := make([]taskpkg.Summary, 0, len(tasks))
+	for index := range tasks {
+		item := tasks[index]
+		shouldExclude := false
+		for _, actor := range excluded {
+			if item.CreatedBy.Kind.Normalize() == actor.Kind.Normalize() &&
+				strings.TrimSpace(item.CreatedBy.Ref) == strings.TrimSpace(actor.Ref) {
+				shouldExclude = true
+				break
+			}
+		}
+		if !shouldExclude {
+			filtered = append(filtered, item)
+		}
+	}
+	return filtered
+}
+
 func filterTasksByWorktree(
 	tasks []taskpkg.Summary,
 	runs []taskpkg.Run,

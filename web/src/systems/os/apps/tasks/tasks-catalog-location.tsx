@@ -1,7 +1,7 @@
 import { Link, useNavigate } from "@tanstack/react-router";
 import { AlertCircle, ListChecks, Plus } from "lucide-react";
 
-import { BlockLoading, Button, Empty, RouteNav, useTopbarSlot } from "@compozy/ui";
+import { BlockLoading, Button, Empty, ListingPage, RouteNav, useTopbarSlot } from "@compozy/ui";
 
 import { useOsShell } from "../../hooks/use-os-shell";
 import { useCurrentWindowLiveDataEnabled } from "../../hooks/use-window-live-data-enabled";
@@ -108,12 +108,14 @@ export function TasksCatalogLocation({ search }: { search: TasksRouteSearch }) {
           <TasksListToolbar
             onOwnerChange={page.handleOwnerChange}
             onPriorityChange={page.handlePriorityChange}
+            onRecordsFilterChange={page.handleRecordsFilterChange}
             onSearchQueryChange={page.setSearchQuery}
             onSortChange={page.handleSortChange}
             onStatusChange={page.handleStatusChange}
             ownerFilter={page.ownerFilter}
             ownerOptions={page.ownerOptions}
             priorityFilter={page.priorityFilter}
+            recordsFilter={page.recordsFilter}
             searchQuery={page.searchQuery}
             sortBy={page.sortBy}
             statusFilter={page.statusFilter}
@@ -200,7 +202,9 @@ export function TasksCatalogLocation({ search }: { search: TasksRouteSearch }) {
           pendingRetryIds={page.pendingRetryIds}
         />
       ) : page.isEmpty ? (
-        <TasksEmptyState onSelectTemplate={openCreate} workspaceName={page.activeWorkspaceName} />
+        <ListingPage data-testid="tasks-list-surface">
+          <TasksEmptyState onSelectTemplate={openCreate} workspaceName={page.activeWorkspaceName} />
+        </ListingPage>
       ) : mode === "kanban" ? (
         <TasksKanbanBoard
           columns={page.kanbanColumns}
@@ -232,9 +236,12 @@ export function TasksCatalogLocation({ search }: { search: TasksRouteSearch }) {
           isLoadingMore={page.isLoadingMoreTasks}
           onLoadMore={page.loadMoreTasks}
           onRetryLoad={page.retryTasks}
+          onOpenLoopRun={() => page.handleRecordsFilterChange("work")}
+          onShowWorkItems={() => page.handleRecordsFilterChange("work")}
+          recordsFilter={page.recordsFilter}
           searchQuery={page.searchQuery}
           statusCounts={page.statusCounts}
-          taskTree={page.taskTree}
+          tasks={page.visibleTasks}
         />
       )}
     </div>

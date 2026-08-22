@@ -7,6 +7,14 @@ import (
 	"time"
 )
 
+type NetworkConversationSurface string
+
+type NetworkCoordinationCostPayload struct {
+	DeliveredCount        int64 `json:"delivered_count,omitempty"`
+	PromptSizeBytes       int64 `json:"prompt_size_bytes,omitempty"`
+	EstimatedPromptTokens int64 `json:"estimated_prompt_tokens,omitempty"`
+}
+
 type NetworkDirectMessagesParams struct {
 	WorkspaceID string `json:"workspace_id"`
 	Channel     string `json:"channel"`
@@ -259,43 +267,4 @@ type NetworkSendParams struct {
 	ExpiresAt   *int64                     `json:"expires_at,omitempty"`
 	ID          string                     `json:"id,omitempty"`
 	Ext         map[string]json.RawMessage `json:"ext,omitempty"`
-}
-
-type NetworkSendPayload struct {
-	ID          string                     `json:"id"`
-	WorkspaceID string                     `json:"workspace_id,omitempty"`
-	SessionID   string                     `json:"session_id"`
-	Channel     string                     `json:"channel"`
-	Surface     string                     `json:"surface,omitempty"`
-	ThreadID    string                     `json:"thread_id,omitempty"`
-	DirectID    string                     `json:"direct_id,omitempty"`
-	Kind        string                     `json:"kind"`
-	To          string                     `json:"to,omitempty"`
-	Mentions    []string                   `json:"mentions,omitempty"`
-	WorkID      string                     `json:"work_id,omitempty"`
-	ReplyTo     string                     `json:"reply_to,omitempty"`
-	TraceID     string                     `json:"trace_id,omitempty"`
-	CausationID string                     `json:"causation_id,omitempty"`
-	ExpiresAt   *int64                     `json:"expires_at,omitempty"`
-	Ext         map[string]json.RawMessage `json:"ext,omitempty"`
-}
-
-type NetworkStatusPayload struct {
-	Enabled              bool                       `json:"enabled"`
-	Status               string                     `json:"status"`
-	LocalPeers           int                        `json:"local_peers"`
-	Channels             int                        `json:"channels"`
-	MessagesSent         int64                      `json:"messages_sent"`
-	MessagesReceived     int64                      `json:"messages_received"`
-	MessagesRejected     int64                      `json:"messages_rejected"`
-	MessagesDelivered    int64                      `json:"messages_delivered"`
-	WorkflowTaggedEvents int64                      `json:"workflow_tagged_events"`
-	HandoffTaggedEvents  int64                      `json:"handoff_tagged_events"`
-	OpenThreads          int64                      `json:"open_threads"`
-	OpenDirectRooms      int64                      `json:"open_direct_rooms"`
-	OpenWorkItems        int64                      `json:"open_work_items"`
-	ConversationMessages int64                      `json:"conversation_messages"`
-	WorkTransitions      int64                      `json:"work_transitions"`
-	DirectResolves       int64                      `json:"direct_resolves"`
-	KindMetrics          []NetworkKindMetricPayload `json:"kind_metrics"`
 }

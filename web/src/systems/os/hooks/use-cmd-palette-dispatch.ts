@@ -63,6 +63,8 @@ export interface CmdPaletteRunOptions {
   readonly query?: string;
   /** Set once the operator cleared the command's declared confirmation. */
   readonly confirmed?: boolean;
+  /** Overrides only this command's navigation destination after the seam's gates pass. */
+  readonly navigate?: (app: OsAppId, route: OsWindowRoute | null) => void;
 }
 
 export interface CmdPaletteDispatch {
@@ -129,10 +131,15 @@ export function useCmdPaletteDispatch({
     command: ResolvedPaletteCommand,
     options: CmdPaletteRunOptions = {}
   ): Promise<PaletteDispatchOutcome> => {
-    const { args, query = "", confirmed = false } = options;
+    const { args, query = "", confirmed = false, navigate: navigateOverride } = options;
     // A retry re-enters the seam from the top, so a command that declares a
     // confirmation asks again rather than firing straight off a toast button.
-    const retry = () => void runCommand(command, { ...(args ? { args } : {}), query });
+    const retry = () =>
+      void runCommand(command, {
+        ...(args ? { args } : {}),
+        query,
+        ...(navigateOverride ? { navigate: navigateOverride } : {}),
+      });
     return dispatchPaletteCommand({
       command,
       ...(args ? { args } : {}),
@@ -156,7 +163,13 @@ export function useCmdPaletteDispatch({
           invalidateRankSignals();
           return result;
         },
-        navigate,
+        navigate: (app, pathname) => {
+          if (navigateOverride === undefined) {
+            navigate(app, pathname);
+            return;
+          }
+          navigateOverride(app as OsAppId, pathname === null ? null : { pathname, search: {} });
+        },
         pushView: viewId => shell.openPaletteView(viewId),
         openUrl: openExternalUrl,
         copyToClipboard: writePaletteClipboard,

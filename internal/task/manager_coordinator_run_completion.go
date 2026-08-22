@@ -46,5 +46,11 @@ func coordinatorPublicationEventCount(plan CoordinatorCompletionPlan) int {
 	if plan.NextCoordinator != nil {
 		count++
 	}
+	if plan.GenerationInFlight && len(plan.PostCommitWakes) == 0 {
+		// The store may append one reconciliation wake when progress landed while
+		// this coordinator was running. Its publication identity must be reserved
+		// before the completion transaction starts, just like authored node runs.
+		count++
+	}
 	return count
 }

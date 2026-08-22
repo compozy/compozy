@@ -60,6 +60,9 @@ func registerLoopRoutes(api gin.IRouter, handlers *Handlers) {
 	{
 		runs.GET("", handlers.ListLoopRuns)
 		runs.GET("/:run_id", handlers.GetLoopRun)
+		runs.GET("/:run_id/nodes", handlers.GetLoopRunNodes)
+		runs.GET("/:run_id/briefing", handlers.GetLoopRunBriefing)
+		runs.GET("/:run_id/timeline", handlers.GetLoopRunTimeline)
 		runs.GET("/:run_id/diff", handlers.DiffLoopRun)
 		runs.POST("/:run_id/rerun", handlers.RerunLoopRun)
 		runs.POST("/:run_id/fork", handlers.ForkLoopRun)

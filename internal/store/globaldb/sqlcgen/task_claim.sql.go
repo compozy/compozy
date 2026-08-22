@@ -251,7 +251,7 @@ SET status = ?1, claimed_by_kind = NULL, claimed_by_ref = NULL,
     heartbeat_at = NULL, ended_at = ?2, error = ?3, result_json = NULL
 WHERE id = ?4
   AND status = ?5
-  AND COALESCE(session_id, '') = ?6
+  AND COALESCE(session_id, '') = COALESCE(?6, '')
   AND claim_token_hash = ?7
   AND lease_until = ?8
 `
@@ -513,7 +513,7 @@ SET status = ?1, claimed_by_kind = NULL, claimed_by_ref = NULL, session_id = NUL
     recovery_count = recovery_count + ?2
 WHERE id = ?3
   AND status = ?4
-  AND COALESCE(session_id, '') = ?5
+  AND COALESCE(session_id, '') = COALESCE(?5, '')
   AND claim_token_hash = ?6
   AND lease_until = ?7
 `

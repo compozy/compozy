@@ -5122,6 +5122,23 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
+  "/api/workspaces/{workspace_id}/loop-runs/{run_id}/briefing": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** Explain the current Loop run state */
+    get: operations["getLoopRunBriefing"];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
   "/api/workspaces/{workspace_id}/loop-runs/{run_id}/cancel": {
     parameters: {
       query?: never;
@@ -5201,6 +5218,23 @@ export interface paths {
     put?: never;
     /** Kill one Loop run */
     post: operations["killLoopRun"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/workspaces/{workspace_id}/loop-runs/{run_id}/nodes": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** Get the computed Loop run node roster */
+    get: operations["getLoopRunNodes"];
+    put?: never;
+    post?: never;
     delete?: never;
     options?: never;
     head?: never;
@@ -5388,6 +5422,23 @@ export interface paths {
     put?: never;
     /** Resume one Loop run */
     post: operations["resumeLoopRun"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/workspaces/{workspace_id}/loop-runs/{run_id}/timeline": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** Read the durable Loop run timeline */
+    get: operations["getLoopRunTimeline"];
+    put?: never;
+    post?: never;
     delete?: never;
     options?: never;
     head?: never;
@@ -11459,6 +11510,7 @@ export interface operations {
                       ref: string;
                     };
                     payload?: unknown;
+                    reason?: string;
                     run?: {
                       attempt: number;
                       claim_token_hash?: string;
@@ -72465,6 +72517,10 @@ export interface operations {
         priority?: "low" | "medium" | "high" | "urgent";
         /** @description Include draft tasks in list results */
         include_drafts?: boolean;
+        /** @description Include Loop execution records; omitted means false */
+        include_loop?: boolean;
+        /** @description Filter by Loop run ID; also includes Loop execution records */
+        loop_run_id?: string;
         /** @description Filter by task approval state */
         approval_state?: "not_required" | "pending" | "approved" | "rejected";
         /** @description Filter by owner kind */
@@ -72667,6 +72723,15 @@ export interface operations {
               last_activity_at?: string | null;
               /** Format: int64 */
               latest_event_seq: number;
+              loop?: {
+                generation?: number | null;
+                item_index?: number | null;
+                loop_name?: string;
+                node_id?: string;
+                /** @enum {string} */
+                role: "coordinator" | "cell";
+                run_id: string;
+              } | null;
               max_attempts?: number;
               needs_attention?: boolean;
               /** Format: date-time */
@@ -72806,6 +72871,7 @@ export interface operations {
               title: string;
             } | null;
             error: string;
+            field: string;
           };
         };
       };
@@ -73069,6 +73135,15 @@ export interface operations {
               identifier?: string;
               /** Format: int64 */
               latest_event_seq: number;
+              loop?: {
+                generation?: number | null;
+                item_index?: number | null;
+                loop_name?: string;
+                node_id?: string;
+                /** @enum {string} */
+                role: "coordinator" | "cell";
+                run_id: string;
+              } | null;
               max_attempts?: number;
               metadata?: unknown;
               needs_attention?: boolean;
@@ -74303,6 +74378,15 @@ export interface operations {
                 identifier?: string;
                 /** Format: int64 */
                 latest_event_seq: number;
+                loop?: {
+                  generation?: number | null;
+                  item_index?: number | null;
+                  loop_name?: string;
+                  node_id?: string;
+                  /** @enum {string} */
+                  role: "coordinator" | "cell";
+                  run_id: string;
+                } | null;
                 max_attempts?: number;
                 metadata?: unknown;
                 needs_attention?: boolean;
@@ -74818,6 +74902,15 @@ export interface operations {
               identifier?: string;
               /** Format: int64 */
               latest_event_seq: number;
+              loop?: {
+                generation?: number | null;
+                item_index?: number | null;
+                loop_name?: string;
+                node_id?: string;
+                /** @enum {string} */
+                role: "coordinator" | "cell";
+                run_id: string;
+              } | null;
               max_attempts?: number;
               metadata?: unknown;
               needs_attention?: boolean;
@@ -75348,6 +75441,15 @@ export interface operations {
               identifier?: string;
               /** Format: int64 */
               latest_event_seq: number;
+              loop?: {
+                generation?: number | null;
+                item_index?: number | null;
+                loop_name?: string;
+                node_id?: string;
+                /** @enum {string} */
+                role: "coordinator" | "cell";
+                run_id: string;
+              } | null;
               max_attempts?: number;
               metadata?: unknown;
               needs_attention?: boolean;
@@ -76327,6 +76429,15 @@ export interface operations {
               identifier?: string;
               /** Format: int64 */
               latest_event_seq: number;
+              loop?: {
+                generation?: number | null;
+                item_index?: number | null;
+                loop_name?: string;
+                node_id?: string;
+                /** @enum {string} */
+                role: "coordinator" | "cell";
+                run_id: string;
+              } | null;
               max_attempts?: number;
               metadata?: unknown;
               needs_attention?: boolean;
@@ -76739,6 +76850,15 @@ export interface operations {
               identifier?: string;
               /** Format: int64 */
               latest_event_seq: number;
+              loop?: {
+                generation?: number | null;
+                item_index?: number | null;
+                loop_name?: string;
+                node_id?: string;
+                /** @enum {string} */
+                role: "coordinator" | "cell";
+                run_id: string;
+              } | null;
               max_attempts?: number;
               metadata?: unknown;
               needs_attention?: boolean;
@@ -77982,6 +78102,15 @@ export interface operations {
                 identifier?: string;
                 /** Format: int64 */
                 latest_event_seq: number;
+                loop?: {
+                  generation?: number | null;
+                  item_index?: number | null;
+                  loop_name?: string;
+                  node_id?: string;
+                  /** @enum {string} */
+                  role: "coordinator" | "cell";
+                  run_id: string;
+                } | null;
                 max_attempts?: number;
                 metadata?: unknown;
                 needs_attention?: boolean;
@@ -79190,6 +79319,15 @@ export interface operations {
                 identifier?: string;
                 /** Format: int64 */
                 latest_event_seq: number;
+                loop?: {
+                  generation?: number | null;
+                  item_index?: number | null;
+                  loop_name?: string;
+                  node_id?: string;
+                  /** @enum {string} */
+                  role: "coordinator" | "cell";
+                  run_id: string;
+                } | null;
                 max_attempts?: number;
                 metadata?: unknown;
                 needs_attention?: boolean;
@@ -81864,6 +82002,15 @@ export interface operations {
               identifier?: string;
               /** Format: int64 */
               latest_event_seq: number;
+              loop?: {
+                generation?: number | null;
+                item_index?: number | null;
+                loop_name?: string;
+                node_id?: string;
+                /** @enum {string} */
+                role: "coordinator" | "cell";
+                run_id: string;
+              } | null;
               max_attempts?: number;
               metadata?: unknown;
               needs_attention?: boolean;
@@ -82452,6 +82599,15 @@ export interface operations {
               identifier?: string;
               /** Format: int64 */
               latest_event_seq: number;
+              loop?: {
+                generation?: number | null;
+                item_index?: number | null;
+                loop_name?: string;
+                node_id?: string;
+                /** @enum {string} */
+                role: "coordinator" | "cell";
+                run_id: string;
+              } | null;
               max_attempts?: number;
               metadata?: unknown;
               needs_attention?: boolean;
@@ -82784,6 +82940,15 @@ export interface operations {
               identifier?: string;
               /** Format: int64 */
               latest_event_seq: number;
+              loop?: {
+                generation?: number | null;
+                item_index?: number | null;
+                loop_name?: string;
+                node_id?: string;
+                /** @enum {string} */
+                role: "coordinator" | "cell";
+                run_id: string;
+              } | null;
               max_attempts?: number;
               metadata?: unknown;
               needs_attention?: boolean;
@@ -83109,6 +83274,15 @@ export interface operations {
               identifier?: string;
               /** Format: int64 */
               latest_event_seq: number;
+              loop?: {
+                generation?: number | null;
+                item_index?: number | null;
+                loop_name?: string;
+                node_id?: string;
+                /** @enum {string} */
+                role: "coordinator" | "cell";
+                run_id: string;
+              } | null;
               max_attempts?: number;
               metadata?: unknown;
               needs_attention?: boolean;
@@ -83441,6 +83615,15 @@ export interface operations {
               identifier?: string;
               /** Format: int64 */
               latest_event_seq: number;
+              loop?: {
+                generation?: number | null;
+                item_index?: number | null;
+                loop_name?: string;
+                node_id?: string;
+                /** @enum {string} */
+                role: "coordinator" | "cell";
+                run_id: string;
+              } | null;
               max_attempts?: number;
               metadata?: unknown;
               needs_attention?: boolean;
@@ -85286,6 +85469,15 @@ export interface operations {
               identifier?: string;
               /** Format: int64 */
               latest_event_seq: number;
+              loop?: {
+                generation?: number | null;
+                item_index?: number | null;
+                loop_name?: string;
+                node_id?: string;
+                /** @enum {string} */
+                role: "coordinator" | "cell";
+                run_id: string;
+              } | null;
               max_attempts?: number;
               metadata?: unknown;
               needs_attention?: boolean;
@@ -85606,6 +85798,7 @@ export interface operations {
                 ref: string;
               };
               payload?: unknown;
+              reason?: string;
               run?: {
                 attempt: number;
                 claim_token_hash?: string;
@@ -85944,6 +86137,7 @@ export interface operations {
                 ref: string;
               };
               payload?: unknown;
+              reason?: string;
               run?: {
                 attempt: number;
                 claim_token_hash?: string;
@@ -97362,6 +97556,8 @@ export interface operations {
         origin_session?: string;
         /** @description Filter by live or terminal status */
         live?: boolean;
+        /** @description Opaque server-order cursor */
+        cursor?: string;
         /** @description Maximum number of records to return */
         limit?: number;
       };
@@ -97388,8 +97584,15 @@ export interface operations {
               terminal: number;
               total: number;
             };
+            next_cursor?: string;
             runs: {
               active_gate_id?: string;
+              attention?: {
+                count: number;
+                kind: string;
+                /** Format: date-time */
+                since: string;
+              } | null;
               /** Format: int64 */
               best_generation?: number | null;
               /** Format: double */
@@ -97427,6 +97630,11 @@ export interface operations {
               loop_name: string;
               parent_loop_run_id?: string;
               pause_requested: boolean;
+              progress: {
+                round: number;
+                steps_done: number;
+                steps_total: number;
+              };
               /** @enum {string} */
               reattempt_strategy: "failed_only" | "full_body";
               resolved_network_participation:
@@ -98628,6 +98836,12 @@ export interface operations {
             }[];
             run: {
               active_gate_id?: string;
+              attention?: {
+                count: number;
+                kind: string;
+                /** Format: date-time */
+                since: string;
+              } | null;
               /** Format: int64 */
               best_generation?: number | null;
               /** Format: double */
@@ -98665,6 +98879,11 @@ export interface operations {
               loop_name: string;
               parent_loop_run_id?: string;
               pause_requested: boolean;
+              progress: {
+                round: number;
+                steps_done: number;
+                steps_total: number;
+              };
               /** @enum {string} */
               reattempt_strategy: "failed_only" | "full_body";
               resolved_network_participation:
@@ -99044,6 +99263,164 @@ export interface operations {
       };
       /** @description Loop operation rejected */
       422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+      /** @description Internal server error */
+      500: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+      /** @description Loop service is not configured */
+      503: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+    };
+  };
+  getLoopRunBriefing: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        /** @description Workspace id */
+        workspace_id: string;
+        /** @description Loop run id */
+        run_id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description OK */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            artifacts: {
+              availability: string;
+              name: string;
+              output?: string;
+              ref?: string;
+            }[];
+            blockers: {
+              expired?: boolean;
+              /** Format: date-time */
+              expires_at?: string | null;
+              gate_id?: string;
+              item_index?: number;
+              kind: string;
+              node_id?: string;
+              unblocker: string;
+              /** Format: date-time */
+              waiting_since: string;
+            }[];
+            detail?: string;
+            headline: string;
+            outcome?: {
+              actor_kind?: string;
+              actor_ref?: string;
+              /** Format: date-time */
+              at: string;
+              cause: string;
+              status: string;
+            } | null;
+            progress: {
+              round: number;
+              steps_done: number;
+              steps_total: number;
+            };
+            run_id: string;
+            status: string;
+            tone: string;
+            usage: {
+              /** Format: double */
+              budget_used_pct?: number;
+              /** Format: double */
+              cost_usd?: number;
+              duration?: string;
+              /** Format: int64 */
+              tokens: number;
+            };
+          };
+        };
+      };
+      /** @description Loop run not found */
+      404: {
         headers: {
           [name: string]: unknown;
         };
@@ -99968,6 +100345,12 @@ export interface operations {
             replayed?: boolean;
             run: {
               active_gate_id?: string;
+              attention?: {
+                count: number;
+                kind: string;
+                /** Format: date-time */
+                since: string;
+              } | null;
               /** Format: int64 */
               best_generation?: number | null;
               /** Format: double */
@@ -100005,6 +100388,11 @@ export interface operations {
               loop_name: string;
               parent_loop_run_id?: string;
               pause_requested: boolean;
+              progress: {
+                round: number;
+                steps_done: number;
+                steps_total: number;
+              };
               /** @enum {string} */
               reattempt_strategy: "failed_only" | "full_body";
               resolved_network_participation:
@@ -100453,6 +100841,215 @@ export interface operations {
       };
       /** @description Loop operation rejected */
       422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+      /** @description Internal server error */
+      500: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+      /** @description Loop service is not configured */
+      503: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+    };
+  };
+  getLoopRunNodes: {
+    parameters: {
+      query?: {
+        /** @description Filter by roster state */
+        state?:
+          | "all"
+          | "running"
+          | "queued"
+          | "waiting"
+          | "retrying"
+          | "paused"
+          | "quarantined"
+          | "succeeded"
+          | "failed"
+          | "canceled"
+          | "not_taken";
+        /** @description Filter by generation */
+        generation?: number;
+        /** @description Opaque roster cursor */
+        cursor?: string;
+        /** @description Maximum rows to return */
+        limit?: number;
+      };
+      header?: never;
+      path: {
+        /** @description Workspace id */
+        workspace_id: string;
+        /** @description Loop run id */
+        run_id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description OK */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            fanout_rollups: {
+              done: number;
+              failed: number;
+              generation: number;
+              node_id: string;
+              total: number;
+            }[];
+            loop_name: string;
+            next_cursor?: string;
+            nodes: {
+              attempt: number;
+              attempts: {
+                attempt: number;
+                disposition: string;
+                /** Format: date-time */
+                ended_at?: string | null;
+                failure_class?: string;
+                /** Format: date-time */
+                started_at: string;
+                state: string;
+              }[];
+              cancellation?: {
+                actor_kind?: string;
+                actor_ref?: string;
+                cause?: string;
+                disposition: string;
+              } | null;
+              cell_task_id?: string;
+              child_loop_run_id?: string;
+              /** Format: date-time */
+              ended_at?: string | null;
+              generation: number;
+              item_index: number;
+              /** Format: date-time */
+              next_retry_at?: string | null;
+              node_id: string;
+              session_id?: string;
+              /** Format: date-time */
+              started_at?: string | null;
+              state: string;
+              usage?: {
+                /** Format: int64 */
+                tokens: number;
+              } | null;
+            }[];
+            run_id: string;
+            run_status: string;
+          };
+        };
+      };
+      /** @description Invalid Loop request */
+      400: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+      /** @description Loop run not found */
+      404: {
         headers: {
           [name: string]: unknown;
         };
@@ -103124,6 +103721,244 @@ export interface operations {
       };
       /** @description Loop operation rejected */
       422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+      /** @description Internal server error */
+      500: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+      /** @description Loop service is not configured */
+      503: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+    };
+  };
+  getLoopRunTimeline: {
+    parameters: {
+      query?: {
+        /** @description Timeline view: notable or all */
+        view?: "notable" | "all";
+        /** @description Opaque snapshot-fenced cursor */
+        cursor?: string;
+        /** @description Maximum entries to return */
+        limit?: number;
+        /** @description Return entries after this per-run sequence */
+        after_sequence?: number;
+      };
+      header?: never;
+      path: {
+        /** @description Workspace id */
+        workspace_id: string;
+        /** @description Loop run id */
+        run_id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description OK */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            entries: {
+              /** Format: date-time */
+              at: string;
+              attempt?: number;
+              /** Format: int64 */
+              first_seq?: number;
+              /** Format: int64 */
+              generation?: number;
+              /** @enum {string} */
+              kind:
+                | "node_running"
+                | "node_succeeded"
+                | "node_failed"
+                | "gate_verdict"
+                | "generation_started"
+                | "channel_msg"
+                | "token_tick"
+                | "needs_approval"
+                | "status_changed"
+                | "goal_turn_started"
+                | "goal_turn_completed"
+                | "goal_status_changed"
+                | "runtime_applied"
+                | "predicate_diagnostic"
+                | "route_taken"
+                | "node_retry_scheduled"
+                | "node_paused"
+                | "node_resumed"
+                | "node_canceled"
+                | "node_killed"
+                | "node_quarantined"
+                | "node_requeued"
+                | "node_wait_started"
+                | "node_wait_resumed"
+                | "node_attention_flagged"
+                | "node_attention_cleared"
+                | "effect_results"
+                | "custom_event"
+                | "duplicate_suppressed"
+                | "target_breaker_transition"
+                | "stale_schedule_dropped"
+                | "late_arrival"
+                | "request_opened"
+                | "request_answered"
+                | "request_expired"
+                | "request_canceled"
+                | "node_amended"
+                | "branch_pruned"
+                | "run_forked";
+              node_id?: string;
+              /** Format: int64 */
+              seq: number;
+              title: string;
+            }[];
+            /** Format: int64 */
+            head_seq: number;
+            next_cursor?: string;
+            run_id: string;
+          };
+        };
+      };
+      /** @description Invalid Loop request */
+      400: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+      /** @description Loop run not found */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+      /** @description Loop conflict */
+      409: {
         headers: {
           [name: string]: unknown;
         };
@@ -110483,6 +111318,12 @@ export interface operations {
             } | null;
             run?: {
               active_gate_id?: string;
+              attention?: {
+                count: number;
+                kind: string;
+                /** Format: date-time */
+                since: string;
+              } | null;
               /** Format: int64 */
               best_generation?: number | null;
               /** Format: double */
@@ -110520,6 +111361,11 @@ export interface operations {
               loop_name: string;
               parent_loop_run_id?: string;
               pause_requested: boolean;
+              progress: {
+                round: number;
+                steps_done: number;
+                steps_total: number;
+              };
               /** @enum {string} */
               reattempt_strategy: "failed_only" | "full_body";
               resolved_network_participation:
@@ -111123,6 +111969,12 @@ export interface operations {
             } | null;
             run?: {
               active_gate_id?: string;
+              attention?: {
+                count: number;
+                kind: string;
+                /** Format: date-time */
+                since: string;
+              } | null;
               /** Format: int64 */
               best_generation?: number | null;
               /** Format: double */
@@ -111160,6 +112012,11 @@ export interface operations {
               loop_name: string;
               parent_loop_run_id?: string;
               pause_requested: boolean;
+              progress: {
+                round: number;
+                steps_done: number;
+                steps_total: number;
+              };
               /** @enum {string} */
               reattempt_strategy: "failed_only" | "full_body";
               resolved_network_participation:
@@ -116304,6 +117161,15 @@ export interface operations {
               identifier?: string;
               /** Format: int64 */
               latest_event_seq: number;
+              loop?: {
+                generation?: number | null;
+                item_index?: number | null;
+                loop_name?: string;
+                node_id?: string;
+                /** @enum {string} */
+                role: "coordinator" | "cell";
+                run_id: string;
+              } | null;
               max_attempts?: number;
               metadata?: unknown;
               needs_attention?: boolean;

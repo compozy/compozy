@@ -34,6 +34,8 @@ type GenerationOutput struct {
 	Generation       int              `json:"generation,omitempty"`
 	NodeID           string           `json:"node_id"`
 	ItemIndex        int              `json:"item_index,omitempty"`
+	OutputID         string           `json:"output_id,omitempty"`
+	ArtifactName     string           `json:"artifact_name,omitempty"`
 	Status           string           `json:"status"`
 	OutputRef        string           `json:"output_ref,omitempty"`
 	TaskRunID        string           `json:"task_run_id,omitempty"`
@@ -46,6 +48,12 @@ type GenerationOutput struct {
 	// SessionID is the ACP session bound to the cell's task run; it is a
 	// read-model join and never part of snapshot state.
 	SessionID string `json:"-"`
+	// TaskRunStatus is the current task-run lifecycle state joined by the
+	// roster read model; it is never part of snapshot state.
+	TaskRunStatus task.RunStatus `json:"-"`
+	// TaskRunTokensUsed is the task run's retained cumulative usage joined by
+	// the roster read model; it is never part of snapshot state.
+	TaskRunTokensUsed int64 `json:"-"`
 	// ExpectedEpoch is the cell epoch observed by the planner. It is used only
 	// for compare-and-swap and is never stored as domain state.
 	ExpectedEpoch *int64 `json:"expected_epoch,omitempty"`
@@ -94,7 +102,7 @@ func (f *StoreFinalizer) WriteGenerationSnapshot(
 	if err := writeSnapshotOutputs(ctx, tx, loopRunID, snap.Generation, payload); err != nil {
 		return err
 	}
-	if err := writeSnapshotControls(ctx, tx, loopRunID, snap.Generation, payload); err != nil {
+	if err := writeSnapshotControls(ctx, tx, loopRunID, payload); err != nil {
 		return err
 	}
 	return writeSnapshotWaitsAndRequests(ctx, tx, loopRunID, snap.Generation, payload)
@@ -141,17 +149,11 @@ func writeSnapshotControls(
 	ctx context.Context,
 	tx task.Tx,
 	loopRunID string,
-	generation int,
 	payload GenerationSnapshotPayload,
 ) error {
 	for _, control := range payload.Controls {
 		if err := writeNodeControlMutation(ctx, tx, loopRunID, control); err != nil {
 			return err
-		}
-		if control.Kind == NodeControlMutationQuarantine {
-			if err := markQuarantinedNodeTasks(ctx, tx, loopRunID, generation, payload, control); err != nil {
-				return err
-			}
 		}
 	}
 	return nil
@@ -273,12 +275,14 @@ func writeGenerationOutput(
 	result, err := tx.ExecContext(
 		ctx,
 		`INSERT INTO loop_generation_outputs (
-			loop_run_id, generation, node_id, item_index, status, output_ref, task_run_id,
-			child_loop_run_id, resolved_runtime_json, attempt, next_attempt_at,
+			loop_run_id, generation, node_id, item_index, status, output_id, artifact_name,
+			output_ref, task_run_id, child_loop_run_id, resolved_runtime_json, attempt, next_attempt_at,
 			first_scheduled_at, epoch
-		) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+		) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 		ON CONFLICT(loop_run_id, generation, node_id, item_index) DO UPDATE SET
 			status = excluded.status,
+			output_id = excluded.output_id,
+			artifact_name = excluded.artifact_name,
 			output_ref = excluded.output_ref,
 			task_run_id = excluded.task_run_id,
 			child_loop_run_id = excluded.child_loop_run_id,
@@ -299,6 +303,8 @@ func writeGenerationOutput(
 		output.NodeID,
 		output.ItemIndex,
 		output.Status,
+		sqlNullString(output.OutputID),
+		sqlNullString(output.ArtifactName),
 		sqlNullString(output.OutputRef),
 		sqlNullString(output.TaskRunID),
 		sqlNullString(output.ChildLoopRunID),
@@ -358,6 +364,8 @@ func writeGenerationOutputBlob(ctx context.Context, tx task.Tx, blob GenerationO
 
 func (o GenerationOutput) normalized() GenerationOutput {
 	o.NodeID = strings.TrimSpace(o.NodeID)
+	o.OutputID = strings.TrimSpace(o.OutputID)
+	o.ArtifactName = strings.TrimSpace(o.ArtifactName)
 	o.Status = strings.TrimSpace(o.Status)
 	if o.ResolvedRuntime != nil {
 		normalized := normalizeResolvedRuntime(*o.ResolvedRuntime)

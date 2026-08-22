@@ -659,6 +659,48 @@ func TestQueryTaskDashboardAggregatesCardsAndBreakdown(t *testing.T) {
 			t.Fatalf("dashboard.Freshness.Status = %q, want %q", got, want)
 		}
 	})
+
+	t.Run("Should exclude tasks and runs by creator provenance", func(t *testing.T) {
+		t.Parallel()
+
+		h := newHarness(t)
+		ctx := testutil.Context(t)
+		for _, record := range []taskpkg.Task{
+			{
+				ID: "task-visible-work", Scope: taskpkg.ScopeGlobal, Title: "Visible work",
+				Status:    taskpkg.TaskStatusReady,
+				CreatedBy: taskActor(taskpkg.ActorKindHuman, "user"),
+				Origin:    taskOrigin(taskpkg.OriginKindCLI, "compozy task"),
+				CreatedAt: h.now, UpdatedAt: h.now,
+			},
+			{
+				ID: "task-loop-cell", Scope: taskpkg.ScopeGlobal, Title: "Loop cell",
+				Status:    taskpkg.TaskStatusReady,
+				CreatedBy: taskActor(taskpkg.ActorKindDaemon, "loop-coordinator"),
+				Origin:    taskOrigin(taskpkg.OriginKindDaemon, "loop-coordinator"),
+				CreatedAt: h.now.Add(time.Minute), UpdatedAt: h.now.Add(time.Minute),
+			},
+		} {
+			createObserveTask(t, h, record)
+		}
+		createObserveRun(t, h, taskpkg.Run{
+			ID: "run-loop-cell", TaskID: "task-loop-cell", Status: taskpkg.TaskRunStatusQueued,
+			Attempt: 1, RunKind: taskpkg.RunKindWorker, LoopRunID: "looprun-alpha",
+			Origin: taskOrigin(taskpkg.OriginKindDaemon, "loop-coordinator"), QueuedAt: h.now.Add(time.Minute),
+		})
+
+		dashboard, err := h.observer.QueryTaskDashboard(ctx, TaskDashboardQuery{
+			ExcludeCreatedBy: []taskpkg.ActorRef{{
+				Kind: taskpkg.ActorKindDaemon, Ref: "loop-coordinator",
+			}},
+		})
+		if err != nil {
+			t.Fatalf("QueryTaskDashboard() error = %v", err)
+		}
+		if dashboard.Totals.TasksTotal != 1 || dashboard.Totals.RunsTotal != 0 || dashboard.Queue.Total != 0 {
+			t.Fatalf("dashboard totals/queue = %#v/%#v, want only visible work", dashboard.Totals, dashboard.Queue)
+		}
+	})
 }
 
 func TestQueryTaskDashboardFlagsBacklogAndStaleSnapshots(t *testing.T) {

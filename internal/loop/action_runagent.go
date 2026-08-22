@@ -16,6 +16,13 @@ type RunAgentActionExecutor struct {
 	binder ActionSessionBinder
 }
 
+type runAgentSessionBindInput struct {
+	node          dsl.Node
+	execution     ActionExecutionInput
+	spec          dsl.RunAgentParams
+	contractBlock string
+}
+
 // Execute renders the work-order prompt, binds a session, and validates structured output.
 func (e *RunAgentActionExecutor) Execute(
 	ctx context.Context,
@@ -107,54 +114,18 @@ func (e *RunAgentActionExecutor) bindRunAgentSession(
 	spec dsl.RunAgentParams,
 	contractBlock string,
 ) (ActionSessionBinding, ResolvedRuntime, error) {
-	runtimeSelection := in.RuntimeSelectionOrZero()
-	item, err := ItemRuntimeFromNamespace(in.Namespace, node.Params, spec.Runtime)
+	bindInput := runAgentSessionBindInput{
+		node: node, execution: in, spec: spec, contractBlock: contractBlock,
+	}
+	resolvedRuntime, err := resolveRunAgentRuntime(ctx, &bindInput)
 	if err != nil {
 		return ActionSessionBinding{}, ResolvedRuntime{}, err
 	}
-	resolvedRuntime, err := ResolveItemRuntime(RuntimeLayers{
-		Defaults:    runtimeSelection.Defaults.Worker,
-		ConfigRules: runtimeSelection.ConfigRules,
-		RunRules:    runtimeSelection.RunRules,
-	}, item)
+	request, err := runAgentSessionBindRequest(&bindInput, resolvedRuntime)
 	if err != nil {
 		return ActionSessionBinding{}, ResolvedRuntime{}, err
 	}
-	resolvedRuntime, err = ValidateResolvedRuntime(ctx, runtimeSelection.Catalog, item.TaskID, resolvedRuntime)
-	if err != nil {
-		return ActionSessionBinding{}, ResolvedRuntime{}, err
-	}
-	handle := actionSessionHandle(node.Session)
-	environment, err := ResolveActionEnvironment(spec.Environment, in.EnvironmentValue())
-	if err != nil {
-		return ActionSessionBinding{}, ResolvedRuntime{}, err
-	}
-	runtimeRequest := resolvedRuntime.Runtime
-	binding, err := e.binder.BindActionSession(ctx, ActionSessionBindRequest{
-		WorkspaceID:        in.WorkspaceID,
-		LoopRunID:          in.LoopRunID,
-		Generation:         in.Generation,
-		NodeID:             in.NodeID,
-		Agent:              strings.TrimSpace(spec.Agent),
-		Environment:        cloneEnvironmentSpec(environment),
-		Handle:             handle,
-		SharedKey:          actionSessionSharedKey(in.Generation, in.NodeID, in.ItemIndex, handle),
-		ItemIndex:          in.ItemIndex,
-		TargetBindingEpoch: in.CellEpoch + 1,
-		ProvenanceParentSessionID: strings.TrimSpace(
-			in.ProvenanceParentSessionID,
-		),
-		CellFence: &ActionSessionCellFence{
-			Epoch:     in.CellEpoch,
-			TaskRunID: strings.TrimSpace(in.CorrelationID),
-		},
-		Isolated:             node.Session != nil && node.Session.Isolated,
-		Runtime:              &runtimeRequest,
-		AllowedTools:         append([]string(nil), spec.AllowedTools...),
-		MaxTurns:             spec.MaxTurns,
-		ContractBlock:        contractBlock,
-		NetworkParticipation: in.NetworkParticipation,
-	})
+	binding, err := e.binder.BindActionSession(ctx, request)
 	if err != nil {
 		return ActionSessionBinding{}, ResolvedRuntime{}, fmt.Errorf("bind run-agent session: %w", err)
 	}
@@ -163,6 +134,7 @@ func (e *RunAgentActionExecutor) bindRunAgentSession(
 		binding.AppliedRuntime,
 		binding.SpeedResolution,
 	)
+	runtimeSelection := in.RuntimeSelectionOrZero()
 	if runtimeSelection.Recorder != nil {
 		if err := runtimeSelection.Recorder.RecordAppliedRuntime(
 			ctx,
@@ -178,6 +150,59 @@ func (e *RunAgentActionExecutor) bindRunAgentSession(
 	}
 	ReportActionSessionBound(ctx, binding.SessionID)
 	return binding, resolvedRuntime, nil
+}
+
+func resolveRunAgentRuntime(
+	ctx context.Context,
+	input *runAgentSessionBindInput,
+) (ResolvedRuntime, error) {
+	runtimeSelection := input.execution.RuntimeSelectionOrZero()
+	item, err := ItemRuntimeFromNamespace(input.execution.Namespace, input.node.Params, input.spec.Runtime)
+	if err != nil {
+		return ResolvedRuntime{}, err
+	}
+	resolved, err := ResolveItemRuntime(RuntimeLayers{
+		Defaults:    runtimeSelection.Defaults.Worker,
+		ConfigRules: runtimeSelection.ConfigRules,
+		RunRules:    runtimeSelection.RunRules,
+	}, item)
+	if err != nil {
+		return ResolvedRuntime{}, err
+	}
+	return ValidateResolvedRuntime(ctx, runtimeSelection.Catalog, item.TaskID, resolved)
+}
+
+func runAgentSessionBindRequest(
+	input *runAgentSessionBindInput,
+	resolvedRuntime ResolvedRuntime,
+) (ActionSessionBindRequest, error) {
+	in := input.execution
+	handle := actionSessionHandle(input.node.Session)
+	sharedKey := strings.TrimSpace(in.SessionSharedKey)
+	if sharedKey == "" {
+		sharedKey = actionSessionSharedKey(in.Generation, in.NodeID, in.ItemIndex, handle)
+	}
+	environment, err := ResolveActionEnvironment(input.spec.Environment, in.EnvironmentValue())
+	if err != nil {
+		return ActionSessionBindRequest{}, err
+	}
+	runtimeRequest := resolvedRuntime.Runtime
+	return ActionSessionBindRequest{
+		WorkspaceID: in.WorkspaceID, LoopRunID: in.LoopRunID, Generation: in.Generation,
+		NodeID: in.NodeID, Agent: strings.TrimSpace(input.spec.Agent),
+		Environment: cloneEnvironmentSpec(environment), Handle: handle, SharedKey: sharedKey,
+		ItemIndex: in.ItemIndex, TargetBindingEpoch: in.CellEpoch + 1,
+		ProvenanceParentSessionID: strings.TrimSpace(in.ProvenanceParentSessionID),
+		CellFence: &ActionSessionCellFence{
+			Epoch: in.CellEpoch, TaskRunID: strings.TrimSpace(in.CorrelationID),
+		},
+		Isolated:             input.node.Session != nil && input.node.Session.Isolated,
+		Runtime:              &runtimeRequest,
+		AllowedTools:         append([]string(nil), input.spec.AllowedTools...),
+		MaxTurns:             input.spec.MaxTurns,
+		ContractBlock:        input.contractBlock,
+		NetworkParticipation: in.NetworkParticipation,
+	}, nil
 }
 
 // Harvest returns the run-agent prompt result.

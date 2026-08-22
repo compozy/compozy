@@ -31,6 +31,7 @@ var enumValuesRegistry = map[reflect.Type][]string{
 	reflect.TypeFor[apicontract.HeartbeatWakeSource]():              apicontract.HeartbeatWakeSourceValues(),
 	reflect.TypeFor[apicontract.HeartbeatWakeResult]():              apicontract.HeartbeatWakeResultValues(),
 	reflect.TypeFor[apicontract.HeartbeatWakeReason]():              apicontract.HeartbeatWakeReasonValues(),
+	reflect.TypeFor[apicontract.LoopProvenanceRole]():               apicontract.LoopProvenanceRoleValues(),
 	reflect.TypeFor[bridgepkg.DeliveryAckOutcome]():                 bridgepkg.DeliveryAckOutcomeValues(),
 	reflect.TypeFor[bridgepkg.DeliveryEventType]():                  bridgepkg.DeliveryEventTypeValues(),
 	reflect.TypeFor[bridgepkg.InboundEventFamily]():                 bridgepkg.InboundEventFamilyValues(),

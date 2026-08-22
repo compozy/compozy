@@ -68,14 +68,18 @@ func (g *LoopRepo) RequestRunCancellation(
 			return err
 		}
 		if mutation.Kind != looppkg.RunCancelKill && run.Status == looppkg.StatusRunning && live {
-			return nil
+			result.Run, err = cancellationRun(ctx, exec, mutation)
+			return err
 		}
 		err = terminalizeRunCancellation(ctx, exec, mutation, run)
 		if err != nil {
 			return err
 		}
-		result.Run.Status = looppkg.StatusCanceled
-		result.Terminal = true
+		result.Run, err = cancellationRun(ctx, exec, mutation)
+		if err != nil {
+			return err
+		}
+		result.Terminal = result.Run.Status.Terminal()
 		return nil
 	})
 	if err != nil {
@@ -477,6 +481,15 @@ func terminalizeRunCancellation(
 		mutation.RequestedAt.UTC(),
 	); err != nil {
 		return err
+	}
+	// A terminal transition clears transient control state, but cancellation
+	// provenance is terminal truth: the public briefing must retain who asked
+	// and when after the run reaches canceled.
+	if _, err := exec.ExecContext(ctx, `UPDATE loop_runs SET
+		control_actor_kind = ?, control_actor_id = ?, control_requested_at = ? WHERE id = ?`,
+		mutation.Actor.Actor.Kind.Normalize(), strings.TrimSpace(mutation.Actor.Actor.Ref),
+		mutation.RequestedAt.UTC(), mutation.RunID); err != nil {
+		return fmt.Errorf("store: retain canceled Loop provenance: %w", err)
 	}
 	return nil
 }

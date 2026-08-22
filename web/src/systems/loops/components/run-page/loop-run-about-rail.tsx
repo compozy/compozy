@@ -2,9 +2,10 @@ import type { ComponentProps } from "react";
 import { Link } from "@tanstack/react-router";
 import { Info } from "lucide-react";
 
-import { cn, Eyebrow, MonoId, PropertyRow } from "@compozy/ui";
+import { cn, Eyebrow, MonoId, PropertyRow, Time } from "@compozy/ui";
 
 import type { LoopRunInputRow } from "../../lib/loop-run-about";
+import { loopRunBestLabel } from "../../lib/loop-generation-presentation";
 import type { LoopRunRecord } from "../../types";
 
 interface LoopRunAboutRailProps extends ComponentProps<"div"> {
@@ -16,6 +17,8 @@ interface LoopRunAboutRailProps extends ComponentProps<"div"> {
   startedBy: string;
   /** Workspace display name, falling back to the raw id. */
   workspaceLabel: string;
+  lastWakeAt?: string | null;
+  onOpenGeneration?: (generation: number) => void;
 }
 
 /** Two-letter avatar seed for an agent-bound input value. */
@@ -31,9 +34,12 @@ export function LoopRunAboutRail({
   inputRows,
   startedBy,
   workspaceLabel,
+  lastWakeAt,
+  onOpenGeneration,
   className,
   ...props
 }: LoopRunAboutRailProps) {
+  const best = loopRunBestLabel(run);
   return (
     <div
       className={cn("border-t border-line-soft px-4.5 py-4", className)}
@@ -57,6 +63,27 @@ export function LoopRunAboutRail({
       {versionLabel !== undefined ? (
         <PropertyRow label="Version" mono data-testid="loop-run-about-version">
           {versionLabel}
+        </PropertyRow>
+      ) : null}
+      {best && run.best_generation !== null && run.best_generation !== undefined ? (
+        <PropertyRow label="Best result" data-testid="loop-run-about-best">
+          <a
+            aria-label={`Best result · ${best}`}
+            className="inline-flex min-h-6 items-center rounded-xs font-mono text-mono-id text-info hover:text-fg-strong focus-visible:outline-none focus-visible:shadow-focus-ring"
+            href={`#loop-generation-${run.best_generation}`}
+            onClick={event => {
+              if (!onOpenGeneration) return;
+              event.preventDefault();
+              onOpenGeneration(run.best_generation as number);
+            }}
+          >
+            {best}
+          </a>
+        </PropertyRow>
+      ) : null}
+      {lastWakeAt ? (
+        <PropertyRow label="Last woke" data-testid="loop-run-about-last-woke">
+          <Time iso={lastWakeAt} />
         </PropertyRow>
       ) : null}
       {inputRows.map(row =>

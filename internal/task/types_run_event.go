@@ -92,6 +92,14 @@ type TriageState struct {
 	UpdatedAt          time.Time     `json:"updated_at"`
 }
 
+// RunProvenance carries the relational run facts needed by catalog projections.
+// Metadata remains opaque to the task domain and is interpreted only at the API boundary.
+type RunProvenance struct {
+	LoopRunID string          `json:"loop_run_id"`
+	RunKind   RunKind         `json:"run_kind"`
+	Metadata  json.RawMessage `json:"metadata,omitempty"`
+}
+
 // Summary is the lightweight read model returned from list-oriented task queries.
 type Summary struct {
 	ID              string                `json:"id"`
@@ -115,6 +123,7 @@ type Summary struct {
 	Owner           *Ownership            `json:"owner,omitempty"`
 	Dependencies    []DependencyReference `json:"dependencies,omitempty"`
 	ActiveRun       *RunSummary           `json:"active_run,omitempty"`
+	RunProvenance   *RunProvenance        `json:"run_provenance,omitempty"`
 	MaxAttempts     int                   `json:"max_attempts,omitempty"`
 	LatestEventSeq  int64                 `json:"latest_event_seq"`
 	ChildCount      int32                 `json:"child_count,omitempty"`

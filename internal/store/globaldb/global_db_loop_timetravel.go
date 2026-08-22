@@ -150,9 +150,11 @@ func insertTimeTravelOutputs(
 ) error {
 	for _, output := range outputs {
 		_, err := exec.ExecContext(ctx, `INSERT INTO loop_generation_outputs (
-			loop_run_id, generation, node_id, item_index, status, output_ref, attempt, epoch
-		) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`, runID, output.Generation, output.NodeID, output.ItemIndex,
-			output.Status, nullTrimmed(output.OutputRef), maxInt(output.Attempt, 1), output.Epoch)
+			loop_run_id, generation, node_id, item_index, output_id, artifact_name,
+			status, output_ref, attempt, epoch
+		) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`, runID, output.Generation, output.NodeID, output.ItemIndex,
+			nullTrimmed(output.OutputID), nullTrimmed(output.ArtifactName), output.Status,
+			nullTrimmed(output.OutputRef), maxInt(output.Attempt, 1), output.Epoch)
 		if err != nil {
 			return fmt.Errorf("store: insert time-travel output %s/%d: %w", output.NodeID, output.ItemIndex, err)
 		}

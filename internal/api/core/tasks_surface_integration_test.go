@@ -23,6 +23,9 @@ func TestExpandedTaskReadHandlersDelegateIntegration(t *testing.T) {
 
 	now := time.Date(2026, 4, 17, 14, 0, 0, 0, time.UTC)
 	lastActivity := now.Add(-time.Minute)
+	loopMetadata := []byte(
+		`{"loop_run_id":"looprun-alpha","loop_name":"alpha","generation":2,"node_id":"review","item_index":0}`,
+	)
 	var listQuery taskpkg.CatalogQuery
 	var listActor taskpkg.ActorContext
 	var detailActor taskpkg.ActorContext
@@ -57,6 +60,9 @@ func TestExpandedTaskReadHandlersDelegateIntegration(t *testing.T) {
 					CreatedAt:      now.Add(-2 * time.Hour),
 					UpdatedAt:      now,
 					LastActivityAt: lastActivity,
+					RunProvenance: &taskpkg.RunProvenance{
+						LoopRunID: "looprun-alpha", RunKind: taskpkg.RunKindWorker, Metadata: loopMetadata,
+					},
 				}},
 				Total: 1,
 				Limit: query.Limit,
@@ -88,7 +94,13 @@ func TestExpandedTaskReadHandlersDelegateIntegration(t *testing.T) {
 					Origin:      actor.Origin,
 					CreatedAt:   now.Add(-2 * time.Hour),
 					UpdatedAt:   now,
+					Metadata:    loopMetadata,
 				},
+				Runs: []taskpkg.Run{{
+					ID: "run-loop-alpha", TaskID: id, LoopRunID: "looprun-alpha",
+					RunKind: taskpkg.RunKindWorker, Status: taskpkg.TaskRunStatusQueued,
+					Attempt: 1, Origin: actor.Origin, QueuedAt: now.Add(-time.Hour),
+				}},
 			}, nil
 		},
 		RunDetailFn: func(_ context.Context, id string, actor taskpkg.ActorContext) (*taskpkg.RunDetailView, error) {
@@ -209,13 +221,39 @@ func TestExpandedTaskReadHandlersDelegateIntegration(t *testing.T) {
 	if len(listPayload.Tasks) != 1 || listPayload.Tasks[0].ID != "task-1" {
 		t.Fatalf("list payload = %#v", listPayload)
 	}
+	if listPayload.Tasks[0].Loop == nil || listPayload.Tasks[0].Loop.RunID != "looprun-alpha" ||
+		listPayload.Tasks[0].Loop.Role != contract.LoopProvenanceRoleCell {
+		t.Fatalf("list Loop provenance IT-033 = %#v", listPayload.Tasks[0].Loop)
+	}
 	if listQuery.WorkspaceID != "ws-alpha" || listQuery.Priority != taskpkg.PriorityHigh ||
 		listQuery.ApprovalState != taskpkg.ApprovalStatePending ||
 		listQuery.Search != "review" {
 		t.Fatalf("list query = %#v", listQuery)
 	}
+	if len(listQuery.ExcludeCreatedBy) != 1 || listQuery.ExcludeCreatedBy[0].Kind != taskpkg.ActorKindDaemon ||
+		listQuery.ExcludeCreatedBy[0].Ref != "loop-coordinator" {
+		t.Fatalf("default list exclusion IT-011 = %#v", listQuery.ExcludeCreatedBy)
+	}
 	if listActor.Origin.Ref != "tasks.list" {
 		t.Fatalf("list actor = %#v", listActor)
+	}
+	includeResp := performRequest(
+		t,
+		fixture.Engine,
+		http.MethodGet,
+		"/tasks?scope=workspace&workspace=alpha&include_loop=false&loop_run_id=looprun-alpha",
+		nil,
+	)
+	if includeResp.Code != http.StatusOK {
+		t.Fatalf(
+			"Loop run list status = %d, want %d; body=%s",
+			includeResp.Code,
+			http.StatusOK,
+			includeResp.Body.String(),
+		)
+	}
+	if listQuery.LoopRunID != "looprun-alpha" || len(listQuery.ExcludeCreatedBy) != 0 {
+		t.Fatalf("Loop run list query IT-012 = %#v", listQuery)
 	}
 
 	detailResp := performRequest(t, fixture.Engine, http.MethodGet, "/tasks/task-1", nil)
@@ -224,6 +262,15 @@ func TestExpandedTaskReadHandlersDelegateIntegration(t *testing.T) {
 	}
 	if detailActor.Origin.Ref != "tasks.get" {
 		t.Fatalf("detail actor = %#v", detailActor)
+	}
+	var detailPayload contract.TaskDetailResponse
+	testutil.DecodeJSONResponse(t, detailResp, &detailPayload)
+	if !reflect.DeepEqual(detailPayload.Task.Task.Loop, listPayload.Tasks[0].Loop) {
+		t.Fatalf(
+			"catalog/detail Loop provenance IT-033 = %#v / %#v",
+			listPayload.Tasks[0].Loop,
+			detailPayload.Task.Task.Loop,
+		)
 	}
 
 	runResp := performRequest(t, fixture.Engine, http.MethodGet, "/task-runs/run-1", nil)
@@ -272,7 +319,8 @@ func TestExpandedTaskReadHandlersDelegateIntegration(t *testing.T) {
 		)
 	}
 	if dashboardQuery.WorkspaceID != "ws-alpha" || dashboardQuery.ParticipationChannel != "builders" ||
-		dashboardQuery.OriginKind != taskpkg.OriginKindHTTP {
+		dashboardQuery.OriginKind != taskpkg.OriginKindHTTP || len(dashboardQuery.ExcludeCreatedBy) != 1 ||
+		dashboardQuery.ExcludeCreatedBy[0].Ref != "loop-coordinator" {
 		t.Fatalf("dashboard query = %#v", dashboardQuery)
 	}
 
@@ -289,6 +337,7 @@ func TestExpandedTaskReadHandlersDelegateIntegration(t *testing.T) {
 	if inboxQuery.WorkspaceID != "ws-alpha" || inboxQuery.Lane != observe.TaskInboxLaneApprovals ||
 		inboxQuery.Unread == nil || !*inboxQuery.Unread ||
 		inboxQuery.Search != "review" ||
+		len(inboxQuery.ExcludeCreatedBy) != 1 || inboxQuery.ExcludeCreatedBy[0].Ref != "loop-coordinator" ||
 		inboxActor.Ref != "user-1" {
 		t.Fatalf("inbox query/actor = %#v / %#v", inboxQuery, inboxActor)
 	}

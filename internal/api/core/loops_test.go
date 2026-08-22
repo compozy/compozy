@@ -1718,6 +1718,9 @@ func registerLoopTestRoutes(engine *gin.Engine, handlers *core.BaseHandlers) {
 	workspace.PUT("/loops/:name/annotations", handlers.PutLoopAnnotations)
 	workspace.GET("/loop-runs", handlers.ListLoopRuns)
 	workspace.GET("/loop-runs/:run_id", handlers.GetLoopRun)
+	workspace.GET("/loop-runs/:run_id/nodes", handlers.GetLoopRunNodes)
+	workspace.GET("/loop-runs/:run_id/briefing", handlers.GetLoopRunBriefing)
+	workspace.GET("/loop-runs/:run_id/timeline", handlers.GetLoopRunTimeline)
 	workspace.GET("/loop-runs/:run_id/turns", handlers.ListGoalTurns)
 	workspace.POST("/loop-runs/:run_id/cancel", handlers.CancelLoopRun)
 	workspace.POST("/loop-runs/:run_id/kill", handlers.KillLoopRun)
@@ -1799,6 +1802,9 @@ type stubLoopService struct {
 		taskpkg.ActorContext,
 	) (contract.ForkLoopResponse, error)
 	getLoopRunFn        func(context.Context, string, string) (contract.LoopRunResponse, error)
+	getLoopRunNodesFn   func(context.Context, string, string, looppkg.RosterQuery) (contract.LoopRunNodesResponse, error)
+	getLoopBriefingFn   func(context.Context, string, string) (contract.LoopBriefingResponse, error)
+	getLoopTimelineFn   func(context.Context, string, string, looppkg.TimelineQuery) (contract.LoopTimelineResponse, error)
 	getSessionGoalFn    func(context.Context, string, string) (*session.GoalSnapshot, error)
 	listGoalTurnsFn     func(context.Context, string, string, core.GoalTurnListQuery) (session.GoalTurnPage, error)
 	cancelLoopRunFn     func(context.Context, string, string) (contract.LoopMutationResponse, error)
@@ -2142,6 +2148,41 @@ func (s *stubLoopService) GetLoopRun(
 	runID string,
 ) (contract.LoopRunResponse, error) {
 	return s.getLoopRunFn(ctx, workspaceID, runID)
+}
+
+func (s *stubLoopService) GetLoopRunNodes(
+	ctx context.Context,
+	workspaceID string,
+	runID string,
+	query looppkg.RosterQuery,
+) (contract.LoopRunNodesResponse, error) {
+	if s.getLoopRunNodesFn == nil {
+		return contract.LoopRunNodesResponse{}, errors.New("unexpected GetLoopRunNodes call")
+	}
+	return s.getLoopRunNodesFn(ctx, workspaceID, runID, query)
+}
+
+func (s *stubLoopService) GetLoopRunBriefing(
+	ctx context.Context,
+	workspaceID string,
+	runID string,
+) (contract.LoopBriefingResponse, error) {
+	if s.getLoopBriefingFn == nil {
+		return contract.LoopBriefingResponse{}, errors.New("unexpected GetLoopRunBriefing call")
+	}
+	return s.getLoopBriefingFn(ctx, workspaceID, runID)
+}
+
+func (s *stubLoopService) GetLoopRunTimeline(
+	ctx context.Context,
+	workspaceID string,
+	runID string,
+	query looppkg.TimelineQuery,
+) (contract.LoopTimelineResponse, error) {
+	if s.getLoopTimelineFn == nil {
+		return contract.LoopTimelineResponse{}, errors.New("unexpected GetLoopRunTimeline call")
+	}
+	return s.getLoopTimelineFn(ctx, workspaceID, runID, query)
 }
 
 func (s *stubLoopService) DiffLoopRun(

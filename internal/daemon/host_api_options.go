@@ -1,6 +1,7 @@
 package daemon
 
 import (
+	"github.com/compozy/compozy/internal/api/core"
 	extensionpkg "github.com/compozy/compozy/internal/extension"
 	"github.com/compozy/compozy/internal/resources"
 	"github.com/compozy/compozy/internal/store"
@@ -14,6 +15,7 @@ func buildHostAPIOptions(
 	opts := []extensionpkg.HostAPIOption{
 		extensionpkg.WithHostAPIAutomationGetter(deps.Automation),
 		extensionpkg.WithHostAPITaskManager(deps.Tasks),
+		extensionpkg.WithHostAPITaskCatalogFilterMapper(core.ApplyTaskLoopCatalogFilters),
 		extensionpkg.WithHostAPINetworkService(deps.Network),
 		extensionpkg.WithHostAPINetworkStore(deps.NetworkStore),
 		extensionpkg.WithHostAPIModelCatalogService(deps.ModelCatalog),

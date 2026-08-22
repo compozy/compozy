@@ -192,11 +192,6 @@ function projectNode(raw: unknown): LoopGraphNode | null {
   };
 }
 
-/** The authored attempt ceiling for one node, or undefined when none is declared. */
-export function nodeRetryMaxAttempts(graph: LoopGraph | null, nodeId: string): number | undefined {
-  return graph?.nodes.find(node => node.id === nodeId)?.retryMaxAttempts;
-}
-
 function projectEdge(raw: unknown): LoopGraphEdge | null {
   const record = asRecord(raw);
   if (!record) return null;

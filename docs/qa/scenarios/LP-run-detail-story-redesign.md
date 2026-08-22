@@ -9,10 +9,10 @@ entry_points: web /loop-runs/:id; GET /loop-runs/:id; SSE /loop-runs/:id/events;
 qa_status: pass
 bug_ids:
 fix_status:
-retest_status:
+retest_status: pass
 fix_commits:
-evidence: docs/qa/evidence/2026-08-10-loop-convergence/run-detail-goal-diagnostics.png; docs/qa/evidence/2026-08-10-loop-convergence/run-detail-inspect.png; docs/qa/evidence/2026-08-10-loop-convergence/raw-loop-definition.png; /Users/pedronauck/dev/qa-labs/compozy-loop-convergence-20260810-034845-371840-lab/qa-artifacts/qa/qa-audit-report.md
-last_report: docs/qa/reports/2026-08-18-graph-eng.md
+evidence: docs/qa/evidence/2026-08-10-loop-convergence/run-detail-goal-diagnostics.png; docs/qa/evidence/2026-08-10-loop-convergence/run-detail-inspect.png; docs/qa/evidence/2026-08-10-loop-convergence/raw-loop-definition.png; /Users/pedronauck/dev/qa-labs/compozy-loop-task-legibility-task07-final-web-20260822-131622-550786-lab/qa-artifacts/qa/task07-scenario-walks.md; .compozy/tasks/loop-task-legibility/evidence/visual/task_05/VC-01
+last_report: docs/qa/reports/2026-08-21-loop-task-legibility.md
 overlaps: LP-009;LP-014;LP-016;LP-044;LP-action-failure-detail
 ---
 

@@ -4,14 +4,15 @@ import (
 	"context"
 	"database/sql"
 	"encoding/json"
+	"errors"
 	"fmt"
-	"log/slog"
 	"time"
 
 	"github.com/compozy/compozy/internal/diagnostics"
 	looppkg "github.com/compozy/compozy/internal/loop"
 	"github.com/compozy/compozy/internal/store"
 	"github.com/compozy/compozy/internal/store/globaldb/sqlcgen"
+	taskpkg "github.com/compozy/compozy/internal/task"
 )
 
 var _ looppkg.NodeRequeueStore = (*LoopRepo)(nil)
@@ -41,6 +42,9 @@ func (g *LoopRepo) RequeueNode(
 		return err
 	})
 	if err != nil {
+		if reason, ok := errors.AsType[*looppkg.ReasonError](err); ok {
+			return looppkg.NodeRequeueResult{}, reason
+		}
 		return looppkg.NodeRequeueResult{}, err
 	}
 	return result, nil
@@ -119,7 +123,13 @@ func applyNodeRequeue(
 	if err := clearQuarantinedNodeTaskAttention(ctx, exec, mutation); err != nil {
 		return err
 	}
-	if err := fenceRequeuedNodeAndDependents(ctx, exec, mutation, prepared.run.Generation); err != nil {
+	if err := fenceRequeuedNodeAndDependents(
+		ctx,
+		exec,
+		mutation,
+		prepared.run.Generation,
+		prepared.nextGeneration,
+	); err != nil {
 		return err
 	}
 	parkedFor := mutation.RequestedAt.UTC().Sub(prepared.control.quarantinedAt)
@@ -162,53 +172,85 @@ func clearNodeQuarantine(
 	return requireSingleRequeueMutation(updated, mutation.NodeID)
 }
 
-// clearQuarantinedNodeTaskAttention releases the needs-attention park applied
-// to the node's cell tasks when the loop quarantined it.
+// clearQuarantinedNodeTaskAttention releases the exact needs-attention
+// continuation tasks persisted when the loop quarantined the node.
 func clearQuarantinedNodeTaskAttention(
 	ctx context.Context,
 	exec taskSQLExecutor,
 	mutation looppkg.NodeRequeueMutation,
-) error {
+) (err error) {
 	rows, err := exec.QueryContext(
 		ctx,
-		`SELECT generation, item_index FROM loop_generation_outputs
-		 WHERE loop_run_id = ? AND node_id = ? AND status = 'quarantined'`,
+		`SELECT tasks.id
+		 FROM loop_generation_outputs AS outputs
+		 JOIN tasks ON tasks.id = (
+			'loop.' || outputs.loop_run_id || '.g' || outputs.generation ||
+			'.node.' || outputs.node_id || '.' || outputs.item_index
+		 )
+		 WHERE outputs.loop_run_id = ? AND outputs.node_id = ? AND outputs.status = 'quarantined'
+		   AND tasks.status = 'needs_attention' AND tasks.needs_attention_at IS NOT NULL
+		 ORDER BY outputs.generation, outputs.item_index`,
 		mutation.RunID,
 		mutation.NodeID,
 	)
 	if err != nil {
 		return fmt.Errorf("store: list quarantined cells for requeue: %w", err)
 	}
-	defer func() {
-		if closeErr := rows.Close(); closeErr != nil {
-			slog.Warn("store: close quarantined cell rows", "error", closeErr)
-		}
-	}()
+	defer func() { err = joinRowsCloseError(rows, err, "quarantined requeue task rows") }()
 	taskIDs := make([]string, 0, 4)
 	for rows.Next() {
-		var generation, itemIndex int
-		if err := rows.Scan(&generation, &itemIndex); err != nil {
+		var taskID string
+		if err := rows.Scan(&taskID); err != nil {
 			return fmt.Errorf("store: scan quarantined cell for requeue: %w", err)
 		}
-		taskIDs = append(taskIDs, looppkg.NodeCellTaskID(
-			mutation.RunID, generation, string(mutation.NodeID), itemIndex,
-		))
+		taskIDs = append(taskIDs, taskID)
 	}
 	if err := rows.Err(); err != nil {
 		return fmt.Errorf("store: iterate quarantined cells for requeue: %w", err)
 	}
+	if len(taskIDs) == 0 {
+		return fmt.Errorf(
+			"%w: quarantined Loop node %q has no needs-attention continuation",
+			taskpkg.ErrInvalidStatusTransition,
+			mutation.NodeID,
+		)
+	}
 	clearedAt := store.FormatTimestamp(mutation.RequestedAt)
+	reason := diagnostics.RedactAndBound(mutation.Reason, 1024)
 	for _, taskID := range taskIDs {
-		if _, err := exec.ExecContext(
+		record, err := (&TaskRepo{}).getTaskWithExecutor(ctx, exec, taskID)
+		if err != nil {
+			return err
+		}
+		if record.Status != taskpkg.TaskStatusNeedsAttention || record.NeedsAttention == nil {
+			return fmt.Errorf(
+				"%w: quarantined Loop task %q has status %q",
+				taskpkg.ErrInvalidStatusTransition,
+				taskID,
+				record.Status,
+			)
+		}
+		changed, err := sqlcgen.New(exec).ClearTaskNeedsAttention(
 			ctx,
-			`UPDATE tasks SET
-				needs_attention_reason = NULL, needs_attention_at = NULL,
-				needs_attention_by_kind = NULL, needs_attention_by_ref = NULL, updated_at = ?
-			 WHERE id = ? AND needs_attention_at IS NOT NULL`,
-			clearedAt,
-			taskID,
-		); err != nil {
+			sqlcgen.ClearTaskNeedsAttentionParams{UpdatedAt: clearedAt, ID: taskID},
+		)
+		if err != nil {
 			return fmt.Errorf("store: clear requeued node task attention %q: %w", taskID, err)
+		}
+		if err := requireSingleTaskAttentionMutation(changed, taskID); err != nil {
+			return err
+		}
+		if err := setTaskStatusWithEventContext(
+			ctx,
+			exec,
+			taskID,
+			taskpkg.TaskStatusNeedsAttention,
+			taskpkg.TaskStatusReady,
+			mutation.Actor,
+			mutation.RequestedAt,
+			taskStatusEventContext{reason: reason, loopRunID: string(mutation.RunID)},
+		); err != nil {
+			return err
 		}
 	}
 	return nil
@@ -219,6 +261,7 @@ func fenceRequeuedNodeAndDependents(
 	exec taskSQLExecutor,
 	mutation looppkg.NodeRequeueMutation,
 	currentGeneration int,
+	continuationGeneration int,
 ) error {
 	if _, err := exec.ExecContext(
 		ctx,
@@ -230,6 +273,17 @@ func fenceRequeuedNodeAndDependents(
 		mutation.NodeID,
 	); err != nil {
 		return fmt.Errorf("store: fence requeued Loop node outputs: %w", err)
+	}
+	if _, err := exec.ExecContext(
+		ctx,
+		`UPDATE loop_generation_outputs
+		 SET status = 'pending', next_attempt_at = NULL, epoch = epoch + 1
+		 WHERE loop_run_id = ? AND generation = ? AND node_id = ? AND status = 'quarantined'`,
+		mutation.RunID,
+		continuationGeneration,
+		mutation.NodeID,
+	); err != nil {
+		return fmt.Errorf("store: release requeued Loop node continuation: %w", err)
 	}
 	if _, err := exec.ExecContext(
 		ctx,
@@ -285,23 +339,44 @@ func (g *LoopRepo) reserveNodeRequeue(
 		mutation.NodeID,
 		prepared.control.revision+1,
 	)
-	coordinator, added, err := g.reserveLoopCoordinatorRunWithExecutor(
+	coordinator, retainedContinuation, err := g.reserveNodeRequeueCoordinatorWithExecutor(
 		ctx,
 		exec,
-		prepared.run,
-		mutation.Actor.Origin,
-		mutation.RequestedAt,
-		"",
+		mutation,
+		prepared,
 		idempotencyKey,
 	)
 	if err != nil {
 		return looppkg.NodeRequeueResult{}, err
 	}
-	if !added {
-		return looppkg.NodeRequeueResult{}, fmt.Errorf(
-			"%w: Loop coordinator requeue wake was not reserved",
-			looppkg.ErrTransitionConflict,
+	if retainedContinuation {
+		if err := updateLoopGenerationWithExecutor(
+			ctx,
+			exec,
+			string(prepared.run.ID),
+			prepared.nextGeneration,
+		); err != nil {
+			return looppkg.NodeRequeueResult{}, err
+		}
+		workers, err := g.reserveRequeuedNodeContinuationRunsWithExecutor(
+			ctx,
+			exec,
+			mutation,
+			prepared.nextGeneration,
+			coordinator,
 		)
+		if err != nil {
+			return looppkg.NodeRequeueResult{}, err
+		}
+		return looppkg.NodeRequeueResult{
+			Control: looppkg.NodeControl{
+				LoopRunID: prepared.run.ID, NodeID: mutation.NodeID, Quarantined: false,
+				QuarantineEntry: prepared.entry, Revision: prepared.control.revision + 1,
+				UpdatedAt: mutation.RequestedAt.UTC(),
+			},
+			Coordinator: coordinator,
+			Workers:     workers,
+		}, nil
 	}
 	return looppkg.NodeRequeueResult{
 		Control: looppkg.NodeControl{

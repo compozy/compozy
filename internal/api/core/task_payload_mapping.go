@@ -291,6 +291,7 @@ func TaskDetailPayloadFromView(view *taskpkg.View) contract.TaskDetailPayload {
 	taskRecord.EffectivePaused = summary.EffectivePaused
 	taskRecord.PausedByTaskID = summary.PausedByTaskID
 	taskRecord.BlockedReasons = summary.BlockedReasons
+	taskRecord.Loop = contract.LoopProvenanceFromView(view)
 
 	return contract.TaskDetailPayload{
 		Summary:              summary,

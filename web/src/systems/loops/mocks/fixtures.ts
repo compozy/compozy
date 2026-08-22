@@ -1,11 +1,8 @@
 import type {
-  LoopAnnotation,
   LoopCatalogEntry,
-  LoopConfig,
   LoopContract,
   LoopDefinition,
   LoopDetail,
-  LoopEffectiveConfig,
   LoopRun,
   LoopRunAggregates,
 } from "../types";
@@ -74,6 +71,12 @@ const reviewContract: LoopContract = {
   no_progress: { window: 2 },
 };
 
+/** A round the run has actually reached, with a step count that fits inside it. */
+function defaultProgress(generation: number): LoopRun["progress"] {
+  if (generation <= 0) return { round: 0, steps_done: 0, steps_total: 4 };
+  return { round: generation, steps_done: 2, steps_total: 4 };
+}
+
 function buildRun(
   overrides: Partial<LoopRun> & Pick<LoopRun, "id" | "loop_name" | "status">
 ): LoopRun {
@@ -97,6 +100,12 @@ function buildRun(
     definition_digest: "sha256:mock-loop-definition",
     start_metadata: {},
     ...overrides,
+    // Server-owned step/round progress (B-001): the roster reads it, never
+    // derives it — which is exactly why the fixture cannot leave it behind when
+    // a caller moves the run to another round. A fixed `round: 3` under a
+    // `generation: 1` run is a row the daemon could never emit, and the roster
+    // renders `run.progress` verbatim, so it would ship as a visible lie.
+    progress: overrides.progress ?? defaultProgress(overrides.generation ?? 3),
     forks: overrides.forks ?? [],
   };
 }
@@ -135,6 +144,12 @@ export const loopRunFixtures: LoopRun[] = [
     id: "looprun_needs_approval",
     loop_name: "quality-gate-demo",
     status: "needs-approval",
+    // The server-owned attention summary is what puts a run in the needs-you
+    // group (`groupOf` in `lib/loop-runs-view.ts`). Without it the roster's
+    // whole ranking — needs-you, then active, then terminal — never appeared,
+    // and the run that was waiting on a person sat inside "Active".
+    attention: { kind: "approval", count: 1, since: "2026-07-05T12:15:00Z" },
+    active_gate_id: "aplicar-correcoes",
     generation: 3,
     tokens_used: 1_100_000,
     budget_tokens: 2_000_000,
@@ -456,46 +471,11 @@ export const loopRunDetailByRunId = new Map(
   loopRunDetailFixtures.map(detail => [detail.run.id, detail])
 );
 
-export const loopConfigFixture: LoopConfig = {
-  iteration_cap: 16,
-  budget_tokens: 750_000,
-  budget_wall_sec: null,
-  budget_on_exceeded: "escalate",
-  fan_out_width: 4,
-  gate_max_revisions: 3,
-  human_gate_enabled: true,
-  no_progress_window: 3,
-  reattempt_strategy: "failed_only",
-  enabled_checks_json: null,
-};
-
-export const loopEffectiveConfigFixture: LoopEffectiveConfig = {
-  budget_on_exceeded: "escalate",
-  budget_tokens: 750_000,
-  budget_wall_sec: 0,
-  enabled_checks_json: {},
-  // Resolved Loop environment: no node or Loop override, so runs execute at the
-  // workspace root.
-  environment: { mode: "root" },
-  fan_out_width: 4,
-  gate_max_revisions: 3,
-  human_gate_enabled: true,
-  iteration_cap: 16,
-  runtime_defaults: {
-    worker: { provider: "openai", model: "gpt-5.4" },
-    judge: { provider: "anthropic", model: "claude-sonnet-4" },
-  },
-  runtime_rules: [
-    {
-      match: { type: "implementation" },
-      runtime: { reasoning: "high" },
-    },
-  ],
-  no_progress_window: 3,
-  reattempt_strategy: "failed_only",
-};
-
-export const loopAnnotationsFixture: LoopAnnotation[] = [
-  { node_id: "load_tasks", x: 120, y: 80 },
-  { node_id: "implement", x: 360, y: 80 },
-];
+// Settings and canvas annotations answer a different question from the runs
+// above, and live in their own file. Re-exported so every existing consumer of
+// this barrel keeps working.
+export {
+  loopAnnotationsFixture,
+  loopConfigFixture,
+  loopEffectiveConfigFixture,
+} from "./fixtures-config";

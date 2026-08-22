@@ -27,7 +27,45 @@ import {
   ZapOff,
 } from "lucide-react";
 
-import type { LoopStoryIcon } from "./loop-run-story-types";
+/**
+ * The story's glyph vocabulary, one fixed icon per concept across the domain
+ * (DESIGN-LESSONS L7). The union lives beside the map it keys so a new beat
+ * cannot name a glyph that has no icon behind it.
+ */
+export type LoopStoryIcon =
+  | "round"
+  | "check-pass"
+  | "check-warn"
+  | "node-done"
+  | "node-failed"
+  | "approval"
+  | "watching"
+  | "paused"
+  | "resumed"
+  | "started"
+  | "done"
+  | "circle-slash"
+  | "retry"
+  | "canceled"
+  | "killed"
+  | "quarantined"
+  | "requeued"
+  | "waiting"
+  | "attention"
+  | "attention-silence"
+  | "attention-cleared"
+  | "effect"
+  | "suppressed"
+  | "breaker-open"
+  | "breaker-closed"
+  | "request-opened"
+  | "request-answered"
+  | "request-expired"
+  | "route-taken"
+  | "route-default"
+  | "pruned"
+  | "amended"
+  | "forked";
 
 export const LOOP_STORY_ICONS: Record<LoopStoryIcon, LucideIcon> = {
   round: Play,

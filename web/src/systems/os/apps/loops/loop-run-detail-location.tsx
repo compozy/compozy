@@ -103,7 +103,7 @@ function LoopRunDetail({
   navigate,
   requestFocus,
 }: LoopRunDetailProps) {
-  const { page, nodeControls, requests, timetravel, dialogs } = useLoopRunDetail(
+  const { page, nodeControls, requests, timetravel, dialogs, events } = useLoopRunDetail(
     workspaceId,
     runId,
     { liveDataEnabled }
@@ -165,7 +165,7 @@ function LoopRunDetail({
     );
   }
 
-  if (page.runQuery.error || !page.effectiveRun || !page.progress || !page.materializedContract) {
+  if (page.runQuery.error || !page.effectiveRun || !page.materializedContract) {
     return (
       <div
         className="flex min-h-0 flex-1 flex-col items-center justify-center gap-2 px-6 text-center"
@@ -186,52 +186,37 @@ function LoopRunDetail({
       <LoopRunPageBody
         run={page.effectiveRun}
         workspaceId={workspaceId}
-        definition={page.definition}
         materializedContract={page.materializedContract}
         graph={page.graph}
         isLive={page.isLive}
-        stepElapsedLabel={page.stepElapsedLabel}
-        progress={page.progress}
-        story={page.story}
-        goalIds={page.goalIds}
-        goalTurns={page.goalTurns}
-        goalTurnsPaging={{
-          hasMore: page.goalTurnsQuery.hasNextPage,
-          isLoading: page.goalTurnsQuery.isFetchingNextPage,
-          onLoadMore: () => {
-            void page.goalTurnsQuery.fetchNextPage();
-          },
-        }}
+        nowMs={page.nowMs}
+        registers={page.registers}
+        rosterNodes={page.rosterNodes}
+        rosterRollups={page.rosterRollups}
+        onLoadMoreRoster={page.onLoadMoreRoster}
+        isLoadingMoreRoster={page.isLoadingMoreRoster}
+        nodeSelection={page.nodeSelection}
+        onNodeSelectionChange={page.onNodeSelectionChange}
+        prunedSessionIds={page.prunedSessionIds}
+        storyPaging={page.storyPaging}
+        rosterRead={page.rosterRead}
+        events={events}
+        isReconnecting={page.isReconnecting}
         usageRows={page.usageRows}
         usageNote={page.usageNote}
         approvalRequest={page.live.needsApproval}
         approvalFallbackFacts={page.approvalFallbackFacts}
-        failure={page.live.failure}
-        latestVerdict={page.latestVerdict}
-        watchEvents={page.watchEvents}
-        watchCadence={page.watchCadence}
         generations={page.generations}
-        frames={page.live.frames}
         inputRows={page.inputRows}
         startedBy={page.startedBy}
         workspaceLabel={workspaceName ?? page.effectiveRun.workspace_id}
         versionLabel={page.versionLabel}
-        nextNote={page.nextNote}
-        showNowCard={page.showNowCard}
-        terminalFromStatus={page.terminalFromStatus}
-        terminalAt={page.terminalAt}
-        terminalCause={page.terminalCause}
+        watchEvents={page.watchEvents}
         inspect={{ open: dialogs.inspectOpen, onOpenChange: dialogs.setInspectOpen }}
         pendingAction={page.pendingAction}
         nodeLifecycles={page.nodeLifecycles}
-        nodeNowLines={page.nodeNowLines}
-        waitingNodes={page.waitingNodes}
-        attentionNodes={page.attentionNodes}
-        nodesById={page.nodesById}
-        nodeSessions={page.nodeSessions}
         renderNodeActions={node => (
           <LoopNodeRowActions
-            isPending={nodeControls.isBusy}
             node={node}
             onVerb={nodeControls.onVerb}
             runStatus={page.run?.status}
@@ -240,7 +225,6 @@ function LoopRunDetail({
         )}
         onOpenQuarantine={nodeControls.openQuarantine}
         onDecision={page.handleDecision}
-        onStartNewRun={page.handleStartNewRun}
         requests={page.requests}
         requestFocus={requestFocus}
         requestState={{
@@ -249,8 +233,6 @@ function LoopRunDetail({
             void requests.onAnswer(input);
           },
         }}
-        strategyProgress={page.strategyProgress}
-        onOpenRun={timetravel.onOpenRun}
         onCompareGeneration={timetravel.onCompareGeneration}
         onForkGeneration={timetravel.onForkGeneration}
       />

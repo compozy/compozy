@@ -16,6 +16,8 @@ type taskListInput struct {
 	Status               string `json:"status,omitempty"`
 	Priority             string `json:"priority,omitempty"`
 	IncludeDrafts        bool   `json:"include_drafts,omitempty"`
+	IncludeLoop          bool   `json:"include_loop,omitempty"`
+	LoopRunID            string `json:"loop_run_id,omitempty"`
 	ApprovalState        string `json:"approval_state,omitempty"`
 	OwnerKind            string `json:"owner_kind,omitempty"`
 	OwnerRef             string `json:"owner_ref,omitempty"`
@@ -42,6 +44,7 @@ func (n *daemonNativeTools) taskList(
 		return toolspkg.ToolResult{}, err
 	}
 	query := input.query()
+	core.ApplyTaskLoopCatalogFilters(&query, input.IncludeLoop, input.LoopRunID)
 	if strings.TrimSpace(scope.WorkspaceID) != "" {
 		workspaceID := nativeCallerWorkspaceInput(input.WorkspaceID, scope)
 		query.Scope = taskpkg.CatalogScopeWorkspace

@@ -52,6 +52,8 @@ export const heroRunFixtures: LoopRun[] = [
     started_origin_kind: "manual",
     started_by_ref: "pedro",
     inputs: { slug: "search-reindex" },
+    // Canceled mid-round: two of four steps had settled when the operator stopped it.
+    progress: { round: 1, steps_done: 2, steps_total: 4 },
     forks: [],
   },
 ];

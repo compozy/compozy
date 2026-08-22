@@ -143,6 +143,7 @@ import {
   type TaskListPage,
   tasksKeys,
   type TasksRouteSearch,
+  type TaskViewMode,
   validateTasksSearch,
 } from "@/systems/tasks";
 
@@ -162,6 +163,21 @@ function useControlledTasksPage(initialSearch: TasksRouteSearch = {}) {
   return useTasksPage({
     search,
     onSearchChange: update => setSearch(current => update(current)),
+  });
+}
+
+/**
+ * The same hook, with the surface owned from outside the way the route owns it.
+ * Switching surfaces is a navigation, not a hook call — so exercising the reset
+ * means rerendering one hook across modes, never mounting a fresh one.
+ */
+function useRouteControlledTasksPage(mode: TaskViewMode) {
+  const [search, setSearch] = useState<TasksRouteSearch>({});
+  // `list` is the absence of a mode in the route, exactly as the router spells it.
+  const modeSearch: TasksRouteSearch = mode === "list" ? {} : { mode };
+  return useTasksPage({
+    search: { ...search, ...modeSearch },
+    onSearchChange: update => setSearch(current => update({ ...current, ...modeSearch })),
   });
 }
 
@@ -290,6 +306,100 @@ describe("useTasksPage", () => {
         inboxStatus: "invalid",
       })
     ).toEqual({ status: "failed", inboxUnread: true });
+  });
+
+  it("keeps the reveal filter off by default and off the wire", async () => {
+    const { result } = renderHook(() => useControlledTasksPage(), { wrapper: createWrapper() });
+
+    await waitFor(() => {
+      expect(result.current.visibleTasks).toHaveLength(3);
+    });
+
+    expect(result.current.recordsFilter).toBe("work");
+    const [listFilters] = vi.mocked(listTasks).mock.calls.at(-1) ?? [];
+    // The daemon owns the default: a calm read sends no include flag at all.
+    expect(listFilters?.include_loop).toBeUndefined();
+    expect(result.current.isEmpty).toBe(false);
+  });
+
+  it("sends include_loop only while the reveal is on, and counts it as a list filter", async () => {
+    const { result } = renderHook(() => useControlledTasksPage(), { wrapper: createWrapper() });
+
+    await waitFor(() => {
+      expect(result.current.visibleTasks).toHaveLength(3);
+    });
+
+    act(() => {
+      result.current.handleRecordsFilterChange("loop");
+    });
+
+    await waitFor(() => {
+      expect(result.current.recordsFilter).toBe("loop");
+    });
+    await waitFor(() => {
+      const [revealed] = vi.mocked(listTasks).mock.calls.at(-1) ?? [];
+      expect(revealed?.include_loop).toBe(true);
+    });
+
+    act(() => {
+      result.current.handleRecordsFilterChange("work");
+    });
+    await waitFor(() => {
+      expect(result.current.recordsFilter).toBe("work");
+    });
+
+    // Reveal-on and reveal-off are distinct cache keys, so returning to the calm
+    // read serves the cached page rather than refetching. What must hold across
+    // every request the surface ever makes is that the calm default is the
+    // absence of the flag — an explicit `false` would be a second default.
+    expect(
+      vi.mocked(listTasks).mock.calls.every(([filters]) => filters?.include_loop !== false)
+    ).toBe(true);
+  });
+
+  it("resets the reveal when the surface changes so the board stays work-items only", async () => {
+    const { result, rerender } = renderHook(({ mode }) => useRouteControlledTasksPage(mode), {
+      initialProps: { mode: "list" as TaskViewMode },
+      wrapper: createWrapper(),
+    });
+
+    await waitFor(() => {
+      expect(result.current.visibleTasks).toHaveLength(3);
+    });
+
+    act(() => {
+      result.current.handleRecordsFilterChange("loop");
+    });
+    await waitFor(() => {
+      expect(result.current.recordsFilter).toBe("loop");
+    });
+
+    act(() => {
+      result.current.handleSortChange("priority");
+    });
+    // A filter change inside the list keeps the revealed context.
+    await waitFor(() => {
+      expect(result.current.recordsFilter).toBe("loop");
+    });
+
+    // The surface changes under the same hook — the only way the reset branch
+    // runs at all. A freshly mounted kanban hook starts calm by construction and
+    // would pass this even with the reset deleted.
+    rerender({ mode: "kanban" as TaskViewMode });
+    await waitFor(() => {
+      expect(result.current.recordsFilter).toBe("work");
+    });
+    await waitFor(() => {
+      const [boardFilters] = vi.mocked(listTasks).mock.calls.at(-1) ?? [];
+      expect(boardFilters?.include_loop).toBeUndefined();
+    });
+
+    // And coming back is a fresh context too: a reveal must never survive a
+    // round trip through another surface.
+    rerender({ mode: "list" as TaskViewMode });
+    await waitFor(() => {
+      expect(result.current.recordsFilter).toBe("work");
+    });
   });
 
   it("exposes exact Kanban state, counts, and derived columns", async () => {

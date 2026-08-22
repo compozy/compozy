@@ -36,6 +36,12 @@ func (s *service) RequeueNode(
 	if s.coordinatorActivator != nil {
 		s.coordinatorActivator.ActivateCoordinatorRun(context.WithoutCancel(ctx), result.Coordinator)
 	}
+	if s.workerRunActivator != nil {
+		activationCtx := context.WithoutCancel(ctx)
+		for _, worker := range result.Workers {
+			s.workerRunActivator.ActivateWorkerRun(activationCtx, worker)
+		}
+	}
 	return result, nil
 }
 

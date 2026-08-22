@@ -6,6 +6,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"io"
 	"net/http"
 	"net/url"
@@ -21,10 +22,15 @@ import (
 
 	compozycontract "github.com/compozy/compozy/internal/api/contract"
 	apispec "github.com/compozy/compozy/internal/api/spec"
+	apitest "github.com/compozy/compozy/internal/api/testutil"
 	automationpkg "github.com/compozy/compozy/internal/automation"
 	compozyconfig "github.com/compozy/compozy/internal/config"
+	"github.com/compozy/compozy/internal/network/participation"
+	"github.com/compozy/compozy/internal/store/globaldb"
+	taskpkg "github.com/compozy/compozy/internal/task"
 	"github.com/compozy/compozy/internal/testutil/acpmock"
 	e2etest "github.com/compozy/compozy/internal/testutil/e2e"
+	workspacepkg "github.com/compozy/compozy/internal/workspace"
 	tomltree "github.com/pelletier/go-toml"
 )
 
@@ -400,6 +406,161 @@ func transportHarnessSessionPath(
 
 func TestHTTPTransportExtensionParityMatchesUDS(t *testing.T) {
 	t.Run("Should preserve extension behavior across HTTP, UDS, and CLI", testHTTPTransportExtensionParityMatchesUDS)
+}
+
+// Invariant: one task catalog query has identical calm-default and Loop-filter semantics over
+// real HTTP, UDS, and CLI transports. The native-tool suite reuses the same semantic matcher.
+func TestHTTPTransportTaskLoopCatalogParity(t *testing.T) {
+	acpmock.RequireDriver(t)
+	t.Parallel()
+
+	runtimeHarness := e2etest.StartRuntimeHarness(t, &e2etest.RuntimeHarnessOptions{})
+	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
+	defer cancel()
+	seedTransportTaskLoopCatalog(t, ctx, runtimeHarness)
+
+	queries := []struct {
+		name    string
+		path    string
+		cliArgs []string
+		assert  func(testing.TB, compozycontract.TasksResponse)
+	}{
+		{
+			name:    "Should exclude Loop records by default",
+			path:    transportTaskListPath(runtimeHarness.WorkspaceID, "", false),
+			cliArgs: transportTaskListCLIArgs(runtimeHarness.WorkspaceID),
+			assert: func(t testing.TB, response compozycontract.TasksResponse) {
+				t.Helper()
+				if len(response.Tasks) != 1 || response.Tasks[0].ID != "task-transport-visible" ||
+					response.Page.Total != 1 {
+					t.Fatalf("calm task catalog = %#v, want only the operator task", response)
+				}
+			},
+		},
+		{
+			name:    "Should include complete coordinator and cell provenance",
+			path:    transportTaskListPath(runtimeHarness.WorkspaceID, "", true),
+			cliArgs: transportTaskListCLIArgs(runtimeHarness.WorkspaceID, "--include-loop"),
+			assert:  assertTransportIncludedLoopCatalog,
+		},
+		{
+			name: "Should collapse three attempts into one Loop cell",
+			path: transportTaskListPath(runtimeHarness.WorkspaceID, apitest.TaskLoopParityRunID, false),
+			cliArgs: transportTaskListCLIArgs(
+				runtimeHarness.WorkspaceID, "--loop-run", apitest.TaskLoopParityRunID,
+			),
+			assert: apitest.AssertLoopRunTaskCatalog,
+		},
+	}
+
+	for _, query := range queries {
+		query := query
+		t.Run(query.name, func(t *testing.T) {
+			var httpPayload compozycontract.TasksResponse
+			if err := runtimeHarness.HTTPJSON(ctx, http.MethodGet, query.path, nil, &httpPayload); err != nil {
+				t.Fatalf("HTTP task list error = %v", err)
+			}
+			var udsPayload compozycontract.TasksResponse
+			if err := runtimeHarness.UDSJSON(ctx, http.MethodGet, query.path, nil, &udsPayload); err != nil {
+				t.Fatalf("UDS task list error = %v", err)
+			}
+			var cliPayload compozycontract.TasksResponse
+			if err := runtimeHarness.CLI.RunJSONInDir(
+				ctx, runtimeHarness.WorkspaceRoot, &cliPayload, query.cliArgs...,
+			); err != nil {
+				t.Fatalf("CLI task list error = %v", err)
+			}
+			for transport, payload := range map[string]compozycontract.TasksResponse{
+				"HTTP": httpPayload, "UDS": udsPayload, "CLI": cliPayload,
+			} {
+				query.assert(t, payload)
+				if !reflect.DeepEqual(httpPayload, payload) {
+					t.Fatalf("%s task catalog = %#v, want HTTP parity %#v", transport, payload, httpPayload)
+				}
+			}
+		})
+	}
+
+	t.Run("Should return a scoped empty body for a foreign Loop run", func(t *testing.T) {
+		path := transportTaskListPath(runtimeHarness.WorkspaceID, "looprun-transport-foreign", false)
+		for transport, client := range map[string]*http.Client{
+			"HTTP": runtimeHarness.HTTPClient,
+			"UDS":  runtimeHarness.UDSClient,
+		} {
+			endpoint := runtimeHarness.HTTPURL(path)
+			if transport == "UDS" {
+				endpoint = runtimeHarness.UDSURL(path)
+			}
+			response := mustHTTPRequest(t, client, http.MethodGet, endpoint, nil, nil)
+			if response.StatusCode != http.StatusOK {
+				body := readAndCloseHTTPBody(t, response)
+				t.Fatalf(
+					"%s foreign Loop status = %d, want %d; body=%s",
+					transport,
+					response.StatusCode,
+					http.StatusOK,
+					body,
+				)
+			}
+			var payload compozycontract.TasksResponse
+			decodeHTTPJSON(t, response, &payload)
+			assertScopedEmptyTaskCatalog(t, transport, payload)
+		}
+		var cliPayload compozycontract.TasksResponse
+		if err := runtimeHarness.CLI.RunJSONInDir(
+			ctx,
+			runtimeHarness.WorkspaceRoot,
+			&cliPayload,
+			transportTaskListCLIArgs(
+				runtimeHarness.WorkspaceID, "--loop-run", "looprun-transport-foreign",
+			)...,
+		); err != nil {
+			t.Fatalf("CLI foreign Loop list error = %v, want exit 0", err)
+		}
+		assertScopedEmptyTaskCatalog(t, "CLI", cliPayload)
+	})
+
+	t.Run("Should keep catalog and detail provenance identical after relational retention", func(t *testing.T) {
+		var catalog compozycontract.TasksResponse
+		if err := runtimeHarness.HTTPJSON(
+			ctx,
+			http.MethodGet,
+			transportTaskListPath(runtimeHarness.WorkspaceID, "", true),
+			nil,
+			&catalog,
+		); err != nil {
+			t.Fatalf("HTTP included task list error = %v", err)
+		}
+		byID := make(map[string]compozycontract.TaskCatalogItemPayload, len(catalog.Tasks))
+		for _, item := range catalog.Tasks {
+			byID[item.ID] = item
+		}
+		for _, taskID := range []string{
+			apitest.TaskLoopParityCoordinatorID,
+			apitest.TaskLoopParityCellID,
+			"task-loop-transport-retained",
+		} {
+			var detail compozycontract.TaskDetailResponse
+			if err := runtimeHarness.HTTPJSON(
+				ctx, http.MethodGet, "/api/tasks/"+url.PathEscape(taskID), nil, &detail,
+			); err != nil {
+				t.Fatalf("HTTP task detail %q error = %v", taskID, err)
+			}
+			if !reflect.DeepEqual(detail.Task.Task.Loop, byID[taskID].Loop) {
+				t.Fatalf(
+					"task %q detail Loop = %#v, want catalog parity %#v",
+					taskID,
+					detail.Task.Task.Loop,
+					byID[taskID].Loop,
+				)
+			}
+		}
+		retained := byID["task-loop-transport-retained"].Loop
+		if retained == nil || retained.RunID != "looprun-transport-retained" ||
+			retained.Role != compozycontract.LoopProvenanceRoleCell || retained.LoopName != "" {
+			t.Fatalf("retention-degraded Loop provenance = %#v, want relational run/role without name", retained)
+		}
+	})
 }
 
 func testHTTPTransportExtensionParityMatchesUDS(t *testing.T) {
@@ -1016,4 +1177,198 @@ func normalizeSpecRoutePath(path string) string {
 		}
 	}
 	return strings.Join(parts, "/")
+}
+
+func transportTaskListPath(workspaceID string, loopRunID string, includeLoop bool) string {
+	values := url.Values{
+		"scope":     {string(taskpkg.CatalogScopeWorkspace)},
+		"workspace": {workspaceID},
+		"limit":     {"10"},
+	}
+	if includeLoop {
+		values.Set("include_loop", "true")
+	}
+	if strings.TrimSpace(loopRunID) != "" {
+		values.Set("loop_run_id", loopRunID)
+	}
+	return "/api/tasks?" + values.Encode()
+}
+
+func transportTaskListCLIArgs(workspaceID string, filters ...string) []string {
+	args := []string{"task", "list", "--scope", "workspace", "--workspace", workspaceID}
+	args = append(args, filters...)
+	return append(args, "--limit", "10", "-o", "json")
+}
+
+func assertTransportIncludedLoopCatalog(t testing.TB, response compozycontract.TasksResponse) {
+	t.Helper()
+
+	if response.Page.Total != 4 || len(response.Tasks) != 4 {
+		t.Fatalf("included task catalog = %#v, want operator and three Loop records", response)
+	}
+	byID := make(map[string]compozycontract.TaskCatalogItemPayload, len(response.Tasks))
+	for _, item := range response.Tasks {
+		byID[item.ID] = item
+	}
+	apitest.AssertLoopTaskProvenance(
+		t, byID[apitest.TaskLoopParityCoordinatorID], compozycontract.LoopProvenanceRoleCoordinator,
+	)
+	apitest.AssertLoopTaskProvenance(
+		t, byID[apitest.TaskLoopParityCellID], compozycontract.LoopProvenanceRoleCell,
+	)
+	retained := byID["task-loop-transport-retained"].Loop
+	if retained == nil || retained.RunID != "looprun-transport-retained" ||
+		retained.Role != compozycontract.LoopProvenanceRoleCell || retained.LoopName != "" {
+		t.Fatalf("included retained Loop provenance = %#v, want relational degradation", retained)
+	}
+	if len(response.Facets.Statuses) != 1 || response.Facets.Statuses[0].Count != 4 {
+		t.Fatalf("included status facets = %#v, want coherent total 4", response.Facets.Statuses)
+	}
+}
+
+func assertScopedEmptyTaskCatalog(t testing.TB, transport string, payload compozycontract.TasksResponse) {
+	t.Helper()
+	if payload.Page.Total != 0 || payload.Page.HasMore || payload.Page.NextCursor != "" ||
+		len(payload.Tasks) != 0 || len(payload.Facets.Statuses) != 0 || len(payload.Facets.Owners) != 0 {
+		t.Fatalf("%s foreign Loop body = %#v, want scoped empty catalog", transport, payload)
+	}
+}
+
+func seedTransportTaskLoopCatalog(
+	t testing.TB,
+	ctx context.Context,
+	harness *e2etest.RuntimeHarness,
+) {
+	t.Helper()
+
+	database, err := globaldb.OpenGlobalDB(ctx, harness.HomePaths.DatabaseFile)
+	if err != nil {
+		t.Fatalf("OpenGlobalDB(task transport fixture) error = %v", err)
+	}
+	t.Cleanup(func() {
+		closeCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer cancel()
+		if err := database.Close(closeCtx); err != nil {
+			t.Errorf("Close(task transport fixture DB) error = %v", err)
+		}
+	})
+
+	now := time.Date(2026, 8, 20, 15, 0, 0, 0, time.UTC)
+	human := taskpkg.ActorIdentity{Kind: taskpkg.ActorKindHuman, Ref: "transport-operator"}
+	loopActor := taskpkg.ActorIdentity{Kind: taskpkg.ActorKindDaemon, Ref: "loop-coordinator"}
+	humanOrigin := taskpkg.Origin{Kind: taskpkg.OriginKindCLI, Ref: "transport-fixture"}
+	loopOrigin := taskpkg.Origin{Kind: taskpkg.OriginKindDaemon, Ref: "loop-coordinator"}
+	completedTask := func(id, title, workspaceID, parentID string, actor taskpkg.ActorIdentity, origin taskpkg.Origin) taskpkg.Task {
+		return taskpkg.Task{
+			ID: id, Identifier: id, Scope: taskpkg.ScopeWorkspace, WorkspaceID: workspaceID,
+			ParentTaskID: parentID, Title: title, Priority: taskpkg.DefaultPriority,
+			MaxAttempts: taskpkg.DefaultTaskMaxAttempts, Status: taskpkg.TaskStatusCompleted,
+			ApprovalPolicy: taskpkg.ApprovalPolicyNone, ApprovalState: taskpkg.ApprovalStateNotRequired,
+			CreatedBy: actor, Origin: origin, CreatedAt: now, UpdatedAt: now, ClosedAt: now,
+		}
+	}
+	coordinatorID := apitest.TaskLoopParityCoordinatorID
+	visible := completedTask(
+		"task-transport-visible",
+		"Visible operator task",
+		harness.WorkspaceID,
+		"",
+		human,
+		humanOrigin,
+	)
+	coordinator := completedTask(
+		coordinatorID,
+		"Transport Loop coordinator",
+		harness.WorkspaceID,
+		"",
+		loopActor,
+		loopOrigin,
+	)
+	coordinator.Metadata = json.RawMessage(
+		`{"loop_run_id":"looprun-transport-parity","loop_name":"transport-parity"}`,
+	)
+	cell := completedTask(
+		apitest.TaskLoopParityCellID, "Transport Loop cell", harness.WorkspaceID, coordinatorID, loopActor, loopOrigin,
+	)
+	cell.Metadata = json.RawMessage(
+		`{"loop_run_id":"looprun-transport-parity","loop_name":"transport-parity","generation":2,"node_id":"review","item_index":0}`,
+	)
+	retained := completedTask(
+		"task-loop-transport-retained", "Retained Loop cell", harness.WorkspaceID, coordinatorID, loopActor, loopOrigin,
+	)
+	for _, record := range []taskpkg.Task{visible, coordinator, cell, retained} {
+		if err := database.CreateTask(ctx, record); err != nil {
+			t.Fatalf("CreateTask(%q) error = %v", record.ID, err)
+		}
+	}
+
+	foreignRoot := t.TempDir()
+	if err := database.InsertWorkspace(ctx, workspacepkg.Workspace{
+		RootDir: foreignRoot, Name: "transport-foreign", CreatedAt: now, UpdatedAt: now,
+	}); err != nil {
+		t.Fatalf("InsertWorkspace(foreign) error = %v", err)
+	}
+	foreignWorkspace, err := database.GetWorkspaceByPath(ctx, foreignRoot)
+	if err != nil {
+		t.Fatalf("GetWorkspaceByPath(foreign) error = %v", err)
+	}
+	foreign := completedTask(
+		"task-loop-transport-foreign", "Foreign Loop cell", foreignWorkspace.ID, "", loopActor, loopOrigin,
+	)
+	foreign.Metadata = json.RawMessage(`{"loop_run_id":"looprun-transport-foreign","loop_name":"foreign"}`)
+	if err := database.CreateTask(ctx, foreign); err != nil {
+		t.Fatalf("CreateTask(foreign) error = %v", err)
+	}
+
+	actor, err := taskpkg.DeriveDaemonActorContext("transport-fixture", "transport-fixture")
+	if err != nil {
+		t.Fatalf("DeriveDaemonActorContext() error = %v", err)
+	}
+	importRun := func(run taskpkg.Run) {
+		t.Helper()
+		command, err := taskpkg.NewCompletedRunHistoryImport(run, actor)
+		if err != nil {
+			t.Fatalf("NewCompletedRunHistoryImport(%q) error = %v", run.ID, err)
+		}
+		if err := database.ImportCompletedRunHistory(ctx, &command); err != nil {
+			t.Fatalf("ImportCompletedRunHistory(%q) error = %v", run.ID, err)
+		}
+	}
+	newRun := func(id, taskID, workspaceID, loopRunID string, kind taskpkg.RunKind, attempt int32) taskpkg.Run {
+		queuedAt := now.Add(time.Duration(attempt) * time.Minute)
+		return taskpkg.Run{
+			ID: id, TaskID: taskID, WorkspaceID: workspaceID, Attempt: attempt,
+			RunKind: kind, Status: taskpkg.TaskRunStatusCompleted, LoopRunID: loopRunID,
+			Origin: loopOrigin, RunNetworkState: &taskpkg.RunNetworkState{NetworkSpec: participation.LocalSpec()},
+			Metadata: json.RawMessage(fmt.Sprintf(
+				`{"loop_run_id":%q,"loop_name":"transport-parity","generation":2,"node_id":"review","item_index":0}`,
+				loopRunID,
+			)),
+			QueuedAt: queuedAt, EndedAt: queuedAt.Add(time.Second),
+		}
+	}
+	importRun(newRun(
+		"run-loop-transport-coordinator", coordinator.ID, harness.WorkspaceID,
+		apitest.TaskLoopParityRunID, taskpkg.RunKindCoordinator, 1,
+	))
+	previousRunID := ""
+	for attempt := int32(1); attempt <= 3; attempt++ {
+		run := newRun(
+			fmt.Sprintf("run-loop-transport-cell-%d", attempt), cell.ID, harness.WorkspaceID,
+			apitest.TaskLoopParityRunID, taskpkg.RunKindWorker, attempt,
+		)
+		run.PreviousRunID = previousRunID
+		importRun(run)
+		previousRunID = run.ID
+	}
+	retainedRun := newRun(
+		"run-loop-transport-retained", retained.ID, harness.WorkspaceID,
+		"looprun-transport-retained", taskpkg.RunKindWorker, 1,
+	)
+	retainedRun.Metadata = nil
+	importRun(retainedRun)
+	importRun(newRun(
+		"run-loop-transport-foreign", foreign.ID, foreignWorkspace.ID,
+		"looprun-transport-foreign", taskpkg.RunKindWorker, 1,
+	))
 }

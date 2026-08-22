@@ -3,19 +3,33 @@ package loop
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"time"
 )
 
+// ErrInvalidRunListCursor reports a malformed or filter-incompatible run-list cursor.
+var ErrInvalidRunListCursor = errors.New("invalid_cursor")
+
 // RunListQuery filters workspace-scoped loop run listings.
 type RunListQuery struct {
-	WorkspaceID     WorkspaceID
-	LoopName        string
-	Status          Status
-	OriginKind      string
-	OriginSessionID string
-	Live            *bool
-	Limit           int
-	CreatedAfter    time.Time
+	WorkspaceID      WorkspaceID
+	LoopName         string
+	Status           Status
+	OriginKind       string
+	OriginSessionID  string
+	Live             *bool
+	Limit            int
+	CreatedAfter     time.Time
+	OperationalOrder bool
+	// After resumes operational ordering and must come from the same active filters.
+	After *RunListPosition
+}
+
+// RunListPosition identifies one run by operational rank, creation time, and ID.
+type RunListPosition struct {
+	Rank      int
+	CreatedAt time.Time
+	ID        RunID
 }
 
 // RunEventQuery filters retained loop run events.
@@ -24,6 +38,15 @@ type RunEventQuery struct {
 	RunID       RunID
 	AfterSeq    int64
 	Limit       int
+}
+
+// RunEventBackwardQuery identifies one snapshot-fenced reverse event page.
+type RunEventBackwardQuery struct {
+	WorkspaceID  WorkspaceID
+	RunID        RunID
+	FixedHeadSeq int64
+	BeforeSeq    int64
+	Limit        int
 }
 
 // RunEvent is one retained loop_run_events row.

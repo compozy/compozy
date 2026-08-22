@@ -4,6 +4,14 @@ package contracts
 
 import "time"
 
+type ResourceSourceKind string
+
+type ResourcesListParams struct {
+	Kind  ResourceKind   `json:"kind,omitempty"`
+	Scope *ResourceScope `json:"scope,omitempty"`
+	Limit int            `json:"limit,omitempty"`
+}
+
 type ResourcesSnapshotParams struct {
 	SourceVersion int64                    `json:"source_version"`
 	Records       []ResourceSnapshotRecord `json:"records"`
@@ -187,16 +195,3 @@ type SandboxPreparePayload struct {
 	Denied              bool                  `json:"denied,omitempty"`
 	DenyReason          string                `json:"deny_reason,omitempty"`
 }
-
-type SandboxProfilePayload struct {
-	Profile        string            `json:"profile,omitempty"`
-	Backend        string            `json:"backend,omitempty"`
-	SyncMode       string            `json:"sync_mode,omitempty"`
-	Persistence    string            `json:"persistence,omitempty"`
-	RuntimeRootDir string            `json:"runtime_root,omitempty"`
-	DestroyOnStop  bool              `json:"destroy_on_stop,omitempty"`
-	Env            map[string]string `json:"env,omitempty"`
-	SecretEnv      map[string]string `json:"secret_env,omitempty"`
-}
-
-type SandboxReadyPatch struct{}

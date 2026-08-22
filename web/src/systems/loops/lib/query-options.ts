@@ -2,13 +2,17 @@ import { infiniteQueryOptions, queryOptions } from "@tanstack/react-query";
 
 import { listLoopNodes } from "../adapters/loop-nodes-api";
 import { getLoopRequest, listLoopRequests } from "../adapters/loop-requests-api";
+import {
+  getLoopRunBriefing,
+  getLoopRunRoster,
+  getLoopRunTimeline,
+} from "../adapters/loop-run-reads-api";
 import { diffLoopRun } from "../adapters/loop-timetravel-api";
 import {
   getLoop,
   getLoopAnnotations,
   getLoopConfig,
   getLoopRun,
-  listGoalTurns,
   listLoopRuns,
   listLoops,
 } from "../adapters/loops-api";
@@ -16,17 +20,25 @@ import { isTerminalLoopStatus } from "./loop-formatters";
 import { type LoopNodeInventoryStableFilter, loopsKeys } from "./query-keys";
 import { loopCatalogRequest, normalizeLoopCatalogFilter } from "./loops-list-query";
 import type {
-  GoalTurnFilter,
   LoopCatalogStableFilter,
   LoopDiffQuery,
   LoopRequestStableFilter,
+  LoopRosterStableFilter,
   LoopRunsFilter,
+  LoopTimelineStableFilter,
 } from "../types";
 
 const DEFAULT_STALE_TIME = 15_000;
 const DEFAULT_REFETCH_INTERVAL = 30_000;
 const LIVE_STALE_TIME = 5_000;
 const LIVE_REFETCH_INTERVAL = 15_000;
+/**
+ * Roster and timeline page sizes. Both sit inside the daemon's 1-500 range. The
+ * roster is deliberately generous: the DAG draws the whole topology, and a run
+ * with fewer than 200 node x round rows — nearly all of them — reads in one page.
+ */
+const ROSTER_PAGE_LIMIT = 200;
+const TIMELINE_PAGE_LIMIT = 50;
 
 export function loopsCatalogOptions(workspaceId: string, filters: LoopCatalogStableFilter = {}) {
   const normalizedFilters = normalizeLoopCatalogFilter(filters);
@@ -37,21 +49,6 @@ export function loopsCatalogOptions(workspaceId: string, filters: LoopCatalogSta
     initialPageParam: undefined as string | undefined,
     getNextPageParam: lastPage => (lastPage.page.has_more ? lastPage.page.next_cursor : undefined),
     staleTime: DEFAULT_STALE_TIME,
-  });
-}
-
-export function goalTurnsOptions(
-  workspaceId: string,
-  runId: string,
-  filters: Pick<GoalTurnFilter, "node" | "item" | "limit"> = {}
-) {
-  const normalizedFilters = { ...filters, limit: filters.limit ?? 50 };
-  return infiniteQueryOptions({
-    queryKey: loopsKeys.goalTurns(workspaceId, runId, normalizedFilters),
-    queryFn: ({ pageParam, signal }) =>
-      listGoalTurns(workspaceId, runId, { ...normalizedFilters, after_seq: pageParam }, signal),
-    initialPageParam: 0,
-    getNextPageParam: page => page.next_after_seq ?? undefined,
   });
 }
 
@@ -149,6 +146,87 @@ export function loopRunDetailOptions(workspaceId: string, runId: string, enabled
   });
 }
 
+/**
+ * The served verdict. The page renders it; it never recomputes a different one
+ * (Safety Invariant 12). A terminal run's briefing is immutable, so polling stops
+ * with the run — the same rule `loopRunDetailOptions` follows.
+ */
+export function loopRunBriefingOptions(workspaceId: string, runId: string, enabled = true) {
+  return queryOptions({
+    queryKey: loopsKeys.runBriefing(workspaceId, runId),
+    queryFn: ({ signal }) => getLoopRunBriefing(workspaceId, runId, signal),
+    staleTime: LIVE_STALE_TIME,
+    refetchInterval: query =>
+      isTerminalLoopStatus(query.state.data?.status) ? false : LIVE_REFETCH_INTERVAL,
+    enabled: Boolean(workspaceId) && Boolean(runId) && enabled,
+  });
+}
+
+/**
+ * The complete node × round roster — healthy nodes included, which is precisely
+ * what the lifecycle projection cannot give (it skips nodes with no control,
+ * wait, or retry). The DAG, the roster table, and the step list all read this
+ * one page set, so they cannot drift from each other.
+ *
+ * Fan-out items page under `next_cursor`; `fanout_rollups` arrives on every page,
+ * so a wide fan-out renders its counts without fetching a single item.
+ */
+export function loopRunRosterOptions(
+  workspaceId: string,
+  runId: string,
+  filters: LoopRosterStableFilter = {},
+  enabled = true
+) {
+  const normalizedFilters = { ...filters, limit: filters.limit ?? ROSTER_PAGE_LIMIT };
+  return infiniteQueryOptions({
+    queryKey: loopsKeys.runRoster(workspaceId, runId, normalizedFilters),
+    queryFn: ({ pageParam, signal }) =>
+      getLoopRunRoster(workspaceId, runId, { ...normalizedFilters, cursor: pageParam }, signal),
+    initialPageParam: undefined as string | undefined,
+    getNextPageParam: page => page.next_cursor || undefined,
+    staleTime: LIVE_STALE_TIME,
+    refetchInterval: query =>
+      isTerminalLoopStatus(query.state.data?.pages.at(-1)?.run_status)
+        ? false
+        : LIVE_REFETCH_INTERVAL,
+    enabled: Boolean(workspaceId) && Boolean(runId) && enabled,
+  });
+}
+
+/**
+ * The durable story. The first page is the NEWEST window and carries `head_seq`;
+ * older history pages backward on demand through an opaque cursor fenced to that
+ * head, so appends never shift a page set out from under the reader.
+ *
+ * Deliberately unpolled: the SSE stream is the live channel (it resumes at
+ * `head_seq`), and re-reading a newest-window page on a timer would fight the
+ * fence. Reads reconcile on stream lifecycle events instead (ADR-005) — and a
+ * window regaining focus is not a lifecycle event, so it never re-anchors a
+ * fenced page set either.
+ */
+export function loopRunTimelineOptions(
+  workspaceId: string,
+  runId: string,
+  filters: LoopTimelineStableFilter = {},
+  enabled = true
+) {
+  const normalizedFilters = {
+    ...filters,
+    view: filters.view ?? "notable",
+    limit: filters.limit ?? TIMELINE_PAGE_LIMIT,
+  };
+  return infiniteQueryOptions({
+    queryKey: loopsKeys.runTimeline(workspaceId, runId, normalizedFilters),
+    queryFn: ({ pageParam, signal }) =>
+      getLoopRunTimeline(workspaceId, runId, { ...normalizedFilters, cursor: pageParam }, signal),
+    initialPageParam: undefined as string | undefined,
+    getNextPageParam: page => page.next_cursor || undefined,
+    staleTime: LIVE_STALE_TIME,
+    refetchOnWindowFocus: false,
+    enabled: Boolean(workspaceId) && Boolean(runId) && enabled,
+  });
+}
+
 export function loopRequestsOptions(
   workspaceId: string,
   filters: LoopRequestStableFilter = {},
@@ -181,31 +259,6 @@ export function loopRequestAttentionOptions(
     queryFn: ({ signal }) => listLoopRequests(workspaceId, { state: "pending", limit: 50 }, signal),
     staleTime: LIVE_STALE_TIME,
     refetchInterval,
-    enabled: Boolean(workspaceId) && enabled,
-  });
-}
-
-export function loopRunRequestCountsOptions(workspaceId: string, enabled = true) {
-  return queryOptions({
-    queryKey: loopsKeys.runRequestCounts(workspaceId),
-    queryFn: async ({ signal }) => {
-      const counts: Record<string, number> = {};
-      let cursor: string | undefined;
-      do {
-        const page = await listLoopRequests(
-          workspaceId,
-          { state: "pending", limit: 200, cursor },
-          signal
-        );
-        for (const request of page.items) {
-          counts[request.loop_run_id] = (counts[request.loop_run_id] ?? 0) + 1;
-        }
-        cursor = page.next_cursor || undefined;
-      } while (cursor);
-      return counts;
-    },
-    staleTime: LIVE_STALE_TIME,
-    refetchInterval: LIVE_REFETCH_INTERVAL,
     enabled: Boolean(workspaceId) && enabled,
   });
 }

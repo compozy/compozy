@@ -7,10 +7,28 @@
             "permissions": "approve-all",
             "turns": [
                 {
+                    "name": "usage-success",
+                    "match": { "turn_source": "user", "user_text": "usage lifecycle" },
+                    "usage": {
+                        "input_tokens": 17,
+                        "output_tokens": 5
+                    },
+                    "steps": [
+                        {
+                            "kind": "assistant",
+                            "text": "```json\n{\"summary\":\"usage recorded\",\"value\":\"measured\"}\n```"
+                        }
+                    ]
+                },
+                {
                     "name": "retry-healed",
                     "match": {
                         "turn_source": "user",
                         "user_text_contains": "Automatic retry context:"
+                    },
+                    "usage": {
+                        "input_tokens": 17,
+                        "output_tokens": 5
                     },
                     "steps": [
                         {
@@ -88,6 +106,68 @@
                             "text": "```json\n{\"summary\":\"needs repair\",\"error\":\"semantic escalation\"}\n```"
                         }
                     ]
+                }
+            ]
+        },
+        {
+            "name": "lifecycle_quarantine",
+            "provider": "acpmock",
+            "permissions": "approve-all",
+            "turns": [
+                {
+                    "name": "graph-failure-after-pause-window",
+                    "match": {
+                        "turn_source": "user",
+                        "user_text_contains": "graph failure"
+                    },
+                    "usage": {
+                        "input_tokens": 3,
+                        "output_tokens": 2
+                    },
+                    "steps": [
+                        {
+                            "kind": "driver_control",
+                            "driver_control": { "action": "delay", "delay_ms": 3000 }
+                        },
+                        {
+                            "kind": "assistant",
+                            "text": "```json\n{\"summary\":\"graph target unavailable\",\"error\":\"deterministic graph failure\"}\n```"
+                        }
+                    ]
+                },
+                {
+                    "name": "requeued-generation-holds-running",
+                    "match": {
+                        "turn_source": "user",
+                        "user_text_contains": "quarantine probe generation 3"
+                    },
+                    "steps": [
+                        {
+                            "kind": "driver_control",
+                            "driver_control": { "action": "delay", "delay_ms": 3000 }
+                        },
+                        {
+                            "kind": "assistant",
+                            "text": "```json\n{\"summary\":\"requeue accepted\"}\n```"
+                        }
+                    ]
+                },
+                {
+                    "name": "quarantine-repeated-failure",
+                    "match": {
+                        "turn_source": "user",
+                        "user_text_contains": "quarantine probe"
+                    },
+                    "steps": [
+                        {
+                            "kind": "assistant",
+                            "text": "```json\n{\"summary\":\"target unavailable\",\"error\":\"deterministic quarantine\"}\n```"
+                        }
+                    ],
+                    "usage": {
+                        "input_tokens": 3,
+                        "output_tokens": 2
+                    }
                 }
             ]
         }

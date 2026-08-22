@@ -26,6 +26,132 @@ import (
 func TestLoopCommandShouldMapCLIVerbsToClient(t *testing.T) {
 	t.Parallel()
 
+	t.Run("Should map request response identity flags without positional arguments", func(t *testing.T) {
+		t.Parallel()
+
+		var capturedWorkspaceID, capturedRunID, capturedNodeID string
+		var capturedRequest contract.RespondLoopRequest
+		deps := newTestDeps(t, &stubClient{
+			getWorkspaceFn: resolveTestLoopWorkspace(t),
+			respondLoopRequestFn: func(
+				_ context.Context,
+				workspaceID string,
+				runID string,
+				nodeID string,
+				request contract.RespondLoopRequest,
+				_ agentidentity.Credentials,
+			) (contract.RespondLoopRequestResponse, error) {
+				capturedWorkspaceID = workspaceID
+				capturedRunID = runID
+				capturedNodeID = nodeID
+				capturedRequest = request
+				return contract.RespondLoopRequestResponse{
+					OK: true, RunID: runID, NodeID: nodeID, State: "answered",
+				}, nil
+			},
+		})
+
+		_, _, err := executeRootCommand(
+			t,
+			deps,
+			"loop", "respond",
+			"--workspace", "alpha",
+			"--run-id", "run-request",
+			"--generation", "7",
+			"--node", "ask",
+			"--item", "3",
+			"--decision", "respond",
+			"--payload", `{"answer":"yes"}`,
+		)
+		if err != nil {
+			t.Fatalf("executeRootCommand(loop respond) error = %v", err)
+		}
+		if capturedWorkspaceID != "ws-alpha" || capturedRunID != "run-request" || capturedNodeID != "ask" ||
+			capturedRequest.Generation != 7 || capturedRequest.ItemIndex != 3 ||
+			capturedRequest.Decision != "respond" ||
+			string(capturedRequest.Payload) != `{"answer":"yes"}` {
+			t.Fatalf(
+				"RespondLoopRequest target/request = %q/%q/%q/%#v",
+				capturedWorkspaceID,
+				capturedRunID,
+				capturedNodeID,
+				capturedRequest,
+			)
+		}
+	})
+
+	t.Run("Should read a required-schema response explicitly from stdin", func(t *testing.T) {
+		t.Parallel()
+
+		var capturedRequest contract.RespondLoopRequest
+		deps := newTestDeps(t, &stubClient{
+			getWorkspaceFn: resolveTestLoopWorkspace(t),
+			respondLoopRequestFn: func(
+				_ context.Context,
+				_, _, _ string,
+				request contract.RespondLoopRequest,
+				_ agentidentity.Credentials,
+			) (contract.RespondLoopRequestResponse, error) {
+				capturedRequest = request
+				return contract.RespondLoopRequestResponse{
+					OK: true, RunID: "run-request", NodeID: "ask", State: "answered",
+				}, nil
+			},
+		})
+
+		_, _, err := executeRootCommandWithInput(
+			t,
+			deps,
+			`{"environment":"production"}`+"\n",
+			"loop", "respond",
+			"--workspace", "alpha",
+			"--run-id", "run-request",
+			"--generation", "7",
+			"--node", "ask",
+			"--decision", "respond",
+			"--payload-stdin",
+		)
+		if err != nil {
+			t.Fatalf("executeRootCommand(loop respond --payload-stdin) error = %v", err)
+		}
+		if got, want := string(capturedRequest.Payload), `{"environment":"production"}`; got != want {
+			t.Fatalf("RespondLoopRequest payload = %s, want %s", got, want)
+		}
+	})
+
+	t.Run("Should reject empty payload stdin without submitting a response", func(t *testing.T) {
+		t.Parallel()
+
+		deps := newTestDeps(t, &stubClient{
+			getWorkspaceFn: resolveTestLoopWorkspace(t),
+		})
+		_, _, err := executeRootCommandWithInput(
+			t,
+			deps,
+			"",
+			"loop", "respond",
+			"--workspace", "alpha",
+			"--run-id", "run-request",
+			"--generation", "7",
+			"--node", "ask",
+			"--decision", "respond",
+			"--payload-stdin",
+		)
+		if err == nil || !strings.Contains(err.Error(), "--payload must be valid JSON") {
+			t.Fatalf("executeRootCommand(empty --payload-stdin) error = %v, want payload validation", err)
+		}
+	})
+
+	t.Run("Should reject a positional run argument for request responses", func(t *testing.T) {
+		t.Parallel()
+
+		deps := newTestDeps(t, &stubClient{})
+		_, _, err := executeRootCommand(t, deps, "loop", "respond", "run-request")
+		if err == nil || !strings.Contains(err.Error(), `unknown command "run-request"`) {
+			t.Fatalf("executeRootCommand(loop respond positional) error = %v, want no-args rejection", err)
+		}
+	})
+
 	t.Run("Should preserve editor and temporary-file cleanup failures", func(t *testing.T) {
 		t.Parallel()
 
@@ -568,18 +694,17 @@ func TestLoopCommandShouldMapCLIVerbsToClient(t *testing.T) {
 			t,
 			deps,
 			"loop", "approve",
+			"looprun-1",
 			"--workspace", "alpha",
-			"--run-id", "looprun-1",
-			"--gate-id", "human-review",
-			"--decision", "request_changes",
+			"--gate", "human-review",
 			"-o", "json",
 		); err != nil {
 			t.Fatalf("executeRootCommand(loop approve) error = %v", err)
 		}
 
 		if capturedRequest.GateID != "human-review" ||
-			capturedRequest.Decision != contract.LoopGateDecisionRequestChanges {
-			t.Fatalf("ApproveLoopRun request = %#v, want human-review/request_changes", capturedRequest)
+			capturedRequest.Decision != contract.LoopGateDecisionApprove {
+			t.Fatalf("ApproveLoopRun request = %#v, want human-review/approve", capturedRequest)
 		}
 		if capturedCredentials.SessionID != "sess-author" || capturedCredentials.AgentName != "coder" {
 			t.Fatalf("ApproveLoopRun credentials = %#v, want sess-author/coder", capturedCredentials)
@@ -612,17 +737,42 @@ func TestLoopCommandShouldMapCLIVerbsToClient(t *testing.T) {
 			"--workspace", "alpha",
 			"--origin", "session",
 			"--origin-session", "session-origin",
+			"--cursor", "cursor-next",
 			"--limit", "7",
 			"-o", "json",
 		); err != nil {
 			t.Fatalf("executeRootCommand(loop runs origin) error = %v", err)
 		}
-		if captured.Origin != "session" || captured.OriginSession != "session-origin" || captured.Limit != 7 {
+		if captured.Origin != "session" || captured.OriginSession != "session-origin" ||
+			captured.Cursor != "cursor-next" || captured.Limit != 7 {
 			t.Fatalf("ListLoopRuns query = %#v", captured)
 		}
 		values := loopRunValues(captured)
-		if values.Get("origin") != "session" || values.Get("origin_session") != "session-origin" {
+		if values.Get("origin") != "session" || values.Get("origin_session") != "session-origin" ||
+			values.Get("cursor") != "cursor-next" {
 			t.Fatalf("loopRunValues() = %v", values)
+		}
+	})
+
+	t.Run("Should send the documented default Loop run page size", func(t *testing.T) {
+		t.Parallel()
+		var captured LoopRunListQuery
+		deps := newTestDeps(t, &stubClient{
+			getWorkspaceFn: resolveTestLoopWorkspace(t),
+			listLoopRunsFn: func(
+				_ context.Context,
+				_ string,
+				query LoopRunListQuery,
+			) (contract.LoopRunsResponse, error) {
+				captured = query
+				return contract.LoopRunsResponse{}, nil
+			},
+		})
+		if _, _, err := executeRootCommand(t, deps, "loop", "runs", "--workspace", "alpha", "-o", "json"); err != nil {
+			t.Fatalf("executeRootCommand(loop runs default limit) error = %v", err)
+		}
+		if captured.Limit != 50 || loopRunValues(captured).Get("limit") != "50" {
+			t.Fatalf("default Loop run query = %#v, want limit 50", captured)
 		}
 	})
 

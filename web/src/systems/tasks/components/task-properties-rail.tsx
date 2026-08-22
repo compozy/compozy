@@ -1,6 +1,6 @@
 import { Link } from "@tanstack/react-router";
 import { Search } from "lucide-react";
-import type { ComponentPropsWithoutRef, ReactNode } from "react";
+import type { ComponentPropsWithoutRef } from "react";
 
 import { Button, cn, MonoId, OwnerAvatar, Pill, PropertyRow, Spinner, Time } from "@compozy/ui";
 
@@ -16,7 +16,9 @@ import {
   taskPropertiesRunSummary,
 } from "../lib/task-properties-presentation";
 import type { TaskDetailView, TaskExecutionProfile, TaskPriority, TaskRun } from "../types";
+import { TaskLoopProvenance } from "./task-loop-provenance";
 import { TaskAutoEnqueueSwitch, TaskPriorityEditor } from "./task-rail-editors";
+import { TaskRailSection as RailSection } from "./task-rail-section";
 
 export interface TaskPropertiesRailProps extends ComponentPropsWithoutRef<"div"> {
   detail: TaskDetailView;
@@ -30,26 +32,6 @@ export interface TaskPropertiesRailProps extends ComponentPropsWithoutRef<"div">
   updatePending?: boolean;
   onPriorityChange: (priority: TaskPriority) => void;
   onAutoEnqueueChange: (enabled: boolean) => void;
-}
-
-function RailSection({
-  label,
-  action,
-  children,
-}: {
-  label: string;
-  action?: ReactNode;
-  children: ReactNode;
-}) {
-  return (
-    <section className="border-t border-line-soft px-4 py-3.5 first:border-t-0">
-      <header className="mb-2 flex items-center justify-between gap-2">
-        <h3 className="eyebrow text-subtle">{label}</h3>
-        {action}
-      </header>
-      {children}
-    </section>
-  );
 }
 
 /**
@@ -88,6 +70,9 @@ export function TaskPropertiesRail({
       className={cn("overflow-hidden rounded-lg border border-line bg-canvas-soft", className)}
       data-testid="tasks-detail-rail"
     >
+      {/* Leads the rail: "what is this record, which run owns it" comes first. */}
+      {record.loop ? <TaskLoopProvenance loop={record.loop} /> : null}
+
       {record.approval_state === "pending" ? (
         <RailSection label="Approval">
           <PropertyRow label="State">

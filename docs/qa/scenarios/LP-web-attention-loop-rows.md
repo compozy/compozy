@@ -6,13 +6,13 @@ persona: Dora
 journey: J-05
 expected: The OS attention bell shows "Loop nodes waiting on you" / "Loop nodes needing attention" rows only when a workspace-scoped limit-1 probe of the loop-nodes route returns at least one item in that state; with nothing parked the rows are absent (absence is the signal). The rows carry the shared state glyphs, no counts, add no badge to the bell trigger, and deep-link to `/loop-runs?nodes=waiting` / `?nodes=attention`.
 entry_points: web OS shell attention bell
-qa_status: blocked-verify
+qa_status: pass
 bug_ids:
 fix_status:
-retest_status:
+retest_status: pass
 fix_commits: f1e91fc5
-evidence:
-last_report:
+evidence: /Users/pedronauck/dev/qa-labs/compozy-loop-task-legibility-task07-final-web-20260822-131622-550786-lab/qa-artifacts/qa/task07-scenario-walks.md
+last_report: docs/qa/reports/2026-08-21-loop-task-legibility.md
 overlaps: LP-web-detail-inventory-contract
 ---
 

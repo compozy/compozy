@@ -20,36 +20,38 @@ func applyCoordinatorRunStopsWithExecutor(
 	exec taskSQLExecutor,
 	specs []taskpkg.CoordinatorStopSpec,
 	now time.Time,
-) error {
+) ([]taskpkg.StatusTransition, error) {
 	stoppedAny := false
+	var transitions []taskpkg.StatusTransition
 	for _, spec := range specs {
 		normalized := spec.Normalize()
 		child, err := getLoopRunByIDWithExecutor(ctx, exec, loop.RunID(normalized.LoopRunID))
 		if err != nil {
-			return err
+			return nil, err
 		}
 		if child.Status.Terminal() {
 			continue
 		}
-		if err := updateLoopBoundaryStatusWithExecutor(
+		settled, err := updateLoopBoundaryStatusWithEffects(
 			ctx,
 			exec,
 			child,
 			loop.StatusFailed,
 			loop.TransitionCauseContract,
-			now,
-			child.Generation,
-		); err != nil {
-			return err
+			now, child.Generation, nil, nil,
+		)
+		if err != nil {
+			return nil, err
 		}
+		transitions = append(transitions, settled...)
 		stoppedAny = true
 	}
 	if stoppedAny {
 		if err := sweepOrphanedLoopOutputBlobsWithExecutor(ctx, exec); err != nil {
-			return err
+			return nil, err
 		}
 	}
-	return nil
+	return transitions, nil
 }
 
 func (g *TaskRepo) ensureCoordinatorPlanTasksWithExecutor(
@@ -60,7 +62,11 @@ func (g *TaskRepo) ensureCoordinatorPlanTasksWithExecutor(
 	origin taskpkg.Origin,
 	now time.Time,
 ) error {
-	if len(plan.NodeTasks) == 0 && len(plan.Dependencies) == 0 {
+	quarantinedContinuations, err := quarantinedLoopContinuationOutputs(plan.PostReserveSnapshot)
+	if err != nil {
+		return err
+	}
+	if len(plan.NodeTasks) == 0 && len(plan.Dependencies) == 0 && len(quarantinedContinuations) == 0 {
 		return nil
 	}
 	parentTask, err := g.getTaskWithExecutor(ctx, exec, current.TaskID)
@@ -71,6 +77,18 @@ func (g *TaskRepo) ensureCoordinatorPlanTasksWithExecutor(
 		if err := g.createCoordinatorTaskIfMissingWithExecutor(ctx, exec, spec, parentTask, origin, now); err != nil {
 			return err
 		}
+	}
+	if err := g.ensureQuarantinedLoopContinuationTasksWithExecutor(
+		ctx,
+		exec,
+		plan.Snapshot,
+		plan.PostReserveSnapshot,
+		quarantinedContinuations,
+		parentTask,
+		origin,
+		now,
+	); err != nil {
+		return err
 	}
 	for _, spec := range plan.Dependencies {
 		if err := g.createCoordinatorDependencyIfMissingWithExecutor(ctx, exec, spec, now); err != nil {

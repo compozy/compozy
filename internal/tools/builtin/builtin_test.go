@@ -563,12 +563,52 @@ func TestBuiltinNativeDescriptors(t *testing.T) {
 		}
 	})
 
-	t.Run("Should validate exact Loop lifecycle output schemas", func(t *testing.T) {
+	t.Run("Should validate exact Loop lifecycle schemas", func(t *testing.T) {
 		t.Parallel()
 
 		descriptors := descriptorMap(NativeDescriptors())
 		status := descriptors[toolspkg.ToolIDLoopStatus]
 		runs := descriptors[toolspkg.ToolIDLoopRuns]
+		var runsInput struct {
+			Properties map[string]struct {
+				Type        string `json:"type"`
+				Description string `json:"description"`
+			} `json:"properties"`
+		}
+		if err := json.Unmarshal(runs.InputSchema, &runsInput); err != nil {
+			t.Fatalf("loop_runs input schema unmarshal error = %v", err)
+		}
+		inputCursor, ok := runsInput.Properties["cursor"]
+		if !ok {
+			t.Fatalf("loop_runs input schema = %s, want cursor property", runs.InputSchema)
+		}
+		if got, want := inputCursor.Type, "string"; got != want {
+			t.Fatalf("loop_runs input cursor type = %q, want %q", got, want)
+		}
+		if got, want := inputCursor.Description,
+			"Opaque continuation cursor from the previous page; reuse with the same workspace and filters."; got != want {
+			t.Fatalf("loop_runs input cursor description = %q, want %q", got, want)
+		}
+		var runsOutput struct {
+			Properties map[string]struct {
+				Type        string `json:"type"`
+				Description string `json:"description"`
+			} `json:"properties"`
+		}
+		if err := json.Unmarshal(runs.OutputSchema, &runsOutput); err != nil {
+			t.Fatalf("loop_runs output schema unmarshal error = %v", err)
+		}
+		outputCursor, ok := runsOutput.Properties["next_cursor"]
+		if !ok {
+			t.Fatalf("loop_runs output schema = %s, want next_cursor property", runs.OutputSchema)
+		}
+		if got, want := outputCursor.Type, "string"; got != want {
+			t.Fatalf("loop_runs output next_cursor type = %q, want %q", got, want)
+		}
+		if got, want := outputCursor.Description,
+			"Opaque continuation cursor for the next page; omitted when no further page exists."; got != want {
+			t.Fatalf("loop_runs output next_cursor description = %q, want %q", got, want)
+		}
 		cancel := descriptors[toolspkg.ToolIDLoopCancel]
 		nodes := descriptors[toolspkg.ToolIDLoopNodes]
 		requests := descriptors[toolspkg.ToolIDLoopRequests]
@@ -598,7 +638,8 @@ func TestBuiltinNativeDescriptors(t *testing.T) {
 		}`)
 		assertNativeOutputSchemaAccepts(t, runs, `{
 			"runs":[{"id":"run-1","completion_state":"complete","best_generation":2,"best_score":0.91}],
-			"aggregates":{"total":1,"live":0,"terminal":1,"succeeded":1,"failed":0}
+			"aggregates":{"total":1,"live":0,"terminal":1,"succeeded":1,"failed":0},
+			"next_cursor":"cursor-2"
 		}`)
 		assertNativeOutputSchemaRejects(t, runs, `{
 			"runs":[{"id":"run-1","completion_state":"complete","generations":[]}],

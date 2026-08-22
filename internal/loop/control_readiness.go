@@ -177,11 +177,11 @@ func appendReadyNodeRunsControlAware(
 		if err != nil {
 			return err
 		}
-		runID := coordinatorNodeAttemptRunID(
-			run.ID, generation, node.ID, output.ItemIndex, output.Attempt,
+		runID := NodeCellAttemptRunID(
+			run.ID, generation, string(node.ID), output.ItemIndex, output.Attempt,
 		)
-		idempotencyKey := coordinatorNodeAttemptIdempotencyKey(
-			run.ID, generation, node.ID, output.ItemIndex, output.Attempt,
+		idempotencyKey := NodeCellAttemptIdempotencyKey(
+			run.ID, generation, string(node.ID), output.ItemIndex, output.Attempt,
 		)
 		if dsl.ActionKind(node.Kind) == dsl.ActionGoal {
 			runID = GoalSegmentRunID(run.ID, generation, node.ID, output.ItemIndex, initialGoalSegmentEpoch)

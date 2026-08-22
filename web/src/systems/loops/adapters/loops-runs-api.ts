@@ -10,26 +10,20 @@ import {
   LoopLifecycleConflictError,
   LoopsApiError,
   inputValidationPayload,
+  normalizeOptionalText,
   reasonEnvelope,
 } from "./loops-api-errors";
 import type {
   ApproveLoopRunRequest,
-  LoopRun,
   LoopRunActionResult,
   LoopRunMutationResult,
-  LoopRunAggregates,
   LoopRunDetail,
+  LoopRunListResult,
   LoopRunsFilter,
   LoopStreamFilter,
   RunLoopRequest,
   RunLoopResult,
 } from "../types";
-
-function normalizeOptionalText(value?: string | null): string | undefined {
-  if (typeof value !== "string") return undefined;
-  const normalized = value.trim();
-  return normalized === "" ? undefined : normalized;
-}
 
 export function buildLoopStreamUrl(
   workspaceId: string,
@@ -92,11 +86,19 @@ export async function runLoop(
   return requireResponseData(data, response, `Failed to run loop "${name}"`);
 }
 
+/**
+ * The workspace run list, returned as the server sent it.
+ *
+ * The envelope keeps its `next_cursor`: a roster that only ever renders the
+ * first page still has to be able to say that a second one exists, and a view
+ * model cannot recover a continuation token the adapter already dropped. The
+ * flattening happens where the view reads it, not here (R09).
+ */
 export async function listLoopRuns(
   workspaceId: string,
   filters: LoopRunsFilter = {},
   signal?: AbortSignal
-): Promise<{ runs: LoopRun[]; aggregates: LoopRunAggregates }> {
+): Promise<LoopRunListResult> {
   const { data, error, response } = await apiClient.GET(
     "/api/workspaces/{workspace_id}/loop-runs",
     {
@@ -109,6 +111,7 @@ export async function listLoopRuns(
           origin_session: normalizeOptionalText(filters.origin_session),
           live: filters.live,
           limit: filters.limit,
+          cursor: normalizeOptionalText(filters.cursor),
         },
       },
       signal,
@@ -122,8 +125,7 @@ export async function listLoopRuns(
     );
   }
 
-  const payload = requireResponseData(data, response, "Failed to fetch loop runs");
-  return { runs: payload.runs, aggregates: payload.aggregates };
+  return requireResponseData(data, response, "Failed to fetch loop runs");
 }
 
 export async function getLoopRun(

@@ -97,7 +97,8 @@ END
 WHERE id = sqlc.arg(id);
 
 -- name: ListLoopGenerationOutputs :many
-SELECT output.generation, output.node_id, output.item_index, output.status, output.output_ref,
+SELECT output.generation, output.node_id, output.item_index, output.output_id, output.artifact_name,
+       output.status, output.output_ref,
        output.task_run_id, output.child_loop_run_id, output.resolved_runtime_json,
        output.attempt, output.next_attempt_at, output.first_scheduled_at, output.epoch,
        COALESCE(run_link.session_id, '') AS session_id
@@ -108,6 +109,39 @@ WHERE output.loop_run_id = sqlc.arg(loop_run_id)
   AND output.generation = sqlc.arg(generation)
   AND run.workspace_id = sqlc.arg(workspace_id)
 ORDER BY output.node_id ASC, output.item_index ASC;
+
+-- name: ListLoopRosterOutputs :many
+SELECT output.generation, output.node_id, output.item_index, output.output_id, output.artifact_name,
+       output.status, output.output_ref,
+       output.task_run_id, output.child_loop_run_id, output.resolved_runtime_json,
+       output.attempt, output.next_attempt_at, output.first_scheduled_at, output.epoch,
+	   COALESCE(run_link.session_id, '') AS session_id,
+	   COALESCE(run_link.status, '') AS task_run_status,
+	   COALESCE(run_link.tokens_used, 0) AS task_run_tokens_used
+FROM loop_generation_outputs AS output
+JOIN loop_runs AS run ON run.id = output.loop_run_id
+LEFT JOIN task_runs AS run_link ON run_link.id = output.task_run_id
+WHERE output.loop_run_id = sqlc.arg(loop_run_id)
+  AND run.workspace_id = sqlc.arg(workspace_id)
+ORDER BY output.generation ASC, output.node_id ASC, output.item_index ASC;
+
+-- name: ListLoopRosterRouteCauses :many
+SELECT event.payload_json, event.at
+FROM loop_run_events AS event
+JOIN loop_runs AS run ON run.id = event.loop_run_id
+WHERE event.loop_run_id = sqlc.arg(loop_run_id)
+  AND run.workspace_id = sqlc.arg(workspace_id)
+  AND event.kind = 'route_taken'
+ORDER BY event.seq ASC;
+
+-- name: ListAvailableLoopOutputRefs :many
+SELECT DISTINCT COALESCE(output.output_ref, '') AS output_ref
+FROM loop_generation_outputs AS output
+JOIN loop_runs AS run ON run.id = output.loop_run_id
+JOIN loop_output_blobs AS blob ON blob.output_ref = output.output_ref
+WHERE output.loop_run_id = sqlc.arg(loop_run_id)
+  AND run.workspace_id = sqlc.arg(workspace_id)
+  AND output.output_ref <> '';
 
 -- name: RecordLoopGenerationOutputRuntime :execrows
 UPDATE loop_generation_outputs

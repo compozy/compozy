@@ -17,9 +17,18 @@ export function defaultTaskCatalogFilter(scope: ActiveTaskScopeFilter): TaskList
   };
 }
 
+export interface TaskListRevealOptions {
+  /**
+   * Reveal filter state. Ephemeral per navigation (US-002.AC-3), so it is never
+   * part of `TasksRouteSearch` and never reaches the URL.
+   */
+  includeLoop?: boolean;
+}
+
 export function taskListFilterFromRouteSearch(
   scope: ActiveTaskScopeFilter,
-  search: TasksRouteSearch
+  search: TasksRouteSearch,
+  reveal: TaskListRevealOptions = {}
 ): TaskListFilter {
   const owner = taskOwnerFilterFromValue(search.owner);
   return {
@@ -30,6 +39,9 @@ export function taskListFilterFromRouteSearch(
     owner_ref: owner?.ref,
     query: search.query?.trim() || undefined,
     sort: search.sort ?? "recent",
+    // Only `true` is ever sent. The daemon owns the default, so the calm read is
+    // a request with no `include_loop` at all — not an explicit `false`.
+    include_loop: reveal.includeLoop ? true : undefined,
   };
 }
 

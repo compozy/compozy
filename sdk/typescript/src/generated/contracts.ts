@@ -5294,6 +5294,17 @@ export interface Origin {
   ref: string;
 }
 
+export type LoopProvenanceRole = "coordinator" | "cell";
+
+export interface LoopProvenance {
+  run_id: string;
+  loop_name?: string;
+  role: LoopProvenanceRole;
+  generation?: number;
+  node_id?: string;
+  item_index?: number;
+}
+
 export interface Task {
   id: string;
   identifier?: string;
@@ -5331,6 +5342,7 @@ export interface Task {
   updated_at: ISODateTime;
   closed_at?: ISODateTime;
   metadata?: JSONValue;
+  loop?: LoopProvenance;
 }
 
 export interface TaskBlockedPayload {
@@ -6392,6 +6404,7 @@ export interface TaskTimelineItem {
   task: TaskReferencePayload;
   run?: TaskRunSummaryPayload;
   event_type: string;
+  reason?: string;
   actor: ActorIdentity;
   origin: Origin;
   payload?: JSONValue;
@@ -6469,6 +6482,8 @@ export interface TasksParams {
   status?: Status;
   priority?: Priority;
   include_drafts?: boolean;
+  include_loop?: boolean;
+  loop_run_id?: string;
   approval_state?: ApprovalState;
   owner_kind?: OwnerKind;
   owner_ref?: string;
@@ -6513,6 +6528,7 @@ export interface TaskCatalogItemPayload {
   dependency_count?: number;
   active_run?: TaskCatalogRunPayload;
   last_activity_at?: ISODateTime;
+  loop?: LoopProvenance;
 }
 
 export interface TaskCatalogStatusFacetPayload {

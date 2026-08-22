@@ -1,10 +1,9 @@
-import { AlertCircle, ListChecks, Search } from "lucide-react";
+import { AlertCircle, GitBranch, ListChecks, Search } from "lucide-react";
 
 import { Button, Empty, ListingPage, Skeleton, Spinner } from "@compozy/ui";
 
 import { groupTasksForList, taskStatusFacetTotal } from "../lib/task-grouping";
-import type { TaskListTree } from "../lib/task-hierarchy";
-import type { TaskStatus } from "../types";
+import type { TaskListItem, TaskRecordsFilter, TaskStatus } from "../types";
 import { TaskCard } from "./task-card";
 import { TaskGroup } from "./task-group";
 
@@ -17,12 +16,16 @@ const TASK_LIST_SKELETON_IDS = [
 ];
 
 export interface TasksListSurfaceProps {
-  taskTree: TaskListTree;
+  tasks: TaskListItem[];
   statusCounts: Record<TaskStatus, number>;
   isLoading?: boolean;
   errorMessage?: string | null;
   filterState?: "active" | "inactive";
   searchQuery: string;
+  /** Which population the server returned — work items only, or with Loop records revealed. */
+  recordsFilter?: TaskRecordsFilter;
+  onShowWorkItems?: () => void;
+  onOpenLoopRun?: () => void;
   hasMore?: boolean;
   isLoadingMore?: boolean;
   onLoadMore?: () => void;
@@ -30,24 +33,32 @@ export interface TasksListSurfaceProps {
 }
 
 export function TasksListSurface({
-  taskTree,
+  tasks,
   statusCounts,
   isLoading = false,
   errorMessage = null,
   filterState = "inactive",
   searchQuery,
+  recordsFilter = "work",
+  onShowWorkItems,
+  onOpenLoopRun,
   hasMore = false,
   isLoadingMore = false,
   onLoadMore,
   onRetryLoad,
 }: TasksListSurfaceProps) {
-  const buckets = groupTasksForList(taskTree.roots).filter(
+  const buckets = groupTasksForList(tasks).filter(
     bucket =>
       bucket.tasks.length > 0 || taskStatusFacetTotal(bucket.group.statuses, statusCounts) > 0
   );
 
-  const visibleCount = taskTree.size;
+  const visibleCount = tasks.length;
   const hasFilters = filterState === "active" || searchQuery.trim() !== "";
+  // The reveal is what emptied this list, so the message has to name it and say
+  // how to leave it — the generic empty would read as "you have no work"
+  // (US-002.EC-1). A narrower filter on top of the reveal is the better story,
+  // so it keeps its own message.
+  const isRevealEmpty = recordsFilter === "loop" && !hasFilters;
 
   return (
     <ListingPage data-testid="tasks-list-surface">
@@ -84,6 +95,20 @@ export function TasksListSurface({
               </Button>
             ) : null}
           </div>
+        ) : visibleCount === 0 && isRevealEmpty ? (
+          <Empty
+            action={
+              onShowWorkItems ? (
+                <Button onClick={onShowWorkItems} size="sm" type="button" variant="neutral">
+                  Show work items
+                </Button>
+              ) : null
+            }
+            data-testid="tasks-list-surface-loop-empty"
+            description="Turn the filter back to work items to see your tasks."
+            icon={GitBranch}
+            title="No loop records in this workspace"
+          />
         ) : visibleCount === 0 ? (
           <Empty
             data-testid="tasks-list-surface-empty"
@@ -105,11 +130,7 @@ export function TasksListSurface({
               totalCount={taskStatusFacetTotal(bucket.group.statuses, statusCounts)}
             >
               {bucket.tasks.map(task => (
-                <TaskCard
-                  key={task.id}
-                  subtasks={taskTree.childrenByParent.get(task.id)}
-                  task={task}
-                />
+                <TaskCard key={task.id} onOpenLoopRun={onOpenLoopRun} task={task} />
               ))}
             </TaskGroup>
           ))

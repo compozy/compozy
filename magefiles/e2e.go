@@ -34,13 +34,16 @@ func TestE2ENightly() error {
 	return runE2ELane(e2elane.LaneNightly)
 }
 
-func ensureWebAssets() error {
-	return ensureWebAssetsWith(CodegenCheck, WebBuild)
+func ensureE2EAssets() error {
+	return ensureE2EAssetsWith(CodegenCheck, ExtensionSDKBuild, WebBuild)
 }
 
-func ensureWebAssetsWith(codegenCheck, webBuild func() error) error {
+func ensureE2EAssetsWith(codegenCheck, extensionSDKBuild, webBuild func() error) error {
 	if err := codegenCheck(); err != nil {
-		return fmt.Errorf("check generated web contracts: %w", err)
+		return fmt.Errorf("check generated e2e contracts: %w", err)
+	}
+	if err := extensionSDKBuild(); err != nil {
+		return fmt.Errorf("build extension SDKs for e2e fixtures: %w", err)
 	}
 	if err := webBuild(); err != nil {
 		return fmt.Errorf("build current web assets: %w", err)
@@ -59,7 +62,7 @@ func runE2ELane(lane e2elane.Lane) (runErr error) {
 	}
 
 	if shouldEnsureWebBundle(plan) {
-		if err := ensureWebAssets(); err != nil {
+		if err := ensureE2EAssets(); err != nil {
 			return err
 		}
 	}

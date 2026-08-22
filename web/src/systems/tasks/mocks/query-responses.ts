@@ -95,6 +95,19 @@ function matchesCatalogTask(task: TaskListItem, url: URL): boolean {
     return false;
   }
 
+  // Loop exclusion is the daemon's default predicate, applied before facets,
+  // counts and paging — the mock mirrors it so web tests read the same contract.
+  const includeLoop = queryText(url, "include_loop") === "true";
+  const loopRunId = queryText(url, "loop_run_id");
+  if (loopRunId !== "") {
+    // A run filter implies include.
+    if (task.loop?.run_id !== loopRunId) {
+      return false;
+    }
+  } else if (!includeLoop && task.loop) {
+    return false;
+  }
+
   const priority = queryText(url, "priority");
   const approvalState = queryText(url, "approval_state");
   const ownerKind = queryText(url, "owner_kind");

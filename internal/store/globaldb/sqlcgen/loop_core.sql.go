@@ -413,6 +413,25 @@ func (q *Queries) GetLoopRunByID(ctx context.Context, id string) (LoopRun, error
 	return i, err
 }
 
+const getLoopRunEventHead = `-- name: GetLoopRunEventHead :one
+SELECT CAST(COALESCE(MAX(seq), 0) AS INTEGER)
+FROM loop_run_events
+WHERE workspace_id = ?1
+  AND loop_run_id = ?2
+`
+
+type GetLoopRunEventHeadParams struct {
+	WorkspaceID string `json:"workspace_id"`
+	LoopRunID   string `json:"loop_run_id"`
+}
+
+func (q *Queries) GetLoopRunEventHead(ctx context.Context, arg GetLoopRunEventHeadParams) (int64, error) {
+	row := q.db.QueryRowContext(ctx, getLoopRunEventHead, arg.WorkspaceID, arg.LoopRunID)
+	var column_1 int64
+	err := row.Scan(&column_1)
+	return column_1, err
+}
+
 const insertLoopConfigIfMissing = `-- name: InsertLoopConfigIfMissing :exec
 INSERT OR IGNORE INTO loop_config (
   workspace_id, loop_name, human_gate_enabled, reattempt_strategy, enabled_checks_json,
@@ -697,6 +716,64 @@ func (q *Queries) ListLoopRunEvents(ctx context.Context, arg ListLoopRunEventsPa
 		arg.WorkspaceID,
 		arg.LoopRunID,
 		arg.AfterSeq,
+		arg.RowLimit,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []LoopRunEvent{}
+	for rows.Next() {
+		var i LoopRunEvent
+		if err := rows.Scan(
+			&i.WatchSeq,
+			&i.ID,
+			&i.LoopRunID,
+			&i.WorkspaceID,
+			&i.Seq,
+			&i.Kind,
+			&i.PayloadJson,
+			&i.At,
+			&i.DeliveryKey,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listLoopRunEventsBackward = `-- name: ListLoopRunEventsBackward :many
+SELECT watch_seq, id, loop_run_id, workspace_id, seq, kind, payload_json, at, delivery_key
+FROM loop_run_events
+WHERE workspace_id = ?1
+  AND loop_run_id = ?2
+  AND seq <= ?3
+  AND seq < ?4
+ORDER BY seq DESC
+LIMIT ?5
+`
+
+type ListLoopRunEventsBackwardParams struct {
+	WorkspaceID  string `json:"workspace_id"`
+	LoopRunID    string `json:"loop_run_id"`
+	FixedHeadSeq int64  `json:"fixed_head_seq"`
+	BeforeSeq    int64  `json:"before_seq"`
+	RowLimit     int64  `json:"row_limit"`
+}
+
+func (q *Queries) ListLoopRunEventsBackward(ctx context.Context, arg ListLoopRunEventsBackwardParams) ([]LoopRunEvent, error) {
+	rows, err := q.db.QueryContext(ctx, listLoopRunEventsBackward,
+		arg.WorkspaceID,
+		arg.LoopRunID,
+		arg.FixedHeadSeq,
+		arg.BeforeSeq,
 		arg.RowLimit,
 	)
 	if err != nil {

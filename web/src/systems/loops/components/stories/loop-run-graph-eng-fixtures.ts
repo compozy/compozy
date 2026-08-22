@@ -16,12 +16,29 @@ import {
   releaseTrainRunDetail,
 } from "../../mocks";
 import type { LoopRunDetail, LoopRunEventFrame, LoopRequest } from "../../types";
+import {
+  type StoryVerdict,
+  briefingFor,
+  makeTimelineEntry as entry,
+} from "./loop-run-read-builders";
 import type { LoopRunStoryScenario } from "./loop-run-scenario-types";
 import { createFrameFactory } from "./loop-run-page-fixture-world";
 
-function fromRunDetail(detail: LoopRunDetail, frames: LoopRunEventFrame[]): LoopRunStoryScenario {
+/**
+ * One `getLoopRun` payload plus the verdict the daemon would serve over it.
+ *
+ * The verdict is a parameter rather than a default because these scenarios
+ * stage very different runs — a live one with two open questions, a settled one
+ * whose questions were all answered — and one sentence cannot be true of both.
+ */
+function fromRunDetail(
+  detail: LoopRunDetail,
+  frames: LoopRunEventFrame[],
+  verdict: StoryVerdict
+): LoopRunStoryScenario {
   return {
     run: detail.run,
+    briefing: briefingFor(detail.run, verdict),
     definition: detail.executed_definition ?? releaseTrainDetail.definition,
     frames,
     generations: detail.generations ?? [],
@@ -110,42 +127,109 @@ function resolvedRequestFrames(): LoopRunEventFrame[] {
   ];
 }
 
+/** The verdict over a release-train round holding two unanswered questions. */
+const PENDING_VERDICT: StoryVerdict = {
+  tone: "needs_you",
+  headline: "Two questions are waiting for your answer before the rollout continues",
+  detail: "The migration and the region order both need a decision in round 3.",
+};
+
 export function pendingRequestsScenario(): LoopRunStoryScenario {
-  return fromRunDetail(releaseTrainRunDetail, releaseTrainFrames());
+  return {
+    ...fromRunDetail(releaseTrainRunDetail, releaseTrainFrames(), PENDING_VERDICT),
+    timeline: [
+      entry(22, "generation_started", "Round 3 started", { generation: 3 }),
+      entry(20, "route_taken", "The run chose route standard", {
+        generation: 3,
+        node_id: "triage",
+      }),
+      entry(18, "request_opened", `Question opened: ${pendingAskRequest.prompt}`, {
+        generation: 3,
+        node_id: pendingAskRequest.node_id,
+      }),
+      entry(17, "request_opened", `Review opened: ${pendingReviewRequest.prompt}`, {
+        generation: 3,
+        node_id: pendingReviewRequest.node_id,
+      }),
+      entry(12, "branch_pruned", "An unused apply-migration branch was skipped", {
+        generation: 3,
+        node_id: "apply-migration",
+      }),
+      entry(8, "node_amended", "Step render-notes was amended", {
+        generation: 3,
+        node_id: "render-notes",
+      }),
+      entry(5, "run_forked", "The run was forked", { generation: 2 }),
+    ],
+  };
 }
 
 export function pendingEnumRequestScenario(): LoopRunStoryScenario {
   return {
-    ...fromRunDetail(releaseTrainRunDetail, releaseTrainFrames()),
+    ...fromRunDetail(releaseTrainRunDetail, releaseTrainFrames(), PENDING_VERDICT),
     requests: [pendingEnumAskRequest],
   };
 }
 
 export function resolvedRequestsScenario(): LoopRunStoryScenario {
-  return fromRunDetail(releaseTrainPartialRunDetail, resolvedRequestFrames());
+  return fromRunDetail(releaseTrainPartialRunDetail, resolvedRequestFrames(), {
+    tone: "ok",
+    headline: "The rollout finished after every question was answered",
+    detail: "One answered, one expired, one canceled — all three are recorded in the story.",
+    outcome: { status: "done", cause: "stop_when", at: "2026-08-17T09:40:00Z" },
+  });
 }
 
 export function redactedRequestScenario(): LoopRunStoryScenario {
   return {
-    ...fromRunDetail(releaseTrainRunDetail, releaseTrainFrames()),
+    ...fromRunDetail(releaseTrainRunDetail, releaseTrainFrames(), PENDING_VERDICT),
     requests: [redactedContextRequest, nearExpiryAskRequest],
   };
 }
 
 export function laneRequestsScenario(): LoopRunStoryScenario {
   return {
-    ...fromRunDetail(releaseTrainRunDetail, releaseTrainFrames()),
+    ...fromRunDetail(releaseTrainRunDetail, releaseTrainFrames(), {
+      ...PENDING_VERDICT,
+      headline: "Every migration lane is asking the same question",
+      detail: "Each worker needs its own answer before round 3 can settle.",
+    }),
     requests: laneAskRequests,
   };
 }
 
-export function partialCompletionScenario(): LoopRunStoryScenario {
-  return fromRunDetail(releaseTrainPartialRunDetail, releaseTrainFrames());
+/**
+ * The fork's own history, which is not the same as its lineage.
+ *
+ * `run_forked` is appended to the *source* run
+ * (`global_db_loop_timetravel_create.go:241` writes it against `source.ID`), so
+ * a forked child never carries that beat and a fixture that staged one on this
+ * run would be inventing an event. The child's story is its own beats; the
+ * "forked from" side is served on the run record and rendered by
+ * `LoopRunLineageSection`. Staging nothing left the pane reading "Nothing has
+ * happened in this run yet." over a run that had plainly run.
+ */
+function forkedRunTimeline() {
+  return [
+    entry(14, "node_running", "Step confirm-rollout running", {
+      generation: 2,
+      node_id: "confirm-rollout",
+    }),
+    entry(11, "node_succeeded", "Step services succeeded", { generation: 2, node_id: "services" }),
+    entry(8, "generation_started", "Round 2 started", { generation: 2 }),
+  ];
 }
 
 export function forkedRunScenario(): LoopRunStoryScenario {
   const frame = createFrameFactory(GRAPH_ENG_FORK_RUN_ID);
-  return fromRunDetail(releaseTrainForkRunDetail, [
-    frame("generation_started", 6, { generation: 2, parent_generation: 1, origin: "fork_seed" }),
-  ]);
+  const scenario = fromRunDetail(
+    releaseTrainForkRunDetail,
+    [frame("generation_started", 6, { generation: 2, parent_generation: 1, origin: "fork_seed" })],
+    {
+      tone: "ok",
+      headline: "Round 2 restarted in a fork with the severity raised to p0",
+      detail: "The original run is untouched; this one carries the changed input.",
+    }
+  );
+  return { ...scenario, timeline: forkedRunTimeline() };
 }

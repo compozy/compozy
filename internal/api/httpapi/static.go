@@ -104,7 +104,7 @@ func (h *Handlers) serveStaticRoute(c *gin.Context) {
 		h.serveAsset(c, asset)
 		return
 	}
-	if shouldServeSPAIndex(requestPath) {
+	if shouldServeSPAIndex(requestPath, c.GetHeader("Accept")) {
 		h.serveAsset(c, "index.html")
 		return
 	}
@@ -179,8 +179,11 @@ func isStaticRequestMethod(method string) bool {
 	}
 }
 
-func shouldServeSPAIndex(requestPath string) bool {
+func shouldServeSPAIndex(requestPath string, accept string) bool {
 	if requestPath == "/" {
+		return true
+	}
+	if strings.Contains(strings.ToLower(accept), "text/html") {
 		return true
 	}
 

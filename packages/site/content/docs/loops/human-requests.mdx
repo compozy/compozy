@@ -139,5 +139,7 @@ the decision commits.
 `respond` validates the supplied value against the action's declared output shape and substitutes
 that result without running the action. The action timeout starts only after `approve` or `edit`.
 
-Use `compozy loop respond --decision <decision>`. `edit` and `respond` require `--payload`;
-`approve` and `reject` do not. Fan-out reviews remain isolated by `--item` or `item_index`.
+Use `compozy loop respond --decision <decision>`. `edit` and `respond` require either `--payload`
+or `--payload-stdin`; the stdin form prompts for and submits the operator's JSON without inventing
+a default. `approve` and `reject` do not require a payload. Fan-out reviews remain isolated by
+`--item` or `item_index`.

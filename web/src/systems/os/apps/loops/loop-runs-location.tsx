@@ -20,7 +20,6 @@ import {
   LoopNodeInventoryView,
   LoopRunsFilters,
   LoopRunsView,
-  useLoopRunPendingRequestCounts,
   useNowTick,
 } from "@/systems/loops";
 
@@ -48,11 +47,14 @@ export function LoopRunsLocation({ search }: { search: LoopRunsRouteSearch }) {
   const nowMs = useNowTick(inventoryState !== undefined);
 
   const runs = runsQuery.data?.runs ?? [];
-  const pendingRequestCounts = useLoopRunPendingRequestCounts(
-    workspaceId,
-    runs.map(run => run.id),
-    workspaceId !== ""
-  );
+  // This roster is polled, not streamed, so "reconnecting" cannot mean a dropped
+  // subscription — and a healthy 15s poll is not degraded either. The one state
+  // that honestly reads as reconnecting is a read that has already failed and is
+  // being retried right now. The two are kept mutually exclusive so the notice
+  // never tells a reader to wait for a retry that has already settled into an
+  // error they have to act on.
+  const isRetrying = runsQuery.isFetching && runsQuery.failureCount > 0;
+  const isReadFailed = Boolean(runsQuery.error) && !isRetrying;
   const showToolbar = workspaceId !== "" && !runsQuery.isLoading && !runsQuery.error;
 
   useTopbarSlot({
@@ -151,39 +153,25 @@ export function LoopRunsLocation({ search }: { search: LoopRunsRouteSearch }) {
     );
   }
 
-  if (runsQuery.error) {
-    return (
-      <RunsState
-        description={runsQuery.error.message ?? "Failed to load loop runs"}
-        icon={AlertCircle}
-        testId="loop-runs-error"
-        title="Unable to load runs"
-      />
-    );
-  }
-
-  if (runs.length === 0 && !search.origin && !search.origin_session) {
-    return (
-      <RunsState
-        description="No Loop has run in this workspace yet."
-        testId="loop-runs-empty"
-        title="No runs yet"
-      />
-    );
-  }
-
+  // A failed read is degraded transport, not an empty workspace: the rows below
+  // are the last good read, and the roster keeps showing them while saying so
+  // (task_05 requirement 5, VC-36). Emptiness is the roster model's call too —
+  // it is the one place that knows whether a filter is hiding the rows.
   return (
     <ListingPage data-testid="loop-runs">
-      {runs.length === 0 ? (
-        <Empty
-          className="mx-auto max-w-md"
-          description="Adjust the origin filters to include more runs."
-          icon={Activity}
-          title="No matching runs"
-        />
-      ) : (
-        <LoopRunsView outcome={outcome} pendingRequestCounts={pendingRequestCounts} runs={runs} />
-      )}
+      <LoopRunsView
+        isError={isReadFailed}
+        isReconnecting={isRetrying}
+        // The cache's own last-success stamp, so the age the notice prints is
+        // when these rows were read rather than when the page happened to mount.
+        lastReadAt={
+          runsQuery.dataUpdatedAt > 0 ? new Date(runsQuery.dataUpdatedAt).toISOString() : undefined
+        }
+        onEmptyAction={outcome === "all" ? openLoops : () => setOutcome("all")}
+        onRetry={() => void runsQuery.refetch()}
+        outcome={outcome}
+        runs={runs}
+      />
     </ListingPage>
   );
 }

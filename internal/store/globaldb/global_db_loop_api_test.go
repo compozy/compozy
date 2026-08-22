@@ -419,6 +419,88 @@ func TestGlobalDBLoopAPIEventsShouldResumeBySequenceAndWorkspace(t *testing.T) {
 		}
 	})
 
+	t.Run("Should satisfy IT-021 with SQL-backed snapshot-fenced backward pages", func(t *testing.T) {
+		t.Parallel()
+
+		globalDB := openLoopTestGlobalDB(t, "ws-a")
+		ctx := testutil.Context(t)
+		now := time.Date(2026, 8, 20, 14, 0, 0, 0, time.UTC)
+		run := testLoopRun("looprun-api-long-timeline", now, looppkg.StatusRunning)
+		run.WorkspaceID = "ws-a"
+		if _, err := globalDB.CreateLoopRunForStart(ctx, run, dsl.ConcurrencyAllow); err != nil {
+			t.Fatalf("CreateLoopRunForStart() error = %v", err)
+		}
+		for sequence := int64(2); sequence <= 621; sequence++ {
+			insertLoopRunEventForTimelineTest(
+				t,
+				globalDB,
+				run,
+				sequence,
+				now.Add(time.Duration(sequence)*time.Millisecond),
+			)
+		}
+		var timelineReader looppkg.TimelineEventReader = globalDB
+		backward, err := timelineReader.ListLoopRunEventsBackward(ctx, looppkg.RunEventBackwardQuery{
+			WorkspaceID: "ws-a", RunID: run.ID, FixedHeadSeq: 608, BeforeSeq: 610, Limit: 3,
+		})
+		if err != nil {
+			t.Fatalf("ListLoopRunEventsBackward() error = %v", err)
+		}
+		if len(backward) != 3 || backward[0].Seq != 608 || backward[1].Seq != 607 || backward[2].Seq != 606 {
+			t.Fatalf("ListLoopRunEventsBackward() sequences = %#v, want [608 607 606]", backward)
+		}
+		foreign, err := timelineReader.ListLoopRunEventsBackward(ctx, looppkg.RunEventBackwardQuery{
+			WorkspaceID: "ws-b", RunID: run.ID, FixedHeadSeq: 608, BeforeSeq: 610, Limit: 3,
+		})
+		if err != nil {
+			t.Fatalf("ListLoopRunEventsBackward(foreign workspace) error = %v", err)
+		}
+		if len(foreign) != 0 {
+			t.Fatalf("ListLoopRunEventsBackward(foreign workspace) = %#v, want none", foreign)
+		}
+
+		reads := looppkg.NewRunReadService(globalDB, nil)
+		query := looppkg.TimelineQuery{View: looppkg.TimelineViewNotable, Limit: 73}
+		seen := make(map[int64]bool, 621)
+		firstPage := true
+		for {
+			page, err := reads.Timeline(ctx, "ws-a", run.ID, query)
+			if err != nil {
+				t.Fatalf("Timeline() error = %v", err)
+			}
+			if page.HeadSeq != 621 {
+				t.Fatalf("Timeline() head = %d, want frozen head 621", page.HeadSeq)
+			}
+			for _, entry := range page.Entries {
+				if seen[entry.Seq] {
+					t.Fatalf("Timeline() duplicated sequence %d", entry.Seq)
+				}
+				seen[entry.Seq] = true
+			}
+			if firstPage {
+				insertLoopRunEventForTimelineTest(t, globalDB, run, 622, now.Add(622*time.Millisecond))
+				firstPage = false
+			}
+			if page.NextCursor == "" {
+				break
+			}
+			query.Cursor = page.NextCursor
+		}
+		if len(seen) != 621 || seen[622] {
+			t.Fatalf("Timeline() snapshot sequences = %d, appended event included = %t", len(seen), seen[622])
+		}
+
+		resumed, err := reads.Timeline(ctx, "ws-a", run.ID, looppkg.TimelineQuery{
+			View: looppkg.TimelineViewNotable, AfterSeq: 600, Limit: 50,
+		})
+		if err != nil {
+			t.Fatalf("Timeline(after 600) error = %v", err)
+		}
+		if len(resumed.Entries) != 22 || resumed.Entries[0].Seq != 622 || resumed.Entries[21].Seq != 601 {
+			t.Fatalf("Timeline(after 600) entries = %#v", resumed.Entries)
+		}
+	})
+
 	t.Run("Should persist applied runtime and its event across reopen without workspace leaks", func(t *testing.T) {
 		t.Parallel()
 
@@ -583,6 +665,444 @@ func TestGlobalDBLoopAPIEventsShouldResumeBySequenceAndWorkspace(t *testing.T) {
 			t.Fatalf("resolved_runtime_json = %q, want transaction rollback", runtimeJSON.String)
 		}
 	})
+}
+
+func TestGlobalDBLoopRunSummariesShouldBatchProgressAttentionAndForks(t *testing.T) {
+	t.Parallel()
+	t.Run("Should batch progress attention timestamps and forks", func(t *testing.T) {
+		t.Parallel()
+
+		globalDB := openLoopTestGlobalDB(t, "ws-a")
+		ctx := testutil.Context(t)
+		now := time.Date(2026, 8, 20, 15, 0, 0, 0, time.UTC)
+		parent := testLoopRun("looprun-summary-parent", now, looppkg.StatusRunning)
+		parent.WorkspaceID = "ws-a"
+		if _, err := globalDB.CreateLoopRunForStart(ctx, parent, dsl.ConcurrencyAllow); err != nil {
+			t.Fatalf("CreateLoopRunForStart(parent) error = %v", err)
+		}
+		if _, err := globalDB.db.ExecContext(
+			ctx,
+			`UPDATE loop_runs SET status = 'needs-approval', generation = 1 WHERE id = ?`,
+			parent.ID,
+		); err != nil {
+			t.Fatalf("prepare parent summary state error = %v", err)
+		}
+		approvalOpenedAt := now.Add(30 * time.Second)
+		if err := appendLoopRunEventWithExecutor(ctx, globalDB.db, parent.ID, parent.WorkspaceID,
+			loopRunEventNeedsApproval, map[string]any{"gate_id": "review"}, approvalOpenedAt); err != nil {
+			t.Fatalf("append needs_approval event error = %v", err)
+		}
+		if _, err := globalDB.db.ExecContext(
+			ctx,
+			`INSERT INTO loop_generation_outputs
+			(loop_run_id, generation, node_id, item_index, status, attempt)
+		 VALUES (?, 1, 'finish', 0, 'succeeded', 1)`,
+			parent.ID,
+		); err != nil {
+			t.Fatalf("insert parent summary output error = %v", err)
+		}
+		child := testLoopRun("looprun-summary-child", now.Add(time.Second), looppkg.StatusRunning)
+		child.WorkspaceID = "ws-a"
+		child.SetForkedFrom(&looppkg.ForkRef{RunID: parent.ID, Generation: 1})
+		if _, err := globalDB.CreateLoopRunForStart(ctx, child, dsl.ConcurrencyAllow); err != nil {
+			t.Fatalf("CreateLoopRunForStart(child) error = %v", err)
+		}
+
+		summaries, err := globalDB.ListLoopRunSummaries(
+			ctx,
+			"ws-a",
+			[]looppkg.RunID{parent.ID, child.ID},
+		)
+		if err != nil {
+			t.Fatalf("ListLoopRunSummaries() error = %v", err)
+		}
+		parentSummary := summaries[parent.ID]
+		if parentSummary.Progress.Round != 1 || parentSummary.Progress.StepsDone != 1 ||
+			parentSummary.Progress.StepsTotal != 1 {
+			t.Fatalf("parent progress = %#v", parentSummary.Progress)
+		}
+		if parentSummary.Attention == nil || parentSummary.Attention.Kind != "approval" ||
+			parentSummary.Attention.Count != 1 || !parentSummary.Attention.Since.Equal(approvalOpenedAt) {
+			t.Fatalf("parent attention = %#v", parentSummary.Attention)
+		}
+		if len(parentSummary.Forks) != 1 || parentSummary.Forks[0].RunID != child.ID {
+			t.Fatalf("parent forks = %#v", parentSummary.Forks)
+		}
+	})
+}
+
+func TestGlobalDBLoopBriefingShouldDeriveArtifactAvailabilityFromRetainedBlobs(t *testing.T) {
+	t.Parallel()
+	t.Run("Should derive artifact availability from retained blobs", func(t *testing.T) {
+		t.Parallel()
+
+		globalDB := openLoopTestGlobalDB(t, "ws-a")
+		ctx := testutil.Context(t)
+		now := time.Date(2026, 8, 20, 15, 30, 0, 0, time.UTC)
+		run := testLoopRun("looprun-artifact-availability", now, looppkg.StatusRunning)
+		run.WorkspaceID = "ws-a"
+		created, err := globalDB.CreateLoopRunForStart(ctx, run, dsl.ConcurrencyAllow)
+		if err != nil {
+			t.Fatalf("CreateLoopRunForStart() error = %v", err)
+		}
+		if _, err := globalDB.db.ExecContext(
+			ctx,
+			`UPDATE loop_runs SET status = 'done', generation = 1 WHERE id = ?`,
+			created.ID,
+		); err != nil {
+			t.Fatalf("terminalize artifact run error = %v", err)
+		}
+		outputs := []struct {
+			itemIndex int
+			status    string
+			ref       string
+			retained  bool
+		}{
+			{itemIndex: 0, status: "succeeded", ref: "blob-available", retained: true},
+			{itemIndex: 1, status: "partial", ref: "blob-partial", retained: true},
+			{itemIndex: 2, status: "succeeded", ref: "blob-pruned", retained: false},
+		}
+		for _, output := range outputs {
+			if output.retained {
+				payload := `{"result":"retained"}`
+				if _, err := globalDB.db.ExecContext(ctx, `INSERT INTO loop_output_blobs
+				(output_ref, payload_json, byte_size, created_at, last_used_at)
+				VALUES (?, ?, ?, ?, ?)`, output.ref, payload, len(payload), now, now); err != nil {
+					t.Fatalf("insert output blob %q error = %v", output.ref, err)
+				}
+			}
+			_, err := globalDB.db.ExecContext(ctx, `INSERT INTO loop_generation_outputs
+			(loop_run_id, generation, node_id, item_index, status, output_ref, task_run_id, attempt)
+			VALUES (?, 1, 'finish', ?, ?, ?, ?, 1)`,
+				created.ID, output.itemIndex, output.status, output.ref, fmt.Sprintf("task-%d", output.itemIndex))
+			if err != nil {
+				t.Fatalf("insert generation output %d error = %v", output.itemIndex, err)
+			}
+		}
+
+		briefing, err := looppkg.NewRunReadService(globalDB, func() time.Time { return now }).Briefing(
+			ctx,
+			"ws-a",
+			created.ID,
+		)
+		if err != nil {
+			t.Fatalf("Briefing() error = %v", err)
+		}
+		want := []looppkg.ArtifactAvailability{
+			looppkg.ArtifactAvailable,
+			looppkg.ArtifactPartial,
+			looppkg.ArtifactPruned,
+		}
+		if len(briefing.Artifacts) != len(want) {
+			t.Fatalf("artifacts = %#v, want three rows", briefing.Artifacts)
+		}
+		for index := range want {
+			if briefing.Artifacts[index].Availability != want[index] {
+				t.Fatalf("artifact %d = %#v, want availability %q", index, briefing.Artifacts[index], want[index])
+			}
+		}
+	})
+}
+
+func TestGlobalDBLoopRunSummaryShouldMatchBriefingProgressWithUntakenAndFailedActions(t *testing.T) {
+	t.Parallel()
+	t.Run("Should match briefing progress with untaken and failed actions", func(t *testing.T) {
+		t.Parallel()
+
+		globalDB := openLoopTestGlobalDB(t, "ws-a")
+		ctx := testutil.Context(t)
+		now := time.Date(2026, 8, 20, 15, 45, 0, 0, time.UTC)
+		run := loopRunWithRouteDefinitionForReadTest(t, "looprun-progress-parity", "ws-a", now)
+		created, err := globalDB.CreateLoopRunForStart(ctx, run, dsl.ConcurrencyAllow)
+		if err != nil {
+			t.Fatalf("CreateLoopRunForStart() error = %v", err)
+		}
+		if _, err := globalDB.db.ExecContext(
+			ctx,
+			`UPDATE loop_runs SET generation = 1 WHERE id = ?`,
+			created.ID,
+		); err != nil {
+			t.Fatalf("advance run generation error = %v", err)
+		}
+		if _, err := globalDB.db.ExecContext(ctx, `INSERT INTO loop_generation_outputs
+		(loop_run_id, generation, node_id, item_index, status, attempt)
+		VALUES (?, 1, 'selected', 0, 'failed', 1)`, created.ID); err != nil {
+			t.Fatalf("insert failed selected output error = %v", err)
+		}
+		if err := appendLoopRunEventWithExecutor(ctx, globalDB.db, created.ID, created.WorkspaceID,
+			loopRunEventRouteTaken, map[string]any{
+				"generation": 1,
+				"node_id":    "router",
+				"item_index": 0,
+				"route":      "selected",
+				"cause":      "matched_when",
+			}, now.Add(time.Second)); err != nil {
+			t.Fatalf("append route_taken error = %v", err)
+		}
+
+		briefing, err := looppkg.NewRunReadService(globalDB, func() time.Time { return now }).Briefing(
+			ctx,
+			"ws-a",
+			created.ID,
+		)
+		if err != nil {
+			t.Fatalf("Briefing() error = %v", err)
+		}
+		summaries, err := globalDB.ListLoopRunSummaries(ctx, "ws-a", []looppkg.RunID{created.ID})
+		if err != nil {
+			t.Fatalf("ListLoopRunSummaries() error = %v", err)
+		}
+		if briefing.Progress != (looppkg.StepProgress{Round: 1, StepsDone: 1, StepsTotal: 1}) {
+			t.Fatalf("briefing progress = %#v, want failed selected settled and skipped excluded", briefing.Progress)
+		}
+		if summaries[created.ID].Progress != briefing.Progress {
+			t.Fatalf("summary/briefing progress = %#v/%#v", summaries[created.ID].Progress, briefing.Progress)
+		}
+	})
+
+	t.Run("Should project exact aggregate branch-pruned item indexes", func(t *testing.T) {
+		t.Parallel()
+
+		globalDB := openLoopTestGlobalDB(t, "ws-a")
+		ctx := testutil.Context(t)
+		now := time.Date(2026, 8, 21, 16, 0, 0, 0, time.UTC)
+		run := loopRunWithRouteDefinitionForReadTest(t, "looprun-aggregate-pruning", "ws-a", now)
+		created, err := globalDB.CreateLoopRunForStart(ctx, run, dsl.ConcurrencyAllow)
+		if err != nil {
+			t.Fatalf("CreateLoopRunForStart() error = %v", err)
+		}
+		if _, err := globalDB.db.ExecContext(
+			ctx,
+			`UPDATE loop_runs SET generation = 1 WHERE id = ?`,
+			created.ID,
+		); err != nil {
+			t.Fatalf("advance run generation error = %v", err)
+		}
+		for itemIndex := range 4 {
+			if _, err := globalDB.db.ExecContext(ctx, `INSERT INTO loop_generation_outputs
+			(loop_run_id, generation, node_id, item_index, status, attempt)
+			VALUES (?, 1, 'skipped', ?, 'pending', 1)`, created.ID, itemIndex); err != nil {
+				t.Fatalf("insert skipped output %d error = %v", itemIndex, err)
+			}
+		}
+		if err := appendLoopRunEventWithExecutor(ctx, globalDB.db, created.ID, created.WorkspaceID,
+			loopRunEventBranchPruned, map[string]any{
+				"generation":   1,
+				"node_id":      "skipped",
+				"item_indexes": []int{1, 3},
+			}, now.Add(time.Second)); err != nil {
+			t.Fatalf("append branch_pruned error = %v", err)
+		}
+
+		roster, err := looppkg.NewRunReadService(globalDB, nil).NodeRoster(
+			ctx,
+			"ws-a",
+			created.ID,
+			looppkg.RosterQuery{State: looppkg.NodeStateFilterAll, Generation: 1, Limit: 500},
+		)
+		if err != nil {
+			t.Fatalf("NodeRoster() error = %v", err)
+		}
+		states := make(map[int]looppkg.NodeState)
+		for _, node := range roster.Nodes {
+			if node.NodeID == "skipped" {
+				states[node.ItemIndex] = node.State
+			}
+		}
+		if states[0] != looppkg.NodeStatePending || states[1] != looppkg.NodeStateNotTaken ||
+			states[2] != looppkg.NodeStatePending || states[3] != looppkg.NodeStateNotTaken {
+			t.Fatalf("skipped item states = %#v, want pending/not_taken/pending/not_taken", states)
+		}
+
+		summaries, err := globalDB.ListLoopRunSummaries(ctx, "ws-a", []looppkg.RunID{created.ID})
+		if err != nil {
+			t.Fatalf("ListLoopRunSummaries() error = %v", err)
+		}
+		wantProgress := looppkg.StepProgress{Round: 1, StepsDone: 0, StepsTotal: 3}
+		if summaries[created.ID].Progress != wantProgress {
+			t.Fatalf("summary progress = %#v, want %#v", summaries[created.ID].Progress, wantProgress)
+		}
+	})
+
+	t.Run("Should reject invalid aggregate branch-pruned evidence", func(t *testing.T) {
+		t.Parallel()
+
+		cases := map[string]string{
+			"empty item indexes":    `{"generation":1,"node_id":"skipped","item_indexes":[]}`,
+			"negative item index":   `{"generation":1,"node_id":"skipped","item_indexes":[1,-3]}`,
+			"missing node identity": `{"generation":1,"node_id":" ","item_indexes":[1,3]}`,
+		}
+		for name, payload := range cases {
+			t.Run("Should reject "+name, func(t *testing.T) {
+				t.Parallel()
+
+				source := looppkg.RosterSource{}
+				err := applyLoopRunSummaryRouteEvidence(
+					&source,
+					string(looppkg.RunEventBranchPruned),
+					payload,
+				)
+				if !errors.Is(err, looppkg.ErrValidation) {
+					t.Fatalf("applyLoopRunSummaryRouteEvidence() error = %v, want ErrValidation", err)
+				}
+				if len(source.PrunedNodes) != 0 {
+					t.Fatalf("pruned nodes = %#v, want no partial mutation", source.PrunedNodes)
+				}
+			})
+		}
+	})
+}
+
+func loopRunWithRouteDefinitionForReadTest(
+	t *testing.T,
+	runID string,
+	workspaceID string,
+	at time.Time,
+) looppkg.Run {
+	t.Helper()
+	definition, err := dsl.Parse([]byte(`{
+		"apiVersion":"compozy.loop/v1",
+		"kind":"Loop",
+		"meta":{"name":"route-read","version":1},
+		"contract":{"goal":"test","definition_of_done":"done","iteration_cap":3,
+			"no_progress":{"window":1},"budget":{"tokens":100,"wall_clock_sec":60}},
+		"graph":{"nodes":[
+			{"id":"router","class":"control","kind":"route",
+			 "routes":[{"when":"false","to":"skipped"}],"default":"selected"},
+			{"id":"selected","class":"action","kind":"transform","params":{"map":{"ok":{"value":true}}}},
+			{"id":"skipped","class":"action","kind":"transform","params":{"map":{"ok":{"value":false}}}}
+		],"edges":[{"from":"router","to":"selected"},{"from":"router","to":"skipped"}]}
+	}`))
+	if err != nil {
+		t.Fatalf("dsl.Parse(route read definition) error = %v", err)
+	}
+	resolved, err := looppkg.NewCompiler().Compile(definition)
+	if err != nil {
+		t.Fatalf("Compile(route read definition) error = %v", err)
+	}
+	effective, err := looppkg.ResolveEffectiveConfig(resolved, looppkg.DefaultLoopDefaults(), nil, looppkg.LoopConfig{})
+	if err != nil {
+		t.Fatalf("ResolveEffectiveConfig() error = %v", err)
+	}
+	snapshot, digest, err := looppkg.BuildExecutedDefinitionSnapshot(resolved, effective)
+	if err != nil {
+		t.Fatalf("BuildExecutedDefinitionSnapshot() error = %v", err)
+	}
+	run := testLoopRun(runID, at, looppkg.StatusRunning)
+	run.WorkspaceID = looppkg.WorkspaceID(workspaceID)
+	run.LoopName = "route-read"
+	run.DefinitionVersion = resolved.DefinitionVersion
+	run.DefinitionSnapshot = snapshot
+	run.DefinitionDigest = digest
+	return run
+}
+
+func TestGlobalDBLoopRunsShouldOrderOperationalPagesBeforeLimiting(t *testing.T) {
+	t.Parallel()
+	t.Run("Should order operational pages before limiting without mutating the cursor", func(t *testing.T) {
+		t.Parallel()
+
+		globalDB := openLoopTestGlobalDB(t, "ws-a")
+		ctx := testutil.Context(t)
+		now := time.Date(2026, 8, 20, 17, 0, 0, 0, time.UTC)
+		fixtures := []looppkg.Run{
+			testLoopRun("terminal-new", now.Add(4*time.Minute), looppkg.StatusDone),
+			testLoopRun("active-new", now.Add(3*time.Minute), looppkg.StatusRunning),
+			testLoopRun("needs-you", now.Add(2*time.Minute), looppkg.StatusNeedsApproval),
+			testLoopRun("active-old", now.Add(time.Minute), looppkg.StatusQueued),
+			testLoopRun("terminal-old", now, looppkg.StatusFailed),
+		}
+		for index := range fixtures {
+			fixtures[index].WorkspaceID = "ws-a"
+			insertLoopCatalogRunForTest(t, globalDB, fixtures[index])
+		}
+		if _, err := globalDB.db.ExecContext(ctx, `INSERT INTO loop_node_controls
+		(loop_run_id, node_id, quarantined, quarantined_at, updated_at)
+		VALUES ('terminal-new', 'stale-node', 1, ?, ?)`, now, now); err != nil {
+			t.Fatalf("insert stale terminal blocker error = %v", err)
+		}
+
+		firstPage, err := globalDB.ListLoopRuns(ctx, looppkg.RunListQuery{
+			WorkspaceID: "ws-a", OperationalOrder: true, Limit: 2,
+		})
+		if err != nil {
+			t.Fatalf("ListLoopRuns(first page) error = %v", err)
+		}
+		if len(firstPage) != 2 || firstPage[0].ID != "needs-you" || firstPage[1].ID != "active-new" {
+			t.Fatalf("first page = %#v", firstPage)
+		}
+		cursorLocation := time.FixedZone("cursor-test", -3*60*60)
+		cursor := &looppkg.RunListPosition{
+			Rank: 1, CreatedAt: firstPage[1].CreatedAt.In(cursorLocation), ID: " active-new ",
+		}
+		secondPage, err := globalDB.ListLoopRuns(ctx, looppkg.RunListQuery{
+			WorkspaceID: "ws-a", OperationalOrder: true, Limit: 3,
+			After: cursor,
+		})
+		if err != nil {
+			t.Fatalf("ListLoopRuns(second page) error = %v", err)
+		}
+		if cursor.ID != " active-new " || cursor.CreatedAt.Location() != cursorLocation {
+			t.Fatalf("caller cursor mutated = %#v", cursor)
+		}
+		want := []looppkg.RunID{"active-old", "terminal-new", "terminal-old"}
+		if len(secondPage) != len(want) {
+			got := make([]looppkg.RunID, len(secondPage))
+			for index := range secondPage {
+				got[index] = secondPage[index].ID
+			}
+			t.Fatalf("second page ids = %#v, want %#v", got, want)
+		}
+		for index := range want {
+			if secondPage[index].ID != want[index] {
+				t.Fatalf("second page run %d = %q, want %q", index, secondPage[index].ID, want[index])
+			}
+		}
+		_, err = globalDB.ListLoopRuns(ctx, looppkg.RunListQuery{
+			WorkspaceID:      "ws-a",
+			OperationalOrder: true,
+			Limit:            2,
+			After: &looppkg.RunListPosition{
+				Rank:      1,
+				CreatedAt: firstPage[1].CreatedAt,
+				ID:        "missing-cursor-run",
+			},
+		})
+		if !errors.Is(err, looppkg.ErrInvalidRunListCursor) {
+			t.Fatalf("ListLoopRuns(missing cursor row) error = %v, want invalid cursor", err)
+		}
+		summaries, err := globalDB.ListLoopRunSummaries(ctx, "ws-a", []looppkg.RunID{"terminal-new"})
+		if err != nil {
+			t.Fatalf("ListLoopRunSummaries(terminal blocker) error = %v", err)
+		}
+		if summaries["terminal-new"].Attention != nil {
+			t.Fatalf("terminal attention = %#v, want nil", summaries["terminal-new"].Attention)
+		}
+	})
+}
+
+func insertLoopRunEventForTimelineTest(
+	t *testing.T,
+	globalDB *GlobalDB,
+	run looppkg.Run,
+	sequence int64,
+	at time.Time,
+) {
+	t.Helper()
+	_, err := globalDB.db.ExecContext(
+		testutil.Context(t),
+		`INSERT INTO loop_run_events
+			(id, loop_run_id, workspace_id, seq, kind, payload_json, at, delivery_key)
+		 VALUES (?, ?, ?, ?, 'node_succeeded', '{}', ?, NULL)`,
+		fmt.Sprintf("event-long-timeline-%d", sequence),
+		run.ID,
+		run.WorkspaceID,
+		sequence,
+		at,
+	)
+	if err != nil {
+		t.Fatalf("insert timeline event %d error = %v", sequence, err)
+	}
 }
 
 func insertLoopRuntimeOutputForTest(

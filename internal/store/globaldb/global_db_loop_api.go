@@ -2,7 +2,8 @@ package globaldb
 
 import (
 	"context"
-	"encoding/json"
+	"database/sql"
+	"errors"
 	"fmt"
 	"strconv"
 	"strings"
@@ -14,7 +15,23 @@ import (
 
 const defaultLoopAPIListLimit = 100
 const maxLoopAPIListLimit = 500
+const loopRunOperationalFetchLimit = maxLoopAPIListLimit + 1
 const loopRunAPIListSelectSQL = `SELECT ` + loopRunSelectColumnsSQL + ` FROM loop_runs`
+const loopRunOperationalRankSQL = `(CASE
+	WHEN loop_runs.status = 'needs-approval'
+		OR (loop_runs.status NOT IN ('done','no-op','blocked','failed','exhausted','stalled','canceled') AND (
+		EXISTS (
+			SELECT 1 FROM loop_node_controls AS control
+			WHERE control.loop_run_id = loop_runs.id AND control.quarantined = 1
+		)
+		OR EXISTS (
+			SELECT 1 FROM loop_requests AS request
+			WHERE request.loop_run_id = loop_runs.id AND request.state = 'pending'
+		)))
+	THEN 0
+	WHEN loop_runs.status IN ('queued', 'running', 'watching', 'paused') THEN 1
+	ELSE 2
+END)`
 
 // ListLoopRuns loads workspace-scoped loop runs in newest-first order.
 func (g *LoopRepo) ListLoopRuns(
@@ -28,6 +45,11 @@ func (g *LoopRepo) ListLoopRuns(
 	if err != nil {
 		return nil, err
 	}
+	if normalized.After != nil {
+		if err := g.validateLoopRunListPosition(ctx, normalized); err != nil {
+			return nil, err
+		}
+	}
 	clauses := []store.Clause{
 		store.StringClause("workspace_id", string(normalized.WorkspaceID)),
 		store.StringClause("loop_name", normalized.LoopName),
@@ -40,10 +62,27 @@ func (g *LoopRepo) ListLoopRuns(
 	if normalized.Live != nil {
 		where = append(where, loopRunLiveFilterSQL(*normalized.Live))
 	}
+	if normalized.OperationalOrder && normalized.After != nil {
+		where = append(where, `(`+loopRunOperationalRankSQL+` > ? OR (`+
+			loopRunOperationalRankSQL+` = ? AND created_at < ?) OR (`+
+			loopRunOperationalRankSQL+` = ? AND created_at = ? AND id < ?))`)
+		args = append(
+			args,
+			normalized.After.Rank,
+			normalized.After.Rank,
+			store.FormatTimestamp(normalized.After.CreatedAt),
+			normalized.After.Rank,
+			store.FormatTimestamp(normalized.After.CreatedAt),
+			normalized.After.ID,
+		)
+	}
 	// dynamic-sql: optional run filters, live-state predicate, and caller limit change the statement shape.
-	// #nosec G202 -- SELECT columns are a package constant; dynamic filters are parameterized.
-	sqlText := store.AppendWhere(loopRunAPIListSelectSQL, where) +
-		` ORDER BY created_at DESC, id DESC LIMIT ?`
+	orderBy := ` ORDER BY created_at DESC, id DESC LIMIT ?`
+	if normalized.OperationalOrder {
+		orderBy = ` ORDER BY ` + loopRunOperationalRankSQL + ` ASC, created_at DESC, id DESC LIMIT ?`
+	}
+	// #nosec G202 -- clauses are constants; values are parameters.
+	sqlText := store.AppendWhere(loopRunAPIListSelectSQL, where) + orderBy
 	args = append(args, normalized.Limit)
 	rows, err := g.db.QueryContext(ctx, sqlText, args...)
 	if err != nil {
@@ -67,6 +106,48 @@ func (g *LoopRepo) ListLoopRuns(
 	return runs, nil
 }
 
+func (g *LoopRepo) validateLoopRunListPosition(
+	ctx context.Context,
+	query looppkg.RunListQuery,
+) error {
+	clauses := []store.Clause{
+		store.StringClause("workspace_id", string(query.WorkspaceID)),
+		store.StringClause("loop_name", query.LoopName),
+		store.StringClause("status", string(query.Status)),
+		store.StringClause("origin_kind", query.OriginKind),
+		store.StringClause("origin_session_id", query.OriginSessionID),
+		store.TimeClause("created_at", ">=", query.CreatedAfter),
+		store.StringClause("id", string(query.After.ID)),
+	}
+	where, args := store.BuildClauses(clauses...)
+	if query.Live != nil {
+		where = append(where, loopRunLiveFilterSQL(*query.Live))
+	}
+	statement := store.AppendWhere(
+		"SELECT created_at, "+loopRunOperationalRankSQL+" FROM loop_runs",
+		where,
+	)
+	var createdAtRaw string
+	var rank int
+	if err := g.db.QueryRowContext(ctx, statement, args...).Scan(&createdAtRaw, &rank); err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return fmt.Errorf(
+				"%w: Loop run list cursor no longer identifies its boundary",
+				looppkg.ErrInvalidRunListCursor,
+			)
+		}
+		return fmt.Errorf("store: validate Loop run list cursor: %w", err)
+	}
+	createdAt, err := parseLoopRunTimestamp(createdAtRaw)
+	if err != nil {
+		return fmt.Errorf("store: parse Loop run list cursor boundary time: %w", err)
+	}
+	if rank != query.After.Rank || !createdAt.Equal(query.After.CreatedAt.UTC()) {
+		return fmt.Errorf("%w: Loop run list cursor no longer identifies its boundary", looppkg.ErrInvalidRunListCursor)
+	}
+	return nil
+}
+
 // ListLoopRunEvents loads retained events after the requested sequence.
 func (g *LoopRepo) ListLoopRunEvents(
 	ctx context.Context,
@@ -85,6 +166,49 @@ func (g *LoopRepo) ListLoopRunEvents(
 	})
 	if err != nil {
 		return nil, fmt.Errorf("store: list loop run events: %w", err)
+	}
+	events := make([]looppkg.RunEvent, 0, len(rows))
+	for _, row := range rows {
+		events = append(events, loopRunEventFromGenerated(row))
+	}
+	return events, nil
+}
+
+// GetLoopRunEventHead returns the durable sequence head for one workspace-owned run.
+func (g *LoopRepo) GetLoopRunEventHead(
+	ctx context.Context,
+	workspaceID looppkg.WorkspaceID,
+	runID looppkg.RunID,
+) (int64, error) {
+	if err := g.checkReady(ctx, "get loop run event head"); err != nil {
+		return 0, err
+	}
+	head, err := g.queries.GetLoopRunEventHead(ctx, sqlcgen.GetLoopRunEventHeadParams{
+		WorkspaceID: string(workspaceID), LoopRunID: string(runID),
+	})
+	if err != nil {
+		return 0, fmt.Errorf("store: get loop run event head: %w", err)
+	}
+	return head, nil
+}
+
+// ListLoopRunEventsBackward returns one snapshot-fenced page in descending sequence order.
+func (g *LoopRepo) ListLoopRunEventsBackward(
+	ctx context.Context,
+	query looppkg.RunEventBackwardQuery,
+) ([]looppkg.RunEvent, error) {
+	if err := g.checkReady(ctx, "list loop run events backward"); err != nil {
+		return nil, err
+	}
+	if query.Limit < 1 || query.Limit > maxLoopAPIListLimit || query.FixedHeadSeq < 0 || query.BeforeSeq < 1 {
+		return nil, fmt.Errorf("%w: backward loop event query is invalid", looppkg.ErrValidation)
+	}
+	rows, err := g.queries.ListLoopRunEventsBackward(ctx, sqlcgen.ListLoopRunEventsBackwardParams{
+		WorkspaceID: string(query.WorkspaceID), LoopRunID: string(query.RunID), FixedHeadSeq: query.FixedHeadSeq,
+		BeforeSeq: query.BeforeSeq, RowLimit: int64(query.Limit),
+	})
+	if err != nil {
+		return nil, fmt.Errorf("store: list loop run events backward: %w", err)
 	}
 	events := make([]looppkg.RunEvent, 0, len(rows))
 	for _, row := range rows {
@@ -114,30 +238,11 @@ func (g *LoopRepo) ListRouteCauses(
 	}
 	causes := make([]looppkg.RouteCause, 0, len(rows))
 	for _, row := range rows {
-		var payload struct {
-			Generation  int64  `json:"generation"`
-			NodeID      string `json:"node_id"`
-			ItemIndex   int    `json:"item_index"`
-			Route       string `json:"route"`
-			Cause       string `json:"cause"`
-			MatchedWhen string `json:"matched_when"`
-			Default     bool   `json:"default"`
+		cause, decodeErr := decodeStoredRouteCause(row.PayloadJson, row.At, generation)
+		if decodeErr != nil {
+			return nil, decodeErr
 		}
-		if err := json.Unmarshal([]byte(row.PayloadJson), &payload); err != nil {
-			return nil, fmt.Errorf("store: decode loop route cause: %w", err)
-		}
-		payload.NodeID = strings.TrimSpace(payload.NodeID)
-		payload.Route = strings.TrimSpace(payload.Route)
-		payload.Cause = strings.TrimSpace(payload.Cause)
-		if payload.Generation != generation || payload.NodeID == "" || payload.ItemIndex < 0 ||
-			payload.Route == "" || payload.Cause == "" {
-			return nil, fmt.Errorf("%w: persisted route cause is invalid", looppkg.ErrValidation)
-		}
-		causes = append(causes, looppkg.RouteCause{
-			Generation: payload.Generation, NodeID: looppkg.NodeID(payload.NodeID),
-			ItemIndex: payload.ItemIndex, Route: looppkg.NodeID(payload.Route), Cause: payload.Cause,
-			MatchedWhen: strings.TrimSpace(payload.MatchedWhen), Default: payload.Default, At: row.At,
-		})
+		causes = append(causes, cause)
 	}
 	return causes, nil
 }
@@ -236,7 +341,21 @@ func normalizeLoopRunListQuery(query looppkg.RunListQuery) (looppkg.RunListQuery
 		}
 		normalized.OriginKind = string(looppkg.RunOriginSession)
 	}
-	normalized.Limit = normalizeLoopAPILimit(normalized.Limit)
+	if normalized.After != nil {
+		after := *normalized.After
+		normalized.After = &after
+		normalized.After.ID = looppkg.RunID(strings.TrimSpace(string(after.ID)))
+		normalized.After.CreatedAt = after.CreatedAt.UTC()
+		if !normalized.OperationalOrder || normalized.After.Rank < 0 || normalized.After.Rank > 2 ||
+			normalized.After.CreatedAt.IsZero() || normalized.After.ID == "" {
+			return looppkg.RunListQuery{}, fmt.Errorf("%w: loop run list position is invalid", looppkg.ErrValidation)
+		}
+	}
+	if normalized.OperationalOrder && normalized.Limit == loopRunOperationalFetchLimit {
+		normalized.Limit = loopRunOperationalFetchLimit
+	} else {
+		normalized.Limit = normalizeLoopAPILimit(normalized.Limit)
+	}
 	return normalized, nil
 }
 
@@ -244,7 +363,7 @@ func loopRunLiveFilterSQL(live bool) string {
 	if live {
 		return "status IN ('queued','running','watching','needs-approval','paused')"
 	}
-	return "status IN ('done','no-op','blocked','failed','exhausted','stalled')"
+	return "status IN ('done','no-op','blocked','failed','exhausted','stalled','canceled')"
 }
 
 func normalizeLoopRunEventQuery(query looppkg.RunEventQuery) (looppkg.RunEventQuery, error) {
@@ -312,4 +431,5 @@ func normalizeLoopAnnotations(annotations []looppkg.UIAnnotation) ([]looppkg.UIA
 }
 
 var _ looppkg.RunReader = (*LoopRepo)(nil)
+var _ looppkg.TimelineEventReader = (*LoopRepo)(nil)
 var _ looppkg.AnnotationStore = (*LoopRepo)(nil)

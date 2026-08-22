@@ -1215,7 +1215,81 @@ export const savedIntentTaskFixture: TaskListItem = buildTaskFixture({
   origin: { kind: "web", ref: storyPeople.primaryOperator },
 });
 
-export const TASK_CATALOG_FIXTURES: TaskListItem[] = [...TASK_FIXTURES, savedIntentTaskFixture];
+/**
+ * Loop execution records for the canonical `revisao-paralela` story. They join
+ * the catalog source and are cut by the handler's exclusion predicate, exactly
+ * as the daemon cuts them.
+ */
+const LOOP_RUN_ID = "looprun-8f3ab2c1d4e5f607";
+const LOOP_NAME = "revisao-paralela";
+
+export const loopCoordinatorTaskFixture: TaskListItem = buildTaskFixture({
+  id: `loop.${LOOP_RUN_ID}.coordinator`,
+  identifier: undefined,
+  title: `Loop ${LOOP_NAME} coordinator`,
+  status: "needs_attention",
+  active_run: null,
+  child_count: 0,
+  dependency_count: 0,
+  priority: "medium",
+  created_by: { kind: "daemon", ref: "loop-coordinator" },
+  origin: { kind: "automation", ref: "loop" },
+  owner: null,
+  loop: { role: "coordinator", run_id: LOOP_RUN_ID, loop_name: LOOP_NAME },
+});
+
+export const loopCellTaskFixture: TaskListItem = buildTaskFixture({
+  id: `loop.${LOOP_RUN_ID}.g1.node.revisor-perf.0`,
+  identifier: undefined,
+  title: `Loop ${LOOP_NAME} node revisor-perf`,
+  status: "in_progress",
+  active_run: null,
+  child_count: 0,
+  dependency_count: 0,
+  priority: "medium",
+  created_by: { kind: "daemon", ref: "loop-coordinator" },
+  origin: { kind: "automation", ref: "loop" },
+  owner: null,
+  loop: {
+    role: "cell",
+    run_id: LOOP_RUN_ID,
+    loop_name: LOOP_NAME,
+    generation: 1,
+    node_id: "revisor-perf",
+    item_index: 0,
+  },
+});
+
+/**
+ * Retention removed the owning run, so `loop_name` is unrecoverable and the
+ * record renders its truthful degrade instead of a dead link (US-002.EC-2).
+ */
+export const loopRunGoneTaskFixture: TaskListItem = buildTaskFixture({
+  id: "loop.looprun-77aa01b2c3d4e5f6.g2.node.sintetizador.0",
+  identifier: undefined,
+  title: "Loop node sintetizador",
+  status: "completed",
+  active_run: null,
+  child_count: 0,
+  dependency_count: 0,
+  priority: "medium",
+  created_by: { kind: "daemon", ref: "loop-coordinator" },
+  origin: { kind: "automation", ref: "loop" },
+  owner: null,
+  loop: { role: "cell", run_id: "looprun-77aa01b2c3d4e5f6", generation: 2 },
+});
+
+export const LOOP_TASK_FIXTURES: TaskListItem[] = [
+  loopCoordinatorTaskFixture,
+  loopCellTaskFixture,
+  loopRunGoneTaskFixture,
+];
+
+export const TASK_CATALOG_FIXTURES: TaskListItem[] = [
+  ...TASK_FIXTURES,
+  savedIntentTaskFixture,
+  ...LOOP_TASK_FIXTURES,
+];
 
 /**
  * Agent-created approval-pending fixture: agent drafted the work and the

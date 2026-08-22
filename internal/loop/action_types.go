@@ -91,6 +91,7 @@ type ActionExecutionInput struct {
 	ItemIndex                 int
 	Attempt                   int
 	CellEpoch                 int64
+	SessionSharedKey          string
 	DeathResume               *DeathResumeContext
 	RetryFailure              *ClassifiedFailure
 	RepairFailures            []ActionRepairFailure

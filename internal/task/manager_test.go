@@ -3397,6 +3397,7 @@ func TestManagerTimelineSupportsStableOrderingAndWindows(t *testing.T) {
 			EventType: taskEventUpdated,
 			Actor:     actor.Actor,
 			Origin:    actor.Origin,
+			Payload:   json.RawMessage(`{"reason":"reconciled_run_terminal"}`),
 			Timestamp: sameTimestamp,
 		},
 		{
@@ -3483,6 +3484,9 @@ func TestManagerTimelineSupportsStableOrderingAndWindows(t *testing.T) {
 		want,
 	) {
 		t.Fatalf("all event ids = %#v, want %#v", got, want)
+	}
+	if got, want := all[0].Reason, "reconciled_run_terminal"; got != want {
+		t.Fatalf("all[0].Reason = %q, want %q", got, want)
 	}
 }
 
@@ -10279,6 +10283,22 @@ func TestManagerStartRunShouldExecuteCoordinatorInDaemonWithoutSession(t *testin
 		}
 		if store.coordinatorCompleted {
 			t.Fatal("coordinator completion reached the store after entropy failure")
+		}
+	})
+
+	t.Run("Should reserve an event ID for a possible concurrent-progress wake", func(t *testing.T) {
+		t.Parallel()
+
+		plan := CoordinatorCompletionPlan{
+			GenerationInFlight: true,
+			NodeRuns: []EnqueueSpec{
+				{TaskID: "task-node-one"},
+				{TaskID: "task-node-two"},
+			},
+		}
+
+		if got, want := coordinatorPublicationEventCount(plan), 3; got != want {
+			t.Fatalf("coordinatorPublicationEventCount() = %d, want %d", got, want)
 		}
 	})
 }

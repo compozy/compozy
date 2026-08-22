@@ -29,6 +29,7 @@ type taskCatalogScanFields struct {
 	createdAt                string
 	updatedAt                string
 	closedAt                 sql.NullString
+	metadataJSON             sql.NullString
 	needsAttentionReason     sql.NullString
 	needsAttentionAt         sql.NullString
 	needsAttentionByKind     sql.NullString
@@ -62,6 +63,8 @@ type taskCatalogScanFields struct {
 	activeRunStartedAt       sql.NullString
 	activeRunEndedAt         sql.NullString
 	activeRunError           sql.NullString
+	provenanceLoopRunID      sql.NullString
+	provenanceRunKind        sql.NullString
 }
 
 func scanTaskCatalogSummary(scanner rowScanner) (taskpkg.Summary, error) {
@@ -91,6 +94,7 @@ func scanTaskCatalogSummary(scanner rowScanner) (taskpkg.Summary, error) {
 		&fields.createdAt,
 		&fields.updatedAt,
 		&fields.closedAt,
+		&fields.metadataJSON,
 		&fields.needsAttentionReason,
 		&fields.needsAttentionAt,
 		&fields.needsAttentionByKind,
@@ -124,6 +128,8 @@ func scanTaskCatalogSummary(scanner rowScanner) (taskpkg.Summary, error) {
 		&fields.activeRunStartedAt,
 		&fields.activeRunEndedAt,
 		&fields.activeRunError,
+		&fields.provenanceLoopRunID,
+		&fields.provenanceRunKind,
 	); err != nil {
 		return taskpkg.Summary{}, fmt.Errorf("store: scan task catalog row: %w", err)
 	}
@@ -178,6 +184,13 @@ func assignTaskCatalogSummary(summary *taskpkg.Summary, fields *taskCatalogScanF
 		return err
 	}
 	summary.ActiveRun = run
+	if fields.provenanceLoopRunID.Valid && fields.provenanceRunKind.Valid {
+		summary.RunProvenance = &taskpkg.RunProvenance{
+			LoopRunID: strings.TrimSpace(fields.provenanceLoopRunID.String),
+			RunKind:   taskpkg.ParseRunKind(fields.provenanceRunKind.String).Normalize(),
+			Metadata:  []byte(fields.metadataJSON.String),
+		}
+	}
 	return nil
 }
 

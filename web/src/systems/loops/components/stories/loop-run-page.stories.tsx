@@ -7,7 +7,7 @@ import { StoryTopbarHost } from "@/storybook/story-layout";
 
 import type { LoopRunRequestState } from "../run-page/requests/loop-request-questionnaire";
 import {
-  LoopNodeRowActions,
+  type LoopNodeSelection,
   LoopRunControls,
   LoopRunOverflowMenu,
   LoopRunPageBody,
@@ -16,12 +16,24 @@ import {
 import {
   forkedRunScenario,
   laneRequestsScenario,
-  partialCompletionScenario,
   pendingEnumRequestScenario,
   pendingRequestsScenario,
   redactedRequestScenario,
   resolvedRequestsScenario,
 } from "./loop-run-graph-eng-fixtures";
+import {
+  registerDoneScenario,
+  registerFailedScenario,
+  registerLongStoryScenario,
+  registerNeedsYouScenario,
+  registerNoStepsScenario,
+  registerPartialOutputsScenario,
+  registerPrunedArtifactScenario,
+  registerRetryingScenario,
+  registerRoutedScenario,
+  registerRunningScenario,
+  registerWideFanOutScenario,
+} from "./loop-run-register-fixtures";
 import {
   attentionScenario,
   canceledScenario,
@@ -35,15 +47,17 @@ import {
 } from "./loop-run-lifecycle-fixtures";
 import { pendingReviewRequest } from "../../mocks";
 import {
-  buildScenarioProps,
   exhaustedScenario,
+  ratchetRestoreScenario,
+  scoredBestScenario,
+} from "./loop-run-metric-fixtures";
+import {
+  buildScenarioProps,
   failedScenario,
   needsApprovalScenario,
   noOpScenario,
   pausedScenario,
-  ratchetRestoreScenario,
   runningScenario,
-  scoredBestScenario,
   watchingScenario,
   type LoopRunStoryScenario,
 } from "./loop-run-page-fixtures";
@@ -52,12 +66,16 @@ function ScenarioPage({
   scenario,
   inspectInitiallyOpen = false,
   requestState,
+  prunedSessionIds,
 }: {
   scenario: LoopRunStoryScenario;
   inspectInitiallyOpen?: boolean;
   requestState?: LoopRunRequestState;
+  /** Stages the retention degrade the live page reads from the session store. */
+  prunedSessionIds?: ReadonlySet<string>;
 }) {
   const [inspectOpen, setInspectOpen] = useState(inspectInitiallyOpen);
+  const [nodeSelection, setNodeSelection] = useState<LoopNodeSelection | null>(null);
   const props = buildScenarioProps(scenario);
   const topbarIdentity: Pick<TopbarSlotValue, "crumb" | "crumbs" | "onBack"> = {
     onBack: () => {},
@@ -91,28 +109,20 @@ function ScenarioPage({
       <LoopRunPageBody
         {...props}
         inspect={{ open: inspectOpen, onOpenChange: setInspectOpen }}
+        nodeSelection={nodeSelection}
+        onNodeSelectionChange={setNodeSelection}
+        prunedSessionIds={prunedSessionIds}
         requestState={requestState}
-        renderNodeActions={node => (
-          <LoopNodeRowActions node={node} onVerb={() => {}} runStatus={props.run.status} />
-        )}
       />
     </div>
   );
 }
 
-function LoopRunPageStory({
-  scenario,
-  inspectInitiallyOpen = false,
-  requestState,
-}: Parameters<typeof ScenarioPage>[0]) {
+function LoopRunPageStory(props: Parameters<typeof ScenarioPage>[0]) {
   return (
     <div className="flex h-dvh flex-col bg-canvas">
       <StoryTopbarHost title="Loops">
-        <ScenarioPage
-          scenario={scenario}
-          inspectInitiallyOpen={inspectInitiallyOpen}
-          requestState={requestState}
-        />
+        <ScenarioPage {...props} />
       </StoryTopbarHost>
     </div>
   );
@@ -274,9 +284,10 @@ export const LaneRequests: Story = {
   render: () => <LoopRunPageStory scenario={laneRequestsScenario()} />,
 };
 
+/** VC-08: a terminal failure whose partial output is labelled as partial. */
 export const PartialCompletion: Story = {
   args: {},
-  render: () => <LoopRunPageStory scenario={partialCompletionScenario()} />,
+  render: () => <LoopRunPageStory scenario={registerPartialOutputsScenario()} />,
 };
 
 export const ForkLineage: Story = {
@@ -327,4 +338,66 @@ export const Killed: Story = {
 export const ParkedProgress: Story = {
   args: {},
   render: () => <LoopRunPageStory scenario={parkedProgressScenario()} />,
+};
+
+/**
+ * Visual-contract states for the two-register redesign (task_05 VC rows).
+ *
+ * Each stages the three run reads and travels the production projection, so the
+ * screenshot bundle captured from it is evidence about the real derivation path
+ * rather than about a hand-built view model.
+ */
+export const RegisterRunning: Story = {
+  args: {},
+  render: () => <LoopRunPageStory scenario={registerRunningScenario()} />,
+};
+
+export const RegisterNeedsYou: Story = {
+  args: {},
+  render: () => <LoopRunPageStory scenario={registerNeedsYouScenario()} />,
+};
+
+export const RegisterDone: Story = {
+  args: {},
+  render: () => <LoopRunPageStory scenario={registerDoneScenario()} />,
+};
+
+export const RegisterPrunedArtifact: Story = {
+  args: {},
+  render: () => <LoopRunPageStory scenario={registerPrunedArtifactScenario()} />,
+};
+
+export const RegisterFailed: Story = {
+  args: {},
+  render: () => <LoopRunPageStory scenario={registerFailedScenario()} />,
+};
+
+export const RegisterLongStory: Story = {
+  args: {},
+  render: () => <LoopRunPageStory scenario={registerLongStoryScenario()} />,
+};
+
+export const RegisterGraphOpen: Story = {
+  args: {},
+  render: () => <LoopRunPageStory scenario={registerRunningScenario()} inspectInitiallyOpen />,
+};
+
+export const RegisterRoutedGraph: Story = {
+  args: {},
+  render: () => <LoopRunPageStory scenario={registerRoutedScenario()} inspectInitiallyOpen />,
+};
+
+export const RegisterWideFanOut: Story = {
+  args: {},
+  render: () => <LoopRunPageStory scenario={registerWideFanOutScenario()} inspectInitiallyOpen />,
+};
+
+export const RegisterRetryingRoster: Story = {
+  args: {},
+  render: () => <LoopRunPageStory scenario={registerRetryingScenario()} inspectInitiallyOpen />,
+};
+
+export const RegisterNoSteps: Story = {
+  args: {},
+  render: () => <LoopRunPageStory scenario={registerNoStepsScenario()} inspectInitiallyOpen />,
 };

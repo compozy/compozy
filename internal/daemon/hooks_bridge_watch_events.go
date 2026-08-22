@@ -361,7 +361,7 @@ func (n *hooksNotifier) notifyLoopNodeTerminalObservers(
 			observer,
 			payload,
 			"loop node terminal",
-			[]any{daemonLoopRunIDKey, payload.LoopRunID, "node_id", payload.NodeID},
+			[]any{daemonLoopRunIDKey, payload.LoopRunID, watchEventsPayloadNodeIDKey, payload.NodeID},
 			func(ctx context.Context, observer loopNodeTerminalObserver, payload hookspkg.LoopNodeTerminalPayload) error {
 				return observer.OnLoopNodeTerminal(ctx, payload)
 			},

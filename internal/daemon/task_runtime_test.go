@@ -5,6 +5,8 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
+	"log/slog"
 	"os"
 	"path/filepath"
 	"slices"
@@ -32,6 +34,86 @@ import (
 	workspacepkg "github.com/compozy/compozy/internal/workspace"
 	worktreepkg "github.com/compozy/compozy/internal/worktree"
 )
+
+func TestLoopReconcilerRuntimeShouldWaitForReadinessAndNeverOverlapCycles(t *testing.T) {
+	t.Parallel()
+
+	reconciler := &blockingRunReconciler{
+		backfillCalled: make(chan struct{}, 1),
+		firstSweep:     make(chan struct{}, 1),
+		releaseFirst:   make(chan struct{}),
+		secondSweep:    make(chan struct{}, 1),
+	}
+	runtime := newLoopReconcilerRuntime(
+		reconciler, 10*time.Millisecond, slog.New(slog.NewTextHandler(io.Discard, nil)),
+	)
+	ctx, cancel := context.WithCancel(testutil.Context(t))
+	defer cancel()
+	ready := make(chan struct{})
+	if err := runtime.Start(ctx, ready); err != nil {
+		t.Fatalf("Start() error = %v", err)
+	}
+	select {
+	case <-reconciler.backfillCalled:
+		t.Fatal("BackfillProvenance() ran before readiness")
+	case <-time.After(20 * time.Millisecond):
+	}
+	close(ready)
+	select {
+	case <-reconciler.backfillCalled:
+	case <-time.After(time.Second):
+		t.Fatal("BackfillProvenance() did not run after readiness")
+	}
+	select {
+	case <-reconciler.firstSweep:
+	case <-time.After(time.Second):
+		t.Fatal("first SweepOnce() did not start")
+	}
+	select {
+	case <-reconciler.secondSweep:
+		t.Fatal("SweepOnce() overlapped a blocked cycle")
+	case <-time.After(40 * time.Millisecond):
+	}
+	close(reconciler.releaseFirst)
+	select {
+	case <-reconciler.secondSweep:
+	case <-time.After(time.Second):
+		t.Fatal("SweepOnce() did not retry on the next interval")
+	}
+	if err := runtime.Shutdown(testutil.Context(t)); err != nil {
+		t.Fatalf("Shutdown() error = %v", err)
+	}
+}
+
+type blockingRunReconciler struct {
+	backfillCalled chan struct{}
+	firstSweep     chan struct{}
+	releaseFirst   chan struct{}
+	secondSweep    chan struct{}
+	sweepCalls     atomic.Int32
+}
+
+func (r *blockingRunReconciler) NeutralizeOrphans(context.Context) (looppkg.SweepReport, error) {
+	return looppkg.SweepReport{}, nil
+}
+
+func (r *blockingRunReconciler) BackfillProvenance(context.Context) (int, error) {
+	r.backfillCalled <- struct{}{}
+	return 0, nil
+}
+
+func (r *blockingRunReconciler) SweepOnce(context.Context) (looppkg.SweepReport, error) {
+	call := r.sweepCalls.Add(1)
+	if call == 1 {
+		r.firstSweep <- struct{}{}
+		<-r.releaseFirst
+		return looppkg.SweepReport{}, errors.New("injected sweep failure")
+	}
+	if call == 2 {
+		r.secondSweep <- struct{}{}
+	}
+	return looppkg.SweepReport{}, nil
+}
 
 func TestLoopActionRuntimeRetriesWorkspaceCapacityDeferral(t *testing.T) {
 	t.Parallel()
@@ -2600,7 +2682,7 @@ func TestBootTasksSkipsMissingPrerequisites(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
-			if err := daemon.bootTasks(context.Background(), tc.state); err != nil {
+			if err := daemon.bootTasks(context.Background(), tc.state, &bootCleanup{}); err != nil {
 				t.Fatalf("bootTasks() error = %v, want nil", err)
 			}
 		})
@@ -2626,11 +2708,13 @@ func TestBootTasksBuildsRuntimeWhenDependenciesAreAvailable(t *testing.T) {
 
 	daemon := &Daemon{
 		homePaths: homePaths,
+		readyCh:   make(chan struct{}),
 	}
 	state := &bootState{
 		cfg: compozyconfig.Config{
 			Network: compozyconfig.DefaultNetworkConfig(),
 			Task:    compozyconfig.DefaultTaskConfig(),
+			Loops:   compozyconfig.DefaultLoopsConfig(),
 		},
 		logger:   discardLogger(),
 		registry: db,
@@ -2644,13 +2728,16 @@ func TestBootTasksBuildsRuntimeWhenDependenciesAreAvailable(t *testing.T) {
 		workspaceResolver: resolver,
 	}
 
-	if err := daemon.bootTasks(testutil.Context(t), state); err != nil {
+	if err := daemon.bootTasks(testutil.Context(t), state, &bootCleanup{}); err != nil {
 		t.Fatalf("bootTasks() error = %v", err)
 	}
 	if state.tasks == nil {
 		t.Fatal("bootTasks() did not install a task runtime")
 	}
 	t.Cleanup(func() {
+		if err := state.runtimeWorkers.loopReconciler.Shutdown(testutil.Context(t)); err != nil {
+			t.Fatalf("Loop reconciler shutdown error = %v", err)
+		}
 		if err := state.tasks.shutdown(testutil.Context(t)); err != nil {
 			t.Fatalf("task runtime shutdown error = %v", err)
 		}
@@ -2796,7 +2883,7 @@ func TestBootTasksSchedulerStatusUsesDurableStarvationEpisodes(t *testing.T) {
 
 		cfg := compozyconfig.DefaultWithHome(homePaths)
 		cfg.Autonomy.Scheduler.MinQueuedAge = time.Hour
-		daemon := &Daemon{homePaths: homePaths}
+		daemon := &Daemon{homePaths: homePaths, readyCh: make(chan struct{})}
 		state := &bootState{
 			cfg:      cfg,
 			logger:   discardLogger(),
@@ -2811,13 +2898,16 @@ func TestBootTasksSchedulerStatusUsesDurableStarvationEpisodes(t *testing.T) {
 			workspaceResolver: resolver,
 		}
 
-		if err := daemon.bootTasks(ctx, state); err != nil {
+		if err := daemon.bootTasks(ctx, state, &bootCleanup{}); err != nil {
 			t.Fatalf("bootTasks() error = %v", err)
 		}
 		if state.tasks == nil || state.tasks.manager == nil {
 			t.Fatal("bootTasks() did not install a task manager")
 		}
 		t.Cleanup(func() {
+			if err := state.runtimeWorkers.loopReconciler.Shutdown(testutil.Context(t)); err != nil {
+				t.Fatalf("Loop reconciler shutdown error = %v", err)
+			}
 			if err := state.tasks.shutdown(testutil.Context(t)); err != nil {
 				t.Fatalf("task runtime shutdown error = %v", err)
 			}
@@ -3082,11 +3172,13 @@ func TestBootTasksRecoversPendingRunsOnStartup(t *testing.T) {
 
 	daemon := &Daemon{
 		homePaths: homePaths,
+		readyCh:   make(chan struct{}),
 	}
 	state := &bootState{
 		cfg: compozyconfig.Config{
 			Network: compozyconfig.DefaultNetworkConfig(),
 			Task:    compozyconfig.DefaultTaskConfig(),
+			Loops:   compozyconfig.DefaultLoopsConfig(),
 		},
 		logger:   discardLogger(),
 		registry: db,
@@ -3099,13 +3191,16 @@ func TestBootTasksRecoversPendingRunsOnStartup(t *testing.T) {
 		}),
 	}
 
-	if err := daemon.bootTasks(testutil.Context(t), state); err != nil {
+	if err := daemon.bootTasks(testutil.Context(t), state, &bootCleanup{}); err != nil {
 		t.Fatalf("bootTasks() error = %v", err)
 	}
 	if state.tasks == nil {
 		t.Fatal("bootTasks() did not install a task runtime")
 	}
 	t.Cleanup(func() {
+		if err := state.runtimeWorkers.loopReconciler.Shutdown(testutil.Context(t)); err != nil {
+			t.Fatalf("Loop reconciler shutdown error = %v", err)
+		}
 		if err := state.tasks.shutdown(testutil.Context(t)); err != nil {
 			t.Fatalf("task runtime shutdown error = %v", err)
 		}
@@ -3205,7 +3300,7 @@ func TestBootTasksRequiresHarnessResolver(t *testing.T) {
 		sessions: &fakeSessionManager{},
 	}
 
-	err := daemon.bootTasks(testutil.Context(t), state)
+	err := daemon.bootTasks(testutil.Context(t), state, &bootCleanup{})
 	if err == nil {
 		t.Fatal("bootTasks() error = nil, want harness resolver validation error")
 	}

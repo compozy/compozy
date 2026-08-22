@@ -81,7 +81,7 @@ SET status = sqlc.arg(queued_status), claimed_by_kind = NULL, claimed_by_ref = N
     recovery_count = recovery_count + sqlc.arg(recovery_increment)
 WHERE id = sqlc.arg(id)
   AND status = sqlc.arg(previous_status)
-  AND COALESCE(session_id, '') = sqlc.arg(session_id)
+  AND COALESCE(session_id, '') = COALESCE(sqlc.arg(session_id), '')
   AND claim_token_hash = sqlc.arg(claim_token_hash)
   AND lease_until = sqlc.arg(lease_until);
 
@@ -92,7 +92,7 @@ SET status = sqlc.arg(needs_attention_status), claimed_by_kind = NULL, claimed_b
     heartbeat_at = NULL, ended_at = sqlc.arg(ended_at), error = sqlc.arg(error), result_json = NULL
 WHERE id = sqlc.arg(id)
   AND status = sqlc.arg(previous_status)
-  AND COALESCE(session_id, '') = sqlc.arg(session_id)
+  AND COALESCE(session_id, '') = COALESCE(sqlc.arg(session_id), '')
   AND claim_token_hash = sqlc.arg(claim_token_hash)
   AND lease_until = sqlc.arg(lease_until);
 

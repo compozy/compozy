@@ -57,6 +57,7 @@ var schemaEnumValues = withSettingsWindowManagerSchemaEnumValues(
 		reflect.TypeFor[taskpkg.RunReviewStatus]():              taskRunReviewStatusValues(),
 		reflect.TypeFor[taskpkg.RunReviewOutcome]():             taskRunReviewOutcomeValues(),
 		reflect.TypeFor[contract.TaskInboxLane]():               taskInboxLaneValues(),
+		reflect.TypeFor[contract.LoopProvenanceRole]():          contract.LoopProvenanceRoleValues(),
 		reflect.TypeFor[contract.CoordinationMessageKind]():     coordinationMessageKindValues(),
 		reflect.TypeFor[contract.AgentCreateScope]():            agentCreateScopeValues(),
 		reflect.TypeFor[contract.AgentOrigin]():                 agentOriginValues(),

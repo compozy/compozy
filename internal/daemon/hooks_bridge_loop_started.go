@@ -39,7 +39,7 @@ func (n *hooksNotifier) notifyLoopStartedObservers(
 			observer,
 			payload,
 			"loop started",
-			[]any{daemonLoopRunIDKey, payload.LoopRunID, "loop_name", payload.LoopName},
+			[]any{daemonLoopRunIDKey, payload.LoopRunID, loopWatchEventsContentLoopNameField, payload.LoopName},
 			func(ctx context.Context, observer loopStartedObserver, payload hookspkg.LoopStartedPayload) error {
 				return observer.OnLoopStarted(ctx, payload)
 			},

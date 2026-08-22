@@ -112,7 +112,9 @@ const loopRunsOutputSchema = `{
 				"failed":{"type":"integer","minimum":0}
 			},
 			"additionalProperties":false
-		}
+		},
+		"next_cursor":{"type":"string","description":"Opaque continuation cursor for the next page; ` +
+	`omitted when no further page exists."}
 	},
 	"additionalProperties":false
 }`

@@ -5,6 +5,7 @@ import (
 	"strings"
 
 	"github.com/compozy/compozy/internal/api/contract"
+	looppkg "github.com/compozy/compozy/internal/loop"
 	"github.com/spf13/cobra"
 )
 
@@ -35,13 +36,20 @@ func newLoopStatusCommand(deps commandDeps) *cobra.Command {
 }
 
 func newLoopRunsCommand(deps commandDeps) *cobra.Command {
-	var workspaceRef, loopName, status, origin, originSession string
+	var workspaceRef, loopName, status, origin, originSession, cursor string
 	var limit int
 	cmd := &cobra.Command{
 		Use:   cliRunsKey,
 		Short: "List workspace Loop runs",
 		Args:  cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, _ []string) error {
+			if err := validateLoopPageLimit(
+				limit,
+				cmd.Flags().Changed("limit"),
+				loopRunReadPageLimitMax,
+			); err != nil {
+				return err
+			}
 			client, workspaceID, err := loopClientAndWorkspace(cmd, deps, workspaceRef)
 			if err != nil {
 				return err
@@ -51,12 +59,13 @@ func newLoopRunsCommand(deps commandDeps) *cobra.Command {
 				Status:        strings.TrimSpace(status),
 				Origin:        strings.TrimSpace(origin),
 				OriginSession: strings.TrimSpace(originSession),
+				Cursor:        strings.TrimSpace(cursor),
 				Limit:         limit,
 			})
 			if err != nil {
 				return err
 			}
-			return writeCommandOutput(cmd, loopRunsOutputBundle(response))
+			return writeCommandOutput(cmd, loopRunsOutputBundle(response, deps.now))
 		},
 	}
 	cmd.Flags().StringVar(&workspaceRef, loopWorkspaceKey, "", "Override workspace (ID, name, or path)")
@@ -64,7 +73,8 @@ func newLoopRunsCommand(deps commandDeps) *cobra.Command {
 	cmd.Flags().StringVar(&status, loopStatusKey, "", "Filter by Loop run status")
 	cmd.Flags().StringVar(&origin, "origin", "", "Filter by run origin: catalog or session")
 	cmd.Flags().StringVar(&originSession, "origin-session", "", "Filter by origin session ID")
-	cmd.Flags().IntVar(&limit, "limit", 0, "Maximum runs to return")
+	cmd.Flags().StringVar(&cursor, "cursor", "", "Resume after an opaque server-order cursor")
+	cmd.Flags().IntVar(&limit, "limit", 50, "Page size from 1 to 500")
 	return cmd
 }
 
@@ -178,21 +188,18 @@ func newLoopRunActionCommand(deps commandDeps, verb string, short string) *cobra
 }
 
 func newLoopApproveCommand(deps commandDeps) *cobra.Command {
-	var workspaceRef, runID, gateID, decision string
+	var workspaceRef, gateID, decision string
 	cmd := &cobra.Command{
-		Use:   loopApproveKey,
+		Use:   loopApproveKey + " <run>",
 		Short: "Apply one Loop human-gate decision",
-		Args:  cobra.NoArgs,
-		RunE: func(cmd *cobra.Command, _ []string) error {
+		Args:  cobra.ExactArgs(1),
+		RunE: func(cmd *cobra.Command, args []string) error {
 			client, workspaceID, err := loopClientAndWorkspace(cmd, deps, workspaceRef)
 			if err != nil {
 				return err
 			}
-			id, err := requiredLoopFlag(loopRunIDKey, runID)
-			if err != nil {
-				return err
-			}
-			gate, err := requiredLoopFlag(loopGateIDKey, gateID)
+			id := strings.TrimSpace(args[0])
+			gate, err := requiredLoopFlag("gate", gateID)
 			if err != nil {
 				return err
 			}
@@ -209,11 +216,15 @@ func newLoopApproveCommand(deps commandDeps) *cobra.Command {
 			return writeLoopMutationOK(cmd, "approved", id)
 		},
 	}
-	addLoopRunIDFlags(cmd, &workspaceRef, &runID)
-	cmd.Flags().StringVar(&gateID, loopGateIDKey, "", "Gate node ID")
-	cmd.Flags().StringVar(&decision, loopDecisionKey, "", "Decision: approve, request_changes, or reject")
-	mustMarkFlagRequired(cmd, loopGateIDKey)
-	mustMarkFlagRequired(cmd, loopDecisionKey)
+	cmd.Flags().StringVar(&workspaceRef, loopWorkspaceKey, "", "Override workspace (ID, name, or path)")
+	cmd.Flags().StringVar(&gateID, "gate", "", "Gate node ID")
+	cmd.Flags().StringVar(
+		&decision,
+		loopDecisionKey,
+		string(looppkg.GateDecisionApprove),
+		"Decision: approve, request_changes, or reject",
+	)
+	mustMarkFlagRequired(cmd, "gate")
 	return cmd
 }
 

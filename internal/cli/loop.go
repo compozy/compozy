@@ -17,7 +17,6 @@ const (
 	loopNameKey       = "name"
 	loopFileKey       = "file"
 	loopRunIDKey      = "run-id"
-	loopGateIDKey     = "gate-id"
 	loopDecisionKey   = "decision"
 	loopDryRunKey     = "dry-run"
 	loopInputKey      = "input"
@@ -50,6 +49,8 @@ const (
 	loopForkKey       = "fork"
 	loopEditKey       = "edit"
 	loopDeleteKey     = "delete"
+	loopWhyKey        = "why"
+	loopEventsKey     = "events"
 )
 
 func newLoopCommand(deps commandDeps) *cobra.Command {
@@ -76,6 +77,8 @@ func newLoopCommand(deps commandDeps) *cobra.Command {
 	cmd.AddCommand(newLoopRunActionCommand(deps, loopResumeKey, "Resume one Loop run"))
 	cmd.AddCommand(newLoopNodeCommand(deps))
 	cmd.AddCommand(newLoopNodesCommand(deps))
+	cmd.AddCommand(newLoopWhyCommand(deps))
+	cmd.AddCommand(newLoopEventsCommand(deps))
 	cmd.AddCommand(newLoopConfigureCommand(deps))
 	cmd.AddCommand(newLoopApproveCommand(deps))
 	cmd.AddCommand(newLoopRequestsCommand(deps))

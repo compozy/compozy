@@ -6,13 +6,13 @@ persona: Dora
 journey: J-05
 expected: Detail main sections (Contract, Body, Recent runs) are collapsible `LoopSection`s with their concept icons; rail cards carry leading icons; gate criteria render as icon + plain type text (bot/terminal/user-check) with bold id and mono method; DAG nodes are uniform-width cards that lead with class glyphs, neutral class labels, and arrow-right connectors, with long summaries ellipsized (full text on hover); declared start kinds are one mono line; there is no Cost row in Limits; recent runs show an origin glyph and a duration column. The node inventory leads every row/card with its tinted state glyph, offers no sort control (server order only), composes the standard listing toolbar with state pills, loop and run selects, and a Rows|Cards toggle; cards show one state pill and a two-line reason clamp; per-state empty icons render with filter-aware copy; switching state/filters replaces history instead of pushing.
 entry_points: web /loops/:name; web /loop-runs?nodes=waiting
-qa_status: blocked-verify
+qa_status: pass
 bug_ids:
 fix_status:
-retest_status:
+retest_status: pass
 fix_commits: f1e91fc5
-evidence:
-last_report:
+evidence: /Users/pedronauck/dev/qa-labs/compozy-loop-task-legibility-task07-final-web-20260822-131622-550786-lab/qa-artifacts/qa/task07-scenario-walks.md; .compozy/tasks/loop-task-legibility/evidence/visual/task_05/VC-25; .compozy/tasks/loop-task-legibility/evidence/visual/task_05/VC-32
+last_report: docs/qa/reports/2026-08-21-loop-task-legibility.md
 overlaps: LP-toggle-loop-goal; TA-web-task-list-loop-subtask-nesting
 ---
 

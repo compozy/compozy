@@ -37,6 +37,7 @@ type service struct {
 	defaultsResolver      DefaultsResolver
 	inputDefaultsResolver InputDefaultsResolver
 	goalRunActivator      GoalRunActivator
+	workerRunActivator    WorkerRunActivator
 	coordinatorActivator  CoordinatorRunActivator
 	goalLeaseRevoker      GoalPromptLeaseRevoker
 	cancellationSessions  CancellationSessionController

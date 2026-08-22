@@ -178,7 +178,7 @@ func applyStrategyLaneCancellations(
 		cell.NextAttemptAt = nil
 		cell.TaskRunID = ""
 		payload.StrategyCancellations = append(payload.StrategyCancellations, StrategyCancellationIntent{
-			NodeID: cell.NodeID, ItemIndex: cell.ItemIndex, ActorKind: "system", ActorID: "strategy",
+			NodeID: cell.NodeID, ItemIndex: cell.ItemIndex, ActorKind: "system", ActorID: nodeCancellationStrategy,
 			ReasonCode: strategyCanceledReasonCode, At: eval.now.UTC(),
 		})
 		if strings.TrimSpace(cell.SessionID) != "" {

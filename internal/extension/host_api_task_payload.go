@@ -145,7 +145,7 @@ func taskDetailPayloadFromView(view *taskpkg.View) apicontract.TaskDetailPayload
 		return apicontract.TaskDetailPayload{}
 	}
 
-	return apicontract.TaskDetailPayload{
+	payload := apicontract.TaskDetailPayload{
 		Summary:              taskSummaryPayloadFromSummary(&view.Summary),
 		Task:                 taskPayloadFromTask(&view.Task),
 		Children:             taskSummaryPayloadsFromSummaries(view.Children),
@@ -154,6 +154,8 @@ func taskDetailPayloadFromView(view *taskpkg.View) apicontract.TaskDetailPayload
 		Runs:                 taskRunPayloadsFromRuns(view.Runs),
 		Events:               taskEventPayloadsFromEvents(view.Events),
 	}
+	payload.Task.Loop = apicontract.LoopProvenanceFromView(view)
+	return payload
 }
 
 func taskTimelineItemPayloadsFromItems(items []taskpkg.TimelineItem) []apicontract.TaskTimelineItemPayload {

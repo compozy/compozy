@@ -6,7 +6,6 @@ import (
 	"encoding/json"
 	"fmt"
 
-	"github.com/compozy/compozy/internal/store"
 	"github.com/compozy/compozy/internal/task"
 )
 
@@ -39,38 +38,6 @@ func writeNodeControlMutation(
 	}
 	if mutation.Kind == NodeControlMutationCancel && mutation.CancelState == CancelStateCanceled {
 		return claimCanceledNodeWaits(ctx, tx, loopRunID, mutation)
-	}
-	return nil
-}
-
-// markQuarantinedNodeTasks parks the quarantined cells' workspace tasks in
-// needs-attention; requeue clears the flag.
-func markQuarantinedNodeTasks(
-	ctx context.Context,
-	tx task.Tx,
-	loopRunID string,
-	generation int,
-	payload GenerationSnapshotPayload,
-	control NodeControlMutation,
-) error {
-	reason := fmt.Sprintf("loop node %s is quarantined; requeue it from the run to resume", control.NodeID)
-	markedAt := store.FormatTimestamp(control.At)
-	for _, output := range payload.Outputs {
-		if output.NodeID != string(control.NodeID) || output.Status != generationOutputQuarantined {
-			continue
-		}
-		taskID := NodeCellTaskID(RunID(loopRunID), generation, output.NodeID, output.ItemIndex)
-		if _, err := tx.ExecContext(
-			ctx,
-			`UPDATE tasks SET
-				needs_attention_reason = ?, needs_attention_at = ?,
-				needs_attention_by_kind = ?, needs_attention_by_ref = ?, updated_at = ?
-			 WHERE id = ? AND needs_attention_at IS NULL`,
-			reason, markedAt, string(task.ActorKindDaemon), loopTaskAttentionActorRef,
-			markedAt, taskID,
-		); err != nil {
-			return fmt.Errorf("loop: mark quarantined node task %q needs attention: %w", taskID, err)
-		}
 	}
 	return nil
 }

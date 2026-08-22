@@ -15,6 +15,8 @@ type TaskListQuery struct {
 	Status               taskpkg.Status        `json:"status,omitempty"`
 	Priority             taskpkg.Priority      `json:"priority,omitempty"`
 	IncludeDrafts        bool                  `json:"include_drafts,omitempty"`
+	IncludeLoop          bool                  `json:"include_loop,omitempty"`
+	LoopRunID            string                `json:"loop_run_id,omitempty"`
 	ApprovalState        taskpkg.ApprovalState `json:"approval_state,omitempty"`
 	OwnerKind            taskpkg.OwnerKind     `json:"owner_kind,omitempty"`
 	OwnerRef             string                `json:"owner_ref,omitempty"`
@@ -103,6 +105,7 @@ type TaskCatalogItemPayload struct {
 	DependencyCount              int                    `json:"dependency_count,omitempty"`
 	ActiveRun                    *TaskCatalogRunPayload `json:"active_run,omitempty"`
 	LastActivityAt               *time.Time             `json:"last_activity_at,omitempty"`
+	Loop                         *LoopProvenance        `json:"loop,omitempty"`
 }
 
 // TaskInboxTaskPayload is the lean task reference embedded in inbox rows.
@@ -154,6 +157,7 @@ func TaskCatalogItemPayloadFromSummary(record *taskpkg.Summary) TaskCatalogItemP
 		DependencyCount:              int(record.DependencyCount),
 		ActiveRun:                    TaskCatalogRunPayloadFromSummary(record.ActiveRun),
 		LastActivityAt:               taskCatalogOptionalTime(record.LastActivityAt),
+		Loop:                         LoopProvenanceFromRun(record.RunProvenance),
 	}
 }
 

@@ -86,6 +86,7 @@ Unknown TOML keys are errors. Sandbox profiles are implemented under `[sandboxes
 | `[automation]`                       | Automation scheduler defaults.                                                       | enabled, UTC, 5 concurrent jobs                                                                       |
 | `[[automation.jobs]]`                | Scheduled automation jobs.                                                           | empty list                                                                                            |
 | `[[automation.triggers]]`            | Event-driven automation triggers.                                                    | empty list                                                                                            |
+| `[loops]`                            | Daemon reconciliation cadence for terminal Loop execution records.                   | `reconcile_interval = "1m"`                                                                           |
 | `[loops.defaults.delivery]`          | Global/workspace seed defaults for delivery Loops, including node lifecycle policy.  | iteration cap 50, retry attempts 3, silence window 30m, fan-out 4                                     |
 | `[loops.defaults.watch]`             | Global/workspace seed defaults for `watch-source` Loops, including lifecycle policy. | no iteration cap, retry attempts 3, silence window 30m, fan-out 2                                     |
 | `[loops.breaker]`                    | Reload-scoped target breaker shared across Loop kinds.                               | 5 consecutive transport failures, 60s probe interval                                                  |
@@ -655,6 +656,10 @@ enabled = true
 [automation.triggers.filter]
 kind = "session.stopped"
 data.stop_reason = "error"
+
+[loops]
+# Positive duration between reconciliation cycles. Startup reconciliation always runs.
+reconcile_interval = "1m"
 
 [loops.defaults.delivery]
 # Global/workspace defaults that seed new delivery loop runs.
@@ -2122,6 +2127,14 @@ Triggers are appended by overlays; they do not replace earlier triggers with the
 
 See [Vault](/docs/configuration/vault) for the CLI, HTTP, UDS, web, and session-scoped
 surfaces that store and inspect encrypted CompozyOS-managed secret refs.
+
+## `[loops]`
+
+`reconcile_interval` defaults to `"1m"` and must be a positive Go duration. It controls the
+daemon-owned sweep that settles task and task-run records whose Loop is already terminal or missing.
+The startup sweep always runs before task recovery, regardless of the configured cadence. Changes
+are restart-required and can be made through `compozy config set loops.reconcile_interval <duration>`
+or the matching native config tools.
 
 ## `[loops.defaults.*]`
 

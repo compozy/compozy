@@ -278,6 +278,7 @@ func (n *daemonNativeTools) loopRuns(
 	response, err := n.loopService().ListLoopRuns(ctx, workspaceID, core.LoopRunListQuery{
 		LoopName: strings.TrimSpace(input.LoopName),
 		Status:   strings.TrimSpace(input.Status),
+		Cursor:   strings.TrimSpace(input.Cursor),
 		Limit:    input.Limit,
 	})
 	if err != nil {

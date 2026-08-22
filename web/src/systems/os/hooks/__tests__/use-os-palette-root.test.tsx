@@ -18,7 +18,7 @@ import type { ReactNode } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import type { LayoutDesktop } from "../../lib/window-manager-types";
-import type { OsDesktopRuntimeStore, OsWindow } from "../../lib/os-types";
+import type { OsAppId, OsDesktopRuntimeStore, OsWindow } from "../../lib/os-types";
 import { OsCommandPalette } from "../../components/os-command-palette";
 import type { CmdPaletteRunOptions } from "../use-cmd-palette-dispatch";
 import { useOsPaletteRoot } from "../use-os-palette-root";
@@ -538,6 +538,13 @@ const paletteDispatch = {
     }
     const view = command.action.kind === "view" ? command.action.view : undefined;
     if (view) paletteMocks.writeViewStack([{ viewId: view as "sessions" }]);
+    if (command.action.kind === "navigate" && options?.navigate !== undefined) {
+      const pathname = command.action.args?.pathname;
+      options.navigate(
+        command.action.app as OsAppId,
+        typeof pathname === "string" ? { pathname, search: {} } : null
+      );
+    }
     return { status: "ran" } as const;
   }),
   runById: vi.fn(async (_commandId: string) => ({ status: "ran" }) as const),
@@ -600,7 +607,11 @@ function renderRoot(open = true, onOpenChange = vi.fn()) {
       useOsPaletteRoot({
         open: props.open,
         onOpenChange,
-        dispatch: (command, query) => paletteDispatch.run(command, { query }),
+        dispatch: (command, query, navigate) =>
+          paletteDispatch.run(command, {
+            query,
+            ...(navigate === undefined ? {} : { navigate }),
+          }),
         setPinned: (command, pinned) => void paletteDispatch.setPinned(command, pinned),
       }),
     { initialProps: { open }, wrapper: PaletteHarness }
@@ -744,6 +755,28 @@ describe("useOsPaletteRoot", () => {
     await waitFor(() => expect(paletteMocks.closeWindow).toHaveBeenCalledWith("window:new-tab"));
     // BR-20: destination picking is not a landing, so the shared jump stays out.
     expect(paletteMocks.jumpToSession).not.toHaveBeenCalled();
+  });
+
+  it("Should hand the empty tab's place to a fresh app instance [UT-080]", async () => {
+    paletteMocks.paletteIntent = { kind: "destination", windowId: "window:new-tab" };
+    paletteMocks.desktop = desktopFixture(
+      { "window:tasks": windowFixture({ id: "window:tasks", app: "tasks" }) },
+      "window:new-tab"
+    );
+    const { result } = renderRoot();
+    const command = PALETTE_REGISTRY.byId.get("app.open.tasks");
+    if (command === undefined) throw new Error("Expected the Tasks command fixture.");
+
+    await act(async () => {
+      result.current.runCommand(command);
+    });
+
+    expect(paletteMocks.paletteIntentCleared).toHaveBeenCalledOnce();
+    expect(paletteMocks.coordinator.userOpen).toHaveBeenCalledWith({
+      app: "tasks",
+      stackTargetWindowId: "window:new-tab",
+    });
+    await waitFor(() => expect(paletteMocks.closeWindow).toHaveBeenCalledWith("window:new-tab"));
   });
 
   it("Should land on a session through the shared attention jump [BR-20]", async () => {
@@ -1457,9 +1490,30 @@ describe("palette execution surfaces", () => {
   it("Should list only meta-actions plus the verbatim reason on an unavailable row [UT-128]", async () => {
     const user = userEvent.setup();
     renderExecutionPalette();
-    // Hovering selects without activating — a disabled row is reachable, and
-    // reaching it is not the same as running it.
-    await user.hover(screen.getByTestId("os-palette-command-ext.notes.recent"));
+    const row = screen.getByTestId("os-palette-command-ext.notes.recent");
+    expect(row).not.toHaveAttribute("aria-disabled", "true");
+    expect(row).toHaveAccessibleName(/Recent notes/);
+    expect(row).not.toHaveAccessibleName(/extension notes is unhealthy \(crash loop\)/);
+    expect(row).toHaveAccessibleDescription("extension notes is unhealthy (crash loop)");
+
+    // The unavailable primary action does not disable the composite option:
+    // after filtering, Home reaches it through cmdk's keyboard model, then
+    // Enter reaches the one dispatch seam that refuses the run with the
+    // runtime's reason.
+    await user.type(
+      screen.getByPlaceholderText("Search apps, sessions, and actions…"),
+      "Recent notes"
+    );
+    await user.keyboard("{Home}");
+    expect(row).toHaveAttribute("data-selected", "true");
+    await user.keyboard("{Enter}");
+    await waitFor(() =>
+      expect(paletteDispatch.run).toHaveBeenCalledWith(
+        expect.objectContaining({ id: "ext.notes.recent", available: false }),
+        { query: "Recent notes" }
+      )
+    );
+    expect(row).toBeInTheDocument();
     await user.keyboard("{Meta>}k{/Meta}");
     const panel = await screen.findByTestId("os-palette-action-panel");
 

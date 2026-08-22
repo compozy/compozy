@@ -41,6 +41,11 @@ export const tasksKeys = {
       normalizeText(normalized.status),
       normalizeText(normalized.priority),
       normalizeFlag(normalized.include_drafts),
+      // Part of the key, not just the request: a revealed list and a calm list
+      // are different populations with different facets and cursors, so they
+      // must never share one cache entry.
+      normalizeFlag(normalized.include_loop),
+      normalizeText(normalized.loop_run_id),
       normalizeText(normalized.approval_state),
       normalizeText(normalized.owner_kind),
       normalizeText(normalized.owner_ref),

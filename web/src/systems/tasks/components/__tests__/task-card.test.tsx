@@ -1,4 +1,4 @@
-import { fireEvent, render, screen } from "@testing-library/react";
+import { render, screen } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 
 vi.mock("@tanstack/react-router", async importOriginal => {
@@ -115,65 +115,32 @@ describe("TaskCard", () => {
     expect(screen.queryByTestId("task-card-blocked-task_001")).not.toBeInTheDocument();
   });
 
-  it("Should nest subtasks behind a collapsed summary that keeps escalations visible", () => {
-    const parent = buildTask({ id: "loop.run-1.coordinator", child_count: 2, active_run: null });
-    const subtasks = [
-      buildTask({
-        id: "loop.run-1.g2.node.execute_task.0",
-        title: "Loop delivery node execute_task",
-        identifier: undefined,
-        status: "needs_attention",
-        active_run: null,
-        parent_task_id: "loop.run-1.coordinator",
-      }),
-      buildTask({
-        id: "loop.run-1.g2.node.review.0",
-        title: "Loop delivery node review",
-        identifier: undefined,
-        status: "in_progress",
-        active_run: null,
-        parent_task_id: "loop.run-1.coordinator",
-      }),
-    ];
-    render(<TaskCard subtasks={subtasks} task={parent} />);
-
-    const toggle = screen.getByTestId("task-subtasks-toggle-loop.run-1.coordinator");
-    expect(toggle).toHaveTextContent("2 subtasks · 1 needs attention · 1 running");
-    expect(toggle).toHaveAttribute("aria-expanded", "false");
-    expect(
-      screen.queryByTestId("task-subtask-row-loop.run-1.g2.node.execute_task.0")
-    ).not.toBeInTheDocument();
-
-    fireEvent.click(toggle);
-    expect(toggle).toHaveAttribute("aria-expanded", "true");
-    expect(
-      screen.getByTestId("task-subtask-row-loop.run-1.g2.node.execute_task.0")
-    ).toBeInTheDocument();
-    expect(screen.getByText("g2.execute_task")).toBeInTheDocument();
-  });
-
-  it("Should drop the task-level attempt ceiling for loop cells (the loop owns retries)", () => {
-    render(
+  // Loop execution records leave the default listing entirely and render through
+  // TaskLoopRow when revealed; their identity + attempt contract is owned by
+  // `tasks-list-row.test.tsx`.
+  it("Should delegate a Loop execution record to the revealed loop row", () => {
+    const { container } = render(
       <TaskCard
         task={buildTask({
-          id: "loop.run-1.g1.node.execute_task.0",
+          id: "loop.looprun-8f3ab2c1d4e5f607.g1.node.revisor-perf.0",
           identifier: undefined,
-          active_run: {
-            resolved_worktree_mode: "none",
-            id: "run_cell",
-            task_id: "loop.run-1.g1.node.execute_task.0",
-            attempt: 1,
-            max_attempts: 10,
-            recovery_count: 0,
-            status: "queued",
-            queued_at: "2026-04-11T09:00:00Z",
+          active_run: null,
+          loop: {
+            role: "cell",
+            run_id: "looprun-8f3ab2c1d4e5f607",
+            loop_name: "revisao-paralela",
+            generation: 1,
+            node_id: "revisor-perf",
           },
         })}
       />
     );
 
-    const attempt = screen.getByTestId("task-card-attempt-loop.run-1.g1.node.execute_task.0");
-    expect(attempt).toHaveTextContent("attempt 1");
-    expect(attempt).not.toHaveTextContent("of 10");
+    // Asserted through what an operator sees rather than through slot names: the
+    // record reads as its Loop provenance and links to the run, which is the
+    // routing decision this case owns.
+    expect(screen.getByRole("link")).toHaveAttribute("href", "/loop-runs/$runId");
+    expect(container).toHaveTextContent("revisao-paralela · round 1 · step revisor-perf");
+    expect(container.querySelector('[data-slot="tasks-list-row"]')).toBeNull();
   });
 });

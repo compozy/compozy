@@ -342,6 +342,44 @@ func (q *Queries) InsertLoopGeneration(ctx context.Context, arg InsertLoopGenera
 	return err
 }
 
+const listAvailableLoopOutputRefs = `-- name: ListAvailableLoopOutputRefs :many
+SELECT DISTINCT COALESCE(output.output_ref, '') AS output_ref
+FROM loop_generation_outputs AS output
+JOIN loop_runs AS run ON run.id = output.loop_run_id
+JOIN loop_output_blobs AS blob ON blob.output_ref = output.output_ref
+WHERE output.loop_run_id = ?1
+  AND run.workspace_id = ?2
+  AND output.output_ref <> ''
+`
+
+type ListAvailableLoopOutputRefsParams struct {
+	LoopRunID   string `json:"loop_run_id"`
+	WorkspaceID string `json:"workspace_id"`
+}
+
+func (q *Queries) ListAvailableLoopOutputRefs(ctx context.Context, arg ListAvailableLoopOutputRefsParams) ([]string, error) {
+	rows, err := q.db.QueryContext(ctx, listAvailableLoopOutputRefs, arg.LoopRunID, arg.WorkspaceID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []string{}
+	for rows.Next() {
+		var output_ref string
+		if err := rows.Scan(&output_ref); err != nil {
+			return nil, err
+		}
+		items = append(items, output_ref)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const listLoopCatalogAggregates = `-- name: ListLoopCatalogAggregates :many
 WITH requested_names(loop_name) AS (
   SELECT DISTINCT CAST(value AS TEXT) FROM json_each(?3)
@@ -579,7 +617,8 @@ func (q *Queries) ListLoopGateVerdicts(ctx context.Context, arg ListLoopGateVerd
 }
 
 const listLoopGenerationOutputs = `-- name: ListLoopGenerationOutputs :many
-SELECT output.generation, output.node_id, output.item_index, output.status, output.output_ref,
+SELECT output.generation, output.node_id, output.item_index, output.output_id, output.artifact_name,
+       output.status, output.output_ref,
        output.task_run_id, output.child_loop_run_id, output.resolved_runtime_json,
        output.attempt, output.next_attempt_at, output.first_scheduled_at, output.epoch,
        COALESCE(run_link.session_id, '') AS session_id
@@ -602,6 +641,8 @@ type ListLoopGenerationOutputsRow struct {
 	Generation          int64          `json:"generation"`
 	NodeID              string         `json:"node_id"`
 	ItemIndex           int64          `json:"item_index"`
+	OutputID            sql.NullString `json:"output_id"`
+	ArtifactName        sql.NullString `json:"artifact_name"`
 	Status              string         `json:"status"`
 	OutputRef           sql.NullString `json:"output_ref"`
 	TaskRunID           sql.NullString `json:"task_run_id"`
@@ -627,6 +668,8 @@ func (q *Queries) ListLoopGenerationOutputs(ctx context.Context, arg ListLoopGen
 			&i.Generation,
 			&i.NodeID,
 			&i.ItemIndex,
+			&i.OutputID,
+			&i.ArtifactName,
 			&i.Status,
 			&i.OutputRef,
 			&i.TaskRunID,
@@ -687,6 +730,131 @@ func (q *Queries) ListLoopGenerations(ctx context.Context, arg ListLoopGeneratio
 			&i.Origin,
 			&i.CreatedAt,
 		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listLoopRosterOutputs = `-- name: ListLoopRosterOutputs :many
+SELECT output.generation, output.node_id, output.item_index, output.output_id, output.artifact_name,
+       output.status, output.output_ref,
+       output.task_run_id, output.child_loop_run_id, output.resolved_runtime_json,
+       output.attempt, output.next_attempt_at, output.first_scheduled_at, output.epoch,
+	   COALESCE(run_link.session_id, '') AS session_id,
+	   COALESCE(run_link.status, '') AS task_run_status,
+	   COALESCE(run_link.tokens_used, 0) AS task_run_tokens_used
+FROM loop_generation_outputs AS output
+JOIN loop_runs AS run ON run.id = output.loop_run_id
+LEFT JOIN task_runs AS run_link ON run_link.id = output.task_run_id
+WHERE output.loop_run_id = ?1
+  AND run.workspace_id = ?2
+ORDER BY output.generation ASC, output.node_id ASC, output.item_index ASC
+`
+
+type ListLoopRosterOutputsParams struct {
+	LoopRunID   string `json:"loop_run_id"`
+	WorkspaceID string `json:"workspace_id"`
+}
+
+type ListLoopRosterOutputsRow struct {
+	Generation          int64          `json:"generation"`
+	NodeID              string         `json:"node_id"`
+	ItemIndex           int64          `json:"item_index"`
+	OutputID            sql.NullString `json:"output_id"`
+	ArtifactName        sql.NullString `json:"artifact_name"`
+	Status              string         `json:"status"`
+	OutputRef           sql.NullString `json:"output_ref"`
+	TaskRunID           sql.NullString `json:"task_run_id"`
+	ChildLoopRunID      sql.NullString `json:"child_loop_run_id"`
+	ResolvedRuntimeJson sql.NullString `json:"resolved_runtime_json"`
+	Attempt             int64          `json:"attempt"`
+	NextAttemptAt       sql.NullTime   `json:"next_attempt_at"`
+	FirstScheduledAt    sql.NullTime   `json:"first_scheduled_at"`
+	Epoch               int64          `json:"epoch"`
+	SessionID           string         `json:"session_id"`
+	TaskRunStatus       string         `json:"task_run_status"`
+	TaskRunTokensUsed   int64          `json:"task_run_tokens_used"`
+}
+
+func (q *Queries) ListLoopRosterOutputs(ctx context.Context, arg ListLoopRosterOutputsParams) ([]ListLoopRosterOutputsRow, error) {
+	rows, err := q.db.QueryContext(ctx, listLoopRosterOutputs, arg.LoopRunID, arg.WorkspaceID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ListLoopRosterOutputsRow{}
+	for rows.Next() {
+		var i ListLoopRosterOutputsRow
+		if err := rows.Scan(
+			&i.Generation,
+			&i.NodeID,
+			&i.ItemIndex,
+			&i.OutputID,
+			&i.ArtifactName,
+			&i.Status,
+			&i.OutputRef,
+			&i.TaskRunID,
+			&i.ChildLoopRunID,
+			&i.ResolvedRuntimeJson,
+			&i.Attempt,
+			&i.NextAttemptAt,
+			&i.FirstScheduledAt,
+			&i.Epoch,
+			&i.SessionID,
+			&i.TaskRunStatus,
+			&i.TaskRunTokensUsed,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listLoopRosterRouteCauses = `-- name: ListLoopRosterRouteCauses :many
+SELECT event.payload_json, event.at
+FROM loop_run_events AS event
+JOIN loop_runs AS run ON run.id = event.loop_run_id
+WHERE event.loop_run_id = ?1
+  AND run.workspace_id = ?2
+  AND event.kind = 'route_taken'
+ORDER BY event.seq ASC
+`
+
+type ListLoopRosterRouteCausesParams struct {
+	LoopRunID   string `json:"loop_run_id"`
+	WorkspaceID string `json:"workspace_id"`
+}
+
+type ListLoopRosterRouteCausesRow struct {
+	PayloadJson string    `json:"payload_json"`
+	At          time.Time `json:"at"`
+}
+
+func (q *Queries) ListLoopRosterRouteCauses(ctx context.Context, arg ListLoopRosterRouteCausesParams) ([]ListLoopRosterRouteCausesRow, error) {
+	rows, err := q.db.QueryContext(ctx, listLoopRosterRouteCauses, arg.LoopRunID, arg.WorkspaceID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ListLoopRosterRouteCausesRow{}
+	for rows.Next() {
+		var i ListLoopRosterRouteCausesRow
+		if err := rows.Scan(&i.PayloadJson, &i.At); err != nil {
 			return nil, err
 		}
 		items = append(items, i)

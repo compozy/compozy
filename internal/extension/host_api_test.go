@@ -9,6 +9,7 @@ import (
 	"log/slog"
 	"os"
 	"path/filepath"
+	"reflect"
 	"slices"
 	"strings"
 	"sync"
@@ -46,6 +47,18 @@ import (
 	transcriptpkg "github.com/compozy/compozy/internal/transcript"
 	workspacepkg "github.com/compozy/compozy/internal/workspace"
 )
+
+func hostAPITestTaskCatalogFilterMapper(query *taskpkg.CatalogQuery, includeLoop bool, loopRunID string) {
+	if query == nil {
+		return
+	}
+	query.LoopRunID = strings.TrimSpace(loopRunID)
+	if includeLoop || query.LoopRunID != "" || strings.TrimSpace(query.ParentTaskID) != "" {
+		query.ExcludeCreatedBy = nil
+		return
+	}
+	query.ExcludeCreatedBy = []taskpkg.ActorRef{{Kind: taskpkg.ActorKindDaemon, Ref: "loop-coordinator"}}
+}
 
 func TestHostAPIHandlerSessionsListReturnsAuthorizedSessions(t *testing.T) {
 	t.Parallel()
@@ -5958,6 +5971,89 @@ func TestHostAPITaskRequestHelpersRejectInvalidPayloads(t *testing.T) {
 		}
 	})
 
+	t.Run("Should map Loop filters and calm aggregate defaults", func(t *testing.T) {
+		t.Parallel()
+
+		env := newHostAPITestEnv(t)
+		ctx := testutil.Context(t)
+		defaultQuery, queryErr := env.handler.taskQueryFromParams(ctx, hostAPITasksParams{})
+		if queryErr != nil {
+			t.Fatalf("taskQueryFromParams(default) error = %v", queryErr)
+		}
+		got := defaultQuery.ExcludeCreatedBy
+		want := []taskpkg.ActorRef{{Kind: taskpkg.ActorKindDaemon, Ref: "loop-coordinator"}}
+		if !reflect.DeepEqual(got, want) {
+			t.Fatalf("default ExcludeCreatedBy = %#v, want %#v", got, want)
+		}
+
+		for _, testCase := range []struct {
+			name   string
+			params hostAPITasksParams
+		}{
+			{name: "Should include Loop records", params: hostAPITasksParams{IncludeLoop: true}},
+			{name: "Should select a Loop run", params: hostAPITasksParams{LoopRunID: " looprun-host "}},
+			{name: "Should select a parent task", params: hostAPITasksParams{ParentTaskID: " task-parent "}},
+		} {
+			t.Run(testCase.name, func(t *testing.T) {
+				t.Parallel()
+				mapped, mapErr := env.handler.taskQueryFromParams(ctx, testCase.params)
+				if mapErr != nil {
+					t.Fatalf("taskQueryFromParams(%#v) error = %v", testCase.params, mapErr)
+				}
+				if len(mapped.ExcludeCreatedBy) != 0 {
+					t.Fatalf(
+						"taskQueryFromParams(%#v).ExcludeCreatedBy = %#v, want empty",
+						testCase.params,
+						mapped.ExcludeCreatedBy,
+					)
+				}
+			})
+		}
+		runQuery, queryErr := env.handler.taskQueryFromParams(ctx, hostAPITasksParams{
+			LoopRunID: " looprun-host ",
+		})
+		if queryErr != nil {
+			t.Fatalf("taskQueryFromParams(loop run) error = %v", queryErr)
+		}
+		if runQuery.LoopRunID != "looprun-host" {
+			t.Fatalf("taskQueryFromParams(loop run).LoopRunID = %q, want trimmed id", runQuery.LoopRunID)
+		}
+
+		dashboardQuery, queryErr := env.handler.taskDashboardQueryFromParams(ctx, apicontract.TaskDashboardQuery{})
+		if queryErr != nil {
+			t.Fatalf("taskDashboardQueryFromParams(default) error = %v", queryErr)
+		}
+		inboxQuery, queryErr := env.handler.taskInboxQueryFromParams(ctx, apicontract.TaskInboxQuery{})
+		if queryErr != nil {
+			t.Fatalf("taskInboxQueryFromParams(default) error = %v", queryErr)
+		}
+		wantExclusions := []taskpkg.ActorRef{{Kind: taskpkg.ActorKindDaemon, Ref: "loop-coordinator"}}
+		if !reflect.DeepEqual(dashboardQuery.ExcludeCreatedBy, wantExclusions) ||
+			!reflect.DeepEqual(inboxQuery.ExcludeCreatedBy, wantExclusions) {
+			t.Fatalf(
+				"dashboard/inbox exclusions = %#v/%#v, want %#v",
+				dashboardQuery.ExcludeCreatedBy, inboxQuery.ExcludeCreatedBy, wantExclusions,
+			)
+		}
+
+		metadata := json.RawMessage(
+			`{"loop_run_id":"looprun-host","loop_name":"host","generation":2,"node_id":"review","item_index":0}`,
+		)
+		view := taskpkg.View{
+			Task: taskpkg.Task{ID: "task-loop-host", Metadata: metadata},
+			Runs: []taskpkg.Run{{
+				ID: "run-loop-host", TaskID: "task-loop-host", Attempt: 1,
+				RunKind: taskpkg.RunKindWorker, LoopRunID: "looprun-host",
+			}},
+		}
+		payload := taskDetailPayloadFromView(&view)
+		if payload.Task.Loop == nil || payload.Task.Loop.RunID != "looprun-host" ||
+			payload.Task.Loop.Role != apicontract.LoopProvenanceRoleCell ||
+			payload.Task.Loop.NodeID != "review" {
+			t.Fatalf("taskDetailPayloadFromView().Task.Loop = %#v, want structured cell provenance", payload.Task.Loop)
+		}
+	})
+
 	env := newHostAPITestEnv(t)
 	_, err = env.handler.taskQueryFromParams(testutil.Context(t), hostAPITasksParams{Limit: -1})
 	assertRPCErrorCode(t, err, HostAPIInvalidParamsCode)
@@ -6485,6 +6581,7 @@ Review the workspace changes carefully.
 		skillsRegistry,
 		WithHostAPIAutomationManager(automationManager),
 		WithHostAPITaskManager(taskManager),
+		WithHostAPITaskCatalogFilterMapper(hostAPITestTaskCatalogFilterMapper),
 		WithHostAPICapabilityChecker(checker),
 		WithHostAPIWorkspaceResolver(workspaces),
 		WithHostAPIBridgeRegistry(bridgeRegistry),
@@ -6985,6 +7082,7 @@ func (e *hostAPITestEnv) useSessionsWithoutObserver(t *testing.T) {
 		nil,
 		e.skills,
 		WithHostAPITaskManager(e.tasks),
+		WithHostAPITaskCatalogFilterMapper(hostAPITestTaskCatalogFilterMapper),
 		WithHostAPICapabilityChecker(e.checker),
 		WithHostAPIWorkspaceResolver(e.workspaces),
 		WithHostAPIBridgeRegistry(e.bridges),

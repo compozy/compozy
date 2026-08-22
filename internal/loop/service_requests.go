@@ -155,7 +155,7 @@ func respondNodeContract(node dsl.Node, decision string) (string, NodeID, error)
 			return "", "", NewRequestReasonError(
 				ReasonCodeRequestValidationFailed,
 				fmt.Errorf("%w: ask only accepts respond", ErrRequestValidationFailed),
-				map[string]string{"decision": "ask only accepts respond"},
+				map[string]string{watchEventsPayloadDecision: "ask only accepts respond"},
 			)
 		}
 		return RequestKindAsk, "", nil
@@ -167,7 +167,7 @@ func respondNodeContract(node dsl.Node, decision string) (string, NodeID, error)
 		return "", "", NewRequestReasonError(
 			ReasonCodeRequestValidationFailed,
 			fmt.Errorf("%w: review decision is required", ErrRequestValidationFailed),
-			map[string]string{"decision": jsonSchemaRequiredKey},
+			map[string]string{watchEventsPayloadDecision: jsonSchemaRequiredKey},
 		)
 	}
 	var route NodeID

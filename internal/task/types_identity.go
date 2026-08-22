@@ -11,6 +11,12 @@ type ActorIdentity struct {
 	Ref  string    `json:"ref"`
 }
 
+// ActorRef is the neutral actor reference used by read-side filters.
+type ActorRef struct {
+	Kind ActorKind `json:"kind"`
+	Ref  string    `json:"ref"`
+}
+
 // TaskBlock is a durable runtime-declared block row for one task.
 //
 //nolint:revive // TaskBlock is the approved TechSpec contract name.

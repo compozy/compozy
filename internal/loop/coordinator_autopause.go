@@ -87,7 +87,7 @@ func autopauseTarget(node dsl.Node, failure ClassifiedFailure) (string, string) 
 	case dsl.ActionTransform, dsl.ActionGoal:
 		family = string(node.Class)
 		if family == "" {
-			family = "unknown"
+			family = unknownValue
 		}
 	}
 	return family, strings.TrimSpace(failure.Target)

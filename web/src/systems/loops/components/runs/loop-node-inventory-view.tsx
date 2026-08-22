@@ -117,7 +117,7 @@ export function LoopNodeInventoryView({
           {/* No count badges: the route publishes `{items, next_cursor}` and no
               totals, so a per-state number here would be invented (SD-007). */}
           <PillGroup
-            aria-label="Node inventory state"
+            aria-label="Step inventory state"
             items={LOOP_NODE_INVENTORY_STATES.map(value => ({
               value,
               label: LOOP_NODE_INVENTORY_LABELS[value],
@@ -279,7 +279,7 @@ function InventoryRows({
   return (
     <div className="overflow-hidden rounded-lg border border-line bg-canvas-soft">
       <div className="flex items-center gap-4 border-b border-line px-4 py-2">
-        <Eyebrow className="min-w-0 flex-1 text-muted">Node</Eyebrow>
+        <Eyebrow className="min-w-0 flex-1 text-muted">Step</Eyebrow>
         <Eyebrow className="hidden min-w-0 flex-1 text-muted min-[900px]:block">Loop · run</Eyebrow>
         <Eyebrow className="hidden min-w-0 flex-1 text-muted min-[720px]:block">Reason</Eyebrow>
         <Eyebrow className="shrink-0 text-right text-muted">Age</Eyebrow>

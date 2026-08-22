@@ -71,7 +71,11 @@ export interface UseOsPaletteRootOptions {
    * Runs a resolved command through the one dispatch seam. The outcome decides
    * whether the palette closes, so it has to come back.
    */
-  dispatch(command: ResolvedPaletteCommand, query: string): Promise<PaletteDispatchOutcome>;
+  dispatch(
+    command: ResolvedPaletteCommand,
+    query: string,
+    navigate?: (app: OsAppId, route: OsWindowRoute | null) => void
+  ): Promise<PaletteDispatchOutcome>;
   /** Pins or unpins a command through the seam's daemon route. */
   setPinned(command: ResolvedPaletteCommand, pinned: boolean): void;
 }
@@ -229,7 +233,12 @@ export function useOsPaletteRoot({
    * surface open — showing itself as pending — until it lands (US-017.AC-2).
    */
   const runCommand = (command: ResolvedPaletteCommand) => {
-    void dispatch(command, query).then(outcome => {
+    const navigate =
+      destination && command.action.kind === "navigate"
+        ? (app: OsAppId, route: OsWindowRoute | null) =>
+            pickDestination({ app, ...(route === null ? {} : { route }) })
+        : undefined;
+    void dispatch(command, query, navigate).then(outcome => {
       if (command.action.kind === "view") return;
       if (outcome.status === "ran" || outcome.status === "invoked") close();
     });

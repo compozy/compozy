@@ -6,7 +6,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-
 	"strings"
 
 	"github.com/compozy/compozy/internal/store"
@@ -21,68 +20,24 @@ func (o *Observer) loadTaskSnapshot(ctx context.Context, query TaskSummaryQuery)
 		return taskSnapshot{}, err
 	}
 
-	tasks, err := o.registry.ListTasks(ctx, taskpkg.Query{
-		Scope:       query.Scope,
-		WorkspaceID: strings.TrimSpace(query.WorkspaceID),
-		OwnerKind:   query.OwnerKind.Normalize(),
-		OwnerRef:    strings.TrimSpace(query.OwnerRef),
-		Search:      strings.TrimSpace(query.Search),
-	})
-	if err != nil {
-		return taskSnapshot{}, fmt.Errorf("observe: list tasks for summary: %w", err)
-	}
-	tasks = filterTasksByOrigin(tasks, query.OriginKind)
-	runs, err := o.registry.ListTaskRuns(ctx, taskpkg.RunQuery{})
-	if err != nil {
-		return taskSnapshot{}, fmt.Errorf("observe: list task runs for summary: %w", err)
-	}
-	tasks = filterTasksByWorktree(tasks, runs, query.WorktreeID)
-	dependencyCounts, err := o.loadTaskDependencyCounts(ctx, tasks)
+	tasks, runs, err := o.loadTaskSnapshotTasksAndRuns(ctx, query)
 	if err != nil {
 		return taskSnapshot{}, err
 	}
-	for idx := range tasks {
-		taskID := strings.TrimSpace(tasks[idx].ID)
-		if taskID == "" {
-			continue
-		}
-		tasks[idx].DependencyCount = taskpkg.ClampSummaryCount(dependencyCounts[taskID])
-	}
-
 	tasksByID, taskIDs := taskSummaryIndex(tasks)
 	runs = filterRunsByWorktree(runs, query.WorktreeID)
 	taskChannels := taskParticipationChannels(tasks, runs)
 	tasks = filterTasksByNetworkChannel(tasks, taskChannels, query.ParticipationChannel)
-
-	runsByID := make(map[string]taskpkg.Run, len(runs))
-	for _, item := range runs {
-		if _, ok := taskIDs[strings.TrimSpace(item.TaskID)]; !ok {
-			continue
-		}
-		runID := strings.TrimSpace(item.ID)
-		if runID == "" {
-			continue
-		}
-		runsByID[runID] = item
-	}
+	runsByID := indexTaskSnapshotRuns(runs, taskIDs)
 	runs = filterRuns(runs, taskIDs, query)
 	events, err := o.registry.ListTaskEvents(ctx, taskpkg.EventQuery{})
 	if err != nil {
 		return taskSnapshot{}, fmt.Errorf("observe: list task events for summary: %w", err)
 	}
 	events = filterEventsForTasks(events, taskIDs, runsByID, query.WorktreeID)
-
-	workspaceID := strings.TrimSpace(query.WorkspaceID)
-	audits, err := o.registry.ListNetworkAudit(ctx, store.NetworkAuditQuery{
-		WorkspaceID: workspaceID,
-		Global:      workspaceID == "",
-		Channel:     strings.TrimSpace(query.ParticipationChannel),
-	})
+	audits, err := o.loadTaskSnapshotAudits(ctx, query)
 	if err != nil {
-		return taskSnapshot{}, fmt.Errorf("observe: list network audit for summary: %w", err)
-	}
-	if strings.TrimSpace(query.WorktreeID) != "" {
-		audits = nil
+		return taskSnapshot{}, err
 	}
 
 	return taskSnapshot{
@@ -94,6 +49,77 @@ func (o *Observer) loadTaskSnapshot(ctx context.Context, query TaskSummaryQuery)
 		runsByID:     runsByID,
 		taskChannels: taskChannels,
 	}, nil
+}
+
+func (o *Observer) loadTaskSnapshotTasksAndRuns(
+	ctx context.Context,
+	query TaskSummaryQuery,
+) ([]taskpkg.Summary, []taskpkg.Run, error) {
+	tasks, err := o.registry.ListTasks(ctx, taskpkg.Query{
+		Scope:       query.Scope,
+		WorkspaceID: strings.TrimSpace(query.WorkspaceID),
+		OwnerKind:   query.OwnerKind.Normalize(),
+		OwnerRef:    strings.TrimSpace(query.OwnerRef),
+		Search:      strings.TrimSpace(query.Search),
+	})
+	if err != nil {
+		return nil, nil, fmt.Errorf("observe: list tasks for summary: %w", err)
+	}
+	tasks = filterTasksByOrigin(tasks, query.OriginKind)
+	tasks = filterTasksByCreatedBy(tasks, query.ExcludeCreatedBy)
+	runs, err := o.registry.ListTaskRuns(ctx, taskpkg.RunQuery{})
+	if err != nil {
+		return nil, nil, fmt.Errorf("observe: list task runs for summary: %w", err)
+	}
+	tasks = filterTasksByWorktree(tasks, runs, query.WorktreeID)
+	dependencyCounts, err := o.loadTaskDependencyCounts(ctx, tasks)
+	if err != nil {
+		return nil, nil, err
+	}
+	for idx := range tasks {
+		taskID := strings.TrimSpace(tasks[idx].ID)
+		if taskID == "" {
+			continue
+		}
+		tasks[idx].DependencyCount = taskpkg.ClampSummaryCount(dependencyCounts[taskID])
+	}
+
+	return tasks, runs, nil
+}
+
+func indexTaskSnapshotRuns(runs []taskpkg.Run, taskIDs map[string]struct{}) map[string]taskpkg.Run {
+	runsByID := make(map[string]taskpkg.Run, len(runs))
+	for _, item := range runs {
+		if _, ok := taskIDs[strings.TrimSpace(item.TaskID)]; !ok {
+			continue
+		}
+		runID := strings.TrimSpace(item.ID)
+		if runID == "" {
+			continue
+		}
+		runsByID[runID] = item
+	}
+	return runsByID
+}
+
+func (o *Observer) loadTaskSnapshotAudits(
+	ctx context.Context,
+	query TaskSummaryQuery,
+) ([]store.NetworkAuditEntry, error) {
+	workspaceID := strings.TrimSpace(query.WorkspaceID)
+	audits, err := o.registry.ListNetworkAudit(ctx, store.NetworkAuditQuery{
+		WorkspaceID: workspaceID,
+		Global:      workspaceID == "",
+		Channel:     strings.TrimSpace(query.ParticipationChannel),
+	})
+	if err != nil {
+		return nil, fmt.Errorf("observe: list network audit for summary: %w", err)
+	}
+	if strings.TrimSpace(query.WorktreeID) != "" {
+		audits = nil
+	}
+
+	return audits, nil
 }
 
 func (o *Observer) loadTaskDependencyCounts(

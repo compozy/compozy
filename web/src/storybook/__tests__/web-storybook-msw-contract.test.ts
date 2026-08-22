@@ -68,4 +68,12 @@ describe("web Storybook MSW contract", () => {
 
     expect(signatures).toContain("GET /api/workspaces/{param}/loop-runs/{param}/events");
   });
+
+  it("registers the loop run read handlers required by loop run route stories", () => {
+    const signatures = storybookSystemHandlers.map(normalizedHandlerSignature);
+
+    expect(signatures).toContain("GET /api/workspaces/{param}/loop-runs/{param}/briefing");
+    expect(signatures).toContain("GET /api/workspaces/{param}/loop-runs/{param}/nodes");
+    expect(signatures).toContain("GET /api/workspaces/{param}/loop-runs/{param}/timeline");
+  });
 });

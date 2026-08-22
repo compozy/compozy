@@ -1,11 +1,11 @@
 # BUG-20260719-autonomous-progress-unobservable: One-kickoff progress appears stalled while agents complete work
 
-- **Status:** open
+- **Status:** verified
 - **Impact (user-side):** Blocks-Completion
 - **Severity:** High · **Priority:** P1
 - **Persona Affected:** QA operator; registered collaborator agents
 - **Journey Step:** RT-073 one-kickoff autonomous collaboration, runtime observation
-- **Scenarios:** RT-073
+- **Scenarios:** RT-073; LP-run-read-agent-journey; LP-runs-roster-server-ordering; LP-web-run-default-read-briefing; LP-web-run-operator-register
 - **Found:** 2026-07-19 · **Report:** docs/qa/reports/2026-07-19-hermes-comparison.md
 - **Origin:** n/a
 
@@ -32,8 +32,9 @@ progress from a stalled team.
 4. After the window, compare `qa/observation-summary.json` with
    `compozy task list --workspace lumen-notes -o toon` and the exact task-run lists.
 
-**Expected:** Runtime-owned task, session, and Network progress keeps the journey log growing so the
-observer identifies the actual silent agent or stalled task, if any.
+**Expected:** The observer derives progress from runtime-owned public structured reads and uses the
+journey log only as supporting evidence, so it identifies unchanged active state without requiring
+the runtime to write a lab-owned file.
 
 **Actual:** The journey log stopped at 14 bootstrap/controller rows. The observer marked all 11
 declared tasks unstarted and six task-owning agents silent, while the independent public CLI showed
@@ -85,14 +86,13 @@ declared tasks unstarted and six task-owning agents silent, while the independen
 
 ## Fix
 
-- **Root cause:** `observe-runtime.py` exclusively tails `qa/journey-log.jsonl`, but the Compozy daemon,
-  agent sessions, task scheduler, and Network runtime have no writer that projects their durable
-  lifecycle events into that log. Only bootstrap/controller helpers wrote rows in this run. The
-  observer then derived task and agent state from that incomplete log instead of a runtime-owned
-  public progress stream.
-- **Fix commit:** none
-- **Regression test:** pending a runtime-to-observer progress contract and a fresh one-kickoff replay
-  proving the log grows through task completion without controller-authored runtime actions.
+- **Root cause:** `observe-runtime.py` treated growth in the lab-owned `qa/journey-log.jsonl` as
+  runtime progress and derived task/agent diagnoses from its controller-authored rows. The runtime
+  already owned durable Task and Loop state through public CLI/API reads; the observer ignored it.
+- **Fix commit:** this logical observer batch
+- **Regression test:**
+  `.agents/skills/eng/eng-real-scenario-qa/scripts/test_observe_runtime.py` covers public advance
+  without log growth, unchanged active-state stall, clean terminal state, and honest read errors.
 
 ## Verification
 
@@ -157,3 +157,80 @@ declared tasks unstarted and six task-owning agents silent, while the independen
 - **Evidence:**
   `/Users/pedronauck/dev/qa-labs/compozy-northstar-pay-20260816-141901-835450-lab/qa-artifacts/qa/observation-summary.json`;
   `/Users/pedronauck/dev/qa-labs/compozy-northstar-pay-20260816-141901-835450-lab/qa-artifacts/qa/journey-log.jsonl`.
+
+## Closure verification — scheduled 2026-08-21
+
+Planned by the `loop-task-legibility` QA cycle (`.compozy/tasks/loop-task-legibility/task_06.md`);
+executed by that program's QA tail (task_07). Status stays `open` until that run records a verdict.
+
+- **Why this cycle can close it.** The root cause is that the daemon, agent sessions, task scheduler
+  and Network runtime had no writer projecting lifecycle events into any stream the observer could
+  read — so `observe-runtime.py` tailed `journey-log.jsonl` and derived task and agent state from an
+  incomplete log. This program ships the missing surface: a runtime-owned public progress read.
+  `compozy loop runs` now serves `progress{round, steps_done, steps_total}` on every item plus
+  `attention{kind, count, since}` when something waits; `compozy loop why` always returns a non-empty
+  verdict; `compozy loop events <run-id> --after <seq> --follow` resumes from a durable per-run sequence; and
+  `compozy task list` returns a calm, truthful catalog on the same persisted state. None of these
+  existed at any of the six reproductions.
+- **Owning charters.** `CH-loop-legibility-run-read-resume` (the agent-side progress stream and its
+  resume seam), `CH-loop-legibility-run-default-read` and `CH-loop-legibility-operator-register`
+  (the human-side registers ADR-002 and ADR-003 cite this bug to justify).
+- **Pass condition.** A one-kickoff replay in a fresh isolated lab where progress is derived from the
+  runtime-owned reads above instead of from tailing `journey-log.jsonl`, and the observer's account
+  of task and run state matches an independent public task-catalog read for the whole window — no
+  `stall_detected` while the catalog is advancing, and no task reported unstarted that the catalog
+  shows started. A run that reproduces the divergence against the new surfaces keeps the bug open and
+  supersedes the root-cause statement above.
+- **Regression debt.** Recorded at `docs/qa/automation-backlog/runtime-owned-progress-observer.md` —
+  the fix has no regression test yet, and a sixth-plus reproduction is what earns one.
+
+## Blocked decision — 2026-08-21 root review
+
+The scheduled closure did not run against the promised observation contract. The fresh
+`northstar-pay` lab continued to execute `observe-runtime.py`, whose module contract and
+implementation only tail `qa/journey-log.jsonl`; it explicitly does not read the daemon, SSE, or
+Network. That run again declared a stall while an independent public Task catalog later showed
+seven completed tasks. Exercising `loop why`, `loop runs`, and `loop events` separately proves those
+reads exist, but it does not prove that the release observer derives its account from them.
+
+This is outside the bounded fix governor because closure requires a product/QA architecture choice,
+changes to the shared real-scenario observer and audit contract, and a fresh one-kickoff playbook
+run. The recommended decision is to make the observer poll the daemon's public structured reads
+and compare them with an independent catalog read. Making the production daemon write into a
+lab-owned QA file would invert ownership and is not recommended. Status remains `open`; task 07 and
+the runtime phase cannot be reported as PASS until that decision is implemented and the stated pass
+condition is re-walked.
+
+## Closure verification — 2026-08-21
+
+The recommended ownership decision was implemented in the shared real-scenario observer. Its
+runtime inputs are now explicit and isolated: scenario workspace, registered runtime workspace,
+workspace id, API base URL, `COMPOZY_HOME`, and Compozy binary. It polls public Task catalog/detail
+state, compares catalog and detail status on every snapshot, and reads Loop runs plus `loop why` and
+`loop events` whenever Loop runs are present. `journey-log.jsonl` is neither read nor written by the
+observer and does not control its stall clock.
+
+A fresh `consumer-saas-growth` lab received exactly one operator kickoff at
+`2026-08-21T13:10:19.761407+00:00`; no follow-up prompt was sent. During the observer window,
+independent public catalog captures advanced from 4 completed / 7 in progress through 5/6, 6/5,
+9/2, and 10/1 to 11/0. The observer recorded eight durable public transitions, never reported a
+stall while that catalog advanced, ended `all_terminal`, and matched all 11 independently read
+Task ids and statuses. This replay contained no Loop runs, so the conditional `why/events` reads
+were not exercised.
+
+- Manifest:
+  `/Users/pedronauck/dev/qa-labs/compozy-loop-legibility-observer-closure-20260821-130214-633585-lab/qa-artifacts/qa/bootstrap-manifest.json`
+- Observer:
+  `/Users/pedronauck/dev/qa-labs/compozy-loop-legibility-observer-closure-20260821-130214-633585-lab/qa-artifacts/qa/observation-summary.json`
+- Independent captures:
+  `/Users/pedronauck/dev/qa-labs/compozy-loop-legibility-observer-closure-20260821-130214-633585-lab/qa-artifacts/qa/task-catalog-independent-before.json` through
+  `task-catalog-independent-after.json`
+- Comparison:
+  `/Users/pedronauck/dev/qa-labs/compozy-loop-legibility-observer-closure-20260821-130214-633585-lab/qa-artifacts/qa/observer-catalog-comparison.json`
+- Teardown:
+  `/Users/pedronauck/dev/qa-labs/compozy-loop-legibility-observer-closure-20260821-130214-633585-lab/qa-artifacts/qa/teardown.json`
+  records `"clean": true`.
+
+**Result:** Verified. The stated pass condition succeeded without a second kickoff or any observer
+prompt. This closes the observer mismatch only; it does not change task 07 or the unrelated RT-073
+autonomy findings.

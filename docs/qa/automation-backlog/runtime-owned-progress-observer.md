@@ -1,0 +1,11 @@
+# Runtime-owned progress read replaces the journey-log tail in the observer
+
+- Source: BUG-20260719-autonomous-progress-unobservable (P1, re-found 6× across 2026-07-19 → 2026-08-16) / LP-runs-roster-server-ordering, LP-run-read-agent-journey / CH-loop-legibility-run-read-resume
+- Why automate: regression-prone — the same divergence reproduced in six independent labs, and the bug's own Fix block still records `Regression test: pending`. The surface that closes it (`loop runs` served `progress`, `loop why`, `loop events --after --follow`) landed in this cycle with no test pinning the observer contract, so a seventh reproduction is the only thing that would catch a silent regression.
+- Owning layer: shared real-scenario observer behavior suite, asserting against runtime-owned public
+  reads rather than a lab log file; the fresh isolated replay supplies the transport-level proof.
+- Spec sketch: seed a workspace whose runs advance without any controller-authored rows, then poll only the runtime-owned reads. Assert `progress.steps_done` advances monotonically for every advancing run, that `attention` appears exactly while a request is open and is absent otherwise, and that `loop events --after <seq> --follow` resumes across a forced disconnect with no gap and no duplicate. True end state: the observer's account of run and task state matches an independent `compozy task list` read for the entire window — no `stall_detected` while the catalog is advancing, and no run reported without completion that the catalog shows terminal.
+- Implemented: `.agents/skills/eng/eng-real-scenario-qa/scripts/test_observe_runtime.py` fixes the
+  observer behavior contract. The 2026-08-21 one-kickoff replay recorded eight public transitions,
+  no false stall, 11 terminal Tasks, and full agreement with an independent Task catalog capture.
+- Status: automated

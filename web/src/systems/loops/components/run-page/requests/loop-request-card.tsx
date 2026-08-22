@@ -151,8 +151,11 @@ export function LoopRequestCard({
       >
         {view.request.prompt === "" ? view.title : view.request.prompt}
       </h3>
-      {view.laneLabel !== "" || view.expiry ? (
+      {view.originLabel !== "" || view.laneLabel !== "" || view.expiry ? (
         <div className="mt-1 flex flex-wrap items-center gap-x-2.5 gap-y-0.5 text-form-hint text-subtle">
+          {view.originLabel !== "" ? (
+            <span data-testid="loop-request-origin">{view.originLabel}</span>
+          ) : null}
           {view.laneLabel !== "" ? <span>{view.laneLabel}</span> : null}
           {view.expiry ? (
             <span className={cn("tabular-nums", expiryClass(view))}>{view.expiry.label}</span>

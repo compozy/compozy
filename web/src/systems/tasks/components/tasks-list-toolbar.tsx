@@ -1,8 +1,9 @@
 import { ListingToolbar } from "@compozy/ui";
 
 import type { TaskFilterOwnerOption } from "../lib/tasks-list-filters";
-import type { TaskListSortKey, TaskPriority, TaskStatus } from "../types";
+import type { TaskListSortKey, TaskPriority, TaskRecordsFilter, TaskStatus } from "../types";
 import { TasksListFilters } from "./tasks-list-filters";
+import { TasksListRecordsFilter } from "./tasks-list-records-filter";
 import { TasksListSort } from "./tasks-list-sort";
 
 export interface TasksListToolbarProps {
@@ -12,11 +13,13 @@ export interface TasksListToolbarProps {
   ownerOptions: TaskFilterOwnerOption[];
   sortBy: TaskListSortKey;
   searchQuery: string;
+  recordsFilter: TaskRecordsFilter;
   onStatusChange: (next: TaskStatus | null) => void;
   onOwnerChange: (next: TaskFilterOwnerOption | null) => void;
   onPriorityChange: (next: TaskPriority | null) => void;
   onSortChange: (next: TaskListSortKey) => void;
   onSearchQueryChange: (next: string) => void;
+  onRecordsFilterChange: (next: TaskRecordsFilter) => void;
 }
 
 /** Window-local tools for the Tasks list context strip. */
@@ -27,11 +30,13 @@ export function TasksListToolbar({
   ownerOptions,
   sortBy,
   searchQuery,
+  recordsFilter,
   onStatusChange,
   onOwnerChange,
   onPriorityChange,
   onSortChange,
   onSearchQueryChange,
+  onRecordsFilterChange,
 }: TasksListToolbarProps) {
   return (
     <ListingToolbar className="w-full">
@@ -57,6 +62,9 @@ export function TasksListToolbar({
         </ListingToolbar.Filters>
       </ListingToolbar.Leading>
       <ListingToolbar.Trailing className="gap-2.5">
+        {/* Which records, then how they are ordered: the population question is
+            upstream of the ordering question. */}
+        <TasksListRecordsFilter onChange={onRecordsFilterChange} value={recordsFilter} />
         <TasksListSort onSortChange={onSortChange} sortBy={sortBy} />
       </ListingToolbar.Trailing>
     </ListingToolbar>

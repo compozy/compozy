@@ -84,9 +84,7 @@ test("registers the MSW worker, guards local APIs, and renders route-story deep 
 
     const loopsWindow = page.getByRole("region", { name: "Loops window" });
     await expect(loopsWindow).toBeVisible();
-    await expect(
-      loopsWindow.locator("xpath=ancestor::*[@data-slot='os-window-frame'][1]")
-    ).toHaveAttribute("data-focused", "");
+    await expect(loopsWindow).toHaveAttribute("data-stack-active", "");
     await expect(page.getByTestId("loop-run-status-pill")).toBeVisible();
     expect(browserConsole.filter(entry => entry.includes("Cannot update a component"))).toEqual([]);
   } finally {

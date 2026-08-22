@@ -27,6 +27,10 @@ export function normalizeTaskListFilter(filters: TaskListFilter = {}): TaskListF
     status: filters.status,
     priority: filters.priority,
     include_drafts: filters.include_drafts,
+    // Absent means excluded: the calm default is a server-side predicate, so the
+    // request carries `include_loop` only when the reveal filter is on.
+    include_loop: filters.include_loop,
+    loop_run_id: normalizeOptionalText(filters.loop_run_id),
     approval_state: filters.approval_state,
     owner_kind: filters.owner_kind,
     owner_ref: normalizeOptionalText(filters.owner_ref),
@@ -50,6 +54,10 @@ export function taskListStableFilter(filters: TaskListFilter = {}): TaskListStab
     status: normalized.status,
     priority: normalized.priority,
     include_drafts: normalized.include_drafts,
+    // Stable, so the reveal state enters both the query key and every
+    // cursor-bound page request — pagination can never straddle a reveal flip.
+    include_loop: normalized.include_loop,
+    loop_run_id: normalized.loop_run_id,
     approval_state: normalized.approval_state,
     owner_kind: normalized.owner_kind,
     owner_ref: normalized.owner_ref,

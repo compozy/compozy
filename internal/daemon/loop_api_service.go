@@ -66,6 +66,7 @@ type daemonLoopAPIService struct {
 	creationStore     store.SessionCreationStore
 	runtimeCatalog    looppkg.WorkspaceRuntimeCatalog
 	responderPolicy   looppkg.ResponderPolicy
+	runReads          looppkg.RunReadService
 	logger            *slog.Logger
 	publishMu         sync.Mutex
 }
@@ -121,6 +122,10 @@ func newDaemonLoopAPIService(
 		homePaths: homePaths, workspaceResolver: state.workspaceResolver,
 	}
 	responderPolicy := daemonLoopResponderPolicy{runs: persistence, sessions: state.sessions}
+	readStore, ok := state.registry.(looppkg.RunReadStore)
+	if !ok {
+		return nil, errors.New("daemon: loop run read persistence is unavailable")
+	}
 	aggregate, err := looppkg.NewService(
 		persistence,
 		resolver,
@@ -147,6 +152,7 @@ func newDaemonLoopAPIService(
 		creationStore:     sessionCreationStoreFromRegistry(state.registry),
 		runtimeCatalog:    runtimeCatalog,
 		responderPolicy:   responderPolicy,
+		runReads:          looppkg.NewRunReadService(readStore, now),
 		logger:            logger,
 	}, nil
 }
@@ -165,6 +171,7 @@ func loopAPIServiceOptions(
 		looppkg.WithDefaultsResolver(newLoopDefaultsResolver(homePaths, state.workspaceResolver)),
 		looppkg.WithInputDefaultsResolver(newLoopInputDefaultsResolver(homePaths, state.workspaceResolver)),
 		looppkg.WithGoalRunActivator(loopGoalRunActivator{state: state}),
+		looppkg.WithWorkerRunActivator(loopWorkerRunActivator{state: state}),
 		looppkg.WithCoordinatorRunActivator(loopCoordinatorRunActivator{state: state}),
 		looppkg.WithRuntimeCatalog(runtimeCatalog),
 		looppkg.WithInputEntityCatalog(daemonLoopInputEntityCatalog{state: state}),

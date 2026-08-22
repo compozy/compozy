@@ -2,13 +2,11 @@ package extensionpkg
 
 import (
 	"context"
-
 	"errors"
 	"fmt"
 	"strings"
 
 	apicontract "github.com/compozy/compozy/internal/api/contract"
-
 	observepkg "github.com/compozy/compozy/internal/observe"
 	taskpkg "github.com/compozy/compozy/internal/task"
 )
@@ -84,6 +82,9 @@ func (h *HostAPIHandler) taskQueryFromParams(
 		Cursor:        strings.TrimSpace(params.Cursor),
 		Limit:         params.Limit,
 	}
+	if err := h.applyTaskCatalogFilters(&query, params.IncludeLoop, params.LoopRunID); err != nil {
+		return taskpkg.CatalogQuery{}, err
+	}
 	if workspaceRef := strings.TrimSpace(params.Workspace); workspaceRef != "" {
 		if query.Scope.Normalize() == taskpkg.CatalogScopeGlobal {
 			return taskpkg.CatalogQuery{}, invalidParamsRPCError(fmt.Errorf(
@@ -106,6 +107,26 @@ func (h *HostAPIHandler) taskQueryFromParams(
 		return taskpkg.CatalogQuery{}, invalidParamsRPCError(err)
 	}
 	return normalized, nil
+}
+
+func (h *HostAPIHandler) applyTaskCatalogFilters(
+	query *taskpkg.CatalogQuery,
+	includeLoop bool,
+	loopRunID string,
+) error {
+	if h == nil || h.taskFilters == nil {
+		return unavailableRPCError(errors.New("task catalog filter mapper is not configured"))
+	}
+	h.taskFilters(query, includeLoop, loopRunID)
+	return nil
+}
+
+func (h *HostAPIHandler) defaultTaskCatalogExclusions() ([]taskpkg.ActorRef, error) {
+	query := taskpkg.CatalogQuery{}
+	if err := h.applyTaskCatalogFilters(&query, false, ""); err != nil {
+		return nil, err
+	}
+	return query.ExcludeCreatedBy, nil
 }
 
 func taskTimelineQueryFromParams(params apicontract.TaskTimelineQuery) (taskpkg.TimelineQuery, error) {
@@ -136,12 +157,17 @@ func (h *HostAPIHandler) taskDashboardQueryFromParams(
 	ctx context.Context,
 	params apicontract.TaskDashboardQuery,
 ) (observepkg.TaskDashboardQuery, error) {
+	exclusions, err := h.defaultTaskCatalogExclusions()
+	if err != nil {
+		return observepkg.TaskDashboardQuery{}, err
+	}
 	query := observepkg.TaskDashboardQuery{
 		Scope:                params.Scope.Normalize(),
 		OwnerKind:            params.OwnerKind.Normalize(),
 		OwnerRef:             strings.TrimSpace(params.OwnerRef),
 		ParticipationChannel: strings.TrimSpace(params.ParticipationChannel),
 		OriginKind:           params.OriginKind.Normalize(),
+		ExcludeCreatedBy:     exclusions,
 	}
 	if query.Scope.Normalize() != "" {
 		if err := query.Scope.Validate("task_dashboard_query.scope"); err != nil {
@@ -184,17 +210,22 @@ func (h *HostAPIHandler) taskInboxQueryFromParams(
 	if err := apicontract.ValidateTaskInboxQuery(params, "task_inbox_query"); err != nil {
 		return observepkg.TaskInboxQuery{}, invalidParamsRPCError(err)
 	}
+	exclusions, err := h.defaultTaskCatalogExclusions()
+	if err != nil {
+		return observepkg.TaskInboxQuery{}, err
+	}
 	query := observepkg.TaskInboxQuery{
-		Scope:     params.Scope.Normalize(),
-		OwnerKind: params.OwnerKind.Normalize(),
-		OwnerRef:  strings.TrimSpace(params.OwnerRef),
-		Lane:      observepkg.TaskInboxLane(params.Lane).Normalize(),
-		Status:    params.Status.Normalize(),
-		Priority:  params.Priority.Normalize(),
-		Unread:    params.Unread,
-		Search:    strings.TrimSpace(params.Query),
-		Cursor:    strings.TrimSpace(params.Cursor),
-		Limit:     params.Limit,
+		Scope:            params.Scope.Normalize(),
+		OwnerKind:        params.OwnerKind.Normalize(),
+		OwnerRef:         strings.TrimSpace(params.OwnerRef),
+		Lane:             observepkg.TaskInboxLane(params.Lane).Normalize(),
+		Status:           params.Status.Normalize(),
+		Priority:         params.Priority.Normalize(),
+		Unread:           params.Unread,
+		Search:           strings.TrimSpace(params.Query),
+		Cursor:           strings.TrimSpace(params.Cursor),
+		Limit:            params.Limit,
+		ExcludeCreatedBy: exclusions,
 	}
 	if workspaceRef := strings.TrimSpace(params.Workspace); workspaceRef != "" {
 		if query.Scope.Normalize() == taskpkg.CatalogScopeGlobal {

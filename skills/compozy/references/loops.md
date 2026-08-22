@@ -17,8 +17,8 @@ structured output. Never guess a schema — resolve `compozy__tool_info` for the
 ## The Tool Set And CLI Verbs
 
 Toolset `compozy__loops` — 30 native tools. All 28 Loop tools have matching `compozy loop` verbs;
-the two session-bound Goal tools use the session command/native report surfaces. The CLI adds one verb
-(`edit`) that has no native tool.
+the two session-bound Goal tools use the session command/native report surfaces. The CLI also exposes
+operator-focused `edit`, `why`, `events`, and run-scoped `nodes` reads without new native tool IDs.
 
 | Native tool                  | Mode                            | CLI                         | Purpose                                                                      |
 | ---------------------------- | ------------------------------- | --------------------------- | ---------------------------------------------------------------------------- |
@@ -53,6 +53,10 @@ the two session-bound Goal tools use the session command/native report surfaces.
 | `compozy__goal_report`       | mutating · prompt-scoped        | —                           | Record one current-prompt `complete` or evidenced `blocked` boundary intent. |
 | `compozy__loop_turns`        | read                            | `compozy loop turns`        | Read a Run's total-order Goal turn audit with cursor and node/item filters.  |
 
+When `loop why` publishes a request unblocker, execute it and enter the response JSON at the
+`Response JSON:` prompt. The command uses `--payload-stdin`; it never invents an empty response for
+a request whose schema may require fields or entity identifiers.
+
 There is **no `compozy__loop_edit` native tool**. Agents edit a definition through the authoring loop
 (validate → dry-run → `compozy__loop_create` with `expected_version`) or by a filesystem write. The CLI
 `compozy loop edit` is a `$EDITOR` convenience for operators and publishes through the same
@@ -66,8 +70,24 @@ The response is `loops`, exact self-filtered `facets` (`kinds`, `categories`, `s
 
 Opaque cursors bind workspace, search, kind, category, status, and sort; limit may change. Stable order is read-only before workspace, then normalized name and ID. CompozyOS computes the cut from lean records and loads definition YAML only for selected rows. `last_run` is the all-time latest run and includes `best_generation`/`best_score` when the run has a scored best candidate; only `aggregate_30d` and `success_rate_30d` use the 30-day window.
 
-`compozy loop runs` / `compozy__loop_runs` is a different, non-cursor contract: it returns `runs` plus aggregates, defaults to 100 rows, caps at 500, and does not expose `has_more` or `next_cursor`.
-Each run summary exposes `best_generation`/`best_score` but never embeds generation history.
+The native/API `compozy__loop_runs` response returns `runs` plus `aggregates`; `compozy loop runs -o json`
+emits an `items` array with `next_cursor` and no aggregates. Each summary includes `attention` when a
+person must act and current-round `progress`; the server orders needs-you runs, then active runs, then
+terminal runs. It never embeds generation history. `compozy loop runs` pages 50 rows by default; an
+omitted native/API `limit` pages 100. Both cap at 500 and resume through `--cursor`/`next_cursor`, an
+opaque token bound to that server order rather than a client-computed offset.
+
+For a single run, use `compozy loop why <run> -o json` for the server-owned verdict and executable
+unblocker, `compozy loop nodes --run <run> --all -o json` for the complete node-generation roster and
+attempt ledger, and `compozy loop events <run> --view notable|all -o jsonl` for durable history.
+`--all` and `--generation` require `--run`, and `--all` excludes `--cursor`. Roster `--state` is closed to
+`all|running|queued|waiting|retrying|paused|quarantined|succeeded|failed|canceled|not_taken` and pages 50
+by default up to 500; without `--run` the same verb reads the workspace exception inventory, where
+`--state` is required, closed to `waiting|quarantined|attention|retrying`, and pages 50 by default up to 200.
+`events --after <seq> --follow` resumes at a plain per-run sequence; HTTP timeline pagination instead
+uses an opaque run-bound cursor. Follow attaches after the first page's `head_seq`, so the durable/live
+handoff does not duplicate or skip events. A plain sequence beyond the current history returns the
+requested position and real `head_seq` with the stable `timeline_position_beyond_head` code.
 
 ## Typed Inputs
 
@@ -241,6 +261,11 @@ Web timeline use that durable evidence.
 
 ## Terminal Outcomes And Live States
 
+When a Loop reaches a terminal state, CompozyOS settles its coordinator and cell task records in the
+same store transaction. Use `compozy task timeline <task>` to distinguish an inline settlement
+(`reason = loop_run_terminal`), a reconciliation repair (`reconciled_run_terminal`), and an
+execution record whose Loop run was removed (`run_missing`).
+
 A run holds one of twelve states. Report the terminal outcome exactly — never round an error or an
 exhausted budget up to success.
 
@@ -293,7 +318,7 @@ once with a stable `delivery_id`. Templates can read `inputs` and
 `effect.identity|failure|quarantine|attempt|links`.
 
 Use `compozy__loop_nodes` or `compozy loop nodes --state waiting|quarantined|attention|retrying` to
-find workspace-scoped cells. Pages default to 50 and cap at 200; narrow with Loop or run ID. Then use
+find workspace-scoped cells; narrow with Loop or run ID. Then use
 the exact run/node/item identity with node pause (`drain|cancel`), resume
 (`plain|reset_attempts|immediate`, optional manual-wait payload), cancel, kill, or requeue. Requeue is
 quarantine-only and creates a bounded successor generation. Cancel is cooperative; Kill fences

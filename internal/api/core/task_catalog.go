@@ -22,12 +22,21 @@ func ParseTaskListQuery(c *gin.Context) (contract.TaskListQuery, error) {
 	if err != nil {
 		return contract.TaskListQuery{}, NewTaskValidationError(err)
 	}
+	includeLoop, err := ParseOptionalBool(c.Query("include_loop"))
+	if err != nil {
+		return contract.TaskListQuery{}, &invalidTaskQueryFieldError{
+			field: "include_loop",
+			cause: err,
+		}
+	}
 	query := contract.TaskListQuery{
 		Scope:                taskpkg.CatalogScope(c.Query("scope")).Normalize(),
 		Workspace:            strings.TrimSpace(c.Query("workspace")),
 		Status:               taskpkg.Status(c.Query("status")).Normalize(),
 		Priority:             taskpkg.Priority(c.Query("priority")).Normalize(),
 		IncludeDrafts:        includeDrafts,
+		IncludeLoop:          includeLoop,
+		LoopRunID:            strings.TrimSpace(c.Query("loop_run_id")),
 		ApprovalState:        taskpkg.ApprovalState(c.Query("approval_state")).Normalize(),
 		OwnerKind:            taskpkg.OwnerKind(c.Query("owner_kind")).Normalize(),
 		OwnerRef:             strings.TrimSpace(c.Query("owner_ref")),
@@ -95,6 +104,7 @@ func (h *BaseHandlers) taskListDomainQuery(
 		Cursor:               query.Cursor,
 		Limit:                query.Limit,
 	}
+	ApplyTaskLoopCatalogFilters(&domainQuery, query.IncludeLoop, query.LoopRunID)
 	if err := h.resolveTaskCatalogWorkspace(
 		ctx,
 		query.Workspace,
@@ -117,17 +127,18 @@ func (h *BaseHandlers) taskInboxDomainQuery(
 	query contract.TaskInboxQuery,
 ) (observe.TaskInboxQuery, error) {
 	domainQuery := observe.TaskInboxQuery{
-		Scope:      query.Scope,
-		WorktreeID: query.Worktree,
-		OwnerKind:  query.OwnerKind,
-		OwnerRef:   query.OwnerRef,
-		Lane:       observe.TaskInboxLane(query.Lane),
-		Status:     query.Status,
-		Priority:   query.Priority,
-		Unread:     query.Unread,
-		Search:     query.Query,
-		Cursor:     query.Cursor,
-		Limit:      query.Limit,
+		Scope:            query.Scope,
+		WorktreeID:       query.Worktree,
+		OwnerKind:        query.OwnerKind,
+		OwnerRef:         query.OwnerRef,
+		Lane:             observe.TaskInboxLane(query.Lane),
+		Status:           query.Status,
+		Priority:         query.Priority,
+		Unread:           query.Unread,
+		Search:           query.Query,
+		Cursor:           query.Cursor,
+		Limit:            query.Limit,
+		ExcludeCreatedBy: defaultTaskLoopExclusions(),
 	}
 	if err := h.resolveTaskCatalogWorkspace(
 		ctx,

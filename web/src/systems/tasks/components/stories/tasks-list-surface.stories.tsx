@@ -10,9 +10,14 @@ import type { TasksListSurfaceProps } from "../tasks-list-surface";
 import { TasksListToolbar } from "../tasks-list-toolbar";
 import type { TaskFilterOwnerOption } from "../../lib/tasks-list-filters";
 import { countTasksByStatus } from "../../lib/task-formatters";
-import { buildTaskListTree } from "../../lib/task-hierarchy";
-import type { TaskListItem, TaskListSortKey, TaskPriority, TaskStatus } from "../../types";
-import { buildTaskFixture } from "./fixtures";
+import type {
+  TaskListItem,
+  TaskListSortKey,
+  TaskPriority,
+  TaskRecordsFilter,
+  TaskStatus,
+} from "../../types";
+import { LOOP_TASK_FIXTURES, buildTaskFixture, loopRunGoneTaskFixture } from "./fixtures";
 
 const FIXTURE_TASKS = [
   buildTaskFixture({
@@ -58,8 +63,9 @@ const OWNER_OPTIONS: TaskFilterOwnerOption[] = [
   { ref: "pedro@", kind: "human" },
 ];
 
-interface TasksListStoryProps extends Omit<Partial<TasksListSurfaceProps>, "taskTree"> {
+interface TasksListStoryProps extends Omit<Partial<TasksListSurfaceProps>, "tasks"> {
   tasks?: TaskListItem[];
+  initialRecordsFilter?: TaskRecordsFilter;
 }
 
 function Stateful(props: TasksListStoryProps) {
@@ -68,6 +74,9 @@ function Stateful(props: TasksListStoryProps) {
   const [priorityFilter, setPriorityFilter] = useState<TaskPriority | null>(null);
   const [sortBy, setSortBy] = useState<TaskListSortKey>("recent");
   const [searchQuery, setSearchQuery] = useState("");
+  const [recordsFilter, setRecordsFilter] = useState<TaskRecordsFilter>(
+    props.initialRecordsFilter ?? "work"
+  );
   const tasks = props.tasks ?? FIXTURE_TASKS;
 
   return (
@@ -78,9 +87,11 @@ function Stateful(props: TasksListStoryProps) {
             ownerFilter={ownerFilter}
             priorityFilter={priorityFilter}
             props={props}
+            recordsFilter={recordsFilter}
             searchQuery={searchQuery}
             setOwnerFilter={setOwnerFilter}
             setPriorityFilter={setPriorityFilter}
+            setRecordsFilter={setRecordsFilter}
             setSearchQuery={setSearchQuery}
             setSortBy={setSortBy}
             setStatusFilter={setStatusFilter}
@@ -98,9 +109,11 @@ function TasksListStoryRoute({
   ownerFilter,
   priorityFilter,
   props,
+  recordsFilter,
   searchQuery,
   setOwnerFilter,
   setPriorityFilter,
+  setRecordsFilter,
   setSearchQuery,
   setSortBy,
   setStatusFilter,
@@ -111,9 +124,11 @@ function TasksListStoryRoute({
   ownerFilter: TaskFilterOwnerOption | null;
   priorityFilter: TaskPriority | null;
   props: TasksListStoryProps;
+  recordsFilter: TaskRecordsFilter;
   searchQuery: string;
   setOwnerFilter: (value: TaskFilterOwnerOption | null) => void;
   setPriorityFilter: (value: TaskPriority | null) => void;
+  setRecordsFilter: (value: TaskRecordsFilter) => void;
   setSearchQuery: (value: string) => void;
   setSortBy: (value: TaskListSortKey) => void;
   setStatusFilter: (value: TaskStatus | null) => void;
@@ -121,7 +136,7 @@ function TasksListStoryRoute({
   statusFilter: TaskStatus | null;
   tasks: TaskListItem[];
 }) {
-  const { tasks: _tasks, ...surfaceProps } = props;
+  const { tasks: _tasks, initialRecordsFilter: _initialRecordsFilter, ...surfaceProps } = props;
   useTopbarSlot({
     glyph: <ListChecks />,
     count: tasks.length,
@@ -129,12 +144,14 @@ function TasksListStoryRoute({
       <TasksListToolbar
         onOwnerChange={setOwnerFilter}
         onPriorityChange={setPriorityFilter}
+        onRecordsFilterChange={setRecordsFilter}
         onSearchQueryChange={setSearchQuery}
         onSortChange={setSortBy}
         onStatusChange={setStatusFilter}
         ownerFilter={ownerFilter}
         ownerOptions={OWNER_OPTIONS}
         priorityFilter={priorityFilter}
+        recordsFilter={recordsFilter}
         searchQuery={searchQuery}
         sortBy={sortBy}
         statusFilter={statusFilter}
@@ -147,9 +164,11 @@ function TasksListStoryRoute({
       filterState={
         statusFilter || ownerFilter || priorityFilter || searchQuery ? "active" : "inactive"
       }
+      onShowWorkItems={() => setRecordsFilter("work")}
+      recordsFilter={recordsFilter}
       searchQuery={searchQuery}
       statusCounts={props.statusCounts ?? countTasksByStatus(tasks)}
-      taskTree={buildTaskListTree(tasks)}
+      tasks={tasks}
       {...surfaceProps}
     />
   );
@@ -194,4 +213,27 @@ export const ErrorState: Story = {
 export const SingleGroup: Story = {
   args: {},
   render: () => <Stateful tasks={FIXTURE_TASKS.filter(task => task.status === "in_progress")} />,
+};
+
+/** Reveal on: Loop execution records join the same row geometry as work items. */
+export const RevealedLoopRecords: Story = {
+  args: {},
+  render: () => (
+    <Stateful
+      initialRecordsFilter="loop"
+      tasks={[...LOOP_TASK_FIXTURES, ...FIXTURE_TASKS.slice(0, 2)]}
+    />
+  ),
+};
+
+/** Reveal on, nothing to reveal — filter-scoped, never the generic empty. */
+export const RevealedEmpty: Story = {
+  args: {},
+  render: () => <Stateful initialRecordsFilter="loop" tasks={[]} />,
+};
+
+/** Retention removed the run: the record stays, says so, and carries no link. */
+export const RevealedRunDeleted: Story = {
+  args: {},
+  render: () => <Stateful initialRecordsFilter="loop" tasks={[loopRunGoneTaskFixture]} />,
 };

@@ -46,6 +46,8 @@ import (
 	"github.com/compozy/compozy/internal/gateway"
 	"github.com/compozy/compozy/internal/heartbeat"
 	hookspkg "github.com/compozy/compozy/internal/hooks"
+	looppkg "github.com/compozy/compozy/internal/loop"
+	loopdsl "github.com/compozy/compozy/internal/loop/dsl"
 	"github.com/compozy/compozy/internal/memory"
 	"github.com/compozy/compozy/internal/memory/consolidation"
 	"github.com/compozy/compozy/internal/network"
@@ -458,6 +460,377 @@ func TestBootWithNetworkDisabledKeepsDaemonOperational(t *testing.T) {
 	if got, want := registry.networkAvailabilityWrites, []bool{false}; !slices.Equal(got, want) {
 		t.Fatalf("network availability boot writes = %#v, want %#v", got, want)
 	}
+}
+
+// Invariant: the terminal-Loop neutralization barrier finishes before task recovery and readiness;
+// a barrier error fails boot closed. The canonical daemon boot suite owns startup ordering.
+func TestBootLoopReconciliationBarrier(t *testing.T) {
+	t.Run("Should fail closed before recovery readiness backstop ticker or claims IT-031", func(t *testing.T) {
+		homePaths := testHomePaths(t)
+		cfg := testConfig(t, homePaths)
+		cfg.Network.Enabled = false
+		barrierErr := errors.New("injected Loop neutralization failure")
+		recoveryCalled := false
+		registry := &recordingRegistry{
+			path: homePaths.DatabaseFile, neutralizeLoopOrphansErr: barrierErr,
+			onListTaskRunsByStatus: func([]taskpkg.RunStatus) { recoveryCalled = true },
+		}
+		d := newTestDaemon(t, homePaths, &cfg)
+		d.openRegistry = func(context.Context, string) (Registry, error) { return registry, nil }
+		d.newSessionManager = func(context.Context, SessionManagerDeps) (SessionManager, error) {
+			return &fakeSessionManager{}, nil
+		}
+		d.newObserver = func(context.Context, RuntimeDeps) (Observer, error) { return &fakeObserver{}, nil }
+		d.httpFactory = func(context.Context, RuntimeDeps) (Server, error) {
+			return &fakeServer{name: "http"}, nil
+		}
+		d.udsFactory = func(context.Context, RuntimeDeps) (Server, error) {
+			return &fakeServer{name: "uds"}, nil
+		}
+
+		err := d.boot(testutil.Context(t))
+		if !errors.Is(err, barrierErr) || !strings.Contains(err.Error(), "neutralize Loop orphans before recovery") {
+			t.Fatalf("boot() error = %v, want structured neutralization failure", err)
+		}
+		select {
+		case <-d.readyCh:
+			t.Fatal("boot() reported readiness after neutralization failed")
+		default:
+		}
+		if recoveryCalled {
+			t.Fatal("boot() ran task recovery after neutralization failed")
+		}
+		registry.mu.Lock()
+		calls := slices.Clone(registry.reconciliationCalls)
+		registry.mu.Unlock()
+		if !slices.Equal(calls, []string{"neutralize"}) {
+			t.Fatalf("reconciliation calls = %#v, want only neutralize", calls)
+		}
+		if d.tasks != nil || d.scheduler != nil || d.coordinator != nil {
+			t.Fatalf("published runtimes after failed barrier: tasks=%v scheduler=%v coordinator=%v",
+				d.tasks != nil, d.scheduler != nil, d.coordinator != nil)
+		}
+	})
+
+	t.Run("Should block real SQLite claim traffic until orphan ownership is neutralized IT-028", func(t *testing.T) {
+		homePaths := testHomePaths(t)
+		cfg := testConfig(t, homePaths)
+		cfg.Network.Enabled = false
+		cloneDaemonTestStoreSeed(t, homePaths.DatabaseFile)
+		db, err := globaldb.OpenGlobalDB(testutil.Context(t), homePaths.DatabaseFile)
+		if err != nil {
+			t.Fatalf("OpenGlobalDB() error = %v", err)
+		}
+		t.Cleanup(func() {
+			if err := db.Close(testutil.Context(t)); err != nil {
+				t.Fatalf("GlobalDB.Close() error = %v", err)
+			}
+		})
+		now := time.Date(2026, time.August, 20, 14, 0, 0, 0, time.UTC)
+		if err := db.InsertWorkspace(testutil.Context(t), workspacepkg.Workspace{
+			ID: "ws-daemon-barrier", Name: "Daemon barrier", RootDir: t.TempDir(),
+			CreatedAt: now, UpdatedAt: now,
+		}); err != nil {
+			t.Fatalf("InsertWorkspace() error = %v", err)
+		}
+		terminalRun := looppkg.Run{
+			ID: "looprun-daemon-barrier-terminal", WorkspaceID: "ws-daemon-barrier",
+			LoopName: "daemon-barrier-terminal", Status: looppkg.StatusRunning,
+			ReattemptStrategy: looppkg.ReattemptFailedOnly, IterationCap: 1,
+			BudgetOnExceeded: loopdsl.BudgetExceededHalt, CreatedAt: now, LastProgressAt: now,
+		}
+		applyLoopRunPinningForTest(t, &terminalRun, now)
+		if _, err := db.CreateLoopRunForStart(testutil.Context(t), terminalRun, loopdsl.ConcurrencyAllow); err != nil {
+			t.Fatalf("CreateLoopRunForStart(terminal) error = %v", err)
+		}
+		missingRun := terminalRun
+		missingRun.ID = "looprun-daemon-barrier-source"
+		missingRun.LoopName = "daemon-barrier-missing"
+		applyLoopRunPinningForTest(t, &missingRun, now)
+		if _, err := db.CreateLoopRunForStart(testutil.Context(t), missingRun, loopdsl.ConcurrencyAllow); err != nil {
+			t.Fatalf("CreateLoopRunForStart(missing) error = %v", err)
+		}
+		const missingLoopRunID = "looprun-daemon-barrier-missing"
+		if _, err := db.DB().ExecContext(testutil.Context(t),
+			`UPDATE loop_runs SET status = 'failed' WHERE id = ?`, terminalRun.ID); err != nil {
+			t.Fatalf("seed terminal Loop orphan error = %v", err)
+		}
+		if _, err := db.DB().ExecContext(testutil.Context(t),
+			`UPDATE task_runs SET loop_run_id = ? WHERE loop_run_id = ?`, missingLoopRunID, missingRun.ID); err != nil {
+			t.Fatalf("seed missing Loop orphan error = %v", err)
+		}
+		orphanRunIDs := make([]string, 0, 2)
+		rows, err := db.DB().QueryContext(testutil.Context(t), `SELECT id FROM task_runs
+			WHERE loop_run_id IN (?, ?) ORDER BY id`, terminalRun.ID, missingLoopRunID)
+		if err != nil {
+			t.Fatalf("list orphan task runs error = %v", err)
+		}
+		for rows.Next() {
+			var runID string
+			if err := rows.Scan(&runID); err != nil {
+				if closeErr := rows.Close(); closeErr != nil {
+					t.Fatalf("scan orphan task run error = %v; close error = %v", err, closeErr)
+				}
+				t.Fatalf("scan orphan task run error = %v", err)
+			}
+			orphanRunIDs = append(orphanRunIDs, runID)
+		}
+		if err := rows.Err(); err != nil {
+			if closeErr := rows.Close(); closeErr != nil {
+				t.Fatalf("iterate orphan task runs error = %v; close error = %v", err, closeErr)
+			}
+			t.Fatalf("iterate orphan task runs error = %v", err)
+		}
+		if err := rows.Close(); err != nil {
+			t.Fatalf("close orphan task runs error = %v", err)
+		}
+		if len(orphanRunIDs) != 2 {
+			t.Fatalf("orphan task runs = %#v, want terminal and missing", orphanRunIDs)
+		}
+
+		registry := &blockingLoopReconciliationRegistry{
+			GlobalDB: db, neutralizeStarted: make(chan struct{}),
+			releaseNeutralize: make(chan struct{}), claimAttempts: make(chan string, 64),
+		}
+		d := newTestDaemon(t, homePaths, &cfg)
+		d.openRegistry = func(context.Context, string) (Registry, error) { return registry, nil }
+		d.newSessionManager = func(context.Context, SessionManagerDeps) (SessionManager, error) {
+			return &fakeSessionManager{}, nil
+		}
+		d.newObserver = func(context.Context, RuntimeDeps) (Observer, error) { return &fakeObserver{}, nil }
+		d.httpFactory = func(context.Context, RuntimeDeps) (Server, error) {
+			return &fakeServer{name: "http"}, nil
+		}
+		d.udsFactory = func(context.Context, RuntimeDeps) (Server, error) {
+			return &fakeServer{name: "uds"}, nil
+		}
+		bootResult := make(chan error, 1)
+		go func() { bootResult <- d.boot(testutil.Context(t)) }()
+		select {
+		case <-registry.neutralizeStarted:
+		case <-time.After(time.Second):
+			t.Fatal("daemon did not enter the Loop neutralization barrier")
+		}
+		select {
+		case runID := <-registry.claimAttempts:
+			t.Fatalf("claim %q started before Loop neutralization completed", runID)
+		default:
+		}
+		select {
+		case <-d.readyCh:
+			t.Fatal("daemon became ready while Loop neutralization was blocked")
+		default:
+		}
+		close(registry.releaseNeutralize)
+		select {
+		case err := <-bootResult:
+			if err != nil {
+				t.Fatalf("boot() error = %v", err)
+			}
+		case <-time.After(5 * time.Second):
+			t.Fatal("daemon boot did not finish after Loop neutralization was released")
+		}
+		t.Cleanup(func() {
+			if err := d.Shutdown(testutil.Context(t)); err != nil {
+				t.Fatalf("Shutdown() error = %v", err)
+			}
+		})
+		actor, err := taskpkg.DeriveDaemonActorContext("barrier-claimer", "loop.boot")
+		if err != nil {
+			t.Fatalf("DeriveDaemonActorContext() error = %v", err)
+		}
+		const claimers = 16
+		claimResults := make(chan error, claimers)
+		for index := range claimers {
+			go func() {
+				_, claimErr := d.tasks.manager.ClaimNextRun(testutil.Context(t), taskpkg.ClaimCriteria{
+					RunID: orphanRunIDs[index%len(orphanRunIDs)], Scope: taskpkg.ScopeWorkspace,
+					WorkspaceID: string(terminalRun.WorkspaceID), RunKind: taskpkg.RunKindCoordinator,
+					ClaimerSessionID: fmt.Sprintf("barrier-claimer-%d", index),
+					LeaseDuration:    time.Minute, Now: now.Add(time.Minute),
+				}, actor)
+				claimResults <- claimErr
+			}()
+		}
+		for range claimers {
+			if claimErr := <-claimResults; !errors.Is(claimErr, taskpkg.ErrNoClaimableRun) {
+				t.Fatalf("ClaimNextRun(after barrier) error = %v, want ErrNoClaimableRun", claimErr)
+			}
+		}
+	})
+
+	t.Run("Should neutralize before recovery and backfill only after readiness IT-028", func(t *testing.T) {
+		homePaths := testHomePaths(t)
+		cfg := testConfig(t, homePaths)
+		cfg.Network.Enabled = false
+		var mu sync.Mutex
+		order := make([]string, 0, 3)
+		backfillAfterReady := false
+		backfillDone := make(chan struct{}, 1)
+		appendOrder := func(value string) {
+			mu.Lock()
+			order = append(order, value)
+			mu.Unlock()
+		}
+		registry := &recordingRegistry{path: homePaths.DatabaseFile}
+		registry.onNeutralizeLoopOrphans = func() { appendOrder("neutralize") }
+		registry.onListTaskRunsByStatus = func([]taskpkg.RunStatus) { appendOrder("recovery") }
+		d := newTestDaemon(t, homePaths, &cfg)
+		registry.onBackfillLoopProvenance = func() {
+			select {
+			case <-d.readyCh:
+				backfillAfterReady = true
+			default:
+			}
+			appendOrder("backfill")
+			select {
+			case backfillDone <- struct{}{}:
+			default:
+			}
+		}
+		d.openRegistry = func(context.Context, string) (Registry, error) { return registry, nil }
+		d.newSessionManager = func(context.Context, SessionManagerDeps) (SessionManager, error) {
+			return &fakeSessionManager{}, nil
+		}
+		d.newObserver = func(context.Context, RuntimeDeps) (Observer, error) { return &fakeObserver{}, nil }
+		d.httpFactory = func(context.Context, RuntimeDeps) (Server, error) {
+			return &fakeServer{name: "http"}, nil
+		}
+		d.udsFactory = func(context.Context, RuntimeDeps) (Server, error) {
+			return &fakeServer{name: "uds"}, nil
+		}
+		if err := d.boot(testutil.Context(t)); err != nil {
+			t.Fatalf("boot() error = %v", err)
+		}
+		t.Cleanup(func() {
+			if err := d.Shutdown(testutil.Context(t)); err != nil {
+				t.Fatalf("Shutdown() error = %v", err)
+			}
+		})
+		select {
+		case <-backfillDone:
+		case <-time.After(time.Second):
+			t.Fatal("post-readiness provenance backfill did not run")
+		}
+		mu.Lock()
+		gotOrder := slices.Clone(order)
+		mu.Unlock()
+		neutralizeIndex := slices.Index(gotOrder, "neutralize")
+		recoveryIndex := slices.Index(gotOrder, "recovery")
+		backfillIndex := slices.Index(gotOrder, "backfill")
+		if neutralizeIndex < 0 || recoveryIndex < 0 || backfillIndex < 0 ||
+			neutralizeIndex >= recoveryIndex || recoveryIndex >= backfillIndex {
+			t.Fatalf("boot order = %#v, want neutralize before recovery before backfill", gotOrder)
+		}
+		if !backfillAfterReady {
+			t.Fatal("provenance backfill ran before daemon readiness")
+		}
+	})
+
+	t.Run("Should backfill a pre-change coordinator through first boot IT-010", func(t *testing.T) {
+		homePaths := testHomePaths(t)
+		cfg := testConfig(t, homePaths)
+		cfg.Network.Enabled = false
+		cloneDaemonTestStoreSeed(t, homePaths.DatabaseFile)
+		database, err := globaldb.OpenGlobalDB(testutil.Context(t), homePaths.DatabaseFile)
+		if err != nil {
+			t.Fatalf("OpenGlobalDB() error = %v", err)
+		}
+		now := time.Date(2026, time.August, 20, 17, 0, 0, 0, time.UTC)
+		workspaceID := "ws-daemon-provenance-boot"
+		if err := database.InsertWorkspace(testutil.Context(t), workspacepkg.Workspace{
+			ID: workspaceID, Name: "Daemon provenance boot", RootDir: t.TempDir(),
+			CreatedAt: now, UpdatedAt: now,
+		}); err != nil {
+			t.Fatalf("InsertWorkspace() error = %v", err)
+		}
+		seed := looppkg.Run{
+			ID: "looprun-daemon-provenance-boot", WorkspaceID: looppkg.WorkspaceID(workspaceID),
+			LoopName: "daemon-provenance-boot", Status: looppkg.StatusRunning,
+			ReattemptStrategy: looppkg.ReattemptFailedOnly, IterationCap: 1,
+			BudgetOnExceeded: loopdsl.BudgetExceededHalt, CreatedAt: now, LastProgressAt: now,
+		}
+		applyLoopRunPinningForTest(t, &seed, now)
+		run, err := database.CreateLoopRunForStart(testutil.Context(t), seed, loopdsl.ConcurrencyAllow)
+		if err != nil {
+			t.Fatalf("CreateLoopRunForStart() error = %v", err)
+		}
+		coordinatorTaskID := fmt.Sprintf("loop.%s.coordinator", run.ID)
+		if _, err := database.DB().ExecContext(
+			testutil.Context(t), `UPDATE tasks SET metadata_json = '{}' WHERE id = ?`, coordinatorTaskID,
+		); err != nil {
+			t.Fatalf("seed pre-change coordinator metadata error = %v", err)
+		}
+
+		d := newTestDaemon(t, homePaths, &cfg)
+		d.openRegistry = func(context.Context, string) (Registry, error) { return database, nil }
+		d.newSessionManager = func(context.Context, SessionManagerDeps) (SessionManager, error) {
+			return &fakeSessionManager{}, nil
+		}
+		d.newObserver = func(context.Context, RuntimeDeps) (Observer, error) { return &fakeObserver{}, nil }
+		d.httpFactory = func(context.Context, RuntimeDeps) (Server, error) {
+			return &fakeServer{name: "http"}, nil
+		}
+		d.udsFactory = func(context.Context, RuntimeDeps) (Server, error) {
+			return &fakeServer{name: "uds"}, nil
+		}
+		booted := false
+		t.Cleanup(func() {
+			if booted {
+				if err := d.Shutdown(testutil.Context(t)); err != nil {
+					t.Fatalf("Shutdown() error = %v", err)
+				}
+				return
+			}
+			if err := database.Close(testutil.Context(t)); err != nil {
+				t.Fatalf("GlobalDB.Close() error = %v", err)
+			}
+		})
+		if err := d.boot(testutil.Context(t)); err != nil {
+			t.Fatalf("boot() error = %v", err)
+		}
+		booted = true
+
+		deadline := time.Now().Add(2 * time.Second)
+		for {
+			record, getErr := database.GetTask(testutil.Context(t), coordinatorTaskID)
+			if getErr != nil {
+				t.Fatalf("GetTask(coordinator) error = %v", getErr)
+			}
+			if strings.Contains(string(record.Metadata), `"loop_name":"daemon-provenance-boot"`) {
+				break
+			}
+			if time.Now().After(deadline) {
+				t.Fatalf("first boot did not backfill coordinator metadata: %s", record.Metadata)
+			}
+			time.Sleep(10 * time.Millisecond)
+		}
+		actor, err := taskpkg.DeriveDaemonActorContext("provenance-boot-test", "daemon.boot.test")
+		if err != nil {
+			t.Fatalf("DeriveDaemonActorContext() error = %v", err)
+		}
+		query := taskpkg.CatalogQuery{
+			Scope: taskpkg.CatalogScopeWorkspace, WorkspaceID: workspaceID,
+			IncludeDrafts: true, Limit: 10,
+		}
+		core.ApplyTaskLoopCatalogFilters(&query, false, string(run.ID))
+		catalog, err := d.tasks.manager.ListTaskCatalog(testutil.Context(t), query, actor)
+		if err != nil {
+			t.Fatalf("ListTaskCatalog(first boot provenance) error = %v", err)
+		}
+		coordinatorIndex := slices.IndexFunc(catalog.Tasks, func(summary taskpkg.Summary) bool {
+			return summary.ID == coordinatorTaskID
+		})
+		if coordinatorIndex < 0 {
+			t.Fatalf("first boot catalog = %#v, want coordinator %q", catalog.Tasks, coordinatorTaskID)
+		}
+		payload := contract.TaskCatalogItemPayloadFromSummary(&catalog.Tasks[coordinatorIndex])
+		if payload.Loop == nil || payload.Loop.RunID != string(run.ID) ||
+			payload.Loop.LoopName != seed.LoopName ||
+			payload.Loop.Role != contract.LoopProvenanceRoleCoordinator {
+			t.Fatalf("first boot coordinator Loop = %#v, want complete coordinator provenance", payload.Loop)
+		}
+	})
 }
 
 func TestBootSessionAttachmentRetentionPinsQueuedInputs(t *testing.T) {
@@ -8333,6 +8706,76 @@ type recordingRegistry struct {
 	coordinationSettings      map[string]workspacepkg.CoordinationSetting
 	approvalGrants            map[toolspkg.ApprovalGrantKey]toolspkg.ApprovalGrant
 	gatewaySnapshot           gateway.Snapshot
+	neutralizeLoopOrphansErr  error
+	backfillLoopProvenanceErr error
+	reconciliationCalls       []string
+	onNeutralizeLoopOrphans   func()
+	onBackfillLoopProvenance  func()
+}
+
+type blockingLoopReconciliationRegistry struct {
+	*globaldb.GlobalDB
+	neutralizeStarted chan struct{}
+	releaseNeutralize chan struct{}
+	claimAttempts     chan string
+	neutralizeOnce    sync.Once
+}
+
+func (r *blockingLoopReconciliationRegistry) NeutralizeLoopRunOrphans(
+	ctx context.Context,
+) (looppkg.SweepReport, error) {
+	r.neutralizeOnce.Do(func() { close(r.neutralizeStarted) })
+	select {
+	case <-r.releaseNeutralize:
+	case <-ctx.Done():
+		return looppkg.SweepReport{}, ctx.Err()
+	}
+	return r.GlobalDB.NeutralizeLoopRunOrphans(ctx)
+}
+
+func (r *blockingLoopReconciliationRegistry) WithLeaseSettlementTransaction(
+	ctx context.Context,
+	action string,
+	fn func(taskpkg.LeaseSettlementMutationStore) error,
+) error {
+	if action == "claim task run lease" {
+		select {
+		case r.claimAttempts <- action:
+		default:
+		}
+	}
+	return r.GlobalDB.WithLeaseSettlementTransaction(ctx, action, fn)
+}
+
+func (r *recordingRegistry) NeutralizeLoopRunOrphans(context.Context) (looppkg.SweepReport, error) {
+	r.mu.Lock()
+	r.reconciliationCalls = append(r.reconciliationCalls, "neutralize")
+	err := r.neutralizeLoopOrphansErr
+	callback := r.onNeutralizeLoopOrphans
+	r.mu.Unlock()
+	if callback != nil {
+		callback()
+	}
+	return looppkg.SweepReport{}, err
+}
+
+func (r *recordingRegistry) SweepLoopRunOrphans(context.Context) (looppkg.SweepReport, error) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	r.reconciliationCalls = append(r.reconciliationCalls, "sweep")
+	return looppkg.SweepReport{}, nil
+}
+
+func (r *recordingRegistry) BackfillLoopProvenance(context.Context) (int, error) {
+	r.mu.Lock()
+	r.reconciliationCalls = append(r.reconciliationCalls, "backfill")
+	err := r.backfillLoopProvenanceErr
+	callback := r.onBackfillLoopProvenance
+	r.mu.Unlock()
+	if callback != nil {
+		callback()
+	}
+	return 0, err
 }
 
 type queuedAttachmentRecordingRegistry struct {

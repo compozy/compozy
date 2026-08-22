@@ -1,4 +1,4 @@
-import { useNavigate } from "@tanstack/react-router";
+import { useState } from "react";
 import { useSelector } from "@xstate/store-react";
 
 import { toast } from "@compozy/ui";
@@ -6,29 +6,34 @@ import { useStoreBinding } from "@/hooks/use-store-binding";
 
 import { loopRunPageLogic } from "./use-loop-run-page-state";
 import {
-  buildNodeNowLines,
   isTerminalLoopStatus,
   loopControlAnswer,
   LoopLifecycleConflictError,
   type LoopControlAnswer,
   type LoopGateDecision,
   type LoopNodeLifecycle,
+  type LoopNodeSelection,
   type LoopRunGeneration,
   type LoopRunRecord,
+  loopPrunedSessionIds,
   loopRunVerbs,
-  mergeGoalTurnTimeline,
   projectLoopRunPageView,
+  projectLoopRunRegisters,
+  selectedRosterNode,
+  useLoopNodeSessionAvailability,
+  loopStreamSeam,
   useApproveLoopRun,
   useCancelLoopRun,
-  useGoalTurns,
   useKillLoopRun,
   useLoop,
   useLoopRun,
+  useLoopRunBriefing,
+  useLoopRunRoster,
+  useLoopRunTimeline,
   useLoopStream,
   useNowTick,
   usePauseLoopRun,
   useResumeLoopRun,
-  useRunLoop,
 } from "@/systems/loops";
 
 const SETTLED_OUTPUT_STATUSES = new Set(["succeeded", "failed", "partial", "canceled"]);
@@ -88,7 +93,6 @@ export function useLoopRunPage(
   runId: string,
   { liveDataEnabled = true }: { liveDataEnabled?: boolean } = {}
 ) {
-  const navigate = useNavigate();
   const bindingKey = `${workspaceId}\u0000${runId}`;
   const { store: runPageStore } = useStoreBinding(bindingKey, () =>
     loopRunPageLogic.createStore({ workspaceId, runId })
@@ -99,7 +103,6 @@ export function useLoopRunPage(
   const runQuery = useLoopRun(workspaceId, runId, queryEnabled);
   const run = runQuery.data?.run;
   const generations = runQuery.data?.generations;
-  const watchEvents = runQuery.data?.watch_events ?? undefined;
   const executedDefinition = runQuery.data?.executed_definition;
   const materializedContract = runQuery.data?.materialized_contract;
   const loopName = run?.loop_name ?? "";
@@ -110,28 +113,48 @@ export function useLoopRunPage(
   );
   const definition = executedDefinition ?? loopQuery.data?.definition;
 
+  // The three run reads (ADR-005). They are the source for both registers; the
+  // stream only tells them when to re-read.
+  const briefingRead = useLoopRunBriefing(workspaceId, runId, liveDataEnabled);
+  const rosterRead = useLoopRunRoster(workspaceId, runId, liveDataEnabled);
+  const timelineRead = useLoopRunTimeline(workspaceId, runId, "notable", liveDataEnabled);
+
   const isLive = runQuery.isSuccess && !isTerminalLoopStatus(run?.status);
   // Terminal runs keep replaying through their post-status effect results so
   // generation-zero failures and terminal reactions survive navigation or reload.
+  // The no-gap seam. The stream may not open until the newest timeline page has
+  // published `head_seq`: attaching earlier would start from nothing and drop
+  // every event between the read and the subscribe, which is the gap this whole
+  // design exists to close. `head_seq = 0` is a real fence for an empty run,
+  // so the gate is "known", not "truthy".
+  const seam = loopStreamSeam(timelineRead.headSeq);
   useLoopStream(workspaceId, runId, {
-    enabled: runQuery.isSuccess && liveDataEnabled,
+    afterSequence: seam.afterSequence,
+    enabled: runQuery.isSuccess && liveDataEnabled && seam.ready,
     onEvent: (frame, subscription) =>
       runPageStore.trigger.streamFrameReceived({
         frame,
         subscription,
       }),
   });
-  const goalTurnsQuery = useGoalTurns(workspaceId, runId, {
-    enabled: runQuery.isSuccess && liveDataEnabled,
-  });
-  const goalTurns = mergeGoalTurnTimeline(goalTurnsQuery.data?.turns ?? [], live.goalTurns);
+  // Opening a node is what makes its session worth asking about, so the page owns
+  // the selection: the roster hands over an id, and only the session store knows
+  // whether retention has since taken it. One node, one read — never a walk of
+  // the roster to answer a question about the row somebody actually opened.
+  const [nodeSelection, setNodeSelection] = useState<LoopNodeSelection | null>(null);
+  const selectedSessionId =
+    selectedRosterNode(rosterRead.nodes, nodeSelection)?.session_id?.trim() || null;
+  const sessionAvailability = useLoopNodeSessionAvailability(
+    workspaceId,
+    selectedSessionId,
+    liveDataEnabled
+  );
 
   const pauseMutation = usePauseLoopRun();
   const resumeMutation = useResumeLoopRun();
   const cancelMutation = useCancelLoopRun();
   const killMutation = useKillLoopRun();
   const approveMutation = useApproveLoopRun();
-  const runLoopMutation = useRunLoop();
 
   const nowMs = useNowTick(run?.status === "running" && liveDataEnabled);
   const view = run
@@ -222,26 +245,6 @@ export function useLoopRunPage(
     );
   };
 
-  const handleStartNewRun = () => {
-    if (!run) return;
-    runLoopMutation.mutate(
-      { workspaceId, name: run.loop_name, data: { inputs: run.inputs } },
-      {
-        onSuccess: result => {
-          const newRunId = result.run?.id;
-          if (newRunId) {
-            toast.success("New run started");
-            void navigate({ to: "/loop-runs/$runId", params: { runId: newRunId } });
-            return;
-          }
-          toast.error("The request was accepted, but no run came back.");
-        },
-        onError: error =>
-          toast.error(error instanceof Error ? error.message : "Failed to start a new run"),
-      }
-    );
-  };
-
   const version = run?.definition_version ?? loopQuery.data?.version;
   const versionLabel =
     version !== undefined
@@ -249,11 +252,7 @@ export function useLoopRunPage(
         ? `v${version} · pinned`
         : `v${version}`
       : undefined;
-  const pendingAction = approveMutation.isPending
-    ? ("approve" as const)
-    : runLoopMutation.isPending
-      ? ("start-new-run" as const)
-      : undefined;
+  const pendingAction = approveMutation.isPending ? ("approve" as const) : undefined;
 
   return {
     runQuery,
@@ -265,49 +264,76 @@ export function useLoopRunPage(
     definition,
     materializedContract,
     generations: generations ?? [],
+    watchEvents: runQuery.data?.watch_events ?? null,
 
     amendments: runQuery.data?.amendments ?? [],
 
     inputSchema: definition?.inputs,
     isGenerationBusy: isGenerationBusy(run, generations),
     graph: view?.graph ?? null,
-    watchEvents,
     versionLabel,
     live,
-    story: view?.story ?? { rows: [], now: null },
-    goalIds: view?.goalIds ?? new Set<string>(),
-    goalTurns,
-    goalTurnsQuery,
+    registers: projectLoopRunRegisters({
+      briefing: briefingRead.briefing,
+      nodes: rosterRead.nodes,
+      rollups: rosterRead.rollups,
+      timeline: timelineRead.entries,
+      // The fork point in the story links the related run, and the run record is
+      // the only place that branch is recorded (US-009.EC-3).
+      lineage: {
+        forkedFrom: effectiveRun?.forked_from ?? null,
+        forks: effectiveRun?.forks ?? [],
+      },
+      graph: view?.graph ?? null,
+      rosterIsComplete: rosterRead.isComplete,
+      rosterIsTruncated: rosterRead.isTruncated,
+    }),
+    rosterNodes: rosterRead.nodes,
+    rosterRollups: rosterRead.rollups,
+    onLoadMoreRoster: rosterRead.loadMore,
+    isLoadingMoreRoster: rosterRead.isLoadingMore,
+    // Whether the roster read has answered at all. The Inspect lanes need this
+    // to tell "this run reached no step" from "we have not read its steps yet";
+    // without it a pending or failed read renders as `No steps ran`.
+    rosterRead: { isLoading: rosterRead.isLoading, isError: rosterRead.isError },
+    nodeSelection,
+    onNodeSelectionChange: setNodeSelection,
+    prunedSessionIds: loopPrunedSessionIds(selectedSessionId, sessionAvailability),
+    storyPaging: {
+      hasOlder: timelineRead.hasOlder,
+      isLoading: timelineRead.isLoading,
+      // Folding this only into `isReconnecting` told the reader the transport is
+      // degraded but still let the story print "Nothing has happened in this run
+      // yet." The story owns that sentence, so it needs the flag itself.
+      isError: timelineRead.isError,
+      isLoadingOlder: timelineRead.isLoadingOlder,
+      onLoadOlder: timelineRead.loadOlder,
+    },
+    // A read that errored means the page is showing the last thing it
+    // successfully reconciled, and it has to say so. All three durable reads
+    // count — a failed timeline read is degraded transport, not evidence that
+    // nothing happened — and a settled run says it too: an unreadable terminal
+    // run is still unread, however finished it is.
+    isReconnecting: briefingRead.isError || rosterRead.isError || timelineRead.isError,
     isLive,
-    progress: view?.progress ?? null,
+    // The same clock the page's own derivations run on, so the roster's elapsed
+    // readings and the Usage rail never disagree by a tick.
+    nowMs,
     usageRows: view?.usageRows ?? [],
     usageNote: view?.usageNote ?? null,
     approvalFallbackFacts: view?.approvalFallbackFacts ?? [],
-    latestVerdict: view?.latestVerdict ?? null,
-    watchCadence: view?.watchCadence ?? null,
     inputRows: view?.inputRows ?? [],
     startedBy: view?.startedBy ?? "",
     elapsedLabel: view?.elapsedLabel ?? "",
-    stepElapsedLabel: view?.stepElapsedLabel ?? null,
-    nextNote: view?.nextNote ?? null,
-    showNowCard: view?.showNowCard ?? false,
-    terminalFromStatus: view?.terminalFromStatus,
-    terminalAt: view?.terminalAt,
-    terminalCause: view?.terminalCause,
     nodeLifecycles,
     nodesById,
-    nodeNowLines: buildNodeNowLines(nodeLifecycles, view?.graph ?? null, live.retrySchedules),
     waitingNodes: view?.waitingNodes ?? [],
-    attentionNodes: view?.attentionNodes ?? [],
-    nodeSessions: view?.nodeSessions ?? new Map<string, string>(),
     requests: view?.requests ?? [],
-    strategyProgress: view?.strategyProgress ?? [],
     handlePause,
     handleResume,
     handleCancel,
     handleKill,
     handleDecision,
-    handleStartNewRun,
     pendingAction,
     isPausePending: pauseMutation.isPending,
     isResumePending: resumeMutation.isPending,

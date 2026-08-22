@@ -125,7 +125,7 @@ async function openSessionCreate(page: Page) {
 
 async function openOverviewMenu(page: Page, workspaceId: string) {
   await openWorkspaceMenu(page);
-  await page.getByTestId("os-workspace-overview").click();
+  await page.getByRole("menuitem", { name: /^Workspace picker/ }).click();
   await expect(page.getByTestId("os-workspaces-overview")).toBeVisible();
   // The focused tile anchors the always-visible vertical worktree menu.
   await expect(page.getByTestId(`os-workspace-tile-${workspaceId}`)).toBeVisible();

@@ -1,6 +1,9 @@
 package contract
 
-import "github.com/compozy/compozy/internal/hooks"
+import (
+	apicontract "github.com/compozy/compozy/internal/api/contract"
+	"github.com/compozy/compozy/internal/hooks"
+)
 
 // SDKEnumContract binds one daemon enum type to its closed public wire vocabulary.
 type SDKEnumContract struct {
@@ -14,5 +17,6 @@ func SDKEnumContracts() []SDKEnumContract {
 		{Value: IssueSeverity(""), Values: IssueSeverityValues()},
 		{Value: CommandFlagType(""), Values: CommandFlagTypeValues()},
 		{Value: hooks.LoopGenerationOrigin(""), Values: hooks.LoopGenerationOriginValues()},
+		{Value: apicontract.LoopProvenanceRole(""), Values: apicontract.LoopProvenanceRoleValues()},
 	}
 }
