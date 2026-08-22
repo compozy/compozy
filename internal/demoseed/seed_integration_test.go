@@ -241,8 +241,13 @@ func assertCompleteSeedSurfaces(
 	if err != nil {
 		t.Fatalf("ListGoalTurns() error = %v", err)
 	}
-	if len(turns.Turns) != 2 || turns.Turns[0].SessionID != sessionIncidentReviewID {
-		t.Fatalf("ListGoalTurns() = %#v, want two session-owned turns", turns)
+	if len(turns.Turns) != 2 {
+		t.Fatalf("ListGoalTurns() returned %d turns, want 2: %#v", len(turns.Turns), turns)
+	}
+	for index, turn := range turns.Turns {
+		if turn.SessionID != sessionIncidentReviewID {
+			t.Fatalf("ListGoalTurns().Turns[%d].SessionID = %q, want %q", index, turn.SessionID, sessionIncidentReviewID)
+		}
 	}
 	worktrees, err := db.WorktreeStore().List(ctx, result.WorkspaceIDs[1])
 	if err != nil {
