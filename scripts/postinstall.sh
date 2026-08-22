@@ -44,6 +44,39 @@ if [ -d "$BUNDLED_DIR" ]; then
   echo "Linked $bundled_skills bundled skills from skills/ → .agents/skills"
 fi
 
+# Shared spec-cycle skills are canonical in extensions/spec-cycle/skills (the
+# extension embeds them into the binary); each listed one is linked into
+# .agents/skills so the loop below mirrors it into .claude/skills. Only
+# byte-identical shares belong in this list — cy-create-spec, cy-create-tasks,
+# and cy-final-verify keep intentionally divergent local variants (Compozy
+# tooling vs the portable extension copy) and must never be linked.
+SPEC_CYCLE_DIR="$ROOT_DIR/extensions/spec-cycle/skills"
+SPEC_CYCLE_SHARED_SKILLS=(
+  cy-execute-task
+  cy-fix-reviews
+  cy-review-round
+  cy-workflow-memory
+)
+
+if [ -d "$SPEC_CYCLE_DIR" ]; then
+  mkdir -p "$SOURCE_DIR"
+
+  spec_cycle_skills=0
+  for skill_name in "${SPEC_CYCLE_SHARED_SKILLS[@]}"; do
+    [ -f "$SPEC_CYCLE_DIR/$skill_name/SKILL.md" ] || continue
+
+    shared_link="$SOURCE_DIR/$skill_name"
+    if [ -L "$shared_link" ] || [ -e "$shared_link" ]; then
+      rm -rf "$shared_link"
+    fi
+
+    ln -s "../../extensions/spec-cycle/skills/$skill_name" "$shared_link"
+    spec_cycle_skills=$((spec_cycle_skills + 1))
+  done
+
+  echo "Linked $spec_cycle_skills spec-cycle skills from extensions/spec-cycle/skills → .agents/skills"
+fi
+
 if [ -d "$SOURCE_DIR" ]; then
   mkdir -p "$TARGET_DIR"
 
