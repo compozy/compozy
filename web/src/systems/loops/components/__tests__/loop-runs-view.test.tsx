@@ -18,6 +18,7 @@ vi.mock("@tanstack/react-router", async importOriginal => {
 });
 
 const { LoopRunsView } = await import("../runs/loop-runs-view");
+const { dozensActiveRuns } = await import("../stories/loop-runs-scale-fixtures");
 const { loopRunFixtures } = await import("../../mocks/fixtures");
 type LoopRun = (typeof loopRunFixtures)[number];
 
@@ -68,6 +69,38 @@ describe("LoopRunsView", () => {
     expect(within(sections[0]).getByTestId("loop-runs-count")).toHaveTextContent("1");
     // Four counters above the list pushed the runs that need a person below the
     // fold and answered nothing the groups do not already answer.
+    expect(screen.queryByTestId("loop-runs-kpis")).not.toBeInTheDocument();
+  });
+
+  // VC-35's whole subject: "scale changes the count, not the composition." The
+  // scale fixture used to be thirty runs cycled off every seed, which inherited
+  // the seeds' mostly-terminal mix — the dozens landed in Recent, Active held
+  // eight, and the one group the contract is about stayed small.
+  it("Should put the dozens in Active while Needs you stays small and first", () => {
+    render(<LoopRunsView outcome="all" runs={dozensActiveRuns} />);
+
+    const sections = screen.getAllByTestId(/^loop-runs-group-/);
+    // Composition unchanged: the same three groups, in the same order.
+    expect(sections.map(section => section.getAttribute("data-group"))).toEqual([
+      "needs-you",
+      "active",
+      "recent",
+    ]);
+
+    const counts = sections.map(section =>
+      Number(within(section).getByTestId("loop-runs-count").textContent)
+    );
+    const [needsYou, active, recent] = counts;
+    expect(active).toBeGreaterThanOrEqual(24);
+    // Small enough to read at a glance, and smaller than the group it leads.
+    expect(needsYou).toBeLessThan(active);
+    expect(needsYou).toBeLessThanOrEqual(3);
+    // The scale belongs to Active, not to the settled tail.
+    expect(active).toBeGreaterThan(recent);
+    // Every run is accounted for; nothing is dropped to make the shape work.
+    expect(needsYou + active + recent).toBe(dozensActiveRuns.length);
+
+    // Counters above the list are what the note rules out at scale.
     expect(screen.queryByTestId("loop-runs-kpis")).not.toBeInTheDocument();
   });
 

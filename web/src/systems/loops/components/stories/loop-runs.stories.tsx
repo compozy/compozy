@@ -6,6 +6,7 @@ import { LoopRunsView } from "../runs/loop-runs-view";
 import type { LoopOutcomeValue } from "../../lib/loop-runs-view";
 import type { LoopRun } from "../../types";
 import { loopRunFixtures } from "../../mocks/fixtures";
+import { dozensActiveRuns } from "./loop-runs-scale-fixtures";
 
 const meta: Meta<typeof LoopRunsView> = {
   title: "systems/loops/components/LoopRuns",
@@ -54,15 +55,6 @@ function RunsHarness({
   );
 }
 
-/**
- * Thirty runs of the same shapes. The roster has to stay readable at the scale
- * an actual workspace reaches, and grouping is what keeps it readable.
- */
-const manyRuns: readonly LoopRun[] = Array.from({ length: 30 }, (_, index) => {
-  const seed = loopRunFixtures[index % loopRunFixtures.length];
-  return { ...seed, id: `${seed.id}-${index + 1}` };
-});
-
 export const Default: Story = {
   render: () => <RunsHarness />,
 };
@@ -82,9 +74,9 @@ export const EmptyWorkspace: Story = {
   render: () => <RunsHarness runs={[]} />,
 };
 
-/** VC-35 · thirty runs: grouping is what keeps the roster readable at scale. */
+/** VC-35 · dozens of them active: scale changes the count, not the composition. */
 export const DozensActive: Story = {
-  render: () => <RunsHarness runs={manyRuns} />,
+  render: () => <RunsHarness runs={dozensActiveRuns} />,
 };
 
 /** VC-36 · a dropped stream is not an empty workspace and never borrows its words. */
