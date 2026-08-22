@@ -1440,6 +1440,12 @@ func assertResumeReplayEqualsPrunedEvents(
 ) {
 	t.Helper()
 
+	if got := strings.Count(systemPrompt, resumeReplayOpenTag); got != 1 {
+		t.Fatalf("resume replay start markers = %d, want 1: %q", got, systemPrompt)
+	}
+	if got := strings.Count(systemPrompt, resumeReplayCloseTag); got != 1 {
+		t.Fatalf("resume replay end markers = %d, want 1: %q", got, systemPrompt)
+	}
 	want, err := transcript.Assemble(events)
 	if err != nil {
 		t.Fatalf("transcript.Assemble(events) error = %v", err)

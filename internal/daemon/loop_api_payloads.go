@@ -109,6 +109,7 @@ func loopRunPayload(run looppkg.Run) (contract.LoopRunPayload, error) {
 		WorkspaceID:                  string(run.WorkspaceID),
 		LoopName:                     run.LoopName,
 		Status:                       contract.LoopRunStatus(run.Status),
+		Historical:                   run.Historical,
 		CompletionState:              contract.LoopCompletionState(run.CompletionStateSnapshot()),
 		Generation:                   int64(run.Generation),
 		ReattemptStrategy:            contract.LoopReattemptStrategy(run.ReattemptStrategy),
@@ -162,6 +163,10 @@ func loopRunsAggregate(runs []looppkg.Run) contract.LoopRunsAggregatePayload {
 	var aggregate contract.LoopRunsAggregatePayload
 	for _, run := range runs {
 		aggregate.Total++
+		if run.Historical {
+			aggregate.Historical++
+			continue
+		}
 		if run.Status.Live() {
 			aggregate.Live++
 		}

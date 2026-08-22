@@ -1,6 +1,6 @@
 -- name: InsertLoopRun :exec
 INSERT INTO loop_runs (
-  id, workspace_id, loop_name, status, generation, reattempt_strategy, created_at, started_at,
+  id, workspace_id, loop_name, status, historical, generation, reattempt_strategy, created_at, started_at,
   last_progress_at, definition_version, definition_digest, active_gate_id,
   active_human_criteria_json, budget_approval_seq, start_metadata_json,
   iteration_cap, budget_tokens, budget_wall_sec,
@@ -10,7 +10,7 @@ INSERT INTO loop_runs (
   origin_creation_profile_ref, origin_policy_spec_digest, origin_creation_digest,
   network_spec_json, network_mode, network_channel, network_source
 ) VALUES (
-  sqlc.arg(id), sqlc.arg(workspace_id), sqlc.arg(loop_name), sqlc.arg(status),
+  sqlc.arg(id), sqlc.arg(workspace_id), sqlc.arg(loop_name), sqlc.arg(status), sqlc.arg(historical),
   sqlc.arg(generation), sqlc.arg(reattempt_strategy), sqlc.arg(created_at), sqlc.arg(started_at),
   sqlc.arg(last_progress_at), sqlc.arg(definition_version), sqlc.arg(definition_digest),
   sqlc.arg(active_gate_id), sqlc.arg(active_human_criteria_json), sqlc.arg(budget_approval_seq),
@@ -35,6 +35,7 @@ SELECT * FROM loop_runs WHERE id = sqlc.arg(id);
 SELECT * FROM loop_runs
 WHERE workspace_id = sqlc.arg(workspace_id)
   AND loop_name = sqlc.arg(loop_name)
+  AND historical = 0
   AND status IN ('queued', 'running', 'watching', 'needs-approval', 'paused')
 ORDER BY created_at ASC, id ASC
 LIMIT 1;
@@ -43,6 +44,7 @@ LIMIT 1;
 SELECT * FROM loop_runs
 WHERE workspace_id = sqlc.arg(workspace_id)
   AND origin_kind = 'session'
+  AND historical = 0
   AND origin_session_id = sqlc.arg(origin_session_id)
   AND status IN ('queued', 'running', 'watching', 'needs-approval', 'paused')
 ORDER BY created_at DESC, id DESC
@@ -53,6 +55,7 @@ SELECT id, goal_cleared_at
 FROM loop_runs
 WHERE workspace_id = sqlc.arg(workspace_id)
   AND origin_kind = 'session'
+  AND historical = 0
   AND origin_session_id = sqlc.arg(origin_session_id)
 ORDER BY created_at DESC, rowid DESC
 LIMIT 1;

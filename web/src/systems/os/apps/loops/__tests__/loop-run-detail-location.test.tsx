@@ -17,7 +17,12 @@ const workspace = vi.hoisted(() => ({
 const loopRunPageBodySpy = vi.hoisted(() => vi.fn((_props: Record<string, unknown>) => null));
 const loopRunPageSpy = vi.hoisted(() => vi.fn());
 const pageRun = vi.hoisted(() => ({
-  current: null as { loop_name: string; pause_requested?: boolean; status: string } | null,
+  current: null as {
+    historical?: boolean;
+    loop_name: string;
+    pause_requested?: boolean;
+    status: string;
+  } | null,
 }));
 
 vi.mock("@tanstack/react-router", () => ({
@@ -26,6 +31,7 @@ vi.mock("@tanstack/react-router", () => ({
 
 vi.mock("@compozy/ui", () => ({
   Empty: () => null,
+  Pill: ({ children }: { children: unknown }) => children,
   Spinner: () => null,
   useTopbarSlot: vi.fn(),
 }));
@@ -42,7 +48,12 @@ vi.mock("../use-loop-run-page", () => ({
   useLoopRunPage: (...args: unknown[]) => {
     loopRunPageSpy(...args);
     return {
-      effectiveRun: { generation: 1, status: "running", workspace_id: "ws_home" },
+      effectiveRun: {
+        generation: 1,
+        historical: pageRun.current?.historical ?? false,
+        status: "running",
+        workspace_id: "ws_home",
+      },
       goalTurnsQuery: {
         fetchNextPage: vi.fn(),
         hasNextPage: false,
@@ -188,6 +199,22 @@ describe("LoopRunDetailLocation", () => {
           expect.objectContaining({ id: "loop", label: "implement-tasks" }),
         ],
       })
+    );
+  });
+
+  it("Should make historical runs read-only even when their stored status is live", () => {
+    pageRun.current = {
+      historical: true,
+      loop_name: "implement-tasks",
+      status: "running",
+    };
+
+    render(<LoopRunDetailLocation runId="run-history" />);
+
+    const slot = vi.mocked(useTopbarSlot).mock.calls.at(-1)?.[0];
+    expect(slot?.actions).toBeUndefined();
+    expect(loopRunPageBodySpy).toHaveBeenLastCalledWith(
+      expect.objectContaining({ renderNodeActions: undefined })
     );
   });
 });

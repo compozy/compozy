@@ -16,15 +16,40 @@ import (
 	eventspkg "github.com/compozy/compozy/internal/events"
 	looppkg "github.com/compozy/compozy/internal/loop"
 	"github.com/compozy/compozy/internal/loop/dsl"
+	"github.com/compozy/compozy/internal/loop/goal"
+	"github.com/compozy/compozy/internal/memory"
+	memcontract "github.com/compozy/compozy/internal/memory/contract"
+	"github.com/compozy/compozy/internal/notifications/presets"
 	"github.com/compozy/compozy/internal/store"
 	"github.com/compozy/compozy/internal/store/globaldb"
 	"github.com/compozy/compozy/internal/store/sessiondb"
 	"github.com/compozy/compozy/internal/task"
 	"github.com/compozy/compozy/internal/transcript"
+	compozyworkspace "github.com/compozy/compozy/internal/workspace"
+	"github.com/compozy/compozy/internal/worktree"
 )
 
 func TestSeed(t *testing.T) {
 	t.Parallel()
+
+	t.Run("Should preserve hook order when local-day offsets are still in the future", func(t *testing.T) {
+		t.Parallel()
+
+		clock := newTimeline(time.Date(2026, 7, 27, 8, 0, 0, 0, time.UTC))
+		hooks := hookDispatchSummaries(clock)
+		if len(hooks) < 2 {
+			t.Fatalf("hookDispatchSummaries() returned %d hooks, want at least 2", len(hooks))
+		}
+		for index := 1; index < len(hooks); index++ {
+			if !hooks[index-1].At.Before(hooks[index].At) {
+				t.Fatalf("hook timestamps[%d:%d] = %s then %s, want strict order",
+					index-1, index, hooks[index-1].At, hooks[index].At)
+			}
+		}
+		if hooks[len(hooks)-1].At.After(clock.Now()) {
+			t.Fatalf("latest hook timestamp = %s, want no later than %s", hooks[len(hooks)-1].At, clock.Now())
+		}
+	})
 
 	t.Run("Should persist one coherent scenario and replace it without duplication", func(t *testing.T) {
 		t.Parallel()
@@ -37,8 +62,17 @@ func TestSeed(t *testing.T) {
 		if err != nil {
 			t.Fatalf("Seed(first) error = %v", err)
 		}
-		if first.Counts.Sessions != 4 || first.Counts.Tasks != 7 || first.Counts.NetworkMessages != 5 {
-			t.Fatalf("Seed(first).Counts = %#v, want 4 sessions, 7 tasks, and 5 Network messages", first.Counts)
+		if first.Counts.Workspaces != 2 || first.Counts.Sessions != 12 || first.Counts.Tasks != 23 ||
+			first.Counts.NetworkMessages != 6 || first.Counts.GoalTurns != 2 ||
+			first.Counts.Worktrees != 1 || first.Counts.NotificationPresets != 3 {
+			t.Fatalf("Seed(first).Counts = %#v, want the complete multi-surface scenario", first.Counts)
+		}
+		obsoleteFixture := filepath.Join(first.WorkspaceRoot, "obsolete-seed-fixture.md")
+		if err := os.WriteFile(obsoleteFixture, []byte("obsolete\n"), 0o644); err != nil {
+			t.Fatalf("WriteFile(obsolete fixture) error = %v", err)
+		}
+		if err := writeSeedMarker(first.WorkspaceRoot, workspaceKeyLaunch); err != nil {
+			t.Fatalf("writeSeedMarker(obsolete fixture) error = %v", err)
 		}
 
 		if _, err := Seed(ctx, Options{HomeDir: homeDir, Now: now}); !errors.Is(err, ErrScenarioExists) {
@@ -50,6 +84,22 @@ func TestSeed(t *testing.T) {
 		}
 		if replaced.WorkspaceID != first.WorkspaceID {
 			t.Fatalf("Seed(replace).WorkspaceID = %q, want stable %q", replaced.WorkspaceID, first.WorkspaceID)
+		}
+		if _, err := os.Stat(obsoleteFixture); !errors.Is(err, os.ErrNotExist) {
+			t.Fatalf("Stat(obsolete fixture) error = %v, want removed by the seed manifest", err)
+		}
+		replacedAgain, err := Seed(ctx, Options{HomeDir: homeDir, Replace: true, Now: now.Add(2 * time.Hour)})
+		if err != nil {
+			t.Fatalf("Seed(second replace) error = %v", err)
+		}
+		if replacedAgain.WorkspaceID != first.WorkspaceID || replacedAgain.Counts != first.Counts {
+			t.Fatalf(
+				"Seed(second replace) = {workspace: %q, counts: %#v}, want {%q, %#v}",
+				replacedAgain.WorkspaceID,
+				replacedAgain.Counts,
+				first.WorkspaceID,
+				first.Counts,
+			)
 		}
 
 		paths, err := config.ResolveHomePathsFrom(homeDir)
@@ -68,13 +118,212 @@ func TestSeed(t *testing.T) {
 			}
 		})
 
-		assertWorkspaceRecords(t, ctx, db, replaced)
-		assertTaskStory(t, ctx, db, replaced.WorkspaceID)
-		assertNetworkStory(t, ctx, db, replaced.WorkspaceID)
+		assertWorkspaceRecords(t, ctx, db, replacedAgain)
+		assertTaskStory(t, ctx, db, replacedAgain.WorkspaceID)
+		assertNetworkStory(t, ctx, db, replacedAgain.WorkspaceID)
 		assertAutomationStory(t, ctx, db)
-		assertLaunchTranscript(t, ctx, paths, replaced.WorkspaceID)
-		assertLoopDefinition(t, replaced.WorkspaceRoot)
+		assertLaunchTranscript(t, ctx, paths, replacedAgain.WorkspaceID)
+		assertLoopDefinition(t, replacedAgain.WorkspaceRoot)
+		assertCompleteSeedSurfaces(t, ctx, db, paths, replacedAgain)
 	})
+
+	t.Run("Should resolve an existing workspace through a filesystem alias", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := context.Background()
+		root := t.TempDir()
+		realRoot := filepath.Join(root, "real-workspace")
+		if err := os.Mkdir(realRoot, 0o755); err != nil {
+			t.Fatalf("Mkdir(real workspace) error = %v", err)
+		}
+		aliasRoot := filepath.Join(root, "alias-workspace")
+		if err := os.Symlink(realRoot, aliasRoot); err != nil {
+			t.Fatalf("Symlink(workspace alias) error = %v", err)
+		}
+		identity, err := compozyworkspace.EnsureIdentity(ctx, realRoot)
+		if err != nil {
+			t.Fatalf("EnsureIdentity(real workspace) error = %v", err)
+		}
+		db, err := globaldb.OpenGlobalDB(ctx, filepath.Join(root, "compozy.db"))
+		if err != nil {
+			t.Fatalf("OpenGlobalDB() error = %v", err)
+		}
+		t.Cleanup(func() {
+			closeCtx, cancel := context.WithTimeout(context.Background(), cleanupTimeout)
+			defer cancel()
+			if err := db.Close(closeCtx); err != nil {
+				t.Errorf("GlobalDB.Close() error = %v", err)
+			}
+		})
+		workspace := compozyworkspace.Workspace{
+			ID: identity.WorkspaceID, Name: "Alias workspace", RootDir: realRoot,
+			CreatedAt: time.Now().UTC(), UpdatedAt: time.Now().UTC(),
+		}
+		if err := db.InsertWorkspace(ctx, workspace); err != nil {
+			t.Fatalf("InsertWorkspace() error = %v", err)
+		}
+
+		resolved, err := lookupExistingWorkspace(ctx, db, workspace.Name, aliasRoot)
+		if err != nil {
+			t.Fatalf("lookupExistingWorkspace(alias) error = %v", err)
+		}
+		if resolved.ID != workspace.ID {
+			t.Fatalf("lookupExistingWorkspace(alias).ID = %q, want %q", resolved.ID, workspace.ID)
+		}
+	})
+
+	t.Run("Should refuse to replace an unowned workspace root", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := context.Background()
+		now := time.Date(2026, 7, 27, 20, 0, 0, 0, time.UTC)
+		homeDir := filepath.Join(t.TempDir(), "home")
+		story := scenarioWorkspaces(newTimeline(now))[0]
+		workspaceRoot := filepath.Join(homeDir, filepath.FromSlash(story.Relative))
+		if err := os.MkdirAll(workspaceRoot, 0o755); err != nil {
+			t.Fatalf("MkdirAll(unowned workspace) error = %v", err)
+		}
+		sentinel := filepath.Join(workspaceRoot, "operator-owned.txt")
+		if err := os.WriteFile(sentinel, []byte("keep\n"), 0o644); err != nil {
+			t.Fatalf("WriteFile(sentinel) error = %v", err)
+		}
+
+		if _, err := Seed(ctx, Options{HomeDir: homeDir, Replace: true, Now: now}); err == nil ||
+			!strings.Contains(err.Error(), "refusing to replace unowned workspace root") {
+			t.Fatalf("Seed(replace unowned workspace) error = %v, want ownership refusal", err)
+		}
+		if contents, err := os.ReadFile(sentinel); err != nil || string(contents) != "keep\n" {
+			t.Fatalf("ReadFile(sentinel) = %q, %v; want preserved content", contents, err)
+		}
+	})
+}
+
+func assertCompleteSeedSurfaces(
+	t *testing.T,
+	ctx context.Context,
+	db *globaldb.GlobalDB,
+	paths config.HomePaths,
+	result Result,
+) {
+	t.Helper()
+	if len(result.WorkspaceIDs) != 2 {
+		t.Fatalf("WorkspaceIDs = %#v, want two workspaces", result.WorkspaceIDs)
+	}
+	var runCount int
+	for _, workspaceID := range result.WorkspaceIDs {
+		runs, err := db.ListLoopRuns(ctx, looppkg.RunListQuery{WorkspaceID: looppkg.WorkspaceID(workspaceID), Limit: 100})
+		if err != nil {
+			t.Fatalf("ListLoopRuns(%q) error = %v", workspaceID, err)
+		}
+		for _, run := range runs {
+			if !run.Historical || len(run.Inputs) == 0 {
+				t.Fatalf("seeded Loop run %q = %#v, want historical with resolved inputs", run.ID, run)
+			}
+		}
+		runCount += len(runs)
+		live := true
+		liveRuns, err := db.ListLoopRuns(ctx, looppkg.RunListQuery{
+			WorkspaceID: looppkg.WorkspaceID(workspaceID), Live: &live, Limit: 100,
+		})
+		if err != nil {
+			t.Fatalf("ListLoopRuns(live, %q) error = %v", workspaceID, err)
+		}
+		if len(liveRuns) != 0 {
+			t.Fatalf("ListLoopRuns(live, %q) = %#v, want no historical rows", workspaceID, liveRuns)
+		}
+	}
+	if runCount != result.Counts.LoopRuns {
+		t.Fatalf("persisted Loop runs = %d, want count %d", runCount, result.Counts.LoopRuns)
+	}
+	turns, err := db.ListGoalTurns(ctx, goal.TurnQuery{
+		WorkspaceID: looppkg.WorkspaceID(result.WorkspaceID), LoopRunID: loopGoalRunID, Limit: 20,
+	})
+	if err != nil {
+		t.Fatalf("ListGoalTurns() error = %v", err)
+	}
+	if len(turns.Turns) != 2 {
+		t.Fatalf("ListGoalTurns() returned %d turns, want 2: %#v", len(turns.Turns), turns)
+	}
+	for index, turn := range turns.Turns {
+		if turn.SessionID != sessionIncidentReviewID {
+			t.Fatalf("ListGoalTurns().Turns[%d].SessionID = %q, want %q", index, turn.SessionID, sessionIncidentReviewID)
+		}
+	}
+	worktrees, err := db.WorktreeStore().List(ctx, result.WorkspaceIDs[1])
+	if err != nil {
+		t.Fatalf("WorktreeStore.List() error = %v", err)
+	}
+	if len(worktrees) != 1 || worktrees[0].State != worktree.StateReady {
+		t.Fatalf("WorktreeStore.List() = %#v, want one ready Git worktree", worktrees)
+	}
+	if _, err := os.Stat(worktrees[0].Path); err != nil {
+		t.Fatalf("Stat(seed worktree) error = %v", err)
+	}
+	items, err := db.ListPresets(ctx, presets.Query{})
+	if err != nil {
+		t.Fatalf("ListPresets() error = %v", err)
+	}
+	if len(items) != 3 {
+		t.Fatalf("ListPresets() = %#v, want three built-in presets", items)
+	}
+	assertSeedMemoriesReadable(t, ctx, db, paths, result)
+	meta, err := store.ReadSessionMeta(store.SessionMetaFile(filepath.Join(paths.SessionsDir, sessionRollbackDrillID)))
+	if err != nil {
+		t.Fatalf("ReadSessionMeta(checkout engineer) error = %v", err)
+	}
+	if meta.EffectivePermissionsValue() != approveAll {
+		t.Fatalf("checkout engineer permissions = %q, want %q", meta.EffectivePermissionsValue(), approveAll)
+	}
+}
+
+func assertSeedMemoriesReadable(
+	t *testing.T,
+	ctx context.Context,
+	db *globaldb.GlobalDB,
+	paths config.HomePaths,
+	result Result,
+) {
+	t.Helper()
+	memoryStore := memory.NewStore(paths.MemoryDir)
+	global, err := memoryStore.Scan(ctx, memcontract.ScopeGlobal)
+	if err != nil {
+		t.Fatalf("Memory.Scan(global) error = %v", err)
+	}
+	readable := len(global)
+	for _, workspaceID := range result.WorkspaceIDs {
+		workspaceRecord, err := db.GetWorkspace(ctx, workspaceID)
+		if err != nil {
+			t.Fatalf("GetWorkspace(%q) error = %v", workspaceID, err)
+		}
+		workspaceStore := memoryStore.ForWorkspace(workspaceRecord.RootDir)
+		workspaceMemories, err := workspaceStore.Scan(ctx, memcontract.ScopeWorkspace)
+		if err != nil {
+			t.Fatalf("Memory.Scan(workspace %q) error = %v", workspaceID, err)
+		}
+		readable += len(workspaceMemories)
+		for _, agent := range scenarioAgents() {
+			if stateKeyForWorkspaceName(workspaceRecord.Name) != agent.WorkspaceKey {
+				continue
+			}
+			agentMemories, err := workspaceStore.ForAgent(
+				workspaceID, agent.Name, memcontract.AgentTierWorkspace,
+			).Scan(ctx, memcontract.ScopeAgent)
+			if err != nil {
+				t.Fatalf("Memory.Scan(agent %q) error = %v", agent.Name, err)
+			}
+			readable += len(agentMemories)
+		}
+	}
+	if readable != result.Counts.Memories {
+		t.Fatalf("readable memories = %d, want %d", readable, result.Counts.Memories)
+	}
+}
+
+func stateKeyForWorkspaceName(name string) string {
+	if name == launchWorkspaceName {
+		return workspaceKeyLaunch
+	}
+	return workspaceKeyPlatform
 }
 
 func assertWorkspaceRecords(t *testing.T, ctx context.Context, db *globaldb.GlobalDB, result Result) {
@@ -83,15 +332,15 @@ func assertWorkspaceRecords(t *testing.T, ctx context.Context, db *globaldb.Glob
 	if err != nil {
 		t.Fatalf("GetWorkspace() error = %v", err)
 	}
-	if workspaceRecord.Name != workspaceName || workspaceRecord.DefaultAgent != "product-lead" {
+	if workspaceRecord.Name != launchWorkspaceName || workspaceRecord.DefaultAgent != "product-lead" {
 		t.Fatalf("GetWorkspace() = %#v, want Northstar Pay with product-lead default", workspaceRecord)
 	}
 	sessions, err := db.ListSessions(ctx, store.SessionListQuery{WorkspaceID: result.WorkspaceID, Limit: 20})
 	if err != nil {
 		t.Fatalf("ListSessions() error = %v", err)
 	}
-	if len(sessions) != 4 {
-		t.Fatalf("len(ListSessions()) = %d, want 4", len(sessions))
+	if len(sessions) != 6 {
+		t.Fatalf("len(ListSessions()) = %d, want 6 launch sessions", len(sessions))
 	}
 	for _, sessionRecord := range sessions {
 		if sessionRecord.WorkspaceID != result.WorkspaceID || sessionRecord.State != "stopped" {
@@ -106,8 +355,8 @@ func assertTaskStory(t *testing.T, ctx context.Context, db *globaldb.GlobalDB, w
 	if err != nil {
 		t.Fatalf("ListTasks() error = %v", err)
 	}
-	if len(tasks) != 7 {
-		t.Fatalf("len(ListTasks()) = %d, want 7", len(tasks))
+	if len(tasks) != 9 {
+		t.Fatalf("len(ListTasks()) = %d, want 9 launch tasks", len(tasks))
 	}
 	byID := make(map[string]task.Summary, len(tasks))
 	for _, summary := range tasks {
@@ -124,7 +373,6 @@ func assertTaskStory(t *testing.T, ctx context.Context, db *globaldb.GlobalDB, w
 		t.Fatalf("launch decision task = %#v, want completed", byID["task_northstar_launch_decision"])
 	}
 	for taskID, runID := range map[string]string{
-		"task_northstar_partner_replay":  "run_northstar_partner_replay",
 		"task_northstar_compliance_copy": "run_northstar_compliance_copy",
 		taskSupportID:                    "run_northstar_support_handoff",
 		taskLaunchDecisionID:             "run_northstar_launch_decision",
@@ -173,8 +421,8 @@ func assertNetworkStory(t *testing.T, ctx context.Context, db *globaldb.GlobalDB
 	if err != nil {
 		t.Fatalf("GetThread() error = %v", err)
 	}
-	if thread.MessageCount != 5 || thread.ParticipantCount != 4 {
-		t.Fatalf("GetThread() = %#v, want 5 messages and 4 participants", thread)
+	if thread.MessageCount != 6 || thread.ParticipantCount != 4 {
+		t.Fatalf("GetThread() = %#v, want 6 messages and 4 participants", thread)
 	}
 	messages, err := db.ListConversationMessages(ctx, store.NetworkConversationRef{
 		WorkspaceID: workspaceID, Channel: launchChannel,
@@ -215,7 +463,7 @@ func assertAutomationStory(t *testing.T, ctx context.Context, db *globaldb.Globa
 
 func assertLaunchTranscript(t *testing.T, ctx context.Context, paths config.HomePaths, workspaceID string) {
 	t.Helper()
-	sessionID := scenarioSessionIDs[3]
+	sessionID := sessionLaunchDecisionID
 	reader, err := sessiondb.OpenSessionDBReadOnly(
 		ctx,
 		store.SessionDBOwner{SessionID: sessionID, WorkspaceID: workspaceID},
@@ -235,8 +483,8 @@ func assertLaunchTranscript(t *testing.T, ctx context.Context, paths config.Home
 	if err != nil {
 		t.Fatalf("ReadOnlySessionDB.Query() error = %v", err)
 	}
-	if len(events) != 6 {
-		t.Fatalf("len(ReadOnlySessionDB.Query()) = %d, want 6", len(events))
+	if len(events) != 11 {
+		t.Fatalf("len(ReadOnlySessionDB.Query()) = %d, want 11", len(events))
 	}
 	var conclusion string
 	for _, persisted := range events {
@@ -259,7 +507,7 @@ func assertLoopDefinition(t *testing.T, workspaceRoot string) {
 		workspaceRoot,
 		config.DirName,
 		config.LoopsDirName,
-		launchLoopName,
+		loopLaunchReadiness,
 		looppkg.DefinitionFileName,
 	)
 	data, err := os.ReadFile(path)
@@ -274,7 +522,7 @@ func assertLoopDefinition(t *testing.T, workspaceRoot string) {
 	if err != nil {
 		t.Fatalf("Compiler.Compile(Loop) error = %v", err)
 	}
-	if resolved.Definition.Meta.Name != launchLoopName ||
+	if resolved.Definition.Meta.Name != loopLaunchReadiness ||
 		!strings.Contains(resolved.Definition.Contract.Goal, "rollout decision") {
 		t.Fatalf("compiled Loop = %#v, want launch-readiness rollout contract", resolved.Definition)
 	}

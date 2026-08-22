@@ -14,7 +14,6 @@ func TestBuiltinProviderExecutionStrategies(t *testing.T) {
 		t.Fatalf("BuiltinProviders() count = %d, want 26", len(providers))
 	}
 	for providerID, provider := range providers {
-		providerID, provider := providerID, provider
 		t.Run("Should classify builtin provider "+providerID, func(t *testing.T) {
 			t.Parallel()
 

@@ -25,6 +25,7 @@ func loopRunInsertParams(
 		WorkspaceID:             string(run.WorkspaceID),
 		LoopName:                run.LoopName,
 		Status:                  string(run.Status),
+		Historical:              int64(boolToInt(run.Historical)),
 		Generation:              int64(run.Generation),
 		ReattemptStrategy:       string(run.ReattemptStrategy),
 		CreatedAt:               store.FormatTimestamp(run.CreatedAt),
@@ -72,8 +73,9 @@ func loopRunFromGenerated(row *sqlcgen.LoopRun) (looppkg.Run, error) {
 	}
 	values := loopRunScanValues{
 		run: looppkg.Run{
-			LoopName: row.LoopName, Generation: int(row.Generation), DefinitionVersion: int(row.DefinitionVersion),
-			DefinitionDigest: row.DefinitionDigest, ActiveGateID: looppkg.NodeID(row.ActiveGateID),
+			LoopName: row.LoopName, Historical: row.Historical != 0, Generation: int(row.Generation),
+			DefinitionVersion: int(row.DefinitionVersion),
+			DefinitionDigest:  row.DefinitionDigest, ActiveGateID: looppkg.NodeID(row.ActiveGateID),
 			BudgetApprovalSeq: int(row.BudgetApprovalSeq),
 			BudgetTokens:      int(row.BudgetTokens), BudgetWallSec: int(row.BudgetWallSec), TokensUsed: row.TokensUsed,
 			IterationCap: int(row.IterationCap), GoalContextNudgeRatio: row.GoalContextNudgeRatio,

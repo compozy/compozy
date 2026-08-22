@@ -361,9 +361,9 @@ func normalizeLoopRunListQuery(query looppkg.RunListQuery) (looppkg.RunListQuery
 
 func loopRunLiveFilterSQL(live bool) string {
 	if live {
-		return "status IN ('queued','running','watching','needs-approval','paused')"
+		return "historical = 0 AND status IN ('queued','running','watching','needs-approval','paused')"
 	}
-	return "status IN ('done','no-op','blocked','failed','exhausted','stalled','canceled')"
+	return "historical = 0 AND status IN ('done','no-op','blocked','failed','exhausted','stalled','canceled')"
 }
 
 func normalizeLoopRunEventQuery(query looppkg.RunEventQuery) (looppkg.RunEventQuery, error) {

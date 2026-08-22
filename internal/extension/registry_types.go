@@ -31,6 +31,7 @@ type ExtensionInfo struct {
 	Capabilities             CapabilitiesConfig
 	Permissions              PermissionsConfig
 	Checksum                 string
+	lifecycleToken           string
 	RegistrySlug             *string
 	RegistryName             *string
 	RemoteVersion            *string

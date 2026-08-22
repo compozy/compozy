@@ -75,6 +75,7 @@ func (v *loopRunScanValues) scan(row loopRunScanner) error {
 		&v.workspaceID,
 		&v.run.LoopName,
 		&v.status,
+		&v.run.Historical,
 		&v.run.Generation,
 		&v.reattempt,
 		&v.createdAtRaw,

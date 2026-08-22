@@ -543,6 +543,7 @@ CREATE TABLE loop_runs (
 			workspace_id         TEXT NOT NULL,
 			loop_name            TEXT NOT NULL,
 			status               TEXT NOT NULL,
+			historical           INTEGER NOT NULL DEFAULT 0 CHECK (historical IN (0, 1)),
 			completion_state     TEXT NOT NULL DEFAULT 'complete'
 				CHECK (completion_state IN ('complete','partial')),
 			forked_from_run_id   TEXT,
@@ -689,6 +690,7 @@ CREATE INDEX idx_loop_runs_queue_order
 
 CREATE UNIQUE INDEX uq_loop_runs_active_session_goal ON loop_runs(origin_session_id)
 			WHERE origin_kind='session'
+			  AND historical = 0
 			  AND status IN ('queued','running','watching','needs-approval','paused');
 
 CREATE UNIQUE INDEX uq_loop_session_bindings_active

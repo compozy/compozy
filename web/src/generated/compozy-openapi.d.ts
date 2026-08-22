@@ -97669,6 +97669,7 @@ export interface operations {
           "application/json": {
             aggregates: {
               failed: number;
+              historical: number;
               live: number;
               succeeded: number;
               terminal: number;
@@ -97710,6 +97711,7 @@ export interface operations {
               }[];
               /** Format: int64 */
               generation: number;
+              historical: boolean;
               id: string;
               inputs?: {
                 [key: string]: unknown;
@@ -98959,6 +98961,7 @@ export interface operations {
               }[];
               /** Format: int64 */
               generation: number;
+              historical: boolean;
               id: string;
               inputs?: {
                 [key: string]: unknown;
@@ -100468,6 +100471,7 @@ export interface operations {
               }[];
               /** Format: int64 */
               generation: number;
+              historical: boolean;
               id: string;
               inputs?: {
                 [key: string]: unknown;
@@ -111441,6 +111445,7 @@ export interface operations {
               }[];
               /** Format: int64 */
               generation: number;
+              historical: boolean;
               id: string;
               inputs?: {
                 [key: string]: unknown;
@@ -112092,6 +112097,7 @@ export interface operations {
               }[];
               /** Format: int64 */
               generation: number;
+              historical: boolean;
               id: string;
               inputs?: {
                 [key: string]: unknown;

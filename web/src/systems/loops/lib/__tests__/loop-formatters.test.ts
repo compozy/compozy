@@ -2,6 +2,7 @@ import type { PillTone } from "@compozy/ui";
 import { describe, expect, it } from "vitest";
 
 import {
+  isLiveLoopRun,
   isLoopRunStatus,
   isTerminalLoopStatus,
   loopStatusLabel,
@@ -59,6 +60,14 @@ describe("loop-formatters", () => {
     expect(terminal).toHaveLength(7);
     expect(isTerminalLoopStatus("running")).toBe(false);
     expect(isTerminalLoopStatus("queued")).toBe(false);
+  });
+
+  it("Should classify only mutable non-terminal runs as live", () => {
+    expect(isLiveLoopRun({ historical: false, status: "running" })).toBe(true);
+    expect(isLiveLoopRun({ historical: false, status: "queued" })).toBe(true);
+    expect(isLiveLoopRun({ historical: true, status: "running" })).toBe(false);
+    expect(isLiveLoopRun({ historical: false, status: "done" })).toBe(false);
+    expect(isLiveLoopRun(undefined)).toBe(false);
   });
 
   it("Should treat unknown or missing statuses as neutral, non-pulsing, non-terminal", () => {

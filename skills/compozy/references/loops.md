@@ -89,6 +89,11 @@ uses an opaque run-bound cursor. Follow attaches after the first page's `head_se
 handoff does not duplicate or skip events. A plain sequence beyond the current history returns the
 requested position and real `head_seq` with the stable `timeline_position_beyond_head` code.
 
+An imported snapshot carries `historical: true`. Historical rows remain visible in run reads, but the
+daemon never reconciles them as live work and control verbs reject them as read-only. List aggregates
+count them only in `historical`; `live`, `terminal`, `succeeded`, and `failed` describe daemon-managed
+runs.
+
 ## Typed Inputs
 
 The input grammar is closed to `string`, `number`, `boolean`, `file`, `agent`, `runtime`, and `ref`.

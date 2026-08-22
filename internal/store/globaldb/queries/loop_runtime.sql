@@ -31,15 +31,18 @@ SELECT q.id, q.workspace_id, q.loop_name, q.generation
 FROM loop_runs q
 WHERE q.workspace_id = sqlc.arg(workspace_id)
   AND q.loop_name = sqlc.arg(loop_name)
+  AND q.historical = 0
   AND q.status = 'queued'
   AND NOT EXISTS (
     SELECT 1 FROM loop_runs active
     WHERE active.workspace_id = q.workspace_id AND active.loop_name = q.loop_name
+      AND active.historical = 0
       AND active.status IN ('running', 'watching', 'needs-approval', 'paused')
   )
   AND NOT EXISTS (
     SELECT 1 FROM loop_runs older
     WHERE older.workspace_id = q.workspace_id AND older.loop_name = q.loop_name
+      AND older.historical = 0
       AND older.status = 'queued'
       AND (older.created_at < q.created_at OR (older.created_at = q.created_at AND older.id < q.id))
   )
@@ -49,6 +52,7 @@ ORDER BY q.created_at ASC, q.id ASC LIMIT 1;
 SELECT lr.id, lr.generation
 FROM loop_runs lr
 WHERE lr.status = 'running'
+  AND lr.historical = 0
   AND NOT EXISTS (
     SELECT 1 FROM task_runs tr
     WHERE tr.loop_run_id = lr.id AND tr.run_kind = 'coordinator'
@@ -60,14 +64,17 @@ ORDER BY lr.created_at ASC, lr.id ASC;
 SELECT q.id, q.workspace_id, q.loop_name, q.generation
 FROM loop_runs q
 WHERE q.status = 'queued'
+  AND q.historical = 0
   AND NOT EXISTS (
     SELECT 1 FROM loop_runs active
     WHERE active.workspace_id = q.workspace_id AND active.loop_name = q.loop_name
+      AND active.historical = 0
       AND active.status IN ('running', 'watching', 'needs-approval', 'paused')
   )
   AND NOT EXISTS (
     SELECT 1 FROM loop_runs older
     WHERE older.workspace_id = q.workspace_id AND older.loop_name = q.loop_name
+      AND older.historical = 0
       AND older.status = 'queued'
       AND (older.created_at < q.created_at OR (older.created_at = q.created_at AND older.id < q.id))
   )

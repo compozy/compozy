@@ -22,6 +22,9 @@ func (s *service) Pause(
 	if err != nil {
 		return err
 	}
+	if err := rejectHistoricalRunMutation(run); err != nil {
+		return err
+	}
 	if run.Status != StatusRunning {
 		return reasonError(
 			ReasonCodeInvalidStatusTransition,
@@ -46,6 +49,9 @@ func (s *service) Resume(
 	}
 	run, err := s.store.GetLoopRun(ctx, ws, runID)
 	if err != nil {
+		return err
+	}
+	if err := rejectHistoricalRunMutation(run); err != nil {
 		return err
 	}
 	switch run.Status {
@@ -89,6 +95,9 @@ func (s *service) Approve(
 	if err != nil {
 		return err
 	}
+	if err := rejectHistoricalRunMutation(run); err != nil {
+		return err
+	}
 	if run.Status != StatusNeedsApproval {
 		return reasonError(
 			ReasonCodeInvalidStatusTransition,
@@ -130,6 +139,29 @@ func (s *service) Approve(
 	default:
 		return fmt.Errorf("%w: gate decision is invalid: %q", ErrValidation, decision)
 	}
+}
+
+func rejectHistoricalRunMutation(run Run) error {
+	if !run.Historical {
+		return nil
+	}
+	return fmt.Errorf(
+		"%w: historical run %q is read-only",
+		ErrInvalidTransition,
+		run.ID,
+	)
+}
+
+func (s *service) requireMutableRun(
+	ctx context.Context,
+	workspaceID WorkspaceID,
+	runID RunID,
+) error {
+	run, err := s.store.GetLoopRun(ctx, workspaceID, runID)
+	if err != nil {
+		return err
+	}
+	return rejectHistoricalRunMutation(run)
 }
 
 func (s *service) reactivateCoordinatorControl(

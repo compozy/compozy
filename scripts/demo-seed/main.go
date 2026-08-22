@@ -9,7 +9,6 @@ import (
 	"io"
 	"os"
 	"os/signal"
-	"path/filepath"
 	"syscall"
 
 	"github.com/compozy/compozy/internal/config"
@@ -81,11 +80,11 @@ func run(ctx context.Context, args []string, stdout io.Writer, stderr io.Writer)
 }
 
 func defaultDemoHome() (string, error) {
-	userHome, err := os.UserHomeDir()
+	homeDir, err := config.ResolveHomeDir()
 	if err != nil {
-		return "", fmt.Errorf("demo seed: resolve user home: %w", err)
+		return "", fmt.Errorf("demo seed: resolve Compozy home: %w", err)
 	}
-	return filepath.Join(userHome, ".agh"), nil
+	return homeDir, nil
 }
 
 func printResult(output io.Writer, result demoseed.Result) error {

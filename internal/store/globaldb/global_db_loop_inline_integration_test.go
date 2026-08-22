@@ -478,12 +478,35 @@ func TestGlobalDBInlineGoalStartAndReplaceIntegration(t *testing.T) {
 		); err != nil {
 			t.Fatalf("CompareAndSwapLoopRunStatus(second) error = %v", err)
 		}
+		historical := inlineGoalRunForTest(
+			t,
+			"run-inline-terminal-history",
+			"ws-inline-terminal",
+			origin,
+			now.Add(4*time.Second),
+		)
+		historical.Status = looppkg.StatusDone
+		historical.Generation = 1
+		historyCommand, err := looppkg.NewRunHistoryImport(&looppkg.RunHistorySnapshot{
+			Run: historical,
+			Generations: []looppkg.RunHistoryGeneration{{
+				Intent:    looppkg.GenerationIntent{Generation: 1, Origin: looppkg.OriginInitial},
+				CreatedAt: historical.CreatedAt,
+			}},
+			Actor: actor,
+		})
+		if err != nil {
+			t.Fatalf("NewRunHistoryImport(session history) error = %v", err)
+		}
+		if err := globalDB.ImportRunHistory(ctx, &historyCommand); err != nil {
+			t.Fatalf("ImportRunHistory(session history) error = %v", err)
+		}
 
 		cleared, err := globalDB.ClearInlineGoal(ctx, looppkg.InlineGoalClearStoreRequest{
 			WorkspaceID:     "ws-inline-terminal",
 			OriginSessionID: origin.SessionID,
 			Actor:           actor,
-			ClearedAt:       now.Add(4 * time.Second),
+			ClearedAt:       now.Add(5 * time.Second),
 		})
 		if err != nil {
 			t.Fatalf("ClearInlineGoal(terminal) error = %v", err)
@@ -509,7 +532,7 @@ func TestGlobalDBInlineGoalStartAndReplaceIntegration(t *testing.T) {
 		if !projection.Cleared || projection.RunID != second.ID {
 			t.Fatalf("newest cleared projection = %#v, want second Run tombstone", projection)
 		}
-		var firstClearedAt, secondClearedAt sql.NullString
+		var firstClearedAt, secondClearedAt, historicalClearedAt sql.NullString
 		if err := globalDB.db.QueryRowContext(
 			ctx,
 			`SELECT goal_cleared_at FROM loop_runs WHERE id = ?`,
@@ -524,8 +547,20 @@ func TestGlobalDBInlineGoalStartAndReplaceIntegration(t *testing.T) {
 		).Scan(&secondClearedAt); err != nil {
 			t.Fatalf("load second clear tombstone error = %v", err)
 		}
-		if firstClearedAt.Valid || !secondClearedAt.Valid {
-			t.Fatalf("clear tombstones = first:%v second:%v", firstClearedAt.Valid, secondClearedAt.Valid)
+		if err := globalDB.db.QueryRowContext(
+			ctx,
+			`SELECT goal_cleared_at FROM loop_runs WHERE id = ?`,
+			string(historical.ID),
+		).Scan(&historicalClearedAt); err != nil {
+			t.Fatalf("load historical clear tombstone error = %v", err)
+		}
+		if firstClearedAt.Valid || !secondClearedAt.Valid || historicalClearedAt.Valid {
+			t.Fatalf(
+				"clear tombstones = first:%v second:%v historical:%v",
+				firstClearedAt.Valid,
+				secondClearedAt.Valid,
+				historicalClearedAt.Valid,
+			)
 		}
 	})
 }

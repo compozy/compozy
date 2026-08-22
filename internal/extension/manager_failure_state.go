@@ -110,10 +110,11 @@ func (m *Manager) recordOwnedInstanceFailure(
 	name := key.runtimeID()
 	if ext.consecutiveFailures >= m.restartFailureThreshold {
 		identity := managedInstanceIdentity{
-			key:          key.Normalize(),
-			owner:        ext,
-			generation:   ext.generation,
-			sessionNonce: ext.sessionNonce,
+			key:            key.Normalize(),
+			owner:          ext,
+			generation:     ext.generation,
+			sessionNonce:   ext.sessionNonce,
+			lifecycleToken: ext.info.lifecycleToken,
 		}
 		m.mu.Unlock()
 		if capabilityGrantID != "" {
@@ -173,20 +174,22 @@ func (m *Manager) disableInstance(key InstanceKey, reason error) {
 		return
 	}
 	identity := managedInstanceIdentity{
-		key:          key.Normalize(),
-		owner:        ext,
-		generation:   ext.generation,
-		sessionNonce: ext.sessionNonce,
+		key:            key.Normalize(),
+		owner:          ext,
+		generation:     ext.generation,
+		sessionNonce:   ext.sessionNonce,
+		lifecycleToken: ext.info.lifecycleToken,
 	}
 	m.mu.RUnlock()
 	m.disableOwnedInstance(identity, reason)
 }
 
 type managedInstanceIdentity struct {
-	key          InstanceKey
-	owner        *managedExtension
-	generation   int64
-	sessionNonce string
+	key            InstanceKey
+	owner          *managedExtension
+	generation     int64
+	sessionNonce   string
+	lifecycleToken string
 }
 
 func (m *Manager) disableOwnedInstance(identity managedInstanceIdentity, reason error) {
@@ -213,12 +216,6 @@ func (m *Manager) disableOwnedInstance(identity managedInstanceIdentity, reason 
 			reason = errors.Join(reason, err)
 		}
 	}
-	if identity.key.IsGlobal() && m.registry != nil {
-		if err := m.registry.Disable(identity.key.Name); err != nil {
-			reason = errors.Join(reason, err)
-		}
-	}
-
 	safeReason := safeExtensionFailure(reason)
 	m.mu.Lock()
 	if !m.matchesInstanceIdentityLocked(identity) {
@@ -239,13 +236,27 @@ func (m *Manager) disableOwnedInstance(identity managedInstanceIdentity, reason 
 	m.mu.Unlock()
 	runExtensionRedactionCleanups(cleanups)
 
+	if identity.key.IsGlobal() && m.registry != nil {
+		_, err := m.registry.DisableIfLifecycleToken(identity.key.Name, identity.lifecycleToken)
+		if err != nil {
+			reason = errors.Join(reason, err)
+			safeReason = safeExtensionFailure(reason)
+			m.mu.Lock()
+			current := m.instanceLocked(identity.key)
+			if current == identity.owner && current.generation == identity.generation {
+				current.lastError = safeReason
+			}
+			m.mu.Unlock()
+		}
+	}
+
 	m.reportBridgeRuntimeIssues(instanceIDs, bridgepkg.BridgeStatusError, errors.New(safeReason))
 }
 
 func (m *Manager) matchesInstanceIdentityLocked(identity managedInstanceIdentity) bool {
 	ext := m.instanceLocked(identity.key)
 	return ext == identity.owner && ext != nil && ext.generation == identity.generation &&
-		ext.sessionNonce == identity.sessionNonce
+		ext.sessionNonce == identity.sessionNonce && ext.info.lifecycleToken == identity.lifecycleToken
 }
 
 func safeExtensionFailure(err error) string {

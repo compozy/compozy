@@ -8,7 +8,7 @@ import type {
 } from "../types";
 import { type LoopNodeLifecycle, projectNodeLifecycles, waitingNodes } from "./loop-node-lifecycle";
 import type { LoopApprovalFact, LoopApprovalRequest, LoopRunLiveState } from "./loop-events";
-import { isTerminalLoopStatus } from "./loop-formatters";
+import { isLiveLoopRun } from "./loop-formatters";
 import { type LoopGraph, readLoopGraph } from "./loop-graph";
 import { type LoopRunInputRow, buildInputRows, humanizeStartOrigin } from "./loop-run-about";
 import { projectLoopRequest, type LoopRequestView } from "./loop-request-model";
@@ -88,7 +88,7 @@ export function projectLoopRunPageView(input: LoopRunPageViewInput): LoopRunPage
   return {
     effectiveRun,
     graph,
-    isLive: !isTerminalLoopStatus(run.status),
+    isLive: isLiveLoopRun(run),
     elapsedLabel: formatClockDuration(elapsedSeconds),
     usageRows: buildRunUsage(effectiveRun, elapsedSeconds),
     usageNote: usageNote(run),

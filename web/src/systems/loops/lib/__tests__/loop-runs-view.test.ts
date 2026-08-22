@@ -59,6 +59,27 @@ describe("buildRunsRoster", () => {
     expect(model.loadedCount).toBe(3);
   });
 
+  it("Should keep imported history in Recent without live attention or animation", () => {
+    const model = buildRunsRoster([
+      run({
+        id: "historical-running",
+        status: "running",
+        historical: true,
+        attention: { kind: "approval", count: 1, since: "2026-07-05T11:57:00Z" },
+        progress: { round: 3, steps_done: 2, steps_total: 6 },
+      }),
+    ]);
+
+    expect(model.groups.map(group => group.id)).toEqual(["recent"]);
+    expect(model.needsYouCount).toBe(0);
+    expect(model.groups[0].rows[0]).toMatchObject({
+      needsYou: false,
+      progressLabel: "3 rounds",
+      statusPulse: false,
+      summaryLine: null,
+    });
+  });
+
   it("Should preserve the server's order inside a group rather than sorting it", () => {
     const model = buildRunsRoster([
       run({ id: "second", status: "running" }),

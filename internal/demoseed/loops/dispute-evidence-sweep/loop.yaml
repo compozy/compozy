@@ -1,0 +1,80 @@
+apiVersion: compozy.loop/v1
+kind: Loop
+meta:
+  name: dispute-evidence-sweep
+  description: Import open dispute files and build one evidence bundle per dispute.
+  catalog:
+    use_when: "Open disputes need evidence bundles packaged before a partner review."
+    keywords: [disputes, evidence, bundles, files]
+    category: Risk
+
+concurrency: forbid
+
+inputs:
+  pattern:
+    type: string
+    default: "data/risk/disputes/*.json"
+
+contract:
+  goal: "Package one evidence bundle for every open dispute file."
+  definition_of_done: >
+    Every imported dispute file produced a bundle, and any file that could not be read is named.
+  iteration_cap: 2
+  no_progress:
+    window: 1
+  budget:
+    tokens: 30000
+    wall_clock_sec: 900
+    on_exceeded: halt
+  terminal_states: [done, no-op, blocked, failed, exhausted, stalled]
+
+graph:
+  nodes:
+    - id: dispute_files
+      class: source
+      kind: file-import
+      pattern: "data/risk/disputes/*.json"
+      parse: json
+
+    - id: bundle_fanout
+      class: control
+      kind: fan-out
+      collection: "{{ .nodes.dispute_files.output.items }}"
+      batch_size: 1
+      max_parallel: 6
+      max_fan_out: 32
+      bind_as: dispute
+
+    - id: build_bundle
+      class: action
+      kind: transform
+      params:
+        map:
+          bundle:
+            value: "evidence-{{ .dispute }}"
+          status:
+            value: "packaged"
+      produces:
+        bundle: string
+        status: string
+
+    - id: collect_bundles
+      class: control
+      kind: collect
+      strategy:
+        kind: wait_all
+
+  edges:
+    - from: dispute_files
+      to: bundle_fanout
+    - from: bundle_fanout
+      to: build_bundle
+    - from: build_bundle
+      to: collect_bundles
+
+start:
+  - kind: manual
+  - kind: cli
+  - kind: http
+  - kind: uds
+  - kind: native_tool

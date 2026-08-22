@@ -85,22 +85,10 @@ func (m *Manager) attemptPromptRecovery(
 			return false, nil
 		}
 
-		_, replayBlock, err := m.recoverPromptRuntime(recovery.executionCtx, session)
+		source, replayBlock, err := m.startRecoveredPrompt(recovery.executionCtx, session, recovery.request)
 		if err != nil {
-			session.recordAutomaticRecoveryFailure(err, m.now())
-			if persistErr := m.persistSessionLifecycleState(ctx, session, false); persistErr != nil {
-				return false, errors.Join(err, persistErr)
-			}
-			continue
-		}
-
-		request := clonePromptRecoveryRequest(recovery.request)
-		request.Message = promptWithResumeReplay(replayBlock, request.Message)
-		source, err := m.driver.Prompt(recovery.executionCtx, session.processHandle(), request)
-		if err != nil {
-			session.recordAutomaticRecoveryFailure(err, m.now())
-			if persistErr := m.persistSessionLifecycleState(ctx, session, false); persistErr != nil {
-				return false, errors.Join(err, persistErr)
+			if persistErr := m.persistPromptRecoveryFailure(ctx, session, err); persistErr != nil {
+				return false, persistErr
 			}
 			continue
 		}
@@ -130,6 +118,32 @@ func (m *Manager) attemptPromptRecovery(
 	}
 	recovery.exhaustedRecorded = true
 	return false, nil
+}
+
+func (m *Manager) persistPromptRecoveryFailure(ctx context.Context, session *Session, recoveryErr error) error {
+	session.recordAutomaticRecoveryFailure(recoveryErr, m.now())
+	if err := m.persistSessionLifecycleState(ctx, session, false); err != nil {
+		return errors.Join(recoveryErr, err)
+	}
+	return nil
+}
+
+func (m *Manager) startRecoveredPrompt(
+	ctx context.Context,
+	session *Session,
+	request acp.PromptRequest,
+) (<-chan acp.AgentEvent, string, error) {
+	_, replayBlock, err := m.recoverPromptRuntime(ctx, session)
+	if err != nil {
+		return nil, "", err
+	}
+	replayRequest := clonePromptRecoveryRequest(request)
+	replayRequest.Message = promptWithResumeReplay(replayBlock, replayRequest.Message)
+	source, err := m.driver.Prompt(ctx, session.processHandle(), replayRequest)
+	if err != nil {
+		return nil, "", err
+	}
+	return source, replayBlock, nil
 }
 
 func waitForPromptRecovery(ctx context.Context, delay time.Duration) error {
