@@ -5,6 +5,7 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"slices"
 	"strings"
 	"testing"
@@ -132,11 +133,13 @@ func TestPromptCoalescesRedundantToolUpdates(t *testing.T) {
 		if got, want := len(events), 1_101; got != want {
 			t.Fatalf("Prompt() event count = %d, want %d", got, want)
 		}
-		if got, want := events[0].ToolCallID, "tool-diverse-0000"; got != want {
-			t.Fatalf("first tool call id = %q, want %q", got, want)
-		}
-		if got, want := events[len(events)-2].ToolCallID, "tool-diverse-1099"; got != want {
-			t.Fatalf("last tool call id = %q, want %q", got, want)
+		for index := range 1_100 {
+			if got, want := events[index].Type, EventTypeToolCall; got != want {
+				t.Fatalf("event %d type = %q, want %q", index, got, want)
+			}
+			if got, want := events[index].ToolCallID, fmt.Sprintf("tool-diverse-%04d", index); got != want {
+				t.Fatalf("event %d tool call id = %q, want %q", index, got, want)
+			}
 		}
 		if got := events[len(events)-1].Type; got != EventTypeDone {
 			t.Fatalf("last event type = %q, want %q", got, EventTypeDone)

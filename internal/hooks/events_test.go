@@ -5,100 +5,104 @@ import "testing"
 const expectedHookEventCount = 104
 
 func TestAllHookEvents(t *testing.T) {
-	t.Parallel()
+	t.Run("Should expose a complete unique event taxonomy", func(t *testing.T) {
+		t.Parallel()
 
-	events := AllHookEvents()
-	// Assert the exact count so accidental taxonomy additions/removals are caught explicitly.
-	if len(events) != expectedHookEventCount {
-		t.Fatalf("len(AllHookEvents()) = %d, want %d", len(events), expectedHookEventCount)
-	}
+		events := AllHookEvents()
+		// Assert the exact count so accidental taxonomy additions/removals are caught explicitly.
+		if len(events) != expectedHookEventCount {
+			t.Fatalf("len(AllHookEvents()) = %d, want %d", len(events), expectedHookEventCount)
+		}
 
-	seen := make(map[HookEvent]struct{}, len(events))
-	for _, event := range events {
-		if event == "" {
-			t.Fatal("AllHookEvents() contains an empty event")
+		seen := make(map[HookEvent]struct{}, len(events))
+		for _, event := range events {
+			if event == "" {
+				t.Fatal("AllHookEvents() contains an empty event")
+			}
+			if err := event.Validate(); err != nil {
+				t.Fatalf("event.Validate() error = %v", err)
+			}
+			if _, ok := seen[event]; ok {
+				t.Fatalf("AllHookEvents() contains duplicate event %q", event)
+			}
+			seen[event] = struct{}{}
 		}
-		if err := event.Validate(); err != nil {
-			t.Fatalf("event.Validate() error = %v", err)
-		}
-		if _, ok := seen[event]; ok {
-			t.Fatalf("AllHookEvents() contains duplicate event %q", event)
-		}
-		seen[event] = struct{}{}
-	}
+	})
 }
 
 func TestSyncEligibleClassification(t *testing.T) {
-	t.Parallel()
+	t.Run("Should classify every hook event by dispatch mode", func(t *testing.T) {
+		t.Parallel()
 
-	asyncOnly := map[HookEvent]struct{}{
-		HookMessageDelta:                    {},
-		HookEventPreRecord:                  {},
-		HookEventPostRecord:                 {},
-		HookAutomationJobPostFire:           {},
-		HookAutomationTriggerPostFire:       {},
-		HookAutomationRunCompleted:          {},
-		HookAutomationRunFailed:             {},
-		HookSandboxReady:                    {},
-		HookSandboxSyncAfter:                {},
-		HookPermissionResolved:              {},
-		HookPermissionDenied:                {},
-		HookAgentSoulSnapshotResolved:       {},
-		HookAgentSoulMutationAfter:          {},
-		HookAgentHeartbeatPolicyResolved:    {},
-		HookAgentHeartbeatWakeAfter:         {},
-		HookSessionHealthUpdateAfter:        {},
-		HookSessionAttentionChanged:         {},
-		HookSessionRuntimeRecoveryStarted:   {},
-		HookSessionRuntimeRecoverySucceeded: {},
-		HookSessionRuntimeRecoveryExhausted: {},
-		HookNetworkPeerJoined:               {},
-		HookNetworkPeerLeft:                 {},
-		HookNetworkThreadOpened:             {},
-		HookNetworkDirectRoomOpened:         {},
-		HookNetworkMessagePersisted:         {},
-		HookNetworkWorkOpened:               {},
-		HookNetworkWorkTransitioned:         {},
-		HookNetworkWorkClosed:               {},
-		HookNetworkParticipationResolved:    {},
-		HookSessionMessagePersisted:         {},
-		HookTaskStatusChanged:               {},
-		HookLoopStarted:                     {},
-		HookLoopGenerationPost:              {},
-		HookLoopGatePost:                    {},
-		HookLoopNodeTerminal:                {},
-		HookLoopTerminal:                    {},
-		HookWindowManagerLayoutApplied:      {},
-		HookWindowManagerDesktopCreated:     {},
-		HookWindowManagerDesktopDeleted:     {},
-		HookWindowManagerWindowMoved:        {},
-		HookWindowManagerWindowOpened:       {},
-		HookWindowManagerWindowClosed:       {},
-		HookWindowManagerStackGrouped:       {},
-		HookWindowManagerStackUngrouped:     {},
-		HookWindowManagerStackActivated:     {},
-		HookWorktreeCreated:                 {},
-		HookWorktreeAdopted:                 {},
-		HookWorktreeRemoved:                 {},
-	}
-
-	if !HookSessionPreCreate.SyncEligible() {
-		t.Fatal("HookSessionPreCreate.SyncEligible() = false, want true")
-	}
-	if HookMessageDelta.SyncEligible() {
-		t.Fatal("HookMessageDelta.SyncEligible() = true, want false")
-	}
-
-	for _, event := range AllHookEvents() {
-		_, wantAsyncOnly := asyncOnly[event]
-		got := event.SyncEligible()
-		if wantAsyncOnly && got {
-			t.Fatalf("%s.SyncEligible() = true, want false", event)
+		asyncOnly := map[HookEvent]struct{}{
+			HookMessageDelta:                    {},
+			HookEventPreRecord:                  {},
+			HookEventPostRecord:                 {},
+			HookAutomationJobPostFire:           {},
+			HookAutomationTriggerPostFire:       {},
+			HookAutomationRunCompleted:          {},
+			HookAutomationRunFailed:             {},
+			HookSandboxReady:                    {},
+			HookSandboxSyncAfter:                {},
+			HookPermissionResolved:              {},
+			HookPermissionDenied:                {},
+			HookAgentSoulSnapshotResolved:       {},
+			HookAgentSoulMutationAfter:          {},
+			HookAgentHeartbeatPolicyResolved:    {},
+			HookAgentHeartbeatWakeAfter:         {},
+			HookSessionHealthUpdateAfter:        {},
+			HookSessionAttentionChanged:         {},
+			HookSessionRuntimeRecoveryStarted:   {},
+			HookSessionRuntimeRecoverySucceeded: {},
+			HookSessionRuntimeRecoveryExhausted: {},
+			HookNetworkPeerJoined:               {},
+			HookNetworkPeerLeft:                 {},
+			HookNetworkThreadOpened:             {},
+			HookNetworkDirectRoomOpened:         {},
+			HookNetworkMessagePersisted:         {},
+			HookNetworkWorkOpened:               {},
+			HookNetworkWorkTransitioned:         {},
+			HookNetworkWorkClosed:               {},
+			HookNetworkParticipationResolved:    {},
+			HookSessionMessagePersisted:         {},
+			HookTaskStatusChanged:               {},
+			HookLoopStarted:                     {},
+			HookLoopGenerationPost:              {},
+			HookLoopGatePost:                    {},
+			HookLoopNodeTerminal:                {},
+			HookLoopTerminal:                    {},
+			HookWindowManagerLayoutApplied:      {},
+			HookWindowManagerDesktopCreated:     {},
+			HookWindowManagerDesktopDeleted:     {},
+			HookWindowManagerWindowMoved:        {},
+			HookWindowManagerWindowOpened:       {},
+			HookWindowManagerWindowClosed:       {},
+			HookWindowManagerStackGrouped:       {},
+			HookWindowManagerStackUngrouped:     {},
+			HookWindowManagerStackActivated:     {},
+			HookWorktreeCreated:                 {},
+			HookWorktreeAdopted:                 {},
+			HookWorktreeRemoved:                 {},
 		}
-		if !wantAsyncOnly && !got {
-			t.Fatalf("%s.SyncEligible() = false, want true", event)
+
+		if !HookSessionPreCreate.SyncEligible() {
+			t.Fatal("HookSessionPreCreate.SyncEligible() = false, want true")
 		}
-	}
+		if HookMessageDelta.SyncEligible() {
+			t.Fatal("HookMessageDelta.SyncEligible() = true, want false")
+		}
+
+		for _, event := range AllHookEvents() {
+			_, wantAsyncOnly := asyncOnly[event]
+			got := event.SyncEligible()
+			if wantAsyncOnly && got {
+				t.Fatalf("%s.SyncEligible() = true, want false", event)
+			}
+			if !wantAsyncOnly && !got {
+				t.Fatalf("%s.SyncEligible() = false, want true", event)
+			}
+		}
+	})
 }
 
 func TestWorktreeHookEventsHaveExpectedContracts(t *testing.T) {

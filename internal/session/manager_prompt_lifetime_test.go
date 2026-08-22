@@ -73,11 +73,13 @@ func TestPromptCallerCancellationContract(t *testing.T) {
 			t.Fatalf("SendPrompt() error = %v", err)
 		}
 
-		drainCtx, cancelDrain := context.WithTimeout(testutil.Context(t), 5*time.Second)
-		defer cancelDrain()
-		if err := h.manager.WaitForPromptDrains(drainCtx); err != nil {
-			t.Fatalf("WaitForPromptDrains() error = %v, delivery consumer blocked execution", err)
-		}
+		waitForCondition(t, "provider burst persistence", func() bool {
+			if session.IsPrompting() {
+				return false
+			}
+			stored, queryErr := session.recorderHandle().Query(testutil.Context(t), store.EventQuery{})
+			return queryErr == nil && len(stored) == eventCount+2
+		})
 
 		events := collectEvents(t, result.Events)
 		if got, want := len(events), eventCount+1; got != want {
@@ -90,6 +92,9 @@ func TestPromptCallerCancellationContract(t *testing.T) {
 		}
 		if got := events[len(events)-1].Type; got != acp.EventTypeDone {
 			t.Fatalf("last event type = %q, want %q", got, acp.EventTypeDone)
+		}
+		if err := h.manager.WaitForPromptDrains(testutil.Context(t)); err != nil {
+			t.Fatalf("WaitForPromptDrains() error = %v", err)
 		}
 	})
 

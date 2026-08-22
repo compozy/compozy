@@ -22,9 +22,10 @@ type promptTurnDispatchState struct {
 }
 
 type promptRecoveryState struct {
-	executionCtx context.Context
-	request      acp.PromptRequest
-	attempts     int
+	executionCtx      context.Context
+	request           acp.PromptRequest
+	attempts          int
+	exhaustedRecorded bool
 }
 
 type promptMessageDispatchState struct {

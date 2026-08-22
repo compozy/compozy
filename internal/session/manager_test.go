@@ -478,10 +478,15 @@ func TestManagerWorkAdmission(t *testing.T) {
 			t.Fatalf("Create() error = %v, want ErrDraining", err)
 		}
 
-		request := h.driver.promptCalls[0]
+		h.driver.mu.Lock()
+		promptRequests := append([]acp.PromptRequest(nil), h.driver.promptCalls...)
+		h.driver.mu.Unlock()
+		if len(promptRequests) == 0 {
+			t.Fatal("driver Prompt() requests = 0, want the admitted prompt")
+		}
 		source <- acp.AgentEvent{
 			Type:             acp.EventTypeDone,
-			TurnID:           request.TurnID,
+			TurnID:           promptRequests[0].TurnID,
 			Timestamp:        time.Now().UTC(),
 			StopReason:       string(acp.PromptStopReasonEndTurn),
 			PromptStopReason: acp.PromptStopReasonEndTurn,

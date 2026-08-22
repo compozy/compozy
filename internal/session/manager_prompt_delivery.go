@@ -31,15 +31,17 @@ func (m *Manager) openDurablePromptDelivery(
 
 	out := make(chan acp.AgentEvent, m.promptBufSize)
 	persistenceDone := make(chan struct{})
-	go m.runDurablePromptDelivery(
-		deliveryCtx,
-		session,
-		turnID,
-		persisted,
-		unsubscribe,
-		persistenceDone,
-		out,
-	)
+	m.startTrackedPromptTask(func() {
+		m.runDurablePromptDelivery(
+			deliveryCtx,
+			session,
+			turnID,
+			persisted,
+			unsubscribe,
+			persistenceDone,
+			out,
+		)
+	})
 	return durablePromptDelivery{events: out, persistenceDone: persistenceDone, cancel: cancel}, nil
 }
 

@@ -301,39 +301,41 @@ func TestPrepareProviderForStartExposesAuthMetadataAndIsolatedHome(t *testing.T)
 }
 
 func TestResolveProviderNativeCLIUsesFinalLaunchEnvironment(t *testing.T) {
-	t.Parallel()
-	if runtime.GOOS == "windows" {
-		t.Skip("executable symlink fixture requires Unix semantics")
-	}
+	t.Run("Should resolve the native CLI from the final launch environment", func(t *testing.T) {
+		t.Parallel()
+		if runtime.GOOS == "windows" {
+			t.Skip("executable symlink fixture requires Unix semantics")
+		}
 
-	binDir := t.TempDir()
-	testExecutable, err := os.Executable()
-	if err != nil {
-		t.Fatalf("os.Executable() error = %v", err)
-	}
-	claudeExecutable := filepath.Join(binDir, "claude")
-	if err := os.Symlink(testExecutable, claudeExecutable); err != nil {
-		t.Fatalf("Symlink(claude executable) error = %v", err)
-	}
+		binDir := t.TempDir()
+		testExecutable, err := os.Executable()
+		if err != nil {
+			t.Fatalf("os.Executable() error = %v", err)
+		}
+		claudeExecutable := filepath.Join(binDir, "claude")
+		if err := os.Symlink(testExecutable, claudeExecutable); err != nil {
+			t.Fatalf("Symlink(claude executable) error = %v", err)
+		}
 
-	opts, err := resolveProviderNativeCLI(
-		testutil.Context(t),
-		compozyconfig.ResolvedAgent{
-			Provider: "claude",
-			Command:  "npx -y @agentclientprotocol/claude-agent-acp@latest",
-		},
-		acp.StartOpts{
-			Command: "npx -y @agentclientprotocol/claude-agent-acp@latest",
-			Cwd:     t.TempDir(),
-			Env:     []string{"PATH=" + binDir},
-		},
-	)
-	if err != nil {
-		t.Fatalf("resolveProviderNativeCLI() error = %v", err)
-	}
-	if got := envValue(opts.Env, "CLAUDE_CODE_EXECUTABLE"); got != claudeExecutable {
-		t.Fatalf("CLAUDE_CODE_EXECUTABLE = %q, want %q", got, claudeExecutable)
-	}
+		opts, err := resolveProviderNativeCLI(
+			testutil.Context(t),
+			compozyconfig.ResolvedAgent{
+				Provider: "claude",
+				Command:  "npx -y @agentclientprotocol/claude-agent-acp@latest",
+			},
+			acp.StartOpts{
+				Command: "npx -y @agentclientprotocol/claude-agent-acp@latest",
+				Cwd:     t.TempDir(),
+				Env:     []string{"PATH=" + binDir},
+			},
+		)
+		if err != nil {
+			t.Fatalf("resolveProviderNativeCLI() error = %v", err)
+		}
+		if got := envValue(opts.Env, "CLAUDE_CODE_EXECUTABLE"); got != claudeExecutable {
+			t.Fatalf("CLAUDE_CODE_EXECUTABLE = %q, want %q", got, claudeExecutable)
+		}
+	})
 }
 
 func TestPrepareProviderForStartInjectsSecretsAndMaterializesPiRuntime(t *testing.T) {

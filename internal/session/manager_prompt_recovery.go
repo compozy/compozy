@@ -61,6 +61,9 @@ func (m *Manager) attemptPromptRecovery(
 	}
 
 	maxAttempts := len(m.promptRecoveryDelays)
+	if maxAttempts == 0 || recovery.exhaustedRecorded {
+		return false, nil
+	}
 	for recovery.attempts < maxAttempts {
 		attempt := recovery.attempts + 1
 		delay := m.promptRecoveryDelays[recovery.attempts]
@@ -125,6 +128,7 @@ func (m *Manager) attemptPromptRecovery(
 	); err != nil {
 		return false, err
 	}
+	recovery.exhaustedRecorded = true
 	return false, nil
 }
 
