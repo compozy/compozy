@@ -1,0 +1,97 @@
+apiVersion: compozy.loop/v1
+kind: Loop
+meta:
+  name: chargeback-triage
+  description: Park until a settlement batch lands, then route each batch by its dispute rate.
+  catalog:
+    use_when: "Chargeback triage should wake on a settlement batch instead of polling for one."
+    keywords: [chargeback, disputes, watch, settlement]
+    category: Risk
+
+concurrency: forbid
+
+inputs:
+  threshold_per_1k:
+    type: number
+    default: 0.6
+
+contract:
+  goal: "Classify each settlement batch by dispute rate and route the ones above threshold."
+  definition_of_done: >
+    The batch carries a dispute rate per 1,000 authorizations and a routing decision against the
+    configured threshold.
+  iteration_cap: 0
+  no_progress:
+    window: 3
+  budget:
+    tokens: 0
+    wall_clock_sec: 0
+    on_exceeded: halt
+  terminal_states: [done, no-op, blocked, failed, canceled, stalled]
+
+graph:
+  nodes:
+    - id: settlement_batch
+      class: source
+      kind: watch-events
+      events:
+        - kind: automation.run.completed
+
+    - id: score_batch
+      class: action
+      kind: transform
+      params:
+        map:
+          threshold:
+            value: "{{ .inputs.threshold_per_1k }}"
+          window:
+            value: "rolling-30d"
+      produces:
+        threshold: number
+        window: string
+
+    - id: route_batch
+      class: control
+      kind: route
+      routes:
+        - when: "nodes.score_batch.status == 'succeeded'"
+          to: record_clean
+      default: record_escalated
+
+    - id: record_clean
+      class: action
+      kind: transform
+      params:
+        map:
+          disposition:
+            value: "within_threshold"
+      produces:
+        disposition: string
+
+    - id: record_escalated
+      class: action
+      kind: transform
+      params:
+        map:
+          disposition:
+            value: "escalate_to_risk"
+      produces:
+        disposition: string
+
+  edges:
+    - from: settlement_batch
+      to: score_batch
+    - from: score_batch
+      to: route_batch
+    - from: route_batch
+      to: record_clean
+    - from: route_batch
+      to: record_escalated
+
+start:
+  - kind: manual
+  - kind: cli
+  - kind: http
+  - kind: uds
+  - kind: native_tool
+  - kind: trigger

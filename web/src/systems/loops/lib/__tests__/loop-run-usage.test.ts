@@ -28,6 +28,18 @@ describe("runElapsedSeconds", () => {
     expect(runElapsedSeconds({ ...base, status: "watching" }, now)).toBe(18 * 60);
     expect(runElapsedSeconds({ ...base, status: "failed" }, now)).toBe(18 * 60);
   });
+
+  it("Should freeze imported running history at its durable recorded span", () => {
+    const historical = run({
+      status: "running",
+      historical: true,
+      created_at: "2026-07-22T14:00:00Z",
+      started_at: "2026-07-22T14:10:00Z",
+      last_progress_at: "2026-07-22T14:18:00Z",
+    });
+
+    expect(runElapsedSeconds(historical, Date.parse("2026-07-22T15:00:00Z"))).toBe(18 * 60);
+  });
 });
 
 describe("terminalRunElapsedSeconds", () => {
@@ -151,6 +163,7 @@ describe("usageNote", () => {
       "stops as exhausted"
     );
     expect(usageNote(run({ status: "failed" }))).toBeNull();
+    expect(usageNote(run({ status: "running", historical: true }))).toBeNull();
   });
 });
 

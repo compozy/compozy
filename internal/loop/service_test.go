@@ -1192,6 +1192,27 @@ func TestServiceStartShouldEnforceConcurrencyAndAncestry(t *testing.T) {
 func TestServiceControlMethodsShouldPreserveStatusContracts(t *testing.T) {
 	t.Parallel()
 
+	t.Run("Should reject run and node mutations against imported history", func(t *testing.T) {
+		t.Parallel()
+
+		store := newFakeLoopStore()
+		run := seedFakeRun(store, loop.StatusRunning)
+		run.Historical = true
+		store.seed(run)
+		svc := newTestService(t, store, validDefinition())
+		actor := humanActor(t)
+
+		if err := svc.Pause(context.Background(), "ws-1", run.ID, actor); !errors.Is(err, loop.ErrInvalidTransition) {
+			t.Fatalf("Pause(historical) error = %v, want ErrInvalidTransition", err)
+		}
+		nodes := svc.(loop.NodeLifecycleService)
+		if _, err := nodes.PauseNode(
+			context.Background(), "ws-1", run.ID, "worker", nil, loop.NodePauseCancel, "repair", actor,
+		); !errors.Is(err, loop.ErrInvalidTransition) {
+			t.Fatalf("PauseNode(historical) error = %v, want ErrInvalidTransition", err)
+		}
+	})
+
 	t.Run("Should pause by setting intent without changing status", func(t *testing.T) {
 		t.Parallel()
 
@@ -3226,6 +3247,7 @@ func TestServiceNodePauseShouldRetryCancellationDelivery(t *testing.T) {
 	t.Parallel()
 
 	base := newFakeLoopStore()
+	base.seed(loop.Run{ID: "run-1", WorkspaceID: "ws-1", Status: loop.StatusRunning})
 	store := &nodePauseRetryStore{Store: base}
 	deliveries := 0
 	svc := newTestServiceWithOptions(

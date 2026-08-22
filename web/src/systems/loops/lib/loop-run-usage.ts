@@ -32,10 +32,13 @@ function ratioTone(ratio: number): LoopUsageTone {
 }
 
 export function runElapsedSeconds(
-  run: Pick<LoopRunRecord, "status" | "started_at" | "created_at" | "last_progress_at">,
+  run: Pick<
+    LoopRunRecord,
+    "status" | "historical" | "started_at" | "created_at" | "last_progress_at"
+  >,
   nowMs: number
 ): number {
-  if (run.status === "running") {
+  if (run.status === "running" && !run.historical) {
     const started = Date.parse(run.started_at);
     if (Number.isNaN(started)) return 0;
     return Math.max(0, Math.round((nowMs - started) / 1000));
@@ -136,6 +139,7 @@ export function buildRunUsage(run: LoopRunRecord, elapsedSeconds: number): LoopR
 }
 
 export function usageNote(run: LoopRunRecord): string | null {
+  if (run.historical) return null;
   if (isTerminalLoopStatus(run.status)) return null;
   if (run.status === "watching") {
     return "Watching costs nothing — time only counts while the run is working.";

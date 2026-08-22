@@ -937,6 +937,7 @@ type LoopRun struct {
 	WorkspaceID              string          `json:"workspace_id"`
 	LoopName                 string          `json:"loop_name"`
 	Status                   string          `json:"status"`
+	Historical               int64           `json:"historical"`
 	CompletionState          string          `json:"completion_state"`
 	ForkedFromRunID          sql.NullString  `json:"forked_from_run_id"`
 	ForkedFromGeneration     sql.NullInt64   `json:"forked_from_generation"`

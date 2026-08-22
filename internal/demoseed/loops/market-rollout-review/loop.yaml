@@ -1,0 +1,119 @@
+apiVersion: compozy.loop/v1
+kind: Loop
+meta:
+  name: market-rollout-review
+  description: Review every candidate rollout market in parallel and settle on one ordered promotion plan.
+  catalog:
+    use_when: "Several markets are competing for the same rollout window and need one ranked plan."
+    keywords: [rollout, markets, review, fan-out]
+    category: Operations
+
+concurrency: queue
+
+inputs:
+  markets:
+    type: string
+    required: true
+  reviewer:
+    type: agent
+    default: product-lead
+
+contract:
+  goal: "Rank the candidate markets in {{ .inputs.markets }} into one ordered promotion plan."
+  definition_of_done: >
+    Every candidate market carries a verdict and a reason, and the ranked plan names which market
+    promotes first.
+  iteration_cap: 2
+  no_progress:
+    window: 1
+  budget:
+    tokens: 120000
+    wall_clock_sec: 3600
+    on_exceeded: escalate
+  terminal_states: [done, no-op, blocked, failed, exhausted, stalled]
+
+graph:
+  nodes:
+    - id: markets_input
+      class: source
+      kind: input
+      input_ref: markets
+
+    - id: split_markets
+      class: action
+      kind: transform
+      params:
+        map:
+          markets:
+            value: "{{ .inputs.markets }}"
+      produces:
+        markets: string
+
+    - id: review_fanout
+      class: control
+      kind: fan-out
+      collection: "{{ .nodes.split_markets.output.markets }}"
+      batch_size: 1
+      max_parallel: 4
+      max_fan_out: 64
+      bind_as: market
+      index_as: market_index
+
+    - id: review_market
+      class: action
+      kind: run-agent
+      params:
+        agent: "{{ .inputs.reviewer }}"
+        prompt: |
+          Review rollout readiness for market {{ .market }}. Return a verdict, a one-sentence
+          reason, and the evidence gap that would change the verdict.
+        output_schema:
+          type: object
+          required: [verdict, reason]
+          properties:
+            verdict:
+              enum: [promote, hold, rollback]
+            reason:
+              type: string
+            evidence_gap:
+              type: string
+      timeout: 15m
+      retry:
+        max_attempts: 2
+
+    - id: collect_reviews
+      class: control
+      kind: collect
+      strategy:
+        kind: best_effort
+        threshold: "75%"
+        missing: acceptable
+
+    - id: promotion_gate
+      class: control
+      kind: gate
+      criteria:
+        - id: ordered_plan
+          type: agent-judge
+          agent: "{{ .inputs.reviewer }}"
+          rubric: >
+            The plan orders every reviewed market and names which one promotes first.
+
+  edges:
+    - from: markets_input
+      to: split_markets
+    - from: split_markets
+      to: review_fanout
+    - from: review_fanout
+      to: review_market
+    - from: review_market
+      to: collect_reviews
+    - from: collect_reviews
+      to: promotion_gate
+
+start:
+  - kind: manual
+  - kind: cli
+  - kind: http
+  - kind: uds
+  - kind: native_tool

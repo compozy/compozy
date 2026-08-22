@@ -543,6 +543,7 @@ CREATE TABLE loop_runs (
 			workspace_id         TEXT NOT NULL,
 			loop_name            TEXT NOT NULL,
 			status               TEXT NOT NULL,
+			historical           INTEGER NOT NULL DEFAULT 0 CHECK (historical IN (0, 1)),
 			completion_state     TEXT NOT NULL DEFAULT 'complete'
 				CHECK (completion_state IN ('complete','partial')),
 			forked_from_run_id   TEXT,

@@ -26,6 +26,7 @@ function buildReleaseTrainRun(
     workspace_id: WORKSPACE_ID,
     loop_name: RELEASE_TRAIN_LOOP_NAME,
     completion_state: "complete",
+    historical: false,
     generation: 3,
     iteration_cap: 20,
     tokens_used: 214_000,

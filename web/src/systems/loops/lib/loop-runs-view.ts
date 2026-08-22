@@ -2,8 +2,8 @@ import type { PillTone } from "@compozy/ui";
 
 import type { LoopRun, LoopRunStatus } from "../types";
 import {
+  isLiveLoopRun,
   isLoopRunStatus,
-  isTerminalLoopStatus,
   loopStatusLabel,
   loopStatusSignal,
 } from "./loop-formatters";
@@ -80,8 +80,8 @@ const GROUP_ORDER: readonly LoopRunGroupId[] = ["needs-you", "active", "recent"]
 
 function groupOf(run: LoopRun): LoopRunGroupId {
   // Attention is a served summary, not something the page infers from status.
-  if (run.attention) return "needs-you";
-  return isTerminalLoopStatus(run.status) ? "recent" : "active";
+  if (!run.historical && run.attention) return "needs-you";
+  return isLiveLoopRun(run) ? "active" : "recent";
 }
 
 /**
@@ -105,6 +105,7 @@ const ATTENTION_SUMMARIES: Record<string, string> = {
 };
 
 function summaryLine(run: LoopRun): string | null {
+  if (run.historical) return null;
   const attention = run.attention;
   if (attention) {
     const base = ATTENTION_SUMMARIES[attention.kind] ?? "waiting on you";
@@ -117,7 +118,7 @@ function summaryLine(run: LoopRun): string | null {
 
 function progressLabel(run: LoopRun): string {
   const progress = run.progress;
-  if (isTerminalLoopStatus(run.status)) {
+  if (!isLiveLoopRun(run)) {
     const rounds = Math.max(progress.round, 1);
     return rounds === 1 ? "1 round" : `${rounds} rounds`;
   }
@@ -128,7 +129,7 @@ function progressLabel(run: LoopRun): string {
 }
 
 function buildRow(run: LoopRun): LoopRunRow {
-  const needsYou = Boolean(run.attention);
+  const needsYou = !run.historical && Boolean(run.attention);
   const signal = loopStatusSignal(run.status);
   return {
     run,
@@ -136,7 +137,7 @@ function buildRow(run: LoopRun): LoopRunRow {
     // that produced it.
     statusLabel: needsYou ? "Needs you" : loopStatusLabel(run.status),
     statusTone: needsYou ? "warning" : signal.tone,
-    statusPulse: needsYou ? false : signal.pulse,
+    statusPulse: run.historical || needsYou ? false : signal.pulse,
     needsYou,
     summaryLine: summaryLine(run),
     progressLabel: progressLabel(run),

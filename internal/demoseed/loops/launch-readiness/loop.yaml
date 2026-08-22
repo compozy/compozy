@@ -1,0 +1,95 @@
+apiVersion: compozy.loop/v1
+kind: Loop
+meta:
+  name: launch-readiness
+  description: Turn current launch evidence into a bounded checkout rollout decision for one market.
+  catalog:
+    use_when: "A checkout market needs a go, hold, or rollback recommendation."
+    keywords: [checkout, launch, readiness, payments]
+    category: Operations
+
+concurrency: forbid
+
+inputs:
+  market:
+    type: string
+    required: true
+  reviewer:
+    type: agent
+    default: product-lead
+
+contract:
+  goal: "Return a rollout decision for {{ .inputs.market }} from current launch evidence."
+  definition_of_done: >
+    The market has an explicit decision, a rollout size, and a rollback threshold, and every
+    blocking gap is named with its owner.
+  iteration_cap: 3
+  no_progress:
+    window: 2
+  budget:
+    tokens: 40000
+    wall_clock_sec: 900
+    on_exceeded: halt
+  terminal_states: [done, no-op, blocked, failed, exhausted, stalled]
+
+graph:
+  nodes:
+    - id: market_input
+      class: source
+      kind: input
+      input_ref: market
+
+    - id: assess
+      class: action
+      kind: run-agent
+      params:
+        agent: "{{ .inputs.reviewer }}"
+        prompt: |
+          Reconcile partner replay coverage, compliance copy status, and support readiness for
+          {{ .inputs.market }}. Return a decision, a rollout percentage, a rollback threshold, and
+          every blocking gap with its owner.
+        output_schema:
+          type: object
+          required: [decision, rollout_percent, rollback_threshold, blocking]
+          properties:
+            decision:
+              enum: [go, hold, rollback]
+            rollout_percent:
+              type: integer
+            rollback_threshold:
+              type: string
+            blocking:
+              type: array
+      timeout: 20m
+      retry:
+        max_attempts: 2
+
+    - id: has_blockers
+      class: control
+      kind: branch
+      condition: "size(nodes.assess.output.blocking) > 0"
+
+    - id: decision_gate
+      class: control
+      kind: gate
+      criteria:
+        - id: rollback_threshold_present
+          type: agent-judge
+          agent: "{{ .inputs.reviewer }}"
+          rubric: >
+            The recommendation names a metric, a limit, and a time window that would reverse it.
+
+  edges:
+    - from: market_input
+      to: assess
+    - from: assess
+      to: has_blockers
+    - from: has_blockers
+      to: decision_gate
+
+start:
+  - kind: manual
+  - kind: cli
+  - kind: http
+  - kind: uds
+  - kind: native_tool

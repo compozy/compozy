@@ -2,7 +2,7 @@ import { Activity, AlertCircle } from "lucide-react";
 
 import { useNavigate } from "@tanstack/react-router";
 
-import { Empty, Spinner, useTopbarSlot } from "@compozy/ui";
+import { Empty, Pill, Spinner, useTopbarSlot } from "@compozy/ui";
 import { loopRunsTrail } from "./loop-window-crumbs";
 import { useLoopRunDetail } from "./use-loop-run-detail";
 
@@ -131,9 +131,16 @@ function LoopRunDetail({
       runId,
     }),
     status: page.run ? (
-      <LoopStatusPill status={page.run.status} data-testid="loop-run-status-pill" />
+      <span className="flex items-center gap-2">
+        <LoopStatusPill status={page.run.status} data-testid="loop-run-status-pill" />
+        {page.run.historical ? (
+          <Pill data-testid="loop-run-history-pill" size="xs" tone="neutral">
+            History
+          </Pill>
+        ) : null}
+      </span>
     ) : undefined,
-    actions: page.run ? (
+    actions: page.run && !page.run.historical ? (
       <div className="flex items-center gap-2">
         <LoopRunControls
           status={page.run.status}
@@ -215,14 +222,18 @@ function LoopRunDetail({
         inspect={{ open: dialogs.inspectOpen, onOpenChange: dialogs.setInspectOpen }}
         pendingAction={page.pendingAction}
         nodeLifecycles={page.nodeLifecycles}
-        renderNodeActions={node => (
-          <LoopNodeRowActions
-            node={node}
-            onVerb={nodeControls.onVerb}
-            runStatus={page.run?.status}
-            timetravel={nodeControls.timetravelFor(node)}
-          />
-        )}
+        renderNodeActions={
+          page.effectiveRun.historical
+            ? undefined
+            : node => (
+                <LoopNodeRowActions
+                  node={node}
+                  onVerb={nodeControls.onVerb}
+                  runStatus={page.run?.status}
+                  timetravel={nodeControls.timetravelFor(node)}
+                />
+              )
+        }
         onOpenQuarantine={nodeControls.openQuarantine}
         onDecision={page.handleDecision}
         requests={page.requests}

@@ -4973,6 +4973,89 @@ func TestGlobalDBLoopRunCreateShouldSeedInitialCoordinator(t *testing.T) {
 func TestGlobalDBLoopHistoryShouldPersistMachineFacts(t *testing.T) {
 	t.Parallel()
 
+	t.Run("Should import immutable history and refuse to delete runtime state", func(t *testing.T) {
+		t.Parallel()
+
+		globalDB := openLoopTestGlobalDB(t, "ws-1")
+		ctx := testutil.Context(t)
+		now := time.Date(2026, 8, 22, 12, 0, 0, 0, time.UTC)
+		live := testLoopRun("looprun-live-delete-guard", now, looppkg.StatusRunning)
+		if _, err := globalDB.CreateLoopRunForStart(ctx, live, dsl.ConcurrencyAllow); err != nil {
+			t.Fatalf("CreateLoopRunForStart() error = %v", err)
+		}
+		if err := globalDB.DeleteRunHistory(ctx, live.WorkspaceID, live.ID); !errors.Is(
+			err,
+			looppkg.ErrInvalidTransition,
+		) {
+			t.Fatalf("DeleteRunHistory(live) error = %v, want ErrInvalidTransition", err)
+		}
+		if _, err := globalDB.GetLoopRun(ctx, live.WorkspaceID, live.ID); err != nil {
+			t.Fatalf("GetLoopRun(live after guarded delete) error = %v", err)
+		}
+
+		historical := testLoopRun(
+			"looprun-imported-history",
+			now.Add(time.Minute),
+			looppkg.StatusFailed,
+		)
+		historical.Generation = 1
+		actor, err := taskpkg.DeriveHumanActorContext(
+			"operator",
+			taskpkg.OriginKindCLI,
+			"seed history",
+		)
+		if err != nil {
+			t.Fatalf("DeriveHumanActorContext() error = %v", err)
+		}
+		command, err := looppkg.NewRunHistoryImport(&looppkg.RunHistorySnapshot{
+			Run: historical,
+			Generations: []looppkg.RunHistoryGeneration{{
+				Intent:    looppkg.GenerationIntent{Generation: 1, Origin: looppkg.OriginInitial},
+				CreatedAt: historical.CreatedAt,
+			}},
+			Actor: actor,
+		})
+		if err != nil {
+			t.Fatalf("NewRunHistoryImport() error = %v", err)
+		}
+		if err := globalDB.ImportRunHistory(ctx, &command); err != nil {
+			t.Fatalf("ImportRunHistory() error = %v", err)
+		}
+		persisted, err := globalDB.GetLoopRun(ctx, historical.WorkspaceID, historical.ID)
+		if err != nil {
+			t.Fatalf("GetLoopRun(historical) error = %v", err)
+		}
+		if !persisted.Historical || persisted.Status != looppkg.StatusFailed {
+			t.Fatalf("GetLoopRun(historical) = %#v, want imported failed history", persisted)
+		}
+		liveOnly := true
+		runs, err := globalDB.ListLoopRuns(ctx, looppkg.RunListQuery{
+			WorkspaceID: historical.WorkspaceID,
+			Live:        &liveOnly,
+			Limit:       20,
+		})
+		if err != nil {
+			t.Fatalf("ListLoopRuns(live) error = %v", err)
+		}
+		if len(runs) != 1 || runs[0].ID != live.ID {
+			t.Fatalf("ListLoopRuns(live) = %#v, want only runtime run %q", runs, live.ID)
+		}
+		if err := globalDB.DeleteRunHistory(ctx, historical.WorkspaceID, historical.ID); err != nil {
+			t.Fatalf("DeleteRunHistory(historical) error = %v", err)
+		}
+		var count int
+		if err := globalDB.db.QueryRowContext(
+			ctx,
+			`SELECT COUNT(*) FROM loop_runs WHERE id = ?`,
+			historical.ID,
+		).Scan(&count); err != nil {
+			t.Fatalf("count deleted history error = %v", err)
+		}
+		if count != 0 {
+			t.Fatalf("deleted historical runs = %d, want 0", count)
+		}
+	})
+
 	t.Run("Should scope deterministic generation and verdict history to its workspace", func(t *testing.T) {
 		t.Parallel()
 

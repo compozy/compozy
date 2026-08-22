@@ -1,0 +1,81 @@
+apiVersion: compozy.loop/v1
+kind: Loop
+meta:
+  name: partner-settlement-audit
+  description: Audit one partner settlement window and hold the result behind an explicit human sign-off.
+  catalog:
+    use_when: "A partner settlement window needs an audit that an operator has to sign off on."
+    keywords: [settlement, partner, audit, approval]
+    category: Engineering
+
+concurrency: forbid
+
+inputs:
+  partner:
+    type: string
+    required: true
+  auditor:
+    type: agent
+    default: platform-engineer
+
+contract:
+  goal: "Audit the current {{ .inputs.partner }} settlement window and get it signed off."
+  definition_of_done: >
+    The audit reports batch coverage and drift, and an operator has explicitly approved or
+    rejected the result.
+  iteration_cap: 2
+  no_progress:
+    window: 1
+  budget:
+    tokens: 60000
+    wall_clock_sec: 1800
+    on_exceeded: halt
+  terminal_states: [done, no-op, blocked, failed, exhausted, stalled]
+
+graph:
+  nodes:
+    - id: partner_input
+      class: source
+      kind: input
+      input_ref: partner
+
+    - id: audit
+      class: action
+      kind: run-agent
+      params:
+        agent: "{{ .inputs.auditor }}"
+        prompt: |
+          Reconcile the current {{ .inputs.partner }} settlement window. Report batch coverage,
+          settlement drift, and any export gap with its exact time range.
+        output_schema:
+          type: object
+          required: [batches, drift]
+          properties:
+            batches:
+              type: integer
+            drift:
+              type: number
+            gap:
+              type: string
+      timeout: 25m
+
+    - id: operator_signoff
+      class: control
+      kind: gate
+      criteria:
+        - id: settlement_signoff
+          type: human
+          prompt: "Approve this settlement audit for the release window?"
+
+  edges:
+    - from: partner_input
+      to: audit
+    - from: audit
+      to: operator_signoff
+
+start:
+  - kind: manual
+  - kind: cli
+  - kind: http
+  - kind: uds
+  - kind: native_tool

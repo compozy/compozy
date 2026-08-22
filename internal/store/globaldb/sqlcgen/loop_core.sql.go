@@ -41,9 +41,10 @@ func (q *Queries) DeleteLoopUIAnnotations(ctx context.Context, arg DeleteLoopUIA
 }
 
 const findActiveLoopRun = `-- name: FindActiveLoopRun :one
-SELECT id, workspace_id, loop_name, status, completion_state, forked_from_run_id, forked_from_generation, generation, reattempt_strategy, last_progress_at, budget_tokens, budget_wall_sec, budget_on_exceeded, tokens_used, parent_loop_run_id, pause_requested, inputs_json, created_at, iteration_cap, started_by_kind, started_by_ref, started_origin_kind, started_origin_ref, started_at, definition_version, definition_digest, active_gate_id, active_human_criteria_json, budget_approval_seq, start_metadata_json, origin_kind, origin_session_id, goal_cleared_at, budget_version, goal_context_nudge_ratio, control_actor_kind, control_actor_id, control_requested_at, origin_creation_profile_ref, origin_policy_spec_digest, origin_creation_digest, network_spec_json, network_mode, network_channel, network_source, best_generation, best_score, cancel_requested, cancel_kind FROM loop_runs
+SELECT id, workspace_id, loop_name, status, historical, completion_state, forked_from_run_id, forked_from_generation, generation, reattempt_strategy, last_progress_at, budget_tokens, budget_wall_sec, budget_on_exceeded, tokens_used, parent_loop_run_id, pause_requested, inputs_json, created_at, iteration_cap, started_by_kind, started_by_ref, started_origin_kind, started_origin_ref, started_at, definition_version, definition_digest, active_gate_id, active_human_criteria_json, budget_approval_seq, start_metadata_json, origin_kind, origin_session_id, goal_cleared_at, budget_version, goal_context_nudge_ratio, control_actor_kind, control_actor_id, control_requested_at, origin_creation_profile_ref, origin_policy_spec_digest, origin_creation_digest, network_spec_json, network_mode, network_channel, network_source, best_generation, best_score, cancel_requested, cancel_kind FROM loop_runs
 WHERE workspace_id = ?1
   AND loop_name = ?2
+  AND historical = 0
   AND status IN ('queued', 'running', 'watching', 'needs-approval', 'paused')
 ORDER BY created_at ASC, id ASC
 LIMIT 1
@@ -62,6 +63,7 @@ func (q *Queries) FindActiveLoopRun(ctx context.Context, arg FindActiveLoopRunPa
 		&i.WorkspaceID,
 		&i.LoopName,
 		&i.Status,
+		&i.Historical,
 		&i.CompletionState,
 		&i.ForkedFromRunID,
 		&i.ForkedFromGeneration,
@@ -112,9 +114,10 @@ func (q *Queries) FindActiveLoopRun(ctx context.Context, arg FindActiveLoopRunPa
 }
 
 const findLiveSessionGoal = `-- name: FindLiveSessionGoal :one
-SELECT id, workspace_id, loop_name, status, completion_state, forked_from_run_id, forked_from_generation, generation, reattempt_strategy, last_progress_at, budget_tokens, budget_wall_sec, budget_on_exceeded, tokens_used, parent_loop_run_id, pause_requested, inputs_json, created_at, iteration_cap, started_by_kind, started_by_ref, started_origin_kind, started_origin_ref, started_at, definition_version, definition_digest, active_gate_id, active_human_criteria_json, budget_approval_seq, start_metadata_json, origin_kind, origin_session_id, goal_cleared_at, budget_version, goal_context_nudge_ratio, control_actor_kind, control_actor_id, control_requested_at, origin_creation_profile_ref, origin_policy_spec_digest, origin_creation_digest, network_spec_json, network_mode, network_channel, network_source, best_generation, best_score, cancel_requested, cancel_kind FROM loop_runs
+SELECT id, workspace_id, loop_name, status, historical, completion_state, forked_from_run_id, forked_from_generation, generation, reattempt_strategy, last_progress_at, budget_tokens, budget_wall_sec, budget_on_exceeded, tokens_used, parent_loop_run_id, pause_requested, inputs_json, created_at, iteration_cap, started_by_kind, started_by_ref, started_origin_kind, started_origin_ref, started_at, definition_version, definition_digest, active_gate_id, active_human_criteria_json, budget_approval_seq, start_metadata_json, origin_kind, origin_session_id, goal_cleared_at, budget_version, goal_context_nudge_ratio, control_actor_kind, control_actor_id, control_requested_at, origin_creation_profile_ref, origin_policy_spec_digest, origin_creation_digest, network_spec_json, network_mode, network_channel, network_source, best_generation, best_score, cancel_requested, cancel_kind FROM loop_runs
 WHERE workspace_id = ?1
   AND origin_kind = 'session'
+  AND historical = 0
   AND origin_session_id = ?2
   AND status IN ('queued', 'running', 'watching', 'needs-approval', 'paused')
 ORDER BY created_at DESC, id DESC
@@ -134,6 +137,7 @@ func (q *Queries) FindLiveSessionGoal(ctx context.Context, arg FindLiveSessionGo
 		&i.WorkspaceID,
 		&i.LoopName,
 		&i.Status,
+		&i.Historical,
 		&i.CompletionState,
 		&i.ForkedFromRunID,
 		&i.ForkedFromGeneration,
@@ -287,7 +291,7 @@ func (q *Queries) GetLoopConfig(ctx context.Context, arg GetLoopConfigParams) (G
 }
 
 const getLoopRun = `-- name: GetLoopRun :one
-SELECT id, workspace_id, loop_name, status, completion_state, forked_from_run_id, forked_from_generation, generation, reattempt_strategy, last_progress_at, budget_tokens, budget_wall_sec, budget_on_exceeded, tokens_used, parent_loop_run_id, pause_requested, inputs_json, created_at, iteration_cap, started_by_kind, started_by_ref, started_origin_kind, started_origin_ref, started_at, definition_version, definition_digest, active_gate_id, active_human_criteria_json, budget_approval_seq, start_metadata_json, origin_kind, origin_session_id, goal_cleared_at, budget_version, goal_context_nudge_ratio, control_actor_kind, control_actor_id, control_requested_at, origin_creation_profile_ref, origin_policy_spec_digest, origin_creation_digest, network_spec_json, network_mode, network_channel, network_source, best_generation, best_score, cancel_requested, cancel_kind FROM loop_runs WHERE workspace_id = ?1 AND id = ?2
+SELECT id, workspace_id, loop_name, status, historical, completion_state, forked_from_run_id, forked_from_generation, generation, reattempt_strategy, last_progress_at, budget_tokens, budget_wall_sec, budget_on_exceeded, tokens_used, parent_loop_run_id, pause_requested, inputs_json, created_at, iteration_cap, started_by_kind, started_by_ref, started_origin_kind, started_origin_ref, started_at, definition_version, definition_digest, active_gate_id, active_human_criteria_json, budget_approval_seq, start_metadata_json, origin_kind, origin_session_id, goal_cleared_at, budget_version, goal_context_nudge_ratio, control_actor_kind, control_actor_id, control_requested_at, origin_creation_profile_ref, origin_policy_spec_digest, origin_creation_digest, network_spec_json, network_mode, network_channel, network_source, best_generation, best_score, cancel_requested, cancel_kind FROM loop_runs WHERE workspace_id = ?1 AND id = ?2
 `
 
 type GetLoopRunParams struct {
@@ -303,6 +307,7 @@ func (q *Queries) GetLoopRun(ctx context.Context, arg GetLoopRunParams) (LoopRun
 		&i.WorkspaceID,
 		&i.LoopName,
 		&i.Status,
+		&i.Historical,
 		&i.CompletionState,
 		&i.ForkedFromRunID,
 		&i.ForkedFromGeneration,
@@ -353,7 +358,7 @@ func (q *Queries) GetLoopRun(ctx context.Context, arg GetLoopRunParams) (LoopRun
 }
 
 const getLoopRunByID = `-- name: GetLoopRunByID :one
-SELECT id, workspace_id, loop_name, status, completion_state, forked_from_run_id, forked_from_generation, generation, reattempt_strategy, last_progress_at, budget_tokens, budget_wall_sec, budget_on_exceeded, tokens_used, parent_loop_run_id, pause_requested, inputs_json, created_at, iteration_cap, started_by_kind, started_by_ref, started_origin_kind, started_origin_ref, started_at, definition_version, definition_digest, active_gate_id, active_human_criteria_json, budget_approval_seq, start_metadata_json, origin_kind, origin_session_id, goal_cleared_at, budget_version, goal_context_nudge_ratio, control_actor_kind, control_actor_id, control_requested_at, origin_creation_profile_ref, origin_policy_spec_digest, origin_creation_digest, network_spec_json, network_mode, network_channel, network_source, best_generation, best_score, cancel_requested, cancel_kind FROM loop_runs WHERE id = ?1
+SELECT id, workspace_id, loop_name, status, historical, completion_state, forked_from_run_id, forked_from_generation, generation, reattempt_strategy, last_progress_at, budget_tokens, budget_wall_sec, budget_on_exceeded, tokens_used, parent_loop_run_id, pause_requested, inputs_json, created_at, iteration_cap, started_by_kind, started_by_ref, started_origin_kind, started_origin_ref, started_at, definition_version, definition_digest, active_gate_id, active_human_criteria_json, budget_approval_seq, start_metadata_json, origin_kind, origin_session_id, goal_cleared_at, budget_version, goal_context_nudge_ratio, control_actor_kind, control_actor_id, control_requested_at, origin_creation_profile_ref, origin_policy_spec_digest, origin_creation_digest, network_spec_json, network_mode, network_channel, network_source, best_generation, best_score, cancel_requested, cancel_kind FROM loop_runs WHERE id = ?1
 `
 
 func (q *Queries) GetLoopRunByID(ctx context.Context, id string) (LoopRun, error) {
@@ -364,6 +369,7 @@ func (q *Queries) GetLoopRunByID(ctx context.Context, id string) (LoopRun, error
 		&i.WorkspaceID,
 		&i.LoopName,
 		&i.Status,
+		&i.Historical,
 		&i.CompletionState,
 		&i.ForkedFromRunID,
 		&i.ForkedFromGeneration,
@@ -488,7 +494,7 @@ func (q *Queries) InsertLoopConfigIfMissing(ctx context.Context, arg InsertLoopC
 
 const insertLoopRun = `-- name: InsertLoopRun :exec
 INSERT INTO loop_runs (
-  id, workspace_id, loop_name, status, generation, reattempt_strategy, created_at, started_at,
+  id, workspace_id, loop_name, status, historical, generation, reattempt_strategy, created_at, started_at,
   last_progress_at, definition_version, definition_digest, active_gate_id,
   active_human_criteria_json, budget_approval_seq, start_metadata_json,
   iteration_cap, budget_tokens, budget_wall_sec,
@@ -498,19 +504,19 @@ INSERT INTO loop_runs (
   origin_creation_profile_ref, origin_policy_spec_digest, origin_creation_digest,
   network_spec_json, network_mode, network_channel, network_source
 ) VALUES (
-  ?1, ?2, ?3, ?4,
-  ?5, ?6, ?7, ?8,
-  ?9, ?10, ?11,
-  ?12, ?13, ?14,
-  ?15, ?16,
-  ?17, ?18, ?19,
-  ?20, ?21, ?22,
-  ?23, ?24, ?25,
-  ?26, ?27, ?28,
-  ?29, ?30, ?31,
-  ?32, ?33,
-  ?34, ?35, ?36,
-  ?37
+  ?1, ?2, ?3, ?4, ?5,
+  ?6, ?7, ?8, ?9,
+  ?10, ?11, ?12,
+  ?13, ?14, ?15,
+  ?16, ?17,
+  ?18, ?19, ?20,
+  ?21, ?22, ?23,
+  ?24, ?25, ?26,
+  ?27, ?28, ?29,
+  ?30, ?31, ?32,
+  ?33, ?34,
+  ?35, ?36, ?37,
+  ?38
 )
 `
 
@@ -519,6 +525,7 @@ type InsertLoopRunParams struct {
 	WorkspaceID              string         `json:"workspace_id"`
 	LoopName                 string         `json:"loop_name"`
 	Status                   string         `json:"status"`
+	Historical               int64          `json:"historical"`
 	Generation               int64          `json:"generation"`
 	ReattemptStrategy        string         `json:"reattempt_strategy"`
 	CreatedAt                string         `json:"created_at"`
@@ -560,6 +567,7 @@ func (q *Queries) InsertLoopRun(ctx context.Context, arg InsertLoopRunParams) er
 		arg.WorkspaceID,
 		arg.LoopName,
 		arg.Status,
+		arg.Historical,
 		arg.Generation,
 		arg.ReattemptStrategy,
 		arg.CreatedAt,

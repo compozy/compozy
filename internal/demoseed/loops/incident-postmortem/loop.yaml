@@ -1,0 +1,97 @@
+apiVersion: compozy.loop/v1
+kind: Loop
+meta:
+  name: incident-postmortem
+  description: Drive an incident to a published postmortem where every follow-up carries a named owner.
+  catalog:
+    use_when: "An incident is resolved and the postmortem still needs owners on every follow-up."
+    keywords: [incident, postmortem, followups, owners]
+    category: Operations
+
+concurrency: forbid
+
+inputs:
+  incident_id:
+    type: string
+    required: true
+  author:
+    type: agent
+    default: product-lead
+
+contract:
+  goal: "Publish the postmortem for {{ .inputs.incident_id }} with an owner on every follow-up."
+  definition_of_done: >
+    The postmortem states impact, distinct causes, and follow-ups, and no follow-up is missing an
+    owner.
+  iteration_cap: 4
+  no_progress:
+    window: 2
+  budget:
+    tokens: 90000
+    wall_clock_sec: 2700
+    on_exceeded: escalate
+  terminal_states: [done, no-op, blocked, failed, exhausted, stalled]
+
+graph:
+  nodes:
+    - id: incident_input
+      class: source
+      kind: input
+      input_ref: incident_id
+
+    - id: write_postmortem
+      class: action
+      kind: goal
+      session:
+        mode: continuous
+      params:
+        agent: "{{ .inputs.author }}"
+        objective: |
+          Write the postmortem for incident {{ .inputs.incident_id }}. State the impact window,
+          separate the causes, and give every follow-up a named owner. Do not merge two causes
+          into one action item.
+        judge:
+          - id: owners_present
+            type: agent-judge
+            agent: "{{ .inputs.author }}"
+            rubric: >
+              Every follow-up in the postmortem names an owner, and the causes are listed
+              separately rather than merged.
+        max_turns: 6
+        output_schema:
+          type: object
+          required: [status, summary]
+          properties:
+            status:
+              enum: [completed, blocked]
+            summary:
+              type: string
+            follow_ups:
+              type: array
+
+    - id: confirm_publication
+      class: control
+      kind: ask
+      params:
+        prompt: "Publish this postmortem to the incident channel?"
+        expect:
+          type: object
+          required: [publish]
+          properties:
+            publish:
+              type: boolean
+        expires:
+          after: 24h
+
+  edges:
+    - from: incident_input
+      to: write_postmortem
+    - from: write_postmortem
+      to: confirm_publication
+
+start:
+  - kind: manual
+  - kind: cli
+  - kind: http
+  - kind: uds
+  - kind: native_tool

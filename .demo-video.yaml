@@ -18,14 +18,24 @@ locators:
   - web/src/systems/ # data-testid definitions per domain system
 
 state: |
-  Demos start from a clean desktop. Reset via HTTP API before capture:
+  For the populated Northstar Pay world, stop the daemon and seed the current Compozy home:
+  - First run: go run ./scripts/demo-seed --json
+  - Later runs: go run ./scripts/demo-seed --replace --json
+  - Start the app only after the command exits. Replace removes seed-owned state only and refuses
+    a workspace root without its ownership marker.
+  The seed includes two workspaces, sessions, tasks, Goal turns, a real Git worktree, memory,
+  Network, automation, observability, and read-only Loop history across all twelve run statuses.
+  Historical runs are recording context: they remain stable across daemon boot and cannot be
+  paused, resumed, approved, canceled, killed, or requeued.
+
+  For a clean desktop instead, reset via HTTP API before capture:
   - GET /api/sessions, then DELETE /api/workspaces/{workspace_id}/sessions/{id} for each.
   - Per workspace (GET /api/workspaces): GET /api/workspaces/{id}/window-manager, drop only
     windows with app == "session", PUT .../window-manager/layout with the filtered document,
     expected_revision from the snapshot, actor {kind: "demo", id: "recorder"}, origin "demo-video".
     Leave non-session windows untouched.
-  Seed richer states (agents, tasks, loops) through the same HTTP API; for a fully populated
-  demo home, the scripts/demo-seed Go tool (internal/demoseed) seeds one offline.
+  Seed any live, interactive run state through the public HTTP API after startup; the offline seed
+  deliberately does not impersonate a running coordinator.
 
 publish:
   pr:

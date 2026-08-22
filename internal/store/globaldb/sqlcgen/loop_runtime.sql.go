@@ -872,6 +872,7 @@ const listLoopRunsMissingActiveCoordinator = `-- name: ListLoopRunsMissingActive
 SELECT lr.id, lr.generation
 FROM loop_runs lr
 WHERE lr.status = 'running'
+  AND lr.historical = 0
   AND NOT EXISTS (
     SELECT 1 FROM task_runs tr
     WHERE tr.loop_run_id = lr.id AND tr.run_kind = 'coordinator'
@@ -912,6 +913,7 @@ const listQueuedLoopRunsReadyForPromotion = `-- name: ListQueuedLoopRunsReadyFor
 SELECT q.id, q.workspace_id, q.loop_name, q.generation
 FROM loop_runs q
 WHERE q.status = 'queued'
+  AND q.historical = 0
   AND NOT EXISTS (
     SELECT 1 FROM loop_runs active
     WHERE active.workspace_id = q.workspace_id AND active.loop_name = q.loop_name
@@ -1027,6 +1029,7 @@ SELECT q.id, q.workspace_id, q.loop_name, q.generation
 FROM loop_runs q
 WHERE q.workspace_id = ?1
   AND q.loop_name = ?2
+  AND q.historical = 0
   AND q.status = 'queued'
   AND NOT EXISTS (
     SELECT 1 FROM loop_runs active

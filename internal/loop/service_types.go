@@ -228,6 +228,7 @@ type Run struct {
 	BudgetOnExceeded      dsl.BudgetExceeded
 	TokensUsed            int64
 	ParentLoopRunID       RunID
+	Historical            bool
 	PauseRequested        bool
 	CancelRequested       bool
 	CancelKind            RunCancelKind

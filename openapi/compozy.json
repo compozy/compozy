@@ -239607,6 +239607,9 @@
                         "failed": {
                           "type": "integer"
                         },
+                        "historical": {
+                          "type": "integer"
+                        },
                         "live": {
                           "type": "integer"
                         },
@@ -239622,6 +239625,7 @@
                       },
                       "required": [
                         "failed",
+                        "historical",
                         "live",
                         "succeeded",
                         "terminal",
@@ -239741,6 +239745,9 @@
                           "generation": {
                             "format": "int64",
                             "type": "integer"
+                          },
+                          "historical": {
+                            "type": "boolean"
                           },
                           "id": {
                             "type": "string"
@@ -239985,6 +239992,7 @@
                           "definition_version",
                           "forks",
                           "generation",
+                          "historical",
                           "id",
                           "iteration_cap",
                           "last_progress_at",
@@ -243518,6 +243526,9 @@
                           "format": "int64",
                           "type": "integer"
                         },
+                        "historical": {
+                          "type": "boolean"
+                        },
                         "id": {
                           "type": "string"
                         },
@@ -243761,6 +243772,7 @@
                         "definition_version",
                         "forks",
                         "generation",
+                        "historical",
                         "id",
                         "iteration_cap",
                         "last_progress_at",
@@ -247304,6 +247316,9 @@
                           "format": "int64",
                           "type": "integer"
                         },
+                        "historical": {
+                          "type": "boolean"
+                        },
                         "id": {
                           "type": "string"
                         },
@@ -247547,6 +247562,7 @@
                         "definition_version",
                         "forks",
                         "generation",
+                        "historical",
                         "id",
                         "iteration_cap",
                         "last_progress_at",
@@ -277491,6 +277507,9 @@
                           "format": "int64",
                           "type": "integer"
                         },
+                        "historical": {
+                          "type": "boolean"
+                        },
                         "id": {
                           "type": "string"
                         },
@@ -277734,6 +277753,7 @@
                         "definition_version",
                         "forks",
                         "generation",
+                        "historical",
                         "id",
                         "iteration_cap",
                         "last_progress_at",
@@ -279532,6 +279552,9 @@
                           "format": "int64",
                           "type": "integer"
                         },
+                        "historical": {
+                          "type": "boolean"
+                        },
                         "id": {
                           "type": "string"
                         },
@@ -279775,6 +279798,7 @@
                         "definition_version",
                         "forks",
                         "generation",
+                        "historical",
                         "id",
                         "iteration_cap",
                         "last_progress_at",
