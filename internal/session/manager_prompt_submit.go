@@ -212,7 +212,6 @@ func (m *Manager) submitPromptInReservedSlot(
 		executionCtx: ctx,
 		request:      clonePromptRecoveryRequest(recoveryRequest),
 	}
-	recoveryRequest.Message = promptWithResumeReplay(replayBlock, recoveryRequest.Message)
 	source, err := m.driver.Prompt(ctx, proc, recoveryRequest)
 	if err != nil {
 		delivery.cancel()

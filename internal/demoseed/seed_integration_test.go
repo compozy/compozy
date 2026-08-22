@@ -37,6 +37,9 @@ func TestSeed(t *testing.T) {
 
 		clock := newTimeline(time.Date(2026, 7, 27, 8, 0, 0, 0, time.UTC))
 		hooks := hookDispatchSummaries(clock)
+		if len(hooks) < 2 {
+			t.Fatalf("hookDispatchSummaries() returned %d hooks, want at least 2", len(hooks))
+		}
 		for index := 1; index < len(hooks); index++ {
 			if !hooks[index-1].At.Before(hooks[index].At) {
 				t.Fatalf("hook timestamps[%d:%d] = %s then %s, want strict order",
